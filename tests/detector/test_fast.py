@@ -4,6 +4,7 @@ Authors: Ayush Baid
 """
 
 from tests.detector.test_detector_base import TestDetectorBase
+
 from frontend.detector.fast import Fast
 
 
