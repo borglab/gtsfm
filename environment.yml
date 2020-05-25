@@ -1,0 +1,14 @@
+name: gtsfm
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - autopep8
+  - pylint
+  - numpy
+  - dask
+  - pip:
+    - opencv-contrib-python==3.4.8.29
+    - opencv-python==3.4.8.29
+
+
