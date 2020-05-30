@@ -98,7 +98,7 @@ class TestDetectorBase(unittest.TestCase):
                          "Dask workflow does not return the same number of results"
                          )
 
-        # check the
+        # check the results via normal workflow and dask workflow for an image
         normal_features = self.detector.detect(self.loader.get_image(0))
         dask_features = results[0]
         np.testing.assert_allclose(normal_features, dask_features)
