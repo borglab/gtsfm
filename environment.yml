@@ -3,10 +3,13 @@ channels:
   - conda-forge
   - defaults
 dependencies:
+  - python=3.7
   - autopep8
   - pylint
+  - pytype
   - numpy
   - dask
+  - pytest
   - pip:
     - opencv-contrib-python==3.4.8.29
     - opencv-python==3.4.8.29
