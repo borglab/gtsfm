@@ -3,13 +3,17 @@
 Authors: Ayush Baid
 """
 
-from tests.detector.test_detector_base import TestDetectorBase
+import tests.detector.test_detector_base as test_detector_base
 
 from frontend.detector.fast import Fast
 
 
-class TestFast(TestDetectorBase):
-    """test class for FAST detector class in frontend"""
+class TestFast(test_detector_base.TestDetectorBase):
+    """Test class for FAST detector class in frontend
+
+    Note: importing class in this way prevents duplicate runs of the test in the base class
+    """
 
     def setUp(self):
+        super().setUp()
         self.detector = Fast()

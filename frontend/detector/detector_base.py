@@ -10,27 +10,16 @@ from typing import List
 import dask
 import numpy as np
 
+from common.image import Image
 
-class DetectorBase:
+
+class DetectorBase(metaclass=abc.ABCMeta):
     """
     Base class for all the feature detectors
     """
 
-    def create_computation_graph(self, loader_graph) -> List:
-        """
-        Generates the computation graph for all the entried in the supplied dataset
-
-        Args:
-            loader_graph [(type)]: computation graph from loader
-
-        Returns:
-            List: delayed dask elements
-        """
-        # TODO(ayush): check is this is the right thing to do
-        return [dask.delayed(self.detect)(x) for x in loader_graph]
-
     @abc.abstractmethod
-    def detect(self, image: np.array) -> np.array:
+    def detect(self, image: Image) -> np.ndarray:
         """
         Detect the features in an image
 
@@ -46,8 +35,20 @@ class DetectorBase:
         4. If applicable, the keypoints should be sorted in decreasing order of score/confidence
 
         Arguments:
-            image (np.array): the input RGB image as a 3D numpy array
+            image (Image): the input RGB image as a 3D numpy array
 
         Returns:
-            features (np.array): detected features as a numpy array
+            features (np.ndarray[float]): detected features as a numpy array
         """
+
+    def create_computation_graph(self, loader_graph: List) -> List:
+        """
+        Generates the computation graph for all the entried in the supplied dataset
+
+        Args:
+            loader_graph (List): computation graph from loader
+
+        Returns:
+            List: delayed dask elements
+        """
+        return [dask.delayed(self.detect)(x) for x in loader_graph]
