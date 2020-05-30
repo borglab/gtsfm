@@ -7,24 +7,17 @@ import abc
 from typing import List
 
 import dask
-import numpy as np
+
+from common.image import Image
 
 
-class LoaderBase:
-    """Base class for Loaders."""
+class LoaderBase(metaclass=abc.ABCMeta):
+    """Base class for Loaders.
 
-    @abc.abstractmethod
-    def get_image(self, index: int) -> np.array:
-        """
-        Get the image at the given index
+    The loader provides APIs to get an image, either directly or as a dask delayed task
+    """
 
-        Args:
-            index (int): the index to fetch
-
-        Returns:
-            np.array: image
-        """
-
+    # ignored-abstractmethod
     @abc.abstractmethod
     def __len__(self) -> int:
         """
@@ -34,25 +27,39 @@ class LoaderBase:
             int: the number of images
         """
 
-    def create_computation_graph_single(self, index: int):
+    # ignored-abstractmethod
+    @abc.abstractmethod
+    def get_image(self, index: int) -> Image:
         """
-        Creates the computation graph for a single image fetch
+        Get the image at the given index
+
+        Args:
+            index (int): the index to fetch
+
+        Returns:
+            Image: the image at the query index
+        """
+
+    def delayed_get_image(self, index: int) -> dask.delayed:
+        """
+        Wraps the get_image evaluation in a dask.delayed
 
         Args:
             index (int): the image index
 
         Returns:
-            [type]: [description]
+            dask.delayed: the get_image function for the given index wrapped in dask.delayed
         """
+        # TODO(ayush): is it the correct return type
 
         return dask.delayed(self.get_image)(index)
 
-    def create_computation_graph_all(self) -> List:
+    def create_computation_graph(self) -> List:
         """
-        Creates the computation graph for all image fetch
+        Creates the computation graph for all image fetches
 
         Returns:
-            [type]: [description]
+           List: list of dask's Delayed object
         """
 
-        return [dask.delayed(self.get_image)(x) for x in range(self.__len__())]
+        return [self.delayed_get_image(x) for x in range(self.__len__())]

@@ -7,7 +7,7 @@ import cv2 as cv
 import numpy as np
 
 
-def rgb_to_gray_cv(image: np.array) -> np.array:
+def rgb_to_gray_cv(image: np.ndarray) -> np.ndarray:
     """
     RGB to Grayscale converion using opencv
 
