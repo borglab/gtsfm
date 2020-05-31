@@ -1,5 +1,6 @@
 name: gtsfm
 channels:
+  - menpo
   - conda-forge
   - defaults
 dependencies:
@@ -10,8 +11,6 @@ dependencies:
   - numpy
   - dask
   - pytest
-  - pip:
-    - opencv-contrib-python==3.4.8.29
-    - opencv-python==3.4.8.29
+  - opencv=3.4.2
 
 
