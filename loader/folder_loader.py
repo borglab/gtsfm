@@ -55,4 +55,7 @@ class FolderLoader(LoaderBase):
         Returns:
             Image: the image at the query index
         """
+        if index < 0 or index > self.__len__():
+            raise IndexError("Image index is invalid")
+
         return io_utils.load_image(self.file_names[index])
