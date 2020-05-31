@@ -3,7 +3,7 @@
 Authors: Ayush Baid
 """
 
-import tests.detector.test_detector_base as test_detector_base
+import tests.frontend.detector.test_detector_base as test_detector_base
 
 from frontend.detector.fast import Fast
 
