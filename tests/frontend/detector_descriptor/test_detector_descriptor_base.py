@@ -1,0 +1,109 @@
+"""
+Tests for frontend's base detector-descriptor class.
+
+Authors: Ayush Baid
+"""
+import dask
+import numpy as np
+import tests.frontend.detector.test_detector_base as test_detector_base
+
+from common.image import Image
+from frontend.descriptor.dummy_descriptor import DummyDescriptor
+from frontend.detector.detector_base import DetectorBase
+from frontend.detector.dummy_detector import DummyDetector
+from frontend.detector_descriptor.combination_detector_descriptor import \
+    CombinationDetectorDescriptor
+from frontend.detector_descriptor.detector_descriptor_base import \
+    DetectorDescriptorBase
+
+
+class DetectorWrapper(DetectorBase):
+    """
+    A wrapper class to just expose the Detector component of DetectorDescriptor.
+    """
+
+    def __init__(self, detector_descriptor: DetectorDescriptorBase):
+        """
+        Initialize a Detector from a joint detector descriptor.
+
+        Args:
+            detector_descriptor (DetectorDescriptorBase): the joint detector descriptor
+        """
+        self.detector_descriptor = detector_descriptor
+
+    def detect(self, image: Image) -> np.ndarray:
+        """
+        Detect the features on the input image.
+
+        Refer to documentation in DetectorBase for more details
+
+        Args:
+            image (Image): input image
+
+        Returns:
+            np.ndarray: detected features
+        """
+        features, _ = self.detector_descriptor.detect_and_describe(image)
+
+        return features
+
+
+class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
+    """
+    Main test class for detector-description combination base class in frontend.
+
+    We re-use detector specific test cases from TestDetectorBase
+    """
+
+    def setUp(self):
+        """
+        Setup the attributes for the tests.
+        """
+        super().setUp()
+        self.detector_descriptor = CombinationDetectorDescriptor(
+            DummyDetector(),
+            DummyDescriptor()
+        )
+
+        self.detector = DetectorWrapper(self.detector_descriptor)
+
+    def test_detect_and_describe_shape(self):
+        """
+        Tests that the number of features and descriptors are the same.
+        """
+
+        # test on random indexes
+        test_indices = [0, 5]
+        for idx in test_indices:
+            features, descriptors = self.detector_descriptor.detect_and_describe(
+                self.loader.get_image(idx))
+
+            if features.size == 0:
+                # test-case for empty results
+                self.assertEqual(0, descriptors.size)
+            else:
+                # number of descriptors and features should be equal
+                self.assertEqual(features.shape[0], descriptors.shape[0])
+
+    def test_computation_graph(self):
+        """
+        Test the dask's computation graph formation using a single image.
+        """
+
+        loader_graph = self.loader.create_computation_graph()
+        detector_graph = self.detector_descriptor.create_computation_graph(
+            loader_graph)
+        results = dask.compute(detector_graph)[0]
+
+        # check the number of results
+        self.assertEqual(len(results), len(self.loader),
+                         "Dask workflow does not return the same number of results"
+                         )
+
+        # check the results via normal workflow and dask workflow for an image
+        normal_features, normal_descriptors = self.detector_descriptor.detect_and_describe(
+            self.loader.get_image(0))
+        dask_features, dask_descriptors = results[0]
+
+        np.testing.assert_allclose(normal_features, dask_features)
+        np.testing.assert_allclose(normal_descriptors, dask_descriptors)
