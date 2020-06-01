@@ -28,3 +28,20 @@ def convert_to_opencv_keypoints(features: np.ndarray) -> List[cv.KeyPoint]:
         keypoints = [cv.KeyPoint(x=f[0], y=f[1], _size=f[2]) for f in features]
 
     return keypoints
+
+
+def convert_from_opencv_keypoints(keypoints: List[cv.KeyPoint]) -> np.ndarray:
+    """
+    Converts the cv keypoints to a numpy array, the standard feature representation in GTSFM
+
+    Args:
+        keypoints (List[cv.KeyPoint]): keypoints representation of the given features
+
+    Returns:
+        np.ndarray: features
+    """
+
+    feat_list = [[kp.pt[0], kp.pt[1], kp.size, kp.response]
+                 for kp in keypoints]
+
+    return np.array(feat_list, dtype=np.float32)
