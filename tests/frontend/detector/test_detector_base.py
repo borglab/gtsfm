@@ -46,6 +46,15 @@ class TestDetectorBase(unittest.TestCase):
 
         np.testing.assert_array_equal(features[:, 2] >= 0, True)
 
+    def test_num_columns(self):
+        """
+        Tests the number of columns in the features are >=2
+        """
+        features = self.detector.detect(self.loader.get_image(0))
+
+        if features.size > 0:
+            self.assertLessEqual(2, features.shape[1])
+
     def test_computation_graph(self):
         """
         Test the dask's computation graph formation using a single image
