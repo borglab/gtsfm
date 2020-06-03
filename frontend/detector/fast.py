@@ -6,6 +6,7 @@ Authors: Ayush Baid
 import cv2 as cv
 import numpy as np
 
+import utils.feature_utils as feature_utils
 import utils.image_utils as image_utils
 from common.image import Image
 from frontend.detector.detector_base import DetectorBase
@@ -32,7 +33,6 @@ class Fast(DetectorBase):
             cv_keypoints, key=lambda x: x.response, reverse=True)
 
         # convert to numpy array
-        features = np.array([[kp.pt[0], kp.pt[1], kp.size, kp.response]
-                             for kp in cv_keypoints])
+        features = feature_utils.convert_from_opencv_keypoints(cv_keypoints)
 
         return features
