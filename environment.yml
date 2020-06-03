@@ -8,6 +8,7 @@ dependencies:
   - autopep8
   - pylint
   - pytype
+  - coverage
   - numpy
   - dask
   - pytest
