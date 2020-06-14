@@ -31,7 +31,7 @@ class TestDescriptorBase(unittest.TestCase):
         """
         input_image = self.loader.get_image(0)
         input_features = np.random.randint(
-            low=[0, 0], high=input_image.get_shape(), size=(5, 2)
+            low=[0, 0], high=input_image.shape(), size=(5, 2)
         )
 
         result = self.descriptor.describe(input_image, input_features)
@@ -58,7 +58,7 @@ class TestDescriptorBase(unittest.TestCase):
         test_indices = [0, 5]
         test_images = [self.loader.get_image(idx) for idx in test_indices]
         test_features = [np.random.randint(
-            low=[0, 0], high=x.get_shape(), size=(np.random.randint(5, 10), 2)
+            low=[0, 0], high=x.shape(), size=(np.random.randint(5, 10), 2)
         ) for x in test_images]
 
         description_graph = self.descriptor.create_computation_graph(

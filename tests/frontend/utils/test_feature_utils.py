@@ -5,7 +5,7 @@ import unittest
 
 import numpy as np
 
-import utils.feature_utils as feature_utils
+import frontend.utils.feature_utils as feature_utils
 
 
 class TestFeatureUtils(unittest.TestCase):

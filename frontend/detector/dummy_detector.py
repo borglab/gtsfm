@@ -14,20 +14,30 @@ class DummyDetector(DetectorBase):
     A dummy detector which returns random features
     """
 
-    def detect(self, image: Image):
-        num_features = 6
-
+    def detect(self, image: Image) -> np.ndarray:
         """
+        Detect the features in an image
+
+        Refer to the documentation in DetectorBase for more details.
+
         Fill in the columns with random coordinates, scale and optional extra columns
 
         Constraints:
         1. Coordinates must within the image
         2. scale must be non-negative
+
+        Arguments:
+            image (Image): the input RGB image as a 3D numpy array
+
+        Returns:
+            np.ndarray: detected features as a numpy array
         """
+
         np.random.seed(
             int(1000*np.sum(image.image_array, axis=None) % (2 ^ 32))
         )
 
+        num_features = np.random.randint(0, high=15, size=(1)).item()
         num_columns = 4
 
         features = np.empty((num_features, num_columns))

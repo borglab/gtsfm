@@ -28,7 +28,7 @@ class TestFolderLoader(unittest.TestCase):
 
     def test_len(self):
         """
-        Test the number of entried in the loader.
+        Test the number of entries in the loader.
         """
 
         self.assertEqual(29, len(self.loader))

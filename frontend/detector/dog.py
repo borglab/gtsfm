@@ -1,5 +1,5 @@
 """
-Fast Dectector
+DoG Dectector
 
 Authors: Ayush Baid
 """
@@ -12,16 +12,16 @@ from common.image import Image
 from frontend.detector.detector_base import DetectorBase
 
 
-class Fast(DetectorBase):
+class DoG(DetectorBase):
     """
-    Fast detector using opencv's implementation
+    DoG detector using opencv's implementation
     """
 
     def __init__(self):
         super().__init__()
 
         # init the opencv object
-        self.opencv_obj = cv.FastFeatureDetector_create()
+        self.opencv_obj = cv.xfeatures2d.SIFT_create()
 
     def detect(self, image: Image) -> np.ndarray:
         """

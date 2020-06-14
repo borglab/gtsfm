@@ -35,14 +35,17 @@ class DescriptorBase(metaclass=abc.ABCMeta):
             np.ndarray: the descriptors for the input features
         """
 
-    def create_computation_graph(self, loader_graph: List, detection_graph: List) -> List:
+    def create_computation_graph(self,
+                                 loader_graph: List[dask.delayed],
+                                 detection_graph: List[dask.delayed]) -> List[dask.delayed]:
         """
-        Generates the computation graph for all the entried in the supplied dataset
+        Generates the computation graph to perform description for all the entries in the supplied dataset
 
         Args:
-            loader_graph (List): computation graph from loader
-            detection_graph (List): computation graph from detector
+            loader_graph (List[dask.delayed]): computation graph from loader
+            detection_graph (List[dask.delayed]): computation graph from detector
+
         Returns:
-            List: delayed dask elements
+            List[dask.delayed]: delayed dask elements
         """
         return [dask.delayed(self.describe)(im, feat) for im, feat in zip(loader_graph, detection_graph)]

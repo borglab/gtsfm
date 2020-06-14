@@ -17,11 +17,11 @@ class Image:
         self.image_array = image_array
         self.exif_data = exif_data
 
-    def get_shape(self) -> Tuple[int]:
+    def shape(self) -> Tuple[int]:
         """
         Returns the shape of the image as a list
 
         Returns:
-            List[int]: the shape in the format [horizontal length (W), vertical length (H)]
+            List[int]: shape in the format [horizontal length (W), vertical length (H)]
         """
         return self.image_array.shape[1::-1]

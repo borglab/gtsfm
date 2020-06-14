@@ -7,45 +7,12 @@ import dask
 import numpy as np
 import tests.frontend.detector.test_detector_base as test_detector_base
 
-from common.image import Image
 from frontend.descriptor.dummy_descriptor import DummyDescriptor
-from frontend.detector.detector_base import DetectorBase
+from frontend.detector.detector_from_joint_detector_descriptor import \
+    DetectorFromDetectorDescriptor
 from frontend.detector.dummy_detector import DummyDetector
 from frontend.detector_descriptor.combination_detector_descriptor import \
     CombinationDetectorDescriptor
-from frontend.detector_descriptor.detector_descriptor_base import \
-    DetectorDescriptorBase
-
-
-class DetectorWrapper(DetectorBase):
-    """
-    A wrapper class to just expose the Detector component of DetectorDescriptor.
-    """
-
-    def __init__(self, detector_descriptor: DetectorDescriptorBase):
-        """
-        Initialize a Detector from a joint detector descriptor.
-
-        Args:
-            detector_descriptor (DetectorDescriptorBase): the joint detector descriptor
-        """
-        self.detector_descriptor = detector_descriptor
-
-    def detect(self, image: Image) -> np.ndarray:
-        """
-        Detect the features on the input image.
-
-        Refer to documentation in DetectorBase for more details
-
-        Args:
-            image (Image): input image
-
-        Returns:
-            np.ndarray: detected features
-        """
-        features, _ = self.detector_descriptor.detect_and_describe(image)
-
-        return features
 
 
 class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
@@ -65,7 +32,8 @@ class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
             DummyDescriptor()
         )
 
-        self.detector = DetectorWrapper(self.detector_descriptor)
+        self.detector = DetectorFromDetectorDescriptor(
+            self.detector_descriptor)
 
     def test_detect_and_describe_shape(self):
         """

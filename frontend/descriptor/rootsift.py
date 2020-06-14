@@ -6,7 +6,7 @@ Authors: Ayush Baid
 import cv2 as cv
 import numpy as np
 
-import utils.feature_utils as feature_utils
+import frontend.utils.feature_utils as feature_utils
 import utils.image_utils as image_utils
 from common.image import Image
 from frontend.descriptor.descriptor_base import DescriptorBase
