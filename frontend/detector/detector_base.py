@@ -41,7 +41,7 @@ class DetectorBase(metaclass=abc.ABCMeta):
 
     def create_computation_graph(self, loader_graph: List[dask.delayed]) -> List[dask.delayed]:
         """
-        Generates the computation graph for all the entried in the supplied dataset.
+        Generates the computation graph for all the entries in the supplied dataset.
 
         Args:
             loader_graph (List[dask.delayed]): computation graph from loader
