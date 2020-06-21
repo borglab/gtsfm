@@ -6,18 +6,20 @@ The front end accepts input images and produces geometrically verified feature p
 
 # Organization
 
-+-- `detector`
-|   +-- `detector_base.py` (```DetectorBase```)
-|   +-- `detector_from_joint_detector_descriptor`
-+-- `descriptor`
-|   +-- `descriptor_base.py` (```DescriptorBase```)
-+-- `detector_descriptor`
-|   +-- `detector_descriptor_base.py` (```DetectorDescriptorBase```)
-|   +-- `combination_detector_descriptor.py`
-+-- `matcher`
-|   +-- `matcher_base.py` (```MatcherBase```)
-+-- `verifier`
-|   +-- `verified_base.py` (```VerifierBase```)
+
++-- `detector`<br>
+|      +-- `detector_base.py` (```DetectorBase```)<br>
+|      +-- `detector_from_joint_detector_descriptor`<br>
++-- `descriptor`<br>
+|      +-- `descriptor_base.py` (```DescriptorBase```)<br>
++-- `detector_descriptor`<br>
+|      +-- `detector_descriptor_base.py` (```DetectorDescriptorBase```)<br>
+|      +-- `combination_detector_descriptor.py`<br>
++-- `matcher`<br>
+|      +-- `matcher_base.py` (```MatcherBase```)<br>
++-- `verifier`<br>
+|      +-- `verified_base.py` (`VerifierBase`)<br>
+
 
 ## Detector+Descriptor 
 Produces feature points (detection) and their associated descriptor vectors for an input image
