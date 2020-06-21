@@ -1,5 +1,11 @@
 """
-DoG Dectector
+Difference-of-Gaussian detector implementation.
+
+The detector was proposed in 'Distinctive Image Features from Scale-Invariant Keypoints' and is implemented by wrapping over OpenCV's API
+
+References:
+- https://www.cs.ubc.ca/~lowe/papers/ijcv04.pdf
+- https://docs.opencv.org/3.4.2/d5/d3c/classcv_1_1xfeatures2d_1_1SIFT.html
 
 Authors: Ayush Baid
 """
@@ -13,9 +19,7 @@ from frontend.detector.detector_base import DetectorBase
 
 
 class DoG(DetectorBase):
-    """
-    DoG detector using opencv's implementation
-    """
+    """DoG detector using opencv's implementation."""
 
     def __init__(self):
         super().__init__()
@@ -25,7 +29,7 @@ class DoG(DetectorBase):
 
     def detect(self, image: Image) -> np.ndarray:
         """
-        Detect the features in an image
+        Detect the features in an image.
 
         Refer to the documentation in DetectorBase for more details
 
@@ -44,6 +48,6 @@ class DoG(DetectorBase):
             cv_keypoints, key=lambda x: x.response, reverse=True)
 
         # convert to numpy array
-        features = feature_utils.convert_from_opencv_keypoints(cv_keypoints)
+        features = feature_utils.array_of_keypoints(cv_keypoints)
 
         return features

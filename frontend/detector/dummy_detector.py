@@ -1,5 +1,5 @@
 """
-Defining a dummy detector which is to be used in testing.
+A dummy detector which is to be used in testing.
 
 Authors: Ayush Baid
 """
@@ -10,13 +10,11 @@ from frontend.detector.detector_base import DetectorBase
 
 
 class DummyDetector(DetectorBase):
-    """
-    A dummy detector which returns random features
-    """
+    """Assigns random features to an input image."""
 
     def detect(self, image: Image) -> np.ndarray:
         """
-        Detect the features in an image
+        Detect the features in an image.
 
         Refer to the documentation in DetectorBase for more details.
 

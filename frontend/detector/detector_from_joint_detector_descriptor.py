@@ -1,9 +1,8 @@
 """
-A wrapper over joint detector-descriptors so that we can just use it as a descriptor.
+A wrapper over joint detector-descriptors to convert it to a detector.
 
 Authors: Ayush Baid
 """
-
 import numpy as np
 
 from common.image import Image
@@ -14,7 +13,9 @@ from frontend.detector_descriptor.detector_descriptor_base import \
 
 class DetectorFromDetectorDescriptor(DetectorBase):
     """
-    A wrapper class to just expose the Detector component of DetectorDescriptor.
+    A wrapper class to just expose the Detector component of DetectorDescriptor. 
+
+    Performs the joint detection and description but returns only the features.
     """
 
     def __init__(self, detector_descriptor: DetectorDescriptorBase):

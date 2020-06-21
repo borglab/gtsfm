@@ -36,14 +36,14 @@ class DetectorDescriptorBase(metaclass=abc.ABCMeta):
                                            descriptions as two numpy arrays
         """
 
-    def create_computation_graph(self, loader_graph: List) -> List:
+    def create_computation_graph(self, loader_graph: List[dask.delayed]) -> List[dask.delayed]:
         """
         Generates the computation graph for all the entried in the supplied dataset.
 
         Args:
-            loader_graph (List): computation graph from loader
+            loader_graph (List[dask.delayed]): computation graph from loader
 
         Returns:
-            List: delayed dask elements for detectAndDescribe()
+            List: delayed dask elements for detect_and_describe()
         """
         return [dask.delayed(self.detect_and_describe)(x) for x in loader_graph]

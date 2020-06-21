@@ -18,6 +18,7 @@ TEST_DATA_PATH = 'tests/data/lund'
 class TestDescriptorBase(unittest.TestCase):
     """
     Unit tests for the Base descriptor class.
+
     Should be inherited by all descriptor unit tests.
     """
 
@@ -26,12 +27,11 @@ class TestDescriptorBase(unittest.TestCase):
         self.loader = FolderLoader(TEST_DATA_PATH)
 
     def test_result_size(self):
-        """
-        Check if the number of descriptors are same as number of features
-        """
+        """Check if the number of descriptors are same as number of features."""
+
         input_image = self.loader.get_image(0)
         input_features = np.random.randint(
-            low=[0, 0], high=input_image.shape(), size=(5, 2)
+            low=[0, 0], high=input_image.shape, size=(5, 2)
         )
 
         result = self.descriptor.describe(input_image, input_features)
@@ -39,9 +39,7 @@ class TestDescriptorBase(unittest.TestCase):
         self.assertEqual(input_features.shape[0], result.shape[0])
 
     def test_no_features(self):
-        """
-        Checks that empty feature inputs works well
-        """
+        """Checks that empty feature inputs works well."""
         input_image = self.loader.get_image(0)
         input_features = np.array([])
 
@@ -50,15 +48,13 @@ class TestDescriptorBase(unittest.TestCase):
         self.assertEqual(0, result.size)
 
     def test_create_computation_graph(self):
-        """
-        Checks the dask computation graph
-        """
+        """Checks the dask computation graph."""
 
         # testing some indices
         test_indices = [0, 5]
         test_images = [self.loader.get_image(idx) for idx in test_indices]
         test_features = [np.random.randint(
-            low=[0, 0], high=x.shape(), size=(np.random.randint(5, 10), 2)
+            low=[0, 0], high=x.shape, size=(np.random.randint(5, 10), 2)
         ) for x in test_images]
 
         description_graph = self.descriptor.create_computation_graph(

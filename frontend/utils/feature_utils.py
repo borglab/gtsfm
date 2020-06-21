@@ -9,7 +9,7 @@ import cv2 as cv
 import numpy as np
 
 
-def convert_to_opencv_keypoints(features: np.ndarray) -> List[cv.KeyPoint]:
+def keypoints_of_array(features: np.ndarray) -> List[cv.KeyPoint]:
     """
     Converts the features from numpy array to cv keypoints.
 
@@ -30,7 +30,7 @@ def convert_to_opencv_keypoints(features: np.ndarray) -> List[cv.KeyPoint]:
     return keypoints
 
 
-def convert_from_opencv_keypoints(keypoints: List[cv.KeyPoint]) -> np.ndarray:
+def array_of_keypoints(keypoints: List[cv.KeyPoint]) -> np.ndarray:
     """
     Converts the cv keypoints to a numpy array, the standard feature representation in GTSFM
 

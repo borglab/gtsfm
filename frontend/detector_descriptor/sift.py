@@ -1,5 +1,11 @@
 """
-SIFT Detector-Descriptor
+SIFT Detector-Descriptor implementation.
+
+The detector was proposed in 'Distinctive Image Features from Scale-Invariant Keypoints' and is implemented by wrapping over OpenCV's API
+
+References:
+- https://www.cs.ubc.ca/~lowe/papers/ijcv04.pdf
+- https://docs.opencv.org/3.4.2/d5/d3c/classcv_1_1xfeatures2d_1_1SIFT.html
 
 Authors: Ayush Baid
 """
@@ -16,9 +22,7 @@ from frontend.detector_descriptor.detector_descriptor_base import \
 
 
 class SIFT(DetectorDescriptorBase):
-    """
-    SIFT detector descriptor using OpenCV's implementation
-    """
+    """SIFT detector-descriptor using OpenCV's implementation."""
 
     def __init__(self):
         super().__init__()
@@ -49,7 +53,7 @@ class SIFT(DetectorDescriptorBase):
             gray_image, None)
 
         # convert keypoints to features
-        features = feature_utils.convert_from_opencv_keypoints(cv_keypoints)
+        features = feature_utils.array_of_keypoints(cv_keypoints)
 
         # sort the features and descriptors by the score
         sort_idx = np.argsort(-features[:, 3])

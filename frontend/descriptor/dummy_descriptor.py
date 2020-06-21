@@ -1,5 +1,5 @@
 """
-Defining a dummy descriptor which is to be used in testing.
+A dummy descriptor which is to be used in testing.
 
 Authors: Ayush Baid
 """
@@ -11,7 +11,7 @@ from frontend.descriptor.descriptor_base import DescriptorBase
 
 class DummyDescriptor(DescriptorBase):
     """
-    A dummy descriptor which assigns random descriptor
+    Assigns random vectors as descriptors.
     """
 
     def __init__(self):

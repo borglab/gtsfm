@@ -1,5 +1,11 @@
 """
-RootSIFT Dectector
+RootSIFT descriptor implementation.
+
+This descriptor was proposed in 'Three things everyone should know to improve object retrieval' and is build upon OpenCV's SIFT descriptor.
+
+References: 
+- https://www.robots.ox.ac.uk/~vgg/publications/2012/Arandjelovic12/arandjelovic12.pdf
+- https://docs.opencv.org/3.4.2/d5/d3c/classcv_1_1xfeatures2d_1_1SIFT.html
 
 Authors: Ayush Baid
 """
@@ -43,7 +49,7 @@ class RootSIFT(DescriptorBase):
 
         # TODO(ayush): what to do about new set of keypoints
         _, sift_desc = self.opencv_obj.compute(
-            gray_image, feature_utils.convert_to_opencv_keypoints(features)
+            gray_image, feature_utils.keypoints_of_array(features)
         )
 
         # Step 1: L1 normalization

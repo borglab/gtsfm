@@ -1,5 +1,5 @@
 """ 
-Base class for the D (detector) stage of the frontend
+Base class for the Detection stage of the frontend.
 
 Authors: Ayush Baid
 """
@@ -14,14 +14,12 @@ from common.image import Image
 
 
 class DetectorBase(metaclass=abc.ABCMeta):
-    """
-    Base class for all the feature detectors
-    """
+    """Base class for all the feature detectors."""
 
     @abc.abstractmethod
     def detect(self, image: Image) -> np.ndarray:
         """
-        Detect the features in an image
+        Detect the features in an image.
 
         Coordinate system convention:
         1. The x coordinate denotes the horizontal dfirection (+ve direction towards the right)
@@ -41,14 +39,14 @@ class DetectorBase(metaclass=abc.ABCMeta):
             features (np.ndarray[float]): detected features as a numpy array
         """
 
-    def create_computation_graph(self, loader_graph: List) -> List:
+    def create_computation_graph(self, loader_graph: List[dask.delayed]) -> List[dask.delayed]:
         """
-        Generates the computation graph for all the entried in the supplied dataset
+        Generates the computation graph for all the entried in the supplied dataset.
 
         Args:
-            loader_graph (List): computation graph from loader
+            loader_graph (List[dask.delayed]): computation graph from loader
 
         Returns:
-            List: delayed dask elements
+            List[dask.delayed]: delayed dask elements
         """
         return [dask.delayed(self.detect)(x) for x in loader_graph]

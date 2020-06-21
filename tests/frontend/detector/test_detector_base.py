@@ -17,7 +17,7 @@ TEST_DATA_PATH = 'tests/data/lund'
 
 
 class TestDetectorBase(unittest.TestCase):
-    """Main test class for detector base class in frontend"""
+    """Main test class for detector base class in frontend."""
 
     def setUp(self):
         super().setUp()
@@ -25,9 +25,7 @@ class TestDetectorBase(unittest.TestCase):
         self.loader = FolderLoader(TEST_DATA_PATH)
 
     def test_coordinates(self):
-        """
-        Tests that each coordinate is within the image bounds
-        """
+        """Tests that each coordinate is within the image bounds."""
         test_image = self.loader.get_image(0)
         features = self.detector.detect(test_image)
 
@@ -39,26 +37,20 @@ class TestDetectorBase(unittest.TestCase):
         np.testing.assert_array_equal(features[:, 1] <= image_shape[0], True)
 
     def test_scale(self):
-        """
-        Tests that the scales are positive
-        """
+        """Tests that the scales are positive."""
         features = self.detector.detect(self.loader.get_image(0))
 
         np.testing.assert_array_equal(features[:, 2] >= 0, True)
 
     def test_num_columns(self):
-        """
-        Tests the number of columns in the features are >=2
-        """
+        """Tests the number of columns in the features are >=2."""
         features = self.detector.detect(self.loader.get_image(0))
 
         if features.size > 0:
             self.assertLessEqual(2, features.shape[1])
 
     def test_computation_graph(self):
-        """
-        Test the dask's computation graph formation using a single image
-        """
+        """Test the dask's computation graph formation using a single image."""
 
         loader_graph = self.loader.create_computation_graph()
         detector_graph = self.detector.create_computation_graph(loader_graph)

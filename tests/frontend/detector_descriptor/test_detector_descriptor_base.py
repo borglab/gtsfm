@@ -5,8 +5,8 @@ Authors: Ayush Baid
 """
 import dask
 import numpy as np
-import tests.frontend.detector.test_detector_base as test_detector_base
 
+import tests.frontend.detector.test_detector_base as test_detector_base
 from frontend.descriptor.dummy_descriptor import DummyDescriptor
 from frontend.detector.detector_from_joint_detector_descriptor import \
     DetectorFromDetectorDescriptor
@@ -23,15 +23,14 @@ class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
     """
 
     def setUp(self):
-        """
-        Setup the attributes for the tests.
-        """
+        """Setup the attributes for the tests."""
         super().setUp()
         self.detector_descriptor = CombinationDetectorDescriptor(
             DummyDetector(),
             DummyDescriptor()
         )
 
+        # explicitly set the detector
         self.detector = DetectorFromDetectorDescriptor(
             self.detector_descriptor)
 

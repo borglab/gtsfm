@@ -1,5 +1,5 @@
 """ 
-Creates a combination from the separate detector and descriptor.
+Joint detector-description combination from stand-alone detector and descriptor.
 
 Authors: Ayush Baid
 """
@@ -15,9 +15,7 @@ from frontend.detector_descriptor.detector_descriptor_base import \
 
 
 class CombinationDetectorDescriptor(DetectorDescriptorBase):
-    """
-    A wrapper for individual detection and description.
-    """
+    """A wrapper to combine stand-alone detection and description."""
 
     def __init__(self, detector: DetectorBase, descriptor: DescriptorBase):
         """
