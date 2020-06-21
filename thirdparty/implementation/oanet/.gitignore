@@ -1,0 +1,15 @@
+.DS_Store
+*.pyc
+__pycache__
+data_dump/
+model/
+log
+datasets
+*ply
+*pth
+*pkl
+*tar.gz
+*swp
+download_data_oanet_data/
+raw_data/
+*png

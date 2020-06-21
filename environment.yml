@@ -1,6 +1,7 @@
 name: gtsfm
 channels:
   - menpo
+  - pytorch
   - conda-forge
   - defaults
 dependencies:
@@ -12,6 +13,8 @@ dependencies:
   - numpy
   - dask
   - pytest
+  - pytorch
+  - cudatoolkit=10.2
   - opencv=3.4.2
 
 
