@@ -4,6 +4,7 @@ Tests for frontend's base verifier class.
 Authors: Ayush Baid
 """
 
+import pickle
 import random
 import unittest
 from typing import List, Tuple
@@ -138,6 +139,13 @@ class TestVerifierBase(unittest.TestCase):
                 for idx in range(len(normal_results)):
                     np.testing.assert_array_equal(
                         normal_results[idx], dask_results[idx])
+
+    def test_pickleable(self):
+        """Tests that the verifier object is pickleable (required for dask)."""
+        try:
+            pickle.dumps(self.verifier)
+        except TypeError:
+            self.fail("Cannot dump verifier using pickle")
 
     def __generate_random_features(self, num_features: int, image_shape: Tuple[int, int]) -> np.ndarray:
         """

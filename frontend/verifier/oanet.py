@@ -28,10 +28,10 @@ class OANetVerifier(VerifierBase):
     def __init__(self, is_cuda=True):
         super().__init__(min_pts=8)
 
-        self.is_cuda = is_cuda and torch.cuda.is_available()
-        self.device = torch.device("cuda" if self.is_cuda else "cpu")
+        is_cuda = is_cuda and torch.cuda.is_available()
+        self.device = torch.device("cuda" if is_cuda else "cpu")
 
-        self.model_path = os.path.abspath(os.path.join(
+        model_path = os.path.abspath(os.path.join(
             'thirdparty', 'models', 'oanet', 'gl3d', 'sift-4000', 'model_best.pth'))
 
         self.default_config = {}
@@ -42,15 +42,15 @@ class OANetVerifier(VerifierBase):
         self.default_config['use_mutual'] = 0  # not using mutual
         self.default_config['iter_num'] = 1
         self.default_config['inlier_threshold'] = 1
-        self.default_config_ = namedtuple("Config", self.default_config.keys())(
+        default_config_ = namedtuple('Config', self.default_config.keys())(
             *self.default_config.values())
 
-        self.model = OANet(self.default_config_, self.device)
+        self.model = OANet(default_config_, self.device)
 
-        checkpoint = torch.load(self.model_path, map_location=self.device)
+        checkpoint = torch.load(model_path, map_location=self.device)
         self.model.load_state_dict(checkpoint['state_dict'])
 
-        if self.is_cuda:
+        if is_cuda:
             self.model = self.model.cuda()
 
         self.model.eval()
