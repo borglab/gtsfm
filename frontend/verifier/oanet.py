@@ -18,7 +18,7 @@ import cv2 as cv
 import numpy as np
 import torch
 
-from frontend.verifier.base_verifier import VerifierBase
+from frontend.verifier.verifier_base import VerifierBase
 from thirdparty.implementation.oanet.core.oan import OANet
 
 

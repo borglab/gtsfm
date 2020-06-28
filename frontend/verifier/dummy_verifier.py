@@ -7,7 +7,7 @@ from typing import Tuple
 
 import numpy as np
 
-from frontend.verifier.base_verifier import VerifierBase
+from frontend.verifier.verifier_base import VerifierBase
 
 
 class DummyVerifier(VerifierBase):
