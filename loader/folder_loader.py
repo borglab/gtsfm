@@ -45,14 +45,21 @@ class FolderLoader(LoaderBase):
         """
         return len(self.file_names)
 
-    def get_image(self, index) -> Image:
+    def get_image(self, index: int) -> Image:
         """
         Get the image at the given index
 
         Args:
             index (int): the index to fetch
 
+        Raises:
+            IndexError: if an out-of-bounds image index is requested
+
         Returns:
             Image: the image at the query index
         """
+
+        if index < 0 or index > self.__len__():
+            raise IndexError("Image index is invalid")
+
         return io_utils.load_image(self.file_names[index])

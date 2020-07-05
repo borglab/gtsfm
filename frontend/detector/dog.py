@@ -1,11 +1,11 @@
 """
-FAST detector implementation.
+Difference-of-Gaussian detector implementation.
 
-The detector was proposed in 'Machine Learning for High-Speed Corner Detection' and is implemented by wrapping over OpenCV's API
+The detector was proposed in 'Distinctive Image Features from Scale-Invariant Keypoints' and is implemented by wrapping over OpenCV's API
 
 References:
-- https://link.springer.com/chapter/10.1007/11744023_34
-- https://docs.opencv.org/3.4.2/df/d74/classcv_1_1FastFeatureDetector.html
+- https://www.cs.ubc.ca/~lowe/papers/ijcv04.pdf
+- https://docs.opencv.org/3.4.2/d5/d3c/classcv_1_1xfeatures2d_1_1SIFT.html
 
 Authors: Ayush Baid
 """
@@ -18,20 +18,20 @@ from common.image import Image
 from frontend.detector.detector_base import DetectorBase
 
 
-class Fast(DetectorBase):
-    """Fast detector using opencv's implementation"""
+class DoG(DetectorBase):
+    """DoG detector using opencv's implementation."""
 
     def __init__(self):
         super().__init__()
 
         # init the opencv object
-        self.opencv_obj = cv.FastFeatureDetector_create()
+        self.opencv_obj = cv.xfeatures2d.SIFT_create()
 
     def detect(self, image: Image) -> np.ndarray:
         """
         Detect the features in an image.
 
-        Refer to the documentation in DetectorBase for more details.
+        Refer to the documentation in DetectorBase for more details
 
         Arguments:
             image (Image): the input RGB image as a 3D numpy array

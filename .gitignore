@@ -133,3 +133,9 @@ dmypy.json
 
 # PyType folder
 .pytype/
+
+# Dask workspace
+dask-worker-space/
+
+# Third party model code
+thirdparty/models/
