@@ -7,6 +7,7 @@ import abc
 from typing import List
 
 import dask
+import numpy as np
 
 from common.image import Image
 
@@ -38,6 +39,21 @@ class LoaderBase(metaclass=abc.ABCMeta):
 
         Returns:
             Image: the image at the query index
+        """
+
+    # ignored-abstractmethod
+    @abc.abstractmethod
+    def get_instrinsics(self, index: int) -> np.ndarray:
+        """
+        Get the instrinsics of the camera at a particular index.
+
+        The intrinsics can either be available/read from metadata/estimated.
+
+        Args:
+            index (int): the index to fetch
+
+        Returns:
+            np.ndarray: 3x3 instrinsic matrix
         """
 
     def delayed_get_image(self, index: int) -> dask.delayed:
