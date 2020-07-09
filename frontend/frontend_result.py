@@ -1,54 +1,67 @@
 """
-Class which holds the results for the front-end.
+Class to hold the result (fundamental matrices and detected feature points)
+between pairs of camera inputs.
+
+This class contains an optional getter for relative poses (fundamental matrix ->
+essential matrix -> relative pose) if camera instrinsics are provided.
 
 Authors: Ayush Baid
 """
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 
-import cv2 as cv
 import gtsam
 import numpy as np
 
-from loader.loader_base import LoaderBase
+import frontend.utils.frontend_utils as frontend_utils
 
 
 class FrontEndResult:
-    def __init__(self,
-                 loader: LoaderBase,
-                 fundamental_matrices: Dict[Tuple[int, int], np.ndarray],
-                 feature_points: Dict[Tuple[int, int],
-                                      Tuple[np.ndarray, np.ndarray]]
-                 ):
-        self.loader = loader
+    """
+    Class to hold F-matrix and matching feature points between pairs of camera
+    poses.
 
+    This class also exposes APIs based on these two inputs.
+    """
+
+    def __init__(self,
+                 fundamental_matrices: Dict[Tuple[int, int], np.ndarray],
+                 feature_points: Dict[Tuple[int, int], Tuple[np.ndarray, np.ndarray]]):
+        """
+        Initializes the result.
+
+        Args:
+            fundamental_matrices (Dict[Tuple[int, int], np.ndarray]): 
+                fundamental matrices between pairs of images with the tuple of image indices as the key.
+            feature_points (Dict[Tuple[int, int], Tuple[np.ndarray, np.ndarray]]): 
+                geometrically verified matching feature points between the two images. Note that the number of points
+                for any pair of images should be the same from both the images.
+        """
         self.fundamental_matrices = fundamental_matrices
         self.feature_points = feature_points
 
-        self.relative_poses = self.__relative_pose_from_fundamental_matrix()
+    def get_relative_poses(self,
+                           intrinsics: List[np.ndarray]
+                           ) -> Dict[Tuple[int, int], gtsam.Pose3]:
+        """
+        Compute relative poses between cameras using camera instrinsics.
 
-    def __relative_pose_from_fundamental_matrix(self) -> Dict[Tuple[int, int], gtsam.Pose3]:
+        Args:
+            intrinsics (List[np.ndarray]): calibration matrix for each matrix.
+
+        Returns:
+            Dict[Tuple[int, int], gtsam.Pose3]: relative pose between pairs of cameras.
+        """
 
         poses = dict()
 
         for (idx1, idx2), f_matrix in self.fundamental_matrices.items():
             # compute the essential matrix from the fundamental matrix
-            e_matrix = self.loader.get_instrinsics(
-                idx2).T @ f_matrix @ self.loader.get_instrinsics(idx1)
+            essential_mat = frontend_utils.essential_matrix_from_fundamental_matrix(
+                f_matrix, intrinsics[idx1], intrinsics[idx2])
 
-            # recover the pose using opencv
+            # recover the pose
             points1, points2 = self.feature_points[(idx1, idx2)]
-            _, R, t, _ = cv.recoverPose(
-                e_matrix, points1[:, :2], points2[:, :2])
-
-            # store the poses in a dictionary
-            poses[(idx1, idx2)] = gtsam.Pose3(
-                gtsam.Rot3(R), gtsam.Point3(t.flatten())
-            )
+            poses[(idx1, idx2)] = frontend_utils.decompose_essential_matrix(
+                essential_mat, points1, points2)
 
         return poses
-
-    def get_relative_rotations(self) -> Dict[Tuple[int, int], gtsam.Rot3]:
-        return {k: v.rotation() for k, v in self.relative_poses.items()}
-
-    def get_relative_translations(self) -> Dict[Tuple[int, int], gtsam.Point3]:
-        return {k: v.translation() for k, v in self.relative_poses.items()}

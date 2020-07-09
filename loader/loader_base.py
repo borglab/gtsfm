@@ -43,9 +43,9 @@ class LoaderBase(metaclass=abc.ABCMeta):
 
     # ignored-abstractmethod
     @abc.abstractmethod
-    def get_instrinsics(self, index: int) -> np.ndarray:
+    def get_instrinsic_matrix(self, index: int) -> np.ndarray:
         """
-        Get the instrinsics of the camera at a particular index.
+        Get the calibration matrix of the camera at a particular index.
 
         The intrinsics can either be available/read from metadata/estimated.
 

@@ -1,10 +1,12 @@
 """
-End-to-end pipeline for GTSFM    
+End-to-end pipeline for GTSFM.
+
+Authors: Ayush Baid
 """
 
 import gtsam
 
-from averaging.rotation.rotation_averaging_base import RotationAvergagingBase
+from averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from averaging.translation.translation_averaging_base import \
     TranslationAveragingBase
 from frontend.frontend_base import FrontEndBase
@@ -12,19 +14,39 @@ from loader.loader_base import LoaderBase
 
 
 class Pipeline:
-    def __init__(self, frontend: FrontEndBase, rotation_averaging: RotationAvergagingBase, translation_averaging: TranslationAveragingBase):
+    """End-to-end pipeline for GTSFM.."""
+
+    def __init__(self, frontend: FrontEndBase,
+                 rotation_averaging: RotationAveragingBase,
+                 translation_averaging: TranslationAveragingBase):
+        """
+        Initialize all the modules of GTSFM.
+
+        Args:
+            frontend (FrontEndBase): [description]
+            rotation_averaging (RotationAveragingBase): [description]
+            translation_averaging (TranslationAveragingBase): [description]
+        """
         self.frontend = frontend
         self.rotation_averaging = rotation_averaging
         self.translation_averaging = translation_averaging
 
     def run(self, loader: LoaderBase):
+        """Run the pipeline on a dataset.
+
+        Args:
+            loader (LoaderBase): loader for the dataset
+        """
         frontend_results = self.frontend.run(loader)
 
-        global_rotations = self.rotation_averaging.run(
-            frontend_results.get_relative_rotations())
+        camera_instrincs = [loader.get_instrinsic_matrix(
+            x) for x in range(len(loader))]
+        relative_poses = frontend_results.get_relative_poses(camera_instrincs)
 
-        global_translations = self.translation_averaging.run(
-            frontend_results.get_relative_translations(), global_rotations)
+        relative_rotations = [x.rotation() for x in relative_poses]
+        relative_translations = [x.rotation() for x in relative_poses]
 
-        global_poses = [gtsam.Pose3(R, t) for (R, t) in zip(
-            global_rotations, global_translations)]
+        global_rotations = self.rotation_averaging.run(relative_rotations)
+
+        global_poses = self.translation_averaging.run(
+            relative_translations, global_rotations)
