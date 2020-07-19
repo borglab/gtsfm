@@ -20,21 +20,28 @@ class DummyVerifier(VerifierBase):
                matched_features_im1: np.ndarray,
                matched_features_im2: np.ndarray,
                image_shape_im1: Tuple[int, int],
-               image_shape_im2: Tuple[int, int]) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Perform the geometric verification of the matched features.
+               image_shape_im2: Tuple[int, int],
+               camera_instrinsics_im1: np.ndarray = None,
+               camera_instrinsics_im2: np.ndarray = None) -> Tuple[np.ndarray, np.ndarray]:
+        """Perform the geometric verification of the matched features.
 
         Note:
-        1. The number of input features from image #1 are the same as the number from image #2
+        1. The number of input features from image #1 and image #2 are equal.
+        2. The function computes the fundamental matrix if intrinsics are not
+            provided. Otherwise, it computes the essential matrix.
 
         Args:
             matched_features_im1 (np.ndarray): matched features from image #1
             matched_features_im2 (np.ndarray): matched features from image #2
             image_shape_im1 (Tuple[int, int]): size of image #1
             image_shape_im2 (Tuple[int, int]): size of image #2
+            camera_instrinsics_im1 (np.ndarray, optional): Camera intrinsics
+                matrix for image #1. Defaults to None.
+            camera_instrinsics_im2 (np.ndarray, optional): Camera intrinsics
+                matris for image #2. Default to None
 
         Returns:
-            np.ndarray: estimated fundamental matrix
+            np.ndarray: estimated fundamental/essential matrix
             np.ndarray: index of the match features which are verified
         """
         fundamental_matrix = None
