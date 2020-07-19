@@ -97,7 +97,7 @@ class VerifierBase(metaclass=abc.ABCMeta):
     def create_computation_graph(self,
                                  matcher_graph: Dict[Tuple[int, int], dask.delayed],
                                  image_shapes: List[Tuple[int, int]],
-                                 camera_instrinsics: List[np.ndarray] = []
+                                 camera_instrinsics: List[np.ndarray] = None
                                  ) -> Dict[Tuple[int, int], dask.delayed]:
         """Created the computation graph for verification using the graph 
         from matcher stage
@@ -118,7 +118,7 @@ class VerifierBase(metaclass=abc.ABCMeta):
 
         def camera_intrinsics_fetcher(
                 idx):
-            return camera_instrinsics[idx] if len(camera_instrinsics) else None
+            return None if camera_instrinsics is None else camera_instrinsics[idx]
 
         for image_idx_tuple, delayed_matcher in matcher_graph.items():
             result[image_idx_tuple] = dask.delayed(self.verify_and_get_features)(
