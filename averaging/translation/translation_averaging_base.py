@@ -27,6 +27,7 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
                 relative rotation between poses. The dictionary contains the pairs
                 of pose indices as keys and the relative rotation as values.
             global_rotations (List[gtsam.Rot3]): global rotation for every pose.
+                list index corresponds to image index.
 
         Returns:
             List[gtsam.Pose3]: computed global pose.
