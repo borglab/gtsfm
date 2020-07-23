@@ -51,6 +51,9 @@ class BundleAdjustmentBase(metaclass=abc.ABCMeta):
 		https://github.com/borglab/gtsam/blob/develop/cython/gtsam/examples/SFMExample.py
 		gtsam/cython/gtsam/examples/VisualISAM2Example.py
 
+		Note: complexity is O(#edges x #correspondences x 2) since we will require
+		creating this many factors.
+
 		Args:
 			intrinsics: Length N list with 3x3 matrices for each camera ID
 				[fx,s,px]
