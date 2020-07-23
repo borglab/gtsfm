@@ -31,17 +31,19 @@ class FrontEndResult:
 
         Args:
             fundamental_matrices (Dict[Tuple[int, int], np.ndarray]): 
-                fundamental matrices between pairs of images with the tuple of image indices as the key.
+                fundamental matrices between pairs of images with the tuple of
+                image indices as the key.
             feature_points (Dict[Tuple[int, int], Tuple[np.ndarray, np.ndarray]]): 
-                geometrically verified matching feature points between the two images. Note that the number of points
-                for any pair of images should be the same from both the images.
+                geometrically verified matching feature points between the two images.
+                Note that the number of points for any pair of images should be the
+                same from both the images.
         """
         self.fundamental_matrices = fundamental_matrices
         self.feature_points = feature_points
 
     def get_relative_poses(self,
                            intrinsics: List[np.ndarray]
-                           ) -> Dict[Tuple[int, int], gtsam.Pose3]:
+                           ) -> Dict[Tuple[int, int], Tuple[gtsam.Rot3, gtsam.Unit3]]:
         """
         Compute relative poses between cameras using camera instrinsics.
 
@@ -49,7 +51,8 @@ class FrontEndResult:
             intrinsics (List[np.ndarray]): calibration matrix for each matrix.
 
         Returns:
-            Dict[Tuple[int, int], gtsam.Pose3]: relative pose between pairs of cameras.
+            Dict[Tuple[int, int], Tuple[gtsam.Rot3, gtsam.Unit3] ]: relative poses
+                between pairs of cameras. Can't use gtsam.Pose3 bc of translation scale ambiguity
         """
 
         poses = dict()

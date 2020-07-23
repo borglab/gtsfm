@@ -4,7 +4,7 @@ Base class for rotation averaging module.
 A rotation averaging algorithm processes relative rotation between poses as
 inputs and estimates global rotation for all poses.
 
-Authors: Ayush Baid
+Authors: Ayush Baid, John Lambert
 """
 import abc
 from typing import Dict, List, Tuple

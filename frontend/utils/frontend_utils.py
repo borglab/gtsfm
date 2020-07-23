@@ -1,8 +1,10 @@
 """
 Utility function for front-end results.
 
-Authors: Ayush Baid
+Authors: Ayush Baid, John Lambert
 """
+from typing import Tuple
+
 import cv2 as cv
 import gtsam
 import numpy as np
@@ -12,7 +14,8 @@ def essential_matrix_from_fundamental_matrix(
         fundamental_matrix: np.ndarray,
         intrinsics_im1: np.ndarray,
         intrinsics_im2: np.ndarray) -> np.ndarray:
-    """Compute the essential matrix from fundamental matrix and camera instrinsics using simple matrix multiplication.
+    """Compute the essential matrix from fundamental matrix and camera intrinsics using
+    simple matrix multiplication.
 
     Args:
         fundamental_matrix (np.ndarray): fundamental matrix from im1 to im2 (3x3).
@@ -25,7 +28,11 @@ def essential_matrix_from_fundamental_matrix(
     return intrinsics_im2.T @ fundamental_matrix @ intrinsics_im1
 
 
-def decompose_essential_matrix(essential_matrix: np.ndarray, points_im1: np.ndarray, points_im2: np.ndarray) -> gtsam.Pose3:
+def decompose_essential_matrix(
+    essential_matrix: np.ndarray,
+    points_im1: np.ndarray,
+    points_im2: np.ndarray
+) -> Tuple[gtsam.Rot3,gtsam.Unit3]:
     """Decompose essential matrix into the relative pose between the pair of cameras using OpenCV.
 
     Args:
@@ -39,4 +46,5 @@ def decompose_essential_matrix(essential_matrix: np.ndarray, points_im1: np.ndar
     _, rotation, translation, _ = cv.recoverPose(
         essential_matrix, points_im1[:, :2], points_im2[:, :2])
 
-    return gtsam.Pose3(gtsam.Rot3(rotation), gtsam.Point3(translation.flatten()))
+    # will automatically normalize "t" to unit length
+    return gtsam.Rot3(rotation), gtsam.Unit3(translation.flatten())
