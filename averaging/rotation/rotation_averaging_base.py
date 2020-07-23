@@ -36,12 +36,17 @@ class RotationAveragingBase(metaclass=abc.ABCMeta):
                 image index is the list index.
         """
         # TODO: we need an anchor?
+        all_img_ids = set([i for (i,j) in relative_rotations.keys()])
+        all_img_ids = all_img_ids | set([j for (i,j) in relative_rotations.keys()])
+        N = len(all_img_ids)
 
         # is3D = True
         # graph, initial = gtsam.readG2o(g2oFile, is3D)
 
-        graph = None
-        initial = None
+        graph = gtsam.NonlinearFactorGraph()
+        initial = Values()
+        for (i,j), R in relative_rotations.items():
+            initial.insert(pose_i,pose_j)
 
         # Add prior on the first key. TODO: assumes first key ios z
         priorModel = gtsam.noiseModel_Diagonal.Variances(
@@ -54,5 +59,9 @@ class RotationAveragingBase(metaclass=abc.ABCMeta):
 
         print(initialization)
 
+        # TODO: is this the proper way to index into Values?
+        global_rotations = [initialization.atPose3(i) for i in range(N)]
+        assert len(global_rotations) == initialization.size()
+        return global_rotations
 
 
