@@ -45,8 +45,12 @@ class RotationAveragingBase(metaclass=abc.ABCMeta):
 
         graph = gtsam.NonlinearFactorGraph()
         initial = Values()
-        for (i,j), R in relative_rotations.items():
-            initial.insert(pose_i,pose_j)
+        for (i,j), j_R_i in relative_rotations.items():
+            # TODO: how to initialize these properly?
+            # Form a pose w/ [0,0,0] for translation?
+            t = np.zeros(3)
+            j_SE3_i = gtsam.Pose3(gtsam.Rot3(j_R_i), gtsam.Point3(t))
+            initial.insert(j_SE3_i)
 
         # Add prior on the first key. TODO: assumes first key ios z
         priorModel = gtsam.noiseModel_Diagonal.Variances(
