@@ -39,13 +39,16 @@ class Pipeline:
         """
         frontend_results = self.frontend.run(loader)
 
-        camera_instrincs = [loader.get_instrinsic_matrix(
-            x) for x in range(len(loader))]
-        relative_poses = frontend_results.get_relative_poses(camera_instrincs)
+        camera_intrinsics = [
+            loader.get_intrinsic_matrix(x) for x in range(len(loader))
+        ]
+        relative_poses = frontend_results.get_relative_poses(camera_intrinsics)
 
+        # TODO: name these as camj_R_cami, or camj_R_cami
         relative_rotations = [x.rotation() for x in relative_poses]
         relative_translations = [x.rotation() for x in relative_poses]
 
+        # TODO: name these as world_R_camera, or camera_R_world
         global_rotations = self.rotation_averaging.run(relative_rotations)
 
         global_poses = self.translation_averaging.run(
