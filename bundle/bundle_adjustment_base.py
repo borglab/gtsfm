@@ -23,7 +23,6 @@ from gtsam.gtsam import (
 	GenericProjectionFactorCal3_S2,
 	Marginals,
 	NonlinearFactorGraph,
-	PinholeCameraCal3_S2,
 	Point3,
 	Pose3,
 	PriorFactorPoint3,
@@ -88,37 +87,43 @@ class BundleAdjustmentBase(metaclass=abc.ABCMeta):
 		# Create the data structure to hold the initial estimate to the solution
 		initial_estimate = Values()
 
-		# Simulated measurements from each camera pose, adding them to the factor graph
-		for k, K in enumerate(intrinsics):
-			camera_R_world = global_rotations[k]
-			camera_t_world = global_translations[k]
+		N = len(intrinsics)
+		pose_is_initialized = np.zeros(N, dtype=bool)
 
-			camera_SE3_world = gtsam.Pose3(
-				gtsam.Rot3(camera_R_world),
-				gtsam.Point3(camera_t_world.flatten())
-			)
-			initial_estimate.insert(X(k), camera_SE3_world)
+		# how should we index the landmarks? Need a counter?
+		landmark_idx = 0
 
-			camera = PinholeCameraCal3_S2(camera_SE3_world, K)
+		# Measurements from front-end, adding them to the factor graph
+		# TODO: vectorize data structure so no double-for loop here?
+		# TODO: Will the same measurement appear at (i,j) and at (j,i), or only once?
+		# if so, landmark counter will be wrong
+		for (i,j), correspondences in correspondence_dict.items():
 
-			# TODO: vectorize data structure so no double-for loop here
-			# TODO: Will the same measurement appear at (i,j) and at (j,i), or only once?
-			for (i,j), correspondences in correspondence_dict.items():
-				for (x_i, y_i, x_j, y_j) in correspondences:
-					if i == k:
-						measurement = np.array([x_i, y_i])
-					if j == k:
-						measurement = np.array([x_j, y_j])
+			cami_R_world, cami_t_world = global_rotations[i], global_translations[i]
+			camj_R_world, camj_t_world = global_rotations[j], global_translations[j]
 
+			cami_SE3_world = gtsam.Pose3(cami_R_world,cami_t_world)
+			camj_SE3_world = gtsam.Pose3(camj_R_world,camj_t_world)
+
+			initial_estimate.insert(X(i), cami_SE3_world)
+			initial_estimate.insert(X(j), camj_SE3_world)
+
+			for (x_i, y_i, x_j, y_j) in correspondences:
+				# 2 measurements, one in each image
+				m_i = np.array([x_i, y_i])
+				m_j = np.array([x_j, y_j])
+
+				for measurement, pose_idx in zip([m_i,m_j],[i,j]):
 					factor = GenericProjectionFactorCal3_S2(
 						measurement,
 						MEASUREMENT_NOISE,
-						X(k),
-						L(l_idx), # how should we index the landmarks? Need a counter?
-						K
+						X(pose_idx),
+						L(landmark_idx),
+						intrinsics[pose_idx]
 					)
 					graph.push_back(factor)
-					# initial_estimate.insert(L(l_idx), transformed_point) # Get initial triangulation?
+					landmark_idx += 1
+					#initial_estimate.insert(L(l_idx), transformed_point) # How to get initial triangulation?
 
 		# Because the structure-from-motion problem has a scale ambiguity, the problem is still under-constrained
 		# Here we add a prior on the position of the first landmark. This fixes the scale by indicating the distance
