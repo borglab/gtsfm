@@ -102,21 +102,23 @@ class BundleAdjustmentBase(metaclass=abc.ABCMeta):
 			camera = PinholeCameraCal3_S2(camera_SE3_world, K)
 
 			# TODO: vectorize data structure so no double-for loop here
-			for (i,j), (x_i, y_i, x_j, y_j) in correspondence_dict.items():
-				if i == k:
-					measurement = np.array([x_i, y_i])
-				if j == k:
-					measurement = np.array([x_j, y_j])
+			# TODO: Will the same measurement appear at (i,j) and at (j,i), or only once?
+			for (i,j), correspondences in correspondence_dict.items():
+				for (x_i, y_i, x_j, y_j) in correspondences:
+					if i == k:
+						measurement = np.array([x_i, y_i])
+					if j == k:
+						measurement = np.array([x_j, y_j])
 
-				factor = GenericProjectionFactorCal3_S2(
-					measurement,
-					MEASUREMENT_NOISE,
-					X(k),
-					L(l_idx), # how should we index the landmarks? Need a counter?
-					K
-				)
-				graph.push_back(factor)
-				# initial_estimate.insert(L(l_idx), transformed_point) # Get initial triangulation?
+					factor = GenericProjectionFactorCal3_S2(
+						measurement,
+						MEASUREMENT_NOISE,
+						X(k),
+						L(l_idx), # how should we index the landmarks? Need a counter?
+						K
+					)
+					graph.push_back(factor)
+					# initial_estimate.insert(L(l_idx), transformed_point) # Get initial triangulation?
 
 		# Because the structure-from-motion problem has a scale ambiguity, the problem is still under-constrained
 		# Here we add a prior on the position of the first landmark. This fixes the scale by indicating the distance
