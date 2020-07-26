@@ -22,7 +22,8 @@ class DummyVerifier(VerifierBase):
                image_shape_im1: Tuple[int, int],
                image_shape_im2: Tuple[int, int],
                camera_instrinsics_im1: np.ndarray = None,
-               camera_instrinsics_im2: np.ndarray = None) -> Tuple[np.ndarray, np.ndarray]:
+               camera_instrinsics_im2: np.ndarray = None
+               ) -> Tuple[np.ndarray, np.ndarray]:
         """Perform the geometric verification of the matched features.
 
         Note:
@@ -41,7 +42,7 @@ class DummyVerifier(VerifierBase):
                 matris for image #2. Default to None
 
         Returns:
-            np.ndarray: estimated fundamental/essential matrix
+            np.ndarray: random fundamental/essential matrix
             np.ndarray: index of the match features which are verified
         """
         fundamental_matrix = None
