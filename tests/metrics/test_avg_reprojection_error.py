@@ -1,42 +1,51 @@
-from densify.metrics import avg_reprojection_error
+"""
+Toy case to checking average reprojection error func
+Author: Sushmita Warrier
+"""
 import unittest
-import gtsam
 import logging
 import sys
 import numpy as np
 import cv2 as cv
-from gtsam import symbol
+
+import gtsam
 from gtsam.utils.test_case import GtsamTestCase
+
+from densify.metrics import avg_reprojection_error
 
 class TestReprojectionError(GtsamTestCase):
 
     def test_triangulation(self):
         log= logging.getLogger( "Triangulation_test" )
         # we want dummy camera and matched points
-        # 2 corresponding image pts, with same camera assumed
-        K = np.array([[718.856 ,   0.  ,   607.1928],
-        [  0.  ,   718.856 , 185.2157],
-        [  0.  ,     0.   ,    1.    ]])
-        # camera poses for both pts
+        # 2 corresponding image pts, with same camera assumed. 
+        # fx = 2 for both cameras
+        K = np.array([[ 2. , 0.  , 0. ],
+        [ 0.  , 2. , 0. ],
+        [ 0.  , 0. , 1. ]])
+        # camera poses for both pts -  R2 is rotated by 30deg
         R1 = np.array([[1., 0., 0.],
             [0., 1., 0.],
             [0., 0., 1.]])
-        R2 = np.array([[ 0.99999183 ,-0.00280829 ,-0.00290702],
-            [ 0.0028008  , 0.99999276, -0.00257697],
-            [ 0.00291424 , 0.00256881 , 0.99999245]])
+        # R2 = np.array([[ 1.0 , 0.0 , 0.0],
+        #     [ 0.0  , 1.0, 0.],
+        #     [ 0.0 , 0. , 1.]])
+        R2 = np.array([[ 1.0 , 0.0 , 0.0],
+           [ 0.0  , 0.866, -0.5],
+           [ 0.0 , 0.5 , 0.866]])
 
         # opencv's (which is used as ground truth) method uses array input
-        t1_gt = np.array([[0.], [0.], [0.]])
-        t2_gt = np.array([[-0.02182627], [ 0.00733316], [ 0.99973488]])
+        t1_gt = np.array([[0.0], [0.], [0.]])
+        t2_gt = np.array([[1.0], [ 0.5], [ 0.]])
         # not sure how to convert array to Point3 directly
-        t1 = gtsam.Point3(0.0,0.0,0.0)
-        t2 = gtsam.Point3(-0.02182627, 0.00733316, 0.99973488)
+        t1 = gtsam.Point3(2.0, 0.0, 0.0)
+        t2 = gtsam.Point3(12.0, 0.0, 0.0)
 
         # Corresponding image points
-        imgPt1 = gtsam.Point2(371.91915894, 221.53485107)
-        imgPt2 = gtsam.Point2(368.26071167, 224.86262512)
-        imgPt1_gt = np.array([371.91915894, 221.53485107])
-        imgPt2_gt = np.array([368.26071167, 224.86262512])
+        imgPt1 = gtsam.Point2(100.0, 120.0)
+        imgPt2 = gtsam.Point2(102.0, 103.2)
+        imgPt1_gt = np.array([100.0, 120.0])
+        imgPt2_gt = np.array([102.0, 103.2])
         calibration = gtsam.Cal3_S2(
         fx=K[0, 0],
         fy=K[1, 1],
@@ -51,6 +60,7 @@ class TestReprojectionError(GtsamTestCase):
         '''
         obs_list, pose_estimates = [], []
         # set up projection matrices for both cameras
+        # R, t are assumed given for both image points
         P1 = np.hstack([R1.T, -R1.T.dot(t1_gt)])
         P2 = np.hstack([R2.T, -R2.T.dot(t2_gt)])
         P1 = K.dot(P1)
