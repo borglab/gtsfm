@@ -29,8 +29,9 @@ class DetectorBase(metaclass=abc.ABCMeta):
         Output format:
         1. The first two columns are the x and y coordinate respectively. They are compulsory.
         2. The third optional column contains the scale information of the features.
-        3. Any extra column might not be considered downstream
-        4. If applicable, the keypoints should be sorted in decreasing order of score/confidence
+        3. The fourth optional column contains the confidence of the feature. TODO: what is the normalization/scale. Superpoint uses 0-1 scale (high is better and we will go ahead with it)
+        4. Any extra column might not be considered downstream
+        5. If applicable, the keypoints should be sorted in decreasing order of score/confidence
 
         Arguments:
             image (Image): the input RGB image as a 3D numpy array
