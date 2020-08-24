@@ -26,9 +26,6 @@ class RootSIFT(DescriptorBase):
     def __init__(self):
         super().__init__()
 
-        # init the opencv object
-        self.opencv_obj = cv.xfeatures2d.SIFT_create()
-
     def describe(self, image: Image, features: np.ndarray) -> np.ndarray:
         """
         Assign descriptors to detected features in an image
@@ -47,8 +44,11 @@ class RootSIFT(DescriptorBase):
 
         gray_image = image_utils.rgb_to_gray_cv(image.image_array)
 
+        # init the opencv object
+        opencv_obj = cv.xfeatures2d.SIFT_create()
+
         # TODO(ayush): what to do about new set of keypoints
-        _, sift_desc = self.opencv_obj.compute(
+        _, sift_desc = opencv_obj.compute(
             gray_image, feature_utils.keypoints_of_array(features)
         )
 

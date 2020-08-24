@@ -21,12 +21,6 @@ from frontend.detector.detector_base import DetectorBase
 class Fast(DetectorBase):
     """Fast detector using opencv's implementation"""
 
-    def __init__(self):
-        super().__init__()
-
-        # init the opencv object
-        self.opencv_obj = cv.FastFeatureDetector_create()
-
     def detect(self, image: Image) -> np.ndarray:
         """
         Detect the features in an image.
@@ -41,7 +35,10 @@ class Fast(DetectorBase):
         """
         gray_image = image_utils.rgb_to_gray_cv(image.image_array)
 
-        cv_keypoints = self.opencv_obj.detect(gray_image, None)
+        # init the opencv object
+        opencv_obj = cv.xfeatures2d.SIFT_create()
+
+        cv_keypoints = opencv_obj.detect(gray_image, None)
 
         # sort the keypoints by score
         cv_keypoints = sorted(
