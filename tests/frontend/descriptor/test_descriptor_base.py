@@ -3,6 +3,7 @@ Tests for frontend's base descriptor class.
 
 Authors: Ayush Baid
 """
+import pickle
 import unittest
 
 import dask
@@ -62,10 +63,20 @@ class TestDescriptorBase(unittest.TestCase):
             [dask.delayed(x) for x in test_features]
         )
 
-        description_results = dask.compute(description_graph)[0]
+        with dask.config.set(scheduler='single-threaded'):
+            description_results = dask.compute(description_graph)[0]
 
         for idx in range(len(test_indices)):
             np.testing.assert_allclose(
                 self.descriptor.describe(test_images[idx], test_features[idx]),
                 description_results[idx]
             )
+
+    def test_pickleable(self):
+        """
+        Tests that the descriptor object is pickleable (required for dask)
+        """
+        try:
+            pickle.dumps(self.descriptor)
+        except TypeError:
+            self.fail("Cannot dump descriptor using pickle")
