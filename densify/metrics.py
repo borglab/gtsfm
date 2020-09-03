@@ -10,10 +10,28 @@ import gtsam
 
 # from bundle import BA_class (for triangulated pts)
 
+# JUST TO TEST OUT THE TRIANGULATION:
+def check_triangulation(ldmk_point : gtsam.Point3, calibration : gtsam.Cal3_S2):
+    wRc = gtsam.Rot3(1, 0, 0, 0, 0, 1, 0, -1, 0)
+    pose1 = gtsam.Pose3(wRc, gtsam.Point3(-2, 0, 0))
+    pose2 = gtsam.Pose3(wRc, gtsam.Point3(0, 2, 0))
+    # pose3 = gtsam.Pose3(wRc, gtsam.Point3(2, 0, 1))
+    expected_point_3d = gtsam.Point3(0, 5, 1.2)
+    calibration = gtsam.Cal3_S2(10, 10, 0, 0, 0)
+    # Projection
+    point1 = gtsam.PinholeCameraCal3_S2(pose1, calibration).project(expected_point_3d)
+    point2 = gtsam.PinholeCameraCal3_S2(pose2, calibration).project(expected_point_3d)
+    # point3 = gtsam.PinholeCameraCal3_S2(pose3, calibration).project(expected_point_3d)
+
+    pose_estimates = [pose1, pose2] # pose3]
+
+    observation_list = [(0, point1), (1, point2)]#, (2, point3)]
+    return None
+
 def avg_reprojection_error(
     calibration, 
     pose_estimates : List[List[gtsam.Pose3]], 
-    landmark_dict : Dict[gtsam.Pose3, List[Tuple[int, gtsam.Point2]]]
+    landmark_dict : Dict[gtsam.Point3, List[Tuple[int, gtsam.Point2]]]
     ) -> float:
     """
     Compute average reprojection error across dataset after BA
@@ -33,15 +51,15 @@ def avg_reprojection_error(
     for key, val in landmark_dict.items():
         landmark_3d_pt = key
         landmark_map = val   # [[(i,Point2()), (j,Point2())...]...] -> matched pts
-        initial_estimates.insert(gtsam.symbol(ord('p'),landmark_idx), landmark_3d_pt)  #
+        initial_estimates.insert(gtsam.symbol('p',landmark_idx), landmark_3d_pt)  #
         assert len(landmark_map) == len(pose_estimates), "Nb of images and nb of poses must be equal"
         for obs in landmark_map:
             pose_idx = obs[0]  #nb of image points
-            initial_estimates.insert(gtsam.symbol(ord('x'), pose_idx),pose_estimates[pose_idx])
+            initial_estimates.insert(gtsam.symbol('x', pose_idx),pose_estimates[pose_idx])
         landmark_idx += 1
 
     sigma = 1.0
-    measurement_noise = gtsam.noiseModel_Isotropic.Sigma(2, sigma)
+    measurement_noise = gtsam.noiseModel.Isotropic.Sigma(2, sigma)
     projection_error = np.empty((len(pose_estimates), len(landmark_dict)))  # len(pose_estimates) or pose_estimates[i] for each landmark or something
     total_reproj_error = 0
     factor_map = [[None]*(landmark_idx) for i in range (len(pose_estimates))]
@@ -58,8 +76,8 @@ def avg_reprojection_error(
             temp_factor = gtsam.GenericProjectionFactorCal3_S2(
                 keypoint, 
                 measurement_noise, 
-                gtsam.symbol(ord('x'), pose_idx), 
-                gtsam.symbol(ord('p'), idx), 
+                gtsam.symbol('x', pose_idx), 
+                gtsam.symbol('p', idx), 
                 calibration
                 )
             total_reproj_error += temp_factor.error(initial_estimates) # unsure if this is correct
