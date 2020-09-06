@@ -42,7 +42,7 @@ class TestReprojectionError(GtsamTestCase):
 
         poses = gtsam.Pose3Vector()
         #log.debug("poses", type(pose1), type(pose2))
-        measurements = []
+        measurements = gtsam.Point2Vector()
         poses.append(pose1)
         poses.append(pose2)
         measurements.append(z1)
@@ -66,7 +66,8 @@ class TestReprojectionError(GtsamTestCase):
         # Ground truth way to calculate reproj error
         # Need a gtsam way to return GT reprojectionError -> python has a module which returns a matrix (Matrix reprojectionErrors(const gtsam::NonlinearFactorGraph& graph, const gtsam::Values& values);)
 
-        errors = gtsam.reprojectionError(camera1.project(landmark) - z1)
+        errors = camera1.project(landmark) - z1
+        # errors returns a 1x2 array (its subtracting 2D pts, [0., 0.])
         log.debug("errors", errors)
         log.debug("mean comp error", mean_computed_error)
 
