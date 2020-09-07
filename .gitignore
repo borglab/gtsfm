@@ -139,3 +139,6 @@ dask-worker-space/
 
 # Third party model code
 thirdparty/models/
+
+# Data folder
+data/
