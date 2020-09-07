@@ -7,6 +7,8 @@ import abc
 from typing import List
 
 import dask
+import numpy as np
+from dask.delayed import Delayed
 
 from common.image import Image
 
@@ -40,7 +42,33 @@ class LoaderBase(metaclass=abc.ABCMeta):
             Image: the image at the query index
         """
 
-    def delayed_get_image(self, index: int) -> dask.delayed:
+    # ignored-abstractmethod
+    @abc.abstractmethod
+    def get_camera_intrinsics(self, index: int) -> np.ndarray:
+        """Get the camera intrinsics at the given index.
+
+        Args:
+            index (int): the index to fetch
+
+        Returns:
+            np.ndarray: the 3x3 intrinsics matrix of the camera
+        """
+
+    @abc.abstractmethod
+    def get_geometry(self, idx1: int, idx2: int) -> np.ndarray:
+        """Get the ground truth fundamental matrix/homography from idx1 to idx2.
+
+        The function returns either idx1_F_idx2 or idx1_H_idx2
+
+        Args:
+            idx1 (int): one of the index
+            idx2 (int): one of the index
+
+        Returns:
+            np.ndarray: fundamental matrix/homograph matrix
+        """
+
+    def delayed_get_image(self, index: int) -> Delayed:
         """
         Wraps the get_image evaluation in a dask.delayed
 
@@ -48,18 +76,16 @@ class LoaderBase(metaclass=abc.ABCMeta):
             index (int): the image index
 
         Returns:
-            dask.delayed: the get_image function for the given index wrapped in dask.delayed
+            Delayed: the get_image function for the given index wrapped in dask.delayed
         """
-        # TODO(ayush): is it the correct return type
-
         return dask.delayed(self.get_image)(index)
 
-    def create_computation_graph(self) -> List:
+    def create_computation_graph(self) -> List[Delayed]:
         """
         Creates the computation graph for all image fetches
 
         Returns:
-           List: list of dask's Delayed object
+           List[Delayed]: list of delayed image loading
         """
 
         return [self.delayed_get_image(x) for x in range(self.__len__())]
