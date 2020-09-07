@@ -24,12 +24,6 @@ from frontend.detector_descriptor.detector_descriptor_base import \
 class SIFT(DetectorDescriptorBase):
     """SIFT detector-descriptor using OpenCV's implementation."""
 
-    def __init__(self):
-        super().__init__()
-
-        # init the opencv object
-        self.opencv_obj = cv.xfeatures2d.SIFT_create()
-
     def detect_and_describe(self, image: Image) -> Tuple[np.ndarray, np.ndarray]:
         """
         Perform feature detection as well as their description in a single step.
@@ -48,8 +42,11 @@ class SIFT(DetectorDescriptorBase):
         # conert to grayscale
         gray_image = image_utils.rgb_to_gray_cv(image.image_array)
 
+        # Creating OpenCV object
+        opencv_obj = cv.xfeatures2d.SIFT_create()
+
         # Run the opencv code
-        cv_keypoints, descriptors = self.opencv_obj.detectAndCompute(
+        cv_keypoints, descriptors = opencv_obj.detectAndCompute(
             gray_image, None)
 
         # convert keypoints to features

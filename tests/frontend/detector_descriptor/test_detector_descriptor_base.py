@@ -58,9 +58,12 @@ class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
         """
 
         loader_graph = self.loader.create_computation_graph()
-        detector_graph = self.detector_descriptor.create_computation_graph(
+        computation_graph = self.detector_descriptor.create_computation_graph(
             loader_graph)
-        results = dask.compute(detector_graph)[0]
+
+        results = []
+        with dask.config.set(scheduler='single-threaded'):
+            results = dask.compute(computation_graph)[0]
 
         # check the number of results
         self.assertEqual(len(results), len(self.loader),
