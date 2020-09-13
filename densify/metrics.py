@@ -94,34 +94,3 @@ def get_timing_benchmark():
     """
     pass
 
-if __name__ == '__main__':
-    K = np.array([
-        [718.856 ,   0.  ,   607.1928],
-        [  0.  ,   718.856 , 185.2157],
-        [  0.  ,     0.   ,    1.    ]
-        ])
-    calibration = gtsam.Cal3_S2(
-        fx=K[0, 0],
-        fy=K[1, 1],
-        s=0,
-        u0=K[0, 2],
-        v0=K[1, 2],
-        )
-    
-    pose_estimates = []
-    R1 = np.array([
-        [1., 0., 0.],
-        [0., 1., 0.],
-        [0., 0., 1.]
-        ])
-    R2 = np.array([
-        [ 0.99999183 ,-0.00280829 ,-0.00290702],
-        [ 0.0028008  , 0.99999276, -0.00257697],
-        [ 0.00291424 , 0.00256881 , 0.99999245]
-        ])
-    t1_gt = gtsam.Point3(0.0,0.0,0.0)
-    t2_gt = gtsam.Point3(-0.02182627, 0.00733316, 0.99973488)
-    pose_estimates.append(gtsam.Pose3(gtsam.Rot3(R1), t1_gt))
-    pose_estimates.append(gtsam.Pose3(gtsam.Rot3(R2), t2_gt))
-    # avg_reprojection_error(calibration,pose_estimates)
-

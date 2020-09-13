@@ -15,7 +15,7 @@ from densify.metrics import avg_reprojection_error
 
 class TestReprojectionError(GtsamTestCase):
 
-    def test_triangulation(self):
+    def test_reprojection_error(self):
         log= logging.getLogger( "Triangulation_test" )
         # we want dummy camera and matched points
         # 2 corresponding image pts, with same camera assumed. 
