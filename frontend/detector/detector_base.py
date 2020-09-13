@@ -1,6 +1,5 @@
 """Base class for the Detection stage of the frontend.
 
-
 Authors: Ayush Baid
 """
 

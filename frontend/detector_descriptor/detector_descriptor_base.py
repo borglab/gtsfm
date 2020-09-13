@@ -1,5 +1,4 @@
-"""
-Joint detector and descriptor for the front end.
+"""Joint detector and descriptor for the front end.
 
 Authors: Ayush Baid
 """
@@ -14,25 +13,26 @@ from common.image import Image
 
 
 class DetectorDescriptorBase(metaclass=abc.ABCMeta):
-    """
-    Base class for all methods which provide a joint detector-descriptor to work on an image.
+    """Base class for all methods which provide a joint detector-descriptor to
+    work on an image.
 
     This class serves as a combination of individual detector and descriptor.
     """
 
     @abc.abstractmethod
-    def detect_and_describe(self, image: Image) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Perform feature detection as well as their description in a single step.
+    def detect_and_describe(self,
+                            image: Image) -> Tuple[np.ndarray, np.ndarray]:
+        """Perform feature detection as well as their description in a single
+        step.
 
-        Refer to detect() in BaseDetector and describe() in BaseDescriptor 
-        for details about the output format.
+        Refer to detect() in DetectorBase and describe() in DescriptorBase for
+        details about the output format.
 
         Args:
             image (Image): the input image
 
         Returns:
-            Tuple[np.ndarray, np.ndarray]: detected features and their 
+            Tuple[np.ndarray, np.ndarray]: detected features and their
                                            descriptions as two numpy arrays
         """
 

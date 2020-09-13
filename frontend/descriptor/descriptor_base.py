@@ -1,5 +1,4 @@
-""" 
-Base class for the description stage of the frontend.
+"""Base class for the description stage of the frontend.
 
 Authors: Ayush Baid
 """
@@ -14,15 +13,14 @@ from common.image import Image
 
 
 class DescriptorBase(metaclass=abc.ABCMeta):
-    """
-    Base class for all the feature descriptors.
+    """Base class for all the feature descriptors.
+
     Feature descriptors assign a vector for each input point.
     """
 
     @abc.abstractmethod
     def describe(self, image: Image, features: np.ndarray) -> np.ndarray:
-        """
-        Assign descriptors to detected features in an image
+        """Assign descriptors to detected features in an image.
 
         Output format:
         1. Each input feature point is assigned a descriptor, which is stored as a row vector
@@ -32,7 +30,7 @@ class DescriptorBase(metaclass=abc.ABCMeta):
             features (np.ndarray): the features to describe
 
         Returns:
-            np.ndarray: the descriptors for the input features
+            np.ndarray: the descriptors for the input features, as rows
         """
 
     def create_computation_graph(self,
