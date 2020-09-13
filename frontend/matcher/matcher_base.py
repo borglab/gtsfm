@@ -1,5 +1,4 @@
-"""
-Base class for the M (matcher) stage of the front end.
+"""Base class for the M (matcher) stage of the front end.
 
 Authors: Ayush Baid
 """
@@ -17,19 +16,24 @@ class MatcherBase(metaclass=abc.ABCMeta):
     """
 
     @abc.abstractmethod
-    def match(self, descriptors_im1: np.ndarray, descriptors_im2: np.ndarray) -> np.ndarray:
-        """
-        Match a pair of descriptors.
+    def match(self,
+              descriptors_im1: np.ndarray,
+              descriptors_im2: np.ndarray,
+              distance_type: str = 'euclidean') -> np.ndarray:
+        """Match a pair of descriptors.
 
         Output format:
         1. Each row represents a match
-        2. The entry in first column represents the index of a descriptor from image #1
-        3. The entry in first column represents the index of a descriptor from image #2
+        2. The entry in first column represents descriptor index from image #1
+        3. The entry in first column represents descriptor index from image #2
         4. The matches are sorted in descending order of the confidence (score)
 
         Args:
             descriptors_im1 (np.ndarray): descriptors from image #1
             descriptors_im2 (np.ndarray): descriptors from image #2
+            distance_type (str, optional): the space to compute the distance
+                                           between descriptors. Defaults to
+                                           'euclidean'.
 
         Returns:
             np.ndarray: match indices (sorted by confidence)
@@ -41,15 +45,19 @@ class MatcherBase(metaclass=abc.ABCMeta):
                                features_im1: np.ndarray,
                                features_im2: np.ndarray,
                                descriptors_im1: np.ndarray,
-                               descriptors_im2: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Match descriptors and return the corresponding features.
+                               descriptors_im2: np.ndarray,
+                               distance_type: str = 'euclidean'
+                               ) -> Tuple[np.ndarray, np.ndarray]:
+        """Match descriptors and return the corresponding features.
 
         Args:
             features_im1 (np.ndarray): features from image #1
             features_im2 (np.ndarray): features from image #2
-            descriptors_im1 (np.ndarray): corresponding descriptors from image #1
-            descriptors_im2 (np.ndarray): corresponding descriptors from image #2
+            descriptors_im1 (np.ndarray): corr. descriptors from image #1
+            descriptors_im2 (np.ndarray): corr. descriptors from image #2
+            distance_type (str, optional): the space to compute the distance
+                                           between descriptors. Defaults to
+                                           'euclidean'.
 
         Returns:
             Tuple[np.ndarray, np.ndarray]: matched features from each image
