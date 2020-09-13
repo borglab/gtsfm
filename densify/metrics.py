@@ -8,25 +8,6 @@ from typing import Dict, List, Tuple
 
 import gtsam
 
-# from bundle import BA_class (for triangulated pts)
-
-# JUST TO TEST OUT THE TRIANGULATION:
-def check_triangulation(ldmk_point : gtsam.Point3, calibration : gtsam.Cal3_S2):
-    wRc = gtsam.Rot3(1, 0, 0, 0, 0, 1, 0, -1, 0)
-    pose1 = gtsam.Pose3(wRc, gtsam.Point3(-2, 0, 0))
-    pose2 = gtsam.Pose3(wRc, gtsam.Point3(0, 2, 0))
-    # pose3 = gtsam.Pose3(wRc, gtsam.Point3(2, 0, 1))
-    expected_point_3d = gtsam.Point3(0, 5, 1.2)
-    calibration = gtsam.Cal3_S2(10, 10, 0, 0, 0)
-    # Projection
-    point1 = gtsam.PinholeCameraCal3_S2(pose1, calibration).project(expected_point_3d)
-    point2 = gtsam.PinholeCameraCal3_S2(pose2, calibration).project(expected_point_3d)
-    # point3 = gtsam.PinholeCameraCal3_S2(pose3, calibration).project(expected_point_3d)
-
-    pose_estimates = [pose1, pose2] # pose3]
-
-    observation_list = [(0, point1), (1, point2)]#, (2, point3)]
-    return None
 
 def avg_reprojection_error(
     calibration, 
@@ -43,16 +24,18 @@ def avg_reprojection_error(
     Returns: 
         average reprojection error - float
     """
-    # NEEDS A FIX: CURRENTLY SAME CALIBRATION ASSUMED FOR ALL. 
+    # TODO: CURRENTLY SAME CALIBRATION ASSUMED FOR ALL. FIX REQD
     initial_estimates = gtsam.Values()
-    # print("pe:", pose_estimates)
     # Assuming all poses currently given are valid poses - so no cases of failure to triangulate
     landmark_idx = 0
-    for key, val in landmark_dict.items():
-        landmark_3d_pt = key
-        landmark_map = val   # [[(i,Point2()), (j,Point2())...]...] -> matched pts
-        initial_estimates.insert(gtsam.symbol('p',landmark_idx), landmark_3d_pt)  #
-        assert len(landmark_map) == len(pose_estimates), "Nb of images and nb of poses must be equal"
+    for landmark, matched_points in landmark_dict.items():
+        landmark_3d_pt = landmark
+        landmark_map = matched_points   # [[(i,Point2()), (j,Point2())...]...]
+        initial_estimates.insert(gtsam.symbol('p',landmark_idx), landmark_3d_pt) 
+        if len(landmark_map) != len(pose_estimates):
+        #assert len(landmark_map) == len(pose_estimates), "Nb of images and nb of poses must be equal"
+            raise Exception('Number of images and poses must be equal. Number of images was: {} and number of poses was: {}'.format(len(landmark_map), len(pose_estimates)))
+
         for obs in landmark_map:
             pose_idx = obs[0]  #nb of image points
             initial_estimates.insert(gtsam.symbol('x', pose_idx),pose_estimates[pose_idx])
@@ -60,18 +43,14 @@ def avg_reprojection_error(
 
     sigma = 1.0
     measurement_noise = gtsam.noiseModel.Isotropic.Sigma(2, sigma)
-    projection_error = np.empty((len(pose_estimates), len(landmark_dict)))  # len(pose_estimates) or pose_estimates[i] for each landmark or something
     total_reproj_error = 0
-    factor_map = [[None]*(landmark_idx) for i in range (len(pose_estimates))]
     idx = 0
     for key, val in landmark_dict.items():
         landmark_3d_pt = key
         landmark_map = val 
         for obs in landmark_map:
             keypoint = obs[1]
-            #print("keypoint", keypoint)
-            pose_idx = obs[0]
-            # print("pose_idx", pose_idx, keypoint)
+            pose_idx = obs[0]            
             # ord func in python returns a unicode representation of a string of length 1
             temp_factor = gtsam.GenericProjectionFactorCal3_S2(
                 keypoint, 
@@ -80,18 +59,11 @@ def avg_reprojection_error(
                 gtsam.symbol('p', idx), 
                 calibration
                 )
-            total_reproj_error += temp_factor.error(initial_estimates) # unsure if this is correct
-            # factor_map[pose_idx][idx] = temp_factor
-            factor_map = temp_factor
+            total_reproj_error += temp_factor.error(initial_estimates) 
         idx += 1  # this is now the nb of landmark pts
 
-    for pose_idx in range(projection_error.shape[0]):
-        for landmark_idx in range(projection_error.shape[1]):
-            projection_error[pose_idx][landmark_idx] = factor_map.error(initial_estimates)
-            # not sure how to compute avg error from this- ideas welcome
-
     nb_landmark_pts = idx
-    mean_computed_error = np.sqrt(total_reproj_error/ nb_landmark_pts) # total_error/nb_3d_pts
+    mean_computed_error = total_reproj_error/ nb_landmark_pts # total_error/nb_3d_pts
     return mean_computed_error
     
 

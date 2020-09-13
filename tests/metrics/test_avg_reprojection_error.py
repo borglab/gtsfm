@@ -1,5 +1,5 @@
-"""
-Toy case to checking average reprojection error func. 
+""" 
+Tests to check average reprojection error function. 
 Triangulation example from https://github.com/borglab/gtsam/blob/ca4daa0894abb6e979384302075d5fc3b61119f3/matlab/gtsam_tests/testTriangulation.m
 Author: Sushmita Warrier
 """
@@ -7,8 +7,6 @@ import math
 import unittest
 import logging
 import sys
-import numpy as np
-import cv2 as cv
 
 import gtsam
 from gtsam.utils.test_case import GtsamTestCase
@@ -41,7 +39,6 @@ class TestReprojectionError(GtsamTestCase):
         z2 = camera2.project(landmark)
 
         poses = gtsam.Pose3Vector()
-        #log.debug("poses", type(pose1), type(pose2))
         measurements = gtsam.Point2Vector()
         poses.append(pose1)
         poses.append(pose2)
@@ -57,21 +54,21 @@ class TestReprojectionError(GtsamTestCase):
         obs_list = []
         obs_list.append((0, z1))  # z1, z2: image points
         obs_list.append((1, z2))
-        log.debug("obs list", obs_list)
 
         # Testing avg_reproj_error func
         landmark_dict = {tuple(triangulated_landmark) : obs_list}
         mean_computed_error = avg_reprojection_error(sharedCal, poses, landmark_dict)
 
-        # Ground truth way to calculate reproj error
-        # Need a gtsam way to return GT reprojectionError -> python has a module which returns a matrix (Matrix reprojectionErrors(const gtsam::NonlinearFactorGraph& graph, const gtsam::Values& values);)
-
+        # Reprojection error ground truth
         errors = camera1.project(landmark) - z1
         # errors returns a 1x2 array (its subtracting 2D pts, [0., 0.])
-        log.debug("errors", errors)
-        log.debug("mean comp error", mean_computed_error)
+        # converting to pixel error
+        pixel_error = math.sqrt((errors[0])**2 + (errors[1])**2)
+        self.assertAlmostEqual(pixel_error, mean_computed_error)
 
 if __name__ == "__main__":
     logging.basicConfig( stream=sys.stderr )
     logging.getLogger( "Triangulation_test" ).setLevel( logging.DEBUG )
     unittest.main()
+
+    # TODO: Integrate Dask functionality?
