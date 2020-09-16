@@ -1,12 +1,13 @@
 """ 
-Tests to check average reprojection error function. 
+Test to check average reprojection error function. 
 Triangulation example from https://github.com/borglab/gtsam/blob/ca4daa0894abb6e979384302075d5fc3b61119f3/matlab/gtsam_tests/testTriangulation.m
 Author: Sushmita Warrier
 """
-import math
-import unittest
 import logging
+import math
+import numpy as np
 import sys
+import unittest
 
 import gtsam
 from gtsam.utils.test_case import GtsamTestCase
@@ -63,7 +64,7 @@ class TestReprojectionError(GtsamTestCase):
         errors = camera1.project(landmark) - z1
         # errors returns a 1x2 array (its subtracting 2D pts, [0., 0.])
         # converting to pixel error
-        pixel_error = math.sqrt((errors[0])**2 + (errors[1])**2)
+        pixel_error = np.linalg.norm(errors, ord=None)
         self.assertAlmostEqual(pixel_error, mean_computed_error)
 
 if __name__ == "__main__":

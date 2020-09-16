@@ -17,27 +17,25 @@ def avg_reprojection_error(
     """
     Compute average reprojection error across dataset after BA
     Args: 
-        1. calibration - camera calibration gtsam.Cal3_S2
-        2. pose estimates - list of list of gtsam Pose3 ie. list of camera poses for each landmark
-        3. landmark_dict - dict with 3d pt as key and landmark map as value
-            --> landmark_map - [(i,Point2()), (j,Point2())...] - (image idx, imgPt) of all features that are matched for a particular landmark
+        calibration: camera calibration gtsam.Cal3_S2
+        pose estimates: list of list of gtsam Pose3 ie. list of camera poses for each landmark
+        landmark_dict: dict with 3D pt as key and landmark map as value
+            --> landmark_map: [(i,Point2()), (j,Point2())...], where 
+            (i,Point2()) = (image idx, imgPt) of all features that are matched for a particular landmark
     Returns: 
-        average reprojection error - float
+        average reprojection error: float
     """
     # TODO: CURRENTLY SAME CALIBRATION ASSUMED FOR ALL. FIX REQD
     initial_estimates = gtsam.Values()
     # Assuming all poses currently given are valid poses - so no cases of failure to triangulate
     landmark_idx = 0
-    for landmark, matched_points in landmark_dict.items():
-        landmark_3d_pt = landmark
-        landmark_map = matched_points   # [[(i,Point2()), (j,Point2())...]...]
+    for landmark_3d_pt, landmark_map in landmark_dict.items():
         initial_estimates.insert(gtsam.symbol('p',landmark_idx), landmark_3d_pt) 
         if len(landmark_map) != len(pose_estimates):
-        #assert len(landmark_map) == len(pose_estimates), "Nb of images and nb of poses must be equal"
             raise Exception('Number of images and poses must be equal. Number of images was: {} and number of poses was: {}'.format(len(landmark_map), len(pose_estimates)))
 
         for obs in landmark_map:
-            pose_idx = obs[0]  #nb of image points
+            pose_idx = obs[0]  # nb of image points
             initial_estimates.insert(gtsam.symbol('x', pose_idx),pose_estimates[pose_idx])
         landmark_idx += 1
 
@@ -45,13 +43,8 @@ def avg_reprojection_error(
     measurement_noise = gtsam.noiseModel.Isotropic.Sigma(2, sigma)
     total_reproj_error = 0
     idx = 0
-    for key, val in landmark_dict.items():
-        landmark_3d_pt = key
-        landmark_map = val 
-        for obs in landmark_map:
-            keypoint = obs[1]
-            pose_idx = obs[0]            
-            # ord func in python returns a unicode representation of a string of length 1
+    for landmark_3d_pt, landmark_map in landmark_dict.items():
+        for (pose_idx, keypoint) in landmark_map:  # loop through the observations       
             temp_factor = gtsam.GenericProjectionFactorCal3_S2(
                 keypoint, 
                 measurement_noise, 
