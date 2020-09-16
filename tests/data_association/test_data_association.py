@@ -10,7 +10,7 @@ import numpy as np
 import gtsam
 
 import utils.io as io_utils
-from data_association.data_assoc import DataAssociation
+from data_association.data_assoc import DataAssociation, LandmarkInitialization
 from data_association.tracks import FeatureTracks, toy_case
 from frontend.matcher.dummy_matcher import DummyMatcher
 
@@ -39,8 +39,7 @@ class TestDataAssociation(unittest.TestCase):
         self.track = FeatureTracks(dummy_matches, len(dummy_matches), None)
         # len(track) value for toy case strictly
         assert len(self.track.landmark_map) == 4, "tracks incorrectly mapped"
-        
-    
+
     def test_filtering(self):
         """
         Tests that the tracks are being filtered correctly
@@ -54,23 +53,7 @@ class TestDataAssociation(unittest.TestCase):
         """
 
         correspondences = self.get_random_correspondences()  # gives matches for 3 images only
-
-        list_absolute_t = [gtsam.Point3(
-            np.random.uniform(100.2, 120.5), 
-            np.random.uniform(150.9, 140.5), 
-            np.random.uniform(12.2, 20.5)) for _ in range(len(correspondences))]
-
-        list_absolute_R = [gtsam.Rot3(1.0, 0.0, 0.0, 
-                                      0.0, 1.0, 0.0, 
-                                      0.0, 0.0, 1.0)] # first one is identity
-        for _ in range(1, len(correspondences)):
-            list_absolute_R.append(gtsam.Rot3(
-                np.random.rand(), np.random.rand(), np.random.rand(), 
-                np.random.rand(), np.random.rand(), np.random.rand(),
-                np.random.rand(), np.random.rand(), np.random.rand()))
-
-        pose_list = [gtsam.Pose3(R, t) for R, t in zip(list_absolute_R, list_absolute_t)]
-
+        pose_list = self.generate_poses(len(correspondences))
         self.track_list = FeatureTracks(correspondences, len(correspondences), pose_list)
         
 
@@ -136,7 +119,35 @@ class TestDataAssociation(unittest.TestCase):
             results = dask.compute(matcher_graph)[0]
 
         return results
+    
+    def generate_poses(self, len_poses):
+        list_absolute_t = [gtsam.Point3(
+        np.random.uniform(100.2, 120.5), 
+        np.random.uniform(150.9, 140.5), 
+        np.random.uniform(12.2, 20.5)) for _ in range(len_poses)]
 
+        list_absolute_R = [gtsam.Rot3(1.0, 0.0, 0.0, 
+                                      0.0, 1.0, 0.0, 
+                                      0.0, 0.0, 1.0)] # first one is identity
+        for _ in range(1, len_poses):
+            list_absolute_R.append(gtsam.Rot3(
+                np.random.rand(), np.random.rand(), np.random.rand(), 
+                np.random.rand(), np.random.rand(), np.random.rand(),
+                np.random.rand(), np.random.rand(), np.random.rand()))
+
+        pose_list = [gtsam.Pose3(R, t) for R, t in zip(list_absolute_R, list_absolute_t)]
+        return pose_list
+    
+    def test_initial_estimates(self):
+        """
+        Tests initial estimates
+        """
+        dummy_matches = toy_case()
+        sharedCal = gtsam.Cal3_S2(1500, 1200, 0, 640, 480) 
+        track = FeatureTracks(dummy_matches, len(dummy_matches), None)
+        pose_list = self.generate_poses(3)
+        LI = LandmarkInitialization(sharedCal, pose_list)
+        
         
 if __name__ == "__main__":
     unittest.main()

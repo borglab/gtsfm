@@ -58,7 +58,7 @@ class FeatureTracks:
 
         # Generate the DSF to form tracks
         dsf = gtsam.DSFMapIndexPair()
-        key_set = set()
+        key_set2 = set()
         self.landmark_map = defaultdict(list)
 
         measurement_to_index_maps = [MeasurementToIndexMap()] * num_poses
@@ -84,20 +84,23 @@ class FeatureTracks:
                 dsf.merge(gtsam.IndexPair(pose_idx_1, feature_idx_1),
                           gtsam.IndexPair(pose_idx_2, feature_idx_2))
                 # Need to expose gtsam set to create key_set
-                key_set.add((pose_idx_1, feature_idx_1))
-                key_set.add((pose_idx_2, feature_idx_2))
-                
+                key_set = dsf.sets()                
 
         # create a landmark map
-        for key in key_set:
-            pose_idx, feature_idx = key
-            # get set representative- Will be IndexPair type
-            lndmrk_root_node = dsf.find(gtsam.IndexPair(pose_idx, feature_idx))
-            landmark_key = (lndmrk_root_node.i(), lndmrk_root_node.j())
-            # for each representative, add (img_idx, feature)
-            # feature is extracted from feature_idx by inverting dict mapping feature coordinates to idx
-            feature_dict = measurement_to_index_maps[pose_idx].invert_map()
-            self.landmark_map[landmark_key].append((pose_idx, feature_dict[feature_idx]))
+        for s in key_set:
+            key = key_set[s]
+            # pose_idx, feature_idx = key
+            for val in gtsam.IndexPairSetAsArray(key):
+                pose_idx = val.i()
+                feature_idx = val.j()
+                # get set representative- Will be IndexPair type
+                lndmrk_root_node = dsf.find(gtsam.IndexPair(pose_idx, feature_idx))
+                landmark_key = (lndmrk_root_node.i(), lndmrk_root_node.j())
+                # for each representative, add (img_idx, feature)
+                # feature is extracted from feature_idx by inverting dict mapping feature coordinates to idx
+                feature_dict = measurement_to_index_maps[pose_idx].invert_map()
+                self.landmark_map[landmark_key].append((pose_idx, feature_dict[feature_idx]))
+            
 
 def toy_case():
     matches = dict()
