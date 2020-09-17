@@ -3,7 +3,7 @@
 Authors: Ayush Baid
 """
 
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 
@@ -29,8 +29,10 @@ class Image:
         """
         return self.image_array.shape[1::-1]
 
-    def get_intrinsics_from_exif(self) -> np.ndarray:
+    def get_intrinsics_from_exif(self) -> Optional[np.ndarray]:
         """Constructs the camera intrinsics from exif tag.
+
+        Equation: focal_px=max(w_px,h_px)∗focal_mm / ccdw_mm
 
         Ref: 
         - https://github.com/colmap/colmap/blob/e3948b2098b73ae080b97901c3a1f9065b976a45/src/util/bitmap.cc#L282
@@ -46,16 +48,17 @@ class Image:
 
         focal_length_mm = self.exif_data.get('FocalLength')
 
-        sensor_width = Image.sensor_width_db.lookup(
+        sensor_width_mm = Image.sensor_width_db.lookup(
             self.exif_data.get('Make'),
             self.exif_data.get('Model'),
         )
 
-        focal_length_px = max(self.image_array.shape[:2]) * \
-            focal_length_mm/sensor_width
+        img_h_px, img_w_px = self.image_array.shape[:2]
+        focal_length_px = max(img_h_px, img_w_px) * \
+            focal_length_mm/sensor_width_mm
 
-        center_x = self.image_array.shape[0]/2
-        center_y = self.image_array.shape[1]/2
+        center_x = img_h_px.shape[0]/2
+        center_y = img_w_px.shape[1]/2
 
         return np.array([
             [focal_length_px, 0, center_x],
