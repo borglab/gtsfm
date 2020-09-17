@@ -28,7 +28,7 @@ class FolderLoader(LoaderBase):
     If explicit intrinsics are not provided, the exif data will be used.
     """
 
-    def __init__(self, folder: str, image_extension: str = 'jpg'):
+    def __init__(self, folder: str, image_extension: str = 'jpg') -> None:
         """
         Initializes to load from a specified folder on disk
 

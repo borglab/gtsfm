@@ -4,6 +4,7 @@ Authors: Ayush Baid
 """
 
 import os
+from typing import List
 
 import numpy as np
 import scipy.io as scipy_io
@@ -23,7 +24,7 @@ class LundDatasetLoader(FolderLoader):
     If explicit intrinsics are not provided, the exif data will be used.
     """
 
-    def __init__(self, folder: str):
+    def __init__(self, folder: str) -> None:
         """
         Initializes to load from a specified folder on disk
 

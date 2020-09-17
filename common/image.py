@@ -15,7 +15,7 @@ class Image:
 
     sensor_width_db = SensorWidthDatabase()
 
-    def __init__(self, image_array: np.ndarray, exif_data=None):
+    def __init__(self, image_array: np.ndarray, exif_data=None) -> None:
         self.image_array = image_array
         self.exif_data = exif_data
 
