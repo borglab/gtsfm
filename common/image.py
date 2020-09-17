@@ -53,12 +53,12 @@ class Image:
             self.exif_data.get('Model'),
         )
 
-        img_h_px, img_w_px = self.image_array.shape[:2]
+        img_w_px, img_h_px = self.image_array.shape[:2]
         focal_length_px = max(img_h_px, img_w_px) * \
             focal_length_mm/sensor_width_mm
 
-        center_x = img_h_px.shape[0]/2
-        center_y = img_w_px.shape[1]/2
+        center_x = img_w_px.shape[0]/2
+        center_y = img_h_px.shape[1]/2
 
         return np.array([
             [focal_length_px, 0, center_x],
