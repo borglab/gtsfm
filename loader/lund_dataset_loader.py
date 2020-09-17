@@ -27,12 +27,8 @@ class LundDatasetLoader(FolderLoader):
         """
         Initializes to load from a specified folder on disk
 
-        Folder structure:
-        - /images: the image files in the specified extension
-
         Args:
             folder (str): the base folder for a given scene
-            image_extension (str, optional): extension for the image files. Defaults to 'jpg'.
         """
 
         self.folder_base = folder
@@ -44,8 +40,13 @@ class LundDatasetLoader(FolderLoader):
             self.explicit_extrinsics_paths = \
                 self.__generate_extrinsics_from_reconstruction()
 
-    def __generate_extrinsics_from_reconstruction(self):
-        """Extract extrinsics from mat file."""
+    def __generate_extrinsics_from_reconstruction(self) -> List[str]:
+        """Extract extrinsics from mat file and stores them as numpy arrays
+
+        Returns:
+            List[str]: file names of generated extrinsics for each pose.
+        """
+
         reconstruction_path = os.path.join(
             self.folder_base, 'reconstruction', 'data.mat')
 
@@ -77,9 +78,3 @@ class LundDatasetLoader(FolderLoader):
             filenames.append(filename)
 
         return filenames
-
-
-if __name__ == '__main__':
-    loader = LundDatasetLoader('data/lund/door')
-
-    print(loader.get_camera_extrinsics(0))

@@ -12,7 +12,17 @@ import pandas as pd
 class SensorWidthDatabase():
     """Database class for sensor-width, reading data from a csv file."""
 
-    def __init__(self, csv_path=os.path.join('assets', 'camera_details', 'sensor_database.csv')):
+    def __init__(self,
+                 csv_path: str = os.path.join(
+                     'assets', 'camera_details', 'sensor_database.csv')
+                 ):
+        """Initializes the database from a csv file
+
+        Args:
+            csv_path (str, optional): Path of the csv to load data from.
+                                      Defaults to 'assets/camera_details/
+                                      sensor_database.csv'.
+        """
 
         self.df = pd.read_csv(csv_path)
 
