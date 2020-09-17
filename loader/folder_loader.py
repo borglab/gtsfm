@@ -5,6 +5,7 @@ Authors: Frank Dellaert and Ayush Baid
 
 import glob
 import os
+from pathlib import Path
 
 import numpy as np
 
@@ -31,9 +32,6 @@ class FolderLoader(LoaderBase):
         """
         Initializes to load from a specified folder on disk
 
-        Folder structure:
-        - /images: the image files in the specified extension
-
         Args:
             folder (str): the base folder for a given scene
             image_extension (str, optional): extension for the image files. Defaults to 'jpg'.
@@ -49,16 +47,12 @@ class FolderLoader(LoaderBase):
         # sort the file names
         self.image_paths.sort()
 
-        # check if intrisincs are available as numpy arrays
-        explicit_intrinsics_template = os.path.join(
-            folder, 'intrinsics', '{}.npy'
-        )
-
         self.explicit_intrinsics_paths = []
         for image_file_name in self.image_paths:
-            file_path = explicit_intrinsics_template.format(
-                os.path.splitext(os.path.basename(image_file_name))[0]
-            )
+            file_path = os.path.join(
+                folder, 'intrinsics', '{}.npy'.format(
+                    os.path.splitext(os.path.basename(image_file_name))[0]
+                ))
             if not os.path.exists(file_path):
                 self.explicit_intrinsics_paths = []
                 break
@@ -73,7 +67,7 @@ class FolderLoader(LoaderBase):
         self.explicit_extrinsics_paths = []
         for image_file_name in self.image_paths:
             file_path = explicit_extrinsics_template.format(
-                os.path.basename(image_file_name).split('.')[0]
+                Path(image_file_name).stem
             )
             if not os.path.exists(file_path):
                 self.explicit_extrinsics_template = []
@@ -119,7 +113,7 @@ class FolderLoader(LoaderBase):
             idx2 (int): one of the index
 
         Returns:
-            np.ndarray: fundamental matrix/homograph matrix
+            np.ndarray: fundamental matrix/homography matrix
         """
 
         return None
