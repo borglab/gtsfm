@@ -40,6 +40,7 @@ class TestDataAssociation(unittest.TestCase):
         # len(track) value for toy case strictly
         assert len(self.track.landmark_map) == 4, "tracks incorrectly mapped"
 
+    
     def test_filtering(self):
         """
         Tests that the tracks are being filtered correctly
