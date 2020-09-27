@@ -10,6 +10,7 @@ from collections import defaultdict
 import gtsam
 from numpy.core.defchararray import array
 from numpy.core.records import ndarray
+from data_association.data_assoc import LandmarkInitialization
 
 
 class MeasurementToIndexMap:
@@ -49,7 +50,6 @@ class FeatureTracks:
     def __tracks_to_dsf(self, dsf: gtsam.DSFMapIndexPair) -> List:
         pass
 
-
     def __init__(self,
                  matches: Dict[Tuple[int, int], Tuple[np.ndarray, np.ndarray]],
                  num_poses: int,
@@ -58,8 +58,8 @@ class FeatureTracks:
 
         # Generate the DSF to form tracks
         dsf = gtsam.DSFMapIndexPair()
-        key_set2 = set()
         self.landmark_map = defaultdict(list)
+        self.filtered_landmark_map = defaultdict(list)
 
         measurement_to_index_maps = [MeasurementToIndexMap()] * num_poses
 
@@ -100,7 +100,37 @@ class FeatureTracks:
                 # feature is extracted from feature_idx by inverting dict mapping feature coordinates to idx
                 feature_dict = measurement_to_index_maps[pose_idx].invert_map()
                 self.landmark_map[landmark_key].append((pose_idx, feature_dict[feature_idx]))
+        self.filtered_landmark_map = delete_malformed_tracks(self.landmark_map)
+
+    # def get_triangulated_pts(self):
+    #     """
+    #     Get triangulated landmark for each feature track
+    #     """
+    #     for landmark_key, feature_track in self.filtered_landmark_map.items():
+    #         LandmarkInitialization(True, feature_track, )
+
+        
             
+
+def delete_malformed_tracks(landmark_map: Dict) -> Dict:
+    """
+    Delete tracks that have two measurements in a single image.
+    Args:
+        landmark_map: Defaultdict with feature track as value
+    Returns:
+        filtered_landmark_map: Defaultdict with bad tracks removed
+    """        
+    delete_keys = []
+
+    for landmark_key, observation_list in landmark_map.items():
+        unique_track = set()
+        for (img_idx, _) in observation_list:
+            unique_track.add(img_idx)
+        if len(unique_track) != len(observation_list):
+            delete_keys.append(landmark_key)
+    
+    for i in delete_keys: del landmark_map[i]
+    return landmark_map
 
 def toy_case():
     matches = dict()

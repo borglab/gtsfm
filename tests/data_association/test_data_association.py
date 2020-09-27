@@ -5,13 +5,14 @@ Authors:Sushmita Warrier
 from random import uniform
 import unittest
 
+from collections import defaultdict
 import dask
 import numpy as np
 import gtsam
 
 import utils.io as io_utils
 from data_association.data_assoc import DataAssociation, LandmarkInitialization
-from data_association.tracks import FeatureTracks, toy_case
+from data_association.tracks import FeatureTracks, toy_case, delete_malformed_tracks
 from frontend.matcher.dummy_matcher import DummyMatcher
 
 
@@ -41,13 +42,26 @@ class TestDataAssociation(unittest.TestCase):
         assert len(self.track.landmark_map) == 4, "tracks incorrectly mapped"
 
     
-    def test_filtering(self):
+    def test_primary_filtering(self):
         """
-        Tests that the tracks are being filtered correctly
+        Tests that the tracks are being filtered correctly.
+        Removes tracks that have two measurements in a single image.
         """
-        pass
+        malformed_landmark_map = {
+            (0, 0): [(0, (1, 3)), (1, (12, 14)), (1, (8, 2)), (2, (13, 16))], 
+            (0, 1): [(0, (4, 6)), (1, (5, 10)), (2, (12, 14))], 
+            (0, 2): [(0, (9, 8)), (0,(2,4)), (1, (11, 12))], 
+            (1, 7): [(1, (4, 1)), (2, (8, 1))]}
+        expected_landmark_map = {
+            (0, 1): [(0, (4, 6)), (1, (5, 10)), (2, (12, 14))], 
+            (1, 7): [(1, (4, 1)), (2, (8, 1))]
+        }
+        filtered_map = delete_malformed_tracks(malformed_landmark_map)
+        for key, _ in filtered_map.items():
+            # check that the length of the observation list corresponding to each key is the same. Only good tracks will remain
+            assert len(expected_landmark_map[key]) == len(filtered_map[key]), "Tracks not filtered correctly"
 
-
+        
     def test_create_computation_graph(self):
         """
         Tests the graph to create data association for images
