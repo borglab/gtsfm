@@ -1,6 +1,6 @@
 """Class to hold the tracks (i.e. 2d measurements) of 3d landmarks.
 
-Authors: Ayush Baid
+Authors: Ayush Baid, Sushmita Warrier
 """
 from typing import DefaultDict, Dict, List, Tuple
 
@@ -10,7 +10,6 @@ from collections import defaultdict
 import gtsam
 from numpy.core.defchararray import array
 from numpy.core.records import ndarray
-from data_association.data_assoc import LandmarkInitialization
 
 
 class MeasurementToIndexMap:
@@ -121,7 +120,6 @@ def delete_malformed_tracks(landmark_map: Dict) -> Dict:
         filtered_landmark_map: Defaultdict with bad tracks removed
     """        
     delete_keys = []
-
     for landmark_key, observation_list in landmark_map.items():
         unique_track = set()
         for (img_idx, _) in observation_list:

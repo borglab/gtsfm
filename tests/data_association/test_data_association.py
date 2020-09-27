@@ -9,6 +9,7 @@ from collections import defaultdict
 import dask
 import numpy as np
 import gtsam
+from gtsam.utils.test_case import GtsamTestCase
 
 import utils.io as io_utils
 from data_association.data_assoc import DataAssociation, LandmarkInitialization
@@ -16,7 +17,7 @@ from data_association.tracks import FeatureTracks, toy_case, delete_malformed_tr
 from frontend.matcher.dummy_matcher import DummyMatcher
 
 
-class TestDataAssociation(unittest.TestCase):
+class TestDataAssociation(GtsamTestCase):
     """
     Unit tests for data association, which maps the feature tracks to their 3D landmarks.
     """
@@ -29,7 +30,7 @@ class TestDataAssociation(unittest.TestCase):
 
         # set up ground truth data for comparison
 
-        self.da = DataAssociation()
+        # self.da = DataAssociation()
         self.matcher = DummyMatcher()
     
     def test_track(self):
@@ -61,7 +62,47 @@ class TestDataAssociation(unittest.TestCase):
             # check that the length of the observation list corresponding to each key is the same. Only good tracks will remain
             assert len(expected_landmark_map[key]) == len(filtered_map[key]), "Tracks not filtered correctly"
 
-        
+    def test_triangulation(self):
+        """
+        Tests that the triangulation is accurate. 
+        Example from borglab/gtsam/python/gtsam/tests/test_Triangulation.py
+        """  
+        sharedCal = gtsam.Cal3_S2(1500, 1200, 0, 640, 480)
+
+        # Looking along X-axis, 1 meter above ground plane (x-y)
+        upright = gtsam.Rot3.Ypr(-np.pi / 2, 0., -np.pi / 2)
+        pose1 = gtsam.Pose3(upright, gtsam.Point3(0, 0, 1))
+        camera1 = gtsam.PinholeCameraCal3_S2(pose1, sharedCal)
+
+        # create second camera 1 meter to the right of first camera
+        pose2 = pose1.compose(gtsam.Pose3(gtsam.Rot3(), gtsam.Point3(1, 0, 0)))
+        camera2 = gtsam.PinholeCameraCal3_S2(pose2, sharedCal)
+
+        # landmark ~5 meters infront of camera
+        expected_landmark = gtsam.Point3(5, 0.5, 1.2)
+
+        # Project landmark into two cameras and triangulate
+        z1 = camera1.project(expected_landmark)
+        z2 = camera2.project(expected_landmark)
+
+        poses = gtsam.Pose3Vector()
+        measurements = gtsam.Point2Vector()
+        poses.append(pose1)
+        poses.append(pose2)
+        # Add some noise - computed landmark should be ~ (4.995, 0.499167, 1.19814)        
+        measurements.append(z1 - np.array([0.1, 0.5]))
+        measurements.append(z2 - np.array([-0.2, 0.3]))
+
+        # assuming same nb of images as nb of poses
+        img_idxs = tuple(list(range(len(poses))))
+        match_arrays = tuple((np.expand_dims(np.asarray(measurements[0]), axis=0), np.expand_dims(np.asarray(measurements[1]), axis=0)))
+
+        # create matches
+        matches = {img_idxs: match_arrays}
+
+        computed_landmark = DataAssociation(matches, len(poses), poses, True, sharedCal, None).triangulated_landmark
+        self.gtsamAssertEquals(computed_landmark, expected_landmark,1e-1)
+    
     def test_create_computation_graph(self):
         """
         Tests the graph to create data association for images
