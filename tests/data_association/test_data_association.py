@@ -62,10 +62,11 @@ class TestDataAssociation(GtsamTestCase):
             # check that the length of the observation list corresponding to each key is the same. Only good tracks will remain
             assert len(expected_landmark_map[key]) == len(filtered_map[key]), "Tracks not filtered correctly"
 
-    def test_triangulation(self):
+    def test_triangulation_sharedCal(self):
         """
         Tests that the triangulation is accurate. 
         Example from borglab/gtsam/python/gtsam/tests/test_Triangulation.py
+        and gtsam/geometry/tests/testTriangulation.cpp
         """  
         sharedCal = gtsam.Cal3_S2(1500, 1200, 0, 640, 480)
 
@@ -98,10 +99,31 @@ class TestDataAssociation(GtsamTestCase):
         match_arrays = tuple((np.expand_dims(np.asarray(measurements[0]), axis=0), np.expand_dims(np.asarray(measurements[1]), axis=0)))
 
         # create matches
-        matches = {img_idxs: match_arrays}
+        matches_1 = {img_idxs: match_arrays}
 
-        computed_landmark = DataAssociation(matches, len(poses), poses, True, sharedCal, None).triangulated_landmark
+        computed_landmark = DataAssociation(matches_1, len(poses), poses, True, sharedCal, None).triangulated_landmarks[0]
         self.gtsamAssertEquals(computed_landmark, expected_landmark,1e-1)
+
+        # Add third camera slightly rotated
+        rotatedCamera = gtsam.Rot3.Ypr(0.1, 0.2, 0.1)
+        pose3 = gtsam.Pose3(rotatedCamera, gtsam.Point3(0.1, -2, -0.1))
+        camera3 = gtsam.PinholeCameraCal3_S2(pose3, sharedCal)
+        z3 = camera3.project(expected_landmark)
+        # add noise to measurement
+        measurements.append(z3 + np.array([0.1, -0.1]))
+        poses.append(pose3)
+
+        img_idxs2 = tuple(list(range(1, len(poses))))
+        match_arrays2 = tuple(( 
+            np.expand_dims(np.asarray(measurements[1]), axis=0), 
+            np.expand_dims(np.asarray(measurements[2]), axis=0)))
+
+        matches_2 = {img_idxs: match_arrays, img_idxs2: match_arrays2}
+        computed_landmark = DataAssociation(matches_2, len(poses), poses, True, sharedCal, None).triangulated_landmarks[0]
+        self.gtsamAssertEquals(computed_landmark, expected_landmark,1e-1)
+
+
+
     
     def test_create_computation_graph(self):
         """

@@ -19,17 +19,19 @@ class DataAssociation(FeatureTracks):
         self.calibration = calibration
         super().__init__(matches, num_poses, global_poses)
         filtered_map = self.filtered_landmark_map
-        self.triangulated_landmark = gtsam.Point3
-        # filtered_map = filtered_landmark_map
+        triangulated_landmarks = []
         
 
-        for landmark_key, feature_track in filtered_map.items():
+        for _, feature_track in filtered_map.items():
             if self.calibrationFlag == True:
                 LMI = LandmarkInitialization(calibrationFlag, feature_track, calibration,global_poses)
             else:
                 LMI = LandmarkInitialization(calibrationFlag, feature_track, camera_list)
-            self.triangulated_landmark = LMI.triangulate_landmark(feature_track)
+            triangulated_landmarks.append(LMI.triangulate(feature_track))
             # Replace landmark_key with triangulated landmark
+        landmark_map = LMI.create_landmark_map(filtered_map, triangulated_landmarks)
+        print("old map", filtered_map)
+        print("landmark map", landmark_map)
         
 
 class LandmarkInitialization(metaclass=abc.ABCMeta):
@@ -62,6 +64,15 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
             self.track_camera_list = track_cameras
     
     
+    def create_landmark_map(self, filtered_map:Dict, triangulated_pts: List) -> Dict:
+        landmark_map = filtered_map.copy()
+        for idx, (key, val) in enumerate(filtered_map.items()):
+            new_key = tuple(triangulated_pts[idx])
+            # copy the value
+            landmark_map[new_key] = filtered_map[key]
+            del landmark_map[key]
+        return landmark_map
+
     def extract_end_measurements(self, track) -> Tuple[gtsam.Pose3Vector, List, gtsam.Point2Vector]:
         """
         Extract first and last measurements in a track for triangulation.
@@ -84,18 +95,21 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
             else:
                 cameras_list_track.append(self.track_camera_list[img_idx]) 
             img_measurements_track.append(img_Pt)
-            if pose_estimates_track:
-                pose_estimates.append(pose_estimates_track[0]) 
-                pose_estimates.append(pose_estimates_track[-1])
-            else:
-                cameras_list = [cameras_list_track[0], cameras_list_track[-1]]
-            img_measurements.append(img_measurements_track[0])
-            img_measurements.append(img_measurements_track[-1])
+        if pose_estimates_track:
+            pose_estimates.append(pose_estimates_track[0]) 
+            pose_estimates.append(pose_estimates_track[-1])
+        else:
+            cameras_list = [cameras_list_track[0], cameras_list_track[-1]]
+        img_measurements.append(img_measurements_track[0])
+        img_measurements.append(img_measurements_track[-1])
+
+        if len(pose_estimates) > 2 or len(cameras_list) > 2 or len(img_measurements) > 2:
+            raise Exception("Nb of measurements should not be > 2. Number of poses is: {}, number of cameras is: {} and number of observations is {}".format(len(pose_estimates), len(cameras_list), len(img_measurements)))
         
         return pose_estimates, cameras_list, img_measurements
 
 
-    def triangulate_landmark(self, track) -> gtsam.Point3:
+    def triangulate(self, track) -> gtsam.Point3:
         """
         Args:
             track: List of (img_idx, observations(Point2))
@@ -103,7 +117,7 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
             triangulated_landmark: triangulated landmark
         """
         pose_estimates, camera_values, img_measurements = self.extract_end_measurements(track)
-        optimize = False
+        optimize = True
         rank_tol = 1e-9
         # for (img_idx, img_measurements) in track:
             # if shared calibration provided for all cameras

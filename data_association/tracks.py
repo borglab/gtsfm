@@ -101,15 +101,6 @@ class FeatureTracks:
                 self.landmark_map[landmark_key].append((pose_idx, feature_dict[feature_idx]))
         self.filtered_landmark_map = delete_malformed_tracks(self.landmark_map)
 
-    # def get_triangulated_pts(self):
-    #     """
-    #     Get triangulated landmark for each feature track
-    #     """
-    #     for landmark_key, feature_track in self.filtered_landmark_map.items():
-    #         LandmarkInitialization(True, feature_track, )
-
-        
-            
 
 def delete_malformed_tracks(landmark_map: Dict) -> Dict:
     """
