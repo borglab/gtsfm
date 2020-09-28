@@ -11,9 +11,24 @@ from data_association.tracks import FeatureTracks
 
 class DataAssociation(FeatureTracks):
     """
-    workflow: form feature tracks; for each track, call LandmarkInitialization
+    Class to form feature tracks; for each track, call LandmarkInitialization
     """
-    def __init__(self, matches, num_poses, global_poses, calibrationFlag, calibration, camera_list) -> None:
+    def __init__(self, 
+    matches: Dict[Tuple[int, int], Tuple[np.ndarray, np.ndarray]], 
+    num_poses: int, global_poses: List[gtsam.Pose3], 
+    calibrationFlag: bool, 
+    calibration: gtsam.Cal3_S2, 
+    camera_list: List):
+        """
+        #CAN NUM POSES BE REPLACED WITH LEN(POSES)?
+        Args:
+            matches: Dict of pairwise matches of form {(img1, img2): (features1, features2)
+            num_poses: number of poses
+            global poses: list of poses  
+            calibrationFlag: flag to set shared or individual calibration
+            calibration: shared calibration
+            camera_list: list of individual cameras (if calibration not shared)
+        """
         print("received matches", matches)
         self.calibrationFlag = calibrationFlag
         self.calibration = calibration
@@ -28,7 +43,7 @@ class DataAssociation(FeatureTracks):
             else:
                 LMI = LandmarkInitialization(calibrationFlag, feature_track, camera_list)
             triangulated_landmarks.append(LMI.triangulate(feature_track))
-            # Replace landmark_key with triangulated landmark
+        # Replace landmark_key with triangulated landmark
         landmark_map = LMI.create_landmark_map(filtered_map, triangulated_landmarks)
         print("old map", filtered_map)
         print("landmark map", landmark_map)
@@ -104,7 +119,11 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
         img_measurements.append(img_measurements_track[-1])
 
         if len(pose_estimates) > 2 or len(cameras_list) > 2 or len(img_measurements) > 2:
-            raise Exception("Nb of measurements should not be > 2. Number of poses is: {}, number of cameras is: {} and number of observations is {}".format(len(pose_estimates), len(cameras_list), len(img_measurements)))
+            raise Exception("Nb of measurements should not be > 2. \
+                Number of poses is: {}, number of cameras is: {} and number of observations is {}".format(
+                    len(pose_estimates), 
+                    len(cameras_list), 
+                    len(img_measurements)))
         
         return pose_estimates, cameras_list, img_measurements
 
