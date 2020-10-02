@@ -31,11 +31,16 @@ class TestReprojectionError(GtsamTestCase):
             (8, gtsam.Point2(45.7, 22.1)), (9, gtsam.Point2(2.4,1.9))]
 
         # Dictionary with 3 landmark points, each corresponding to one of the above landmark maps
-        landmark_dict = {gtsam.Point3(3.2,1.4,5.6) : lndmrk_map1, gtsam.Point3(2.2, 3.3, 4.4): lndmrk_map2, gtsam.Point3(1.2, 2.2, 3.3) : lndmrk_map3}
+        landmark_dict = {
+            gtsam.Point3(3.2,1.4,5.6) : lndmrk_map1, 
+            gtsam.Point3(2.2, 3.3, 4.4): lndmrk_map2, 
+            gtsam.Point3(1.2, 2.2, 3.3) : lndmrk_map3 }
 
         track_length = get_avg_track_length(landmark_dict)
 
-        # Average track length will be [track_length for 1st landmark + track_length for 2nd landmark + track_length for 3rd landmark] / nb of landmarks, so [2+4+6]/3
+        # Average track length will be:
+        # [track_length for 1st landmark + track_length for 2nd landmark \
+        # + track_length for 3rd landmark] / # of landmarks
         self.assertEqual(track_length, 4)
     
 if __name__ == "__main__":

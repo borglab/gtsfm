@@ -32,7 +32,9 @@ def avg_reprojection_error(
     for landmark_3d_pt, landmark_map in landmark_dict.items():
         initial_estimates.insert(gtsam.symbol('p',landmark_idx), landmark_3d_pt) 
         if len(landmark_map) != len(pose_estimates):
-            raise Exception('Number of images and poses must be equal. Number of images was: {} and number of poses was: {}'.format(len(landmark_map), len(pose_estimates)))
+            raise Exception('Number of images and poses must be equal. \
+                Number of images was: {} and number of poses was: {}'.format(
+                    len(landmark_map), len(pose_estimates)))
 
         for (pose_idx, _) in landmark_map:
             initial_estimates.insert(gtsam.symbol('x', pose_idx),pose_estimates[pose_idx])
