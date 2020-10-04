@@ -6,6 +6,7 @@ import abc
 from typing import Dict, List, Optional, Tuple
 
 import dask
+
 from dask.delayed import Delayed
 from gtsam import Rot3
 
