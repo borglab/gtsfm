@@ -6,6 +6,7 @@ import abc
 from typing import Dict, List, Tuple
 
 import dask
+
 from dask.delayed import Delayed
 from gtsam import Rot3
 
@@ -20,15 +21,13 @@ class RotationAveragingBase(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def run(self,
             num_poses: int,
-            relative_rotations: Dict[Tuple[int, int], Rot3]
+            iRj_dict: Dict[Tuple[int, int], Rot3]
             ) -> List[Rot3]:
         """Run the rotation averaging.
 
         Args:
-            num_poses (int): number of poses.
-            relative_rotations (Dict[Tuple[int, int], Rot3]): relative
-                                                              rotations between
-                                                              camera poses.
+            num_poses: number of poses.
+            iRj_dict: relative rotations between camera poses (from i to j).
 
         Returns:
             List[Rot3]: global rotations for each camera pose.
@@ -37,18 +36,17 @@ class RotationAveragingBase(metaclass=abc.ABCMeta):
     def create_computation_graph(
             self,
             num_poses: int,
-            relative_rotations: Delayed
+            iRj_graph: Delayed
     ) -> Delayed:
         """Create the computation graph for performing rotation averaging.
 
         Args:
-            num_poses (int): number of poses.
-            relative_rotations (Delayed): the dictionary of relative rotations
-                                          wrapped up in Delayed.
+            num_poses: number of poses.
+            iRj_graph: the dictionary of relative rotations wrapped up in 
+                       Delayed.
 
         Returns:
             Delayed: global rotations wrapped using dask.delayed.
         """
 
-        return dask.delayed(self.run)(num_poses,
-                                      relative_rotations)
+        return dask.delayed(self.run)(num_poses, iRj_graph)

@@ -15,15 +15,13 @@ class DummyRotationAveraging(RotationAveragingBase):
 
     def run(self,
             num_poses: int,
-            relative_rotations: Dict[Tuple[int, int], Rot3]
+            iRj_dict: Dict[Tuple[int, int], Rot3]
             ) -> List[Rot3]:
         """Run the rotation averaging.
 
         Args:
-            num_poses (int): number of poses.
-            relative_rotations (Dict[Tuple[int, int], Rot3]): relative
-                                                              rotations between
-                                                              camera poses.
+            num_poses: number of poses.
+            iRj_list: relative rotations between camera poses (from i to j).
 
         Returns:
             List[Rot3]: global rotations for each camera pose.
@@ -31,7 +29,7 @@ class DummyRotationAveraging(RotationAveragingBase):
 
         # create the random seed using relative rotations
         seed_rotation = Rot3()
-        for rotation in relative_rotations.values():
+        for rotation in iRj_dict.values():
             seed_rotation = seed_rotation.compose(rotation)
 
         np.random.seed(

@@ -35,21 +35,21 @@ class TestRotationAveragingBase(unittest.TestCase):
             (2, 4)
         ]
 
-        relative_iRj = dict()
+        iRj_dict = dict()
 
         # generate random relative rotations
         for i, j in pose_pairs_ij:
             random_vector = np.random.rand(3)*2*np.pi
-            relative_iRj[(i, j)] = Rot3.Rodrigues(
+            iRj_dict[(i, j)] = Rot3.Rodrigues(
                 random_vector[0], random_vector[1], random_vector[2])
 
         # use the normal API for rotation averaging
-        normal_result = self.obj.run(num_poses, relative_iRj)
+        normal_result = self.obj.run(num_poses, iRj_dict)
 
         # use dask's computation graph
         computation_graph = self.obj.create_computation_graph(
             num_poses,
-            dask.delayed(relative_iRj)
+            dask.delayed(iRj_dict)
         )
 
         with dask.config.set(scheduler='single-threaded'):
