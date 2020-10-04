@@ -7,8 +7,10 @@ import unittest
 
 import dask
 import numpy as np
-from averaging.rotation.dummy_rotation_averaging import DummyRotationAveraging
+
 from gtsam import Rot3
+
+from averaging.rotation.dummy_rotation_averaging import DummyRotationAveraging
 
 
 class TestRotationAveragingBase(unittest.TestCase):
@@ -25,7 +27,7 @@ class TestRotationAveragingBase(unittest.TestCase):
         num_poses = 5
 
         # pose indices for relative rotation input
-        pose_pairs = [
+        pose_pairs_ij = [
             (0, 1),
             (0, 2),
             (1, 3),
@@ -33,21 +35,21 @@ class TestRotationAveragingBase(unittest.TestCase):
             (2, 4)
         ]
 
-        relative_rotations = dict()
+        relative_iRj = dict()
 
         # generate random relative rotations
-        for pair_key in pose_pairs:
+        for i, j in pose_pairs_ij:
             random_vector = np.random.rand(3)*2*np.pi
-            relative_rotations[pair_key] = Rot3.Rodrigues(
+            relative_iRj[(i, j)] = Rot3.Rodrigues(
                 random_vector[0], random_vector[1], random_vector[2])
 
         # use the normal API for rotation averaging
-        normal_result = self.obj.run(num_poses, relative_rotations)
+        normal_result = self.obj.run(num_poses, relative_iRj)
 
         # use dask's computation graph
         computation_graph = self.obj.create_computation_graph(
             num_poses,
-            dask.delayed(relative_rotations)
+            dask.delayed(relative_iRj)
         )
 
         with dask.config.set(scheduler='single-threaded'):
