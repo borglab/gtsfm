@@ -13,12 +13,13 @@ class DataAssociation(FeatureTracks):
     """
     Class to form feature tracks; for each track, call LandmarkInitialization
     """
-    def __init__(self, 
-    matches: Dict[Tuple[int, int], Tuple[np.ndarray, np.ndarray]], 
-    num_poses: int, global_poses: List[gtsam.Pose3], 
-    calibrationFlag: bool, 
-    calibration: gtsam.Cal3_S2, 
-    camera_list: List):
+    def __init__(
+        self, 
+        matches: Dict[Tuple[int, int], Tuple[np.ndarray, np.ndarray]], num_poses: int, global_poses: List[gtsam.Pose3], 
+        calibrationFlag: bool, 
+        calibration: gtsam.Cal3_S2, 
+        camera_list: List
+        ) -> None:
         """
         #CAN NUM POSES BE REPLACED WITH LEN(POSES)?
         Args:
@@ -34,7 +35,7 @@ class DataAssociation(FeatureTracks):
         self.calibration = calibration
         super().__init__(matches, num_poses, global_poses)
         filtered_map = self.filtered_landmark_map
-        triangulated_landmarks = []
+        self.triangulated_landmarks = []
         
 
         for _, feature_track in filtered_map.items():
@@ -42,9 +43,9 @@ class DataAssociation(FeatureTracks):
                 LMI = LandmarkInitialization(calibrationFlag, feature_track, calibration,global_poses)
             else:
                 LMI = LandmarkInitialization(calibrationFlag, feature_track, camera_list)
-            triangulated_landmarks.append(LMI.triangulate(feature_track))
+            self.triangulated_landmarks.append(LMI.triangulate(feature_track))
         # Replace landmark_key with triangulated landmark
-        landmark_map = LMI.create_landmark_map(filtered_map, triangulated_landmarks)
+        landmark_map = LMI.create_landmark_map(filtered_map, self.triangulated_landmarks)
         print("old map", filtered_map)
         print("landmark map", landmark_map)
         
@@ -54,12 +55,14 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
     Class to initialize landmark points via triangulation
     """
 
-    def __init__(self, 
+    def __init__(
+        self, 
     calibrationFlag: bool,
     obs_list: List,
     calibration: Optional[gtsam.Cal3_S2] = None, 
     track_poses: Optional[List[gtsam.Pose3]] = None, 
-    track_cameras: Optional[List[gtsam.Cal3_S2]] = None) -> None:
+    track_cameras: Optional[List[gtsam.Cal3_S2]] = None
+    ) -> None:
         """
         Args:
             calibrationFlag: check if shared calibration exists(True) or each camera has individual calibration(False)

@@ -59,6 +59,8 @@ class FeatureTracks:
         dsf = gtsam.DSFMapIndexPair()
         self.landmark_map = defaultdict(list)
         self.filtered_landmark_map = defaultdict(list)
+        track = gtsam.SfmTrack
+        self.landmark_data = gtsam.SfmData
 
         measurement_to_index_maps = [MeasurementToIndexMap()] * num_poses
 
@@ -98,7 +100,12 @@ class FeatureTracks:
                 # for each representative, add (img_idx, feature)
                 # feature is extracted from feature_idx by inverting dict mapping feature coordinates to idx
                 feature_dict = measurement_to_index_maps[pose_idx].invert_map()
+
+                # trying sfmtracks
+                print("track nb measurement",track.number_measurements())
+
                 self.landmark_map[landmark_key].append((pose_idx, feature_dict[feature_idx]))
+                print("land_mp at each iteration:", self.landmark_map)
         self.filtered_landmark_map = delete_malformed_tracks(self.landmark_map)
 
 
@@ -146,3 +153,4 @@ if __name__ == "__main__":
     dummy_matches = toy_case()
     # for a sanity check
     FT = FeatureTracks(dummy_matches, len(dummy_matches), None)
+    print(FT.landmark_map)

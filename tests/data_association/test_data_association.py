@@ -19,7 +19,7 @@ from frontend.matcher.dummy_matcher import DummyMatcher
 
 class TestDataAssociation(GtsamTestCase):
     """
-    Unit tests for data association, which maps the feature tracks to their 3D landmarks.
+    Unit tests for data association module, which maps the feature tracks to their 3D landmarks.
     """
 
     def setUp(self):
@@ -122,12 +122,11 @@ class TestDataAssociation(GtsamTestCase):
         computed_landmark = DataAssociation(matches_2, len(poses), poses, True, sharedCal, None).triangulated_landmarks[0]
         self.gtsamAssertEquals(computed_landmark, expected_landmark,1e-1)
 
-
-
     
     def test_create_computation_graph(self):
         """
-        Tests the graph to create data association for images
+        Test currently incomplete.
+        Tests the graph to create data association for images. 
         """
 
         correspondences = self.get_random_correspondences()  # gives matches for 3 images only
@@ -135,16 +134,16 @@ class TestDataAssociation(GtsamTestCase):
         self.track_list = FeatureTracks(correspondences, len(correspondences), pose_list)
         
 
-    def __generate_random_binary_descriptors(self, num_descriptors: int, descriptor_length: int) -> np.ndarray:
+    def __generate_rand_binary_descs(self, num_descriptors: int, descriptor_length: int) -> np.ndarray:
         """
         Generates random binary descriptors.
 
         Args:
-            num_descriptors (int): number of descriptors to generate
-            descriptor_length (int): length of each descriptor vector
+            num_descriptors: number of descriptors to generate
+            descriptor_length: length of each descriptor vector
 
         Returns:
-            np.ndarray: generated descriptor
+            generated descriptor
         """
         if num_descriptors == 0:
             return np.array([], dtype=np.uint8)
@@ -167,15 +166,14 @@ class TestDataAssociation(GtsamTestCase):
         # print("descr length", descriptor_length)
 
         descriptor_list = [
-            self.__generate_random_binary_descriptors(
+            self.__generate_rand_binary_descs(
                 num_descriptors_im1, descriptor_length),
-            self.__generate_random_binary_descriptors(
+            self.__generate_rand_binary_descs(
                 num_descriptors_im2, descriptor_length),
-            self.__generate_random_binary_descriptors(
+            self.__generate_rand_binary_descs(
                 num_descriptors_im3, descriptor_length)
         ]
 
-        # print("descr list", descriptor_list[0])
 
         features_list = [
             np.random.rand(num_descriptors_im1, 3),
@@ -198,16 +196,23 @@ class TestDataAssociation(GtsamTestCase):
 
         return results
     
-    def generate_poses(self, len_poses):
+    def generate_poses(self, nb_poses:int) -> List:
+        """
+        Generate random poses
+        Args:
+            nb_poses: nb of poses to be created
+        Returns:
+            pose_list: list of poses
+        """
         list_absolute_t = [gtsam.Point3(
         np.random.uniform(100.2, 120.5), 
         np.random.uniform(150.9, 140.5), 
-        np.random.uniform(12.2, 20.5)) for _ in range(len_poses)]
+        np.random.uniform(12.2, 20.5)) for _ in range(nb_poses)]
 
         list_absolute_R = [gtsam.Rot3(1.0, 0.0, 0.0, 
                                       0.0, 1.0, 0.0, 
                                       0.0, 0.0, 1.0)] # first one is identity
-        for _ in range(1, len_poses):
+        for _ in range(1, nb_poses):
             list_absolute_R.append(gtsam.Rot3(
                 np.random.rand(), np.random.rand(), np.random.rand(), 
                 np.random.rand(), np.random.rand(), np.random.rand(),
@@ -216,15 +221,6 @@ class TestDataAssociation(GtsamTestCase):
         pose_list = [gtsam.Pose3(R, t) for R, t in zip(list_absolute_R, list_absolute_t)]
         return pose_list
     
-    def test_initial_estimates(self):
-        """
-        Tests initial estimates
-        """
-        dummy_matches = toy_case()
-        sharedCal = gtsam.Cal3_S2(1500, 1200, 0, 640, 480) 
-        track = FeatureTracks(dummy_matches, len(dummy_matches), None)
-        pose_list = self.generate_poses(3)
-        LI = LandmarkInitialization(sharedCal, pose_list)
         
         
 if __name__ == "__main__":
