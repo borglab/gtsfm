@@ -41,7 +41,7 @@ class RotationAveragingBase(metaclass=abc.ABCMeta):
     def create_computation_graph(
             self,
             num_images: int,
-            iRj_graph: Tuple[Dict[int, int], Delayed]
+            iRj_graph: Dict[Tuple[int, int], Delayed]
     ) -> Delayed:
         """Create the computation graph for performing rotation averaging.
 
