@@ -6,8 +6,9 @@ Authors: Ayush Baid
 from typing import Dict, List, Tuple
 
 import numpy as np
-from averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsam import Rot3
+
+from averaging.rotation.rotation_averaging_base import RotationAveragingBase
 
 
 class DummyRotationAveraging(RotationAveragingBase):

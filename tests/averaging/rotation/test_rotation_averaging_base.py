@@ -7,7 +7,6 @@ import unittest
 
 import dask
 import numpy as np
-
 from gtsam import Rot3
 
 from averaging.rotation.dummy_rotation_averaging import DummyRotationAveraging
