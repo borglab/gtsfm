@@ -10,12 +10,14 @@ References:
 
 Authors: Jing Wu, Ayush Baid
 """
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 
 import gtsam
 import numpy as np
+from gtsam import (BetweenFactorPose3, Pose3, Rot3, ShonanAveraging3,
+                   ShonanAveragingParameters3)
+
 from averaging.rotation.rotation_averaging_base import RotationAveragingBase
-from gtsam import BetweenFactorPose3, Pose3, Rot3, ShonanAveraging3, ShonanAveragingParameters3
 
 
 class ShonanRotationAveraging(RotationAveragingBase):
@@ -24,14 +26,10 @@ class ShonanRotationAveraging(RotationAveragingBase):
     def __init__(self):
         self._pMin = 5
         self._pMax = 30
-        lmParams = gtsam.LevenbergMarquardtParams.CeresDefaults()
-        self._params = ShonanAveragingParameters3(lmParams)
-
-        self.noise_model = gtsam.noiseModel.Unit.Create(6)
 
     def run(self,
             num_poses: int,
-            iRj_dict: Dict[Tuple[int, int], Rot3]
+            iRj_dict: Dict[Tuple[int, int], Union[Rot3, None]]
             ) -> List[Rot3]:
         """Run the rotation averaging.
 
@@ -42,6 +40,9 @@ class ShonanRotationAveraging(RotationAveragingBase):
         Returns:
             List[Rot3]: global rotations for each camera pose.
         """
+        lm_params = gtsam.LevenbergMarquardtParams.CeresDefaults()
+        shonan_params = ShonanAveragingParameters3(lm_params)
+        noise_model = gtsam.noiseModel.Unit.Create(6)
 
         between_factors = gtsam.BetweenFactorPose3s()
 
@@ -51,10 +52,10 @@ class ShonanRotationAveraging(RotationAveragingBase):
                     idx_pair[0],
                     idx_pair[1],
                     Pose3(rotation, np.zeros(3,)),
-                    self.noise_model
+                    noise_model
                 ))
 
-        obj = ShonanAveraging3(between_factors, self._params)
+        obj = ShonanAveraging3(between_factors, shonan_params)
 
         initial = obj.initializeRandomly()
         result_values, _ = obj.run(initial, self._pMin, self._pMax)
