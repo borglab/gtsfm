@@ -3,12 +3,11 @@
 Authors: Ayush Baid
 """
 
+import pickle
 import unittest
 
 import dask
 import numpy as np
-
-from dask.delayed import Delayed
 from gtsam import Rot3
 
 from averaging.rotation.dummy_rotation_averaging import DummyRotationAveraging
