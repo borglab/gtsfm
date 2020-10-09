@@ -2,12 +2,15 @@
 
 Authors: Jing Wu, Ayush Baid
 """
-import abc
-from typing import Dict, List, Optional, Tuple
-
-import dask
-from dask.delayed import Delayed
 from gtsam import Rot3
+from dask.delayed import Delayed
+import dask
+from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Optional, Tuple
+import abc
+<< << << < HEAD
+== == == =
+>>>>>> > 3222047... reflecting None input for rotation in type hints
 
 
 class RotationAveragingBase(metaclass=abc.ABCMeta):
