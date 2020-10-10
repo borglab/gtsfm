@@ -1,5 +1,4 @@
-"""
-Tests for frontend's base descriptor class.
+"""Tests for frontend's base descriptor class.
 
 Authors: Ayush Baid
 """
@@ -17,8 +16,7 @@ TEST_DATA_PATH = 'tests/data/lund'
 
 
 class TestDescriptorBase(unittest.TestCase):
-    """
-    Unit tests for the Base descriptor class.
+    """Unit tests for the Base descriptor class.
 
     Should be inherited by all descriptor unit tests.
     """
@@ -33,7 +31,7 @@ class TestDescriptorBase(unittest.TestCase):
         input_image = self.loader.get_image(0)
         input_features = np.random.randint(
             low=[0, 0], high=input_image.shape, size=(5, 2)
-        )
+        ).astype(np.float32)
 
         result = self.descriptor.describe(input_image, input_features)
 
@@ -56,7 +54,7 @@ class TestDescriptorBase(unittest.TestCase):
         test_images = [self.loader.get_image(idx) for idx in test_indices]
         test_features = [np.random.randint(
             low=[0, 0], high=x.shape, size=(np.random.randint(5, 10), 2)
-        ) for x in test_images]
+        ).astype(np.float32) for x in test_images]
 
         description_graph = self.descriptor.create_computation_graph(
             [dask.delayed(x) for x in test_images],
@@ -73,9 +71,7 @@ class TestDescriptorBase(unittest.TestCase):
             )
 
     def test_pickleable(self):
-        """
-        Tests that the descriptor object is pickleable (required for dask)
-        """
+        """Tests that the descriptor is pickleable (required for dask)."""
         try:
             pickle.dumps(self.descriptor)
         except TypeError:
