@@ -20,13 +20,14 @@ class RotationAveragingBase(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def run(self,
             num_poses: int,
-            iRj_dict: Dict[Tuple[int, int], Rot3]
+            i1Ri2_dict: Dict[Tuple[int, int], Rot3]
             ) -> List[Rot3]:
         """Run the rotation averaging.
 
         Args:
             num_poses: number of poses.
-            iRj_dict: relative rotations between camera poses (from i to j).
+            i1Ri2_dict: relative rotations between camera poses (rotation of
+                        i2^th pose in i1^th frame).
 
         Returns:
             List[Rot3]: global rotations for each camera pose.
@@ -35,17 +36,17 @@ class RotationAveragingBase(metaclass=abc.ABCMeta):
     def create_computation_graph(
             self,
             num_poses: int,
-            iRj_graph: Delayed
+            i1Ri2_dict: Delayed
     ) -> Delayed:
         """Create the computation graph for performing rotation averaging.
 
         Args:
             num_poses: number of poses.
-            iRj_graph: the dictionary of relative rotations wrapped up in 
+            i1Ri2_dict: the dictionary of relative rotations wrapped up in 
                        Delayed.
 
         Returns:
             Delayed: global rotations wrapped using dask.delayed.
         """
 
-        return dask.delayed(self.run)(num_poses, iRj_graph)
+        return dask.delayed(self.run)(num_poses, i1Ri2_dict)

@@ -26,18 +26,18 @@ class TestRotationAveragingBase(unittest.TestCase):
 
         num_poses = 3
 
-        iRj_dict = {
+        i1Ri2_dict = {
             (0, 1): Rot3.RzRyRx(0, 30*np.pi/180, 0),
             (1, 2): Rot3.RzRyRx(0, 0, 20*np.pi/180),
         }
 
-        # use the normal API for rotation averaging
-        normal_result = self.obj.run(num_poses, iRj_dict)
+        # use the norma API (without dask) for rotation averaging
+        normal_result = self.obj.run(num_poses, i1Ri2_dict)
 
         # use dask's computation graph
         computation_graph = self.obj.create_computation_graph(
             num_poses,
-            dask.delayed(iRj_dict)
+            dask.delayed(i1Ri2_dict)
         )
 
         with dask.config.set(scheduler='single-threaded'):
