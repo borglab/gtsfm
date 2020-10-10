@@ -13,10 +13,9 @@ class DummyDetector(DetectorBase):
     """Assigns random features to an input image."""
 
     def detect(self, image: Image) -> np.ndarray:
-        """
-        Detect the features in an image.
+        """Detect the features in an image.
 
-        Refer to the documentation in DetectorBase for more details.
+        Refer to documentation in DetectorBase for more details.
 
         Fill in the columns with random coordinates, scale and optional extra columns
 
@@ -24,11 +23,11 @@ class DummyDetector(DetectorBase):
         1. Coordinates must within the image
         2. scale must be non-negative
 
-        Arguments:
-            image (Image): the input RGB image as a 3D numpy array
+        Args:
+            image: input image.
 
         Returns:
-            np.ndarray: detected features as a numpy array
+            np.ndarray: detected features.
         """
 
         np.random.seed(
