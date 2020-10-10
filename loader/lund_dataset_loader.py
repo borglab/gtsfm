@@ -42,7 +42,10 @@ class LundDatasetLoader(FolderLoader):
                 self.__generate_extrinsics_from_reconstruction()
 
     def __generate_extrinsics_from_reconstruction(self) -> List[str]:
-        """Extract extrinsics from mat file and stores them as numpy arrays
+        """Extract extrinsics from mat file and stores them as numpy arrays.
+
+        The reconstruction used for extrinsics is provided by Carl Olsson as 
+        part of the Lund datase.
 
         Returns:
             List[str]: file names of generated extrinsics for each pose.
