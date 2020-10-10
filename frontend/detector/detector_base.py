@@ -1,5 +1,5 @@
-""" 
-Base class for the Detection stage of the frontend.
+"""Base class for the Detection stage of the frontend.
+
 
 Authors: Ayush Baid
 """
@@ -9,6 +9,7 @@ from typing import List
 
 import dask
 import numpy as np
+from dask.delayed import Delayed
 
 from common.image import Image
 
@@ -16,10 +17,18 @@ from common.image import Image
 class DetectorBase(metaclass=abc.ABCMeta):
     """Base class for all the feature detectors."""
 
+    def __init__(self, max_features: int = 5000) -> None:
+        """Initialize the detector.
+
+        Args:
+            max_features: Maximum number of features to detect. Defaults to
+                          5000.
+        """
+        self.max_features = max_features
+
     @abc.abstractmethod
     def detect(self, image: Image) -> np.ndarray:
-        """
-        Detect the features in an image.
+        """Detect the features in an image.
 
         Coordinate system convention:
         1. The x coordinate denotes the horizontal dfirection (+ve direction towards the right)
@@ -33,21 +42,23 @@ class DetectorBase(metaclass=abc.ABCMeta):
         4. Any extra column might not be considered downstream
         5. If applicable, the keypoints should be sorted in decreasing order of score/confidence
 
-        Arguments:
-            image (Image): the input RGB image as a 3D numpy array
+        Args:
+            image: input image.
 
         Returns:
-            features (np.ndarray[float]): detected features as a numpy array
+            np.ndarray: detected features.
         """
 
-    def create_computation_graph(self, loader_graph: List[dask.delayed]) -> List[dask.delayed]:
-        """
-        Generates the computation graph for all the entries in the supplied dataset.
+    def create_computation_graph(self,
+                                 loader_graph: List[Delayed]
+                                 ) -> List[Delayed]:
+        """Generates the computation graph for all the entries in the
+        loader graph.
 
         Args:
-            loader_graph (List[dask.delayed]): computation graph from loader
+            loader_graph (List[Delayed]): computation graph from loader
 
         Returns:
-            List[dask.delayed]: delayed dask elements
+            List[Delayed]: delayed dask elements
         """
         return [dask.delayed(self.detect)(x) for x in loader_graph]
