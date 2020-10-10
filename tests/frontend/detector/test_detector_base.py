@@ -71,9 +71,7 @@ class TestDetectorBase(unittest.TestCase):
         np.testing.assert_allclose(normal_features, dask_features)
 
     def test_pickleable(self):
-        """
-        Tests that the detector object is pickleable (required for dask)
-        """
+        """Tests that the detector object is pickleable (required for dask)."""
         try:
             pickle.dumps(self.detector)
         except TypeError:
