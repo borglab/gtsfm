@@ -12,6 +12,7 @@ Serialization and deserialization function calls will be handled in the backgrou
 and need not be called explicitly.
 """"
 
+
 @dask_serialize.register(Rot3)
 def serialize_Rot3(rot3: Rot3) -> Tuple[Dict, List[bytes]]:
     """Serialize Rot3 instance, and return serialized data."""
