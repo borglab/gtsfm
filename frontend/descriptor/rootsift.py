@@ -13,7 +13,7 @@ import cv2 as cv
 import numpy as np
 
 import frontend.utils.feature_utils as feature_utils
-import utils.image_utils as image_utils
+import utils.images as image_utils
 from common.image import Image
 from frontend.descriptor.descriptor_base import DescriptorBase
 
@@ -42,14 +42,14 @@ class RootSIFT(DescriptorBase):
         if features.size == 0:
             return np.array([])
 
-        gray_image = image_utils.rgb_to_gray_cv(image.image_array)
+        gray_image = image_utils.rgb_to_gray_cv(image)
 
         # init the opencv object
         opencv_obj = cv.xfeatures2d.SIFT_create()
 
         # TODO(ayush): what to do about new set of keypoints
         _, sift_desc = opencv_obj.compute(
-            gray_image, feature_utils.keypoints_of_array(features)
+            gray_image.image_array, feature_utils.keypoints_of_array(features)
         )
 
         # Step 1: L1 normalization

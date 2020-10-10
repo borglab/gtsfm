@@ -23,9 +23,12 @@ def keypoints_of_array(features: np.ndarray) -> List[cv.KeyPoint]:
 
     # input features is a 2D array
     if features.shape[1] < 3:
-        keypoints = [cv.KeyPoint(x=f[0], y=f[1], _size=2) for f in features]
+        keypoints = [cv.KeyPoint(x=float(f[0]), y=float(
+            f[1]), _size=2) for f in features]
     else:
-        keypoints = [cv.KeyPoint(x=f[0], y=f[1], _size=f[2]) for f in features]
+        keypoints = [
+            cv.KeyPoint(x=float(f[0]), y=float(f[1]), _size=float(f[2]))
+            for f in features]
 
     return keypoints
 
