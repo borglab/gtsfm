@@ -3,21 +3,19 @@
 Authors: Ayush Baid
 """
 
-from typing import Optional, Tuple
+from typing import NamedTuple, Optional, Tuple, Dict
 
 import numpy as np
 
 from utils.sensor_width_database import SensorWidthDatabase
 
 
-class Image:
+class Image(NamedTuple):
+    numpy_array: np.ndarray
+    exif_data: Dict = None
     """Holds the image and associated exif data."""
 
     sensor_width_db = SensorWidthDatabase()
-
-    def __init__(self, image_array: np.ndarray, exif_data=None) -> None:
-        self.image_array = image_array
-        self.exif_data = exif_data
 
     @property
     def shape(self) -> Tuple[int, int]:
@@ -27,7 +25,7 @@ class Image:
         Returns:
             Tuple[int, int]: shape of the image
         """
-        return self.image_array.shape[1::-1]
+        return self.numpy_array.shape[1::-1]
 
     def get_intrinsics_from_exif(self) -> Optional[np.ndarray]:
         """Constructs the camera intrinsics from exif tag.
