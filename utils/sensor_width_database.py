@@ -4,25 +4,19 @@ This database if used when we construct camera intrinsics from exif data.
 
 Authors: Ayush Baid
 """
-import os
+from pathlib import Path
 
 import pandas as pd
+
+ASSETS_ROOT = Path(__file__).resolve().parent / "assets"
+DEFAULT_SENSOR_DB_PATH = ASSETS_ROOT / "camera_details" / "sensor_database.csv"
 
 
 class SensorWidthDatabase():
     """Database class for sensor-width, reading data from a csv file."""
 
-    def __init__(self,
-                 csv_path: str = os.path.join(
-                     'assets', 'camera_details', 'sensor_database.csv')
-                 ):
-        """Initializes the database from a csv file
-
-        Args:
-            csv_path (str, optional): Path of the csv to load data from.
-                                      Defaults to 'assets/camera_details/
-                                      sensor_database.csv'.
-        """
+    def __init__(self, csv_path: str = DEFAULT_SENSOR_DB_PATH):
+        """Initializes the database from a csv file"""
 
         self.df = pd.read_csv(csv_path)
 
@@ -34,11 +28,11 @@ class SensorWidthDatabase():
         """Look-up the sensor width given the camera make and model.
 
         Args:
-            make (str): make of the camera
-            model (str): model of the camera
+            make: make of the camera
+            model: model of the camera
 
         Returns:
-            float: sensor-width in mm
+            sensor-width in mm
         """
 
         # preprocess query strings

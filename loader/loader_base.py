@@ -4,7 +4,7 @@ Authors: Frank Dellaert and Ayush Baid
 """
 
 import abc
-from typing import List
+from typing import List, Optional
 
 import dask
 import numpy as np
@@ -55,17 +55,31 @@ class LoaderBase(metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
-    def get_geometry(self, idx1: int, idx2: int) -> np.ndarray:
-        """Get the ground truth fundamental matrix/homography from idx1 to idx2.
+    def get_geometry(self, idx1: int, idx2: int) -> Optional[np.ndarray]:
+        """Get the ground truth fundamental matrix/homography that maps
+        measurement from image #idx2 to points/lines in idx1.
 
-        The function returns either idx1_F_idx2 or idx1_H_idx2
+        The function returns either idx1_F_idx2 or idx1_H_idx2.
 
         Args:
-            idx1 (int): one of the index
-            idx2 (int): one of the index
+            idx1: one of image indices.
+            idx2: one of image indices.
 
         Returns:
-            np.ndarray: fundamental matrix/homograph matrix
+            fundamental matrix/homography matrix
+        """
+
+    @abc.abstractmethod
+    def get_camera_extrinsics(self, index: int) -> Optional[np.ndarray]:
+        """Get the camera extrinsics (pose) at the given index.
+
+        The extrinsics format is [wRc, wTc]
+
+        Args:
+            index: the index to fetch.
+
+        Returns:
+            the 3x4 extrinsics matrix of the camera.
         """
 
     def delayed_get_image(self, index: int) -> Delayed:

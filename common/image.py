@@ -11,7 +11,7 @@ from utils.sensor_width_database import SensorWidthDatabase
 
 
 class Image(NamedTuple):
-    numpy_array: np.ndarray
+    value_array: np.ndarray
     exif_data: Dict = None
     """Holds the image and associated exif data."""
 
@@ -25,7 +25,7 @@ class Image(NamedTuple):
         Returns:
             Tuple[int, int]: shape of the image
         """
-        return self.numpy_array.shape[1::-1]
+        return self.value_array.shape[1::-1]
 
     def get_intrinsics_from_exif(self) -> Optional[np.ndarray]:
         """Constructs the camera intrinsics from exif tag.
@@ -51,7 +51,7 @@ class Image(NamedTuple):
             self.exif_data.get('Model'),
         )
 
-        img_w_px, img_h_px = self.image_array.shape[:2]
+        img_w_px, img_h_px = self.value_array.shape[:2]
         focal_length_px = max(img_h_px, img_w_px) * \
             focal_length_mm/sensor_width_mm
 

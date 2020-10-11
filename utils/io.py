@@ -17,7 +17,7 @@ def load_image(img_path: str) -> Image:
         img_path (str): the path of image to load.
 
     Returns:
-        Image: loaded image.
+        loaded image in RGB format.
     """
     original_image = PILImage.open(img_path)
 
@@ -44,5 +44,5 @@ def save_image(image: Image, img_path: str):
         image (np.array): image
         img_path (str): the path on disk to save the image to
     """
-    im = PILImage.fromarray(image.image_array)
+    im = PILImage.fromarray(image.value_array)
     im.save(img_path)

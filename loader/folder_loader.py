@@ -6,6 +6,7 @@ Authors: Frank Dellaert and Ayush Baid
 import glob
 import os
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 
@@ -70,7 +71,7 @@ class FolderLoader(LoaderBase):
                 Path(image_file_name).stem
             )
             if not os.path.exists(file_path):
-                self.explicit_extrinsics_template = []
+                self.explicit_extrinsics_paths = []
                 break
             else:
                 self.explicit_extrinsics_paths.append(file_path)
@@ -103,17 +104,18 @@ class FolderLoader(LoaderBase):
 
         return io_utils.load_image(self.image_paths[index])
 
-    def get_geometry(self, idx1: int, idx2: int) -> np.ndarray:
-        """Get the ground truth fundamental matrix/homography from idx1 to idx2.
+    def get_geometry(self, idx1: int, idx2: int) -> Optional[np.ndarray]:
+        """Get the ground truth fundamental matrix/homography that maps
+        measurement from image #idx2 to points/lines in idx1.
 
-        The function returns either idx1_F_idx2 or idx1_H_idx2
+        The function returns either idx1_F_idx2 or idx1_H_idx2.
 
         Args:
-            idx1 (int): one of the index
-            idx2 (int): one of the index
+            idx1: one of image indices.
+            idx2: one of image indices.
 
         Returns:
-            np.ndarray: fundamental matrix/homography matrix
+            fundamental matrix/homography matrix
         """
 
         return None
@@ -135,16 +137,18 @@ class FolderLoader(LoaderBase):
         else:
             return np.load(self.explicit_intrinsics_paths[index])
 
-    def get_camera_extrinsics(self, index: int) -> np.ndarray:
+    def get_camera_extrinsics(self, index: int) -> Optional[np.ndarray]:
         """Get the camera extrinsics (pose) at the given index.
 
         The extrinsics format is [wRc, wTc]
 
         Args:
-            index (int): the index to fetch
+            index: the index to fetch.
 
         Returns:
-            np.ndarray: the 3x4 extrinsics matrix of the camer
+            the 3x4 extrinsics matrix of the camera.
         """
         if self.explicit_extrinsics_paths:
             return np.load(self.explicit_extrinsics_paths[index])
+
+        return None

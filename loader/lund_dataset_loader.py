@@ -70,13 +70,9 @@ class LundDatasetLoader(FolderLoader):
         for idx in range(num_images):
             image_name = image_names[idx][0][0][0]
 
-            # remove the extension
-            image_name = os.path.splitext(image_name)[0]
-
+            image_name = os.path.splitext(image_name)[0]  # remove the extension
             extrinsics = poses[idx]
-
             filename = extrinsics_path_template.format(image_name)
-
             np.save(filename, extrinsics)
 
             filenames.append(filename)
