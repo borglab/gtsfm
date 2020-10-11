@@ -27,8 +27,8 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
 
         Args:
             num_poses: number of poses.
-            i1ti2_dict: relative unit translation between camera poses (from i1 
-                        to i2).
+            i1ti2_dict: relative unit translation between camera poses (
+                        translation direction of i2^th pose in i1^th frame).
             wRi_list: global rotations.
         Returns:
             List[Unit3]: global unit translation for each camera pose.
@@ -44,7 +44,7 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
 
         Args:
             num_poses: number of poses.
-            i1ti2_graph: dictionary of relative unit translations wrapped 
+            i1ti2_graph: dictionary of relative unit translations wrapped
                          up in Delayed.
             wRi_graph: list of global rotations wrapped up in Delayed.
 
