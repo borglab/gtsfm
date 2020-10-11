@@ -38,7 +38,7 @@ class Image(NamedTuple):
         - https://photo.stackexchange.com/questions/40865/how-can-i-get-the-image-sensor-dimensions-in-mm-to-get-circle-of-confusion-from
 
         Returns:
-            np.ndarray: intrinsics matrix (3x3).
+            intrinsics matrix (3x3).
         """
 
         if self.exif_data is None:
@@ -55,8 +55,8 @@ class Image(NamedTuple):
         focal_length_px = max(img_h_px, img_w_px) * \
             focal_length_mm/sensor_width_mm
 
-        center_x = img_w_px.shape[0]/2
-        center_y = img_h_px.shape[1]/2
+        center_x = img_w_px/2
+        center_y = img_h_px/2
 
         return np.array([
             [focal_length_px, 0, center_x],
