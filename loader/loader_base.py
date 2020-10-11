@@ -69,6 +69,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
             fundamental matrix/homography matrix
         """
 
+    # ignored-abstractmethod
     @abc.abstractmethod
     def get_camera_extrinsics(self, index: int) -> Optional[np.ndarray]:
         """Get the camera extrinsics (pose) at the given index.
@@ -80,6 +81,18 @@ class LoaderBase(metaclass=abc.ABCMeta):
 
         Returns:
             the 3x4 extrinsics matrix of the camera.
+        """
+
+    @abc.abstractmethod
+    def validate_pair(self, idx1: int, idx2: int) -> bool:
+        """Checks if (idx1, idx2) is a valid pair.
+
+        Args:
+            idx1: first index of the pair.
+            idx2: second index of the pair.
+
+        Returns:
+            validation result.
         """
 
     def delayed_get_image(self, index: int) -> Delayed:
