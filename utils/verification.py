@@ -102,7 +102,7 @@ def normalize_coordinates(features: np.ndarray,
         temp[:, 0] /= temp[:, 2]
         temp[:, 1] /= temp[:, 2]
 
-        return temp[:, :1]
+        return temp[:, :2]
     elif features.shape[1] == 3:
         return features @ np.linalg.inv(intrinsics_mat)
 
