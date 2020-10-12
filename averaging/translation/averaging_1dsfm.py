@@ -6,7 +6,7 @@ from typing import Dict, List, Tuple, Union
 
 import gtsam
 import numpy as np
-from gtsam import BinaryMeasurementUnit3, MFAS, Rot3, Unit3
+from gtsam import BinaryMeasurementUnit3, MFAS, Point3, Rot3, Unit3
 
 from averaging.translation.translation_averaging_base import \
     TranslationAveragingBase
@@ -24,8 +24,9 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
     def run(self,
             num_poses: int,
             i1ti2_dict: Dict[Tuple[int, int], Union[Unit3, None]],
-            wRi_list: List[Rot3]
-            ) -> List[Unit3]:
+            wRi_list: List[Rot3],
+            global_gauge_ambiguity: float = 1.0
+            ) -> List[Point3]:
         """Run the translation averaging.
 
         Args:
@@ -34,7 +35,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                         translation direction of i2^th pose in i1^th frame).
             wRi_list: global rotations.
         Returns:
-            List[Unit3]: global unit translation for each camera pose.
+            global unit translation for each camera pose.
         """
 
         noise_model = gtsam.noiseModel.Isotropic.Sigma(3, 0.01)
@@ -81,12 +82,12 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         # Run the optimizer
         global_translations = gtsam.TranslationRecovery(
-            inlier_translation_measurements).run()
+            inlier_translation_measurements).run(global_gauge_ambiguity)
 
         # transforming the result to the list of Unit3
         results = [None]*num_poses
         for i in range(num_poses):
             if wRi_list[i] is not None:
-                results[i] = Unit3(global_translations.atPoint3(i))
+                results[i] = global_translations.atPoint3(i)
 
         return results

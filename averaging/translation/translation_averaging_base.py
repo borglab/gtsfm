@@ -7,7 +7,7 @@ from typing import Dict, List, Tuple, Union
 
 import dask
 from dask.delayed import Delayed
-from gtsam import Rot3, Unit3
+from gtsam import Point3, Rot3, Unit3
 
 
 class TranslationAveragingBase(metaclass=abc.ABCMeta):
@@ -21,8 +21,9 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
     def run(self,
             num_poses: int,
             i1ti2_dict: Dict[Tuple[int, int], Union[Unit3, None]],
-            wRi_list: List[Rot3]
-            ) -> List[Unit3]:
+            wRi_list: List[Rot3],
+            global_gauge_ambiguity: float = 1.0
+            ) -> List[Point3]:
         """Run the translation averaging.
 
         Args:
@@ -30,15 +31,18 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
             i1ti2_dict: relative unit translation between camera poses (
                         translation direction of i2^th pose in i1^th frame).
             wRi_list: global rotations.
+            global_gauge_ambiguity: non-negative global scaling factor.
+
         Returns:
-            List[Unit3]: global unit translation for each camera pose.
+            global translation for each camera pose.
         """
 
     def create_computation_graph(
             self,
             num_poses: int,
             i1ti2_graph: Dict[Tuple[int, int], Delayed],
-            wRi_graph: Delayed
+            wRi_graph: Delayed,
+            global_gauge_ambiguity: float = 1.0
     ) -> Delayed:
         """Create the computation graph for performing translation averaging.
 
@@ -47,9 +51,11 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
             i1ti2_graph: dictionary of relative unit translations wrapped
                          up in Delayed.
             wRi_graph: list of global rotations wrapped up in Delayed.
+            global_gauge_ambiguity: non-negative global scaling factor.
 
         Returns:
             Delayed: global unit translations wrapped using dask.delayed.
         """
 
-        return dask.delayed(self.run)(num_poses, i1ti2_graph, wRi_graph)
+        return dask.delayed(self.run)(
+            num_poses, i1ti2_graph, wRi_graph, global_gauge_ambiguity)

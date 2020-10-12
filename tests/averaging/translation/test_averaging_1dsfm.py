@@ -48,12 +48,4 @@ class TestTranslationAveraging1DSFM(
         computed_wti_list = self.obj.run(len(wRi_list), i1ti2_dict, wRi_list)
 
         # compare the entries
-        for i in range(1, len(wRi_list)):
-            computed_direction = Unit3(computed_wti_list[i].point3() -
-                                       computed_wti_list[0].point3())
-
-            expected_direction = Unit3(expected_wti_list[i] -
-                                       expected_wti_list[0])
-
-            self.assertTrue(expected_direction.equals(
-                computed_direction, 1e-5))
+        self.check_equals(expected_wti_list, computed_wti_list)

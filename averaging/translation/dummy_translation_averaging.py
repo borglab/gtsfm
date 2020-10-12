@@ -6,7 +6,7 @@ Authors: Ayush Baid
 from typing import Dict, List, Tuple, Union
 
 import numpy as np
-from gtsam import Rot3, Unit3
+from gtsam import Point3, Rot3, Unit3
 
 from averaging.translation.translation_averaging_base import \
     TranslationAveragingBase
@@ -18,8 +18,9 @@ class DummyTranslationAveraging(TranslationAveragingBase):
     def run(self,
             num_poses: int,
             i1ti2_dict: Dict[Tuple[int, int], Union[Unit3, None]],
-            wRi_list: List[Rot3]
-            ) -> List[Unit3]:
+            wRi_list: List[Rot3],
+            global_gauge_ambiguity: float = 1.0
+            ) -> List[Point3]:
         """Run the translation averaging.
 
         Args:
@@ -28,7 +29,7 @@ class DummyTranslationAveraging(TranslationAveragingBase):
                         translation direction of i2^th pose in i1^th frame).
             wRi_list: global rotations.
         Returns:
-            List[Unit3]: global unit translation for each camera pose.
+            global unit translation for each camera pose.
         """
 
         # create the random seed using relative rotations
@@ -41,9 +42,11 @@ class DummyTranslationAveraging(TranslationAveragingBase):
         )
 
         # generate dummy rotations
-        results = []
-        for _ in range(num_poses):
-            random_vector = np.random.rand(3)
-            results.append(Unit3(random_vector))
+        results = [None]*num_poses
+        for idx in range(num_poses):
+            if wRi_list[idx] is not None:
+                random_vector = np.random.rand(3)
+                results[idx] = global_gauge_ambiguity * \
+                    Unit3(random_vector).point3()
 
         return results

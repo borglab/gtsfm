@@ -4,10 +4,11 @@ Authors: Ayush Baid
 """
 import pickle
 import unittest
+from typing import List
 
 import dask
 import numpy as np
-from gtsam import Rot3, Unit3
+from gtsam import Point3, Rot3, Unit3
 
 from averaging.translation.dummy_translation_averaging import \
     DummyTranslationAveraging
@@ -20,6 +21,23 @@ class TestTranslationAveragingBase(unittest.TestCase):
         super().setUp()
 
         self.obj = DummyTranslationAveraging()
+
+    def check_equals(self,
+                     wTi_list_1: List[Point3],
+                     wTi_list_2: List[Point3]):
+        """Compares if two lists of global roations are equal (upto global
+        scale ambiguity)."""
+
+        self.assertEqual(len(wTi_list_1), len(wTi_list_2))
+
+        for idx in range(1, len(wTi_list_1)):
+            # accounting for ambuiguity in origin of the coordinate system.
+            direction_w_0tidx_1 = Unit3(wTi_list_1[idx] - wTi_list_1[0])
+
+            direction_w_0tidx_2 = Unit3(wTi_list_2[idx] - wTi_list_2[0])
+
+            self.assertTrue(direction_w_0tidx_1.equals(
+                direction_w_0tidx_2, 1e-5))
 
     def test_computation_graph(self):
         """Test the dask computation graph execution using a valid collection
@@ -63,16 +81,7 @@ class TestTranslationAveragingBase(unittest.TestCase):
         with dask.config.set(scheduler='single-threaded'):
             dask_result = dask.compute(computation_graph)[0]
 
-        # compare the two entries
-        for idx in range(1, num_poses):
-            normal_relative_direction = Unit3(normal_result[idx].point3() -
-                                              normal_result[0].point3())
-
-            dask_relative_direction = Unit3(dask_result[idx].point3() -
-                                            dask_result[0].point3())
-
-            self.assertTrue(dask_relative_direction.equals(
-                normal_relative_direction, 1e-5))
+        self.check_equals(normal_result, dask_result)
 
     def test_pickleable(self):
         """Tests that the object is pickleable (required for dask)."""
