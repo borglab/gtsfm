@@ -19,8 +19,10 @@ jobs:
       # Checks out a copy of your repository on the ubuntu-latest machine
       - name: Checkout code
         uses: actions/checkout@master
+        with:
+           ref: ${{ github.ref }}
 
-       - name: Build (Linux)
+      - name: Build (Linux)
         if: runner.os == 'Linux'
         run: |
           bash .github/scripts/python.sh
