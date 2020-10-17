@@ -8,7 +8,8 @@
 git clone https://github.com/borglab/gtsam.git
 cd gtsam
 # install pyparsing
-pip install -r python/requirements.txt
+# pip install -r python/requirements.txt
+# sudo $PYTHON -m pip install -r python/requirements.txt
 
 mkdir build
 cd build
