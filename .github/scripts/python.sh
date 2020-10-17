@@ -11,7 +11,9 @@ cd gtsam
 # pip install -r python/requirements.txt
 # PYTHON="python${PYTHON_VERSION}"
 # sudo $PYTHON -m pip install -r python/requirements.txt
-sudo python -m pip install -r python/requirements.txt
+#sudo python -m pip install -r python/requirements.txt
+pip install -r python/requirements.txt
+python -c "import pyparsing; print('pyparsing installation successful')"
 
 mkdir build
 cd build
