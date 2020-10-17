@@ -27,12 +27,12 @@ class TestRotationAveragingBase(unittest.TestCase):
         num_poses = 3
 
         i1Ri2_dict = {
-            (0, 1): Rot3.RzRyRx(0, 30*np.pi/180, 0),
-            (1, 2): Rot3.RzRyRx(0, 0, 20*np.pi/180),
+            (0, 1): Rot3.RzRyRx(0, np.deg2rad(30), 0),
+            (1, 2): Rot3.RzRyRx(0, 0, np.deg2rad(20)),
         }
 
-        # use the norma API (without dask) for rotation averaging
-        normal_result = self.obj.run(num_poses, i1Ri2_dict)
+        # use the GTSAM API directly (without dask) for rotation averaging
+        expected_result = self.obj.run(num_poses, i1Ri2_dict)
 
         # use dask's computation graph
         computation_graph = self.obj.create_computation_graph(
@@ -45,5 +45,5 @@ class TestRotationAveragingBase(unittest.TestCase):
 
         # compare the two entries
         for idx in range(1, num_poses):
-            self.assertTrue(normal_result[0].between(normal_result[idx]).equals(
+            self.assertTrue(expected_result[0].between(expected_result[idx]).equals(
                 dask_result[0].between(dask_result[idx]), 1e-5))
