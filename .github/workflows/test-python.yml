@@ -21,4 +21,5 @@ jobs:
     # You can test your matrix by printing the current Python version
     - name: Display Python version
       run: |
+        sudo apt install cmake build-essential pkg-config libpython-dev python-numpy libboost-all-dev
         bash .github/scripts/python.sh
