@@ -43,7 +43,7 @@ setup(
     python_requires=">= 3.6",
     install_requires=[
         "pytest",
-        "dask",
+        "dask[complete]",
         "numpy",
         "opencv-python>=4.1.0.25",
         "pillow"
