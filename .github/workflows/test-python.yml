@@ -9,6 +9,9 @@ jobs:
     name: Run all unit tests in code base
     runs-on: ubuntu-latest
 
+    env:
+      PYTHON_VERSION: 3.8
+
     steps:
     - uses: actions/checkout@v2
     - name: Set up Python 3.x
