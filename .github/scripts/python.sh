@@ -12,8 +12,10 @@ sudo $PYTHON -m pip install -r python/requirements.txt
 mkdir build
 cd build
 
+echo "Building with Python ${PYTHON_VERSION}"
+
 cmake .. -DGTSAM_BUILD_PYTHON=1 \
-    -DGTSAM_PYTHON_VERSION=3.8.0 \
+    -DGTSAM_PYTHON_VERSION=$PYTHON_VERSION \
     -DCMAKE_BUILD_TYPE=Release
 
 make -j$(nproc) install
