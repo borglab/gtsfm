@@ -26,7 +26,7 @@ class DummyRotationAveraging(RotationAveragingBase):
                         i2^th pose in i1^th frame).
 
         Returns:
-            List[Rot3]: global rotations for each camera pose.
+            Global rotations for each camera pose, i.e. wRc
         """
 
         # create the random seed using relative rotations
