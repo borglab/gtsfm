@@ -1,28 +1,24 @@
 name: Python CI
 
 # Run this workflow every time a new commit pushed to your repository
-on: push
+on: [push]
 
 jobs:
-  # Set the job key. The key is displayed as the job name
-  # when a job name is not provided
   run-unit-tests:
-    # Name the Job
+
     name: Run all unit tests in code base
-    # Set the type of machine to run on
     runs-on: ubuntu-latest
-    
-    env:
-      PYTHON_VERSION: 3.8.0
 
     steps:
-      # Checks out a copy of your repository on the ubuntu-latest machine
-      - name: Checkout code
-        uses: actions/checkout@master
-        with:
-           ref: ${{ github.ref }}
-
-      - name: Build (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          bash .github/scripts/python.sh
+    - uses: actions/checkout@v2
+    - name: Set up Python 3.x
+      uses: actions/setup-python@v2
+      with:
+        # Semantic version range syntax or exact version of a Python version
+        python-version: '3.8' 
+        # Optional - x64 or x86 architecture, defaults to x64
+        architecture: 'x64'
+    # You can test your matrix by printing the current Python version
+    - name: Display Python version
+      run: |
+        bash .github/scripts/python.sh
