@@ -1,4 +1,3 @@
-  
 #!/bin/bash
 
 ##########################################################
@@ -21,6 +20,17 @@ cmake .. -DGTSAM_BUILD_PYTHON=1 \
 make -j$(nproc) install
 
 make python-install
+
+##########################################################
+# Install GTSFM dependencies
+##########################################################
+
+cd $GITHUB_WORKSPACE
+pip install -e .
+
+##########################################################
+# Run GTSFM unit tests
+##########################################################
 
 cd $GITHUB_WORKSPACE/tests
 python -m unittest discover
