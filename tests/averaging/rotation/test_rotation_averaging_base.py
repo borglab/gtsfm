@@ -45,5 +45,6 @@ class TestRotationAveragingBase(unittest.TestCase):
 
         # compare the two entries
         for idx in range(1, num_poses):
-            self.assertTrue(expected_result[0].between(expected_result[idx]).equals(
-                dask_result[0].between(dask_result[idx]), 1e-5))
+            expected_i1Ri2 = expected_result[0].between(expected_result[idx])
+            computed_i1Ri2 = dask_result[0].between(dask_result[idx])
+            self.assertTrue(expected_i1Ri2.equals(computed_i1Ri2), 1e-5))
