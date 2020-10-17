@@ -12,10 +12,10 @@ def keypoints_of_array(features: np.ndarray) -> List[cv.KeyPoint]:
     """Converts the features from numpy array to cv keypoints.
 
     Args:
-        features: features as numpy array
+        features: Numpy array of shape (??,??) representing ...
 
     Returns:
-        List[cv.KeyPoint]: keypoints representation of the given features
+        OpenCV KeyPoint objects representing the given features
     """
     # TODO(ayush): what should be scale if not provided?
 
@@ -36,7 +36,7 @@ def array_of_keypoints(keypoints: List[cv.KeyPoint]) -> np.ndarray:
         keypoints: OpenCV's keypoint representation of the given features
 
     Returns:
-        np.ndarray: features
+        Array of shape (???,???) representing features 
     """
 
     feat_list = [[kp.pt[0], kp.pt[1], kp.size, kp.response] for kp in keypoints]
