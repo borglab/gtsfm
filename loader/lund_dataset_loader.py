@@ -25,8 +25,7 @@ class LundDatasetLoader(FolderLoader):
     """
 
     def __init__(self, folder: str) -> None:
-        """
-        Initializes to load from a specified folder on disk
+        """Initialize object to load image data from a specified folder on disk
 
         Args:
             folder (str): the base folder for a given scene
