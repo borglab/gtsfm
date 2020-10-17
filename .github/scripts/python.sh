@@ -4,6 +4,10 @@
 # Build the GTSAM Python wrapper, then run GTSFM unit tests
 ##########################################################
 
+# Install a system package required by our library
+# maybe fix pyparsing error?
+sudo apt-get install -y wget libicu-dev python3-pip python3-setuptools
+
 git clone https://github.com/borglab/gtsam.git
 cd gtsam
 sudo $PYTHON -m pip install -r python/requirements.txt
