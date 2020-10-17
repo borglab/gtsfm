@@ -4,7 +4,6 @@
 # Build the GTSAM Python wrapper, then run GTSFM unit tests
 ##########################################################
 
-
 git clone https://github.com/borglab/gtsam.git
 cd gtsam
 # install pyparsing
@@ -25,7 +24,6 @@ cmake .. -DGTSAM_BUILD_PYTHON=1 \
     -DCMAKE_BUILD_TYPE=Release
 
 make -j$(nproc) install
-
 make python-install
 
 ##########################################################
