@@ -30,7 +30,7 @@ class DoG(DetectorBase):
             image: input image.
 
         Returns:
-            np.ndarray: detected features.
+            detected features.
         """
         gray_image = image_utils.rgb_to_gray_cv(image.image_array)
 

@@ -27,7 +27,7 @@ class DummyDetector(DetectorBase):
             image: input image.
 
         Returns:
-            np.ndarray: detected features.
+            detected features.
         """
 
         np.random.seed(

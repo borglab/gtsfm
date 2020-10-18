@@ -36,7 +36,7 @@ class DetectorFromDetectorDescriptor(DetectorBase):
             image: input image.
 
         Returns:
-            np.ndarray: detected features.
+            detected features.
         """
         features, _ = self.detector_descriptor.detect_and_describe(image)
 
