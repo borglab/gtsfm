@@ -1,33 +1,37 @@
-"""
-Common utlities for image manipulation
+"""Common utilities for image manipulation.
 
 Authors: Ayush Baid
 """
 import cv2 as cv
-import numpy as np
+
+from common.image import Image
 
 
-def rgb_to_gray_cv(image: np.ndarray) -> np.ndarray:
+def rgb_to_gray_cv(image: Image) -> Image:
     """
-    RGB to Grayscale converion using opencv
+    RGB to Grayscale conversion using opencv
 
     Args:
-        image (np.array): Input RGB/RGBA image
+        image: Input RGB/RGBA image.
 
     Raises:
         ValueError: wrong input dimensions
 
     Returns:
-        np.array: grayscale transformed image
+        grayscale transformed image.
     """
 
-    if len(image.shape) == 2:
+    input_array = image.image_array
+
+    output_array = input_array
+
+    if len(input_array.shape) == 2:
         pass
-    elif image.shape[2] == 4:
-        image = cv.cvtColor(image, cv.COLOR_RGBA2GRAY)
-    elif image.shape[2] == 3:
-        image = cv.cvtColor(image, cv.COLOR_RGB2GRAY)
+    elif input_array.shape[2] == 4:
+        output_array = cv.cvtColor(input_array, cv.COLOR_RGBA2GRAY)
+    elif input_array.shape[2] == 3:
+        output_array = cv.cvtColor(input_array, cv.COLOR_RGB2GRAY)
     else:
         raise ValueError('Input image dimensions are wrong')
 
-    return image
+    return Image(output_array, image.exif_data)
