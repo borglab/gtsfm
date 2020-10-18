@@ -45,6 +45,6 @@ class DoG(DetectorBase):
         )[:self.max_features]
 
         # convert to numpy array
-        features = feature_utils.array_of_keypoints(cv_keypoints)
+        features = feature_utils.array_from_keypoints(cv_keypoints)
 
         return features
