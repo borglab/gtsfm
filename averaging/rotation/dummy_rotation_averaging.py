@@ -3,7 +3,7 @@
 Authors: Ayush Baid
 """
 
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from gtsam import Rot3
@@ -16,22 +16,22 @@ class DummyRotationAveraging(RotationAveragingBase):
 
     def run(self,
             num_poses: int,
-            i1Ri2_dict: Dict[Tuple[int, int], Rot3]
-            ) -> List[Rot3]:
+            i1_R_i2_dict: Dict[Tuple[int, int], Optional[Rot3]]
+            ) -> List[Optional[Rot3]]:
         """Run the rotation averaging.
 
         Args:
             num_poses: number of poses.
-            i1Ri2_dict: relative rotations between camera poses (rotation of
-                        i2^th pose in i1^th frame).
+            i1_R_i2_dict: relative rotations between camera poses (rotation of
+                          i2^th pose in i1^th frame).
 
         Returns:
-            Global rotations for each camera pose, i.e. wRc
+            Global rotations for each camera pose, i.e. w_R_i
         """
 
         # create the random seed using relative rotations
         seed_rotation = Rot3()
-        for rotation in i1Ri2_dict.values():
+        for rotation in i1_R_i2_dict.values():
             seed_rotation = seed_rotation.compose(rotation)
 
         np.random.seed(
@@ -39,10 +39,10 @@ class DummyRotationAveraging(RotationAveragingBase):
         )
 
         # generate dummy rotations
-        results = []
+        w_R_i_list = []
         for _ in range(num_poses):
             random_vector = np.random.rand(3)*2*np.pi
-            results.append(Rot3.Rodrigues(
+            w_R_i_list.append(Rot3.Rodrigues(
                 random_vector[0], random_vector[1], random_vector[2]))
 
-        return results
+        return w_R_i_list
