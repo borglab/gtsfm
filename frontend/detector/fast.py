@@ -35,7 +35,7 @@ class Fast(DetectorBase):
         gray_image = image_utils.rgb_to_gray_cv(image.image_array)
 
         # init the opencv object
-        opencv_obj = cv.xfeatures2d.SIFT_create()
+        opencv_obj = cv.FastFeatureDetector_create()
 
         cv_keypoints = opencv_obj.detect(gray_image, None)
 
