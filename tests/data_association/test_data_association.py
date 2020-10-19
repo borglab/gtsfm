@@ -10,10 +10,11 @@ import dask
 import numpy as np
 import gtsam
 from gtsam.utils.test_case import GtsamTestCase
+from typing import List, Dict
 
 import utils.io as io_utils
 from data_association.data_assoc import DataAssociation, LandmarkInitialization
-from data_association.tracks import FeatureTracks, toy_case, delete_malformed_tracks
+from data_association.tracks import FeatureTracks, delete_tracks, toy_case
 from frontend.matcher.dummy_matcher import DummyMatcher
 
 
@@ -40,7 +41,7 @@ class TestDataAssociation(GtsamTestCase):
         dummy_matches = toy_case()
         self.track = FeatureTracks(dummy_matches, len(dummy_matches), None)
         # len(track) value for toy case strictly
-        assert len(self.track.landmark_map) == 4, "tracks incorrectly mapped"
+        assert self.track.filtered_landmark_data.number_tracks() == 4, "tracks incorrectly mapped"
 
     
     def test_primary_filtering(self):
@@ -48,19 +49,32 @@ class TestDataAssociation(GtsamTestCase):
         Tests that the tracks are being filtered correctly.
         Removes tracks that have two measurements in a single image.
         """
-        malformed_landmark_map = {
-            (0, 0): [(0, (1, 3)), (1, (12, 14)), (1, (8, 2)), (2, (13, 16))], 
-            (0, 1): [(0, (4, 6)), (1, (5, 10)), (2, (12, 14))], 
-            (0, 2): [(0, (9, 8)), (0,(2,4)), (1, (11, 12))], 
-            (1, 7): [(1, (4, 1)), (2, (8, 1))]}
-        expected_landmark_map = {
-            (0, 1): [(0, (4, 6)), (1, (5, 10)), (2, (12, 14))], 
-            (1, 7): [(1, (4, 1)), (2, (8, 1))]
-        }
-        filtered_map = delete_malformed_tracks(malformed_landmark_map)
-        for key, _ in filtered_map.items():
-            # check that the length of the observation list corresponding to each key is the same. Only good tracks will remain
-            assert len(expected_landmark_map[key]) == len(filtered_map[key]), "Tracks not filtered correctly"
+        track_1, track_2, track_3, track_4 = gtsam.SfmTrack(), gtsam.SfmTrack(), gtsam.SfmTrack(), gtsam.SfmTrack()
+        sfmdata = gtsam.SfmData()
+        # Malformed measurement lists(tracks) of type (camera_idx, image_Point)
+        measurement_list1 =  [(0, (1, 3)), (1, (12, 14)), (1, (8, 2)), (2, (13, 16))]
+        measurement_list2 =  [(0, (4, 6)), (1, (5, 10)), (2, (12, 14))]
+        measurement_list3 =  [(0, (9, 8)), (0,(2,4)), (1, (11, 12))]
+        measurement_list4 = [(1, (4, 1)), (2, (8, 1))]
+
+        for m in measurement_list1:
+            track_1.add_measurement(m)
+        # measurement lists 2 and 3 are the same size
+        for m in range(len(measurement_list2)):
+            track_2.add_measurement(measurement_list2[m])
+            track_3.add_measurement(measurement_list3[m])
+        for m in measurement_list4:
+            track_4.add_measurement(m)
+
+        # add tracks to sfmdata
+        sfmdata.add_track(track_1)
+        sfmdata.add_track(track_2)
+        sfmdata.add_track(track_3)
+        sfmdata.add_track(track_4)
+
+        filtered_map = delete_tracks(sfmdata)
+        # check that the length of the observation list corresponding to each key is the same. Only good tracks will remain
+        assert filtered_map.number_tracks() == 2, "Tracks not filtered correctly"
 
     def test_triangulation_sharedCal(self):
         """
@@ -100,8 +114,9 @@ class TestDataAssociation(GtsamTestCase):
 
         # create matches
         matches_1 = {img_idxs: match_arrays}
-
-        computed_landmark = DataAssociation(matches_1, len(poses), poses, True, sharedCal, None).triangulated_landmarks[0]
+        da = DataAssociation(matches_1, len(poses), poses, True, sharedCal, None, None)
+        computed_landmark = da.triangulated_landmark_map.track(0).point3()
+        assert da.triangulated_landmark_map.number_tracks()== 1, "more tracks than expected"
         self.gtsamAssertEquals(computed_landmark, expected_landmark,1e-1)
 
         # Add third camera slightly rotated
@@ -119,7 +134,9 @@ class TestDataAssociation(GtsamTestCase):
             np.expand_dims(np.asarray(measurements[2]), axis=0)))
 
         matches_2 = {img_idxs: match_arrays, img_idxs2: match_arrays2}
-        computed_landmark = DataAssociation(matches_2, len(poses), poses, True, sharedCal, None).triangulated_landmarks[0]
+        da = DataAssociation(matches_2, len(poses), poses, True, sharedCal, None, None)
+        computed_landmark = da.triangulated_landmark_map.track(0).point3()
+        assert da.triangulated_landmark_map.number_tracks()== 1, "more tracks than expected"
         self.gtsamAssertEquals(computed_landmark, expected_landmark,1e-1)
 
     
