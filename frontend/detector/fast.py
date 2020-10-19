@@ -1,7 +1,7 @@
-"""
-FAST detector implementation.
+"""FAST detector implementation.
 
-The detector was proposed in 'Machine Learning for High-Speed Corner Detection' and is implemented by wrapping over OpenCV's API
+The detector was proposed in 'Machine Learning for High-Speed Corner Detection' 
+and is implemented by wrapping over OpenCV's API
 
 References:
 - https://link.springer.com/chapter/10.1007/11744023_34
@@ -12,39 +12,39 @@ Authors: Ayush Baid
 import cv2 as cv
 import numpy as np
 
-import frontend.utils.feature_utils as feature_utils
-import utils.image_utils as image_utils
+import utils.features as feature_utils
+import utils.images as image_utils
 from common.image import Image
 from frontend.detector.detector_base import DetectorBase
 
 
 class Fast(DetectorBase):
-    """Fast detector using opencv's implementation"""
+    """Fast detector using opencv's implementation."""
 
     def detect(self, image: Image) -> np.ndarray:
-        """
-        Detect the features in an image.
+        """Detect the features in an image.
 
-        Refer to the documentation in DetectorBase for more details.
+        Refer to documentation in DetectorBase for more details.
 
-        Arguments:
-            image (Image): the input RGB image as a 3D numpy array
+        Args:
+            image: input image.
 
         Returns:
-            np.ndarray: detected features as a numpy array
+            detected features.
         """
-        gray_image = image_utils.rgb_to_gray_cv(image.image_array)
+        gray_image = image_utils.rgb_to_gray_cv(image)
 
         # init the opencv object
-        opencv_obj = cv.xfeatures2d.SIFT_create()
+        opencv_obj = cv.FastFeatureDetector_create()
 
-        cv_keypoints = opencv_obj.detect(gray_image, None)
+        cv_keypoints = opencv_obj.detect(gray_image.image_array, None)
 
-        # sort the keypoints by score
+        # sort the keypoints by score and pick top responses
         cv_keypoints = sorted(
-            cv_keypoints, key=lambda x: x.response, reverse=True)
+            cv_keypoints, key=lambda x: x.response, reverse=True
+        )[:self.max_features]
 
         # convert to numpy array
-        features = feature_utils.array_of_keypoints(cv_keypoints)
+        features = feature_utils.array_from_keypoints(cv_keypoints)
 
         return features
