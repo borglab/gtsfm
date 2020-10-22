@@ -36,7 +36,7 @@ class DoG(DetectorBase):
         opencv_obj = cv.xfeatures2d.SIFT_create()
 
         gray_image = image_utils.rgb_to_gray_cv(image)
-        cv_keypoints = opencv_obj.detect(gray_image.image_array, None)
+        cv_keypoints = opencv_obj.detect(gray_image.value_array, None)
 
         # sort the keypoints by score and pick top responses
         cv_keypoints = sorted(

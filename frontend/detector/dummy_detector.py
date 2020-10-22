@@ -31,7 +31,7 @@ class DummyDetector(DetectorBase):
         """
 
         np.random.seed(
-            int(1000*np.sum(image.image_array, axis=None) % (2 ^ 32))
+            int(1000*np.sum(image.value_array, axis=None) % (2 ^ 32))
         )
 
         num_features = np.random.randint(0, high=15, size=(1)).item()
@@ -41,7 +41,7 @@ class DummyDetector(DetectorBase):
 
         # assign the coordinates
         features[:, :2] = np.random.randint(
-            [0, 0], high=[image.image_array.shape[1], image.image_array.shape[0]], size=(num_features, 2))
+            [0, 0], high=[image.value_array.shape[1], image.value_array.shape[0]], size=(num_features, 2))
 
         # assign the scale
         features[:, 2] = np.random.rand(num_features)

@@ -15,7 +15,7 @@ import cv2 as cv
 import numpy as np
 
 import frontend.utils.feature_utils as feature_utils
-import utils.image_utils as image_utils
+import utils.images as image_utils
 from common.image import Image
 from frontend.detector_descriptor.detector_descriptor_base import \
     DetectorDescriptorBase
@@ -40,14 +40,14 @@ class SIFT(DetectorDescriptorBase):
         """
 
         # conert to grayscale
-        gray_image = image_utils.rgb_to_gray_cv(image.image_array)
+        gray_image = image_utils.rgb_to_gray_cv(image)
 
         # Creating OpenCV object
         opencv_obj = cv.xfeatures2d.SIFT_create()
 
         # Run the opencv code
         cv_keypoints, descriptors = opencv_obj.detectAndCompute(
-            gray_image, None)
+            gray_image.value_array, None)
 
         # convert keypoints to features
         features = feature_utils.array_of_keypoints(cv_keypoints)

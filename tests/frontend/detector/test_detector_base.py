@@ -30,12 +30,12 @@ class TestDetectorBase(unittest.TestCase):
         test_image = self.loader.get_image(0)
         features = self.detector.detect(test_image)
 
-        image_shape = test_image.image_array.shape
+        image_shape = test_image.shape
 
         np.testing.assert_array_equal(features[:, 0] >= 0, True)
-        np.testing.assert_array_equal(features[:, 0] <= image_shape[1], True)
+        np.testing.assert_array_equal(features[:, 0] <= image_shape[0], True)
         np.testing.assert_array_equal(features[:, 1] >= 0, True)
-        np.testing.assert_array_equal(features[:, 1] <= image_shape[0], True)
+        np.testing.assert_array_equal(features[:, 1] <= image_shape[1], True)
 
     def test_scale(self):
         """Tests that the scales are positive."""

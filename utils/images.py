@@ -21,7 +21,7 @@ def rgb_to_gray_cv(image: Image) -> Image:
         grayscale transformed image.
     """
 
-    input_array = image.image_array
+    input_array = image.value_array
 
     output_array = input_array
 

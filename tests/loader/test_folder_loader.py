@@ -71,7 +71,7 @@ class TestFolderLoader(unittest.TestCase):
         expected_image = io_utils.load_image(file_path)
 
         np.testing.assert_allclose(
-            expected_image.image_array, loader_image.image_array)
+            expected_image.value_array, loader_image.value_array)
 
     def test_delayed_get_image(self):
         """
@@ -85,7 +85,7 @@ class TestFolderLoader(unittest.TestCase):
         normal_result = self.loader.get_image(index_to_test)
 
         np.testing.assert_allclose(
-            normal_result.image_array, delayed_result.image_array)
+            normal_result.value_array, delayed_result.value_array)
 
     def test_create_computation_graph(self):
         """
@@ -101,8 +101,8 @@ class TestFolderLoader(unittest.TestCase):
 
         # randomly check image loads from a few indices
         np.testing.assert_allclose(
-            results[5].image_array, self.loader.get_image(5).image_array
+            results[5].value_array, self.loader.get_image(5).value_array
         )
 
         np.testing.assert_allclose(
-            results[12].image_array, self.loader.get_image(12).image_array)
+            results[12].value_array, self.loader.get_image(12).value_array)

@@ -49,7 +49,7 @@ class RootSIFT(DescriptorBase):
 
         # TODO(ayush): what to do about new set of keypoints
         _, sift_desc = opencv_obj.compute(
-            gray_image.image_array, feature_utils.keypoints_of_array(features)
+            gray_image.value_array, feature_utils.keypoints_of_array(features)
         )
 
         # Step 1: L1 normalization
