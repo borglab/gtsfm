@@ -44,10 +44,10 @@ from numpy.core.records import ndarray
     
 
 
-class FeatureTracks:
-
-    # def __tracks_to_dsf(self, dsf: gtsam.DSFMapIndexPair) -> List:
-    #     pass
+class FeatureTrackGenerator:
+    """
+    Creates and filter tracks from matches.
+    """
 
     def __init__(self,
                  matches: OrderedDict[Tuple[int, int], Tuple[int, int]],
@@ -127,7 +127,7 @@ def delete_tracks(landmark_data: gtsam.SfmData) -> gtsam.SfmData:
 def toy_case():
     matches = dict()
     key_list = [(0,1), (0,2), (1,2)]
-    feature_list = [[np.array([1,3])]]
+    #feature_list = [[np.array([1,3])]]
     matches_list = [
         (
             np.array([[1,3,2], [4,6,2], [9,8,1]]),

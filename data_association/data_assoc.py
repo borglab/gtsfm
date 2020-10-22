@@ -7,8 +7,7 @@ import numpy as np
 import cv2
 
 import gtsam
-from numpy.lib.twodim_base import tri
-from data_association.tracks import FeatureTracks
+from data_association.feature_tracks import FeatureTracks
 
 class DataAssociation(FeatureTracks):
     """
@@ -39,7 +38,7 @@ class DataAssociation(FeatureTracks):
         self.calibrationFlag = calibrationFlag
         self.calibration = calibration
         self.features_list = feature_list
-        self.sfmdata_landmark_map = gtsam.SfmData()
+        # self.sfmdata_landmark_map = gtsam.SfmData()
         self.triangulated_landmark_map = gtsam.SfmData()
         super().__init__(matches, num_poses, feature_list)
         self.sfmdata_landmark_map = self.filtered_landmark_data
@@ -171,6 +170,7 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
         return track
     
     def filter_reprojection_error(self, triangulated_pt: gtsam.Point3, track: gtsam.SfmTrack):
+        # TODO: Add camera to input
         # TODO: Set threshold = 5*smallest_error in track?
         threshold = 5
         f_x = self.calibration[0][0]
@@ -183,8 +183,8 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
             pose_idx, measurement = track.measurement(measurement_idx)
             triangulated_pt = track.Point3()
             # Project to camera 1
-            uc = f_x*triangulated_pt[0]/triangulated_pt[2] + c_x
-            vc = f_y*triangulated_pt[1]/triangulated_pt[2] + c_y
+            uc = f_x*camera.project(triangulated_pt) + c_x
+            vc = f_y*camera.project(triangulated_pt) + c_y
             # Projection error in cam 1
             error = (uc - measurement[0])**2 + (vc - measurement[1])
             if error < threshold:
