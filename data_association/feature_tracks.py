@@ -50,9 +50,9 @@ class FeatureTrackGenerator:
     """
 
     def __init__(self,
-                 matches: OrderedDict[Tuple[int, int], Tuple[int, int]],
+                 matches: Dict[Tuple[int, int], List[Tuple[int, int]]],
                  num_poses: int,
-                 feature_list: List[List[ndarray]]
+                 feature_list: List[List]
                  ):
         """
         Creates DSF and landmark map from pairwise matches.
@@ -67,23 +67,19 @@ class FeatureTrackGenerator:
         # Generate the DSF to form tracks
         dsf = gtsam.DSFMapIndexPair()
         self.landmark_map = defaultdict(list)
-        self.filtered_landmark_data = gtsam.SfmData()
-        landmark_data = gtsam.SfmData()
+        self.filtered_landmark_data = []
+        landmark_data = []
 
         # for DSF finally
-        for (pose_idx_1, pose_idx_2), (feature_idx_1, feature_idx_2) in matches.items():
-        #     num_matches = features_1.shape[0]
-
-        #     for match_idx in range(num_matches):
-        #         feature_idx_1 = measurement_to_index_maps[pose_idx_1].lookup_index(
-        #             tuple(features_1[match_idx, :2]))  #lookup indx input: (x,y) for all rows
-
-        #         feature_idx_2 = measurement_to_index_maps[pose_idx_2].lookup_index(
-        #             tuple(features_2[match_idx, :2]))
-
-
+        for (pose_idx_1, pose_idx_2), feature_idxs in matches.items():
+            print("len", len(feature_idxs))
+            for i in range(len(feature_idxs)):
+                feature_idx_1 = feature_idxs[i][0]
+                print("idx check",feature_idxs[i], i)
+                feature_idx_2 = feature_idxs[i][1]
+                print("indices",pose_idx_1, pose_idx_2, feature_idx_1, feature_idx_2)
                 dsf.merge(gtsam.IndexPair(pose_idx_1, feature_idx_1),
-                          gtsam.IndexPair(pose_idx_2, feature_idx_2))
+                        gtsam.IndexPair(pose_idx_2, feature_idx_2))
                 key_set = dsf.sets()                
 
         # create a landmark map
@@ -95,6 +91,7 @@ class FeatureTrackGenerator:
                 
                 pose_idx = val.i()
                 feature_idx = val.j()
+                print("pose", pose_idx, feature_idx)
                 # get set representative- Will be IndexPair type
                 lndmrk_root_node = dsf.find(gtsam.IndexPair(pose_idx, feature_idx))
                 landmark_key = (lndmrk_root_node.i(), lndmrk_root_node.j())
@@ -102,54 +99,59 @@ class FeatureTrackGenerator:
                 # feature is extracted from feature_idx by inverting dict mapping feature coordinates to idx
 
                 # add measurement in this track
-                meas = tuple((pose_idx, feature_list[pose_idx][feature_idx, :2]))
+                print("check", feature_list[pose_idx][feature_idx][:2])
+                meas = tuple((pose_idx, feature_list[pose_idx][feature_idx][:2]))
                 track.add_measurement(meas)
 
-            landmark_data.add_track(track)
+            landmark_data.append(track)
             
         self.filtered_landmark_data = delete_tracks(landmark_data)
 
 
-def delete_tracks(landmark_data: gtsam.SfmData) -> gtsam.SfmData:
-    filtered_landmark_data = gtsam.SfmData()
-    for track_idx in range(landmark_data.number_tracks()):
+def delete_tracks(landmark_data: List) -> List:
+    filtered_landmark_data = []
+    for track_idx in range(len(landmark_data)):
         unique_track = set()
-        for measurement_idx in range(landmark_data.track(track_idx).number_measurements()):
-            i, _ = landmark_data.track(track_idx).measurement(measurement_idx)
+        for measurement_idx in range(landmark_data[track_idx].number_measurements()):
+            i, _ = landmark_data[track_idx].measurement(measurement_idx)
             unique_track.add(i)
-        if len(unique_track) != landmark_data.track(track_idx).number_measurements():
+        if len(unique_track) != landmark_data[track_idx].number_measurements():
             continue
         else:
-            filtered_landmark_data.add_track(landmark_data.track(track_idx))
+            filtered_landmark_data.append(landmark_data[track_idx])
     
     return filtered_landmark_data
 
+def toy_case_2():
+    matches = {(0,1): np.array([[0,2]]), 
+                (1,2): np.array([[2,3], 
+                                [4,5], 
+                                [7,9]]),
+                (0,2): np.array([[1,8]])}
+    # feature_list format: [[features in img1], [features in img2], [features in img3]]
+    feature_list = [
+                    [(12,16, 6), (13,18, 9), (0,10, 8.5)], 
+                    [(8,2), (16,14), (22,23), (1,6), (50,50), (16,12), (82,121), (39,60)], 
+                    [(1,1), (8,13), (40,6), (82,21), (1,6), (12,18), (15,14), (25,28), (7,10), (14,17)]
+                    ]
+    return matches, feature_list
+
 def toy_case():
-    matches = dict()
-    key_list = [(0,1), (0,2), (1,2)]
-    #feature_list = [[np.array([1,3])]]
-    matches_list = [
-        (
-            np.array([[1,3,2], [4,6,2], [9,8,1]]),
-            np.array([[8,2,2], [5,10,2], [11,12,2]])
-        ), 
-        (
-            np.array([[4,6,2]]),
-            np.array([[12,14,1]])
-        ),
-        (
-            np.array([[8,2,2], [4,1,5]]), 
-            np.array([[13,16,2],[8,1,3]])
-        )]
-    for i,key in enumerate(key_list):
-        matches[key] = matches_list[i]
-    return matches
+    matches = {(0,1): [(0,2)], 
+                (1,2): [(2,3), (4,5),(7,9)],
+                (0,2): [(1,8)]}
+    feature_list = [
+                    [(12,16), (13,18), (0,10)], 
+                    [(8,2), (16,14), (22,23), (1,6), (50,50), (16,12), (82,121), (39,60)], 
+                    [(1,1), (8,13), (40,6), (82,21), (1,6), (12,18), (15,14), (25,28), (7,10), (14,17)]
+                    ]
+    return matches, feature_list
 
                 
 if __name__ == "__main__":
-    dummy_matches = toy_case()
+    dummy_matches, features = toy_case_2()
     # for a sanity check
-    FT = FeatureTracks(dummy_matches, len(dummy_matches), None)
+    FT = FeatureTrackGenerator(dummy_matches, len(dummy_matches), features)
     print(FT.landmark_map)
 
     """
