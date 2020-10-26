@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
-from gtsam import Cal3Bundler, EssentialMatrix, Pose3, Unit3
+from gtsam import Cal3Bundler, Pose3
 
 import utils.io as io_utils
 from common.image import Image
@@ -104,32 +104,6 @@ class FolderLoader(LoaderBase):
             raise IndexError("Image index is invalid")
 
         return io_utils.load_image(self.image_paths[index])
-
-    def get_geometry(self, idx1: int, idx2: int) -> Optional[np.ndarray]:
-        """Get the ground truth essential matrix/homography that maps
-        measurement in image #idx1 to points/lines in #idx2.
-
-        The function returns either idx2_E_idx1 or idx2_H_idx1.
-
-        Args:
-            idx1: one of image indices.
-            idx2: one of image indices.
-
-        Returns:
-            essential matrix/homography matrix.
-        """
-        w_P_idx1 = self.get_camera_pose(idx1)
-        w_P_idx2 = self.get_camera_pose(idx2)
-
-        if w_P_idx1 is None or w_P_idx2 is None:
-            return None
-
-        idx2_P_idx1 = w_P_idx2.between(w_P_idx1)
-
-        idx2_E_idx1 = EssentialMatrix(
-            idx2_P_idx1.rotation(), Unit3(idx2_P_idx1.translation()))
-
-        return idx2_E_idx1.matrix()
 
     def get_camera_intrinsics(self, index: int) -> Optional[Cal3Bundler]:
         """Get the camera intrinsics at the given index.
