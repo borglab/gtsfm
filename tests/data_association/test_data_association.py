@@ -1,21 +1,18 @@
 """Unit test for the DataAssociation class.
 
-Authors:Sushmita Warrier
+Authors: Sushmita Warrier
 """
 from random import uniform
 import unittest
 
-from collections import defaultdict
 import dask
 import numpy as np
 import gtsam
 from gtsam.utils.test_case import GtsamTestCase
 from typing import List, Dict
 
-import utils.io as io_utils
 from data_association.data_assoc import DataAssociation, LandmarkInitialization
-# don't import funcs - do tracks.toy_case
-from data_association.feature_tracks import FeatureTrackGenerator, delete_tracks, toy_case_2
+from data_association.feature_tracks import FeatureTrackGenerator
 from frontend.matcher.dummy_matcher import DummyMatcher
 
 
@@ -32,15 +29,29 @@ class TestDataAssociation(GtsamTestCase):
 
         # set up ground truth data for comparison
 
-        # self.da = DataAssociation()
+        self.dummy_matches = {(0,1): np.array([[0,2]]), 
+                    (1,2): np.array([[2,3], 
+                                    [4,5], 
+                                    [7,9]]),
+                    (0,2): np.array([[1,8]])}
+        self.feature_list = [
+                        [(12,16, 6), (13,18, 9), (0,10, 8.5)], 
+                        [(8,2), (16,14), (22,23), (1,6), (50,50), (16,12), (82,121), (39,60)], 
+                        [(1,1), (8,13), (40,6), (82,21), (1,6), (12,18), (15,14), (25,28), (7,10), (14,17)]
+                        ]
+        self.malformed_matches = {(0,1): np.array([[0,2]]), 
+                    (1,2): np.array([[2,3], 
+                                    [4,5], 
+                                    [7,9]]),
+                    (0,2): np.array([[1,8]]),
+                    (1,1): np.array([[0,3]])}
         self.matcher = DummyMatcher()
     
     def test_track(self):
         """
         Tests that the tracks are being merged and mapped correctly
         """
-        dummy_matches, feature_list = toy_case_2()
-        self.track = FeatureTrackGenerator(dummy_matches, len(dummy_matches), feature_list)
+        self.track = FeatureTrackGenerator(self.dummy_matches, len(self.dummy_matches), self.feature_list)
         # len(track) value for toy case strictly
         assert len(self.track.filtered_landmark_data) == 4, "tracks incorrectly mapped"
 
@@ -50,32 +61,11 @@ class TestDataAssociation(GtsamTestCase):
         Tests that the tracks are being filtered correctly.
         Removes tracks that have two measurements in a single image.
         """
-        track_1, track_2, track_3, track_4 = gtsam.SfmTrack(), gtsam.SfmTrack(), gtsam.SfmTrack(), gtsam.SfmTrack()
-        track_list = []
-        # Malformed measurement lists(tracks) of type (camera_idx, image_Point)
-        measurement_list1 =  [(0, (1, 3)), (1, (12, 14)), (1, (8, 2)), (2, (13, 16))]
-        measurement_list2 =  [(0, (4, 6)), (1, (5, 10)), (2, (12, 14))]
-        measurement_list3 =  [(0, (9, 8)), (0,(2,4)), (1, (11, 12))]
-        measurement_list4 = [(1, (4, 1)), (2, (8, 1))]
 
-        for m in measurement_list1:
-            track_1.add_measurement(m)
-        # measurement lists 2 and 3 are the same size
-        for m in range(len(measurement_list2)):
-            track_2.add_measurement(measurement_list2[m])
-            track_3.add_measurement(measurement_list3[m])
-        for m in measurement_list4:
-            track_4.add_measurement(m)
+        filtered_map = FeatureTrackGenerator(self.malformed_matches, len(self.malformed_matches), self.feature_list).filtered_landmark_data
 
-        # add tracks to sfmdata
-        track_list.append(track_1)
-        track_list.append(track_2)
-        track_list.append(track_3)
-        track_list.append(track_4)
-
-        filtered_map = delete_tracks(track_list)
         # check that the length of the observation list corresponding to each key is the same. Only good tracks will remain
-        assert len(filtered_map) == 2, "Tracks not filtered correctly"
+        assert len(filtered_map) == 4, "Tracks not filtered correctly"
 
     def test_triangulation_sharedCal(self):
         """
@@ -118,14 +108,13 @@ class TestDataAssociation(GtsamTestCase):
             msrmnt_in_img = []
             msrmnt_in_img.append(tuple(measurements[i]))
             feature_list.append(msrmnt_in_img)
-            print("f", msrmnt_in_img)
 
         # create matches
 
         matches_1 = {img_idxs: matched_idxs}
-        print("isintance",feature_list)
-        da = DataAssociation(matches_1, len(poses), poses, True, sharedCal, None, feature_list)
-        assert len(da.triangulated_landmark_map) == 0, "tracks exceeding expected track length"
+        da = DataAssociation()
+        triangulated_landmark_map = da.run(matches_1, len(poses), poses, True, sharedCal, None, feature_list)
+        assert len(triangulated_landmark_map) == 0, "tracks exceeding expected track length"
         
 
         # Add third camera slightly rotated
@@ -146,9 +135,10 @@ class TestDataAssociation(GtsamTestCase):
         matched_idxs2 = np.array([[0,0]])
 
         matches_2 = {img_idxs: matched_idxs, img_idxs2: matched_idxs2}
-        da = DataAssociation(matches_2, len(poses), poses, True, sharedCal, None, feature_list)
-        computed_landmark = da.triangulated_landmark_map[0].point3()
-        assert len(da.triangulated_landmark_map)== 1, "more tracks than expected"
+        da = DataAssociation()
+        triangulated_landmark_map = da.run(matches_2, len(poses), poses, True, sharedCal, None, feature_list)
+        computed_landmark = triangulated_landmark_map[0].point3()
+        assert len(triangulated_landmark_map)== 1, "more tracks than expected"
         self.gtsamAssertEquals(computed_landmark, expected_landmark,1e-1)
 
     

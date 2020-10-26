@@ -2,7 +2,6 @@ import abc
 from collections import defaultdict
 from typing import DefaultDict, Dict, List, Tuple, Optional
 
-import dask
 import numpy as np
 import cv2
 
@@ -13,16 +12,7 @@ class DataAssociation(FeatureTrackGenerator):
     """
     Class to form feature tracks; for each track, call LandmarkInitialization
     """
-    def __init__(
-        self, 
-        matches: Dict[Tuple[int, int], Tuple[int, int]], 
-        num_poses: int, 
-        global_poses: List[gtsam.Pose3], 
-        calibrationFlag: bool, 
-        calibration: gtsam.Cal3_S2, 
-        camera_list: List,
-        feature_list: List
-        ) -> None:
+    def __init__(self) -> None:
         """
         #CAN NUM POSES BE REPLACED WITH LEN(POSES)?
         Args:
@@ -32,30 +22,49 @@ class DataAssociation(FeatureTrackGenerator):
             calibrationFlag: flag to set shared or individual calibration
             calibration: shared calibration
             camera_list: list of individual cameras (if calibration not shared)
-            feature_list: List of features (with their corresponding indices?)
+            feature_list: List of features in each image
         """
-        print("received matches", matches)
+        
+
+    def run(self, 
+        matches: Dict[Tuple[int, int], Tuple[int, int]], 
+        num_poses: int, 
+        global_poses: List[gtsam.Pose3], 
+        calibrationFlag: bool, 
+        calibration: gtsam.Cal3_S2, 
+        camera_list: List,
+        feature_list: List[List]) -> List:
+        
         self.calibrationFlag = calibrationFlag
         self.calibration = calibration
         self.features_list = feature_list
-        # self.sfmdata_landmark_map = gtsam.SfmData()
-        self.triangulated_landmark_map = []
         super().__init__(matches, num_poses, feature_list)
-        self.sfmdata_landmark_map = self.filtered_landmark_data
-        
-        
-        for track_idx in range(len(self.sfmdata_landmark_map)):
+        triangulated_landmark_map = []        
+        sfmdata_landmark_map = self.filtered_landmark_data
+        for track_idx in range(len(sfmdata_landmark_map)):
             if self.calibrationFlag == True:
-                LMI = LandmarkInitialization(calibrationFlag, self.sfmdata_landmark_map[track_idx], calibration,global_poses)
+                LMI = LandmarkInitialization(calibrationFlag, sfmdata_landmark_map[track_idx], calibration,global_poses)
             else:
-                LMI = LandmarkInitialization(calibrationFlag, self.sfmdata_landmark_map[track_idx], camera_list)
-            triangulated_data = LMI.triangulate(self.sfmdata_landmark_map[track_idx])
-            filtered_track = LMI.filter_reprojection_error(triangulated_data.point3(), self.sfmdata_landmark_map[track_idx])
+                LMI = LandmarkInitialization(calibrationFlag, sfmdata_landmark_map[track_idx], camera_list)
+            triangulated_data = LMI.triangulate(sfmdata_landmark_map[track_idx])
+            filtered_track = LMI.filter_reprojection_error(triangulated_data.point3(), sfmdata_landmark_map[track_idx])
             if filtered_track.number_measurements() > 2:
-                self.triangulated_landmark_map.append(filtered_track)
+                triangulated_landmark_map.append(filtered_track)
             else:
                 print("Track length < 3 discarded")
+        return triangulated_landmark_map
+
+    def create_computation_graph(self,
+        matches: Dict[Tuple[int, int], Tuple[int, int]], 
+        num_poses: int, 
+        global_poses: List[gtsam.Pose3], 
+        calibrationFlag: bool, 
+        calibration: gtsam.Cal3_S2, 
+        camera_list: List,
+        feature_list: List[List]):
         
+        return dask.delayed(self.run)(matches, num_poses, global_poses, calibrationFlag, calibration, camera_list, feature_list)
+
 
 class LandmarkInitialization(metaclass=abc.ABCMeta):
     """
