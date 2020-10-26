@@ -124,11 +124,11 @@ class FolderLoader(LoaderBase):
             intrinsics_array = np.load(self.explicit_intrinsics_paths[index])
 
             return Cal3Bundler(
-                f=min(intrinsics_array[0, 0], intrinsics_array[1, 1]),
+                fx=min(intrinsics_array[0, 0], intrinsics_array[1, 1]),
                 k1=0,
                 k2=0,
                 u0=intrinsics_array[0, 2],
-                vo=intrinsics_array[2, 2])
+                v0=intrinsics_array[1, 2])
 
     def get_camera_pose(self, index: int) -> Optional[Pose3]:
         """Get the camera pose (in world coordinates) at the given index.
