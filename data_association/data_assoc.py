@@ -41,13 +41,15 @@ class DataAssociation(FeatureTrackGenerator):
         super().__init__(matches, num_poses, feature_list)
         triangulated_landmark_map = []        
         sfmdata_landmark_map = self.filtered_landmark_data
-        for track_idx in range(len(sfmdata_landmark_map)):
+        # point indices are represented as j
+        # nb of 3D points = nb of tracks, hence track_idx represented as j
+        for j in range(len(sfmdata_landmark_map)):
             if self.calibrationFlag == True:
-                LMI = LandmarkInitialization(calibrationFlag, sfmdata_landmark_map[track_idx], calibration,global_poses)
+                LMI = LandmarkInitialization(calibrationFlag, sfmdata_landmark_map[j], calibration,global_poses)
             else:
-                LMI = LandmarkInitialization(calibrationFlag, sfmdata_landmark_map[track_idx], camera_list)
-            triangulated_data = LMI.triangulate(sfmdata_landmark_map[track_idx])
-            filtered_track = LMI.filter_reprojection_error(triangulated_data.point3(), sfmdata_landmark_map[track_idx])
+                LMI = LandmarkInitialization(calibrationFlag, sfmdata_landmark_map[j], camera_list)
+            triangulated_data = LMI.triangulate(sfmdata_landmark_map[j])
+            filtered_track = LMI.filter_reprojection_error(triangulated_data.point3(), sfmdata_landmark_map[j])
             if filtered_track.number_measurements() > 2:
                 triangulated_landmark_map.append(filtered_track)
             else:
@@ -97,15 +99,6 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
         if track_cameras is not None:
             self.track_camera_list = track_cameras
     
-    
-    def create_landmark_map(self, filtered_map:gtsam.SfmData, triangulated_pts: List) -> Dict:
-        landmark_map = filtered_map.copy()
-        for idx, (key, val) in enumerate(filtered_map.items()):
-            new_key = tuple(triangulated_pts[idx])
-            # copy the value
-            landmark_map[new_key] = filtered_map[key]
-            del landmark_map[key]
-        return landmark_map
 
     def extract_end_measurements(self, track: gtsam.SfmTrack) -> Tuple[gtsam.Pose3Vector, List, gtsam.Point2Vector]:
         """
@@ -123,8 +116,8 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
         cameras_list = []
         img_measurements_track = gtsam.Point2Vector()
         img_measurements = gtsam.Point2Vector()
-        for measurement_idx in range(track.number_measurements()):
-            img_idx, img_Pt = track.measurement(measurement_idx)
+        for k in range(track.number_measurements()):
+            img_idx, img_Pt = track.measurement(k)
             if self.sharedCal_Flag:
                 pose_estimates_track.append(self.track_pose_list[img_idx])
             else:
@@ -177,19 +170,20 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
         threshold = 5
         new_track = gtsam.SfmTrack()
         
-        for measurement_idx in range(track.number_measurements()):
-            pose_idx, measurement = track.measurement(measurement_idx)
+        # measurement_idx represented as k
+        for k in range(track.number_measurements()):
+            i, measurement = track.measurement(k)
             if self.sharedCal_Flag:
-                camera = gtsam.PinholeCameraCal3_S2(self.track_pose_list[pose_idx], self.calibration)
+                camera = gtsam.PinholeCameraCal3_S2(self.track_pose_list[i], self.calibration)
             else:
-                camera = gtsam.PinholeCameraCal3_S2(self.track_pose_list[pose_idx], self.track_camera_list[pose_idx])
+                camera = gtsam.PinholeCameraCal3_S2(self.track_pose_list[i], self.track_camera_list[i])
             # Project to camera 1
             uc = camera.project(triangulated_pt)[0]
             vc = camera.project(triangulated_pt)[1]
             # Projection error in camera
             error = (uc - measurement[0])**2 + (vc - measurement[1])**2
             if error < threshold:
-                new_track.add_measurement((pose_idx, measurement))
+                new_track.add_measurement((i, measurement))
                 new_track.set_point3(triangulated_pt)
         return new_track
 
