@@ -112,6 +112,8 @@ class TestDataAssociation(GtsamTestCase):
         assert len(expected_landmark_map) == len(dask_result), "Dask not configured correctly"
         for i in range(len(expected_landmark_map)):
             assert expected_landmark_map[i].number_measurements() == dask_result[i].number_measurements(), "Dask tracks incorrect"
+            # Test if the measurement in both are equal
+            np.testing.assert_array_almost_equal(expected_landmark_map[i].measurement(0)[1], dask_result[i].measurement(0)[1], 1, "Dask measurements incorrect")
         
         
     def __generate_2_poses(self, sharedCal):
