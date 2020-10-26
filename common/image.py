@@ -19,14 +19,20 @@ class Image(NamedTuple):
     sensor_width_db = SensorWidthDatabase()
 
     @property
-    def shape(self) -> Tuple[int, int]:
+    def height(self) -> int:
         """
-        The shape of the image, with the horizontal direction (x coordinate) being the first entry
+        The height of the image (i.e. number of pixels in the vertical
+        direction).
+        """
+        return self.value_array.shape[0]
 
-        Returns:
-            shape of the image as (width, height).
+    @property
+    def width(self) -> int:
         """
-        return self.value_array.shape[1::-1]
+        The width of the image (i.e. number of pixels in the horizontal
+        direction).
+        """
+        return self.value_array.shape[1]
 
     def get_intrinsics_from_exif(self) -> Optional[Cal3Bundler]:
         """Constructs the camera intrinsics from exif tag.
