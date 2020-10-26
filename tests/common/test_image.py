@@ -6,6 +6,7 @@ import unittest
 import unittest.mock as mock
 
 import numpy as np
+from gtsam import Cal3Bundler
 
 from common.image import Image
 from utils.sensor_width_database import SensorWidthDatabase
@@ -25,15 +26,12 @@ class TestImage(unittest.TestCase):
             'Model': 'testModel',
         }
 
-        expected_instrinsics = np.array([
-            [600, 0, 50],
-            [0, 600, 60],
-            [0, 0, 1]
-        ], dtype=np.float32)
+        expected_instrinsics = Cal3Bundler(
+            fx=600.0, k1=0.0, k2=0.0, u0=50.0, v0=60.0)
 
         image = Image(np.random.randint(low=0, high=255, size=(100, 120, 3)),
                       exif_data)
 
         computed_intrinsics = image.get_intrinsics_from_exif()
 
-        np.testing.assert_allclose(expected_instrinsics, computed_intrinsics)
+        self.assertTrue(expected_instrinsics.equals(computed_intrinsics, 1e-3))
