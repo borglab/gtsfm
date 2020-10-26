@@ -4,12 +4,12 @@ This database if used when we construct camera intrinsics from exif data.
 
 Authors: Ayush Baid
 """
-import os
+from pathlib import Path
 
 import pandas as pd
 
-DEFAULT_SENSOR_DB_PATH = os.path.join(
-    "assets", "camera_details", "sensor_database.csv")
+ASSETS_ROOT = Path(__file__).resolve().parent.parent / "assets"
+DEFAULT_SENSOR_DB_PATH = ASSETS_ROOT / "camera_details" / "sensor_database.csv"
 
 
 class SensorWidthDatabase():
