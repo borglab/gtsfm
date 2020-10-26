@@ -9,6 +9,7 @@ from typing import List, Optional
 import dask
 import numpy as np
 from dask.delayed import Delayed
+from gtsam import Cal3Bundler, Pose3
 
 from common.image import Image
 
@@ -23,64 +24,65 @@ class LoaderBase(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def __len__(self) -> int:
         """
-        The number of images in the dataset
+        The number of images in the dataset.
 
         Returns:
-            int: the number of images
+            the number of images.
         """
 
     # ignored-abstractmethod
     @abc.abstractmethod
     def get_image(self, index: int) -> Image:
         """
-        Get the image at the given index
+        Get the image at the given index.
 
         Args:
-            index (int): the index to fetch
+            index: the index to fetch.
+
+        Raises:
+            IndexError: if an out-of-bounds image index is requested.
 
         Returns:
-            Image: the image at the query index
+            Image: the image at the query index.
         """
 
     # ignored-abstractmethod
     @abc.abstractmethod
-    def get_camera_intrinsics(self, index: int) -> np.ndarray:
+    def get_camera_intrinsics(self, index: int) -> Optional[Cal3Bundler]:
         """Get the camera intrinsics at the given index.
 
         Args:
-            index (int): the index to fetch
+            the index to fetch.
 
         Returns:
-            np.ndarray: the 3x3 intrinsics matrix of the camera
+            intrinsics for the given camera.
         """
 
     @abc.abstractmethod
     def get_geometry(self, idx1: int, idx2: int) -> Optional[np.ndarray]:
-        """Get the ground truth fundamental matrix/homography that maps
-        measurement from image #idx2 to points/lines in idx1.
+        """Get the ground truth essential matrix/homography that maps
+        measurement in image #idx1 to points/lines in #idx2.
 
-        The function returns either idx1_F_idx2 or idx1_H_idx2.
+        The function returns either idx2_E_idx1 or idx2_H_idx1.
 
         Args:
             idx1: one of image indices.
             idx2: one of image indices.
 
         Returns:
-            fundamental matrix/homography matrix
+            essential matrix/homography matrix.
         """
 
     # ignored-abstractmethod
     @abc.abstractmethod
-    def get_camera_extrinsics(self, index: int) -> Optional[np.ndarray]:
-        """Get the camera extrinsics (pose) at the given index.
-
-        The extrinsics format is [wRc, wTc]
+    def get_camera_pose(self, index: int) -> Optional[Pose3]:
+        """Get the camera pose (in world coordinates) at the given index.
 
         Args:
             index: the index to fetch.
 
         Returns:
-            the 3x4 extrinsics matrix of the camera.
+            the camera pose w_P_index.
         """
 
     @abc.abstractmethod

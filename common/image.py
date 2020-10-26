@@ -6,6 +6,7 @@ Authors: Ayush Baid
 from typing import NamedTuple, Optional, Tuple, Dict
 
 import numpy as np
+from gtsam import Cal3Bundler
 
 from utils.sensor_width_database import SensorWidthDatabase
 
@@ -23,11 +24,11 @@ class Image(NamedTuple):
         The shape of the image, with the horizontal direction (x coordinate) being the first entry
 
         Returns:
-            Tuple[int, int]: shape of the image
+            shape of the image as (width, height).
         """
         return self.value_array.shape[1::-1]
 
-    def get_intrinsics_from_exif(self) -> Optional[np.ndarray]:
+    def get_intrinsics_from_exif(self) -> Optional[Cal3Bundler]:
         """Constructs the camera intrinsics from exif tag.
 
         Equation: focal_px=max(w_px,h_px)∗focal_mm / ccdw_mm
@@ -58,8 +59,5 @@ class Image(NamedTuple):
         center_x = img_w_px/2
         center_y = img_h_px/2
 
-        return np.array([
-            [focal_length_px, 0, center_x],
-            [0, focal_length_px, center_y],
-            [0, 0, 1]
-        ])
+        return Cal3Bundler(
+            f=focal_length_px, k1=0, k2=0, u0=center_x, v0=center_y)

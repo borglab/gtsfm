@@ -28,12 +28,12 @@ class LundDatasetLoader(FolderLoader):
         """Initialize object to load image data from a specified folder on disk
 
         Args:
-            folder (str): the base folder for a given scene
+            folder: the base folder for a given scene.
         """
 
         self.folder_base = folder
 
-        super(LundDatasetLoader, self).__init__(folder, image_extension='JPG')
+        super().__init__(folder, image_extension='JPG')
 
         # construct the extrinsics if they do not exist already
         if not self.explicit_extrinsics_paths:
@@ -47,7 +47,7 @@ class LundDatasetLoader(FolderLoader):
         part of the Lund dataset.
 
         Returns:
-            List[str]: file names of generated extrinsics for each pose.
+            file names of generated extrinsics for each pose.
         """
 
         reconstruction_path = os.path.join(
@@ -67,6 +67,9 @@ class LundDatasetLoader(FolderLoader):
         filenames = []
 
         for idx in range(num_images):
+            # 2nd indexing is a dummy index (as everything stored as arrays)
+            # 3rd indexing is for array with name as opposed to other metadata
+            # 4th indexing finally accesses the name from the singleton array.
             image_name = image_names[idx][0][0][0]
 
             image_name = os.path.splitext(image_name)[0]  # remove the extension
