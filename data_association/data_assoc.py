@@ -4,6 +4,7 @@ from typing import DefaultDict, Dict, List, Tuple, Optional
 
 import numpy as np
 import cv2
+import dask
 
 import gtsam
 from data_association.feature_tracks import FeatureTrackGenerator

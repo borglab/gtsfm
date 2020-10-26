@@ -75,6 +75,49 @@ class TestDataAssociation(GtsamTestCase):
         """  
         sharedCal = gtsam.Cal3_S2(1500, 1200, 0, 640, 480)
 
+        matches_1, feature_list, poses, _ = self.__generate_2_poses(sharedCal)
+        da = DataAssociation()
+        triangulated_landmark_map = da.run(matches_1, len(poses), poses, True, sharedCal, None, feature_list)
+        assert len(triangulated_landmark_map) == 0, "tracks exceeding expected track length"
+        
+
+        matches_2, feature_list, poses = self.__generate_3_poses(sharedCal)
+        da = DataAssociation()
+        triangulated_landmark_map = da.run(matches_2, len(poses), poses, True, sharedCal, None, feature_list)
+        computed_landmark = triangulated_landmark_map[0].point3()
+        # landmark ~5 meters infront of camera, computed from __generate_X_poses
+        expected_landmark = gtsam.Point3(5, 0.5, 1.2)
+        assert len(triangulated_landmark_map)== 1, "more tracks than expected"
+        self.gtsamAssertEquals(computed_landmark, expected_landmark,1e-1)
+
+    
+    def test_create_computation_graph(self):
+        """
+        Tests the graph to create data association for images. 
+        """
+        sharedCal = gtsam.Cal3_S2(1500, 1200, 0, 640, 480)
+        matches, features, poses = self.__generate_3_poses(sharedCal)
+        # Run without computation graph
+        da = DataAssociation()
+        expected_landmark_map = da.run(matches, len(poses), poses, True, sharedCal, None, features)
+
+        # Run with computation graph
+        da = DataAssociation()
+        computed_landmark_map = da.create_computation_graph(matches, len(poses), poses, True, sharedCal, None, features)
+
+
+        with dask.config.set(scheduler='single-threaded'):
+            dask_result = dask.compute(computed_landmark_map)[0]
+
+        assert len(expected_landmark_map) == len(dask_result), "Dask not configured correctly"
+        for i in range(len(expected_landmark_map)):
+            assert expected_landmark_map[i].number_measurements() == dask_result[i].number_measurements(), "Dask tracks incorrect"
+        
+        
+    def __generate_2_poses(self, sharedCal):
+        """
+        Generate two matches and their corresponding poses
+        """
         # Looking along X-axis, 1 meter above ground plane (x-y)
         upright = gtsam.Rot3.Ypr(-np.pi / 2, 0., -np.pi / 2)
         pose1 = gtsam.Pose3(upright, gtsam.Point3(0, 0, 1))
@@ -112,10 +155,11 @@ class TestDataAssociation(GtsamTestCase):
         # create matches
 
         matches_1 = {img_idxs: matched_idxs}
-        da = DataAssociation()
-        triangulated_landmark_map = da.run(matches_1, len(poses), poses, True, sharedCal, None, feature_list)
-        assert len(triangulated_landmark_map) == 0, "tracks exceeding expected track length"
-        
+        return matches_1, feature_list, poses, measurements
+
+    def __generate_3_poses(self, sharedCal):
+        matches, feature_list, poses, measurements = self.__generate_2_poses(sharedCal)
+        expected_landmark = gtsam.Point3(5, 0.5, 1.2)
 
         # Add third camera slightly rotated
         rotatedCamera = gtsam.Rot3.Ypr(0.1, 0.2, 0.1)
@@ -133,21 +177,9 @@ class TestDataAssociation(GtsamTestCase):
         
         # Only one measurement in images 1 and 2, hence each get index 0
         matched_idxs2 = np.array([[0,0]])
-
-        matches_2 = {img_idxs: matched_idxs, img_idxs2: matched_idxs2}
-        da = DataAssociation()
-        triangulated_landmark_map = da.run(matches_2, len(poses), poses, True, sharedCal, None, feature_list)
-        computed_landmark = triangulated_landmark_map[0].point3()
-        assert len(triangulated_landmark_map)== 1, "more tracks than expected"
-        self.gtsamAssertEquals(computed_landmark, expected_landmark,1e-1)
-
-    
-    def test_create_computation_graph(self):
-        """
-        Tests the graph to create data association for images. 
-        """
-        pass
-        
+        match_dict = {img_idxs2: matched_idxs2}
+        matches.update(match_dict)
+        return matches, feature_list, poses
 
     # def __generate_rand_binary_descs(self, num_descriptors: int, descriptor_length: int) -> np.ndarray:
     #     """

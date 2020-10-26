@@ -35,12 +35,13 @@ class FeatureTrackGenerator:
         landmark_data = []
 
         # for DSF finally
-        for (pose_idx_1, pose_idx_2), feature_idxs in matches.items():
-            for i in range(len(feature_idxs)):
-                feature_idx_1 = feature_idxs[i][0]
-                feature_idx_2 = feature_idxs[i][1]
-                dsf.merge(gtsam.IndexPair(pose_idx_1, feature_idx_1),
-                        gtsam.IndexPair(pose_idx_2, feature_idx_2))
+        # measurement_idxs represented by k
+        for (i1, i2), k in matches.items():
+            for idx in range(len(k)):
+                k1 = k[idx][0]
+                k2 = k[idx][1]
+                dsf.merge(gtsam.IndexPair(i1, k1),
+                        gtsam.IndexPair(i2, k2))
                 key_set = dsf.sets()                
 
         # create a landmark map
@@ -50,14 +51,16 @@ class FeatureTrackGenerator:
             track = gtsam.SfmTrack()
             for val in gtsam.IndexPairSetAsArray(key):
                 
-                pose_idx = val.i()
-                feature_idx = val.j()
+                # camera_idx is represented by i
+                # measurement_idx is represented by k
+                i = val.i()
+                k = val.j()
 
                 # get set representative- Will be IndexPair type
-                lndmrk_root_node = dsf.find(gtsam.IndexPair(pose_idx, feature_idx))
+                lndmrk_root_node = dsf.find(gtsam.IndexPair(i, k))
                 # for each representative, add (img_idx, feature)
                 # add measurement in this track
-                meas = tuple((pose_idx, feature_list[pose_idx][feature_idx][:2]))
+                meas = tuple((i, feature_list[i][k][:2]))
                 track.add_measurement(meas)
 
             landmark_data.append(track)
@@ -74,14 +77,16 @@ class FeatureTrackGenerator:
             list of filtered SfmTrack 
         """
         filtered_landmark_data = []
-        for track_idx in range(len(landmark_data)):
+        # track_idx represented as j
+        for j in range(len(landmark_data)):
             unique_track = set()
-            for measurement_idx in range(landmark_data[track_idx].number_measurements()):
-                i, _ = landmark_data[track_idx].measurement(measurement_idx)
+            # measurement_idx represented as k
+            for k in range(landmark_data[j].number_measurements()):
+                i, _ = landmark_data[j].measurement(k)
                 unique_track.add(i)
-            if len(unique_track) != landmark_data[track_idx].number_measurements():
+            if len(unique_track) != landmark_data[j].number_measurements():
                 continue
             else:
-                filtered_landmark_data.append(landmark_data[track_idx])
+                filtered_landmark_data.append(landmark_data[j])
         
         return filtered_landmark_data
