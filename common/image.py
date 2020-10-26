@@ -42,7 +42,7 @@ class Image(NamedTuple):
             intrinsics matrix (3x3).
         """
 
-        if self.exif_data is None:
+        if self.exif_data is None or len(self.exif_data) == 0:
             return None
 
         focal_length_mm = self.exif_data.get('FocalLength')
@@ -60,4 +60,7 @@ class Image(NamedTuple):
         center_y = img_h_px/2
 
         return Cal3Bundler(
-            f=focal_length_px, k1=0, k2=0, u0=center_x, v0=center_y)
+            fx=float(focal_length_px),
+            k1=0.0,
+            k2=0.0, u0=float(center_x),
+            v0=float(center_y))
