@@ -1,5 +1,4 @@
-"""
-Two way (mutual nearest neighbor) matcher.
+"""Two way (mutual nearest neighbor) matcher.
 
 Authors: Ayush Baid
 """
@@ -10,36 +9,33 @@ from frontend.matcher.matcher_base import MatcherBase
 
 
 class TwoWayMatcher(MatcherBase):
-    """
-    Two way (mutual nearest neighbor) matcher using OpenCV.
-    """
-
-    def __init__(self, distance_type='euclidean'):
-        super().__init__()
-
-        if distance_type == 'euclidean':
-            self.distance_metric = cv.NORM_L2
-        elif distance_type == 'hamming':
-            self.distance_metric = cv.NORM_HAMMING
-        else:
-            raise NotImplementedError(
-                'The specified distance type is not implemented')
+    """Two way (mutual nearest neighbor) matcher using OpenCV."""
 
     def match(self,
               descriptors_im1: np.ndarray,
-              descriptors_im2: np.ndarray) -> np.ndarray:
-        """
-        Match a pair of descriptors.
+              descriptors_im2: np.ndarray,
+              distance_type: str = 'euclidean') -> np.ndarray:
+        """Match descriptors from two images.
 
-        Refer to documentation in the parent class for detailed output format.
+        Refer to the doc in the parent class for output format.
 
         Args:
-            descriptors_im1 (np.ndarray): descriptors from image #1
-            descriptors_im2 (np.ndarray): descriptors from image #2
+            descriptors_im1: descriptors from image #1.
+            descriptors_im2: descriptors from image #2.
+            distance_type (optional): the space to compute the distance between
+                                      descriptors. Defaults to 'euclidean'.
 
         Returns:
-            np.ndarray: match indices (sorted by confidence)
+            match indices (sorted by confidence).
         """
+
+        if distance_type == 'euclidean':
+            distance_metric = cv.NORM_L2
+        elif distance_type == 'hamming':
+            distance_metric = cv.NORM_HAMMING
+        else:
+            raise NotImplementedError(
+                'The specified distance type is not implemented')
 
         if descriptors_im1.size == 0 or descriptors_im2.size == 0:
             return np.array([])
@@ -52,7 +48,7 @@ class TwoWayMatcher(MatcherBase):
         descriptors_2 = descriptors_im2[valid_idx_im2]
 
         # run OpenCV's matcher
-        bf = cv.BFMatcher(normType=self.distance_metric, crossCheck=True)
+        bf = cv.BFMatcher(normType=distance_metric, crossCheck=True)
         matches = bf.match(descriptors_1, descriptors_2)
         matches = sorted(matches, key=lambda r: r.distance)
 
