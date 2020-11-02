@@ -59,7 +59,7 @@ class MatcherBase(metaclass=abc.ABCMeta):
                                       descriptors. Defaults to 'euclidean'.
 
         Returns:
-            matched feature pairs.
+            features from im1 and their corresponding matched features from im2.
         """
         match_indices = self.match(
             descriptors_im1, descriptors_im2, distance_type)
