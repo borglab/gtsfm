@@ -32,9 +32,9 @@ class TestReprojectionError(GtsamTestCase):
 
         # Dictionary with 3 landmark points, each corresponding to one of the above landmark maps
         landmark_dict = {
-            gtsam.Point3(3.2,1.4,5.6) : lndmrk_map1, 
-            gtsam.Point3(2.2, 3.3, 4.4): lndmrk_map2, 
-            gtsam.Point3(1.2, 2.2, 3.3) : lndmrk_map3 }
+            tuple(gtsam.Point3(3.2,1.4,5.6)) : lndmrk_map1, 
+            tuple(gtsam.Point3(2.2, 3.3, 4.4)): lndmrk_map2, 
+            tuple(gtsam.Point3(1.2, 2.2, 3.3)) : lndmrk_map3 }
 
         track_length = get_avg_track_length(landmark_dict)
 
