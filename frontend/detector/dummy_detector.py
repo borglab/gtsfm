@@ -1,5 +1,4 @@
-"""
-A dummy detector which is to be used in testing.
+"""A dummy detector which is to be used in testing.
 
 Authors: Ayush Baid
 """
@@ -17,7 +16,8 @@ class DummyDetector(DetectorBase):
 
         Refer to documentation in DetectorBase for more details.
 
-        Fill in the columns with random coordinates, scale and optional extra columns
+        Fill in the columns with random coordinates, scale and optional extra
+        columns.
 
         Constraints:
         1. Coordinates must within the image
@@ -27,7 +27,7 @@ class DummyDetector(DetectorBase):
             image: input image.
 
         Returns:
-            np.ndarray: detected features.
+            detected features.
         """
 
         np.random.seed(

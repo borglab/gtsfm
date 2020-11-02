@@ -6,7 +6,7 @@ import tests.frontend.descriptor.test_descriptor_base as test_descriptor_base
 from frontend.descriptor.sift import SIFTDescriptor
 
 
-class TestSIFT(test_descriptor_base.TestDescriptorBase):
+class TestSIFTDescriptor(test_descriptor_base.TestDescriptorBase):
     """
     Unit tests for RootSIFT descriptor."""
 

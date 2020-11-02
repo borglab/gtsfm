@@ -6,10 +6,10 @@ Authors: Ayush Baid
 import tests.frontend.detector_descriptor.test_detector_descriptor_base as test_detector_descriptor_base
 from frontend.detector.detector_from_joint_detector_descriptor import \
     DetectorFromDetectorDescriptor
-from frontend.detector_descriptor.sift import SIFT
+from frontend.detector_descriptor.sift import SIFTDetectorDescriptor
 
 
-class TestSIFT(test_detector_descriptor_base.TestDetectorDescriptorBase):
+class TestSIFTDetectorDescriptor(test_detector_descriptor_base.TestDetectorDescriptorBase):
     """
     Main test class for detector-description combination base class in frontend.
 
@@ -19,7 +19,7 @@ class TestSIFT(test_detector_descriptor_base.TestDetectorDescriptorBase):
     def setUp(self):
         """Setup the attributes for the tests."""
         super().setUp()
-        self.detector_descriptor = SIFT()
+        self.detector_descriptor = SIFTDetectorDescriptor()
 
         # explicitly set the detector
         self.detector = DetectorFromDetectorDescriptor(

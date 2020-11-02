@@ -11,19 +11,19 @@ from frontend.detector_descriptor.detector_descriptor_base import \
 
 
 class DetectorFromDetectorDescriptor(DetectorBase):
-    """A wrapper class to just expose the Detector component of a 
+    """A wrapper class to expose the Detector component of a
     DetectorDescriptor. 
 
     Performs the joint detection and description but returns only the features.
     """
 
     def __init__(self, detector_descriptor: DetectorDescriptorBase):
-        """Initialize a Detector from a joint detector descriptor.
+        """Initialize a detector from a joint detector descriptor.
 
         Args:
             detector_descriptor: joint detector descriptor.
         """
-        super(DetectorFromDetectorDescriptor, self).__init__()
+        super().__init__()
 
         self.detector_descriptor = detector_descriptor
 
@@ -36,7 +36,7 @@ class DetectorFromDetectorDescriptor(DetectorBase):
             image: input image.
 
         Returns:
-            np.ndarray: detected features.
+            detected features.
         """
         features, _ = self.detector_descriptor.detect_and_describe(image)
 

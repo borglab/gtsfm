@@ -1,6 +1,5 @@
 """Base class for the Detection stage of the frontend.
 
-
 Authors: Ayush Baid
 """
 
@@ -46,19 +45,19 @@ class DetectorBase(metaclass=abc.ABCMeta):
             image: input image.
 
         Returns:
-            np.ndarray: detected features.
+            detected features.
         """
 
     def create_computation_graph(self,
                                  loader_graph: List[Delayed]
                                  ) -> List[Delayed]:
-        """Generates the computation graph for all the entries in the
-        loader graph.
+        """Generates the computation graph for all the entries in the loader
+        graph.
 
         Args:
-            loader_graph (List[Delayed]): computation graph from loader
+            loader_graph: computation graph from loader.
 
         Returns:
-            List[Delayed]: delayed dask elements
+            List of delayed tasks for detection.
         """
         return [dask.delayed(self.detect)(x) for x in loader_graph]
