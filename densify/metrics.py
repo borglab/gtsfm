@@ -10,7 +10,7 @@ import gtsam
 
 
 def avg_reprojection_error(
-    calibration, 
+    calibration: gtsam.Cal3_S2, 
     pose_estimates : List[List[gtsam.Pose3]], 
     landmark_dict : Dict[gtsam.Point3, List[Tuple[int, gtsam.Point2]]]
     ) -> float:
@@ -18,7 +18,7 @@ def avg_reprojection_error(
     Compute average reprojection error across dataset after BA
     Args: 
         calibration: camera calibration gtsam.Cal3_S2
-        pose estimates: list of list of gtsam Pose3 ie. list of camera poses for each landmark
+        pose estimates: list of list of gtsam Pose3 i.e. list of camera poses for each landmark
         landmark_dict: dict with 3D pt as key and landmark map as value
             --> landmark_map: [(i,Point2()), (j,Point2())...], where 
             (i,Point2()) = (image idx, imgPt) of all features that are matched for a particular landmark
@@ -32,10 +32,11 @@ def avg_reprojection_error(
     for landmark_3d_pt, landmark_map in landmark_dict.items():
         initial_estimates.insert(gtsam.symbol('p',landmark_idx), landmark_3d_pt) 
         if len(landmark_map) != len(pose_estimates):
-            raise Exception('Number of images and poses must be equal. Number of images was: {} and number of poses was: {}'.format(len(landmark_map), len(pose_estimates)))
+            raise Exception('Number of images and poses must be equal. \
+                Number of images was: {} and number of poses was: {}'.format(
+                    len(landmark_map), len(pose_estimates)))
 
-        for obs in landmark_map:
-            pose_idx = obs[0]  # nb of image points
+        for (pose_idx, _) in landmark_map:
             initial_estimates.insert(gtsam.symbol('x', pose_idx),pose_estimates[pose_idx])
         landmark_idx += 1
 
