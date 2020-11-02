@@ -1,5 +1,4 @@
-"""
-Dummy matcher which produces random results.
+"""Dummy matcher which produces random results.
 
 Authors: Ayush Baid
 """
@@ -9,22 +8,24 @@ from frontend.matcher.matcher_base import MatcherBase
 
 
 class DummyMatcher(MatcherBase):
-    """
-    Dummy matcher to be used for tests.
-    """
+    """Dummy matcher to be used for tests."""
 
-    def match(self, descriptors_im1: np.ndarray, descriptors_im2: np.ndarray) -> np.ndarray:
-        """
-        Match a pair of descriptors.
+    def match(self,
+              descriptors_im1: np.ndarray,
+              descriptors_im2: np.ndarray,
+              distance_type: str = 'euclidean') -> np.ndarray:
+        """Match descriptors from two images.
 
         Refer to the doc in the parent class for output format.
 
         Args:
-            descriptors_im1 (np.ndarray): descriptors from image #1
-            descriptors_im2 (np.ndarray): descriptors from image #2
+            descriptors_im1: descriptors from image #1.
+            descriptors_im2: descriptors from image #2.
+            distance_type (optional): the space to compute the distance between
+                                      descriptors. Defaults to 'euclidean'.
 
         Returns:
-            np.ndarray: match indices (sorted by confidence)
+            match indices (sorted by confidence).
         """
 
         # check if we have non-zero descriptors in the both image

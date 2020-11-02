@@ -144,6 +144,7 @@ class TestMatcherBase(unittest.TestCase):
         ]
 
         matcher_graph = self.matcher.create_computation_graph(
+            [(0, 1), (0, 2), (2, 1)],
             detection_description_graph)
 
         # run it in sequential mode
@@ -158,19 +159,13 @@ class TestMatcherBase(unittest.TestCase):
 
         for image_indices in matcher_graph.keys():
             dask_matches = results[image_indices]
-            normal_matches = self.matcher.match_and_get_features(
-                features_list[image_indices[0]],
-                features_list[image_indices[1]],
+            normal_matches = self.matcher.match(
                 descriptor_list[image_indices[0]],
                 descriptor_list[image_indices[1]]
             )
 
             np.testing.assert_array_equal(
-                normal_matches[0], dask_matches[0]
-            )
-
-            np.testing.assert_array_equal(
-                normal_matches[1], dask_matches[1]
+                normal_matches, dask_matches
             )
 
     def test_pickleable(self):

@@ -1,5 +1,4 @@
-"""
-Base class for the M (matcher) stage of the front end.
+"""Base class for the M (matcher) stage of the front end.
 
 Authors: Ayush Baid
 """
@@ -8,6 +7,7 @@ from typing import Dict, List, Tuple
 
 import dask
 import numpy as np
+from dask.delayed import Delayed
 
 
 class MatcherBase(metaclass=abc.ABCMeta):
@@ -17,22 +17,26 @@ class MatcherBase(metaclass=abc.ABCMeta):
     """
 
     @abc.abstractmethod
-    def match(self, descriptors_im1: np.ndarray, descriptors_im2: np.ndarray) -> np.ndarray:
-        """
-        Match a pair of descriptors.
+    def match(self,
+              descriptors_im1: np.ndarray,
+              descriptors_im2: np.ndarray,
+              distance_type: str = 'euclidean') -> np.ndarray:
+        """Match descriptors from two images.
 
         Output format:
         1. Each row represents a match
-        2. The entry in first column represents the index of a descriptor from image #1
-        3. The entry in first column represents the index of a descriptor from image #2
+        2. The entry in first column represents descriptor index from image #1
+        3. The entry in first column represents descriptor index from image #2
         4. The matches are sorted in descending order of the confidence (score)
 
         Args:
-            descriptors_im1 (np.ndarray): descriptors from image #1
-            descriptors_im2 (np.ndarray): descriptors from image #2
+            descriptors_im1: descriptors from image #1
+            descriptors_im2: descriptors from image #2
+            distance_type (optional): the space to compute the distance between
+                                      descriptors. Defaults to 'euclidean'.
 
         Returns:
-            np.ndarray: match indices (sorted by confidence)
+            match indices (sorted by confidence).
         """
         # TODO(ayush): should I define matcher on descriptors or the distance matrices.
         # TODO(ayush): how to handle deep-matchers which might require the full image as input
@@ -41,50 +45,54 @@ class MatcherBase(metaclass=abc.ABCMeta):
                                features_im1: np.ndarray,
                                features_im2: np.ndarray,
                                descriptors_im1: np.ndarray,
-                               descriptors_im2: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Match descriptors and return the corresponding features.
+                               descriptors_im2: np.ndarray,
+                               distance_type: str = 'euclidean'
+                               ) -> Tuple[np.ndarray, np.ndarray]:
+        """Match descriptors and return the corresponding features.
 
         Args:
-            features_im1 (np.ndarray): features from image #1
-            features_im2 (np.ndarray): features from image #2
-            descriptors_im1 (np.ndarray): corresponding descriptors from image #1
-            descriptors_im2 (np.ndarray): corresponding descriptors from image #2
+            features_im1: features from image #1.
+            features_im2: features from image #2.
+            descriptors_im1: corresponding descriptors from image #1.
+            descriptors_im2: corresponding descriptors from image #2.
+            distance_type (optional): the space to compute the distance between
+                                      descriptors. Defaults to 'euclidean'.
 
         Returns:
-            Tuple[np.ndarray, np.ndarray]: matched features from each image
+            matched feature pairs.
         """
-        match_indices = self.match(descriptors_im1, descriptors_im2)
+        match_indices = self.match(
+            descriptors_im1, descriptors_im2, distance_type)
 
         return features_im1[match_indices[:, 0], :], features_im2[match_indices[:, 1], :]
 
     def create_computation_graph(self,
-                                 detection_description_graph: List[dask.delayed],
-                                 ) -> Dict[Tuple[int, int], dask.delayed]:
+                                 pair_indices: List[Tuple[int, int]],
+                                 detection_description_graph: List[Delayed],
+                                 distance_type: str = 'euclidean',
+                                 ) -> Dict[Tuple[int, int], Delayed]:
         """
         Generates computation graph for matched features using the detection and description graph.
 
         Args:
-            detection_description_graph (List[dask.delayed]): computation graph for features and
-                                                              their associated descriptors for each image
+            detection_description_graph: computation graph for features and
+                                         their associated descriptors for each
+                                         image.
 
         Returns:
-            Dict[Tuple[int, int], dask.delayed]: delayed dask tasks for match_and_get_features
-                                                 for each tuple of input indices
+            Delayed dask tasks for matching for input camera pairs.
         """
 
-        result = dict()
+        graph = dict()
 
-        num_images = len(detection_description_graph)
+        for idx1, idx2 in pair_indices:
 
-        for idx1 in range(num_images):
-            for idx2 in range(idx1+1, num_images):
-                graph_component_im1 = detection_description_graph[idx1]
-                graph_component_im2 = detection_description_graph[idx2]
+            graph_component_im1 = detection_description_graph[idx1]
+            graph_component_im2 = detection_description_graph[idx2]
 
-                result[(idx1, idx2)] = dask.delayed(self.match_and_get_features)(
-                    graph_component_im1[0], graph_component_im2[0],
-                    graph_component_im1[1], graph_component_im2[1]
-                )
+            graph[(idx1, idx2)] = dask.delayed(self.match)(
+                graph_component_im1[1], graph_component_im2[1],
+                distance_type
+            )
 
-        return result
+        return graph
