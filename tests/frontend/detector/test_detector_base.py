@@ -3,7 +3,6 @@ Tests for frontend's base detector class.
 
 Authors: Ayush Baid
 """
-
 import pickle
 import unittest
 
@@ -76,3 +75,7 @@ class TestDetectorBase(unittest.TestCase):
             pickle.dumps(self.detector)
         except TypeError:
             self.fail("Cannot dump detector using pickle")
+
+
+if __name__ == '__main__':
+    unittest.main()

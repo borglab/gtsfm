@@ -30,7 +30,7 @@ class DoG(DetectorBase):
             image: input image.
 
         Returns:
-            detected features.
+            detected features as a numpy array of shape (N, 4).
         """
         gray_image = image_utils.rgb_to_gray_cv(image)
 
