@@ -32,12 +32,12 @@ class Fast(DetectorBase):
         Returns:
             detected features as a numpy array of shape (N, 4).
         """
-        gray_image = image_utils.rgb_to_gray_cv(image.image_array)
+        gray_image = image_utils.rgb_to_gray_cv(image)
 
         # init the opencv object
-        opencv_obj = cv.xfeatures2d.SIFT_create()
+        opencv_obj = cv.FastFeatureDetector_create()
 
-        cv_keypoints = opencv_obj.detect(gray_image, None)
+        cv_keypoints = opencv_obj.detect(gray_image.image_array, None)
 
         # sort the keypoints by score and pick top responses
         cv_keypoints = sorted(
@@ -45,6 +45,6 @@ class Fast(DetectorBase):
         )[:self.max_features]
 
         # convert to numpy array
-        features = feature_utils.array_of_keypoints(cv_keypoints)
+        features = feature_utils.array_from_keypoints(cv_keypoints)
 
         return features
