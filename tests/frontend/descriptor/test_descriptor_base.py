@@ -76,3 +76,7 @@ class TestDescriptorBase(unittest.TestCase):
             pickle.dumps(self.descriptor)
         except TypeError:
             self.fail("Cannot dump descriptor using pickle")
+
+
+if __name__ == '__main__':
+    unittest.main()

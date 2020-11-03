@@ -3,6 +3,8 @@ Tests for frontend's base detector-descriptor class.
 
 Authors: Ayush Baid
 """
+import unittest
+
 import dask
 import numpy as np
 
@@ -77,3 +79,7 @@ class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
 
         np.testing.assert_allclose(normal_features, dask_features)
         np.testing.assert_allclose(normal_descriptors, dask_descriptors)
+
+
+if __name__ == '__main__':
+    unittest.main()
