@@ -27,7 +27,7 @@ class DummyDetector(DetectorBase):
             image: input image.
 
         Returns:
-            detected features.
+            detected features as a numpy array of shape (N, 2+).
         """
 
         np.random.seed(

@@ -30,7 +30,7 @@ class Fast(DetectorBase):
             image: input image.
 
         Returns:
-            detected features.
+            detected features as a numpy array of shape (N, 4).
         """
         gray_image = image_utils.rgb_to_gray_cv(image.image_array)
 
@@ -39,7 +39,7 @@ class Fast(DetectorBase):
 
         cv_keypoints = opencv_obj.detect(gray_image, None)
 
-        # sort the keypoints by score and pick top responses.
+        # sort the keypoints by score and pick top responses
         cv_keypoints = sorted(
             cv_keypoints, key=lambda x: x.response, reverse=True
         )[:self.max_features]

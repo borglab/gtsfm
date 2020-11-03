@@ -29,10 +29,10 @@ class DescriptorBase(metaclass=abc.ABCMeta):
 
         Arguments:
             image: the input image.
-            features: the features to describe.
+            features: features to describe, as a numpy array of shape (N, 2+).
 
         Returns:
-            the descriptors for the input features.
+            the descriptors for the input features, as (N, x) sized matrix.
         """
 
     def create_computation_graph(self,
@@ -46,7 +46,7 @@ class DescriptorBase(metaclass=abc.ABCMeta):
                              features.
 
         Returns:
-            List[Delayed]: delayed dask elements
+            List[Delayed]: delayed dask elements.
         """
         return [dask.delayed(self.describe)(im, feat)
                 for im, feat in zip(loader_graph, detection_graph)]

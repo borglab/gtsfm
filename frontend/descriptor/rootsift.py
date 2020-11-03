@@ -25,14 +25,14 @@ class RootSIFTDescriptor(SIFTDescriptor):
 
         Output format:
         1. Each input feature point is assigned a descriptor, which is stored
-        as a row vector
+        as a row vector.
 
         Arguments:
             image: the input image.
-            features: the features to describe.
+            features: features to describe, as a numpy array of shape (N, 2+).
 
         Returns:
-            np.ndarray: the descriptors for the input features.
+            the descriptors for the input features, as (N, 128) sized matrix.
         """
         if features.size == 0:
             return np.array([])

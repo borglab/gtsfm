@@ -35,7 +35,8 @@ class DetectorDescriptorBase(metaclass=abc.ABCMeta):
             image: the input image.
 
         Returns:
-            detected features and their descriptions as two numpy arrays.
+            detected features as a numpy array of shape (N, 2+).
+            corr. descriptors for the features, as (N, x) sized matrix.
         """
 
     def create_computation_graph(self,

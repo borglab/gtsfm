@@ -36,7 +36,7 @@ class DetectorFromDetectorDescriptor(DetectorBase):
             image: input image.
 
         Returns:
-            detected features.
+            detected features as a numpy array of shape (N, 2+).
         """
         features, _ = self.detector_descriptor.detect_and_describe(image)
 
