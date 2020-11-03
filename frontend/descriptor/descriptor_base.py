@@ -40,6 +40,9 @@ class DescriptorBase(metaclass=abc.ABCMeta):
                                  detection_graph: List[Delayed]
                                  ) -> List[Delayed]:
         """Generates the computation graph to perform description.
+
+        Note: two two input lists have to be of the same size.
+
         Args:
             loader_graph: computation graph from loader, which provides images.
             detection_graph: computation graph from detector, which provides
@@ -48,5 +51,7 @@ class DescriptorBase(metaclass=abc.ABCMeta):
         Returns:
             List[Delayed]: delayed dask elements.
         """
+        assert len(loader_graph) == len(detection_graph)
+
         return [dask.delayed(self.describe)(im, feat)
                 for im, feat in zip(loader_graph, detection_graph)]
