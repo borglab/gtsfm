@@ -14,18 +14,19 @@ class DummyMatcher(MatcherBase):
               descriptors_im1: np.ndarray,
               descriptors_im2: np.ndarray,
               distance_type: str = 'euclidean') -> np.ndarray:
-        """Match descriptors from two images.
+        """Match descriptor vectors randomly.
 
         Refer to the doc in the parent class for output format.
 
         Args:
-            descriptors_im1: descriptors from image #1.
-            descriptors_im2: descriptors from image #2.
+            descriptors_im1: descriptors from image #1, of shape (N1, x).
+            descriptors_im2: descriptors from image #2, of shape (N2, x).
             distance_type (optional): the space to compute the distance between
                                       descriptors. Defaults to 'euclidean'.
 
         Returns:
-            match indices (sorted by confidence).
+            Match indices (sorted by confidence), as matrix of shape
+                (<min(N1, N2), 2).
         """
 
         # check if we have non-zero descriptors in the both image

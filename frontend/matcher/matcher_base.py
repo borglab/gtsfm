@@ -11,8 +11,8 @@ from dask.delayed import Delayed
 
 
 class MatcherBase(metaclass=abc.ABCMeta):
-    """
-    Base class for all matchers.
+    """Base class for all matchers.
+
     Matchers work on a pair of descriptors and match them by their distance.
     """
 
@@ -21,22 +21,23 @@ class MatcherBase(metaclass=abc.ABCMeta):
               descriptors_im1: np.ndarray,
               descriptors_im2: np.ndarray,
               distance_type: str = 'euclidean') -> np.ndarray:
-        """Match descriptors from two images.
+        """Match descriptor vectors.
 
         Output format:
-        1. Each row represents a match
-        2. The entry in first column represents descriptor index from image #1
-        3. The entry in first column represents descriptor index from image #2
-        4. The matches are sorted in descending order of the confidence (score)
+        1. Each row represents a match.
+        2. First column represents descriptor index from image #1.
+        3. Second column represents descriptor index from image #2.
+        4. Matches are sorted in descending order of the confidence (score).
 
         Args:
-            descriptors_im1: descriptors from image #1
-            descriptors_im2: descriptors from image #2
+            descriptors_im1: descriptors from image #1, of shape (N1, x).
+            descriptors_im2: descriptors from image #2, of shape (N2, x).
             distance_type (optional): the space to compute the distance between
                                       descriptors. Defaults to 'euclidean'.
 
         Returns:
-            match indices (sorted by confidence).
+            Match indices (sorted by confidence), as matrix of shape
+                (<min(N1, N2), 2).
         """
         # TODO(ayush): should I define matcher on descriptors or the distance matrices.
         # TODO(ayush): how to handle deep-matchers which might require the full image as input
@@ -51,20 +52,22 @@ class MatcherBase(metaclass=abc.ABCMeta):
         """Match descriptors and return the corresponding features.
 
         Args:
-            features_im1: features from image #1.
-            features_im2: features from image #2.
-            descriptors_im1: corresponding descriptors from image #1.
-            descriptors_im2: corresponding descriptors from image #2.
+            features_im1: features from image #1, of shape (N1, y).
+            features_im2: features from image #2, of shape (N2, y).
+            descriptors_im1: descriptors for features_im1, of shape (N1, x).
+            descriptors_im2: descriptors for features_im1, of shape (N2, x).
             distance_type (optional): the space to compute the distance between
                                       descriptors. Defaults to 'euclidean'.
 
         Returns:
-            features from im1 and their corresponding matched features from im2.
+            Features from im1 and their corresponding matched features from im2,
+                each having shape (<min(N1, N2), y).
         """
         match_indices = self.match(
             descriptors_im1, descriptors_im2, distance_type)
 
-        return features_im1[match_indices[:, 0], :], features_im2[match_indices[:, 1], :]
+        return features_im1[match_indices[:, 0], :], \
+            features_im2[match_indices[:, 1], :]
 
     def create_computation_graph(self,
                                  pair_indices: List[Tuple[int, int]],
@@ -75,9 +78,12 @@ class MatcherBase(metaclass=abc.ABCMeta):
         Generates computation graph for matched features using the detection and description graph.
 
         Args:
+            pair_indices: valid pairs in input scene which are to be matched.
             detection_description_graph: computation graph for features and
                                          their associated descriptors for each
                                          image.
+            distance_type (optional): the space to compute the distance between
+                                      descriptors. Defaults to 'euclidean'.
 
         Returns:
             Delayed dask tasks for matching for input camera pairs.

@@ -1,5 +1,4 @@
-"""
-Tests for frontend's base matcher class.
+"""Tests for frontend's base matcher class.
 
 Authors: Ayush Baid
 """
@@ -16,8 +15,7 @@ from frontend.matcher.dummy_matcher import DummyMatcher
 
 
 class TestMatcherBase(unittest.TestCase):
-    """
-    Unit tests for the Base Matcher class.
+    """Unit tests for MatcherBase.
 
     Should be inherited by all matcher unit tests.
     """
@@ -28,9 +26,7 @@ class TestMatcherBase(unittest.TestCase):
         self.matcher = DummyMatcher()
 
     def test_match_valid_indices(self):
-        """
-        Tests if valid indices in output.
-        """
+        """Tests if matched indices are valid feature indices."""
 
         # run matching on a random input pair
         result, descriptors_im1, descriptors_im2 = self.__generate_matches_on_random_descriptors()
@@ -43,9 +39,7 @@ class TestMatcherBase(unittest.TestCase):
                 result[:, 1] < descriptors_im2.shape[0])))
 
     def test_empty_input(self):
-        """
-        Tests the matches when there are no descriptors.
-        """
+        """Tests the matches when there are no descriptors."""
 
         num_descriptors = random.randint(5, 15)
 
@@ -73,9 +67,7 @@ class TestMatcherBase(unittest.TestCase):
         self.assertEqual(0, result.size)
 
     def test_one_to_one_constraint(self):
-        """
-        Tests that each index from an image is used atmost once.
-        """
+        """Tests that each index from an image is used atmost once."""
 
         # get a result
         result, _, _ = self.__generate_matches_on_random_descriptors()
@@ -89,9 +81,7 @@ class TestMatcherBase(unittest.TestCase):
         self.assertEqual(result.shape[0], len(set_index_im2))
 
     def test_match_and_get_features(self):
-        """
-        Testing the match+lookup API to verify lookup.
-        """
+        """Testing the match+lookup API to verify lookup."""
 
         # run matching on a random input pair
         match_indices, descriptors_im1, descriptors_im2 = self.__generate_matches_on_random_descriptors()
@@ -112,8 +102,8 @@ class TestMatcherBase(unittest.TestCase):
             features_im2[match_indices[:, 1]], matched_features_im2)
 
     def test_computation_graph(self):
-        """
-        Test that the computation graph is working exactly as the normal matching API using 3 images.
+        """Test that the computation graph is working exactly as the normal 
+        matching API using 3 images.
         """
 
         # generate three random descriptors and their features
@@ -169,17 +159,14 @@ class TestMatcherBase(unittest.TestCase):
             )
 
     def test_pickleable(self):
-        """
-        Tests that the matcher object is pickleable (required for dask)
-        """
+        """Tests that the matcher object is pickleable (required for dask)."""
         try:
             pickle.dumps(self.matcher)
         except TypeError:
             self.fail("Cannot dump matcher using pickle")
 
     def __generate_random_binary_descriptors(self, num_descriptors: int, descriptor_length: int) -> np.ndarray:
-        """
-        Generates random binary descriptors.
+        """Generates random binary descriptors.
 
         Args:
             num_descriptors (int): number of descriptors to generate
@@ -196,8 +183,7 @@ class TestMatcherBase(unittest.TestCase):
         ).astype(np.uint8)
 
     def __generate_matches_on_random_descriptors(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """
-        Generates a pair of random descriptors and the matching result on them.
+        """Generates a pair of random descriptors and the matching result on them.
 
         Note: using binary descriptors in uint8 format as we want the hamming distances to work
 
@@ -220,3 +206,7 @@ class TestMatcherBase(unittest.TestCase):
         result = self.matcher.match(descriptors_im1, descriptors_im2)
 
         return result, descriptors_im1, descriptors_im2
+
+
+if __name__ == '__main__':
+    unittest.main()
