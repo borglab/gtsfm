@@ -19,8 +19,8 @@ class DummyMatcher(MatcherBase):
         Refer to the doc in the parent class for output format.
 
         Args:
-            descriptors_im1: descriptors from image #1, of shape (N1, x).
-            descriptors_im2: descriptors from image #2, of shape (N2, x).
+            descriptors_im1: descriptors from image #1, of shape (N1, D).
+            descriptors_im2: descriptors from image #2, of shape (N2, D).
             distance_type (optional): the space to compute the distance between
                                       descriptors. Defaults to 'euclidean'.
 

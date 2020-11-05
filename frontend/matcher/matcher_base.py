@@ -30,8 +30,8 @@ class MatcherBase(metaclass=abc.ABCMeta):
         4. Matches are sorted in descending order of the confidence (score).
 
         Args:
-            descriptors_im1: descriptors from image #1, of shape (N1, x).
-            descriptors_im2: descriptors from image #2, of shape (N2, x).
+            descriptors_im1: descriptors from image #1, of shape (N1, D).
+            descriptors_im2: descriptors from image #2, of shape (N2, D).
             distance_type (optional): the space to compute the distance between
                                       descriptors. Defaults to 'euclidean'.
 
@@ -52,16 +52,16 @@ class MatcherBase(metaclass=abc.ABCMeta):
         """Match descriptors and return the corresponding features.
 
         Args:
-            features_im1: features from image #1, of shape (N1, y).
-            features_im2: features from image #2, of shape (N2, y).
-            descriptors_im1: descriptors for features_im1, of shape (N1, x).
-            descriptors_im2: descriptors for features_im1, of shape (N2, x).
+            features_im1: features from image #1, of shape (N1, 2+).
+            features_im2: features from image #2, of shape (N2, 2+).
+            descriptors_im1: descriptors for features_im1, of shape (N1, D).
+            descriptors_im2: descriptors for features_im1, of shape (N2, D).
             distance_type (optional): the space to compute the distance between
                                       descriptors. Defaults to 'euclidean'.
 
         Returns:
             Features from im1 and their corresponding matched features from im2,
-                each having shape (<min(N1, N2), y).
+                each having shape (<min(N1, N2), 2+).
         """
         match_indices = self.match(
             descriptors_im1, descriptors_im2, distance_type)
