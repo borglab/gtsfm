@@ -30,7 +30,7 @@ class Fast(DetectorBase):
             image: input image.
 
         Returns:
-            detected features.
+            detected features as a numpy array of shape (N, 4).
         """
         # init the opencv object
         opencv_obj = cv.FastFeatureDetector_create()

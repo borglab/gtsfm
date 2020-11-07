@@ -1,7 +1,9 @@
-"""
-RootSIFT descriptor implementation.
+"""RootSIFT descriptor implementation.
 
-This descriptor was proposed in 'Three things everyone should know to improve object retrieval' and is build upon OpenCV's SIFT descriptor.
+This descriptor was proposed in 'Three things everyone should know to improve
+object retrieval' and is build upon OpenCV's SIFT descriptor.
+
+Note: this is a descriptor
 
 References: 
 - https://www.robots.ox.ac.uk/~vgg/publications/2012/Arandjelovic12/arandjelovic12.pdf
@@ -9,48 +11,33 @@ References:
 
 Authors: Ayush Baid
 """
-import cv2 as cv
 import numpy as np
 
-import frontend.utils.feature_utils as feature_utils
-import utils.images as image_utils
 from common.image import Image
-from frontend.descriptor.descriptor_base import DescriptorBase
+from frontend.descriptor.sift import SIFTDescriptor
 
 
-class RootSIFT(DescriptorBase):
-    """
-    RootSIFT descriptor using OpenCV's implementation
-    """
-
-    def __init__(self):
-        super().__init__()
+class RootSIFTDescriptor(SIFTDescriptor):
+    """RootSIFT descriptor using OpenCV's implementation."""
 
     def describe(self, image: Image, features: np.ndarray) -> np.ndarray:
-        """
-        Assign descriptors to detected features in an image
+        """Assign descriptors to features in an image.
+
+        Output format:
+        1. Each input feature point is assigned a descriptor, which is stored
+        as a row vector.
 
         Arguments:
-            image (Image): the input image
-            features (np.ndarray): the features to describe
+            image: the input image.
+            features: features to describe, as a numpy array of shape (N, 2+).
 
         Returns:
-            np.ndarray: the descriptors for the input features
+            the descriptors for the input features, as (N, 128) sized matrix.
         """
-
-        # check if we have valid features to operate on
         if features.size == 0:
             return np.array([])
-
-        gray_image = image_utils.rgb_to_gray_cv(image)
-
-        # init the opencv object
-        opencv_obj = cv.xfeatures2d.SIFT_create()
-
-        # TODO(ayush): what to do about new set of keypoints
-        _, sift_desc = opencv_obj.compute(
-            gray_image.value_array, feature_utils.keypoints_of_array(features)
-        )
+          
+        sift_desc = super().describe(image, features)
 
         # Step 1: L1 normalization
         sift_desc = sift_desc / \

@@ -1,5 +1,4 @@
-"""
-SIFT Detector-Descriptor implementation.
+"""SIFT Detector-Descriptor implementation.
 
 The detector was proposed in 'Distinctive Image Features from Scale-Invariant Keypoints' and is implemented by wrapping over OpenCV's API
 
@@ -21,22 +20,22 @@ from frontend.detector_descriptor.detector_descriptor_base import \
     DetectorDescriptorBase
 
 
-class SIFT(DetectorDescriptorBase):
+class SIFTDetectorDescriptor(DetectorDescriptorBase):
     """SIFT detector-descriptor using OpenCV's implementation."""
 
-    def detect_and_describe(self, image: Image) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Perform feature detection as well as their description in a single step.
+    def detect_and_describe(self,
+                            image: Image) -> Tuple[np.ndarray, np.ndarray]:
+        """Perform feature detection as well as their description.
 
-        Refer to detect() in BaseDetector and describe() in BaseDescriptor 
-        for details about the output format.
+        Refer to detect() in DetectorBase and describe() in DescriptorBase for
+        details about the output format.
 
         Args:
-            image (Image): the input image
+            image: the input image.
 
         Returns:
-            Tuple[np.ndarray, np.ndarray]: detected features and their 
-                                           descriptions as two numpy arrays
+            detected features as a numpy array of shape (N, 2+).
+            corr. descriptors for the features, as (N, 128) sized matrix.
         """
 
         # conert to grayscale
@@ -53,7 +52,7 @@ class SIFT(DetectorDescriptorBase):
         features = feature_utils.array_of_keypoints(cv_keypoints)
 
         # sort the features and descriptors by the score
-        sort_idx = np.argsort(-features[:, 3])
+        sort_idx = np.argsort(-features[:, 3])[:self.max_features]
         features = features[sort_idx]
         descriptors = descriptors[sort_idx]
 

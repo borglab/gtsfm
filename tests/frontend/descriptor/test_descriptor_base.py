@@ -1,5 +1,4 @@
-"""
-Tests for frontend's base descriptor class.
+"""Tests for frontend's base descriptor class.
 
 Authors: Ayush Baid
 """
@@ -17,8 +16,7 @@ TEST_DATA_PATH = 'tests/data/lund'
 
 
 class TestDescriptorBase(unittest.TestCase):
-    """
-    Unit tests for the Base descriptor class.
+    """Unit tests for the Base descriptor class.
 
     Should be inherited by all descriptor unit tests.
     """
@@ -77,10 +75,12 @@ class TestDescriptorBase(unittest.TestCase):
             )
 
     def test_pickleable(self):
-        """
-        Tests that the descriptor object is pickleable (required for dask)
-        """
+        """Tests that the descriptor is pickleable (required for dask)."""
         try:
             pickle.dumps(self.descriptor)
         except TypeError:
             self.fail("Cannot dump descriptor using pickle")
+
+
+if __name__ == '__main__':
+    unittest.main()
