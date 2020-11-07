@@ -32,12 +32,11 @@ class DoG(DetectorBase):
         Returns:
             detected features as a numpy array of shape (N, 4).
         """
-        gray_image = image_utils.rgb_to_gray_cv(image)
-
         # init the opencv object
         opencv_obj = cv.xfeatures2d.SIFT_create()
 
-        cv_keypoints = opencv_obj.detect(gray_image.image_array, None)
+        gray_image = image_utils.rgb_to_gray_cv(image)
+        cv_keypoints = opencv_obj.detect(gray_image.value_array, None)
 
         # sort the keypoints by score and pick top responses
         cv_keypoints = sorted(

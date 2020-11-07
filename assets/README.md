@@ -1,0 +1,1 @@
+- camera_details: sensor width data obtained from OpenMVG (https://github.com/openMVG/CameraSensorSizeDatabase)

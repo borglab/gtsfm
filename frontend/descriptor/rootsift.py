@@ -36,7 +36,7 @@ class RootSIFTDescriptor(SIFTDescriptor):
         """
         if features.size == 0:
             return np.array([])
-
+          
         sift_desc = super().describe(image, features)
 
         # Step 1: L1 normalization

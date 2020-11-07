@@ -46,7 +46,7 @@ class SIFTDetectorDescriptor(DetectorDescriptorBase):
 
         # Run the opencv code
         cv_keypoints, descriptors = opencv_obj.detectAndCompute(
-            gray_image.image_array, None)
+            gray_image.value_array, None)
 
         # convert keypoints to features
         features = feature_utils.array_of_keypoints(cv_keypoints)
