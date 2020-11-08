@@ -10,7 +10,7 @@ from frontend.matcher.twoway_matcher import TwoWayMatcher
 
 
 class TestTwoWayMatcher(test_matcher_base.TestMatcherBase):
-    """Unit tests for the Base Matcher class.
+    """Unit tests for the TwoWayMatcher.
 
     All unit test functions defined in TestMatcherBase are run automatically.
     """
