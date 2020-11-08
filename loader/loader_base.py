@@ -4,9 +4,11 @@ Authors: Frank Dellaert and Ayush Baid
 """
 
 import abc
-from typing import List
+from typing import List, Optional
 
 import dask
+from dask.delayed import Delayed
+from gtsam import Cal3Bundler, Pose3
 
 from common.image import Image
 
@@ -21,26 +23,65 @@ class LoaderBase(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def __len__(self) -> int:
         """
-        The number of images in the dataset
+        The number of images in the dataset.
 
         Returns:
-            int: the number of images
+            the number of images.
         """
 
     # ignored-abstractmethod
     @abc.abstractmethod
     def get_image(self, index: int) -> Image:
         """
-        Get the image at the given index
+        Get the image at the given index.
 
         Args:
-            index (int): the index to fetch
+            index: the index to fetch.
+
+        Raises:
+            IndexError: if an out-of-bounds image index is requested.
 
         Returns:
-            Image: the image at the query index
+            Image: the image at the query index.
         """
 
-    def delayed_get_image(self, index: int) -> dask.delayed:
+    # ignored-abstractmethod
+    @abc.abstractmethod
+    def get_camera_intrinsics(self, index: int) -> Optional[Cal3Bundler]:
+        """Get the camera intrinsics at the given index.
+
+        Args:
+            the index to fetch.
+
+        Returns:
+            intrinsics for the given camera.
+        """
+
+    # ignored-abstractmethod
+    @abc.abstractmethod
+    def get_camera_pose(self, index: int) -> Optional[Pose3]:
+        """Get the camera pose (in world coordinates) at the given index.
+
+        Args:
+            index: the index to fetch.
+
+        Returns:
+            the camera pose w_P_index.
+        """
+
+    @abc.abstractmethod
+    def validate_pair(self, idx1: int, idx2: int) -> bool:
+        """Checks if (idx1, idx2) is a valid pair.
+
+        Args:
+            idx1: first index of the pair.
+            idx2: second index of the pair.
+
+        Returns:
+            validation result.
+        """
+
+    def delayed_get_image(self, index: int) -> Delayed:
         """
         Wraps the get_image evaluation in a dask.delayed
 
@@ -48,18 +89,16 @@ class LoaderBase(metaclass=abc.ABCMeta):
             index (int): the image index
 
         Returns:
-            dask.delayed: the get_image function for the given index wrapped in dask.delayed
+            Delayed: the get_image function for the given index wrapped in dask.delayed
         """
-        # TODO(ayush): is it the correct return type
-
         return dask.delayed(self.get_image)(index)
 
-    def create_computation_graph(self) -> List:
+    def create_computation_graph(self) -> List[Delayed]:
         """
         Creates the computation graph for all image fetches
 
         Returns:
-           List: list of dask's Delayed object
+           List[Delayed]: list of delayed image loading
         """
 
         return [self.delayed_get_image(x) for x in range(self.__len__())]
