@@ -3,11 +3,18 @@
 Authors: Ayush Baid
 """
 import abc
+from enum import Enum
 from typing import Dict, List, Tuple
 
 import dask
 import numpy as np
 from dask.delayed import Delayed
+
+
+class MatchingDistanceType(Enum):
+    """Type of distance metric to use for matching descriptors.    """
+    EUCLIDEAN = 'euclidean'
+    HAMMING = 'hamming'
 
 
 class MatcherBase(metaclass=abc.ABCMeta):
@@ -20,7 +27,8 @@ class MatcherBase(metaclass=abc.ABCMeta):
     def match(self,
               descriptors_im1: np.ndarray,
               descriptors_im2: np.ndarray,
-              distance_type: str = 'euclidean') -> np.ndarray:
+              distance_type: MatchingDistanceType =
+              MatchingDistanceType.EUCLIDEAN) -> np.ndarray:
         """Match descriptor vectors.
 
         Output format:
@@ -33,11 +41,12 @@ class MatcherBase(metaclass=abc.ABCMeta):
             descriptors_im1: descriptors from image #1, of shape (N1, D).
             descriptors_im2: descriptors from image #2, of shape (N2, D).
             distance_type (optional): the space to compute the distance between
-                                      descriptors. Defaults to 'euclidean'.
+                                      descriptors. Defaults to
+                                      MatchingDistanceType.EUCLIDEAN.
 
         Returns:
             Match indices (sorted by confidence), as matrix of shape
-                (<min(N1, N2), 2).
+                (N, 2), where N < min(N1, N2).
         """
         # TODO(ayush): should I define matcher on descriptors or the distance matrices.
         # TODO(ayush): how to handle deep-matchers which might require the full image as input
@@ -47,7 +56,8 @@ class MatcherBase(metaclass=abc.ABCMeta):
                                features_im2: np.ndarray,
                                descriptors_im1: np.ndarray,
                                descriptors_im2: np.ndarray,
-                               distance_type: str = 'euclidean'
+                               distance_type: MatchingDistanceType =
+                               MatchingDistanceType.EUCLIDEAN
                                ) -> Tuple[np.ndarray, np.ndarray]:
         """Match descriptors and return the corresponding features.
 
@@ -57,11 +67,12 @@ class MatcherBase(metaclass=abc.ABCMeta):
             descriptors_im1: descriptors for features_im1, of shape (N1, D).
             descriptors_im2: descriptors for features_im1, of shape (N2, D).
             distance_type (optional): the space to compute the distance between
-                                      descriptors. Defaults to 'euclidean'.
+                                      descriptors. Defaults to
+                                      MatchingDistanceType.EUCLIDEAN.
 
         Returns:
             Features from im1 and their corresponding matched features from im2,
-                each having shape (<min(N1, N2), 2+).
+                each having shape (N, 2), where N < min(N1, N2).
         """
         match_indices = self.match(
             descriptors_im1, descriptors_im2, distance_type)
@@ -72,7 +83,8 @@ class MatcherBase(metaclass=abc.ABCMeta):
     def create_computation_graph(self,
                                  pair_indices: List[Tuple[int, int]],
                                  detection_description_graph: List[Delayed],
-                                 distance_type: str = 'euclidean',
+                                 distance_type: MatchingDistanceType =
+                                 MatchingDistanceType.EUCLIDEAN
                                  ) -> Dict[Tuple[int, int], Delayed]:
         """
         Generates computation graph for matched features using the detection and description graph.
@@ -83,7 +95,8 @@ class MatcherBase(metaclass=abc.ABCMeta):
                                          their associated descriptors for each
                                          image.
             distance_type (optional): the space to compute the distance between
-                                      descriptors. Defaults to 'euclidean'.
+                                      descriptors. Defaults to
+                                      MatchingDistanceType.EUCLIDEAN.
 
         Returns:
             Delayed dask tasks for matching for input camera pairs.
