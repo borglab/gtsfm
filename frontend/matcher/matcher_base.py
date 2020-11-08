@@ -12,9 +12,9 @@ from dask.delayed import Delayed
 
 
 class MatchingDistanceType(Enum):
-    """Type of distance metric to use for matching descriptors.    """
-    EUCLIDEAN = 'euclidean'
-    HAMMING = 'hamming'
+    """Type of distance metric to use for matching descriptors."""
+    HAMMING = 1
+    EUCLIDEAN = 2
 
 
 class MatcherBase(metaclass=abc.ABCMeta):
