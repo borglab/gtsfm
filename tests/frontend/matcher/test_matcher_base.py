@@ -187,7 +187,8 @@ class TestMatcherBase(unittest.TestCase):
         ).astype(np.uint8)
 
     def __generate_matches_on_random_descriptors(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Generates a pair of random descriptors and the matching result on them.
+        """Generates a pair of random descriptors and uses the matcher under 
+        test to match them.
 
         Note: using binary descriptors in uint8 format as we want the hamming distances to work
 
