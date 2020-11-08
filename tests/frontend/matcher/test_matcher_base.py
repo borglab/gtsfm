@@ -49,20 +49,23 @@ class TestMatcherBase(unittest.TestCase):
             num_descriptors, descriptor_length)
 
         # the first descriptor is empty
-        result = self.matcher.match(self.__generate_random_binary_descriptors(0, descriptor_length),
-                                    descriptors)
+        result = self.matcher.match(
+            self.__generate_random_binary_descriptors(0, descriptor_length),
+            descriptors)
 
         self.assertEqual(0, result.size)
 
         # the second descriptor is empty
-        result = self.matcher.match(descriptors,
-                                    self.__generate_random_binary_descriptors(0, descriptor_length))
+        result = self.matcher.match(
+            descriptors,
+            self.__generate_random_binary_descriptors(0, descriptor_length))
 
         self.assertEqual(0, result.size)
 
         # both descriptors are empty
-        result = self.matcher.match(self.__generate_random_binary_descriptors(0, descriptor_length),
-                                    self.__generate_random_binary_descriptors(0, descriptor_length))
+        result = self.matcher.match(
+            self.__generate_random_binary_descriptors(0, descriptor_length),
+            self.__generate_random_binary_descriptors(0, descriptor_length))
 
         self.assertEqual(0, result.size)
 
@@ -91,9 +94,10 @@ class TestMatcherBase(unittest.TestCase):
         features_im2 = np.random.randn(descriptors_im2.shape[0], 3)
 
         # fetch matched features directly from the matcher
-        matched_features_im1, matched_features_im2 = self.matcher.match_and_get_features(
-            features_im1, features_im2,
-            descriptors_im1, descriptors_im2)
+        matched_features_im1, matched_features_im2 = \
+            self.matcher.match_and_get_features(
+                features_im1, features_im2,
+                descriptors_im1, descriptors_im2)
 
         # Confirm by performing manual lookup
         np.testing.assert_array_equal(
