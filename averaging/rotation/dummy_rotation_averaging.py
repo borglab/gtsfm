@@ -2,7 +2,6 @@
 
 Authors: Ayush Baid
 """
-
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -31,14 +30,14 @@ class DummyRotationAveraging(RotationAveragingBase):
             Global rotations for each camera pose, i.e. w_R_i
         """
 
+        if len(i1_R_i2_dict) == 0:
+            return [None]*num_poses
+
         # create the random seed using relative rotations
-        seed_rotation = Rot3()
-        for rotation in i1_R_i2_dict.values():
-            seed_rotation = seed_rotation.compose(rotation)
+        seed_rotation = next(iter(i1_R_i2_dict.values()))
 
         np.random.seed(
-            int(1000*np.sum(seed_rotation.xyz(), axis=None) % (2 ^ 32))
-        )
+            int(1000*seed_rotation.xyz()[0]) % (2 ^ 32))
 
         # generate dummy rotations
         w_R_i_list = []
