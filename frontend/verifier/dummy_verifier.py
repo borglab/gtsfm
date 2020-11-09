@@ -3,7 +3,7 @@ Dummy matcher which produces random results.
 
 Authors: Ayush Baid
 """
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
 import numpy as np
 from dask.delayed import Delayed
