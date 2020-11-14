@@ -50,7 +50,7 @@ class DataAssociation(FeatureTrackGenerator):
             else:
                 LMI = LandmarkInitialization(calibrationFlag, sfmdata_landmark_map[j], camera_list)
             triangulated_data = LMI.triangulate(sfmdata_landmark_map[j])
-            filtered_track = LMI.filter_reprojection_error(triangulated_data.point3(), sfmdata_landmark_map[j])
+            filtered_track = LMI.filter_reprojection_error(triangulated_data)
             if filtered_track.number_measurements() > 2:
                 triangulated_landmark_map.append(filtered_track)
             else:
@@ -101,7 +101,7 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
             self.track_camera_list = track_cameras
     
 
-    def extract_end_measurements(self, track: gtsam.SfmTrack) -> Tuple[gtsam.Pose3Vector, List, gtsam.Point2Vector]:
+    def extract_end_measurements(self, track: List) -> Tuple[gtsam.Pose3Vector, List, gtsam.Point2Vector]:
         """
         Extract first and last measurements in a track for triangulation.
         Args:
@@ -117,8 +117,8 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
         cameras_list = []
         img_measurements_track = gtsam.Point2Vector()
         img_measurements = gtsam.Point2Vector()
-        for k in range(track.number_measurements()):
-            img_idx, img_Pt = track.measurement(k)
+        for k in range(len(track)):
+            img_idx, img_Pt = track[k]
             if self.sharedCal_Flag:
                 pose_estimates_track.append(self.track_pose_list[img_idx])
             else:
@@ -142,15 +142,15 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
         return pose_estimates, cameras_list, img_measurements
 
 
-    def triangulate(self, track: gtsam.SfmTrack) -> gtsam.SfmTrack:
+    def triangulate(self, track: List) -> Dict:
         """
         Args:
             track: feature track
         Returns:
             triangulated_landmark: triangulated landmark
         """
-
         pose_estimates, camera_values, img_measurements = self.extract_end_measurements(track)
+        triangulated_track = dict()
         optimize = True
         rank_tol = 1e-9
         # if shared calibration provided for all cameras
@@ -158,34 +158,40 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
             if self.track_pose_list == None or not pose_estimates:
                 raise Exception('track_poses arg or pose estimates missing')
             triangulated_pt = gtsam.triangulatePoint3(pose_estimates, self.calibration, img_measurements, rank_tol, optimize)
-            track.set_point3(triangulated_pt)
+            triangulated_track.update({tuple(triangulated_pt) : track})
         else:
             if self.track_camera_list == None or not camera_values:
                 raise Exception('track_cameras arg or camera values missing')
             triangulated_pt = gtsam.triangulatePoint3(camera_values, img_measurements, rank_tol, optimize)
-            track.set_point3(triangulated_pt)
-        return track
+            triangulated_track.update({tuple(triangulated_pt) : track})
+        return triangulated_track
     
-    def filter_reprojection_error(self, triangulated_pt: gtsam.Point3,track: gtsam.SfmTrack):
+    def filter_reprojection_error(self, triangulated_track: Dict):
+        """
+        Filter measurements that have high reprojection error in a camera
+        Args:
+            Triangulated track, with triangulated pt as key and track as value
+        Returns:
+            SfmTrack object
+        """
         # TODO: Set threshold = 5*smallest_error in track?
-        threshold = 5
-        new_track = gtsam.SfmTrack()
+        threshold = 0.005
+        new_track = gtsam.SfmTrack(list(triangulated_track.keys())[0])
         
         # measurement_idx represented as k
-        for k in range(track.number_measurements()):
-            i, measurement = track.measurement(k)
-            if self.sharedCal_Flag:
-                camera = gtsam.PinholeCameraCal3_S2(self.track_pose_list[i], self.calibration)
-            else:
-                camera = gtsam.PinholeCameraCal3_S2(self.track_pose_list[i], self.track_camera_list[i])
-            # Project to camera 1
-            uc = camera.project(triangulated_pt)[0]
-            vc = camera.project(triangulated_pt)[1]
-            # Projection error in camera
-            error = (uc - measurement[0])**2 + (vc - measurement[1])**2
-            if error < threshold:
-                new_track.add_measurement((i, measurement))
-                new_track.set_point3(triangulated_pt)
+        for triangulated_pt, track in triangulated_track.items():
+            for (i, measurement) in track:
+                if self.sharedCal_Flag:
+                    camera = gtsam.PinholeCameraCal3Bundler(self.track_pose_list[i], self.calibration)
+                else:
+                    camera = gtsam.PinholeCameraCal3Bundler(self.track_pose_list[i], self.track_camera_list[i])
+                # Project to camera 1
+                uc = camera.project(triangulated_pt)[0]
+                vc = camera.project(triangulated_pt)[1]
+                # Projection error in camera
+                error = (uc - measurement[0])**2 + (vc - measurement[1])**2
+                if error < threshold:
+                    new_track.add_measurement(i, measurement)
         return new_track
 
         

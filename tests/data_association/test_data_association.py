@@ -11,7 +11,7 @@ import gtsam
 from gtsam.utils.test_case import GtsamTestCase
 from typing import List, Dict
 
-from data_association.data_assoc import DataAssociation, LandmarkInitialization
+from data_association.data_assoc import DataAssociation
 from data_association.feature_tracks import FeatureTrackGenerator
 from frontend.matcher.dummy_matcher import DummyMatcher
 
@@ -73,7 +73,7 @@ class TestDataAssociation(GtsamTestCase):
         Example from borglab/gtsam/python/gtsam/tests/test_Triangulation.py
         and gtsam/geometry/tests/testTriangulation.cpp
         """  
-        sharedCal = gtsam.Cal3_S2(1500, 1200, 0, 640, 480)
+        sharedCal = gtsam.Cal3Bundler(1500, 0, 0, 640, 480)
 
         matches_1, feature_list, poses, _ = self.__generate_2_poses(sharedCal)
         da = DataAssociation()
@@ -95,7 +95,7 @@ class TestDataAssociation(GtsamTestCase):
         """
         Tests the graph to create data association for images. 
         """
-        sharedCal = gtsam.Cal3_S2(1500, 1200, 0, 640, 480)
+        sharedCal = gtsam.Cal3Bundler(1500, 0, 0, 640, 480)
         matches, features, poses = self.__generate_3_poses(sharedCal)
         # Run without computation graph
         da = DataAssociation()
@@ -123,11 +123,11 @@ class TestDataAssociation(GtsamTestCase):
         # Looking along X-axis, 1 meter above ground plane (x-y)
         upright = gtsam.Rot3.Ypr(-np.pi / 2, 0., -np.pi / 2)
         pose1 = gtsam.Pose3(upright, gtsam.Point3(0, 0, 1))
-        camera1 = gtsam.PinholeCameraCal3_S2(pose1, sharedCal)
+        camera1 = gtsam.PinholeCameraCal3Bundler(pose1, sharedCal)
 
         # create second camera 1 meter to the right of first camera
         pose2 = pose1.compose(gtsam.Pose3(gtsam.Rot3(), gtsam.Point3(1, 0, 0)))
-        camera2 = gtsam.PinholeCameraCal3_S2(pose2, sharedCal)
+        camera2 = gtsam.PinholeCameraCal3Bundler(pose2, sharedCal)
 
         # landmark ~5 meters infront of camera
         expected_landmark = gtsam.Point3(5, 0.5, 1.2)
@@ -166,7 +166,7 @@ class TestDataAssociation(GtsamTestCase):
         # Add third camera slightly rotated
         rotatedCamera = gtsam.Rot3.Ypr(0.1, 0.2, 0.1)
         pose3 = gtsam.Pose3(rotatedCamera, gtsam.Point3(0.1, -2, -0.1))
-        camera3 = gtsam.PinholeCameraCal3_S2(pose3, sharedCal)
+        camera3 = gtsam.PinholeCameraCal3Bundler(pose3, sharedCal)
         z3 = camera3.project(expected_landmark)
         # add noise to measurement
         measurements.append(z3 + np.array([0.1, -0.1]))
@@ -183,93 +183,7 @@ class TestDataAssociation(GtsamTestCase):
         matches.update(match_dict)
         return matches, feature_list, poses
 
-    # def __generate_rand_binary_descs(self, num_descriptors: int, descriptor_length: int) -> np.ndarray:
-    #     """
-    #     Generates random binary descriptors.
-
-    #     Args:
-    #         num_descriptors: number of descriptors to generate
-    #         descriptor_length: length of each descriptor vector
-
-    #     Returns:
-    #         generated descriptor
-    #     """
-    #     if num_descriptors == 0:
-    #         return np.array([], dtype=np.uint8)
-
-    #     return np.random.randint(
-    #         0, high=2, size=(num_descriptors, descriptor_length)
-    #     ).astype(np.uint8)
-
-    # def get_random_correspondences(self):
-    #     """
-    #     Gets random verified correspondences
-    #     """
-    #     # generate three random descriptors and their features
-    #     num_descriptors_im1 = np.random.randint(5, 15)
-    #     num_descriptors_im2 = np.random.randint(5, 15)
-    #     num_descriptors_im3 = np.random.randint(5, 15)
-    #     print("num descr", num_descriptors_im1, num_descriptors_im2, num_descriptors_im3)
-
-    #     descriptor_length = np.random.randint(2, 10)
-    #     # print("descr length", descriptor_length)
-
-    #     descriptor_list = [
-    #         self.__generate_rand_binary_descs(
-    #             num_descriptors_im1, descriptor_length),
-    #         self.__generate_rand_binary_descs(
-    #             num_descriptors_im2, descriptor_length),
-    #         self.__generate_rand_binary_descs(
-    #             num_descriptors_im3, descriptor_length)
-    #     ]
-
-
-    #     features_list = [
-    #         np.random.rand(num_descriptors_im1, 3),
-    #         np.random.rand(num_descriptors_im2, 3),
-    #         np.random.rand(num_descriptors_im3, 3),
-    #     ]
-
-    #     # create computation graphs
-    #     detection_description_graph = [
-    #         dask.delayed((x, y)) for x, y in zip(features_list, descriptor_list)
-    #     ]
-
-    #     matcher_graph = self.matcher.create_computation_graph(
-    #         detection_description_graph)
-        
-    #     # run it in sequential mode
-    #     results = []
-    #     with dask.config.set(scheduler='single-threaded'):
-    #         results = dask.compute(matcher_graph)[0]
-
-    #     return results
-    
-    # def generate_poses(self, nb_poses:int) -> List:
-    #     """
-    #     Generate random poses
-    #     Args:
-    #         nb_poses: nb of poses to be created
-    #     Returns:
-    #         pose_list: list of poses
-    #     """
-    #     list_absolute_t = [gtsam.Point3(
-    #     np.random.uniform(100.2, 120.5), 
-    #     np.random.uniform(150.9, 140.5), 
-    #     np.random.uniform(12.2, 20.5)) for _ in range(nb_poses)]
-
-    #     list_absolute_R = [gtsam.Rot3(1.0, 0.0, 0.0, 
-    #                                   0.0, 1.0, 0.0, 
-    #                                   0.0, 0.0, 1.0)] # first one is identity
-    #     for _ in range(1, nb_poses):
-    #         list_absolute_R.append(gtsam.Rot3(
-    #             np.random.rand(), np.random.rand(), np.random.rand(), 
-    #             np.random.rand(), np.random.rand(), np.random.rand(),
-    #             np.random.rand(), np.random.rand(), np.random.rand()))
-
-    #     pose_list = [gtsam.Pose3(R, t) for R, t in zip(list_absolute_R, list_absolute_t)]
-    #     return pose_list
-    
+#TODO: Reprojection error filtering tested by manually setting threshold to 0.005 and observing which measurements are removed. Put that in test
         
         
 if __name__ == "__main__":

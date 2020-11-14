@@ -48,7 +48,8 @@ class FeatureTrackGenerator:
         for idx, s in enumerate(key_set):
             key = key_set[s]
             # Initialize track
-            track = gtsam.SfmTrack()
+            # track = gtsam.SfmTrack()
+            track = []
             for val in gtsam.IndexPairSetAsArray(key):
                 
                 # camera_idx is represented by i
@@ -60,8 +61,7 @@ class FeatureTrackGenerator:
                 lndmrk_root_node = dsf.find(gtsam.IndexPair(i, k))
                 # for each representative, add (img_idx, feature)
                 # add measurement in this track
-                meas = tuple((i, feature_list[i][k][:2]))
-                track.add_measurement(meas)
+                track.append(tuple((i, feature_list[i][k][:2])))
 
             landmark_data.append(track)
             
@@ -81,10 +81,10 @@ class FeatureTrackGenerator:
         for j in range(len(landmark_data)):
             unique_track = set()
             # measurement_idx represented as k
-            for k in range(landmark_data[j].number_measurements()):
-                i, _ = landmark_data[j].measurement(k)
+            for k in range(len(landmark_data[j])):
+                i, _ = landmark_data[j][k]
                 unique_track.add(i)
-            if len(unique_track) != landmark_data[j].number_measurements():
+            if len(unique_track) != len(landmark_data[j]):
                 continue
             else:
                 filtered_landmark_data.append(landmark_data[j])
