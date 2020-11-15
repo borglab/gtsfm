@@ -14,6 +14,8 @@ from gtsam import (
     symbol_shorthand
 )
 
+import dask
+
 C = symbol_shorthand.C
 P = symbol_shorthand.P
 
@@ -88,3 +90,7 @@ class BundleAdjustmentBase:
         logging.info(f"final error: {graph.error(result)}")
 
         return graph.error(result)
+    
+    def create_computation_graph(self, scene_data: SfmData) -> float:
+        return dask.delayed(self.run)(scene_data)
+
