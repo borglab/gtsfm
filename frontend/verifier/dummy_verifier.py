@@ -1,5 +1,4 @@
-"""
-Dummy matcher which produces random results.
+"""Dummy matcher which produces random results.
 
 Authors: Ayush Baid
 """
@@ -20,11 +19,11 @@ class DummyVerifier(VerifierBase):
 
     def verify_with_exact_intrinsics(
         self,
-        features_im1: np.ndarray,
-        features_im2: np.ndarray,
+        keypoints_im1: np.ndarray,
+        keypoints_im2: np.ndarray,
         match_indices: np.ndarray,
-        camera_instrinsics_im1: Cal3Bundler,
-        camera_instrinsics_im2: Cal3Bundler,
+        camera_intrinsics_im1: Cal3Bundler,
+        camera_intrinsics_im2: Cal3Bundler,
     ) -> Tuple[Optional[EssentialMatrix], np.ndarray]:
         """Estimates the essential matrix and verifies the feature matches.
 
@@ -33,12 +32,12 @@ class DummyVerifier(VerifierBase):
         estimated.
 
         Args:
-            features_im1: detected features in image #1, of shape (N1, 2+).
-            features_im2: detected features in image #2, of shape (N2, 2+).
+            keypoints_im1: detected features in image #1, of shape (N1, 2+).
+            keypoints_im2: detected features in image #2, of shape (N2, 2+).
             match_indices: matches as indices of features from both images, of
                            shape (N3, 2), where N3 <= min(N1, N2).
-            camera_instrinsics_im1: intrinsics for image #1.
-            camera_instrinsics_im2: intrinsics for image #2.
+            camera_intrinsics_im1: intrinsics for image #1.
+            camera_intrinsics_im2: intrinsics for image #2.
 
         Returns:
             Estimated essential matrix im2_E_im1, or None if it cannot be 
@@ -86,11 +85,11 @@ class DummyVerifier(VerifierBase):
 
     def verify_with_approximate_intrinsics(
         self,
-        features_im1: np.ndarray,
-        features_im2: np.ndarray,
+        keypoints_im1: np.ndarray,
+        keypoints_im2: np.ndarray,
         match_indices: np.ndarray,
-        camera_instrinsics_im1: Cal3Bundler,
-        camera_instrinsics_im2: Cal3Bundler,
+        camera_intrinsics_im1: Cal3Bundler,
+        camera_intrinsics_im2: Cal3Bundler,
     ) -> Tuple[Optional[EssentialMatrix], np.ndarray]:
         """Estimates the essential matrix and verifies the feature matches.
 
@@ -99,12 +98,12 @@ class DummyVerifier(VerifierBase):
         the fundamental matrix, which is then converted to the essential matrix.
 
         Args:
-            features_im1: detected features in image #1, of shape (N1, 2+).
-            features_im2: detected features in image #2, of shape (N2, 2+).
+            keypoints_im1: detected features in image #1, of shape (N1, 2+).
+            keypoints_im2: detected features in image #2, of shape (N2, 2+).
             match_indices: matches as indices of features from both images, of
                            shape (N3, 2), where N3 <= min(N1, N2).
-            camera_instrinsics_im1: intrinsics for image #1.
-            camera_instrinsics_im2: intrinsics for image #2.
+            camera_intrinsics_im1: intrinsics for image #1.
+            camera_intrinsics_im2: intrinsics for image #2.
 
         Returns:
             Estimated essential matrix im2_E_im1, or None if it cannot be
@@ -114,4 +113,5 @@ class DummyVerifier(VerifierBase):
         """
         # call the function for exact intrinsics as this is a dummy verifier.
         self.verify_with_exact_intrinsics(
-            features_im1, features_im2, match_indices, camera_instrinsics_im1, camera_instrinsics_im2)
+            keypoints_im1, keypoints_im2, match_indices,
+            camera_intrinsics_im1, camera_intrinsics_im2)

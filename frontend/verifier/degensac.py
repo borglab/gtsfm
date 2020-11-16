@@ -1,5 +1,14 @@
 """
-Degensac.
+Locally Optimized (LO) Degensac verifier implementation.
+
+The verifier is a combination of 'Locally Optimized Ransac' and 'Two-view
+Geometry Estimation Unaffected by a Dominant Plane' and is implemented by
+wrapping over 3rd party implementation.
+
+References:
+- https://link.springer.com/chapter/10.1007/978-3-540-45243-0_31
+- http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.466.2719&rep=rep1&type=pdf
+- https://github.com/ducha-aiki/pyransac
 
 Authors: Ayush Baid
 """
@@ -13,18 +22,21 @@ from gtsam import Cal3Bundler, EssentialMatrix
 from frontend.verifier.verifier_base import VerifierBase
 import utils.verification as verification_utils
 
+# minimum matches required for computing the F-matrix
+NUM_MATCHES_REQ_F_MATRIX = 8
+
 
 class Degensac(VerifierBase):
     def __init__(self):
-        super().__init__(min_pts=8)
+        super().__init__(min_pts=NUM_MATCHES_REQ_F_MATRIX)
 
     def verify_with_exact_intrinsics(
         self,
-        features_im1: np.ndarray,
-        features_im2: np.ndarray,
+        keypoints_im1: np.ndarray,
+        keypoints_im2: np.ndarray,
         match_indices: np.ndarray,
-        camera_instrinsics_im1: Cal3Bundler,
-        camera_instrinsics_im2: Cal3Bundler,
+        camera_intrinsics_im1: Cal3Bundler,
+        camera_intrinsics_im2: Cal3Bundler,
     ) -> Tuple[Optional[EssentialMatrix], np.ndarray]:
         """Estimates the essential matrix and verifies the feature matches.
 
@@ -33,12 +45,12 @@ class Degensac(VerifierBase):
         estimated.
 
         Args:
-            features_im1: detected features in image #1, of shape (N1, 2+).
-            features_im2: detected features in image #2, of shape (N2, 2+).
+            keypoints_im1: detected features in image #1, of shape (N1, 2+).
+            keypoints_im2: detected features in image #2, of shape (N2, 2+).
             match_indices: matches as indices of features from both images, of
                            shape (N3, 2), where N3 <= min(N1, N2).
-            camera_instrinsics_im1: intrinsics for image #1.
-            camera_instrinsics_im2: intrinsics for image #2.
+            camera_intrinsics_im1: intrinsics for image #1.
+            camera_intrinsics_im2: intrinsics for image #2.
 
         Returns:
             Estimated essential matrix im2_E_im1, or None if it cannot be 
@@ -52,11 +64,11 @@ class Degensac(VerifierBase):
 
     def verify_with_approximate_intrinsics(
         self,
-        features_im1: np.ndarray,
-        features_im2: np.ndarray,
+        keypoints_im1: np.ndarray,
+        keypoints_im2: np.ndarray,
         match_indices: np.ndarray,
-        camera_instrinsics_im1: Cal3Bundler,
-        camera_instrinsics_im2: Cal3Bundler,
+        camera_intrinsics_im1: Cal3Bundler,
+        camera_intrinsics_im2: Cal3Bundler,
     ) -> Tuple[Optional[EssentialMatrix], np.ndarray]:
         """Estimates the essential matrix and verifies the feature matches.
 
@@ -65,12 +77,12 @@ class Degensac(VerifierBase):
         the fundamental matrix, which is then converted to the essential matrix.
 
         Args:
-            features_im1: detected features in image #1, of shape (N1, 2+).
-            features_im2: detected features in image #2, of shape (N2, 2+).
+            keypoints_im1: detected features in image #1, of shape (N1, 2+).
+            keypoints_im2: detected features in image #2, of shape (N2, 2+).
             match_indices: matches as indices of features from both images, of
                            shape (N3, 2), where N3 <= min(N1, N2).
-            camera_instrinsics_im1: intrinsics for image #1.
-            camera_instrinsics_im2: intrinsics for image #2.
+            camera_intrinsics_im1: intrinsics for image #1.
+            camera_intrinsics_im2: intrinsics for image #2.
 
         Returns:
             Estimated essential matrix im2_E_im1, or None if it cannot be
@@ -79,22 +91,22 @@ class Degensac(VerifierBase):
                 These indices are subset of match_indices.
         """
         im2_F_im1, mask = pydegensac.findFundamentalMatrix(
-            features_im1[match_indices[:, 0], :2],
-            features_im2[match_indices[:, 1], :2],
+            keypoints_im1[match_indices[:, 0], :2],
+            keypoints_im2[match_indices[:, 1], :2],
         )
 
         inlier_idx = np.where(mask.ravel() == 1)[0]
 
         e_matrix = verification_utils.fundamental_matrix_to_essential_matrix(
             im2_F_im1,
-            camera_instrinsics_im1,
-            camera_instrinsics_im2
+            camera_intrinsics_im1,
+            camera_intrinsics_im2
         )
 
         im2_E_im1 = verification_utils.cast_essential_matrix_to_gtsam(
             e_matrix,
-            features_im1[match_indices[inlier_idx, 0], :2],
-            features_im2[match_indices[inlier_idx, 1], :2],
+            keypoints_im1[match_indices[inlier_idx, 0], :2],
+            keypoints_im2[match_indices[inlier_idx, 1], :2],
         )
 
         return im2_E_im1, inlier_idx
