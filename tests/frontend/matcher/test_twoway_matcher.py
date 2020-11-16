@@ -1,19 +1,18 @@
-"""
-Tests for the two-way matcher (frontend) 
+"""Tests for the two-way matcher.
 
 Authors: Ayush Baid
 """
+import unittest
 import numpy as np
-import tests.frontend.matcher.test_matcher_base as test_matcher_base
 
+import tests.frontend.matcher.test_matcher_base as test_matcher_base
 from frontend.matcher.twoway_matcher import TwoWayMatcher
 
 
 class TestTwoWayMatcher(test_matcher_base.TestMatcherBase):
-    """
-    Unit tests for the Base Matcher class.
+    """Unit tests for the TwoWayMatcher.
 
-    Should be inherited by all matcher unit tests.
+    All unit test functions defined in TestMatcherBase are run automatically.
     """
 
     def setUp(self):
@@ -22,9 +21,7 @@ class TestTwoWayMatcher(test_matcher_base.TestMatcherBase):
         self.matcher = TwoWayMatcher()
 
     def test_on_dummy_data(self):
-        """
-        Test using dummy 1D descriptors where the outputs are matched by hand
-        """
+        """Test using dummy 1D descriptors to verify correctness."""
 
         desc1 = np.array([0.4865,
                           0.3752,
@@ -61,3 +58,7 @@ class TestTwoWayMatcher(test_matcher_base.TestMatcherBase):
             [8, 6],
             [0, 3]
         ]), result)
+
+
+if __name__ == '__main__':
+    unittest.main()
