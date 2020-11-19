@@ -10,12 +10,11 @@ References:
 
 Authors: Jing Wu, Ayush Baid
 """
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 
 import gtsam
 import numpy as np
-from gtsam import (BetweenFactorPose3, Pose3, Rot3, ShonanAveraging3,
-                   ShonanAveragingParameters3)
+from gtsam import BetweenFactorPose3, Pose3, Rot3, ShonanAveraging3
 
 from averaging.rotation.rotation_averaging_base import RotationAveragingBase
 
@@ -24,29 +23,35 @@ class ShonanRotationAveraging(RotationAveragingBase):
     """Performs Shonan rotation averaging."""
 
     def __init__(self):
-        self._pMin = 5
-        self._pMax = 30
+        self._p_min = 5
+        self._p_max = 30
 
     def run(self,
-            num_poses: int,
-            iRj_dict: Dict[Tuple[int, int], Union[Rot3, None]]
-            ) -> List[Rot3]:
+            num_images: int,
+            i1_R_i2_dict: Dict[Tuple[int, int], Optional[Rot3]]
+            ) -> List[Optional[Rot3]]:
         """Run the rotation averaging.
 
         Args:
-            num_poses: number of poses.
-            iRj_dict: relative rotations between camera poses (from i to j).
+            num_images: number of poses.
+            i1_R_i2_dict: relative rotations between pairs of camera poses (
+                          rotation of i2^th pose in i1^th frame for various
+                          pairs of (i1, i2). The pairs serve as keys of the
+                          dictionary).
 
         Returns:
-            List[Rot3]: global rotations for each camera pose.
+            Global rotations for each camera pose, i.e. w_R_i, as a list. The
+                number of entries in the list is `num_images`. The list may
+                contain `None` where the global rotation could not be computed
+                (either underconstrained system or ill-constrained system).
         """
-        lm_params = gtsam.LevenbergMarquardtParams.CeresDefaults()
-        shonan_params = ShonanAveragingParameters3(lm_params)
+        # lm_params = gtsam.LevenbergMarquardtParams.CeresDefaults()
+        # shonan_params = ShonanAveragingParameters3(lm_params)
         noise_model = gtsam.noiseModel.Unit.Create(6)
 
         between_factors = gtsam.BetweenFactorPose3s()
 
-        for idx_pair, rotation in iRj_dict.items():
+        for idx_pair, rotation in i1_R_i2_dict.items():
             if rotation is not None:
                 between_factors.append(BetweenFactorPose3(
                     idx_pair[0],
@@ -55,9 +60,9 @@ class ShonanRotationAveraging(RotationAveragingBase):
                     noise_model
                 ))
 
-        obj = ShonanAveraging3(between_factors, shonan_params)
+        obj = ShonanAveraging3(between_factors)  # , shonan_params)
 
         initial = obj.initializeRandomly()
-        result_values, _ = obj.run(initial, self._pMin, self._pMax)
+        result_values, _ = obj.run(initial, self._p_min, self._p_max)
 
-        return [result_values.atRot3(i) for i in range(num_poses)]
+        return [result_values.atRot3(i) for i in range(num_images)]

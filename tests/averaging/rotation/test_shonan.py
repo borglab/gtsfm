@@ -2,20 +2,23 @@
 
 Authors: Ayush Baid
 """
-
+import unittest
 
 import numpy as np
-
 from gtsam import Rot3
 
-import tests.averaging.rotation.test_rotation_averaging_base as test_rotation_averaging_base
-
+import tests.averaging.rotation.test_rotation_averaging_base as \
+    test_rotation_averaging_base
 from averaging.rotation.shonan import ShonanRotationAveraging
 
 
 class TestShonanRotationAveraging(
         test_rotation_averaging_base.TestRotationAveragingBase):
-    """Test class for Shonan rotation averaging."""
+    """Test class for Shonan rotation averaging.
+
+    All unit test functions defined in TestRotationAveragingBase are run
+    automatically.
+    """
 
     def setUp(self):
         super().setUp()
@@ -23,22 +26,26 @@ class TestShonanRotationAveraging(
         self.obj = ShonanRotationAveraging()
 
     def test_simple(self):
-        """Test a simple case with just three relative rotations."""
+        """Test a simple case with three relative rotations."""
 
-        iRj_dict = {
+        i1_R_i2_dict = {
             (0, 1): Rot3.RzRyRx(0, 30*np.pi/180, 0),
             (1, 2): Rot3.RzRyRx(0, 0, 20*np.pi/180),
         }
 
-        expected_0Ri = [
+        expected_w_R_i = [
             Rot3.RzRyRx(0, 0, 0),
             Rot3.RzRyRx(0, 30*np.pi/180, 0),
-            iRj_dict[(0, 1)].compose(iRj_dict[(1, 2)])
+            i1_R_i2_dict[(0, 1)].compose(i1_R_i2_dict[(1, 2)])
         ]
 
-        computed_wRi = self.obj.run(3, iRj_dict)
+        computed_w_R_i = self.obj.run(3, i1_R_i2_dict)
 
-        self.assertTrue(expected_0Ri[1].equals(
-            computed_wRi[0].between(computed_wRi[1]), 1e-5))
-        self.assertTrue(expected_0Ri[2].equals(
-            computed_wRi[0].between(computed_wRi[2]), 1e-5))
+        self.assertTrue(expected_w_R_i[1].equals(
+            computed_w_R_i[0].between(computed_w_R_i[1]), 1e-5))
+        self.assertTrue(expected_w_R_i[2].equals(
+            computed_w_R_i[0].between(computed_w_R_i[2]), 1e-5))
+
+
+if __name__ == '__main__':
+    unittest.main()
