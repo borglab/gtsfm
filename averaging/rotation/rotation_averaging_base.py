@@ -19,31 +19,34 @@ class RotationAveragingBase(metaclass=abc.ABCMeta):
     # ignored-abstractmethod
     @abc.abstractmethod
     def run(self,
-            num_poses: int,
+            num_images: int,
             i1_R_i2_dict: Dict[Tuple[int, int], Optional[Rot3]]
             ) -> List[Optional[Rot3]]:
         """Run the rotation averaging.
 
         Args:
-            num_poses: number of poses.
+            num_images: number of poses.
             i1_R_i2_dict: relative rotations between pairs of camera poses (
                           rotation of i2^th pose in i1^th frame for various
                           pairs of (i1, i2). The pairs serve as keys of the
                           dictionary).
 
         Returns:
-            Global rotations for each camera pose, i.e. w_R_i
+            Global rotations for each camera pose, i.e. w_R_i, as a list. The
+                number of entries in the list is `num_images`. The list may
+                contain `None` where the global rotation could not be computed
+                (either underconstrained system or ill-constrained system).
         """
 
     def create_computation_graph(
             self,
-            num_poses: int,
+            num_images: int,
             i1_R_i2_dict: Delayed
     ) -> Delayed:
         """Create the computation graph for performing rotation averaging.
 
         Args:
-            num_poses: number of poses.
+            num_images: number of poses.
             i1_R_i2_dict: the dictionary of relative rotations wrapped up in
                           Delayed.
 
@@ -51,4 +54,4 @@ class RotationAveragingBase(metaclass=abc.ABCMeta):
             Delayed: global rotations wrapped using dask.delayed.
         """
 
-        return dask.delayed(self.run)(num_poses, i1_R_i2_dict)
+        return dask.delayed(self.run)(num_images, i1_R_i2_dict)
