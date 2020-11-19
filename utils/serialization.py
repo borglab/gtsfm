@@ -8,6 +8,11 @@ from typing import Dict, List, Tuple
 from distributed.protocol import dask_deserialize, dask_serialize
 from gtsam import Point3, Rot3, Unit3
 
+"""
+Serialization and deserialization function calls will be handled in the background by Dask,
+and need not be called explicitly.
+"""
+
 
 @dask_serialize.register(Point3)
 def serialize_Point3(point3: Point3) -> Tuple[Dict, List[bytes]]:
@@ -41,11 +46,6 @@ def deserialize_Point3(header: Dict, frames: List[bytes]) -> Point3:
         frame = frames[0]
     return Point3(pickle.loads(frame))
 
-
-"""
-Serialization and deserialization function calls will be handled in the background by Dask,
-and need not be called explicitly.
-"""
 
 @dask_serialize.register(Rot3)
 def serialize_Rot3(rot3: Rot3) -> Tuple[Dict, List[bytes]]:

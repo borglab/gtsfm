@@ -3,7 +3,7 @@
 Authors: Ayush Baid
 """
 
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple, Optional
 
 import numpy as np
 from gtsam import Point3, Rot3, Unit3
@@ -16,35 +16,40 @@ class DummyTranslationAveraging(TranslationAveragingBase):
     """Assigns random unit-translations to each pose."""
 
     def run(self,
-            num_poses: int,
-            i1ti2_dict: Dict[Tuple[int, int], Union[Unit3, None]],
-            wRi_list: List[Rot3],
+            num_images: int,
+            i1_t_i2_dict: Dict[Tuple[int, int], Optional[Unit3]],
+            w_R_i_list: List[Optional[Rot3]],
             global_gauge_ambiguity: float = 1.0
-            ) -> List[Point3]:
+            ) -> List[Optional[Point3]]:
         """Run the translation averaging.
 
         Args:
-            num_poses: number of poses.
-            i1ti2_dict: relative unit translation between camera poses (
-                        translation direction of i2^th pose in i1^th frame).
-            wRi_list: global rotations.
+            num_images: number of camera poses.
+            i1_t_i2_dict: relative unit translations between pairs of camera
+                          poses (direction of translation of i2^th pose in
+                          i1^th frame for various pairs of (i1, i2). The pairs
+                          serve as keys of the dictionary).
+            w_R_i_list: global rotations for each camera pose in the world
+                        coordinates.
+            global_gauge_ambiguity: non-negative global scaling factor.
+
         Returns:
-            global unit translation for each camera pose.
+            global translation for each camera pose.
         """
 
+        if len(w_R_i_list) == 0:
+            return []
+
         # create the random seed using relative rotations
-        seed_rotation = Rot3()
-        for rotation in wRi_list:
-            seed_rotation = seed_rotation.compose(rotation)
+        seed_rotation = w_R_i_list[0]
 
         np.random.seed(
-            int(1000*np.sum(seed_rotation.xyz(), axis=None) % (2 ^ 32))
-        )
+            int(1000*seed_rotation.xyz()[0]) % (2 ^ 32))
 
-        # generate dummy rotations
-        results = [None]*num_poses
-        for idx in range(num_poses):
-            if wRi_list[idx] is not None:
+        # generate dummy output
+        results = [None]*num_images
+        for idx in range(num_images):
+            if w_R_i_list[idx] is not None:
                 random_vector = np.random.rand(3)
                 results[idx] = global_gauge_ambiguity * \
                     Unit3(random_vector).point3()

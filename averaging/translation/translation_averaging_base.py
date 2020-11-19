@@ -1,9 +1,9 @@
-"""Base class for the translation averaging component of the pipeline.
+"""Base class for the translation averaging component of the GTSFM pipeline.
 
 Authors: Ayush Baid
 """
 import abc
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 
 import dask
 from dask.delayed import Delayed
@@ -19,18 +19,21 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
     # ignored-abstractmethod
     @abc.abstractmethod
     def run(self,
-            num_poses: int,
-            i1ti2_dict: Dict[Tuple[int, int], Union[Unit3, None]],
-            wRi_list: List[Rot3],
+            num_images: int,
+            i1_t_i2_dict: Dict[Tuple[int, int], Optional[Unit3]],
+            w_R_i_list: List[Optional[Rot3]],
             global_gauge_ambiguity: float = 1.0
-            ) -> List[Point3]:
+            ) -> List[Optional[Point3]]:
         """Run the translation averaging.
 
         Args:
-            num_poses: number of poses.
-            i1ti2_dict: relative unit translation between camera poses (
-                        translation direction of i2^th pose in i1^th frame).
-            wRi_list: global rotations.
+            num_images: number of camera poses.
+            i1_t_i2_dict: relative unit translations between pairs of camera
+                          poses (direction of translation of i2^th pose in
+                          i1^th frame for various pairs of (i1, i2). The pairs
+                          serve as keys of the dictionary).
+            w_R_i_list: global rotations for each camera pose in the world
+                        coordinates.
             global_gauge_ambiguity: non-negative global scaling factor.
 
         Returns:
@@ -39,18 +42,18 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
 
     def create_computation_graph(
             self,
-            num_poses: int,
-            i1ti2_graph: Dict[Tuple[int, int], Delayed],
-            wRi_graph: Delayed,
+            num_images: int,
+            i1_t_i2_graph: Dict[Tuple[int, int], Delayed],
+            w_R_i_graph: Delayed,
             global_gauge_ambiguity: float = 1.0
     ) -> Delayed:
         """Create the computation graph for performing translation averaging.
 
         Args:
-            num_poses: number of poses.
-            i1ti2_graph: dictionary of relative unit translations wrapped
-                         up in Delayed.
-            wRi_graph: list of global rotations wrapped up in Delayed.
+            num_images: number of camera poses.
+            i1_t_i2_graph: graph of relative unit-translations, stored as a    
+                           dict.
+            w_R_i_graph: list of global rotations wrapped up in Delayed.
             global_gauge_ambiguity: non-negative global scaling factor.
 
         Returns:
@@ -58,4 +61,4 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
         """
 
         return dask.delayed(self.run)(
-            num_poses, i1ti2_graph, wRi_graph, global_gauge_ambiguity)
+            num_images, i1_t_i2_graph, w_R_i_graph, global_gauge_ambiguity)

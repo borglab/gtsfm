@@ -2,6 +2,8 @@
 
 Authors: Ayush Baid
 """
+import unittest
+
 from gtsam import Cal3_S2, Unit3
 from gtsam.examples import SFMdata
 
@@ -12,7 +14,11 @@ from averaging.translation.averaging_1dsfm import TranslationAveraging1DSFM
 
 class TestTranslationAveraging1DSFM(
         test_translation_averaging_base.TestTranslationAveragingBase):
-    """Test class for 1DSFM rotation averaging."""
+    """Test class for 1DSFM rotation averaging.
+
+    All unit test functions defined in TestTranslationAveragingBase are run
+    automatically.
+    """
 
     def setUp(self):
         super().setUp()
@@ -32,20 +38,28 @@ class TestTranslationAveraging1DSFM(
         fx, fy, s, u0, v0 = 50.0, 50.0, 0.0, 50.0, 50.0
         global_pose_list = SFMdata.createPoses(Cal3_S2(fx, fy, s, u0, v0))
 
-        expected_wti_list = [x.translation() for x in global_pose_list]
+        expected_w_t_i_list = [x.translation() for x in global_pose_list]
 
-        wRi_list = [x.rotation() for x in global_pose_list]
+        w_R_i_list = [x.rotation() for x in global_pose_list]
 
         # create relative translation directions between a pose index and the
         # next two poses
-        i1ti2_dict = {}
-        for i1 in range(len(global_pose_list)-2):
-            for i2 in range(i1+1, i1+3):
-                i1ti2_dict[(i1, i2)] = Unit3(
-                    wRi_list[i1].unrotate(
-                        expected_wti_list[i2] - expected_wti_list[i1]))
+        i1_t_i2_dict = {}
+        for i1 in range(len(global_pose_list)-1):
+            for i2 in range(i1+1, min(len(global_pose_list), i1+3)):
+                # create relative translations using global rotations and
+                # translations.
+                i1_t_i2_dict[(i1, i2)] = Unit3(
+                    w_R_i_list[i1].unrotate(
+                        expected_w_t_i_list[i2] - expected_w_t_i_list[i1]))
 
-        computed_wti_list = self.obj.run(len(wRi_list), i1ti2_dict, wRi_list)
+        computed_wti_list = self.obj.run(
+            len(w_R_i_list), i1_t_i2_dict, w_R_i_list)
 
         # compare the entries
-        self.check_equals(expected_wti_list, computed_wti_list)
+        self.assert_equal_upto_scale(
+            expected_w_t_i_list, computed_wti_list)
+
+
+if __name__ == '__main__':
+    unittest.main()
