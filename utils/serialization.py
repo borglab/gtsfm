@@ -7,11 +7,11 @@ from typing import Dict, List, Tuple
 from distributed.protocol import dask_deserialize, dask_serialize
 from gtsam import Rot3
 
+
 """
 Serialization and deserialization function calls will be handled in the background by Dask,
 and need not be called explicitly.
 """
-
 
 @dask_serialize.register(Rot3)
 def serialize_Rot3(rot3: Rot3) -> Tuple[Dict, List[bytes]]:
