@@ -27,13 +27,13 @@ class TestRotationAveragingBase(unittest.TestCase):
         num_poses = 3
 
         i1_R_i2_dict = {
-            (0, 1): Rot3.RzRyRx(0, 30*np.pi/180, 0),
-            (1, 2): Rot3.RzRyRx(0, 0, 20*np.pi/180),
+            (0, 1): Rot3.RzRyRx(0, np.deg2rad(30), 0),
+            (1, 2): Rot3.RzRyRx(0, 0, np.deg2rad(20)),
         }
 
         i1_R_i2_input_graph = {
-            (0, 1): dask.delayed(Rot3.RzRyRx)(0, 30*np.pi/180, 0),
-            (1, 2): dask.delayed(Rot3.RzRyRx)(0, 0, 20*np.pi/180),
+            (0, 1): dask.delayed(Rot3.RzRyRx)(0, np.deg2rad(30), 0),
+            (1, 2): dask.delayed(Rot3.RzRyRx)(0, 0, np.deg2rad(20)),
         }
 
         # use the GTSAM API directly (without dask) for rotation averaging
