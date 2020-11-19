@@ -3,7 +3,6 @@
 Authors: Ayush Baid
 """
 
-import pickle
 import unittest
 
 import dask
@@ -27,23 +26,18 @@ class TestRotationAveragingBase(unittest.TestCase):
 
         num_poses = 3
 
-        iRj_dict_normal = {
-            (0, 1): Rot3.RzRyRx(0, 30*np.pi/180, 0),
-            (1, 2): Rot3.RzRyRx(0, 0, 20*np.pi/180),
+        i1_R_i2_dict = {
+            (0, 1): Rot3.RzRyRx(0, np.deg2rad(30), 0),
+            (1, 2): Rot3.RzRyRx(0, 0, np.deg2rad(20)),
         }
 
-        iRj_dict_dask = {
-            (0, 1): dask.delayed(Rot3.RzRyRx)(0, 30*np.pi/180, 0),
-            (1, 2): dask.delayed(Rot3.RzRyRx)(0, 0, 20*np.pi/180),
-        }
-
-        # use the normal API for rotation averaging
-        expected_result = self.obj.run(num_poses, iRj_dict_normal)
+        # use the GTSAM API directly (without dask) for rotation averaging
+        expected_result = self.obj.run(num_poses, i1_R_i2_dict)
 
         # use dask's computation graph
         computation_graph = self.obj.create_computation_graph(
             num_poses,
-            iRj_dict_dask
+            dask.delayed(i1_R_i2_dict)
         )
 
         with dask.config.set(scheduler='single-threaded'):

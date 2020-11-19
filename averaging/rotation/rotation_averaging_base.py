@@ -41,16 +41,17 @@ class RotationAveragingBase(metaclass=abc.ABCMeta):
     def create_computation_graph(
             self,
             num_images: int,
-            i1_R_i2_graph: Dict[Tuple[int, int], Delayed]
+            i1_R_i2_dict: Delayed
     ) -> Delayed:
         """Create the computation graph for performing rotation averaging.
 
         Args:
             num_images: number of poses.
-            i1_R_i2_graph: the graph of relative rotations, stored as a dict.
+            i1_R_i2_dict: the dictionary of relative rotations wrapped up in
+                          Delayed.
 
         Returns:
             Delayed: global rotations wrapped using dask.delayed.
         """
 
-        return dask.delayed(self.run)(num_images, i1_R_i2_graph)
+        return dask.delayed(self.run)(num_images, i1_R_i2_dict)
