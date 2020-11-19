@@ -38,7 +38,7 @@ class TestRotationAveragingBase(unittest.TestCase):
         }
 
         # use the normal API for rotation averaging
-        normal_result = self.obj.run(num_poses, iRj_dict_normal)
+        expected_result = self.obj.run(num_poses, iRj_dict_normal)
 
         # use dask's computation graph
         computation_graph = self.obj.create_computation_graph(

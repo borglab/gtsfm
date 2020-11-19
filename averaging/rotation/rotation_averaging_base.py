@@ -2,15 +2,12 @@
 
 Authors: Jing Wu, Ayush Baid
 """
-from gtsam import Rot3
-from dask.delayed import Delayed
-import dask
-from typing import Dict, List, Tuple, Union
-from typing import Dict, List, Optional, Tuple
 import abc
-<< << << < HEAD
-== == == =
->>>>>> > 3222047... reflecting None input for rotation in type hints
+from typing import Dict, List, Optional, Tuple
+
+import dask
+from dask.delayed import Delayed
+from gtsam import Rot3
 
 
 class RotationAveragingBase(metaclass=abc.ABCMeta):
@@ -44,17 +41,16 @@ class RotationAveragingBase(metaclass=abc.ABCMeta):
     def create_computation_graph(
             self,
             num_images: int,
-            iRj_graph: Dict[Tuple[int, int], Delayed]
+            i1_R_i2_graph: Dict[Tuple[int, int], Delayed]
     ) -> Delayed:
         """Create the computation graph for performing rotation averaging.
 
         Args:
             num_images: number of poses.
-            i1_R_i2_dict: the dictionary of relative rotations wrapped up in
-                          Delayed.
+            i1_R_i2_graph: the graph of relative rotations, stored as a dict.
 
         Returns:
             Delayed: global rotations wrapped using dask.delayed.
         """
 
-        return dask.delayed(self.run)(num_images, iRj_graph)
+        return dask.delayed(self.run)(num_images, i1_R_i2_graph)
