@@ -22,3 +22,7 @@ class TestSerialization(unittest.TestCase):
         recovered = serialization_utils.deserialize_Rot3(header, frames)
 
         self.assertTrue(expected.equals(recovered, 1e-5))
+
+
+if __name__ == '__main__':
+    unittest.main()
