@@ -32,7 +32,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             num_images: int,
             i1_t_i2_dict: Dict[Tuple[int, int], Optional[Unit3]],
             w_R_i_list: List[Optional[Rot3]],
-            global_gauge_ambiguity: float = 1.0
+            scale_factor: float = 1.0
             ) -> List[Optional[Point3]]:
         """Run the translation averaging.
 
@@ -44,7 +44,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                           serve as keys of the dictionary).
             w_R_i_list: global rotations for each camera pose in the world
                         coordinates.
-            global_gauge_ambiguity: non-negative global scaling factor.
+            scale_factor: non-negative global scaling factor.
 
         Returns:
             global translation for each camera pose.
@@ -98,7 +98,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         # Run the optimizer
         global_translations = gtsam.TranslationRecovery(
-            inlier_translation_measurements).run(global_gauge_ambiguity)
+            inlier_translation_measurements).run(scale_factor)
 
         # transforming the result to the list of Point3
         results = [None]*num_images

@@ -22,7 +22,7 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
             num_images: int,
             i1_t_i2_dict: Dict[Tuple[int, int], Optional[Unit3]],
             w_R_i_list: List[Optional[Rot3]],
-            global_gauge_ambiguity: float = 1.0
+            scale_factor: float = 1.0
             ) -> List[Optional[Point3]]:
         """Run the translation averaging.
 
@@ -34,7 +34,7 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
                           serve as keys of the dictionary).
             w_R_i_list: global rotations for each camera pose in the world
                         coordinates.
-            global_gauge_ambiguity: non-negative global scaling factor.
+            scale_factor: non-negative global scaling factor.
 
         Returns:
             global translation for each camera pose.
@@ -45,7 +45,7 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
             num_images: int,
             i1_t_i2_graph: Dict[Tuple[int, int], Delayed],
             w_R_i_graph: Delayed,
-            global_gauge_ambiguity: float = 1.0
+            scale_factor: float = 1.0
     ) -> Delayed:
         """Create the computation graph for performing translation averaging.
 
@@ -54,11 +54,11 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
             i1_t_i2_graph: graph of relative unit-translations, stored as a    
                            dict.
             w_R_i_graph: list of global rotations wrapped up in Delayed.
-            global_gauge_ambiguity: non-negative global scaling factor.
+            scale_factor: non-negative global scaling factor.
 
         Returns:
             Delayed: global unit translations wrapped using dask.delayed.
         """
 
         return dask.delayed(self.run)(
-            num_images, i1_t_i2_graph, w_R_i_graph, global_gauge_ambiguity)
+            num_images, i1_t_i2_graph, w_R_i_graph, scale_factor)

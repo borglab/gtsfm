@@ -19,7 +19,7 @@ class DummyTranslationAveraging(TranslationAveragingBase):
             num_images: int,
             i1_t_i2_dict: Dict[Tuple[int, int], Optional[Unit3]],
             w_R_i_list: List[Optional[Rot3]],
-            global_gauge_ambiguity: float = 1.0
+            scale_factor: float = 1.0
             ) -> List[Optional[Point3]]:
         """Run the translation averaging.
 
@@ -31,7 +31,7 @@ class DummyTranslationAveraging(TranslationAveragingBase):
                           serve as keys of the dictionary).
             w_R_i_list: global rotations for each camera pose in the world
                         coordinates.
-            global_gauge_ambiguity: non-negative global scaling factor.
+            scale_factor: non-negative global scaling factor.
 
         Returns:
             global translation for each camera pose.
@@ -51,7 +51,7 @@ class DummyTranslationAveraging(TranslationAveragingBase):
         for idx in range(num_images):
             if w_R_i_list[idx] is not None:
                 random_vector = np.random.rand(3)
-                results[idx] = global_gauge_ambiguity * \
+                results[idx] = scale_factor * \
                     Unit3(random_vector).point3()
 
         return results
