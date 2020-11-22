@@ -54,10 +54,10 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
 
         # convert translation direction in global frame using rotations.
-        i1_Z_i2_list = gtsam.BinaryMeasurementsUnit3()
+        z_i1_t_i2_list = gtsam.BinaryMeasurementsUnit3()
         for (i1, i2), i1_t_i2 in i1_t_i2_dict.items():
             if i1_t_i2 is not None:
-                i1_Z_i2_list.append(BinaryMeasurementUnit3(
+                z_i1_t_i2_list.append(BinaryMeasurementUnit3(
                     i1,
                     i2,
                     Unit3(w_R_i_list[i1].rotate(
@@ -72,12 +72,12 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             replace=False)
 
         projection_directions = [
-            i1_Z_i2_list[idx].measured() for idx in indices]
+            z_i1_t_i2_list[idx].measured() for idx in indices]
 
         # compute outlier weights using MFAS
         outlier_weights = []
         for direction in projection_directions:
-            algorithm = MFAS(i1_Z_i2_list, direction)
+            algorithm = MFAS(z_i1_t_i2_list, direction)
             outlier_weights.append(algorithm.computeOutlierWeights())
 
         # compute average outlier weight
@@ -92,15 +92,15 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                         len(outlier_weights)
 
         # filter out oulier measumenets
-        inlier_i1_Z_i2_list = gtsam.BinaryMeasurementsUnit3()
-        for measurement in i1_Z_i2_list:
-            if avg_outlier_weights[(measurement.key1(), measurement.key2())] < \
+        inlier_z_i1_t_i2_list = gtsam.BinaryMeasurementsUnit3()
+        for z_i1_t_i2 in z_i1_t_i2_list:
+            if avg_outlier_weights[(z_i1_t_i2.key1(), z_i1_t_i2.key2())] < \
                     self._outlier_weight_threshold:
-                inlier_i1_Z_i2_list.append(measurement)
+                inlier_z_i1_t_i2_list.append(z_i1_t_i2)
 
         # Run the optimizer
         w_t_i_values = gtsam.TranslationRecovery(
-            inlier_i1_Z_i2_list).run(scale_factor)
+            inlier_z_i1_t_i2_list).run(scale_factor)
 
         # transforming the result to the list of Point3
         results = [None]*num_images
