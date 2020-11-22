@@ -69,7 +69,7 @@ class TestTranslationAveragingBase(unittest.TestCase):
         w_R_i_graph = dask.delayed(w_R_i_list)
 
         # use the GTSAM API directly (without dask) for translation averaging
-        expected_result = self.obj.run(
+        expected_w_T_i_list = self.obj.run(
             num_images, i1_t_i2_dict, w_R_i_list)
 
         # use dask's computation graph
@@ -77,9 +77,9 @@ class TestTranslationAveragingBase(unittest.TestCase):
             num_images, i1_t_i2_graph, w_R_i_graph)
 
         with dask.config.set(scheduler='single-threaded'):
-            dask_result = dask.compute(computation_graph)[0]
+            computed_w_T_i_list = dask.compute(computation_graph)[0]
 
-        self.assert_equal_upto_scale(expected_result, dask_result)
+        self.assert_equal_upto_scale(expected_w_T_i_list, computed_w_T_i_list)
 
     def test_pickleable(self):
         """Tests that the object is pickleable (required for dask)."""

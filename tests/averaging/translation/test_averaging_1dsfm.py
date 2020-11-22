@@ -36,17 +36,17 @@ class TestTranslationAveraging1DSFM(
         """
 
         fx, fy, s, u0, v0 = 50.0, 50.0, 0.0, 50.0, 50.0
-        global_pose_list = SFMdata.createPoses(Cal3_S2(fx, fy, s, u0, v0))
+        w_P_i_list = SFMdata.createPoses(Cal3_S2(fx, fy, s, u0, v0))
 
-        expected_w_t_i_list = [x.translation() for x in global_pose_list]
+        expected_w_t_i_list = [x.translation() for x in w_P_i_list]
 
-        w_R_i_list = [x.rotation() for x in global_pose_list]
+        w_R_i_list = [x.rotation() for x in w_P_i_list]
 
         # create relative translation directions between a pose index and the
         # next two poses
         i1_t_i2_dict = {}
-        for i1 in range(len(global_pose_list)-1):
-            for i2 in range(i1+1, min(len(global_pose_list), i1+3)):
+        for i1 in range(len(w_P_i_list)-1):
+            for i2 in range(i1+1, min(len(w_P_i_list), i1+3)):
                 # create relative translations using global rotations and
                 # translations.
                 i1_t_i2_dict[(i1, i2)] = Unit3(
