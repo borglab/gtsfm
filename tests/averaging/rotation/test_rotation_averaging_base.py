@@ -3,6 +3,7 @@
 Authors: Ayush Baid
 """
 
+import pickle
 import unittest
 
 import dask
@@ -48,6 +49,14 @@ class TestRotationAveragingBase(unittest.TestCase):
             expected_i1_R_i2 = expected_result[0].between(expected_result[idx])
             computed_i1_R_i2 = dask_result[0].between(dask_result[idx])
             self.assertTrue(expected_i1_R_i2.equals(computed_i1_R_i2, 1e-5))
+
+    def test_pickleable(self):
+        """Tests that the object is pickleable (required for dask)."""
+
+        try:
+            pickle.dumps(self.obj)
+        except TypeError:
+            self.fail("Cannot dump rotation averaging object using pickle")
 
 
 if __name__ == '__main__':
