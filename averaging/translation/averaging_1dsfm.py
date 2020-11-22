@@ -54,14 +54,14 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
 
         # convert translation direction in global frame using rotations.
-        translation_measurements = gtsam.BinaryMeasurementsUnit3()
-        for (i1, i2), translation_direction in i1_t_i2_dict.items():
-            if translation_direction is not None:
-                translation_measurements.append(BinaryMeasurementUnit3(
+        i1_Z_i2_list = gtsam.BinaryMeasurementsUnit3()
+        for (i1, i2), i1_t_i2 in i1_t_i2_dict.items():
+            if i1_t_i2 is not None:
+                i1_Z_i2_list.append(BinaryMeasurementUnit3(
                     i1,
                     i2,
                     Unit3(w_R_i_list[i1].rotate(
-                        translation_direction.point3())),
+                        i1_t_i2.point3())),
                     noise_model))
 
         # sample indices to be used as projection directions
@@ -72,38 +72,40 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             replace=False)
 
         projection_directions = [
-            translation_measurements[idx].measured() for idx in indices]
+            i1_Z_i2_list[idx].measured() for idx in indices]
 
         # compute outlier weights using MFAS
         outlier_weights = []
         for direction in projection_directions:
-            algorithm = MFAS(translation_measurements, direction)
+            algorithm = MFAS(i1_Z_i2_list, direction)
             outlier_weights.append(algorithm.computeOutlierWeights())
 
         # compute average outlier weight
         avg_outlier_weights = {}
         for outlier_weight_dict in outlier_weights:
-            for k, v in outlier_weight_dict.items():
-                if k in avg_outlier_weights:
-                    avg_outlier_weights[k] += v/len(outlier_weights)
+            for index_pair, weight in outlier_weight_dict.items():
+                if index_pair in avg_outlier_weights:
+                    avg_outlier_weights[index_pair] += weight / \
+                        len(outlier_weights)
                 else:
-                    avg_outlier_weights[k] = v/len(outlier_weights)
+                    avg_outlier_weights[index_pair] = weight / \
+                        len(outlier_weights)
 
         # filter out oulier measumenets
-        inlier_translation_measurements = gtsam.BinaryMeasurementsUnit3()
-        for i in translation_measurements:
-            if avg_outlier_weights[(i.key1(), i.key2())] < \
+        inlier_i1_Z_i2_list = gtsam.BinaryMeasurementsUnit3()
+        for measurement in i1_Z_i2_list:
+            if avg_outlier_weights[(measurement.key1(), measurement.key2())] < \
                     self._outlier_weight_threshold:
-                inlier_translation_measurements.append(i)
+                inlier_i1_Z_i2_list.append(measurement)
 
         # Run the optimizer
-        global_translations = gtsam.TranslationRecovery(
-            inlier_translation_measurements).run(scale_factor)
+        w_t_i_values = gtsam.TranslationRecovery(
+            inlier_i1_Z_i2_list).run(scale_factor)
 
         # transforming the result to the list of Point3
         results = [None]*num_images
         for i in range(num_images):
             if w_R_i_list[i] is not None:
-                results[i] = global_translations.atPoint3(i)
+                results[i] = w_t_i_values.atPoint3(i)
 
         return results
