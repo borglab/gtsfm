@@ -5,7 +5,7 @@ import unittest
 
 import numpy as np
 
-import frontend.utils.feature_utils as feature_utils
+import utils.features as feature_utils
 
 
 class TestFeatureUtils(unittest.TestCase):
@@ -13,9 +13,10 @@ class TestFeatureUtils(unittest.TestCase):
     Class containing all the unit tests.
     """
 
-    def test_convert_to_opencv_keypoints(self):
+    def test_keypoints_from_array(self):
         """
-        Unit tests for numpy feature to opencv conversion.
+        Unit tests for conversion of keypoints from numpy array representation
+        to opencv's keypoints.
         """
 
         numpy_features = np.array([
@@ -23,7 +24,7 @@ class TestFeatureUtils(unittest.TestCase):
             [20, 10, 5, 3.2]
         ])
 
-        results = feature_utils.convert_to_opencv_keypoints(numpy_features)
+        results = feature_utils.keypoints_from_array(numpy_features)
 
         # Check the length of the result
         self.assertEqual(numpy_features.shape[0], len(results))
