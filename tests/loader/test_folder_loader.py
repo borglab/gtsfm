@@ -135,31 +135,15 @@ class TestFolderLoader(unittest.TestCase):
 
         self.assertIsNone(computed)
 
-    def test_delayed_get_image(self):
-        """
-        Checks that the delayed get API functions exactly as the normal get API
-        """
+    def test_create_computation_graph_for_images(self):
+        """Tests the graph for loading all the images."""
 
-        index_to_test = 5
-
-        delayed_result = self.loader.delayed_get_image(index_to_test).compute()
-
-        normal_result = self.loader.get_image(index_to_test)
-
-        np.testing.assert_allclose(
-            normal_result.value_array, delayed_result.value_array)
-
-    def test_create_computation_graph(self):
-        """
-        Tests the graph for loading all the images
-        """
-
-        loader_graph = self.loader.create_computation_graph()
+        image_graph = self.loader.create_computation_graph_for_images()
 
         # check the length of the graph
-        self.assertEqual(12, len(loader_graph))
+        self.assertEqual(12, len(image_graph))
 
-        results = dask.compute(loader_graph)[0]
+        results = dask.compute(image_graph)[0]
 
         # randomly check image loads from a few indices
         np.testing.assert_allclose(
@@ -168,3 +152,23 @@ class TestFolderLoader(unittest.TestCase):
 
         np.testing.assert_allclose(
             results[7].value_array, self.loader.get_image(7).value_array)
+
+    def test_create_computation_graph_for_intrinsics(self):
+        """Tests the graph for all intrinsics."""
+
+        intrinsics_graph = self.loader.create_computation_graph_for_intrinsics()
+
+        # check the length of the graph
+        self.assertEqual(12, len(intrinsics_graph))
+
+        results = dask.compute(intrinsics_graph)[0]
+
+        # randomly check intrinsics from a few indices
+        self.assertTrue(self.loader.get_camera_intrinsics(5).equals(
+            results[5], 1e-5))
+        self.assertTrue(self.loader.get_camera_intrinsics(7).equals(
+            results[7], 1e-5))
+
+
+if __name__ == "__main__":
+    unittest.main()

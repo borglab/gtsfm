@@ -4,7 +4,7 @@ Authors: Frank Dellaert and Ayush Baid
 """
 
 import abc
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import dask
 from dask.delayed import Delayed
@@ -81,24 +81,37 @@ class LoaderBase(metaclass=abc.ABCMeta):
             validation result.
         """
 
-    def delayed_get_image(self, index: int) -> Delayed:
-        """
-        Wraps the get_image evaluation in a dask.delayed
-
-        Args:
-            index (int): the image index
+    def create_computation_graph_for_images(self) -> List[Delayed]:
+        """Creates the computation graph for image fetches.
 
         Returns:
-            Delayed: the get_image function for the given index wrapped in dask.delayed
+            list of delayed tasks for images.
         """
-        return dask.delayed(self.get_image)(index)
+        N = self.__len__()
 
-    def create_computation_graph(self) -> List[Delayed]:
-        """
-        Creates the computation graph for all image fetches
+        return [dask.delayed(self.get_image)(x) for x in range(N)]
+
+    def create_computation_graph_for_intrinsics(self) -> List[Delayed]:
+        """Creates the computation graph for camera intrinsics.
 
         Returns:
-           List[Delayed]: list of delayed image loading
+            list of delayed tasks for camera intrinsics.
         """
+        N = self.__len__()
 
-        return [self.delayed_get_image(x) for x in range(self.__len__())]
+        return [dask.delayed(self.get_camera_intrinsics)(x) for x in range(N)]
+
+    def get_valid_pairs(self) -> List[Tuple[int, int]]:
+        """Get the valid pairs of images for this loader.
+
+        Returns:
+            list of valid index pairs.
+        """
+        indices = []
+
+        for idx1 in range(self.__len__()):
+            for idx2 in range(self.__len__()):
+                if(self.validate_pair(idx1, idx2)):
+                    indices.append((idx1, idx2))
+
+        return indices
