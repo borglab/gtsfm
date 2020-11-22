@@ -89,6 +89,8 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         # compute outlier weights using MFAS
         outlier_weights = []
+
+        # TODO(ayush): parallelize this step.
         for direction in projection_directions:
             algorithm = MFAS(i1_t_i2_measurements, direction)
             outlier_weights.append(algorithm.computeOutlierWeights())
