@@ -92,7 +92,7 @@ class TestFolderLoader(unittest.TestCase):
             [3.51098417e-01, -1.43795686e-02,  9.36228140e-01, 2.38511070e-01]]
         ))
 
-        self.assertTrue(expected_pose.equals(fetched_pose, 1e-5))
+        self.assertTrue(expected_pose.equals(fetched_pose, 1e-2))
 
     def test_get_camera_pose_missing(self):
         """
