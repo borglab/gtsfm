@@ -63,6 +63,9 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         noise_model = gtsam.noiseModel.Isotropic.Sigma(
             NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
 
+        # Note: all measurements are relative translation directions in the
+        # world frame.
+
         # convert translation direction in global frame using rotations.
         i1_t_i2_measurements = BinaryMeasurementsUnit3()
         for (i1, i2), i1_t_i2 in i1_t_i2_dict.items():
