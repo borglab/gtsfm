@@ -56,7 +56,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         # convert translation direction in global frame using rotations.
         z_i1_t_i2_list = gtsam.BinaryMeasurementsUnit3()
         for (i1, i2), i1_t_i2 in i1_t_i2_dict.items():
-            if i1_t_i2 is not None:
+            if i1_t_i2 is not None and w_R_i_list[i1] is not None:
                 z_i1_t_i2_list.append(BinaryMeasurementUnit3(
                     i1,
                     i2,
