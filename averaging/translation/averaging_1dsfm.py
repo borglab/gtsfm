@@ -1,12 +1,21 @@
-"""Translation averaging using 1D-SFM.
+"""Translation averaging using 1DSFM.
 
-Authors: Akshay Krishnan, Jing Wu, Ayush Baid.
+This algorithm was proposed in 'Robust Global Translations with 1DSFM' and is
+build by wrapping GTSAM's classes.
+
+References:
+- https://research.cs.cornell.edu/1dsfm/
+- https://github.com/borglab/gtsam/blob/develop/gtsam/sfm/MFAS.h
+- https://github.com/borglab/gtsam/blob/develop/gtsam/sfm/TranslationRecovery.h
+
+Authors: Jing Wu, Ayush Baid.
 """
 from typing import Dict, List, Optional, Tuple
 
 import gtsam
 import numpy as np
-from gtsam import MFAS, BinaryMeasurementUnit3, Point3, Rot3, Unit3
+from gtsam import (MFAS, BinaryMeasurementsUnit3, BinaryMeasurementUnit3,
+                   Point3, Rot3, TranslationRecovery, Unit3)
 
 from averaging.translation.translation_averaging_base import \
     TranslationAveragingBase
@@ -54,7 +63,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
 
         # convert translation direction in global frame using rotations.
-        z_i1_t_i2_list = gtsam.BinaryMeasurementsUnit3()
+        z_i1_t_i2_list = BinaryMeasurementsUnit3()
         for (i1, i2), i1_t_i2 in i1_t_i2_dict.items():
             if i1_t_i2 is not None and w_R_i_list[i1] is not None:
                 z_i1_t_i2_list.append(BinaryMeasurementUnit3(
@@ -92,14 +101,14 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                         len(outlier_weights)
 
         # filter out oulier measumenets
-        inlier_z_i1_t_i2_list = gtsam.BinaryMeasurementsUnit3()
+        inlier_z_i1_t_i2_list = BinaryMeasurementsUnit3()
         for z_i1_t_i2 in z_i1_t_i2_list:
             if avg_outlier_weights[(z_i1_t_i2.key1(), z_i1_t_i2.key2())] < \
                     self._outlier_weight_threshold:
                 inlier_z_i1_t_i2_list.append(z_i1_t_i2)
 
         # Run the optimizer
-        w_t_i_values = gtsam.TranslationRecovery(
+        w_t_i_values = TranslationRecovery(
             inlier_z_i1_t_i2_list).run(scale_factor)
 
         # transforming the result to the list of Point3
