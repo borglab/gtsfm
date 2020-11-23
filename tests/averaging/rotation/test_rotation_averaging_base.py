@@ -32,13 +32,18 @@ class TestRotationAveragingBase(unittest.TestCase):
             (1, 2): Rot3.RzRyRx(0, 0, np.deg2rad(20)),
         }
 
+        i1_R_i2_input_graph = {
+            (0, 1): dask.delayed(Rot3.RzRyRx)(0, np.deg2rad(30), 0),
+            (1, 2): dask.delayed(Rot3.RzRyRx)(0, 0, np.deg2rad(20)),
+        }
+
         # use the GTSAM API directly (without dask) for rotation averaging
         expected_result = self.obj.run(num_poses, i1_R_i2_dict)
 
         # use dask's computation graph
         computation_graph = self.obj.create_computation_graph(
             num_poses,
-            dask.delayed(i1_R_i2_dict)
+            i1_R_i2_input_graph
         )
 
         with dask.config.set(scheduler='single-threaded'):
