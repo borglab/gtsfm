@@ -5,6 +5,15 @@ import numpy as np
 
 import dask
 
+from pathlib import Path
+import sys
+
+# I know it is stupid to link file in this way, but let us do the test in this way
+PROJECT_DIR = Path(__file__).parents[2]
+print(PROJECT_DIR)
+sys.path.append(str(PROJECT_DIR))
+
+
 from bundle.bundle_adjustment import BundleAdjustmentBase
 
 def test_ba_dubrovnik():
