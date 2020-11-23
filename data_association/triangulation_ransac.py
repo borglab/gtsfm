@@ -25,17 +25,15 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
         fix z, f, and e_m which is the same for all measurements in a track, 
         e_z prop 1/b
     ALGORITHM FLOWWORK: 
-        1.1. Randomly select measurement pairs uniformly
-        or
-        1.2. Randomly select measurement pairs based the probability of estimated depth uncertainty (baseline of two camera poses)
-        or 
-        1.3. Select measurement pairs from high to low probability of estimated depth uncertainty (baseline of two camera poses)
+        1. mode 1: Randomly select measurement pairs uniformly
+           mode 2: Randomly select measurement pairs based the probability of estimated depth uncertainty (baseline of two camera poses)
+           mode 3. Select measurement pairs from high to low probability of estimated depth uncertainty (baseline of two camera poses)
 
-        2. Triangluate the 3D points and calculate the average reprojection error (as scoring metric)
+        2. Triangluate the 3D points and calculate the reprojection errors of each measurements for inlier/outlier detection
 
-        3. Select the one hold the least score and all the inliers
+        3. Select the one hold the most votes
 
-        4. Use all the inlier to formulate the tracks and redo the triangularization
+        4. Use all the inlier to to re-triangulate points
     """
 
     def __init__(
@@ -201,7 +199,8 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
         Returns:
             triangulated_landmark: triangulated landmark
         """
-        pose_estimates, camera_values, img_measurements = self.extract_measurements(track)
+        inliers = [True for k in range(len(track))]
+        pose_estimates, camera_values, img_measurements = self.extract_measurements(track, inliers)
         triangulated_track = dict()
         optimize = True
         rank_tol = 1e-9
@@ -282,7 +281,11 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
             triangulated_pt_track = gtsam.triangulatePoint3(pose_estimates_track, self.calibration, img_measurements_track, rank_tol, optimize)
             triangulated_track.update({tuple(triangulated_pt_track) : track})
         else:
-            triangulated_pt = gtsam.triangulatePoint3(camera_estimates_track, img_measurements_track, rank_tol, optimize)
+            triangulated_pt_track = gtsam.triangulatePoint3(camera_estimates_track, img_measurements_track, rank_tol, optimize)
             triangulated_track.update({tuple(triangulated_pt_track) : track})
         
+        # we may want to compare the initialized best_pt with triangulated_pt_track
+        error_check = (best_pt - triangulated_pt_track).norm()
+        # ToDo: if error_check > sth, it may be not correct
+
         return triangulated_track
