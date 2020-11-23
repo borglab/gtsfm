@@ -24,7 +24,12 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 
 class BundleAdjustmentBase:
-
+    def __init__(self) -> None:
+        """
+        Args:
+            scene_data: structured tracks (SfmData) after Triangularization and Outlier rejection. 
+        """
+        
     def run(self, scene_data: SfmData) -> float:
         """ Run LM optimization with input data and report resulting error """
         logging.info(f"Input: {scene_data.number_tracks()} tracks on {scene_data.number_cameras()} cameras\n")
