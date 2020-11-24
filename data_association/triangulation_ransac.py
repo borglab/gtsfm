@@ -199,10 +199,10 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
                 idx1, = track[k1]
                 idx2, = track[k2]
                 if self.sharedCal_Flag:
-                    p1 = self.track_pose_list[idx1]
-                    p2 = self.track_pose_list[idx2]
+                    wTc1 = self.track_pose_list[idx1]
+                    wTc2 = self.track_pose_list[idx2]
                     # it is not a very correct approximation of depth, will do it better later
-                    l2_distance = (p1.inverse()*p2).translation().norm() 
+                    l2_distance = (wTc1.inverse()*wTc2).translation().norm() 
                     scores.append(l2_distance)
                 else:
                     scores.append(1.0)
@@ -221,6 +221,7 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
         Returns:
             indexes of matches: index of selected match
         """
+        # ToDo: NumPy-ize the code here
         if sum(scores) <= 0.0:
             raise Exception("Sum of scores cannot be Zero (or smaller than Zero)! It must a bug somewhere")
         
@@ -232,12 +233,13 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
                 sampling_method == triangulation_params.BASELINE
             ): 
                 # normalization of scores for sampling
-                nscores = [s/sum(scores) for s in scores]
+                nscores = [s/sum(scores) for s in scores] # numpy implementation
                 
                 # generate random number from 0 to 1
                 random_sampler = np.random.uniform()
 
                 # sampling
+                # Example: random_sampler = 0.184, nscores = [[0.0] 0.6 [0.0] 0.4]
                 acc = 0.0
                 for idx in range(len(nscores)):
                     acc += nscores[idx]
