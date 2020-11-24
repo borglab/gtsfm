@@ -59,13 +59,13 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
         if track_cameras is not None:
             self.track_camera_list = track_cameras
     
-        def triangulate(
+    def triangulate(
         self, track: List, 
         use_ransac: bool,
         sampling_method: Optional[triangulation_params] = None, 
         num_samples: Optional[int] = None, 
         thresh: Optional[float] = None
-        ) -> Dict:
+    ) -> Dict:
         """
         Triangulation in RANSAC loop
         Args:
@@ -82,16 +82,13 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
         if use_ransac:
             # Generate all possible matches
             matches = self.generate_matches(track)
-            
-            # Initialize scores for all matches
-            scores = self.initialize_scores(track, matches, sampling_method)
-            
+                        
             # Check the validity of num_samples  
             if  num_samples > len(matches):
                 num_samples = len(matches)
             
             # Sampling
-            samples = self.sampling(scores, sampling_method, num_samples)
+            samples = self.sampling(track, matches, sampling_method, num_samples)
             
             # Initialize the best output containers
             best_pt = gtsam.Point3()
@@ -141,10 +138,10 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
         
         # if shared calibration provided for all cameras
         if self.sharedCal_Flag:
-            triangulated_pt_track = gtsam.triangulatePoint3(pose_track, self.calibration, measurement_track, rank_tol, optimize=True)
+            triangulated_pt_track = gtsam.triangulatePoint3(pose_track, self.calibration, measurement_track, rank_tol=1e-9, optimize=True)
             triangulated_track.update({tuple(triangulated_pt_track) : track})
         else:
-            triangulated_pt_track = gtsam.triangulatePoint3(camera_track, measurement_track, rank_tol, optimize=True)
+            triangulated_pt_track = gtsam.triangulatePoint3(camera_track, measurement_track, rank_tol=1e-9, optimize=True)
             triangulated_track.update({tuple(triangulated_pt_track) : track})
         
         # we may want to compare the initialized best_pt with triangulated_pt_track
@@ -168,52 +165,13 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
                 matches.append([k1,k2])
                 
         return matches
-    
-    def initialize_scores(self, track: List, matches: List, sampling_method: triangulation_params) -> List[float]:
-        """
-        Extract all possible measurement pairs (k1, k2) and their scores in a track for triangulation.
-        Args:
-            track: feature track from which measurements are to be extracted
-            matches: all possible matches in a given track
-            sampling_method: triangulation_params.UNIFORM    -> sampling uniformly, 
-                             triangulation_params.BASELINE   -> sampling based on estimated baseline, 
-                             triangulation_params.MAX_TO_MIN -> sampling from max to min 
-        Returns:
-            scores: scores of corresponding matches for RANSAC sampling 
-        """
 
-        scores = []
-
-        for k in range(len(matches)):
-            k1, k2 = matches[k]
-            
-            if (
-                sampling_method == triangulation_params.UNIFORM
-            ):
-                scores.append(1.0)
-
-            if (
-                sampling_method == triangulation_params.BASELINE or 
-                sampling_method == triangulation_params.MAX_TO_MIN
-            ):
-                idx1, = track[k1]
-                idx2, = track[k2]
-                if self.sharedCal_Flag:
-                    wTc1 = self.track_pose_list[idx1]
-                    wTc2 = self.track_pose_list[idx2]
-                    # it is not a very correct approximation of depth, will do it better later
-                    l2_distance = (wTc1.inverse()*wTc2).translation().norm() 
-                    scores.append(l2_distance)
-                else:
-                    scores.append(1.0)
-            
-        return scores
-
-    def sampling(self, scores: List, sampling_method: triangulation_params, num_samples: int) -> List[int]:
+    def sampling(self, track: List, matches: List, sampling_method: triangulation_params, num_samples: int) -> List[int]:
         """
         Generate a list of matches for triangulation 
         Args:
-            scores: scores for sampling
+            track: feature track from which measurements are to be extracted
+            matches: all possible matches in a given track
             sampling_method: triangulation_params.UNIFORM    -> sampling uniformly, 
                              triangulation_params.BASELINE   -> sampling based on estimated baseline, 
                              triangulation_params.MAX_TO_MIN -> sampling from max to min 
@@ -221,44 +179,41 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
         Returns:
             indexes of matches: index of selected match
         """
-        # ToDo: NumPy-ize the code here
+        # Initilize scores as uniform distribution
+        scores = np.ones(len(matches),dtype=float)
+
+        if (
+            (sampling_method == triangulation_params.BASELINE or 
+            sampling_method == triangulation_params.MAX_TO_MIN) and 
+            self.sharedCal_Flag
+        ):
+            for k in range(len(matches)):
+                k1, k2 = matches[k]
+
+                idx1, = track[k1]
+                idx2, = track[k2]
+
+                wTc1 = self.track_pose_list[idx1]
+                wTc2 = self.track_pose_list[idx2]
+                # it is not a very correct approximation of depth, will do it better later
+                scores[k] = (wTc1.inverse()*wTc2).translation().norm() 
+        
+        # Check the validity of scores
         if sum(scores) <= 0.0:
             raise Exception("Sum of scores cannot be Zero (or smaller than Zero)! It must a bug somewhere")
         
-        sample_index = []
-
-        for s in range(num_samples):
-            if (
-                sampling_method == triangulation_params.UNIFORM or
-                sampling_method == triangulation_params.BASELINE
-            ): 
-                # normalization of scores for sampling
-                nscores = [s/sum(scores) for s in scores] # numpy implementation
+        if (
+            sampling_method == triangulation_params.UNIFORM or
+            sampling_method == triangulation_params.BASELINE
+        ): 
+            sample_index = np.random.choice(len(scores), num_samples, replace=False, p=scores/scores.sum())
                 
-                # generate random number from 0 to 1
-                random_sampler = np.random.uniform()
-
-                # sampling
-                # Example: random_sampler = 0.184, nscores = [[0.0] 0.6 [0.0] 0.4]
-                acc = 0.0
-                for idx in range(len(nscores)):
-                    acc += nscores[idx]
-                    if (acc > random_sampler):
-                        # will never sample it again
-                        scores[idx] = 0.0
-                        #  push the index
-                        sample_index.append(idx)
-            
-            if (
-                sampling_method == triangulation_params.MAX_TO_MIN
-            ): 
-                # calculate the index of the maximum element
-                idx = scores.index(max(scores))
-                # will never sample it again
-                scores[idx] = 0.0
-                sample_index.append(idx)
+        if (
+            sampling_method == triangulation_params.MAX_TO_MIN
+        ): 
+            sample_index = np.argsort(scores)[-num_samples:]
         
-        return sample_index
+        return sample_index.tolist()
 
     def reprojection_error(self, triangulated_pt: gtsam.Point3, track: List) -> List[float]:
         """
