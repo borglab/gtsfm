@@ -27,22 +27,21 @@ class TestTranslationAveragingBase(unittest.TestCase):
         self.obj = DummyTranslationAveraging()
 
     def assert_equal_upto_scale(self,
-                                w_T_i_list_1: List[Point3],
-                                w_T_i_list_2: List[Point3]):
+                                wTi_list1: List[Point3],
+                                wTi_list2: List[Point3]):
         """Helper function to assert that two lists of global Point3 are equal
         (upto global scale ambiguity)."""
 
-        self.assertEqual(len(w_T_i_list_1), len(w_T_i_list_2),
+        self.assertEqual(len(wTi_list1), len(wTi_list2),
                          'two lists to compare have unequal lengths')
 
-        for idx in range(1, len(w_T_i_list_1)):
+        for i in range(1, len(wTi_list1)):
             # accounting for ambiguity in origin of the coordinate system.
-            idx_t_0_direction1 = Unit3(w_T_i_list_1[idx] - w_T_i_list_1[0])
+            iU0_1 = Unit3(wTi_list1[i] - wTi_list1[0])
 
-            idx_t_0_direction2 = Unit3(w_T_i_list_2[idx] - w_T_i_list_2[0])
+            iU0_2 = Unit3(wTi_list2[i] - wTi_list2[0])
 
-            self.assertTrue(idx_t_0_direction1.equals(
-                idx_t_0_direction2, 1e-2))
+            self.assertTrue(iU0_1.equals(iU0_2, 1e-2))
 
     def test_computation_graph(self):
         """Test the dask computation graph execution using a valid collection
@@ -50,36 +49,36 @@ class TestTranslationAveragingBase(unittest.TestCase):
 
         num_images = 3
 
-        i1_t_i2_dict = {
+        i1Ti2_dict = {
             (0, 1): Unit3(np.array([0, 0.2, 0])),
             (1, 2): Unit3(np.array([0, 0.1, 0.3])),
         }
 
-        w_R_i_list = [
+        wRi_list = [
             Rot3.RzRyRx(0, 0, 0),
             Rot3.RzRyRx(0, 30*np.pi/180, 0),
             Rot3.RzRyRx(0, 0, 20*np.pi/180),
         ]
 
-        i1_t_i2_graph = {
+        i1Ti2_graph = {
             (0, 1): dask.delayed(Unit3)(np.array([0, 0.2, 0])),
             (1, 2): dask.delayed(Unit3)(np.array([0, 0.1, 0.3])),
         }
 
-        w_R_i_graph = dask.delayed(w_R_i_list)
+        wRi_graph = dask.delayed(wRi_list)
 
         # use the GTSAM API directly (without dask) for translation averaging
-        expected_w_T_i_list = self.obj.run(
-            num_images, i1_t_i2_dict, w_R_i_list)
+        expected_wTi = self.obj.run(
+            num_images, i1Ti2_dict, wRi_list)
 
         # use dask's computation graph
         computation_graph = self.obj.create_computation_graph(
-            num_images, i1_t_i2_graph, w_R_i_graph)
+            num_images, i1Ti2_graph, wRi_graph)
 
         with dask.config.set(scheduler='single-threaded'):
-            computed_w_T_i_list = dask.compute(computation_graph)[0]
+            computed_wTi = dask.compute(computation_graph)[0]
 
-        self.assert_equal_upto_scale(expected_w_T_i_list, computed_w_T_i_list)
+        self.assert_equal_upto_scale(expected_wTi, computed_wTi)
 
     def test_pickleable(self):
         """Tests that the object is pickleable (required for dask)."""

@@ -20,20 +20,20 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def run(self,
             num_images: int,
-            i1_t_i2_dict: Dict[Tuple[int, int], Optional[Unit3]],
-            w_R_i_list: List[Optional[Rot3]],
+            i1Ti2_dict: Dict[Tuple[int, int], Optional[Unit3]],
+            wRi_list: List[Optional[Rot3]],
             scale_factor: float = 1.0
             ) -> List[Optional[Point3]]:
         """Run the translation averaging.
 
         Args:
             num_images: number of camera poses.
-            i1_t_i2_dict: relative unit translations between pairs of camera
-                          poses (direction of translation of i2^th pose in
-                          i1^th frame for various pairs of (i1, i2). The pairs
-                          serve as keys of the dictionary).
-            w_R_i_list: global rotations for each camera pose in the world
-                        coordinates.
+            i1Ti2_dict: relative unit translations between pairs of camera
+                        poses (direction of translation of i2^th pose in
+                        i1^th frame for various pairs of (i1, i2). The pairs
+                        serve as keys of the dictionary).
+            wRi_list: global rotations for each camera pose in the world
+                      coordinates.
             scale_factor: non-negative global scaling factor.
 
         Returns:
@@ -43,17 +43,17 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
     def create_computation_graph(
             self,
             num_images: int,
-            i1_t_i2_graph: Dict[Tuple[int, int], Delayed],
-            w_R_i_graph: Delayed,
+            i1Ti2_graph: Dict[Tuple[int, int], Delayed],
+            wRi_graph: Delayed,
             scale_factor: float = 1.0
     ) -> Delayed:
         """Create the computation graph for performing translation averaging.
 
         Args:
             num_images: number of camera poses.
-            i1_t_i2_graph: graph of relative unit-translations, stored as a    
+            i1Ti2_graph: graph of relative unit-translations, stored as a    
                            dict.
-            w_R_i_graph: list of global rotations wrapped up in Delayed.
+            wRi_graph: list of global rotations wrapped up in Delayed.
             scale_factor: non-negative global scaling factor.
 
         Returns:
@@ -61,4 +61,4 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
         """
 
         return dask.delayed(self.run)(
-            num_images, i1_t_i2_graph, w_R_i_graph, scale_factor)
+            num_images, i1Ti2_graph, wRi_graph, scale_factor)
