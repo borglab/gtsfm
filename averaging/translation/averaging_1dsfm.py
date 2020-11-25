@@ -40,7 +40,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
     def run(self,
             num_images: int,
-            i1Ti2_dict: Dict[Tuple[int, int], Optional[Unit3]],
+            i1Ui2_dict: Dict[Tuple[int, int], Optional[Unit3]],
             wRi_list: List[Optional[Rot3]],
             scale_factor: float = 1.0
             ) -> List[Optional[Point3]]:
@@ -48,7 +48,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         Args:
             num_images: number of camera poses.
-            i1Ti2_dict: relative unit translations between pairs of camera
+            i1Ui2_dict: relative unit translations between pairs of camera
                         poses (direction of translation of i2^th pose in
                         i1^th frame for various pairs of (i1, i2). The pairs
                         serve as keys of the dictionary).
@@ -68,16 +68,16 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         # convert translation direction in global frame using rotations.
         w_i1Ui2_measurements = BinaryMeasurementsUnit3()
-        for (i1, i2), i1Ti2 in i1Ti2_dict.items():
-            if i1Ti2 is not None and wRi_list[i1] is not None:
+        for (i1, i2), i1Ui2 in i1Ui2_dict.items():
+            if i1Ui2 is not None and wRi_list[i1] is not None:
                 w_i1Ui2_measurements.append(BinaryMeasurementUnit3(
                     i1,
                     i2,
-                    Unit3(wRi_list[i1].rotate(i1Ti2.point3())),
+                    Unit3(wRi_list[i1].rotate(i1Ui2.point3())),
                     noise_model))
 
         # sample indices to be used as projection directions
-        num_measurements = len(i1Ti2_dict)
+        num_measurements = len(i1Ui2_dict)
         indices = np.random.choice(
             num_measurements,
             min(self._max_1dsfm_projection_direction, num_measurements),

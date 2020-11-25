@@ -17,7 +17,7 @@ class DummyTranslationAveraging(TranslationAveragingBase):
 
     def run(self,
             num_images: int,
-            i1Ti2_dict: Dict[Tuple[int, int], Optional[Unit3]],
+            i1Ui2_dict: Dict[Tuple[int, int], Optional[Unit3]],
             wRi_list: List[Optional[Rot3]],
             scale_factor: float = 1.0
             ) -> List[Optional[Point3]]:
@@ -25,7 +25,7 @@ class DummyTranslationAveraging(TranslationAveragingBase):
 
         Args:
             num_images: number of camera poses.
-            i1Ti2_dict: relative unit translations between pairs of camera
+            i1Ui2_dict: relative unit translations between pairs of camera
                         poses (direction of translation of i2^th pose in
                         i1^th frame for various pairs of (i1, i2). The pairs
                         serve as keys of the dictionary).

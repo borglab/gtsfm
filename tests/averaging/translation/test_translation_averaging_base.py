@@ -49,7 +49,7 @@ class TestTranslationAveragingBase(unittest.TestCase):
 
         num_images = 3
 
-        i1Ti2_dict = {
+        i1Ui2_dict = {
             (0, 1): Unit3(np.array([0, 0.2, 0])),
             (1, 2): Unit3(np.array([0, 0.1, 0.3])),
         }
@@ -60,7 +60,7 @@ class TestTranslationAveragingBase(unittest.TestCase):
             Rot3.RzRyRx(0, 0, 20*np.pi/180),
         ]
 
-        i1Ti2_graph = {
+        i1Ui2_graph = {
             (0, 1): dask.delayed(Unit3)(np.array([0, 0.2, 0])),
             (1, 2): dask.delayed(Unit3)(np.array([0, 0.1, 0.3])),
         }
@@ -69,11 +69,11 @@ class TestTranslationAveragingBase(unittest.TestCase):
 
         # use the GTSAM API directly (without dask) for translation averaging
         expected_wTi = self.obj.run(
-            num_images, i1Ti2_dict, wRi_list)
+            num_images, i1Ui2_dict, wRi_list)
 
         # use dask's computation graph
         computation_graph = self.obj.create_computation_graph(
-            num_images, i1Ti2_graph, wRi_graph)
+            num_images, i1Ui2_graph, wRi_graph)
 
         with dask.config.set(scheduler='single-threaded'):
             computed_wTi = dask.compute(computation_graph)[0]
