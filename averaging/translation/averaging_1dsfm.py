@@ -25,7 +25,7 @@ from averaging.translation.translation_averaging_base import \
 MAX_PROJECTION_DISTANCE = 50
 OUTLIER_WEIGHT_THRESHOLD = 0.1
 
-NOISE_MODEL_DIMENSION = 3  # should be fixed
+NOISE_MODEL_DIMENSION = 3  # chordal distances on Unit3
 NOISE_MODEL_SIGMA = 0.01
 
 
