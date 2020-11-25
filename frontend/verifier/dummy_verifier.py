@@ -19,38 +19,37 @@ class DummyVerifier(VerifierBase):
 
     def verify_with_exact_intrinsics(
         self,
-        keypoints_im1: np.ndarray,
-        keypoints_im2: np.ndarray,
+        keypoints_i1: np.ndarray,
+        keypoints_i2: np.ndarray,
         match_indices: np.ndarray,
-        camera_intrinsics_im1: Cal3Bundler,
-        camera_intrinsics_im2: Cal3Bundler,
+        camera_intrinsics_i1: Cal3Bundler,
+        camera_intrinsics_i2: Cal3Bundler,
     ) -> Tuple[Optional[EssentialMatrix], np.ndarray]:
         """Estimates the essential matrix and verifies the feature matches.
 
-        Note: this function is prefered when camera intrinsics are known. The
-        feature coordinates are normalized and the essential matrix is directly
-        estimated.
+        Note: this function is prefered when camera intrinsics are approximate
+        (i.e from image size/exif). The feature coordinates are used to compute
+        the fundamental matrix, which is then converted to the essential matrix.
 
         Args:
-            keypoints_im1: detected features in image #1, of shape (N1, 2+).
-            keypoints_im2: detected features in image #2, of shape (N2, 2+).
+            keypoints_im1: detected features in image #i1, of shape (N1, 2+).
+            keypoints_im2: detected features in image #i2, of shape (N2, 2+).
             match_indices: matches as indices of features from both images, of
                            shape (N3, 2), where N3 <= min(N1, N2).
-            camera_intrinsics_im1: intrinsics for image #1.
-            camera_intrinsics_im2: intrinsics for image #2.
+            camera_intrinsics_im1: intrinsics for image #i1.
+            camera_intrinsics_im2: intrinsics for image #i2.
 
         Returns:
-            Estimated essential matrix im2_E_im1, or None if it cannot be 
-                estimated.
+            Estimated essential matrix i2Ei1, or None if it cannot be estimated.
             Indices of verified correspondences, of shape (N, 2) with N <= N3.
                 These indices are subset of match_indices.
         """
-        essential_matrix = None
+        i2Ei1 = None
         verified_indices = np.array([], dtype=np.uint32)
 
         # check if we dont have the minimum number of points
         if match_indices.size <= self.min_pts:
-            return essential_matrix, verified_indices
+            return i2Ei1, verified_indices
 
         # set a random seed using descriptor data for repeatibility
         np.random.seed(
@@ -74,22 +73,22 @@ class DummyVerifier(VerifierBase):
             # generate random rotation and translation for essential matrix
             rotation_angles = np.random.uniform(
                 low=0.0, high=2*np.pi, size=(3,))
-            im2_R_im1 = Rot3.RzRyRx(
+            i2Ri1 = Rot3.RzRyRx(
                 rotation_angles[0], rotation_angles[1], rotation_angles[2])
-            im2_t_im1 = Point3(np.random.uniform(
+            i2Ti1 = Point3(np.random.uniform(
                 low=-1.0, high=1.0, size=(3, )))
 
-            essential_matrix = EssentialMatrix(im2_R_im1, im2_t_im1)
+            i2Ei1 = EssentialMatrix(i2Ri1, i2Ti1)
 
-        return essential_matrix, match_indices[verified_matches]
+        return i2Ei1, match_indices[verified_matches]
 
     def verify_with_approximate_intrinsics(
         self,
-        keypoints_im1: np.ndarray,
-        keypoints_im2: np.ndarray,
+        keypoints_i1: np.ndarray,
+        keypoints_i2: np.ndarray,
         match_indices: np.ndarray,
-        camera_intrinsics_im1: Cal3Bundler,
-        camera_intrinsics_im2: Cal3Bundler,
+        camera_intrinsics_i1: Cal3Bundler,
+        camera_intrinsics_i2: Cal3Bundler,
     ) -> Tuple[Optional[EssentialMatrix], np.ndarray]:
         """Estimates the essential matrix and verifies the feature matches.
 
@@ -98,20 +97,19 @@ class DummyVerifier(VerifierBase):
         the fundamental matrix, which is then converted to the essential matrix.
 
         Args:
-            keypoints_im1: detected features in image #1, of shape (N1, 2+).
-            keypoints_im2: detected features in image #2, of shape (N2, 2+).
+            keypoints_i1: detected features in image #i1, of shape (N1, 2+).
+            keypoints_i2: detected features in image #i2, of shape (N2, 2+).
             match_indices: matches as indices of features from both images, of
                            shape (N3, 2), where N3 <= min(N1, N2).
-            camera_intrinsics_im1: intrinsics for image #1.
-            camera_intrinsics_im2: intrinsics for image #2.
+            camera_intrinsics_i1: intrinsics for image #i1.
+            camera_intrinsics_i2: intrinsics for image #i2.
 
         Returns:
-            Estimated essential matrix im2_E_im1, or None if it cannot be
-                estimated.
+            Estimated essential matrix i2Ei1, or None if it cannot be estimated.
             Indices of verified correspondences, of shape (N, 2) with N <= N3.
                 These indices are subset of match_indices.
         """
         # call the function for exact intrinsics as this is a dummy verifier.
-        self.verify_with_exact_intrinsics(
-            keypoints_im1, keypoints_im2, match_indices,
-            camera_intrinsics_im1, camera_intrinsics_im2)
+        return self.verify_with_exact_intrinsics(
+            keypoints_i1, keypoints_i2, match_indices,
+            camera_intrinsics_i1, camera_intrinsics_i2)
