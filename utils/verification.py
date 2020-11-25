@@ -4,7 +4,7 @@ Authors: Ayush Baid
 """
 import cv2 as cv
 import numpy as np
-from gtsam import Cal3Bundler, EssentialMatrix, Point3, Rot3
+from gtsam import Cal3Bundler, EssentialMatrix, Point3, Rot3, Unit3
 
 
 def cast_essential_matrix_to_gtsam(im2_E_im1: np.ndarray,
@@ -30,17 +30,24 @@ def cast_essential_matrix_to_gtsam(im2_E_im1: np.ndarray,
     # TODO(ayush): move it to GTSAM as a constructor.
 
     # obtain points in normalized coordinates using intrinsics.
-    normalized_verified_keypoints_im1 = camera_intrinsics_im1.calibrate(
-        verified_keypoints_im1[:, :2])
-    normalized_verified_keypoints_im2 = camera_intrinsics_im2.calibrate(
-        verified_keypoints_im2[:, :2])
+    normalized_verified_keypoints_im1 = np.vstack(
+        [camera_intrinsics_im1.calibrate(
+            x[:2].astype(np.float64).reshape(2, 1)
+        ) for x in verified_keypoints_im1]
+    ).astype(np.float32)
+
+    normalized_verified_keypoints_im2 = np.vstack(
+        [camera_intrinsics_im2.calibrate(
+            x[:2].astype(np.float64).reshape(2, 1)
+        ) for x in verified_keypoints_im2]
+    ).astype(np.float32)
 
     # use opencv to recover pose
     _, R, t, _ = cv.recoverPose(im2_E_im1,
                                 normalized_verified_keypoints_im1,
                                 normalized_verified_keypoints_im2)
 
-    return EssentialMatrix(Rot3(R), Point3(t))
+    return EssentialMatrix(Rot3(R), Unit3(Point3(t.squeeze())))
 
 
 def fundamental_matrix_to_essential_matrix(im2_F_im1: np.ndarray,
@@ -59,4 +66,23 @@ def fundamental_matrix_to_essential_matrix(im2_F_im1: np.ndarray,
     Returns:
             Estimated essential matrix im2_E_im1.
     """
-    return camera_intrinsics_im2.T @ im2_F_im1 @ camera_intrinsics_im1
+    return cal3bundler_to_matrix(camera_intrinsics_im2).T @ \
+        im2_F_im1 @ \
+        cal3bundler_to_matrix(camera_intrinsics_im1)
+
+
+def cal3bundler_to_matrix(intrinsics: Cal3Bundler) -> np.ndarray:
+    """Gets the matrix representation of the intrinsics.
+
+    Args:
+        intrinsics: intrisics as Cal3Bundler object.
+
+    Returns:
+        3x3 matrix representation of the intrisnics.
+    """
+
+    return np.array([
+        [intrinsics.fx(), 0, intrinsics.px()],
+        [0, intrinsics.fx(), intrinsics.py()],
+        [0, 0, 1]
+    ])

@@ -106,13 +106,13 @@ class VerifierBase(metaclass=abc.ABCMeta):
         fn_to_use = self.verify_with_exact_intrinsics if exact_intrinsics_flag \
             else self.verify_with_approximate_intrinsics
 
-        for image_idx_tuple, delayed_matcher in matcher_graph.items():
-            result[image_idx_tuple] = dask.delayed(fn_to_use)(
-                detection_graph[image_idx_tuple[0]],
-                detection_graph[image_idx_tuple[1]],
+        for image_idxes, delayed_matcher in matcher_graph.items():
+            result[image_idxes] = dask.delayed(fn_to_use)(
+                detection_graph[image_idxes[0]],
+                detection_graph[image_idxes[1]],
                 delayed_matcher,
-                camera_intrinsics_graph(image_idx_tuple[0]),
-                camera_intrinsics_graph(image_idx_tuple[1]),
+                camera_intrinsics_graph[image_idxes[0]],
+                camera_intrinsics_graph[image_idxes[1]],
             )
 
         return result

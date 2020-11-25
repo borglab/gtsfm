@@ -6,7 +6,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import Cal3Bundler, EssentialMatrix, Point3, Rot3
+from gtsam import Cal3Bundler, EssentialMatrix, Point3, Rot3, Unit3
 
 from frontend.verifier.verifier_base import VerifierBase
 
@@ -48,7 +48,7 @@ class DummyVerifier(VerifierBase):
         verified_indices = np.array([], dtype=np.uint32)
 
         # check if we dont have the minimum number of points
-        if match_indices.size <= self.min_pts:
+        if match_indices.shape[0] <= self.min_pts:
             return i2Ei1, verified_indices
 
         # set a random seed using descriptor data for repeatibility
@@ -78,7 +78,7 @@ class DummyVerifier(VerifierBase):
             i2Ti1 = Point3(np.random.uniform(
                 low=-1.0, high=1.0, size=(3, )))
 
-            i2Ei1 = EssentialMatrix(i2Ri1, i2Ti1)
+            i2Ei1 = EssentialMatrix(i2Ri1, Unit3(i2Ti1))
 
         return i2Ei1, match_indices[verified_matches]
 

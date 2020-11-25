@@ -57,9 +57,15 @@ class Degensac(VerifierBase):
             Indices of verified correspondences, of shape (N, 2) with N <= N3.
                 These indices are subset of match_indices.
         """
-        raise NotImplementedError(
-            'Degensac verifier cannot compute essential matrix directly using' +
-            ' exact intrinsics')
+        print('WARNING: Degensac verifier cannot compute essential matrix directly using exact intrinsics')
+
+        return self.verify_with_approximate_intrinsics(
+            keypoints_i1,
+            keypoints_i2,
+            match_indices,
+            camera_intrinsics_i1,
+            camera_intrinsics_i2
+        )
 
     def verify_with_approximate_intrinsics(
         self,
@@ -88,6 +94,13 @@ class Degensac(VerifierBase):
             Indices of verified correspondences, of shape (N, 2) with N <= N3.
                 These indices are subset of match_indices.
         """
+        i2Ei1 = None
+        verified_indices = np.array([], dtype=np.uint32)
+
+        # check if we dont have the minimum number of points
+        if match_indices.shape[0] <= self.min_pts:
+            return i2Ei1, verified_indices
+
         i2Fi1, mask = pydegensac.findFundamentalMatrix(
             keypoints_i1[match_indices[:, 0], :2],
             keypoints_i2[match_indices[:, 1], :2],
@@ -105,6 +118,8 @@ class Degensac(VerifierBase):
             e_matrix,
             keypoints_i1[match_indices[inlier_idx, 0], :2],
             keypoints_i2[match_indices[inlier_idx, 1], :2],
+            camera_intrinsics_i1,
+            camera_intrinsics_i2
         )
 
-        return i2Ei1, inlier_idx
+        return i2Ei1, match_indices[inlier_idx]
