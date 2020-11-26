@@ -61,7 +61,7 @@ class VerifierBase(metaclass=abc.ABCMeta):
     ) -> Tuple[Optional[EssentialMatrix], np.ndarray]:
         """Estimates the essential matrix and verifies the feature matches.
 
-        Note: this function is prefered when camera intrinsics are approximate
+        Note: this function is preferred when camera intrinsics are approximate
         (i.e from image size/exif). The feature coordinates are used to compute
         the fundamental matrix, which is then converted to the essential matrix.
 

@@ -106,9 +106,9 @@ class Degensac(VerifierBase):
             keypoints_i2[match_indices[:, 1], :2],
         )
 
-        inlier_idx = np.where(mask.ravel() == 1)[0]
+        inlier_idxes = np.where(mask.ravel() == 1)[0]
 
-        e_matrix = verification_utils.fundamental_matrix_to_essential_matrix(
+        e_matrix = verification_utils.fundamental_to_essential_matrix(
             i2Fi1,
             camera_intrinsics_i1,
             camera_intrinsics_i2
@@ -116,10 +116,10 @@ class Degensac(VerifierBase):
 
         i2Ei1 = verification_utils.cast_essential_matrix_to_gtsam(
             e_matrix,
-            keypoints_i1[match_indices[inlier_idx, 0], :2],
-            keypoints_i2[match_indices[inlier_idx, 1], :2],
+            keypoints_i1[match_indices[inlier_idxes, 0], :2],
+            keypoints_i2[match_indices[inlier_idxes, 1], :2],
             camera_intrinsics_i1,
             camera_intrinsics_i2
         )
 
-        return i2Ei1, match_indices[inlier_idx]
+        return i2Ei1, match_indices[inlier_idxes]

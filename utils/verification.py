@@ -50,25 +50,24 @@ def cast_essential_matrix_to_gtsam(im2_E_im1: np.ndarray,
     return EssentialMatrix(Rot3(R), Unit3(Point3(t.squeeze())))
 
 
-def fundamental_matrix_to_essential_matrix(im2_F_im1: np.ndarray,
-                                           camera_intrinsics_im1: Cal3Bundler,
-                                           camera_intrinsics_im2: Cal3Bundler
-                                           ) -> np.ndarray:
-    """Converts the fundamental matrix to essential matrix using camera
-    intrinsics.
+def fundamental_to_essential_matrix(i2Fi1: np.ndarray,
+                                    camera_intrinsics_i1: Cal3Bundler,
+                                    camera_intrinsics_i2: Cal3Bundler
+                                    ) -> np.ndarray:
+    """Converts the fundamental matrix to essential matrix using camera intrinsics.
 
     Args:
-        im2_F_im1: fundamental matrix which maps points in image #1 to lines in 
-                   image #2. 
-        camera_intrinsics_im1: intrinsics for image #1.
-        camera_intrinsics_im2: intrinsics for image #2.
+        i2Fi1: fundamental matrix which maps points in image #i1 to lines
+                   in image #i2. 
+        camera_intrinsics_i1: intrinsics for image #i1.
+        camera_intrinsics_i2: intrinsics for image #i2.
 
     Returns:
-            Estimated essential matrix im2_E_im1.
+            Estimated essential matrix i2Ei1 as numpy array of shape (3x3).
     """
-    return cal3bundler_to_matrix(camera_intrinsics_im2).T @ \
-        im2_F_im1 @ \
-        cal3bundler_to_matrix(camera_intrinsics_im1)
+    return cal3bundler_to_matrix(camera_intrinsics_i2).T @ \
+        i2Fi1 @ \
+        cal3bundler_to_matrix(camera_intrinsics_i1)
 
 
 def cal3bundler_to_matrix(intrinsics: Cal3Bundler) -> np.ndarray:
