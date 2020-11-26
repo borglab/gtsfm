@@ -15,7 +15,7 @@ class VerifierBase(metaclass=abc.ABCMeta):
     """Base class for all verifiers.
 
     Verifiers take the coordinates of the matches as inputs and returns the
-    estimated fundamental matrix as well as geometrically verified points.
+    estimated essential matrix as well as geometrically verified points.
     """
 
     def __init__(self, min_pts):
