@@ -10,6 +10,9 @@ from gtsam import Cal3Bundler, EssentialMatrix, Point3, Rot3, Unit3
 
 from frontend.verifier.verifier_base import VerifierBase
 
+# constant to be used for keeping random seed in int range.
+UINT32_MAX = 2 ** 32
+
 
 class DummyVerifier(VerifierBase):
     """A dummy verifier which produces random results"""
@@ -54,7 +57,7 @@ class DummyVerifier(VerifierBase):
         # set a random seed using descriptor data for repeatibility
         np.random.seed(
             int(1000*(match_indices[0, 0] +
-                      match_indices[0, 1]) % (2 ^ 32))
+                      match_indices[0, 1]) % (UINT32_MAX))
         )
 
         # get the number of entries in the input
