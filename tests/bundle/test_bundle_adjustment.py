@@ -1,9 +1,11 @@
 
 import gtsam
-from gtsam import readBal
+
 import numpy as np
 
 import dask
+
+import unittest
 
 from pathlib import Path
 import sys
@@ -16,24 +18,31 @@ sys.path.append(str(PROJECT_DIR))
 
 from bundle.bundle_adjustment import BundleAdjustmentBase
 
-def test_ba_dubrovnik():
-    """ """
-    input_file_name = "dubrovnik-3-7-pre"
-    input_file = gtsam.findExampleDataFile(input_file_name)
+class TestBundleAdjustment(unittest.TestCase):
+    """Main tests for bundle adjustment base class"""
 
-    # Load the SfM data from file
-    scene_data = readBal(input_file)
+    def setUp(self):
+        super(TestBundleAdjustment, self).setUp()
 
-    ba_obj = BundleAdjustmentBase()
-    computed_error = ba_obj.create_computation_graph(scene_data)
-	
-    with dask.config.set(scheduler='single-threaded'):
-        dask_error = dask.compute(computed_error)[0]
+        self.obj = BundleAdjustmentBase()
 
-    expected_error = 0.046137573704557046
-    assert np.isclose(expected_error, dask_error)
+    def test_bundle_adjustment(self):
+        """Test the dask bundle adjustment pipline"""
 
+        input_file_name = "dubrovnik-3-7-pre"
+        input_file = gtsam.findExampleDataFile(input_file_name)
+
+        # Load the SfM data from file
+        scene_data = gtsam.readBal(input_file)
+
+        computed_error = self.obj.create_computation_graph(scene_data)
+        
+        with dask.config.set(scheduler='single-threaded'):
+            dask_error = dask.compute(computed_error)[0]
+
+        expected_error = 0.046137573704557046
+        self.assertTrue(np.isclose(expected_error, dask_error))
 
 if __name__ == '__main__':
-    test_ba_dubrovnik()
+    unittest.main()
 
