@@ -30,7 +30,7 @@ class DummyVerifier(VerifierBase):
     ) -> Tuple[Optional[EssentialMatrix], np.ndarray]:
         """Estimates the essential matrix and verifies the feature matches.
 
-        Note: this function is prefered when camera intrinsics are approximate
+        Note: this function is preferred when camera intrinsics are approximate
         (i.e from image size/exif). The feature coordinates are used to compute
         the fundamental matrix, which is then converted to the essential matrix.
 
@@ -50,11 +50,11 @@ class DummyVerifier(VerifierBase):
         i2Ei1 = None
         verified_indices = np.array([], dtype=np.uint32)
 
-        # check if we dont have the minimum number of points
+        # check if we don't have the minimum number of points
         if match_indices.shape[0] <= self.min_pts:
             return i2Ei1, verified_indices
 
-        # set a random seed using descriptor data for repeatibility
+        # set a random seed using descriptor data for repeatability
         np.random.seed(
             int(1000*(match_indices[0, 0] +
                       match_indices[0, 1]) % (UINT32_MAX))
@@ -95,7 +95,7 @@ class DummyVerifier(VerifierBase):
     ) -> Tuple[Optional[EssentialMatrix], np.ndarray]:
         """Estimates the essential matrix and verifies the feature matches.
 
-        Note: this function is prefered when camera intrinsics are approximate
+        Note: this function is preferred when camera intrinsics are approximate
         (i.e from image size/exif). The feature coordinates are used to compute
         the fundamental matrix, which is then converted to the essential matrix.
 

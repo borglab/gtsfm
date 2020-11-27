@@ -40,7 +40,7 @@ class Degensac(VerifierBase):
     ) -> Tuple[Optional[EssentialMatrix], np.ndarray]:
         """Estimates the essential matrix and verifies the feature matches.
 
-        Note: this function is prefered when camera intrinsics are known. The
+        Note: this function is preferred when camera intrinsics are known. The
         feature coordinates are normalized and the essential matrix is directly
         estimated.
 
@@ -77,7 +77,7 @@ class Degensac(VerifierBase):
     ) -> Tuple[Optional[EssentialMatrix], np.ndarray]:
         """Estimates the essential matrix and verifies the feature matches.
 
-        Note: this function is prefered when camera intrinsics are approximate
+        Note: this function is preferred when camera intrinsics are approximate
         (i.e from image size/exif). The feature coordinates are used to compute
         the fundamental matrix, which is then converted to the essential matrix.
 
@@ -97,7 +97,7 @@ class Degensac(VerifierBase):
         i2Ei1 = None
         verified_indices = np.array([], dtype=np.uint32)
 
-        # check if we dont have the minimum number of points
+        # check if we don't have the minimum number of points
         if match_indices.shape[0] <= self.min_pts:
             return i2Ei1, verified_indices
 

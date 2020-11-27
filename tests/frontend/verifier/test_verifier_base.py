@@ -147,7 +147,7 @@ class TestVerifierBase(unittest.TestCase):
 
     def __verify_random_inputs_with_exact_intrinsics(self) -> \
             Tuple[EssentialMatrix, np.ndarray, np.ndarray, np.ndarray]:
-        """Generates random inputs for pair (#i1, #i2) and peform verification
+        """Generates random inputs for pair (#i1, #i2) and perform verification
         by treating intrinsics as exact.
 
         Returns:
@@ -194,7 +194,7 @@ def generate_random_keypoints(num_keypoints: int,
 
 def generate_random_input_for_verifier() -> \
         Tuple[np.ndarray, np.ndarray, np.ndarray, Cal3Bundler, Cal3Bundler]:
-    """Generattes random inputs for verification
+    """Generates random inputs for verification.
 
     Returns:
         Keypoints for image #i1.
