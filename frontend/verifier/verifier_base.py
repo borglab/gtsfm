@@ -10,6 +10,8 @@ import numpy as np
 from dask.delayed import Delayed
 from gtsam import Cal3Bundler, EssentialMatrix
 
+from common.keypoints import Keypoints
+
 
 class VerifierBase(metaclass=abc.ABCMeta):
     """Base class for all verifiers.
@@ -24,8 +26,8 @@ class VerifierBase(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def verify_with_exact_intrinsics(
         self,
-        keypoints_i1: np.ndarray,
-        keypoints_i2: np.ndarray,
+        keypoints_i1: Keypoints,
+        keypoints_i2: Keypoints,
         match_indices: np.ndarray,
         camera_intrinsics_i1: Cal3Bundler,
         camera_intrinsics_i2: Cal3Bundler,
@@ -37,8 +39,8 @@ class VerifierBase(metaclass=abc.ABCMeta):
         estimated.
 
         Args:
-            keypoints_i1: detected features in image #i1, of shape (N1, 2+).
-            keypoints_i2: detected features in image #i2, of shape (N2, 2+).
+            keypoints_i1: detected features in image #i1.
+            keypoints_i2: detected features in image #i2.
             match_indices: matches as indices of features from both images, of
                            shape (N3, 2), where N3 <= min(N1, N2).
             camera_intrinsics_i1: intrinsics for image #i1.
@@ -53,8 +55,8 @@ class VerifierBase(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def verify_with_approximate_intrinsics(
         self,
-        keypoints_i1: np.ndarray,
-        keypoints_i2: np.ndarray,
+        keypoints_i1: Keypoints,
+        keypoints_i2: Keypoints,
         match_indices: np.ndarray,
         camera_intrinsics_i1: Cal3Bundler,
         camera_intrinsics_i2: Cal3Bundler,
@@ -66,8 +68,8 @@ class VerifierBase(metaclass=abc.ABCMeta):
         the fundamental matrix, which is then converted to the essential matrix.
 
         Args:
-            keypoints_i1: detected features in image #i1, of shape (N1, 2+).
-            keypoints_i2: detected features in image #i2, of shape (N2, 2+).
+            keypoints_i1: detected features in image #i1.
+            keypoints_i2: detected features in image #i2.
             match_indices: matches as indices of features from both images, of
                            shape (N3, 2), where N3 <= min(N1, N2).
             camera_intrinsics_i1: intrinsics for image #i1.

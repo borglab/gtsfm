@@ -12,6 +12,7 @@ import dask
 import numpy as np
 from gtsam import Cal3Bundler, EssentialMatrix
 
+from common.keypoints import Keypoints
 from frontend.verifier.dummy_verifier import DummyVerifier
 
 
@@ -40,9 +41,9 @@ class TestVerifierBase(unittest.TestCase):
                 # check that the indices are not out of bounds
                 self.assertTrue(np.all(verified_indices >= 0))
                 self.assertTrue(
-                    np.all(verified_indices[:, 0] < keypoints_i1.shape[0]))
+                    np.all(verified_indices[:, 0] < len(keypoints_i1)))
                 self.assertTrue(
-                    np.all(verified_indices[:, 1] < keypoints_i2.shape[0]))
+                    np.all(verified_indices[:, 1] < len(keypoints_i2)))
             else:
                 # we have a meaningless test
                 self.assertTrue(True)
@@ -173,7 +174,7 @@ class TestVerifierBase(unittest.TestCase):
 
 
 def generate_random_keypoints(num_keypoints: int,
-                              image_shape: Tuple[int, int]) -> np.ndarray:
+                              image_shape: Tuple[int, int]) -> Keypoints:
     """Generates random features within the image bounds.
 
     Args:
@@ -187,13 +188,14 @@ def generate_random_keypoints(num_keypoints: int,
     if num_keypoints == 0:
         return np.array([])
 
-    return np.random.randint(
-        [0, 0], high=image_shape, size=(num_keypoints, 2)
-    ).astype(np.float32)
+    return Keypoints(
+        coordinates=np.random.randint(
+            [0, 0], high=image_shape, size=(num_keypoints, 2)
+        ).astype(np.float32))
 
 
 def generate_random_input_for_verifier() -> \
-        Tuple[np.ndarray, np.ndarray, np.ndarray, Cal3Bundler, Cal3Bundler]:
+        Tuple[Keypoints, Keypoints, np.ndarray, Cal3Bundler, Cal3Bundler]:
     """Generates random inputs for verification.
 
     Returns:

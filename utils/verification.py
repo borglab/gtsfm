@@ -7,20 +7,21 @@ import numpy as np
 from gtsam import Cal3Bundler, EssentialMatrix, Point3, Rot3, Unit3
 
 
-def cast_essential_matrix_to_gtsam(im2_E_im1: np.ndarray,
-                                   verified_keypoints_im1: np.ndarray,
-                                   verified_keypoints_im2: np.ndarray,
-                                   camera_intrinsics_im1: Cal3Bundler,
-                                   camera_intrinsics_im2: Cal3Bundler
-                                   ) -> EssentialMatrix:
+def cast_essential_matrix_to_gtsam(
+    im2_E_im1: np.ndarray,
+    verified_coordinates_im1: np.ndarray,
+    verified_coordinates_im2: np.ndarray,
+    camera_intrinsics_im1: Cal3Bundler,
+    camera_intrinsics_im2: Cal3Bundler
+) -> EssentialMatrix:
     """Cast essential matrix from numpy matrix to gtsam type.
 
     Args:
         im2_E_im1: essential matrix as numpy matrix of shape 3x3.
-        verified_keypoints_im1: keypoints from image #1 which form verified
-                                correspondences, of shape (N, 2+).
-        verified_keypoints_im2: keypoints from image #1 which form verified
-                                correspondences, of shape (N, 2+).
+        verified_coordinates_im1: keypoints from image #1 which form verified
+                                  correspondences, of shape (N, 2).
+        verified_coordinates_im2: keypoints from image #1 which form verified
+                                  correspondences, of shape (N, 2).
         camera_intrinsics_im1: intrinsics for image #1.
         camera_intrinsics_im2: intrinsics for image #2.
 
@@ -30,22 +31,22 @@ def cast_essential_matrix_to_gtsam(im2_E_im1: np.ndarray,
     # TODO(ayush): move it to GTSAM as a constructor.
 
     # obtain points in normalized coordinates using intrinsics.
-    normalized_verified_keypoints_im1 = np.vstack(
+    normalized_coordinates_im1 = np.vstack(
         [camera_intrinsics_im1.calibrate(
             x[:2].astype(np.float64).reshape(2, 1)
-        ) for x in verified_keypoints_im1]
+        ) for x in verified_coordinates_im1]
     ).astype(np.float32)
 
-    normalized_verified_keypoints_im2 = np.vstack(
+    normalized_coordinates_im2 = np.vstack(
         [camera_intrinsics_im2.calibrate(
             x[:2].astype(np.float64).reshape(2, 1)
-        ) for x in verified_keypoints_im2]
+        ) for x in verified_coordinates_im2]
     ).astype(np.float32)
 
     # use opencv to recover pose
     _, R, t, _ = cv.recoverPose(im2_E_im1,
-                                normalized_verified_keypoints_im1,
-                                normalized_verified_keypoints_im2)
+                                normalized_coordinates_im1,
+                                normalized_coordinates_im2)
 
     return EssentialMatrix(Rot3(R), Unit3(Point3(t.squeeze())))
 

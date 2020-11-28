@@ -19,8 +19,9 @@ import numpy as np
 import pydegensac
 from gtsam import Cal3Bundler, EssentialMatrix
 
-from frontend.verifier.verifier_base import VerifierBase
 import utils.verification as verification_utils
+from frontend.verifier.verifier_base import VerifierBase
+from common.keypoints import Keypoints
 
 # minimum matches required for computing the F-matrix
 NUM_MATCHES_REQ_F_MATRIX = 8
@@ -32,8 +33,8 @@ class Degensac(VerifierBase):
 
     def verify_with_exact_intrinsics(
         self,
-        keypoints_i1: np.ndarray,
-        keypoints_i2: np.ndarray,
+        keypoints_i1: Keypoints,
+        keypoints_i2: Keypoints,
         match_indices: np.ndarray,
         camera_intrinsics_i1: Cal3Bundler,
         camera_intrinsics_i2: Cal3Bundler,
@@ -45,8 +46,8 @@ class Degensac(VerifierBase):
         estimated.
 
         Args:
-            keypoints_i1: detected features in image #i1, of shape (N1, 2+).
-            keypoints_i2: detected features in image #i2, of shape (N2, 2+).
+            keypoints_i1: detected features in image #i1.
+            keypoints_i2: detected features in image #i2.
             match_indices: matches as indices of features from both images, of
                            shape (N3, 2), where N3 <= min(N1, N2).
             camera_intrinsics_i1: intrinsics for image #i1.
@@ -69,8 +70,8 @@ class Degensac(VerifierBase):
 
     def verify_with_approximate_intrinsics(
         self,
-        keypoints_i1: np.ndarray,
-        keypoints_i2: np.ndarray,
+        keypoints_i1: Keypoints,
+        keypoints_i2: Keypoints,
         match_indices: np.ndarray,
         camera_intrinsics_i1: Cal3Bundler,
         camera_intrinsics_i2: Cal3Bundler,
@@ -82,8 +83,8 @@ class Degensac(VerifierBase):
         the fundamental matrix, which is then converted to the essential matrix.
 
         Args:
-            keypoints_i1: detected features in image #i1, of shape (N1, 2+).
-            keypoints_i2: detected features in image #i2, of shape (N2, 2+).
+            keypoints_i1: detected features in image #i1.
+            keypoints_i2: detected features in image #i2.
             match_indices: matches as indices of features from both images, of
                            shape (N3, 2), where N3 <= min(N1, N2).
             camera_intrinsics_i1: intrinsics for image #i1.
@@ -102,8 +103,8 @@ class Degensac(VerifierBase):
             return i2Ei1, verified_indices
 
         i2Fi1, mask = pydegensac.findFundamentalMatrix(
-            keypoints_i1[match_indices[:, 0], :2],
-            keypoints_i2[match_indices[:, 1], :2],
+            keypoints_i1.coordinates[match_indices[:, 0]],
+            keypoints_i2.coordinates[match_indices[:, 1]],
         )
 
         inlier_idxes = np.where(mask.ravel() == 1)[0]
@@ -116,8 +117,8 @@ class Degensac(VerifierBase):
 
         i2Ei1 = verification_utils.cast_essential_matrix_to_gtsam(
             e_matrix,
-            keypoints_i1[match_indices[inlier_idxes, 0], :2],
-            keypoints_i2[match_indices[inlier_idxes, 1], :2],
+            keypoints_i1.coordinates[match_indices[inlier_idxes, 0]],
+            keypoints_i2.coordinates[match_indices[inlier_idxes, 1]],
             camera_intrinsics_i1,
             camera_intrinsics_i2
         )
