@@ -291,7 +291,7 @@ def sample_points_on_plane(plane_coefficients: Tuple[float, float, float, float]
                            range_x_coordinate: Tuple[float, float],
                            range_y_coordinate: Tuple[float, float],
                            num_points: int) -> np.ndarray:
-    """Sample random points on a 3D plane ax + by + cz = 0
+    """Sample random points on a 3D plane ax + by + cz + d = 0.
 
     Args:
         plane_coefficients: coefficients (a,b,c,d) of the plane equation.
