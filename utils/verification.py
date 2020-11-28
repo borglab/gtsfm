@@ -58,30 +58,13 @@ def fundamental_to_essential_matrix(i2Fi1: np.ndarray,
 
     Args:
         i2Fi1: fundamental matrix which maps points in image #i1 to lines
-                   in image #i2. 
+               in image #i2.
         camera_intrinsics_i1: intrinsics for image #i1.
         camera_intrinsics_i2: intrinsics for image #i2.
 
     Returns:
             Estimated essential matrix i2Ei1 as numpy array of shape (3x3).
     """
-    return cal3bundler_to_matrix(camera_intrinsics_i2).T @ \
+    return camera_intrinsics_i2.K().T @ \
         i2Fi1 @ \
-        cal3bundler_to_matrix(camera_intrinsics_i1)
-
-
-def cal3bundler_to_matrix(intrinsics: Cal3Bundler) -> np.ndarray:
-    """Gets the matrix representation of the intrinsics.
-
-    Args:
-        intrinsics: intrisics as Cal3Bundler object.
-
-    Returns:
-        3x3 matrix representation of the intrisnics.
-    """
-
-    return np.array([
-        [intrinsics.fx(), 0, intrinsics.px()],
-        [0, intrinsics.fx(), intrinsics.py()],
-        [0, 0, 1]
-    ])
+        camera_intrinsics_i1.K()
