@@ -99,7 +99,7 @@ class Degensac(VerifierBase):
         verified_indices = np.array([], dtype=np.uint32)
 
         # check if we don't have the minimum number of points
-        if match_indices.shape[0] <= self.min_pts:
+        if match_indices.shape[0] < self.min_pts:
             return i2Ei1, verified_indices
 
         i2Fi1, mask = pydegensac.findFundamentalMatrix(

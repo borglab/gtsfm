@@ -1,4 +1,4 @@
-"""Tests for frontend's base verifier class.
+"""Tests for frontend's Degensac verifier.
 
 Authors: Ayush Baid
 """

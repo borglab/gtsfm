@@ -10,10 +10,12 @@ from typing import Tuple
 
 import dask
 import numpy as np
-from gtsam import Cal3Bundler, EssentialMatrix
+from gtsam import Cal3Bundler, EssentialMatrix, Rot3, Unit3
 
 from common.keypoints import Keypoints
 from frontend.verifier.dummy_verifier import DummyVerifier
+
+RANDOM_SEED = 15
 
 
 class TestVerifierBase(unittest.TestCase):
@@ -25,7 +27,40 @@ class TestVerifierBase(unittest.TestCase):
     def setUp(self):
         super().setUp()
 
+        np.random.seed(RANDOM_SEED)
+        random.seed(RANDOM_SEED)
+
         self.verifier = DummyVerifier()
+
+    def test_simple_scene(self):
+        """Test a simple scene with 8 points, 4 on each plane, so that
+        RANSAC family of methods do not get trapped into a degenerate sample.
+        """
+        if isinstance(self.verifier, DummyVerifier):
+            self.skipTest('Cannot check correctness for dummy verifier')
+        keypoints_i1, keypoints_i2 = simulate_two_planes_scene(4, 4)
+
+        # match keypoints row by row
+        match_indices = np.vstack((
+            np.arange(len(keypoints_i1)),
+            np.arange(len(keypoints_i1)))).T
+
+        computed_essential_matrix, verified_indices = self.verifier.verify_with_approximate_intrinsics(
+            keypoints_i1,
+            keypoints_i2,
+            match_indices,
+            Cal3Bundler(),
+            Cal3Bundler()
+        )
+
+        expected_essential_matrix = EssentialMatrix(
+            Rot3.RzRyRx(0.0, -np.pi/6, 0.0),
+            Unit3(np.array([0.469291, -0.880451, 0.0676142]))
+        )
+
+        self.assertTrue(computed_essential_matrix.equals(
+            expected_essential_matrix, 1e-2))
+        np.testing.assert_array_equal(verified_indices, match_indices)
 
     def test_valid_verified_indices(self):
         """Test if valid indices in output."""
@@ -250,6 +285,109 @@ def generate_random_input_for_verifier() -> \
 
     return keypoints_i1, keypoints_i2, matching_indices_i1i2, \
         intrinsics_i1, intrinsics_i2
+
+
+def sample_points_on_plane(plane_coefficients: Tuple[float, float, float, float],
+                           range_x_coordinate: Tuple[float, float],
+                           range_y_coordinate: Tuple[float, float],
+                           num_points: int) -> np.ndarray:
+    """Sample random points on a 3D plane ax + by + cz = 0
+
+    Args:
+        plane_coefficients: coefficients (a,b,c,d) of the plane equation.
+        range_x_coordinate: desired range of the x coordinates of samples.
+        range_y_coordinate: desired range of the x coordinates of samples.
+        num_points: number of points to sample
+
+    Returns:
+        3d points, of shape (num_points, 3).
+    """
+
+    if plane_coefficients[3] == 0:
+        raise ValueError('z-coefficient for the plane should not be zero')
+
+    pts = np.empty((num_points, 3))
+
+    # sample x coordinates randomly
+    pts[:, 0] = np.random.rand(num_points) * \
+        (range_x_coordinate[1] - range_x_coordinate[0]) + \
+        range_x_coordinate[0]
+
+    # sample y coordinates randomly
+    pts[:, 1] = np.random.rand(num_points) * \
+        (range_y_coordinate[1] - range_y_coordinate[0]) + \
+        range_y_coordinate[0]
+
+    # calculate z coordinates using equation of the plane
+    pts[:, 2] = (plane_coefficients[0] * pts[:, 0] +
+                 plane_coefficients[1] * pts[:, 1] +
+                 plane_coefficients[3]) / plane_coefficients[2]
+
+    return pts
+
+
+def simulate_two_planes_scene(num_points_plane1: int,
+                              num_points_plane2: int
+                              ) -> Tuple[Keypoints, Keypoints]:
+    """The world coordinate system is the same as coordinate system of the
+    first camera.
+
+    The two planes in this test are:
+    1. -10x -y -20z +150 = 0
+    2. 15x -2y -35z +200 = 0
+    """
+    # range of 3D points
+    range_x_coordinate = (-2, 7)
+    range_y_coordinate = (-10, 10)
+
+    # define the plane equation
+    plane1_coeffs = (-10, -1, -20, 150)
+    plane2_coeffs = (15, -2, -35, 200)
+
+    # sample the points from planes
+    plane1_points = sample_points_on_plane(
+        plane1_coeffs,
+        range_x_coordinate,
+        range_y_coordinate,
+        num_points_plane1)
+    plane2_points = sample_points_on_plane(
+        plane2_coeffs,
+        range_x_coordinate,
+        range_y_coordinate,
+        num_points_plane2)
+
+    points_3d = np.vstack((plane1_points, plane2_points))
+
+    # convert to homogenous coordinates
+    points_3d = np.hstack((points_3d, np.ones((points_3d.shape[0], 1))))
+
+    # project the 3D points to both the cameras
+    wTi1 = np.array([0, 0, 0])
+    wTi2 = np.array([1, -2, -0.4])
+
+    wRi1 = Rot3()
+    wRi2 = Rot3.RzRyRx(0.0, np.pi/6, 0.0)
+
+    intrinsics = Cal3Bundler()
+
+    extrinsics_i1 = wRi1.inverse().matrix() @ np.concatenate(
+        (np.eye(3), -wTi1.reshape(-1, 1)),
+        axis=1
+    )
+
+    extrinsics_i2 = wRi2.inverse().matrix() @ np.concatenate(
+        (np.eye(3), -wTi2.reshape(-1, 1)),
+        axis=1
+    )
+
+    features_im1 = (intrinsics.K() @ extrinsics_i1 @ points_3d.T).T
+    features_im2 = (intrinsics.K() @ extrinsics_i2 @ points_3d.T).T
+
+    features_im1[:, :2] = features_im1[:, :2]/features_im1[:, 2:3]
+    features_im2[:, :2] = features_im2[:, :2]/features_im2[:, 2:3]
+
+    return Keypoints(coordinates=features_im1[:, :2]), \
+        Keypoints(coordinates=features_im2[:, :2])
 
 
 if __name__ == "__main__":
