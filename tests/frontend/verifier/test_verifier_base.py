@@ -10,7 +10,7 @@ from typing import Tuple
 
 import dask
 import numpy as np
-from gtsam import Cal3Bundler, EssentialMatrix, Rot3, Unit3
+from gtsam import Cal3Bundler, EssentialMatrix, Pose3, Rot3, Unit3
 
 from common.keypoints import Keypoints
 from frontend.verifier.dummy_verifier import DummyVerifier
@@ -38,14 +38,15 @@ class TestVerifierBase(unittest.TestCase):
         """
         if isinstance(self.verifier, DummyVerifier):
             self.skipTest('Cannot check correctness for dummy verifier')
-        keypoints_i1, keypoints_i2 = simulate_two_planes_scene(4, 4)
+        keypoints_i1, keypoints_i2, expected_i2Ei1 = \
+            simulate_two_planes_scene(4, 4)
 
         # match keypoints row by row
         match_indices = np.vstack((
             np.arange(len(keypoints_i1)),
             np.arange(len(keypoints_i1)))).T
 
-        computed_essential_matrix, verified_indices = self.verifier.verify_with_approximate_intrinsics(
+        computed_i2Ei1, verified_indices = self.verifier.verify_with_approximate_intrinsics(
             keypoints_i1,
             keypoints_i2,
             match_indices,
@@ -53,13 +54,8 @@ class TestVerifierBase(unittest.TestCase):
             Cal3Bundler()
         )
 
-        expected_essential_matrix = EssentialMatrix(
-            Rot3.RzRyRx(0.0, -np.pi/6, 0.0),
-            Unit3(np.array([0.469291, -0.880451, 0.0676142]))
-        )
-
-        self.assertTrue(computed_essential_matrix.equals(
-            expected_essential_matrix, 1e-2))
+        self.assertTrue(computed_i2Ei1.equals(
+            expected_i2Ei1, 1e-2))
         np.testing.assert_array_equal(verified_indices, match_indices)
 
     def test_valid_verified_indices(self):
@@ -328,16 +324,25 @@ def sample_points_on_plane(plane_coefficients: Tuple[float, float, float, float]
 
 def simulate_two_planes_scene(num_points_plane1: int,
                               num_points_plane2: int
-                              ) -> Tuple[Keypoints, Keypoints]:
+                              ) -> Tuple[Keypoints, Keypoints, EssentialMatrix]:
     """The world coordinate system is the same as coordinate system of the
     first camera.
 
     The two planes in this test are:
     1. -10x -y -20z +150 = 0
     2. 15x -2y -35z +200 = 0
+
+    Args:
+        num_points_plane1: number of points on 1st plane.
+        num_points_plane2: number of points on 2nd plane.
+
+    Returns:
+        keypoints for image i1, of length num_points_plane1+num_points_plane2.
+        keypoints for image i2, of length num_points_plane1+num_points_plane2.
+        Essential matrix i2Ei1.
     """
     # range of 3D points
-    range_x_coordinate = (-2, 7)
+    range_x_coordinate = (-5, 7)
     range_y_coordinate = (-10, 10)
 
     # define the plane equation
@@ -368,6 +373,12 @@ def simulate_two_planes_scene(num_points_plane1: int,
     wRi1 = Rot3()
     wRi2 = Rot3.RzRyRx(0.0, np.pi/6, 0.0)
 
+    wPi1 = Pose3(wRi1, wTi1)
+    wPi2 = Pose3(wRi2, wTi2)
+    i2Pi1 = wPi2.between(wPi1)
+
+    i2Ei1 = EssentialMatrix(i2Pi1.rotation(), Unit3(i2Pi1.translation()))
+
     intrinsics = Cal3Bundler()
 
     extrinsics_i1 = wRi1.inverse().matrix() @ np.concatenate(
@@ -387,7 +398,8 @@ def simulate_two_planes_scene(num_points_plane1: int,
     features_im2[:, :2] = features_im2[:, :2]/features_im2[:, 2:3]
 
     return Keypoints(coordinates=features_im1[:, :2]), \
-        Keypoints(coordinates=features_im2[:, :2])
+        Keypoints(coordinates=features_im2[:, :2]), \
+        i2Ei1
 
 
 if __name__ == "__main__":
