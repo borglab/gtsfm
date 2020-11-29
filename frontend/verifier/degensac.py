@@ -1,29 +1,36 @@
-"""Base class for the V (verification) stage of the frontend.
+"""
+Locally Optimized (LO) Degensac verifier implementation.
+
+The verifier is a combination of 'Locally Optimized Ransac' and 'Two-view
+Geometry Estimation Unaffected by a Dominant Plane' and is implemented by
+wrapping over 3rd party implementation.
+
+References:
+- https://link.springer.com/chapter/10.1007/978-3-540-45243-0_31
+- http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.466.2719&rep=rep1&type=pdf
+- https://github.com/ducha-aiki/pyransac
 
 Authors: Ayush Baid
 """
-import abc
-from typing import Dict, List, Optional, Tuple
 
-import dask
+from typing import Optional, Tuple
+
 import numpy as np
-from dask.delayed import Delayed
+import pydegensac
 from gtsam import Cal3Bundler, EssentialMatrix
 
+import utils.verification as verification_utils
+from frontend.verifier.verifier_base import VerifierBase
 from common.keypoints import Keypoints
 
+# minimum matches required for computing the F-matrix
+NUM_MATCHES_REQ_F_MATRIX = 8
 
-class VerifierBase(metaclass=abc.ABCMeta):
-    """Base class for all verifiers.
 
-    Verifiers take the coordinates of the matches as inputs and returns the
-    estimated essential matrix as well as geometrically verified points.
-    """
+class Degensac(VerifierBase):
+    def __init__(self):
+        super().__init__(min_pts=NUM_MATCHES_REQ_F_MATRIX)
 
-    def __init__(self, min_pts):
-        self.min_pts = min_pts
-
-    @abc.abstractmethod
     def verify_with_exact_intrinsics(
         self,
         keypoints_i1: Keypoints,
@@ -51,8 +58,16 @@ class VerifierBase(metaclass=abc.ABCMeta):
             Indices of verified correspondences, of shape (N, 2) with N <= N3.
                 These indices are subset of match_indices.
         """
+        print('WARNING: Degensac verifier cannot compute essential matrix directly using exact intrinsics')
 
-    @abc.abstractmethod
+        return self.verify_with_approximate_intrinsics(
+            keypoints_i1,
+            keypoints_i2,
+            match_indices,
+            camera_intrinsics_i1,
+            camera_intrinsics_i2
+        )
+
     def verify_with_approximate_intrinsics(
         self,
         keypoints_i1: Keypoints,
@@ -80,41 +95,35 @@ class VerifierBase(metaclass=abc.ABCMeta):
             Indices of verified correspondences, of shape (N, 2) with N <= N3.
                 These indices are subset of match_indices.
         """
+        i2Ei1 = None
+        verified_indices = np.array([], dtype=np.uint32)
 
-    def create_computation_graph(self,
-                                 detection_graph: List[Delayed],
-                                 matcher_graph: Dict[Tuple[int, int], Delayed],
-                                 camera_intrinsics_graph: List[Delayed],
-                                 exact_intrinsics_flag: bool = True
-                                 ) -> Dict[Tuple[int, int], Delayed]:
-        """Generates the computation graph to perform verification of putative
-        correspondences.
+        # check if we don't have the minimum number of points
+        if match_indices.shape[0] < self.min_pts:
+            return i2Ei1, verified_indices
 
-        Args:
-            detection_graph: nodes with features for each image.
-            matcher_graph: nodes with matching results for pairs of images.
-            camera_intrinsics_graph: nodes with intrinsics for each image.
-            exact_intrinsics_flag (optional): flag denoting if intrinsics are
-                                              exact, and an essential matrix
-                                              can be directly computed.
-                                              Defaults to True.
+        i2Fi1, mask = pydegensac.findFundamentalMatrix(
+            keypoints_i1.coordinates[match_indices[:, 0]],
+            keypoints_i2.coordinates[match_indices[:, 1]],
+        )
 
-        Returns:
-            delayed dask elements for verification.
-        """
+        inlier_idxes = np.where(mask.ravel() == 1)[0]
 
-        result = dict()
+        e_matrix = verification_utils.fundamental_to_essential_matrix(
+            i2Fi1,
+            camera_intrinsics_i1,
+            camera_intrinsics_i2
+        )
 
-        fn_to_use = self.verify_with_exact_intrinsics if exact_intrinsics_flag \
-            else self.verify_with_approximate_intrinsics
-
-        for (i1, i2), delayed_matcher in matcher_graph.items():
-            result[(i1, i2)] = dask.delayed(fn_to_use)(
-                detection_graph[i1],
-                detection_graph[i2],
-                delayed_matcher,
-                camera_intrinsics_graph[i1],
-                camera_intrinsics_graph[i2],
+        i2Ri1, i2Ui1 = \
+            verification_utils.recover_relative_pose_from_essential_matrix(
+                e_matrix,
+                keypoints_i1.coordinates[match_indices[inlier_idxes, 0]],
+                keypoints_i2.coordinates[match_indices[inlier_idxes, 1]],
+                camera_intrinsics_i1,
+                camera_intrinsics_i2
             )
 
-        return result
+        i2Ei1 = verification_utils.create_essential_matrix(i2Ri1, i2Ui1)
+
+        return i2Ei1, match_indices[inlier_idxes]
