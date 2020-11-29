@@ -2,53 +2,66 @@
 
 Authors: Ayush Baid
 """
+from typing import Tuple
+
 import cv2 as cv
 import numpy as np
 from gtsam import Cal3Bundler, EssentialMatrix, Point3, Rot3, Unit3
 
 
-def cast_essential_matrix_to_gtsam(
-    im2_E_im1: np.ndarray,
-    verified_coordinates_im1: np.ndarray,
-    verified_coordinates_im2: np.ndarray,
-    camera_intrinsics_im1: Cal3Bundler,
-    camera_intrinsics_im2: Cal3Bundler
-) -> EssentialMatrix:
-    """Cast essential matrix from numpy matrix to gtsam type.
+def recover_relative_pose_from_essential_matrix(
+        i2Ei1: np.ndarray,
+        verified_coordinates_i1: np.ndarray,
+        verified_coordinates_i2: np.ndarray,
+        camera_intrinsics_i1: Cal3Bundler,
+        camera_intrinsics_i2: Cal3Bundler) -> Tuple[Rot3, Unit3]:
+    """Recovers the relative rotation and translation direction from essential
+    matrix and verified correspondences using opencv's API.
 
     Args:
-        im2_E_im1: essential matrix as numpy matrix of shape 3x3.
-        verified_coordinates_im1: keypoints from image #1 which form verified
-                                  correspondences, of shape (N, 2).
-        verified_coordinates_im2: keypoints from image #1 which form verified
-                                  correspondences, of shape (N, 2).
-        camera_intrinsics_im1: intrinsics for image #1.
-        camera_intrinsics_im2: intrinsics for image #2.
+        i2Ei1: essential matrix as a numpy array, of shape 3x3.
+        verified_coordinates_i1: coordinates of verified correspondences in
+                                 image i1, of shape Nx2.
+        verified_coordinates_i2: coordinates of verified correspondences in
+                                 image i2, of shape Nx2.
+        camera_intrinsics_i1: intrinsics for image i1.
+        camera_intrinsics_i2: intrinsics for image i2.
 
     Returns:
-        EssentialMatrix: [description]
+        relative rotation i2Ri1.
+        relative translation direction i2Ui1.
     """
-    # TODO(ayush): move it to GTSAM as a constructor.
-
     # obtain points in normalized coordinates using intrinsics.
-    normalized_coordinates_im1 = np.vstack(
-        [camera_intrinsics_im1.calibrate(
+    normalized_coordinates_i1 = np.vstack(
+        [camera_intrinsics_i1.calibrate(
             x[:2].astype(np.float64).reshape(2, 1)
-        ) for x in verified_coordinates_im1]
+        ) for x in verified_coordinates_i1]
     ).astype(np.float32)
-
-    normalized_coordinates_im2 = np.vstack(
-        [camera_intrinsics_im2.calibrate(
+    normalized_coordinates_i2 = np.vstack(
+        [camera_intrinsics_i2.calibrate(
             x[:2].astype(np.float64).reshape(2, 1)
-        ) for x in verified_coordinates_im2]
+        ) for x in verified_coordinates_i2]
     ).astype(np.float32)
 
     # use opencv to recover pose
-    _, R, t, _ = cv.recoverPose(im2_E_im1,
-                                normalized_coordinates_im1,
-                                normalized_coordinates_im2)
+    _, R, t, _ = cv.recoverPose(i2Ei1,
+                                normalized_coordinates_i1,
+                                normalized_coordinates_i2)
 
-    return EssentialMatrix(Rot3(R), Unit3(Point3(t.squeeze())))
+    return Rot3(R), Unit3(t.squeeze())
+
+
+def create_essential_matrix(i2Ri1: Rot3, i2Ui1: Unit3) -> EssentialMatrix:
+    """Creates essential matrix from rot3 and unit3.
+
+    Args:
+        i2Ri1: relative rotation.
+        i2Ui1: relative translation direction.
+
+    Returns:
+        essential matrix i2Ei1.
+    """
+    return EssentialMatrix(i2Ri1, i2Ui1)
 
 
 def fundamental_to_essential_matrix(i2Fi1: np.ndarray,

@@ -115,12 +115,15 @@ class Degensac(VerifierBase):
             camera_intrinsics_i2
         )
 
-        i2Ei1 = verification_utils.cast_essential_matrix_to_gtsam(
-            e_matrix,
-            keypoints_i1.coordinates[match_indices[inlier_idxes, 0]],
-            keypoints_i2.coordinates[match_indices[inlier_idxes, 1]],
-            camera_intrinsics_i1,
-            camera_intrinsics_i2
-        )
+        i2Ri1, i2Ui1 = \
+            verification_utils.recover_relative_pose_from_essential_matrix(
+                e_matrix,
+                keypoints_i1.coordinates[match_indices[inlier_idxes, 0]],
+                keypoints_i2.coordinates[match_indices[inlier_idxes, 1]],
+                camera_intrinsics_i1,
+                camera_intrinsics_i2
+            )
+
+        i2Ei1 = verification_utils.create_essential_matrix(i2Ri1, i2Ui1)
 
         return i2Ei1, match_indices[inlier_idxes]
