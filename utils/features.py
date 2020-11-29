@@ -6,6 +6,7 @@ from typing import List
 
 import cv2 as cv
 import numpy as np
+from gtsam import Cal3Bundler
 
 from common.keypoints import Keypoints
 
@@ -27,3 +28,22 @@ def cast_to_gtsfm_keypoints(keypoints: List[cv.KeyPoint]) -> Keypoints:
     return Keypoints(coordinates=data[:, :2],
                      scales=data[:, 2],
                      responses=data[:, 3])
+
+
+def normalize_coordinates(coordinates: np.ndarray,
+                          intrinsics: Cal3Bundler) -> np.ndarray:
+    """Normalize 2D coordinates using camera intrinsics.
+
+    Args:
+        coordinates: 2d coordinates, of shape Nx2.
+        intrinsics. camera intrinsics.
+
+    Returns:
+        normalized coordinates, of shape Nx2.
+    """
+
+    return np.vstack(
+        [intrinsics.calibrate(
+            x[:2].astype(np.float64).reshape(2, 1)
+        ) for x in coordinates]
+    ).astype(coordinates.dtype)

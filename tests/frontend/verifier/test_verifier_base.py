@@ -401,10 +401,10 @@ def simulate_two_planes_scene(num_points_plane1: int,
     points_3d = np.hstack((points_3d, np.ones((points_3d.shape[0], 1))))
 
     # project the 3D points to both the cameras
-    wTi1 = np.array([0, 0, 0])
+    wTi1 = np.array([0.1, 0, 0])
     wTi2 = np.array([1, -2, -0.4])
 
-    wRi1 = Rot3()
+    wRi1 = Rot3.RzRyRx(np.pi/20, 0, 0.0)
     wRi2 = Rot3.RzRyRx(0.0, np.pi/6, 0.0)
 
     wPi1 = Pose3(wRi1, wTi1)
