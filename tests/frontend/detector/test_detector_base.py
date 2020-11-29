@@ -24,34 +24,39 @@ class TestDetectorBase(unittest.TestCase):
         self.detector = DummyDetector()
         self.loader = FolderLoader(TEST_DATA_PATH)
 
-    def test_coordinates(self):
+    def test_number_of_detections(self):
+        """Tests that the number of detections is less than the maximum number
+        configured."""
+        test_image = self.loader.get_image(0)
+        keypoints = self.detector.detect(test_image)
+
+        self.assertLessEqual(len(keypoints), self.detector.max_keypoints)
+
+    def test_coordinates_range(self):
         """Tests that each coordinate is within the image bounds."""
         test_image = self.loader.get_image(0)
-        features = self.detector.detect(test_image)
+        keypoints = self.detector.detect(test_image)
 
-        np.testing.assert_array_equal(features[:, 0] >= 0, True)
-        np.testing.assert_array_equal(features[:, 0] <= test_image.width, True)
-        np.testing.assert_array_equal(features[:, 1] >= 0, True)
-        np.testing.assert_array_equal(features[:, 1] <= test_image.height, True)
+        np.testing.assert_array_equal(
+            keypoints.coordinates[:, 0] >= 0, True)
+        np.testing.assert_array_equal(
+            keypoints.coordinates[:, 0] <= test_image.width, True)
+        np.testing.assert_array_equal(
+            keypoints.coordinates[:, 1] >= 0, True)
+        np.testing.assert_array_equal(
+            keypoints.coordinates[:, 1] <= test_image.height, True)
 
     def test_scale(self):
         """Tests that the scales are positive."""
-        features = self.detector.detect(self.loader.get_image(0))
+        keypoints = self.detector.detect(self.loader.get_image(0))
 
-        np.testing.assert_array_equal(features[:, 2] >= 0, True)
-
-    def test_num_columns(self):
-        """Tests the number of columns in the features are >=2."""
-        features = self.detector.detect(self.loader.get_image(0))
-
-        if features.size > 0:
-            self.assertLessEqual(2, features.shape[1])
+        np.testing.assert_array_equal(keypoints.scale >= 0, True)
 
     def test_computation_graph(self):
         """Test the dask's computation graph formation using a single image."""
 
-        loader_graph = self.loader.create_computation_graph()
-        detector_graph = self.detector.create_computation_graph(loader_graph)
+        image_graph = self.loader.create_computation_graph_for_images()
+        detector_graph = self.detector.create_computation_graph(image_graph)
 
         results = []
         with dask.config.set(scheduler='single-threaded'):
@@ -63,9 +68,15 @@ class TestDetectorBase(unittest.TestCase):
                          )
 
         # check the results via normal workflow and dask workflow for an image
-        normal_features = self.detector.detect(self.loader.get_image(0))
-        dask_features = results[0]
-        np.testing.assert_allclose(normal_features, dask_features)
+        expected_keypoints = self.detector.detect(self.loader.get_image(0))
+        computed_keypoints = results[0]
+
+        np.testing.assert_allclose(
+            computed_keypoints.coordinates, expected_keypoints.coordinates)
+        np.testing.assert_allclose(
+            computed_keypoints.scale, expected_keypoints.scale)
+        np.testing.assert_allclose(
+            computed_keypoints.response, expected_keypoints.response)
 
     def test_pickleable(self):
         """Tests that the detector object is pickleable (required for dask)."""

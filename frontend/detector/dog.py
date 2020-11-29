@@ -10,27 +10,36 @@ References:
 Authors: Ayush Baid
 """
 import cv2 as cv
-import numpy as np
 
 import utils.features as feature_utils
 import utils.images as image_utils
 from common.image import Image
+from common.keypoints import Keypoints
 from frontend.detector.detector_base import DetectorBase
 
 
 class DoG(DetectorBase):
     """DoG detector using opencv's implementation."""
 
-    def detect(self, image: Image) -> np.ndarray:
+    def detect(self, image: Image) -> Keypoints:
         """Detect the features in an image.
 
-        Refer to documentation in DetectorBase for more details.
+        Coordinate system convention:
+        1. The x coordinate denotes the horizontal direction (+ve direction
+           towards the right).
+        2. The y coordinate denotes the vertical direction (+ve direction
+           downwards).
+        3. Origin is at the top left corner of the image.
+
+        Output format:
+        1. If applicable, the keypoints should be sorted in decreasing order of
+           score/confidence.
 
         Args:
             image: input image.
 
         Returns:
-            detected features as a numpy array of shape (N, 4).
+            detected keypoints, with maximum length of max_keypoints.
         """
         # init the opencv object
         opencv_obj = cv.xfeatures2d.SIFT_create()
@@ -41,9 +50,8 @@ class DoG(DetectorBase):
         # sort the keypoints by score and pick top responses
         cv_keypoints = sorted(
             cv_keypoints, key=lambda x: x.response, reverse=True
-        )[:self.max_features]
+        )[:self.max_keypoints]
 
-        # convert to numpy array
-        features = feature_utils.array_from_keypoints(cv_keypoints)
+        keypoints = feature_utils.cast_to_gtsfm_keypoints(cv_keypoints)
 
-        return features
+        return keypoints

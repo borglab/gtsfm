@@ -7,6 +7,8 @@ from typing import List
 import cv2 as cv
 import numpy as np
 
+from common.keypoints import Keypoints
+
 
 def keypoints_from_array(features: np.ndarray) -> List[cv.KeyPoint]:
     """Converts the features from numpy array to cv keypoints.
@@ -40,17 +42,20 @@ def keypoints_from_array(features: np.ndarray) -> List[cv.KeyPoint]:
     return keypoints
 
 
-def array_from_keypoints(keypoints: List[cv.KeyPoint]) -> np.ndarray:
-    """Converts the opencv keypoints to a numpy array, the standard feature
-    representation in GTSFM.
+def cast_to_gtsfm_keypoints(keypoints: List[cv.KeyPoint]) -> Keypoints:
+    """Cast list of OpenCV's keypoints to GTSFM's keypoints.
 
     Args:
-        keypoints: OpenCV's keypoint representation of the given features.
+        keypoints: list of OpenCV's keypoints.
 
     Returns:
-        Array of shape (N, 4) representing features.
+        GTSFM's keypoints with the same information as input keypoints.
     """
 
-    feat_list = [[kp.pt[0], kp.pt[1], kp.size, kp.response] for kp in keypoints]
+    data = [[kp.pt[0], kp.pt[1], kp.size, kp.response] for kp in keypoints]
 
-    return np.array(feat_list, dtype=np.float32)
+    data = np.array(data, dtype=np.float32)
+
+    return Keypoints(coordinates=data[:, :2],
+                     scale=data[:, 2],
+                     response=data[:, 3])
