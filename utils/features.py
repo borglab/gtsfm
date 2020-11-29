@@ -6,6 +6,7 @@ from typing import List
 
 import cv2 as cv
 import numpy as np
+from gtsam import Cal3Bundler
 
 
 def keypoints_from_array(features: np.ndarray) -> List[cv.KeyPoint]:
@@ -54,3 +55,22 @@ def array_from_keypoints(keypoints: List[cv.KeyPoint]) -> np.ndarray:
     feat_list = [[kp.pt[0], kp.pt[1], kp.size, kp.response] for kp in keypoints]
 
     return np.array(feat_list, dtype=np.float32)
+
+
+def normalize_coordinates(coordinates: np.ndarray,
+                          intrinsics: Cal3Bundler) -> np.ndarray:
+    """Normalize 2D coordinates using camera intrinsics.
+
+    Args:
+        coordinates: 2d coordinates, of shape Nx2.
+        intrinsics. camera intrinsics.
+
+    Returns:
+        normalized coordinates, of shape Nx2.
+    """
+
+    return np.vstack(
+        [intrinsics.calibrate(
+            x[:2].astype(np.float64).reshape(2, 1)
+        ) for x in coordinates]
+    ).astype(coordinates.dtype)
