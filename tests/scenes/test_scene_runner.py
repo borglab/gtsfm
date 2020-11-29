@@ -7,24 +7,43 @@ from typing import List
 
 import dask
 from dask.delayed import Delayed
-
+from pathlib import Path
+from loader.folder_loader import FolderLoader
 
 class SceneRunner:
     """Runs SfM for the scenes."""
 
     def __init__(self, glob_patterns: List[str]):
         """Initialize from a list of glob patterns (for folders)."""
-
+        p = Path('.')
+        self.paths = []
+        for folder in glob_patterns:
+            self.paths.extend(p.glob(folder))
+        
+        
     def create_computation_graph(self) -> List[Delayed]:
         """Creates the computation graph to run SfM for all scenes.
 
         Returns:
             Result for each scene as a Delayed element.
         """
+        sfm = Gtsfm()
+        sfm_result = []
+        for path in self.paths:
+            loader = FolderLoader(path)
+            sfm_result.append(sfm.create_computation_graph(loader))
+        return sfm_result
 
-
-class SfmResult:
+class SfmResult():
     """Result after running SFM for a single scene."""
+    def __init__(self):
+        pass
+    def create_computation_graph(self):
+        pass
+
+
+class Gtsfm()
+"""Takes the loader and computes the SFM steps"""
 
 
 class TestSceneRunner(unittest.TestCase):
@@ -38,7 +57,6 @@ class TestSceneRunner(unittest.TestCase):
             'oak/*',
             'beech/*',
         ]
-
         runner = SceneRunner(scene_folders)
         # TODO: test that the number of folders is correct
         graph = runner.create_computation_graph()
