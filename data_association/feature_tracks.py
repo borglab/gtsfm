@@ -5,9 +5,8 @@ Authors: Ayush Baid, Sushmita Warrier
 from typing import OrderedDict, Dict, List, Tuple
 
 import numpy as np
-from collections import defaultdict
-
 import gtsam
+from collections import defaultdict
 
 class FeatureTrackGenerator:
     """
@@ -16,7 +15,6 @@ class FeatureTrackGenerator:
 
     def __init__(self,
                  matches: Dict[Tuple[int, int], List[Tuple[int, int]]],
-                 num_poses: int,
                  feature_list: List[List]
                  ):
         """
@@ -35,20 +33,19 @@ class FeatureTrackGenerator:
         landmark_data = []
 
         # for DSF finally
-        # measurement_idxs represented by k
-        for (i1, i2), k in matches.items():
-            for idx in range(len(k)):
-                k1 = k[idx][0]
-                k2 = k[idx][1]
+        # measurement_idxs represented by ks
+        for (i1, i2), ks in matches.items():
+            for idx in range(len(ks)):
+                k1 = ks[idx][0]
+                k2 = ks[idx][1]
                 dsf.merge(gtsam.IndexPair(i1, k1),
                         gtsam.IndexPair(i2, k2))
                 key_set = dsf.sets()                
 
         # create a landmark map
-        for idx, s in enumerate(key_set):
+        for _, s in enumerate(key_set):
             key = key_set[s]
             # Initialize track
-            # track = gtsam.SfmTrack()
             track = []
             for val in gtsam.IndexPairSetAsArray(key):
                 
