@@ -1,133 +1,120 @@
-"""
-Base class for the V (verification) stage of the frontend.
+"""Base class for the V (verification) stage of the frontend.
 
 Authors: Ayush Baid
 """
 import abc
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import dask
 import numpy as np
+from dask.delayed import Delayed
+from gtsam import Cal3Bundler, EssentialMatrix
+
+from common.keypoints import Keypoints
 
 
 class VerifierBase(metaclass=abc.ABCMeta):
-    """Base class for all verifiers, the final stage of the front-end.
+    """Base class for all verifiers.
 
-    Verifiers take the coordinates of the matches as inputs and returns the 
-    estimated fundamental matrix as well as geometrically verified points.
+    Verifiers take the coordinates of the matches as inputs and returns the
+    estimated essential matrix as well as geometrically verified points.
     """
 
     def __init__(self, min_pts):
         self.min_pts = min_pts
 
     @abc.abstractmethod
-    def verify(self,
-               matched_features_im1: np.ndarray,
-               matched_features_im2: np.ndarray,
-               image_shape_im1: Tuple[int, int],
-               image_shape_im2: Tuple[int, int],
-               camera_instrinsics_im1: np.ndarray = None,
-               camera_instrinsics_im2: np.ndarray = None) -> Tuple[np.ndarray, np.ndarray]:
-        """Perform the geometric verification of the matched features.
+    def verify_with_exact_intrinsics(
+        self,
+        keypoints_i1: Keypoints,
+        keypoints_i2: Keypoints,
+        match_indices: np.ndarray,
+        camera_intrinsics_i1: Cal3Bundler,
+        camera_intrinsics_i2: Cal3Bundler,
+    ) -> Tuple[Optional[EssentialMatrix], np.ndarray]:
+        """Estimates the essential matrix and verifies the feature matches.
 
-        Note:
-        1. The number of input features from image #1 and image #2 are equal.
-        2. The function computes the fundamental matrix if intrinsics are not
-            provided. Otherwise, it computes the essential matrix.
-
-        Args:
-            matched_features_im1 (np.ndarray): matched features from image #1
-            matched_features_im2 (np.ndarray): matched features from image #2
-            image_shape_im1 (Tuple[int, int]): size of image #1
-            image_shape_im2 (Tuple[int, int]): size of image #2
-            camera_instrinsics_im1 (np.ndarray, optional): Camera intrinsics
-                matrix for image #1. Defaults to None.
-            camera_instrinsics_im2 (np.ndarray, optional): Camera intrinsics
-                matris for image #2. Default to None
-
-        Returns:
-            np.ndarray: estimated fundamental/essential matrix
-            np.ndarray: index of the match features which are verified
-        """
-
-    def verify_and_get_features(
-            self,
-            matched_features_im1: np.ndarray,
-            matched_features_im2: np.ndarray,
-            image_shape_im1: Tuple[int, int],
-            image_shape_im2: Tuple[int, int],
-            camera_instrinsics_im1: np.ndarray = None,
-            camera_instrinsics_im2: np.ndarray = None
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Perform the geometric verification of the matched features and 
-        return the F-matrix and actual verified features.
-
-        Note:
-        1. The number of input features from image #1 are the same as the number from image #2
-        2. The function computes the fundamental matrix if intrinsics are not
-            provided. Otherwise, it computes the essential matrix.
+        Note: this function is preferred when camera intrinsics are known. The
+        feature coordinates are normalized and the essential matrix is directly
+        estimated.
 
         Args:
-            matched_features_im1 (np.ndarray): matched features from image #1
-            matched_features_im2 (np.ndarray): matched features from image #2
-            image_shape_im1 (Tuple[int, int]): size of image #1
-            image_shape_im2 (Tuple[int, int]): size of image #2
-            camera_instrinsics_im1 (np.ndarray, optional): Camera intrinsics
-                matrix for image #1. Defaults to None.
-            camera_instrinsics_im2 (np.ndarray, optional): Camera intrinsics
-                matris for image #2. Default to None
+            keypoints_i1: detected features in image #i1.
+            keypoints_i2: detected features in image #i2.
+            match_indices: matches as indices of features from both images, of
+                           shape (N3, 2), where N3 <= min(N1, N2).
+            camera_intrinsics_i1: intrinsics for image #i1.
+            camera_intrinsics_i2: intrinsics for image #i2.
 
         Returns:
-            np.ndarray: tuple with three numpy arrays
-                1. estimated fundamental matrix
-                2. verified feature from image #1
-                3. corresponding verified feature from image #2
+            Estimated essential matrix i2Ei1, or None if it cannot be estimated.
+            Indices of verified correspondences, of shape (N, 2) with N <= N3.
+                These indices are subset of match_indices.
         """
-        geometry, verified_indices = self.verify(
-            matched_features_im1,
-            matched_features_im2,
-            image_shape_im1,
-            image_shape_im2,
-            camera_instrinsics_im1,
-            camera_instrinsics_im2
-        )
 
-        return geometry, matched_features_im1[verified_indices], matched_features_im2[verified_indices]
+    @abc.abstractmethod
+    def verify_with_approximate_intrinsics(
+        self,
+        keypoints_i1: Keypoints,
+        keypoints_i2: Keypoints,
+        match_indices: np.ndarray,
+        camera_intrinsics_i1: Cal3Bundler,
+        camera_intrinsics_i2: Cal3Bundler,
+    ) -> Tuple[Optional[EssentialMatrix], np.ndarray]:
+        """Estimates the essential matrix and verifies the feature matches.
+
+        Note: this function is preferred when camera intrinsics are approximate
+        (i.e from image size/exif). The feature coordinates are used to compute
+        the fundamental matrix, which is then converted to the essential matrix.
+
+        Args:
+            keypoints_i1: detected features in image #i1.
+            keypoints_i2: detected features in image #i2.
+            match_indices: matches as indices of features from both images, of
+                           shape (N3, 2), where N3 <= min(N1, N2).
+            camera_intrinsics_i1: intrinsics for image #i1.
+            camera_intrinsics_i2: intrinsics for image #i2.
+
+        Returns:
+            Estimated essential matrix i2Ei1, or None if it cannot be estimated.
+            Indices of verified correspondences, of shape (N, 2) with N <= N3.
+                These indices are subset of match_indices.
+        """
 
     def create_computation_graph(self,
-                                 matcher_graph: Dict[Tuple[int, int], dask.delayed],
-                                 image_shapes: List[Tuple[int, int]],
-                                 camera_instrinsics: List[np.ndarray] = None
-                                 ) -> Dict[Tuple[int, int], dask.delayed]:
-        """Created the computation graph for verification using the graph 
-        from matcher stage
+                                 detection_graph: List[Delayed],
+                                 matcher_graph: Dict[Tuple[int, int], Delayed],
+                                 camera_intrinsics_graph: List[Delayed],
+                                 exact_intrinsics_flag: bool = True
+                                 ) -> Dict[Tuple[int, int], Delayed]:
+        """Generates the computation graph to perform verification of putative
+        correspondences.
 
         Args:
-            matcher_graph (Dict[Tuple[int, int], dask.delayed]): computation
-                graph from matcher
-            image_shapes (List[Tuple[int, int]]): list of all image shapes
-            camera_instrinsics_im1 (List[np.ndarray], optional): camera
-                intrinsics matrix all images. Defaults to empty list.
+            detection_graph: nodes with features for each image.
+            matcher_graph: nodes with matching results for pairs of images.
+            camera_intrinsics_graph: nodes with intrinsics for each image.
+            exact_intrinsics_flag (optional): flag denoting if intrinsics are
+                                              exact, and an essential matrix
+                                              can be directly computed.
+                                              Defaults to True.
 
         Returns:
-            Dict[Tuple[int, int], dask.delayed]: delayed dask tasks for
-                verification
+            delayed dask elements for verification.
         """
 
         result = dict()
 
-        def camera_intrinsics_fetcher(
-                idx):
-            return None if camera_instrinsics is None else camera_instrinsics[idx]
+        fn_to_use = self.verify_with_exact_intrinsics if exact_intrinsics_flag \
+            else self.verify_with_approximate_intrinsics
 
-        for image_idx_tuple, delayed_matcher in matcher_graph.items():
-            result[image_idx_tuple] = dask.delayed(self.verify_and_get_features)(
-                delayed_matcher[0],
-                delayed_matcher[1],
-                image_shapes[image_idx_tuple[0]],
-                image_shapes[image_idx_tuple[1]],
-                camera_intrinsics_fetcher(image_idx_tuple[0]),
-                camera_intrinsics_fetcher(image_idx_tuple[1]),
+        for (i1, i2), delayed_matcher in matcher_graph.items():
+            result[(i1, i2)] = dask.delayed(fn_to_use)(
+                detection_graph[i1],
+                detection_graph[i2],
+                delayed_matcher,
+                camera_intrinsics_graph[i1],
+                camera_intrinsics_graph[i2],
             )
 
         return result

@@ -1,46 +1,48 @@
-"""
-Functions to provide I/O APIs for all the modules
+"""Functions to provide I/O APIs for all the modules.
 
 Authors: Ayush Baid
 """
 
 import numpy as np
 from PIL import Image as PILImage
+from PIL.ExifTags import GPSTAGS, TAGS
 
 from common.image import Image
 
 
-def load_image(img_path: str, scale_factor: float = None) -> Image:
-    """
-    Load the image from disk
+def load_image(img_path: str) -> Image:
+    """Load the image from disk.
 
     Args:
-        img_path (str): the path of image to load
-        scale_factor (float, optional): the multiplicative scaling factor for height and width. Defaults to None.
+        img_path (str): the path of image to load.
 
     Returns:
-        np.array: loaded image
+        loaded image in RGB format.
     """
-    if scale_factor is None:
-        return Image(np.asarray(PILImage.open(img_path)))
+    original_image = PILImage.open(img_path)
 
-    highres_img = PILImage.open(img_path)
+    exif_data = original_image.getexif()
+    if exif_data is not None:
+        parsed_data = {}
+        for tag, value in exif_data.items():
+            if tag in TAGS:
+                parsed_data[TAGS.get(tag)] = value
+            elif tag in GPSTAGS:
+                parsed_data[GPSTAGS.get(tag)] = value
+            else:
+                parsed_data[tag] = value
 
-    width, height = highres_img.size
+        exif_data = parsed_data
 
-    small_width = int(width*scale_factor)
-    small_height = int(height*scale_factor)
-
-    return Image(np.asarray(highres_img.resize((small_width, small_height))))
+    return Image(np.asarray(original_image), exif_data)
 
 
 def save_image(image: Image, img_path: str):
-    """
-    Saves the image to disk
+    """Saves the image to disk
 
     Args:
         image (np.array): image
         img_path (str): the path on disk to save the image to
     """
-    im = PILImage.fromarray(image.image_array)
+    im = PILImage.fromarray(image.value_array)
     im.save(img_path)
