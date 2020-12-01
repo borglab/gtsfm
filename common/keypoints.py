@@ -12,7 +12,7 @@ import numpy as np
 class Keypoints(NamedTuple):
     coordinates: np.ndarray
     scale: Optional[np.ndarray] = None
-    response: Optional[np.ndarray] = None
+    response: Optional[np.ndarray] = None  # TODO(ayush): enforce the range.
     """Output of detections in an image.
 
     Coordinate system convention:
