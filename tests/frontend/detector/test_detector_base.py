@@ -5,6 +5,7 @@ Authors: Ayush Baid
 """
 import pickle
 import unittest
+from pathlib import Path
 
 import dask
 import numpy as np
@@ -13,7 +14,8 @@ from frontend.detector.dummy_detector import DummyDetector
 from loader.folder_loader import FolderLoader
 
 # defining the path for test data
-TEST_DATA_PATH = 'tests/data/lund'
+DATA_ROOT_PATH = Path(__file__).resolve().parent.parent.parent / 'data'
+TEST_DATA_PATH = DATA_ROOT_PATH / 'set1'
 
 
 class TestDetectorBase(unittest.TestCase):
@@ -22,7 +24,7 @@ class TestDetectorBase(unittest.TestCase):
     def setUp(self):
         super().setUp()
         self.detector = DummyDetector()
-        self.loader = FolderLoader(TEST_DATA_PATH)
+        self.loader = FolderLoader(TEST_DATA_PATH, image_extension='JPG')
 
     def test_number_of_detections(self):
         """Tests that the number of detections is less than the maximum number
