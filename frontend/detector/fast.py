@@ -1,7 +1,7 @@
 """FAST detector implementation.
 
 The detector was proposed in 'Machine Learning for High-Speed Corner Detection' 
-and is implemented by wrapping over OpenCV's API
+and is implemented by wrapping over OpenCV's API.
 
 References:
 - https://link.springer.com/chapter/10.1007/11744023_34
@@ -19,21 +19,10 @@ from frontend.detector.detector_base import DetectorBase
 
 
 class Fast(DetectorBase):
-    """Fast detector using opencv's implementation."""
+    """Fast detector using OpenCV's implementation."""
 
     def detect(self, image: Image) -> Keypoints:
         """Detect the features in an image.
-
-        Coordinate system convention:
-        1. The x coordinate denotes the horizontal direction (+ve direction
-           towards the right).
-        2. The y coordinate denotes the vertical direction (+ve direction
-           downwards).
-        3. Origin is at the top left corner of the image.
-
-        Output format:
-        1. If applicable, the keypoints should be sorted in decreasing order of
-           score/confidence.
 
         Args:
             image: input image.

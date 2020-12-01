@@ -1,7 +1,7 @@
 """Difference-of-Gaussian detector implementation.
 
 The detector was proposed in 'Distinctive Image Features from Scale-Invariant
-Keypoints' and is implemented by wrapping over OpenCV's API
+Keypoints' and is implemented by wrapping over OpenCV's API.
 
 References:
 - https://www.cs.ubc.ca/~lowe/papers/ijcv04.pdf
@@ -19,21 +19,10 @@ from frontend.detector.detector_base import DetectorBase
 
 
 class DoG(DetectorBase):
-    """DoG detector using opencv's implementation."""
+    """DoG detector using OpenCV's implementation."""
 
     def detect(self, image: Image) -> Keypoints:
         """Detect the features in an image.
-
-        Coordinate system convention:
-        1. The x coordinate denotes the horizontal direction (+ve direction
-           towards the right).
-        2. The y coordinate denotes the vertical direction (+ve direction
-           downwards).
-        3. Origin is at the top left corner of the image.
-
-        Output format:
-        1. If applicable, the keypoints should be sorted in decreasing order of
-           score/confidence.
 
         Args:
             image: input image.

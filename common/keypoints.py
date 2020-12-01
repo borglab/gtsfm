@@ -15,6 +15,13 @@ class Keypoints(NamedTuple):
     response: Optional[np.ndarray] = None
     """Output of detections in an image.
 
+    Coordinate system convention:
+        1. The x coordinate denotes the horizontal direction (+ve direction
+           towards the right).
+        2. The y coordinate denotes the vertical direction (+ve direction
+           downwards).
+        3. Origin is at the top left corner of the image.
+
     Args:
         coordinates: the (x, y) coordinates of the features, of shape Nx2.
         scale: optional scale of the detections, of shape N.
