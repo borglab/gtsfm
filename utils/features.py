@@ -57,5 +57,5 @@ def cast_to_gtsfm_keypoints(keypoints: List[cv.KeyPoint]) -> Keypoints:
     data = np.array(data, dtype=np.float32)
 
     return Keypoints(coordinates=data[:, :2],
-                     scale=data[:, 2],
-                     response=data[:, 3])
+                     scales=data[:, 2],
+                     responses=data[:, 3])

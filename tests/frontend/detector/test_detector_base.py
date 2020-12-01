@@ -52,7 +52,7 @@ class TestDetectorBase(unittest.TestCase):
         """Tests that the scales are positive."""
         keypoints = self.detector.detect(self.loader.get_image(0))
 
-        np.testing.assert_array_equal(keypoints.scale >= 0, True)
+        np.testing.assert_array_equal(keypoints.scales >= 0, True)
 
     def test_computation_graph(self):
         """Test the dask's computation graph formation using a single image."""
@@ -73,12 +73,13 @@ class TestDetectorBase(unittest.TestCase):
         expected_keypoints = self.detector.detect(self.loader.get_image(0))
         computed_keypoints = results[0]
 
+        # TODO: move to using the __eq__ function coming in the followup review
         np.testing.assert_allclose(
             computed_keypoints.coordinates, expected_keypoints.coordinates)
         np.testing.assert_allclose(
-            computed_keypoints.scale, expected_keypoints.scale)
+            computed_keypoints.scales, expected_keypoints.scales)
         np.testing.assert_allclose(
-            computed_keypoints.response, expected_keypoints.response)
+            computed_keypoints.responses, expected_keypoints.responses)
 
     def test_pickleable(self):
         """Tests that the detector object is pickleable (required for dask)."""

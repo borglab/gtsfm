@@ -11,8 +11,8 @@ import numpy as np
 
 class Keypoints(NamedTuple):
     coordinates: np.ndarray
-    scale: Optional[np.ndarray] = None
-    response: Optional[np.ndarray] = None  # TODO(ayush): enforce the range.
+    scales: Optional[np.ndarray] = None
+    responses: Optional[np.ndarray] = None  # TODO(ayush): enforce the range.
     """Output of detections in an image.
 
     Coordinate system convention:
@@ -24,8 +24,8 @@ class Keypoints(NamedTuple):
 
     Args:
         coordinates: the (x, y) coordinates of the features, of shape Nx2.
-        scale: optional scale of the detections, of shape N.
-        response: optional respose of the detections, of shape N.
+        scales: optional scale of the detections, of shape N.
+        responses: optional respose of the detections, of shape N.
     """
 
     def __len__(self) -> int:
