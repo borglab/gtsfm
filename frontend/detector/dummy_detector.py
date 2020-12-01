@@ -35,8 +35,9 @@ class DummyDetector(DetectorBase):
             size=(num_detections, 2))
 
         # assign the scale
-        scale = np.random.rand(num_detections)
+        scales = np.random.rand(num_detections)
 
-        response = np.random.rand(num_detections)
+        # assing responses
+        responses = np.random.rand(num_detections)
 
-        return Keypoints(coordinates, scale, response)
+        return Keypoints(coordinates, scales, responses)
