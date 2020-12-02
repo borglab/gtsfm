@@ -154,8 +154,8 @@ class TestVerifierBase(unittest.TestCase):
             keypoints_i1,
             keypoints_i2,
             match_indices,
-            Cal3Bundler(fx, k1, k2, u0, v0),
-            Cal3Bundler(fx, k1, k2, u0, v0)
+            Cal3Bundler(fx, k1, k2, px, py),
+            Cal3Bundler(fx, k1, k2, px, py)
         )
         pdb.set_trace()
         # self.assertTrue(computed_i2Ei1.equals(

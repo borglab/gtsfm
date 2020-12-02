@@ -31,15 +31,16 @@ def recover_relative_pose_from_essential_matrix(
         relative rotation i2Ri1.
         relative translation direction i2Ui1.
     """
+    tol = 0.01
     # obtain points in normalized coordinates using intrinsics.
     normalized_coordinates_i1 = np.vstack(
         [camera_intrinsics_i1.calibrate(
-            x[:2].astype(np.float64).reshape(2, 1)
+            x[:2].astype(np.float64).reshape(2, 1), tol
         ) for x in verified_coordinates_i1]
     ).astype(np.float32)
     normalized_coordinates_i2 = np.vstack(
         [camera_intrinsics_i2.calibrate(
-            x[:2].astype(np.float64).reshape(2, 1)
+            x[:2].astype(np.float64).reshape(2, 1), tol
         ) for x in verified_coordinates_i2]
     ).astype(np.float32)
 
