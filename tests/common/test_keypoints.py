@@ -67,6 +67,35 @@ class TestKeypoints(unittest.TestCase):
         obj2 = Keypoints(coordinates=COORDINATES)
         self.assertNotEqual(obj1, obj2)
 
+    def test_cast_to_opencv_keypoints(self):
+        """Tests conversion of GTSFM's keypoints to OpenCV's keypoints."""
+
+        gtsfm_keypoints = Keypoints(
+            coordinates=np.array([
+                [1.3, 5],
+                [20, 10]
+            ]),
+            scales=np.array([1.0, 5.2]),
+            responses=np.array([4.2, 3.2]))
+
+        results = gtsfm_keypoints.cast_to_opencv_keypoints()
+
+        # check the length of the result
+        self.assertEqual(len(results), len(gtsfm_keypoints))
+
+        # check all the keypoint values
+        for idx in range(len(gtsfm_keypoints)):
+
+            opencv_kp = results[idx]
+            self.assertAlmostEqual(
+                opencv_kp.pt[0], gtsfm_keypoints.coordinates[idx, 0])
+            self.assertAlmostEqual(
+                opencv_kp.pt[1], gtsfm_keypoints.coordinates[idx, 1])
+            self.assertAlmostEqual(
+                opencv_kp.size, gtsfm_keypoints.scales[idx])
+            self.assertAlmostEqual(
+                opencv_kp.response, gtsfm_keypoints.responses[idx])
+
 
 if __name__ == "__main__":
     unittest.main()
