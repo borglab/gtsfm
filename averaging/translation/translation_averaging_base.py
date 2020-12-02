@@ -20,7 +20,7 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def run(self,
             num_images: int,
-            i1Ui2_dict: Dict[Tuple[int, int], Optional[Unit3]],
+            i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
             wRi_list: List[Optional[Rot3]],
             scale_factor: float = 1.0
             ) -> List[Optional[Point3]]:
@@ -28,10 +28,8 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
 
         Args:
             num_images: number of camera poses.
-            i1Ui2_dict: relative unit translations between pairs of camera
-                        poses (direction of translation of i2^th pose in
-                        i1^th frame for various pairs of (i1, i2). The pairs
-                        serve as keys of the dictionary).
+            i2Ui1_dict: relative unit translations as dictionary where keys
+                        (i2, i1) are pose pairs.
             wRi_list: global rotations for each camera pose in the world
                       coordinates.
             scale_factor: non-negative global scaling factor.
@@ -43,7 +41,7 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
     def create_computation_graph(
             self,
             num_images: int,
-            i1Ui2_graph: Dict[Tuple[int, int], Delayed],
+            i2Ui1_graph: Delayed,
             wRi_graph: Delayed,
             scale_factor: float = 1.0
     ) -> Delayed:
@@ -51,8 +49,8 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
 
         Args:
             num_images: number of camera poses.
-            i1Ui2_graph: graph of relative unit-translations, stored as a    
-                           dict.
+            i2Ui1_graph: dictionary of relative unit translations as a delayed
+                         task.
             wRi_graph: list of global rotations wrapped up in Delayed.
             scale_factor: non-negative global scaling factor.
 
@@ -61,4 +59,4 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
         """
 
         return dask.delayed(self.run)(
-            num_images, i1Ui2_graph, wRi_graph, scale_factor)
+            num_images, i2Ui1_graph, wRi_graph, scale_factor)

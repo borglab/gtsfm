@@ -44,15 +44,15 @@ class TestTranslationAveraging1DSFM(
 
         # create relative translation directions between a pose index and the
         # next two poses
-        i1Ui2_dict = {}
-        for i1 in range(len(wPi_list)-1):
-            for i2 in range(i1+1, min(len(wPi_list), i1+3)):
+        i2Ui1_dict = {}
+        for i2 in range(len(wPi_list)-1):
+            for i1 in range(i2+1, min(len(wPi_list), i2+3)):
                 # create relative translations using global R and T.
-                i1Ui2_dict[(i1, i2)] = Unit3(
-                    wRi_list[i1].unrotate(
-                        expected_wTi[i2] - expected_wTi[i1]))
+                i2Ui1_dict[(i2, i1)] = Unit3(
+                    wRi_list[i2].unrotate(
+                        expected_wTi[i1] - expected_wTi[i2]))
 
-        computed_wTi = self.obj.run(len(wRi_list), i1Ui2_dict, wRi_list)
+        computed_wTi = self.obj.run(len(wRi_list), i2Ui1_dict, wRi_list)
 
         # compare the entries
         self.assert_equal_upto_scale(expected_wTi, computed_wTi)

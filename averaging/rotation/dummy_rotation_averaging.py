@@ -15,16 +15,14 @@ class DummyRotationAveraging(RotationAveragingBase):
 
     def run(self,
             num_images: int,
-            i1_R_i2_dict: Dict[Tuple[int, int], Optional[Rot3]]
+            i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]]
             ) -> List[Optional[Rot3]]:
         """Run the rotation averaging.
 
         Args:
             num_images: number of poses.
-            i1_R_i2_dict: relative rotations between pairs of camera poses (
-                          rotation of i2^th pose in i1^th frame for various
-                          pairs of (i1, i2). The pairs serve as keys of the
-                          dictionary).
+            i2Ri1_dict: relative rotations as dictionaries where keys (i2, i1)
+                        are pose pairs.
 
         Returns:
             Global rotations for each camera pose, i.e. w_R_i, as a list. The
@@ -32,21 +30,22 @@ class DummyRotationAveraging(RotationAveragingBase):
                 contain `None` where the global rotation could not be computed
                 (either underconstrained system or ill-constrained system).
         """
-
-        if len(i1_R_i2_dict) == 0:
+        if len(i2Ri1_dict) == 0:
             return [None]*num_images
 
         # create the random seed using relative rotations
-        seed_rotation = next(iter(i1_R_i2_dict.values()))
+        seed_rotation = next(iter(i2Ri1_dict.values()))
 
         np.random.seed(
             int(1000*seed_rotation.xyz()[0]) % (2 ^ 32))
 
+        # TODO: do not assign values where we do not have any edge
+
         # generate dummy rotations
-        w_R_i_list = []
+        wRi_list = []
         for _ in range(num_images):
             random_vector = np.random.rand(3)*2*np.pi
-            w_R_i_list.append(Rot3.Rodrigues(
+            wRi_list.append(Rot3.Rodrigues(
                 random_vector[0], random_vector[1], random_vector[2]))
 
-        return w_R_i_list
+        return wRi_list
