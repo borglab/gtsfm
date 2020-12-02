@@ -17,7 +17,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 import pydegensac
-from gtsam import Cal3Bundler, EssentialMatrix
+from gtsam import Cal3Bundler, Rot3, Unit3
 
 import utils.verification as verification_utils
 from frontend.verifier.verifier_base import VerifierBase
@@ -38,7 +38,7 @@ class Degensac(VerifierBase):
         match_indices: np.ndarray,
         camera_intrinsics_i1: Cal3Bundler,
         camera_intrinsics_i2: Cal3Bundler,
-    ) -> Tuple[Optional[EssentialMatrix], np.ndarray]:
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
         """Estimates the essential matrix and verifies the feature matches.
 
         Note: this function is preferred when camera intrinsics are known. The
@@ -54,7 +54,8 @@ class Degensac(VerifierBase):
             camera_intrinsics_i2: intrinsics for image #i2.
 
         Returns:
-            Estimated essential matrix i2Ei1, or None if it cannot be estimated.
+            Estimated rotation i2Ri1, or None if it cannot be estimated.
+            Estimated unit translation i2Ui1, or None if it cannot be estimated.
             Indices of verified correspondences, of shape (N, 2) with N <= N3.
                 These indices are subset of match_indices.
         """
@@ -75,7 +76,7 @@ class Degensac(VerifierBase):
         match_indices: np.ndarray,
         camera_intrinsics_i1: Cal3Bundler,
         camera_intrinsics_i2: Cal3Bundler,
-    ) -> Tuple[Optional[EssentialMatrix], np.ndarray]:
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
         """Estimates the essential matrix and verifies the feature matches.
 
         Note: this function is preferred when camera intrinsics are approximate
@@ -91,16 +92,16 @@ class Degensac(VerifierBase):
             camera_intrinsics_i2: intrinsics for image #i2.
 
         Returns:
-            Estimated essential matrix i2Ei1, or None if it cannot be estimated.
+            Estimated rotation i2Ri1, or None if it cannot be estimated.
+            Estimated unit translation i2Ui1, or None if it cannot be estimated.
             Indices of verified correspondences, of shape (N, 2) with N <= N3.
                 These indices are subset of match_indices.
         """
-        i2Ei1 = None
         verified_indices = np.array([], dtype=np.uint32)
 
         # check if we don't have the minimum number of points
         if match_indices.shape[0] < self.min_pts:
-            return i2Ei1, verified_indices
+            return None, None, verified_indices
 
         i2Fi1, mask = pydegensac.findFundamentalMatrix(
             keypoints_i1.coordinates[match_indices[:, 0]],
@@ -124,6 +125,4 @@ class Degensac(VerifierBase):
                 camera_intrinsics_i2
             )
 
-        i2Ei1 = verification_utils.create_essential_matrix(i2Ri1, i2Ui1)
-
-        return i2Ei1, match_indices[inlier_idxes]
+        return i2Ri1, i2Ui1, match_indices[inlier_idxes]
