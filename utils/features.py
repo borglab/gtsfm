@@ -60,5 +60,5 @@ def cast_to_gtsfm_keypoints(keypoints: List[cv.KeyPoint]) -> Keypoints:
         responses.append(kp.response)
 
     return Keypoints(coordinates=np.array(coordinates),
-                     scales=np.array(scales),
-                     responses=np.array(responses))
+                     scales=np.array(scales) if scales else None,
+                     responses=np.array(responses) if responses else None)
