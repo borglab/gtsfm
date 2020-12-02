@@ -53,7 +53,7 @@ class DummyVerifier(VerifierBase):
 
         # check if we don't have the minimum number of points
         if match_indices.shape[0] < self.min_pts:
-            return None, None, v_inlier_idxs
+            return None, None, verified_indices
 
         # set a random seed using descriptor data for repeatability
         np.random.seed(
@@ -82,9 +82,11 @@ class DummyVerifier(VerifierBase):
             i2Ti1 = Point3(np.random.uniform(
                 low=-1.0, high=1.0, size=(3, )))
 
-            return i2Ri1, Unit3(i2Ti1), match_indices[v_inlier_idxs]
+            i2Ei1 = EssentialMatrix(i2Ri1, Unit3(i2Ti1))
+
+            return i2Ri1, Unit3(i2Ti1), match_indices[verified_matches]
         else:
-            return None, None, match_indices[v_inlier_idxs]
+            return None, None, match_indices[verified_matches]
 
     def verify_with_approximate_intrinsics(
         self,
