@@ -14,10 +14,12 @@ from loader.folder_loader import FolderLoader
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / 'data'
 
-DEFAULT_FOLDER = DATA_ROOT_PATH / 'set1'
-EXIF_FOLDER = DATA_ROOT_PATH / 'set2_nointrinsics'
-NO_EXTRINSICS_FOLDER = DATA_ROOT_PATH / 'set3_nointrinsics_noextrinsics'
-NO_EXIF_FOLDER = DATA_ROOT_PATH / 'set4_nointrinsics_noextrinsics_noexif'
+DEFAULT_FOLDER = DATA_ROOT_PATH / 'set1_lund_door'
+EXIF_FOLDER = DATA_ROOT_PATH / 'set2_lund_door_nointrinsics'
+NO_EXTRINSICS_FOLDER = DATA_ROOT_PATH / \
+    'set3_lund_doornointrinsics_noextrinsics'
+NO_EXIF_FOLDER = DATA_ROOT_PATH / \
+    'set4_lund_door_nointrinsics_noextrinsics_noexif'
 
 
 class TestFolderLoader(unittest.TestCase):
@@ -70,7 +72,7 @@ class TestFolderLoader(unittest.TestCase):
         """
 
         index_to_test = 5
-        file_path = 'tests/data/set1/images/DSC_0006.JPG'
+        file_path = DEFAULT_FOLDER / 'images' / 'DSC_0006.JPG'
 
         loader_image = self.loader.get_image(index_to_test)
 
