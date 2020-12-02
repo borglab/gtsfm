@@ -1,7 +1,6 @@
 """SIFT Detector-Descriptor implementation.
 
-The detector was proposed in 'Distinctive Image Features from Scale-Invariant
-Keypoints' and is implemented by wrapping over OpenCV's API.
+The detector was proposed in 'Distinctive Image Features from Scale-Invariant Keypoints' and is implemented by wrapping over OpenCV's API
 
 References:
 - https://www.cs.ubc.ca/~lowe/papers/ijcv04.pdf
@@ -14,10 +13,9 @@ from typing import Tuple
 import cv2 as cv
 import numpy as np
 
-import utils.features as feature_utils
+import frontend.utils.feature_utils as feature_utils
 import utils.images as image_utils
 from common.image import Image
-from common.keypoints import Keypoints
 from frontend.detector_descriptor.detector_descriptor_base import \
     DetectorDescriptorBase
 
@@ -26,7 +24,7 @@ class SIFTDetectorDescriptor(DetectorDescriptorBase):
     """SIFT detector-descriptor using OpenCV's implementation."""
 
     def detect_and_describe(self,
-                            image: Image) -> Tuple[Keypoints, np.ndarray]:
+                            image: Image) -> Tuple[np.ndarray, np.ndarray]:
         """Perform feature detection as well as their description.
 
         Refer to detect() in DetectorBase and describe() in DescriptorBase for
@@ -36,9 +34,8 @@ class SIFTDetectorDescriptor(DetectorDescriptorBase):
             image: the input image.
 
         Returns:
-            detected keypoints, with length N <= max_keypoints.
-            corr. descriptors, of shape (N, D) where D is the dimension of each
-            descriptor.
+            detected features as a numpy array of shape (N, 2+).
+            corr. descriptors for the features, as (N, 128) sized matrix.
         """
 
         # conert to grayscale
@@ -51,18 +48,12 @@ class SIFTDetectorDescriptor(DetectorDescriptorBase):
         cv_keypoints, descriptors = opencv_obj.detectAndCompute(
             gray_image.value_array, None)
 
-        # convert to GTSFM's keypoints
-        keypoints = feature_utils.cast_to_gtsfm_keypoints(cv_keypoints)
+        # convert keypoints to features
+        features = feature_utils.array_of_keypoints(cv_keypoints)
 
         # sort the features and descriptors by the score
-        sort_idx = np.argsort(-keypoints.responses)[:self.max_keypoints]
-
-        keypoints = Keypoints(
-            coordinates=keypoints.coordinates[sort_idx],
-            scales=keypoints.scales[sort_idx],
-            responses=keypoints.responses[sort_idx]
-        )
-
+        sort_idx = np.argsort(-features[:, 3])[:self.max_features]
+        features = features[sort_idx]
         descriptors = descriptors[sort_idx]
 
-        return keypoints, descriptors
+        return features, descriptors

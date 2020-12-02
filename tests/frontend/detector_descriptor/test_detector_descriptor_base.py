@@ -38,56 +38,47 @@ class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
 
     def test_detect_and_describe_shape(self):
         """
-        Tests that the number of keypoints and descriptors are the same.
+        Tests that the number of features and descriptors are the same.
         """
 
         # test on random indexes
         test_indices = [0, 5]
         for idx in test_indices:
-            kps, descs = \
-                self.detector_descriptor.detect_and_describe(
-                    self.loader.get_image(idx))
+            features, descriptors = self.detector_descriptor.detect_and_describe(
+                self.loader.get_image(idx))
 
-            if len(kps) == 0:
+            if features.size == 0:
                 # test-case for empty results
                 self.assertEqual(0, descs.size)
             else:
                 # number of descriptors and features should be equal
-                self.assertEqual(len(kps), descs.shape[0])
+                self.assertEqual(features.shape[0], descriptors.shape[0])
 
     def test_computation_graph(self):
-        """Test the dask's computation graph formation."""
+        """
+        Test the dask's computation graph formation using a single image.
+        """
 
-        image_graph = self.loader.create_computation_graph_for_images()
-        detection_graph, description_graph = \
-            self.detector_descriptor.create_computation_graph(image_graph)
+        loader_graph = self.loader.create_computation_graph()
+        computation_graph = self.detector_descriptor.create_computation_graph(
+            loader_graph)
 
+        results = []
         with dask.config.set(scheduler='single-threaded'):
-            # TODO(ayush): check how many times detection is performed
-            detection_results = dask.compute(detection_graph)[0]
-            description_results = dask.compute(description_graph)[0]
+            results = dask.compute(computation_graph)[0]
 
-        # check the number of entries in results
-        self.assertEqual(
-            len(detection_results), len(self.loader),
-            "Dask workflow does not return the same number of results"
-        )
-        self.assertEqual(
-            len(description_results), len(self.loader),
-            "Dask workflow does not return the same number of results"
-        )
-
-        # compare the result values for a particular image
-        idx_under_test = 0
+        # check the number of results
+        self.assertEqual(len(results), len(self.loader),
+                         "Dask workflow does not return the same number of results"
+                         )
 
         # check the results via normal workflow and dask workflow for an image
-        expected_kps, expected_descs = \
-            self.detector_descriptor.detect_and_describe(
-                self.loader.get_image(idx_under_test))
+        normal_features, normal_descriptors = self.detector_descriptor.detect_and_describe(
+            self.loader.get_image(0))
+        dask_features, dask_descriptors = results[0]
 
-        self.assertEqual(detection_results[idx_under_test], expected_kps)
-        np.testing.assert_array_equal(
-            description_results[idx_under_test], expected_descs)
+        np.testing.assert_allclose(normal_features, dask_features)
+        np.testing.assert_allclose(normal_descriptors, dask_descriptors)
 
 
 if __name__ == '__main__':
