@@ -83,8 +83,8 @@ class GTSFM(metaclass=abc.ABCMeta):
 
             if i2Ri1 is not None:
                 # TODO: confirm with john if this is the right way to representation rotations and unit translations (i.e. (i1, i2) or (i2, i1))
-                relative_rotations_dict[(i1, i2)] = i2Ri1
-                relative_unit_translations_dict[(i1, i2)] = i2Ui1
+                relative_rotations_dict[(i2, i1)] = i2Ri1
+                relative_unit_translations_dict[(i2, i1)] = i2Ui1
                 verified_correspondence_indices_dict[(i1, i2)] = \
                     verified_correspondence_indices
 
