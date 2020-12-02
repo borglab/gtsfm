@@ -79,13 +79,18 @@ def fundamental_to_essential_matrix(i2Fi1: np.ndarray,
     Returns:
             Estimated essential matrix i2Ei1 as numpy array of shape (3x3).
     """
-    fx = 1392.1069298937407 # also fy
-    px = 980.1759848618066
-    py = 604.3534182680304
-
-    K2 = np.array([[fx, 0, px],[0, fy, py], [0,0,1]])
-    K1 = np.array([[fx, 0, px],[0, fy, py], [0,0,1]])
-
+    K1 = np.array(
+        [
+            [camera_intrinsics_i1.fx(), 0, camera_intrinsics_i1.u0()],
+            [0, camera_intrinsics_i1.fy(), camera_intrinsics_i1.v0()],
+            [0,0,1]
+        ])
+    K2 = np.array(
+        [
+            [camera_intrinsics_i2.fx(), 0, camera_intrinsics_i2.u0()],
+            [0, camera_intrinsics_i2.fy(), camera_intrinsics_i2.v0()],
+            [0,0,1]
+        ])
     return K2.T @ \
         i2Fi1 @ \
         K1

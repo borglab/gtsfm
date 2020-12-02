@@ -139,7 +139,7 @@ class TestVerifierBase(unittest.TestCase):
     def test_with_annotated_correspondences(self):
         """
         """
-        fx, px, py, k1, k2 = load_intrinsics()
+        fx, px, py, k1, k2 = self.load_intrinsics()
         keypoints_i1, keypoints_i2 = self.load_annotated_correspondences()
 
         pdb.set_trace()
