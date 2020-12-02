@@ -34,7 +34,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
 
         Args:
             num_images: number of poses.
-            i2Ri1_dict: relative rotations as dictionaries where keys (i2, i1)
+            i2Ri1_dict: relative rotations as dictionaries where keys (i1, i2)
                         are pose pairs.
 
         Returns:
@@ -49,7 +49,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
 
         between_factors = gtsam.BetweenFactorPose3s()
 
-        for (i2, i1), i2Ri1 in i2Ri1_dict.items():
+        for (i1, i2), i2Ri1 in i2Ri1_dict.items():
             if i2Ri1 is not None:
                 between_factors.append(BetweenFactorPose3(
                     i2,

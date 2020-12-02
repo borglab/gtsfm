@@ -48,7 +48,7 @@ class TestTranslationAveraging1DSFM(
         for i2 in range(len(wPi_list)-1):
             for i1 in range(i2+1, min(len(wPi_list), i2+3)):
                 # create relative translations using global R and T.
-                i2Ui1_dict[(i2, i1)] = Unit3(
+                i2Ui1_dict[(i1, i2)] = Unit3(
                     wRi_list[i2].unrotate(
                         expected_wTi[i1] - expected_wTi[i2]))
 

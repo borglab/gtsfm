@@ -26,7 +26,7 @@ class RotationAveragingBase(metaclass=abc.ABCMeta):
 
         Args:
             num_images: number of poses.
-            i2Ri1_dict: relative rotations as dictionaries where keys (i2, i1)
+            i2Ri1_dict: relative rotations as dictionaries where keys (i1, i2)
                         are pose pairs.
 
         Returns:

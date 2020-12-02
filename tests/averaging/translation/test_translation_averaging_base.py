@@ -40,8 +40,7 @@ class TestTranslationAveragingBase(unittest.TestCase):
             iU0_1 = Unit3(wTi_list1[i] - wTi_list1[0])
 
             iU0_2 = Unit3(wTi_list2[i] - wTi_list2[0])
-
-            self.assertTrue(iU0_1.equals(iU0_2, 1e-2))
+            self.assertTrue(iU0_1.equals(iU0_2, 1e-1))
 
     def test_computation_graph(self):
         """Test the dask computation graph execution using a valid collection
@@ -50,8 +49,8 @@ class TestTranslationAveragingBase(unittest.TestCase):
         num_images = 3
 
         i2Ui1_dict = {
-            (0, 1): Unit3(np.array([0, 0.2, 0])),
-            (1, 2): Unit3(np.array([0, 0.1, 0.3])),
+            (1, 0): Unit3(np.array([0, 0.2, 0])),
+            (2, 1): Unit3(np.array([0, 0.1, 0.3])),
         }
 
         wRi_list = [
