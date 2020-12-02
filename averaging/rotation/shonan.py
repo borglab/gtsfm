@@ -51,13 +51,13 @@ class ShonanRotationAveraging(RotationAveragingBase):
 
         between_factors = gtsam.BetweenFactorPose3s()
 
-        for (i1,i2), i1_R_i2 in i1_R_i2_dict.items():
-            if i1_R_i2 is not None:
+        for (i1,i2), i1Ri2 in i1_R_i2_dict.items():
+            if i1Ri2 is not None:
                 between_factors.append(
                     BetweenFactorPose3(
                         i1,
                         i2,
-                        Pose3(i1_R_i2, np.zeros(3,)),
+                        Pose3(i1Ri2, np.zeros(3,)),
                         noise_model
                     )
                 )
