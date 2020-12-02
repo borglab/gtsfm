@@ -8,6 +8,7 @@ from typing import Tuple
 import numpy as np
 
 from common.image import Image
+from common.keypoints import Keypoints
 from frontend.descriptor.descriptor_base import DescriptorBase
 from frontend.detector.detector_base import DetectorBase
 from frontend.detector_descriptor.detector_descriptor_base import \
@@ -28,7 +29,7 @@ class CombinationDetectorDescriptor(DetectorDescriptorBase):
         self.descriptor = descriptor
 
     def detect_and_describe(self,
-                            image: Image) -> Tuple[np.ndarray, np.ndarray]:
+                            image: Image) -> Tuple[Keypoints, np.ndarray]:
         """Perform feature detection as well as their description.
 
         Refer to detect() in DetectorBase and describe() in DescriptorBase for
@@ -38,11 +39,11 @@ class CombinationDetectorDescriptor(DetectorDescriptorBase):
             image: the input image.
 
         Returns:
-            detected features as a numpy array of shape (N, 2+).
-            corr. descriptors for the features, as (N, x) sized matrix.
+            detected keypoints, with length N <= max_keypoints.
+            corr. descriptors, of shape (N, D) where D is the dimension of each
+            descriptor.
         """
+        keypoints = self.detector.detect(image)
+        descriptors = self.descriptor.describe(image, keypoints)
 
-        features = self.detector.detect(image)
-        descriptors = self.descriptor.describe(image, features)
-
-        return features, descriptors
+        return keypoints, descriptors
