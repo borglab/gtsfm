@@ -1,0 +1,21 @@
+gtsfm:
+  path: ~/gtsfm
+  enable_gpu: False # set it Ture or False
+  image_path: [~/gtsfm/images1, ~/gtsfm/images2, ~/gtsfm/images3]
+
+frontend: 
+  matching:
+    num_features: 2000
+    tol: 1e-3
+    pyramid_scale: [1, 2, 4]
+  tracking:
+    num_features: 2000
+    tol: 1e-3
+    pyramid_scale: [1, 2, 4]
+  
+backend:
+  min_measurements_per_track: 2
+  mode_triangulation: ransac # default, uniform, baseline, max-min
+
+visualization:
+  enable_vis: True
