@@ -28,7 +28,7 @@ class DummyVerifier(VerifierBase):
         match_indices: np.ndarray,
         camera_intrinsics_i1: Cal3Bundler,
         camera_intrinsics_i2: Cal3Bundler,
-    ) -> Tuple[Optional[EssentialMatrix], np.ndarray]:
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
         """Estimates the essential matrix and verifies the feature matches.
 
         Note: this function is preferred when camera intrinsics are approximate
@@ -44,7 +44,8 @@ class DummyVerifier(VerifierBase):
             camera_intrinsics_im2: intrinsics for image #i2.
 
         Returns:
-            Estimated essential matrix i2Ei1, or None if it cannot be estimated.
+            Estimated rotation i2Ri1, or None if it cannot be estimated.
+            Estimated unit translation i2Ui1, or None if it cannot be estimated.
             Indices of verified correspondences, of shape (N, 2) with N <= N3.
                 These indices are subset of match_indices.
         """
@@ -53,7 +54,7 @@ class DummyVerifier(VerifierBase):
 
         # check if we don't have the minimum number of points
         if match_indices.shape[0] < self.min_pts:
-            return i2Ei1, verified_indices
+            return None, None, verified_indices
 
         # set a random seed using descriptor data for repeatability
         np.random.seed(
@@ -84,7 +85,9 @@ class DummyVerifier(VerifierBase):
 
             i2Ei1 = EssentialMatrix(i2Ri1, Unit3(i2Ti1))
 
-        return i2Ei1, match_indices[verified_matches]
+            return i2Ri1, Unit3(i2Ti1), match_indices[verified_matches]
+        else:
+            return None, None, match_indices[verified_matches]
 
     def verify_with_approximate_intrinsics(
         self,
@@ -93,7 +96,7 @@ class DummyVerifier(VerifierBase):
         match_indices: np.ndarray,
         camera_intrinsics_i1: Cal3Bundler,
         camera_intrinsics_i2: Cal3Bundler,
-    ) -> Tuple[Optional[EssentialMatrix], np.ndarray]:
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
         """Estimates the essential matrix and verifies the feature matches.
 
         Note: this function is preferred when camera intrinsics are approximate
@@ -109,7 +112,8 @@ class DummyVerifier(VerifierBase):
             camera_intrinsics_i2: intrinsics for image #i2.
 
         Returns:
-            Estimated essential matrix i2Ei1, or None if it cannot be estimated.
+            Estimated rotation i2Ri1, or None if it cannot be estimated.
+            Estimated unit translation i2Ui1, or None if it cannot be estimated.
             Indices of verified correspondences, of shape (N, 2) with N <= N3.
                 These indices are subset of match_indices.
         """

@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Tuple
 import dask
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import Cal3Bundler, EssentialMatrix
+from gtsam import Cal3Bundler, Rot3, Unit3
 
 from common.keypoints import Keypoints
 
@@ -31,7 +31,7 @@ class VerifierBase(metaclass=abc.ABCMeta):
         match_indices: np.ndarray,
         camera_intrinsics_i1: Cal3Bundler,
         camera_intrinsics_i2: Cal3Bundler,
-    ) -> Tuple[Optional[EssentialMatrix], np.ndarray]:
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
         """Estimates the essential matrix and verifies the feature matches.
 
         Note: this function is preferred when camera intrinsics are known. The
@@ -47,7 +47,8 @@ class VerifierBase(metaclass=abc.ABCMeta):
             camera_intrinsics_i2: intrinsics for image #i2.
 
         Returns:
-            Estimated essential matrix i2Ei1, or None if it cannot be estimated.
+            Estimated rotation i2Ri1, or None if it cannot be estimated.
+            Estimated unit translation i2Ui1, or None if it cannot be estimated.
             Indices of verified correspondences, of shape (N, 2) with N <= N3.
                 These indices are subset of match_indices.
         """
@@ -60,7 +61,7 @@ class VerifierBase(metaclass=abc.ABCMeta):
         match_indices: np.ndarray,
         camera_intrinsics_i1: Cal3Bundler,
         camera_intrinsics_i2: Cal3Bundler,
-    ) -> Tuple[Optional[EssentialMatrix], np.ndarray]:
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
         """Estimates the essential matrix and verifies the feature matches.
 
         Note: this function is preferred when camera intrinsics are approximate
@@ -86,7 +87,10 @@ class VerifierBase(metaclass=abc.ABCMeta):
                                  matcher_graph: Dict[Tuple[int, int], Delayed],
                                  camera_intrinsics_graph: List[Delayed],
                                  exact_intrinsics_flag: bool = True
-                                 ) -> Dict[Tuple[int, int], Delayed]:
+                                 ) -> Tuple[
+                                     Dict[Tuple[int, int], Delayed],
+                                     Dict[Tuple[int, int], Delayed],
+                                     Dict[Tuple[int, int], Delayed]]:
         """Generates the computation graph to perform verification of putative
         correspondences.
 
@@ -100,16 +104,24 @@ class VerifierBase(metaclass=abc.ABCMeta):
                                               Defaults to True.
 
         Returns:
-            delayed dask elements for verification.
+            Dictionary from image pair indices (i1, i2) to delayed dask tasks
+                for rotations i2Ri1 for each pair.
+            Dictionary from image pair indices (i1, i2) to delayed dask tasks
+                for unit translations i2Ui1 for each pair.
+            Dictionary from image pair indices (i1, i2) to delayed dask tasks 
+                for essential indices of verified correspondence indices for 
+                each pair.
         """
 
-        result = dict()
+        rotation_graph = dict()
+        unit_translation_graph = dict()
+        verified_correspondence_indices_graph = dict()
 
         fn_to_use = self.verify_with_exact_intrinsics if exact_intrinsics_flag \
             else self.verify_with_approximate_intrinsics
 
         for (i1, i2), delayed_matcher in matcher_graph.items():
-            result[(i1, i2)] = dask.delayed(fn_to_use)(
+            result = dask.delayed(fn_to_use)(
                 detection_graph[i1],
                 detection_graph[i2],
                 delayed_matcher,
@@ -117,4 +129,10 @@ class VerifierBase(metaclass=abc.ABCMeta):
                 camera_intrinsics_graph[i2],
             )
 
-        return result
+            rotation_graph[(i1, i2)] = result[0]
+            unit_translation_graph[(i1, i2)] = result[1]
+            verified_correspondence_indices_graph[(i1, i2)] = result[2]
+
+        return rotation_graph, \
+            unit_translation_graph, \
+            verified_correspondence_indices_graph
