@@ -17,7 +17,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 import pydegensac
-from gtsam import Cal3Bundler, EssentialMatrix
+from gtsam import Cal3Bundler, EssentialMatrix, Rot3
 
 import utils.verification as verification_utils
 from frontend.verifier.verifier_base import VerifierBase
