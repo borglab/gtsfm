@@ -28,23 +28,23 @@ class TestShonanRotationAveraging(
     def test_simple(self):
         """Test a simple case with three relative rotations."""
 
-        i1_R_i2_dict = {
+        i2Ri1_dict = {
             (0, 1): Rot3.RzRyRx(0, 30*np.pi/180, 0),
             (1, 2): Rot3.RzRyRx(0, 0, 20*np.pi/180),
         }
 
-        expected_w_R_i = [
+        wRi_expected = [
             Rot3.RzRyRx(0, 0, 0),
             Rot3.RzRyRx(0, 30*np.pi/180, 0),
-            i1_R_i2_dict[(0, 1)].compose(i1_R_i2_dict[(1, 2)])
+            i2Ri1_dict[(0, 1)].compose(i2Ri1_dict[(1, 2)])
         ]
 
-        computed_w_R_i = self.obj.run(3, i1_R_i2_dict)
+        wRi_computed = self.obj.run(3, i2Ri1_dict)
 
-        self.assertTrue(expected_w_R_i[1].equals(
-            computed_w_R_i[0].between(computed_w_R_i[1]), 1e-5))
-        self.assertTrue(expected_w_R_i[2].equals(
-            computed_w_R_i[0].between(computed_w_R_i[2]), 1e-5))
+        self.assertTrue(wRi_expected[1].equals(
+            wRi_computed[0].between(wRi_computed[1]), 1e-5))
+        self.assertTrue(wRi_expected[2].equals(
+            wRi_computed[0].between(wRi_computed[2]), 1e-5))
 
 
 if __name__ == '__main__':
