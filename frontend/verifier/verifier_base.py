@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Tuple
 import dask
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import Cal3Bundler, EssentialMatrix, Rot3
+from gtsam import Cal3Bundler, EssentialMatrix, Rot3, Unit3
 
 from common.keypoints import Keypoints
 
