@@ -1,4 +1,5 @@
-"""Unit test for RootSIFT descriptor.
+"""
+Unit test for RootSIFT descriptor.
 
 Authors: Ayush Baid
 """
@@ -11,7 +12,7 @@ from frontend.descriptor.rootsift import RootSIFTDescriptor
 class TestRootSIFT(test_descriptor_base.TestDescriptorBase):
     """Unit tests for RootSIFT descriptor.
 
-    All unit test functions defined in TestDescriptorBase are run automatically.
+    All unit test functions defined in TestDescriptor are run automatically.
     """
 
     def setUp(self):

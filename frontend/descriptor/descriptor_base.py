@@ -11,7 +11,6 @@ import numpy as np
 from dask.delayed import Delayed
 
 from common.image import Image
-from common.keypoints import Keypoints
 
 
 class DescriptorBase(metaclass=abc.ABCMeta):
@@ -21,35 +20,38 @@ class DescriptorBase(metaclass=abc.ABCMeta):
     """
 
     @abc.abstractmethod
-    def describe(self, image: Image, keypoints: Keypoints) -> np.ndarray:
+    def describe(self, image: Image, features: np.ndarray) -> np.ndarray:
         """Assign descriptors to detected features in an image.
+
+        Output format:
+        1. Each input feature point is assigned a descriptor, which is stored
+        as a row vector.
 
         Arguments:
             image: the input image.
-            keypoints: the keypoints to describe, of length N.
+            features: features to describe, as a numpy array of shape (N, 2+).
 
         Returns:
-            the descriptors for the input features, of shape (N, D) where D is
-                the dimension of each descriptor.
+            the descriptors for the input features, as (N, x) sized matrix.
         """
 
     def create_computation_graph(self,
-                                 image_graph: List[Delayed],
+                                 loader_graph: List[Delayed],
                                  detection_graph: List[Delayed]
                                  ) -> List[Delayed]:
         """Generates the computation graph to perform description.
 
-        Note: two input graphs have to be of the same length.
+        Note: two two input lists have to be of the same size.
 
         Args:
-            image_graph: computation graph for images (from a loader).
-            detection_graph: computation graph from detector, for the images in
-                             image_graph.
+            loader_graph: computation graph from loader, which provides images.
+            detection_graph: computation graph from detector, which provides
+                             features.
 
         Returns:
-            List of delayed tasks for descriptions.
+            List[Delayed]: delayed dask elements.
         """
-        assert len(image_graph) == len(detection_graph)
+        assert len(loader_graph) == len(detection_graph)
 
-        return [dask.delayed(self.describe)(im, keypoints)
-                for im, keypoints in zip(image_graph, detection_graph)]
+        return [dask.delayed(self.describe)(im, feat)
+                for im, feat in zip(loader_graph, detection_graph)]
