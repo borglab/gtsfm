@@ -38,7 +38,7 @@ class Degensac(VerifierBase):
         match_indices: np.ndarray,
         camera_intrinsics_i1: Cal3Bundler,
         camera_intrinsics_i2: Cal3Bundler,
-    ) -> Tuple[Optional[EssentialMatrix], np.ndarray]:
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
         """Estimates the essential matrix and verifies the feature matches.
 
         Note: this function is preferred when camera intrinsics are known. The
@@ -75,7 +75,7 @@ class Degensac(VerifierBase):
         match_indices: np.ndarray,
         camera_intrinsics_i1: Cal3Bundler,
         camera_intrinsics_i2: Cal3Bundler,
-    ) -> Tuple[Optional[EssentialMatrix], np.ndarray]:
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
         """Estimates the essential matrix and verifies the feature matches.
 
         Note: this function is preferred when camera intrinsics are approximate
@@ -124,6 +124,4 @@ class Degensac(VerifierBase):
                 camera_intrinsics_i2
             )
 
-        i2Ei1 = verification_utils.create_essential_matrix(i2Ri1, i2Ui1)
-
-        return i2Ei1, match_indices[inlier_idxes]
+        return i2Ri1, i2Ui1, match_indices[inlier_idxes]

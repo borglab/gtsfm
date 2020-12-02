@@ -4,7 +4,7 @@
 import pickle
 import random
 import unittest
-from typing import Tuple
+from typing import Any, Tuple
 
 import dask
 import numpy as np
@@ -13,17 +13,10 @@ from gtsam import Cal3Bundler, EssentialMatrix, Pose3, Rot3, Unit3
 from common.keypoints import Keypoints
 from frontend.verifier.degensac import Degensac
 
+ARGOVERSE_TEST_DATA_ROOT = Path(__file__).parent.parent.resolve() / "argoverse"
+
 # def plot_argoverse_epilines_from_annotated_correspondences(img1: np.ndarray, img2: np.ndarray, K: np.ndarray):
 # 	""" """
-# 	pkl_fpath = f'/Users/johnlambert/Downloads/visual-odometry-tutorial/labeled_correspondences/argoverse_1_E_0.pkl'
-# 	corr_data = load_pkl_correspondences(pkl_fpath)
-
-# 	corr_img = show_correspondence_lines(img1, img2, corr_data.X1, corr_data.Y1, corr_data.X2, corr_data.Y2)
-# 	plt.imshow(corr_img)
-# 	plt.show()
-
-# 	img1_kpts = np.hstack([ corr_data.X1.reshape(-1,1), corr_data.Y1.reshape(-1,1) ]).astype(np.int32)
-# 	img2_kpts = np.hstack([ corr_data.X2.reshape(-1,1), corr_data.Y2.reshape(-1,1) ]).astype(np.int32)
 
 # 	cam2_E_cam1, inlier_mask = cv2.findEssentialMat(img1_kpts, img2_kpts, K, method=cv2.RANSAC, threshold=0.1)
 	
@@ -88,6 +81,11 @@ from frontend.verifier.degensac import Degensac
 # if __name__ == '__main__':
 # 	main()
 
+def load_pickle_file(pkl_fpath: str) -> Any:
+    """ Loads data serialized using the pickle library """
+    with open(str(pkl_fpath), 'rb') as f:
+        d = pickle.load(f)
+    return d
 
 
 class TestVerifierBase(unittest.TestCase):
@@ -104,52 +102,52 @@ class TestVerifierBase(unittest.TestCase):
 
         self.verifier = Degensac()
 
-    # def test_simple_scene(self):
-    #     """Test a simple scene with 8 points, 4 on each plane, so that
-    #     RANSAC family of methods do not get trapped into a degenerate sample.
-    #     """
-    #     if isinstance(self.verifier, DummyVerifier):
-    #         self.skipTest('Cannot check correctness for dummy verifier')
-    #     keypoints_i1, keypoints_i2, expected_i2Ei1 = \
-    #         simulate_two_planes_scene(4, 4)
 
-    #     # match keypoints row by row
-    #     match_indices = np.vstack((
-    #         np.arange(len(keypoints_i1)),
-    #         np.arange(len(keypoints_i1)))).T
+    def load_annotated_correspondences(self):
+        """" """
+        fname = 'argoverse_315975640448534784__315975643412234000.pkl'
+        pkl_fpath = ARGOVERSE_TEST_DATA_ROOT / f'labeled_correspondences/{fname}'
+        d = load_pickle_file(pkl_fpath)
 
-    #     computed_i2Ei1, verified_indices = self.verifier.verify_with_approximate_intrinsics(
-    #         keypoints_i1,
-    #         keypoints_i2,
-    #         match_indices,
-    #         Cal3Bundler(),
-    #         Cal3Bundler()
-    #     )
+        X1 = np.array(d['x1'])
+        Y1 = np.array(d['y1'])
+        X2 = np.array(d['x2'])
+        Y2 = np.array(d['y2'])
 
-    #     self.assertTrue(computed_i2Ei1.equals(
-    #         expected_i2Ei1, 1e-2))
-    #     np.testing.assert_array_equal(verified_indices, match_indices)
+        img1_uv = np.hstack([ X1.reshape(-1,1), Y1.reshape(-1,1) ]).astype(np.int32)
+        img2_uv = np.hstack([ X2.reshape(-1,1), Y2.reshape(-1,1) ]).astype(np.int32)
+        
+        keypoints_i1 = Keypoints(img1_uv)
+        keypoints_i2 = Keypoints(img2_uv)
 
-    # def test_valid_verified_indices(self):
-    #     """Test if valid indices in output."""
+        return keypoints_i1, keypoints_i2
 
-    #     # Repeat the experiment 10 times as we might not have successful
-    #     # verification every time.
 
-    #     for _ in range(10):
-    #         _, verified_indices, keypoints_i1, keypoints_i2 = \
-    #             self.__verify_random_inputs_with_exact_intrinsics()
+    def test_with_annotated_correspondences(self):
+        """
+        """
+        keypoints_i1, keypoints_i2 = self.load_annotated_correspondences()
 
-    #         if verified_indices.size > 0:
-    #             # check that the indices are not out of bounds
-    #             self.assertTrue(np.all(verified_indices >= 0))
-    #             self.assertTrue(
-    #                 np.all(verified_indices[:, 0] < len(keypoints_i1)))
-    #             self.assertTrue(
-    #                 np.all(verified_indices[:, 1] < len(keypoints_i2)))
-    #         else:
-    #             # we have a meaningless test
-    #             self.assertTrue(True)
+        pdb.set_trace()
+        # match keypoints row by row
+        match_indices = np.vstack(
+            [
+                np.arange(len(keypoints_i1)),
+                np.arange(len(keypoints_i1))
+            ]).T
+
+        computed_i2Ri1, computed_i2ti1, verified_indices = self.verifier.verify_with_approximate_intrinsics(
+            keypoints_i1,
+            keypoints_i2,
+            match_indices,
+            Cal3Bundler(),
+            Cal3Bundler()
+        )
+        pdb.set_trace()
+        # self.assertTrue(computed_i2Ei1.equals(
+        #     expected_i2Ei1, 1e-2))
+        # np.testing.assert_array_equal(verified_indices, match_indices)
+
 
     # def test_verify_empty_matches(self):
     #     """Tests the output when there are no match indices."""
