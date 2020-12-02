@@ -26,7 +26,7 @@ class DummyTranslationAveraging(TranslationAveragingBase):
         Args:
             num_images: number of camera poses.
             i2Ui1_dict: relative unit translations as dictionary where keys
-                        (i2, i1) are pose pairs.
+                        (i1, i2) are pose pairs.
             wRi_list: global rotations for each camera pose in the world
                       coordinates.
             scale_factor: non-negative global scaling factor.

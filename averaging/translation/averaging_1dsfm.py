@@ -49,7 +49,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         Args:
             num_images: number of camera poses.
             i2Ui1_dict: relative unit translations as dictionary where keys
-                        (i2, i1) are pose pairs.
+                        (i1, i2) are pose pairs.
             wRi_list: global rotations for each camera pose in the world
                       coordinates.
             scale_factor: non-negative global scaling factor.
@@ -66,7 +66,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         # convert translation direction in global frame using rotations.
         w_i2Ui1_measurements = BinaryMeasurementsUnit3()
-        for (i2, i1), i2Ui1 in i2Ui1_dict.items():
+        for (i1, i2), i2Ui1 in i2Ui1_dict.items():
             if i2Ui1 is not None and wRi_list[i2] is not None:
                 w_i2Ui1_measurements.append(BinaryMeasurementUnit3(
                     i2,
