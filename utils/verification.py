@@ -40,13 +40,11 @@ def recover_relative_pose_from_essential_matrix(
         verified_coordinates_i2, camera_intrinsics_i2)
 
     # use opencv to recover pose
-    _, R, t, _ = cv.recoverPose(i2Ei1,
-                                normalized_coordinates_i2,
-                                normalized_coordinates_i1)
+    _, i2_R_i1, i2_t_i1, _ = cv.recoverPose(i2Ei1,
+                                normalized_coordinates_i1,
+                                normalized_coordinates_i2)
 
-    i2Pi1 = Pose3(Rot3(R), t.squeeze())
-
-    return i2Pi1.rotation(), Unit3(i2Pi1.translation())
+    return Rot3(i2_R_i1), Unit3(i2_t_i1.squeeze())
 
 
 def create_essential_matrix(i2Ri1: Rot3, i2Ui1: Unit3) -> EssentialMatrix:
