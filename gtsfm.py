@@ -1,4 +1,4 @@
-"""The main class which integrates all the modules.
+"""Wrapper over different modules of the frontend.
 
 Authors: Ayush Baid
 """
