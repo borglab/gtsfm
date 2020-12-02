@@ -3,7 +3,7 @@
 Authors: Ayush Baid
 """
 
-from typing import NamedTuple, Optional, Tuple, Dict
+from typing import Any, NamedTuple, Optional, Tuple, Dict
 
 import numpy as np
 from gtsam import Cal3Bundler
@@ -13,7 +13,7 @@ from utils.sensor_width_database import SensorWidthDatabase
 
 class Image(NamedTuple):
     value_array: np.ndarray
-    exif_data: Dict = None
+    exif_data: Dict[str, Any] = None
     """Holds the image and associated exif data."""
 
     sensor_width_db = SensorWidthDatabase()
@@ -58,7 +58,8 @@ class Image(NamedTuple):
             self.exif_data.get('Model'),
         )
 
-        img_w_px, img_h_px = self.value_array.shape[:2]
+        img_w_px = self.width()
+        img_h_px = self.height()
         focal_length_px = max(img_h_px, img_w_px) * \
             focal_length_mm/sensor_width_mm
 
