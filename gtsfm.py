@@ -16,6 +16,9 @@ from frontend.detector_descriptor.detector_descriptor_base import \
     DetectorDescriptorBase
 from frontend.matcher.matcher_base import MatcherBase
 from frontend.verifier.verifier_base import VerifierBase
+from averaging.rotation.rotation_averaging_base import RotationAveragingBase
+from averaging.translation.translation_averaging_base import \
+    TranslationAveragingBase
 from loader.loader_base import LoaderBase
 
 
@@ -26,17 +29,22 @@ class GTSFM(metaclass=abc.ABCMeta):
     def __init__(self,
                  detector_descriptor: DetectorDescriptorBase,
                  matcher: MatcherBase,
-                 verifier: VerifierBase) -> None:
+                 verifier: VerifierBase,
+                 rotation_averaging_module: RotationAveragingBase,
+                 translation_averaging_module: TranslationAveragingBase
+                 ) -> None:
         self.detector_descriptor = detector_descriptor
         self.matcher = matcher
         self.verifier = verifier
+        self.rotation_averaging_module = rotation_averaging_module
+        self.translation_averaging_module = translation_averaging_module
 
     def run(self,
             loader: LoaderBase,
             exact_intrinsics_flag: bool = True) -> Tuple[
             List[Keypoints],
-            Dict[Tuple[int, int], Rot3],
-            Dict[Tuple[int, int], Unit3],
+            List[Optional[Rot3]],
+            List[Optional[Unit3]],
             Dict[Tuple[int, int], np.ndarray]]:
         # run detection and description for all images in the loader
         keypoints_list = []
@@ -75,8 +83,8 @@ class GTSFM(metaclass=abc.ABCMeta):
 
             if i2Ri1 is not None:
                 # TODO: confirm with john if this is the right way to representation rotations and unit translations (i.e. (i1, i2) or (i2, i1))
-                relative_rotations_dict[(i2, i1)] = i2Ri1
-                relative_unit_translations_dict[(i2, i1)] = i2Ui1
+                relative_rotations_dict[(i1, i2)] = i2Ri1
+                relative_unit_translations_dict[(i1, i2)] = i2Ui1
                 verified_correspondence_indices_dict[(i1, i2)] = \
                     verified_correspondence_indices
 
@@ -85,9 +93,20 @@ class GTSFM(metaclass=abc.ABCMeta):
                 relative_rotations_dict,
                 relative_unit_translations_dict)
 
+        global_rotations = self.rotation_averaging_module.run(
+            len(loader),
+            relative_rotations_dict
+        )
+
+        global_translations = self.translation_averaging_module.run(
+            len(loader),
+            relative_unit_translations_dict,
+            global_rotations
+        )
+
         return keypoints_list, \
-            relative_rotations_dict, \
-            relative_unit_translations_dict,\
+            global_rotations, \
+            global_translations,\
             verified_correspondence_indices_dict
 
     @classmethod
@@ -128,6 +147,7 @@ class GTSFM(metaclass=abc.ABCMeta):
             {k: unit_translations[k] for k in pruned_edges}
 
     def create_computation_graph(self,
+                                 num_images: int,
                                  image_pair_indices: List[Tuple[int, int]],
                                  image_graph: List[Delayed],
                                  camera_intrinsics_graph: List[Delayed],
@@ -159,7 +179,21 @@ class GTSFM(metaclass=abc.ABCMeta):
             dask.delayed(
                 self.select_largest_connected_component)(relative_rotations_graph, relative_unit_translations_graph)
 
+        pruned_relative_rotations_graph = pruned_relative_pose_graph[0]
+        pruned_relative_unit_translations_graph = pruned_relative_pose_graph[1]
+
+        global_rotations_graph = \
+            self.rotation_averaging_module.create_computation_graph(
+                num_images, pruned_relative_rotations_graph)
+
+        global_translations_graph = \
+            self.translation_averaging_module.create_computation_graph(
+                num_images,
+                pruned_relative_unit_translations_graph,
+                global_rotations_graph
+            )
+
         return detection_graph, \
-            pruned_relative_pose_graph[0], \
-            pruned_relative_pose_graph[1], \
+            global_rotations_graph, \
+            global_translations_graph, \
             verified_correspondence_indices_graph
