@@ -43,8 +43,8 @@ class GTSFM(metaclass=abc.ABCMeta):
             loader: LoaderBase,
             exact_intrinsics_flag: bool = True) -> Tuple[
             List[Keypoints],
-            Dict[Tuple[int, int], Rot3],
-            Dict[Tuple[int, int], Unit3],
+            List[Optional[Rot3]],
+            List[Optional[Unit3]],
             Dict[Tuple[int, int], np.ndarray]]:
         # run detection and description for all images in the loader
         keypoints_list = []
