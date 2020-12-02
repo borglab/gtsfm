@@ -2,6 +2,7 @@
 
 
 import pickle
+import pdb
 import random
 import unittest
 from pathlib import Path
@@ -14,7 +15,9 @@ from gtsam import Cal3Bundler, EssentialMatrix, Pose3, Rot3, Unit3
 from common.keypoints import Keypoints
 from frontend.verifier.degensac import Degensac
 
-ARGOVERSE_TEST_DATA_ROOT = Path(__file__).parent.parent.resolve() / "argoverse"
+ARGOVERSE_TEST_DATA_ROOT = Path(__file__).parent.parent.parent.resolve() / "data" / "argoverse"
+
+RANDOM_SEED = 0
 
 # def plot_argoverse_epilines_from_annotated_correspondences(img1: np.ndarray, img2: np.ndarray, K: np.ndarray):
 # 	""" """
@@ -123,10 +126,20 @@ class TestVerifierBase(unittest.TestCase):
 
         return keypoints_i1, keypoints_i2
 
+    def load_intrinsics(self):
+        """ """
+        fx = 1392.1069298937407 # also fy
+        px = 980.1759848618066
+        py = 604.3534182680304
+
+        k1 = 0
+        k2 = 0
+        return fx, px, py, k1, k2
 
     def test_with_annotated_correspondences(self):
         """
         """
+        fx, px, py, k1, k2 = load_intrinsics()
         keypoints_i1, keypoints_i2 = self.load_annotated_correspondences()
 
         pdb.set_trace()
@@ -141,8 +154,8 @@ class TestVerifierBase(unittest.TestCase):
             keypoints_i1,
             keypoints_i2,
             match_indices,
-            Cal3Bundler(),
-            Cal3Bundler()
+            Cal3Bundler(fx, k1, k2, u0, v0),
+            Cal3Bundler(fx, k1, k2, u0, v0)
         )
         pdb.set_trace()
         # self.assertTrue(computed_i2Ei1.equals(
