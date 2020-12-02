@@ -51,11 +51,14 @@ def cast_to_gtsfm_keypoints(keypoints: List[cv.KeyPoint]) -> Keypoints:
     Returns:
         GTSFM's keypoints with the same information as input keypoints.
     """
+    coordinates = []
+    scales = []
+    responses = []
+    for kp in keypoints:
+        coordinates.append([kp.pt[0], kp.pt[1]])
+        scales.append(kp.size)
+        responses.append(kp.response)
 
-    data = [[kp.pt[0], kp.pt[1], kp.size, kp.response] for kp in keypoints]
-
-    data = np.array(data, dtype=np.float32)
-
-    return Keypoints(coordinates=data[:, :2],
-                     scales=data[:, 2],
-                     responses=data[:, 3])
+    return Keypoints(coordinates=np.array(coordinates),
+                     scales=np.array(scales),
+                     responses=np.array(responses))
