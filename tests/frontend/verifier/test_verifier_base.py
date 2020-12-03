@@ -177,15 +177,14 @@ class TestVerifierBase(unittest.TestCase):
                          len(expected_v_corr_idxs))
 
         # compare the values
-        for indices_i1i2 in i2Ri1_dict.keys():
-            i2Ri1 = i2Ri1_dict[indices_i1i2]
-            i2Ui1 = i2Ui1_dict[indices_i1i2]
-            idxs = v_corr_idxs[indices_i1i2]
+        for (i1, i2) in i2Ri1_dict.keys():
+            i2Ri1 = i2Ri1_dict[(i1, i2)]
+            i2Ui1 = i2Ui1_dict[(i1, i2)]
+            idxs = v_corr_idxs[(i1, i2)]
 
-            expected_i2Ri1 = expected_i2Ri1_dict[indices_i1i2]
-            expected_i2Ui1 = expected_i2Ui1_dict[indices_i1i2]
-            expected_idxs = \
-                expected_v_corr_idxs[indices_i1i2]
+            expected_i2Ri1 = expected_i2Ri1_dict[(i1, i2)]
+            expected_i2Ui1 = expected_i2Ui1_dict[(i1, i2)]
+            expected_idxs = expected_v_corr_idxs[(i1, i2)]
 
             if expected_i2Ri1 is None:
                 self.assertIsNone(i2Ri1)
