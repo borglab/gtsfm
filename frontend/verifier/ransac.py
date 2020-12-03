@@ -1,23 +1,17 @@
 """
-Locally Optimized (LO) Degensac verifier implementation.
+RANSAC verifier implementation.
 
-The verifier is a combination of 'Locally Optimized Ransac' and 'Two-view
-Geometry Estimation Unaffected by a Dominant Plane' and is implemented by
-wrapping over 3rd party implementation.
+The verifier is the 5-Pt Algorithm with RANSAC and is implemented
+by wrapping over 3rd party implementation.
 
-References:
-- https://link.springer.com/chapter/10.1007/978-3-540-45243-0_31
-- http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.466.2719&rep=rep1&type=pdf
-- https://github.com/ducha-aiki/pyransac
-
-Authors: Ayush Baid
+Authors: John Lambert
 """
 
 from typing import Optional, Tuple
 
 import cv2
 import numpy as np
-from gtsam import Cal3Bundler, EssentialMatrix, Rot3, Unit3
+from gtsam import Cal3Bundler, Rot3, Unit3
 
 import utils.features as feature_utils
 import utils.verification as verification_utils
@@ -27,6 +21,7 @@ from common.keypoints import Keypoints
 # minimum matches required for computing the E-matrix
 NUM_MATCHES_REQ_E_MATRIX = 5
 NORMALIZED_COORD_RANSAC_THRESH = 0.001 # TODO: hyperparameter to tune
+
 
 class Ransac(VerifierBase):
     def __init__(self):
