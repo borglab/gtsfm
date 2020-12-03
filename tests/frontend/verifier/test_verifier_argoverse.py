@@ -159,112 +159,24 @@ class TestVerifierBase(unittest.TestCase):
             Cal3Bundler(fx, k1, k2, px, py),
             Cal3Bundler(fx, k1, k2, px, py)
         )
-        
-        i1Ri2 = computed_i2Ri1.matrix()
-        r = Rotation.from_matrix(i1Ri2)
-        print(r.as_euler('zyx', degrees=True))
-        # print('Euler: ', np.round(euler_angles, 2))
-        print('t: ', computed_i2ti1) #np.round(computed_i2ti1,2))
+        # Ground truth is provided in inverse format, so invert SE(3) object
+        i2Ti1 = Pose3(computed_i2Ri1, computed_i2ti1.point3())
+        i1Ti2 = i2Ti1.inverse()
+        i1_t_i2 = i1Ti2.translation()
+        i1Ri2 = i1Ti2.rotation().matrix()
+        euler_angles = Rotation.from_matrix(i1Ri2).as_euler('zyx', degrees=True)
+        gt_euler_angles = np.array([-0.37, 32.47, -0.42])
         pdb.set_trace()
+        assert np.allclose(gt_euler_angles, euler_angles, atol=1.0)
+        print(euler_angles)
+        # print('Euler: ', np.round(euler_angles, 2))
+        gt_i1_t_i2 = np.array([ 0.21, -0.0024, 0.976])
+        print('t: ', i1_t_i2)
+
+        assert np.allclose(gt_i1_t_i2, i1_t_i2, atol=1e-2)
+        
 
         # self.assertTrue(computed_i2Ei1.equals(
         #     expected_i2Ei1, 1e-2))
         # np.testing.assert_array_equal(verified_indices, match_indices)
-
-
-    # def test_verify_empty_matches(self):
-    #     """Tests the output when there are no match indices."""
-
-    #     keypoints_i1 = generate_random_keypoints(10, [250, 300])
-    #     keypoints_i2 = generate_random_keypoints(12, [400, 300])
-    #     match_indices = np.array([], dtype=np.int32)
-    #     intrinsics_i1 = Cal3Bundler()
-    #     intrinsics_i2 = Cal3Bundler()
-
-    #     i2Ei1, verified_indices = self.verifier.verify_with_exact_intrinsics(
-    #         keypoints_i1, keypoints_i2, match_indices, intrinsics_i1, intrinsics_i2
-    #     )
-
-    #     self.assertIsNone(i2Ei1)
-    #     self.assertEqual(0, verified_indices.size)
-
-    # def test_create_computation_graph(self):
-    #     """Checks that the dask computation graph produces the same results as
-    #     direct APIs."""
-
-    #     # Set up 3 pairs of inputs to the verifier
-    #     num_images = 6
-    #     image_indices = [(0, 1), (4, 3), (2, 5)]
-
-    #     # creating inputs for verification and use GTSFM's direct API to get
-    #     # expected results
-    #     keypoints_list = [None]*num_images
-    #     matches_dict = dict()
-    #     intrinsics_list = [None]*num_images
-
-    #     expected_results = dict()
-    #     for (i1, i2) in image_indices:
-    #         keypoints_i1, keypoints_i2, matches_i1i2, \
-    #             intrinsics_i1, intrinsics_i2 = \
-    #             generate_random_input_for_verifier()
-
-    #         keypoints_list[i1] = keypoints_i1
-    #         keypoints_list[i2] = keypoints_i2
-
-    #         matches_dict[(i1, i2)] = matches_i1i2
-
-    #         intrinsics_list[i1] = intrinsics_i1
-    #         intrinsics_list[i2] = intrinsics_i2
-
-    #         verification_result_i1i2 = \
-    #             self.verifier.verify_with_exact_intrinsics(
-    #                 keypoints_i1,
-    #                 keypoints_i2,
-    #                 matches_i1i2,
-    #                 intrinsics_i1,
-    #                 intrinsics_i2
-    #             )
-
-    #         expected_results[(i1, i2)] = verification_result_i1i2
-
-    #     # Convert the inputs to computation graphs
-    #     detection_graph = [dask.delayed(x) for x in keypoints_list]
-    #     matcher_graph = {image_indices: dask.delayed(match) for
-    #                      (image_indices, match) in matches_dict.items()}
-    #     intrinsics_graph = [dask.delayed(x) for x in intrinsics_list]
-
-    #     # generate the computation graph for the verifier
-    #     computation_graph = self.verifier.create_computation_graph(
-    #         detection_graph,
-    #         matcher_graph,
-    #         intrinsics_graph,
-    #         exact_intrinsics_flag=True
-    #     )
-
-    #     with dask.config.set(scheduler='single-threaded'):
-    #         dask_results = dask.compute(computation_graph)[0]
-
-    #     # compare the lengths of two results dictionaries
-    #     self.assertEqual(len(expected_results), len(dask_results))
-
-    #     # compare the values in two dictionaries
-    #     for indices_i1i2 in dask_results.keys():
-    #         i2Ei1_dask, verified_indices_i1i2_dask = dask_results[indices_i1i2]
-
-    #         i2Ei1_expected, verified_indices_i1i2_expected = \
-    #             expected_results[indices_i1i2]
-
-    #         if i2Ei1_expected is None:
-    #             self.assertIsNone(i2Ei1_dask)
-    #         else:
-    #             self.assertTrue(i2Ei1_expected.equals(i2Ei1_dask, 1e-2))
-
-    #         np.testing.assert_array_equal(
-    #             verified_indices_i1i2_expected, verified_indices_i1i2_dask)
-
-
-
-
-
-
 
