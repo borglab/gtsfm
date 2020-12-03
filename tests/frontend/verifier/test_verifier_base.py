@@ -39,6 +39,8 @@ class TestVerifierBase(unittest.TestCase):
         """
         if isinstance(self.verifier, DummyVerifier):
             self.skipTest('Cannot check correctness for dummy verifier')
+
+        # obtain the keypoints and the ground truth essential matrix.
         keypoints_i1, keypoints_i2, expected_i2Ei1 = \
             simulate_two_planes_scene(4, 4)
 
@@ -47,6 +49,7 @@ class TestVerifierBase(unittest.TestCase):
             np.arange(len(keypoints_i1)),
             np.arange(len(keypoints_i1)))).T
 
+        # run the verifier
         i2Ri1, i2Ui1, verified_indices = \
             self.verifier.verify_with_approximate_intrinsics(
                 keypoints_i1,
@@ -348,8 +351,8 @@ def sample_points_on_plane(
 def simulate_two_planes_scene(num_points_plane1: int,
                               num_points_plane2: int
                               ) -> Tuple[Keypoints, Keypoints, EssentialMatrix]:
-    """The world coordinate system is the same as coordinate system of the
-    first camera.
+    """Generate a scene where 3D points are on two planes, and projects the
+    points to the 2 cameras.
 
     The two planes in this test are:
     1. -10x -y -20z +150 = 0
@@ -360,8 +363,8 @@ def simulate_two_planes_scene(num_points_plane1: int,
         num_points_plane2: number of points on 2nd plane.
 
     Returns:
-        keypoints for image i1, of length num_points_plane1+num_points_plane2.
-        keypoints for image i2, of length num_points_plane1+num_points_plane2.
+        keypoints for image i1, of length (num_points_plane1+num_points_plane2).
+        keypoints for image i2, of length (num_points_plane1+num_points_plane2).
         Essential matrix i2Ei1.
     """
     # range of 3D points
@@ -387,14 +390,14 @@ def simulate_two_planes_scene(num_points_plane1: int,
     points_3d = np.vstack((plane1_points, plane2_points))
 
     # define the camera poses and compute the essential matrix
-    wTi1 = np.array([0.1, 0, -20])
-    wTi2 = np.array([1, -2, -20.4])
+    wti1 = np.array([0.1, 0, -20])
+    wti2 = np.array([1, -2, -20.4])
 
     wRi1 = Rot3.RzRyRx(np.pi/20, 0, 0.0)
     wRi2 = Rot3.RzRyRx(0.0, np.pi/6, 0.0)
 
-    wPi1 = Pose3(wRi1, wTi1)
-    wPi2 = Pose3(wRi2, wTi2)
+    wPi1 = Pose3(wRi1, wti1)
+    wPi2 = Pose3(wRi2, wti2)
     i2Pi1 = wPi2.between(wPi1)
 
     i2Ei1 = EssentialMatrix(i2Pi1.rotation(), Unit3(i2Pi1.translation()))
