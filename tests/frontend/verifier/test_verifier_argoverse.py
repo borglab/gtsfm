@@ -33,7 +33,7 @@ def load_pickle_file(pkl_fpath: str) -> Any:
 
 def load_argoverse_log_annotated_correspondences():
     """"
-    Annotated from Argoverse
+    Annotated from Argoverse, ring front-center camera, from subdir:
     'train1/273c1883-673a-36bf-b124-88311b1a80be/ring_front_center'
 
     Image pair annotated at the following timestamps:
@@ -62,7 +62,7 @@ def load_argoverse_log_annotated_correspondences():
     return keypoints_i1, keypoints_i2
 
 def load_log_front_center_intrinsics() -> Tuple[float,float,float,float,float]:
-    """ """
+    """Params for front-center camera, log ID 273c1883-673a-36bf-b124-88311b1a80be"""
     fx = 1392.1069298937407 # also fy
     px = 980.1759848618066
     py = 604.3534182680304
