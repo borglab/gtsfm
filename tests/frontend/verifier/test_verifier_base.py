@@ -10,7 +10,8 @@ from typing import Tuple
 
 import dask
 import numpy as np
-from gtsam import Cal3Bundler, EssentialMatrix, Pose3, Rot3, Unit3
+from gtsam import (Cal3Bundler, EssentialMatrix, PinholeCameraCal3Bundler,
+                   Pose3, Rot3, Unit3)
 
 from common.keypoints import Keypoints
 from frontend.verifier.dummy_verifier import DummyVerifier
@@ -385,12 +386,9 @@ def simulate_two_planes_scene(num_points_plane1: int,
 
     points_3d = np.vstack((plane1_points, plane2_points))
 
-    # convert to homogenous coordinates
-    points_3d = np.hstack((points_3d, np.ones((points_3d.shape[0], 1))))
-
-    # project the 3D points to both the cameras
-    wTi1 = np.array([0.1, 0, 0])
-    wTi2 = np.array([1, -2, -0.4])
+    # define the camera poses and compute the essential matrix
+    wTi1 = np.array([0.1, 0, -20])
+    wTi2 = np.array([1, -2, -20.4])
 
     wRi1 = Rot3.RzRyRx(np.pi/20, 0, 0.0)
     wRi2 = Rot3.RzRyRx(0.0, np.pi/6, 0.0)
@@ -401,26 +399,23 @@ def simulate_two_planes_scene(num_points_plane1: int,
 
     i2Ei1 = EssentialMatrix(i2Pi1.rotation(), Unit3(i2Pi1.translation()))
 
+    # project 3D points to 2D image measurements
     intrinsics = Cal3Bundler()
+    camera_i1 = PinholeCameraCal3Bundler(wPi1, intrinsics)
+    camera_i2 = PinholeCameraCal3Bundler(wPi2, intrinsics)
 
-    extrinsics_i1 = wRi1.inverse().matrix() @ np.concatenate(
-        (np.eye(3), -wTi1.reshape(-1, 1)),
-        axis=1
-    )
+    points_2d_im1 = []
+    points_2d_im2 = []
+    for point in points_3d:
+        points_2d_im1.append(camera_i1.project(point))
+        points_2d_im2.append(camera_i2.project(point))
 
-    extrinsics_i2 = wRi2.inverse().matrix() @ np.concatenate(
-        (np.eye(3), -wTi2.reshape(-1, 1)),
-        axis=1
-    )
+    points_2d_im1 = np.vstack(points_2d_im1)
+    points_2d_im2 = np.vstack(points_2d_im2)
 
-    features_im1 = (intrinsics.K() @ extrinsics_i1 @ points_3d.T).T
-    features_im2 = (intrinsics.K() @ extrinsics_i2 @ points_3d.T).T
-
-    features_im1[:, :2] = features_im1[:, :2]/features_im1[:, 2:3]
-    features_im2[:, :2] = features_im2[:, :2]/features_im2[:, 2:3]
-
-    return Keypoints(coordinates=features_im1[:, :2]), \
-        Keypoints(coordinates=features_im2[:, :2]), \
+    # return the points as keypoints and the essential matrix
+    return Keypoints(coordinates=points_2d_im1), \
+        Keypoints(coordinates=points_2d_im2), \
         i2Ei1
 
 
