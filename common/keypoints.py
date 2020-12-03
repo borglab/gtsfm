@@ -8,6 +8,9 @@ from typing import NamedTuple, Optional, List
 import cv2 as cv
 import numpy as np
 
+# defaults for OpenCV's Keypoint attributes
+OPENCV_DEFAULT_SIZE = 2
+
 
 class Keypoints(NamedTuple):
     coordinates: np.ndarray
@@ -118,7 +121,7 @@ class Keypoints(NamedTuple):
                     cv.KeyPoint(
                         x=keypoints.coordinates[idx, 0],
                         y=keypoints.coordinates[idx, 1],
-                        _size=2)
+                        _size=OPENCV_DEFAULT_SIZE)
                 )
         elif keypoints.responses is None:
             for idx in range(len(self)):
@@ -134,7 +137,7 @@ class Keypoints(NamedTuple):
                     cv.KeyPoint(
                         x=keypoints.coordinates[idx, 0],
                         y=keypoints.coordinates[idx, 1],
-                        _size=2,
+                        _size=OPENCV_DEFAULT_SIZE,
                         _response=keypoints.responses[idx]
                     )
                 )
