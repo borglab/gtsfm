@@ -44,16 +44,16 @@ class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
         # test on random indexes
         test_indices = [0, 5]
         for idx in test_indices:
-            keypoints, descriptors = \
+            kps, descs = \
                 self.detector_descriptor.detect_and_describe(
                     self.loader.get_image(idx))
 
-            if len(keypoints) == 0:
+            if len(kps) == 0:
                 # test-case for empty results
-                self.assertEqual(0, descriptors.size)
+                self.assertEqual(0, descs.size)
             else:
                 # number of descriptors and features should be equal
-                self.assertEqual(len(keypoints), descriptors.shape[0])
+                self.assertEqual(len(kps), descs.shape[0])
 
     def test_computation_graph(self):
         """Test the dask's computation graph formation."""
@@ -81,13 +81,13 @@ class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
         idx_under_test = 0
 
         # check the results via normal workflow and dask workflow for an image
-        expected_keypoints, expected_descriptors = \
+        expected_kps, expected_descs = \
             self.detector_descriptor.detect_and_describe(
                 self.loader.get_image(idx_under_test))
 
-        self.assertEqual(detection_results[idx_under_test], expected_keypoints)
+        self.assertEqual(detection_results[idx_under_test], expected_kps)
         np.testing.assert_array_equal(
-            description_results[idx_under_test], expected_descriptors)
+            description_results[idx_under_test], expected_descs)
 
 
 if __name__ == '__main__':
