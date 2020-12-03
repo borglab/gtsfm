@@ -15,7 +15,7 @@ from loader.folder_loader import FolderLoader
 
 # defining the path for test data
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent.parent / 'data'
-TEST_DATA_PATH = DATA_ROOT_PATH / 'set1'
+TEST_DATA_PATH = DATA_ROOT_PATH / 'set1_lund_door'
 
 
 class TestDescriptorBase(unittest.TestCase):
