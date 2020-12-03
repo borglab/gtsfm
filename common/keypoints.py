@@ -11,14 +11,21 @@ import numpy as np
 
 class Keypoints(NamedTuple):
     coordinates: np.ndarray
-    scale: Optional[np.ndarray] = None
-    response: Optional[np.ndarray] = None
+    scales: Optional[np.ndarray] = None
+    responses: Optional[np.ndarray] = None  # TODO(ayush): enforce the range.
     """Output of detections in an image.
+
+    Coordinate system convention:
+        1. The x coordinate denotes the horizontal direction (+ve direction
+           towards the right).
+        2. The y coordinate denotes the vertical direction (+ve direction
+           downwards).
+        3. Origin is at the top left corner of the image.
 
     Args:
         coordinates: the (x, y) coordinates of the features, of shape Nx2.
-        scale: optional scale of the detections, of shape N.
-        response: optional respose of the detections, of shape N.
+        scales: optional scale of the detections, of shape N.
+        responses: optional respose of the detections, of shape N.
     """
 
     def __len__(self) -> int:

@@ -6,7 +6,9 @@ from typing import Tuple
 
 import cv2 as cv
 import numpy as np
-from gtsam import Cal3Bundler, EssentialMatrix, Point3, Rot3, Unit3
+from gtsam import Cal3Bundler, EssentialMatrix, Pose3, Rot3, Unit3
+
+import utils.features as feature_utils
 
 
 def recover_relative_pose_from_essential_matrix(
@@ -33,23 +35,17 @@ def recover_relative_pose_from_essential_matrix(
     """
     tol = 0.01
     # obtain points in normalized coordinates using intrinsics.
-    normalized_coordinates_i1 = np.vstack(
-        [camera_intrinsics_i1.calibrate(
-            x[:2].astype(np.float64).reshape(2, 1), tol
-        ) for x in verified_coordinates_i1]
-    ).astype(np.float32)
-    normalized_coordinates_i2 = np.vstack(
-        [camera_intrinsics_i2.calibrate(
-            x[:2].astype(np.float64).reshape(2, 1), tol
-        ) for x in verified_coordinates_i2]
-    ).astype(np.float32)
+    normalized_coordinates_i1 = feature_utils.normalize_coordinates(
+        verified_coordinates_i1, camera_intrinsics_i1)
+    normalized_coordinates_i2 = feature_utils.normalize_coordinates(
+        verified_coordinates_i2, camera_intrinsics_i2)
 
     # use opencv to recover pose
-    _, R, t, _ = cv.recoverPose(i2Ei1,
-                                normalized_coordinates_i1,
-                                normalized_coordinates_i2)
+    _, i2Ri1, i2Ti1, _ = cv.recoverPose(i2Ei1,
+                                        normalized_coordinates_i1,
+                                        normalized_coordinates_i2)
 
-    return Rot3(R), Unit3(t.squeeze())
+    return Rot3(i2Ri1), Unit3(i2Ti1.squeeze())
 
 
 def create_essential_matrix(i2Ri1: Rot3, i2Ui1: Unit3) -> EssentialMatrix:

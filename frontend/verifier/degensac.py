@@ -17,7 +17,8 @@ from typing import Optional, Tuple
 
 import numpy as np
 import pydegensac
-from gtsam import Cal3Bundler, EssentialMatrix, Rot3, Unit3
+from gtsam import Cal3Bundler, Rot3, Unit3
+
 
 import utils.verification as verification_utils
 from frontend.verifier.verifier_base import VerifierBase
@@ -54,7 +55,8 @@ class Degensac(VerifierBase):
             camera_intrinsics_i2: intrinsics for image #i2.
 
         Returns:
-            Estimated essential matrix i2Ei1, or None if it cannot be estimated.
+            Estimated rotation i2Ri1, or None if it cannot be estimated.
+            Estimated unit translation i2Ui1, or None if it cannot be estimated.
             Indices of verified correspondences, of shape (N, 2) with N <= N3.
                 These indices are subset of match_indices.
         """
@@ -91,16 +93,16 @@ class Degensac(VerifierBase):
             camera_intrinsics_i2: intrinsics for image #i2.
 
         Returns:
-            Estimated essential matrix i2Ei1, or None if it cannot be estimated.
+            Estimated rotation i2Ri1, or None if it cannot be estimated.
+            Estimated unit translation i2Ui1, or None if it cannot be estimated.
             Indices of verified correspondences, of shape (N, 2) with N <= N3.
                 These indices are subset of match_indices.
         """
-        i2Ei1 = None
         verified_indices = np.array([], dtype=np.uint32)
 
         # check if we don't have the minimum number of points
         if match_indices.shape[0] < self.min_pts:
-            return i2Ei1, verified_indices
+            return None, None, verified_indices
 
         i2Fi1, mask = pydegensac.findFundamentalMatrix(
             keypoints_i1.coordinates[match_indices[:, 0]],
@@ -109,7 +111,7 @@ class Degensac(VerifierBase):
 
         inlier_idxes = np.where(mask.ravel() == 1)[0]
 
-        e_matrix = verification_utils.fundamental_to_essential_matrix(
+        i2Ei1_matrix = verification_utils.fundamental_to_essential_matrix(
             i2Fi1,
             camera_intrinsics_i1,
             camera_intrinsics_i2
@@ -117,7 +119,7 @@ class Degensac(VerifierBase):
 
         i2Ri1, i2Ui1 = \
             verification_utils.recover_relative_pose_from_essential_matrix(
-                e_matrix,
+                i2Ei1_matrix,
                 keypoints_i1.coordinates[match_indices[inlier_idxes, 0]],
                 keypoints_i2.coordinates[match_indices[inlier_idxes, 1]],
                 camera_intrinsics_i1,
