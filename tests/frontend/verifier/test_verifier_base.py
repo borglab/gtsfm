@@ -112,9 +112,9 @@ class TestVerifierBase(unittest.TestCase):
         matches_dict = dict()
         intrinsics_list = [None]*num_images
 
-        expected_relative_rotations = dict()
-        expected_relative_unit_translations = dict()
-        expected_verified_correspondences_indices = dict()
+        expected_i2Ri1_dict = dict()
+        expected_i2Ui1_dict = dict()
+        expected_v_corr_idxs = dict()
         for (i1, i2) in image_indices:
             keypoints_i1, keypoints_i2, matches_i1i2, \
                 intrinsics_i1, intrinsics_i2 = \
@@ -137,11 +137,9 @@ class TestVerifierBase(unittest.TestCase):
                     intrinsics_i2
                 )
 
-            expected_relative_rotations[(i1, i2)] = verification_result_i1i2[0]
-            expected_relative_unit_translations[(i1, i2)] = \
-                verification_result_i1i2[1]
-            expected_verified_correspondences_indices[(i1, i2)] = \
-                verification_result_i1i2[2]
+            expected_i2Ri1_dict[(i1, i2)] = verification_result_i1i2[0]
+            expected_i2Ui1_dict[(i1, i2)] = verification_result_i1i2[1]
+            expected_v_corr_idxs[(i1, i2)] = verification_result_i1i2[2]
 
         # Convert the inputs to computation graphs
         detection_graph = [dask.delayed(x) for x in keypoints_list]
@@ -150,8 +148,7 @@ class TestVerifierBase(unittest.TestCase):
         intrinsics_graph = [dask.delayed(x) for x in intrinsics_list]
 
         # generate the computation graph for the verifier
-        rotations_graph, unit_translations_graph, \
-            verified_correspondence_indices_graph = \
+        rotations_graph, unit_translations_graph, v_corr_idxs_graph = \
             self.verifier.create_computation_graph(
                 detection_graph,
                 matcher_graph,
@@ -160,44 +157,36 @@ class TestVerifierBase(unittest.TestCase):
             )
 
         with dask.config.set(scheduler='single-threaded'):
-            computed_relative_rotations = dask.compute(rotations_graph)[0]
-            computed_relative_unit_translations = dask.compute(
-                unit_translations_graph)[0]
-            computed_verified_correspondences_indices = \
-                dask.compute(verified_correspondence_indices_graph)[0]
+            i2Ri1_dict = dask.compute(rotations_graph)[0]
+            i2Ui1_dict = dask.compute(unit_translations_graph)[0]
+            v_corr_idxs = dask.compute(v_corr_idxs_graph)[0]
 
         # compare the length of results
-        self.assertEqual(len(computed_relative_rotations),
-                         len(computed_relative_rotations))
-        self.assertEqual(len(computed_relative_unit_translations),
-                         len(expected_relative_unit_translations))
-        self.assertEqual(len(computed_verified_correspondences_indices),
-                         len(expected_verified_correspondences_indices))
+        self.assertEqual(len(i2Ri1_dict), len(i2Ri1_dict))
+        self.assertEqual(len(i2Ui1_dict), len(expected_i2Ui1_dict))
+        self.assertEqual(len(v_corr_idxs), len(expected_v_corr_idxs))
 
         # compare the values
-        for indices_i1i2 in computed_relative_rotations.keys():
-            computed_i2Ri1 = computed_relative_rotations[indices_i1i2]
-            computed_i2Ui1 = computed_relative_unit_translations[indices_i1i2]
-            computed_verified_indices_i1i2 = \
-                computed_verified_correspondences_indices[indices_i1i2]
+        for (i1, i2) in i2Ri1_dict.keys():
+            i2Ri1 = i2Ri1_dict[(i1, i2)]
+            i2Ui1 = i2Ui1_dict[(i1, i2)]
+            idxs = v_corr_idxs[(i1, i2)]
 
-            expected_i2Ri1 = expected_relative_rotations[indices_i1i2]
-            expected_i2Ui1 = expected_relative_unit_translations[indices_i1i2]
-            expected_verified_indices_i1i2 = \
-                expected_verified_correspondences_indices[indices_i1i2]
+            expected_i2Ri1 = expected_i2Ri1_dict[(i1, i2)]
+            expected_i2Ui1 = expected_i2Ui1_dict[(i1, i2)]
+            expected_idxs = expected_v_corr_idxs[(i1, i2)]
 
             if expected_i2Ri1 is None:
-                self.assertIsNone(computed_i2Ri1)
+                self.assertIsNone(i2Ri1)
             else:
-                self.assertTrue(expected_i2Ri1.equals(computed_i2Ri1, 1e-2))
+                self.assertTrue(expected_i2Ri1.equals(i2Ri1, 1e-2))
 
             if expected_i2Ui1 is None:
-                self.assertIsNone(computed_i2Ui1)
+                self.assertIsNone(i2Ui1)
             else:
-                self.assertTrue(expected_i2Ui1.equals(computed_i2Ui1, 1e-2))
+                self.assertTrue(expected_i2Ui1.equals(i2Ui1, 1e-2))
 
-            np.testing.assert_array_equal(
-                computed_verified_indices_i1i2, expected_verified_indices_i1i2)
+            np.testing.assert_array_equal(idxs, expected_idxs)
 
     def test_pickleable(self):
         """Tests that the verifier object is pickleable (required for dask)."""
