@@ -103,8 +103,6 @@ class Ransac(VerifierBase):
         if match_indices.shape[0] < self.min_pts:
             return i2Ei1, verified_indices
 
-        import pdb
-        pdb.set_trace()
         uv_norm_i1 = feature_utils.normalize_coordinates(
             keypoints_i1.coordinates,
             camera_intrinsics_i1

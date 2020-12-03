@@ -76,15 +76,10 @@ def normalize_coordinates(coordinates: np.ndarray,
     Returns:
         normalized coordinates, of shape Nx2.
     """
-    norm_uv = []
-    for x in coordinates:
-        norm_uv += [ intrinsics.calibrate(x[:2].astype(np.float64).reshape(2, 1)) ]
 
-    return np.array(norm_uv).astype(coordinates.dtype)
-
-    # return np.vstack(
-    #     [intrinsics.calibrate(
-    #         x[:2].astype(np.float64).reshape(2, 1)
-    #     ) for x in coordinates]
-    # ).astype(coordinates.dtype)
+    return np.vstack(
+        [intrinsics.calibrate(
+            x[:2].astype(np.float64).reshape(2, 1)
+        ) for x in coordinates]
+    ).astype(coordinates.dtype)
 

@@ -121,8 +121,8 @@ class TestVerifierBase(unittest.TestCase):
         X2 = np.array(d['x2'])
         Y2 = np.array(d['y2'])
 
-        img1_uv = np.hstack([ X1.reshape(-1,1), Y1.reshape(-1,1) ]).astype(np.int32)
-        img2_uv = np.hstack([ X2.reshape(-1,1), Y2.reshape(-1,1) ]).astype(np.int32)
+        img1_uv = np.hstack([ X1.reshape(-1,1), Y1.reshape(-1,1) ]).astype(np.float32)
+        img2_uv = np.hstack([ X2.reshape(-1,1), Y2.reshape(-1,1) ]).astype(np.float32)
         
         keypoints_i1 = Keypoints(img1_uv)
         keypoints_i2 = Keypoints(img2_uv)
