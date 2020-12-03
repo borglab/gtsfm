@@ -33,7 +33,6 @@ def recover_relative_pose_from_essential_matrix(
         relative rotation i2Ri1.
         relative translation direction i2Ui1.
     """
-    tol = 0.01
     # obtain points in normalized coordinates using intrinsics.
     normalized_coordinates_i1 = feature_utils.normalize_coordinates(
         verified_coordinates_i1, camera_intrinsics_i1)
@@ -41,11 +40,11 @@ def recover_relative_pose_from_essential_matrix(
         verified_coordinates_i2, camera_intrinsics_i2)
 
     # use opencv to recover pose
-    _, i2Ri1, i2Ti1, _ = cv.recoverPose(i2Ei1,
+    _, i2Ri1, i2_t_i1, _ = cv.recoverPose(i2Ei1,
                                         normalized_coordinates_i1,
                                         normalized_coordinates_i2)
 
-    return Rot3(i2Ri1), Unit3(i2Ti1.squeeze())
+    return Rot3(i2Ri1), Unit3(i2_t_i1.squeeze())
 
 
 def create_essential_matrix(i2Ri1: Rot3, i2Ui1: Unit3) -> EssentialMatrix:
@@ -76,18 +75,6 @@ def fundamental_to_essential_matrix(i2Fi1: np.ndarray,
     Returns:
             Estimated essential matrix i2Ei1 as numpy array of shape (3x3).
     """
-    K1 = np.array(
-        [
-            [camera_intrinsics_i1.fx(), 0, camera_intrinsics_i1.u0()],
-            [0, camera_intrinsics_i1.fy(), camera_intrinsics_i1.v0()],
-            [0,0,1]
-        ])
-    K2 = np.array(
-        [
-            [camera_intrinsics_i2.fx(), 0, camera_intrinsics_i2.u0()],
-            [0, camera_intrinsics_i2.fy(), camera_intrinsics_i2.v0()],
-            [0,0,1]
-        ])
-    return K2.T @ \
+    return camera_intrinsics_i2.K().T @ \
         i2Fi1 @ \
-        K1
+        camera_intrinsics_i1.K()
