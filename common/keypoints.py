@@ -3,7 +3,7 @@ detections on an image.
 
 Authors: Ayush Baid
 """
-from typing import NamedTuple, Optional, List
+from typing import List, NamedTuple, Optional
 
 import cv2 as cv
 import numpy as np
@@ -67,6 +67,42 @@ class Keypoints(NamedTuple):
         """Checks that the other object is not equal to the current object."""
         return not self == other
 
+    def get_top_values(self, max_keypoints: int) -> 'Keypoints':
+        """Returns the top keypoints by their response values (or just the
+        values from the front in case of missing responses.)
+
+        Args:
+            max_keypoints: max number of keypoints to return.
+
+        Returns:
+            subset of current keypoints.
+        """
+        if len(self) <= max_keypoints:
+            # no need to remove anything
+            return Keypoints(coordinates=self.coordinates,
+                             responses=self.responses,
+                             scales=self.scales)
+
+        if self.responses is None:
+            # select select values from the front
+            return Keypoints(
+                coordinates=self.coordinates[:max_keypoints],
+                scales=self.scales[:max_keypoints]
+                if self.scales is not None else None,
+                responses=self.responses[:max_keypoints]
+                if self.responses is not None else None
+            )
+
+        # select the values with top response values
+        selection_idx = np.argpartition(-self.responses,
+                                        max_keypoints)[:max_keypoints]
+        return Keypoints(
+            coordinates=self.coordinates[selection_idx],
+            scales=self.scales[selection_idx]
+            if self.scales is not None else None,
+            responses=self.responses[selection_idx]
+        )
+
     def get_x_coordinates(self) -> np.ndarray:
         """Getter for the x coordinates.
 
@@ -85,7 +121,7 @@ class Keypoints(NamedTuple):
         # TODO: remove function
         return self.coordinates[:, 1]
 
-    def cast_to_float(self):
+    def cast_to_float(self) -> 'Keypoints':
         """Cast all attributes which are numpy arrays to float.
 
         Returns:
