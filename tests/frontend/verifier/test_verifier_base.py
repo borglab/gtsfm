@@ -140,12 +140,9 @@ class TestVerifierBase(unittest.TestCase):
                     intrinsics_i2
                 )
 
-            expected_i2Ri1_dict[(i1, i2)] = \
-                verification_result_i1i2[0]
-            expected_i2Ui1_dict[(i1, i2)] = \
-                verification_result_i1i2[1]
-            expected_v_corr_idxs[(i1, i2)] = \
-                verification_result_i1i2[2]
+            expected_i2Ri1_dict[(i1, i2)] = verification_result_i1i2[0]
+            expected_i2Ui1_dict[(i1, i2)] = verification_result_i1i2[1]
+            expected_v_corr_idxs[(i1, i2)] = verification_result_i1i2[2]
 
         # Convert the inputs to computation graphs
         detection_graph = [dask.delayed(x) for x in keypoints_list]
@@ -164,18 +161,13 @@ class TestVerifierBase(unittest.TestCase):
 
         with dask.config.set(scheduler='single-threaded'):
             i2Ri1_dict = dask.compute(rotations_graph)[0]
-            i2Ui1_dict = dask.compute(
-                unit_translations_graph)[0]
-            v_corr_idxs = \
-                dask.compute(v_corr_idxs_graph)[0]
+            i2Ui1_dict = dask.compute(unit_translations_graph)[0]
+            v_corr_idxs = dask.compute(v_corr_idxs_graph)[0]
 
         # compare the length of results
-        self.assertEqual(len(i2Ri1_dict),
-                         len(i2Ri1_dict))
-        self.assertEqual(len(i2Ui1_dict),
-                         len(expected_i2Ui1_dict))
-        self.assertEqual(len(v_corr_idxs),
-                         len(expected_v_corr_idxs))
+        self.assertEqual(len(i2Ri1_dict), len(i2Ri1_dict))
+        self.assertEqual(len(i2Ui1_dict), len(expected_i2Ui1_dict))
+        self.assertEqual(len(v_corr_idxs), len(expected_v_corr_idxs))
 
         # compare the values
         for (i1, i2) in i2Ri1_dict.keys():
@@ -197,8 +189,7 @@ class TestVerifierBase(unittest.TestCase):
             else:
                 self.assertTrue(expected_i2Ui1.equals(i2Ui1, 1e-2))
 
-            np.testing.assert_array_equal(
-                idxs, expected_idxs)
+            np.testing.assert_array_equal(idxs, expected_idxs)
 
     def test_pickleable(self):
         """Tests that the verifier object is pickleable (required for dask)."""
