@@ -19,6 +19,7 @@ import cv2
 import numpy as np
 from gtsam import Cal3Bundler, EssentialMatrix, Rot3, Unit3
 
+import utils.features as feature_utils
 import utils.verification as verification_utils
 from frontend.verifier.verifier_base import VerifierBase
 from common.keypoints import Keypoints
@@ -102,19 +103,32 @@ class Ransac(VerifierBase):
         if match_indices.shape[0] < self.min_pts:
             return i2Ei1, verified_indices
 
+        uv_norm_i1 = feature_utils.normalize_coordinates(
+            keypoints_i1.coordinates,
+            camera_intrinsics_i1
+        )
+        uv_norm_i2 = feature_utils.normalize_coordinates(
+            keypoints_i2.coordinates,
+            camera_intrinsics_i2
+        )
+        K = np.eye(3)
+
         i2Ei1, inlier_mask = cv2.findEssentialMat(
-            keypoints_i1.coordinates[match_indices[:, 0]],
-            keypoints_i2.coordinates[match_indices[:, 1]],
-            img1_kpts, img2_kpts, K, method=cv2.RANSAC, threshold=0.1)
+            uv_norm_i1[match_indices[:, 0]],
+            uv_norm_i2[match_indices[:, 1]],
+            K,
+            method=cv2.RANSAC,
+            threshold=0.1
+        )
         inlier_idxs = np.where(inlier_mask.ravel() == 1)[0]
 
         i2Ri1, i2Ui1 = \
             verification_utils.recover_relative_pose_from_essential_matrix(
-                e_matrix,
+                i2Ei1,
                 keypoints_i1.coordinates[match_indices[inlier_idxs, 0]],
                 keypoints_i2.coordinates[match_indices[inlier_idxs, 1]],
                 camera_intrinsics_i1,
                 camera_intrinsics_i2
             )
 
-        return i2Ri1, i2Ui1, match_indices[inlier_idxes]
+        return i2Ri1, i2Ui1, match_indices[inlier_idxs]

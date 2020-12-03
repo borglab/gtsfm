@@ -76,7 +76,6 @@ def normalize_coordinates(coordinates: np.ndarray,
     Returns:
         normalized coordinates, of shape Nx2.
     """
-
     return np.vstack(
         [intrinsics.calibrate(
             x[:2].astype(np.float64).reshape(2, 1)

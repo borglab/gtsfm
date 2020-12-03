@@ -145,7 +145,6 @@ class TestVerifierBase(unittest.TestCase):
         fx, px, py, k1, k2 = self.load_intrinsics()
         keypoints_i1, keypoints_i2 = self.load_annotated_correspondences()
 
-        pdb.set_trace()
         # match keypoints row by row
         match_indices = np.vstack(
             [
@@ -160,11 +159,13 @@ class TestVerifierBase(unittest.TestCase):
             Cal3Bundler(fx, k1, k2, px, py),
             Cal3Bundler(fx, k1, k2, px, py)
         )
-        pdb.set_trace()
+        
         i1Ri2 = computed_i2Ri1.matrix()
         r = Rotation.from_matrix(i1Ri2)
-        euler_angles = r.as_euler('zyx', degrees=True)
-
+        print(r.as_euler('zyx', degrees=True))
+        # print('Euler: ', np.round(euler_angles, 2))
+        print('t: ', computed_i2ti1) #np.round(computed_i2ti1,2))
+        pdb.set_trace()
 
         # self.assertTrue(computed_i2Ei1.equals(
         #     expected_i2Ei1, 1e-2))
