@@ -35,12 +35,9 @@ class Fast(DetectorBase):
 
         gray_image = image_utils.rgb_to_gray_cv(image)
         cv_keypoints = opencv_obj.detect(gray_image.value_array, None)
-
-        # sort the keypoints by score and pick top responses
-        cv_keypoints = sorted(
-            cv_keypoints, key=lambda x: x.response, reverse=True
-        )[:self.max_keypoints]
-
         keypoints = feature_utils.cast_to_gtsfm_keypoints(cv_keypoints)
+
+        # limit number of keypoints
+        keypoints = keypoints.get_top_values(self.max_keypoints)
 
         return keypoints
