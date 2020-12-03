@@ -55,10 +55,8 @@ class TestVerifierBase(unittest.TestCase):
                 Cal3Bundler()
             )
 
-        self.assertTrue(i2Ri1.equals(
-            expected_i2Ei1.rotation(), 1e-2))
-        self.assertTrue(i2Ui1.equals(
-            expected_i2Ei1.direction(), 1e-2))
+        self.assertTrue(i2Ri1.equals(expected_i2Ei1.rotation(), 1e-2))
+        self.assertTrue(i2Ui1.equals(expected_i2Ei1.direction(), 1e-2))
         np.testing.assert_array_equal(verified_indices, match_indices)
 
     def test_valid_verified_indices(self):
