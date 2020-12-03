@@ -26,7 +26,7 @@ from common.keypoints import Keypoints
 
 # minimum matches required for computing the E-matrix
 NUM_MATCHES_REQ_E_MATRIX = 5
-
+NORMALIZED_COORD_RANSAC_THRESH = 0.001 # TODO: hyperparameter to tune
 
 class Ransac(VerifierBase):
     def __init__(self):
@@ -118,7 +118,7 @@ class Ransac(VerifierBase):
             uv_norm_i2[match_indices[:, 1]],
             K,
             method=cv2.RANSAC,
-            threshold=0.1
+            threshold=NORMALIZED_COORD_RANSAC_THRESH
         )
         inlier_idxs = np.where(inlier_mask.ravel() == 1)[0]
 
