@@ -11,9 +11,11 @@ from typing import Any, Tuple
 import dask
 import numpy as np
 from gtsam import Cal3Bundler, EssentialMatrix, Pose3, Rot3, Unit3
+from scipy.spatial.transform import Rotation
 
 from common.keypoints import Keypoints
-from frontend.verifier.degensac import Degensac
+# from frontend.verifier.degensac import Degensac
+from frontend.verifier.ransac import Ransac
 
 ARGOVERSE_TEST_DATA_ROOT = Path(__file__).parent.parent.parent.resolve() / "data" / "argoverse"
 
@@ -104,7 +106,8 @@ class TestVerifierBase(unittest.TestCase):
         np.random.seed(RANDOM_SEED)
         random.seed(RANDOM_SEED)
 
-        self.verifier = Degensac()
+        #self.verifier = Degensac()
+        self.verifier = Ransac()
 
 
     def load_annotated_correspondences(self):
@@ -158,6 +161,11 @@ class TestVerifierBase(unittest.TestCase):
             Cal3Bundler(fx, k1, k2, px, py)
         )
         pdb.set_trace()
+        i1Ri2 = computed_i2Ri1.matrix()
+        r = Rotation.from_matrix(i1Ri2)
+        euler_angles = r.as_euler('zyx', degrees=True)
+
+
         # self.assertTrue(computed_i2Ei1.equals(
         #     expected_i2Ei1, 1e-2))
         # np.testing.assert_array_equal(verified_indices, match_indices)
