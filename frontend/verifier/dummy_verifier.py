@@ -8,6 +8,7 @@ import numpy as np
 from dask.delayed import Delayed
 from gtsam import Cal3Bundler, Point3, Rot3, Unit3
 
+from common.keypoints import Keypoints
 from frontend.verifier.verifier_base import VerifierBase
 
 # constant to be used for keeping random seed in int range.
