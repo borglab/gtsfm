@@ -46,8 +46,6 @@ class TestVerifierBase(unittest.TestCase):
             np.arange(len(keypoints_i1)),
             np.arange(len(keypoints_i1)))).T
 
-
-<< << << < HEAD
         i2Ri1, i2Ui1, verified_indices = \
             self.verifier.verify_with_approximate_intrinsics(
                 keypoints_i1,
@@ -59,20 +57,6 @@ class TestVerifierBase(unittest.TestCase):
 
         self.assertTrue(i2Ri1.equals(expected_i2Ei1.rotation(), 1e-2))
         self.assertTrue(i2Ui1.equals(expected_i2Ei1.direction(), 1e-2))
-== == == =
-        computed_i2Ri1, computed_i2Ui1, verified_indices = self.verifier.verify_with_approximate_intrinsics(
-            keypoints_i1,
-            keypoints_i2,
-            match_indices,
-            Cal3Bundler(),
-            Cal3Bundler()
-        )
-
-        self.assertTrue(computed_i2Ri1.equals(
-            expected_i2Ei1.rotation(), 1e-2))
-        self.assertTrue(computed_i2Ui1.equals(
-            expected_i2Ei1.direction(), 1e-2))
->>>>>> > returning rot3 and unit3 instead of essential matrix
         np.testing.assert_array_equal(verified_indices, match_indices)
 
     def test_valid_verified_indices(self):
