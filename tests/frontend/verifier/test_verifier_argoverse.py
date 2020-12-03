@@ -119,14 +119,15 @@ class TestRansacVerifierArgoverse(unittest.TestCase):
         np.random.seed(RANDOM_SEED)
         random.seed(RANDOM_SEED)
         self.verifier = Ransac()
+        
         self.euler_angle_err_tol = 1.0
         self.translation_err_tol = 0.01
 
 
-    def run(self):
+    def testRecoveredPoseError(self):
         test_with_annotated_correspondences(
             self.verifier,
-            euler_angle_err_tol,
+            self.euler_angle_err_tol,
             self.translation_err_tol
         )
 
@@ -138,13 +139,14 @@ class TestDegensacVerifierArgoverse(unittest.TestCase):
         np.random.seed(RANDOM_SEED)
         random.seed(RANDOM_SEED)
         self.verifier = Degensac()
+        
         self.euler_angle_err_tol = 2.0
         self.translation_err_tol = 0.02
 
-    def run(self):
+    def testRecoveredPoseError(self):
         test_with_annotated_correspondences(
             self.verifier,
-            euler_angle_err_tol,
+            self.euler_angle_err_tol,
             self.translation_err_tol
         )
 
