@@ -72,7 +72,7 @@ def load_log_front_center_intrinsics() -> Tuple[float,float,float,float,float]:
     return fx, px, py, k1, k2
 
 
-def test_with_annotated_correspondences(
+def compute_error_from_annotated_correspondences(
     verifier: VerifierBase,
     euler_angle_err_tol: float,
     translation_err_tol: float
@@ -125,7 +125,7 @@ class TestRansacVerifierArgoverse(unittest.TestCase):
 
 
     def testRecoveredPoseError(self):
-        test_with_annotated_correspondences(
+        compute_error_from_annotated_correspondences(
             self.verifier,
             self.euler_angle_err_tol,
             self.translation_err_tol
@@ -144,7 +144,7 @@ class TestDegensacVerifierArgoverse(unittest.TestCase):
         self.translation_err_tol = 0.02
 
     def testRecoveredPoseError(self):
-        test_with_annotated_correspondences(
+        compute_error_from_annotated_correspondences(
             self.verifier,
             self.euler_angle_err_tol,
             self.translation_err_tol
