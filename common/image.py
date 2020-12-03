@@ -58,8 +58,8 @@ class Image(NamedTuple):
             self.exif_data.get('Model'),
         )
 
-        img_w_px = self.width()
-        img_h_px = self.height()
+        img_w_px = self.width
+        img_h_px = self.height
         focal_length_px = max(img_h_px, img_w_px) * \
             focal_length_mm/sensor_width_mm
 
