@@ -3,6 +3,8 @@ RANSAC verifier implementation.
 
 The verifier is the 5-Pt Algorithm with RANSAC and is implemented
 by wrapping over 3rd party implementation.
+Ref: David Nistér. An efficient solution to the five-point relative
+pose problem. TPAMI, 2004.
 
 Authors: John Lambert
 """
@@ -91,12 +93,11 @@ class Ransac(VerifierBase):
             Indices of verified correspondences, of shape (N, 2) with N <= N3.
                 These indices are subset of match_indices.
         """
-        i2Ei1 = None
         verified_indices = np.array([], dtype=np.uint32)
 
         # check if we don't have the minimum number of points
         if match_indices.shape[0] < self.min_pts:
-            return i2Ei1, verified_indices
+            return None, None, verified_indices
 
         uv_norm_i1 = feature_utils.normalize_coordinates(
             keypoints_i1.coordinates,
