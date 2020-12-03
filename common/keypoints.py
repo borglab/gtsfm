@@ -39,26 +39,26 @@ class Keypoints(NamedTuple):
             return False
 
         # equality check on coordinates
-        coordinates_equality = np.array_equal(
+        coordinates_eq = np.array_equal(
             self.coordinates, other.coordinates)
 
         # equality check on scales
         if self.scales is None and other.scales is None:
-            scale_equality = True
+            scales_eq = True
         elif self.scales is not None and other.scales is not None:
-            scale_equality = np.array_equal(self.scales, other.scales)
+            scales_eq = np.array_equal(self.scales, other.scales)
         else:
-            scale_equality = False
+            scales_eq = False
 
         # equality check on responses
         if self.responses is None and other.responses is None:
-            response_equality = True
+            responses_eq = True
         elif self.responses is not None and other.responses is not None:
-            response_equality = np.array_equal(self.responses, other.responses)
+            responses_eq = np.array_equal(self.responses, other.responses)
         else:
-            response_equality = False
+            responses_eq = False
 
-        return coordinates_equality and scale_equality and response_equality
+        return coordinates_eq and scales_eq and responses_eq
 
     def __ne__(self, other: object) -> bool:
         """Checks that the other object is not equal to the current object."""
