@@ -43,14 +43,14 @@ class TestMatcherBase(unittest.TestCase):
 
         num_descriptors = random.randint(5, 15)
 
-        descriptor_length = random.randint(2, 10)
+        descriptor_dim = random.randint(2, 10) # dimensionality
 
         descriptors = generate_random_binary_descriptors(
-            num_descriptors, descriptor_length)
+            num_descriptors, descriptor_dim)
 
         # the first descriptor is empty
         result = self.matcher.match(
-            generate_random_binary_descriptors(0, descriptor_length),
+            generate_random_binary_descriptors(0, descriptor_dim),
             descriptors)
 
         self.assertEqual(0, result.size)
@@ -58,14 +58,14 @@ class TestMatcherBase(unittest.TestCase):
         # the second descriptor is empty
         result = self.matcher.match(
             descriptors,
-            generate_random_binary_descriptors(0, descriptor_length))
+            generate_random_binary_descriptors(0, descriptor_dim))
 
         self.assertEqual(0, result.size)
 
         # both descriptors are empty
         result = self.matcher.match(
-            generate_random_binary_descriptors(0, descriptor_length),
-            generate_random_binary_descriptors(0, descriptor_length))
+            generate_random_binary_descriptors(0, descriptor_dim),
+            generate_random_binary_descriptors(0, descriptor_dim))
 
         self.assertEqual(0, result.size)
 
@@ -155,12 +155,12 @@ class TestMatcherBase(unittest.TestCase):
         num_descriptors_im1 = random.randint(5, 15)
         num_descriptors_im2 = random.randint(5, 15)
 
-        descriptor_length = random.randint(2, 10)
+        descriptor_dim = random.randint(2, 10)
 
         descriptors_im1 = generate_random_binary_descriptors(
-            num_descriptors_im1, descriptor_length)
+            num_descriptors_im1, descriptor_dim)
         descriptors_im2 = generate_random_binary_descriptors(
-            num_descriptors_im2, descriptor_length)
+            num_descriptors_im2, descriptor_dim)
 
         result = self.matcher.match(descriptors_im1, descriptors_im2)
 
@@ -168,12 +168,12 @@ class TestMatcherBase(unittest.TestCase):
 
 
 def generate_random_binary_descriptors(num_descriptors: int,
-                                       descriptor_length: int) -> np.ndarray:
+                                       descriptor_dim: int) -> np.ndarray:
     """Generates random binary descriptors.
 
     Args:
         num_descriptors (int): number of descriptors to generate
-        descriptor_length (int): length of each descriptor vector
+        descriptor_dim (int): length of each descriptor vector
 
     Returns:
         np.ndarray: generated descriptor
@@ -182,7 +182,7 @@ def generate_random_binary_descriptors(num_descriptors: int,
         return np.array([], dtype=np.uint8)
 
     return np.random.randint(
-        0, high=2, size=(num_descriptors, descriptor_length)
+        0, high=2, size=(num_descriptors, descriptor_dim)
     ).astype(np.uint8)
 
 
