@@ -10,7 +10,8 @@ from typing import Tuple
 
 import dask
 import numpy as np
-from gtsam import Cal3Bundler, EssentialMatrix, Pose3, Rot3, Unit3
+from gtsam import (Cal3Bundler, EssentialMatrix, PinholeCameraCal3Bundler,
+                   Pose3, Rot3, Unit3)
 
 from common.keypoints import Keypoints
 from frontend.verifier.dummy_verifier import DummyVerifier
@@ -38,6 +39,8 @@ class TestVerifierBase(unittest.TestCase):
         """
         if isinstance(self.verifier, DummyVerifier):
             self.skipTest('Cannot check correctness for dummy verifier')
+
+        # obtain the keypoints and the ground truth essential matrix.
         keypoints_i1, keypoints_i2, expected_i2Ei1 = \
             simulate_two_planes_scene(4, 4)
 
@@ -46,6 +49,7 @@ class TestVerifierBase(unittest.TestCase):
             np.arange(len(keypoints_i1)),
             np.arange(len(keypoints_i1)))).T
 
+        # run the verifier
         i2Ri1, i2Ui1, verified_indices = \
             self.verifier.verify_with_approximate_intrinsics(
                 keypoints_i1,
@@ -344,23 +348,24 @@ def sample_points_on_plane(
     return pts
 
 
-def simulate_two_planes_scene(num_points_plane1: int,
-                              num_points_plane2: int
+def simulate_two_planes_scene(M: int,
+                              N: int
                               ) -> Tuple[Keypoints, Keypoints, EssentialMatrix]:
-    """The world coordinate system is the same as coordinate system of the
-    first camera.
+    """Generate a scene where 3D points are on two planes, and projects the
+    points to the 2 cameras. There are M points on plane 1, and N points on
+    plane 2.
 
     The two planes in this test are:
     1. -10x -y -20z +150 = 0
     2. 15x -2y -35z +200 = 0
 
     Args:
-        num_points_plane1: number of points on 1st plane.
-        num_points_plane2: number of points on 2nd plane.
+        M: number of points on 1st plane.
+        N: number of points on 2nd plane.
 
     Returns:
-        keypoints for image i1, of length num_points_plane1+num_points_plane2.
-        keypoints for image i2, of length num_points_plane1+num_points_plane2.
+        keypoints for image i1, of length (M+N).
+        keypoints for image i2, of length (M+N).
         Essential matrix i2Ei1.
     """
     # range of 3D points
@@ -373,55 +378,41 @@ def simulate_two_planes_scene(num_points_plane1: int,
 
     # sample the points from planes
     plane1_points = sample_points_on_plane(
-        plane1_coeffs,
-        range_x_coordinate,
-        range_y_coordinate,
-        num_points_plane1)
+        plane1_coeffs, range_x_coordinate, range_y_coordinate, M)
     plane2_points = sample_points_on_plane(
-        plane2_coeffs,
-        range_x_coordinate,
-        range_y_coordinate,
-        num_points_plane2)
+        plane2_coeffs, range_x_coordinate, range_y_coordinate, N)
 
     points_3d = np.vstack((plane1_points, plane2_points))
 
-    # convert to homogenous coordinates
-    points_3d = np.hstack((points_3d, np.ones((points_3d.shape[0], 1))))
-
-    # project the 3D points to both the cameras
-    wTi1 = np.array([0.1, 0, 0])
-    wTi2 = np.array([1, -2, -0.4])
+    # define the camera poses and compute the essential matrix
+    wti1 = np.array([0.1, 0, -20])
+    wti2 = np.array([1, -2, -20.4])
 
     wRi1 = Rot3.RzRyRx(np.pi/20, 0, 0.0)
     wRi2 = Rot3.RzRyRx(0.0, np.pi/6, 0.0)
 
-    wPi1 = Pose3(wRi1, wTi1)
-    wPi2 = Pose3(wRi2, wTi2)
-    i2Pi1 = wPi2.between(wPi1)
+    wTi1 = Pose3(wRi1, wti1)
+    wTi2 = Pose3(wRi2, wti2)
+    i2Ti1 = wTi2.between(wTi1)
 
-    i2Ei1 = EssentialMatrix(i2Pi1.rotation(), Unit3(i2Pi1.translation()))
+    i2Ei1 = EssentialMatrix(i2Ti1.rotation(), Unit3(i2Ti1.translation()))
 
+    # project 3D points to 2D image measurements
     intrinsics = Cal3Bundler()
+    camera_i1 = PinholeCameraCal3Bundler(wTi1, intrinsics)
+    camera_i2 = PinholeCameraCal3Bundler(wTi2, intrinsics)
 
-    extrinsics_i1 = wRi1.inverse().matrix() @ np.concatenate(
-        (np.eye(3), -wTi1.reshape(-1, 1)),
-        axis=1
-    )
+    uv_im1 = []
+    uv_im2 = []
+    for point in points_3d:
+        uv_im1.append(camera_i1.project(point))
+        uv_im2.append(camera_i2.project(point))
 
-    extrinsics_i2 = wRi2.inverse().matrix() @ np.concatenate(
-        (np.eye(3), -wTi2.reshape(-1, 1)),
-        axis=1
-    )
+    uv_im1 = np.vstack(uv_im1)
+    uv_im2 = np.vstack(uv_im2)
 
-    features_im1 = (intrinsics.K() @ extrinsics_i1 @ points_3d.T).T
-    features_im2 = (intrinsics.K() @ extrinsics_i2 @ points_3d.T).T
-
-    features_im1[:, :2] = features_im1[:, :2]/features_im1[:, 2:3]
-    features_im2[:, :2] = features_im2[:, :2]/features_im2[:, 2:3]
-
-    return Keypoints(coordinates=features_im1[:, :2]), \
-        Keypoints(coordinates=features_im2[:, :2]), \
-        i2Ei1
+    # return the points as keypoints and the essential matrix
+    return Keypoints(coordinates=uv_im1), Keypoints(coordinates=uv_im2), i2Ei1
 
 
 if __name__ == "__main__":

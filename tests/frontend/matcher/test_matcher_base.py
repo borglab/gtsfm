@@ -43,14 +43,14 @@ class TestMatcherBase(unittest.TestCase):
 
         num_descriptors = random.randint(5, 15)
 
-        descriptor_length = random.randint(2, 10)
+        descriptor_dim = random.randint(2, 10)  # dimensionality
 
-        descriptors = self.__generate_random_binary_descriptors(
-            num_descriptors, descriptor_length)
+        descriptors = generate_random_binary_descriptors(
+            num_descriptors, descriptor_dim)
 
         # the first descriptor is empty
         result = self.matcher.match(
-            self.__generate_random_binary_descriptors(0, descriptor_length),
+            generate_random_binary_descriptors(0, descriptor_dim),
             descriptors)
 
         self.assertEqual(0, result.size)
@@ -58,14 +58,14 @@ class TestMatcherBase(unittest.TestCase):
         # the second descriptor is empty
         result = self.matcher.match(
             descriptors,
-            self.__generate_random_binary_descriptors(0, descriptor_length))
+            generate_random_binary_descriptors(0, descriptor_dim))
 
         self.assertEqual(0, result.size)
 
         # both descriptors are empty
         result = self.matcher.match(
-            self.__generate_random_binary_descriptors(0, descriptor_length),
-            self.__generate_random_binary_descriptors(0, descriptor_length))
+            generate_random_binary_descriptors(0, descriptor_dim),
+            generate_random_binary_descriptors(0, descriptor_dim))
 
         self.assertEqual(0, result.size)
 
@@ -126,20 +126,12 @@ class TestMatcherBase(unittest.TestCase):
                 num_descriptors_im3, descriptor_length)
         ]
 
-        features_list = [
-            np.random.rand(num_descriptors_im1, 3),
-            np.random.rand(num_descriptors_im2, 3),
-            np.random.rand(num_descriptors_im3, 3),
-        ]
-
-        # create computation graphs
-        detection_description_graph = [
-            dask.delayed((x, y)) for x, y in zip(features_list, descriptor_list)
-        ]
+        # create computation graph providing descriptors
+        description_graph = [dask.delayed(x) for x in descriptor_list]
 
         matcher_graph = self.matcher.create_computation_graph(
             [(0, 1), (0, 2), (2, 1)],
-            detection_description_graph)
+            description_graph)
 
         # run it in sequential mode
         results = []
@@ -201,17 +193,49 @@ class TestMatcherBase(unittest.TestCase):
         num_descriptors_im1 = random.randint(5, 15)
         num_descriptors_im2 = random.randint(5, 15)
 
-        descriptor_length = random.randint(2, 10)
-
-        descriptors_im1 = self.__generate_random_binary_descriptors(
-            num_descriptors_im1, descriptor_length)
-        descriptors_im2 = self.__generate_random_binary_descriptors(
-            num_descriptors_im2, descriptor_length)
-
-        result = self.matcher.match(descriptors_im1, descriptors_im2)
-
-        return result, descriptors_im1, descriptors_im2
+        descriptor_dim = random.randint(2, 10)
 
 
+<< << << < HEAD
+descriptors_im1 = self.__generate_random_binary_descriptors(
+    num_descriptors_im1, descriptor_length)
+descriptors_im2 = self.__generate_random_binary_descriptors(
+    num_descriptors_im2, descriptor_length)
+== == == =
+descriptors_im1 = generate_random_binary_descriptors(
+    num_descriptors_im1, descriptor_dim)
+descriptors_im2 = generate_random_binary_descriptors(
+    num_descriptors_im2, descriptor_dim)
+>>>>>> > master
+
+result = self.matcher.match(descriptors_im1, descriptors_im2)
+
+return result, descriptors_im1, descriptors_im2
+
+
+<< << << < HEAD
+== == == =
+
+
+def generate_random_binary_descriptors(num_descriptors: int,
+                                       descriptor_dim: int) -> np.ndarray:
+    """Generates random binary descriptors.
+
+    Args:
+        num_descriptors (int): number of descriptors to generate
+        descriptor_dim (int): length of each descriptor vector
+
+    Returns:
+        np.ndarray: generated descriptor
+    """
+    if num_descriptors == 0:
+        return np.array([], dtype=np.uint8)
+
+    return np.random.randint(
+        0, high=2, size=(num_descriptors, descriptor_dim)
+    ).astype(np.uint8)
+
+
+>>>>>> > master
 if __name__ == '__main__':
     unittest.main()
