@@ -74,13 +74,15 @@ def load_log_front_center_intrinsics() -> Tuple[float,float,float,float,float]:
     return fx, px, py, k1, k2
 
 
-def compute_error_from_annotated_correspondences(
+def check_verifier_output_error(
     verifier: VerifierBase,
     use_intrinsics_for_verification: bool,
     euler_angle_err_tol: float,
     translation_err_tol: float
-    ) -> None:
+) -> None:
     """
+    Check error using annotated correspondences as input, instead
+    of noisy detector-descriptor matches.
     """
     fx, px, py, k1, k2 = load_log_front_center_intrinsics()
     keypoints_i1, keypoints_i2 = load_argoverse_log_annotated_correspondences()
@@ -138,7 +140,7 @@ class TestRansacVerifierArgoverse(unittest.TestCase):
 
 
     def testRecoveredPoseError(self):
-        compute_error_from_annotated_correspondences(
+        check_verifier_output_error(
             self.verifier,
             self.use_intrinsics_for_verification,
             self.euler_angle_err_tol,
@@ -159,7 +161,7 @@ class TestDegensacVerifierArgoverse(unittest.TestCase):
         self.translation_err_tol = 0.02
 
     def testRecoveredPoseError(self):
-        compute_error_from_annotated_correspondences(
+        check_verifier_output_error(
             self.verifier,
             self.use_intrinsics_for_verification,
             self.euler_angle_err_tol,
