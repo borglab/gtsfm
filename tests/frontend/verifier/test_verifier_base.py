@@ -348,23 +348,24 @@ def sample_points_on_plane(
     return pts
 
 
-def simulate_two_planes_scene(num_points_plane1: int,
-                              num_points_plane2: int
+def simulate_two_planes_scene(M: int,
+                              N: int
                               ) -> Tuple[Keypoints, Keypoints, EssentialMatrix]:
     """Generate a scene where 3D points are on two planes, and projects the
-    points to the 2 cameras.
+    points to the 2 cameras. There are M points on plane 1, and N points on
+    plane 2.
 
     The two planes in this test are:
     1. -10x -y -20z +150 = 0
     2. 15x -2y -35z +200 = 0
 
     Args:
-        num_points_plane1: number of points on 1st plane.
-        num_points_plane2: number of points on 2nd plane.
+        M: number of points on 1st plane.
+        N: number of points on 2nd plane.
 
     Returns:
-        keypoints for image i1, of length (num_points_plane1+num_points_plane2).
-        keypoints for image i2, of length (num_points_plane1+num_points_plane2).
+        keypoints for image i1, of length (M+N).
+        keypoints for image i2, of length (M+N).
         Essential matrix i2Ei1.
     """
     # range of 3D points
@@ -380,12 +381,12 @@ def simulate_two_planes_scene(num_points_plane1: int,
         plane1_coeffs,
         range_x_coordinate,
         range_y_coordinate,
-        num_points_plane1)
+        M)
     plane2_points = sample_points_on_plane(
         plane2_coeffs,
         range_x_coordinate,
         range_y_coordinate,
-        num_points_plane2)
+        N)
 
     points_3d = np.vstack((plane1_points, plane2_points))
 
