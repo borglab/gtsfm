@@ -121,4 +121,4 @@ class Ransac(VerifierBase):
             Indices of verified correspondences, of shape (N, 2) with N <= N3.
                 These indices are subset of match_indices.
         """
-        raise NotImplementedError("Use Degensac instead for the F-Matrix estimation")
+        raise NotImplementedError("Use Degensac instead for F-Matrix estimation")

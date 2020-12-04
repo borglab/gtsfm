@@ -112,16 +112,15 @@ def compute_error_from_annotated_correspondences(
     # Ground truth is provided in inverse format, so invert SE(3) object
     i2Ti1 = Pose3(i2Ri1, i2ti1.point3())
     i1Ti2 = i2Ti1.inverse()
-    i1_t_i2 = i1Ti2.translation()
+    i1ti2 = i1Ti2.translation()
     i1Ri2 = i1Ti2.rotation().matrix()
     
-    pdb.set_trace()
     euler_angles = Rotation.from_matrix(i1Ri2).as_euler('zyx', degrees=True)
     gt_euler_angles = np.array([-0.37, 32.47, -0.42])
     assert np.allclose(gt_euler_angles, euler_angles, atol=euler_angle_err_tol)
 
     gt_i1_t_i2 = np.array([ 0.21, -0.0024, 0.976])
-    assert np.allclose(gt_i1_t_i2, i1_t_i2, atol=translation_err_tol)
+    assert np.allclose(gt_i1ti2, i1ti2, atol=translation_err_tol)
 
 
 class TestRansacVerifierArgoverse(unittest.TestCase):
