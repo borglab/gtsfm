@@ -23,7 +23,7 @@ from common.keypoints import Keypoints
 # minimum matches required for computing the E-matrix
 NUM_MATCHES_REQ_E_MATRIX = 5
 NORMALIZED_COORD_RANSAC_THRESH = 0.001 # TODO: hyperparameter to tune
-
+DEFAULT_RANSAC_SUCCESS_PROB = 0.999
 
 class Ransac(VerifierBase):
     def __init__(self):
@@ -42,43 +42,6 @@ class Ransac(VerifierBase):
         Note: this function is preferred when camera intrinsics are known. The
         feature coordinates are normalized and the essential matrix is directly
         estimated.
-
-        Args:
-            keypoints_i1: detected features in image #i1.
-            keypoints_i2: detected features in image #i2.
-            match_indices: matches as indices of features from both images, of
-                           shape (N3, 2), where N3 <= min(N1, N2).
-            camera_intrinsics_i1: intrinsics for image #i1.
-            camera_intrinsics_i2: intrinsics for image #i2.
-
-        Returns:
-            Estimated essential matrix i2Ei1, or None if it cannot be estimated.
-            Indices of verified correspondences, of shape (N, 2) with N <= N3.
-                These indices are subset of match_indices.
-        """
-        print('WARNING: Degensac verifier cannot compute essential matrix directly using exact intrinsics')
-
-        return self.verify_with_approximate_intrinsics(
-            keypoints_i1,
-            keypoints_i2,
-            match_indices,
-            camera_intrinsics_i1,
-            camera_intrinsics_i2
-        )
-
-    def verify_with_approximate_intrinsics(
-        self,
-        keypoints_i1: Keypoints,
-        keypoints_i2: Keypoints,
-        match_indices: np.ndarray,
-        camera_intrinsics_i1: Cal3Bundler,
-        camera_intrinsics_i2: Cal3Bundler,
-    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
-        """Estimates the essential matrix and verifies the feature matches.
-
-        Note: this function is preferred when camera intrinsics are approximate
-        (i.e from image size/exif). The feature coordinates are used to compute
-        the fundamental matrix, which is then converted to the essential matrix.
 
         Args:
             keypoints_i1: detected features in image #i1.
@@ -114,7 +77,8 @@ class Ransac(VerifierBase):
             uv_norm_i2[match_indices[:, 1]],
             K,
             method=cv2.RANSAC,
-            threshold=NORMALIZED_COORD_RANSAC_THRESH
+            threshold=NORMALIZED_COORD_RANSAC_THRESH,
+            prob=DEFAULT_RANSAC_SUCCESS_PROB
         )
         inlier_idxs = np.where(inlier_mask.ravel() == 1)[0]
 
@@ -128,3 +92,41 @@ class Ransac(VerifierBase):
             )
 
         return i2Ri1, i2Ui1, match_indices[inlier_idxs]
+
+
+    def verify_with_approximate_intrinsics(
+        self,
+        keypoints_i1: Keypoints,
+        keypoints_i2: Keypoints,
+        match_indices: np.ndarray,
+        camera_intrinsics_i1: Cal3Bundler,
+        camera_intrinsics_i2: Cal3Bundler,
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
+        """Estimates the essential matrix and verifies the feature matches.
+
+        Note: this function is preferred when camera intrinsics are approximate
+        (i.e from image size/exif). The feature coordinates are used to compute
+        the fundamental matrix, which is then converted to the essential matrix.
+
+        Args:
+            keypoints_i1: detected features in image #i1.
+            keypoints_i2: detected features in image #i2.
+            match_indices: matches as indices of features from both images, of
+                           shape (N3, 2), where N3 <= min(N1, N2).
+            camera_intrinsics_i1: intrinsics for image #i1.
+            camera_intrinsics_i2: intrinsics for image #i2.
+
+        Returns:
+            Estimated essential matrix i2Ei1, or None if it cannot be estimated.
+            Indices of verified correspondences, of shape (N, 2) with N <= N3.
+                These indices are subset of match_indices.
+        """
+        print('WARNING: RANSAC verifier cannot compute fundamental matrix directly using no intrinsics')
+
+        return self.verify_with_approximate_intrinsics(
+            keypoints_i1,
+            keypoints_i2,
+            match_indices,
+            camera_intrinsics_i1,
+            camera_intrinsics_i2
+        )
