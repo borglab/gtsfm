@@ -51,38 +51,9 @@ class MatcherBase(metaclass=abc.ABCMeta):
         # TODO(ayush): should I define matcher on descriptors or the distance matrices.
         # TODO(ayush): how to handle deep-matchers which might require the full image as input
 
-    def match_and_get_features(self,
-                               features_im1: np.ndarray,
-                               features_im2: np.ndarray,
-                               descriptors_im1: np.ndarray,
-                               descriptors_im2: np.ndarray,
-                               distance_type: MatchingDistanceType =
-                               MatchingDistanceType.EUCLIDEAN
-                               ) -> Tuple[np.ndarray, np.ndarray]:
-        """Match descriptors and return the corresponding features.
-
-        Args:
-            features_im1: features from image #1, of shape (N1, 2+).
-            features_im2: features from image #2, of shape (N2, 2+).
-            descriptors_im1: descriptors for features_im1, of shape (N1, D).
-            descriptors_im2: descriptors for features_im1, of shape (N2, D).
-            distance_type (optional): the space to compute the distance between
-                                      descriptors. Defaults to
-                                      MatchingDistanceType.EUCLIDEAN.
-
-        Returns:
-            Features from im1 and their corresponding matched features from im2,
-                each having shape (N, 2), where N < min(N1, N2).
-        """
-        match_indices = self.match(
-            descriptors_im1, descriptors_im2, distance_type)
-
-        return features_im1[match_indices[:, 0], :], \
-            features_im2[match_indices[:, 1], :]
-
     def create_computation_graph(self,
-                                 pair_indices: List[Tuple[int, int]],
-                                 detection_description_graph: List[Delayed],
+                                 image_pair_indices: List[Tuple[int, int]],
+                                 description_graph: List[Delayed],
                                  distance_type: MatchingDistanceType =
                                  MatchingDistanceType.EUCLIDEAN
                                  ) -> Dict[Tuple[int, int], Delayed]:
@@ -102,13 +73,10 @@ class MatcherBase(metaclass=abc.ABCMeta):
 
         graph = dict()
 
-        for idx1, idx2 in pair_indices:
-
-            graph_component_im1 = detection_description_graph[idx1]
-            graph_component_im2 = detection_description_graph[idx2]
-
-            graph[(idx1, idx2)] = dask.delayed(self.match)(
-                graph_component_im1[1], graph_component_im2[1],
+        for i1, i2 in image_pair_indices:
+            graph[(i1, i2)] = dask.delayed(self.match)(
+                description_graph[i1],
+                description_graph[i2],
                 distance_type
             )
 
