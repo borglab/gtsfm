@@ -62,7 +62,7 @@ class MatcherBase(metaclass=abc.ABCMeta):
 
         Args:
             image_pair_indices: valid pairs of images which are to be matched.
-            description: list of dask task for description of each image.
+            description: list of dask tasks for descriptor generation for each image.
             distance_type (optional): the space to compute the distance between
                                       descriptors. Defaults to
                                       MatchingDistanceType.EUCLIDEAN.
