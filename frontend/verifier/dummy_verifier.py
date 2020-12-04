@@ -6,7 +6,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import Cal3Bundler, EssentialMatrix, Point3, Rot3, Unit3
+from gtsam import Cal3Bundler, Point3, Rot3, Unit3
 
 from common.keypoints import Keypoints
 from frontend.verifier.verifier_base import VerifierBase
@@ -28,7 +28,7 @@ class DummyVerifier(VerifierBase):
         match_indices: np.ndarray,
         camera_intrinsics_i1: Cal3Bundler,
         camera_intrinsics_i2: Cal3Bundler,
-    ) -> Tuple[Optional[EssentialMatrix], np.ndarray]:
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
         """Estimates the essential matrix and verifies the feature matches.
 
         Note: this function is preferred when camera intrinsics are approximate
@@ -44,16 +44,16 @@ class DummyVerifier(VerifierBase):
             camera_intrinsics_im2: intrinsics for image #i2.
 
         Returns:
-            Estimated essential matrix i2Ei1, or None if it cannot be estimated.
+            Estimated rotation i2Ri1, or None if it cannot be estimated.
+            Estimated unit translation i2Ui1, or None if it cannot be estimated.
             Indices of verified correspondences, of shape (N, 2) with N <= N3.
                 These indices are subset of match_indices.
         """
-        i2Ei1 = None
-        verified_indices = np.array([], dtype=np.uint32)
+        v_inlier_idxs = np.array([], dtype=np.uint32)
 
         # check if we don't have the minimum number of points
         if match_indices.shape[0] < self.min_pts:
-            return i2Ei1, verified_indices
+            return None, None, v_inlier_idxs
 
         # set a random seed using descriptor data for repeatability
         np.random.seed(
@@ -69,7 +69,7 @@ class DummyVerifier(VerifierBase):
             low=0, high=num_matches)
 
         # randomly sample the indices for matches which will be verified
-        verified_matches = np.random.choice(
+        v_inlier_idxs = np.random.choice(
             num_matches, num_verifier_pts, replace=False).astype(np.uint32)
 
         # use a random 3x3 matrix if the number of verified points are less that
@@ -82,9 +82,9 @@ class DummyVerifier(VerifierBase):
             i2Ti1 = Point3(np.random.uniform(
                 low=-1.0, high=1.0, size=(3, )))
 
-            i2Ei1 = EssentialMatrix(i2Ri1, Unit3(i2Ti1))
-
-        return i2Ei1, match_indices[verified_matches]
+            return i2Ri1, Unit3(i2Ti1), match_indices[v_inlier_idxs]
+        else:
+            return None, None, match_indices[v_inlier_idxs]
 
     def verify_with_approximate_intrinsics(
         self,
@@ -93,7 +93,7 @@ class DummyVerifier(VerifierBase):
         match_indices: np.ndarray,
         camera_intrinsics_i1: Cal3Bundler,
         camera_intrinsics_i2: Cal3Bundler,
-    ) -> Tuple[Optional[EssentialMatrix], np.ndarray]:
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
         """Estimates the essential matrix and verifies the feature matches.
 
         Note: this function is preferred when camera intrinsics are approximate
@@ -109,7 +109,8 @@ class DummyVerifier(VerifierBase):
             camera_intrinsics_i2: intrinsics for image #i2.
 
         Returns:
-            Estimated essential matrix i2Ei1, or None if it cannot be estimated.
+            Estimated rotation i2Ri1, or None if it cannot be estimated.
+            Estimated unit translation i2Ui1, or None if it cannot be estimated.
             Indices of verified correspondences, of shape (N, 2) with N <= N3.
                 These indices are subset of match_indices.
         """

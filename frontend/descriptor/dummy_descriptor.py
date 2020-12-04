@@ -5,6 +5,7 @@ Authors: Ayush Baid
 import numpy as np
 
 from common.image import Image
+from common.keypoints import Keypoints
 from frontend.descriptor.descriptor_base import DescriptorBase
 
 
@@ -16,23 +17,21 @@ class DummyDescriptor(DescriptorBase):
 
         self.descriptor_length = 15  # length of each descriptor
 
-    def describe(self, image: Image, features: np.ndarray) -> np.ndarray:
-        """Assign descriptors to features in an image.
-
-        Output format:
-        1. Each input feature point is assigned a descriptor, which is stored
-        as a row vector.
+    def describe(self, image: Image, keypoints: Keypoints) -> np.ndarray:
+        """Assign descriptors to detected features in an image, using random
+        number generator.
 
         Arguments:
             image: the input image.
-            features: features to describe, as a numpy array of shape (N, 2+).
+            keypoints: the keypoints to describe, of length N.
 
         Returns:
-            the descriptors for the input features, as (N, x) sized matrix.
+            the descriptors for the input features, of shape (N, D) where D is 
+                the dimension of each descriptor.
         """
-        if features.size == 0:
+        if len(keypoints) == 0:
             return np.array([])
 
-        np.random.seed(int(features[0, 0]))
+        np.random.seed(int(keypoints.coordinates[0, 0]))
 
-        return np.random.rand(features.shape[0], self.descriptor_length)
+        return np.random.rand(len(keypoints), self.descriptor_length)
