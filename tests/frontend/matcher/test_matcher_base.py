@@ -43,7 +43,7 @@ class TestMatcherBase(unittest.TestCase):
 
         num_descriptors = random.randint(5, 15)
 
-        descriptor_dim = random.randint(2, 10)  # dimensionality
+        descriptor_dim = random.randint(2, 10) # dimensionality
 
         descriptors = generate_random_binary_descriptors(
             num_descriptors, descriptor_dim)
@@ -87,20 +87,29 @@ class TestMatcherBase(unittest.TestCase):
         """Test that the computation graph is working exactly as the normal 
         matching API using 3 images.
         """
+        # number of images in test, for which we need to generate descriptors.
+        num_images = 3
 
-        # generate three random descriptors and their features
-        num_descriptors_im1 = random.randint(5, 15)
-        num_descriptors_im2 = random.randint(5, 15)
-        num_descriptors_im3 = random.randint(5, 15)
+        # pairs of images to perform matching on
+        pairs_list = [(0, 1), (0, 2), (2, 1)]
 
-        descriptor_length = random.randint(2, 10)
+        descriptor_dimension = random.randint(2, 10)  # descriptor dimension
+
+        # generate descriptors randomly
+        descriptors_list = []
+        for i in range(num_images):
+            num_descriptors = random.randint(5, 15)
+
+            descriptors_list.append(
+                generate_random_binary_descriptors(
+                    num_descriptors, descriptor_dimension),
+            )
 
         # create computation graph providing descriptors
         description_graph = [dask.delayed(x) for x in descriptors_list]
 
         matcher_graph = self.matcher.create_computation_graph(
-            [(0, 1), (0, 2), (2, 1)],
-            descriptor_graph)
+            pairs_list, description_graph)
 
         # run it in sequential mode
         results = []
@@ -108,19 +117,20 @@ class TestMatcherBase(unittest.TestCase):
             results = dask.compute(matcher_graph)[0]
 
         # check the number of pairs in the results
-        self.assertEqual(len(descriptor_list), len(results))
+        self.assertEqual(len(pairs_list), len(results))
 
         # check every pair of results
 
-        for image_indices in matcher_graph.keys():
-            dask_matches = results[image_indices]
-            normal_matches = self.matcher.match(
-                descriptor_list[image_indices[0]],
-                descriptor_list[image_indices[1]]
+        for (i1, i2) in pairs_list:
+            expected_matches = self.matcher.match(
+                descriptors_list[i1],
+                descriptors_list[i2]
             )
 
+            dask_matches = results[(i1, i2)]
+
             np.testing.assert_array_equal(
-                normal_matches, dask_matches
+                dask_matches, expected_matches
             )
 
     def test_pickleable(self):
@@ -129,23 +139,6 @@ class TestMatcherBase(unittest.TestCase):
             pickle.dumps(self.matcher)
         except TypeError:
             self.fail("Cannot dump matcher using pickle")
-
-    def __generate_random_binary_descriptors(self, num_descriptors: int, descriptor_length: int) -> np.ndarray:
-        """Generates random binary descriptors.
-
-        Args:
-            num_descriptors (int): number of descriptors to generate
-            descriptor_length (int): length of each descriptor vector
-
-        Returns:
-            np.ndarray: generated descriptor
-        """
-        if num_descriptors == 0:
-            return np.array([], dtype=np.uint8)
-
-        return np.random.randint(
-            0, high=2, size=(num_descriptors, descriptor_length)
-        ).astype(np.uint8)
 
     def __generate_matches_on_random_descriptors(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Generates a pair of random descriptors and uses the matcher under 

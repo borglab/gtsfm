@@ -52,7 +52,7 @@ class MatcherBase(metaclass=abc.ABCMeta):
         # TODO(ayush): how to handle deep-matchers which might require the full image as input
 
     def create_computation_graph(self,
-                                 pair_indices: List[Tuple[int, int]],
+                                 image_pair_indices: List[Tuple[int, int]],
                                  description_graph: List[Delayed],
                                  distance_type: MatchingDistanceType =
                                  MatchingDistanceType.EUCLIDEAN
@@ -73,9 +73,10 @@ class MatcherBase(metaclass=abc.ABCMeta):
 
         graph = dict()
 
-        for idx1, idx2 in pair_indices:
-            graph[(idx1, idx2)] = dask.delayed(self.match)(
-                description_graph[idx1], description_graph[idx2],
+        for i1, i2 in image_pair_indices:
+            graph[(i1, i2)] = dask.delayed(self.match)(
+                description_graph[i1],
+                description_graph[i2],
                 distance_type
             )
 
