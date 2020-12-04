@@ -27,19 +27,19 @@ class TestTranslationAveragingBase(unittest.TestCase):
         self.obj = DummyTranslationAveraging()
 
     def assert_equal_upto_scale(self,
-                                wTi_list1: List[Point3],
-                                wTi_list2: List[Point3]):
+                                wti_list1: List[Point3],
+                                wti_list2: List[Point3]):
         """Helper function to assert that two lists of global Point3 are equal
         (upto global scale ambiguity)."""
 
-        self.assertEqual(len(wTi_list1), len(wTi_list2),
+        self.assertEqual(len(wti_list1), len(wti_list2),
                          'two lists to compare have unequal lengths')
 
-        for i in range(1, len(wTi_list1)):
+        for i in range(1, len(wti_list1)):
             # accounting for ambiguity in origin of the coordinate system.
-            iU0_1 = Unit3(wTi_list1[i] - wTi_list1[0])
+            iU0_1 = Unit3(wti_list1[i] - wti_list1[0])
 
-            iU0_2 = Unit3(wTi_list2[i] - wTi_list2[0])
+            iU0_2 = Unit3(wti_list2[i] - wti_list2[0])
             self.assertTrue(iU0_1.equals(iU0_2, 1e-1))
 
     def test_computation_graph(self):
@@ -64,17 +64,16 @@ class TestTranslationAveragingBase(unittest.TestCase):
         wRi_graph = dask.delayed(wRi_list)
 
         # use the GTSAM API directly (without dask) for translation averaging
-        wTi_expected = self.obj.run(
-            num_images, i2Ui1_dict, wRi_list)
+        expected_wti_list = self.obj.run(num_images, i2Ui1_dict, wRi_list)
 
         # use dask's computation graph
         computation_graph = self.obj.create_computation_graph(
             num_images, i2Ui1_graph, wRi_graph)
 
         with dask.config.set(scheduler='single-threaded'):
-            wTi_computed = dask.compute(computation_graph)[0]
+            wti_list = dask.compute(computation_graph)[0]
 
-        self.assert_equal_upto_scale(wTi_expected, wTi_computed)
+        self.assert_equal_upto_scale(expected_wti_list, wti_list)
 
     def test_pickleable(self):
         """Tests that the object is pickleable (required for dask)."""

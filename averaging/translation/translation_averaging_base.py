@@ -34,16 +34,17 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
             scale_factor: non-negative global scaling factor.
 
         Returns:
-            global translation for each camera pose.
+            Global translation wti for each camera pose. The number of entries
+                in the list is `num_images`. The list may contain `None` where
+                the global translations could not be computed (either
+                underconstrained system or ill-constrained system).
         """
 
-    def create_computation_graph(
-            self,
-            num_images: int,
-            i2Ui1_graph: Delayed,
-            wRi_graph: Delayed,
-            scale_factor: float = 1.0
-    ) -> Delayed:
+    def create_computation_graph(self,
+                                 num_images: int,
+                                 i2Ui1_graph: Delayed,
+                                 wRi_graph: Delayed,
+                                 scale_factor: float = 1.0) -> Delayed:
         """Create the computation graph for performing translation averaging.
 
         Args:

@@ -31,7 +31,10 @@ class DummyTranslationAveraging(TranslationAveragingBase):
             scale_factor: non-negative global scaling factor.
 
         Returns:
-            global translation for each camera pose.
+            Global translation wti for each camera pose. The number of entries
+                in the list is `num_images`. The list may contain `None` where
+                the global translations could not be computed (either
+                underconstrained system or ill-constrained system).
         """
 
         if len(wRi_list) == 0:

@@ -36,10 +36,7 @@ class RotationAveragingBase(metaclass=abc.ABCMeta):
         """
 
     def create_computation_graph(
-            self,
-            num_images: int,
-            i2Ri1_graph: Delayed
-    ) -> Delayed:
+            self, num_images: int, i2Ri1_graph: Delayed) -> Delayed:
         """Create the computation graph for performing rotation averaging.
 
         Args:

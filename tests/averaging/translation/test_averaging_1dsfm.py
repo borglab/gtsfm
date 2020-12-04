@@ -28,7 +28,7 @@ class TestTranslationAveraging1DSFM(
     def test_simple(self):
         """Test a simple case with 8 camera poses.
 
-        The camera poses are aranged on the circle and point towards the center
+        The camera poses are arranged on the circle and point towards the center
         of the circle. The poses of 8 cameras are obtained from SFMdata and the
         unit translations directions between some camera pairs are computed from their global translations.
 
@@ -38,7 +38,7 @@ class TestTranslationAveraging1DSFM(
         fx, fy, s, u0, v0 = 50.0, 50.0, 0.0, 50.0, 50.0
         wPi_list = SFMdata.createPoses(Cal3_S2(fx, fy, s, u0, v0))
 
-        expected_wTi = [x.translation() for x in wPi_list]
+        expected_wti_list = [x.translation() for x in wPi_list]
 
         wRi_list = [x.rotation() for x in wPi_list]
 
@@ -50,12 +50,12 @@ class TestTranslationAveraging1DSFM(
                 # create relative translations using global R and T.
                 i2Ui1_dict[(i1, i2)] = Unit3(
                     wRi_list[i2].unrotate(
-                        expected_wTi[i1] - expected_wTi[i2]))
+                        expected_wti_list[i1] - expected_wti_list[i2]))
 
-        computed_wTi = self.obj.run(len(wRi_list), i2Ui1_dict, wRi_list)
+        wti_list = self.obj.run(len(wRi_list), i2Ui1_dict, wRi_list)
 
         # compare the entries
-        self.assert_equal_upto_scale(expected_wTi, computed_wTi)
+        self.assert_equal_upto_scale(expected_wti_list, wti_list)
 
 
 if __name__ == '__main__':

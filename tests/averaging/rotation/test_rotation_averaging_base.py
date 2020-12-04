@@ -35,7 +35,7 @@ class TestRotationAveragingBase(unittest.TestCase):
         i2Ri1_graph = dask.delayed(i2Ri1_dict)
 
         # use the GTSAM API directly (without dask) for rotation averaging
-        expected_result = self.obj.run(num_poses, i2Ri1_dict)
+        expected_wRi_list = self.obj.run(num_poses, i2Ri1_dict)
 
         # use dask's computation graph
         computation_graph = self.obj.create_computation_graph(
@@ -44,12 +44,12 @@ class TestRotationAveragingBase(unittest.TestCase):
         )
 
         with dask.config.set(scheduler='single-threaded'):
-            dask_result = dask.compute(computation_graph)[0]
+            wRi_list = dask.compute(computation_graph)[0]
 
         # compare the two entries
         for i in range(1, num_poses):
-            expected_0Ri = expected_result[0].between(expected_result[i])
-            computed_0Ri = dask_result[0].between(dask_result[i])
+            expected_0Ri = expected_wRi_list[0].between(expected_wRi_list[i])
+            computed_0Ri = wRi_list[0].between(wRi_list[i])
             self.assertTrue(expected_0Ri.equals(computed_0Ri, 1e-5))
 
     def test_pickleable(self):

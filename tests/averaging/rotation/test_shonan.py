@@ -33,18 +33,18 @@ class TestShonanRotationAveraging(
             (2, 1): Rot3.RzRyRx(0, 0, 20*np.pi/180),
         }
 
-        wRi_expected = [
+        expected_wRi_list = [
             Rot3.RzRyRx(0, 0, 0),
             Rot3.RzRyRx(0, 30*np.pi/180, 0),
             i2Ri1_dict[(1, 0)].compose(i2Ri1_dict[(2, 1)])
         ]
 
-        wRi_computed = self.obj.run(3, i2Ri1_dict)
+        wRi_list = self.obj.run(3, i2Ri1_dict)
 
-        self.assertTrue(wRi_expected[1].equals(
-            wRi_computed[0].between(wRi_computed[1]), 1e-5))
-        self.assertTrue(wRi_expected[2].equals(
-            wRi_computed[0].between(wRi_computed[2]), 1e-5))
+        self.assertTrue(expected_wRi_list[1].equals(
+            wRi_list[0].between(wRi_list[1]), 1e-5))
+        self.assertTrue(expected_wRi_list[2].equals(
+            wRi_list[0].between(wRi_list[2]), 1e-5))
 
 
 if __name__ == '__main__':

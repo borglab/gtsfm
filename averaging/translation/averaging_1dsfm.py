@@ -54,7 +54,10 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             scale_factor: non-negative global scaling factor.
 
         Returns:
-            global translation for each camera pose.
+            Global translation wti for each camera pose. The number of entries
+                in the list is `num_images`. The list may contain `None` where
+                the global translations could not be computed (either
+                underconstrained system or ill-constrained system).
         """
 
         noise_model = gtsam.noiseModel.Isotropic.Sigma(
@@ -110,13 +113,13 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 w_i2Ui1_inlier_measurements.append(w_i2Ui1)
 
         # Run the optimizer
-        wTi_values = TranslationRecovery(
+        wti_values = TranslationRecovery(
             w_i2Ui1_inlier_measurements).run(scale_factor)
 
         # transforming the result to the list of Point3
-        wTi_list = [None]*num_images
+        wti_list = [None]*num_images
         for i in range(num_images):
             if wRi_list[i] is not None:
-                wTi_list[i] = wTi_values.atPoint3(i)
+                wti_list[i] = wti_values.atPoint3(i)
 
-        return wTi_list
+        return wti_list
