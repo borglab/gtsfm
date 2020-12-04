@@ -61,10 +61,8 @@ class MatcherBase(metaclass=abc.ABCMeta):
         Generates computation graph for matched features using the detection and description graph.
 
         Args:
-            pair_indices: valid pairs in input scene which are to be matched.
-            detection_description_graph: computation graph for features and
-                                         their associated descriptors for each
-                                         image.
+            image_pair_indices: valid pairs of images which are to be matched.
+            description: list of dask tasks for descriptor generation for each image.
             distance_type (optional): the space to compute the distance between
                                       descriptors. Defaults to
                                       MatchingDistanceType.EUCLIDEAN.
