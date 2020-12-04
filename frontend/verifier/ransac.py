@@ -9,6 +9,7 @@ pose problem. TPAMI, 2004.
 Authors: John Lambert
 """
 
+import logging
 from typing import Optional, Tuple
 
 import cv2
@@ -24,6 +25,23 @@ from frontend.verifier.verifier_base import VerifierBase
 NUM_MATCHES_REQ_E_MATRIX = 5
 NORMALIZED_COORD_RANSAC_THRESH = 0.001 # TODO: hyperparameter to tune
 DEFAULT_RANSAC_SUCCESS_PROB = 0.999
+
+
+def get_logger():
+    """
+    """
+    logger_name = "main-logger"
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.INFO)
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        fmt = "[%(asctime)s %(levelname)s %(filename)s line %(lineno)d %(process)d] %(message)s"
+        handler.setFormatter(logging.Formatter(fmt))
+        logger.addHandler(handler)
+    return logger
+
+logger = get_logger()
+
 
 class Ransac(VerifierBase):
     def __init__(self):
@@ -60,6 +78,9 @@ class Ransac(VerifierBase):
 
         # check if we don't have the minimum number of points
         if match_indices.shape[0] < self.min_pts:
+            logger.info(
+                "No match indices were provided to the verifier, returning early with None output"
+            )
             return None, None, verified_indices
 
         uv_norm_i1 = feature_utils.normalize_coordinates(
