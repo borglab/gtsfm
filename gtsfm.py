@@ -1,4 +1,4 @@
-"""The main class which integrates all the modules.
+"""The class which creates the Dask graph for a single SFM problem.
 
 Authors: Ayush Baid
 """
@@ -156,6 +156,9 @@ class GTSFM(metaclass=abc.ABCMeta):
                                             Delayed,
                                             Delayed,
                                             Dict[Tuple[int, int], Delayed]]:
+        """ Chaining together per-module computation graphs into one large, single
+        computation graph.
+        """
         detection_graph, description_graph = \
             self.detector_descriptor.create_computation_graph(image_graph)
 
