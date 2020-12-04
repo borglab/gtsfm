@@ -8,7 +8,7 @@ from typing import List, Optional
 
 import dask
 import numpy as np
-from gtsam import EssentialMatrix, Point3, Rot3, Unit3
+from gtsam import EssentialMatrix, Pose3, Rot3, Unit3
 
 from averaging.rotation.shonan import ShonanRotationAveraging
 from averaging.translation.averaging_1dsfm import TranslationAveraging1DSFM
@@ -74,42 +74,56 @@ class TestGTSFM(unittest.TestCase):
                 rot2 = wRi_list2[reference_idx].between(wRi_list2[i])
                 self.assertTrue(rot1.equals(rot2, 1e-2))
 
-    def __assert_point3_equal_upto_scale(self,
-                                         wTi_list1: List[Optional[Point3]],
-                                         wTi_list2: List[Optional[Point3]]):
-        """Helper function to assert that two lists of global Point3 are equal
-        (upto global scale ambiguity)."""
+    def __assert_pose3_equal_upto_scale(self,
+                                        wTi_list1: List[Pose3],
+                                        wTi_list2: List[Pose3]):
+        """Helper function to assert that two lists of global Pose3 are equal,
+        upto global pose ambiguity."""
 
-        # TODO: reuse a single copy of this function
+        self.assertEqual(len(wTi_list1), len(wTi_list2),
+                         'two lists to compare have unequal lengths')
 
-        # assert length of both the lists
-        self.assertEqual(len(wTi_list1), len(wTi_list2))
-
-        # select the first valid rotation entry to tackle global ambiguity
+        # get a referenc pose to resolve ambiguity
         reference_idx = -1
         for i in range(len(wTi_list1)):
-            if wTi_list1[i] is not None:
-                self.assertIsNotNone(wTi_list2[i])
+            if wTi_list1[i] is not None and wTi_list2[i] is not None:
                 reference_idx = i
                 break
 
         if reference_idx == -1:
-            # confirm the 2nd list has all Nones too
-            for val in wTi_list2:
-                self.assertIsNone(val)
+            # all entries in the list should be none
+            for pose in wTi_list1:
+                self.assertIsNone(pose)
 
-            self.skipTest('No valid translations found')
+            for pose in wTi_list2:
+                self.assertIsNone(pose)
 
-        # TODO: manually compute scale and get rid of ambiguity
-        # compare all translations w.r.t the reference_idx
+            return
+
+        scale_factor_2to1 = None
+
         for i in range(len(wTi_list1)):
+            if i == reference_idx:
+                continue
+
             if wTi_list1[i] is None:
                 self.assertIsNone(wTi_list2[i])
             else:
-                direction1 = Unit3(wTi_list1[i] - wTi_list1[reference_idx])
-                direction2 = Unit3(wTi_list2[i] - wTi_list2[reference_idx])
+                pose_1 = wTi_list1[i].between(wTi_list1[reference_idx])
+                pose_2 = wTi_list2[i].between(wTi_list2[reference_idx])
 
-                self.assertTrue(direction1.equals(direction2, 1e-2))
+            if scale_factor_2to1 is None:
+                # resolve the scale factor by using one measurement
+                scale_factor_2to1 = np.linalg.norm(pose_1.translation()) /\
+                    (np.linalg.norm(pose_2.translation()) + np.finfo(float).eps)
+
+            # assert equality upto scale
+            self.assertTrue(pose_1.rotation().equals(pose_2.rotation(), 1e-3))
+            np.testing.assert_allclose(
+                pose_1.translation(),
+                pose_2.translation()*scale_factor_2to1,
+                atol=1e-1,
+                rtol=1e-1)
 
     def test_find_largest_connected_component(self):
         """Tests the function to prune the scene graph to its largest connected
@@ -169,6 +183,9 @@ class TestGTSFM(unittest.TestCase):
             expected_verified_corr_indices = self.obj.run(
                 self.loader, exact_intrinsics_flag=exact_intrinsics_flag)
 
+        expected_wTi_list = [Pose3(wRi, wti) if wti is not None else None for (
+            wRi, wti) in zip(expected_global_rotations, expected_global_translations)]
+
         # generate the dask computation graph
         keypoints_graph, \
             global_rotations_graph, \
@@ -190,6 +207,9 @@ class TestGTSFM(unittest.TestCase):
             computed_verified_corr_indices = \
                 dask.compute(verified_corr_graph)[0]
 
+        computed_wTi_list = [Pose3(wRi, wti) if wti is not None else None for (
+            wRi, wti) in zip(computed_global_rotations, computed_global_translations)]
+
         # compute the number of length of lists and dictionaries
         self.assertEqual(len(computed_keypoints_list),
                          len(expected_keypoints_list))
@@ -206,8 +226,8 @@ class TestGTSFM(unittest.TestCase):
         # assert global rotations and translations
         self.__assert_rotations_equal(
             computed_global_rotations, expected_global_rotations)
-        self.__assert_point3_equal_upto_scale(
-            computed_global_translations, expected_global_translations
+        self.__assert_pose3_equal_upto_scale(
+            computed_wTi_list, expected_wTi_list
         )
 
 

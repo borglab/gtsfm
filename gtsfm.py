@@ -63,9 +63,9 @@ class GTSFM(metaclass=abc.ABCMeta):
             if exact_intrinsics_flag else \
             self.verifier.verify_with_approximate_intrinsics
 
-        relative_rotations_dict = dict()
-        relative_unit_translations_dict = dict()
-        verified_correspondence_indices_dict = dict()
+        rel_rotations = dict()
+        rel_unit_trans = dict()
+        v_corr_idxs_dict = dict()
         for (i1, i2) in loader.get_valid_pairs():
             match_correspondence_indices = self.matcher.match(
                 descriptors_list[i1],
@@ -81,33 +81,33 @@ class GTSFM(metaclass=abc.ABCMeta):
                     loader.get_camera_intrinsics(i2),
                 )
 
+            v_corr_idxs_dict[(i1, i2)] = \
+                verified_correspondence_indices
             if i2Ri1 is not None:
                 # TODO: confirm with john if this is the right way to representation rotations and unit translations (i.e. (i1, i2) or (i2, i1))
-                relative_rotations_dict[(i2, i1)] = i2Ri1
-                relative_unit_translations_dict[(i2, i1)] = i2Ui1
-                verified_correspondence_indices_dict[(i1, i2)] = \
-                    verified_correspondence_indices
+                rel_rotations[(i1, i2)] = i2Ri1
+                rel_unit_trans[(i1, i2)] = i2Ui1
 
-        relative_rotations_dict, relative_unit_translations_dict = \
+        rel_rotations, rel_unit_trans = \
             self.select_largest_connected_component(
-                relative_rotations_dict,
-                relative_unit_translations_dict)
+                rel_rotations,
+                rel_unit_trans)
 
-        global_rotations = self.rotation_averaging_module.run(
+        wRi_list = self.rotation_averaging_module.run(
             len(loader),
-            relative_rotations_dict
+            rel_rotations
         )
 
-        global_translations = self.translation_averaging_module.run(
+        wti_list = self.translation_averaging_module.run(
             len(loader),
-            relative_unit_translations_dict,
-            global_rotations
+            rel_unit_trans,
+            wRi_list
         )
 
         return keypoints_list, \
-            global_rotations, \
-            global_translations,\
-            verified_correspondence_indices_dict
+            wRi_list, \
+            wti_list,\
+            v_corr_idxs_dict
 
     @classmethod
     def select_largest_connected_component(
