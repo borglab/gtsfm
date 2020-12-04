@@ -20,8 +20,8 @@ import pydegensac
 from gtsam import Cal3Bundler, Rot3, Unit3
 
 import utils.verification as verification_utils
-from frontend.verifier.verifier_base import VerifierBase
 from common.keypoints import Keypoints
+from frontend.verifier.verifier_base import VerifierBase
 
 # minimum matches required for computing the F-matrix
 NUM_MATCHES_REQ_F_MATRIX = 8
