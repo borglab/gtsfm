@@ -378,15 +378,9 @@ def simulate_two_planes_scene(M: int,
 
     # sample the points from planes
     plane1_points = sample_points_on_plane(
-        plane1_coeffs,
-        range_x_coordinate,
-        range_y_coordinate,
-        M)
+        plane1_coeffs, range_x_coordinate, range_y_coordinate, M)
     plane2_points = sample_points_on_plane(
-        plane2_coeffs,
-        range_x_coordinate,
-        range_y_coordinate,
-        N)
+        plane2_coeffs, range_x_coordinate, range_y_coordinate, N)
 
     points_3d = np.vstack((plane1_points, plane2_points))
 
@@ -397,30 +391,28 @@ def simulate_two_planes_scene(M: int,
     wRi1 = Rot3.RzRyRx(np.pi/20, 0, 0.0)
     wRi2 = Rot3.RzRyRx(0.0, np.pi/6, 0.0)
 
-    wPi1 = Pose3(wRi1, wti1)
-    wPi2 = Pose3(wRi2, wti2)
-    i2Pi1 = wPi2.between(wPi1)
+    wTi1 = Pose3(wRi1, wti1)
+    wTi2 = Pose3(wRi2, wti2)
+    i2Ti1 = wTi2.between(wTi1)
 
-    i2Ei1 = EssentialMatrix(i2Pi1.rotation(), Unit3(i2Pi1.translation()))
+    i2Ei1 = EssentialMatrix(i2Ti1.rotation(), Unit3(i2Ti1.translation()))
 
     # project 3D points to 2D image measurements
     intrinsics = Cal3Bundler()
-    camera_i1 = PinholeCameraCal3Bundler(wPi1, intrinsics)
-    camera_i2 = PinholeCameraCal3Bundler(wPi2, intrinsics)
+    camera_i1 = PinholeCameraCal3Bundler(wTi1, intrinsics)
+    camera_i2 = PinholeCameraCal3Bundler(wTi2, intrinsics)
 
-    points_2d_im1 = []
-    points_2d_im2 = []
+    uv_im1 = []
+    uv_im2 = []
     for point in points_3d:
-        points_2d_im1.append(camera_i1.project(point))
-        points_2d_im2.append(camera_i2.project(point))
+        uv_im1.append(camera_i1.project(point))
+        uv_im2.append(camera_i2.project(point))
 
-    points_2d_im1 = np.vstack(points_2d_im1)
-    points_2d_im2 = np.vstack(points_2d_im2)
+    uv_im1 = np.vstack(uv_im1)
+    uv_im2 = np.vstack(uv_im2)
 
     # return the points as keypoints and the essential matrix
-    return Keypoints(coordinates=points_2d_im1), \
-        Keypoints(coordinates=points_2d_im2), \
-        i2Ei1
+    return Keypoints(coordinates=uv_im1), Keypoints(coordinates=uv_im2), i2Ei1
 
 
 if __name__ == "__main__":

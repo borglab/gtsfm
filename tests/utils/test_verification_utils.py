@@ -17,9 +17,7 @@ class TestVerificationUtils(unittest.TestCase):
         """Test for function to extract relative pose from essential matrix."""
 
         # simulate correspondences and the essential matrix
-        corr_i1, corr_i2, i2Ei1 = simulate_two_planes_scene(
-            10, 10
-        )
+        corr_i1, corr_i2, i2Ei1 = simulate_two_planes_scene(10, 10)
 
         i2Ri1, i2Ui1 = \
             verification_utils.recover_relative_pose_from_essential_matrix(
