@@ -1,13 +1,13 @@
-from utils.cfgnode import CfgNode, ArgsCfgNode, config_input
+from utils.cfgnode import CfgNode, ArgsCfgNode
 
+""" Pls don't review it for now, I will make it a unittest soon """
 if __name__ == "__main__":
     # Test 2
     config = CfgNode()
-    config.add_new_cfg('config1.yaml',config_input.INPUT_FILE)
+    config.load_file('config1.yaml')
 
     argparser = ArgsCfgNode('Test for config loading and saving',config)
     config = argparser.init_config(config)
-    print(config)
-    
+    config.print_modules()
 
     
