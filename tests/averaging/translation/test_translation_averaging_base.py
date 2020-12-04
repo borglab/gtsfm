@@ -64,8 +64,8 @@ class TestTranslationAveragingBase(unittest.TestCase):
         wTi_list_ = [wTi_list_[i].between(origin_) for i in wTi_valid_[1:]]
 
         # use the first entry to get the scale factor between two lists
-        scale_factor_2to1 = np.linalg.norm(wTi_list[1].translation()) / \
-            (np.linalg.norm(wTi_list_[1].translation()) + np.finfo(float).eps)
+        scale_factor_2to1 = np.linalg.norm(wTi_list[0].translation()) / \
+            (np.linalg.norm(wTi_list_[0].translation()) + np.finfo(float).eps)
 
         # map the poses in the 2nd list using the scale factor on translations
         wTi_list_ = [Pose3(x.rotation(), x.translation() * scale_factor_2to1)
