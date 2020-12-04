@@ -1,20 +1,15 @@
-import argparse
 import logging
 import sys
 
-import matplotlib.pyplot as plt
-import numpy as np
-
-import gtsam
-from gtsam import (
-    GeneralSFMFactorCal3Bundler,
-    PinholeCameraCal3Bundler,
-    PriorFactorPinholeCameraCal3Bundler,
-    SfmData,
-    symbol_shorthand
-)
-
 import dask
+import gtsam
+import numpy as np
+from dask.delayed import Delayed
+from gtsam import (GeneralSFMFactorCal3Bundler, PinholeCameraCal3Bundler,
+                   PriorFactorPinholeCameraCal3Bundler, SfmData,
+                   symbol_shorthand)
+
+from common.sfmresult import SfmResult
 
 C = symbol_shorthand.C
 P = symbol_shorthand.P
@@ -29,21 +24,22 @@ class BundleAdjustmentBase:
         Args:
             scene_data: structured tracks (SfmData) after Triangularization and Outlier rejection. 
         """
-        
-    def run(self, scene_data: SfmData) -> float:
+
+    def run(self, scene_data: SfmData) -> SfmResult:
         """ Run LM optimization with input data and report resulting error """
-        logging.info(f"Input: {scene_data.number_tracks()} tracks on {scene_data.number_cameras()} cameras\n")
+        logging.info(
+            f"Input: {scene_data.number_tracks()} tracks on {scene_data.number_cameras()} cameras\n")
 
         # Create a factor graph
         graph = gtsam.NonlinearFactorGraph()
 
         # We share *one* noiseModel between all projection factors
-        noise = gtsam.noiseModel.Isotropic.Sigma(2, 1.0) # one pixel in u and v
+        noise = gtsam.noiseModel.Isotropic.Sigma(2, 1.0)  # one pixel in u and v
 
         # Add measurements to the factor graph
         j = 0
         for t_idx in range(scene_data.number_tracks()):
-            track = scene_data.track(t_idx) # SfmTrack
+            track = scene_data.track(t_idx)  # SfmTrack
             # retrieve the SfmMeasurement objects
             for m_idx in range(track.number_measurements()):
                 # i represents the camera index, and uv is the 2d measurement
@@ -61,13 +57,14 @@ class BundleAdjustmentBase:
         # Also add a prior on the position of the first landmark to fix the scale
         graph.push_back(
             gtsam.PriorFactorPoint3(
-                P(0), scene_data.track(0).point3(), gtsam.noiseModel.Isotropic.Sigma(3, 0.1)
+                P(0), scene_data.track(0).point3(
+                ), gtsam.noiseModel.Isotropic.Sigma(3, 0.1)
             )
         )
 
         # Create initial estimate
         initial = gtsam.Values()
-        
+
         i = 0
         # add each PinholeCameraCal3Bundler
         for cam_idx in range(scene_data.number_cameras()):
@@ -78,7 +75,7 @@ class BundleAdjustmentBase:
         j = 0
         # add each SfmTrack
         for t_idx in range(scene_data.number_tracks()):
-            track = scene_data.track(t_idx)  
+            track = scene_data.track(t_idx)
             initial.insert(P(j), track.point3())
             j += 1
 
@@ -95,7 +92,6 @@ class BundleAdjustmentBase:
         logging.info(f"final error: {graph.error(result)}")
 
         return graph.error(result)
-    
-    def create_computation_graph(self, scene_data: SfmData) -> float:
-        return dask.delayed(self.run)(scene_data)
 
+    def create_computation_graph(self, scene_data: Delayed) -> Delayed:
+        return dask.delayed(self.run)(scene_data)
