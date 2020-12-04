@@ -57,8 +57,8 @@ class BundleAdjustmentBase:
         # Also add a prior on the position of the first landmark to fix the scale
         graph.push_back(
             gtsam.PriorFactorPoint3(
-                P(0), scene_data.track(0).point3(
-                ), gtsam.noiseModel.Isotropic.Sigma(3, 0.1)
+                P(0), scene_data.track(0).point3(),
+                gtsam.noiseModel.Isotropic.Sigma(3, 0.1)
             )
         )
 
