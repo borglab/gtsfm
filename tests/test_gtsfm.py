@@ -18,34 +18,33 @@ from frontend.verifier.degensac import Degensac
 from gtsfm import GTSFM
 from loader.folder_loader import FolderLoader
 
-
+# path to the unit test data
 DATA_ROOT_PATH = Path(__file__).resolve().parent / 'data'
 
 
 class TestGTSFM(unittest.TestCase):
-    """[summary]
-
-    Args:
-        unittest ([type]): [description]
-    """
+    """Unit test for the GTSFM class."""
 
     def setUp(self) -> None:
-        self.loader = FolderLoader(
-            str(DATA_ROOT_PATH / 'set1_lund_door'), image_extension='JPG')
+        """ Load images from the Lund Door dataset and instantiate GTSFM object """
+        # normally, the SceneLoader would pass the directory path to the
+        # GTSFM class. However, here we allow one to execute the GTSFM class
+        # over a single scene over CLI, if they provide the directory path
+        path = str(DATA_ROOT_PATH / 'set1_lund_door')
+        self.loader = FolderLoader(path, image_extension='JPG')
         assert len(self.loader)
-        self.obj = GTSFM(
-            detector_descriptor=SIFTDetectorDescriptor(),
-            matcher=TwoWayMatcher(),
-            verifier=Degensac(),
-            rotation_averaging_module=ShonanRotationAveraging(),
-            translation_averaging_module=TranslationAveraging1DSFM()
-        )
+        config_path = str(DATA_ROOT_PATH / 'lund_door_config.yaml')
+        self.config = load_config(config_path)
 
-    # compare the two entries
+    
     def __assert_rotations_equal(self,
                                  wRi_list1: List[Optional[Rot3]],
                                  wRi_list2: List[Optional[Rot3]]):
-        # TODO: reuse a single copy of this function
+        """ Compare pairs of entries in two lists of global rotations
+        TODO: Ayush, should this go in a different util associated with Shonan?
+        TODO: Ayush, is this located somewhere else?
+        
+        """
 
         # assert length of both the lists
         self.assertEqual(len(wRi_list1), len(wRi_list2))
@@ -78,7 +77,9 @@ class TestGTSFM(unittest.TestCase):
                                          wTi_list1: List[Optional[Point3]],
                                          wTi_list2: List[Optional[Point3]]):
         """Helper function to assert that two lists of global Point3 are equal
-        (upto global scale ambiguity)."""
+        (upto global scale ambiguity).
+
+        """
 
         # TODO: reuse a single copy of this function
 
@@ -158,8 +159,21 @@ class TestGTSFM(unittest.TestCase):
                 computed_relative_unit_translations[(i1, i2)].equals(
                     input_relative_unit_translations[(i1, i2)], 1e-2))
 
-    def test_create_computation_graph(self):
 
+    def test_create_computation_graph(self):
+        """ Check that the single GTSFM class is correctly created. """
+
+        gtsfm = GTSFM(self.config)
+        graph = gtsfm.create_computation_graph()
+        # check output type
+        assert isinstance(graph, dask.Delayed)
+
+
+    def test_old_way(self):
+        """ Compare the results with and without Dask
+        TODO: why isn't GtsfmResult the output here?
+        TODO: dont need 
+        """
         exact_intrinsics_flag = False
 
         # run normally without dask
