@@ -119,7 +119,7 @@ def compute_error_from_annotated_correspondences(
     gt_euler_angles = np.array([-0.37, 32.47, -0.42])
     assert np.allclose(gt_euler_angles, euler_angles, atol=euler_angle_err_tol)
 
-    gt_i1_t_i2 = np.array([ 0.21, -0.0024, 0.976])
+    gt_i1ti2 = np.array([ 0.21, -0.0024, 0.976])
     assert np.allclose(gt_i1ti2, i1ti2, atol=translation_err_tol)
 
 
