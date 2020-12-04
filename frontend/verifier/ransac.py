@@ -142,4 +142,5 @@ class Ransac(VerifierBase):
             Indices of verified correspondences, of shape (N, 2) with N <= N3.
                 These indices are subset of match_indices.
         """
+        logger.info("Directly estimating essential matrix with approximate intrinsics not implemented")
         raise NotImplementedError("Use Degensac instead for F-Matrix estimation")
