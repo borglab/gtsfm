@@ -41,11 +41,25 @@ class GTSFM(metaclass=abc.ABCMeta):
 
     def run(self,
             loader: LoaderBase,
-            exact_intrinsics_flag: bool = True) -> Tuple[
+            exact_intrinsics: bool = True) -> Tuple[
             List[Keypoints],
             List[Optional[Rot3]],
             List[Optional[Unit3]],
             Dict[Tuple[int, int], np.ndarray]]:
+        """Run structure-from-motion on supplied loader.
+
+        Args:
+            loader: loader with input dataset.
+            exact_intrinsics (optional): Flag denoting intrinsics can be
+                                         treated as exact in the verification
+                                         stage. Defaults to True.
+
+        Returns:
+            List of keypoints detected in each image.
+            List of global rotations (after rotation averaging).
+            List of global translations (after translation averaging).
+            Indices of verified correspondences between pairs of images.
+        """
         # run detection and description for all images in the loader
         keypoints_list = []
         descriptors_list = []
@@ -59,55 +73,40 @@ class GTSFM(metaclass=abc.ABCMeta):
             descriptors_list.append(descriptors)
 
         # perform matching and verification on valid image pairs in the loader
-        verification_function = self.verifier.verify_with_exact_intrinsics \
-            if exact_intrinsics_flag else \
-            self.verifier.verify_with_approximate_intrinsics
+        if exact_intrinsics:
+            verification_fn = self.verifier.verify_with_exact_intrinsics
+        else:
+            verification_fn = self.verifier.verify_with_approximate_intrinsics
 
-        rel_rotations = dict()
-        rel_unit_trans = dict()
+        i2Ri1s = dict()
+        i2Ui1s = dict()
         v_corr_idxs_dict = dict()
         for (i1, i2) in loader.get_valid_pairs():
-            match_correspondence_indices = self.matcher.match(
-                descriptors_list[i1],
-                descriptors_list[i2]
+            corr_idxs = self.matcher.match(
+                descriptors_list[i1], descriptors_list[i2])
+
+            i2Ri1, i2Ui1, v_corr_idxs = verification_fn(
+                keypoints_list[i1],
+                keypoints_list[i2],
+                corr_idxs,
+                loader.get_camera_intrinsics(i1),
+                loader.get_camera_intrinsics(i2),
             )
 
-            i2Ri1, i2Ui1, verified_correspondence_indices = \
-                verification_function(
-                    keypoints_list[i1],
-                    keypoints_list[i2],
-                    match_correspondence_indices,
-                    loader.get_camera_intrinsics(i1),
-                    loader.get_camera_intrinsics(i2),
-                )
-
-            v_corr_idxs_dict[(i1, i2)] = \
-                verified_correspondence_indices
+            v_corr_idxs_dict[(i1, i2)] = v_corr_idxs
             if i2Ri1 is not None:
                 # TODO: confirm with john if this is the right way to representation rotations and unit translations (i.e. (i1, i2) or (i2, i1))
-                rel_rotations[(i1, i2)] = i2Ri1
-                rel_unit_trans[(i1, i2)] = i2Ui1
+                i2Ri1s[(i1, i2)] = i2Ri1
+                i2Ui1s[(i1, i2)] = i2Ui1
 
-        rel_rotations, rel_unit_trans = \
-            self.select_largest_connected_component(
-                rel_rotations,
-                rel_unit_trans)
+        i2Ri1s, i2Ui1s = self.select_largest_connected_component(i2Ri1s, i2Ui1s)
 
-        wRi_list = self.rotation_averaging_module.run(
-            len(loader),
-            rel_rotations
-        )
+        wRi_list = self.rotation_averaging_module.run(len(loader), i2Ri1s)
 
         wti_list = self.translation_averaging_module.run(
-            len(loader),
-            rel_unit_trans,
-            wRi_list
-        )
+            len(loader), i2Ui1s, wRi_list)
 
-        return keypoints_list, \
-            wRi_list, \
-            wti_list,\
-            v_corr_idxs_dict
+        return keypoints_list, wRi_list, wti_list, v_corr_idxs_dict
 
     @classmethod
     def select_largest_connected_component(
@@ -117,16 +116,7 @@ class GTSFM(metaclass=abc.ABCMeta):
     ) -> Tuple[
             Dict[Tuple[int, int], Rot3],
             Dict[Tuple[int, int], Unit3]]:
-        """Process the graph of image indices with Rot3s/Unit3s defining edges, and select the largest connected component.
-
-        Args:
-            essential_matrices: dictionary containing essential matrices
-                between image pairs.
-
-        Returns:
-            subset of input dictionaries which form the single largest connected
-                component.
-        """
+        """Process the graph of image indices with Rot3s/Unit3s defining edges, and select the largest connected component."""
 
         input_edges = [
             k for (k, v) in rotations.items() if v is not None]
@@ -151,49 +141,39 @@ class GTSFM(metaclass=abc.ABCMeta):
                                  image_pair_indices: List[Tuple[int, int]],
                                  image_graph: List[Delayed],
                                  camera_intrinsics_graph: List[Delayed],
-                                 exact_intrinsics_flag: bool = True
+                                 exact_intrinsics: bool = True
                                  ) -> Tuple[List[Delayed],
                                             Delayed,
                                             Delayed,
                                             Dict[Tuple[int, int], Delayed]]:
+        # detection and description graph
         detection_graph, description_graph = \
             self.detector_descriptor.create_computation_graph(image_graph)
 
+        # graph for matching to obtain putative correspondences
         matcher_graph = self.matcher.create_computation_graph(
-            image_pair_indices,
-            description_graph
+            image_pair_indices, description_graph)
 
-        )
-        relative_rotations_graph, \
-            relative_unit_translations_graph, \
-            verified_correspondence_indices_graph = \
+        # verification on putative correspondences to obtain relative pose
+        # and verified correspondences
+        i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph = \
             self.verifier.create_computation_graph(
-                detection_graph,
-                matcher_graph,
-                camera_intrinsics_graph,
-                exact_intrinsics_flag
+                detection_graph, matcher_graph,
+                camera_intrinsics_graph, exact_intrinsics
             )
 
         # prune the graph to a single connected component.
-        pruned_relative_pose_graph = \
-            dask.delayed(
-                self.select_largest_connected_component)(relative_rotations_graph, relative_unit_translations_graph)
+        pruned_graph = dask.delayed(self.select_largest_connected_component)(
+            i2Ri1_graph, i2Ui1_graph)
 
-        pruned_relative_rotations_graph = pruned_relative_pose_graph[0]
-        pruned_relative_unit_translations_graph = pruned_relative_pose_graph[1]
+        pruned_i2Ri1_graph = pruned_graph[0]
+        pruned_i2Ui1_graph = pruned_graph[1]
 
-        global_rotations_graph = \
-            self.rotation_averaging_module.create_computation_graph(
-                num_images, pruned_relative_rotations_graph)
+        wRi_graph = self.rotation_averaging_module.create_computation_graph(
+            num_images, pruned_i2Ri1_graph)
 
-        global_translations_graph = \
-            self.translation_averaging_module.create_computation_graph(
-                num_images,
-                pruned_relative_unit_translations_graph,
-                global_rotations_graph
-            )
+        wTi_graph = self.translation_averaging_module.create_computation_graph(
+            num_images, pruned_i2Ui1_graph, wRi_graph
+        )
 
-        return detection_graph, \
-            global_rotations_graph, \
-            global_translations_graph, \
-            verified_correspondence_indices_graph
+        return detection_graph, wRi_graph, wTi_graph, v_corr_idxs_graph
