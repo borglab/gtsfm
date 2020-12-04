@@ -17,8 +17,8 @@ from gtsam import Cal3Bundler, Rot3, Unit3
 
 import utils.features as feature_utils
 import utils.verification as verification_utils
-from frontend.verifier.verifier_base import VerifierBase
 from common.keypoints import Keypoints
+from frontend.verifier.verifier_base import VerifierBase
 
 # minimum matches required for computing the E-matrix
 NUM_MATCHES_REQ_E_MATRIX = 5
