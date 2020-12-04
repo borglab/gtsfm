@@ -67,40 +67,34 @@ class Keypoints(NamedTuple):
         """Checks that the other object is not equal to the current object."""
         return not self == other
 
-    def get_top_values(self, max_keypoints: int) -> 'Keypoints':
+    def get_top_k(self, k: int) -> 'Keypoints':
         """Returns the top keypoints by their response values (or just the
         values from the front in case of missing responses.)
 
         Args:
-            max_keypoints: max number of keypoints to return.
+            k: max number of keypoints to return.
 
         Returns:
             subset of current keypoints.
         """
-        if len(self) <= max_keypoints:
+        if len(self) <= k:
             # no need to remove anything
             return Keypoints(coordinates=self.coordinates,
                              responses=self.responses,
                              scales=self.scales)
 
         if self.responses is None:
-            # select select values from the front
-            return Keypoints(
-                coordinates=self.coordinates[:max_keypoints],
-                scales=self.scales[:max_keypoints]
-                if self.scales is not None else None,
-                responses=self.responses[:max_keypoints]
-                if self.responses is not None else None
-            )
-
-        # select the values with top response values
-        selection_idx = np.argpartition(-self.responses,
-                                        max_keypoints)[:max_keypoints]
+            selection_idxs = np.arange(k, dtype=np.uint32)
+        else:
+            # select the values with top response values
+            selection_idxs = np.argpartition(-self.responses,
+                                             k)[:k]
         return Keypoints(
-            coordinates=self.coordinates[selection_idx],
-            scales=self.scales[selection_idx]
+            coordinates=self.coordinates[selection_idxs],
+            scales=self.scales[selection_idxs]
             if self.scales is not None else None,
-            responses=self.responses[selection_idx]
+            responses=self.responses[selection_idxs]
+            if self.responses is not None else None,
         )
 
     def get_x_coordinates(self) -> np.ndarray:

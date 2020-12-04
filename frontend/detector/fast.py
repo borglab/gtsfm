@@ -38,6 +38,6 @@ class Fast(DetectorBase):
         keypoints = feature_utils.cast_to_gtsfm_keypoints(cv_keypoints)
 
         # limit number of keypoints
-        keypoints = keypoints.get_top_values(self.max_keypoints)
+        keypoints = keypoints.get_top_k(self.max_keypoints)
 
         return keypoints

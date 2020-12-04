@@ -95,8 +95,8 @@ class TestKeypoints(unittest.TestCase):
         obj2 = Keypoints(coordinates=COORDINATES)
         self.assertNotEqual(obj1, obj2)
 
-    def test_get_top_values_with_responses(self):
-        """Tests the selection of top values in a keypoints with responses"""
+    def test_get_top_k_with_responses(self):
+        """Tests the selection of top entries in a keypoints with responses."""
 
         input_keypoints = Keypoints(
             coordinates=np.array([
@@ -112,13 +112,13 @@ class TestKeypoints(unittest.TestCase):
 
         # test with requested length > current length
         requested_length = len(input_keypoints)*2
-        computed = input_keypoints.get_top_values(requested_length)
+        computed = input_keypoints.get_top_k(requested_length)
 
         self.assertEqual(computed, input_keypoints)
 
         # test with requested length < current length
         requested_length = 2
-        computed = input_keypoints.get_top_values(requested_length)
+        computed = input_keypoints.get_top_k(requested_length)
 
         expected = Keypoints(
             coordinates=np.array([
@@ -132,8 +132,8 @@ class TestKeypoints(unittest.TestCase):
         # compare in an order-insensitive fashion
         self.compare_without_ordering(computed, expected)
 
-    def test_get_top_values_without_responses(self):
-        """Tests the selection of top values in a keypoints w/o responses"""
+    def test_get_top_k_without_responses(self):
+        """Tests the selection of top entries in a keypoints w/o responses."""
 
         input_keypoints = Keypoints(
             coordinates=np.array([
@@ -146,13 +146,13 @@ class TestKeypoints(unittest.TestCase):
 
         # test with requested length > current length
         requested_length = len(input_keypoints)*2
-        computed = input_keypoints.get_top_values(requested_length)
+        computed = input_keypoints.get_top_k(requested_length)
 
         self.assertEqual(computed, input_keypoints)
 
         # test with requested length < current length
         requested_length = 2
-        computed = input_keypoints.get_top_values(requested_length)
+        computed = input_keypoints.get_top_k(requested_length)
 
         expected = Keypoints(
             coordinates=input_keypoints.coordinates[:requested_length]
