@@ -27,55 +27,52 @@ class TestTranslationAveragingBase(unittest.TestCase):
         self.obj = DummyTranslationAveraging()
 
     def assert_equal_upto_scale(self,
-                                wTi_list1: List[Pose3],
-                                wTi_list2: List[Pose3]):
+                                wTi_list: List[Pose3],
+                                wTi_list_: List[Pose3]):
         """Helper function to assert that two lists of global Pose3 are equal,
-        upto global pose ambiguity."""
+        upto global origin and scale ambiguity.
 
-        self.assertEqual(len(wTi_list1), len(wTi_list2),
+        Notes:
+        1. The input lists have the poses in the same order, and can contain
+           None entries.
+        2. To resolve global origin ambiguity, we will fix one image index as
+           origin in both the inputs and transform both the lists to the new
+           origins.
+        3. As there is a scale ambiguity, we will use one image index to fix
+           the scale ambiguity.
+        """
+
+        # check the length of the input lists
+        self.assertEqual(len(wTi_list), len(wTi_list_),
                          'two lists to compare have unequal lengths')
 
-        # get a referenc pose to resolve ambiguity
-        reference_idx = -1
-        for i in range(len(wTi_list1)):
-            if wTi_list1[i] is not None and wTi_list2[i] is not None:
-                reference_idx = i
-                break
+        # check the presense of valid Pose3 objects in the same location
+        wTi_valid = [i for (i, wTi) in enumerate(wTi_list) if wTi is not None]
+        wTi_valid_ = [i for (i, wTi) in enumerate(wTi_list_) if wTi is not None]
+        self.assertListEqual(wTi_valid, wTi_valid_)
 
-        if reference_idx == -1:
-            # all entries in the list should be none
-            for pose in wTi_list1:
-                self.assertIsNone(pose)
-
-            for pose in wTi_list2:
-                self.assertIsNone(pose)
-
+        if len(wTi_valid) <= 1:
+            # we need >= two entries going forward for meaningful comparisons
             return
 
-        scale_factor_2to1 = None
+        # fix the origin for both inputs lists
+        origin = wTi_list[wTi_valid[0]]
+        origin_ = wTi_list_[wTi_valid_[0]]
 
-        for i in range(len(wTi_list1)):
-            if i == reference_idx:
-                continue
+        # transform all other valid Pose3 entries to the new coordinate frame
+        wTi_list = [wTi_list[i].between(origin) for i in wTi_valid[1:]]
+        wTi_list_ = [wTi_list_[i].between(origin_) for i in wTi_valid_[1:]]
 
-            if wTi_list1[i] is None:
-                self.assertIsNone(wTi_list2[i])
-            else:
-                pose_1 = wTi_list1[i].between(wTi_list1[reference_idx])
-                pose_2 = wTi_list2[i].between(wTi_list2[reference_idx])
+        # use the first entry to get the scale factor between two lists
+        scale_factor_2to1 = np.linalg.norm(wTi_list[1].translation()) / \
+            (np.linalg.norm(wTi_list_[1].translation()) + np.finfo(float).eps)
 
-            if scale_factor_2to1 is None:
-                # resolve the scale factor by using one measurement
-                scale_factor_2to1 = np.linalg.norm(pose_1.translation()) /\
-                    (np.linalg.norm(pose_2.translation()) + np.finfo(float).eps)
+        # map the poses in the 2nd list using the scale factor on translations
+        wTi_list_ = [Pose3(x.rotation(), x.translation() * scale_factor_2to1)
+                     for x in wTi_list_]
 
-            # assert equality upto scale
-            self.assertTrue(pose_1.rotation().equals(pose_2.rotation(), 1e-3))
-            np.testing.assert_allclose(
-                pose_1.translation(),
-                pose_2.translation()*scale_factor_2to1,
-                atol=1e-1,
-                rtol=1e-1)
+        for (wTi, wTi_) in zip(wTi_list, wTi_list_):
+            self.assertTrue(wTi.equals(wTi_, 1e-1))
 
     def test_computation_graph(self):
         """Test the dask computation graph execution using a valid collection
