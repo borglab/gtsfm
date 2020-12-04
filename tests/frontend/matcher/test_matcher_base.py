@@ -106,9 +106,7 @@ class TestMatcherBase(unittest.TestCase):
             )
 
         # create computation graph providing descriptors
-        description_graph = [
-            dask.delayed(x) for x in descriptors_list
-        ]
+        description_graph = [dask.delayed(x) for x in descriptors_list]
 
         matcher_graph = self.matcher.create_computation_graph(
             pairs_list, description_graph)
