@@ -34,8 +34,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
 
         Args:
             num_images: number of poses.
-            i2Ri1_dict: relative rotations as dictionaries where keys (i1, i2)
-                        are pose pairs.
+            i2Ri1_dict: relative rotations as dictionary (i1, i2): i2Ri1.
 
         Returns:
             Global rotations for each camera pose, i.e. w_R_i, as a list. The

@@ -48,8 +48,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         Args:
             num_images: number of camera poses.
-            i2Ui1_dict: relative unit translations as dictionary where keys
-                        (i1, i2) are pose pairs.
+            i2Ui1_dict: relative unit-trans as dictionary (i1, i2): i2Ui1.
             wRi_list: global rotations for each camera pose in the world
                       coordinates.
             scale_factor: non-negative global scaling factor.

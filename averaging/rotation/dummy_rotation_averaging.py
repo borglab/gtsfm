@@ -21,11 +21,10 @@ class DummyRotationAveraging(RotationAveragingBase):
 
         Args:
             num_images: number of poses.
-            i2Ri1_dict: relative rotations as dictionaries where keys (i1, i2)
-                        are pose pairs.
+            i2Ri1_dict: relative rotations as dictionary (i1, i2): i2Ri1.
 
         Returns:
-            Global rotations for each camera pose, i.e. w_R_i, as a list. The
+            Global rotations for each camera pose, i.e. wRi, as a list. The
                 number of entries in the list is `num_images`. The list may
                 contain `None` where the global rotation could not be computed
                 (either underconstrained system or ill-constrained system).
