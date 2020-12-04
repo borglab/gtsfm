@@ -83,28 +83,6 @@ class TestMatcherBase(unittest.TestCase):
         self.assertEqual(result.shape[0], len(set_index_im1))
         self.assertEqual(result.shape[0], len(set_index_im2))
 
-    def test_match_and_get_features(self):
-        """Testing the match+lookup API to verify lookup."""
-
-        # run matching on a random input pair
-        match_indices, descriptors_im1, descriptors_im2 = self.__generate_matches_on_random_descriptors()
-
-        # generate random features for input
-        features_im1 = np.random.randn(descriptors_im1.shape[0], 3)
-        features_im2 = np.random.randn(descriptors_im2.shape[0], 3)
-
-        # fetch matched features directly from the matcher
-        matched_features_im1, matched_features_im2 = \
-            self.matcher.match_and_get_features(
-                features_im1, features_im2,
-                descriptors_im1, descriptors_im2)
-
-        # Confirm by performing manual lookup
-        np.testing.assert_array_equal(
-            features_im1[match_indices[:, 0]], matched_features_im1)
-        np.testing.assert_array_equal(
-            features_im2[match_indices[:, 1]], matched_features_im2)
-
     def test_computation_graph(self):
         """Test that the computation graph is working exactly as the normal 
         matching API using 3 images.
@@ -125,21 +103,12 @@ class TestMatcherBase(unittest.TestCase):
             self.__generate_random_binary_descriptors(
                 num_descriptors_im3, descriptor_length)
         ]
-
-        features_list = [
-            np.random.rand(num_descriptors_im1, 3),
-            np.random.rand(num_descriptors_im2, 3),
-            np.random.rand(num_descriptors_im3, 3),
-        ]
-
         # create computation graphs
-        detection_description_graph = [
-            dask.delayed((x, y)) for x, y in zip(features_list, descriptor_list)
-        ]
+        descriptor_graph = [dask.delayed(x) for x in descriptor_list]
 
         matcher_graph = self.matcher.create_computation_graph(
             [(0, 1), (0, 2), (2, 1)],
-            detection_description_graph)
+            descriptor_graph)
 
         # run it in sequential mode
         results = []
