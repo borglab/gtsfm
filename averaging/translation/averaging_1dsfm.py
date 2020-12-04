@@ -40,7 +40,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
     def run(self,
             num_images: int,
-            i1Ui2_dict: Dict[Tuple[int, int], Optional[Unit3]],
+            i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
             wRi_list: List[Optional[Rot3]],
             scale_factor: float = 1.0
             ) -> List[Optional[Point3]]:
@@ -48,16 +48,16 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         Args:
             num_images: number of camera poses.
-            i1Ui2_dict: relative unit translations between pairs of camera
-                        poses (direction of translation of i2^th pose in
-                        i1^th frame for various pairs of (i1, i2). The pairs
-                        serve as keys of the dictionary).
+            i2Ui1_dict: relative unit-trans as dictionary (i1, i2): i2Ui1.
             wRi_list: global rotations for each camera pose in the world
                       coordinates.
             scale_factor: non-negative global scaling factor.
 
         Returns:
-            global translation for each camera pose.
+            Global translation wti for each camera pose. The number of entries
+                in the list is `num_images`. The list may contain `None` where
+                the global translations could not be computed (either
+                underconstrained system or ill-constrained system).
         """
 
         noise_model = gtsam.noiseModel.Isotropic.Sigma(
@@ -67,31 +67,31 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         # world frame.
 
         # convert translation direction in global frame using rotations.
-        w_i1Ui2_measurements = BinaryMeasurementsUnit3()
-        for (i1, i2), i1Ui2 in i1Ui2_dict.items():
-            if i1Ui2 is not None and wRi_list[i1] is not None:
-                w_i1Ui2_measurements.append(BinaryMeasurementUnit3(
-                    i1,
+        w_i2Ui1_measurements = BinaryMeasurementsUnit3()
+        for (i1, i2), i2Ui1 in i2Ui1_dict.items():
+            if i2Ui1 is not None and wRi_list[i2] is not None:
+                w_i2Ui1_measurements.append(BinaryMeasurementUnit3(
                     i2,
-                    Unit3(wRi_list[i1].rotate(i1Ui2.point3())),
+                    i1,
+                    Unit3(wRi_list[i2].rotate(i2Ui1.point3())),
                     noise_model))
 
         # sample indices to be used as projection directions
-        num_measurements = len(i1Ui2_dict)
+        num_measurements = len(i2Ui1_dict)
         indices = np.random.choice(
             num_measurements,
             min(self._max_1dsfm_projection_direction, num_measurements),
             replace=False)
 
         projection_directions = [
-            w_i1Ui2_measurements[idx].measured() for idx in indices]
+            w_i2Ui1_measurements[idx].measured() for idx in indices]
 
         # compute outlier weights using MFAS
         outlier_weights = []
 
         # TODO(ayush): parallelize this step.
         for direction in projection_directions:
-            algorithm = MFAS(w_i1Ui2_measurements, direction)
+            algorithm = MFAS(w_i2Ui1_measurements, direction)
             outlier_weights.append(algorithm.computeOutlierWeights())
 
         # compute average outlier weight
@@ -106,20 +106,20 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                         len(outlier_weights)
 
         # filter out oulier measumenets
-        w_i1Ui2_inlier_measurements = BinaryMeasurementsUnit3()
-        for w_i1Ui2 in w_i1Ui2_measurements:
-            if avg_outlier_weights[(w_i1Ui2.key1(), w_i1Ui2.key2())] < \
+        w_i2Ui1_inlier_measurements = BinaryMeasurementsUnit3()
+        for w_i2Ui1 in w_i2Ui1_measurements:
+            if avg_outlier_weights[(w_i2Ui1.key1(), w_i2Ui1.key2())] < \
                     self._outlier_weight_threshold:
-                w_i1Ui2_inlier_measurements.append(w_i1Ui2)
+                w_i2Ui1_inlier_measurements.append(w_i2Ui1)
 
         # Run the optimizer
-        wTi_values = TranslationRecovery(
-            w_i1Ui2_inlier_measurements).run(scale_factor)
+        wti_values = TranslationRecovery(
+            w_i2Ui1_inlier_measurements).run(scale_factor)
 
         # transforming the result to the list of Point3
-        wTi_list = [None]*num_images
+        wti_list = [None]*num_images
         for i in range(num_images):
             if wRi_list[i] is not None:
-                wTi_list[i] = wTi_values.atPoint3(i)
+                wti_list[i] = wti_values.atPoint3(i)
 
-        return wTi_list
+        return wti_list
