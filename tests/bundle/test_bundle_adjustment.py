@@ -40,13 +40,16 @@ class TestBundleAdjustment(unittest.TestCase):
         # Load the SfM data from file
         scene_data = gtsam.readBal(input_file)
 
-        computed_error = self.obj.create_computation_graph(scene_data)
+        computed_error = self.obj.create_computation_graph(
+            dask.delayed(scene_data)
+        )
+
+        expected_result = self.obj.run(scene_data)
 
         with dask.config.set(scheduler='single-threaded'):
-            dask_error = dask.compute(computed_error)[0]
+            dask_results = dask.compute(computed_error)[0]
 
-        expected_error = 0.046137573704557046
-        self.assertTrue(np.isclose(expected_error, dask_error))
+        self.assertEqual(dask_results, expected_result)
 
 
 if __name__ == '__main__':
