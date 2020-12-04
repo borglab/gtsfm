@@ -121,12 +121,4 @@ class Ransac(VerifierBase):
             Indices of verified correspondences, of shape (N, 2) with N <= N3.
                 These indices are subset of match_indices.
         """
-        print('WARNING: RANSAC verifier cannot compute fundamental matrix directly using no intrinsics')
-
-        return self.verify_with_approximate_intrinsics(
-            keypoints_i1,
-            keypoints_i2,
-            match_indices,
-            camera_intrinsics_i1,
-            camera_intrinsics_i2
-        )
+        raise NotImplementedError("Use Degensac instead for the F-Matrix estimation")
