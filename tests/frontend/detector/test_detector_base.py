@@ -3,7 +3,7 @@ Tests for frontend's base detector class.
 
 Authors: Ayush Baid
 """
-
+import pickle
 import unittest
 
 import dask
@@ -29,12 +29,10 @@ class TestDetectorBase(unittest.TestCase):
         test_image = self.loader.get_image(0)
         features = self.detector.detect(test_image)
 
-        image_shape = test_image.image_array.shape
-
         np.testing.assert_array_equal(features[:, 0] >= 0, True)
-        np.testing.assert_array_equal(features[:, 0] <= image_shape[1], True)
+        np.testing.assert_array_equal(features[:, 0] <= test_image.width, True)
         np.testing.assert_array_equal(features[:, 1] >= 0, True)
-        np.testing.assert_array_equal(features[:, 1] <= image_shape[0], True)
+        np.testing.assert_array_equal(features[:, 1] <= test_image.height, True)
 
     def test_scale(self):
         """Tests that the scales are positive."""
@@ -54,7 +52,10 @@ class TestDetectorBase(unittest.TestCase):
 
         loader_graph = self.loader.create_computation_graph()
         detector_graph = self.detector.create_computation_graph(loader_graph)
-        results = dask.compute(detector_graph)[0]
+
+        results = []
+        with dask.config.set(scheduler='single-threaded'):
+            results = dask.compute(detector_graph)[0]
 
         # check the number of results
         self.assertEqual(len(results), len(self.loader),
@@ -65,3 +66,14 @@ class TestDetectorBase(unittest.TestCase):
         normal_features = self.detector.detect(self.loader.get_image(0))
         dask_features = results[0]
         np.testing.assert_allclose(normal_features, dask_features)
+
+    def test_pickleable(self):
+        """Tests that the detector object is pickleable (required for dask)."""
+        try:
+            pickle.dumps(self.detector)
+        except TypeError:
+            self.fail("Cannot dump detector using pickle")
+
+
+if __name__ == '__main__':
+    unittest.main()

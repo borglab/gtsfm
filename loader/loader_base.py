@@ -4,9 +4,11 @@ Authors: Frank Dellaert and Ayush Baid
 """
 
 import abc
-from typing import List
+from typing import List, Optional, Tuple
 
 import dask
+from dask.delayed import Delayed
+from gtsam import Cal3Bundler, Pose3
 
 from common.image import Image
 
@@ -21,45 +23,95 @@ class LoaderBase(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def __len__(self) -> int:
         """
-        The number of images in the dataset
+        The number of images in the dataset.
 
         Returns:
-            int: the number of images
+            the number of images.
         """
 
     # ignored-abstractmethod
     @abc.abstractmethod
     def get_image(self, index: int) -> Image:
         """
-        Get the image at the given index
+        Get the image at the given index.
 
         Args:
-            index (int): the index to fetch
+            index: the index to fetch.
+
+        Raises:
+            IndexError: if an out-of-bounds image index is requested.
 
         Returns:
-            Image: the image at the query index
+            Image: the image at the query index.
         """
 
-    def delayed_get_image(self, index: int) -> dask.delayed:
-        """
-        Wraps the get_image evaluation in a dask.delayed
+    # ignored-abstractmethod
+    @abc.abstractmethod
+    def get_camera_intrinsics(self, index: int) -> Optional[Cal3Bundler]:
+        """Get the camera intrinsics at the given index.
 
         Args:
-            index (int): the image index
+            the index to fetch.
 
         Returns:
-            dask.delayed: the get_image function for the given index wrapped in dask.delayed
+            intrinsics for the given camera.
         """
-        # TODO(ayush): is it the correct return type
 
-        return dask.delayed(self.get_image)(index)
+    # ignored-abstractmethod
+    @abc.abstractmethod
+    def get_camera_pose(self, index: int) -> Optional[Pose3]:
+        """Get the camera pose (in world coordinates) at the given index.
 
-    def create_computation_graph(self) -> List:
-        """
-        Creates the computation graph for all image fetches
+        Args:
+            index: the index to fetch.
 
         Returns:
-           List: list of dask's Delayed object
+            the camera pose w_P_index.
         """
 
-        return [self.delayed_get_image(x) for x in range(self.__len__())]
+    @abc.abstractmethod
+    def validate_pair(self, idx1: int, idx2: int) -> bool:
+        """Checks if (idx1, idx2) is a valid pair.
+
+        Args:
+            idx1: first index of the pair.
+            idx2: second index of the pair.
+
+        Returns:
+            validation result.
+        """
+
+    def create_computation_graph_for_images(self) -> List[Delayed]:
+        """Creates the computation graph for image fetches.
+
+        Returns:
+            list of delayed tasks for images.
+        """
+        N = self.__len__()
+
+        return [dask.delayed(self.get_image)(x) for x in range(N)]
+
+    def create_computation_graph_for_intrinsics(self) -> List[Delayed]:
+        """Creates the computation graph for camera intrinsics.
+
+        Returns:
+            list of delayed tasks for camera intrinsics.
+        """
+        N = self.__len__()
+
+        return [dask.delayed(self.get_camera_intrinsics)(x) for x in range(N)]
+
+    def get_valid_pairs(self) -> List[Tuple[int, int]]:
+        """Get the valid pairs of images for this loader.
+
+        Returns:
+            list of valid index pairs.
+        """
+        indices = []
+
+        for idx1 in range(self.__len__()):
+            for idx2 in range(self.__len__()):
+                if(self.validate_pair(idx1, idx2)):
+                    indices.append((idx1, idx2))
+
+        return indices

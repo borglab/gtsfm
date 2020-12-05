@@ -18,29 +18,28 @@ class CombinationDetectorDescriptor(DetectorDescriptorBase):
     """A wrapper to combine stand-alone detection and description."""
 
     def __init__(self, detector: DetectorBase, descriptor: DescriptorBase):
-        """
-        Initialize from individual detector and descriptor.
+        """Initialize from individual detector and descriptor.
 
         Args:
-            detector (DetectorBase): the detector to combine
-            descriptor (DescriptorBase): the descriptor to combine
+            detector: the detector to combine.
+            descriptor: the descriptor to combine.
         """
         self.detector = detector
         self.descriptor = descriptor
 
-    def detect_and_describe(self, image: Image) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Perform feature detection as well as their description in a single step.
+    def detect_and_describe(self,
+                            image: Image) -> Tuple[np.ndarray, np.ndarray]:
+        """Perform feature detection as well as their description.
 
-        Refer to detect() in BaseDetector and describe() in BaseDescriptor 
-        for details about the output format.
+        Refer to detect() in DetectorBase and describe() in DescriptorBase for
+        details about the output format.
 
         Args:
-            image (Image): the input image
+            image: the input image.
 
         Returns:
-            Tuple[np.ndarray, np.ndarray]: detected features and their 
-                                           descriptions as two numpy arrays
+            detected features as a numpy array of shape (N, 2+).
+            corr. descriptors for the features, as (N, x) sized matrix.
         """
 
         features = self.detector.detect(image)

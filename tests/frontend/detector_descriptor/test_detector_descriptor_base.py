@@ -3,6 +3,8 @@ Tests for frontend's base detector-descriptor class.
 
 Authors: Ayush Baid
 """
+import unittest
+
 import dask
 import numpy as np
 
@@ -58,9 +60,12 @@ class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
         """
 
         loader_graph = self.loader.create_computation_graph()
-        detector_graph = self.detector_descriptor.create_computation_graph(
+        computation_graph = self.detector_descriptor.create_computation_graph(
             loader_graph)
-        results = dask.compute(detector_graph)[0]
+
+        results = []
+        with dask.config.set(scheduler='single-threaded'):
+            results = dask.compute(computation_graph)[0]
 
         # check the number of results
         self.assertEqual(len(results), len(self.loader),
@@ -74,3 +79,7 @@ class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
 
         np.testing.assert_allclose(normal_features, dask_features)
         np.testing.assert_allclose(normal_descriptors, dask_descriptors)
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -16,7 +16,7 @@ class TriangulationParam(Enum):
     BASELINE = 2
     MAX_TO_MIN = 3
 
-class LandmarkInitialization(metaclass=abc.ABCMeta):
+class LandmarkInitialization():
     """
     Class to initialize landmark points via triangulation w or w/o RANSAC inlier/outlier selection
 

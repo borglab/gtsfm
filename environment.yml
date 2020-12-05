@@ -6,6 +6,7 @@ channels:
   - defaults
 dependencies:
   - python=3.7
+  - pip
   - autopep8
   - pylint
   - pytype
@@ -16,5 +17,8 @@ dependencies:
   - pytorch
   - cudatoolkit=10.2
   - opencv=3.4.2
+  - pip:
+    - pydegensac
+
 
 
