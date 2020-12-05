@@ -11,7 +11,7 @@ from data_association.feature_tracks import FeatureTrackGenerator
 
 from enum import Enum
 
-class triangulation_params(Enum):
+class TriangulationParam(Enum):
     UNIFORM = 1
     BASELINE = 2
     MAX_TO_MIN = 3
@@ -23,7 +23,7 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
     triangulate(
         track: List, 
         use_ransac: bool,
-        sampling_method: Optional[triangulation_params] = None, 
+        sampling_method: Optional[TriangulationParam] = None, 
         num_samples: Optional[int] = None, 
         thresh: Optional[float] = None
     ) -> Dict:
@@ -62,7 +62,7 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
     def triangulate(
         self, track: List, 
         use_ransac: bool,
-        sampling_method: Optional[triangulation_params] = None, 
+        sampling_method: Optional[TriangulationParam] = None, 
         num_samples: Optional[int] = None, 
         thresh: Optional[float] = None
     ) -> Dict:
@@ -71,9 +71,9 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
         Args:
             track: feature track from which measurements are to be extracted
             use_ransac: a tag to enable/disable the RANSAC based triangulation
-            sampling_method (optional): triangulation_params.UNIFORM    -> sampling uniformly, 
-                                        triangulation_params.BASELINE   -> sampling based on estimated baseline, 
-                                        triangulation_params.MAX_TO_MIN -> sampling from max to min 
+            sampling_method (optional): TriangulationParam.UNIFORM    -> sampling uniformly, 
+                                        TriangulationParam.BASELINE   -> sampling based on estimated baseline, 
+                                        TriangulationParam.MAX_TO_MIN -> sampling from max to min 
             num_samples (optional): desired number of samples
             tresh (optional): threshold for RANSAC inlier filtering
         Returns:
@@ -166,15 +166,15 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
                 
         return matches
 
-    def sampling(self, track: List, matches: List, sampling_method: triangulation_params, num_samples: int) -> List[int]:
+    def sampling(self, track: List, matches: List, sampling_method: TriangulationParam, num_samples: int) -> List[int]:
         """
         Generate a list of matches for triangulation 
         Args:
             track: feature track from which measurements are to be extracted
             matches: all possible matches in a given track
-            sampling_method: triangulation_params.UNIFORM    -> sampling uniformly, 
-                             triangulation_params.BASELINE   -> sampling based on estimated baseline, 
-                             triangulation_params.MAX_TO_MIN -> sampling from max to min 
+            sampling_method: TriangulationParam.UNIFORM    -> sampling uniformly, 
+                             TriangulationParam.BASELINE   -> sampling based on estimated baseline, 
+                             TriangulationParam.MAX_TO_MIN -> sampling from max to min 
             num_samples: desired number of samples
         Returns:
             indexes of matches: index of selected match
@@ -183,8 +183,8 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
         scores = np.ones(len(matches),dtype=float)
 
         if (
-            (sampling_method == triangulation_params.BASELINE or 
-            sampling_method == triangulation_params.MAX_TO_MIN) and 
+            (sampling_method == TriangulationParam.BASELINE or 
+            sampling_method == TriangulationParam.MAX_TO_MIN) and 
             self.sharedCal_Flag
         ):
             for k in range(len(matches)):
@@ -203,13 +203,13 @@ class LandmarkInitialization(metaclass=abc.ABCMeta):
             raise Exception("Sum of scores cannot be Zero (or smaller than Zero)! It must a bug somewhere")
         
         if (
-            sampling_method == triangulation_params.UNIFORM or
-            sampling_method == triangulation_params.BASELINE
+            sampling_method == TriangulationParam.UNIFORM or
+            sampling_method == TriangulationParam.BASELINE
         ): 
             sample_index = np.random.choice(len(scores), num_samples, replace=False, p=scores/scores.sum())
                 
         if (
-            sampling_method == triangulation_params.MAX_TO_MIN
+            sampling_method == TriangulationParam.MAX_TO_MIN
         ): 
             sample_index = np.argsort(scores)[-num_samples:]
         
