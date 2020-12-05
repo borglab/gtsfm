@@ -1,0 +1,15 @@
+# This is an example configuration file that helps the authors to create their 
+# own configuration file for their developed modules. 
+# Pls only follow the definition pattern in this file but the module or parameter
+# names and values. These are created only for test purpose.
+
+frontend: # Module name 
+  matching: # SubModule name
+    num_features: 1000 # bla bla
+    deep_feature: superpoint
+
+backend:
+  mode_triangulation: ransac # bla bla
+
+visualization: # bla bla
+  enable_vis: True

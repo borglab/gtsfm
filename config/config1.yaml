@@ -1,0 +1,22 @@
+# This is an example configuration file that helps the authors to create their 
+# own configuration file for their developed modules. 
+# Pls only follow the definition pattern in this file but the module or parameter
+# names and values. These are created only for test purpose.
+
+gtsfm: # Module name
+  path: ~/gtsfm # this is the path to the module [str]
+  enable_gpu: False # enable gpu or not [bool]
+  image_path: [images1, images2, images3] # a list of path of input image folders
+
+frontend: # Module name 
+  matching: # SubModule name
+    num_features: 2000 # bla bla
+    tol: 1e-3 # bla bla
+    pyramid_scale: [1, 2, 4] # bla bla
+  tracking: 
+    num_features: 2000 # bla bla
+    tol: 1e-3 # bla bla
+    pyramid_scale: [1, 2, 4] # bla bla
+  
+backend:
+  min_measurements_per_track: 2 # bla bla
