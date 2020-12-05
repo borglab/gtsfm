@@ -120,15 +120,39 @@ class ArgsCfgNode:
             help="Config parameter(s): Module1.Submodule1.Param1 Value1 Module2.param2 Value2 ... ",
         )
     
-    def init_config(self, config:CfgNode) -> CfgNode:
+    def init_config(
+            self, 
+            config:CfgNode, 
+            config_file:list = None, 
+            config_param:list = None
+        ) -> CfgNode:
         """
         Initialization CfgNode using loaded arguments
         Args:
         config: config without initialization
+        test: is it for test or not
         Returns:
         config: config after initialization
         """
-        args = self.parser.parse_args()
+        if config_file:
+            cfg_args = ['--config-file']
+            for file in config_file:
+                cfg_args.append(file)
+            args = self.parser.parse_args(
+                cfg_args
+            )
+            print(args)
+        if config_param:
+            cfg_args = ['--config-param']
+            for param in config_param:
+                cfg_args.append(param) 
+            args = self.parser.parse_args(
+                cfg_args
+            )
+            print(args)
+        if (not config_file) and (not config_param):
+            args = self.parser.parse_args()
+
         if args.config_file:
             for file in args.config_file:
                 config.load_file(file)
