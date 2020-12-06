@@ -13,7 +13,6 @@ from typing import List, Dict
 
 from data_association.data_assoc import DataAssociation
 from data_association.feature_tracks import FeatureTrackGenerator
-from frontend.matcher.dummy_matcher import DummyMatcher
 
 
 class TestDataAssociation(GtsamTestCase):
@@ -110,11 +109,15 @@ class TestDataAssociation(GtsamTestCase):
         cameras = gtsam.CameraSetCal3Bundler()
         cameras.append(camera1)
         cameras.append(camera2)
+        # print(dir(cameras))
 
         # Project landmark into two cameras and triangulate
         z1 = camera1.project(self.expected_landmark)
         z2 = camera2.project(self.expected_landmark)
 
+        poses = gtsam.Pose3Vector()
+        poses.append(self.pose1)
+        poses.append(self.pose2)
         measurements = gtsam.Point2Vector()
         measurements.append(z1)
         measurements.append(z2)
@@ -133,7 +136,7 @@ class TestDataAssociation(GtsamTestCase):
         # create matches
         matches = {img_idxs: matched_idxs}
         da = DataAssociation()
-        triangulated_landmark_map = da.run(matches, None, False,5, 2, False, None, cameras, feature_list)
+        triangulated_landmark_map = da.run(matches, poses, False,5, 2, False, None, cameras, feature_list)
 
         computed_landmark = triangulated_landmark_map[0].point3()
 
