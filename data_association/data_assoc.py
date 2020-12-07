@@ -1,5 +1,4 @@
-"""
-Create 2D-3D data association as a precursor to Bundle Adjustment.
+""" Create 2D-3D data association as a precursor to Bundle Adjustment.
 1. Forms feature tracks from verified correspondences and global poses.
 2. Triangulates 3D world points for each track (Ransac and simple triangulation modes available)
 3. Filters tracks based on reprojection error.
@@ -7,7 +6,6 @@ Create 2D-3D data association as a precursor to Bundle Adjustment.
 Authors: Sushmita Warrier, Xiaolong Wu
 """
 
-import cv2
 import dask
 import gtsam
 import numpy as np
@@ -22,33 +20,42 @@ class TriangulationParam(Enum):
     MAX_TO_MIN = 3
 
 class DataAssociation(FeatureTrackGenerator):
+    """ Class to form feature tracks; for each track, call LandmarkInitialization.
     """
-    Class to form feature tracks; for each track, call LandmarkInitialization
-    """
-    def __init__(self) -> None:
-        """
+    def __init__(self, matches: Dict[Tuple[int, int], Tuple[int, int]], feature_list: List[List[np.ndarray]]) -> None:
+        """ Form feature tracks.
+
         Args:
-            matches: Dict of pairwise matches of form {(img1_idx, img2_idx): (features1_idx, features2_idx)}
-            global poses: list of poses  
-            sharedcalibrationFlag: flag to set shared or individual calibration
-            calibration: shared calibration
-            camera_list: list of individual cameras (if calibration not shared)
-            feature_list: List of features in each image
+            matches: Dict of pairwise matches of form {(img1_idx, img2_idx): (features1_idx, features2_idx)}.
+            feature_list: List of features.
         """
+        super().__init__(matches, feature_list) 
         
 
-    def run(self, 
-        matches: Dict[Tuple[int, int], Tuple[int, int]], 
+    def run(self,  
         global_poses: List[gtsam.Pose3], 
         sharedcalibrationFlag: bool, 
         reprojection_threshold: float,
         min_track_length: int,
         use_ransac: bool,
         calibration: gtsam.Cal3Bundler, 
-        camera_list: List,
-        feature_list: List[List[np.ndarray]]) -> List:
+        camera_list: gtsam.CameraSetCal3Bundler,
+        ) -> List:
+        """ Triangulate and filter points for feature tracks.
+
+        Args:
+            global poses: list of poses.
+            sharedcalibrationFlag: flag to set shared or individual calibration
+            reprojection_threshold: error threshold for track filtering.
+            min_track_length: Minimum nb of views that must support a landmark for it to be accepted.
+            use_ransac: Select between simple triangulation(False) and ransac-based triangulation(True).
+            calibration: shared calibration.
+            camera_list: list of individual cameras (if calibration not shared).
+
+        Returns:
+            List of SfmTrack objects, containing feature tracks and their 3D landmark points.
+        """        
         
-        super().__init__(matches, feature_list)
         triangulated_landmark_map = []        
         sfmdata_landmark_map = self.filtered_landmark_data
         # point indices are represented as j
@@ -65,29 +72,40 @@ class DataAssociation(FeatureTrackGenerator):
                 
         return triangulated_landmark_map
 
-    def create_computation_graph(self,
-        matches: Dict[Tuple[int, int], Tuple[int, int]], 
+    def create_computation_graph(self, 
         global_poses: List[gtsam.Pose3], 
         sharedcalibrationFlag: bool, 
         reprojection_threshold: float,
         min_track_length: int,
         use_ransac: bool,
         calibration: gtsam.Cal3Bundler, 
-        camera_list: List,
-        feature_list: List[List]):
+        camera_list: gtsam.CameraSetCal3Bundler,
+        ):
+        """ 
+        Generates computation graph for data association 
+
+        Args:
+            global poses: list of poses.
+            sharedcalibrationFlag: flag to set shared or individual calibration
+            reprojection_threshold: error threshold for track filtering.
+            min_track_length: Minimum nb of views that must support a landmark for it to be accepted.
+            use_ransac: Select between simple triangulation(False) and ransac-based triangulation(True).
+            calibration: shared calibration.
+            camera_list: list of individual cameras (if calibration not shared).
         
-        return dask.delayed(self.run)(matches, 
-                                      global_poses, 
+        Returns:
+            Delayed dask tasks for data association.
+        """
+        return dask.delayed(self.run)(global_poses, 
                                       sharedcalibrationFlag, reprojection_threshold, min_track_length, 
                                       use_ransac, 
                                       calibration, 
-                                      camera_list, 
-                                      feature_list)
+                                      camera_list)
 
 
 class LandmarkInitialization():
     """
-    Class to initialize landmark points via triangulation
+    Class to initialize landmark points via triangulation.
     """
 
     def __init__(self, 
@@ -95,15 +113,15 @@ class LandmarkInitialization():
         reprojection_threshold: float,
         track_poses: List[gtsam.Pose3], 
         calibration: Optional[gtsam.Cal3Bundler] = None, 
-        track_cameras: Optional[List[gtsam.PinholeCameraCal3Bundler]] = None,   
+        track_cameras: Optional[gtsam.CameraSetCal3Bundler] = None,   
     ) -> None:
         """
         Args:
-            sharedcalibrationFlag: check if shared calibration exists(True) or each camera has individual calibration(False)
-            obs_list: Feature track of type [(img_idx, img_measurement),..]
-            calibration: Shared calibration
-            track_poses: List of poses
-            track_cameras: List of cameras
+            sharedcalibrationFlag: check if shared calibration exists(True) or each camera has individual calibration(False).
+            obs_list: Feature track of type [(camera_idx, img_measurement),..].
+            calibration: Shared calibration of type Cal3Bundler.
+            track_poses: List of poses.
+            track_cameras: List of individual cameras, if not using shared calibration.
         """
         self.sharedCal_Flag = sharedcalibrationFlag
         self.threshold = reprojection_threshold
@@ -120,12 +138,14 @@ class LandmarkInitialization():
     def extract_end_measurements(self, track: List[Tuple]) -> Tuple[gtsam.Pose3Vector, List, gtsam.Point2Vector]:
         """
         Extract first and last measurements in a track for triangulation.
+
         Args:
-            track: feature track from which measurements are to be extracted
+            track: feature track from which measurements are to be extracted.
+
         Returns:
-            pose_estimates: Poses of first and last measurements in track
-            camera_list: Individual camera calibrations for first and last measurement
-            img_measurements: Observations corresponding to first and last measurements
+            pose_estimates: Poses of first and last measurements in track.
+            camera_list: Individual camera calibrations for first and last measurement.
+            img_measurements: Observations corresponding to first and last measurements.
         """
         pose_estimates_track = gtsam.Pose3Vector()
         pose_estimates = gtsam.Pose3Vector()
@@ -161,11 +181,13 @@ class LandmarkInitialization():
 
 
     def triangulate(self, track: List[Tuple], use_ransac: bool) -> Dict:
-        """
+        """ Triangulate based on a simple algorithm taking largest baseline, assumed to be endpoints of a track.
+
         Args:
-            track: feature track
+            track: Feature track as list of (camera_idx,measurements).
+
         Returns:
-            triangulated_landmark: triangulated landmark
+            Feature track as a dict with landmark as key and track as value.
         """
         triangulated_track = dict()
         if use_ransac:
@@ -189,11 +211,13 @@ class LandmarkInitialization():
     
     def filter_reprojection_error(self, triangulated_track: Dict):
         """
-        Filter measurements that have high reprojection error in a camera
+        Filter measurements that have high reprojection error in a camera.
+
         Args:
-            Triangulated track, with triangulated pt as key and track as value
+            Triangulated track: Dict with triangulated pt as key and track as value.
+            
         Returns:
-            SfmTrack object with filtered track
+            SfmTrack object with filtered track.
         """
         new_track = gtsam.SfmTrack(list(triangulated_track.keys())[0])
         

@@ -2,11 +2,10 @@
 
 Authors: Ayush Baid, Sushmita Warrier
 """
-from typing import OrderedDict, Dict, List, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 import gtsam
-from collections import defaultdict
 
 class FeatureTrackGenerator:
     """
@@ -19,6 +18,7 @@ class FeatureTrackGenerator:
                  ):
         """
         Creates DSF and landmark map from pairwise matches.
+
         Args:
             matches: Dict of pairwise matches of type:
                     key: pose indices for the matched pair of images
@@ -42,36 +42,31 @@ class FeatureTrackGenerator:
                         gtsam.IndexPair(i2, k2))
                 key_set = dsf.sets()                
 
-        # create a landmark map
-        for _, s in enumerate(key_set):
+        # create a landmark map: a list of tracks
+        # Each track is represented as a list of (camera_idx, measurements)
+        for s in key_set:
             key = key_set[s]
             # Initialize track
             track = []
-            for val in gtsam.IndexPairSetAsArray(key):
-                
+            for val in gtsam.IndexPairSetAsArray(key):                
                 # camera_idx is represented by i
                 # measurement_idx is represented by k
                 i = val.i()
                 k = val.j()
-
-                # get set representative- Will be IndexPair type
-                lndmrk_root_node = dsf.find(gtsam.IndexPair(i, k))
-                # for each representative, add (img_idx, feature)
                 # add measurement in this track
                 track.append(tuple((i, feature_list[i][k][:2])))
-
-            landmark_data.append(track)
-            
+            landmark_data.append(track)           
         self.filtered_landmark_data = self.delete_tracks(landmark_data)
 
 
-    def delete_tracks(self, landmark_data: List) -> List:
+    def delete_tracks(self, landmark_data: List[List[Tuple[int,Tuple[float, float]]]]) -> List[List[Tuple[int,Tuple[float, float]]]]:
         """
-        Delete tracks that have more than one measurement in the same image
+        Delete tracks that have more than one measurement in the same image.
+
         Args:
-            landmark_data: List of SfmTrack
+            landmark_data: List of feature tracks.
         Returns:
-            list of filtered SfmTrack 
+            list of filtered feature tracks. 
         """
         filtered_landmark_data = []
         # track_idx represented as j

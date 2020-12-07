@@ -2,7 +2,6 @@
 
 Authors: Sushmita Warrier
 """
-from random import uniform
 import unittest
 
 import dask
@@ -57,8 +56,6 @@ class TestDataAssociation(GtsamTestCase):
         self.poses.append(pose1)
         self.poses.append(pose2)
 
-        self.da = DataAssociation()
-
         # landmark ~5 meters infront of camera
         self.expected_landmark = gtsam.Point3(5, 0.5, 1.2)
     
@@ -90,13 +87,14 @@ class TestDataAssociation(GtsamTestCase):
         sharedCal = gtsam.Cal3Bundler(1500, 0, 0, 640, 480)
 
         matches_1, feature_list, poses, _ = self.__generate_2_poses(sharedCal)
-        triangulated_landmark_map = self.da.run(matches_1, poses, True, 5,3, False, sharedCal, None, feature_list)
+        da = DataAssociation(matches_1, feature_list)
+        triangulated_landmark_map = da.run(poses, True, 5,3, False, sharedCal, None)
         assert len(triangulated_landmark_map) == 0, "tracks exceeding expected track length"
         
 
         matches_2, feature_list, poses = self.__generate_3_poses(sharedCal)
-        
-        triangulated_landmark_map = self.da.run(matches_2, poses, True,5,3, False, sharedCal, None, feature_list)
+        da = DataAssociation(matches_2, feature_list)
+        triangulated_landmark_map = da.run(poses, True,5,3, False, sharedCal, None)
         computed_landmark = triangulated_landmark_map[0].point3()
         assert len(triangulated_landmark_map)== 1, "more tracks than expected"
         self.gtsamAssertEquals(computed_landmark, self.expected_landmark,1e-2)
@@ -115,7 +113,8 @@ class TestDataAssociation(GtsamTestCase):
 
         # create matches
         matches = {img_idxs: matched_idxs}
-        triangulated_landmark_map = self.da.run(matches, self.poses, False, 5, 2, False, None, cameras, feature_list)
+        da = DataAssociation(matches, feature_list)
+        triangulated_landmark_map = da.run(self.poses, False, 5, 2, False, None, cameras)
 
         computed_landmark = triangulated_landmark_map[0].point3()
         self.gtsamAssertEquals(computed_landmark, self.expected_landmark,1e-2)
@@ -128,10 +127,11 @@ class TestDataAssociation(GtsamTestCase):
         sharedCal = gtsam.Cal3Bundler(1500, 0, 0, 640, 480)
         matches, features, poses = self.__generate_3_poses(sharedCal)
         # Run without computation graph
-        expected_landmark_map = self.da.run(matches, poses, True, 5, 3, False, sharedCal, None, features)
+        da = DataAssociation(matches, features)
+        expected_landmark_map = da.run(poses, True, 5, 3, False, sharedCal, None)
 
         # Run with computation graph
-        computed_landmark_map = self.da.create_computation_graph(matches, poses, True, 5, 3, False, sharedCal, None, features)
+        computed_landmark_map = da.create_computation_graph(poses, True, 5, 3, False, sharedCal, None)
 
         with dask.config.set(scheduler='single-threaded'):
             dask_result = dask.compute(computed_landmark_map)[0]
