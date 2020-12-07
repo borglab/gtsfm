@@ -6,6 +6,7 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 import gtsam
+from common.keypoints import Keypoints
 
 class FeatureTrackGenerator:
     """
@@ -13,8 +14,8 @@ class FeatureTrackGenerator:
     """
 
     def __init__(self,
-                 matches: Dict[Tuple[int, int], List[Tuple[int, int]]],
-                 feature_list: List[List]
+                 matches: Dict[Tuple[int, int], np.ndarray],
+                 feature_list: List[Keypoints]
                  ):
         """
         Creates DSF and landmark map from pairwise matches.
@@ -22,20 +23,19 @@ class FeatureTrackGenerator:
         Args:
             matches: Dict of pairwise matches of type:
                     key: pose indices for the matched pair of images
-                    val: feature indices for row-wise matched pairs
-            num_poses: Number of poses
-            feature_list: List of feature arrays for each pose
+                    val: feature indices, as array of Nx2 shape; N being nb of features, and each row is (feature_idx1, feature_idx2).
+            num_poses: Number of poses.
+            feature_list: List of keypoints for each image.
         """
 
         # Generate the DSF to form tracks
         dsf = gtsam.DSFMapIndexPair()
         self.filtered_landmark_data = []
         landmark_data = []
-
         # for DSF finally
         # measurement_idxs represented by ks
         for (i1, i2), ks in matches.items():
-            for idx in range(len(ks)):
+            for idx in range(ks.shape[0]):
                 k1 = ks[idx][0]
                 k2 = ks[idx][1]
                 dsf.merge(gtsam.IndexPair(i1, k1),
@@ -54,8 +54,12 @@ class FeatureTrackGenerator:
                 i = val.i()
                 k = val.j()
                 # add measurement in this track
-                track.append(tuple((i, feature_list[i][k][:2])))
-            landmark_data.append(track)           
+                # check to ensure dimensions of coordinates are correct
+                if feature_list[i].coordinates.ndim != 2:
+                    raise Exception("Dimensions for Keypoint coordinates        incorrect. \
+                                     Array needs to be 2D")
+                track.append(tuple((i, feature_list[i].coordinates[k])))
+            landmark_data.append(track)          
         self.filtered_landmark_data = self.delete_tracks(landmark_data)
 
 
@@ -71,12 +75,12 @@ class FeatureTrackGenerator:
         filtered_landmark_data = []
         # track_idx represented as j
         for j in range(len(landmark_data)):
-            unique_track = set()
+            unique_pose_idxs = set()
             # measurement_idx represented as k
             for k in range(len(landmark_data[j])):
                 i, _ = landmark_data[j][k]
-                unique_track.add(i)
-            if len(unique_track) != len(landmark_data[j]):
+                unique_pose_idxs.add(i)
+            if len(unique_pose_idxs) != len(landmark_data[j]):
                 continue
             else:
                 filtered_landmark_data.append(landmark_data[j])

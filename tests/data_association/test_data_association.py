@@ -2,14 +2,15 @@
 
 Authors: Sushmita Warrier
 """
+import common
 import unittest
 
 import dask
 import numpy as np
 import gtsam
 from gtsam.utils.test_case import GtsamTestCase
-from typing import List, Dict
 
+from common.keypoints import Keypoints
 from data_association.data_assoc import DataAssociation
 from data_association.feature_tracks import FeatureTrackGenerator
 
@@ -33,10 +34,10 @@ class TestDataAssociation(GtsamTestCase):
                                     [7,9]]),
                     (0,2): np.array([[1,8]])}
         self.feature_list = [
-                        [(12,16, 6), (13,18, 9), (0,10, 8.5)], 
-                        [(8,2), (16,14), (22,23), (1,6), (50,50), (16,12), (82,121), (39,60)], 
-                        [(1,1), (8,13), (40,6), (82,21), (1,6), (12,18), (15,14), (25,28), (7,10), (14,17)]
-                        ]
+            Keypoints(coordinates=np.array([[12, 16], [13,18], [0,10]]), scale=np.array([6.0, 9.0, 8.5])), 
+            Keypoints(coordinates=np.array([[8,2], [16,14], [22,23], [1,6], [50,50], [16,12], [82,121], [39,60]])),
+            Keypoints(coordinates=np.array([[1,1], [8,13], [40,6], [82,21], [1,6], [12,18], [15,14], [25,28], [7,10], [14,17]]))
+            ]
         self.malformed_matches = {(0,1): np.array([[0,2]]), 
                     (1,2): np.array([[2,3], 
                                     [4,5], 
@@ -67,7 +68,6 @@ class TestDataAssociation(GtsamTestCase):
         # len(track) value for toy case strictly
         assert len(self.track.filtered_landmark_data) == 4, "tracks incorrectly mapped"
 
-    
     def test_primary_filtering(self):
         """
         Tests that the tracks are being filtered correctly.
@@ -118,8 +118,7 @@ class TestDataAssociation(GtsamTestCase):
 
         computed_landmark = triangulated_landmark_map[0].point3()
         self.gtsamAssertEquals(computed_landmark, self.expected_landmark,1e-2)
-
-    
+  
     def test_create_computation_graph(self):
         """
         Tests the graph to create data association for images. 
@@ -142,8 +141,7 @@ class TestDataAssociation(GtsamTestCase):
             assert expected_landmark_map[i].number_measurements() == dask_result[i].number_measurements(), "Dask tracks incorrect"
             # Test if the measurement in both are equal
             np.testing.assert_array_almost_equal(expected_landmark_map[i].measurement(0)[1], dask_result[i].measurement(0)[1], 1, "Dask measurements incorrect")
-        
-        
+              
     def __generate_2_poses(self, sharedCal):
         """
         Generate 2 matches and their corresponding poses for shared calibration
@@ -176,9 +174,7 @@ class TestDataAssociation(GtsamTestCase):
         poses.append(pose3)
 
         img_idxs2 = tuple(list(range(1, len(poses))))
-        obs_in_img = []
-        obs_in_img.append(tuple(measurements[2]))
-        feature_list.append(obs_in_img)
+        feature_list.append(Keypoints(coordinates=np.array([measurements[2]])))
         
         # Only one measurement in images 1 and 2, hence each get index 0
         matched_idxs2 = np.array([[0,0]])
@@ -201,9 +197,7 @@ class TestDataAssociation(GtsamTestCase):
         # List of features in each image
         feature_list = []
         for i in range(len(measurements)):
-            obs_in_img = []
-            obs_in_img.append(tuple(measurements[i]))
-            feature_list.append(obs_in_img)
+            feature_list.append(Keypoints(coordinates=np.array([measurements[i]])))
         return measurements, feature_list, img_idxs, cameras   
         
 if __name__ == "__main__":

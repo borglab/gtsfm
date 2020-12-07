@@ -10,6 +10,7 @@ import dask
 import gtsam
 import numpy as np
 
+from common.keypoints import Keypoints
 from data_association.feature_tracks import FeatureTrackGenerator
 from enum import Enum
 from typing import Dict, List, Tuple, Optional
@@ -22,12 +23,14 @@ class TriangulationParam(Enum):
 class DataAssociation(FeatureTrackGenerator):
     """ Class to form feature tracks; for each track, call LandmarkInitialization.
     """
-    def __init__(self, matches: Dict[Tuple[int, int], Tuple[int, int]], feature_list: List[List[np.ndarray]]) -> None:
+    # TODO: Change feature list to list of Keypoints
+    def __init__(self, matches: Dict[Tuple[int, int], np.ndarray], feature_list: List[Keypoints]) -> None:
         """ Form feature tracks.
 
         Args:
-            matches: Dict of pairwise matches of form {(img1_idx, img2_idx): (features1_idx, features2_idx)}.
-            feature_list: List of features.
+            matches: Dict of pairwise matches of form {(img1_idx, img2_idx): np.array()}.
+                The array is of shape Nx2; N being the nb of features and each row being (feature_idx1, idx2).
+            feature_list: List of keypoints.
         """
         super().__init__(matches, feature_list) 
         
@@ -215,7 +218,7 @@ class LandmarkInitialization():
 
         Args:
             Triangulated track: Dict with triangulated pt as key and track as value.
-            
+
         Returns:
             SfmTrack object with filtered track.
         """
