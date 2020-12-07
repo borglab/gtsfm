@@ -1,8 +1,12 @@
 """
-Create data association as a precursor to Bundle Adjustment.
-G
-Forms feature tracks from verified correspondences and global poses, triangulates 3D world points for each track, and filters tracks based on reprojection error.
+Create 2D-3D data association as a precursor to Bundle Adjustment.
+1. Forms feature tracks from verified correspondences and global poses.
+2. Triangulates 3D world points for each track (Ransac and simple triangulation modes available)
+3. Filters tracks based on reprojection error.
+
+Authors: Sushmita Warrier, Xiaolong Wu
 """
+
 import cv2
 import dask
 import gtsam
@@ -24,7 +28,7 @@ class DataAssociation(FeatureTrackGenerator):
     def __init__(self) -> None:
         """
         Args:
-            matches: Dict of pairwise matches of form {(img1, img2): (features1, features2)}
+            matches: Dict of pairwise matches of form {(img1_idx, img2_idx): (features1_idx, features2_idx)}
             global poses: list of poses  
             sharedcalibrationFlag: flag to set shared or individual calibration
             calibration: shared calibration
