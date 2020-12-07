@@ -48,10 +48,16 @@ class TestDataAssociation(GtsamTestCase):
         # Generate two poses for use in triangulation tests
         # Looking along X-axis, 1 meter above ground plane (x-y)
         upright = gtsam.Rot3.Ypr(-np.pi / 2, 0., -np.pi / 2)
-        self.pose1 = gtsam.Pose3(upright, gtsam.Point3(0, 0, 1))
+        pose1 = gtsam.Pose3(upright, gtsam.Point3(0, 0, 1))
 
         # create second camera 1 meter to the right of first camera
-        self.pose2 = self.pose1.compose(gtsam.Pose3(gtsam.Rot3(), gtsam.Point3(1, 0, 0)))
+        pose2 = pose1.compose(gtsam.Pose3(gtsam.Rot3(), gtsam.Point3(1, 0, 0)))
+
+        self.poses = gtsam.Pose3Vector()
+        self.poses.append(pose1)
+        self.poses.append(pose2)
+
+        self.da = DataAssociation()
 
         # landmark ~5 meters infront of camera
         self.expected_landmark = gtsam.Point3(5, 0.5, 1.2)
@@ -70,7 +76,6 @@ class TestDataAssociation(GtsamTestCase):
         Tests that the tracks are being filtered correctly.
         Removes tracks that have two measurements in a single image.
         """
-
         filtered_map = FeatureTrackGenerator(self.malformed_matches, self.feature_list).filtered_landmark_data
 
         # check that the length of the observation list corresponding to each key is the same. Only good tracks will remain
@@ -85,14 +90,13 @@ class TestDataAssociation(GtsamTestCase):
         sharedCal = gtsam.Cal3Bundler(1500, 0, 0, 640, 480)
 
         matches_1, feature_list, poses, _ = self.__generate_2_poses(sharedCal)
-        da = DataAssociation()
-        triangulated_landmark_map = da.run(matches_1, poses, True, 5,3, False, sharedCal, None, feature_list)
+        triangulated_landmark_map = self.da.run(matches_1, poses, True, 5,3, False, sharedCal, None, feature_list)
         assert len(triangulated_landmark_map) == 0, "tracks exceeding expected track length"
         
 
         matches_2, feature_list, poses = self.__generate_3_poses(sharedCal)
-        da = DataAssociation()
-        triangulated_landmark_map = da.run(matches_2, poses, True,5,3, False, sharedCal, None, feature_list)
+        
+        triangulated_landmark_map = self.da.run(matches_2, poses, True,5,3, False, sharedCal, None, feature_list)
         computed_landmark = triangulated_landmark_map[0].point3()
         assert len(triangulated_landmark_map)== 1, "more tracks than expected"
         self.gtsamAssertEquals(computed_landmark, self.expected_landmark,1e-2)
@@ -103,42 +107,18 @@ class TestDataAssociation(GtsamTestCase):
         """
         K1 = gtsam.Cal3Bundler(1500, 0, 0, 640, 480)
         K2 = gtsam.Cal3Bundler(1600, 0, 0, 650, 440)
-        camera1 = gtsam.PinholeCameraCal3Bundler(self.pose1, K1)
-        camera2 = gtsam.PinholeCameraCal3Bundler(self.pose2, K2)
-        
-        cameras = gtsam.CameraSetCal3Bundler()
-        cameras.append(camera1)
-        cameras.append(camera2)
-        # print(dir(cameras))
 
-        # Project landmark into two cameras and triangulate
-        z1 = camera1.project(self.expected_landmark)
-        z2 = camera2.project(self.expected_landmark)
-
-        poses = gtsam.Pose3Vector()
-        poses.append(self.pose1)
-        poses.append(self.pose2)
-        measurements = gtsam.Point2Vector()
-        measurements.append(z1)
-        measurements.append(z2)
+        measurements, feature_list, img_idxs, cameras = self.__generate_measurements((K1, K2), (0.0, 0.0), self.poses)
 
         # since there is only one measurement in each image, both assigned feature index 0
         matched_idxs = np.array([[0,0]])
 
-        # assuming same nb of images as nb of poses
-        img_idxs = tuple(list(range(len(cameras))))
-        feature_list = []
-        for i in range(len(measurements)):
-            obs_in_img = []
-            obs_in_img.append(tuple(measurements[i]))
-            feature_list.append(obs_in_img)
-
         # create matches
         matches = {img_idxs: matched_idxs}
-        da = DataAssociation()
-        triangulated_landmark_map = da.run(matches, poses, False,5, 2, False, None, cameras, feature_list)
+        triangulated_landmark_map = self.da.run(matches, self.poses, False, 5, 2, False, None, cameras, feature_list)
 
         computed_landmark = triangulated_landmark_map[0].point3()
+        self.gtsamAssertEquals(computed_landmark, self.expected_landmark,1e-2)
 
     
     def test_create_computation_graph(self):
@@ -148,17 +128,16 @@ class TestDataAssociation(GtsamTestCase):
         sharedCal = gtsam.Cal3Bundler(1500, 0, 0, 640, 480)
         matches, features, poses = self.__generate_3_poses(sharedCal)
         # Run without computation graph
-        da = DataAssociation()
-        expected_landmark_map = da.run(matches, poses, True, 5, 3, False, sharedCal, None, features)
+        expected_landmark_map = self.da.run(matches, poses, True, 5, 3, False, sharedCal, None, features)
 
         # Run with computation graph
-        da = DataAssociation()
-        computed_landmark_map = da.create_computation_graph(matches, poses, True, 5, 3, False, sharedCal, None, features)
+        computed_landmark_map = self.da.create_computation_graph(matches, poses, True, 5, 3, False, sharedCal, None, features)
 
         with dask.config.set(scheduler='single-threaded'):
             dask_result = dask.compute(computed_landmark_map)[0]
 
         assert len(expected_landmark_map) == len(dask_result), "Dask not configured correctly"
+
         for i in range(len(expected_landmark_map)):
             assert expected_landmark_map[i].number_measurements() == dask_result[i].number_measurements(), "Dask tracks incorrect"
             # Test if the measurement in both are equal
@@ -167,36 +146,19 @@ class TestDataAssociation(GtsamTestCase):
         
     def __generate_2_poses(self, sharedCal):
         """
-        Generate two matches and their corresponding poses for shared calibration
+        Generate 2 matches and their corresponding poses for shared calibration
         """
-        camera1 = gtsam.PinholeCameraCal3Bundler(self.pose1, sharedCal)
-        camera2 = gtsam.PinholeCameraCal3Bundler(self.pose2, sharedCal)
+        # Amount of noise to be added to measurements
+        noise_params = (-np.array([0.1, 0.5]), - np.array([-0.2, 0.3]))
 
-        # Project landmark into two cameras and triangulate
-        z1 = camera1.project(self.expected_landmark)
-        z2 = camera2.project(self.expected_landmark)
+        measurements, feature_list, img_idxs, _ = self.__generate_measurements((sharedCal, sharedCal), noise_params, self.poses)     
 
-        poses = gtsam.Pose3Vector()
-        measurements = gtsam.Point2Vector()
-        poses.append(self.pose1)
-        poses.append(self.pose2)
-        # Add some noise - computed landmark should be ~ (4.995, 0.499167, 1.19814)        
-        measurements.append(z1 - np.array([0.1, 0.5]))
-        measurements.append(z2 - np.array([-0.2, 0.3]))
         # since there is only one measurement in each image, both assigned feature index 0
         matched_idxs = np.array([[0,0]])
 
-        # assuming same nb of images as nb of poses
-        img_idxs = tuple(list(range(len(poses))))
-        feature_list = []
-        for i in range(len(measurements)):
-            obs_in_img = []
-            obs_in_img.append(tuple(measurements[i]))
-            feature_list.append(obs_in_img)
-
         # create matches
         matches_1 = {img_idxs: matched_idxs}
-        return matches_1, feature_list, poses, measurements
+        return matches_1, feature_list, self.poses, measurements
 
     def __generate_3_poses(self, sharedCal):
         """
@@ -224,8 +186,25 @@ class TestDataAssociation(GtsamTestCase):
         matches.update(match_dict)
         return matches, feature_list, poses
 
-#TODO: Need unittests for individual camera calibrations
-        
+    def __generate_measurements(self, calibration, noise_params, poses):
+        """ Generate measurements for given calibration and poses """
+        measurements = gtsam.Point2Vector()
+        cameras = gtsam.CameraSetCal3Bundler()
+        for i in range(len(poses)):
+            camera = gtsam.PinholeCameraCal3Bundler(poses[i], calibration[i])
+            # Project landmark into two cameras and triangulate
+            z = camera.project(self.expected_landmark)
+            cameras.append(camera)
+            measurements.append(z + noise_params[i])
+        # Create image indices for each pose
+        img_idxs = tuple(list(range(len(self.poses))))
+        # List of features in each image
+        feature_list = []
+        for i in range(len(measurements)):
+            obs_in_img = []
+            obs_in_img.append(tuple(measurements[i]))
+            feature_list.append(obs_in_img)
+        return measurements, feature_list, img_idxs, cameras   
         
 if __name__ == "__main__":
     unittest.main()

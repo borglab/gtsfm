@@ -1,12 +1,21 @@
-import abc
-from typing import Dict, List, Tuple, Optional
-
+"""
+Create data association as a precursor to Bundle Adjustment.
+G
+Forms feature tracks from verified correspondences and global poses, triangulates 3D world points for each track, and filters tracks based on reprojection error.
+"""
 import cv2
 import dask
 import gtsam
 import numpy as np
 
 from data_association.feature_tracks import FeatureTrackGenerator
+from enum import Enum
+from typing import Dict, List, Tuple, Optional
+
+class TriangulationParam(Enum):
+    UNIFORM = 1
+    BASELINE = 2
+    MAX_TO_MIN = 3
 
 class DataAssociation(FeatureTrackGenerator):
     """
@@ -17,7 +26,7 @@ class DataAssociation(FeatureTrackGenerator):
         Args:
             matches: Dict of pairwise matches of form {(img1, img2): (features1, features2)}
             global poses: list of poses  
-            calibrationFlag: flag to set shared or individual calibration
+            sharedcalibrationFlag: flag to set shared or individual calibration
             calibration: shared calibration
             camera_list: list of individual cameras (if calibration not shared)
             feature_list: List of features in each image
@@ -27,7 +36,7 @@ class DataAssociation(FeatureTrackGenerator):
     def run(self, 
         matches: Dict[Tuple[int, int], Tuple[int, int]], 
         global_poses: List[gtsam.Pose3], 
-        calibrationFlag: bool, 
+        sharedcalibrationFlag: bool, 
         reprojection_threshold: float,
         min_track_length: int,
         use_ransac: bool,
@@ -41,7 +50,7 @@ class DataAssociation(FeatureTrackGenerator):
         # point indices are represented as j
         # nb of 3D points = nb of tracks, hence track_idx represented as j
         for j in range(len(sfmdata_landmark_map)):
-            LMI = LandmarkInitialization(calibrationFlag, reprojection_threshold, global_poses, calibration, camera_list)
+            LMI = LandmarkInitialization(sharedcalibrationFlag, reprojection_threshold, global_poses, calibration, camera_list)
             triangulated_data = LMI.triangulate(sfmdata_landmark_map[j], use_ransac)
             filtered_track = LMI.filter_reprojection_error(triangulated_data)
 
@@ -55,7 +64,7 @@ class DataAssociation(FeatureTrackGenerator):
     def create_computation_graph(self,
         matches: Dict[Tuple[int, int], Tuple[int, int]], 
         global_poses: List[gtsam.Pose3], 
-        calibrationFlag: bool, 
+        sharedcalibrationFlag: bool, 
         reprojection_threshold: float,
         min_track_length: int,
         use_ransac: bool,
@@ -63,7 +72,13 @@ class DataAssociation(FeatureTrackGenerator):
         camera_list: List,
         feature_list: List[List]):
         
-        return dask.delayed(self.run)(matches, global_poses, calibrationFlag, reprojection_threshold, min_track_length, use_ransac, calibration, camera_list, feature_list)
+        return dask.delayed(self.run)(matches, 
+                                      global_poses, 
+                                      sharedcalibrationFlag, reprojection_threshold, min_track_length, 
+                                      use_ransac, 
+                                      calibration, 
+                                      camera_list, 
+                                      feature_list)
 
 
 class LandmarkInitialization():
@@ -72,7 +87,7 @@ class LandmarkInitialization():
     """
 
     def __init__(self, 
-        calibrationFlag: bool,
+        sharedcalibrationFlag: bool,
         reprojection_threshold: float,
         track_poses: List[gtsam.Pose3], 
         calibration: Optional[gtsam.Cal3Bundler] = None, 
@@ -80,13 +95,13 @@ class LandmarkInitialization():
     ) -> None:
         """
         Args:
-            calibrationFlag: check if shared calibration exists(True) or each camera has individual calibration(False)
+            sharedcalibrationFlag: check if shared calibration exists(True) or each camera has individual calibration(False)
             obs_list: Feature track of type [(img_idx, img_measurement),..]
             calibration: Shared calibration
             track_poses: List of poses
             track_cameras: List of cameras
         """
-        self.sharedCal_Flag = calibrationFlag
+        self.sharedCal_Flag = sharedcalibrationFlag
         self.threshold = reprojection_threshold
         self.calibration = calibration
         # for shared calibration
@@ -149,6 +164,8 @@ class LandmarkInitialization():
             triangulated_landmark: triangulated landmark
         """
         triangulated_track = dict()
+        if use_ransac:
+            pass
         if not use_ransac:
             pose_estimates, camera_values, img_measurements = self.extract_end_measurements(track)
             optimize = True
