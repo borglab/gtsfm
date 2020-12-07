@@ -19,11 +19,11 @@ class TriangulationParam(Enum):
     UNIFORM = 1
     BASELINE = 2
     MAX_TO_MIN = 3
+    SIMPLE = 4
 
 class DataAssociation(FeatureTrackGenerator):
     """ Class to form feature tracks; for each track, call LandmarkInitialization.
     """
-    # TODO: Change feature list to list of Keypoints
     def __init__(self, matches: Dict[Tuple[int, int], np.ndarray], feature_list: List[Keypoints]) -> None:
         """ Form feature tracks.
 

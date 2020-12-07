@@ -130,6 +130,7 @@ class LandmarkInitialization():
                     best_pt = triangulated_pt
                     best_inliers = votes
         else:
+            # consider all points as inliers
             best_inliers = [True for k in range(len(track))]
         
         pose_track, camera_track, measurement_track = self.extract_measurements(track, best_inliers)

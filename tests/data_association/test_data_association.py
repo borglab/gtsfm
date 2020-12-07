@@ -2,7 +2,6 @@
 
 Authors: Sushmita Warrier
 """
-import common
 import unittest
 
 import dask
