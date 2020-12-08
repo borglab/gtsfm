@@ -32,11 +32,8 @@ def compare_rotations(wRi_list: List[Optional[Rot3]],
     wRi_list = [wRi_list[i].between(origin) for i in wRi_valid[1:]]
     wRi_list_ = [wRi_list_[i].between(origin_) for i in wRi_valid_[1:]]
 
-    for (wRi, wRi_) in zip(wRi_list, wRi_list_):
-        if not wRi.equals(wRi_, 1e-1):
-            return False
-
-    return True
+    return all([
+        wRi.equals(wRi_, 1e-1) for (wRi, wRi_) in zip(wRi_list, wRi_list_)])
 
 
 def compare_global_poses(wTi_list: List[Optional[Pose3]],
@@ -97,8 +94,5 @@ def compare_global_poses(wTi_list: List[Optional[Pose3]],
     wTi_list_ = [Pose3(x.rotation(), x.translation() * scale_factor_2to1)
                  for x in wTi_list_]
 
-    for (wTi, wTi_) in zip(wTi_list, wTi_list_):
-        if not wTi.equals(wTi_, 1e-1):
-            return False
-
-    return True
+    return all([
+        wTi.equals(wTi_, 1e-1) for (wTi, wTi_) in zip(wTi_list, wTi_list_)])
