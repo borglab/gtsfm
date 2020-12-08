@@ -10,6 +10,7 @@ import dask
 import numpy as np
 from gtsam import EssentialMatrix, Pose3, Rot3, Unit3
 
+import utils.geometry_comparisons as geometry_comparisons
 from averaging.rotation.shonan import ShonanRotationAveraging
 from averaging.translation.averaging_1dsfm import TranslationAveraging1DSFM
 from frontend.detector_descriptor.sift import SIFTDetectorDescriptor
@@ -40,87 +41,6 @@ class TestGTSFM(unittest.TestCase):
             rotation_averaging_module=ShonanRotationAveraging(),
             translation_averaging_module=TranslationAveraging1DSFM()
         )
-
-    # compare the two entries
-    def __assert_rotations_equal(self,
-                                 wRi_list1: List[Optional[Rot3]],
-                                 wRi_list2: List[Optional[Rot3]]):
-        # TODO: reuse a single copy of this function
-
-        # assert length of both the lists
-        self.assertEqual(len(wRi_list1), len(wRi_list2))
-
-        # select the first valid rotation entry to tackle global ambiguity
-        reference_idx = -1
-        for i in range(len(wRi_list1)):
-            if wRi_list1[i] is not None:
-                self.assertIsNotNone(wRi_list2[i])
-                reference_idx = i
-                break
-
-        if reference_idx == -1:
-            # confirm the 2nd list has all Nones too
-            for val in wRi_list2:
-                self.assertIsNone(val)
-
-            self.skipTest('No valid rotation found')
-
-        # compare all rotations w.r.t the reference_idx
-        for i in range(len(wRi_list1)):
-            if wRi_list1[i] is None:
-                self.assertIsNone(wRi_list2[i])
-            else:
-                rot1 = wRi_list1[reference_idx].between(wRi_list1[i])
-                rot2 = wRi_list2[reference_idx].between(wRi_list2[i])
-                self.assertTrue(rot1.equals(rot2, 1e-2))
-
-    def assert_equal_upto_scale(self,
-                                wTi_list: List[Pose3],
-                                wTi_list_: List[Pose3]):
-        """Helper function to assert that two lists of global Pose3 are equal,
-        upto global origin and scale ambiguity.
-
-        Notes:
-        1. The input lists have the poses in the same order, and can contain
-           None entries.
-        2. To resolve global origin ambiguity, we will fix one image index as
-           origin in both the inputs and transform both the lists to the new
-           origins.
-        3. As there is a scale ambiguity, we will use one image index to fix
-           the scale ambiguity.
-        """
-
-        # check the length of the input lists
-        self.assertEqual(len(wTi_list), len(wTi_list_),
-                         'two lists to compare have unequal lengths')
-
-        # check the presense of valid Pose3 objects in the same location
-        wTi_valid = [i for (i, wTi) in enumerate(wTi_list) if wTi is not None]
-        wTi_valid_ = [i for (i, wTi) in enumerate(wTi_list_) if wTi is not None]
-        self.assertListEqual(wTi_valid, wTi_valid_)
-
-        if len(wTi_valid) <= 1:
-            # we need >= two entries going forward for meaningful comparisons
-            return
-
-        # fix the origin for both inputs lists
-        origin = wTi_list[wTi_valid[0]]
-        origin_ = wTi_list_[wTi_valid_[0]]
-
-        # transform all other valid Pose3 entries to the new coordinate frame
-        wTi_list = [wTi_list[i].between(origin) for i in wTi_valid[1:]]
-        wTi_list_ = [wTi_list_[i].between(origin_) for i in wTi_valid_[1:]]
-
-        # use the first entry to get the scale factor between two lists
-        scale_factor_2to1 = np.linalg.norm(wTi_list[0].translation()) / \
-            (np.linalg.norm(wTi_list_[0].translation()) + np.finfo(float).eps)
-
-        # map the poses in the 2nd list using the scale factor on translations
-        wTi_list_ = [Pose3(x.rotation(), x.translation() * scale_factor_2to1)
-                     for x in wTi_list_]
-
-        for (wTi, wTi_) in zip(wTi_list, wTi_list_):
-            self.assertTrue(wTi.equals(wTi_, 1e-1))
 
     def test_find_largest_connected_component(self):
         """Tests the function to prune the scene graph to its largest connected
@@ -199,10 +119,10 @@ class TestGTSFM(unittest.TestCase):
             computed_keypoints_list = dask.compute(keypoints_graph)[0]
             computed_global_rotations = dask.compute(
                 global_rotations_graph)[0]
-            computed_global_translations = \
-                dask.compute(global_translations_graph)[0]
-            computed_verified_corr_indices = \
-                dask.compute(verified_corr_graph)[0]
+            computed_global_translations = dask.compute(
+                global_translations_graph)[0]
+            computed_verified_corr_indices = dask.compute(
+                verified_corr_graph)[0]
 
         computed_wTi_list = [Pose3(wRi, wti) if wti is not None else None for (
             wRi, wti) in zip(computed_global_rotations, computed_global_translations)]
@@ -221,11 +141,10 @@ class TestGTSFM(unittest.TestCase):
         self.assertListEqual(computed_keypoints_list, expected_keypoints_list)
 
         # assert global rotations and translations
-        self.__assert_rotations_equal(
-            computed_global_rotations, expected_global_rotations)
-        self.assert_equal_upto_scale(
-            computed_wTi_list, expected_wTi_list
-        )
+        self.assertTrue(geometry_comparisons.compare_rotations(
+            computed_global_rotations, expected_global_rotations))
+        self.assertTrue(geometry_comparisons.compare_global_poses(
+            computed_wTi_list, expected_wTi_list))
 
 
 def generate_random_essential_matrix() -> EssentialMatrix:

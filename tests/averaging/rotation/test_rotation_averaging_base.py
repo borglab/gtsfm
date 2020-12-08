@@ -10,6 +10,7 @@ import dask
 import numpy as np
 from gtsam import Rot3
 
+import utils.geometry_comparisons as geometry_comparisons
 from averaging.rotation.dummy_rotation_averaging import DummyRotationAveraging
 
 
@@ -46,11 +47,9 @@ class TestRotationAveragingBase(unittest.TestCase):
         with dask.config.set(scheduler='single-threaded'):
             wRi_list = dask.compute(computation_graph)[0]
 
-        # compare the two entries
-        for i in range(1, num_poses):
-            expected_0Ri = expected_wRi_list[0].between(expected_wRi_list[i])
-            computed_0Ri = wRi_list[0].between(wRi_list[i])
-            self.assertTrue(expected_0Ri.equals(computed_0Ri, 1e-5))
+        # compare the two results
+        self.assertTrue(geometry_comparisons.compare_rotations(
+            wRi_list, expected_wRi_list))
 
     def test_pickleable(self):
         """Tests that the object is pickleable (required for dask)."""

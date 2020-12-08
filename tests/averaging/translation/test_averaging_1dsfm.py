@@ -8,7 +8,9 @@ from pathlib import Path
 from gtsam import Cal3_S2, Pose3, Unit3
 from gtsam.examples import SFMdata
 
-import tests.averaging.translation.test_translation_averaging_base as test_translation_averaging_base
+import tests.averaging.translation.test_translation_averaging_base as \
+    test_translation_averaging_base
+import utils.geometry_comparisons as geometry_comparisons
 from averaging.translation.averaging_1dsfm import TranslationAveraging1DSFM
 from loader.folder_loader import FolderLoader
 
@@ -60,7 +62,8 @@ class TestTranslationAveraging1DSFM(
                     for (wRi, wti) in zip(wRi_list, wti_list)]
 
         # compare the entries
-        self.assert_equal_upto_scale(wTi_list, expected_wTi_list)
+        self.assertTrue(geometry_comparisons.compare_global_poses(
+            wTi_list, expected_wTi_list))
 
     def test_lund_door(self):
         loader = FolderLoader(
@@ -82,7 +85,8 @@ class TestTranslationAveraging1DSFM(
                     if wti is not None else None
                     for (wRi, wti) in zip(wRi_list, wti_list)]
 
-        self.assert_equal_upto_scale(wTi_list, expected_wTi_list)
+        self.assertTrue(geometry_comparisons.compare_global_poses(
+            wTi_list, expected_wTi_list))
 
 
 if __name__ == '__main__':
