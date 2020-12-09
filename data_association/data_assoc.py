@@ -20,7 +20,6 @@ class TriangulationParam(Enum):
     UNIFORM = 1
     BASELINE = 2
     MAX_TO_MIN = 3
-    SIMPLE = 4
 
 class DataAssociation(FeatureTrackGenerator):
     """ Class to form feature tracks; for each track, call LandmarkInitialization.
@@ -34,208 +33,360 @@ class DataAssociation(FeatureTrackGenerator):
             feature_list: List of keypoints.
         """
         super().__init__(matches, feature_list) 
-        
-
-    def run(self,  
-        global_poses: List[gtsam.Pose3], 
+    
+    def run(self, 
         sharedcalibrationFlag: bool, 
-        reprojection_threshold: float,
         min_track_length: int,
         use_ransac: bool,
-        calibration: gtsam.Cal3Bundler, 
-        camera_list: gtsam.CameraSetCal3Bundler,
-        ) -> List[gtsam.SfmTrack]:
-        """ Triangulate and filter points for feature tracks.
-
-        Args:
-            global poses: list of poses.
-            sharedcalibrationFlag: flag to set shared or individual calibration
-            reprojection_threshold: error threshold for track filtering.
-            min_track_length: Minimum nb of views that must support a landmark for it to be accepted.
-            use_ransac: Select between simple triangulation(False) and ransac-based triangulation(True).
-            calibration: shared calibration.
-            camera_list: list of individual cameras (if calibration not shared).
-
-        Returns:
-            List of SfmTrack objects, containing feature tracks and their 3D landmark points.
-        """        
+        calibration: Optional[gtsam.Cal3Bundler] = None, 
+        global_poses: Optional[List[gtsam.Pose3]] = None, 
+        camera_list: Optional[List[gtsam.PinholeCameraCal3Bundler]] = None,
+        sampling_method: Optional[TriangulationParam] = None,
+        num_samples: Optional[int] = None,
+        reprojection_threshold: Optional[float] = None
+    ) -> List:
+        """ The main purpose of data asscociation is to triangulate points and perform inlier/outlier detection
         
+        Args:
+            sharedcalibrationFlag: flag to set shared (calibration + global_poses)or individual calibration (camera list)
+            min_track_length: the minmimum length of track
+            use_ransac: flag to set the usage of ransac-based triangulation or not
+            sampling_method: sampling method for ransac-based triangulation
+            num_samples: number of samples in ransac-based triangulation
+            reprojection_threshold: the maximum reprojection distance that can be seen as inliers
+            calibration(optional): shared calibration
+            global poses(optional): list of poses  
+            camera_list(optional): list of individual cameras (if calibration not shared)
+            
+        """
         triangulated_landmark_map = []        
         sfmdata_landmark_map = self.filtered_landmark_data
+        
         # point indices are represented as j
         # nb of 3D points = nb of tracks, hence track_idx represented as j
+        LMI = LandmarkInitialization(sharedcalibrationFlag, calibration, global_poses, camera_list)
+        
         for j in range(len(sfmdata_landmark_map)):
-            LMI = LandmarkInitialization(
-                sharedcalibrationFlag, 
-                reprojection_threshold, 
-                global_poses, 
-                calibration, 
-                camera_list
-                )
-            triangulated_data = LMI.triangulate(sfmdata_landmark_map[j], use_ransac)
-            filtered_track = LMI.filter_reprojection_error(triangulated_data)
+            filtered_track = LMI.triangulate(sfmdata_landmark_map[j], use_ransac, sampling_method, num_samples, reprojection_threshold)
 
             if filtered_track.number_measurements() >= min_track_length:
                 triangulated_landmark_map.append(filtered_track)
             else:
-                print("Track length < {} discarded".format(min_track_length))
-                
+                print("Track length {} < {} discarded".format(
+                    filtered_track.number_measurements(), 
+                    min_track_length)
+                )
+        
         return triangulated_landmark_map
 
-    def create_computation_graph(self, 
-        global_poses: List[gtsam.Pose3], 
+    def create_computation_graph(self,
         sharedcalibrationFlag: bool, 
-        reprojection_threshold: float,
         min_track_length: int,
         use_ransac: bool,
-        calibration: gtsam.Cal3Bundler, 
-        camera_list: gtsam.CameraSetCal3Bundler,
-        ) -> Delayed:
-        """ 
-        Generates computation graph for data association 
-
-        Args:
-            global poses: list of poses.
-            sharedcalibrationFlag: flag to set shared or individual calibration
-            reprojection_threshold: error threshold for track filtering.
-            min_track_length: Minimum nb of views that must support a landmark for it to be accepted.
-            use_ransac: Select between simple triangulation(False) and ransac-based triangulation(True).
-            calibration: shared calibration.
-            camera_list: list of individual cameras (if calibration not shared).
+        calibration: Optional[gtsam.Cal3Bundler] = None, 
+        global_poses: Optional[List[gtsam.Pose3]] = None, 
+        camera_list: Optional[List[gtsam.PinholeCameraCal3Bundler]] = None,
+        sampling_method: Optional[TriangulationParam] = None,
+        num_samples: Optional[int] = None,
+        reprojection_threshold: Optional[float] = None
+    ) -> List:
         
-        Returns:
-            Delayed dask tasks for data association.
-        """
         return dask.delayed(self.run)(
-            global_poses, 
             sharedcalibrationFlag, 
-            reprojection_threshold, 
-            min_track_length, 
-            use_ransac, 
+            min_track_length,
+            use_ransac,
             calibration, 
-            camera_list)
-
+            global_poses, 
+            camera_list,
+            sampling_method,
+            num_samples,
+            reprojection_threshold
+        )
 
 class LandmarkInitialization():
     """
-    Class to initialize landmark points via triangulation.
+    Class to initialize landmark points via triangulation w or w/o RANSAC inlier/outlier selection
+
+    triangulate(
+        track: List, 
+        use_ransac: bool,
+        sampling_method: Optional[TriangulationParam] = None, 
+        num_samples: Optional[int] = None, 
+        thresh: Optional[float] = None
+    ) -> Dict:
+    
     """
 
-    def __init__(self, 
+    def __init__(
+        self, 
         sharedcalibrationFlag: bool,
-        reprojection_threshold: float,
-        track_poses: List[gtsam.Pose3], 
-        calibration: Optional[gtsam.Cal3Bundler] = None, 
-        track_cameras: Optional[gtsam.CameraSetCal3Bundler] = None,   
-    ) -> None:
+        calibration: Optional[gtsam.PinholeCameraCal3Bundler] = None, 
+        track_poses: Optional[List[gtsam.Pose3]] = None, 
+        track_cameras: Optional[List[gtsam.PinholeCameraCal3Bundler]] = None
+        ) -> None:
         """
         Args:
-            sharedcalibrationFlag: check if shared calibration exists(True) or each camera has individual calibration(False).
-            obs_list: Feature track of type [(camera_idx, img_measurement),..].
-            calibration: Shared calibration of type Cal3Bundler.
-            track_poses: List of poses.
-            track_cameras: List of individual cameras, if not using shared calibration.
+            sharedcalibrationFlag: check if shared calibration exists(True) or each camera has individual calibration(False)
+            calibration: Shared calibration
+            track_poses: List of poses in a feature track
+            track_cameras: List of cameras in a feature track
         """
         self.sharedCal_Flag = sharedcalibrationFlag
-        self.threshold = reprojection_threshold
-        self.calibration = calibration
+        
         # for shared calibration
-        if track_poses is None:
-            raise Exception("Poses required")
-        self.track_pose_list = track_poses
+        if calibration is not None:
+            self.calibration = calibration
+        if track_poses is not None:
+            self.track_pose_list = track_poses
+        
         # for multiple cameras with individual calibrations
         if track_cameras is not None:
             self.track_camera_list = track_cameras
     
-
-    def extract_end_measurements(self, track: List[Tuple]) -> Tuple[gtsam.Pose3Vector, List, gtsam.Point2Vector]:
+    def triangulate(
+        self, track: List, 
+        use_ransac: bool,
+        sampling_method: Optional[TriangulationParam] = None, 
+        num_samples: Optional[int] = None, 
+        thresh: Optional[float] = None
+    ) -> gtsam.SfmTrack:
         """
-        Extract first and last measurements in a track for triangulation.
-
+        Triangulation in RANSAC loop
         Args:
-            track: feature track from which measurements are to be extracted.
-
+            track: feature track from which measurements are to be extracted
+            use_ransac: a tag to enable/disable the RANSAC based triangulation
+            sampling_method (optional): TriangulationParam.UNIFORM    -> sampling uniformly, 
+                                        TriangulationParam.BASELINE   -> sampling based on estimated baseline, 
+                                        TriangulationParam.MAX_TO_MIN -> sampling from max to min 
+            num_samples (optional): desired number of samples
+            tresh (optional): threshold for RANSAC inlier filtering
         Returns:
-            pose_estimates: Poses of first and last measurements in track.
-            camera_list: Individual camera calibrations for first and last measurement.
-            img_measurements: Observations corresponding to first and last measurements.
+            triangulated_track: triangulated track after triangulation with measurements
         """
-        pose_estimates_track, pose_estimates = gtsam.Pose3Vector(), gtsam.Pose3Vector()
-        cameras_list_track, cameras_list = gtsam.CameraSetCal3Bundler(), gtsam.CameraSetCal3Bundler()
-        img_measurements_track, img_measurements = gtsam.Point2Vector(), gtsam.Point2Vector()
-        for k in range(len(track)):
-            img_idx, img_Pt = track[k]
-            if self.sharedCal_Flag:
-                pose_estimates_track.append(self.track_pose_list[img_idx])
-            else:
-                cameras_list_track.append(self.track_camera_list[img_idx]) 
-            img_measurements_track.append(img_Pt)
-        extract_measurements = [0, -1]
-        for i in extract_measurements:
-            if pose_estimates_track:
-                pose_estimates.append(pose_estimates_track[i]) 
-            else:
-                cameras_list.append(cameras_list_track[i])
-            img_measurements.append(img_measurements_track[i])
-        
-        return pose_estimates, cameras_list, img_measurements
-
-
-    def triangulate(self, track: List[Tuple], use_ransac: bool) -> Dict:
-        """ Triangulate based on a simple algorithm taking largest baseline, assumed to be endpoints of a track.
-
-        Args:
-            track: Feature track as list of (camera_idx,measurements).
-
-        Returns:
-            Feature track as a dict with landmark as key and track as value.
-        """
-        triangulated_track = dict()
         if use_ransac:
-            pass
-        if not use_ransac:
-            pose_estimates, camera_values, img_measurements = self.extract_end_measurements(track)
-            optimize = True
-            rank_tol = 1e-9
-            # if shared calibration provided for all cameras
-            if self.sharedCal_Flag:
-                if not pose_estimates:
-                    raise Exception('track_poses arg or pose estimates missing')
-                triangulated_pt = gtsam.triangulatePoint3(pose_estimates, self.calibration, img_measurements, rank_tol, optimize)
-                triangulated_track.update({tuple(triangulated_pt) : track})
-            else:
-                if not camera_values:
-                    raise Exception('track_cameras arg or camera values missing')
-                triangulated_pt = gtsam.triangulatePoint3(camera_values, img_measurements, rank_tol, optimize)
-                triangulated_track.update({tuple(triangulated_pt) : track})
-        return triangulated_track
-    
-    def filter_reprojection_error(self, triangulated_track: Dict):
+            # Generate all possible matches
+            matches = self.generate_matches(track)
+                        
+            # Check the validity of num_samples  
+            if  num_samples > len(matches):
+                num_samples = len(matches)
+            
+            # Sampling
+            samples = self.sampling(track, matches, sampling_method, num_samples)
+            
+            # Initialize the best output containers
+            best_pt = gtsam.Point3()
+            best_votes = 0
+            best_error = 1e10
+            best_inliers = []
+
+            for s in range(num_samples):
+                k1, k2 = matches[samples[s]]
+
+                idx1, pt1 = track[k1]
+                idx2, pt2 = track[k2]
+                
+                if self.sharedCal_Flag:
+                    pose_estimates = gtsam.Pose3Vector()
+                    pose_estimates.append(self.track_pose_list[idx1])
+                    pose_estimates.append(self.track_pose_list[idx2])
+                else:
+                    camera_estimates = [self.track_camera_list[idx1], self.track_camera_list[idx2]]
+
+                img_measurements = gtsam.Point2Vector()
+                img_measurements.append(pt1)
+                img_measurements.append(pt2)
+                
+                # if shared calibration provided for all cameras
+                if self.sharedCal_Flag:
+                    triangulated_pt = gtsam.triangulatePoint3(pose_estimates, self.calibration, img_measurements, rank_tol=1e-9, optimize=True)
+                else:
+                    triangulated_pt = gtsam.triangulatePoint3(camera_estimates, img_measurements, rank_tol=1e-9, optimize=True)
+                    
+                errors = self.reprojection_error(triangulated_pt, track)
+                votes = [err < thresh for err in errors]
+
+                sum_error = sum(errors)
+                sum_votes = sum([int(v) for v in votes])
+
+                if (
+                    (sum_votes > best_votes) or 
+                    (sum_votes == best_votes and best_error > sum_error)
+                ):
+                    best_votes = sum_votes 
+                    best_error = sum_error
+                    best_pt = triangulated_pt
+                    best_inliers = votes
+        else:
+            best_inliers = [True for k in range(len(track))]
+        
+        pose_track, camera_track, measurement_track = self.extract_measurements(track, best_inliers)
+        
+        triangulated_track = dict()
+        
+        # if shared calibration provided for all cameras
+        if self.sharedCal_Flag:
+            triangulated_pt_track = gtsam.triangulatePoint3(pose_track, self.calibration, measurement_track, rank_tol=1e-9, optimize=True)
+            triangulated_track.update({tuple(triangulated_pt_track) : track})
+        else:
+            triangulated_pt_track = gtsam.triangulatePoint3(camera_track, measurement_track, rank_tol=1e-9, optimize=True)
+            triangulated_track.update({tuple(triangulated_pt_track) : track})
+        
+        # we may want to compare the initialized best_pt with triangulated_pt_track
+        # if use_ransac:
+        #    error_check = (best_pt - triangulated_pt_track).norm()
+        return self.inlier_to_track(triangulated_track, best_inliers)
+
+    def generate_matches(self, track: List) -> List[Tuple[int,int]]:
         """
-        Filter measurements that have high reprojection error in a camera.
-
+        Extract all possible measurement pairs (k1, k2) in a track for triangulation.
         Args:
-            Triangulated track: Dict with triangulated pt as key and track as value.
-
+            track: feature track from which measurements are to be extracted
         Returns:
-            SfmTrack object with filtered track.
+            matches: all possible matches in a given track 
+        """
+        matches = []
+        
+        for k1 in range(len(track)):
+            for k2 in range(k1+1,len(track)):
+                matches.append([k1,k2])
+        
+        return matches
+        
+    def sampling(self, track: List, matches: List, sampling_method: TriangulationParam, num_samples: int) -> List[int]:
+        """Generate a list of matches for triangulation 
+        
+        Args:
+            track: feature track from which measurements are to be extracted
+            matches: all possible matches in a given track
+            sampling_method: TriangulationParam.UNIFORM    -> sampling uniformly, 
+                             TriangulationParam.BASELINE   -> sampling based on estimated baseline, 
+                             TriangulationParam.MAX_TO_MIN -> sampling from max to min 
+            num_samples: desired number of samples
+        Returns:
+        indexes of matches: index of selected match
+        """
+        # Initilize scores as uniform distribution
+        scores = np.ones(len(matches),dtype=float)
+        
+        if (
+            (sampling_method == TriangulationParam.BASELINE or 
+            sampling_method == TriangulationParam.MAX_TO_MIN) and 
+            self.sharedCal_Flag
+        ):
+            for k in range(len(matches)):
+                k1, k2 = matches[k]
+
+                idx1, pt1 = track[k1]
+                idx2, pt2 = track[k2]
+
+                wTc1 = gtsam.Pose3(self.track_pose_list[idx1])
+                wTc2 = gtsam.Pose3(self.track_pose_list[idx2])
+                
+                # it is not a very correct approximation of depth, will do it better later
+                scores[k] = np.linalg.norm(wTc1.compose(wTc2.inverse()).translation()) 
+        
+        # Check the validity of scores
+        if sum(scores) <= 0.0:
+            raise Exception("Sum of scores cannot be Zero (or smaller than Zero)! It must a bug somewhere")
+        
+        if (
+            sampling_method == TriangulationParam.UNIFORM or
+            sampling_method == TriangulationParam.BASELINE
+        ): 
+            sample_index = np.random.choice(len(scores), num_samples, replace=False, p=scores/scores.sum())
+                
+        if (
+            sampling_method == TriangulationParam.MAX_TO_MIN
+        ): 
+            sample_index = np.argsort(scores)[-num_samples:]
+        
+        return sample_index.tolist()
+
+    def reprojection_error(self, triangulated_pt: gtsam.Point3, track: List) -> List[float]:
+        """
+        Calculate average reprojection error in a given track
+        Args:
+            triangulated point: triangulated 3D point 
+            track: the measurements of a track
+        Returns:
+            reprojection errors 
+        """
+        errors = []
+        for (i, measurement) in track:
+            if self.sharedCal_Flag:
+                camera = gtsam.PinholeCameraCal3Bundler(self.track_pose_list[i], self.calibration)
+            else:
+                camera = gtsam.PinholeCameraCal3Bundler(self.track_pose_list[i], self.track_camera_list[i])
+            # Project to camera 1
+            uc = camera.project(triangulated_pt)[0]
+            vc = camera.project(triangulated_pt)[1]
+            # Projection error in camera
+            errors.append((uc - measurement[0])**2 + (vc - measurement[1])**2)
+        return errors
+
+    def extract_measurements(self, track: List, inliers: List) -> Tuple[gtsam.Pose3Vector, List, gtsam.Point2Vector]:
+        """
+        Extract measurements in a track for triangulation.
+        Args:
+            track: feature track from which measurements are to be extracted
+            inliers: a boolean list that indicates the validity of each measurements
+        Returns:
+            pose_track: Poses of first and last measurements in track
+            camera_track: Individual camera calibrations for first and last measurement
+            measurement_track: Observations corresponding to first and last measurements
+        """
+        
+        pose_track = gtsam.Pose3Vector()
+        camera_track = []
+        measurement_track = gtsam.Point2Vector()
+
+        for k in range(len(track)):
+            if inliers[k]:
+                img_idx, img_Pt = track[k]
+                if self.sharedCal_Flag:
+                    pose_track.append(self.track_pose_list[img_idx])
+                else:
+                    camera_track.append(self.track_camera_list[img_idx])
+                
+                measurement_track.append(img_Pt)
+
+        if self.sharedCal_Flag:
+            if ( 
+                len(pose_track) < 2 or 
+                len(measurement_track) < 2
+            ):
+                raise Exception("Nb of measurements should not be <= 2. \
+                    Number of poses is: {} and number of observations is {}".format(
+                        len(pose_track), 
+                        len(measurement_track)))
+        else:
+            if ( 
+                len(camera_track) < 2 or 
+                len(measurement_track) < 2
+            ):
+                raise Exception("Nb of measurements should not be <= 2. \
+                     number of cameras is: {} and number of observations is {}".format(
+                        len(camera_track), 
+                        len(measurement_track)))
+
+        return pose_track, camera_track, measurement_track
+
+    def inlier_to_track(self, triangulated_track: dict, inlier:list) -> gtsam.SfmTrack:
+        """
+        Generate track based on inliers
+        
+        Args:
+            triangulated_track: with triangulated pt as key and track as value
+            inlier: best inlier list from ransac or all points
+        Returns:
+            SfmTrack object
         """
         new_track = gtsam.SfmTrack(list(triangulated_track.keys())[0])
         
         # measurement_idx represented as k
         for triangulated_pt, track in triangulated_track.items():
             for (i, measurement) in track:
-                if self.sharedCal_Flag:
-                    camera = gtsam.PinholeCameraCal3Bundler(self.track_pose_list[i], self.calibration)
-                else:
-                    camera = self.track_camera_list[i]
-                # Project to camera 1
-                uv = camera.project(triangulated_pt)
-                # Projection error in camera
-                error = np.linalg.norm(measurement - uv)
-                if error < self.threshold:
+                if inlier[i]:
                     new_track.add_measurement(i, measurement)
         return new_track
-
-        
-        
