@@ -4,6 +4,9 @@ import sys
 import dask
 import gtsam
 import numpy as np
+
+import matplotlib.pyplot as plt
+
 from dask.delayed import Delayed
 from gtsam import (GeneralSFMFactorCal3Bundler, PinholeCameraCal3Bundler,
                    PriorFactorPinholeCameraCal3Bundler, SfmData,
@@ -19,14 +22,24 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 
 class BundleAdjustmentBase:
+    """Base class for bundle adjustment.
+    
+    This class generates global ratation, translation estimates 
+    of cameras, and 3D point clouds structured tracks from 
+    triangulation.
+    """
     def __init__(self) -> None:
-        """
-        Args:
-            scene_data: structured tracks (SfmData) after Triangularization and Outlier rejection. 
+        """ Initialization of the Bundle Adjuster
         """
 
     def run(self, scene_data: SfmData) -> SfmResult:
-        """ Run LM optimization with input data and report resulting error """
+        """ Run LM optimization with input data and report resulting cal3bunder, points, and error
+
+        Args:
+            scene_data: structured tracks (SfmData) after Triangularization and Outlier rejection. 
+        Results:
+            sfm_result: optimized global camera poses, point clouds, and error of optimization
+        """
         logging.info(
             f"Input: {scene_data.number_tracks()} tracks on {scene_data.number_cameras()} cameras\n")
 
@@ -88,10 +101,40 @@ class BundleAdjustmentBase:
         except Exception as e:
             logging.exception("LM Optimization failed")
             return
+        
         # Error drops from ~2764.22 to ~0.046
+        logging.info(f"initial error: {graph.error(initial)}")
         logging.info(f"final error: {graph.error(result)}")
 
-        return graph.error(result)
+        # initialize sfmResult container
+        sfm_result = SfmResult([], [], graph.error(result))
+        
+        # read pose
+        for key in result.keys():
+            try:
+                sfm_result.cameras.append(
+                    result.atPinholeCameraCal3Bundler(key)
+                )
+            except RuntimeError:
+                continue
+        
+        # read points
+        for key in result.keys():
+            try:
+                sfm_result.points3d.append(
+                    result.atPoint3(key)
+                )
+            except RuntimeError:
+                continue
+        
+        return sfm_result
 
     def create_computation_graph(self, scene_data: Delayed) -> Delayed:
+        """ Create the computation graph for performing bundle adjustment
+         
+        Args:
+            scene_data: structured tracks (SfmData) after Triangularization and Outlier rejection. 
+        Results:
+            sfm_result: optimized global camera poses, point clouds, and error of optimization
+        """
         return dask.delayed(self.run)(scene_data)

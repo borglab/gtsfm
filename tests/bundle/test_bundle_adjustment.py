@@ -27,10 +27,10 @@ class TestBundleAdjustment(unittest.TestCase):
         # Load the SfM data from file
         scene_data = gtsam.readBal(input_file)
 
-        computed_error = self.obj.run(scene_data)
+        computed_result = self.obj.run(scene_data)
 
         expected_error = 0.046137573704557046
-        self.assertTrue(np.isclose(expected_error, computed_error))
+        self.assertTrue(np.isclose(expected_error, computed_result.get_error()))
 
     def test_create_computation_graph(self):
 
@@ -40,16 +40,16 @@ class TestBundleAdjustment(unittest.TestCase):
         # Load the SfM data from file
         scene_data = gtsam.readBal(input_file)
 
-        computed_error = self.obj.create_computation_graph(
+        computed_result = self.obj.create_computation_graph(
             dask.delayed(scene_data)
         )
 
         expected_result = self.obj.run(scene_data)
 
         with dask.config.set(scheduler='single-threaded'):
-            dask_results = dask.compute(computed_error)[0]
+            dask_results = dask.compute(computed_result)[0]
 
-        self.assertEqual(dask_results, expected_result)
+        self.assertEqual(dask_results.get_error(), expected_result.get_error())
 
 
 if __name__ == '__main__':
