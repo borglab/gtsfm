@@ -11,7 +11,7 @@ import gtsam
 from gtsam.utils.test_case import GtsamTestCase
 from typing import List, Dict
 
-from data_association.data_assoc import DataAssociation
+from data_association.data_assoc_ransac import DataAssociation, TriangulationParam
 from data_association.feature_tracks import FeatureTrackGenerator
 from frontend.matcher.dummy_matcher import DummyMatcher
 
@@ -77,7 +77,7 @@ class TestDataAssociation(GtsamTestCase):
         # check that the length of the observation list corresponding to each key is the same. Only good tracks will remain
         assert len(filtered_map) == 4, "Tracks not filtered correctly"
 
-    def test_triangulation_sharedCal(self):
+    def test_triangulation_sharedCal_without_ransac(self):
         """
         Tests that the triangulation is accurate for shared calibration. 
         Example from borglab/gtsam/python/gtsam/tests/test_Triangulation.py
@@ -87,29 +87,140 @@ class TestDataAssociation(GtsamTestCase):
 
         matches_1, feature_list, poses, _ = self.__generate_2_poses(sharedCal)
         da = DataAssociation()
-        triangulated_landmark_map = da.run(matches_1, poses, True, 5,3, False, sharedCal, None, feature_list)
+        triangulated_landmark_map = da.run(
+            matches_1, feature_list, True, 3, False, 
+            calibration=sharedCal, 
+            global_poses=poses
+        )
+
         assert len(triangulated_landmark_map) == 0, "tracks exceeding expected track length"
-        
 
         matches_2, feature_list, poses = self.__generate_3_poses(sharedCal)
         da = DataAssociation()
-        triangulated_landmark_map = da.run(matches_2, poses, True,5,3, False, sharedCal, None, feature_list)
+        triangulated_landmark_map = da.run(
+            matches_2, feature_list, True, 3, False, 
+            calibration=sharedCal, 
+            global_poses=poses
+        )
         computed_landmark = triangulated_landmark_map[0].point3()
         assert len(triangulated_landmark_map)== 1, "more tracks than expected"
         self.gtsamAssertEquals(computed_landmark, self.expected_landmark,1e-2)
     
-    def test_triangulation_individualCal(self):
+    def test_triangulation_sharedCal_ransac_uniform(self):
+        """
+        Tests that the triangulation is accurate for shared calibration. 
+        Example from borglab/gtsam/python/gtsam/tests/test_Triangulation.py
+        and gtsam/geometry/tests/testTriangulation.cpp
+        """  
+        sharedCal = gtsam.Cal3Bundler(1500, 0, 0, 640, 480)
+
+        matches_1, feature_list, poses, _ = self.__generate_2_poses(sharedCal)
+        da = DataAssociation()
+
+        triangulated_landmark_map = da.run(
+            matches_1, feature_list, True, 3, True,
+            calibration=sharedCal,
+            global_poses=poses,
+            sampling_method=TriangulationParam.UNIFORM,
+            num_samples=20,
+            reprojection_threshold=5 
+        )
+
+        assert len(triangulated_landmark_map) == 0, "tracks exceeding expected track length"
+        
+        matches_2, feature_list, poses = self.__generate_3_poses(sharedCal)
+        triangulated_landmark_map = da.run(
+            matches_2, feature_list, True, 3, True,
+            calibration=sharedCal,
+            global_poses=poses,
+            sampling_method=TriangulationParam.UNIFORM,
+            num_samples=20,
+            reprojection_threshold=5 
+        )
+        computed_landmark = triangulated_landmark_map[0].point3()
+        assert len(triangulated_landmark_map)== 1, "more tracks than expected"
+        self.gtsamAssertEquals(computed_landmark, self.expected_landmark,1e-2)
+    
+    def test_triangulation_sharedCal_ransac_baseline(self):
+        """
+        Tests that the triangulation is accurate for shared calibration. 
+        Example from borglab/gtsam/python/gtsam/tests/test_Triangulation.py
+        and gtsam/geometry/tests/testTriangulation.cpp
+        """  
+        sharedCal = gtsam.Cal3Bundler(1500, 0, 0, 640, 480)
+
+        matches_1, feature_list, poses, _ = self.__generate_2_poses(sharedCal)
+        da = DataAssociation()
+
+        triangulated_landmark_map = da.run(
+            matches_1, feature_list, True, 3, True,
+            calibration=sharedCal,
+            global_poses=poses,
+            sampling_method=TriangulationParam.BASELINE,
+            num_samples=20,
+            reprojection_threshold=5 
+        )
+
+        assert len(triangulated_landmark_map) == 0, "tracks exceeding expected track length"
+        
+        matches_2, feature_list, poses = self.__generate_3_poses(sharedCal)
+        triangulated_landmark_map = da.run(
+            matches_2, feature_list, True, 3, True,
+            calibration=sharedCal,
+            global_poses=poses,
+            sampling_method=TriangulationParam.BASELINE,
+            num_samples=20,
+            reprojection_threshold=5 
+        )
+        computed_landmark = triangulated_landmark_map[0].point3()
+        assert len(triangulated_landmark_map)== 1, "more tracks than expected"
+        self.gtsamAssertEquals(computed_landmark, self.expected_landmark,1e-2)
+
+    def test_triangulation_sharedCal_ransac_maxtomin(self):
+        """
+        Tests that the triangulation is accurate for shared calibration. 
+        Example from borglab/gtsam/python/gtsam/tests/test_Triangulation.py
+        and gtsam/geometry/tests/testTriangulation.cpp
+        """  
+        sharedCal = gtsam.Cal3Bundler(1500, 0, 0, 640, 480)
+
+        matches_1, feature_list, poses, _ = self.__generate_2_poses(sharedCal)
+        da = DataAssociation()
+
+        triangulated_landmark_map = da.run(
+            matches_1, feature_list, True, 3, True,
+            calibration=sharedCal,
+            global_poses=poses,
+            sampling_method=TriangulationParam.MAX_TO_MIN,
+            num_samples=20,
+            reprojection_threshold=5 
+        )
+
+        assert len(triangulated_landmark_map) == 0, "tracks exceeding expected track length"
+        
+        matches_2, feature_list, poses = self.__generate_3_poses(sharedCal)
+        triangulated_landmark_map = da.run(
+            matches_2, feature_list, True, 3, True,
+            calibration=sharedCal,
+            global_poses=poses,
+            sampling_method=TriangulationParam.MAX_TO_MIN,
+            num_samples=20,
+            reprojection_threshold=5 
+        )
+        computed_landmark = triangulated_landmark_map[0].point3()
+        assert len(triangulated_landmark_map)== 1, "more tracks than expected"
+        self.gtsamAssertEquals(computed_landmark, self.expected_landmark,1e-2)
+    
+    def test_triangulation_individualCal_without_ransac(self):
         """
         Tests that the triangulation is accurate for individual camera calibration.
-        """
+        
         K1 = gtsam.Cal3Bundler(1500, 0, 0, 640, 480)
         K2 = gtsam.Cal3Bundler(1600, 0, 0, 650, 440)
         camera1 = gtsam.PinholeCameraCal3Bundler(self.pose1, K1)
         camera2 = gtsam.PinholeCameraCal3Bundler(self.pose2, K2)
         
-        cameras = gtsam.CameraSetCal3Bundler()
-        cameras.append(camera1)
-        cameras.append(camera2)
+        cameras = [camera1, camera2]
 
         # Project landmark into two cameras and triangulate
         z1 = camera1.project(self.expected_landmark)
@@ -133,10 +244,12 @@ class TestDataAssociation(GtsamTestCase):
         # create matches
         matches = {img_idxs: matched_idxs}
         da = DataAssociation()
-        triangulated_landmark_map = da.run(matches, None, False,5, 2, False, None, cameras, feature_list)
-
+        triangulated_landmark_map = da.run(
+            matches, feature_list, False, 3, False, 
+            camera_list=cameras
+        )
         computed_landmark = triangulated_landmark_map[0].point3()
-
+        """
     
     def test_create_computation_graph(self):
         """
@@ -146,12 +259,25 @@ class TestDataAssociation(GtsamTestCase):
         matches, features, poses = self.__generate_3_poses(sharedCal)
         # Run without computation graph
         da = DataAssociation()
-        expected_landmark_map = da.run(matches, poses, True, 5, 3, False, sharedCal, None, features)
+        expected_landmark_map = da.run(
+            matches, features, True, 3, True,
+            calibration=sharedCal,
+            global_poses=poses,
+            sampling_method=TriangulationParam.MAX_TO_MIN,
+            num_samples=20,
+            reprojection_threshold=5 
+        )
 
         # Run with computation graph
         da = DataAssociation()
-        computed_landmark_map = da.create_computation_graph(matches, poses, True, 5, 3, False, sharedCal, None, features)
-
+        computed_landmark_map = da.create_computation_graph(
+            matches, features, True, 3, True,
+            calibration=sharedCal,
+            global_poses=poses,
+            sampling_method=TriangulationParam.MAX_TO_MIN,
+            num_samples=20,
+            reprojection_threshold=5 
+        )
         with dask.config.set(scheduler='single-threaded'):
             dask_result = dask.compute(computed_landmark_map)[0]
 
