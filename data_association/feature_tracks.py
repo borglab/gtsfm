@@ -38,8 +38,7 @@ class FeatureTrackGenerator:
             for idx in range(ks.shape[0]):
                 k1 = ks[idx][0]
                 k2 = ks[idx][1]
-                dsf.merge(gtsam.IndexPair(i1, k1),
-                        gtsam.IndexPair(i2, k2))
+                dsf.merge(gtsam.IndexPair(i1, k1), gtsam.IndexPair(i2, k2))
                 key_set = dsf.sets()                
 
         # create a landmark map: a list of tracks

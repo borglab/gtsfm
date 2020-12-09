@@ -217,9 +217,10 @@ class TestDataAssociation(GtsamTestCase):
         # Create image indices for each pose
         img_idxs = tuple(list(range(len(self.poses))))
         # List of features in each image
-        feature_list = []
+        # feature_list = []
         for i in range(len(measurements)):
-            feature_list.append(Keypoints(coordinates=np.array([measurements[i]])))
+            # feature_list.append(Keypoints(coordinates=np.array([measurements[i]])))
+            feature_list = [Keypoints(coordinates=np.array([m])) for m in measurements]
         return measurements, feature_list, img_idxs, cameras   
         
 if __name__ == "__main__":
