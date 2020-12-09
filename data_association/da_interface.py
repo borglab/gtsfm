@@ -2,6 +2,7 @@
 import gtsam
 import numpy as np
 import dask
+from dask.delayed import Delayed
 
 from common.keypoints import Keypoints
 from typing import List, Dict, Tuple
@@ -30,7 +31,8 @@ class DummyDataAssociation():
             calibration: gtsam.Cal3Bundler, 
             camera_list: gtsam.CameraSetCal3Bundler,
             ) -> List[gtsam.SfmTrack]:
-        """ Inputs to Data Association module """
+        """ Runs a dummy Data Association module. 
+        Creates random tracks and assigns 3D point to it."""
 
         triangulated_landmark_map = []        
         sfmdata_landmark_map = self.filtered_landmark_data
@@ -62,7 +64,7 @@ class DummyDataAssociation():
         use_ransac: bool,
         calibration: gtsam.Cal3Bundler, 
         camera_list: gtsam.CameraSetCal3Bundler,
-        ):
+        )-> Delayed:
         """ 
         Generates computation graph for data association 
 
@@ -78,9 +80,12 @@ class DummyDataAssociation():
         Returns:
             Delayed dask tasks for data association.
         """
-        return dask.delayed(self.run)(global_poses, 
-                                      sharedcalibrationFlag, reprojection_threshold, min_track_length, 
-                                      use_ransac, 
-                                      calibration, 
-                                      camera_list) 
+        return dask.delayed(self.run)(
+            global_poses, 
+            sharedcalibrationFlag, 
+            reprojection_threshold, 
+            min_track_length, 
+            use_ransac, 
+            calibration, 
+            camera_list) 
     
