@@ -9,6 +9,7 @@ Authors: Sushmita Warrier, Xiaolong Wu
 import dask
 import gtsam
 import numpy as np
+import logging
 
 from common.keypoints import Keypoints
 from data_association.feature_tracks import FeatureTrackGenerator
@@ -43,7 +44,7 @@ class DataAssociation(FeatureTrackGenerator):
         use_ransac: bool,
         calibration: gtsam.Cal3Bundler, 
         camera_list: gtsam.CameraSetCal3Bundler,
-        ) -> List:
+        ) -> List[gtsam.SfmTrack]:
         """ Triangulate and filter points for feature tracks.
 
         Args:
@@ -77,7 +78,7 @@ class DataAssociation(FeatureTrackGenerator):
             if filtered_track.number_measurements() >= min_track_length:
                 triangulated_landmark_map.append(filtered_track)
             else:
-                print("Track length < {} discarded".format(min_track_length))
+                logging.info("Track length < {min_track_length}")
                 
         return triangulated_landmark_map
 

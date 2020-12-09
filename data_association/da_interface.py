@@ -4,17 +4,22 @@ import numpy as np
 import dask
 
 from common.keypoints import Keypoints
-from data_association.feature_tracks import FeatureTrackGenerator
 from typing import List, Dict, Tuple
 
 # create tracks and assign predefined 3D landmark pts
 # we only want to check if the inputs and outputs are as expected
 
-class DummyDataAssociation(FeatureTrackGenerator):
+class DummyDataAssociation():
     def __init__(self, 
                 matches: Dict[Tuple[int, int], np.ndarray], 
                 feature_list: List[Keypoints]):
-        super().__init__(matches, feature_list)
+        self.filtered_landmark_data = []
+        for cam_idx, measurement_idx in matches.items():
+            # dummy camera and measurement indices
+            for m in range(2):
+                k = measurement_idx[0][m]   
+            # random track   
+                self.filtered_landmark_data.append(tuple((cam_idx[m], feature_list[cam_idx[m]].coordinates[k])))
 
     def run(self,         
             global_poses: List[gtsam.Pose3], 
@@ -24,7 +29,7 @@ class DummyDataAssociation(FeatureTrackGenerator):
             use_ransac: bool,
             calibration: gtsam.Cal3Bundler, 
             camera_list: gtsam.CameraSetCal3Bundler,
-            ) -> List:
+            ) -> List[gtsam.SfmTrack]:
         """ Inputs to Data Association module """
 
         triangulated_landmark_map = []        
@@ -33,18 +38,18 @@ class DummyDataAssociation(FeatureTrackGenerator):
         triangulated_pts = [tuple((5.002913072201889, 0.5012185579790354, 1.2007032270128029))]
         # point indices are represented as j
         # nb of 3D points = nb of tracks, hence track_idx represented as j
-        for j in range(len(sfmdata_landmark_map)):
+        #for j in range(len(sfmdata_landmark_map)):
             
-            triangulated_data = {triangulated_pts[j]: sfmdata_landmark_map[j]}
-            filtered_track = gtsam.SfmTrack(list(triangulated_data.keys())[0])
-            for triangulated_pt, track in triangulated_data.items():
-                for (i, measurement) in track:
-                    filtered_track.add_measurement(i, measurement)
-            # reprojection error filtering skipped
-            if filtered_track.number_measurements() >= min_track_length:
-                triangulated_landmark_map.append(filtered_track)
-            else:
-                print("Track length < {} discarded".format(min_track_length))
+        triangulated_data = {triangulated_pts[0]: sfmdata_landmark_map}
+        filtered_track = gtsam.SfmTrack(list(triangulated_data.keys())[0])
+        for triangulated_pt, track in triangulated_data.items():
+            for (i, measurement) in track:
+                filtered_track.add_measurement(i, measurement)
+        # reprojection error filtering skipped
+        if filtered_track.number_measurements() >= min_track_length:
+            triangulated_landmark_map.append(filtered_track)
+        else:
+            print("Track length < {} discarded".format(min_track_length))
                 
         return triangulated_landmark_map
 
