@@ -11,6 +11,7 @@ from gtsam.utils.test_case import GtsamTestCase
 
 from common.keypoints import Keypoints
 from data_association.data_assoc import DataAssociation
+from data_association.da_interface import DummyDataAssociation
 from data_association.feature_tracks import FeatureTrackGenerator
 
 
@@ -141,6 +142,28 @@ class TestDataAssociation(GtsamTestCase):
             # Test if the measurement in both are equal
             np.testing.assert_array_almost_equal(expected_landmark_map[i].measurement(0)[1], dask_result[i].measurement(0)[1], 1, "Dask measurements incorrect")
               
+    def test_dummy_class(self):
+        """ Test dummy data association class for inputs and outputs.
+        Implemented for shared calibration. """
+        sharedCal = gtsam.Cal3Bundler(1500, 0, 0, 640, 480)
+        matches, features, poses = self.__generate_3_poses(sharedCal)
+        da = DummyDataAssociation(matches, features)        
+        # Run without computation graph
+        expected_landmark_map = da.run(poses, True, 5, 3, False, sharedCal, None)
+
+        expected_landmark_map = da.run(poses, True, 5, 3, False, sharedCal, None)
+
+        # Run with computation graph
+        computed_landmark_map = da.create_computation_graph(poses, True, 5, 3, False, sharedCal, None)
+
+        with dask.config.set(scheduler='single-threaded'):
+            dask_result = dask.compute(computed_landmark_map)[0]
+        
+        for i in range(len(expected_landmark_map)):
+            # Test if the measurement in both are equal
+            np.testing.assert_array_almost_equal(expected_landmark_map[i].measurement(0)[1], dask_result[i].measurement(0)[1], 2, "Dask measurements incorrect")
+
+
     def __generate_2_poses(self, sharedCal):
         """
         Generate 2 matches and their corresponding poses for shared calibration
