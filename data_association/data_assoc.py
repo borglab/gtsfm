@@ -7,6 +7,7 @@ Authors: Sushmita Warrier, Xiaolong Wu
 """
 
 import dask
+from dask.delayed import Delayed
 import gtsam
 import numpy as np
 
@@ -43,7 +44,7 @@ class DataAssociation(FeatureTrackGenerator):
         use_ransac: bool,
         calibration: gtsam.Cal3Bundler, 
         camera_list: gtsam.CameraSetCal3Bundler,
-        ) -> List:
+        ) -> List[gtsam.SfmTrack]:
         """ Triangulate and filter points for feature tracks.
 
         Args:
@@ -64,7 +65,13 @@ class DataAssociation(FeatureTrackGenerator):
         # point indices are represented as j
         # nb of 3D points = nb of tracks, hence track_idx represented as j
         for j in range(len(sfmdata_landmark_map)):
-            LMI = LandmarkInitialization(sharedcalibrationFlag, reprojection_threshold, global_poses, calibration, camera_list)
+            LMI = LandmarkInitialization(
+                sharedcalibrationFlag, 
+                reprojection_threshold, 
+                global_poses, 
+                calibration, 
+                camera_list
+                )
             triangulated_data = LMI.triangulate(sfmdata_landmark_map[j], use_ransac)
             filtered_track = LMI.filter_reprojection_error(triangulated_data)
 
@@ -83,7 +90,7 @@ class DataAssociation(FeatureTrackGenerator):
         use_ransac: bool,
         calibration: gtsam.Cal3Bundler, 
         camera_list: gtsam.CameraSetCal3Bundler,
-        ):
+        ) -> Delayed:
         """ 
         Generates computation graph for data association 
 
@@ -99,11 +106,14 @@ class DataAssociation(FeatureTrackGenerator):
         Returns:
             Delayed dask tasks for data association.
         """
-        return dask.delayed(self.run)(global_poses, 
-                                      sharedcalibrationFlag, reprojection_threshold, min_track_length, 
-                                      use_ransac, 
-                                      calibration, 
-                                      camera_list)
+        return dask.delayed(self.run)(
+            global_poses, 
+            sharedcalibrationFlag, 
+            reprojection_threshold, 
+            min_track_length, 
+            use_ransac, 
+            calibration, 
+            camera_list)
 
 
 class LandmarkInitialization():
@@ -150,12 +160,9 @@ class LandmarkInitialization():
             camera_list: Individual camera calibrations for first and last measurement.
             img_measurements: Observations corresponding to first and last measurements.
         """
-        pose_estimates_track = gtsam.Pose3Vector()
-        pose_estimates = gtsam.Pose3Vector()
-        cameras_list_track = gtsam.CameraSetCal3Bundler()
-        cameras_list = gtsam.CameraSetCal3Bundler()
-        img_measurements_track = gtsam.Point2Vector()
-        img_measurements = gtsam.Point2Vector()
+        pose_estimates_track, pose_estimates = gtsam.Pose3Vector(), gtsam.Pose3Vector()
+        cameras_list_track, cameras_list = gtsam.CameraSetCal3Bundler(), gtsam.CameraSetCal3Bundler()
+        img_measurements_track, img_measurements = gtsam.Point2Vector(), gtsam.Point2Vector()
         for k in range(len(track)):
             img_idx, img_Pt = track[k]
             if self.sharedCal_Flag:
@@ -163,22 +170,13 @@ class LandmarkInitialization():
             else:
                 cameras_list_track.append(self.track_camera_list[img_idx]) 
             img_measurements_track.append(img_Pt)
-        if pose_estimates_track:
-            pose_estimates.append(pose_estimates_track[0]) 
-            pose_estimates.append(pose_estimates_track[-1])
-        else:
-            cameras_list.append(cameras_list_track[0])
-            cameras_list.append(cameras_list_track[-1])
-
-        img_measurements.append(img_measurements_track[0])
-        img_measurements.append(img_measurements_track[-1])
-
-        if len(pose_estimates) > 2 or len(cameras_list) > 2 or len(img_measurements) > 2:
-            raise Exception("Nb of measurements should not be > 2. \
-                Number of poses is: {}, number of cameras is: {} and number of observations is {}".format(
-                    len(pose_estimates), 
-                    len(cameras_list), 
-                    len(img_measurements)))
+        extract_measurements = [0, -1]
+        for i in extract_measurements:
+            if pose_estimates_track:
+                pose_estimates.append(pose_estimates_track[i]) 
+            else:
+                cameras_list.append(cameras_list_track[i])
+            img_measurements.append(img_measurements_track[i])
         
         return pose_estimates, cameras_list, img_measurements
 
@@ -232,10 +230,9 @@ class LandmarkInitialization():
                 else:
                     camera = self.track_camera_list[i]
                 # Project to camera 1
-                uc = camera.project(triangulated_pt)[0]
-                vc = camera.project(triangulated_pt)[1]
+                uv = camera.project(triangulated_pt)
                 # Projection error in camera
-                error = (uc - measurement[0])**2 + (vc - measurement[1])**2
+                error = np.linalg.norm(measurement - uv)
                 if error < self.threshold:
                     new_track.add_measurement(i, measurement)
         return new_track
