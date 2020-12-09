@@ -12,6 +12,7 @@ import numpy as np
 import logging
 
 from common.keypoints import Keypoints
+from dask.delayed import Delayed
 from data_association.feature_tracks import FeatureTrackGenerator
 from enum import Enum
 from typing import Dict, List, Tuple, Optional
@@ -90,7 +91,7 @@ class DataAssociation(FeatureTrackGenerator):
         use_ransac: bool,
         calibration: gtsam.Cal3Bundler, 
         camera_list: gtsam.CameraSetCal3Bundler,
-        ):
+        ) -> Delayed:
         """ 
         Generates computation graph for data association 
 
