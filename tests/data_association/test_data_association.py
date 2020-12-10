@@ -7,8 +7,14 @@ import unittest
 import dask
 import numpy as np
 from common.keypoints import Keypoints
-from gtsam import (Cal3Bundler, PinholeCameraCal3Bundler,
-                   Point3, Pose3, Pose3Vector, Rot3)
+from gtsam import (
+    Cal3Bundler,
+    PinholeCameraCal3Bundler,
+    Point3,
+    Pose3,
+    Pose3Vector,
+    Rot3
+)
 from gtsam.utils.test_case import GtsamTestCase
 
 from data_association.dummy_da import DummyDataAssociation
@@ -64,7 +70,7 @@ class TestDataAssociation(GtsamTestCase):
 
         # Generate two poses for use in triangulation tests
         # Looking along X-axis, 1 meter above ground plane (x-y)
-        upright = Rot3.Ypr(-np.pi / 2, 0., -np.pi / 2)
+        upright = Rot3.Ypr(-np.pi / 2, 0.0, -np.pi / 2)
         pose1 = Pose3(upright, Point3(0, 0, 1))
 
         # create second camera 1 meter to the right of first camera
@@ -78,11 +84,13 @@ class TestDataAssociation(GtsamTestCase):
         self.expected_landmark = Point3(5, 0.5, 1.2)
 
     def test_dummy_class(self):
-        """ Test dummy data association class for inputs and outputs.
-        Implemented for shared calibration. """
+        """Test dummy data association class for inputs and outputs.
+        Implemented for shared calibration."""
         sharedCal = Cal3Bundler(1500, 0, 0, 640, 480)
-        cameras = {i: PinholeCameraCal3Bundler(
-            x, sharedCal) for (i, x) in enumerate(self.poses)}
+        cameras = {
+            i: PinholeCameraCal3Bundler(x, sharedCal)
+            for (i, x) in enumerate(self.poses)
+        }
 
         self.obj.run(cameras, self.dummy_matches, self.keypoints_list)
 
