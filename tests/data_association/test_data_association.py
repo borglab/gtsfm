@@ -8,7 +8,7 @@ import dask
 import numpy as np
 from common.keypoints import Keypoints
 from gtsam import (Cal3Bundler, PinholeCameraCal3Bundler,
-                   Point2Vector, Point3, Pose3, Pose3Vector, Rot3)
+                   Point3, Pose3, Pose3Vector, Rot3)
 from gtsam.utils.test_case import GtsamTestCase
 
 from data_association.dummy_da import DummyDataAssociation
@@ -29,25 +29,38 @@ class TestDataAssociation(GtsamTestCase):
 
         # set up ground truth data for comparison
 
-        self.dummy_matches = {(0, 1): np.array([[0, 2]]),
-                              (1, 2): np.array([[2, 3],
-                                                [4, 5],
-                                                [7, 9]]),
-                              (0, 2): np.array([[1, 8]])}
+        self.dummy_matches = {
+            (0, 1): np.array([[0, 2]]),
+            (1, 2): np.array([[2, 3],
+                              [4, 5],
+                              [7, 9]]),
+            (0, 2): np.array([[1, 8]])}
         self.keypoints_list = [
-            Keypoints(coordinates=np.array(
-                [[12, 16], [13, 18], [0, 10]]), scale=np.array([6.0, 9.0, 8.5])),
-            Keypoints(coordinates=np.array([[8, 2], [16, 14], [22, 23], [
-                      1, 6], [50, 50], [16, 12], [82, 121], [39, 60]])),
-            Keypoints(coordinates=np.array([[1, 1], [8, 13], [40, 6], [82, 21], [
-                      1, 6], [12, 18], [15, 14], [25, 28], [7, 10], [14, 17]]))
+            Keypoints(coordinates=np.array([
+                [12, 16],
+                [13, 18],
+                [0, 10]])),
+            Keypoints(coordinates=np.array([
+                [8, 2],
+                [16, 14],
+                [22, 23],
+                [1, 6],
+                [50, 50],
+                [16, 12],
+                [82, 121],
+                [39, 60]])),
+            Keypoints(coordinates=np.array([
+                [1, 1],
+                [8, 13],
+                [40, 6],
+                [82, 21],
+                [1, 6],
+                [12, 18],
+                [15, 14],
+                [25, 28],
+                [7, 10],
+                [14, 17]]))
         ]
-        self.malformed_matches = {(0, 1): np.array([[0, 2]]),
-                                  (1, 2): np.array([[2, 3],
-                                                    [4, 5],
-                                                    [7, 9]]),
-                                  (0, 2): np.array([[1, 8]]),
-                                  (1, 1): np.array([[0, 3]])}
 
         # Generate two poses for use in triangulation tests
         # Looking along X-axis, 1 meter above ground plane (x-y)

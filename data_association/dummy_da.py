@@ -44,7 +44,11 @@ class DummyDataAssociation():
         num_tracks = random.randint(5, 10)
 
         for _ in range(num_tracks):
-            track = []
+            # obtain 3D points for the track randomly
+            point_3d = np.random.rand(3, 1)
+
+            # create GTSAM's SfmTrack object
+            sfmTrack = SfmTrack(point_3d)
 
             # randomly select cameras for this track
             selected_cams = np.random.choice(
@@ -54,18 +58,12 @@ class DummyDataAssociation():
             for cam_idx in selected_cams:
                 measurement_idx = random.randint(
                     0, len(keypoints_list[cam_idx])-1)
-                track.append(
-                    (cam_idx, keypoints_list[cam_idx].coordinates[measurement_idx]))
-
-            # obtain 3D points for the track
-            point_3d = np.random.rand(3, 1)
-
-            # create GTSAM's SfmTrack object
-            sfmTrack = SfmTrack(point_3d)
-            for cam_idx, measurement in track:
+                measurement = keypoints_list[cam_idx].coordinates[measurement_idx]
                 sfmTrack.add_measurement(cam_idx, measurement)
 
             tracks.append(sfmTrack)
+
+        # TODO: solve the case of dropped cameras.
 
         # create the final SfmData object
         sfmData = SfmData()
