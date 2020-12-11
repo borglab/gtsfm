@@ -1,4 +1,4 @@
-""" Placeholder for GTSFM data association module
+""" Placeholder for GTSFM data association module.
 
 Authors: Ayush Baid, John Lambert, Sushmita Warrier
 """
@@ -14,30 +14,38 @@ from common.keypoints import Keypoints
 
 
 class DummyDataAssociation:
+    """Class for generating random tracks and their 3D points for SfmData."""
+
     def __init__(self, reproj_error_thresh: float, min_track_len: int):
+        """Initializes the hyperparameters.
+
+        Args:
+            reproj_error_thresh: the maximum reprojection error allowed.
+            min_track_len: min length required for valid feature track.
+        """
         self.reproj_error_thresh = reproj_error_thresh
         self.min_track_len = min_track_len
 
     def run(
         self,
         cameras: Dict[int, PinholeCameraCal3Bundler],
-        v_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
+        corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
     ) -> SfmData:
-        """[summary]
+        """Perform the data association.
 
         Args:
-            cameras: dictionary with image index as key, and camera object w/ intrinsics + extrinsics as value
-            v_corr_idxs_dict: dictionary, with key as image pair (i1,i2) and value as matching keypoint indices
-            keypoints_list: keypoints for each image
+            cameras: dictionary with image index as key, and camera object w/ 
+                     intrinsics + extrinsics as value.
+            corr_idxs_dict: dictionary, with key as image pair (i1,i2) and value
+                            as matching keypoint indices.
+            keypoints_list: keypoints for each image.
 
         Returns:
             cameras and tracks as SfmData
         """
 
         available_cams = np.array(list(cameras.keys()), dtype=np.uint32)
-
-        # map the available cams index from 0....1
 
         # form few tracks randomly
         tracks = []
@@ -74,12 +82,23 @@ class DummyDataAssociation:
         for track in tracks:
             sfmData.add_track(track)
 
-        return SfmData
+        return sfmData
 
     def create_computation_graph(
         self,
         cameras: Delayed,
-        v_corr_idxs_graph: Dict[Tuple[int, int], Delayed],
+        corr_idxs_graph: Dict[Tuple[int, int], Delayed],
         keypoints_graph: List[Delayed],
     ) -> Delayed:
-        return dask.delayed(self.run)(cameras, v_corr_idxs_graph, keypoints_graph)
+        """Creates a computation graph for performing data association.
+
+        Args:
+            cameras: list of cameras wrapped up as Delayed.
+            corr_idxs_graph: dictionary of correspondence indices, each value
+                             wrapped up as Delayed.
+            keypoints_graph: list of wrapped up keypoints for each image.
+
+        Returns:
+            SfmData object wrapped up using dask.delayed.
+        """
+        return dask.delayed(self.run)(cameras, corr_idxs_graph, keypoints_graph)

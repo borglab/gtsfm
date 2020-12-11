@@ -13,7 +13,8 @@ from gtsam import (
     Point3,
     Pose3,
     Pose3Vector,
-    Rot3
+    Rot3,
+    SfmData
 )
 from gtsam.utils.test_case import GtsamTestCase
 
@@ -21,21 +22,17 @@ from data_association.dummy_da import DummyDataAssociation
 
 
 class TestDataAssociation(GtsamTestCase):
-    """
-    Unit tests for data association module, which maps the feature tracks to their 3D landmarks.
-    """
+    """Unit tests for data association module."""
 
     def setUp(self):
-        """
-        Set up the data association module.
-        """
+        """Set up the data association object and test data."""
         super().setUp()
 
         self.obj = DummyDataAssociation(0.5, 2)
 
         # set up ground truth data for comparison
 
-        self.dummy_matches = {
+        self.dummy_corr_idxs_dict = {
             (0, 1): np.array([[0, 2]]),
             (1, 2): np.array([[2, 3],
                               [4, 5],
@@ -83,16 +80,28 @@ class TestDataAssociation(GtsamTestCase):
         # landmark ~5 meters infront of camera
         self.expected_landmark = Point3(5, 0.5, 1.2)
 
-    def test_dummy_class(self):
-        """Test dummy data association class for inputs and outputs.
-        Implemented for shared calibration."""
+    def test_create_computation_graph(self):
+        """Test the dask computation graph."""
         sharedCal = Cal3Bundler(1500, 0, 0, 640, 480)
         cameras = {
             i: PinholeCameraCal3Bundler(x, sharedCal)
             for (i, x) in enumerate(self.poses)
         }
 
-        self.obj.run(cameras, self.dummy_matches, self.keypoints_list)
+        camera_graph = dask.delayed(cameras)
+
+        corr_idxs_graph = {k: dask.delayed(v) for (
+            k, v) in self.dummy_corr_idxs_dict.items()}
+
+        keypoints_graph = [dask.delayed(x) for x in self.keypoints_list]
+
+        da_graph = self.obj.create_computation_graph(
+            camera_graph, corr_idxs_graph, keypoints_graph)
+
+        with dask.config.set(scheduler='single-threaded'):
+            dask_result = dask.compute(da_graph)[0]
+
+        self.assertIsInstance(dask_result, SfmData)
 
 
 if __name__ == "__main__":
