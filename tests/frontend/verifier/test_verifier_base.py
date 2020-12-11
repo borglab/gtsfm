@@ -10,7 +10,8 @@ from typing import Tuple
 
 import dask
 import numpy as np
-from gtsam import Cal3Bundler, EssentialMatrix, Pose3, Rot3, Unit3
+from gtsam import (Cal3Bundler, EssentialMatrix, PinholeCameraCal3Bundler,
+                   Pose3, Rot3, Unit3)
 
 from common.keypoints import Keypoints
 from frontend.verifier.dummy_verifier import DummyVerifier
@@ -38,6 +39,8 @@ class TestVerifierBase(unittest.TestCase):
         """
         if isinstance(self.verifier, DummyVerifier):
             self.skipTest('Cannot check correctness for dummy verifier')
+
+        # obtain the keypoints and the ground truth essential matrix.
         keypoints_i1, keypoints_i2, expected_i2Ei1 = \
             simulate_two_planes_scene(4, 4)
 
@@ -46,16 +49,18 @@ class TestVerifierBase(unittest.TestCase):
             np.arange(len(keypoints_i1)),
             np.arange(len(keypoints_i1)))).T
 
-        computed_i2Ei1, verified_indices = self.verifier.verify_with_approximate_intrinsics(
-            keypoints_i1,
-            keypoints_i2,
-            match_indices,
-            Cal3Bundler(),
-            Cal3Bundler()
-        )
+        # run the verifier
+        i2Ri1, i2Ui1, verified_indices = \
+            self.verifier.verify_with_approximate_intrinsics(
+                keypoints_i1,
+                keypoints_i2,
+                match_indices,
+                Cal3Bundler(),
+                Cal3Bundler()
+            )
 
-        self.assertTrue(computed_i2Ei1.equals(
-            expected_i2Ei1, 1e-2))
+        self.assertTrue(i2Ri1.equals(expected_i2Ei1.rotation(), 1e-2))
+        self.assertTrue(i2Ui1.equals(expected_i2Ei1.direction(), 1e-2))
         np.testing.assert_array_equal(verified_indices, match_indices)
 
     def test_valid_verified_indices(self):
@@ -65,7 +70,7 @@ class TestVerifierBase(unittest.TestCase):
         # verification every time.
 
         for _ in range(10):
-            _, verified_indices, keypoints_i1, keypoints_i2 = \
+            _, _, verified_indices, keypoints_i1, keypoints_i2 = \
                 self.__verify_random_inputs_with_exact_intrinsics()
 
             if verified_indices.size > 0:
@@ -77,7 +82,7 @@ class TestVerifierBase(unittest.TestCase):
                     np.all(verified_indices[:, 1] < len(keypoints_i2)))
             else:
                 # we have a meaningless test
-                self.assertTrue(True)
+                self.skipTest('No valid results found')
 
     def test_verify_empty_matches(self):
         """Tests the output when there are no match indices."""
@@ -88,11 +93,13 @@ class TestVerifierBase(unittest.TestCase):
         intrinsics_i1 = Cal3Bundler()
         intrinsics_i2 = Cal3Bundler()
 
-        i2Ei1, verified_indices = self.verifier.verify_with_exact_intrinsics(
-            keypoints_i1, keypoints_i2, match_indices, intrinsics_i1, intrinsics_i2
-        )
+        i2Ri1, i2Ui1, verified_indices = \
+            self.verifier.verify_with_exact_intrinsics(
+                keypoints_i1, keypoints_i2, match_indices, intrinsics_i1, intrinsics_i2
+            )
 
-        self.assertIsNone(i2Ei1)
+        self.assertIsNone(i2Ri1)
+        self.assertIsNone(i2Ui1)
         self.assertEqual(0, verified_indices.size)
 
     def test_create_computation_graph(self):
@@ -109,7 +116,9 @@ class TestVerifierBase(unittest.TestCase):
         matches_dict = dict()
         intrinsics_list = [None]*num_images
 
-        expected_results = dict()
+        expected_i2Ri1_dict = dict()
+        expected_i2Ui1_dict = dict()
+        expected_v_corr_idxs = dict()
         for (i1, i2) in image_indices:
             keypoints_i1, keypoints_i2, matches_i1i2, \
                 intrinsics_i1, intrinsics_i2 = \
@@ -132,7 +141,9 @@ class TestVerifierBase(unittest.TestCase):
                     intrinsics_i2
                 )
 
-            expected_results[(i1, i2)] = verification_result_i1i2
+            expected_i2Ri1_dict[(i1, i2)] = verification_result_i1i2[0]
+            expected_i2Ui1_dict[(i1, i2)] = verification_result_i1i2[1]
+            expected_v_corr_idxs[(i1, i2)] = verification_result_i1i2[2]
 
         # Convert the inputs to computation graphs
         detection_graph = [dask.delayed(x) for x in keypoints_list]
@@ -141,33 +152,45 @@ class TestVerifierBase(unittest.TestCase):
         intrinsics_graph = [dask.delayed(x) for x in intrinsics_list]
 
         # generate the computation graph for the verifier
-        computation_graph = self.verifier.create_computation_graph(
-            detection_graph,
-            matcher_graph,
-            intrinsics_graph,
-            exact_intrinsics_flag=True
-        )
+        rotations_graph, unit_translations_graph, v_corr_idxs_graph = \
+            self.verifier.create_computation_graph(
+                detection_graph,
+                matcher_graph,
+                intrinsics_graph,
+                exact_intrinsics_flag=True
+            )
 
         with dask.config.set(scheduler='single-threaded'):
-            dask_results = dask.compute(computation_graph)[0]
+            i2Ri1_dict = dask.compute(rotations_graph)[0]
+            i2Ui1_dict = dask.compute(unit_translations_graph)[0]
+            v_corr_idxs = dask.compute(v_corr_idxs_graph)[0]
 
-        # compare the lengths of two results dictionaries
-        self.assertEqual(len(expected_results), len(dask_results))
+        # compare the length of results
+        self.assertEqual(len(i2Ri1_dict), len(i2Ri1_dict))
+        self.assertEqual(len(i2Ui1_dict), len(expected_i2Ui1_dict))
+        self.assertEqual(len(v_corr_idxs), len(expected_v_corr_idxs))
 
-        # compare the values in two dictionaries
-        for indices_i1i2 in dask_results.keys():
-            i2Ei1_dask, verified_indices_i1i2_dask = dask_results[indices_i1i2]
+        # compare the values
+        for (i1, i2) in i2Ri1_dict.keys():
+            i2Ri1 = i2Ri1_dict[(i1, i2)]
+            i2Ui1 = i2Ui1_dict[(i1, i2)]
+            idxs = v_corr_idxs[(i1, i2)]
 
-            i2Ei1_expected, verified_indices_i1i2_expected = \
-                expected_results[indices_i1i2]
+            expected_i2Ri1 = expected_i2Ri1_dict[(i1, i2)]
+            expected_i2Ui1 = expected_i2Ui1_dict[(i1, i2)]
+            expected_idxs = expected_v_corr_idxs[(i1, i2)]
 
-            if i2Ei1_expected is None:
-                self.assertIsNone(i2Ei1_dask)
+            if expected_i2Ri1 is None:
+                self.assertIsNone(i2Ri1)
             else:
-                self.assertTrue(i2Ei1_expected.equals(i2Ei1_dask, 1e-2))
+                self.assertTrue(expected_i2Ri1.equals(i2Ri1, 1e-2))
 
-            np.testing.assert_array_equal(
-                verified_indices_i1i2_expected, verified_indices_i1i2_dask)
+            if expected_i2Ui1 is None:
+                self.assertIsNone(i2Ui1)
+            else:
+                self.assertTrue(expected_i2Ui1.equals(i2Ui1, 1e-2))
+
+            np.testing.assert_array_equal(idxs, expected_idxs)
 
     def test_pickleable(self):
         """Tests that the verifier object is pickleable (required for dask)."""
@@ -178,12 +201,13 @@ class TestVerifierBase(unittest.TestCase):
             self.fail("Cannot dump verifier using pickle")
 
     def __verify_random_inputs_with_exact_intrinsics(self) -> \
-            Tuple[EssentialMatrix, np.ndarray, np.ndarray, np.ndarray]:
+            Tuple[Rot3, Unit3, np.ndarray, np.ndarray, np.ndarray]:
         """Generates random inputs for pair (#i1, #i2) and perform verification
         by treating intrinsics as exact.
 
         Returns:
-            Computed essential matrix i2Ei1.
+            Computed relative rotation i2Ri1.
+            Computed translation direction i2Ui1.
             Indices of keypoints which are verified correspondences.
             Keypoints from #i1 which were input to the verifier.
             Keypoints from #i2 which were input to the verifier.
@@ -193,15 +217,16 @@ class TestVerifierBase(unittest.TestCase):
             intrinsics_i1, intrinsics_i2 = \
             generate_random_input_for_verifier()
 
-        i2Ei1, verified_indices = self.verifier.verify_with_exact_intrinsics(
-            keypoints_i1,
-            keypoints_i2,
-            match_indices,
-            intrinsics_i1,
-            intrinsics_i2
-        )
+        i2Ri1, i2Ui1, verified_indices = \
+            self.verifier.verify_with_exact_intrinsics(
+                keypoints_i1,
+                keypoints_i2,
+                match_indices,
+                intrinsics_i1,
+                intrinsics_i2
+            )
 
-        return i2Ei1, verified_indices, keypoints_i1, keypoints_i2
+        return i2Ri1, i2Ui1, verified_indices, keypoints_i1, keypoints_i2
 
 
 def generate_random_keypoints(num_keypoints: int,
@@ -283,10 +308,11 @@ def generate_random_input_for_verifier() -> \
         intrinsics_i1, intrinsics_i2
 
 
-def sample_points_on_plane(plane_coefficients: Tuple[float, float, float, float],
-                           range_x_coordinate: Tuple[float, float],
-                           range_y_coordinate: Tuple[float, float],
-                           num_points: int) -> np.ndarray:
+def sample_points_on_plane(
+        plane_coefficients: Tuple[float, float, float, float],
+        range_x_coordinate: Tuple[float, float],
+        range_y_coordinate: Tuple[float, float],
+        num_points: int) -> np.ndarray:
     """Sample random points on a 3D plane ax + by + cz + d = 0.
 
     Args:
@@ -322,23 +348,24 @@ def sample_points_on_plane(plane_coefficients: Tuple[float, float, float, float]
     return pts
 
 
-def simulate_two_planes_scene(num_points_plane1: int,
-                              num_points_plane2: int
+def simulate_two_planes_scene(M: int,
+                              N: int
                               ) -> Tuple[Keypoints, Keypoints, EssentialMatrix]:
-    """The world coordinate system is the same as coordinate system of the
-    first camera.
+    """Generate a scene where 3D points are on two planes, and projects the
+    points to the 2 cameras. There are M points on plane 1, and N points on
+    plane 2.
 
     The two planes in this test are:
     1. -10x -y -20z +150 = 0
     2. 15x -2y -35z +200 = 0
 
     Args:
-        num_points_plane1: number of points on 1st plane.
-        num_points_plane2: number of points on 2nd plane.
+        M: number of points on 1st plane.
+        N: number of points on 2nd plane.
 
     Returns:
-        keypoints for image i1, of length num_points_plane1+num_points_plane2.
-        keypoints for image i2, of length num_points_plane1+num_points_plane2.
+        keypoints for image i1, of length (M+N).
+        keypoints for image i2, of length (M+N).
         Essential matrix i2Ei1.
     """
     # range of 3D points
@@ -351,55 +378,41 @@ def simulate_two_planes_scene(num_points_plane1: int,
 
     # sample the points from planes
     plane1_points = sample_points_on_plane(
-        plane1_coeffs,
-        range_x_coordinate,
-        range_y_coordinate,
-        num_points_plane1)
+        plane1_coeffs, range_x_coordinate, range_y_coordinate, M)
     plane2_points = sample_points_on_plane(
-        plane2_coeffs,
-        range_x_coordinate,
-        range_y_coordinate,
-        num_points_plane2)
+        plane2_coeffs, range_x_coordinate, range_y_coordinate, N)
 
     points_3d = np.vstack((plane1_points, plane2_points))
 
-    # convert to homogenous coordinates
-    points_3d = np.hstack((points_3d, np.ones((points_3d.shape[0], 1))))
+    # define the camera poses and compute the essential matrix
+    wti1 = np.array([0.1, 0, -20])
+    wti2 = np.array([1, -2, -20.4])
 
-    # project the 3D points to both the cameras
-    wTi1 = np.array([0, 0, 0])
-    wTi2 = np.array([1, -2, -0.4])
-
-    wRi1 = Rot3()
+    wRi1 = Rot3.RzRyRx(np.pi/20, 0, 0.0)
     wRi2 = Rot3.RzRyRx(0.0, np.pi/6, 0.0)
 
-    wPi1 = Pose3(wRi1, wTi1)
-    wPi2 = Pose3(wRi2, wTi2)
-    i2Pi1 = wPi2.between(wPi1)
+    wTi1 = Pose3(wRi1, wti1)
+    wTi2 = Pose3(wRi2, wti2)
+    i2Ti1 = wTi2.between(wTi1)
 
-    i2Ei1 = EssentialMatrix(i2Pi1.rotation(), Unit3(i2Pi1.translation()))
+    i2Ei1 = EssentialMatrix(i2Ti1.rotation(), Unit3(i2Ti1.translation()))
 
+    # project 3D points to 2D image measurements
     intrinsics = Cal3Bundler()
+    camera_i1 = PinholeCameraCal3Bundler(wTi1, intrinsics)
+    camera_i2 = PinholeCameraCal3Bundler(wTi2, intrinsics)
 
-    extrinsics_i1 = wRi1.inverse().matrix() @ np.concatenate(
-        (np.eye(3), -wTi1.reshape(-1, 1)),
-        axis=1
-    )
+    uv_im1 = []
+    uv_im2 = []
+    for point in points_3d:
+        uv_im1.append(camera_i1.project(point))
+        uv_im2.append(camera_i2.project(point))
 
-    extrinsics_i2 = wRi2.inverse().matrix() @ np.concatenate(
-        (np.eye(3), -wTi2.reshape(-1, 1)),
-        axis=1
-    )
+    uv_im1 = np.vstack(uv_im1)
+    uv_im2 = np.vstack(uv_im2)
 
-    features_im1 = (intrinsics.K() @ extrinsics_i1 @ points_3d.T).T
-    features_im2 = (intrinsics.K() @ extrinsics_i2 @ points_3d.T).T
-
-    features_im1[:, :2] = features_im1[:, :2]/features_im1[:, 2:3]
-    features_im2[:, :2] = features_im2[:, :2]/features_im2[:, 2:3]
-
-    return Keypoints(coordinates=features_im1[:, :2]), \
-        Keypoints(coordinates=features_im2[:, :2]), \
-        i2Ei1
+    # return the points as keypoints and the essential matrix
+    return Keypoints(coordinates=uv_im1), Keypoints(coordinates=uv_im2), i2Ei1
 
 
 if __name__ == "__main__":
