@@ -27,9 +27,9 @@ class DummyDataAssociation:
         """[summary]
 
         Args:
-            cameras (Dict[int, PinholeCameraCal3Bundler]): [description]
-            v_corr_idxs_dict (Dict[Tuple[int, int], np.ndarray]): [description]
-            keypoints_list (List[Keypoints]): [description]
+            cameras: dictionary with image index as key, and camera object w/ intrinsics + extrinsics as value
+            v_corr_idxs_dict: dictionary, with key as image pair (i1,i2) and value as matching keypoint indices
+            keypoints_list: keypoints for each image
 
         Returns:
             cameras and tracks as SfmData
@@ -51,16 +51,19 @@ class DummyDataAssociation:
                 available_cams, self.min_track_len, replace=False
             )
 
-            # obtain 3D point for the track
+            # for each selected camera, randomly select a point
+            for cam_idx in selected_cams:
+                measurement_idx = random.randint(0, len(keypoints_list[cam_idx]) - 1)
+                track.append(
+                    (cam_idx, keypoints_list[cam_idx].coordinates[measurement_idx])
+                )
+
+            # obtain 3D points for the track
             point_3d = np.random.rand(3, 1)
 
             # create GTSAM's SfmTrack object
             sfmTrack = SfmTrack(point_3d)
-
-            # for each selected camera, randomly select a point
-            for cam_idx in selected_cams:
-                measurement_idx = random.randint(0, len(keypoints_list[cam_idx]) - 1)
-                measurement = keypoints_list[cam_idx].coordinates[measurement_idx]
+            for cam_idx, measurement in track:
                 sfmTrack.add_measurement(cam_idx, measurement)
 
             tracks.append(sfmTrack)
