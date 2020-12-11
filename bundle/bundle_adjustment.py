@@ -11,7 +11,7 @@ import gtsam
 from dask.delayed import Delayed
 from gtsam import GeneralSFMFactorCal3Bundler, SfmData, symbol_shorthand
 
-from common.sfmresult import SfmResult
+from common.sfm_result import SfmResult
 
 # TODO: any way this goes away?
 C = symbol_shorthand.C
@@ -24,20 +24,18 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 class BundleAdjustmentOptimizer:
     """Bundle adjustment using factor-graphs in GTSAM.
 
-    This class refines global rotation and translation estimates 
-    of cameras, and also refines 3D point cloud structure given tracks from 
-    triangulation."""
+    This class refines global pose estimates and intrinsics of cameras, and also refines 3D point cloud structure given tracks from triangulation."""
 
-    def run(self, sfm_data: SfmData) -> SfmResult:
+    def run(self, initial_data: SfmData) -> SfmResult:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
 
         Args:
-            scene_data: initialized cameras, tracks w/ their 3d landmark from triangulation.
+            initial_data: initialized cameras, tracks w/ their 3d landmark from triangulation.
         Results:
-            optimized camera poses, 3D point cloud, and error metrics.
+            optimized camera poses, 3D point w/ tracks, and error metrics.
         """
         logging.info(
-            f"Input: {sfm_data.number_tracks()} tracks on {sfm_data.number_cameras()} cameras\n")
+            f"Input: {initial_data.number_tracks()} tracks on {initial_data.number_cameras()} cameras\n")
 
         # Create a factor graph
         graph = gtsam.NonlinearFactorGraph()
@@ -48,8 +46,8 @@ class BundleAdjustmentOptimizer:
 
         # Add measurements to the factor graph
         j = 0
-        for t_idx in range(sfm_data.number_tracks()):
-            track = sfm_data.track(t_idx)  # SfmTrack
+        for t_idx in range(initial_data.number_tracks()):
+            track = initial_data.track(t_idx)  # SfmTrack
             # retrieve the SfmMeasurement objects
             for m_idx in range(track.number_measurements()):
                 # i represents the camera index, and uv is the 2d measurement
@@ -61,13 +59,14 @@ class BundleAdjustmentOptimizer:
         # Add a prior on pose x1. This indirectly specifies where the origin is.
         graph.push_back(
             gtsam.PriorFactorPinholeCameraCal3Bundler(
-                C(0), sfm_data.camera(0), gtsam.noiseModel.Isotropic.Sigma(9, 0.1)
+                C(0), initial_data.camera(
+                    0), gtsam.noiseModel.Isotropic.Sigma(9, 0.1)
             )
         )
         # Also add a prior on the position of the first landmark to fix the scale
         graph.push_back(
             gtsam.PriorFactorPoint3(
-                P(0), sfm_data.track(0).point3(),
+                P(0), initial_data.track(0).point3(),
                 gtsam.noiseModel.Isotropic.Sigma(3, 0.1)
             )
         )
@@ -77,15 +76,15 @@ class BundleAdjustmentOptimizer:
 
         i = 0
         # add each PinholeCameraCal3Bundler
-        for cam_idx in range(sfm_data.number_cameras()):
-            camera = sfm_data.camera(cam_idx)
+        for cam_idx in range(initial_data.number_cameras()):
+            camera = initial_data.camera(cam_idx)
             initial.insert(C(i), camera)
             i += 1
 
         j = 0
         # add each SfmTrack
-        for t_idx in range(sfm_data.number_tracks()):
-            track = sfm_data.track(t_idx)
+        for t_idx in range(initial_data.number_tracks()):
+            track = initial_data.track(t_idx)
             initial.insert(P(j), track.point3())
             j += 1
 
@@ -103,26 +102,8 @@ class BundleAdjustmentOptimizer:
         logging.info(f"initial error: {graph.error(initial)}")
         logging.info(f"final error: {graph.error(result)}")
 
-        # initialize sfmResult container
-        sfm_result = SfmResult([], [], graph.error(result))
-
-        # read pose
-        for key in result.keys():
-            try:
-                sfm_result.cameras.append(
-                    result.atPinholeCameraCal3Bundler(key)
-                )
-            except RuntimeError:
-                continue
-
-        # read points
-        for key in result.keys():
-            try:
-                sfm_result.points3d.append(
-                    result.atPoint3(key)
-                )
-            except RuntimeError:
-                continue
+        # construct the results
+        sfm_result = SfmResult(initial_data, result, graph.error(result))
 
         return sfm_result
 

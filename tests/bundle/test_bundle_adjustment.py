@@ -29,7 +29,8 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         computed_result = self.obj.run(TEST_SFM_DATA)
 
         expected_error = 0.046137573704557046
-        self.assertTrue(np.isclose(expected_error, computed_result.error))
+        self.assertTrue(np.isclose(
+            expected_error, computed_result.total_reproj_error))
 
     def test_create_computation_graph(self):
         """Test the simple scene as dask computation graph."""
@@ -44,7 +45,8 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         with dask.config.set(scheduler='single-threaded'):
             result = dask.compute(computed_result)[0]
 
-        self.assertEqual(result.error, expected_result.error)
+        self.assertEqual(result.total_reproj_error,
+                         expected_result.total_reproj_error)
 
 
 if __name__ == '__main__':
