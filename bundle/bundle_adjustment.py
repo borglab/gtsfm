@@ -22,13 +22,17 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 
 class BundleAdjustmentOptimizer:
-    """Bundle adjustment using factor-graphs in GTSAM."""
+    """Bundle adjustment using factor-graphs in GTSAM.
+
+    This class refines global rotation and translation estimates 
+    of cameras, and also refines 3D point cloud structure given tracks from 
+    triangulation."""
 
     def run(self, sfm_data: SfmData) -> SfmResult:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
 
         Args:
-            scene_data: initialized camera poses, 3d points, and tracks.
+            scene_data: initialized cameras, tracks w/ their 3d landmark from triangulation.
         Results:
             optimized camera poses, 3D point cloud, and error metrics.
         """
