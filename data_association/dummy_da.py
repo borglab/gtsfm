@@ -51,19 +51,16 @@ class DummyDataAssociation:
                 available_cams, self.min_track_len, replace=False
             )
 
-            # for each selected camera, randomly select a point
-            for cam_idx in selected_cams:
-                measurement_idx = random.randint(0, len(keypoints_list[cam_idx]) - 1)
-                track.append(
-                    (cam_idx, keypoints_list[cam_idx].coordinates[measurement_idx])
-                )
-
-            # obtain 3D points for the track
+            # obtain 3D point for the track
             point_3d = np.random.rand(3, 1)
 
             # create GTSAM's SfmTrack object
             sfmTrack = SfmTrack(point_3d)
-            for cam_idx, measurement in track:
+
+            # for each selected camera, randomly select a point
+            for cam_idx in selected_cams:
+                measurement_idx = random.randint(0, len(keypoints_list[cam_idx]) - 1)
+                measurement = keypoints_list[cam_idx].coordinates[measurement_idx]
                 sfmTrack.add_measurement(cam_idx, measurement)
 
             tracks.append(sfmTrack)
