@@ -4,9 +4,6 @@ import sys
 import dask
 import gtsam
 import numpy as np
-
-import matplotlib.pyplot as plt
-
 from dask.delayed import Delayed
 from gtsam import (GeneralSFMFactorCal3Bundler, PinholeCameraCal3Bundler,
                    PriorFactorPinholeCameraCal3Bundler, SfmData,
