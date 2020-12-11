@@ -29,10 +29,10 @@ class BundleAdjustmentBase:
         """ Initialization of the Bundle Adjuster """
 
     def run(self, scene_data: SfmData) -> SfmResult:
-        """ Run LM optimization with input data and report resulting cal3bunder, points, and error
+        """ Run LM optimization with input data and report resulting Cal3Bundler data, points, and error.
 
         Args:
-            scene_data: structured tracks (SfmData) after Triangularization and Outlier rejection. 
+            scene_data: structured tracks (SfmData) after triangulation and outlier rejection. 
         Results:
             sfm_result: optimized global camera poses, point clouds, and error of optimization
         """
