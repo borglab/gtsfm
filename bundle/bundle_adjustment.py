@@ -21,8 +21,8 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 class BundleAdjustmentBase:
     """Base class for bundle adjustment.
     
-    This class generates global ratation, translation estimates 
-    of cameras, and 3D point clouds structured tracks from 
+    This class refines global rotation and translation estimates 
+    of cameras, and also refines 3D point cloud structure given tracks from 
     triangulation.
     """
     def __init__(self) -> None:
