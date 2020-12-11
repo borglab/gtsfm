@@ -27,9 +27,9 @@ class DummyDataAssociation:
         """[summary]
 
         Args:
-            cameras (Dict[int, PinholeCameraCal3Bundler]): [description]
-            v_corr_idxs_dict (Dict[Tuple[int, int], np.ndarray]): [description]
-            keypoints_list (List[Keypoints]): [description]
+            cameras: dictionary with image index as key, and camera object w/ intrinsics + extrinsics as value
+            v_corr_idxs_dict: dictionary, with key as image pair (i1,i2) and value as matching keypoint indices
+            keypoints_list: keypoints for each image
 
         Returns:
             cameras and tracks as SfmData
