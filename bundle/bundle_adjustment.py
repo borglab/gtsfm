@@ -29,8 +29,7 @@ class BundleAdjustmentBase:
     triangulation.
     """
     def __init__(self) -> None:
-        """ Initialization of the Bundle Adjuster
-        """
+        """ Initialization of the Bundle Adjuster """
 
     def run(self, scene_data: SfmData) -> SfmResult:
         """ Run LM optimization with input data and report resulting cal3bunder, points, and error
