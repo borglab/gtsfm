@@ -45,8 +45,7 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         with dask.config.set(scheduler='single-threaded'):
             result = dask.compute(computed_result)[0]
 
-        self.assertEqual(result.total_reproj_error,
-                         expected_result.total_reproj_error)
+        self.assertEqual(result, expected_result)
 
 
 if __name__ == '__main__':
