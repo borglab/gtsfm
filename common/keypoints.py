@@ -83,8 +83,7 @@ class Keypoints(NamedTuple):
             selection_idxs = np.arange(k, dtype=np.uint32)
         else:
             # select the values with top response values
-            selection_idxs = np.argpartition(-self.responses,
-                                             k)[:k]
+            selection_idxs = np.argpartition(-self.responses, k)[:k]
         return Keypoints(
             coordinates=self.coordinates[selection_idxs],
             scales=self.scales[selection_idxs]
