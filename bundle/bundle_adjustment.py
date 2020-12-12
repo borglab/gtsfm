@@ -59,8 +59,8 @@ class BundleAdjustmentOptimizer:
         # Add a prior on pose x1. This indirectly specifies where the origin is.
         graph.push_back(
             gtsam.PriorFactorPinholeCameraCal3Bundler(
-                C(0), initial_data.camera(
-                    0), gtsam.noiseModel.Isotropic.Sigma(9, 0.1)
+                C(0), initial_data.camera(0),
+                    gtsam.noiseModel.Isotropic.Sigma(9, 0.1)
             )
         )
         # Also add a prior on the position of the first landmark to fix the scale
