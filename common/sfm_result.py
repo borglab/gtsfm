@@ -4,7 +4,7 @@ Authors: Xiaolong Wu, Ayush Baid
 """
 
 import numpy as np
-from gtsam import SfmData, SfmTrack, VectorValues, symbol_shorthand
+from gtsam import SfmData, SfmTrack, Values, symbol_shorthand
 
 C = symbol_shorthand.C
 P = symbol_shorthand.P
@@ -17,7 +17,7 @@ class SfmResult:
 
     def __init__(self,
                  initial_data: SfmData,
-                 optimization_result: VectorValues,
+                 optimization_result: Values,
                  total_reproj_error: float) -> None:
 
         self.total_reproj_error = total_reproj_error
