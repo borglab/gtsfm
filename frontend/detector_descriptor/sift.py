@@ -55,6 +55,7 @@ class SIFTDetectorDescriptor(DetectorDescriptorBase):
         keypoints = feature_utils.cast_to_gtsfm_keypoints(cv_keypoints)
 
         # sort the features and descriptors by the score
+        # (need to sort here as we need the sorting order for descriptors)
         sort_idx = np.argsort(-keypoints.responses)[:self.max_keypoints]
 
         keypoints = Keypoints(
