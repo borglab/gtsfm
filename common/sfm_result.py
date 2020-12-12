@@ -46,16 +46,31 @@ class SfmResult:
 
             self.result_data.add_track(result_track)
 
-        def __eq__(self, other: object) -> bool:
-            """Tests for equality using global poses, intrinsics, and total reprojection error.
+    def __eq__(self, other: object) -> bool:
+        """Tests for equality using global poses, intrinsics, and total reprojection error.
 
-            Args:
-                other: object to compare.
+        Args:
+            other: object to compare.
 
-            Returns:
-                Results of equality comparison.
-            """
-            # TODO: complete this properly
+        Returns:
+            Results of equality comparison.
+        """
+        if not isinstance(other, SfmResult):
+            return False
 
-            return np.isclose(
-                self.total_reproj_error, other.total_reproj_errror)
+        # compare the number of cameras
+        if self.result_data.number_cameras() != \
+                other.result_data.number_cameras():
+            return False
+
+        # compare camera intrinsics
+        for i in range(self.result_data.number_cameras()):
+            if not self.result_data.camera(i).calibration().equals(
+                    other.result_data.camera(i).calibration(), 1e-1):
+                return False
+
+        # TODO: add pose comparison once the function is in master
+
+        return np.isclose(
+            self.total_reproj_error, other.total_reproj_error,
+            rtol=1e-2, atol=1e-1)
