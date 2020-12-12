@@ -3,7 +3,7 @@ detections on an image.
 
 Authors: Ayush Baid
 """
-from typing import NamedTuple, Optional, List
+from typing import List, NamedTuple, Optional
 
 import cv2 as cv
 import numpy as np
@@ -67,6 +67,31 @@ class Keypoints(NamedTuple):
         """Checks that the other object is not equal to the current object."""
         return not self == other
 
+    def get_top_k(self, k: int) -> 'Keypoints':
+        """Returns the top keypoints by their response values (or just the
+        values from the front in case of missing responses.)
+
+        Args:
+            k: max number of keypoints to return.
+
+        Returns:
+            subset of current keypoints.
+        """
+        k = min(k, len(self))
+
+        if self.responses is None:
+            selection_idxs = np.arange(k, dtype=np.uint32)
+        else:
+            # select the values with top response values
+            selection_idxs = np.argpartition(-self.responses, k)[:k]
+        return Keypoints(
+            coordinates=self.coordinates[selection_idxs],
+            scales=self.scales[selection_idxs]
+            if self.scales is not None else None,
+            responses=self.responses[selection_idxs]
+            if self.responses is not None else None,
+        )
+
     def get_x_coordinates(self) -> np.ndarray:
         """Getter for the x coordinates.
 
@@ -85,7 +110,7 @@ class Keypoints(NamedTuple):
         # TODO: remove function
         return self.coordinates[:, 1]
 
-    def cast_to_float(self):
+    def cast_to_float(self) -> 'Keypoints':
         """Cast all attributes which are numpy arrays to float.
 
         Returns:

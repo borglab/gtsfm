@@ -1,0 +1,9 @@
+
+# GTSFM config
+
+MODULES:
+	detector_descriptor: SIFTDetectorDescriptor
+	matcher: TwoWayMatcher
+	verifier: Degensac
+	rotation_averaging_module: ShonanRotationAveraging
+	translation_averaging_module: TranslationAveraging1DSFM
