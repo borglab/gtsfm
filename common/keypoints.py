@@ -77,11 +77,7 @@ class Keypoints(NamedTuple):
         Returns:
             subset of current keypoints.
         """
-        if len(self) <= k:
-            # no need to remove anything
-            return Keypoints(coordinates=self.coordinates,
-                             responses=self.responses,
-                             scales=self.scales)
+        k = min(k, len(self))
 
         if self.responses is None:
             selection_idxs = np.arange(k, dtype=np.uint32)
