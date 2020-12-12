@@ -8,7 +8,7 @@ from typing import List
 
 import dask
 import numpy as np
-from gtsam import Point3, Rot3, Unit3
+from gtsam import Pose3, Rot3, Unit3
 
 from averaging.translation.dummy_translation_averaging import \
     DummyTranslationAveraging
@@ -27,21 +27,52 @@ class TestTranslationAveragingBase(unittest.TestCase):
         self.obj = DummyTranslationAveraging()
 
     def assert_equal_upto_scale(self,
-                                wTi_list1: List[Point3],
-                                wTi_list2: List[Point3]):
-        """Helper function to assert that two lists of global Point3 are equal
-        (upto global scale ambiguity)."""
+                                wTi_list: List[Pose3],
+                                wTi_list_: List[Pose3]):
+        """Helper function to assert that two lists of global Pose3 are equal,
+        upto global origin and scale ambiguity.
 
-        self.assertEqual(len(wTi_list1), len(wTi_list2),
+        Notes:
+        1. The input lists have the poses in the same order, and can contain
+           None entries.
+        2. To resolve global origin ambiguity, we will fix one image index as
+           origin in both the inputs and transform both the lists to the new
+           origins.
+        3. As there is a scale ambiguity, we will use one image index to fix
+           the scale ambiguity.
+        """
+
+        # check the length of the input lists
+        self.assertEqual(len(wTi_list), len(wTi_list_),
                          'two lists to compare have unequal lengths')
 
-        for i in range(1, len(wTi_list1)):
-            # accounting for ambiguity in origin of the coordinate system.
-            iU0_1 = Unit3(wTi_list1[i] - wTi_list1[0])
+        # check the presense of valid Pose3 objects in the same location
+        wTi_valid = [i for (i, wTi) in enumerate(wTi_list) if wTi is not None]
+        wTi_valid_ = [i for (i, wTi) in enumerate(wTi_list_) if wTi is not None]
+        self.assertListEqual(wTi_valid, wTi_valid_)
 
-            iU0_2 = Unit3(wTi_list2[i] - wTi_list2[0])
+        if len(wTi_valid) <= 1:
+            # we need >= two entries going forward for meaningful comparisons
+            return
 
-            self.assertTrue(iU0_1.equals(iU0_2, 1e-2))
+        # fix the origin for both inputs lists
+        origin = wTi_list[wTi_valid[0]]
+        origin_ = wTi_list_[wTi_valid_[0]]
+
+        # transform all other valid Pose3 entries to the new coordinate frame
+        wTi_list = [wTi_list[i].between(origin) for i in wTi_valid[1:]]
+        wTi_list_ = [wTi_list_[i].between(origin_) for i in wTi_valid_[1:]]
+
+        # use the first entry to get the scale factor between two lists
+        scale_factor_2to1 = np.linalg.norm(wTi_list[1].translation()) / \
+            (np.linalg.norm(wTi_list_[1].translation()) + np.finfo(float).eps)
+
+        # map the poses in the 2nd list using the scale factor on translations
+        wTi_list_ = [Pose3(x.rotation(), x.translation() * scale_factor_2to1)
+                     for x in wTi_list_]
+
+        for (wTi, wTi_) in zip(wTi_list, wTi_list_):
+            self.assertTrue(wTi.equals(wTi_, 1e-1))
 
     def test_computation_graph(self):
         """Test the dask computation graph execution using a valid collection
@@ -49,9 +80,9 @@ class TestTranslationAveragingBase(unittest.TestCase):
 
         num_images = 3
 
-        i1Ui2_dict = {
-            (0, 1): Unit3(np.array([0, 0.2, 0])),
-            (1, 2): Unit3(np.array([0, 0.1, 0.3])),
+        i2Ui1_dict = {
+            (1, 0): Unit3(np.array([0, 0.2, 0])),
+            (2, 1): Unit3(np.array([0, 0.1, 0.3])),
         }
 
         wRi_list = [
@@ -60,25 +91,28 @@ class TestTranslationAveragingBase(unittest.TestCase):
             Rot3.RzRyRx(0, 0, 20*np.pi/180),
         ]
 
-        i1Ui2_graph = {
-            (0, 1): dask.delayed(Unit3)(np.array([0, 0.2, 0])),
-            (1, 2): dask.delayed(Unit3)(np.array([0, 0.1, 0.3])),
-        }
+        i2Ui1_graph = dask.delayed(i2Ui1_dict)
 
         wRi_graph = dask.delayed(wRi_list)
 
         # use the GTSAM API directly (without dask) for translation averaging
-        expected_wTi = self.obj.run(
-            num_images, i1Ui2_dict, wRi_list)
+        expected_wti_list = self.obj.run(num_images, i2Ui1_dict, wRi_list)
+        expected_wTi_list = [Pose3(wRi, wti)
+                             if wti is not None else None
+                             for (wRi, wti) in zip(wRi_list, expected_wti_list)]
 
         # use dask's computation graph
         computation_graph = self.obj.create_computation_graph(
-            num_images, i1Ui2_graph, wRi_graph)
+            num_images, i2Ui1_graph, wRi_graph)
 
         with dask.config.set(scheduler='single-threaded'):
-            computed_wTi = dask.compute(computation_graph)[0]
+            wti_list = dask.compute(computation_graph)[0]
 
-        self.assert_equal_upto_scale(expected_wTi, computed_wTi)
+        wTi_list = [Pose3(wRi, wti)
+                    if wti is not None else None
+                    for (wRi, wti) in zip(wRi_list, wti_list)]
+
+        self.assert_equal_upto_scale(wTi_list, expected_wTi_list)
 
     def test_pickleable(self):
         """Tests that the object is pickleable (required for dask)."""
