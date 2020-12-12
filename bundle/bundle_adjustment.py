@@ -1,6 +1,6 @@
 """Factor-graph based formulation of Bundle adjustment and optimization.
 
-Authors: Xiaolong Wu, John Lambert
+Authors: Xiaolong Wu, John Lambert, Ayush Baid
 """
 
 import logging
