@@ -40,9 +40,8 @@ class SfmResult:
             )
 
             for k in range(input_track.number_measurements()):
-                result_track.add_measurement(
-                    k,
-                    input_track.measurement(k)[1].reshape(2, 1))
+                cam_idx, uv = input_track.measurement(k)
+                result_track.add_measurement(cam_idx, uv)
 
             self.result_data.add_track(result_track)
 
