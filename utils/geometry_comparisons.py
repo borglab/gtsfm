@@ -10,6 +10,23 @@ from gtsam import Pose3, Rot3
 
 def compare_rotations(wRi_list: List[Optional[Rot3]],
                       wRi_list_: List[Optional[Rot3]]):
+    """Helper function to compare two lists of global Rot3, considering the
+    origin as ambiguous.
+
+    Notes:
+    1. The input lists have the rotations in the same order, and can contain
+       None entries.
+    2. To resolve global origin ambiguity, we will fix one image index as
+       origin in both the inputs and transform both the lists to the new
+       origins.
+
+    Args:
+        wRi_list: 1st list of rotations.
+        wRi_list_: 2nd list of rotations.
+
+    Returns:
+        results of the comparison.
+    """
 
     if len(wRi_list) != len(wRi_list_):
         return False
@@ -38,17 +55,17 @@ def compare_rotations(wRi_list: List[Optional[Rot3]],
 
 def compare_global_poses(wTi_list: List[Optional[Pose3]],
                          wTi_list_: List[Optional[Pose3]]) -> bool:
-    """Helper function to assert that two lists of global Pose3 are equal,
-    considering the origin and scale ambiguous.
+    """Helper function to compare two lists of global Pose3, considering the
+    origin and scale ambiguous.
 
     Notes:
     1. The input lists have the poses in the same order, and can contain
-        None entries.
+       None entries.
     2. To resolve global origin ambiguity, we will fix one image index as
-        origin in both the inputs and transform both the lists to the new
-        origins.
-    3. As there is a scale ambiguity, we will use one image index to fix
-        the scale ambiguity.
+       origin in both the inputs and transform both the lists to the new
+       origins.
+    3. As there is a scale ambiguity, we use the median scaling factor to
+       resolve the ambiguity.
 
     Args:
         wTi_list: 1st list of poses.
