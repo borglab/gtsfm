@@ -6,19 +6,18 @@ from typing import Dict, List, Optional, Tuple
 
 import dask
 import networkx as nx
-import numpy as np
 from dask.delayed import Delayed
-from gtsam import Rot3, Unit3
+from gtsam import PinholeCameraCal3Bundler, Rot3, Unit3, Cal3Bundler, Pose3
 
-from common.keypoints import Keypoints
+from averaging.rotation.rotation_averaging_base import RotationAveragingBase
+from averaging.translation.translation_averaging_base import \
+    TranslationAveragingBase
+from bundle.bundle_adjustment import BundleAdjustmentOptimizer
+from data_association.dummy_da import DummyDataAssociation
 from frontend.detector_descriptor.detector_descriptor_base import \
     DetectorDescriptorBase
 from frontend.matcher.matcher_base import MatcherBase
 from frontend.verifier.verifier_base import VerifierBase
-from averaging.rotation.rotation_averaging_base import RotationAveragingBase
-from averaging.translation.translation_averaging_base import \
-    TranslationAveragingBase
-from loader.loader_base import LoaderBase
 
 
 class FeatureExtractor:
@@ -71,6 +70,8 @@ class MultiViewOptimizer:
                  trans_avg_module: TranslationAveragingBase):
         self.rot_avg_module = rot_avg_module
         self.trans_avg_module = trans_avg_module
+        self.data_association_module = DummyDataAssociation(0.5, 2)
+        self.ba_optimizer = BundleAdjustmentOptimizer()
 
     def create_computation_graph(
             self,
@@ -78,7 +79,8 @@ class MultiViewOptimizer:
             keypoints_graph: List[Delayed],
             i2Ri1_graph: Dict[Tuple[int, int], Delayed],
             i2Ui1_graph: Dict[Tuple[int, int], Delayed],
-            v_corr_idxs_graph: Dict[Tuple[int, int], Delayed]) -> Delayed:
+            v_corr_idxs_graph: Dict[Tuple[int, int], Delayed],
+            intrinsics_graph: List[Delayed]) -> Delayed:
         # prune the graph to a single connected component.
         pruned_graph = dask.delayed(self.select_largest_connected_component)(
             i2Ri1_graph, i2Ui1_graph)
@@ -89,13 +91,19 @@ class MultiViewOptimizer:
         wRi_graph = self.rot_avg_module.create_computation_graph(
             num_images, pruned_i2Ri1_graph)
 
-        wTi_graph = self.trans_avg_module.create_computation_graph(
-            num_images, pruned_i2Ui1_graph, wRi_graph
-        )
+        wti_graph = self.trans_avg_module.create_computation_graph(
+            num_images, pruned_i2Ui1_graph, wRi_graph)
 
-        sfmresult = dask.delayed(Dict())
+        init_cameras_graph = dask.delayed(self.init_cameras)(
+            wRi_graph, wti_graph, intrinsics_graph)
 
-        return sfmresult
+        ba_input_graph = self.data_association_module.create_computation_graph(
+            init_cameras_graph, v_corr_idxs_graph, keypoints_graph)
+
+        ba_result_graph = self.ba_optimizer.create_computation_graph(
+            ba_input_graph)
+
+        return ba_result_graph
 
     @classmethod
     def select_largest_connected_component(
@@ -105,7 +113,8 @@ class MultiViewOptimizer:
     ) -> Tuple[
             Dict[Tuple[int, int], Rot3],
             Dict[Tuple[int, int], Unit3]]:
-        """Process the graph of image indices with Rot3s/Unit3s defining edges, and select the largest connected component."""
+        """Process the graph of image indices with Rot3s/Unit3s defining edges,
+        and select the largest connected component."""
 
         input_edges = [
             k for (k, v) in rotations.items() if v is not None]
@@ -121,9 +130,36 @@ class MultiViewOptimizer:
         # get the remaining edges and construct the dictionary back
         pruned_edges = list(result_subgraph.edges())
 
+        # as the edges are non-directional, they might have flipped and should
+        # be corrected
+        selected_edges = []
+        for i1, i2 in pruned_edges:
+            if (i1, i2) in rotations:
+                selected_edges.append((i1, i2))
+            else:
+                selected_edges.append((i2, i1))
+
         # return the subset of original input
-        return {k: rotations[k] for k in pruned_edges}, \
-            {k: unit_translations[k] for k in pruned_edges}
+        return {k: rotations[k] for k in selected_edges}, \
+            {k: unit_translations[k] for k in selected_edges}
+
+    @classmethod
+    def init_cameras(
+            cls,
+            wRi_list: List[Optional[Rot3]],
+            wti_list: List[Optional[Unit3]],
+            intrinsics_list: List[Cal3Bundler]
+    ) -> Dict[int, PinholeCameraCal3Bundler]:
+        """Generate camera from valid rotations and unit-translations."""
+
+        cameras = {}
+
+        for idx, (wRi, wti) in enumerate(zip(wRi_list, wti_list)):
+            if wRi is not None and wti is not None:
+                cameras[idx] = PinholeCameraCal3Bundler(
+                    Pose3(wRi, wti), intrinsics_list[idx])
+
+        return cameras
 
 
 class SceneOptimizer:
@@ -139,16 +175,13 @@ class SceneOptimizer:
                  ) -> None:
 
         self.feature_extractor = FeatureExtractor(
-            detector_descriptor
-        )
+            detector_descriptor)
 
         self.two_view_estimater = TwoViewEstimator(
-            matcher, verifier
-        )
+            matcher, verifier)
 
         self.multiview_optimizer = MultiViewOptimizer(
-            rot_avg_module, trans_avg_module
-        )
+            rot_avg_module, trans_avg_module)
 
     def create_computation_graph(self,
                                  num_images: int,
@@ -179,7 +212,8 @@ class SceneOptimizer:
             detection_graph,
             i2Ri1_graph,
             i2Ui1_graph,
-            v_corr_idxs_graph
+            v_corr_idxs_graph,
+            camera_intrinsics_graph
         )
 
         return sfmresult_graph
