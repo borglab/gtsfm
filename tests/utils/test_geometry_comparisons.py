@@ -13,7 +13,7 @@ import utils.geometry_comparisons as geometry_comparisons
 POSE_LIST = SFMdata.createPoses(Cal3_S2())
 
 
-class TestComparisons(unittest.TestCase):
+class TestGeometryComparisons(unittest.TestCase):
     """Unit tests for comparison functions."""
 
     def test_compare_poses_exact(self):
