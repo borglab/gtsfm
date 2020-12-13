@@ -45,7 +45,7 @@ class SIFTDetectorDescriptor(DetectorDescriptorBase):
         gray_image = image_utils.rgb_to_gray_cv(image)
 
         # Creating OpenCV object
-        opencv_obj = cv.xfeatures2d.SIFT_create()
+        opencv_obj = cv.SIFT_create()
 
         # Run the opencv code
         cv_keypoints, descriptors = opencv_obj.detectAndCompute(

@@ -12,12 +12,14 @@ from pathlib import Path
 # from gtsam import EssentialMatrix, Pose3, Rot3, Unit3
 
 # import utils.geometry_comparisons as geometry_comparisons
-from averaging.rotation.shonan import ShonanRotationAveraging
-from averaging.translation.averaging_1dsfm import TranslationAveraging1DSFM
+# from averaging.rotation.shonan import ShonanRotationAveraging
+# from averaging.translation.averaging_1dsfm import TranslationAveraging1DSFM
 from frontend.detector_descriptor.sift import SIFTDetectorDescriptor
 from frontend.matcher.twoway_matcher import TwoWayMatcher
-from frontend.verifier.degensac import Degensac
-from scene_optimizer import SceneOptimizer
+# from frontend.verifier.degensac import Degensac
+from frontend.verifier.ransac import Ransac
+
+# from scene_optimizer import SceneOptimizer
 from loader.folder_loader import FolderLoader
 
 
@@ -34,30 +36,74 @@ class TestSceneOptimizer(unittest.TestCase):
 	"""
 
 	def setUp(self) -> None:
-		
+
 		self.loader = FolderLoader(
 			str(DATA_ROOT_PATH / "argoverse/train1/273c1883-673a-36bf-b124-88311b1a80be/ring_front_center"), image_extension='jpg'
 		)
 		assert len(self.loader)
-		self.obj = SceneOptimizer(
-			detector_descriptor=SIFTDetectorDescriptor(),
-			matcher=TwoWayMatcher(),
-			verifier=Degensac(),
-			rotation_averaging_module=ShonanRotationAveraging(),
-			translation_averaging_module=TranslationAveraging1DSFM()
-		)
+		# self.obj = SceneOptimizer(
+		# 	,
+		# 	,
+		# 	verifier=Degensac(),
+		# 	rot_avg_module=ShonanRotationAveraging(),
+		# 	trans_avg_module=TranslationAveraging1DSFM()
+		# )
+		self.matcher = TwoWayMatcher()
+		self.verifier = Ransac()
 
 	def test_create_computation_graph(self):
 		""" """
-		pdb.set_trace()
-		exact_intrinsics_flag = False
+		
+		exact_intrinsics_flag = True
 
-		# run normally without dask
-		expected_keypoints_list, \
-		expected_global_rotations, \
-		expected_global_translations, \
-		expected_verified_corr_indices = self.obj.run(
-		self.loader, exact_intrinsics=exact_intrinsics_flag)
+		images = [self.loader.get_image(i) for i in range(2)]
+
+		det_desc = SIFTDetectorDescriptor()
+
+		joint_graph = [det_desc.detect_and_describe(x) for x in images]
+
+		keypoints_list = [x[0] for x in joint_graph]
+		descriptors_list = [x[1] for x in joint_graph]
+
+
+		# perform matching and verification on valid image pairs in the loader
+		verification_function = self.verifier.verify_with_exact_intrinsics \
+			if exact_intrinsics_flag else \
+		self.verifier.verify_with_approximate_intrinsics
+
+		relative_rotations_dict = dict()
+		relative_unit_translations_dict = dict()
+		verified_correspondence_indices_dict = dict()
+		for (i1, i2) in [(0,1)]:
+			match_correspondence_indices = self.matcher.match(
+				descriptors_list[i1],
+				descriptors_list[i2]
+			)
+
+		i2Ri1, i2Ui1, verified_correspondence_indices = \
+		verification_function(
+			keypoints_list[i1],
+			keypoints_list[i2],
+			match_correspondence_indices,
+			self.loader.get_camera_intrinsics(i1),
+			self.loader.get_camera_intrinsics(i2),
+		)
+		pdb.set_trace()
+
+
+
+
+
+
+		#return detection_graph, description_graph
+
+
+		# # run normally without dask
+		# expected_keypoints_list, \
+		# expected_global_rotations, \
+		# expected_global_translations, \
+		# expected_verified_corr_indices = self.obj.run(
+		# self.loader, exact_intrinsics=exact_intrinsics_flag)
 
 #         expected_wTi_list = [Pose3(wRi, wti) if wti is not None else None for (
 #             wRi, wti) in zip(expected_global_rotations, expected_global_translations)]
