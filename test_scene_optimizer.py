@@ -48,6 +48,7 @@ class TestSceneOptimizer(unittest.TestCase):
 		# 	rot_avg_module=ShonanRotationAveraging(),
 		# 	trans_avg_module=TranslationAveraging1DSFM()
 		# )
+		self.det_desc = SIFTDetectorDescriptor()
 		self.matcher = TwoWayMatcher()
 		self.verifier = Ransac()
 
@@ -55,25 +56,18 @@ class TestSceneOptimizer(unittest.TestCase):
 		""" """
 		
 		exact_intrinsics_flag = True
-
 		images = [self.loader.get_image(i) for i in range(2)]
-
-		det_desc = SIFTDetectorDescriptor()
-
-		joint_graph = [det_desc.detect_and_describe(x) for x in images]
+		
+		joint_graph = [self.det_desc.detect_and_describe(x) for x in images]
 
 		keypoints_list = [x[0] for x in joint_graph]
 		descriptors_list = [x[1] for x in joint_graph]
-
 
 		# perform matching and verification on valid image pairs in the loader
 		verification_function = self.verifier.verify_with_exact_intrinsics \
 			if exact_intrinsics_flag else \
 		self.verifier.verify_with_approximate_intrinsics
 
-		relative_rotations_dict = dict()
-		relative_unit_translations_dict = dict()
-		verified_correspondence_indices_dict = dict()
 		for (i1, i2) in [(0,1)]:
 			match_correspondence_indices = self.matcher.match(
 				descriptors_list[i1],
@@ -88,13 +82,24 @@ class TestSceneOptimizer(unittest.TestCase):
 			self.loader.get_camera_intrinsics(i1),
 			self.loader.get_camera_intrinsics(i2),
 		)
-		pdb.set_trace()
 
+		euler_angle_err_tol = 1.4
+		translation_err_tol = 0.02
 
+		# Ground truth is provided in inverse format, so invert SE(3) object
+		i2Ti1 = Pose3(i2Ri1, i2Ui1.point3())
+		i1Ti2 = i2Ti1.inverse()
+		i1ti2 = i1Ti2.translation()
+		i1Ri2 = i1Ti2.rotation().matrix()
 
+		euler_angles = Rotation.from_matrix(i1Ri2).as_euler('zyx', degrees=True)
+		gt_euler_angles = np.array([-0.37, 32.47, -0.42])
+		assert np.allclose(gt_euler_angles, euler_angles, atol=euler_angle_err_tol)
 
+		gt_i1ti2 = np.array([ 0.21, -0.0024, 0.976])
+		assert np.allclose(gt_i1ti2, i1ti2, atol=translation_err_tol)
 
-
+		
 		#return detection_graph, description_graph
 
 
