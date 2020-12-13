@@ -148,7 +148,7 @@ class TestSceneOptimizer(unittest.TestCase):
 		)
 
 		euler_angle_err_tol = 1.4
-		translation_err_tol = 0.02
+		translation_err_tol = 0.026
 
 		# Ground truth is provided in inverse format, so invert SE(3) object
 		i2Ti1 = Pose3(i2Ri1, i2Ui1.point3())
@@ -165,16 +165,17 @@ class TestSceneOptimizer(unittest.TestCase):
 		gt_i1ti2 = np.array([ 0.21, -0.0024, 0.976])
 		assert np.allclose(gt_i1ti2, i1ti2, atol=translation_err_tol)
 
-		
+		i1_idxs = match_correspondence_indices[:,0]
+		i2_idxs = match_correspondence_indices[:,1]
 
-		X1 = ''
-		Y1 = ''
-		X2 = ''
-		Y2 = ''
+		X1 = keypoints_list[0].coordinates[i1_idxs,0]
+		Y1 = keypoints_list[0].coordinates[i1_idxs,1]
+		X2 = keypoints_list[1].coordinates[i2_idxs,0]
+		Y2 = keypoints_list[1].coordinates[i2_idxs,1]
 		imgA = images[0]
 		imgB = images[1]
-		show_correspondence_lines(imgA, imgB, X1, Y1, X2, Y2)
-
+		lines_img = show_correspondence_lines(imgA, imgB, X1, Y1, X2, Y2)
+		imageio.imwrite('lines_img_i1i2.png', lines_img)
 
 
 		#return detection_graph, description_graph
