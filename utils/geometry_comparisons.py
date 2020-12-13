@@ -9,7 +9,7 @@ from gtsam import Pose3, Rot3
 
 
 def compare_rotations(wRi_list: List[Optional[Rot3]],
-                      wRi_list_: List[Optional[Rot3]]):
+                      wRi_list_: List[Optional[Rot3]]) -> bool:
     """Helper function to compare two lists of global Rot3, considering the
     origin as ambiguous.
 
@@ -25,7 +25,7 @@ def compare_rotations(wRi_list: List[Optional[Rot3]],
         wRi_list_: 2nd list of rotations.
 
     Returns:
-        results of the comparison.
+        result of the comparison.
     """
 
     if len(wRi_list) != len(wRi_list_):
@@ -104,7 +104,7 @@ def compare_global_poses(wTi_list: List[Optional[Pose3]],
         for i in range(len(wTi_list))
     ]
 
-    # use the first entry to get the scale factor between two lists
+    # use the median to get the scale factor between two lists
     scale_factor_2to1 = np.median(scaling_factors)
 
     # scale the pose in the second list
