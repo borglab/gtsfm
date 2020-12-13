@@ -17,7 +17,7 @@ from frontend.detector_descriptor.sift import SIFTDetectorDescriptor
 from frontend.matcher.twoway_matcher import TwoWayMatcher
 from frontend.verifier.degensac import Degensac
 # from scene_optimizer import SceneOptimizer
-# from loader.folder_loader import FolderLoader
+from loader.folder_loader import FolderLoader
 
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent / 'data'
@@ -32,7 +32,7 @@ class TestSceneOptimizer(unittest.TestCase):
 
 	def setUp(self) -> None:
 		self.loader = FolderLoader(
-			str(DATA_ROOT_PATH / 'set1_lund_door'), image_extension='JPG'
+			str(DATA_ROOT_PATH / "argoverse/train1/273c1883-673a-36bf-b124-88311b1a80be/ring_front_center"), image_extension='JPG'
 		)
 		assert len(self.loader)
 		self.obj = SceneOptimizer(
