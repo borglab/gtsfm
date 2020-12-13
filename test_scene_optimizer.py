@@ -147,7 +147,7 @@ class TestSceneOptimizer(unittest.TestCase):
 				descriptors_list[i2]
 			)
 
-		i2Ri1, i2Ui1, verified_correspondence_indices = \
+		i2Ri1, i2Ui1, verified_correspondence_idxs = \
 		verification_function(
 			keypoints_list[i1],
 			keypoints_list[i2],
@@ -174,8 +174,8 @@ class TestSceneOptimizer(unittest.TestCase):
 		gt_i1ti2 = np.array([ 0.21, -0.0024, 0.976])
 		assert np.allclose(gt_i1ti2, i1ti2, atol=translation_err_tol)
 
-		i1_idxs = match_correspondence_indices[:,0]
-		i2_idxs = match_correspondence_indices[:,1]
+		i1_idxs = verified_correspondence_idxs[:,0]
+		i2_idxs = verified_correspondence_idxs[:,1]
 
 		X1 = keypoints_list[0].coordinates[i1_idxs,0]
 		Y1 = keypoints_list[0].coordinates[i1_idxs,1]
