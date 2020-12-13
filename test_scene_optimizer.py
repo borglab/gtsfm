@@ -49,6 +49,9 @@ def show_correspondence_lines(imgA, imgB, X1, Y1, X2, Y2, line_colors=None):
 	Returns:
 	- newImg: A numpy array of shape (max(M,D), N+E, 3)
 	"""
+	imgA = imgA.copy().astype(np.float32) / 255
+	imgB = imgB.copy().astype(np.float32) / 255
+
 	newImg = hstack_images(imgA, imgB)
 	shiftX = imgA.shape[1]
 	X1 = X1.astype(np.int)
@@ -64,7 +67,7 @@ def show_correspondence_lines(imgA, imgB, X1, Y1, X2, Y2, line_colors=None):
 		newImg = cv2.circle(newImg, (x1, y1), 10, dot_color, -1)
 		newImg = cv2.circle(newImg, (x2+shiftX, y2), 10, dot_color, -1)
 		newImg = cv2.line(newImg, (x1, y1), (x2+shiftX, y2), line_color, 5, cv2.LINE_AA)
-	return newImg
+	return (newImg * 255).astype(np.uint8)
 
 
 def hstack_images(imgA, imgB):
@@ -172,8 +175,8 @@ class TestSceneOptimizer(unittest.TestCase):
 		Y1 = keypoints_list[0].coordinates[i1_idxs,1]
 		X2 = keypoints_list[1].coordinates[i2_idxs,0]
 		Y2 = keypoints_list[1].coordinates[i2_idxs,1]
-		imgA = images[0]
-		imgB = images[1]
+		imgA = images[0].value_array
+		imgB = images[1].value_array
 		lines_img = show_correspondence_lines(imgA, imgB, X1, Y1, X2, Y2)
 		imageio.imwrite('lines_img_i1i2.png', lines_img)
 
