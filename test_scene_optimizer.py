@@ -74,7 +74,7 @@ def show_correspondence_lines(
 	for x1, y1, x2, y2, dot_color, line_color in zip(X1, Y1, X2, Y2, dot_colors,line_colors):
 		newImg = cv2.circle(newImg, (x1, y1), 10, dot_color, -1)
 		newImg = cv2.circle(newImg, (x2+shiftX, y2), 10, dot_color, -1)
-		newImg = cv2.line(newImg, (x1, y1), (x2+shiftX, y2), line_color, 5, cv2.LINE_AA)
+		newImg = cv2.line(newImg, (x1, y1), (x2+shiftX, y2), line_color, 2, cv2.LINE_AA)
 	
 	return (newImg * 255).astype(np.uint8)
 
