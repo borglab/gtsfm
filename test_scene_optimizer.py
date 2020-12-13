@@ -32,22 +32,30 @@ DATA_ROOT_PATH = Path(__file__).resolve().parent / 'tests' / 'data'
 
 
 
-def show_correspondence_lines(imgA, imgB, X1, Y1, X2, Y2, line_colors=None):
+def show_correspondence_lines(
+	imgA: np.ndarray,
+	imgB: np.ndarray,
+	X1: np.ndarray,
+	Y1: np.ndarray,
+	X2: np.ndarray,
+	Y2: np.ndarray,
+	line_colors: np.ndarray = None
+) -> np.ndarray:
 	"""
 	Visualizes corresponding points between two images by drawing a line segment
 	between the two images for each (x1,y1) (x2,y2) pair.
 
 	Args:
-	- imgA: A numpy array of shape (M,N,3)
-	- imgB: A numpy array of shape (D,E,3)
-	- x1: A numpy array of shape (k,) containing x-locations of keypoints in imgA
-	- y1: A numpy array of shape (k,) containing y-locations of keypoints in imgA
-	- x2: A numpy array of shape (j,) containing x-locations of keypoints in imgB
-	- y2: A numpy array of shape (j,) containing y-locations of keypoints in imgB
-	- line_colors: A numpy array of shape (N x 3) with colors of correspondence lines (optional)
+		imgA: A numpy array of shape (M,N,3)
+		imgB: A numpy array of shape (D,E,3)
+		x1: A numpy array of shape (k,) containing x-locations of keypoints in imgA
+		y1: A numpy array of shape (k,) containing y-locations of keypoints in imgA
+		x2: A numpy array of shape (j,) containing x-locations of keypoints in imgB
+		y2: A numpy array of shape (j,) containing y-locations of keypoints in imgB
+		line_colors: A numpy array of shape (N x 3) with colors of correspondence lines (optional)
 
 	Returns:
-	- newImg: A numpy array of shape (max(M,D), N+E, 3)
+		newImg: A numpy array of shape (max(M,D), N+E, 3)
 	"""
 	imgA = imgA.copy().astype(np.float32) / 255
 	imgB = imgB.copy().astype(np.float32) / 255
@@ -67,10 +75,11 @@ def show_correspondence_lines(imgA, imgB, X1, Y1, X2, Y2, line_colors=None):
 		newImg = cv2.circle(newImg, (x1, y1), 10, dot_color, -1)
 		newImg = cv2.circle(newImg, (x2+shiftX, y2), 10, dot_color, -1)
 		newImg = cv2.line(newImg, (x1, y1), (x2+shiftX, y2), line_color, 5, cv2.LINE_AA)
+	
 	return (newImg * 255).astype(np.uint8)
 
 
-def hstack_images(imgA, imgB):
+def hstack_images(imgA: np.ndarray, imgB: np.ndarray) -> np.ndarray:
     """
     Stacks 2 images side-by-side and creates one combined image.
 
@@ -89,9 +98,6 @@ def hstack_images(imgA, imgB):
     newImg[:imgB.shape[0], imgA.shape[1]:, :] = imgB
 
     return newImg
-
-
-
 
 
 
