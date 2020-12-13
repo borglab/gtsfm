@@ -177,7 +177,7 @@ class SceneOptimizer:
         self.feature_extractor = FeatureExtractor(
             detector_descriptor)
 
-        self.two_view_estimater = TwoViewEstimator(
+        self.two_view_estimator = TwoViewEstimator(
             matcher, verifier)
 
         self.multiview_optimizer = MultiViewOptimizer(
@@ -188,7 +188,7 @@ class SceneOptimizer:
                                  image_pair_indices: List[Tuple[int, int]],
                                  image_graph: List[Delayed],
                                  camera_intrinsics_graph: List[Delayed],
-                                 exact_intrinsics: bool = True
+                                 use_intrinsics_in_verification: bool = True
                                  ) -> Tuple[List[Delayed],
                                             Delayed,
                                             Delayed,
@@ -199,15 +199,15 @@ class SceneOptimizer:
 
         # estimate two-view geometry and get indices of verified correspondences.
         i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph = \
-            self.two_view_estimater.create_computation_graph(
+            self.two_view_estimator.create_computation_graph(
                 image_pair_indices,
                 detection_graph,
                 description_graph,
                 camera_intrinsics_graph,
-                exact_intrinsics
+                use_intrinsics_in_verification
             )
 
-        sfmresult_graph = self.multiview_optimizer.create_computation_graph(
+        sfmResult_graph = self.multiview_optimizer.create_computation_graph(
             num_images,
             detection_graph,
             i2Ri1_graph,
@@ -216,4 +216,4 @@ class SceneOptimizer:
             camera_intrinsics_graph
         )
 
-        return sfmresult_graph
+        return sfmResult_graph

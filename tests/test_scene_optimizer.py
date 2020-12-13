@@ -85,7 +85,7 @@ class TestSceneOptimizer(unittest.TestCase):
 
     def test_create_computation_graph(self):
 
-        exact_intrinsics_flag = False
+        use_intrinsics_in_verification = False
 
         # generate the dask computation graph
         sfm_result_graph = self.obj.create_computation_graph(
@@ -93,7 +93,7 @@ class TestSceneOptimizer(unittest.TestCase):
             self.loader.get_valid_pairs(),
             self.loader.create_computation_graph_for_images(),
             self.loader.create_computation_graph_for_intrinsics(),
-            exact_intrinsics=exact_intrinsics_flag
+            use_intrinsics_in_verification=use_intrinsics_in_verification
         )
 
         with dask.config.set(scheduler='single-threaded'):
