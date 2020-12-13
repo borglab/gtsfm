@@ -3,13 +3,18 @@
 Authors: Ayush Baid
 """
 import unittest
+from pathlib import Path
 
-from gtsam import Cal3_S2, Unit3, Pose3
+from gtsam import Cal3_S2, Pose3, Unit3
 from gtsam.examples import SFMdata
 
 import tests.averaging.translation.test_translation_averaging_base as \
     test_translation_averaging_base
+import utils.geometry_comparisons as geometry_comparisons
 from averaging.translation.averaging_1dsfm import TranslationAveraging1DSFM
+from loader.folder_loader import FolderLoader
+
+DATA_ROOT_PATH = Path(__file__).resolve().parent.parent.parent / 'data'
 
 
 class TestTranslationAveraging1DSFM(
@@ -57,7 +62,31 @@ class TestTranslationAveraging1DSFM(
                     for (wRi, wti) in zip(wRi_list, wti_list)]
 
         # compare the entries
-        self.assert_equal_upto_scale(wTi_list, expected_wTi_list)
+        self.assertTrue(geometry_comparisons.compare_global_poses(
+            wTi_list, expected_wTi_list))
+
+    def test_lund_door(self):
+        loader = FolderLoader(
+            str(DATA_ROOT_PATH / 'set1_lund_door'), image_extension='JPG')
+
+        expected_wTi_list = [loader.get_camera_pose(
+            x) for x in range(len(loader))]
+        wRi_list = [x.rotation() for x in expected_wTi_list]
+
+        i2Ui1_dict = dict()
+        for (i1, i2) in loader.get_valid_pairs():
+            i2Ti1 = expected_wTi_list[i2].between(expected_wTi_list[i1])
+
+            i2Ui1_dict[(i1, i2)] = Unit3((i2Ti1.translation()))
+
+        wti_list = self.obj.run(len(loader), i2Ui1_dict, wRi_list)
+
+        wTi_list = [Pose3(wRi, wti)
+                    if wti is not None else None
+                    for (wRi, wti) in zip(wRi_list, wti_list)]
+
+        self.assertTrue(geometry_comparisons.compare_global_poses(
+            wTi_list, expected_wTi_list))
 
 
 if __name__ == '__main__':
