@@ -8,7 +8,9 @@ from pathlib import Path
 # from typing import List, Optional
 
 # import dask
-# import numpy as np
+import cv2
+import imageio
+import numpy as np
 # from gtsam import EssentialMatrix, Pose3, Rot3, Unit3
 
 # import utils.geometry_comparisons as geometry_comparisons
@@ -25,6 +27,67 @@ from loader.folder_loader import FolderLoader
 
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent / 'tests' / 'data'
+
+
+
+
+def show_correspondence_lines(imgA, imgB, X1, Y1, X2, Y2, line_colors=None):
+	"""
+	Visualizes corresponding points between two images by drawing a line segment
+	between the two images for each (x1,y1) (x2,y2) pair.
+
+	Args:
+	- imgA: A numpy array of shape (M,N,3)
+	- imgB: A numpy array of shape (D,E,3)
+	- x1: A numpy array of shape (k,) containing x-locations of keypoints in imgA
+	- y1: A numpy array of shape (k,) containing y-locations of keypoints in imgA
+	- x2: A numpy array of shape (j,) containing x-locations of keypoints in imgB
+	- y2: A numpy array of shape (j,) containing y-locations of keypoints in imgB
+	- line_colors: A numpy array of shape (N x 3) with colors of correspondence lines (optional)
+
+	Returns:
+	- newImg: A numpy array of shape (max(M,D), N+E, 3)
+	"""
+	newImg = hstack_images(imgA, imgB)
+	shiftX = imgA.shape[1]
+	X1 = X1.astype(np.int)
+	Y1 = Y1.astype(np.int)
+	X2 = X2.astype(np.int)
+	Y2 = Y2.astype(np.int)
+
+	dot_colors = np.random.rand(len(X1), 3)
+	if line_colors is None:
+		line_colors = dot_colors
+
+	for x1, y1, x2, y2, dot_color, line_color in zip(X1, Y1, X2, Y2, dot_colors,line_colors):
+		newImg = cv2.circle(newImg, (x1, y1), 10, dot_color, -1)
+		newImg = cv2.circle(newImg, (x2+shiftX, y2), 10, dot_color, -1)
+		newImg = cv2.line(newImg, (x1, y1), (x2+shiftX, y2), line_color, 5, cv2.LINE_AA)
+	return newImg
+
+
+def hstack_images(imgA, imgB):
+    """
+    Stacks 2 images side-by-side and creates one combined image.
+
+    Args:
+    - imgA: A numpy array of shape (M,N,3) representing rgb image
+    - imgB: A numpy array of shape (D,E,3) representing rgb image
+
+    Returns:
+    - newImg: A numpy array of shape (max(M,D), N+E, 3)
+    """
+    Height = max(imgA.shape[0], imgB.shape[0])
+    Width  = imgA.shape[1] + imgB.shape[1]
+
+    newImg = np.zeros((Height, Width, 3), dtype=imgA.dtype)
+    newImg[:imgA.shape[0], :imgA.shape[1], :] = imgA
+    newImg[:imgB.shape[0], imgA.shape[1]:, :] = imgB
+
+    return newImg
+
+
+
 
 
 
@@ -99,7 +162,18 @@ class TestSceneOptimizer(unittest.TestCase):
 		gt_i1ti2 = np.array([ 0.21, -0.0024, 0.976])
 		assert np.allclose(gt_i1ti2, i1ti2, atol=translation_err_tol)
 
-		
+		pdb.set_trace()
+
+		X1 = ''
+		Y1 = ''
+		X2 = ''
+		Y2 = ''
+		imgA = images[0]
+		imgB = images[1]
+		show_correspondence_lines(imgA, imgB, X1, Y1, X2, Y2)
+
+
+
 		#return detection_graph, description_graph
 
 
