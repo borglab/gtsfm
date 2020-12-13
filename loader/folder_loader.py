@@ -156,5 +156,4 @@ class FolderLoader(LoaderBase):
         Returns:
             validation result.
         """
-
-        return (idx1 + 1) % len(self) <= idx2 and idx2 <= (idx1 + 4) % len(self)
+        return idx1 < idx2
