@@ -99,9 +99,6 @@ class TestSceneOptimizer(unittest.TestCase):
         with dask.config.set(scheduler='single-threaded'):
             sfm_result = dask.compute(sfm_result_graph)[0]
 
-        import pdb
-        pdb.set_trace()
-
         self.assertIsInstance(sfm_result, SfmResult)
 
 
