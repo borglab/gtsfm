@@ -12,6 +12,7 @@ import cv2
 import imageio
 import numpy as np
 from gtsam import EssentialMatrix, Pose3, Rot3, Unit3
+from scipy.spatial.transform import Rotation
 
 # import utils.geometry_comparisons as geometry_comparisons
 # from averaging.rotation.shonan import ShonanRotationAveraging
