@@ -74,6 +74,9 @@ class DataAssociation():
                     filtered_track.number_measurements(), 
                     self.min_track_len)
                 )
+        # add cameras to landmark_map
+        for cam in cameras.values():
+            triangulated_landmark_map.add_camera(cam)
         
         return triangulated_landmark_map
 
@@ -84,7 +87,20 @@ class DataAssociation():
         cameras:  Dict[int, PinholeCameraCal3Bundler], 
         sampling_method: Optional[TriangulationParam] = None,
         num_samples: Optional[int] = None,
-    ) -> gtsam.SfmData:
+    ) -> Delayed:
+        """Creates a computation graph for performing data association.
+
+        Args:
+            corr_idxs_graph: dictionary of correspondence indices, each value
+                             wrapped up as Delayed.
+            cameras: list of cameras wrapped up as Delayed.
+            use_ransac: whether or not to use ransac
+            
+            keypoints_graph: list of wrapped up keypoints for each image
+
+        Returns:
+            SfmData 
+        """
         
         return dask.delayed(self.run)(
         corr_idxs_dict, 
@@ -270,10 +286,6 @@ class LandmarkInitialization():
         """
         errors = []
         for (i, measurement) in track:
-            # if self.sharedCal_Flag:
-            #     camera = PinholeCameraCal3Bundler(self.track_pose_list[i], self.calibration)
-            #else:
-            # camera = PinholeCameraCal3Bundler(self.track_pose_list[i], self.track_camera_list[i])
             camera = self.track_camera_list.get(i)
             # Project to camera
             uv = camera.project(triangulated_pt)
