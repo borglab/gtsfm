@@ -153,7 +153,7 @@ class TwoViewEstimator:
         matcher_graph = self.matcher.create_computation_graph(
             image_pair_indices, description_graph)
 
-        matcher_graph = { k:v.compute() for k,v in matcher_graph.items() }
+        #matcher_graph = { k:v.compute() for k,v in matcher_graph.items() }
 
         # verification on putative correspondences to obtain relative pose
         # and verified correspondences
@@ -209,9 +209,9 @@ class TestSceneOptimizer(unittest.TestCase):
 		detection_graph, description_graph = \
 			self.feature_extractor.create_computation_graph(image_graph)
 
-		detection_graph = [ det.compute() for det in detection_graph ]
-		description_graph = [ desc.compute() for desc in description_graph ]
-		camera_intrinsics_graph = [ i.compute() for i in camera_intrinsics_graph]
+		# detection_graph = [ det.compute() for det in detection_graph ]
+		# description_graph = [ desc.compute() for desc in description_graph ]
+		# camera_intrinsics_graph = [ i.compute() for i in camera_intrinsics_graph]
 
 		# estimate two-view geometry and get indices of verified correspondences.
 		i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph = \
@@ -225,14 +225,14 @@ class TestSceneOptimizer(unittest.TestCase):
 
 		pdb.set_trace()
 		with dask.config.set(scheduler='single-threaded'):
-			i2Ri1_list = dask.compute(i2Ri1_graph)
-			i2ti1_list = dask.compute(i2Ui1_graph)
-			v_corr_idxs_list = dask.compute(v_corr_idxs_graph)
+			i2Ri1_list = dask.compute(i2Ri1_graph)[0]
+			i2ti1_list = dask.compute(i2Ui1_graph)[0]
+			v_corr_idxs_list = dask.compute(v_corr_idxs_graph)[0]
 
 		pdb.set_trace()
 
-		i2Ri1 = i2Ri1_list[0]
-		i2ti1 = i2ti1_list[0]
+		i2Ri1 = i2Ri1_list[(0,1)]
+		i2ti1 = i2ti1_list[(0,1)]
 
 		# exact_intrinsics_flag = True
 		# images = [self.loader.get_image(i) for i in range(2)]
