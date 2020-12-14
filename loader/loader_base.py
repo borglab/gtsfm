@@ -111,6 +111,8 @@ class LoaderBase(metaclass=abc.ABCMeta):
 
         for idx1 in range(self.__len__()):
             for idx2 in range(self.__len__()):
+                if idx1 == idx2:
+                    continue
                 if(self.validate_pair(idx1, idx2)):
                     indices.append((idx1, idx2))
 

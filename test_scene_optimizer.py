@@ -5,13 +5,16 @@
 import pdb
 import unittest
 from pathlib import Path
-# from typing import List, Optional
+from typing import Dict, List, Optional, Tuple
 
-# import dask
+
 import cv2
+import dask
 import imageio
 import numpy as np
+from dask.delayed import Delayed
 from gtsam import EssentialMatrix, Pose3, Rot3, Unit3
+from gtsam import Rot3, Unit3, Cal3Bundler, Pose3 # PinholeCameraCal3Bundler, 
 from scipy.spatial.transform import Rotation
 
 # import utils.geometry_comparisons as geometry_comparisons
@@ -24,6 +27,18 @@ from frontend.verifier.ransac import Ransac
 
 # from scene_optimizer import SceneOptimizer
 from loader.folder_loader import FolderLoader
+
+
+# from averaging.rotation.rotation_averaging_base import RotationAveragingBase
+# from averaging.translation.translation_averaging_base import \
+#     TranslationAveragingBase
+# from bundle.bundle_adjustment import BundleAdjustmentOptimizer
+# from data_association.dummy_da import DummyDataAssociation
+from frontend.detector_descriptor.detector_descriptor_base import \
+    DetectorDescriptorBase
+from frontend.matcher.matcher_base import MatcherBase
+from frontend.verifier.verifier_base import VerifierBase
+
 
 
 
@@ -101,6 +116,58 @@ def hstack_images(imgA: np.ndarray, imgB: np.ndarray) -> np.ndarray:
 
 
 
+class FeatureExtractor:
+    """Wrapper for running detection and description on each image."""
+
+    def __init__(self, detector_descriptor: DetectorDescriptorBase):
+        self.detector_descriptor = detector_descriptor
+
+    def create_computation_graph(
+    	self,
+    	image_graph: List[Delayed]
+    ) -> List[Delayed]:
+        return self.detector_descriptor.create_computation_graph(image_graph)
+
+
+class TwoViewEstimator:
+    """Wrapper for running two-view relative pose estimation on image pairs in
+    the dataset."""
+
+    def __init__(self, matcher: MatcherBase, verifier: VerifierBase):
+        self.matcher = matcher
+        self.verifier = verifier
+
+    def create_computation_graph(
+    	self,
+    	image_pair_indices: List[Tuple[int, int]],
+    	detection_graph: List[Delayed],
+    	description_graph: List[Delayed],
+    	camera_intrinsics_graph: List[Delayed],
+    	exact_intrinsics: bool = True
+    ) -> Tuple[
+    	Dict[Tuple[int, int], Delayed],
+    	Dict[Tuple[int, int], Delayed],
+    	Dict[Tuple[int, int], Delayed]
+    ]:
+        # graph for matching to obtain putative correspondences
+        matcher_graph = self.matcher.create_computation_graph(
+            image_pair_indices, description_graph)
+
+        matcher_graph = { k:v.compute() for k,v in matcher_graph.items() }
+
+        # verification on putative correspondences to obtain relative pose
+        # and verified correspondences
+        i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph = \
+            self.verifier.create_computation_graph(
+                detection_graph,
+                matcher_graph,
+                camera_intrinsics_graph,
+                exact_intrinsics
+            )
+
+        return i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph
+
+
 class TestSceneOptimizer(unittest.TestCase):
 	"""[summary]
 
@@ -109,11 +176,18 @@ class TestSceneOptimizer(unittest.TestCase):
 	"""
 
 	def setUp(self) -> None:
-
+		""" """
 		self.loader = FolderLoader(
 			str(DATA_ROOT_PATH / "argoverse/train1/273c1883-673a-36bf-b124-88311b1a80be/ring_front_center"), image_extension='jpg'
 		)
 		assert len(self.loader)
+		det_desc = SIFTDetectorDescriptor()
+		matcher = TwoWayMatcher()
+		verifier = Ransac()
+
+		self.feature_extractor = FeatureExtractor(det_desc)
+		self.two_view_estimator = TwoViewEstimator(matcher, verifier)
+
 		# self.obj = SceneOptimizer(
 		# 	,
 		# 	,
@@ -121,40 +195,72 @@ class TestSceneOptimizer(unittest.TestCase):
 		# 	rot_avg_module=ShonanRotationAveraging(),
 		# 	trans_avg_module=TranslationAveraging1DSFM()
 		# )
-		self.det_desc = SIFTDetectorDescriptor()
-		self.matcher = TwoWayMatcher()
-		self.verifier = Ransac()
 
 	def test_create_computation_graph(self):
-		""" """
-		
-		exact_intrinsics_flag = True
-		images = [self.loader.get_image(i) for i in range(2)]
-		
-		joint_graph = [self.det_desc.detect_and_describe(x) for x in images]
 
-		keypoints_list = [x[0] for x in joint_graph]
-		descriptors_list = [x[1] for x in joint_graph]
+		num_images = len(self.loader)
+		image_pair_indices = self.loader.get_valid_pairs()
 
-		# perform matching and verification on valid image pairs in the loader
-		verification_function = self.verifier.verify_with_exact_intrinsics \
-			if exact_intrinsics_flag else \
-		self.verifier.verify_with_approximate_intrinsics
+		image_graph = self.loader.create_computation_graph_for_images()
+		camera_intrinsics_graph = self.loader.create_computation_graph_for_intrinsics()
+		exact_intrinsics = True
 
-		for (i1, i2) in [(0,1)]:
-			match_correspondence_indices = self.matcher.match(
-				descriptors_list[i1],
-				descriptors_list[i2]
-			)
+		# detection and description graph
+		detection_graph, description_graph = \
+			self.feature_extractor.create_computation_graph(image_graph)
 
-		i2Ri1, i2Ui1, verified_correspondence_idxs = \
-		verification_function(
-			keypoints_list[i1],
-			keypoints_list[i2],
-			match_correspondence_indices,
-			self.loader.get_camera_intrinsics(i1),
-			self.loader.get_camera_intrinsics(i2),
+		detection_graph = [ det.compute() for det in detection_graph ]
+		description_graph = [ desc.compute() for desc in description_graph ]
+		camera_intrinsics_graph = [ i.compute() for i in camera_intrinsics_graph]
+
+		# estimate two-view geometry and get indices of verified correspondences.
+		i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph = \
+			self.two_view_estimator.create_computation_graph(
+				image_pair_indices,
+				detection_graph,
+				description_graph,
+				camera_intrinsics_graph,
+				exact_intrinsics
 		)
+
+		pdb.set_trace()
+		with dask.config.set(scheduler='single-threaded'):
+			i2Ri1_list = dask.compute(i2Ri1_graph)
+			i2ti1_list = dask.compute(i2Ui1_graph)
+			v_corr_idxs_list = dask.compute(v_corr_idxs_graph)
+
+		pdb.set_trace()
+
+		i2Ri1 = i2Ri1_list[0]
+		i2ti1 = i2ti1_list[0]
+
+		# exact_intrinsics_flag = True
+		# images = [self.loader.get_image(i) for i in range(2)]
+		
+		# joint_graph = [self.det_desc.detect_and_describe(x) for x in images]
+
+		# keypoints_list = [x[0] for x in joint_graph]
+		# descriptors_list = [x[1] for x in joint_graph]
+
+		# # perform matching and verification on valid image pairs in the loader
+		# verification_function = self.verifier.verify_with_exact_intrinsics \
+		# 	if exact_intrinsics_flag else \
+		# self.verifier.verify_with_approximate_intrinsics
+
+		# for (i1, i2) in [(0,1)]:
+		# 	match_correspondence_indices = self.matcher.match(
+		# 		descriptors_list[i1],
+		# 		descriptors_list[i2]
+		# 	)
+
+		# i2Ri1, i2Ui1, verified_correspondence_idxs = \
+		# verification_function(
+		# 	keypoints_list[i1],
+		# 	keypoints_list[i2],
+		# 	match_correspondence_indices,
+		# 	self.loader.get_camera_intrinsics(i1),
+		# 	self.loader.get_camera_intrinsics(i2),
+		# )
 
 		euler_angle_err_tol = 1.4
 		translation_err_tol = 0.026
@@ -174,17 +280,17 @@ class TestSceneOptimizer(unittest.TestCase):
 		gt_i1ti2 = np.array([ 0.21, -0.0024, 0.976])
 		assert np.allclose(gt_i1ti2, i1ti2, atol=translation_err_tol)
 
-		i1_idxs = verified_correspondence_idxs[:,0]
-		i2_idxs = verified_correspondence_idxs[:,1]
+		# i1_idxs = verified_correspondence_idxs[:,0]
+		# i2_idxs = verified_correspondence_idxs[:,1]
 
-		X1 = keypoints_list[0].coordinates[i1_idxs,0]
-		Y1 = keypoints_list[0].coordinates[i1_idxs,1]
-		X2 = keypoints_list[1].coordinates[i2_idxs,0]
-		Y2 = keypoints_list[1].coordinates[i2_idxs,1]
-		imgA = images[0].value_array
-		imgB = images[1].value_array
-		lines_img = show_correspondence_lines(imgA, imgB, X1, Y1, X2, Y2)
-		imageio.imwrite('lines_img_i1i2.png', lines_img)
+		# X1 = keypoints_list[0].coordinates[i1_idxs,0]
+		# Y1 = keypoints_list[0].coordinates[i1_idxs,1]
+		# X2 = keypoints_list[1].coordinates[i2_idxs,0]
+		# Y2 = keypoints_list[1].coordinates[i2_idxs,1]
+		# imgA = images[0].value_array
+		# imgB = images[1].value_array
+		# lines_img = show_correspondence_lines(imgA, imgB, X1, Y1, X2, Y2)
+		# imageio.imwrite('lines_img_i1i2.png', lines_img)
 
 
 		#return detection_graph, description_graph
