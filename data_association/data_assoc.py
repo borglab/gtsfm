@@ -14,8 +14,8 @@ import numpy as np
 from common.keypoints import Keypoints
 from data_association.feature_tracks import FeatureTrackGenerator
 from enum import Enum
-from gtsam import CameraSetCal3Bundler, PinholeCameraCal3Bundler, Point3, \
-    Point2Vector, Pose3, Pose3Vector, triangulatePoint3
+from gtsam import CameraSetCal3Bundler, PinholeCameraCal3Bundler, \
+    Point3, Point2Vector, triangulatePoint3
 from typing import Dict, List, Tuple, Optional
 
 class TriangulationParam(Enum):
@@ -35,7 +35,6 @@ class DataAssociation():
         """
         self.reproj_error_thresh = reproj_error_thresh
         self.min_track_len = min_track_len
-        #self.tracks = FeatureTrackGenerator(matches, feature_list) 
     
     def run(self, 
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray], 
@@ -99,27 +98,18 @@ class DataAssociation():
 class LandmarkInitialization():
     """
     Class to initialize landmark points via triangulation w or w/o RANSAC inlier/outlier selection
-
-    triangulate(
-        track: List, 
-        use_ransac: bool,
-        sampling_method: Optional[TriangulationParam] = None, 
-        num_samples: Optional[int] = None, 
-        thresh: Optional[float] = None
-    ) -> Dict:
-    
     """
 
     def __init__(
         self, 
-        track_cameras: List[PinholeCameraCal3Bundler]
+        track_cameras: Dict[int, PinholeCameraCal3Bundler]
         ) -> None:
         """
         Args:
             track_cameras: List of cameras 
         """
         self.track_camera_list = track_cameras
-    
+       
     def triangulate(self, 
         track: List, 
         use_ransac: bool,
@@ -162,13 +152,10 @@ class LandmarkInitialization():
 
                 idx1, pt1 = track[k1]
                 idx2, pt2 = track[k2]
-                
-                # pose_estimates = Pose3Vector()
-                # pose_estimates.append(self.track_pose_list[idx1])
-                # pose_estimates.append(self.track_pose_list[idx2])
+
                 camera_estimates = CameraSetCal3Bundler()
-                camera_estimates.append(self.track_camera_list[idx1])
-                camera_estimates.append(self.track_camera_list[idx2])
+                camera_estimates.append(self.track_camera_list.get(idx1))
+                camera_estimates.append(self.track_camera_list.get(idx2))
 
                 img_measurements = Point2Vector()
                 img_measurements.append(pt1)
@@ -249,8 +236,8 @@ class LandmarkInitialization():
                 #wTc1 = Pose3(self.track_pose_list[idx1])
                 #wTc2 = Pose3(self.track_pose_list[idx2])
 
-                wTc1 = self.track_camera_list[idx1].pose()
-                wTc2 = self.track_camera_list[idx2].pose()
+                wTc1 = self.track_camera_list.get(idx1).pose()
+                wTc2 = self.track_camera_list.get(idx2).pose()
                 
                 # it is not a very correct approximation of depth, will do it better later
                 scores[k] = np.linalg.norm(wTc1.compose(wTc2.inverse()).translation()) 
@@ -287,7 +274,7 @@ class LandmarkInitialization():
             #     camera = PinholeCameraCal3Bundler(self.track_pose_list[i], self.calibration)
             #else:
             # camera = PinholeCameraCal3Bundler(self.track_pose_list[i], self.track_camera_list[i])
-            camera = self.track_camera_list[i]
+            camera = self.track_camera_list.get(i)
             # Project to camera
             uv = camera.project(triangulated_pt)
             # Projection error in camera
@@ -306,29 +293,16 @@ class LandmarkInitialization():
             measurement_track: Observations corresponding to first and last measurements
         """
         
-        #pose_track = Pose3Vector()
         camera_track = CameraSetCal3Bundler()
         measurement_track = Point2Vector()
 
         for k in range(len(track)):
             if inliers[k]:
                 img_idx, img_Pt = track[k]
-                camera_track.append(self.track_camera_list[img_idx])
-                
+                camera_track.append(self.track_camera_list.get(img_idx))
                 measurement_track.append(img_Pt)
-
-        # if self.sharedCal_Flag:
-        #     if ( 
-        #         len(pose_track) < 2 or 
-        #         len(measurement_track) < 2
-        #     ):
-        #         raise Exception("Nb of measurements should not be <= 2. \
-        #             Number of poses is: {} and number of observations is {}".format(
-        #                 len(pose_track), 
-        #                 len(measurement_track)))
-        # else:
         if (
-            # len(pose_track) < 2 or  
+              
             len(camera_track) < 2 or 
             len(measurement_track) < 2
         ):
@@ -352,7 +326,6 @@ class LandmarkInitialization():
         """
         new_track = gtsam.SfmTrack(list(triangulated_track.keys())[0])
         
-        # measurement_idx represented as k
         for triangulated_pt, track in triangulated_track.items():
             for (i, measurement) in track:
                 if inlier[i]:
