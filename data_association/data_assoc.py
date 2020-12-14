@@ -3,6 +3,10 @@
 2. Triangulates 3D world points for each track (Ransac and simple triangulation modes available)
 3. Filters tracks based on reprojection error.
 
+References: 
+1. Richard I. Hartley and Peter Sturm. Triangulation. COMPUTER VISION AND IMAGE UNDERSTANDING Vol. 68, No. 2, November, pp. 146–157, 1997
+2. P. Moulon, P. Monasse. Unordered Feature Tracking Made Fast and Easy, HAL Archives
+
 Authors: Sushmita Warrier, Xiaolong Wu
 """
 

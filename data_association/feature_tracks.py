@@ -2,11 +2,13 @@
 
 Authors: Ayush Baid, Sushmita Warrier
 """
-from typing import Dict, List, Tuple
-
 import numpy as np
 import gtsam
+
 from common.keypoints import Keypoints
+from typing import Dict, List, Tuple
+
+LANDMARK_MAP = List[List[Tuple[int,Tuple[float, float]]]]
 
 class FeatureTrackGenerator:
     """
@@ -40,7 +42,6 @@ class FeatureTrackGenerator:
                 k2 = ks[idx][1]
                 dsf.merge(gtsam.IndexPair(i1, k1), gtsam.IndexPair(i2, k2))
                 key_set = dsf.sets()                
-
         # create a landmark map: a list of tracks
         # Each track is represented as a list of (camera_idx, measurements)
         for s in key_set:
@@ -62,7 +63,7 @@ class FeatureTrackGenerator:
         self.filtered_landmark_data = self.delete_tracks(landmark_data)
 
 
-    def delete_tracks(self, landmark_data: List[List[Tuple[int,Tuple[float, float]]]]) -> List[List[Tuple[int,Tuple[float, float]]]]:
+    def delete_tracks(self, landmark_data: LANDMARK_MAP) -> LANDMARK_MAP:
         """
         Delete tracks that have more than one measurement in the same image.
 
@@ -71,6 +72,7 @@ class FeatureTrackGenerator:
         Returns:
             list of filtered feature tracks. 
         """
+        # TODO (Sush): Add inline comments to explain logic
         filtered_landmark_data = []
         # track_idx represented as j
         for j in range(len(landmark_data)):
