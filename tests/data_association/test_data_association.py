@@ -28,22 +28,55 @@ class TestDataAssociation(GtsamTestCase):
 
         # set up ground truth data for comparison
 
-        self.dummy_matches = {(0,1): np.array([[0,2]]), 
-                    (1,2): np.array([[2,3], 
-                                    [4,5], 
-                                    [7,9]]),
-                    (0,2): np.array([[1,8]])}
+        self.dummy_matches = {
+            (0,1): np.array([[0,2]]), 
+            (1,2): np.array([[2,3], 
+                            [4,5], 
+                            [7,9]]),
+            (0,2): np.array([[1,8]])}
+        img1_kp_coords = np.array(
+            [
+                [12, 16], 
+                [13,18], 
+                [0,10]
+            ])
+        img1_kp_scale = np.array([6.0, 9.0, 8.5])
+        img2_kp_coords = np.array(
+            [
+                [8,2], 
+                [16,14], 
+                [22,23], 
+                [1,6], 
+                [50,50], 
+                [16,12], 
+                [82,121], 
+                [39,60]
+            ])
+        img3_kp_coords = np.array(
+            [
+                [1,1],
+                [8,13],
+                [40,6],
+                [82,21],
+                [1,6],
+                [12,18],
+                [15,14],
+                [25,28],
+                [7,10],
+                [14,17]
+            ])
         self.feature_list = [
-            Keypoints(coordinates=np.array([[12, 16], [13,18], [0,10]]), scale=np.array([6.0, 9.0, 8.5])), 
-            Keypoints(coordinates=np.array([[8,2], [16,14], [22,23], [1,6], [50,50], [16,12], [82,121], [39,60]])),
-            Keypoints(coordinates=np.array([[1,1], [8,13], [40,6], [82,21], [1,6], [12,18], [15,14], [25,28], [7,10], [14,17]]))
+            Keypoints(coordinates=img1_kp_coords, scale=img1_kp_scale), 
+            Keypoints(coordinates=img2_kp_coords),
+            Keypoints(coordinates=img3_kp_coords)
             ]
-        self.malformed_matches = {(0,1): np.array([[0,2]]), 
-                    (1,2): np.array([[2,3], 
-                                    [4,5], 
-                                    [7,9]]),
-                    (0,2): np.array([[1,8]]),
-                    (1,1): np.array([[0,3]])}
+        self.malformed_matches = {
+            (0,1): np.array([[0,2]]), 
+            (1,2): np.array([[2,3], 
+                            [4,5], 
+                            [7,9]]),
+            (0,2): np.array([[1,8]]),
+            (1,1): np.array([[0,3]])}
 
         # Generate two poses for use in triangulation tests
         # Looking along X-axis, 1 meter above ground plane (x-y)
@@ -86,26 +119,25 @@ class TestDataAssociation(GtsamTestCase):
         """  
         sharedCal = gtsam.Cal3Bundler(1500, 0, 0, 640, 480)
 
-        matches_1, feature_list, poses, _ = self.__generate_2_poses(sharedCal)
+        matches_1, feature_list, poses, _, cameras = self.__generate_2_poses(sharedCal)
 
-        da = DataAssociation(matches_1, feature_list)
+        da = DataAssociation(5, 3)
         triangulated_landmark_map = da.run(
-            True, 3, False, 
-            calibration=sharedCal, 
-            global_poses=poses
+            matches_1, feature_list,
+            False,  
+            cameras, 
+            None,
+            None
         )
+        assert triangulated_landmark_map.number_tracks() == 0, "tracks exceeding expected track length"
 
-        assert len(triangulated_landmark_map) == 0, "tracks exceeding expected track length"
-
-        matches_2, feature_list, poses = self.__generate_3_poses(sharedCal)
-        da = DataAssociation(matches_2, feature_list)
+        matches_2, feature_list, _, cameras = self.__generate_3_poses(sharedCal)
+        da = DataAssociation(5, 3)
         triangulated_landmark_map = da.run(
-            True, 3, False, 
-            calibration=sharedCal, 
-            global_poses=poses
+            matches_2, feature_list, False, cameras, None, None    
         )
-        computed_landmark = triangulated_landmark_map[0].point3()
-        assert len(triangulated_landmark_map)== 1, "more tracks than expected"
+        computed_landmark = triangulated_landmark_map.track(0).point3()
+        assert triangulated_landmark_map.number_tracks() == 1, "more tracks than expected"
         self.gtsamAssertEquals(computed_landmark, self.expected_landmark,1e-2)
     
     def test_triangulation_sharedCal_ransac_uniform(self):
@@ -116,31 +148,28 @@ class TestDataAssociation(GtsamTestCase):
         """  
         sharedCal = gtsam.Cal3Bundler(1500, 0, 0, 640, 480)
         
-        matches_1, feature_list, poses, _ = self.__generate_2_poses(sharedCal)
-        da = DataAssociation(matches_1, feature_list)
+        matches_1, feature_list, poses, _, cameras = self.__generate_2_poses(sharedCal)
+        da = DataAssociation(5,3)
         triangulated_landmark_map = da.run(
-            True, 3, True,
-            calibration=sharedCal,
-            global_poses=poses,
+            matches_1, feature_list, True,
+            cameras,
             sampling_method=TriangulationParam.UNIFORM,
-            num_samples=20,
-            reprojection_threshold=5 
+            num_samples=20
         )
 
-        assert len(triangulated_landmark_map) == 0, "tracks exceeding expected track length"
+        assert triangulated_landmark_map.number_tracks() == 0, "tracks exceeding expected track length"
         
-        matches_2, feature_list, poses = self.__generate_3_poses(sharedCal)
-        da = DataAssociation(matches_2, feature_list)
+        matches_2, feature_list, poses, cameras = self.__generate_3_poses(sharedCal)
+        da = DataAssociation(5,3)
         triangulated_landmark_map = da.run(
-            True, 3, True,
-            calibration=sharedCal,
-            global_poses=poses,
+            matches_2, feature_list, 
+            True,
+            cameras,
             sampling_method=TriangulationParam.UNIFORM,
-            num_samples=20,
-            reprojection_threshold=5 
+            num_samples=20 
         )
-        computed_landmark = triangulated_landmark_map[0].point3()
-        assert len(triangulated_landmark_map)== 1, "more tracks than expected"
+        computed_landmark = triangulated_landmark_map.track(0).point3()
+        assert triangulated_landmark_map.number_tracks() == 1, "more tracks than expected"
         self.gtsamAssertEquals(computed_landmark, self.expected_landmark,1e-2)
     
     def test_triangulation_sharedCal_ransac_baseline(self):
@@ -151,31 +180,28 @@ class TestDataAssociation(GtsamTestCase):
         """  
         sharedCal = gtsam.Cal3Bundler(1500, 0, 0, 640, 480)
 
-        matches_1, feature_list, poses, _ = self.__generate_2_poses(sharedCal)
-        da = DataAssociation(matches_1, feature_list)
+        matches_1, feature_list, poses, _, cameras = self.__generate_2_poses(sharedCal)
+        da = DataAssociation(5,3)
         triangulated_landmark_map = da.run(
-            True, 3, True,
-            calibration=sharedCal,
-            global_poses=poses,
+            matches_1, feature_list,
+            True,
+            cameras,
             sampling_method=TriangulationParam.BASELINE,
-            num_samples=20,
-            reprojection_threshold=5 
+            num_samples=20 
         )
 
-        assert len(triangulated_landmark_map) == 0, "tracks exceeding expected track length"
+        assert triangulated_landmark_map.number_tracks() == 0, "tracks exceeding expected track length"
         
-        matches_2, feature_list, poses = self.__generate_3_poses(sharedCal)
-        da = DataAssociation(matches_2, feature_list)
+        matches_2, feature_list, poses, cameras = self.__generate_3_poses(sharedCal)
+        da = DataAssociation(5,3)
         triangulated_landmark_map = da.run(
-            True, 3, True,
-            calibration=sharedCal,
-            global_poses=poses,
+            matches_2, feature_list, 
+            True, cameras,
             sampling_method=TriangulationParam.BASELINE,
             num_samples=20,
-            reprojection_threshold=5 
         )
-        computed_landmark = triangulated_landmark_map[0].point3()
-        assert len(triangulated_landmark_map)== 1, "more tracks than expected"
+        computed_landmark = triangulated_landmark_map.track(0).point3()
+        assert triangulated_landmark_map.number_tracks()== 1, "more tracks than expected"
         self.gtsamAssertEquals(computed_landmark, self.expected_landmark,1e-2)
 
     def test_triangulation_sharedCal_ransac_maxtomin(self):
@@ -186,37 +212,32 @@ class TestDataAssociation(GtsamTestCase):
         """  
         sharedCal = gtsam.Cal3Bundler(1500, 0, 0, 640, 480)
 
-        matches_1, feature_list, poses, _ = self.__generate_2_poses(sharedCal)
-        da = DataAssociation(matches_1, feature_list)
+        matches_1, feature_list, poses, _, cameras = self.__generate_2_poses(sharedCal)
+        da = DataAssociation(5,3)
         triangulated_landmark_map = da.run(
-            True, 3, True,
-            calibration=sharedCal,
-            global_poses=poses,
+            matches_1, feature_list, 
+            True, cameras,
             sampling_method=TriangulationParam.MAX_TO_MIN,
-            num_samples=20,
-            reprojection_threshold=5 
+            num_samples=20
         )
 
-        assert len(triangulated_landmark_map) == 0, "tracks exceeding expected track length"
+        assert triangulated_landmark_map.number_tracks() == 0, "tracks exceeding expected track length"
         
-        matches_2, feature_list, poses = self.__generate_3_poses(sharedCal)
-        da = DataAssociation(matches_2, feature_list)
+        matches_2, feature_list, poses, cameras = self.__generate_3_poses(sharedCal)
+        da = DataAssociation(5,3)
         triangulated_landmark_map = da.run(
-            True, 3, True,
-            calibration=sharedCal,
-            global_poses=poses,
+            matches_2, feature_list, 
+            True, cameras,
             sampling_method=TriangulationParam.MAX_TO_MIN,
-            num_samples=20,
-            reprojection_threshold=5 
+            num_samples=20
         )
-        computed_landmark = triangulated_landmark_map[0].point3()
-        assert len(triangulated_landmark_map)== 1, "more tracks than expected"
+        computed_landmark = triangulated_landmark_map.track(0).point3()
+        assert triangulated_landmark_map.number_tracks()== 1, "more tracks than expected"
         self.gtsamAssertEquals(computed_landmark, self.expected_landmark,1e-2)
     
     def test_triangulation_individualCal_without_ransac(self):
         """
         Tests that the triangulation is accurate for individual camera calibration.
-        """
         """
         K1 = gtsam.Cal3Bundler(1500, 0, 0, 640, 480)
         K2 = gtsam.Cal3Bundler(1600, 0, 0, 650, 440)
@@ -229,52 +250,52 @@ class TestDataAssociation(GtsamTestCase):
         # create matches
         matches = {img_idxs: matched_idxs}
         
-        da = DataAssociation(matches, feature_list)
+        da = DataAssociation(5,2)
         triangulated_landmark_map = da.run(
-            False, 3, False, 
-            camera_list=cameras
+            matches, feature_list,
+            False,
+            cameras,
+            None, None
         )
-        computed_landmark = triangulated_landmark_map[0].point3()
+        computed_landmark = triangulated_landmark_map.track(0).point3()
         self.gtsamAssertEquals(computed_landmark, self.expected_landmark,1e-2)
-        """
         
     def test_create_computation_graph(self):
         """
         Tests the graph to create data association for images. 
         """
         sharedCal = gtsam.Cal3Bundler(1500, 0, 0, 640, 480)
-        matches, features, poses = self.__generate_3_poses(sharedCal)
+        matches, features, poses, cameras = self.__generate_3_poses(sharedCal)
         
         # Run without computation graph
-        da = DataAssociation(matches, features)
+        da = DataAssociation(5, 3)
         expected_landmark_map = da.run(
-            True, 3, True,
-            calibration=sharedCal,
-            global_poses=poses,
+            matches, 
+            features, 
+            True, 
+            cameras, 
             sampling_method=TriangulationParam.MAX_TO_MIN,
-            num_samples=20,
-            reprojection_threshold=5 
+            num_samples=20
         )
 
         # Run with computation graph
         computed_landmark_map = da.create_computation_graph(
-            True, 3, True,
-            calibration=sharedCal,
-            global_poses=poses,
+            matches, features, 
+            True, 
+            cameras,
             sampling_method=TriangulationParam.MAX_TO_MIN,
-            num_samples=20,
-            reprojection_threshold=5 
+            num_samples=20
         )
 
         with dask.config.set(scheduler='single-threaded'):
             dask_result = dask.compute(computed_landmark_map)[0]
 
-        assert len(expected_landmark_map) == len(dask_result), "Dask not configured correctly"
+        assert expected_landmark_map.number_tracks() == dask_result.number_tracks(), "Dask not configured correctly"
 
-        for i in range(len(expected_landmark_map)):
-            assert expected_landmark_map[i].number_measurements() == dask_result[i].number_measurements(), "Dask tracks incorrect"
+        for i in range(expected_landmark_map.number_tracks()):
+            assert expected_landmark_map.track(i).number_measurements() == dask_result.track(i).number_measurements(), "Dask tracks incorrect"
             # Test if the measurement in both are equal
-            np.testing.assert_array_almost_equal(expected_landmark_map[i].measurement(0)[1], dask_result[i].measurement(0)[1], 1, "Dask measurements incorrect")
+            np.testing.assert_array_almost_equal(expected_landmark_map.track(i).measurement(0)[1], dask_result.track(i).measurement(0)[1], 1, "Dask measurements incorrect")
               
     def __generate_2_poses(self, sharedCal):
         """
@@ -283,25 +304,26 @@ class TestDataAssociation(GtsamTestCase):
         # Amount of noise to be added to measurements
         noise_params = (-np.array([0.1, 0.5]), - np.array([-0.2, 0.3]))
 
-        measurements, feature_list, img_idxs, _ = self.__generate_measurements((sharedCal, sharedCal), noise_params, self.poses)     
+        measurements, feature_list, img_idxs, cameras = self.__generate_measurements((sharedCal, sharedCal), noise_params, self.poses)     
 
         # since there is only one measurement in each image, both assigned feature index 0
         matched_idxs = np.array([[0,0]])
 
         # create matches
         matches_1 = {img_idxs: matched_idxs}
-        return matches_1, feature_list, self.poses, measurements
+        return matches_1, feature_list, self.poses, measurements, cameras
 
     def __generate_3_poses(self, sharedCal):
         """
         Generate 3 matches and corresponding poses with shared calibration
         """
-        matches, feature_list, poses, measurements = self.__generate_2_poses(sharedCal)
+        matches, feature_list, poses, measurements, cameras = self.__generate_2_poses(sharedCal)
 
         # Add third camera slightly rotated
         rotatedCamera = gtsam.Rot3.Ypr(0.1, 0.2, 0.1)
         pose3 = gtsam.Pose3(rotatedCamera, gtsam.Point3(0.1, -2, -0.1))
         camera3 = gtsam.PinholeCameraCal3Bundler(pose3, sharedCal)
+        cameras.append(camera3)
         z3 = camera3.project(self.expected_landmark)
         # add noise to measurement
         measurements.append(z3 + np.array([0.1, -0.1]))
@@ -314,11 +336,10 @@ class TestDataAssociation(GtsamTestCase):
         matched_idxs2 = np.array([[0,0]])
         match_dict = {img_idxs2: matched_idxs2}
         matches.update(match_dict)
-        return matches, feature_list, poses
+        return matches, feature_list, poses, cameras
 
     def __generate_measurements(self, calibration, noise_params, poses):
         """ Generate measurements for given calibration and poses """
-        """
         measurements = gtsam.Point2Vector()
         cameras = gtsam.CameraSetCal3Bundler()
         for i in range(len(poses)):
@@ -333,19 +354,6 @@ class TestDataAssociation(GtsamTestCase):
         for i in range(len(measurements)):
             feature_list = [ Keypoints(coordinates=np.array([m])) for m in measurements]
         return measurements, feature_list, img_idxs, cameras
-        """
-        measurements = gtsam.Point2Vector()
-        for i in range(len(poses)):
-            camera = gtsam.PinholeCameraCal3Bundler(poses[i], calibration[i])
-            # Project landmark into two cameras and triangulate
-            z = camera.project(self.expected_landmark)
-            measurements.append(z + noise_params[i])
-        # Create image indices for each pose
-        img_idxs = tuple(list(range(len(self.poses))))
-        # List of features in each image
-        for i in range(len(measurements)):
-            feature_list = [ Keypoints(coordinates=np.array([m])) for m in measurements]
-        return measurements, feature_list, img_idxs, None
 
 if __name__ == "__main__":
     unittest.main()
