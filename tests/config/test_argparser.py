@@ -22,7 +22,7 @@ class TestArgsCfgNode(unittest.TestCase):
 
         config = parser.init_config(
             config, 
-            config_file=[str(CONFIG_PATH)+'/config1.yaml', str(CONFIG_PATH)+'/config2.yaml']
+            config_fpaths=[str(CONFIG_PATH)+'/config1.yaml', str(CONFIG_PATH)+'/config2.yaml']
         )
         
         print(config.param)
@@ -44,7 +44,7 @@ class TestArgsCfgNode(unittest.TestCase):
 
         config = parser.init_config(
             config, 
-            config_file=[str(CONFIG_PATH)+'/config1.yaml', str(CONFIG_PATH)+'/config2.yaml']
+            config_fpaths=[str(CONFIG_PATH)+'/config1.yaml', str(CONFIG_PATH)+'/config2.yaml']
         )
         config = parser.init_config(
             config,

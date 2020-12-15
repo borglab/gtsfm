@@ -67,12 +67,11 @@ class ArgsCfgNode:
     1. add arguments to parser for the load of config file and parameter list    
     2. load arguments into CfgNode for easier initialization
     """
-    def __init__(self, description: str, config: CfgNode=CfgNode(YACS())) -> None:
+    def __init__(self, description: str) -> None:
         """
         Initialization of argsparser and argument to initialize CfgNode
         Args:
             description: a string that provides a helpful description of parser
-            config(optional): if the config is initialized, we can add argument from config
         """
         self.parser = argparse.ArgumentParser(
             description=description
