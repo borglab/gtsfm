@@ -34,10 +34,11 @@ class TestArgsCfgNode(unittest.TestCase):
         )
 
     def test_argparser_param(self):
-        """ Test the configuration loading from argparser with list of param"""
-        config = CfgNode(
-            get_cfg_defaults()
-        )
+        """ Test functionality when we wish to merge command line input and config parameters.
+        
+        CLI input from argparse should override the parameters loaded from a config file config parameters
+        """
+        config = CfgNode(get_cfg_defaults())
 
         parser = ArgsCfgNode('Test for config loading')
 
