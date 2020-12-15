@@ -1,4 +1,5 @@
 from utils.cfgnode import CfgNode, ArgsCfgNode, YACS
+from config.default import get_cfg_defaults
 import unittest
 
 from pathlib import Path
@@ -13,7 +14,9 @@ class TestArgsCfgNode(unittest.TestCase):
     def test_argparser_file(self):
         """ Test the configuration loading from argparser using yaml file"""
         
-        config = CfgNode()
+        config = CfgNode(
+            get_cfg_defaults()
+        )
 
         parser = ArgsCfgNode('Test for config loading')
 
@@ -24,15 +27,17 @@ class TestArgsCfgNode(unittest.TestCase):
         
         print(config.param)
         self.assertTrue(
-            (config.param.frontend.matching.num_features == 1000)          and
-            (config.param.frontend.matching.deep_feature == 'superpoint')  and
-            (config.param.backend.mode_triangulation == 'ransac')          and
-            (config.param.visualization.enable_vis == True)
+            (config.param.FeatureExtractor.matching.num_features == 1000)          and
+            (config.param.FeatureExtractor.matching.deep_feature == 'superpoint')  and
+            (config.param.TwoViewEstimator.mode_triangulation == 'ransac')          and
+            (config.param.MultiViewOptimizer.enable_vis == True)
         )
 
     def test_argparser_param(self):
         """ Test the configuration loading from argparser with list of param"""
-        config = CfgNode()
+        config = CfgNode(
+            get_cfg_defaults()
+        )
 
         parser = ArgsCfgNode('Test for config loading')
 
@@ -42,15 +47,15 @@ class TestArgsCfgNode(unittest.TestCase):
         )
         config = parser.init_config(
             config,
-            config_param=['backend.mode_triangulation', 'baseline', 'frontend.matching.num_features', '3000']
+            config_param=['TwoViewEstimator.mode_triangulation', 'baseline', 'FeatureExtractor.matching.num_features', '3000']
         )
         config = parser.init_config(config)
         
         self.assertTrue(
-            (config.param.frontend.matching.num_features == 3000)          and
-            (config.param.frontend.matching.deep_feature == 'superpoint')  and
-            (config.param.backend.mode_triangulation == 'baseline')          and
-            (config.param.visualization.enable_vis == True)
+            (config.param.FeatureExtractor.matching.num_features == 3000)          and
+            (config.param.FeatureExtractor.matching.deep_feature == 'superpoint')  and
+            (config.param.TwoViewEstimator.mode_triangulation == 'baseline')          and
+            (config.param.MultiViewOptimizer.enable_vis == True)
         )
     
 if __name__ == "__main__":
