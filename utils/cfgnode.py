@@ -15,6 +15,7 @@ class CfgNode:
         cfg_init: default config file
         """
         self.param = cfg_init
+        self.param.set_new_allowed(False)
         self.param.freeze()
 
     def print_modules(self):
@@ -28,8 +29,9 @@ class CfgNode:
         file_name: path to yaml file
         """
         self.param.defrost()
-        self.param.merge_from_file(file_name)
         self.param.set_new_allowed(True)
+        self.param.merge_from_file(file_name)
+        self.param.set_new_allowed(False)
         self.param.freeze()
 
     def load_list(self, list_param:list) -> None:
@@ -44,7 +46,6 @@ class CfgNode:
         """
         self.param.defrost()
         self.param.merge_from_list(list_param)
-        self.param.set_new_allowed(True)
         self.param.freeze()
 
 class ArgsCfgNode:
