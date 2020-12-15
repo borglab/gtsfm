@@ -1,10 +1,10 @@
 from yacs.config import CfgNode as YACS
 
 """
-This file is to initialize all modules inside 
-this hierarchical configuration tree for GTSFM.
-Pls feel free to add new modules or submodules 
-when needed.
+YACS requires specifying a schema for the YAML config files. In this Python file,
+we provide such a schema. Every GTSFM YAML config file should include 4
+sections -- parameters for the SceneOptimizer, FeatureExtractor,
+TwoViewEstimator, and MultiViewOptimizer. YAML files should be hierarchical.
 """
 
 _Cfg = YACS(new_allowed=True)
@@ -17,6 +17,6 @@ _Cfg.TwoViewEstimator = YACS(new_allowed=True)
 
 _Cfg.MultiViewOptimizer = YACS(new_allowed=True)
 
-def get_cfg_defaults():
-  """Get YACS object with default modules for GTSFM."""
+def get_cfg_defaults() -> YACS:
+  """Provides an YACS object with default modules for GTSFM."""
   return _Cfg.clone()
