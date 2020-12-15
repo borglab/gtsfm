@@ -94,8 +94,8 @@ class ArgsCfgNode:
     
     def init_config(
             self, 
-            config:CfgNode, 
-            config_file: List[str] = None, 
+            config: CfgNode, 
+            config_fpaths: List[str] = None, 
             config_param: List[str] = None
         ) -> CfgNode:
         """
@@ -103,33 +103,38 @@ class ArgsCfgNode:
         
         Args:
             config: config without initialization
-            test: is it for test or not
+            config_file: list of file paths to YAML files
+            config_param:
             
         Returns:
             config: config after initialization
         """
-        if config_file:
+        # if paths to YAML files are provided, parse them with argparse
+        if config_fpaths:
             cfg_args = ['--config-file']
-            for file in config_file:
-                cfg_args.append(file)
-            args = self.parser.parse_args(
-                cfg_args
-            )
+            for fpath in config_fpaths:
+                cfg_args.append(fpath)
+            args = self.parser.parse_args(cfg_args)
             print(args)
+        
+        # if command-line config parameters are specified, parse them with argparse
         if config_param:
             cfg_args = ['--config-param']
             for param in config_param:
                 cfg_args.append(param) 
-            args = self.parser.parse_args(
-                cfg_args
-            )
+            args = self.parser.parse_args(cfg_args)
             print(args)
-        if (not config_file) and (not config_param):
+        
+        # if no command-line input, check for other arguments
+        if (not config_fpaths) and (not config_param):
             args = self.parser.parse_args()
 
+        # parse the YAML file, and load into object
         if args.config_file:
-            for file in args.config_file:
-                config.load_file(file)
+            for fpath in args.config_file:
+                config.load_file(fpath)
+        
+        # parse the command-line config parameters
         if args.config_param:
             config.load_list(args.config_param)
         return config
