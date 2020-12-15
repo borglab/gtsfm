@@ -13,7 +13,7 @@ class TestCfgNode(unittest.TestCase):
         super(TestCfgNode, self).setUp()
 
     def test_configuration_type(self):
-        """ Test the types of input hyperparameters from yaml file """
+        """ Test that correct types of input hyperparameters are read from 1 yaml file """
         
         self.config = CfgNode(
             get_cfg_defaults()
@@ -32,10 +32,8 @@ class TestCfgNode(unittest.TestCase):
         )
 
     def test_configuration_value(self):
-        """ Test the values of input hyperparameters from yaml file """
-        self.config = CfgNode(
-            get_cfg_defaults()
-        )
+        """ Test whether values of input hyperparameters are correctly read from 1 yaml file """
+        self.config = CfgNode(get_cfg_defaults())
         self.config.load_file(str(CONFIG_PATH) + '/config1.yaml')
         
         self.assertTrue(
@@ -48,10 +46,8 @@ class TestCfgNode(unittest.TestCase):
         )
 
     def test_configuration_combination(self):
-        """ Test the configuration files combination """
-        self.config = CfgNode(
-            get_cfg_defaults()
-        )
+        """ Test whether 2 configuration files can be correctly merged and loaded together """
+        self.config = CfgNode(get_cfg_defaults())
         self.config.load_file(str(CONFIG_PATH) + '/config1.yaml')
         self.config.load_file(str(CONFIG_PATH) + '/config2.yaml')
 
