@@ -10,7 +10,7 @@ References:
 Authors: Sushmita Warrier, Xiaolong Wu
 """
 
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import dask
 from dask.delayed import Delayed
@@ -139,7 +139,7 @@ class LandmarkInitializer(NamedTuple):
     """
     Class to initialize landmark points via triangulation w/ or w/o RANSAC inlier/outlier selection.
     We currently limit the size of each sample to 2 camera views in our RANSAC scheme.
-    """
+
     Args:
         track_cameras: List of cameras
         sampling_method (optional):
