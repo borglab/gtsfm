@@ -46,6 +46,7 @@ setup(
         "dask[complete]",
         "numpy",
         "opencv-python>=4.1.0.25",
-        "pillow"
+        "pillow",
+        "yacs"
     ]
 )
