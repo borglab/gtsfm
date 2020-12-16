@@ -165,6 +165,21 @@ class TwoViewEstimator:
                 exact_intrinsics
             )
 
+   #      for (i1,i2), verified_correspondences in v_corr_idxs_graph.items():
+			# i1_idxs = verified_correspondence_idxs[:,0]
+			# i2_idxs = verified_correspondence_idxs[:,1]
+
+			# # get from list of keypoints
+			# X1 = detection_graph[i1].coordinates[i1_idxs,0]
+			# Y1 = detection_graph[i1].coordinates[i1_idxs,1]
+			# X2 = detection_graph[i2].coordinates[i2_idxs,0]
+			# Y2 = detection_graph[i2].coordinates[i2_idxs,1]
+			# imgA = images[0].value_array
+			# imgB = images[1].value_array
+			# lines_img = show_correspondence_lines(imgA, imgB, X1, Y1, X2, Y2)
+			# imageio.imwrite('lines_img_i1i2.png', lines_img)
+
+
         return i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph
 
 
@@ -232,7 +247,7 @@ class TestSceneOptimizer(unittest.TestCase):
 		pdb.set_trace()
 
 		i2Ri1 = i2Ri1_list[(0,1)]
-		i2ti1 = i2ti1_list[(0,1)]
+		i2Ui1 = i2ti1_list[(0,1)]
 
 		# exact_intrinsics_flag = True
 		# images = [self.loader.get_image(i) for i in range(2)]
@@ -280,17 +295,6 @@ class TestSceneOptimizer(unittest.TestCase):
 		gt_i1ti2 = np.array([ 0.21, -0.0024, 0.976])
 		assert np.allclose(gt_i1ti2, i1ti2, atol=translation_err_tol)
 
-		# i1_idxs = verified_correspondence_idxs[:,0]
-		# i2_idxs = verified_correspondence_idxs[:,1]
-
-		# X1 = keypoints_list[0].coordinates[i1_idxs,0]
-		# Y1 = keypoints_list[0].coordinates[i1_idxs,1]
-		# X2 = keypoints_list[1].coordinates[i2_idxs,0]
-		# Y2 = keypoints_list[1].coordinates[i2_idxs,1]
-		# imgA = images[0].value_array
-		# imgB = images[1].value_array
-		# lines_img = show_correspondence_lines(imgA, imgB, X1, Y1, X2, Y2)
-		# imageio.imwrite('lines_img_i1i2.png', lines_img)
 
 
 		#return detection_graph, description_graph
