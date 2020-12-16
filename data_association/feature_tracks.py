@@ -69,7 +69,7 @@ class FeatureTrackGenerator:
                 i = index_pair.i()
                 k = index_pair.j()
                 # add measurement in this track
-                track.append(SfmMeasurement((i, keypoints_list[i].coordinates[k])))
+                track += [SfmMeasurement(i, keypoints_list[i].coordinates[k])]
             landmark_data += [ SfmTrack2d(track) ]
         self.filtered_landmark_data = self.delete_tracks(landmark_data)
 
