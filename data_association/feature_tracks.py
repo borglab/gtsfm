@@ -19,9 +19,9 @@ class FeatureTrackGenerator:
     """
 
     def __init__(self,
-                 matches: Dict[Tuple[int, int], np.ndarray],
+                 matches_dict: Dict[Tuple[int, int], np.ndarray],
                  feature_list: List[Keypoints]
-                 ):
+                 ) -> None:
         """
         Creates DSF and landmark map from pairwise matches.
 
@@ -32,17 +32,14 @@ class FeatureTrackGenerator:
             num_poses: Number of poses.
             feature_list: List of keypoints for each image.
         """
-
         # Generate the DSF to form tracks
         dsf = gtsam.DSFMapIndexPair()
         self.filtered_landmark_data = []
         landmark_data = []
         # for DSF finally
         # measurement_idxs represented by ks
-        for (i1, i2), ks in matches.items():
-            for idx in range(ks.shape[0]):
-                k1 = ks[idx][0]
-                k2 = ks[idx][1]
+        for (i1, i2), k_pairs in matches_dict.items():
+            for (k1,k2) in k_pairs:
                 dsf.merge(gtsam.IndexPair(i1, k1), gtsam.IndexPair(i2, k2))
         
         key_set = dsf.sets()                
