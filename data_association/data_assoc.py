@@ -87,15 +87,15 @@ class DataAssociation:
 
         # point indices are represented as j
         # nb of 3D points = nb of tracks, hence track_idx represented as j
-        LMI = LandmarkInitializer(cameras)
+        LMI = LandmarkInitializer(
+            cameras,
+            self.sampling_method,
+            self.num_samples,
+            self.reproj_error_thresh
+        )
 
         for j in range(len(sfmdata_landmark_map)):
-            filtered_track = LMI.triangulate(
-                sfmdata_landmark_map[j],
-                self.sampling_method,
-                self.num_samples,
-                self.reproj_error_thresh,
-            )
+            filtered_track = LMI.triangulate(sfmdata_landmark_map[j])
 
             if filtered_track.number_measurements() >= self.min_track_len:
                 triangulated_landmark_map.add_track(filtered_track)
@@ -164,10 +164,7 @@ class LandmarkInitializer:
         self.num_samples = num_samples
         self.reproj_error_thresh = reproj_error_thresh
 
-    def triangulate(
-        self,
-        track: List
-    ) -> gtsam.SfmTrack:
+    def triangulate(self, track: List) -> gtsam.SfmTrack:
         """
         Triangulation in RANSAC loop
 
