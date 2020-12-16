@@ -243,8 +243,14 @@ class LandmarkInitializer(NamedTuple):
             measurement_idxs: all possible matching measurement indices in a given track
         """
         num_track_measurements = len(track.measurements)
-        measurement_idxs = list(itertools.combinations(num_track_measurements, NUM_SAMPLES_PER_RANSAC_HYPOTHESIS))
-        return measurement_idxs
+        all_measurement_idxs = range(num_track_measurements)
+        measurement_pair_idxs = list(
+            itertools.combinations(
+                all_measurement_idxs,
+                NUM_SAMPLES_PER_RANSAC_HYPOTHESIS
+            )
+        )
+        return measurement_pair_idxs
 
     def generate_ransac_hypotheses(
         self,
