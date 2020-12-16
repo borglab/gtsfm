@@ -100,7 +100,7 @@ class DataAssociation:
             if filtered_track.number_measurements() >= self.min_track_len:
                 triangulated_landmark_map.add_track(filtered_track)
             else:
-                logging.DEBUG(
+                logging.warning(
                     "Track length {} < {} discarded".format(
                         filtered_track.number_measurements(), self.min_track_len
                     )
@@ -131,9 +131,7 @@ class DataAssociation:
         return dask.delayed(self.run)(
             corr_idxs_dict,
             keypoints_list,
-            cameras,
-            self.sampling_method,
-            self.num_samples,
+            cameras
         )
 
 
