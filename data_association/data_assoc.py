@@ -29,6 +29,7 @@ from gtsam import (
 )
 
 MAX_POSSIBLE_TRACK_REPROJ_ERROR = 1e10
+SVD_DLT_RANK_TOL = 1e-9
 
 class TriangulationParam(Enum):
     UNIFORM = 1
@@ -118,7 +119,6 @@ class DataAssociation:
                              wrapped up as Delayed.
             cameras: list of cameras wrapped up as Delayed.
             use_ransac: whether or not to use ransac
-
             keypoints_graph: list of wrapped up keypoints for each image
 
         Returns:
@@ -201,10 +201,10 @@ class LandmarkInitializer:
 
                 # triangulate point for track
                 triangulated_pt = triangulatePoint3(
-                    camera_estimates, img_measurements, rank_tol=1e-9, optimize=True
+                    camera_estimates, img_measurements, rank_tol=SVD_DLT_RANK_TOL, optimize=True
                 )
 
-                errors = self.reprojection_error(triangulated_pt, track)
+                errors = self.compute_reprojection_error(triangulated_pt, track)
                 # TODO: Xiaolong - add inline comments to explain logic
                 votes = [err < thresh for err in errors]
 
@@ -225,7 +225,7 @@ class LandmarkInitializer:
 
         triangulated_track = dict()
         triangulated_pt_track = triangulatePoint3(
-            camera_track, measurement_track, rank_tol=1e-9, optimize=True
+            camera_track, measurement_track, rank_tol=SVD_DLT_RANK_TOL, optimize=True
         )
         triangulated_track.update({tuple(triangulated_pt_track): track})
 
@@ -238,6 +238,7 @@ class LandmarkInitializer:
 
         Args:
             track: feature track from which measurements are to be extracted
+
         Returns:
             matches: all possible matches in a given track
         """
@@ -303,7 +304,7 @@ class LandmarkInitializer:
 
         return sample_index.tolist()
 
-    def reprojection_error(self, triangulated_pt: Point3, track: List) -> List[float]:
+    def compute_reprojection_error(self, triangulated_pt: Point3, track: List) -> List[float]:
         """
         Calculate average reprojection error in a given track
 
