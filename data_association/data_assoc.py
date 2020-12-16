@@ -173,9 +173,8 @@ class LandmarkInitializer:
             # Generate all possible matches
             matches = self.generate_matches(track)
 
-            # Check the validity of num_samples
-            if num_samples > len(matches):
-                num_samples = len(matches)
+            # We limit the number of samples to the number of actual available matches
+            num_samples = min(num_samples, len(matches))
 
             # Sampling
             samples = self.sampling(track, matches, sampling_method, num_samples)
