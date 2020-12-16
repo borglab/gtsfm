@@ -1,6 +1,9 @@
-"""Class to hold the tracks (i.e. 2d measurements) of 3d landmarks.
+"""Class to generate and store tracks. Uses the Union-Find algorithm, with the
+image ID and keypoint index for that image as the unique keys.
 
-Authors: Ayush Baid, Sushmita Warrier
+A track is defined as a 2d measurement of a single 3d landmark seen in multiple different images.
+
+Authors: Ayush Baid, Sushmita Warrier, John Lambert
 """
 import numpy as np
 import gtsam
@@ -41,17 +44,19 @@ class FeatureTrackGenerator:
                 k1 = ks[idx][0]
                 k2 = ks[idx][1]
                 dsf.merge(gtsam.IndexPair(i1, k1), gtsam.IndexPair(i2, k2))
-                key_set = dsf.sets()                
+        
+        key_set = dsf.sets()                
         # create a landmark map: a list of tracks
         # Each track is represented as a list of (camera_idx, measurements)
-        for key in key_set:
+        for s in key_set:
+            key = key_set[s] # key_set is a wrapped C++ map, so this unusual syntax is required
             # Initialize track
             track = []
-            for val in gtsam.IndexPairSetAsArray(key):                
+            for index_pair in gtsam.IndexPairSetAsArray(key):                
                 # camera_idx is represented by i
                 # measurement_idx is represented by k
-                i = val.i()
-                k = val.j()
+                i = index_pair.i()
+                k = index_pair.j()
                 # add measurement in this track
                 # check to ensure dimensions of coordinates are correct
                 if feature_list[i].coordinates.ndim != 2:
