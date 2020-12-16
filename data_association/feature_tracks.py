@@ -44,8 +44,7 @@ class FeatureTrackGenerator:
                 key_set = dsf.sets()                
         # create a landmark map: a list of tracks
         # Each track is represented as a list of (camera_idx, measurements)
-        for s in key_set:
-            key = key_set[s]
+        for key in key_set:
             # Initialize track
             track = []
             for val in gtsam.IndexPairSetAsArray(key):                
@@ -56,7 +55,7 @@ class FeatureTrackGenerator:
                 # add measurement in this track
                 # check to ensure dimensions of coordinates are correct
                 if feature_list[i].coordinates.ndim != 2:
-                    raise Exception("Dimensions for Keypoint coordinates        incorrect. \
+                    raise Exception("Dimensions for Keypoint coordinates incorrect. \
                                      Array needs to be 2D")
                 track.append(tuple((i, feature_list[i].coordinates[k])))
             landmark_data.append(track)          
