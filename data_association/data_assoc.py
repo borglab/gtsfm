@@ -269,7 +269,7 @@ class LandmarkInitializer:
         Returns:
             indexes of matches: index of selected match
         """
-        # Initilize scores as uniform distribution
+        # Initialize scores as uniform distribution
         scores = np.ones(len(matches), dtype=float)
 
         if sampling_method in [
