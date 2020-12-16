@@ -4,11 +4,13 @@
 3. Filters tracks based on reprojection error.
 
 References: 
-1. Richard I. Hartley and Peter Sturm. Triangulation. COMPUTER VISION AND IMAGE UNDERSTANDING Vol. 68, No. 2, November, pp. 146–157, 1997
-2. P. Moulon, P. Monasse. Unordered Feature Tracking Made Fast and Easy, HAL Archives
+1. Richard I. Hartley and Peter Sturm. Triangulation. Computer Vision and Image Understanding, Vol. 68, No. 2, November, pp. 146–157, 1997
+2. P. Moulon, P. Monasse. Unordered Feature Tracking Made Fast and Easy, 2012, HAL Archives.
 
 Authors: Sushmita Warrier, Xiaolong Wu
 """
+
+from typing import Dict, List, Tuple, Optional
 
 import dask
 from dask.delayed import Delayed
@@ -20,7 +22,7 @@ from data_association.feature_tracks import FeatureTrackGenerator
 from enum import Enum
 from gtsam import CameraSetCal3Bundler, PinholeCameraCal3Bundler, \
     Point3, Point2Vector, triangulatePoint3
-from typing import Dict, List, Tuple, Optional
+
 
 class TriangulationParam(Enum):
     UNIFORM = 1
@@ -243,10 +245,7 @@ class LandmarkInitialization():
         # Initilize scores as uniform distribution
         scores = np.ones(len(matches),dtype=float)
         
-        if (
-            (sampling_method == TriangulationParam.BASELINE or 
-            sampling_method == TriangulationParam.MAX_TO_MIN)
-        ):
+        if sampling_method in [TriangulationParam.BASELINE, TriangulationParam.MAX_TO_MIN]:
             for k in range(len(matches)):
                 k1, k2 = matches[k]
 
@@ -266,15 +265,10 @@ class LandmarkInitialization():
         if sum(scores) <= 0.0:
             raise Exception("Sum of scores cannot be Zero (or smaller than Zero)! It must a bug somewhere")
         
-        if (
-            sampling_method == TriangulationParam.UNIFORM or
-            sampling_method == TriangulationParam.BASELINE
-        ): 
+        if sampling_method in [TriangulationParam.UNIFORM, TriangulationParam.BASELINE]:
             sample_index = np.random.choice(len(scores), num_samples, replace=False, p=scores/scores.sum())
                 
-        if (
-            sampling_method == TriangulationParam.MAX_TO_MIN
-        ): 
+        if sampling_method == TriangulationParam.MAX_TO_MIN:
             sample_index = np.argsort(scores)[-num_samples:]
         
         return sample_index.tolist()
@@ -330,7 +324,7 @@ class LandmarkInitialization():
 
         return camera_track, measurement_track
 
-    def inlier_to_track(self, triangulated_track: dict, inlier:list) -> gtsam.SfmTrack:
+    def inlier_to_track(self, triangulated_track: Dict, inlier: List) -> gtsam.SfmTrack:
         """
         Generate track based on inliers
         
