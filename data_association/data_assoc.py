@@ -274,7 +274,7 @@ class LandmarkInitializer(NamedTuple):
             TriangulationParam.BASELINE,
             TriangulationParam.MAX_TO_MIN,
         ]:
-            for (k1,k2) in measurement_pairs:
+            for k, (k1,k2) in enumerate(measurement_pairs):
                 i1, pt1 = track.measurements[k1]
                 i2, pt2 = track.measurements[k2]
 
