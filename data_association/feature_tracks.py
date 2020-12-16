@@ -79,10 +79,10 @@ class FeatureTrackGenerator:
         Delete tracks that have more than one measurement in the same image.
 
         Args:
-            landmark_data: List of feature tracks.
+            sfm_tracks_2d: feature tracks.
             
         Returns:
-            list of filtered feature tracks. 
+            filtered_tracks_2d: filtered feature tracks. 
         """
         filtered_tracks_2d = []
         for sfm_track_2d in sfm_tracks_2d:
