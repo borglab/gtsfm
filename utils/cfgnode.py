@@ -18,7 +18,7 @@ these parameters after they are initialized here, i.e. "frozen".
 """
 
 
-class CfgNode:
+class GtsfmCfgNode:
     """Class that reads YAML and freezes parameters (no argparse interface)."""
 
     def __init__(self, cfg_init: YACS) -> None:
@@ -62,7 +62,7 @@ class CfgNode:
         self.param.freeze()
 
 
-class ArgsCfgNode:
+class GtsfmArgsCfgNode:
     """Class that merges command-line input parameters with pre-defined parameters
     from a YAML file.
 
@@ -94,10 +94,10 @@ class ArgsCfgNode:
 
     def init_config(
         self,
-        config: CfgNode,
+        config: GtsfmCfgNode,
         config_fpaths: List[str] = None,
         config_param: List[str] = None,
-    ) -> CfgNode:
+    ) -> GtsfmCfgNode:
         """
         Initialization CfgNode using loaded arguments
 

@@ -2,7 +2,7 @@
 import unittest
 from pathlib import Path
 
-from utils.cfgnode import CfgNode, ArgsCfgNode, YACS
+from utils.cfgnode import GtsfmCfgNode, GtsfmArgsCfgNode, YACS
 from config.defaults import get_cfg_defaults
 
 CONFIG_PATH = Path(__file__).resolve().parent.parent.parent / "config"
@@ -17,7 +17,7 @@ class TestCfgNode(unittest.TestCase):
     def test_configuration_type(self):
         """ Test that correct types of input hyperparameters are read from 1 yaml file """
 
-        self.config = CfgNode(get_cfg_defaults())
+        self.config = GtsfmCfgNode(get_cfg_defaults())
         self.config.load_file(str(CONFIG_PATH) + "/config1.yaml")
 
         self.assertTrue(isinstance(self.config.param.FeatureExtractor, YACS))
@@ -25,13 +25,13 @@ class TestCfgNode(unittest.TestCase):
         self.assertTrue(isinstance(self.config.param.SceneOptimizer.path, str))
         self.assertTrue(isinstance(self.config.param.SceneOptimizer.enable_gpu, bool))
         self.assertTrue(isinstance(self.config.param.FeatureExtractor.matching.num_features, int))
-        self.assertTrue(isinstance(self.config.param.FeatureExtractor.matching.tol, loat))
+        self.assertTrue(isinstance(self.config.param.FeatureExtractor.matching.tol, float))
         self.assertTrue(isinstance(self.config.param.SceneOptimizer.image_path, list))
         self.assertTrue(isinstance(self.config.param.FeatureExtractor.matching.pyramid_scale, list))
 
     def test_configuration_value(self):
         """ Test whether values of input hyperparameters are correctly read from 1 yaml file """
-        self.config = CfgNode(get_cfg_defaults())
+        self.config = GtsfmCfgNode(get_cfg_defaults())
         self.config.load_file(str(CONFIG_PATH) + "/config1.yaml")
 
         self.assertTrue(self.config.param.SceneOptimizer.path == "~/gtsfm")
@@ -43,7 +43,7 @@ class TestCfgNode(unittest.TestCase):
 
     def test_configuration_combination(self):
         """ Test whether 2 configuration files can be correctly merged and loaded together """
-        self.config = CfgNode(get_cfg_defaults())
+        self.config = GtsfmCfgNode(get_cfg_defaults())
         self.config.load_file(str(CONFIG_PATH) + "/config1.yaml")
         self.config.load_file(str(CONFIG_PATH) + "/config2.yaml")
 

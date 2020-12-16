@@ -2,7 +2,7 @@ from pathlib import Path
 import unittest
 
 from config.defaults import get_cfg_defaults
-from utils.cfgnode import CfgNode, ArgsCfgNode, YACS
+from utils.cfgnode import GtsfmCfgNode, GtsfmArgsCfgNode, YACS
 
 CONFIG_PATH = Path(__file__).resolve().parent.parent.parent / "config"
 
@@ -16,9 +16,9 @@ class TestArgsCfgNode(unittest.TestCase):
     def test_argparser_file(self) -> None:
         """ Test the configuration loading from argparser using yaml file"""
 
-        config = CfgNode(get_cfg_defaults())
+        config = GtsfmCfgNode(get_cfg_defaults())
 
-        parser = ArgsCfgNode("Test for config loading")
+        parser = GtsfmArgsCfgNode("Test for config loading")
 
         config = parser.init_config(
             config,
@@ -39,9 +39,9 @@ class TestArgsCfgNode(unittest.TestCase):
 
         CLI input from argparse should override the parameters loaded from a config file config parameters
         """
-        config = CfgNode(get_cfg_defaults())
+        config = GtsfmCfgNode(get_cfg_defaults())
 
-        parser = ArgsCfgNode("Test for config loading")
+        parser = GtsfmArgsCfgNode("Test for config loading")
 
         config = parser.init_config(
             config,
