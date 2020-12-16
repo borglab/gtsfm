@@ -120,18 +120,14 @@ class TestDataAssociation(GtsamTestCase):
         matches_1, feature_list, poses, _, cameras = self.__generate_2_poses(sharedCal)
 
         da = DataAssociation(5, 3)
-        triangulated_landmark_map = da.run(
-            matches_1, feature_list, False, cameras, None, None
-        )
+        triangulated_landmark_map = da.run(matches_1, feature_list, cameras)
         assert (
             triangulated_landmark_map.number_tracks() == 0
         ), "tracks exceeding expected track length"
 
         matches_2, feature_list, cameras = self.__generate_3_poses(sharedCal)
         da = DataAssociation(5, 3)
-        triangulated_landmark_map = da.run(
-            matches_2, feature_list, False, cameras, None, None
-        )
+        triangulated_landmark_map = da.run(matches_2, feature_list, cameras)
         computed_landmark = triangulated_landmark_map.track(0).point3()
         assert (
             triangulated_landmark_map.number_tracks() == 1
@@ -151,30 +147,24 @@ class TestDataAssociation(GtsamTestCase):
         sharedCal = gtsam.Cal3Bundler(1500, 0, 0, 640, 480)
 
         matches_1, feature_list, poses, _, cameras = self.__generate_2_poses(sharedCal)
-        da = DataAssociation(5, 3)
-        triangulated_landmark_map = da.run(
-            matches_1,
-            feature_list,
-            True,
-            cameras,
+        da = DataAssociation(
+            5, 3, 
             sampling_method=TriangulationParam.UNIFORM,
-            num_samples=20,
+            num_samples=20
         )
+        triangulated_landmark_map = da.run(matches_1, feature_list, cameras)
 
         assert (
             triangulated_landmark_map.number_tracks() == 0
         ), "tracks exceeding expected track length"
 
         matches_2, feature_list, cameras = self.__generate_3_poses(sharedCal)
-        da = DataAssociation(5, 3)
-        triangulated_landmark_map = da.run(
-            matches_2,
-            feature_list,
-            True,
-            cameras,
+        da = DataAssociation(
+            5, 3, 
             sampling_method=TriangulationParam.UNIFORM,
-            num_samples=20,
+            num_samples=20
         )
+        triangulated_landmark_map = da.run(matches_2, feature_list, cameras)
         computed_landmark = triangulated_landmark_map.track(0).point3()
         assert (
             triangulated_landmark_map.number_tracks() == 1
@@ -194,30 +184,24 @@ class TestDataAssociation(GtsamTestCase):
         sharedCal = gtsam.Cal3Bundler(1500, 0, 0, 640, 480)
 
         matches_1, feature_list, _, _, cameras = self.__generate_2_poses(sharedCal)
-        da = DataAssociation(5, 3)
-        triangulated_landmark_map = da.run(
-            matches_1,
-            feature_list,
-            True,
-            cameras,
+        da = DataAssociation(
+            5, 3, 
             sampling_method=TriangulationParam.BASELINE,
-            num_samples=20,
+            num_samples=20
         )
+        triangulated_landmark_map = da.run(matches_1, feature_list, cameras)
 
         assert (
             triangulated_landmark_map.number_tracks() == 0
         ), "tracks exceeding expected track length"
 
         matches_2, feature_list, cameras = self.__generate_3_poses(sharedCal)
-        da = DataAssociation(5, 3)
-        triangulated_landmark_map = da.run(
-            matches_2,
-            feature_list,
-            True,
-            cameras,
+        da = DataAssociation(
+            5, 3, 
             sampling_method=TriangulationParam.BASELINE,
-            num_samples=20,
+            num_samples=20
         )
+        triangulated_landmark_map = da.run(matches_2, feature_list, cameras)
         computed_landmark = triangulated_landmark_map.track(0).point3()
         assert (
             triangulated_landmark_map.number_tracks() == 1
@@ -239,30 +223,24 @@ class TestDataAssociation(GtsamTestCase):
         sharedCal = gtsam.Cal3Bundler(1500, 0, 0, 640, 480)
 
         matches_1, feature_list, poses, _, cameras = self.__generate_2_poses(sharedCal)
-        da = DataAssociation(5, 3)
-        triangulated_landmark_map = da.run(
-            matches_1,
-            feature_list,
-            True,
-            cameras,
+        da = DataAssociation(
+            5, 3, 
             sampling_method=TriangulationParam.MAX_TO_MIN,
-            num_samples=20,
+            num_samples=20
         )
+        triangulated_landmark_map = da.run(matches_1, feature_list, cameras)
 
         assert (
             triangulated_landmark_map.number_tracks() == 0
         ), "tracks exceeding expected track length"
 
         matches_2, feature_list, cameras = self.__generate_3_poses(sharedCal)
-        da = DataAssociation(5, 3)
-        triangulated_landmark_map = da.run(
-            matches_2,
-            feature_list,
-            True,
-            cameras,
+        da = DataAssociation(
+            5, 3, 
             sampling_method=TriangulationParam.MAX_TO_MIN,
-            num_samples=20,
+            num_samples=20
         )
+        triangulated_landmark_map = da.run(matches_2, feature_list, cameras)
         computed_landmark = triangulated_landmark_map.track(0).point3()
         assert (
             triangulated_landmark_map.number_tracks() == 1
@@ -292,9 +270,7 @@ class TestDataAssociation(GtsamTestCase):
         matches = {img_idxs: matched_idxs}
 
         da = DataAssociation(5, 2)
-        triangulated_landmark_map = da.run(
-            matches, feature_list, False, cameras, None, None
-        )
+        triangulated_landmark_map = da.run(matches, feature_list, cameras)
         computed_landmark = triangulated_landmark_map.track(0).point3()
         self.gtsamAssertEquals(computed_landmark, self.expected_landmark, 1e-2)
         for cam in range(triangulated_landmark_map.number_cameras()):
@@ -310,24 +286,22 @@ class TestDataAssociation(GtsamTestCase):
         matches, features, cameras = self.__generate_3_poses(sharedCal)
 
         # Run without computation graph
-        da = DataAssociation(5, 3)
-        expected_landmark_map = da.run(
-            matches,
-            features,
-            True,
-            cameras,
+        da = DataAssociation(
+            5, 3, 
             sampling_method=TriangulationParam.MAX_TO_MIN,
-            num_samples=20,
+            num_samples=20
+        )
+        expected_landmark_map = da.run(
+            matches, 
+            features, 
+            cameras
         )
 
         # Run with computation graph
         computed_landmark_map = da.create_computation_graph(
             matches,
             features,
-            True,
-            cameras,
-            sampling_method=TriangulationParam.MAX_TO_MIN,
-            num_samples=20,
+            cameras
         )
 
         with dask.config.set(scheduler="single-threaded"):

@@ -28,6 +28,8 @@ from gtsam import (
     triangulatePoint3,
 )
 
+import logging
+
 MAX_POSSIBLE_TRACK_REPROJ_ERROR = 1e10
 SVD_DLT_RANK_TOL = 1e-9
 
@@ -40,25 +42,35 @@ class TriangulationParam(Enum):
 class DataAssociation:
     """Class to form feature tracks; for each track, call LandmarkInitializer."""
 
-    def __init__(self, reproj_error_thresh: float, min_track_len: int) -> None:
+    def __init__(
+        self, 
+        reproj_error_thresh: float, 
+        min_track_len: int,
+        sampling_method: Optional[TriangulationParam] = None,
+        num_samples: Optional[int] = None
+    ) -> None:
         """Initializes the hyperparameters.
 
         Args:
             reproj_error_thresh: the maximum reprojection error allowed.
             min_track_len: min length required for valid feature track / min nb of
                 supporting views required for a landmark to be valid
+            sampling_method (optional): 
+                TriangulationParam.UNIFORM    -> sampling uniformly,
+                TriangulationParam.BASELINE   -> sampling based on estimated baseline,
+                TriangulationParam.MAX_TO_MIN -> sampling from max to min
+            num_samples (optional): number of samples in ransac-based triangulation
         """
         self.reproj_error_thresh = reproj_error_thresh
         self.min_track_len = min_track_len
+        self.sampling_method = sampling_method
+        self.num_samples = num_samples
 
     def run(
         self,
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
-        use_ransac: bool,
-        cameras: Dict[int, PinholeCameraCal3Bundler],
-        sampling_method: Optional[TriangulationParam] = None,
-        num_samples: Optional[int] = None,
+        cameras: Dict[int, PinholeCameraCal3Bundler]
     ) -> gtsam.SfmData:
         """Perform data association
 
@@ -66,11 +78,8 @@ class DataAssociation:
             corr_idxs_dict: dictionary, with key as image pair (i1,i2) and value
                             as matching keypoint indices.
             keypoints_list: keypoints for each image.
-            use_ransac: flag to set the usage of ransac-based triangulation or not
             cameras: dictionary with image index as key, and camera object w/
                      intrinsics + extrinsics as value.
-            sampling_method: sampling method for ransac-based triangulation
-            num_samples: number of samples in ransac-based triangulation
         """
         triangulated_landmark_map = gtsam.SfmData()
         tracks = FeatureTrackGenerator(corr_idxs_dict, keypoints_list)
@@ -83,16 +92,15 @@ class DataAssociation:
         for j in range(len(sfmdata_landmark_map)):
             filtered_track = LMI.triangulate(
                 sfmdata_landmark_map[j],
-                use_ransac,
-                sampling_method,
-                num_samples,
+                self.sampling_method,
+                self.num_samples,
                 self.reproj_error_thresh,
             )
 
             if filtered_track.number_measurements() >= self.min_track_len:
                 triangulated_landmark_map.add_track(filtered_track)
             else:
-                print(
+                logging.DEBUG(
                     "Track length {} < {} discarded".format(
                         filtered_track.number_measurements(), self.min_track_len
                     )
@@ -107,30 +115,25 @@ class DataAssociation:
         self,
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
-        use_ransac: bool,
-        cameras: Dict[int, PinholeCameraCal3Bundler],
-        sampling_method: Optional[TriangulationParam] = None,
-        num_samples: Optional[int] = None,
+        cameras: Dict[int, PinholeCameraCal3Bundler]
     ) -> Delayed:
         """Creates a computation graph for performing data association.
 
         Args:
             corr_idxs_graph: dictionary of correspondence indices, each value
                              wrapped up as Delayed.
+            keypoints_list: list of wrapped up keypoints for each image
             cameras: list of cameras wrapped up as Delayed.
-            use_ransac: whether or not to use ransac
-            keypoints_graph: list of wrapped up keypoints for each image
-
+            
         Returns:
             SfmData
         """
         return dask.delayed(self.run)(
             corr_idxs_dict,
             keypoints_list,
-            use_ransac,
             cameras,
-            sampling_method,
-            num_samples,
+            self.sampling_method,
+            self.num_samples,
         )
 
 
@@ -139,45 +142,50 @@ class LandmarkInitializer:
     Class to initialize landmark points via triangulation w or w/o RANSAC inlier/outlier selection
     """
 
-    def __init__(self, track_cameras: Dict[int, PinholeCameraCal3Bundler]) -> None:
+    def __init__(
+        self, 
+        track_cameras: Dict[int, PinholeCameraCal3Bundler],
+        sampling_method: Optional[TriangulationParam] = None,
+        num_samples: Optional[int] = None,
+        reproj_error_thresh: Optional[float] = None
+    ) -> None:
         """
         Args:
             track_cameras: List of cameras
+            sampling_method (optional): 
+                TriangulationParam.UNIFORM    -> sampling uniformly,
+                TriangulationParam.BASELINE   -> sampling based on estimated baseline,
+                TriangulationParam.MAX_TO_MIN -> sampling from max to min
+            num_samples (optional): desired number of samples
+            reproj_error_thresh (optional): threshold for RANSAC inlier filtering
         """
         self.track_camera_list = track_cameras
+        self.sampling_method = sampling_method
+        self.num_samples = num_samples
+        self.reproj_error_thresh = reproj_error_thresh
 
     def triangulate(
         self,
-        track: List,
-        use_ransac: bool,
-        sampling_method: Optional[TriangulationParam] = None,
-        num_samples: Optional[int] = None,
-        thresh: Optional[float] = None,
+        track: List
     ) -> gtsam.SfmTrack:
         """
         Triangulation in RANSAC loop
 
         Args:
-            track: feature track from which measurements are to be extracted
-            use_ransac: a tag to enable/disable the RANSAC based triangulation
-            sampling_method (optional): TriangulationParam.UNIFORM    -> sampling uniformly,
-                                        TriangulationParam.BASELINE   -> sampling based on estimated baseline,
-                                        TriangulationParam.MAX_TO_MIN -> sampling from max to min
-            num_samples (optional): desired number of samples
-            tresh (optional): threshold for RANSAC inlier filtering
+            track: feature track from which measurements are to be extracted            
 
         Returns:
             triangulated_track: triangulated track after triangulation with measurements
         """
-        if use_ransac:
+        if self.sampling_method:
             # Generate all possible matches
-            matches = self.generate_matches(track)
+            matches = self.generate_track_pairs(track)
 
             # We limit the number of samples to the number of actual available matches
-            num_samples = min(num_samples, len(matches))
+            num_samples = min(self.num_samples, len(matches))
 
             # Sampling
-            samples = self.generate_ransac_samples(track, matches, sampling_method, num_samples)
+            samples = self.generate_ransac_samples(track, matches, self.sampling_method, num_samples)
 
             # Initialize the best output containers
             best_pt = Point3()
@@ -205,17 +213,21 @@ class LandmarkInitializer:
                 )
 
                 errors = self.compute_reprojection_error(triangulated_pt, track)
-                # TODO: Xiaolong - add inline comments to explain logic
-                votes = [err < thresh for err in errors]
+                # The best solution should correspond to the one with most inliers
+                # If the inlier number are the same, check the average error of inliers
+                votes = [err < self.reproj_error_thresh for err in errors]
 
-                sum_error = sum(errors)
-                sum_votes = sum([int(v) for v in votes])
+                avg_error = (
+                    np.array(errors) * np.array(votes).astype(float)
+                ).sum() / np.array(votes).astype(float).sum()
+                
+                sum_votes = np.array(votes).astype(int).sum()
 
                 if (sum_votes > best_votes) or (
-                    sum_votes == best_votes and best_error > sum_error
+                    sum_votes == best_votes and  avg_error < best_error
                 ):
                     best_votes = sum_votes
-                    best_error = sum_error
+                    best_error = avg_error
                     best_pt = triangulated_pt
                     best_inliers = votes
         else:
@@ -232,7 +244,7 @@ class LandmarkInitializer:
         # we may want to compare the initialized best_pt with triangulated_pt_track
         return self.inlier_to_track(triangulated_track, best_inliers)
 
-    def generate_matches(self, track: List) -> List[Tuple[int, int]]:
+    def generate_track_pairs(self, track: List) -> List[Tuple[int, int]]:
         """
         Extract all possible measurement pairs (k1, k2) in a track for triangulation.
 
@@ -242,19 +254,18 @@ class LandmarkInitializer:
         Returns:
             matches: all possible matches in a given track
         """
-        matches = []
+        match_idxs = []
 
         for k1 in range(len(track)):
             for k2 in range(k1 + 1, len(track)):
-                matches.append([k1, k2])
+                match_idxs.append([k1, k2])
 
-        return matches
+        return match_idxs
 
     def generate_ransac_samples(
         self,
         track: List,
         matches: List,
-        sampling_method: TriangulationParam,
         num_samples: int,
     ) -> List[int]:
         """Generate a list of matches for triangulation
@@ -262,9 +273,6 @@ class LandmarkInitializer:
         Args:
             track: feature track from which measurements are to be extracted
             matches: all possible matches in a given track
-            sampling_method: TriangulationParam.UNIFORM    -> sampling uniformly,
-                             TriangulationParam.BASELINE   -> sampling based on estimated baseline,
-                             TriangulationParam.MAX_TO_MIN -> sampling from max to min
             num_samples: desired number of samples
         Returns:
             indexes of matches: index of selected match
@@ -272,7 +280,7 @@ class LandmarkInitializer:
         # Initialize scores as uniform distribution
         scores = np.ones(len(matches), dtype=float)
 
-        if sampling_method in [
+        if self.sampling_method in [
             TriangulationParam.BASELINE,
             TriangulationParam.MAX_TO_MIN,
         ]:
@@ -286,7 +294,9 @@ class LandmarkInitializer:
                 wTc2 = self.track_camera_list.get(idx2).pose()
 
                 # it is not a very correct approximation of depth, will do it better later
-                scores[k] = np.linalg.norm(wTc1.compose(wTc2.inverse()).translation())
+                scores[k] = np.linalg.norm(
+                    wTc1.inverse().compose(wTc2).translation()
+                )
 
         # Check the validity of scores
         if sum(scores) <= 0.0:
@@ -294,19 +304,19 @@ class LandmarkInitializer:
                 "Sum of scores cannot be zero (or smaller than zero)! It must a bug somewhere"
             )
 
-        if sampling_method in [TriangulationParam.UNIFORM, TriangulationParam.BASELINE]:
+        if self.sampling_method in [TriangulationParam.UNIFORM, TriangulationParam.BASELINE]:
             sample_index = np.random.choice(
                 len(scores), num_samples, replace=False, p=scores / scores.sum()
             )
 
-        if sampling_method == TriangulationParam.MAX_TO_MIN:
+        if self.sampling_method == TriangulationParam.MAX_TO_MIN:
             sample_index = np.argsort(scores)[-num_samples:]
 
         return sample_index.tolist()
 
     def compute_reprojection_error(self, triangulated_pt: Point3, track: List) -> List[float]:
         """
-        Calculate average reprojection error in a given track
+        Calculate individual reprojection error in a given track
 
         Args:
             triangulated point: triangulated 3D point
