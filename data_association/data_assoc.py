@@ -224,13 +224,12 @@ class LandmarkInitializer(NamedTuple):
         camera_track, measurement_track = self.extract_measurements(track, best_inliers)
 
         triangulated_track = dict()
-        triangulated_pt_track = triangulatePoint3(
+        triangulated_pt = triangulatePoint3(
             camera_track, measurement_track, rank_tol=SVD_DLT_RANK_TOL, optimize=True
         )
-        triangulated_track.update({tuple(triangulated_pt_track): track})
 
         # we may want to compare the initialized best_pt with triangulated_pt_track
-        return self.inlier_to_track(triangulated_track, best_inliers)
+        return self.create_track_from_inliers(triangulated_pt, track, best_inliers)
 
     def generate_measurement_pairs(self, track: SfmTrack2d) -> List[Tuple[int, int]]:
         """
@@ -293,14 +292,14 @@ class LandmarkInitializer(NamedTuple):
             )
 
         if self.sampling_method in [TriangulationParam.UNIFORM, TriangulationParam.BASELINE]:
-            sample_index = np.random.choice(
+            sample_indices = np.random.choice(
                 len(scores), size=num_hypotheses, replace=False, p=scores / scores.sum()
             )
 
         if self.sampling_method == TriangulationParam.MAX_TO_MIN:
-            sample_index = np.argsort(scores)[-num_hypotheses:]
+            sample_indices = np.argsort(scores)[-num_hypotheses:]
 
-        return sample_index.tolist()
+        return sample_indices.tolist()
 
     def compute_reprojection_error(self, triangulated_pt: Point3, track: List) -> List[float]:
         """
@@ -359,21 +358,22 @@ class LandmarkInitializer(NamedTuple):
 
         return track_cameras, track_measurements
 
-    def inlier_to_track(self, triangulated_track: Dict, inlier: List) -> gtsam.SfmTrack:
+    def create_track_from_inliers(self, triangulated_pt: Point3, track: SfmTrack2d, inlier: List[bool]) -> gtsam.SfmTrack:
         """
         Generate track based on inliers
 
         Args:
-            triangulated_track: with triangulated pt as key and track as value
-            inlier: best inlier list from ransac or all points
+            triangulated_pt: triangulated 3d point
+            track: list of 2d measurements each of the form (i,uv)
+            inlier: best inlier list from RANSAC or all points
 
         Returns:
             SfmTrack object
         """
-        new_track = gtsam.SfmTrack(list(triangulated_track.keys())[0])
-
-        for triangulated_pt, track in triangulated_track.items():
-            for (i, measurement) in track:
-                if inlier[i]:
-                    new_track.add_measurement(i, measurement)
+        # we will create a new track with only the inlier measurements
+        new_track = gtsam.SfmTrack(triangulated_pt)
+        
+        for (i, uv) in track.measurements:
+            if inlier[i]:
+                new_track.add_measurement(i, uv)
         return new_track
