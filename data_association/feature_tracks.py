@@ -74,27 +74,20 @@ class FeatureTrackGenerator:
         self.filtered_landmark_data = self.delete_tracks(landmark_data)
 
 
-    def delete_tracks(self, landmark_data: List[SfmTrack2d]) -> List[SfmTrack2d]:
+    def delete_tracks(self, tracks_2d: List[SfmTrack2d]) -> List[SfmTrack2d]:
         """
         Delete tracks that have more than one measurement in the same image.
 
         Args:
             landmark_data: List of feature tracks.
+            
         Returns:
             list of filtered feature tracks. 
         """
-        # TODO (Sush): Add inline comments to explain logic
-        filtered_landmark_data = []
-        # track_idx represented as j
-        for j in range(len(landmark_data)):
-            unique_pose_idxs = set()
-            # measurement_idx represented as k
-            for k in range(len(landmark_data[j])):
-                i, _ = landmark_data[j][k]
-                unique_pose_idxs.add(i)
-            if len(unique_pose_idxs) != len(landmark_data[j]):
-                continue
-            else:
-                filtered_landmark_data.append(landmark_data[j])
-        
-        return filtered_landmark_data
+        filtered_tracks_2d = []
+        for sfm_track_2d in landmark_data:
+            track_cam_idxs = [measurement.i for measurement in sfm_track_2d]
+            if len(set(track_cam_idxs)) == len(track_cam_idxs):
+                filtered_landmark_data += [sfm_track_2d]
+            
+        return filtered_tracks_2d
