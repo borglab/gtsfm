@@ -30,8 +30,9 @@ from gtsam import (
 
 import logging
 
-MAX_POSSIBLE_TRACK_REPROJ_ERROR = 1e10
+MAX_POSSIBLE_TRACK_REPROJ_ERROR = np.finfo(np.float32).max
 SVD_DLT_RANK_TOL = 1e-9
+NUM_SAMPLES_PER_RANSAC_HYPOTHESIS = 2
 
 class TriangulationParam(Enum):
     UNIFORM = 1
@@ -166,13 +167,13 @@ class LandmarkInitializer(NamedTuple):
         """
         if self.sampling_method:
             # Generate all possible matches
-            camera_pairs = self.generate_valid_camera_pairs(track)
+            measurement_pairs = self.generate_measurement_pairs(track)
 
             # We limit the number of samples to the number of actual available matches
-            num_hypotheses = min(self.num_hypotheses, len(camera_pairs))
+            num_hypotheses = min(self.num_hypotheses, len(measurement_pairs))
 
             # Sampling
-            samples = self.generate_ransac_hypotheses(track, camera_pairs, num_hypotheses)
+            samples = self.generate_ransac_hypotheses(track, measurement_pairs, num_hypotheses)
 
             # Initialize the best output containers
             best_pt = Point3()
@@ -181,14 +182,14 @@ class LandmarkInitializer(NamedTuple):
             best_inliers = []
 
             for sample_idxs in samples:
-                k1, k2 = matches[sample_idxs]
+                k1, k2 = measurement_pairs[sample_idxs]
 
-                idx1, pt1 = track[k1]
-                idx2, pt2 = track[k2]
+                i1, pt1 = track.measurements[k1]
+                i2, pt2 = track.measurements[k2]
 
                 camera_estimates = CameraSetCal3Bundler()
-                camera_estimates.append(self.track_camera_list.get(idx1))
-                camera_estimates.append(self.track_camera_list.get(idx2))
+                camera_estimates.append(self.track_camera_list.get(i1))
+                camera_estimates.append(self.track_camera_list.get(i2))
 
                 img_measurements = Point2Vector()
                 img_measurements.append(pt1)
@@ -231,25 +232,24 @@ class LandmarkInitializer(NamedTuple):
         # we may want to compare the initialized best_pt with triangulated_pt_track
         return self.inlier_to_track(triangulated_track, best_inliers)
 
-    def generate_valid_camera_pairs(self, track: SfmTrack2d) -> List[Tuple[int, int]]:
+    def generate_measurement_pairs(self, track: SfmTrack2d) -> List[Tuple[int, int]]:
         """
-        Extract all possible measurement pairs (k1, k2) in a track for triangulation.
+        Extract all possible measurement pairs in a track for triangulation.
 
         Args:
             track: feature track from which measurements are to be extracted
 
         Returns:
-            matches: all possible matching camera index pairs in a given track
+            measurement_idxs: all possible matching measurement indices in a given track
         """
-        track_cam_idxs = [measurement.i for measurement in track.measurements]
-        NUM_SAMPLES_PER_HYPOTHESIS = 2
-        cam_pairs = list(itertools.combinations(track_cam_idxs,NUM_SAMPLES_PER_HYPOTHESIS))
-        return cam_pairs
+        num_track_measurements = len(track.measurements)
+        measurement_idxs = list(itertools.combinations(num_track_measurements, NUM_SAMPLES_PER_RANSAC_HYPOTHESIS))
+        return measurement_idxs
 
     def generate_ransac_hypotheses(
         self,
-        track: List,
-        matches: List,
+        track: SfmTrack2d,
+        measurement_pairs: List[Tuple[int,int]],
         num_hypotheses: int,
     ) -> List[int]:
         """Generate via sampling a list of hypotheses (camera pairs) to use during triangulation
@@ -262,20 +262,20 @@ class LandmarkInitializer(NamedTuple):
             indexes of matches: index of selected match
         """
         # Initialize scores as uniform distribution
-        scores = np.ones(len(matches), dtype=float)
+        scores = np.ones(len(measurement_pairs), dtype=float)
 
         if self.sampling_method in [
             TriangulationParam.BASELINE,
             TriangulationParam.MAX_TO_MIN,
         ]:
             for k in range(len(matches)):
-                k1, k2 = matches[k]
+                k1, k2 = measurement_pairs[k]
 
-                idx1, pt1 = track[k1]
-                idx2, pt2 = track[k2]
+                i1, pt1 = track[k1]
+                i2, pt2 = track[k2]
 
-                wTc1 = self.track_camera_list.get(idx1).pose()
-                wTc2 = self.track_camera_list.get(idx2).pose()
+                wTc1 = self.track_camera_list.get(i1).pose()
+                wTc2 = self.track_camera_list.get(i2).pose()
 
                 # rough approximation approximation of baseline between the 2 cameras
                 scores[k] = np.linalg.norm(
