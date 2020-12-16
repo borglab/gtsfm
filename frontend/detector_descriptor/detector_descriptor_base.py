@@ -47,24 +47,17 @@ class DetectorDescriptorBase(metaclass=abc.ABCMeta):
             descriptor.
         """
 
-    def create_computation_graph(self,
-                                 image_graph: List[Delayed]
-                                 ) -> Tuple[List[Delayed], List[Delayed]]:
+    def create_computation_graph(self, image_graph: Delayed) -> Tuple[Delayed, Delayed]:
         """
-        Generates the computation graph for detections and their descriptions.
+        Generates the computation graph for detections and their descriptors.
 
         Args:
-            image_graph: computation graph for images (from a loader).
+            image_graph: computation graph for a single image (from a loader).
 
         Returns:
-            List of delayed tasks for detections.
-            List of delayed task for corr. descriptions.
-
+            Delayed tasks for detections.
+            Delayed task for corr. descriptors
         """
-        joint_graph = [
-            dask.delayed(self.detect_and_describe)(x) for x in image_graph]
-
-        detection_graph = [x[0] for x in joint_graph]
-        description_graph = [x[1] for x in joint_graph]
-
-        return detection_graph, description_graph
+        # get delayed objects
+        detection_graph, descriptor_graph = dask.delayed(self.detect_and_describe)(image_graph)
+        return detection_graph, descriptor_graph
