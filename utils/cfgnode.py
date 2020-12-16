@@ -17,10 +17,12 @@ Our main requirement is that users will not be allowed to modify
 these parameters after they are initialized here, i.e. "frozen".
 """
 
+
 class CfgNode:
     """Class that reads YAML and freezes parameters (no argparse interface)."""
+
     def __init__(self, cfg_init: YACS) -> None:
-        """ Initialize the configuration node  
+        """Initialize the configuration node
         Args:
             cfg_init: default config file
         """
@@ -31,9 +33,9 @@ class CfgNode:
     def print_modules(self) -> None:
         """ Print out the configuration that has already loaded  """
         print(self.param)
-    
-    def load_file(self, file_name:str) -> None:
-        """ 
+
+    def load_file(self, file_name: str) -> None:
+        """
         Load config from .yaml file
         Args:
             file_name: path to yaml file
@@ -47,10 +49,10 @@ class CfgNode:
     def load_list(self, list_param: List[str]) -> None:
         """
         Load from argparser. YACS will infer the appropriate types to convert strings
-        
+
         Args:
             list_param: a parameter list loaded from argparser with format
-                [ module.submodule.hyperparameter1 value 
+                [ module.submodule.hyperparameter1 value
                   module.submodule.hyperparameter2 value
                   ...
                 ]
@@ -59,71 +61,70 @@ class CfgNode:
         self.param.merge_from_list(list_param)
         self.param.freeze()
 
-        
+
 class ArgsCfgNode:
-    """ Class that merges command-line input parameters with pre-defined parameters
+    """Class that merges command-line input parameters with pre-defined parameters
     from a YAML file.
-    
-    1. add arguments to parser for the load of config file and parameter list    
+
+    1. add arguments to parser for the load of config file and parameter list
     2. load arguments into CfgNode for easier initialization
     """
+
     def __init__(self, description: str) -> None:
         """
         Initialization of argsparser and argument to initialize CfgNode
         Args:
             description: a string that provides a helpful description of parser
         """
-        self.parser = argparse.ArgumentParser(
-            description=description
-        )
+        self.parser = argparse.ArgumentParser(description=description)
         self.parser.add_argument(
-            '-cf',
-            '--config-file',
-            nargs='+',
+            "-cf",
+            "--config-file",
+            nargs="+",
             type=str,
             help="Path to config files",
         )
         self.parser.add_argument(
-            '-cp',
-            '--config-param',
-            nargs='+',
+            "-cp",
+            "--config-param",
+            nargs="+",
             type=str,
             help="Config parameter(s): Module1.Submodule1.Param1 Value1 Module2.param2 Value2 ... ",
         )
-    
+
     def init_config(
-            self, 
-            config: CfgNode, 
-            config_fpaths: List[str] = None, 
-            config_param: List[str] = None
-        ) -> CfgNode:
+        self,
+        config: CfgNode,
+        config_fpaths: List[str] = None,
+        config_param: List[str] = None,
+    ) -> CfgNode:
         """
         Initialization CfgNode using loaded arguments
-        
+
         Args:
             config: config without initialization
             config_file: list of file paths to YAML files
             config_param:
-            
+
         Returns:
             config: config after initialization
         """
         # if paths to YAML files are provided, parse them with argparse
         if config_fpaths:
-            cfg_args = ['--config-file']
+            cfg_args = ["--config-file"]
             for fpath in config_fpaths:
                 cfg_args.append(fpath)
             args = self.parser.parse_args(cfg_args)
             print(args)
-        
+
         # if command-line config parameters are specified, parse them with argparse
         if config_param:
-            cfg_args = ['--config-param']
+            cfg_args = ["--config-param"]
             for param in config_param:
-                cfg_args.append(param) 
+                cfg_args.append(param)
             args = self.parser.parse_args(cfg_args)
             print(args)
-        
+
         # if no command-line input, check for other arguments
         if (not config_fpaths) and (not config_param):
             args = self.parser.parse_args()
@@ -132,7 +133,7 @@ class ArgsCfgNode:
         if args.config_file:
             for fpath in args.config_file:
                 config.load_file(fpath)
-        
+
         # parse the command-line config parameters
         if args.config_param:
             config.load_list(args.config_param)
