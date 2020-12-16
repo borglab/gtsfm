@@ -9,7 +9,7 @@ References:
 
 Authors: Sushmita Warrier, Xiaolong Wu
 """
-
+import itertools
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import dask
@@ -231,7 +231,7 @@ class LandmarkInitializer(NamedTuple):
         # we may want to compare the initialized best_pt with triangulated_pt_track
         return self.inlier_to_track(triangulated_track, best_inliers)
 
-    def generate_valid_camera_pairs(self, track: List) -> List[Tuple[int, int]]:
+    def generate_valid_camera_pairs(self, track: SfmTrack2d) -> List[Tuple[int, int]]:
         """
         Extract all possible measurement pairs (k1, k2) in a track for triangulation.
 
@@ -239,15 +239,12 @@ class LandmarkInitializer(NamedTuple):
             track: feature track from which measurements are to be extracted
 
         Returns:
-            matches: all possible matches in a given track
+            matches: all possible matching camera index pairs in a given track
         """
-        match_idxs = []
-
-        for k1 in range(len(track)):
-            for k2 in range(k1 + 1, len(track)):
-                match_idxs.append([k1, k2])
-
-        return match_idxs
+        track_cam_idxs = [measurement.i for measurement in track.measurements]
+        NUM_SAMPLES_PER_HYPOTHESIS = 2
+        cam_pairs = list(itertools.combinations(track_cam_idxs,NUM_SAMPLES_PER_HYPOTHESIS))
+        return cam_pairs
 
     def generate_ransac_hypotheses(
         self,
@@ -341,7 +338,7 @@ class LandmarkInitializer(NamedTuple):
         track_cameras = CameraSetCal3Bundler()
         track_measurements = Point2Vector() # vector of 2d points
 
-        for k in range(len(track)):
+        for k in range(len(track.measurements)):
             if inliers[k]:
                 i, uv = track.measurements[k] # pull out camera index i and uv
                 track_cameras.append(self.track_camera_list.get(i))
