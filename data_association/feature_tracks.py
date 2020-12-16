@@ -11,12 +11,12 @@ import numpy as np
 from common.keypoints import Keypoints
 from typing import Dict, List, NamedTuple, Tuple
 
-LANDMARK_MAP = List[List[Tuple[int,Tuple[float, float]]]]
-
 class SfmMeasurement(NamedTuple):
     i: int # camera index
     uv: np.ndarray # 2d measurement
 
+# equivalent to gtsam.SfmTrack, but without the 3d measurement
+# (as we haven't triangulated it yet from 2d measurements)
 class SfmTrack2d(NamedTuple):
     measurements: List[SfmMeasurement]
 
@@ -27,7 +27,7 @@ class FeatureTrackGenerator:
 
     def __init__(self,
                  matches_dict: Dict[Tuple[int, int], np.ndarray],
-                 feature_list: List[Keypoints]
+                 keypoints_list: List[Keypoints]
                  ) -> None:
         """
         Creates DSF and landmark map from pairwise matches.
@@ -35,10 +35,17 @@ class FeatureTrackGenerator:
         Args:
             matches: Dict of pairwise matches of type:
                     key: pose indices for the matched pair of images
-                    val: feature indices, as array of Nx2 shape; N being nb of features, and each row is (feature_idx1, feature_idx2).
+                    val: feature indices, as array of Nx2 shape; N being nb of features, and each
+                        row is (feature_idx1, feature_idx2).
             num_poses: Number of poses.
-            feature_list: List of keypoints for each image.
+            keypoints_list: List of keypoints for each image.
         """
+        
+        # check to ensure dimensions of coordinates are correct
+        dims_valid = all([kps.coordinates.ndim == 2 for kps in keypoints_list])
+        if not dims_valid:
+            raise Exception("Dimensions for Keypoint coordinates incorrect. Array needs to be 2D")
+        
         # Generate the DSF to form tracks
         dsf = gtsam.DSFMapIndexPair()
         self.filtered_landmark_data = []
@@ -62,16 +69,12 @@ class FeatureTrackGenerator:
                 i = index_pair.i()
                 k = index_pair.j()
                 # add measurement in this track
-                # check to ensure dimensions of coordinates are correct
-                if feature_list[i].coordinates.ndim != 2:
-                    raise Exception("Dimensions for Keypoint coordinates incorrect. \
-                                     Array needs to be 2D")
-                track.append(tuple((i, feature_list[i].coordinates[k])))
-            landmark_data.append(track)          
+                track.append(SfmMeasurement((i, keypoints_list[i].coordinates[k])))
+            landmark_data += [ SfmTrack2d(track) ]
         self.filtered_landmark_data = self.delete_tracks(landmark_data)
 
 
-    def delete_tracks(self, landmark_data: LANDMARK_MAP) -> LANDMARK_MAP:
+    def delete_tracks(self, landmark_data: List[SfmTrack2d]) -> List[SfmTrack2d]:
         """
         Delete tracks that have more than one measurement in the same image.
 
