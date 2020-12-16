@@ -52,16 +52,15 @@ class MatcherBase(metaclass=abc.ABCMeta):
         # TODO(ayush): how to handle deep-matchers which might require the full image as input
 
     def create_computation_graph(self,
-                                 image_pair_indices: List[Tuple[int, int]],
-                                 description_graph: List[Delayed],
-                                 distance_type: MatchingDistanceType =
-                                 MatchingDistanceType.EUCLIDEAN
-                                 ) -> Dict[Tuple[int, int], Delayed]:
+                                 image_pair_indices: Tuple[int, int],
+                                 descriptor_graph: List[Delayed],
+                                 distance_type: MatchingDistanceType = MatchingDistanceType.EUCLIDEAN
+                                 ) -> Delayed:
         """
         Generates computation graph for matched features using the detection and description graph.
 
         Args:
-            image_pair_indices: valid pairs of images which are to be matched.
+            image_pair_indices: valid pair of images which are to be matched.
             description: list of dask tasks for descriptor generation for each image.
             distance_type (optional): the space to compute the distance between
                                       descriptors. Defaults to
@@ -70,14 +69,11 @@ class MatcherBase(metaclass=abc.ABCMeta):
         Returns:
             Delayed dask tasks for matching for input camera pairs.
         """
-
-        graph = dict()
-
-        for i1, i2 in image_pair_indices:
-            graph[(i1, i2)] = dask.delayed(self.match)(
-                description_graph[i1],
-                description_graph[i2],
+        i1, i2 = image_pair_indices
+        delayed_matches_graph = dask.delayed(self.match)(
+                descriptor_graph[i1],
+                descriptor_graph[i2],
                 distance_type
             )
 
-        return graph
+        return delayed_matches_graph
