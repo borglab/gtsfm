@@ -5,13 +5,20 @@ A track is defined as a 2d measurement of a single 3d landmark seen in multiple 
 
 Authors: Ayush Baid, Sushmita Warrier, John Lambert
 """
-import numpy as np
 import gtsam
+import numpy as np
 
 from common.keypoints import Keypoints
-from typing import Dict, List, Tuple
+from typing import Dict, List, NamedTuple, Tuple
 
 LANDMARK_MAP = List[List[Tuple[int,Tuple[float, float]]]]
+
+class SfmMeasurement(NamedTuple):
+    i: int # camera index
+    uv: np.ndarray # 2d measurement
+
+class SfmTrack2d:
+    measurements: List[SfmMeasurement]
 
 class FeatureTrackGenerator:
     """
