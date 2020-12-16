@@ -262,7 +262,7 @@ class LandmarkInitializer(NamedTuple):
 
         Args:
             track: feature track from which measurements are to be extracted
-            matches: all possible matches in a given track
+            measurement_pairs: all possible indices of pairs of measurements in a given track
             num_hypotheses: desired number of samples
         Returns:
             indexes of matches: index of selected match
@@ -274,11 +274,9 @@ class LandmarkInitializer(NamedTuple):
             TriangulationParam.BASELINE,
             TriangulationParam.MAX_TO_MIN,
         ]:
-            for k in range(len(matches)):
-                k1, k2 = measurement_pairs[k]
-
-                i1, pt1 = track[k1]
-                i2, pt2 = track[k2]
+            for (k1,k2) in measurement_pairs:
+                i1, pt1 = track.measurements[k1]
+                i2, pt2 = track.measurements[k2]
 
                 wTc1 = self.track_camera_list.get(i1).pose()
                 wTc2 = self.track_camera_list.get(i2).pose()
