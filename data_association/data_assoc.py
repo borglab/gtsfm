@@ -47,7 +47,7 @@ class DataAssociation:
         reproj_error_thresh: float, 
         min_track_len: int,
         sampling_method: Optional[TriangulationParam] = None,
-        num_samples: Optional[int] = None
+        num_hypotheses: Optional[int] = None
     ) -> None:
         """Initializes the hyperparameters.
 
@@ -59,12 +59,12 @@ class DataAssociation:
                 TriangulationParam.UNIFORM    -> sampling uniformly,
                 TriangulationParam.BASELINE   -> sampling based on estimated baseline,
                 TriangulationParam.MAX_TO_MIN -> sampling from max to min
-            num_samples (optional): number of samples in ransac-based triangulation
+            num_hypotheses (optional): number of samples to draw for RANSAC-based triangulation
         """
         self.reproj_error_thresh = reproj_error_thresh
         self.min_track_len = min_track_len
         self.sampling_method = sampling_method
-        self.num_samples = num_samples
+        self.num_hypotheses = num_hypotheses
 
     def run(
         self,
@@ -90,7 +90,7 @@ class DataAssociation:
         LMI = LandmarkInitializer(
             cameras,
             self.sampling_method,
-            self.num_samples,
+            self.num_hypotheses,
             self.reproj_error_thresh
         )
 
@@ -135,36 +135,28 @@ class DataAssociation:
         )
 
 
-class LandmarkInitializer:
+class LandmarkInitializer(NamedTuple):
     """
-    Class to initialize landmark points via triangulation w or w/o RANSAC inlier/outlier selection
+    Class to initialize landmark points via triangulation w/ or w/o RANSAC inlier/outlier selection.
+    We currently limit the size of each sample to 2 camera views in our RANSAC scheme.
     """
-
-    def __init__(
-        self, 
-        track_cameras: Dict[int, PinholeCameraCal3Bundler],
-        sampling_method: Optional[TriangulationParam] = None,
-        num_samples: Optional[int] = None,
-        reproj_error_thresh: Optional[float] = None
-    ) -> None:
-        """
-        Args:
-            track_cameras: List of cameras
-            sampling_method (optional): 
-                TriangulationParam.UNIFORM    -> sampling uniformly,
-                TriangulationParam.BASELINE   -> sampling based on estimated baseline,
-                TriangulationParam.MAX_TO_MIN -> sampling from max to min
-            num_samples (optional): desired number of samples
-            reproj_error_thresh (optional): threshold for RANSAC inlier filtering
-        """
-        self.track_camera_list = track_cameras
-        self.sampling_method = sampling_method
-        self.num_samples = num_samples
-        self.reproj_error_thresh = reproj_error_thresh
+    Args:
+        track_cameras: List of cameras
+        sampling_method (optional):
+            TriangulationParam.UNIFORM    -> sampling uniformly,
+            TriangulationParam.BASELINE   -> sampling based on estimated baseline,
+            TriangulationParam.MAX_TO_MIN -> sampling from max to min
+        num_hypotheses (optional): desired number of RANSAC hypotheses
+        reproj_error_thresh (optional): threshold for RANSAC inlier filtering
+    """
+    track_camera_list: Dict[int, PinholeCameraCal3Bundler]
+    sampling_method: Optional[TriangulationParam] = None
+    num_hypotheses: Optional[int] = None
+    reproj_error_thresh: Optional[float] = None
 
     def triangulate(self, track: List) -> gtsam.SfmTrack:
         """
-        Triangulation in RANSAC loop
+        Triangulation in a RANSAC loop.
 
         Args:
             track: feature track from which measurements are to be extracted            
@@ -174,13 +166,13 @@ class LandmarkInitializer:
         """
         if self.sampling_method:
             # Generate all possible matches
-            matches = self.generate_track_pairs(track)
+            camera_pairs = self.generate_valid_camera_pairs(track)
 
             # We limit the number of samples to the number of actual available matches
-            num_samples = min(self.num_samples, len(matches))
+            num_hypotheses = min(self.num_hypotheses, len(camera_pairs))
 
             # Sampling
-            samples = self.generate_ransac_samples(track, matches, num_samples)
+            samples = self.generate_ransac_hypotheses(track, camera_pairs, num_hypotheses)
 
             # Initialize the best output containers
             best_pt = Point3()
@@ -188,8 +180,8 @@ class LandmarkInitializer:
             best_error = MAX_POSSIBLE_TRACK_REPROJ_ERROR
             best_inliers = []
 
-            for s in range(num_samples):
-                k1, k2 = matches[samples[s]]
+            for sample_idxs in samples:
+                k1, k2 = matches[sample_idxs]
 
                 idx1, pt1 = track[k1]
                 idx2, pt2 = track[k2]
@@ -239,7 +231,7 @@ class LandmarkInitializer:
         # we may want to compare the initialized best_pt with triangulated_pt_track
         return self.inlier_to_track(triangulated_track, best_inliers)
 
-    def generate_track_pairs(self, track: List) -> List[Tuple[int, int]]:
+    def generate_valid_camera_pairs(self, track: List) -> List[Tuple[int, int]]:
         """
         Extract all possible measurement pairs (k1, k2) in a track for triangulation.
 
@@ -257,18 +249,18 @@ class LandmarkInitializer:
 
         return match_idxs
 
-    def generate_ransac_samples(
+    def generate_ransac_hypotheses(
         self,
         track: List,
         matches: List,
-        num_samples: int,
+        num_hypotheses: int,
     ) -> List[int]:
-        """Generate a list of matches for triangulation
+        """Generate via sampling a list of hypotheses (camera pairs) to use during triangulation
 
         Args:
             track: feature track from which measurements are to be extracted
             matches: all possible matches in a given track
-            num_samples: desired number of samples
+            num_hypotheses: desired number of samples
         Returns:
             indexes of matches: index of selected match
         """
@@ -288,7 +280,7 @@ class LandmarkInitializer:
                 wTc1 = self.track_camera_list.get(idx1).pose()
                 wTc2 = self.track_camera_list.get(idx2).pose()
 
-                # it is not a very correct approximation of depth, will do it better later
+                # rough approximation approximation of baseline between the 2 cameras
                 scores[k] = np.linalg.norm(
                     wTc1.inverse().compose(wTc2).translation()
                 )
@@ -301,17 +293,17 @@ class LandmarkInitializer:
 
         if self.sampling_method in [TriangulationParam.UNIFORM, TriangulationParam.BASELINE]:
             sample_index = np.random.choice(
-                len(scores), num_samples, replace=False, p=scores / scores.sum()
+                len(scores), size=num_hypotheses, replace=False, p=scores / scores.sum()
             )
 
         if self.sampling_method == TriangulationParam.MAX_TO_MIN:
-            sample_index = np.argsort(scores)[-num_samples:]
+            sample_index = np.argsort(scores)[-num_hypotheses:]
 
         return sample_index.tolist()
 
     def compute_reprojection_error(self, triangulated_pt: Point3, track: List) -> List[float]:
         """
-        Calculate individual reprojection error in a given track
+        Calculate all individual reprojection errors in a given track
 
         Args:
             triangulated point: triangulated 3D point
