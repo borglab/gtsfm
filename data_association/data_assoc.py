@@ -36,7 +36,7 @@ class TriangulationParam(Enum):
 
 
 class DataAssociation:
-    """Class to form feature tracks; for each track, call LandmarkInitialization."""
+    """Class to form feature tracks; for each track, call LandmarkInitializer."""
 
     def __init__(self, reproj_error_thresh: float, min_track_len: int) -> None:
         """Initializes the hyperparameters.
@@ -76,7 +76,7 @@ class DataAssociation:
 
         # point indices are represented as j
         # nb of 3D points = nb of tracks, hence track_idx represented as j
-        LMI = LandmarkInitialization(cameras)
+        LMI = LandmarkInitializer(cameras)
 
         for j in range(len(sfmdata_landmark_map)):
             filtered_track = LMI.triangulate(
@@ -134,7 +134,7 @@ class DataAssociation:
         )
 
 
-class LandmarkInitialization:
+class LandmarkInitializer:
     """
     Class to initialize landmark points via triangulation w or w/o RANSAC inlier/outlier selection
     """
