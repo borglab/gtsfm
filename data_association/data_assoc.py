@@ -314,12 +314,12 @@ class LandmarkInitializer(NamedTuple):
             reprojection errors
         """
         errors = []
-        for (i, measurement) in track:
+        for (i, uv) in track.measurements:
             camera = self.track_camera_list.get(i)
             # Project to camera
-            uv = camera.project(triangulated_pt)
+            uv_hat = camera.project(triangulated_pt)
             # Projection error in camera
-            errors.append(np.linalg.norm(measurement - uv))
+            errors.append(np.linalg.norm(uv - uv_hat))
         return errors
 
     def extract_measurements(
