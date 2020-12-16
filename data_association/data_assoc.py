@@ -182,7 +182,7 @@ class LandmarkInitializer:
             num_samples = min(self.num_samples, len(matches))
 
             # Sampling
-            samples = self.generate_ransac_samples(track, matches, self.sampling_method, num_samples)
+            samples = self.generate_ransac_samples(track, matches, num_samples)
 
             # Initialize the best output containers
             best_pt = Point3()
