@@ -17,7 +17,7 @@ class SfmMeasurement(NamedTuple):
     i: int # camera index
     uv: np.ndarray # 2d measurement
 
-class SfmTrack2d:
+class SfmTrack2d(NamedTuple):
     measurements: List[SfmMeasurement]
 
 class FeatureTrackGenerator:
