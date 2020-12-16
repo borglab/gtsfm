@@ -18,7 +18,7 @@ import gtsam
 import numpy as np
 
 from common.keypoints import Keypoints
-from data_association.feature_tracks import FeatureTrackGenerator
+from data_association.feature_tracks import FeatureTrackGenerator, SfmTrack2d
 from enum import Enum
 from gtsam import (
     CameraSetCal3Bundler,
@@ -322,7 +322,7 @@ class LandmarkInitializer(NamedTuple):
         return errors
 
     def extract_measurements(
-        self, track: List, inliers: List
+        self, track: SfmTrack2d, inliers: List[bool]
     ) -> Tuple[List, Point2Vector]:
         """
         Extract measurements in a track for triangulation.
@@ -332,30 +332,31 @@ class LandmarkInitializer(NamedTuple):
             inliers: a boolean list that indicates the validity of each measurements
 
         Returns:
-            pose_track: Poses of first and last measurements in track
-            camera_track: Individual camera calibrations for first and last measurement
-            measurement_track: Observations corresponding to first and last measurements
+            camera_track: Vector of individual camera calibrations
+                  TODO: is it really this? for first and last measurement
+            measurement_track: Vector of 2d points 
+                  TODO: is it really this? Observations corresponding to first and last measurements
         """
 
-        camera_track = CameraSetCal3Bundler()
-        measurement_track = Point2Vector()
+        track_cameras = CameraSetCal3Bundler()
+        track_measurements = Point2Vector() # vector of 2d points
 
         for k in range(len(track)):
             if inliers[k]:
-                img_idx, img_Pt = track[k]
-                camera_track.append(self.track_camera_list.get(img_idx))
-                measurement_track.append(img_Pt)
+                i, uv = track.measurements[k] # pull out camera index i and uv
+                track_cameras.append(self.track_camera_list.get(i))
+                track_measurements.append(uv)
 
-        if len(camera_track) < 2 or len(measurement_track) < 2:
+        if len(track_cameras) < 2 or len(track_measurements) < 2:
             raise Exception(
                 "Nb of measurements should not be <= 2. \
                     number of cameras is: {} \
                     and number of observations is {}".format(
-                    len(camera_track), len(measurement_track)
+                    len(track_cameras), len(track_measurements)
                 )
             )
 
-        return camera_track, measurement_track
+        return track_cameras, track_measurements
 
     def inlier_to_track(self, triangulated_track: Dict, inlier: List) -> gtsam.SfmTrack:
         """
