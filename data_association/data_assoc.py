@@ -43,7 +43,8 @@ class DataAssociation:
 
         Args:
             reproj_error_thresh: the maximum reprojection error allowed.
-            min_track_len: min length required for valid feature track / min nb of supporting views required for a landmark to be valid
+            min_track_len: min length required for valid feature track / min nb of
+                supporting views required for a landmark to be valid
         """
         self.reproj_error_thresh = reproj_error_thresh
         self.min_track_len = min_track_len
