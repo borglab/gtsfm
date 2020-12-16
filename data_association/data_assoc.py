@@ -28,6 +28,7 @@ from gtsam import (
     triangulatePoint3,
 )
 
+MAX_POSSIBLE_TRACK_REPROJ_ERROR = 1e10
 
 class TriangulationParam(Enum):
     UNIFORM = 1
@@ -123,7 +124,6 @@ class DataAssociation:
         Returns:
             SfmData
         """
-
         return dask.delayed(self.run)(
             corr_idxs_dict,
             keypoints_list,
@@ -182,7 +182,7 @@ class LandmarkInitializer:
             # Initialize the best output containers
             best_pt = Point3()
             best_votes = 0
-            best_error = 1e10
+            best_error = MAX_POSSIBLE_TRACK_REPROJ_ERROR
             best_inliers = []
 
             for s in range(num_samples):
