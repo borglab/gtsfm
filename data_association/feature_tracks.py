@@ -88,6 +88,6 @@ class FeatureTrackGenerator:
         for sfm_track_2d in sfm_tracks_2d:
             track_cam_idxs = [measurement.i for measurement in sfm_track_2d.measurements]
             if len(set(track_cam_idxs)) == len(track_cam_idxs):
-                filtered_landmark_data += [sfm_track_2d]
+                filtered_tracks_2d += [sfm_track_2d]
             
         return filtered_tracks_2d
