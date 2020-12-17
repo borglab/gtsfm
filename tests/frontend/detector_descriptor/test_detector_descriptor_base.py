@@ -62,7 +62,7 @@ class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
         image_graph = self.loader.create_computation_graph_for_images()
         for i, delayed_image in enumerate(image_graph):
             det_graph, desc_graph = self.detector_descriptor.create_computation_graph(
-                image_graph
+                delayed_image
             )
             with dask.config.set(scheduler='single-threaded'):
                 # TODO(ayush): check how many times detection is performed
@@ -75,7 +75,7 @@ class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
                     "Dask workflow does not return the same number of results"
                 )
                 self.assertEqual(
-                    len(descriptor_results), len(self.loader),
+                    len(descriptor_results), 1,
                     "Dask workflow does not return the same number of results"
                 )
                 self.assertTrue(isinstance(detection_results, Keypoints))
