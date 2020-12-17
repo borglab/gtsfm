@@ -97,6 +97,10 @@ class TestDataAssociation(GtsamTestCase):
         # landmark ~5 meters infront of camera
         self.expected_landmark = Point3(5, 0.5, 1.2)
 
+        # shared calibration
+        f, k1, k2, u0, v0 = 1500, 0, 0, 640, 480
+        self.sharedCal = Cal3Bundler(f, k1, k2, u0, v0)
+
     def test_track(self) -> None:
         """
         Tests that the tracks are being merged and mapped correctly from the dummy matches.
@@ -127,9 +131,10 @@ class TestDataAssociation(GtsamTestCase):
         2. Checks whether the triangulated landmark map formed from 3 measurements is valid.
             Also checks if the triangulated point is as expected.
         """
-        sharedCal = Cal3Bundler(1500, 0, 0, 640, 480)
 
-        matches_1, feature_list, poses, _, cameras = self.__generate_2_poses(sharedCal)
+        matches_1, feature_list, poses, _, cameras = self.__generate_2_poses(
+            self.sharedCal
+        )
 
         # hyperparameters for unit test
         reproj_error_thresh = 5  # pixels
@@ -143,7 +148,7 @@ class TestDataAssociation(GtsamTestCase):
         ), "tracks exceeding expected track length"
 
         # compute triangulated map for 3 measurements
-        matches_2, feature_list, cameras = self.__generate_3_poses(sharedCal)
+        matches_2, feature_list, cameras = self.__generate_3_poses(self.sharedCal)
         da = DataAssociation(reproj_error_thresh, min_track_len)
         triangulated_landmark_map = da.run(matches_2, feature_list, cameras)
         computed_landmark = triangulated_landmark_map.track(0).point3()
@@ -166,9 +171,10 @@ class TestDataAssociation(GtsamTestCase):
         Example from borglab/gtsam/python/gtsam/tests/test_Triangulation.py
         and gtsam/geometry/tests/testTriangulation.cpp
         """
-        sharedCal = Cal3Bundler(1500, 0, 0, 640, 480)
 
-        matches_1, feature_list, poses, _, cameras = self.__generate_2_poses(sharedCal)
+        matches_1, feature_list, poses, _, cameras = self.__generate_2_poses(
+            self.sharedCal
+        )
 
         da = DataAssociation(
             reproj_error_thresh=5,  # 5 px
@@ -182,7 +188,7 @@ class TestDataAssociation(GtsamTestCase):
             triangulated_landmark_map.number_tracks() == 0
         ), "tracks exceeding expected track length"
 
-        matches_2, feature_list, cameras = self.__generate_3_poses(sharedCal)
+        matches_2, feature_list, cameras = self.__generate_3_poses(self.sharedCal)
         da = DataAssociation(
             reproj_error_thresh=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
@@ -206,9 +212,7 @@ class TestDataAssociation(GtsamTestCase):
         Example from borglab/gtsam/python/gtsam/tests/test_Triangulation.py
         and gtsam/geometry/tests/testTriangulation.cpp
         """
-        sharedCal = Cal3Bundler(1500, 0, 0, 640, 480)
-
-        matches_1, feature_list, _, _, cameras = self.__generate_2_poses(sharedCal)
+        matches_1, feature_list, _, _, cameras = self.__generate_2_poses(self.sharedCal)
         da = DataAssociation(
             reproj_error_thresh=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
@@ -221,7 +225,7 @@ class TestDataAssociation(GtsamTestCase):
             triangulated_landmark_map.number_tracks() == 0
         ), "tracks exceeding expected track length"
 
-        matches_2, feature_list, cameras = self.__generate_3_poses(sharedCal)
+        matches_2, feature_list, cameras = self.__generate_3_poses(self.sharedCal)
         da = DataAssociation(
             reproj_error_thresh=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
@@ -247,9 +251,9 @@ class TestDataAssociation(GtsamTestCase):
         Example from borglab/gtsam/python/gtsam/tests/test_Triangulation.py
         and gtsam/geometry/tests/testTriangulation.cpp
         """
-        sharedCal = Cal3Bundler(1500, 0, 0, 640, 480)
-
-        matches_1, feature_list, poses, _, cameras = self.__generate_2_poses(sharedCal)
+        matches_1, feature_list, poses, _, cameras = self.__generate_2_poses(
+            self.sharedCal
+        )
         da = DataAssociation(
             reproj_error_thresh=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
@@ -262,7 +266,7 @@ class TestDataAssociation(GtsamTestCase):
             triangulated_landmark_map.number_tracks() == 0
         ), "tracks exceeding expected track length"
 
-        matches_2, feature_list, cameras = self.__generate_3_poses(sharedCal)
+        matches_2, feature_list, cameras = self.__generate_3_poses(self.sharedCal)
         da = DataAssociation(
             reproj_error_thresh=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
@@ -286,8 +290,10 @@ class TestDataAssociation(GtsamTestCase):
         Tests that the triangulation is accurate for individual camera calibration, without RANSAC-based triangulation.
         Checks if cameras and triangulated 3D point saved to result are as expected.
         """
-        K1 = Cal3Bundler(1500, 0, 0, 640, 480)
-        K2 = Cal3Bundler(1600, 0, 0, 650, 440)
+        f, k1, k2, u0, v0 = 1500, 0, 0, 640, 480
+        f_2, k1_2, k2_2, u0_2, v0_2 = 1600, 0, 0, 650, 440
+        K1 = Cal3Bundler(f, k1, k2, u0, v0)
+        K2 = Cal3Bundler(f_2, k1_2, k2_2, u0_2, v0_2)
 
         measurements, feature_list, img_idxs, cameras = self.__generate_measurements(
             (K1, K2), (0.0, 0.0), self.poses
@@ -313,8 +319,7 @@ class TestDataAssociation(GtsamTestCase):
         Tests the graph to create data association for 3 images.
         Checks if result from dask computation graph is the same as result without dask.
         """
-        sharedCal = Cal3Bundler(1500, 0, 0, 640, 480)
-        matches, features, cameras = self.__generate_3_poses(sharedCal)
+        matches, features, cameras = self.__generate_3_poses(self.sharedCal)
 
         # Run without computation graph
         da = DataAssociation(
@@ -389,7 +394,9 @@ class TestDataAssociation(GtsamTestCase):
 
     def __generate_3_poses(
         self, sharedCal: Cal3Bundler
-    ) -> Tuple[Dict[Tuple[int], np.array], List[Keypoints], Dict[int, PinholeCameraCal3Bundler]]:
+    ) -> Tuple[
+        Dict[Tuple[int], np.array], List[Keypoints], Dict[int, PinholeCameraCal3Bundler]
+    ]:
         """
         Generate 3 matches and corresponding poses with shared calibration.
 
@@ -430,7 +437,9 @@ class TestDataAssociation(GtsamTestCase):
         calibration: Tuple[Cal3Bundler, Cal3Bundler],
         noise_params: Tuple[np.ndarray, np.ndarray],
         poses: Pose3Vector,
-    ) -> Tuple[Point2Vector, List[Keypoints], Tuple[int], Dict[int, PinholeCameraCal3Bundler]]:
+    ) -> Tuple[
+        Point2Vector, List[Keypoints], Tuple[int], Dict[int, PinholeCameraCal3Bundler]
+    ]:
         """
         Generate measurements, features, img indices and cameras for given calibration and poses
 
