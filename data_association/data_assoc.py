@@ -84,7 +84,7 @@ class DataAssociation:
         """
         triangulated_landmark_map = gtsam.SfmData()
         tracks = FeatureTrackGenerator(corr_idxs_dict, keypoints_list)
-        sfmdata_landmark_map = tracks.filtered_landmark_data
+        sfm_tracks_2d = tracks.filtered_landmark_data
 
         # point indices are represented as j
         # nb of 3D points = nb of tracks, hence track_idx represented as j
@@ -95,8 +95,8 @@ class DataAssociation:
             self.reproj_error_thresh
         )
 
-        for j in range(len(sfmdata_landmark_map)):
-            filtered_track = LMI.triangulate(sfmdata_landmark_map[j])
+        for track_2d in sfm_tracks_2d:
+            filtered_track = LMI.triangulate(track_2d)
 
             if filtered_track.number_measurements() >= self.min_track_len:
                 triangulated_landmark_map.add_track(filtered_track)
@@ -155,7 +155,7 @@ class LandmarkInitializer(NamedTuple):
     num_hypotheses: Optional[int] = None
     reproj_error_thresh: Optional[float] = None
 
-    def triangulate(self, track: List) -> gtsam.SfmTrack:
+    def triangulate(self, track: SfmTrack2d) -> gtsam.SfmTrack:
         """
         Triangulation in a RANSAC loop.
 
