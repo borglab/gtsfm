@@ -213,9 +213,9 @@ class SceneOptimizer:
             descriptor_graph += [delayed_descs]
 
         # estimate two-view geometry and get indices of verified correspondences.
-        i2Ri1_graph = []
-        i2Ui1_graph = []
-        v_corr_idxs_graph = []
+        i2Ri1_graph = {}
+        i2Ui1_graph = {}
+        v_corr_idxs_graph = {}
         for (i1, i2) in image_pair_indices:
             (
                 i2Ri1,
