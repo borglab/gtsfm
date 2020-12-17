@@ -37,11 +37,10 @@ class FeatureTrackGenerator:
         Creates DSF and landmark map from pairwise matches.
 
         Args:
-            matches: Dict of pairwise matches of type:
+            matches_dict: Dict of pairwise matches of type:
                     key: pose indices for the matched pair of images
                     val: feature indices, as array of Nx2 shape; N being nb of features, and each
                         row is (feature_idx1, feature_idx2).
-            num_poses: Number of poses.
             keypoints_list: List of keypoints for each image.
         """
 
