@@ -112,7 +112,7 @@ class VerifierBase(metaclass=abc.ABCMeta):
             else self.verify_with_approximate_intrinsics
 
         i1, i2 = image_pair_indices
-        i2Ri1, i2Ui1, v_corr_idxs =  = dask.delayed(fn_to_use)(
+        i2Ri1, i2Ui1, v_corr_idxs = dask.delayed(fn_to_use)(
             detection_graph[i1],
             detection_graph[i2],
             delayed_matcher,
