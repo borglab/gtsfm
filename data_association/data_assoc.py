@@ -34,6 +34,7 @@ MAX_POSSIBLE_TRACK_REPROJ_ERROR = np.finfo(np.float32).max
 SVD_DLT_RANK_TOL = 1e-9
 NUM_SAMPLES_PER_RANSAC_HYPOTHESIS = 2
 
+
 class TriangulationParam(Enum):
     UNIFORM = 1
     BASELINE = 2
@@ -44,11 +45,11 @@ class DataAssociation:
     """Class to form feature tracks; for each track, call LandmarkInitializer."""
 
     def __init__(
-        self, 
-        reproj_error_thresh: float, 
+        self,
+        reproj_error_thresh: float,
         min_track_len: int,
         sampling_method: Optional[TriangulationParam] = None,
-        num_hypotheses: Optional[int] = None
+        num_hypotheses: Optional[int] = None,
     ) -> None:
         """Initializes the hyperparameters.
 
@@ -56,7 +57,7 @@ class DataAssociation:
             reproj_error_thresh: the maximum reprojection error allowed.
             min_track_len: min length required for valid feature track / min nb of
                 supporting views required for a landmark to be valid
-            sampling_method (optional): 
+            sampling_method (optional):
                 TriangulationParam.UNIFORM    -> sampling uniformly,
                 TriangulationParam.BASELINE   -> sampling based on estimated baseline,
                 TriangulationParam.MAX_TO_MIN -> sampling from max to min
@@ -71,7 +72,7 @@ class DataAssociation:
         self,
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
-        cameras: Dict[int, PinholeCameraCal3Bundler]
+        cameras: Dict[int, PinholeCameraCal3Bundler],
     ) -> gtsam.SfmData:
         """Perform data association
 
@@ -89,10 +90,7 @@ class DataAssociation:
         # point indices are represented as j
         # nb of 3D points = nb of tracks, hence track_idx represented as j
         LMI = LandmarkInitializer(
-            cameras,
-            self.sampling_method,
-            self.num_hypotheses,
-            self.reproj_error_thresh
+            cameras, self.sampling_method, self.num_hypotheses, self.reproj_error_thresh
         )
 
         for track_2d in sfm_tracks_2d:
@@ -116,7 +114,7 @@ class DataAssociation:
         self,
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
-        cameras: Dict[int, PinholeCameraCal3Bundler]
+        cameras: Dict[int, PinholeCameraCal3Bundler],
     ) -> Delayed:
         """Creates a computation graph for performing data association.
 
@@ -125,15 +123,11 @@ class DataAssociation:
                              wrapped up as Delayed.
             keypoints_list: list of wrapped up keypoints for each image
             cameras: list of cameras wrapped up as Delayed.
-            
+
         Returns:
             SfmData
         """
-        return dask.delayed(self.run)(
-            corr_idxs_dict,
-            keypoints_list,
-            cameras
-        )
+        return dask.delayed(self.run)(corr_idxs_dict, keypoints_list, cameras)
 
 
 class LandmarkInitializer(NamedTuple):
@@ -150,6 +144,7 @@ class LandmarkInitializer(NamedTuple):
         num_hypotheses (optional): desired number of RANSAC hypotheses
         reproj_error_thresh (optional): threshold for RANSAC inlier filtering
     """
+
     track_camera_list: Dict[int, PinholeCameraCal3Bundler]
     sampling_method: Optional[TriangulationParam] = None
     num_hypotheses: Optional[int] = None
@@ -160,10 +155,10 @@ class LandmarkInitializer(NamedTuple):
         Triangulation in a RANSAC loop.
 
         Args:
-            track: feature track from which measurements are to be extracted            
+            track: feature track from which measurements are to be extracted
 
         Returns:
-            triangulated_track: triangulated track after triangulation with measurements
+            SfmTrack with 3d point j and 2d measurements in multiple cameras i
         """
         if self.sampling_method:
             # Generate all possible matches
@@ -173,7 +168,9 @@ class LandmarkInitializer(NamedTuple):
             num_hypotheses = min(self.num_hypotheses, len(measurement_pairs))
 
             # Sampling
-            samples = self.generate_ransac_hypotheses(track, measurement_pairs, num_hypotheses)
+            samples = self.generate_ransac_hypotheses(
+                track, measurement_pairs, num_hypotheses
+            )
 
             # Initialize the best output containers
             best_pt = Point3()
@@ -197,7 +194,10 @@ class LandmarkInitializer(NamedTuple):
 
                 # triangulate point for track
                 triangulated_pt = triangulatePoint3(
-                    camera_estimates, img_measurements, rank_tol=SVD_DLT_RANK_TOL, optimize=True
+                    camera_estimates,
+                    img_measurements,
+                    rank_tol=SVD_DLT_RANK_TOL,
+                    optimize=True,
                 )
 
                 errors = self.compute_reprojection_error(triangulated_pt, track)
@@ -208,22 +208,21 @@ class LandmarkInitializer(NamedTuple):
                 avg_error = (
                     np.array(errors) * np.array(votes).astype(float)
                 ).sum() / np.array(votes).astype(float).sum()
-                
+
                 sum_votes = np.array(votes).astype(int).sum()
 
                 if (sum_votes > best_votes) or (
-                    sum_votes == best_votes and  avg_error < best_error
+                    sum_votes == best_votes and avg_error < best_error
                 ):
                     best_votes = sum_votes
                     best_error = avg_error
                     best_pt = triangulated_pt
                     best_inliers = votes
         else:
-            best_inliers = [True for k in range(len(track))]
+            best_inliers = [True for _ in range(len(track.measurements))]
 
         camera_track, measurement_track = self.extract_measurements(track, best_inliers)
 
-        triangulated_track = dict()
         triangulated_pt = triangulatePoint3(
             camera_track, measurement_track, rank_tol=SVD_DLT_RANK_TOL, optimize=True
         )
@@ -245,8 +244,7 @@ class LandmarkInitializer(NamedTuple):
         all_measurement_idxs = range(num_track_measurements)
         measurement_pair_idxs = list(
             itertools.combinations(
-                all_measurement_idxs,
-                NUM_SAMPLES_PER_RANSAC_HYPOTHESIS
+                all_measurement_idxs, NUM_SAMPLES_PER_RANSAC_HYPOTHESIS
             )
         )
         return measurement_pair_idxs
@@ -254,7 +252,7 @@ class LandmarkInitializer(NamedTuple):
     def generate_ransac_hypotheses(
         self,
         track: SfmTrack2d,
-        measurement_pairs: List[Tuple[int,int]],
+        measurement_pairs: List[Tuple[int, int]],
         num_hypotheses: int,
     ) -> List[int]:
         """Generate via sampling a list of hypotheses (camera pairs) to use during triangulation
@@ -273,7 +271,7 @@ class LandmarkInitializer(NamedTuple):
             TriangulationParam.BASELINE,
             TriangulationParam.MAX_TO_MIN,
         ]:
-            for k, (k1,k2) in enumerate(measurement_pairs):
+            for k, (k1, k2) in enumerate(measurement_pairs):
                 i1, pt1 = track.measurements[k1]
                 i2, pt2 = track.measurements[k2]
 
@@ -281,9 +279,7 @@ class LandmarkInitializer(NamedTuple):
                 wTc2 = self.track_camera_list.get(i2).pose()
 
                 # rough approximation approximation of baseline between the 2 cameras
-                scores[k] = np.linalg.norm(
-                    wTc1.inverse().compose(wTc2).translation()
-                )
+                scores[k] = np.linalg.norm(wTc1.inverse().compose(wTc2).translation())
 
         # Check the validity of scores
         if sum(scores) <= 0.0:
@@ -291,7 +287,10 @@ class LandmarkInitializer(NamedTuple):
                 "Sum of scores cannot be zero (or smaller than zero)! It must a bug somewhere"
             )
 
-        if self.sampling_method in [TriangulationParam.UNIFORM, TriangulationParam.BASELINE]:
+        if self.sampling_method in [
+            TriangulationParam.UNIFORM,
+            TriangulationParam.BASELINE,
+        ]:
             sample_indices = np.random.choice(
                 len(scores), size=num_hypotheses, replace=False, p=scores / scores.sum()
             )
@@ -301,7 +300,9 @@ class LandmarkInitializer(NamedTuple):
 
         return sample_indices.tolist()
 
-    def compute_reprojection_error(self, triangulated_pt: Point3, track: List) -> List[float]:
+    def compute_reprojection_error(
+        self, triangulated_pt: Point3, track: List
+    ) -> List[float]:
         """
         Calculate all individual reprojection errors in a given track
 
@@ -334,16 +335,16 @@ class LandmarkInitializer(NamedTuple):
         Returns:
             camera_track: Vector of individual camera calibrations
                   TODO: is it really this? for first and last measurement
-            measurement_track: Vector of 2d points 
+            measurement_track: Vector of 2d points
                   TODO: is it really this? Observations corresponding to first and last measurements
         """
 
         track_cameras = CameraSetCal3Bundler()
-        track_measurements = Point2Vector() # vector of 2d points
+        track_measurements = Point2Vector()  # vector of 2d points
 
         for k in range(len(track.measurements)):
             if inliers[k]:
-                i, uv = track.measurements[k] # pull out camera index i and uv
+                i, uv = track.measurements[k]  # pull out camera index i and uv
                 track_cameras.append(self.track_camera_list.get(i))
                 track_measurements.append(uv)
 
@@ -358,7 +359,9 @@ class LandmarkInitializer(NamedTuple):
 
         return track_cameras, track_measurements
 
-    def create_track_from_inliers(self, triangulated_pt: Point3, track: SfmTrack2d, inlier: List[bool]) -> gtsam.SfmTrack:
+    def create_track_from_inliers(
+        self, triangulated_pt: Point3, track: SfmTrack2d, inlier: List[bool]
+    ) -> gtsam.SfmTrack:
         """
         Generate track based on inliers
 
@@ -372,7 +375,7 @@ class LandmarkInitializer(NamedTuple):
         """
         # we will create a new track with only the inlier measurements
         new_track = gtsam.SfmTrack(triangulated_pt)
-        
+
         for (i, uv) in track.measurements:
             if inlier[i]:
                 new_track.add_measurement(i, uv)
