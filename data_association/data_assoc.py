@@ -82,12 +82,12 @@ class DataAssociation(NamedTuple):
 
         # point indices are represented as j
         # nb of 3D points = nb of tracks, hence track_idx represented as j
-        LMI = LandmarkInitializer(
+        p3di = Point3dInitializer(
             cameras, self.sampling_method, self.num_hypotheses, self.reproj_error_thresh
         )
 
         for track_2d in sfm_tracks_2d:
-            filtered_track = LMI.triangulate(track_2d)
+            filtered_track = p3di.triangulate(track_2d)
 
             if filtered_track.number_measurements() >= self.min_track_len:
                 triangulated_landmark_map.add_track(filtered_track)
@@ -123,7 +123,7 @@ class DataAssociation(NamedTuple):
         return dask.delayed(self.run)(corr_idxs_dict, keypoints_list, cameras)
 
 
-class LandmarkInitializer(NamedTuple):
+class Point3dInitializer(NamedTuple):
     """
     Class to initialize landmark points via triangulation w/ or w/o RANSAC inlier/outlier selection.
     We currently limit the size of each sample to 2 camera views in our RANSAC scheme.
