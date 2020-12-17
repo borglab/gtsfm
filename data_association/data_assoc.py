@@ -323,7 +323,7 @@ class LandmarkInitializer(NamedTuple):
 
     def extract_measurements(
         self, track: SfmTrack2d, inliers: List[bool]
-    ) -> Tuple[List, Point2Vector]:
+    ) -> Tuple[CameraSetCal3Bundler, Point2Vector]:
         """
         Extract measurements in a track for triangulation.
 
