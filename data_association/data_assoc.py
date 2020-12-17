@@ -34,32 +34,33 @@ MAX_POSSIBLE_TRACK_REPROJ_ERROR = np.finfo(np.float32).max
 SVD_DLT_RANK_TOL = 1e-9
 NUM_SAMPLES_PER_RANSAC_HYPOTHESIS = 2
 
+""" We specify 3 different sampling modes for robust estimation during triangulation
+The fourth mode is "None", wherein all measurements are used and we assume there
+are no noisy measurements. If robust estimation is requested, a pair of cameras
+will be sampled """
 
-# We specify 3 different sampling modes for robust estimation during triangulation
-# The fourth mode is "None", wherein all measurements are used and we assume there
-# are no noisy measurements. If robust estimation is requested, a pair of cameras
-# will be sampled
+
 class TriangulationParam(Enum):
-    UNIFORM = 1 # sample a pair of cameras uniformly at random
-    BASELINE = 2 # sample pair of cameras based on largest estimated baseline
-    MAX_TO_MIN = 3 # deterministically choose hypotheses with largest estimate baseline
+    UNIFORM = 1  # sample a pair of cameras uniformly at random
+    BASELINE = 2  # sample pair of cameras based on largest estimated baseline
+    MAX_TO_MIN = 3  # deterministically choose hypotheses with largest estimate baseline
 
 
 class DataAssociation(NamedTuple):
     """Class to form feature tracks; for each track, call LandmarkInitializer.
 
-        Args:
-            reproj_error_thresh: the maximum reprojection error allowed.
-            min_track_len: min length required for valid feature track / min nb of
-                supporting views required for a landmark to be valid
-            sampling_method (optional): robust estimation method, specify "None" to not use RANSAC
-            num_hypotheses (optional): number of samples to draw for RANSAC-based triangulation
+    Args:
+        reproj_error_thresh: the maximum reprojection error allowed.
+        min_track_len: min length required for valid feature track / min nb of
+            supporting views required for a landmark to be valid
+        sampling_method (optional): robust estimation method, specify "None" to not use RANSAC
+        num_hypotheses (optional): number of samples to draw for RANSAC-based triangulation
     """
+
     reproj_error_thresh: float
     min_track_len: int
     sampling_method: Optional[TriangulationParam] = None
     num_hypotheses: Optional[int] = None
-
 
     def run(
         self,
@@ -75,6 +76,9 @@ class DataAssociation(NamedTuple):
             keypoints_list: keypoints for each image.
             cameras: dictionary with image index as key, and camera object w/
                      intrinsics + extrinsics as value.
+
+        Returns:
+            SfmData
         """
         triangulated_landmark_map = gtsam.SfmData()
         tracks = FeatureTrackGenerator(corr_idxs_dict, keypoints_list)
@@ -134,6 +138,7 @@ class Point3dInitializer(NamedTuple):
         num_hypotheses (optional): desired number of RANSAC hypotheses
         reproj_error_thresh (optional): threshold for RANSAC inlier filtering
     """
+
     track_camera_list: Dict[int, PinholeCameraCal3Bundler]
     sampling_method: Optional[TriangulationParam] = None
     num_hypotheses: Optional[int] = None
@@ -157,7 +162,9 @@ class Point3dInitializer(NamedTuple):
             num_hypotheses = min(self.num_hypotheses, len(measurement_pairs))
 
             # Sampling
-            samples = self.generate_ransac_hypotheses(track, measurement_pairs, num_hypotheses)
+            samples = self.generate_ransac_hypotheses(
+                track, measurement_pairs, num_hypotheses
+            )
 
             # Initialize the best output containers
             best_pt = Point3()
@@ -274,7 +281,10 @@ class Point3dInitializer(NamedTuple):
                 "Sum of scores cannot be zero (or smaller than zero)! It must a bug somewhere"
             )
 
-        if self.sampling_method in [TriangulationParam.UNIFORM, TriangulationParam.BASELINE]:
+        if self.sampling_method in [
+            TriangulationParam.UNIFORM,
+            TriangulationParam.BASELINE,
+        ]:
             sample_indices = np.random.choice(
                 len(scores), size=num_hypotheses, replace=False, p=scores / scores.sum()
             )
@@ -285,7 +295,7 @@ class Point3dInitializer(NamedTuple):
         return sample_indices.tolist()
 
     def compute_reprojection_error(
-        self, triangulated_pt: Point3, track: List
+        self, triangulated_pt: Point3, track: SfmTrack2d
     ) -> List[float]:
         """
         Calculate all individual reprojection errors in a given track

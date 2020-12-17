@@ -65,7 +65,9 @@ class FeatureTrackGenerator:
         # create a landmark map: a list of tracks
         # Each track is represented as a list of (camera_idx, measurements)
         for s in key_set:
-            key = key_set[s]  # key_set is a wrapped C++ map, so this unusual syntax is required
+            key = key_set[
+                s
+            ]  # key_set is a wrapped C++ map, so this unusual syntax is required
             # Initialize track
             track = []
             for index_pair in gtsam.IndexPairSetAsArray(key):
@@ -90,7 +92,9 @@ class FeatureTrackGenerator:
         """
         filtered_tracks_2d = []
         for sfm_track_2d in sfm_tracks_2d:
-            track_cam_idxs = [measurement.i for measurement in sfm_track_2d.measurements]
+            track_cam_idxs = [
+                measurement.i for measurement in sfm_track_2d.measurements
+            ]
             if len(set(track_cam_idxs)) == len(track_cam_idxs):
                 filtered_tracks_2d += [sfm_track_2d]
 
