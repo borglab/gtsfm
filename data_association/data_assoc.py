@@ -41,7 +41,7 @@ class TriangulationParam(Enum):
     MAX_TO_MIN = 3
 
 
-class DataAssociation:
+class DataAssociation(NamedTuple):
     """Class to form feature tracks; for each track, call LandmarkInitializer.
 
         Args:
@@ -57,7 +57,7 @@ class DataAssociation:
     reproj_error_thresh: float
     min_track_len: int
     sampling_method: Optional[TriangulationParam] = None
-    num_hypotheses: Optional[int] = None,
+    num_hypotheses: Optional[int] = None
 
 
     def run(
