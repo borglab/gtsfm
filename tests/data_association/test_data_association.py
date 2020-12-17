@@ -354,7 +354,7 @@ class TestDataAssociation(GtsamTestCase):
         self, sharedCal: Cal3Bundler
     ) -> Tuple[
         Dict[Tuple[int], np.array],
-        List,
+        List[Keypoints],
         Pose3Vector,
         Point2Vector,
         Dict[int, PinholeCameraCal3Bundler],
@@ -389,7 +389,7 @@ class TestDataAssociation(GtsamTestCase):
 
     def __generate_3_poses(
         self, sharedCal: Cal3Bundler
-    ) -> Tuple[Dict[Tuple[int], np.array], List, Dict[int, PinholeCameraCal3Bundler]]:
+    ) -> Tuple[Dict[Tuple[int], np.array], List[Keypoints], Dict[int, PinholeCameraCal3Bundler]]:
         """
         Generate 3 matches and corresponding poses with shared calibration.
 
@@ -430,7 +430,7 @@ class TestDataAssociation(GtsamTestCase):
         calibration: Tuple[Cal3Bundler, Cal3Bundler],
         noise_params: Tuple[np.ndarray, np.ndarray],
         poses: Pose3Vector,
-    ) -> Tuple[Point2Vector, List, Tuple[int], Dict[int, PinholeCameraCal3Bundler]]:
+    ) -> Tuple[Point2Vector, List[Keypoints], Tuple[int], Dict[int, PinholeCameraCal3Bundler]]:
         """
         Generate measurements, features, img indices and cameras for given calibration and poses
 
