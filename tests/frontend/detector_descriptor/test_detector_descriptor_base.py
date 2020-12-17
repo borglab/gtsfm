@@ -69,15 +69,7 @@ class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
                 detection_results = dask.compute(det_graph)[0]
                 descriptor_results = dask.compute(desc_graph)[0]
                 
-                # check the number of entries in results
-                self.assertEqual(
-                    len(detection_results), 1,
-                    "Dask workflow does not return the same number of results"
-                )
-                self.assertEqual(
-                    len(descriptor_results), 1,
-                    "Dask workflow does not return the same number of results"
-                )
+                # check the types of entries in results
                 self.assertTrue(isinstance(detection_results, Keypoints))
                 self.assertTrue(isinstance(descriptor_results, np.ndarray))
                 
@@ -90,8 +82,8 @@ class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
                 expected_kps, expected_descs = self.detector_descriptor.detect_and_describe(
                     self.loader.get_image(idx_under_test)
                 )
-                self.assertEqual(detection_results[idx_under_test], expected_kps)
-                np.testing.assert_array_equal(description_results[idx_under_test], expected_descs)
+                self.assertEqual(detection_results, expected_kps)
+                np.testing.assert_array_equal(descriptor_results, expected_descs)
 
 
 if __name__ == '__main__':
