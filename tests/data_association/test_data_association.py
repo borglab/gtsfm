@@ -88,7 +88,7 @@ class TestDataAssociation(GtsamTestCase):
         # landmark ~5 meters infront of camera
         self.expected_landmark = gtsam.Point3(5, 0.5, 1.2)
 
-    def test_track(self):
+    def test_track(self) -> None:
         """
         Tests that the tracks are being merged and mapped correctly
         """
@@ -96,7 +96,7 @@ class TestDataAssociation(GtsamTestCase):
         # len(track) value for toy case strictly
         assert len(self.track.filtered_landmark_data) == 4, "tracks incorrectly mapped"
 
-    def test_primary_filtering(self):
+    def test_primary_filtering(self) -> None:
         """
         Tests that the tracks are being filtered correctly.
         Removes tracks that have two measurements in a single image.
@@ -109,7 +109,7 @@ class TestDataAssociation(GtsamTestCase):
         # is the same. Only good tracks will remain
         assert len(filtered_map) == 4, "Tracks not filtered correctly"
 
-    def test_triangulation_sharedCal_without_ransac(self):
+    def test_triangulation_sharedCal_without_ransac(self) -> None:
         """
         Tests that the triangulation is accurate for shared calibration.
         Example from borglab/gtsam/python/gtsam/tests/test_Triangulation.py
@@ -142,7 +142,7 @@ class TestDataAssociation(GtsamTestCase):
             )
         self.gtsamAssertEquals(computed_landmark, self.expected_landmark, 1e-2)
 
-    def test_triangulation_sharedCal_ransac_uniform(self):
+    def test_triangulation_sharedCal_ransac_uniform(self) -> None:
         """
         Tests that the triangulation is accurate for shared calibration.
         Example from borglab/gtsam/python/gtsam/tests/test_Triangulation.py
@@ -338,7 +338,7 @@ class TestDataAssociation(GtsamTestCase):
         for cam in range(expected_landmark_map.number_cameras()):
             self.gtsamAssertEquals(expected_landmark_map.camera(cam), cameras.get(cam))
 
-    def __generate_2_poses(self, sharedCal):
+    def __generate_2_poses(self, sharedCal: gtsam.Cal3Bundler):
         """
         Generate 2 matches and their corresponding poses for shared calibration
         """
@@ -356,7 +356,7 @@ class TestDataAssociation(GtsamTestCase):
         matches_1 = {img_idxs: matched_idxs}
         return matches_1, feature_list, self.poses, measurements, cameras
 
-    def __generate_3_poses(self, sharedCal):
+    def __generate_3_poses(self, sharedCal: gtsam.Cal3Bundler):
         """
         Generate 3 matches and corresponding poses with shared calibration
         """
