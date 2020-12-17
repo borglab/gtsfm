@@ -108,7 +108,7 @@ class TestVerifierBase(unittest.TestCase):
 
         # Set up 3 pairs of inputs to the verifier
         num_images = 6
-        image_indices = [(0, 1), (4, 3), (2, 5)]
+        image_pair_indices = [(0, 1), (4, 3), (2, 5)]
 
         # creating inputs for verification and use GTSFM's direct API to get
         # expected results
@@ -119,7 +119,7 @@ class TestVerifierBase(unittest.TestCase):
         expected_i2Ri1_dict = dict()
         expected_i2Ui1_dict = dict()
         expected_v_corr_idxs = dict()
-        for (i1, i2) in image_indices:
+        for (i1, i2) in image_pair_indices:
             keypoints_i1, keypoints_i2, matches_i1i2, \
                 intrinsics_i1, intrinsics_i2 = \
                 generate_random_input_for_verifier()
@@ -140,41 +140,33 @@ class TestVerifierBase(unittest.TestCase):
                     intrinsics_i1,
                     intrinsics_i2
                 )
-
+            
             expected_i2Ri1_dict[(i1, i2)] = verification_result_i1i2[0]
             expected_i2Ui1_dict[(i1, i2)] = verification_result_i1i2[1]
             expected_v_corr_idxs[(i1, i2)] = verification_result_i1i2[2]
 
         # Convert the inputs to computation graphs
-        detection_graph = [dask.delayed(x) for x in keypoints_list]
-        matcher_graph = {image_indices: dask.delayed(match) for
-                         (image_indices, match) in matches_dict.items()}
         intrinsics_graph = [dask.delayed(x) for x in intrinsics_list]
+        detection_graph = [dask.delayed(x) for x in keypoints_list]
+        
+        for (i1, i2) in image_pair_indices:
+            matches_i1i2 = matches_dict[(i1,i2)]
+            delayed_matcher = dask.delayed(matches_i1i2)
 
-        # generate the computation graph for the verifier
-        rotations_graph, unit_translations_graph, v_corr_idxs_graph = \
-            self.verifier.create_computation_graph(
-                detection_graph,
-                matcher_graph,
-                intrinsics_graph,
-                exact_intrinsics_flag=True
-            )
+            # generate the computation graph for the verifier
+            delayed_i2Ri1, delayed_i2Ui1, delayed_v_corr_idxs = \
+                self.verifier.create_computation_graph(
+                    (i1,i2),
+                    detection_graph,
+                    delayed_matcher,
+                    intrinsics_graph,
+                    exact_intrinsics_flag=True
+                )
 
-        with dask.config.set(scheduler='single-threaded'):
-            i2Ri1_dict = dask.compute(rotations_graph)[0]
-            i2Ui1_dict = dask.compute(unit_translations_graph)[0]
-            v_corr_idxs = dask.compute(v_corr_idxs_graph)[0]
-
-        # compare the length of results
-        self.assertEqual(len(i2Ri1_dict), len(i2Ri1_dict))
-        self.assertEqual(len(i2Ui1_dict), len(expected_i2Ui1_dict))
-        self.assertEqual(len(v_corr_idxs), len(expected_v_corr_idxs))
-
-        # compare the values
-        for (i1, i2) in i2Ri1_dict.keys():
-            i2Ri1 = i2Ri1_dict[(i1, i2)]
-            i2Ui1 = i2Ui1_dict[(i1, i2)]
-            idxs = v_corr_idxs[(i1, i2)]
+            with dask.config.set(scheduler='single-threaded'):
+                i2Ri1 = dask.compute(delayed_i2Ri1)[0]
+                i2Ui1 = dask.compute(delayed_i2Ui1)[0]
+                v_corr_idxs = dask.compute(delayed_v_corr_idxs)[0]
 
             expected_i2Ri1 = expected_i2Ri1_dict[(i1, i2)]
             expected_i2Ui1 = expected_i2Ui1_dict[(i1, i2)]
@@ -190,7 +182,7 @@ class TestVerifierBase(unittest.TestCase):
             else:
                 self.assertTrue(expected_i2Ui1.equals(i2Ui1, 1e-2))
 
-            np.testing.assert_array_equal(idxs, expected_idxs)
+            np.testing.assert_array_equal(v_corr_idxs, expected_idxs)
 
     def test_pickleable(self):
         """Tests that the verifier object is pickleable (required for dask)."""
