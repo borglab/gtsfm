@@ -46,6 +46,6 @@ setup(
         "dask[complete]",
         "numpy",
         "opencv-python>=4.1.0.25",
-        "pillow"
+        "pillow>=8.0.1" # old versions dont support getexif()
     ]
 )
