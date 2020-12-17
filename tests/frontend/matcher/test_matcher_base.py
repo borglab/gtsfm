@@ -106,28 +106,24 @@ class TestMatcherBase(unittest.TestCase):
             )
 
         # create computation graph providing descriptors
-        description_graph = [dask.delayed(x) for x in descriptors_list]
+        descriptor_graph = [dask.delayed(x) for x in descriptors_list]
 
-        matcher_graph = self.matcher.create_computation_graph(
-            pairs_list, description_graph)
+        for (i1,i2) in pairs_list:
+            matcher_graph = self.matcher.create_computation_graph(
+                (i1,i2),
+                descriptor_graph
+            )
 
-        # run it in sequential mode
-        results = []
-        with dask.config.set(scheduler='single-threaded'):
-            results = dask.compute(matcher_graph)[0]
+            # run it in sequential mode
+            results = []
+            with dask.config.set(scheduler='single-threaded'):
+                dask_matches = dask.compute(matcher_graph)[0]
 
-        # check the number of pairs in the results
-        self.assertEqual(len(pairs_list), len(results))
-
-        # check every pair of results
-
-        for (i1, i2) in pairs_list:
+            # check every pair of results
             expected_matches = self.matcher.match(
                 descriptors_list[i1],
                 descriptors_list[i2]
             )
-
-            dask_matches = results[(i1, i2)]
 
             np.testing.assert_array_equal(
                 dask_matches, expected_matches
