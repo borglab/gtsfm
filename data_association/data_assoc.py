@@ -42,16 +42,7 @@ class TriangulationParam(Enum):
 
 
 class DataAssociation:
-    """Class to form feature tracks; for each track, call LandmarkInitializer."""
-
-    def __init__(
-        self,
-        reproj_error_thresh: float,
-        min_track_len: int,
-        sampling_method: Optional[TriangulationParam] = None,
-        num_hypotheses: Optional[int] = None,
-    ) -> None:
-        """Initializes the hyperparameters.
+    """Class to form feature tracks; for each track, call LandmarkInitializer.
 
         Args:
             reproj_error_thresh: the maximum reprojection error allowed.
@@ -62,11 +53,12 @@ class DataAssociation:
                 TriangulationParam.BASELINE   -> sampling based on estimated baseline,
                 TriangulationParam.MAX_TO_MIN -> sampling from max to min
             num_hypotheses (optional): number of samples to draw for RANSAC-based triangulation
-        """
-        self.reproj_error_thresh = reproj_error_thresh
-        self.min_track_len = min_track_len
-        self.sampling_method = sampling_method
-        self.num_hypotheses = num_hypotheses
+    """
+    reproj_error_thresh: float
+    min_track_len: int
+    sampling_method: Optional[TriangulationParam] = None
+    num_hypotheses: Optional[int] = None,
+
 
     def run(
         self,
@@ -144,7 +136,6 @@ class LandmarkInitializer(NamedTuple):
         num_hypotheses (optional): desired number of RANSAC hypotheses
         reproj_error_thresh (optional): threshold for RANSAC inlier filtering
     """
-
     track_camera_list: Dict[int, PinholeCameraCal3Bundler]
     sampling_method: Optional[TriangulationParam] = None
     num_hypotheses: Optional[int] = None
@@ -168,9 +159,7 @@ class LandmarkInitializer(NamedTuple):
             num_hypotheses = min(self.num_hypotheses, len(measurement_pairs))
 
             # Sampling
-            samples = self.generate_ransac_hypotheses(
-                track, measurement_pairs, num_hypotheses
-            )
+            samples = self.generate_ransac_hypotheses(track, measurement_pairs, num_hypotheses)
 
             # Initialize the best output containers
             best_pt = Point3()
@@ -287,10 +276,7 @@ class LandmarkInitializer(NamedTuple):
                 "Sum of scores cannot be zero (or smaller than zero)! It must a bug somewhere"
             )
 
-        if self.sampling_method in [
-            TriangulationParam.UNIFORM,
-            TriangulationParam.BASELINE,
-        ]:
+        if self.sampling_method in [TriangulationParam.UNIFORM, TriangulationParam.BASELINE]:
             sample_indices = np.random.choice(
                 len(scores), size=num_hypotheses, replace=False, p=scores / scores.sum()
             )
@@ -338,13 +324,12 @@ class LandmarkInitializer(NamedTuple):
             measurement_track: Vector of 2d points
                   TODO: is it really this? Observations corresponding to first and last measurements
         """
-
         track_cameras = CameraSetCal3Bundler()
         track_measurements = Point2Vector()  # vector of 2d points
 
-        for k in range(len(track.measurements)):
-            if inliers[k]:
-                i, uv = track.measurements[k]  # pull out camera index i and uv
+        for (measurement, is_inlier) in zip(track.measurements, inliers):
+            if is_inlier:
+                i, uv = measurement  # pull out camera index i and uv
                 track_cameras.append(self.track_camera_list.get(i))
                 track_measurements.append(uv)
 
