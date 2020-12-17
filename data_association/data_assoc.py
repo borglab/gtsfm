@@ -35,10 +35,14 @@ SVD_DLT_RANK_TOL = 1e-9
 NUM_SAMPLES_PER_RANSAC_HYPOTHESIS = 2
 
 
+# We specify 3 different sampling modes for robust estimation during triangulation
+# The fourth mode is "None", wherein all measurements are used and we assume there
+# are no noisy measurements. If robust estimation is requested, a pair of cameras
+# will be sampled
 class TriangulationParam(Enum):
-    UNIFORM = 1
-    BASELINE = 2
-    MAX_TO_MIN = 3
+    UNIFORM = 1 # sample a pair of cameras uniformly at random
+    BASELINE = 2 # sample pair of cameras based on largest estimated baseline
+    MAX_TO_MIN = 3 # deterministically choose hypotheses with largest estimate baseline
 
 
 class DataAssociation(NamedTuple):
@@ -48,10 +52,7 @@ class DataAssociation(NamedTuple):
             reproj_error_thresh: the maximum reprojection error allowed.
             min_track_len: min length required for valid feature track / min nb of
                 supporting views required for a landmark to be valid
-            sampling_method (optional):
-                TriangulationParam.UNIFORM    -> sampling uniformly,
-                TriangulationParam.BASELINE   -> sampling based on estimated baseline,
-                TriangulationParam.MAX_TO_MIN -> sampling from max to min
+            sampling_method (optional): robust estimation method, specify "None" to not use RANSAC
             num_hypotheses (optional): number of samples to draw for RANSAC-based triangulation
     """
     reproj_error_thresh: float
@@ -129,10 +130,7 @@ class LandmarkInitializer(NamedTuple):
 
     Args:
         track_cameras: List of cameras
-        sampling_method (optional):
-            TriangulationParam.UNIFORM    -> sampling uniformly,
-            TriangulationParam.BASELINE   -> sampling based on estimated baseline,
-            TriangulationParam.MAX_TO_MIN -> sampling from max to min
+        sampling_method (optional): robust estimation method. If None, robust estimation is not used
         num_hypotheses (optional): desired number of RANSAC hypotheses
         reproj_error_thresh (optional): threshold for RANSAC inlier filtering
     """
