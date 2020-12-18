@@ -59,7 +59,7 @@ class DataAssociation(NamedTuple):
 
     reproj_error_thresh: float
     min_track_len: int
-    mode: TriangulationParam,
+    mode: TriangulationParam
     num_ransac_hypotheses: Optional[int] = None
 
     def run(
@@ -96,7 +96,7 @@ class DataAssociation(NamedTuple):
             if filtered_track.number_measurements() >= self.min_track_len:
                 triangulated_landmark_map.add_track(filtered_track)
             else:
-                logging.warning(
+                logging.info(
                     "Track length {} < {} discarded".format(
                         filtered_track.number_measurements(), self.min_track_len
                     )

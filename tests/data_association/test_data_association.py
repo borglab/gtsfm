@@ -140,7 +140,7 @@ class TestDataAssociation(GtsamTestCase):
         reproj_error_thresh = 5  # pixels
         min_track_len = 3  # at least 3 measurements required
 
-        da = DataAssociation(reproj_error_thresh, min_track_len)
+        da = DataAssociation(reproj_error_thresh, min_track_len, mode=TriangulationParam.NO_RANSAC)
         triangulated_landmark_map = da.run(matches_1, feature_list, cameras)
         # result should be empty, since nb_measurements < min track length
         assert (
@@ -149,7 +149,7 @@ class TestDataAssociation(GtsamTestCase):
 
         # compute triangulated map for 3 measurements
         matches_2, feature_list, cameras = self.__generate_3_poses(self.sharedCal)
-        da = DataAssociation(reproj_error_thresh, min_track_len)
+        da = DataAssociation(reproj_error_thresh, min_track_len, mode=TriangulationParam.NO_RANSAC)
         triangulated_landmark_map = da.run(matches_2, feature_list, cameras)
         computed_landmark = triangulated_landmark_map.track(0).point3()
 
@@ -379,7 +379,7 @@ class TestDataAssociation(GtsamTestCase):
             cameras: List of cameras
         """
         # Amount of noise to be added to measurements
-        noise_params = (-np.array([0.1, 0.5]), -np.array([-0.2, 0.3]))
+        noise_params = np.array([[-0.1, -0.5],[0.2, -0.3]])
 
         measurements, feature_list, img_idxs, cameras = self.__generate_measurements(
             (sharedCal, sharedCal), noise_params, self.poses
@@ -389,7 +389,8 @@ class TestDataAssociation(GtsamTestCase):
         matched_idxs = np.array([[0, 0]])
 
         # create matches
-        matches_1 = {img_idxs: matched_idxs}
+        matches_1 = {img_idxs[0]: matched_idxs}
+        # print("matches_1", matches_1)
         return matches_1, feature_list, self.poses, measurements, cameras
 
     def __generate_3_poses(
@@ -409,33 +410,27 @@ class TestDataAssociation(GtsamTestCase):
             feature_list: List of keypoints
             cameras: List of cameras
         """
-        matches, feature_list, poses, measurements, cameras = self.__generate_2_poses(
-            sharedCal
-        )
 
         # Add third camera slightly rotated
         rotatedCamera = Rot3.Ypr(0.1, 0.2, 0.1)
-        pose3 = Pose3(rotatedCamera, Point3(0.1, -2, -0.1))
-        camera3 = PinholeCameraCal3Bundler(pose3, sharedCal)
-        # Camera_idx hardcoded here for 3rd camera
-        cameras.update({2: camera3})
-        z3 = camera3.project(self.expected_landmark)
-        # add noise to measurement
-        measurements.append(z3 + np.array([0.1, -0.1]))
-        poses.append(pose3)
+        self.poses.append(Pose3(rotatedCamera, Point3(0.1, -2, -0.1)))
 
-        img_idxs2 = tuple(list(range(1, len(poses))))
-        feature_list.append(Keypoints(coordinates=np.array([measurements[2]])))
+        measurements, feature_list, img_idxs, cameras = self.__generate_measurements((sharedCal, sharedCal, sharedCal), 
+                np.array([[-0.1, -0.5],[-0.2, 0.3], [0.1, -0.1]]), self.poses)
 
-        # Only one measurement in images 1 and 2, hence each get index 0
-        matched_idxs2 = np.array([[0, 0]])
-        matches.update({img_idxs2: matched_idxs2})
+        # Only one measurement in each image, hence each get index 0
+        matched_idxs = np.array([[0, 0], [0,0]])
+        matches = dict()
+        # create matches
+        for i in range(len(img_idxs)):
+            matches.update({img_idxs[i]: np.expand_dims(matched_idxs[i], axis=0)})
+
         return matches, feature_list, cameras
 
     def __generate_measurements(
         self,
-        calibration: Tuple[Cal3Bundler, Cal3Bundler],
-        noise_params: Tuple[np.ndarray, np.ndarray],
+        calibration: Tuple[Cal3Bundler],
+        noise_params: Tuple[np.ndarray],
         poses: Pose3Vector,
     ) -> Tuple[
         Point2Vector, List[Keypoints], Tuple[int], Dict[int, PinholeCameraCal3Bundler]
@@ -462,12 +457,14 @@ class TestDataAssociation(GtsamTestCase):
             z = camera.project(self.expected_landmark)
             cameras.update({i: camera})
             measurements.append(z + noise_params[i])
-        # Create image indices for each pose
-        img_idxs = tuple(list(range(len(self.poses))))
+        # Create image indices for each pose - only subsequent pairwise matches assumed, eg., between images (0,1) and images (1,2)
+        img_idxs = []
+        for i in range(len(self.poses)-1):
+            img_idxs.append(tuple((i, i+1)))
         # List of features in each image
         for i in range(len(measurements)):
             feature_list = [Keypoints(coordinates=np.array([m])) for m in measurements]
-        return measurements, feature_list, img_idxs, cameras
+        return measurements, feature_list, tuple(img_idxs), cameras
 
 
 if __name__ == "__main__":
