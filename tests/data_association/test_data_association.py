@@ -125,28 +125,6 @@ class TestDataAssociation(GtsamTestCase):
         # is the same. Only good tracks will remain
         assert len(filtered_map) == 4, "Tracks not filtered correctly"
 
-    def test_triangulation_sharedCal_no_ransac_2poses(self) -> None:
-        """
-        Tests that the triangulation is accurate for shared calibration without ransac.
-        Checks whether the triangulated landmark map formed from 2 measurements is valid, if min track length = 3.
-        """
-        matches_1, feature_list, poses, _, cameras = self.__generate_2_poses(
-            self.sharedCal
-        )
-
-        # hyperparameters for unit test
-        reproj_error_thresh = 5  # pixels
-        min_track_len = 3  # at least 3 measurements required
-
-        da = DataAssociation(
-            reproj_error_thresh, min_track_len, mode=TriangulationParam.NO_RANSAC
-        )
-        triangulated_landmark_map = da.run(matches_1, feature_list, cameras)
-        # result should be empty, since nb_measurements < min track length
-        assert (
-            triangulated_landmark_map.number_tracks() == 0
-        ), "tracks exceeding expected track length"
-
     def test_triangulation_sharedCal_no_ransac_3poses(self):
         """
         Checks whether the triangulated landmark map formed from 3 measurements without ransac, using shared calibration, is valid.
@@ -172,28 +150,6 @@ class TestDataAssociation(GtsamTestCase):
         # checks if computed 3D point is as expected
         self.gtsamAssertEquals(computed_landmark, self.expected_landmark, 1e-2)
 
-    def test_triangulation_sharedCal_ransac_uniform_2poses(self) -> None:
-        """
-        Tests that the triangulation is accurate for uniform ransac sampling mode.
-        Checks whether the triangulated landmark map formed from 2 measurements is valid, if min track length = 3.
-        """
-
-        matches_1, feature_list, poses, _, cameras = self.__generate_2_poses(
-            self.sharedCal
-        )
-
-        da = DataAssociation(
-            reproj_error_thresh=5,  # 5 px
-            min_track_len=3,  # at least 3 measurements required
-            mode=TriangulationParam.RANSAC_SAMPLE_UNIFORM,
-            num_ransac_hypotheses=20,
-        )
-        triangulated_landmark_map = da.run(matches_1, feature_list, cameras)
-
-        assert (
-            triangulated_landmark_map.number_tracks() == 0
-        ), "tracks exceeding expected track length"
-
     def test_triangulation_sharedCal_ransac_uniform_3poses(self):
         """
         Checks whether the triangulated landmark map formed from 3 measurements using uniform sampling mode, is valid.
@@ -217,24 +173,33 @@ class TestDataAssociation(GtsamTestCase):
                 triangulated_landmark_map.camera(cam), cameras.get(cam)
             )
 
-    def test_triangulation_sharedCal_ransac_baseline_2poses(self):
+    def test_triangulation_sharedCal_triangulationparam_variants_2poses(self):
         """
-        Tests that the triangulation is accurate for shared calibration with widest baseline sampling mode.
+        Tests that the triangulation is accurate for shared calibration with widest baseline sampling mode,
+        max to min sampling mode, uniform ransac sampling mode, and without ransac.
         Checks whether the triangulated landmark map formed from 2 measurements is valid, if min track length = 3.
         """
-        matches_1, feature_list, _, _, cameras = self.__generate_2_poses(self.sharedCal)
-        da = DataAssociation(
-            reproj_error_thresh=5,  # 5 px
-            min_track_len=3,  # at least 3 measurements required
-            mode=TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
-            num_ransac_hypotheses=20,
-        )
-        triangulated_landmark_map = da.run(matches_1, feature_list, cameras)
-        
-        # assert that we cannot obtain even 1 length-3 track if we have only 2 camera poses
-        assert (
-            triangulated_landmark_map.number_tracks() == 0
-        ), "tracks exceeding expected track length"
+        for param in [
+            TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
+            TriangulationParam.RANSAC_TOPK_BASELINES,
+            TriangulationParam.RANSAC_SAMPLE_UNIFORM,
+            TriangulationParam.NO_RANSAC,
+        ]:
+            matches_1, feature_list, _, _, cameras = self.__generate_2_poses(
+                self.sharedCal
+            )
+            da = DataAssociation(
+                reproj_error_thresh=5,  # 5 px
+                min_track_len=3,  # at least 3 measurements required
+                mode=param,
+                num_ransac_hypotheses=20,
+            )
+            triangulated_landmark_map = da.run(matches_1, feature_list, cameras)
+            # assert that we cannot obtain even 1 length-3 track if we have only 2 camera poses
+            # result should be empty, since nb_measurements < min track length
+            assert (
+                triangulated_landmark_map.number_tracks() == 0
+            ), "tracks exceeding expected track length"
 
     def test_triangulation_sharedCal_ransac_baseline_3poses(self):
         """
@@ -260,26 +225,6 @@ class TestDataAssociation(GtsamTestCase):
             )
 
         self.gtsamAssertEquals(computed_landmark, self.expected_landmark, 1e-2)
-
-    def test_triangulation_sharedCal_ransac_maxtomin_2poses(self):
-        """
-        Tests that the triangulation is accurate for shared calibration, using max to min sampling mode.
-        Checks whether the triangulated landmark map formed from 2 measurements is valid, if min track length = 3.
-        """
-        matches_1, feature_list, poses, _, cameras = self.__generate_2_poses(
-            self.sharedCal
-        )
-        da = DataAssociation(
-            reproj_error_thresh=5,  # 5 px
-            min_track_len=3,  # at least 3 measurements required
-            mode=TriangulationParam.RANSAC_TOPK_BASELINES,
-            num_ransac_hypotheses=20,
-        )
-        triangulated_landmark_map = da.run(matches_1, feature_list, cameras)
-
-        assert (
-            triangulated_landmark_map.number_tracks() == 0
-        ), "tracks exceeding expected track length"
 
     def test_triangulation_sharedCal_ransac_maxtomin_3poses(self):
         """
