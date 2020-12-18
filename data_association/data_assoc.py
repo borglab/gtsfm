@@ -53,7 +53,7 @@ class DataAssociation(NamedTuple):
         reproj_error_thresh: the maximum reprojection error allowed.
         min_track_len: min length required for valid feature track / min nb of
             supporting views required for a landmark to be valid
-        sampling_method (optional): robust estimation method, specify "None" to not use RANSAC
+        mode: triangulation mode, which dictates whether or not to use robust estimation
         num_ransac_hypotheses (optional): number of samples to draw for RANSAC-based triangulation
     """
 
@@ -134,7 +134,7 @@ class Point3dInitializer(NamedTuple):
 
     Args:
         track_cameras: List of cameras
-        sampling_method (optional): robust estimation method. If None, robust estimation is not used
+        mode: triangulation mode, which dictates whether or not to use robust estimation
         num_ransac_hypotheses (optional): desired number of RANSAC hypotheses
         reproj_error_thresh (optional): threshold for RANSAC inlier filtering
     """
@@ -285,7 +285,7 @@ class Point3dInitializer(NamedTuple):
                 "Sum of scores cannot be zero (or smaller than zero)! It must a bug somewhere"
             )
 
-        if self.sampling_method in [
+        if self.mode in [
             TriangulationParam.RANSAC_SAMPLE_UNIFORM,
             TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
         ]:
@@ -293,7 +293,7 @@ class Point3dInitializer(NamedTuple):
                 len(scores), size=num_hypotheses, replace=False, p=scores / scores.sum()
             )
 
-        if self.sampling_method == TriangulationParam.RANSAC_TOPK_BASELINES:
+        if self.mode == TriangulationParam.RANSAC_TOPK_BASELINES:
             sample_indices = np.argsort(scores)[-num_hypotheses:]
 
         return sample_indices.tolist()
