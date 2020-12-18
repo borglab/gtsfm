@@ -179,7 +179,7 @@ class TestDataAssociation(GtsamTestCase):
         da = DataAssociation(
             reproj_error_thresh=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
-            sampling_method=TriangulationParam.UNIFORM,
+            mode=TriangulationParam.RANSAC_SAMPLE_UNIFORM,
             num_hypotheses=20,
         )
         triangulated_landmark_map = da.run(matches_1, feature_list, cameras)
@@ -192,7 +192,7 @@ class TestDataAssociation(GtsamTestCase):
         da = DataAssociation(
             reproj_error_thresh=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
-            sampling_method=TriangulationParam.UNIFORM,
+            mode=TriangulationParam.RANSAC_SAMPLE_UNIFORM,
             num_hypotheses=20,
         )
         triangulated_landmark_map = da.run(matches_2, feature_list, cameras)
@@ -216,7 +216,7 @@ class TestDataAssociation(GtsamTestCase):
         da = DataAssociation(
             reproj_error_thresh=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
-            sampling_method=TriangulationParam.BASELINE,
+            mode=TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
             num_hypotheses=20,
         )
         triangulated_landmark_map = da.run(matches_1, feature_list, cameras)
@@ -229,7 +229,7 @@ class TestDataAssociation(GtsamTestCase):
         da = DataAssociation(
             reproj_error_thresh=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
-            sampling_method=TriangulationParam.BASELINE,
+            mode=TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
             num_hypotheses=20,
         )
         triangulated_landmark_map = da.run(matches_2, feature_list, cameras)
@@ -257,7 +257,7 @@ class TestDataAssociation(GtsamTestCase):
         da = DataAssociation(
             reproj_error_thresh=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
-            sampling_method=TriangulationParam.MAX_TO_MIN,
+            mode=TriangulationParam.RANSAC_TOPK_BASELINES,
             num_hypotheses=20,
         )
         triangulated_landmark_map = da.run(matches_1, feature_list, cameras)
@@ -270,7 +270,7 @@ class TestDataAssociation(GtsamTestCase):
         da = DataAssociation(
             reproj_error_thresh=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
-            sampling_method=TriangulationParam.MAX_TO_MIN,
+            mode=TriangulationParam.RANSAC_TOPK_BASELINES,
             num_hypotheses=20,
         )
         triangulated_landmark_map = da.run(matches_2, feature_list, cameras)
@@ -325,7 +325,7 @@ class TestDataAssociation(GtsamTestCase):
         da = DataAssociation(
             reproj_error_thresh=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
-            sampling_method=TriangulationParam.MAX_TO_MIN,
+            mode=TriangulationParam.RANSAC_TOPK_BASELINES,
             num_hypotheses=20,
         )
         expected_landmark_map = da.run(matches, features, cameras)
