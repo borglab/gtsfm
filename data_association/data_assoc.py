@@ -29,7 +29,7 @@ from gtsam import (
 
 import logging
 
-MAX_POSSIBLE_TRACK_REPROJ_ERROR = np.finfo(np.float32).max
+MAX_TRACK_REPROJ_ERROR = np.finfo(np.float32).max
 SVD_DLT_RANK_TOL = 1e-9
 NUM_SAMPLES_PER_RANSAC_HYPOTHESIS = 2
 
@@ -168,7 +168,7 @@ class Point3dInitializer(NamedTuple):
             # Initialize the best output containers
             best_pt = Point3()
             best_votes = 0
-            best_error = MAX_POSSIBLE_TRACK_REPROJ_ERROR
+            best_error = MAX_TRACK_REPROJ_ERROR
             best_inliers = []
 
             for sample_idxs in samples:
