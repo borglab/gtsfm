@@ -248,7 +248,7 @@ class Point3dInitializer(NamedTuple):
         measurement_pairs: List[Tuple[int, int]],
         num_hypotheses: int,
     ) -> List[int]:
-        """Generate via sampling a list of hypotheses (camera pairs) to use during triangulation
+        """Sample a list of hypotheses (camera pairs) to use during triangulation
 
         Args:
             track: feature track from which measurements are to be extracted
