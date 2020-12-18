@@ -180,7 +180,7 @@ class TestDataAssociation(GtsamTestCase):
             reproj_error_thresh=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
             mode=TriangulationParam.RANSAC_SAMPLE_UNIFORM,
-            num_hypotheses=20,
+            num_ransac_hypotheses=20,
         )
         triangulated_landmark_map = da.run(matches_1, feature_list, cameras)
 
@@ -193,7 +193,7 @@ class TestDataAssociation(GtsamTestCase):
             reproj_error_thresh=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
             mode=TriangulationParam.RANSAC_SAMPLE_UNIFORM,
-            num_hypotheses=20,
+            num_ransac_hypotheses=20,
         )
         triangulated_landmark_map = da.run(matches_2, feature_list, cameras)
         computed_landmark = triangulated_landmark_map.track(0).point3()
@@ -217,7 +217,7 @@ class TestDataAssociation(GtsamTestCase):
             reproj_error_thresh=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
             mode=TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
-            num_hypotheses=20,
+            num_ransac_hypotheses=20,
         )
         triangulated_landmark_map = da.run(matches_1, feature_list, cameras)
 
@@ -230,7 +230,7 @@ class TestDataAssociation(GtsamTestCase):
             reproj_error_thresh=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
             mode=TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
-            num_hypotheses=20,
+            num_ransac_hypotheses=20,
         )
         triangulated_landmark_map = da.run(matches_2, feature_list, cameras)
         computed_landmark = triangulated_landmark_map.track(0).point3()
@@ -258,7 +258,7 @@ class TestDataAssociation(GtsamTestCase):
             reproj_error_thresh=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
             mode=TriangulationParam.RANSAC_TOPK_BASELINES,
-            num_hypotheses=20,
+            num_ransac_hypotheses=20,
         )
         triangulated_landmark_map = da.run(matches_1, feature_list, cameras)
 
@@ -271,7 +271,7 @@ class TestDataAssociation(GtsamTestCase):
             reproj_error_thresh=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
             mode=TriangulationParam.RANSAC_TOPK_BASELINES,
-            num_hypotheses=20,
+            num_ransac_hypotheses=20,
         )
         triangulated_landmark_map = da.run(matches_2, feature_list, cameras)
         computed_landmark = triangulated_landmark_map.track(0).point3()
@@ -303,9 +303,9 @@ class TestDataAssociation(GtsamTestCase):
         matched_idxs = np.array([[0, 0]])
 
         # create matches
-        matches = {img_idxs: matched_idxs}
+        matches = {img_idxs[0]: matched_idxs}
 
-        da = DataAssociation(5, 2)
+        da = DataAssociation(5, 2, mode=TriangulationParam.NO_RANSAC)
         triangulated_landmark_map = da.run(matches, feature_list, cameras)
         computed_landmark = triangulated_landmark_map.track(0).point3()
         self.gtsamAssertEquals(computed_landmark, self.expected_landmark, 1e-2)
@@ -326,7 +326,7 @@ class TestDataAssociation(GtsamTestCase):
             reproj_error_thresh=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
             mode=TriangulationParam.RANSAC_TOPK_BASELINES,
-            num_hypotheses=20,
+            num_ransac_hypotheses=20,
         )
         expected_landmark_map = da.run(matches, features, cameras)
 
