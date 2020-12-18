@@ -34,15 +34,16 @@ SVD_DLT_RANK_TOL = 1e-9
 NUM_SAMPLES_PER_RANSAC_HYPOTHESIS = 2
 
 """ We specify 3 different sampling modes for robust estimation during triangulation
-The fourth mode is "None", wherein all measurements are used and we assume there
+The other mode is to not use ransac, wherein all measurements are used and we assume there
 are no noisy measurements. If robust estimation is requested, a pair of cameras
 will be sampled """
 
 
 class TriangulationParam(Enum):
-    UNIFORM = 1  # sample a pair of cameras uniformly at random
-    BASELINE = 2  # sample pair of cameras based on largest estimated baseline
-    MAX_TO_MIN = 3  # deterministically choose hypotheses with largest estimate baseline
+    NO_RANSAC = 0 # do not use filtering
+    RANSAC_SAMPLE_UNIFORM = 1  # sample a pair of cameras uniformly at random
+    RANSAC_SAMPLE_BIASED_BASELINE = 2  # sample pair of cameras based on largest estimated baseline
+    RANSAC_TOPK_BASELINES = 3  # deterministically choose hypotheses with largest estimate baseline
 
 
 class DataAssociation(NamedTuple):
@@ -58,7 +59,7 @@ class DataAssociation(NamedTuple):
 
     reproj_error_thresh: float
     min_track_len: int
-    sampling_method: Optional[TriangulationParam] = None
+    mode: TriangulationParam,
     num_ransac_hypotheses: Optional[int] = None
 
     def run(
@@ -86,7 +87,7 @@ class DataAssociation(NamedTuple):
         # point indices are represented as j
         # nb of 3D points = nb of tracks, hence track_idx represented as j
         point3d_initializer = Point3dInitializer(
-            cameras, self.sampling_method, self.num_ransac_hypotheses, self.reproj_error_thresh
+            cameras, self.mode, self.num_ransac_hypotheses, self.reproj_error_thresh
         )
 
         for track_2d in sfm_tracks_2d:
@@ -139,7 +140,7 @@ class Point3dInitializer(NamedTuple):
     """
 
     track_camera_list: Dict[int, PinholeCameraCal3Bundler]
-    sampling_method: Optional[TriangulationParam] = None
+    mode: TriangulationParam
     num_ransac_hypotheses: Optional[int] = None
     reproj_error_thresh: Optional[float] = None
 
@@ -153,7 +154,11 @@ class Point3dInitializer(NamedTuple):
         Returns:
             SfmTrack with 3d point j and 2d measurements in multiple cameras i
         """
-        if self.sampling_method:
+        if self.mode in [
+            TriangulationParam.RANSAC_SAMPLE_UNIFORM,
+            TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
+            TriangulationParam.RANSAC_TOPK_BASELINES
+        ]:
             # Generate all possible matches
             measurement_pairs = self.generate_measurement_pairs(track)
 
@@ -211,7 +216,7 @@ class Point3dInitializer(NamedTuple):
                     best_error = avg_error
                     best_pt = triangulated_pt
                     best_inliers = votes
-        else:
+        elif self.mode == TriangulationParam.NO_RANSAC:
             best_inliers = [True for _ in range(len(track.measurements))]
 
         camera_track, measurement_track = self.extract_measurements(track, best_inliers)
@@ -260,9 +265,9 @@ class Point3dInitializer(NamedTuple):
         # Initialize scores as uniform distribution
         scores = np.ones(len(measurement_pairs), dtype=float)
 
-        if self.sampling_method in [
-            TriangulationParam.BASELINE,
-            TriangulationParam.MAX_TO_MIN,
+        if self.mode in [
+            TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
+            TriangulationParam.RANSAC_TOPK_BASELINES
         ]:
             for k, (k1, k2) in enumerate(measurement_pairs):
                 i1, pt1 = track.measurements[k1]
@@ -281,14 +286,14 @@ class Point3dInitializer(NamedTuple):
             )
 
         if self.sampling_method in [
-            TriangulationParam.UNIFORM,
-            TriangulationParam.BASELINE,
+            TriangulationParam.RANSAC_SAMPLE_UNIFORM,
+            TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
         ]:
             sample_indices = np.random.choice(
                 len(scores), size=num_hypotheses, replace=False, p=scores / scores.sum()
             )
 
-        if self.sampling_method == TriangulationParam.MAX_TO_MIN:
+        if self.sampling_method == TriangulationParam.RANSAC_TOPK_BASELINES:
             sample_indices = np.argsort(scores)[-num_hypotheses:]
 
         return sample_indices.tolist()
