@@ -161,7 +161,7 @@ class Point3dInitializer(NamedTuple):
             num_hypotheses = min(self.num_hypotheses, len(measurement_pairs))
 
             # Sampling
-            samples = self.generate_ransac_hypotheses(
+            samples = self.sample_ransac_hypotheses(
                 track, measurement_pairs, num_hypotheses
             )
 
@@ -242,7 +242,7 @@ class Point3dInitializer(NamedTuple):
         )
         return measurement_pair_idxs
 
-    def generate_ransac_hypotheses(
+    def sample_ransac_hypotheses(
         self,
         track: SfmTrack2d,
         measurement_pairs: List[Tuple[int, int]],
