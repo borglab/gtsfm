@@ -1,6 +1,9 @@
 """Unit test for the DataAssociation class.
+Triangulation examples from:
+     borglab/gtsam/python/gtsam/tests/test_Triangulation.py 
+     gtsam/geometry/tests/testTriangulation.cpp
 
-Authors: Sushmita Warrier
+Authors: Sushmita Warrier, Xiaolong Wu, John Lambert
 """
 import unittest
 from typing import Dict, List, Tuple
@@ -122,16 +125,11 @@ class TestDataAssociation(GtsamTestCase):
         # is the same. Only good tracks will remain
         assert len(filtered_map) == 4, "Tracks not filtered correctly"
 
-    def test_triangulation_sharedCal_without_ransac(self) -> None:
+    def test_triangulation_sharedCal_without_ransac_2poses(self) -> None:
         """
-        Tests that the triangulation is accurate for shared calibration.
-        Example from borglab/gtsam/python/gtsam/tests/test_Triangulation.py
-        and gtsam/geometry/tests/testTriangulation.cpp
-        1. Checks whether the triangulated landmark map formed from 2 measurements is valid, if min track length = 3.
-        2. Checks whether the triangulated landmark map formed from 3 measurements is valid.
-            Also checks if the triangulated point is as expected.
+        Tests that the triangulation is accurate for shared calibration without ransac.
+        Checks whether the triangulated landmark map formed from 2 measurements is valid, if min track length = 3.
         """
-
         matches_1, feature_list, poses, _, cameras = self.__generate_2_poses(
             self.sharedCal
         )
@@ -140,16 +138,27 @@ class TestDataAssociation(GtsamTestCase):
         reproj_error_thresh = 5  # pixels
         min_track_len = 3  # at least 3 measurements required
 
-        da = DataAssociation(reproj_error_thresh, min_track_len, mode=TriangulationParam.NO_RANSAC)
+        da = DataAssociation(
+            reproj_error_thresh, min_track_len, mode=TriangulationParam.NO_RANSAC
+        )
         triangulated_landmark_map = da.run(matches_1, feature_list, cameras)
         # result should be empty, since nb_measurements < min track length
         assert (
             triangulated_landmark_map.number_tracks() == 0
         ), "tracks exceeding expected track length"
 
+    def test_triangulation_sharedCal_no_ransac_3poses(self):
+        """
+        Checks whether the triangulated landmark map formed from 3 measurements without ransac, using shared calibration, is valid.
+        Also checks if the triangulated point and cameras are as expected.
+        """
         # compute triangulated map for 3 measurements
         matches_2, feature_list, cameras = self.__generate_3_poses(self.sharedCal)
-        da = DataAssociation(reproj_error_thresh, min_track_len, mode=TriangulationParam.NO_RANSAC)
+        da = DataAssociation(
+            reproj_error_thresh=5, 
+            min_track_len=3, 
+            mode=TriangulationParam.NO_RANSAC
+        )
         triangulated_landmark_map = da.run(matches_2, feature_list, cameras)
         computed_landmark = triangulated_landmark_map.track(0).point3()
 
@@ -165,11 +174,10 @@ class TestDataAssociation(GtsamTestCase):
         # checks if computed 3D point is as expected
         self.gtsamAssertEquals(computed_landmark, self.expected_landmark, 1e-2)
 
-    def test_triangulation_sharedCal_ransac_uniform(self) -> None:
+    def test_triangulation_sharedCal_ransac_uniform_2poses(self) -> None:
         """
-        Tests that the triangulation is accurate for shared calibration.
-        Example from borglab/gtsam/python/gtsam/tests/test_Triangulation.py
-        and gtsam/geometry/tests/testTriangulation.cpp
+        Tests that the triangulation is accurate for uniform ransac sampling mode.
+        Checks whether the triangulated landmark map formed from 2 measurements is valid, if min track length = 3.
         """
 
         matches_1, feature_list, poses, _, cameras = self.__generate_2_poses(
@@ -188,6 +196,11 @@ class TestDataAssociation(GtsamTestCase):
             triangulated_landmark_map.number_tracks() == 0
         ), "tracks exceeding expected track length"
 
+    def test_triangulation_sharedCal_ransac_uniform_3poses(self):
+        """
+        Checks whether the triangulated landmark map formed from 3 measurements using uniform sampling mode, is valid.
+        Also checks if the triangulated point and cameras are as expected.
+        """
         matches_2, feature_list, cameras = self.__generate_3_poses(self.sharedCal)
         da = DataAssociation(
             reproj_error_thresh=5,  # 5 px
@@ -206,11 +219,10 @@ class TestDataAssociation(GtsamTestCase):
                 triangulated_landmark_map.camera(cam), cameras.get(cam)
             )
 
-    def test_triangulation_sharedCal_ransac_baseline(self):
+    def test_triangulation_sharedCal_ransac_baseline_2poses(self):
         """
-        Tests that the triangulation is accurate for shared calibration.
-        Example from borglab/gtsam/python/gtsam/tests/test_Triangulation.py
-        and gtsam/geometry/tests/testTriangulation.cpp
+        Tests that the triangulation is accurate for shared calibration with widest baseline sampling mode.
+        Checks whether the triangulated landmark map formed from 2 measurements is valid, if min track length = 3.
         """
         matches_1, feature_list, _, _, cameras = self.__generate_2_poses(self.sharedCal)
         da = DataAssociation(
@@ -225,6 +237,11 @@ class TestDataAssociation(GtsamTestCase):
             triangulated_landmark_map.number_tracks() == 0
         ), "tracks exceeding expected track length"
 
+    def test_triangulation_sharedCal_ransac_baseline_3poses(self):
+        """
+        Checks whether the triangulated landmark map formed from 3 measurements using widest baseline sampling mode, is valid.
+        Also checks if the triangulated point and cameras are as expected.
+        """
         matches_2, feature_list, cameras = self.__generate_3_poses(self.sharedCal)
         da = DataAssociation(
             reproj_error_thresh=5,  # 5 px
@@ -247,9 +264,8 @@ class TestDataAssociation(GtsamTestCase):
 
     def test_triangulation_sharedCal_ransac_maxtomin(self):
         """
-        Tests that the triangulation is accurate for shared calibration.
-        Example from borglab/gtsam/python/gtsam/tests/test_Triangulation.py
-        and gtsam/geometry/tests/testTriangulation.cpp
+        Tests that the triangulation is accurate for shared calibration, using max to min sampling mode.
+        Checks whether the triangulated landmark map formed from 2 measurements is valid, if min track length = 3.
         """
         matches_1, feature_list, poses, _, cameras = self.__generate_2_poses(
             self.sharedCal
@@ -266,6 +282,11 @@ class TestDataAssociation(GtsamTestCase):
             triangulated_landmark_map.number_tracks() == 0
         ), "tracks exceeding expected track length"
 
+    def test_triangulation_sharedCal_ransac_maxtomin(self):
+        """
+        Checks whether the triangulated landmark map formed from 3 measurements using max to min sampling mode, is valid.
+        Also checks if the triangulated point and cameras are as expected.
+        """
         matches_2, feature_list, cameras = self.__generate_3_poses(self.sharedCal)
         da = DataAssociation(
             reproj_error_thresh=5,  # 5 px
@@ -288,7 +309,7 @@ class TestDataAssociation(GtsamTestCase):
     def test_triangulation_individualCal_without_ransac(self):
         """
         Tests that the triangulation is accurate for individual camera calibration, without RANSAC-based triangulation.
-        Checks if cameras and triangulated 3D point saved to result are as expected.
+        Checks if cameras and triangulated 3D point are as expected.
         """
         f, k1, k2, u0, v0 = 1500, 0, 0, 640, 480
         f_2, k1_2, k2_2, u0_2, v0_2 = 1600, 0, 0, 650, 440
@@ -379,7 +400,7 @@ class TestDataAssociation(GtsamTestCase):
             cameras: List of cameras
         """
         # Amount of noise to be added to measurements
-        noise_params = np.array([[-0.1, -0.5],[0.2, -0.3]])
+        noise_params = np.array([[-0.1, -0.5], [0.2, -0.3]])
 
         measurements, feature_list, img_idxs, cameras = self.__generate_measurements(
             (sharedCal, sharedCal), noise_params, self.poses
@@ -415,11 +436,14 @@ class TestDataAssociation(GtsamTestCase):
         rotatedCamera = Rot3.Ypr(0.1, 0.2, 0.1)
         self.poses.append(Pose3(rotatedCamera, Point3(0.1, -2, -0.1)))
 
-        measurements, feature_list, img_idxs, cameras = self.__generate_measurements((sharedCal, sharedCal, sharedCal), 
-                np.array([[-0.1, -0.5],[-0.2, 0.3], [0.1, -0.1]]), self.poses)
+        measurements, feature_list, img_idxs, cameras = self.__generate_measurements(
+            (sharedCal, sharedCal, sharedCal),
+            np.array([[-0.1, -0.5], [-0.2, 0.3], [0.1, -0.1]]),
+            self.poses,
+        )
 
         # Only one measurement in each image, hence each get index 0
-        matched_idxs = np.array([[0, 0], [0,0]])
+        matched_idxs = np.array([[0, 0], [0, 0]])
         matches = dict()
         # create matches
         for i in range(len(img_idxs)):
@@ -459,8 +483,8 @@ class TestDataAssociation(GtsamTestCase):
             measurements.append(z + noise_params[i])
         # Create image indices for each pose - only subsequent pairwise matches assumed, eg., between images (0,1) and images (1,2)
         img_idxs = []
-        for i in range(len(self.poses)-1):
-            img_idxs.append(tuple((i, i+1)))
+        for i in range(len(self.poses) - 1):
+            img_idxs.append(tuple((i, i + 1)))
         # List of features in each image
         for i in range(len(measurements)):
             feature_list = [Keypoints(coordinates=np.array([m])) for m in measurements]
