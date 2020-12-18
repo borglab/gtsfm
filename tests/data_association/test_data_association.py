@@ -230,7 +230,8 @@ class TestDataAssociation(GtsamTestCase):
             num_ransac_hypotheses=20,
         )
         triangulated_landmark_map = da.run(matches_1, feature_list, cameras)
-
+        
+        # assert that we cannot obtain even 1 length-3 track if we have only 2 camera poses
         assert (
             triangulated_landmark_map.number_tracks() == 0
         ), "tracks exceeding expected track length"
@@ -310,9 +311,9 @@ class TestDataAssociation(GtsamTestCase):
         Checks if cameras and triangulated 3D point are as expected.
         """
         f, k1, k2, u0, v0 = 1500, 0, 0, 640, 480
-        f_2, k1_2, k2_2, u0_2, v0_2 = 1600, 0, 0, 650, 440
+        f_, k1_, k2_, u0_, v0_ = 1600, 0, 0, 650, 440
         K1 = Cal3Bundler(f, k1, k2, u0, v0)
-        K2 = Cal3Bundler(f_2, k1_2, k2_2, u0_2, v0_2)
+        K2 = Cal3Bundler(f_, k1_, k2_, u0_, v0_)
 
         measurements, feature_list, img_idxs, cameras = self.__generate_measurements(
             (K1, K2), (0.0, 0.0), self.poses
