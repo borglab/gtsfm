@@ -432,7 +432,7 @@ class TestDataAssociation(GtsamTestCase):
 
         # Add third camera slightly rotated
         rotatedCamera = Rot3.Ypr(0.1, 0.2, 0.1)
-        self.poses.append(Pose3(rotatedCamera, Point3(0.1, -2, -0.1)))
+        self.poses.append(self.poses[0].compose(Pose3(rotatedCamera, Point3(0.1, -2, -0.1))))
 
         measurements, feature_list, img_idxs, cameras = self.__generate_measurements(
             (sharedCal, sharedCal, sharedCal),
