@@ -312,12 +312,12 @@ class Point3dInitializer(NamedTuple):
             reprojection errors
         """
         errors = []
-        for (i, uv) in track.measurements:
+        for (i, uv_measured) in track.measurements:
             camera = self.track_camera_list.get(i)
             # Project to camera
-            uv_hat = camera.project(triangulated_pt)
+            uv = camera.project(triangulated_pt)
             # Projection error in camera
-            errors.append(np.linalg.norm(uv - uv_hat))
+            errors.append(np.linalg.norm(uv_measured - uv))
         return errors
 
     def extract_measurements(
