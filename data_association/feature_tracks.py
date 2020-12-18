@@ -3,6 +3,10 @@ image ID and keypoint index for that image as the unique keys.
 
 A track is defined as a 2d measurement of a single 3d landmark seen in multiple different images.
 
+References:
+1. P. Moulon, P. Monasse. Unordered Feature Tracking Made Fast and Easy, 2012, HAL Archives.
+   https://hal-enpc.archives-ouvertes.fr/hal-00769267/file/moulon_monasse_featureTracking_CVMP12.pdf
+
 Authors: Ayush Baid, Sushmita Warrier, John Lambert
 """
 import gtsam
@@ -34,7 +38,9 @@ class FeatureTrackGenerator:
         keypoints_list: List[Keypoints],
     ) -> None:
         """
-        Creates DSF and landmark map from pairwise matches.
+        Creates a disjoint-set forest (DSF) and 2d tracks from pairwise matches. We create a
+        singleton for union-find set elements from camera index of a detection and the index
+        of that detection in that camera's keypoint list, i.e. (i,k).
 
         Args:
             matches_dict: Dict of pairwise matches of type:
