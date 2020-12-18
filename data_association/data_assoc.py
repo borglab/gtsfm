@@ -20,12 +20,7 @@ import numpy as np
 from common.keypoints import Keypoints
 from data_association.feature_tracks import FeatureTrackGenerator, SfmTrack2d
 from enum import Enum
-from gtsam import (
-    CameraSetCal3Bundler,
-    PinholeCameraCal3Bundler,
-    Point3,
-    Point2Vector
-)
+from gtsam import CameraSetCal3Bundler, PinholeCameraCal3Bundler, Point3, Point2Vector
 
 import logging
 
@@ -40,10 +35,14 @@ will be sampled """
 
 
 class TriangulationParam(Enum):
-    NO_RANSAC = 0 # do not use filtering
+    NO_RANSAC = 0  # do not use filtering
     RANSAC_SAMPLE_UNIFORM = 1  # sample a pair of cameras uniformly at random
-    RANSAC_SAMPLE_BIASED_BASELINE = 2  # sample pair of cameras based on largest estimated baseline
-    RANSAC_TOPK_BASELINES = 3  # deterministically choose hypotheses with largest estimate baseline
+    RANSAC_SAMPLE_BIASED_BASELINE = (
+        2  # sample pair of cameras based on largest estimated baseline
+    )
+    RANSAC_TOPK_BASELINES = (
+        3  # deterministically choose hypotheses with largest estimate baseline
+    )
 
 
 class DataAssociation(NamedTuple):
@@ -157,7 +156,7 @@ class Point3dInitializer(NamedTuple):
         if self.mode in [
             TriangulationParam.RANSAC_SAMPLE_UNIFORM,
             TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
-            TriangulationParam.RANSAC_TOPK_BASELINES
+            TriangulationParam.RANSAC_TOPK_BASELINES,
         ]:
             # Generate all possible matches
             measurement_pairs = self.generate_measurement_pairs(track)
@@ -267,7 +266,7 @@ class Point3dInitializer(NamedTuple):
 
         if self.mode in [
             TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
-            TriangulationParam.RANSAC_TOPK_BASELINES
+            TriangulationParam.RANSAC_TOPK_BASELINES,
         ]:
             for k, (k1, k2) in enumerate(measurement_pairs):
                 i1, pt1 = track.measurements[k1]

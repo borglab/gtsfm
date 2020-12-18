@@ -125,7 +125,7 @@ class TestDataAssociation(GtsamTestCase):
         # is the same. Only good tracks will remain
         assert len(filtered_map) == 4, "Tracks not filtered correctly"
 
-    def test_triangulation_sharedCal_without_ransac_2poses(self) -> None:
+    def test_triangulation_sharedCal_no_ransac_2poses(self) -> None:
         """
         Tests that the triangulation is accurate for shared calibration without ransac.
         Checks whether the triangulated landmark map formed from 2 measurements is valid, if min track length = 3.
@@ -155,9 +155,7 @@ class TestDataAssociation(GtsamTestCase):
         # compute triangulated map for 3 measurements
         matches_2, feature_list, cameras = self.__generate_3_poses(self.sharedCal)
         da = DataAssociation(
-            reproj_error_thresh=5, 
-            min_track_len=3, 
-            mode=TriangulationParam.NO_RANSAC
+            reproj_error_thresh=5, min_track_len=3, mode=TriangulationParam.NO_RANSAC
         )
         triangulated_landmark_map = da.run(matches_2, feature_list, cameras)
         computed_landmark = triangulated_landmark_map.track(0).point3()
@@ -262,7 +260,7 @@ class TestDataAssociation(GtsamTestCase):
 
         self.gtsamAssertEquals(computed_landmark, self.expected_landmark, 1e-2)
 
-    def test_triangulation_sharedCal_ransac_maxtomin(self):
+    def test_triangulation_sharedCal_ransac_maxtomin_2poses(self):
         """
         Tests that the triangulation is accurate for shared calibration, using max to min sampling mode.
         Checks whether the triangulated landmark map formed from 2 measurements is valid, if min track length = 3.
@@ -282,7 +280,7 @@ class TestDataAssociation(GtsamTestCase):
             triangulated_landmark_map.number_tracks() == 0
         ), "tracks exceeding expected track length"
 
-    def test_triangulation_sharedCal_ransac_maxtomin(self):
+    def test_triangulation_sharedCal_ransac_maxtomin_3poses(self):
         """
         Checks whether the triangulated landmark map formed from 3 measurements using max to min sampling mode, is valid.
         Also checks if the triangulated point and cameras are as expected.
