@@ -53,13 +53,13 @@ class DataAssociation(NamedTuple):
         min_track_len: min length required for valid feature track / min nb of
             supporting views required for a landmark to be valid
         sampling_method (optional): robust estimation method, specify "None" to not use RANSAC
-        num_hypotheses (optional): number of samples to draw for RANSAC-based triangulation
+        num_ransac_hypotheses (optional): number of samples to draw for RANSAC-based triangulation
     """
 
     reproj_error_thresh: float
     min_track_len: int
     sampling_method: Optional[TriangulationParam] = None
-    num_hypotheses: Optional[int] = None
+    num_ransac_hypotheses: Optional[int] = None
 
     def run(
         self,
@@ -86,7 +86,7 @@ class DataAssociation(NamedTuple):
         # point indices are represented as j
         # nb of 3D points = nb of tracks, hence track_idx represented as j
         point3d_initializer = Point3dInitializer(
-            cameras, self.sampling_method, self.num_hypotheses, self.reproj_error_thresh
+            cameras, self.sampling_method, self.num_ransac_hypotheses, self.reproj_error_thresh
         )
 
         for track_2d in sfm_tracks_2d:
@@ -134,13 +134,13 @@ class Point3dInitializer(NamedTuple):
     Args:
         track_cameras: List of cameras
         sampling_method (optional): robust estimation method. If None, robust estimation is not used
-        num_hypotheses (optional): desired number of RANSAC hypotheses
+        num_ransac_hypotheses (optional): desired number of RANSAC hypotheses
         reproj_error_thresh (optional): threshold for RANSAC inlier filtering
     """
 
     track_camera_list: Dict[int, PinholeCameraCal3Bundler]
     sampling_method: Optional[TriangulationParam] = None
-    num_hypotheses: Optional[int] = None
+    num_ransac_hypotheses: Optional[int] = None
     reproj_error_thresh: Optional[float] = None
 
     def triangulate(self, track: SfmTrack2d) -> gtsam.SfmTrack:
@@ -158,7 +158,7 @@ class Point3dInitializer(NamedTuple):
             measurement_pairs = self.generate_measurement_pairs(track)
 
             # We limit the number of samples to the number of actual available matches
-            num_hypotheses = min(self.num_hypotheses, len(measurement_pairs))
+            num_hypotheses = min(self.num_ransac_hypotheses, len(measurement_pairs))
 
             # Sampling
             samples = self.sample_ransac_hypotheses(
