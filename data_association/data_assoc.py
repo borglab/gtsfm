@@ -24,8 +24,7 @@ from gtsam import (
     CameraSetCal3Bundler,
     PinholeCameraCal3Bundler,
     Point3,
-    Point2Vector,
-    triangulatePoint3,
+    Point2Vector
 )
 
 import logging
@@ -187,7 +186,7 @@ class Point3dInitializer(NamedTuple):
                 img_measurements.append(pt2)
 
                 # triangulate point for track
-                triangulated_pt = triangulatePoint3(
+                triangulated_pt = gtsam.triangulatePoint3(
                     camera_estimates,
                     img_measurements,
                     rank_tol=SVD_DLT_RANK_TOL,
@@ -217,7 +216,7 @@ class Point3dInitializer(NamedTuple):
 
         camera_track, measurement_track = self.extract_measurements(track, best_inliers)
 
-        triangulated_pt = triangulatePoint3(
+        triangulated_pt = gtsam.triangulatePoint3(
             camera_track, measurement_track, rank_tol=SVD_DLT_RANK_TOL, optimize=True
         )
 
