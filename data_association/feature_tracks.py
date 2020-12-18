@@ -64,13 +64,13 @@ class FeatureTrackGenerator:
         key_set = dsf.sets()
         # create a landmark map: a list of tracks
         # Each track is represented as a list of (camera_idx, measurements)
-        for s in key_set:
-            key = key_set[
-                s
+        for set_id in key_set:
+            index_pair_set = key_set[
+                set_id
             ]  # key_set is a wrapped C++ map, so this unusual syntax is required
             # Initialize track
             track = []
-            for index_pair in gtsam.IndexPairSetAsArray(key):
+            for index_pair in gtsam.IndexPairSetAsArray(index_pair_set):
                 # camera_idx is represented by i
                 # measurement_idx is represented by k
                 i = index_pair.i()
