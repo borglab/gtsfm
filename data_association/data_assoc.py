@@ -5,7 +5,6 @@
 
 References: 
 1. Richard I. Hartley and Peter Sturm. Triangulation. Computer Vision and Image Understanding, Vol. 68, No. 2, November, pp. 146–157, 1997
-2. P. Moulon, P. Monasse. Unordered Feature Tracking Made Fast and Easy, 2012, HAL Archives.
 
 Authors: Sushmita Warrier, Xiaolong Wu
 """
