@@ -85,12 +85,12 @@ class DataAssociation(NamedTuple):
 
         # point indices are represented as j
         # nb of 3D points = nb of tracks, hence track_idx represented as j
-        p3di = Point3dInitializer(
+        point3d_initializer = Point3dInitializer(
             cameras, self.sampling_method, self.num_hypotheses, self.reproj_error_thresh
         )
 
         for track_2d in sfm_tracks_2d:
-            filtered_track = p3di.triangulate(track_2d)
+            filtered_track = point3d_initializer.triangulate(track_2d)
 
             if filtered_track.number_measurements() >= self.min_track_len:
                 triangulated_landmark_map.add_track(filtered_track)
