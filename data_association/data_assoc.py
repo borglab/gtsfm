@@ -193,7 +193,7 @@ class Point3dInitializer(NamedTuple):
                     optimize=True,
                 )
 
-                errors = self.compute_reprojection_error(triangulated_pt, track)
+                errors = self.compute_track_reprojection_errors(triangulated_pt, track)
                 # The best solution should correspond to the one with most inliers
                 # If the inlier number are the same, check the average error of inliers
                 votes = [err < self.reproj_error_thresh for err in errors]
@@ -293,7 +293,7 @@ class Point3dInitializer(NamedTuple):
 
         return sample_indices.tolist()
 
-    def compute_reprojection_error(
+    def compute_track_reprojection_errors(
         self, triangulated_pt: Point3, track: SfmTrack2d
     ) -> List[float]:
         """
