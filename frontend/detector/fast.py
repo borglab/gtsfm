@@ -1,7 +1,7 @@
 """FAST detector implementation.
 
 The detector was proposed in 'Machine Learning for High-Speed Corner Detection' 
-and is implemented by wrapping over OpenCV's API
+and is implemented by wrapping over OpenCV's API.
 
 References:
 - https://link.springer.com/chapter/10.1007/11744023_34
@@ -10,40 +10,34 @@ References:
 Authors: Ayush Baid
 """
 import cv2 as cv
-import numpy as np
 
 import utils.features as feature_utils
 import utils.images as image_utils
 from common.image import Image
+from common.keypoints import Keypoints
 from frontend.detector.detector_base import DetectorBase
 
 
 class Fast(DetectorBase):
-    """Fast detector using opencv's implementation."""
+    """Fast detector using OpenCV's implementation."""
 
-    def detect(self, image: Image) -> np.ndarray:
+    def detect(self, image: Image) -> Keypoints:
         """Detect the features in an image.
-
-        Refer to documentation in DetectorBase for more details.
 
         Args:
             image: input image.
 
         Returns:
-            detected features as a numpy array of shape (N, 4).
+            detected keypoints, with maximum length of max_keypoints.
         """
         # init the opencv object
         opencv_obj = cv.FastFeatureDetector_create()
 
         gray_image = image_utils.rgb_to_gray_cv(image)
         cv_keypoints = opencv_obj.detect(gray_image.value_array, None)
+        keypoints = feature_utils.cast_to_gtsfm_keypoints(cv_keypoints)
 
-        # sort the keypoints by score and pick top responses
-        cv_keypoints = sorted(
-            cv_keypoints, key=lambda x: x.response, reverse=True
-        )[:self.max_features]
+        # limit number of keypoints
+        keypoints = keypoints.get_top_k(self.max_keypoints)
 
-        # convert to numpy array
-        features = feature_utils.array_from_keypoints(cv_keypoints)
-
-        return features
+        return keypoints

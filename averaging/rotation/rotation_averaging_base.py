@@ -20,37 +20,31 @@ class RotationAveragingBase(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def run(self,
             num_images: int,
-            i1_R_i2_dict: Dict[Tuple[int, int], Optional[Rot3]]
+            i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]]
             ) -> List[Optional[Rot3]]:
         """Run the rotation averaging.
 
         Args:
             num_images: number of poses.
-            i1_R_i2_dict: relative rotations between pairs of camera poses (
-                          rotation of i2^th pose in i1^th frame for various
-                          pairs of (i1, i2). The pairs serve as keys of the
-                          dictionary).
+            i2Ri1_dict: relative rotations as dictionary (i1, i2): i2Ri1.
 
         Returns:
-            Global rotations for each camera pose, i.e. w_R_i, as a list. The
+            Global rotations for each camera pose, i.e. wRi, as a list. The
                 number of entries in the list is `num_images`. The list may
                 contain `None` where the global rotation could not be computed
                 (either underconstrained system or ill-constrained system).
         """
 
     def create_computation_graph(
-            self,
-            num_images: int,
-            i1_R_i2_graph: Dict[Tuple[int, int], Delayed]
-    ) -> Delayed:
+            self, num_images: int, i2Ri1_graph: Delayed) -> Delayed:
         """Create the computation graph for performing rotation averaging.
 
         Args:
             num_images: number of poses.
-            i1_R_i2_graph: the graph of relative rotations, stored as a dict.
+            i2Ri1_graph: dictionary of relative rotations as a delayed task.
 
         Returns:
-            Delayed: global rotations wrapped using dask.delayed.
+            global rotations wrapped using dask.delayed.
         """
 
-        return dask.delayed(self.run)(num_images, i1_R_i2_graph)
+        return dask.delayed(self.run)(num_images, i2Ri1_graph)
