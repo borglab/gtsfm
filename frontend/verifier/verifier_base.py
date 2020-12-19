@@ -124,8 +124,8 @@ class VerifierBase(metaclass=abc.ABCMeta):
             intrinsics_i1_graph,
             intrinsics_i2_graph,
         )
-        i2Ri1 = result[0]
-        i2Ui1 = result[1]
-        v_corr_idxs = result[2]
+        i2Ri1_graph = result[0]
+        i2Ui1_graph = result[1]
+        v_corr_idxs_graph = result[2]
 
-        return i2Ri1, i2Ui1, v_corr_idxs
+        return i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph
