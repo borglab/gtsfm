@@ -4,7 +4,7 @@ Authors: Ayush Baid
 """
 
 import abc
-from typing import List, Tuple
+from typing import Tuple
 
 import dask
 import numpy as np
@@ -31,8 +31,7 @@ class DetectorDescriptorBase(metaclass=abc.ABCMeta):
         self.max_keypoints = max_keypoints
 
     @abc.abstractmethod
-    def detect_and_describe(self,
-                            image: Image) -> Tuple[Keypoints, np.ndarray]:
+    def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
         """Perform feature detection as well as their description.
 
         Refer to detect() in DetectorBase and describe() in DescriptorBase for
@@ -47,24 +46,23 @@ class DetectorDescriptorBase(metaclass=abc.ABCMeta):
             descriptor.
         """
 
-    def create_computation_graph(self,
-                                 image_graph: List[Delayed]
-                                 ) -> Tuple[List[Delayed], List[Delayed]]:
+    def create_computation_graph(
+        self, image_graph: Delayed
+    ) -> Tuple[Delayed, Delayed]:
         """
-        Generates the computation graph for detections and their descriptions.
+        Generates the computation graph for detections and their descriptors.
 
         Args:
-            image_graph: computation graph for images (from a loader).
+            image_graph: computation graph for a single image (from a loader).
 
         Returns:
-            List of delayed tasks for detections.
-            List of delayed task for corr. descriptions.
-
+            Delayed tasks for detections.
+            Delayed task for corr. descriptors.
         """
-        joint_graph = [
-            dask.delayed(self.detect_and_describe)(x) for x in image_graph]
+        # get delayed object, cannot separate two arguments immediately
+        joint_graph = dask.delayed(self.detect_and_describe)(image_graph)
 
-        detection_graph = [x[0] for x in joint_graph]
-        description_graph = [x[1] for x in joint_graph]
+        keypoints_graph = joint_graph[0]
+        descriptor_graph = joint_graph[1]
 
-        return detection_graph, description_graph
+        return keypoints_graph, descriptor_graph

@@ -4,7 +4,6 @@ Authors: Ayush Baid
 """
 
 import abc
-from typing import List
 
 import dask
 import numpy as np
@@ -33,23 +32,18 @@ class DescriptorBase(metaclass=abc.ABCMeta):
                 the dimension of each descriptor.
         """
 
-    def create_computation_graph(self,
-                                 image_graph: List[Delayed],
-                                 detection_graph: List[Delayed]
-                                 ) -> List[Delayed]:
+    def create_computation_graph(
+        self, image_graph: Delayed, keypoints_graph: Delayed
+    ) -> Delayed:
         """Generates the computation graph to perform description.
 
-        Note: two input graphs have to be of the same length.
-
         Args:
-            image_graph: computation graph for images (from a loader).
-            detection_graph: computation graph from detector, for the images in
-                             image_graph.
+            image_graph: computation graph for an image.
+            keypoints_graph: computation graph for keypoints for the image.
 
         Returns:
-            List of delayed tasks for descriptions.
+            Delayed tasks for performing description.
         """
-        assert len(image_graph) == len(detection_graph)
 
-        return [dask.delayed(self.describe)(im, keypoints)
-                for im, keypoints in zip(image_graph, detection_graph)]
+        return dask.delayed(self.describe)(image_graph, keypoints_graph)
+

@@ -13,6 +13,7 @@ from dask.delayed import Delayed
 
 class MatchingDistanceType(Enum):
     """Type of distance metric to use for matching descriptors."""
+
     HAMMING = 1
     EUCLIDEAN = 2
 
@@ -24,11 +25,12 @@ class MatcherBase(metaclass=abc.ABCMeta):
     """
 
     @abc.abstractmethod
-    def match(self,
-              descriptors_im1: np.ndarray,
-              descriptors_im2: np.ndarray,
-              distance_type: MatchingDistanceType =
-              MatchingDistanceType.EUCLIDEAN) -> np.ndarray:
+    def match(
+        self,
+        descriptors_im1: np.ndarray,
+        descriptors_im2: np.ndarray,
+        distance_type: MatchingDistanceType = MatchingDistanceType.EUCLIDEAN,
+    ) -> np.ndarray:
         """Match descriptor vectors.
 
         Output format:
@@ -51,18 +53,18 @@ class MatcherBase(metaclass=abc.ABCMeta):
         # TODO(ayush): should I define matcher on descriptors or the distance matrices.
         # TODO(ayush): how to handle deep-matchers which might require the full image as input
 
-    def create_computation_graph(self,
-                                 image_pair_indices: List[Tuple[int, int]],
-                                 description_graph: List[Delayed],
-                                 distance_type: MatchingDistanceType =
-                                 MatchingDistanceType.EUCLIDEAN
-                                 ) -> Dict[Tuple[int, int], Delayed]:
+    def create_computation_graph(
+        self,
+        descriptors_im1_graph: Delayed,
+        descriptors_im2_graph: Delayed,
+        distance_type: MatchingDistanceType = MatchingDistanceType.EUCLIDEAN,
+    ) -> Delayed:
         """
         Generates computation graph for matched features using the detection and description graph.
 
         Args:
-            image_pair_indices: valid pairs of images which are to be matched.
-            description: list of dask tasks for descriptor generation for each image.
+            descriptors_im1_graph: descriptors for im1 wrapped in Delayed.
+            descriptors_im2_graph: descriptors for im2 wrapped in Delayed.
             distance_type (optional): the space to compute the distance between
                                       descriptors. Defaults to
                                       MatchingDistanceType.EUCLIDEAN.
@@ -70,14 +72,6 @@ class MatcherBase(metaclass=abc.ABCMeta):
         Returns:
             Delayed dask tasks for matching for input camera pairs.
         """
-
-        graph = dict()
-
-        for i1, i2 in image_pair_indices:
-            graph[(i1, i2)] = dask.delayed(self.match)(
-                description_graph[i1],
-                description_graph[i2],
-                distance_type
-            )
-
-        return graph
+        return dask.delayed(self.match)(
+            descriptors_im1_graph, descriptors_im2_graph, distance_type
+        )

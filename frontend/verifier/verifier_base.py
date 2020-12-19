@@ -82,19 +82,20 @@ class VerifierBase(metaclass=abc.ABCMeta):
                 These indices are subset of match_indices.
         """
 
-    def create_computation_graph(self,
-                                 detection_graph: List[Delayed],
-                                 matcher_graph: Dict[Tuple[int, int], Delayed],
-                                 camera_intrinsics_graph: List[Delayed],
-                                 exact_intrinsics_flag: bool = True
-                                 ) -> Tuple[
-                                     Dict[Tuple[int, int], Delayed],
-                                     Dict[Tuple[int, int], Delayed],
-                                     Dict[Tuple[int, int], Delayed]]:
+    def create_computation_graph(
+        self,
+        keypoints_i1_graph: Delayed,
+        keypoints_i2_graph: Delayed,
+        matches_i1i2_graph: Delayed,
+        intrinsics_i1_graph: Delayed,
+        intrinsics_i2_graph: Delayed,
+        exact_intrinsics_flag: bool = True,
+    ) -> Tuple[Delayed, Delayed, Delayed]:
         """Generates the computation graph to perform verification of putative
         correspondences.
 
         Args:
+            image_pair_indices: 2-tuple (i1,i2) specifying image pair indices
             detection_graph: nodes with features for each image.
             matcher_graph: nodes with matching results for pairs of images.
             camera_intrinsics_graph: nodes with intrinsics for each image.
@@ -104,35 +105,27 @@ class VerifierBase(metaclass=abc.ABCMeta):
                                               Defaults to True.
 
         Returns:
-            Dictionary from image pair indices (i1, i2) to delayed dask tasks
-                for rotations i2Ri1 for each pair.
-            Dictionary from image pair indices (i1, i2) to delayed dask tasks
-                for unit translations i2Ui1 for each pair.
-            Dictionary from image pair indices (i1, i2) to delayed dask tasks 
-                for essential indices of verified correspondence indices for 
-                each pair.
+            Delayed dask task for rotation i2Ri1 for specified image pair.
+            Delayed dask task for unit translation i2Ui1 for specified image pair.
+            Delayed dask task for indices of verified correspondence indices for 
+                the specified image pair
         """
-
-        rotation_graph = dict()
-        unit_translation_graph = dict()
-        verified_correspondence_indices_graph = dict()
-
-        fn_to_use = self.verify_with_exact_intrinsics if exact_intrinsics_flag \
+        fn_to_use = (
+            self.verify_with_exact_intrinsics
+            if exact_intrinsics_flag
             else self.verify_with_approximate_intrinsics
+        )
 
-        for (i1, i2), delayed_matcher in matcher_graph.items():
-            result = dask.delayed(fn_to_use)(
-                detection_graph[i1],
-                detection_graph[i2],
-                delayed_matcher,
-                camera_intrinsics_graph[i1],
-                camera_intrinsics_graph[i2],
-            )
+        # note that we cannot immediately unpack the result tuple, per dask syntax
+        result = dask.delayed(fn_to_use)(
+            keypoints_i1_graph,
+            keypoints_i2_graph,
+            matches_i1i2_graph,
+            intrinsics_i1_graph,
+            intrinsics_i2_graph,
+        )
+        i2Ri1_graph = result[0]
+        i2Ui1_graph = result[1]
+        v_corr_idxs_graph = result[2]
 
-            rotation_graph[(i1, i2)] = result[0]
-            unit_translation_graph[(i1, i2)] = result[1]
-            verified_correspondence_indices_graph[(i1, i2)] = result[2]
-
-        return rotation_graph, \
-            unit_translation_graph, \
-            verified_correspondence_indices_graph
+        return i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph

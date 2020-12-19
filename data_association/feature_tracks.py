@@ -54,7 +54,6 @@ def generate_tracks(
 
     # Generate the DSF to form tracks
     dsf = gtsam.DSFMapIndexPair()
-    self.filtered_landmark_data = []
     tracks_2d = []
     # for DSF finally
     # measurement_idxs represented by ks
@@ -70,15 +69,15 @@ def generate_tracks(
             set_id
         ]  # key_set is a wrapped C++ map, so this unusual syntax is required
         # Initialize track
-        track = []
+        track_measurements = []
         for index_pair in gtsam.IndexPairSetAsArray(index_pair_set):
             # camera_idx is represented by i
             # measurement_idx is represented by k
             i = index_pair.i()
             k = index_pair.j()
             # add measurement in this track
-            track += [SfmMeasurement(i, keypoints_list[i].coordinates[k])]
-        tracks_2d += [SfmTrack2d(track)]
+            track_measurements += [SfmMeasurement(i, keypoints_list[i].coordinates[k])]
+        tracks_2d += [SfmTrack2d(track_measurements)]
     return delete_erroneous_tracks(tracks_2d)
 
 

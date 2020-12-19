@@ -14,8 +14,8 @@ from frontend.detector.dummy_detector import DummyDetector
 from loader.folder_loader import FolderLoader
 
 # defining the path for test data
-DATA_ROOT_PATH = Path(__file__).resolve().parent.parent.parent / 'data'
-TEST_DATA_PATH = DATA_ROOT_PATH / 'set1_lund_door'
+DATA_ROOT_PATH = Path(__file__).resolve().parent.parent.parent / "data"
+TEST_DATA_PATH = DATA_ROOT_PATH / "set1_lund_door"
 
 
 class TestDetectorBase(unittest.TestCase):
@@ -24,7 +24,7 @@ class TestDetectorBase(unittest.TestCase):
     def setUp(self):
         super().setUp()
         self.detector = DummyDetector()
-        self.loader = FolderLoader(TEST_DATA_PATH, image_extension='JPG')
+        self.loader = FolderLoader(TEST_DATA_PATH, image_extension="JPG")
 
     def test_number_of_detections(self):
         """Tests that the number of detections is less than the maximum number
@@ -39,14 +39,14 @@ class TestDetectorBase(unittest.TestCase):
         test_image = self.loader.get_image(0)
         keypoints = self.detector.detect(test_image)
 
+        np.testing.assert_array_equal(keypoints.coordinates[:, 0] >= 0, True)
         np.testing.assert_array_equal(
-            keypoints.coordinates[:, 0] >= 0, True)
+            keypoints.coordinates[:, 0] <= test_image.width, True
+        )
+        np.testing.assert_array_equal(keypoints.coordinates[:, 1] >= 0, True)
         np.testing.assert_array_equal(
-            keypoints.coordinates[:, 0] <= test_image.width, True)
-        np.testing.assert_array_equal(
-            keypoints.coordinates[:, 1] >= 0, True)
-        np.testing.assert_array_equal(
-            keypoints.coordinates[:, 1] <= test_image.height, True)
+            keypoints.coordinates[:, 1] <= test_image.height, True
+        )
 
     def test_scale(self):
         """Tests that the scales are positive."""
@@ -57,29 +57,20 @@ class TestDetectorBase(unittest.TestCase):
     def test_computation_graph(self):
         """Test the dask's computation graph formation using a single image."""
 
-        image_graph = self.loader.create_computation_graph_for_images()
-        detector_graph = self.detector.create_computation_graph(image_graph)
+        idx_under_test = 0
 
-        results = []
-        with dask.config.set(scheduler='single-threaded'):
-            results = dask.compute(detector_graph)[0]
+        image_graph = self.loader.create_computation_graph_for_images()[
+            idx_under_test
+        ]
+        keypoints_graph = self.detector.create_computation_graph(image_graph)
 
-        # check the number of results
-        self.assertEqual(len(results), len(self.loader),
-                         "Dask workflow does not return the same number of results"
-                         )
+        with dask.config.set(scheduler="single-threaded"):
+            keypoints = dask.compute(keypoints_graph)[0]
 
         # check the results via normal workflow and dask workflow for an image
         expected_keypoints = self.detector.detect(self.loader.get_image(0))
-        computed_keypoints = results[0]
 
-        # TODO: move to using the __eq__ function coming in the followup review
-        np.testing.assert_allclose(
-            computed_keypoints.coordinates, expected_keypoints.coordinates)
-        np.testing.assert_allclose(
-            computed_keypoints.scales, expected_keypoints.scales)
-        np.testing.assert_allclose(
-            computed_keypoints.responses, expected_keypoints.responses)
+        self.assertEqual(keypoints, expected_keypoints)
 
     def test_pickleable(self):
         """Tests that the detector object is pickleable (required for dask)."""
@@ -89,5 +80,5 @@ class TestDetectorBase(unittest.TestCase):
             self.fail("Cannot dump detector using pickle")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

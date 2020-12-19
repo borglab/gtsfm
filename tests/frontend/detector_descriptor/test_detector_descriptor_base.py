@@ -8,13 +8,16 @@ import unittest
 import dask
 import numpy as np
 
+from common.keypoints import Keypoints
 import tests.frontend.detector.test_detector_base as test_detector_base
 from frontend.descriptor.dummy_descriptor import DummyDescriptor
-from frontend.detector.detector_from_joint_detector_descriptor import \
-    DetectorFromDetectorDescriptor
+from frontend.detector.detector_from_joint_detector_descriptor import (
+    DetectorFromDetectorDescriptor,
+)
 from frontend.detector.dummy_detector import DummyDetector
-from frontend.detector_descriptor.combination_detector_descriptor import \
-    CombinationDetectorDescriptor
+from frontend.detector_descriptor.combination_detector_descriptor import (
+    CombinationDetectorDescriptor,
+)
 
 
 class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
@@ -28,13 +31,11 @@ class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
         """Setup the attributes for the tests."""
         super().setUp()
         self.detector_descriptor = CombinationDetectorDescriptor(
-            DummyDetector(),
-            DummyDescriptor()
+            DummyDetector(), DummyDescriptor()
         )
 
         # explicitly set the detector
-        self.detector = DetectorFromDetectorDescriptor(
-            self.detector_descriptor)
+        self.detector = DetectorFromDetectorDescriptor(self.detector_descriptor)
 
     def test_detect_and_describe_shape(self):
         """
@@ -44,9 +45,9 @@ class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
         # test on random indexes
         test_indices = [0, 5]
         for idx in test_indices:
-            kps, descs = \
-                self.detector_descriptor.detect_and_describe(
-                    self.loader.get_image(idx))
+            kps, descs = self.detector_descriptor.detect_and_describe(
+                self.loader.get_image(idx)
+            )
 
             if len(kps) == 0:
                 # test-case for empty results
@@ -59,36 +60,30 @@ class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
         """Test the dask's computation graph formation."""
 
         image_graph = self.loader.create_computation_graph_for_images()
-        detection_graph, description_graph = \
-            self.detector_descriptor.create_computation_graph(image_graph)
+        for i, delayed_image in enumerate(image_graph):
+            (
+                kp_graph,
+                desc_graph,
+            ) = self.detector_descriptor.create_computation_graph(delayed_image)
+            with dask.config.set(scheduler="single-threaded"):
+                # TODO(ayush): check how many times detection is performed
+                keypoints = dask.compute(kp_graph)[0]
+                descriptors = dask.compute(desc_graph)[0]
 
-        with dask.config.set(scheduler='single-threaded'):
-            # TODO(ayush): check how many times detection is performed
-            detection_results = dask.compute(detection_graph)[0]
-            description_results = dask.compute(description_graph)[0]
+                # check the types of entries in results
+                self.assertTrue(isinstance(keypoints, Keypoints))
+                self.assertTrue(isinstance(descriptors, np.ndarray))
 
-        # check the number of entries in results
-        self.assertEqual(
-            len(detection_results), len(self.loader),
-            "Dask workflow does not return the same number of results"
-        )
-        self.assertEqual(
-            len(description_results), len(self.loader),
-            "Dask workflow does not return the same number of results"
-        )
-
-        # compare the result values for a particular image
-        idx_under_test = 0
-
-        # check the results via normal workflow and dask workflow for an image
-        expected_kps, expected_descs = \
-            self.detector_descriptor.detect_and_describe(
-                self.loader.get_image(idx_under_test))
-
-        self.assertEqual(detection_results[idx_under_test], expected_kps)
-        np.testing.assert_array_equal(
-            description_results[idx_under_test], expected_descs)
+                # check the results via normal workflow and dask workflow for an image
+                (
+                    expected_kps,
+                    expected_descs,
+                ) = self.detector_descriptor.detect_and_describe(
+                    self.loader.get_image(i)
+                )
+                self.assertEqual(keypoints, expected_kps)
+                np.testing.assert_array_equal(descriptors, expected_descs)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
