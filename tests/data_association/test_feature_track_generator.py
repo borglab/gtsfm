@@ -46,7 +46,7 @@ def get_dummy_keypoints_list() -> List[Keypoints]:
         ]
     )
     keypoints_list = [
-        Keypoints(coordinates=img1_kp_coords, scale=img1_kp_scale),
+        Keypoints(coordinates=img1_kp_coords, scales=img1_kp_scale),
         Keypoints(coordinates=img2_kp_coords),
         Keypoints(coordinates=img3_kp_coords),
     ]
