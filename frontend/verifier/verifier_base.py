@@ -82,13 +82,15 @@ class VerifierBase(metaclass=abc.ABCMeta):
                 These indices are subset of match_indices.
         """
 
-    def create_computation_graph(self,
-                                 image_pair_indices: Tuple[int,int],
-                                 detection_graph: List[Delayed],
-                                 delayed_matcher: Delayed,
-                                 camera_intrinsics_graph: List[Delayed],
-                                 exact_intrinsics_flag: bool = True
-                                 ) -> Tuple[Delayed, Delayed, Delayed]:
+    def create_computation_graph(
+        self,
+        keypoints_i1_graph: Delayed,
+        keypoints_i2_graph: Delayed,
+        matches_i1i2_graph: Delayed,
+        intrinsics_i1_graph: Delayed,
+        intrinsics_i2_graph: Delayed,
+        exact_intrinsics_flag: bool = True,
+    ) -> Tuple[Delayed, Delayed, Delayed]:
         """Generates the computation graph to perform verification of putative
         correspondences.
 
@@ -108,17 +110,19 @@ class VerifierBase(metaclass=abc.ABCMeta):
             Delayed dask task for indices of verified correspondence indices for 
                 the specified image pair
         """
-        fn_to_use = self.verify_with_exact_intrinsics if exact_intrinsics_flag \
+        fn_to_use = (
+            self.verify_with_exact_intrinsics
+            if exact_intrinsics_flag
             else self.verify_with_approximate_intrinsics
+        )
 
-        i1, i2 = image_pair_indices
         # note that we cannot immediately unpack the result tuple, per dask syntax
         result = dask.delayed(fn_to_use)(
-            detection_graph[i1],
-            detection_graph[i2],
-            delayed_matcher,
-            camera_intrinsics_graph[i1],
-            camera_intrinsics_graph[i2]
+            keypoints_i1_graph,
+            keypoints_i2_graph,
+            matches_i1i2_graph,
+            intrinsics_i1_graph,
+            intrinsics_i2_graph,
         )
         i2Ri1 = result[0]
         i2Ui1 = result[1]

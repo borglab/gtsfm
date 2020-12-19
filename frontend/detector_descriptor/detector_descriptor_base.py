@@ -4,7 +4,7 @@ Authors: Ayush Baid
 """
 
 import abc
-from typing import List, Tuple
+from typing import Tuple
 
 import dask
 import numpy as np
@@ -31,8 +31,7 @@ class DetectorDescriptorBase(metaclass=abc.ABCMeta):
         self.max_keypoints = max_keypoints
 
     @abc.abstractmethod
-    def detect_and_describe(self,
-                            image: Image) -> Tuple[Keypoints, np.ndarray]:
+    def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
         """Perform feature detection as well as their description.
 
         Refer to detect() in DetectorBase and describe() in DescriptorBase for
@@ -47,7 +46,9 @@ class DetectorDescriptorBase(metaclass=abc.ABCMeta):
             descriptor.
         """
 
-    def create_computation_graph(self, image_graph: Delayed) -> Tuple[Delayed, Delayed]:
+    def create_computation_graph(
+        self, image_graph: Delayed
+    ) -> Tuple[Delayed, Delayed]:
         """
         Generates the computation graph for detections and their descriptors.
 
@@ -56,12 +57,12 @@ class DetectorDescriptorBase(metaclass=abc.ABCMeta):
 
         Returns:
             Delayed tasks for detections.
-            Delayed task for corr. descriptors
+            Delayed task for corr. descriptors.
         """
         # get delayed object, cannot separate two arguments immediately
         joint_graph = dask.delayed(self.detect_and_describe)(image_graph)
-        
-        detection_graph = joint_graph[0]
+
+        keypoints_graph = joint_graph[0]
         descriptor_graph = joint_graph[1]
 
-        return detection_graph, descriptor_graph
+        return keypoints_graph, descriptor_graph

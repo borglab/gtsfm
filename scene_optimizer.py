@@ -10,10 +10,14 @@ from dask.delayed import Delayed
 from gtsam import PinholeCameraCal3Bundler, Rot3, Unit3, Cal3Bundler, Pose3
 
 from averaging.rotation.rotation_averaging_base import RotationAveragingBase
-from averaging.translation.translation_averaging_base import TranslationAveragingBase
+from averaging.translation.translation_averaging_base import (
+    TranslationAveragingBase,
+)
 from bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from data_association.dummy_da import DummyDataAssociation
-from frontend.detector_descriptor.detector_descriptor_base import DetectorDescriptorBase
+from frontend.detector_descriptor.detector_descriptor_base import (
+    DetectorDescriptorBase,
+)
 from frontend.matcher.matcher_base import MatcherBase
 from frontend.verifier.verifier_base import VerifierBase
 
@@ -24,7 +28,9 @@ class FeatureExtractor:
     def __init__(self, detector_descriptor: DetectorDescriptorBase):
         self.detector_descriptor = detector_descriptor
 
-    def create_computation_graph(self, image_graph: Delayed) -> Tuple[Delayed, Delayed]:
+    def create_computation_graph(
+        self, image_graph: Delayed
+    ) -> Tuple[Delayed, Delayed]:
         """ Given an image, create detection and descriptor generation tasks """
         return self.detector_descriptor.create_computation_graph(image_graph)
 
@@ -39,17 +45,19 @@ class TwoViewEstimator:
 
     def create_computation_graph(
         self,
-        image_pair_indices: Tuple[int, int],
-        detection_graph: List[Delayed],
-        descriptor_graph: List[Delayed],
-        camera_intrinsics_graph: List[Delayed],
+        keypoints_i1_graph: Delayed,
+        keypoints_i2_graph: Delayed,
+        descriptors_i1_graph: Delayed,
+        descriptors_i2_graph: Delayed,
+        camera_intrinsics_i1_graph: Delayed,
+        camera_intrinsics_i2_graph: Delayed,
         exact_intrinsics: bool = True,
     ) -> Tuple[Delayed, Delayed, Delayed]:
-        """ Create delayed tasks for matching and verification. """
+        """Create delayed tasks for matching and verification."""
 
         # graph for matching to obtain putative correspondences
-        matcher_graph = self.matcher.create_computation_graph(
-            image_pair_indices, descriptor_graph
+        corr_idxs_graph = self.matcher.create_computation_graph(
+            descriptors_i1_graph, descriptors_i2_graph
         )
 
         # verification on putative correspondences to obtain relative pose
@@ -59,10 +67,11 @@ class TwoViewEstimator:
             i2Ui1_graph,
             v_corr_idxs_graph,
         ) = self.verifier.create_computation_graph(
-            image_pair_indices,
-            detection_graph,
-            matcher_graph,
-            camera_intrinsics_graph,
+            keypoints_i1_graph,
+            keypoints_i2_graph,
+            corr_idxs_graph,
+            camera_intrinsics_i1_graph,
+            camera_intrinsics_i2_graph,
             exact_intrinsics,
         )
 
@@ -113,7 +122,9 @@ class MultiViewOptimizer:
             init_cameras_graph, v_corr_idxs_graph, keypoints_graph
         )
 
-        ba_result_graph = self.ba_optimizer.create_computation_graph(ba_input_graph)
+        ba_result_graph = self.ba_optimizer.create_computation_graph(
+            ba_input_graph
+        )
 
         return ba_result_graph
 
@@ -149,9 +160,10 @@ class MultiViewOptimizer:
                 selected_edges.append((i2, i1))
 
         # return the subset of original input
-        return {k: rotations[k] for k in selected_edges}, {
-            k: unit_translations[k] for k in selected_edges
-        }
+        return (
+            {k: rotations[k] for k in selected_edges},
+            {k: unit_translations[k] for k in selected_edges},
+        )
 
     @classmethod
     def init_cameras(
@@ -190,7 +202,9 @@ class SceneOptimizer:
 
         self.two_view_estimator = TwoViewEstimator(matcher, verifier)
 
-        self.multiview_optimizer = MultiViewOptimizer(rot_avg_module, trans_avg_module)
+        self.multiview_optimizer = MultiViewOptimizer(
+            rot_avg_module, trans_avg_module
+        )
 
     def create_computation_graph(
         self,
@@ -202,42 +216,44 @@ class SceneOptimizer:
     ) -> Tuple[List[Delayed], Delayed, Delayed, Dict[Tuple[int, int], Delayed]]:
         """ The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times"""
         # detection and description graph
-        detection_graph = []
-        descriptor_graph = []
+        keypoints_graph_list = []
+        descriptors_graph_list = []
         for delayed_image in image_graph:
             (
                 delayed_dets,
                 delayed_descs,
             ) = self.feature_extractor.create_computation_graph(delayed_image)
-            detection_graph += [delayed_dets]
-            descriptor_graph += [delayed_descs]
+            keypoints_graph_list += [delayed_dets]
+            descriptors_graph_list += [delayed_descs]
 
         # estimate two-view geometry and get indices of verified correspondences.
-        i2Ri1_graph = {}
-        i2Ui1_graph = {}
-        v_corr_idxs_graph = {}
+        i2Ri1_graph_dict = {}
+        i2Ui1_graph_dict = {}
+        v_corr_idxs_graph_dict = {}
         for (i1, i2) in image_pair_indices:
             (
                 i2Ri1,
                 i2Ui1,
                 v_corr_idxs,
             ) = self.two_view_estimator.create_computation_graph(
-                (i1, i2),
-                detection_graph,
-                descriptor_graph,
-                camera_intrinsics_graph,
+                keypoints_graph_list[i1],
+                keypoints_graph_list[i2],
+                descriptors_graph_list[i1],
+                descriptors_graph_list[i2],
+                camera_intrinsics_graph[i1],
+                camera_intrinsics_graph[i2],
                 use_intrinsics_in_verification,
             )
-            i2Ri1_graph[(i1, i2)] = i2Ri1
-            i2Ui1_graph[(i1, i2)] = i2Ui1
-            v_corr_idxs_graph[(i1, i2)] = v_corr_idxs
+            i2Ri1_graph_dict[(i1, i2)] = i2Ri1
+            i2Ui1_graph_dict[(i1, i2)] = i2Ui1
+            v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
 
         sfmResult_graph = self.multiview_optimizer.create_computation_graph(
             num_images,
-            detection_graph,
-            i2Ri1_graph,
-            i2Ui1_graph,
-            v_corr_idxs_graph,
+            keypoints_graph_list,
+            i2Ri1_graph_dict,
+            i2Ui1_graph_dict,
+            v_corr_idxs_graph_dict,
             camera_intrinsics_graph,
         )
 
