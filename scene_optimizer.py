@@ -14,7 +14,7 @@ from averaging.translation.translation_averaging_base import (
     TranslationAveragingBase,
 )
 from bundle.bundle_adjustment import BundleAdjustmentOptimizer
-from data_association.data_assoc import DataAssociation, TriangulationParam
+from data_association.data_assoc import DataAssociation
 from frontend.detector_descriptor.detector_descriptor_base import (
     DetectorDescriptorBase,
 )
