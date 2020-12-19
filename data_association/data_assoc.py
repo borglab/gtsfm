@@ -89,6 +89,7 @@ class DataAssociation(NamedTuple):
         )
 
         for track_2d in sfm_tracks_2d:
+            # triangulate and filter based on reprojection error
             filtered_track = point3d_initializer.triangulate(track_2d)
 
             if filtered_track.number_measurements() >= self.min_track_len:
@@ -131,26 +132,26 @@ class Point3dInitializer(NamedTuple):
     We currently limit the size of each sample to 2 camera views in our RANSAC scheme.
 
     Args:
-        track_cameras: List of cameras
+        track_cameras: Dict of cameras and their indices
         mode: triangulation mode, which dictates whether or not to use robust estimation
         num_ransac_hypotheses (optional): desired number of RANSAC hypotheses
         reproj_error_thresh (optional): threshold for RANSAC inlier filtering
     """
 
-    track_camera_list: Dict[int, PinholeCameraCal3Bundler]
+    track_camera_dict: Dict[int, PinholeCameraCal3Bundler]
     mode: TriangulationParam
     num_ransac_hypotheses: Optional[int] = None
     reproj_error_thresh: Optional[float] = None
 
     def triangulate(self, track: SfmTrack2d) -> gtsam.SfmTrack:
         """
-        Triangulation in a RANSAC loop.
+        Triangulation based on selected triangulation mode, with resultinf tracks filtered based on reprojection error.
 
         Args:
             track: feature track from which measurements are to be extracted
 
         Returns:
-            SfmTrack with 3d point j and 2d measurements in multiple cameras i
+            SfmTrack with 3d point j and 2d measurements in multiple cameras i.
         """
         if self.mode in [
             TriangulationParam.RANSAC_SAMPLE_UNIFORM,
@@ -181,39 +182,42 @@ class Point3dInitializer(NamedTuple):
                 i2, pt2 = track.measurements[k2]
 
                 camera_estimates = CameraSetCal3Bundler()
-                camera_estimates.append(self.track_camera_list.get(i1))
-                camera_estimates.append(self.track_camera_list.get(i2))
+                # check for unestimated cameras
+                if self.track_camera_dict.get(i1) != None and self.track_camera_dict.get(i2) != None:
+                    logging.warning("Unestimated cameras found. Skipping them.")
+                    camera_estimates.append(self.track_camera_dict.get(i1))
+                    camera_estimates.append(self.track_camera_dict.get(i2))
 
-                img_measurements = Point2Vector()
-                img_measurements.append(pt1)
-                img_measurements.append(pt2)
+                    img_measurements = Point2Vector()
+                    img_measurements.append(pt1)
+                    img_measurements.append(pt2)
 
-                # triangulate point for track
-                triangulated_pt = gtsam.triangulatePoint3(
-                    camera_estimates,
-                    img_measurements,
-                    rank_tol=SVD_DLT_RANK_TOL,
-                    optimize=True,
-                )
+                    # triangulate point for track
+                    triangulated_pt = gtsam.triangulatePoint3(
+                        camera_estimates,
+                        img_measurements,
+                        rank_tol=SVD_DLT_RANK_TOL,
+                        optimize=True,
+                    )
 
-                errors = self.compute_track_reprojection_errors(triangulated_pt, track)
-                # The best solution should correspond to the one with most inliers
-                # If the inlier number are the same, check the average error of inliers
-                votes = [err < self.reproj_error_thresh for err in errors]
+                    errors = self.compute_track_reprojection_errors(triangulated_pt, track)
+                    # The best solution should correspond to the one with most inliers
+                    # If the inlier number are the same, check the average error of inliers
+                    votes = [err < self.reproj_error_thresh for err in errors]
 
-                avg_error = (
-                    np.array(errors) * np.array(votes).astype(float)
-                ).sum() / np.array(votes).astype(float).sum()
+                    avg_error = (
+                        np.array(errors) * np.array(votes).astype(float)
+                    ).sum() / np.array(votes).astype(float).sum()
 
-                sum_votes = np.array(votes).astype(int).sum()
+                    sum_votes = np.array(votes).astype(int).sum()
 
-                if (sum_votes > best_votes) or (
-                    sum_votes == best_votes and avg_error < best_error
-                ):
-                    best_votes = sum_votes
-                    best_error = avg_error
-                    best_pt = triangulated_pt
-                    best_inliers = votes
+                    if (sum_votes > best_votes) or (
+                        sum_votes == best_votes and avg_error < best_error
+                    ):
+                        best_votes = sum_votes
+                        best_error = avg_error
+                        best_pt = triangulated_pt
+                        best_inliers = votes
         elif self.mode == TriangulationParam.NO_RANSAC:
             best_inliers = [True for _ in range(len(track.measurements))]
 
@@ -271,8 +275,8 @@ class Point3dInitializer(NamedTuple):
                 i1, pt1 = track.measurements[k1]
                 i2, pt2 = track.measurements[k2]
 
-                wTc1 = self.track_camera_list.get(i1).pose()
-                wTc2 = self.track_camera_list.get(i2).pose()
+                wTc1 = self.track_camera_dict.get(i1).pose()
+                wTc2 = self.track_camera_dict.get(i2).pose()
 
                 # rough approximation approximation of baseline between the 2 cameras
                 scores[k] = np.linalg.norm(wTc1.inverse().compose(wTc2).translation())
@@ -311,7 +315,7 @@ class Point3dInitializer(NamedTuple):
         """
         errors = []
         for (i, uv_measured) in track.measurements:
-            camera = self.track_camera_list.get(i)
+            camera = self.track_camera_dict.get(i)
             # Project to camera
             uv = camera.project(triangulated_pt)
             # Projection error in camera
@@ -340,8 +344,10 @@ class Point3dInitializer(NamedTuple):
         for (measurement, is_inlier) in zip(track.measurements, inliers):
             if is_inlier:
                 i, uv = measurement  # pull out camera index i and uv
-                track_cameras.append(self.track_camera_list.get(i))
-                track_measurements.append(uv)
+                # check for unestimated cameras
+                if self.track_camera_dict.get(i) != None:
+                    track_cameras.append(self.track_camera_dict.get(i))
+                    track_measurements.append(uv)
 
         if len(track_cameras) < 2 or len(track_measurements) < 2:
             raise Exception(
