@@ -44,7 +44,7 @@ class TestSceneOptimizer(unittest.TestCase):
             verifier=Degensac(),
             rot_avg_module=ShonanRotationAveraging(),
             trans_avg_module=TranslationAveraging1DSFM(),
-            config
+            config=config
         )
 
     def test_find_largest_connected_component(self):
