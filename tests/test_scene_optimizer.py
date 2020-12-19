@@ -4,6 +4,7 @@ Authors: Ayush Baid
 """
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 import dask
 import numpy as np
@@ -12,6 +13,7 @@ from gtsam import EssentialMatrix, Rot3, Unit3
 from averaging.rotation.shonan import ShonanRotationAveraging
 from averaging.translation.averaging_1dsfm import TranslationAveraging1DSFM
 from common.sfm_result import SfmResult
+from data_association.data_assoc import TriangulationParam
 from frontend.detector_descriptor.sift import SIFTDetectorDescriptor
 from frontend.matcher.twoway_matcher import TwoWayMatcher
 from frontend.verifier.degensac import Degensac
@@ -28,12 +30,21 @@ class TestSceneOptimizer(unittest.TestCase):
         self.loader = FolderLoader(
             str(DATA_ROOT_PATH / 'set1_lund_door'), image_extension='JPG')
         assert len(self.loader)
+        config = SimpleNamespace(
+            **{
+                'reproj_error_thresh': 5
+                'min_track_len': 2,
+                'triangulation_mode': TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
+                'num_ransac_hypotheses': 20
+            }
+        )
         self.obj = SceneOptimizer(
             detector_descriptor=SIFTDetectorDescriptor(),
             matcher=TwoWayMatcher(),
             verifier=Degensac(),
             rot_avg_module=ShonanRotationAveraging(),
-            trans_avg_module=TranslationAveraging1DSFM()
+            trans_avg_module=TranslationAveraging1DSFM(),
+            config
         )
 
     def test_find_largest_connected_component(self):
