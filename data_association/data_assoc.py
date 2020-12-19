@@ -184,7 +184,7 @@ class Point3dInitializer(NamedTuple):
                 camera_estimates = CameraSetCal3Bundler()
                 # check for unestimated cameras
                 if self.track_camera_dict.get(i1) != None and self.track_camera_dict.get(i2) != None:
-                    logging.warning("Unestimated cameras found. Skipping them.")
+                    logging.warning("Unestimated cameras found at indices {} or {}. Skipping them.".format(i1, i2))
                     camera_estimates.append(self.track_camera_dict.get(i1))
                     camera_estimates.append(self.track_camera_dict.get(i2))
 
@@ -346,6 +346,7 @@ class Point3dInitializer(NamedTuple):
                 i, uv = measurement  # pull out camera index i and uv
                 # check for unestimated cameras
                 if self.track_camera_dict.get(i) != None:
+                    logging.warning("Unestimated cameras found at index {}. Skipping them.".format(i))
                     track_cameras.append(self.track_camera_dict.get(i))
                     track_measurements.append(uv)
 
