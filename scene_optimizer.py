@@ -2,7 +2,7 @@
 
 Authors: Ayush Baid
 """
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import dask
 import networkx as nx
@@ -14,7 +14,7 @@ from averaging.translation.translation_averaging_base import (
     TranslationAveragingBase,
 )
 from bundle.bundle_adjustment import BundleAdjustmentOptimizer
-from data_association.dummy_da import DummyDataAssociation
+from data_association.data_assoc import DataAssociation, TriangulationParam
 from frontend.detector_descriptor.detector_descriptor_base import (
     DetectorDescriptorBase,
 )
@@ -83,10 +83,16 @@ class MultiViewOptimizer:
         self,
         rot_avg_module: RotationAveragingBase,
         trans_avg_module: TranslationAveragingBase,
+        config: Any
     ):
         self.rot_avg_module = rot_avg_module
         self.trans_avg_module = trans_avg_module
-        self.data_association_module = DummyDataAssociation(0.5, 2)
+        self.data_association_module = DataAssociation(
+            config.reproj_error_thresh,
+            config.min_track_len,
+            config.triangulation_mode,
+            config.num_ransac_hypotheses
+        )
         self.ba_optimizer = BundleAdjustmentOptimizer()
 
     def create_computation_graph(
@@ -196,6 +202,7 @@ class SceneOptimizer:
         verifier: VerifierBase,
         rot_avg_module: RotationAveragingBase,
         trans_avg_module: TranslationAveragingBase,
+        config: Any
     ) -> None:
 
         self.feature_extractor = FeatureExtractor(detector_descriptor)
@@ -203,7 +210,7 @@ class SceneOptimizer:
         self.two_view_estimator = TwoViewEstimator(matcher, verifier)
 
         self.multiview_optimizer = MultiViewOptimizer(
-            rot_avg_module, trans_avg_module
+            rot_avg_module, trans_avg_module, config
         )
 
     def create_computation_graph(
