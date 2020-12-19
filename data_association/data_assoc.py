@@ -184,7 +184,6 @@ class Point3dInitializer(NamedTuple):
                 camera_estimates = CameraSetCal3Bundler()
                 # check for unestimated cameras
                 if self.track_camera_dict.get(i1) != None and self.track_camera_dict.get(i2) != None:
-                    logging.warning("Unestimated cameras found at indices {} or {}. Skipping them.".format(i1, i2))
                     camera_estimates.append(self.track_camera_dict.get(i1))
                     camera_estimates.append(self.track_camera_dict.get(i2))
 
@@ -218,6 +217,9 @@ class Point3dInitializer(NamedTuple):
                         best_error = avg_error
                         best_pt = triangulated_pt
                         best_inliers = votes
+                else:
+                    logging.warning("Unestimated cameras found at indices {} or {}. Skipping them.".format(i1, i2))
+                    
         elif self.mode == TriangulationParam.NO_RANSAC:
             best_inliers = [True for _ in range(len(track.measurements))]
 
@@ -346,9 +348,10 @@ class Point3dInitializer(NamedTuple):
                 i, uv = measurement  # pull out camera index i and uv
                 # check for unestimated cameras
                 if self.track_camera_dict.get(i) != None:
-                    logging.warning("Unestimated cameras found at index {}. Skipping them.".format(i))
                     track_cameras.append(self.track_camera_dict.get(i))
                     track_measurements.append(uv)
+                else:
+                    logging.warning("Unestimated cameras found at index {}. Skipping them.".format(i))
 
         if len(track_cameras) < 2 or len(track_measurements) < 2:
             raise Exception(
