@@ -61,14 +61,14 @@ class DataAssociation(NamedTuple):
             supporting views required for a landmark to be valid.
         mode: triangulation mode, which dictates whether or not to use robust
               estimation.
-        num_ransac_iters (optional): number of hypothesis for RANSAC-based
+        num_ransac_hypotheses (optional): number of hypothesis for RANSAC-based
               triangulation.
     """
 
     reproj_error_thresh: float
     min_track_len: int
     mode: TriangulationParam
-    num_ransac_iters: Optional[int] = None
+    num_ransac_hypotheses: Optional[int] = None
 
     def run(
         self,
@@ -93,7 +93,7 @@ class DataAssociation(NamedTuple):
         point3d_initializer = Point3dInitializer(
             cameras,
             self.mode,
-            self.num_ransac_iters,
+            self.num_ransac_hypotheses,
             self.reproj_error_thresh,
         )
 
