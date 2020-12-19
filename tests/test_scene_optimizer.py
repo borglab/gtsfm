@@ -32,7 +32,7 @@ class TestSceneOptimizer(unittest.TestCase):
         assert len(self.loader)
         config = SimpleNamespace(
             **{
-                'reproj_error_thresh': 5
+                'reproj_error_thresh': 5,
                 'min_track_len': 2,
                 'triangulation_mode': TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
                 'num_ransac_hypotheses': 20
