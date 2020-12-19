@@ -1,36 +1,44 @@
 """ Create 2D-3D data association as a precursor to Bundle Adjustment.
 1. Forms feature tracks from verified correspondences and global poses.
-2. Triangulates 3D world points for each track (Ransac and simple triangulation modes available)
+2. Estimates 3D landmark for each track (Ransac and simple triangulation modes
+   available)
 3. Filters tracks based on reprojection error.
 
 References: 
-1. Richard I. Hartley and Peter Sturm. Triangulation. Computer Vision and Image Understanding, Vol. 68, No. 2, November, pp. 146–157, 1997
+1. Richard I. Hartley and Peter Sturm. Triangulation. Computer Vision and Image
+Understanding, Vol. 68, No. 2, November, pp. 146–157, 1997
 
 Authors: Sushmita Warrier, Xiaolong Wu
 """
 import itertools
+import logging
+from enum import Enum
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import dask
-from dask.delayed import Delayed
 import gtsam
 import numpy as np
+from dask.delayed import Delayed
+from gtsam import (
+    CameraSetCal3Bundler,
+    PinholeCameraCal3Bundler,
+    Point2Vector,
+    Point3,
+    SfmData,
+    SfmTrack,
+)
 
+import data_association.feature_tracks as feature_tracks
 from common.keypoints import Keypoints
-from data_association.feature_tracks import FeatureTrackGenerator, SfmTrack2d
-from enum import Enum
-from gtsam import CameraSetCal3Bundler, PinholeCameraCal3Bundler, Point3, Point2Vector
-
-import logging
 
 MAX_TRACK_REPROJ_ERROR = np.finfo(np.float32).max
 SVD_DLT_RANK_TOL = 1e-9
 NUM_SAMPLES_PER_RANSAC_HYPOTHESIS = 2
 
-""" We specify 3 different sampling modes for robust estimation during triangulation
-The other mode is to not use ransac, wherein all measurements are used and we assume there
-are no noisy measurements. If robust estimation is requested, a pair of cameras
-will be sampled """
+"""We have different modes for robust and non-robust triangulation.
+In case of noise-free measurements, all the entries in a track are used w/o ransac.
+If one of the three sampling modes for robust triangulation is selected, a pair
+of cameras will be sampled."""
 
 
 class TriangulationParam(Enum):
@@ -50,45 +58,47 @@ class DataAssociation(NamedTuple):
     Args:
         reproj_error_thresh: the maximum reprojection error allowed.
         min_track_len: min length required for valid feature track / min nb of
-            supporting views required for a landmark to be valid
-        mode: triangulation mode, which dictates whether or not to use robust estimation
-        num_ransac_hypotheses (optional): number of samples to draw for RANSAC-based triangulation
+            supporting views required for a landmark to be valid.
+        mode: triangulation mode, which dictates whether or not to use robust
+              estimation.
+        num_ransac_iters (optional): number of hypothesis for RANSAC-based
+              triangulation.
     """
 
     reproj_error_thresh: float
     min_track_len: int
     mode: TriangulationParam
-    num_ransac_hypotheses: Optional[int] = None
+    num_ransac_iters: Optional[int] = None
 
     def run(
         self,
+        cameras: Dict[int, PinholeCameraCal3Bundler],
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
-        cameras: Dict[int, PinholeCameraCal3Bundler],
-    ) -> gtsam.SfmData:
-        """Perform data association
+    ) -> SfmData:
+        """Perform the data association.
 
         Args:
+            cameras: dictionary with image index as key, and camera object w/
+                     intrinsics + extrinsics as value.
             corr_idxs_dict: dictionary, with key as image pair (i1,i2) and value
                             as matching keypoint indices.
             keypoints_list: keypoints for each image.
-            cameras: dictionary with image index as key, and camera object w/
-                     intrinsics + extrinsics as value.
 
         Returns:
-            SfmData
+            cameras and tracks as SfmData
         """
-        triangulated_landmark_map = gtsam.SfmData()
-        tracks = FeatureTrackGenerator(corr_idxs_dict, keypoints_list)
-        sfm_tracks_2d = tracks.filtered_landmark_data
+        tracks = feature_tracks.generate_tracks(corr_idxs_dict, keypoints_list)
 
-        # point indices are represented as j
-        # nb of 3D points = nb of tracks, hence track_idx represented as j
         point3d_initializer = Point3dInitializer(
-            cameras, self.mode, self.num_ransac_hypotheses, self.reproj_error_thresh
+            cameras,
+            self.mode,
+            self.num_ransac_iters,
+            self.reproj_error_thresh,
         )
 
-        for track_2d in sfm_tracks_2d:
+        triangulated_landmark_map = SfmData()
+        for track_2d in tracks:
             # triangulate and filter based on reprojection error
             filtered_track = point3d_initializer.triangulate(track_2d)
 
@@ -114,22 +124,22 @@ class DataAssociation(NamedTuple):
 
     def create_computation_graph(
         self,
-        corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
-        keypoints_list: List[Keypoints],
-        cameras: Dict[int, PinholeCameraCal3Bundler],
+        cameras: Delayed,
+        corr_idxs_graph: Dict[Tuple[int, int], Delayed],
+        keypoints_graph: List[Delayed],
     ) -> Delayed:
         """Creates a computation graph for performing data association.
 
         Args:
+            cameras: list of cameras wrapped up as Delayed.
             corr_idxs_graph: dictionary of correspondence indices, each value
                              wrapped up as Delayed.
-            keypoints_list: list of wrapped up keypoints for each image
-            cameras: list of cameras wrapped up as Delayed.
+            keypoints_graph: list of wrapped up keypoints for each image.
 
         Returns:
-            SfmData
+            SfmData object wrapped up using dask.delayed.
         """
-        return dask.delayed(self.run)(corr_idxs_dict, keypoints_list, cameras)
+        return dask.delayed(self.run)(cameras, corr_idxs_graph, keypoints_graph)
 
 
 class Point3dInitializer(NamedTuple):
@@ -149,7 +159,7 @@ class Point3dInitializer(NamedTuple):
     num_ransac_hypotheses: Optional[int] = None
     reproj_error_thresh: Optional[float] = None
 
-    def triangulate(self, track: SfmTrack2d) -> gtsam.SfmTrack:
+    def triangulate(self, track: feature_tracks.SfmTrack2d) -> SfmTrack:
         """
         Triangulation based on selected triangulation mode, with resultinf tracks filtered based on reprojection error.
 
@@ -168,7 +178,9 @@ class Point3dInitializer(NamedTuple):
             measurement_pairs = self.generate_measurement_pairs(track)
 
             # We limit the number of samples to the number of actual available matches
-            num_hypotheses = min(self.num_ransac_hypotheses, len(measurement_pairs))
+            num_hypotheses = min(
+                self.num_ransac_hypotheses, len(measurement_pairs)
+            )
 
             # Sampling
             samples = self.sample_ransac_hypotheses(
@@ -238,16 +250,25 @@ class Point3dInitializer(NamedTuple):
         elif self.mode == TriangulationParam.NO_RANSAC:
             best_inliers = [True for _ in range(len(track.measurements))]
 
-        camera_track, measurement_track = self.extract_measurements(track, best_inliers)
+        camera_track, measurement_track = self.extract_measurements(
+            track, best_inliers
+        )
 
         triangulated_pt = gtsam.triangulatePoint3(
-            camera_track, measurement_track, rank_tol=SVD_DLT_RANK_TOL, optimize=True
+            camera_track,
+            measurement_track,
+            rank_tol=SVD_DLT_RANK_TOL,
+            optimize=True,
         )
 
         # we may want to compare the initialized best_pt with triangulated_pt_track
-        return self.create_track_from_inliers(triangulated_pt, track, best_inliers)
+        return self.create_track_from_inliers(
+            triangulated_pt, track, best_inliers
+        )
 
-    def generate_measurement_pairs(self, track: SfmTrack2d) -> List[Tuple[int, int]]:
+    def generate_measurement_pairs(
+        self, track: feature_tracks.SfmTrack2d
+    ) -> List[Tuple[int, int]]:
         """
         Extract all possible measurement pairs in a track for triangulation.
 
@@ -268,7 +289,7 @@ class Point3dInitializer(NamedTuple):
 
     def sample_ransac_hypotheses(
         self,
-        track: SfmTrack2d,
+        track: feature_tracks.SfmTrack2d,
         measurement_pairs: List[Tuple[int, int]],
         num_hypotheses: int,
     ) -> List[int]:
@@ -296,7 +317,9 @@ class Point3dInitializer(NamedTuple):
                 wTc2 = self.track_camera_dict.get(i2).pose()
 
                 # rough approximation approximation of baseline between the 2 cameras
-                scores[k] = np.linalg.norm(wTc1.inverse().compose(wTc2).translation())
+                scores[k] = np.linalg.norm(
+                    wTc1.inverse().compose(wTc2).translation()
+                )
 
         # Check the validity of scores
         if sum(scores) <= 0.0:
@@ -309,7 +332,10 @@ class Point3dInitializer(NamedTuple):
             TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
         ]:
             sample_indices = np.random.choice(
-                len(scores), size=num_hypotheses, replace=False, p=scores / scores.sum()
+                len(scores),
+                size=num_hypotheses,
+                replace=False,
+                p=scores / scores.sum(),
             )
 
         if self.mode == TriangulationParam.RANSAC_TOPK_BASELINES:
@@ -318,7 +344,7 @@ class Point3dInitializer(NamedTuple):
         return sample_indices.tolist()
 
     def compute_track_reprojection_errors(
-        self, triangulated_pt: Point3, track: SfmTrack2d
+        self, triangulated_pt: Point3, track: feature_tracks.SfmTrack2d
     ) -> List[float]:
         """
         Calculate all individual reprojection errors in a given track
@@ -340,7 +366,7 @@ class Point3dInitializer(NamedTuple):
         return errors
 
     def extract_measurements(
-        self, track: SfmTrack2d, inliers: List[bool]
+        self, track: feature_tracks.SfmTrack2d, inliers: List[bool]
     ) -> Tuple[CameraSetCal3Bundler, Point2Vector]:
         """
         Extract measurements in a track for triangulation.
@@ -382,8 +408,11 @@ class Point3dInitializer(NamedTuple):
         return track_cameras, track_measurements
 
     def create_track_from_inliers(
-        self, triangulated_pt: Point3, track: SfmTrack2d, inlier: List[bool]
-    ) -> gtsam.SfmTrack:
+        self,
+        triangulated_pt: Point3,
+        track: feature_tracks.SfmTrack2d,
+        inlier: List[bool],
+    ) -> SfmTrack:
         """
         Generate track based on inliers
 
@@ -396,7 +425,7 @@ class Point3dInitializer(NamedTuple):
             SfmTrack object
         """
         # we will create a new track with only the inlier measurements
-        new_track = gtsam.SfmTrack(triangulated_pt)
+        new_track = SfmTrack(triangulated_pt)
 
         for (i, uv) in track.measurements:
             if inlier[i]:

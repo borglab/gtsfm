@@ -9,7 +9,6 @@ import unittest
 from typing import Dict, List, Tuple
 
 import dask
-import gtsam
 import numpy as np
 from common.keypoints import Keypoints
 from gtsam import (
@@ -54,7 +53,9 @@ def generate_noisy_2d_measurements(
     per_image_noise_vecs: np.ndarray,
     poses: Pose3Vector,
 ) -> Tuple[
-    Point2Vector, List[Keypoints], List[Tuple[int,int]], Dict[int, PinholeCameraCal3Bundler]
+    List[Keypoints],
+    List[Tuple[int, int]],
+    Dict[int, PinholeCameraCal3Bundler],
 ]:
     """
     Generate PinholeCameras from specified poses and calibrations, and then generate
@@ -81,7 +82,7 @@ def generate_noisy_2d_measurements(
         cameras[i] = camera
         measurement = z + per_image_noise_vecs[i]
         measurements.append(measurement)
-        keypoints_list += [Keypoints(coordinates=measurement.reshape(1,2))]
+        keypoints_list += [Keypoints(coordinates=measurement.reshape(1, 2))]
 
     # Create image indices for each pose - only subsequent pairwise matches
     # assumed, e.g. between images (0,1) and images (1,2)
@@ -90,7 +91,6 @@ def generate_noisy_2d_measurements(
         img_idxs += [(i, i + 1)]
 
     return keypoints_list, img_idxs, cameras
-
 
 
 class TestDataAssociation(GtsamTestCase):
@@ -111,32 +111,29 @@ class TestDataAssociation(GtsamTestCase):
         f, k1, k2, u0, v0 = 1500, 0, 0, 640, 480
         self.sharedCal = Cal3Bundler(f, k1, k2, u0, v0)
 
-
     def test_ransac_sample_biased_baseline_sharedCal_2poses(self):
         """ """
         mode = TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE
         self.verify_triangulation_sharedCal_2poses(mode)
-
 
     def test_ransac_topk_baselines_sharedCal_2poses(self):
         """ """
         mode = TriangulationParam.RANSAC_TOPK_BASELINES
         self.verify_triangulation_sharedCal_2poses(mode)
 
-
     def test_ransac_sample_uniform_sharedCal_2poses(self):
         """ """
         mode = TriangulationParam.RANSAC_SAMPLE_UNIFORM
         self.verify_triangulation_sharedCal_2poses(mode)
-
 
     def test_no_ransac_sharedCal_2poses(self):
         """ """
         mode = TriangulationParam.NO_RANSAC
         self.verify_triangulation_sharedCal_2poses(mode)
 
-
-    def verify_triangulation_sharedCal_2poses(self, triangulation_mode: TriangulationParam):
+    def verify_triangulation_sharedCal_2poses(
+        self, triangulation_mode: TriangulationParam
+    ):
         """
         Tests that the triangulation is accurate for shared calibration with a
         specified triangulation mode.
@@ -146,31 +143,31 @@ class TestDataAssociation(GtsamTestCase):
 
         The noise vectors represent the amount of noise to be added to measurements.
         """
-        keypoints_list, img_idxs, cameras = generate_noisy_2d_measurements(
+        keypoints_list, _, cameras = generate_noisy_2d_measurements(
             world_point=self.expected_landmark,
             calibrations=[self.sharedCal, self.sharedCal],
             per_image_noise_vecs=np.array([[-0.1, -0.5], [0.2, -0.3]]),
-            poses=get_pose3_vector(num_poses=2)
+            poses=get_pose3_vector(num_poses=2),
         )
 
         # create matches
         # since there is only one measurement in each image, both assigned feature index 0
-        matches_dict = { (0,1): np.array([[0, 0]]) }
+        matches_dict = {(0, 1): np.array([[0, 0]])}
 
         da = DataAssociation(
             reproj_error_thresh=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
             mode=triangulation_mode,
-            num_ransac_hypotheses=20,
+            num_ransac_iters=20,
         )
-        triangulated_landmark_map = da.run(matches_dict, keypoints_list, cameras)
+        triangulated_landmark_map = da.run(
+            cameras, matches_dict, keypoints_list
+        )
         # assert that we cannot obtain even 1 length-3 track if we have only 2 camera poses
         # result should be empty, since nb_measurements < min track length
         assert (
             triangulated_landmark_map.number_tracks() == 0
         ), "Failure: tracks exceed expected track length (should be 0 tracks)"
-
-
 
     def test_triangulation_individualCal_without_ransac(self):
         """
@@ -184,57 +181,52 @@ class TestDataAssociation(GtsamTestCase):
         K1 = Cal3Bundler(f, k1, k2, u0, v0)
         K2 = Cal3Bundler(f_, k1, k2, u0_, v0_)
 
-        keypoints_list, img_idxs, cameras = generate_noisy_2d_measurements(
+        keypoints_list, _, cameras = generate_noisy_2d_measurements(
             world_point=self.expected_landmark,
             calibrations=[K1, K2],
-            per_image_noise_vecs=np.zeros((2,2)),
-            poses=get_pose3_vector(num_poses=2)
+            per_image_noise_vecs=np.zeros((2, 2)),
+            poses=get_pose3_vector(num_poses=2),
         )
 
         # create matches
         # since there is only one measurement in each image, both assigned feature index 0
-        matches_dict = { (0,1): np.array([[0, 0]]) }
+        matches_dict = {(0, 1): np.array([[0, 0]])}
 
         da = DataAssociation(
             reproj_error_thresh=5,  # 5 px
             min_track_len=2,  # at least 2 measurements required
-            mode=TriangulationParam.NO_RANSAC
+            mode=TriangulationParam.NO_RANSAC,
         )
-        sfm_data = da.run(matches_dict, keypoints_list, cameras)
+        sfm_data = da.run(cameras, matches_dict, keypoints_list)
         estimated_landmark = sfm_data.track(0).point3()
         self.gtsamAssertEquals(estimated_landmark, self.expected_landmark, 1e-2)
-        
-        for i in range(sfm_data.number_cameras()):
-            self.gtsamAssertEquals(
-                sfm_data.camera(i), cameras.get(i)
-            )
 
+        for i in range(sfm_data.number_cameras()):
+            self.gtsamAssertEquals(sfm_data.camera(i), cameras.get(i))
 
     def test_ransac_sample_biased_baseline_sharedCal_3poses(self):
         """ """
         mode = TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE
         self.verify_triangulation_sharedCal_3poses(mode)
 
-
     def test_ransac_topk_baselines_sharedCal_3poses(self):
         """ """
         mode = TriangulationParam.RANSAC_TOPK_BASELINES
         self.verify_triangulation_sharedCal_3poses(mode)
-
 
     def test_ransac_sample_uniform_sharedCal_3poses(self):
         """ """
         mode = TriangulationParam.RANSAC_SAMPLE_UNIFORM
         self.verify_triangulation_sharedCal_3poses(mode)
 
-
     def test_no_ransac_sharedCal_3poses(self):
         """ """
         mode = TriangulationParam.NO_RANSAC
         self.verify_triangulation_sharedCal_3poses(mode)
 
-
-    def verify_triangulation_sharedCal_3poses(self, triangulation_mode: TriangulationParam):
+    def verify_triangulation_sharedCal_3poses(
+        self, triangulation_mode: TriangulationParam
+    ):
         """
         Tests that the triangulation is accurate for shared calibration with a
         specified triangulation mode.
@@ -242,40 +234,36 @@ class TestDataAssociation(GtsamTestCase):
         Checks whether the sfm data formed from 3 measurements is valid.
         The noise vectors represent the amount of noise to be added to measurements.
         """
-        keypoints_list, img_idxs, cameras = generate_noisy_2d_measurements(
+        keypoints_list, _, cameras = generate_noisy_2d_measurements(
             world_point=self.expected_landmark,
             calibrations=[self.sharedCal, self.sharedCal, self.sharedCal],
-            per_image_noise_vecs=np.array([[-0.1, -0.5], [-0.2, 0.3], [0.1, -0.1]]),
-            poses=get_pose3_vector(num_poses=3)
+            per_image_noise_vecs=np.array(
+                [[-0.1, -0.5], [-0.2, 0.3], [0.1, -0.1]]
+            ),
+            poses=get_pose3_vector(num_poses=3),
         )
 
         # create matches
         # since there is only one measurement in each image, both assigned feature index 0
-        matches_dict = {
-            (0,1): np.array([[0, 0]]),
-            (1,2): np.array([[0, 0]])
-        }
+        matches_dict = {(0, 1): np.array([[0, 0]]), (1, 2): np.array([[0, 0]])}
 
         da = DataAssociation(
             reproj_error_thresh=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
             mode=triangulation_mode,
-            num_ransac_hypotheses=20,
+            num_ransac_iters=20,
         )
-        sfm_data = da.run(matches_dict, keypoints_list, cameras)
+        sfm_data = da.run(cameras, matches_dict, keypoints_list)
 
         estimated_landmark = sfm_data.track(0).point3()
         # checks if computed 3D point is as expected
         self.gtsamAssertEquals(estimated_landmark, self.expected_landmark, 1e-2)
 
         # checks if number of tracks are as expected, should be just 1, over all 3 cameras
-        assert (
-            sfm_data.number_tracks() == 1
-        ), "more tracks than expected"
+        assert sfm_data.number_tracks() == 1, "more tracks than expected"
         # checks if cameras saved to result are as expected
         for i in range(sfm_data.number_cameras()):
             self.gtsamAssertEquals(sfm_data.camera(i), cameras.get(i))
-
 
     def test_create_computation_graph(self):
         """
@@ -285,28 +273,31 @@ class TestDataAssociation(GtsamTestCase):
         keypoints_list, img_idxs, cameras = generate_noisy_2d_measurements(
             world_point=self.expected_landmark,
             calibrations=[self.sharedCal, self.sharedCal, self.sharedCal],
-            per_image_noise_vecs=np.array([[-0.1, -0.5], [-0.2, 0.3], [0.1, -0.1]]),
-            poses=get_pose3_vector(num_poses=3)
+            per_image_noise_vecs=np.array(
+                [[-0.1, -0.5], [-0.2, 0.3], [0.1, -0.1]]
+            ),
+            poses=get_pose3_vector(num_poses=3),
         )
 
         # create matches
         # since there is only one measurement in each image, both assigned feature index 0
-        matches_dict = {
-            (0,1): np.array([[0, 0]]),
-            (1,2): np.array([[0, 0]])
-        }
+        matches_dict = {(0, 1): np.array([[0, 0]]), (1, 2): np.array([[0, 0]])}
 
         # Run without computation graph
         da = DataAssociation(
             reproj_error_thresh=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
             mode=TriangulationParam.RANSAC_TOPK_BASELINES,
-            num_ransac_hypotheses=20,
+            num_ransac_iters=20,
         )
-        expected_sfm_data = da.run(matches_dict, keypoints_list, cameras)
+        expected_sfm_data = da.run(cameras, matches_dict, keypoints_list)
 
         # Run with computation graph
-        delayed_sfm_data = da.create_computation_graph(matches_dict, keypoints_list, cameras)
+        delayed_sfm_data = da.create_computation_graph(
+            cameras,
+            matches_dict,
+            keypoints_list,
+        )
 
         with dask.config.set(scheduler="single-threaded"):
             dask_sfm_data = dask.compute(delayed_sfm_data)[0]
@@ -317,12 +308,14 @@ class TestDataAssociation(GtsamTestCase):
 
         for k in range(expected_sfm_data.number_tracks()):
             assert (
-                expected_sfm_data.track(k).number_measurements() == dask_sfm_data.track(k).number_measurements()
+                expected_sfm_data.track(k).number_measurements()
+                == dask_sfm_data.track(k).number_measurements()
             ), "Dask tracks incorrect"
             # Test if the measurement in both are equal
             np.testing.assert_array_almost_equal(
                 expected_sfm_data.track(k).measurement(0)[1],
-                dask_sfm_data.track(k).measurement(0)[1], decimal=1,
+                dask_sfm_data.track(k).measurement(0)[1],
+                decimal=1,
                 err_msg="Dask measurements incorrect",
             )
         for i in range(expected_sfm_data.number_cameras()):
