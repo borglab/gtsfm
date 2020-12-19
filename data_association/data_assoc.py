@@ -100,8 +100,14 @@ class DataAssociation(NamedTuple):
                         filtered_track.number_measurements(), self.min_track_len
                     )
                 )
+
+        # TODO: improve dropped camera handling
+        num_cameras = len(cameras.keys())
+        expected_camera_indices = np.arange(num_cameras)
         # add cameras to landmark_map
-        for cam in cameras.values():
+        for i, cam in enumerate(cameras.values()):
+            if i != expected_camera_indices[i]:
+                raise RuntimeError("Some cameras must have been dropped ")
             triangulated_landmark_map.add_camera(cam)
 
         return triangulated_landmark_map
@@ -183,7 +189,10 @@ class Point3dInitializer(NamedTuple):
 
                 camera_estimates = CameraSetCal3Bundler()
                 # check for unestimated cameras
-                if self.track_camera_dict.get(i1) != None and self.track_camera_dict.get(i2) != None:
+                if (
+                    self.track_camera_dict.get(i1) != None
+                    and self.track_camera_dict.get(i2) != None
+                ):
                     camera_estimates.append(self.track_camera_dict.get(i1))
                     camera_estimates.append(self.track_camera_dict.get(i2))
 
@@ -199,7 +208,9 @@ class Point3dInitializer(NamedTuple):
                         optimize=True,
                     )
 
-                    errors = self.compute_track_reprojection_errors(triangulated_pt, track)
+                    errors = self.compute_track_reprojection_errors(
+                        triangulated_pt, track
+                    )
                     # The best solution should correspond to the one with most inliers
                     # If the inlier number are the same, check the average error of inliers
                     votes = [err < self.reproj_error_thresh for err in errors]
@@ -218,8 +229,12 @@ class Point3dInitializer(NamedTuple):
                         best_pt = triangulated_pt
                         best_inliers = votes
                 else:
-                    logging.warning("Unestimated cameras found at indices {} or {}. Skipping them.".format(i1, i2))
-                    
+                    logging.warning(
+                        "Unestimated cameras found at indices {} or {}. Skipping them.".format(
+                            i1, i2
+                        )
+                    )
+
         elif self.mode == TriangulationParam.NO_RANSAC:
             best_inliers = [True for _ in range(len(track.measurements))]
 
@@ -335,10 +350,8 @@ class Point3dInitializer(NamedTuple):
             inliers: a boolean list that indicates the validity of each measurements
 
         Returns:
-            camera_track: Vector of individual camera calibrations
-                  TODO: is it really this? for first and last measurement
-            measurement_track: Vector of 2d points
-                  TODO: is it really this? Observations corresponding to first and last measurements
+            track_cameras: Vector of individual camera calibrations pertaining to track
+            track_measurements: Vector of 2d points pertaining to track measurements
         """
         track_cameras = CameraSetCal3Bundler()
         track_measurements = Point2Vector()  # vector of 2d points
@@ -351,7 +364,11 @@ class Point3dInitializer(NamedTuple):
                     track_cameras.append(self.track_camera_dict.get(i))
                     track_measurements.append(uv)
                 else:
-                    logging.warning("Unestimated cameras found at index {}. Skipping them.".format(i))
+                    logging.warning(
+                        "Unestimated cameras found at index {}. Skipping them.".format(
+                            i
+                        )
+                    )
 
         if len(track_cameras) < 2 or len(track_measurements) < 2:
             raise Exception(
