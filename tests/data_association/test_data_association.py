@@ -158,7 +158,7 @@ class TestDataAssociation(GtsamTestCase):
             reproj_error_thresh=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
             mode=triangulation_mode,
-            num_ransac_iters=20,
+            num_ransac_hypotheses=20,
         )
         triangulated_landmark_map = da.run(
             cameras, matches_dict, keypoints_list
@@ -251,7 +251,7 @@ class TestDataAssociation(GtsamTestCase):
             reproj_error_thresh=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
             mode=triangulation_mode,
-            num_ransac_iters=20,
+            num_ransac_hypotheses=20,
         )
         sfm_data = da.run(cameras, matches_dict, keypoints_list)
 
@@ -288,7 +288,7 @@ class TestDataAssociation(GtsamTestCase):
             reproj_error_thresh=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
             mode=TriangulationParam.RANSAC_TOPK_BASELINES,
-            num_ransac_iters=20,
+            num_ransac_hypotheses=20,
         )
         expected_sfm_data = da.run(cameras, matches_dict, keypoints_list)
 
