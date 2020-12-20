@@ -102,16 +102,18 @@ class DataAssociation(NamedTuple):
             # triangulate and filter based on reprojection error
             sfm_track = point3d_initializer.triangulate(track_2d)
 
-            if sfm_track is not None:
-                if sfm_track.number_measurements() >= self.min_track_len:
-                    triangulated_data.add_track(sfm_track)
-                else:
-                    logging.info(
-                        "Track length {} < {} discarded".format(
-                            sfm_track.number_measurements(),
-                            self.min_track_len,
-                        )
+            if sfm_track is None:
+                continue
+
+            if sfm_track.number_measurements() >= self.min_track_len:
+                triangulated_data.add_track(sfm_track)
+            else:
+                logging.info(
+                    "Track length {} < {} discarded".format(
+                        sfm_track.number_measurements(),
+                        self.min_track_len,
                     )
+                )
 
         # TODO: improve dropped camera handling
         num_cameras = len(cameras.keys())
@@ -228,13 +230,11 @@ class Point3dInitializer(NamedTuple):
                         )
                     except RuntimeError as e:
                         # TODO: handle cheirality exception properly?
-                        logging.error("Error while triangulating")
+                        logging.error("Error from GTSAM's triangulate function")
                         continue
 
-                    errors = np.array(
-                        self.compute_track_reprojection_errors(
-                            triangulated_pt, track
-                        )
+                    errors = self.compute_track_reprojection_errors(
+                        triangulated_pt, track
                     )
                     # The best solution should correspond to the one with most inliers
                     # If the inlier number are the same, check the average error of inliers
@@ -367,7 +367,7 @@ class Point3dInitializer(NamedTuple):
 
     def compute_track_reprojection_errors(
         self, triangulated_pt: Point3, track: feature_tracks.SfmTrack2d
-    ) -> List[float]:
+    ) -> np.ndarray:
         """
         Calculate all individual reprojection errors in a given track
 
@@ -376,7 +376,8 @@ class Point3dInitializer(NamedTuple):
             track: the measurements of a track
 
         Returns:
-            reprojection errors
+            reprojection error for each measurement in the track as a numpy
+            array.
         """
         errors = []
         for (i, uv_measured) in track.measurements:
@@ -385,17 +386,16 @@ class Point3dInitializer(NamedTuple):
             uv = camera.project(triangulated_pt)
             # Projection error in camera
             errors.append(np.linalg.norm(uv_measured - uv))
-        return errors
+        return np.array(errors)
 
     def extract_measurements(
         self, track: feature_tracks.SfmTrack2d, inlier_idxs: List[int]
     ) -> Tuple[CameraSetCal3Bundler, Point2Vector]:
-        """
-        Extract measurements in a track for triangulation.
+        """Extract measurements in a track for triangulation.
 
         Args:
-            track: feature track from which measurements are to be extracted
-            inliers: a boolean list that indicates the validity of each measurements
+            track: feature track from which measurements are to be extracted.
+            inlier_idxs: measurement indices which are to be be extracted.
 
         Returns:
             track_cameras: Vector of individual camera calibrations pertaining to track
@@ -435,16 +435,15 @@ class Point3dInitializer(NamedTuple):
         track: feature_tracks.SfmTrack2d,
         inlier_idxs: List[int],
     ) -> SfmTrack:
-        """
-        Generate track based on inliers
+        """Generate track based on inliers.
 
         Args:
-            triangulated_pt: triangulated 3d point
-            track: list of 2d measurements each of the form (i,uv)
-            inliers: best inlier list from RANSAC or all points
+            triangulated_pt: triangulated 3d point.
+            track: list of 2d measurements each of the form (i,uv).
+            inlier_idxs: list of inlier measurements in tracks.
 
         Returns:
-            SfmTrack object
+            SfmTrack object.
         """
         # we will create a new track with only the inlier measurements
         new_track = SfmTrack(triangulated_pt)
