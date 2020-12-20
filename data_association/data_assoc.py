@@ -242,7 +242,7 @@ class Point3dInitializer(NamedTuple):
 
                     inlier_errors = errors[votes]
 
-                    if inlier_errors.size:
+                    if inlier_errors.size > 0:
 
                         avg_error = (
                             np.array(inlier_errors).sum()
