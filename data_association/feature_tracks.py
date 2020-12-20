@@ -1,7 +1,8 @@
-"""Utilities to generate and store tracks. Uses the Union-Find algorithm, with the
+"""Utilities to generate and store tracks. Uses the Union-Find algorithm, with
 image ID and keypoint index for that image as the unique keys.
 
-A track is defined as a 2d measurement of a single 3d landmark seen in multiple different images.
+A track is defined as a 2d measurement of a single 3d landmark seen in multiple
+different images.
 
 References:
 1. P. Moulon, P. Monasse. Unordered Feature Tracking Made Fast and Easy, 2012, HAL Archives.
@@ -25,6 +26,9 @@ class SfmMeasurement(NamedTuple):
 # (as we haven't triangulated it yet from 2d measurements)
 class SfmTrack2d(NamedTuple):
     measurements: List[SfmMeasurement]
+
+    def __getitem__(self, key):
+        return self.measurements[key]
 
 
 def generate_tracks(
@@ -76,12 +80,16 @@ def generate_tracks(
             i = index_pair.i()
             k = index_pair.j()
             # add measurement in this track
-            track_measurements += [SfmMeasurement(i, keypoints_list[i].coordinates[k])]
+            track_measurements += [
+                SfmMeasurement(i, keypoints_list[i].coordinates[k])
+            ]
         tracks_2d += [SfmTrack2d(track_measurements)]
     return delete_erroneous_tracks(tracks_2d)
 
 
-def delete_erroneous_tracks(sfm_tracks_2d: List[SfmTrack2d]) -> List[SfmTrack2d]:
+def delete_erroneous_tracks(
+    sfm_tracks_2d: List[SfmTrack2d],
+) -> List[SfmTrack2d]:
     """
     Delete tracks that have more than one measurement in the same image.
 
@@ -93,7 +101,9 @@ def delete_erroneous_tracks(sfm_tracks_2d: List[SfmTrack2d]) -> List[SfmTrack2d]
     """
     filtered_tracks_2d = []
     for sfm_track_2d in sfm_tracks_2d:
-        track_cam_idxs = [measurement.i for measurement in sfm_track_2d.measurements]
+        track_cam_idxs = [
+            measurement.i for measurement in sfm_track_2d.measurements
+        ]
         if len(set(track_cam_idxs)) == len(track_cam_idxs):
             filtered_tracks_2d += [sfm_track_2d]
 

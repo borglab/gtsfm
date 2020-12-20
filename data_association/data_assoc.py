@@ -97,19 +97,21 @@ class DataAssociation(NamedTuple):
             self.reproj_error_thresh,
         )
 
-        triangulated_landmark_map = SfmData()
+        triangulated_data = SfmData()
         for track_2d in tracks:
             # triangulate and filter based on reprojection error
-            filtered_track = point3d_initializer.triangulate(track_2d)
+            sfm_track = point3d_initializer.triangulate(track_2d)
 
-            if filtered_track.number_measurements() >= self.min_track_len:
-                triangulated_landmark_map.add_track(filtered_track)
-            else:
-                logging.info(
-                    "Track length {} < {} discarded".format(
-                        filtered_track.number_measurements(), self.min_track_len
+            if sfm_track is not None:
+                if sfm_track.number_measurements() >= self.min_track_len:
+                    triangulated_data.add_track(sfm_track)
+                else:
+                    logging.info(
+                        "Track length {} < {} discarded".format(
+                            sfm_track.number_measurements(),
+                            self.min_track_len,
+                        )
                     )
-                )
 
         # TODO: improve dropped camera handling
         num_cameras = len(cameras.keys())
@@ -118,9 +120,9 @@ class DataAssociation(NamedTuple):
         for i, cam in enumerate(cameras.values()):
             if i != expected_camera_indices[i]:
                 raise RuntimeError("Some cameras must have been dropped ")
-            triangulated_landmark_map.add_camera(cam)
+            triangulated_data.add_camera(cam)
 
-        return triangulated_landmark_map
+        return triangulated_data
 
     def create_computation_graph(
         self,
@@ -143,15 +145,18 @@ class DataAssociation(NamedTuple):
 
 
 class Point3dInitializer(NamedTuple):
-    """
-    Class to initialize landmark points via triangulation w/ or w/o RANSAC inlier/outlier selection.
-    We currently limit the size of each sample to 2 camera views in our RANSAC scheme.
+    """Class to initialize landmark points via triangulation w/ or w/o RANSAC
+    inlier/outlier selection.
+
+    Note: We currently limit the size of each sample to 2 camera views in our
+    RANSAC scheme.
 
     Args:
-        track_cameras: Dict of cameras and their indices
-        mode: triangulation mode, which dictates whether or not to use robust estimation
-        num_ransac_hypotheses (optional): desired number of RANSAC hypotheses
-        reproj_error_thresh (optional): threshold for RANSAC inlier filtering
+        track_cameras: Dict of cameras and their indices.
+        mode: triangulation mode, which dictates whether or not to use robust
+              estimation.
+        num_ransac_hypotheses (optional): desired number of RANSAC hypotheses.
+        reproj_error_thresh (optional): threshold for RANSAC inlier filtering.
     """
 
     track_camera_dict: Dict[int, PinholeCameraCal3Bundler]
@@ -159,7 +164,9 @@ class Point3dInitializer(NamedTuple):
     num_ransac_hypotheses: Optional[int] = None
     reproj_error_thresh: Optional[float] = None
 
-    def triangulate(self, track: feature_tracks.SfmTrack2d) -> SfmTrack:
+    def triangulate(
+        self, track: feature_tracks.SfmTrack2d
+    ) -> Optional[SfmTrack]:
         """
         Triangulation based on selected triangulation mode, with resultinf tracks filtered based on reprojection error.
 
@@ -188,10 +195,9 @@ class Point3dInitializer(NamedTuple):
             )
 
             # Initialize the best output containers
-            best_pt = Point3()
             best_votes = 0
             best_error = MAX_TRACK_REPROJ_ERROR
-            best_inliers = []
+            best_inliers = [False] * len(track.measurements)
 
             for sample_idxs in samples:
                 k1, k2 = measurement_pairs[sample_idxs]
@@ -213,33 +219,44 @@ class Point3dInitializer(NamedTuple):
                     img_measurements.append(pt2)
 
                     # triangulate point for track
-                    triangulated_pt = gtsam.triangulatePoint3(
-                        camera_estimates,
-                        img_measurements,
-                        rank_tol=SVD_DLT_RANK_TOL,
-                        optimize=True,
-                    )
+                    try:
+                        triangulated_pt = gtsam.triangulatePoint3(
+                            camera_estimates,
+                            img_measurements,
+                            rank_tol=SVD_DLT_RANK_TOL,
+                            optimize=True,
+                        )
+                    except RuntimeError as e:
+                        # TODO: handle cheirality exception properly?
+                        logging.error("Error while triangulating")
+                        continue
 
-                    errors = self.compute_track_reprojection_errors(
-                        triangulated_pt, track
+                    errors = np.array(
+                        self.compute_track_reprojection_errors(
+                            triangulated_pt, track
+                        )
                     )
                     # The best solution should correspond to the one with most inliers
                     # If the inlier number are the same, check the average error of inliers
-                    votes = [err < self.reproj_error_thresh for err in errors]
+                    votes = (errors < self.reproj_error_thresh).tolist()
 
-                    avg_error = (
-                        np.array(errors) * np.array(votes).astype(float)
-                    ).sum() / np.array(votes).astype(float).sum()
+                    inlier_errors = errors[votes]
 
-                    sum_votes = np.array(votes).astype(int).sum()
+                    if inlier_errors.size:
 
-                    if (sum_votes > best_votes) or (
-                        sum_votes == best_votes and avg_error < best_error
-                    ):
-                        best_votes = sum_votes
-                        best_error = avg_error
-                        best_pt = triangulated_pt
-                        best_inliers = votes
+                        avg_error = (
+                            np.array(inlier_errors).sum()
+                            / inlier_errors.shape[0]
+                        )
+
+                        sum_votes = np.array(votes).astype(int).sum()
+
+                        if (sum_votes > best_votes) or (
+                            sum_votes == best_votes and avg_error < best_error
+                        ):
+                            best_votes = sum_votes
+                            best_error = avg_error
+                            best_inliers = votes
                 else:
                     logging.warning(
                         "Unestimated cameras found at indices {} or {}. Skipping them.".format(
@@ -248,10 +265,15 @@ class Point3dInitializer(NamedTuple):
                     )
 
         elif self.mode == TriangulationParam.NO_RANSAC:
-            best_inliers = [True for _ in range(len(track.measurements))]
+            best_inliers = [True] * len(track.measurements)
+
+        inlier_idxs = (np.where(best_inliers)[0]).tolist()
+
+        if len(inlier_idxs) < 2:
+            return None
 
         camera_track, measurement_track = self.extract_measurements(
-            track, best_inliers
+            track, inlier_idxs
         )
 
         triangulated_pt = gtsam.triangulatePoint3(
@@ -263,7 +285,7 @@ class Point3dInitializer(NamedTuple):
 
         # we may want to compare the initialized best_pt with triangulated_pt_track
         return self.create_track_from_inliers(
-            triangulated_pt, track, best_inliers
+            triangulated_pt, track, inlier_idxs
         )
 
     def generate_measurement_pairs(
@@ -366,7 +388,7 @@ class Point3dInitializer(NamedTuple):
         return errors
 
     def extract_measurements(
-        self, track: feature_tracks.SfmTrack2d, inliers: List[bool]
+        self, track: feature_tracks.SfmTrack2d, inlier_idxs: List[int]
     ) -> Tuple[CameraSetCal3Bundler, Point2Vector]:
         """
         Extract measurements in a track for triangulation.
@@ -382,19 +404,19 @@ class Point3dInitializer(NamedTuple):
         track_cameras = CameraSetCal3Bundler()
         track_measurements = Point2Vector()  # vector of 2d points
 
-        for (measurement, is_inlier) in zip(track.measurements, inliers):
-            if is_inlier:
-                i, uv = measurement  # pull out camera index i and uv
-                # check for unestimated cameras
-                if self.track_camera_dict.get(i) != None:
-                    track_cameras.append(self.track_camera_dict.get(i))
-                    track_measurements.append(uv)
-                else:
-                    logging.warning(
-                        "Unestimated cameras found at index {}. Skipping them.".format(
-                            i
-                        )
+        for idx in inlier_idxs:
+            i, uv = track[idx]
+
+            # check for unestimated cameras
+            if self.track_camera_dict.get(i) != None:
+                track_cameras.append(self.track_camera_dict.get(i))
+                track_measurements.append(uv)
+            else:
+                logging.warning(
+                    "Unestimated cameras found at index {}. Skipping them.".format(
+                        i
                     )
+                )
 
         if len(track_cameras) < 2 or len(track_measurements) < 2:
             raise Exception(
@@ -411,7 +433,7 @@ class Point3dInitializer(NamedTuple):
         self,
         triangulated_pt: Point3,
         track: feature_tracks.SfmTrack2d,
-        inlier: List[bool],
+        inlier_idxs: List[int],
     ) -> SfmTrack:
         """
         Generate track based on inliers
@@ -419,7 +441,7 @@ class Point3dInitializer(NamedTuple):
         Args:
             triangulated_pt: triangulated 3d point
             track: list of 2d measurements each of the form (i,uv)
-            inlier: best inlier list from RANSAC or all points
+            inliers: best inlier list from RANSAC or all points
 
         Returns:
             SfmTrack object
@@ -427,7 +449,8 @@ class Point3dInitializer(NamedTuple):
         # we will create a new track with only the inlier measurements
         new_track = SfmTrack(triangulated_pt)
 
-        for (i, uv) in track.measurements:
-            if inlier[i]:
-                new_track.add_measurement(i, uv)
+        for idx in inlier_idxs:
+            i, uv = track[idx]
+            new_track.add_measurement(i, uv)
+
         return new_track
