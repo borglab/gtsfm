@@ -44,6 +44,7 @@ setup(
     install_requires=[
         "pytest",
         "dask[complete]",
+        "networkx",
         "numpy",
         "opencv-python>=4.1.0.25",
         "pillow>=8.0.1" # old versions dont support getexif()
