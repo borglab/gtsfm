@@ -10,16 +10,18 @@ References:
 
 Authors: Ayush Baid, Sushmita Warrier, John Lambert
 """
+from typing import Dict, List, NamedTuple, Tuple
+
 import gtsam
 import numpy as np
+from gtsam import Point2
 
 from common.keypoints import Keypoints
-from typing import Dict, List, NamedTuple, Tuple
 
 
 class SfmMeasurement(NamedTuple):
     i: int  # camera index
-    uv: np.ndarray  # 2d measurement
+    uv: Point2  # 2d measurement
 
 
 # equivalent to gtsam.SfmTrack, but without the 3d measurement
