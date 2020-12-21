@@ -21,20 +21,13 @@ from common.keypoints import Keypoints
 
 class SfmMeasurement(NamedTuple):
     i: int  # camera index
-    uv: Point2  # 2d measurement
+    uv: np.ndarray  # 2d measurement
 
 
 # equivalent to gtsam.SfmTrack, but without the 3d measurement
 # (as we haven't triangulated it yet from 2d measurements)
 class SfmTrack2d(NamedTuple):
     measurements: List[SfmMeasurement]
-
-    def __getitem__(self, key: int) -> SfmMeasurement:
-        return self.measurements[key]
-    
-    def __len__(self):
-         return len(self.measurements)
-
 
 def generate_tracks(
     matches_dict: Dict[Tuple[int, int], np.ndarray],
@@ -107,7 +100,7 @@ def delete_erroneous_tracks(
     filtered_tracks_2d = []
     for sfm_track_2d in sfm_tracks_2d:
         track_cam_idxs = [
-            measurement.i for measurement in sfm_track_2d
+            measurement.i for measurement in sfm_track_2d.measurements
         ]
         if len(set(track_cam_idxs)) == len(track_cam_idxs):
             filtered_tracks_2d += [sfm_track_2d]
