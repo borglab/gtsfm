@@ -29,8 +29,11 @@ class SfmMeasurement(NamedTuple):
 class SfmTrack2d(NamedTuple):
     measurements: List[SfmMeasurement]
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: int) -> SfmMeasurement:
         return self.measurements[key]
+    
+    def __len__(self):
+         return len(self.measurements)
 
 
 def generate_tracks(
