@@ -1,5 +1,7 @@
 """Unit tests for initialization of 3D landmark from tracks of 2D measurements
-across cameras.
+across cameras. We use example SFM data from gtsam (found at
+gtsam/python/gtsam/examples/SFMdata.py) which creates 8 cameras uniformly
+spaced around a circle with radius 40m.
 
 Authors: Ayush Baid
 """
