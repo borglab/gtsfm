@@ -1,5 +1,7 @@
 """Unit tests for initialization of 3D landmark from tracks of 2D measurements
-across cameras.
+across cameras. We use example SFM data from gtsam (found at
+gtsam/python/gtsam/examples/SFMdata.py) which creates 8 cameras uniformly
+spaced around a circle with radius 40m.
 
 Authors: Ayush Baid
 """
@@ -19,10 +21,15 @@ from gtsam import (
 )
 from gtsam.examples import SFMdata
 
-from data_association.data_assoc import Point3dInitializer, TriangulationParam
 from data_association.feature_tracks import SfmMeasurement, SfmTrack2d
+from data_association.point3d_initializer import (
+    Point3dInitializer,
+    TriangulationParam,
+)
 
+# focal length set to 50 px, with `px`, `py` set to zero
 CALIBRATION = Cal3Bundler(50, 0, 0, 0, 0)
+# Generate 8 camera poses arranged in a circle of radius 40 m
 CAMERAS = {
     i: PinholeCameraCal3Bundler(pose, CALIBRATION)
     for i, pose in enumerate(
@@ -57,6 +64,21 @@ def get_track_with_one_outlier() -> List[SfmMeasurement]:
     )
 
     return perturbed_measurements
+
+
+def get_track_with_duplicate_measurements() -> List[SfmMeasurement]:
+    """Generates a track with 2 measurements in an image."""
+
+    new_measurements = copy.deepcopy(MEASUREMENTS)
+
+    new_measurements.append(
+        SfmMeasurement(
+            new_measurements[0].i,
+            new_measurements[0].uv + Point2(2.0, -3.0),
+        )
+    )
+
+    return new_measurements
 
 
 class TestPoint3dInitializer(unittest.TestCase):
@@ -117,7 +139,8 @@ class TestPoint3dInitializer(unittest.TestCase):
         cameras = obj.track_camera_dict
 
         # flip the cameras first
-        camera_flip_pose = Pose3(Rot3.RzRyRx(np.pi, 0, 0), np.zeros((3, 1)))
+        yaw = np.pi
+        camera_flip_pose = Pose3(Rot3.RzRyRx(yaw, 0, 0), np.zeros((3, 1)))
         flipped_cameras = {
             i: PinholeCameraCal3Bundler(
                 cam.pose().compose(camera_flip_pose), cam.calibration()
@@ -137,6 +160,17 @@ class TestPoint3dInitializer(unittest.TestCase):
         )
 
         return sfm_track is None
+
+    def __runWithDuplicateMeasurements(self, obj: Point3dInitializer) -> bool:
+        """Run the initialization for a track with all inlier measurements
+        except one, and checks for correctness of the estimated point."""
+
+        sfm_track = obj.triangulate(
+            SfmTrack2d(get_track_with_duplicate_measurements())
+        )
+        point3d = sfm_track.point3()
+
+        return np.allclose(point3d, LANDMARK_POINT, atol=1, rtol=1e-1)
 
     def testSimpleTriangulationWithCorrectMeasurements(self):
         self.assertTrue(
@@ -163,6 +197,13 @@ class TestPoint3dInitializer(unittest.TestCase):
     def testSimpleTriangulationWithCheiralityException(self):
         self.assertTrue(
             self.__runWithCheiralityException(
+                self.simple_triangulation_initializer
+            )
+        )
+
+    def testSimpleTriangulationWithDuplicateMeaseurements(self):
+        self.assertTrue(
+            self.__runWithDuplicateMeasurements(
                 self.simple_triangulation_initializer
             )
         )
@@ -194,6 +235,13 @@ class TestPoint3dInitializer(unittest.TestCase):
     def testRansacUniformSamplingWithCheiralityException(self):
         self.assertTrue(
             self.__runWithCheiralityException(
+                self.ransac_uniform_sampling_initializer
+            )
+        )
+
+    def testRansacUniformSamplingWithDuplicateMeaseurements(self):
+        self.assertTrue(
+            self.__runWithDuplicateMeasurements(
                 self.ransac_uniform_sampling_initializer
             )
         )
