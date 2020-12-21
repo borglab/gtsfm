@@ -27,6 +27,7 @@ from data_association.point3d_initializer import (
     TriangulationParam,
 )
 
+# focal length set to 50 px, with `px`, `py` set to zero
 CALIBRATION = Cal3Bundler(50, 0, 0, 0, 0)
 # Generate 8 camera poses arranged in a circle of radius 40 m
 CAMERAS = {
