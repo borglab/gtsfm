@@ -170,7 +170,7 @@ class TestPoint3dInitializer(unittest.TestCase):
         )
         point3d = sfm_track.point3()
 
-        return np.allclose(point3d, LANDMARK_POINT, atol=1e1, rtol=1e-1)
+        return np.allclose(point3d, LANDMARK_POINT, atol=1, rtol=1e-1)
 
     def testSimpleTriangulationWithCorrectMeasurements(self):
         self.assertTrue(
