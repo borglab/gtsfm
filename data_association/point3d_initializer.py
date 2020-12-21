@@ -151,12 +151,12 @@ class Point3dInitializer(NamedTuple):
                         avg_error = inlier_errors.mean()
                         num_votes = is_inlier.astype(int).sum()
 
-                        if (num_votes > best_votes) or (
+                        if (num_votes > best_num_votes) or (
                             num_votes == best_num_votes and avg_error < best_error
                         ):
-                            best_num_votes = sum_votes
+                            best_num_votes = num_votes
                             best_error = avg_error
-                            best_inliers = votes
+                            best_inliers = is_inlier
                 else:
                     logging.warning(
                         "Unestimated cameras found at indices {} or {}. Skipping them.".format(
