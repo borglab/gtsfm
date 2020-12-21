@@ -28,6 +28,7 @@ from data_association.point3d_initializer import (
 )
 
 CALIBRATION = Cal3Bundler(50, 0, 0, 0, 0)
+# Generate 8 camera poses arranged in a circle of radius 40 m
 CAMERAS = {
     i: PinholeCameraCal3Bundler(pose, CALIBRATION)
     for i, pose in enumerate(
@@ -137,7 +138,8 @@ class TestPoint3dInitializer(unittest.TestCase):
         cameras = obj.track_camera_dict
 
         # flip the cameras first
-        camera_flip_pose = Pose3(Rot3.RzRyRx(np.pi, 0, 0), np.zeros((3, 1)))
+        yaw = np.pi
+        camera_flip_pose = Pose3(Rot3.RzRyRx(yaw, 0, 0), np.zeros((3, 1)))
         flipped_cameras = {
             i: PinholeCameraCal3Bundler(
                 cam.pose().compose(camera_flip_pose), cam.calibration()
