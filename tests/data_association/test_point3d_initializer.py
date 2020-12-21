@@ -51,15 +51,15 @@ def get_track_with_one_outlier() -> List[SfmMeasurement]:
     # perturb one measurement
     idx_to_perturb = 5
 
-    perturbed_track = copy.deepcopy(MEASUREMENTS)
+    perturbed_measurements = copy.deepcopy(MEASUREMENTS)
 
-    original_measurement = perturbed_track[idx_to_perturb]
-    perturbed_track[idx_to_perturb] = SfmMeasurement(
+    original_measurement = perturbed_measurements[idx_to_perturb]
+    perturbed_measurements[idx_to_perturb] = SfmMeasurement(
         original_measurement.i,
-        perturbed_track[idx_to_perturb].uv + Point2(20.0, -10.0),
+        perturbed_measurements[idx_to_perturb].uv + Point2(20.0, -10.0),
     )
 
-    return perturbed_track
+    return perturbed_measurements
 
 
 class TestPoint3dInitializer(unittest.TestCase):
