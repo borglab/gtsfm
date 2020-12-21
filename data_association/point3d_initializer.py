@@ -100,9 +100,9 @@ class Point3dInitializer(NamedTuple):
             )
 
             # Initialize the best output containers
-            best_votes = 0
+            best_num_votes = 0
             best_error = MAX_TRACK_REPROJ_ERROR
-            best_inliers = [False] * len(track.measurements)
+            best_inliers = np.zeros(len(track.measurements), dtype=bool)
 
             for sample_idxs in samples:
                 k1, k2 = measurement_pairs[sample_idxs]
@@ -141,23 +141,20 @@ class Point3dInitializer(NamedTuple):
                     )
                     # The best solution should correspond to the one with most inliers
                     # If the inlier number are the same, check the average error of inliers
-                    votes = (errors < self.reproj_error_thresh).tolist()
+                    is_inlier = (errors < self.reproj_error_thresh)
 
-                    inlier_errors = errors[votes]
+                    # tally the number of votes
+                    inlier_errors = errors[is_inlier]
 
                     if inlier_errors.size > 0:
+                        # only tally error over the inlier measurements
+                        avg_error = inlier_errors.mean()
+                        num_votes = is_inlier.astype(int).sum()
 
-                        avg_error = (
-                            np.array(inlier_errors).sum()
-                            / inlier_errors.shape[0]
-                        )
-
-                        sum_votes = np.array(votes).astype(int).sum()
-
-                        if (sum_votes > best_votes) or (
-                            sum_votes == best_votes and avg_error < best_error
+                        if (num_votes > best_votes) or (
+                            num_votes == best_num_votes and avg_error < best_error
                         ):
-                            best_votes = sum_votes
+                            best_num_votes = sum_votes
                             best_error = avg_error
                             best_inliers = votes
                 else:
@@ -168,7 +165,7 @@ class Point3dInitializer(NamedTuple):
                     )
 
         elif self.mode == TriangulationParam.NO_RANSAC:
-            best_inliers = [True] * len(track.measurements)
+            best_inliers = np.ones(len(track.measurements), dtype=bool) # all marked as inliers
 
         inlier_idxs = (np.where(best_inliers)[0]).tolist()
 
@@ -305,7 +302,7 @@ class Point3dInitializer(NamedTuple):
 
         Args:
             track: feature track from which measurements are to be extracted.
-            inlier_idxs: measurement indices which are to be be extracted.
+            inlier_idxs: indices of measurements which are to be be extracted.
 
         Returns:
             track_cameras: Vector of individual camera calibrations pertaining to track
@@ -315,12 +312,7 @@ class Point3dInitializer(NamedTuple):
         track_measurements = Point2Vector()  # vector of 2d points
 
         for idx in inlier_idxs:
-            try:
-                i, uv = track[idx]
-            except:
-                import pdb
-
-                pdb.set_trace()
+            i, uv = track[idx]
 
             # check for unestimated cameras
             if self.track_camera_dict.get(i) != None:
