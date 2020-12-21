@@ -10,26 +10,20 @@ Understanding, Vol. 68, No. 2, November, pp. 146–157, 1997
 
 Authors: Sushmita Warrier, Xiaolong Wu
 """
-import itertools
 import logging
-from enum import Enum
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import dask
-import gtsam
 import numpy as np
+from common.keypoints import Keypoints
 from dask.delayed import Delayed
-from gtsam import (
-    CameraSetCal3Bundler,
-    PinholeCameraCal3Bundler,
-    Point2Vector,
-    Point3,
-    SfmData,
-    SfmTrack,
-)
+from gtsam import PinholeCameraCal3Bundler, SfmData, SfmTrack
 
 import data_association.feature_tracks as feature_tracks
-from common.keypoints import Keypoints
+from data_association.point3d_initializer import (
+    Point3dInitializer,
+    TriangulationParam,
+)
 
 
 class DataAssociation(NamedTuple):
@@ -50,6 +44,12 @@ class DataAssociation(NamedTuple):
     mode: TriangulationParam
     num_ransac_hypotheses: Optional[int] = None
 
+    def __valid_track(self, sfm_track: Optional[SfmTrack]) -> bool:
+        return (
+            sfm_track is not None
+            and sfm_track.number_measurements() >= self.min_track_len
+        )
+
     def run(
         self,
         cameras: Dict[int, PinholeCameraCal3Bundler],
@@ -59,17 +59,18 @@ class DataAssociation(NamedTuple):
         """Perform the data association.
 
         Args:
-            cameras: dictionary with image index as key, and camera object w/
-                     intrinsics + extrinsics as value.
+            cameras: dictionary, with image index -> camera mapping.
             corr_idxs_dict: dictionary, with key as image pair (i1,i2) and value
                             as matching keypoint indices.
             keypoints_list: keypoints for each image.
 
         Returns:
-            cameras and tracks as SfmData
+            cameras and tracks as SfmData.
         """
+        # generate tracks for 3D points using pairwise correspondences
         tracks = feature_tracks.generate_tracks(corr_idxs_dict, keypoints_list)
 
+        # initializer of 3D landmark for each track
         point3d_initializer = Point3dInitializer(
             cameras,
             self.mode,
@@ -77,6 +78,7 @@ class DataAssociation(NamedTuple):
             self.reproj_error_thresh,
         )
 
+        # form SFMdata object after triangulation
         triangulated_data = SfmData()
         for track_2d in tracks:
             # triangulate and filter based on reprojection error
@@ -85,15 +87,8 @@ class DataAssociation(NamedTuple):
             if sfm_track is None:
                 continue
 
-            if sfm_track.number_measurements() >= self.min_track_len:
+            if self.__valid_track(sfm_track):
                 triangulated_data.add_track(sfm_track)
-            else:
-                logging.info(
-                    "Track length {} < {} discarded".format(
-                        sfm_track.number_measurements(),
-                        self.min_track_len,
-                    )
-                )
 
         # TODO: improve dropped camera handling
         num_cameras = len(cameras.keys())
