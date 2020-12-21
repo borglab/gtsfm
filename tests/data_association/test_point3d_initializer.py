@@ -62,6 +62,21 @@ def get_track_with_one_outlier() -> List[SfmMeasurement]:
     return perturbed_measurements
 
 
+def get_track_with_duplicate_measurements() -> List[SfmMeasurement]:
+    """Generates a track with 2 measurements in an image."""
+
+    new_measurements = copy.deepcopy(MEASUREMENTS)
+
+    new_measurements.append(
+        SfmMeasurement(
+            new_measurements[0].i,
+            new_measurements[0].uv + Point2(2.0, -3.0),
+        )
+    )
+
+    return new_measurements
+
+
 class TestPoint3dInitializer(unittest.TestCase):
     """Unit tests for Point3dInitializer."""
 
@@ -141,6 +156,17 @@ class TestPoint3dInitializer(unittest.TestCase):
 
         return sfm_track is None
 
+    def __runWithDuplicateMeasurements(self, obj: Point3dInitializer) -> bool:
+        """Run the initialization for a track with all inlier measurements
+        except one, and checks for correctness of the estimated point."""
+
+        sfm_track = obj.triangulate(
+            SfmTrack2d(get_track_with_duplicate_measurements())
+        )
+        point3d = sfm_track.point3()
+
+        return np.allclose(point3d, LANDMARK_POINT, atol=1e1, rtol=1e-1)
+
     def testSimpleTriangulationWithCorrectMeasurements(self):
         self.assertTrue(
             self.__runWithCorrectMeasurements(
@@ -166,6 +192,13 @@ class TestPoint3dInitializer(unittest.TestCase):
     def testSimpleTriangulationWithCheiralityException(self):
         self.assertTrue(
             self.__runWithCheiralityException(
+                self.simple_triangulation_initializer
+            )
+        )
+
+    def testSimpleTriangulationWithDuplicateMeaseurements(self):
+        self.assertTrue(
+            self.__runWithDuplicateMeasurements(
                 self.simple_triangulation_initializer
             )
         )
@@ -197,6 +230,13 @@ class TestPoint3dInitializer(unittest.TestCase):
     def testRansacUniformSamplingWithCheiralityException(self):
         self.assertTrue(
             self.__runWithCheiralityException(
+                self.ransac_uniform_sampling_initializer
+            )
+        )
+
+    def testRansacUniformSamplingWithDuplicateMeaseurements(self):
+        self.assertTrue(
+            self.__runWithDuplicateMeasurements(
                 self.ransac_uniform_sampling_initializer
             )
         )
