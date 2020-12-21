@@ -312,7 +312,7 @@ class Point3dInitializer(NamedTuple):
         track_measurements = Point2Vector()  # vector of 2d points
 
         for idx in inlier_idxs:
-            i, uv = track[idx]
+            i, uv = track.measurements[idx]
 
             # check for unestimated cameras
             if self.track_camera_dict.get(i) != None:
@@ -353,10 +353,10 @@ class Point3dInitializer(NamedTuple):
             SfmTrack object.
         """
         # we will create a new track with only the inlier measurements
-        new_track = SfmTrack(triangulated_pt)
+        track_3d = SfmTrack(triangulated_pt)
 
         for idx in inlier_idxs:
-            i, uv = track[idx]
-            new_track.add_measurement(i, uv)
+            i, uv = track.measurements[idx]
+            track_3d.add_measurement(i, uv)
 
-        return new_track
+        return track_3d
