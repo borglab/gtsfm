@@ -5,10 +5,13 @@ Authors: Ayush Baid
 from typing import Any, Dict, List, Optional, Tuple
 
 import dask
+import matplotlib.pyplot as plt
 import networkx as nx
 from dask.delayed import Delayed
-from gtsam import PinholeCameraCal3Bundler, Rot3, Unit3, Cal3Bundler, Pose3
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3
 
+import utils.io as io_utils
+import utils.viz as viz_utils
 from averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from averaging.translation.translation_averaging_base import (
     TranslationAveragingBase,
@@ -83,7 +86,7 @@ class MultiViewOptimizer:
         self,
         rot_avg_module: RotationAveragingBase,
         trans_avg_module: TranslationAveragingBase,
-        config: Any
+        config: Any,
     ):
         self.rot_avg_module = rot_avg_module
         self.trans_avg_module = trans_avg_module
@@ -91,7 +94,7 @@ class MultiViewOptimizer:
             config.reproj_error_thresh,
             config.min_track_len,
             config.triangulation_mode,
-            config.num_ransac_hypotheses
+            config.num_ransac_hypotheses,
         )
         self.ba_optimizer = BundleAdjustmentOptimizer()
 
@@ -202,7 +205,8 @@ class SceneOptimizer:
         verifier: VerifierBase,
         rot_avg_module: RotationAveragingBase,
         trans_avg_module: TranslationAveragingBase,
-        config: Any
+        config: Any,
+        debug_mode: bool = False,
     ) -> None:
 
         self.feature_extractor = FeatureExtractor(detector_descriptor)
@@ -213,6 +217,35 @@ class SceneOptimizer:
             rot_avg_module, trans_avg_module, config
         )
 
+        self._debug_mode = debug_mode
+
+    def __visualize_twoview_correspondences(
+        self,
+        image_i1_graph: Delayed,
+        image_i2_graph: Delayed,
+        corr_idxs_graph: Delayed,
+        keypoints_i1_graph: Delayed,
+        keypoints_i2_graph: Delayed,
+        file_name: str,
+    ) -> None:
+        plot = viz_utils.plot_twoview_correspondences(
+            image_i1_graph,
+            image_i2_graph,
+            keypoints_i1_graph,
+            keypoints_i2_graph,
+            corr_idxs_graph,
+        )
+
+        io_utils.save_image(plot, file_name)
+
+    def __visualize_result(self, sfm_result: Delayed, file_name: str) -> None:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection="3d")
+
+        viz_utils.plot_sfm_data(sfm_result.result_data, ax)
+
+        plt.savefig(file_name)
+
     def create_computation_graph(
         self,
         num_images: int,
@@ -220,8 +253,12 @@ class SceneOptimizer:
         image_graph: List[Delayed],
         camera_intrinsics_graph: List[Delayed],
         use_intrinsics_in_verification: bool = True,
-    ) -> Tuple[List[Delayed], Delayed, Delayed, Dict[Tuple[int, int], Delayed]]:
+    ) -> Tuple[Delayed, List[Delayed]]:
         """ The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times"""
+
+        # optional graph elements for visualizations
+        viz_graph_list = []
+
         # detection and description graph
         keypoints_graph_list = []
         descriptors_graph_list = []
@@ -255,6 +292,18 @@ class SceneOptimizer:
             i2Ui1_graph_dict[(i1, i2)] = i2Ui1
             v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
 
+            if self._debug_mode:
+                viz_graph_list.append(
+                    dask.delayed(self.__visualize_twoview_correspondences)(
+                        image_graph[i1],
+                        image_graph[i2],
+                        v_corr_idxs,
+                        keypoints_graph_list[i1],
+                        keypoints_graph_list[i2],
+                        "plots/correspondences/{}_{}.png".format(i1, i2),
+                    )
+                )
+
         sfmResult_graph = self.multiview_optimizer.create_computation_graph(
             num_images,
             keypoints_graph_list,
@@ -264,4 +313,11 @@ class SceneOptimizer:
             camera_intrinsics_graph,
         )
 
-        return sfmResult_graph
+        if self._debug_mode:
+            viz_graph_list.append(
+                dask.delayed(self.__visualize_result)(
+                    sfmResult_graph, "plots/results.png"
+                )
+            )
+
+        return sfmResult_graph, viz_graph_list
