@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid
 """
+import os
 from typing import Any, Dict, List, Optional, Tuple
 
 import dask
@@ -238,13 +239,21 @@ class SceneOptimizer:
 
         io_utils.save_image(plot, file_name)
 
-    def __visualize_result(self, sfm_result: Delayed, file_name: str) -> None:
+    def __visualize_sfm_result(
+        self, sfm_data: Delayed, folder_name: str
+    ) -> None:
         fig = plt.figure()
-        ax = fig.add_subplot(111, projection="3d")
+        ax = fig.gca(projection="3d")
 
-        viz_utils.plot_sfm_data(sfm_result.result_data, ax)
+        viz_utils.plot_sfm_data_3d(sfm_data, ax)
+        viz_utils.set_axes_equal(ax)
 
-        plt.savefig(file_name)
+        # save the 3D plot in the original view
+        plt.savefig(os.path.join(folder_name, "3d.png"))
+
+        # save the BEV representation
+        ax.view_init(azim=0, elev=100)
+        plt.savefig(os.path.join(folder_name, "bev.png"))
 
     def create_computation_graph(
         self,
@@ -314,9 +323,13 @@ class SceneOptimizer:
         )
 
         if self._debug_mode:
+            filtered_sfm_data = dask.delayed(sfmResult_graph.filter_landmarks)(
+                2
+            )
+
             viz_graph_list.append(
-                dask.delayed(self.__visualize_result)(
-                    sfmResult_graph, "plots/results.png"
+                dask.delayed(self.__visualize_sfm_result)(
+                    filtered_sfm_data, "plots/results/"
                 )
             )
 
