@@ -262,7 +262,7 @@ class SceneOptimizer:
         image_graph: List[Delayed],
         camera_intrinsics_graph: List[Delayed],
         use_intrinsics_in_verification: bool = True,
-    ) -> Tuple[Delayed, List[Delayed]]:
+    ) -> Delayed:
         """ The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times"""
 
         # optional graph elements for visualizations
@@ -333,4 +333,8 @@ class SceneOptimizer:
                 )
             )
 
-        return sfmResult_graph, viz_graph_list
+        output_graph = dask.delayed(lambda x, y: [x] + y)(
+            sfmResult_graph, viz_graph_list
+        )
+
+        return output_graph[0]

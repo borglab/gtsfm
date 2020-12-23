@@ -110,7 +110,7 @@ class TestSceneOptimizer(unittest.TestCase):
         use_intrinsics_in_verification = False
 
         # generate the dask computation graph
-        sfm_result_graph, viz_graph = self.obj.create_computation_graph(
+        sfm_result_graph = self.obj.create_computation_graph(
             len(self.loader),
             self.loader.get_valid_pairs(),
             self.loader.create_computation_graph_for_images(),
@@ -119,7 +119,7 @@ class TestSceneOptimizer(unittest.TestCase):
         )
 
         with dask.config.set(scheduler="single-threaded"):
-            sfm_result = dask.compute(sfm_result_graph, viz_graph)[0]
+            sfm_result = dask.compute(sfm_result_graph)[0]
 
         self.assertIsInstance(sfm_result, SfmResult)
 
