@@ -219,25 +219,19 @@ def plot_poses_3d(
         center_marker_color (optional): color for camera center marker.
                                         Defaults to "k".
     """
-    for wTi in wTi_list:
-        camera_center = wTi.translation().squeeze()
+    spec = "{}.".format(center_marker_color)
 
-        ax.plot(
-            camera_center[0],
-            camera_center[1],
-            camera_center[2],
-            "{}x".format(center_marker_color),
-            markersize=10,
-        )
+    for wTi in wTi_list:
+        x, y, z = wTi.translation().squeeze()
+
+        ax.plot(x, y, z, spec, markersize=10)
 
         R = wTi.rotation().matrix()
 
         # getting the direction of the coordinate system (x, y, z axes)
-        v1 = R[:, 0] * 1
-        v2 = R[:, 1] * 1
-        v3 = R[:, 2] * 1
-
-        x, y, z = camera_center
+        v1 = R[:, 0] * 0.5
+        v2 = R[:, 1] * 0.5
+        v3 = R[:, 2] * 0.5
 
         ax.plot3D([x, x + v1[0]], [y, y + v1[1]], [z, z + v1[2]], c="r")
         ax.plot3D([x, x + v2[0]], [y, y + v2[1]], [z, z + v2[2]], c="g")
@@ -260,5 +254,6 @@ def plot_and_compare_poses_3d(
 
     plot_poses_3d(wTi_list, ax, center_marker_color="k")
     plot_poses_3d(wTi_list_, ax, center_marker_color="c")
+    set_axes_equal(ax)
 
     plt.show()
