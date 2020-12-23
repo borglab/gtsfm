@@ -10,6 +10,7 @@ import dask
 import numpy as np
 from gtsam import EssentialMatrix, Rot3, Unit3
 
+import utils.geometry_comparisons as comp_utils
 from averaging.rotation.shonan import ShonanRotationAveraging
 from averaging.translation.averaging_1dsfm import TranslationAveraging1DSFM
 from common.sfm_result import SfmResult
@@ -34,7 +35,7 @@ class TestSceneOptimizer(unittest.TestCase):
         config = SimpleNamespace(
             **{
                 "reproj_error_thresh": 5,
-                "min_track_len": 2,
+                "min_track_len": 3,
                 "triangulation_mode": TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
                 "num_ransac_hypotheses": 20,
             }
@@ -46,7 +47,7 @@ class TestSceneOptimizer(unittest.TestCase):
             rot_avg_module=ShonanRotationAveraging(),
             trans_avg_module=TranslationAveraging1DSFM(),
             config=config,
-            save_viz=True,
+            save_viz=False,
         )
 
     def test_find_largest_connected_component(self):
@@ -122,6 +123,15 @@ class TestSceneOptimizer(unittest.TestCase):
             sfm_result = dask.compute(sfm_result_graph)[0]
 
         self.assertIsInstance(sfm_result, SfmResult)
+
+        # compare the camera poses
+        poses = sfm_result.get_camera_poses()
+
+        expected_poses = [
+            self.loader.get_camera_pose(i) for i in range(len(self.loader))
+        ]
+
+        self.assertTrue(comp_utils.compare_global_poses(poses, expected_poses))
 
 
 def generate_random_essential_matrix() -> EssentialMatrix:
