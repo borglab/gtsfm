@@ -46,7 +46,7 @@ class TestSceneOptimizer(unittest.TestCase):
             rot_avg_module=ShonanRotationAveraging(),
             trans_avg_module=TranslationAveraging1DSFM(),
             config=config,
-            debug_mode=True,
+            save_viz=True,
         )
 
     def test_find_largest_connected_component(self):

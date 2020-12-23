@@ -207,7 +207,7 @@ class SceneOptimizer:
         rot_avg_module: RotationAveragingBase,
         trans_avg_module: TranslationAveragingBase,
         config: Any,
-        debug_mode: bool = False,
+        save_viz: bool = False,
     ) -> None:
 
         self.feature_extractor = FeatureExtractor(detector_descriptor)
@@ -218,7 +218,7 @@ class SceneOptimizer:
             rot_avg_module, trans_avg_module, config
         )
 
-        self._debug_mode = debug_mode
+        self._debug_mode = save_viz
 
     def __visualize_twoview_correspondences(
         self,
