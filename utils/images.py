@@ -2,6 +2,8 @@
 
 Authors: Ayush Baid
 """
+from typing import Tuple
+
 import cv2 as cv
 import numpy as np
 
@@ -84,3 +86,39 @@ def resize_image(image: Image, new_height: int, new_width: int) -> Image:
     )
 
     return Image(resized_value_array)
+
+
+def match_image_widths(
+    image_i1: Image, image_i2: Image
+) -> Tuple[Image, Image, Tuple[float, float], Tuple[float, float]]:
+    """Scales the images to the same width, which is the larger of the two input
+    images.
+
+    Args:
+        image_i1: 1st image to match width.
+        image_i2: 2nd image to match width.
+
+    Returns:
+        Scaled image_i1.
+        Scaled image_i2.
+        Scaling factor (W, H) for image_i1.
+        Scaling factor (W, H) for image_i2.
+    """
+
+    max_width = max(image_i1.width, image_i2.width)
+
+    # scale image_i1
+    new_width = int(max_width)
+    new_height = int(image_i1.height * new_width / image_i1.width)
+
+    scale_factor_i1 = (new_width / image_i1.width, new_height / image_i1.height)
+    scaled_image_i1 = resize_image(image_i1, new_height, new_width)
+
+    # scale image_i2
+    new_width = int(max_width)
+    new_height = int(image_i2.height * new_width / image_i2.width)
+
+    scale_factor_i2 = (new_width / image_i2.width, new_height / image_i2.height)
+    scaled_image_i2 = resize_image(image_i2, new_height, new_width)
+
+    return scaled_image_i1, scaled_image_i2, scale_factor_i1, scale_factor_i2

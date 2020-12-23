@@ -135,26 +135,14 @@ def plot_twoview_correspondences(
     Returns:
         image visualizing correspondences between two images.
     """
-    scale_i1 = 1.0
-    scale_i2 = 1.0
+    scale_i1 = (1.0, 1.0)
+    scale_i2 = (1.0, 1.0)
     if match_width:
-        max_width = int(max(image_i1.width, image_i2.width))
-        if image_i1.width != max_width:
-            scale_i1 = float(max_width) / image_i1.width
-
-            image_i1 = image_utils.resize_image(
-                image_i1, int(image_i1.height * scale_i1), max_width
-            )
-        elif image_i2.width != max_width:
-            scale_i2 = float(max_width) / image_i2.width
-
-            image_i2 = image_utils.resize_image(
-                image_i2, int(image_i2.height * scale_i2), max_width
-            )
+        image_i1, image_i2, scale_i1, scale_i2 = image_utils.match_image_widths(
+            image_i1, image_i2
+        )
 
     result = image_utils.vstack_images(image_i1, image_i2)
-
-    shift_y = image_i1.height
 
     if max_corrs is not None:
         # subsample matches
@@ -166,12 +154,15 @@ def plot_twoview_correspondences(
         # mark the points in both images as circles, and draw connecting line
         idx_i1, idx_i2 = corr_idxs_i1i2[corr_idx]
 
-        x_i1, y_i1 = (kps_i1.coordinates[idx_i1] * scale_i1).astype(np.int32)
-        x_i2, y_i2 = (kps_i2.coordinates[idx_i2] * scale_i2).astype(np.int32)
-        y_i2 += shift_y
+        x_i1 = (kps_i1.coordinates[idx_i1, 0] * scale_i1[0]).astype(np.int32)
+        y_i1 = (kps_i1.coordinates[idx_i1, 1] * scale_i1[1]).astype(np.int32)
+        x_i2 = (kps_i2.coordinates[idx_i2, 0] * scale_i2[0]).astype(np.int32)
+        y_i2 = (kps_i2.coordinates[idx_i2, 1] * scale_i2[1]).astype(
+            np.int32
+        ) + image_i1.height
 
         result = draw_circle_cv2(result, x_i1, y_i1, dot_color)
-        result = draw_circle_cv2(result, x_i1, y_i1, dot_color)
+        result = draw_circle_cv2(result, x_i2, y_i2, dot_color)
 
         # drawing correspondences with optional inlier mask
         if inlier_mask is None:
