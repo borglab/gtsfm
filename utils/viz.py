@@ -25,7 +25,7 @@ def set_axes_equal(ax: Axes):
     cubes as cubes, etc..  This is one possible solution to Matplotlib's
     ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
 
-    Ref: https://github.com/borglab/gtsam/blob/6c85850147751d45cf9c595f1a7e623d239305fc/python/gtsam/utils/plot.py#L13
+    Ref: https://github.com/borglab/gtsam/blob/develop/python/gtsam/utils/plot.py#L13
 
     Args:
         ax: axis for the plot.
