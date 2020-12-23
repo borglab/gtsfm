@@ -3,6 +3,7 @@
 Authors: Ayush Baid
 """
 import os
+from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Tuple
 
 import dask
@@ -11,19 +12,26 @@ import networkx as nx
 from dask.delayed import Delayed
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3
 
+import utils.geometry_comparisons as comp_utils
 import utils.io as io_utils
 import utils.viz as viz_utils
 from averaging.rotation.rotation_averaging_base import RotationAveragingBase
+from averaging.rotation.shonan import ShonanRotationAveraging
+from averaging.translation.averaging_1dsfm import TranslationAveraging1DSFM
 from averaging.translation.translation_averaging_base import (
     TranslationAveragingBase,
 )
 from bundle.bundle_adjustment import BundleAdjustmentOptimizer
-from data_association.data_assoc import DataAssociation
+from data_association.data_assoc import DataAssociation, TriangulationParam
 from frontend.detector_descriptor.detector_descriptor_base import (
     DetectorDescriptorBase,
 )
+from frontend.detector_descriptor.sift import SIFTDetectorDescriptor
 from frontend.matcher.matcher_base import MatcherBase
+from frontend.matcher.twoway_matcher import TwoWayMatcher
+from frontend.verifier.degensac import Degensac
 from frontend.verifier.verifier_base import VerifierBase
+from loader.folder_loader import FolderLoader
 
 
 class FeatureExtractor:
@@ -338,3 +346,46 @@ class SceneOptimizer:
         )
 
         return output_graph[0]
+
+
+if __name__ == "__main__":
+    loader = FolderLoader(
+        os.path.join("tests", "data", "set1_lund_door"), image_extension="JPG"
+    )
+
+    config = SimpleNamespace(
+        **{
+            "reproj_error_thresh": 5,
+            "min_track_len": 3,
+            "triangulation_mode": TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
+            "num_ransac_hypotheses": 20,
+        }
+    )
+    obj = SceneOptimizer(
+        detector_descriptor=SIFTDetectorDescriptor(),
+        matcher=TwoWayMatcher(),
+        verifier=Degensac(),
+        rot_avg_module=ShonanRotationAveraging(),
+        trans_avg_module=TranslationAveraging1DSFM(),
+        config=config,
+        save_viz=True,
+    )
+
+    sfm_result_graph = obj.create_computation_graph(
+        len(loader),
+        loader.get_valid_pairs(),
+        loader.create_computation_graph_for_images(),
+        loader.create_computation_graph_for_intrinsics(),
+        use_intrinsics_in_verification=True,
+    )
+
+    sfm_result = dask.compute(sfm_result_graph)[0]
+
+    poses = sfm_result.get_camera_poses()
+
+    expected_poses = [loader.get_camera_pose(i) for i in range(len(loader))]
+
+    # align poses
+    aligned_poses = comp_utils.align_poses(poses, expected_poses)
+
+    viz_utils.plot_and_compare_poses_3d(aligned_poses, expected_poses)
