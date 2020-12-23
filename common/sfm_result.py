@@ -2,9 +2,10 @@
 
 Authors: Xiaolong Wu, Ayush Baid
 """
+from typing import List
 
 import numpy as np
-from gtsam import SfmData, SfmTrack, Values, symbol_shorthand
+from gtsam import Pose3, SfmData, SfmTrack, Values, symbol_shorthand
 
 C = symbol_shorthand.C
 P = symbol_shorthand.P
@@ -134,3 +135,16 @@ class SfmResult:
                 filtered_data.add_track(track)
 
         return filtered_data
+
+    def get_camera_poses(self) -> List[Pose3]:
+        """Getter for camera poses.
+
+        Returns:
+            camera poses as a list.
+        """
+        poses = []
+
+        for i in range(self.result_data.number_cameras()):
+            poses.append(self.result_data.camera(i).pose())
+
+        return poses
