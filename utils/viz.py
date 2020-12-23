@@ -25,6 +25,8 @@ def set_axes_equal(ax: Axes):
     cubes as cubes, etc..  This is one possible solution to Matplotlib's
     ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
 
+    Ref: https://github.com/borglab/gtsam/blob/6c85850147751d45cf9c595f1a7e623d239305fc/python/gtsam/utils/plot.py#L13
+
     Args:
         ax: axis for the plot.
     """
@@ -37,8 +39,10 @@ def set_axes_equal(ax: Axes):
         ]
     )
 
+    # find the origin and edge length of the axes' range
     origin = np.mean(limits, axis=1)
-    radius = 0.5 * np.max(np.abs(limits[:, 1] - limits[:, 0]))
+    edge_length = np.max(np.abs(limits[:, 1] - limits[:, 0]))
+    radius = 0.5 * edge_length
 
     ax.set_xlim3d([origin[0] - radius, origin[0] + radius])
     ax.set_ylim3d([origin[1] - radius, origin[1] + radius])
@@ -244,6 +248,8 @@ def plot_and_compare_poses_3d(
     wTi_list: List[Pose3], wTi_list_: List[Pose3]
 ) -> None:
     """Plots two sets poses in 3D with different markers to compare.
+
+    The markers are colored black (k) and cyan (c) for the two lists.
 
     Args:
         wTi_list: first set of poses.
