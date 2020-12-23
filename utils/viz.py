@@ -14,6 +14,10 @@ import utils.images as image_utils
 from common.image import Image
 from common.keypoints import Keypoints
 
+COLOR_RED = (255, 0, 0)
+COLOR_GREEN = (0, 255, 0)
+COLOR_BLUE = (0, 0, 255)
+
 
 def set_axes_equal(ax: Axes):
     """
@@ -166,11 +170,11 @@ def plot_twoview_correspondences(
 
         # drawing correspondences with optional inlier mask
         if inlier_mask is None:
-            line_color = (0, 0, 255)
+            line_color = COLOR_BLUE
         elif inlier_mask[corr_idx]:
-            line_color = (0, 255, 0)
+            line_color = COLOR_GREEN
         else:
-            line_color = (255, 0, 0)
+            line_color = COLOR_RED
 
         result = draw_line_cv2(result, x_i1, y_i1, x_i2, y_i2, line_color)
 
