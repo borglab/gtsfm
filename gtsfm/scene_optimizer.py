@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid
 """
+import logging
 import os
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Tuple
@@ -42,6 +43,7 @@ from gtsfm.frontend.verifier.degensac import Degensac
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 from gtsfm.loader.folder_loader import FolderLoader
 
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
 class FeatureExtractor:
     """Wrapper for running detection and description on each image."""
