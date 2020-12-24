@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pandas as pd
 
-ASSETS_ROOT = Path(__file__).resolve().parent.parent / "assets"
+ASSETS_ROOT = Path(__file__).resolve().parent.parent.parent / "assets"
 DEFAULT_SENSOR_DB_PATH = ASSETS_ROOT / "camera_details" / "sensor_database.csv"
 
 
