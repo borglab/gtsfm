@@ -124,7 +124,6 @@ def plot_twoview_correspondences(
     kps_i1: Keypoints,
     kps_i2: Keypoints,
     corr_idxs_i1i2: np.ndarray,
-    match_width: bool = True,
     inlier_mask: Optional[np.ndarray] = None,
     dot_color: Tuple[int, int, int] = (0, 0, 0),
     max_corrs: Optional[int] = 50,
@@ -137,8 +136,6 @@ def plot_twoview_correspondences(
         kps_i1: keypoints for image_i1.
         kps_i2: keypoints for image_i2.
         corr_idxs_i1i2: indices of correspondences between i1 and i2.
-        match_width (optional): flag to scale images to match their width.
-                                Defaults to True.
         inlier_mask (optional): inlier mask for correspondences as boolean
                                 array. Defaults to None.
         dot_color (optional): color for keypoints. Defaults to (0, 0, 0).
@@ -148,12 +145,9 @@ def plot_twoview_correspondences(
     Returns:
         image visualizing correspondences between two images.
     """
-    scale_i1 = (1.0, 1.0)
-    scale_i2 = (1.0, 1.0)
-    if match_width:
-        image_i1, image_i2, scale_i1, scale_i2 = image_utils.match_image_widths(
-            image_i1, image_i2
-        )
+    image_i1, image_i2, scale_i1, scale_i2 = image_utils.match_image_widths(
+        image_i1, image_i2
+    )
 
     result = image_utils.vstack_images(image_i1, image_i2)
 

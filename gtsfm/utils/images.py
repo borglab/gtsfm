@@ -91,8 +91,9 @@ def resize_image(image: Image, new_height: int, new_width: int) -> Image:
 def match_image_widths(
     image_i1: Image, image_i2: Image
 ) -> Tuple[Image, Image, Tuple[float, float], Tuple[float, float]]:
-    """Scales the images to the same width, which is the larger of the two input
-    images.
+    """Automatically chooses the target width (larger of the two inputs), and
+    scales both images to that width.
+
 
     Args:
         image_i1: 1st image to match width.
