@@ -21,6 +21,8 @@ from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
 from gtsfm.frontend.verifier.degensac import Degensac
 from gtsfm.loader.folder_loader import FolderLoader
 from gtsfm.scene_optimizer import SceneOptimizer
+import gtsfm.utils.geometry_comparisons as comp_utils
+
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent / "data"
 
