@@ -77,7 +77,7 @@ class Keypoints(NamedTuple):
         Returns:
             subset of current keypoints.
         """
-        if k > len(self):
+        if k >= len(self):
             return copy.deepcopy(self)
 
         if self.responses is None:
