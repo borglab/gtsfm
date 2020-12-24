@@ -12,14 +12,16 @@ from gtsam import Cal3Bundler, Pose3
 import gtsfm.utils.io as io_utils
 from gtsfm.loader.folder_loader import FolderLoader
 
-DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / 'data'
+DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
 
-DEFAULT_FOLDER = DATA_ROOT_PATH / 'set1_lund_door'
-EXIF_FOLDER = DATA_ROOT_PATH / 'set2_lund_door_nointrinsics'
-NO_EXTRINSICS_FOLDER = DATA_ROOT_PATH / \
-    'set3_lund_doornointrinsics_noextrinsics'
-NO_EXIF_FOLDER = DATA_ROOT_PATH / \
-    'set4_lund_door_nointrinsics_noextrinsics_noexif'
+DEFAULT_FOLDER = DATA_ROOT_PATH / "set1_lund_door"
+EXIF_FOLDER = DATA_ROOT_PATH / "set2_lund_door_nointrinsics"
+NO_EXTRINSICS_FOLDER = (
+    DATA_ROOT_PATH / "set3_lund_doornointrinsics_noextrinsics"
+)
+NO_EXIF_FOLDER = (
+    DATA_ROOT_PATH / "set4_lund_door_nointrinsics_noextrinsics_noexif"
+)
 
 
 class TestFolderLoader(unittest.TestCase):
@@ -31,8 +33,7 @@ class TestFolderLoader(unittest.TestCase):
         """Set up the loader for the test."""
         super().setUp()
 
-        self.loader = FolderLoader(
-            str(DEFAULT_FOLDER), image_extension='JPG')
+        self.loader = FolderLoader(str(DEFAULT_FOLDER), image_extension="JPG")
 
     def test_len(self):
         """
@@ -72,14 +73,15 @@ class TestFolderLoader(unittest.TestCase):
         """
 
         index_to_test = 5
-        file_path = DEFAULT_FOLDER / 'images' / 'DSC_0006.JPG'
+        file_path = DEFAULT_FOLDER / "images" / "DSC_0006.JPG"
 
         loader_image = self.loader.get_image(index_to_test)
 
         expected_image = io_utils.load_image(file_path)
 
         np.testing.assert_allclose(
-            expected_image.value_array, loader_image.value_array)
+            expected_image.value_array, loader_image.value_array
+        )
 
     def test_get_camera_pose_exists(self):
         """
@@ -88,11 +90,16 @@ class TestFolderLoader(unittest.TestCase):
 
         fetched_pose = self.loader.get_camera_pose(5)
 
-        expected_pose = Pose3(np.array([
-            [2.46076391e+03, -1.60315873e+02, -2.54222855e+02, 1.13549066e+04],
-            [4.80838640e+02,  2.37552876e+03,  8.52056819e+02, 4.00138000e+02],
-            [3.51098417e-01, -1.43795686e-02,  9.36228140e-01, 2.38511070e-01]]
-        ))
+        expected_pose = Pose3(
+            np.array(
+                [
+                    [0.9387, 0.0592, 0.3510, -4.5075],
+                    [-0.0634, 1.0043, -0.01437, 0.2307],
+                    [-0.3618, -0.0227, 0.9362, 1.4820],
+                    [0.0, 0.0, 0.0, 1.0],
+                ]
+            )
+        )
 
         self.assertTrue(expected_pose.equals(fetched_pose, 1e-2))
 
@@ -101,7 +108,7 @@ class TestFolderLoader(unittest.TestCase):
         Tests that the camera pose is None, because it is missing on disk.
         """
 
-        loader = FolderLoader(str(NO_EXTRINSICS_FOLDER), image_extension='JPG')
+        loader = FolderLoader(str(NO_EXTRINSICS_FOLDER), image_extension="JPG")
 
         fetched_pose = loader.get_camera_pose(5)
 
@@ -120,18 +127,18 @@ class TestFolderLoader(unittest.TestCase):
     def test_get_camera_intrinsics_exif(self):
         """Tests getter for intrinsics when explicit numpy arrays are absent and we fall back on exif."""
 
-        loader = FolderLoader(EXIF_FOLDER, image_extension='JPG')
+        loader = FolderLoader(EXIF_FOLDER, image_extension="JPG")
 
         computed = loader.get_camera_intrinsics(5)
 
-        expected = Cal3Bundler(fx=2378.983, k1=0, k2=0, u0=968.0, v0=648.0)
+        expected = Cal3Bundler(fx=2378.983, k1=0, k2=0, u0=648.0, v0=968.0)
 
         self.assertTrue(expected.equals(computed, 1e-3))
 
     def test_get_camera_intrinsics_missing(self):
         """Tests getter for intrinsics when explicit numpy arrays are absent and we fall back on exif."""
 
-        loader = FolderLoader(NO_EXIF_FOLDER, image_extension='JPG')
+        loader = FolderLoader(NO_EXIF_FOLDER, image_extension="JPG")
 
         computed = loader.get_camera_intrinsics(5)
 
@@ -153,7 +160,8 @@ class TestFolderLoader(unittest.TestCase):
         )
 
         np.testing.assert_allclose(
-            results[7].value_array, self.loader.get_image(7).value_array)
+            results[7].value_array, self.loader.get_image(7).value_array
+        )
 
     def test_create_computation_graph_for_intrinsics(self):
         """Tests the graph for all intrinsics."""
@@ -166,10 +174,12 @@ class TestFolderLoader(unittest.TestCase):
         results = dask.compute(intrinsics_graph)[0]
 
         # randomly check intrinsics from a few indices
-        self.assertTrue(self.loader.get_camera_intrinsics(5).equals(
-            results[5], 1e-5))
-        self.assertTrue(self.loader.get_camera_intrinsics(7).equals(
-            results[7], 1e-5))
+        self.assertTrue(
+            self.loader.get_camera_intrinsics(5).equals(results[5], 1e-5)
+        )
+        self.assertTrue(
+            self.loader.get_camera_intrinsics(7).equals(results[7], 1e-5)
+        )
 
 
 if __name__ == "__main__":

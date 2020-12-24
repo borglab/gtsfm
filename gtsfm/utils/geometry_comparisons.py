@@ -114,7 +114,10 @@ def compare_rotations(
 
 
 def compare_global_poses(
-    wTi_list: List[Optional[Pose3]], wTi_list_: List[Optional[Pose3]]
+    wTi_list: List[Optional[Pose3]],
+    wTi_list_: List[Optional[Pose3]],
+    rot_err_thresh: float = 1e-3,
+    trans_err_thresh: float = 1e-1,
 ) -> bool:
     """Helper function to compare two lists of global Pose3, considering the
     origin and scale ambiguous.
@@ -131,6 +134,10 @@ def compare_global_poses(
     Args:
         wTi_list: 1st list of poses.
         wTi_list_: 2nd list of poses.
+        rot_err_thresh (optional): error threshold for rotations. Defaults to
+                                   1e-3.
+        trans_err_thresh (optional): relative error threshold for translation.
+                                     Defaults to 1e-1.
 
     Returns:
         results of the comparison.
@@ -157,5 +164,15 @@ def compare_global_poses(
     wTi_list = align_poses(wTi_list, wTi_list_)
 
     return all(
-        [wTi.equals(wTi_, 1e-1) for (wTi, wTi_) in zip(wTi_list, wTi_list_)]
+        [
+            (
+                wTi.rotation().equals(wTi_.rotation(), rot_err_thresh)
+                and np.allclose(
+                    wTi.translation(),
+                    wTi_.translation(),
+                    rtol=trans_err_thresh,
+                )
+            )
+            for (wTi, wTi_) in zip(wTi_list, wTi_list_)
+        ]
     )
