@@ -32,4 +32,4 @@ GTSFM is designed in an extremely modular way. Each module can be swapped out wi
 
 ## Contributing
 
-Our CI will enforce the unit tests (`pytest tests/`, `mypy`, `isort`, and also `black`). Please be sure your contribution passes these tests first.
+Our CI will enforce the unit tests (`pytest tests/`), as well as formatters -- `mypy`, `isort`, and also `black`. Please be sure your contribution passes these tests first.
