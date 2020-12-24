@@ -14,17 +14,22 @@ def align_rotations(input_list: List[Rot3], ref_list: List[Rot3]) -> List[Rot3]:
     """Aligns the list of rotations to the reference list by shifting origin.
 
     Args:
-        input_list: input rotations which need to be aligned.
-        ref_list: reference rotations which are target for alignment.
+        input_list: input rotations which need to be aligned, suppose w1Ri in world-1 frame
+           for all frames i
+        ref_list: reference rotations which are target for alignment, suppose w2Ri in world-2 frame
+           for all frames i
 
     Returns:
-        transformed rotations which have the same origin as reference.
+        transformed rotations which have the same origin as reference (now living in world-2 frame)
     """
-    # map the origin of the input list to the reference list
-    origin_transform = ref_list[0].compose(input_list[0].inverse())
+    w1Ri1 = input_list[0]
+    i1Rw1 = w1Ri1.inverse()
+    w2Ri1 = ref_list[0]
+    # origin_transform -- map the origin of the input list to the reference list
+    w2Rw1 = w2Ri1.compose(i1Rw1)
 
     # apply the coordinate shift to all entries in input
-    return [origin_transform.compose(x) for x in input_list]
+    return [w2Rw1.compose(w1Ri) for w1Ri in input_list]
 
 
 def align_poses(input_list: List[Pose3], ref_list: List[Pose3]) -> List[Pose3]:
