@@ -20,17 +20,17 @@ GTSFM is designed in an extremely modular way. Each module can be swapped out wi
 
 - `gtsfm`: source code, organized as:
     - `averaging`
-        - `rotation`
-        - `translation`
+        - `rotation`: rotation averaging implementations (Shonan, Chordal, etc)
+        - `translation`: translation averaging implementations (1d-SFM, etc)
     - `bundle`
     - `common`
     - `data_association`
     - `densify`
     - `frontend`: SfM front-end code, including:
-        - `detector`: keypoint detector implementations
-        - `descriptor`: feature descriptor implementations
-        - `matcher`: descriptor matching implemenentations
-        - `verifier`: 2d-correspondence verifier implementations
+        - `detector`: keypoint detector implementations (DoG, etc)
+        - `descriptor`: feature descriptor implementations (SIFT, etc)
+        - `matcher`: descriptor matching implementations
+        - `verifier`: 2d-correspondence verifier implementations (Degensac, Superglue, etc)
     - `loader`: image data loaders
     - `utils`
 - `tests`: unit tests on every function and module
