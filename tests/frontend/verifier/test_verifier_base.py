@@ -19,8 +19,8 @@ from gtsam import (
     Unit3,
 )
 
-from common.keypoints import Keypoints
-from frontend.verifier.dummy_verifier import DummyVerifier
+from gtsfm.common.keypoints import Keypoints
+from gtsfm.frontend.verifier.dummy_verifier import DummyVerifier
 
 RANDOM_SEED = 15
 

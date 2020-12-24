@@ -6,7 +6,7 @@ Authors: Ayush Baid
 import unittest
 
 import tests.frontend.detector.test_detector_base as test_detector_base
-from frontend.detector.dog import DoG
+from gtsfm.frontend.detector.dog import DoG
 
 
 class TestDoG(test_detector_base.TestDetectorBase):

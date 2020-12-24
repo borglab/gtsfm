@@ -5,7 +5,7 @@ Authors: Ayush Baid
 import unittest
 
 import tests.frontend.detector.test_detector_base as test_detector_base
-from frontend.detector.fast import Fast
+from gtsfm.frontend.detector.fast import Fast
 
 
 class TestFast(test_detector_base.TestDetectorBase):

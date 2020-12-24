@@ -10,8 +10,8 @@ from pathlib import Path
 import dask
 import numpy as np
 
-from frontend.detector.dummy_detector import DummyDetector
-from loader.folder_loader import FolderLoader
+from gtsfm.frontend.detector.dummy_detector import DummyDetector
+from gtsfm.loader.folder_loader import FolderLoader
 
 # defining the path for test data
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent.parent / "data"

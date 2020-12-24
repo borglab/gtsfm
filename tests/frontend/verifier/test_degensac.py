@@ -5,7 +5,7 @@ Authors: Ayush Baid
 import unittest
 
 import tests.frontend.verifier.test_verifier_base as test_verifier_base
-from frontend.verifier.degensac import Degensac
+from gtsfm.frontend.verifier.degensac import Degensac
 
 
 class TestDegensac(test_verifier_base.TestVerifierBase):

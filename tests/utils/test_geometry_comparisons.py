@@ -8,7 +8,7 @@ import numpy as np
 from gtsam import Cal3_S2, Pose3, Rot3
 from gtsam.examples import SFMdata
 
-import utils.geometry_comparisons as geometry_comparisons
+import gtsfm.utils.geometry_comparisons as geometry_comparisons
 
 POSE_LIST = SFMdata.createPoses(Cal3_S2())
 

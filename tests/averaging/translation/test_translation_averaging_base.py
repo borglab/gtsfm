@@ -9,8 +9,8 @@ import dask
 import numpy as np
 from gtsam import Pose3, Rot3, Unit3
 
-import utils.geometry_comparisons as geometry_comparisons
-from averaging.translation.dummy_translation_averaging import \
+import gtsfm.utils.geometry_comparisons as geometry_comparisons
+from gtsfm.averaging.translation.dummy_translation_averaging import \
     DummyTranslationAveraging
 
 

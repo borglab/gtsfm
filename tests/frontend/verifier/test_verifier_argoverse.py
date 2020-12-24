@@ -13,10 +13,10 @@ import numpy as np
 from gtsam import Cal3Bundler, Pose3, Rot3, Unit3
 from scipy.spatial.transform import Rotation
 
-from common.keypoints import Keypoints
-from frontend.verifier.degensac import Degensac
-from frontend.verifier.ransac import Ransac
-from frontend.verifier.verifier_base import VerifierBase
+from gtsfm.common.keypoints import Keypoints
+from gtsfm.frontend.verifier.degensac import Degensac
+from gtsfm.frontend.verifier.ransac import Ransac
+from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
 
 ARGOVERSE_TEST_DATA_ROOT = Path(__file__).parent.parent.parent.resolve() / "data" / "argoverse"

@@ -9,9 +9,9 @@ from pathlib import Path
 import dask
 import numpy as np
 
-from common.keypoints import Keypoints
-from frontend.descriptor.dummy_descriptor import DummyDescriptor
-from loader.folder_loader import FolderLoader
+from gtsfm.common.keypoints import Keypoints
+from gtsfm.frontend.descriptor.dummy_descriptor import DummyDescriptor
+from gtsfm.loader.folder_loader import FolderLoader
 
 # defining the path for test data
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent.parent / "data"

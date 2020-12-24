@@ -8,16 +8,17 @@ import unittest
 import dask
 import numpy as np
 
-from common.keypoints import Keypoints
-import tests.frontend.detector.test_detector_base as test_detector_base
-from frontend.descriptor.dummy_descriptor import DummyDescriptor
-from frontend.detector.detector_from_joint_detector_descriptor import (
+from gtsfm.common.keypoints import Keypoints
+from gtsfm.frontend.descriptor.dummy_descriptor import DummyDescriptor
+from gtsfm.frontend.detector.detector_from_joint_detector_descriptor import (
     DetectorFromDetectorDescriptor,
 )
-from frontend.detector.dummy_detector import DummyDetector
-from frontend.detector_descriptor.combination_detector_descriptor import (
+from gtsfm.frontend.detector.dummy_detector import DummyDetector
+from gtsfm.frontend.detector_descriptor.combination_detector_descriptor import (
     CombinationDetectorDescriptor,
 )
+import tests.frontend.detector.test_detector_base as test_detector_base
+
 
 
 class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):

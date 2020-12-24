@@ -3,8 +3,8 @@ import unittest
 
 import numpy as np
 
-import utils.features as feature_utils
-from common.keypoints import Keypoints
+import gtsfm.utils.features as feature_utils
+from gtsfm.common.keypoints import Keypoints
 
 
 class TestFeatureUtils(unittest.TestCase):

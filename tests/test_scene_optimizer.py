@@ -10,16 +10,17 @@ import dask
 import numpy as np
 from gtsam import EssentialMatrix, Rot3, Unit3
 
-import utils.geometry_comparisons as comp_utils
-from averaging.rotation.shonan import ShonanRotationAveraging
-from averaging.translation.averaging_1dsfm import TranslationAveraging1DSFM
-from common.sfm_result import SfmResult
-from data_association.data_assoc import TriangulationParam
-from frontend.detector_descriptor.sift import SIFTDetectorDescriptor
-from frontend.matcher.twoway_matcher import TwoWayMatcher
-from frontend.verifier.degensac import Degensac
-from loader.folder_loader import FolderLoader
-from scene_optimizer import SceneOptimizer
+from gtsfm.averaging.rotation.shonan import ShonanRotationAveraging
+from gtsfm.averaging.translation.averaging_1dsfm import (
+    TranslationAveraging1DSFM,
+)
+from gtsfm.common.sfm_result import SfmResult
+from gtsfm.data_association.data_assoc import TriangulationParam
+from gtsfm.frontend.detector_descriptor.sift import SIFTDetectorDescriptor
+from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
+from gtsfm.frontend.verifier.degensac import Degensac
+from gtsfm.loader.folder_loader import FolderLoader
+from gtsfm.scene_optimizer import SceneOptimizer
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent / "data"
 
