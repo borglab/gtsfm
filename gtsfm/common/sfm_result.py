@@ -119,9 +119,7 @@ class SfmResult:
 
         Args:
             reproj_err_thresh: reprojection err threshold for each measurement.
-
         """
-
         filtered_data = SfmData()
 
         # add camera params
