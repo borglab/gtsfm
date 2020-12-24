@@ -18,7 +18,7 @@ Ayush Baid, Frank Dellaert, Fan Jiang, Akshay Krishnan, John Lambert, Aishwarya 
 
 GTSFM is designed in an extremely modular way. Each module can be swapped out with a new one, as long as it implements the API of the module's abstract base class. The code is organized as follows:
 
-- `gtsfm`
+- `gtsfm`: source code
     - `averaging`
         - `rotation`
         - `translation`
@@ -29,6 +29,7 @@ GTSFM is designed in an extremely modular way. Each module can be swapped out wi
     - `frontend`
     - `loader`
     - `utils`
+- `tests`: unit tests on every function and module
 
 ## Contributing
 
