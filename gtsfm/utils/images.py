@@ -78,7 +78,6 @@ def resize_image(image: Image, new_height: int, new_width: int) -> Image:
     Returns:
         resized image.
     """
-
     resized_value_array = cv.resize(
         image.value_array,
         (new_width, new_height),
