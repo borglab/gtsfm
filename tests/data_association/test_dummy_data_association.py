@@ -6,7 +6,6 @@ import unittest
 
 import dask
 import numpy as np
-from common.keypoints import Keypoints
 from gtsam import (
     Cal3Bundler,
     PinholeCameraCal3Bundler,
@@ -16,8 +15,10 @@ from gtsam import (
     Rot3,
     SfmData
 )
+
 from gtsam.utils.test_case import GtsamTestCase
 
+from gtsfm.common.keypoints import Keypoints
 from gtsfm.data_association.dummy_da import DummyDataAssociation
 
 

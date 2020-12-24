@@ -10,7 +10,6 @@ from typing import Dict, List, Tuple
 
 import dask
 import numpy as np
-from common.keypoints import Keypoints
 from gtsam import (
     Cal3Bundler,
     PinholeCameraCal3Bundler,
@@ -22,6 +21,7 @@ from gtsam import (
 )
 from gtsam.utils.test_case import GtsamTestCase
 
+from gtsfm.common.keypoints import Keypoints
 from gtsfm.data_association.data_assoc import DataAssociation, TriangulationParam
 
 
