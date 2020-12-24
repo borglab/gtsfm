@@ -225,7 +225,6 @@ class SceneOptimizer:
         rot_avg_module: RotationAveragingBase,
         trans_avg_module: TranslationAveragingBase,
         config: Any,
-        save_viz: bool = False,
     ) -> None:
 
         self.feature_extractor = FeatureExtractor(detector_descriptor)
@@ -236,7 +235,7 @@ class SceneOptimizer:
             rot_avg_module, trans_avg_module, config
         )
 
-        self._save_viz = save_viz
+        self._save_viz = config.save_viz
 
     def __visualize_twoview_correspondences(
         self,
@@ -424,6 +423,7 @@ if __name__ == "__main__":
             "min_track_len": 3,
             "triangulation_mode": TriangulationParam.NO_RANSAC,
             "num_ransac_hypotheses": 20,
+            "save_viz": True,
         }
     )
     obj = SceneOptimizer(
@@ -433,7 +433,6 @@ if __name__ == "__main__":
         rot_avg_module=ShonanRotationAveraging(),
         trans_avg_module=TranslationAveraging1DSFM(),
         config=config,
-        save_viz=True,
     )
 
     sfm_result_graph = obj.create_computation_graph(
