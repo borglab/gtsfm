@@ -8,11 +8,11 @@ from pathlib import Path
 from gtsam import Cal3_S2, Pose3, Unit3
 from gtsam.examples import SFMdata
 
-import tests.averaging.translation.test_translation_averaging_base as \
+import gtsfm.tests.averaging.translation.test_translation_averaging_base as \
     test_translation_averaging_base
-import utils.geometry_comparisons as geometry_comparisons
-from averaging.translation.averaging_1dsfm import TranslationAveraging1DSFM
-from loader.folder_loader import FolderLoader
+import gtsfm.utils.geometry_comparisons as geometry_comparisons
+from gtsfm.averaging.translation.averaging_1dsfm import TranslationAveraging1DSFM
+from gtsfm.loader.folder_loader import FolderLoader
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent.parent / 'data'
 

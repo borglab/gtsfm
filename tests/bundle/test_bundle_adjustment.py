@@ -9,7 +9,7 @@ import dask
 import gtsam
 import numpy as np
 
-from bundle.bundle_adjustment import BundleAdjustmentOptimizer
+from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 
 GTSAM_EXAMPLE_FILE = 'dubrovnik-3-7-pre'
 TEST_SFM_DATA = gtsam.readBal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))

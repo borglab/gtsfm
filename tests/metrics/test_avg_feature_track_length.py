@@ -7,7 +7,7 @@ import unittest
 import gtsam
 from gtsam.utils.test_case import GtsamTestCase
 
-from densify.metrics import get_avg_track_length
+from gtsfm.densify.metrics import get_avg_track_length
 
 
 class TestReprojectionError(GtsamTestCase):

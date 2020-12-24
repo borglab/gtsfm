@@ -10,8 +10,8 @@ import dask
 import numpy as np
 from gtsam import Rot3
 
-import utils.geometry_comparisons as geometry_comparisons
-from averaging.rotation.dummy_rotation_averaging import DummyRotationAveraging
+import gtsfm.utils.geometry_comparisons as geometry_comparisons
+from gtsfm.averaging.rotation.dummy_rotation_averaging import DummyRotationAveraging
 
 
 class TestRotationAveragingBase(unittest.TestCase):

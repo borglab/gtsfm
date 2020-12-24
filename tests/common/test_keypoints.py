@@ -7,7 +7,7 @@ import unittest
 
 import numpy as np
 
-from common.keypoints import Keypoints
+from gtsfm.common.keypoints import Keypoints
 
 # Creating dummy data for tests
 NUM_ENTRIES = random.randint(1, 10)

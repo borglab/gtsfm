@@ -11,7 +11,7 @@ from typing import Tuple
 import dask
 import numpy as np
 
-from frontend.matcher.dummy_matcher import DummyMatcher
+from gtsfm.frontend.matcher.dummy_matcher import DummyMatcher
 
 
 class TestMatcherBase(unittest.TestCase):

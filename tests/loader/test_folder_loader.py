@@ -9,8 +9,8 @@ import dask
 import numpy as np
 from gtsam import Cal3Bundler, Pose3
 
-import utils.io as io_utils
-from loader.folder_loader import FolderLoader
+import gtsfm.utils.io as io_utils
+from gtsfm.loader.folder_loader import FolderLoader
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / 'data'
 

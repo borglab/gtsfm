@@ -6,7 +6,7 @@ import unittest
 import numpy as np
 
 import tests.frontend.matcher.test_matcher_base as test_matcher_base
-from frontend.matcher.twoway_matcher import TwoWayMatcher
+from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
 
 
 class TestTwoWayMatcher(test_matcher_base.TestMatcherBase):

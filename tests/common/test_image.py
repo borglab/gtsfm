@@ -8,8 +8,8 @@ import unittest.mock as mock
 import numpy as np
 from gtsam import Cal3Bundler
 
-from common.image import Image
-from utils.sensor_width_database import SensorWidthDatabase
+from gtsfm.common.image import Image
+from gtsfm.utils.sensor_width_database import SensorWidthDatabase
 
 
 class TestImage(unittest.TestCase):
