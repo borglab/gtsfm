@@ -37,29 +37,39 @@ def align_poses(input_list: List[Pose3], ref_list: List[Pose3]) -> List[Pose3]:
     scaling translations.
 
     Args:
-        input_list: input poses which need to be aligned.
-        ref_list: reference poses which are target for alignment.
+        input_list: input poses which need to be aligned, suppose w1Ti in world-1 frame
+            for all frames i
+        ref_list: reference poses which are target for alignment, suppose w2Ti in world-2 frame
+            for all frames i
 
     Returns:
-        transformed poses which have the same origin and scale as reference.
+        transformed poses which have the same origin and scale as reference
+            (now living in world-2 frame)
     """
-    origin_transform = ref_list[0].compose(input_list[0].inverse())
-
-    origin_shifted_list = [origin_transform.compose(x) for x in input_list]
+    w1Ti1 = input_list[0]
+    i1Tw1 = w1Ti1.inverse()
+    w2Ti1 = ref_list[0]
+    # origin transform -- map the origin of the input list to the reference list
+    w2Tw1 = w2Ti1.compose(i1Tw1)
+    
+    # origin shifted list
+    input_shifted_list = [w2Tw1.compose(w1Ti) for w1Ti in input_list]
 
     # get distances w.r.t origin for both the list to compute the scale
+    w2Ti0 = input_shifted_list[0] # set this as origin
     input_distances = np.array(
         [
-            np.linalg.norm((x.between(origin_shifted_list[0])).translation())
-            for x in origin_shifted_list[1:]
+            np.linalg.norm((w2Ti.between(w2Ti0)).translation())
+            for w2Ti in input_shifted_list[1:]
         ]
     )
 
+    w2Ti0_ = ref_list[0] # set this as origin
     ref_distances = (
         np.array(
             [
-                np.linalg.norm((x.between(ref_list[0])).translation())
-                for x in ref_list[1:]
+                np.linalg.norm((w2Ti_.between(w2Ti0_)).translation())
+                for w2Ti_ in ref_list[1:]
             ]
         )
         + EPSILON
@@ -69,8 +79,8 @@ def align_poses(input_list: List[Pose3], ref_list: List[Pose3]) -> List[Pose3]:
     scaling_factor = np.median(scales)
 
     return [
-        Pose3(x.rotation(), x.translation() * scaling_factor)
-        for x in origin_shifted_list
+        Pose3(w2Ti.rotation(), w2Ti.translation() * scaling_factor)
+        for w2Ti in input_shifted_list
     ]
 
 
@@ -111,7 +121,7 @@ def compare_rotations(
     wRi_list = [wRi_list[i] for i in wRi_valid]
     wRi_list_ = [wRi_list_[i] for i in wRi_valid_]
 
-    wRi_list = align_rotations(wRi_list, wRi_list_)
+    wRi_list = align_rotations(wRi_list, ref_list=wRi_list_)
 
     return all(
         [wRi.equals(wRi_, 1e-1) for (wRi, wRi_) in zip(wRi_list, wRi_list_)]
@@ -166,7 +176,7 @@ def compare_global_poses(
     wTi_list = [wTi_list[i] for i in wTi_valid]
     wTi_list_ = [wTi_list_[i] for i in wTi_valid_]
 
-    wTi_list = align_poses(wTi_list, wTi_list_)
+    wTi_list = align_poses(wTi_list, ref_list=wTi_list_)
 
     return all(
         [
