@@ -7,13 +7,13 @@ import unittest
 import numpy as np
 from gtsam import Rot3
 
-import gtsfm.tests.averaging.rotation.test_rotation_averaging_base as \
-    test_rotation_averaging_base
+import tests.averaging.rotation.test_rotation_averaging_base as test_rotation_averaging_base
 from gtsfm.averaging.rotation.shonan import ShonanRotationAveraging
 
 
 class TestShonanRotationAveraging(
-        test_rotation_averaging_base.TestRotationAveragingBase):
+    test_rotation_averaging_base.TestRotationAveragingBase
+):
     """Test class for Shonan rotation averaging.
 
     All unit test functions defined in TestRotationAveragingBase are run
@@ -29,23 +29,25 @@ class TestShonanRotationAveraging(
         """Test a simple case with three relative rotations."""
 
         i2Ri1_dict = {
-            (1, 0): Rot3.RzRyRx(0, 30*np.pi/180, 0),
-            (2, 1): Rot3.RzRyRx(0, 0, 20*np.pi/180),
+            (1, 0): Rot3.RzRyRx(0, 30 * np.pi / 180, 0),
+            (2, 1): Rot3.RzRyRx(0, 0, 20 * np.pi / 180),
         }
 
         expected_wRi_list = [
             Rot3.RzRyRx(0, 0, 0),
-            Rot3.RzRyRx(0, 30*np.pi/180, 0),
-            i2Ri1_dict[(1, 0)].compose(i2Ri1_dict[(2, 1)])
+            Rot3.RzRyRx(0, 30 * np.pi / 180, 0),
+            i2Ri1_dict[(1, 0)].compose(i2Ri1_dict[(2, 1)]),
         ]
 
         wRi_list = self.obj.run(3, i2Ri1_dict)
 
-        self.assertTrue(expected_wRi_list[1].equals(
-            wRi_list[0].between(wRi_list[1]), 1e-5))
-        self.assertTrue(expected_wRi_list[2].equals(
-            wRi_list[0].between(wRi_list[2]), 1e-5))
+        self.assertTrue(
+            expected_wRi_list[1].equals(wRi_list[0].between(wRi_list[1]), 1e-5)
+        )
+        self.assertTrue(
+            expected_wRi_list[2].equals(wRi_list[0].between(wRi_list[2]), 1e-5)
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
