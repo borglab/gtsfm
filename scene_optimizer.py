@@ -9,17 +9,17 @@ import networkx as nx
 from dask.delayed import Delayed
 from gtsam import PinholeCameraCal3Bundler, Rot3, Unit3, Cal3Bundler, Pose3
 
-from averaging.rotation.rotation_averaging_base import RotationAveragingBase
-from averaging.translation.translation_averaging_base import (
+from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
+from gtsfm.averaging.translation.translation_averaging_base import (
     TranslationAveragingBase,
 )
-from bundle.bundle_adjustment import BundleAdjustmentOptimizer
-from data_association.data_assoc import DataAssociation
-from frontend.detector_descriptor.detector_descriptor_base import (
+from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
+from gtsfm.data_association.data_assoc import DataAssociation
+from gtsfm.frontend.detector_descriptor.detector_descriptor_base import (
     DetectorDescriptorBase,
 )
-from frontend.matcher.matcher_base import MatcherBase
-from frontend.verifier.verifier_base import VerifierBase
+from gtsfm.frontend.matcher.matcher_base import MatcherBase
+from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
 
 class FeatureExtractor:
