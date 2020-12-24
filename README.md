@@ -18,7 +18,7 @@ Ayush Baid, Frank Dellaert, Fan Jiang, Akshay Krishnan, John Lambert, Aishwarya 
 
 GTSFM is designed in an extremely modular way. Each module can be swapped out with a new one, as long as it implements the API of the module's abstract base class. The code is organized as follows:
 
-- `gtsfm`: source code
+- `gtsfm`: source code, organized as:
     - `averaging`
         - `rotation`
         - `translation`
@@ -26,8 +26,12 @@ GTSFM is designed in an extremely modular way. Each module can be swapped out wi
     - `common`
     - `data_association`
     - `densify`
-    - `frontend`
-    - `loader`
+    - `frontend`: SfM front-end code, including:
+        - `detector`: keypoint detector implementations
+        - `descriptor`: feature descriptor implementations
+        - `matcher`: descriptor matching implemenentations
+        - `verifier`: 2d-correspondence verifier implementations
+    - `loader`: image data loaders
     - `utils`
 - `tests`: unit tests on every function and module
 
