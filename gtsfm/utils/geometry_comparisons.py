@@ -8,8 +8,9 @@ import numpy as np
 from gtsam import Pose3, Rot3
 
 
-def compare_rotations(wRi_list: List[Optional[Rot3]],
-                      wRi_list_: List[Optional[Rot3]]) -> bool:
+def compare_rotations(
+    wRi_list: List[Optional[Rot3]], wRi_list_: List[Optional[Rot3]]
+) -> bool:
     """Helper function to compare two lists of global Rot3, considering the
     origin as ambiguous.
 
@@ -49,12 +50,17 @@ def compare_rotations(wRi_list: List[Optional[Rot3]],
     wRi_list = [wRi_list[i].between(origin) for i in wRi_valid[1:]]
     wRi_list_ = [wRi_list_[i].between(origin_) for i in wRi_valid_[1:]]
 
-    return all([
-        wRi.equals(wRi_, 1e-1) for (wRi, wRi_) in zip(wRi_list, wRi_list_)])
+    return all(
+        [wRi.equals(wRi_, 1e-1) for (wRi, wRi_) in zip(wRi_list, wRi_list_)]
+    )
 
 
-def compare_global_poses(wTi_list: List[Optional[Pose3]],
-                         wTi_list_: List[Optional[Pose3]]) -> bool:
+def compare_global_poses(
+    wTi_list: List[Optional[Pose3]],
+    wTi_list_: List[Optional[Pose3]],
+    rot_err_thresh: float = 1e-3,
+    trans_err_thresh: float = 1e-1,
+) -> bool:
     """Helper function to compare two lists of global Pose3, considering the
     origin and scale ambiguous.
 
@@ -70,6 +76,10 @@ def compare_global_poses(wTi_list: List[Optional[Pose3]],
     Args:
         wTi_list: 1st list of poses.
         wTi_list_: 2nd list of poses.
+        rot_err_thresh (optional): error threshold for rotations. Defaults to
+                                   1e-3.
+        trans_err_thresh (optional): relative error threshold for translation.
+                                     Defaults to 1e-1.
 
     Returns:
         results of the comparison.
@@ -99,8 +109,8 @@ def compare_global_poses(wTi_list: List[Optional[Pose3]],
 
     # get the scale factor by using the median of scale for each index
     scaling_factors = [
-        np.linalg.norm(wTi_list[i].translation()) /
-        (np.linalg.norm(wTi_list_[i].translation()) + np.finfo(float).eps)
+        np.linalg.norm(wTi_list[i].translation())
+        / (np.linalg.norm(wTi_list_[i].translation()) + np.finfo(float).eps)
         for i in range(len(wTi_list))
     ]
 
@@ -108,8 +118,21 @@ def compare_global_poses(wTi_list: List[Optional[Pose3]],
     scale_factor_2to1 = np.median(scaling_factors)
 
     # scale the pose in the second list
-    wTi_list_ = [Pose3(x.rotation(), x.translation() * scale_factor_2to1)
-                 for x in wTi_list_]
+    wTi_list_ = [
+        Pose3(x.rotation(), x.translation() * scale_factor_2to1)
+        for x in wTi_list_
+    ]
 
-    return all([
-        wTi.equals(wTi_, 1e-1) for (wTi, wTi_) in zip(wTi_list, wTi_list_)])
+    return all(
+        [
+            (
+                wTi.rotation().equals(wTi_.rotation(), rot_err_thresh)
+                and np.allclose(
+                    wTi.translation(),
+                    wTi_.translation(),
+                    rtol=trans_err_thresh,
+                )
+            )
+            for (wTi, wTi_) in zip(wTi_list, wTi_list_)
+        ]
+    )

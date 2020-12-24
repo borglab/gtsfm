@@ -3,6 +3,7 @@ detections on an image.
 
 Authors: Ayush Baid
 """
+import copy
 from typing import List, NamedTuple, Optional
 
 import cv2 as cv
@@ -42,8 +43,7 @@ class Keypoints(NamedTuple):
             return False
 
         # equality check on coordinates
-        coordinates_eq = np.array_equal(
-            self.coordinates, other.coordinates)
+        coordinates_eq = np.array_equal(self.coordinates, other.coordinates)
 
         # equality check on scales
         if self.scales is None and other.scales is None:
@@ -67,9 +67,12 @@ class Keypoints(NamedTuple):
         """Checks that the other object is not equal to the current object."""
         return not self == other
 
-    def get_top_k(self, k: int) -> 'Keypoints':
+    def get_top_k(self, k: int) -> "Keypoints":
         """Returns the top keypoints by their response values (or just the
         values from the front in case of missing responses.)
+        
+        If k keypoints are requested, and only n are available, where n < k,
+        then returning n keypoints is the expected behavior.
 
         Args:
             k: max number of keypoints to return.
@@ -77,7 +80,8 @@ class Keypoints(NamedTuple):
         Returns:
             subset of current keypoints.
         """
-        k = min(k, len(self))
+        if k >= len(self):
+            return copy.deepcopy(self)
 
         if self.responses is None:
             selection_idxs = np.arange(k, dtype=np.uint32)
@@ -87,9 +91,11 @@ class Keypoints(NamedTuple):
         return Keypoints(
             coordinates=self.coordinates[selection_idxs],
             scales=self.scales[selection_idxs]
-            if self.scales is not None else None,
+            if self.scales is not None
+            else None,
             responses=self.responses[selection_idxs]
-            if self.responses is not None else None,
+            if self.responses is not None
+            else None,
         )
 
     def get_x_coordinates(self) -> np.ndarray:
@@ -110,19 +116,22 @@ class Keypoints(NamedTuple):
         # TODO: remove function
         return self.coordinates[:, 1]
 
-    def cast_to_float(self) -> 'Keypoints':
+    def cast_to_float(self) -> "Keypoints":
         """Cast all attributes which are numpy arrays to float.
 
         Returns:
             keypoints with the type-casted attributes.
         """
         return Keypoints(
-            coordinates=None if self.coordinates is None else
-            self.coordinates.astype(np.float32),
-            scales=None if self.scales is None else
-            self.scales.astype(np.float32),
-            responses=None if self.responses is None else
-            self.responses.astype(np.float32),
+            coordinates=None
+            if self.coordinates is None
+            else self.coordinates.astype(np.float32),
+            scales=None
+            if self.scales is None
+            else self.scales.astype(np.float32),
+            responses=None
+            if self.responses is None
+            else self.responses.astype(np.float32),
         )
 
     def cast_to_opencv_keypoints(self) -> List[cv.KeyPoint]:
@@ -146,7 +155,8 @@ class Keypoints(NamedTuple):
                     cv.KeyPoint(
                         x=keypoints.coordinates[idx, 0],
                         y=keypoints.coordinates[idx, 1],
-                        _size=OPENCV_DEFAULT_SIZE)
+                        _size=OPENCV_DEFAULT_SIZE,
+                    )
                 )
         elif keypoints.responses is None:
             for idx in range(len(self)):
@@ -154,7 +164,8 @@ class Keypoints(NamedTuple):
                     cv.KeyPoint(
                         x=keypoints.coordinates[idx, 0],
                         y=keypoints.coordinates[idx, 1],
-                        _size=keypoints.scales[idx])
+                        _size=keypoints.scales[idx],
+                    )
                 )
         elif keypoints.scales is None:
             for idx in range(len(keypoints)):
@@ -163,7 +174,7 @@ class Keypoints(NamedTuple):
                         x=keypoints.coordinates[idx, 0],
                         y=keypoints.coordinates[idx, 1],
                         _size=OPENCV_DEFAULT_SIZE,
-                        _response=keypoints.responses[idx]
+                        _response=keypoints.responses[idx],
                     )
                 )
         else:
@@ -173,7 +184,7 @@ class Keypoints(NamedTuple):
                         x=keypoints.coordinates[idx, 0],
                         y=keypoints.coordinates[idx, 1],
                         _size=keypoints.scales[idx],
-                        _response=keypoints.responses[idx]
+                        _response=keypoints.responses[idx],
                     )
                 )
 
