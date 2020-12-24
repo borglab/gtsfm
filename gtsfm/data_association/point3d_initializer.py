@@ -16,7 +16,6 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 import dask
 import gtsam
 import numpy as np
-from common.keypoints import Keypoints
 from dask.delayed import Delayed
 from gtsam import (
     CameraSetCal3Bundler,
@@ -28,6 +27,8 @@ from gtsam import (
 )
 
 import gtsfm.data_association.feature_tracks as feature_tracks
+from gtsfm.common.keypoints import Keypoints
+
 
 NUM_SAMPLES_PER_RANSAC_HYPOTHESIS = 2
 SVD_DLT_RANK_TOL = 1e-9
