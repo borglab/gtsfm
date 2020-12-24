@@ -3,9 +3,12 @@ End-to-end SFM pipeline based on GTSAM
 
 ## Installation
 
+First, install GTSAM.
+
 ```python
 pip install -e .
 ```
+Make sure that you can run python -c "import gtsfm; print('hello world')" in python, and you are good to go!
 
 ## Authors (alphabetically)
 
