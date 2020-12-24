@@ -70,6 +70,9 @@ class Keypoints(NamedTuple):
     def get_top_k(self, k: int) -> "Keypoints":
         """Returns the top keypoints by their response values (or just the
         values from the front in case of missing responses.)
+        
+        If k keypoints are requested, and only n are available, where n < k,
+        then returning n keypoints is the expected behavior.
 
         Args:
             k: max number of keypoints to return.
