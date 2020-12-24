@@ -29,13 +29,13 @@ class TestShonanRotationAveraging(
         """Test a simple case with three relative rotations."""
 
         i2Ri1_dict = {
-            (1, 0): Rot3.RzRyRx(0, 30 * np.pi / 180, 0),
-            (2, 1): Rot3.RzRyRx(0, 0, 20 * np.pi / 180),
+            (1, 0): Rot3.RzRyRx(0, np.deg2rad(30), 0),
+            (2, 1): Rot3.RzRyRx(0, 0, np.deg2rad(20)),
         }
 
         expected_wRi_list = [
             Rot3.RzRyRx(0, 0, 0),
-            Rot3.RzRyRx(0, 30 * np.pi / 180, 0),
+            Rot3.RzRyRx(0, np.deg2rad(30), 0),
             i2Ri1_dict[(1, 0)].compose(i2Ri1_dict[(2, 1)]),
         ]
 

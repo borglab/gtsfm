@@ -2,24 +2,46 @@
 
 Authors: Ayush Baid
 """
+import os
+from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Tuple
 
 import dask
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import networkx as nx
 from dask.delayed import Delayed
-from gtsam import PinholeCameraCal3Bundler, Rot3, Unit3, Cal3Bundler, Pose3
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3
 
-from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
+import gtsfm.utils.geometry_comparisons as comp_utils
+import gtsfm.utils.io as io_utils
+import gtsfm.utils.viz as viz_utils
+from gtsfm.averaging.rotation.rotation_averaging_base import (
+    RotationAveragingBase,
+)
+from gtsfm.averaging.rotation.shonan import ShonanRotationAveraging
+from gtsfm.averaging.translation.averaging_1dsfm import (
+    TranslationAveraging1DSFM,
+)
 from gtsfm.averaging.translation.translation_averaging_base import (
     TranslationAveragingBase,
 )
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
-from gtsfm.data_association.data_assoc import DataAssociation
+from gtsfm.data_association.data_assoc import (
+    DataAssociation,
+    TriangulationParam,
+)
 from gtsfm.frontend.detector_descriptor.detector_descriptor_base import (
     DetectorDescriptorBase,
 )
+from gtsfm.frontend.detector_descriptor.sift import SIFTDetectorDescriptor
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
+from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
+from gtsfm.frontend.verifier.degensac import Degensac
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
+from gtsfm.loader.folder_loader import FolderLoader
 
 
 class FeatureExtractor:
@@ -83,7 +105,7 @@ class MultiViewOptimizer:
         self,
         rot_avg_module: RotationAveragingBase,
         trans_avg_module: TranslationAveragingBase,
-        config: Any
+        config: Any,
     ):
         self.rot_avg_module = rot_avg_module
         self.trans_avg_module = trans_avg_module
@@ -91,7 +113,7 @@ class MultiViewOptimizer:
             config.reproj_error_thresh,
             config.min_track_len,
             config.triangulation_mode,
-            config.num_ransac_hypotheses
+            config.num_ransac_hypotheses,
         )
         self.ba_optimizer = BundleAdjustmentOptimizer()
 
@@ -103,7 +125,7 @@ class MultiViewOptimizer:
         i2Ui1_graph: Dict[Tuple[int, int], Delayed],
         v_corr_idxs_graph: Dict[Tuple[int, int], Delayed],
         intrinsics_graph: List[Delayed],
-    ) -> Delayed:
+    ) -> Tuple[Delayed, Delayed]:
         # prune the graph to a single connected component.
         pruned_graph = dask.delayed(self.select_largest_connected_component)(
             i2Ri1_graph, i2Ui1_graph
@@ -132,7 +154,7 @@ class MultiViewOptimizer:
             ba_input_graph
         )
 
-        return ba_result_graph
+        return ba_input_graph, ba_result_graph
 
     @classmethod
     def select_largest_connected_component(
@@ -202,7 +224,7 @@ class SceneOptimizer:
         verifier: VerifierBase,
         rot_avg_module: RotationAveragingBase,
         trans_avg_module: TranslationAveragingBase,
-        config: Any
+        config: Any,
     ) -> None:
 
         self.feature_extractor = FeatureExtractor(detector_descriptor)
@@ -213,6 +235,75 @@ class SceneOptimizer:
             rot_avg_module, trans_avg_module, config
         )
 
+        self._save_viz = config.save_viz
+
+    def __visualize_twoview_correspondences(
+        self,
+        image_i1_graph: Delayed,
+        image_i2_graph: Delayed,
+        corr_idxs_graph: Delayed,
+        keypoints_i1_graph: Delayed,
+        keypoints_i2_graph: Delayed,
+        file_name: str,
+    ) -> None:
+        plot_img = viz_utils.plot_twoview_correspondences(
+            image_i1_graph,
+            image_i2_graph,
+            keypoints_i1_graph,
+            keypoints_i2_graph,
+            corr_idxs_graph,
+        )
+
+        io_utils.save_image(plot_img, file_name)
+
+    def __visualize_sfm_data(self, sfm_data: Delayed, folder_name: str) -> None:
+        fig = plt.figure()
+        ax = fig.gca(projection="3d")
+
+        viz_utils.plot_sfm_data_3d(sfm_data, ax)
+        viz_utils.set_axes_equal(ax)
+
+        # save the 3D plot in the original view
+        fig.savefig(os.path.join(folder_name, "3d.png"))
+
+        # save the BEV representation
+        default_camera_elevation = 100  # in metres above ground
+        ax.view_init(azim=0, elev=default_camera_elevation)
+        fig.savefig(os.path.join(folder_name, "bev.png"))
+
+        plt.close(fig)
+
+    def __visualize_camera_poses(
+        self,
+        pre_ba_sfm_data: Delayed,
+        post_ba_sfm_data: Delayed,
+        folder_name: str,
+    ) -> None:
+        # extract camera poses
+        pre_ba_poses = []
+        for i in range(pre_ba_sfm_data.number_cameras()):
+            pre_ba_poses.append(pre_ba_sfm_data.camera(i).pose())
+
+        post_ba_poses = []
+        for i in range(post_ba_sfm_data.number_cameras()):
+            post_ba_poses.append(post_ba_sfm_data.camera(i).pose())
+
+        fig = plt.figure()
+        ax = fig.gca(projection="3d")
+
+        viz_utils.plot_poses_3d(pre_ba_poses, ax, center_marker_color="c")
+        viz_utils.plot_poses_3d(post_ba_poses, ax, center_marker_color="k")
+
+        # save the 3D plot in the original view
+        fig.savefig(os.path.join(folder_name, "poses_3d.png"))
+
+        # save the BEV representation
+        default_camera_elevation = 100  # in metres above ground
+        ax.view_init(azim=0, elev=default_camera_elevation)
+        fig.savefig(os.path.join(folder_name, "poses_bev.png"))
+
+        plt.close(fig)
+
     def create_computation_graph(
         self,
         num_images: int,
@@ -220,8 +311,12 @@ class SceneOptimizer:
         image_graph: List[Delayed],
         camera_intrinsics_graph: List[Delayed],
         use_intrinsics_in_verification: bool = True,
-    ) -> Tuple[List[Delayed], Delayed, Delayed, Dict[Tuple[int, int], Delayed]]:
+    ) -> Delayed:
         """ The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times"""
+
+        # optional graph elements for visualizations, not returned to the user.
+        viz_graph_list = []
+
         # detection and description graph
         keypoints_graph_list = []
         descriptors_graph_list = []
@@ -255,7 +350,23 @@ class SceneOptimizer:
             i2Ui1_graph_dict[(i1, i2)] = i2Ui1
             v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
 
-        sfmResult_graph = self.multiview_optimizer.create_computation_graph(
+            if self._save_viz:
+                os.makedirs("plots/correspondences", exist_ok=True)
+                viz_graph_list.append(
+                    dask.delayed(self.__visualize_twoview_correspondences)(
+                        image_graph[i1],
+                        image_graph[i2],
+                        v_corr_idxs,
+                        keypoints_graph_list[i1],
+                        keypoints_graph_list[i2],
+                        "plots/correspondences/{}_{}.png".format(i1, i2),
+                    )
+                )
+
+        (
+            ba_input_graph,
+            ba_output_graph,
+        ) = self.multiview_optimizer.create_computation_graph(
             num_images,
             keypoints_graph_list,
             i2Ri1_graph_dict,
@@ -264,4 +375,72 @@ class SceneOptimizer:
             camera_intrinsics_graph,
         )
 
-        return sfmResult_graph
+        if self._save_viz:
+            filtered_sfm_data_graph = dask.delayed(
+                ba_output_graph.filter_landmarks
+            )(config.reproj_error_thresh)
+
+            os.makedirs("plots/ba_input", exist_ok=True)
+            os.makedirs("plots/results", exist_ok=True)
+
+            viz_graph_list.append(
+                dask.delayed(self.__visualize_sfm_data)(
+                    ba_input_graph, "plots/ba_input/"
+                )
+            )
+
+            viz_graph_list.append(
+                dask.delayed(self.__visualize_sfm_data)(
+                    filtered_sfm_data_graph, "plots/results/"
+                )
+            )
+
+            viz_graph_list.append(
+                dask.delayed(self.__visualize_camera_poses)(
+                    ba_input_graph, filtered_sfm_data_graph, "plots/results"
+                )
+            )
+
+        # as visualization tasks are not to be provided to the user, we create a
+        # dummy computation of concatenating viz tasks with the output graph,
+        # forcing computation of viz tasks
+        output_graph = dask.delayed(lambda x, y: [x] + y)(
+            ba_output_graph, viz_graph_list
+        )
+
+        # return the entry with just the sfm result
+        return output_graph[0]
+
+
+if __name__ == "__main__":
+    loader = FolderLoader(
+        os.path.join("tests", "data", "set1_lund_door"), image_extension="JPG"
+    )
+
+    config = SimpleNamespace(
+        **{
+            "reproj_error_thresh": 5,
+            "min_track_len": 3,
+            "triangulation_mode": TriangulationParam.NO_RANSAC,
+            "num_ransac_hypotheses": 20,
+            "save_viz": True,
+        }
+    )
+    obj = SceneOptimizer(
+        detector_descriptor=SIFTDetectorDescriptor(),
+        matcher=TwoWayMatcher(),
+        verifier=Degensac(),
+        rot_avg_module=ShonanRotationAveraging(),
+        trans_avg_module=TranslationAveraging1DSFM(),
+        config=config,
+    )
+
+    sfm_result_graph = obj.create_computation_graph(
+        len(loader),
+        loader.get_valid_pairs(),
+        loader.create_computation_graph_for_images(),
+        loader.create_computation_graph_for_intrinsics(),
+        use_intrinsics_in_verification=True,
+    )
+
+    sfm_result = dask.compute(sfm_result_graph)[0]
