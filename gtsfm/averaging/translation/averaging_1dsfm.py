@@ -18,7 +18,7 @@ import numpy as np
 from gtsam import (MFAS, BinaryMeasurementsUnit3, BinaryMeasurementUnit3,
                    Point3, Rot3, TranslationRecovery, Unit3)
 
-from averaging.translation.translation_averaging_base import \
+from gtsfm.averaging.translation.translation_averaging_base import \
     TranslationAveragingBase
 
 # hyperparamters for 1D-SFM

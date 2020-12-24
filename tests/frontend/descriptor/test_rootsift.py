@@ -5,7 +5,7 @@ Authors: Ayush Baid
 import unittest
 
 import tests.frontend.descriptor.test_descriptor_base as test_descriptor_base
-from frontend.descriptor.rootsift import RootSIFTDescriptor
+from gtsfm.frontend.descriptor.rootsift import RootSIFTDescriptor
 
 
 class TestRootSIFT(test_descriptor_base.TestDescriptorBase):

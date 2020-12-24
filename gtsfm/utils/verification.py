@@ -8,7 +8,7 @@ import cv2 as cv
 import numpy as np
 from gtsam import Cal3Bundler, EssentialMatrix, Pose3, Rot3, Unit3
 
-import utils.features as feature_utils
+import gtsfm.utils.features as feature_utils
 
 
 def recover_relative_pose_from_essential_matrix(

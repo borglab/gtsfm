@@ -11,9 +11,9 @@ from typing import Optional
 import numpy as np
 from gtsam import Cal3Bundler, Pose3
 
-import utils.io as io_utils
-from common.image import Image
-from loader.loader_base import LoaderBase
+import gtsfm.utils.io as io_utils
+from gtsfm.common.image import Image
+from gtsfm.loader.loader_base import LoaderBase
 
 
 class FolderLoader(LoaderBase):

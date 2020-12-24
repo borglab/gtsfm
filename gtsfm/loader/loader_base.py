@@ -10,7 +10,7 @@ import dask
 from dask.delayed import Delayed
 from gtsam import Cal3Bundler, Pose3
 
-from common.image import Image
+from gtsfm.common.image import Image
 
 
 class LoaderBase(metaclass=abc.ABCMeta):

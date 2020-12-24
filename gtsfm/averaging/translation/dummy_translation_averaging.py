@@ -8,7 +8,7 @@ from typing import Dict, List, Tuple, Optional
 import numpy as np
 from gtsam import Point3, Rot3, Unit3
 
-from averaging.translation.translation_averaging_base import \
+from gtsfm.averaging.translation.translation_averaging_base import \
     TranslationAveragingBase
 
 

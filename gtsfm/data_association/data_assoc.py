@@ -19,8 +19,8 @@ from common.keypoints import Keypoints
 from dask.delayed import Delayed
 from gtsam import PinholeCameraCal3Bundler, SfmData, SfmTrack
 
-import data_association.feature_tracks as feature_tracks
-from data_association.point3d_initializer import (
+import gtsfm.data_association.feature_tracks as feature_tracks
+from gtsfm.data_association.point3d_initializer import (
     Point3dInitializer,
     TriangulationParam,
 )

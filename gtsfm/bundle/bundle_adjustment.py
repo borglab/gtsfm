@@ -11,7 +11,7 @@ import gtsam
 from dask.delayed import Delayed
 from gtsam import GeneralSFMFactorCal3Bundler, SfmData, symbol_shorthand
 
-from common.sfm_result import SfmResult
+from gtsfm.common.sfm_result import SfmResult
 
 # TODO: any way this goes away?
 C = symbol_shorthand.C

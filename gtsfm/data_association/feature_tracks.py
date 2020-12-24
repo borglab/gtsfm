@@ -16,7 +16,7 @@ import gtsam
 import numpy as np
 from gtsam import Point2
 
-from common.keypoints import Keypoints
+from gtsfm.common.keypoints import Keypoints
 
 
 class SfmMeasurement(NamedTuple):

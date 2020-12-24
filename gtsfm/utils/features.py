@@ -8,7 +8,7 @@ import cv2 as cv
 import numpy as np
 from gtsam import Cal3Bundler
 
-from common.keypoints import Keypoints
+from gtsfm.common.keypoints import Keypoints
 
 
 def cast_to_gtsfm_keypoints(keypoints: List[cv.KeyPoint]) -> Keypoints:

@@ -13,7 +13,7 @@ import unittest
 import gtsam
 from gtsam.utils.test_case import GtsamTestCase
 
-from densify.metrics import avg_reprojection_error
+from gtsfm.densify.metrics import avg_reprojection_error
 
 class TestReprojectionError(GtsamTestCase):
 

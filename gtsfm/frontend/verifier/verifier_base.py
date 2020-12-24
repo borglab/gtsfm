@@ -10,7 +10,7 @@ import numpy as np
 from dask.delayed import Delayed
 from gtsam import Cal3Bundler, Rot3, Unit3
 
-from common.keypoints import Keypoints
+from gtsfm.common.keypoints import Keypoints
 
 
 class VerifierBase(metaclass=abc.ABCMeta):

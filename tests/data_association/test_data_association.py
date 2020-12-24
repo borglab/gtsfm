@@ -22,7 +22,7 @@ from gtsam import (
 )
 from gtsam.utils.test_case import GtsamTestCase
 
-from data_association.data_assoc import DataAssociation, TriangulationParam
+from gtsfm.data_association.data_assoc import DataAssociation, TriangulationParam
 
 
 def get_pose3_vector(num_poses: int) -> Pose3Vector:

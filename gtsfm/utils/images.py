@@ -4,7 +4,7 @@ Authors: Ayush Baid
 """
 import cv2 as cv
 
-from common.image import Image
+from gtsfm.common.image import Image
 
 
 def rgb_to_gray_cv(image: Image) -> Image:

@@ -16,10 +16,10 @@ import cv2
 import numpy as np
 from gtsam import Cal3Bundler, Rot3, Unit3
 
-import utils.features as feature_utils
-import utils.verification as verification_utils
-from common.keypoints import Keypoints
-from frontend.verifier.verifier_base import VerifierBase
+import gtsfm.utils.features as feature_utils
+import gtsfm.utils.verification as verification_utils
+from gtsfm.common.keypoints import Keypoints
+from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
 # minimum matches required for computing the E-matrix
 NUM_MATCHES_REQ_E_MATRIX = 5

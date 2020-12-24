@@ -9,7 +9,7 @@ from typing import List
 import numpy as np
 import scipy.io as scipy_io
 
-from loader.folder_loader import FolderLoader
+from gtsfm.loader.folder_loader import FolderLoader
 
 
 class LundDatasetLoader(FolderLoader):

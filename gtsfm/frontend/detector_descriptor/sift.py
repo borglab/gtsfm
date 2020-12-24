@@ -14,11 +14,11 @@ from typing import Tuple
 import cv2 as cv
 import numpy as np
 
-import utils.features as feature_utils
-import utils.images as image_utils
-from common.image import Image
-from common.keypoints import Keypoints
-from frontend.detector_descriptor.detector_descriptor_base import \
+import gtsfm.utils.features as feature_utils
+import gtsfm.utils.images as image_utils
+from gtsfm.common.image import Image
+from gtsfm.common.keypoints import Keypoints
+from gtsfm.frontend.detector_descriptor.detector_descriptor_base import \
     DetectorDescriptorBase
 
 

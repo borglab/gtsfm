@@ -4,8 +4,8 @@ Authors: Ayush Baid
 """
 import numpy as np
 
-from frontend.matcher.matcher_base import MatcherBase
-from frontend.matcher.matcher_base import MatchingDistanceType
+from gtsfm.frontend.matcher.matcher_base import MatcherBase
+from gtsfm.frontend.matcher.matcher_base import MatchingDistanceType
 
 
 class DummyMatcher(MatcherBase):

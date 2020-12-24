@@ -16,7 +16,7 @@ import gtsam
 import numpy as np
 from gtsam import BetweenFactorPose3, Pose3, Rot3, ShonanAveraging3
 
-from averaging.rotation.rotation_averaging_base import RotationAveragingBase
+from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 
 
 class ShonanRotationAveraging(RotationAveragingBase):

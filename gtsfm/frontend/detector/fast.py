@@ -11,11 +11,11 @@ Authors: Ayush Baid
 """
 import cv2 as cv
 
-import utils.features as feature_utils
-import utils.images as image_utils
-from common.image import Image
-from common.keypoints import Keypoints
-from frontend.detector.detector_base import DetectorBase
+import gtsfm.utils.features as feature_utils
+import gtsfm.utils.images as image_utils
+from gtsfm.common.image import Image
+from gtsfm.common.keypoints import Keypoints
+from gtsfm.frontend.detector.detector_base import DetectorBase
 
 
 class Fast(DetectorBase):

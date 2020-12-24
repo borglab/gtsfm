@@ -10,7 +10,7 @@ import numpy as np
 from dask.delayed import Delayed
 from gtsam import PinholeCameraCal3Bundler, SfmData, SfmTrack
 
-from common.keypoints import Keypoints
+from gtsfm.common.keypoints import Keypoints
 
 
 class DummyDataAssociation:

@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 from gtsam import Rot3
 
-from averaging.rotation.rotation_averaging_base import RotationAveragingBase
+from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 
 
 class DummyRotationAveraging(RotationAveragingBase):

@@ -7,7 +7,7 @@ import numpy as np
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
 
-from common.image import Image
+from gtsfm.common.image import Image
 
 
 def load_image(img_path: str) -> Image:

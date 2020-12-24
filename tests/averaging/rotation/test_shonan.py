@@ -7,9 +7,9 @@ import unittest
 import numpy as np
 from gtsam import Rot3
 
-import tests.averaging.rotation.test_rotation_averaging_base as \
+import gtsfm.tests.averaging.rotation.test_rotation_averaging_base as \
     test_rotation_averaging_base
-from averaging.rotation.shonan import ShonanRotationAveraging
+from gtsfm.averaging.rotation.shonan import ShonanRotationAveraging
 
 
 class TestShonanRotationAveraging(

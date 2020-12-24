@@ -27,7 +27,7 @@ from gtsam import (
     SfmTrack,
 )
 
-import data_association.feature_tracks as feature_tracks
+import gtsfm.data_association.feature_tracks as feature_tracks
 
 NUM_SAMPLES_PER_RANSAC_HYPOTHESIS = 2
 SVD_DLT_RANK_TOL = 1e-9

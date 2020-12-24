@@ -19,9 +19,9 @@ import numpy as np
 import pydegensac
 from gtsam import Cal3Bundler, Rot3, Unit3
 
-import utils.verification as verification_utils
-from common.keypoints import Keypoints
-from frontend.verifier.verifier_base import VerifierBase
+import gtsfm.utils.verification as verification_utils
+from gtsfm.common.keypoints import Keypoints
+from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
 # minimum matches required for computing the F-matrix
 NUM_MATCHES_REQ_F_MATRIX = 8

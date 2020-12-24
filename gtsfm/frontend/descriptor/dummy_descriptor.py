@@ -4,9 +4,9 @@ Authors: Ayush Baid
 """
 import numpy as np
 
-from common.image import Image
-from common.keypoints import Keypoints
-from frontend.descriptor.descriptor_base import DescriptorBase
+from gtsfm.common.image import Image
+from gtsfm.common.keypoints import Keypoints
+from gtsfm.frontend.descriptor.descriptor_base import DescriptorBase
 
 
 class DummyDescriptor(DescriptorBase):

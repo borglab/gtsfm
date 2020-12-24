@@ -7,11 +7,11 @@ from typing import Tuple
 
 import numpy as np
 
-from common.image import Image
-from common.keypoints import Keypoints
-from frontend.descriptor.descriptor_base import DescriptorBase
-from frontend.detector.detector_base import DetectorBase
-from frontend.detector_descriptor.detector_descriptor_base import \
+from gtsfm.common.image import Image
+from gtsfm.common.keypoints import Keypoints
+from gtsfm.frontend.descriptor.descriptor_base import DescriptorBase
+from gtsfm.frontend.detector.detector_base import DetectorBase
+from gtsfm.frontend.detector_descriptor.detector_descriptor_base import \
     DetectorDescriptorBase
 
 

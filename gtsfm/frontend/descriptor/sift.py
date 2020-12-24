@@ -14,10 +14,10 @@ Authors: Ayush Baid
 import cv2 as cv
 import numpy as np
 
-import utils.images as image_utils
-from common.image import Image
-from common.keypoints import Keypoints
-from frontend.descriptor.descriptor_base import DescriptorBase
+import gtsfm.utils.images as image_utils
+from gtsfm.common.image import Image
+from gtsfm.common.keypoints import Keypoints
+from gtsfm.frontend.descriptor.descriptor_base import DescriptorBase
 
 
 class SIFTDescriptor(DescriptorBase):

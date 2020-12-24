@@ -9,8 +9,8 @@ import dask
 import numpy as np
 from dask.delayed import Delayed
 
-from common.image import Image
-from common.keypoints import Keypoints
+from gtsfm.common.image import Image
+from gtsfm.common.keypoints import Keypoints
 
 
 class DescriptorBase(metaclass=abc.ABCMeta):

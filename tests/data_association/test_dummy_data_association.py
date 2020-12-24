@@ -18,7 +18,7 @@ from gtsam import (
 )
 from gtsam.utils.test_case import GtsamTestCase
 
-from data_association.dummy_da import DummyDataAssociation
+from gtsfm.data_association.dummy_da import DummyDataAssociation
 
 
 class TestDataAssociation(GtsamTestCase):

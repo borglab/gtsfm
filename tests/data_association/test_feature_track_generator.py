@@ -10,8 +10,8 @@ from typing import Dict, List, Tuple
 import numpy as np
 from gtsam.utils.test_case import GtsamTestCase
 
-from common.keypoints import Keypoints
-import data_association.feature_tracks as feature_tracks
+from gtsfm.common.keypoints import Keypoints
+import gtsfm.data_association.feature_tracks as feature_tracks
 
 
 def get_dummy_keypoints_list() -> List[Keypoints]:
