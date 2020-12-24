@@ -135,10 +135,10 @@ class SfmResult:
         return filtered_data
 
     def get_camera_poses(self) -> List[Pose3]:
-        """Getter for camera poses.
+        """Getter for camera poses wTi.
 
         Returns:
-            camera poses as a list.
+            camera poses as a list, each representing wTi
         """
         poses = []
 
