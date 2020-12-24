@@ -30,7 +30,9 @@ def set_axes_equal(ax: Axes):
     Args:
         ax: axis for the plot.
     """
-
+    # get the min and max value for each of (x, y, z) axes as 3x2 matrix.
+    # This gives us the bounds of the minimum volume cuboid encapsulating all
+    # data.
     limits = np.array(
         [
             ax.get_xlim3d(),
@@ -39,14 +41,17 @@ def set_axes_equal(ax: Axes):
         ]
     )
 
-    # find the origin and edge length of the axes' range
-    origin = np.mean(limits, axis=1)
-    edge_length = np.max(np.abs(limits[:, 1] - limits[:, 0]))
-    radius = 0.5 * edge_length
+    # find the centroid of the cuboid
+    centroid = np.mean(limits, axis=1)
 
-    ax.set_xlim3d([origin[0] - radius, origin[0] + radius])
-    ax.set_ylim3d([origin[1] - radius, origin[1] + radius])
-    ax.set_zlim3d([origin[2] - radius, origin[2] + radius])
+    # pick the largest edge length for this cuboid
+    largest_edge_length = np.max(np.abs(limits[:, 1] - limits[:, 0]))
+
+    # set new limits to draw a cube using the largest edge length
+    radius = 0.5 * largest_edge_length
+    ax.set_xlim3d([centroid[0] - radius, centroid[0] + radius])
+    ax.set_ylim3d([centroid[1] - radius, centroid[1] + radius])
+    ax.set_zlim3d([centroid[2] - radius, centroid[2] + radius])
 
 
 def draw_circle_cv2(
@@ -209,7 +214,8 @@ def plot_sfm_data_3d(sfm_data: SfmData, ax: Axes) -> None:
 def plot_poses_3d(
     wTi_list: List[Pose3], ax: Axes, center_marker_color: str = "k"
 ) -> None:
-    """Plot poses in 3D.
+    """Plot poses in 3D as dots for centers and lines denoting the orthonormal
+    coordinate system for each camera.
 
     Color convention: R -> x axis, G -> y axis, B -> z axis.
 
@@ -229,9 +235,10 @@ def plot_poses_3d(
         R = wTi.rotation().matrix()
 
         # getting the direction of the coordinate system (x, y, z axes)
-        v1 = R[:, 0] * 0.5
-        v2 = R[:, 1] * 0.5
-        v3 = R[:, 2] * 0.5
+        default_axis_length = 0.5
+        v1 = R[:, 0] * default_axis_length
+        v2 = R[:, 1] * default_axis_length
+        v3 = R[:, 2] * default_axis_length
 
         ax.plot3D([x, x + v1[0]], [y, y + v1[1]], [z, z + v1[2]], c="r")
         ax.plot3D([x, x + v2[0]], [y, y + v2[1]], [z, z + v2[2]], c="g")
