@@ -7,7 +7,7 @@ import unittest
 import numpy as np
 from gtsam import Point3, Rot3, Unit3
 
-import utils.serialization as serialization_utils
+import gtsfm.utils.serialization as serialization_utils
 
 
 class TestSerialization(unittest.TestCase):

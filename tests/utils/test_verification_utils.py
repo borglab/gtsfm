@@ -6,7 +6,7 @@ import unittest
 
 from gtsam import Cal3Bundler
 
-import utils.verification as verification_utils
+import gtsfm.utils.verification as verification_utils
 from tests.frontend.verifier.test_verifier_base import simulate_two_planes_scene
 
 
