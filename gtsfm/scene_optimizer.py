@@ -368,7 +368,7 @@ class SceneOptimizer:
                         v_corr_idxs,
                         keypoints_graph_list[i1],
                         keypoints_graph_list[i2],
-                        "plots/correspondences/{}_{}.png".format(i1, i2),
+                        "plots/correspondences/{}_{}.jpg".format(i1, i2),
                     )
                 )
 
