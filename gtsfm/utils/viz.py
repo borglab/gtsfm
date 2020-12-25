@@ -16,7 +16,6 @@ from gtsfm.common.keypoints import Keypoints
 
 COLOR_RED = (255, 0, 0)
 COLOR_GREEN = (0, 255, 0)
-COLOR_BLUE = (0, 0, 255)
 
 
 def set_axes_equal(ax: Axes):
@@ -173,7 +172,7 @@ def plot_twoview_correspondences(
 
         # drawing correspondences with optional inlier mask
         if inlier_mask is None:
-            line_color = COLOR_BLUE
+            line_color = tuple([ int(c) for c in np.random.randint(0,255+1,3)])
         elif inlier_mask[corr_idx]:
             line_color = COLOR_GREEN
         else:
