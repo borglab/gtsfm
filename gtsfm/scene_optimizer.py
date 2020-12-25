@@ -18,6 +18,7 @@ from dask.delayed import Delayed
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3
 
 import gtsfm.utils.io as io_utils
+import gtsfm.utils.serialization  # import needed to register serialization fns
 import gtsfm.utils.viz as viz_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import (
     RotationAveragingBase,
@@ -47,11 +48,12 @@ from gtsfm.loader.folder_loader import FolderLoader
 # configure loggers to avoid DEBUG level stdout messages
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
-mpl_logger = logging.getLogger('matplotlib')
+mpl_logger = logging.getLogger("matplotlib")
 mpl_logger.setLevel(logging.WARNING)
 
-pil_logger = logging.getLogger('PIL')
+pil_logger = logging.getLogger("PIL")
 pil_logger.setLevel(logging.INFO)
+
 
 class FeatureExtractor:
     """Wrapper for running detection and description on each image."""
