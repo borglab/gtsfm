@@ -10,6 +10,7 @@ import dask
 import numpy as np
 from gtsam import EssentialMatrix, Rot3, Unit3
 
+import gtsfm.utils.geometry_comparisons as comp_utils
 from gtsfm.averaging.rotation.shonan import ShonanRotationAveraging
 from gtsfm.averaging.translation.averaging_1dsfm import (
     TranslationAveraging1DSFM,
@@ -21,8 +22,6 @@ from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
 from gtsfm.frontend.verifier.degensac import Degensac
 from gtsfm.loader.folder_loader import FolderLoader
 from gtsfm.scene_optimizer import SceneOptimizer
-import gtsfm.utils.geometry_comparisons as comp_utils
-
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent / "data"
 
