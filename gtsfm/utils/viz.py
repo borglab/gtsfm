@@ -89,7 +89,7 @@ def draw_line_cv2(
     x2: int,
     y2: int,
     line_color: Tuple[int, int, int],
-    line_thickness: int = 5,
+    line_thickness: int = 10,
 ) -> Image:
     """Draw a line on the image from coordinates (x1, y1) to (x2, y2).
 
