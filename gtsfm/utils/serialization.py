@@ -6,7 +6,7 @@ import pickle
 from typing import Dict, List, Tuple
 
 from distributed.protocol import dask_deserialize, dask_serialize
-from gtsam import Point3, Rot3, Unit3
+from gtsam import Cal3Bundler, Point3, Rot3, Unit3
 
 """
 Serialization and deserialization function calls will be handled in the background by Dask,
@@ -24,7 +24,7 @@ def serialize_Point3(point3: Point3) -> Tuple[Dict, List[bytes]]:
     Returns:
         Tuple[Dict, List[bytes]]: Serialized data.
     """
-    header = {'serializer': 'pickle'}
+    header = {"serializer": "pickle"}
     frames = [pickle.dumps(point3)]
     return header, frames
 
@@ -41,7 +41,7 @@ def deserialize_Point3(header: Dict, frames: List[bytes]) -> Point3:
         deserialized instance
     """
     if len(frames) > 1:  # this may be cut up for network reasons
-        frame = ''.join(frames)
+        frame = "".join(frames)
     else:
         frame = frames[0]
     return Point3(pickle.loads(frame))
@@ -51,7 +51,7 @@ def deserialize_Point3(header: Dict, frames: List[bytes]) -> Point3:
 def serialize_Rot3(rot3: Rot3) -> Tuple[Dict, List[bytes]]:
     """Serialize Rot3 instance, and return serialized data."""
     header = {}
-    frames = [bytes(rot3.serialize(), 'utf-8')]
+    frames = [bytes(rot3.serialize(), "utf-8")]
 
     return header, frames
 
@@ -67,7 +67,7 @@ def deserialize_Rot3(header: Dict, frames: List[bytes]) -> Rot3:
     Returns:
         deserialized instance
     """
-    serialized_str = frames[0].decode('utf-8')
+    serialized_str = frames[0].decode("utf-8")
 
     r = Rot3()
     r.deserialize(serialized_str)
@@ -102,3 +102,31 @@ def deserialize_Unit3(header: Dict, frames: List[bytes]) -> Unit3:
     point3 = deserialize_Point3(header, frames)
 
     return Unit3(point3)
+
+
+@dask_serialize.register(Cal3Bundler)
+def serialize_Cal3Bundler(obj: Cal3Bundler) -> Tuple[Dict, List[bytes]]:
+    """Serialize Cal3Bundler instance, and return serialized data."""
+    header = {}
+    frames = [bytes(obj.serialize(), "utf-8")]
+
+    return header, frames
+
+
+@dask_deserialize.register(Cal3Bundler)
+def deserialize_Cal3Bundler(header: Dict, frames: List[bytes]) -> Cal3Bundler:
+    """Deserialize bytes into Rot3 instance.
+
+    Args:
+        header: Header of the serialized data.
+        frames: list of bytes in the serialized data.
+
+    Returns:
+        deserialized instance.
+    """
+    serialized_str = frames[0].decode("utf-8")
+
+    obj = Cal3Bundler()
+    obj.deserialize(serialized_str)
+
+    return obj
