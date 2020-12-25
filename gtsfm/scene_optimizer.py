@@ -1,6 +1,6 @@
 """The main class which integrates all the modules.
 
-Authors: Ayush Baid
+Authors: Ayush Baid, John Lambert
 """
 import logging
 import os
@@ -45,6 +45,8 @@ from gtsfm.frontend.verifier.verifier_base import VerifierBase
 from gtsfm.loader.folder_loader import FolderLoader
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+pil_logger = logging.getLogger('PIL')
+pil_logger.setLevel(logging.INFO)
 
 class FeatureExtractor:
     """Wrapper for running detection and description on each image."""
