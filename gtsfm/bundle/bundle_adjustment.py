@@ -99,8 +99,8 @@ class BundleAdjustmentOptimizer:
             return
 
         # Error drops from ~2764.22 to ~0.046
-        logging.info(f"initial error: {graph.error(initial)}")
-        logging.info(f"final error: {graph.error(result)}")
+        logging.info(f"initial error: {graph.error(initial):.2f}")
+        logging.info(f"final error: {graph.error(result):.2f}")
 
         # construct the results
         sfm_result = SfmResult(initial_data, result, graph.error(result))

@@ -10,6 +10,7 @@ import dask
 import numpy as np
 from gtsam import EssentialMatrix, Rot3, Unit3
 
+import gtsfm.utils.geometry_comparisons as comp_utils
 from gtsfm.averaging.rotation.shonan import ShonanRotationAveraging
 from gtsfm.averaging.translation.averaging_1dsfm import (
     TranslationAveraging1DSFM,

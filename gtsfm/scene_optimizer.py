@@ -1,8 +1,10 @@
 """The main class which integrates all the modules.
 
-Authors: Ayush Baid
+Authors: Ayush Baid, John Lambert
 """
+import logging
 import os
+import sys
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -15,7 +17,6 @@ import networkx as nx
 from dask.delayed import Delayed
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3
 
-import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.viz as viz_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import (
@@ -43,6 +44,14 @@ from gtsfm.frontend.verifier.degensac import Degensac
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 from gtsfm.loader.folder_loader import FolderLoader
 
+# configure loggers to avoid DEBUG level stdout messages
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+
+mpl_logger = logging.getLogger('matplotlib')
+mpl_logger.setLevel(logging.WARNING)
+
+pil_logger = logging.getLogger('PIL')
+pil_logger.setLevel(logging.INFO)
 
 class FeatureExtractor:
     """Wrapper for running detection and description on each image."""
@@ -359,7 +368,7 @@ class SceneOptimizer:
                         v_corr_idxs,
                         keypoints_graph_list[i1],
                         keypoints_graph_list[i2],
-                        "plots/correspondences/{}_{}.png".format(i1, i2),
+                        "plots/correspondences/{}_{}.jpg".format(i1, i2),
                     )
                 )
 
