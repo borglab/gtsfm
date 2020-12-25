@@ -44,6 +44,7 @@ setup(
     install_requires=[
         "pytest",
         "dask[complete]",
+        "matplotlib>=3.3.3",
         "networkx",
         "numpy",
         "opencv-python>=4.1.0.25",
