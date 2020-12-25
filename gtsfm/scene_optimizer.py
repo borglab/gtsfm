@@ -44,7 +44,12 @@ from gtsfm.frontend.verifier.degensac import Degensac
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 from gtsfm.loader.folder_loader import FolderLoader
 
+# configure loggers to avoid DEBUG level stdout messages
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+
+mpl_logger = logging.getLogger('matplotlib')
+mpl_logger.setLevel(logging.WARNING)
+
 pil_logger = logging.getLogger('PIL')
 pil_logger.setLevel(logging.INFO)
 
