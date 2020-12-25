@@ -15,6 +15,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import networkx as nx
 from dask.delayed import Delayed
+from dask.distributed import Client
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3
 
 import gtsfm.utils.io as io_utils
@@ -454,4 +455,7 @@ if __name__ == "__main__":
         use_intrinsics_in_verification=True,
     )
 
-    sfm_result = dask.compute(sfm_result_graph)[0]
+    # create dask client
+    client = Client()
+
+    sfm_result = sfm_result_graph.compute()
