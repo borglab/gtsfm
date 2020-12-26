@@ -1,49 +1,30 @@
-# """Unit tests for the the main driver class.
+# """Unit tests for the the GTSFM frontend.
 
-# Authors: John Lambert, Ayush Baid
+# Authors: John Lambert
 # """
 import pdb
 import unittest
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 
 import dask
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import EssentialMatrix, Pose3, Rot3, Unit3
-from gtsam import Rot3, Unit3, Cal3Bundler, Pose3 # PinholeCameraCal3Bundler, 
+from gtsam import Pose3, Rot3, Unit3
 from scipy.spatial.transform import Rotation
 
-# import utils.geometry_comparisons as geometry_comparisons
-# from averaging.rotation.shonan import ShonanRotationAveraging
-# from averaging.translation.averaging_1dsfm import TranslationAveraging1DSFM
 from gtsfm.frontend.detector_descriptor.sift import SIFTDetectorDescriptor
 from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
-# from frontend.verifier.degensac import Degensac
 from gtsfm.frontend.verifier.ransac import Ransac
-
-# from scene_optimizer import SceneOptimizer
 from gtsfm.loader.folder_loader import FolderLoader
 
 
-# from averaging.rotation.rotation_averaging_base import RotationAveragingBase
-# from averaging.translation.translation_averaging_base import \
-#     TranslationAveragingBase
-# from bundle.bundle_adjustment import BundleAdjustmentOptimizer
-# from data_association.dummy_da import DummyDataAssociation
-from gtsfm.frontend.detector_descriptor.detector_descriptor_base import \
-DetectorDescriptorBase
-from gtsfm.frontend.matcher.matcher_base import MatcherBase
-from gtsfm.frontend.verifier.verifier_base import VerifierBase
-
-
-DATA_ROOT_PATH = Path(__file__).resolve().parent / 'tests' / 'data'
+DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / 'data'
 
 
 
 class TestFrontend(unittest.TestCase):
-	"""Tests a combined FeatureExtractor and TwoViewEstimator using Argoverse image pair
-	"""
+	"""Tests a combined FeatureExtractor and TwoViewEstimator using an Argoverse image pair."""
 
 	def setUp(self) -> None:
 		""" """
@@ -58,12 +39,8 @@ class TestFrontend(unittest.TestCase):
 			verifier=Ransac()
 		)
 
-
-	def test_frontend_result(self):
-		""" Compare recovered relative rotation and translation with ground truth."""
-		num_images = len(self.loader)
-		image_pair_indices = self.loader.get_valid_pairs()
-
+	def get_frontend_computation_graph(self):
+		""" """
 		image_graph = self.loader.create_computation_graph_for_images()
 		camera_intrinsics_graph = self.loader.create_computation_graph_for_intrinsics()
 		use_intrinsics_in_verification = True
@@ -102,6 +79,14 @@ class TestFrontend(unittest.TestCase):
 			i2Ui1_graph_dict[(i1, i2)] = i2Ui1
 			v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
 			####### copied from scene optimizer ############
+		return i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict
+
+	def test_frontend_result(self):
+		""" Compare recovered relative rotation and translation with ground truth."""
+
+		image_pair_indices = self.loader.get_valid_pairs()
+
+		i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict = self.get_frontend_computation_graph()
 
 		pdb.set_trace()
 		with dask.config.set(scheduler='single-threaded'):
