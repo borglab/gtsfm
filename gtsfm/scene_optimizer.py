@@ -15,7 +15,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import networkx as nx
 from dask.delayed import Delayed
-from dask.distributed import Client, LocalCluster
+from dask.distributed import Client, LocalCluster, performance_report
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3
 
 import gtsfm.utils.io as io_utils
@@ -459,4 +459,5 @@ if __name__ == "__main__":
     cluster = LocalCluster(n_workers=2, threads_per_worker=4)
     client = Client(cluster)
 
-    sfm_result = sfm_result_graph.compute()
+    with performance_report(filename="dask-report.html"):
+        sfm_result = sfm_result_graph.compute()
