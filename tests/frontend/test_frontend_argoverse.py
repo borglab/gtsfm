@@ -41,6 +41,7 @@ class TestFrontend(unittest.TestCase):
 
 	def get_frontend_computation_graph(self):
 		""" """
+		image_pair_indices = self.loader.get_valid_pairs()
 		image_graph = self.loader.create_computation_graph_for_images()
 		camera_intrinsics_graph = self.loader.create_computation_graph_for_intrinsics()
 		use_intrinsics_in_verification = True
@@ -83,9 +84,6 @@ class TestFrontend(unittest.TestCase):
 
 	def test_frontend_result(self):
 		""" Compare recovered relative rotation and translation with ground truth."""
-
-		image_pair_indices = self.loader.get_valid_pairs()
-
 		i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict = self.get_frontend_computation_graph()
 
 		pdb.set_trace()
