@@ -187,6 +187,13 @@ class Point3dInitializer(NamedTuple):
             logging.error("Error from GTSAM's triangulate function")
             return None
 
+        # final filtering based on reprojection error
+        reproj_errors = self.compute_reprojection_errors(
+            triangulated_pt, inlier_track
+        )
+        if not np.all(reproj_errors < self.reproj_error_thresh):
+            return None
+
         return SfmTrack(inlier_track.measurements, triangulated_pt)
 
     def generate_measurement_pairs(
