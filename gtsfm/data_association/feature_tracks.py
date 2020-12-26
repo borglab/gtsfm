@@ -10,11 +10,10 @@ References:
 
 Authors: Ayush Baid, Sushmita Warrier, John Lambert
 """
-from typing import Dict, List, NamedTuple, Tuple
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import gtsam
 import numpy as np
-from gtsam import Point2
 
 from gtsfm.common.keypoints import Keypoints
 
@@ -23,16 +22,86 @@ class SfmMeasurement(NamedTuple):
     i: int  # camera index
     uv: np.ndarray  # 2d measurement
 
+    def __eq__(self, other: object) -> bool:
+        """Checks equality with the other object."""
+        if not isinstance(other, SfmMeasurement):
+            return False
 
-# equivalent to gtsam.SfmTrack, but without the 3d measurement
-# (as we haven't triangulated it yet from 2d measurements)
-class SfmTrack2d(NamedTuple):
-    measurements: List[SfmMeasurement]
+        if self.i != other.i:
+            return False
+
+        return np.allclose(self.uv, other.uv)
+
+    def __ne__(self, other: object) -> bool:
+        """Checks inequality with the other object."""
+        return not self == other
+
+
+class SfmTrack(NamedTuple):
+    measurements: List[SfmMeasurement]  # (cam_idx, 2D coordinates)
+    landmark: Optional[np.ndarray] = None  # 3D landmark
+
+    def number_measurements(self) -> int:
+        """Returns the number of measurements."""
+        return len(self.measurements)
+
+    def measurement(self, idx: int) -> SfmMeasurement:
+        """Getter for measurement at a particular index.
+
+        Args:
+            idx: index to fetch.
+
+        Returns:
+            measurement at the requested index.
+        """
+        return self.measurements[idx]
+
+    def select_subset(self, idxs: List[int]) -> "SfmTrack":
+        """Generates a new track with the subset of measurements.
+
+        Returns:
+            Track with the subset of measurements.
+        """
+        inlier_measurements = [self.measurements[j] for j in idxs]
+
+        return SfmTrack(inlier_measurements, self.landmark)
+
+    def __eq__(self, other: object) -> bool:
+        """Checks equality with the other object."""
+
+        # check object type
+        if not isinstance(other, SfmTrack):
+            return False
+
+        # check number of measurements
+        if len(self.measurements) != len(other.measurements):
+            return False
+
+        # check the individual measurements (order insensitive)
+        # inefficient implementation but wont be used a lot
+        for measurement in self.measurements:
+            if measurement not in other.measurements:
+                return False
+
+        # finally, check the landmark
+        if self.landmark is not None and other.landmark is None:
+            return False
+        elif self.landmark is None and other.landmark is not None:
+            return False
+        elif self.landmark is None and other.landmark is None:
+            return True
+        else:
+            return np.allclose(self.landmark, other.landmark)
+
+    def __ne__(self, other: object) -> bool:
+        """Checks inequality with the other object."""
+        return not self == other
+
 
 def generate_tracks(
     matches_dict: Dict[Tuple[int, int], np.ndarray],
     keypoints_list: List[Keypoints],
-) -> List[SfmTrack2d]:
+) -> List[SfmTrack]:
     """Creates and filter tracks from matches.
 
     Creates a disjoint-set forest (DSF) and 2d tracks from pairwise matches. We create a
@@ -81,13 +150,11 @@ def generate_tracks(
             track_measurements += [
                 SfmMeasurement(i, keypoints_list[i].coordinates[k])
             ]
-        tracks_2d += [SfmTrack2d(track_measurements)]
+        tracks_2d += [SfmTrack(track_measurements)]
     return delete_erroneous_tracks(tracks_2d)
 
 
-def delete_erroneous_tracks(
-    sfm_tracks_2d: List[SfmTrack2d],
-) -> List[SfmTrack2d]:
+def delete_erroneous_tracks(sfm_tracks_2d: List[SfmTrack]) -> List[SfmTrack]:
     """
     Delete tracks that have more than one measurement in the same image.
 

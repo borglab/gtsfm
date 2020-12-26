@@ -10,16 +10,17 @@ Understanding, Vol. 68, No. 2, November, pp. 146–157, 1997
 
 Authors: Sushmita Warrier, Xiaolong Wu
 """
-import logging
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import dask
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import PinholeCameraCal3Bundler, SfmData, SfmTrack
+from gtsam import PinholeCameraCal3Bundler
 
 import gtsfm.data_association.feature_tracks as feature_tracks
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.common.sfm_result import SfmData
+from gtsfm.data_association.feature_tracks import SfmTrack
 from gtsfm.data_association.point3d_initializer import (
     Point3dInitializer,
     TriangulationParam,
@@ -44,10 +45,11 @@ class DataAssociation(NamedTuple):
     mode: TriangulationParam
     num_ransac_hypotheses: Optional[int] = None
 
-    def __valid_track(self, sfm_track: Optional[SfmTrack]) -> bool:
+    def __validate_track(self, sfm_track: Optional[SfmTrack]) -> bool:
+        """Validate the track by checking its length."""
         return (
             sfm_track is not None
-            and sfm_track.number_measurements() >= self.min_track_len
+            and len(sfm_track.measurements) >= self.min_track_len
         )
 
     def run(
@@ -87,7 +89,7 @@ class DataAssociation(NamedTuple):
             if sfm_track is None:
                 continue
 
-            if self.__valid_track(sfm_track):
+            if self.__validate_track(sfm_track):
                 triangulated_data.add_track(sfm_track)
 
         # TODO: improve dropped camera handling

@@ -3,10 +3,19 @@
 Authors: Ayush Baid
 """
 import pickle
+from sys import byteorder
 from typing import Dict, List, Tuple
 
 from distributed.protocol import dask_deserialize, dask_serialize
-from gtsam import Cal3Bundler, Point3, Rot3, Unit3
+from gtsam import (
+    Cal3Bundler,
+    PinholeCameraCal3Bundler,
+    Point3,
+    Rot3,
+    Unit3,
+)
+
+from gtsfm.common.sfm_result import SfmData, SfmResult
 
 """
 Serialization and deserialization function calls will be handled in the background by Dask,
@@ -50,7 +59,7 @@ def deserialize_Point3(header: Dict, frames: List[bytes]) -> Point3:
 @dask_serialize.register(Rot3)
 def serialize_Rot3(rot3: Rot3) -> Tuple[Dict, List[bytes]]:
     """Serialize Rot3 instance, and return serialized data."""
-    header = {}
+    header = {"serializer": "custom"}
     frames = [bytes(rot3.serialize(), "utf-8")]
 
     return header, frames
@@ -67,7 +76,12 @@ def deserialize_Rot3(header: Dict, frames: List[bytes]) -> Rot3:
     Returns:
         deserialized instance
     """
-    serialized_str = frames[0].decode("utf-8")
+    if len(frames) > 1:  # this may be cut up for network reasons
+        frame = "".join(frames)
+    else:
+        frame = frames[0]
+
+    serialized_str = frame.decode("utf-8")
 
     r = Rot3()
     r.deserialize(serialized_str)
@@ -107,7 +121,7 @@ def deserialize_Unit3(header: Dict, frames: List[bytes]) -> Unit3:
 @dask_serialize.register(Cal3Bundler)
 def serialize_Cal3Bundler(obj: Cal3Bundler) -> Tuple[Dict, List[bytes]]:
     """Serialize Cal3Bundler instance, and return serialized data."""
-    header = {}
+    header = {"serializer": "custom"}
     frames = [bytes(obj.serialize(), "utf-8")]
 
     return header, frames
@@ -124,9 +138,109 @@ def deserialize_Cal3Bundler(header: Dict, frames: List[bytes]) -> Cal3Bundler:
     Returns:
         deserialized instance.
     """
-    serialized_str = frames[0].decode("utf-8")
+    if len(frames) > 1:  # this may be cut up for network reasons
+        frame = "".join(frames)
+    else:
+        frame = frames[0]
+
+    serialized_str = frame.decode("utf-8")
 
     obj = Cal3Bundler()
     obj.deserialize(serialized_str)
 
     return obj
+
+
+@dask_serialize.register(PinholeCameraCal3Bundler)
+def serialize_PinholeCameraCal3Bundler(
+    obj: PinholeCameraCal3Bundler,
+) -> Tuple[Dict, List[bytes]]:
+    """Serialize PinholeCameraCal3Bundler instance, and return serialized data."""
+    header = {"serializer": "custom"}
+    frames = [bytes(obj.serialize(), "utf-8")]
+
+    return header, frames
+
+
+@dask_deserialize.register(PinholeCameraCal3Bundler)
+def deserialize_PinholeCameraCal3Bundler(
+    header: Dict, frames: List[bytes]
+) -> PinholeCameraCal3Bundler:
+    """Deserialize bytes into PinholeCameraCal3Bundler instance.
+
+    Args:
+        header: Header of the serialized data.
+        frames: list of bytes in the serialized data.
+
+    Returns:
+        deserialized instance.
+    """
+    if len(frames) > 1:  # this may be cut up for network reasons
+        frame = "".join(frames)
+    else:
+        frame = frames[0]
+
+    serialized_str = frame.decode("utf-8")
+
+    obj = PinholeCameraCal3Bundler()
+    obj.deserialize(serialized_str)
+
+    return obj
+
+
+@dask_serialize.register(SfmResult)
+def serialize_SfmResult(
+    obj: SfmResult,
+) -> Tuple[Dict, List[bytes]]:
+    """Serialize SfmResult instance, and return serialized data."""
+    header = {"serializer": "custom"}
+
+    # separate out cameras as they cannot be pickled
+    cameras = obj.sfm_data.cameras
+
+    # convert cameras to serialized strings using GTSAMs
+    camera_serialized_strings = [x.serialize() for x in cameras]
+
+    info_dict = {
+        "total_reproj_error": obj.total_reproj_error,
+        "tracks": obj.sfm_data.tracks,
+        "camera_serialized_list": camera_serialized_strings,
+    }
+
+    # apply custom serialization on cameras
+    serialized_sfm_data = pickle.dumps(info_dict)
+
+    return header, [serialized_sfm_data]
+
+
+@dask_deserialize.register(SfmResult)
+def deserialize_SfmResult(header: Dict, frames: List[bytes]) -> SfmResult:
+    """Deserialize bytes into SfmResult instance.
+
+    Args:
+        header: Header of the serialized data.
+        frames: list of bytes in the serialized data.
+
+    Returns:
+        deserialized instance.
+    """
+    if len(frames) > 1:  # this may be cut up for network reasons
+        frame = "".join(frames)
+    else:
+        frame = frames[0]
+
+    # deserialize the dictionary
+    info_dict = pickle.loads(frame)
+
+    # deserialize cameras
+    cameras = []
+    for cam_string in info_dict["camera_serialized_list"]:
+        cam = PinholeCameraCal3Bundler()
+        cam.deserialize(cam_string)
+
+        cameras.append(cam)
+
+    return SfmResult(
+        SfmData(cameras, info_dict["tracks"]),
+        total_reproj_error=info_dict["total_reproj_error"],
+    )

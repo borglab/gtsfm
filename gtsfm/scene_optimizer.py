@@ -15,7 +15,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import networkx as nx
 from dask.delayed import Delayed
-from dask.distributed import Client
+from dask.distributed import Client, LocalCluster
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3
 
 import gtsfm.utils.io as io_utils
@@ -456,6 +456,7 @@ if __name__ == "__main__":
     )
 
     # create dask client
-    client = Client()
+    cluster = LocalCluster(n_workers=2, threads_per_worker=4)
+    client = Client(cluster)
 
     sfm_result = sfm_result_graph.compute()
