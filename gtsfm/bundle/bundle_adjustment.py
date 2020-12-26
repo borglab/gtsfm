@@ -27,6 +27,23 @@ class BundleAdjustmentOptimizer:
 
     This class refines global pose estimates and intrinsics of cameras, and also refines 3D point cloud structure given tracks from triangulation."""
 
+    def __init__(self, use_robust_measurement_noise: bool = True) -> None:
+        """[summary]
+
+        Args:
+            use_robust_measurement_noise (bool, optional): [description]. Defaults to False.
+        """
+
+        if use_robust_measurement_noise:
+            self._measurement_noise = gtsam.noiseModel.Robust(
+                gtsam.noiseModel.mEstimator.Huber(1.35),
+                gtsam.noiseModel.Isotropic.Sigma(2, 1.0),
+            )
+        else:
+            self._measurement_noise = gtsam.noiseModel.Isotropic.Sigma(
+                2, 1.0
+            )  # one pixel in u and v
+
     def run(self, initial_data: SfmData) -> SfmResult:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
 
@@ -42,10 +59,6 @@ class BundleAdjustmentOptimizer:
         # Create a factor graph
         graph = gtsam.NonlinearFactorGraph()
 
-        # We share *one* noiseModel between all projection factors
-        # TODO: move params to init.
-        noise = gtsam.noiseModel.Isotropic.Sigma(2, 1.0)  # one pixel in u and v
-
         # Add measurements to the factor graph
         j = 0
         for t_idx in range(initial_data.number_tracks()):
@@ -54,7 +67,11 @@ class BundleAdjustmentOptimizer:
             for i, uv in track.measurements:
                 # i represents the camera index, and uv is the 2d measurement
                 # note use of shorthand symbols C and P
-                graph.add(GeneralSFMFactorCal3Bundler(uv, noise, C(i), P(j)))
+                graph.add(
+                    GeneralSFMFactorCal3Bundler(
+                        uv, self._measurement_noise, C(i), P(j)
+                    )
+                )
             j += 1
 
         # Add a prior on pose x1. This indirectly specifies where the origin is.
