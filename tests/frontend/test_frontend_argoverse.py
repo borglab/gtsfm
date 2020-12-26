@@ -88,14 +88,14 @@ class TestFrontend(unittest.TestCase):
 
 		pdb.set_trace()
 		with dask.config.set(scheduler='single-threaded'):
-			i2Ri1_list = dask.compute(i2Ri1_graph)[0]
-			i2ti1_list = dask.compute(i2Ui1_graph)[0]
-			v_corr_idxs_list = dask.compute(v_corr_idxs_graph)[0]
+			i2Ri1_results = dask.compute(i2Ri1_graph_dict)[0]
+			i2ti1_results = dask.compute(i2Ui1_graph_dict)[0]
+			v_corr_idxs_results = dask.compute(v_corr_idxs_graph_dict)[0]
 
 		pdb.set_trace()
 
-		i2Ri1 = i2Ri1_list[(0,1)]
-		i2Ui1 = i2ti1_list[(0,1)]
+		i2Ri1 = i2Ri1_results[(0,1)]
+		i2Ui1 = i2ti1_results[(0,1)]
 
 		euler_angle_err_tol = 1.4
 		translation_err_tol = 0.026
