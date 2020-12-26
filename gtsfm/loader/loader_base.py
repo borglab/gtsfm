@@ -101,6 +101,16 @@ class LoaderBase(metaclass=abc.ABCMeta):
 
         return [dask.delayed(self.get_camera_intrinsics)(x) for x in range(N)]
 
+    def create_computation_graph_for_poses(self) -> List[Delayed]:
+        """Creates the computation graph for camera poses.
+
+        Returns:
+            list of delayed tasks for camera poses.
+        """
+        N = self.__len__()
+
+        return [dask.delayed(self.get_camera_pose)(x) for x in range(N)]
+
     def get_valid_pairs(self) -> List[Tuple[int, int]]:
         """Get the valid pairs of images for this loader.
 
@@ -111,10 +121,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
 
         for idx1 in range(self.__len__()):
             for idx2 in range(self.__len__()):
-                # avoid forming an image pair with oneself
-                if idx1 == idx2:
-                    continue
-                if(self.validate_pair(idx1, idx2)):
+                if self.validate_pair(idx1, idx2):
                     indices.append((idx1, idx2))
 
         return indices
