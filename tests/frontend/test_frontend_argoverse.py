@@ -102,8 +102,6 @@ class TestFrontend(unittest.TestCase):
 		i1ti2 = i1Ti2.translation()
 		i1Ri2 = i1Ti2.rotation().matrix()
 
-		pdb.set_trace()
-
 		euler_angles = Rotation.from_matrix(i1Ri2).as_euler('zyx', degrees=True)
 		gt_euler_angles = np.array([-0.37, 32.47, -0.42])
 		assert np.allclose(gt_euler_angles, euler_angles, atol=euler_angle_err_tol)
