@@ -43,7 +43,7 @@ class TestFrontend(unittest.TestCase):
             matcher=TwoWayMatcher(), verifier=Ransac()
         )
 
-    def get_frontend_computation_graph(self) -> Tuple[Delayed, Delayed, Delayed]:
+    def get_frontend_computation_graph(self) -> Tuple[Delayed, Delayed]:
         """Copied from SceneOptimizer class, without back-end code"""
         image_pair_indices = self.loader.get_valid_pairs()
         image_graph = self.loader.create_computation_graph_for_images()
@@ -64,7 +64,6 @@ class TestFrontend(unittest.TestCase):
         # estimate two-view geometry and get indices of verified correspondences.
         i2Ri1_graph_dict = {}
         i2Ui1_graph_dict = {}
-        v_corr_idxs_graph_dict = {}
         for (i1, i2) in image_pair_indices:
             (
                 i2Ri1,
@@ -81,17 +80,12 @@ class TestFrontend(unittest.TestCase):
             )
             i2Ri1_graph_dict[(i1, i2)] = i2Ri1
             i2Ui1_graph_dict[(i1, i2)] = i2Ui1
-            v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
 
-        return i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict
+        return i2Ri1_graph_dict, i2Ui1_graph_dict
 
     def test_frontend_result(self) -> None:
         """ Compare recovered relative rotation and translation with ground truth."""
-        (
-            i2Ri1_graph_dict,
-            i2Ui1_graph_dict,
-            v_corr_idxs_graph_dict,
-        ) = self.get_frontend_computation_graph()
+        i2Ri1_graph_dict, i2Ui1_graph_dict = self.get_frontend_computation_graph()
 
         with dask.config.set(scheduler="single-threaded"):
             i2Ri1_results = dask.compute(i2Ri1_graph_dict)[0]
