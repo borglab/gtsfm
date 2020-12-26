@@ -18,7 +18,7 @@ from gtsfm.frontend.verifier.ransac import Ransac
 from gtsfm.loader.folder_loader import FolderLoader
 from gtsfm.scene_optimizer import FeatureExtractor, TwoViewEstimator
 
-DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
+TEST_DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
 
 
 class TestFrontend(unittest.TestCase):
@@ -28,7 +28,7 @@ class TestFrontend(unittest.TestCase):
         """ """
         self.loader = FolderLoader(
             str(
-                DATA_ROOT_PATH
+                TEST_DATA_ROOT_PATH
                 / "argoverse"
                 / "train1"
                 / "273c1883-673a-36bf-b124-88311b1a80be"
