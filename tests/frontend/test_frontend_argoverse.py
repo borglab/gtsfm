@@ -10,7 +10,7 @@ from typing import Dict, List
 import dask
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import Pose3, Rot3, Unit3
+from gtsam import Pose3
 from scipy.spatial.transform import Rotation
 
 from gtsfm.frontend.detector_descriptor.sift import SIFTDetectorDescriptor
@@ -39,7 +39,7 @@ class TestFrontend(unittest.TestCase):
 			verifier=Ransac()
 		)
 
-	def get_frontend_computation_graph(self):
+	def get_frontend_computation_graph(self) -> Tuple[Delayed, Delayed, Delayed]:
 		""" """
 		image_pair_indices = self.loader.get_valid_pairs()
 		image_graph = self.loader.create_computation_graph_for_images()
@@ -82,17 +82,13 @@ class TestFrontend(unittest.TestCase):
 			####### copied from scene optimizer ############
 		return i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict
 
-	def test_frontend_result(self):
+	def test_frontend_result(self) -> None:
 		""" Compare recovered relative rotation and translation with ground truth."""
 		i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict = self.get_frontend_computation_graph()
 
-		pdb.set_trace()
 		with dask.config.set(scheduler='single-threaded'):
 			i2Ri1_results = dask.compute(i2Ri1_graph_dict)[0]
 			i2ti1_results = dask.compute(i2Ui1_graph_dict)[0]
-			v_corr_idxs_results = dask.compute(v_corr_idxs_graph_dict)[0]
-
-		pdb.set_trace()
 
 		i2Ri1 = i2Ri1_results[(0,1)]
 		i2Ui1 = i2ti1_results[(0,1)]
