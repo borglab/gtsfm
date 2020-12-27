@@ -37,13 +37,10 @@ class TestFrontend(unittest.TestCase):
             image_extension="jpg",
         )
         assert len(self.loader)
-        det_desc = SIFTDetectorDescriptor()
-        self.feature_extractor = FeatureExtractor(det_desc)
-        self.two_view_estimator = TwoViewEstimator(
-            matcher=TwoWayMatcher(), verifier=Ransac()
-        )
 
-    def get_frontend_computation_graph(self) -> Tuple[Delayed, Delayed]:
+    def get_frontend_computation_graph(
+        self, feature_extractor: FeatureExtractor, two_view_estimator: TwoViewEstimator
+    ) -> Tuple[Delayed, Delayed]:
         """Copied from SceneOptimizer class, without back-end code"""
         image_pair_indices = self.loader.get_valid_pairs()
         image_graph = self.loader.create_computation_graph_for_images()
@@ -83,9 +80,48 @@ class TestFrontend(unittest.TestCase):
 
         return i2Ri1_graph_dict, i2Ui1_graph_dict
 
-    def test_frontend_result(self) -> None:
+    def test_sift_twoway_ransac():
+        """ """
+        det_desc = SIFTDetectorDescriptor()
+        feature_extractor = FeatureExtractor(det_desc)
+        two_view_estimator = TwoViewEstimator(
+            matcher=TwoWayMatcher(), verifier=Ransac()
+        )
+        compare_frontend_result_error(
+            feature_extractor,
+            two_view_estimator,
+            euler_angle_err_tol=1.4,
+            translation_err_tol=0.026,
+        )
+
+    def test_sift_twoway_degensac():
+        """ """
+        det_desc = SIFTDetectorDescriptor()
+        feature_extractor = FeatureExtractor(det_desc)
+        two_view_estimator = TwoViewEstimator(
+            matcher=TwoWayMatcher(), verifier=Degensac()
+        )
+        import pdb
+
+        pdb.set_trace()
+        compare_frontend_result_error(
+            feature_extractor,
+            two_view_estimator,
+            euler_angle_err_tol=1.4,
+            translation_err_tol=0.026,
+        )
+
+    def compare_frontend_result_error(
+        self,
+        feature_extractor: FeatureExtractor,
+        two_view_estimator: TwoViewEstimator,
+        euler_angle_err_tol: float,
+        translation_err_tol: float,
+    ) -> None:
         """ Compare recovered relative rotation and translation with ground truth."""
-        i2Ri1_graph_dict, i2Ui1_graph_dict = self.get_frontend_computation_graph()
+        i2Ri1_graph_dict, i2Ui1_graph_dict = self.get_frontend_computation_graph(
+            feature_extractor, two_view_estimator
+        )
 
         with dask.config.set(scheduler="single-threaded"):
             i2Ri1_results = dask.compute(i2Ri1_graph_dict)[0]
@@ -93,9 +129,6 @@ class TestFrontend(unittest.TestCase):
 
         i2Ri1 = i2Ri1_results[(0, 1)]
         i2Ui1 = i2ti1_results[(0, 1)]
-
-        euler_angle_err_tol = 1.4
-        translation_err_tol = 0.026
 
         # Ground truth is provided in inverse format, so invert SE(3) object
         i2Ti1 = Pose3(i2Ri1, i2Ui1.point3())
