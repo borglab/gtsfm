@@ -102,14 +102,11 @@ class TestFrontend(unittest.TestCase):
         two_view_estimator = TwoViewEstimator(
             matcher=TwoWayMatcher(), verifier=Degensac()
         )
-        import pdb
-
-        pdb.set_trace()
         self.compare_frontend_result_error(
             feature_extractor,
             two_view_estimator,
-            euler_angle_err_tol=1.4,
-            translation_err_tol=0.026,
+            euler_angle_err_tol=0.95,
+            translation_err_tol=0.011,
         )
 
     def compare_frontend_result_error(
