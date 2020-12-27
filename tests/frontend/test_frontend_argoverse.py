@@ -54,7 +54,7 @@ class TestFrontend(unittest.TestCase):
             (
                 delayed_dets,
                 delayed_descs,
-            ) = self.feature_extractor.create_computation_graph(delayed_image)
+            ) = feature_extractor.create_computation_graph(delayed_image)
             keypoints_graph_list += [delayed_dets]
             descriptors_graph_list += [delayed_descs]
 
@@ -66,7 +66,7 @@ class TestFrontend(unittest.TestCase):
                 i2Ri1,
                 i2Ui1,
                 v_corr_idxs,
-            ) = self.two_view_estimator.create_computation_graph(
+            ) = two_view_estimator.create_computation_graph(
                 keypoints_graph_list[i1],
                 keypoints_graph_list[i2],
                 descriptors_graph_list[i1],
