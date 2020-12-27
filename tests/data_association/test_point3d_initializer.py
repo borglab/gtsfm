@@ -103,7 +103,7 @@ class TestPoint3dInitializer(unittest.TestCase):
         and checks for correctness of the recovered 3D point."""
 
         sfm_track = obj.triangulate(SfmTrack(MEASUREMENTS))
-        point3d = sfm_track.landmark
+        point3d = sfm_track.point3
 
         return np.allclose(point3d, LANDMARK_POINT)
 
@@ -112,7 +112,7 @@ class TestPoint3dInitializer(unittest.TestCase):
         and checks for correctness of the recovered 3D point."""
 
         sfm_track = obj.triangulate(SfmTrack(MEASUREMENTS[:2]))
-        point3d = sfm_track.landmark
+        point3d = sfm_track.point3
 
         return np.allclose(point3d, LANDMARK_POINT)
 
@@ -128,7 +128,7 @@ class TestPoint3dInitializer(unittest.TestCase):
         except one, and checks for correctness of the estimated point."""
 
         sfm_track = obj.triangulate(SfmTrack(get_track_with_one_outlier()))
-        point3d = sfm_track.landmark
+        point3d = sfm_track.point3
 
         return np.array_equal(point3d, LANDMARK_POINT)
 
@@ -166,7 +166,7 @@ class TestPoint3dInitializer(unittest.TestCase):
         sfm_track = obj.triangulate(
             SfmTrack(get_track_with_duplicate_measurements())
         )
-        point3d = sfm_track.landmark
+        point3d = sfm_track.point3
 
         return np.allclose(point3d, LANDMARK_POINT, atol=1, rtol=1e-1)
 

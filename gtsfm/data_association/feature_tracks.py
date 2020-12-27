@@ -39,7 +39,7 @@ class SfmMeasurement(NamedTuple):
 
 class SfmTrack(NamedTuple):
     measurements: List[SfmMeasurement]  # (cam_idx, 2D coordinates)
-    landmark: Optional[np.ndarray] = None  # 3D landmark
+    point3: Optional[np.ndarray] = None  # 3D landmark
 
     def number_measurements(self) -> int:
         """Returns the number of measurements."""
@@ -64,7 +64,7 @@ class SfmTrack(NamedTuple):
         """
         inlier_measurements = [self.measurements[j] for j in idxs]
 
-        return SfmTrack(inlier_measurements, self.landmark)
+        return SfmTrack(inlier_measurements, self.point3)
 
     def __eq__(self, other: object) -> bool:
         """Checks equality with the other object."""
@@ -84,14 +84,14 @@ class SfmTrack(NamedTuple):
                 return False
 
         # finally, check the landmark
-        if self.landmark is not None and other.landmark is None:
+        if self.point3 is not None and other.point3 is None:
             return False
-        elif self.landmark is None and other.landmark is not None:
+        elif self.point3 is None and other.point3 is not None:
             return False
-        elif self.landmark is None and other.landmark is None:
+        elif self.point3 is None and other.point3 is None:
             return True
         else:
-            return np.allclose(self.landmark, other.landmark)
+            return np.allclose(self.point3, other.point3)
 
     def __ne__(self, other: object) -> bool:
         """Checks inequality with the other object."""

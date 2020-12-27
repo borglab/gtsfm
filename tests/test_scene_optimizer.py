@@ -40,7 +40,7 @@ class TestSceneOptimizer(unittest.TestCase):
                 "min_track_len": 3,
                 "triangulation_mode": TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
                 "num_ransac_hypotheses": 20,
-                "save_viz": False
+                "save_viz": False,
             }
         )
         self.obj = SceneOptimizer(

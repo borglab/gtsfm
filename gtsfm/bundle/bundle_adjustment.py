@@ -69,7 +69,7 @@ class BundleAdjustmentOptimizer:
         graph.push_back(
             gtsam.PriorFactorPoint3(
                 P(0),
-                initial_data.track(0).landmark,
+                initial_data.track(0).point3,
                 gtsam.noiseModel.Isotropic.Sigma(3, 0.1),
             )
         )
@@ -88,7 +88,7 @@ class BundleAdjustmentOptimizer:
         # add each SfmTrack
         for t_idx in range(initial_data.number_tracks()):
             track = initial_data.track(t_idx)
-            initial.insert(P(j), track.landmark)
+            initial.insert(P(j), track.point3)
             j += 1
 
         # Optimize the graph and print results

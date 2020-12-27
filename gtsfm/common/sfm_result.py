@@ -123,7 +123,7 @@ class SfmResult(NamedTuple):
             camera = self.sfm_data.camera(cam_idx)
 
             # Project to camera
-            uv_reprojected, success_flag = camera.projectSafe(track.landmark)
+            uv_reprojected, success_flag = camera.projectSafe(track.point3)
 
             if not success_flag:
                 return False

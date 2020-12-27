@@ -204,7 +204,7 @@ def plot_sfm_data_3d(sfm_data: SfmData, ax: Axes) -> None:
 
     # plot 3D points
     for j in range(sfm_data.number_tracks()):
-        landmark = sfm_data.track(j).landmark
+        landmark = sfm_data.track(j).point3
 
         ax.plot(landmark[0], landmark[1], landmark[2], "g.", markersize=1)
 

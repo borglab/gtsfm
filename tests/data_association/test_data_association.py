@@ -201,7 +201,7 @@ class TestDataAssociation(GtsamTestCase):
             mode=TriangulationParam.NO_RANSAC,
         )
         sfm_data = da.run(cameras, matches_dict, keypoints_list)
-        estimated_landmark = sfm_data.track(0).landmark
+        estimated_landmark = sfm_data.track(0).point3
         self.gtsamAssertEquals(estimated_landmark, self.expected_landmark, 1e-2)
 
         for i in range(sfm_data.number_cameras()):
@@ -258,7 +258,7 @@ class TestDataAssociation(GtsamTestCase):
         )
         sfm_data = da.run(cameras, matches_dict, keypoints_list)
 
-        estimated_landmark = sfm_data.track(0).landmark
+        estimated_landmark = sfm_data.track(0).point3
         # checks if computed 3D point is as expected
         self.gtsamAssertEquals(estimated_landmark, self.expected_landmark, 1e-2)
 
