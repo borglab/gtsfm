@@ -14,6 +14,7 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import gtsam
 import numpy as np
+from gtsam import PinholeCameraCal3Bundler
 
 from gtsfm.common.keypoints import Keypoints
 
@@ -65,6 +66,31 @@ class SfmTrack(NamedTuple):
         inlier_measurements = [self.measurements[j] for j in idxs]
 
         return SfmTrack(inlier_measurements, self.point3)
+
+    def compute_reprojection_errors(
+        self, cameras: Dict[int, PinholeCameraCal3Bundler]
+    ) -> np.ndarray:
+        """
+        Calculate reprojection error for each measurement in the track.
+
+        Returns:
+            reprojection error for each measurement in the track as a numpy
+            array.
+        """
+        if self.point3 is None:
+            raise ValueError("3D point is None. Cannot reproject")
+
+        errors = []
+        for (i, uv_measured) in self.measurements:
+            camera = cameras[i]
+            # Project to camera
+            uv, success_flag = camera.projectSafe(self.point3)
+            # Projection error in camera
+            if success_flag:
+                errors.append(np.linalg.norm(uv_measured - uv))
+            else:
+                errors.append(np.nan)
+        return np.array(errors)
 
     def __eq__(self, other: object) -> bool:
         """Checks equality with the other object."""

@@ -130,8 +130,12 @@ class Point3dInitializer(NamedTuple):
                         logging.error("Error from GTSAM's triangulate function")
                         continue
 
-                    errors = self.compute_reprojection_errors(
-                        triangulated_pt, track
+                    candidate_track = SfmTrack(
+                        track.measurements, triangulated_pt
+                    )
+
+                    errors = candidate_track.compute_reprojection_errors(
+                        self.track_camera_dict
                     )
                     # The best solution should correspond to the one with most inliers
                     # If the inlier number are the same, check the average error of inliers
@@ -264,32 +268,6 @@ class Point3dInitializer(NamedTuple):
             sample_indices = np.argsort(scores)[-num_hypotheses:]
 
         return sample_indices.tolist()
-
-    def compute_reprojection_errors(
-        self, triangulated_pt: Point3, track: SfmTrack
-    ) -> np.ndarray:
-        """
-        Calculate all individual reprojection errors in a given track
-
-        Args:
-            triangulated point: triangulated 3D point
-            track: the measurements of a track
-
-        Returns:
-            reprojection error for each measurement in the track as a numpy
-            array.
-        """
-        errors = []
-        for (i, uv_measured) in track.measurements:
-            camera = self.track_camera_dict.get(i)
-            # Project to camera
-            uv, success_flag = camera.projectSafe(triangulated_pt)
-            # Projection error in camera
-            if success_flag:
-                errors.append(np.linalg.norm(uv_measured - uv))
-            else:
-                errors.append(np.nan)
-        return np.array(errors)
 
     def extract_measurements(
         self, track: SfmTrack
