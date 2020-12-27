@@ -44,8 +44,4 @@ class RootSIFTDescriptor(SIFTDescriptor):
         # Step 2: Element wise square-root
         sift_desc = np.sqrt(sift_desc)
 
-        # Step 3: L2 normalization
-        l2_norms = np.linalg.norm(sift_desc, axis=1, keepdims=True)
-        sift_desc = sift_desc / (l2_norms + np.finfo(float).eps)
-
         return sift_desc
