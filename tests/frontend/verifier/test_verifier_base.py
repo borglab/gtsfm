@@ -327,14 +327,14 @@ def sample_points_on_plane(
     Args:
         plane_coefficients: coefficients (a,b,c,d) of the plane equation.
         range_x_coordinate: desired range of the x coordinates of samples.
-        range_y_coordinate: desired range of the x coordinates of samples.
-        num_points: number of points to sample
+        range_y_coordinate: desired range of the y coordinates of samples.
+        num_points: number of points to sample.
 
     Returns:
-        3d points, of shape (num_points, 3).
+        3d points on the plane, of shape (num_points, 3).
     """
 
-    if plane_coefficients[3] == 0:
+    if plane_coefficients[2] == 0:
         raise ValueError("z-coefficient for the plane should not be zero")
 
     pts = np.empty((num_points, 3))
@@ -355,10 +355,13 @@ def sample_points_on_plane(
 
     # calculate z coordinates using equation of the plane
     pts[:, 2] = (
-        plane_coefficients[0] * pts[:, 0]
-        + plane_coefficients[1] * pts[:, 1]
-        + plane_coefficients[3]
-    ) / plane_coefficients[2]
+        -(
+            plane_coefficients[0] * pts[:, 0]
+            + plane_coefficients[1] * pts[:, 1]
+            + plane_coefficients[3]
+        )
+        / plane_coefficients[2]
+    )
 
     return pts
 
