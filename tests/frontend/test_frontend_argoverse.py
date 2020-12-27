@@ -14,6 +14,7 @@ from scipy.spatial.transform import Rotation
 
 from gtsfm.frontend.detector_descriptor.sift import SIFTDetectorDescriptor
 from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
+from gtsfm.frontend.verifier.degensac import Degensac
 from gtsfm.frontend.verifier.ransac import Ransac
 from gtsfm.loader.folder_loader import FolderLoader
 from gtsfm.scene_optimizer import FeatureExtractor, TwoViewEstimator
