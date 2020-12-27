@@ -334,34 +334,29 @@ def sample_points_on_plane(
         3d points on the plane, of shape (num_points, 3).
     """
 
-    if plane_coefficients[2] == 0:
+    a, b, c, d = plane_coefficients
+
+    if c == 0:
         raise ValueError("z-coefficient for the plane should not be zero")
 
-    pts = np.empty((num_points, 3))
-
     # sample x coordinates randomly
-    pts[:, 0] = (
+    x = (
         np.random.rand(num_points)
         * (range_x_coordinate[1] - range_x_coordinate[0])
         + range_x_coordinate[0]
     )
 
     # sample y coordinates randomly
-    pts[:, 1] = (
+    y = (
         np.random.rand(num_points)
         * (range_y_coordinate[1] - range_y_coordinate[0])
         + range_y_coordinate[0]
     )
 
     # calculate z coordinates using equation of the plane
-    pts[:, 2] = (
-        -(
-            plane_coefficients[0] * pts[:, 0]
-            + plane_coefficients[1] * pts[:, 1]
-            + plane_coefficients[3]
-        )
-        / plane_coefficients[2]
-    )
+    z = -(a * x + b * y + d) / c
+
+    pts = np.hstack([x.reshape(-1, 1), y.reshape(-1, 1), z.reshape(-1, 1)])
 
     # assert points are on the plane
     pts_residuals = (
