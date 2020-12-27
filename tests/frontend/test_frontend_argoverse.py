@@ -122,8 +122,7 @@ class TestFrontend(unittest.TestCase):
         )
 
         with dask.config.set(scheduler="single-threaded"):
-            i2Ri1_results = dask.compute(i2Ri1_graph_dict)[0]
-            i2ti1_results = dask.compute(i2Ui1_graph_dict)[0]
+            i2Ri1_results, i2ti1_results = dask.compute(i2Ri1_graph_dict, i2Ui1_graph_dict)
 
         i2Ri1 = i2Ri1_results[(0, 1)]
         i2Ui1 = i2ti1_results[(0, 1)]
