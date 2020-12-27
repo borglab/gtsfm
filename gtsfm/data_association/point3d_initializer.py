@@ -22,7 +22,7 @@ from gtsam import (
     Point3,
 )
 
-from gtsfm.data_association.feature_tracks import SfmTrack
+from gtsfm.data_association.feature_tracks import SfmMeasurement, SfmTrack
 
 NUM_SAMPLES_PER_RANSAC_HYPOTHESIS = 2
 SVD_DLT_RANK_TOL = 1e-9
@@ -130,13 +130,10 @@ class Point3dInitializer(NamedTuple):
                         logging.error("Error from GTSAM's triangulate function")
                         continue
 
-                    candidate_track = SfmTrack(
+                    errors = self.compute_track_reprojection_errors(
                         track.measurements, triangulated_pt
                     )
 
-                    errors = candidate_track.compute_reprojection_errors(
-                        self.track_camera_dict
-                    )
                     # The best solution should correspond to the one with most inliers
                     # If the inlier number are the same, check the average error of inliers
                     is_inlier = errors < self.reproj_error_thresh
@@ -307,3 +304,27 @@ class Point3dInitializer(NamedTuple):
             )
 
         return track_cameras, track_measurements
+
+    def compute_track_reprojection_errors(
+        self, measurements: List[SfmMeasurement], point3d: np.ndarray
+    ) -> np.ndarray:
+        """Compute reprojection errors for measurements in the tracks.
+
+        Args:
+            measurements: measurements corresponding to a track.
+            point3d: 3D corresponding to the measurments.
+
+        Returns:
+            reprojection errors for each measurement.
+        """
+        errors = []
+        for (i, uv_measured) in measurements:
+            camera = self.track_camera_dict[i]
+            # Project to camera
+            uv, success_flag = camera.projectSafe(point3d)
+            # Projection error in camera
+            if success_flag:
+                errors.append(np.linalg.norm(uv_measured - uv))
+            else:
+                errors.append(np.nan)
+        return np.array(errors)
