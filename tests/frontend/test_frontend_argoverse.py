@@ -80,7 +80,7 @@ class TestFrontend(unittest.TestCase):
 
         return i2Ri1_graph_dict, i2Ui1_graph_dict
 
-    def test_sift_twoway_ransac():
+    def test_sift_twoway_ransac(self):
         """ """
         det_desc = SIFTDetectorDescriptor()
         feature_extractor = FeatureExtractor(det_desc)
@@ -94,7 +94,7 @@ class TestFrontend(unittest.TestCase):
             translation_err_tol=0.026,
         )
 
-    def test_sift_twoway_degensac():
+    def test_sift_twoway_degensac(self):
         """ """
         det_desc = SIFTDetectorDescriptor()
         feature_extractor = FeatureExtractor(det_desc)
