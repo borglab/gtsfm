@@ -87,7 +87,7 @@ class TestFrontend(unittest.TestCase):
         two_view_estimator = TwoViewEstimator(
             matcher=TwoWayMatcher(), verifier=Ransac()
         )
-        compare_frontend_result_error(
+        self.compare_frontend_result_error(
             feature_extractor,
             two_view_estimator,
             euler_angle_err_tol=1.4,
@@ -104,7 +104,7 @@ class TestFrontend(unittest.TestCase):
         import pdb
 
         pdb.set_trace()
-        compare_frontend_result_error(
+        self.compare_frontend_result_error(
             feature_extractor,
             two_view_estimator,
             euler_angle_err_tol=1.4,
