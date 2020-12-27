@@ -106,7 +106,7 @@ class TestFrontend(unittest.TestCase):
             feature_extractor,
             two_view_estimator,
             euler_angle_err_tol=0.95,
-            translation_err_tol=0.02,
+            translation_err_tol=0.03,
         )
 
     def compare_frontend_result_error(
