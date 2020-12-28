@@ -96,10 +96,10 @@ class DataAssociation(NamedTuple):
         num_cameras = len(cameras.keys())
         expected_camera_indices = np.arange(num_cameras)
         # add cameras to landmark_map
-        for i, cam in enumerate(cameras.values()):
+        for i, cam in cameras.items():
             if i != expected_camera_indices[i]:
                 raise RuntimeError("Some cameras must have been dropped ")
-            triangulated_data.add_camera(cam)
+            triangulated_data.add_camera(i, cam)
 
         return triangulated_data
 

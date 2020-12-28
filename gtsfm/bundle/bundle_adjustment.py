@@ -138,7 +138,7 @@ def values_to_sfm_data(values: Values, initial_data: SfmData) -> SfmData:
 
     # add cameras
     for i in range(initial_data.number_cameras()):
-        result.add_camera(values.atPinholeCameraCal3Bundler(C(i)))
+        result.add_camera(i, values.atPinholeCameraCal3Bundler(C(i)))
 
     # add tracks
     for j in range(initial_data.number_tracks()):

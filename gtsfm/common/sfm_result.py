@@ -2,15 +2,13 @@
 
 Authors: Xiaolong Wu, Ayush Baid
 """
-from typing import List, NamedTuple, Optional
+from typing import Dict, List, NamedTuple, Optional
 
 import numpy as np
-from gtsam import (
-    PinholeCameraCal3Bundler,
-    Pose3,
-)
-from gtsfm.data_association.feature_tracks import SfmTrack
+from gtsam import PinholeCameraCal3Bundler, Pose3
+
 import gtsfm.utils.geometry_comparisons as geom_comparisons
+from gtsfm.data_association.feature_tracks import SfmTrack
 
 
 class SfmData:
@@ -18,7 +16,7 @@ class SfmData:
 
     def __init__(
         self,
-        cameras: Optional[List[PinholeCameraCal3Bundler]] = None,
+        cameras: Optional[Dict[int, PinholeCameraCal3Bundler]] = None,
         tracks: Optional[List[SfmTrack]] = None,
     ) -> None:
         """Initialize from existing cameras and tracks.
@@ -30,7 +28,7 @@ class SfmData:
         if cameras is not None:
             self.cameras = cameras
         else:
-            self.cameras = []
+            self.cameras = {}
 
         if tracks is not None:
             self.tracks = tracks
@@ -43,8 +41,8 @@ class SfmData:
     def number_tracks(self) -> int:
         return len(self.tracks)
 
-    def add_camera(self, camera: PinholeCameraCal3Bundler) -> None:
-        self.cameras.append(camera)
+    def add_camera(self, idx: int, camera: PinholeCameraCal3Bundler) -> None:
+        self.cameras[idx] = camera
 
     def add_track(self, track: SfmTrack) -> None:
         self.tracks.append(track)
@@ -155,4 +153,4 @@ class SfmResult(NamedTuple):
         Returns:
             camera poses as a list, each representing wTi
         """
-        return [cam.pose() for cam in self.sfm_data.cameras]
+        return [cam.pose() for cam in self.sfm_data.cameras.values()]

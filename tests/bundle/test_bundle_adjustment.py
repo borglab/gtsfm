@@ -28,7 +28,7 @@ def read_example_data() -> SfmData:
 
     # add cameras
     for idx in range(gtsam_data.number_cameras()):
-        data.add_camera(gtsam_data.camera(idx))
+        data.add_camera(idx, gtsam_data.camera(idx))
 
     # add tracks
     for idx in range(gtsam_data.number_tracks()):

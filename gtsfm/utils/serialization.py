@@ -199,7 +199,9 @@ def serialize_SfmResult(
     cameras = obj.sfm_data.cameras
 
     # convert cameras to serialized strings using GTSAMs
-    camera_serialized_strings = [x.serialize() for x in cameras]
+    camera_serialized_strings = {
+        i: cam.serialize() for (i, cam) in cameras.items()
+    }
 
     info_dict = {
         "total_reproj_error": obj.total_reproj_error,
@@ -233,12 +235,12 @@ def deserialize_SfmResult(header: Dict, frames: List[bytes]) -> SfmResult:
     info_dict = pickle.loads(frame)
 
     # deserialize cameras
-    cameras = []
-    for cam_string in info_dict["camera_serialized_list"]:
+    cameras = {}
+    for i, cam_string in info_dict["camera_serialized_list"].items():
         cam = PinholeCameraCal3Bundler()
         cam.deserialize(cam_string)
 
-        cameras.append(cam)
+        cameras[i] = cam
 
     return SfmResult(
         SfmData(cameras, info_dict["tracks"]),
