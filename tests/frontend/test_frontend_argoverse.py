@@ -88,7 +88,7 @@ class TestFrontend(unittest.TestCase):
         two_view_estimator = TwoViewEstimator(
             matcher=TwoWayMatcher(), verifier=Ransac()
         )
-        self.compare_frontend_result_error(
+        self.__compare_frontend_result_error(
             feature_extractor,
             two_view_estimator,
             euler_angle_err_tol=1.4,
@@ -102,14 +102,14 @@ class TestFrontend(unittest.TestCase):
         two_view_estimator = TwoViewEstimator(
             matcher=TwoWayMatcher(), verifier=Degensac()
         )
-        self.compare_frontend_result_error(
+        self.__compare_frontend_result_error(
             feature_extractor,
             two_view_estimator,
             euler_angle_err_tol=0.95,
             translation_err_tol=0.03,
         )
 
-    def compare_frontend_result_error(
+    def __compare_frontend_result_error(
         self,
         feature_extractor: FeatureExtractor,
         two_view_estimator: TwoViewEstimator,
