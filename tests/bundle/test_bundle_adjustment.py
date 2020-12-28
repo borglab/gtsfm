@@ -11,7 +11,7 @@ import numpy as np
 
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 
-GTSAM_EXAMPLE_FILE = 'dubrovnik-3-7-pre'
+GTSAM_EXAMPLE_FILE = "dubrovnik-3-7-pre"
 TEST_SFM_DATA = gtsam.readBal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
 
 
@@ -29,8 +29,21 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         computed_result = self.obj.run(TEST_SFM_DATA)
 
         expected_error = 0.046137573704557046
-        self.assertTrue(np.isclose(
-            expected_error, computed_result.total_reproj_error))
+        self.assertTrue(
+            np.isclose(expected_error, computed_result.total_reproj_error)
+        )
+
+    def test_simple_scene_with_shared_calibration(self):
+        """Test the simple scene using the `run` API."""
+
+        test_obj = BundleAdjustmentOptimizer(shared_calib=True)
+
+        computed_result = test_obj.run(TEST_SFM_DATA)
+
+        expected_error = 1.1428243375895113
+        self.assertTrue(
+            np.isclose(expected_error, computed_result.total_reproj_error)
+        )
 
     def test_create_computation_graph(self):
         """Test the simple scene as dask computation graph."""
@@ -42,11 +55,11 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
             dask.delayed(sfm_data_graph)
         )
 
-        with dask.config.set(scheduler='single-threaded'):
+        with dask.config.set(scheduler="single-threaded"):
             result = dask.compute(computed_result)[0]
 
         self.assertEqual(result, expected_result)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

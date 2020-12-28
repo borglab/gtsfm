@@ -9,13 +9,15 @@ import sys
 import dask
 import gtsam
 from dask.delayed import Delayed
-from gtsam import GeneralSFMFactorCal3Bundler, SfmData, symbol_shorthand
+from gtsam import GeneralSFMFactor2Cal3Bundler, SfmData, symbol_shorthand
 
 from gtsfm.common.sfm_result import SfmResult
 
 # TODO: any way this goes away?
-C = symbol_shorthand.C
-P = symbol_shorthand.P
+C = symbol_shorthand.C  # camera
+P = symbol_shorthand.P  # 3d point
+X = symbol_shorthand.X  # camera pose
+K = symbol_shorthand.K  # calibration
 
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
@@ -26,6 +28,16 @@ class BundleAdjustmentOptimizer:
 
     This class refines global pose estimates and intrinsics of cameras, and also refines 3D point cloud structure given tracks from triangulation."""
 
+    def __init__(self, shared_calib: bool = False):
+        """Initializes the parameters for bundle adjustment module.
+
+        Args:
+            shared_calib (optional): Flag to enable shared calibration across
+                                     all cameras. Defaults to False.
+        """
+
+        self._shared_calib = shared_calib
+
     def run(self, initial_data: SfmData) -> SfmResult:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
 
@@ -35,7 +47,8 @@ class BundleAdjustmentOptimizer:
             optimized camera poses, 3D point w/ tracks, and error metrics.
         """
         logging.info(
-            f"Input: {initial_data.number_tracks()} tracks on {initial_data.number_cameras()} cameras\n")
+            f"Input: {initial_data.number_tracks()} tracks on {initial_data.number_cameras()} cameras\n"
+        )
 
         # Create a factor graph
         graph = gtsam.NonlinearFactorGraph()
@@ -52,22 +65,38 @@ class BundleAdjustmentOptimizer:
             for m_idx in range(track.number_measurements()):
                 # i represents the camera index, and uv is the 2d measurement
                 i, uv = track.measurement(m_idx)
-                # note use of shorthand symbols C and P
-                graph.add(GeneralSFMFactorCal3Bundler(uv, noise, C(i), P(j)))
+
+                graph.add(
+                    GeneralSFMFactor2Cal3Bundler(
+                        uv, noise, X(i), P(j), K(0 if self._shared_calib else i)
+                    )
+                )
             j += 1
 
-        # Add a prior on pose x1. This indirectly specifies where the origin is.
+        # Add a prior on camera x0's pose. This indirectly specifies where the origin is.
         graph.push_back(
-            gtsam.PriorFactorPinholeCameraCal3Bundler(
-                C(0), initial_data.camera(0),
-                    gtsam.noiseModel.Isotropic.Sigma(9, 0.1)
+            gtsam.PriorFactorPose3(
+                X(0),
+                initial_data.camera(0).pose(),
+                gtsam.noiseModel.Isotropic.Sigma(6, 0.1),
             )
         )
+
+        # Add prior on camera x0's intrinsics.
+        graph.push_back(
+            gtsam.PriorFactorCal3Bundler(
+                K(0),
+                initial_data.camera(0).calibration(),
+                gtsam.noiseModel.Isotropic.Sigma(3, 0.1),
+            )
+        )
+
         # Also add a prior on the position of the first landmark to fix the scale
         graph.push_back(
             gtsam.PriorFactorPoint3(
-                P(0), initial_data.track(0).point3(),
-                gtsam.noiseModel.Isotropic.Sigma(3, 0.1)
+                P(0),
+                initial_data.track(0).point3(),
+                gtsam.noiseModel.Isotropic.Sigma(3, 0.1),
             )
         )
 
@@ -78,8 +107,20 @@ class BundleAdjustmentOptimizer:
         # add each PinholeCameraCal3Bundler
         for cam_idx in range(initial_data.number_cameras()):
             camera = initial_data.camera(cam_idx)
-            initial.insert(C(i), camera)
+            initial.insert(X(i), camera.pose())
             i += 1
+
+        if self._shared_calib:
+            camera = initial_data.camera(0)
+            initial.insert(K(0), camera.calibration())
+
+        else:
+            i = 0
+            # add each PinholeCameraCal3Bundler
+            for cam_idx in range(initial_data.number_cameras()):
+                camera = initial_data.camera(cam_idx)
+                initial.insert(K(i), camera.calibration())
+                i += 1
 
         j = 0
         # add each SfmTrack
@@ -103,12 +144,14 @@ class BundleAdjustmentOptimizer:
         logging.info(f"final error: {graph.error(result):.2f}")
 
         # construct the results
-        sfm_result = SfmResult(initial_data, result, graph.error(result))
+        sfm_result = SfmResult(
+            initial_data, result, graph.error(result), self._shared_calib
+        )
 
         return sfm_result
 
     def create_computation_graph(self, sfm_data_graph: Delayed) -> Delayed:
-        """ Create the computation graph for performing bundle adjustment.
+        """Create the computation graph for performing bundle adjustment.
 
         Args:
             sfm_data_graph: an SfmData object wrapped up using dask.delayed

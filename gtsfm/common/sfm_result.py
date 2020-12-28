@@ -3,12 +3,22 @@
 Authors: Xiaolong Wu, Ayush Baid
 """
 from typing import List
+from dask import optimization
 
 import numpy as np
-from gtsam import Pose3, SfmData, SfmTrack, Values, symbol_shorthand
+from gtsam import (
+    Pose3,
+    SfmData,
+    SfmTrack,
+    Values,
+    symbol_shorthand,
+    PinholeCameraCal3Bundler,
+)
 
-C = symbol_shorthand.C
-P = symbol_shorthand.P
+C = symbol_shorthand.C  # camera
+P = symbol_shorthand.P  # 3d point
+X = symbol_shorthand.X  # camera pose
+K = symbol_shorthand.K  # calibration
 
 
 class SfmResult:
@@ -21,6 +31,7 @@ class SfmResult:
         initial_data: SfmData,
         optimization_result: Values,
         total_reproj_error: float,
+        use_shared_calib: bool,
     ) -> None:
 
         self.total_reproj_error = total_reproj_error
@@ -30,7 +41,12 @@ class SfmResult:
         # add camera params
         for i in range(initial_data.number_cameras()):
             self.result_data.add_camera(
-                optimization_result.atPinholeCameraCal3Bundler(C(i))
+                PinholeCameraCal3Bundler(
+                    optimization_result.atPose3(X(i)),
+                    optimization_result.atCal3Bundler(
+                        K(0 if use_shared_calib else i)
+                    ),
+                ),
             )
 
         # add tracks
