@@ -30,7 +30,9 @@ class RootSIFTDescriptor(SIFTDescriptor):
 
         Returns:
             the descriptors for the input features, of shape (N, D) where D is
-                the dimension of each descriptor.
+                the dimension of each descriptor. Note that each descriptor
+                will have unit L2-norm, as L1-normalization followed by a 
+                square root already gives unit norm under the L2 norm.
         """
         if len(keypoints) == 0:
             return np.array([])
