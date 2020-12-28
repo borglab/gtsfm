@@ -39,7 +39,7 @@ class TestFrontend(unittest.TestCase):
         )
         assert len(self.loader)
 
-    def get_frontend_computation_graph(
+    def __get_frontend_computation_graph(
         self, feature_extractor: FeatureExtractor, two_view_estimator: TwoViewEstimator
     ) -> Tuple[Delayed, Delayed]:
         """Copied from SceneOptimizer class, without back-end code"""
@@ -82,7 +82,7 @@ class TestFrontend(unittest.TestCase):
         return i2Ri1_graph_dict, i2Ui1_graph_dict
 
     def test_sift_twoway_ransac(self):
-        """ """
+        """Check DoG + SIFT + 2-way Matcher + RANSAC-5pt frontend."""
         det_desc = SIFTDetectorDescriptor()
         feature_extractor = FeatureExtractor(det_desc)
         two_view_estimator = TwoViewEstimator(
@@ -96,7 +96,7 @@ class TestFrontend(unittest.TestCase):
         )
 
     def test_sift_twoway_degensac(self):
-        """ """
+        """Check DoG + SIFT + 2-way Matcher + DEGENSAC-8pt frontend."""
         det_desc = SIFTDetectorDescriptor()
         feature_extractor = FeatureExtractor(det_desc)
         two_view_estimator = TwoViewEstimator(
@@ -117,7 +117,7 @@ class TestFrontend(unittest.TestCase):
         translation_err_tol: float,
     ) -> None:
         """ Compare recovered relative rotation and translation with ground truth."""
-        i2Ri1_graph_dict, i2Ui1_graph_dict = self.get_frontend_computation_graph(
+        i2Ri1_graph_dict, i2Ui1_graph_dict = self.__get_frontend_computation_graph(
             feature_extractor, two_view_estimator
         )
 
