@@ -1,4 +1,4 @@
-name: gtsfm
+name: gtsfm-v1
 channels:
   - pytorch
   - conda-forge
