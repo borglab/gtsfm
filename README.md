@@ -3,9 +3,18 @@ End-to-end SFM pipeline based on GTSAM
 
 ## Installation
 
-First, install GTSAM.
+First, create the conda environment:
+```bash
+conda env create -f env.yml
+```
+Now, activate the conda environment:
+```bash
+conda activate gtsfm-v1
+```
+(Pending updated wheels) Install GTSAM from source.
 
-```python
+Now, install `gtsfm` as a module:
+```bash
 pip install -e .
 ```
 Make sure that you can run `python -c "import gtsfm; print('hello world')"` in python, and you are good to go!
