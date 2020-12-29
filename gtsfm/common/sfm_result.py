@@ -53,6 +53,17 @@ class SfmData:
     def track(self, idx: int) -> SfmTrack:
         return self.tracks[idx]
 
+    def get_track_length_statistics(self) -> Tuple[float, float]:
+        """Compute mean and median of track length.
+
+        Returns:
+            Mean of track length.
+            Median of track length.
+        """
+        track_lens = map(len, self.tracks)
+
+        return np.mean(track_lens), np.median(track_lens)
+
     def __validate_track(
         self, track: SfmTrack, reproj_err_thresh: float
     ) -> bool:
