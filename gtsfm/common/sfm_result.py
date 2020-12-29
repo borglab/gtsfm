@@ -2,7 +2,7 @@
 
 Authors: Xiaolong Wu, Ayush Baid
 """
-from typing import Dict, List, NamedTuple, Optional
+from typing import List, NamedTuple, Optional, Tuple
 
 import numpy as np
 from gtsam import PinholeCameraCal3Bundler, Pose3
@@ -53,6 +53,51 @@ class SfmData:
     def track(self, idx: int) -> SfmTrack:
         return self.tracks[idx]
 
+    def __validate_track(
+        self, track: SfmTrack, reproj_err_thresh: float
+    ) -> bool:
+        """Validates a track based on reprojection errors and cheirality checks.
+
+        Args:
+            track: track with 3D landmark and measurements.
+            reproj_err_thresh: reprojection err threshold for each measurement.
+
+        Returns:
+            validity of the track.
+        """
+
+        for k in range(track.number_measurements()):
+            cam_idx, uv = track.measurement(k)
+
+            camera = self.camera(cam_idx)
+
+            # Project to camera
+            uv_reprojected, success_flag = camera.projectSafe(track.landmark)
+
+            if not success_flag:
+                return False
+
+            reproj_error = np.linalg.norm(uv - uv_reprojected)
+
+            if reproj_error > reproj_err_thresh:
+                return False
+
+        return True
+
+    def filter_landmarks(self, reproj_err_thresh: float = 5) -> "SfmData":
+        """Filters out landmarks with high reprojection error
+
+        Args:
+            reproj_err_thresh: reprojection err threshold for each measurement.
+        """
+        filtered_tracks = [
+            track
+            for track in self.tracks
+            if self.__validate_track(track, reproj_err_thresh)
+        ]
+
+        return SfmData(self.cameras, filtered_tracks)
+
 
 class SfmResult(NamedTuple):
     """Class to hold optimized camera params, 3d landmarks (w/ tracks), and
@@ -101,51 +146,6 @@ class SfmResult(NamedTuple):
             rtol=1e-2,
             atol=1e-1,
         )
-
-    def __validate_track(
-        self, track: SfmTrack, reproj_err_thresh: float
-    ) -> bool:
-        """Validates a track based on reprojection errors and cheirality checks.
-
-        Args:
-            track: track with 3D landmark and measurements.
-            reproj_err_thresh: reprojection err threshold for each measurement.
-
-        Returns:
-            validity of the track.
-        """
-
-        for k in range(track.number_measurements()):
-            cam_idx, uv = track.measurement(k)
-
-            camera = self.sfm_data.camera(cam_idx)
-
-            # Project to camera
-            uv_reprojected, success_flag = camera.projectSafe(track.point3)
-
-            if not success_flag:
-                return False
-
-            reproj_error = np.linalg.norm(uv - uv_reprojected)
-
-            if reproj_error > reproj_err_thresh:
-                return False
-
-        return True
-
-    def filter_landmarks(self, reproj_err_thresh: float = 5) -> SfmData:
-        """Filters out landmarks with high reprojection error
-
-        Args:
-            reproj_err_thresh: reprojection err threshold for each measurement.
-        """
-        filtered_tracks = [
-            track
-            for track in self.sfm_data.tracks
-            if self.__validate_track(track, reproj_err_thresh)
-        ]
-
-        return SfmData(self.sfm_data.cameras, filtered_tracks)
 
     def get_camera_poses(self) -> List[Pose3]:
         """Getter for camera poses wTi.
