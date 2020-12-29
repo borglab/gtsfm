@@ -1,23 +1,34 @@
 name: gtsfm
 channels:
-  - menpo
   - pytorch
   - conda-forge
   - defaults
 dependencies:
-  - python=3.7
+  # python essentials
+  - python=3.8
   - pip
-  - autopep8
-  - pylint
-  - pytype
+  # formatting and dev environment
+  - black
   - coverage
-  - numpy
-  - dask
+  - mypy
+  - pylint
   - pytest
-  - pytorch
+  # dask and related
+  - dask
+  - python-graphviz
+  # core functionality and APIs
+  - matplotlib>=3.3.3
+  - networkx
+  - numpy
+  - pandas
+  - pillow>=8.0.1
+  - scikit-learn
+  # 3rd party algorithms for different modules
   - cudatoolkit=10.2
-  - opencv=3.4.2
+  - opencv=4.5.0
+  - pytorch
   - pip:
+    - gtsam==4.1.0
     - pydegensac
 
 
