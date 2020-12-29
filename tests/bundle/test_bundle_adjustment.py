@@ -63,8 +63,14 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         computed_result = self.obj.run(self.test_data)
 
         expected_error = 0.046137573704557046
+
         self.assertTrue(
-            np.isclose(expected_error, computed_result.total_reproj_error)
+            np.isclose(
+                expected_error,
+                computed_result.total_reproj_error,
+                atol=1e-2,
+                rtol=1e-2,
+            )
         )
 
     def test_create_computation_graph(self):
