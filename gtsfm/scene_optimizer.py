@@ -19,6 +19,7 @@ from dask.distributed import Client, LocalCluster, performance_report
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3
 
 import gtsfm.utils.io as io_utils
+import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.serialization  # import needed to register serialization fns
 import gtsfm.utils.viz as viz_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import (
@@ -32,6 +33,7 @@ from gtsfm.averaging.translation.translation_averaging_base import (
     TranslationAveragingBase,
 )
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
+from gtsfm.common.sfm_result import SfmResult
 from gtsfm.data_association.data_assoc import (
     DataAssociation,
     TriangulationParam,
@@ -394,7 +396,7 @@ class SceneOptimizer:
 
         if self._save_viz:
             filtered_sfm_data_graph = dask.delayed(
-                ba_output_graph.filter_landmarks
+                ba_output_graph.sfm_data.filter_landmarks
             )(config.reproj_error_thresh)
 
             os.makedirs("plots/ba_input", exist_ok=True)
@@ -470,3 +472,5 @@ if __name__ == "__main__":
 
     with performance_report(filename="dask-report.html"):
         sfm_result = sfm_result_graph.compute()
+
+    assert isinstance(sfm_result, SfmResult)
