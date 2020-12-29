@@ -3,7 +3,6 @@
 Authors: Ayush Baid
 """
 import pickle
-from sys import byteorder
 from typing import Dict, List, Tuple
 
 from distributed.protocol import dask_deserialize, dask_serialize
@@ -11,6 +10,7 @@ from gtsam import (
     Cal3Bundler,
     PinholeCameraCal3Bundler,
     Point3,
+    Pose3,
     Rot3,
     Unit3,
 )
@@ -87,6 +87,39 @@ def deserialize_Rot3(header: Dict, frames: List[bytes]) -> Rot3:
     r.deserialize(serialized_str)
 
     return r
+
+
+@dask_serialize.register(Pose3)
+def serialize_Pose3(pose3: Pose3) -> Tuple[Dict, List[bytes]]:
+    """Serialize Pose3 instance, and return serialized data."""
+    header = {"serializer": "custom"}
+    frames = [bytes(pose3.serialize(), "utf-8")]
+
+    return header, frames
+
+
+@dask_deserialize.register(Pose3)
+def deserialize_Pose3(header: Dict, frames: List[bytes]) -> Pose3:
+    """Deserialize bytes into Pose3 instance.
+
+    Args:
+        header: Header of the serialized data.
+        frames: list of bytes in the serialized data.
+
+    Returns:
+        deserialized instance
+    """
+    if len(frames) > 1:  # this may be cut up for network reasons
+        frame = "".join(frames)
+    else:
+        frame = frames[0]
+
+    serialized_str = frame.decode("utf-8")
+
+    pose3 = Pose3()
+    pose3.deserialize(serialized_str)
+
+    return pose3
 
 
 @dask_serialize.register(Unit3)
@@ -186,6 +219,60 @@ def deserialize_PinholeCameraCal3Bundler(
     obj.deserialize(serialized_str)
 
     return obj
+
+
+@dask_serialize.register(SfmData)
+def serialize_SfmData(
+    obj: SfmData,
+) -> Tuple[Dict, List[bytes]]:
+    """Serialize SfmResult instance, and return serialized data."""
+    header = {"serializer": "custom"}
+
+    # separate out cameras as they cannot be pickled
+    cameras = obj.cameras
+
+    # convert cameras to serialized strings using GTSAMs
+    camera_serialized_strings = [x.serialize() for x in cameras]
+
+    info_dict = {
+        "tracks": obj.tracks,
+        "camera_serialized_list": camera_serialized_strings,
+    }
+
+    # apply custom serialization on cameras
+    serialized_sfm_data = pickle.dumps(info_dict)
+
+    return header, [serialized_sfm_data]
+
+
+@dask_deserialize.register(SfmData)
+def deserialize_SfmData(header: Dict, frames: List[bytes]) -> SfmData:
+    """Deserialize bytes into SfmData instance.
+
+    Args:
+        header: Header of the serialized data.
+        frames: list of bytes in the serialized data.
+
+    Returns:
+        deserialized instance.
+    """
+    if len(frames) > 1:  # this may be cut up for network reasons
+        frame = "".join(frames)
+    else:
+        frame = frames[0]
+
+    # deserialize the dictionary
+    info_dict = pickle.loads(frame)
+
+    # deserialize cameras
+    cameras = []
+    for cam_string in info_dict["camera_serialized_list"]:
+        cam = PinholeCameraCal3Bundler()
+        cam.deserialize(cam_string)
+
+        cameras.append(cam)
+
+    return SfmData(cameras, info_dict["tracks"])
 
 
 @dask_serialize.register(SfmResult)
