@@ -34,15 +34,7 @@ class BundleAdjustmentOptimizer:
             use_robust_measurement_noise (bool, optional): [description]. Defaults to False.
         """
 
-        if use_robust_measurement_noise:
-            self._measurement_noise = gtsam.noiseModel.Robust(
-                gtsam.noiseModel.mEstimator.Huber(1.35),
-                gtsam.noiseModel.Isotropic.Sigma(2, 1.0),
-            )
-        else:
-            self._measurement_noise = gtsam.noiseModel.Isotropic.Sigma(
-                2, 1.0
-            )  # one pixel in u and v
+        self._use_robust_measurement_noise = use_robust_measurement_noise
 
     def run(self, initial_data: SfmData) -> SfmResult:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
@@ -55,6 +47,17 @@ class BundleAdjustmentOptimizer:
         logging.info(
             f"Input: {initial_data.number_tracks()} tracks on {initial_data.number_cameras()} cameras\n"
         )
+
+        # choose noise model for measurements
+        if self._use_robust_measurement_noise:
+            measurement_noise = gtsam.noiseModel.Robust(
+                gtsam.noiseModel.mEstimator.Huber(1.35),
+                gtsam.noiseModel.Isotropic.Sigma(2, 1.0),
+            )
+        else:
+            measurement_noise = gtsam.noiseModel.Isotropic.Sigma(
+                2, 1.0
+            )  # one pixel in u and v
 
         # Create a factor graph
         graph = gtsam.NonlinearFactorGraph()
@@ -69,7 +72,7 @@ class BundleAdjustmentOptimizer:
                 # note use of shorthand symbols C and P
                 graph.add(
                     GeneralSFMFactorCal3Bundler(
-                        uv, self._measurement_noise, C(i), P(j)
+                        uv, measurement_noise, C(i), P(j)
                     )
                 )
             j += 1
