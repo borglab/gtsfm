@@ -88,7 +88,7 @@ class TestPoint3dInitializer(unittest.TestCase):
         super().setUp()
 
         self.simple_triangulation_initializer = Point3dInitializer(
-            CAMERAS, TriangulationParam.NO_RANSAC
+            CAMERAS, TriangulationParam.NO_RANSAC, reproj_error_thresh=5
         )
 
         self.ransac_uniform_sampling_initializer = Point3dInitializer(
@@ -188,9 +188,12 @@ class TestPoint3dInitializer(unittest.TestCase):
         )
 
     def testSimpleTriangulationWithOutlierMeasurements(self):
-        self.assertFalse(
-            self.__runWithSingleOutlier(self.simple_triangulation_initializer)
+
+        sfm_track = self.simple_triangulation_initializer.triangulate(
+            SfmTrack(get_track_with_one_outlier())
         )
+
+        self.assertIsNone(sfm_track)
 
     def testSimpleTriangulationWithCheiralityException(self):
         self.assertTrue(
