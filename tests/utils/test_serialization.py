@@ -33,6 +33,17 @@ class TestSerialization(unittest.TestCase):
 
         np.testing.assert_allclose(expected, recovered)
 
+    def test_pose3_roundtrip(self):
+        """Test the round-trip on Point3 object."""
+
+        expected = Pose3(Rot3.RzRyRx(0, 0.1, 0.2), np.random.randn(3))
+
+        header, frames = serialization_utils.serialize_Pose3(expected)
+
+        recovered = serialization_utils.deserialize_Pose3(header, frames)
+
+        self.assertTrue(recovered.equals(expected, 1e-5))
+
     def test_rot3_roundtrip(self):
         """Test the round-trip on Rot3 object."""
 
@@ -83,6 +94,20 @@ class TestSerialization(unittest.TestCase):
         )
 
         self.assertTrue(expected.equals(recovered, 1e-5))
+
+    def test_sfmData_roundtrip(self):
+
+        expected = test_bundle_adjustment.read_example_data()
+
+        header, frames = serialization_utils.serialize_SfmData(expected)
+
+        recovered = serialization_utils.deserialize_SfmData(header, frames)
+
+        # comparing cameras and total reprojection error
+        # self.assertListEqual(recovered.cameras, expected.cameras)
+
+        # comparing tracks in an order-sensitive fashion.
+        self.assertListEqual(expected.tracks, recovered.tracks)
 
     def test_sfmResult_roundtrip(self):
 
