@@ -27,14 +27,12 @@ class BundleAdjustmentOptimizer:
 
     This class refines global pose estimates and intrinsics of cameras, and also refines 3D point cloud structure given tracks from triangulation."""
 
-    def __init__(self, use_robust_measurement_noise: bool = True) -> None:
+    def __init__(self) -> None:
         """[summary]
 
         Args:
             use_robust_measurement_noise (bool, optional): [description]. Defaults to False.
         """
-
-        self._use_robust_measurement_noise = use_robust_measurement_noise
 
     def run(self, initial_data: SfmData) -> SfmResult:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
@@ -48,16 +46,10 @@ class BundleAdjustmentOptimizer:
             f"Input: {initial_data.number_tracks()} tracks on {initial_data.number_cameras()} cameras\n"
         )
 
-        # choose noise model for measurements
-        if self._use_robust_measurement_noise:
-            measurement_noise = gtsam.noiseModel.Robust(
-                gtsam.noiseModel.mEstimator.Huber(1.35),
-                gtsam.noiseModel.Isotropic.Sigma(2, 1.0),
-            )
-        else:
-            measurement_noise = gtsam.noiseModel.Isotropic.Sigma(
-                2, 1.0
-            )  # one pixel in u and v
+        # noise model for measurements
+        measurement_noise = gtsam.noiseModel.Isotropic.Sigma(
+            2, 1.0
+        )  # one pixel in u and v
 
         # Create a factor graph
         graph = gtsam.NonlinearFactorGraph()
