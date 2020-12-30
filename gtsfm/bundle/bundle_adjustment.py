@@ -27,13 +27,6 @@ class BundleAdjustmentOptimizer:
 
     This class refines global pose estimates and intrinsics of cameras, and also refines 3D point cloud structure given tracks from triangulation."""
 
-    def __init__(self) -> None:
-        """[summary]
-
-        Args:
-            use_robust_measurement_noise (bool, optional): [description]. Defaults to False.
-        """
-
     def run(self, initial_data: SfmData) -> SfmResult:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
 
