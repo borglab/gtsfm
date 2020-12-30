@@ -2,7 +2,7 @@
 
 Authors: Xiaolong Wu, Ayush Baid
 """
-from typing import List, NamedTuple, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import numpy as np
 from gtsam import PinholeCameraCal3Bundler, Pose3

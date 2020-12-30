@@ -232,11 +232,13 @@ def serialize_SfmData(
     cameras = obj.cameras
 
     # convert cameras to serialized strings using GTSAMs
-    camera_serialized_strings = [x.serialize() for x in cameras]
+    camera_serialized_strings = {
+        i: cam.serialize() for i, cam in cameras.items()
+    }
 
     info_dict = {
         "tracks": obj.tracks,
-        "camera_serialized_list": camera_serialized_strings,
+        "camera_serialized_dict": camera_serialized_strings,
     }
 
     # apply custom serialization on cameras
@@ -265,12 +267,12 @@ def deserialize_SfmData(header: Dict, frames: List[bytes]) -> SfmData:
     info_dict = pickle.loads(frame)
 
     # deserialize cameras
-    cameras = []
-    for cam_string in info_dict["camera_serialized_list"]:
+    cameras = {}
+    for i, cam_string in info_dict["camera_serialized_dict"].items():
         cam = PinholeCameraCal3Bundler()
         cam.deserialize(cam_string)
 
-        cameras.append(cam)
+        cameras[i] = cam
 
     return SfmData(cameras, info_dict["tracks"])
 
@@ -293,7 +295,7 @@ def serialize_SfmResult(
     info_dict = {
         "total_reproj_error": obj.total_reproj_error,
         "tracks": obj.sfm_data.tracks,
-        "camera_serialized_list": camera_serialized_strings,
+        "camera_serialized_dict": camera_serialized_strings,
     }
 
     # apply custom serialization on cameras
@@ -323,7 +325,7 @@ def deserialize_SfmResult(header: Dict, frames: List[bytes]) -> SfmResult:
 
     # deserialize cameras
     cameras = {}
-    for i, cam_string in info_dict["camera_serialized_list"].items():
+    for i, cam_string in info_dict["camera_serialized_dict"].items():
         cam = PinholeCameraCal3Bundler()
         cam.deserialize(cam_string)
 

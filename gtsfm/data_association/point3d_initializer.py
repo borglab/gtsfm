@@ -188,8 +188,8 @@ class Point3dInitializer(NamedTuple):
             return None
 
         # final filtering based on reprojection error
-        reproj_errors = self.compute_reprojection_errors(
-            triangulated_pt, inlier_track
+        reproj_errors = self.compute_track_reprojection_errors(
+            inlier_track.measurements, triangulated_pt
         )
         if not np.all(reproj_errors < self.reproj_error_thresh):
             return None

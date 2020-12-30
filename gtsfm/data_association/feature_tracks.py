@@ -14,7 +14,6 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import gtsam
 import numpy as np
-from gtsam import PinholeCameraCal3Bundler
 
 from gtsfm.common.keypoints import Keypoints
 
