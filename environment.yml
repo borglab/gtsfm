@@ -28,7 +28,7 @@ dependencies:
   - opencv=4.5.0
   - pytorch
   - pip:
-    - gtsam==4.1.0
+    # - gtsam==4.1.0
     - pydegensac
 
 
