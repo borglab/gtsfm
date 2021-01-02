@@ -1,5 +1,9 @@
 name: gtsfm-v1
 channels:
+  # for priority order, we prefer pytorch as the highest priority as it supplies
+  # latest stable packages for numerous deep learning based methods. conda-forge
+  # supplies higher versions of packages like opencv compared to the defaults
+  # channel.
   - pytorch
   - conda-forge
   - defaults
@@ -14,7 +18,7 @@ dependencies:
   - pylint
   - pytest
   # dask and related
-  - dask
+  - dask # same as dask[complete] pip distribution
   - python-graphviz
   # core functionality and APIs
   - matplotlib>=3.3.3
@@ -25,10 +29,10 @@ dependencies:
   - scikit-learn
   # 3rd party algorithms for different modules
   - cudatoolkit=10.2
-  - opencv=4.5.0
+  - opencv=4.5.0 # preferring conda-forge's distribution as it provides the latest distribution
   - pytorch
   - pip:
-    # - gtsam==4.1.0
+    - gtsam==4.1.1.dev3
     - pydegensac
 
 

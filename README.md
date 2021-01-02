@@ -11,7 +11,6 @@ Now, activate the conda environment:
 ```bash
 conda activate gtsfm-v1
 ```
-(Pending updated wheels) Install GTSAM from source.
 
 Now, install `gtsfm` as a module:
 ```bash
