@@ -5,7 +5,7 @@ End-to-end SFM pipeline based on GTSAM
 
 First, create the conda environment:
 ```bash
-conda env create -f env.yml
+conda env create -f environment.yml
 ```
 Now, activate the conda environment:
 ```bash
