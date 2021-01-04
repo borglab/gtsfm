@@ -8,11 +8,10 @@ from typing import Dict, List, Tuple
 import dask
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import PinholeCameraCal3Bundler
+from gtsam import PinholeCameraCal3Bundler, SfmData, SfmTrack
 
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.common.sfm_result import SfmData
-from gtsfm.data_association.feature_tracks import SfmMeasurement, SfmTrack
+from gtsfm.data_association.feature_tracks import SfmMeasurement
 
 
 class DummyDataAssociation:
@@ -66,7 +65,7 @@ class DummyDataAssociation:
             )
 
             # for each selected camera, randomly select a point
-            measurements = []
+            # measurements = []
             for cam_idx in selected_cams:
                 measurement_idx = random.randint(
                     0, len(keypoints_list[cam_idx]) - 1
@@ -75,14 +74,21 @@ class DummyDataAssociation:
                     measurement_idx
                 ]
 
-                measurements.append(SfmMeasurement(cam_idx, measurement))
+                # measurements.append(SfmMeasurement(cam_idx, measurement))
 
-            sfmTrack = SfmTrack(measurements, point_3d)
+                sfmTrack.add_measurement(cam_idx, measurement)
 
             tracks.append(sfmTrack)
 
         # create the final SfmData object
-        return SfmData(cameras, tracks)
+        sfm_data = SfmData()
+        for cam in cameras.values():
+            sfm_data.add_camera(cam)
+
+        for track in tracks:
+            sfm_data.add_track(track)
+
+        return sfm_data
 
     def create_computation_graph(
         self,

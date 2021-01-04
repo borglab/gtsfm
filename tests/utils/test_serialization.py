@@ -4,19 +4,22 @@ Authors: Ayush Baid
 """
 import unittest
 
+import gtsam
 import numpy as np
 from gtsam import (
     Cal3Bundler,
     PinholeCameraCal3Bundler,
     Point3,
+    Pose3,
     Rot3,
     Unit3,
-    Pose3,
 )
 
 import gtsfm.utils.serialization as serialization_utils
-import tests.bundle.test_bundle_adjustment as test_bundle_adjustment
 from gtsfm.common.sfm_result import SfmResult
+
+GTSAM_EXAMPLE_FILE = "dubrovnik-3-7-pre"
+EXAMPLE_DATA = gtsam.readBal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
 
 
 class TestSerialization(unittest.TestCase):
@@ -97,7 +100,7 @@ class TestSerialization(unittest.TestCase):
 
     def test_sfmData_roundtrip(self):
 
-        expected = test_bundle_adjustment.read_example_data()
+        expected = EXAMPLE_DATA
 
         header, frames = serialization_utils.serialize_SfmData(expected)
 
@@ -107,25 +110,22 @@ class TestSerialization(unittest.TestCase):
         # self.assertListEqual(recovered.cameras, expected.cameras)
 
         # comparing tracks in an order-sensitive fashion.
-        self.assertListEqual(expected.tracks, recovered.tracks)
+        self.assertTrue(recovered.equals(expected, 1e-9))
 
     def test_sfmResult_roundtrip(self):
 
-        expected = SfmResult(
-            test_bundle_adjustment.read_example_data(), total_reproj_error=1.5
-        )
+        expected = SfmResult(EXAMPLE_DATA, total_reproj_error=1.5)
 
         header, frames = serialization_utils.serialize_SfmResult(expected)
 
         recovered = serialization_utils.deserialize_SfmResult(header, frames)
 
         # comparing cameras and total reprojection error
-        self.assertEqual(recovered, expected)
-
-        # comparing tracks in an order-sensitive fashion.
-        self.assertListEqual(
-            expected.sfm_data.tracks, recovered.sfm_data.tracks
+        self.assertEqual(
+            recovered.total_reproj_error, expected.total_reproj_error
         )
+
+        self.assertTrue(recovered.sfm_data.equals(expected.sfm_data, 1e-9))
 
 
 if __name__ == "__main__":

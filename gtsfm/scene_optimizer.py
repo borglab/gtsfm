@@ -396,7 +396,7 @@ class SceneOptimizer:
 
         if self._save_viz:
             filtered_sfm_data_graph = dask.delayed(
-                ba_output_graph.sfm_data.filter_landmarks
+                ba_output_graph.filter_landmarks
             )(config.reproj_error_thresh)
 
             os.makedirs("plots/ba_input", exist_ok=True)

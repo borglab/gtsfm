@@ -15,12 +15,11 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 import dask
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import PinholeCameraCal3Bundler
+from gtsam import PinholeCameraCal3Bundler, SfmData, SfmTrack
 
 import gtsfm.data_association.feature_tracks as feature_tracks
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.common.sfm_result import SfmData
-from gtsfm.data_association.feature_tracks import SfmTrack
+from gtsfm.data_association.feature_tracks import SfmTrack2d
 from gtsfm.data_association.point3d_initializer import (
     Point3dInitializer,
     TriangulationParam,
@@ -49,7 +48,7 @@ class DataAssociation(NamedTuple):
         """Validate the track by checking its length."""
         return (
             sfm_track is not None
-            and len(sfm_track.measurements) >= self.min_track_len
+            and sfm_track.number_measurements() >= self.min_track_len
         )
 
     def run(
@@ -99,7 +98,7 @@ class DataAssociation(NamedTuple):
         for i, cam in cameras.items():
             if i != expected_camera_indices[i]:
                 raise RuntimeError("Some cameras must have been dropped ")
-            triangulated_data.add_camera(i, cam)
+            triangulated_data.add_camera(cam)
 
         return triangulated_data
 

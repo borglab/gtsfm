@@ -9,10 +9,15 @@ import sys
 import dask
 import gtsam
 from dask.delayed import Delayed
-from gtsam import GeneralSFMFactorCal3Bundler, Values, symbol_shorthand
+from gtsam import (
+    GeneralSFMFactorCal3Bundler,
+    SfmData,
+    SfmTrack,
+    Values,
+    symbol_shorthand,
+)
 
-from gtsfm.common.sfm_result import SfmData, SfmResult
-from gtsfm.data_association.feature_tracks import SfmTrack
+from gtsfm.common.sfm_result import SfmResult
 
 # TODO: any way this goes away?
 C = symbol_shorthand.C
@@ -52,8 +57,9 @@ class BundleAdjustmentOptimizer:
         for t_idx in range(initial_data.number_tracks()):
             track = initial_data.track(t_idx)  # SfmTrack
             # retrieve the SfmMeasurement objects
-            for i, uv in track.measurements:
+            for m_idx in range(track.number_measurements()):
                 # i represents the camera index, and uv is the 2d measurement
+                i, uv = track.measurement(m_idx)
                 # note use of shorthand symbols C and P
                 graph.add(
                     GeneralSFMFactorCal3Bundler(
@@ -74,7 +80,7 @@ class BundleAdjustmentOptimizer:
         graph.push_back(
             gtsam.PriorFactorPoint3(
                 P(0),
-                initial_data.track(0).point3,
+                initial_data.track(0).point3(),
                 gtsam.noiseModel.Isotropic.Sigma(3, 0.1),
             )
         )
@@ -93,7 +99,7 @@ class BundleAdjustmentOptimizer:
         # add each SfmTrack
         for t_idx in range(initial_data.number_tracks()):
             track = initial_data.track(t_idx)
-            initial.insert(P(j), track.point3)
+            initial.insert(P(j), track.point3())
             j += 1
 
         # Optimize the graph and print results
@@ -143,7 +149,7 @@ def values_to_sfm_data(values: Values, initial_data: SfmData) -> SfmData:
 
     # add cameras
     for i in range(initial_data.number_cameras()):
-        result.add_camera(i, values.atPinholeCameraCal3Bundler(C(i)))
+        result.add_camera(values.atPinholeCameraCal3Bundler(C(i)))
 
     # add tracks
     for j in range(initial_data.number_tracks()):
@@ -151,9 +157,12 @@ def values_to_sfm_data(values: Values, initial_data: SfmData) -> SfmData:
 
         # init the result with optimized 3D point
         result_track = SfmTrack(
-            input_track.measurements,
             values.atPoint3(P(j)),
         )
+
+        for measurement_idx in range(input_track.number_measurements()):
+            i, uv = input_track.measurement(measurement_idx)
+            result_track.add_measurement(i, uv)
 
         result.add_track(result_track)
 

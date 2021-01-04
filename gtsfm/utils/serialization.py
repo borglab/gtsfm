@@ -12,10 +12,11 @@ from gtsam import (
     Point3,
     Pose3,
     Rot3,
+    SfmData,
     Unit3,
 )
 
-from gtsfm.common.sfm_result import SfmData, SfmResult
+from gtsfm.common.sfm_result import SfmResult
 
 """
 Serialization and deserialization function calls will be handled in the background by Dask,
@@ -228,23 +229,9 @@ def serialize_SfmData(
     """Serialize SfmResult instance, and return serialized data."""
     header = {"serializer": "custom"}
 
-    # separate out cameras as they cannot be pickled
-    cameras = obj.cameras
+    frames = [bytes(obj.serialize(), "utf-8")]
 
-    # convert cameras to serialized strings using GTSAMs
-    camera_serialized_strings = {
-        i: cam.serialize() for i, cam in cameras.items()
-    }
-
-    info_dict = {
-        "tracks": obj.tracks,
-        "camera_serialized_dict": camera_serialized_strings,
-    }
-
-    # apply custom serialization on cameras
-    serialized_sfm_data = pickle.dumps(info_dict)
-
-    return header, [serialized_sfm_data]
+    return header, frames
 
 
 @dask_deserialize.register(SfmData)
@@ -263,18 +250,12 @@ def deserialize_SfmData(header: Dict, frames: List[bytes]) -> SfmData:
     else:
         frame = frames[0]
 
-    # deserialize the dictionary
-    info_dict = pickle.loads(frame)
+    serialized_str = frame.decode("utf-8")
 
-    # deserialize cameras
-    cameras = {}
-    for i, cam_string in info_dict["camera_serialized_dict"].items():
-        cam = PinholeCameraCal3Bundler()
-        cam.deserialize(cam_string)
+    obj = SfmData()
+    obj.deserialize(serialized_str)
 
-        cameras[i] = cam
-
-    return SfmData(cameras, info_dict["tracks"])
+    return obj
 
 
 @dask_serialize.register(SfmResult)
@@ -284,24 +265,16 @@ def serialize_SfmResult(
     """Serialize SfmResult instance, and return serialized data."""
     header = {"serializer": "custom"}
 
-    # separate out cameras as they cannot be pickled
-    cameras = obj.sfm_data.cameras
-
-    # convert cameras to serialized strings using GTSAMs
-    camera_serialized_strings = {
-        i: cam.serialize() for (i, cam) in cameras.items()
-    }
-
+    # serialize SfmData instance to string as pickle cannot handle it
     info_dict = {
         "total_reproj_error": obj.total_reproj_error,
-        "tracks": obj.sfm_data.tracks,
-        "camera_serialized_dict": camera_serialized_strings,
+        "sfm_data_string": obj.sfm_data.serialize(),
     }
 
     # apply custom serialization on cameras
-    serialized_sfm_data = pickle.dumps(info_dict)
+    serialized_sfm_result = pickle.dumps(info_dict)
 
-    return header, [serialized_sfm_data]
+    return header, [serialized_sfm_result]
 
 
 @dask_deserialize.register(SfmResult)
@@ -320,18 +293,14 @@ def deserialize_SfmResult(header: Dict, frames: List[bytes]) -> SfmResult:
     else:
         frame = frames[0]
 
-    # deserialize the dictionary
+    # deserialize the top leveldictionary
     info_dict = pickle.loads(frame)
 
-    # deserialize cameras
-    cameras = {}
-    for i, cam_string in info_dict["camera_serialized_dict"].items():
-        cam = PinholeCameraCal3Bundler()
-        cam.deserialize(cam_string)
-
-        cameras[i] = cam
+    # deserialize SfmData
+    sfm_data = SfmData()
+    sfm_data.deserialize(info_dict["sfm_data_string"])
 
     return SfmResult(
-        SfmData(cameras, info_dict["tracks"]),
+        sfm_data,
         total_reproj_error=info_dict["total_reproj_error"],
     )

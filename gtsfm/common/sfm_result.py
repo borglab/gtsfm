@@ -2,112 +2,12 @@
 
 Authors: Xiaolong Wu, Ayush Baid
 """
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import List, NamedTuple, Tuple
 
 import numpy as np
-from gtsam import PinholeCameraCal3Bundler, Pose3
+from gtsam import Pose3, SfmData, SfmTrack
 
 import gtsfm.utils.geometry_comparisons as geom_comparisons
-from gtsfm.data_association.feature_tracks import SfmTrack
-
-
-class SfmData:
-    """Class to hold cameras, 3D points and their tracks."""
-
-    def __init__(
-        self,
-        cameras: Optional[Dict[int, PinholeCameraCal3Bundler]] = None,
-        tracks: Optional[List[SfmTrack]] = None,
-    ) -> None:
-        """Initialize from existing cameras and tracks.
-
-        Args:
-            cameras (optional): Initial list of cameras. Defaults to None.
-            tracks (Optional[List[SfmTrack2dWithLandmark]], optional): [description]. Defaults to None.
-        """
-        if cameras is not None:
-            self.cameras = cameras
-        else:
-            self.cameras = {}
-
-        if tracks is not None:
-            self.tracks = tracks
-        else:
-            self.tracks = []
-
-    def number_cameras(self) -> int:
-        return len(self.cameras)
-
-    def number_tracks(self) -> int:
-        return len(self.tracks)
-
-    def add_camera(self, idx: int, camera: PinholeCameraCal3Bundler) -> None:
-        self.cameras[idx] = camera
-
-    def add_track(self, track: SfmTrack) -> None:
-        self.tracks.append(track)
-
-    def camera(self, idx: int) -> PinholeCameraCal3Bundler:
-        return self.cameras[idx]
-
-    def track(self, idx: int) -> SfmTrack:
-        return self.tracks[idx]
-
-    def get_track_length_statistics(self) -> Tuple[float, float]:
-        """Compute mean and median of track length.
-
-        Returns:
-            Mean of track length.
-            Median of track length.
-        """
-        track_lens = map(len, self.tracks)
-
-        return np.mean(track_lens), np.median(track_lens)
-
-    def __validate_track(
-        self, track: SfmTrack, reproj_err_thresh: float
-    ) -> bool:
-        """Validates a track based on reprojection errors and cheirality checks.
-
-        Args:
-            track: track with 3D landmark and measurements.
-            reproj_err_thresh: reprojection err threshold for each measurement.
-
-        Returns:
-            validity of the track.
-        """
-
-        for k in range(track.number_measurements()):
-            cam_idx, uv = track.measurement(k)
-
-            camera = self.camera(cam_idx)
-
-            # Project to camera
-            uv_reprojected, success_flag = camera.projectSafe(track.point3)
-
-            if not success_flag:
-                return False
-
-            reproj_error = np.linalg.norm(uv - uv_reprojected)
-
-            if reproj_error > reproj_err_thresh:
-                return False
-
-        return True
-
-    def filter_landmarks(self, reproj_err_thresh: float = 5) -> "SfmData":
-        """Filters out landmarks with high reprojection error
-
-        Args:
-            reproj_err_thresh: reprojection err threshold for each measurement.
-        """
-        filtered_tracks = [
-            track
-            for track in self.tracks
-            if self.__validate_track(track, reproj_err_thresh)
-        ]
-
-        return SfmData(self.cameras, filtered_tracks)
 
 
 class SfmResult(NamedTuple):
@@ -164,4 +64,70 @@ class SfmResult(NamedTuple):
         Returns:
             camera poses as a list, each representing wTi
         """
-        return [cam.pose() for cam in self.sfm_data.cameras.values()]
+        return [
+            self.sfm_data.camera(i).pose()
+            for i in range(self.sfm_data.number_cameras())
+        ]
+
+    def get_track_length_statistics(self) -> Tuple[float, float]:
+        """Compute mean and median of track length.
+
+        Returns:
+            Mean of track length.
+            Median of track length.
+        """
+        track_lens = map(len, self.sfm_data.number_measurements())
+
+        return np.mean(track_lens), np.median(track_lens)
+
+    def __validate_track(
+        self, track: SfmTrack, reproj_err_thresh: float
+    ) -> bool:
+        """Validates a track based on reprojection errors and cheirality checks.
+
+        Args:
+            track: track with 3D landmark and measurements.
+            reproj_err_thresh: reprojection err threshold for each measurement.
+
+        Returns:
+            validity of the track.
+        """
+
+        for k in range(track.number_measurements()):
+            cam_idx, uv = track.measurement(k)
+
+            camera = self.sfm_data.camera(cam_idx)
+
+            # Project to camera
+            uv_reprojected, success_flag = camera.projectSafe(track.point3())
+
+            if not success_flag:
+                return False
+
+            reproj_error = np.linalg.norm(uv - uv_reprojected)
+
+            if reproj_error > reproj_err_thresh:
+                return False
+
+        return True
+
+    def filter_landmarks(self, reproj_err_thresh: float = 5) -> SfmData:
+        """Filters out landmarks with high reprojection error
+
+        Args:
+            reproj_err_thresh: reprojection err threshold for each measurement.
+        """
+        # TODO: move this function to utils or GTSAM
+        filtered_data = SfmData()
+
+        # add all the cameras
+        for i in range(self.sfm_data.number_cameras()):
+            filtered_data.add_camera(self.sfm_data.camera(i))
+
+        for j in range(self.sfm_data.number_tracks()):
+            track = self.sfm_data.track(j)
+
+            if self.__validate_track(track, reproj_err_thresh):
+                filtered_data.add_track(track)
+
+        return filtered_data

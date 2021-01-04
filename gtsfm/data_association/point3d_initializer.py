@@ -19,10 +19,10 @@ from gtsam import (
     CameraSetCal3Bundler,
     PinholeCameraCal3Bundler,
     Point2Vector,
-    Point3,
+    SfmTrack,
 )
 
-from gtsfm.data_association.feature_tracks import SfmMeasurement, SfmTrack
+from gtsfm.data_association.feature_tracks import SfmMeasurement, SfmTrack2d
 
 NUM_SAMPLES_PER_RANSAC_HYPOTHESIS = 2
 SVD_DLT_RANK_TOL = 1e-9
@@ -65,7 +65,7 @@ class Point3dInitializer(NamedTuple):
     num_ransac_hypotheses: Optional[int] = None
     reproj_error_thresh: Optional[float] = None
 
-    def triangulate(self, track: SfmTrack) -> Optional[SfmTrack]:
+    def triangulate(self, track_2d: SfmTrack2d) -> Optional[SfmTrack]:
         """Triangulates 3D point according to the configured triangulation mode.
 
         Args:
@@ -81,7 +81,7 @@ class Point3dInitializer(NamedTuple):
             TriangulationParam.RANSAC_TOPK_BASELINES,
         ]:
             # Generate all possible matches
-            measurement_pairs = self.generate_measurement_pairs(track)
+            measurement_pairs = self.generate_measurement_pairs(track_2d)
 
             # limit the number of samples to the number of available pairs
             num_hypotheses = min(
@@ -90,19 +90,19 @@ class Point3dInitializer(NamedTuple):
 
             # Sampling
             samples = self.sample_ransac_hypotheses(
-                track, measurement_pairs, num_hypotheses
+                track_2d, measurement_pairs, num_hypotheses
             )
 
             # Initialize the best output containers
             best_num_votes = 0
             best_error = MAX_TRACK_REPROJ_ERROR
-            best_inliers = np.zeros(len(track.measurements), dtype=bool)
+            best_inliers = np.zeros(len(track_2d.measurements), dtype=bool)
 
             for sample_idxs in samples:
                 k1, k2 = measurement_pairs[sample_idxs]
 
-                i1, uv1 = track.measurements[k1]
-                i2, uv2 = track.measurements[k2]
+                i1, uv1 = track_2d.measurements[k1]
+                i2, uv2 = track_2d.measurements[k2]
 
                 camera_estimates = CameraSetCal3Bundler()
                 # check for unestimated cameras
@@ -125,13 +125,13 @@ class Point3dInitializer(NamedTuple):
                             rank_tol=SVD_DLT_RANK_TOL,
                             optimize=True,
                         )
-                    except RuntimeError as e:
+                    except RuntimeError:
                         # TODO: handle cheirality exception properly?
                         logging.error("Error from GTSAM's triangulate function")
                         continue
 
                     errors = self.compute_track_reprojection_errors(
-                        track.measurements, triangulated_pt
+                        track_2d.measurements, triangulated_pt
                     )
 
                     # The best solution should correspond to the one with most inliers
@@ -162,7 +162,7 @@ class Point3dInitializer(NamedTuple):
 
         elif self.mode == TriangulationParam.NO_RANSAC:
             best_inliers = np.ones(
-                len(track.measurements), dtype=bool
+                len(track_2d.measurements), dtype=bool
             )  # all marked as inliers
 
         inlier_idxs = (np.where(best_inliers)[0]).tolist()
@@ -170,7 +170,7 @@ class Point3dInitializer(NamedTuple):
         if len(inlier_idxs) < 2:
             return None
 
-        inlier_track = track.select_subset(inlier_idxs)
+        inlier_track = track_2d.select_subset(inlier_idxs)
 
         camera_track, measurement_track = self.extract_measurements(
             inlier_track
@@ -194,7 +194,11 @@ class Point3dInitializer(NamedTuple):
         if not np.all(reproj_errors < self.reproj_error_thresh):
             return None
 
-        return SfmTrack(inlier_track.measurements, triangulated_pt)
+        track_3d = SfmTrack(triangulated_pt)
+        for i, uv in inlier_track.measurements:
+            track_3d.add_measurement(i, uv)
+
+        return track_3d
 
     def generate_measurement_pairs(
         self, track: SfmTrack
@@ -208,7 +212,7 @@ class Point3dInitializer(NamedTuple):
         Returns:
             measurement_idxs: all possible matching measurement indices in a given track
         """
-        num_track_measurements = len(track.measurements)
+        num_track_measurements = track.number_measurements()
         all_measurement_idxs = range(num_track_measurements)
         measurement_pair_idxs = list(
             itertools.combinations(

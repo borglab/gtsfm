@@ -10,7 +10,7 @@ References:
 
 Authors: Ayush Baid, Sushmita Warrier, John Lambert
 """
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Dict, List, NamedTuple, Tuple
 
 import gtsam
 import numpy as np
@@ -37,9 +37,8 @@ class SfmMeasurement(NamedTuple):
         return not self == other
 
 
-class SfmTrack(NamedTuple):
+class SfmTrack2d(NamedTuple):
     measurements: List[SfmMeasurement]  # (cam_idx, 2D coordinates)
-    point3: Optional[np.ndarray] = None  # 3D landmark
 
     def number_measurements(self) -> int:
         """Returns the number of measurements."""
@@ -56,7 +55,7 @@ class SfmTrack(NamedTuple):
         """
         return self.measurements[idx]
 
-    def select_subset(self, idxs: List[int]) -> "SfmTrack":
+    def select_subset(self, idxs: List[int]) -> "SfmTrack2d":
         """Generates a new track with the subset of measurements.
 
         Returns:
@@ -64,13 +63,13 @@ class SfmTrack(NamedTuple):
         """
         inlier_measurements = [self.measurements[j] for j in idxs]
 
-        return SfmTrack(inlier_measurements, self.point3)
+        return SfmTrack2d(inlier_measurements)
 
     def __eq__(self, other: object) -> bool:
         """Checks equality with the other object."""
 
         # check object type
-        if not isinstance(other, SfmTrack):
+        if not isinstance(other, SfmTrack2d):
             return False
 
         # check number of measurements
@@ -83,15 +82,7 @@ class SfmTrack(NamedTuple):
             if measurement not in other.measurements:
                 return False
 
-        # finally, check the landmark
-        if self.point3 is not None and other.point3 is None:
-            return False
-        elif self.point3 is None and other.point3 is not None:
-            return False
-        elif self.point3 is None and other.point3 is None:
-            return True
-        else:
-            return np.allclose(self.point3, other.point3)
+        return True
 
     def __ne__(self, other: object) -> bool:
         """Checks inequality with the other object."""
@@ -101,7 +92,7 @@ class SfmTrack(NamedTuple):
 def generate_tracks(
     matches_dict: Dict[Tuple[int, int], np.ndarray],
     keypoints_list: List[Keypoints],
-) -> List[SfmTrack]:
+) -> List[SfmTrack2d]:
     """Creates and filter tracks from matches.
 
     Creates a disjoint-set forest (DSF) and 2d tracks from pairwise matches. We create a
@@ -150,11 +141,13 @@ def generate_tracks(
             track_measurements += [
                 SfmMeasurement(i, keypoints_list[i].coordinates[k])
             ]
-        tracks_2d += [SfmTrack(track_measurements)]
+        tracks_2d += [SfmTrack2d(track_measurements)]
     return delete_erroneous_tracks(tracks_2d)
 
 
-def delete_erroneous_tracks(sfm_tracks_2d: List[SfmTrack]) -> List[SfmTrack]:
+def delete_erroneous_tracks(
+    sfm_tracks_2d: List[SfmTrack2d],
+) -> List[SfmTrack2d]:
     """
     Delete tracks that have more than one measurement in the same image.
 

@@ -7,13 +7,12 @@ from typing import List, Optional, Tuple
 import cv2 as cv
 import matplotlib.pyplot as plt
 import numpy as np
-from gtsam import Pose3
+from gtsam import Pose3, SfmData
 from matplotlib.axes._axes import Axes
 
 import gtsfm.utils.images as image_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.common.sfm_result import SfmData
 
 COLOR_RED = (255, 0, 0)
 COLOR_GREEN = (0, 255, 0)
@@ -204,7 +203,7 @@ def plot_sfm_data_3d(sfm_data: SfmData, ax: Axes) -> None:
 
     # plot 3D points
     for j in range(sfm_data.number_tracks()):
-        landmark = sfm_data.track(j).point3
+        landmark = sfm_data.track(j).point3()
 
         ax.plot(landmark[0], landmark[1], landmark[2], "g.", markersize=1)
 

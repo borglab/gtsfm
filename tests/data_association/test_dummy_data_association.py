@@ -13,12 +13,12 @@ from gtsam import (
     Pose3,
     Pose3Vector,
     Rot3,
+    SfmData,
 )
 
 from gtsam.utils.test_case import GtsamTestCase
 
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.common.sfm_result import SfmData
 from gtsfm.data_association.dummy_da import DummyDataAssociation
 
 

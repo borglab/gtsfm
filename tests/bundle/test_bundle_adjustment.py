@@ -8,43 +8,13 @@ import unittest
 import dask
 import gtsam
 import numpy as np
+from gtsam import SfmData, SfmTrack
 
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
-from gtsfm.common.sfm_result import SfmData
-from gtsfm.data_association.feature_tracks import SfmMeasurement, SfmTrack
+from gtsfm.data_association.feature_tracks import SfmMeasurement
 
 GTSAM_EXAMPLE_FILE = "dubrovnik-3-7-pre"
-
-
-def read_example_data() -> SfmData:
-    """Read the example data from GTSAM
-
-    Returns:
-        SfmData corresponding to GTSAM_EXAMPLE_FILE.
-    """
-    gtsam_data = gtsam.readBal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
-
-    data = SfmData()
-
-    # add cameras
-    for idx in range(gtsam_data.number_cameras()):
-        data.add_camera(idx, gtsam_data.camera(idx))
-
-    # add tracks
-    for idx in range(gtsam_data.number_tracks()):
-        gtsam_track = gtsam_data.track(idx)
-
-        landmark = gtsam_track.point3()
-
-        measurements = []
-        for measurement_idx in range(gtsam_track.number_measurements()):
-            i, uv = gtsam_track.measurement(measurement_idx)
-
-            measurements.append(SfmMeasurement(i, uv))
-
-        data.add_track(SfmTrack(measurements, landmark))
-
-    return data
+EXAMPLE_DATA = gtsam.readBal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
 
 
 class TestBundleAdjustmentOptimizer(unittest.TestCase):
@@ -55,7 +25,7 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
 
         self.obj = BundleAdjustmentOptimizer()
 
-        self.test_data = read_example_data()
+        self.test_data = EXAMPLE_DATA
 
     def test_simple_scene(self):
         """Test the simple scene using the `run` API."""
