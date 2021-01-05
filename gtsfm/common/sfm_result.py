@@ -30,24 +30,7 @@ class SfmResult(NamedTuple):
         if not isinstance(other, SfmResult):
             return False
 
-        # compare the number of cameras
-        if self.sfm_data.number_cameras() != other.sfm_data.number_cameras():
-            return False
-
-        # compare camera intrinsics
-        for i in range(self.sfm_data.number_cameras()):
-            if (
-                not self.sfm_data.camera(i)
-                .calibration()
-                .equals(other.sfm_data.camera(i).calibration(), 1e-1)
-            ):
-                return False
-
-        # comparing poses
-        poses = self.get_camera_poses()
-        other_poses = other.get_camera_poses()
-
-        if not geom_comparisons.compare_global_poses(poses, other_poses):
+        if not self.sfm_data.equals(other.sfm_data, 1e-9):
             return False
 
         # finally, compare reprojection error
@@ -70,15 +53,18 @@ class SfmResult(NamedTuple):
         ]
 
     def get_track_length_statistics(self) -> Tuple[float, float]:
-        """Compute mean and median of track length.
+        """Compute mean and median lengths of all the tracks.
 
         Returns:
-            Mean of track length.
-            Median of track length.
+            Mean track length.
+            Median track length.
         """
-        track_lens = map(len, self.sfm_data.number_measurements())
+        track_lengths = [
+            self.sfm_data.track(j).number_measurements()
+            for j in range(self.sfm_data.number_tracks())
+        ]
 
-        return np.mean(track_lens), np.median(track_lens)
+        return np.mean(track_lengths), np.median(track_lengths)
 
     def __validate_track(
         self, track: SfmTrack, reproj_err_thresh: float
