@@ -17,9 +17,8 @@ import numpy as np
 from dask.delayed import Delayed
 from gtsam import PinholeCameraCal3Bundler, SfmData, SfmTrack
 
-import gtsfm.data_association.feature_tracks as feature_tracks
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.data_association.feature_tracks import SfmTrack2d
+from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.data_association.point3d_initializer import (
     Point3dInitializer,
     TriangulationParam,
@@ -69,7 +68,9 @@ class DataAssociation(NamedTuple):
             cameras and tracks as SfmData.
         """
         # generate tracks for 3D points using pairwise correspondences
-        tracks = feature_tracks.generate_tracks(corr_idxs_dict, keypoints_list)
+        tracks = SfmTrack2d.generate_tracks_from_pairwise_matches(
+            corr_idxs_dict, keypoints_list
+        )
 
         # initializer of 3D landmark for each track
         point3d_initializer = Point3dInitializer(

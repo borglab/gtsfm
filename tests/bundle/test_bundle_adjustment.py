@@ -11,7 +11,6 @@ import numpy as np
 from gtsam import SfmData, SfmTrack
 
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
-from gtsfm.data_association.feature_tracks import SfmMeasurement
 
 GTSAM_EXAMPLE_FILE = "dubrovnik-3-7-pre"
 EXAMPLE_DATA = gtsam.readBal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))

@@ -22,7 +22,7 @@ from gtsam import (
     SfmTrack,
 )
 
-from gtsfm.data_association.feature_tracks import SfmMeasurement, SfmTrack2d
+from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
 
 NUM_SAMPLES_PER_RANSAC_HYPOTHESIS = 2
 SVD_DLT_RANK_TOL = 1e-9
@@ -187,10 +187,12 @@ class Point3dInitializer(NamedTuple):
             logging.exception("Error from GTSAM's triangulate function")
             return None
 
-        # final filtering based on reprojection error
+        # compute reprojection errors for each measurement
         reproj_errors = self.compute_track_reprojection_errors(
             inlier_track.measurements, triangulated_pt
         )
+
+        # all the measurements should have error < threshold
         if not np.all(reproj_errors < self.reproj_error_thresh):
             return None
 
@@ -201,7 +203,7 @@ class Point3dInitializer(NamedTuple):
         return track_3d
 
     def generate_measurement_pairs(
-        self, track: SfmTrack
+        self, track: SfmTrack2d
     ) -> List[Tuple[int, int]]:
         """
         Extract all possible measurement pairs in a track for triangulation.

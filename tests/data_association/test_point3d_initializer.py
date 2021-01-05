@@ -21,7 +21,7 @@ from gtsam import (
 )
 from gtsam.examples import SFMdata
 
-from gtsfm.data_association.feature_tracks import SfmMeasurement, SfmTrack2d
+from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
 from gtsfm.data_association.point3d_initializer import (
     Point3dInitializer,
     TriangulationParam,

@@ -7,8 +7,6 @@ from typing import List, NamedTuple, Tuple
 import numpy as np
 from gtsam import Pose3, SfmData, SfmTrack
 
-import gtsfm.utils.geometry_comparisons as geom_comparisons
-
 
 class SfmResult(NamedTuple):
     """Class to hold optimized camera params, 3d landmarks (w/ tracks), and
@@ -80,21 +78,25 @@ class SfmResult(NamedTuple):
         """
 
         for k in range(track.number_measurements()):
+            # process each measurement
             cam_idx, uv = track.measurement(k)
 
+            # get the camera associated with the measurement
             camera = self.sfm_data.camera(cam_idx)
 
             # Project to camera
             uv_reprojected, success_flag = camera.projectSafe(track.point3())
 
             if not success_flag:
+                # failure in projection
                 return False
 
+            # compute and check reprojection error
             reproj_error = np.linalg.norm(uv - uv_reprojected)
-
             if reproj_error > reproj_err_thresh:
                 return False
 
+        # track is valid as all measurements have error below the threshold
         return True
 
     def filter_landmarks(self, reproj_err_thresh: float = 5) -> SfmData:

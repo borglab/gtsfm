@@ -11,7 +11,6 @@ from dask.delayed import Delayed
 from gtsam import PinholeCameraCal3Bundler, SfmData, SfmTrack
 
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.data_association.feature_tracks import SfmMeasurement
 
 
 class DummyDataAssociation:
@@ -65,7 +64,6 @@ class DummyDataAssociation:
             )
 
             # for each selected camera, randomly select a point
-            # measurements = []
             for cam_idx in selected_cams:
                 measurement_idx = random.randint(
                     0, len(keypoints_list[cam_idx]) - 1
@@ -73,8 +71,6 @@ class DummyDataAssociation:
                 measurement = keypoints_list[cam_idx].coordinates[
                     measurement_idx
                 ]
-
-                # measurements.append(SfmMeasurement(cam_idx, measurement))
 
                 sfmTrack.add_measurement(cam_idx, measurement)
 
