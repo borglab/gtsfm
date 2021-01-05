@@ -183,8 +183,8 @@ class Point3dInitializer(NamedTuple):
                 rank_tol=SVD_DLT_RANK_TOL,
                 optimize=True,
             )
-        except RuntimeError as e:
-            logging.error("Error from GTSAM's triangulate function")
+        except RuntimeError:
+            logging.exception("Error from GTSAM's triangulate function")
             return None
 
         # final filtering based on reprojection error
