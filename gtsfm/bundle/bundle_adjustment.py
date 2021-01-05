@@ -37,6 +37,7 @@ class BundleAdjustmentOptimizer:
 
         Args:
             initial_data: initialized cameras, tracks w/ their 3d landmark from triangulation.
+
         Results:
             optimized camera poses, 3D point w/ tracks, and error metrics.
         """
@@ -129,7 +130,8 @@ class BundleAdjustmentOptimizer:
 
         Args:
             sfm_data_graph: an SfmData object wrapped up using dask.delayed
-        Results:
+
+        Returns:
             SfmResult wrapped up using dask.delayed
         """
         return dask.delayed(self.run)(sfm_data_graph)
@@ -141,7 +143,7 @@ def values_to_sfm_data(values: Values, initial_data: SfmData) -> SfmData:
     Args:
         values: results of factor graph optimization.
         initial_data: data used to generate the factor graph; used to extract
-                      information factors.
+                      information about poses and 3d points in the graph.
 
     Returns:
         optimized poses and landmarks.
@@ -157,7 +159,7 @@ def values_to_sfm_data(values: Values, initial_data: SfmData) -> SfmData:
     for j in range(initial_data.number_tracks()):
         input_track = initial_data.track(j)
 
-        # init the result with optimized 3D point
+        # populate the result with optimized 3D point
         result_track = SfmTrack(
             values.atPoint3(P(j)),
         )

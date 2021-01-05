@@ -1,4 +1,4 @@
-"""Unit tests for the SfmResult class
+"""Unit tests for the SfmResult class.
 
 Authors: Ayush Baid
 """
@@ -20,9 +20,13 @@ class TestSfmResult(unittest.TestCase):
     """Unit tests for SfmResult"""
 
     def testEqualsWithSameObject(self):
+        """Test equality function with the same object."""
         self.assertEqual(EXAMPLE_RESULT, EXAMPLE_RESULT)
 
-    def testEqualsWithDifferentData(self):
+    def testEqualsWithDifferentObject(self):
+        """Test the equality function with different object, expecting false
+        result.
+        """
         other_example_file = "dubrovnik-1-1-pre.txt"
         other_result = SfmResult(
             gtsam.readBal(gtsam.findExampleDataFile(other_example_file)),
@@ -31,7 +35,8 @@ class TestSfmResult(unittest.TestCase):
 
         self.assertNotEqual(EXAMPLE_RESULT, other_result)
 
-    def test_get_track_length_statistics(self):
+    def testGetTrackLengthStatistics(self):
+        """Test computation of mean and median track length."""
         expected_mean_length = 2.7142857142857144
         expected_median_length = 3.0
 
@@ -44,6 +49,7 @@ class TestSfmResult(unittest.TestCase):
         self.assertEqual(median_length, expected_median_length)
 
     def test_filter_landmarks(self):
+        """Tests filtering of SfmData based on reprojection error."""
         max_reproj_error = 15
 
         VALID_TRACK_INDICES = [0, 1, 5]
