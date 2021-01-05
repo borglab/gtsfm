@@ -112,13 +112,15 @@ class BundleAdjustmentOptimizer:
             logging.exception("LM Optimization failed")
             return
 
+        final_error = graph.error(result_values)
+
         # Error drops from ~2764.22 to ~0.046
         logging.info(f"initial error: {graph.error(initial):.2f}")
-        logging.info(f"final error: {graph.error(result_values):.2f}")
+        logging.info(f"final error: {final_error:.2f}")
 
         # construct the results
         optimized_data = values_to_sfm_data(result_values, initial_data)
-        sfm_result = SfmResult(optimized_data, graph.error(result_values))
+        sfm_result = SfmResult(optimized_data, final_error)
 
         return sfm_result
 
