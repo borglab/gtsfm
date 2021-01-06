@@ -19,5 +19,5 @@ _Cfg.MultiViewOptimizer = YACS(new_allowed=True)
 
 
 def get_cfg_defaults() -> YACS:
-    """Provides an YACS object with default modules for GTSFM."""
+    """Provides a YACS object with default modules for GTSFM."""
     return _Cfg.clone()
