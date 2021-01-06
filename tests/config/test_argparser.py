@@ -1,8 +1,9 @@
-from pathlib import Path
+
 import unittest
+from pathlib import Path
 
 from config.defaults import get_cfg_defaults
-from utils.cfgnode import GtsfmCfgNode, GtsfmArgsCfgNode, YACS
+from gtsfm.utils.gtsfm_cfgnode import GtsfmCfgNode, GtsfmArgsCfgNode
 
 CONFIG_PATH = Path(__file__).resolve().parent.parent.parent / "config"
 
