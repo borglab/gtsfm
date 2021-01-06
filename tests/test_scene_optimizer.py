@@ -111,7 +111,7 @@ class TestSceneOptimizer(unittest.TestCase):
             )
 
     def test_create_computation_graph(self):
-
+        """Will test Dask multi-processing capabilities and ability to serialize all objects."""
         use_intrinsics_in_verification = False
 
         # generate the dask computation graph
