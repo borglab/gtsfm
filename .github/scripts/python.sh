@@ -1,18 +1,14 @@
 #!/bin/bash
 
 ##########################################################
-# Install GTSFM dependencies (including GTSAM) using conda
+# GTSFM dependencies (including GTSAM) previoulsy installed using conda
 ##########################################################
-
-cd $GITHUB_WORKSPACE
-
-conda env create -f environment.yml
-conda activate gtsfm-v1
 
 ##########################################################
 # Install GTSFM as a module
 ##########################################################
 
+cd $GITHUB_WORKSPACE
 pip install -e .
 
 ##########################################################
