@@ -2,8 +2,11 @@
 import unittest
 from pathlib import Path
 
-from utils.cfgnode import GtsfmCfgNode, GtsfmArgsCfgNode, YACS
+from yacs.config import CfgNode
+
 from config.defaults import get_cfg_defaults
+from gtsfm.utils.gtsfm_cfgnode import GtsfmCfgNode, GtsfmArgsCfgNode
+
 
 CONFIG_PATH = Path(__file__).resolve().parent.parent.parent / "config"
 
@@ -20,8 +23,8 @@ class TestCfgNode(unittest.TestCase):
         self.config = GtsfmCfgNode(get_cfg_defaults())
         self.config.load_file(str(CONFIG_PATH) + "/config1.yaml")
 
-        self.assertTrue(isinstance(self.config.param.FeatureExtractor, YACS))
-        self.assertTrue(isinstance(self.config.param.FeatureExtractor.matching, YACS))
+        self.assertTrue(isinstance(self.config.param.FeatureExtractor, CfgNode))
+        self.assertTrue(isinstance(self.config.param.FeatureExtractor.matching, CfgNode))
         self.assertTrue(isinstance(self.config.param.SceneOptimizer.path, str))
         self.assertTrue(isinstance(self.config.param.SceneOptimizer.enable_gpu, bool))
         self.assertTrue(isinstance(self.config.param.FeatureExtractor.matching.num_features, int))
@@ -38,7 +41,7 @@ class TestCfgNode(unittest.TestCase):
         self.assertTrue(self.config.param.SceneOptimizer.enable_gpu == False)
         self.assertTrue(self.config.param.FeatureExtractor.matching.num_features == 2000)
         self.assertTrue(self.config.param.FeatureExtractor.matching.tol == 1e-3)
-        self.assertTrue(self.config.param.SceneOptimizer.image_path == ["images1", "images2", "images3"])
+        self.assertTrue(self.config.param.SceneOptimizer.image_path== ["images1", "images2", "images3"])
         self.assertTrue(self.config.param.FeatureExtractor.matching.pyramid_scale == [1, 2, 4])
 
     def test_configuration_combination(self):
