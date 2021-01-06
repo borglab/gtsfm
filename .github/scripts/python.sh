@@ -6,7 +6,6 @@
 
 echo "Running .github/scripts/python.sh..."
 conda init
-conda activate gtsfm-v1
 conda info --envs
 
 ##########################################################
