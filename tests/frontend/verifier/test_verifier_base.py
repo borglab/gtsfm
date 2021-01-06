@@ -327,38 +327,44 @@ def sample_points_on_plane(
     Args:
         plane_coefficients: coefficients (a,b,c,d) of the plane equation.
         range_x_coordinate: desired range of the x coordinates of samples.
-        range_y_coordinate: desired range of the x coordinates of samples.
-        num_points: number of points to sample
+        range_y_coordinate: desired range of the y coordinates of samples.
+        num_points: number of points to sample.
 
     Returns:
-        3d points, of shape (num_points, 3).
+        3d points on the plane, of shape (num_points, 3).
     """
 
-    if plane_coefficients[3] == 0:
+    a, b, c, d = plane_coefficients
+
+    if c == 0:
         raise ValueError("z-coefficient for the plane should not be zero")
 
-    pts = np.empty((num_points, 3))
-
     # sample x coordinates randomly
-    pts[:, 0] = (
-        np.random.rand(num_points)
-        * (range_x_coordinate[1] - range_x_coordinate[0])
-        + range_x_coordinate[0]
+    x = np.random.uniform(
+        low=range_x_coordinate[0],
+        high=range_x_coordinate[1],
+        size=(num_points, 1),
     )
 
     # sample y coordinates randomly
-    pts[:, 1] = (
-        np.random.rand(num_points)
-        * (range_y_coordinate[1] - range_y_coordinate[0])
-        + range_y_coordinate[0]
+    y = np.random.uniform(
+        low=range_y_coordinate[0],
+        high=range_y_coordinate[1],
+        size=(num_points, 1),
     )
 
     # calculate z coordinates using equation of the plane
-    pts[:, 2] = (
-        plane_coefficients[0] * pts[:, 0]
-        + plane_coefficients[1] * pts[:, 1]
+    z = -(a * x + b * y + d) / c
+
+    pts = np.hstack([x, y, z])
+
+    # assert points are on the plane
+    pts_residuals = (
+        pts @ np.array(plane_coefficients[:3]).reshape(3, 1)
         + plane_coefficients[3]
-    ) / plane_coefficients[2]
+    )
+
+    np.testing.assert_almost_equal(pts_residuals, np.zeros((num_points, 1)))
 
     return pts
 

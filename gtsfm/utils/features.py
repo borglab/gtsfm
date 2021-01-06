@@ -28,13 +28,16 @@ def cast_to_gtsfm_keypoints(keypoints: List[cv.KeyPoint]) -> Keypoints:
         scales.append(kp.size)
         responses.append(kp.response)
 
-    return Keypoints(coordinates=np.array(coordinates),
-                     scales=np.array(scales) if scales else None,
-                     responses=np.array(responses) if responses else None)
-      
-    
-def normalize_coordinates(coordinates: np.ndarray,
-                          intrinsics: Cal3Bundler) -> np.ndarray:
+    return Keypoints(
+        coordinates=np.array(coordinates),
+        scales=np.array(scales) if scales else None,
+        responses=np.array(responses) if responses else None,
+    )
+
+
+def normalize_coordinates(
+    coordinates: np.ndarray, intrinsics: Cal3Bundler
+) -> np.ndarray:
     """Normalize 2D coordinates using camera intrinsics.
 
     Args:
@@ -46,8 +49,5 @@ def normalize_coordinates(coordinates: np.ndarray,
     """
 
     return np.vstack(
-        [intrinsics.calibrate(
-            x[:2].astype(np.float64).reshape(2, 1)
-        ) for x in coordinates]
-    ).astype(coordinates.dtype)
-
+        [intrinsics.calibrate(x[:2].reshape(2, 1)) for x in coordinates]
+    )
