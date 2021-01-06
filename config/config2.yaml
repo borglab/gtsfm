@@ -1,7 +1,8 @@
-# This is an example configuration file that helps the authors to create their 
-# own configuration file for their developed modules. 
-# Pls only follow the definition pattern in this file but the module or parameter
-# names and values. These are created only for test purpose.
+# This is an example configuration file that helps authors to create their 
+# own configuration files for their own experiments and settings.
+# Please only follow the definition pattern in this file. Specific module or
+# parameter names and values may be modified as desired. The parameters
+# defined below are created only for the purpose of unit tests/examples.
 
 FeatureExtractor: # Module name 
   matching: # SubModule name
