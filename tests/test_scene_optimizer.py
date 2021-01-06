@@ -8,9 +8,11 @@ from types import SimpleNamespace
 
 import dask
 import numpy as np
+from dask.distributed import LocalCluster, Client
 from gtsam import EssentialMatrix, Rot3, Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
+import gtsfm.utils.serialization  # import needed to register serialization fns
 from gtsfm.averaging.rotation.shonan import ShonanRotationAveraging
 from gtsfm.averaging.translation.averaging_1dsfm import (
     TranslationAveraging1DSFM,
@@ -121,8 +123,11 @@ class TestSceneOptimizer(unittest.TestCase):
             use_intrinsics_in_verification=use_intrinsics_in_verification,
         )
 
-        with dask.config.set(scheduler="single-threaded"):
-            sfm_result = dask.compute(sfm_result_graph)[0]
+        # create dask client
+        cluster = LocalCluster(n_workers=1, threads_per_worker=4)
+        client = Client(cluster)
+
+        sfm_result = dask.compute(sfm_result_graph)[0]
 
         self.assertIsInstance(sfm_result, SfmResult)
 
