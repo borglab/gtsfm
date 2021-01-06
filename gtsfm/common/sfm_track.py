@@ -20,7 +20,6 @@ from gtsfm.common.keypoints import Keypoints
 
 class SfmMeasurement(NamedTuple):
     """2d measurements (points in images)."""
-
     i: int  # camera index
     uv: np.ndarray  # 2d measurement
 
@@ -43,10 +42,9 @@ class SfmTrack2d(NamedTuple):
     """Track containing 2D measurements associated with a single 3D point.
 
     Note: Equivalent to gtsam.SfmTrack, but without the 3d measurement. This
-          class is holds data temporarily before 3D point is init.
+          class holds data temporarily before 3D point is initialized.
     """
-
-    measurements: List[SfmMeasurement]  # (cam_idx, 2D coordinates)
+    measurements: List[SfmMeasurement]
 
     def number_measurements(self) -> int:
         """Returns the number of measurements."""
