@@ -8,8 +8,8 @@ import unittest.mock as mock
 import numpy as np
 from gtsam import Cal3Bundler
 
-from common.image import Image
-from utils.sensor_width_database import SensorWidthDatabase
+from gtsfm.common.image import Image
+from gtsfm.utils.sensor_width_database import SensorWidthDatabase
 
 
 class TestImage(unittest.TestCase):
@@ -27,7 +27,7 @@ class TestImage(unittest.TestCase):
         }
 
         expected_instrinsics = Cal3Bundler(
-            fx=600.0, k1=0.0, k2=0.0, u0=50.0, v0=60.0)
+            fx=600.0, k1=0.0, k2=0.0, u0=60.0, v0=50.0)
 
         image = Image(np.random.randint(low=0, high=255, size=(100, 120, 3)),
                       exif_data)

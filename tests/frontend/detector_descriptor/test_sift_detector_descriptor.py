@@ -6,9 +6,9 @@ Authors: Ayush Baid
 import unittest
 
 import tests.frontend.detector_descriptor.test_detector_descriptor_base as test_detector_descriptor_base
-from frontend.detector.detector_from_joint_detector_descriptor import \
+from gtsfm.frontend.detector.detector_from_joint_detector_descriptor import \
     DetectorFromDetectorDescriptor
-from frontend.detector_descriptor.sift import SIFTDetectorDescriptor
+from gtsfm.frontend.detector_descriptor.sift import SIFTDetectorDescriptor
 
 
 class TestSIFTDetectorDescriptor(test_detector_descriptor_base.TestDetectorDescriptorBase):
