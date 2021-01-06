@@ -5,7 +5,7 @@
 ##########################################################
 
 echo "Running .github/scripts/python.sh..."
-source activate gtsfm-v1
+conda init
 conda info --envs
 
 ##########################################################

@@ -18,7 +18,9 @@ jobs:
       with:
         miniconda-version: "latest"
         activate-environment: gtsfm-v1
+        environment-file: environment.yml
         python-version: 3.8
-    - run: |
+    - shell: bash -l {0}
+      run: |
         conda info --envs
         bash .github/scripts/python.sh
