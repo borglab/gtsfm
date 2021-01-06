@@ -55,9 +55,8 @@ class BundleAdjustmentOptimizer:
         graph = gtsam.NonlinearFactorGraph()
 
         # Add measurements to the factor graph
-        j = 0
-        for t_idx in range(initial_data.number_tracks()):
-            track = initial_data.track(t_idx)  # SfmTrack
+        for j in range(initial_data.number_tracks()):
+            track = initial_data.track(j)  # SfmTrack
             # retrieve the SfmMeasurement objects
             for m_idx in range(track.number_measurements()):
                 # i represents the camera index, and uv is the 2d measurement
@@ -68,7 +67,6 @@ class BundleAdjustmentOptimizer:
                         uv, measurement_noise, C(i), P(j)
                     )
                 )
-            j += 1
 
         # Add a prior on pose x1. This indirectly specifies where the origin is.
         graph.push_back(
