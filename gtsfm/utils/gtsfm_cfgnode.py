@@ -1,4 +1,3 @@
-
 import argparse
 import os
 from typing import List, Optional
@@ -23,7 +22,7 @@ class GtsfmCfgNode:
 
     def __init__(self, cfg_init: CfgNode) -> None:
         """Initialize the configuration node
-        
+
         Args:
             cfg_init: default config file
         """
@@ -32,7 +31,7 @@ class GtsfmCfgNode:
         self.param.freeze()
 
     def print_modules(self) -> None:
-        """ Print out the configuration that has already loaded  """
+        """ Print out the configuration that has already loaded."""
         print(self.param)
 
     def load_file(self, file_name: str) -> None:
@@ -72,8 +71,8 @@ class GtsfmArgsCfgNode:
     """
 
     def __init__(self, description: str) -> None:
-        """
-        Initialization of argsparser and argument to initialize CfgNode
+        """Initialization of argparser and arguments to initialize CfgNode
+
         Args:
             description: a string that provides a helpful description of parser
         """
