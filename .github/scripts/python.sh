@@ -1,8 +1,11 @@
 #!/bin/bash
 
 ##########################################################
-# GTSFM dependencies (including GTSAM) previoulsy installed using conda
+# GTSFM dependencies (including GTSAM) previously installed using conda
 ##########################################################
+
+echo "Running .github/scripts/python.sh..."
+conda info --envs
 
 ##########################################################
 # Install GTSFM as a module
