@@ -18,6 +18,7 @@ jobs:
       with:
         miniconda-version: "latest"
         activate-environment: gtsfm-v1
+        environment-file: environment.yml
         python-version: 3.8
     - shell: bash -l {0}
       run: |
