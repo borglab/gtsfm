@@ -271,7 +271,7 @@ def serialize_SfmResult(
         "sfm_data_string": obj.sfm_data.serialize(),
     }
 
-    # apply custom serialization on cameras
+    # use pickle now
     serialized_sfm_result = pickle.dumps(info_dict)
 
     return header, [serialized_sfm_result]
@@ -293,7 +293,7 @@ def deserialize_SfmResult(header: Dict, frames: List[bytes]) -> SfmResult:
     else:
         frame = frames[0]
 
-    # deserialize the top leveldictionary
+    # deserialize the top level dictionary
     info_dict = pickle.loads(frame)
 
     # deserialize SfmData

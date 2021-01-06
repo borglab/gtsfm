@@ -148,7 +148,6 @@ def values_to_sfm_data(values: Values, initial_data: SfmData) -> SfmData:
     Returns:
         optimized poses and landmarks.
     """
-
     result = SfmData()
 
     # add cameras

@@ -127,7 +127,9 @@ class Point3dInitializer(NamedTuple):
                         )
                     except RuntimeError:
                         # TODO: handle cheirality exception properly?
-                        logging.error("Error from GTSAM's triangulate function")
+                        logging.exception(
+                            "Error from GTSAM's triangulate function"
+                        )
                         continue
 
                     errors = self.compute_track_reprojection_errors(
@@ -225,7 +227,7 @@ class Point3dInitializer(NamedTuple):
 
     def sample_ransac_hypotheses(
         self,
-        track: SfmTrack,
+        track: SfmTrack2d,
         measurement_pairs: List[Tuple[int, int]],
         num_hypotheses: int,
     ) -> List[int]:
@@ -249,8 +251,8 @@ class Point3dInitializer(NamedTuple):
                 i1, _ = track.measurements[k1]
                 i2, _ = track.measurements[k2]
 
-                wTc1 = self.track_camera_dict.get(i1).pose()
-                wTc2 = self.track_camera_dict.get(i2).pose()
+                wTc1 = self.track_camera_dict[i1].pose()
+                wTc2 = self.track_camera_dict[i2].pose()
 
                 # rough approximation approximation of baseline between the 2 cameras
                 scores[k] = np.linalg.norm(
@@ -280,7 +282,7 @@ class Point3dInitializer(NamedTuple):
         return sample_indices.tolist()
 
     def extract_measurements(
-        self, track: SfmTrack
+        self, track: SfmTrack2d
     ) -> Tuple[CameraSetCal3Bundler, Point2Vector]:
         """Extract measurements in a track for triangulation.
 
