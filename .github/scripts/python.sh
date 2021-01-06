@@ -7,7 +7,6 @@
 echo "Running .github/scripts/python.sh..."
 conda init
 conda info --envs
-conda list
 
 ##########################################################
 # Install GTSFM as a module
