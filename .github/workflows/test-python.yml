@@ -22,4 +22,4 @@ jobs:
     - shell: bash -l {0}
       run: |
         conda info --envs
-        .github/scripts/python.sh
+        bash .github/scripts/python.sh
