@@ -39,7 +39,7 @@ class SIFTDescriptor(DescriptorBase):
 
         gray_image = image_utils.rgb_to_gray_cv(image)
 
-        opencv_obj = cv.xfeatures2d.SIFT_create()
+        opencv_obj = cv.SIFT_create()
 
         # TODO(ayush): what to do about new set of keypoints
         _, descriptors = opencv_obj.compute(

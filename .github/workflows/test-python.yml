@@ -14,15 +14,13 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Set up Python 3.x
-      uses: actions/setup-python@v2
+    - uses: conda-incubator/setup-miniconda@v2
       with:
-        # Semantic version range syntax or exact version of a Python version
-        python-version: '3.8' 
-        # Optional - x64 or x86 architecture, defaults to x64
-        architecture: 'x64'
-    # You can test your matrix by printing the current Python version
-    - name: Display Python version
+        miniconda-version: "latest"
+        activate-environment: gtsfm-v1
+        environment-file: environment.yml
+        python-version: 3.8
+    - shell: bash -l {0}
       run: |
-        sudo apt install cmake build-essential pkg-config libpython-dev python-numpy libboost-all-dev
+        conda info --envs
         bash .github/scripts/python.sh

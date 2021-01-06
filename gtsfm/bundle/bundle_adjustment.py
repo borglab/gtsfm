@@ -9,7 +9,12 @@ import sys
 import dask
 import gtsam
 from dask.delayed import Delayed
-from gtsam import GeneralSFMFactor2Cal3Bundler, SfmData, symbol_shorthand
+from gtsam import (
+    GeneralSFMFactor2Cal3Bundler,
+    SfmData,
+    SfmTrack,
+    symbol_shorthand,
+)
 
 from gtsfm.common.sfm_result import SfmResult
 
@@ -43,6 +48,7 @@ class BundleAdjustmentOptimizer:
 
         Args:
             initial_data: initialized cameras, tracks w/ their 3d landmark from triangulation.
+
         Results:
             optimized camera poses, 3D point w/ tracks, and error metrics.
         """
@@ -50,12 +56,13 @@ class BundleAdjustmentOptimizer:
             f"Input: {initial_data.number_tracks()} tracks on {initial_data.number_cameras()} cameras\n"
         )
 
+        # noise model for measurements
+        measurement_noise = gtsam.noiseModel.Isotropic.Sigma(
+            2, 1.0
+        )  # one pixel in u and v
+
         # Create a factor graph
         graph = gtsam.NonlinearFactorGraph()
-
-        # We share *one* noiseModel between all projection factors
-        # TODO: move params to init.
-        noise = gtsam.noiseModel.Isotropic.Sigma(2, 1.0)  # one pixel in u and v
 
         # Add measurements to the factor graph
         j = 0
@@ -65,10 +72,10 @@ class BundleAdjustmentOptimizer:
             for m_idx in range(track.number_measurements()):
                 # i represents the camera index, and uv is the 2d measurement
                 i, uv = track.measurement(m_idx)
-
+                # note use of shorthand symbols C and P
                 graph.add(
                     GeneralSFMFactor2Cal3Bundler(
-                        uv, noise, X(i), P(j), K(0 if self._shared_calib else i)
+                        uv, measurement_noise, C(i), P(j)
                     )
                 )
             j += 1
@@ -134,19 +141,20 @@ class BundleAdjustmentOptimizer:
             params = gtsam.LevenbergMarquardtParams()
             params.setVerbosityLM("ERROR")
             lm = gtsam.LevenbergMarquardtOptimizer(graph, initial, params)
-            result = lm.optimize()
+            result_values = lm.optimize()
         except Exception as e:
             logging.exception("LM Optimization failed")
             return
 
+        final_error = graph.error(result_values)
+
         # Error drops from ~2764.22 to ~0.046
         logging.info(f"initial error: {graph.error(initial):.2f}")
-        logging.info(f"final error: {graph.error(result):.2f}")
+        logging.info(f"final error: {final_error:.2f}")
 
         # construct the results
-        sfm_result = SfmResult(
-            initial_data, result, graph.error(result), self._shared_calib
-        )
+        optimized_data = values_to_sfm_data(result_values, initial_data)
+        sfm_result = SfmResult(optimized_data, final_error)
 
         return sfm_result
 
@@ -155,7 +163,43 @@ class BundleAdjustmentOptimizer:
 
         Args:
             sfm_data_graph: an SfmData object wrapped up using dask.delayed
-        Results:
+
+        Returns:
             SfmResult wrapped up using dask.delayed
         """
         return dask.delayed(self.run)(sfm_data_graph)
+
+
+def values_to_sfm_data(values: Values, initial_data: SfmData) -> SfmData:
+    """Cast results from the optimization to SfmData object.
+
+    Args:
+        values: results of factor graph optimization.
+        initial_data: data used to generate the factor graph; used to extract
+                      information about poses and 3d points in the graph.
+
+    Returns:
+        optimized poses and landmarks.
+    """
+    result = SfmData()
+
+    # add cameras
+    for i in range(initial_data.number_cameras()):
+        result.add_camera(values.atPinholeCameraCal3Bundler(C(i)))
+
+    # add tracks
+    for j in range(initial_data.number_tracks()):
+        input_track = initial_data.track(j)
+
+        # populate the result with optimized 3D point
+        result_track = SfmTrack(
+            values.atPoint3(P(j)),
+        )
+
+        for measurement_idx in range(input_track.number_measurements()):
+            i, uv = input_track.measurement(measurement_idx)
+            result_track.add_measurement(i, uv)
+
+        result.add_track(result_track)
+
+    return result

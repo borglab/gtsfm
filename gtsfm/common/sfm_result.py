@@ -2,65 +2,19 @@
 
 Authors: Xiaolong Wu, Ayush Baid
 """
-from typing import List
-from dask import optimization
+from typing import List, NamedTuple, Tuple
 
 import numpy as np
-from gtsam import (
-    Pose3,
-    SfmData,
-    SfmTrack,
-    Values,
-    symbol_shorthand,
-    PinholeCameraCal3Bundler,
-)
-
-C = symbol_shorthand.C  # camera
-P = symbol_shorthand.P  # 3d point
-X = symbol_shorthand.X  # camera pose
-K = symbol_shorthand.K  # calibration
+from gtsam import Pose3, SfmData, SfmTrack
 
 
-class SfmResult:
+class SfmResult(NamedTuple):
     """Class to hold optimized camera params, 3d landmarks (w/ tracks), and
     total reprojection error.
     """
 
-    def __init__(
-        self,
-        initial_data: SfmData,
-        optimization_result: Values,
-        total_reproj_error: float,
-        use_shared_calib: bool,
-    ) -> None:
-
-        self.total_reproj_error = total_reproj_error
-
-        self.result_data = SfmData()
-
-        # add camera params
-        for i in range(initial_data.number_cameras()):
-            self.result_data.add_camera(
-                PinholeCameraCal3Bundler(
-                    optimization_result.atPose3(X(i)),
-                    optimization_result.atCal3Bundler(
-                        K(0 if use_shared_calib else i)
-                    ),
-                ),
-            )
-
-        # add tracks
-        for j in range(initial_data.number_tracks()):
-            input_track = initial_data.track(j)
-
-            # init the result with optimized 3D point
-            result_track = SfmTrack(optimization_result.atPoint3(P(j)))
-
-            for k in range(input_track.number_measurements()):
-                cam_idx, uv = input_track.measurement(k)
-                result_track.add_measurement(cam_idx, uv)
-
-            self.result_data.add_track(result_track)
+    sfm_data: SfmData
+    total_reproj_error: float
 
     def __eq__(self, other: object) -> bool:
         """Tests for equality using global poses, intrinsics, and total reprojection error.
@@ -74,30 +28,41 @@ class SfmResult:
         if not isinstance(other, SfmResult):
             return False
 
-        # compare the number of cameras
-        if (
-            self.result_data.number_cameras()
-            != other.result_data.number_cameras()
-        ):
+        if not self.sfm_data.equals(other.sfm_data, 1e-9):
             return False
 
-        # compare camera intrinsics
-        for i in range(self.result_data.number_cameras()):
-            if (
-                not self.result_data.camera(i)
-                .calibration()
-                .equals(other.result_data.camera(i).calibration(), 1e-1)
-            ):
-                return False
-
-        # TODO: add pose comparison once the function is in master
-
+        # finally, compare reprojection error
         return np.isclose(
             self.total_reproj_error,
             other.total_reproj_error,
             rtol=1e-2,
             atol=1e-1,
         )
+
+    def get_camera_poses(self) -> List[Pose3]:
+        """Getter for camera poses wTi.
+
+        Returns:
+            camera poses as a list, each representing wTi
+        """
+        return [
+            self.sfm_data.camera(i).pose()
+            for i in range(self.sfm_data.number_cameras())
+        ]
+
+    def get_track_length_statistics(self) -> Tuple[float, float]:
+        """Compute mean and median lengths of all the tracks.
+
+        Returns:
+            Mean track length.
+            Median track length.
+        """
+        track_lengths = [
+            self.sfm_data.track(j).number_measurements()
+            for j in range(self.sfm_data.number_tracks())
+        ]
+
+        return np.mean(track_lengths), np.median(track_lengths)
 
     def __validate_track(
         self, track: SfmTrack, reproj_err_thresh: float
@@ -113,21 +78,25 @@ class SfmResult:
         """
 
         for k in range(track.number_measurements()):
+            # process each measurement
             cam_idx, uv = track.measurement(k)
 
-            camera = self.result_data.camera(cam_idx)
+            # get the camera associated with the measurement
+            camera = self.sfm_data.camera(cam_idx)
 
             # Project to camera
             uv_reprojected, success_flag = camera.projectSafe(track.point3())
 
             if not success_flag:
+                # failure in projection
                 return False
 
+            # compute and check reprojection error
             reproj_error = np.linalg.norm(uv - uv_reprojected)
-
             if reproj_error > reproj_err_thresh:
                 return False
 
+        # track is valid as all measurements have error below the threshold
         return True
 
     def filter_landmarks(self, reproj_err_thresh: float = 5) -> SfmData:
@@ -136,29 +105,17 @@ class SfmResult:
         Args:
             reproj_err_thresh: reprojection err threshold for each measurement.
         """
+        # TODO: move this function to utils or GTSAM
         filtered_data = SfmData()
 
-        # add camera params
-        for i in range(self.result_data.number_cameras()):
-            filtered_data.add_camera(self.result_data.camera(i))
+        # add all the cameras
+        for i in range(self.sfm_data.number_cameras()):
+            filtered_data.add_camera(self.sfm_data.camera(i))
 
-        for j in range(self.result_data.number_tracks()):
-            track = self.result_data.track(j)
+        for j in range(self.sfm_data.number_tracks()):
+            track = self.sfm_data.track(j)
 
             if self.__validate_track(track, reproj_err_thresh):
                 filtered_data.add_track(track)
 
         return filtered_data
-
-    def get_camera_poses(self) -> List[Pose3]:
-        """Getter for camera poses wTi.
-
-        Returns:
-            camera poses as a list, each representing wTi
-        """
-        poses = []
-
-        for i in range(self.result_data.number_cameras()):
-            poses.append(self.result_data.camera(i).pose())
-
-        return poses

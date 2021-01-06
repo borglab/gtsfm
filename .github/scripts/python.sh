@@ -1,13 +1,15 @@
 #!/bin/bash
 
 ##########################################################
-# Build the GTSAM Python wrapper, then run GTSFM unit tests
+# GTSFM dependencies (including GTSAM) previously installed using conda
 ##########################################################
 
-pip install gtsam
+echo "Running .github/scripts/python.sh..."
+conda init
+conda info --envs
 
 ##########################################################
-# Install GTSFM dependencies
+# Install GTSFM as a module
 ##########################################################
 
 cd $GITHUB_WORKSPACE

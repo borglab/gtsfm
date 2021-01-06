@@ -35,7 +35,7 @@ class DummyDataAssociation:
         """Perform the data association.
 
         Args:
-            cameras: dictionary with image index as key, and camera object w/ 
+            cameras: dictionary with image index as key, and camera object w/
                      intrinsics + extrinsics as value.
             corr_idxs_dict: dictionary, with key as image pair (i1,i2) and value
                             as matching keypoint indices.
@@ -66,23 +66,25 @@ class DummyDataAssociation:
             # for each selected camera, randomly select a point
             for cam_idx in selected_cams:
                 measurement_idx = random.randint(
-                    0, len(keypoints_list[cam_idx])-1)
-                measurement = keypoints_list[cam_idx].coordinates[measurement_idx]
+                    0, len(keypoints_list[cam_idx]) - 1
+                )
+                measurement = keypoints_list[cam_idx].coordinates[
+                    measurement_idx
+                ]
+
                 sfmTrack.add_measurement(cam_idx, measurement)
 
             tracks.append(sfmTrack)
 
-        # TODO: solve the case of dropped cameras.
-
         # create the final SfmData object
-        sfmData = SfmData()
+        sfm_data = SfmData()
         for cam in cameras.values():
-            sfmData.add_camera(cam)
+            sfm_data.add_camera(cam)
 
         for track in tracks:
-            sfmData.add_track(track)
+            sfm_data.add_track(track)
 
-        return sfmData
+        return sfm_data
 
     def create_computation_graph(
         self,

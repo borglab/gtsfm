@@ -1,11 +1,25 @@
-# gtsfm
-End-to-end SFM pipeline based on GTSAM
+# Georgia Tech Structure from Motion (GTSFM) Library
+
+### What is GTSFM?
+GTSFM is an end-to-end SFM pipeline based on [GTSAM](https://github.com/borglab/gtsam). GTSFM was designed from the ground-up to natively support parallel computation using [Dask](https://dask.org/).
 
 ## Installation
 
-First, install GTSAM.
+First, create the conda environment:
+```bash
+conda env create -f environment.yml
+```
+Now, activate the conda environment. Depending upon your bash and conda set-up, this will either be via:
+```bash
+conda activate gtsfm-v1
+```
+or:
+```bash
+source activate gtsfm-v1
+```
 
-```python
+Now, install `gtsfm` as a module:
+```bash
 pip install -e .
 ```
 Make sure that you can run `python -c "import gtsfm; print('hello world')"` in python, and you are good to go!
