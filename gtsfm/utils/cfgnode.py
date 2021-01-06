@@ -3,12 +3,12 @@ import argparse
 import os
 from typing import List, Optional
 
-from yacs.config import CfgNode as YACS
+from yacs.config import CfgNode
 
 
 """
 Provides 2 classes for GTSFM users to interface with command-line
-input parameters and YAML files. Both classes wrap around YACS.
+input parameters and YAML files. Both classes wrap around YACS' CfgNode.
 
 CfgNode is designed to be used without any command-line input, and
 ArgsCfgNode is designed to merge argparse data with YAML data.
@@ -21,8 +21,9 @@ these parameters after they are initialized here, i.e. "frozen".
 class GtsfmCfgNode:
     """Class that reads YAML and freezes parameters (no argparse interface)."""
 
-    def __init__(self, cfg_init: YACS) -> None:
+    def __init__(self, cfg_init: CfgNode) -> None:
         """Initialize the configuration node
+        
         Args:
             cfg_init: default config file
         """
@@ -35,8 +36,8 @@ class GtsfmCfgNode:
         print(self.param)
 
     def load_file(self, file_name: str) -> None:
-        """
-        Load config from .yaml file
+        """Load config from .yaml file.
+
         Args:
             file_name: path to yaml file
         """
@@ -98,8 +99,7 @@ class GtsfmArgsCfgNode:
         config_fpaths: List[str] = None,
         config_param: List[str] = None,
     ) -> GtsfmCfgNode:
-        """
-        Initialization CfgNode using loaded arguments
+        """Initialize a CfgNode using loaded arguments
 
         Args:
             config: config without initialization
