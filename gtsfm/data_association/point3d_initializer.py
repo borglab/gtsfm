@@ -281,6 +281,30 @@ class Point3dInitializer(NamedTuple):
 
         return sample_indices.tolist()
 
+    def compute_track_reprojection_errors(
+        self, measurements: List[SfmMeasurement], point3d: np.ndarray
+    ) -> np.ndarray:
+        """Compute reprojection errors for measurements in the tracks.
+
+        Args:
+            measurements: measurements corresponding to a track.
+            point3d: 3D corresponding to the measurments.
+
+        Returns:
+            reprojection errors for each measurement.
+        """
+        errors = []
+        for (i, uv_measured) in measurements:
+            camera = self.track_camera_dict[i]
+            # Project to camera
+            uv, success_flag = camera.projectSafe(point3d)
+            # Projection error in camera
+            if success_flag:
+                errors.append(np.linalg.norm(uv_measured - uv))
+            else:
+                errors.append(np.nan)
+        return np.array(errors)
+    
     def extract_measurements(
         self, track: SfmTrack2d
     ) -> Tuple[CameraSetCal3Bundler, Point2Vector]:
@@ -319,27 +343,3 @@ class Point3dInitializer(NamedTuple):
             )
 
         return track_cameras, track_measurements
-
-    def compute_track_reprojection_errors(
-        self, measurements: List[SfmMeasurement], point3d: np.ndarray
-    ) -> np.ndarray:
-        """Compute reprojection errors for measurements in the tracks.
-
-        Args:
-            measurements: measurements corresponding to a track.
-            point3d: 3D corresponding to the measurments.
-
-        Returns:
-            reprojection errors for each measurement.
-        """
-        errors = []
-        for (i, uv_measured) in measurements:
-            camera = self.track_camera_dict[i]
-            # Project to camera
-            uv, success_flag = camera.projectSafe(point3d)
-            # Projection error in camera
-            if success_flag:
-                errors.append(np.linalg.norm(uv_measured - uv))
-            else:
-                errors.append(np.nan)
-        return np.array(errors)
