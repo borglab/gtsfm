@@ -89,7 +89,7 @@ def draw_line_cv2(
     x2: int,
     y2: int,
     line_color: Tuple[int, int, int],
-    line_thickness: int = 5,
+    line_thickness: int = 10,
 ) -> Image:
     """Draw a line on the image from coordinates (x1, y1) to (x2, y2).
 
@@ -124,10 +124,10 @@ def plot_twoview_correspondences(
     kps_i2: Keypoints,
     corr_idxs_i1i2: np.ndarray,
     inlier_mask: Optional[np.ndarray] = None,
-    dot_color: Tuple[int, int, int] = (0, 0, 0),
+    dot_color: Optional[Tuple[int, int, int]] = None,
     max_corrs: Optional[int] = 50,
 ) -> Image:
-    """Plot correspondences between two images.
+    """Plot correspondences between two images as lines between two circles.
 
     Args:
         image_i1: first image.
@@ -167,18 +167,22 @@ def plot_twoview_correspondences(
             np.int32
         ) + image_i1.height
 
-        result = draw_circle_cv2(result, x_i1, y_i1, dot_color)
-        result = draw_circle_cv2(result, x_i2, y_i2, dot_color)
-
         # drawing correspondences with optional inlier mask
         if inlier_mask is None:
-            line_color = tuple([ int(c) for c in np.random.randint(0,255+1,3)])
+            line_color = tuple(
+                [int(c) for c in np.random.randint(0, 255 + 1, 3)]
+            )
         elif inlier_mask[corr_idx]:
             line_color = COLOR_GREEN
         else:
             line_color = COLOR_RED
 
         result = draw_line_cv2(result, x_i1, y_i1, x_i2, y_i2, line_color)
+
+        if dot_color is None:
+            dot_color = line_color
+        result = draw_circle_cv2(result, x_i1, y_i1, dot_color)
+        result = draw_circle_cv2(result, x_i2, y_i2, dot_color)
 
     return result
 

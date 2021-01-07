@@ -41,14 +41,5 @@ setup(
     keywords="computer-vision",
     packages=find_packages(),
     python_requires=">= 3.6",
-    install_requires=[
-        "pytest",
-        "dask[complete]",
-        "matplotlib>=3.3.3",
-        "networkx",
-        "numpy",
-        "opencv-python>=4.1.0.25",
-        "pillow>=8.0.1", # old versions dont support getexif()
-        "yacs"
-    ]
+    install_requires=[],
 )
