@@ -179,7 +179,7 @@ class BundleAdjustmentOptimizer:
             params.setVerbosityLM("ERROR")
             lm = LevenbergMarquardtOptimizer(graph, initial_values, params)
             result_values = lm.optimize()
-        except Exception:
+        except RuntimeError:
             logging.exception("LM Optimization failed")
             return
 
