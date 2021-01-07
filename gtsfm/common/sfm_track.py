@@ -110,7 +110,7 @@ class SfmTrack2d(NamedTuple):
         matches_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
     ) -> List["SfmTrack2d"]:
-        """Creates and filter tracks from matches.
+        """Factory function that creates a list of tracks from 2d point correspondences.
 
         Creates a disjoint-set forest (DSF) and 2d tracks from pairwise matches. We create a
         singleton for union-find set elements from camera index of a detection and the index
