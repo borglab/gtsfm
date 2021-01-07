@@ -23,9 +23,9 @@ from gtsfm.common.sfm_result import SfmResult
 C = symbol_shorthand.C
 P = symbol_shorthand.P
 
-PINHOLE_CAM_CAL3BUNDLER_DOF = 9 # 6 dof for pose, and 3 dof for f, k1, k2
-IMG_MEASUREMENT_DIM = 2 # 2d measurements (u,v) have 2 dof
-POINT3_DOF = 3 # 3d points have 3 dof
+PINHOLE_CAM_CAL3BUNDLER_DOF = 9  # 6 dof for pose, and 3 dof for f, k1, k2
+IMG_MEASUREMENT_DIM = 2  # 2d measurements (u,v) have 2 dof
+POINT3_DOF = 3  # 3d points have 3 dof
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
@@ -34,6 +34,9 @@ class BundleAdjustmentOptimizer:
     """Bundle adjustment using factor-graphs in GTSAM.
 
     This class refines global pose estimates and intrinsics of cameras, and also refines 3D point cloud structure given tracks from triangulation."""
+
+    def __init__(self, use_robust_measurement_noise: bool = False) -> None:
+        self._use_robust_measurement_noise = use_robust_measurement_noise
 
     def run(self, initial_data: SfmData) -> SfmResult:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
@@ -49,7 +52,15 @@ class BundleAdjustmentOptimizer:
         )
 
         # noise model for measurements -- one pixel in u and v
-        measurement_noise = gtsam.noiseModel.Isotropic.Sigma(IMG_MEASUREMENT_DIM, 1.0)
+        if self._use_robust_measurement_noise:
+            measurement_noise = gtsam.noiseModel.Robust(
+                gtsam.noiseModel.mEstimator.Huber(1.35),
+                gtsam.noiseModel.Isotropic.Sigma(IMG_MEASUREMENT_DIM, 1.0),
+            )
+        else:
+            measurement_noise = gtsam.noiseModel.Isotropic.Sigma(
+                IMG_MEASUREMENT_DIM, 1.0
+            )
 
         # Create a factor graph
         graph = gtsam.NonlinearFactorGraph()
@@ -73,7 +84,9 @@ class BundleAdjustmentOptimizer:
             gtsam.PriorFactorPinholeCameraCal3Bundler(
                 C(0),
                 initial_data.camera(0),
-                gtsam.noiseModel.Isotropic.Sigma(PINHOLE_CAM_CAL3BUNDLER_DOF, 0.1),
+                gtsam.noiseModel.Isotropic.Sigma(
+                    PINHOLE_CAM_CAL3BUNDLER_DOF, 0.1
+                ),
             )
         )
         # Also add a prior on the position of the first landmark to fix the scale

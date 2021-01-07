@@ -22,14 +22,30 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
     def setUp(self):
         super().setUp()
 
-        self.obj = BundleAdjustmentOptimizer()
-
         self.test_data = EXAMPLE_DATA
 
-    def test_simple_scene(self):
-        """Test the simple scene using the `run` API."""
+    def test_simple_scene_with_nonrobust_noise(self):
+        """Test a simple scene with simple isotropic measurement noise."""
+        obj = BundleAdjustmentOptimizer(use_robust_measurement_noise=False)
 
-        computed_result = self.obj.run(self.test_data)
+        computed_result = obj.run(self.test_data)
+
+        expected_error = 0.046137573704557046
+
+        self.assertTrue(
+            np.isclose(
+                expected_error,
+                computed_result.total_reproj_error,
+                atol=1e-2,
+                rtol=1e-2,
+            )
+        )
+
+    def test_simple_scene_with_robust_noise(self):
+        """Tests a simple scene with robust measurement noise."""
+        obj = BundleAdjustmentOptimizer(use_robust_measurement_noise=True)
+
+        computed_result = obj.run(self.test_data)
 
         expected_error = 0.046137573704557046
 
@@ -46,9 +62,11 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         """Test the simple scene as dask computation graph."""
         sfm_data_graph = dask.delayed(self.test_data)
 
-        expected_result = self.obj.run(self.test_data)
+        obj = BundleAdjustmentOptimizer(use_robust_measurement_noise=False)
 
-        computed_result = self.obj.create_computation_graph(
+        expected_result = obj.run(self.test_data)
+
+        computed_result = obj.create_computation_graph(
             dask.delayed(sfm_data_graph)
         )
 
