@@ -30,7 +30,7 @@ class FolderLoader(LoaderBase):
     If explicit intrinsics are not provided, the exif data will be used.
     """
 
-    def __init__(self, folder: str, image_extension: str = 'jpg') -> None:
+    def __init__(self, folder: str, image_extension: str = "jpg") -> None:
         """
         Initializes to load from a specified folder on disk
 
@@ -41,7 +41,7 @@ class FolderLoader(LoaderBase):
 
         # fetch all the file names in /image folder
         search_path = os.path.join(
-            folder, 'images', '*.{}'.format(image_extension)
+            folder, "images", "*.{}".format(image_extension)
         )
 
         self.image_paths = glob.glob(search_path)
@@ -52,9 +52,12 @@ class FolderLoader(LoaderBase):
         self.explicit_intrinsics_paths = []
         for image_file_name in self.image_paths:
             file_path = os.path.join(
-                folder, 'intrinsics', '{}.npy'.format(
+                folder,
+                "intrinsics",
+                "{}.npy".format(
                     os.path.splitext(os.path.basename(image_file_name))[0]
-                ))
+                ),
+            )
             if not os.path.exists(file_path):
                 self.explicit_intrinsics_paths = []
                 break
@@ -63,7 +66,7 @@ class FolderLoader(LoaderBase):
 
         # check if extrinsics are available as numpy arrays
         explicit_extrinsics_template = os.path.join(
-            folder, 'extrinsics', '{}.npy'
+            folder, "extrinsics", "{}.npy"
         )
 
         self.explicit_extrinsics_paths = []
@@ -117,7 +120,9 @@ class FolderLoader(LoaderBase):
         if len(self.explicit_intrinsics_paths) == 0:
             # get intrinsics from exif
 
-            return io_utils.load_image(self.image_paths[index]).get_intrinsics_from_exif()
+            return io_utils.load_image(
+                self.image_paths[index]
+            ).get_intrinsics_from_exif()
 
         else:
             # TODO: handle extra inputs in the intrinsics array
@@ -128,7 +133,8 @@ class FolderLoader(LoaderBase):
                 k1=0,
                 k2=0,
                 u0=intrinsics_array[0, 2],
-                v0=intrinsics_array[1, 2])
+                v0=intrinsics_array[1, 2],
+            )
 
     def get_camera_pose(self, index: int) -> Optional[Pose3]:
         """Get the camera pose (in world coordinates) at the given index.
@@ -157,4 +163,4 @@ class FolderLoader(LoaderBase):
             validation result.
         """
 
-        return idx1 < idx2 and idx2 < idx1 + 4
+        return idx1 < idx2

@@ -31,7 +31,7 @@ class DoG(DetectorBase):
             detected keypoints, with maximum length of max_keypoints.
         """
         # init the opencv object
-        opencv_obj = cv.xfeatures2d.SIFT_create()
+        opencv_obj = cv.SIFT_create()
 
         gray_image = image_utils.rgb_to_gray_cv(image)
         cv_keypoints = opencv_obj.detect(gray_image.value_array, None)

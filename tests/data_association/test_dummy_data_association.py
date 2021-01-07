@@ -13,7 +13,7 @@ from gtsam import (
     Pose3,
     Pose3Vector,
     Rot3,
-    SfmData
+    SfmData,
 )
 
 from gtsam.utils.test_case import GtsamTestCase
@@ -35,35 +35,41 @@ class TestDataAssociation(GtsamTestCase):
 
         self.dummy_corr_idxs_dict = {
             (0, 1): np.array([[0, 2]]),
-            (1, 2): np.array([[2, 3],
-                              [4, 5],
-                              [7, 9]]),
-            (0, 2): np.array([[1, 8]])}
+            (1, 2): np.array([[2, 3], [4, 5], [7, 9]]),
+            (0, 2): np.array([[1, 8]]),
+        }
         self.keypoints_list = [
-            Keypoints(coordinates=np.array([
-                [12, 16],
-                [13, 18],
-                [0, 10]])),
-            Keypoints(coordinates=np.array([
-                [8, 2],
-                [16, 14],
-                [22, 23],
-                [1, 6],
-                [50, 50],
-                [16, 12],
-                [82, 121],
-                [39, 60]])),
-            Keypoints(coordinates=np.array([
-                [1, 1],
-                [8, 13],
-                [40, 6],
-                [82, 21],
-                [1, 6],
-                [12, 18],
-                [15, 14],
-                [25, 28],
-                [7, 10],
-                [14, 17]]))
+            Keypoints(coordinates=np.array([[12, 16], [13, 18], [0, 10]])),
+            Keypoints(
+                coordinates=np.array(
+                    [
+                        [8, 2],
+                        [16, 14],
+                        [22, 23],
+                        [1, 6],
+                        [50, 50],
+                        [16, 12],
+                        [82, 121],
+                        [39, 60],
+                    ]
+                )
+            ),
+            Keypoints(
+                coordinates=np.array(
+                    [
+                        [1, 1],
+                        [8, 13],
+                        [40, 6],
+                        [82, 21],
+                        [1, 6],
+                        [12, 18],
+                        [15, 14],
+                        [25, 28],
+                        [7, 10],
+                        [14, 17],
+                    ]
+                )
+            ),
         ]
 
         # Generate two poses for use in triangulation tests
@@ -91,15 +97,17 @@ class TestDataAssociation(GtsamTestCase):
 
         camera_graph = dask.delayed(cameras)
 
-        corr_idxs_graph = {k: dask.delayed(v) for (
-            k, v) in self.dummy_corr_idxs_dict.items()}
+        corr_idxs_graph = {
+            k: dask.delayed(v) for (k, v) in self.dummy_corr_idxs_dict.items()
+        }
 
         keypoints_graph = [dask.delayed(x) for x in self.keypoints_list]
 
         da_graph = self.obj.create_computation_graph(
-            camera_graph, corr_idxs_graph, keypoints_graph)
+            camera_graph, corr_idxs_graph, keypoints_graph
+        )
 
-        with dask.config.set(scheduler='single-threaded'):
+        with dask.config.set(scheduler="single-threaded"):
             dask_result = dask.compute(da_graph)[0]
 
         self.assertIsInstance(dask_result, SfmData)

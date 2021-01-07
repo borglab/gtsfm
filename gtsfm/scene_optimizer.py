@@ -15,9 +15,12 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import networkx as nx
 from dask.delayed import Delayed
+from dask.distributed import Client, LocalCluster, performance_report
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3
 
 import gtsfm.utils.io as io_utils
+import gtsfm.utils.geometry_comparisons as comp_utils
+import gtsfm.utils.serialization  # import needed to register serialization fns
 import gtsfm.utils.viz as viz_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import (
     RotationAveragingBase,
@@ -30,6 +33,7 @@ from gtsfm.averaging.translation.translation_averaging_base import (
     TranslationAveragingBase,
 )
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
+from gtsfm.common.sfm_result import SfmResult
 from gtsfm.data_association.data_assoc import (
     DataAssociation,
     TriangulationParam,
@@ -47,11 +51,12 @@ from gtsfm.loader.folder_loader import FolderLoader
 # configure loggers to avoid DEBUG level stdout messages
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
-mpl_logger = logging.getLogger('matplotlib')
+mpl_logger = logging.getLogger("matplotlib")
 mpl_logger.setLevel(logging.WARNING)
 
-pil_logger = logging.getLogger('PIL')
+pil_logger = logging.getLogger("PIL")
 pil_logger.setLevel(logging.INFO)
+
 
 class FeatureExtractor:
     """Wrapper for running detection and description on each image."""
@@ -286,6 +291,7 @@ class SceneOptimizer:
         self,
         pre_ba_sfm_data: Delayed,
         post_ba_sfm_data: Delayed,
+        gt_pose_graph: Optional[List[Delayed]],
         folder_name: str,
     ) -> None:
         # extract camera poses
@@ -302,6 +308,9 @@ class SceneOptimizer:
 
         viz_utils.plot_poses_3d(pre_ba_poses, ax, center_marker_color="c")
         viz_utils.plot_poses_3d(post_ba_poses, ax, center_marker_color="k")
+        if gt_pose_graph is not None:
+            gt_pose_graph = comp_utils.align_poses(gt_pose_graph, post_ba_poses)
+            viz_utils.plot_poses_3d(gt_pose_graph, ax, center_marker_color="m")
 
         # save the 3D plot in the original view
         fig.savefig(os.path.join(folder_name, "poses_3d.png"))
@@ -320,6 +329,7 @@ class SceneOptimizer:
         image_graph: List[Delayed],
         camera_intrinsics_graph: List[Delayed],
         use_intrinsics_in_verification: bool = True,
+        gt_pose_graph: Optional[List[Delayed]] = None,
     ) -> Delayed:
         """ The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times"""
 
@@ -406,7 +416,10 @@ class SceneOptimizer:
 
             viz_graph_list.append(
                 dask.delayed(self.__visualize_camera_poses)(
-                    ba_input_graph, filtered_sfm_data_graph, "plots/results"
+                    ba_input_graph,
+                    filtered_sfm_data_graph,
+                    gt_pose_graph,
+                    "plots/results",
                 )
             )
 
@@ -450,6 +463,14 @@ if __name__ == "__main__":
         loader.create_computation_graph_for_images(),
         loader.create_computation_graph_for_intrinsics(),
         use_intrinsics_in_verification=True,
+        gt_pose_graph=loader.create_computation_graph_for_poses(),
     )
 
-    sfm_result = dask.compute(sfm_result_graph)[0]
+    # create dask client
+    cluster = LocalCluster(n_workers=2, threads_per_worker=4)
+    client = Client(cluster)
+
+    with performance_report(filename="dask-report.html"):
+        sfm_result = sfm_result_graph.compute()
+
+    assert isinstance(sfm_result, SfmResult)

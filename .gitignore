@@ -145,3 +145,6 @@ data/
 
 # OS X Finder files
 *.DS_Store
+
+# Plot directory
+plots/
