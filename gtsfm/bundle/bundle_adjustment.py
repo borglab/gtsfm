@@ -30,6 +30,10 @@ P = symbol_shorthand.P  # 3d point
 X = symbol_shorthand.X  # camera pose
 K = symbol_shorthand.K  # calibration
 
+CAM_POSE3_DOF = 6  # 6 dof for pose of camera
+CAM_CAL3BUNDLER_DOF = 3  # 3 dof for f, k1, k2 for intrinsics of camera
+IMG_MEASUREMENT_DIM = 2  # 2d measurements (u,v) have 2 dof
+POINT3_DOF = 3  # 3d points have 3 dof
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
@@ -72,7 +76,7 @@ class BundleAdjustmentOptimizer:
             PriorFactorPose3(
                 X(camera_idx),
                 camera.pose(),
-                Isotropic.Sigma(6, 0.1),
+                Isotropic.Sigma(CAM_POSE3_DOF, 0.1),
             )
         )
 
@@ -86,7 +90,7 @@ class BundleAdjustmentOptimizer:
                 PriorFactorCal3Bundler(
                     K(camera_idx),
                     camera.calibration(),
-                    Isotropic.Sigma(3, 0.1),
+                    Isotropic.Sigma(CAM_CAL3BUNDLER_DOF, 0.1),
                 )
             )
 
@@ -142,8 +146,8 @@ class BundleAdjustmentOptimizer:
             f"Input: {initial_data.number_tracks()} tracks on {initial_data.number_cameras()} cameras\n"
         )
 
-        # noise model for measurements
-        measurement_noise = Isotropic.Sigma(2, 1.0)  # one pixel in u and v
+        # noise model for measurements -- one pixel in u and v
+        measurement_noise = Isotropic.Sigma(IMG_MEASUREMENT_DIM, 1.0)
 
         # Create a factor graph
         graph = NonlinearFactorGraph()
