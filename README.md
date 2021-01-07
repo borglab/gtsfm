@@ -53,7 +53,8 @@ Our CI will enforce the unit tests (`pytest tests/`), as well as formatters -- `
 Open-source Python implementation:
 ```
 @misc{
-    author = {Ayush Baid, Fan Jiang, Akshay Krishnan, John Lambert, Aishwarya Venkataramanan, Sushmita Warrier, Jing Wu, Xiaolong Wu, Frank Dellaert},
+    author = {Ayush Baid, Fan Jiang, Akshay Krishnan, John Lambert,
+       Aishwarya Venkataramanan, Sushmita Warrier, Jing Wu, Xiaolong Wu, Frank Dellaert},
     title = {GTSFM: Georgia Tech Structure from Motion},
     howpublished={\url{https://github.com/borglab/gtsfm}},
     year = {2021},
