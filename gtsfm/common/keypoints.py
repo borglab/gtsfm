@@ -4,7 +4,7 @@ detections on an image.
 Authors: Ayush Baid
 """
 import copy
-from typing import List, NamedTuple, Optional
+from typing import List, Optional
 
 import cv2 as cv
 import numpy as np
@@ -13,10 +13,7 @@ import numpy as np
 OPENCV_DEFAULT_SIZE = 2
 
 
-class Keypoints(NamedTuple):
-    coordinates: np.ndarray
-    scales: Optional[np.ndarray] = None
-    responses: Optional[np.ndarray] = None  # TODO(ayush): enforce the range.
+class Keypoints:
     """Output of detections in an image.
 
     Coordinate system convention:
@@ -25,16 +22,36 @@ class Keypoints(NamedTuple):
         2. The y coordinate denotes the vertical direction (+ve direction
            downwards).
         3. Origin is at the top left corner of the image.
-
-    Args:
-        coordinates: the (x, y) coordinates of the features, of shape Nx2.
-        scales: optional scale of the detections, of shape N.
-        responses: optional respose of the detections, of shape N.
     """
+
+    def __init__(
+        self,
+        coordinates: np.ndarray,
+        scales: Optional[np.ndarray] = None,
+        responses: Optional[np.ndarray] = None,
+    ):
+        """Initializes the attributes.
+
+        Args:
+            coordinates: the (x, y) coordinates of the features, of shape Nx2.
+            scales: optional scale of the detections, of shape N.
+            responses: optional respose of the detections, of shape N.
+        """
+        self.coordinates = coordinates
+        self.scales = scales
+        self.responses = responses  # TODO(ayush): enforce the range.
 
     def __len__(self) -> int:
         """Number of descriptors."""
         return self.coordinates.shape[0]
+
+    def __sizeof__(self) -> int:
+        return (
+            super().__sizeof__()
+            + self.coordinates.__sizeof__()
+            + self.scales.__sizeof__()
+            + self.responses.__sizeof__()
+        )
 
     def __eq__(self, other: object) -> bool:
         """Checks equality with the other keypoints object."""
@@ -70,7 +87,7 @@ class Keypoints(NamedTuple):
     def get_top_k(self, k: int) -> "Keypoints":
         """Returns the top keypoints by their response values (or just the
         values from the front in case of missing responses.)
-        
+
         If k keypoints are requested, and only n are available, where n < k,
         then returning n keypoints is the expected behavior.
 
