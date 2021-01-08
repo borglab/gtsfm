@@ -44,7 +44,7 @@ from gtsfm.frontend.detector_descriptor.detector_descriptor_base import (
 from gtsfm.frontend.detector_descriptor.sift import SIFTDetectorDescriptor
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
 from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
-from gtsfm.frontend.verifier.degensac import Degensac
+from gtsfm.frontend.verifier.ransac import Ransac
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 from gtsfm.loader.folder_loader import FolderLoader
 
@@ -451,7 +451,7 @@ if __name__ == "__main__":
     obj = SceneOptimizer(
         detector_descriptor=SIFTDetectorDescriptor(),
         matcher=TwoWayMatcher(),
-        verifier=Degensac(),
+        verifier=Ransac(),
         rot_avg_module=ShonanRotationAveraging(),
         trans_avg_module=TranslationAveraging1DSFM(),
         config=config,
