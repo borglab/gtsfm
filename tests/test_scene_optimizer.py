@@ -125,9 +125,9 @@ class TestSceneOptimizer(unittest.TestCase):
 
         # create dask client
         cluster = LocalCluster(n_workers=1, threads_per_worker=4)
-        client = Client(cluster)
 
-        sfm_result = dask.compute(sfm_result_graph)[0]
+        with Client(cluster):
+            sfm_result = dask.compute(sfm_result_graph)[0]
 
         self.assertIsInstance(sfm_result, SfmResult)
 
