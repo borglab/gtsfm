@@ -51,6 +51,7 @@ class Keypoints:
         return self.coordinates.shape[0]
 
     def __sizeof__(self) -> int:
+        """Functionality required by Dask to avoid warnings."""
         return (
             super().__sizeof__()
             + self.coordinates.__sizeof__()
