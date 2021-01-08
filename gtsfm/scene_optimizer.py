@@ -468,9 +468,8 @@ if __name__ == "__main__":
 
     # create dask client
     cluster = LocalCluster(n_workers=2, threads_per_worker=4)
-    client = Client(cluster)
 
-    with performance_report(filename="dask-report.html"):
+    with Client(cluster), performance_report(filename="dask-report.html"):
         sfm_result = sfm_result_graph.compute()
 
     assert isinstance(sfm_result, SfmResult)
