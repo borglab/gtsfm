@@ -5,9 +5,13 @@ GTSFM is an end-to-end SFM pipeline based on [GTSAM](https://github.com/borglab/
 
 ## Installation
 
-First, create the conda environment:
+First, create the conda environment. On linux with CUDA support:
 ```bash
-conda env create -f environment.yml
+conda env create -f environment_linux.yml
+```
+and on Mac OSX without CUDA support:
+```bash
+conda env create -f environment_mac.yml
 ```
 Now, activate the conda environment. Depending upon your bash and conda set-up, this will either be via:
 ```bash
