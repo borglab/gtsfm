@@ -442,7 +442,7 @@ if __name__ == "__main__":
     config = SimpleNamespace(
         **{
             "reproj_error_thresh": 5,
-            "min_track_len": 3,
+            "min_track_len": 2,
             "triangulation_mode": TriangulationParam.NO_RANSAC,
             "num_ransac_hypotheses": 20,
             "save_viz": True,
