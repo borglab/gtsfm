@@ -22,6 +22,11 @@ class Keypoints:
         2. The y coordinate denotes the vertical direction (+ve direction
            downwards).
         3. Origin is at the top left corner of the image.
+
+    Note: the keypoints class *should not* be implemented as NamedTuple because
+    dask treats NamedTuple as a tuple and tries to estimate the size by
+    randomly sampling elements (number computed using len()). len() is used for
+    the number of points and not the number of attributes.
     """
 
     def __init__(
