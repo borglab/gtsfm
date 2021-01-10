@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Tuple
 
 import dask
+import gtsam
 import matplotlib
 
 matplotlib.use("Agg")
@@ -16,7 +17,14 @@ import matplotlib.pyplot as plt
 import networkx as nx
 from dask.delayed import Delayed
 from dask.distributed import Client, LocalCluster, performance_report
-from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3
+from gtsam import (
+    Cal3Bundler,
+    PinholeCameraCal3Bundler,
+    Pose3,
+    Rot3,
+    SfmData,
+    Unit3,
+)
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.geometry_comparisons as comp_utils
@@ -250,6 +258,7 @@ class SceneOptimizer:
         )
 
         self._save_viz = config.save_viz
+        self._write_to_disk = config.write_to_disk
 
     def __visualize_twoview_correspondences(
         self,
@@ -322,6 +331,12 @@ class SceneOptimizer:
 
         plt.close(fig)
 
+    def __write_sfmdata_to_disk(
+        self, ba_input_sfm_data: SfmData, ba_output_sfm_data: SfmData
+    ) -> None:
+        gtsam.writeBAL("results/ba_input.bal", ba_input_sfm_data)
+        gtsam.writeBAL("results/ba_output.bal", ba_output_sfm_data)
+
     def create_computation_graph(
         self,
         num_images: int,
@@ -333,8 +348,8 @@ class SceneOptimizer:
     ) -> Delayed:
         """ The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times"""
 
-        # optional graph elements for visualizations, not returned to the user.
-        viz_graph_list = []
+        # graph elements for visualizations and saving, not returned to the user.
+        nonoutput_graph_list = []
 
         # detection and description graph
         keypoints_graph_list = []
@@ -371,7 +386,7 @@ class SceneOptimizer:
 
             if self._save_viz:
                 os.makedirs("plots/correspondences", exist_ok=True)
-                viz_graph_list.append(
+                nonoutput_graph_list.append(
                     dask.delayed(self.__visualize_twoview_correspondences)(
                         image_graph[i1],
                         image_graph[i2],
@@ -394,27 +409,27 @@ class SceneOptimizer:
             camera_intrinsics_graph,
         )
 
-        if self._save_viz:
-            filtered_sfm_data_graph = dask.delayed(
-                ba_output_graph.filter_landmarks
-            )(config.reproj_error_thresh)
+        filtered_sfm_data_graph = dask.delayed(
+            ba_output_graph.filter_landmarks
+        )(config.reproj_error_thresh)
 
+        if self._save_viz:
             os.makedirs("plots/ba_input", exist_ok=True)
             os.makedirs("plots/results", exist_ok=True)
 
-            viz_graph_list.append(
+            nonoutput_graph_list.append(
                 dask.delayed(self.__visualize_sfm_data)(
                     ba_input_graph, "plots/ba_input/"
                 )
             )
 
-            viz_graph_list.append(
+            nonoutput_graph_list.append(
                 dask.delayed(self.__visualize_sfm_data)(
                     filtered_sfm_data_graph, "plots/results/"
                 )
             )
 
-            viz_graph_list.append(
+            nonoutput_graph_list.append(
                 dask.delayed(self.__visualize_camera_poses)(
                     ba_input_graph,
                     filtered_sfm_data_graph,
@@ -423,11 +438,18 @@ class SceneOptimizer:
                 )
             )
 
+        if self._write_to_disk:
+            nonoutput_graph_list.append(
+                dask.delayed(self.__write_sfmdata_to_disk)(
+                    ba_input_graph, filtered_sfm_data_graph
+                )
+            )
+
         # as visualization tasks are not to be provided to the user, we create a
         # dummy computation of concatenating viz tasks with the output graph,
         # forcing computation of viz tasks
         output_graph = dask.delayed(lambda x, y: [x] + y)(
-            ba_output_graph, viz_graph_list
+            ba_output_graph, nonoutput_graph_list
         )
 
         # return the entry with just the sfm result
@@ -446,6 +468,7 @@ if __name__ == "__main__":
             "triangulation_mode": TriangulationParam.NO_RANSAC,
             "num_ransac_hypotheses": 20,
             "save_viz": True,
+            "write_to_disk": True,
         }
     )
     obj = SceneOptimizer(
