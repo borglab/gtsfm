@@ -440,6 +440,7 @@ class SceneOptimizer:
             )
 
         if self._save_bal_files:
+            os.makedirs("results", exist_ok=True)
             auxiliary_graph_list.append(
                 dask.delayed(self.__write_sfmdata_to_disk)(
                     ba_input_graph, filtered_sfm_data_graph
