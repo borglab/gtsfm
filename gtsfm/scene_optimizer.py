@@ -332,7 +332,7 @@ class SceneOptimizer:
         plt.close(fig)
 
     def __write_sfmdata_to_disk(self, sfm_data: SfmData, save_fpath: str) -> None:
-        """Write SfmData as a "Bundle Adjustment in the Large" (BAL file)
+        """Write SfmData object as a "Bundle Adjustment in the Large" (BAL) file
         See https://grail.cs.washington.edu/projects/bal/ for more details on the format.
         """
         gtsam.writeBAL(save_fpath, sfm_data)
