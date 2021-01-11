@@ -258,7 +258,7 @@ class SceneOptimizer:
         )
 
         self._save_viz = config.save_viz
-        self._write_to_disk = config.write_to_disk
+        self._save_bal_files = config.save_bal_files
 
     def __visualize_twoview_correspondences(
         self,
@@ -348,8 +348,9 @@ class SceneOptimizer:
     ) -> Delayed:
         """ The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times"""
 
-        # graph elements for visualizations and saving, not returned to the user.
-        nonoutput_graph_list = []
+        # auxiliary graph elements for visualizations and saving intermediate 
+        # data for analysis, not returned to the user.
+        auxiliary_graph_list = []
 
         # detection and description graph
         keypoints_graph_list = []
@@ -386,7 +387,7 @@ class SceneOptimizer:
 
             if self._save_viz:
                 os.makedirs("plots/correspondences", exist_ok=True)
-                nonoutput_graph_list.append(
+                auxiliary_graph_list.append(
                     dask.delayed(self.__visualize_twoview_correspondences)(
                         image_graph[i1],
                         image_graph[i2],
@@ -417,19 +418,19 @@ class SceneOptimizer:
             os.makedirs("plots/ba_input", exist_ok=True)
             os.makedirs("plots/results", exist_ok=True)
 
-            nonoutput_graph_list.append(
+            auxiliary_graph_list.append(
                 dask.delayed(self.__visualize_sfm_data)(
                     ba_input_graph, "plots/ba_input/"
                 )
             )
 
-            nonoutput_graph_list.append(
+            auxiliary_graph_list.append(
                 dask.delayed(self.__visualize_sfm_data)(
                     filtered_sfm_data_graph, "plots/results/"
                 )
             )
 
-            nonoutput_graph_list.append(
+            auxiliary_graph_list.append(
                 dask.delayed(self.__visualize_camera_poses)(
                     ba_input_graph,
                     filtered_sfm_data_graph,
@@ -438,8 +439,8 @@ class SceneOptimizer:
                 )
             )
 
-        if self._write_to_disk:
-            nonoutput_graph_list.append(
+        if self._save_bal_files:
+            auxiliary_graph_list.append(
                 dask.delayed(self.__write_sfmdata_to_disk)(
                     ba_input_graph, filtered_sfm_data_graph
                 )
@@ -449,7 +450,7 @@ class SceneOptimizer:
         # dummy computation of concatenating viz tasks with the output graph,
         # forcing computation of viz tasks
         output_graph = dask.delayed(lambda x, y: [x] + y)(
-            ba_output_graph, nonoutput_graph_list
+            ba_output_graph, auxiliary_graph_list
         )
 
         # return the entry with just the sfm result
@@ -468,7 +469,7 @@ if __name__ == "__main__":
             "triangulation_mode": TriangulationParam.NO_RANSAC,
             "num_ransac_hypotheses": 20,
             "save_viz": True,
-            "write_to_disk": True,
+            "save_bal_files": True,
         }
     )
     obj = SceneOptimizer(
