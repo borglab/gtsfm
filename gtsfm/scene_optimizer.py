@@ -331,11 +331,11 @@ class SceneOptimizer:
 
         plt.close(fig)
 
-    def __write_sfmdata_to_disk(
-        self, ba_input_sfm_data: SfmData, ba_output_sfm_data: SfmData
-    ) -> None:
-        gtsam.writeBAL("results/ba_input.bal", ba_input_sfm_data)
-        gtsam.writeBAL("results/ba_output.bal", ba_output_sfm_data)
+    def __write_sfmdata_to_disk(self, sfm_data: SfmData, save_fpath: str) -> None:
+        """Write SfmData as a "Bundle Adjustment in the Large" (BAL file)
+        See https://grail.cs.washington.edu/projects/bal/ for more details on the format.
+        """
+        gtsam.writeBAL(save_fpath, sfm_data)
 
     def create_computation_graph(
         self,
@@ -441,9 +441,16 @@ class SceneOptimizer:
 
         if self._save_bal_files:
             os.makedirs("results", exist_ok=True)
+            # save the input to Bundle Adjustment (from data association)
             auxiliary_graph_list.append(
                 dask.delayed(self.__write_sfmdata_to_disk)(
-                    ba_input_graph, filtered_sfm_data_graph
+                    ba_input_graph, "results/ba_input.bal"
+                )
+            )
+            # save the output of Bundle Adjustment (after optimization)
+            auxiliary_graph_list.append(
+                dask.delayed(self.__write_sfmdata_to_disk)(
+                    filtered_sfm_data_graph, "results/ba_output.bal"
                 )
             )
 
