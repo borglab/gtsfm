@@ -3,17 +3,24 @@
 Authors: Ayush Baid
 """
 import unittest
+from pathlib import Path
 
-from gtsam import Cal3_S2, Unit3
+from gtsam import Cal3_S2, Pose3, Unit3
 from gtsam.examples import SFMdata
 
-import tests.averaging.translation.test_translation_averaging_base as \
-    test_translation_averaging_base
-from averaging.translation.averaging_1dsfm import TranslationAveraging1DSFM
+import tests.averaging.translation.test_translation_averaging_base as test_translation_averaging_base
+import gtsfm.utils.geometry_comparisons as geometry_comparisons
+from gtsfm.averaging.translation.averaging_1dsfm import (
+    TranslationAveraging1DSFM,
+)
+from gtsfm.loader.folder_loader import FolderLoader
+
+DATA_ROOT_PATH = Path(__file__).resolve().parent.parent.parent / "data"
 
 
 class TestTranslationAveraging1DSFM(
-        test_translation_averaging_base.TestTranslationAveragingBase):
+    test_translation_averaging_base.TestTranslationAveragingBase
+):
     """Test class for 1DSFM rotation averaging.
 
     All unit test functions defined in TestTranslationAveragingBase are run
@@ -25,38 +32,36 @@ class TestTranslationAveraging1DSFM(
 
         self.obj = TranslationAveraging1DSFM()
 
-    def test_simple(self):
-        """Test a simple case with 8 camera poses.
+    def test_lund_door(self):
+        loader = FolderLoader(
+            str(DATA_ROOT_PATH / "set1_lund_door"), image_extension="JPG"
+        )
 
-        The camera poses are aranged on the circle and point towards the center
-        of the circle. The poses of 8 cameras are obtained from SFMdata and the
-        unit translations directions between some camera pairs are computed from their global translations.
+        expected_wTi_list = [
+            loader.get_camera_pose(x) for x in range(len(loader))
+        ]
+        wRi_list = [x.rotation() for x in expected_wTi_list]
 
-        This test is copied from GTSAM's TranslationAveragingExample.
-        """
+        i2Ui1_dict = dict()
+        for (i1, i2) in loader.get_valid_pairs():
+            i2Ti1 = expected_wTi_list[i2].between(expected_wTi_list[i1])
 
-        fx, fy, s, u0, v0 = 50.0, 50.0, 0.0, 50.0, 50.0
-        wPi_list = SFMdata.createPoses(Cal3_S2(fx, fy, s, u0, v0))
+            i2Ui1_dict[(i1, i2)] = Unit3((i2Ti1.translation()))
 
-        expected_wTi = [x.translation() for x in wPi_list]
+        wti_list = self.obj.run(len(loader), i2Ui1_dict, wRi_list)
 
-        wRi_list = [x.rotation() for x in wPi_list]
+        wTi_list = [
+            Pose3(wRi, wti) if wti is not None else None
+            for (wRi, wti) in zip(wRi_list, wti_list)
+        ]
 
-        # create relative translation directions between a pose index and the
-        # next two poses
-        i1Ui2_dict = {}
-        for i1 in range(len(wPi_list)-1):
-            for i2 in range(i1+1, min(len(wPi_list), i1+3)):
-                # create relative translations using global R and T.
-                i1Ui2_dict[(i1, i2)] = Unit3(
-                    wRi_list[i1].unrotate(
-                        expected_wTi[i2] - expected_wTi[i1]))
-
-        computed_wTi = self.obj.run(len(wRi_list), i1Ui2_dict, wRi_list)
-
-        # compare the entries
-        self.assert_equal_upto_scale(expected_wTi, computed_wTi)
+        # TODO: using a v high value for translation relative threshold. Fix it
+        self.assertTrue(
+            geometry_comparisons.compare_global_poses(
+                wTi_list, expected_wTi_list, trans_err_thresh=2e1
+            )
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

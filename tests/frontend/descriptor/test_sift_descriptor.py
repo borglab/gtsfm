@@ -5,7 +5,7 @@ Authors: Ayush Baid
 import unittest
 
 import tests.frontend.descriptor.test_descriptor_base as test_descriptor_base
-from frontend.descriptor.sift import SIFTDescriptor
+from gtsfm.frontend.descriptor.sift import SIFTDescriptor
 
 
 class TestSIFTDescriptor(test_descriptor_base.TestDescriptorBase):

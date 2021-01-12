@@ -1,5 +1,4 @@
-"""
-Tests for frontend's base verifier class.
+"""Tests for frontend's base verifier class.
 
 Authors: Ayush Baid
 """
@@ -7,18 +6,27 @@ Authors: Ayush Baid
 import pickle
 import random
 import unittest
-from typing import List, Tuple
-from unittest.mock import MagicMock
+from typing import Tuple
 
 import dask
 import numpy as np
+from gtsam import (
+    Cal3Bundler,
+    EssentialMatrix,
+    PinholeCameraCal3Bundler,
+    Pose3,
+    Rot3,
+    Unit3,
+)
 
-from frontend.verifier.dummy_verifier import DummyVerifier
+from gtsfm.common.keypoints import Keypoints
+from gtsfm.frontend.verifier.dummy_verifier import DummyVerifier
+
+RANDOM_SEED = 15
 
 
 class TestVerifierBase(unittest.TestCase):
-    """
-    Unit tests for the Base Verifier class.
+    """Unit tests for the Base Verifier class.
 
     Should be inherited by all verifier unit tests.
     """
@@ -26,184 +34,409 @@ class TestVerifierBase(unittest.TestCase):
     def setUp(self):
         super().setUp()
 
+        np.random.seed(RANDOM_SEED)
+        random.seed(RANDOM_SEED)
+
         self.verifier = DummyVerifier()
+
+    def test_simple_scene(self):
+        """Test a simple scene with 8 points, 4 on each plane, so that
+        RANSAC family of methods do not get trapped into a degenerate sample.
+        """
+        if isinstance(self.verifier, DummyVerifier):
+            self.skipTest("Cannot check correctness for dummy verifier")
+
+        # obtain the keypoints and the ground truth essential matrix.
+        keypoints_i1, keypoints_i2, expected_i2Ei1 = simulate_two_planes_scene(
+            4, 4
+        )
+
+        # match keypoints row by row
+        match_indices = np.vstack(
+            (np.arange(len(keypoints_i1)), np.arange(len(keypoints_i1)))
+        ).T
+
+        # run the verifier
+        (
+            i2Ri1,
+            i2Ui1,
+            verified_indices,
+        ) = self.verifier.verify_with_approximate_intrinsics(
+            keypoints_i1,
+            keypoints_i2,
+            match_indices,
+            Cal3Bundler(),
+            Cal3Bundler(),
+        )
+
+        self.assertTrue(i2Ri1.equals(expected_i2Ei1.rotation(), 1e-2))
+        self.assertTrue(i2Ui1.equals(expected_i2Ei1.direction(), 1e-2))
+        np.testing.assert_array_equal(verified_indices, match_indices)
 
     def test_valid_verified_indices(self):
         """Test if valid indices in output."""
 
-        # run matching on a random input pair
-        f_matrix, verified_indices, input_features_im1, input_features_im2 = self.__verify_random_inputs()
-
-        if verified_indices.size:
-            # check that the indices are not out of bounds
-            self.assertTrue(np.all(verified_indices >= 0))
-            self.assertTrue(
-                np.all(verified_indices < input_features_im1.shape[0]))
-
-    def test_valid_fundamental_matrix(self):
-        """Checks the shape of the computed fundamental matrix."""
+        # Repeat the experiment 10 times as we might not have successful
+        # verification every time.
 
         for _ in range(10):
-            # repeat the experiments 10 times as we might not get the fundamental matrix in every case
+            (
+                _,
+                _,
+                verified_indices,
+                keypoints_i1,
+                keypoints_i2,
+            ) = self.__verify_random_inputs_with_exact_intrinsics()
 
-            fundamental_matrix, verified_indices, _, _ = self.__verify_random_inputs()
-
-            if verified_indices.size >= self.verifier.min_pts:
-                self.assertEqual((3, 3), fundamental_matrix.shape)
+            if verified_indices.size > 0:
+                # check that the indices are not out of bounds
+                self.assertTrue(np.all(verified_indices >= 0))
+                self.assertTrue(
+                    np.all(verified_indices[:, 0] < len(keypoints_i1))
+                )
+                self.assertTrue(
+                    np.all(verified_indices[:, 1] < len(keypoints_i2))
+                )
             else:
-                self.assertIsNone(fundamental_matrix)
+                # we have a meaningless test
+                self.skipTest("No valid results found")
 
-    def test_match_empty_input(self):
-        """Tests the output when there are no input features."""
+    def test_verify_empty_matches(self):
+        """Tests the output when there are no match indices."""
 
-        image_shape = [100, 400]
+        keypoints_i1 = generate_random_keypoints(10, [250, 300])
+        keypoints_i2 = generate_random_keypoints(12, [400, 300])
+        match_indices = np.array([], dtype=np.int32)
+        intrinsics_i1 = Cal3Bundler()
+        intrinsics_i2 = Cal3Bundler()
 
-        f_matrix, verified_indices = self.verifier.verify(
-            np.array([]), np.array([]), image_shape, image_shape)
+        (
+            i2Ri1,
+            i2Ui1,
+            verified_indices,
+        ) = self.verifier.verify_with_exact_intrinsics(
+            keypoints_i1,
+            keypoints_i2,
+            match_indices,
+            intrinsics_i1,
+            intrinsics_i2,
+        )
 
-        self.assertIsNone(f_matrix)
+        self.assertIsNone(i2Ri1)
+        self.assertIsNone(i2Ui1)
         self.assertEqual(0, verified_indices.size)
 
-    def test_unique_indices(self):
-        """Tests that each index appears atmost once."""
+    def test_create_computation_graph(self):
+        """Checks that the dask computation graph produces the same results as
+        direct APIs."""
 
-        _, verified_indices, _, _ = self.__verify_random_inputs()
+        # creating inputs for verification
+        (
+            keypoints_i1,
+            keypoints_i2,
+            matches_i1i2,
+            intrinsics_i1,
+            intrinsics_i2,
+        ) = generate_random_input_for_verifier()
 
-        num_unique_indices = len(set(verified_indices.tolist()))
+        # and use GTSFM's direct API to get expected results
 
-        self.assertEqual(verified_indices.size, num_unique_indices)
-
-    def test_verify_and_get_features(self):
-        """Tests the lookup portion of the verify+lookup API."""
-
-        _, _, matched_features_im1, matched_features_im2 = self.__verify_random_inputs()
-        num_input = matched_features_im1.shape[0]
-
-        # mock the verified indices
-        mocked_f_matrix = np.random.randn(3, 3)
-        mocked_verified_indices = np.random.randint(low=0, high=num_input, size=(
-            random.randint(0, num_input)))
-        self.verifier.verify = MagicMock(return_value=(
-            mocked_f_matrix,
-            mocked_verified_indices
-        ))
-
-        # run the function
-        image_shape = [100, 400]
-        f_matrix, verified_features_im1, verified_features_im2 = self.verifier.verify_and_get_features(
-            matched_features_im1, matched_features_im2, image_shape, image_shape
+        expected_results = self.verifier.verify_with_exact_intrinsics(
+            keypoints_i1,
+            keypoints_i2,
+            matches_i1i2,
+            intrinsics_i1,
+            intrinsics_i2,
         )
 
-        # Confirm by performing manual lookup
-        np.testing.assert_array_equal(
-            matched_features_im1[mocked_verified_indices], verified_features_im1)
-        np.testing.assert_array_equal(
-            matched_features_im2[mocked_verified_indices], verified_features_im2)
-
-    def test_computation_graph(self):
-        """Tests the computation graph is working exactly as the normal verification API."""
-
-        # Set up 3 pairs of inputs to the verifier
-        image_indices = [(0, 1), (4, 3), (2, 5)]
-        verifier_input = dict()
-        for indices in image_indices:
-            verifier_input[indices] = self.__generate_random_input()
-
-        # Convert the input to computation graph
-        matched_features_computation_graph = dict()
-        image_shapes = [None]*6
-
-        for key, val in verifier_input.items():
-            matched_features_computation_graph[key] = dask.delayed(val[:2])
-            image_shapes[key[0]] = val[2]
-            image_shapes[key[1]] = val[3]
+        expected_i2Ri1 = expected_results[0]
+        expected_i2Ui1 = expected_results[1]
+        expected_v_corr_idxs = expected_results[2]
 
         # generate the computation graph for the verifier
-        verifier_output_graph = self.verifier.create_computation_graph(
-            matched_features_computation_graph,
-            image_shapes
+        (
+            delayed_i2Ri1,
+            delayed_i2Ui1,
+            delayed_v_corr_idxs,
+        ) = self.verifier.create_computation_graph(
+            dask.delayed(keypoints_i1),
+            dask.delayed(keypoints_i2),
+            dask.delayed(matches_i1i2),
+            dask.delayed(intrinsics_i1),
+            dask.delayed(intrinsics_i2),
+            exact_intrinsics_flag=True,
         )
 
-        with dask.config.set(scheduler='single-threaded'):
-            computation_graph_results = dask.compute(verifier_output_graph)[0]
+        with dask.config.set(scheduler="single-threaded"):
+            i2Ri1 = dask.compute(delayed_i2Ri1)[0]
+            i2Ui1 = dask.compute(delayed_i2Ui1)[0]
+            v_corr_idxs = dask.compute(delayed_v_corr_idxs)[0]
 
-            for key, val in verifier_input.items():
-                normal_results = self.verifier.verify_and_get_features(
-                    val[0], val[1], val[2], val[3]
-                )
+        if expected_i2Ri1 is None:
+            self.assertIsNone(i2Ri1)
+        else:
+            self.assertTrue(expected_i2Ri1.equals(i2Ri1, 1e-2))
 
-                dask_results = computation_graph_results[key]
+        if expected_i2Ui1 is None:
+            self.assertIsNone(i2Ui1)
+        else:
+            self.assertTrue(expected_i2Ui1.equals(i2Ui1, 1e-2))
 
-                self.assertEqual(len(normal_results), len(dask_results))
-
-                for idx in range(len(normal_results)):
-                    np.testing.assert_array_equal(
-                        normal_results[idx], dask_results[idx])
+        np.testing.assert_array_equal(v_corr_idxs, expected_v_corr_idxs)
 
     def test_pickleable(self):
         """Tests that the verifier object is pickleable (required for dask)."""
+
         try:
             pickle.dumps(self.verifier)
         except TypeError:
             self.fail("Cannot dump verifier using pickle")
 
-    def __generate_random_features(self, num_features: int, image_shape: Tuple[int, int]) -> np.ndarray:
-        """
-        Generates random features within the image bounds.
-
-        Args:
-            num_features (int): number of features to generate
-            image_shape (Tuple[int, int]): size of the image
+    def __verify_random_inputs_with_exact_intrinsics(
+        self,
+    ) -> Tuple[Rot3, Unit3, np.ndarray, np.ndarray, np.ndarray]:
+        """Generates random inputs for pair (#i1, #i2) and perform verification
+        by treating intrinsics as exact.
 
         Returns:
-            np.ndarray: generated features
+            Computed relative rotation i2Ri1.
+            Computed translation direction i2Ui1.
+            Indices of keypoints which are verified correspondences.
+            Keypoints from #i1 which were input to the verifier.
+            Keypoints from #i2 which were input to the verifier.
         """
 
-        if num_features == 0:
-            return np.array([])
+        (
+            keypoints_i1,
+            keypoints_i2,
+            match_indices,
+            intrinsics_i1,
+            intrinsics_i2,
+        ) = generate_random_input_for_verifier()
 
-        return np.random.randint(
-            [0, 0], high=image_shape, size=(num_features, 2)
+        (
+            i2Ri1,
+            i2Ui1,
+            verified_indices,
+        ) = self.verifier.verify_with_exact_intrinsics(
+            keypoints_i1,
+            keypoints_i2,
+            match_indices,
+            intrinsics_i1,
+            intrinsics_i2,
+        )
+
+        return i2Ri1, i2Ui1, verified_indices, keypoints_i1, keypoints_i2
+
+
+def generate_random_keypoints(
+    num_keypoints: int, image_shape: Tuple[int, int]
+) -> Keypoints:
+    """Generates random features within the image bounds.
+
+    Args:
+        num_keypoints: number of features to generate.
+        image_shape: size of the image.
+
+    Returns:
+        generated features.
+    """
+
+    if num_keypoints == 0:
+        return np.array([])
+
+    return Keypoints(
+        coordinates=np.random.randint(
+            [0, 0], high=image_shape, size=(num_keypoints, 2)
         ).astype(np.float32)
+    )
 
-    def __verify_random_inputs(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """
-        Generates a pair of image shapes and the features for each image randomly.
 
-        Returns:
-            Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-                1. computed fundamental matrix
-                2. verified indices
-                3. input features for image #1
-                4. corresponding input features for image #2
-        """
+def generate_random_input_for_verifier() -> Tuple[
+    Keypoints, Keypoints, np.ndarray, Cal3Bundler, Cal3Bundler
+]:
+    """Generates random inputs for verification.
 
-        matched_features_im1, matched_features_im2, image_shape_im1, image_shape_im2 = self.__generate_random_input()
+    Returns:
+        Keypoints for image #i1.
+        Keypoints for image #i2.
+        Indices of match between image pair (#i1, #i2).
+        Intrinsics for image #i1.
+        Intrinsics for image #i2.
+    """
 
-        f_matrix, verified_indices = self.verifier.verify(
-            matched_features_im1, matched_features_im2, image_shape_im1, image_shape_im2)
+    # Randomly generate number of keypoints
+    num_keypoints_i1 = random.randint(0, 100)
+    num_keypoints_i2 = random.randint(0, 100)
 
-        return f_matrix, verified_indices, matched_features_im1, matched_features_im2
+    # randomly generate image shapes
+    image_shape_i1 = [random.randint(100, 400), random.randint(100, 400)]
+    image_shape_i2 = [random.randint(100, 400), random.randint(100, 400)]
 
-    def __generate_random_input(self) -> Tuple[np.ndarray, np.ndarray, Tuple[int, int], Tuple[int, int]]:
-        """
-        Generates input for the verify() API randomly.
+    # generate intrinsics from image shapes
+    intrinsics_i1 = Cal3Bundler(
+        fx=min(image_shape_i1[0], image_shape_i1[1]),
+        k1=0,
+        k2=0,
+        u0=image_shape_i1[0] / 2,
+        v0=image_shape_i1[1] / 2,
+    )
 
-        Returns:
-            Tuple[np.ndarray, np.ndarray, Tuple[int, int], Tuple[int, int]]:
-                1. Matched features from image #1
-                2. Matched features from image #2
-                3. Shape of image #1
-                4. Shape of image #2
-        """
+    intrinsics_i2 = Cal3Bundler(
+        fx=min(image_shape_i2[0], image_shape_i2[1]),
+        k1=0,
+        k2=0,
+        u0=image_shape_i2[0] / 2,
+        v0=image_shape_i2[1] / 2,
+    )
 
-        num_features = random.randint(0, 100)
-        image_shape_im1 = [random.randint(100, 400), random.randint(100, 400)]
-        image_shape_im2 = [random.randint(100, 400), random.randint(100, 400)]
+    # randomly generate the keypoints
+    keypoints_i1 = generate_random_keypoints(num_keypoints_i1, image_shape_i1)
+    keypoints_i2 = generate_random_keypoints(num_keypoints_i2, image_shape_i2)
 
-        matched_features_im1 = self.__generate_random_features(
-            num_features, image_shape_im1)
-        matched_features_im2 = self.__generate_random_features(
-            num_features, image_shape_im2)
+    # randomly generate matches
+    num_matches = random.randint(0, min(num_keypoints_i1, num_keypoints_i2))
+    if num_matches == 0:
+        matching_indices_i1i2 = np.array([], dtype=np.int32)
+    else:
+        matching_indices_i1i2 = np.empty((num_matches, 2), dtype=np.int32)
+        matching_indices_i1i2[:, 0] = np.random.choice(
+            num_keypoints_i1, size=(num_matches,), replace=False
+        )
+        matching_indices_i1i2[:, 1] = np.random.choice(
+            num_keypoints_i2, size=(num_matches,), replace=False
+        )
 
-        return matched_features_im1, matched_features_im2, image_shape_im1, image_shape_im2
+    return (
+        keypoints_i1,
+        keypoints_i2,
+        matching_indices_i1i2,
+        intrinsics_i1,
+        intrinsics_i2,
+    )
+
+
+def sample_points_on_plane(
+    plane_coefficients: Tuple[float, float, float, float],
+    range_x_coordinate: Tuple[float, float],
+    range_y_coordinate: Tuple[float, float],
+    num_points: int,
+) -> np.ndarray:
+    """Sample random points on a 3D plane ax + by + cz + d = 0.
+
+    Args:
+        plane_coefficients: coefficients (a,b,c,d) of the plane equation.
+        range_x_coordinate: desired range of the x coordinates of samples.
+        range_y_coordinate: desired range of the y coordinates of samples.
+        num_points: number of points to sample.
+
+    Returns:
+        3d points on the plane, of shape (num_points, 3).
+    """
+
+    a, b, c, d = plane_coefficients
+
+    if c == 0:
+        raise ValueError("z-coefficient for the plane should not be zero")
+
+    # sample x coordinates randomly
+    x = np.random.uniform(
+        low=range_x_coordinate[0],
+        high=range_x_coordinate[1],
+        size=(num_points, 1),
+    )
+
+    # sample y coordinates randomly
+    y = np.random.uniform(
+        low=range_y_coordinate[0],
+        high=range_y_coordinate[1],
+        size=(num_points, 1),
+    )
+
+    # calculate z coordinates using equation of the plane
+    z = -(a * x + b * y + d) / c
+
+    pts = np.hstack([x, y, z])
+
+    # assert points are on the plane
+    pts_residuals = (
+        pts @ np.array(plane_coefficients[:3]).reshape(3, 1)
+        + plane_coefficients[3]
+    )
+
+    np.testing.assert_almost_equal(pts_residuals, np.zeros((num_points, 1)))
+
+    return pts
+
+
+def simulate_two_planes_scene(
+    M: int, N: int
+) -> Tuple[Keypoints, Keypoints, EssentialMatrix]:
+    """Generate a scene where 3D points are on two planes, and projects the
+    points to the 2 cameras. There are M points on plane 1, and N points on
+    plane 2.
+
+    The two planes in this test are:
+    1. -10x -y -20z +150 = 0
+    2. 15x -2y -35z +200 = 0
+
+    Args:
+        M: number of points on 1st plane.
+        N: number of points on 2nd plane.
+
+    Returns:
+        keypoints for image i1, of length (M+N).
+        keypoints for image i2, of length (M+N).
+        Essential matrix i2Ei1.
+    """
+    # range of 3D points
+    range_x_coordinate = (-5, 7)
+    range_y_coordinate = (-10, 10)
+
+    # define the plane equation
+    plane1_coeffs = (-10, -1, -20, 150)
+    plane2_coeffs = (15, -2, -35, 200)
+
+    # sample the points from planes
+    plane1_points = sample_points_on_plane(
+        plane1_coeffs, range_x_coordinate, range_y_coordinate, M
+    )
+    plane2_points = sample_points_on_plane(
+        plane2_coeffs, range_x_coordinate, range_y_coordinate, N
+    )
+
+    points_3d = np.vstack((plane1_points, plane2_points))
+
+    # define the camera poses and compute the essential matrix
+    wti1 = np.array([0.1, 0, -20])
+    wti2 = np.array([1, -2, -20.4])
+
+    wRi1 = Rot3.RzRyRx(np.pi / 20, 0, 0.0)
+    wRi2 = Rot3.RzRyRx(0.0, np.pi / 6, 0.0)
+
+    wTi1 = Pose3(wRi1, wti1)
+    wTi2 = Pose3(wRi2, wti2)
+    i2Ti1 = wTi2.between(wTi1)
+
+    i2Ei1 = EssentialMatrix(i2Ti1.rotation(), Unit3(i2Ti1.translation()))
+
+    # project 3D points to 2D image measurements
+    intrinsics = Cal3Bundler()
+    camera_i1 = PinholeCameraCal3Bundler(wTi1, intrinsics)
+    camera_i2 = PinholeCameraCal3Bundler(wTi2, intrinsics)
+
+    uv_im1 = []
+    uv_im2 = []
+    for point in points_3d:
+        uv_im1.append(camera_i1.project(point))
+        uv_im2.append(camera_i2.project(point))
+
+    uv_im1 = np.vstack(uv_im1)
+    uv_im2 = np.vstack(uv_im2)
+
+    # return the points as keypoints and the essential matrix
+    return Keypoints(coordinates=uv_im1), Keypoints(coordinates=uv_im2), i2Ei1
+
+
+if __name__ == "__main__":
+    unittest.main()
