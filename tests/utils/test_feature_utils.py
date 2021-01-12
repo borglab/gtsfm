@@ -1,42 +1,27 @@
-"""
-Unit test for common feature utils.
-"""
+"""Unit test for common feature utils."""
 import unittest
 
 import numpy as np
 
-import utils.features as feature_utils
+from gtsam import Cal3Bundler
+
+import gtsfm.utils.features as feature_utils
 
 
 class TestFeatureUtils(unittest.TestCase):
-    """
-    Class containing all the unit tests.
-    """
+    """Class containing all unit tests for feature utils."""
 
-    def test_keypoints_from_array(self):
-        """
-        Unit tests for conversion of keypoints from numpy array representation
-        to opencv's keypoints.
-        """
+    def test_normalize_coordinates(self):
+        coordinates = np.array([[10.0, 20.0], [25.0, 12.0], [30.0, 33.0]])
 
-        numpy_features = np.array([
-            [1.3, 5, 1, 4.2],
-            [20, 10, 5, 3.2]
-        ])
+        intrinsics = Cal3Bundler(fx=100, k1=0.0, k2=0.0, u0=20.0, v0=30.0)
 
-        results = feature_utils.keypoints_from_array(numpy_features)
+        normalized_coordinates = feature_utils.normalize_coordinates(
+            coordinates, intrinsics
+        )
 
-        # Check the length of the result
-        self.assertEqual(numpy_features.shape[0], len(results))
+        expected_coordinates = np.array(
+            [[-0.1, -0.1], [0.05, -0.18], [0.1, 0.03]]
+        )
 
-        # check the first keypoint
-        kp = results[0]
-        self.assertAlmostEqual(numpy_features[0][0], kp.pt[0])
-        self.assertAlmostEqual(numpy_features[0][1], kp.pt[1])
-        self.assertAlmostEqual(numpy_features[0][2], kp.size)
-
-        # check the second keypoint
-        kp = results[1]
-        self.assertAlmostEqual(numpy_features[1][0], kp.pt[0])
-        self.assertAlmostEqual(numpy_features[1][1], kp.pt[1])
-        self.assertAlmostEqual(numpy_features[1][2], kp.size)
+        np.testing.assert_allclose(normalized_coordinates, expected_coordinates)

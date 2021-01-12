@@ -11,7 +11,7 @@ from typing import Tuple
 import dask
 import numpy as np
 
-from frontend.matcher.dummy_matcher import DummyMatcher
+from gtsfm.frontend.matcher.dummy_matcher import DummyMatcher
 
 
 class TestMatcherBase(unittest.TestCase):
@@ -29,43 +29,57 @@ class TestMatcherBase(unittest.TestCase):
         """Tests if matched indices are valid feature indices."""
 
         # run matching on a random input pair
-        result, descriptors_im1, descriptors_im2 = self.__generate_matches_on_random_descriptors()
+        (
+            result,
+            descriptors_im1,
+            descriptors_im2,
+        ) = self.__generate_matches_on_random_descriptors()
 
         if result.size:
             # check that the match indices are out of bounds
-            self.assertTrue(np.all((result[:, 0] >= 0) & (
-                result[:, 0] < descriptors_im1.shape[0])))
-            self.assertTrue(np.all((result[:, 1] >= 0) & (
-                result[:, 1] < descriptors_im2.shape[0])))
+            self.assertTrue(
+                np.all(
+                    (result[:, 0] >= 0)
+                    & (result[:, 0] < descriptors_im1.shape[0])
+                )
+            )
+            self.assertTrue(
+                np.all(
+                    (result[:, 1] >= 0)
+                    & (result[:, 1] < descriptors_im2.shape[0])
+                )
+            )
 
     def test_empty_input(self):
         """Tests the matches when there are no descriptors."""
 
         num_descriptors = random.randint(5, 15)
 
-        descriptor_length = random.randint(2, 10)
+        descriptor_dim = random.randint(2, 10)  # dimensionality
 
-        descriptors = self.__generate_random_binary_descriptors(
-            num_descriptors, descriptor_length)
+        descriptors = generate_random_binary_descriptors(
+            num_descriptors, descriptor_dim
+        )
 
         # the first descriptor is empty
         result = self.matcher.match(
-            self.__generate_random_binary_descriptors(0, descriptor_length),
-            descriptors)
+            generate_random_binary_descriptors(0, descriptor_dim), descriptors
+        )
 
         self.assertEqual(0, result.size)
 
         # the second descriptor is empty
         result = self.matcher.match(
-            descriptors,
-            self.__generate_random_binary_descriptors(0, descriptor_length))
+            descriptors, generate_random_binary_descriptors(0, descriptor_dim)
+        )
 
         self.assertEqual(0, result.size)
 
         # both descriptors are empty
         result = self.matcher.match(
-            self.__generate_random_binary_descriptors(0, descriptor_length),
-            self.__generate_random_binary_descriptors(0, descriptor_length))
+            generate_random_binary_descriptors(0, descriptor_dim),
+            generate_random_binary_descriptors(0, descriptor_dim),
+        )
 
         self.assertEqual(0, result.size)
 
@@ -83,84 +97,44 @@ class TestMatcherBase(unittest.TestCase):
         self.assertEqual(result.shape[0], len(set_index_im1))
         self.assertEqual(result.shape[0], len(set_index_im2))
 
-    def test_match_and_get_features(self):
-        """Testing the match+lookup API to verify lookup."""
-
-        # run matching on a random input pair
-        match_indices, descriptors_im1, descriptors_im2 = self.__generate_matches_on_random_descriptors()
-
-        # generate random features for input
-        features_im1 = np.random.randn(descriptors_im1.shape[0], 3)
-        features_im2 = np.random.randn(descriptors_im2.shape[0], 3)
-
-        # fetch matched features directly from the matcher
-        matched_features_im1, matched_features_im2 = \
-            self.matcher.match_and_get_features(
-                features_im1, features_im2,
-                descriptors_im1, descriptors_im2)
-
-        # Confirm by performing manual lookup
-        np.testing.assert_array_equal(
-            features_im1[match_indices[:, 0]], matched_features_im1)
-        np.testing.assert_array_equal(
-            features_im2[match_indices[:, 1]], matched_features_im2)
-
     def test_computation_graph(self):
         """Test that the computation graph is working exactly as the normal 
         matching API using 3 images.
         """
+        # number of images in test, for which we need to generate descriptors.
+        num_images = 3
 
-        # generate three random descriptors and their features
-        num_descriptors_im1 = random.randint(5, 15)
-        num_descriptors_im2 = random.randint(5, 15)
-        num_descriptors_im3 = random.randint(5, 15)
+        # pairs of images to perform matching on
+        pairs_list = [(0, 1), (0, 2), (2, 1)]
 
-        descriptor_length = random.randint(2, 10)
+        descriptor_dimension = random.randint(2, 10)  # descriptor dimension
 
-        descriptor_list = [
-            self.__generate_random_binary_descriptors(
-                num_descriptors_im1, descriptor_length),
-            self.__generate_random_binary_descriptors(
-                num_descriptors_im2, descriptor_length),
-            self.__generate_random_binary_descriptors(
-                num_descriptors_im3, descriptor_length)
-        ]
+        # generate descriptors randomly
+        descriptors_list = []
+        for _ in range(num_images):
+            num_descriptors = random.randint(5, 15)
 
-        features_list = [
-            np.random.rand(num_descriptors_im1, 3),
-            np.random.rand(num_descriptors_im2, 3),
-            np.random.rand(num_descriptors_im3, 3),
-        ]
-
-        # create computation graphs
-        detection_description_graph = [
-            dask.delayed((x, y)) for x, y in zip(features_list, descriptor_list)
-        ]
-
-        matcher_graph = self.matcher.create_computation_graph(
-            [(0, 1), (0, 2), (2, 1)],
-            detection_description_graph)
-
-        # run it in sequential mode
-        results = []
-        with dask.config.set(scheduler='single-threaded'):
-            results = dask.compute(matcher_graph)[0]
-
-        # check the number of pairs in the results
-        self.assertEqual(len(descriptor_list), len(results))
-
-        # check every pair of results
-
-        for image_indices in matcher_graph.keys():
-            dask_matches = results[image_indices]
-            normal_matches = self.matcher.match(
-                descriptor_list[image_indices[0]],
-                descriptor_list[image_indices[1]]
+            descriptors_list.append(
+                generate_random_binary_descriptors(
+                    num_descriptors, descriptor_dimension
+                ),
             )
 
-            np.testing.assert_array_equal(
-                normal_matches, dask_matches
+        for (i1, i2) in pairs_list:
+            matches_graph = self.matcher.create_computation_graph(
+                dask.delayed(descriptors_list[i1]),
+                dask.delayed(descriptors_list[i2]),
             )
+
+            with dask.config.set(scheduler="single-threaded"):
+                matches = dask.compute(matches_graph)[0]
+
+            # run matching using normal APIs
+            expected_matches = self.matcher.match(
+                descriptors_list[i1], descriptors_list[i2]
+            )
+
+            np.testing.assert_array_equal(matches, expected_matches)
 
     def test_pickleable(self):
         """Tests that the matcher object is pickleable (required for dask)."""
@@ -169,24 +143,9 @@ class TestMatcherBase(unittest.TestCase):
         except TypeError:
             self.fail("Cannot dump matcher using pickle")
 
-    def __generate_random_binary_descriptors(self, num_descriptors: int, descriptor_length: int) -> np.ndarray:
-        """Generates random binary descriptors.
-
-        Args:
-            num_descriptors (int): number of descriptors to generate
-            descriptor_length (int): length of each descriptor vector
-
-        Returns:
-            np.ndarray: generated descriptor
-        """
-        if num_descriptors == 0:
-            return np.array([], dtype=np.uint8)
-
-        return np.random.randint(
-            0, high=2, size=(num_descriptors, descriptor_length)
-        ).astype(np.uint8)
-
-    def __generate_matches_on_random_descriptors(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def __generate_matches_on_random_descriptors(
+        self,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Generates a pair of random descriptors and uses the matcher under 
         test to match them.
 
@@ -201,17 +160,39 @@ class TestMatcherBase(unittest.TestCase):
         num_descriptors_im1 = random.randint(5, 15)
         num_descriptors_im2 = random.randint(5, 15)
 
-        descriptor_length = random.randint(2, 10)
+        descriptor_dim = random.randint(2, 10)
 
-        descriptors_im1 = self.__generate_random_binary_descriptors(
-            num_descriptors_im1, descriptor_length)
-        descriptors_im2 = self.__generate_random_binary_descriptors(
-            num_descriptors_im2, descriptor_length)
+        descriptors_im1 = generate_random_binary_descriptors(
+            num_descriptors_im1, descriptor_dim
+        )
+        descriptors_im2 = generate_random_binary_descriptors(
+            num_descriptors_im2, descriptor_dim
+        )
 
         result = self.matcher.match(descriptors_im1, descriptors_im2)
 
         return result, descriptors_im1, descriptors_im2
 
 
-if __name__ == '__main__':
+def generate_random_binary_descriptors(
+    num_descriptors: int, descriptor_dim: int
+) -> np.ndarray:
+    """Generates random binary descriptors.
+
+    Args:
+        num_descriptors (int): number of descriptors to generate
+        descriptor_dim (int): length of each descriptor vector
+
+    Returns:
+        np.ndarray: generated descriptor
+    """
+    if num_descriptors == 0:
+        return np.array([], dtype=np.uint8)
+
+    return np.random.randint(
+        0, high=2, size=(num_descriptors, descriptor_dim)
+    ).astype(np.uint8)
+
+
+if __name__ == "__main__":
     unittest.main()

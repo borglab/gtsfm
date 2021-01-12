@@ -1,0 +1,12 @@
+
+# Scene loader config
+
+DATA:
+  directory_paths: [dir1, dir2, dir3, dir4]
+
+MODULES:
+  detector_descriptor: SIFTDetectorDescriptor
+  matcher: TwoWayMatcher
+  verifier: Degensac
+  rotation_averaging_module: ShonanRotationAveraging
+  translation_averaging_module: TranslationAveraging1DSFM
