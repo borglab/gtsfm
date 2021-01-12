@@ -4,25 +4,40 @@
 GTSFM is an end-to-end SFM pipeline based on [GTSAM](https://github.com/borglab/gtsam). GTSFM was designed from the ground-up to natively support parallel computation using [Dask](https://dask.org/).
 
 ## Installation
+First, we need to create a conda environment.
 
-First, create the conda environment:
+**Linux**
+On Linux, with CUDA support:
 ```bash
-conda env create -f environment.yml
+conda env create -f environment_linux.yml
+conda activate gtsfm-v1 # you may need "source activate gtsfm-v1" depending upon your bash and conda set-up
 ```
-Now, activate the conda environment. Depending upon your bash and conda set-up, this will either be via:
+
+**Mac**
+On Mac OSX, there is no CUDA support and no `pydegensac` wheel in `pypi`, so run:
 ```bash
+conda env create -f environment_mac.yml
 conda activate gtsfm-v1
 ```
-or:
+Download the Python 3.8 gtsam wheel [here](https://github.com/borglab/gtsam-manylinux-build/suites/1814719883/artifacts/34908952), and install it as
 ```bash
-source activate gtsfm-v1
+pip install ~/Downloads/gtsam-4.1.1-py3-none-any.whl
 ```
+Now, inside the environment, build pydegensac:
+```bash
+git clone https://github.com/ducha-aiki/pydegensac.git
+cd pydegensac
+python setup.py bdist_wheel
+pip install dist/pydegensac-0.1.2-cp38-cp38-macosx_10_15_x86_64.whl
+```
+
+## Completing Installation
 
 Now, install `gtsfm` as a module:
 ```bash
 pip install -e .
 ```
-Make sure that you can run `python -c "import gtsfm; print('hello world')"` in python, and you are good to go!
+Make sure that you can run `python -c "import gtsfm; import gtsam; import pydegensac; print('hello world')"` in python, and you are good to go!
 
 ## Repository Structure
 
