@@ -32,7 +32,6 @@ dependencies:
   - opencv=4.5.0 # preferring conda-forge's distribution as it provides the latest distribution
   - pytorch
   - pip:
-    - gtsam==4.1.1.dev3
     - pydegensac
 
 
