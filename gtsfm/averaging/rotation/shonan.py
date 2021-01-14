@@ -45,7 +45,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         lm_params = gtsam.LevenbergMarquardtParams.CeresDefaults()
         shonan_params = ShonanAveragingParameters3(
             lm_params,
-            useHuber=false,
+            useHuber=False,
             certifyOptimality=True
         )
         noise_model = gtsam.noiseModel.Unit.Create(6)
