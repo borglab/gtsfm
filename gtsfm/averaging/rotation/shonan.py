@@ -14,7 +14,14 @@ from typing import Dict, List, Optional, Tuple
 
 import gtsam
 import numpy as np
-from gtsam import BetweenFactorPose3, Pose3, Rot3, ShonanAveraging3
+from gtsam import (
+    BetweenFactorPose3,
+    LevenbergMarquardtParams,
+    Rot3,
+    Pose3,
+    ShonanAveraging3,
+    ShonanAveragingParameters3
+)
 
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 
@@ -42,7 +49,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
                 contain `None` where the global rotation could not be computed
                 (either underconstrained system or ill-constrained system).
         """
-        lm_params = gtsam.LevenbergMarquardtParams.CeresDefaults()
+        lm_params = LevenbergMarquardtParams.CeresDefaults()
         shonan_params = ShonanAveragingParameters3(
             lm_params,
             useHuber=False,
