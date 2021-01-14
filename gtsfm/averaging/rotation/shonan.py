@@ -42,8 +42,12 @@ class ShonanRotationAveraging(RotationAveragingBase):
                 contain `None` where the global rotation could not be computed
                 (either underconstrained system or ill-constrained system).
         """
-        # lm_params = gtsam.LevenbergMarquardtParams.CeresDefaults()
-        # shonan_params = ShonanAveragingParameters3(lm_params)
+        lm_params = gtsam.LevenbergMarquardtParams.CeresDefaults()
+        shonan_params = ShonanAveragingParameters3(
+            lm_params,
+            useHuber=false,
+            certifyOptimality=True
+        )
         noise_model = gtsam.noiseModel.Unit.Create(6)
 
         between_factors = gtsam.BetweenFactorPose3s()
@@ -57,7 +61,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
                     noise_model
                 ))
 
-        obj = ShonanAveraging3(between_factors)  # , shonan_params)
+        obj = ShonanAveraging3(between_factors, shonan_params)
 
         initial = obj.initializeRandomly()
         result_values, _ = obj.run(initial, self._p_min, self._p_max)
