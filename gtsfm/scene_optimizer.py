@@ -259,6 +259,7 @@ class SceneOptimizer:
 
         self._save_viz = config.save_viz
         self._save_bal_files = config.save_bal_files
+        self._config = config
 
     def __visualize_twoview_correspondences(
         self,
@@ -412,7 +413,7 @@ class SceneOptimizer:
 
         filtered_sfm_data_graph = dask.delayed(
             ba_output_graph.filter_landmarks
-        )(config.reproj_error_thresh)
+        )(self._config.reproj_error_thresh)
 
         if self._save_viz:
             os.makedirs("plots/ba_input", exist_ok=True)
