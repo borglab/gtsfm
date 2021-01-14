@@ -50,11 +50,10 @@ class ShonanRotationAveraging(RotationAveragingBase):
                 (either underconstrained system or ill-constrained system).
         """
         lm_params = LevenbergMarquardtParams.CeresDefaults()
-        shonan_params = ShonanAveragingParameters3(
-            lm_params,
-            useHuber=False,
-            certifyOptimality=True
-        )
+        shonan_params = ShonanAveragingParameters3(lm_params)
+        shonan_params.setUseHuber(False)
+        shonan_params.setCertifyOptimality(True)
+
         noise_model = gtsam.noiseModel.Unit.Create(6)
 
         between_factors = gtsam.BetweenFactorPose3s()
