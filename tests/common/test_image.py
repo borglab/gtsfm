@@ -18,7 +18,7 @@ class TestImage(unittest.TestCase):
     @mock.patch.object(SensorWidthDatabase, "__init__", return_value=None)
     @mock.patch.object(SensorWidthDatabase, "lookup", return_value=5)
     def test_get_intrinsics_from_exif(self, mock_init, mock_lookup):
-        """Tests the intrinsics generation frome exif."""
+        """Tests the intrinsics generation from exif."""
 
         exif_data = {
             "FocalLength": 25,
