@@ -41,7 +41,7 @@ class TestImage(unittest.TestCase):
     def test_extract_patch_fully_inside(self):
         """Test patch extraction which is fully inside the original image."""
 
-        input_image = Image(np.random.rand(100, 71))
+        input_image = Image(np.random.rand(100, 71, 3))
 
         patch_center_x = 21
         patch_center_y = 22
@@ -98,7 +98,7 @@ class TestImage(unittest.TestCase):
         """Test patch extraction which is not completely inside the original
         image, hence needing padding."""
 
-        input_image = Image(np.random.rand(100, 71))
+        input_image = Image(np.random.rand(100, 71, 3))
 
         patch_size = 10
 
