@@ -103,6 +103,7 @@ class Image(NamedTuple):
         len_left = patch_size // 2  # 20 -> 10, 21 -> 10
         len_right = (patch_size - 1) // 2  # 20 -> 9, 21 -> 10
 
+        # apply computed padding on the spatial dimensions and zero padding on channel dimensions
         padded_value_array = np.pad(
             self.value_array,
             ((len_left, len_right), (len_left, len_right), (0, 0)),
