@@ -105,11 +105,13 @@ class Image(NamedTuple):
 
         # apply computed padding on the spatial dimensions and zero padding on channel dimensions
         padded_value_array = np.pad(
-            self.value_array,
-            ((len_left, len_right), (len_left, len_right), (0, 0)),
+            array=self.value_array,
+            pad_width=((len_left, len_right), (len_left, len_right), (0, 0)),
         )
 
         # extract the values in the patch
+        # Note: the padding amount and pad_size//2 cancel each other out, so
+        # center index becomes the far left edge of patch in padded image
         patch_values = padded_value_array[
             center_y : center_y + patch_size, center_x : center_x + patch_size
         ]
