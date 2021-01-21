@@ -103,18 +103,10 @@ class Image(NamedTuple):
         len_left = patch_size // 2  # 20 -> 10, 21 -> 10
         len_right = (patch_size - 1) // 2  # 20 -> 9, 21 -> 10
 
-        padded_value_array = np.zeros(
-            (
-                len_left + len_right + self.height,
-                len_left + len_right + self.width,
-                self.value_array.shape[2],
-            ),
-            dtype=self.value_array.dtype,
+        padded_value_array = np.pad(
+            self.value_array,
+            ((len_left, len_right), (len_left, len_right), (0, 0)),
         )
-
-        padded_value_array[
-            len_left:-len_right, len_left:-len_right, :
-        ] = self.value_array
 
         # extract the values in the patch
         patch_values = padded_value_array[
