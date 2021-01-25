@@ -6,7 +6,9 @@ spaced around a circle with radius 40m.
 Authors: Ayush Baid
 """
 import copy
+import pickle
 import unittest
+from pathlib import Path
 from typing import List
 
 import numpy as np
@@ -20,12 +22,17 @@ from gtsam import (
     Rot3,
 )
 from gtsam.examples import SFMdata
-
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
 from gtsfm.data_association.point3d_initializer import (
     Point3dInitializer,
     TriangulationParam,
 )
+from gtsfm.loader.folder_loader import FolderLoader
+
+# path for data used in this test
+DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
+DOOR_TRACKS_PATH = DATA_ROOT_PATH / "tracks2d_door.pickle"
+DOOR_DATASET_PATH = DATA_ROOT_PATH / "set1_lund_door"
 
 # focal length set to 50 px, with `px`, `py` set to zero
 CALIBRATION = Cal3Bundler(50, 0, 0, 0, 0)
@@ -94,8 +101,8 @@ class TestPoint3dInitializer(unittest.TestCase):
         self.ransac_uniform_sampling_initializer = Point3dInitializer(
             CAMERAS,
             TriangulationParam.RANSAC_SAMPLE_UNIFORM,
-            num_ransac_hypotheses=100,
             reproj_error_thresh=5,
+            num_ransac_hypotheses=100,
         )
 
     def __runWithCorrectMeasurements(self, obj: Point3dInitializer) -> bool:
@@ -151,8 +158,8 @@ class TestPoint3dInitializer(unittest.TestCase):
         obj_with_flipped_cameras = Point3dInitializer(
             flipped_cameras,
             obj.mode,
-            obj.num_ransac_hypotheses,
             obj.reproj_error_thresh,
+            obj.num_ransac_hypotheses,
         )
 
         sfm_track = obj_with_flipped_cameras.triangulate(
@@ -248,3 +255,62 @@ class TestPoint3dInitializer(unittest.TestCase):
                 self.ransac_uniform_sampling_initializer
             )
         )
+
+    def testSimpleTriangulationOnDoorDataset(self):
+        """Test the tracks of the door dataset using simple triangulation
+        initialization. Using computed tracks with ground truth camera params.
+
+        Expecting failures on 2 tracks which have incorrect matches."""
+        with open(DOOR_TRACKS_PATH, "rb") as handle:
+            tracks = pickle.load(handle)
+
+        loader = FolderLoader(DOOR_DATASET_PATH, image_extension="JPG")
+
+        camera_dict = {
+            i: PinholeCameraCal3Bundler(
+                loader.get_camera_pose(i), loader.get_camera_intrinsics(i)
+            )
+            for i in range(len(loader))
+        }
+
+        initializer = Point3dInitializer(
+            camera_dict, TriangulationParam.NO_RANSAC, reproj_error_thresh=1e5
+        )
+
+        # tracks which have expected failures
+        # (both tracks have incorrect measurements)
+        expected_failures = [
+            SfmTrack2d(
+                measurements=[
+                    SfmMeasurement(
+                        i=1, uv=np.array([1252.22729492, 1487.29431152])
+                    ),
+                    SfmMeasurement(
+                        i=2, uv=np.array([1170.96679688, 1407.35876465])
+                    ),
+                    SfmMeasurement(
+                        i=4, uv=np.array([263.32104492, 1489.76965332])
+                    ),
+                ]
+            ),
+            SfmTrack2d(
+                measurements=[
+                    SfmMeasurement(
+                        i=6, uv=np.array([1142.34545898, 735.92169189])
+                    ),
+                    SfmMeasurement(
+                        i=7, uv=np.array([1179.84155273, 763.04095459])
+                    ),
+                    SfmMeasurement(
+                        i=9, uv=np.array([216.54107666, 774.74017334])
+                    ),
+                ]
+            ),
+        ]
+
+        for track_2d in tracks:
+            triangulated_track = initializer.triangulate(track_2d)
+
+            if triangulated_track is None:
+                # assert we have failures which are already expected
+                self.assertIn(track_2d, expected_failures)

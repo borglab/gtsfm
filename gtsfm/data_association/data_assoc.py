@@ -10,6 +10,7 @@ Understanding, Vol. 68, No. 2, November, pp. 146–157, 1997
 
 Authors: Sushmita Warrier, Xiaolong Wu
 """
+import logging
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import dask
@@ -18,11 +19,28 @@ from dask.delayed import Delayed
 from gtsam import PinholeCameraCal3Bundler, SfmData, SfmTrack
 
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.common.sfm_result import SfmResult
 from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.data_association.point3d_initializer import (
     Point3dInitializer,
     TriangulationParam,
 )
+
+
+def get_logger():
+    """Getter for logger."""
+    logger_name = "main-logger"
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.INFO)
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        fmt = "[%(asctime)s %(levelname)s %(filename)s line %(lineno)d %(process)d] %(message)s"
+        handler.setFormatter(logging.Formatter(fmt))
+        logger.addHandler(handler)
+    return logger
+
+
+logger = get_logger()
 
 
 class DataAssociation(NamedTuple):
@@ -72,12 +90,24 @@ class DataAssociation(NamedTuple):
             corr_idxs_dict, keypoints_list
         )
 
+        # metrics on tracks w/o triangulation check
+        num_tracks = len(tracks)
+        track_lengths = list(map(lambda x: x.number_measurements(), tracks))
+
+        logging.debug(
+            "[Data association] input number of tracks: %s", num_tracks
+        )
+        logging.debug(
+            "[Data association] input avg. track length: %s",
+            np.mean(track_lengths),
+        )
+
         # initializer of 3D landmark for each track
         point3d_initializer = Point3dInitializer(
             cameras,
             self.mode,
-            self.num_ransac_hypotheses,
             self.reproj_error_thresh,
+            self.num_ransac_hypotheses,
         )
 
         # form SFMdata object after triangulation
@@ -100,6 +130,15 @@ class DataAssociation(NamedTuple):
             if i != expected_camera_indices[i]:
                 raise RuntimeError("Some cameras must have been dropped ")
             triangulated_data.add_camera(cam)
+
+        logging.debug(
+            "[Data association] output number of tracks: %s",
+            triangulated_data.number_tracks(),
+        )
+        logging.debug(
+            "[Data association] output avg. track length: %s",
+            SfmResult(triangulated_data, None).get_track_length_statistics()[0],
+        )
 
         return triangulated_data
 

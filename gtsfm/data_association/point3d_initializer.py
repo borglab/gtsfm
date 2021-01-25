@@ -56,14 +56,14 @@ class Point3dInitializer(NamedTuple):
         track_cameras: Dict of cameras and their indices.
         mode: triangulation mode, which dictates whether or not to use robust
               estimation.
+        reproj_error_thresh: threshold on reproj errors for inliers.
         num_ransac_hypotheses (optional): desired number of RANSAC hypotheses.
-        reproj_error_thresh (optional): threshold for RANSAC inlier filtering.
     """
 
     track_camera_dict: Dict[int, PinholeCameraCal3Bundler]
     mode: TriangulationParam
+    reproj_error_thresh: float
     num_ransac_hypotheses: Optional[int] = None
-    reproj_error_thresh: Optional[float] = None
 
     def triangulate(self, track_2d: SfmTrack2d) -> Optional[SfmTrack]:
         """Triangulates 3D point according to the configured triangulation mode.
@@ -304,7 +304,7 @@ class Point3dInitializer(NamedTuple):
             else:
                 errors.append(np.nan)
         return np.array(errors)
-    
+
     def extract_measurements(
         self, track: SfmTrack2d
     ) -> Tuple[CameraSetCal3Bundler, Point2Vector]:
