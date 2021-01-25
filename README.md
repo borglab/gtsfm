@@ -19,7 +19,7 @@ On Mac OSX, there is no CUDA support and no `pydegensac` wheel in `pypi`, so run
 conda env create -f environment_mac.yml
 conda activate gtsfm-v1
 ```
-Download the Python 3.8 gtsam wheel [here](https://github.com/borglab/gtsam-manylinux-build/suites/1814719883/artifacts/34908952), and install it as
+Download the Python 3.8 gtsam wheel [here](https://github.com/borglab/gtsam-manylinux-build/suites/1859835370/artifacts/36145196), and install it as
 ```bash
 pip install ~/Downloads/gtsam-4.1.1-py3-none-any.whl
 ```
@@ -38,6 +38,13 @@ Now, install `gtsfm` as a module:
 pip install -e .
 ```
 Make sure that you can run `python -c "import gtsfm; import gtsam; import pydegensac; print('hello world')"` in python, and you are good to go!
+
+## Usage Guide (Running 3d Reconstruction)
+
+Please run
+```python
+python gtsfm/scene_optimizer.py
+```
 
 ## Repository Structure
 
