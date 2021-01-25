@@ -11,7 +11,6 @@ Understanding, Vol. 68, No. 2, November, pp. 146–157, 1997
 Authors: Sushmita Warrier, Xiaolong Wu
 """
 import logging
-import sys
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import dask
@@ -27,7 +26,21 @@ from gtsfm.data_association.point3d_initializer import (
     TriangulationParam,
 )
 
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+
+def get_logger():
+    """Getter for logger."""
+    logger_name = "main-logger"
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.INFO)
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        fmt = "[%(asctime)s %(levelname)s %(filename)s line %(lineno)d %(process)d] %(message)s"
+        handler.setFormatter(logging.Formatter(fmt))
+        logger.addHandler(handler)
+    return logger
+
+
+logger = get_logger()
 
 
 class DataAssociation(NamedTuple):
