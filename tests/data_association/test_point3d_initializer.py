@@ -257,7 +257,8 @@ class TestPoint3dInitializer(unittest.TestCase):
         )
 
     def testSimpleTriangulationOnDoorDataset(self):
-        """Test the tracks of the door dataset using simple triangulation initialization. Using computed tracks with ground truth camera params.
+        """Test the tracks of the door dataset using simple triangulation
+        initialization. Using computed tracks with ground truth camera params.
 
         Expecting failures on 2 tracks which have incorrect matches."""
         with open(DOOR_TRACKS_PATH, "rb") as handle:
