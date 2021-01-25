@@ -31,7 +31,7 @@ from gtsfm.loader.folder_loader import FolderLoader
 
 # path for data used in this test
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
-DOOR_TRACKS_PATH = DATA_ROOT_PATH / "tracks_door.pickle"
+DOOR_TRACKS_PATH = DATA_ROOT_PATH / "tracks2d_door.pickle"
 DOOR_DATASET_PATH = DATA_ROOT_PATH / "set1_lund_door"
 
 # focal length set to 50 px, with `px`, `py` set to zero
