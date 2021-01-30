@@ -46,30 +46,21 @@ def align_poses(input_list: List[Pose3], ref_list: List[Pose3]) -> List[Pose3]:
         transformed poses which have the same origin and scale as reference
             (now living in world-2 frame)
     """
-    w1Ti0 = input_list[0]
-    i0Tw1 = w1Ti0.inverse()
-    w2Ti0_ = ref_list[0]
-    # origin transform -- map the origin of the input list to the reference list
-    w2Tw1 = w2Ti0_.compose(i0Tw1)
-    
-    # origin shifted list
-    input_shifted_list = [w2Tw1.compose(w1Ti) for w1Ti in input_list]
-
-    # get distances w.r.t origin for both the list to compute the scale
-    w2Ti0 = input_shifted_list[0] # set this as origin
+    # match the scales first
+    wTi0 = input_list[0]
     input_distances = np.array(
         [
-            np.linalg.norm((w2Ti.between(w2Ti0)).translation())
-            for w2Ti in input_shifted_list[1:]
+            np.linalg.norm((wTi.between(wTi0)).translation())
+            for wTi in input_list[1:]
         ]
     )
 
-    w2Ti0_ = ref_list[0] # set this as origin
+    wTi0 = ref_list[0]
     ref_distances = (
         np.array(
             [
-                np.linalg.norm((w2Ti_.between(w2Ti0_)).translation())
-                for w2Ti_ in ref_list[1:]
+                np.linalg.norm((wTi.between(wTi0)).translation())
+                for wTi in ref_list[1:]
             ]
         )
         + EPSILON
@@ -79,10 +70,21 @@ def align_poses(input_list: List[Pose3], ref_list: List[Pose3]) -> List[Pose3]:
     scales = ref_distances / input_distances
     scaling_factor = np.median(scales)
 
-    return [
+    scaled_list = [
         Pose3(w2Ti.rotation(), w2Ti.translation() * scaling_factor)
-        for w2Ti in input_shifted_list
+        for w2Ti in input_list
     ]
+
+    # now match origin
+    w1Ti0 = scaled_list[0]
+    i0Tw1 = w1Ti0.inverse()
+    w2Ti0_ = ref_list[0]
+    # origin transform -- map the origin of the input list to the reference list
+    w2Tw1 = w2Ti0_.compose(i0Tw1)
+
+    scaled_shifted_list = [w2Tw1.compose(w1Ti) for w1Ti in scaled_list]
+
+    return scaled_shifted_list
 
 
 def compare_rotations(
