@@ -148,8 +148,11 @@ class YfccImbLoader(LoaderBase):
         """
 
         # read the COLMAP optimized params for ground truth
-        camera_params, image_params, _ = colmap_read_write_model.read_model(
-            path=osp.join(self._folder, "sparse"), ext=".bin"
+        camera_params = colmap_read_write_model.read_cameras_binary(
+            osp.join(self._folder, "sparse", "cameras.bin")
+        )
+        image_params = colmap_read_write_model.read_images_binary(
+            osp.join(self._folder, "sparse", "images.bin")
         )
 
         # map our indices to param indices
