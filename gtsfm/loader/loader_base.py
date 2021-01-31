@@ -101,13 +101,16 @@ class LoaderBase(metaclass=abc.ABCMeta):
 
         return [dask.delayed(self.get_camera_intrinsics)(x) for x in range(N)]
 
-    def create_computation_graph_for_poses(self) -> List[Delayed]:
+    def create_computation_graph_for_poses(self) -> Optional[List[Delayed]]:
         """Creates the computation graph for camera poses.
 
         Returns:
             list of delayed tasks for camera poses.
         """
         N = self.__len__()
+
+        if self.get_camera_pose(0) is None:
+            return None
 
         return [dask.delayed(self.get_camera_pose)(x) for x in range(N)]
 
