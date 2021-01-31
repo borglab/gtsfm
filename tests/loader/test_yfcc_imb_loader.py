@@ -25,7 +25,7 @@ class TestYfccIMbLoader(unittest.TestCase):
     def test_len(self):
         """Test the number of entries in the loader."""
 
-        expected = 74
+        expected = 10
 
         self.assertEqual(len(self.loader), expected)
 
@@ -43,7 +43,7 @@ class TestYfccIMbLoader(unittest.TestCase):
             self.loader.get_image(-1)
         # len() as index
         with self.assertRaises(IndexError):
-            self.loader.get_image(74)
+            self.loader.get_image(10)
         # index > len()
         with self.assertRaises(IndexError):
             self.loader.get_image(100)
