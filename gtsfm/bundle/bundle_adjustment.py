@@ -23,9 +23,9 @@ from gtsfm.common.sfm_result import SfmResult
 C = symbol_shorthand.C
 P = symbol_shorthand.P
 
-PINHOLE_CAM_CAL3BUNDLER_DOF = 9 # 6 dof for pose, and 3 dof for f, k1, k2
-IMG_MEASUREMENT_DIM = 2 # 2d measurements (u,v) have 2 dof
-POINT3_DOF = 3 # 3d points have 3 dof
+PINHOLE_CAM_CAL3BUNDLER_DOF = 9  # 6 dof for pose, and 3 dof for f, k1, k2
+IMG_MEASUREMENT_DIM = 2  # 2d measurements (u,v) have 2 dof
+POINT3_DOF = 3  # 3d points have 3 dof
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
@@ -49,7 +49,9 @@ class BundleAdjustmentOptimizer:
         )
 
         # noise model for measurements -- one pixel in u and v
-        measurement_noise = gtsam.noiseModel.Isotropic.Sigma(IMG_MEASUREMENT_DIM, 1.0)
+        measurement_noise = gtsam.noiseModel.Isotropic.Sigma(
+            IMG_MEASUREMENT_DIM, 1.0
+        )
 
         # Create a factor graph
         graph = gtsam.NonlinearFactorGraph()
@@ -73,7 +75,9 @@ class BundleAdjustmentOptimizer:
             gtsam.PriorFactorPinholeCameraCal3Bundler(
                 C(0),
                 initial_data.camera(0),
-                gtsam.noiseModel.Isotropic.Sigma(PINHOLE_CAM_CAL3BUNDLER_DOF, 0.1),
+                gtsam.noiseModel.Isotropic.Sigma(
+                    PINHOLE_CAM_CAL3BUNDLER_DOF, 0.1
+                ),
             )
         )
         # Also add a prior on the position of the first landmark to fix the scale
@@ -110,7 +114,7 @@ class BundleAdjustmentOptimizer:
             result_values = lm.optimize()
         except Exception as e:
             logging.exception("LM Optimization failed")
-            return
+            return SfmResult(SfmData(), float("Nan"))
 
         final_error = graph.error(result_values)
 

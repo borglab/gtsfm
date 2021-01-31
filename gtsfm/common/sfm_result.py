@@ -37,6 +37,7 @@ class SfmResult(NamedTuple):
             other.total_reproj_error,
             rtol=1e-2,
             atol=1e-1,
+            equal_nan=True,
         )
 
     def get_camera_poses(self) -> List[Pose3]:
