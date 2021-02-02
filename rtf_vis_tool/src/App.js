@@ -1,21 +1,23 @@
 import './App.css';
-import React, {useEffect, useState} from "react";
+import React, {useState} from "react";
 import {Canvas} from "react-three-fiber";
 import {OrbitControls, Line, Html} from "drei";
+import FileReaderInput from 'react-file-reader-input';
 
 const App = (props) => {
+  const [rawFileString, setRawFileString] = useState("");
   const [pointCloud, setPointCloud] = useState([]);
 
   //Function
   const getGridLines = () => {
     var coordPairSet = []
     //add x grid lines
-    for (var z = -50; z <= 50; z++) {
-      coordPairSet.push([[-50, 0, z], [50, 0, z]]);
+    for (var z = -10; z <= 10; z++) {
+      coordPairSet.push([[-10, 0, z], [10, 0, z]]);
     }
     //add z grid lines
-    for (var x = -50; x <= 50; x++) {
-      coordPairSet.push([[x, 0, -50], [x, 0, 50]]);
+    for (var x = -10; x <= 10; x++) {
+      coordPairSet.push([[x, 0, -10], [x, 0, 10]]);
     }
 
     var finalLineGridSet = []
@@ -47,36 +49,36 @@ const App = (props) => {
     return (
       <mesh>
           <Line 
-            points={[[-50,0,0], [50,0,0]]} 
+            points={[[-10,0,0], [10,0,0]]} 
             color="red" 
             position={[0,0,0]}
             lineWidth={0.3}
           />
-          <Html scaleFactor={200} position={[50,0,0]}>
+          <Html scaleFactor={50} position={[10,0,0]}>
             <div class="content">
               x
             </div>
           </Html>
 
           <Line 
-            points={[[0,-50,0], [0,50,0]]} 
+            points={[[0,-10,0], [0,10,0]]} 
             color="blue" 
             position={[0,0,0]}
             lineWidth={0.3}
           />
-          <Html scaleFactor={200} position={[0,50,0]}>
+          <Html scaleFactor={50} position={[0,10,0]}>
             <div class="content">
               z
             </div>
           </Html>
 
           <Line 
-            points={[[0,0,-50], [0,0,50]]} 
+            points={[[0,0,-10], [0,0,10]]} 
             color="green" 
             position={[0,0,0]}
             lineWidth={0.3}
           />
-          <Html scaleFactor={200} position={[0,0,50]}>
+          <Html scaleFactor={50} position={[0,0,10]}>
             <div class="content">
               y
             </div>
@@ -88,7 +90,7 @@ const App = (props) => {
   }
 
   //Function
-  const swapXY = (coords) => {
+  const swapYZ = (coords) => {
     const tempY = coords[1]
     coords[1] = coords[2]
     coords[2] = tempY
@@ -101,28 +103,55 @@ const App = (props) => {
     const reader = new FileReader();
     reader.readAsText(e.target.files[0])
     reader.onload = (e) => {
-      const pointString = e.target.result;
-      const arrStringPoints = pointString.split('\n');
-      var pointArr = [];
-      for (var i = 0; i < arrStringPoints.length; i++) {
-        pointArr.push(swapXY(JSON.parse(arrStringPoints[i])));
-      }
-
-      var finalPointsJSX = [];
-      pointArr.map(point => {
-        finalPointsJSX.push(<PointMesh  position={point} size={[0.3,16,16]} color='rgb(255, 0, 0)'/>);
-      })
-      setPointCloud(finalPointsJSX);
+      const fileString = e.target.result;
+      setRawFileString(fileString);
     }
   }
+
+    //Function ... in progress 
+    const readBinaryFile = (e) => {
+      e.preventDefault();
+      const reader = new FileReader();
+      reader.readAsArrayBuffer(e.target.files[0])
+      reader.onload = (e) => {
+        const fileString = e.target.result;
+        console.log(fileString)
+      }
+    }
+
+  //Function
+  const visualizeFile = () => {
+      const startPointsIndex = rawFileString.indexOf("end_header")
+      const condensedString = rawFileString.substring(startPointsIndex)
+      var arrStringPoints = condensedString.split('\n')
+      arrStringPoints.shift()
+      console.log(arrStringPoints.length)
+
+      var finalPointsJSX = []   
+      const scale = 10;   
+      for (var i = 0; i < arrStringPoints.length; i += 1000) {
+        var arrStringElementsOfPoint = arrStringPoints[i].split(" ");
+        var pointArr = arrStringElementsOfPoint.map(Number);
+        pointArr = swapYZ(pointArr)
+        
+        const colorString = `rgb(${pointArr[3]}, ${pointArr[4]}, ${pointArr[5]})`
+        finalPointsJSX.push(<PointMesh  position={[scale*pointArr[0], scale*pointArr[1], scale*pointArr[2]]} size={[0.05,16,16]} color={colorString}/>);
+      }
+      setPointCloud(finalPointsJSX);
+  }
+
 
   return (
     <div className="app-container">
       <div className="upload-container">
-        <input type="file" name="Input Points" onChange={(e) => readFile(e)}/>
+        <p className="ply-instructions">Please Upload a PLY File</p>
+
+        <input type="file" name="ply-file-reader" onChange={(e) => readFile(e)}/>
+
+        <button className="file-submit-btn" onClick={visualizeFile}>Visualize Point Cloud</button>
       </div>
 
-      <Canvas colorManagement camera={{position: [30,30,30], fov: 100}}>
+      <Canvas colorManagement camera={{position: [30,30,30], fov: 30}}>
         <ambientLight intensity={0.5}/>
         <pointLight position={[0, 0, 20]} intensity={0.5}/> 
         <directionalLight 

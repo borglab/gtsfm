@@ -24,4 +24,20 @@ body {
 .upload-container {
   border: 2px solid black;
   padding: 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.ply-instructions {
+  font-weight: bold;
+}
+
+.file-submit-btn {
+  width: 10%;
+  margin: 10px;
+}
+
+.scale-range-container {
+  display: flex;
+  flex-direction: row;
 }
