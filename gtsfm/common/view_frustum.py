@@ -13,13 +13,13 @@ class ViewFrustum:
     def __init__(self, fx: float, img_w: int, img_h: int) -> None:
         """
         Args:
-        fx: focal length in x-direction, assuming square pixels (fx == fy)
-        img_w: image width (in pixels)
-        img_h: image height (in pixels)
+            fx: focal length in x-direction, assuming square pixels (fx == fy)
+            img_w: image width (in pixels)
+            img_h: image height (in pixels)
         """
-        self.fx = fx
-        self.img_w = img_w
-        self.img_h = img_h
+        self.fx_ = fx
+        self.img_w_ = img_w
+        self.img_h_ = img_h
 
     def get_frustum_vertices(self) -> Tuple[np.ndarray,np.ndarray,np.ndarray,np.ndarray,np.ndarray]:
         """Obtain 3d positions of all 5 frustum vertices
@@ -39,16 +39,16 @@ class ViewFrustum:
         """
         uv = np.array(
             [
-                [self.img_w // 2, self.img_h // 2],  # optical center
+                [self.img_w_ // 2, self.img_h_ // 2],  # optical center
                 [0, 0],  # top-left
-                [self.img_w - 1, 0],  # top-right
-                [0, self.img_h - 1],  # bottom-left
-                [self.img_w - 1, self.img_h - 1],  # bottom-right
+                [self.img_w_ - 1, 0],  # top-right
+                [0, self.img_h_ - 1],  # bottom-left
+                [self.img_w_ - 1, self.img_h_ - 1],  # bottom-right
             ]
         )
 
         ray_dirs = compute_pixel_ray_directions_vectorized(
-            uv, self.fx, self.img_w, self.img_h
+            uv, self.fx_, self.img_w_, self.img_h_
         )
         v0 = ray_dirs[0] * 0
         v1 = ray_dirs[1] * FRUSTUM_RAY_LEN
@@ -75,29 +75,14 @@ class ViewFrustum:
         """
         v0, v1, v2, v3, v4 = self.get_frustum_vertices()
 
-        # top-left to top-right (e0)
-        e0 = np.array([v1, v2])
-
-        # optical center to top-left (e1)
-        e1 = np.array([v0, v1])
-
-        # optical center to top-right (e2)
-        e2 = np.array([v0, v2])
-
-        # bottom-left to top-left (e3)
-        e3 = np.array([v3, v1])
-
-        # bottom-right to top-right (e4)
-        e4 = np.array([v4, v2])
-
-        # optical center to bottom-left (e5)
-        e5 = np.array([v0, v3])
-
-        # optical center to bottom-right (e6)
-        e6 = np.array([v0, v4])
-
-        # bottom-left to bottom-right (e7)
-        e7 = np.array([v3, v4])
+        e0 = np.array([v1, v2]) # top-left to top-right (e0)
+        e1 = np.array([v0, v1]) # optical center to top-left (e1)
+        e2 = np.array([v0, v2]) # optical center to top-right (e2)
+        e3 = np.array([v3, v1]) # bottom-left to top-left (e3)
+        e4 = np.array([v4, v2]) # bottom-right to top-right (e4)
+        e5 = np.array([v0, v3]) # optical center to bottom-left (e5)
+        e6 = np.array([v0, v4]) # optical center to bottom-right (e6)
+        e7 = np.array([v3, v4]) # bottom-left to bottom-right (e7)
 
         edges_camfr = np.stack([e0, e1, e2, e3, e4, e5, e6, e7])
         return edges_camfr
@@ -144,22 +129,15 @@ def compute_pixel_ray_directions_vectorized(
     px = img_w / 2
     py = img_h / 2
 
-    u = uv[:, 0]
-    v = uv[:, 1]
     num_rays = uv.shape[0]
+    # broadcast (1,2) across (N,2) uv array
+    center_offs = uv - np.array([px, py]).reshape(1, -1)
+    ray_dirs = np.zeros((num_rays, 3))
+    ray_dirs[:, :2] = center_offs
+    ray_dirs[:, 2] = fx
 
-    # offset from center
-    x_center_offs = u - px
-    y_center_offs = v - py
+    ray_dirs = ray_dirs / np.linalg.norm(ray_dirs, axis=1, keepdims=True)
 
-    x_center_offs = x_center_offs.reshape(num_rays, 1)
-    y_center_offs = y_center_offs.reshape(num_rays, 1)
-    fx_tiled = np.tile(fx, (num_rays)).reshape(num_rays, 1)
-
-    ray_dirs = np.hstack([x_center_offs, y_center_offs, fx_tiled])
-
-    # elementwise multiplication of scalars requires last dim to match
-    ray_dirs = (ray_dirs.T / np.linalg.norm(ray_dirs, axis=1)).T
     assert ray_dirs.shape[1] == 3
     return ray_dirs
 

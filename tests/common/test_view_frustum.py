@@ -6,8 +6,36 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.axes._axes import Axes
 from scipy.spatial.transform import Rotation
 
-from gtsfm.common.view_frustum import ViewFrustum
+from gtsfm.common.view_frustum import ViewFrustum, compute_pixel_ray_directions_vectorized
 import gtsfm.utils.viz as viz_utils
+
+
+
+def test_compute_pixel_ray_directions_vectorized():
+    """ """
+    uv = np.array(
+        [
+            [0,0],
+            [1,1],
+            [3,3]
+        ])
+    img_h = 4
+    img_w = 4
+    fx = 5
+    ray_dirs = compute_pixel_ray_directions_vectorized(uv, fx, img_w, img_h)
+
+    expected_ray_dirs = np.array(
+        [
+            [-2., -2.,  5.],
+            [-1., -1.,  5.],
+            [ 1.,  1.,  5.]
+        ])
+
+    expected_ray_dirs[0] /= np.linalg.norm(expected_ray_dirs[0])
+    expected_ray_dirs[1] /= np.linalg.norm(expected_ray_dirs[1])
+    expected_ray_dirs[2] /= np.linalg.norm(expected_ray_dirs[2])
+
+    assert np.allclose(ray_dirs, expected_ray_dirs, atol=1e-4)
 
 
 def test_get_mesh_edges_camframe():
