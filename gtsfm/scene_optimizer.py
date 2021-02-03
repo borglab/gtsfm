@@ -4,7 +4,6 @@ Authors: Ayush Baid, John Lambert
 """
 import logging
 import os
-import sys
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -56,8 +55,21 @@ from gtsfm.frontend.verifier.ransac import Ransac
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 from gtsfm.loader.folder_loader import FolderLoader
 
-# configure loggers to avoid DEBUG level stdout messages
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+
+def get_logger():
+    """Getter for logger."""
+    logger_name = "main-logger"
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.INFO)
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        fmt = "[%(asctime)s %(levelname)s %(filename)s line %(lineno)d %(process)d] %(message)s"
+        handler.setFormatter(logging.Formatter(fmt))
+        logger.addHandler(handler)
+    return logger
+
+
+logger = get_logger()
 
 mpl_logger = logging.getLogger("matplotlib")
 mpl_logger.setLevel(logging.WARNING)
@@ -87,6 +99,42 @@ class TwoViewEstimator:
         self.matcher = matcher
         self.verifier = verifier
 
+    def __compute_metrics(
+        self,
+        i2Ri1_computed: Optional[Rot3],
+        i2Ui1_computed: Optional[Rot3],
+        i2Ri1_expected: Rot3,
+        i2Ui1_expected: Unit3,
+    ) -> Tuple[float, float]:
+        """[summary]
+
+        Args:
+            i2Ri1_computed (Optional[Rot3]): [description]
+            i2Ui1_computed (Optional[Rot3]): [description]
+            i2Ri1_expected (Rot3): [description]
+            i2Ui1_expected (Unit3): [description]
+
+        Returns:
+            Tuple[float, float]: [description]
+        """
+
+        R_error = comp_utils.compute_relative_rotation_angle(
+            i2Ri1_computed, i2Ri1_expected
+        )
+
+        U_error = comp_utils.compute_relative_unit_translation_angle(
+            i2Ui1_computed, i2Ui1_expected
+        )
+
+        logging.debug(
+            "[Two View Estimator] Relative rotation error %f", R_error
+        )
+        logging.debug(
+            "[Two View Estimator] Relative unit-translation error %f", U_error
+        )
+
+        return (R_error, U_error)
+
     def create_computation_graph(
         self,
         keypoints_i1_graph: Delayed,
@@ -96,7 +144,8 @@ class TwoViewEstimator:
         camera_intrinsics_i1_graph: Delayed,
         camera_intrinsics_i2_graph: Delayed,
         exact_intrinsics: bool = True,
-    ) -> Tuple[Delayed, Delayed, Delayed]:
+        i2Ti1_expected_graph: Optional[Delayed] = None,
+    ) -> Tuple[Delayed, Delayed, Delayed, Optional[Delayed], Optional[Delayed]]:
         """Create delayed tasks for matching and verification."""
 
         # graph for matching to obtain putative correspondences
@@ -119,7 +168,26 @@ class TwoViewEstimator:
             exact_intrinsics,
         )
 
-        return i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph
+        # if we have the expected data, evaluate the computed relative pose
+        if i2Ti1_expected_graph is not None:
+            error_graphs = dask.delayed(self.__compute_metrics)(
+                i2Ri1_graph,
+                i2Ui1_graph,
+                dask.delayed(lambda x: x.rotation())(i2Ti1_expected_graph),
+                dask.delayed(lambda x: Unit3(x.translation()))(
+                    i2Ti1_expected_graph
+                ),
+            )
+        else:
+            error_graphs = (None, None)
+
+        return (
+            i2Ri1_graph,
+            i2Ui1_graph,
+            v_corr_idxs_graph,
+            error_graphs[0],
+            error_graphs[1],
+        )
 
 
 class MultiViewOptimizer:
@@ -332,7 +400,9 @@ class SceneOptimizer:
 
         plt.close(fig)
 
-    def __write_sfmdata_to_disk(self, sfm_data: SfmData, save_fpath: str) -> None:
+    def __write_sfmdata_to_disk(
+        self, sfm_data: SfmData, save_fpath: str
+    ) -> None:
         """Write SfmData object as a "Bundle Adjustment in the Large" (BAL) file
         See https://grail.cs.washington.edu/projects/bal/ for more details on the format.
         """
@@ -349,7 +419,7 @@ class SceneOptimizer:
     ) -> Delayed:
         """ The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times"""
 
-        # auxiliary graph elements for visualizations and saving intermediate 
+        # auxiliary graph elements for visualizations and saving intermediate
         # data for analysis, not returned to the user.
         auxiliary_graph_list = []
 
@@ -368,11 +438,21 @@ class SceneOptimizer:
         i2Ri1_graph_dict = {}
         i2Ui1_graph_dict = {}
         v_corr_idxs_graph_dict = {}
+
         for (i1, i2) in image_pair_indices:
+            if gt_pose_graph is not None:
+                gt_relative_pose = dask.delayed(lambda x, y: x.between(y))(
+                    gt_pose_graph[i2], gt_pose_graph[i1]
+                )
+            else:
+                gt_relative_pose = None
+
             (
                 i2Ri1,
                 i2Ui1,
                 v_corr_idxs,
+                rot_error,
+                unit_tran_error,
             ) = self.two_view_estimator.create_computation_graph(
                 keypoints_graph_list[i1],
                 keypoints_graph_list[i2],
@@ -381,10 +461,14 @@ class SceneOptimizer:
                 camera_intrinsics_graph[i1],
                 camera_intrinsics_graph[i2],
                 use_intrinsics_in_verification,
+                gt_relative_pose,
             )
             i2Ri1_graph_dict[(i1, i2)] = i2Ri1
             i2Ui1_graph_dict[(i1, i2)] = i2Ui1
             v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
+
+            auxiliary_graph_list.append(rot_error)
+            auxiliary_graph_list.append(unit_tran_error)
 
             if self._save_viz:
                 os.makedirs("plots/correspondences", exist_ok=True)
