@@ -4,22 +4,25 @@ from typing import Tuple
 import numpy as np
 from gtsam import Point3, Pose3
 
-FRUSTUM_RAY_LEN = 0.3  # meters, arbitrary
+DEFAULT_FRUSTUM_RAY_LEN = 0.3  # meters, arbitrary
 
 
 class ViewFrustum:
     """ Generates edges of a 5-face mesh for drawing pinhole camera in 3d"""
 
-    def __init__(self, fx: float, img_w: int, img_h: int) -> None:
+    def __init__(self, fx: float, img_w: int, img_h: int, frustum_ray_len: int = DEFAULT_FRUSTUM_RAY_LEN) -> None:
         """
         Args:
             fx: focal length in x-direction, assuming square pixels (fx == fy)
             img_w: image width (in pixels)
             img_h: image height (in pixels)
+            frustum_ray_len: extent to which extend frustum rays away from optical center
+                (increase length for large-scale scenes to make frustums visible)
         """
         self.fx_ = fx
         self.img_w_ = img_w
         self.img_h_ = img_h
+        self.frustum_ray_len_ = frustum_ray_len
 
     def get_frustum_vertices(self) -> Tuple[np.ndarray,np.ndarray,np.ndarray,np.ndarray,np.ndarray]:
         """Obtain 3d positions of all 5 frustum vertices
@@ -51,10 +54,10 @@ class ViewFrustum:
             uv, self.fx_, self.img_w_, self.img_h_
         )
         v0 = ray_dirs[0] * 0
-        v1 = ray_dirs[1] * FRUSTUM_RAY_LEN
-        v2 = ray_dirs[2] * FRUSTUM_RAY_LEN
-        v3 = ray_dirs[3] * FRUSTUM_RAY_LEN
-        v4 = ray_dirs[4] * FRUSTUM_RAY_LEN
+        v1 = ray_dirs[1] * self.frustum_ray_len_
+        v2 = ray_dirs[2] * self.frustum_ray_len_
+        v3 = ray_dirs[3] * self.frustum_ray_len_
+        v4 = ray_dirs[4] * self.frustum_ray_len_
 
         return v0, v1, v2, v3, v4
 
