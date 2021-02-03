@@ -90,20 +90,21 @@ class TwoViewEstimator:
     def __compute_metrics(
         self,
         i2Ri1_computed: Optional[Rot3],
-        i2Ui1_computed: Optional[Rot3],
+        i2Ui1_computed: Optional[Unit3],
         i2Ri1_expected: Rot3,
         i2Ui1_expected: Unit3,
     ) -> Tuple[float, float]:
-        """[summary]
+        """Compute the metrics on relative camera pose.
 
         Args:
-            i2Ri1_computed (Optional[Rot3]): [description]
-            i2Ui1_computed (Optional[Rot3]): [description]
-            i2Ri1_expected (Rot3): [description]
-            i2Ui1_expected (Unit3): [description]
+            i2Ri1_computed: computed relative rotation.
+            i2Ui1_computed: computed relative translation direction.
+            i2Ri1_expected: expected relative rotation.
+            i2Ui1_expected: expected relative translation direction.
 
         Returns:
-            Tuple[float, float]: [description]
+            rotation error.
+            unit translation error.
         """
 
         R_error = comp_utils.compute_relative_rotation_angle(
@@ -134,7 +135,28 @@ class TwoViewEstimator:
         exact_intrinsics: bool = True,
         i2Ti1_expected_graph: Optional[Delayed] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, Optional[Delayed], Optional[Delayed]]:
-        """Create delayed tasks for matching and verification."""
+        """Create delayed tasks for matching and verification.
+
+        Args:
+            keypoints_i1_graph: keypoints for image i1.
+            keypoints_i2_graph: keypoints for image i2.
+            descriptors_i1_graph: corr. descriptors for image i1.
+            descriptors_i2_graph: corr. descriptors for image i2.
+            camera_intrinsics_i1_graph: intrinsics for camera i1.
+            camera_intrinsics_i2_graph: intrinsics for camera i2.
+            exact_intrinsics (optional): flag to use intrinsics as exact.
+                                         Defaults to True.
+            i2Ti1_expected_graph (optional): ground truth relative pose, used
+                                             for evaluation if available.
+                                             Defaults to None.
+
+        Returns:
+            computed relative rotation wrapped as Delayed.
+            computed relative translation direction wrapped as Delayed.
+            indices of verified correspondences wrapped as Delayed.
+            error in relative rotation wrapped as Delayed
+            error in relative translation direction wrapped as Delayed.
+        """
 
         # graph for matching to obtain putative correspondences
         corr_idxs_graph = self.matcher.create_computation_graph(

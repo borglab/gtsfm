@@ -240,7 +240,5 @@ def compute_relative_unit_translation_angle(
         return np.pi
 
     dot_product = np.dot(U_1.point3(), U_2.point3())
-
     dot_product = np.clip(dot_product, -1, 1)
-
     return np.arccos(dot_product)
