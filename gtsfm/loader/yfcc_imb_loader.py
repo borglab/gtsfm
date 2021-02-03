@@ -64,7 +64,7 @@ class YfccImbLoader(LoaderBase):
             ]
         )
 
-        self._cameras = self.__read_colmap_model()
+        self._cameras = self.__read_calibrations()  # self.__read_colmap_model()
 
     def __len__(self) -> int:
         """
@@ -138,6 +138,37 @@ class YfccImbLoader(LoaderBase):
             validation result.
         """
         return (idx1, idx2) in self._image_pairs
+
+    def __read_calibrations(self) -> List[PinholeCameraCal3Bundler]:
+        """Read camera params from the calibration stored as h5 files.
+
+        Returns:
+            list of all cameras.
+        """
+
+        file_path_template = osp.join(
+            self._folder, "calibration", "calibration_{}.h5"
+        )
+
+        pose_list = []
+
+        for image_name in self._image_names:
+            file_path = file_path_template.format(image_name)
+            calib_data = io_utils.load_h5(file_path)
+
+            cTw = Pose3(Rot3(calib_data["R"]), calib_data["T"])
+            K_matrix = calib_data["K"]
+            K = Cal3Bundler(
+                fx=float(K_matrix[0, 0] + K_matrix[1, 1]) * 0.5,
+                k1=0.0,
+                k2=0.0,
+                u0=float(K_matrix[0, 2]),
+                v0=float(K_matrix[1, 2]),
+            )
+
+            pose_list.append(PinholeCameraCal3Bundler(cTw.inverse(), K))
+
+        return pose_list
 
     def __read_colmap_model(self) -> List[PinholeCameraCal3Bundler]:
         """Read camera parameters from the COLMAP optimized result provided by
