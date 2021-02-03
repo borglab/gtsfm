@@ -2,9 +2,7 @@
 
 Authors: Ayush Baid
 """
-from typing import Dict, Any
 
-import h5py
 import numpy as np
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
@@ -48,22 +46,3 @@ def save_image(image: Image, img_path: str):
     """
     im = PILImage.fromarray(image.value_array)
     im.save(img_path)
-
-
-def load_h5(file_path: str) -> Dict[Any, Any]:
-    """Loads a dictionary from a h5 file
-
-    Args:
-        file_path: path of the h5 file
-
-    Returns:
-        the dictionary from the h5 file
-    """
-
-    data = {}
-
-    with h5py.File(file_path, "r") as f:
-        for key in f.keys():
-            data[key] = f[key][:]
-
-    return data
