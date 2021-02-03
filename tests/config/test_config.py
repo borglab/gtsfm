@@ -14,13 +14,13 @@ CONFIG_PATH = Path(__file__).resolve().parent.parent.parent / "config"
 class TestCfgNode(unittest.TestCase):
     """ Main test for Configuration management applet """
 
-    def setup(self):
+    def setUp(self):
         super(TestCfgNode, self).setUp()
+        self.config = GtsfmCfgNode(get_cfg_defaults())
 
     def test_configuration_type(self):
         """ Test that correct types of input hyperparameters are read from 1 yaml file """
 
-        self.config = GtsfmCfgNode(get_cfg_defaults())
         self.config.load_file(str(CONFIG_PATH) + "/config1.yaml")
 
         self.assertTrue(isinstance(self.config.param.FeatureExtractor, CfgNode))

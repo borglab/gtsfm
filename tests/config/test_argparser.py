@@ -10,7 +10,7 @@ CONFIG_PATH = Path(__file__).resolve().parent.parent.parent / "config"
 class TestArgsCfgNode(unittest.TestCase):
     """ Main test for Argparser and Configuration Interaction """
 
-    def setup(self):
+    def setUp(self):
         super(TestArgsCfgNode, self).setUp()
 
     def test_argparser_file(self) -> None:
@@ -28,7 +28,6 @@ class TestArgsCfgNode(unittest.TestCase):
             ],
         )
 
-        print(config.param)
         self.assertTrue(config.param.FeatureExtractor.matching.num_features == 1000)
         self.assertTrue(config.param.FeatureExtractor.matching.deep_feature == "superpoint")
         self.assertTrue(config.param.TwoViewEstimator.mode_triangulation == "ransac")

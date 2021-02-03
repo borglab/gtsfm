@@ -30,7 +30,7 @@ class GtsfmCfgNode:
         self.param.set_new_allowed(False)
         self.param.freeze()
 
-    def print_modules(self) -> None:
+    def __str__(self) -> None:
         """ Print out the configuration that has already loaded."""
         print(self.param)
 
