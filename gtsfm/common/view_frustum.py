@@ -63,7 +63,7 @@ class ViewFrustum:
 
            Edge ordering below:
 
-        0
+                0
             .-------.
            3|\\1   /|4
             ._\\ 2/_.
