@@ -73,8 +73,8 @@ class TestGeometryComparisons(unittest.TestCase):
     def test_compute_relative_rotation_angle(self):
         """Tests the relative angle between two rotations."""
 
-        R_1 = POSE_LIST[0].rotation()
-        R_2 = POSE_LIST[1].rotation()
+        R_1 = Rot3.RzRyRx(0, np.deg2rad(45), np.deg2rad(22.5))
+        R_2 = Rot3.RzRyRx(0, np.deg2rad(90), np.deg2rad(22.5))
 
         computed = geometry_comparisons.compute_relative_rotation_angle(
             R_1, R_2
@@ -82,7 +82,7 @@ class TestGeometryComparisons(unittest.TestCase):
 
         expected = np.deg2rad(45)
 
-        self.assertEqual(computed, expected)
+        np.testing.assert_allclose(computed, expected, rtol=1e-3, atol=1e-3)
 
     def test_compute_relative_unit_translation_angle(self):
         """Tests the relative angle between two unit-translations."""
