@@ -25,8 +25,9 @@ from gtsam import (
     Unit3,
 )
 
-import gtsfm.utils.io as io_utils
 import gtsfm.utils.geometry_comparisons as comp_utils
+import gtsfm.utils.io as io_utils
+import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.serialization  # import needed to register serialization fns
 import gtsfm.utils.viz as viz_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import (
@@ -56,20 +57,7 @@ from gtsfm.frontend.verifier.verifier_base import VerifierBase
 from gtsfm.loader.folder_loader import FolderLoader
 
 
-def get_logger():
-    """Getter for logger."""
-    logger_name = "main-logger"
-    logger = logging.getLogger(logger_name)
-    logger.setLevel(logging.INFO)
-    if not logger.handlers:
-        handler = logging.StreamHandler()
-        fmt = "[%(asctime)s %(levelname)s %(filename)s line %(lineno)d %(process)d] %(message)s"
-        handler.setFormatter(logging.Formatter(fmt))
-        logger.addHandler(handler)
-    return logger
-
-
-logger = get_logger()
+logger = logger_utils.get_logger()
 
 mpl_logger = logging.getLogger("matplotlib")
 mpl_logger.setLevel(logging.WARNING)
