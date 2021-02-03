@@ -125,8 +125,8 @@ def compute_pixel_ray_directions_vectorized(
     Returns:
         ray_dirs: Array of shape (N,3) with ray directions in camera frame
     """
-    assert uv.shape[1] == 2
     assert uv.ndim == 2
+    assert uv.shape[1] == 2
 
     # assuming principal point at center of images now
     px = img_w / 2
