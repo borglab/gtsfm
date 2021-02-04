@@ -31,6 +31,8 @@ dependencies:
   - cudatoolkit=10.2
   - opencv=4.5.0 # preferring conda-forge's distribution as it provides the latest distribution
   - pytorch
+  # io
+  - h5py
   - pip:
     - pydegensac
 
