@@ -332,7 +332,9 @@ class SceneOptimizer:
 
         plt.close(fig)
 
-    def __write_sfmdata_to_disk(self, sfm_data: SfmData, save_fpath: str) -> None:
+    def __write_sfmdata_to_disk(
+        self, sfm_data: SfmData, save_fpath: str
+    ) -> None:
         """Write SfmData object as a "Bundle Adjustment in the Large" (BAL) file
         See https://grail.cs.washington.edu/projects/bal/ for more details on the format.
         """
@@ -349,7 +351,7 @@ class SceneOptimizer:
     ) -> Delayed:
         """ The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times"""
 
-        # auxiliary graph elements for visualizations and saving intermediate 
+        # auxiliary graph elements for visualizations and saving intermediate
         # data for analysis, not returned to the user.
         auxiliary_graph_list = []
 
@@ -398,6 +400,15 @@ class SceneOptimizer:
                         "plots/correspondences/{}_{}.jpg".format(i1, i2),
                     )
                 )
+
+        # as visualization tasks are not to be provided to the user, we create a
+        # dummy computation of concatenating viz tasks with the output graph,
+        # forcing computation of viz tasks. Doing this here forces the
+        # frontend's auxiliary tasks to be computed before the multi-view stage.
+        keypoints_graph_list = dask.delayed(lambda x, y: [x] + y)(
+            keypoints_graph_list, auxiliary_graph_list
+        )[0]
+        auxiliary_graph_list = []
 
         (
             ba_input_graph,
