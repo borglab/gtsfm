@@ -66,7 +66,7 @@ class ViewFrustum:
 
         return v0, v1, v2, v3, v4
 
-    def get_mesh_edges_from_verts(self, verts: List[np.ndarray]):
+    def get_mesh_edges_from_verts(self, verts: List[np.ndarray]) -> np.ndarray:
         """Given 5 vertices, with v0 being optical center, return edges defining the frustum mesh.
 
            Connectivity and edge ordering is defined below:
