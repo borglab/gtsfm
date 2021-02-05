@@ -1,5 +1,4 @@
-
-from typing import Tuple
+from typing import List, Tuple
 
 import numpy as np
 from gtsam import Point3, Pose3
@@ -10,7 +9,13 @@ DEFAULT_FRUSTUM_RAY_LEN = 0.3  # meters, arbitrary
 class ViewFrustum:
     """ Generates edges of a 5-face mesh for drawing pinhole camera in 3d"""
 
-    def __init__(self, fx: float, img_w: int, img_h: int, frustum_ray_len: int = DEFAULT_FRUSTUM_RAY_LEN) -> None:
+    def __init__(
+        self,
+        fx: float,
+        img_w: int,
+        img_h: int,
+        frustum_ray_len: int = DEFAULT_FRUSTUM_RAY_LEN,
+    ) -> None:
         """
         Args:
             fx: focal length in x-direction, assuming square pixels (fx == fy)
@@ -24,17 +29,19 @@ class ViewFrustum:
         self.img_h_ = img_h
         self.frustum_ray_len_ = frustum_ray_len
 
-    def get_frustum_vertices(self) -> Tuple[np.ndarray,np.ndarray,np.ndarray,np.ndarray,np.ndarray]:
-        """Obtain 3d positions of all 5 frustum vertices
+    def get_frustum_vertices_camfr(
+        self,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Obtain 3d positions of all 5 frustum vertices in the camera frame
 
           (x,y,z)               (x,y,z)                (x,y,z)              (x,y,z)
               \\=================//                      \\                   //
                \\               //                        \\ 1-------------2 //
         (-w/2,-h/2,fx)       (w/2,-h/2,fx)                 \\| IMAGE PLANE |//
                  1-------------2                             |             |/
-                 |\\         //| IMAGE PLANE  (-w/2, h/2,fx) 3-------------4 (w/2, h/2,fx)
+                 |\\         //| IMAGE PLANE  (-w/2, h/2,fx) 4-------------3 (w/2, h/2,fx)
                  | \\       // | IMAGE PLANE                  \\         //
-                 3--\\-----//--4                               \\       //
+                 4--\\-----//--3                               \\       //
                      \\   //                                    \\     //
                       \\ //                                      \\   //
                         O PINHOLE                                 \\ //
@@ -45,14 +52,12 @@ class ViewFrustum:
                 [self.img_w_ // 2, self.img_h_ // 2],  # optical center
                 [0, 0],  # top-left
                 [self.img_w_ - 1, 0],  # top-right
-                [0, self.img_h_ - 1],  # bottom-left
                 [self.img_w_ - 1, self.img_h_ - 1],  # bottom-right
+                [0, self.img_h_ - 1],  # bottom-left
             ]
         )
 
-        ray_dirs = compute_pixel_ray_directions_vectorized(
-            uv, self.fx_, self.img_w_, self.img_h_
-        )
+        ray_dirs = compute_pixel_ray_directions_vectorized(uv, self.fx_, self.img_w_, self.img_h_)
         v0 = ray_dirs[0] * 0
         v1 = ray_dirs[1] * self.frustum_ray_len_
         v2 = ray_dirs[2] * self.frustum_ray_len_
@@ -61,58 +66,65 @@ class ViewFrustum:
 
         return v0, v1, v2, v3, v4
 
-    def get_mesh_edges_camframe(self) -> np.ndarray:
-        """Return 8 edges defining the frustum mesh, in camera coordinate frame.
+    def get_mesh_edges_from_verts(self, verts: List[np.ndarray]):
+        """Given 5 vertices, with v0 being optical center, return edges defining the frustum mesh.
 
-           Edge ordering below:
-
-                0
+           Connectivity and edge ordering is defined below:
+                4
             .-------.
-           3|\\1   /|4
-            ._\\ 2/_.
+           7|\\0   /|5
+            ._\\ 1/_.
             \\ \\/ /
-             5\\../6
+             3\\../2
+        Args:
+            verts: List of length 5, each element is an array of shape (3,) representing
+                mesh vertices either in the camera frame or in the world frame
 
-           Returns:
-               edges_camfr: array of shape (8,2,2) representing 8 polylines in camera frame
+        Returns:
+            edges: array of shape (8,2,2) representing 8 polylines in same frame as vertices
         """
-        v0, v1, v2, v3, v4 = self.get_frustum_vertices()
+        v0, v1, v2, v3, v4 = verts
 
-        e0 = np.array([v1, v2]) # top-left to top-right (e0)
-        e1 = np.array([v0, v1]) # optical center to top-left (e1)
-        e2 = np.array([v0, v2]) # optical center to top-right (e2)
-        e3 = np.array([v3, v1]) # bottom-left to top-left (e3)
-        e4 = np.array([v4, v2]) # bottom-right to top-right (e4)
-        e5 = np.array([v0, v3]) # optical center to bottom-left (e5)
-        e6 = np.array([v0, v4]) # optical center to bottom-right (e6)
-        e7 = np.array([v3, v4]) # bottom-left to bottom-right (e7)
+        edges = []
+        # connect optical center (OC i.e. v0) to 4 points that lie along 4 rays into frustum
+        # OC to top-left, OC to top-right, OC to bottom-right, OC to bottom-left
+        for v in [v1, v2, v3, v4]:
+            edges += [np.array([v0, v])]
 
-        edges_camfr = np.stack([e0, e1, e2, e3, e4, e5, e6, e7])
+        edges += [np.array([v1, v2])]  # top-left to top-right
+        edges += [np.array([v2, v3])]  # top-right to bottom-right
+        edges += [np.array([v3, v4])]  # bottom-right to bottom-left
+        edges += [np.array([v4, v1])]  # bottom-left to top-left
+
+        edges = np.stack(edges)
+        return edges
+
+    def get_mesh_edges_camframe(self) -> np.ndarray:
+        """Return 8 edges defining the frustum mesh, in the camera coordinate frame.
+
+        Returns:
+            edges_camfr: array of shape (8,2,2) representing 8 polylines in camera frame
+        """
+        v0, v1, v2, v3, v4 = self.get_frustum_vertices_camfr()
+        edges_camfr = self.get_mesh_edges_from_verts([v0, v1, v2, v3, v4])
         return edges_camfr
 
     def get_mesh_edges_worldframe(self, wTc: Pose3) -> np.ndarray:
-        """Return 8 edges defining the frustum mesh, in world/global frame.
+        """Return 8 edges defining the frustum mesh, in the world/global frame.
+
+        Args:
+            wTc: camera pose in world frame
 
         Returns:
-            edges_camfr: array of shape (8,2,2) representing 8 polylines in world frame
+            edges_worldfr: array of shape (8,2,2) representing 8 polylines in world frame
         """
-        edges_camfr = self.get_mesh_edges_camframe()
-        edges_worldfr = []
-
-        for edge_camfr in edges_camfr:
-
-            v_start = edge_camfr[0]
-            v_end = edge_camfr[1]
-
-            edge_worldfr = [wTc.transformFrom(Point3(v_start)), wTc.transformFrom(Point3(v_end))]
-            edges_worldfr += [edge_worldfr]
-
+        v0, v1, v2, v3, v4 = self.get_frustum_vertices_camfr()
+        verts_worldfr = [wTc.transformFrom(Point3(vc)) for vc in [v0, v1, v2, v3, v4]]
+        edges_worldfr = self.get_mesh_edges_from_verts(verts_worldfr)
         return edges_worldfr
 
 
-def compute_pixel_ray_directions_vectorized(
-    uv: np.ndarray, fx: float, img_w: int, img_h: int
-) -> np.ndarray:
+def compute_pixel_ray_directions_vectorized(uv: np.ndarray, fx: float, img_w: int, img_h: int) -> np.ndarray:
     """Given (u,v) coordinates and intrinsics, generate pixels rays in cam. coord frame
     Assume +z points out of the camera, +y is downwards, and +x is across the imager.
 
@@ -143,4 +155,3 @@ def compute_pixel_ray_directions_vectorized(
 
     assert ray_dirs.shape[1] == 3
     return ray_dirs
-
