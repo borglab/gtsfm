@@ -5,7 +5,7 @@ Authors: Ayush Baid
 import unittest
 
 import numpy as np
-from gtsam import Cal3_S2, Point3, Pose3, Rot3
+from gtsam import Cal3_S2, Pose3, Rot3
 from gtsam.examples import SFMdata
 from scipy.spatial.transform import Rotation
 
@@ -81,17 +81,17 @@ class TestGeometryComparisons(unittest.TestCase):
         R180 = Rotation.from_euler("z", 180, degrees=True).as_matrix()
         R270 = Rotation.from_euler("z", 270, degrees=True).as_matrix()
 
-        wTu0 = Pose3(Rot3(R0), Point3(np.array([2, 3, 0])))
-        wTu1 = Pose3(Rot3(R90), Point3(np.array([12, 3, 0])))
-        wTu2 = Pose3(Rot3(R180), Point3(np.array([12, 13, 0])))
-        wTu3 = Pose3(Rot3(R270), Point3(np.array([2, 13, 0])))
+        wTu0 = Pose3(Rot3(R0), np.array([2, 3, 0]))
+        wTu1 = Pose3(Rot3(R90), np.array([12, 3, 0]))
+        wTu2 = Pose3(Rot3(R180), np.array([12, 13, 0]))
+        wTu3 = Pose3(Rot3(R270), np.array([2, 13, 0]))
 
         wTi_list = [wTu0, wTu1, wTu2, wTu3]
 
-        wTv0 = Pose3(Rot3(R0), Point3(np.array([4, 3, 0])))
-        wTv1 = Pose3(Rot3(R90), Point3(np.array([8, 3, 0])))
-        wTv2 = Pose3(Rot3(R180), Point3(np.array([8, 7, 0])))
-        wTv3 = Pose3(Rot3(R270), Point3(np.array([4, 7, 0])))
+        wTv0 = Pose3(Rot3(R0), np.array([4, 3, 0]))
+        wTv1 = Pose3(Rot3(R90), np.array([8, 3, 0]))
+        wTv2 = Pose3(Rot3(R180), np.array([8, 7, 0]))
+        wTv3 = Pose3(Rot3(R270), np.array([4, 7, 0]))
 
         wTi_list_ = [wTv0, wTv1, wTv2, wTv3]
 
