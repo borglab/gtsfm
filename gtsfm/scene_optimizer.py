@@ -405,7 +405,7 @@ class SceneOptimizer:
         # dummy computation of concatenating viz tasks with the output graph,
         # forcing computation of viz tasks. Doing this here forces the
         # frontend's auxiliary tasks to be computed before the multi-view stage.
-        keypoints_graph_list = dask.delayed(lambda x, y: [x] + y)(
+        keypoints_graph_list = dask.delayed(lambda x, y: (x, y))(
             keypoints_graph_list, auxiliary_graph_list
         )[0]
         auxiliary_graph_list = []
@@ -469,7 +469,7 @@ class SceneOptimizer:
         # as visualization tasks are not to be provided to the user, we create a
         # dummy computation of concatenating viz tasks with the output graph,
         # forcing computation of viz tasks
-        output_graph = dask.delayed(lambda x, y: [x] + y)(
+        output_graph = dask.delayed(lambda x, y: (x, y))(
             ba_output_graph, auxiliary_graph_list
         )
 
