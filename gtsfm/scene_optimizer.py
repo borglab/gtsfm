@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import dask
 import gtsam
 import matplotlib
+import numpy as np
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -91,28 +92,26 @@ class TwoViewEstimator:
         self,
         i2Ri1_computed: Optional[Rot3],
         i2Ui1_computed: Optional[Unit3],
-        i2Ri1_expected: Rot3,
-        i2Ui1_expected: Unit3,
+        i2Ti1_expected: Pose3,
     ) -> Tuple[float, float]:
         """Compute the metrics on relative camera pose.
 
         Args:
             i2Ri1_computed: computed relative rotation.
             i2Ui1_computed: computed relative translation direction.
-            i2Ri1_expected: expected relative rotation.
-            i2Ui1_expected: expected relative translation direction.
+            i2Ti1_expected: expected relative pose.
 
         Returns:
-            rotation error.
-            unit translation error.
+            Rotation error.
+            Unit translation error.
         """
 
         R_error = comp_utils.compute_relative_rotation_angle(
-            i2Ri1_computed, i2Ri1_expected
+            i2Ri1_computed, i2Ti1_expected.rotation()
         )
 
         U_error = comp_utils.compute_relative_unit_translation_angle(
-            i2Ui1_computed, i2Ui1_expected
+            i2Ui1_computed, Unit3(i2Ti1_expected.translation())
         )
 
         logging.debug(
@@ -151,11 +150,11 @@ class TwoViewEstimator:
                                              Defaults to None.
 
         Returns:
-            computed relative rotation wrapped as Delayed.
-            computed relative translation direction wrapped as Delayed.
-            indices of verified correspondences wrapped as Delayed.
-            error in relative rotation wrapped as Delayed
-            error in relative translation direction wrapped as Delayed.
+            Computed relative rotation wrapped as Delayed.
+            Computed relative translation direction wrapped as Delayed.
+            Indices of verified correspondences wrapped as Delayed.
+            Error in relative rotation wrapped as Delayed
+            Error in relative translation direction wrapped as Delayed.
         """
 
         # graph for matching to obtain putative correspondences
@@ -181,12 +180,7 @@ class TwoViewEstimator:
         # if we have the expected data, evaluate the computed relative pose
         if i2Ti1_expected_graph is not None:
             error_graphs = dask.delayed(self.__compute_metrics)(
-                i2Ri1_graph,
-                i2Ui1_graph,
-                dask.delayed(lambda x: x.rotation())(i2Ti1_expected_graph),
-                dask.delayed(lambda x: Unit3(x.translation()))(
-                    i2Ti1_expected_graph
-                ),
+                i2Ri1_graph, i2Ui1_graph, i2Ti1_expected_graph
             )
         else:
             error_graphs = (None, None)
@@ -418,6 +412,49 @@ class SceneOptimizer:
         """
         gtsam.writeBAL(save_fpath, sfm_data)
 
+    def __aggregate_frontend_metrics(
+        self, rot3_errors: List[float], unit3_errors: List[float]
+    ) -> None:
+        """Aggregate the front-end metrics to log summary statistics.
+
+        Args:
+            rot3_errors: angular errors in rotations.
+            unit3_errors: angular errors in unit-translations.
+        """
+        # TODO: fix the types
+        num_entries = len(rot3_errors)
+
+        rot3_errors = np.array(rot3_errors)
+        unit3_errors = np.array(unit3_errors)
+
+        # compute pose errors by picking the max error
+        pose_errors = np.maximum(rot3_errors, unit3_errors)
+
+        # check errors against the threshold
+        angular_err_threshold = self._config.pose_angular_error_thresh
+
+        success_count_rot3 = np.sum(rot3_errors < angular_err_threshold)
+        success_count_unit3 = np.sum(unit3_errors < angular_err_threshold)
+        success_count_pose = np.sum(pose_errors < angular_err_threshold)
+
+        logging.debug(
+            "[Two view optimizer] [Summary] Rotation success: %d/%d",
+            success_count_rot3,
+            num_entries,
+        )
+
+        logging.debug(
+            "[Two view optimizer] [Summary] Translation success: %d/%d",
+            success_count_unit3,
+            num_entries,
+        )
+
+        logging.debug(
+            "[Two view optimizer] [Summary] Pose success: %d/%d",
+            success_count_pose,
+            num_entries,
+        )
+
     def create_computation_graph(
         self,
         num_images: int,
@@ -449,6 +486,9 @@ class SceneOptimizer:
         i2Ui1_graph_dict = {}
         v_corr_idxs_graph_dict = {}
 
+        frontend_rot3_errors = []
+        frontend_unit3_errors = []
+
         for (i1, i2) in image_pair_indices:
             if gt_pose_graph is not None:
                 gt_relative_pose = dask.delayed(lambda x, y: x.between(y))(
@@ -477,8 +517,8 @@ class SceneOptimizer:
             i2Ui1_graph_dict[(i1, i2)] = i2Ui1
             v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
 
-            auxiliary_graph_list.append(rot_error)
-            auxiliary_graph_list.append(unit_tran_error)
+            frontend_rot3_errors.append(rot_error)
+            frontend_unit3_errors.append(unit_tran_error)
 
             if self._save_viz:
                 os.makedirs("plots/correspondences", exist_ok=True)
@@ -492,6 +532,14 @@ class SceneOptimizer:
                         "plots/correspondences/{}_{}.jpg".format(i1, i2),
                     )
                 )
+
+        # aggregate metrics for frontend
+        if gt_pose_graph is not None:
+            auxiliary_graph_list.append(
+                dask.delayed(self.__aggregate_frontend_metrics)(
+                    frontend_rot3_errors, frontend_unit3_errors
+                )
+            )
 
         (
             ba_input_graph,
@@ -550,8 +598,8 @@ class SceneOptimizer:
             )
 
         # as visualization tasks are not to be provided to the user, we create a
-        # dummy computation of concatenating viz tasks with the output graph,
-        # forcing computation of viz tasks
+        # dummy computation of concatenating aux tasks with the output graph,
+        # forcing computation of aux tasks
         output_graph = dask.delayed(lambda x, y: [x] + y)(
             ba_output_graph, auxiliary_graph_list
         )
@@ -573,6 +621,7 @@ if __name__ == "__main__":
             "num_ransac_hypotheses": 20,
             "save_viz": True,
             "save_bal_files": True,
+            "pose_angular_error_thresh": np.deg2rad(10),
         }
     )
     obj = SceneOptimizer(
