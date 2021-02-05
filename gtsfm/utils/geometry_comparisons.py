@@ -216,10 +216,7 @@ def compute_relative_rotation_angle(
 
     relative_rot = R_1.between(R_2)
 
-    origin = Rot3()
-
-    relative_rot_axisangle = origin.Logmap(relative_rot)
-    relative_rot_angle = np.linalg.norm(relative_rot_axisangle) % (2 * np.pi)
+    relative_rot_angle = relative_rot.axisAngle()[1]
 
     return relative_rot_angle
 
@@ -239,6 +236,7 @@ def compute_relative_unit_translation_angle(
     if U_1 is None or U_2 is None:
         return np.pi
 
+    # TODO: expose Unit3's dot function and use it directly
     dot_product = np.dot(U_1.point3(), U_2.point3())
     dot_product = np.clip(dot_product, -1, 1)
     return np.arccos(dot_product)
