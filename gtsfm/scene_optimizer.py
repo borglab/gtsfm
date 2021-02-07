@@ -232,8 +232,18 @@ def visualize_twoview_correspondences(
     keypoints_i1: Keypoints,
     keypoints_i2: Keypoints,
     corr_idxs_i1i2: np.ndarray,
-    file_name: str,
+    file_path: str,
 ) -> None:
+    """Visualize correspondences between pairs of images.
+
+    Args:
+        image_i1: image #i1.
+        image_i2: image #i2.
+        keypoints_i1: detected Keypoints for image #i1.
+        keypoints_i2: detected Keypoints for image #i2.
+        corr_idxs_i1i2: correspondence indices.
+        file_path: file path to save the visualization.
+    """
     plot_img = viz_utils.plot_twoview_correspondences(
         image_i1,
         image_i2,
@@ -242,10 +252,16 @@ def visualize_twoview_correspondences(
         corr_idxs_i1i2,
     )
 
-    io_utils.save_image(plot_img, file_name)
+    io_utils.save_image(plot_img, file_path)
 
 
 def visualize_sfm_data(sfm_data: SfmData, folder_name: str) -> None:
+    """Visualize the camera poses and 3d points in SfmData.
+
+    Args:
+        sfm_data: data to visualize.
+        folder_name: folder to save the visualization at.
+    """
     fig = plt.figure()
     ax = fig.gca(projection="3d")
 
@@ -269,6 +285,14 @@ def visualize_camera_poses(
     gt_pose_graph: Optional[List[Pose3]],
     folder_name: str,
 ) -> None:
+    """Visualize the camera pose and save to disk.
+
+    Args:
+        pre_ba_sfm_data: data input to bundle adjustment.
+        post_ba_sfm_data: output of bundle adjustment.
+        gt_pose_graph: ground truth poses.
+        folder_name: folder to save the visualization at.
+    """
     # extract camera poses
     pre_ba_poses = []
     for i in range(pre_ba_sfm_data.number_cameras()):
@@ -304,6 +328,10 @@ def write_sfmdata_to_disk(sfm_data: SfmData, save_fpath: str) -> None:
 
     Note: Need this wrapper as dask cannot directly work on gtsam function
     calls.
+
+    Args:
+        sfm_data: data to write.
+        save_fpath: filepath to save the data at.
     """
     gtsam.writeBAL(save_fpath, sfm_data)
 
