@@ -7,17 +7,7 @@ import logging
 import sys
 from typing import Tuple
 
-import matplotlib
-
-matplotlib.use("Agg")
 from dask.delayed import Delayed
-from gtsam import (
-    PinholeCameraCal3Bundler,
-    Pose3,
-    Rot3,
-    SfmData,
-    Unit3,
-)
 
 import gtsfm.utils.serialization  # import needed to register serialization fns
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
@@ -37,7 +27,13 @@ class TwoViewEstimator:
     """Wrapper for running two-view relative pose estimation on image pairs in
     the dataset."""
 
-    def __init__(self, matcher: MatcherBase, verifier: VerifierBase):
+    def __init__(self, matcher: MatcherBase, verifier: VerifierBase) -> None:
+        """Initializes the two-view estimator from matcher and verifier.
+
+        Args:
+            matcher: matcher to use.
+            verifier: verifier to use.
+        """
         self.matcher = matcher
         self.verifier = verifier
 
@@ -51,7 +47,24 @@ class TwoViewEstimator:
         camera_intrinsics_i2_graph: Delayed,
         exact_intrinsics: bool = True,
     ) -> Tuple[Delayed, Delayed, Delayed]:
-        """Create delayed tasks for matching and verification."""
+        """Create delayed tasks for matching and verification.
+
+        Args:
+            keypoints_i1_graph: keypoints for image #i1, wrapped as Delayed.
+            keypoints_i2_graph: keypoints for image #i2, wrapped as Delayed
+            descriptors_i1_graph: descriptors for image #i1, wrapped as Delayed.
+            descriptors_i2_graph: descriptors for image #i2, wrapped as Delayed.
+            camera_intrinsics_i1_graph: intrinsics for camera #i1.
+            camera_intrinsics_i2_graph: intrinsics for camera #i2.
+            exact_intrinsics (optional): flag to treat intrinsics as exact, and
+                                         use it in verification. Defaults to
+                                         True.
+
+        Returns:
+            i2Ri1, wrapped as Delayed.
+            i2Ui1, wrapped as Delayed.
+            indices of correspondences in i1 and i2, wrapped as Delayed.
+        """
 
         # graph for matching to obtain putative correspondences
         corr_idxs_graph = self.matcher.create_computation_graph(

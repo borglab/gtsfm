@@ -8,12 +8,16 @@ import sys
 from typing import Any, Dict, List, Optional, Tuple
 
 import dask
-import matplotlib
-
-matplotlib.use("Agg")
 import networkx as nx
 from dask.delayed import Delayed
-from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3
+from gtsam import (
+    Cal3Bundler,
+    PinholeCameraCal3Bundler,
+    Point3,
+    Pose3,
+    Rot3,
+    Unit3,
+)
 
 import gtsfm.utils.serialization  # import needed to register serialization fns
 from gtsfm.averaging.rotation.rotation_averaging_base import (
@@ -41,7 +45,7 @@ class MultiViewOptimizer:
         rot_avg_module: RotationAveragingBase,
         trans_avg_module: TranslationAveragingBase,
         config: Any,
-    ):
+    ) -> None:
         self.rot_avg_module = rot_avg_module
         self.trans_avg_module = trans_avg_module
         self.data_association_module = DataAssociation(
@@ -61,8 +65,25 @@ class MultiViewOptimizer:
         v_corr_idxs_graph: Dict[Tuple[int, int], Delayed],
         intrinsics_graph: List[Delayed],
     ) -> Tuple[Delayed, Delayed]:
+        """Creates a computation graph for multi-view optimization.
+
+        Args:
+            num_images: number of images in the scene.
+            keypoints_graph: keypoints for images, each wrapped up as Delayed.
+            i2Ri1_graph: relative rotations for image pairs, each value wrapped
+                         up as Delayed.
+            i2Ui1_graph: relative unit-translations for image pairs, each value
+                         wrapped up as Delayed.
+            v_corr_idxs_graph: indices of verified correspondences for image
+                               pairs, wrapped up as Delayed.
+            intrinsics_graph: intrinsics for images, wrapped up as Delayed.
+
+        Returns:
+            The input to bundle adjustment, wrapped up as Delayed.
+            The final output, wrapped up as Delayed.
+        """
         # prune the graph to a single connected component.
-        pruned_graph = dask.delayed(self.select_largest_connected_component)(
+        pruned_graph = dask.delayed(select_largest_connected_component)(
             i2Ri1_graph, i2Ui1_graph
         )
 
@@ -77,7 +98,7 @@ class MultiViewOptimizer:
             num_images, pruned_i2Ui1_graph, wRi_graph
         )
 
-        init_cameras_graph = dask.delayed(self.init_cameras)(
+        init_cameras_graph = dask.delayed(init_cameras)(
             wRi_graph, wti_graph, intrinsics_graph
         )
 
@@ -91,58 +112,72 @@ class MultiViewOptimizer:
 
         return ba_input_graph, ba_result_graph
 
-    @classmethod
-    def select_largest_connected_component(
-        cls,
-        rotations: Dict[Tuple[int, int], Optional[Rot3]],
-        unit_translations: Dict[Tuple[int, int], Optional[Unit3]],
-    ) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3]]:
-        """Process the graph of image indices with Rot3s/Unit3s defining edges,
-        and select the largest connected component."""
 
-        input_edges = [k for (k, v) in rotations.items() if v is not None]
+def select_largest_connected_component(
+    rotations: Dict[Tuple[int, int], Optional[Rot3]],
+    unit_translations: Dict[Tuple[int, int], Optional[Unit3]],
+) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3]]:
+    """Process the graph of image indices with Rot3s/Unit3s defining edges,
+    and select the largest connected component.
 
-        # create a graph from all edges which have an essential matrix
-        result_graph = nx.Graph()
-        result_graph.add_edges_from(input_edges)
+    Args:
+        rotations: dictionary of relative rotations for pairs.
+        unit_translations: dictionary of relative unit-translations for pairs.
 
-        # get the largest connected components
-        largest_cc = max(nx.connected_components(result_graph), key=len)
-        result_subgraph = result_graph.subgraph(largest_cc).copy()
+    Returns:
+        Subset of rotations which are in the largest connected components.
+        Subset of unit_translations which are in the largest connected
+            components.
+    """
+    input_edges = [k for (k, v) in rotations.items() if v is not None]
 
-        # get the remaining edges and construct the dictionary back
-        pruned_edges = list(result_subgraph.edges())
+    # create a graph from all edges which have an essential matrix
+    result_graph = nx.Graph()
+    result_graph.add_edges_from(input_edges)
 
-        # as the edges are non-directional, they might have flipped and should
-        # be corrected
-        selected_edges = []
-        for i1, i2 in pruned_edges:
-            if (i1, i2) in rotations:
-                selected_edges.append((i1, i2))
-            else:
-                selected_edges.append((i2, i1))
+    # get the largest connected components
+    largest_cc = max(nx.connected_components(result_graph), key=len)
+    result_subgraph = result_graph.subgraph(largest_cc).copy()
 
-        # return the subset of original input
-        return (
-            {k: rotations[k] for k in selected_edges},
-            {k: unit_translations[k] for k in selected_edges},
-        )
+    # get the remaining edges and construct the dictionary back
+    pruned_edges = list(result_subgraph.edges())
 
-    @classmethod
-    def init_cameras(
-        cls,
-        wRi_list: List[Optional[Rot3]],
-        wti_list: List[Optional[Unit3]],
-        intrinsics_list: List[Cal3Bundler],
-    ) -> Dict[int, PinholeCameraCal3Bundler]:
-        """Generate camera from valid rotations and unit-translations."""
+    # as the edges are non-directional, they might have flipped and should
+    # be corrected
+    selected_edges = []
+    for i1, i2 in pruned_edges:
+        if (i1, i2) in rotations:
+            selected_edges.append((i1, i2))
+        else:
+            selected_edges.append((i2, i1))
 
-        cameras = {}
+    # return the subset of original input
+    return (
+        {k: rotations[k] for k in selected_edges},
+        {k: unit_translations[k] for k in selected_edges},
+    )
 
-        for idx, (wRi, wti) in enumerate(zip(wRi_list, wti_list)):
-            if wRi is not None and wti is not None:
-                cameras[idx] = PinholeCameraCal3Bundler(
-                    Pose3(wRi, wti), intrinsics_list[idx]
-                )
 
-        return cameras
+def init_cameras(
+    wRi_list: List[Optional[Rot3]],
+    wti_list: List[Optional[Point3]],
+    intrinsics_list: List[Cal3Bundler],
+) -> Dict[int, PinholeCameraCal3Bundler]:
+    """Generate camera from valid rotations and unit-translations.
+
+    Args:
+        wRi_list: rotations for cameras.
+        wti_list: translations for cameras.
+        intrinsics_list: intrinsics for cameras.
+    Returns:
+        Valid cameras.
+    """
+    cameras = {}
+
+    for idx, (wRi, wti) in enumerate(zip(wRi_list, wti_list)):
+        if wRi is not None and wti is not None:
+            cameras[idx] = PinholeCameraCal3Bundler(
+                Pose3(wRi, wti), intrinsics_list[idx]
+            )
+
+    return cameras

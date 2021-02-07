@@ -14,13 +14,11 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import numpy as np
 from dask.delayed import Delayed
 from dask.distributed import Client, LocalCluster, performance_report
 from gtsam import (
-    Cal3Bundler,
-    PinholeCameraCal3Bundler,
     Pose3,
-    Rot3,
     SfmData,
     Unit3,
 )
@@ -39,6 +37,8 @@ from gtsfm.averaging.translation.averaging_1dsfm import (
 from gtsfm.averaging.translation.translation_averaging_base import (
     TranslationAveragingBase,
 )
+from gtsfm.common.image import Image
+from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.sfm_result import SfmResult
 from gtsfm.data_association.data_assoc import TriangulationParam
 from gtsfm.feature_extractor import FeatureExtractor
@@ -77,7 +77,6 @@ class SceneOptimizer:
         trans_avg_module: TranslationAveragingBase,
         config: Any,
     ) -> None:
-
         self.feature_extractor = FeatureExtractor(detector_descriptor)
 
         self.two_view_estimator = TwoViewEstimator(matcher, verifier)
@@ -89,85 +88,6 @@ class SceneOptimizer:
         self._save_viz = config.save_viz
         self._save_bal_files = config.save_bal_files
         self._config = config
-
-    def __visualize_twoview_correspondences(
-        self,
-        image_i1_graph: Delayed,
-        image_i2_graph: Delayed,
-        corr_idxs_graph: Delayed,
-        keypoints_i1_graph: Delayed,
-        keypoints_i2_graph: Delayed,
-        file_name: str,
-    ) -> None:
-        plot_img = viz_utils.plot_twoview_correspondences(
-            image_i1_graph,
-            image_i2_graph,
-            keypoints_i1_graph,
-            keypoints_i2_graph,
-            corr_idxs_graph,
-        )
-
-        io_utils.save_image(plot_img, file_name)
-
-    def __visualize_sfm_data(self, sfm_data: Delayed, folder_name: str) -> None:
-        fig = plt.figure()
-        ax = fig.gca(projection="3d")
-
-        viz_utils.plot_sfm_data_3d(sfm_data, ax)
-        viz_utils.set_axes_equal(ax)
-
-        # save the 3D plot in the original view
-        fig.savefig(os.path.join(folder_name, "3d.png"))
-
-        # save the BEV representation
-        default_camera_elevation = 100  # in metres above ground
-        ax.view_init(azim=0, elev=default_camera_elevation)
-        fig.savefig(os.path.join(folder_name, "bev.png"))
-
-        plt.close(fig)
-
-    def __visualize_camera_poses(
-        self,
-        pre_ba_sfm_data: Delayed,
-        post_ba_sfm_data: Delayed,
-        gt_pose_graph: Optional[List[Delayed]],
-        folder_name: str,
-    ) -> None:
-        # extract camera poses
-        pre_ba_poses = []
-        for i in range(pre_ba_sfm_data.number_cameras()):
-            pre_ba_poses.append(pre_ba_sfm_data.camera(i).pose())
-
-        post_ba_poses = []
-        for i in range(post_ba_sfm_data.number_cameras()):
-            post_ba_poses.append(post_ba_sfm_data.camera(i).pose())
-
-        fig = plt.figure()
-        ax = fig.gca(projection="3d")
-
-        viz_utils.plot_poses_3d(pre_ba_poses, ax, center_marker_color="c")
-        viz_utils.plot_poses_3d(post_ba_poses, ax, center_marker_color="k")
-        if gt_pose_graph is not None:
-            gt_pose_graph = comp_utils.align_poses(gt_pose_graph, post_ba_poses)
-            viz_utils.plot_poses_3d(gt_pose_graph, ax, center_marker_color="m")
-
-        # save the 3D plot in the original view
-        fig.savefig(os.path.join(folder_name, "poses_3d.png"))
-
-        # save the BEV representation
-        default_camera_elevation = 100  # in metres above ground
-        ax.view_init(azim=0, elev=default_camera_elevation)
-        fig.savefig(os.path.join(folder_name, "poses_bev.png"))
-
-        plt.close(fig)
-
-    def __write_sfmdata_to_disk(
-        self, sfm_data: SfmData, save_fpath: str
-    ) -> None:
-        """Write SfmData object as a "Bundle Adjustment in the Large" (BAL) file
-        See https://grail.cs.washington.edu/projects/bal/ for more details on the format.
-        """
-        gtsam.writeBAL(save_fpath, sfm_data)
 
     def create_computation_graph(
         self,
@@ -220,12 +140,12 @@ class SceneOptimizer:
             if self._save_viz:
                 os.makedirs("plots/correspondences", exist_ok=True)
                 auxiliary_graph_list.append(
-                    dask.delayed(self.__visualize_twoview_correspondences)(
+                    dask.delayed(visualize_twoview_correspondences)(
                         image_graph[i1],
                         image_graph[i2],
-                        v_corr_idxs,
                         keypoints_graph_list[i1],
                         keypoints_graph_list[i2],
+                        v_corr_idxs,
                         "plots/correspondences/{}_{}.jpg".format(i1, i2),
                     )
                 )
@@ -260,19 +180,19 @@ class SceneOptimizer:
             os.makedirs("plots/results", exist_ok=True)
 
             auxiliary_graph_list.append(
-                dask.delayed(self.__visualize_sfm_data)(
+                dask.delayed(visualize_sfm_data)(
                     ba_input_graph, "plots/ba_input/"
                 )
             )
 
             auxiliary_graph_list.append(
-                dask.delayed(self.__visualize_sfm_data)(
+                dask.delayed(visualize_sfm_data)(
                     filtered_sfm_data_graph, "plots/results/"
                 )
             )
 
             auxiliary_graph_list.append(
-                dask.delayed(self.__visualize_camera_poses)(
+                dask.delayed(visualize_camera_poses)(
                     ba_input_graph,
                     filtered_sfm_data_graph,
                     gt_pose_graph,
@@ -284,13 +204,13 @@ class SceneOptimizer:
             os.makedirs("results", exist_ok=True)
             # save the input to Bundle Adjustment (from data association)
             auxiliary_graph_list.append(
-                dask.delayed(self.__write_sfmdata_to_disk)(
+                dask.delayed(write_sfmdata_to_disk)(
                     ba_input_graph, "results/ba_input.bal"
                 )
             )
             # save the output of Bundle Adjustment (after optimization)
             auxiliary_graph_list.append(
-                dask.delayed(self.__write_sfmdata_to_disk)(
+                dask.delayed(write_sfmdata_to_disk)(
                     filtered_sfm_data_graph, "results/ba_output.bal"
                 )
             )
@@ -304,6 +224,88 @@ class SceneOptimizer:
 
         # return the entry with just the sfm result
         return output_graph[0]
+
+
+def visualize_twoview_correspondences(
+    image_i1: Image,
+    image_i2: Image,
+    keypoints_i1: Keypoints,
+    keypoints_i2: Keypoints,
+    corr_idxs_i1i2: np.ndarray,
+    file_name: str,
+) -> None:
+    plot_img = viz_utils.plot_twoview_correspondences(
+        image_i1,
+        image_i2,
+        keypoints_i1,
+        keypoints_i2,
+        corr_idxs_i1i2,
+    )
+
+    io_utils.save_image(plot_img, file_name)
+
+
+def visualize_sfm_data(sfm_data: SfmData, folder_name: str) -> None:
+    fig = plt.figure()
+    ax = fig.gca(projection="3d")
+
+    viz_utils.plot_sfm_data_3d(sfm_data, ax)
+    viz_utils.set_axes_equal(ax)
+
+    # save the 3D plot in the original view
+    fig.savefig(os.path.join(folder_name, "3d.png"))
+
+    # save the BEV representation
+    default_camera_elevation = 100  # in metres above ground
+    ax.view_init(azim=0, elev=default_camera_elevation)
+    fig.savefig(os.path.join(folder_name, "bev.png"))
+
+    plt.close(fig)
+
+
+def visualize_camera_poses(
+    pre_ba_sfm_data: SfmData,
+    post_ba_sfm_data: SfmData,
+    gt_pose_graph: Optional[List[Pose3]],
+    folder_name: str,
+) -> None:
+    # extract camera poses
+    pre_ba_poses = []
+    for i in range(pre_ba_sfm_data.number_cameras()):
+        pre_ba_poses.append(pre_ba_sfm_data.camera(i).pose())
+
+    post_ba_poses = []
+    for i in range(post_ba_sfm_data.number_cameras()):
+        post_ba_poses.append(post_ba_sfm_data.camera(i).pose())
+
+    fig = plt.figure()
+    ax = fig.gca(projection="3d")
+
+    viz_utils.plot_poses_3d(pre_ba_poses, ax, center_marker_color="c")
+    viz_utils.plot_poses_3d(post_ba_poses, ax, center_marker_color="k")
+    if gt_pose_graph is not None:
+        gt_pose_graph = comp_utils.align_poses(gt_pose_graph, post_ba_poses)
+        viz_utils.plot_poses_3d(gt_pose_graph, ax, center_marker_color="m")
+
+    # save the 3D plot in the original view
+    fig.savefig(os.path.join(folder_name, "poses_3d.png"))
+
+    # save the BEV representation
+    default_camera_elevation = 100  # in metres above ground
+    ax.view_init(azim=0, elev=default_camera_elevation)
+    fig.savefig(os.path.join(folder_name, "poses_bev.png"))
+
+    plt.close(fig)
+
+
+def write_sfmdata_to_disk(sfm_data: SfmData, save_fpath: str) -> None:
+    """Write SfmData object as a "Bundle Adjustment in the Large" (BAL) file
+    See https://grail.cs.washington.edu/projects/bal/ for more details on the format.
+
+    Note: Need this wrapper as dask cannot directly work on gtsam function
+    calls.
+    """
+    gtsam.writeBAL(save_fpath, sfm_data)
 
 
 if __name__ == "__main__":
