@@ -55,7 +55,6 @@ from gtsfm.loader.folder_loader import FolderLoader
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.two_view_estimator import TwoViewEstimator
 
-
 logger = logger_utils.get_logger()
 
 mpl_logger = logging.getLogger("matplotlib")

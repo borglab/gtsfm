@@ -4,20 +4,17 @@ verified indices.
 Authors: Ayush Baid, John Lambert
 """
 import logging
-import sys
 from typing import Tuple, Optional
 
-import dask
 from dask.delayed import Delayed
-from gtsam import Pose3, Rot3, Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
+import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.serialization  # import needed to register serialization fns
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
-# configure loggers to avoid DEBUG level stdout messages
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+logger = logger_utils.get_logger()
 
 mpl_logger = logging.getLogger("matplotlib")
 mpl_logger.setLevel(logging.WARNING)
@@ -94,51 +91,4 @@ class TwoViewEstimator:
             exact_intrinsics,
         )
 
-        # if we have the expected data, evaluate the computed relative pose
-        if i2Ti1_expected_graph is not None:
-            error_graphs = dask.delayed(compute_relative_pose_metrics)(
-                i2Ri1_graph, i2Ui1_graph, i2Ti1_expected_graph
-            )
-        else:
-            error_graphs = (None, None)
-
-        return (
-            i2Ri1_graph,
-            i2Ui1_graph,
-            v_corr_idxs_graph,
-            error_graphs[0],
-            error_graphs[1],
-        )
-
-
-def compute_relative_pose_metrics(
-    i2Ri1_computed: Optional[Rot3],
-    i2Ui1_computed: Optional[Unit3],
-    i2Ti1_expected: Pose3,
-) -> Tuple[float, float]:
-    """Compute the metrics on relative camera pose.
-
-    Args:
-        i2Ri1_computed: computed relative rotation.
-        i2Ui1_computed: computed relative translation direction.
-        i2Ti1_expected: expected relative pose.
-
-    Returns:
-        Rotation error.
-        Unit translation error.
-    """
-
-    R_error = comp_utils.compute_relative_rotation_angle(
-        i2Ri1_computed, i2Ti1_expected.rotation()
-    )
-
-    U_error = comp_utils.compute_relative_unit_translation_angle(
-        i2Ui1_computed, Unit3(i2Ti1_expected.translation())
-    )
-
-    logging.debug("[Two View Estimator] Relative rotation error %f", R_error)
-    logging.debug(
-        "[Two View Estimator] Relative unit-translation error %f", U_error
-    )
-
-    return (R_error, U_error)
+        return i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph

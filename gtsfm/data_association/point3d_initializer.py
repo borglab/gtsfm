@@ -9,7 +9,6 @@ Authors: Sushmita Warrier, Xiaolong Wu
 """
 
 import itertools
-import logging
 from enum import Enum
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
@@ -22,11 +21,14 @@ from gtsam import (
     SfmTrack,
 )
 
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
 
 NUM_SAMPLES_PER_RANSAC_HYPOTHESIS = 2
 SVD_DLT_RANK_TOL = 1e-9
 MAX_TRACK_REPROJ_ERROR = np.finfo(np.float32).max
+
+logger = logger_utils.get_logger()
 
 """We have different modes for robust and non-robust triangulation.
 In case of noise-free measurements, all the entries in a track are used w/o ransac.
@@ -127,7 +129,7 @@ class Point3dInitializer(NamedTuple):
                         )
                     except RuntimeError:
                         # TODO: handle cheirality exception properly?
-                        logging.info(
+                        logger.info(
                             "Cheirality exception from GTSAM's triangulatePoint3() likely due to outlier, skipping track"
                         )
                         continue
@@ -156,7 +158,7 @@ class Point3dInitializer(NamedTuple):
                             best_error = avg_error
                             best_inliers = is_inlier
                 else:
-                    logging.warning(
+                    logger.warning(
                         "Unestimated cameras found at indices {} or {}. Skipping them.".format(
                             i1, i2
                         )
@@ -186,7 +188,9 @@ class Point3dInitializer(NamedTuple):
                 optimize=True,
             )
         except RuntimeError:
-            logging.info("Cheirality exception from GTSAM's triangulatePoint3() likely due to outlier, skipping track")
+            logger.info(
+                "Cheirality exception from GTSAM's triangulatePoint3() likely due to outlier, skipping track"
+            )
             return None
 
         # compute reprojection errors for each measurement
@@ -327,7 +331,7 @@ class Point3dInitializer(NamedTuple):
                 track_cameras.append(self.track_camera_dict.get(i))
                 track_measurements.append(uv)
             else:
-                logging.warning(
+                logger.warning(
                     "Unestimated cameras found at index {}. Skipping them.".format(
                         i
                     )
