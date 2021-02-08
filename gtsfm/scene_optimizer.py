@@ -5,7 +5,6 @@ Authors: Ayush Baid, John Lambert
 import logging
 import os
 import sys
-from types import SimpleNamespace
 from typing import Any, List, Optional, Tuple
 
 import dask
@@ -16,7 +15,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from dask.delayed import Delayed
-from dask.distributed import Client, LocalCluster, performance_report
 from gtsam import (
     Pose3,
     SfmData,
@@ -30,27 +28,17 @@ import gtsfm.utils.viz as viz_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import (
     RotationAveragingBase,
 )
-from gtsfm.averaging.rotation.shonan import ShonanRotationAveraging
-from gtsfm.averaging.translation.averaging_1dsfm import (
-    TranslationAveraging1DSFM,
-)
 from gtsfm.averaging.translation.translation_averaging_base import (
     TranslationAveragingBase,
 )
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.common.sfm_result import SfmResult
-from gtsfm.data_association.data_assoc import TriangulationParam
 from gtsfm.feature_extractor import FeatureExtractor
 from gtsfm.frontend.detector_descriptor.detector_descriptor_base import (
     DetectorDescriptorBase,
 )
-from gtsfm.frontend.detector_descriptor.sift import SIFTDetectorDescriptor
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
-from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
-from gtsfm.frontend.verifier.ransac import Ransac
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
-from gtsfm.loader.folder_loader import FolderLoader
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.two_view_estimator import TwoViewEstimator
 
@@ -70,24 +58,18 @@ class SceneOptimizer:
 
     def __init__(
         self,
-        detector_descriptor: DetectorDescriptorBase,
-        matcher: MatcherBase,
-        verifier: VerifierBase,
-        rot_avg_module: RotationAveragingBase,
-        trans_avg_module: TranslationAveragingBase,
-        config: Any,
+        feature_extractor: FeatureExtractor,
+        two_view_estimator: TwoViewEstimator,
+        multiview_optimizer: MultiViewOptimizer,
+        save_viz: bool,
+        save_bal_files: bool
     ) -> None:
-        self.feature_extractor = FeatureExtractor(detector_descriptor)
+        self.feature_extractor = feature_extractor
+        self.two_view_estimator = two_view_estimator
+        self.multiview_optimizer = multiview_optimizer
 
-        self.two_view_estimator = TwoViewEstimator(matcher, verifier)
-
-        self.multiview_optimizer = MultiViewOptimizer(
-            rot_avg_module, trans_avg_module, config
-        )
-
-        self._save_viz = config.save_viz
-        self._save_bal_files = config.save_bal_files
-        self._config = config
+        self._save_viz = save_viz
+        self._save_bal_files = save_bal_files
 
     def create_computation_graph(
         self,
@@ -173,7 +155,7 @@ class SceneOptimizer:
 
         filtered_sfm_data_graph = dask.delayed(
             ba_output_graph.filter_landmarks
-        )(self._config.reproj_error_thresh)
+        )(self.multiview_optimizer.data_association_module.reproj_error_thresh)
 
         if self._save_viz:
             os.makedirs("plots/ba_input", exist_ok=True)
@@ -335,44 +317,3 @@ def write_sfmdata_to_disk(sfm_data: SfmData, save_fpath: str) -> None:
     """
     gtsam.writeBAL(save_fpath, sfm_data)
 
-
-if __name__ == "__main__":
-    loader = FolderLoader(
-        os.path.join("tests", "data", "set1_lund_door"), image_extension="JPG"
-    )
-
-    config = SimpleNamespace(
-        **{
-            "reproj_error_thresh": 5,
-            "min_track_len": 2,
-            "triangulation_mode": TriangulationParam.NO_RANSAC,
-            "num_ransac_hypotheses": 20,
-            "save_viz": True,
-            "save_bal_files": True,
-        }
-    )
-    obj = SceneOptimizer(
-        detector_descriptor=SIFTDetectorDescriptor(),
-        matcher=TwoWayMatcher(),
-        verifier=Ransac(),
-        rot_avg_module=ShonanRotationAveraging(),
-        trans_avg_module=TranslationAveraging1DSFM(),
-        config=config,
-    )
-
-    sfm_result_graph = obj.create_computation_graph(
-        len(loader),
-        loader.get_valid_pairs(),
-        loader.create_computation_graph_for_images(),
-        loader.create_computation_graph_for_intrinsics(),
-        use_intrinsics_in_verification=True,
-        gt_pose_graph=loader.create_computation_graph_for_poses(),
-    )
-
-    # create dask client
-    cluster = LocalCluster(n_workers=2, threads_per_worker=4)
-
-    with Client(cluster), performance_report(filename="dask-report.html"):
-        sfm_result = sfm_result_graph.compute()
-
-    assert isinstance(sfm_result, SfmResult)
