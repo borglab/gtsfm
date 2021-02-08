@@ -4,7 +4,6 @@ Authors: Ayush Baid, John Lambert
 """
 import logging
 import os
-import sys
 from types import SimpleNamespace
 from typing import Any, List, Optional, Tuple
 
@@ -25,6 +24,7 @@ from gtsam import (
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.io as io_utils
+import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.serialization  # import needed to register serialization fns
 import gtsfm.utils.viz as viz_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import (
@@ -54,8 +54,7 @@ from gtsfm.loader.folder_loader import FolderLoader
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.two_view_estimator import TwoViewEstimator
 
-# configure loggers to avoid DEBUG level stdout messages
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+logger = logger_utils.get_logger()
 
 mpl_logger = logging.getLogger("matplotlib")
 mpl_logger.setLevel(logging.WARNING)
