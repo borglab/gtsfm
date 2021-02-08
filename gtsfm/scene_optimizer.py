@@ -152,8 +152,9 @@ class SceneOptimizer:
             i2Ui1_graph_dict[(i1, i2)] = i2Ui1
             v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
 
-            frontend_rot3_errors.append(rot_error)
-            frontend_unit3_errors.append(unit_tran_error)
+            if gt_pose_graph is not None:
+                frontend_rot3_errors.append(rot_error)
+                frontend_unit3_errors.append(unit_tran_error)
 
             if self._save_viz:
                 os.makedirs("plots/correspondences", exist_ok=True)
