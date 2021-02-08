@@ -41,5 +41,7 @@ setup(
     keywords="computer-vision",
     packages=find_packages(),
     python_requires=">= 3.6",
-    install_requires=[],
+    install_requires=[
+     "hydra-core==1.1.0dev3"
+    ],
 )
