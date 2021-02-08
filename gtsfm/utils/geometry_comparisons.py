@@ -215,9 +215,7 @@ def compute_relative_rotation_angle(
         return np.pi
 
     relative_rot = R_1.between(R_2)
-
     relative_rot_angle = relative_rot.axisAngle()[1]
-
     return relative_rot_angle
 
 

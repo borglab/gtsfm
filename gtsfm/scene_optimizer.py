@@ -373,8 +373,8 @@ def aggregate_frontend_metrics(
     Args:
         rot3_errors: angular errors in rotations.
         unit3_errors: angular errors in unit-translations.
+        angular_err_threshold: threshold to classify the error as success.
     """
-    # TODO: fix the types
     num_entries = len(rot3_errors)
 
     rot3_errors = np.array(rot3_errors)
