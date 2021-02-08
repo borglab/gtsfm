@@ -12,6 +12,7 @@ On Linux, with CUDA support:
 conda env create -f environment_linux.yml
 conda activate gtsfm-v1 # you may need "source activate gtsfm-v1" depending upon your bash and conda set-up
 ```
+The Python3.8 `gtsam` wheel for Linux is available [here](https://github.com/borglab/gtsam-manylinux-build/suites/1859835370/artifacts/36145194).
 
 **Mac**
 On Mac OSX, there is no CUDA support and no `pydegensac` wheel in `pypi`, so run:

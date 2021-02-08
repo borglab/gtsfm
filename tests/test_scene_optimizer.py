@@ -24,6 +24,7 @@ from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
 from gtsfm.frontend.verifier.degensac import Degensac
 from gtsfm.loader.folder_loader import FolderLoader
 from gtsfm.scene_optimizer import SceneOptimizer
+from gtsfm.multi_view_optimizer import select_largest_connected_component
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent / "data"
 
@@ -43,7 +44,7 @@ class TestSceneOptimizer(unittest.TestCase):
                 "triangulation_mode": TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
                 "num_ransac_hypotheses": 20,
                 "save_viz": False,
-                "save_bal_files": False
+                "save_bal_files": False,
             }
         )
         self.obj = SceneOptimizer(
@@ -86,7 +87,7 @@ class TestSceneOptimizer(unittest.TestCase):
         (
             computed_relative_rotations,
             computed_relative_unit_translations,
-        ) = self.obj.multiview_optimizer.select_largest_connected_component(
+        ) = select_largest_connected_component(
             input_relative_rotations, input_relative_unit_translations
         )
 
