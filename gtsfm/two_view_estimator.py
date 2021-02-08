@@ -96,7 +96,7 @@ class TwoViewEstimator:
 
         # if we have the expected data, evaluate the computed relative pose
         if i2Ti1_expected_graph is not None:
-            error_graphs = dask.delayed(compute_metrics)(
+            error_graphs = dask.delayed(compute_relative_pose_metrics)(
                 i2Ri1_graph, i2Ui1_graph, i2Ti1_expected_graph
             )
         else:
@@ -111,7 +111,7 @@ class TwoViewEstimator:
         )
 
 
-def compute_metrics(
+def compute_relative_pose_metrics(
     i2Ri1_computed: Optional[Rot3],
     i2Ui1_computed: Optional[Unit3],
     i2Ti1_expected: Pose3,
