@@ -3,8 +3,6 @@ the scene.
 
 Authors: Ayush Baid, John Lambert
 """
-import logging
-import sys
 from typing import Any, Dict, List, Optional, Tuple
 
 import dask
@@ -28,15 +26,6 @@ from gtsfm.averaging.translation.translation_averaging_base import (
 )
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.data_association.data_assoc import DataAssociation
-
-# configure loggers to avoid DEBUG level stdout messages
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
-
-mpl_logger = logging.getLogger("matplotlib")
-mpl_logger.setLevel(logging.WARNING)
-
-pil_logger = logging.getLogger("PIL")
-pil_logger.setLevel(logging.INFO)
 
 
 class MultiViewOptimizer:

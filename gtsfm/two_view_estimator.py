@@ -4,17 +4,17 @@ verified indices.
 Authors: Ayush Baid, John Lambert
 """
 import logging
-import sys
-from typing import Tuple
+from typing import Tuple, Optional
 
 from dask.delayed import Delayed
 
+import gtsfm.utils.geometry_comparisons as comp_utils
+import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.serialization  # import needed to register serialization fns
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
-# configure loggers to avoid DEBUG level stdout messages
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+logger = logger_utils.get_logger()
 
 mpl_logger = logging.getLogger("matplotlib")
 mpl_logger.setLevel(logging.WARNING)

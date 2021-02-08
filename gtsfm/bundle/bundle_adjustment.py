@@ -2,10 +2,6 @@
 
 Authors: Xiaolong Wu, John Lambert, Ayush Baid
 """
-
-import logging
-import sys
-
 import dask
 import gtsam
 from dask.delayed import Delayed
@@ -17,6 +13,7 @@ from gtsam import (
     symbol_shorthand,
 )
 
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.sfm_result import SfmResult
 
 # TODO: any way this goes away?
@@ -27,7 +24,7 @@ PINHOLE_CAM_CAL3BUNDLER_DOF = 9  # 6 dof for pose, and 3 dof for f, k1, k2
 IMG_MEASUREMENT_DIM = 2  # 2d measurements (u,v) have 2 dof
 POINT3_DOF = 3  # 3d points have 3 dof
 
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+logger = logger_utils.get_logger()
 
 
 class BundleAdjustmentOptimizer:
@@ -44,7 +41,7 @@ class BundleAdjustmentOptimizer:
         Results:
             optimized camera poses, 3D point w/ tracks, and error metrics.
         """
-        logging.info(
+        logger.info(
             f"Input: {initial_data.number_tracks()} tracks on {initial_data.number_cameras()} cameras\n"
         )
 
@@ -113,14 +110,14 @@ class BundleAdjustmentOptimizer:
             lm = gtsam.LevenbergMarquardtOptimizer(graph, initial, params)
             result_values = lm.optimize()
         except Exception as e:
-            logging.exception("LM Optimization failed")
+            logger.exception("LM Optimization failed")
             return SfmResult(SfmData(), float("Nan"))
 
         final_error = graph.error(result_values)
 
         # Error drops from ~2764.22 to ~0.046
-        logging.info(f"initial error: {graph.error(initial):.2f}")
-        logging.info(f"final error: {final_error:.2f}")
+        logger.info(f"initial error: {graph.error(initial):.2f}")
+        logger.info(f"final error: {final_error:.2f}")
 
         # construct the results
         optimized_data = values_to_sfm_data(result_values, initial_data)
