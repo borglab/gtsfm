@@ -19,18 +19,18 @@ TEST_ROOT = Path(__file__).resolve().parent.parent / "tests"
 
 @hydra.main(config_name="config")
 def run_scene_optimizer_hydra(cfg: DictConfig) -> None:
-	scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer, _frozen_=False)
+	scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
 	loader = FolderLoader(
 		os.path.join( TEST_ROOT, "data", "set1_lund_door"), image_extension="JPG"
 	)
 
-	import pdb
-	pdb.set_trace()
-	# bad support for Enum's currently
-	scene_optimizer.multiview_optimizer.data_association_module.mode = eval(
-		scene_optimizer.multiview_optimizer.data_association_module.mode
-	)
+	# import pdb
+	# pdb.set_trace()
+	# # bad support for Enum's currently
+	# scene_optimizer.multiview_optimizer.data_association_module.mode = eval(
+	# 	scene_optimizer.multiview_optimizer.data_association_module.mode
+	# )
 
 	sfm_result_graph = scene_optimizer.create_computation_graph(
 		len(loader),
