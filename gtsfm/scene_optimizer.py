@@ -364,8 +364,8 @@ def write_sfmdata_to_disk(sfm_data: SfmData, save_fpath: str) -> None:
 
 
 def aggregate_frontend_metrics(
-    rot3_errors: List[float],
-    unit3_errors: List[float],
+    rot3_errors: List[Optional[float]],
+    unit3_errors: List[Optional[float]],
     angular_err_threshold: float,
 ) -> None:
     """Aggregate the front-end metrics to log summary statistics.
@@ -377,8 +377,11 @@ def aggregate_frontend_metrics(
     """
     num_entries = len(rot3_errors)
 
-    rot3_errors = np.array(rot3_errors)
-    unit3_errors = np.array(unit3_errors)
+    rot3_errors = np.array(rot3_errors, dtype=float)
+    unit3_errors = np.array(unit3_errors, dtype=float)
+
+    # count number of entries not nan. Should be same in rot3/unit3
+    num_valid_entries = np.count_nonzero(~np.isnan(rot3_errors))
 
     # compute pose errors by picking the max error
     pose_errors = np.maximum(rot3_errors, unit3_errors)
@@ -388,21 +391,24 @@ def aggregate_frontend_metrics(
     success_count_unit3 = np.sum(unit3_errors < angular_err_threshold)
     success_count_pose = np.sum(pose_errors < angular_err_threshold)
 
-    logging.debug(
-        "[Two view optimizer] [Summary] Rotation success: %d/%d",
+    logger.debug(
+        "[Two view optimizer] [Summary] Rotation success: %d/%d/%d",
         success_count_rot3,
+        num_valid_entries,
         num_entries,
     )
 
-    logging.debug(
-        "[Two view optimizer] [Summary] Translation success: %d/%d",
+    logger.debug(
+        "[Two view optimizer] [Summary] Translation success: %d/%d/%d",
         success_count_unit3,
+        num_valid_entries,
         num_entries,
     )
 
-    logging.debug(
-        "[Two view optimizer] [Summary] Pose success: %d/%d",
+    logger.debug(
+        "[Two view optimizer] [Summary] Pose success: %d/%d/%d",
         success_count_pose,
+        num_valid_entries,
         num_entries,
     )
 

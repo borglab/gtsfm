@@ -8,7 +8,6 @@ import numpy as np
 from gtsam import Pose3, Rot3, Unit3
 
 EPSILON = np.finfo(float).eps
-MAX_ANGULAR_ERROR = np.pi  # max angular error in rotation/translation
 
 
 def align_rotations(input_list: List[Rot3], ref_list: List[Rot3]) -> List[Rot3]:
@@ -199,7 +198,7 @@ def compare_global_poses(
 
 def compute_relative_rotation_angle(
     R_1: Optional[Rot3], R_2: Optional[Rot3]
-) -> float:
+) -> Optional[float]:
     """Compute the angle between two rotations.
 
     Note: the angle is the norm of the angle-axis representation.
@@ -213,7 +212,7 @@ def compute_relative_rotation_angle(
     """
 
     if R_1 is None or R_2 is None:
-        return MAX_ANGULAR_ERROR
+        return None
 
     relative_rot = R_1.between(R_2)
     relative_rot_angle = relative_rot.axisAngle()[1]
@@ -222,7 +221,7 @@ def compute_relative_rotation_angle(
 
 def compute_relative_unit_translation_angle(
     U_1: Optional[Unit3], U_2: Optional[Unit3]
-) -> float:
+) -> Optional[float]:
     """Compute the angle between two unit-translations.
 
     Args:
@@ -233,7 +232,7 @@ def compute_relative_unit_translation_angle(
         the angle between the two unit-vectors.
     """
     if U_1 is None or U_2 is None:
-        return MAX_ANGULAR_ERROR
+        return None
 
     # TODO: expose Unit3's dot function and use it directly
     dot_product = np.dot(U_1.point3(), U_2.point3())
