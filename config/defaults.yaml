@@ -1,0 +1,9 @@
+# This is an default configuration file that specify 
+# the configuration files of all modules with formate:
+# - cfg_folder: cfg_file_name 
+
+defaults:
+  - modules: sceneOptimizer
+  - modules: featureExtractor
+  - modules: twoViewEstimator
+  - modules: multiViewOptimizer

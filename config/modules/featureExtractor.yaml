@@ -1,0 +1,13 @@
+# @package _global_
+FeatureExtractor:
+  _target_: gtsfm_cfgnode.FeatureExtractor
+  submodule1: # SubModule1 name 
+    param_str: fe_name1
+    param_int: 1
+    param_float: 1.0
+    param_bool: true
+  submodule2: # SubModule2 name 
+    param_str: fe_name2
+    param_int: 2
+    param_float: 2.0
+    param_bool: false
