@@ -1,7 +1,0 @@
-# @package _global_
-SceneOptimizer:
-  _target_: gtsfm_cfgnode.SceneOptimizer
-  param_str: name
-  param_int: 0
-  param_float: 0.0
-  param_bool: true

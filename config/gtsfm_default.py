@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from hydra.core.config_store import ConfigStore
+
 from omegaconf import MISSING
 
 @dataclass
@@ -65,3 +67,10 @@ class TwoViewEstimator:
 class MultiViewOptimizer:
     submodule1: SubModule5 = SubModule5()
     submodule2: SubModule6 = SubModule6()
+
+@dataclass
+class GTSFM_CfgNode:
+    sceneOptimizer: SceneOptimizer = SceneOptimizer()
+    featureExtractor: FeatureExtractor = FeatureExtractor()
+    twoViewEstimator: TwoViewEstimator = TwoViewEstimator() 
+    multiViewOptimizer: MultiViewOptimizer = MultiViewOptimizer()
