@@ -5,7 +5,7 @@ Authors: Ayush Baid
 from typing import List, Optional
 
 import numpy as np
-from gtsam import Pose3, Rot3
+from gtsam import Pose3, Rot3, Unit3
 
 EPSILON = np.finfo(float).eps
 
@@ -194,3 +194,47 @@ def compare_global_poses(
             for (wTi, wTi_) in zip(wTi_list, wTi_list_)
         ]
     )
+
+
+def compute_relative_rotation_angle(
+    R_1: Optional[Rot3], R_2: Optional[Rot3]
+) -> Optional[float]:
+    """Compute the angle between two rotations.
+
+    Note: the angle is the norm of the angle-axis representation.
+
+    Args:
+        R_1: the first rotation.
+        R_2: the second rotation.
+
+    Returns:
+        the angle between two rotations.
+    """
+
+    if R_1 is None or R_2 is None:
+        return None
+
+    relative_rot = R_1.between(R_2)
+    relative_rot_angle = relative_rot.axisAngle()[1]
+    return relative_rot_angle
+
+
+def compute_relative_unit_translation_angle(
+    U_1: Optional[Unit3], U_2: Optional[Unit3]
+) -> Optional[float]:
+    """Compute the angle between two unit-translations.
+
+    Args:
+        U_1: the first unit-translation.
+        U_2: the second unit-translation.
+
+    Returns:
+        the angle between the two unit-vectors.
+    """
+    if U_1 is None or U_2 is None:
+        return None
+
+    # TODO: expose Unit3's dot function and use it directly
+    dot_product = np.dot(U_1.point3(), U_2.point3())
+    dot_product = np.clip(dot_product, -1, 1)
+    return np.arccos(dot_product)

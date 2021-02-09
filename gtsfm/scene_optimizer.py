@@ -4,12 +4,12 @@ Authors: Ayush Baid, John Lambert
 """
 import logging
 import os
-import sys
 from typing import Any, List, Optional, Tuple
 
 import dask
 import gtsam
 import matplotlib
+import numpy as np
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -23,6 +23,7 @@ from gtsam import (
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.io as io_utils
+import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.serialization  # import needed to register serialization fns
 import gtsfm.utils.viz as viz_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import (
@@ -42,8 +43,7 @@ from gtsfm.frontend.verifier.verifier_base import VerifierBase
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.two_view_estimator import TwoViewEstimator
 
-# configure loggers to avoid DEBUG level stdout messages
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+logger = logger_utils.get_logger()
 
 mpl_logger = logging.getLogger("matplotlib")
 mpl_logger.setLevel(logging.WARNING)
@@ -101,11 +101,24 @@ class SceneOptimizer:
         i2Ri1_graph_dict = {}
         i2Ui1_graph_dict = {}
         v_corr_idxs_graph_dict = {}
+
+        frontend_rot3_errors = []
+        frontend_unit3_errors = []
+
         for (i1, i2) in image_pair_indices:
+            if gt_pose_graph is not None:
+                gt_relative_pose = dask.delayed(lambda x, y: x.between(y))(
+                    gt_pose_graph[i2], gt_pose_graph[i1]
+                )
+            else:
+                gt_relative_pose = None
+
             (
                 i2Ri1,
                 i2Ui1,
                 v_corr_idxs,
+                rot_error,
+                unit_tran_error,
             ) = self.two_view_estimator.create_computation_graph(
                 keypoints_graph_list[i1],
                 keypoints_graph_list[i2],
@@ -114,10 +127,15 @@ class SceneOptimizer:
                 camera_intrinsics_graph[i1],
                 camera_intrinsics_graph[i2],
                 use_intrinsics_in_verification,
+                gt_relative_pose,
             )
             i2Ri1_graph_dict[(i1, i2)] = i2Ri1
             i2Ui1_graph_dict[(i1, i2)] = i2Ui1
             v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
+
+            if gt_pose_graph is not None:
+                frontend_rot3_errors.append(rot_error)
+                frontend_unit3_errors.append(unit_tran_error)
 
             if self._save_viz:
                 os.makedirs("plots/correspondences", exist_ok=True)
@@ -132,6 +150,15 @@ class SceneOptimizer:
                     )
                 )
 
+        # aggregate metrics for frontend
+        if gt_pose_graph is not None:
+            auxiliary_graph_list.append(
+                dask.delayed(aggregate_frontend_metrics)(
+                    frontend_rot3_errors,
+                    frontend_unit3_errors,
+                    self._config.pose_angular_error_thresh,
+                )
+            )
         # as visualization tasks are not to be provided to the user, we create a
         # dummy computation of concatenating viz tasks with the output graph,
         # forcing computation of viz tasks. Doing this here forces the
@@ -316,4 +343,54 @@ def write_sfmdata_to_disk(sfm_data: SfmData, save_fpath: str) -> None:
         save_fpath: filepath to save the data at.
     """
     gtsam.writeBAL(save_fpath, sfm_data)
+
+
+def aggregate_frontend_metrics(
+    rot3_errors: List[Optional[float]],
+    unit3_errors: List[Optional[float]],
+    angular_err_threshold: float,
+) -> None:
+    """Aggregate the front-end metrics to log summary statistics.
+
+    Args:
+        rot3_errors: angular errors in rotations.
+        unit3_errors: angular errors in unit-translations.
+        angular_err_threshold: threshold to classify the error as success.
+    """
+    num_entries = len(rot3_errors)
+
+    rot3_errors = np.array(rot3_errors, dtype=float)
+    unit3_errors = np.array(unit3_errors, dtype=float)
+
+    # count number of entries not nan. Should be same in rot3/unit3
+    num_valid_entries = np.count_nonzero(~np.isnan(rot3_errors))
+
+    # compute pose errors by picking the max error
+    pose_errors = np.maximum(rot3_errors, unit3_errors)
+
+    # check errors against the threshold
+    success_count_rot3 = np.sum(rot3_errors < angular_err_threshold)
+    success_count_unit3 = np.sum(unit3_errors < angular_err_threshold)
+    success_count_pose = np.sum(pose_errors < angular_err_threshold)
+
+    logger.debug(
+        "[Two view optimizer] [Summary] Rotation success: %d/%d/%d",
+        success_count_rot3,
+        num_valid_entries,
+        num_entries,
+    )
+
+    logger.debug(
+        "[Two view optimizer] [Summary] Translation success: %d/%d/%d",
+        success_count_unit3,
+        num_valid_entries,
+        num_entries,
+    )
+
+    logger.debug(
+        "[Two view optimizer] [Summary] Pose success: %d/%d/%d",
+        success_count_pose,
+        num_valid_entries,
+        num_entries,
+    )
 

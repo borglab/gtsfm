@@ -5,7 +5,7 @@ Authors: Ayush Baid
 import unittest
 
 import numpy as np
-from gtsam import Cal3_S2, Pose3, Rot3
+from gtsam import Cal3_S2, Point3, Pose3, Rot3, Unit3
 from gtsam.examples import SFMdata
 from scipy.spatial.transform import Rotation
 
@@ -70,6 +70,34 @@ class TestGeometryComparisons(unittest.TestCase):
         self.assertFalse(
             geometry_comparisons.compare_global_poses(pose_list, pose_list_)
         )
+
+    def test_compute_relative_rotation_angle(self):
+        """Tests the relative angle between two rotations."""
+
+        R_1 = Rot3.RzRyRx(0, np.deg2rad(45), np.deg2rad(22.5))
+        R_2 = Rot3.RzRyRx(0, np.deg2rad(90), np.deg2rad(22.5))
+
+        computed = geometry_comparisons.compute_relative_rotation_angle(
+            R_1, R_2
+        )
+
+        expected = np.deg2rad(45)
+
+        np.testing.assert_allclose(computed, expected, rtol=1e-3, atol=1e-3)
+
+    def test_compute_relative_unit_translation_angle(self):
+        """Tests the relative angle between two unit-translations."""
+
+        U_1 = Unit3(np.array([1, 0, 0]))
+        U_2 = Unit3(np.array([0.5, 0.5, 0]))
+
+        computed = geometry_comparisons.compute_relative_unit_translation_angle(
+            U_1, U_2
+        )
+
+        expected = np.deg2rad(45)
+
+        self.assertAlmostEqual(computed, expected, places=3)
 
     def test_compare_global_poses_scaled_squares(self):
         """Make sure a big and small square can be aligned.

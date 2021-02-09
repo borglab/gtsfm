@@ -2,33 +2,14 @@
 
 Authors: Ayush Baid, John Lambert
 """
-import logging
-import sys
 from typing import Tuple
 
 from dask.delayed import Delayed
-from gtsam import (
-    Cal3Bundler,
-    PinholeCameraCal3Bundler,
-    Pose3,
-    Rot3,
-    SfmData,
-    Unit3,
-)
 
 import gtsfm.utils.serialization  # import needed to register serialization fns
 from gtsfm.frontend.detector_descriptor.detector_descriptor_base import (
     DetectorDescriptorBase,
 )
-
-# configure loggers to avoid DEBUG level stdout messages
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
-
-mpl_logger = logging.getLogger("matplotlib")
-mpl_logger.setLevel(logging.WARNING)
-
-pil_logger = logging.getLogger("PIL")
-pil_logger.setLevel(logging.INFO)
 
 
 class FeatureExtractor:
