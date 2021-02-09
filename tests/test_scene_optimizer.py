@@ -24,16 +24,12 @@ from gtsfm.multi_view_optimizer import select_largest_connected_component
 DATA_ROOT_PATH = Path(__file__).resolve().parent / "data"
 
 
-
 class TestSceneOptimizer(unittest.TestCase):
     """Unit test for SceneOptimizer, which runs SfM for a scene."""
 
     def setUp(self) -> None:
-        self.loader = FolderLoader(
-            str(DATA_ROOT_PATH / "set1_lund_door"), image_extension="JPG"
-        )
+        self.loader = FolderLoader(str(DATA_ROOT_PATH / "set1_lund_door"), image_extension="JPG")
         assert len(self.loader)
-
 
     def test_find_largest_connected_component(self):
         """Tests the function to prune the scene graph to its largest connected
@@ -66,29 +62,17 @@ class TestSceneOptimizer(unittest.TestCase):
         (
             computed_relative_rotations,
             computed_relative_unit_translations,
-        ) = select_largest_connected_component(
-            input_relative_rotations, input_relative_unit_translations
-        )
+        ) = select_largest_connected_component(input_relative_rotations, input_relative_unit_translations)
 
         # check the edges in the pruned graph
-        self.assertCountEqual(
-            list(computed_relative_rotations.keys()), expected_edges
-        )
-        self.assertCountEqual(
-            list(computed_relative_unit_translations.keys()), expected_edges
-        )
+        self.assertCountEqual(list(computed_relative_rotations.keys()), expected_edges)
+        self.assertCountEqual(list(computed_relative_unit_translations.keys()), expected_edges)
 
         # check the actual Rot3 and Unit3 values
         for (i1, i2) in expected_edges:
+            self.assertTrue(computed_relative_rotations[(i1, i2)].equals(input_relative_rotations[(i1, i2)], 1e-2))
             self.assertTrue(
-                computed_relative_rotations[(i1, i2)].equals(
-                    input_relative_rotations[(i1, i2)], 1e-2
-                )
-            )
-            self.assertTrue(
-                computed_relative_unit_translations[(i1, i2)].equals(
-                    input_relative_unit_translations[(i1, i2)], 1e-2
-                )
+                computed_relative_unit_translations[(i1, i2)].equals(input_relative_unit_translations[(i1, i2)], 1e-2)
             )
 
     def test_create_computation_graph(self):
@@ -121,9 +105,7 @@ class TestSceneOptimizer(unittest.TestCase):
             # compare the camera poses
             poses = sfm_result.get_camera_poses()
 
-            expected_poses = [
-                self.loader.get_camera_pose(i) for i in range(len(self.loader))
-            ]
+            expected_poses = [self.loader.get_camera_pose(i) for i in range(len(self.loader))]
 
             self.assertTrue(comp_utils.compare_global_poses(poses, expected_poses))
 
