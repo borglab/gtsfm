@@ -62,14 +62,17 @@ class SceneOptimizer:
         two_view_estimator: TwoViewEstimator,
         multiview_optimizer: MultiViewOptimizer,
         save_viz: bool,
-        save_bal_files: bool
+        save_bal_files: bool,
+        pose_angular_error_thresh: float
     ) -> None:
+        """ pose_angular_error_thresh is given in degrees """
         self.feature_extractor = feature_extractor
         self.two_view_estimator = two_view_estimator
         self.multiview_optimizer = multiview_optimizer
 
         self._save_viz = save_viz
         self._save_bal_files = save_bal_files
+        self._pose_angular_error_thresh = pose_angular_error_thresh
 
     def create_computation_graph(
         self,
@@ -156,7 +159,7 @@ class SceneOptimizer:
                 dask.delayed(aggregate_frontend_metrics)(
                     frontend_rot3_errors,
                     frontend_unit3_errors,
-                    self._config.pose_angular_error_thresh,
+                    self._pose_angular_error_thresh,
                 )
             )
         # as visualization tasks are not to be provided to the user, we create a
@@ -348,7 +351,7 @@ def write_sfmdata_to_disk(sfm_data: SfmData, save_fpath: str) -> None:
 def aggregate_frontend_metrics(
     rot3_errors: List[Optional[float]],
     unit3_errors: List[Optional[float]],
-    angular_err_threshold: float,
+    angular_err_threshold_deg: float,
 ) -> None:
     """Aggregate the front-end metrics to log summary statistics.
 
@@ -357,6 +360,7 @@ def aggregate_frontend_metrics(
         unit3_errors: angular errors in unit-translations.
         angular_err_threshold: threshold to classify the error as success.
     """
+    angular_err_threshold_rad = np.deg2rad(angular_err_threshold_deg)
     num_entries = len(rot3_errors)
 
     rot3_errors = np.array(rot3_errors, dtype=float)
@@ -369,9 +373,9 @@ def aggregate_frontend_metrics(
     pose_errors = np.maximum(rot3_errors, unit3_errors)
 
     # check errors against the threshold
-    success_count_rot3 = np.sum(rot3_errors < angular_err_threshold)
-    success_count_unit3 = np.sum(unit3_errors < angular_err_threshold)
-    success_count_pose = np.sum(pose_errors < angular_err_threshold)
+    success_count_rot3 = np.sum(rot3_errors < angular_err_threshold_rad)
+    success_count_unit3 = np.sum(unit3_errors < angular_err_threshold_rad)
+    success_count_pose = np.sum(pose_errors < angular_err_threshold_rad)
 
     logger.debug(
         "[Two view optimizer] [Summary] Rotation success: %d/%d/%d",
