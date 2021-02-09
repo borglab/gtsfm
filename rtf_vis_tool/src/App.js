@@ -1,13 +1,19 @@
+import React, {useEffect, useState, useRef} from "react";
+import {Canvas, extend, useThree, useFrame, Renderer} from "react-three-fiber";
+import {Line, Html} from "drei";
+import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls';
 import './App.css';
-import React, {useState} from "react";
-import {Canvas} from "react-three-fiber";
-import {OrbitControls, Line, Html} from "drei";
-import FileReaderInput from 'react-file-reader-input';
+import {DoubleSide, Scene} from 'three';
+import {PointCloudOctree, Potree} from '@pnext/three-loader';
+
+extend({OrbitControls})
 
 const App = (props) => {
   const [rawFileString, setRawFileString] = useState("");
   const [pointCloud, setPointCloud] = useState([]);
-
+  const canvasRef = useRef();
+  const cameraRef = useRef();
+  
   //Function
   const getGridLines = () => {
     var coordPairSet = []
@@ -40,6 +46,16 @@ const App = (props) => {
           </div>
         </Html>
 
+      </mesh>
+    )
+  }
+
+  //Component
+  const SquareMesh = ({position, widthArgs, color}) => {
+    return (
+      <mesh position={position}>
+        <planeBufferGeometry attach='geometry' args={widthArgs}/> 
+        <meshBasicMaterial attach='material' color={color} side={DoubleSide}/>
       </mesh>
     )
   }
@@ -98,7 +114,7 @@ const App = (props) => {
   }
 
   //Function
-  const readFile = (e) => {
+  const readPLYFile = (e) => {
     e.preventDefault();
     const reader = new FileReader();
     reader.readAsText(e.target.files[0])
@@ -108,36 +124,47 @@ const App = (props) => {
     }
   }
 
-    //Function ... in progress 
-    const readBinaryFile = (e) => {
-      e.preventDefault();
-      const reader = new FileReader();
-      reader.readAsArrayBuffer(e.target.files[0])
-      reader.onload = (e) => {
-        const fileString = e.target.result;
-        console.log(fileString)
-      }
-    }
-
   //Function
   const visualizeFile = () => {
       const startPointsIndex = rawFileString.indexOf("end_header")
       const condensedString = rawFileString.substring(startPointsIndex)
       var arrStringPoints = condensedString.split('\n')
       arrStringPoints.shift()
-      console.log(arrStringPoints.length)
+      console.log(`Length: ${arrStringPoints.length}`);
 
-      var finalPointsJSX = []   
-      const scale = 10;   
-      for (var i = 0; i < arrStringPoints.length; i += 1000) {
-        var arrStringElementsOfPoint = arrStringPoints[i].split(" ");
-        var pointArr = arrStringElementsOfPoint.map(Number);
-        pointArr = swapYZ(pointArr)
-        
-        const colorString = `rgb(${pointArr[3]}, ${pointArr[4]}, ${pointArr[5]})`
-        finalPointsJSX.push(<PointMesh  position={[scale*pointArr[0], scale*pointArr[1], scale*pointArr[2]]} size={[0.05,16,16]} color={colorString}/>);
+      var finalPointsJSX = [];  
+      const scale = 1;   
+      for (var i = 0; i < arrStringPoints.length; i += 500) {
+        var pointArr = arrStringPoints[i].split(" ").map(Number);   
+        finalPointsJSX.push(<SquareMesh  position={[scale*pointArr[0], scale*pointArr[1], scale*pointArr[2]]} 
+          widthArgs={[0.05,0.05]} 
+          color={`rgb(${pointArr[3]}, ${pointArr[4]}, ${pointArr[5]})`}/>);
       }
       setPointCloud(finalPointsJSX);
+  }
+
+  //Component
+  const OrbitControlsComponent = () => {
+    const {
+      camera,
+      gl: {domElement}
+    } = useThree();
+
+    const controls = useRef();
+      //Runs Every Frame
+      // useFrame(({camera}) => {
+      //   console.log([camera.position.x, camera.position.y, camera.position.z])
+      //   camera.position.y += Math.random();
+      // });
+
+    return (
+      <>
+        <orbitControls 
+            args={[camera, domElement]} 
+            ref={controls} 
+            />
+      </>
+    )
   }
 
 
@@ -146,12 +173,12 @@ const App = (props) => {
       <div className="upload-container">
         <p className="ply-instructions">Please Upload a PLY File</p>
 
-        <input type="file" name="ply-file-reader" onChange={(e) => readFile(e)}/>
+        <input type="file" name="ply-file-reader" onChange={(e) => readPLYFile(e)} accept=".ply"/>
 
         <button className="file-submit-btn" onClick={visualizeFile}>Visualize Point Cloud</button>
       </div>
 
-      <Canvas colorManagement camera={{position: [30,30,30], fov: 30}}>
+      <Canvas colorManagement camera={{ fov: 30, position: [50, 50, 50]}} ref={canvasRef}>
         <ambientLight intensity={0.5}/>
         <pointLight position={[0, 0, 20]} intensity={0.5}/> 
         <directionalLight 
@@ -166,7 +193,7 @@ const App = (props) => {
 
         <CoordinateGrid />
 
-        <OrbitControls/>
+        <OrbitControlsComponent />
       </Canvas>
     </div>
   )
