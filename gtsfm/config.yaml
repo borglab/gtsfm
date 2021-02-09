@@ -2,7 +2,7 @@ SceneOptimizer:
   _target_: gtsfm.scene_optimizer.SceneOptimizer
   save_bal_files: True
   save_viz: True
-
+  pose_angular_error_thresh: 10 # degrees
 
   feature_extractor:
     _target_: gtsfm.feature_extractor.FeatureExtractor
@@ -33,5 +33,5 @@ SceneOptimizer:
       min_track_len: 2
       mode:
         _target_: gtsfm.data_association.data_assoc.TriangulationParam
-        value: 0 # corresponds to NO_RANSAC
+        value: 2 #0 # corresponds to NO_RANSAC
       num_ransac_hypotheses: 20
