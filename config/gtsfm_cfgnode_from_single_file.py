@@ -1,7 +1,3 @@
-import argparse
-import os
-from typing import List, Optional
-
 from omegaconf import DictConfig, OmegaConf
 
 import hydra
@@ -9,6 +5,8 @@ from hydra.core.config_store import ConfigStore
 from hydra.utils import instantiate
 
 from gtsfm_defaults import SceneOptimizer, FeatureExtractor, TwoViewEstimator, MultiViewOptimizer
+
+from dataclasses import dataclass
 
 import logging
 
@@ -26,23 +24,19 @@ these parameters after they are initialized here, i.e. "frozen".
 # A logger for this file
 log = logging.getLogger(__name__)
 
+@dataclass
+class GTSFM_Cfgnode:
+    sceneOptimizer: SceneOptimizer = SceneOptimizer()
+    featureExtractor: FeatureExtractor = FeatureExtractor()
+    twoViewEstimator: TwoViewEstimator = TwoViewEstimator() 
+    multiViewOptimizer: MultiViewOptimizer = MultiViewOptimizer()
 
-# Create config group `config`
-cs = ConfigStore.instance()
-cs.store(group="schema/modules", name="sceneOptimizer", node=SceneOptimizer, package="SceneOptimizer")
-cs.store(group="schema/modules", name="featureExtractor", node=FeatureExtractor, package="FeatureExtractor")
-cs.store(group="schema/modules", name="twoViewEstimator", node=TwoViewEstimator, package="TwoViewEstimator")
-cs.store(group="schema/modules", name="multiViewOptimizer", node=MultiViewOptimizer, package="MultiViewOptimizer")
-
-@hydra.main(config_name='defaults')
+@hydra.main(config_name='default')
 def cfgnode(cfg: DictConfig) -> None:
     log.info(OmegaConf.to_yaml(cfg))
     log.info(OmegaConf.get_type(cfg.FeatureExtractor.submodule1.param_bool))
-    gtsfm_cfgnode = instantiate(cfg.FeatureExtractor)
-    print(gtsfm_cfgnode.submodule1.param_bool)
     
 if __name__ == "__main__":
-    cfg = cfgnode()
-    print(cfg)
+    cfgnode()
     
 
