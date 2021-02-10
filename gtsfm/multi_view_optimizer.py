@@ -33,16 +33,11 @@ class MultiViewOptimizer:
         self,
         rot_avg_module: RotationAveragingBase,
         trans_avg_module: TranslationAveragingBase,
-        config: Any,
+        data_association_module: DataAssociation
     ) -> None:
         self.rot_avg_module = rot_avg_module
         self.trans_avg_module = trans_avg_module
-        self.data_association_module = DataAssociation(
-            config.reproj_error_thresh,
-            config.min_track_len,
-            config.triangulation_mode,
-            config.num_ransac_hypotheses,
-        )
+        self.data_association_module = data_association_module
         self.ba_optimizer = BundleAdjustmentOptimizer()
 
     def create_computation_graph(
