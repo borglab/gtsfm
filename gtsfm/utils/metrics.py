@@ -3,11 +3,12 @@ import math
 import numpy as np
 import os
 import statistics
-from typing import Delayed, List, Optional, Any
+from dask.delayed import Delayed
+from typing import Any, Dict, List, Optional
 
 from gtsam import (Point3, Rot3, Pose3)
 
-import gtsfm.utils.geometry_comparisons
+import gtsfm.utils.geometry_comparisons as comp_utils
 from gtsfm.common.sfm_result import SfmResult
 
 
@@ -26,9 +27,9 @@ def compute_rotation_angle_metrics(
         gt_wRi_list: List[Optional[Pose3]]) -> Dict[str, Any]:
     errors = []
     for (wRi, gt_wRi) in zip(wRi_list, gt_wRi_list):
-        angle = geometry_comparisons.compute_relative_rotation_angle(
+        angle = comp_utils.compute_relative_rotation_angle(
             wRi, gt_wRi) * 180 / math.pi
-        errors.append(error)
+        errors.append(angle)
     return get_metrics_from_errors(errors)
 
 
@@ -49,15 +50,15 @@ def compute_averaging_metrics(
     wti_list: List[Optional[Point3]],
     gt_wTi_list: List[Optional[Pose3]],
 ) -> Dict[str, Any]:
-    if len(wRi_list) != len(wti_list) or len(wRi_list) != len(gt_poses_list):
+    if len(wRi_list) != len(wti_list) or len(wRi_list) != len(gt_wTi_list):
         raise AttributeError(
             "Lengths of wRi_list, wti_list and gt_wTi_list should be the same.")
 
     wTi_list = []
     for (wRi, wti) in zip(wRi_list, wti_list):
         wTi_list.append(Pose3(wRi, wti))
-    wTi_aligned_list = geometry_comparisons.align_poses(
-        wTi_aligned_list, gt_poses)
+    wTi_aligned_list = comp_utils.align_poses(
+        wTi_list, gt_wTi_list)
 
     def get_rotations_translations_from_poses(poses):
         rotations = []
@@ -81,7 +82,7 @@ def compute_averaging_metrics(
         wRi_aligned_list, gt_wRi_list)
     metrics[
         'translation_averaging_distance'] = compute_translation_distance_metrics(
-            wTi_aligned_list, gt_wti_list)
+            wti_aligned_list, gt_wti_list)
     return metrics
 
 
@@ -92,8 +93,9 @@ def save_averaging_metrics(
     output_dir: str,
 ) -> None:
     metrics = compute_averaging_metrics(wRi_list, wti_list, gt_wTi_list)
+    os.makedirs(output_dir, exist_ok=True)
     json_file_path = os.path.join(output_dir,
                                   'multiview_optimizer_metrics.json')
 
-    with open(json_file_path) as json_file:
-        json.dump(metrics, json_file)
+    with open(json_file_path, 'w') as json_file:
+        json.dump(metrics, json_file, indent=4)
