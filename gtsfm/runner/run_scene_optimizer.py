@@ -14,7 +14,7 @@ from gtsfm.loader.folder_loader import FolderLoader
 from gtsfm.scene_optimizer import SceneOptimizer
 
 
-TEST_ROOT = Path(__file__).resolve().parent.parent / "tests"
+DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "tests" / "data"
 
 
 
@@ -25,7 +25,7 @@ def run_scene_optimizer() -> None:
         cfg = compose(config_name="default_lund_door_set1_config.yaml")
         scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
-        loader = FolderLoader(os.path.join(TEST_ROOT, "data", "set1_lund_door"), image_extension="JPG")
+        loader = FolderLoader(os.path.join(DATA_ROOT, "set1_lund_door"), image_extension="JPG")
 
         sfm_result_graph = scene_optimizer.create_computation_graph(
             len(loader),
