@@ -35,5 +35,7 @@ dependencies:
   - pytorch
   # io
   - h5py
+  - pip:
+    - hydra-core==1.1.0dev3
 
 
