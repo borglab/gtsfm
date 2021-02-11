@@ -63,7 +63,7 @@ class SceneOptimizer:
         multiview_optimizer: MultiViewOptimizer,
         save_viz: bool,
         save_bal_files: bool,
-        pose_angular_error_thresh: float
+        pose_angular_error_thresh: float,
     ) -> None:
         """ pose_angular_error_thresh is given in degrees """
         self.feature_extractor = feature_extractor
@@ -83,7 +83,7 @@ class SceneOptimizer:
         use_intrinsics_in_verification: bool = True,
         gt_pose_graph: Optional[List[Delayed]] = None,
     ) -> Delayed:
-        """ The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times"""
+        """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
 
         # auxiliary graph elements for visualizations and saving intermediate
         # data for analysis, not returned to the user.
@@ -110,19 +110,11 @@ class SceneOptimizer:
 
         for (i1, i2) in image_pair_indices:
             if gt_pose_graph is not None:
-                gt_relative_pose = dask.delayed(lambda x, y: x.between(y))(
-                    gt_pose_graph[i2], gt_pose_graph[i1]
-                )
+                gt_relative_pose = dask.delayed(lambda x, y: x.between(y))(gt_pose_graph[i2], gt_pose_graph[i1])
             else:
                 gt_relative_pose = None
 
-            (
-                i2Ri1,
-                i2Ui1,
-                v_corr_idxs,
-                rot_error,
-                unit_tran_error,
-            ) = self.two_view_estimator.create_computation_graph(
+            (i2Ri1, i2Ui1, v_corr_idxs, rot_error, unit_tran_error,) = self.two_view_estimator.create_computation_graph(
                 keypoints_graph_list[i1],
                 keypoints_graph_list[i2],
                 descriptors_graph_list[i1],
@@ -166,15 +158,10 @@ class SceneOptimizer:
         # dummy computation of concatenating viz tasks with the output graph,
         # forcing computation of viz tasks. Doing this here forces the
         # frontend's auxiliary tasks to be computed before the multi-view stage.
-        keypoints_graph_list = dask.delayed(lambda x, y: (x, y))(
-            keypoints_graph_list, auxiliary_graph_list
-        )[0]
+        keypoints_graph_list = dask.delayed(lambda x, y: (x, y))(keypoints_graph_list, auxiliary_graph_list)[0]
         auxiliary_graph_list = []
 
-        (
-            ba_input_graph,
-            ba_output_graph,
-        ) = self.multiview_optimizer.create_computation_graph(
+        (ba_input_graph, ba_output_graph,) = self.multiview_optimizer.create_computation_graph(
             num_images,
             keypoints_graph_list,
             i2Ri1_graph_dict,
@@ -183,25 +170,17 @@ class SceneOptimizer:
             camera_intrinsics_graph,
         )
 
-        filtered_sfm_data_graph = dask.delayed(
-            ba_output_graph.filter_landmarks
-        )(self.multiview_optimizer.data_association_module.reproj_error_thresh)
+        filtered_sfm_data_graph = dask.delayed(ba_output_graph.filter_landmarks)(
+            self.multiview_optimizer.data_association_module.reproj_error_thresh
+        )
 
         if self._save_viz:
             os.makedirs("plots/ba_input", exist_ok=True)
             os.makedirs("plots/results", exist_ok=True)
 
-            auxiliary_graph_list.append(
-                dask.delayed(visualize_sfm_data)(
-                    ba_input_graph, "plots/ba_input/"
-                )
-            )
+            auxiliary_graph_list.append(dask.delayed(visualize_sfm_data)(ba_input_graph, "plots/ba_input/"))
 
-            auxiliary_graph_list.append(
-                dask.delayed(visualize_sfm_data)(
-                    filtered_sfm_data_graph, "plots/results/"
-                )
-            )
+            auxiliary_graph_list.append(dask.delayed(visualize_sfm_data)(filtered_sfm_data_graph, "plots/results/"))
 
             auxiliary_graph_list.append(
                 dask.delayed(visualize_camera_poses)(
@@ -215,24 +194,16 @@ class SceneOptimizer:
         if self._save_bal_files:
             os.makedirs("results", exist_ok=True)
             # save the input to Bundle Adjustment (from data association)
-            auxiliary_graph_list.append(
-                dask.delayed(write_sfmdata_to_disk)(
-                    ba_input_graph, "results/ba_input.bal"
-                )
-            )
+            auxiliary_graph_list.append(dask.delayed(write_sfmdata_to_disk)(ba_input_graph, "results/ba_input.bal"))
             # save the output of Bundle Adjustment (after optimization)
             auxiliary_graph_list.append(
-                dask.delayed(write_sfmdata_to_disk)(
-                    filtered_sfm_data_graph, "results/ba_output.bal"
-                )
+                dask.delayed(write_sfmdata_to_disk)(filtered_sfm_data_graph, "results/ba_output.bal")
             )
 
         # as visualization tasks are not to be provided to the user, we create a
         # dummy computation of concatenating viz tasks with the output graph,
         # forcing computation of viz tasks
-        output_graph = dask.delayed(lambda x, y: (x, y))(
-            ba_output_graph, auxiliary_graph_list
-        )
+        output_graph = dask.delayed(lambda x, y: (x, y))(ba_output_graph, auxiliary_graph_list)
 
         # return the entry with just the sfm result
         return output_graph[0]
@@ -338,8 +309,7 @@ def write_sfmdata_to_disk(sfm_data: SfmData, save_fpath: str) -> None:
     """Write SfmData object as a "Bundle Adjustment in the Large" (BAL) file
     See https://grail.cs.washington.edu/projects/bal/ for more details on the format.
 
-    Note: Need this wrapper as dask cannot directly work on gtsam function
-    calls.
+    Note: Need this wrapper as dask cannot directly work on gtsam function calls.
 
     Args:
         sfm_data: data to write.
@@ -397,4 +367,3 @@ def aggregate_frontend_metrics(
         num_valid_entries,
         num_entries,
     )
-

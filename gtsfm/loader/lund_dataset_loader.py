@@ -33,34 +33,29 @@ class LundDatasetLoader(FolderLoader):
 
         self.folder_base = folder
 
-        super().__init__(folder, image_extension='JPG')
+        super().__init__(folder, image_extension="JPG")
 
         # construct the extrinsics if they do not exist already
         if not self.explicit_extrinsics_paths:
-            self.explicit_extrinsics_paths = \
-                self.__generate_extrinsics_from_reconstruction()
+            self.explicit_extrinsics_paths = self.__generate_extrinsics_from_reconstruction()
 
     def __generate_extrinsics_from_reconstruction(self) -> List[str]:
         """Extract extrinsics from mat file and stores them as numpy arrays.
 
-        The reconstruction used for extrinsics is provided by Carl Olsson as 
-        part of the Lund dataset.
+        The reconstruction used for extrinsics is provided by Carl Olsson as part of the Lund dataset.
 
         Returns:
             file names of generated extrinsics for each pose.
         """
 
-        reconstruction_path = os.path.join(
-            self.folder_base, 'reconstruction', 'data.mat')
+        reconstruction_path = os.path.join(self.folder_base, "reconstruction", "data.mat")
 
-        extrinsics_path_template = os.path.join(
-            self.folder_base, 'extrinsics', '{}.npy'
-        )
+        extrinsics_path_template = os.path.join(self.folder_base, "extrinsics", "{}.npy")
 
         loaded_data = scipy_io.loadmat(reconstruction_path)
 
-        image_names = loaded_data['imnames']
-        poses = loaded_data['P'][0]
+        image_names = loaded_data["imnames"]
+        poses = loaded_data["P"][0]
 
         num_images = image_names.shape[0]
 

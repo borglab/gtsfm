@@ -14,10 +14,8 @@ def align_rotations(input_list: List[Rot3], ref_list: List[Rot3]) -> List[Rot3]:
     """Aligns the list of rotations to the reference list by shifting origin.
 
     Args:
-        input_list: input rotations which need to be aligned, suppose w1Ri in world-1 frame
-           for all frames i
-        ref_list: reference rotations which are target for alignment, suppose w2Ri_ in world-2 frame
-           for all frames i
+        input_list: input rotations which need to be aligned, suppose w1Ri in world-1 frame for all frames i.
+        ref_list: reference rotations which are target for alignment, suppose w2Ri_ in world-2 frame for all frames i.
 
     Returns:
         transformed rotations which have the same origin as reference (now living in world-2 frame)
@@ -37,43 +35,24 @@ def align_poses(input_list: List[Pose3], ref_list: List[Pose3]) -> List[Pose3]:
     scaling translations.
 
     Args:
-        input_list: input poses which need to be aligned, suppose w1Ti in world-1 frame
-            for all frames i
-        ref_list: reference poses which are target for alignment, suppose w2Ti_ in world-2 frame
-            for all frames i
+        input_list: input poses which need to be aligned, suppose w1Ti in world-1 frame for all frames i.
+        ref_list: reference poses which are target for alignment, suppose w2Ti_ in world-2 frame for all frames i.
 
     Returns:
-        transformed poses which have the same origin and scale as reference
-            (now living in world-2 frame)
+        transformed poses which have the same origin and scale as reference (now living in world-2 frame)
     """
     # match the scales first
     wTi0 = input_list[0]
-    input_distances = np.array(
-        [
-            np.linalg.norm((wTi.between(wTi0)).translation())
-            for wTi in input_list[1:]
-        ]
-    )
+    input_distances = np.array([np.linalg.norm((wTi.between(wTi0)).translation()) for wTi in input_list[1:]])
 
     wTi0 = ref_list[0]
-    ref_distances = (
-        np.array(
-            [
-                np.linalg.norm((wTi.between(wTi0)).translation())
-                for wTi in ref_list[1:]
-            ]
-        )
-        + EPSILON
-    )
+    ref_distances = np.array([np.linalg.norm((wTi.between(wTi0)).translation()) for wTi in ref_list[1:]]) + EPSILON
 
     # rescale poses to account for SfM scale ambiguity
     scales = ref_distances / input_distances
     scaling_factor = np.median(scales)
 
-    scaled_list = [
-        Pose3(w2Ti.rotation(), w2Ti.translation() * scaling_factor)
-        for w2Ti in input_list
-    ]
+    scaled_list = [Pose3(w2Ti.rotation(), w2Ti.translation() * scaling_factor) for w2Ti in input_list]
 
     # now match origin
     w1Ti0 = scaled_list[0]
@@ -87,18 +66,14 @@ def align_poses(input_list: List[Pose3], ref_list: List[Pose3]) -> List[Pose3]:
     return scaled_shifted_list
 
 
-def compare_rotations(
-    wRi_list: List[Optional[Rot3]], wRi_list_: List[Optional[Rot3]]
-) -> bool:
+def compare_rotations(wRi_list: List[Optional[Rot3]], wRi_list_: List[Optional[Rot3]]) -> bool:
     """Helper function to compare two lists of global Rot3, considering the
     origin as ambiguous.
 
     Notes:
-    1. The input lists have the rotations in the same order, and can contain
-       None entries.
-    2. To resolve global origin ambiguity, we will fix one image index as
-       origin in both the inputs and transform both the lists to the new
-       origins.
+    1. The input lists have the rotations in the same order, and can contain None entries.
+    2. To resolve global origin ambiguity, we will fix one image index as origin in both the inputs and transform both
+       the lists to the new origins.
 
     Args:
         wRi_list: 1st list of rotations.
@@ -126,9 +101,7 @@ def compare_rotations(
 
     wRi_list = align_rotations(wRi_list, ref_list=wRi_list_)
 
-    return all(
-        [wRi.equals(wRi_, 1e-1) for (wRi, wRi_) in zip(wRi_list, wRi_list_)]
-    )
+    return all([wRi.equals(wRi_, 1e-1) for (wRi, wRi_) in zip(wRi_list, wRi_list_)])
 
 
 def compare_global_poses(
@@ -141,21 +114,16 @@ def compare_global_poses(
     origin and scale ambiguous.
 
     Notes:
-    1. The input lists have the poses in the same order, and can contain
-       None entries.
-    2. To resolve global origin ambiguity, we will fix one image index as
-       origin in both the inputs and transform both the lists to the new
-       origins.
-    3. As there is a scale ambiguity, we use the median scaling factor to
-       resolve the ambiguity.
+    1. The input lists have the poses in the same order, and can contain None entries.
+    2. To resolve global origin ambiguity, we will fix one image index as origin in both the inputs and transform both
+       the lists to the new origins.
+    3. As there is a scale ambiguity, we use the median scaling factor to resolve the ambiguity.
 
     Args:
         wTi_list: 1st list of poses.
         wTi_list_: 2nd list of poses.
-        rot_err_thresh (optional): error threshold for rotations. Defaults to
-                                   1e-3.
-        trans_err_thresh (optional): relative error threshold for translation.
-                                     Defaults to 1e-1.
+        rot_err_thresh (optional): error threshold for rotations. Defaults to 1e-3.
+        trans_err_thresh (optional): relative error threshold for translation. Defaults to 1e-1.
 
     Returns:
         results of the comparison.
@@ -196,9 +164,7 @@ def compare_global_poses(
     )
 
 
-def compute_relative_rotation_angle(
-    R_1: Optional[Rot3], R_2: Optional[Rot3]
-) -> Optional[float]:
+def compute_relative_rotation_angle(R_1: Optional[Rot3], R_2: Optional[Rot3]) -> Optional[float]:
     """Compute the angle between two rotations.
 
     Note: the angle is the norm of the angle-axis representation.
@@ -219,9 +185,7 @@ def compute_relative_rotation_angle(
     return relative_rot_angle
 
 
-def compute_relative_unit_translation_angle(
-    U_1: Optional[Unit3], U_2: Optional[Unit3]
-) -> Optional[float]:
+def compute_relative_unit_translation_angle(U_1: Optional[Unit3], U_2: Optional[Unit3]) -> Optional[float]:
     """Compute the angle between two unit-translations.
 
     Args:

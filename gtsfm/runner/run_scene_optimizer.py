@@ -17,7 +17,6 @@ from gtsfm.scene_optimizer import SceneOptimizer
 DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "tests" / "data"
 
 
-
 def run_scene_optimizer() -> None:
     """ """
     with initialize_config_module(config_module="gtsfm.configs"):

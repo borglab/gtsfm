@@ -19,47 +19,31 @@ class TestGeometryComparisons(unittest.TestCase):
 
     def test_compare_poses_exact(self):
         """Check pose comparison with exactly same inputs."""
-        self.assertTrue(
-            geometry_comparisons.compare_global_poses(POSE_LIST, POSE_LIST)
-        )
+        self.assertTrue(geometry_comparisons.compare_global_poses(POSE_LIST, POSE_LIST))
 
     def test_compare_poses_with_uniform_scaled_translations(self):
         """Check pose comparison with all translations in input #2 scaled by
         the same scalar factor."""
         scale_factor = 1.2
-        pose_list_ = [
-            Pose3(x.rotation(), x.translation() * scale_factor)
-            for x in POSE_LIST
-        ]
+        pose_list_ = [Pose3(x.rotation(), x.translation() * scale_factor) for x in POSE_LIST]
 
-        self.assertTrue(
-            geometry_comparisons.compare_global_poses(POSE_LIST, pose_list_)
-        )
+        self.assertTrue(geometry_comparisons.compare_global_poses(POSE_LIST, pose_list_))
 
     def test_compare_poses_with_nonuniform_scaled_translations(self):
         """Check pose comparison with all translations in input #2 scaled by
         significantly different scalar factors."""
         scale_factors = [0.3, 0.7, 0.9, 1.0, 1.0, 0.99, 1.01, 1.10]
-        pose_list_ = [
-            Pose3(x.rotation(), x.translation() * scale_factors[idx])
-            for idx, x in enumerate(POSE_LIST)
-        ]
+        pose_list_ = [Pose3(x.rotation(), x.translation() * scale_factors[idx]) for idx, x in enumerate(POSE_LIST)]
 
-        self.assertFalse(
-            geometry_comparisons.compare_global_poses(POSE_LIST, pose_list_)
-        )
+        self.assertFalse(geometry_comparisons.compare_global_poses(POSE_LIST, pose_list_))
 
     def test_compare_poses_with_origin_shift(self):
         """Check pose comparison with a shift in the global origin."""
-        new_origin = Pose3(
-            Rot3.RzRyRx(0.3, 0.1, -0.27), np.array([-20.0, +19.0, 3.5])
-        )
+        new_origin = Pose3(Rot3.RzRyRx(0.3, 0.1, -0.27), np.array([-20.0, +19.0, 3.5]))
 
         pose_list_ = [new_origin.between(x) for x in POSE_LIST]
 
-        self.assertTrue(
-            geometry_comparisons.compare_global_poses(POSE_LIST, pose_list_)
-        )
+        self.assertTrue(geometry_comparisons.compare_global_poses(POSE_LIST, pose_list_))
 
     def test_compare_different_poses(self):
         """Compare pose comparison with different inputs."""
@@ -67,9 +51,7 @@ class TestGeometryComparisons(unittest.TestCase):
         pose_list = [POSE_LIST[1], POSE_LIST[2], POSE_LIST[3]]
         pose_list_ = [POSE_LIST[2], POSE_LIST[3], POSE_LIST[1]]
 
-        self.assertFalse(
-            geometry_comparisons.compare_global_poses(pose_list, pose_list_)
-        )
+        self.assertFalse(geometry_comparisons.compare_global_poses(pose_list, pose_list_))
 
     def test_compute_relative_rotation_angle(self):
         """Tests the relative angle between two rotations."""
@@ -77,9 +59,7 @@ class TestGeometryComparisons(unittest.TestCase):
         R_1 = Rot3.RzRyRx(0, np.deg2rad(45), np.deg2rad(22.5))
         R_2 = Rot3.RzRyRx(0, np.deg2rad(90), np.deg2rad(22.5))
 
-        computed = geometry_comparisons.compute_relative_rotation_angle(
-            R_1, R_2
-        )
+        computed = geometry_comparisons.compute_relative_rotation_angle(R_1, R_2)
 
         expected = np.deg2rad(45)
 
@@ -91,9 +71,7 @@ class TestGeometryComparisons(unittest.TestCase):
         U_1 = Unit3(np.array([1, 0, 0]))
         U_2 = Unit3(np.array([0.5, 0.5, 0]))
 
-        computed = geometry_comparisons.compute_relative_unit_translation_angle(
-            U_1, U_2
-        )
+        computed = geometry_comparisons.compute_relative_unit_translation_angle(U_1, U_2)
 
         expected = np.deg2rad(45)
 
@@ -123,9 +101,7 @@ class TestGeometryComparisons(unittest.TestCase):
 
         wTi_list_ = [wTv0, wTv1, wTv2, wTv3]
 
-        pose_graphs_equal = geometry_comparisons.compare_global_poses(
-            wTi_list, wTi_list_
-        )
+        pose_graphs_equal = geometry_comparisons.compare_global_poses(wTi_list, wTi_list_)
         self.assertTrue(pose_graphs_equal)
 
 

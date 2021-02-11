@@ -9,9 +9,7 @@ from gtsam import Pose3, SfmData, SfmTrack
 
 
 class SfmResult(NamedTuple):
-    """Class to hold optimized camera params, 3d landmarks (w/ tracks), and
-    total reprojection error.
-    """
+    """Class to hold optimized camera params, 3d landmarks (w/ tracks), and total reprojection error."""
 
     sfm_data: SfmData
     total_reproj_error: float
@@ -46,10 +44,7 @@ class SfmResult(NamedTuple):
         Returns:
             camera poses as a list, each representing wTi
         """
-        return [
-            self.sfm_data.camera(i).pose()
-            for i in range(self.sfm_data.number_cameras())
-        ]
+        return [self.sfm_data.camera(i).pose() for i in range(self.sfm_data.number_cameras())]
 
     def get_track_length_statistics(self) -> Tuple[float, float]:
         """Compute mean and median lengths of all the tracks.
@@ -58,16 +53,11 @@ class SfmResult(NamedTuple):
             Mean track length.
             Median track length.
         """
-        track_lengths = [
-            self.sfm_data.track(j).number_measurements()
-            for j in range(self.sfm_data.number_tracks())
-        ]
+        track_lengths = [self.sfm_data.track(j).number_measurements() for j in range(self.sfm_data.number_tracks())]
 
         return np.mean(track_lengths), np.median(track_lengths)
 
-    def __validate_track(
-        self, track: SfmTrack, reproj_err_thresh: float
-    ) -> bool:
+    def __validate_track(self, track: SfmTrack, reproj_err_thresh: float) -> bool:
         """Validates a track based on reprojection errors and cheirality checks.
 
         Args:

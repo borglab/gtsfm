@@ -1,7 +1,7 @@
 """SIFT Detector-Descriptor implementation.
 
-The detector was proposed in 'Distinctive Image Features from Scale-Invariant
-Keypoints' and is implemented by wrapping over OpenCV's API.
+The detector was proposed in 'Distinctive Image Features from Scale-Invariant Keypoints' and is implemented by wrapping
+over OpenCV's API.
 
 References:
 - https://www.cs.ubc.ca/~lowe/papers/ijcv04.pdf
@@ -18,27 +18,25 @@ import gtsfm.utils.features as feature_utils
 import gtsfm.utils.images as image_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.frontend.detector_descriptor.detector_descriptor_base import \
-    DetectorDescriptorBase
+from gtsfm.frontend.detector_descriptor.detector_descriptor_base import (
+    DetectorDescriptorBase,
+)
 
 
 class SIFTDetectorDescriptor(DetectorDescriptorBase):
     """SIFT detector-descriptor using OpenCV's implementation."""
 
-    def detect_and_describe(self,
-                            image: Image) -> Tuple[Keypoints, np.ndarray]:
+    def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
         """Perform feature detection as well as their description.
 
-        Refer to detect() in DetectorBase and describe() in DescriptorBase for
-        details about the output format.
+        Refer to detect() in DetectorBase and describe() in DescriptorBase for details about the output format.
 
         Args:
             image: the input image.
 
         Returns:
-            detected keypoints, with length N <= max_keypoints.
-            corr. descriptors, of shape (N, D) where D is the dimension of each
-            descriptor.
+            Detected keypoints, with length N <= max_keypoints.
+            Corr. descriptors, of shape (N, D) where D is the dimension of each descriptor.
         """
 
         # conert to grayscale
@@ -48,20 +46,19 @@ class SIFTDetectorDescriptor(DetectorDescriptorBase):
         opencv_obj = cv.SIFT_create()
 
         # Run the opencv code
-        cv_keypoints, descriptors = opencv_obj.detectAndCompute(
-            gray_image.value_array, None)
+        cv_keypoints, descriptors = opencv_obj.detectAndCompute(gray_image.value_array, None)
 
         # convert to GTSFM's keypoints
         keypoints = feature_utils.cast_to_gtsfm_keypoints(cv_keypoints)
 
         # sort the features and descriptors by the score
         # (need to sort here as we need the sorting order for descriptors)
-        sort_idx = np.argsort(-keypoints.responses)[:self.max_keypoints]
+        sort_idx = np.argsort(-keypoints.responses)[: self.max_keypoints]
 
         keypoints = Keypoints(
             coordinates=keypoints.coordinates[sort_idx],
             scales=keypoints.scales[sort_idx],
-            responses=keypoints.responses[sort_idx]
+            responses=keypoints.responses[sort_idx],
         )
 
         descriptors = descriptors[sort_idx]

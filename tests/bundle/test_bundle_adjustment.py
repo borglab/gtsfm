@@ -48,9 +48,7 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
 
         expected_result = self.obj.run(self.test_data)
 
-        computed_result = self.obj.create_computation_graph(
-            dask.delayed(sfm_data_graph)
-        )
+        computed_result = self.obj.create_computation_graph(dask.delayed(sfm_data_graph))
 
         with dask.config.set(scheduler="single-threaded"):
             result = dask.compute(computed_result)[0]

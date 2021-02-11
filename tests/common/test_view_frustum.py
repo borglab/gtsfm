@@ -1,4 +1,3 @@
-
 import matplotlib.pyplot as plt
 import numpy as np
 from gtsam import Rot3, Point3, Pose3
@@ -6,30 +5,22 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.axes._axes import Axes
 from scipy.spatial.transform import Rotation
 
-from gtsfm.common.view_frustum import ViewFrustum, compute_pixel_ray_directions_vectorized
+from gtsfm.common.view_frustum import (
+    ViewFrustum,
+    compute_pixel_ray_directions_vectorized,
+)
 import gtsfm.utils.viz as viz_utils
-
 
 
 def test_compute_pixel_ray_directions_vectorized():
     """ """
-    uv = np.array(
-        [
-            [0,0],
-            [1,1],
-            [3,3]
-        ])
+    uv = np.array([[0, 0], [1, 1], [3, 3]])
     img_h = 4
     img_w = 4
     fx = 5
     ray_dirs = compute_pixel_ray_directions_vectorized(uv, fx, img_w, img_h)
 
-    expected_ray_dirs = np.array(
-        [
-            [-2., -2.,  5.],
-            [-1., -1.,  5.],
-            [ 1.,  1.,  5.]
-        ])
+    expected_ray_dirs = np.array([[-2.0, -2.0, 5.0], [-1.0, -1.0, 5.0], [1.0, 1.0, 5.0]])
 
     expected_ray_dirs[0] /= np.linalg.norm(expected_ray_dirs[0])
     expected_ray_dirs[1] /= np.linalg.norm(expected_ray_dirs[1])
@@ -58,8 +49,8 @@ def test_get_mesh_edges_camframe():
 
     viz_utils.set_axes_equal(ax)
     # uncomment line below to see viz
-    #plt.show()
-    plt.close('all')
+    # plt.show()
+    plt.close("all")
 
 
 def test_get_mesh_edges_worldframe():
@@ -73,7 +64,12 @@ def test_get_mesh_edges_worldframe():
     frustum_obj = ViewFrustum(fx, img_w, img_h)
 
     # quaternion in (qw, qx, qy, qz) order
-    qw, qx, qy, qz = [0.06401399257908719, -0.06266155729362148, -0.7078861012523953, 0.7006232979606847]
+    qw, qx, qy, qz = [
+        0.06401399257908719,
+        -0.06266155729362148,
+        -0.7078861012523953,
+        0.7006232979606847,
+    ]
     quat_xyzw = [qx, qy, qz, qw]
     wtc = np.array([1.294530313917792, -0.28519924870913804, 1.3701008006525792])
 
@@ -95,11 +91,10 @@ def test_get_mesh_edges_worldframe():
 
     viz_utils.set_axes_equal(ax)
     # uncomment line below to see viz
-    #plt.show()
-    plt.close('all')
+    # plt.show()
+    plt.close("all")
 
 
 if __name__ == "__main__":
-    #test_get_mesh_edges_camframe()
+    # test_get_mesh_edges_camframe()
     test_get_mesh_edges_worldframe()
-
