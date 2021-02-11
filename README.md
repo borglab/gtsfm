@@ -44,7 +44,7 @@ Make sure that you can run `python -c "import gtsfm; import gtsam; import pydege
 
 Please run
 ```python
-python gtsfm/scene_optimizer.py
+python gtsfm/runner/run_scene_optimizer.py
 ```
 
 ## Repository Structure
