@@ -36,7 +36,7 @@ dependencies:
   - pip:
     - pydegensac
     - hydra-core==1.1.0dev3
-    - argoverse-api @ git+https://github.com/argoai/argoverse-api.git@master
+    - argoverse @ git+https://github.com/argoai/argoverse-api.git@master
 
 
 

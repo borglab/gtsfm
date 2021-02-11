@@ -36,8 +36,12 @@ class ArgoverseDatasetLoader(LoaderBase):
             labels_dir=dataset_dir
         )
 
+
         max_num_imgs = 20
-        stride = 10
+        stride = 10 # images
+
+        max_lookahead_sec = 60 # at original 30 fps frame rate, so 2 sec
+        self.max_lookahead_imgs = max_lookahead_sec / stride
 
         self.calib_data = self.dl.get_log_calibration_data(log_id)
         camera_name = "ring_front_center"
@@ -139,4 +143,4 @@ class ArgoverseDatasetLoader(LoaderBase):
             validation result.
         """
 
-        return (idx1 < idx2) and (idx2 < idx1 + 50)
+        return (idx1 < idx2) and (idx2 < idx1 + self.max_lookahead_imgs)
