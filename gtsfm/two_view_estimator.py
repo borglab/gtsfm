@@ -118,7 +118,7 @@ def compute_relative_pose_metrics(
 
     U_error_deg = comp_utils.compute_relative_unit_translation_angle(i2Ui1_computed, Unit3(i2Ti1_expected.translation()))
 
-    logger.debug(f"[Two View Estimator] Relative rotation error {R_error_deg:.2f} deg.")
-    logger.debug(f"[Two View Estimator] Relative unit-translation error {U_error_deg:.2f} deg.")
+    logger.debug("[Two View Estimator] Relative rotation error %f deg.", R_error_deg)
+    logger.debug("[Two View Estimator] Relative unit-translation error %f deg.", U_error_deg)
 
     return (R_error_deg, U_error_deg)
