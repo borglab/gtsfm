@@ -23,24 +23,18 @@ from gtsfm.loader.loader_base import LoaderBase
 class ArgoverseDatasetLoader(LoaderBase):
     """ """
 
-    def __init__(self, dataset_dir: str, log_id: str, stride: int = 4) -> None:
+    def __init__(self, dataset_dir: str, log_id: str, stride: int = 10, max_num_imgs: int = 20) -> None:
         """
         Args:
             dataset_dir: directory where raw Argoverse logs are stored on disk
-            log_id:
+            log_id: unique ID of vehicle log
             stride: sampling rate, e.g. every 2 images, every 4 images, etc.
+            max_num_imgs: number of images to load (starting from beginning of log sequence)
         """
         self.log_id = log_id
-        self.dl = SimpleArgoverseTrackingDataLoader(
-            data_dir=dataset_dir,
-            labels_dir=dataset_dir
-        )
+        self.dl = SimpleArgoverseTrackingDataLoader(data_dir=dataset_dir, labels_dir=dataset_dir)
 
-
-        max_num_imgs = 20
-        stride = 10 # images
-
-        max_lookahead_sec = 60 # at original 30 fps frame rate, so 2 sec
+        max_lookahead_sec = 60  # at original 30 fps frame rate, so 2 sec
         self.max_lookahead_imgs = max_lookahead_sec / stride
 
         self.calib_data = self.dl.get_log_calibration_data(log_id)
@@ -51,17 +45,13 @@ class ArgoverseDatasetLoader(LoaderBase):
         self.image_paths = image_paths[:max_num_imgs]
 
         # for each image, cache its associated timestamp
-        self.image_timestamps = [ int(Path(path).stem.replace(f'{camera_name}_', '')) for path in self.image_paths ]
- 
+        self.image_timestamps = [int(Path(path).stem.replace(f"{camera_name}_", "")) for path in self.image_paths]
+
         cam_config = get_calibration_config(self.calib_data, camera_name)
-        self.K = cam_config.intrinsic[:3,:3]
+        self.K = cam_config.intrinsic[:3, :3]
 
-        self.camera_SE3_egovehicle = SE3(
-            rotation=cam_config.extrinsic[:3,:3],
-            translation=cam_config.extrinsic[:3,3]
-        )
+        self.camera_SE3_egovehicle = SE3(rotation=cam_config.extrinsic[:3, :3], translation=cam_config.extrinsic[:3, 3])
         self.egovehicle_SE3_camera = self.camera_SE3_egovehicle.inverse()
-
 
     def __len__(self) -> int:
         """
@@ -126,11 +116,7 @@ class ArgoverseDatasetLoader(LoaderBase):
 
         city_SE3_camera = city_SE3_egovehicle.compose(self.egovehicle_SE3_camera)
 
-        return Pose3(
-            Rot3(city_SE3_camera.rotation),
-            Point3(city_SE3_camera.translation)
-        )
-
+        return Pose3(Rot3(city_SE3_camera.rotation), Point3(city_SE3_camera.translation))
 
     def validate_pair(self, idx1: int, idx2: int) -> bool:
         """Checks if (idx1, idx2) is a valid pair.
