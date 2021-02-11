@@ -19,8 +19,8 @@ from gtsam import (
 from gtsfm.common.sfm_result import SfmResult
 
 """
-Serialization and deserialization function calls will be handled in the background by Dask,
-and need not be called explicitly.
+Serialization and deserialization function calls will be handled in the background by Dask, and need not be called
+explicitly.
 """
 
 
@@ -197,9 +197,7 @@ def serialize_PinholeCameraCal3Bundler(
 
 
 @dask_deserialize.register(PinholeCameraCal3Bundler)
-def deserialize_PinholeCameraCal3Bundler(
-    header: Dict, frames: List[bytes]
-) -> PinholeCameraCal3Bundler:
+def deserialize_PinholeCameraCal3Bundler(header: Dict, frames: List[bytes]) -> PinholeCameraCal3Bundler:
     """Deserialize bytes into PinholeCameraCal3Bundler instance.
 
     Args:

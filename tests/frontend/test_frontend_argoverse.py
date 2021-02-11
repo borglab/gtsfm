@@ -47,9 +47,7 @@ class TestFrontend(unittest.TestCase):
         """Copied from SceneOptimizer class, without back-end code"""
         image_pair_indices = self.loader.get_valid_pairs()
         image_graph = self.loader.create_computation_graph_for_images()
-        camera_intrinsics_graph = (
-            self.loader.create_computation_graph_for_intrinsics()
-        )
+        camera_intrinsics_graph = self.loader.create_computation_graph_for_intrinsics()
         use_intrinsics_in_verification = True
 
         # detection and description graph
@@ -67,13 +65,7 @@ class TestFrontend(unittest.TestCase):
         i2Ri1_graph_dict = {}
         i2Ui1_graph_dict = {}
         for (i1, i2) in image_pair_indices:
-            (
-                i2Ri1,
-                i2Ui1,
-                _,
-                _,
-                _,
-            ) = two_view_estimator.create_computation_graph(
+            (i2Ri1, i2Ui1, _, _, _,) = two_view_estimator.create_computation_graph(
                 keypoints_graph_list[i1],
                 keypoints_graph_list[i2],
                 descriptors_graph_list[i1],
@@ -91,9 +83,7 @@ class TestFrontend(unittest.TestCase):
         """Check DoG + SIFT + 2-way Matcher + RANSAC-5pt frontend."""
         det_desc = SIFTDetectorDescriptor()
         feature_extractor = FeatureExtractor(det_desc)
-        two_view_estimator = TwoViewEstimator(
-            matcher=TwoWayMatcher(), verifier=Ransac()
-        )
+        two_view_estimator = TwoViewEstimator(matcher=TwoWayMatcher(), verifier=Ransac())
         self.__compare_frontend_result_error(
             feature_extractor,
             two_view_estimator,
@@ -105,9 +95,7 @@ class TestFrontend(unittest.TestCase):
         """Check DoG + SIFT + 2-way Matcher + DEGENSAC-8pt frontend."""
         det_desc = SIFTDetectorDescriptor()
         feature_extractor = FeatureExtractor(det_desc)
-        two_view_estimator = TwoViewEstimator(
-            matcher=TwoWayMatcher(), verifier=Degensac()
-        )
+        two_view_estimator = TwoViewEstimator(matcher=TwoWayMatcher(), verifier=Degensac())
         self.__compare_frontend_result_error(
             feature_extractor,
             two_view_estimator,
@@ -122,19 +110,14 @@ class TestFrontend(unittest.TestCase):
         euler_angle_err_tol: float,
         translation_err_tol: float,
     ) -> None:
-        """Compare recovered relative rotation and translation with ground
-        truth."""
+        """Compare recovered relative rotation and translation with ground truth."""
         (
             i2Ri1_graph_dict,
             i2Ui1_graph_dict,
-        ) = self.__get_frontend_computation_graph(
-            feature_extractor, two_view_estimator
-        )
+        ) = self.__get_frontend_computation_graph(feature_extractor, two_view_estimator)
 
         with dask.config.set(scheduler="single-threaded"):
-            i2Ri1_results, i2ti1_results = dask.compute(
-                i2Ri1_graph_dict, i2Ui1_graph_dict
-            )
+            i2Ri1_results, i2ti1_results = dask.compute(i2Ri1_graph_dict, i2Ui1_graph_dict)
 
         i2Ri1 = i2Ri1_results[(0, 1)]
         i2Ui1 = i2ti1_results[(0, 1)]
@@ -147,9 +130,7 @@ class TestFrontend(unittest.TestCase):
 
         euler_angles = Rotation.from_matrix(i1Ri2).as_euler("zyx", degrees=True)
         gt_euler_angles = np.array([-0.37, 32.47, -0.42])
-        np.testing.assert_allclose(
-            gt_euler_angles, euler_angles, atol=euler_angle_err_tol
-        )
+        np.testing.assert_allclose(gt_euler_angles, euler_angles, atol=euler_angle_err_tol)
 
         gt_i1ti2 = np.array([0.21, -0.0024, 0.976])
         np.testing.assert_allclose(gt_i1ti2, i1ti2, atol=translation_err_tol)

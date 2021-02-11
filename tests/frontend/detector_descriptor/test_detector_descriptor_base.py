@@ -1,5 +1,4 @@
-"""
-Tests for frontend's base detector-descriptor class.
+"""Tests for frontend's base detector-descriptor class.
 
 Authors: Ayush Baid
 """
@@ -20,10 +19,8 @@ from gtsfm.frontend.detector_descriptor.combination_detector_descriptor import (
 import tests.frontend.detector.test_detector_base as test_detector_base
 
 
-
 class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
-    """
-    Main test class for detector-description combination base class in frontend.
+    """Main test class for detector-description combination base class in frontend.
 
     We re-use detector specific test cases from TestDetectorBase
     """
@@ -31,24 +28,18 @@ class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
     def setUp(self):
         """Setup the attributes for the tests."""
         super().setUp()
-        self.detector_descriptor = CombinationDetectorDescriptor(
-            DummyDetector(), DummyDescriptor()
-        )
+        self.detector_descriptor = CombinationDetectorDescriptor(DummyDetector(), DummyDescriptor())
 
         # explicitly set the detector
         self.detector = DetectorFromDetectorDescriptor(self.detector_descriptor)
 
     def test_detect_and_describe_shape(self):
-        """
-        Tests that the number of keypoints and descriptors are the same.
-        """
+        """Tests that the number of keypoints and descriptors are the same."""
 
         # test on random indexes
         test_indices = [0, 5]
         for idx in test_indices:
-            kps, descs = self.detector_descriptor.detect_and_describe(
-                self.loader.get_image(idx)
-            )
+            kps, descs = self.detector_descriptor.detect_and_describe(self.loader.get_image(idx))
 
             if len(kps) == 0:
                 # test-case for empty results
@@ -79,9 +70,7 @@ class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
                 (
                     expected_kps,
                     expected_descs,
-                ) = self.detector_descriptor.detect_and_describe(
-                    self.loader.get_image(i)
-                )
+                ) = self.detector_descriptor.detect_and_describe(self.loader.get_image(i))
                 self.assertEqual(keypoints, expected_kps)
                 np.testing.assert_array_equal(descriptors, expected_descs)
 

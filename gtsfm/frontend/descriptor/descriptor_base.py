@@ -28,13 +28,10 @@ class DescriptorBase(metaclass=abc.ABCMeta):
             keypoints: the keypoints to describe, of length N.
 
         Returns:
-            the descriptors for the input features, of shape (N, D) where D is
-                the dimension of each descriptor.
+            Descriptors for the input features, of shape (N, D) where D is the dimension of each descriptor.
         """
 
-    def create_computation_graph(
-        self, image_graph: Delayed, keypoints_graph: Delayed
-    ) -> Delayed:
+    def create_computation_graph(self, image_graph: Delayed, keypoints_graph: Delayed) -> Delayed:
         """Generates the computation graph to perform description.
 
         Args:
@@ -46,4 +43,3 @@ class DescriptorBase(metaclass=abc.ABCMeta):
         """
 
         return dask.delayed(self.describe)(image_graph, keypoints_graph)
-

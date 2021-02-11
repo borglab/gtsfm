@@ -26,9 +26,7 @@ class TestSfmResult(unittest.TestCase):
         self.assertEqual(EXAMPLE_RESULT, EXAMPLE_RESULT)
 
     def testEqualsWithDifferentObject(self):
-        """Test the equality function with different object, expecting false
-        result.
-        """
+        """Test the equality function with different object, expecting false result."""
         other_example_file = "dubrovnik-1-1-pre.txt"
         other_result = SfmResult(
             gtsam.readBal(gtsam.findExampleDataFile(other_example_file)),

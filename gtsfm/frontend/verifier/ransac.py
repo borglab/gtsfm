@@ -56,7 +56,8 @@ class Ransac(VerifierBase):
             camera_intrinsics_i2: intrinsics for image #i2.
 
         Returns:
-            Estimated essential matrix i2Ei1, or None if it cannot be estimated.
+            Estimated rotation i2Ri1, or None if it cannot be estimated.
+            Estimated unit translation i2Ui1, or None if it cannot be estimated.
             Indices of verified correspondences, of shape (N, 2) with N <= N3.
                 These indices are subset of match_indices.
         """
@@ -64,17 +65,11 @@ class Ransac(VerifierBase):
 
         # check if we don't have the minimum number of points
         if match_indices.shape[0] < self.min_pts:
-            logger.info(
-                "No match indices were provided to the verifier, returning early with None output"
-            )
+            logger.info("No match indices were provided to the verifier, returning early with None output")
             return None, None, verified_indices
 
-        uv_norm_i1 = feature_utils.normalize_coordinates(
-            keypoints_i1.coordinates, camera_intrinsics_i1
-        )
-        uv_norm_i2 = feature_utils.normalize_coordinates(
-            keypoints_i2.coordinates, camera_intrinsics_i2
-        )
+        uv_norm_i1 = feature_utils.normalize_coordinates(keypoints_i1.coordinates, camera_intrinsics_i1)
+        uv_norm_i2 = feature_utils.normalize_coordinates(keypoints_i2.coordinates, camera_intrinsics_i2)
         K = np.eye(3)
 
         i2Ei1, inlier_mask = cv2.findEssentialMat(
@@ -87,10 +82,7 @@ class Ransac(VerifierBase):
         )
         inlier_idxs = np.where(inlier_mask.ravel() == 1)[0]
 
-        (
-            i2Ri1,
-            i2Ui1,
-        ) = verification_utils.recover_relative_pose_from_essential_matrix(
+        (i2Ri1, i2Ui1,) = verification_utils.recover_relative_pose_from_essential_matrix(
             i2Ei1,
             keypoints_i1.coordinates[match_indices[inlier_idxs, 0]],
             keypoints_i2.coordinates[match_indices[inlier_idxs, 1]],
@@ -123,13 +115,10 @@ class Ransac(VerifierBase):
             camera_intrinsics_i2: intrinsics for image #i2.
 
         Returns:
-            Estimated essential matrix i2Ei1, or None if it cannot be estimated.
+            Estimated rotation i2Ri1, or None if it cannot be estimated.
+            Estimated unit translation i2Ui1, or None if it cannot be estimated.
             Indices of verified correspondences, of shape (N, 2) with N <= N3.
                 These indices are subset of match_indices.
         """
-        logger.info(
-            "Directly estimating essential matrix with approximate intrinsics not implemented"
-        )
-        raise NotImplementedError(
-            "Use Degensac instead for F-Matrix estimation"
-        )
+        logger.info("Directly estimating essential matrix with approximate intrinsics not implemented")
+        raise NotImplementedError("Use Degensac instead for F-Matrix estimation")

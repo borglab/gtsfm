@@ -1,4 +1,4 @@
-""" Placeholder for GTSFM data association module.
+"""Placeholder for GTSFM data association module.
 
 Authors: Ayush Baid, John Lambert, Sushmita Warrier
 """
@@ -35,10 +35,8 @@ class DummyDataAssociation:
         """Perform the data association.
 
         Args:
-            cameras: dictionary with image index as key, and camera object w/
-                     intrinsics + extrinsics as value.
-            corr_idxs_dict: dictionary, with key as image pair (i1,i2) and value
-                            as matching keypoint indices.
+            cameras: dictionary with image index as key, and camera object w/ intrinsics + extrinsics as value.
+            corr_idxs_dict: dictionary, with key as image pair (i1,i2) and value as matching keypoint indices.
             keypoints_list: keypoints for each image.
 
         Returns:
@@ -59,18 +57,12 @@ class DummyDataAssociation:
             sfmTrack = SfmTrack(point_3d)
 
             # randomly select cameras for this track
-            selected_cams = np.random.choice(
-                available_cams, self.min_track_len, replace=False
-            )
+            selected_cams = np.random.choice(available_cams, self.min_track_len, replace=False)
 
             # for each selected camera, randomly select a point
             for cam_idx in selected_cams:
-                measurement_idx = random.randint(
-                    0, len(keypoints_list[cam_idx]) - 1
-                )
-                measurement = keypoints_list[cam_idx].coordinates[
-                    measurement_idx
-                ]
+                measurement_idx = random.randint(0, len(keypoints_list[cam_idx]) - 1)
+                measurement = keypoints_list[cam_idx].coordinates[measurement_idx]
 
                 sfmTrack.add_measurement(cam_idx, measurement)
 
@@ -96,8 +88,7 @@ class DummyDataAssociation:
 
         Args:
             cameras: list of cameras wrapped up as Delayed.
-            corr_idxs_graph: dictionary of correspondence indices, each value
-                             wrapped up as Delayed.
+            corr_idxs_graph: dictionary of correspondence indices, each value wrapped up as Delayed.
             keypoints_graph: list of wrapped up keypoints for each image.
 
         Returns:

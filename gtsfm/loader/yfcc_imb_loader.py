@@ -26,8 +26,7 @@ class YfccImbLoader(LoaderBase):
 
         Args:
             folder: the base folder of the dataset.
-            coviz_thresh (optional): threshold for covisibility between two
-                                     images to be considered a valid pair.
+            coviz_thresh (optional): threshold for covisibility between two images to be considered a valid pair.
                                      Defaults to 0.1.
         """
 
@@ -55,16 +54,9 @@ class YfccImbLoader(LoaderBase):
         self._image_names = sorted(list(image_names))
 
         # map image names to its position in the list
-        self._name_to_idx_map = {
-            name: i for i, name in enumerate(self._image_names)
-        }
+        self._name_to_idx_map = {name: i for i, name in enumerate(self._image_names)}
 
-        self._image_pairs = set(
-            [
-                (self._name_to_idx_map[i1], self._name_to_idx_map[i2])
-                for i1, i2 in image_pairs
-            ]
-        )
+        self._image_pairs = set([(self._name_to_idx_map[i1], self._name_to_idx_map[i2]) for i1, i2 in image_pairs])
 
         self._cameras = self.__read_calibrations()  # self.__read_colmap_model()
 
@@ -95,9 +87,7 @@ class YfccImbLoader(LoaderBase):
 
         image_name = self._image_names[index]
 
-        file_name = osp.join(
-            self._folder, "images", "{}.jpg".format(image_name)
-        )
+        file_name = osp.join(self._folder, "images", "{}.jpg".format(image_name))
 
         return io_utils.load_image(file_name)
 
@@ -148,9 +138,7 @@ class YfccImbLoader(LoaderBase):
             list of all cameras.
         """
 
-        file_path_template = osp.join(
-            self._folder, "calibration", "calibration_{}.h5"
-        )
+        file_path_template = osp.join(self._folder, "calibration", "calibration_{}.h5")
 
         pose_list = []
 

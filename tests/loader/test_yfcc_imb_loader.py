@@ -49,8 +49,7 @@ class TestYfccIMbLoader(unittest.TestCase):
             self.loader.get_image(100)
 
     def test_image_contents(self):
-        """
-        Test the actual image which is being fetched by the loader at an index.
+        """Test the actual image which is being fetched by the loader at an index.
 
         This test's primary purpose is to check if the ordering of filename is being respected by the loader
         """
@@ -62,9 +61,7 @@ class TestYfccIMbLoader(unittest.TestCase):
 
         expected_image = io_utils.load_image(file_path)
 
-        np.testing.assert_allclose(
-            expected_image.value_array, loader_image.value_array
-        )
+        np.testing.assert_allclose(expected_image.value_array, loader_image.value_array)
 
     def test_get_camera_pose(self):
         """Tests that the correct pose is fetched."""

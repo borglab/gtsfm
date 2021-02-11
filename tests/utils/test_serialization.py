@@ -67,12 +67,8 @@ class TestSerialization(unittest.TestCase):
             Pose3(Rot3.RzRyRx(0, 0.1, -0.05), np.random.randn(3, 1)),
             Cal3Bundler(fx=100, k1=0.1, k2=0.2, u0=100, v0=70),
         )
-        header, frames = serialization_utils.serialize_PinholeCameraCal3Bundler(
-            expected
-        )
-        recovered = serialization_utils.deserialize_PinholeCameraCal3Bundler(
-            header, frames
-        )
+        header, frames = serialization_utils.serialize_PinholeCameraCal3Bundler(expected)
+        recovered = serialization_utils.deserialize_PinholeCameraCal3Bundler(header, frames)
 
         self.assertTrue(expected.equals(recovered, 1e-5))
 
@@ -92,9 +88,7 @@ class TestSerialization(unittest.TestCase):
         recovered = serialization_utils.deserialize_SfmResult(header, frames)
 
         # comparing cameras and total reprojection error
-        self.assertEqual(
-            recovered.total_reproj_error, expected.total_reproj_error
-        )
+        self.assertEqual(recovered.total_reproj_error, expected.total_reproj_error)
         self.assertTrue(recovered.sfm_data.equals(expected.sfm_data, 1e-9))
 
 

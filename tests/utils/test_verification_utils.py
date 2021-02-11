@@ -19,14 +19,13 @@ class TestVerificationUtils(unittest.TestCase):
         # simulate correspondences and the essential matrix
         corr_i1, corr_i2, i2Ei1 = simulate_two_planes_scene(10, 10)
 
-        i2Ri1, i2Ui1 = \
-            verification_utils.recover_relative_pose_from_essential_matrix(
-                i2Ei1.matrix(),
-                corr_i1.coordinates,
-                corr_i2.coordinates,
-                Cal3Bundler(),
-                Cal3Bundler()
-            )
+        i2Ri1, i2Ui1 = verification_utils.recover_relative_pose_from_essential_matrix(
+            i2Ei1.matrix(),
+            corr_i1.coordinates,
+            corr_i2.coordinates,
+            Cal3Bundler(),
+            Cal3Bundler(),
+        )
 
         # compare the recovered R and U with the ground truth
         self.assertTrue(i2Ri1.equals(i2Ei1.rotation(), 1e-3))
