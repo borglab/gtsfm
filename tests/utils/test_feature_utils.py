@@ -61,8 +61,7 @@ class TestFeatureUtils(unittest.TestCase):
         )
 
     def test_convert_to_epipolar_lines_valid_input(self):
-        """Test conversion of valid 2D points to epipolar lines using the
-        essential matrix."""
+        """Test conversion of valid 2D points to epipolar lines using the essential matrix."""
 
         points = np.array(
             [
@@ -84,8 +83,7 @@ class TestFeatureUtils(unittest.TestCase):
         np.testing.assert_allclose(computed, expected)
 
     def test_convert_to_epipolar_lines_empty_input(self):
-        """Test conversion of 0 2D points to epipolar lines using the essential
-        matrix."""
+        """Test conversion of 0 2D points to epipolar lines using the essential matrix."""
 
         points = np.array([])  # 2d points in homogenous coordinates
         essential_mat = EssentialMatrix(Rot3.RzRyRx(0, np.deg2rad(45), 0), Unit3(np.array([-5, 2, 0])))
@@ -95,8 +93,7 @@ class TestFeatureUtils(unittest.TestCase):
         self.assertEqual(computed.size, 0)
 
     def test_convert_to_epipolar_lines_none_input(self):
-        """Test conversion of None to epipolar lines using the essential
-        matrix."""
+        """Test conversion of None to epipolar lines using the essential matrix."""
 
         points = None
         essential_mat = EssentialMatrix(Rot3.RzRyRx(0, np.deg2rad(45), 0), Unit3(np.array([-5, 2, 0])))
@@ -104,6 +101,29 @@ class TestFeatureUtils(unittest.TestCase):
         computed = feature_utils.convert_to_epipolar_lines(points, essential_mat)
 
         self.assertIsNone(computed)
+
+    def test_compute_point_line_distances(self):
+        """Test for 2D point-line distance computation."""
+
+        points = np.array(
+            [
+                [-2.0, 1.0],
+                [5.0, 1.0],
+                [2.0, 3.0],
+            ]
+        )
+        lines = np.array(
+            [
+                [4.0, -3.0, -4.0],
+                [0.0, -0.5, 1.0],
+                [-3.0, -4.0, -5.0],
+            ]
+        )
+        expected = np.array([3.0, 1.0, 4.6])
+
+        computed = feature_utils.compute_point_line_distances(points, lines)
+
+        np.testing.assert_allclose(computed, expected)
 
 
 if __name__ == "__main__":

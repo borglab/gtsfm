@@ -93,3 +93,19 @@ def convert_to_epipolar_lines(normalized_coordinates_i1: np.ndarray, i2Ei1: Esse
     epipolar_lines = convert_to_homogenous_coordinates(normalized_coordinates_i1) @ i2Ei1.matrix().T
 
     return epipolar_lines
+
+
+def compute_point_line_distances(points: np.ndarray, lines: np.ndarray) -> np.ndarray:
+    """Computes the distance of a point from a line in 2D. The function processed multiple inputs independently in a
+    vectorized fashion.
+
+    Args:
+        points: non-homogenous 2D points, of shape Nx2.
+        lines: lines, of shape Nx3.
+
+    Returns:
+        Point-line distance for each row, of shape N.
+    """
+    line_norms = np.linalg.norm(lines[:, :2], axis=1)
+
+    return np.abs(np.einsum("ij,ij->i", convert_to_homogenous_coordinates(points), lines)) / line_norms
