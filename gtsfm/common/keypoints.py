@@ -1,5 +1,4 @@
-"""Class to hold coordinates and optional metadata for keypoints, the output of
-detections on an image.
+"""Class to hold coordinates and optional metadata for keypoints, the output of detections on an image.
 
 Authors: Ayush Baid
 """
@@ -17,16 +16,13 @@ class Keypoints:
     """Output of detections in an image.
 
     Coordinate system convention:
-        1. The x coordinate denotes the horizontal direction (+ve direction
-           towards the right).
-        2. The y coordinate denotes the vertical direction (+ve direction
-           downwards).
+        1. The x coordinate denotes the horizontal direction (+ve direction towards the right).
+        2. The y coordinate denotes the vertical direction (+ve direction downwards).
         3. Origin is at the top left corner of the image.
 
-    Note: the keypoints class *should not* be implemented as NamedTuple because
-    dask treats NamedTuple as a tuple and tries to estimate the size by
-    randomly sampling elements (number computed using len()). len() is used for
-    the number of points and not the number of attributes.
+    Note: the keypoints class *should not* be implemented as NamedTuple because dask treats NamedTuple as a tuple and
+    tries to estimate the size by randomly sampling elements (number computed using len()). len() is used for the
+    number of points and not the number of attributes.
     """
 
     def __init__(
@@ -91,11 +87,10 @@ class Keypoints:
         return not self == other
 
     def get_top_k(self, k: int) -> "Keypoints":
-        """Returns the top keypoints by their response values (or just the
-        values from the front in case of missing responses.)
+        """Returns the top keypoints by their response values (or just the values from the front in case of missing
+        responses.)
 
-        If k keypoints are requested, and only n are available, where n < k,
-        then returning n keypoints is the expected behavior.
+        If k keypoints are requested, and only n < k are available, then returning n keypoints is the expected behavior.
 
         Args:
             k: max number of keypoints to return.
@@ -113,12 +108,8 @@ class Keypoints:
             selection_idxs = np.argpartition(-self.responses, k)[:k]
         return Keypoints(
             coordinates=self.coordinates[selection_idxs],
-            scales=self.scales[selection_idxs]
-            if self.scales is not None
-            else None,
-            responses=self.responses[selection_idxs]
-            if self.responses is not None
-            else None,
+            scales=self.scales[selection_idxs] if self.scales is not None else None,
+            responses=self.responses[selection_idxs] if self.responses is not None else None,
         )
 
     def get_x_coordinates(self) -> np.ndarray:
@@ -146,15 +137,9 @@ class Keypoints:
             keypoints with the type-casted attributes.
         """
         return Keypoints(
-            coordinates=None
-            if self.coordinates is None
-            else self.coordinates.astype(np.float32),
-            scales=None
-            if self.scales is None
-            else self.scales.astype(np.float32),
-            responses=None
-            if self.responses is None
-            else self.responses.astype(np.float32),
+            coordinates=None if self.coordinates is None else self.coordinates.astype(np.float32),
+            scales=None if self.scales is None else self.scales.astype(np.float32),
+            responses=None if self.responses is None else self.responses.astype(np.float32),
         )
 
     def cast_to_opencv_keypoints(self) -> List[cv.KeyPoint]:

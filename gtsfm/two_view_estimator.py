@@ -1,5 +1,4 @@
-"""Estimator which operates on a pair of images to compute relative pose and
-verified indices.
+"""Estimator which operates on a pair of images to compute relative pose and verified indices.
 
 Authors: Ayush Baid, John Lambert
 """
@@ -26,8 +25,7 @@ pil_logger.setLevel(logging.INFO)
 
 
 class TwoViewEstimator:
-    """Wrapper for running two-view relative pose estimation on image pairs in
-    the dataset."""
+    """Wrapper for running two-view relative pose estimation on image pairs in the dataset."""
 
     def __init__(self, matcher: MatcherBase, verifier: VerifierBase) -> None:
         """Initializes the two-view estimator from matcher and verifier.
@@ -59,11 +57,9 @@ class TwoViewEstimator:
             descriptors_i2_graph: corr. descriptors for image i2.
             camera_intrinsics_i1_graph: intrinsics for camera i1.
             camera_intrinsics_i2_graph: intrinsics for camera i2.
-            exact_intrinsics (optional): flag to use intrinsics as exact.
-                                         Defaults to True.
-            i2Ti1_expected_graph (optional): ground truth relative pose, used
-                                             for evaluation if available.
-                                             Defaults to None.
+            exact_intrinsics (optional): flag to use intrinsics as exact. Defaults to True.
+            i2Ti1_expected_graph (optional): ground truth relative pose, used for evaluation if available. Defaults to
+                                             None.
 
         Returns:
             Computed relative rotation wrapped as Delayed.
@@ -74,17 +70,11 @@ class TwoViewEstimator:
         """
 
         # graph for matching to obtain putative correspondences
-        corr_idxs_graph = self.matcher.create_computation_graph(
-            descriptors_i1_graph, descriptors_i2_graph
-        )
+        corr_idxs_graph = self.matcher.create_computation_graph(descriptors_i1_graph, descriptors_i2_graph)
 
         # verification on putative correspondences to obtain relative pose
         # and verified correspondences
-        (
-            i2Ri1_graph,
-            i2Ui1_graph,
-            v_corr_idxs_graph,
-        ) = self.verifier.create_computation_graph(
+        (i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph,) = self.verifier.create_computation_graph(
             keypoints_i1_graph,
             keypoints_i2_graph,
             corr_idxs_graph,
@@ -95,9 +85,7 @@ class TwoViewEstimator:
 
         # if we have the expected data, evaluate the computed relative pose
         if i2Ti1_expected_graph is not None:
-            error_graphs = dask.delayed(compute_relative_pose_metrics)(
-                i2Ri1_graph, i2Ui1_graph, i2Ti1_expected_graph
-            )
+            error_graphs = dask.delayed(compute_relative_pose_metrics)(i2Ri1_graph, i2Ui1_graph, i2Ti1_expected_graph)
         else:
             error_graphs = (None, None)
 
@@ -127,17 +115,11 @@ def compute_relative_pose_metrics(
         Unit translation error.
     """
 
-    R_error = comp_utils.compute_relative_rotation_angle(
-        i2Ri1_computed, i2Ti1_expected.rotation()
-    )
+    R_error = comp_utils.compute_relative_rotation_angle(i2Ri1_computed, i2Ti1_expected.rotation())
 
-    U_error = comp_utils.compute_relative_unit_translation_angle(
-        i2Ui1_computed, Unit3(i2Ti1_expected.translation())
-    )
+    U_error = comp_utils.compute_relative_unit_translation_angle(i2Ui1_computed, Unit3(i2Ti1_expected.translation()))
 
     logger.debug("[Two View Estimator] Relative rotation error %f", R_error)
-    logger.debug(
-        "[Two View Estimator] Relative unit-translation error %f", U_error
-    )
+    logger.debug("[Two View Estimator] Relative unit-translation error %f", U_error)
 
     return (R_error, U_error)

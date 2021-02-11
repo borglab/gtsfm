@@ -26,13 +26,9 @@ class TestImage(unittest.TestCase):
             "Model": "testModel",
         }
 
-        expected_instrinsics = Cal3Bundler(
-            fx=600.0, k1=0.0, k2=0.0, u0=60.0, v0=50.0
-        )
+        expected_instrinsics = Cal3Bundler(fx=600.0, k1=0.0, k2=0.0, u0=60.0, v0=50.0)
 
-        image = Image(
-            np.random.randint(low=0, high=255, size=(100, 120, 3)), exif_data
-        )
+        image = Image(np.random.randint(low=0, high=255, size=(100, 120, 3)), exif_data)
 
         computed_intrinsics = image.get_intrinsics_from_exif()
 
@@ -49,9 +45,7 @@ class TestImage(unittest.TestCase):
         """Test with even patch size."""
         patch_size = 10
 
-        computed_patch = input_image.extract_patch(
-            patch_center_x, patch_center_y, patch_size
-        )
+        computed_patch = input_image.extract_patch(patch_center_x, patch_center_y, patch_size)
 
         # check the patch dimensions
         self.assertEqual(computed_patch.width, patch_size)
@@ -61,21 +55,15 @@ class TestImage(unittest.TestCase):
         np.testing.assert_allclose(
             computed_patch.value_array,
             input_image.value_array[
-                patch_center_y
-                - patch_size // 2 : patch_center_y
-                + (patch_size + 1) // 2,
-                patch_center_x
-                - patch_size // 2 : patch_center_x
-                + (patch_size + 1) // 2,
+                patch_center_y - patch_size // 2 : patch_center_y + (patch_size + 1) // 2,
+                patch_center_x - patch_size // 2 : patch_center_x + (patch_size + 1) // 2,
             ],
         )
 
         """Test with odd patch size."""
         patch_size = 11
 
-        computed_patch = input_image.extract_patch(
-            patch_center_x, patch_center_y, patch_size
-        )
+        computed_patch = input_image.extract_patch(patch_center_x, patch_center_y, patch_size)
 
         # check the patch dimensions
         self.assertEqual(computed_patch.width, patch_size)
@@ -85,18 +73,13 @@ class TestImage(unittest.TestCase):
         np.testing.assert_allclose(
             computed_patch.value_array,
             input_image.value_array[
-                patch_center_y
-                - patch_size // 2 : patch_center_y
-                + (patch_size + 1) // 2,
-                patch_center_x
-                - patch_size // 2 : patch_center_x
-                + (patch_size + 1) // 2,
+                patch_center_y - patch_size // 2 : patch_center_y + (patch_size + 1) // 2,
+                patch_center_x - patch_size // 2 : patch_center_x + (patch_size + 1) // 2,
             ],
         )
 
     def test_extract_patch_for_padding(self):
-        """Test patch extraction which is not completely inside the original
-        image, hence needing padding."""
+        """Test patch extraction which is not completely inside the original image, hence needing padding."""
 
         input_image = Image(np.random.rand(100, 71, 3))
 
@@ -106,9 +89,7 @@ class TestImage(unittest.TestCase):
         patch_center_x = 3
         patch_center_y = 4
 
-        computed_patch = input_image.extract_patch(
-            patch_center_x, patch_center_y, patch_size
-        )
+        computed_patch = input_image.extract_patch(patch_center_x, patch_center_y, patch_size)
 
         # check the patch dimensions
         self.assertEqual(computed_patch.width, patch_size)
@@ -131,9 +112,7 @@ class TestImage(unittest.TestCase):
         patch_center_x = 70
         patch_center_y = 96
 
-        computed_patch = input_image.extract_patch(
-            patch_center_x, patch_center_y, patch_size
-        )
+        computed_patch = input_image.extract_patch(patch_center_x, patch_center_y, patch_size)
 
         # check the patch dimensions
         self.assertEqual(computed_patch.width, patch_size)

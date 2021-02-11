@@ -26,8 +26,7 @@ class DummyDescriptor(DescriptorBase):
             keypoints: the keypoints to describe, of length N.
 
         Returns:
-            the descriptors for the input features, of shape (N, D) where D is 
-                the dimension of each descriptor.
+            Descriptors for the input features, of shape (N, D) where D is the dimension of each descriptor.
         """
         if len(keypoints) == 0:
             return np.array([])

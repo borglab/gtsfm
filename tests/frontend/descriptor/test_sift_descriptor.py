@@ -20,5 +20,5 @@ class TestSIFTDescriptor(test_descriptor_base.TestDescriptorBase):
         self.descriptor = SIFTDescriptor()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

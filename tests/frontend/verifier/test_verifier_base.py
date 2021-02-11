@@ -40,28 +40,19 @@ class TestVerifierBase(unittest.TestCase):
         self.verifier = DummyVerifier()
 
     def test_simple_scene(self):
-        """Test a simple scene with 8 points, 4 on each plane, so that
-        RANSAC family of methods do not get trapped into a degenerate sample.
-        """
+        """Test a simple scene with 8 points, 4 on each plane, so that RANSAC family of methods do not get trapped into
+        a degenerate sample."""
         if isinstance(self.verifier, DummyVerifier):
             self.skipTest("Cannot check correctness for dummy verifier")
 
         # obtain the keypoints and the ground truth essential matrix.
-        keypoints_i1, keypoints_i2, expected_i2Ei1 = simulate_two_planes_scene(
-            4, 4
-        )
+        keypoints_i1, keypoints_i2, expected_i2Ei1 = simulate_two_planes_scene(4, 4)
 
         # match keypoints row by row
-        match_indices = np.vstack(
-            (np.arange(len(keypoints_i1)), np.arange(len(keypoints_i1)))
-        ).T
+        match_indices = np.vstack((np.arange(len(keypoints_i1)), np.arange(len(keypoints_i1)))).T
 
         # run the verifier
-        (
-            i2Ri1,
-            i2Ui1,
-            verified_indices,
-        ) = self.verifier.verify_with_approximate_intrinsics(
+        (i2Ri1, i2Ui1, verified_indices,) = self.verifier.verify_with_approximate_intrinsics(
             keypoints_i1,
             keypoints_i2,
             match_indices,
@@ -91,12 +82,8 @@ class TestVerifierBase(unittest.TestCase):
             if verified_indices.size > 0:
                 # check that the indices are not out of bounds
                 self.assertTrue(np.all(verified_indices >= 0))
-                self.assertTrue(
-                    np.all(verified_indices[:, 0] < len(keypoints_i1))
-                )
-                self.assertTrue(
-                    np.all(verified_indices[:, 1] < len(keypoints_i2))
-                )
+                self.assertTrue(np.all(verified_indices[:, 0] < len(keypoints_i1)))
+                self.assertTrue(np.all(verified_indices[:, 1] < len(keypoints_i2)))
             else:
                 # we have a meaningless test
                 self.skipTest("No valid results found")
@@ -110,11 +97,7 @@ class TestVerifierBase(unittest.TestCase):
         intrinsics_i1 = Cal3Bundler()
         intrinsics_i2 = Cal3Bundler()
 
-        (
-            i2Ri1,
-            i2Ui1,
-            verified_indices,
-        ) = self.verifier.verify_with_exact_intrinsics(
+        (i2Ri1, i2Ui1, verified_indices,) = self.verifier.verify_with_exact_intrinsics(
             keypoints_i1,
             keypoints_i2,
             match_indices,
@@ -127,8 +110,7 @@ class TestVerifierBase(unittest.TestCase):
         self.assertEqual(0, verified_indices.size)
 
     def test_create_computation_graph(self):
-        """Checks that the dask computation graph produces the same results as
-        direct APIs."""
+        """Checks that the dask computation graph produces the same results as direct APIs."""
 
         # creating inputs for verification
         (
@@ -154,11 +136,7 @@ class TestVerifierBase(unittest.TestCase):
         expected_v_corr_idxs = expected_results[2]
 
         # generate the computation graph for the verifier
-        (
-            delayed_i2Ri1,
-            delayed_i2Ui1,
-            delayed_v_corr_idxs,
-        ) = self.verifier.create_computation_graph(
+        (delayed_i2Ri1, delayed_i2Ui1, delayed_v_corr_idxs,) = self.verifier.create_computation_graph(
             dask.delayed(keypoints_i1),
             dask.delayed(keypoints_i2),
             dask.delayed(matches_i1i2),
@@ -214,11 +192,7 @@ class TestVerifierBase(unittest.TestCase):
             intrinsics_i2,
         ) = generate_random_input_for_verifier()
 
-        (
-            i2Ri1,
-            i2Ui1,
-            verified_indices,
-        ) = self.verifier.verify_with_exact_intrinsics(
+        (i2Ri1, i2Ui1, verified_indices,) = self.verifier.verify_with_exact_intrinsics(
             keypoints_i1,
             keypoints_i2,
             match_indices,
@@ -229,9 +203,7 @@ class TestVerifierBase(unittest.TestCase):
         return i2Ri1, i2Ui1, verified_indices, keypoints_i1, keypoints_i2
 
 
-def generate_random_keypoints(
-    num_keypoints: int, image_shape: Tuple[int, int]
-) -> Keypoints:
+def generate_random_keypoints(num_keypoints: int, image_shape: Tuple[int, int]) -> Keypoints:
     """Generates random features within the image bounds.
 
     Args:
@@ -246,15 +218,11 @@ def generate_random_keypoints(
         return np.array([])
 
     return Keypoints(
-        coordinates=np.random.randint(
-            [0, 0], high=image_shape, size=(num_keypoints, 2)
-        ).astype(np.float32)
+        coordinates=np.random.randint([0, 0], high=image_shape, size=(num_keypoints, 2)).astype(np.float32)
     )
 
 
-def generate_random_input_for_verifier() -> Tuple[
-    Keypoints, Keypoints, np.ndarray, Cal3Bundler, Cal3Bundler
-]:
+def generate_random_input_for_verifier() -> Tuple[Keypoints, Keypoints, np.ndarray, Cal3Bundler, Cal3Bundler]:
     """Generates random inputs for verification.
 
     Returns:
@@ -300,12 +268,8 @@ def generate_random_input_for_verifier() -> Tuple[
         matching_indices_i1i2 = np.array([], dtype=np.int32)
     else:
         matching_indices_i1i2 = np.empty((num_matches, 2), dtype=np.int32)
-        matching_indices_i1i2[:, 0] = np.random.choice(
-            num_keypoints_i1, size=(num_matches,), replace=False
-        )
-        matching_indices_i1i2[:, 1] = np.random.choice(
-            num_keypoints_i2, size=(num_matches,), replace=False
-        )
+        matching_indices_i1i2[:, 0] = np.random.choice(num_keypoints_i1, size=(num_matches,), replace=False)
+        matching_indices_i1i2[:, 1] = np.random.choice(num_keypoints_i2, size=(num_matches,), replace=False)
 
     return (
         keypoints_i1,
@@ -359,22 +323,16 @@ def sample_points_on_plane(
     pts = np.hstack([x, y, z])
 
     # assert points are on the plane
-    pts_residuals = (
-        pts @ np.array(plane_coefficients[:3]).reshape(3, 1)
-        + plane_coefficients[3]
-    )
+    pts_residuals = pts @ np.array(plane_coefficients[:3]).reshape(3, 1) + plane_coefficients[3]
 
     np.testing.assert_almost_equal(pts_residuals, np.zeros((num_points, 1)))
 
     return pts
 
 
-def simulate_two_planes_scene(
-    M: int, N: int
-) -> Tuple[Keypoints, Keypoints, EssentialMatrix]:
-    """Generate a scene where 3D points are on two planes, and projects the
-    points to the 2 cameras. There are M points on plane 1, and N points on
-    plane 2.
+def simulate_two_planes_scene(M: int, N: int) -> Tuple[Keypoints, Keypoints, EssentialMatrix]:
+    """Generate a scene where 3D points are on two planes, and projects the points to the 2 cameras. There are M points
+    on plane 1, and N points on plane 2.
 
     The two planes in this test are:
     1. -10x -y -20z +150 = 0
@@ -398,12 +356,8 @@ def simulate_two_planes_scene(
     plane2_coeffs = (15, -2, -35, 200)
 
     # sample the points from planes
-    plane1_points = sample_points_on_plane(
-        plane1_coeffs, range_x_coordinate, range_y_coordinate, M
-    )
-    plane2_points = sample_points_on_plane(
-        plane2_coeffs, range_x_coordinate, range_y_coordinate, N
-    )
+    plane1_points = sample_points_on_plane(plane1_coeffs, range_x_coordinate, range_y_coordinate, M)
+    plane2_points = sample_points_on_plane(plane2_coeffs, range_x_coordinate, range_y_coordinate, N)
 
     points_3d = np.vstack((plane1_points, plane2_points))
 

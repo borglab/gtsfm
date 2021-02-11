@@ -16,8 +16,8 @@ from gtsfm.common.keypoints import Keypoints
 class VerifierBase(metaclass=abc.ABCMeta):
     """Base class for all verifiers.
 
-    Verifiers take the coordinates of the matches as inputs and returns the
-    estimated essential matrix as well as geometrically verified points.
+    Verifiers take the coordinates of the matches as inputs and returns the estimated essential matrix as well as
+    geometrically verified points.
     """
 
     def __init__(self, min_pts):
@@ -34,23 +34,20 @@ class VerifierBase(metaclass=abc.ABCMeta):
     ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
         """Estimates the essential matrix and verifies the feature matches.
 
-        Note: this function is preferred when camera intrinsics are known. The
-        feature coordinates are normalized and the essential matrix is directly
-        estimated.
+        Note: this function is preferred when camera intrinsics are known. The feature coordinates are normalized and
+        the essential matrix is directly estimated.
 
         Args:
             keypoints_i1: detected features in image #i1.
             keypoints_i2: detected features in image #i2.
-            match_indices: matches as indices of features from both images, of
-                           shape (N3, 2), where N3 <= min(N1, N2).
+            match_indices: matches as indices of features from both images, of shape (N3, 2), where N3 <= min(N1, N2).
             camera_intrinsics_i1: intrinsics for image #i1.
             camera_intrinsics_i2: intrinsics for image #i2.
 
         Returns:
             Estimated rotation i2Ri1, or None if it cannot be estimated.
             Estimated unit translation i2Ui1, or None if it cannot be estimated.
-            Indices of verified correspondences, of shape (N, 2) with N <= N3.
-                These indices are subset of match_indices.
+            Indices of verified correspondences, of shape (N, 2) with N <= N3. These are subset of match_indices.
         """
 
     @abc.abstractmethod
@@ -64,22 +61,20 @@ class VerifierBase(metaclass=abc.ABCMeta):
     ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
         """Estimates the essential matrix and verifies the feature matches.
 
-        Note: this function is preferred when camera intrinsics are approximate
-        (i.e from image size/exif). The feature coordinates are used to compute
-        the fundamental matrix, which is then converted to the essential matrix.
+        Note: this function is preferred when camera intrinsics are approximate (i.e from image size/exif). The feature
+        coordinates are used to compute the fundamental matrix, which is then converted to the essential matrix.
 
         Args:
             keypoints_i1: detected features in image #i1.
             keypoints_i2: detected features in image #i2.
-            match_indices: matches as indices of features from both images, of
-                           shape (N3, 2), where N3 <= min(N1, N2).
+            match_indices: matches as indices of features from both images, of shape (N3, 2), where N3 <= min(N1, N2).
             camera_intrinsics_i1: intrinsics for image #i1.
             camera_intrinsics_i2: intrinsics for image #i2.
 
         Returns:
-            Estimated essential matrix i2Ei1, or None if it cannot be estimated.
-            Indices of verified correspondences, of shape (N, 2) with N <= N3.
-                These indices are subset of match_indices.
+            Estimated rotation i2Ri1, or None if it cannot be estimated.
+            Estimated unit translation i2Ui1, or None if it cannot be estimated.
+            Indices of verified correspondences, of shape (N, 2) with N <= N3. These are subset of match_indices.
         """
 
     def create_computation_graph(
@@ -99,21 +94,16 @@ class VerifierBase(metaclass=abc.ABCMeta):
             detection_graph: nodes with features for each image.
             matcher_graph: nodes with matching results for pairs of images.
             camera_intrinsics_graph: nodes with intrinsics for each image.
-            exact_intrinsics_flag (optional): flag denoting if intrinsics are
-                                              exact, and an essential matrix
-                                              can be directly computed.
-                                              Defaults to True.
+            exact_intrinsics_flag (optional): flag denoting if intrinsics are exact, and an essential matrix can be
+                                              directly computed. Defaults to True.
 
         Returns:
-            Delayed dask task for rotation i2Ri1 for specified image pair.
-            Delayed dask task for unit translation i2Ui1 for specified image pair.
-            Delayed dask task for indices of verified correspondence indices for 
-                the specified image pair
+            Delayed dask task for rotation i2Ri1 for specific image pair.
+            Delayed dask task for unit translation i2Ui1 for specific image pair.
+            Delayed dask task for indices of verified correspondence indices for the specific image pair
         """
         fn_to_use = (
-            self.verify_with_exact_intrinsics
-            if exact_intrinsics_flag
-            else self.verify_with_approximate_intrinsics
+            self.verify_with_exact_intrinsics if exact_intrinsics_flag else self.verify_with_approximate_intrinsics
         )
 
         # note that we cannot immediately unpack the result tuple, per dask syntax
