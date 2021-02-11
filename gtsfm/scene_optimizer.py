@@ -107,6 +107,7 @@ class SceneOptimizer:
 
         frontend_rot3_errors = []
         frontend_unit3_errors = []
+        frontend_corr_correctness = []
 
         for (i1, i2) in image_pair_indices:
             if gt_pose_graph is not None:
@@ -114,7 +115,14 @@ class SceneOptimizer:
             else:
                 gt_relative_pose = None
 
-            (i2Ri1, i2Ui1, v_corr_idxs, rot_error, unit_tran_error,) = self.two_view_estimator.create_computation_graph(
+            (
+                i2Ri1,
+                i2Ui1,
+                v_corr_idxs,
+                rot_error,
+                unit_tran_error,
+                corr_correctness_count,
+            ) = self.two_view_estimator.create_computation_graph(
                 keypoints_graph_list[i1],
                 keypoints_graph_list[i2],
                 descriptors_graph_list[i1],
@@ -131,6 +139,7 @@ class SceneOptimizer:
             if gt_pose_graph is not None:
                 frontend_rot3_errors.append(rot_error)
                 frontend_unit3_errors.append(unit_tran_error)
+                frontend_corr_correctness.append(corr_correctness_count)
 
             if self._save_viz:
                 os.makedirs("plots/correspondences", exist_ok=True)
@@ -151,6 +160,7 @@ class SceneOptimizer:
                 dask.delayed(aggregate_frontend_metrics)(
                     frontend_rot3_errors,
                     frontend_unit3_errors,
+                    frontend_corr_correctness,
                     self._pose_angular_error_thresh,
                 )
             )
@@ -321,6 +331,7 @@ def write_sfmdata_to_disk(sfm_data: SfmData, save_fpath: str) -> None:
 def aggregate_frontend_metrics(
     rot3_errors: List[Optional[float]],
     unit3_errors: List[Optional[float]],
+    corr_correctness: List[Tuple[int, float]],
     angular_err_threshold_deg: float,
 ) -> None:
     """Aggregate the front-end metrics to log summary statistics.
@@ -328,6 +339,7 @@ def aggregate_frontend_metrics(
     Args:
         rot3_errors: angular errors in rotations.
         unit3_errors: angular errors in unit-translations.
+        corr_correctness: correctness of correspondences.
         angular_err_threshold: threshold to classify the error as success.
     """
     angular_err_threshold_rad = np.deg2rad(angular_err_threshold_deg)
@@ -347,6 +359,9 @@ def aggregate_frontend_metrics(
     success_count_unit3 = np.sum(unit3_errors < angular_err_threshold_rad)
     success_count_pose = np.sum(pose_errors < angular_err_threshold_rad)
 
+    # count entries with all correct correspondences
+    all_correct = [1 for x in corr_correctness if x[1] == 1.0]
+
     logger.debug(
         "[Two view optimizer] [Summary] Rotation success: %d/%d/%d",
         success_count_rot3,
@@ -365,5 +380,11 @@ def aggregate_frontend_metrics(
         "[Two view optimizer] [Summary] Pose success: %d/%d/%d",
         success_count_pose,
         num_valid_entries,
+        num_entries,
+    )
+
+    logger.debug(
+        "[Two view optimizer] [Summary] All correct correspondences: %d/%d",
+        len(all_correct),
         num_entries,
     )
