@@ -111,15 +111,14 @@ def compute_relative_pose_metrics(
         i2Ti1_expected: expected relative pose.
 
     Returns:
-        Rotation error.
-        Unit translation error.
+        Rotation error, in degrees
+        Unit translation error, in degrees
     """
+    R_error_deg = comp_utils.compute_relative_rotation_angle(i2Ri1_computed, i2Ti1_expected.rotation())
 
-    R_error = comp_utils.compute_relative_rotation_angle(i2Ri1_computed, i2Ti1_expected.rotation())
+    U_error_deg = comp_utils.compute_relative_unit_translation_angle(i2Ui1_computed, Unit3(i2Ti1_expected.translation()))
 
-    U_error = comp_utils.compute_relative_unit_translation_angle(i2Ui1_computed, Unit3(i2Ti1_expected.translation()))
+    logger.debug("[Two View Estimator] Relative rotation error %f deg.", R_error_deg)
+    logger.debug("[Two View Estimator] Relative unit-translation error %f deg.", U_error_deg)
 
-    logger.debug("[Two View Estimator] Relative rotation error %f", R_error)
-    logger.debug("[Two View Estimator] Relative unit-translation error %f", U_error)
-
-    return (R_error, U_error)
+    return (R_error_deg, U_error_deg)
