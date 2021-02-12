@@ -23,7 +23,13 @@ class ArgoverseDatasetLoader(LoaderBase):
     """ """
 
     def __init__(
-        self, dataset_dir: str, log_id: str, stride: int = 10, max_num_imgs: int = 20, max_lookahead_sec=2
+        self,
+        dataset_dir: str,
+        log_id: str,
+        stride: int = 10,
+        max_num_imgs: int = 20,
+        max_lookahead_sec: float = 2,
+        camera_name: str = "ring_front_center",
     ) -> None:
         """
         Args:
@@ -42,7 +48,6 @@ class ArgoverseDatasetLoader(LoaderBase):
         self.max_lookahead_for_img_ = max_lookahead_num_fr / stride
 
         self.calib_data_ = self.dl_.get_log_calibration_data(log_id)
-        camera_name = "ring_front_center"
 
         image_paths = self.dl_.get_ordered_log_cam_fpaths(log_id, camera_name)
         image_paths = image_paths[::stride]

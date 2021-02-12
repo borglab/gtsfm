@@ -26,8 +26,12 @@ def run_scene_optimizer() -> None:
         scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
         loader = ArgoverseDatasetLoader(
-            dataset_dir = "/Users/johnlambert/Downloads/visual-odometry-tutorial/full_log",
-            log_id = "273c1883-673a-36bf-b124-88311b1a80be"
+            dataset_dir="/Users/johnlambert/Downloads/visual-odometry-tutorial/full_log",
+            log_id="273c1883-673a-36bf-b124-88311b1a80be",
+            stride=10,
+            max_num_imgs=20,
+            max_lookahead_sec=2,
+            camera_name="ring_front_center",
         )
 
         sfm_result_graph = scene_optimizer.create_computation_graph(
@@ -50,6 +54,3 @@ def run_scene_optimizer() -> None:
 
 if __name__ == "__main__":
     run_scene_optimizer()
-
-
-
