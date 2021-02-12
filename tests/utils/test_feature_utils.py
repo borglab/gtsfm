@@ -112,7 +112,7 @@ class TestFeatureUtils(unittest.TestCase):
                 [2.0, 3.0],
             ]
         )
-        lines = np.array(
+        lines = np.array(  # coefficients (a, b, c) for the line ax + by + cz = 0
             [
                 [4.0, -3.0, -4.0],
                 [0.0, -0.5, 1.0],
@@ -120,7 +120,6 @@ class TestFeatureUtils(unittest.TestCase):
             ]
         )
         expected = np.array([3.0, 1.0, 4.6])
-
         computed = feature_utils.compute_point_line_distances(points, lines)
 
         np.testing.assert_allclose(computed, expected)

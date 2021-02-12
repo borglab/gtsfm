@@ -45,7 +45,6 @@ def normalize_coordinates(coordinates: np.ndarray, intrinsics: Cal3Bundler) -> n
     Returns:
         normalized coordinates, of shape Nx2.
     """
-
     return np.vstack([intrinsics.calibrate(x[:2].reshape(2, 1)) for x in coordinates])
 
 
@@ -101,7 +100,7 @@ def compute_point_line_distances(points: np.ndarray, lines: np.ndarray) -> np.nd
 
     Args:
         points: non-homogenous 2D points, of shape Nx2.
-        lines: lines, of shape Nx3.
+        lines: coefficients (a, b, c) of lines ax + by + c = 0, of shape Nx3.
 
     Returns:
         Point-line distance for each row, of shape N.

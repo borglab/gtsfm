@@ -32,7 +32,6 @@ def count_correct_correspondences(
         Number of correspondences which are correct.
     """
     # TODO: add unit test, with mocking.
-
     if len(keypoints_i1) == 0:
         return 0
 
