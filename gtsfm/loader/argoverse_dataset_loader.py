@@ -59,6 +59,8 @@ class ArgoverseDatasetLoader(LoaderBase):
         cam_config = get_calibration_config(self.calib_data_, camera_name)
         self.K_ = cam_config.intrinsic[:3, :3]
 
+        assert np.isclose(self.K_[0, 0], self.K_[1, 1], atol=0.1)
+
         self.camera_SE3_egovehicle_ = SE3(
             rotation=cam_config.extrinsic[:3, :3], translation=cam_config.extrinsic[:3, 3]
         )
@@ -100,7 +102,7 @@ class ArgoverseDatasetLoader(LoaderBase):
             Intrinsics for the given camera.
         """
         return Cal3Bundler(
-            fx=min(self.K_[0, 0], self.K_[1, 1]),
+            fx=self.K_[0, 0],
             k1=0,
             k2=0,
             u0=self.K_[0, 2],
