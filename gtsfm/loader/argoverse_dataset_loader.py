@@ -51,6 +51,7 @@ class ArgoverseDatasetLoader(LoaderBase):
 
         image_paths = self.dl_.get_ordered_log_cam_fpaths(log_id, camera_name)
         image_timestamps = [int(Path(path).stem.split("_")[-1]) for path in image_paths]
+        # only choose frames where ground truth egovehicle pose is provided
         valid_idxs = [
             idx for idx, ts in enumerate(image_timestamps) if self.dl_.get_city_SE3_egovehicle(log_id, ts) is not None
         ]
