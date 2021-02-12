@@ -4,7 +4,7 @@ Authors: Ayush Baid, John Lambert
 """
 import logging
 import os
-from typing import Any, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import dask
 import gtsam
@@ -359,7 +359,7 @@ def aggregate_frontend_metrics(
     success_count_pose = np.sum(pose_errors < angular_err_threshold_deg)
 
     # count entries with all correct correspondences
-    all_correct = [1 for x in corr_correctness if x[1] == 1.0]
+    all_correct = np.count_nonzero(np.array(corr_correctness)[:, 1] == 1.0)
 
     logger.debug(
         "[Two view optimizer] [Summary] Rotation success: %d/%d/%d",
