@@ -16,11 +16,15 @@ import gtsfm.utils.io as io_utils
 from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
 
+RING_CAMERA_FRAME_RATE = 30  # fps or Hz
+
 
 class ArgoverseDatasetLoader(LoaderBase):
     """ """
 
-    def __init__(self, dataset_dir: str, log_id: str, stride: int = 10, max_num_imgs: int = 20) -> None:
+    def __init__(
+        self, dataset_dir: str, log_id: str, stride: int = 10, max_num_imgs: int = 20, max_lookahead_sec=2
+    ) -> None:
         """
         Args:
             dataset_dir: directory where raw Argoverse logs are stored on disk
@@ -31,8 +35,11 @@ class ArgoverseDatasetLoader(LoaderBase):
         self.log_id_ = log_id
         self.dl_ = SimpleArgoverseTrackingDataLoader(data_dir=dataset_dir, labels_dir=dataset_dir)
 
-        max_lookahead_sec = 60  # at original 30 fps frame rate, so 2 sec
-        self.max_lookahead_for_img_ = max_lookahead_sec / stride
+        # computed as #frames = #sec * (frame/sec)
+        max_lookahead_num_fr = max_lookahead_sec * RING_CAMERA_FRAME_RATE
+
+        # in subsampled list, account for subsampling rate
+        self.max_lookahead_for_img_ = max_lookahead_num_fr / stride
 
         self.calib_data_ = self.dl_.get_log_calibration_data(log_id)
         camera_name = "ring_front_center"
@@ -47,7 +54,9 @@ class ArgoverseDatasetLoader(LoaderBase):
         cam_config = get_calibration_config(self.calib_data_, camera_name)
         self.K_ = cam_config.intrinsic[:3, :3]
 
-        self.camera_SE3_egovehicle_ = SE3(rotation=cam_config.extrinsic[:3, :3], translation=cam_config.extrinsic[:3, 3])
+        self.camera_SE3_egovehicle_ = SE3(
+            rotation=cam_config.extrinsic[:3, :3], translation=cam_config.extrinsic[:3, 3]
+        )
         self.egovehicle_SE3_camera_ = self.camera_SE3_egovehicle_.inverse()
 
     def __len__(self) -> int:
@@ -71,7 +80,7 @@ class ArgoverseDatasetLoader(LoaderBase):
             The image at the query index.
         """
 
-        if index < 0 or index > self.__len__():
+        if index < 0 or index >= self.__len__():
             raise IndexError("Image index is invalid")
 
         return io_utils.load_image(self.image_paths_[index])
