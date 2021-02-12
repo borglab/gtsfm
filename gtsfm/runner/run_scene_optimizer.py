@@ -1,6 +1,5 @@
 import os
 from pathlib import Path
-from types import SimpleNamespace
 
 import hydra
 from dask.distributed import Client, LocalCluster, performance_report

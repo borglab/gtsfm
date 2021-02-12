@@ -59,11 +59,11 @@ class TestGeometryComparisons(unittest.TestCase):
         R_1 = Rot3.RzRyRx(0, np.deg2rad(45), np.deg2rad(22.5))
         R_2 = Rot3.RzRyRx(0, np.deg2rad(90), np.deg2rad(22.5))
 
-        computed = geometry_comparisons.compute_relative_rotation_angle(R_1, R_2)
+        # returns angle in degrees
+        computed_deg = geometry_comparisons.compute_relative_rotation_angle(R_1, R_2)
+        expected_deg = 45
 
-        expected = np.deg2rad(45)
-
-        np.testing.assert_allclose(computed, expected, rtol=1e-3, atol=1e-3)
+        np.testing.assert_allclose(computed_deg, expected_deg, rtol=1e-3, atol=1e-3)
 
     def test_compute_relative_unit_translation_angle(self):
         """Tests the relative angle between two unit-translations."""
@@ -71,11 +71,11 @@ class TestGeometryComparisons(unittest.TestCase):
         U_1 = Unit3(np.array([1, 0, 0]))
         U_2 = Unit3(np.array([0.5, 0.5, 0]))
 
-        computed = geometry_comparisons.compute_relative_unit_translation_angle(U_1, U_2)
+        # returns angle in degrees
+        computed_deg = geometry_comparisons.compute_relative_unit_translation_angle(U_1, U_2)
+        expected_deg = 45
 
-        expected = np.deg2rad(45)
-
-        self.assertAlmostEqual(computed, expected, places=3)
+        self.assertAlmostEqual(computed_deg, expected_deg, places=3)
 
     def test_compare_global_poses_scaled_squares(self):
         """Make sure a big and small square can be aligned.

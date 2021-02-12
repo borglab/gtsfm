@@ -337,12 +337,11 @@ def aggregate_frontend_metrics(
     """Aggregate the front-end metrics to log summary statistics.
 
     Args:
-        rot3_errors: angular errors in rotations.
-        unit3_errors: angular errors in unit-translations.
+        rot3_errors: angular errors in rotations, measured in degrees.
+        unit3_errors: angular errors in unit-translations, measures in degrees.
         corr_correctness: correctness of correspondences.
-        angular_err_threshold: threshold to classify the error as success.
+        angular_err_threshold: threshold to classify the error as success, in degrees.
     """
-    angular_err_threshold_rad = np.deg2rad(angular_err_threshold_deg)
     num_entries = len(rot3_errors)
 
     rot3_errors = np.array(rot3_errors, dtype=float)
@@ -355,9 +354,9 @@ def aggregate_frontend_metrics(
     pose_errors = np.maximum(rot3_errors, unit3_errors)
 
     # check errors against the threshold
-    success_count_rot3 = np.sum(rot3_errors < angular_err_threshold_rad)
-    success_count_unit3 = np.sum(unit3_errors < angular_err_threshold_rad)
-    success_count_pose = np.sum(pose_errors < angular_err_threshold_rad)
+    success_count_rot3 = np.sum(rot3_errors < angular_err_threshold_deg)
+    success_count_unit3 = np.sum(unit3_errors < angular_err_threshold_deg)
+    success_count_pose = np.sum(pose_errors < angular_err_threshold_deg)
 
     # count entries with all correct correspondences
     all_correct = [1 for x in corr_correctness if x[1] == 1.0]

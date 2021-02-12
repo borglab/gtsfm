@@ -174,15 +174,16 @@ def compute_relative_rotation_angle(R_1: Optional[Rot3], R_2: Optional[Rot3]) ->
         R_2: the second rotation.
 
     Returns:
-        the angle between two rotations.
+        the angle between two rotations, in degrees
     """
 
     if R_1 is None or R_2 is None:
         return None
 
     relative_rot = R_1.between(R_2)
-    relative_rot_angle = relative_rot.axisAngle()[1]
-    return relative_rot_angle
+    relative_rot_angle_rad = relative_rot.axisAngle()[1]
+    relative_rot_angle_deg = np.rad2deg(relative_rot_angle_rad)
+    return relative_rot_angle_deg
 
 
 def compute_relative_unit_translation_angle(U_1: Optional[Unit3], U_2: Optional[Unit3]) -> Optional[float]:
@@ -193,7 +194,7 @@ def compute_relative_unit_translation_angle(U_1: Optional[Unit3], U_2: Optional[
         U_2: the second unit-translation.
 
     Returns:
-        the angle between the two unit-vectors.
+        the angle between the two unit-vectors, in degrees
     """
     if U_1 is None or U_2 is None:
         return None
@@ -201,4 +202,6 @@ def compute_relative_unit_translation_angle(U_1: Optional[Unit3], U_2: Optional[
     # TODO: expose Unit3's dot function and use it directly
     dot_product = np.dot(U_1.point3(), U_2.point3())
     dot_product = np.clip(dot_product, -1, 1)
-    return np.arccos(dot_product)
+    angle_rad = np.arccos(dot_product)
+    angle_deg = np.rad2deg(angle_rad)
+    return angle_deg
