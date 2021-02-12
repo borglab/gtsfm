@@ -15,11 +15,8 @@ from gtsfm.scene_optimizer import SceneOptimizer
 from gtsfm.loader.argoverse_dataset_loader import ArgoverseDatasetLoader
 
 
-DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "tests" / "data"
-
-
 def run_scene_optimizer() -> None:
-    """ """
+    """ Run GTSFM over images from an Argoverse vehicle log"""
     with initialize_config_module(config_module="gtsfm.configs"):
         # config is relative to the gtsfm module
         cfg = compose(config_name="default_lund_door_set1_config.yaml")
