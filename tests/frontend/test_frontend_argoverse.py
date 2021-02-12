@@ -65,7 +65,7 @@ class TestFrontend(unittest.TestCase):
         i2Ri1_graph_dict = {}
         i2Ui1_graph_dict = {}
         for (i1, i2) in image_pair_indices:
-            (i2Ri1, i2Ui1, _, _, _,) = two_view_estimator.create_computation_graph(
+            (i2Ri1, i2Ui1, _, _, _, _) = two_view_estimator.create_computation_graph(
                 keypoints_graph_list[i1],
                 keypoints_graph_list[i2],
                 descriptors_graph_list[i1],
