@@ -26,7 +26,7 @@ class ArgoverseDatasetLoader(LoaderBase):
         self,
         dataset_dir: str,
         log_id: str,
-        stride: int = 10,
+        stride: int = 5,
         max_num_imgs: int = 20,
         max_lookahead_sec: float = 2,
         camera_name: str = "ring_front_center",
@@ -50,15 +50,25 @@ class ArgoverseDatasetLoader(LoaderBase):
         self.calib_data_ = self.dl_.get_log_calibration_data(log_id)
 
         image_paths = self.dl_.get_ordered_log_cam_fpaths(log_id, camera_name)
+        image_timestamps = [int(Path(path).stem.split("_")[-1]) for path in image_paths]
+        valid_idxs = [
+            idx for idx, ts in enumerate(image_timestamps) if self.dl_.get_city_SE3_egovehicle(log_id, ts) is not None
+        ]
+
+        image_paths = [image_paths[idx] for idx in valid_idxs]
+        image_timestamps = [image_timestamps[idx] for idx in valid_idxs]
+
+        # subsample, then limit the total size of dataset
         image_paths = image_paths[::stride]
         self.image_paths_ = image_paths[:max_num_imgs]
 
         # for each image, cache its associated timestamp
-        self.image_timestamps_ = [int(Path(path).stem.replace(f"{camera_name}_", "")) for path in self.image_paths_]
+        self.image_timestamps_ = image_timestamps
 
         cam_config = get_calibration_config(self.calib_data_, camera_name)
         self.K_ = cam_config.intrinsic[:3, :3]
 
+        # square pixels, so fx and fy should be (nearly) identical
         assert np.isclose(self.K_[0, 0], self.K_[1, 1], atol=0.1)
 
         self.camera_SE3_egovehicle_ = SE3(
@@ -122,9 +132,7 @@ class ArgoverseDatasetLoader(LoaderBase):
         """
         timestamp = self.image_timestamps_[index]
         city_SE3_egovehicle = self.dl_.get_city_SE3_egovehicle(self.log_id_, timestamp)
-        if city_SE3_egovehicle is None:
-            return None
-
+        assert city_SE3_egovehicle is not None
         city_SE3_camera = city_SE3_egovehicle.compose(self.egovehicle_SE3_camera_)
 
         return Pose3(Rot3(city_SE3_camera.rotation), city_SE3_camera.translation)
