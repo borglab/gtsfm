@@ -31,7 +31,7 @@ class ArgoverseDatasetLoader(LoaderBase):
         max_lookahead_sec: float = 2,
         camera_name: str = "ring_front_center",
     ) -> None:
-        """
+        """Select the image paths and their corresponding timestamps for images to feed to GTSFM.
         Args:
             dataset_dir: directory where raw Argoverse logs are stored on disk
             log_id: unique ID of vehicle log
@@ -40,6 +40,7 @@ class ArgoverseDatasetLoader(LoaderBase):
         """
         self.log_id_ = log_id
         self.dl_ = SimpleArgoverseTrackingDataLoader(data_dir=dataset_dir, labels_dir=dataset_dir)
+        self.load_camera_calibration(log_id, camera_name)
 
         # computed as #frames = #sec * (frame/sec)
         max_lookahead_num_fr = max_lookahead_sec * RING_CAMERA_FRAME_RATE
@@ -47,15 +48,12 @@ class ArgoverseDatasetLoader(LoaderBase):
         # in subsampled list, account for subsampling rate
         self.max_lookahead_for_img_ = max_lookahead_num_fr / stride
 
-        self.calib_data_ = self.dl_.get_log_calibration_data(log_id)
-
         image_paths = self.dl_.get_ordered_log_cam_fpaths(log_id, camera_name)
         image_timestamps = [int(Path(path).stem.split("_")[-1]) for path in image_paths]
         # only choose frames where ground truth egovehicle pose is provided
         valid_idxs = [
             idx for idx, ts in enumerate(image_timestamps) if self.dl_.get_city_SE3_egovehicle(log_id, ts) is not None
         ]
-
         image_paths = [image_paths[idx] for idx in valid_idxs]
         image_timestamps = [image_timestamps[idx] for idx in valid_idxs]
 
@@ -66,7 +64,10 @@ class ArgoverseDatasetLoader(LoaderBase):
         # for each image, cache its associated timestamp
         self.image_timestamps_ = image_timestamps
 
-        cam_config = get_calibration_config(self.calib_data_, camera_name)
+    def load_camera_calibration(self, log_id: str, camera_name: str) -> None:
+        """Load extrinsics and intrinsics from disk."""
+        calib_data = self.dl_.get_log_calibration_data(log_id)
+        cam_config = get_calibration_config(calib_data, camera_name)
         self.K_ = cam_config.intrinsic[:3, :3]
 
         # square pixels, so fx and fy should be (nearly) identical
@@ -148,5 +149,4 @@ class ArgoverseDatasetLoader(LoaderBase):
         Returns:
             validation result.
         """
-
         return (idx1 < idx2) and (idx2 < idx1 + self.max_lookahead_for_img_)
