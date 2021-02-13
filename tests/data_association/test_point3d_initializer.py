@@ -1,7 +1,6 @@
-"""Unit tests for initialization of 3D landmark from tracks of 2D measurements
-across cameras. We use example SFM data from gtsam (found at
-gtsam/python/gtsam/examples/SFMdata.py) which creates 8 cameras uniformly
-spaced around a circle with radius 40m.
+"""Unit tests for initialization of 3D landmark from tracks of 2D measurements across cameras. We use example SFM data
+from gtsam (found at gtsam/python/gtsam/examples/SFMdata.py) which creates 8 cameras uniformly spaced around a circle
+with radius 40m.
 
 Authors: Ayush Baid
 """
@@ -52,9 +51,7 @@ CAMERAS = {
     )
 }
 LANDMARK_POINT = Point3(0.0, 0.0, 0.0)
-MEASUREMENTS = [
-    SfmMeasurement(i, cam.project(LANDMARK_POINT)) for i, cam in CAMERAS.items()
-]
+MEASUREMENTS = [SfmMeasurement(i, cam.project(LANDMARK_POINT)) for i, cam in CAMERAS.items()]
 
 
 def get_track_with_one_outlier() -> List[SfmMeasurement]:
@@ -106,8 +103,8 @@ class TestPoint3dInitializer(unittest.TestCase):
         )
 
     def __runWithCorrectMeasurements(self, obj: Point3dInitializer) -> bool:
-        """Run the initialization with a track with all correct measurements,
-        and checks for correctness of the recovered 3D point."""
+        """Run the initialization with a track with all correct measurements, and checks for correctness of the
+        recovered 3D point."""
 
         sfm_track = obj.triangulate(SfmTrack2d(MEASUREMENTS))
         point3d = sfm_track.point3()
@@ -115,8 +112,8 @@ class TestPoint3dInitializer(unittest.TestCase):
         return np.allclose(point3d, LANDMARK_POINT)
 
     def __runWithTwoMeasurements(self, obj: Point3dInitializer) -> bool:
-        """Run the initialization with a track with all correct measurements,
-        and checks for correctness of the recovered 3D point."""
+        """Run the initialization with a track with all correct measurements, and checks for correctness of the
+        recovered 3D point."""
 
         sfm_track = obj.triangulate(SfmTrack2d(MEASUREMENTS[:2]))
         point3d = sfm_track.point3()
@@ -124,15 +121,14 @@ class TestPoint3dInitializer(unittest.TestCase):
         return np.allclose(point3d, LANDMARK_POINT)
 
     def __runWithOneMeasurement(self, obj: Point3dInitializer) -> bool:
-        """Run the initialization with a track with all correct measurements,
-        and checks for a None track as a result."""
+        """Run the initialization with a track with all correct measurements, and checks for a None track as a result."""
         sfm_track = obj.triangulate(SfmTrack2d(MEASUREMENTS[:1]))
 
         return sfm_track is None
 
     def __runWithSingleOutlier(self, obj: Point3dInitializer) -> bool:
-        """Run the initialization for a track with all inlier measurements
-        except one, and checks for correctness of the estimated point."""
+        """Run the initialization for a track with all inlier measurements except one, and checks for correctness of
+        the estimated point."""
 
         sfm_track = obj.triangulate(SfmTrack2d(get_track_with_one_outlier()))
         point3d = sfm_track.point3()
@@ -140,8 +136,7 @@ class TestPoint3dInitializer(unittest.TestCase):
         return np.array_equal(point3d, LANDMARK_POINT)
 
     def __runWithCheiralityException(self, obj: Point3dInitializer) -> bool:
-        """Run the initialization in a a-cheiral setup, and check that the
-        result is a None track."""
+        """Run the initialization in a a-cheiral setup, and check that the result is a None track."""
 
         cameras = obj.track_camera_dict
 
@@ -149,9 +144,7 @@ class TestPoint3dInitializer(unittest.TestCase):
         yaw = np.pi
         camera_flip_pose = Pose3(Rot3.RzRyRx(yaw, 0, 0), np.zeros((3, 1)))
         flipped_cameras = {
-            i: PinholeCameraCal3Bundler(
-                cam.pose().compose(camera_flip_pose), cam.calibration()
-            )
+            i: PinholeCameraCal3Bundler(cam.pose().compose(camera_flip_pose), cam.calibration())
             for i, cam in cameras.items()
         }
 
@@ -162,103 +155,61 @@ class TestPoint3dInitializer(unittest.TestCase):
             obj.num_ransac_hypotheses,
         )
 
-        sfm_track = obj_with_flipped_cameras.triangulate(
-            SfmTrack2d(MEASUREMENTS)
-        )
+        sfm_track = obj_with_flipped_cameras.triangulate(SfmTrack2d(MEASUREMENTS))
 
         return sfm_track is None
 
     def __runWithDuplicateMeasurements(self, obj: Point3dInitializer) -> bool:
-        """Run the initialization for a track with all inlier measurements
-        except one, and checks for correctness of the estimated point."""
+        """Run the initialization for a track with all inlier measurements except one, and checks for correctness of
+        the estimated point."""
 
-        sfm_track = obj.triangulate(
-            SfmTrack2d(get_track_with_duplicate_measurements())
-        )
+        sfm_track = obj.triangulate(SfmTrack2d(get_track_with_duplicate_measurements()))
         point3d = sfm_track.point3()
 
         return np.allclose(point3d, LANDMARK_POINT, atol=1, rtol=1e-1)
 
     def testSimpleTriangulationWithCorrectMeasurements(self):
-        self.assertTrue(
-            self.__runWithCorrectMeasurements(
-                self.simple_triangulation_initializer
-            )
-        )
+        self.assertTrue(self.__runWithCorrectMeasurements(self.simple_triangulation_initializer))
 
     def testSimpleTriangulationWithTwoMeasurements(self):
-        self.assertTrue(
-            self.__runWithTwoMeasurements(self.simple_triangulation_initializer)
-        )
+        self.assertTrue(self.__runWithTwoMeasurements(self.simple_triangulation_initializer))
 
     def testSimpleTriangulationWithOneMeasurement(self):
-        self.assertTrue(
-            self.__runWithOneMeasurement(self.simple_triangulation_initializer)
-        )
+        self.assertTrue(self.__runWithOneMeasurement(self.simple_triangulation_initializer))
 
     def testSimpleTriangulationWithOutlierMeasurements(self):
 
-        sfm_track = self.simple_triangulation_initializer.triangulate(
-            SfmTrack2d(get_track_with_one_outlier())
-        )
+        sfm_track = self.simple_triangulation_initializer.triangulate(SfmTrack2d(get_track_with_one_outlier()))
 
         self.assertIsNone(sfm_track)
 
     def testSimpleTriangulationWithCheiralityException(self):
-        self.assertTrue(
-            self.__runWithCheiralityException(
-                self.simple_triangulation_initializer
-            )
-        )
+        self.assertTrue(self.__runWithCheiralityException(self.simple_triangulation_initializer))
 
     def testSimpleTriangulationWithDuplicateMeaseurements(self):
-        self.assertTrue(
-            self.__runWithDuplicateMeasurements(
-                self.simple_triangulation_initializer
-            )
-        )
+        self.assertTrue(self.__runWithDuplicateMeasurements(self.simple_triangulation_initializer))
 
     def testRansacUniformSamplingWithCorrectMeasurements(self):
-        self.assertTrue(
-            self.__runWithCorrectMeasurements(
-                self.ransac_uniform_sampling_initializer
-            )
-        )
+        self.assertTrue(self.__runWithCorrectMeasurements(self.ransac_uniform_sampling_initializer))
 
     def testRansacUniformSamplingWithTwoMeasurements(self):
-        self.assertTrue(
-            self.__runWithTwoMeasurements(self.simple_triangulation_initializer)
-        )
+        self.assertTrue(self.__runWithTwoMeasurements(self.simple_triangulation_initializer))
 
     def testRansacUniformSamplingWithOneMeasurement(self):
-        self.assertTrue(
-            self.__runWithOneMeasurement(self.simple_triangulation_initializer)
-        )
+        self.assertTrue(self.__runWithOneMeasurement(self.simple_triangulation_initializer))
 
     def testRansacUniformSamplingWithOutlierMeasurements(self):
-        self.assertTrue(
-            self.__runWithSingleOutlier(
-                self.ransac_uniform_sampling_initializer
-            )
-        )
+        self.assertTrue(self.__runWithSingleOutlier(self.ransac_uniform_sampling_initializer))
 
     def testRansacUniformSamplingWithCheiralityException(self):
-        self.assertTrue(
-            self.__runWithCheiralityException(
-                self.ransac_uniform_sampling_initializer
-            )
-        )
+        self.assertTrue(self.__runWithCheiralityException(self.ransac_uniform_sampling_initializer))
 
     def testRansacUniformSamplingWithDuplicateMeaseurements(self):
-        self.assertTrue(
-            self.__runWithDuplicateMeasurements(
-                self.ransac_uniform_sampling_initializer
-            )
-        )
+        self.assertTrue(self.__runWithDuplicateMeasurements(self.ransac_uniform_sampling_initializer))
 
     def testSimpleTriangulationOnDoorDataset(self):
-        """Test the tracks of the door dataset using simple triangulation
-        initialization. Using computed tracks with ground truth camera params.
+        """Test the tracks of the door dataset using simple triangulation initialization. Using computed tracks with
+        ground truth camera params.
 
         Expecting failures on 2 tracks which have incorrect matches."""
         with open(DOOR_TRACKS_PATH, "rb") as handle:
@@ -267,43 +218,27 @@ class TestPoint3dInitializer(unittest.TestCase):
         loader = FolderLoader(DOOR_DATASET_PATH, image_extension="JPG")
 
         camera_dict = {
-            i: PinholeCameraCal3Bundler(
-                loader.get_camera_pose(i), loader.get_camera_intrinsics(i)
-            )
+            i: PinholeCameraCal3Bundler(loader.get_camera_pose(i), loader.get_camera_intrinsics(i))
             for i in range(len(loader))
         }
 
-        initializer = Point3dInitializer(
-            camera_dict, TriangulationParam.NO_RANSAC, reproj_error_thresh=1e5
-        )
+        initializer = Point3dInitializer(camera_dict, TriangulationParam.NO_RANSAC, reproj_error_thresh=1e5)
 
         # tracks which have expected failures
         # (both tracks have incorrect measurements)
         expected_failures = [
             SfmTrack2d(
                 measurements=[
-                    SfmMeasurement(
-                        i=1, uv=np.array([1252.22729492, 1487.29431152])
-                    ),
-                    SfmMeasurement(
-                        i=2, uv=np.array([1170.96679688, 1407.35876465])
-                    ),
-                    SfmMeasurement(
-                        i=4, uv=np.array([263.32104492, 1489.76965332])
-                    ),
+                    SfmMeasurement(i=1, uv=np.array([1252.22729492, 1487.29431152])),
+                    SfmMeasurement(i=2, uv=np.array([1170.96679688, 1407.35876465])),
+                    SfmMeasurement(i=4, uv=np.array([263.32104492, 1489.76965332])),
                 ]
             ),
             SfmTrack2d(
                 measurements=[
-                    SfmMeasurement(
-                        i=6, uv=np.array([1142.34545898, 735.92169189])
-                    ),
-                    SfmMeasurement(
-                        i=7, uv=np.array([1179.84155273, 763.04095459])
-                    ),
-                    SfmMeasurement(
-                        i=9, uv=np.array([216.54107666, 774.74017334])
-                    ),
+                    SfmMeasurement(i=6, uv=np.array([1142.34545898, 735.92169189])),
+                    SfmMeasurement(i=7, uv=np.array([1179.84155273, 763.04095459])),
+                    SfmMeasurement(i=9, uv=np.array([216.54107666, 774.74017334])),
                 ]
             ),
         ]

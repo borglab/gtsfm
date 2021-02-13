@@ -1,16 +1,14 @@
 """ Create 2D-3D data association as a precursor to Bundle Adjustment.
 1. Forms feature tracks from verified correspondences and global poses.
-2. Estimates 3D landmark for each track (Ransac and simple triangulation modes
-   available)
+2. Estimates 3D landmark for each track (Ransac and simple triangulation modes available)
 3. Filters tracks based on reprojection error.
 
 References: 
-1. Richard I. Hartley and Peter Sturm. Triangulation. Computer Vision and Image
-Understanding, Vol. 68, No. 2, November, pp. 146–157, 1997
+1. Richard I. Hartley and Peter Sturm. Triangulation. Computer Vision and Image Understanding, Vol. 68, No. 2,
+   November, pp. 146–157, 1997
 
 Authors: Sushmita Warrier, Xiaolong Wu
 """
-import logging
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import dask
@@ -18,6 +16,7 @@ import numpy as np
 from dask.delayed import Delayed
 from gtsam import PinholeCameraCal3Bundler, SfmData, SfmTrack
 
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.sfm_result import SfmResult
 from gtsfm.common.sfm_track import SfmTrack2d
@@ -27,20 +26,7 @@ from gtsfm.data_association.point3d_initializer import (
 )
 
 
-def get_logger():
-    """Getter for logger."""
-    logger_name = "main-logger"
-    logger = logging.getLogger(logger_name)
-    logger.setLevel(logging.INFO)
-    if not logger.handlers:
-        handler = logging.StreamHandler()
-        fmt = "[%(asctime)s %(levelname)s %(filename)s line %(lineno)d %(process)d] %(message)s"
-        handler.setFormatter(logging.Formatter(fmt))
-        logger.addHandler(handler)
-    return logger
-
-
-logger = get_logger()
+logger = logger_utils.get_logger()
 
 
 class DataAssociation(NamedTuple):
@@ -48,12 +34,10 @@ class DataAssociation(NamedTuple):
 
     Args:
         reproj_error_thresh: the maximum reprojection error allowed.
-        min_track_len: min length required for valid feature track / min nb of
-            supporting views required for a landmark to be valid.
-        mode: triangulation mode, which dictates whether or not to use robust
-              estimation.
-        num_ransac_hypotheses (optional): number of hypothesis for RANSAC-based
-              triangulation.
+        min_track_len: min length required for valid feature track / min nb of supporting views required for a landmark
+                       to be valid.
+        mode: triangulation mode, which dictates whether or not to use robust estimation.
+        num_ransac_hypotheses (optional): number of hypothesis for RANSAC-based triangulation.
     """
 
     reproj_error_thresh: float
@@ -63,10 +47,7 @@ class DataAssociation(NamedTuple):
 
     def __validate_track(self, sfm_track: Optional[SfmTrack]) -> bool:
         """Validate the track by checking its length."""
-        return (
-            sfm_track is not None
-            and sfm_track.number_measurements() >= self.min_track_len
-        )
+        return sfm_track is not None and sfm_track.number_measurements() >= self.min_track_len
 
     def run(
         self,
@@ -78,26 +59,21 @@ class DataAssociation(NamedTuple):
 
         Args:
             cameras: dictionary, with image index -> camera mapping.
-            corr_idxs_dict: dictionary, with key as image pair (i1,i2) and value
-                            as matching keypoint indices.
+            corr_idxs_dict: dictionary, with key as image pair (i1,i2) and value as matching keypoint indices.
             keypoints_list: keypoints for each image.
 
         Returns:
             cameras and tracks as SfmData.
         """
         # generate tracks for 3D points using pairwise correspondences
-        tracks = SfmTrack2d.generate_tracks_from_pairwise_matches(
-            corr_idxs_dict, keypoints_list
-        )
+        tracks = SfmTrack2d.generate_tracks_from_pairwise_matches(corr_idxs_dict, keypoints_list)
 
         # metrics on tracks w/o triangulation check
         num_tracks = len(tracks)
         track_lengths = list(map(lambda x: x.number_measurements(), tracks))
 
-        logging.debug(
-            "[Data association] input number of tracks: %s", num_tracks
-        )
-        logging.debug(
+        logger.debug("[Data association] input number of tracks: %s", num_tracks)
+        logger.debug(
             "[Data association] input avg. track length: %s",
             np.mean(track_lengths),
         )
@@ -131,11 +107,11 @@ class DataAssociation(NamedTuple):
                 raise RuntimeError("Some cameras must have been dropped ")
             triangulated_data.add_camera(cam)
 
-        logging.debug(
+        logger.debug(
             "[Data association] output number of tracks: %s",
             triangulated_data.number_tracks(),
         )
-        logging.debug(
+        logger.debug(
             "[Data association] output avg. track length: %s",
             SfmResult(triangulated_data, None).get_track_length_statistics()[0],
         )
@@ -152,8 +128,7 @@ class DataAssociation(NamedTuple):
 
         Args:
             cameras: list of cameras wrapped up as Delayed.
-            corr_idxs_graph: dictionary of correspondence indices, each value
-                             wrapped up as Delayed.
+            corr_idxs_graph: dictionary of correspondence indices, each value wrapped up as Delayed.
             keypoints_graph: list of wrapped up keypoints for each image.
 
         Returns:

@@ -22,9 +22,7 @@ class DummyDetector(DetectorBase):
             detected keypoints, with maximum length of max_keypoints.
         """
 
-        np.random.seed(
-            int(1000*np.sum(image.value_array, axis=None) % (2 ^ 32))
-        )
+        np.random.seed(int(1000 * np.sum(image.value_array, axis=None) % (2 ^ 32)))
 
         num_detections = np.random.randint(0, high=15, size=(1)).item()
 
@@ -32,7 +30,8 @@ class DummyDetector(DetectorBase):
         coordinates = np.random.randint(
             low=[0, 0],
             high=[image.value_array.shape[1], image.value_array.shape[0]],
-            size=(num_detections, 2))
+            size=(num_detections, 2),
+        )
 
         # assign the scale
         scales = np.random.rand(num_detections)

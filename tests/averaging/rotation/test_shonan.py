@@ -11,13 +11,10 @@ import tests.averaging.rotation.test_rotation_averaging_base as test_rotation_av
 from gtsfm.averaging.rotation.shonan import ShonanRotationAveraging
 
 
-class TestShonanRotationAveraging(
-    test_rotation_averaging_base.TestRotationAveragingBase
-):
+class TestShonanRotationAveraging(test_rotation_averaging_base.TestRotationAveragingBase):
     """Test class for Shonan rotation averaging.
 
-    All unit test functions defined in TestRotationAveragingBase are run
-    automatically.
+    All unit test functions defined in TestRotationAveragingBase are run automatically.
     """
 
     def setUp(self):
@@ -41,12 +38,8 @@ class TestShonanRotationAveraging(
 
         wRi_list = self.obj.run(3, i2Ri1_dict)
 
-        self.assertTrue(
-            expected_wRi_list[1].equals(wRi_list[0].between(wRi_list[1]), 1e-5)
-        )
-        self.assertTrue(
-            expected_wRi_list[2].equals(wRi_list[0].between(wRi_list[2]), 1e-5)
-        )
+        self.assertTrue(expected_wRi_list[1].equals(wRi_list[0].between(wRi_list[1]), 1e-5))
+        self.assertTrue(expected_wRi_list[2].equals(wRi_list[0].between(wRi_list[2]), 1e-5))
 
 
 if __name__ == "__main__":

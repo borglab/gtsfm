@@ -1,5 +1,8 @@
 # Georgia Tech Structure from Motion (GTSFM) Library
 
+![Linux CI](https://github.com/borglab/gtsfm/workflows/Python%20CI/badge.svg)
+
+
 ### What is GTSFM?
 GTSFM is an end-to-end SFM pipeline based on [GTSAM](https://github.com/borglab/gtsam). GTSFM was designed from the ground-up to natively support parallel computation using [Dask](https://dask.org/).
 
@@ -12,6 +15,7 @@ On Linux, with CUDA support:
 conda env create -f environment_linux.yml
 conda activate gtsfm-v1 # you may need "source activate gtsfm-v1" depending upon your bash and conda set-up
 ```
+The Python3.8 `gtsam` wheel for Linux is available [here](https://github.com/borglab/gtsam-manylinux-build/suites/1859835370/artifacts/36145194).
 
 **Mac**
 On Mac OSX, there is no CUDA support and no `pydegensac` wheel in `pypi`, so run:
@@ -43,7 +47,7 @@ Make sure that you can run `python -c "import gtsfm; import gtsam; import pydege
 
 Please run
 ```python
-python gtsfm/scene_optimizer.py
+python gtsfm/runner/run_scene_optimizer.py
 ```
 
 ## Repository Structure

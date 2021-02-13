@@ -90,22 +90,15 @@ class TestDataAssociation(GtsamTestCase):
     def test_create_computation_graph(self):
         """Test the dask computation graph."""
         sharedCal = Cal3Bundler(1500, 0, 0, 640, 480)
-        cameras = {
-            i: PinholeCameraCal3Bundler(x, sharedCal)
-            for (i, x) in enumerate(self.poses)
-        }
+        cameras = {i: PinholeCameraCal3Bundler(x, sharedCal) for (i, x) in enumerate(self.poses)}
 
         camera_graph = dask.delayed(cameras)
 
-        corr_idxs_graph = {
-            k: dask.delayed(v) for (k, v) in self.dummy_corr_idxs_dict.items()
-        }
+        corr_idxs_graph = {k: dask.delayed(v) for (k, v) in self.dummy_corr_idxs_dict.items()}
 
         keypoints_graph = [dask.delayed(x) for x in self.keypoints_list]
 
-        da_graph = self.obj.create_computation_graph(
-            camera_graph, corr_idxs_graph, keypoints_graph
-        )
+        da_graph = self.obj.create_computation_graph(camera_graph, corr_idxs_graph, keypoints_graph)
 
         with dask.config.set(scheduler="single-threaded"):
             dask_result = dask.compute(da_graph)[0]

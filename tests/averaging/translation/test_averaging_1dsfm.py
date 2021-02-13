@@ -18,13 +18,10 @@ from gtsfm.loader.folder_loader import FolderLoader
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent.parent / "data"
 
 
-class TestTranslationAveraging1DSFM(
-    test_translation_averaging_base.TestTranslationAveragingBase
-):
+class TestTranslationAveraging1DSFM(test_translation_averaging_base.TestTranslationAveragingBase):
     """Test class for 1DSFM rotation averaging.
 
-    All unit test functions defined in TestTranslationAveragingBase are run
-    automatically.
+    All unit test functions defined in TestTranslationAveragingBase are run automatically.
     """
 
     def setUp(self):
@@ -33,13 +30,9 @@ class TestTranslationAveraging1DSFM(
         self.obj = TranslationAveraging1DSFM()
 
     def test_lund_door(self):
-        loader = FolderLoader(
-            str(DATA_ROOT_PATH / "set1_lund_door"), image_extension="JPG"
-        )
+        loader = FolderLoader(str(DATA_ROOT_PATH / "set1_lund_door"), image_extension="JPG")
 
-        expected_wTi_list = [
-            loader.get_camera_pose(x) for x in range(len(loader))
-        ]
+        expected_wTi_list = [loader.get_camera_pose(x) for x in range(len(loader))]
         wRi_list = [x.rotation() for x in expected_wTi_list]
 
         i2Ui1_dict = dict()
@@ -50,17 +43,10 @@ class TestTranslationAveraging1DSFM(
 
         wti_list = self.obj.run(len(loader), i2Ui1_dict, wRi_list)
 
-        wTi_list = [
-            Pose3(wRi, wti) if wti is not None else None
-            for (wRi, wti) in zip(wRi_list, wti_list)
-        ]
+        wTi_list = [Pose3(wRi, wti) if wti is not None else None for (wRi, wti) in zip(wRi_list, wti_list)]
 
         # TODO: using a v high value for translation relative threshold. Fix it
-        self.assertTrue(
-            geometry_comparisons.compare_global_poses(
-                wTi_list, expected_wTi_list, trans_err_thresh=2e1
-            )
-        )
+        self.assertTrue(geometry_comparisons.compare_global_poses(wTi_list, expected_wTi_list, trans_err_thresh=2e1))
 
 
 if __name__ == "__main__":

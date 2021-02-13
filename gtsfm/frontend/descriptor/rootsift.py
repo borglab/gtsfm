@@ -1,7 +1,7 @@
 """RootSIFT descriptor implementation.
 
-This descriptor was proposed in 'Three things everyone should know to improve
-object retrieval' and is build upon OpenCV's API.
+This descriptor was proposed in 'Three things everyone should know to improve object retrieval' and is build upon
+OpenCV's API.
 
 Note: this is a standalone descriptor.
 
@@ -24,15 +24,15 @@ class RootSIFTDescriptor(SIFTDescriptor):
     def describe(self, image: Image, keypoints: Keypoints) -> np.ndarray:
         """Assign descriptors to detected features in an image.
 
+        Note: Each descriptor will have unit L2-norm, as L1-normalization followed by a square root already gives unit
+        norm under the L2 norm.
+
         Arguments:
             image: the input image.
             keypoints: the keypoints to describe, of length N.
 
         Returns:
-            the descriptors for the input features, of shape (N, D) where D is
-                the dimension of each descriptor. Note that each descriptor
-                will have unit L2-norm, as L1-normalization followed by a 
-                square root already gives unit norm under the L2 norm.
+            Descriptors for the input features, of shape (N, D) where D is the dimension of each descriptor.
         """
         if len(keypoints) == 0:
             return np.array([])

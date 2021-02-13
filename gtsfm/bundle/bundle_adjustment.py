@@ -2,10 +2,6 @@
 
 Authors: Xiaolong Wu, John Lambert, Ayush Baid
 """
-
-import logging
-import sys
-
 import dask
 import gtsam
 from dask.delayed import Delayed
@@ -17,23 +13,25 @@ from gtsam import (
     symbol_shorthand,
 )
 
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.sfm_result import SfmResult
 
 # TODO: any way this goes away?
 C = symbol_shorthand.C
 P = symbol_shorthand.P
 
-PINHOLE_CAM_CAL3BUNDLER_DOF = 9 # 6 dof for pose, and 3 dof for f, k1, k2
-IMG_MEASUREMENT_DIM = 2 # 2d measurements (u,v) have 2 dof
-POINT3_DOF = 3 # 3d points have 3 dof
+PINHOLE_CAM_CAL3BUNDLER_DOF = 9  # 6 dof for pose, and 3 dof for f, k1, k2
+IMG_MEASUREMENT_DIM = 2  # 2d measurements (u,v) have 2 dof
+POINT3_DOF = 3  # 3d points have 3 dof
 
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+logger = logger_utils.get_logger()
 
 
 class BundleAdjustmentOptimizer:
     """Bundle adjustment using factor-graphs in GTSAM.
 
-    This class refines global pose estimates and intrinsics of cameras, and also refines 3D point cloud structure given tracks from triangulation."""
+    This class refines global pose estimates and intrinsics of cameras, and also refines 3D point cloud structure given
+    tracks from triangulation."""
 
     def run(self, initial_data: SfmData) -> SfmResult:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
@@ -44,9 +42,7 @@ class BundleAdjustmentOptimizer:
         Results:
             optimized camera poses, 3D point w/ tracks, and error metrics.
         """
-        logging.info(
-            f"Input: {initial_data.number_tracks()} tracks on {initial_data.number_cameras()} cameras\n"
-        )
+        logger.info(f"Input: {initial_data.number_tracks()} tracks on {initial_data.number_cameras()} cameras\n")
 
         # noise model for measurements -- one pixel in u and v
         measurement_noise = gtsam.noiseModel.Isotropic.Sigma(IMG_MEASUREMENT_DIM, 1.0)
@@ -62,11 +58,7 @@ class BundleAdjustmentOptimizer:
                 # i represents the camera index, and uv is the 2d measurement
                 i, uv = track.measurement(m_idx)
                 # note use of shorthand symbols C and P
-                graph.add(
-                    GeneralSFMFactorCal3Bundler(
-                        uv, measurement_noise, C(i), P(j)
-                    )
-                )
+                graph.add(GeneralSFMFactorCal3Bundler(uv, measurement_noise, C(i), P(j)))
 
         # Add a prior on pose x1. This indirectly specifies where the origin is.
         graph.push_back(
@@ -109,14 +101,14 @@ class BundleAdjustmentOptimizer:
             lm = gtsam.LevenbergMarquardtOptimizer(graph, initial, params)
             result_values = lm.optimize()
         except Exception as e:
-            logging.exception("LM Optimization failed")
-            return
+            logger.exception("LM Optimization failed")
+            return SfmResult(SfmData(), float("Nan"))
 
         final_error = graph.error(result_values)
 
         # Error drops from ~2764.22 to ~0.046
-        logging.info(f"initial error: {graph.error(initial):.2f}")
-        logging.info(f"final error: {final_error:.2f}")
+        logger.info(f"initial error: {graph.error(initial):.2f}")
+        logger.info(f"final error: {final_error:.2f}")
 
         # construct the results
         optimized_data = values_to_sfm_data(result_values, initial_data)
@@ -141,8 +133,8 @@ def values_to_sfm_data(values: Values, initial_data: SfmData) -> SfmData:
 
     Args:
         values: results of factor graph optimization.
-        initial_data: data used to generate the factor graph; used to extract
-                      information about poses and 3d points in the graph.
+        initial_data: data used to generate the factor graph; used to extract information about poses and 3d points in
+                      the graph.
 
     Returns:
         optimized poses and landmarks.

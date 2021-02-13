@@ -71,15 +71,14 @@ class TestDescriptorBase(unittest.TestCase):
             )
 
             descriptor_graph = self.descriptor.create_computation_graph(
-                dask.delayed(test_image), dask.delayed(test_keypoints),
+                dask.delayed(test_image),
+                dask.delayed(test_keypoints),
             )
 
             with dask.config.set(scheduler="single-threaded"):
                 descriptors = dask.compute(descriptor_graph)[0]
 
-            expected_descriptors = self.descriptor.describe(
-                test_image, test_keypoints
-            )
+            expected_descriptors = self.descriptor.describe(test_image, test_keypoints)
 
             np.testing.assert_allclose(descriptors, expected_descriptors)
 

@@ -15,6 +15,8 @@ EXAMPLE_RESULT = SfmResult(
     total_reproj_error=1.5e1,
 )
 
+NULL_RESULT = SfmResult(SfmData(), total_reproj_error=float("Nan"))
+
 
 class TestSfmResult(unittest.TestCase):
     """Unit tests for SfmResult"""
@@ -24,9 +26,7 @@ class TestSfmResult(unittest.TestCase):
         self.assertEqual(EXAMPLE_RESULT, EXAMPLE_RESULT)
 
     def testEqualsWithDifferentObject(self):
-        """Test the equality function with different object, expecting false
-        result.
-        """
+        """Test the equality function with different object, expecting false result."""
         other_example_file = "dubrovnik-1-1-pre.txt"
         other_result = SfmResult(
             gtsam.readBal(gtsam.findExampleDataFile(other_example_file)),
@@ -34,6 +34,13 @@ class TestSfmResult(unittest.TestCase):
         )
 
         self.assertNotEqual(EXAMPLE_RESULT, other_result)
+
+    def testEqualsWithNullObject(self):
+        """Tests equality of null object with itself and other valid object."""
+
+        self.assertEqual(NULL_RESULT, NULL_RESULT)
+
+        self.assertNotEqual(NULL_RESULT, EXAMPLE_RESULT)
 
     def testGetTrackLengthStatistics(self):
         """Test computation of mean and median track length."""

@@ -35,9 +35,7 @@ def cast_to_gtsfm_keypoints(keypoints: List[cv.KeyPoint]) -> Keypoints:
     )
 
 
-def normalize_coordinates(
-    coordinates: np.ndarray, intrinsics: Cal3Bundler
-) -> np.ndarray:
+def normalize_coordinates(coordinates: np.ndarray, intrinsics: Cal3Bundler) -> np.ndarray:
     """Normalize 2D coordinates using camera intrinsics.
 
     Args:
@@ -48,6 +46,4 @@ def normalize_coordinates(
         normalized coordinates, of shape Nx2.
     """
 
-    return np.vstack(
-        [intrinsics.calibrate(x[:2].reshape(2, 1)) for x in coordinates]
-    )
+    return np.vstack([intrinsics.calibrate(x[:2].reshape(2, 1)) for x in coordinates])

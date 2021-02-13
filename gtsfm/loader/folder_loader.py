@@ -40,9 +40,7 @@ class FolderLoader(LoaderBase):
         """
 
         # fetch all the file names in /image folder
-        search_path = os.path.join(
-            folder, "images", "*.{}".format(image_extension)
-        )
+        search_path = os.path.join(folder, "images", "*.{}".format(image_extension))
 
         self.image_paths = glob.glob(search_path)
 
@@ -54,9 +52,7 @@ class FolderLoader(LoaderBase):
             file_path = os.path.join(
                 folder,
                 "intrinsics",
-                "{}.npy".format(
-                    os.path.splitext(os.path.basename(image_file_name))[0]
-                ),
+                "{}.npy".format(os.path.splitext(os.path.basename(image_file_name))[0]),
             )
             if not os.path.exists(file_path):
                 self.explicit_intrinsics_paths = []
@@ -65,15 +61,11 @@ class FolderLoader(LoaderBase):
                 self.explicit_intrinsics_paths.append(file_path)
 
         # check if extrinsics are available as numpy arrays
-        explicit_extrinsics_template = os.path.join(
-            folder, "extrinsics", "{}.npy"
-        )
+        explicit_extrinsics_template = os.path.join(folder, "extrinsics", "{}.npy")
 
         self.explicit_extrinsics_paths = []
         for image_file_name in self.image_paths:
-            file_path = explicit_extrinsics_template.format(
-                Path(image_file_name).stem
-            )
+            file_path = explicit_extrinsics_template.format(Path(image_file_name).stem)
             if not os.path.exists(file_path):
                 self.explicit_extrinsics_paths = []
                 break
@@ -120,9 +112,7 @@ class FolderLoader(LoaderBase):
         if len(self.explicit_intrinsics_paths) == 0:
             # get intrinsics from exif
 
-            return io_utils.load_image(
-                self.image_paths[index]
-            ).get_intrinsics_from_exif()
+            return io_utils.load_image(self.image_paths[index]).get_intrinsics_from_exif()
 
         else:
             # TODO: handle extra inputs in the intrinsics array

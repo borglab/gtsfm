@@ -37,18 +37,8 @@ class TestMatcherBase(unittest.TestCase):
 
         if result.size:
             # check that the match indices are out of bounds
-            self.assertTrue(
-                np.all(
-                    (result[:, 0] >= 0)
-                    & (result[:, 0] < descriptors_im1.shape[0])
-                )
-            )
-            self.assertTrue(
-                np.all(
-                    (result[:, 1] >= 0)
-                    & (result[:, 1] < descriptors_im2.shape[0])
-                )
-            )
+            self.assertTrue(np.all((result[:, 0] >= 0) & (result[:, 0] < descriptors_im1.shape[0])))
+            self.assertTrue(np.all((result[:, 1] >= 0) & (result[:, 1] < descriptors_im2.shape[0])))
 
     def test_empty_input(self):
         """Tests the matches when there are no descriptors."""
@@ -57,21 +47,15 @@ class TestMatcherBase(unittest.TestCase):
 
         descriptor_dim = random.randint(2, 10)  # dimensionality
 
-        descriptors = generate_random_binary_descriptors(
-            num_descriptors, descriptor_dim
-        )
+        descriptors = generate_random_binary_descriptors(num_descriptors, descriptor_dim)
 
         # the first descriptor is empty
-        result = self.matcher.match(
-            generate_random_binary_descriptors(0, descriptor_dim), descriptors
-        )
+        result = self.matcher.match(generate_random_binary_descriptors(0, descriptor_dim), descriptors)
 
         self.assertEqual(0, result.size)
 
         # the second descriptor is empty
-        result = self.matcher.match(
-            descriptors, generate_random_binary_descriptors(0, descriptor_dim)
-        )
+        result = self.matcher.match(descriptors, generate_random_binary_descriptors(0, descriptor_dim))
 
         self.assertEqual(0, result.size)
 
@@ -98,7 +82,7 @@ class TestMatcherBase(unittest.TestCase):
         self.assertEqual(result.shape[0], len(set_index_im2))
 
     def test_computation_graph(self):
-        """Test that the computation graph is working exactly as the normal 
+        """Test that the computation graph is working exactly as the normal
         matching API using 3 images.
         """
         # number of images in test, for which we need to generate descriptors.
@@ -115,9 +99,7 @@ class TestMatcherBase(unittest.TestCase):
             num_descriptors = random.randint(5, 15)
 
             descriptors_list.append(
-                generate_random_binary_descriptors(
-                    num_descriptors, descriptor_dimension
-                ),
+                generate_random_binary_descriptors(num_descriptors, descriptor_dimension),
             )
 
         for (i1, i2) in pairs_list:
@@ -130,9 +112,7 @@ class TestMatcherBase(unittest.TestCase):
                 matches = dask.compute(matches_graph)[0]
 
             # run matching using normal APIs
-            expected_matches = self.matcher.match(
-                descriptors_list[i1], descriptors_list[i2]
-            )
+            expected_matches = self.matcher.match(descriptors_list[i1], descriptors_list[i2])
 
             np.testing.assert_array_equal(matches, expected_matches)
 
@@ -146,15 +126,14 @@ class TestMatcherBase(unittest.TestCase):
     def __generate_matches_on_random_descriptors(
         self,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Generates a pair of random descriptors and uses the matcher under 
-        test to match them.
+        """Generates a pair of random descriptors and uses the matcher under test to match them.
 
         Note: using binary descriptors in uint8 format as we want the hamming distances to work
 
         Returns:
-            Tuple[np.ndarray,np.ndarray,np.ndarray]: 1. matching result on the randomly generated input
-                                                     2. descriptor input for image #1
-                                                     3. descriptor input for image #2
+            Matching result on the randomly generated input
+            Descriptor input for image #1
+            Descriptor input for image #2
         """
 
         num_descriptors_im1 = random.randint(5, 15)
@@ -162,21 +141,15 @@ class TestMatcherBase(unittest.TestCase):
 
         descriptor_dim = random.randint(2, 10)
 
-        descriptors_im1 = generate_random_binary_descriptors(
-            num_descriptors_im1, descriptor_dim
-        )
-        descriptors_im2 = generate_random_binary_descriptors(
-            num_descriptors_im2, descriptor_dim
-        )
+        descriptors_im1 = generate_random_binary_descriptors(num_descriptors_im1, descriptor_dim)
+        descriptors_im2 = generate_random_binary_descriptors(num_descriptors_im2, descriptor_dim)
 
         result = self.matcher.match(descriptors_im1, descriptors_im2)
 
         return result, descriptors_im1, descriptors_im2
 
 
-def generate_random_binary_descriptors(
-    num_descriptors: int, descriptor_dim: int
-) -> np.ndarray:
+def generate_random_binary_descriptors(num_descriptors: int, descriptor_dim: int) -> np.ndarray:
     """Generates random binary descriptors.
 
     Args:
@@ -184,14 +157,12 @@ def generate_random_binary_descriptors(
         descriptor_dim (int): length of each descriptor vector
 
     Returns:
-        np.ndarray: generated descriptor
+        Generated descriptor
     """
     if num_descriptors == 0:
         return np.array([], dtype=np.uint8)
 
-    return np.random.randint(
-        0, high=2, size=(num_descriptors, descriptor_dim)
-    ).astype(np.uint8)
+    return np.random.randint(0, high=2, size=(num_descriptors, descriptor_dim)).astype(np.uint8)
 
 
 if __name__ == "__main__":
