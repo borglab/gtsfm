@@ -20,11 +20,9 @@ from gtsam import (
 import gtsfm.utils.metrics as metrics
 import gtsfm.utils.serialization  # import needed to register serialization fns
 from gtsfm.averaging.rotation.rotation_averaging_base import (
-    RotationAveragingBase,
-)
+    RotationAveragingBase, )
 from gtsfm.averaging.translation.translation_averaging_base import (
-    TranslationAveragingBase,
-)
+    TranslationAveragingBase, )
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.data_association.data_assoc import DataAssociation
 
@@ -76,36 +74,29 @@ class MultiViewOptimizer:
         """
         # prune the graph to a single connected component.
         pruned_graph = dask.delayed(select_largest_connected_component)(
-            i2Ri1_graph, i2Ui1_graph
-        )
+            i2Ri1_graph, i2Ui1_graph)
 
         pruned_i2Ri1_graph = pruned_graph[0]
         pruned_i2Ui1_graph = pruned_graph[1]
 
         wRi_graph = self.rot_avg_module.create_computation_graph(
-            num_images, pruned_i2Ri1_graph
-        )
+            num_images, pruned_i2Ri1_graph)
 
         wti_graph = self.trans_avg_module.create_computation_graph(
-            num_images, pruned_i2Ui1_graph, wRi_graph
-        )
+            num_images, pruned_i2Ui1_graph, wRi_graph)
 
-        init_cameras_graph = dask.delayed(init_cameras)(
-            wRi_graph, wti_graph, intrinsics_graph
-        )
+        init_cameras_graph = dask.delayed(init_cameras)(wRi_graph, wti_graph,
+                                                        intrinsics_graph)
 
         ba_input_graph = self.data_association_module.create_computation_graph(
-            init_cameras_graph, v_corr_idxs_graph, keypoints_graph
-        )
+            init_cameras_graph, v_corr_idxs_graph, keypoints_graph)
 
         ba_result_graph = self.ba_optimizer.create_computation_graph(
-            ba_input_graph
-        )
+            ba_input_graph)
 
         if gt_poses_graph is not None:
             self.metrics_graph = dask.delayed(metrics.save_averaging_metrics)(
-                    wRi_graph, wti_graph, gt_poses_graph, 'metrics'
-                )
+                i2Ui1_graph, wRi_graph, wti_graph, gt_poses_graph, 'metrics')
 
         return ba_input_graph, ba_result_graph
 
@@ -153,8 +144,10 @@ def select_largest_connected_component(
 
     # return the subset of original input
     return (
-        {k: rotations[k] for k in selected_edges},
-        {k: unit_translations[k] for k in selected_edges},
+        {k: rotations[k]
+         for k in selected_edges},
+        {k: unit_translations[k]
+         for k in selected_edges},
     )
 
 
@@ -176,8 +169,7 @@ def init_cameras(
 
     for idx, (wRi, wti) in enumerate(zip(wRi_list, wti_list)):
         if wRi is not None and wti is not None:
-            cameras[idx] = PinholeCameraCal3Bundler(
-                Pose3(wRi, wti), intrinsics_list[idx]
-            )
+            cameras[idx] = PinholeCameraCal3Bundler(Pose3(wRi, wti),
+                                                    intrinsics_list[idx])
 
     return cameras

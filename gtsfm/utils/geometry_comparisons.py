@@ -10,7 +10,8 @@ from gtsam import Pose3, Rot3, Unit3
 EPSILON = np.finfo(float).eps
 
 
-def align_rotations(input_list: List[Rot3], ref_list: List[Rot3]) -> List[Rot3]:
+def align_rotations(input_list: List[Rot3],
+                    ref_list: List[Rot3]) -> List[Rot3]:
     """Aligns the list of rotations to the reference list by shifting origin.
 
     Args:
@@ -48,31 +49,24 @@ def align_poses(input_list: List[Pose3], ref_list: List[Pose3]) -> List[Pose3]:
     """
     # match the scales first
     wTi0 = input_list[0]
-    input_distances = np.array(
-        [
-            np.linalg.norm((wTi.between(wTi0)).translation())
-            for wTi in input_list[1:]
-        ]
-    )
+    input_distances = np.array([
+        np.linalg.norm((wTi.between(wTi0)).translation())
+        for wTi in input_list[1:]
+    ])
 
     wTi0 = ref_list[0]
-    ref_distances = (
-        np.array(
-            [
-                np.linalg.norm((wTi.between(wTi0)).translation())
-                for wTi in ref_list[1:]
-            ]
-        )
-        + EPSILON
-    )
+    ref_distances = (np.array([
+        np.linalg.norm((wTi.between(wTi0)).translation())
+        for wTi in ref_list[1:]
+    ]) + EPSILON)
 
     # rescale poses to account for SfM scale ambiguity
     scales = ref_distances / input_distances
     scaling_factor = np.median(scales)
 
     scaled_list = [
-        Pose3(w2Ti.rotation(), w2Ti.translation() * scaling_factor)
-        for w2Ti in input_list
+        Pose3(w2Ti.rotation(),
+              w2Ti.translation() * scaling_factor) for w2Ti in input_list
     ]
 
     # now match origin
@@ -87,9 +81,8 @@ def align_poses(input_list: List[Pose3], ref_list: List[Pose3]) -> List[Pose3]:
     return scaled_shifted_list
 
 
-def compare_rotations(
-    wRi_list: List[Optional[Rot3]], wRi_list_: List[Optional[Rot3]]
-) -> bool:
+def compare_rotations(wRi_list: List[Optional[Rot3]],
+                      wRi_list_: List[Optional[Rot3]]) -> bool:
     """Helper function to compare two lists of global Rot3, considering the
     origin as ambiguous.
 
@@ -127,8 +120,7 @@ def compare_rotations(
     wRi_list = align_rotations(wRi_list, ref_list=wRi_list_)
 
     return all(
-        [wRi.equals(wRi_, 1e-1) for (wRi, wRi_) in zip(wRi_list, wRi_list_)]
-    )
+        [wRi.equals(wRi_, 1e-1) for (wRi, wRi_) in zip(wRi_list, wRi_list_)])
 
 
 def compare_global_poses(
@@ -181,24 +173,16 @@ def compare_global_poses(
 
     wTi_list = align_poses(wTi_list, ref_list=wTi_list_)
 
-    return all(
-        [
-            (
-                wTi.rotation().equals(wTi_.rotation(), rot_err_thresh)
-                and np.allclose(
-                    wTi.translation(),
-                    wTi_.translation(),
-                    rtol=trans_err_thresh,
-                )
-            )
-            for (wTi, wTi_) in zip(wTi_list, wTi_list_)
-        ]
-    )
+    return all([(wTi.rotation().equals(wTi_.rotation(), rot_err_thresh) and
+                 np.allclose(
+                     wTi.translation(),
+                     wTi_.translation(),
+                     rtol=trans_err_thresh,
+                 )) for (wTi, wTi_) in zip(wTi_list, wTi_list_)])
 
 
-def compute_relative_rotation_angle(
-    R_1: Optional[Rot3], R_2: Optional[Rot3]
-) -> Optional[float]:
+def compute_relative_rotation_angle(R_1: Optional[Rot3],
+                                    R_2: Optional[Rot3]) -> Optional[float]:
     """Compute the angle between two rotations.
 
     Note: the angle is the norm of the angle-axis representation.
@@ -220,8 +204,7 @@ def compute_relative_rotation_angle(
 
 
 def compute_relative_unit_translation_angle(
-    U_1: Optional[Unit3], U_2: Optional[Unit3]
-) -> Optional[float]:
+        U_1: Optional[Unit3], U_2: Optional[Unit3]) -> Optional[float]:
     """Compute the angle between two unit-translations.
 
     Args:
@@ -238,3 +221,28 @@ def compute_relative_unit_translation_angle(
     dot_product = np.dot(U_1.point3(), U_2.point3())
     dot_product = np.clip(dot_product, -1, 1)
     return np.arccos(dot_product)
+
+
+def compute_translation_to_direction_angle(
+        i2Ui1: Optional[Unit3], wTi2: Optional[Point3],
+        wTi1: Optional[Pose3]) -> Optional[float]:
+    """Compute the angle between a translation direction and point.
+
+    Given a unit translation measurement from i2 to i1, the estimated poses of
+    i1 and i2, returns the angle in radians between the relative position of 
+    i2 wrt i1 and the unit translation measurement. 
+
+    Args:
+        i2Ui1: Unit translation measurement. 
+        wTi2: Pose of camera i2. 
+        wTi1: Pose of camera i1. 
+
+    Returns: 
+        Angle between measurement and relative estimated translation in radians. 
+    """
+    if i2Ui1 is None or wTi2 is None or wTi1 is None:
+        return None
+
+    i2Ti1 = wTi2.between(wTi1)
+    i2Ui1_estimated = Unit3(i2Ti1.translation())
+    return compute_relative_unit_translation_angle(i2Ui1, i2Ui1_estimated)
