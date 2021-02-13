@@ -30,7 +30,7 @@ pil_logger.setLevel(logging.INFO)
 class TwoViewEstimator:
     """Wrapper for running two-view relative pose estimation on image pairs in the dataset."""
 
-    def __init__(self, matcher: MatcherBase, verifier: VerifierBase, corr_metric_dist_threshold: int) -> None:
+    def __init__(self, matcher: MatcherBase, verifier: VerifierBase, corr_metric_dist_threshold: float) -> None:
         """Initializes the two-view estimator from matcher and verifier.
 
         Args:
