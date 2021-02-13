@@ -26,13 +26,11 @@ mpl_logger.setLevel(logging.WARNING)
 pil_logger = logging.getLogger("PIL")
 pil_logger.setLevel(logging.INFO)
 
-ESSENTIAL_MATRIX_EPIPOLAR_DISTANCE_THRESHOLD = 0.1  # TODO: move to config?
-
 
 class TwoViewEstimator:
     """Wrapper for running two-view relative pose estimation on image pairs in the dataset."""
 
-    def __init__(self, matcher: MatcherBase, verifier: VerifierBase) -> None:
+    def __init__(self, matcher: MatcherBase, verifier: VerifierBase, corr_metric_dist_threshold: int) -> None:
         """Initializes the two-view estimator from matcher and verifier.
 
         Args:
@@ -41,6 +39,7 @@ class TwoViewEstimator:
         """
         self.matcher = matcher
         self.verifier = verifier
+        self._corr_metric_dist_threshold = corr_metric_dist_threshold
 
     def create_computation_graph(
         self,
@@ -101,7 +100,7 @@ class TwoViewEstimator:
                 camera_intrinsics_i1_graph,
                 camera_intrinsics_i2_graph,
                 i2Ti1_expected_graph,
-                ESSENTIAL_MATRIX_EPIPOLAR_DISTANCE_THRESHOLD,
+                self._corr_metric_dist_threshold,
             )
         else:
             pose_error_graphs = (None, None)
