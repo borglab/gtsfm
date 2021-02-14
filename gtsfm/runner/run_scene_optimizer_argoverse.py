@@ -63,7 +63,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--dataset_dir",
-        default="/srv/share/cliu324/argoverse-tracking-readonly",
+        default="/srv/share/cliu324/argoverse-tracking-readonly/train1",
         type=str,
         help="directory where raw Argoverse logs are stored on disk",
     )
