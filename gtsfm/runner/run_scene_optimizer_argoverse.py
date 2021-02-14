@@ -1,3 +1,4 @@
+import argparse
 import os
 from pathlib import Path
 
@@ -13,9 +14,11 @@ from gtsfm.loader.folder_loader import FolderLoader
 from gtsfm.scene_optimizer import SceneOptimizer
 
 from gtsfm.loader.argoverse_dataset_loader import ArgoverseDatasetLoader
+from gtsfm.utils.logger import get_logger
 
+logger = get_logger()
 
-def run_scene_optimizer() -> None:
+def run_scene_optimizer(args) -> None:
     """ Run GTSFM over images from an Argoverse vehicle log"""
     with initialize_config_module(config_module="gtsfm.configs"):
         # config is relative to the gtsfm module
@@ -23,12 +26,12 @@ def run_scene_optimizer() -> None:
         scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
         loader = ArgoverseDatasetLoader(
-            dataset_dir="/Users/johnlambert/Downloads/visual-odometry-tutorial/full_log",
-            log_id="273c1883-673a-36bf-b124-88311b1a80be",
-            stride=10,
-            max_num_imgs=20,
-            max_lookahead_sec=2,
-            camera_name="ring_front_center",
+            dataset_dir=args.dataset_dir,
+            log_id=args.log_id,
+            stride=args.stride,
+            max_num_imgs=args.max_num_imgs,
+            max_lookahead_sec=args.max_lookahead_sec,
+            camera_name=args.camera_name,
         )
 
         sfm_result_graph = scene_optimizer.create_computation_graph(
@@ -50,4 +53,45 @@ def run_scene_optimizer() -> None:
 
 
 if __name__ == "__main__":
-    run_scene_optimizer()
+    """ """
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--log_id",
+        default="273c1883-673a-36bf-b124-88311b1a80be",
+        type=str,
+        help="unique ID of Argoverse vehicle log",
+    )
+    parser.add_argument(
+        "--dataset_dir",
+        default="/srv/share/cliu324/argoverse-tracking-readonly",
+        type=str,
+        help="directory where raw Argoverse logs are stored on disk",
+    )
+    parser.add_argument(
+        "--camera_name",
+        default="ring_front_center",
+        type=str,
+        help="Which of 9 Argoverse cameras",
+    )
+    parser.add_argument(
+        "--stride",
+        default=10,
+        type=int,
+        help="image subsampling interval, e.g. every 2 images, every 4 images, etc.",
+    )
+    parser.add_argument(
+        "--max_num_imgs",
+        default=20,
+        type=int,
+        help="maximum number of images to include in dataset (starting from beginning of log sequence)",
+    )
+    parser.add_argument(
+        "--max_lookahead_sec",
+        default=2,
+        type=float,
+        help="",
+    )
+    args = parser.parse_args()
+    logger.info(args)
+
+    run_scene_optimizer(args)
