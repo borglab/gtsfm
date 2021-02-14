@@ -38,45 +38,45 @@ class ArgoverseDatasetLoader(LoaderBase):
             stride: sampling rate, e.g. every 2 images, every 4 images, etc.
             max_num_imgs: number of images to load (starting from beginning of log sequence)
         """
-        self.log_id_ = log_id
-        self.dl_ = SimpleArgoverseTrackingDataLoader(data_dir=dataset_dir, labels_dir=dataset_dir)
+        self._log_id = log_id
+        self._dl = SimpleArgoverseTrackingDataLoader(data_dir=dataset_dir, labels_dir=dataset_dir)
         self.load_camera_calibration(log_id, camera_name)
 
         # computed as #frames = #sec * (frame/sec)
         max_lookahead_num_fr = max_lookahead_sec * RING_CAMERA_FRAME_RATE
 
         # in subsampled list, account for subsampling rate
-        self.max_lookahead_for_img_ = max_lookahead_num_fr / stride
+        self._max_lookahead_for_img = max_lookahead_num_fr / stride
 
-        image_paths = self.dl_.get_ordered_log_cam_fpaths(log_id, camera_name)
+        image_paths = self._dl.get_ordered_log_cam_fpaths(log_id, camera_name)
         image_timestamps = [int(Path(path).stem.split("_")[-1]) for path in image_paths]
         # only choose frames where ground truth egovehicle pose is provided
         valid_idxs = [
-            idx for idx, ts in enumerate(image_timestamps) if self.dl_.get_city_SE3_egovehicle(log_id, ts) is not None
+            idx for idx, ts in enumerate(image_timestamps) if self._dl.get_city_SE3_egovehicle(log_id, ts) is not None
         ]
         image_paths = [image_paths[idx] for idx in valid_idxs]
         image_timestamps = [image_timestamps[idx] for idx in valid_idxs]
 
         # subsample, then limit the total size of dataset
         image_paths = image_paths[::stride]
-        self.image_paths_ = image_paths[:max_num_imgs]
+        self._image_paths = image_paths[:max_num_imgs]
 
         # for each image, cache its associated timestamp
-        self.image_timestamps_ = image_timestamps
+        self._image_timestamps = image_timestamps
 
     def load_camera_calibration(self, log_id: str, camera_name: str) -> None:
         """Load extrinsics and intrinsics from disk."""
-        calib_data = self.dl_.get_log_calibration_data(log_id)
+        calib_data = self._dl.get_log_calibration_data(log_id)
         cam_config = get_calibration_config(calib_data, camera_name)
-        self.K_ = cam_config.intrinsic[:3, :3]
+        self._K = cam_config.intrinsic[:3, :3]
 
         # square pixels, so fx and fy should be (nearly) identical
-        assert np.isclose(self.K_[0, 0], self.K_[1, 1], atol=0.1)
+        assert np.isclose(self._K[0, 0], self._K[1, 1], atol=0.1)
 
-        self.camera_SE3_egovehicle_ = SE3(
+        self._camera_SE3_egovehicle = SE3(
             rotation=cam_config.extrinsic[:3, :3], translation=cam_config.extrinsic[:3, 3]
         )
-        self.egovehicle_SE3_camera_ = self.camera_SE3_egovehicle_.inverse()
+        self._egovehicle_SE3_camera = self._camera_SE3_egovehicle.inverse()
 
     def __len__(self) -> int:
         """The number of images in the dataset.
@@ -84,7 +84,7 @@ class ArgoverseDatasetLoader(LoaderBase):
         Returns:
             The number of images.
         """
-        return len(self.image_paths_)
+        return len(self._image_paths)
 
     def get_image(self, index: int) -> Image:
         """Get the image at the given index.
@@ -102,7 +102,7 @@ class ArgoverseDatasetLoader(LoaderBase):
         if index < 0 or index >= self.__len__():
             raise IndexError("Image index is invalid")
 
-        return io_utils.load_image(self.image_paths_[index])
+        return io_utils.load_image(self._image_paths[index])
 
     def get_camera_intrinsics(self, index: int) -> Optional[Cal3Bundler]:
         """Get the camera intrinsics at the given index.
@@ -114,11 +114,11 @@ class ArgoverseDatasetLoader(LoaderBase):
             Intrinsics for the given camera.
         """
         return Cal3Bundler(
-            fx=self.K_[0, 0],
+            fx=self._K[0, 0],
             k1=0,
             k2=0,
-            u0=self.K_[0, 2],
-            v0=self.K_[1, 2],
+            u0=self._K[0, 2],
+            v0=self._K[1, 2],
         )
 
     def get_camera_pose(self, index: int) -> Optional[Pose3]:
@@ -132,10 +132,10 @@ class ArgoverseDatasetLoader(LoaderBase):
         Returns:
             The camera pose wTi, where `i` represents image/frame `index`
         """
-        timestamp = self.image_timestamps_[index]
-        city_SE3_egovehicle = self.dl_.get_city_SE3_egovehicle(self.log_id_, timestamp)
+        timestamp = self._image_timestamps[index]
+        city_SE3_egovehicle = self._dl.get_city_SE3_egovehicle(self._log_id, timestamp)
         assert city_SE3_egovehicle is not None
-        city_SE3_camera = city_SE3_egovehicle.compose(self.egovehicle_SE3_camera_)
+        city_SE3_camera = city_SE3_egovehicle.compose(self._egovehicle_SE3_camera)
 
         return Pose3(Rot3(city_SE3_camera.rotation), city_SE3_camera.translation)
 
@@ -149,4 +149,4 @@ class ArgoverseDatasetLoader(LoaderBase):
         Returns:
             validation result.
         """
-        return (idx1 < idx2) and (idx2 < idx1 + self.max_lookahead_for_img_)
+        return (idx1 < idx2) and (idx2 < idx1 + self._max_lookahead_for_img)
