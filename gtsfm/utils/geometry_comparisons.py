@@ -220,7 +220,7 @@ def compute_relative_rotation_angle(
 
 
 def compute_relative_unit_translation_angle(
-        U_1: Optional[Unit3], U_2: Optional[Unit3]
+    U_1: Optional[Unit3], U_2: Optional[Unit3]
 ) -> Optional[float]:
     """Compute the angle between two unit-translations.
 
@@ -241,9 +241,9 @@ def compute_relative_unit_translation_angle(
 
 
 def compute_translation_to_direction_angle(
-        i2Ui1: Optional[Unit3],
-        wTi2: Optional[Point3],
-        wTi1: Optional[Pose3]
+    i2Ui1: Optional[Unit3],
+    wTi2: Optional[Point3],
+    wTi1: Optional[Pose3]
 ) -> Optional[float]:
     """Compute the angle between a translation direction and point.
 

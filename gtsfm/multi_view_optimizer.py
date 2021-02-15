@@ -20,10 +20,10 @@ from gtsam import (
 import gtsfm.utils.metrics as metrics
 import gtsfm.utils.serialization  # import needed to register serialization fns
 from gtsfm.averaging.rotation.rotation_averaging_base import (
-    RotationAveragingBase, 
+    RotationAveragingBase,
 )
 from gtsfm.averaging.translation.translation_averaging_base import (
-    TranslationAveragingBase, 
+    TranslationAveragingBase,
 )
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.data_association.data_assoc import DataAssociation
@@ -90,8 +90,9 @@ class MultiViewOptimizer:
             num_images, pruned_i2Ui1_graph, wRi_graph
         )
 
-        init_cameras_graph = dask.delayed(init_cameras)(wRi_graph, wti_graph,
-                                                        intrinsics_graph)
+        init_cameras_graph = dask.delayed(init_cameras)(
+            wRi_graph, wti_graph, intrinsics_graph
+        )
 
         ba_input_graph = self.data_association_module.create_computation_graph(
             init_cameras_graph, v_corr_idxs_graph, keypoints_graph
