@@ -145,6 +145,16 @@ class SceneOptimizer:
                     )
                 )
 
+        # aggregate metrics for frontend
+        if gt_pose_graph is not None:
+            auxiliary_graph_list.append(
+                dask.delayed(aggregate_frontend_metrics)(
+                    frontend_rot3_errors,
+                    frontend_unit3_errors,
+                    self._config.pose_angular_error_thresh,
+                )
+            )
+
         # as visualization tasks are not to be provided to the user, we create a
         # dummy computation of concatenating viz tasks with the output graph,
         # forcing computation of viz tasks. Doing this here forces the
@@ -162,15 +172,8 @@ class SceneOptimizer:
             gt_pose_graph
         )
 
-        # aggregate metrics
+        # aggregate metrics for multiview optimizer
         if gt_pose_graph is not None:
-            auxiliary_graph_list.append(
-                dask.delayed(aggregate_frontend_metrics)(
-                    frontend_rot3_errors,
-                    frontend_unit3_errors,
-                    self._config.pose_angular_error_thresh,
-                )
-            )
             auxiliary_graph_list.append(
                 self.multiview_optimizer.get_metrics_computation_graph()
             )

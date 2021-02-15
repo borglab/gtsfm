@@ -232,3 +232,23 @@ def compute_translation_to_direction_angle(
     i2Ti1 = wTi2.between(wTi1)
     i2Ui1_estimated = Unit3(i2Ti1.translation())
     return compute_relative_unit_translation_angle(i2Ui1, i2Ui1_estimated)
+
+
+def compute_points_distance_l2(
+    wti1: Optional[Point3], wti2: Optional[Point3]
+) -> Optional[float]:
+    """Computes the L2 distance between the two input 3D points. 
+
+    Assumes the points are in the same coordinate frame. Returns None if either 
+    point is None. 
+
+    Args: 
+        wti1: Point1 in world frame 
+        wti2: Point2 in world frame
+    
+    Returns: 
+        L2 norm of wti1 - wti2
+    """
+    if wti1 is None or wti2 is None:
+        return None
+    return np.linalg.norm(wti1 - wti2)
