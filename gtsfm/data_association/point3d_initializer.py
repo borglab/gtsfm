@@ -1,9 +1,8 @@
-"""Algorithms to initialize 3D landmark point from measurements at known
-camera poses.
+"""Algorithms to initialize 3D landmark point from measurements at known camera poses.
 
 References: 
-1. Richard I. Hartley and Peter Sturm. Triangulation. Computer Vision and Image
-Understanding, Vol. 68, No. 2, November, pp. 146–157, 1997
+1. Richard I. Hartley and Peter Sturm. Triangulation. Computer Vision and Image Understanding, Vol. 68, No. 2,
+   November, pp. 146–157, 1997
 
 Authors: Sushmita Warrier, Xiaolong Wu
 """
@@ -30,34 +29,26 @@ MAX_TRACK_REPROJ_ERROR = np.finfo(np.float32).max
 
 logger = logger_utils.get_logger()
 
-"""We have different modes for robust and non-robust triangulation.
-In case of noise-free measurements, all the entries in a track are used w/o ransac.
-If one of the three sampling modes for robust triangulation is selected, a pair
-of cameras will be sampled."""
+"""We have different modes for robust and non-robust triangulation. In case of noise-free measurements, all the entries
+in a track are used w/o ransac. If one of the three sampling modes for robust triangulation is selected, a pair of
+cameras will be sampled."""
 
 
 class TriangulationParam(Enum):
     NO_RANSAC = 0  # do not use filtering
     RANSAC_SAMPLE_UNIFORM = 1  # sample a pair of cameras uniformly at random
-    RANSAC_SAMPLE_BIASED_BASELINE = (
-        2  # sample pair of cameras based on largest estimated baseline
-    )
-    RANSAC_TOPK_BASELINES = (
-        3  # deterministically choose hypotheses with largest estimate baseline
-    )
+    RANSAC_SAMPLE_BIASED_BASELINE = 2  # sample pair of cameras based on largest estimated baseline
+    RANSAC_TOPK_BASELINES = 3  # deterministically choose hypotheses with largest estimate baseline
 
 
 class Point3dInitializer(NamedTuple):
-    """Class to initialize landmark points via triangulation w/ or w/o RANSAC
-    inlier/outlier selection.
+    """Class to initialize landmark points via triangulation w/ or w/o RANSAC inlier/outlier selection.
 
-    Note: We currently limit the size of each sample to 2 camera views in our
-    RANSAC scheme.
+    Note: We currently limit the size of each sample to 2 camera views in our RANSAC scheme.
 
     Args:
         track_cameras: Dict of cameras and their indices.
-        mode: triangulation mode, which dictates whether or not to use robust
-              estimation.
+        mode: triangulation mode, which dictates whether or not to use robust estimation.
         reproj_error_thresh: threshold on reproj errors for inliers.
         num_ransac_hypotheses (optional): desired number of RANSAC hypotheses.
     """
@@ -74,8 +65,7 @@ class Point3dInitializer(NamedTuple):
             track: feature track from which measurements are to be extracted
 
         Returns:
-            track with inlier measurements and 3D landmark. None will be
-                returned if triangulation results fails or has high error.
+            track with inlier measurements and 3D landmark. None returned if triangulation fails or has high error.
         """
         if self.mode in [
             TriangulationParam.RANSAC_SAMPLE_UNIFORM,
@@ -86,14 +76,10 @@ class Point3dInitializer(NamedTuple):
             measurement_pairs = self.generate_measurement_pairs(track_2d)
 
             # limit the number of samples to the number of available pairs
-            num_hypotheses = min(
-                self.num_ransac_hypotheses, len(measurement_pairs)
-            )
+            num_hypotheses = min(self.num_ransac_hypotheses, len(measurement_pairs))
 
             # Sampling
-            samples = self.sample_ransac_hypotheses(
-                track_2d, measurement_pairs, num_hypotheses
-            )
+            samples = self.sample_ransac_hypotheses(track_2d, measurement_pairs, num_hypotheses)
 
             # Initialize the best output containers
             best_num_votes = 0
@@ -108,10 +94,7 @@ class Point3dInitializer(NamedTuple):
 
                 camera_estimates = CameraSetCal3Bundler()
                 # check for unestimated cameras
-                if (
-                    self.track_camera_dict.get(i1) != None
-                    and self.track_camera_dict.get(i2) != None
-                ):
+                if self.track_camera_dict.get(i1) != None and self.track_camera_dict.get(i2) != None:
                     camera_estimates.append(self.track_camera_dict.get(i1))
                     camera_estimates.append(self.track_camera_dict.get(i2))
 
@@ -134,9 +117,7 @@ class Point3dInitializer(NamedTuple):
                         )
                         continue
 
-                    errors = self.compute_track_reprojection_errors(
-                        track_2d.measurements, triangulated_pt
-                    )
+                    errors = self.compute_track_reprojection_errors(track_2d.measurements, triangulated_pt)
 
                     # The best solution should correspond to the one with most inliers
                     # If the inlier number are the same, check the average error of inliers
@@ -150,24 +131,15 @@ class Point3dInitializer(NamedTuple):
                         avg_error = inlier_errors.mean()
                         num_votes = is_inlier.astype(int).sum()
 
-                        if (num_votes > best_num_votes) or (
-                            num_votes == best_num_votes
-                            and avg_error < best_error
-                        ):
+                        if (num_votes > best_num_votes) or (num_votes == best_num_votes and avg_error < best_error):
                             best_num_votes = num_votes
                             best_error = avg_error
                             best_inliers = is_inlier
                 else:
-                    logger.warning(
-                        "Unestimated cameras found at indices {} or {}. Skipping them.".format(
-                            i1, i2
-                        )
-                    )
+                    logger.warning("Unestimated cameras found at indices {} or {}. Skipping them.".format(i1, i2))
 
         elif self.mode == TriangulationParam.NO_RANSAC:
-            best_inliers = np.ones(
-                len(track_2d.measurements), dtype=bool
-            )  # all marked as inliers
+            best_inliers = np.ones(len(track_2d.measurements), dtype=bool)  # all marked as inliers
 
         inlier_idxs = (np.where(best_inliers)[0]).tolist()
 
@@ -176,9 +148,7 @@ class Point3dInitializer(NamedTuple):
 
         inlier_track = track_2d.select_subset(inlier_idxs)
 
-        camera_track, measurement_track = self.extract_measurements(
-            inlier_track
-        )
+        camera_track, measurement_track = self.extract_measurements(inlier_track)
 
         try:
             triangulated_pt = gtsam.triangulatePoint3(
@@ -188,15 +158,11 @@ class Point3dInitializer(NamedTuple):
                 optimize=True,
             )
         except RuntimeError:
-            logger.info(
-                "Cheirality exception from GTSAM's triangulatePoint3() likely due to outlier, skipping track"
-            )
+            logger.info("Cheirality exception from GTSAM's triangulatePoint3() likely due to outlier, skipping track")
             return None
 
         # compute reprojection errors for each measurement
-        reproj_errors = self.compute_track_reprojection_errors(
-            inlier_track.measurements, triangulated_pt
-        )
+        reproj_errors = self.compute_track_reprojection_errors(inlier_track.measurements, triangulated_pt)
 
         # all the measurements should have error < threshold
         if not np.all(reproj_errors < self.reproj_error_thresh):
@@ -208,9 +174,7 @@ class Point3dInitializer(NamedTuple):
 
         return track_3d
 
-    def generate_measurement_pairs(
-        self, track: SfmTrack2d
-    ) -> List[Tuple[int, int]]:
+    def generate_measurement_pairs(self, track: SfmTrack2d) -> List[Tuple[int, int]]:
         """
         Extract all possible measurement pairs in a track for triangulation.
 
@@ -222,11 +186,7 @@ class Point3dInitializer(NamedTuple):
         """
         num_track_measurements = track.number_measurements()
         all_measurement_idxs = range(num_track_measurements)
-        measurement_pair_idxs = list(
-            itertools.combinations(
-                all_measurement_idxs, NUM_SAMPLES_PER_RANSAC_HYPOTHESIS
-            )
-        )
+        measurement_pair_idxs = list(itertools.combinations(all_measurement_idxs, NUM_SAMPLES_PER_RANSAC_HYPOTHESIS))
         return measurement_pair_idxs
 
     def sample_ransac_hypotheses(
@@ -235,14 +195,14 @@ class Point3dInitializer(NamedTuple):
         measurement_pairs: List[Tuple[int, int]],
         num_hypotheses: int,
     ) -> List[int]:
-        """Sample a list of hypotheses (camera pairs) to use during triangulation
+        """Sample a list of hypotheses (camera pairs) to use during triangulation.
 
         Args:
             track: feature track from which measurements are to be extracted
             measurement_pairs: all possible indices of pairs of measurements in a given track
             num_hypotheses: desired number of samples
         Returns:
-            indexes of matches: index of selected match
+            Indices of selected match
         """
         # Initialize scores as uniform distribution
         scores = np.ones(len(measurement_pairs), dtype=float)
@@ -259,15 +219,11 @@ class Point3dInitializer(NamedTuple):
                 wTc2 = self.track_camera_dict[i2].pose()
 
                 # rough approximation approximation of baseline between the 2 cameras
-                scores[k] = np.linalg.norm(
-                    wTc1.inverse().compose(wTc2).translation()
-                )
+                scores[k] = np.linalg.norm(wTc1.inverse().compose(wTc2).translation())
 
         # Check the validity of scores
         if sum(scores) <= 0.0:
-            raise Exception(
-                "Sum of scores cannot be zero (or smaller than zero)! It must a bug somewhere"
-            )
+            raise Exception("Sum of scores cannot be zero (or smaller than zero)! It must a bug somewhere")
 
         if self.mode in [
             TriangulationParam.RANSAC_SAMPLE_UNIFORM,
@@ -285,9 +241,7 @@ class Point3dInitializer(NamedTuple):
 
         return sample_indices.tolist()
 
-    def compute_track_reprojection_errors(
-        self, measurements: List[SfmMeasurement], point3d: np.ndarray
-    ) -> np.ndarray:
+    def compute_track_reprojection_errors(self, measurements: List[SfmMeasurement], point3d: np.ndarray) -> np.ndarray:
         """Compute reprojection errors for measurements in the tracks.
 
         Args:
@@ -309,17 +263,15 @@ class Point3dInitializer(NamedTuple):
                 errors.append(np.nan)
         return np.array(errors)
 
-    def extract_measurements(
-        self, track: SfmTrack2d
-    ) -> Tuple[CameraSetCal3Bundler, Point2Vector]:
+    def extract_measurements(self, track: SfmTrack2d) -> Tuple[CameraSetCal3Bundler, Point2Vector]:
         """Extract measurements in a track for triangulation.
 
         Args:
             track: feature track from which measurements are to be extracted.
 
         Returns:
-            track_cameras: Vector of individual camera calibrations pertaining to track
-            track_measurements: Vector of 2d points pertaining to track measurements
+            Vector of individual camera calibrations pertaining to track
+            Vector of 2d points pertaining to track measurements
         """
         track_cameras = CameraSetCal3Bundler()
         track_measurements = Point2Vector()  # vector of 2d points
@@ -331,11 +283,7 @@ class Point3dInitializer(NamedTuple):
                 track_cameras.append(self.track_camera_dict.get(i))
                 track_measurements.append(uv)
             else:
-                logger.warning(
-                    "Unestimated cameras found at index {}. Skipping them.".format(
-                        i
-                    )
-                )
+                logger.warning("Unestimated cameras found at index {}. Skipping them.".format(i))
 
         if len(track_cameras) < 2 or len(track_measurements) < 2:
             raise Exception(

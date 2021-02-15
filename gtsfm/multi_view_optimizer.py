@@ -1,5 +1,4 @@
-"""Optimizer which performs averaging and bundle adjustment on all images in
-the scene.
+"""Optimizer which performs averaging and bundle adjustment on all images in the scene.
 
 Authors: Ayush Baid, John Lambert
 """
@@ -34,16 +33,11 @@ class MultiViewOptimizer:
         self,
         rot_avg_module: RotationAveragingBase,
         trans_avg_module: TranslationAveragingBase,
-        config: Any,
+        data_association_module: DataAssociation,
     ) -> None:
         self.rot_avg_module = rot_avg_module
         self.trans_avg_module = trans_avg_module
-        self.data_association_module = DataAssociation(
-            config.reproj_error_thresh,
-            config.min_track_len,
-            config.triangulation_mode,
-            config.num_ransac_hypotheses,
-        )
+        self.data_association_module = data_association_module
         self.ba_optimizer = BundleAdjustmentOptimizer()
         self.metrics_graph = None
 
@@ -62,12 +56,9 @@ class MultiViewOptimizer:
         Args:
             num_images: number of images in the scene.
             keypoints_graph: keypoints for images, each wrapped up as Delayed.
-            i2Ri1_graph: relative rotations for image pairs, each value wrapped
-                         up as Delayed.
-            i2Ui1_graph: relative unit-translations for image pairs, each value
-                         wrapped up as Delayed.
-            v_corr_idxs_graph: indices of verified correspondences for image
-                               pairs, wrapped up as Delayed.
+            i2Ri1_graph: relative rotations for image pairs, each value wrapped up as Delayed.
+            i2Ui1_graph: relative unit-translations for image pairs, each value wrapped up as Delayed.
+            v_corr_idxs_graph: indices of verified correspondences for image pairs, wrapped up as Delayed.
             intrinsics_graph: intrinsics for images, wrapped up as Delayed.
 
         Returns:
@@ -75,32 +66,22 @@ class MultiViewOptimizer:
             The final output, wrapped up as Delayed.
         """
         # prune the graph to a single connected component.
-        pruned_graph = dask.delayed(select_largest_connected_component)(
-            i2Ri1_graph, i2Ui1_graph
-        )
+        pruned_graph = dask.delayed(select_largest_connected_component)(i2Ri1_graph, i2Ui1_graph)
 
         pruned_i2Ri1_graph = pruned_graph[0]
         pruned_i2Ui1_graph = pruned_graph[1]
 
-        wRi_graph = self.rot_avg_module.create_computation_graph(
-            num_images, pruned_i2Ri1_graph
-        )
+        wRi_graph = self.rot_avg_module.create_computation_graph(num_images, pruned_i2Ri1_graph)
 
-        wti_graph = self.trans_avg_module.create_computation_graph(
-            num_images, pruned_i2Ui1_graph, wRi_graph
-        )
+        wti_graph = self.trans_avg_module.create_computation_graph(num_images, pruned_i2Ui1_graph, wRi_graph)
 
-        init_cameras_graph = dask.delayed(init_cameras)(
-            wRi_graph, wti_graph, intrinsics_graph
-        )
+        init_cameras_graph = dask.delayed(init_cameras)(wRi_graph, wti_graph, intrinsics_graph)
 
         ba_input_graph = self.data_association_module.create_computation_graph(
             init_cameras_graph, v_corr_idxs_graph, keypoints_graph
         )
 
-        ba_result_graph = self.ba_optimizer.create_computation_graph(
-            ba_input_graph
-        )
+        ba_result_graph = self.ba_optimizer.create_computation_graph(ba_input_graph)
 
         if gt_poses_graph is not None:
             self.metrics_graph = dask.delayed(metrics.save_averaging_metrics)(
@@ -116,8 +97,7 @@ def select_largest_connected_component(
     rotations: Dict[Tuple[int, int], Optional[Rot3]],
     unit_translations: Dict[Tuple[int, int], Optional[Unit3]],
 ) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3]]:
-    """Process the graph of image indices with Rot3s/Unit3s defining edges,
-    and select the largest connected component.
+    """Process the graph of image indices with Rot3s/Unit3s defining edges, and select the largest connected component.
 
     Args:
         rotations: dictionary of relative rotations for pairs.
@@ -125,8 +105,7 @@ def select_largest_connected_component(
 
     Returns:
         Subset of rotations which are in the largest connected components.
-        Subset of unit_translations which are in the largest connected
-            components.
+        Subset of unit_translations which are in the largest connected components.
     """
     input_edges = [k for (k, v) in rotations.items() if v is not None]
 
@@ -141,8 +120,7 @@ def select_largest_connected_component(
     # get the remaining edges and construct the dictionary back
     pruned_edges = list(result_subgraph.edges())
 
-    # as the edges are non-directional, they might have flipped and should
-    # be corrected
+    # as the edges are non-directional, they might have flipped and should be corrected
     selected_edges = []
     for i1, i2 in pruned_edges:
         if (i1, i2) in rotations:
@@ -175,8 +153,6 @@ def init_cameras(
 
     for idx, (wRi, wti) in enumerate(zip(wRi_list, wti_list)):
         if wRi is not None and wti is not None:
-            cameras[idx] = PinholeCameraCal3Bundler(
-                Pose3(wRi, wti), intrinsics_list[idx]
-            )
+            cameras[idx] = PinholeCameraCal3Bundler(Pose3(wRi, wti), intrinsics_list[idx])
 
     return cameras

@@ -1,5 +1,8 @@
 # Georgia Tech Structure from Motion (GTSFM) Library
 
+![Linux CI](https://github.com/borglab/gtsfm/workflows/Python%20CI/badge.svg)
+
+
 ### What is GTSFM?
 GTSFM is an end-to-end SFM pipeline based on [GTSAM](https://github.com/borglab/gtsam). GTSFM was designed from the ground-up to natively support parallel computation using [Dask](https://dask.org/).
 
@@ -44,7 +47,7 @@ Make sure that you can run `python -c "import gtsfm; import gtsam; import pydege
 
 Please run
 ```python
-python gtsfm/scene_optimizer.py
+python gtsfm/runner/run_scene_optimizer.py
 ```
 
 ## Repository Structure

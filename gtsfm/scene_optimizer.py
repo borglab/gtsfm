@@ -4,7 +4,6 @@ Authors: Ayush Baid, John Lambert
 """
 import logging
 import os
-from types import SimpleNamespace
 from typing import Any, List, Optional, Tuple
 
 import dask
@@ -16,7 +15,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from dask.delayed import Delayed
-from dask.distributed import Client, LocalCluster, performance_report
 from gtsam import (
     Pose3,
     SfmData,
@@ -31,27 +29,17 @@ import gtsfm.utils.viz as viz_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import (
     RotationAveragingBase,
 )
-from gtsfm.averaging.rotation.shonan import ShonanRotationAveraging
-from gtsfm.averaging.translation.averaging_1dsfm import (
-    TranslationAveraging1DSFM,
-)
 from gtsfm.averaging.translation.translation_averaging_base import (
     TranslationAveragingBase,
 )
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.common.sfm_result import SfmResult
-from gtsfm.data_association.data_assoc import TriangulationParam
 from gtsfm.feature_extractor import FeatureExtractor
 from gtsfm.frontend.detector_descriptor.detector_descriptor_base import (
     DetectorDescriptorBase,
 )
-from gtsfm.frontend.detector_descriptor.sift import SIFTDetectorDescriptor
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
-from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
-from gtsfm.frontend.verifier.ransac import Ransac
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
-from gtsfm.loader.folder_loader import FolderLoader
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.two_view_estimator import TwoViewEstimator
 
@@ -70,24 +58,21 @@ class SceneOptimizer:
 
     def __init__(
         self,
-        detector_descriptor: DetectorDescriptorBase,
-        matcher: MatcherBase,
-        verifier: VerifierBase,
-        rot_avg_module: RotationAveragingBase,
-        trans_avg_module: TranslationAveragingBase,
-        config: Any,
+        feature_extractor: FeatureExtractor,
+        two_view_estimator: TwoViewEstimator,
+        multiview_optimizer: MultiViewOptimizer,
+        save_viz: bool,
+        save_bal_files: bool,
+        pose_angular_error_thresh: float,
     ) -> None:
-        self.feature_extractor = FeatureExtractor(detector_descriptor)
+        """ pose_angular_error_thresh is given in degrees """
+        self.feature_extractor = feature_extractor
+        self.two_view_estimator = two_view_estimator
+        self.multiview_optimizer = multiview_optimizer
 
-        self.two_view_estimator = TwoViewEstimator(matcher, verifier)
-
-        self.multiview_optimizer = MultiViewOptimizer(
-            rot_avg_module, trans_avg_module, config
-        )
-
-        self._save_viz = config.save_viz
-        self._save_bal_files = config.save_bal_files
-        self._config = config
+        self._save_viz = save_viz
+        self._save_bal_files = save_bal_files
+        self._pose_angular_error_thresh = pose_angular_error_thresh
 
     def create_computation_graph(
         self,
@@ -98,7 +83,7 @@ class SceneOptimizer:
         use_intrinsics_in_verification: bool = True,
         gt_pose_graph: Optional[List[Delayed]] = None,
     ) -> Delayed:
-        """ The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times"""
+        """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
 
         # auxiliary graph elements for visualizations and saving intermediate
         # data for analysis, not returned to the user.
@@ -125,19 +110,11 @@ class SceneOptimizer:
 
         for (i1, i2) in image_pair_indices:
             if gt_pose_graph is not None:
-                gt_relative_pose = dask.delayed(lambda x, y: x.between(y))(
-                    gt_pose_graph[i2], gt_pose_graph[i1]
-                )
+                gt_relative_pose = dask.delayed(lambda x, y: x.between(y))(gt_pose_graph[i2], gt_pose_graph[i1])
             else:
                 gt_relative_pose = None
 
-            (
-                i2Ri1,
-                i2Ui1,
-                v_corr_idxs,
-                rot_error,
-                unit_tran_error,
-            ) = self.two_view_estimator.create_computation_graph(
+            (i2Ri1, i2Ui1, v_corr_idxs, rot_error, unit_tran_error,) = self.two_view_estimator.create_computation_graph(
                 keypoints_graph_list[i1],
                 keypoints_graph_list[i2],
                 descriptors_graph_list[i1],
@@ -168,20 +145,14 @@ class SceneOptimizer:
                     )
                 )
 
-           
         # as visualization tasks are not to be provided to the user, we create a
         # dummy computation of concatenating viz tasks with the output graph,
         # forcing computation of viz tasks. Doing this here forces the
         # frontend's auxiliary tasks to be computed before the multi-view stage.
-        keypoints_graph_list = dask.delayed(lambda x, y: (x, y))(
-            keypoints_graph_list, auxiliary_graph_list
-        )[0]
+        keypoints_graph_list = dask.delayed(lambda x, y: (x, y))(keypoints_graph_list, auxiliary_graph_list)[0]
         auxiliary_graph_list = []
 
-        (
-            ba_input_graph,
-            ba_output_graph,
-        ) = self.multiview_optimizer.create_computation_graph(
+        (ba_input_graph, ba_output_graph,) = self.multiview_optimizer.create_computation_graph(
             num_images,
             keypoints_graph_list,
             i2Ri1_graph_dict,
@@ -203,26 +174,18 @@ class SceneOptimizer:
             auxiliary_graph_list.append(
                 self.multiview_optimizer.get_metrics_computation_graph()
             )
- 
-        filtered_sfm_data_graph = dask.delayed(
-            ba_output_graph.filter_landmarks
-        )(self._config.reproj_error_thresh)
+
+        filtered_sfm_data_graph = dask.delayed(ba_output_graph.filter_landmarks)(
+            self.multiview_optimizer.data_association_module.reproj_error_thresh
+        )
 
         if self._save_viz:
             os.makedirs("plots/ba_input", exist_ok=True)
             os.makedirs("plots/results", exist_ok=True)
 
-            auxiliary_graph_list.append(
-                dask.delayed(visualize_sfm_data)(
-                    ba_input_graph, "plots/ba_input/"
-                )
-            )
+            auxiliary_graph_list.append(dask.delayed(visualize_sfm_data)(ba_input_graph, "plots/ba_input/"))
 
-            auxiliary_graph_list.append(
-                dask.delayed(visualize_sfm_data)(
-                    filtered_sfm_data_graph, "plots/results/"
-                )
-            )
+            auxiliary_graph_list.append(dask.delayed(visualize_sfm_data)(filtered_sfm_data_graph, "plots/results/"))
 
             auxiliary_graph_list.append(
                 dask.delayed(visualize_camera_poses)(
@@ -236,24 +199,16 @@ class SceneOptimizer:
         if self._save_bal_files:
             os.makedirs("results", exist_ok=True)
             # save the input to Bundle Adjustment (from data association)
-            auxiliary_graph_list.append(
-                dask.delayed(write_sfmdata_to_disk)(
-                    ba_input_graph, "results/ba_input.bal"
-                )
-            )
+            auxiliary_graph_list.append(dask.delayed(write_sfmdata_to_disk)(ba_input_graph, "results/ba_input.bal"))
             # save the output of Bundle Adjustment (after optimization)
             auxiliary_graph_list.append(
-                dask.delayed(write_sfmdata_to_disk)(
-                    filtered_sfm_data_graph, "results/ba_output.bal"
-                )
+                dask.delayed(write_sfmdata_to_disk)(filtered_sfm_data_graph, "results/ba_output.bal")
             )
 
         # as visualization tasks are not to be provided to the user, we create a
         # dummy computation of concatenating viz tasks with the output graph,
         # forcing computation of viz tasks
-        output_graph = dask.delayed(lambda x, y: (x, y))(
-            ba_output_graph, auxiliary_graph_list
-        )
+        output_graph = dask.delayed(lambda x, y: (x, y))(ba_output_graph, auxiliary_graph_list)
 
         # return the entry with just the sfm result
         return output_graph[0]
@@ -359,8 +314,7 @@ def write_sfmdata_to_disk(sfm_data: SfmData, save_fpath: str) -> None:
     """Write SfmData object as a "Bundle Adjustment in the Large" (BAL) file
     See https://grail.cs.washington.edu/projects/bal/ for more details on the format.
 
-    Note: Need this wrapper as dask cannot directly work on gtsam function
-    calls.
+    Note: Need this wrapper as dask cannot directly work on gtsam function calls.
 
     Args:
         sfm_data: data to write.
@@ -372,14 +326,14 @@ def write_sfmdata_to_disk(sfm_data: SfmData, save_fpath: str) -> None:
 def aggregate_frontend_metrics(
     rot3_errors: List[Optional[float]],
     unit3_errors: List[Optional[float]],
-    angular_err_threshold: float,
+    angular_err_threshold_deg: float,
 ) -> None:
     """Aggregate the front-end metrics to log summary statistics.
 
     Args:
-        rot3_errors: angular errors in rotations.
-        unit3_errors: angular errors in unit-translations.
-        angular_err_threshold: threshold to classify the error as success.
+        rot3_errors: angular errors in rotations, measured in degrees
+        unit3_errors: angular errors in unit-translations, measured in degrees
+        angular_err_threshold_deg: threshold to classify the error as success, in degrees
     """
     num_entries = len(rot3_errors)
 
@@ -393,9 +347,9 @@ def aggregate_frontend_metrics(
     pose_errors = np.maximum(rot3_errors, unit3_errors)
 
     # check errors against the threshold
-    success_count_rot3 = np.sum(rot3_errors < angular_err_threshold)
-    success_count_unit3 = np.sum(unit3_errors < angular_err_threshold)
-    success_count_pose = np.sum(pose_errors < angular_err_threshold)
+    success_count_rot3 = np.sum(rot3_errors < angular_err_threshold_deg)
+    success_count_unit3 = np.sum(unit3_errors < angular_err_threshold_deg)
+    success_count_pose = np.sum(pose_errors < angular_err_threshold_deg)
 
     logger.debug(
         "[Two view optimizer] [Summary] Rotation success: %d/%d/%d",
@@ -417,46 +371,3 @@ def aggregate_frontend_metrics(
         num_valid_entries,
         num_entries,
     )
-
-
-if __name__ == "__main__":
-    loader = FolderLoader(
-        os.path.join("tests", "data", "set1_lund_door"), image_extension="JPG"
-    )
-
-    config = SimpleNamespace(
-        **{
-            "reproj_error_thresh": 5,
-            "min_track_len": 2,
-            "triangulation_mode": TriangulationParam.NO_RANSAC,
-            "num_ransac_hypotheses": 20,
-            "save_viz": True,
-            "save_bal_files": True,
-            "pose_angular_error_thresh": np.deg2rad(10),
-        }
-    )
-    obj = SceneOptimizer(
-        detector_descriptor=SIFTDetectorDescriptor(),
-        matcher=TwoWayMatcher(),
-        verifier=Ransac(),
-        rot_avg_module=ShonanRotationAveraging(),
-        trans_avg_module=TranslationAveraging1DSFM(),
-        config=config,
-    )
-
-    sfm_result_graph = obj.create_computation_graph(
-        len(loader),
-        loader.get_valid_pairs(),
-        loader.create_computation_graph_for_images(),
-        loader.create_computation_graph_for_intrinsics(),
-        use_intrinsics_in_verification=True,
-        gt_pose_graph=loader.create_computation_graph_for_poses(),
-    )
-
-    # create dask client
-    cluster = LocalCluster(n_workers=2, threads_per_worker=4)
-
-    with Client(cluster), performance_report(filename="dask-report.html"):
-        sfm_result = sfm_result_graph.compute()
-
-    assert isinstance(sfm_result, SfmResult)

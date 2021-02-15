@@ -1,0 +1,37 @@
+SceneOptimizer:
+  _target_: gtsfm.scene_optimizer.SceneOptimizer
+  save_bal_files: False
+  save_viz: False
+  pose_angular_error_thresh: 10 # degrees
+
+  feature_extractor:
+    _target_: gtsfm.feature_extractor.FeatureExtractor
+    detector_descriptor:
+      _target_: gtsfm.frontend.detector_descriptor.sift.SIFTDetectorDescriptor
+
+
+  two_view_estimator:
+    _target_: gtsfm.two_view_estimator.TwoViewEstimator
+    matcher:
+      _target_: gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher
+
+    verifier:
+      _target_: gtsfm.frontend.verifier.degensac.Degensac
+    
+
+  multiview_optimizer:
+    _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
+    rot_avg_module:
+      _target_: gtsfm.averaging.rotation.shonan.ShonanRotationAveraging
+
+    trans_avg_module:
+      _target_: gtsfm.averaging.translation.averaging_1dsfm.TranslationAveraging1DSFM
+
+    data_association_module:
+      _target_: gtsfm.data_association.data_assoc.DataAssociation
+      reproj_error_thresh: 5
+      min_track_len: 3
+      mode:
+        _target_: gtsfm.data_association.data_assoc.TriangulationParam
+        value: 2 # corresponds to RANSAC_SAMPLE_BIASED_BASELINE
+      num_ransac_hypotheses: 20

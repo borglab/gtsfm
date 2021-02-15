@@ -20,9 +20,8 @@ COLOR_GREEN = (0, 255, 0)
 
 def set_axes_equal(ax: Axes):
     """
-    Make axes of 3D plot have equal scale so that spheres appear as spheres,
-    cubes as cubes, etc..  This is one possible solution to Matplotlib's
-    ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
+    Make axes of 3D plot have equal scale so that spheres appear as spheres, cubes as cubes, etc..  This is one
+    possible solution to Matplotlib's ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
 
     Ref: https://github.com/borglab/gtsam/blob/develop/python/gtsam/utils/plot.py#L13
 
@@ -135,26 +134,20 @@ def plot_twoview_correspondences(
         kps_i1: keypoints for image_i1.
         kps_i2: keypoints for image_i2.
         corr_idxs_i1i2: indices of correspondences between i1 and i2.
-        inlier_mask (optional): inlier mask for correspondences as boolean
-                                array. Defaults to None.
+        inlier_mask (optional): inlier mask for correspondences as boolean array. Defaults to None.
         dot_color (optional): color for keypoints. Defaults to (0, 0, 0).
-        max_corrs (optional): max number of correspondences to plot. Defaults
-                              to 50.
+        max_corrs (optional): max number of correspondences to plot. Defaults to 50.
 
     Returns:
         image visualizing correspondences between two images.
     """
-    image_i1, image_i2, scale_i1, scale_i2 = image_utils.match_image_widths(
-        image_i1, image_i2
-    )
+    image_i1, image_i2, scale_i1, scale_i2 = image_utils.match_image_widths(image_i1, image_i2)
 
     result = image_utils.vstack_images(image_i1, image_i2)
 
     if max_corrs is not None:
         # subsample matches
-        corr_idxs_i1i2 = corr_idxs_i1i2[
-            np.random.choice(corr_idxs_i1i2.shape[0], max_corrs)
-        ]
+        corr_idxs_i1i2 = corr_idxs_i1i2[np.random.choice(corr_idxs_i1i2.shape[0], max_corrs)]
 
     for corr_idx in range(corr_idxs_i1i2.shape[0]):
         # mark the points in both images as circles, and draw connecting line
@@ -163,15 +156,11 @@ def plot_twoview_correspondences(
         x_i1 = (kps_i1.coordinates[idx_i1, 0] * scale_i1[0]).astype(np.int32)
         y_i1 = (kps_i1.coordinates[idx_i1, 1] * scale_i1[1]).astype(np.int32)
         x_i2 = (kps_i2.coordinates[idx_i2, 0] * scale_i2[0]).astype(np.int32)
-        y_i2 = (kps_i2.coordinates[idx_i2, 1] * scale_i2[1]).astype(
-            np.int32
-        ) + image_i1.height
+        y_i2 = (kps_i2.coordinates[idx_i2, 1] * scale_i2[1]).astype(np.int32) + image_i1.height
 
         # drawing correspondences with optional inlier mask
         if inlier_mask is None:
-            line_color = tuple(
-                [int(c) for c in np.random.randint(0, 255 + 1, 3)]
-            )
+            line_color = tuple([int(c) for c in np.random.randint(0, 255 + 1, 3)])
         elif inlier_mask[corr_idx]:
             line_color = COLOR_GREEN
         else:
@@ -208,9 +197,7 @@ def plot_sfm_data_3d(sfm_data: SfmData, ax: Axes) -> None:
         ax.plot(landmark[0], landmark[1], landmark[2], "g.", markersize=1)
 
 
-def plot_poses_3d(
-    wTi_list: List[Pose3], ax: Axes, center_marker_color: str = "k"
-) -> None:
+def plot_poses_3d(wTi_list: List[Pose3], ax: Axes, center_marker_color: str = "k") -> None:
     """Plot poses in 3D as dots for centers and lines denoting the orthonormal
     coordinate system for each camera.
 
@@ -219,8 +206,7 @@ def plot_poses_3d(
     Args:
         wTi_list: list of poses to plot.
         ax: axis to plot on.
-        center_marker_color (optional): color for camera center marker.
-                                        Defaults to "k".
+        center_marker_color (optional): color for camera center marker. Defaults to "k".
     """
     spec = "{}.".format(center_marker_color)
 
@@ -242,9 +228,7 @@ def plot_poses_3d(
         ax.plot3D([x, x + v3[0]], [y, y + v3[1]], [z, z + v3[2]], c="b")
 
 
-def plot_and_compare_poses_3d(
-    wTi_list: List[Pose3], wTi_list_: List[Pose3]
-) -> None:
+def plot_and_compare_poses_3d(wTi_list: List[Pose3], wTi_list_: List[Pose3]) -> None:
     """Plots two sets poses in 3D with different markers to compare.
 
     The markers are colored black (k) and cyan (c) for the two lists.

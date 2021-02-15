@@ -20,16 +20,14 @@ class Image(NamedTuple):
     @property
     def height(self) -> int:
         """
-        The height of the image (i.e. number of pixels in the vertical
-        direction).
+        The height of the image (i.e. number of pixels in the vertical direction).
         """
         return self.value_array.shape[0]
 
     @property
     def width(self) -> int:
         """
-        The width of the image (i.e. number of pixels in the horizontal
-        direction).
+        The width of the image (i.e. number of pixels in the horizontal direction).
         """
         return self.value_array.shape[1]
 
@@ -59,9 +57,7 @@ class Image(NamedTuple):
 
         img_w_px = self.width
         img_h_px = self.height
-        focal_length_px = (
-            max(img_h_px, img_w_px) * focal_length_mm / sensor_width_mm
-        )
+        focal_length_px = max(img_h_px, img_w_px) * focal_length_mm / sensor_width_mm
 
         center_x = img_w_px / 2
         center_y = img_h_px / 2
@@ -74,9 +70,7 @@ class Image(NamedTuple):
             v0=float(center_y),
         )
 
-    def extract_patch(
-        self, center_x: float, center_y: float, patch_size: int
-    ) -> "Image":
+    def extract_patch(self, center_x: float, center_y: float, patch_size: int) -> "Image":
         """Extracts a square patch from the image.
 
         Note: appropriate padding is done if patch is out of bounds.
@@ -112,8 +106,6 @@ class Image(NamedTuple):
         # extract the values in the patch
         # Note: the padding amount and pad_size//2 cancel each other out, so
         # center index becomes the far left edge of patch in padded image
-        patch_values = padded_value_array[
-            center_y : center_y + patch_size, center_x : center_x + patch_size
-        ]
+        patch_values = padded_value_array[center_y : center_y + patch_size, center_x : center_x + patch_size]
 
         return Image(value_array=patch_values, exif_data=None)

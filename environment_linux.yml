@@ -35,6 +35,7 @@ dependencies:
   - h5py
   - pip:
     - pydegensac
+    - hydra-core==1.1.0dev3
 
 
 

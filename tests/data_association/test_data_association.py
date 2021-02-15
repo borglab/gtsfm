@@ -1,4 +1,5 @@
 """Unit test for the DataAssociation class (and implicitly the Point3dInitializer class).
+
 Triangulation examples from:
      borglab/gtsam/python/gtsam/tests/test_Triangulation.py 
      gtsam/geometry/tests/testTriangulation.cpp
@@ -55,11 +56,7 @@ def generate_noisy_2d_measurements(
     calibrations: List[Cal3Bundler],
     per_image_noise_vecs: np.ndarray,
     poses: Pose3Vector,
-) -> Tuple[
-    List[Keypoints],
-    List[Tuple[int, int]],
-    Dict[int, PinholeCameraCal3Bundler],
-]:
+) -> Tuple[List[Keypoints], List[Tuple[int, int]], Dict[int, PinholeCameraCal3Bundler],]:
     """
     Generate PinholeCameras from specified poses and calibrations, and then generate
     1 measurement per camera of a given 3d point.
@@ -97,14 +94,10 @@ def generate_noisy_2d_measurements(
 
 
 class TestDataAssociation(GtsamTestCase):
-    """
-    Unit tests for data association module, which maps the feature tracks to their 3D landmarks.
-    """
+    """Unit tests for data association module, which maps the feature tracks to their 3D landmarks."""
 
     def setUp(self):
-        """
-        Set up the data association module.
-        """
+        """Set up the data association module."""
         super().setUp()
 
         # landmark ~5 meters infront of camera
@@ -134,15 +127,11 @@ class TestDataAssociation(GtsamTestCase):
         mode = TriangulationParam.NO_RANSAC
         self.verify_triangulation_sharedCal_2poses(mode)
 
-    def verify_triangulation_sharedCal_2poses(
-        self, triangulation_mode: TriangulationParam
-    ):
-        """
-        Tests that the triangulation is accurate for shared calibration with a
-        specified triangulation mode.
+    def verify_triangulation_sharedCal_2poses(self, triangulation_mode: TriangulationParam):
+        """Tests that the triangulation is accurate for shared calibration with a specified triangulation mode.
 
-        Checks whether the triangulated landmark map formed from 2 measurements is valid,
-        if min track length = 3 (should be invalid)
+        Checks whether the triangulated landmark map formed from 2 measurements is valid, if min track length = 3
+        (should be invalid)
 
         The noise vectors represent the amount of noise to be added to measurements.
         """
@@ -163,9 +152,7 @@ class TestDataAssociation(GtsamTestCase):
             mode=triangulation_mode,
             num_ransac_hypotheses=20,
         )
-        triangulated_landmark_map = da.run(
-            cameras, matches_dict, keypoints_list
-        )
+        triangulated_landmark_map = da.run(cameras, matches_dict, keypoints_list)
         # assert that we cannot obtain even 1 length-3 track if we have only 2 camera poses
         # result should be empty, since nb_measurements < min track length
         assert (
@@ -173,9 +160,8 @@ class TestDataAssociation(GtsamTestCase):
         ), "Failure: tracks exceed expected track length (should be 0 tracks)"
 
     def test_triangulation_individualCal_without_ransac(self):
-        """
-        Tests that the triangulation is accurate for individual camera calibration, without RANSAC-based triangulation.
-        Checks if cameras and triangulated 3D point are as expected.
+        """Tests that the triangulation is accurate for individual camera calibration, without RANSAC-based
+        triangulation. Checks if cameras and triangulated 3D point are as expected.
         """
         k1 = 0
         k2 = 0
@@ -227,22 +213,16 @@ class TestDataAssociation(GtsamTestCase):
         mode = TriangulationParam.NO_RANSAC
         self.verify_triangulation_sharedCal_3poses(mode)
 
-    def verify_triangulation_sharedCal_3poses(
-        self, triangulation_mode: TriangulationParam
-    ):
-        """
-        Tests that the triangulation is accurate for shared calibration with a
-        specified triangulation mode.
+    def verify_triangulation_sharedCal_3poses(self, triangulation_mode: TriangulationParam):
+        """Tests that the triangulation is accurate for shared calibration with a specified triangulation mode.
 
-        Checks whether the sfm data formed from 3 measurements is valid.
-        The noise vectors represent the amount of noise to be added to measurements.
+        Checks whether the sfm data formed from 3 measurements is valid. The noise vectors represent the amount of
+        noise to be added to measurements.
         """
         keypoints_list, _, cameras = generate_noisy_2d_measurements(
             world_point=self.expected_landmark,
             calibrations=[self.sharedCal, self.sharedCal, self.sharedCal],
-            per_image_noise_vecs=np.array(
-                [[-0.1, -0.5], [-0.2, 0.3], [0.1, -0.1]]
-            ),
+            per_image_noise_vecs=np.array([[-0.1, -0.5], [-0.2, 0.3], [0.1, -0.1]]),
             poses=get_pose3_vector(num_poses=3),
         )
 
@@ -269,16 +249,12 @@ class TestDataAssociation(GtsamTestCase):
             self.gtsamAssertEquals(sfm_data.camera(i), cameras.get(i))
 
     def test_create_computation_graph(self):
-        """
-        Tests the graph to create data association for 3 images.
-        Checks if result from dask computation graph is the same as result without dask.
-        """
+        """Tests the graph to create data association for 3 images. Checks if result from dask computation graph is the
+        same as result without dask."""
         keypoints_list, img_idxs, cameras = generate_noisy_2d_measurements(
             world_point=self.expected_landmark,
             calibrations=[self.sharedCal, self.sharedCal, self.sharedCal],
-            per_image_noise_vecs=np.array(
-                [[-0.1, -0.5], [-0.2, 0.3], [0.1, -0.1]]
-            ),
+            per_image_noise_vecs=np.array([[-0.1, -0.5], [-0.2, 0.3], [0.1, -0.1]]),
             poses=get_pose3_vector(num_poses=3),
         )
 
@@ -305,14 +281,11 @@ class TestDataAssociation(GtsamTestCase):
         with dask.config.set(scheduler="single-threaded"):
             dask_sfm_data = dask.compute(delayed_sfm_data)[0]
 
-        assert (
-            expected_sfm_data.number_tracks() == dask_sfm_data.number_tracks()
-        ), "Dask not configured correctly"
+        assert expected_sfm_data.number_tracks() == dask_sfm_data.number_tracks(), "Dask not configured correctly"
 
         for k in range(expected_sfm_data.number_tracks()):
             assert (
-                expected_sfm_data.track(k).number_measurements()
-                == dask_sfm_data.track(k).number_measurements()
+                expected_sfm_data.track(k).number_measurements() == dask_sfm_data.track(k).number_measurements()
             ), "Dask tracks incorrect"
             # Test if the measurement in both are equal
             np.testing.assert_array_almost_equal(

@@ -13,10 +13,7 @@ from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBa
 class DummyRotationAveraging(RotationAveragingBase):
     """Assigns random rotation matrices to each pose."""
 
-    def run(self,
-            num_images: int,
-            i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]]
-            ) -> List[Optional[Rot3]]:
+    def run(self, num_images: int, i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]]) -> List[Optional[Rot3]]:
         """Run the rotation averaging.
 
         Args:
@@ -24,27 +21,24 @@ class DummyRotationAveraging(RotationAveragingBase):
             i2Ri1_dict: relative rotations as dictionary (i1, i2): i2Ri1.
 
         Returns:
-            Global rotations for each camera pose, i.e. wRi, as a list. The
-                number of entries in the list is `num_images`. The list may
-                contain `None` where the global rotation could not be computed
-                (either underconstrained system or ill-constrained system).
+            Global rotations for each camera pose, i.e. wRi, as a list. The number of entries in the list is
+                `num_images`. The list may contain `None` where the global rotation could not be computed (either
+                underconstrained system or ill-constrained system).
         """
         if len(i2Ri1_dict) == 0:
-            return [None]*num_images
+            return [None] * num_images
 
         # create the random seed using relative rotations
         seed_rotation = next(iter(i2Ri1_dict.values()))
 
-        np.random.seed(
-            int(1000*seed_rotation.xyz()[0]) % (2 ^ 32))
+        np.random.seed(int(1000 * seed_rotation.xyz()[0]) % (2 ^ 32))
 
         # TODO: do not assign values where we do not have any edge
 
         # generate dummy rotations
         wRi_list = []
         for _ in range(num_images):
-            random_vector = np.random.rand(3)*2*np.pi
-            wRi_list.append(Rot3.Rodrigues(
-                random_vector[0], random_vector[1], random_vector[2]))
+            random_vector = np.random.rand(3) * 2 * np.pi
+            wRi_list.append(Rot3.Rodrigues(random_vector[0], random_vector[1], random_vector[2]))
 
         return wRi_list

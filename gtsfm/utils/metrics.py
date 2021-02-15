@@ -54,8 +54,7 @@ def compute_rotation_angle_metrics(
     """
     errors = []
     for (wRi, gt_wRi) in zip(wRi_list, gt_wRi_list):
-        angle = np.rad2deg(
-            comp_utils.compute_relative_rotation_angle(wRi, gt_wRi))
+        angle = comp_utils.compute_relative_rotation_angle(wRi, gt_wRi)
         errors.append(angle)
     return get_errors_statistics(errors)
 
@@ -100,9 +99,8 @@ def compute_translation_angle_metrics(
     for (i1, i2) in i2Ui1_dict:
         i2Ui1 = i2Ui1_dict[(i1, i2)]
         angles.append(
-            np.rad2deg(
-                comp_utils.compute_translation_to_direction_angle(
-                    i2Ui1, wTi_list[i2], wTi_list[i1])))
+            comp_utils.compute_translation_to_direction_angle(
+                i2Ui1, wTi_list[i2], wTi_list[i1]))
     return get_errors_statistics(angles)
 
 

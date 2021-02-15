@@ -23,8 +23,7 @@ class TestRotationAveragingBase(unittest.TestCase):
         self.obj = DummyRotationAveraging()
 
     def test_computation_graph(self):
-        """Test the dask computation graph execution using a valid collection
-        of relative poses."""
+        """Test the dask computation graph execution using a valid collection of relative poses."""
 
         num_poses = 3
 
@@ -39,17 +38,13 @@ class TestRotationAveragingBase(unittest.TestCase):
         expected_wRi_list = self.obj.run(num_poses, i2Ri1_dict)
 
         # use dask's computation graph
-        computation_graph = self.obj.create_computation_graph(
-            num_poses,
-            i2Ri1_graph
-        )
+        computation_graph = self.obj.create_computation_graph(num_poses, i2Ri1_graph)
 
-        with dask.config.set(scheduler='single-threaded'):
+        with dask.config.set(scheduler="single-threaded"):
             wRi_list = dask.compute(computation_graph)[0]
 
         # compare the two results
-        self.assertTrue(geometry_comparisons.compare_rotations(
-            wRi_list, expected_wRi_list))
+        self.assertTrue(geometry_comparisons.compare_rotations(wRi_list, expected_wRi_list))
 
     def test_pickleable(self):
         """Tests that the object is pickleable (required for dask)."""
@@ -60,5 +55,5 @@ class TestRotationAveragingBase(unittest.TestCase):
             self.fail("Cannot dump rotation averaging object using pickle")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

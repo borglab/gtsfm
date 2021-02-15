@@ -1,5 +1,4 @@
-"""
-Tests for frontend's base detector class.
+"""Tests for frontend's base detector class.
 
 Authors: Ayush Baid
 """
@@ -27,8 +26,7 @@ class TestDetectorBase(unittest.TestCase):
         self.loader = FolderLoader(TEST_DATA_PATH, image_extension="JPG")
 
     def test_number_of_detections(self):
-        """Tests that the number of detections is less than the maximum number
-        configured."""
+        """Tests that the number of detections is less than the maximum number configured."""
         test_image = self.loader.get_image(0)
         keypoints = self.detector.detect(test_image)
 
@@ -40,13 +38,9 @@ class TestDetectorBase(unittest.TestCase):
         keypoints = self.detector.detect(test_image)
 
         np.testing.assert_array_equal(keypoints.coordinates[:, 0] >= 0, True)
-        np.testing.assert_array_equal(
-            keypoints.coordinates[:, 0] <= test_image.width, True
-        )
+        np.testing.assert_array_equal(keypoints.coordinates[:, 0] <= test_image.width, True)
         np.testing.assert_array_equal(keypoints.coordinates[:, 1] >= 0, True)
-        np.testing.assert_array_equal(
-            keypoints.coordinates[:, 1] <= test_image.height, True
-        )
+        np.testing.assert_array_equal(keypoints.coordinates[:, 1] <= test_image.height, True)
 
     def test_scale(self):
         """Tests that the scales are positive."""
@@ -59,9 +53,7 @@ class TestDetectorBase(unittest.TestCase):
 
         idx_under_test = 0
 
-        image_graph = self.loader.create_computation_graph_for_images()[
-            idx_under_test
-        ]
+        image_graph = self.loader.create_computation_graph_for_images()[idx_under_test]
         keypoints_graph = self.detector.create_computation_graph(image_graph)
 
         with dask.config.set(scheduler="single-threaded"):

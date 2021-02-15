@@ -16,18 +16,12 @@ DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
 
 DEFAULT_FOLDER = DATA_ROOT_PATH / "set1_lund_door"
 EXIF_FOLDER = DATA_ROOT_PATH / "set2_lund_door_nointrinsics"
-NO_EXTRINSICS_FOLDER = (
-    DATA_ROOT_PATH / "set3_lund_doornointrinsics_noextrinsics"
-)
-NO_EXIF_FOLDER = (
-    DATA_ROOT_PATH / "set4_lund_door_nointrinsics_noextrinsics_noexif"
-)
+NO_EXTRINSICS_FOLDER = DATA_ROOT_PATH / "set3_lund_doornointrinsics_noextrinsics"
+NO_EXIF_FOLDER = DATA_ROOT_PATH / "set4_lund_door_nointrinsics_noextrinsics_noexif"
 
 
 class TestFolderLoader(unittest.TestCase):
-    """
-    Unit tests for folder loader, which loads image from a folder on disk.
-    """
+    """Unit tests for folder loader, which loads image from a folder on disk."""
 
     def setUp(self):
         """Set up the loader for the test."""
@@ -36,24 +30,18 @@ class TestFolderLoader(unittest.TestCase):
         self.loader = FolderLoader(str(DEFAULT_FOLDER), image_extension="JPG")
 
     def test_len(self):
-        """
-        Test the number of entries in the loader.
-        """
+        """Test the number of entries in the loader."""
 
         self.assertEqual(12, len(self.loader))
 
     def test_get_image_valid_index(self):
-        """
-        Tests that get_image works for all valid indices.
-        """
+        """Tests that get_image works for all valid indices."""
 
         for idx in range(len(self.loader)):
             self.assertIsNotNone(self.loader.get_image(idx))
 
     def test_get_image_invalid_index(self):
-        """
-        Test that get_image raises an exception on an invalid index.
-        """
+        """Test that get_image raises an exception on an invalid index."""
 
         # negative index
         with self.assertRaises(IndexError):
@@ -66,8 +54,7 @@ class TestFolderLoader(unittest.TestCase):
             self.loader.get_image(15)
 
     def test_image_contents(self):
-        """
-        Test the actual image which is being fetched by the loader at an index.
+        """Test the actual image which is being fetched by the loader at an index.
 
         This test's primary purpose is to check if the ordering of filename is being respected by the loader
         """
@@ -79,14 +66,10 @@ class TestFolderLoader(unittest.TestCase):
 
         expected_image = io_utils.load_image(file_path)
 
-        np.testing.assert_allclose(
-            expected_image.value_array, loader_image.value_array
-        )
+        np.testing.assert_allclose(expected_image.value_array, loader_image.value_array)
 
     def test_get_camera_pose_exists(self):
-        """
-        Tests that the correct pose is fetched (present on disk).
-        """
+        """Tests that the correct pose is fetched (present on disk)."""
 
         fetched_pose = self.loader.get_camera_pose(5)
 
@@ -104,9 +87,7 @@ class TestFolderLoader(unittest.TestCase):
         self.assertTrue(expected_pose.equals(fetched_pose, 1e-2))
 
     def test_get_camera_pose_missing(self):
-        """
-        Tests that the camera pose is None, because it is missing on disk.
-        """
+        """Tests that the camera pose is None, because it is missing on disk."""
 
         loader = FolderLoader(str(NO_EXTRINSICS_FOLDER), image_extension="JPG")
 
@@ -115,8 +96,7 @@ class TestFolderLoader(unittest.TestCase):
         self.assertIsNone(fetched_pose)
 
     def test_get_camera_intrinsics_explicit(self):
-        """Tests getter for intrinsics when explicit numpy arrays with
-        intrinsics are present on disk."""
+        """Tests getter for intrinsics when explicit numpy arrays with intrinsics are present on disk."""
 
         computed = self.loader.get_camera_intrinsics(5)
 
@@ -155,13 +135,9 @@ class TestFolderLoader(unittest.TestCase):
         results = dask.compute(image_graph)[0]
 
         # randomly check image loads from a few indices
-        np.testing.assert_allclose(
-            results[5].value_array, self.loader.get_image(5).value_array
-        )
+        np.testing.assert_allclose(results[5].value_array, self.loader.get_image(5).value_array)
 
-        np.testing.assert_allclose(
-            results[7].value_array, self.loader.get_image(7).value_array
-        )
+        np.testing.assert_allclose(results[7].value_array, self.loader.get_image(7).value_array)
 
     def test_create_computation_graph_for_intrinsics(self):
         """Tests the graph for all intrinsics."""
@@ -174,12 +150,8 @@ class TestFolderLoader(unittest.TestCase):
         results = dask.compute(intrinsics_graph)[0]
 
         # randomly check intrinsics from a few indices
-        self.assertTrue(
-            self.loader.get_camera_intrinsics(5).equals(results[5], 1e-5)
-        )
-        self.assertTrue(
-            self.loader.get_camera_intrinsics(7).equals(results[7], 1e-5)
-        )
+        self.assertTrue(self.loader.get_camera_intrinsics(5).equals(results[5], 1e-5))
+        self.assertTrue(self.loader.get_camera_intrinsics(7).equals(results[7], 1e-5))
 
 
 if __name__ == "__main__":

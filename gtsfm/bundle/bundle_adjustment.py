@@ -30,7 +30,8 @@ logger = logger_utils.get_logger()
 class BundleAdjustmentOptimizer:
     """Bundle adjustment using factor-graphs in GTSAM.
 
-    This class refines global pose estimates and intrinsics of cameras, and also refines 3D point cloud structure given tracks from triangulation."""
+    This class refines global pose estimates and intrinsics of cameras, and also refines 3D point cloud structure given
+    tracks from triangulation."""
 
     def run(self, initial_data: SfmData) -> SfmResult:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
@@ -41,14 +42,10 @@ class BundleAdjustmentOptimizer:
         Results:
             optimized camera poses, 3D point w/ tracks, and error metrics.
         """
-        logger.info(
-            f"Input: {initial_data.number_tracks()} tracks on {initial_data.number_cameras()} cameras\n"
-        )
+        logger.info(f"Input: {initial_data.number_tracks()} tracks on {initial_data.number_cameras()} cameras\n")
 
         # noise model for measurements -- one pixel in u and v
-        measurement_noise = gtsam.noiseModel.Isotropic.Sigma(
-            IMG_MEASUREMENT_DIM, 1.0
-        )
+        measurement_noise = gtsam.noiseModel.Isotropic.Sigma(IMG_MEASUREMENT_DIM, 1.0)
 
         # Create a factor graph
         graph = gtsam.NonlinearFactorGraph()
@@ -61,20 +58,14 @@ class BundleAdjustmentOptimizer:
                 # i represents the camera index, and uv is the 2d measurement
                 i, uv = track.measurement(m_idx)
                 # note use of shorthand symbols C and P
-                graph.add(
-                    GeneralSFMFactorCal3Bundler(
-                        uv, measurement_noise, C(i), P(j)
-                    )
-                )
+                graph.add(GeneralSFMFactorCal3Bundler(uv, measurement_noise, C(i), P(j)))
 
         # Add a prior on pose x1. This indirectly specifies where the origin is.
         graph.push_back(
             gtsam.PriorFactorPinholeCameraCal3Bundler(
                 C(0),
                 initial_data.camera(0),
-                gtsam.noiseModel.Isotropic.Sigma(
-                    PINHOLE_CAM_CAL3BUNDLER_DOF, 0.1
-                ),
+                gtsam.noiseModel.Isotropic.Sigma(PINHOLE_CAM_CAL3BUNDLER_DOF, 0.1),
             )
         )
         # Also add a prior on the position of the first landmark to fix the scale
@@ -142,8 +133,8 @@ def values_to_sfm_data(values: Values, initial_data: SfmData) -> SfmData:
 
     Args:
         values: results of factor graph optimization.
-        initial_data: data used to generate the factor graph; used to extract
-                      information about poses and 3d points in the graph.
+        initial_data: data used to generate the factor graph; used to extract information about poses and 3d points in
+                      the graph.
 
     Returns:
         optimized poses and landmarks.

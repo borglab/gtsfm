@@ -1,5 +1,4 @@
-"""
-Tests for frontend's DoG detector class.
+"""Tests for frontend's DoG detector class.
 
 Authors: Ayush Baid
 """
@@ -20,5 +19,5 @@ class TestDoG(test_detector_base.TestDetectorBase):
         self.detector = DoG()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

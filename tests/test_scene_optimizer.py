@@ -7,21 +7,16 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import dask
+import hydra
 import numpy as np
 from dask.distributed import LocalCluster, Client
 from gtsam import EssentialMatrix, Rot3, Unit3
+from hydra.experimental import compose, initialize_config_module
+from hydra.utils import instantiate
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.serialization  # import needed to register serialization fns
-from gtsfm.averaging.rotation.shonan import ShonanRotationAveraging
-from gtsfm.averaging.translation.averaging_1dsfm import (
-    TranslationAveraging1DSFM,
-)
 from gtsfm.common.sfm_result import SfmResult
-from gtsfm.data_association.data_assoc import TriangulationParam
-from gtsfm.frontend.detector_descriptor.sift import SIFTDetectorDescriptor
-from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
-from gtsfm.frontend.verifier.degensac import Degensac
 from gtsfm.loader.folder_loader import FolderLoader
 from gtsfm.scene_optimizer import SceneOptimizer
 from gtsfm.multi_view_optimizer import select_largest_connected_component
@@ -33,28 +28,8 @@ class TestSceneOptimizer(unittest.TestCase):
     """Unit test for SceneOptimizer, which runs SfM for a scene."""
 
     def setUp(self) -> None:
-        self.loader = FolderLoader(
-            str(DATA_ROOT_PATH / "set1_lund_door"), image_extension="JPG"
-        )
+        self.loader = FolderLoader(str(DATA_ROOT_PATH / "set1_lund_door"), image_extension="JPG")
         assert len(self.loader)
-        config = SimpleNamespace(
-            **{
-                "reproj_error_thresh": 5,
-                "min_track_len": 3,
-                "triangulation_mode": TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
-                "num_ransac_hypotheses": 20,
-                "save_viz": False,
-                "save_bal_files": False,
-            }
-        )
-        self.obj = SceneOptimizer(
-            detector_descriptor=SIFTDetectorDescriptor(),
-            matcher=TwoWayMatcher(),
-            verifier=Degensac(),
-            rot_avg_module=ShonanRotationAveraging(),
-            trans_avg_module=TranslationAveraging1DSFM(),
-            config=config,
-        )
 
     def test_find_largest_connected_component(self):
         """Tests the function to prune the scene graph to its largest connected
@@ -87,60 +62,52 @@ class TestSceneOptimizer(unittest.TestCase):
         (
             computed_relative_rotations,
             computed_relative_unit_translations,
-        ) = select_largest_connected_component(
-            input_relative_rotations, input_relative_unit_translations
-        )
+        ) = select_largest_connected_component(input_relative_rotations, input_relative_unit_translations)
 
         # check the edges in the pruned graph
-        self.assertCountEqual(
-            list(computed_relative_rotations.keys()), expected_edges
-        )
-        self.assertCountEqual(
-            list(computed_relative_unit_translations.keys()), expected_edges
-        )
+        self.assertCountEqual(list(computed_relative_rotations.keys()), expected_edges)
+        self.assertCountEqual(list(computed_relative_unit_translations.keys()), expected_edges)
 
         # check the actual Rot3 and Unit3 values
         for (i1, i2) in expected_edges:
+            self.assertTrue(computed_relative_rotations[(i1, i2)].equals(input_relative_rotations[(i1, i2)], 1e-2))
             self.assertTrue(
-                computed_relative_rotations[(i1, i2)].equals(
-                    input_relative_rotations[(i1, i2)], 1e-2
-                )
-            )
-            self.assertTrue(
-                computed_relative_unit_translations[(i1, i2)].equals(
-                    input_relative_unit_translations[(i1, i2)], 1e-2
-                )
+                computed_relative_unit_translations[(i1, i2)].equals(input_relative_unit_translations[(i1, i2)], 1e-2)
             )
 
     def test_create_computation_graph(self):
         """Will test Dask multi-processing capabilities and ability to serialize all objects."""
         use_intrinsics_in_verification = False
 
-        # generate the dask computation graph
-        sfm_result_graph = self.obj.create_computation_graph(
-            len(self.loader),
-            self.loader.get_valid_pairs(),
-            self.loader.create_computation_graph_for_images(),
-            self.loader.create_computation_graph_for_intrinsics(),
-            use_intrinsics_in_verification=use_intrinsics_in_verification,
-        )
+        with initialize_config_module(config_module="gtsfm.configs"):
 
-        # create dask client
-        cluster = LocalCluster(n_workers=1, threads_per_worker=4)
+            # config is relative to the gtsfm module
+            cfg = compose(config_name="scene_optimizer_unit_test_config.yaml")
+            self.obj: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
-        with Client(cluster):
-            sfm_result = dask.compute(sfm_result_graph)[0]
+            # generate the dask computation graph
+            sfm_result_graph = self.obj.create_computation_graph(
+                len(self.loader),
+                self.loader.get_valid_pairs(),
+                self.loader.create_computation_graph_for_images(),
+                self.loader.create_computation_graph_for_intrinsics(),
+                use_intrinsics_in_verification=use_intrinsics_in_verification,
+            )
 
-        self.assertIsInstance(sfm_result, SfmResult)
+            # create dask client
+            cluster = LocalCluster(n_workers=1, threads_per_worker=4)
 
-        # compare the camera poses
-        poses = sfm_result.get_camera_poses()
+            with Client(cluster):
+                sfm_result = dask.compute(sfm_result_graph)[0]
 
-        expected_poses = [
-            self.loader.get_camera_pose(i) for i in range(len(self.loader))
-        ]
+            self.assertIsInstance(sfm_result, SfmResult)
 
-        self.assertTrue(comp_utils.compare_global_poses(poses, expected_poses))
+            # compare the camera poses
+            poses = sfm_result.get_camera_poses()
+
+            expected_poses = [self.loader.get_camera_pose(i) for i in range(len(self.loader))]
+
+            self.assertTrue(comp_utils.compare_global_poses(poses, expected_poses))
 
 
 def generate_random_essential_matrix() -> EssentialMatrix:

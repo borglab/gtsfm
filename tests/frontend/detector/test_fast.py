@@ -19,5 +19,5 @@ class TestFast(test_detector_base.TestDetectorBase):
         self.detector = Fast()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

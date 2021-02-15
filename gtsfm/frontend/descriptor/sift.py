@@ -1,7 +1,7 @@
 """SIFT Descriptor implementation.
 
-The method was proposed in 'Distinctive Image Features from Scale-Invariant
-Keypoints' and is implemented by wrapping over OpenCV's API.
+The method was proposed in 'Distinctive Image Features from Scale-Invarian Keypoints' and is implemented by wrapping
+over OpenCV's API.
 
 Note: this is a standalone descriptor.
 
@@ -31,8 +31,7 @@ class SIFTDescriptor(DescriptorBase):
             keypoints: the keypoints to describe, of length N.
 
         Returns:
-            the descriptors for the input features, of shape (N, D) where D is
-                the dimension of each descriptor.
+            Descriptors for the input features, of shape (N, D) where D is the dimension of each descriptor.
         """
         if len(keypoints) == 0:
             return np.array([])
@@ -42,8 +41,6 @@ class SIFTDescriptor(DescriptorBase):
         opencv_obj = cv.SIFT_create()
 
         # TODO(ayush): what to do about new set of keypoints
-        _, descriptors = opencv_obj.compute(
-            gray_image.value_array,
-            keypoints.cast_to_opencv_keypoints())
+        _, descriptors = opencv_obj.compute(gray_image.value_array, keypoints.cast_to_opencv_keypoints())
 
         return descriptors
