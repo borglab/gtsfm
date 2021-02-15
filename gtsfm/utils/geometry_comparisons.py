@@ -5,7 +5,7 @@ Authors: Ayush Baid
 from typing import List, Optional
 
 import numpy as np
-from gtsam import Pose3, Rot3, Unit3
+from gtsam import Pose3, Rot3, Unit3, Point3
 
 EPSILON = np.finfo(float).eps
 

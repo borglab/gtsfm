@@ -6,9 +6,9 @@ import json
 import numpy as np
 import os
 from dask.delayed import Delayed
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
-from gtsam import (Point3, Rot3, Pose3)
+from gtsam import (Point3, Rot3, Pose3, Unit3)
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 from gtsfm.common.sfm_result import SfmResult
@@ -102,7 +102,7 @@ def compute_translation_angle_metrics(
         angles.append(
             np.rad2deg(
                 comp_utils.compute_translation_to_direction_angle(
-                    i2Ui1, wTi[i2], wTi[i1])))
+                    i2Ui1, wTi_list[i2], wTi_list[i1])))
     return get_errors_statistics(angles)
 
 
