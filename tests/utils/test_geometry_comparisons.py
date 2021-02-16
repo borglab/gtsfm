@@ -122,8 +122,8 @@ class TestGeometryComparisons(unittest.TestCase):
         self.assertTrue(pose_graphs_equal)
 
     def test_compute_translation_to_direction_angle_is_zero(self):
-        i2Ui1_measured = Unit3(1, 0, 0)
-        wTi2_estimated = Pose3(Rot3(), Point3())
+        i2Ui1_measured = Unit3(Point3(1, 0, 0))
+        wTi2_estimated = Pose3(Rot3(), Point3(0, 0, 0))
         wTi1_estimated = Pose3(Rot3(), Point3(2, 0, 0))
         self.assertEqual(
             geometry_comparisons.compute_translation_to_direction_angle(
@@ -133,10 +133,10 @@ class TestGeometryComparisons(unittest.TestCase):
         )
 
     def test_compute_translation_to_direction_angle_is_nonzero(self):
-        i2Ui1_measured = Unit3(0, 1, 0)
+        i2Ui1_measured = Unit3(Point3(0, 1, 0))
         wRi2 = Rot3.RzRyRx(-np.deg2rad(90), 0, 0)  # x-axis points to -y in world frame
         wRi1 = Rot3.RzRyRx(np.deg2rad(30), np.deg2rad(60), np.deg2rad(90))  # irrelevant
-        wTi2_estimated = Pose3(wRi2, Point3())
+        wTi2_estimated = Pose3(wRi2, Point3(0, 0, 0))
         wTi1_estimated = Pose3(Rot3(), Point3(0, -1, 0))  # along -y axis
         # estimated direction along x-axis and measured along y-axis in i2 frame.
         self.assertTrue(
@@ -148,7 +148,7 @@ class TestGeometryComparisons(unittest.TestCase):
 
     def test_compute_points_distance_l2_is_zero(self):
         self.assertEqual(
-            geometry_comparisons.test_compute_points_distance_l2(
+            geometry_comparisons.compute_points_distance_l2(
                 Point3(1, -2, 3), Point3(1, -2, 3)
             ),
             0.0,
@@ -156,7 +156,7 @@ class TestGeometryComparisons(unittest.TestCase):
 
     def test_compute_points_distance_l2_is_none(self):
         self.assertEqual(
-            geometry_comparisons.test_compute_points_distance_l2(Point3(), None),
+            geometry_comparisons.compute_points_distance_l2(Point3(0, 0, 0), None),
             None,
         )
 
@@ -164,7 +164,7 @@ class TestGeometryComparisons(unittest.TestCase):
         wti1 = Point3(1, 1, 1)
         wti2 = Point3(1, 1, -1)
         self.assertEqual(
-            geometry_comparisons.test_compute_points_distance_l2(wti1, wti2), 2
+            geometry_comparisons.compute_points_distance_l2(wti1, wti2), 2
         )
 
 
