@@ -70,7 +70,7 @@ def align_poses(input_list: List[Pose3], ref_list: List[Pose3]) -> List[Pose3]:
         w1Ti = input_list[i]
         p_est_aligned = scale * w2Rw1 @ w1Ti.translation() + w2tw1
         R_est_aligned = w2Rw1 @ w1Ti.rotation().matrix()
-        aligned_input_list += [Pose3( Rot3(R_est_aligned), p_est_aligned)]
+        aligned_input_list += [Pose3(Rot3(R_est_aligned), p_est_aligned)]
 
     logger.info("Trajectory alignment complete.")
 
