@@ -15,16 +15,18 @@ import numpy as np
 def align_umeyama(
     model: np.ndarray, data: np.ndarray, known_scale: bool = False
 ) -> Tuple[float, np.ndarray, np.ndarray]:
-    """Implementation of the paper: S. Umeyama, Least-Squares Estimation
-    of Transformation Parameters Between Two Point Patterns,
-    IEEE Trans. Pattern Anal. Mach. Intell., vol. 13, no. 4, 1991.
-    model = s * R * data + t
+    """Align two trajectories by fitting a Sim(3) transform usin least-squares .
 
+    Implementation of the paper: 
+       S. Umeyama, Least-Squares Estimation of Transformation Parameters Between
+       Two Point Patterns, IEEE Trans. Pattern Anal. Mach. Intell., vol. 13, no. 4, 1991.
+    
     Ref: rpg_trajectory_evaluation/src/rpg_trajectory_evaluation/align_trajectory.py
+    model = s * R * data + t
 
     Args:
         model: Array of shape (N,3) representing first trajectory as ground truth
-        data: Array of shape (N,3), representing second trajectory
+        data: Array of shape (N,3), representing second trajectory as estimate
 
     Returns:
         s: float scalar representing scale factor
@@ -33,8 +35,8 @@ def align_umeyama(
     """
 
     # substract mean
-    mu_M = model.mean(0)
-    mu_D = data.mean(0)
+    mu_M = model.mean(axis=0)
+    mu_D = data.mean(axis=0)
     model_zerocentered = model - mu_M
     data_zerocentered = data - mu_D
     n = model.shape[0]
