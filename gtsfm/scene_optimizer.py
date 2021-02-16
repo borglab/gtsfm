@@ -366,3 +366,24 @@ def aggregate_frontend_metrics(
         num_valid_entries,
         num_entries,
     )
+
+    front_end_result_info = {
+        "angular_err_threshold_deg": angular_err_threshold_deg,
+        "Rotation success": {
+            "success_count_rot3": int(success_count_rot3),
+            "num_valid_entries": int(num_valid_entries),
+            "num_total_entries": int(num_entries),
+        },
+        "Translation success": {
+            "success_count_unit3": int(success_count_unit3),
+            "num_valid_entries": int(num_valid_entries),
+            "num_total_entries": int(num_entries),
+        },
+        "Pose success": {
+            "success_count_pose": int(success_count_pose),
+            "num_valid_entries": int(num_valid_entries),
+            "num_total_entries": int(num_entries),
+        },
+    }
+    os.makedirs("result_metrics", exist_ok=True)
+    io_utils.save_json_file(os.path.join("result_metrics", "front_end.json"), front_end_result_info)
