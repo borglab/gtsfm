@@ -7,8 +7,8 @@ from typing import List, Optional
 import numpy as np
 from gtsam import Pose3, Rot3, Unit3
 
-from gtsfm.utils.logger import get_logger
 from gtsfm.utils.align_sim3 import align_umeyama
+from gtsfm.utils.logger import get_logger
 
 EPSILON = np.finfo(float).eps
 
