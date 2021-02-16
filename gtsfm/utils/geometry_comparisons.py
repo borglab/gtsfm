@@ -7,7 +7,12 @@ from typing import List, Optional
 import numpy as np
 from gtsam import Pose3, Rot3, Unit3
 
+from gtsfm.utils.logger import get_logger
+from gtsfm.utils.align_sim3 import align_umeyama
+
 EPSILON = np.finfo(float).eps
+
+logger = get_logger()
 
 
 def align_rotations(input_list: List[Rot3], ref_list: List[Rot3]) -> List[Rot3]:
@@ -31,39 +36,45 @@ def align_rotations(input_list: List[Rot3], ref_list: List[Rot3]) -> List[Rot3]:
 
 
 def align_poses(input_list: List[Pose3], ref_list: List[Pose3]) -> List[Pose3]:
-    """Aligns the list of poses to the reference list by shifting origin and
-    scaling translations.
+    """Align by similarity transformation.
+
+    We calculate s, R, t so that:
+        gt = R * s * est + t
+
+    We force SIM(3) alignment rather than SE(3) alignment.
+    We assume the two trajectories are of the exact same length.
+    Ref: rpg_trajectory_evaluation/src/rpg_trajectory_evaluation/align_utils.py
 
     Args:
         input_list: input poses which need to be aligned, suppose w1Ti in world-1 frame for all frames i.
         ref_list: reference poses which are target for alignment, suppose w2Ti_ in world-2 frame for all frames i.
+            We set the reference as the ground truth.
 
     Returns:
         transformed poses which have the same origin and scale as reference (now living in world-2 frame)
     """
-    # match the scales first
-    wTi0 = input_list[0]
-    input_distances = np.array([np.linalg.norm((wTi.between(wTi0)).translation()) for wTi in input_list[1:]])
+    p_est = np.array([w1Ti.translation() for w1Ti in input_list])
+    p_gt = np.array([w2Ti.translation() for w2Ti in ref_list])
 
-    wTi0 = ref_list[0]
-    ref_distances = np.array([np.linalg.norm((wTi.between(wTi0)).translation()) for wTi in ref_list[1:]]) + EPSILON
+    assert p_est.shape[1] == 3
+    assert p_gt.shape[1] == 3
 
-    # rescale poses to account for SfM scale ambiguity
-    scales = ref_distances / input_distances
-    scaling_factor = np.median(scales)
+    n_to_align = p_est.shape[0]
+    assert p_gt.shape[0] == n_to_align
+    assert n_to_align >= 2, "SIM(3) alignment uses at least 2 frames"
 
-    scaled_list = [Pose3(w2Ti.rotation(), w2Ti.translation() * scaling_factor) for w2Ti in input_list]
+    scale, w2Rw1, w2tw1 = align_umeyama(p_gt, p_est)  # note the order
 
-    # now match origin
-    w1Ti0 = scaled_list[0]
-    i0Tw1 = w1Ti0.inverse()
-    w2Ti0_ = ref_list[0]
-    # origin transform -- map the origin of the input list to the reference list
-    w2Tw1 = w2Ti0_.compose(i0Tw1)
+    aligned_input_list = []
+    for i in range(n_to_align):
+        w1Ti = input_list[i]
+        p_est_aligned = scale * w2Rw1 @ w1Ti.translation() + w2tw1
+        R_est_aligned = w2Rw1 @ w1Ti.rotation().matrix()
+        aligned_input_list += [Pose3( Rot3(R_est_aligned), p_est_aligned)]
 
-    scaled_shifted_list = [w2Tw1.compose(w1Ti) for w1Ti in scaled_list]
+    logger.info("Trajectory alignment complete.")
 
-    return scaled_shifted_list
+    return aligned_input_list
 
 
 def compare_rotations(wRi_list: List[Optional[Rot3]], wRi_list_: List[Optional[Rot3]]) -> bool:
