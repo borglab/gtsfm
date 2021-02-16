@@ -92,6 +92,7 @@ class SceneOptimizer:
         # detection and description graph
         keypoints_graph_list = []
         descriptors_graph_list = []
+
         for delayed_image in image_graph:
             (
                 delayed_dets,
@@ -151,7 +152,7 @@ class SceneOptimizer:
                 dask.delayed(aggregate_frontend_metrics)(
                     frontend_rot3_errors,
                     frontend_unit3_errors,
-                    self._config.pose_angular_error_thresh,
+                    self._pose_angular_error_thresh,
                 )
             )
 
