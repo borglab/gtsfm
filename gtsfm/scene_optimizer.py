@@ -92,7 +92,6 @@ class SceneOptimizer:
         # detection and description graph
         keypoints_graph_list = []
         descriptors_graph_list = []
-
         for delayed_image in image_graph:
             (
                 delayed_dets,
