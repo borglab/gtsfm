@@ -209,13 +209,13 @@ def compute_relative_unit_translation_angle(U_1: Optional[Unit3], U_2: Optional[
 
 def compute_translation_to_direction_angle(
     i2Ui1: Optional[Unit3],
-    wTi2: Optional[Point3],
+    wTi2: Optional[Pose3],
     wTi1: Optional[Pose3]
 ) -> Optional[float]:
-    """Compute the angle between a translation direction and point.
+    """Compute angle between a unit translation and the relative translation between 2 poses.
 
     Given a unit translation measurement from i2 to i1, the estimated poses of
-    i1 and i2, returns the angle between the relative position of i2 wrt i1 
+    i1 and i2, returns the angle between the relative position of i1 wrt i2 
     and the unit translation measurement. 
 
     Args:
