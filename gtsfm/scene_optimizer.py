@@ -381,13 +381,13 @@ def aggregate_frontend_metrics(
         num_valid_entries,
         num_entries,
     )
-    
+
     logger.debug(
         "[Two view optimizer] [Summary] All correct correspondences: %d/%d",
-        len(all_correct),
+        all_correct,
         num_entries,
     )
-    
+
     front_end_result_info = {
         "angular_err_threshold_deg": angular_err_threshold_deg,
         "Rotation success": {
