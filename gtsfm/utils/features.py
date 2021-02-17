@@ -107,4 +107,4 @@ def compute_point_line_distances(points: np.ndarray, lines: np.ndarray) -> np.nd
     """
     line_norms = np.linalg.norm(lines[:, :2], axis=1)
 
-    return np.abs(np.einsum("ij,ij->i", convert_to_homogenous_coordinates(points), lines)) / line_norms
+    return np.abs(np.sum(np.multiply(convert_to_homogenous_coordinates(points), lines), axis=1)) / line_norms
