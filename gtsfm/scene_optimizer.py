@@ -339,7 +339,7 @@ def aggregate_frontend_metrics(
     Args:
         rot3_errors: angular errors in rotations, measured in degrees.
         unit3_errors: angular errors in unit-translations, measures in degrees.
-        corr_correctness: correctness of correspondences, as (num_correct, ratio_of_correct).
+        corr_correctness: correctness of correspondences, as (num_correct, inlier_ratio).
         angular_err_threshold: threshold to classify the error as success, in degrees.
     """
     num_entries = len(rot3_errors)

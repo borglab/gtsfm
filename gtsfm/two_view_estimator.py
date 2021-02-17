@@ -71,7 +71,7 @@ class TwoViewEstimator:
             Indices of verified correspondences wrapped as Delayed.
             Error in relative rotation wrapped as Delayed
             Error in relative translation direction wrapped as Delayed.
-            Count of correct correspondences in output wrapped as Delayed.
+            Correspondence correctness metrics wrapped as Delayed.
         """
 
         # graph for matching to obtain putative correspondences
@@ -138,7 +138,7 @@ def compute_correspondence_metrics(
 
     Returns:
         Number of correct correspondences.
-        Ratio of correspondences which are correct.
+        Inlier Ratio, i.e. ratio of correspondences which are correct.
     """
     number_correct = metric_utils.count_correct_correspondences(
         keypoints_i1.extract_indices(corr_idxs_i1i2[:, 0]),
@@ -149,11 +149,11 @@ def compute_correspondence_metrics(
         epipolar_distance_threshold,
     )
 
-    logger.debug(
-        "[Two View Estimator] Correct Correspondences %d (ratio = %.2f)",
-        number_correct,
-        number_correct / corr_idxs_i1i2.shape[0],
-    )
+    # logger.debug(
+    #     "[Two View Estimator] Correct Correspondences %d (ratio = %.2f)",
+    #     number_correct,
+    #     number_correct / corr_idxs_i1i2.shape[0],
+    # )
 
     return number_correct, number_correct / corr_idxs_i1i2.shape[0]
 
