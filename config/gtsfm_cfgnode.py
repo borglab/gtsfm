@@ -28,7 +28,6 @@ cs.store(name="gtsfm_default", node=GTSFM_CfgNode)
 
 @hydra.main(config_name='gtsfm_default')
 def cfgnode(cfg: GTSFM_CfgNode) -> None:
-    print(cfg)
     log.info(OmegaConf.to_yaml(cfg))
     log.info(OmegaConf.get_type(cfg.featureExtractor.submodule1.param_bool))
     
