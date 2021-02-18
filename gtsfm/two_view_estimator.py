@@ -149,12 +149,6 @@ def compute_correspondence_metrics(
         epipolar_distance_threshold,
     )
 
-    # logger.debug(
-    #     "[Two View Estimator] Correct Correspondences %d (ratio = %.2f)",
-    #     number_correct,
-    #     number_correct / corr_idxs_i1i2.shape[0],
-    # )
-
     return number_correct, number_correct / corr_idxs_i1i2.shape[0]
 
 

@@ -77,7 +77,9 @@ def convert_to_homogenous_coordinates(
 
 
 def convert_to_epipolar_lines(normalized_coordinates_i1: np.ndarray, i2Ei1: EssentialMatrix) -> np.array:
-    """Convert coordinates to epipolar lines.
+    """Convert coordinates to epipolar lines in image i2.
+
+    The epipolar line in is given by i2Ei1 @ x_i1. A point x_i2 lives on this line if x_i2^T @ i2Ei1 @ x_i1 = 0.
 
     Args:
         normalized_coordinates_i1: normalized coordinates in i1, of shape Nx2.
@@ -90,7 +92,6 @@ def convert_to_epipolar_lines(normalized_coordinates_i1: np.ndarray, i2Ei1: Esse
         return normalized_coordinates_i1
 
     epipolar_lines = convert_to_homogenous_coordinates(normalized_coordinates_i1) @ i2Ei1.matrix().T
-
     return epipolar_lines
 
 

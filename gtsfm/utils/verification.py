@@ -53,9 +53,25 @@ def fundamental_to_essential_matrix(
         camera_intrinsics_i2: intrinsics for image #i2.
 
     Returns:
-            Estimated essential matrix i2Ei1 as numpy array of shape (3x3).
+        Estimated essential matrix i2Ei1 as numpy array of shape (3x3).
     """
     return camera_intrinsics_i2.K().T @ i2Fi1 @ camera_intrinsics_i1.K()
+
+
+def essential_to_fundamental_matrix(
+    i2Ei1: EssentialMatrix, camera_intrinsics_i1: Cal3Bundler, camera_intrinsics_i2: Cal3Bundler
+) -> np.ndarray:
+    """Converts the essential matrix to fundamental matrix using camera intrinsics.
+
+    Args:
+        i2Ei1: essential matrix which maps points in image #i1 to lines in image #i2.
+        camera_intrinsics_i1: intrinsics for image #i1.
+        camera_intrinsics_i2: intrinsics for image #i2.
+
+    Returns:
+        Fundamental matrix i2Fi1 as numpy array of shape (3x3).
+    """
+    return np.linalg.inv(camera_intrinsics_i2.K().T) @ i2Ei1.matrix() @ np.linalg.inv(camera_intrinsics_i1.K())
 
 
 def compute_epipolar_distances(

@@ -358,7 +358,7 @@ def aggregate_frontend_metrics(
     success_count_unit3 = np.sum(unit3_errors < angular_err_threshold_deg)
     success_count_pose = np.sum(pose_errors < angular_err_threshold_deg)
 
-    # count entries with all correct correspondences
+    # count entries with inlier ratio == 1.
     all_correct = np.count_nonzero(np.array(corr_correctness)[:, 1] == 1.0)
 
     logger.debug(
