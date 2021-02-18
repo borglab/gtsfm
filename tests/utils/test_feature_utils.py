@@ -118,12 +118,7 @@ class TestFeatureUtils(unittest.TestCase):
                 [-1.0, 1.0, 2.0],
             ]
         )
-        expected = np.array(
-            [
-                3.0,
-                2 * math.sqrt(2),
-            ]
-        )
+        expected = np.array([3.0, 2 * math.sqrt(2)])
         computed = feature_utils.compute_point_line_distances(points, lines)
 
         np.testing.assert_allclose(computed, expected)
