@@ -1,4 +1,5 @@
 """Unit test for common feature utils."""
+import math
 import unittest
 
 import numpy as np
@@ -108,18 +109,21 @@ class TestFeatureUtils(unittest.TestCase):
         points = np.array(
             [
                 [-2.0, 1.0],
-                [5.0, 1.0],
-                [2.0, 3.0],
+                [1.0, 3.0],
             ]
         )
-        lines = np.array(  # coefficients (a, b, c) for the line ax + by + cz = 0
+        lines = np.array(  # coefficients (a, b, c) for the line ax + by + c = 0
             [
-                [4.0, -3.0, -4.0],
-                [0.0, -0.5, 1.0],
-                [-3.0, -4.0, -5.0],
+                [1.0, 0.0, -1.0],
+                [-1.0, 1.0, 2.0],
             ]
         )
-        expected = np.array([3.0, 1.0, 4.6])
+        expected = np.array(
+            [
+                3.0,
+                2 * math.sqrt(2),
+            ]
+        )
         computed = feature_utils.compute_point_line_distances(points, lines)
 
         np.testing.assert_allclose(computed, expected)
