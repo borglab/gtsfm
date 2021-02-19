@@ -38,7 +38,7 @@ class TestFeatureUtils(unittest.TestCase):
         non_homogenous_coordinates = np.array([])
         computed = feature_utils.convert_to_homogenous_coordinates(non_homogenous_coordinates)
 
-        self.assertEqual(computed.size, 0)
+        self.assertIsNone(computed)
 
     def test_convert_to_homogenous_coordinates_on_none_input(self):
         """Tests conversion to homogenous coordinates on None input."""
@@ -91,7 +91,7 @@ class TestFeatureUtils(unittest.TestCase):
 
         computed = feature_utils.convert_to_epipolar_lines(points, essential_mat)
 
-        self.assertEqual(computed.size, 0)
+        self.assertIsNone(computed)
 
     def test_convert_to_epipolar_lines_none_input(self):
         """Test conversion of None to epipolar lines using the essential matrix."""
