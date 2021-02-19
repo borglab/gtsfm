@@ -39,7 +39,6 @@ class MultiViewOptimizer:
         self.trans_avg_module = trans_avg_module
         self.data_association_module = data_association_module
         self.ba_optimizer = BundleAdjustmentOptimizer()
-        self.metrics_graph = None
 
     def create_computation_graph(
         self,
