@@ -83,7 +83,9 @@ class TestFrontend(unittest.TestCase):
         """Check DoG + SIFT + 2-way Matcher + RANSAC-5pt frontend."""
         det_desc = SIFTDetectorDescriptor()
         feature_extractor = FeatureExtractor(det_desc)
-        two_view_estimator = TwoViewEstimator(matcher=TwoWayMatcher(), verifier=Ransac())
+        two_view_estimator = TwoViewEstimator(
+            matcher=TwoWayMatcher(), verifier=Ransac(), corr_metric_dist_threshold=0.1
+        )
         self.__compare_frontend_result_error(
             feature_extractor,
             two_view_estimator,
@@ -95,7 +97,9 @@ class TestFrontend(unittest.TestCase):
         """Check DoG + SIFT + 2-way Matcher + DEGENSAC-8pt frontend."""
         det_desc = SIFTDetectorDescriptor()
         feature_extractor = FeatureExtractor(det_desc)
-        two_view_estimator = TwoViewEstimator(matcher=TwoWayMatcher(), verifier=Degensac())
+        two_view_estimator = TwoViewEstimator(
+            matcher=TwoWayMatcher(), verifier=Degensac(), corr_metric_dist_threshold=0.1
+        )
         self.__compare_frontend_result_error(
             feature_extractor,
             two_view_estimator,
