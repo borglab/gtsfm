@@ -2,7 +2,7 @@
 
 Authors: Ayush Baid
 """
-from typing import Tuple
+from typing import Optional, Tuple
 
 import cv2 as cv
 import numpy as np
@@ -76,7 +76,7 @@ def essential_to_fundamental_matrix(
 
 def compute_epipolar_distances(
     normalized_coords_i1: np.ndarray, normalized_coords_i2: np.ndarray, i2Ei1: EssentialMatrix
-) -> np.ndarray:
+) -> Optional[np.ndarray]:
     """Compute symmetric point-line epipolar distances between normalized coordinates of correspondences.
 
     Args:
@@ -87,6 +87,14 @@ def compute_epipolar_distances(
     Returns:
         Symmetric epipolar distances for each row of the input, of shape N.
     """
+    if (
+        normalized_coords_i1 is None
+        or normalized_coords_i1.size == 0
+        or normalized_coords_i2 is None
+        or normalized_coords_i2.size == 0
+    ):
+        return None
+
     # construct the essential matrix in the opposite directin
     i2Ti1 = Pose3(i2Ei1.rotation(), i2Ei1.direction().point3())
     i1Ti2 = i2Ti1.inverse()
