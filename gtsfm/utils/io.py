@@ -2,9 +2,10 @@
 
 Authors: Ayush Baid
 """
-from typing import Dict, Any
+from typing import Any, Dict, List, Union
 
 import h5py
+import json
 import numpy as np
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
@@ -67,3 +68,16 @@ def load_h5(file_path: str) -> Dict[Any, Any]:
             data[key] = f[key][:]
 
     return data
+
+
+def save_json_file(
+    json_fpath: str,
+    data: Union[Dict[Any, Any], List[Any]],
+) -> None:
+    """Save a Python dictionary or list to a JSON file.
+    Args:
+        json_fpath: Path to file to create.
+        data: Python dictionary or list to be serialized.
+    """
+    with open(json_fpath, "w") as f:
+        json.dump(data, f)
