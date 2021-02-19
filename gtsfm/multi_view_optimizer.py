@@ -83,14 +83,13 @@ class MultiViewOptimizer:
 
         ba_result_graph = self.ba_optimizer.create_computation_graph(ba_input_graph)
 
-        if gt_poses_graph is not None:
-            self.metrics_graph = dask.delayed(metrics.save_averaging_metrics)(
-                i2Ui1_graph, wRi_graph, wti_graph, gt_poses_graph, 'metrics')
+        if gt_poses_graph is None:
+            return ba_input_graph, ba_result_graph, None
 
-        return ba_input_graph, ba_result_graph
-
-    def get_metrics_computation_graph(self) -> Delayed:
-        return self.metrics_graph
+        metrics_graph = dask.delayed(metrics.save_averaging_metrics)(
+            i2Ui1_graph, wRi_graph, wti_graph, gt_poses_graph, "result_metrics"
+        )
+        return ba_input_graph, ba_result_graph, metrics_graph
 
 
 def select_largest_connected_component(

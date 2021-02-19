@@ -208,23 +208,21 @@ def compute_relative_unit_translation_angle(U_1: Optional[Unit3], U_2: Optional[
 
 
 def compute_translation_to_direction_angle(
-    i2Ui1: Optional[Unit3],
-    wTi2: Optional[Pose3],
-    wTi1: Optional[Pose3]
+    i2Ui1: Optional[Unit3], wTi2: Optional[Pose3], wTi1: Optional[Pose3]
 ) -> Optional[float]:
     """Compute angle between a unit translation and the relative translation between 2 poses.
 
     Given a unit translation measurement from i2 to i1, the estimated poses of
-    i1 and i2, returns the angle between the relative position of i1 wrt i2 
-    and the unit translation measurement. 
+    i1 and i2, returns the angle between the relative position of i1 wrt i2
+    and the unit translation measurement.
 
     Args:
-        i2Ui1: Unit translation measurement. 
-        wTi2: Pose of camera i2. 
-        wTi1: Pose of camera i1. 
+        i2Ui1: Unit translation measurement.
+        wTi2: Pose of camera i2.
+        wTi1: Pose of camera i1.
 
-    Returns: 
-        Angle between measurement and relative estimated translation in degrees. 
+    Returns:
+        Angle between measurement and relative estimated translation in degrees.
     """
     if i2Ui1 is None or wTi2 is None or wTi1 is None:
         return None
@@ -234,19 +232,17 @@ def compute_translation_to_direction_angle(
     return compute_relative_unit_translation_angle(i2Ui1, i2Ui1_estimated)
 
 
-def compute_points_distance_l2(
-    wti1: Optional[Point3], wti2: Optional[Point3]
-) -> Optional[float]:
-    """Computes the L2 distance between the two input 3D points. 
+def compute_points_distance_l2(wti1: Optional[Point3], wti2: Optional[Point3]) -> Optional[float]:
+    """Computes the L2 distance between the two input 3D points.
 
-    Assumes the points are in the same coordinate frame. Returns None if either 
-    point is None. 
+    Assumes the points are in the same coordinate frame. Returns None if either
+    point is None.
 
-    Args: 
-        wti1: Point1 in world frame 
+    Args:
+        wti1: Point1 in world frame
         wti2: Point2 in world frame
-    
-    Returns: 
+
+    Returns:
         L2 norm of wti1 - wti2
     """
     if wti1 is None or wti2 is None:

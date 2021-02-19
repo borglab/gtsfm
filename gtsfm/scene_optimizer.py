@@ -162,7 +162,7 @@ class SceneOptimizer:
         keypoints_graph_list = dask.delayed(lambda x, y: (x, y))(keypoints_graph_list, auxiliary_graph_list)[0]
         auxiliary_graph_list = []
 
-        (ba_input_graph, ba_output_graph,) = self.multiview_optimizer.create_computation_graph(
+        (ba_input_graph, ba_output_graph, optimizer_metrics_graph, ) = self.multiview_optimizer.create_computation_graph(
             num_images,
             keypoints_graph_list,
             i2Ri1_graph_dict,
@@ -173,9 +173,9 @@ class SceneOptimizer:
         )
 
         # aggregate metrics for multiview optimizer
-        if gt_pose_graph is not None:
+        if optimizer_metrics_graph is not None:
             auxiliary_graph_list.append(
-                self.multiview_optimizer.get_metrics_computation_graph()
+                optimizer_metrics_graph
             )
 
         filtered_sfm_data_graph = dask.delayed(ba_output_graph.filter_landmarks)(

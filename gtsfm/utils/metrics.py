@@ -17,7 +17,7 @@ from gtsfm.common.sfm_result import SfmResult
 StatsDict = Dict[str, Union[Optional[float], List[Optional[float]]]]
 
 
-def get_errors_statistics(errors: List[Optional[float]]) -> StatsDict:
+def compute_errors_statistics(errors: List[Optional[float]]) -> StatsDict:
     """Computes statistics (min, max, median) on the given list of errors
 
     Args:
@@ -37,9 +37,7 @@ def get_errors_statistics(errors: List[Optional[float]]) -> StatsDict:
     return metrics
 
 
-def compute_rotation_angle_metrics(
-    wRi_list: List[Optional[Rot3]], gt_wRi_list: List[Optional[Pose3]]
-) -> StatsDict:
+def compute_rotation_angle_metrics(wRi_list: List[Optional[Rot3]], gt_wRi_list: List[Optional[Pose3]]) -> StatsDict:
     """Computes statistics for the angle between estimated and GT rotations.
 
     Assumes that the estimated and GT rotations have been aligned and do not
@@ -55,7 +53,7 @@ def compute_rotation_angle_metrics(
     errors = []
     for (wRi, gt_wRi) in zip(wRi_list, gt_wRi_list):
         errors.append(comp_utils.compute_relative_rotation_angle(wRi, gt_wRi))
-    return get_errors_statistics(errors)
+    return compute_errors_statistics(errors)
 
 
 def compute_translation_distance_metrics(
@@ -76,7 +74,7 @@ def compute_translation_distance_metrics(
     errors = []
     for (wti, gt_wti) in zip(wti_list, gt_wti_list):
         errors.append(comp_utils.compute_points_distance_l2(wti, gt_wti))
-    return get_errors_statistics(errors)
+    return compute_errors_statistics(errors)
 
 
 def compute_translation_angle_metrics(
@@ -94,12 +92,8 @@ def compute_translation_angle_metrics(
     angles = []
     for (i1, i2) in i2Ui1_dict:
         i2Ui1 = i2Ui1_dict[(i1, i2)]
-        angles.append(
-            comp_utils.compute_translation_to_direction_angle(
-                i2Ui1, wTi_list[i2], wTi_list[i1]
-            )
-        )
-    return get_errors_statistics(angles)
+        angles.append(comp_utils.compute_translation_to_direction_angle(i2Ui1, wTi_list[i2], wTi_list[i1]))
+    return compute_errors_statistics(angles)
 
 
 def compute_averaging_metrics(
@@ -130,9 +124,7 @@ def compute_averaging_metrics(
         ValueError if lengths of wRi_list, wti_list and gt_wTi_list are not all same.
     """
     if len(wRi_list) != len(wti_list) or len(wRi_list) != len(gt_wTi_list):
-        raise ValueError(
-            "Lengths of wRi_list, wti_list and gt_wTi_list should be the same."
-        )
+        raise ValueError("Lengths of wRi_list, wti_list and gt_wTi_list should be the same.")
 
     wTi_list = []
     for (wRi, wti) in zip(wRi_list, wti_list):
@@ -151,21 +143,13 @@ def compute_averaging_metrics(
             translations.append(pose.translation())
         return rotations, translations
 
-    wRi_aligned_list, wti_aligned_list = get_rotations_translations_from_poses(
-        wTi_aligned_list
-    )
+    wRi_aligned_list, wti_aligned_list = get_rotations_translations_from_poses(wTi_aligned_list)
     gt_wRi_list, gt_wti_list = get_rotations_translations_from_poses(gt_wTi_list)
 
     metrics = {}
-    metrics["rotation_averaging_angle_deg"] = compute_rotation_angle_metrics(
-        wRi_aligned_list, gt_wRi_list
-    )
-    metrics["translation_averaging_distance"] = compute_translation_distance_metrics(
-        wti_aligned_list, gt_wti_list
-    )
-    metrics["translation_to_direction_angle_deg"] = compute_translation_angle_metrics(
-        i2Ui1_dict, wTi_aligned_list
-    )
+    metrics["rotation_averaging_angle_deg"] = compute_rotation_angle_metrics(wRi_aligned_list, gt_wRi_list)
+    metrics["translation_averaging_distance"] = compute_translation_distance_metrics(wti_aligned_list, gt_wti_list)
+    metrics["translation_to_direction_angle_deg"] = compute_translation_angle_metrics(i2Ui1_dict, wTi_aligned_list)
     return metrics
 
 
