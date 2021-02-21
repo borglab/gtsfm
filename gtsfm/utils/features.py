@@ -2,11 +2,11 @@
 
 Authors: Ayush Baid
 """
-from typing import List
+from typing import List, Optional
 
 import cv2 as cv
 import numpy as np
-from gtsam import Cal3Bundler
+from gtsam import Cal3Bundler, EssentialMatrix
 
 from gtsfm.common.keypoints import Keypoints
 
@@ -45,5 +45,67 @@ def normalize_coordinates(coordinates: np.ndarray, intrinsics: Cal3Bundler) -> n
     Returns:
         normalized coordinates, of shape Nx2.
     """
-
     return np.vstack([intrinsics.calibrate(x[:2].reshape(2, 1)) for x in coordinates])
+
+
+def convert_to_homogenous_coordinates(
+    non_homogenous_coordinates: np.ndarray,
+) -> Optional[np.ndarray]:
+    """Convert coordinates to homogenous system (by appending a column of ones).
+
+    Args:
+        non_homogenous_coordinates: 2d non-homogenous coordinates, of shape Nx2.
+
+    Returns:
+        2d homogenous coordinates, of shape Nx3.
+
+    Raises:
+        TypeError: if input is not 2 dimensional.
+    """
+    if non_homogenous_coordinates is None or non_homogenous_coordinates.size == 0:
+        return None
+
+    if non_homogenous_coordinates.shape[1] != 2:
+        raise TypeError("Input should be 2D")
+
+    return np.hstack(
+        (
+            non_homogenous_coordinates,
+            np.ones((non_homogenous_coordinates.shape[0], 1)),
+        )
+    )
+
+
+def convert_to_epipolar_lines(normalized_coordinates_i1: np.ndarray, i2Ei1: EssentialMatrix) -> Optional[np.array]:
+    """Convert coordinates to epipolar lines in image i2.
+
+    The epipolar line in image i2 is given by i2Ei1 @ x_i1. A point x_i2 is on this line if x_i2^T @ i2Ei1 @ x_i1 = 0.
+
+    Args:
+        normalized_coordinates_i1: normalized coordinates in i1, of shape Nx2.
+        i2Ei1: essential matrix.
+
+    Returns:
+        Corr. epipolar lines in i2, of shape Nx3.
+    """
+    if normalized_coordinates_i1 is None or normalized_coordinates_i1.size == 0:
+        return None
+
+    epipolar_lines = convert_to_homogenous_coordinates(normalized_coordinates_i1) @ i2Ei1.matrix().T
+    return epipolar_lines
+
+
+def compute_point_line_distances(points: np.ndarray, lines: np.ndarray) -> np.ndarray:
+    """Computes the distance of a point from a line in 2D. The function processed multiple inputs independently in a
+    vectorized fashion.
+
+    Args:
+        points: non-homogenous 2D points, of shape Nx2.
+        lines: coefficients (a, b, c) of lines ax + by + c = 0, of shape Nx3.
+
+    Returns:
+        Point-line distance for each row, of shape N.
+    """
+    line_norms = np.linalg.norm(lines[:, :2], axis=1)
+
+    return np.abs(np.sum(np.multiply(convert_to_homogenous_coordinates(points), lines), axis=1)) / line_norms
