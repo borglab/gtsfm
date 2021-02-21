@@ -32,7 +32,7 @@ def count_correct_correspondences(
         Number of correspondences which are correct.
     """
     # TODO: add unit test, with mocking.
-    if len(keypoints_i1) == 0:
+    if len(keypoints_i1) == 0 or len(keypoints_i2) == 0:
         return 0
 
     normalized_coords_i1 = feature_utils.normalize_coordinates(keypoints_i1.coordinates, intrinsics_i1)
