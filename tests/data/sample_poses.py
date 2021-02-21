@@ -10,18 +10,18 @@ from gtsam import Pose3, Rot3
 
 
 def generate_relative_from_global(
-    wTi_list: List[Pose3], pose_pairs: List[Tuple[int, int]]
+    wTi_list: List[Pose3], pair_indices: List[Tuple[int, int]]
 ) -> Dict[Tuple[int, int], Pose3]:
     """Generate relative poses from global poses.
 
     Args:
         wTi_list: global poses.
-        pose_pairs: pairs (i1, i2) to construct relative poses for.
+        pair_indices: pairs (i1, i2) to construct relative poses for.
 
     Returns:
-        Relative pose i2Ti1 for all requested pairs, as a dictionary.
+        Dictionary (i1, i2) -> i2Ti1 for all requested pairs.
     """
-    return {(i1, i2): wTi_list[i2].between(wTi_list[i1]) for i1, i2 in pose_pairs}
+    return {(i1, i2): wTi_list[i2].between(wTi_list[i1]) for i1, i2 in pair_indices}
 
 
 """4 poses in the circle of radius 5m, all looking at the center of the circle.
@@ -77,7 +77,7 @@ FORWARD_MOTION_SMALL_TRANSLATIONS_RELATIVE_POSES = generate_relative_from_global
     FORWARD_MOTION_SMALL_TRANSLATIONS_GLOBAL_POSES, [(0, 1), (0, 2), (1, 2)]
 )
 
-"""3 poses in a panorama (i.e. no translations but large relative rotations)
+"""3 poses in a panorama (i.e. 3 pitch values being the same but large relative rotations)
 
 For relative poses, we have a fully connected graph.
 """
