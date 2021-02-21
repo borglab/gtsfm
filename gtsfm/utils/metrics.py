@@ -28,11 +28,17 @@ def count_correct_correspondences(
         i2Ti1: relative pose
         epipolar_dist_threshold: max acceptable distance for a correct correspondence.
 
+    Raises:
+        ValueError: when the number of keypoints do not match.
+
     Returns:
         Number of correspondences which are correct.
     """
     # TODO: add unit test, with mocking.
-    if len(keypoints_i1) == 0 or len(keypoints_i2) == 0:
+    if len(keypoints_i1) != len(keypoints_i2):
+        raise ValueError("Keypoints must have same counts")
+
+    if len(keypoints_i1) == 0:
         return 0
 
     normalized_coords_i1 = feature_utils.normalize_coordinates(keypoints_i1.coordinates, intrinsics_i1)
