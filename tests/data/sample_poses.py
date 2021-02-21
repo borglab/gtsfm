@@ -49,33 +49,29 @@ CIRCLE_ALL_EDGES_RELATIVE_POSES = generate_relative_from_global(
     CIRCLE_TWO_EDGES_GLOBAL_POSES, [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)]
 )
 
-"""3 poses simulating a forward motion with large translations, with no relative rotation.
+"""3 poses on a line, simulating forward motion, with large translations and no relative rotation.
 
 For relative poses, we have a fully connected graph.
 """
-FORWARD_MOTION_LARGE_TRANSLATIONS_GLOBAL_POSES = [
+LINE_LARGE_EDGES_GLOBAL_POSES = [
     Pose3(Rot3(), np.array([0, 0, 0])),
     Pose3(Rot3(), np.array([0, 0, 5])),
     Pose3(Rot3(), np.array([0, 0, 10])),
 ]
 
-FORWARD_MOTION_LARGE_TRANSLATIONS_RELATIVE_POSES = generate_relative_from_global(
-    FORWARD_MOTION_LARGE_TRANSLATIONS_GLOBAL_POSES, [(0, 1), (0, 2), (1, 2)]
-)
+LINE_LARGE_EDGES_RELATIVE_POSES = generate_relative_from_global(LINE_LARGE_EDGES_GLOBAL_POSES, [(0, 1), (0, 2), (1, 2)])
 
-"""3 poses simulating a forward motion with small translations, with no relative rotation.
+"""3 poses on a line, simulating forward motion, with small translations and no relative rotation.
 
 For relative poses, we have a fully connected graph.
 """
-FORWARD_MOTION_SMALL_TRANSLATIONS_GLOBAL_POSES = [
+LINE_SMALL_EDGES_GLOBAL_POSES = [
     Pose3(Rot3(), np.array([0, 0, 0])),
     Pose3(Rot3(), np.array([0, 0, 1e-3])),
     Pose3(Rot3(), np.array([0, 0, 5e-3])),
 ]
 
-FORWARD_MOTION_SMALL_TRANSLATIONS_RELATIVE_POSES = generate_relative_from_global(
-    FORWARD_MOTION_SMALL_TRANSLATIONS_GLOBAL_POSES, [(0, 1), (0, 2), (1, 2)]
-)
+LINE_SMALL_EDGES_RELATIVE_POSES = generate_relative_from_global(LINE_SMALL_EDGES_GLOBAL_POSES, [(0, 1), (0, 2), (1, 2)])
 
 """3 poses in a panorama (i.e. 3 pitch values being the same but large relative rotations)
 
