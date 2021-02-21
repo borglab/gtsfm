@@ -128,7 +128,7 @@ class SceneOptimizer:
                 v_corr_idxs,
                 rot_error,
                 unit_tran_error,
-                corr_correctness_count,
+                correspondence_stats,
             ) = self.two_view_estimator.create_computation_graph(
                 keypoints_graph_list[i1],
                 keypoints_graph_list[i2],
@@ -147,8 +147,8 @@ class SceneOptimizer:
                 frontend_metrics_dict[(i1, i2)] = (
                     rot_error,
                     unit_tran_error,
-                    corr_correctness_count[0],
-                    corr_correctness_count[1],
+                    correspondence_stats[0],
+                    correspondence_stats[1],
                 )
 
             if self._save_viz:
