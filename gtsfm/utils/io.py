@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid
 """
+import os
 from typing import Any, Dict, List, Union
 
 import h5py
@@ -79,5 +80,8 @@ def save_json_file(
         json_fpath: Path to file to create.
         data: Python dictionary or list to be serialized.
     """
+    os.makedirs(os.path.dirname(json_fpath), exist_ok=True)
     with open(json_fpath, "w") as f:
-        json.dump(data, f)
+        json.dump(data, f, indent=4)
+
+
