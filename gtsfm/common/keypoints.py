@@ -197,3 +197,22 @@ class Keypoints:
                 )
 
         return opencv_keypoints
+
+    def extract_indices(self, indices: np.ndarray) -> "Keypoints":
+        """Form subset with the given indices.
+
+        Args:
+            indices: indices to extract, as a 1-D vector.
+
+        Returns:
+            Subset of data at the given indices.
+        """
+
+        if indices.size == 0:
+            return Keypoints(coordinates=np.array([]))
+
+        return Keypoints(
+            self.coordinates[indices],
+            None if self.scales is None else self.scales[indices],
+            None if self.responses is None else self.responses[indices],
+        )

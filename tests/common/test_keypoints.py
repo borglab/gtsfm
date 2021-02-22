@@ -180,6 +180,44 @@ class TestKeypoints(unittest.TestCase):
             self.assertAlmostEqual(opencv_kp.size, gtsfm_keypoints.scales[idx], places=5)
             self.assertAlmostEqual(opencv_kp.response, gtsfm_keypoints.responses[idx], places=5)
 
+    def test_extract_indices_valid(self):
+        """Test extraction of indices."""
+
+        # test without scales and responses
+        input = Keypoints(coordinates=np.array([[1.3, 5], [20, 10], [5.0, 1.3], [2.1, 4.2]]))
+        indices = np.array([0, 2])
+
+        expected = Keypoints(coordinates=np.array([[1.3, 5], [5.0, 1.3]]))
+        computed = input.extract_indices(indices)
+
+        self.assertEqual(computed, expected)
+
+        # test without scales and responses
+        input = Keypoints(
+            coordinates=np.array([[1.3, 5], [20, 10], [5.0, 1.3], [2.1, 4.2]]),
+            scales=np.array([0.2, 0.5, 0.3, 0.9]),
+            responses=np.array([2.3, 1.2, 4.5, 0.2]),
+        )
+        indices = np.array([0, 2])
+
+        expected = Keypoints(
+            coordinates=np.array([[1.3, 5], [5.0, 1.3]]), scales=np.array([0.2, 0.3]), responses=np.array([2.3, 4.5])
+        )
+        computed = input.extract_indices(indices)
+
+        self.assertEqual(computed, expected)
+
+    def test_extract_indices_empty(self):
+        """Test extraction of indices, which are empty."""
+
+        # test without scales and responses
+        input = Keypoints(coordinates=np.array([[1.3, 5], [20, 10], [5.0, 1.3], [2.1, 4.2]]))
+        indices = np.array([])
+
+        computed = input.extract_indices(indices)
+
+        self.assertEqual(len(computed), 0)
+
 
 if __name__ == "__main__":
     unittest.main()
