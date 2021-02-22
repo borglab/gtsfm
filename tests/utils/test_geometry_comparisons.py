@@ -114,12 +114,13 @@ class TestGeometryComparisons(unittest.TestCase):
         )
 
     def test_compute_translation_to_direction_angle_is_nonzero(self):
-        i2Ui1_measured = Unit3(Point3(0, 1, 0))
         wRi2 = Rot3.RzRyRx(-np.deg2rad(90), 0, 0)  # x-axis points to -y in world frame
         wRi1 = Rot3.RzRyRx(np.deg2rad(30), np.deg2rad(60), np.deg2rad(90))  # irrelevant
         wTi2_estimated = Pose3(wRi2, Point3(0, 0, 0))
-        wTi1_estimated = Pose3(Rot3(), Point3(0, -1, 0))  # along -y axis
-        # estimated direction along x-axis and measured along y-axis in i2 frame.
+        wTi1_estimated = Pose3(wRi1, Point3(0, -1, 0))  # (1, 0, 0) in i2 frame.
+        i2Ui1_measured = Unit3(Point3(0, 1, 0))
+        # Estimated relative translation of i1 in i2 frame is (1, 0, 0), and the measurement in i2 frame is (0, 1, 0).
+        # Expected angle between the two is 90 degrees.
         self.assertTrue(
             geometry_comparisons.compute_translation_to_direction_angle(i2Ui1_measured, wTi2_estimated, wTi1_estimated),
             90.0,

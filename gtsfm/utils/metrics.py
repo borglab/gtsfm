@@ -131,7 +131,9 @@ def compute_averaging_metrics(
         wTi_list.append(Pose3(wRi, wti))
     wTi_aligned_list = comp_utils.align_poses(wTi_list, gt_wTi_list)
 
-    def get_rotations_translations_from_poses(poses):
+    def get_rotations_translations_from_poses(
+        poses: List[Optional[Pose3]],
+    ) -> Tuple[List[Optional[Rot3]], List[Optional[Point3]]]:
         rotations = []
         translations = []
         for pose in poses:
