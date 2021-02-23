@@ -2,8 +2,6 @@
 
 Authors: Ayush Baid, Akshay Krishnan
 """
-import json
-import os
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -196,28 +194,3 @@ def compute_averaging_metrics(
     metrics["translation_to_direction_angle_deg"] = compute_translation_angle_metrics(i2Ui1_dict, wTi_aligned_list)
     return metrics
 
-
-def save_averaging_metrics(
-    i2Ui1_dict: Dict[Tuple[int, int], Unit3],
-    wRi_list: List[Optional[Rot3]],
-    wti_list: List[Optional[Point3]],
-    gt_wTi_list: List[Optional[Pose3]],
-    output_dir: str,
-) -> None:
-    """Computes the statistics of multiple metrics and saves them to json.
-
-    Metrics are written to multiview_optimizer_metrics.json.
-
-    Args:
-        i2Ui1_dict: Dict from (i1, i2) to unit translation measurement i2Ui1.
-        wRi_list: List of estimated rotations.
-        wti_list: List of estimated translations.
-        gt_wTi_list: List of ground truth poses.
-        output_dir: Path to the directory where metrics must be saved.
-    """
-    metrics = compute_averaging_metrics(i2Ui1_dict, wRi_list, wti_list, gt_wTi_list)
-    os.makedirs(output_dir, exist_ok=True)
-    json_file_path = os.path.join(output_dir, "multiview_optimizer_metrics.json")
-
-    with open(json_file_path, "w") as json_file:
-        json.dump(metrics, json_file, indent=4)
