@@ -114,7 +114,7 @@ class TestGeometryComparisons(unittest.TestCase):
         )
 
     def test_compute_translation_to_direction_angle_is_nonzero(self):
-        rz = -np.deg2rad(90)
+        rz = np.deg2rad(90)
         wRi2 = Rot3.RzRyRx(0, 0, rz)  # x-axis of i2 points along y in world frame
         wTi2_estimated = Pose3(wRi2, Point3(0, 0, 0))
         wTi1_estimated = Pose3(Rot3(), Point3(-1, 0, 0))  # At (0, 1, 0) in i2 frame, rotation of i1 is irrelevant here.
