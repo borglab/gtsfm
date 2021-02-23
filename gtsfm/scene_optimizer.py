@@ -173,6 +173,7 @@ class SceneOptimizer:
                     self._pose_angular_error_thresh,
                 )
             )
+
         # as visualization tasks are not to be provided to the user, we create a
         # dummy computation of concatenating viz tasks with the output graph,
         # forcing computation of viz tasks. Doing this here forces the
@@ -180,14 +181,21 @@ class SceneOptimizer:
         keypoints_graph_list = dask.delayed(lambda x, y: (x, y))(keypoints_graph_list, auxiliary_graph_list)[0]
         auxiliary_graph_list = []
 
-        (ba_input_graph, ba_output_graph,) = self.multiview_optimizer.create_computation_graph(
+        (ba_input_graph, ba_output_graph, optimizer_metrics_graph, ) = self.multiview_optimizer.create_computation_graph(
             num_images,
             keypoints_graph_list,
             i2Ri1_graph_dict,
             i2Ui1_graph_dict,
             v_corr_idxs_graph_dict,
             camera_intrinsics_graph,
+            gt_pose_graph
         )
+
+        # aggregate metrics for multiview optimizer
+        if optimizer_metrics_graph is not None:
+            auxiliary_graph_list.append(
+                optimizer_metrics_graph
+            )
 
         filtered_sfm_data_graph = dask.delayed(ba_output_graph.filter_landmarks)(
             self.multiview_optimizer.data_association_module.reproj_error_thresh

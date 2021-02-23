@@ -16,6 +16,8 @@ from gtsam import (
     Unit3,
 )
 
+import gtsfm.utils.io as io
+import gtsfm.utils.metrics as metrics
 import gtsfm.utils.serialization  # import needed to register serialization fns
 from gtsfm.averaging.rotation.rotation_averaging_base import (
     RotationAveragingBase,
@@ -47,6 +49,7 @@ class MultiViewOptimizer:
         i2Ui1_graph: Dict[Tuple[int, int], Delayed],
         v_corr_idxs_graph: Dict[Tuple[int, int], Delayed],
         intrinsics_graph: List[Delayed],
+        gt_poses_graph: List[Delayed] = None,
     ) -> Tuple[Delayed, Delayed]:
         """Creates a computation graph for multi-view optimization.
 
@@ -80,7 +83,16 @@ class MultiViewOptimizer:
 
         ba_result_graph = self.ba_optimizer.create_computation_graph(ba_input_graph)
 
-        return ba_input_graph, ba_result_graph
+        if gt_poses_graph is None:
+            return ba_input_graph, ba_result_graph, None
+
+        metrics_graph = dask.delayed(metrics.compute_averaging_metrics)(
+            i2Ui1_graph, wRi_graph, wti_graph, gt_poses_graph
+        )
+        saved_metrics_graph = dask.delayed(io.save_json_file)(
+            "result_metrics/multiview_optimizer_metrics.json", metrics_graph
+        )
+        return ba_input_graph, ba_result_graph, saved_metrics_graph
 
 
 def select_largest_connected_component(
