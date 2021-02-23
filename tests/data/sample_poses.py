@@ -8,6 +8,9 @@ from typing import Dict, List, Tuple
 import numpy as np
 from gtsam import Pose3, Rot3
 
+DEFAULT_ROTATION = Rot3.RzRyRx(0, np.deg2rad(10), 0)
+DEFAULT_TRANSLATION = np.array([0, 0.2, 0])
+
 
 def generate_relative_from_global(
     wTi_list: List[Pose3], pair_indices: List[Tuple[int, int]]
@@ -54,9 +57,9 @@ CIRCLE_ALL_EDGES_RELATIVE_POSES = generate_relative_from_global(
 For relative poses, we have a fully connected graph.
 """
 LINE_LARGE_EDGES_GLOBAL_POSES = [
-    Pose3(Rot3(), np.array([0, 0, 0])),
-    Pose3(Rot3(), np.array([0, 0, 5])),
-    Pose3(Rot3(), np.array([0, 0, 10])),
+    Pose3(DEFAULT_ROTATION, np.array([0, 0, 0])),
+    Pose3(DEFAULT_ROTATION, np.array([0, 0, 5])),
+    Pose3(DEFAULT_ROTATION, np.array([0, 0, 10])),
 ]
 
 LINE_LARGE_EDGES_RELATIVE_POSES = generate_relative_from_global(LINE_LARGE_EDGES_GLOBAL_POSES, [(0, 1), (0, 2), (1, 2)])
@@ -66,9 +69,9 @@ LINE_LARGE_EDGES_RELATIVE_POSES = generate_relative_from_global(LINE_LARGE_EDGES
 For relative poses, we have a fully connected graph.
 """
 LINE_SMALL_EDGES_GLOBAL_POSES = [
-    Pose3(Rot3(), np.array([0, 0, 0])),
-    Pose3(Rot3(), np.array([0, 0, 1e-3])),
-    Pose3(Rot3(), np.array([0, 0, 5e-3])),
+    Pose3(DEFAULT_ROTATION, np.array([0, 0, 0])),
+    Pose3(DEFAULT_ROTATION, np.array([0, 0, 1e-3])),
+    Pose3(DEFAULT_ROTATION, np.array([0, 0, 5e-3])),
 ]
 
 LINE_SMALL_EDGES_RELATIVE_POSES = generate_relative_from_global(LINE_SMALL_EDGES_GLOBAL_POSES, [(0, 1), (0, 2), (1, 2)])
@@ -78,9 +81,9 @@ LINE_SMALL_EDGES_RELATIVE_POSES = generate_relative_from_global(LINE_SMALL_EDGES
 For relative poses, we have a fully connected graph.
 """
 PANORAMA_GLOBAL_POSES = [
-    Pose3(Rot3.RzRyRx(0, np.deg2rad(-30), 0), np.zeros((3, 1))),
-    Pose3(Rot3.RzRyRx(0, 0, 0), np.zeros((3, 1))),
-    Pose3(Rot3.RzRyRx(0, np.deg2rad(+30), 0), np.zeros((3, 1))),
+    Pose3(Rot3.RzRyRx(0, np.deg2rad(-30), 0), DEFAULT_TRANSLATION),
+    Pose3(Rot3.RzRyRx(0, 0, 0), DEFAULT_TRANSLATION),
+    Pose3(Rot3.RzRyRx(0, np.deg2rad(+30), 0), DEFAULT_TRANSLATION),
 ]
 
 PANORAMA_RELATIVE_POSES = generate_relative_from_global(PANORAMA_GLOBAL_POSES, [(0, 1), (0, 2), (1, 2)])
