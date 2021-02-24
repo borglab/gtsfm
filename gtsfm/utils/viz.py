@@ -197,7 +197,9 @@ def plot_sfm_data_3d(sfm_data: SfmData, ax: Axes) -> None:
         ax.plot(landmark[0], landmark[1], landmark[2], "g.", markersize=1)
 
 
-def plot_poses_3d(wTi_list: List[Pose3], ax: Axes, center_marker_color: str = "k") -> None:
+def plot_poses_3d(
+    wTi_list: List[Pose3], ax: Axes, center_marker_color: str = "k", label_name: Optional[str] = None
+) -> None:
     """Plot poses in 3D as dots for centers and lines denoting the orthonormal
     coordinate system for each camera.
 
@@ -207,13 +209,18 @@ def plot_poses_3d(wTi_list: List[Pose3], ax: Axes, center_marker_color: str = "k
         wTi_list: list of poses to plot.
         ax: axis to plot on.
         center_marker_color (optional): color for camera center marker. Defaults to "k".
+        name:
     """
     spec = "{}.".format(center_marker_color)
 
-    for wTi in wTi_list:
+    for i, wTi in enumerate(wTi_list):
         x, y, z = wTi.translation().squeeze()
 
-        ax.plot(x, y, z, spec, markersize=10)
+        if i > 0:
+            # for the first loop iteration, add the label to the plot
+            # for the rest of iterations, set label to None (otherwise would be duplicated in legend)
+            label_name = None
+        ax.plot(x, y, z, spec, markersize=10, label=label_name)
 
         R = wTi.rotation().matrix()
 
