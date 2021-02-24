@@ -104,6 +104,45 @@ class TestGeometryComparisons(unittest.TestCase):
         pose_graphs_equal = geometry_comparisons.compare_global_poses(wTi_list, wTi_list_)
         self.assertTrue(pose_graphs_equal)
 
+    def test_compute_translation_to_direction_angle_is_zero(self):
+        i2Ui1_measured = Unit3(Point3(1, 0, 0))
+        wTi2_estimated = Pose3(Rot3(), Point3(0, 0, 0))
+        wTi1_estimated = Pose3(Rot3(), Point3(2, 0, 0))
+        self.assertEqual(
+            geometry_comparisons.compute_translation_to_direction_angle(i2Ui1_measured, wTi2_estimated, wTi1_estimated),
+            0.0,
+        )
+
+    def test_compute_translation_to_direction_angle_is_nonzero(self):
+        rz = np.deg2rad(90)
+        wRi2 = Rot3.RzRyRx(0, 0, rz)  # x-axis of i2 points along y in world frame
+        wTi2_estimated = Pose3(wRi2, Point3(0, 0, 0))
+        wTi1_estimated = Pose3(Rot3(), Point3(-1, 0, 0))  # At (0, 1, 0) in i2 frame, rotation of i1 is irrelevant here.
+        i2Ui1_measured = Unit3(Point3(1, 0, 0))
+        # Estimated relative translation of i1 in i2 frame is (0, 1, 0), and the measurement in i2 frame is (1, 0, 0).
+        # Expected angle between the two is 90 degrees.
+        self.assertTrue(
+            geometry_comparisons.compute_translation_to_direction_angle(i2Ui1_measured, wTi2_estimated, wTi1_estimated),
+            90.0,
+        )
+
+    def test_compute_points_distance_l2_is_zero(self):
+        self.assertEqual(
+            geometry_comparisons.compute_points_distance_l2(Point3(1, -2, 3), Point3(1, -2, 3)),
+            0.0,
+        )
+
+    def test_compute_points_distance_l2_is_none(self):
+        self.assertEqual(
+            geometry_comparisons.compute_points_distance_l2(Point3(0, 0, 0), None),
+            None,
+        )
+
+    def test_compute_points_distance_l2_is_nonzero(self):
+        wti1 = Point3(1, 1, 1)
+        wti2 = Point3(1, 1, -1)
+        self.assertEqual(geometry_comparisons.compute_points_distance_l2(wti1, wti2), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
