@@ -253,7 +253,7 @@ def compute_points_distance_l2(wti1: Optional[Point3], wti2: Optional[Point3]) -
 def get_points_within_radius_of_cameras(wTi_list: List[Pose3], points_3d: np.ndarray, radius: float = 50) -> Optional[np.ndarray]:
     """
     Args:
-        wTi_list:
+        wTi_list: camera poses
         points_3d: array of shape (N,3) 
         radius: distance threshold, in meters
 
