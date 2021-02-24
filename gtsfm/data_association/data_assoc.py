@@ -86,17 +86,19 @@ class DataAssociation(NamedTuple):
             self.num_ransac_hypotheses,
         )
 
+        per_track_avg_errors = []
         # form SFMdata object after triangulation
         triangulated_data = SfmData()
         for track_2d in tracks:
             # triangulate and filter based on reprojection error
-            sfm_track = point3d_initializer.triangulate(track_2d)
+            sfm_track, avg_track_reproj_error = point3d_initializer.triangulate(track_2d)
 
             if sfm_track is None:
                 continue
 
             if self.__validate_track(sfm_track):
                 triangulated_data.add_track(sfm_track)
+                per_track_avg_errors += [avg_track_reproj_error]
 
         # TODO: improve dropped camera handling
         num_cameras = len(cameras.keys())
@@ -107,16 +109,22 @@ class DataAssociation(NamedTuple):
                 raise RuntimeError("Some cameras must have been dropped ")
             triangulated_data.add_camera(cam)
 
-        logger.debug(
-            "[Data association] output number of tracks: %s",
-            triangulated_data.number_tracks(),
-        )
-        logger.debug(
-            "[Data association] output avg. track length: %s",
-            SfmResult(triangulated_data, None).get_track_length_statistics()[0],
-        )
+        num_tracks = triangulated_data.number_tracks()
+        mean_track_length, median_track_length = SfmResult(triangulated_data, None).get_track_length_statistics()
 
-        return triangulated_data
+        logger.debug("[Data association] output number of tracks: %s", num_tracks)
+        logger.debug("[Data association] output avg. track length: %s", mean_track_length)
+
+        points_3d = [list(triangulated_data.track(j).point3()) for j in range(num_tracks)]
+        data_assoc_metrics = {
+            "num_tracks": num_tracks,
+            "mean_track_length": mean_track_length,
+            "median_track_length": median_track_length,
+            "points_3d": points_3d,
+            "per_track_avg_errors": per_track_avg_errors
+        }
+
+        return triangulated_data, data_assoc_metrics
 
     def create_computation_graph(
         self,
