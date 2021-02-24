@@ -76,7 +76,7 @@ LINE_SMALL_EDGES_GLOBAL_POSES = [
 
 LINE_SMALL_EDGES_RELATIVE_POSES = generate_relative_from_global(LINE_SMALL_EDGES_GLOBAL_POSES, [(0, 1), (0, 2), (1, 2)])
 
-"""3 poses in a panorama (i.e. 3 pitch values being the same but large relative rotations)
+"""3 poses in a panorama (i.e. 3 translation values being the same but large relative rotations i.e. pitch varies)
 
 For relative poses, we have a fully connected graph.
 """
