@@ -6,7 +6,7 @@ import copy
 from typing import Dict, List, Tuple
 
 import numpy as np
-from gtsam import Pose3, Rot3
+from gtsam import Point3, Pose3, Rot3, Unit3
 
 DEFAULT_ROTATION = Rot3.RzRyRx(0, np.deg2rad(10), 0)
 DEFAULT_TRANSLATION = np.array([0, 0.2, 0])
@@ -57,9 +57,9 @@ CIRCLE_ALL_EDGES_RELATIVE_POSES = generate_relative_from_global(
 For relative poses, we have a fully connected graph.
 """
 LINE_LARGE_EDGES_GLOBAL_POSES = [
-    Pose3(DEFAULT_ROTATION, np.array([0, 0, 0])),
-    Pose3(DEFAULT_ROTATION, np.array([0, 0, 5])),
-    Pose3(DEFAULT_ROTATION, np.array([0, 0, 10])),
+    Pose3(DEFAULT_ROTATION, DEFAULT_TRANSLATION + np.array([0, 0, 0])),
+    Pose3(DEFAULT_ROTATION, DEFAULT_TRANSLATION + np.array([0, 0, 5])),
+    Pose3(DEFAULT_ROTATION, DEFAULT_TRANSLATION + np.array([0, 0, 10])),
 ]
 
 LINE_LARGE_EDGES_RELATIVE_POSES = generate_relative_from_global(LINE_LARGE_EDGES_GLOBAL_POSES, [(0, 1), (0, 2), (1, 2)])
@@ -69,9 +69,9 @@ LINE_LARGE_EDGES_RELATIVE_POSES = generate_relative_from_global(LINE_LARGE_EDGES
 For relative poses, we have a fully connected graph.
 """
 LINE_SMALL_EDGES_GLOBAL_POSES = [
-    Pose3(DEFAULT_ROTATION, np.array([0, 0, 0])),
-    Pose3(DEFAULT_ROTATION, np.array([0, 0, 1e-3])),
-    Pose3(DEFAULT_ROTATION, np.array([0, 0, 5e-3])),
+    Pose3(DEFAULT_ROTATION, DEFAULT_TRANSLATION + np.array([0, 0, 0])),
+    Pose3(DEFAULT_ROTATION, DEFAULT_TRANSLATION + np.array([0, 0, 1e-3])),
+    Pose3(DEFAULT_ROTATION, DEFAULT_TRANSLATION + np.array([0, 0, 5e-3])),
 ]
 
 LINE_SMALL_EDGES_RELATIVE_POSES = generate_relative_from_global(LINE_SMALL_EDGES_GLOBAL_POSES, [(0, 1), (0, 2), (1, 2)])
@@ -87,3 +87,54 @@ PANORAMA_GLOBAL_POSES = [
 ]
 
 PANORAMA_RELATIVE_POSES = generate_relative_from_global(PANORAMA_GLOBAL_POSES, [(0, 1), (0, 2), (1, 2)])
+
+
+def convert_data_for_rotation_averaging(
+    wTi_list: List[Pose3], i2Ti1_dict: Dict[Tuple[int, int], Pose3]
+) -> Tuple[Dict[Tuple[int, int], Rot3], List[Rot3]]:
+    """[summary]
+
+    Args:
+        wTi_list (List[Pose3]): [description]
+        i2Ti1_dict (Dict[Tuple[int, int], Pose3]): [description]
+
+    Returns:
+        Tuple[Dict[Tuple[int, int], Rot3], List[Rot3]]: [description]
+    """
+
+    wRi_list = [x.rotation() for x in wTi_list]
+    i2Ri1_dict = {k: v.rotation() for k, v in i2Ti1_dict.items()}
+
+    return i2Ri1_dict, wRi_list
+
+
+def convert_data_for_translation_averaging(
+    wTi_list: List[Pose3], i2Ti1_dict: Dict[Tuple[int, int], Pose3]
+) -> Tuple[List[Rot3], Dict[Tuple[int, int], Unit3], List[Point3]]:
+    """[summary]
+
+    Args:
+        wTi_list (List[Pose3]): [description]
+        i2Ti1_dict (Dict[Tuple[int, int], Pose3]): [description]
+
+    Returns:
+        Tuple[List[Rot3], Dict[Tuple[int, int], Unit3], List[Point3]]: [description]
+    """
+
+    wRi_list = [x.rotation() for x in wTi_list]
+    wti_list = [x.translation() for x in wTi_list]
+    i2Ui1_dict = {k: Unit3(v.translation()) for k, v in i2Ti1_dict.items()}
+
+    return wRi_list, i2Ui1_dict, wti_list
+
+
+if __name__ == "__main__":
+    import gtsfm.utils.viz as viz_utils
+    import matplotlib.pyplot as plt
+
+    fig = plt.figure()
+    ax = fig.gca(projection="3d")
+
+    viz_utils.plot_poses_3d(CIRCLE_TWO_EDGES_GLOBAL_POSES, ax)
+
+    plt.show()
