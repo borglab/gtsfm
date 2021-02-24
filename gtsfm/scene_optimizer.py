@@ -326,6 +326,7 @@ def visualize_camera_poses(
         viz_utils.plot_poses_3d(gt_pose_graph, ax, center_marker_color="m", label_name="GT")
 
     ax.legend(loc="upper left")
+    viz_utils.set_axes_equal(ax)
 
     # save the 3D plot in the original view
     fig.savefig(os.path.join(folder_name, "poses_3d.png"))
