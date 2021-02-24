@@ -260,7 +260,7 @@ def get_points_within_radius_of_cameras(wTi_list: List[Pose3], points_3d: np.nda
     Returns:
         nearby_points_3d: array of shape (M,3), where M <= N
     """
-    if len(wTi_list) == 0 or points_3d.size == 0 or radius < 0:
+    if len(wTi_list) == 0 or points_3d.size == 0 or radius <= 0:
         return None
 
     num_points = points_3d.shape[0]
