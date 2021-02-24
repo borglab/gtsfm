@@ -144,5 +144,34 @@ class TestGeometryComparisons(unittest.TestCase):
         self.assertEqual(geometry_comparisons.compute_points_distance_l2(wti1, wti2), 2)
 
 
+def test_get_points_within_radius_of_cameras():
+    """Verify that points that fall outside of 10 meter radius of two camera poses.
+
+    Cameras are placed at (0,0,0) and (10,0,0).
+    """
+    wTi0 = Pose3(Rot3(),np.zeros(3))
+    wTi1 = Pose3(Rot3(),np.array([10.,0,0]))
+    wTi_list = [wTi0, wTi1]
+    points_3d = np.array(
+        [
+            [-15, 0, 0],
+            [  0,15, 0],
+            [ -5, 0, 0],
+            [ 15, 0, 0],
+            [ 25, 0, 0]
+        ]
+    )
+    radius = 10.0
+    nearby_points_3d = get_points_within_radius_of_cameras(wTi_list, points_3d, radius)
+
+    expected_nearby_points_3d = np.array(
+        [
+            [-5, 0, 0],
+            [15, 0, 0],
+        ]
+    )
+    assert np.testing.assert_allclose(nearby_points_3d, expected_nearby_points_3d)
+
+
 if __name__ == "__main__":
     unittest.main()
