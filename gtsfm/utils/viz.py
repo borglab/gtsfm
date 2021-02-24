@@ -11,8 +11,10 @@ from gtsam import Pose3, SfmData
 from matplotlib.axes._axes import Axes
 
 import gtsfm.utils.images as image_utils
+import gtsfm.utils.geometry_comparisons as comp_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
+
 
 COLOR_RED = (255, 0, 0)
 COLOR_GREEN = (0, 255, 0)
@@ -176,12 +178,14 @@ def plot_twoview_correspondences(
     return result
 
 
-def plot_sfm_data_3d(sfm_data: SfmData, ax: Axes) -> None:
+def plot_sfm_data_3d(sfm_data: SfmData, ax: Axes, max_plot_radius: float = 50) -> None:
     """Plot the camera poses and landmarks in 3D matplotlib plot.
 
     Args:
         sfm_data: SfmData object with camera and tracks.
         ax: axis to plot on.
+        max_plot_radius: maximum distance threshold away from any camera for which a point
+            will be plotted
     """
     # extract camera poses
     camera_poses = []
@@ -190,10 +194,14 @@ def plot_sfm_data_3d(sfm_data: SfmData, ax: Axes) -> None:
 
     plot_poses_3d(camera_poses, ax)
 
-    # plot 3D points
-    for j in range(sfm_data.number_tracks()):
-        landmark = sfm_data.track(j).point3()
+    num_tracks = sfm_data.number_tracks()
+    # Restrict 3d points to some radius of camera poses
+    points_3d = np.array([list(sfm_data.track(j).point3()) for j in range(num_tracks)])
 
+    nearby_points_3d = comp_utils.get_points_within_radius_of_cameras(camera_poses, points_3d, max_plot_radius)
+
+    # plot 3D points
+    for landmark in nearby_points_3d:
         ax.plot(landmark[0], landmark[1], landmark[2], "g.", markersize=1)
 
 
