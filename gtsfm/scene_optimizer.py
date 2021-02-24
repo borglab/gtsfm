@@ -319,11 +319,13 @@ def visualize_camera_poses(
     fig = plt.figure()
     ax = fig.gca(projection="3d")
 
-    viz_utils.plot_poses_3d(pre_ba_poses, ax, center_marker_color="c")
-    viz_utils.plot_poses_3d(post_ba_poses, ax, center_marker_color="k")
+    viz_utils.plot_poses_3d(pre_ba_poses, ax, center_marker_color="c", label_name="Pre-BA")
+    viz_utils.plot_poses_3d(post_ba_poses, ax, center_marker_color="k", label_name="Post-BA")
     if gt_pose_graph is not None:
         gt_pose_graph = comp_utils.align_poses(gt_pose_graph, post_ba_poses)
-        viz_utils.plot_poses_3d(gt_pose_graph, ax, center_marker_color="m")
+        viz_utils.plot_poses_3d(gt_pose_graph, ax, center_marker_color="m", label_name="GT")
+
+    ax.legend(loc="upper left")
 
     # save the 3D plot in the original view
     fig.savefig(os.path.join(folder_name, "poses_3d.png"))
