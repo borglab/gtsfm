@@ -1,12 +1,15 @@
 """Sample poses for testing the averaging algorithms.
 
+The visualizations of this poses are stored in the folder: tests/data/viz_sample_poses
+
 Authors: Ayush Baid
 """
 import copy
 from typing import Dict, List, Tuple
 
 import numpy as np
-from gtsam import Point3, Pose3, Rot3, Unit3
+from gtsam import Cal3_S2, Point3, Pose3, Rot3, Unit3
+from gtsam.examples import SFMdata
 
 DEFAULT_ROTATION = Rot3.RzRyRx(0, np.deg2rad(10), 0)
 DEFAULT_TRANSLATION = np.array([0, 0.2, 0])
@@ -31,12 +34,7 @@ def generate_relative_from_global(
 
 For relative poses, each pose has just 2 edges, connecting to the immediate neighbors.
 """
-CIRCLE_TWO_EDGES_GLOBAL_POSES = [
-    Pose3(Rot3.RzRyRx(0, 0, 0), np.array([0, 0, 0])),
-    Pose3(Rot3.RzRyRx(np.deg2rad(90), 0, 0), np.array([0, 5, 5])),
-    Pose3(Rot3.RzRyRx(np.deg2rad(180), 0, 0), np.array([0, 0, 10])),
-    Pose3(Rot3.RzRyRx(np.deg2rad(270), 0, 0), np.array([0, -5, 5])),
-]
+CIRCLE_TWO_EDGES_GLOBAL_POSES = SFMdata.createPoses(Cal3_S2(fx=1, fy=1, s=0, u0=0, v0=0))[::2]
 
 CIRCLE_TWO_EDGES_RELATIVE_POSES = generate_relative_from_global(
     CIRCLE_TWO_EDGES_GLOBAL_POSES, [(1, 0), (2, 1), (3, 2), (0, 3)]
@@ -126,15 +124,3 @@ def convert_data_for_translation_averaging(
     i2Ui1_dict = {k: Unit3(v.translation()) for k, v in i2Ti1_dict.items()}
 
     return wRi_list, i2Ui1_dict, wti_list
-
-
-if __name__ == "__main__":
-    import gtsfm.utils.viz as viz_utils
-    import matplotlib.pyplot as plt
-
-    fig = plt.figure()
-    ax = fig.gca(projection="3d")
-
-    viz_utils.plot_poses_3d(CIRCLE_TWO_EDGES_GLOBAL_POSES, ax)
-
-    plt.show()
