@@ -11,6 +11,7 @@ import numpy as np
 from gtsam import Rot3
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
+import tests.data.sample_poses as sample_poses
 from gtsfm.averaging.rotation.dummy_rotation_averaging import DummyRotationAveraging
 
 
@@ -21,6 +22,54 @@ class TestRotationAveragingBase(unittest.TestCase):
         super(TestRotationAveragingBase, self).setUp()
 
         self.obj = DummyRotationAveraging()
+
+    def test_circle_two_edges(self):
+        """Tests for 4 poses in a circle, with a pose connected to its immediate neighborhood."""
+
+        if isinstance(self.obj, DummyRotationAveraging):
+            self.skipTest("Test case invalid for dummy class")
+
+        i2Ri1_dict, wRi_expected = sample_poses.convert_data_for_rotation_averaging(
+            sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES, sample_poses.CIRCLE_TWO_EDGES_RELATIVE_POSES
+        )
+        wRi_computed = self.obj.run(len(wRi_expected), i2Ri1_dict)
+        self.assertTrue(geometry_comparisons.compare_rotations(wRi_computed, wRi_expected))
+
+    def test_circle_all_edges(self):
+        """Tests for 4 poses in a circle, with a pose connected all others."""
+
+        if isinstance(self.obj, DummyRotationAveraging):
+            self.skipTest("Test case invalid for dummy class")
+
+        i2Ri1_dict, wRi_expected = sample_poses.convert_data_for_rotation_averaging(
+            sample_poses.CIRCLE_ALL_EDGES_GLOBAL_POSES, sample_poses.CIRCLE_ALL_EDGES_RELATIVE_POSES
+        )
+        wRi_computed = self.obj.run(len(wRi_expected), i2Ri1_dict)
+        self.assertTrue(geometry_comparisons.compare_rotations(wRi_computed, wRi_expected))
+
+    def test_line_large_edges(self):
+        """Tests for 3 poses in a line, with large translations between them."""
+
+        if isinstance(self.obj, DummyRotationAveraging):
+            self.skipTest("Test case invalid for dummy class")
+
+        i2Ri1_dict, wRi_expected = sample_poses.convert_data_for_rotation_averaging(
+            sample_poses.LINE_LARGE_EDGES_GLOBAL_POSES, sample_poses.LINE_LARGE_EDGES_RELATIVE_POSES
+        )
+        wRi_computed = self.obj.run(len(wRi_expected), i2Ri1_dict)
+        self.assertTrue(geometry_comparisons.compare_rotations(wRi_computed, wRi_expected))
+
+    def test_panorama(self):
+        """Tests for 3 poses in a panorama configuration (large rotations at the same location)"""
+
+        if isinstance(self.obj, DummyRotationAveraging):
+            self.skipTest("Test case invalid for dummy class")
+
+        i2Ri1_dict, wRi_expected = sample_poses.convert_data_for_rotation_averaging(
+            sample_poses.PANORAMA_GLOBAL_POSES, sample_poses.PANORAMA_RELATIVE_POSES
+        )
+        wRi_computed = self.obj.run(len(wRi_expected), i2Ri1_dict)
+        self.assertTrue(geometry_comparisons.compare_rotations(wRi_computed, wRi_expected))
 
     def test_computation_graph(self):
         """Test the dask computation graph execution using a valid collection of relative poses."""
