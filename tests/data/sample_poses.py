@@ -12,7 +12,7 @@ from gtsam import Cal3_S2, Point3, Pose3, Rot3, Unit3
 from gtsam.examples import SFMdata
 
 DEFAULT_ROTATION = Rot3.RzRyRx(0, np.deg2rad(10), 0)
-DEFAULT_TRANSLATION = np.array([0, 0.2, 0])
+DEFAULT_TRANSLATION = np.array([0, 2, 0])
 
 
 def generate_relative_from_global(
