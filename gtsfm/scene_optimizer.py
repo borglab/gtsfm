@@ -32,7 +32,7 @@ from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.two_view_estimator import TwoViewEstimator
 
 # paths for storage
-PLOT_PATH = "plots"
+PLOT_PATH = os.path.abspath("plots")
 PLOT_CORRESPONDENCE_PATH = os.path.join(PLOT_PATH, "correspondences")
 METRICS_PATH = "result_metrics"
 RESULTS_PATH = "results"
