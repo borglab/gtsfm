@@ -11,8 +11,8 @@ module.exports = class SE3 {
                 rotation: Array of shape (3,3)
                 translation: Array of shape (3,)
         */
-        if (rotation.shape[0] != 3 || rotation.shape[1] != 3) throw 'Invalid Rotation Matrix';
-        if (translation.shape[0] != [3]) throw 'Invalid Translation Matrix';
+        if (rotation.shape[0] !== 3 || rotation.shape[1] !== 3) throw 'Invalid Rotation Matrix';
+        if (translation.shape[0] !== [3]) throw 'Invalid Translation Matrix';
         this.rotation = rotation;
         this.translation = translation;
 

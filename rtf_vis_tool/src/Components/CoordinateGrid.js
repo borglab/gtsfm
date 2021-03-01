@@ -1,6 +1,5 @@
 import React from "react";
 import {Line, Html} from "drei";
-import * as THREE from "three/build/three";
 
 //Function
 const getGridLines = () => {

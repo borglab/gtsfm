@@ -1,0 +1,58 @@
+﻿From,To
+Scene Image Directories,Scene Looper
+Scene Looper,Scene Directory
+Scene Directory,Data Loader + Filter Invalid Edges
+Data Loader + Filter Invalid Edges,Image i
+Image i,Detector
+Detector,Keypoints
+Keypoints,Verifier
+Keypoints,Keypoint Describer
+Image i,Keypoint Describer
+Keypoint Describer,Descriptors
+Data Loader + Filter Invalid Edges,Intrinsics
+Data Loader + Filter Invalid Edges,"Image Pair Indices (i1,i2)"
+"Image Pair Indices (i1,i2)",Putative Matcher
+Putative Matcher,Putative Correspondence Indices
+Intrinsics,Verifier
+Verifier,E matrix
+E matrix,Post-Processor
+Verifier,Verified Correspondence Indices
+Post-Processor,relative Rs: i2_r_i1
+Post-Processor,relative Ts: i2_t_i1
+Intrinsics,Bundler Calibrator
+Data Loader + Filter Invalid Edges,Images
+Keypoints,Data Association w/ Track Filtering
+Verified Correspondence Indices,Data Association w/ Track Filtering
+relative Rs: i2_r_i1,LargestConnected Component Extractor
+relative Ts: i2_t_i1,LargestConnected Component Extractor
+Images,MVSNet
+LargestConnected Component Extractor,relative Rs (2): i2_R_i1
+relative Rs (2): i2_R_i1,Shonan
+LargestConnected Component Extractor,relative Ts (2): i2_t_i1
+relative Ts (2): i2_t_i1,1d-SfM
+1d-SfM,absolute Ts
+Shonan,absolute Rs
+absolute Rs,1d-SfM
+absolute Ts,Bundler Calibrator
+Bundler Calibrator,Bundler Pinhole Cameras
+Bundler Pinhole Cameras,Data Association w/ Track Filtering
+Data Association w/ Track Filtering,SfMData
+SfMData,Optimizer
+Bundler Pinhole Cameras,Optimizer
+Optimizer,SFMResult
+SFMResult,File Writer
+SFMResult,absolute ts(2)
+SFMResult,absolute Rs(2)
+SFMResult,Optimized Intrinsics
+SFMResult,Sparse Point Cloud
+File Writer,SFMResult as files
+Output Directory,File Writer
+Sparse Point Cloud,MVSNet
+Optimized Intrinsics,MVSNet
+absolute Rs(2),MVSNet
+absolute ts(2),MVSNet
+MVSNet,Dense Point Cloud
+Dense Point Cloud,Triangulation
+Triangulation,Dense Mesh Reconstruction
+Dense Mesh Reconstruction,Aggregate
+Aggregate,Zipped Results for All Scenes

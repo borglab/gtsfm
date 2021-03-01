@@ -1,5 +1,5 @@
 import React, {useEffect, useState, useRef} from "react";
-import {Canvas, extend, useThree, useFrame, Renderer} from "react-three-fiber";
+import {Canvas, extend} from "react-three-fiber";
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls';
 import './App.css';
 
@@ -7,6 +7,8 @@ import SpriteMesh from './Components/SpriteMesh';
 import CoordinateGrid from './Components/CoordinateGrid';
 import RenderFrustum from './Components/RenderFrustum';
 import OrbitControlsComponent from './Components/OrbitControlsComponent';
+import NetworkGraph from './Components/NetworkGraph';
+import DivGraph from './Components/DivGraph'
 
 var nj = require('numjs');
 var Quaternion = require('quaternion');
@@ -23,14 +25,15 @@ const App = (props) => {
   const [frustums, setFrustums] = useState([]);
   const [numCams, setNumCams] = useState(0);
   const canvasRef = useRef();
+  const showGraph = "divGraph"; //temporary display value
 
   //Function
-  const swapYZ = (coords) => {
-    const tempY = coords[1]
-    coords[1] = coords[2]
-    coords[2] = tempY
-    return coords
-  }
+  // const swapYZ = (coords) => {
+  //   const tempY = coords[1]
+  //   coords[1] = coords[2]
+  //   coords[2] = tempY
+  //   return coords
+  // }
 
   //Function
   const readPointsFile = (e) => {
@@ -95,7 +98,7 @@ const App = (props) => {
 
       //swap Y and Z to convert file's Z coords into RTF's Y coords
       finalPointsJSX.push(<SpriteMesh  position={[scale*pointArr[1], scale*pointArr[3], scale*pointArr[2]]}  
-        widthArgs={[0.2,0.2]} 
+        widthArgs={[0.1,0.1]} 
         color={`rgb(${pointArr[4]}, ${pointArr[5]}, ${pointArr[6]})`} />);
     }
     setPointCloud(finalPointsJSX);
@@ -162,58 +165,70 @@ const App = (props) => {
     setFrustums(finalFrustumsJSX);
   }
 
-  return (
-    <div className="app-container">
-      <div className="upload-container">
-
-        <div className="pointcloud-upload-container">
-          <p className="ply-instructions">Point Cloud Upload</p>
-          <input type="file" name="ply-file-reader" onChange={(e) => readPointsFile(e)}/>
-          <button className="file-submit-btn" onClick={visualize_3D_Points_File}>Visualize Point Cloud</button>
-        </div>
-
-        <div className="frustum-upload-container">
-          <p className="ply-instructions">Frustum Upload</p>
-
-          <div style={{display:'flex', flexDirection: 'row', alignItems: 'center', position: 'relative', bottom: '20px'}}>
-            <p style={{marginRight: '5px'}}>Intrinsics</p>
-            <input type="file" onChange={(e) => readIntrinsicsFile(e)}/>
-          </div>
-          
-          <div style={{display:'flex', flexDirection: 'row', alignItems: 'center', position: 'relative', bottom: '30px'}}>
-            <p style={{marginRight: '5px'}}>Extrinsics</p>
-            <input type="file" onChange={(e) => readExtrinsicsFile(e)}/>
-          </div>
-
-          <div className="num-cams-container">
-            <p style={{marginRight: '5px'}}>No. of Cameras:</p>
-            <input style={{height: '20px', width: '60px'}} type="number" value={numCams} onChange={(e) => setNumCams(e.target.value)}/>
-          </div>
-
-          <button className="frustums-submit-btn" onClick={visualize_camera_frustums} >
-            Visualize Camera Frustums
-          </button>
-        </div>
+  if (showGraph == "divGraph") {
+    return (
+      <DivGraph/>
+    )
+  } else if (showGraph == "networkGraph") {
+    return (
+      <div className="network_graph_container">
+        <NetworkGraph/>
       </div>
-
-      <Canvas colorManagement camera={{ fov: 30, position: [50, 50, 50]}} ref={canvasRef}>
-        <ambientLight intensity={0.5}/>
-        <pointLight position={[0, 0, 20]} intensity={0.5}/> 
-        <directionalLight 
-          position={[0,10,0]} 
-          intensity={1.5} 
-          shadow-mapSize-width={1024}
-          shadow-mapSize-height={1024}
-          shadow-camera-far={50}
-        />
-
-        {pointCloud}
-        {frustums}
-        <CoordinateGrid />
-        <OrbitControlsComponent />
-      </Canvas>
-    </div>
-  )
+    )
+  } else {
+    return (
+      <div className="app-container">
+        <div className="upload-container">
+  
+          <div className="pointcloud-upload-container">
+            <p className="ply-instructions">Point Cloud Upload</p>
+            <input type="file" name="ply-file-reader" onChange={(e) => readPointsFile(e)}/>
+            <button className="file-submit-btn" onClick={visualize_3D_Points_File}>Visualize Point Cloud</button>
+          </div>
+  
+          <div className="frustum-upload-container">
+            <p className="ply-instructions">Frustum Upload</p>
+  
+            <div style={{display:'flex', flexDirection: 'row', alignItems: 'center'}}>
+              <p style={{marginRight: '5px', fontSize: '90%'}}>Intrinsics</p>
+              <input type="file" onChange={(e) => readIntrinsicsFile(e)}/>
+            </div>
+            
+            <div style={{display:'flex', flexDirection: 'row', alignItems: 'center'}}>
+              <p style={{marginRight: '5px', fontSize: '90%'}}>Extrinsics</p>
+              <input type="file" onChange={(e) => readExtrinsicsFile(e)}/>
+            </div>
+  
+            <div className="num-cams-container">
+              <p style={{marginRight: '5px'}}>No. of Cameras:</p>
+              <input style={{height: '20px', width: '60px'}} type="number" value={numCams} onChange={(e) => setNumCams(e.target.value)}/>
+            </div>
+  
+            <button className="frustums-submit-btn" onClick={visualize_camera_frustums} >
+              Visualize Camera Frustums
+            </button>
+          </div>
+        </div>
+  
+        <Canvas colorManagement camera={{ fov: 30, position: [50, 50, 50]}} ref={canvasRef}>
+          <ambientLight intensity={0.5}/>
+          <pointLight position={[0, 0, 20]} intensity={0.5}/> 
+          <directionalLight 
+            position={[0,10,0]} 
+            intensity={1.5} 
+            shadow-mapSize-width={1024}
+            shadow-mapSize-height={1024}
+            shadow-camera-far={50}
+          />
+  
+          {pointCloud}
+          {frustums}
+          <CoordinateGrid />
+          <OrbitControlsComponent />
+        </Canvas>
+      </div>
+    )
+  }
 }
 
 export default App;
