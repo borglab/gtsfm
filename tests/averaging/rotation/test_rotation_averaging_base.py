@@ -11,8 +11,8 @@ import dask
 import numpy as np
 from gtsam import Rot3
 
-import tests.data.sample_poses as sample_poses
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
+import tests.data.sample_poses as sample_poses
 from gtsfm.averaging.rotation.dummy_rotation_averaging import DummyRotationAveraging
 
 ROTATION_ANGLE_ERROR_THRESHOLD_DEG = 2
@@ -27,11 +27,11 @@ class TestRotationAveragingBase(unittest.TestCase):
         self.obj = DummyRotationAveraging()
 
     def __execute_test(self, i2Ri1_input: Dict[Tuple[int, int], Rot3], wRi_expected: List[Rot3]) -> None:
-        """[summary]
+        """Helper function to run the averagaing and assert w/ expected.
 
         Args:
-            i2Ri1_input (Dict[Tuple[int, int], Rot3]): [description]
-            wRi_expected (List[Rot3]): [description]
+            i2Ri1_input: relative rotations, which are input to the algorithm.
+            wRi_expected: expected global rotations.
         """
         if isinstance(self.obj, DummyRotationAveraging):
             self.skipTest("Test case invalid for dummy class")
