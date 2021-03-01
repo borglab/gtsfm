@@ -62,7 +62,12 @@ class ArgoverseDatasetLoader(LoaderBase):
         self._image_paths = image_paths[:max_num_imgs]
 
         # for each image, cache its associated timestamp
-        self._image_timestamps = image_timestamps
+        image_timestamps = image_timestamps[::stride]
+        self._image_timestamps = image_timestamps[:max_num_imgs]
+
+        # set the first pose as origin
+        self._world_pose = Pose3(Rot3(), np.zeros((3, 1)))
+        self._world_pose = self.get_camera_pose(0)
 
     def load_camera_calibration(self, log_id: str, camera_name: str) -> None:
         """Load extrinsics and intrinsics from disk."""
@@ -137,7 +142,7 @@ class ArgoverseDatasetLoader(LoaderBase):
         assert city_SE3_egovehicle is not None
         city_SE3_camera = city_SE3_egovehicle.compose(self._egovehicle_SE3_camera)
 
-        return Pose3(Rot3(city_SE3_camera.rotation), city_SE3_camera.translation)
+        return self._world_pose.between(Pose3(Rot3(city_SE3_camera.rotation), city_SE3_camera.translation))
 
     def validate_pair(self, idx1: int, idx2: int) -> bool:
         """Checks if (idx1, idx2) is a valid pair.
