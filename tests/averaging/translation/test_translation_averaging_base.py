@@ -6,7 +6,7 @@ import pickle
 import unittest
 
 import dask
-from gtsam import Cal3_S2, Pose3, Unit3
+from gtsam import Cal3_S2, Unit3
 from gtsam.examples import SFMdata
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
@@ -53,9 +53,6 @@ class TestTranslationAveragingBase(unittest.TestCase):
 
         # use the `run` API to get expected results
         expected_wti_list = self.obj.run(len(wRi_list), i2Ui1_dict, wRi_list)
-        expected_wTi_list = [
-            Pose3(wRi, wti) if wti is not None else None for (wRi, wti) in zip(wRi_list, expected_wti_list)
-        ]
 
         # form computation graph and execute
         i2Ui1_graph = dask.delayed(i2Ui1_dict)
@@ -63,11 +60,8 @@ class TestTranslationAveragingBase(unittest.TestCase):
         computation_graph = self.obj.create_computation_graph(len(wRi_list), i2Ui1_graph, wRi_graph)
         with dask.config.set(scheduler="single-threaded"):
             wti_list = dask.compute(computation_graph)[0]
-
-        wTi_list = [Pose3(wRi, wti) if wti is not None else None for (wRi, wti) in zip(wRi_list, wti_list)]
-
         # compare the entries
-        self.assertTrue(geometry_comparisons.compare_global_poses(wTi_list, expected_wTi_list))
+        self.assertTrue(geometry_comparisons.align_and_compare_translations(wti_list, expected_wti_list))
 
     def test_pickleable(self):
         """Tests that the object is pickleable (required for dask)."""

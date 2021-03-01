@@ -103,11 +103,18 @@ class TestSceneOptimizer(unittest.TestCase):
             self.assertIsInstance(sfm_result, SfmResult)
 
             # compare the camera poses
-            poses = sfm_result.get_camera_poses()
+            computed_poses = sfm_result.get_camera_poses()
+            computed_rotations = [x.rotation() for x in computed_poses]
+            computed_translations = [x.translation() for x in computed_poses]
 
             expected_poses = [self.loader.get_camera_pose(i) for i in range(len(self.loader))]
+            expected_rotations = [x.rotation() for x in expected_poses]
+            expected_translations = [x.translation() for x in expected_poses]
 
-            self.assertTrue(comp_utils.compare_global_poses(poses, expected_poses))
+            self.assertTrue(comp_utils.align_and_compare_rotations(computed_rotations, expected_rotations, 2))
+            self.assertTrue(
+                comp_utils.align_and_compare_translations(computed_translations, expected_translations, 1e-1, 1e-1)
+            )
 
 
 def generate_random_essential_matrix() -> EssentialMatrix:

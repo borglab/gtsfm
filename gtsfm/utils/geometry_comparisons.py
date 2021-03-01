@@ -2,7 +2,7 @@
 
 Authors: Ayush Baid
 """
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import numpy as np
 from gtsam import Point3, Pose3, Rot3, Unit3
@@ -30,138 +30,234 @@ def align_rotations(input_list: List[Rot3], ref_list: List[Rot3]) -> List[Rot3]:
     return [w2Rw1.compose(w1Ri) for w1Ri in input_list]
 
 
-def align_poses(input_list: List[Pose3], ref_list: List[Pose3]) -> List[Pose3]:
-    """Aligns the list of poses to the reference list by shifting origin and
-    scaling translations.
+def align_translations(input_list: List[Point3], ref_list: List[Point3]) -> Tuple[List[Point3], float, Rot3, Point3]:
+    """Aligns the list of translations to the reference list applying scale, rotation, and shift.
+
+    The motion model to be solved is w2ti = scale @ R @ w1ti + t.
+
+    References:
+        1. Umeyama, Shinji. "Least-squares estimation of transformation parameters between two point patterns." IEEE
+           Computer Architecture Letters 13.04 (1991): 376-380.
+        2. Zhang, Zichao, and Davide Scaramuzza. "A tutorial on quantitative trajectory evaluation for visual
+           (-inertial) odometry." 2018 IEEE RSJ International Conference on Intelligent Robots and Systems (IROS).
+           IEEE, 2018.
+
 
     Args:
-        input_list: input poses which need to be aligned, suppose w1Ti in world-1 frame for all frames i.
-        ref_list: reference poses which are target for alignment, suppose w2Ti_ in world-2 frame for all frames i.
+        input_list: input point3s which need to be aligned, suppose w1ti in world-1 frame for all frames i.
+        ref_list: reference point3s which are target for alignment, suppose w2ti_ in world-2 frame for all frames i.
 
     Returns:
-        transformed poses which have the same origin and scale as reference (now living in world-2 frame)
+        transformed point3s which has minimum error from the reference (now living in world-2 frame).
+        Scale factor of the transformation.
+        Rotation of the transformation.
+        Origin shift (translation) of the transformation.
     """
-    # match the scales first
-    wTi0 = input_list[0]
-    input_distances = np.array([np.linalg.norm((wTi.between(wTi0)).translation()) for wTi in input_list[1:]])
+    # TODO: use GTSAM's align function when it has been merged in develop.
+    N = len(input_list)
 
-    wTi0 = ref_list[0]
-    ref_distances = np.array([np.linalg.norm((wTi.between(wTi0)).translation()) for wTi in ref_list[1:]]) + EPSILON
+    # convert input to 2D arrays, with rows as individual poses
+    input_pose_matrix = np.vstack([x.reshape(1, 3) for x in input_list])
+    ref_pose_matrix = np.vstack([x.reshape(1, 3) for x in ref_list])
 
-    # rescale poses to account for SfM scale ambiguity
-    scales = ref_distances / input_distances
-    scaling_factor = np.median(scales)
+    # compute the mean pose
+    input_mean = np.mean(input_pose_matrix, axis=0)
+    ref_mean = np.mean(ref_pose_matrix, axis=0)
 
-    scaled_list = [Pose3(w2Ti.rotation(), w2Ti.translation() * scaling_factor) for w2Ti in input_list]
+    # subtract the means
+    input_pose_matrix = input_pose_matrix - input_mean.reshape(1, 3)
+    ref_pose_matrix = ref_pose_matrix - ref_mean.reshape(1, 3)
 
-    # now match origin
-    w1Ti0 = scaled_list[0]
-    i0Tw1 = w1Ti0.inverse()
-    w2Ti0_ = ref_list[0]
-    # origin transform -- map the origin of the input list to the reference list
-    w2Tw1 = w2Ti0_.compose(i0Tw1)
+    # compute the variances
+    input_variance = np.sum(np.square(input_pose_matrix), axis=None) / N
+    # ref_variance = np.sum(np.square(ref_pose_matrix), axis=None) / N
 
-    scaled_shifted_list = [w2Tw1.compose(w1Ti) for w1Ti in scaled_list]
+    # compute the covariance matrix and perform SVD
+    cov_mat = np.dot(ref_pose_matrix.T, input_pose_matrix) / N
+    U, S, Vt = np.linalg.svd(cov_mat)
+    S = np.diag(S)
 
-    return scaled_shifted_list
+    W = np.eye(3)
+    if np.linalg.det(U) * np.linalg.det(Vt) < 0:
+        W[2, 2] = -1
+
+    rot_matrix = U @ W @ Vt
+    scale = np.trace(S @ W) / input_variance
+    origin_translation = ref_mean - scale * rot_matrix @ input_mean
+
+    return (
+        [scale * (rot_matrix @ x) + origin_translation for x in input_list],
+        scale,
+        Rot3(rot_matrix),
+        origin_translation,
+    )
 
 
-def compare_rotations(wRi_list: List[Optional[Rot3]], wRi_list_: List[Optional[Rot3]]) -> bool:
-    """Helper function to compare two lists of global Rot3, considering the
-    origin as ambiguous.
+def align_poses(input_list: List[Pose3], ref_list: List[Pose3]) -> List[Pose3]:
+    """Aligns the input list of poses to the reference list by aligning rotations followed by translations. The two
+    alignments are done independently.
+
+    Args:
+        input_list: input pose3s which need to be aligned, suppose w1Ti in world-1 frame for all frames i.
+        ref_list: reference pose3s which are target for alignment, suppose w2Ti_ in world-2 frame for all frames i.
+
+    Returns:
+         transformed pose3s which has minimum euclidean error from the reference (now living in world-2 frame).
+    """
+    # TODO: this doesn't make sense and we need to build a joint optimization.
+
+    # align rotations first
+    input_rotations = [x.rotation() for x in input_list]
+    ref_rotations = [x.rotation() for x in ref_list]
+    aligned_rotations = align_rotations(input_rotations, ref_rotations)
+
+    # apply the rotations to the whole pose (i.e translation too)
+    rel_rotations = [x.between(y) for x, y in zip(input_rotations, aligned_rotations)]
+    intermediate_list = [x.compose(Pose3(y, np.zeros(3))) for x, y in zip(input_list, rel_rotations)]
+
+    # align the translations
+    input_translations = [x.translation() for x in intermediate_list]
+    ref_translations = [x.translation() for x in ref_list]
+    aligned_translations, _, _, _ = align_translations(input_translations, ref_translations)
+
+    return [Pose3(x, y) for x, y in zip(aligned_rotations, aligned_translations)]
+
+
+def compare_rotations(input_list: List[Optional[Rot3]], ref_list: List[Optional[Rot3]], angle_threshold: float) -> bool:
+    """Helper function to compare two lists of Rot3s using angle of relative rotation at each index.
 
     Notes:
     1. The input lists have the rotations in the same order, and can contain None entries.
-    2. To resolve global origin ambiguity, we will fix one image index as origin in both the inputs and transform both
-       the lists to the new origins.
 
     Args:
-        wRi_list: 1st list of rotations.
-        wRi_list_: 2nd list of rotations.
+        input_list: 1st list of rotations.
+        ref_list: 2nd list of rotations.
+        angle_threshold: threshold of relative rotation angle for equality.
 
     Returns:
-        result of the comparison.
+        Result of the comparison.
     """
 
-    if len(wRi_list) != len(wRi_list_):
+    if len(input_list) != len(ref_list):
         return False
 
-    # check the presense of valid Rot3 objects in the same location
-    wRi_valid = [i for (i, wRi) in enumerate(wRi_list) if wRi is not None]
-    wRi_valid_ = [i for (i, wRi) in enumerate(wRi_list_) if wRi is not None]
-    if wRi_valid != wRi_valid_:
-        return False
+    for R, R_ in zip(input_list, ref_list):
+        if R is not None and R_ is not None:
+            if compute_relative_rotation_angle(R, R_) > angle_threshold:
+                return False
+        elif R is not None or R_ is not None:
+            return False
 
-    if len(wRi_valid) <= 1:
-        # we need >= two entries going forward for meaningful comparisons
-        return False
-
-    wRi_list = [wRi_list[i] for i in wRi_valid]
-    wRi_list_ = [wRi_list_[i] for i in wRi_valid_]
-
-    wRi_list = align_rotations(wRi_list, ref_list=wRi_list_)
-
-    return all([wRi.equals(wRi_, 1e-1) for (wRi, wRi_) in zip(wRi_list, wRi_list_)])
+    return True
 
 
-def compare_global_poses(
-    wTi_list: List[Optional[Pose3]],
-    wTi_list_: List[Optional[Pose3]],
-    rot_err_thresh: float = 1e-3,
-    trans_err_thresh: float = 1e-1,
+def align_and_compare_rotations(
+    input_list: List[Optional[Rot3]], ref_list: List[Optional[Rot3]], angle_threshold: float
 ) -> bool:
-    """Helper function to compare two lists of global Pose3, considering the
-    origin and scale ambiguous.
+    """Wrapper combining align_rotations and compare_rotations.
 
     Notes:
-    1. The input lists have the poses in the same order, and can contain None entries.
-    2. To resolve global origin ambiguity, we will fix one image index as origin in both the inputs and transform both
-       the lists to the new origins.
-    3. As there is a scale ambiguity, we use the median scaling factor to resolve the ambiguity.
+    1. The input lists have the rotations in the same order, and can contain None entries.
 
     Args:
-        wTi_list: 1st list of poses.
-        wTi_list_: 2nd list of poses.
-        rot_err_thresh (optional): error threshold for rotations. Defaults to 1e-3.
-        trans_err_thresh (optional): relative error threshold for translation. Defaults to 1e-1.
+        input_list: 1st list of rotations.
+        ref_list: 2nd list of rotations.
+        angle_threshold: threshold of relative rotation angle for equality.
 
     Returns:
-        results of the comparison.
+        result of the comparison post alignment.
+    """
+
+    if len(input_list) != len(ref_list):
+        return False
+
+    # remove none entries and align
+    valid_input_list = []
+    valid_ref_list = []
+    for R, R_ in zip(input_list, ref_list):
+        if R is not None and R_ is not None:
+            valid_input_list.append(R)
+            valid_ref_list.append(R_)
+        elif R is not None or R_ is not None:
+            return False
+    aligned_input_list = align_rotations(valid_input_list, valid_ref_list)
+
+    # finally, compare
+    return compare_rotations(aligned_input_list, valid_ref_list, angle_threshold)
+
+
+def compare_translations(
+    input_list: List[Optional[Point3]],
+    ref_list: List[Optional[Point3]],
+    relative_error_thresh: float = 4e-1,
+    absolute_error_thresh: float = 1e-1,
+) -> bool:
+    """Helper function to compare two lists of Point3s using L2 distances at each index.
+
+    Notes:
+    1. The input lists have the translations in the same order, and can contain None entries.
+
+    Args:
+        input_list: 1st list of translations.
+        ref_list: 2nd list of translations.
+        relative_error_thresh (optional): relative error threshold for comparisons. Defaults to 4e-1.
+        absolute_error_thresh (optional): absolute error threshold for comparisons. Defaults to 1e-1.
+
+    Returns:
+        Results of the comparison.
     """
 
     # check the length of the input lists
-    if len(wTi_list) != len(wTi_list_):
+    if len(input_list) != len(ref_list):
         return False
 
-    # check the presense of valid Pose3 objects in the same location
-    wTi_valid = [i for (i, wTi) in enumerate(wTi_list) if wTi is not None]
-    wTi_valid_ = [i for (i, wTi) in enumerate(wTi_list_) if wTi is not None]
-    if wTi_valid != wTi_valid_:
+    for t, t_ in zip(input_list, ref_list):
+        if t is not None and t_ is not None:
+            if not np.allclose(t, t_, rtol=relative_error_thresh, atol=absolute_error_thresh):
+                return False
+        elif t is not None or t_ is not None:
+            return False
+
+    return True
+
+
+def align_and_compare_translations(
+    input_list: List[Optional[Point3]],
+    ref_list: List[Optional[Point3]],
+    relative_error_thresh: float = 4e-1,
+    absolute_error_thresh: float = 1e-1,
+) -> bool:
+    """Wrapper combining align_translations and compare_translations.
+
+    Notes:
+    1. The input lists have the translations in the same order, and can contain None entries.
+
+    Args:
+        input_list: 1st list of rotations.
+        ref_list: 2nd list of rotations.
+        relative_error_thresh (optional): relative error threshold for comparisons. Defaults to 4e-1.
+        absolute_error_thresh (optional): absolute error threshold for comparisons. Defaults to 1e-1.
+
+    Returns:
+        result of the comparison post alignment.
+    """
+
+    if len(input_list) != len(ref_list):
         return False
 
-    if len(wTi_valid) <= 1:
-        # we need >= two entries going forward for meaningful comparisons
-        return False
+    # remove none entries and align
+    valid_input_list = []
+    valid_ref_list = []
+    for t, t_ in zip(input_list, ref_list):
+        if t is not None and t_ is not None:
+            valid_input_list.append(t)
+            valid_ref_list.append(t_)
+        elif t is not None or t_ is not None:
+            return False
+    aligned_input_list, _, _, _ = align_translations(valid_input_list, valid_ref_list)
 
-    # align the remaining poses
-    wTi_list = [wTi_list[i] for i in wTi_valid]
-    wTi_list_ = [wTi_list_[i] for i in wTi_valid_]
-
-    wTi_list = align_poses(wTi_list, ref_list=wTi_list_)
-
-    return all(
-        [
-            (
-                wTi.rotation().equals(wTi_.rotation(), rot_err_thresh)
-                and np.allclose(
-                    wTi.translation(),
-                    wTi_.translation(),
-                    rtol=trans_err_thresh,
-                )
-            )
-            for (wTi, wTi_) in zip(wTi_list, wTi_list_)
-        ]
-    )
+    # finally, compare
+    return compare_translations(aligned_input_list, valid_ref_list, relative_error_thresh, absolute_error_thresh)
 
 
 def compute_relative_rotation_angle(R_1: Optional[Rot3], R_2: Optional[Rot3]) -> Optional[float]:
