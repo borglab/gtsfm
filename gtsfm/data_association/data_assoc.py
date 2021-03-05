@@ -127,6 +127,7 @@ class DataAssociation(NamedTuple):
             "track_cheirality_failure_ratio": np.round(track_cheirality_failure_ratio,3),
             "num_accepted_tracks": num_accepted_tracks,
             "median_3d_track_length": median_3d_track_length,
+            "mean_3d_track_length": mean_3d_track_length,
             "min_3d_track_length": int(track_lengths_3d.min()),
             "max_3d_track_length": int(track_lengths_3d.max()),
             "num_len_2_tracks": int(np.sum(track_lengths_3d == 2)),
