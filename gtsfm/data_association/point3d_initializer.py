@@ -89,51 +89,54 @@ class Point3dInitializer(NamedTuple):
             i1, uv1 = track_2d.measurements[k1]
             i2, uv2 = track_2d.measurements[k2]
 
-            camera_estimates = CameraSetCal3Bundler()
             # check for unestimated cameras
-            if self.track_camera_dict.get(i1) != None and self.track_camera_dict.get(i2) != None:
-                camera_estimates.append(self.track_camera_dict.get(i1))
-                camera_estimates.append(self.track_camera_dict.get(i2))
-
-                img_measurements = Point2Vector()
-                img_measurements.append(uv1)
-                img_measurements.append(uv2)
-
-                # triangulate point for track
-                try:
-                    triangulated_pt = gtsam.triangulatePoint3(
-                        camera_estimates,
-                        img_measurements,
-                        rank_tol=SVD_DLT_RANK_TOL,
-                        optimize=True,
-                    )
-                except RuntimeError:
-                    # TODO: handle cheirality exception properly?
-                    logger.info(
-                        "Cheirality exception from GTSAM's triangulatePoint3() likely due to outlier, skipping track"
-                    )
-                    continue
-
-                errors = self.compute_track_reprojection_errors(track_2d.measurements, triangulated_pt)
-
-                # The best solution should correspond to the one with most inliers
-                # If the inlier number are the same, check the average error of inliers
-                is_inlier = errors < self.reproj_error_thresh
-
-                # tally the number of votes
-                inlier_errors = errors[is_inlier]
-
-                if inlier_errors.size > 0:
-                    # only tally error over the inlier measurements
-                    avg_error = inlier_errors.mean()
-                    num_votes = is_inlier.astype(int).sum()
-
-                    if (num_votes > best_num_votes) or (num_votes == best_num_votes and avg_error < best_error):
-                        best_num_votes = num_votes
-                        best_error = avg_error
-                        best_inliers = is_inlier
-            else:
+            if self.track_camera_dict.get(i1) is None or self.track_camera_dict.get(i2) is None:
                 logger.warning("Unestimated cameras found at indices {} or {}. Skipping them.".format(i1, i2))
+                continue
+
+            camera_estimates = CameraSetCal3Bundler()
+
+            camera_estimates.append(self.track_camera_dict.get(i1))
+            camera_estimates.append(self.track_camera_dict.get(i2))
+
+            img_measurements = Point2Vector()
+            img_measurements.append(uv1)
+            img_measurements.append(uv2)
+
+            # triangulate point for track
+            try:
+                triangulated_pt = gtsam.triangulatePoint3(
+                    camera_estimates,
+                    img_measurements,
+                    rank_tol=SVD_DLT_RANK_TOL,
+                    optimize=True,
+                )
+            except RuntimeError:
+                # TODO: handle cheirality exception properly?
+                logger.info(
+                    "Cheirality exception from GTSAM's triangulatePoint3() likely due to outlier, skipping track"
+                )
+                continue
+
+            errors = self.compute_track_reprojection_errors(track_2d.measurements, triangulated_pt)
+
+            # The best solution should correspond to the one with most inliers
+            # If the inlier number are the same, check the average error of inliers
+            is_inlier = errors < self.reproj_error_thresh
+
+            # tally the number of votes
+            inlier_errors = errors[is_inlier]
+
+            if inlier_errors.size > 0:
+                # only tally error over the inlier measurements
+                avg_error = inlier_errors.mean()
+                num_votes = is_inlier.astype(int).sum()
+
+                if (num_votes > best_num_votes) or (num_votes == best_num_votes and avg_error < best_error):
+                    best_num_votes = num_votes
+                    best_error = avg_error
+                    best_inliers = is_inlier
+
 
         return best_inliers
 
