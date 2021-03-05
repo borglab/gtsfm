@@ -60,7 +60,8 @@ class Point3dInitializer(NamedTuple):
 
 
     def execute_ransac_variant(self, track_2d: SfmTrack2d) -> np.ndarray:
-        """ Execute RANSAC algorithm to find best subset 2d measurements for a 3d point
+        """ Execute RANSAC algorithm to find best subset 2d measurements for a 3d point.
+        RANSAC chooses one of 3 different sampling schemes to execute.
 
         Args:
             track: feature track with N 2d measurements in separate images
