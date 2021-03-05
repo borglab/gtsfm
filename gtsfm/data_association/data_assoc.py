@@ -98,7 +98,7 @@ class DataAssociation(NamedTuple):
 
             if self.__validate_track(sfm_track):
                 triangulated_data.add_track(sfm_track)
-                per_track_avg_errors += [avg_track_reproj_error]
+                per_track_avg_errors.append(avg_track_reproj_error)
 
         # TODO: improve dropped camera handling
         num_cameras = len(cameras.keys())
