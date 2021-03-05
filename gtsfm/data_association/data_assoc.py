@@ -114,7 +114,7 @@ class DataAssociation(NamedTuple):
                 raise RuntimeError("Some cameras must have been dropped ")
             triangulated_data.add_camera(cam)
 
-        mean_3d_track_length, median_3d_track_length = SfmResult(triangulated_data, None).get_track_length_statistics()
+        mean_3d_track_length, median_3d_track_length, track_lengths_3d = SfmResult(triangulated_data, None).get_track_length_statistics()
 
         logger.debug("[Data association] output number of tracks: %s", num_accepted_tracks)
         logger.debug("[Data association] output avg. track length: %s", mean_3d_track_length)
@@ -128,6 +128,15 @@ class DataAssociation(NamedTuple):
             "num_accepted_tracks": num_accepted_tracks,
             "mean_3d_track_length": np.round(mean_3d_track_length,3),
             "median_3d_track_length": median_3d_track_length,
+            "num_len_2_tracks": int(np.sum(track_lengths_3d == 2)),
+            "num_len_3_tracks": int(np.sum(track_lengths_3d == 3)),
+            "num_len_4_tracks": int(np.sum(track_lengths_3d == 4)),
+            "num_len_5_tracks": int(np.sum(track_lengths_3d == 5)),
+            "num_len_6_tracks": int(np.sum(track_lengths_3d == 6)),
+            "num_len_7_tracks": int(np.sum(track_lengths_3d == 7)),
+            "num_len_8_tracks": int(np.sum(track_lengths_3d == 8)),
+            "num_len_9_tracks": int(np.sum(track_lengths_3d == 9)),
+            "num_len_10_tracks": int(np.sum(track_lengths_3d == 10)),
             "per_rejected_track_avg_errors": per_rejected_track_avg_errors,
             "per_accepted_track_avg_errors": per_accepted_track_avg_errors,
             "points_3d": points_3d,
