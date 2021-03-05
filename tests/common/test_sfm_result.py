@@ -50,6 +50,7 @@ class TestSfmResult(unittest.TestCase):
         (
             mean_length,
             median_length,
+            _,
         ) = EXAMPLE_RESULT.get_track_length_statistics()
 
         self.assertEqual(mean_length, expected_mean_length)
