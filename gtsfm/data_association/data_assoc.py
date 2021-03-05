@@ -66,17 +66,15 @@ class DataAssociation(NamedTuple):
             cameras and tracks as SfmData.
         """
         # generate tracks for 3D points using pairwise correspondences
-        tracks = SfmTrack2d.generate_tracks_from_pairwise_matches(corr_idxs_dict, keypoints_list)
+        tracks_2d = SfmTrack2d.generate_tracks_from_pairwise_matches(corr_idxs_dict, keypoints_list)
 
         # metrics on tracks w/o triangulation check
-        num_tracks = len(tracks)
-        track_lengths = list(map(lambda x: x.number_measurements(), tracks))
+        num_tracks_2d = len(tracks_2d)
+        track_lengths = list(map(lambda x: x.number_measurements(), tracks_2d))
+        mean_2d_track_length = np.mean(track_lengths)
 
-        logger.debug("[Data association] input number of tracks: %s", num_tracks)
-        logger.debug(
-            "[Data association] input avg. track length: %s",
-            np.mean(track_lengths),
-        )
+        logger.debug("[Data association] input number of tracks: %s", num_tracks_2d)
+        logger.debug("[Data association] input avg. track length: %s", mean_2d_track_length)
 
         # initializer of 3D landmark for each track
         point3d_initializer = Point3dInitializer(
@@ -86,19 +84,26 @@ class DataAssociation(NamedTuple):
             self.num_ransac_hypotheses,
         )
 
-        per_track_avg_errors = []
+        num_tracks_w_cheirality_exceptions = 0
+        per_accepted_track_avg_errors = []
+        per_rejected_track_avg_errors = []
         # form SFMdata object after triangulation
         triangulated_data = SfmData()
-        for track_2d in tracks:
+        for track_2d in tracks_2d:
             # triangulate and filter based on reprojection error
-            sfm_track, avg_track_reproj_error = point3d_initializer.triangulate(track_2d)
+            sfm_track, avg_track_reproj_error, is_cheirality_failure = point3d_initializer.triangulate(track_2d)
+            if is_cheirality_failure:
+                num_tracks_w_cheirality_exceptions += 1
 
-            if sfm_track is None:
-                continue
-
-            if self.__validate_track(sfm_track):
+            if sfm_track is not None and self.__validate_track(sfm_track):
                 triangulated_data.add_track(sfm_track)
-                per_track_avg_errors.append(avg_track_reproj_error)
+                per_accepted_track_avg_errors.append(avg_track_reproj_error)
+            else:
+                per_rejected_track_avg_errors.append(avg_track_reproj_error)
+
+        num_accepted_tracks = triangulated_data.number_tracks()
+        accepted_tracks_ratio = num_accepted_tracks / len(tracks_2d)
+        track_cheirality_failure_ratio = num_tracks_w_cheirality_exceptions / len(tracks_2d)
 
         # TODO: improve dropped camera handling
         num_cameras = len(cameras.keys())
@@ -109,19 +114,23 @@ class DataAssociation(NamedTuple):
                 raise RuntimeError("Some cameras must have been dropped ")
             triangulated_data.add_camera(cam)
 
-        num_tracks = triangulated_data.number_tracks()
-        mean_track_length, median_track_length = SfmResult(triangulated_data, None).get_track_length_statistics()
+        mean_3d_track_length, median_3d_track_length = SfmResult(triangulated_data, None).get_track_length_statistics()
 
-        logger.debug("[Data association] output number of tracks: %s", num_tracks)
-        logger.debug("[Data association] output avg. track length: %s", mean_track_length)
+        logger.debug("[Data association] output number of tracks: %s", num_accepted_tracks)
+        logger.debug("[Data association] output avg. track length: %s", mean_3d_track_length)
 
-        points_3d = [list(triangulated_data.track(j).point3()) for j in range(num_tracks)]
+        # dump the 3d point cloud before Bundle Adjustment for offline visualization
+        points_3d = [list(triangulated_data.track(j).point3()) for j in range(num_accepted_tracks)]
         data_assoc_metrics = {
-            "num_tracks": num_tracks,
-            "mean_track_length": mean_track_length,
-            "median_track_length": median_track_length,
+            "mean_2d_track_length": np.round(mean_2d_track_length,3),
+            "accepted_tracks_ratio": np.round(accepted_tracks_ratio,3),
+            "track_cheirality_failure_ratio": np.round(track_cheirality_failure_ratio,3),
+            "num_accepted_tracks": num_accepted_tracks,
+            "mean_3d_track_length": np.round(mean_3d_track_length,3),
+            "median_3d_track_length": median_3d_track_length,
+            "per_rejected_track_avg_errors": per_rejected_track_avg_errors,
+            "per_accepted_track_avg_errors": per_accepted_track_avg_errors,
             "points_3d": points_3d,
-            "per_track_avg_errors": per_track_avg_errors
         }
 
         return triangulated_data, data_assoc_metrics
