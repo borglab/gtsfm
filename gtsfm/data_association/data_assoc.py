@@ -130,14 +130,18 @@ class DataAssociation(NamedTuple):
             "accepted_tracks_ratio": np.round(accepted_tracks_ratio, 3),
             "track_cheirality_failure_ratio": np.round(track_cheirality_failure_ratio, 3),
             "num_accepted_tracks": num_accepted_tracks,
-            "median_3d_track_length": median_3d_track_length,
-            "mean_3d_track_length": mean_3d_track_length,
-            "min_3d_track_length": int(track_lengths_3d.min()),
-            "max_3d_track_length": int(track_lengths_3d.max()),
+            "3d_tracks_length": {
+                "median_3d_track_length": median_3d_track_length,
+                "mean_3d_track_length": mean_3d_track_length,
+                "min_3d_track_length": int(track_lengths_3d.min()),
+                "max_3d_track_length": int(track_lengths_3d.max()),
+            },
         }
 
         # min possible track len is 2, above 10 is improbable
-        data_assoc_metrics.update({f"num_len_{i}_tracks": int(histogram_track_lengths[i]) for i in range(2, 11)})
+        data_assoc_metrics["3d_tracks_length"].update(
+            {f"num_len_{i}_tracks": int(histogram_track_lengths[i]) for i in range(2, 11)}
+        )
 
         # placing long lists at the end of dictionary, since they are less easily interpreted
         data_assoc_metrics.update(
