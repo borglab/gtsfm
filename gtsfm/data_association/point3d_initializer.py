@@ -96,7 +96,6 @@ class Point3dInitializer(NamedTuple):
                 continue
 
             camera_estimates = CameraSetCal3Bundler()
-
             camera_estimates.append(self.track_camera_dict.get(i1))
             camera_estimates.append(self.track_camera_dict.get(i2))
 
