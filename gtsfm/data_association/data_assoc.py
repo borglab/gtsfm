@@ -114,35 +114,40 @@ class DataAssociation(NamedTuple):
                 raise RuntimeError("Some cameras must have been dropped ")
             triangulated_data.add_camera(cam)
 
-        mean_3d_track_length, median_3d_track_length, track_lengths_3d = SfmResult(triangulated_data, None).get_track_length_statistics()
+        mean_3d_track_length, median_3d_track_length, track_lengths_3d = SfmResult(
+            triangulated_data, None
+        ).get_track_length_statistics()
 
         logger.debug("[Data association] output number of tracks: %s", num_accepted_tracks)
         logger.debug("[Data association] output avg. track length: %s", mean_3d_track_length)
 
         # dump the 3d point cloud before Bundle Adjustment for offline visualization
         points_3d = [list(triangulated_data.track(j).point3()) for j in range(num_accepted_tracks)]
+        # bin edges are halfway between each integer
+        histogram_track_lengths, _ = np.histogram(track_lengths_3d, bins=np.linspace(-0.5, 10.5, 12))
         data_assoc_metrics = {
-            "mean_2d_track_length": np.round(mean_2d_track_length,3),
-            "accepted_tracks_ratio": np.round(accepted_tracks_ratio,3),
-            "track_cheirality_failure_ratio": np.round(track_cheirality_failure_ratio,3),
+            "mean_2d_track_length": np.round(mean_2d_track_length, 3),
+            "accepted_tracks_ratio": np.round(accepted_tracks_ratio, 3),
+            "track_cheirality_failure_ratio": np.round(track_cheirality_failure_ratio, 3),
             "num_accepted_tracks": num_accepted_tracks,
             "median_3d_track_length": median_3d_track_length,
             "mean_3d_track_length": mean_3d_track_length,
             "min_3d_track_length": int(track_lengths_3d.min()),
             "max_3d_track_length": int(track_lengths_3d.max()),
-            "num_len_2_tracks": int(np.sum(track_lengths_3d == 2)),
-            "num_len_3_tracks": int(np.sum(track_lengths_3d == 3)),
-            "num_len_4_tracks": int(np.sum(track_lengths_3d == 4)),
-            "num_len_5_tracks": int(np.sum(track_lengths_3d == 5)),
-            "num_len_6_tracks": int(np.sum(track_lengths_3d == 6)),
-            "num_len_7_tracks": int(np.sum(track_lengths_3d == 7)),
-            "num_len_8_tracks": int(np.sum(track_lengths_3d == 8)),
-            "num_len_9_tracks": int(np.sum(track_lengths_3d == 9)),
-            "num_len_10_tracks": int(np.sum(track_lengths_3d == 10)),
-            "per_rejected_track_avg_errors": per_rejected_track_avg_errors,
-            "per_accepted_track_avg_errors": per_accepted_track_avg_errors,
-            "points_3d": points_3d,
         }
+
+        # min possible track len is 2, above 10 is improbable
+        data_assoc_metrics.update({f"num_len_{i}_tracks": int(histogram_track_lengths[i]) for i in range(2, 11)})
+
+        # placing long lists at the end of dictionary, since they are less easily interpreted
+        data_assoc_metrics.update(
+            {
+                "mean_accepted_track_avg_error": np.array(per_accepted_track_avg_errors).mean(),
+                "per_rejected_track_avg_errors": per_rejected_track_avg_errors,
+                "per_accepted_track_avg_errors": per_accepted_track_avg_errors,
+                "points_3d": points_3d,
+            }
+        )
 
         return triangulated_data, data_assoc_metrics
 
