@@ -21,10 +21,65 @@
 
 .gtsfm_header {
     font-size: 130%;
+    margin-right: 10%;
+}
+
+.frontend_summary_btn {
+}
+
+.mvo_metrics_upload {
+    margin-right: 2%;
 }
 
 .gtsfm_graph {
     position: relative;
     width: 100%;
     height: 100%;
+    z-index: 1;
+}
+
+/*plate stlyings*/
+
+.scene_optimizer_plate {
+    position: absolute;
+    top: 0%;
+    left: 7%;
+    width: 90%;
+    height: 93%;
+    border: 2px solid #0b8db5;
+    padding-left: 1%;
+    z-index: -1;
+}
+
+.feature_extractor_plate {
+    position: absolute;
+    top: 4%;
+    left: 26%;
+    width: 24.5%;
+    height: 23%;
+    border: 2px solid #0b8db5;
+    padding-left: 1%;  
+    z-index: -1; 
+}
+
+.two_view_estimator_plate {
+    position: absolute;
+    top: 4%;
+    left: 52.5%;
+    width: 40%;
+    height: 27%;
+    border: 2px solid #0b8db5;
+    padding-left: 7%;   
+    z-index: -1;
+}
+
+.multiview_optimizer_plate {
+    position: absolute;
+    top: 35%;
+    left: 16%;
+    width: 78%;
+    height: 42%;
+    border: 2px solid #0b8db5;
+    padding-left: 1%;   
+    z-index: -1;
 }

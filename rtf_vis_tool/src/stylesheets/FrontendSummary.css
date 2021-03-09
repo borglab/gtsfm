@@ -1,0 +1,22 @@
+.fs_container {
+    position: absolute;
+    top: 20%;
+    right: 10%;
+    z-index: 2;
+    border: 3px solid black;
+    background-color: #e3d9bc;
+    width: 20%;
+    height: 40%;
+    border-radius: 5px;
+    padding: 1%;
+}
+
+.go_back_btn {
+    position: absolute;
+    right: 10px;
+    cursor: pointer;
+}
+
+.fs-text {
+    font-weight: 600;
+}
