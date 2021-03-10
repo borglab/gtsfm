@@ -6,12 +6,15 @@ import logging
 from typing import Tuple, Optional
 
 import dask
+import numpy as np
 from dask.delayed import Delayed
-from gtsam import Pose3, Rot3, Unit3
+from gtsam import Cal3Bundler, Pose3, Rot3, Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.metrics as metric_utils
 import gtsfm.utils.serialization  # import needed to register serialization fns
+from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
@@ -27,7 +30,7 @@ pil_logger.setLevel(logging.INFO)
 class TwoViewEstimator:
     """Wrapper for running two-view relative pose estimation on image pairs in the dataset."""
 
-    def __init__(self, matcher: MatcherBase, verifier: VerifierBase) -> None:
+    def __init__(self, matcher: MatcherBase, verifier: VerifierBase, corr_metric_dist_threshold: float) -> None:
         """Initializes the two-view estimator from matcher and verifier.
 
         Args:
@@ -36,6 +39,7 @@ class TwoViewEstimator:
         """
         self.matcher = matcher
         self.verifier = verifier
+        self._corr_metric_dist_threshold = corr_metric_dist_threshold
 
     def create_computation_graph(
         self,
@@ -47,7 +51,7 @@ class TwoViewEstimator:
         camera_intrinsics_i2_graph: Delayed,
         exact_intrinsics: bool = True,
         i2Ti1_expected_graph: Optional[Delayed] = None,
-    ) -> Tuple[Delayed, Delayed, Delayed, Optional[Delayed], Optional[Delayed]]:
+    ) -> Tuple[Delayed, Delayed, Delayed, Optional[Delayed], Optional[Delayed], Optional[Delayed]]:
         """Create delayed tasks for matching and verification.
 
         Args:
@@ -67,6 +71,7 @@ class TwoViewEstimator:
             Indices of verified correspondences wrapped as Delayed.
             Error in relative rotation wrapped as Delayed
             Error in relative translation direction wrapped as Delayed.
+            Correspondence correctness metrics wrapped as Delayed.
         """
 
         # graph for matching to obtain putative correspondences
@@ -85,17 +90,66 @@ class TwoViewEstimator:
 
         # if we have the expected data, evaluate the computed relative pose
         if i2Ti1_expected_graph is not None:
-            error_graphs = dask.delayed(compute_relative_pose_metrics)(i2Ri1_graph, i2Ui1_graph, i2Ti1_expected_graph)
+            pose_error_graphs = dask.delayed(compute_relative_pose_metrics)(
+                i2Ri1_graph, i2Ui1_graph, i2Ti1_expected_graph
+            )
+            corr_error_graph = dask.delayed(compute_correspondence_metrics)(
+                keypoints_i1_graph,
+                keypoints_i2_graph,
+                v_corr_idxs_graph,
+                camera_intrinsics_i1_graph,
+                camera_intrinsics_i2_graph,
+                i2Ti1_expected_graph,
+                self._corr_metric_dist_threshold,
+            )
         else:
-            error_graphs = (None, None)
+            pose_error_graphs = (None, None)
+            corr_error_graph = None
 
         return (
             i2Ri1_graph,
             i2Ui1_graph,
             v_corr_idxs_graph,
-            error_graphs[0],
-            error_graphs[1],
+            pose_error_graphs[0],
+            pose_error_graphs[1],
+            corr_error_graph,
         )
+
+
+def compute_correspondence_metrics(
+    keypoints_i1: Keypoints,
+    keypoints_i2: Keypoints,
+    corr_idxs_i1i2: np.ndarray,
+    intrinsics_i1: Cal3Bundler,
+    intrinsics_i2: Cal3Bundler,
+    i2Ti1: Pose3,
+    epipolar_distance_threshold: float,
+) -> Tuple[int, float]:
+    """Compute the metrics for the generated verified correspondence.
+
+    Args:
+        keypoints_i1: detected keypoints in image i1.
+        keypoints_i2: detected keypoints in image i2.
+        corr_idxs_i1i2: indices of correspondences.
+        intrinsics_i1: intrinsics for i1.
+        intrinsics_i2: intrinsics for i2.
+        i2Ti1: relative pose.
+        epipolar_distance_threshold: max epipolar distance to qualify as a correct match.
+
+    Returns:
+        Number of correct correspondences.
+        Inlier Ratio, i.e. ratio of correspondences which are correct.
+    """
+    number_correct = metric_utils.count_correct_correspondences(
+        keypoints_i1.extract_indices(corr_idxs_i1i2[:, 0]),
+        keypoints_i2.extract_indices(corr_idxs_i1i2[:, 1]),
+        intrinsics_i1,
+        intrinsics_i2,
+        i2Ti1,
+        epipolar_distance_threshold,
+    )
+
+    return number_correct, number_correct / corr_idxs_i1i2.shape[0]
 
 
 def compute_relative_pose_metrics(
@@ -115,10 +169,8 @@ def compute_relative_pose_metrics(
         Unit translation error, in degrees
     """
     R_error_deg = comp_utils.compute_relative_rotation_angle(i2Ri1_computed, i2Ti1_expected.rotation())
-
-    U_error_deg = comp_utils.compute_relative_unit_translation_angle(i2Ui1_computed, Unit3(i2Ti1_expected.translation()))
-
-    logger.debug("[Two View Estimator] Relative rotation error %f deg.", R_error_deg)
-    logger.debug("[Two View Estimator] Relative unit-translation error %f deg.", U_error_deg)
+    U_error_deg = comp_utils.compute_relative_unit_translation_angle(
+        i2Ui1_computed, Unit3(i2Ti1_expected.translation())
+    )
 
     return (R_error_deg, U_error_deg)
