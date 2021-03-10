@@ -29,7 +29,8 @@ class Parser(object):
                         pi = Math.to_cam_coord(p, cameras[ci][1])
                         pj = Math.to_cam_coord(p, cameras[cj][1])
                         
-                        depth_array.append(p[-1])
+                        depth_array.append(pi[-1])
+                        depth_array.append(pj[-1])
                         
                         score_ij = Math.piecewiseGaussian(pi, pj)
                         pairs[ci, cj] += score_ij
@@ -38,8 +39,8 @@ class Parser(object):
         depth_std = np.std(depth_array)
         depth_mean = np.mean(depth_array)
 
-        min_depth = max(0, math.floor(depth_mean - depth_std))
-        max_depth = min(1000, math.ceil(depth_mean + depth_std))
+        min_depth = max(0, math.ceil(depth_mean - depth_std))
+        max_depth = min(1000, math.floor(depth_mean + depth_std))
 
         CV = depth_std / depth_mean
         
@@ -66,9 +67,13 @@ class Parser(object):
     
 
     @classmethod
-    def to_mvsnets_data(cls, images, sfmData):
-
-        cameras = cls.parse_camera_matrix(sfmData)
+    def to_mvsnets_data(cls, images, sfmData, labeled_cameras = None):
+    
+        if labeled_cameras:
+            cameras = labeled_cameras
+        else:
+            cameras = cls.parse_camera_matrix(sfmData)
+   
         pairs, depthRange = cls.parse_sparse_point_cloud(sfmData, cameras)
 
         return {

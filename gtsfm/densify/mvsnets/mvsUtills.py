@@ -8,7 +8,7 @@ class Math(object):
         return (180.0 / math.pi) * math.acos(np.dot(pi, pj) / np.linalg.norm(pi) / np.linalg.norm(pj))
     
     @classmethod
-    def piecewiseGaussian(cls, pi, pj, theta_0 = 5, sigma_1=1, sigma_2=10):
+    def piecewiseGaussian(cls, pi, pj, theta_0=5, sigma_1=1, sigma_2=10):
         theta = cls.theta_ij(pi, pj)
         if theta <= theta_0:
             return math.exp(-(theta-theta_0)**2 / (2*sigma_1**2))
@@ -34,6 +34,7 @@ class MVSNetsModelManager(object):
         model = None 
         if method.lower() == 'PatchmatchNet'.lower():
             from .source.PatchmatchNet.eval_gtsfm import eval_function
+
         eval_function(args)
 
         return model

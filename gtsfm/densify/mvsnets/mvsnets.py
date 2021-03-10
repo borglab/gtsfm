@@ -22,8 +22,13 @@ class MVSNets:
         images = Loader.load_raw_images(image_path, image_extension)
 
         Writer.writeOKLog("\n[1/4]Parsing sfmData to mvsnetsData...")
-        
+
+        # == if use measured camera matrices ==
         mvsnetsData = Parser.to_mvsnets_data(images, sfmData)
+
+        # == if use accurate camera matrices ==
+        # labeled_cameras = Loader.load_labeled_cameras(image_path)
+        # mvsnetsData = Parser.to_mvsnets_data(images, sfmData, labeled_cameras)
 
         prepared_input_path = Writer.write_mvsnets_data(mvsnetsData)
 
@@ -41,7 +46,6 @@ class MVSNets:
             'gpu':      torch.cuda.is_available(),
             'loadckpt': 'gtsfm/densify/mvsnets/checkpoints/{}.ckpt'.format(method[1].lower())
         }
-
 
         Writer.writeOKLog("\n[3/4]Going through {}...".format(method[1]))
         print(args)
