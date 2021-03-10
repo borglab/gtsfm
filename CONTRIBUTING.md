@@ -9,7 +9,7 @@ To open a pull request, here are some steps to get you started:
 - Create a branch for your changes.
   - `$ git checkout -b <name of your branch>`
 
-- Validate that your changes do not break any existing unit tests.
+- Validate that your changes do not break any existing unit tests. CI (Github Actions) should also pass.
   - Run all unit tests: `$ pytest tests`
  
 - Reformat your code using Python [black](https://github.com/psf/black), with `-l 120` for a max line length of 120. 
