@@ -7,9 +7,9 @@ References:
 1. Richard I. Hartley and Peter Sturm. Triangulation. Computer Vision and Image Understanding, Vol. 68, No. 2,
    November, pp. 146–157, 1997
 
-Authors: Sushmita Warrier, Xiaolong Wu
+Authors: Sushmita Warrier, Xiaolong Wu, John Lambert
 """
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 import dask
 import numpy as np
@@ -54,7 +54,7 @@ class DataAssociation(NamedTuple):
         cameras: Dict[int, PinholeCameraCal3Bundler],
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
-    ) -> SfmData:
+    ) -> Tuple[SfmData, Dict[str,Any]]:
         """Perform the data association.
 
         Args:
@@ -160,7 +160,7 @@ class DataAssociation(NamedTuple):
         cameras: Delayed,
         corr_idxs_graph: Dict[Tuple[int, int], Delayed],
         keypoints_graph: List[Delayed],
-    ) -> Delayed:
+    ) -> Tuple[Delayed, Delayed]:
         """Creates a computation graph for performing data association.
 
         Args:
@@ -169,6 +169,12 @@ class DataAssociation(NamedTuple):
             keypoints_graph: list of wrapped up keypoints for each image.
 
         Returns:
-            SfmData object wrapped up using dask.delayed.
+            ba_input_graph: SfmData object wrapped up using dask.delayed
+            data_assoc_metrics_graph: dictionary with different statistics about the data
+                association result
         """
-        return dask.delayed(self.run)(cameras, corr_idxs_graph, keypoints_graph)
+        data_assoc_graph = dask.delayed(self.run)(cameras, corr_idxs_graph, keypoints_graph)
+        ba_input_graph = data_assoc_graph[0]
+        data_assoc_metrics_graph = data_assoc_graph[1]
+
+        return ba_input_graph, data_assoc_metrics_graph
