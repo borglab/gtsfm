@@ -78,11 +78,9 @@ class MultiViewOptimizer:
 
         init_cameras_graph = dask.delayed(init_cameras)(wRi_graph, wti_graph, intrinsics_graph)
 
-        data_assoc_graph = self.data_association_module.create_computation_graph(
+        ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
             init_cameras_graph, v_corr_idxs_graph, keypoints_graph
         )
-        ba_input_graph = data_assoc_graph[0]
-        data_assoc_metrics_graph = data_assoc_graph[1]
 
         auxiliary_graph_list = [
             dask.delayed(io.save_json_file)(
