@@ -140,18 +140,12 @@ class DataAssociation(NamedTuple):
                 "min": int(track_lengths_3d.min()),
                 "max": int(track_lengths_3d.max()),
                 "track_lengths_histogram": histogram_dict,
-            }
+            },
+            "mean_accepted_track_avg_error": np.array(per_accepted_track_avg_errors).mean(),
+            "per_rejected_track_avg_errors": per_rejected_track_avg_errors,
+            "per_accepted_track_avg_errors": per_accepted_track_avg_errors,
+            "points_3d": points_3d,
         }
-
-        # placing long lists at the end of dictionary, since they are less easily interpreted
-        data_assoc_metrics.update(
-            {
-                "mean_accepted_track_avg_error": np.array(per_accepted_track_avg_errors).mean(),
-                "per_rejected_track_avg_errors": per_rejected_track_avg_errors,
-                "per_accepted_track_avg_errors": per_accepted_track_avg_errors,
-                "points_3d": points_3d,
-            }
-        )
 
         return triangulated_data, data_assoc_metrics
 
