@@ -11,6 +11,17 @@ class Writer(object):
     DENSIFY_MVSNETS_DATA_PATH = './results_densify/inputs'
     DENSIFY_RESULTS_PATH = './results_densify/outputs'
 
+    OKGREEN = '\033[92m' 
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
     @classmethod
     def write_mvsnets_data(cls, mvsnetsData, path=None):
         if not path:
@@ -75,12 +86,15 @@ class Writer(object):
                     pair_lines[-1]+= ' {} {:.3f}'.format(pair_idx[pi], pairs[i, pair_idx[pi]])
             pair_lines[-1] += '\n'
         
-        pair_file = open(os.path.join(path, 'scan1', 'pairs.txt'), 'w+')
+        pair_file = open(os.path.join(path, 'scan1', 'pair.txt'), 'w+')
         pair_file.writelines(pair_lines)
         pair_file.close()
     
         return path
 
+    @classmethod
+    def writeOKLog(cls, message):
+        print("{}{}{}".format(cls.OKGREEN, message, cls.ENDC))
 
 
 

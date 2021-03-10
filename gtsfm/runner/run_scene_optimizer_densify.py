@@ -45,5 +45,19 @@ def run_scene_optimizer() -> None:
 
         assert isinstance(sfm_result, SfmResult)
         
+        MVSNets.densify(sfm_result.sfm_data, 
+                        image_path=os.path.join(DATA_ROOT, "set1_lund_door"), 
+                        image_extension="JPG",
+                        view_number=10,
+                        thres=[1.0, 0.01, 0.8])
+        
+        # ------ test from result ------
+        # import gtsam
+        # sfm_result = gtsam.readBal('./results/ba_output.bal')
+        # print(DATA_ROOT)
+        # MVSNets.densify(sfm_result, image_path=os.path.join(DATA_ROOT, "set1_lund_door"), image_extension="JPG")
+        
+
+
 if __name__ == "__main__":
     run_scene_optimizer()

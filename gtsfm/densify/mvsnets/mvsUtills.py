@@ -33,8 +33,7 @@ class MVSNetsModelManager(object):
     def test(cls, method, args):
         model = None 
         if method.lower() == 'PatchmatchNet'.lower():
-            
-            
-            pass 
+            from .source.PatchmatchNet.eval_gtsfm import eval_function
+        eval_function(args)
 
         return model

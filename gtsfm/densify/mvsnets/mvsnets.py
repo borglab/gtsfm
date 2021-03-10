@@ -5,11 +5,15 @@ from .mvsLoader import Loader
 from .mvsUtills import MVSNetsModelManager
 
 class MVSNets:
+    
+    
     def __init__(self):
-        pass 
+        pass
 
     @classmethod    
     def densify(cls, sfmData, image_path, image_extension, view_number=5, thres=[1.0, 0.01, 0.8], method="mvsnets/PatchmatchNet"):
+
+        Writer.writeOKLog("\nBegin to densify use {}".format(method))
 
         method = method.strip().split("/")
 
@@ -17,22 +21,34 @@ class MVSNets:
 
         images = Loader.load_raw_images(image_path, image_extension)
 
+        Writer.writeOKLog("\n[1/4]Parsing sfmData to mvsnetsData...")
+        
         mvsnetsData = Parser.to_mvsnets_data(images, sfmData)
 
         prepared_input_path = Writer.write_mvsnets_data(mvsnetsData)
 
+        Writer.writeOKLog("\n[2/4]Writing parsed mvsnets data into {}...".format(prepared_input_path))
+
         del mvsnetsData
 
         args = {
+            'dataset': "gtsfm_eval",
             'testpath': prepared_input_path,
             'img_wh':   images[0].size,
             'outdir':   Writer.DENSIFY_RESULTS_PATH,
             'n_views':  view_number,
-            'thres':    thres
+            'thres':    thres,
+            'gpu':      torch.cuda.is_available(),
+            'loadckpt': 'gtsfm/densify/mvsnets/checkpoints/{}.ckpt'.format(method[1].lower())
         }
-        
+
+
+        Writer.writeOKLog("\n[3/4]Going through {}...".format(method[1]))
         print(args)
 
         MVSNetsModelManager.test(method[1], args)
 
-        return NotImplemented
+        Writer.writeOKLog("\n[4/4]Densified results are written to {}...".format(args['outdir']))
+
+
+        return True
