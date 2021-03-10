@@ -1,5 +1,6 @@
 # Customize
 gtsfm/densify/inputs/*
+gtsfm/densify/model/*
 results/*
 
 # Byte-compiled / optimized / DLL files
