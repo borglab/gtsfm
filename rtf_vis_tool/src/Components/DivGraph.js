@@ -5,6 +5,7 @@ import EdgeList from './gtsfm_edge_list.js';
 import DivNode from './DivNode';
 import PPDivNode from './PPDivNode';
 import OptDivNode from './OptDivNode';
+import SFMResultDivNode from './SFMResultDivNode';
 import FrontendSummary from './FrontendSummary';
 import MVOSummary from './MVOSummary';
 import '../stylesheets/DivGraph.css'
@@ -111,12 +112,8 @@ const DivGraph = (props) => {
                 <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 38)} leftOffset={formatPercent(leftShift, 8)} text={'Output Directory'}/>
                 <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 45)} leftOffset={formatPercent(leftShift, 9)} text={'SFMResult as files'}/>
                 <DivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 43)} leftOffset={formatPercent(leftShift, 19)} text={'File Writer'}/>
-                <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 50)} leftOffset={formatPercent(leftShift, 22)} text={'SFMResult'}/>
                 <OptDivNode json={mvo_json} toggleMVO={toggleMVOMetrics} textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 43)} leftOffset={formatPercent(leftShift, 28)} text={'Optimizer'}/>
-                <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 61)} leftOffset={formatPercent(leftShift, 18)} text={'Sparse Point Cloud'}/>
-                <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 68)} leftOffset={formatPercent(leftShift, 23)} text={'Optimized Intrinsics'}/>
-                <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 68)} leftOffset={formatPercent(leftShift, 29)} text={'absolute Rs(2)'}/>
-                <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 61)} leftOffset={formatPercent(leftShift, 34)} text={'absolute ts(2)'}/>
+                <SFMResultDivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 53)} leftOffset={formatPercent(leftShift, 25)} text={'SFMResult (including Sparse Point Cloud, Optimized Intrinsics, absolute Rs, absolute Ts)'}/>
                 <DivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 83)} leftOffset={formatPercent(leftShift, 32)} text={'MVSNet'}/>
                 <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 83)} leftOffset={formatPercent(leftShift, 25)} text={'Dense Point Cloud'}/>
                 <DivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 83)} leftOffset={formatPercent(leftShift, 17)} text={'Triangulation'}/>
