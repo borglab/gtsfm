@@ -124,7 +124,11 @@ class DataAssociation(NamedTuple):
         # dump the 3d point cloud before Bundle Adjustment for offline visualization
         points_3d = [list(triangulated_data.track(j).point3()) for j in range(num_accepted_tracks)]
         # bin edges are halfway between each integer
-        histogram_track_lengths, _ = np.histogram(track_lengths_3d, bins=np.linspace(-0.5, 10.5, 12))
+        track_lengths_histogram, _ = np.histogram(track_lengths_3d, bins=np.linspace(-0.5, 10.5, 12))
+
+        # min possible track len is 2, above 10 is improbable
+        histogram_dict = {f"num_len_{i}_tracks": int(track_lengths_histogram[i]) for i in range(2, 11)}
+
         data_assoc_metrics = {
             "mean_2d_track_length": np.round(mean_2d_track_length, 3),
             "accepted_tracks_ratio": np.round(accepted_tracks_ratio, 3),
@@ -135,13 +139,9 @@ class DataAssociation(NamedTuple):
                 "mean": mean_3d_track_length,
                 "min": int(track_lengths_3d.min()),
                 "max": int(track_lengths_3d.max()),
-            },
+                "track_lengths_histogram": histogram_dict,
+            }
         }
-
-        # min possible track len is 2, above 10 is improbable
-        data_assoc_metrics["3d_tracks_length"].update(
-            {f"num_len_{i}_tracks": int(histogram_track_lengths[i]) for i in range(2, 11)}
-        )
 
         # placing long lists at the end of dictionary, since they are less easily interpreted
         data_assoc_metrics.update(
