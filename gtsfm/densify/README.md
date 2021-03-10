@@ -10,8 +10,8 @@
     MVSNets.densify(sfm_result.sfm_data, 
                     image_path=os.path.join(DATA_ROOT, "set1_lund_door"), 
                     image_extension="JPG",
-                    view_number=5,
-                    thres=[1.0, 0.01, 0.8])
+                    view_number=5,           # number of views as inputs of mvsnets
+                    thres=[1.0, 0.01, 0.8])  # [geometry_pixel_threshold, geometry_depth_threshold, photo_threshold]
     ```
 * output path `results_densify/outputs/`
   * `results_densify/outputs/scan1/confidence`: .pfm confidence map from each view
@@ -22,25 +22,17 @@
 
 #### Sample output
 
-<div sytle="text-align:center;">
-<figure style="display: inline-block; text-align: center;">
-  <img src="docs/img/gt_depth_04.png" width="200" style="margin:0px;"/>
-  <figcaption>Depthmap use accurate cameras</figcaption>
-</figure>
-<figure style="display: inline-block; text-align: center;">
-  <img src="docs/img/gt_depth_04.png" width="200" style="margin:0px;"/>
-  <figcaption>Depthmap use calculated cameras</figcaption>
-</figure>
-<figure style="display: inline-block; text-align: center;">
-  <img src="docs/img/res-gt-cam.png" width="200" style="margin:0px;"/>
-  <figcaption>Mesh use accurate cameras</figcaption>
-</figure>
-<figure style="display: inline-block; text-align: center;">
-  <img src="docs/img/res-gen-cam.png" width="200" style="margin:0px;"/>
-  <figcaption>Mesh use calculated cameras</figcaption>
-</figure>
-</div>
-
+* sample outputs depthmap & mesh of `tests/data/set1_lund_door/images/DSC_0004.JPG`. 
+  * Left: Using accurate cameras 
+  * Right: Using calculated cameras
+ 
+ <p>
+ <img src="../../tests/data/set1_lund_door/images/DSC_0004.JPG" height="250" style="margin-left:40px;"/>
+ <img src="docs/img/gt_depth_04.png" height="250" style="margin-left:40px;"/>
+ <img src="docs/img/gen_depth_04.png" height="250" style="margin-left:40px;"/>
+ <img src="docs/img/res-gt-cam.png" height="250" style="margin-left:40px;"/>
+ <img src="docs/img/res-gen-cam.png" height="250" style="margin-left:40px;"/>
+</p>
 
 
 #### TODOs & Graphs
