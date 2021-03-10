@@ -50,6 +50,10 @@ Please run
 python gtsfm/runner/run_scene_optimizer.py
 ```
 
+## Densify
+
+Please see [readme](gtsfm/densify/README.md).
+
 ## Repository Structure
 
 GTSFM is designed in an extremely modular way. Each module can be swapped out with a new one, as long as it implements the API of the module's abstract base class. The code is organized as follows:
