@@ -23,7 +23,6 @@ from gtsam import (
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
-import gtsfm.utils.serialization  # import needed to register serialization fns
 import gtsfm.utils.viz as viz_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
@@ -102,10 +101,7 @@ class SceneOptimizer:
         keypoints_graph_list = []
         descriptors_graph_list = []
         for delayed_image in image_graph:
-            (
-                delayed_dets,
-                delayed_descs,
-            ) = self.feature_extractor.create_computation_graph(delayed_image)
+            (delayed_dets, delayed_descs,) = self.feature_extractor.create_computation_graph(delayed_image)
             keypoints_graph_list += [delayed_dets]
             descriptors_graph_list += [delayed_descs]
 
@@ -168,10 +164,7 @@ class SceneOptimizer:
             auxiliary_graph_list.append(dask.delayed(persist_frontend_metrics_full)(frontend_metrics_dict))
 
             auxiliary_graph_list.append(
-                dask.delayed(aggregate_frontend_metrics)(
-                    frontend_metrics_dict,
-                    self._pose_angular_error_thresh,
-                )
+                dask.delayed(aggregate_frontend_metrics)(frontend_metrics_dict, self._pose_angular_error_thresh,)
             )
 
         # as visualization tasks are not to be provided to the user, we create a
@@ -181,21 +174,19 @@ class SceneOptimizer:
         keypoints_graph_list = dask.delayed(lambda x, y: (x, y))(keypoints_graph_list, auxiliary_graph_list)[0]
         auxiliary_graph_list = []
 
-        (ba_input_graph, ba_output_graph, optimizer_metrics_graph, ) = self.multiview_optimizer.create_computation_graph(
+        (ba_input_graph, ba_output_graph, optimizer_metrics_graph,) = self.multiview_optimizer.create_computation_graph(
             num_images,
             keypoints_graph_list,
             i2Ri1_graph_dict,
             i2Ui1_graph_dict,
             v_corr_idxs_graph_dict,
             camera_intrinsics_graph,
-            gt_pose_graph
+            gt_pose_graph,
         )
 
         # aggregate metrics for multiview optimizer
         if optimizer_metrics_graph is not None:
-            auxiliary_graph_list.append(
-                optimizer_metrics_graph
-            )
+            auxiliary_graph_list.append(optimizer_metrics_graph)
 
         filtered_sfm_data_graph = dask.delayed(ba_output_graph.filter_landmarks)(
             self.multiview_optimizer.data_association_module.reproj_error_thresh
@@ -258,13 +249,7 @@ def visualize_twoview_correspondences(
         corr_idxs_i1i2: correspondence indices.
         file_path: file path to save the visualization.
     """
-    plot_img = viz_utils.plot_twoview_correspondences(
-        image_i1,
-        image_i2,
-        keypoints_i1,
-        keypoints_i2,
-        corr_idxs_i1i2,
-    )
+    plot_img = viz_utils.plot_twoview_correspondences(image_i1, image_i2, keypoints_i1, keypoints_i2, corr_idxs_i1i2,)
 
     io_utils.save_image(plot_img, file_path)
 
@@ -294,10 +279,7 @@ def visualize_sfm_data(sfm_data: SfmData, folder_name: str) -> None:
 
 
 def visualize_camera_poses(
-    pre_ba_sfm_data: SfmData,
-    post_ba_sfm_data: SfmData,
-    gt_pose_graph: Optional[List[Pose3]],
-    folder_name: str,
+    pre_ba_sfm_data: SfmData, post_ba_sfm_data: SfmData, gt_pose_graph: Optional[List[Pose3]], folder_name: str,
 ) -> None:
     """Visualize the camera pose and save to disk.
 
@@ -352,9 +334,7 @@ def write_sfmdata_to_disk(sfm_data: SfmData, save_fpath: str) -> None:
     gtsam.writeBAL(save_fpath, sfm_data)
 
 
-def persist_frontend_metrics_full(
-    metrics: Dict[Tuple[int, int], FRONTEND_METRICS_FOR_PAIR],
-) -> None:
+def persist_frontend_metrics_full(metrics: Dict[Tuple[int, int], FRONTEND_METRICS_FOR_PAIR],) -> None:
     """Persist the front-end metrics for every pair on disk.
 
     Args:
@@ -404,10 +384,7 @@ def aggregate_frontend_metrics(
     all_correct = np.count_nonzero(metrics_array[:, 3] == 1.0)
 
     logger.debug(
-        "[Two view optimizer] [Summary] Rotation success: %d/%d/%d",
-        success_count_rot3,
-        num_valid_entries,
-        num_entries,
+        "[Two view optimizer] [Summary] Rotation success: %d/%d/%d", success_count_rot3, num_valid_entries, num_entries,
     )
 
     logger.debug(
@@ -418,34 +395,21 @@ def aggregate_frontend_metrics(
     )
 
     logger.debug(
-        "[Two view optimizer] [Summary] Pose success: %d/%d/%d",
-        success_count_pose,
-        num_valid_entries,
-        num_entries,
+        "[Two view optimizer] [Summary] Pose success: %d/%d/%d", success_count_pose, num_valid_entries, num_entries,
     )
 
     logger.debug(
-        "[Two view optimizer] [Summary] Image pairs with 100%% inlier ratio:: %d/%d",
-        all_correct,
-        num_entries,
+        "[Two view optimizer] [Summary] Image pairs with 100%% inlier ratio:: %d/%d", all_correct, num_entries,
     )
 
     front_end_result_info = {
         "angular_err_threshold_deg": angular_err_threshold_deg,
         "num_valid_entries": int(num_valid_entries),
         "num_total_entries": int(num_entries),
-        "rotation": {
-            "success_count": int(success_count_rot3),
-        },
-        "translation": {
-            "success_count": int(success_count_unit3),
-        },
-        "pose": {
-            "success_count": int(success_count_pose),
-        },
-        "correspondences": {
-            "all_inliers": int(all_correct),
-        },
+        "rotation": {"success_count": int(success_count_rot3),},
+        "translation": {"success_count": int(success_count_unit3),},
+        "pose": {"success_count": int(success_count_pose),},
+        "correspondences": {"all_inliers": int(all_correct),},
     }
 
     io_utils.save_json_file(os.path.join(METRICS_PATH, "frontend_summary.json"), front_end_result_info)
