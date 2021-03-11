@@ -6,10 +6,7 @@ from typing import Tuple
 
 from dask.delayed import Delayed
 
-import gtsfm.utils.serialization  # import needed to register serialization fns
-from gtsfm.frontend.detector_descriptor.detector_descriptor_base import (
-    DetectorDescriptorBase,
-)
+from gtsfm.frontend.detector_descriptor.detector_descriptor_base import DetectorDescriptorBase
 
 
 class FeatureExtractor:

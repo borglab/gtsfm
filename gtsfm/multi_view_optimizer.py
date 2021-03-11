@@ -19,13 +19,8 @@ from gtsam import (
 
 import gtsfm.utils.io as io
 import gtsfm.utils.metrics as metrics
-import gtsfm.utils.serialization  # import needed to register serialization fns
-from gtsfm.averaging.rotation.rotation_averaging_base import (
-    RotationAveragingBase,
-)
-from gtsfm.averaging.translation.translation_averaging_base import (
-    TranslationAveragingBase,
-)
+from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
+from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.data_association.data_assoc import DataAssociation
 
@@ -105,10 +100,8 @@ class MultiViewOptimizer:
         return ba_input_graph, ba_result_graph, saved_metrics_graph
 
 
-
 def select_largest_connected_component(
-    rotations: Dict[Tuple[int, int], Optional[Rot3]],
-    unit_translations: Dict[Tuple[int, int], Optional[Unit3]],
+    rotations: Dict[Tuple[int, int], Optional[Rot3]], unit_translations: Dict[Tuple[int, int], Optional[Unit3]],
 ) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3]]:
     """Process the graph of image indices with Rot3s/Unit3s defining edges, and select the largest connected component.
 
@@ -149,9 +142,7 @@ def select_largest_connected_component(
 
 
 def init_cameras(
-    wRi_list: List[Optional[Rot3]],
-    wti_list: List[Optional[Point3]],
-    intrinsics_list: List[Cal3Bundler],
+    wRi_list: List[Optional[Rot3]], wti_list: List[Optional[Point3]], intrinsics_list: List[Cal3Bundler],
 ) -> Dict[int, PinholeCameraCal3Bundler]:
     """Generate camera from valid rotations and unit-translations.
 
