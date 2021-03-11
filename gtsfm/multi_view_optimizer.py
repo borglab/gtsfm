@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import dask
 import networkx as nx
+import os
 from dask.delayed import Delayed
 from gtsam import (
     Cal3Bundler,
@@ -77,9 +78,18 @@ class MultiViewOptimizer:
 
         init_cameras_graph = dask.delayed(init_cameras)(wRi_graph, wti_graph, intrinsics_graph)
 
-        ba_input_graph = self.data_association_module.create_computation_graph(
+        ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
             init_cameras_graph, v_corr_idxs_graph, keypoints_graph
         )
+
+        auxiliary_graph_list = [
+            dask.delayed(io.save_json_file)(
+                os.path.join("result_metrics", "data_association_metrics.json"), data_assoc_metrics_graph
+            )
+        ]
+
+        # dummy graph to force an immediate dump of data association metrics
+        ba_input_graph = dask.delayed(lambda x, y: (x, y))(ba_input_graph, auxiliary_graph_list)[0]
 
         ba_result_graph = self.ba_optimizer.create_computation_graph(ba_input_graph)
 
@@ -93,6 +103,7 @@ class MultiViewOptimizer:
             "result_metrics/multiview_optimizer_metrics.json", metrics_graph
         )
         return ba_input_graph, ba_result_graph, saved_metrics_graph
+
 
 
 def select_largest_connected_component(

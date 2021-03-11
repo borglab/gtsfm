@@ -248,3 +248,32 @@ def compute_points_distance_l2(wti1: Optional[Point3], wti2: Optional[Point3]) -
     if wti1 is None or wti2 is None:
         return None
     return np.linalg.norm(wti1 - wti2)
+
+
+def get_points_within_radius_of_cameras(wTi_list: List[Pose3], points_3d: np.ndarray, radius: float = 50) -> Optional[np.ndarray]:
+    """Return those 3d points that fall within a specified radius from any camera.
+    
+    Args:
+        wTi_list: camera poses
+        points_3d: array of shape (N,3) representing 3d points
+        radius: distance threshold, in meters
+
+    Returns:
+        nearby_points_3d: array of shape (M,3), where M <= N
+    """
+    if len(wTi_list) == 0 or points_3d.size == 0 or radius <= 0:
+        return None
+
+    num_points = points_3d.shape[0]
+    num_poses = len(wTi_list)
+    # each row represents attributes for a single point
+    # each column represents
+    is_nearby_matrix = np.zeros((num_points, num_poses), dtype=bool)
+    for j,wTi in enumerate(wTi_list):
+        is_nearby_matrix[:,j] = np.linalg.norm(points_3d - wTi.translation(), axis=1) < radius
+
+    is_nearby_to_any_cam = np.any(is_nearby_matrix, axis=1)
+    nearby_points_3d = points_3d[is_nearby_to_any_cam]
+    return nearby_points_3d
+
+
