@@ -5,7 +5,7 @@ Authors: Ayush Baid
 from typing import List, Optional
 
 import numpy as np
-from gtsam import Point3, Pose3, Rot3, Unit3
+from gtsam import Point3, Pose3, Pose3Pairs, Rot3, Similarity3, Unit3
 
 EPSILON = np.finfo(float).eps
 
@@ -30,40 +30,40 @@ def align_rotations(input_list: List[Rot3], ref_list: List[Rot3]) -> List[Rot3]:
     return [w2Rw1.compose(w1Ri) for w1Ri in input_list]
 
 
-def align_poses(input_list: List[Pose3], ref_list: List[Pose3]) -> List[Pose3]:
-    """Aligns the list of poses to the reference list by shifting origin and
-    scaling translations.
+def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> List[Pose3]:
+    """Align by similarity transformation.
+
+    We force SIM(3) alignment rather than SE(3) alignment.
+    We assume the two trajectories are of the exact same length.
 
     Args:
-        input_list: input poses which need to be aligned, suppose w1Ti in world-1 frame for all frames i.
-        ref_list: reference poses which are target for alignment, suppose w2Ti_ in world-2 frame for all frames i.
-
+        aTi_list: reference poses in frame "a" which are the targets for alignment
+        bTi_list: input poses which need to be aligned to frame "a"
+            
     Returns:
-        transformed poses which have the same origin and scale as reference (now living in world-2 frame)
+        aTi_list_: transformed input poses previously "bTi_list" but now which
+            have the same origin and scale as reference (now living in "a" frame)
     """
-    # match the scales first
-    wTi0 = input_list[0]
-    input_distances = np.array([np.linalg.norm((wTi.between(wTi0)).translation()) for wTi in input_list[1:]])
+    n_to_align = len(aTi_list)
+    assert len(aTi_list) == len(bTi_list)
+    assert n_to_align >= 2, "SIM(3) alignment uses at least 2 frames"
 
-    wTi0 = ref_list[0]
-    ref_distances = np.array([np.linalg.norm((wTi.between(wTi0)).translation()) for wTi in ref_list[1:]]) + EPSILON
+    ab_pairs = Pose3Pairs(list(zip(aTi_list, bTi_list)))
 
-    # rescale poses to account for SfM scale ambiguity
-    scales = ref_distances / input_distances
-    scaling_factor = np.median(scales)
+    aSb = Similarity3.Align(ab_pairs)
+    print("Sim(3) Rotation:", aSb.rotation())
+    print("Sim(3) Translation:", aSb.translation())
+    print("Sim(3) Scale:", aSb.scale())
 
-    scaled_list = [Pose3(w2Ti.rotation(), w2Ti.translation() * scaling_factor) for w2Ti in input_list]
+    aTi_list_ = []
+    for i in range(n_to_align):
+        bTi = bTi_list[i]
 
-    # now match origin
-    w1Ti0 = scaled_list[0]
-    i0Tw1 = w1Ti0.inverse()
-    w2Ti0_ = ref_list[0]
-    # origin transform -- map the origin of the input list to the reference list
-    w2Tw1 = w2Ti0_.compose(i0Tw1)
+        aTi_list_.append(aSb.transformFrom(bTi))
 
-    scaled_shifted_list = [w2Tw1.compose(w1Ti) for w1Ti in scaled_list]
+    print("Trajectory alignment complete.")
 
-    return scaled_shifted_list
+    return aTi_list_
 
 
 def compare_rotations(wRi_list: List[Optional[Rot3]], wRi_list_: List[Optional[Rot3]]) -> bool:
@@ -105,8 +105,8 @@ def compare_rotations(wRi_list: List[Optional[Rot3]], wRi_list_: List[Optional[R
 
 
 def compare_global_poses(
-    wTi_list: List[Optional[Pose3]],
-    wTi_list_: List[Optional[Pose3]],
+    aTi_list: List[Optional[Pose3]],
+    bTi_list: List[Optional[Pose3]],
     rot_err_thresh: float = 1e-3,
     trans_err_thresh: float = 1e-1,
 ) -> bool:
@@ -115,13 +115,11 @@ def compare_global_poses(
 
     Notes:
     1. The input lists have the poses in the same order, and can contain None entries.
-    2. To resolve global origin ambiguity, we will fix one image index as origin in both the inputs and transform both
-       the lists to the new origins.
-    3. As there is a scale ambiguity, we use the median scaling factor to resolve the ambiguity.
+    2. To resolve global origin ambiguity, we fit a Sim(3) transformation and align the two pose graphs
 
     Args:
-        wTi_list: 1st list of poses.
-        wTi_list_: 2nd list of poses.
+        aTi_list: 1st list of poses.
+        bTi_list: 2nd list of poses.
         rot_err_thresh (optional): error threshold for rotations. Defaults to 1e-3.
         trans_err_thresh (optional): relative error threshold for translation. Defaults to 1e-1.
 
@@ -130,36 +128,37 @@ def compare_global_poses(
     """
 
     # check the length of the input lists
-    if len(wTi_list) != len(wTi_list_):
+    if len(aTi_list) != len(bTi_list):
         return False
 
     # check the presense of valid Pose3 objects in the same location
-    wTi_valid = [i for (i, wTi) in enumerate(wTi_list) if wTi is not None]
-    wTi_valid_ = [i for (i, wTi) in enumerate(wTi_list_) if wTi is not None]
-    if wTi_valid != wTi_valid_:
+    aTi_valid = [i for (i, aTi) in enumerate(aTi_list) if aTi is not None]
+    bTi_valid = [i for (i, bTi) in enumerate(bTi_list) if bTi is not None]
+    if aTi_valid != bTi_valid:
         return False
 
-    if len(wTi_valid) <= 1:
+    if len(aTi_valid) <= 1:
         # we need >= two entries going forward for meaningful comparisons
         return False
 
     # align the remaining poses
-    wTi_list = [wTi_list[i] for i in wTi_valid]
-    wTi_list_ = [wTi_list_[i] for i in wTi_valid_]
+    aTi_list = [aTi_list[i] for i in aTi_valid]
+    bTi_list = [bTi_list[i] for i in bTi_valid]
 
-    wTi_list = align_poses(wTi_list, ref_list=wTi_list_)
+    #  We set the reference as the ground truth.
+    bTi_list = align_poses_sim3(aTi_list, bTi_list)
 
     return all(
         [
             (
-                wTi.rotation().equals(wTi_.rotation(), rot_err_thresh)
+                aTi.rotation().equals(bTi.rotation(), rot_err_thresh)
                 and np.allclose(
-                    wTi.translation(),
-                    wTi_.translation(),
+                    aTi.translation(),
+                    bTi.translation(),
                     rtol=trans_err_thresh,
                 )
             )
-            for (wTi, wTi_) in zip(wTi_list, wTi_list_)
+            for (aTi, bTi) in zip(aTi_list, bTi_list)
         ]
     )
 
