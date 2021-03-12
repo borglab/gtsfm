@@ -106,7 +106,7 @@ class TestPoint3dInitializer(unittest.TestCase):
         """Run the initialization with a track with all correct measurements, and checks for correctness of the
         recovered 3D point."""
 
-        sfm_track = obj.triangulate(SfmTrack2d(MEASUREMENTS))
+        sfm_track, _, _ = obj.triangulate(SfmTrack2d(MEASUREMENTS))
         point3d = sfm_track.point3()
 
         return np.allclose(point3d, LANDMARK_POINT)
@@ -115,14 +115,14 @@ class TestPoint3dInitializer(unittest.TestCase):
         """Run the initialization with a track with all correct measurements, and checks for correctness of the
         recovered 3D point."""
 
-        sfm_track = obj.triangulate(SfmTrack2d(MEASUREMENTS[:2]))
+        sfm_track, _, _ = obj.triangulate(SfmTrack2d(MEASUREMENTS[:2]))
         point3d = sfm_track.point3()
 
         return np.allclose(point3d, LANDMARK_POINT)
 
     def __runWithOneMeasurement(self, obj: Point3dInitializer) -> bool:
         """Run the initialization with a track with all correct measurements, and checks for a None track as a result."""
-        sfm_track = obj.triangulate(SfmTrack2d(MEASUREMENTS[:1]))
+        sfm_track, _, _ = obj.triangulate(SfmTrack2d(MEASUREMENTS[:1]))
 
         return sfm_track is None
 
@@ -130,7 +130,7 @@ class TestPoint3dInitializer(unittest.TestCase):
         """Run the initialization for a track with all inlier measurements except one, and checks for correctness of
         the estimated point."""
 
-        sfm_track = obj.triangulate(SfmTrack2d(get_track_with_one_outlier()))
+        sfm_track, _, _ = obj.triangulate(SfmTrack2d(get_track_with_one_outlier()))
         point3d = sfm_track.point3()
 
         return np.array_equal(point3d, LANDMARK_POINT)
@@ -155,7 +155,7 @@ class TestPoint3dInitializer(unittest.TestCase):
             obj.num_ransac_hypotheses,
         )
 
-        sfm_track = obj_with_flipped_cameras.triangulate(SfmTrack2d(MEASUREMENTS))
+        sfm_track, _, _ = obj_with_flipped_cameras.triangulate(SfmTrack2d(MEASUREMENTS))
 
         return sfm_track is None
 
@@ -163,7 +163,7 @@ class TestPoint3dInitializer(unittest.TestCase):
         """Run the initialization for a track with all inlier measurements except one, and checks for correctness of
         the estimated point."""
 
-        sfm_track = obj.triangulate(SfmTrack2d(get_track_with_duplicate_measurements()))
+        sfm_track, _, _ = obj.triangulate(SfmTrack2d(get_track_with_duplicate_measurements()))
         point3d = sfm_track.point3()
 
         return np.allclose(point3d, LANDMARK_POINT, atol=1, rtol=1e-1)
@@ -179,7 +179,7 @@ class TestPoint3dInitializer(unittest.TestCase):
 
     def testSimpleTriangulationWithOutlierMeasurements(self):
 
-        sfm_track = self.simple_triangulation_initializer.triangulate(SfmTrack2d(get_track_with_one_outlier()))
+        sfm_track, _, _ = self.simple_triangulation_initializer.triangulate(SfmTrack2d(get_track_with_one_outlier()))
 
         self.assertIsNone(sfm_track)
 
@@ -244,7 +244,7 @@ class TestPoint3dInitializer(unittest.TestCase):
         ]
 
         for track_2d in tracks:
-            triangulated_track = initializer.triangulate(track_2d)
+            triangulated_track, _, _ = initializer.triangulate(track_2d)
 
             if triangulated_track is None:
                 # assert we have failures which are already expected
