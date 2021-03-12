@@ -60,7 +60,7 @@ GTSFM is designed in an extremely modular way. Each module can be swapped out wi
         - `translation`: translation averaging implementations (1d-SFM, etc)
     - `bundle`: bundle adjustment implementations
     - `common`: basic classes used through GTSFM, such as `Keypoints`, `Image`, `SfmTrack2d`, etc
-    - `data_association`: 
+    - `data_association`: 3d point triangulation or w/o RANSAC, from 2d point-tracks 
     - `densify`
     - `frontend`: SfM front-end code, including:
         - `detector`: keypoint detector implementations (DoG, etc)

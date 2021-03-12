@@ -8,9 +8,9 @@ echo "Running .github/scripts/python.sh..."
 conda init
 conda info --envs
 
-wget -O 2020_03_12_gtsam_python38_wheel.zip --no-check-certificate "https://drive.google.com/uc?export=download&id=1TDpvTb5YoP7v4WRugJyWhTq5Wol-C_il"
+wget -O 2021_03_12_gtsam_python38_wheel.zip --no-check-certificate "https://drive.google.com/uc?export=download&id=1JvsLYngMzSqvmD6RwEgEb_HXXHfw_EJ2"
 
-unzip 2020_03_12_gtsam_python38_wheel.zip
+unzip 2021_03_12_gtsam_python38_wheel.zip
 pip install gtsam-4.1.1-cp38-cp38-manylinux2014_x86_64.whl
 
 ##########################################################
