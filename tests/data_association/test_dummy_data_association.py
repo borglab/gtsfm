@@ -6,18 +6,11 @@ import unittest
 
 import dask
 import numpy as np
-from gtsam import (
-    Cal3Bundler,
-    PinholeCameraCal3Bundler,
-    Point3,
-    Pose3,
-    Pose3Vector,
-    Rot3,
-    SfmData,
-)
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point3, Pose3, Pose3Vector, Rot3
 
 from gtsam.utils.test_case import GtsamTestCase
 
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.data_association.dummy_da import DummyDataAssociation
 
@@ -41,33 +34,11 @@ class TestDataAssociation(GtsamTestCase):
         self.keypoints_list = [
             Keypoints(coordinates=np.array([[12, 16], [13, 18], [0, 10]])),
             Keypoints(
-                coordinates=np.array(
-                    [
-                        [8, 2],
-                        [16, 14],
-                        [22, 23],
-                        [1, 6],
-                        [50, 50],
-                        [16, 12],
-                        [82, 121],
-                        [39, 60],
-                    ]
-                )
+                coordinates=np.array([[8, 2], [16, 14], [22, 23], [1, 6], [50, 50], [16, 12], [82, 121], [39, 60],])
             ),
             Keypoints(
                 coordinates=np.array(
-                    [
-                        [1, 1],
-                        [8, 13],
-                        [40, 6],
-                        [82, 21],
-                        [1, 6],
-                        [12, 18],
-                        [15, 14],
-                        [25, 28],
-                        [7, 10],
-                        [14, 17],
-                    ]
+                    [[1, 1], [8, 13], [40, 6], [82, 21], [1, 6], [12, 18], [15, 14], [25, 28], [7, 10], [14, 17],]
                 )
             ),
         ]
@@ -98,12 +69,12 @@ class TestDataAssociation(GtsamTestCase):
 
         keypoints_graph = [dask.delayed(x) for x in self.keypoints_list]
 
-        da_graph = self.obj.create_computation_graph(camera_graph, corr_idxs_graph, keypoints_graph)
+        da_graph = self.obj.create_computation_graph(len(self.poses), camera_graph, corr_idxs_graph, keypoints_graph)
 
         with dask.config.set(scheduler="single-threaded"):
             dask_result = dask.compute(da_graph)[0]
 
-        self.assertIsInstance(dask_result, SfmData)
+        self.assertIsInstance(dask_result, GtsfmData)
 
 
 if __name__ == "__main__":

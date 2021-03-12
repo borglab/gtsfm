@@ -15,15 +15,13 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import (
-    Pose3,
-    SfmData,
-)
+from gtsam import Pose3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.viz as viz_utils
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.feature_extractor import FeatureExtractor
@@ -213,12 +211,20 @@ class SceneOptimizer:
         if self._save_bal_files:
             # save the input to Bundle Adjustment (from data association)
             auxiliary_graph_list.append(
-                dask.delayed(write_sfmdata_to_disk)(ba_input_graph, os.path.join(RESULTS_PATH, "ba_input.bal"))
+                dask.delayed(io_utils.write_cameras)(ba_input_graph, os.path.join(RESULTS_PATH, "ba_input_cameras.txt"))
+            )
+            auxiliary_graph_list.append(
+                dask.delayed(io_utils.write_images)(ba_input_graph, os.path.join(RESULTS_PATH, "ba_input_images.txt"))
             )
             # save the output of Bundle Adjustment (after optimization)
             auxiliary_graph_list.append(
-                dask.delayed(write_sfmdata_to_disk)(
-                    filtered_sfm_data_graph, os.path.join(RESULTS_PATH, "ba_output.bal")
+                dask.delayed(io_utils.write_cameras)(
+                    filtered_sfm_data_graph, os.path.join(RESULTS_PATH, "ba_output_cameras.txt")
+                )
+            )
+            auxiliary_graph_list.append(
+                dask.delayed(io_utils.write_images)(
+                    filtered_sfm_data_graph, os.path.join(RESULTS_PATH, "ba_output_images.txt")
                 )
             )
 
@@ -254,7 +260,7 @@ def visualize_twoview_correspondences(
     io_utils.save_image(plot_img, file_path)
 
 
-def visualize_sfm_data(sfm_data: SfmData, folder_name: str) -> None:
+def visualize_sfm_data(sfm_data: GtsfmData, folder_name: str) -> None:
     """Visualize the camera poses and 3d points in SfmData.
 
     Args:
@@ -279,7 +285,7 @@ def visualize_sfm_data(sfm_data: SfmData, folder_name: str) -> None:
 
 
 def visualize_camera_poses(
-    pre_ba_sfm_data: SfmData, post_ba_sfm_data: SfmData, gt_pose_graph: Optional[List[Pose3]], folder_name: str,
+    pre_ba_sfm_data: GtsfmData, post_ba_sfm_data: GtsfmData, gt_pose_graph: Optional[List[Pose3]], folder_name: str,
 ) -> None:
     """Visualize the camera pose and save to disk.
 
@@ -291,12 +297,12 @@ def visualize_camera_poses(
     """
     # extract camera poses
     pre_ba_poses = []
-    for i in range(pre_ba_sfm_data.number_cameras()):
-        pre_ba_poses.append(pre_ba_sfm_data.camera(i).pose())
+    for i in pre_ba_sfm_data.get_valid_camera_indices():
+        pre_ba_poses.append(pre_ba_sfm_data.get_camera(i).pose())
 
     post_ba_poses = []
-    for i in range(post_ba_sfm_data.number_cameras()):
-        post_ba_poses.append(post_ba_sfm_data.camera(i).pose())
+    for i in post_ba_sfm_data.get_valid_camera_indices():
+        post_ba_poses.append(post_ba_sfm_data.get_camera(i).pose())
 
     fig = plt.figure()
     ax = fig.gca(projection="3d")
@@ -319,19 +325,6 @@ def visualize_camera_poses(
     fig.savefig(os.path.join(folder_name, "poses_bev.png"))
 
     plt.close(fig)
-
-
-def write_sfmdata_to_disk(sfm_data: SfmData, save_fpath: str) -> None:
-    """Write SfmData object as a "Bundle Adjustment in the Large" (BAL) file
-    See https://grail.cs.washington.edu/projects/bal/ for more details on the format.
-
-    Note: Need this wrapper as dask cannot directly work on gtsam function calls.
-
-    Args:
-        sfm_data: data to write.
-        save_fpath: filepath to save the data at.
-    """
-    gtsam.writeBAL(save_fpath, sfm_data)
 
 
 def persist_frontend_metrics_full(metrics: Dict[Tuple[int, int], FRONTEND_METRICS_FOR_PAIR],) -> None:

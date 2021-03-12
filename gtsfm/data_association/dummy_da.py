@@ -8,9 +8,10 @@ from typing import Dict, List, Tuple
 import dask
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import PinholeCameraCal3Bundler, SfmData, SfmTrack
+from gtsam import PinholeCameraCal3Bundler, SfmTrack
 
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.common.gtsfm_data import GtsfmData
 
 
 class DummyDataAssociation:
@@ -28,19 +29,21 @@ class DummyDataAssociation:
 
     def run(
         self,
+        num_images: int,
         cameras: Dict[int, PinholeCameraCal3Bundler],
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
-    ) -> SfmData:
+    ) -> GtsfmData:
         """Perform the data association.
 
         Args:
-            cameras: dictionary with image index as key, and camera object w/ intrinsics + extrinsics as value.
+            num_images: Number of images in the scene.
+            cameras: dictionary, with image index -> camera mapping.
             corr_idxs_dict: dictionary, with key as image pair (i1,i2) and value as matching keypoint indices.
             keypoints_list: keypoints for each image.
 
         Returns:
-            cameras and tracks as SfmData
+            Cameras and tracks as GtsfmData.
         """
 
         available_cams = np.array(list(cameras.keys()), dtype=np.uint32)
@@ -69,17 +72,18 @@ class DummyDataAssociation:
             tracks.append(sfmTrack)
 
         # create the final SfmData object
-        sfm_data = SfmData()
-        for cam in cameras.values():
-            sfm_data.add_camera(cam)
+        gtsfm_data = GtsfmData(num_images)
+        for i, cam in cameras.items():
+            gtsfm_data.add_camera(cam, i)
 
         for track in tracks:
-            sfm_data.add_track(track)
+            gtsfm_data.add_track(track)
 
-        return sfm_data
+        return gtsfm_data
 
     def create_computation_graph(
         self,
+        num_images: int,
         cameras: Delayed,
         corr_idxs_graph: Dict[Tuple[int, int], Delayed],
         keypoints_graph: List[Delayed],
@@ -87,11 +91,12 @@ class DummyDataAssociation:
         """Creates a computation graph for performing data association.
 
         Args:
+            num_images: number of images in the scene.
             cameras: list of cameras wrapped up as Delayed.
             corr_idxs_graph: dictionary of correspondence indices, each value wrapped up as Delayed.
             keypoints_graph: list of wrapped up keypoints for each image.
 
         Returns:
-            SfmData object wrapped up using dask.delayed.
+            TODO: GtsfmData object wrapped up using dask.delayed.
         """
-        return dask.delayed(self.run)(cameras, corr_idxs_graph, keypoints_graph)
+        return dask.delayed(self.run)(num_images, cameras, corr_idxs_graph, keypoints_graph)

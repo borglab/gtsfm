@@ -12,11 +12,13 @@ Authors: Sushmita Warrier, Xiaolong Wu, John Lambert
 from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 import dask
+import networkx as nx
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import PinholeCameraCal3Bundler, SfmData, SfmTrack
+from gtsam import PinholeCameraCal3Bundler, SfmTrack
 
 import gtsfm.utils.logger as logger_utils
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.sfm_result import SfmResult
 from gtsfm.common.sfm_track import SfmTrack2d
@@ -51,19 +53,21 @@ class DataAssociation(NamedTuple):
 
     def run(
         self,
+        num_images: int,
         cameras: Dict[int, PinholeCameraCal3Bundler],
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
-    ) -> Tuple[SfmData, Dict[str,Any]]:
+    ) -> Tuple[GtsfmData, Dict[str, Any]]:
         """Perform the data association.
 
         Args:
+            num_images: Number of images in the scene.
             cameras: dictionary, with image index -> camera mapping.
             corr_idxs_dict: dictionary, with key as image pair (i1,i2) and value as matching keypoint indices.
             keypoints_list: keypoints for each image.
 
         Returns:
-            cameras and tracks as SfmData.
+            Cameras and tracks as GtsfmData.
         """
         # generate tracks for 3D points using pairwise correspondences
         tracks_2d = SfmTrack2d.generate_tracks_from_pairwise_matches(corr_idxs_dict, keypoints_list)
@@ -78,17 +82,21 @@ class DataAssociation(NamedTuple):
 
         # initializer of 3D landmark for each track
         point3d_initializer = Point3dInitializer(
-            cameras,
-            self.mode,
-            self.reproj_error_thresh,
-            self.num_ransac_hypotheses,
+            cameras, self.mode, self.reproj_error_thresh, self.num_ransac_hypotheses,
         )
 
         num_tracks_w_cheirality_exceptions = 0
         per_accepted_track_avg_errors = []
         per_rejected_track_avg_errors = []
-        # form SFMdata object after triangulation
-        triangulated_data = SfmData()
+
+        # form GtsfmData object after triangulation
+        triangulated_data = GtsfmData(num_images)
+
+        # add all cameras
+        for i, camera in cameras.items():
+            triangulated_data.add_camera(camera, i)
+
+        # add valid tracks where triangulation is successful
         for track_2d in tracks_2d:
             # triangulate and filter based on reprojection error
             sfm_track, avg_track_reproj_error, is_cheirality_failure = point3d_initializer.triangulate(track_2d)
@@ -105,24 +113,18 @@ class DataAssociation(NamedTuple):
         accepted_tracks_ratio = num_accepted_tracks / len(tracks_2d)
         track_cheirality_failure_ratio = num_tracks_w_cheirality_exceptions / len(tracks_2d)
 
-        # TODO: improve dropped camera handling
-        num_cameras = len(cameras.keys())
-        expected_camera_indices = np.arange(num_cameras)
-        # add cameras to landmark_map
-        for i, cam in cameras.items():
-            if i != expected_camera_indices[i]:
-                raise RuntimeError("Some cameras must have been dropped ")
-            triangulated_data.add_camera(cam)
+        # pick only the largest connected component
+        result_data = triangulated_data.select_largest_connected_component()
 
         mean_3d_track_length, median_3d_track_length, track_lengths_3d = SfmResult(
-            triangulated_data, None
+            result_data, None
         ).get_track_length_statistics()
 
         logger.debug("[Data association] output number of tracks: %s", num_accepted_tracks)
         logger.debug("[Data association] output avg. track length: %s", mean_3d_track_length)
 
         # dump the 3d point cloud before Bundle Adjustment for offline visualization
-        points_3d = [list(triangulated_data.track(j).point3()) for j in range(num_accepted_tracks)]
+        points_3d = [list(triangulated_data.get_track(j).point3()) for j in range(num_accepted_tracks)]
         # bin edges are halfway between each integer
         track_lengths_histogram, _ = np.histogram(track_lengths_3d, bins=np.linspace(-0.5, 10.5, 12))
 
@@ -137,8 +139,8 @@ class DataAssociation(NamedTuple):
             "3d_tracks_length": {
                 "median": median_3d_track_length,
                 "mean": mean_3d_track_length,
-                "min": int(track_lengths_3d.min()),
-                "max": int(track_lengths_3d.max()),
+                "min": int(track_lengths_3d.min()) if track_lengths_3d.size > 0 else 0,
+                "max": int(track_lengths_3d.max()) if track_lengths_3d.size > 0 else 0,
                 "track_lengths_histogram": histogram_dict,
             },
             "mean_accepted_track_avg_error": np.array(per_accepted_track_avg_errors).mean(),
@@ -151,6 +153,7 @@ class DataAssociation(NamedTuple):
 
     def create_computation_graph(
         self,
+        num_images: int,
         cameras: Delayed,
         corr_idxs_graph: Dict[Tuple[int, int], Delayed],
         keypoints_graph: List[Delayed],
@@ -158,16 +161,17 @@ class DataAssociation(NamedTuple):
         """Creates a computation graph for performing data association.
 
         Args:
+            num_images: number of images in the scene.
             cameras: list of cameras wrapped up as Delayed.
             corr_idxs_graph: dictionary of correspondence indices, each value wrapped up as Delayed.
             keypoints_graph: list of wrapped up keypoints for each image.
 
         Returns:
-            ba_input_graph: SfmData object wrapped up using dask.delayed
+            ba_input_graph: GtsfmData object wrapped up using dask.delayed
             data_assoc_metrics_graph: dictionary with different statistics about the data
                 association result
         """
-        data_assoc_graph = dask.delayed(self.run)(cameras, corr_idxs_graph, keypoints_graph)
+        data_assoc_graph = dask.delayed(self.run)(num_images, cameras, corr_idxs_graph, keypoints_graph)
         ba_input_graph = data_assoc_graph[0]
         data_assoc_metrics_graph = data_assoc_graph[1]
 
