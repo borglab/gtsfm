@@ -1,0 +1,19 @@
+.da-container {
+    position: absolute;
+    top: 5%;
+    left: 3%;
+    z-index: 2;
+    border: 3px solid black;
+    background-color: whitesmoke;
+    width: 90%;
+    height: 90%;
+    border-radius: 5px;
+    padding: 1%;
+}
+
+.da_go_back_btn {
+    position: absolute;
+    right: 1%;
+    top: 1%;
+    cursor: pointer;
+}

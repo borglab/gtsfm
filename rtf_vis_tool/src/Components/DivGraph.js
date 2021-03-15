@@ -5,10 +5,17 @@ import EdgeList from './gtsfm_edge_list.js';
 import DivNode from './DivNode';
 import PPDivNode from './PPDivNode';
 import OptDivNode from './OptDivNode';
+import DADivNode from './DADivNode';
 import SFMResultDivNode from './SFMResultDivNode';
 import FrontendSummary from './FrontendSummary';
 import MVOSummary from './MVOSummary';
+import Data_Association_PC from './Data_Association_PC';
 import '../stylesheets/DivGraph.css'
+
+
+import frontend_summary_json from '.././result_metrics/frontend_summary.json';
+import multiview_optimizer_json from '.././result_metrics/multiview_optimizer_metrics.json';
+import data_association_json from '.././result_metrics/data_association_metrics.json';
 
 const DivGraph = (props) => {
     const [arrowList, setArrowList] = useState([]);
@@ -19,8 +26,10 @@ const DivGraph = (props) => {
     const [fs_json, setFS_JSON] = useState(null);
     const [showMVO, setShowMVO] = useState(false);
     const [mvo_json, setMVO_JSON] = useState(null);
+    const [da_json, setDA_JSON] = useState(null);
+    const [showDA_PC, setShowDA_PC] = useState(null);
 
-    //render all edges in graph
+    //render all edges and output files in graph
     useEffect(() => {
         var rawEdges = EdgeList
         var xArrows_formatted = [];
@@ -38,6 +47,9 @@ const DivGraph = (props) => {
         }
 
         setArrowList(xArrows_formatted);
+        setFS_JSON(frontend_summary_json);
+        setMVO_JSON(multiview_optimizer_json);
+        setDA_JSON(data_association_json.points_3d);
     }, [])
 
     function formatPercent(shift, percent) {
@@ -46,46 +58,19 @@ const DivGraph = (props) => {
     }
 
     //Function
-    const readFrontEndSummaryFile = (e) => {
-        e.preventDefault();
-        const reader = new FileReader();
-        reader.readAsText(e.target.files[0]);
-        reader.onload = (e) => {
-            const rawJSONString = e.target.result;
-            var jsonObj = JSON.parse(rawJSONString);
-            setFS_JSON(jsonObj);
-        }
-    }
-
-    //Function
-    const readMVOMetricsFile = (e) => {
-        e.preventDefault();
-        const reader = new FileReader();
-        reader.readAsText(e.target.files[0]);
-        reader.onload = (e) => {
-            const rawJSONString = e.target.result;
-            const jsonObj = JSON.parse(rawJSONString);
-            setMVO_JSON(jsonObj);
-        }
-    }
-
-    //Function
     const toggleFrontEndSummaryDisplay = (bool) => {setShowFS(bool)};
     const toggleMVOMetrics = (bool) => {setShowMVO(bool)};
+    const toggleDataAssoc_PointCloud = (bool) => {setShowDA_PC(bool)};
 
     return (
         <div className="div_graph_container">
             <div className="navbar">
                 <h2 className="gtsfm_header">GTSFM Pipeline Graph</h2>
-                <p style={{fontWeight: 'bold'}}>MultiView File Upload</p>
-                <input type="file" className="mvo_metrics_upload" onChange={(e) => readMVOMetricsFile(e)}/>
-
-                <p style={{fontWeight: 'bold'}}>FrontEnd File Upload</p>
-                <input type="file" className="frontend_summary_btn" onChange={(e) => readFrontEndSummaryFile(e)}/>
             </div>
 
             {showFS && <FrontendSummary json={fs_json} toggleFS={toggleFrontEndSummaryDisplay}/>}
             {showMVO && <MVOSummary json={mvo_json} toggleMVO={toggleMVOMetrics}/>}
+            {showDA_PC && <Data_Association_PC json={da_json} toggleDA_PC={toggleDataAssoc_PointCloud}/>}
 
             <div className="gtsfm_graph">
                 <DivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 0)} leftOffset={formatPercent(leftShift, 0)} text={'Scene Image Directories'}/>
@@ -121,7 +106,7 @@ const DivGraph = (props) => {
                 <DivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 83)} leftOffset={formatPercent(leftShift, 1)} text={'Aggregate'}/>
                 <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 63)} leftOffset={formatPercent(leftShift, 1)} text={'Zipped Results for All Scenes'}/>
                 <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 40)} leftOffset={formatPercent(leftShift, 34)} text={'SfMData'}/>
-                <DivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 40)} leftOffset={formatPercent(leftShift, 42)} text={'Data Association w/ Track Filtering'}/>
+                <DADivNode json={da_json} toggleDA_PC={toggleDataAssoc_PointCloud} textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 40)} leftOffset={formatPercent(leftShift, 42)} text={'Data Association w/ Track Filtering'}/>
                 <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 53)} leftOffset={formatPercent(leftShift, 45)} text={'Bundler Pinhole Cameras'}/>
                 <DivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 53)} leftOffset={formatPercent(leftShift, 53)} text={'Bundler Calibrator'}/>
                 <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 43)} leftOffset={formatPercent(leftShift, 60)} text={'absolute Ts'}/>

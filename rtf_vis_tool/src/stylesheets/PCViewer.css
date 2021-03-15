@@ -1,0 +1,51 @@
+.app-container {
+    width: 100%;
+    height: 100%;
+}
+
+.upload-container {
+    border: 2px solid black;
+    padding: 10px;
+    display: flex;
+    flex-direction: row;
+    width: 45%;
+    height: 20%;
+  }
+
+.pointcloud-upload-container {
+    width: 30%;
+    border: 1px solid black;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    margin-right: 10px;
+}
+
+.ply-instructions {
+    font-weight: bold;
+}
+
+.file-submit-btn {
+    width: 90%;
+    margin: 10px;
+}
+
+.frustum-upload-container {
+    width: 69%;
+    position: relative;
+    border: 1px solid black;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+}
+
+.num-cams-container {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+}
+
+.frustums-submit-btn {
+    width: 30%;
+}

@@ -16,66 +16,7 @@ body {
   position: fixed;
 }
 
-.app-container {
-  width: 100%;
-  height: 100%;
-}
-
-.upload-container {
-  border: 2px solid black;
-  padding: 10px;
-  display: flex;
-  flex-direction: row;
-  width: 45%;
-  height: 20%;
-}
-
-.pointcloud-upload-container {
-  width: 30%;
-  border: 1px solid black;
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  margin-right: 10px;
-}
-
-.frustum-upload-container {
-  width: 69%;
-  position: relative;
-  border: 1px solid black;
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  overflow: auto;
-}
-
-.ply-instructions {
-  font-weight: bold;
-}
-
-.file-submit-btn {
-  width: 90%;
-  margin: 10px;
-}
-
-.frustums-submit-btn {
-  width: 30%;
-}
-
 .scale-range-container {
   display: flex;
   flex-direction: row;
-}
-
-.num-cams-container {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-}
-
-.network_graph_container {
-  position: relative;
-  width: 100%;
-  height: 100vh;
-  min-height: 100vh;
 }

@@ -1,0 +1,17 @@
+{
+    "angular_err_threshold_deg": 10,
+    "num_valid_entries": 66,
+    "num_total_entries": 66,
+    "rotation": {
+        "success_count": 66
+    },
+    "translation": {
+        "success_count": 43
+    },
+    "pose": {
+        "success_count": 43
+    },
+    "correspondences": {
+        "all_inliers": 66
+    }
+}
