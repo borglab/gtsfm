@@ -6,28 +6,37 @@ from typing import List, Optional
 
 import numpy as np
 from gtsam import Point3, Pose3, Pose3Pairs, Rot3, Similarity3, Unit3
+from scipy.spatial.transform import Rotation
+
+from gtsfm.utils.logger import get_logger
 
 EPSILON = np.finfo(float).eps
 
+logger = get_logger()
 
-def align_rotations(input_list: List[Rot3], ref_list: List[Rot3]) -> List[Rot3]:
+def align_rotations(aRi_list: List[Rot3], bRi_list: List[Rot3]) -> List[Rot3]:
     """Aligns the list of rotations to the reference list by shifting origin.
 
-    Args:
-        input_list: input rotations which need to be aligned, suppose w1Ri in world-1 frame for all frames i.
-        ref_list: reference rotations which are target for alignment, suppose w2Ri_ in world-2 frame for all frames i.
+    TODO (John): replace later with Karcher mean to account for noisy estimates
 
+    Args:
+        aRi_list: reference rotations in frame "a" which are the targets for alignment
+        bRi_list: input rotations which need to be aligned to frame "a"
+            
     Returns:
-        transformed rotations which have the same origin as reference (now living in world-2 frame)
+        aRi_list_: transformed input rotations previously "bRi_list" but now which
+            have the same origin as reference (now living in "a" frame)
     """
-    w1Ri0 = input_list[0]
-    i0Rw1 = w1Ri0.inverse()
-    w2Ri0 = ref_list[0]
+    aRi0 = aRi_list[0]
+
+    bRi0 = bRi_list[0]
+    i0Rb = bRi0.inverse()
+
     # origin_transform -- map the origin of the input list to the reference list
-    w2Rw1 = w2Ri0.compose(i0Rw1)
+    aRb = aRi0.compose(i0Rb)
 
     # apply the coordinate shift to all entries in input
-    return [w2Rw1.compose(w1Ri) for w1Ri in input_list]
+    return [aRb.compose(bRi) for bRi in bRi_list]
 
 
 def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> List[Pose3]:
@@ -51,9 +60,14 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> List[Pose3
     ab_pairs = Pose3Pairs(list(zip(aTi_list, bTi_list)))
 
     aSb = Similarity3.Align(ab_pairs)
-    print("Sim(3) Rotation:", aSb.rotation())
-    print("Sim(3) Translation:", aSb.translation())
-    print("Sim(3) Scale:", aSb.scale())
+
+    # provide a summary of the estimated alignment transform
+    aRb = aSb.rotation().matrix()
+    atb = aSb.translation()
+    rz,ry,rx = Rotation.from_matrix(aRb).as_euler('zyx', degrees=True)
+    logger.info(f"Sim(3) Rotation `aRb`: rz={rz:.2f} deg., ry={ry:.2f} deg., rx={rx:.2f} deg.", )
+    logger.info(f"Sim(3) Translation `atb`: [tx,ty,tz]={str(np.round(atb,2))}")
+    logger.info(f"Sim(3) Scale `asb`: {float(aSb.scale()):.2f}")
 
     aTi_list_ = []
     for i in range(n_to_align):
@@ -61,12 +75,12 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> List[Pose3
 
         aTi_list_.append(aSb.transformFrom(bTi))
 
-    print("Trajectory alignment complete.")
+    logger.info("Pose graph Sim(3) alignment complete.")
 
     return aTi_list_
 
 
-def compare_rotations(wRi_list: List[Optional[Rot3]], wRi_list_: List[Optional[Rot3]]) -> bool:
+def compare_rotations(aRi_list: List[Optional[Rot3]], bRi_list_: List[Optional[Rot3]]) -> bool:
     """Helper function to compare two lists of global Rot3, considering the
     origin as ambiguous.
 
@@ -76,32 +90,31 @@ def compare_rotations(wRi_list: List[Optional[Rot3]], wRi_list_: List[Optional[R
        the lists to the new origins.
 
     Args:
-        wRi_list: 1st list of rotations.
-        wRi_list_: 2nd list of rotations.
-
+        aTi_list: 1st list of rotations.
+        bTi_list: 2nd list of rotations.
     Returns:
         result of the comparison.
     """
-
-    if len(wRi_list) != len(wRi_list_):
+    if len(aRi_list) != len(bRi_list_):
         return False
 
     # check the presense of valid Rot3 objects in the same location
-    wRi_valid = [i for (i, wRi) in enumerate(wRi_list) if wRi is not None]
-    wRi_valid_ = [i for (i, wRi) in enumerate(wRi_list_) if wRi is not None]
-    if wRi_valid != wRi_valid_:
+    aRi_valid = [i for (i, aRi) in enumerate(aRi_list) if aRi is not None]
+    bRi_valid = [i for (i, bRi) in enumerate(bRi_list) if bRi is not None]
+    if aRi_valid != bRi_valid:
         return False
 
-    if len(wRi_valid) <= 1:
+    if len(aRi_valid) <= 1:
         # we need >= two entries going forward for meaningful comparisons
         return False
 
-    wRi_list = [wRi_list[i] for i in wRi_valid]
-    wRi_list_ = [wRi_list_[i] for i in wRi_valid_]
+    aRi_list = [aRi_list[i] for i in aRi_valid]
+    bRi_list = [bRi_list[i] for i in bRi_valid]
 
-    wRi_list = align_rotations(wRi_list, ref_list=wRi_list_)
+    # frame 'a' is the target/reference, and bRi_list will be transformed
+    aRi_list_ = align_rotations(aRi_list, bRi_list)
 
-    return all([wRi.equals(wRi_, 1e-1) for (wRi, wRi_) in zip(wRi_list, wRi_list_)])
+    return all([aRi.equals(aRi_, 1e-1) for (aRi, aRi_) in zip(aRi_list, aRi_list_)])
 
 
 def compare_global_poses(
@@ -124,7 +137,7 @@ def compare_global_poses(
         trans_err_thresh (optional): relative error threshold for translation. Defaults to 1e-1.
 
     Returns:
-        results of the comparison.
+        result of the comparison.
     """
 
     # check the length of the input lists
