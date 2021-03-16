@@ -84,8 +84,16 @@ def save_json_file(json_fpath: str, data: Union[Dict[Any, Any], List[Any]],) -> 
         json.dump(data, f, indent=4)
 
 
-def read_bal(file_name: str) -> GtsfmData:
-    sfm_data = gtsam.readBal(file_name)
+def read_bal(file_path: str) -> GtsfmData:
+    """Read a BAL file.
+
+    Args:
+        file_name: file path of the BAL file.
+
+    Returns:
+        The data as an GtsfmData object.
+    """
+    sfm_data = gtsam.readBal(file_path)
 
     num_images = sfm_data.number_cameras()
 
@@ -99,7 +107,14 @@ def read_bal(file_name: str) -> GtsfmData:
     return gtsfm_data
 
 
-def write_cameras(gtsfm_data: GtsfmData, file_name: str) -> None:
+def write_cameras(gtsfm_data: GtsfmData, file_path: str) -> None:
+    """Writes the camera data file in the COLMAP format.
+
+    Args:
+        gtsfm_data: scene data to write.
+        file_path: path of the file.
+    """
+
     # TODO: get image shape somehow
 
     image_width = 1000  # pylint: disable=unused-variable
@@ -107,7 +122,7 @@ def write_cameras(gtsfm_data: GtsfmData, file_name: str) -> None:
 
     # TODO: handle shared intrinsics
 
-    with open(file_name, "w") as f:
+    with open(file_path, "w") as f:
         f.write("# Number of cameras: {}\n".format(gtsfm_data.number_images()))
 
         for i in gtsfm_data.get_valid_camera_indices():
@@ -121,10 +136,17 @@ def write_cameras(gtsfm_data: GtsfmData, file_name: str) -> None:
             f.write("{i} SIMPLE_PINHOLE {image_width} {image_height} {fx} {u0} {v0}\n")
 
 
-def write_images(gtsfm_data: GtsfmData, file_name: str) -> None:
+def write_images(gtsfm_data: GtsfmData, file_path: str) -> None:
+    """Writes the image data file in the COLMAP format.
+
+    Args:
+        gtsfm_data: scene data to write.
+        file_path: name of the file.
+    """
+
     # TODO: get image shape somehow
 
-    with open(file_name, "w") as f:
+    with open(file_path, "w") as f:
         f.write("# Number of cameras: {}\n".format(gtsfm_data.number_images()))
 
         for i in gtsfm_data.get_valid_camera_indices():

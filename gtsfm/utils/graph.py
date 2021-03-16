@@ -23,7 +23,7 @@ def get_nodes_in_largest_connected_component(edges: List[Tuple[int, int]]) -> Li
     input_graph = nx.Graph()
     input_graph.add_edges_from(edges)
 
-    # get the largest connected components and cameras in it
+    # get the largest connected component
     largest_cc = max(nx.connected_components(input_graph), key=len)
     subgraph = input_graph.subgraph(largest_cc).copy()
 
