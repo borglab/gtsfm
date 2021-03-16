@@ -158,20 +158,20 @@ def compare_global_poses(
     aTi_list = [aTi_list[i] for i in aTi_valid]
     bTi_list = [bTi_list[i] for i in bTi_valid]
 
-    #  We set the reference as the ground truth.
-    bTi_list = align_poses_sim3(aTi_list, bTi_list)
+    #  We set frame "a" the target/reference
+    aTi_list_ = align_poses_sim3(aTi_list, bTi_list)
 
     return all(
         [
             (
-                aTi.rotation().equals(bTi.rotation(), rot_err_thresh)
+                aTi.rotation().equals(aTi_.rotation(), rot_err_thresh)
                 and np.allclose(
                     aTi.translation(),
-                    bTi.translation(),
+                    aTi_.translation(),
                     rtol=trans_err_thresh,
                 )
             )
-            for (aTi, bTi) in zip(aTi_list, bTi_list)
+            for (aTi, aTi_) in zip(aTi_list, aTi_list_)
         ]
     )
 
