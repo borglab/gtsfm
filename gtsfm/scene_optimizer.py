@@ -304,7 +304,7 @@ def visualize_camera_poses(
     viz_utils.plot_poses_3d(pre_ba_poses, ax, center_marker_color="c", label_name="Pre-BA")
     viz_utils.plot_poses_3d(post_ba_poses, ax, center_marker_color="k", label_name="Post-BA")
     if gt_pose_graph is not None:
-        gt_pose_graph = comp_utils.align_poses(gt_pose_graph, post_ba_poses)
+        gt_pose_graph = comp_utils.align_poses_sim3(post_ba_poses, gt_pose_graph)
         viz_utils.plot_poses_3d(gt_pose_graph, ax, center_marker_color="m", label_name="GT")
 
     ax.legend(loc="upper left")

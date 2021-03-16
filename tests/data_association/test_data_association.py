@@ -152,7 +152,8 @@ class TestDataAssociation(GtsamTestCase):
             mode=triangulation_mode,
             num_ransac_hypotheses=20,
         )
-        triangulated_landmark_map = da.run(cameras, matches_dict, keypoints_list)
+        triangulated_landmark_map, stats = da.run(cameras, matches_dict, keypoints_list)
+        
         # assert that we cannot obtain even 1 length-3 track if we have only 2 camera poses
         # result should be empty, since nb_measurements < min track length
         assert (
@@ -186,7 +187,7 @@ class TestDataAssociation(GtsamTestCase):
             min_track_len=2,  # at least 2 measurements required
             mode=TriangulationParam.NO_RANSAC,
         )
-        sfm_data = da.run(cameras, matches_dict, keypoints_list)
+        sfm_data, _ = da.run(cameras, matches_dict, keypoints_list)
         estimated_landmark = sfm_data.track(0).point3()
         self.gtsamAssertEquals(estimated_landmark, self.expected_landmark, 1e-2)
 
@@ -236,7 +237,7 @@ class TestDataAssociation(GtsamTestCase):
             mode=triangulation_mode,
             num_ransac_hypotheses=20,
         )
-        sfm_data = da.run(cameras, matches_dict, keypoints_list)
+        sfm_data, _ = da.run(cameras, matches_dict, keypoints_list)
 
         estimated_landmark = sfm_data.track(0).point3()
         # checks if computed 3D point is as expected
@@ -269,10 +270,10 @@ class TestDataAssociation(GtsamTestCase):
             mode=TriangulationParam.RANSAC_TOPK_BASELINES,
             num_ransac_hypotheses=20,
         )
-        expected_sfm_data = da.run(cameras, matches_dict, keypoints_list)
+        expected_sfm_data, _ = da.run(cameras, matches_dict, keypoints_list)
 
         # Run with computation graph
-        delayed_sfm_data = da.create_computation_graph(
+        delayed_sfm_data, _ = da.create_computation_graph(
             cameras,
             matches_dict,
             keypoints_list,
