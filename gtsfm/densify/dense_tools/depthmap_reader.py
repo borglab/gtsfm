@@ -78,9 +78,8 @@ if __name__=='__main__':
     reader = DepthmapReaderManager.build_depthmap_reader('results_densify/depthmap_colmap/*.geometric.bin', 'COLMAP')
     # reader = DepthmapReaderManager.build_depthmap_reader('results_densify/outputs/scan1/depth_img/depth_*.png', 'PNG')
     depthmap = reader.load()
-    print(depthmap[0].shape)
-    print(depthmap[0][0].max()) 
-    depthmap[0] = cv2.resize(depthmap[0], (640, 960))
-    cv2.imshow("test", (depthmap[0]-depthmap[0].min())/ \
-                    (depthmap[0].max()-depthmap[0].min()))
+    print(depthmap[4].shape)
+    depthmap[4][depthmap[4]==0] = depthmap[4].mean()
+    depthmap[4] = cv2.resize((depthmap[4] - depthmap[4].min()) / (depthmap[4].max()-depthmap[4].min()), (640, 960))
+    cv2.imshow("test", depthmap[4])
     cv2.waitKey(0)

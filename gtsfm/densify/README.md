@@ -16,13 +16,13 @@
 * output path `results_densify/outputs/`
   * `results_densify/outputs/scan1/confidence`: .pfm confidence map from each view
   * `results_densify/outputs/scan1/depth_est`: .pfm expected depth map from each view
-  * `results_densify/outputs/scan1/depth_img`: heatmap (.png) files of (.pfm) files above
+  * `results_densify/outputs/scan1/depth_img`: heatmap (.png) files of (.pfm) files above (grayscale images with .npy scaling parameters)
   * `results_densify/outputs/scan1/mask`: masks of photo/geo/final used for mesh construction
   * `results_densify/*.ply`: generated mesh
 
 #### Sample output
 
-* sample outputs depthmap & mesh of `tests/data/set1_lund_door/images/DSC_0004.JPG`. 
+<!-- * sample outputs depthmap & mesh of `tests/data/set1_lund_door/images/DSC_0004.JPG`. 
   * Left: Using accurate cameras 
   * Right: Using calculated cameras
  
@@ -32,7 +32,27 @@
  <img src="docs/img/gen_depth_04.png" height="250" style="margin-left:40px;"/>
  <img src="docs/img/res-gt-cam.png" height="250" style="margin-left:40px;"/>
  <img src="docs/img/res-gen-cam.png" height="250" style="margin-left:40px;"/>
+</p> -->
+
+* sample outputs depthmap & mesh of `tests/data/set1_lund_door/images/DSC_0004.JPG`. 
+  * origin image, gtsfm cams + mvsnet, COLMAP_cams + mvsnet, COLMAP only
+ 
+<p>
+ <img src="../../tests/data/set1_lund_door/images/DSC_0004.JPG" height="250" style="margin-left:40px;"/>
+ <img src="docs/img/gtsfm_gen_cams_04_mvsnet.png" height="250" style="margin-left:40px;"/>
+ <img src="docs/img/orig_cams_mvsnets.png" height="250" style="margin-left:40px;"/>
+ <img src="docs/img/colmap_cams_04_mvsnet.png" height="250" style="margin-left:40px;"/>
+ <img src="docs/img/colmap_cams_04_colmap.png" height="250" style="margin-left:40px;"/>
 </p>
+
+  *  gtsfm cams + mvsnet, COLMAP_cams + mvsnet
+<p>
+<img src="docs/img/orig_cams_04_mvsnet_mesh.png" height="250" style="margin-left:40px;"/>
+ <img src="docs/img/orig_cams_04_mvsnet_mesh_2.png" height="250" style="margin-left:40px;"/>
+ <img src="docs/img/colmap_cams_04_colmap_mesh.png" height="250" style="margin-left:40px;"/>
+ <img src="docs/img/colmap_cams_04_colmap_mesh_2.png" height="250" style="margin-left:40px;"/>
+</p>
+
 
 
 #### TODOs & Graphs

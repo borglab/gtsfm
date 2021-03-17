@@ -50,3 +50,4 @@ if __name__=='__main__':
     dense_metrics /= len(mvsnet_depthmap)
 
     print(dense_metrics)
+
