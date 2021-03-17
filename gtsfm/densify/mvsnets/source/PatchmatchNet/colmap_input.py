@@ -310,7 +310,7 @@ if __name__ == '__main__':
     model_dir = os.path.join(args.folder, 'sparse')
     # model_dir = os.path.join(args.folder, 'dslr_calibration_undistorted')
     cam_dir = os.path.join(args.folder, 'cams_1')
-    renamed_dir = os.path.join(args.folder, 'images')
+    renamed_dir = os.path.join(args.folder, 'image')
     # the colmap results may be stored in '.bin' or '.txt' format
     # cameras, images, points3d = read_model(model_dir, '.txt')
     cameras, images, points3d = read_model(model_dir, '.bin')
@@ -345,7 +345,8 @@ if __name__ == '__main__':
             [0, 0, 1]
         ])
         intrinsic[camera_id] = i
-    print('intrinsic[0]\n', intrinsic[0], end='\n\n')
+    # print('intrinsic[0]\n', intrinsic[0], end='\n\n')
+    print(intrinsic)
 
     # extrinsic
     extrinsic = {}
