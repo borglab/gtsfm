@@ -20,6 +20,19 @@
   * `results_densify/outputs/scan1/mask`: masks of photo/geo/final used for mesh construction
   * `results_densify/*.ply`: generated mesh
 
+#### Metrics
+
+* Depth range: 13 - 20
+* Resolution: 1296 x 1936
+
+|SfM method| Recon. method | Average Depth | Completeness (%) | Accuracy (dist.) |
+|---|---|---|---|---|
+|COLMAP|COLMAP| 17.088| 100.0 | 0.000 |  
+|COLMAP|mvsnets| 17.127| 74.36| 0.092 |
+|origin groudtruth|mvsnets| 12.605| 40.98 | 4.377 |
+|*gtsfm |mvsnets| 38.304 | 0 | / |
+
+
 #### Sample output
 
 <!-- * sample outputs depthmap & mesh of `tests/data/set1_lund_door/images/DSC_0004.JPG`. 
