@@ -15,7 +15,7 @@ On Linux, with CUDA support:
 conda env create -f environment_linux.yml
 conda activate gtsfm-v1 # you may need "source activate gtsfm-v1" depending upon your bash and conda set-up
 ```
-The Python3.8 `gtsam` wheel for Linux is available [here](https://github.com/borglab/gtsam-manylinux-build/suites/1859835370/artifacts/36145194).
+The Python3.8 `gtsam` wheel for Linux is available [here](https://github.com/borglab/gtsam-manylinux-build/suites/2239592652/artifacts/46493264).
 
 **Mac**
 On Mac OSX, there is no CUDA support and no `pydegensac` wheel in `pypi`, so run:
@@ -23,7 +23,7 @@ On Mac OSX, there is no CUDA support and no `pydegensac` wheel in `pypi`, so run
 conda env create -f environment_mac.yml
 conda activate gtsfm-v1
 ```
-Download the Python 3.8 gtsam wheel [here](https://github.com/borglab/gtsam-manylinux-build/suites/1859835370/artifacts/36145196), and install it as
+Download the Python 3.8 gtsam wheel for Mac [here](https://github.com/borglab/gtsam-manylinux-build/suites/2239592652/artifacts/46493266), and install it as
 ```bash
 pip install ~/Downloads/gtsam-4.1.1-py3-none-any.whl
 ```
@@ -64,7 +64,7 @@ GTSFM is designed in an extremely modular way. Each module can be swapped out wi
         - `translation`: translation averaging implementations (1d-SFM, etc)
     - `bundle`: bundle adjustment implementations
     - `common`: basic classes used through GTSFM, such as `Keypoints`, `Image`, `SfmTrack2d`, etc
-    - `data_association`: 
+    - `data_association`: 3d point triangulation w/ or w/o RANSAC, from 2d point-tracks 
     - `densify`
     - `frontend`: SfM front-end code, including:
         - `detector`: keypoint detector implementations (DoG, etc)

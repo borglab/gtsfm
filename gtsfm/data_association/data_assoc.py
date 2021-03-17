@@ -7,9 +7,9 @@ References:
 1. Richard I. Hartley and Peter Sturm. Triangulation. Computer Vision and Image Understanding, Vol. 68, No. 2,
    November, pp. 146–157, 1997
 
-Authors: Sushmita Warrier, Xiaolong Wu
+Authors: Sushmita Warrier, Xiaolong Wu, John Lambert
 """
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 import dask
 import numpy as np
@@ -54,7 +54,7 @@ class DataAssociation(NamedTuple):
         cameras: Dict[int, PinholeCameraCal3Bundler],
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
-    ) -> SfmData:
+    ) -> Tuple[SfmData, Dict[str,Any]]:
         """Perform the data association.
 
         Args:
@@ -66,17 +66,15 @@ class DataAssociation(NamedTuple):
             cameras and tracks as SfmData.
         """
         # generate tracks for 3D points using pairwise correspondences
-        tracks = SfmTrack2d.generate_tracks_from_pairwise_matches(corr_idxs_dict, keypoints_list)
+        tracks_2d = SfmTrack2d.generate_tracks_from_pairwise_matches(corr_idxs_dict, keypoints_list)
 
         # metrics on tracks w/o triangulation check
-        num_tracks = len(tracks)
-        track_lengths = list(map(lambda x: x.number_measurements(), tracks))
+        num_tracks_2d = len(tracks_2d)
+        track_lengths = list(map(lambda x: x.number_measurements(), tracks_2d))
+        mean_2d_track_length = np.mean(track_lengths)
 
-        logger.debug("[Data association] input number of tracks: %s", num_tracks)
-        logger.debug(
-            "[Data association] input avg. track length: %s",
-            np.mean(track_lengths),
-        )
+        logger.debug("[Data association] input number of tracks: %s", num_tracks_2d)
+        logger.debug("[Data association] input avg. track length: %s", mean_2d_track_length)
 
         # initializer of 3D landmark for each track
         point3d_initializer = Point3dInitializer(
@@ -86,17 +84,26 @@ class DataAssociation(NamedTuple):
             self.num_ransac_hypotheses,
         )
 
+        num_tracks_w_cheirality_exceptions = 0
+        per_accepted_track_avg_errors = []
+        per_rejected_track_avg_errors = []
         # form SFMdata object after triangulation
         triangulated_data = SfmData()
-        for track_2d in tracks:
+        for track_2d in tracks_2d:
             # triangulate and filter based on reprojection error
-            sfm_track = point3d_initializer.triangulate(track_2d)
+            sfm_track, avg_track_reproj_error, is_cheirality_failure = point3d_initializer.triangulate(track_2d)
+            if is_cheirality_failure:
+                num_tracks_w_cheirality_exceptions += 1
 
-            if sfm_track is None:
-                continue
-
-            if self.__validate_track(sfm_track):
+            if sfm_track is not None and self.__validate_track(sfm_track):
                 triangulated_data.add_track(sfm_track)
+                per_accepted_track_avg_errors.append(avg_track_reproj_error)
+            else:
+                per_rejected_track_avg_errors.append(avg_track_reproj_error)
+
+        num_accepted_tracks = triangulated_data.number_tracks()
+        accepted_tracks_ratio = num_accepted_tracks / len(tracks_2d)
+        track_cheirality_failure_ratio = num_tracks_w_cheirality_exceptions / len(tracks_2d)
 
         # TODO: improve dropped camera handling
         num_cameras = len(cameras.keys())
@@ -107,23 +114,47 @@ class DataAssociation(NamedTuple):
                 raise RuntimeError("Some cameras must have been dropped ")
             triangulated_data.add_camera(cam)
 
-        logger.debug(
-            "[Data association] output number of tracks: %s",
-            triangulated_data.number_tracks(),
-        )
-        logger.debug(
-            "[Data association] output avg. track length: %s",
-            SfmResult(triangulated_data, None).get_track_length_statistics()[0],
-        )
+        mean_3d_track_length, median_3d_track_length, track_lengths_3d = SfmResult(
+            triangulated_data, None
+        ).get_track_length_statistics()
 
-        return triangulated_data
+        logger.debug("[Data association] output number of tracks: %s", num_accepted_tracks)
+        logger.debug("[Data association] output avg. track length: %s", mean_3d_track_length)
+
+        # dump the 3d point cloud before Bundle Adjustment for offline visualization
+        points_3d = [list(triangulated_data.track(j).point3()) for j in range(num_accepted_tracks)]
+        # bin edges are halfway between each integer
+        track_lengths_histogram, _ = np.histogram(track_lengths_3d, bins=np.linspace(-0.5, 10.5, 12))
+
+        # min possible track len is 2, above 10 is improbable
+        histogram_dict = {f"num_len_{i}_tracks": int(track_lengths_histogram[i]) for i in range(2, 11)}
+
+        data_assoc_metrics = {
+            "mean_2d_track_length": np.round(mean_2d_track_length, 3),
+            "accepted_tracks_ratio": np.round(accepted_tracks_ratio, 3),
+            "track_cheirality_failure_ratio": np.round(track_cheirality_failure_ratio, 3),
+            "num_accepted_tracks": num_accepted_tracks,
+            "3d_tracks_length": {
+                "median": median_3d_track_length,
+                "mean": mean_3d_track_length,
+                "min": int(track_lengths_3d.min()) if track_lengths_3d.size > 0 else None,
+                "max": int(track_lengths_3d.max()) if track_lengths_3d.size > 0 else None,
+                "track_lengths_histogram": histogram_dict,
+            },
+            "mean_accepted_track_avg_error": np.array(per_accepted_track_avg_errors).mean(),
+            "per_rejected_track_avg_errors": per_rejected_track_avg_errors,
+            "per_accepted_track_avg_errors": per_accepted_track_avg_errors,
+            "points_3d": points_3d,
+        }
+
+        return triangulated_data, data_assoc_metrics
 
     def create_computation_graph(
         self,
         cameras: Delayed,
         corr_idxs_graph: Dict[Tuple[int, int], Delayed],
         keypoints_graph: List[Delayed],
-    ) -> Delayed:
+    ) -> Tuple[Delayed, Delayed]:
         """Creates a computation graph for performing data association.
 
         Args:
@@ -132,6 +163,12 @@ class DataAssociation(NamedTuple):
             keypoints_graph: list of wrapped up keypoints for each image.
 
         Returns:
-            SfmData object wrapped up using dask.delayed.
+            ba_input_graph: SfmData object wrapped up using dask.delayed
+            data_assoc_metrics_graph: dictionary with different statistics about the data
+                association result
         """
-        return dask.delayed(self.run)(cameras, corr_idxs_graph, keypoints_graph)
+        data_assoc_graph = dask.delayed(self.run)(cameras, corr_idxs_graph, keypoints_graph)
+        ba_input_graph = data_assoc_graph[0]
+        data_assoc_metrics_graph = data_assoc_graph[1]
+
+        return ba_input_graph, data_assoc_metrics_graph
