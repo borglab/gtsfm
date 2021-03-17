@@ -70,8 +70,8 @@
 
 #### TODOs & Graphs
 
-- [ ] Add unit tests
 - [ ] Find metrics
+- [ ] Add unit tests
 - [ ] Mesh Refinement
 
 ![TODOs](docs/img/den1.png)
