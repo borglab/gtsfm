@@ -39,13 +39,17 @@ class Parser(object):
         depth_std = np.std(depth_array)
         depth_mean = np.mean(depth_array)
 
-        min_depth = max(0, math.ceil(depth_mean - depth_std))
-        max_depth = min(1000, math.floor(depth_mean + depth_std))
+        # min_depth = max(0, math.ceil(depth_mean - depth_std))
+        # max_depth = min(1000, math.floor(depth_mean + depth_std))
+
+        min_depth = np.min(depth_array)
+        max_depth = np.max(depth_array)
 
         CV = depth_std / depth_mean
         
         depth_layer_numer = 192
 
+        # depth_range = [13, 21, depth_layer_numer]
         depth_range = [min_depth, max_depth, depth_layer_numer]
 
         return pairs, depth_range

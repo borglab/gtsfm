@@ -55,7 +55,7 @@ def run_scene_optimizer() -> None:
         # import gtsam
         # sfm_result = gtsam.readBal('./results/ba_output.bal')
         # print(DATA_ROOT)
-        # MVSNets.densify(sfm_result, image_path=os.path.join(DATA_ROOT, "set1_lund_door"), image_extension="JPG")
+        # MVSNets.densify(sfm_result, image_path=os.path.join(DATA_ROOT, "set1_1_lund_door"), image_extension="JPG", use_gt_cam=True)
         
 
 

@@ -11,7 +11,7 @@ class MVSNets:
         pass
 
     @classmethod    
-    def densify(cls, sfmData, image_path, image_extension, view_number=5, thres=[1.0, 0.01, 0.8], method="mvsnets/PatchmatchNet"):
+    def densify(cls, sfmData, image_path, image_extension, view_number=5, thres=[1.0, 0.01, 0.8], method="mvsnets/PatchmatchNet", use_gt_cam=False):
 
         Writer.writeOKLog("\nBegin to densify use {}".format(method))
 
@@ -23,12 +23,13 @@ class MVSNets:
 
         Writer.writeOKLog("\n[1/4]Parsing sfmData to mvsnetsData...")
 
-        # == if use measured camera matrices ==
-        mvsnetsData = Parser.to_mvsnets_data(images, sfmData)
-
-        # == if use accurate camera matrices ==
-        # labeled_cameras = Loader.load_labeled_cameras(image_path)
-        # mvsnetsData = Parser.to_mvsnets_data(images, sfmData, labeled_cameras)
+        if not use_gt_cam:
+            # == if use measured camera matrices ==
+            mvsnetsData = Parser.to_mvsnets_data(images, sfmData)
+        else:
+            # == if use accurate camera matrices ==
+            labeled_cameras = Loader.load_labeled_cameras(image_path)
+            mvsnetsData = Parser.to_mvsnets_data(images, sfmData, labeled_cameras)
 
         prepared_input_path = Writer.write_mvsnets_data(mvsnetsData)
 

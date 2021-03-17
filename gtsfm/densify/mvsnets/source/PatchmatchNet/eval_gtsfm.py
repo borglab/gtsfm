@@ -23,44 +23,6 @@ from matplotlib import pyplot as plt
 
 cudnn.benchmark = True
 
-# parser = argparse.ArgumentParser(description='Predict depth, filter, and fuse')
-# parser.add_argument('--model', default='PatchmatchNet', help='select model')
-
-# parser.add_argument('--dataset', default='dtu_yao_eval', help='select dataset')
-# parser.add_argument('--testpath', help='testing data path')
-# parser.add_argument('--testlist', help='testing scan list')
-
-# parser.add_argument('--batch_size', type=int, default=1, help='testing batch size')
-# parser.add_argument('--n_views', type=int, default=8, help='num of view')
-
-
-# parser.add_argument('--loadckpt', default=None, help='load a specific checkpoint')
-# parser.add_argument('--outdir', default='./outputs', help='output dir')
-# parser.add_argument('--display', action='store_true', help='display depth images and masks')
-
-# parser.add_argument('--patchmatch_iteration', nargs='+', type=int, default=[1,2,2], 
-#         help='num of iteration of patchmatch on stages 1,2,3')
-# parser.add_argument('--patchmatch_num_sample', nargs='+', type=int, default=[8,8,16], 
-#         help='num of generated samples in local perturbation on stages 1,2,3')
-# parser.add_argument('--patchmatch_interval_scale', nargs='+', type=float, default=[0.005, 0.0125, 0.025], 
-#         help='normalized interval in inverse depth range to generate samples in local perturbation')
-# parser.add_argument('--patchmatch_range', nargs='+', type=int, default=[6,4,2], 
-#         help='fixed offset of sampling points for propogation of patchmatch on stages 1,2,3')
-# parser.add_argument('--propagate_neighbors', nargs='+', type=int, default=[0,8,16], 
-#         help='num of neighbors for adaptive propagation on stages 1,2,3')
-# parser.add_argument('--evaluate_neighbors', nargs='+', type=int, default=[9,9,9], 
-#         help='num of neighbors for adaptive matching cost aggregation of adaptive evaluation on stages 1,2,3')
-
-# parser.add_argument('--geo_pixel_thres', type=float, default=1, help='pixel threshold for geometric consistency filtering')
-# parser.add_argument('--geo_depth_thres', type=float, default=0.01, help='depth threshold for geometric consistency filtering')
-# parser.add_argument('--photo_thres', type=float, default=0.8, help='threshold for photometric consistency filtering')
-
-# # parse arguments and check
-# args = parser.parse_args()
-# print("argv:", sys.argv[1:])
-# print_args(args)
-
-
 # read intrinsics and extrinsics
 def read_camera_parameters(filename):
     with open(filename) as f:
@@ -91,10 +53,16 @@ def save_mask(filename, mask):
 
 def save_depth_img(filename, depth):
     # assert mask.dtype == np.bool
-    depth = 255 * ((depth -depth.min())/(depth.max() - depth.min()))
+    d = depth.max() - depth.min()
+    b = -depth.min()
+    depth = 255 * (depth + b) / d
+    transform = np.array([d / 255.0, -b])
     depth = depth.astype(np.uint8)
-    heatmap = cv2.applyColorMap(depth, cv2.COLORMAP_JET)
-    Image.fromarray(heatmap).save(filename)
+    
+    # heatmap = cv2.applyColorMap(depth, cv2.COLORMAP_JET)
+    # Image.fromarray(depth).save(filename)
+    cv2.imwrite(filename, depth)
+    np.save(filename+'.npy', transform)
 
 
 def read_pair_file(filename):
