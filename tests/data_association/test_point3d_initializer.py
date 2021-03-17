@@ -221,7 +221,7 @@ class TestPoint3dInitializer(unittest.TestCase):
         ]
 
         for track_2d in tracks:
-            triangulated_track = initializer.triangulate(track_2d)
+            triangulated_track, _, _ = initializer.triangulate(track_2d)
 
             if triangulated_track is None:
                 # assert we have failures which are already expected

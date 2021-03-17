@@ -139,8 +139,8 @@ class DataAssociation(NamedTuple):
             "3d_tracks_length": {
                 "median": median_3d_track_length,
                 "mean": mean_3d_track_length,
-                "min": int(track_lengths_3d.min()) if track_lengths_3d.size > 0 else 0,
-                "max": int(track_lengths_3d.max()) if track_lengths_3d.size > 0 else 0,
+                "min": int(track_lengths_3d.min()) if track_lengths_3d.size > 0 else None,
+                "max": int(track_lengths_3d.max()) if track_lengths_3d.size > 0 else None,
                 "track_lengths_histogram": histogram_dict,
             },
             "mean_accepted_track_avg_error": np.array(per_accepted_track_avg_errors).mean(),
