@@ -38,7 +38,7 @@ class LundDatasetLoader(FolderLoader):
 
         super().__init__(folder, image_extension="JPG")
 
-        self._K, self._camera_poses = self.__read_camera_params_from_reconstruction()
+        self._K, self._wTc = self.__read_camera_params_from_reconstruction()
 
     def __read_camera_params_from_reconstruction(self) -> Tuple[Cal3Bundler, List[Pose3]]:
         """Extract extrinsics from mat file and stores them as numpy arrays.
@@ -67,22 +67,15 @@ class LundDatasetLoader(FolderLoader):
             v0=float(K_matrix[1, 2]),
         )
 
-        # rotation between the 0^th camera and world system
-        cam_rotation = Rot3.RzRyRx(-np.pi / 2, 0, 0)
-        cam_coordinate_pose = Pose3(cam_rotation, np.zeros((3,)))
-
-        camera_poses = [Pose3()]  # adding the first pose
+        poses_wTc = [Pose3()]  # adding the first pose
 
         for idx in range(1, num_images):
             P = projection_matrices[idx]
-            extrinsics = np.linalg.inv(K_matrix) @ P  # this looks fishy. extrinsics constraints not withheld.
+            extrinsics_cTw = np.linalg.inv(K_matrix) @ P  # this looks fishy. extrinsics constraints not withheld.
 
-            camera_poses.append(Pose3(extrinsics))
+            poses_wTc.append(Pose3(extrinsics_cTw).inverse())
 
-        # transform the poses so that cameras point in the right direction.
-        camera_poses = [p.between(cam_coordinate_pose) for p in camera_poses]
-
-        return K, camera_poses
+        return K, poses_wTc
 
     def get_camera_intrinsics(self, index: int) -> Optional[Cal3Bundler]:
         """Get the camera intrinsics at the given index.
@@ -104,27 +97,5 @@ class LundDatasetLoader(FolderLoader):
         Returns:
             the camera pose w_P_index.
         """
-        return self._camera_poses[index]
+        return self._wTc[index]
 
-
-if __name__ == "__main__":
-    path = "data/lund/door"
-
-    loader = LundDatasetLoader(path)
-
-    for i in range(len(loader)):
-        intrinsics_mat = loader.get_camera_intrinsics(i).K()
-        np.save("data/lund/door/intrinsics/{}.npy".format(i), intrinsics_mat)
-
-        extrinsics_mat = loader.get_camera_pose(i).matrix()
-        np.save("data/lund/door/extrinsics/{}.npy".format(i), extrinsics_mat)
-
-    # import gtsfm.utils.viz as viz_utils
-    # import matplotlib.pyplot as plt
-
-    # cam_poses = [loader.get_camera_pose(i) for i in range(len(loader))]
-
-    # fig = plt.figure()
-    # ax = fig.gca(projection="3d")
-    # viz_utils.plot_poses_3d(cam_poses, ax)
-    # plt.show()
