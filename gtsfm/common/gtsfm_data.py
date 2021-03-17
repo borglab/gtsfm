@@ -14,7 +14,11 @@ EQUALITY_TOLERANCE = 1e-5
 
 
 class GtsfmData:
-    """Class containing cameras and tracks, essentially describing the complete 3D scene."""
+    """Class containing cameras and tracks, essentially describing the complete 3D scene.
+    
+    This class is needed over GTSAM's SfmData type because GTSAM's type does not allow for non-contiguous cameras.
+    The situation of non-contiguous cameras can exists because of failures in front-end.
+    """
 
     def __init__(self, number_images: int) -> None:
         """Initializes the class.
