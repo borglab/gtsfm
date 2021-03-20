@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import dask
 import networkx as nx
+import os
 from dask.delayed import Delayed
 from gtsam import (
     Cal3Bundler,
@@ -18,13 +19,8 @@ from gtsam import (
 
 import gtsfm.utils.io as io
 import gtsfm.utils.metrics as metrics
-import gtsfm.utils.serialization  # import needed to register serialization fns
-from gtsfm.averaging.rotation.rotation_averaging_base import (
-    RotationAveragingBase,
-)
-from gtsfm.averaging.translation.translation_averaging_base import (
-    TranslationAveragingBase,
-)
+from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
+from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.data_association.data_assoc import DataAssociation
 
@@ -78,9 +74,18 @@ class MultiViewOptimizer:
 
         init_cameras_graph = dask.delayed(init_cameras)(wRi_graph, wti_graph, intrinsics_graph)
 
-        ba_input_graph = self.data_association_module.create_computation_graph(
+        ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
             init_cameras_graph, v_corr_idxs_graph, keypoints_graph
         )
+
+        auxiliary_graph_list = [
+            dask.delayed(io.save_json_file)(
+                os.path.join("result_metrics", "data_association_metrics.json"), data_assoc_metrics_graph
+            )
+        ]
+
+        # dummy graph to force an immediate dump of data association metrics
+        ba_input_graph = dask.delayed(lambda x, y: (x, y))(ba_input_graph, auxiliary_graph_list)[0]
 
         ba_result_graph = self.ba_optimizer.create_computation_graph(ba_input_graph)
 
@@ -101,8 +106,7 @@ class MultiViewOptimizer:
 
 
 def select_largest_connected_component(
-    rotations: Dict[Tuple[int, int], Optional[Rot3]],
-    unit_translations: Dict[Tuple[int, int], Optional[Unit3]],
+    rotations: Dict[Tuple[int, int], Optional[Rot3]], unit_translations: Dict[Tuple[int, int], Optional[Unit3]],
 ) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3]]:
     """Process the graph of image indices with Rot3s/Unit3s defining edges, and select the largest connected component.
 
@@ -143,9 +147,7 @@ def select_largest_connected_component(
 
 
 def init_cameras(
-    wRi_list: List[Optional[Rot3]],
-    wti_list: List[Optional[Point3]],
-    intrinsics_list: List[Cal3Bundler],
+    wRi_list: List[Optional[Rot3]], wti_list: List[Optional[Point3]], intrinsics_list: List[Cal3Bundler],
 ) -> Dict[int, PinholeCameraCal3Bundler]:
     """Generate camera from valid rotations and unit-translations.
 

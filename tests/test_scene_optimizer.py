@@ -15,7 +15,6 @@ from hydra.experimental import compose, initialize_config_module
 from hydra.utils import instantiate
 
 import gtsfm.utils.geometry_comparisons as comp_utils
-import gtsfm.utils.serialization  # import needed to register serialization fns
 from gtsfm.common.sfm_result import SfmResult
 from gtsfm.loader.folder_loader import FolderLoader
 from gtsfm.scene_optimizer import SceneOptimizer
