@@ -1,6 +1,6 @@
 import React from "react";
 
-const DADivNode = (props) => {
+const SfMDataDivNode = (props) => {
     const divNodeStyle = {
         position: 'absolute',
         top: props.topOffset,
@@ -28,4 +28,4 @@ const DADivNode = (props) => {
     )
 }
 
-export default DADivNode;
+export default SfMDataDivNode;

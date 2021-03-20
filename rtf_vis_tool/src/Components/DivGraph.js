@@ -5,13 +5,15 @@ import EdgeList from './gtsfm_edge_list.js';
 import DivNode from './DivNode';
 import PPDivNode from './PPDivNode';
 import OptDivNode from './OptDivNode';
-import DADivNode from './DADivNode';
+import SfMDataDivNode from './SfMDataDivNode';
 import SFMResultDivNode from './SFMResultDivNode';
+import RelativeRsDivNode from './relativeRsDivNode';
 import FrontendSummary from './FrontendSummary';
+import RotSuccessSummary from './RotSuccessSummary';
+import TranSuccessSummary from './TranSuccessSummary';
 import MVOSummary from './MVOSummary';
 import Data_Association_PC from './Data_Association_PC';
 import '../stylesheets/DivGraph.css'
-
 
 import frontend_summary_json from '.././result_metrics/frontend_summary.json';
 import multiview_optimizer_json from '.././result_metrics/multiview_optimizer_metrics.json';
@@ -28,6 +30,8 @@ const DivGraph = (props) => {
     const [mvo_json, setMVO_JSON] = useState(null);
     const [da_json, setDA_JSON] = useState(null);
     const [showDA_PC, setShowDA_PC] = useState(null);
+    const [showRSS, setShowRSS] = useState(false);
+    const [showTSS, setShowTSS] = useState(true);
 
     //render all edges and output files in graph
     useEffect(() => {
@@ -61,6 +65,8 @@ const DivGraph = (props) => {
     const toggleFrontEndSummaryDisplay = (bool) => {setShowFS(bool)};
     const toggleMVOMetrics = (bool) => {setShowMVO(bool)};
     const toggleDataAssoc_PointCloud = (bool) => {setShowDA_PC(bool)};
+    const toggleRotSummaryDisplay = (bool) => {setShowRSS(bool)};
+    const toggleTranSummaryDisplay = (bool) => {setShowTSS(bool)};
 
     return (
         <div className="div_graph_container">
@@ -71,6 +77,8 @@ const DivGraph = (props) => {
             {showFS && <FrontendSummary json={fs_json} toggleFS={toggleFrontEndSummaryDisplay}/>}
             {showMVO && <MVOSummary json={mvo_json} toggleMVO={toggleMVOMetrics}/>}
             {showDA_PC && <Data_Association_PC json={da_json} toggleDA_PC={toggleDataAssoc_PointCloud}/>}
+            {/* {showTSS && <TranSuccessSummary json={fs_json.translation.success_count} toggleTSS={toggleTranSummaryDisplay}/>} */}
+            {showRSS && <RotSuccessSummary json={fs_json} toggleRSS={toggleRotSummaryDisplay}/>}
 
             <div className="gtsfm_graph">
                 <DivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 0)} leftOffset={formatPercent(leftShift, 0)} text={'Scene Image Directories'}/>
@@ -89,15 +97,15 @@ const DivGraph = (props) => {
                 <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 15)} leftOffset={formatPercent(leftShift, 60)} text={'Putative Correspondence Indices'}/>
                 <DivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 8)} leftOffset={formatPercent(leftShift, 69)} text={'Verifier'}/>
                 <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 8)} leftOffset={formatPercent(leftShift, 75)} text={'E matrix'}/>
-                <PPDivNode json={fs_json} toggleFS={toggleFrontEndSummaryDisplay} textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 8)} leftOffset={formatPercent(leftShift, 84)} text={'Post-Processor'}/>
+                <PPDivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 8)} leftOffset={formatPercent(leftShift, 84)} text={'Post-Processor'}/>
                 <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 21)} leftOffset={formatPercent(leftShift, 72)} text={'Verified Correspondence Indices'}/>
-                <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 21)} leftOffset={formatPercent(leftShift, 79)} text={'relative Rs: i2_r_i1'}/>
-                <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 21)} leftOffset={formatPercent(leftShift, 87)} text={'relative Ts: i2_t_i1'}/>
+                <RelativeRsDivNode toggleRot={toggleRotSummaryDisplay} textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 21)} leftOffset={formatPercent(leftShift, 79)} text={'relative Rs: i2Ri1'}/>
+                <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 21)} leftOffset={formatPercent(leftShift, 87)} text={'relative ts: i2ti1'}/>
                 <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 70)} leftOffset={formatPercent(leftShift, 10)} text={'Images'}/>
                 <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 38)} leftOffset={formatPercent(leftShift, 8)} text={'Output Directory'}/>
                 <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 45)} leftOffset={formatPercent(leftShift, 9)} text={'SFMResult as files'}/>
                 <DivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 43)} leftOffset={formatPercent(leftShift, 19)} text={'File Writer'}/>
-                <OptDivNode json={mvo_json} toggleMVO={toggleMVOMetrics} textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 43)} leftOffset={formatPercent(leftShift, 28)} text={'Optimizer'}/>
+                <OptDivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 43)} leftOffset={formatPercent(leftShift, 28)} text={'Optimizer'}/>
                 <SFMResultDivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 53)} leftOffset={formatPercent(leftShift, 25)} text={'SFMResult (including Sparse Point Cloud, Optimized Intrinsics, absolute Rs, absolute Ts)'}/>
                 <DivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 83)} leftOffset={formatPercent(leftShift, 32)} text={'MVSNet'}/>
                 <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 83)} leftOffset={formatPercent(leftShift, 25)} text={'Dense Point Cloud'}/>
@@ -105,17 +113,17 @@ const DivGraph = (props) => {
                 <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 83)} leftOffset={formatPercent(leftShift, 10)} text={'Dense Mesh Reconstruction'}/>
                 <DivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 83)} leftOffset={formatPercent(leftShift, 1)} text={'Aggregate'}/>
                 <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 63)} leftOffset={formatPercent(leftShift, 1)} text={'Zipped Results for All Scenes'}/>
-                <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 40)} leftOffset={formatPercent(leftShift, 34)} text={'SfMData'}/>
-                <DADivNode json={da_json} toggleDA_PC={toggleDataAssoc_PointCloud} textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 40)} leftOffset={formatPercent(leftShift, 42)} text={'Data Association w/ Track Filtering'}/>
+                <SfMDataDivNode json={da_json} toggleDA_PC={toggleDataAssoc_PointCloud} textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 40)} leftOffset={formatPercent(leftShift, 34)} text={'SfMData'}/>
+                <DivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 40)} leftOffset={formatPercent(leftShift, 42)} text={'Data Association w/ Track Filtering'}/>
                 <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 53)} leftOffset={formatPercent(leftShift, 45)} text={'Bundler Pinhole Cameras'}/>
                 <DivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 53)} leftOffset={formatPercent(leftShift, 53)} text={'Bundler Calibrator'}/>
                 <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 43)} leftOffset={formatPercent(leftShift, 60)} text={'absolute Ts'}/>
                 <DivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 43)} leftOffset={formatPercent(leftShift, 68)} text={'1d-SfM'}/>
-                <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 43)} leftOffset={formatPercent(leftShift, 76)} text={'relative Ts (2): i2_t_i1'}/>
+                <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 43)} leftOffset={formatPercent(leftShift, 76)} text={'relative ts (2): i2ti1'}/>
                 <DivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 43)} leftOffset={formatPercent(leftShift, 86)} text={'Largest Connected Component Extractor'}/>
                 <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 63)} leftOffset={formatPercent(leftShift, 65)} text={'absolute Rs'}/>
                 <DivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 65)} leftOffset={formatPercent(leftShift, 76)} text={'Shonan'}/>
-                <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 65)} leftOffset={formatPercent(leftShift, 87)} text={'relative Rs (2): i2_R_i1'}/>
+                <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 65)} leftOffset={formatPercent(leftShift, 87)} text={'relative Rs (2): i2Ri1'}/>
         
                 {arrowList}
                 <div className="scene_optimizer_plate">
@@ -124,10 +132,10 @@ const DivGraph = (props) => {
                 <div className="feature_extractor_plate">
                     <p style={{color: 'red', fontWeight: 'bold'}}>Feature Extractor Images</p>
                 </div>
-                <div className="two_view_estimator_plate">
+                <div className="two_view_estimator_plate" onClick={(fs_json) ? (() => toggleFrontEndSummaryDisplay(true)) : (null)}>
                     <p style={{color: 'red', fontWeight: 'bold'}}>TwoViewEstimator</p>
                 </div>
-                <div className="multiview_optimizer_plate">
+                <div className="multiview_optimizer_plate" onClick={(mvo_json) ? (() => toggleMVOMetrics(true)) : (null)}>
                     <p style={{color: 'red', fontWeight: 'bold'}}>MultiViewEstimator</p>
                 </div>
             </div>

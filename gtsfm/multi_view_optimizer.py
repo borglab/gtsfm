@@ -28,6 +28,7 @@ from gtsfm.averaging.translation.translation_averaging_base import (
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.data_association.data_assoc import DataAssociation
 
+RESULT_METRICS_REACT_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
 
 class MultiViewOptimizer:
     def __init__(
@@ -92,6 +93,10 @@ class MultiViewOptimizer:
         saved_metrics_graph = dask.delayed(io.save_json_file)(
             "result_metrics/multiview_optimizer_metrics.json", metrics_graph
         )
+        saved_metrics_react_graph = dask.delayed(io.save_json_file)(
+            os.path.join(RESULT_METRICS_REACT_PATH, "multiview_optimizer_metrics.json"), metrics_graph
+        )
+
         return ba_input_graph, ba_result_graph, saved_metrics_graph
 
 

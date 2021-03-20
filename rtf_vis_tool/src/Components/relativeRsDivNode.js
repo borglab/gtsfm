@@ -1,6 +1,6 @@
 import React from "react";
 
-const OptDivNode = (props) => {
+const relativeRsDivNode = (props) => {
     const divNodeStyle = {
         position: 'absolute',
         top: props.topOffset,
@@ -17,14 +17,16 @@ const OptDivNode = (props) => {
         paddingLeft: '5px',
         cursor: 'pointer',
         maxWidth: '5%',
+        zIndex: 2
     }
 
     return (
         <div id={props.text} 
-            style={divNodeStyle}>
+            style={divNodeStyle} 
+            onClick={() => props.toggleRot(true)}>
             <p style={{fontSize: '75%', color: props.textColor}}>{props.text}</p>
         </div>
     )
 }
 
-export default OptDivNode;
+export default relativeRsDivNode;

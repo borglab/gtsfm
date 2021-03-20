@@ -17,6 +17,7 @@ const DivNode = (props) => {
         paddingLeft: '5px',
         cursor: 'pointer',
         maxWidth: '5%',
+        zIndex: 2
     }
 
     return (

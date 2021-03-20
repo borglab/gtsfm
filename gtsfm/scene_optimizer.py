@@ -36,6 +36,7 @@ PLOT_PATH = "plots"
 PLOT_CORRESPONDENCE_PATH = os.path.join(PLOT_PATH, "correspondences")
 METRICS_PATH = "result_metrics"
 RESULTS_PATH = "results"
+RESULT_METRICS_REACT_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
 
 """
 data type for frontend metrics on a pair of images, containing:
@@ -373,6 +374,7 @@ def persist_frontend_metrics_full(
     ]
 
     io_utils.save_json_file(os.path.join(METRICS_PATH, "frontend_full.json"), metrics_list)
+    io_utils.save_json_file(os.path.join(RESULT_METRICS_REACT_PATH, "frontend_full.json"), metrics_list)
 
 
 def aggregate_frontend_metrics(
@@ -448,3 +450,4 @@ def aggregate_frontend_metrics(
     }
 
     io_utils.save_json_file(os.path.join(METRICS_PATH, "frontend_summary.json"), front_end_result_info)
+    io_utils.save_json_file(os.path.join(RESULT_METRICS_REACT_PATH, "frontend_summary.json"), front_end_result_info)

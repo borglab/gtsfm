@@ -1,22 +1,23 @@
-.fs_container {
+.rot_container {
     position: absolute;
-    top: 20%;
+    top: 35%;
     right: 10%;
     z-index: 3;
     border: 3px solid black;
     background-color: #e3d9bc;
-    width: 20%;
-    height: 40%;
+    width: 18%;
+    height: 10%;
     border-radius: 5px;
     padding: 1%;
 }
 
-.go_back_btn {
+.rot_go_back_btn {
     position: absolute;
-    right: 10px;
+    right: 0px;
+    bottom: 30px;
     cursor: pointer;
 }
 
-.fs-text {
+.rot_fs-text {
     font-weight: 600;
 }

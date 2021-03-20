@@ -8,17 +8,9 @@ import PCViewer from "./Components/PCViewer";
 extend({OrbitControls})
 
 const App = (props) => {
-  const showGraph = "divGraph"; //temporary display value
-
-  if (showGraph == "divGraph") {
-    return (
-      <DivGraph/>
-    )
-  } else {
-    return (
-      <PCViewer/>
-    )
-  }
+  return (
+    <DivGraph/>
+  )
 }
 
 export default App;

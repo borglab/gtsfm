@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "@pnext/three-loader": "^0.2.3-beta.2",
     "@testing-library/jest-dom": "^5.11.8",
     "@testing-library/react": "^11.2.3",
     "@testing-library/user-event": "^12.6.0",
@@ -13,9 +12,7 @@
     "numjs": "https://github.com/nicolaspanel/numjs",
     "quaternion": "^1.1.0",
     "react": "^17.0.1",
-    "react-d3-graph": "^2.6.0",
     "react-dom": "^17.0.1",
-    "react-hook-form": "^6.14.1",
     "react-scripts": "4.0.1",
     "react-spring": "^8.0.27",
     "react-three-fiber": "^5.3.12",

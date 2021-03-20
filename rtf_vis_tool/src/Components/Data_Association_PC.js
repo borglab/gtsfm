@@ -17,24 +17,22 @@ const Data_Association_PC = (props) => {
     //render points from data association json file (passed in through props)
     useEffect(() => {
         var finalPointsJSX = [];
-        const scale = 1;
         for (var i = 0; i < props.json.length; i += 1) {
-            //const point = props.json[i];
-
-            //swap Y and Z to convert file's Z coords into RTF's Y coords
-
-            // finalPointsJSX.push(<SpriteMesh  position={[scale*point[0], scale*point[2], scale*point[1]]}  
-            //     widthArgs={[0.1,0.1]} 
-            //     color={`rgb(0, 0, 0)`} />);
+            const x_angle = (Math.PI/180) * 55;
+            const y_angle = (Math.PI/180) * 30;
+            const x_mod = Math.cos(y_angle)*props.json[i][0] + (Math.sin(y_angle)*Math.sin(x_angle))*props.json[i][1] + (Math.sin(y_angle)*Math.cos(x_angle))*props.json[i][2]; 
+            const y_mod = Math.cos(x_angle)*props.json[i][1] - Math.sin(x_angle)*props.json[i][2]
+            const z_mod = -1*Math.sin(y_angle)*props.json[i][0] + (Math.cos(y_angle)*Math.sin(x_angle))*props.json[i][1] + (Math.cos(y_angle)*Math.cos(x_angle))*props.json[i][2]; 
 
             finalPointsJSX.push(<PointMesh 
-                position={[scale*props.json[i][0], scale*props.json[i][2], scale*props.json[i][1]]} 
+                position={[x_mod, z_mod, y_mod]} 
                 color={`rgb(163, 168, 165)`}
-                size={[0.35,8,8]}
+                size={[0.2,8,8]}
             />)
-
-            finalPointsJSX.push()
         }
+
+            // end of test points
+
         setPointCloud(finalPointsJSX);
     }, []);
 
@@ -43,7 +41,6 @@ const Data_Association_PC = (props) => {
             <h2>Data Association Point Cloud</h2>
             <Canvas colorManagement camera={{ fov: 20, position: [50, 50, 50]}}>
                 <ambientLight intensity={0.5}/>
-                {/* <pointLight position={[0, 0, 20]} intensity={0.5}/>  */}
                 <pointLight position={[100, 100, 100]} intensity={1} castShadow />
                 <pointLight position={[-100, -100, -100]} intensity={0.8}/>
                 <directionalLight 

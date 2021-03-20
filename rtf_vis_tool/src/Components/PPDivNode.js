@@ -21,8 +21,7 @@ const PPDivNode = (props) => {
 
     return (
         <div id={props.text} 
-            style={divNodeStyle} 
-            onClick={(props.json) ? (() => props.toggleFS(true)) : (null)}>
+            style={divNodeStyle}>
             <p style={{fontSize: '75%', color: props.textColor}}>{props.text}</p>
         </div>
     )
