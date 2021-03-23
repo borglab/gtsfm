@@ -1,40 +1,42 @@
-# Visualization Tool for Rendering 3D Point Clouds
+# GTSFM Pipeline Visualization Tool
 
-This project was created with React and React-Three-Fiber for 3D rendering.
+This project was created with React for viewing metrics related to the various processes within the GTSFM pipeline. Also used to view resulting point clouds using React Three Fiber.
 
-## Available Scripts
+## Setup
+1. After cloning the repository, [install Node.js](https://nodejs.org/en/download/). Node.js serves as JavaScript runtime environment which the React application will run on.
 
-In the project directory, you can run:
+2. To verify Node's installation, in the terminal, run:
+```bash
+node -v
+```
 
-### `npm start`
+3. Run the scene_optimizer to test GTSFM on the sample lund door dataset:
+```bash
+python gtsfm/runner/run_scene_optimizer.py
+```
+This will overwrite all the summary metric files within the `result_metrics` directory
 
-Runs the app in the development mode.\
+4. Now, inside the React environment, run the web application:
+```bash
+cd rtf_vis_tool
+npm start
+```
 Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
 
-### `npm test`
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## Repository Structure
+- `node_modules`: internal packages used throughout the application. Don't edit these.
+- `public`: contains index.html file 
+- `src`
+    - `Components`: contains all React components used for rendering graph nodes, summaries, point cloud viewers, etc...
+    - `result_metrics`: folder generated from running `python gtsfm/runner/run_scene_optimizer.py`. These metrics are displayed on the application
+    - `stylesheets`: css files relating to different JS Components
+    - `ViewFrustum_Ported`: SE3 and View_Frustum classes rewritten in JS. Used to render camera frustums in point cloud.
+- `package-lock.json` & `package.json`: lists the dependencies for this react project. Don't edit these.
 
-### `npm run build`
+## GTSFM Pipeline Graph Information
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
-
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
-
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+TwoViewEstimator Plate: displays frontned summary metrics  
+MultiViewEstimor Plate: displays multiview optimizer metrics  
+'SfMData' Node: displays the point cloud after data association

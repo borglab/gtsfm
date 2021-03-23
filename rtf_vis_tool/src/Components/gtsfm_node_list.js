@@ -51,20 +51,4 @@ for (var i = 0; i < gtsfm_node_set.length; i++) {
     node_set_formatted.push({id: gtsfm_node_set[i]});
 }
 
-//temporary
-var node_sample = [{
-    id: 'Scene Image Directories',
-    x: 100,
-    y: 100
-}, {
-    id: 'Scene Looper',
-    x: 500,
-    y: 200
-}, {
-    id: 'Scene Directory',
-    x: 900,
-    y:300
-}]
-//DELETE later
-
 module.exports = node_set_formatted;
