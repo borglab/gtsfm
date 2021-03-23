@@ -75,8 +75,8 @@ class OlssonLoader(LoaderBase):
         self._K = M_list[0][:3,:3]
         Kinv = np.linalg.inv(self._K)
 
-        # decode camera poses as:
-        # # K^{-1} @ M = cTw
+        # decode camera poses as: 
+        #    K^{-1} @ M = cTw
         iTw_list = [ Kinv @ M_list[i] for i in range(self._num_imgs)]
         self._wTi_list = [Pose3(Rot3(iTw[:3,:3]), iTw[:,3]).inverse() for iTw in iTw_list ]
 
