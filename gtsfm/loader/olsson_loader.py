@@ -1,4 +1,4 @@
-"""Simple loader class that reads Carl Olsson's dataset from a folder on disk.
+"""Simple loader class that reads any of Carl Olsson's datasets from a folder on disk.
 
 Authors: John Lambert
 """
@@ -18,7 +18,7 @@ from gtsfm.loader.loader_base import LoaderBase
 
 
 class OlssonLoader(LoaderBase):
-    """Simple loader class that reads Carl Olsson's dataset from a folder on disk.
+    """Simple loader class that reads any of Carl Olsson's datasets from a folder on disk.
 
     Ref: http://www.maths.lth.se/matematiklth/personal/calle/dataset/dataset.html
 
