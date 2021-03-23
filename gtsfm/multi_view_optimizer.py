@@ -83,6 +83,9 @@ class MultiViewOptimizer:
                 os.path.join("result_metrics", "data_association_metrics.json"), data_assoc_metrics_graph
             )
         ]
+        dask.delayed(io.save_json_file)(
+            os.path.join(RESULT_METRICS_REACT_PATH, "data_association_metrics.json"), data_assoc_metrics_graph
+        )
 
         # dummy graph to force an immediate dump of data association metrics
         ba_input_graph = dask.delayed(lambda x, y: (x, y))(ba_input_graph, auxiliary_graph_list)[0]
