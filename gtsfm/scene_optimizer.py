@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid, John Lambert
 """
+import copy
 import logging
 import os
 from typing import Dict, List, Optional, Tuple
@@ -301,11 +302,14 @@ def visualize_camera_poses(
     fig = plt.figure()
     ax = fig.gca(projection="3d")
 
+    if gt_pose_graph is not None:
+        # ground truth is used as the reference
+        pre_ba_poses = comp_utils.align_poses_sim3(gt_pose_graph, copy.deepcopy(pre_ba_poses))
+        post_ba_poses = comp_utils.align_poses_sim3(gt_pose_graph, copy.deepcopy(post_ba_poses))
+        viz_utils.plot_poses_3d(gt_pose_graph, ax, center_marker_color="m", label_name="GT")
+
     viz_utils.plot_poses_3d(pre_ba_poses, ax, center_marker_color="c", label_name="Pre-BA")
     viz_utils.plot_poses_3d(post_ba_poses, ax, center_marker_color="k", label_name="Post-BA")
-    if gt_pose_graph is not None:
-        gt_pose_graph = comp_utils.align_poses_sim3(post_ba_poses, gt_pose_graph)
-        viz_utils.plot_poses_3d(gt_pose_graph, ax, center_marker_color="m", label_name="GT")
 
     ax.legend(loc="upper left")
     viz_utils.set_axes_equal(ax)
