@@ -29,15 +29,23 @@ class OlssonLoader(LoaderBase):
     If explicit intrinsics are not provided, the exif data will be used.
     """
 
-    def __init__(self, folder: str, image_extension: str = "jpg", use_gt_intrinsics: bool = True) -> None:
+    def __init__(
+        self,
+        folder: str,
+        image_extension: str = "jpg",
+        use_gt_intrinsics: bool = True,
+        use_gt_extrinsics: bool = True,
+    ) -> None:
         """Initializes to load from a specified folder on disk.
 
         Args:
             folder: the base folder for a given scene
             image_extension: file extension for the image files. Defaults to 'jpg'.
             use_gt_intrinsics: whether to use ground truth intrinsics
+            use_gt_extrinsics: whether to use ground truth extrinsics
         """
         self._use_gt_intrinsics = use_gt_intrinsics
+        self._use_gt_extrinsics = use_gt_extrinsics
 
         # fetch all the file names in /images folder
         search_path = os.path.join(folder, "images", f"*.{image_extension}")
@@ -51,7 +59,8 @@ class OlssonLoader(LoaderBase):
         cam_matrices_fpath = os.path.join(folder, "data.mat")
         if not Path(cam_matrices_fpath).exists():
             # not available, so no choice
-            self.use_gt_intrinsics = False
+            self._use_gt_intrinsics = False
+            self._use_gt_extrinsics = False
             return
 
         # stores camera poses (extrinsics) and intrinsics as 3x4 projection matrices
@@ -132,8 +141,7 @@ class OlssonLoader(LoaderBase):
         Returns:
             the camera pose w_T_index.
         """
-        if not self._use_gt_intrinsics:
-            # poses also not available
+        if not self._use_gt_extrinsics:
             return None
 
         wTi = self._wTi_list[index]
