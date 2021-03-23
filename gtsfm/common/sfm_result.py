@@ -46,16 +46,17 @@ class SfmResult(NamedTuple):
         """
         return [self.sfm_data.camera(i).pose() for i in range(self.sfm_data.number_cameras())]
 
-    def get_track_length_statistics(self) -> Tuple[float, float]:
+    def get_track_length_statistics(self) -> Tuple[float, float, np.ndarray]:
         """Compute mean and median lengths of all the tracks.
 
         Returns:
             Mean track length.
             Median track length.
+            Array containing all track lengths.
         """
         track_lengths = [self.sfm_data.track(j).number_measurements() for j in range(self.sfm_data.number_tracks())]
 
-        return np.mean(track_lengths), np.median(track_lengths)
+        return np.mean(track_lengths), np.median(track_lengths), np.array(track_lengths)
 
     def __validate_track(self, track: SfmTrack, reproj_err_thresh: float) -> bool:
         """Validates a track based on reprojection errors and cheirality checks.
