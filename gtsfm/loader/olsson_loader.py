@@ -30,8 +30,7 @@ class OlssonLoader(LoaderBase):
     """
 
     def __init__(self, folder: str, image_extension: str = "jpg", use_gt_intrinsics: bool = True) -> None:
-        """
-        Initializes to load from a specified folder on disk
+        """Initializes to load from a specified folder on disk
 
         Args:
             folder: the base folder for a given scene
@@ -74,8 +73,7 @@ class OlssonLoader(LoaderBase):
 
 
     def __len__(self) -> int:
-        """
-        The number of images in the dataset.
+        """The number of images in the dataset.
 
         Returns:
             the number of images.
@@ -83,8 +81,7 @@ class OlssonLoader(LoaderBase):
         return self.num_imgs
 
     def get_image(self, index: int) -> Image:
-        """
-        Get the image at the given index.
+        """Get the image at the given index.
 
         Args:
             index: the index to fetch.
