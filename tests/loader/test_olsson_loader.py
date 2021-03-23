@@ -69,7 +69,11 @@ class TestFolderLoader(unittest.TestCase):
         fetched_pose = self.loader.get_camera_pose(1)
 
         wRi_expected = np.array(
-            [[0.998079, 0.015881, 0.0598844], [-0.0161175, 0.999864, 0.00346851], [-0.0598212, -0.00442703, 0.998199]]
+            [
+                [0.998079, 0.015881, 0.0598844],
+                [-0.0161175, 0.999864, 0.00346851],
+                [-0.0598212, -0.00442703, 0.998199],
+            ]
         )
         wti_expected = np.array([-0.826311, -0.00409053, 0.111315])
 
@@ -92,13 +96,17 @@ class TestFolderLoader(unittest.TestCase):
         expected_py = 932.382
 
         computed = self.loader.get_camera_intrinsics(5)
-        expected = Cal3Bundler(fx=expected_fx, k1=0, k2=0, u0=expected_px, v0=expected_py)
+        expected = Cal3Bundler(
+            fx=expected_fx, k1=0, k2=0, u0=expected_px, v0=expected_py
+        )
 
         self.assertTrue(expected.equals(computed, 1e-3))
 
     def test_get_camera_intrinsics_exif(self):
         """Tests getter for intrinsics when explicit numpy arrays are absent and we fall back on exif."""
-        loader = OlssonLoader(EXIF_FOLDER, image_extension="JPG", use_gt_intrinsics=False)
+        loader = OlssonLoader(
+            EXIF_FOLDER, image_extension="JPG", use_gt_intrinsics=False
+        )
         computed = loader.get_camera_intrinsics(5)
         expected = Cal3Bundler(fx=2378.983, k1=0, k2=0, u0=648.0, v0=968.0)
         self.assertTrue(expected.equals(computed, 1e-3))
@@ -118,8 +126,12 @@ class TestFolderLoader(unittest.TestCase):
         results = dask.compute(image_graph)[0]
 
         # randomly check image loads from a few indices
-        np.testing.assert_allclose(results[5].value_array, self.loader.get_image(5).value_array)
-        np.testing.assert_allclose(results[7].value_array, self.loader.get_image(7).value_array)
+        np.testing.assert_allclose(
+            results[5].value_array, self.loader.get_image(5).value_array
+        )
+        np.testing.assert_allclose(
+            results[7].value_array, self.loader.get_image(7).value_array
+        )
 
     def test_create_computation_graph_for_intrinsics(self):
         """Tests the graph for all intrinsics."""
