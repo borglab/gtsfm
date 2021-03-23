@@ -1,24 +1,27 @@
 import React, {useEffect, useState} from "react";
 import Xarrow from "react-xarrows";
-
-import EdgeList from './gtsfm_edge_list.js';
-import DivNode from './DivNode';
-import PPDivNode from './PPDivNode';
-import OptDivNode from './OptDivNode';
-import SfMDataDivNode from './SfMDataDivNode';
-import SFMResultDivNode from './SFMResultDivNode';
-import RelativeRsDivNode from './relativeRsDivNode';
-import FrontendSummary from './FrontendSummary';
-import RotSuccessSummary from './RotSuccessSummary';
-import TranSuccessSummary from './TranSuccessSummary';
-import MVOSummary from './MVOSummary';
-import Data_Association_PC from './Data_Association_PC';
 import '../stylesheets/DivGraph.css'
 
+//Loading Components
+import Data_Association_PC from './Data_Association_PC';
+import DivNode from './DivNode';
+import EdgeList from './gtsfm_edge_list.js';
+import FrontendSummary from './FrontendSummary';
+import MVOSummary from './MVOSummary';
+import OptDivNode from './OptDivNode';
+import PPDivNode from './PPDivNode';
+import RelativeRsDivNode from './relativeRsDivNode';
+import SfMDataDivNode from './SfMDataDivNode';
+import SFMResultDivNode from './SFMResultDivNode';
+import RotSuccessSummary from './RotSuccessSummary';
+import TranSuccessSummary from './TranSuccessSummary';
+
+//json files in result_metrics folders to display summary metrics
+import data_association_json from '.././result_metrics/data_association_metrics.json';
 import frontend_summary_json from '.././result_metrics/frontend_summary.json';
 import multiview_optimizer_json from '.././result_metrics/multiview_optimizer_metrics.json';
-import data_association_json from '.././result_metrics/data_association_metrics.json';
 
+//main component to display GTSFM graph (what user first sees)
 const DivGraph = (props) => {
     const [arrowList, setArrowList] = useState([]);
     const leftShift = 0;

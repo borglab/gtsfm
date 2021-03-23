@@ -1,7 +1,7 @@
 import React from "react";
 import * as THREE from "three/build/three";
 
-//Component
+//Planar Points - Fast Rendering
 const SpriteMesh = (props) => {
     return (
       <sprite

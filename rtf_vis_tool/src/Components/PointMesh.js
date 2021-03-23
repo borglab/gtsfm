@@ -1,6 +1,6 @@
 import React from "react";
 
-//Unused - Slow Rendering
+//Spherical Points - Slow Rendering
 const PointMesh = (props) => {
     return (
       <mesh position={props.position}>

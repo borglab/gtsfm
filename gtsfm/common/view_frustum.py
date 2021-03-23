@@ -57,8 +57,7 @@ class ViewFrustum:
             ]
         )
 
-        ray_dirs = compute_pixel_ray_directions_vectorized(
-            uv, self.fx_, self.img_w_, self.img_h_)
+        ray_dirs = compute_pixel_ray_directions_vectorized(uv, self.fx_, self.img_w_, self.img_h_)
         v0 = ray_dirs[0] * 0
         v1 = ray_dirs[1] * self.frustum_ray_len_
         v2 = ray_dirs[2] * self.frustum_ray_len_

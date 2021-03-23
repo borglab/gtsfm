@@ -3,11 +3,13 @@ import {Canvas, extend} from "react-three-fiber";
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls';
 import '.././stylesheets/PCViewer.css'
 
-import SpriteMesh from './SpriteMesh';
+//Loading Components
 import CoordinateGrid from './CoordinateGrid';
-import RenderFrustum from './RenderFrustum';
 import OrbitControlsComponent from './OrbitControlsComponent';
+import RenderFrustum from './RenderFrustum';
+import SpriteMesh from './SpriteMesh';
 
+//Loading SE3 classes for camera frustum rendering
 var nj = require('numjs');
 var Quaternion = require('quaternion');
 var ViewFrustum = require('.././ViewFrustum_Ported/view_frustum.js');
@@ -23,7 +25,7 @@ const PCViewer = (props) => {
     const [frustums, setFrustums] = useState([]);
     const [numCams, setNumCams] = useState(0);
 
-    //Function
+    //Function: reads an inputted ASCII point cloud file and saves its values
     const readPointsFile = (e) => {
         e.preventDefault();
         const reader = new FileReader();
@@ -34,7 +36,7 @@ const PCViewer = (props) => {
         }
     }
 
-    //Function
+    //Function: reads a camera intrinsics file (from COLMAP) and saves its values
     const readIntrinsicsFile = (e) => {
         e.preventDefault();
         const reader = new FileReader();
@@ -45,7 +47,7 @@ const PCViewer = (props) => {
         }
     }
 
-    //Function
+    //Function: reads a camera extrinsics file (from COLMAP) and saves its values
     const readExtrinsicsFile = (e) => {
         e.preventDefault();
         const reader = new FileReader();
@@ -56,7 +58,7 @@ const PCViewer = (props) => {
         }
     }
 
-    //Function
+    //Function: uses intrinsics and extrinsics to render camera frustums in React Three Fiber
     const visualize_camera_frustums = () => {
         //load intrinsics file
         const startPointIndex = rawIntrinsicString.indexOf("# Number of cameras:");
@@ -72,52 +74,52 @@ const PCViewer = (props) => {
         var finalFrustumsJSX = [];
         // combine intrinsics + extrinsics to render frustums
         for (var i = 0; i < numCams; i++) {
-        var inCamArray = in_cameraList[i].split(" ");
-        var exCamArray = ex_cameraList[i].split(" ");
+            var inCamArray = in_cameraList[i].split(" ");
+            var exCamArray = ex_cameraList[i].split(" ");
 
-        //IMPORTANT VARIABLES
-        var fx, img_w, img_h, qw, qx, qy, qz, tx, ty, tz;
+            //IMPORTANT VARIABLES
+            var fx, img_w, img_h, qw, qx, qy, qz, tx, ty, tz;
 
-        if (inCamArray[0] !== exCamArray[0]) {
-            alert("Error: Cam IDs in Intrinsic and Extrinsic Files Don't Match.");
-            break;
-        }
+            if (inCamArray[0] !== exCamArray[0]) {
+                alert("Error: Cam IDs in Intrinsic and Extrinsic Files Don't Match.");
+                break;
+            }
 
-        inCamArray = inCamArray.slice(2);
-        inCamArray = inCamArray.map(Number);
-        exCamArray = exCamArray.map(Number);
+            inCamArray = inCamArray.slice(2);
+            inCamArray = inCamArray.map(Number);
+            exCamArray = exCamArray.map(Number);
 
-        img_w = inCamArray[0];
-        img_h = inCamArray[1];
-        fx = inCamArray[2];
-        qw = exCamArray[1];
-        qx = exCamArray[2];
-        qy = exCamArray[3];
-        qz = exCamArray[4];
-        tx = exCamArray[5];
-        ty = exCamArray[6];
-        tz = exCamArray[7];
+            img_w = inCamArray[0];
+            img_h = inCamArray[1];
+            fx = inCamArray[2];
+            qw = exCamArray[1];
+            qx = exCamArray[2];
+            qy = exCamArray[3];
+            qz = exCamArray[4];
+            tx = exCamArray[5];
+            ty = exCamArray[6];
+            tz = exCamArray[7];
 
-        //frustum + se3 creating and rendering
-        var frustumObj = new ViewFrustum(fx, img_w, img_h);
-        var q = new Quaternion(qw, qx, qy, qz) //w,x,y,z
-        var rotation_matrix = q.toMatrix(true);
-        var rotation = nj.array(rotation_matrix);
-        var translation = nj.array([tx, ty, tz]);
-        var wTc = new SE3(rotation, translation);
-        var verts_worldfr = frustumObj.get_mesh_vertices_worldframe(wTc);
-        
-        finalFrustumsJSX.push(<RenderFrustum v0={[verts_worldfr[0].get(0,0),verts_worldfr[0].get(0,1),verts_worldfr[0].get(0,2)]} 
-            v1={[verts_worldfr[1].get(0,0),verts_worldfr[1].get(0,1),verts_worldfr[1].get(0,2)]} 
-            v2={[verts_worldfr[2].get(0,0),verts_worldfr[2].get(0,1),verts_worldfr[2].get(0,2)]} 
-            v3={[verts_worldfr[3].get(0,0),verts_worldfr[3].get(0,1),verts_worldfr[3].get(0,2)]} 
-            v4={[verts_worldfr[4].get(0,0),verts_worldfr[4].get(0,1),verts_worldfr[4].get(0,2)]}
-            width={0.5}/>);
+            //frustum + se3 creating and rendering
+            var frustumObj = new ViewFrustum(fx, img_w, img_h);
+            var q = new Quaternion(qw, qx, qy, qz) //w,x,y,z
+            var rotation_matrix = q.toMatrix(true);
+            var rotation = nj.array(rotation_matrix);
+            var translation = nj.array([tx, ty, tz]);
+            var wTc = new SE3(rotation, translation);
+            var verts_worldfr = frustumObj.get_mesh_vertices_worldframe(wTc);
+            
+            finalFrustumsJSX.push(<RenderFrustum v0={[verts_worldfr[0].get(0,0),verts_worldfr[0].get(0,1),verts_worldfr[0].get(0,2)]} 
+                v1={[verts_worldfr[1].get(0,0),verts_worldfr[1].get(0,1),verts_worldfr[1].get(0,2)]} 
+                v2={[verts_worldfr[2].get(0,0),verts_worldfr[2].get(0,1),verts_worldfr[2].get(0,2)]} 
+                v3={[verts_worldfr[3].get(0,0),verts_worldfr[3].get(0,1),verts_worldfr[3].get(0,2)]} 
+                v4={[verts_worldfr[4].get(0,0),verts_worldfr[4].get(0,1),verts_worldfr[4].get(0,2)]}
+                width={0.5}/>);
         }
         setFrustums(finalFrustumsJSX);
     }
     
-    //Function
+    //Function: reads a point cloud file (from COLMAP) and saves its values
     const visualize_3D_Points_File = () => {
         var arrStringPoints = rawFileString.split('\n');
         

@@ -1,7 +1,7 @@
 import React from "react";
 import LineMesh from './LineMesh'
 
-//Function
+//Function: swaps Y and Z coordinates of a point to suit RTF coordinate system
 const swapYZ = (coords) => {
     const tempY = coords[1]
     coords[1] = coords[2]

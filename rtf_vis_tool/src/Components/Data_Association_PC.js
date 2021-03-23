@@ -3,14 +3,16 @@ import {Canvas, extend} from "react-three-fiber";
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls';
 import '../stylesheets/Data_Association_PC.css';
 
-import SpriteMesh from './SpriteMesh';
+//Loading Components
 import CoordinateGrid from './CoordinateGrid';
 import OrbitControlsComponent from './OrbitControlsComponent';
 import PointMesh from './PointMesh';
+import SpriteMesh from './SpriteMesh';
 
-
+//allows user to orbit and pan around the point cloud
 extend({OrbitControls})
 
+//point cloud renderer component in the 'SfMData' Node
 const Data_Association_PC = (props) => {
     const [pointCloud, setPointCloud] = useState([]);
 

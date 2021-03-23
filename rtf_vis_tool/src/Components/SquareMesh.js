@@ -1,7 +1,7 @@
 import React from "react";
 import {DoubleSide} from 'three';
 
-//Unused - Doesn't face Camera
+//Square Points - don't always face camera
 const SquareMesh = (props) => {
     return (
       <mesh position={props.position}>

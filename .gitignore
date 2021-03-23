@@ -148,3 +148,20 @@ data/
 
 # Plot directory
 plots/
+
+#react files under /rtf_vis_tool directory
+node_modules/
+rtf_vis_tool/.eslintcache
+
+rtf_vis_tool/coverage
+rtf_vis_tool/build
+
+rtf_vis_tool/.DS_Store
+rtf_vis_tool/.env.local
+rtf_vis_tool/.env.development.local
+rtf_vis_tool/.env.test.local
+rtf_vis_tool/.env.production.local
+
+rtf_vis_tool/npm-debug.log*
+rtf_vis_tool/yarn-debug.log*
+rtf_vis_tool/yarn-error.log*
