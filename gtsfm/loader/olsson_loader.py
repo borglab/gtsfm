@@ -30,11 +30,11 @@ class OlssonLoader(LoaderBase):
     """
 
     def __init__(self, folder: str, image_extension: str = "jpg", use_gt_intrinsics: bool = True) -> None:
-        """Initializes to load from a specified folder on disk
+        """Initializes to load from a specified folder on disk.
 
         Args:
             folder: the base folder for a given scene
-            image_extension: (optional)extension for the image files. Defaults to 'jpg'.
+            image_extension: file extension for the image files. Defaults to 'jpg'.
             use_gt_intrinsics: whether to use ground truth intrinsics
         """
         self.use_gt_intrinsics = use_gt_intrinsics
@@ -48,15 +48,15 @@ class OlssonLoader(LoaderBase):
         self.image_paths.sort()
         self.num_imgs = len(self.image_paths)
 
-        file_path = os.path.join(folder, "data.mat")
-        if not Path(file_path).exists():
+        cam_matrices_fpath = os.path.join(folder, "data.mat")
+        if not Path(cam_matrices_fpath).exists():
             # not available, so no choice
             self.use_gt_intrinsics = False
             return
 
         # stores camera poses (extrinsics) and intrinsics as 3x4 projection matrices
         # 'P' array will have shape (1,num_imgs), and each element will be a (3,4) matrix
-        data = loadmat(file_path)
+        data = loadmat(cam_matrices_fpath)
 
         # M = K [R | t]
         # in GTSAM notation, M = K @ cTw
