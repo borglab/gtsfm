@@ -119,8 +119,7 @@ class ViewFrustum:
             edges_worldfr: array of shape (8,2,2) representing 8 polylines in world frame
         """
         v0, v1, v2, v3, v4 = self.get_frustum_vertices_camfr()
-        verts_worldfr = [wTc.transformFrom(Point3(vc)) for vc in [
-            v0, v1, v2, v3, v4]]
+        verts_worldfr = [wTc.transformFrom(Point3(vc)) for vc in [v0, v1, v2, v3, v4]]
         edges_worldfr = self.get_mesh_edges_from_verts(verts_worldfr)
         return edges_worldfr
 
