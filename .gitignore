@@ -4,6 +4,8 @@ gtsfm/densify/model/*
 gtsfm/densify/deprecated/*
 results_densify/*
 results/*
+results_densify/*
+gtsfm/densify/deprecated
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
