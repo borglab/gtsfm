@@ -16,7 +16,7 @@ from hydra.utils import instantiate
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 from gtsfm.common.sfm_result import SfmResult
-from gtsfm.loader.folder_loader import FolderLoader
+from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.scene_optimizer import SceneOptimizer
 from gtsfm.multi_view_optimizer import select_largest_connected_component
 
@@ -27,7 +27,7 @@ class TestSceneOptimizer(unittest.TestCase):
     """Unit test for SceneOptimizer, which runs SfM for a scene."""
 
     def setUp(self) -> None:
-        self.loader = FolderLoader(str(DATA_ROOT_PATH / "set1_lund_door"), image_extension="JPG")
+        self.loader = OlssonLoader(str(DATA_ROOT_PATH / "set1_lund_door"), image_extension="JPG")
         assert len(self.loader)
 
     def test_find_largest_connected_component(self):
@@ -76,21 +76,24 @@ class TestSceneOptimizer(unittest.TestCase):
 
     def test_create_computation_graph(self):
         """Will test Dask multi-processing capabilities and ability to serialize all objects."""
+        self.loader = OlssonLoader(str(DATA_ROOT_PATH / "set1_lund_door"), image_extension="JPG")
+
         use_intrinsics_in_verification = False
 
         with initialize_config_module(config_module="gtsfm.configs"):
 
             # config is relative to the gtsfm module
             cfg = compose(config_name="scene_optimizer_unit_test_config.yaml")
-            self.obj: SceneOptimizer = instantiate(cfg.SceneOptimizer)
+            obj: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
             # generate the dask computation graph
-            sfm_result_graph = self.obj.create_computation_graph(
+            sfm_result_graph = obj.create_computation_graph(
                 len(self.loader),
                 self.loader.get_valid_pairs(),
                 self.loader.create_computation_graph_for_images(),
                 self.loader.create_computation_graph_for_intrinsics(),
                 use_intrinsics_in_verification=use_intrinsics_in_verification,
+                gt_pose_graph=self.loader.create_computation_graph_for_poses(),
             )
 
             # create dask client
@@ -106,7 +109,12 @@ class TestSceneOptimizer(unittest.TestCase):
 
             expected_poses = [self.loader.get_camera_pose(i) for i in range(len(self.loader))]
 
-            self.assertTrue(comp_utils.compare_global_poses(poses, expected_poses))
+            self.assertTrue(comp_utils.compare_global_poses(
+                poses,
+                expected_poses,
+                rot_err_thresh=0.03,
+                trans_err_thresh=0.35
+            ))
 
 
 def generate_random_essential_matrix() -> EssentialMatrix:
