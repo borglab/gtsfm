@@ -24,5 +24,5 @@ pip install -e .
 # Run GTSFM unit tests
 ##########################################################
 
-cd $GITHUB_WORKSPACE/tests
-python -m unittest discover
+cd $GITHUB_WORKSPACE
+pytest tests
