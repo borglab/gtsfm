@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
-from gtsam import Cal3Bundler, Pose3
+from gtsam import Cal3Bundler, Pose3, Rot3
 from scipy.io import loadmat
 
 import gtsfm.utils.io as io_utils
@@ -47,7 +47,7 @@ class OlssonLoader(LoaderBase):
 
         # sort the file names
         self.image_paths.sort()
-        num_imgs = len(self.image_paths)
+        self.num_imgs = len(self.image_paths)
 
         file_path = os.path.join(folder, "data.mat")
         if not Path(file_path).exists():
@@ -56,12 +56,12 @@ class OlssonLoader(LoaderBase):
             return
 
         # stores camera poses (extrinsics) and intrinsics as 3x4 projection matrices
-        # Array will have shape (1,num_imgs), and each element will be a (3,4) matrix
+        # 'P' array will have shape (1,num_imgs), and each element will be a (3,4) matrix
         data = loadmat(file_path)
 
         # M = K [R | t]
         # in GTSAM notation, M = K @ cTw
-        M_list = [data['P'][0][i] for i in range(num_imgs)]
+        M_list = [data['P'][0][i] for i in range(self.num_imgs)]
 
         # first pose is identity, so K is immediate given
         self.K = M_list[0][:3,:3]
@@ -69,7 +69,8 @@ class OlssonLoader(LoaderBase):
 
         # decode camera poses as:
         # # K^{-1} @ M = cTw
-        self.iTw_list = [ Kinv @ M_list[i] for i in range(num_imgs)]
+        iTw_list = [ Kinv @ M_list[i] for i in range(self.num_imgs)]
+        self.wTi_list = [Pose3(Rot3(iTw[:3,:3]), iTw[:,3]).inverse() for iTw in iTw_list ]
 
 
     def __len__(self) -> int:
@@ -138,10 +139,8 @@ class OlssonLoader(LoaderBase):
             # poses also not available
             return None
 
-        iTw = self.iTw_list[index]
-        iTw = Pose3(iTw[:3,:3], iTw[:,3])
-
-        return iTw.inverse()
+        wTi = self.wTi_list[index]
+        return wTi
 
 
     def validate_pair(self, idx1: int, idx2: int) -> bool:
@@ -154,6 +153,5 @@ class OlssonLoader(LoaderBase):
         Returns:
             validation result.
         """
-
         return idx1 < idx2
 
