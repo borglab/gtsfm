@@ -48,7 +48,7 @@
 </p> -->
 
 * sample outputs depthmap & mesh of `tests/data/set1_lund_door/images/DSC_0004.JPG`. 
-  * origin image, gtsfm cams + mvsnet, COLMAP_cams + mvsnet, COLMAP only
+  * origin image, gtsfm cams + mvsnet, ground truth cams + mvsnet, COLMAP_cams + mvsnet, COLMAP only
  
 <p>
  <img src="../../tests/data/set1_lund_door/images/DSC_0004.JPG" height="250" style="margin-left:40px;"/>
@@ -58,7 +58,7 @@
  <img src="docs/img/colmap_cams_04_colmap.png" height="250" style="margin-left:40px;"/>
 </p>
 
-  *  gtsfm cams + mvsnet, COLMAP_cams + mvsnet
+  *  ground truth cams + mvsnet, COLMAP_cams + mvsnet
 <p>
 <img src="docs/img/orig_cams_04_mvsnet_mesh.png" height="250" style="margin-left:40px;"/>
  <img src="docs/img/orig_cams_04_mvsnet_mesh_2.png" height="250" style="margin-left:40px;"/>
