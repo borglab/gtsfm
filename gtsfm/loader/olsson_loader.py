@@ -37,16 +37,16 @@ class OlssonLoader(LoaderBase):
             image_extension: file extension for the image files. Defaults to 'jpg'.
             use_gt_intrinsics: whether to use ground truth intrinsics
         """
-        self.use_gt_intrinsics = use_gt_intrinsics
+        self._use_gt_intrinsics = use_gt_intrinsics
 
         # fetch all the file names in /images folder
         search_path = os.path.join(folder, "images", f"*.{image_extension}")
 
-        self.image_paths = glob.glob(search_path)
+        self._image_paths = glob.glob(search_path)
 
         # sort the file names
-        self.image_paths.sort()
-        self.num_imgs = len(self.image_paths)
+        self._image_paths.sort()
+        self._num_imgs = len(self._image_paths)
 
         cam_matrices_fpath = os.path.join(folder, "data.mat")
         if not Path(cam_matrices_fpath).exists():
@@ -60,16 +60,16 @@ class OlssonLoader(LoaderBase):
 
         # M = K [R | t]
         # in GTSAM notation, M = K @ cTw
-        M_list = [data['P'][0][i] for i in range(self.num_imgs)]
+        M_list = [data['P'][0][i] for i in range(self._num_imgs)]
 
         # first pose is identity, so K is immediate given
-        self.K = M_list[0][:3,:3]
-        Kinv = np.linalg.inv(self.K)
+        self._K = M_list[0][:3,:3]
+        Kinv = np.linalg.inv(self._K)
 
         # decode camera poses as:
         # # K^{-1} @ M = cTw
-        iTw_list = [ Kinv @ M_list[i] for i in range(self.num_imgs)]
-        self.wTi_list = [Pose3(Rot3(iTw[:3,:3]), iTw[:,3]).inverse() for iTw in iTw_list ]
+        iTw_list = [ Kinv @ M_list[i] for i in range(self._num_imgs)]
+        self._wTi_list = [Pose3(Rot3(iTw[:3,:3]), iTw[:,3]).inverse() for iTw in iTw_list ]
 
 
     def __len__(self) -> int:
@@ -78,7 +78,7 @@ class OlssonLoader(LoaderBase):
         Returns:
             the number of images.
         """
-        return self.num_imgs
+        return self._num_imgs
 
     def get_image(self, index: int) -> Image:
         """Get the image at the given index.
@@ -96,7 +96,7 @@ class OlssonLoader(LoaderBase):
         if index < 0 or index > self.__len__():
             raise IndexError("Image index is invalid")
 
-        return io_utils.load_image(self.image_paths[index])
+        return io_utils.load_image(self._image_paths[index])
 
 
     def get_camera_intrinsics(self, index: int) -> Cal3Bundler:
@@ -108,17 +108,17 @@ class OlssonLoader(LoaderBase):
         Returns:
             intrinsics for the given camera.
         """
-        if not self.use_gt_intrinsics:
+        if not self._use_gt_intrinsics:
             # get intrinsics from exif
-            intrinsics = io_utils.load_image(self.image_paths[index]).get_intrinsics_from_exif()
+            intrinsics = io_utils.load_image(self._image_paths[index]).get_intrinsics_from_exif()
 
         else:
             intrinsics = Cal3Bundler(
-                fx=min(self.K[0, 0], self.K[1, 1]),
+                fx=min(self._K[0, 0], self._K[1, 1]),
                 k1=0,
                 k2=0,
-                u0=self.K[0, 2],
-                v0=self.K[1, 2],
+                u0=self._K[0, 2],
+                v0=self._K[1, 2],
             )
         return intrinsics
 
@@ -132,11 +132,11 @@ class OlssonLoader(LoaderBase):
         Returns:
             the camera pose w_T_index.
         """
-        if not self.use_gt_intrinsics:
+        if not self._use_gt_intrinsics:
             # poses also not available
             return None
 
-        wTi = self.wTi_list[index]
+        wTi = self._wTi_list[index]
         return wTi
 
 
