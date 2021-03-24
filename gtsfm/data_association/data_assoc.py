@@ -117,7 +117,7 @@ class DataAssociation(NamedTuple):
         result_data = triangulated_data.select_largest_connected_component()
 
         mean_3d_track_length, median_3d_track_length, track_lengths_3d = SfmResult(
-            result_data, None
+            result_data, total_reproj_error=float("Nan")
         ).get_track_length_statistics()
 
         logger.debug("[Data association] output number of tracks: %s", num_accepted_tracks)

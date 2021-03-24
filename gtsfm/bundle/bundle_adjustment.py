@@ -5,12 +5,7 @@ Authors: Xiaolong Wu, John Lambert, Ayush Baid
 import dask
 import gtsam
 from dask.delayed import Delayed
-from gtsam import (
-    GeneralSFMFactorCal3Bundler,
-    SfmTrack,
-    Values,
-    symbol_shorthand,
-)
+from gtsam import GeneralSFMFactorCal3Bundler, SfmTrack, Values, symbol_shorthand
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -101,7 +96,7 @@ class BundleAdjustmentOptimizer:
             result_values = lm.optimize()
         except Exception as e:
             logger.exception("LM Optimization failed")
-            return SfmResult(GtsfmData(initial_data.number_images()), float("Nan"))
+            return SfmResult(GtsfmData(initial_data.number_images()), total_reproj_error=float("Nan"))
 
         final_error = graph.error(result_values)
 
@@ -111,7 +106,7 @@ class BundleAdjustmentOptimizer:
 
         # construct the results
         optimized_data = values_to_gtsfm_data(result_values, initial_data)
-        sfm_result = SfmResult(optimized_data, final_error)
+        sfm_result = SfmResult(optimized_data, total_reproj_error=final_error)
 
         return sfm_result
 
