@@ -44,16 +44,16 @@ class GtsfmData:
             if not cam.equals(other_cam, EQUALITY_TOLERANCE):
                 return False
 
-        for k in range(self.number_tracks()):
-            track = self.get_track(k)
-            other_track = other.get_track(k)
+        for j in range(self.number_tracks()):
+            track = self.get_track(j)
+            other_track = other.get_track(j)
 
             if track.number_measurements() != other_track.number_measurements():
                 return False
 
-            for j in range(track.number_measurements()):
-                i, uv = track.measurement(j)
-                other_i, other_uv = other_track.measurement(j)
+            for k in range(track.number_measurements()):
+                i, uv = track.measurement(k)
+                other_i, other_uv = other_track.measurement(k)
 
                 if i != other_i:
                     return False
@@ -147,7 +147,6 @@ class GtsfmData:
         Returns:
             New object with the requested cameras (and associated tracks) dropped.
         """
-
         new_data = GtsfmData(self._number_images)
 
         for i, camera in self._cameras.items():
@@ -159,8 +158,8 @@ class GtsfmData:
         # add tracks which have all the camera present in new data
         for track in self._tracks:
             is_valid = True
-            for m_idx in range(track.number_measurements()):
-                i, _ = track.measurement(m_idx)
+            for k in range(track.number_measurements()):
+                i, _ = track.measurement(k)
                 if i not in new_camera_indices:
                     is_valid = False
                     break

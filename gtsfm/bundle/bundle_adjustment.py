@@ -79,14 +79,14 @@ class BundleAdjustmentOptimizer:
         initial = gtsam.Values()
 
         # add each PinholeCameraCal3Bundler
-        for cam_idx in valid_camera_indices:
-            camera = initial_data.get_camera(cam_idx)
-            initial.insert(C(cam_idx), camera)
+        for i in valid_camera_indices:
+            camera = initial_data.get_camera(i)
+            initial.insert(C(i), camera)
 
         # add each SfmTrack
-        for t_idx in range(initial_data.number_tracks()):
-            track = initial_data.get_track(t_idx)
-            initial.insert(P(t_idx), track.point3())
+        for j in range(initial_data.number_tracks()):
+            track = initial_data.get_track(j)
+            initial.insert(P(j), track.point3())
 
         # Optimize the graph and print results
         try:
@@ -96,6 +96,7 @@ class BundleAdjustmentOptimizer:
             result_values = lm.optimize()
         except Exception as e:
             logger.exception("LM Optimization failed")
+            # as we did not perform the bundle adjustment, we skip computing the total reprojection error
             return SfmResult(GtsfmData(initial_data.number_images()), total_reproj_error=float("Nan"))
 
         final_error = graph.error(result_values)
