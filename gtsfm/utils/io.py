@@ -85,7 +85,10 @@ def save_json_file(json_fpath: str, data: Union[Dict[Any, Any], List[Any]],) -> 
 
 
 def read_bal(file_path: str) -> GtsfmData:
-    """Read a BAL file.
+    """Read a Bundle Adjustment in the Large" (BAL) file.
+    
+    See https://grail.cs.washington.edu/projects/bal/ for more details on the format.
+
 
     Args:
         file_name: file path of the BAL file.
