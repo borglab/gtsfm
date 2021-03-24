@@ -16,7 +16,6 @@ def get_nodes_in_largest_connected_component(edges: List[Tuple[int, int]]) -> Li
     Returns:
         Nodes in the largest connected component of the input graph.
     """
-
     if len(edges) == 0:
         return []
 
