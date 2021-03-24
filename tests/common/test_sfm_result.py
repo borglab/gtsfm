@@ -12,7 +12,7 @@ from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.sfm_result import SfmResult
 
 GTSAM_EXAMPLE_FILE = "dubrovnik-3-7-pre"
-EXAMPLE_RESULT = SfmResult(io_utils.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE)), total_reproj_error=1.5e1)
+EXAMPLE_RESULT = SfmResult(io_utils.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE)), total_reproj_error=15)
 
 NULL_RESULT = SfmResult(SfmData(), total_reproj_error=float("Nan"))
 
@@ -28,7 +28,7 @@ class TestSfmResult(unittest.TestCase):
         """Test the equality function with different object, expecting false result."""
         other_example_file = "dubrovnik-1-1-pre.txt"
         other_result = SfmResult(
-            io_utils.read_bal(gtsam.findExampleDataFile(other_example_file)), total_reproj_error=1.1e1
+            io_utils.read_bal(gtsam.findExampleDataFile(other_example_file)), total_reproj_error=11
         )
 
         self.assertNotEqual(EXAMPLE_RESULT, other_result)
