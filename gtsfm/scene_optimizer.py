@@ -211,21 +211,17 @@ class SceneOptimizer:
         if self._save_bal_files:
             # save the input to Bundle Adjustment (from data association)
             auxiliary_graph_list.append(
-                dask.delayed(io_utils.write_cameras)(ba_input_graph, os.path.join(RESULTS_PATH, "ba_input_cameras.txt"))
+                dask.delayed(io_utils.write_cameras)(ba_input_graph, os.path.join(RESULTS_PATH, "ba_input"))
             )
             auxiliary_graph_list.append(
-                dask.delayed(io_utils.write_images)(ba_input_graph, os.path.join(RESULTS_PATH, "ba_input_images.txt"))
+                dask.delayed(io_utils.write_images)(ba_input_graph, os.path.join(RESULTS_PATH, "ba_input"))
             )
             # save the output of Bundle Adjustment (after optimization)
             auxiliary_graph_list.append(
-                dask.delayed(io_utils.write_cameras)(
-                    filtered_sfm_data_graph, os.path.join(RESULTS_PATH, "ba_output_cameras.txt")
-                )
+                dask.delayed(io_utils.write_cameras)(filtered_sfm_data_graph, os.path.join(RESULTS_PATH, "ba_output"))
             )
             auxiliary_graph_list.append(
-                dask.delayed(io_utils.write_images)(
-                    filtered_sfm_data_graph, os.path.join(RESULTS_PATH, "ba_output_images.txt")
-                )
+                dask.delayed(io_utils.write_images)(filtered_sfm_data_graph, os.path.join(RESULTS_PATH, "ba_output"))
             )
 
         # as visualization tasks are not to be provided to the user, we create a
