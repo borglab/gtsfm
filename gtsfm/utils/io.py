@@ -117,8 +117,8 @@ def write_cameras(gtsfm_data: GtsfmData, save_dir: str) -> None:
     os.makedirs(save_dir, exist_ok=True)
 
     # TODO: get image shape somehow
-    image_width = 1000  # pylint: disable=unused-variable
-    image_height = 1000  # pylint: disable=unused-variable
+    image_width = 1000
+    image_height = 1000
 
     # TODO: handle shared intrinsics
 
@@ -136,7 +136,7 @@ def write_cameras(gtsfm_data: GtsfmData, save_dir: str) -> None:
             k1 = calibration.k1()
             k2 = calibration.k2()
 
-            f.write("{} SIMPLE_RADIAL {} {} {} {} {} {} {}\n".format(i, image_width, image_height, fx, u0, v0, k1, k2))
+            f.write(f"{i} SIMPLE_RADIAL {image_width} {image_height} {fx} {u0} {v0} {k1} {k2}\n")
 
 
 def write_images(gtsfm_data: GtsfmData, save_dir: str) -> None:
@@ -159,4 +159,4 @@ def write_images(gtsfm_data: GtsfmData, save_dir: str) -> None:
             tx, ty, tz = wti
             qw, qx, qy, qz = wRi_quaternion
 
-            f.write("{} {} {} {} {} {} {} {}\n".format(i, qw, qx, qy, qz, tx, ty, tz))
+            f.write(f"{i} {qw} {qx} {qy} {qz} {tx} {ty} {tz}\n")
