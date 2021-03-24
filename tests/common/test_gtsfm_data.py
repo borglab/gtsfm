@@ -14,7 +14,7 @@ import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.io as io_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 
-GTSAM_EXAMPLE_FILE = "dubrovnik-3-7-pre"
+GTSAM_EXAMPLE_FILE = "dubrovnik-3-7-pre"  # example data with 3 cams and 7 tracks
 EXAMPLE_DATA = io_utils.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
 
 # create example with non-consecutive cams
@@ -130,12 +130,12 @@ class TestGtsfmData(unittest.TestCase):
         for i in range(gtsfm_data.number_images()):
             gtsfm_data.add_camera(i, cam)
 
-        # add two tracks to define connected component
-        track_1 = SfmTrack(np.random.randn(3))
+        # add two tracks to create two connected components
+        track_1 = SfmTrack(np.random.randn(3))  # track with 2 cameras, which will be dropped
         track_1.add_measurement(idx=0, m=np.random.randn(2))
         track_1.add_measurement(idx=3, m=np.random.randn(2))
 
-        track_2 = SfmTrack(np.random.randn(3))
+        track_2 = SfmTrack(np.random.randn(3))  # track with 3 cameras, which will be retained
         track_2.add_measurement(idx=1, m=np.random.randn(2))
         track_2.add_measurement(idx=2, m=np.random.randn(2))
         track_2.add_measurement(idx=4, m=np.random.randn(2))
@@ -145,8 +145,22 @@ class TestGtsfmData(unittest.TestCase):
 
         largest_component_data = gtsfm_data.select_largest_connected_component()
 
+        # check the graph util function called with the edges defined by tracks
         graph_largest_cc_mock.assert_called_once_with([(0, 3), (1, 2), (1, 4), (2, 4)])
-        self.assertListEqual(largest_component_data.get_valid_camera_indices(), [1, 2, 4])
+
+        # check the expected cameras coming just from track_2
+        expected_camera_indices = [1, 2, 4]
+        computed_camera_indices = largest_component_data.get_valid_camera_indices()
+        self.assertListEqual(computed_camera_indices, expected_camera_indices)
+
+        # check that there is just one track
+        expected_num_tracks = 1
+        computed_num_tracks = largest_component_data.number_tracks()
+        self.assertEqual(computed_num_tracks, expected_num_tracks)
+
+        # check the exact track
+        computed_track = largest_component_data.get_track(0)
+        self.assertTrue(computed_track.equals(track_2, EQUALITY_TOLERANCE))
 
 
 if __name__ == "__main__":
