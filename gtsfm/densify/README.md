@@ -25,12 +25,12 @@
 * Depth range: 13 - 20
 * Resolution: 1296 x 1936
 
-|SfM method| Recon. method | Average Depth | Completeness (%) | Accuracy (dist.) |
+|SfM method| MVS method | Average Depth | Completeness (%) | Accuracy (dist.) |
 |---|---|---|---|---|
 |COLMAP|COLMAP| 17.088| 100.0 | 0.000 |  
 |COLMAP|mvsnets| 17.127| 74.36| 0.092 |
-|origin groudtruth|mvsnets| 12.605| 40.98 | 4.377 |
-|*gtsfm |mvsnets| 38.304 | 0 | / |
+|Carl Olsson's|mvsnets| 12.605| 40.98 | 4.377 |
+|**gtsfm** |**mvsnets**| **15.82** | **4.98** | **0.98** |
 
 
 #### Sample output
@@ -58,12 +58,11 @@
  <img src="docs/img/colmap_cams_04_colmap.png" height="250" style="margin-left:40px;"/>
 </p>
 
-  *  ground truth cams + mvsnet, COLMAP_cams + mvsnet
+  *  gtsfm + mvsnet, Carl Olsson's result + mvsnet, COLMAP_cams + mvsnet
 <p>
+<img src="docs/img/gtsfm_gen_cams_04_mvsnet_mesh.png" height="250" style="margin-left:40px;"/>
 <img src="docs/img/orig_cams_04_mvsnet_mesh.png" height="250" style="margin-left:40px;"/>
- <img src="docs/img/orig_cams_04_mvsnet_mesh_2.png" height="250" style="margin-left:40px;"/>
  <img src="docs/img/colmap_cams_04_colmap_mesh.png" height="250" style="margin-left:40px;"/>
- <img src="docs/img/colmap_cams_04_colmap_mesh_2.png" height="250" style="margin-left:40px;"/>
 </p>
 
 

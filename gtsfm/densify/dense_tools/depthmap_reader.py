@@ -59,7 +59,7 @@ class PngReader(DepthmapReader):
         values = values * t[0] + t[1]
 
         return values  
-
+    
 class DepthmapReaderManager(object):
         
     @classmethod

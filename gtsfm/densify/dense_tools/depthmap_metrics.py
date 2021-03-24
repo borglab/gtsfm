@@ -22,8 +22,8 @@ class Completeness(DepthmapMetrics):
 if __name__=='__main__':
     from depthmap_reader import DepthmapReaderManager
     colmap_pattern = 'results_densify/depthmap_colmap/*.geometric.bin'
-    # output_root = 'results_densify/outputs'
-    output_root = 'results_densify/outputs_colmap_cams'
+    output_root = 'results_densify/outputs'
+    # output_root = 'results_densify/outputs_colmap_cams'
     # output_root = 'results_densify/outputs_gt_cams_modify'
     mvsnet_pattern = f'{output_root}/scan1/depth_img/depth_*.png'
     mvsnet_mask = f'{output_root}/scan1/mask/*_final.png'

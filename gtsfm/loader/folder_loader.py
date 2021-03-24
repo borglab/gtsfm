@@ -138,7 +138,8 @@ class FolderLoader(LoaderBase):
         if self.explicit_extrinsics_paths:
             numpy_extrinsics = np.load(self.explicit_extrinsics_paths[index])
 
-            return Pose3(numpy_extrinsics)
+            # return Pose3(numpy_extrinsics)
+            return Pose3(np.linalg.inv(numpy_extrinsics))
 
         return None
 

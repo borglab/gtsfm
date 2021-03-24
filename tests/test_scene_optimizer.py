@@ -27,7 +27,7 @@ class TestSceneOptimizer(unittest.TestCase):
     """Unit test for SceneOptimizer, which runs SfM for a scene."""
 
     def setUp(self) -> None:
-        self.loader = FolderLoader(str(DATA_ROOT_PATH / "set1_lund_door"), image_extension="JPG")
+        self.loader = FolderLoader(str(DATA_ROOT_PATH / "set1_1_lund_door"), image_extension="JPG")
         assert len(self.loader)
 
     def test_find_largest_connected_component(self):

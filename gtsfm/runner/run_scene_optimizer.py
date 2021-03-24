@@ -26,7 +26,7 @@ def run_scene_optimizer() -> None:
         cfg = compose(config_name="default_lund_door_set1_config.yaml")
         scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
-        loader = FolderLoader(os.path.join(DATA_ROOT, "set1_lund_door"), image_extension="JPG")
+        loader = FolderLoader(os.path.join(DATA_ROOT, "set1_1_lund_door"), image_extension="JPG")
 
         sfm_result_graph = scene_optimizer.create_computation_graph(
             len(loader),

@@ -14,7 +14,7 @@ from gtsfm.loader.folder_loader import FolderLoader
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
 
-DEFAULT_FOLDER = DATA_ROOT_PATH / "set1_lund_door"
+DEFAULT_FOLDER = DATA_ROOT_PATH / "set1_1_lund_door"
 EXIF_FOLDER = DATA_ROOT_PATH / "set2_lund_door_nointrinsics"
 NO_EXTRINSICS_FOLDER = DATA_ROOT_PATH / "set3_lund_doornointrinsics_noextrinsics"
 NO_EXIF_FOLDER = DATA_ROOT_PATH / "set4_lund_door_nointrinsics_noextrinsics_noexif"
@@ -76,10 +76,14 @@ class TestFolderLoader(unittest.TestCase):
         expected_pose = Pose3(
             np.array(
                 [
-                    [0.9387, 0.0592, 0.3510, -4.5075],
-                    [-0.0634, 1.0043, -0.01437, 0.2307],
-                    [-0.3618, -0.0227, 0.9362, 1.4820],
-                    [0.0, 0.0, 0.0, 1.0],
+                    # [0.9387, 0.0592, 0.3510, -4.5075],
+                    # [-0.0634, 1.0043, -0.01437, 0.2307],
+                    # [-0.3618, -0.0227, 0.9362, 1.4820],
+                    # [0.0, 0.0, 0.0, 1.0],
+                    [ 0.93414109,  0.06411186,  0.35109842, -4.4532169 ],
+                    [-0.06308349,  0.99790466, -0.01437957,  0.22408744],
+                    [-0.35128465, -0.00871597,  0.93622814,  1.41870188],
+                    [ 0.        ,  0.        ,  0.        ,  1.        ],
                 ]
             )
         )
@@ -100,7 +104,8 @@ class TestFolderLoader(unittest.TestCase):
 
         computed = self.loader.get_camera_intrinsics(5)
 
-        expected = Cal3Bundler(fx=2378.983, k1=0, k2=0, u0=968.0, v0=648.0)
+        # expected = Cal3Bundler(fx=2378.983, k1=0, k2=0, u0=968.0, v0=648.0)
+        expected = Cal3Bundler(fx=2398.118, k1=0, k2=0, u0=628.26, v0=932.38)
 
         self.assertTrue(expected.equals(computed, 1e-3))
 
@@ -112,6 +117,8 @@ class TestFolderLoader(unittest.TestCase):
         computed = loader.get_camera_intrinsics(5)
 
         expected = Cal3Bundler(fx=2378.983, k1=0, k2=0, u0=648.0, v0=968.0)
+        # expected = Cal3Bundler(fx=2398.118, k1=0, k2=0, u0=628.26, v0=932.38)
+
 
         self.assertTrue(expected.equals(computed, 1e-3))
 
