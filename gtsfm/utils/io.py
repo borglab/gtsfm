@@ -144,7 +144,7 @@ def write_images(gtsfm_data: GtsfmData, save_dir: str) -> None:
 
     Args:
         gtsfm_data: scene data to write.
-        save_dir: folder to put the cameras.txt file in.
+        save_dir: folder to put the images.txt file in.
     """
     os.makedirs(save_dir, exist_ok=True)
 
