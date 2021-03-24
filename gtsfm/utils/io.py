@@ -114,6 +114,7 @@ def write_cameras(gtsfm_data: GtsfmData, save_dir: str) -> None:
         gtsfm_data: scene data to write.
         save_dir: folder to put the cameras.txt file in.
     """
+    os.makedirs(save_dir, exist_ok=True)
 
     # TODO: get image shape somehow
     image_width = 1000  # pylint: disable=unused-variable
@@ -145,8 +146,7 @@ def write_images(gtsfm_data: GtsfmData, save_dir: str) -> None:
         gtsfm_data: scene data to write.
         save_dir: folder to put the cameras.txt file in.
     """
-
-    # TODO: get image shape somehow
+    os.makedirs(save_dir, exist_ok=True)
 
     file_path = os.path.join(save_dir, "images.txt")
     with open(file_path, "w") as f:
@@ -155,10 +155,10 @@ def write_images(gtsfm_data: GtsfmData, save_dir: str) -> None:
         for i in gtsfm_data.get_valid_camera_indices():
             camera = gtsfm_data.get_camera(i)
             wRi_quaternion = camera.pose().rotation().quaternion()
-            wti = camera.pose().translation()  # pylint: disable=unused-variable
-
+            wti = camera.pose().translation()
+            tx, ty, tz = wti  # pylint: disable=unused-variable
             qw, qx, qy, qz = wRi_quaternion  # pylint: disable=unused-variable
+
             f.write("{i} ")
             f.write("{qw} {qx} {qy} {qz} ")
-            f.write("{wti[0]} {wti[3]} {wti[2]}")
-            f.write("{wti[0]} {wti[3]} {wti[2]}\n")
+            f.write("{tx} {ty} {tz}\n")
