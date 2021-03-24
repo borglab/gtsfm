@@ -123,6 +123,7 @@ def compare_global_poses(
     bTi_list: List[Optional[Pose3]],
     rot_err_thresh: float = 1e-3,
     trans_err_thresh: float = 1e-1,
+    verbose: bool = True
 ) -> bool:
     """Helper function to compare two lists of global Pose3, considering the
     origin and scale ambiguous.
@@ -162,15 +163,24 @@ def compare_global_poses(
     #  We set frame "a" the target/reference
     aTi_list_ = align_poses_sim3(aTi_list, bTi_list)
 
-    return all(
-        [
-            (
-                aTi.rotation().equals(aTi_.rotation(), rot_err_thresh)
-                and np.allclose(aTi.translation(), aTi_.translation(), rtol=trans_err_thresh,)
-            )
-            for (aTi, aTi_) in zip(aTi_list, aTi_list_)
-        ]
-    )
+    rotations_equal = all([
+        aTi.rotation().equals(aTi_.rotation(), rot_err_thresh) for (aTi, aTi_) in zip(aTi_list, aTi_list_)
+    ])
+    translations_equal = all([
+        np.allclose(aTi.translation(), aTi_.translation(), atol=trans_err_thresh) for (aTi, aTi_) in zip(aTi_list, aTi_list_)
+    ])
+    if verbose:
+        # GTSAM Rot3.equals() compares rotation matrices by absolute tolerance
+        rotation_errors = np.array([
+            (aTi.rotation().matrix() - aTi_.rotation().matrix()).max() for (aTi, aTi_) in zip(aTi_list, aTi_list_)
+        ])
+        translation_errors = np.array([
+            np.linalg.norm(aTi.translation() - aTi_.translation()) for (aTi, aTi_) in zip(aTi_list, aTi_list_)
+        ])
+        logger.info('Comparison Rotation Errors: ' + str(np.round(rotation_errors, 2)))
+        logger.info('Comparison Translation Errors: ' + str(np.round(translation_errors, 2)))
+
+    return rotations_equal and translations_equal
 
 
 def compute_relative_rotation_angle(R_1: Optional[Rot3], R_2: Optional[Rot3]) -> Optional[float]:

@@ -16,7 +16,7 @@ from gtsfm.frontend.detector_descriptor.sift import SIFTDetectorDescriptor
 from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
 from gtsfm.frontend.verifier.degensac import Degensac
 from gtsfm.frontend.verifier.ransac import Ransac
-from gtsfm.loader.folder_loader import FolderLoader
+from gtsfm.loader.argoverse_dataset_loader import ArgoverseDatasetLoader
 from gtsfm.scene_optimizer import FeatureExtractor, TwoViewEstimator
 
 TEST_DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
@@ -27,15 +27,13 @@ class TestFrontend(unittest.TestCase):
 
     def setUp(self) -> None:
         """ """
-        self.loader = FolderLoader(
-            str(
-                TEST_DATA_ROOT_PATH
-                / "argoverse"
-                / "train1"
-                / "273c1883-673a-36bf-b124-88311b1a80be"
-                / "ring_front_center"
-            ),
-            image_extension="jpg",
+        self.loader = ArgoverseDatasetLoader(
+            dataset_dir= TEST_DATA_ROOT_PATH / "argoverse" / "train1",
+            log_id = "273c1883-673a-36bf-b124-88311b1a80be",
+            stride = 1,
+            max_num_imgs = 2,
+            max_lookahead_sec = 50,
+            camera_name = "ring_front_center"
         )
         assert len(self.loader)
 

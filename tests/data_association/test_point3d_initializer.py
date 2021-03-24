@@ -26,7 +26,7 @@ from gtsfm.data_association.point3d_initializer import (
     Point3dInitializer,
     TriangulationParam,
 )
-from gtsfm.loader.folder_loader import FolderLoader
+from gtsfm.loader.olsson_loader import OlssonLoader
 
 # path for data used in this test
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
@@ -215,7 +215,7 @@ class TestPoint3dInitializer(unittest.TestCase):
         with open(DOOR_TRACKS_PATH, "rb") as handle:
             tracks = pickle.load(handle)
 
-        loader = FolderLoader(DOOR_DATASET_PATH, image_extension="JPG")
+        loader = OlssonLoader(DOOR_DATASET_PATH, image_extension="JPG")
 
         camera_dict = {
             i: PinholeCameraCal3Bundler(loader.get_camera_pose(i), loader.get_camera_intrinsics(i))
