@@ -130,13 +130,13 @@ def write_cameras(gtsfm_data: GtsfmData, save_dir: str) -> None:
             camera = gtsfm_data.get_camera(i)
             calibration = camera.calibration()
 
-            fx = calibration.fx()  # pylint: disable=unused-variable
-            u0 = calibration.px()  # pylint: disable=unused-variable
-            v0 = calibration.py()  # pylint: disable=unused-variable
-            k1 = calibration.k1()  # pylint: disable=unused-variable
-            k2 = calibration.k2()  # pylint: disable=unused-variable
+            fx = calibration.fx()
+            u0 = calibration.px()
+            v0 = calibration.py()
+            k1 = calibration.k1()
+            k2 = calibration.k2()
 
-            f.write("{i} SIMPLE_RADIAL {image_width} {image_height} {fx} {u0} {v0} {k1} {k2}\n")
+            f.write("{} SIMPLE_RADIAL {} {} {} {} {} {} {}\n".format(i, image_width, image_height, fx, u0, v0, k1, k2))
 
 
 def write_images(gtsfm_data: GtsfmData, save_dir: str) -> None:
@@ -156,9 +156,7 @@ def write_images(gtsfm_data: GtsfmData, save_dir: str) -> None:
             camera = gtsfm_data.get_camera(i)
             wRi_quaternion = camera.pose().rotation().quaternion()
             wti = camera.pose().translation()
-            tx, ty, tz = wti  # pylint: disable=unused-variable
-            qw, qx, qy, qz = wRi_quaternion  # pylint: disable=unused-variable
+            tx, ty, tz = wti
+            qw, qx, qy, qz = wRi_quaternion
 
-            f.write("{i} ")
-            f.write("{qw} {qx} {qy} {qz} ")
-            f.write("{tx} {ty} {tz}\n")
+            f.write("{} {} {} {} {} {} {} {}\n".format(i, qw, qx, qy, qz, tx, ty, tz))
