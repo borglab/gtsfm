@@ -63,7 +63,7 @@ class SceneOptimizer:
         two_view_estimator: TwoViewEstimator,
         multiview_optimizer: MultiViewOptimizer,
         save_viz: bool,
-        save_bal_files: bool,
+        save_gtsfm_data: bool,
         pose_angular_error_thresh: float,
     ) -> None:
         """ pose_angular_error_thresh is given in degrees """
@@ -72,7 +72,7 @@ class SceneOptimizer:
         self.multiview_optimizer = multiview_optimizer
 
         self._save_viz = save_viz
-        self._save_bal_files = save_bal_files
+        self._save_gtsfm_data = save_gtsfm_data
         self._pose_angular_error_thresh = pose_angular_error_thresh
 
         # make directories for persisting data
@@ -209,7 +209,7 @@ class SceneOptimizer:
                 )
             )
 
-        if self._save_bal_files:
+        if self._save_gtsfm_data:
             # save the input to Bundle Adjustment (from data association)
             auxiliary_graph_list.append(
                 dask.delayed(io_utils.write_cameras)(ba_input_graph, save_dir=os.path.join(RESULTS_PATH, "ba_input"))
