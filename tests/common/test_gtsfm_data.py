@@ -118,7 +118,11 @@ class TestGtsfmData(unittest.TestCase):
 
     @mock.patch.object(graph_utils, "get_nodes_in_largest_connected_component", return_value=[1, 2, 4])
     def test_select_largest_connected_component(self, graph_largest_cc_mock):
-        """Test pruning to largest connected component according to tracks."""
+        """Test pruning to largest connected component according to tracks.
+        
+        The function under test calles the graph utility, which has been mocked and we test the call against the mocked
+        object.
+        """
         gtsfm_data = GtsfmData(5)
         cam = PinholeCameraCal3Bundler(Pose3(), Cal3Bundler())
 
