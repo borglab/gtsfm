@@ -2,7 +2,7 @@
 
 Authors: Xiaolong Wu, Ayush Baid
 """
-from typing import List, NamedTuple, Tuple
+from typing import List, NamedTuple, Optional, Tuple
 
 import numpy as np
 from gtsam import Pose3, SfmTrack
@@ -34,8 +34,11 @@ class SfmResult(NamedTuple):
         # finally, compare reprojection error
         return np.isclose(self.total_reproj_error, other.total_reproj_error, rtol=1e-2, atol=1e-1, equal_nan=True)
 
-    def get_camera_poses(self) -> List[Pose3]:
+    def get_camera_poses(self) -> List[Optional[Pose3]]:
         """Getter for camera poses wTi.
+
+        This function returns the pose for all cameras (equal to number_images in GtsfmData), even if they were not
+        computed by the pipeline.
 
         Returns:
             camera poses as a list, each representing wTi
