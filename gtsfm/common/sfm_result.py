@@ -106,7 +106,7 @@ class SfmResult(NamedTuple):
 
         # add all the cameras
         for i in self.gtsfm_data.get_valid_camera_indices():
-            filtered_data.add_camera(self.gtsfm_data.get_camera(i), i)
+            filtered_data.add_camera(i, self.gtsfm_data.get_camera(i))
 
         for j in range(self.gtsfm_data.number_tracks()):
             track = self.gtsfm_data.get_track(j)

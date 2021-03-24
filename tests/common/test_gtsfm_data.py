@@ -19,9 +19,9 @@ EXAMPLE_DATA = io_utils.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
 
 # create example with non-consecutive cams
 EXAMPLE_WITH_NON_CONSECUTIVE_CAMS = GtsfmData(number_images=5)
-EXAMPLE_WITH_NON_CONSECUTIVE_CAMS.add_camera(EXAMPLE_DATA.get_camera(0), 0)
-EXAMPLE_WITH_NON_CONSECUTIVE_CAMS.add_camera(EXAMPLE_DATA.get_camera(1), 2)
-EXAMPLE_WITH_NON_CONSECUTIVE_CAMS.add_camera(EXAMPLE_DATA.get_camera(2), 3)
+EXAMPLE_WITH_NON_CONSECUTIVE_CAMS.add_camera(index=0, camera=EXAMPLE_DATA.get_camera(0))
+EXAMPLE_WITH_NON_CONSECUTIVE_CAMS.add_camera(index=2, camera=EXAMPLE_DATA.get_camera(1))
+EXAMPLE_WITH_NON_CONSECUTIVE_CAMS.add_camera(index=3, camera=EXAMPLE_DATA.get_camera(2))
 
 EQUALITY_TOLERANCE = 1e-5
 
@@ -59,11 +59,11 @@ class TestGtsfmData(unittest.TestCase):
         """Test for get_camera for a valid index."""
         expected = PinholeCameraCal3Bundler(Pose3(), Cal3Bundler(fx=900, k1=0, k2=0, u0=100, v0=100))
 
-        cam_idx = 0
+        i = 0
         test_data = GtsfmData(1)
-        test_data.add_camera(expected, cam_idx)
+        test_data.add_camera(index=i, camera=expected)
 
-        computed = test_data.get_camera(cam_idx)
+        computed = test_data.get_camera(i)
         self.assertTrue(computed.equals(expected, EQUALITY_TOLERANCE))
 
     def test_get_camera_invalid(self):
@@ -90,8 +90,8 @@ class TestGtsfmData(unittest.TestCase):
 
         # add a track on camera #0 and #1, which exists in the data
         track_to_add = SfmTrack(np.array([0, -2.0, 5.0]))
-        track_to_add.add_measurement(0, np.array([20.0, 5.0]))
-        track_to_add.add_measurement(1, np.array([60.0, 50.0]))
+        track_to_add.add_measurement(idx=0, m=np.array([20.0, 5.0]))
+        track_to_add.add_measurement(idx=1, m=np.array([60.0, 50.0]))
 
         self.assertTrue(gtsfm_data.add_track(track_to_add))
 
@@ -101,8 +101,8 @@ class TestGtsfmData(unittest.TestCase):
 
         # add a track on camera #0 and #1, which exists in the data
         track_to_add = SfmTrack(np.array([0, -2.0, 5.0]))
-        track_to_add.add_measurement(0, np.array([20.0, 5.0]))
-        track_to_add.add_measurement(3, np.array([60.0, 50.0]))  # this camera does not exist
+        track_to_add.add_measurement(idx=0, m=np.array([20.0, 5.0]))
+        track_to_add.add_measurement(idx=3, m=np.array([60.0, 50.0]))  # this camera does not exist
 
         self.assertFalse(gtsfm_data.add_track(track_to_add))
 
@@ -127,18 +127,18 @@ class TestGtsfmData(unittest.TestCase):
         cam = PinholeCameraCal3Bundler(Pose3(), Cal3Bundler())
 
         # add the same camera at all indices
-        for cam_idx in range(gtsfm_data.number_images()):
-            gtsfm_data.add_camera(cam, cam_idx)
+        for i in range(gtsfm_data.number_images()):
+            gtsfm_data.add_camera(i, cam)
 
         # add two tracks to define connected component
         track_1 = SfmTrack(np.random.randn(3))
-        track_1.add_measurement(0, np.random.randn(2))
-        track_1.add_measurement(3, np.random.randn(2))
+        track_1.add_measurement(idx=0, m=np.random.randn(2))
+        track_1.add_measurement(idx=3, m=np.random.randn(2))
 
         track_2 = SfmTrack(np.random.randn(3))
-        track_2.add_measurement(1, np.random.randn(2))
-        track_2.add_measurement(2, np.random.randn(2))
-        track_2.add_measurement(4, np.random.randn(2))
+        track_2.add_measurement(idx=1, m=np.random.randn(2))
+        track_2.add_measurement(idx=2, m=np.random.randn(2))
+        track_2.add_measurement(idx=4, m=np.random.randn(2))
 
         gtsfm_data.add_track(track_1)
         gtsfm_data.add_track(track_2)

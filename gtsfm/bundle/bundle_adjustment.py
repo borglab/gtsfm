@@ -138,7 +138,7 @@ def values_to_gtsfm_data(values: Values, initial_data: GtsfmData) -> GtsfmData:
 
     # add cameras
     for i in initial_data.get_valid_camera_indices():
-        result.add_camera(values.atPinholeCameraCal3Bundler(C(i)), i)
+        result.add_camera(i, values.atPinholeCameraCal3Bundler(C(i)))
 
     # add tracks
     for j in range(initial_data.number_tracks()):

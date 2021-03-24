@@ -94,7 +94,7 @@ class DataAssociation(NamedTuple):
 
         # add all cameras
         for i, camera in cameras.items():
-            triangulated_data.add_camera(camera, i)
+            triangulated_data.add_camera(i, camera)
 
         # add valid tracks where triangulation is successful
         for track_2d in tracks_2d:

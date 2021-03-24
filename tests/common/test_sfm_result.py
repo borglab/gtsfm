@@ -60,7 +60,7 @@ class TestSfmResult(unittest.TestCase):
         # threshold
         expected_data = GtsfmData(EXAMPLE_RESULT.gtsfm_data.number_images())
         for i in EXAMPLE_RESULT.gtsfm_data.get_valid_camera_indices():
-            expected_data.add_camera(EXAMPLE_RESULT.gtsfm_data.get_camera(i), i)
+            expected_data.add_camera(i, EXAMPLE_RESULT.gtsfm_data.get_camera(i))
 
         for j in VALID_TRACK_INDICES:
             expected_data.add_track(EXAMPLE_RESULT.gtsfm_data.get_track(j))

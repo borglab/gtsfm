@@ -127,19 +127,19 @@ class GtsfmData:
         self._tracks.append(track)
         return True
 
-    def add_camera(self, camera: PinholeCameraCal3Bundler, camera_index: int) -> None:
+    def add_camera(self, index: int, camera: PinholeCameraCal3Bundler,) -> None:
         """Adds a camera.
 
         Args:
+            index: the index associated with this camera.
             camera: camera object to it.
-            camera_index: the index associated with this camera.
 
         Raises:
             ValueError: if the camera to be added is not a valid camera object.
         """
         if camera is None:
             raise ValueError("Camera cannot be None, should be a valid camera")
-        self._cameras[camera_index] = camera
+        self._cameras[index] = camera
 
     def drop_cameras(self, camera_indices: List[int]) -> "GtsfmData":
         """Drops cameras and tracks associated with them.
@@ -151,7 +151,7 @@ class GtsfmData:
 
         for i, camera in self._cameras.items():
             if i not in camera_indices:
-                new_data.add_camera(camera, i)
+                new_data.add_camera(i, camera)
 
         new_camera_indices = new_data.get_valid_camera_indices()
 
