@@ -183,7 +183,8 @@ class GtsfmData:
                 i, _ = sfm_track.measurement(m_idx)
                 cameras_in_use.append(i)
 
-            # add all combinations of edges
+            # Recreate track connectivity from track information
+            # For example: a track has cameras [0, 2, 5]. In that case we will add pairs (0, 2), (0, 5), (2, 5)
             camera_edges += list(itertools.combinations(cameras_in_use, 2))
 
         if len(camera_edges) == 0:
