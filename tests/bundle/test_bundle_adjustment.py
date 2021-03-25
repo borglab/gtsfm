@@ -8,12 +8,13 @@ import unittest
 import dask
 import gtsam
 import numpy as np
-from gtsam import SfmData, SfmTrack
 
+import gtsfm.utils.io as io_utils
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
+from gtsfm.common.gtsfm_data import GtsfmData
 
 GTSAM_EXAMPLE_FILE = "dubrovnik-3-7-pre"
-EXAMPLE_DATA = gtsam.readBal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
+EXAMPLE_DATA = io_utils.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
 
 
 class TestBundleAdjustmentOptimizer(unittest.TestCase):
@@ -33,14 +34,7 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
 
         expected_error = 0.046137573704557046
 
-        self.assertTrue(
-            np.isclose(
-                expected_error,
-                computed_result.total_reproj_error,
-                atol=1e-2,
-                rtol=1e-2,
-            )
-        )
+        self.assertTrue(np.isclose(expected_error, computed_result.total_reproj_error, atol=1e-2, rtol=1e-2))
 
     def test_create_computation_graph(self):
         """Test the simple scene as dask computation graph."""
