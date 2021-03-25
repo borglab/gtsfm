@@ -4,7 +4,6 @@ Authors: Ayush Baid
 """
 import abc
 from enum import Enum
-from typing import Dict, List, Tuple
 
 import dask
 import numpy as np
@@ -58,7 +57,7 @@ class MatcherBase(metaclass=abc.ABCMeta):
         distance_type: MatchingDistanceType = MatchingDistanceType.EUCLIDEAN,
     ) -> Delayed:
         """
-        Generates computation graph for matched features using the detection and description graph.
+        Generates computation graph for matched features using description graphs.
 
         Args:
             descriptors_im1_graph: descriptors for im1 wrapped in Delayed.
