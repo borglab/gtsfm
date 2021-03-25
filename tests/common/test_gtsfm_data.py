@@ -118,7 +118,7 @@ class TestGtsfmData(unittest.TestCase):
 
         # pick the cameras at index 0 and 2, and hence dropping camera at index 1.
         cams_to_pick = [0, 2]
-        computed = GtsfmData.pick_cameras(obj, cams_to_pick)
+        computed = GtsfmData.from_selected_cameras(obj, cams_to_pick)
 
         # test the camera has actually been dropped
         self.assertListEqual(computed.get_valid_camera_indices(), cams_to_pick)

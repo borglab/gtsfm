@@ -163,18 +163,18 @@ class GtsfmData:
             return GtsfmData(self._number_images)
 
         cameras_in_largest_cc = graph_utils.get_nodes_in_largest_connected_component(camera_edges)
-        return GtsfmData.pick_cameras(self, cameras_in_largest_cc)
+        return GtsfmData.from_selected_cameras(self, cameras_in_largest_cc)
 
     @classmethod
-    def pick_cameras(cls, gtsfm_data: "GtsfmData", camera_indices: List[int]) -> "GtsfmData":
-        """Pick the cameras in the input list and the tracks associated with those cameras.
+    def from_selected_cameras(cls, gtsfm_data: "GtsfmData", camera_indices: List[int]) -> "GtsfmData":
+        """Selects the cameras in the input list and the tracks associated with those cameras.
 
         Args:
             gtsfm_data: data to pick the cameras from.
-            camera_indices: indices to pick.
+            camera_indices: camera indices to select and keep in the new data.
 
         Returns:
-            New object with the requested cameras and associated tracks.
+            New object with the selected cameras and associated tracks.
         """
         new_data = cls(gtsfm_data.number_images())
 
