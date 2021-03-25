@@ -37,7 +37,7 @@ class DummyMatcher(MatcherBase):
 
         # check if we have non-zero descriptors in the both image
         if descriptors_im1.size == 0 or descriptors_im2.size == 0:
-            return np.array([], dtype=np.int)
+            return np.array([], dtype=np.uint8)
 
         # set a random seed using descriptor data for repeatibility
         np.random.seed(int(1000 * (np.sum(descriptors_im1, axis=None) + np.sum(descriptors_im2, axis=None)) % (2 ^ 32)))
