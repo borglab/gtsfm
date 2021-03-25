@@ -1,6 +1,6 @@
 SceneOptimizer:
   _target_: gtsfm.scene_optimizer.SceneOptimizer
-  save_bal_files: False
+  save_gtsfm_data: False
   save_viz: False
   pose_angular_error_thresh: 10 # degrees
 

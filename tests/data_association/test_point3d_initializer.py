@@ -11,21 +11,10 @@ from pathlib import Path
 from typing import List
 
 import numpy as np
-from gtsam import (
-    Cal3_S2,
-    Cal3Bundler,
-    PinholeCameraCal3Bundler,
-    Point2,
-    Point3,
-    Pose3,
-    Rot3,
-)
+from gtsam import Cal3_S2, Cal3Bundler, PinholeCameraCal3Bundler, Point2, Point3, Pose3, Rot3
 from gtsam.examples import SFMdata
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
-from gtsfm.data_association.point3d_initializer import (
-    Point3dInitializer,
-    TriangulationParam,
-)
+from gtsfm.data_association.point3d_initializer import Point3dInitializer, TriangulationParam
 from gtsfm.loader.olsson_loader import OlssonLoader
 
 # path for data used in this test
@@ -39,15 +28,7 @@ CALIBRATION = Cal3Bundler(50, 0, 0, 0, 0)
 CAMERAS = {
     i: PinholeCameraCal3Bundler(pose, CALIBRATION)
     for i, pose in enumerate(
-        SFMdata.createPoses(
-            Cal3_S2(
-                CALIBRATION.fx(),
-                CALIBRATION.fx(),
-                0,
-                CALIBRATION.px(),
-                CALIBRATION.py(),
-            )
-        )
+        SFMdata.createPoses(Cal3_S2(CALIBRATION.fx(), CALIBRATION.fx(), 0, CALIBRATION.px(), CALIBRATION.py()))
     )
 }
 LANDMARK_POINT = Point3(0.0, 0.0, 0.0)
@@ -63,8 +44,7 @@ def get_track_with_one_outlier() -> List[SfmMeasurement]:
 
     original_measurement = perturbed_measurements[idx_to_perturb]
     perturbed_measurements[idx_to_perturb] = SfmMeasurement(
-        original_measurement.i,
-        perturbed_measurements[idx_to_perturb].uv + Point2(20.0, -10.0),
+        original_measurement.i, perturbed_measurements[idx_to_perturb].uv + Point2(20.0, -10.0),
     )
 
     return perturbed_measurements
@@ -75,12 +55,7 @@ def get_track_with_duplicate_measurements() -> List[SfmMeasurement]:
 
     new_measurements = copy.deepcopy(MEASUREMENTS)
 
-    new_measurements.append(
-        SfmMeasurement(
-            new_measurements[0].i,
-            new_measurements[0].uv + Point2(2.0, -3.0),
-        )
-    )
+    new_measurements.append(SfmMeasurement(new_measurements[0].i, new_measurements[0].uv + Point2(2.0, -3.0),))
 
     return new_measurements
 
@@ -96,10 +71,7 @@ class TestPoint3dInitializer(unittest.TestCase):
         )
 
         self.ransac_uniform_sampling_initializer = Point3dInitializer(
-            CAMERAS,
-            TriangulationParam.RANSAC_SAMPLE_UNIFORM,
-            reproj_error_thresh=5,
-            num_ransac_hypotheses=100,
+            CAMERAS, TriangulationParam.RANSAC_SAMPLE_UNIFORM, reproj_error_thresh=5, num_ransac_hypotheses=100,
         )
 
     def __runWithCorrectMeasurements(self, obj: Point3dInitializer) -> bool:
@@ -149,10 +121,7 @@ class TestPoint3dInitializer(unittest.TestCase):
         }
 
         obj_with_flipped_cameras = Point3dInitializer(
-            flipped_cameras,
-            obj.mode,
-            obj.reproj_error_thresh,
-            obj.num_ransac_hypotheses,
+            flipped_cameras, obj.mode, obj.reproj_error_thresh, obj.num_ransac_hypotheses,
         )
 
         sfm_track, _, _ = obj_with_flipped_cameras.triangulate(SfmTrack2d(MEASUREMENTS))
