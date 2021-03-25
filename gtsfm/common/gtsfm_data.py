@@ -141,33 +141,6 @@ class GtsfmData:
             raise ValueError("Camera cannot be None, should be a valid camera")
         self._cameras[index] = camera
 
-    def drop_cameras(self, camera_indices: List[int]) -> "GtsfmData":
-        """Drops cameras and tracks associated with them.
-
-        Returns:
-            New object with the requested cameras (and associated tracks) dropped.
-        """
-        new_data = GtsfmData(self._number_images)
-
-        for i, camera in self._cameras.items():
-            if i not in camera_indices:
-                new_data.add_camera(i, camera)
-
-        new_camera_indices = new_data.get_valid_camera_indices()
-
-        # add tracks which have all the camera present in new data
-        for track in self._tracks:
-            is_valid = True
-            for k in range(track.number_measurements()):
-                i, _ = track.measurement(k)
-                if i not in new_camera_indices:
-                    is_valid = False
-                    break
-            if is_valid:
-                new_data.add_track(track)
-
-        return new_data
-
     def select_largest_connected_component(self) -> "GtsfmData":
         """Selects the subset of data belonging to the largest connected component of the graph where the edges are
         between cameras which feature in the same track.
@@ -190,7 +163,37 @@ class GtsfmData:
             return GtsfmData(self._number_images)
 
         cameras_in_largest_cc = graph_utils.get_nodes_in_largest_connected_component(camera_edges)
+        return GtsfmData.pick_cameras(self, cameras_in_largest_cc)
 
-        # select cameras to drop and drop them
-        dropped_cameras = np.setdiff1d(list(self._cameras.keys()), cameras_in_largest_cc)
-        return self.drop_cameras(dropped_cameras)
+    @classmethod
+    def pick_cameras(cls, gtsfm_data: "GtsfmData", camera_indices: List[int]) -> "GtsfmData":
+        """Pick the cameras in the input list and the tracks associated with those cameras.
+
+        Args:
+            gtsfm_data: data to pick the cameras from.
+            camera_indices: indices to pick.
+
+        Returns:
+            New object with the requested cameras and associated tracks.
+        """
+        new_data = cls(gtsfm_data.number_images())
+
+        for i in gtsfm_data.get_valid_camera_indices():
+            if i in camera_indices:
+                new_data.add_camera(i, gtsfm_data.get_camera(i))
+
+        new_camera_indices = new_data.get_valid_camera_indices()
+
+        # add tracks which have all the camera present in new data
+        for j in range(gtsfm_data.number_tracks()):
+            track = gtsfm_data.get_track(j)
+            is_valid = True
+            for k in range(track.number_measurements()):
+                i, _ = track.measurement(k)
+                if i not in new_camera_indices:
+                    is_valid = False
+                    break
+            if is_valid:
+                new_data.add_track(track)
+
+        return new_data

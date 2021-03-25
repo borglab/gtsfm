@@ -106,15 +106,30 @@ class TestGtsfmData(unittest.TestCase):
 
         self.assertFalse(gtsfm_data.add_track(track_to_add))
 
-    def test_drop_cameras(self):
-        """Test dropping cameras."""
+    def test_pick_cameras(self):
+        """Test picking cameras."""
 
-        # drop the camera at index 1 in the example data
-        computed = EXAMPLE_DATA.drop_cameras([1])
+        obj = copy.deepcopy(EXAMPLE_DATA)
+        # add a new track with just camera 0 and 2
+        track_to_add = SfmTrack(np.array([0, -2.0, 5.0]))
+        track_to_add.add_measurement(idx=0, m=np.array([20.0, 5.0]))
+        track_to_add.add_measurement(idx=2, m=np.array([60.0, 50.0]))
+        obj.add_track(track_to_add)
 
-        self.assertEqual(computed.get_camera(0), computed.get_camera(0))
-        self.assertEqual(computed.get_camera(2), computed.get_camera(2))
-        self.assertEqual(computed.number_tracks(), 0)
+        # pick the cameras at index 0 and 2, and hence dropping camera at index 1.
+        cams_to_pick = [0, 2]
+        computed = GtsfmData.pick_cameras(obj, cams_to_pick)
+
+        # test the camera has actually been dropped
+        self.assertListEqual(computed.get_valid_camera_indices(), cams_to_pick)
+
+        # test the camera objects
+        self.assertEqual(computed.get_camera(0), obj.get_camera(0))
+        self.assertEqual(computed.get_camera(2), obj.get_camera(2))
+
+        # check the track
+        self.assertEqual(computed.number_tracks(), 1)
+        self.assertTrue(computed.get_track(0).equals(track_to_add, EQUALITY_TOLERANCE))
 
     @mock.patch.object(graph_utils, "get_nodes_in_largest_connected_component", return_value=[1, 2, 4])
     def test_select_largest_connected_component(self, graph_largest_cc_mock):
