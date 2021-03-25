@@ -4,7 +4,6 @@ Authors: Ayush Baid
 """
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
 
 import dask
 import hydra
@@ -18,7 +17,6 @@ import gtsfm.utils.geometry_comparisons as comp_utils
 from gtsfm.common.sfm_result import SfmResult
 from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.scene_optimizer import SceneOptimizer
-from gtsfm.multi_view_optimizer import select_largest_connected_component
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent / "data"
 
@@ -29,50 +27,6 @@ class TestSceneOptimizer(unittest.TestCase):
     def setUp(self) -> None:
         self.loader = OlssonLoader(str(DATA_ROOT_PATH / "set1_lund_door"), image_extension="JPG")
         assert len(self.loader)
-
-    def test_find_largest_connected_component(self):
-        """Tests the function to prune the scene graph to its largest connected
-        component."""
-
-        # create a graph with two connected components of length 4 and 3.
-        input_essential_matrices = {
-            (0, 1): generate_random_essential_matrix(),
-            (1, 5): None,
-            (3, 1): generate_random_essential_matrix(),
-            (3, 2): generate_random_essential_matrix(),
-            (2, 7): None,
-            (4, 6): generate_random_essential_matrix(),
-            (6, 7): generate_random_essential_matrix(),
-        }
-
-        # generate Rot3 and Unit3 inputs
-        input_relative_rotations = dict()
-        input_relative_unit_translations = dict()
-        for (i1, i2), i2Ei1 in input_essential_matrices.items():
-            if i2Ei1 is None:
-                input_relative_rotations[(i1, i2)] = None
-                input_relative_unit_translations[(i1, i2)] = None
-            else:
-                input_relative_rotations[(i1, i2)] = i2Ei1.rotation()
-                input_relative_unit_translations[(i1, i2)] = i2Ei1.direction()
-
-        expected_edges = [(0, 1), (3, 2), (3, 1)]
-
-        (
-            computed_relative_rotations,
-            computed_relative_unit_translations,
-        ) = select_largest_connected_component(input_relative_rotations, input_relative_unit_translations)
-
-        # check the edges in the pruned graph
-        self.assertCountEqual(list(computed_relative_rotations.keys()), expected_edges)
-        self.assertCountEqual(list(computed_relative_unit_translations.keys()), expected_edges)
-
-        # check the actual Rot3 and Unit3 values
-        for (i1, i2) in expected_edges:
-            self.assertTrue(computed_relative_rotations[(i1, i2)].equals(input_relative_rotations[(i1, i2)], 1e-2))
-            self.assertTrue(
-                computed_relative_unit_translations[(i1, i2)].equals(input_relative_unit_translations[(i1, i2)], 1e-2)
-            )
 
     def test_create_computation_graph(self):
         """Will test Dask multi-processing capabilities and ability to serialize all objects."""
@@ -109,12 +63,9 @@ class TestSceneOptimizer(unittest.TestCase):
 
             expected_poses = [self.loader.get_camera_pose(i) for i in range(len(self.loader))]
 
-            self.assertTrue(comp_utils.compare_global_poses(
-                poses,
-                expected_poses,
-                rot_err_thresh=0.03,
-                trans_err_thresh=0.35
-            ))
+            self.assertTrue(
+                comp_utils.compare_global_poses(poses, expected_poses, rot_err_thresh=0.03, trans_err_thresh=0.35)
+            )
 
 
 def generate_random_essential_matrix() -> EssentialMatrix:
