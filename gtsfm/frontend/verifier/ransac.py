@@ -24,7 +24,7 @@ from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
 NUM_MATCHES_REQ_E_MATRIX = 6  # 6 instead of 5 to just return 1 E matrix
-NUM_MATCHES_REQ_F_MATRIX = 8  # 8 instead of 5 to just return 1 E matrix
+NUM_MATCHES_REQ_F_MATRIX = 8
 NORMALIZED_COORD_RANSAC_THRESH = 0.001  # TODO: hyperparameter to tune
 PIXEL_COORD_RANSAC_THRESH = 0.5  # TODO: hyperparameter to tune
 DEFAULT_RANSAC_SUCCESS_PROB = 0.9999
