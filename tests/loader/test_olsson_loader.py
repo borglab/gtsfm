@@ -1,16 +1,16 @@
-"""Unit test for the Folder Loader class.
+"""Unit test for the Olsson Loader class.
 
-Authors:Ayush Baid
+Authors: John Lambert
 """
 import unittest
 from pathlib import Path
 
 import dask
 import numpy as np
-from gtsam import Cal3Bundler, Pose3
+from gtsam import Cal3Bundler, Rot3, Pose3
 
 import gtsfm.utils.io as io_utils
-from gtsfm.loader.folder_loader import FolderLoader
+from gtsfm.loader.olsson_loader import OlssonLoader
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
 
@@ -27,7 +27,7 @@ class TestFolderLoader(unittest.TestCase):
         """Set up the loader for the test."""
         super().setUp()
 
-        self.loader = FolderLoader(str(DEFAULT_FOLDER), image_extension="JPG")
+        self.loader = OlssonLoader(str(DEFAULT_FOLDER), image_extension="JPG")
 
     def test_len(self):
         """Test the number of entries in the loader."""
@@ -58,86 +58,80 @@ class TestFolderLoader(unittest.TestCase):
 
         This test's primary purpose is to check if the ordering of filename is being respected by the loader
         """
-
         index_to_test = 5
         file_path = DEFAULT_FOLDER / "images" / "DSC_0006.JPG"
-
         loader_image = self.loader.get_image(index_to_test)
-
         expected_image = io_utils.load_image(file_path)
-
         np.testing.assert_allclose(expected_image.value_array, loader_image.value_array)
 
     def test_get_camera_pose_exists(self):
         """Tests that the correct pose is fetched (present on disk)."""
+        fetched_pose = self.loader.get_camera_pose(1)
 
-        fetched_pose = self.loader.get_camera_pose(5)
-
-        expected_pose = Pose3(
-            np.array(
-                [
-                    [0.9387, 0.0592, 0.3510, -4.5075],
-                    [-0.0634, 1.0043, -0.01437, 0.2307],
-                    [-0.3618, -0.0227, 0.9362, 1.4820],
-                    [0.0, 0.0, 0.0, 1.0],
-                ]
-            )
+        wRi_expected = np.array(
+            [
+                [0.998079, 0.015881, 0.0598844],
+                [-0.0161175, 0.999864, 0.00346851],
+                [-0.0598212, -0.00442703, 0.998199],
+            ]
         )
+        wti_expected = np.array([-0.826311, -0.00409053, 0.111315])
 
+        expected_pose = Pose3(Rot3(wRi_expected), wti_expected)
         self.assertTrue(expected_pose.equals(fetched_pose, 1e-2))
 
     def test_get_camera_pose_missing(self):
         """Tests that the camera pose is None, because it is missing on disk."""
-
-        loader = FolderLoader(str(NO_EXTRINSICS_FOLDER), image_extension="JPG")
-
+        loader = OlssonLoader(str(NO_EXTRINSICS_FOLDER), image_extension="JPG")
         fetched_pose = loader.get_camera_pose(5)
-
         self.assertIsNone(fetched_pose)
 
     def test_get_camera_intrinsics_explicit(self):
-        """Tests getter for intrinsics when explicit numpy arrays with intrinsics are present on disk."""
+        """Tests getter for intrinsics when explicit data.mat file with intrinsics are present on disk."""
+        expected_fx = 2398.119
+        expected_fy = 2393.952
+        expected_fx = min(expected_fx, expected_fy)
+
+        expected_px = 628.265
+        expected_py = 932.382
 
         computed = self.loader.get_camera_intrinsics(5)
-
-        expected = Cal3Bundler(fx=2378.983, k1=0, k2=0, u0=968.0, v0=648.0)
+        expected = Cal3Bundler(
+            fx=expected_fx, k1=0, k2=0, u0=expected_px, v0=expected_py
+        )
 
         self.assertTrue(expected.equals(computed, 1e-3))
 
     def test_get_camera_intrinsics_exif(self):
         """Tests getter for intrinsics when explicit numpy arrays are absent and we fall back on exif."""
-
-        loader = FolderLoader(EXIF_FOLDER, image_extension="JPG")
-
+        loader = OlssonLoader(
+            EXIF_FOLDER, image_extension="JPG", use_gt_intrinsics=False
+        )
         computed = loader.get_camera_intrinsics(5)
-
         expected = Cal3Bundler(fx=2378.983, k1=0, k2=0, u0=648.0, v0=968.0)
-
         self.assertTrue(expected.equals(computed, 1e-3))
 
     def test_get_camera_intrinsics_missing(self):
         """Tests getter for intrinsics when explicit numpy arrays are absent and we fall back on exif."""
-
-        loader = FolderLoader(NO_EXIF_FOLDER, image_extension="JPG")
-
+        loader = OlssonLoader(NO_EXIF_FOLDER, image_extension="JPG")
         computed = loader.get_camera_intrinsics(5)
-
         self.assertIsNone(computed)
 
     def test_create_computation_graph_for_images(self):
         """Tests the graph for loading all the images."""
-
         image_graph = self.loader.create_computation_graph_for_images()
 
         # check the length of the graph
         self.assertEqual(12, len(image_graph))
-
         results = dask.compute(image_graph)[0]
 
         # randomly check image loads from a few indices
-        np.testing.assert_allclose(results[5].value_array, self.loader.get_image(5).value_array)
-
-        np.testing.assert_allclose(results[7].value_array, self.loader.get_image(7).value_array)
+        np.testing.assert_allclose(
+            results[5].value_array, self.loader.get_image(5).value_array
+        )
+        np.testing.assert_allclose(
+            results[7].value_array, self.loader.get_image(7).value_array
+        )
 
     def test_create_computation_graph_for_intrinsics(self):
         """Tests the graph for all intrinsics."""

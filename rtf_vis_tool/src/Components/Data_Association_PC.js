@@ -20,8 +20,8 @@ const Data_Association_PC = (props) => {
     useEffect(() => {
         var finalPointsJSX = [];
         for (var i = 0; i < props.json.length; i += 1) {
-            const x_angle = (Math.PI/180) * 55;
-            const y_angle = (Math.PI/180) * 30;
+            const x_angle = (Math.PI/180) * 0;
+            const y_angle = (Math.PI/180) * 0;
             const x_mod = Math.cos(y_angle)*props.json[i][0] + (Math.sin(y_angle)*Math.sin(x_angle))*props.json[i][1] + (Math.sin(y_angle)*Math.cos(x_angle))*props.json[i][2]; 
             const y_mod = Math.cos(x_angle)*props.json[i][1] - Math.sin(x_angle)*props.json[i][2]
             const z_mod = -1*Math.sin(y_angle)*props.json[i][0] + (Math.cos(y_angle)*Math.sin(x_angle))*props.json[i][1] + (Math.cos(y_angle)*Math.cos(x_angle))*props.json[i][2]; 

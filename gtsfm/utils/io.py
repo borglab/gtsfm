@@ -5,12 +5,14 @@ Authors: Ayush Baid
 import os
 from typing import Any, Dict, List, Union
 
+import gtsam
 import h5py
 import json
 import numpy as np
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
 
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 
 
@@ -71,10 +73,7 @@ def load_h5(file_path: str) -> Dict[Any, Any]:
     return data
 
 
-def save_json_file(
-    json_fpath: str,
-    data: Union[Dict[Any, Any], List[Any]],
-) -> None:
+def save_json_file(json_fpath: str, data: Union[Dict[Any, Any], List[Any]],) -> None:
     """Save a Python dictionary or list to a JSON file.
     Args:
         json_fpath: Path to file to create.
@@ -85,3 +84,82 @@ def save_json_file(
         json.dump(data, f, indent=4)
 
 
+def read_bal(file_path: str) -> GtsfmData:
+    """Read a Bundle Adjustment in the Large" (BAL) file.
+    
+    See https://grail.cs.washington.edu/projects/bal/ for more details on the format.
+
+
+    Args:
+        file_name: file path of the BAL file.
+
+    Returns:
+        The data as an GtsfmData object.
+    """
+    sfm_data = gtsam.readBal(file_path)
+
+    num_images = sfm_data.number_cameras()
+
+    gtsfm_data = GtsfmData(num_images)
+    for i in range(num_images):
+        camera = sfm_data.camera(i)
+        gtsfm_data.add_camera(i, camera)
+    for j in range(sfm_data.number_tracks()):
+        gtsfm_data.add_track(sfm_data.track(j))
+
+    return gtsfm_data
+
+
+def write_cameras(gtsfm_data: GtsfmData, save_dir: str) -> None:
+    """Writes the camera data file in the COLMAP format.
+
+    Args:
+        gtsfm_data: scene data to write.
+        save_dir: folder to put the cameras.txt file in.
+    """
+    os.makedirs(save_dir, exist_ok=True)
+
+    # TODO: get image shape somehow
+    image_width = 1000
+    image_height = 1000
+
+    # TODO: handle shared intrinsics
+
+    file_path = os.path.join(save_dir, "cameras.txt")
+    with open(file_path, "w") as f:
+        f.write("# Number of cameras: {}\n".format(gtsfm_data.number_images()))
+
+        for i in gtsfm_data.get_valid_camera_indices():
+            camera = gtsfm_data.get_camera(i)
+            calibration = camera.calibration()
+
+            fx = calibration.fx()
+            u0 = calibration.px()
+            v0 = calibration.py()
+            k1 = calibration.k1()
+            k2 = calibration.k2()
+
+            f.write(f"{i} SIMPLE_RADIAL {image_width} {image_height} {fx} {u0} {v0} {k1} {k2}\n")
+
+
+def write_images(gtsfm_data: GtsfmData, save_dir: str) -> None:
+    """Writes the image data file in the COLMAP format.
+
+    Args:
+        gtsfm_data: scene data to write.
+        save_dir: folder to put the images.txt file in.
+    """
+    os.makedirs(save_dir, exist_ok=True)
+
+    file_path = os.path.join(save_dir, "images.txt")
+    with open(file_path, "w") as f:
+        f.write("# Number of cameras: {}\n".format(gtsfm_data.number_images()))
+
+        for i in gtsfm_data.get_valid_camera_indices():
+            camera = gtsfm_data.get_camera(i)
+            wRi_quaternion = camera.pose().rotation().quaternion()
+            wti = camera.pose().translation()
+            tx, ty, tz = wti
+            qw, qx, qy, qz = wRi_quaternion
+
+            f.write(f"{i} {qw} {qx} {qy} {qz} {tx} {ty} {tz}\n")

@@ -146,8 +146,10 @@ data/
 # OS X Finder files
 *.DS_Store
 
-# Plot directory
+# Data dumped by GTSFM directory
 plots/
+results/
+result_metrics/
 
 #react files under /rtf_vis_tool directory
 node_modules/
