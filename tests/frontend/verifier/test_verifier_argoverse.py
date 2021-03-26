@@ -7,7 +7,7 @@ from typing import Any, Tuple
 
 import dask
 import numpy as np
-from gtsam import Cal3Bundler, Pose3, Rot3, Unit3
+from gtsam import Cal3Bundler, Pose3
 from scipy.spatial.transform import Rotation
 
 from gtsfm.common.keypoints import Keypoints
@@ -82,22 +82,14 @@ def check_verifier_output_error(
     # match keypoints row by row
     match_indices = np.vstack([np.arange(len(keypoints_i1)), np.arange(len(keypoints_i1))]).T
 
-    if use_intrinsics_for_verification:
-        i2Ri1, i2ti1, _ = verifier.verify_with_exact_intrinsics(
-            keypoints_i1,
-            keypoints_i2,
-            match_indices,
-            Cal3Bundler(fx, k1, k2, px, py),
-            Cal3Bundler(fx, k1, k2, px, py),
-        )
-    else:
-        i2Ri1, i2ti1, _ = verifier.verify_with_approximate_intrinsics(
-            keypoints_i1,
-            keypoints_i2,
-            match_indices,
-            Cal3Bundler(fx, k1, k2, px, py),
-            Cal3Bundler(fx, k1, k2, px, py),
-        )
+    i2Ri1, i2ti1, _ = verifier.verify(
+        keypoints_i1,
+        keypoints_i2,
+        match_indices,
+        Cal3Bundler(fx, k1, k2, px, py),
+        Cal3Bundler(fx, k1, k2, px, py),
+        use_intrinsics_for_verification,
+    )
 
     # Ground truth is provided in inverse format, so invert SE(3) object
     i2Ti1 = Pose3(i2Ri1, i2ti1.point3())
@@ -127,10 +119,7 @@ class TestRansacVerifierArgoverse(unittest.TestCase):
 
     def testRecoveredPoseError(self):
         check_verifier_output_error(
-            self.verifier,
-            self.use_intrinsics_for_verification,
-            self.euler_angle_err_tol,
-            self.translation_err_tol,
+            self.verifier, self.use_intrinsics_for_verification, self.euler_angle_err_tol, self.translation_err_tol,
         )
 
 
@@ -148,8 +137,5 @@ class TestDegensacVerifierArgoverse(unittest.TestCase):
 
     def testRecoveredPoseError(self):
         check_verifier_output_error(
-            self.verifier,
-            self.use_intrinsics_for_verification,
-            self.euler_angle_err_tol,
-            self.translation_err_tol,
+            self.verifier, self.use_intrinsics_for_verification, self.euler_angle_err_tol, self.translation_err_tol,
         )

@@ -29,7 +29,7 @@ class TestMatcherVerifierBase(unittest.TestCase):
 
         self.matcher_verifier = CombinationMatcherVerifier(DummyMatcher(), DummyVerifier())
 
-    def test_create_computation_graph_with_exact_intrinsics(self):
+    def test_create_computation_graph(self):
         """Checks that the dask computation graph produces the same results as direct APIs."""
 
         # creating inputs for verification
@@ -42,86 +42,44 @@ class TestMatcherVerifierBase(unittest.TestCase):
             intrinsics_i2,
         ) = generate_random_inputs()
 
-        # and use GTSFM's direct API to get expected results
-        expected_results = self.matcher_verifier.match_and_verify_with_exact_intrinsics(
-            keypoints_i1, keypoints_i2, descriptors_i1, descriptors_i2, intrinsics_i1, intrinsics_i2,
-        )
-        expected_i2Ri1 = expected_results[0]
-        expected_i2Ui1 = expected_results[1]
-        expected_v_corr_idxs = expected_results[2]
+        for use_intrinsics_in_verification in (True, False):
+            # and use GTSFM's direct API to get expected results
+            expected_results = self.matcher_verifier.match_and_verify(
+                keypoints_i1,
+                keypoints_i2,
+                descriptors_i1,
+                descriptors_i2,
+                intrinsics_i1,
+                intrinsics_i2,
+                use_intrinsics_in_verification,
+            )
+            expected_i2Ri1 = expected_results[0]
+            expected_i2Ui1 = expected_results[1]
+            expected_v_corr_idxs = expected_results[2]
 
-        # generate the computation graph for the verifier
-        (delayed_i2Ri1, delayed_i2Ui1, delayed_v_corr_idxs,) = self.matcher_verifier.create_computation_graph(
-            dask.delayed(keypoints_i1),
-            dask.delayed(keypoints_i2),
-            dask.delayed(descriptors_i1),
-            dask.delayed(descriptors_i2),
-            dask.delayed(intrinsics_i1),
-            dask.delayed(intrinsics_i2),
-            exact_intrinsics_flag=True,
-        )
+            # generate the computation graph for the verifier
+            (delayed_i2Ri1, delayed_i2Ui1, delayed_v_corr_idxs,) = self.matcher_verifier.create_computation_graph(
+                dask.delayed(keypoints_i1),
+                dask.delayed(keypoints_i2),
+                dask.delayed(descriptors_i1),
+                dask.delayed(descriptors_i2),
+                dask.delayed(intrinsics_i1),
+                dask.delayed(intrinsics_i2),
+                use_intrinsics_in_verification,
+            )
 
-        with dask.config.set(scheduler="single-threaded"):
-            i2Ri1, i2Ui1, v_corr_idxs = dask.compute(delayed_i2Ri1, delayed_i2Ui1, delayed_v_corr_idxs)
+            with dask.config.set(scheduler="single-threaded"):
+                i2Ri1, i2Ui1, v_corr_idxs = dask.compute(delayed_i2Ri1, delayed_i2Ui1, delayed_v_corr_idxs)
 
-        if expected_i2Ri1 is None:
-            self.assertIsNone(i2Ri1)
-        else:
-            self.assertTrue(expected_i2Ri1.equals(i2Ri1, 1e-2))
-
-        if expected_i2Ui1 is None:
-            self.assertIsNone(i2Ui1)
-        else:
-            self.assertTrue(expected_i2Ui1.equals(i2Ui1, 1e-2))
-
-        np.testing.assert_array_equal(v_corr_idxs, expected_v_corr_idxs)
-
-    def test_create_computation_graph_with_approximate_intrinsics(self):
-        """Checks that the dask computation graph produces the same results as direct APIs."""
-
-        # creating inputs for verification
-        (
-            keypoints_i1,
-            keypoints_i2,
-            descriptors_i1,
-            descriptors_i2,
-            intrinsics_i1,
-            intrinsics_i2,
-        ) = generate_random_inputs()
-
-        # and use GTSFM's direct API to get expected results
-        expected_results = self.matcher_verifier.match_and_verify_with_approximate_intrinsics(
-            keypoints_i1, keypoints_i2, descriptors_i1, descriptors_i2, intrinsics_i1, intrinsics_i2,
-        )
-        expected_i2Ri1 = expected_results[0]
-        expected_i2Ui1 = expected_results[1]
-        expected_v_corr_idxs = expected_results[2]
-
-        # generate the computation graph for the verifier
-        (delayed_i2Ri1, delayed_i2Ui1, delayed_v_corr_idxs,) = self.matcher_verifier.create_computation_graph(
-            dask.delayed(keypoints_i1),
-            dask.delayed(keypoints_i2),
-            dask.delayed(descriptors_i1),
-            dask.delayed(descriptors_i2),
-            dask.delayed(intrinsics_i1),
-            dask.delayed(intrinsics_i2),
-            exact_intrinsics_flag=False,
-        )
-
-        with dask.config.set(scheduler="single-threaded"):
-            i2Ri1, i2Ui1, v_corr_idxs = dask.compute(delayed_i2Ri1, delayed_i2Ui1, delayed_v_corr_idxs)
-
-        if expected_i2Ri1 is None:
-            self.assertIsNone(i2Ri1)
-        else:
-            self.assertTrue(expected_i2Ri1.equals(i2Ri1, 1e-2))
-
-        if expected_i2Ui1 is None:
-            self.assertIsNone(i2Ui1)
-        else:
-            self.assertTrue(expected_i2Ui1.equals(i2Ui1, 1e-2))
-
-        np.testing.assert_array_equal(v_corr_idxs, expected_v_corr_idxs)
+            if expected_i2Ri1 is None:
+                self.assertIsNone(i2Ri1)
+            else:
+                self.assertTrue(expected_i2Ri1.equals(i2Ri1, 1e-2))
+            if expected_i2Ui1 is None:
+                self.assertIsNone(i2Ui1)
+            else:
+                self.assertTrue(expected_i2Ui1.equals(i2Ui1, 1e-2))
+            np.testing.assert_array_equal(v_corr_idxs, expected_v_corr_idxs)
 
     def test_pickleable(self):
         """Tests that the verifier object is pickleable (required for dask)."""

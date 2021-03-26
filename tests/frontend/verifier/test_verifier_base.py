@@ -6,7 +6,7 @@ Authors: Ayush Baid
 import pickle
 import random
 import unittest
-from typing import Tuple
+from typing import Optional, Tuple, Union
 
 import dask
 import numpy as np
@@ -19,10 +19,15 @@ from gtsam import (
     Unit3,
 )
 
+import gtsfm.utils.features as feature_utils
+import gtsfm.utils.geometry_comparisons as geom_comp_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.dummy_verifier import DummyVerifier
 
 RANDOM_SEED = 15
+
+ROTATION_ANGULAR_ERROR_DEG_THRESHOLD = 2
+DIRECTION_ANGULAR_ERROR_DEG_THRESHOLD = 2
 
 
 class TestVerifierBase(unittest.TestCase):
@@ -39,30 +44,70 @@ class TestVerifierBase(unittest.TestCase):
 
         self.verifier = DummyVerifier()
 
+    def __execute_test(
+        self,
+        keypoints_i1: Keypoints,
+        keypoints_i2: Keypoints,
+        match_indices: np.ndarray,
+        camera_intrinsics_i1: Cal3Bundler,
+        camera_intrinsics_i2: Cal3Bundler,
+        i2Ri1_expected: Rot3,
+        i2Ui1_expected: Unit3,
+        verified_indices_expected: np.ndarray,
+        use_intrinsics_in_verification_vals: Union[Tuple[bool], Tuple[bool, bool]] = (True, False),
+    ) -> None:
+        """Execute the test both w/ and w/o intrinsics in verification."""
+
+        for use_intrinsics_in_verification in use_intrinsics_in_verification_vals:
+            i2Ri1_computed, i2Ui1_computed, verified_indices_computed = self.verifier.verify(
+                keypoints_i1,
+                keypoints_i2,
+                match_indices,
+                camera_intrinsics_i1,
+                camera_intrinsics_i2,
+                use_intrinsics_in_verification,
+            )
+
+            if i2Ri1_expected is None:
+                self.assertIsNone(i2Ri1_computed)
+            else:
+                self.assertLess(
+                    geom_comp_utils.compute_relative_rotation_angle(i2Ri1_expected, i2Ri1_computed),
+                    ROTATION_ANGULAR_ERROR_DEG_THRESHOLD,
+                )
+            if i2Ui1_expected is None:
+                self.assertIsNone(i2Ui1_computed)
+            else:
+                self.assertLess(
+                    geom_comp_utils.compute_relative_unit_translation_angle(i2Ui1_expected, i2Ui1_computed),
+                    DIRECTION_ANGULAR_ERROR_DEG_THRESHOLD,
+                )
+            np.testing.assert_array_equal(verified_indices_computed, verified_indices_expected)
+
     def test_simple_scene(self):
-        """Test a simple scene with 8 points, 4 on each plane, so that RANSAC family of methods do not get trapped into
-        a degenerate sample."""
+        """Test a simple scene with 10 points, 5 each on 2 planes, so that RANSAC family of methods do not
+        get trapped into a degenerate sample."""
         if isinstance(self.verifier, DummyVerifier):
             self.skipTest("Cannot check correctness for dummy verifier")
 
         # obtain the keypoints and the ground truth essential matrix.
-        keypoints_i1, keypoints_i2, expected_i2Ei1 = simulate_two_planes_scene(4, 4)
+        keypoints_i1, keypoints_i2, i2Ei1_expected = simulate_two_planes_scene(5, 5)
 
         # match keypoints row by row
         match_indices = np.vstack((np.arange(len(keypoints_i1)), np.arange(len(keypoints_i1)))).T
 
-        # run the verifier
-        (i2Ri1, i2Ui1, verified_indices,) = self.verifier.verify_with_approximate_intrinsics(
+        # run the test w/ and w/o using intrinsics in verification
+        self.__execute_test(
             keypoints_i1,
             keypoints_i2,
             match_indices,
             Cal3Bundler(),
             Cal3Bundler(),
+            i2Ei1_expected.rotation(),
+            i2Ei1_expected.direction(),
+            match_indices,
+            use_intrinsics_in_verification_vals=(False,),
         )
-
-        self.assertTrue(i2Ri1.equals(expected_i2Ei1.rotation(), 1e-2))
-        self.assertTrue(i2Ui1.equals(expected_i2Ei1.direction(), 1e-2))
-        np.testing.assert_array_equal(verified_indices, match_indices)
 
     def test_valid_verified_indices(self):
         """Test if valid indices in output."""
@@ -77,7 +122,7 @@ class TestVerifierBase(unittest.TestCase):
                 verified_indices,
                 keypoints_i1,
                 keypoints_i2,
-            ) = self.__verify_random_inputs_with_exact_intrinsics()
+            ) = self.__verify_random_inputs_using_intrinsics_in_verification()
 
             if verified_indices.size > 0:
                 # check that the indices are not out of bounds
@@ -91,76 +136,63 @@ class TestVerifierBase(unittest.TestCase):
     def test_verify_empty_matches(self):
         """Tests the output when there are no match indices."""
 
-        keypoints_i1 = generate_random_keypoints(10, [250, 300])
-        keypoints_i2 = generate_random_keypoints(12, [400, 300])
+        keypoints_i1 = feature_utils.generate_random_keypoints(10, [250, 300])
+        keypoints_i2 = feature_utils.generate_random_keypoints(12, [400, 300])
         match_indices = np.array([], dtype=np.int32)
         intrinsics_i1 = Cal3Bundler()
         intrinsics_i2 = Cal3Bundler()
 
-        (i2Ri1, i2Ui1, verified_indices,) = self.verifier.verify_with_exact_intrinsics(
+        self.__execute_test(
             keypoints_i1,
             keypoints_i2,
             match_indices,
             intrinsics_i1,
             intrinsics_i2,
+            i2Ri1_expected=None,
+            i2Ui1_expected=None,
+            verified_indices_expected=np.array([], dtype=np.uint32),
         )
-
-        self.assertIsNone(i2Ri1)
-        self.assertIsNone(i2Ui1)
-        self.assertEqual(0, verified_indices.size)
 
     def test_create_computation_graph(self):
         """Checks that the dask computation graph produces the same results as direct APIs."""
 
         # creating inputs for verification
-        (
-            keypoints_i1,
-            keypoints_i2,
-            matches_i1i2,
-            intrinsics_i1,
-            intrinsics_i2,
-        ) = generate_random_input_for_verifier()
+        (keypoints_i1, keypoints_i2, matches_i1i2, intrinsics_i1, intrinsics_i2,) = generate_random_input_for_verifier()
 
         # and use GTSFM's direct API to get expected results
 
-        expected_results = self.verifier.verify_with_exact_intrinsics(
-            keypoints_i1,
-            keypoints_i2,
-            matches_i1i2,
-            intrinsics_i1,
-            intrinsics_i2,
-        )
+        for use_intrinsics_in_verification in (True, False):
 
-        expected_i2Ri1 = expected_results[0]
-        expected_i2Ui1 = expected_results[1]
-        expected_v_corr_idxs = expected_results[2]
+            expected_results = self.verifier.verify(
+                keypoints_i1, keypoints_i2, matches_i1i2, intrinsics_i1, intrinsics_i2, use_intrinsics_in_verification
+            )
 
-        # generate the computation graph for the verifier
-        (delayed_i2Ri1, delayed_i2Ui1, delayed_v_corr_idxs,) = self.verifier.create_computation_graph(
-            dask.delayed(keypoints_i1),
-            dask.delayed(keypoints_i2),
-            dask.delayed(matches_i1i2),
-            dask.delayed(intrinsics_i1),
-            dask.delayed(intrinsics_i2),
-            exact_intrinsics_flag=True,
-        )
+            expected_i2Ri1 = expected_results[0]
+            expected_i2Ui1 = expected_results[1]
+            expected_v_corr_idxs = expected_results[2]
 
-        with dask.config.set(scheduler="single-threaded"):
-            i2Ri1 = dask.compute(delayed_i2Ri1)[0]
-            i2Ui1 = dask.compute(delayed_i2Ui1)[0]
-            v_corr_idxs = dask.compute(delayed_v_corr_idxs)[0]
+            # generate the computation graph for the verifier
+            (delayed_i2Ri1, delayed_i2Ui1, delayed_v_corr_idxs,) = self.verifier.create_computation_graph(
+                dask.delayed(keypoints_i1),
+                dask.delayed(keypoints_i2),
+                dask.delayed(matches_i1i2),
+                dask.delayed(intrinsics_i1),
+                dask.delayed(intrinsics_i2),
+                use_intrinsics_in_verification,
+            )
 
-        if expected_i2Ri1 is None:
-            self.assertIsNone(i2Ri1)
-        else:
-            self.assertTrue(expected_i2Ri1.equals(i2Ri1, 1e-2))
+            with dask.config.set(scheduler="single-threaded"):
+                i2Ri1, i2Ui1, v_corr_idxs = dask.compute(delayed_i2Ri1, delayed_i2Ui1, delayed_v_corr_idxs)
 
-        if expected_i2Ui1 is None:
-            self.assertIsNone(i2Ui1)
-        else:
-            self.assertTrue(expected_i2Ui1.equals(i2Ui1, 1e-2))
-
-        np.testing.assert_array_equal(v_corr_idxs, expected_v_corr_idxs)
+            if expected_i2Ri1 is None:
+                self.assertIsNone(i2Ri1)
+            else:
+                self.assertTrue(expected_i2Ri1.equals(i2Ri1, 1e-2))
+            if expected_i2Ui1 is None:
+                self.assertIsNone(i2Ui1)
+            else:
+                self.assertTrue(expected_i2Ui1.equals(i2Ui1, 1e-2))
+            np.testing.assert_array_equal(v_corr_idxs, expected_v_corr_idxs)
 
     def test_pickleable(self):
         """Tests that the verifier object is pickleable (required for dask)."""
@@ -170,11 +202,10 @@ class TestVerifierBase(unittest.TestCase):
         except TypeError:
             self.fail("Cannot dump verifier using pickle")
 
-    def __verify_random_inputs_with_exact_intrinsics(
+    def __verify_random_inputs_using_intrinsics_in_verification(
         self,
-    ) -> Tuple[Rot3, Unit3, np.ndarray, np.ndarray, np.ndarray]:
-        """Generates random inputs for pair (#i1, #i2) and perform verification
-        by treating intrinsics as exact.
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, Keypoints, Keypoints]:
+        """Generates random inputs for pair (#i1, #i2) and perform verification using the intrinsics.
 
         Returns:
             Computed relative rotation i2Ri1.
@@ -192,34 +223,11 @@ class TestVerifierBase(unittest.TestCase):
             intrinsics_i2,
         ) = generate_random_input_for_verifier()
 
-        (i2Ri1, i2Ui1, verified_indices,) = self.verifier.verify_with_exact_intrinsics(
-            keypoints_i1,
-            keypoints_i2,
-            match_indices,
-            intrinsics_i1,
-            intrinsics_i2,
+        (i2Ri1, i2Ui1, verified_indices,) = self.verifier.verify(
+            keypoints_i1, keypoints_i2, match_indices, intrinsics_i1, intrinsics_i2, use_intrinsics_in_verification=True
         )
 
         return i2Ri1, i2Ui1, verified_indices, keypoints_i1, keypoints_i2
-
-
-def generate_random_keypoints(num_keypoints: int, image_shape: Tuple[int, int]) -> Keypoints:
-    """Generates random features within the image bounds.
-
-    Args:
-        num_keypoints: number of features to generate.
-        image_shape: size of the image.
-
-    Returns:
-        generated features.
-    """
-
-    if num_keypoints == 0:
-        return np.array([])
-
-    return Keypoints(
-        coordinates=np.random.randint([0, 0], high=image_shape, size=(num_keypoints, 2)).astype(np.float32)
-    )
 
 
 def generate_random_input_for_verifier() -> Tuple[Keypoints, Keypoints, np.ndarray, Cal3Bundler, Cal3Bundler]:
@@ -238,36 +246,28 @@ def generate_random_input_for_verifier() -> Tuple[Keypoints, Keypoints, np.ndarr
     num_keypoints_i2 = random.randint(0, 100)
 
     # randomly generate image shapes
-    image_shape_i1 = [random.randint(100, 400), random.randint(100, 400)]
-    image_shape_i2 = [random.randint(100, 400), random.randint(100, 400)]
+    image_shape_i1 = (random.randint(100, 400), random.randint(100, 400))
+    image_shape_i2 = (random.randint(100, 400), random.randint(100, 400))
 
     # generate intrinsics from image shapes
     intrinsics_i1 = Cal3Bundler(
-        fx=min(image_shape_i1[0], image_shape_i1[1]),
-        k1=0,
-        k2=0,
-        u0=image_shape_i1[0] / 2,
-        v0=image_shape_i1[1] / 2,
+        fx=min(image_shape_i1[0], image_shape_i1[1]), k1=0, k2=0, u0=image_shape_i1[0] / 2, v0=image_shape_i1[1] / 2,
     )
 
     intrinsics_i2 = Cal3Bundler(
-        fx=min(image_shape_i2[0], image_shape_i2[1]),
-        k1=0,
-        k2=0,
-        u0=image_shape_i2[0] / 2,
-        v0=image_shape_i2[1] / 2,
+        fx=min(image_shape_i2[0], image_shape_i2[1]), k1=0, k2=0, u0=image_shape_i2[0] / 2, v0=image_shape_i2[1] / 2,
     )
 
     # randomly generate the keypoints
-    keypoints_i1 = generate_random_keypoints(num_keypoints_i1, image_shape_i1)
-    keypoints_i2 = generate_random_keypoints(num_keypoints_i2, image_shape_i2)
+    keypoints_i1 = feature_utils.generate_random_keypoints(num_keypoints_i1, image_shape_i1)
+    keypoints_i2 = feature_utils.generate_random_keypoints(num_keypoints_i2, image_shape_i2)
 
     # randomly generate matches
-    num_matches = random.randint(0, min(num_keypoints_i1, num_keypoints_i2))
+    num_matches = random.randint(1, min(num_keypoints_i1, num_keypoints_i2))
     if num_matches == 0:
-        matching_indices_i1i2 = np.array([], dtype=np.int32)
+        matching_indices_i1i2 = np.array([], dtype=np.uint32)
     else:
-        matching_indices_i1i2 = np.empty((num_matches, 2), dtype=np.int32)
+        matching_indices_i1i2 = np.empty((num_matches, 2), dtype=np.uint32)
         matching_indices_i1i2[:, 0] = np.random.choice(num_keypoints_i1, size=(num_matches,), replace=False)
         matching_indices_i1i2[:, 1] = np.random.choice(num_keypoints_i2, size=(num_matches,), replace=False)
 
@@ -303,19 +303,9 @@ def sample_points_on_plane(
     if c == 0:
         raise ValueError("z-coefficient for the plane should not be zero")
 
-    # sample x coordinates randomly
-    x = np.random.uniform(
-        low=range_x_coordinate[0],
-        high=range_x_coordinate[1],
-        size=(num_points, 1),
-    )
-
-    # sample y coordinates randomly
-    y = np.random.uniform(
-        low=range_y_coordinate[0],
-        high=range_y_coordinate[1],
-        size=(num_points, 1),
-    )
+    # sample x and y coordinates randomly
+    x = np.random.uniform(low=range_x_coordinate[0], high=range_x_coordinate[1], size=(num_points, 1),)
+    y = np.random.uniform(low=range_y_coordinate[0], high=range_y_coordinate[1], size=(num_points, 1),)
 
     # calculate z coordinates using equation of the plane
     z = -(a * x + b * y + d) / c
@@ -324,7 +314,6 @@ def sample_points_on_plane(
 
     # assert points are on the plane
     pts_residuals = pts @ np.array(plane_coefficients[:3]).reshape(3, 1) + plane_coefficients[3]
-
     np.testing.assert_almost_equal(pts_residuals, np.zeros((num_points, 1)))
 
     return pts
