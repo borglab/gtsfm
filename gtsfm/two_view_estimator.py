@@ -14,8 +14,7 @@ import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.frontend.matcher.matcher_base import MatcherBase
-from gtsfm.frontend.verifier.verifier_base import VerifierBase
+from gtsfm.frontend.matcher_verifier.matcher_verifier_base import MatcherVerifierBase
 
 logger = logger_utils.get_logger()
 
@@ -29,16 +28,19 @@ pil_logger.setLevel(logging.INFO)
 class TwoViewEstimator:
     """Wrapper for running two-view relative pose estimation on image pairs in the dataset."""
 
-    def __init__(self, matcher: MatcherBase, verifier: VerifierBase, corr_metric_dist_threshold: float) -> None:
-        """Initializes the two-view estimator from matcher and verifier.
+    def __init__(self, matcher_verifier: MatcherVerifierBase, corr_metric_dist_threshold: float) -> None:
+        """Initializes the two-view estimator using a matcher-wrapper object.
 
         Args:
-            matcher: matcher to use.
-            verifier: verifier to use.
+            matcher_verifier: joint matcher-verifier to use for each pair of images.
+            corr_metric_dist_threshold: distance threshold for marking a correspondence pair as inlier. 
         """
-        self.matcher = matcher
-        self.verifier = verifier
+        self._matcher_verifier = matcher_verifier
         self._corr_metric_dist_threshold = corr_metric_dist_threshold
+
+    def get_corr_metric_dist_threshold(self) -> float:
+        """Getter for the distance threshold used in the metric for correct correspondences."""
+        return self._corr_metric_dist_threshold
 
     def create_computation_graph(
         self,
@@ -72,16 +74,11 @@ class TwoViewEstimator:
             Error in relative translation direction wrapped as Delayed.
             Correspondence correctness metrics wrapped as Delayed.
         """
-
-        # graph for matching to obtain putative correspondences
-        corr_idxs_graph = self.matcher.create_computation_graph(descriptors_i1_graph, descriptors_i2_graph)
-
-        # verification on putative correspondences to obtain relative pose
-        # and verified correspondences
-        (i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph,) = self.verifier.create_computation_graph(
+        (i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph,) = self._matcher_verifier.create_computation_graph(
             keypoints_i1_graph,
             keypoints_i2_graph,
-            corr_idxs_graph,
+            descriptors_i1_graph,
+            descriptors_i2_graph,
             camera_intrinsics_i1_graph,
             camera_intrinsics_i2_graph,
             exact_intrinsics,
@@ -139,6 +136,9 @@ def compute_correspondence_metrics(
         Number of correct correspondences.
         Inlier Ratio, i.e. ratio of correspondences which are correct.
     """
+    if corr_idxs_i1i2.size == 0:
+        return 0, float("Nan")
+
     number_correct = metric_utils.count_correct_correspondences(
         keypoints_i1.extract_indices(corr_idxs_i1i2[:, 0]),
         keypoints_i2.extract_indices(corr_idxs_i1i2[:, 1]),
