@@ -2,12 +2,13 @@
 
 Authors: Ayush Baid
 """
+from gtsfm.common.gtsfm_data import GtsfmData
 from typing import List, Optional, Tuple
 
 import cv2 as cv
 import matplotlib.pyplot as plt
 import numpy as np
-from gtsam import Pose3, SfmData
+from gtsam import Pose3
 from matplotlib.axes._axes import Axes
 
 import gtsfm.utils.images as image_utils
@@ -146,7 +147,7 @@ def plot_twoview_correspondences(
     return result
 
 
-def plot_sfm_data_3d(sfm_data: SfmData, ax: Axes, max_plot_radius: float = 50) -> None:
+def plot_sfm_data_3d(sfm_data: GtsfmData, ax: Axes, max_plot_radius: float = 50) -> None:
     """Plot the camera poses and landmarks in 3D matplotlib plot.
 
     Args:
@@ -155,16 +156,12 @@ def plot_sfm_data_3d(sfm_data: SfmData, ax: Axes, max_plot_radius: float = 50) -
         max_plot_radius: maximum distance threshold away from any camera for which a point
             will be plotted
     """
-    # extract camera poses
-    camera_poses = []
-    for i in range(sfm_data.number_cameras()):
-        camera_poses.append(sfm_data.camera(i).pose())
-
+    camera_poses = [sfm_data.get_camera(i).pose() for i in sfm_data.get_valid_camera_indices()]
     plot_poses_3d(camera_poses, ax)
 
     num_tracks = sfm_data.number_tracks()
     # Restrict 3d points to some radius of camera poses
-    points_3d = np.array([list(sfm_data.track(j).point3()) for j in range(num_tracks)])
+    points_3d = np.array([list(sfm_data.get_track(j).point3()) for j in range(num_tracks)])
 
     nearby_points_3d = comp_utils.get_points_within_radius_of_cameras(camera_poses, points_3d, max_plot_radius)
 

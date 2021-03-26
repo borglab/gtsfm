@@ -7,19 +7,13 @@ import unittest
 import gtsam
 import numpy as np
 from distributed.protocol.serialize import serialize, deserialize
-from gtsam import (
-    Cal3Bundler,
-    PinholeCameraCal3Bundler,
-    Point3,
-    Pose3,
-    Rot3,
-    Unit3,
-)
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point3, Pose3, Rot3, Unit3
 
+import gtsfm.utils.io as io_utils
 from gtsfm.common.sfm_result import SfmResult
 
 GTSAM_EXAMPLE_FILE = "dubrovnik-3-7-pre"
-EXAMPLE_DATA = gtsam.readBal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
+EXAMPLE_DATA = io_utils.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
 
 
 class TestSerialization(unittest.TestCase):
@@ -72,14 +66,14 @@ class TestSerialization(unittest.TestCase):
 
         self.assertTrue(expected.equals(recovered, 1e-5))
 
-    def test_sfmData_roundtrip(self):
+    def test_gtsfmData_roundtrip(self):
         """Test for equality after serializing and then de-serializing an SfmData instance."""
         expected = EXAMPLE_DATA
         header, frames = serialize(expected)
         recovered = deserialize(header, frames)
 
         # comparing tracks in an order-sensitive fashion.
-        self.assertTrue(recovered.equals(expected, 1e-9))
+        self.assertEqual(recovered, expected)
 
     def test_sfmResult_roundtrip(self):
         """Test for equality after serializing and then de-serializing an SfmResult instance."""
@@ -87,9 +81,7 @@ class TestSerialization(unittest.TestCase):
         header, frames = serialize(expected)
         recovered = deserialize(header, frames)
 
-        # comparing cameras and total reprojection error
-        self.assertEqual(recovered.total_reproj_error, expected.total_reproj_error)
-        self.assertTrue(recovered.sfm_data.equals(expected.sfm_data, 1e-9))
+        self.assertEqual(recovered, expected)
 
 
 if __name__ == "__main__":
