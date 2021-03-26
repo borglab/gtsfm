@@ -17,7 +17,7 @@ SceneOptimizer:
       _target_: gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher
 
     verifier:
-      _target_: gtsfm.frontend.verifier.ransac.Ransac   
+      _target_: gtsfm.frontend.verifier.degensac.Degensac
     
 
   multiview_optimizer:
@@ -31,7 +31,7 @@ SceneOptimizer:
     data_association_module:
       _target_: gtsfm.data_association.data_assoc.DataAssociation
       reproj_error_thresh: 5
-      min_track_len: 2
+      min_track_len: 3
       mode:
         _target_: gtsfm.data_association.data_assoc.TriangulationParam
         value: 2 #0 # corresponds to NO_RANSAC
