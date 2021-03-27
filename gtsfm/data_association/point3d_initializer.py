@@ -301,7 +301,7 @@ class Point3dInitializer(NamedTuple):
         """
         track_cameras = CameraSetCal3Bundler()
         track_measurements = Point2Vector()  # vector of 2d points
-
+        
         for i, uv in track.measurements:
 
             # check for unestimated cameras
