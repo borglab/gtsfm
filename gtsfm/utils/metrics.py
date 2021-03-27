@@ -69,11 +69,11 @@ def compute_errors_statistics(errors: List[Optional[float]], num_sig_figs: int =
         and errors_list mapping to the respective stats.
     """
     metrics = {}
-    valid_errors = [np.round(error, num_sig_figs) for error in errors if error is not None]
-    metrics["median_error"] = np.median(valid_errors)
-    metrics["min_error"] = np.min(valid_errors)
-    metrics["max_error"] = np.max(valid_errors)
-    metrics["errors_list"] = errors
+    valid_errors = [error for error in errors if error is not None]
+    metrics["median_error"] = np.round(np.median(valid_errors), num_sig_figs)
+    metrics["min_error"] = np.round(np.min(valid_errors), num_sig_figs)
+    metrics["max_error"] = np.round(np.max(valid_errors), num_sig_figs)
+    metrics["errors_list"] = [np.round(error, num_sig_figs) if error is not None else None for error in errors]
     return metrics
 
 
