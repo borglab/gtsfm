@@ -1,13 +1,10 @@
 import os
 from pathlib import Path
 
-import hydra
 from dask.distributed import Client, LocalCluster, performance_report
 from hydra.experimental import compose, initialize_config_module
 from hydra.utils import instantiate
-from omegaconf import DictConfig
 
-import gtsfm
 from gtsfm.common.sfm_result import SfmResult
 from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.scene_optimizer import SceneOptimizer

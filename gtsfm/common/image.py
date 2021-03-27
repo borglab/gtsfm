@@ -39,7 +39,7 @@ class Image(NamedTuple):
         Ref:
         - https://github.com/colmap/colmap/blob/e3948b2098b73ae080b97901c3a1f9065b976a45/src/util/bitmap.cc#L282
         - https://openmvg.readthedocs.io/en/latest/software/SfM/SfMInit_ImageListing/
-        - https://photo.stackexchange.com/questions/40865/how-can-i-get-the-image-sensor-dimensions-in-mm-to-get-circle-of-confusion-from
+        - https://photo.stackexchange.com/questions/40865/how-can-i-get-the-image-sensor-dimensions-in-mm-to-get-circle-of-confusion-from # noqa: E501
 
         Returns:
             intrinsics matrix (3x3).

@@ -10,7 +10,7 @@ import numpy as np
 from argoverse.data_loading.simple_track_dataloader import SimpleArgoverseTrackingDataLoader
 from argoverse.utils.calibration import get_calibration_config
 from argoverse.utils.se3 import SE3
-from gtsam import Cal3Bundler, Point3, Pose3, Rot3
+from gtsam import Cal3Bundler, Pose3, Rot3
 
 import gtsfm.utils.io as io_utils
 from gtsfm.common.image import Image

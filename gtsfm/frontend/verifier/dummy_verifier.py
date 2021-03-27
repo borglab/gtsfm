@@ -5,7 +5,6 @@ Authors: Ayush Baid
 from typing import Optional, Tuple
 
 import numpy as np
-from dask.delayed import Delayed
 from gtsam import Cal3Bundler, Point3, Rot3, Unit3
 
 from gtsfm.common.keypoints import Keypoints
