@@ -9,13 +9,16 @@ import numpy as np
 from gtsam import PinholeCameraCal3Bundler, SfmTrack
 
 import gtsfm.utils.graph as graph_utils
+import gtsfm.utils.logger as logger_utils
+
+logger = logger_utils.get_logger()
 
 EQUALITY_TOLERANCE = 1e-5
 
 
 class GtsfmData:
     """Class containing cameras and tracks, essentially describing the complete 3D scene.
-    
+
     This class is needed over GTSAM's SfmData type because GTSAM's type does not allow for non-contiguous cameras.
     The situation of non-contiguous cameras can exists because of failures in front-end.
     """
@@ -127,7 +130,11 @@ class GtsfmData:
         self._tracks.append(track)
         return True
 
-    def add_camera(self, index: int, camera: PinholeCameraCal3Bundler,) -> None:
+    def add_camera(
+        self,
+        index: int,
+        camera: PinholeCameraCal3Bundler,
+    ) -> None:
         """Adds a camera.
 
         Args:
@@ -163,6 +170,11 @@ class GtsfmData:
             return GtsfmData(self._number_images)
 
         cameras_in_largest_cc = graph_utils.get_nodes_in_largest_connected_component(camera_edges)
+        logger.info(
+            "Largest connected component contains {} of {} cameras".format(
+                len(cameras_in_largest_cc), self._number_images
+            )
+        )
         return GtsfmData.from_selected_cameras(self, cameras_in_largest_cc)
 
     @classmethod
