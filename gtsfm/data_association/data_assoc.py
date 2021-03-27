@@ -12,7 +12,6 @@ Authors: Sushmita Warrier, Xiaolong Wu, John Lambert
 from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 import dask
-import networkx as nx
 import numpy as np
 from dask.delayed import Delayed
 from gtsam import PinholeCameraCal3Bundler, SfmTrack
