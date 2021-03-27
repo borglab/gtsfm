@@ -9,7 +9,6 @@ from typing import Dict, List, Optional, Tuple
 
 import dask
 import matplotlib
-import numpy as np
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
