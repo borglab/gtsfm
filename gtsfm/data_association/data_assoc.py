@@ -12,7 +12,6 @@ Authors: Sushmita Warrier, Xiaolong Wu, John Lambert
 from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 import dask
-import networkx as nx
 import numpy as np
 from dask.delayed import Delayed
 from gtsam import PinholeCameraCal3Bundler, SfmTrack
@@ -103,6 +102,10 @@ class DataAssociation(NamedTuple):
             if is_cheirality_failure:
                 num_tracks_w_cheirality_exceptions += 1
 
+            if avg_track_reproj_error is not None:
+                # need no more than 3 significant figures in json report
+                avg_track_reproj_error = np.round(avg_track_reproj_error, 3) 
+
             if sfm_track is not None and self.__validate_track(sfm_track):
                 triangulated_data.add_track(sfm_track)
                 per_accepted_track_avg_errors.append(avg_track_reproj_error)
@@ -114,14 +117,14 @@ class DataAssociation(NamedTuple):
         track_cheirality_failure_ratio = num_tracks_w_cheirality_exceptions / len(tracks_2d)
 
         # pick only the largest connected component
-        result_data = triangulated_data.select_largest_connected_component()
+        connected_data = triangulated_data.select_largest_connected_component()
 
         mean_3d_track_length, median_3d_track_length, track_lengths_3d = SfmResult(
-            result_data, total_reproj_error=float("Nan")
+            triangulated_data, total_reproj_error=float("Nan")
         ).get_track_length_statistics()
 
         logger.debug("[Data association] output number of tracks: %s", num_accepted_tracks)
-        logger.debug("[Data association] output avg. track length: %s", mean_3d_track_length)
+        logger.debug("[Data association] output avg. track length: %s", np.round(mean_3d_track_length,2))
 
         # dump the 3d point cloud before Bundle Adjustment for offline visualization
         points_3d = [list(triangulated_data.get_track(j).point3()) for j in range(num_accepted_tracks)]
@@ -149,7 +152,7 @@ class DataAssociation(NamedTuple):
             "points_3d": points_3d,
         }
 
-        return triangulated_data, data_assoc_metrics
+        return connected_data, data_assoc_metrics
 
     def create_computation_graph(
         self,
