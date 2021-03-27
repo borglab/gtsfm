@@ -57,19 +57,19 @@ def count_correct_correspondences(
     return np.count_nonzero(epipolar_distances < epipolar_dist_threshold)
 
 
-def compute_errors_statistics(errors: List[Optional[float]]) -> StatsDict:
+def compute_errors_statistics(errors: List[Optional[float]], num_sig_figs: int = 2) -> StatsDict:
     """Computes statistics (min, max, median) on the given list of errors
 
     Args:
         errors: List of errors for a metric.
+        num_sig_figs: number of digits (significant figures) to include in each entry of error metrics
 
     Returns:
         A dict with keys min_error, max_error, median_error,
         and errors_list mapping to the respective stats.
     """
-
     metrics = {}
-    valid_errors = [error for error in errors if error is not None]
+    valid_errors = [np.round(error, num_sig_figs) for error in errors if error is not None]
     metrics["median_error"] = np.median(valid_errors)
     metrics["min_error"] = np.min(valid_errors)
     metrics["max_error"] = np.max(valid_errors)
