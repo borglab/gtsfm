@@ -102,6 +102,10 @@ class DataAssociation(NamedTuple):
             if is_cheirality_failure:
                 num_tracks_w_cheirality_exceptions += 1
 
+            if avg_track_reproj_error is not None:
+                # need no more than 3 significant figures in json report
+                avg_track_reproj_error = np.round(avg_track_reproj_error, 3) 
+
             if sfm_track is not None and self.__validate_track(sfm_track):
                 triangulated_data.add_track(sfm_track)
                 per_accepted_track_avg_errors.append(avg_track_reproj_error)
@@ -120,7 +124,7 @@ class DataAssociation(NamedTuple):
         ).get_track_length_statistics()
 
         logger.debug("[Data association] output number of tracks: %s", num_accepted_tracks)
-        logger.debug("[Data association] output avg. track length: %s", mean_3d_track_length)
+        logger.debug("[Data association] output avg. track length: %s", np.round(mean_3d_track_length,2))
 
         # dump the 3d point cloud before Bundle Adjustment for offline visualization
         points_3d = [list(triangulated_data.get_track(j).point3()) for j in range(num_accepted_tracks)]
