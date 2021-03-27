@@ -25,7 +25,9 @@ pip install -e .
 ##########################################################
 
 cd $GITHUB_WORKSPACE
-pytest tests
 
 # check that main script executes on toy Door dataset
 python gtsfm/runner/run_scene_optimizer.py
+
+pytest tests --cov gtsfm
+coverage report

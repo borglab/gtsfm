@@ -22,5 +22,14 @@ jobs:
         python-version: 3.8
     - shell: bash -l {0}
       run: |
+        pip install pytest-cov
         conda info --envs
         bash .github/scripts/python.sh
+
+    - name: Install flake8 dependencies
+      run: |
+        pip install flake8
+        
+    - name: Test with flake8
+      run: |
+        flake8 --max-line-length 120 --ignore E201,E202,E203,E231,W291,W293,E303,W391,E402,W503 gtsfm
