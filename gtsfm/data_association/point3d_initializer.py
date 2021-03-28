@@ -22,6 +22,7 @@ from gtsam import (
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
+from gtsfm.utils.reprojection import compute_point_reprojection_errors
 
 NUM_SAMPLES_PER_RANSAC_HYPOTHESIS = 2
 SVD_DLT_RANK_TOL = 1e-9
@@ -58,9 +59,8 @@ class Point3dInitializer(NamedTuple):
     reproj_error_thresh: float
     num_ransac_hypotheses: Optional[int] = None
 
-
     def execute_ransac_variant(self, track_2d: SfmTrack2d) -> np.ndarray:
-        """ Execute RANSAC algorithm to find best subset 2d measurements for a 3d point.
+        """Execute RANSAC algorithm to find best subset 2d measurements for a 3d point.
         RANSAC chooses one of 3 different sampling schemes to execute.
 
         Args:
@@ -118,7 +118,7 @@ class Point3dInitializer(NamedTuple):
                 )
                 continue
 
-            errors = self.compute_track_reprojection_errors(track_2d.measurements, triangulated_pt)
+            errors, _ = compute_point_reprojection_errors(self.track_camera_dict, triangulated_pt, track_2d.measurements)
 
             # The best solution should correspond to the one with most inliers
             # If the inlier number are the same, check the average error of inliers
@@ -137,9 +137,7 @@ class Point3dInitializer(NamedTuple):
                     best_error = avg_error
                     best_inliers = is_inlier
 
-
         return best_inliers
-
 
     def triangulate(self, track_2d: SfmTrack2d) -> Tuple[Optional[SfmTrack], Optional[float], bool]:
         """Triangulates 3D point according to the configured triangulation mode.
@@ -186,19 +184,19 @@ class Point3dInitializer(NamedTuple):
             return None, None, is_cheirality_failure
 
         # compute reprojection errors for each measurement
-        reproj_errors = self.compute_track_reprojection_errors(inlier_track.measurements, triangulated_pt)
+        reproj_errors, avg_track_reproj_error = compute_point_reprojection_errors(
+            self.track_camera_dict, triangulated_pt, inlier_track.measurements
+        )
 
         # all the measurements should have error < threshold
         if not np.all(reproj_errors < self.reproj_error_thresh):
-            return None, reproj_errors.mean(), is_cheirality_failure
+            return None, avg_track_reproj_error, is_cheirality_failure
 
         track_3d = SfmTrack(triangulated_pt)
         for i, uv in inlier_track.measurements:
             track_3d.add_measurement(i, uv)
 
-        avg_track_reproj_error = reproj_errors.mean()
         return track_3d, avg_track_reproj_error, is_cheirality_failure
-
 
     def generate_measurement_pairs(self, track: SfmTrack2d) -> List[Tuple[int, int]]:
         """
@@ -267,28 +265,6 @@ class Point3dInitializer(NamedTuple):
 
         return sample_indices.tolist()
 
-    def compute_track_reprojection_errors(self, measurements: List[SfmMeasurement], point3d: np.ndarray) -> np.ndarray:
-        """Compute reprojection errors for measurements in the tracks.
-
-        Args:
-            measurements: measurements corresponding to a track.
-            point3d: 3D corresponding to the measurments.
-
-        Returns:
-            reprojection errors for each measurement.
-        """
-        errors = []
-        for (i, uv_measured) in measurements:
-            camera = self.track_camera_dict[i]
-            # Project to camera
-            uv, success_flag = camera.projectSafe(point3d)
-            # Projection error in camera
-            if success_flag:
-                errors.append(np.linalg.norm(uv_measured - uv))
-            else:
-                errors.append(np.nan)
-        return np.array(errors)
-
     def extract_measurements(self, track: SfmTrack2d) -> Tuple[CameraSetCal3Bundler, Point2Vector]:
         """Extract measurements in a track for triangulation.
 
@@ -301,7 +277,7 @@ class Point3dInitializer(NamedTuple):
         """
         track_cameras = CameraSetCal3Bundler()
         track_measurements = Point2Vector()  # vector of 2d points
-        
+
         for i, uv in track.measurements:
 
             # check for unestimated cameras
@@ -321,3 +297,4 @@ class Point3dInitializer(NamedTuple):
             )
 
         return track_cameras, track_measurements
+
