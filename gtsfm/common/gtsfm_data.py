@@ -10,6 +10,7 @@ from gtsam import PinholeCameraCal3Bundler, SfmTrack
 
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.logger as logger_utils
+from gtsfm.utils.reprojection import compute_track_reprojection_errors
 
 logger = logger_utils.get_logger()
 
@@ -209,3 +210,22 @@ class GtsfmData:
                 new_data.add_track(track)
 
         return new_data
+
+
+    def get_scene_avg_reprojection_error(self) -> float:
+        """ Get average reprojection error for all 3d points in the entire scene
+        
+        Returns:
+            scene_avg_repoj_error: average of reprojection errors for every 3d point to its 2d measurements
+        """
+        scene_errors = []
+        for j in gtsfm_data.number_tracks()
+            track = gtsfm_data.get_track(j)
+            track_errors, _ = compute_track_reprojection_errors(gtsfm_data._cameras, track)
+            scene_errors.extend(track_errors)
+
+        scene_avg_repoj_error = np.array(scene_errors).mean()
+        return scene_avg_repoj_error
+
+
+
