@@ -8,7 +8,7 @@ import numpy as np
 from gtsam import Pose3, SfmTrack
 
 from gtsfm.common.gtsfm_data import GtsfmData
-
+from gtsfm.utils.reprojection import compute_track_reprojection_info
 
 class SfmResult(NamedTuple):
     """Class to hold optimized camera params, 3d landmarks (w/ tracks), and total reprojection error."""
@@ -75,28 +75,11 @@ class SfmResult(NamedTuple):
         Returns:
             validity of the track.
         """
-
-        for k in range(track.number_measurements()):
-            # process each measurement
-            cam_idx, uv = track.measurement(k)
-
-            # get the camera associated with the measurement
-            camera = self.gtsfm_data.get_camera(cam_idx)
-
-            # Project to camera
-            uv_reprojected, success_flag = camera.projectSafe(track.point3())
-
-            if not success_flag:
-                # failure in projection
-                return False
-
-            # compute and check reprojection error
-            reproj_error = np.linalg.norm(uv - uv_reprojected)
-            if reproj_error > reproj_err_thresh:
-                return False
-
+        errors, avg_reproj_error = compute_track_reprojection_info(gtsfm_data._cameras, track)
         # track is valid as all measurements have error below the threshold
-        return True
+        cheirality_success = np.all(~np.isnan(errors))
+        return np.all(errors < reproj_err_thresh) and cheirality_success
+
 
     def filter_landmarks(self, reproj_err_thresh: float = 5) -> GtsfmData:
         """Filters out landmarks with high reprojection error
