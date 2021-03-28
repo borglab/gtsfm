@@ -15,28 +15,56 @@ extend({OrbitControls})
 //point cloud renderer component in the 'SfMData' Node
 const Data_Association_PC = (props) => {
     const [pointCloud, setPointCloud] = useState([]);
+    const [isCentered, setIsCentered] = useState(false);
+    const [showCoordGrid, setShowCoordGrid] = useState(true);
 
     //render points from data association json file (passed in through props)
     useEffect(() => {
         var finalPointsJSX = [];
         for (var i = 0; i < props.json.length; i += 1) {
-            const x_angle = (Math.PI/180) * 0;
-            const y_angle = (Math.PI/180) * 0;
-            const x_mod = Math.cos(y_angle)*props.json[i][0] + (Math.sin(y_angle)*Math.sin(x_angle))*props.json[i][1] + (Math.sin(y_angle)*Math.cos(x_angle))*props.json[i][2]; 
-            const y_mod = Math.cos(x_angle)*props.json[i][1] - Math.sin(x_angle)*props.json[i][2]
-            const z_mod = -1*Math.sin(y_angle)*props.json[i][0] + (Math.cos(y_angle)*Math.sin(x_angle))*props.json[i][1] + (Math.cos(y_angle)*Math.cos(x_angle))*props.json[i][2]; 
-
             finalPointsJSX.push(<PointMesh 
-                position={[x_mod, z_mod, y_mod]} 
+                position={[props.json[i][0], -1*props.json[i][2], props.json[i][1]]} 
                 color={`rgb(163, 168, 165)`}
                 size={[0.2,8,8]}
             />)
         }
 
-            // end of test points
-
         setPointCloud(finalPointsJSX);
     }, []);
+
+    //Function to center the point cloud with respect to the origin
+    const centerPC = () => {
+        if (isCentered) {
+            alert('Point Cloud Already Centered');
+            return;
+        }
+        setIsCentered(true);
+
+        const length = props.json.length;
+        var sumX = 0;
+        var sumY = 0;
+        var sumZ = 0;
+
+        for (var i = 0; i < props.json.length; i += 1) {
+            sumX += props.json[i][0];
+            sumY += props.json[i][1];
+            sumZ += props.json[i][2];
+        }
+
+        const meanX = sumX / length;
+        const meanY = sumY / length;
+        const meanZ = sumZ / length;
+
+        var finalPointsJSX = [];
+        for (var i = 0; i < props.json.length; i += 1) {
+            finalPointsJSX.push(<PointMesh 
+                position={[props.json[i][0] - meanX, props.json[i][2] - meanZ, props.json[i][1] - meanY]} 
+                color={`rgb(163, 168, 165)`}
+                size={[0.2,8,8]}
+            />)
+        }
+        setPointCloud(finalPointsJSX);
+    }
 
     return (
         <div className="da-container">
@@ -54,11 +82,13 @@ const Data_Association_PC = (props) => {
                 />
         
                 {pointCloud}
-                <CoordinateGrid />
+                {showCoordGrid && <CoordinateGrid />}
                 <OrbitControlsComponent />
             </Canvas>
 
             <button className="da_go_back_btn" onClick={() => props.toggleDA_PC(false)}>Go Back</button>
+            <button className="toggle_grid_btn" onClick={() => setShowCoordGrid(!showCoordGrid)}>Toggle Coordinate Grid</button>
+            <button className="da_center_btn" onClick={centerPC}>Center</button>
         </div>
     )
 }

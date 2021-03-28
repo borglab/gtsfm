@@ -17,3 +17,19 @@
     top: 1%;
     cursor: pointer;
 }
+
+.toggle_grid_btn {
+    position: absolute;
+    right: 1%;
+    top: 5%;
+    cursor: pointer;
+    font-size: large;
+}
+
+.da_center_btn {
+    position: absolute;
+    right: 1%;
+    top: 10%;
+    cursor: pointer;
+    font-size: large;
+}

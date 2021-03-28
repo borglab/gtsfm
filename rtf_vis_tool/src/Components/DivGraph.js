@@ -17,7 +17,7 @@ import RotSuccessSummary from './RotSuccessSummary';
 import TranSuccessSummary from './TranSuccessSummary';
 
 //json files in result_metrics folders to display summary metrics
-import data_association_json from '.././result_metrics/data_association_metrics_2.json';
+import data_association_json from '.././result_metrics/data_association_metrics.json';
 import frontend_summary_json from '.././result_metrics/frontend_summary.json';
 import multiview_optimizer_json from '.././result_metrics/multiview_optimizer_metrics.json';
 
