@@ -86,7 +86,7 @@ def fit_ls_ellipsoid(hull_set: np.ndarray) -> np.ndarray:
     # solve normal equations to find the 9 parameters
     ATA = A.T @ A
     ATA_inv = np.linalg.inv(ATA)
-    params = ATA_inv @ (AT @ b)
+    params = ATA_inv @ (A.T @ b)
     params = np.append(params, -1)
 
     return params
