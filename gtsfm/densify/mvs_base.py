@@ -3,6 +3,7 @@
 Authors: John Lambert, Ren Liu
 """
 import abc
+from typing import Dict, Tuple
 
 import dask
 from dask.delayed import Delayed
@@ -26,14 +27,13 @@ class MvsBase(metaclass=abc.ABCMeta):
         gtsfm_data: Optional[GtsfmData] = None,
         min_distance: Optional[float] = None,
         max_distance: Optional[float] = None,
-
     ) -> Tuple[np.ndarray, Dict[int,np.ndarray]]:
         """Densify a point cloud using multi-view stereo
 
         Args:
             image: dictionary mapping image indices to input images.
             cameras: dictionary mapping image indices to camera parameters
-            gtsfm_data
+            gtsfm_data: TODO 
             min_distance: minimum distance from any camera to any 3d point
             max_distance: maximum distance from any camera to any 3d point
 
