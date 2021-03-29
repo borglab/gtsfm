@@ -10,7 +10,6 @@ from dask.delayed import Delayed
 from gtsam import PinholeCameraCal3Bundler
 
 from gtsfm.common.image import Image
-from gtsfm.common.gtsfm_data import GtsfmData
 
 class MvsBase(metaclass=abc.ABCMeta):
     """Base class for all multi-view stereo hyperparameters."""
