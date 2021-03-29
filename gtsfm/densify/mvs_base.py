@@ -24,7 +24,6 @@ class MvsBase(metaclass=abc.ABCMeta):
         self,
         images: Dict[int,Image],
         cameras: Dict[int, PinholeCameraCal3Bundler],
-        gtsfm_data: Optional[GtsfmData] = None,
         min_distance: Optional[float] = None,
         max_distance: Optional[float] = None,
     ) -> Tuple[np.ndarray, Dict[int,np.ndarray]]:
@@ -33,7 +32,6 @@ class MvsBase(metaclass=abc.ABCMeta):
         Args:
             image: dictionary mapping image indices to input images.
             cameras: dictionary mapping image indices to camera parameters
-            gtsfm_data: TODO 
             min_distance: minimum distance from any camera to any 3d point
             max_distance: maximum distance from any camera to any 3d point
 
@@ -42,7 +40,7 @@ class MvsBase(metaclass=abc.ABCMeta):
             dictionary mapping integer index to depth map of shape (H,W)
         """
 
-    def create_computation_graph(self, images_graph: Delayed, cameras_graph: Delayed) -> Delayed:
+    def create_computation_graph(self, images_graph: Delayed, cameras_graph: Delayed, min_distance_graph: Delayed, max_distance_graph: Delayed) -> Delayed:
         """Generates the computation graph for performing multi-view stereo.
 
         Args:
@@ -52,4 +50,4 @@ class MvsBase(metaclass=abc.ABCMeta):
         Returns:
             Delayed task for detection on the input image.
         """
-        return dask.delayed(self.densify)(image_graph, cameras_graph)
+        return dask.delayed(self.densify)(image_graph, cameras_graph, min_distance_graph, max_distance_graph)
