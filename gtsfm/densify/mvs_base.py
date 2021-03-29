@@ -33,10 +33,13 @@ class MvsBase(metaclass=abc.ABCMeta):
         Args:
             image: dictionary mapping image indices to input images.
             cameras: dictionary mapping image indices to camera parameters
+            gtsfm_data
+            min_distance: minimum distance from any camera to any 3d point
+            max_distance: maximum distance from any camera to any 3d point
 
         Returns:
             (N,3) representing dense point cloud
-            depth maps (H,W)
+            dictionary mapping integer index to depth map of shape (H,W)
         """
 
     def create_computation_graph(self, images_graph: Delayed, cameras_graph: Delayed) -> Delayed:
