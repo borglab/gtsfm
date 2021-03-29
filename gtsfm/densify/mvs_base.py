@@ -15,11 +15,7 @@ class MvsBase(metaclass=abc.ABCMeta):
     """Base class for all multi-view stereo hyperparameters."""
 
     def __init__(self) -> None:
-        """Initialize the detector.
-
-        Args:
-            max_keypoints: 
-        """
+        """Initialize the MVS module """
         pass
 
     @abc.abstractmethod
