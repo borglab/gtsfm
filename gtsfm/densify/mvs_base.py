@@ -24,8 +24,8 @@ class MvsBase(metaclass=abc.ABCMeta):
         self,
         images: Dict[int,Image],
         cameras: Dict[int, PinholeCameraCal3Bundler],
-        min_distance: Optional[float] = None,
-        max_distance: Optional[float] = None,
+        min_distance: float,
+        max_distance: float,
     ) -> Tuple[np.ndarray, Dict[int,np.ndarray]]:
         """Densify a point cloud using multi-view stereo
 
@@ -36,7 +36,7 @@ class MvsBase(metaclass=abc.ABCMeta):
             max_distance: maximum distance from any camera to any 3d point
 
         Returns:
-            (N,3) representing dense point cloud
+            array of shape (N,3) representing dense point cloud
             dictionary mapping integer index to depth map of shape (H,W)
         """
 
