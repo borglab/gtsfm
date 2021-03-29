@@ -46,8 +46,10 @@ class MvsBase(metaclass=abc.ABCMeta):
         Args:
             images_graph: computation graph for images.
             cameras_graph
+            min_distance_graph
+            max_distance_graph
 
         Returns:
-            Delayed task for detection on the input image.
+            Delayed task for MVS computation on the input images.
         """
         return dask.delayed(self.densify)(image_graph, cameras_graph, min_distance_graph, max_distance_graph)
