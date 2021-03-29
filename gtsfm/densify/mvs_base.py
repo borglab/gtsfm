@@ -6,10 +6,12 @@ import abc
 from typing import Dict, Tuple
 
 import dask
+import numpy as np
 from dask.delayed import Delayed
 from gtsam import PinholeCameraCal3Bundler
 
 from gtsfm.common.image import Image
+
 
 class MvsBase(metaclass=abc.ABCMeta):
     """Base class for all multi-view stereo hyperparameters."""
@@ -25,7 +27,7 @@ class MvsBase(metaclass=abc.ABCMeta):
         cameras: Dict[int, PinholeCameraCal3Bundler],
         min_distance: float,
         max_distance: float,
-    ) -> Tuple[np.ndarray, Dict[int,np.ndarray]]:
+    ) -> Tuple[np.ndarray, Dict[int, np.ndarray]]:
         """Densify a point cloud using multi-view stereo
 
         Args:
@@ -39,7 +41,13 @@ class MvsBase(metaclass=abc.ABCMeta):
             dictionary mapping integer index to depth map of shape (H,W)
         """
 
-    def create_computation_graph(self, images_graph: Delayed, cameras_graph: Delayed, min_distance_graph: Delayed, max_distance_graph: Delayed) -> Delayed:
+    def create_computation_graph(
+        self,
+        images_graph: Delayed,
+        cameras_graph: Delayed,
+        min_distance_graph: Delayed,
+        max_distance_graph: Delayed
+    ) -> Delayed:
         """Generates the computation graph for performing multi-view stereo.
 
         Args:
@@ -51,4 +59,4 @@ class MvsBase(metaclass=abc.ABCMeta):
         Returns:
             Delayed task for MVS computation on the input images.
         """
-        return dask.delayed(self.densify)(image_graph, cameras_graph, min_distance_graph, max_distance_graph)
+        return dask.delayed(self.densify)(images_graph, cameras_graph, min_distance_graph, max_distance_graph)
