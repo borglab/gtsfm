@@ -29,7 +29,7 @@ from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBa
 class ShonanRotationAveraging(RotationAveragingBase):
     """Performs Shonan rotation averaging."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._p_min = 5
         self._p_max = 30
 

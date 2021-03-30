@@ -23,7 +23,7 @@ def align_rotations(aRi_list: List[Rot3], bRi_list: List[Rot3]) -> List[Rot3]:
     Args:
         aRi_list: reference rotations in frame "a" which are the targets for alignment
         bRi_list: input rotations which need to be aligned to frame "a"
-            
+
     Returns:
         aRi_list_: transformed input rotations previously "bRi_list" but now which
             have the same origin as reference (now living in "a" frame)
@@ -49,7 +49,7 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> List[Pose3
     Args:
         aTi_list: reference poses in frame "a" which are the targets for alignment
         bTi_list: input poses which need to be aligned to frame "a"
-            
+
     Returns:
         aTi_list_: transformed input poses previously "bTi_list" but now which
             have the same origin and scale as reference (now living in "a" frame)
@@ -66,7 +66,9 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> List[Pose3
     aRb = aSb.rotation().matrix()
     atb = aSb.translation()
     rz, ry, rx = Rotation.from_matrix(aRb).as_euler("zyx", degrees=True)
-    logger.info(f"Sim(3) Rotation `aRb`: rz={rz:.2f} deg., ry={ry:.2f} deg., rx={rx:.2f} deg.",)
+    logger.info(
+        f"Sim(3) Rotation `aRb`: rz={rz:.2f} deg., ry={ry:.2f} deg., rx={rx:.2f} deg.",
+    )
     logger.info(f"Sim(3) Translation `atb`: [tx,ty,tz]={str(np.round(atb,2))}")
     logger.info(f"Sim(3) Scale `asb`: {float(aSb.scale()):.2f}")
 
@@ -123,7 +125,7 @@ def compare_global_poses(
     bTi_list: List[Optional[Pose3]],
     rot_err_thresh: float = 1e-3,
     trans_err_thresh: float = 1e-1,
-    verbose: bool = True
+    verbose: bool = True,
 ) -> bool:
     """Helper function to compare two lists of global Pose3, considering the
     origin and scale ambiguous.
@@ -163,22 +165,25 @@ def compare_global_poses(
     #  We set frame "a" the target/reference
     aTi_list_ = align_poses_sim3(aTi_list, bTi_list)
 
-    rotations_equal = all([
-        aTi.rotation().equals(aTi_.rotation(), rot_err_thresh) for (aTi, aTi_) in zip(aTi_list, aTi_list_)
-    ])
-    translations_equal = all([
-        np.allclose(aTi.translation(), aTi_.translation(), atol=trans_err_thresh) for (aTi, aTi_) in zip(aTi_list, aTi_list_)
-    ])
+    rotations_equal = all(
+        [aTi.rotation().equals(aTi_.rotation(), rot_err_thresh) for (aTi, aTi_) in zip(aTi_list, aTi_list_)]
+    )
+    translations_equal = all(
+        [
+            np.allclose(aTi.translation(), aTi_.translation(), atol=trans_err_thresh)
+            for (aTi, aTi_) in zip(aTi_list, aTi_list_)
+        ]
+    )
     if verbose:
         # GTSAM Rot3.equals() compares rotation matrices by absolute tolerance
-        rotation_errors = np.array([
-            (aTi.rotation().matrix() - aTi_.rotation().matrix()).max() for (aTi, aTi_) in zip(aTi_list, aTi_list_)
-        ])
-        translation_errors = np.array([
-            np.linalg.norm(aTi.translation() - aTi_.translation()) for (aTi, aTi_) in zip(aTi_list, aTi_list_)
-        ])
-        logger.info('Comparison Rotation Errors: ' + str(np.round(rotation_errors, 2)))
-        logger.info('Comparison Translation Errors: ' + str(np.round(translation_errors, 2)))
+        rotation_errors = np.array(
+            [(aTi.rotation().matrix() - aTi_.rotation().matrix()).max() for (aTi, aTi_) in zip(aTi_list, aTi_list_)]
+        )
+        translation_errors = np.array(
+            [np.linalg.norm(aTi.translation() - aTi_.translation()) for (aTi, aTi_) in zip(aTi_list, aTi_list_)]
+        )
+        logger.info("Comparison Rotation Errors: " + str(np.round(rotation_errors, 2)))
+        logger.info("Comparison Translation Errors: " + str(np.round(translation_errors, 2)))
 
     return rotations_equal and translations_equal
 
@@ -273,7 +278,7 @@ def get_points_within_radius_of_cameras(
     wTi_list: List[Pose3], points_3d: np.ndarray, radius: float = 50
 ) -> Optional[np.ndarray]:
     """Return those 3d points that fall within a specified radius from any camera.
-    
+
     Args:
         wTi_list: camera poses
         points_3d: array of shape (N,3) representing 3d points
@@ -296,4 +301,3 @@ def get_points_within_radius_of_cameras(
     is_nearby_to_any_cam = np.any(is_nearby_matrix, axis=1)
     nearby_points_3d = points_3d[is_nearby_to_any_cam]
     return nearby_points_3d
-

@@ -94,7 +94,7 @@ class BundleAdjustmentOptimizer:
             params.setVerbosityLM("ERROR")
             lm = gtsam.LevenbergMarquardtOptimizer(graph, initial, params)
             result_values = lm.optimize()
-        except Exception as e:
+        except Exception:
             logger.exception("LM Optimization failed")
             # as we did not perform the bundle adjustment, we skip computing the total reprojection error
             return SfmResult(GtsfmData(initial_data.number_images()), total_reproj_error=float("Nan"))
