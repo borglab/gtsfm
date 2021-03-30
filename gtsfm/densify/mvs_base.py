@@ -3,7 +3,7 @@
 Authors: John Lambert, Ren Liu
 """
 import abc
-from typing import Dict, Tuple
+from typing import Dict
 
 import dask
 import numpy as np
