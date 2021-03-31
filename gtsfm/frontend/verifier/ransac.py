@@ -72,11 +72,11 @@ class Ransac(VerifierBase):
 
         verified_indices = np.array([], dtype=np.uint32)
 
-        uv_norm_i1 = feature_utils.normalize_coordinates(keypoints_i1.coordinates, camera_intrinsics_i1)
-        uv_norm_i2 = feature_utils.normalize_coordinates(keypoints_i2.coordinates, camera_intrinsics_i2)
-        K = np.eye(3)
-
         if self._use_intrinsics_in_verification:
+            uv_norm_i1 = feature_utils.normalize_coordinates(keypoints_i1.coordinates, camera_intrinsics_i1)
+            uv_norm_i2 = feature_utils.normalize_coordinates(keypoints_i2.coordinates, camera_intrinsics_i2)
+            K = np.eye(3)
+
             i2Ei1, inlier_mask = cv2.findEssentialMat(
                 uv_norm_i1[match_indices[:, 0]],
                 uv_norm_i2[match_indices[:, 1]],
