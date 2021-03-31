@@ -53,7 +53,6 @@ class TwoViewEstimator:
         descriptors_i2_graph: Delayed,
         camera_intrinsics_i1_graph: Delayed,
         camera_intrinsics_i2_graph: Delayed,
-        exact_intrinsics: bool = True,
         i2Ti1_expected_graph: Optional[Delayed] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, Optional[Delayed], Optional[Delayed], Optional[Delayed]]:
         """Create delayed tasks for matching and verification.
@@ -65,7 +64,6 @@ class TwoViewEstimator:
             descriptors_i2_graph: corr. descriptors for image i2.
             camera_intrinsics_i1_graph: intrinsics for camera i1.
             camera_intrinsics_i2_graph: intrinsics for camera i2.
-            exact_intrinsics (optional): flag to use intrinsics as exact. Defaults to True.
             i2Ti1_expected_graph (optional): ground truth relative pose, used for evaluation if available. Defaults to
                                              None.
 
@@ -91,7 +89,6 @@ class TwoViewEstimator:
             corr_idxs_graph,
             camera_intrinsics_i1_graph,
             camera_intrinsics_i2_graph,
-            exact_intrinsics,
         )
 
         # if we have the expected data, evaluate the computed relative pose

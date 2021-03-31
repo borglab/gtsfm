@@ -10,14 +10,7 @@ from typing import Optional, Tuple, Union
 
 import dask
 import numpy as np
-from gtsam import (
-    Cal3Bundler,
-    EssentialMatrix,
-    PinholeCameraCal3Bundler,
-    Pose3,
-    Rot3,
-    Unit3,
-)
+from gtsam import Cal3Bundler, EssentialMatrix, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3
 
 import gtsfm.utils.features as feature_utils
 import gtsfm.utils.geometry_comparisons as geom_comp_utils
@@ -54,35 +47,28 @@ class TestVerifierBase(unittest.TestCase):
         i2Ri1_expected: Rot3,
         i2Ui1_expected: Unit3,
         verified_indices_expected: np.ndarray,
-        use_intrinsics_in_verification_vals: Union[Tuple[bool], Tuple[bool, bool]] = (True, False),
     ) -> None:
-        """Execute the test both w/ and w/o intrinsics in verification."""
+        """Execute the verification and compute results."""
 
-        for use_intrinsics_in_verification in use_intrinsics_in_verification_vals:
-            i2Ri1_computed, i2Ui1_computed, verified_indices_computed = self.verifier.verify(
-                keypoints_i1,
-                keypoints_i2,
-                match_indices,
-                camera_intrinsics_i1,
-                camera_intrinsics_i2,
-                use_intrinsics_in_verification,
+        i2Ri1_computed, i2Ui1_computed, verified_indices_computed = self.verifier.verify(
+            keypoints_i1, keypoints_i2, match_indices, camera_intrinsics_i1, camera_intrinsics_i2,
+        )
+
+        if i2Ri1_expected is None:
+            self.assertIsNone(i2Ri1_computed)
+        else:
+            self.assertLess(
+                geom_comp_utils.compute_relative_rotation_angle(i2Ri1_expected, i2Ri1_computed),
+                ROTATION_ANGULAR_ERROR_DEG_THRESHOLD,
             )
-
-            if i2Ri1_expected is None:
-                self.assertIsNone(i2Ri1_computed)
-            else:
-                self.assertLess(
-                    geom_comp_utils.compute_relative_rotation_angle(i2Ri1_expected, i2Ri1_computed),
-                    ROTATION_ANGULAR_ERROR_DEG_THRESHOLD,
-                )
-            if i2Ui1_expected is None:
-                self.assertIsNone(i2Ui1_computed)
-            else:
-                self.assertLess(
-                    geom_comp_utils.compute_relative_unit_translation_angle(i2Ui1_expected, i2Ui1_computed),
-                    DIRECTION_ANGULAR_ERROR_DEG_THRESHOLD,
-                )
-            np.testing.assert_array_equal(verified_indices_computed, verified_indices_expected)
+        if i2Ui1_expected is None:
+            self.assertIsNone(i2Ui1_computed)
+        else:
+            self.assertLess(
+                geom_comp_utils.compute_relative_unit_translation_angle(i2Ui1_expected, i2Ui1_computed),
+                DIRECTION_ANGULAR_ERROR_DEG_THRESHOLD,
+            )
+        np.testing.assert_array_equal(verified_indices_computed, verified_indices_expected)
 
     def test_simple_scene(self):
         """Test a simple scene with 10 points, 5 each on 2 planes, so that RANSAC family of methods do not
@@ -106,7 +92,6 @@ class TestVerifierBase(unittest.TestCase):
             i2Ei1_expected.rotation(),
             i2Ei1_expected.direction(),
             match_indices,
-            use_intrinsics_in_verification_vals=(False,),
         )
 
     def test_valid_verified_indices(self):
@@ -116,13 +101,7 @@ class TestVerifierBase(unittest.TestCase):
         # verification every time.
 
         for _ in range(10):
-            (
-                _,
-                _,
-                verified_indices,
-                keypoints_i1,
-                keypoints_i2,
-            ) = self.__verify_random_inputs_using_intrinsics_in_verification()
+            (_, _, verified_indices, keypoints_i1, keypoints_i2,) = self.__verify_random_inputs()
 
             if verified_indices.size > 0:
                 # check that the indices are not out of bounds
@@ -160,39 +139,33 @@ class TestVerifierBase(unittest.TestCase):
         (keypoints_i1, keypoints_i2, matches_i1i2, intrinsics_i1, intrinsics_i2,) = generate_random_input_for_verifier()
 
         # and use GTSFM's direct API to get expected results
+        expected_results = self.verifier.verify(keypoints_i1, keypoints_i2, matches_i1i2, intrinsics_i1, intrinsics_i2)
 
-        for use_intrinsics_in_verification in (True, False):
+        expected_i2Ri1 = expected_results[0]
+        expected_i2Ui1 = expected_results[1]
+        expected_v_corr_idxs = expected_results[2]
 
-            expected_results = self.verifier.verify(
-                keypoints_i1, keypoints_i2, matches_i1i2, intrinsics_i1, intrinsics_i2, use_intrinsics_in_verification
-            )
+        # generate the computation graph for the verifier
+        (delayed_i2Ri1, delayed_i2Ui1, delayed_v_corr_idxs,) = self.verifier.create_computation_graph(
+            dask.delayed(keypoints_i1),
+            dask.delayed(keypoints_i2),
+            dask.delayed(matches_i1i2),
+            dask.delayed(intrinsics_i1),
+            dask.delayed(intrinsics_i2),
+        )
 
-            expected_i2Ri1 = expected_results[0]
-            expected_i2Ui1 = expected_results[1]
-            expected_v_corr_idxs = expected_results[2]
+        with dask.config.set(scheduler="single-threaded"):
+            i2Ri1, i2Ui1, v_corr_idxs = dask.compute(delayed_i2Ri1, delayed_i2Ui1, delayed_v_corr_idxs)
 
-            # generate the computation graph for the verifier
-            (delayed_i2Ri1, delayed_i2Ui1, delayed_v_corr_idxs,) = self.verifier.create_computation_graph(
-                dask.delayed(keypoints_i1),
-                dask.delayed(keypoints_i2),
-                dask.delayed(matches_i1i2),
-                dask.delayed(intrinsics_i1),
-                dask.delayed(intrinsics_i2),
-                use_intrinsics_in_verification,
-            )
-
-            with dask.config.set(scheduler="single-threaded"):
-                i2Ri1, i2Ui1, v_corr_idxs = dask.compute(delayed_i2Ri1, delayed_i2Ui1, delayed_v_corr_idxs)
-
-            if expected_i2Ri1 is None:
-                self.assertIsNone(i2Ri1)
-            else:
-                self.assertTrue(expected_i2Ri1.equals(i2Ri1, 1e-2))
-            if expected_i2Ui1 is None:
-                self.assertIsNone(i2Ui1)
-            else:
-                self.assertTrue(expected_i2Ui1.equals(i2Ui1, 1e-2))
-            np.testing.assert_array_equal(v_corr_idxs, expected_v_corr_idxs)
+        if expected_i2Ri1 is None:
+            self.assertIsNone(i2Ri1)
+        else:
+            self.assertTrue(expected_i2Ri1.equals(i2Ri1, 1e-2))
+        if expected_i2Ui1 is None:
+            self.assertIsNone(i2Ui1)
+        else:
+            self.assertTrue(expected_i2Ui1.equals(i2Ui1, 1e-2))
+        np.testing.assert_array_equal(v_corr_idxs, expected_v_corr_idxs)
 
     def test_pickleable(self):
         """Tests that the verifier object is pickleable (required for dask)."""
@@ -202,10 +175,8 @@ class TestVerifierBase(unittest.TestCase):
         except TypeError:
             self.fail("Cannot dump verifier using pickle")
 
-    def __verify_random_inputs_using_intrinsics_in_verification(
-        self,
-    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, Keypoints, Keypoints]:
-        """Generates random inputs for pair (#i1, #i2) and perform verification using the intrinsics.
+    def __verify_random_inputs(self,) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, Keypoints, Keypoints]:
+        """Generates random inputs for pair (#i1, #i2) and perform verification.
 
         Returns:
             Computed relative rotation i2Ri1.
@@ -224,7 +195,7 @@ class TestVerifierBase(unittest.TestCase):
         ) = generate_random_input_for_verifier()
 
         (i2Ri1, i2Ui1, verified_indices,) = self.verifier.verify(
-            keypoints_i1, keypoints_i2, match_indices, intrinsics_i1, intrinsics_i2, use_intrinsics_in_verification=True
+            keypoints_i1, keypoints_i2, match_indices, intrinsics_i1, intrinsics_i2
         )
 
         return i2Ri1, i2Ui1, verified_indices, keypoints_i1, keypoints_i2

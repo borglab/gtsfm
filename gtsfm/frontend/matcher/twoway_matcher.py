@@ -19,7 +19,6 @@ class TwoWayMatcher(MatcherBase):
         keypoints_i2: Keypoints,  # pylint: disable=unused-argument
         descriptors_i1: np.ndarray,
         descriptors_i2: np.ndarray,
-        distance_type: MatchingDistanceType = MatchingDistanceType.EUCLIDEAN,
     ) -> np.ndarray:
         """Match descriptor vectors.
 
@@ -34,15 +33,13 @@ class TwoWayMatcher(MatcherBase):
             keypoints_i2: keypoints for image #i2, of length N2.
             descriptors_i1: descriptors corr. to keypoints_i1.
             descriptors_i2: descriptors corr. to keypoints_i2.
-            distance_type (optional): the space to compute the distance between descriptors. Defaults to
-                                      MatchingDistanceType.EUCLIDEAN.
 
         Returns:
             Match indices (sorted by confidence), as matrix of shape (N, 2), where N < min(N1, N2).
         """
-        if distance_type is MatchingDistanceType.EUCLIDEAN:
+        if self._distance_type is MatchingDistanceType.EUCLIDEAN:
             distance_metric = cv.NORM_L2
-        elif distance_type is MatchingDistanceType.HAMMING:
+        elif self._distance_type is MatchingDistanceType.HAMMING:
             distance_metric = cv.NORM_HAMMING
         else:
             raise NotImplementedError("The distance type is not in MatchingDistanceType")

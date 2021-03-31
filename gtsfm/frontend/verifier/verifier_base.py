@@ -20,9 +20,20 @@ class VerifierBase(metaclass=abc.ABCMeta):
     geometrically verified points.
     """
 
-    def __init__(self, min_pts_e_matrix: int, min_pts_f_matrix: int):
-        self.min_pts_e_matrix = min_pts_e_matrix
-        self.min_pts_f_matrix = min_pts_f_matrix
+    def __init__(self, min_matches: int, use_intrinsics_in_verification: bool = False):
+        """Initializes the verifier.
+
+        Args:
+            min_matches: minimum correspondences required for the verification algorithm.
+            use_intrinsics_in_verification (optional): Flag to perform keypoint normalization and compute the essential
+                                                       matrix instead of fundamental matrix. This should be preferred
+                                                       when the exact intrinsics are known as opposed to approximating
+                                                       them from exif data. Defaults to False.
+        """
+        self._min_matches = min_matches
+        self._use_intrinsics_in_verification = use_intrinsics_in_verification
+
+        self._failure_result = (None, None, np.array([], dtype=np.uint64))
 
     @abc.abstractmethod
     def verify(
@@ -32,7 +43,6 @@ class VerifierBase(metaclass=abc.ABCMeta):
         match_indices: np.ndarray,
         camera_intrinsics_i1: Cal3Bundler,
         camera_intrinsics_i2: Cal3Bundler,
-        use_intrinsics_in_verification: bool = False,
     ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
         """Performs verification of correspondences between two images to recover the relative pose and indices of
         verified correspondences.
@@ -43,10 +53,6 @@ class VerifierBase(metaclass=abc.ABCMeta):
             match_indices: matches as indices of features from both images, of shape (N3, 2), where N3 <= min(N1, N2).
             camera_intrinsics_i1: intrinsics for image #i1.
             camera_intrinsics_i2: intrinsics for image #i2.
-            use_intrinsics_in_verification (optional): Flag to perform keypoint normalization and compute the essential
-                                                       matrix instead of fundamental matrix. This should be preferred
-                                                       when the exact intrinsics are known as opposed to approximating
-                                                       them from exif data. Defaults to False.
 
         Returns:
             Estimated rotation i2Ri1, or None if it cannot be estimated.
@@ -61,7 +67,6 @@ class VerifierBase(metaclass=abc.ABCMeta):
         matches_i1i2_graph: Delayed,
         intrinsics_i1_graph: Delayed,
         intrinsics_i2_graph: Delayed,
-        use_intrinsics_in_verification: bool = False,
     ) -> Tuple[Delayed, Delayed, Delayed]:
         """Generates the computation graph to perform verification of putative correspondences.
 
@@ -70,10 +75,6 @@ class VerifierBase(metaclass=abc.ABCMeta):
             detection_graph: nodes with features for each image.
             matcher_graph: nodes with matching results for pairs of images.
             camera_intrinsics_graph: nodes with intrinsics for each image.
-            use_intrinsics_in_verification (optional): Flag to perform keypoint normalization and compute the essential
-                                                       matrix instead of fundamental matrix. This should be preferred
-                                                       when the exact intrinsics are known as opposed to approximating
-                                                       them from exif data. Defaults to False.
 
         Returns:
             Delayed dask task for rotation i2Ri1 for specific image pair.
@@ -82,12 +83,7 @@ class VerifierBase(metaclass=abc.ABCMeta):
         """
         # we cannot immediately unpack the result tuple, per dask syntax
         result = dask.delayed(self.verify)(
-            keypoints_i1_graph,
-            keypoints_i2_graph,
-            matches_i1i2_graph,
-            intrinsics_i1_graph,
-            intrinsics_i2_graph,
-            use_intrinsics_in_verification,
+            keypoints_i1_graph, keypoints_i2_graph, matches_i1i2_graph, intrinsics_i1_graph, intrinsics_i2_graph,
         )
         i2Ri1_graph = result[0]
         i2Ui1_graph = result[1]

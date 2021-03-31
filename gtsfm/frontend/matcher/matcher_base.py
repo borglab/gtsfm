@@ -25,14 +25,18 @@ class MatcherBase(metaclass=abc.ABCMeta):
     Matchers work on a pair of descriptors and match them by their distance.
     """
 
+    def __init__(self, distance_type: MatchingDistanceType = MatchingDistanceType.EUCLIDEAN) -> None:
+        """Initialize the matcher.
+
+        Args:
+            distance_type (optional): the space to compute the distance between descriptors. Defaults to
+                                      MatchingDistanceType.EUCLIDEAN.
+        """
+        self._distance_type = distance_type
+
     @abc.abstractmethod
     def match(
-        self,
-        keypoints_i1: Keypoints,
-        keypoints_i2: Keypoints,
-        descriptors_i1: np.ndarray,
-        descriptors_i2: np.ndarray,
-        distance_type: MatchingDistanceType = MatchingDistanceType.EUCLIDEAN,
+        self, keypoints_i1: Keypoints, keypoints_i2: Keypoints, descriptors_i1: np.ndarray, descriptors_i2: np.ndarray
     ) -> np.ndarray:
         """Match descriptor vectors.
 
@@ -47,8 +51,7 @@ class MatcherBase(metaclass=abc.ABCMeta):
             keypoints_i2: keypoints for image #i2, of length N2.
             descriptors_i1: descriptors corr. to keypoints_i1.
             descriptors_i2: descriptors corr. to keypoints_i2.
-            distance_type (optional): the space to compute the distance between descriptors. Defaults to
-                                      MatchingDistanceType.EUCLIDEAN.
+            
 
         Returns:
             Match indices (sorted by confidence), as matrix of shape (N, 2), where N < min(N1, N2).
@@ -62,7 +65,6 @@ class MatcherBase(metaclass=abc.ABCMeta):
         keypoints_i2_graph: Delayed,
         descriptors_i1_graph: Delayed,
         descriptors_i2_graph: Delayed,
-        distance_type: MatchingDistanceType = MatchingDistanceType.EUCLIDEAN,
     ) -> Delayed:
         """
         Generates computation graph for matched features using description graphs.
@@ -72,12 +74,10 @@ class MatcherBase(metaclass=abc.ABCMeta):
             keypoints_i2_graph: keypoints for image #i2, wrapped in Delayed.
             descriptors_i1_graph: descriptors corr. to keypoints_i1.
             descriptors_i2_graph: descriptors corr. to keypoints_i2.
-            distance_type (optional): the space to compute the distance between descriptors. Defaults to
-                                      MatchingDistanceType.EUCLIDEAN.
 
         Returns:
             Delayed dask tasks for matching for input camera pairs.
         """
         return dask.delayed(self.match)(
-            keypoints_i1_graph, keypoints_i2_graph, descriptors_i1_graph, descriptors_i2_graph, distance_type
+            keypoints_i1_graph, keypoints_i2_graph, descriptors_i1_graph, descriptors_i2_graph
         )

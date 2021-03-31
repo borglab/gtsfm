@@ -23,7 +23,6 @@ import gtsfm.utils.verification as verification_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
-NUM_MATCHES_REQ_E_MATRIX = 8  # cannot compute E matrix and hence falling back on F matrix.
 NUM_MATCHES_REQ_F_MATRIX = 8
 PIXEL_COORD_RANSAC_THRESH = 0.5
 
@@ -31,8 +30,8 @@ logger = logger_utils.get_logger()
 
 
 class Degensac(VerifierBase):
-    def __init__(self):
-        super().__init__(min_pts_e_matrix=NUM_MATCHES_REQ_E_MATRIX, min_pts_f_matrix=NUM_MATCHES_REQ_F_MATRIX)
+    def __init__(self) -> None:
+        super().__init__(min_matches=NUM_MATCHES_REQ_F_MATRIX, use_intrinsics_in_verification=False)
 
     def verify(
         self,
@@ -41,7 +40,6 @@ class Degensac(VerifierBase):
         match_indices: np.ndarray,
         camera_intrinsics_i1: Cal3Bundler,
         camera_intrinsics_i2: Cal3Bundler,
-        use_intrinsics_in_verification: bool = False,
     ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
         """Performs verification of correspondences between two images to recover the relative pose and indices of
         verified correspondences.
@@ -52,24 +50,14 @@ class Degensac(VerifierBase):
             match_indices: matches as indices of features from both images, of shape (N3, 2), where N3 <= min(N1, N2).
             camera_intrinsics_i1: intrinsics for image #i1.
             camera_intrinsics_i2: intrinsics for image #i2.
-            use_intrinsics_in_verification (optional): Flag to perform keypoint normalization and compute the essential
-                                                       matrix instead of fundamental matrix. This should be preferred
-                                                       when the exact intrinsics are known as opposed to approximating
-                                                       them from exif data. Defaults to False.
 
         Returns:
             Estimated rotation i2Ri1, or None if it cannot be estimated.
             Estimated unit translation i2Ui1, or None if it cannot be estimated.
             Indices of verified correspondences, of shape (N, 2) with N <= N3. These are subset of match_indices.
         """
-        if use_intrinsics_in_verification:
-            logger.warning("Essential Matrix estimation not supported by DEGENSAC verifier")
-
-        verified_indices = np.array([], dtype=np.uint32)
-
-        # check if we don't have the minimum number of points
-        if match_indices.shape[0] < self.min_pts_f_matrix:
-            return None, None, verified_indices
+        if match_indices.shape[0] < self._min_matches:
+            return self._failure_result
 
         i2Fi1, mask = pydegensac.findFundamentalMatrix(
             keypoints_i1.coordinates[match_indices[:, 0]],

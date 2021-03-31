@@ -85,7 +85,6 @@ class SceneOptimizer:
         image_pair_indices: List[Tuple[int, int]],
         image_graph: List[Delayed],
         camera_intrinsics_graph: List[Delayed],
-        use_intrinsics_in_verification: bool = True,
         gt_pose_graph: Optional[List[Delayed]] = None,
     ) -> Delayed:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
@@ -129,7 +128,6 @@ class SceneOptimizer:
                 descriptors_graph_list[i2],
                 camera_intrinsics_graph[i1],
                 camera_intrinsics_graph[i2],
-                use_intrinsics_in_verification,
                 gt_relative_pose,
             )
             i2Ri1_graph_dict[(i1, i2)] = i2Ri1

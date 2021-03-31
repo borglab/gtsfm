@@ -32,8 +32,6 @@ class TestSceneOptimizer(unittest.TestCase):
         """Will test Dask multi-processing capabilities and ability to serialize all objects."""
         self.loader = OlssonLoader(str(DATA_ROOT_PATH / "set1_lund_door"), image_extension="JPG")
 
-        use_intrinsics_in_verification = False
-
         with initialize_config_module(config_module="gtsfm.configs"):
 
             # config is relative to the gtsfm module
@@ -46,7 +44,6 @@ class TestSceneOptimizer(unittest.TestCase):
                 self.loader.get_valid_pairs(),
                 self.loader.create_computation_graph_for_images(),
                 self.loader.create_computation_graph_for_intrinsics(),
-                use_intrinsics_in_verification=use_intrinsics_in_verification,
                 gt_pose_graph=self.loader.create_computation_graph_for_poses(),
             )
 

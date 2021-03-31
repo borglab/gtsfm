@@ -69,12 +69,7 @@ def load_log_front_center_intrinsics() -> Tuple[float, float, float, float, floa
     return fx, px, py, k1, k2
 
 
-def check_verifier_output_error(
-    verifier: VerifierBase,
-    use_intrinsics_for_verification: bool,
-    euler_angle_err_tol: float,
-    translation_err_tol: float,
-) -> None:
+def check_verifier_output_error(verifier: VerifierBase, euler_angle_err_tol: float, translation_err_tol: float) -> None:
     """Check error using annotated correspondences as input, instead of noisy detector-descriptor matches."""
     fx, px, py, k1, k2 = load_log_front_center_intrinsics()
     keypoints_i1, keypoints_i2 = load_argoverse_log_annotated_correspondences()
@@ -83,12 +78,7 @@ def check_verifier_output_error(
     match_indices = np.vstack([np.arange(len(keypoints_i1)), np.arange(len(keypoints_i1))]).T
 
     i2Ri1, i2ti1, _ = verifier.verify(
-        keypoints_i1,
-        keypoints_i2,
-        match_indices,
-        Cal3Bundler(fx, k1, k2, px, py),
-        Cal3Bundler(fx, k1, k2, px, py),
-        use_intrinsics_for_verification,
+        keypoints_i1, keypoints_i2, match_indices, Cal3Bundler(fx, k1, k2, px, py), Cal3Bundler(fx, k1, k2, px, py)
     )
 
     # Ground truth is provided in inverse format, so invert SE(3) object
@@ -111,15 +101,14 @@ class TestRansacVerifierArgoverse(unittest.TestCase):
 
         np.random.seed(RANDOM_SEED)
         random.seed(RANDOM_SEED)
-        self.verifier = Ransac()
-        self.use_intrinsics_for_verification = True
+        self.verifier = Ransac(use_intrinsics_in_verification=True)
 
         self.euler_angle_err_tol = 1.0
         self.translation_err_tol = 0.01
 
     def testRecoveredPoseError(self):
         check_verifier_output_error(
-            self.verifier, self.use_intrinsics_for_verification, self.euler_angle_err_tol, self.translation_err_tol,
+            self.verifier, self.euler_angle_err_tol, self.translation_err_tol,
         )
 
 
@@ -130,12 +119,11 @@ class TestDegensacVerifierArgoverse(unittest.TestCase):
         np.random.seed(RANDOM_SEED)
         random.seed(RANDOM_SEED)
         self.verifier = Degensac()
-        self.use_intrinsics_for_verification = False
 
         self.euler_angle_err_tol = 2.0
         self.translation_err_tol = 0.02
 
     def testRecoveredPoseError(self):
         check_verifier_output_error(
-            self.verifier, self.use_intrinsics_for_verification, self.euler_angle_err_tol, self.translation_err_tol,
+            self.verifier, self.euler_angle_err_tol, self.translation_err_tol,
         )

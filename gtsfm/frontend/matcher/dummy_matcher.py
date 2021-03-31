@@ -6,7 +6,6 @@ import numpy as np
 
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
-from gtsfm.frontend.matcher.matcher_base import MatchingDistanceType
 
 
 class DummyMatcher(MatcherBase):
@@ -18,7 +17,6 @@ class DummyMatcher(MatcherBase):
         keypoints_i2: Keypoints,  # pylint: disable=unused-argument
         descriptors_i1: np.ndarray,
         descriptors_i2: np.ndarray,
-        distance_type: MatchingDistanceType = MatchingDistanceType.EUCLIDEAN,  # pylint: disable=unused-argument
     ) -> np.ndarray:
         """Match descriptor vectors.
 
@@ -33,8 +31,6 @@ class DummyMatcher(MatcherBase):
             keypoints_i2: keypoints for image #i2, of length N2.
             descriptors_i1: descriptors corr. to keypoints_i1.
             descriptors_i2: descriptors corr. to keypoints_i2.
-            distance_type (optional): the space to compute the distance between descriptors. Defaults to
-                                      MatchingDistanceType.EUCLIDEAN.
 
         Returns:
             Match indices (sorted by confidence), as matrix of shape (N, 2), where N < min(N1, N2).

@@ -33,8 +33,17 @@ logger = logger_utils.get_logger()
 
 
 class Ransac(VerifierBase):
-    def __init__(self):
-        super().__init__(min_pts_e_matrix=NUM_MATCHES_REQ_E_MATRIX, min_pts_f_matrix=NUM_MATCHES_REQ_F_MATRIX)
+    def __init__(self, use_intrinsics_in_verification: bool = False) -> None:
+        """Initializes the verifier.
+
+        Args:
+            use_intrinsics_in_verification (optional): Flag to perform keypoint normalization and compute the essential
+                                                       matrix instead of fundamental matrix. This should be preferred
+                                                       when the exact intrinsics are known as opposed to approximating
+                                                       them from exif data. Defaults to False.
+        """
+        min_matches = NUM_MATCHES_REQ_E_MATRIX if use_intrinsics_in_verification else NUM_MATCHES_REQ_F_MATRIX
+        super().__init__(min_matches, use_intrinsics_in_verification)
 
     def verify(
         self,
@@ -43,7 +52,6 @@ class Ransac(VerifierBase):
         match_indices: np.ndarray,
         camera_intrinsics_i1: Cal3Bundler,
         camera_intrinsics_i2: Cal3Bundler,
-        use_intrinsics_in_verification: bool = False,
     ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
         """Performs verification of correspondences between two images to recover the relative pose and indices of
         verified correspondences.
@@ -54,28 +62,21 @@ class Ransac(VerifierBase):
             match_indices: matches as indices of features from both images, of shape (N3, 2), where N3 <= min(N1, N2).
             camera_intrinsics_i1: intrinsics for image #i1.
             camera_intrinsics_i2: intrinsics for image #i2.
-            use_intrinsics_in_verification (optional): Flag to perform keypoint normalization and compute the essential
-                                                       matrix instead of fundamental matrix. This should be preferred
-                                                       when the exact intrinsics are known as opposed to approximating
-                                                       them from exif data. Defaults to False.
-
         Returns:
             Estimated rotation i2Ri1, or None if it cannot be estimated.
             Estimated unit translation i2Ui1, or None if it cannot be estimated.
             Indices of verified correspondences, of shape (N, 2) with N <= N3. These are subset of match_indices.
         """
-        verified_indices = np.array([], dtype=np.uint32)
+        if match_indices.shape[0] < self._min_matches:
+            return self._failure_result
 
-        # check if we don't have the minimum number of points
-        if match_indices.shape[0] < self.min_pts_e_matrix:
-            logger.info("No match indices were provided to the verifier, returning early with None output")
-            return None, None, verified_indices
+        verified_indices = np.array([], dtype=np.uint32)
 
         uv_norm_i1 = feature_utils.normalize_coordinates(keypoints_i1.coordinates, camera_intrinsics_i1)
         uv_norm_i2 = feature_utils.normalize_coordinates(keypoints_i2.coordinates, camera_intrinsics_i2)
         K = np.eye(3)
 
-        if use_intrinsics_in_verification:
+        if self._use_intrinsics_in_verification:
             i2Ei1, inlier_mask = cv2.findEssentialMat(
                 uv_norm_i1[match_indices[:, 0]],
                 uv_norm_i2[match_indices[:, 1]],
@@ -85,10 +86,6 @@ class Ransac(VerifierBase):
                 prob=DEFAULT_RANSAC_SUCCESS_PROB,
             )
         else:
-            # TODO: debug what is happening and try to fix it
-            if match_indices.shape[0] < self.min_pts_f_matrix:
-                return None, None, verified_indices
-
             i2Fi1, inlier_mask = cv2.findFundamentalMat(
                 keypoints_i1.extract_indices(match_indices[:, 0]).coordinates,
                 keypoints_i2.extract_indices(match_indices[:, 1]).coordinates,
