@@ -1,17 +1,8 @@
-from typing import Dict, List, Tuple
-
-import numpy as np
-from gtsam import PinholeCameraCal3Bundler, SfmTrack
-
-from gtsfm.common.sfm_track import SfmMeasurement
-
-"""
-Note: cannot consolidate the two functions below, since SfmTrack has no measurements() method from C++
-"""
 
 import numpy as np
 from gtsam import Cal3Bundler, Rot3, PinholeCameraCal3Bundler, Pose3, SfmTrack
 
+from gtsfm.common.sfm_track import SfmMeasurement
 from gtsfm.utils.reprojection import compute_point_reprojection_errors, compute_track_reprojection_errors
 
 
