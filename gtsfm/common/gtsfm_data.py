@@ -219,9 +219,8 @@ class GtsfmData:
             scene_avg_repoj_error: average of reprojection errors for every 3d point to its 2d measurements
         """
         scene_errors = []
-        for j in gtsfm_data.number_tracks()
-            track = gtsfm_data.get_track(j)
-            track_errors, _ = compute_track_reprojection_errors(gtsfm_data._cameras, track)
+        for track in self._tracks:
+            track_errors, _ = compute_track_reprojection_errors(self._cameras, track)
             scene_errors.extend(track_errors)
 
         scene_avg_repoj_error = np.array(scene_errors).mean()

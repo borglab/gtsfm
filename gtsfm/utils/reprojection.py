@@ -1,14 +1,17 @@
 
-import numpy as np
+from typing import Dict, List, Tuple
 
-from gtsam import SfmTrack
+import numpy as np
+from gtsam import PinholeCameraCal3Bundler, SfmTrack
+
+from gtsfm.common.sfm_track import SfmMeasurement
 
 """
 Note: cannot consolidate the two functions below, since SfmTrack has no measurements() method from C++
 """
 
 def compute_track_reprojection_errors(
-    track_camera_dict: Dict[int, PinholeCameraCal3Bundler], track:
+    track_camera_dict: Dict[int, PinholeCameraCal3Bundler], track: SfmTrack
 ) -> Tuple[np.ndarray,float]:
     """Compute reprojection errors for measurements in the tracks.
 
@@ -21,7 +24,10 @@ def compute_track_reprojection_errors(
         avg_track_reproj_error: average reprojection error of all meausurements in track.
     """
     errors = []
-    for i, uv_measured in meausurements:
+    for k in range(track.number_measurements()):
+
+        # process each measurement
+        i, uv_measured = track.measurement(k)
 
          # get the camera associated with the measurement
         camera = track_camera_dict[i]
@@ -42,7 +48,7 @@ def compute_track_reprojection_errors(
 def compute_point_reprojection_errors(
     track_camera_dict: Dict[int, PinholeCameraCal3Bundler], point3d: np.ndarray, measurements: List[SfmMeasurement]
 ) -> Tuple[np.ndarray,float]:
-    """Compute reprojection errors for measurements in the tracks.
+    """Compute reprojection errors for a hypothesized 3d point vs. 2d measurements.
 
     Args:
         track_camera_dict: Dict of cameras and their indices.
@@ -54,7 +60,7 @@ def compute_point_reprojection_errors(
         avg_track_reproj_error: average reprojection error of all meausurements in track.
     """
     errors = []
-    for (i, uv_measured) in meausurements:
+    for (i, uv_measured) in measurements:
 
          # get the camera associated with the measurement
         camera = track_camera_dict[i]
