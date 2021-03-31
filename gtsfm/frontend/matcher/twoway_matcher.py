@@ -5,6 +5,7 @@ Authors: Ayush Baid
 import cv2 as cv
 import numpy as np
 
+from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
 from gtsfm.frontend.matcher.matcher_base import MatchingDistanceType
 
@@ -14,21 +15,25 @@ class TwoWayMatcher(MatcherBase):
 
     def match(
         self,
-        descriptors_im1: np.ndarray,
-        descriptors_im2: np.ndarray,
+        keypoints_i1: Keypoints,  # pylint: disable=unused-argument
+        keypoints_i2: Keypoints,  # pylint: disable=unused-argument
+        descriptors_i1: np.ndarray,
+        descriptors_i2: np.ndarray,
         distance_type: MatchingDistanceType = MatchingDistanceType.EUCLIDEAN,
     ) -> np.ndarray:
         """Match descriptor vectors.
 
         Output format:
         1. Each row represents a match.
-        2. First column represents descriptor index from image #1.
-        3. Second column represents descriptor index from image #2.
-        4. Matches are sorted in descending order of the confidence (score).
+        2. First column represents keypoint index from image #i1.
+        3. Second column represents keypoint index from image #i2.
+        4. Matches are sorted in descending order of the confidence (score), if possible.
 
         Args:
-            descriptors_im1: descriptors from image #1, of shape (N1, D).
-            descriptors_im2: descriptors from image #2, of shape (N2, D).
+            keypoints_i1: keypoints for image #i1, of length N1.
+            keypoints_i2: keypoints for image #i2, of length N2.
+            descriptors_i1: descriptors corr. to keypoints_i1.
+            descriptors_i2: descriptors corr. to keypoints_i2.
             distance_type (optional): the space to compute the distance between descriptors. Defaults to
                                       MatchingDistanceType.EUCLIDEAN.
 
@@ -42,15 +47,15 @@ class TwoWayMatcher(MatcherBase):
         else:
             raise NotImplementedError("The distance type is not in MatchingDistanceType")
 
-        if descriptors_im1.size == 0 or descriptors_im2.size == 0:
+        if descriptors_i1.size == 0 or descriptors_i2.size == 0:
             return np.array([])
 
         # we will have to remove NaNs by ourselves
-        valid_idx_im1 = np.nonzero(~(np.isnan(descriptors_im1).any(axis=1)))[0]
-        valid_idx_im2 = np.nonzero(~(np.isnan(descriptors_im2).any(axis=1)))[0]
+        valid_idx_i1 = np.nonzero(~(np.isnan(descriptors_i1).any(axis=1)))[0]
+        valid_idx_i2 = np.nonzero(~(np.isnan(descriptors_i2).any(axis=1)))[0]
 
-        descriptors_1 = descriptors_im1[valid_idx_im1]
-        descriptors_2 = descriptors_im2[valid_idx_im2]
+        descriptors_1 = descriptors_i1[valid_idx_i1]
+        descriptors_2 = descriptors_i2[valid_idx_i2]
 
         # run OpenCV's matcher
         bf = cv.BFMatcher(normType=distance_metric, crossCheck=True)
@@ -63,7 +68,7 @@ class TwoWayMatcher(MatcherBase):
             return np.array([])
 
         # remap them back
-        match_indices[:, 0] = valid_idx_im1[match_indices[:, 0]]
-        match_indices[:, 1] = valid_idx_im2[match_indices[:, 1]]
+        match_indices[:, 0] = valid_idx_i1[match_indices[:, 0]]
+        match_indices[:, 1] = valid_idx_i2[match_indices[:, 1]]
 
         return match_indices

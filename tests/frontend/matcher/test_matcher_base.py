@@ -6,12 +6,19 @@ Authors: Ayush Baid
 import pickle
 import random
 import unittest
+from copy import deepcopy
+from pathlib import Path
 from typing import Tuple
 
 import dask
 import numpy as np
 
+import gtsfm.utils.features as feature_utils
+from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.matcher.dummy_matcher import DummyMatcher
+
+DATA_ROOT_PATH = Path(__file__).resolve().parent.parent.parent / "data"
+REAL_FEATURES_PATH = DATA_ROOT_PATH / "set1_lund_door" / "features"
 
 
 class TestMatcherBase(unittest.TestCase):
@@ -25,96 +32,79 @@ class TestMatcherBase(unittest.TestCase):
 
         self.matcher = DummyMatcher()
 
-    def test_match_valid_indices(self):
-        """Tests if matched indices are valid feature indices."""
+    # def __execute_test(
+    #     self,
+    #     keypoints_i1: Keypoints,
+    #     keypoints_i2: Keypoints,
+    #     descriptors_i1: np.ndarray,
+    #     descriptors_i2: np.ndarray,
+    #     expected_matches: np.ndarray,
+    # ) -> None:
+    #     computed_matches = self.matcher.match(keypoints_i1, keypoints_i2, descriptors_i1, descriptors_i2)
+    #     np.testing.assert_allclose(computed_matches, expected_matches)
+    #     self.__assert_valid_indices(computed_matches, len(keypoints_i1), len(keypoints_i2))
+    #     self.__assert_one_to_one_constraint(computed_matches)
 
-        # run matching on a random input pair
-        (
-            result,
-            descriptors_im1,
-            descriptors_im2,
-        ) = self.__generate_matches_on_random_descriptors()
+    def __assert_valid_indices(self, match_idxs: np.ndarray, num_keypoints_i1: int, num_keypoints_i2: int) -> None:
 
-        if result.size:
-            # check that the match indices are out of bounds
-            self.assertTrue(np.all((result[:, 0] >= 0) & (result[:, 0] < descriptors_im1.shape[0])))
-            self.assertTrue(np.all((result[:, 1] >= 0) & (result[:, 1] < descriptors_im2.shape[0])))
+        if match_idxs.size:
+            self.assertTrue(np.all((match_idxs[:, 0] >= 0) & (match_idxs[:, 0] < num_keypoints_i1)))
+            self.assertTrue(np.all((match_idxs[:, 1] >= 0) & (match_idxs[:, 1] < num_keypoints_i2)))
+
+    def __assert_one_to_one_constraint(self, match_idxs: np.ndarray):
+        """Asserts that each keypoint is used atmost once."""
+
+        # form sets from the two index columns
+        set_index_i1 = set(match_idxs[:, 0].tolist())
+        set_index_i2 = set(match_idxs[:, 1].tolist())
+
+        # if we have 1:1 constraint, set will have the same number of elements as the number of matches
+        self.assertEqual(len(set_index_i1), match_idxs.shape[0])
+        self.assertEqual(len(set_index_i2), match_idxs.shape[0])
 
     def test_empty_input(self):
         """Tests the matches when there are no descriptors."""
 
-        num_descriptors = random.randint(5, 15)
+        nonempty_keypoints, _, nonempty_descriptors, _, = generate_random_input()
+        empty_keypoints = Keypoints(coordinates=np.array([]))
+        empty_descriptors = np.array([])
 
-        descriptor_dim = random.randint(2, 10)  # dimensionality
+        # no keypoints for just i1
+        result = self.matcher.match(empty_keypoints, nonempty_keypoints, empty_descriptors, nonempty_descriptors)
+        self.assertEqual(result.size, 0)
 
-        descriptors = generate_random_binary_descriptors(num_descriptors, descriptor_dim)
+        # no keypoints for just i2
+        result = self.matcher.match(nonempty_keypoints, empty_keypoints, nonempty_descriptors, empty_descriptors)
+        self.assertEqual(result.size, 0)
 
-        # the first descriptor is empty
-        result = self.matcher.match(generate_random_binary_descriptors(0, descriptor_dim), descriptors)
-
-        self.assertEqual(0, result.size)
-
-        # the second descriptor is empty
-        result = self.matcher.match(descriptors, generate_random_binary_descriptors(0, descriptor_dim))
-
-        self.assertEqual(0, result.size)
-
-        # both descriptors are empty
+        # no keypoints for both i1 and i2
         result = self.matcher.match(
-            generate_random_binary_descriptors(0, descriptor_dim),
-            generate_random_binary_descriptors(0, descriptor_dim),
+            deepcopy(empty_keypoints),
+            deepcopy(empty_keypoints),
+            deepcopy(empty_descriptors),
+            deepcopy(empty_descriptors),
         )
-
-        self.assertEqual(0, result.size)
-
-    def test_one_to_one_constraint(self):
-        """Tests that each index from an image is used atmost once."""
-
-        # get a result
-        result, _, _ = self.__generate_matches_on_random_descriptors()
-
-        # form sets from the two index columns
-        set_index_im1 = set(result[:, 0].tolist())
-        set_index_im2 = set(result[:, 1].tolist())
-
-        # if we have 1:1 constraint, set will have the same number of elements as the number of matches
-        self.assertEqual(result.shape[0], len(set_index_im1))
-        self.assertEqual(result.shape[0], len(set_index_im2))
+        self.assertEqual(result.size, 0)
 
     def test_computation_graph(self):
-        """Test that the computation graph is working exactly as the normal
-        matching API using 3 images.
+        """Test that the computation graph is working exactly as the normal API
         """
-        # number of images in test, for which we need to generate descriptors.
-        num_images = 3
+        keypoints_i1, keypoints_i2, descriptors_i1, descriptors_i2 = get_features_from_real_images()
 
-        # pairs of images to perform matching on
-        pairs_list = [(0, 1), (0, 2), (2, 1)]
+        expected_matches = self.matcher.match(keypoints_i1, keypoints_i2, descriptors_i1, descriptors_i2)
 
-        descriptor_dimension = random.randint(2, 10)  # descriptor dimension
+        computed_matches_graph = self.matcher.create_computation_graph(
+            dask.delayed(keypoints_i1),
+            dask.delayed(keypoints_i2),
+            dask.delayed(descriptors_i1),
+            dask.delayed(descriptors_i2),
+        )
+        with dask.config.set(scheduler="single-threaded"):
+            computed_matches = dask.compute(computed_matches_graph)[0]
 
-        # generate descriptors randomly
-        descriptors_list = []
-        for _ in range(num_images):
-            num_descriptors = random.randint(5, 15)
-
-            descriptors_list.append(
-                generate_random_binary_descriptors(num_descriptors, descriptor_dimension),
-            )
-
-        for (i1, i2) in pairs_list:
-            matches_graph = self.matcher.create_computation_graph(
-                dask.delayed(descriptors_list[i1]),
-                dask.delayed(descriptors_list[i2]),
-            )
-
-            with dask.config.set(scheduler="single-threaded"):
-                matches = dask.compute(matches_graph)[0]
-
-            # run matching using normal APIs
-            expected_matches = self.matcher.match(descriptors_list[i1], descriptors_list[i2])
-
-            np.testing.assert_array_equal(matches, expected_matches)
+        np.testing.assert_allclose(computed_matches, expected_matches)
+        self.__assert_valid_indices(computed_matches, len(keypoints_i1), len(keypoints_i2))
+        self.__assert_one_to_one_constraint(computed_matches)
 
     def test_pickleable(self):
         """Tests that the matcher object is pickleable (required for dask)."""
@@ -123,30 +113,35 @@ class TestMatcherBase(unittest.TestCase):
         except TypeError:
             self.fail("Cannot dump matcher using pickle")
 
-    def __generate_matches_on_random_descriptors(
-        self,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Generates a pair of random descriptors and uses the matcher under test to match them.
 
-        Note: using binary descriptors in uint8 format as we want the hamming distances to work
+def get_features_from_real_images() -> Tuple[Keypoints, Keypoints, np.ndarray, np.ndarray]:
+    """Load keypoints and descriptors from 2 real images.
+    """
+    with open(REAL_FEATURES_PATH / "keypoints_0.pkl", "rb") as f:
+        keypoints_i1 = pickle.load(f)
+    with open(REAL_FEATURES_PATH / "keypoints_1.pkl", "rb") as f:
+        keypoints_i2 = pickle.load(f)
+    descriptors_i1 = np.load(REAL_FEATURES_PATH / "descriptors_0.npy")
+    descriptors_i2 = np.load(REAL_FEATURES_PATH / "descriptors_1.npy")
 
-        Returns:
-            Matching result on the randomly generated input
-            Descriptor input for image #1
-            Descriptor input for image #2
-        """
+    return keypoints_i1, keypoints_i2, descriptors_i1, descriptors_i2
 
-        num_descriptors_im1 = random.randint(5, 15)
-        num_descriptors_im2 = random.randint(5, 15)
 
-        descriptor_dim = random.randint(2, 10)
+def generate_random_input() -> Tuple[Keypoints, Keypoints, np.ndarray, np.ndarray]:
+    """Generates random keypoints and descriptors for a pair of images.
+    """
 
-        descriptors_im1 = generate_random_binary_descriptors(num_descriptors_im1, descriptor_dim)
-        descriptors_im2 = generate_random_binary_descriptors(num_descriptors_im2, descriptor_dim)
+    num_keypoints_i1 = random.randint(5, 15)
+    num_keypoints_i2 = random.randint(5, 15)
 
-        result = self.matcher.match(descriptors_im1, descriptors_im2)
+    descriptor_dim = random.randint(2, 10)
 
-        return result, descriptors_im1, descriptors_im2
+    keypoints_i1 = feature_utils.generate_random_keypoints(num_keypoints_i1, (100, 300))
+    keypoints_i2 = feature_utils.generate_random_keypoints(num_keypoints_i2, (200, 150))
+    descriptors_i1 = generate_random_binary_descriptors(num_keypoints_i1, descriptor_dim)
+    descriptors_i2 = generate_random_binary_descriptors(num_keypoints_i2, descriptor_dim)
+
+    return keypoints_i1, keypoints_i2, descriptors_i1, descriptors_i2
 
 
 def generate_random_binary_descriptors(num_descriptors: int, descriptor_dim: int) -> np.ndarray:
@@ -166,4 +161,5 @@ def generate_random_binary_descriptors(num_descriptors: int, descriptor_dim: int
 
 
 if __name__ == "__main__":
+    get_features_from_real_images()
     unittest.main()
