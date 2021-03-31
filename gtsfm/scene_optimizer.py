@@ -215,6 +215,10 @@ class SceneOptimizer:
             auxiliary_graph_list.append(
                 dask.delayed(io_utils.write_images)(ba_input_graph, save_dir=os.path.join(RESULTS_PATH, "ba_input"))
             )
+            auxiliary_graph_list.append(
+                dask.delayed(io_utils.write_points)(ba_input_graph, save_dir=os.path.join(RESULTS_PATH, "ba_input"))
+            )
+
             # save the output of Bundle Adjustment (after optimization)
             auxiliary_graph_list.append(
                 dask.delayed(io_utils.write_cameras)(
@@ -223,6 +227,11 @@ class SceneOptimizer:
             )
             auxiliary_graph_list.append(
                 dask.delayed(io_utils.write_images)(
+                    filtered_sfm_data_graph, save_dir=os.path.join(RESULTS_PATH, "ba_output")
+                )
+            )
+            auxiliary_graph_list.append(
+                dask.delayed(io_utils.write_points)(
                     filtered_sfm_data_graph, save_dir=os.path.join(RESULTS_PATH, "ba_output")
                 )
             )
