@@ -2,7 +2,7 @@
 
 Authors: Xiaolong Wu, Ayush Baid
 """
-from typing import List, NamedTuple, Optional, Tuple
+from typing import List, NamedTuple, Optional
 
 import numpy as np
 from gtsam import Pose3, SfmTrack
@@ -101,3 +101,4 @@ class SfmResult(NamedTuple):
                 filtered_data.add_track(track)
 
         return filtered_data
+

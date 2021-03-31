@@ -158,7 +158,7 @@ def write_images(gtsfm_data: GtsfmData, save_dir: str) -> None:
     # TODO: compute this
     mean_obs_per_img = 0
 
-    #TODO: compute this
+    # TODO: compute this
     img_fname = "dummy.jpg"
 
     file_path = os.path.join(save_dir, "images.txt")
@@ -216,4 +216,3 @@ def write_points(gtsfm_data: GtsfmData, save_dir: str) -> None:
                 f.write(f"{i} {point2d_idx} ")
             f.write("\n")
 
-    
