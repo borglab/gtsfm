@@ -124,10 +124,13 @@ def write_cameras(gtsfm_data: GtsfmData, save_dir: str) -> None:
     image_height = 1000
 
     # TODO: handle shared intrinsics
+    camera_model = "SIMPLE_RADIAL"
 
     file_path = os.path.join(save_dir, "cameras.txt")
     with open(file_path, "w") as f:
-        f.write("# Number of cameras: {}\n".format(gtsfm_data.number_images()))
+        f.write("# Camera list with one line of data per camera:")
+        f.write("#   CAMERA_ID, MODEL, WIDTH, HEIGHT, PARAMS[]")
+        f.write(f"# Number of cameras: {gtsfm_data.number_images()}\n")
 
         for i in gtsfm_data.get_valid_camera_indices():
             camera = gtsfm_data.get_camera(i)
@@ -139,7 +142,7 @@ def write_cameras(gtsfm_data: GtsfmData, save_dir: str) -> None:
             k1 = calibration.k1()
             k2 = calibration.k2()
 
-            f.write(f"{i} SIMPLE_RADIAL {image_width} {image_height} {fx} {u0} {v0} {k1} {k2}\n")
+            f.write(f"{i} {camera_model} {image_width} {image_height} {fx} {u0} {v0} {k1} {k2}\n")
 
 
 def write_images(gtsfm_data: GtsfmData, save_dir: str) -> None:
@@ -151,9 +154,19 @@ def write_images(gtsfm_data: GtsfmData, save_dir: str) -> None:
     """
     os.makedirs(save_dir, exist_ok=True)
 
+    num_imgs = gtsfm_data.number_images()
+    # TODO: compute this
+    mean_obs_per_img = 0
+
+    #TODO: compute this
+    img_fname = "dummy.jpg"
+
     file_path = os.path.join(save_dir, "images.txt")
     with open(file_path, "w") as f:
-        f.write("# Number of cameras: {}\n".format(gtsfm_data.number_images()))
+        f.write("# Image list with two lines of data per image:")
+        f.write("#   IMAGE_ID, QW, QX, QY, QZ, TX, TY, TZ, CAMERA_ID, NAME")
+        f.write("#   POINTS2D[] as (X, Y, POINT3D_ID)")
+        f.write(f"# Number of cameras: {num_imgs}, mean observations per image: {mean_obs_per_img}\n")
 
         for i in gtsfm_data.get_valid_camera_indices():
             camera = gtsfm_data.get_camera(i)
@@ -162,4 +175,45 @@ def write_images(gtsfm_data: GtsfmData, save_dir: str) -> None:
             tx, ty, tz = wti
             qw, qx, qy, qz = wRi_quaternion
 
-            f.write(f"{i} {qw} {qx} {qy} {qz} {tx} {ty} {tz}\n")
+            f.write(f"{i} {qw} {qx} {qy} {qz} {tx} {ty} {tz} {i} {img_fname}\n")
+            # TODO: write out the points2d
+
+
+def write_points(gtsfm_data: GtsfmData, save_dir: str) -> None:
+    """Writes the point cloud data file in the COLMAP format.
+
+    Args:
+        gtsfm_data: scene data to write.
+        save_dir: folder to put the points3D.txt file in.
+    """
+    os.makedirs(save_dir, exist_ok=True)
+
+    num_pts = gtsfm_data.number_tracks()
+    avg_track_length, _, _ = gtsfm_data.get_track_length_statistics()
+
+    file_path = os.path.join(save_dir, "point3D.txt")
+    with open(file_path, "w") as f:
+        f.write("# Number of cameras: {}\n".format(gtsfm_data.number_images()))
+
+        f.write("# 3D point list with one line of data per point:\n")
+        f.write("#   POINT3D_ID, X, Y, Z, R, G, B, ERROR, TRACK[] as (IMAGE_ID, POINT2D_IDX)\n")
+        f.write(f"# Number of points: {num_pts}, mean track length: {avg_track_length}\n")
+
+        # TODO: extract point color
+        r, g, b = 0, 0, 0
+        # TODO: coming in another PR
+        track_reproj_error = 0
+        # TODO: assign unique indices to all keypoints (2d points)
+        point2d_idx = 0
+
+        for j in range(num_pts):
+            track = gtsfm_data.get_track(j)
+            x,y,z = track.point3()
+            f.write(f"{j}, {x}, {y}, {z}, {r}, {g}, {b}, {track_reproj_error}"
+
+            for k in range(track.number_measurements()):
+                i, uv_measured = track.measurement(k)
+                f.write(f"{i} {point2d_idx}")
+            f.write("\n")
+
+    
