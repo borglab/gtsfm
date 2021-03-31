@@ -8,9 +8,9 @@ from typing import Dict
 import dask
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import PinholeCameraCal3Bundler
 
 from gtsfm.common.image import Image
+from gtsfm.common.sfm_result import SfmResult
 
 
 class MVSBase(metaclass=abc.ABCMeta):
@@ -24,9 +24,7 @@ class MVSBase(metaclass=abc.ABCMeta):
     def densify(
         self,
         images: Dict[int,Image],
-        cameras: Dict[int, PinholeCameraCal3Bundler],
-        min_distance: float,
-        max_distance: float,
+        sfm_result: SfmResult
     ) -> np.ndarray:
         """Densify a point cloud using multi-view stereo.
         
@@ -35,9 +33,9 @@ class MVSBase(metaclass=abc.ABCMeta):
 
         Args:
             images: dictionary mapping image indices to input images.
-            cameras: dictionary mapping image indices to camera parameters
-            min_distance: minimum distance from any camera to any 3d point
-            max_distance: maximum distance from any camera to any 3d point
+            sfm_result: object containing camera parameters and the optimized point cloud.
+                We can use this point cloud to determine the min and max depth (from any
+                camera to any 3d point) for plane-sweeping stereo.
 
         Returns:
             Dense point cloud, as an array of shape (N,3)
@@ -46,19 +44,15 @@ class MVSBase(metaclass=abc.ABCMeta):
     def create_computation_graph(
         self,
         images_graph: Delayed,
-        cameras_graph: Delayed,
-        min_distance_graph: Delayed,
-        max_distance_graph: Delayed
+        sfm_result_graph: Delayed,
     ) -> Delayed:
         """Generates the computation graph for performing multi-view stereo.
 
         Args:
             images_graph: computation graph for images.
-            cameras_graph: computation graph for cameras
-            min_distance_graph: minimum distance from any camera to any 3d point, wrapped up as Delayed
-            max_distance_graph: minimum distance from any camera to any 3d point, wrapped up as Delayed
+            sfm_result_graph: computation graph for SFM output
 
         Returns:
             Delayed task for MVS computation on the input images.
         """
-        return dask.delayed(self.densify)(images_graph, cameras_graph, min_distance_graph, max_distance_graph)
+        return dask.delayed(self.densify)(images_graph, sfm_result_graph)
