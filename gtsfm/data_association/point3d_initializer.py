@@ -21,7 +21,7 @@ from gtsam import (
 )
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
+from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.utils.reprojection import compute_point_reprojection_errors
 
 NUM_SAMPLES_PER_RANSAC_HYPOTHESIS = 2
@@ -118,7 +118,9 @@ class Point3dInitializer(NamedTuple):
                 )
                 continue
 
-            errors, _ = compute_point_reprojection_errors(self.track_camera_dict, triangulated_pt, track_2d.measurements)
+            errors, _ = compute_point_reprojection_errors(
+                self.track_camera_dict, triangulated_pt, track_2d.measurements
+            )
 
             # The best solution should correspond to the one with most inliers
             # If the inlier number are the same, check the average error of inliers
@@ -297,4 +299,3 @@ class Point3dInitializer(NamedTuple):
             )
 
         return track_cameras, track_measurements
-

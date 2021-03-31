@@ -10,6 +10,7 @@ from gtsam import Pose3, SfmTrack
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.utils.reprojection import compute_track_reprojection_errors
 
+
 class SfmResult(NamedTuple):
     """Class to hold optimized camera params, 3d landmarks (w/ tracks), and total reprojection error."""
 

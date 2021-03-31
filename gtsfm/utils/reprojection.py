@@ -10,6 +10,7 @@ from gtsfm.common.sfm_track import SfmMeasurement
 Note: cannot consolidate the two functions below, since SfmTrack has no measurements() method from C++
 """
 
+
 def compute_track_reprojection_errors(
     track_camera_dict: Dict[int, PinholeCameraCal3Bundler], track: SfmTrack
 ) -> Tuple[np.ndarray,float]:
@@ -29,7 +30,7 @@ def compute_track_reprojection_errors(
         # process each measurement
         i, uv_measured = track.measurement(k)
 
-         # get the camera associated with the measurement
+        # get the camera associated with the measurement
         camera = track_camera_dict[i]
         # Project to camera
         uv_reprojected, success_flag = camera.projectSafe(track.point3())
@@ -62,7 +63,7 @@ def compute_point_reprojection_errors(
     errors = []
     for (i, uv_measured) in measurements:
 
-         # get the camera associated with the measurement
+        # get the camera associated with the measurement
         camera = track_camera_dict[i]
         # Project to camera
         uv_reprojected, success_flag = camera.projectSafe(point3d)

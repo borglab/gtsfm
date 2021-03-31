@@ -15,6 +15,7 @@ DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "tests" / "data"
 
 logger = logger_utils.get_logger()
 
+
 def run_scene_optimizer() -> None:
     """ """
     with initialize_config_module(config_module="gtsfm.configs"):
@@ -43,6 +44,7 @@ def run_scene_optimizer() -> None:
 
         scene_avg_reproj_error = sfm_result.gtsfm_data.get_scene_avg_reprojection_error()
         logger.info('Scene avg reproj error: {}'.format(str(np.round(scene_avg_reproj_error,3))))
+
 
 if __name__ == "__main__":
     run_scene_optimizer()
