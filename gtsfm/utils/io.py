@@ -191,7 +191,7 @@ def write_points(gtsfm_data: GtsfmData, save_dir: str) -> None:
     num_pts = gtsfm_data.number_tracks()
     avg_track_length, _, _ = gtsfm_data.get_track_length_statistics()
 
-    file_path = os.path.join(save_dir, "point3D.txt")
+    file_path = os.path.join(save_dir, "points3D.txt")
     with open(file_path, "w") as f:
         f.write("# Number of cameras: {}\n".format(gtsfm_data.number_images()))
 
@@ -209,11 +209,11 @@ def write_points(gtsfm_data: GtsfmData, save_dir: str) -> None:
         for j in range(num_pts):
             track = gtsfm_data.get_track(j)
             x,y,z = track.point3()
-            f.write(f"{j}, {x}, {y}, {z}, {r}, {g}, {b}, {track_reproj_error}"
+            f.write(f"{j} {x} {y} {z} {r} {g} {b} {track_reproj_error} ")
 
             for k in range(track.number_measurements()):
                 i, uv_measured = track.measurement(k)
-                f.write(f"{i} {point2d_idx}")
+                f.write(f"{i} {point2d_idx} ")
             f.write("\n")
 
     
