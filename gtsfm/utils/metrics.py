@@ -15,6 +15,9 @@ from gtsfm.common.keypoints import Keypoints
 # A StatsDict is a dict from string to optional floats or their lists.
 StatsDict = Dict[str, Union[Optional[float], List[Optional[float]]]]
 
+# number of digits (significant figures) to include in each entry of error metrics
+PRINT_NUM_SIG_FIGS = 2
+
 
 def count_correct_correspondences(
     keypoints_i1: Keypoints,
@@ -57,12 +60,11 @@ def count_correct_correspondences(
     return np.count_nonzero(epipolar_distances < epipolar_dist_threshold)
 
 
-def compute_errors_statistics(errors: List[Optional[float]], num_sig_figs: int = 2) -> StatsDict:
+def compute_errors_statistics(errors: List[Optional[float]]) -> StatsDict:
     """Computes statistics (min, max, median) on the given list of errors
 
     Args:
         errors: List of errors for a metric.
-        num_sig_figs: number of digits (significant figures) to include in each entry of error metrics
 
     Returns:
         A dict with keys min_error, max_error, median_error,
@@ -70,10 +72,10 @@ def compute_errors_statistics(errors: List[Optional[float]], num_sig_figs: int =
     """
     metrics = {}
     valid_errors = [error for error in errors if error is not None]
-    metrics["median_error"] = np.round(np.median(valid_errors), num_sig_figs)
-    metrics["min_error"] = np.round(np.min(valid_errors), num_sig_figs)
-    metrics["max_error"] = np.round(np.max(valid_errors), num_sig_figs)
-    metrics["errors_list"] = [np.round(error, num_sig_figs) if error is not None else None for error in errors]
+    metrics["median_error"] = np.round(np.median(valid_errors), PRINT_NUM_SIG_FIGS)
+    metrics["min_error"] = np.round(np.min(valid_errors), PRINT_NUM_SIG_FIGS)
+    metrics["max_error"] = np.round(np.max(valid_errors), PRINT_NUM_SIG_FIGS)
+    metrics["errors_list"] = [np.round(error, PRINT_NUM_SIG_FIGS) if error is not None else None for error in errors]
     return metrics
 
 
@@ -193,4 +195,3 @@ def compute_averaging_metrics(
     metrics["translation_averaging_distance"] = compute_translation_distance_metrics(wti_aligned_list, gt_wti_list)
     metrics["translation_to_direction_angle_deg"] = compute_translation_angle_metrics(i2Ui1_dict, wTi_aligned_list)
     return metrics
-
