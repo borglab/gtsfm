@@ -16,6 +16,7 @@ import numpy as np
 from dask.delayed import Delayed
 from gtsam import PinholeCameraCal3Bundler, SfmTrack
 
+import gtsfm.utils.ellipsoid as ellipsoid_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
@@ -25,7 +26,6 @@ from gtsfm.data_association.point3d_initializer import (
     Point3dInitializer,
     TriangulationParam,
 )
-
 
 logger = logger_utils.get_logger()
 
@@ -128,6 +128,14 @@ class DataAssociation(NamedTuple):
 
         # dump the 3d point cloud before Bundle Adjustment for offline visualization
         points_3d = [list(triangulated_data.get_track(j).point3()) for j in range(num_accepted_tracks)]
+
+        #create the centered and rotated 3d point cloud - properly aligned with x,y,z axes
+        centered_pc = ellipsoid_utils.center_point_cloud(points)
+        hullSet_points = ellipsoid_utils.compute_convex_hull(centered_pc)
+        polynomial_params = ellipsoid_utils.fit_ls_ellipsoid(hullSet_points)
+        center, axes, rot_matrix = ellipsoid_utils.extract_params_from_poly(polynomial_params)
+        aligned_points_3d = ellipsoid_utils.apply_ellipsoid_rotation(rot_matrix, centered_pc)
+
         # bin edges are halfway between each integer
         track_lengths_histogram, _ = np.histogram(track_lengths_3d, bins=np.linspace(-0.5, 10.5, 12))
 
@@ -150,6 +158,7 @@ class DataAssociation(NamedTuple):
             "per_rejected_track_avg_errors": per_rejected_track_avg_errors,
             "per_accepted_track_avg_errors": per_accepted_track_avg_errors,
             "points_3d": points_3d,
+            "aligned_points_3d": aligned_points_3d
         }
 
         return triangulated_data, data_assoc_metrics
