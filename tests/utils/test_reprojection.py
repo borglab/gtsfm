@@ -35,8 +35,6 @@ def test_compute_track_reprojection_errors():
 
     track_camera_dict = {0: PinholeCameraCal3Bundler(wTi0, K0), 1: PinholeCameraCal3Bundler(wTi1, K1)}
 
-    # fx=100, k1=0.0, k2=0.0, u0=20.0, v0=30.0
-
     triangulated_pt = np.array([1, 2, 1])
     track_3d = SfmTrack(triangulated_pt)
 
