@@ -7,7 +7,7 @@
 GTSFM is an end-to-end SFM pipeline based on [GTSAM](https://github.com/borglab/gtsam). GTSFM was designed from the ground-up to natively support parallel computation using [Dask](https://dask.org/).
 
 <p align="left">
-  <img src="https://dask.org/_images/dask_horizontal_white_no_pad_dark_bg.png" height="30">
+  <img src="https://dask.org/_images/dask_horizontal_white_no_pad_dark_bg.png" height="50">
 </p>
 
 ## Installation
