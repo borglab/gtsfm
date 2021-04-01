@@ -33,3 +33,11 @@
     cursor: pointer;
     font-size: large;
 }
+
+.rotate_pc_btn {
+    position: absolute;
+    right: 1%;
+    top: 15%;
+    cursor: pointer;
+    font-size: large;
+}

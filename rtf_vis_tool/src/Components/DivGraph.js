@@ -14,7 +14,6 @@ import RelativeRsDivNode from './relativeRsDivNode';
 import SfMDataDivNode from './SfMDataDivNode';
 import SFMResultDivNode from './SFMResultDivNode';
 import RotSuccessSummary from './RotSuccessSummary';
-import TranSuccessSummary from './TranSuccessSummary';
 
 //json files in result_metrics folders to display summary metrics
 import data_association_json from '.././result_metrics/data_association_metrics.json';
@@ -35,8 +34,10 @@ const DivGraph = (props) => {
     const [showDA_PC, setShowDA_PC] = useState(null);
     const [showRSS, setShowRSS] = useState(false);
     const [showTSS, setShowTSS] = useState(true);
+    const [rotated_da_json, setRotatedDAJSON] = useState(null);
 
-    //render all edges and output files in graph
+    //render all directed edges on the graph
+    //save all the metric json files with appropriate content
     useEffect(() => {
         var rawEdges = EdgeList
         var xArrows_formatted = [];
@@ -57,6 +58,7 @@ const DivGraph = (props) => {
         setFS_JSON(frontend_summary_json);
         setMVO_JSON(multiview_optimizer_json);
         setDA_JSON(data_association_json.points_3d);
+        setRotatedDAJSON(data_association_json.rotated_adi);
     }, [])
 
     function formatPercent(shift, percent) {
@@ -69,7 +71,6 @@ const DivGraph = (props) => {
     const toggleMVOMetrics = (bool) => {setShowMVO(bool)};
     const toggleDataAssoc_PointCloud = (bool) => {setShowDA_PC(bool)};
     const toggleRotSummaryDisplay = (bool) => {setShowRSS(bool)};
-    const toggleTranSummaryDisplay = (bool) => {setShowTSS(bool)};
 
     return (
         <div className="div_graph_container">
@@ -79,11 +80,11 @@ const DivGraph = (props) => {
 
             {showFS && <FrontendSummary json={fs_json} toggleFS={toggleFrontEndSummaryDisplay}/>}
             {showMVO && <MVOSummary json={mvo_json} toggleMVO={toggleMVOMetrics}/>}
-            {showDA_PC && <Data_Association_PC json={da_json} toggleDA_PC={toggleDataAssoc_PointCloud}/>}
-            {/* {showTSS && <TranSuccessSummary json={fs_json.translation.success_count} toggleTSS={toggleTranSummaryDisplay}/>} */}
+            {showDA_PC && <Data_Association_PC da_json={da_json} rotated_json={rotated_da_json} toggleDA_PC={toggleDataAssoc_PointCloud}/>}
             {showRSS && <RotSuccessSummary json={fs_json} toggleRSS={toggleRotSummaryDisplay}/>}
 
             <div className="gtsfm_graph">
+                {/* Render Graph Nodes */}
                 <DivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 0)} leftOffset={formatPercent(leftShift, 0)} text={'Scene Image Directories'}/>
                 <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 15)} leftOffset={formatPercent(leftShift, 0)} text={'Scene Looper'}/>
                 <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 15)} leftOffset={formatPercent(leftShift, 10)} text={'Scene Directory'}/>
@@ -104,16 +105,16 @@ const DivGraph = (props) => {
                 <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 21)} leftOffset={formatPercent(leftShift, 72)} text={'Verified Correspondence Indices'}/>
                 <RelativeRsDivNode toggleRot={toggleRotSummaryDisplay} textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 21)} leftOffset={formatPercent(leftShift, 79)} text={'relative Rs: i2Ri1'}/>
                 <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 21)} leftOffset={formatPercent(leftShift, 87)} text={'relative ts: i2ti1'}/>
-                <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 70)} leftOffset={formatPercent(leftShift, 10)} text={'Images'}/>
-                <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 38)} leftOffset={formatPercent(leftShift, 8)} text={'Output Directory'}/>
-                <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 45)} leftOffset={formatPercent(leftShift, 9)} text={'SFMResult as files'}/>
-                <DivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 43)} leftOffset={formatPercent(leftShift, 19)} text={'File Writer'}/>
+                <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 50)} leftOffset={formatPercent(leftShift, 10)} text={'Images'}/>
                 <OptDivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 43)} leftOffset={formatPercent(leftShift, 28)} text={'Optimizer'}/>
-                <SFMResultDivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 53)} leftOffset={formatPercent(leftShift, 25)} text={'SFMResult (including Sparse Point Cloud, Optimized Intrinsics, absolute Rs, absolute Ts)'}/>
-                <DivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 83)} leftOffset={formatPercent(leftShift, 32)} text={'MVSNet'}/>
-                <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 83)} leftOffset={formatPercent(leftShift, 25)} text={'Dense Point Cloud'}/>
-                <DivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 83)} leftOffset={formatPercent(leftShift, 17)} text={'Triangulation'}/>
-                <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 83)} leftOffset={formatPercent(leftShift, 10)} text={'Dense Mesh Reconstruction'}/>
+                <SFMResultDivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 43)} leftOffset={formatPercent(leftShift, 17)} text={'SFMResult (including Sparse Point Cloud, Optimized Intrinsics, absolute Rs, absolute Ts)'}/>
+                <DivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 70)} leftOffset={formatPercent(leftShift, 40)} text={'File Writer'}/>
+                <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 70)} leftOffset={formatPercent(leftShift, 47)} text={'Output Directory'}/>
+                <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 80)} leftOffset={formatPercent(leftShift, 40)} text={'SFMResult as files'}/>
+                <DivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 78)} leftOffset={formatPercent(leftShift, 32)} text={'MVSNet'}/>
+                <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 78)} leftOffset={formatPercent(leftShift, 25)} text={'Dense Point Cloud'}/>
+                <DivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 78)} leftOffset={formatPercent(leftShift, 17)} text={'Triangulation'}/>
+                <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 78)} leftOffset={formatPercent(leftShift, 10)} text={'Dense Mesh Reconstruction'}/>
                 <DivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 83)} leftOffset={formatPercent(leftShift, 1)} text={'Aggregate'}/>
                 <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 63)} leftOffset={formatPercent(leftShift, 1)} text={'Zipped Results for All Scenes'}/>
                 <SfMDataDivNode json={da_json} toggleDA_PC={toggleDataAssoc_PointCloud} textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 40)} leftOffset={formatPercent(leftShift, 34)} text={'SfMData'}/>
@@ -128,7 +129,11 @@ const DivGraph = (props) => {
                 <DivNode textColor={'white'} backgroundColor={'#2255e0'} topOffset={formatPercent(topShift, 65)} leftOffset={formatPercent(leftShift, 76)} text={'Shonan'}/>
                 <DivNode textColor={'black'} backgroundColor={'#dfe8e6'} topOffset={formatPercent(topShift, 65)} leftOffset={formatPercent(leftShift, 87)} text={'relative Rs (2): i2Ri1'}/>
         
+                {/* Render Directed Edges */}
                 {arrowList}
+
+
+                {/* Render Plates */}
                 <div className="scene_optimizer_plate">
                     <p style={{color: 'red', fontWeight: 'bold'}}>Scene Optimizer Scenes</p>
                 </div>
@@ -138,8 +143,14 @@ const DivGraph = (props) => {
                 <div className="two_view_estimator_plate" onClick={(fs_json) ? (() => toggleFrontEndSummaryDisplay(true)) : (null)}>
                     <p style={{color: 'red', fontWeight: 'bold'}}>TwoViewEstimator</p>
                 </div>
-                <div className="multiview_optimizer_plate" onClick={(mvo_json) ? (() => toggleMVOMetrics(true)) : (null)}>
-                    <p style={{color: 'red', fontWeight: 'bold'}}>MultiViewEstimator</p>
+                <div className="averaging_plate">
+                    <p style={{color: 'red', fontWeight: 'bold'}}>Averaging</p>
+                </div>
+                <div className="sparse_multiview_optimizer_plate" onClick={(mvo_json) ? (() => toggleMVOMetrics(true)) : (null)}>
+                    <p style={{color: 'red', fontWeight: 'bold'}}>Sparse Multiview Optimizer</p>
+                </div>
+                <div className="dense_multiview_optimizer_plate">
+                    <p style={{color: 'red', fontWeight: 'bold'}}>Dense Multiview Optimizer</p>
                 </div>
             </div>
         </div>

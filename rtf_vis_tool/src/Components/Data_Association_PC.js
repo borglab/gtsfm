@@ -21,9 +21,9 @@ const Data_Association_PC = (props) => {
     //render points from data association json file (passed in through props)
     useEffect(() => {
         var finalPointsJSX = [];
-        for (var i = 0; i < props.json.length; i += 1) {
+        for (var i = 0; i < props.da_json.length; i += 1) {
             finalPointsJSX.push(<PointMesh 
-                position={[props.json[i][0], -1*props.json[i][2], props.json[i][1]]} 
+                position={[props.da_json[i][0], props.da_json[i][2], props.da_json[i][1]]} 
                 color={`rgb(163, 168, 165)`}
                 size={[0.2,8,8]}
             />)
@@ -31,6 +31,19 @@ const Data_Association_PC = (props) => {
 
         setPointCloud(finalPointsJSX);
     }, []);
+
+    //Function to replace the original point cloud with a centered, aligned new point cloud
+    const alignPC = () => {
+        var finalPointsJSX = [];
+        for (var i = 0; i < props.rotated_json.length; i += 1) {
+            finalPointsJSX.push(<PointMesh 
+                position={[props.rotated_json[i][0], -1*props.rotated_json[i][2], props.rotated_json[i][1]]} 
+                color={`rgb(163, 168, 165)`}
+                size={[0.2,8,8]}
+            />)
+        }
+        setPointCloud(finalPointsJSX);
+    }
 
     //Function to center the point cloud with respect to the origin
     const centerPC = () => {
@@ -40,15 +53,15 @@ const Data_Association_PC = (props) => {
         }
         setIsCentered(true);
 
-        const length = props.json.length;
+        const length = props.da_json.length;
         var sumX = 0;
         var sumY = 0;
         var sumZ = 0;
 
-        for (var i = 0; i < props.json.length; i += 1) {
-            sumX += props.json[i][0];
-            sumY += props.json[i][1];
-            sumZ += props.json[i][2];
+        for (var i = 0; i < props.da_json.length; i += 1) {
+            sumX += props.da_json[i][0];
+            sumY += props.da_json[i][1];
+            sumZ += props.da_json[i][2];
         }
 
         const meanX = sumX / length;
@@ -56,9 +69,9 @@ const Data_Association_PC = (props) => {
         const meanZ = sumZ / length;
 
         var finalPointsJSX = [];
-        for (var i = 0; i < props.json.length; i += 1) {
+        for (var i = 0; i < props.da_json.length; i += 1) {
             finalPointsJSX.push(<PointMesh 
-                position={[props.json[i][0] - meanX, props.json[i][2] - meanZ, props.json[i][1] - meanY]} 
+                position={[props.da_json[i][0] - meanX, props.da_json[i][2] - meanZ, props.da_json[i][1] - meanY]} 
                 color={`rgb(163, 168, 165)`}
                 size={[0.2,8,8]}
             />)
@@ -89,6 +102,7 @@ const Data_Association_PC = (props) => {
             <button className="da_go_back_btn" onClick={() => props.toggleDA_PC(false)}>Go Back</button>
             <button className="toggle_grid_btn" onClick={() => setShowCoordGrid(!showCoordGrid)}>Toggle Coordinate Grid</button>
             <button className="da_center_btn" onClick={centerPC}>Center</button>
+            <button className="rotate_pc_btn" onClick={alignPC}>Align Point Cloud</button>
         </div>
     )
 }

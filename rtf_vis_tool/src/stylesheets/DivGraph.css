@@ -77,18 +77,40 @@
     cursor: pointer;
 }
 
-.multiview_optimizer_plate {
+.sparse_multiview_optimizer_plate {
     position: absolute;
-    top: 35%;
+    top: 30%;
     left: 16%;
-    width: 78%;
-    height: 42%;
+    width: 23%;
+    height: 32%;
     border: 2px solid #0b8db5;
     padding-left: 1%;   
     z-index: -1;
 }
 
-.multiview_optimizer_plate:hover {
+.sparse_multiview_optimizer_plate:hover {
     background-color: whitesmoke;
     cursor: pointer;
+}
+
+.averaging_plate {
+    position: absolute;
+    top: 37%;
+    left: 59%;
+    width: 35%;
+    height: 37%;
+    border: 2px solid #0b8db5;
+    padding-left: 1%;   
+    z-index: -1;   
+}
+
+.dense_multiview_optimizer_plate {
+    position: absolute;
+    top: 70%;
+    left: 9%;
+    width: 29%;
+    height: 20%;
+    border: 2px solid #0b8db5;
+    padding-left: 1%;   
+    z-index: -1;
 }
