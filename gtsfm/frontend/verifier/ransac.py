@@ -23,7 +23,7 @@ import gtsfm.utils.verification as verification_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
-NUM_MATCHES_REQ_E_MATRIX = 6  # 6 instead of 5 to just return 1 E matrix
+NUM_MATCHES_REQ_E_MATRIX = 5
 NUM_MATCHES_REQ_F_MATRIX = 8
 NORMALIZED_COORD_RANSAC_THRESH = 0.001  # TODO: hyperparameter to tune
 PIXEL_COORD_RANSAC_THRESH = 0.5  # TODO: hyperparameter to tune
@@ -81,7 +81,7 @@ class Ransac(VerifierBase):
                 uv_norm_i1[match_indices[:, 0]],
                 uv_norm_i2[match_indices[:, 1]],
                 K,
-                method=cv2.RANSAC,  # cv2.USAC_DEFAULT # cv2.RANSAC
+                method=cv2.RANSAC,
                 threshold=NORMALIZED_COORD_RANSAC_THRESH,
                 prob=DEFAULT_RANSAC_SUCCESS_PROB,
             )
@@ -89,7 +89,7 @@ class Ransac(VerifierBase):
             i2Fi1, inlier_mask = cv2.findFundamentalMat(
                 keypoints_i1.extract_indices(match_indices[:, 0]).coordinates,
                 keypoints_i2.extract_indices(match_indices[:, 1]).coordinates,
-                method=cv2.FM_RANSAC,  # cv2.USAC_FM_8PTS # cv2.FM_RANSAC
+                method=cv2.FM_RANSAC,
                 ransacReprojThreshold=PIXEL_COORD_RANSAC_THRESH,
                 confidence=DEFAULT_RANSAC_SUCCESS_PROB,
                 maxIters=10000,
