@@ -10,7 +10,7 @@ from gtsam import PinholeCameraCal3Bundler, SfmTrack
 
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.logger as logger_utils
-from gtsfm.utils.reprojection import compute_track_reprojection_errors
+import gtsfm.utils.reprojection as reproj_utils
 
 logger = logger_utils.get_logger()
 
@@ -168,8 +168,8 @@ class GtsfmData:
 
         cameras_in_largest_cc = graph_utils.get_nodes_in_largest_connected_component(camera_edges)
         logger.info(
-            "Largest connected component contains {} of {} cameras".format(
-                len(cameras_in_largest_cc), self._number_images
+            "Largest connected component contains {} of {} cameras returned by front-end (of {} total imgs)".format(
+                len(cameras_in_largest_cc), len(self.get_valid_camera_indices()), self._number_images
             )
         )
         return GtsfmData.from_selected_cameras(self, cameras_in_largest_cc)
@@ -215,7 +215,7 @@ class GtsfmData:
         """
         scene_reproj_errors = []
         for track in self._tracks:
-            track_errors, _ = compute_track_reprojection_errors(self._cameras, track)
+            track_errors, _ = reproj_utils.compute_track_reprojection_errors(self._cameras, track)
             scene_reproj_errors.extend(track_errors)
 
         scene_avg_repoj_error = np.mean(scene_reproj_errors)

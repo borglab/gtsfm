@@ -22,7 +22,7 @@ from gtsam import (
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.sfm_track import SfmTrack2d
-from gtsfm.utils.reprojection import compute_point_reprojection_errors
+import gtsfm.utils.reprojection as reproj_utils
 
 NUM_SAMPLES_PER_RANSAC_HYPOTHESIS = 2
 SVD_DLT_RANK_TOL = 1e-9
@@ -118,7 +118,7 @@ class Point3dInitializer(NamedTuple):
                 )
                 continue
 
-            errors, _ = compute_point_reprojection_errors(
+            errors, _ = reproj_utils.compute_point_reprojection_errors(
                 self.track_camera_dict, triangulated_pt, track_2d.measurements
             )
 
@@ -186,7 +186,7 @@ class Point3dInitializer(NamedTuple):
             return None, None, is_cheirality_failure
 
         # compute reprojection errors for each measurement
-        reproj_errors, avg_track_reproj_error = compute_point_reprojection_errors(
+        reproj_errors, avg_track_reproj_error = reproj_utils.compute_point_reprojection_errors(
             self.track_camera_dict, triangulated_pt, inlier_track.measurements
         )
 

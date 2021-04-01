@@ -8,7 +8,7 @@ import numpy as np
 from gtsam import Pose3, SfmTrack
 
 from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.utils.reprojection import compute_track_reprojection_errors
+import gtsfm.utils.reprojection as reproj_utils
 
 
 class SfmResult(NamedTuple):
@@ -76,7 +76,7 @@ class SfmResult(NamedTuple):
         Returns:
             validity of the track.
         """
-        errors, avg_reproj_error = compute_track_reprojection_errors(self.gtsfm_data._cameras, track)
+        errors, avg_reproj_error = reproj_utils.compute_track_reprojection_errors(self.gtsfm_data._cameras, track)
         # track is valid as all measurements have error below the threshold
         cheirality_success = np.all(~np.isnan(errors))
         return np.all(errors < reproj_err_thresh) and cheirality_success
