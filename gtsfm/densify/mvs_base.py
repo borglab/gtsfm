@@ -21,13 +21,9 @@ class MVSBase(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def densify(
-        self,
-        images: Dict[int,Image],
-        sfm_result: SfmResult
-    ) -> np.ndarray:
+    def densify(self, images: Dict[int, Image], sfm_result: SfmResult) -> np.ndarray:
         """Densify a point cloud using multi-view stereo.
-        
+
         Note: we do not return depth maps here per image, as they would need to be aligned to ground truth
         before evaluation for completeness, etc.
 
@@ -41,11 +37,7 @@ class MVSBase(metaclass=abc.ABCMeta):
             Dense point cloud, as an array of shape (N,3)
         """
 
-    def create_computation_graph(
-        self,
-        images_graph: Delayed,
-        sfm_result_graph: Delayed,
-    ) -> Delayed:
+    def create_computation_graph(self, images_graph: Delayed, sfm_result_graph: Delayed) -> Delayed:
         """Generates the computation graph for performing multi-view stereo.
 
         Args:
