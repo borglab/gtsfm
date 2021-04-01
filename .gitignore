@@ -150,3 +150,6 @@ data/
 plots/
 results/
 result_metrics/
+
+#React Folders/Files to be Ignored
+/node_modules

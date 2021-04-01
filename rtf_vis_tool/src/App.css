@@ -1,0 +1,22 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0px;
+  padding: 10px;
+}
+
+body {
+  background: white;
+  position: fixed;
+}
+
+.scale-range-container {
+  display: flex;
+  flex-direction: row;
+}
