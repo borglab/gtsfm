@@ -131,11 +131,7 @@ class GtsfmData:
         self._tracks.append(track)
         return True
 
-    def add_camera(
-        self,
-        index: int,
-        camera: PinholeCameraCal3Bundler,
-    ) -> None:
+    def add_camera(self, index: int, camera: PinholeCameraCal3Bundler) -> None:
         """Adds a camera.
 
         Args:
