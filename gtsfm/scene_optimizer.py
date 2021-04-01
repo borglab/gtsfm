@@ -303,13 +303,17 @@ def visualize_camera_poses(
     for i in post_ba_sfm_data.get_valid_camera_indices():
         post_ba_poses.append(post_ba_sfm_data.get_camera(i).pose())
 
+    # Select ground truth poses that correspond to pre-BA and post-BA estimated poses
+    # some may have been lost after pruning to largest connected component
+    corresponding_gt_poses = [gt_pose_graph[i] for i in pre_ba_sfm_data.get_valid_camera_indices()]
+    
     fig = plt.figure()
     ax = fig.gca(projection="3d")
 
     if gt_pose_graph is not None:
         # ground truth is used as the reference
-        pre_ba_poses = comp_utils.align_poses_sim3(gt_pose_graph, copy.deepcopy(pre_ba_poses))
-        post_ba_poses = comp_utils.align_poses_sim3(gt_pose_graph, copy.deepcopy(post_ba_poses))
+        pre_ba_poses = comp_utils.align_poses_sim3(corresponding_gt_poses, copy.deepcopy(pre_ba_poses))
+        post_ba_poses = comp_utils.align_poses_sim3(corresponding_gt_poses, copy.deepcopy(post_ba_poses))
         viz_utils.plot_poses_3d(gt_pose_graph, ax, center_marker_color="m", label_name="GT")
 
     viz_utils.plot_poses_3d(pre_ba_poses, ax, center_marker_color="c", label_name="Pre-BA")

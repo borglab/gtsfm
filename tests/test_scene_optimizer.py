@@ -61,7 +61,9 @@ class TestSceneOptimizer(unittest.TestCase):
             # compare the camera poses
             poses = sfm_result.get_camera_poses()
 
-            expected_poses = [self.loader.get_camera_pose(i) for i in range(len(self.loader))]
+            # get active cameras from largest connected component, may be <len(self.loader)
+            connected_camera_idxs = sfm_result.gtsfm_data.get_valid_camera_indices()
+            expected_poses = [self.loader.get_camera_pose(i) for i in connected_camera_idxs]
 
             self.assertTrue(
                 comp_utils.compare_global_poses(poses, expected_poses, rot_err_thresh=0.03, trans_err_thresh=0.35)

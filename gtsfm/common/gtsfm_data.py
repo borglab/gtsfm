@@ -9,13 +9,17 @@ import numpy as np
 from gtsam import PinholeCameraCal3Bundler, SfmTrack
 
 import gtsfm.utils.graph as graph_utils
+import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.reprojection as reproj_utils
+
+logger = logger_utils.get_logger()
 
 EQUALITY_TOLERANCE = 1e-5
 
 
 class GtsfmData:
     """Class containing cameras and tracks, essentially describing the complete 3D scene.
-    
+
     This class is needed over GTSAM's SfmData type because GTSAM's type does not allow for non-contiguous cameras.
     The situation of non-contiguous cameras can exists because of failures in front-end.
     """
@@ -127,7 +131,7 @@ class GtsfmData:
         self._tracks.append(track)
         return True
 
-    def add_camera(self, index: int, camera: PinholeCameraCal3Bundler,) -> None:
+    def add_camera(self, index: int, camera: PinholeCameraCal3Bundler) -> None:
         """Adds a camera.
 
         Args:
@@ -163,6 +167,11 @@ class GtsfmData:
             return GtsfmData(self._number_images)
 
         cameras_in_largest_cc = graph_utils.get_nodes_in_largest_connected_component(camera_edges)
+        logger.info(
+            "Largest connected component contains {} of {} cameras returned by front-end (of {} total imgs)".format(
+                len(cameras_in_largest_cc), len(self.get_valid_camera_indices()), self._number_images
+            )
+        )
         return GtsfmData.from_selected_cameras(self, cameras_in_largest_cc)
 
     @classmethod
@@ -197,3 +206,17 @@ class GtsfmData:
                 new_data.add_track(track)
 
         return new_data
+
+    def get_scene_avg_reprojection_error(self) -> float:
+        """Get average reprojection error for all 3d points in the entire scene
+
+        Returns:
+            scene_avg_reproj_error: average of reprojection errors for every 3d point to its 2d measurements
+        """
+        scene_reproj_errors = []
+        for track in self._tracks:
+            track_errors, _ = reproj_utils.compute_track_reprojection_errors(self._cameras, track)
+            scene_reproj_errors.extend(track_errors)
+
+        scene_avg_repoj_error = np.mean(scene_reproj_errors)
+        return scene_avg_repoj_error
