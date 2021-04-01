@@ -24,6 +24,7 @@ dependencies:
   - matplotlib>=3.3.3
   - networkx
   - numpy
+  - nodejs
   - pandas
   - pillow>=8.0.1
   - scikit-learn

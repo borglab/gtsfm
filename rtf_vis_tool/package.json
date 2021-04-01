@@ -1,5 +1,5 @@
 {
-  "name": "rtf-intro",
+  "name": "rtf_vis_tool",
   "version": "0.1.0",
   "private": true,
   "dependencies": {
@@ -12,12 +12,9 @@
     "react": "^17.0.1",
     "react-dom": "^17.0.1",
     "react-scripts": "4.0.1",
-    "react-spring": "^8.0.27",
     "react-three-fiber": "^5.3.12",
     "react-xarrows": "^1.5.2",
-    "styled-components": "^5.2.1",
-    "three": "^0.124.0",
-    "web-vitals": "^0.2.4"
+    "three": "^0.127.0"
   },
   "scripts": {
     "start": "react-scripts start",
