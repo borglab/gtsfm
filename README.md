@@ -6,6 +6,10 @@
 ### What is GTSFM?
 GTSFM is an end-to-end SFM pipeline based on [GTSAM](https://github.com/borglab/gtsam). GTSFM was designed from the ground-up to natively support parallel computation using [Dask](https://dask.org/).
 
+<p align="left">
+  <img src="https://dask.org/_images/dask_horizontal_white_no_pad_dark_bg.png" height="50">
+</p>
+
 ## Installation
 First, we need to create a conda environment.
 
@@ -65,8 +69,8 @@ GTSFM is designed in an extremely modular way. Each module can be swapped out wi
     - `frontend`: SfM front-end code, including:
         - `detector`: keypoint detector implementations (DoG, etc)
         - `descriptor`: feature descriptor implementations (SIFT, etc)
-        - `matcher`: descriptor matching implementations
-        - `verifier`: 2d-correspondence verifier implementations (Degensac, Superglue, etc)
+        - `matcher`: descriptor matching implementations (Superglue, etc)
+        - `verifier`: 2d-correspondence verifier implementations (Degensac, OA-Net, etc)
     - `loader`: image data loaders
     - `utils`: utility functions such as serialization routines and pose comparisons, etc
 - `tests`: unit tests on every function and module

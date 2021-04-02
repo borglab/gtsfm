@@ -68,9 +68,7 @@ class MultiViewOptimizer:
         pruned_i2Ui1_graph = pruned_graph[1]
 
         wRi_graph = self.rot_avg_module.create_computation_graph(num_images, pruned_i2Ri1_graph)
-
         wti_graph = self.trans_avg_module.create_computation_graph(num_images, pruned_i2Ui1_graph, wRi_graph)
-
         init_cameras_graph = dask.delayed(init_cameras)(wRi_graph, wti_graph, intrinsics_graph)
 
         ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
