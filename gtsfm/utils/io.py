@@ -12,6 +12,7 @@ import numpy as np
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
 
+import gtsfm.utils.reprojection as reproj_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 
@@ -73,7 +74,10 @@ def load_h5(file_path: str) -> Dict[Any, Any]:
     return data
 
 
-def save_json_file(json_fpath: str, data: Union[Dict[Any, Any], List[Any]],) -> None:
+def save_json_file(
+    json_fpath: str,
+    data: Union[Dict[Any, Any], List[Any]],
+) -> None:
     """Save a Python dictionary or list to a JSON file.
     Args:
         json_fpath: Path to file to create.
@@ -86,7 +90,7 @@ def save_json_file(json_fpath: str, data: Union[Dict[Any, Any], List[Any]],) -> 
 
 def read_bal(file_path: str) -> GtsfmData:
     """Read a Bundle Adjustment in the Large" (BAL) file.
-    
+
     See https://grail.cs.washington.edu/projects/bal/ for more details on the format.
 
 
@@ -179,7 +183,7 @@ def write_images(gtsfm_data: GtsfmData, save_dir: str) -> None:
             # TODO: write out the points2d
 
 
-def write_points(gtsfm_data: GtsfmData, save_dir: str) -> None:
+def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
     """Writes the point cloud data file in the COLMAP format.
 
     Args:
@@ -197,22 +201,21 @@ def write_points(gtsfm_data: GtsfmData, save_dir: str) -> None:
 
         f.write("# 3D point list with one line of data per point:\n")
         f.write("#   POINT3D_ID, X, Y, Z, R, G, B, ERROR, TRACK[] as (IMAGE_ID, POINT2D_IDX)\n")
-        f.write(f"# Number of points: {num_pts}, mean track length: {avg_track_length}\n")
+        f.write(f"# Number of points: {num_pts}, mean track length: {np.round(avg_track_length, 2)}\n")
 
         # TODO: extract point color
         r, g, b = 0, 0, 0
-        # TODO: coming in another PR
-        track_reproj_error = 0
         # TODO: assign unique indices to all keypoints (2d points)
         point2d_idx = 0
 
         for j in range(num_pts):
             track = gtsfm_data.get_track(j)
-            x,y,z = track.point3()
-            f.write(f"{j} {x} {y} {z} {r} {g} {b} {track_reproj_error} ")
+
+            _, avg_track_reproj_error = reproj_utils.compute_track_reprojection_errors(gtsfm_data._cameras, track)
+            x, y, z = track.point3()
+            f.write(f"{j} {x} {y} {z} {r} {g} {b} {np.round(avg_track_reproj_error, 2)} ")
 
             for k in range(track.number_measurements()):
                 i, uv_measured = track.measurement(k)
                 f.write(f"{i} {point2d_idx} ")
             f.write("\n")
-
