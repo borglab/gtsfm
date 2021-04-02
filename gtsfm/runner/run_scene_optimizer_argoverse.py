@@ -1,5 +1,6 @@
 import argparse
 
+import numpy as np
 from dask.distributed import Client, LocalCluster, performance_report
 from hydra.experimental import compose, initialize_config_module
 from hydra.utils import instantiate
@@ -45,6 +46,8 @@ def run_scene_optimizer(args) -> None:
             sfm_result = sfm_result_graph.compute()
 
         assert isinstance(sfm_result, SfmResult)
+        scene_avg_reproj_error = sfm_result.gtsfm_data.get_scene_avg_reprojection_error()
+        logger.info('Scene avg reproj error: {}'.format(str(np.round(scene_avg_reproj_error, 3))))
 
 
 if __name__ == "__main__":
