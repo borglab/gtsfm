@@ -18,7 +18,7 @@ class DummyMatcher(MatcherBase):
         descriptors_i1: np.ndarray,
         descriptors_i2: np.ndarray,
     ) -> np.ndarray:
-        """Match descriptor vectors.
+        """Match descriptor vectors randomly.
 
         Output format:
         1. Each row represents a match.
