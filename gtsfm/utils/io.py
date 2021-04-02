@@ -121,7 +121,7 @@ def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> 
 
     Args:
         gtsfm_data: scene data to write.
-        images:
+        images: list of all images for this scene, in order of image index
         save_dir: folder to put the cameras.txt file in.
     """
     os.makedirs(save_dir, exist_ok=True)
@@ -163,7 +163,7 @@ def write_images(gtsfm_data: GtsfmData, save_dir: str) -> None:
     os.makedirs(save_dir, exist_ok=True)
 
     num_imgs = gtsfm_data.number_images()
-    # TODO: compute this
+    # TODO: compute this (from keypoint data? or from track data?)
     mean_obs_per_img = 0
 
     # TODO: compute this
@@ -194,7 +194,7 @@ def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
 
     Args:
         gtsfm_data: scene data to write.
-        images:
+        images: list of all images for this scene, in order of image index
         save_dir: folder to put the points3D.txt file in.
     """
     os.makedirs(save_dir, exist_ok=True)
