@@ -203,8 +203,6 @@ def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
         f.write("#   POINT3D_ID, X, Y, Z, R, G, B, ERROR, TRACK[] as (IMAGE_ID, POINT2D_IDX)\n")
         f.write(f"# Number of points: {num_pts}, mean track length: {np.round(avg_track_length, 2)}\n")
 
-        # TODO: extract point color
-        r, g, b = 0, 0, 0
         # TODO: assign unique indices to all keypoints (2d points)
         point2d_idx = 0
 
