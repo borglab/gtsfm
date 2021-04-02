@@ -32,19 +32,6 @@ class TestMatcherBase(unittest.TestCase):
 
         self.matcher = DummyMatcher()
 
-    # def __execute_test(
-    #     self,
-    #     keypoints_i1: Keypoints,
-    #     keypoints_i2: Keypoints,
-    #     descriptors_i1: np.ndarray,
-    #     descriptors_i2: np.ndarray,
-    #     expected_matches: np.ndarray,
-    # ) -> None:
-    #     computed_matches = self.matcher.match(keypoints_i1, keypoints_i2, descriptors_i1, descriptors_i2)
-    #     np.testing.assert_allclose(computed_matches, expected_matches)
-    #     self.__assert_valid_indices(computed_matches, len(keypoints_i1), len(keypoints_i2))
-    #     self.__assert_one_to_one_constraint(computed_matches)
-
     def __assert_valid_indices(self, match_idxs: np.ndarray, num_keypoints_i1: int, num_keypoints_i2: int) -> None:
 
         if match_idxs.size:
@@ -161,5 +148,4 @@ def generate_random_binary_descriptors(num_descriptors: int, descriptor_dim: int
 
 
 if __name__ == "__main__":
-    get_features_from_real_images()
     unittest.main()
