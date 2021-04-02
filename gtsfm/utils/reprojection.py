@@ -17,7 +17,7 @@ def compute_track_reprojection_errors(
     """Compute reprojection errors for measurements in the tracks.
 
     Args:
-        track_camera_dict: Dict of cameras and their indices.
+        track_camera_dict: Dict of cameras, with camera indices as keys.
         track: 3d point/landmark and its corresponding 2d measurements in various cameras
 
     Returns:
@@ -52,7 +52,7 @@ def compute_point_reprojection_errors(
     """Compute reprojection errors for a hypothesized 3d point vs. 2d measurements.
 
     Args:
-        track_camera_dict: Dict of cameras and their indices.
+        track_camera_dict: Dict of cameras, with camera indices as keys.
         point3d: hypothesized 3d point/landmark
         measurements: corresponding 2d measurements (of 3d point above) in various cameras
 
@@ -84,9 +84,9 @@ def get_average_point_color(
 ) -> Tuple[int, int, int]:
     """
     Args:
-        track
-        cameras_dict
-        images
+        track: 3d point/landmark and its corresponding 2d measurements in various cameras
+        cameras_dict: Dict of cameras, with camera indices as keys.
+        images: list of all images for this scene
 
     Returns:
         r: red color intensity, in range [0,255]
