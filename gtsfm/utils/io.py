@@ -44,7 +44,7 @@ def load_image(img_path: str) -> Image:
     return Image(np.asarray(original_image), exif_data)
 
 
-def save_image(image: Image, img_path: str):
+def save_image(image: Image, img_path: str) -> None:
     """Saves the image to disk
 
     Args:
