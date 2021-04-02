@@ -98,6 +98,7 @@ def get_average_point_color(
 
         # process each measurement
         i, uv_measured = track.measurement(k)
+        img_h, img_w, _ = images[i].value_array.shape
 
         # get the camera associated with the measurement
         camera = cameras_dict[i]
@@ -105,6 +106,9 @@ def get_average_point_color(
         uv_reprojected, success_flag = camera.projectSafe(track.point3())
         if success_flag:
             u, v = np.round(uv_reprojected).astype(np.int32)
+            # ensure round did not push us out of bounds
+            u = np.clip(u, 0, img_w - 1)
+            v = np.clip(v, 0, img_h - 1)
             rgb_measurements += [images[i].value_array[v, u]]
         else:
             continue
