@@ -114,18 +114,17 @@ def read_bal(file_path: str) -> GtsfmData:
     return gtsfm_data
 
 
-def write_cameras(gtsfm_data: GtsfmData, save_dir: str) -> None:
+def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
     """Writes the camera data file in the COLMAP format.
+
+    Reference: https://colmap.github.io/format.html#cameras-txt
 
     Args:
         gtsfm_data: scene data to write.
+        images:
         save_dir: folder to put the cameras.txt file in.
     """
     os.makedirs(save_dir, exist_ok=True)
-
-    # TODO: get image shape somehow
-    image_width = 1000
-    image_height = 1000
 
     # TODO: handle shared intrinsics
     camera_model = "SIMPLE_RADIAL"
@@ -146,11 +145,16 @@ def write_cameras(gtsfm_data: GtsfmData, save_dir: str) -> None:
             k1 = calibration.k1()
             k2 = calibration.k2()
 
+            image_height = images[i].height
+            image_width = images[i].width
+
             f.write(f"{i} {camera_model} {image_width} {image_height} {fx} {u0} {v0} {k1} {k2}\n")
 
 
 def write_images(gtsfm_data: GtsfmData, save_dir: str) -> None:
     """Writes the image data file in the COLMAP format.
+
+    Reference: https://colmap.github.io/format.html#images-txt
 
     Args:
         gtsfm_data: scene data to write.
@@ -186,8 +190,11 @@ def write_images(gtsfm_data: GtsfmData, save_dir: str) -> None:
 def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
     """Writes the point cloud data file in the COLMAP format.
 
+    Reference: https://colmap.github.io/format.html#points3d-txt
+
     Args:
         gtsfm_data: scene data to write.
+        images:
         save_dir: folder to put the points3D.txt file in.
     """
     os.makedirs(save_dir, exist_ok=True)
