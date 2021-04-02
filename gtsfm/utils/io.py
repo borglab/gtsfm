@@ -132,8 +132,8 @@ def write_cameras(gtsfm_data: GtsfmData, save_dir: str) -> None:
 
     file_path = os.path.join(save_dir, "cameras.txt")
     with open(file_path, "w") as f:
-        f.write("# Camera list with one line of data per camera:")
-        f.write("#   CAMERA_ID, MODEL, WIDTH, HEIGHT, PARAMS[]")
+        f.write("# Camera list with one line of data per camera:\n")
+        f.write("#   CAMERA_ID, MODEL, WIDTH, HEIGHT, PARAMS[]\n")
         f.write(f"# Number of cameras: {gtsfm_data.number_images()}\n")
 
         for i in gtsfm_data.get_valid_camera_indices():
@@ -167,10 +167,10 @@ def write_images(gtsfm_data: GtsfmData, save_dir: str) -> None:
 
     file_path = os.path.join(save_dir, "images.txt")
     with open(file_path, "w") as f:
-        f.write("# Image list with two lines of data per image:")
-        f.write("#   IMAGE_ID, QW, QX, QY, QZ, TX, TY, TZ, CAMERA_ID, NAME")
-        f.write("#   POINTS2D[] as (X, Y, POINT3D_ID)")
-        f.write(f"# Number of cameras: {num_imgs}, mean observations per image: {mean_obs_per_img}\n")
+        f.write("# Image list with two lines of data per image:\n")
+        f.write("#   IMAGE_ID, QW, QX, QY, QZ, TX, TY, TZ, CAMERA_ID, NAME\n")
+        f.write("#   POINTS2D[] as (X, Y, POINT3D_ID)\n")
+        f.write(f"# Number of images: {num_imgs}, mean observations per image: {mean_obs_per_img}\n")
 
         for i in gtsfm_data.get_valid_camera_indices():
             camera = gtsfm_data.get_camera(i)
@@ -197,8 +197,6 @@ def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
 
     file_path = os.path.join(save_dir, "points3D.txt")
     with open(file_path, "w") as f:
-        f.write("# Number of cameras: {}\n".format(gtsfm_data.number_images()))
-
         f.write("# 3D point list with one line of data per point:\n")
         f.write("#   POINT3D_ID, X, Y, Z, R, G, B, ERROR, TRACK[] as (IMAGE_ID, POINT2D_IDX)\n")
         f.write(f"# Number of points: {num_pts}, mean track length: {np.round(avg_track_length, 2)}\n")
