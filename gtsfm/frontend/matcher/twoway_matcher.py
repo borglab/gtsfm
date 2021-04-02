@@ -4,14 +4,25 @@ Authors: Ayush Baid
 """
 import cv2 as cv
 import numpy as np
+from enum import Enum
 
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
-from gtsfm.frontend.matcher.matcher_base import MatchingDistanceType
+
+
+class MatchingDistanceType(Enum):
+    """Type of distance metric to use for matching descriptors."""
+
+    HAMMING = 1
+    EUCLIDEAN = 2
 
 
 class TwoWayMatcher(MatcherBase):
     """Two way (mutual nearest neighbor) matcher using OpenCV."""
+
+    def __init__(self, distance_type: MatchingDistanceType = MatchingDistanceType.EUCLIDEAN):
+        super().__init__()
+        self._distance_type = distance_type
 
     def match(
         self,

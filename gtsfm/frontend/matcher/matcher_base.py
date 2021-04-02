@@ -12,27 +12,11 @@ from dask.delayed import Delayed
 from gtsfm.common.keypoints import Keypoints
 
 
-class MatchingDistanceType(Enum):
-    """Type of distance metric to use for matching descriptors."""
-
-    HAMMING = 1
-    EUCLIDEAN = 2
-
-
 class MatcherBase(metaclass=abc.ABCMeta):
     """Base class for all matchers.
 
     Matchers work on a pair of descriptors and match them by their distance.
     """
-
-    def __init__(self, distance_type: MatchingDistanceType = MatchingDistanceType.EUCLIDEAN) -> None:
-        """Initialize the matcher.
-
-        Args:
-            distance_type (optional): the space to compute the distance between descriptors. Defaults to
-                                      MatchingDistanceType.EUCLIDEAN.
-        """
-        self._distance_type = distance_type
 
     @abc.abstractmethod
     def match(
