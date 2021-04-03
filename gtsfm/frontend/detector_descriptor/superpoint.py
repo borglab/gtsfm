@@ -44,6 +44,7 @@ class SuperPointDetDesc(DetectorDescriptorBase):
         device = torch.device("cuda" if self._use_cuda else "cpu")
         model = SuperPoint(self._config).to(device)
         model.eval()
+        # TODO: fix inference issue #110
 
         image_tensor = torch.from_numpy(
             np.expand_dims(image_utils.rgb_to_gray_cv(image).value_array.astype(np.float32) / 255.0, (0, 1))
