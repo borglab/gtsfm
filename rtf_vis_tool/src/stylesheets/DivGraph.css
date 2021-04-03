@@ -1,3 +1,5 @@
+/* Stylings for DivGraph.js Component */
+
 .div_graph_container {
     display: flex;
     flex-direction: column;
