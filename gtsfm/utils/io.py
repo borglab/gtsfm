@@ -13,6 +13,7 @@ from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
 
 import gtsfm.utils.reprojection as reproj_utils
+import gtsfm.utils.images as image_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 
@@ -214,7 +215,7 @@ def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
         for j in range(num_pts):
             track = gtsfm_data.get_track(j)
 
-            r, g, b = reproj_utils.get_average_point_color(track, images)
+            r, g, b = image_utils.get_average_point_color(track, images)
             _, avg_track_reproj_error = reproj_utils.compute_track_reprojection_errors(gtsfm_data._cameras, track)
             x, y, z = track.point3()
             f.write(f"{j} {x} {y} {z} {r} {g} {b} {np.round(avg_track_reproj_error, 2)} ")

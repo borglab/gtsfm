@@ -3,7 +3,6 @@ from typing import Dict, List, Tuple
 import numpy as np
 from gtsam import PinholeCameraCal3Bundler, SfmTrack
 
-from gtsfm.common.image import Image
 from gtsfm.common.sfm_track import SfmMeasurement
 
 """
@@ -78,30 +77,3 @@ def compute_point_reprojection_errors(
     avg_track_reproj_error = errors.mean()
     return errors, avg_track_reproj_error
 
-
-def get_average_point_color(track: SfmTrack, images: List[Image]) -> Tuple[int, int, int]:
-    """
-    Args:
-        track: 3d point/landmark and its corresponding 2d measurements in various cameras
-        images: list of all images for this scene
-
-    Returns:
-        r: red color intensity, in range [0,255]
-        g: red color intensity, in range [0,255]
-        b: red color intensity, in range [0,255]
-    """
-    rgb_measurements = []
-    for k in range(track.number_measurements()):
-
-        # process each measurement
-        i, uv_measured = track.measurement(k)
-        img_h, img_w, _ = images[i].value_array.shape
-
-        u, v = np.round(uv_measured).astype(np.int32)
-        # ensure round did not push us out of bounds
-        u = np.clip(u, 0, img_w - 1)
-        v = np.clip(v, 0, img_h - 1)
-        rgb_measurements += [images[i].value_array[v, u]]
-
-    r, g, b = np.array(rgb_measurements).mean(axis=0).astype(np.uint8)
-    return r, g, b
