@@ -6,7 +6,7 @@ from typing import List, Optional
 
 import cv2 as cv
 import numpy as np
-from gtsam import Cal3Bundler, EssentialMatrix
+from gtsam import Cal3Bundler
 
 from gtsfm.common.keypoints import Keypoints
 
@@ -76,7 +76,7 @@ def convert_to_homogenous_coordinates(
     )
 
 
-def convert_to_epipolar_lines(normalized_coordinates_i1: np.ndarray, i2Ei1: EssentialMatrix) -> Optional[np.ndarray]:
+def convert_to_epipolar_lines(coordinates_i1: np.ndarray, i2Fi1: np.ndarray) -> Optional[np.ndarray]:
     """Convert coordinates to epipolar lines in image i2.
 
     The epipolar line in image i2 is given by i2Ei1 @ x_i1. A point x_i2 is on this line if x_i2^T @ i2Ei1 @ x_i1 = 0.
@@ -88,11 +88,15 @@ def convert_to_epipolar_lines(normalized_coordinates_i1: np.ndarray, i2Ei1: Esse
     Returns:
         Corr. epipolar lines in i2, of shape Nx3.
     """
-    if normalized_coordinates_i1 is None or normalized_coordinates_i1.size == 0:
+    if coordinates_i1 is None or coordinates_i1.size == 0:
         return None
 
-    epipolar_lines = convert_to_homogenous_coordinates(normalized_coordinates_i1) @ i2Ei1.matrix().T
-    return epipolar_lines
+    epipolar_lines = convert_to_homogenous_coordinates(coordinates_i1) @ i2Fi1.T
+    norms = np.linalg.norm(epipolar_lines[:, :2], axis=1, keepdims=True)
+    norms = np.where(norms > 0, norms, 1)
+    normalized_epipolar_lines = epipolar_lines / norms
+
+    return normalized_epipolar_lines
 
 
 def compute_point_line_distances(points: np.ndarray, lines: np.ndarray) -> np.ndarray:

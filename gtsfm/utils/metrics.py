@@ -50,12 +50,11 @@ def count_correct_correspondences(
     if len(keypoints_i1) == 0:
         return 0
 
-    normalized_coords_i1 = feature_utils.normalize_coordinates(keypoints_i1.coordinates, intrinsics_i1)
-    normalized_coords_i2 = feature_utils.normalize_coordinates(keypoints_i2.coordinates, intrinsics_i2)
     i2Ei1 = EssentialMatrix(i2Ti1.rotation(), Unit3(i2Ti1.translation()))
+    i2Fi1 = verification_utils.essential_to_fundamental_matrix(i2Ei1, intrinsics_i1, intrinsics_i2)
 
     epipolar_distances = verification_utils.compute_epipolar_distances(
-        normalized_coords_i1, normalized_coords_i2, i2Ei1
+        keypoints_i1.coordinates, keypoints_i2.coordinates, i2Fi1
     )
     return np.count_nonzero(epipolar_distances < epipolar_dist_threshold)
 

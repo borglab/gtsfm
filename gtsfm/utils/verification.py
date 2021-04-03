@@ -10,14 +10,16 @@ from gtsam import Cal3Bundler, EssentialMatrix, Pose3, Rot3, Unit3
 
 import gtsfm.utils.features as feature_utils
 
+EPS = 1e-8  # constant used to prevent division by zero error.
+
 
 def recover_relative_pose_from_essential_matrix(
-    i2Ei1: np.ndarray,
+    i2Ei1: Optional[np.ndarray],
     verified_coordinates_i1: np.ndarray,
     verified_coordinates_i2: np.ndarray,
     camera_intrinsics_i1: Cal3Bundler,
     camera_intrinsics_i2: Cal3Bundler,
-) -> Tuple[Rot3, Unit3]:
+) -> Tuple[Optional[Rot3], Optional[Unit3]]:
     """Recovers the relative rotation and translation direction from essential matrix and verified correspondences
     using opencv's API.
 
@@ -29,9 +31,12 @@ def recover_relative_pose_from_essential_matrix(
         camera_intrinsics_i2: intrinsics for image i2.
 
     Returns:
-        relative rotation i2Ri1.
-        relative translation direction i2Ui1.
+        relative rotation i2Ri1, or None if the input essential matrix is None.
+        relative translation direction i2Ui1, or None if the input essential matrix is None.
     """
+    if i2Ei1 is None:
+        return None, None
+
     # obtain points in normalized coordinates using intrinsics.
     normalized_coordinates_i1 = feature_utils.normalize_coordinates(verified_coordinates_i1, camera_intrinsics_i1)
     normalized_coordinates_i2 = feature_utils.normalize_coordinates(verified_coordinates_i2, camera_intrinsics_i2)
@@ -75,37 +80,48 @@ def essential_to_fundamental_matrix(
 
 
 def compute_epipolar_distances(
-    normalized_coords_i1: np.ndarray, normalized_coords_i2: np.ndarray, i2Ei1: EssentialMatrix
+    coordinates_i1: np.ndarray, coordinates_i2: np.ndarray, i2Fi1: np.ndarray, distance_type: str = "sed"
 ) -> Optional[np.ndarray]:
-    """Compute symmetric point-line epipolar distances between normalized coordinates of correspondences.
+    """Compute point-line epipolar distance between corresponding coordinates in two images.
 
     Args:
-        normalized_coords_i1: normalized coordinates in image i1, of shape Nx2.
-        normalized_coords_i2: corr. normalized coordinates in image i2, of shape Nx2.
-        i2Ei1: essential matrix between two images
+        coordinates_i1: coordinates in image i1, of shape Nx2.
+        coordinates_i2: corr. coordinates in image i2, of shape Nx2.
+        i2Fi1: fundamental matrix between two images.
+        distance_type (optional): type of distance metric to compute. The options are "sed" (symmetric epipolar
+                                  distance) and "sampson". Defaults to SED.
 
     Returns:
-        Symmetric epipolar distances for each row of the input, of shape N.
+        Epipolar point-line distances for each row of the input, of shape N.
     """
-    if (
-        normalized_coords_i1 is None
-        or normalized_coords_i1.size == 0
-        or normalized_coords_i2 is None
-        or normalized_coords_i2.size == 0
-    ):
+    if distance_type != "sed" and distance_type != "sampson":
+        raise ValueError("Invalid distance type for epipolar distances.")
+
+    if coordinates_i1 is None or coordinates_i1.size == 0 or coordinates_i2 is None or coordinates_i2.size == 0:
         return None
 
-    # construct the essential matrix in the opposite directin
-    i2Ti1 = Pose3(i2Ei1.rotation(), i2Ei1.direction().point3())
-    i1Ti2 = i2Ti1.inverse()
-    i1Ei2 = EssentialMatrix(i1Ti2.rotation(), Unit3(i1Ti2.translation()))
+    # # compute the pt line distance as done in Opencv
+    epipolar_lines_i2 = feature_utils.convert_to_epipolar_lines(coordinates_i1, i2Fi1)  # Ex1
+    epipolar_lines_i1 = feature_utils.convert_to_epipolar_lines(coordinates_i2, i2Fi1.T)  # Etx2
 
-    # get lines in i2 and i1
-    epipolar_lines_i2 = feature_utils.convert_to_epipolar_lines(normalized_coords_i1, i2Ei1)
-    epipolar_lines_i1 = feature_utils.convert_to_epipolar_lines(normalized_coords_i2, i1Ei2)
+    if distance_type == "sampson":
 
-    # compute two distances and average them
-    return 0.5 * (
-        feature_utils.compute_point_line_distances(normalized_coords_i1, epipolar_lines_i1)
-        + feature_utils.compute_point_line_distances(normalized_coords_i2, epipolar_lines_i2)
-    )
+        num = feature_utils.compute_point_line_distances(coordinates_i1, epipolar_lines_i1)
+        denom = (
+            np.sum(np.square(epipolar_lines_i1[:, :2]), axis=1) + np.sum(np.square(epipolar_lines_i2[:, :2]), axis=1)
+        ) + EPS
+
+        distances = np.abs(num / np.sqrt(denom))
+
+    else:
+        # get lines in i2 and i1
+        epipolar_lines_i2 = feature_utils.convert_to_epipolar_lines(coordinates_i1, i2Fi1)
+        epipolar_lines_i1 = feature_utils.convert_to_epipolar_lines(coordinates_i2, i2Fi1.T)
+
+        # compute two distances and average them
+        distances = 0.5 * (
+            feature_utils.compute_point_line_distances(coordinates_i1, epipolar_lines_i1)
+            + feature_utils.compute_point_line_distances(coordinates_i2, epipolar_lines_i2)
+        )
+
+    return distances
