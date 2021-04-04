@@ -2,6 +2,8 @@
 
 Authors: Xiaolong Wu, John Lambert, Ayush Baid
 """
+from typing import NamedTuple
+
 import dask
 import gtsam
 from dask.delayed import Delayed
@@ -22,11 +24,12 @@ POINT3_DOF = 3  # 3d points have 3 dof
 logger = logger_utils.get_logger()
 
 
-class BundleAdjustmentOptimizer:
+class BundleAdjustmentOptimizer(NamedTuple):
     """Bundle adjustment using factor-graphs in GTSAM.
 
     This class refines global pose estimates and intrinsics of cameras, and also refines 3D point cloud structure given
     tracks from triangulation."""
+    output_reproj_error_thresh: float
 
     def run(self, initial_data: GtsfmData) -> SfmResult:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
@@ -107,8 +110,11 @@ class BundleAdjustmentOptimizer:
 
         # construct the results
         optimized_data = values_to_gtsfm_data(result_values, initial_data)
-        sfm_result = SfmResult(optimized_data, total_reproj_error=final_error)
+        
+        # filter the largest errors
+        filtered_data = optimized_data.filter_landmarks(self.output_reproj_error_thresh)
 
+        sfm_result = SfmResult(filtered_data, total_reproj_error=final_error)
         return sfm_result
 
     def create_computation_graph(self, sfm_data_graph: Delayed) -> Delayed:
