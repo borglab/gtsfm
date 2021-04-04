@@ -198,12 +198,12 @@ class SceneOptimizer:
             )
 
             auxiliary_graph_list.append(
-                dask.delayed(visualize_sfm_data)(filtered_sfm_data_graph, os.path.join(PLOT_PATH, "results"))
+                dask.delayed(visualize_sfm_data)(ba_output_graph, os.path.join(PLOT_PATH, "results"))
             )
 
             auxiliary_graph_list.append(
                 dask.delayed(visualize_camera_poses)(
-                    ba_input_graph, filtered_sfm_data_graph, gt_pose_graph, os.path.join(PLOT_PATH, "results")
+                    ba_input_graph, ba_output_graph, gt_pose_graph, os.path.join(PLOT_PATH, "results")
                 )
             )
 
@@ -221,13 +221,13 @@ class SceneOptimizer:
             # save the output of Bundle Adjustment (after optimization)
             ba_output_save_dir = os.path.join(RESULTS_PATH, "ba_output")
             auxiliary_graph_list.append(
-                dask.delayed(io_utils.write_cameras)(filtered_sfm_data_graph, image_graph, save_dir=ba_output_save_dir)
+                dask.delayed(io_utils.write_cameras)(ba_output_graph, image_graph, save_dir=ba_output_save_dir)
             )
             auxiliary_graph_list.append(
-                dask.delayed(io_utils.write_images)(filtered_sfm_data_graph, save_dir=ba_output_save_dir)
+                dask.delayed(io_utils.write_images)(ba_output_graph, save_dir=ba_output_save_dir)
             )
             auxiliary_graph_list.append(
-                dask.delayed(io_utils.write_points)(filtered_sfm_data_graph, image_graph, save_dir=ba_output_save_dir)
+                dask.delayed(io_utils.write_points)(ba_output_graph, image_graph, save_dir=ba_output_save_dir)
             )
 
         # as visualization tasks are not to be provided to the user, we create a
