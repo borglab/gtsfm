@@ -60,7 +60,8 @@ class SceneOptimizer:
         feature_extractor: FeatureExtractor,
         two_view_estimator: TwoViewEstimator,
         multiview_optimizer: MultiViewOptimizer,
-        save_viz: bool,
+        save_image_pair_viz: bool,
+        save_3d_viz: bool,
         save_gtsfm_data: bool,
         pose_angular_error_thresh: float,
     ) -> None:
@@ -69,7 +70,9 @@ class SceneOptimizer:
         self.two_view_estimator = two_view_estimator
         self.multiview_optimizer = multiview_optimizer
 
-        self._save_viz = save_viz
+        self._save_image_pair_viz = save_image_pair_viz
+        self._save_3d_viz = save_3d_viz
+
         self._save_gtsfm_data = save_gtsfm_data
         self._pose_angular_error_thresh = pose_angular_error_thresh
 
@@ -144,7 +147,7 @@ class SceneOptimizer:
                     correspondence_stats[1],
                 )
 
-            if self._save_viz:
+            if self._save_image_pair_viz:
                 auxiliary_graph_list.append(
                     dask.delayed(visualize_twoview_correspondences)(
                         image_graph[i1],
@@ -171,7 +174,8 @@ class SceneOptimizer:
         keypoints_graph_list = dask.delayed(lambda x, y: (x, y))(keypoints_graph_list, auxiliary_graph_list)[0]
         auxiliary_graph_list = []
 
-        (ba_input_graph, ba_output_graph, optimizer_metrics_graph,) = self.multiview_optimizer.create_computation_graph(
+        (ba_input_graph, ba_output_graph, optimizer_metrics_graph) = self.multiview_optimizer.create_computation_graph(
+            image_graph,
             num_images,
             keypoints_graph_list,
             i2Ri1_graph_dict,
@@ -185,11 +189,7 @@ class SceneOptimizer:
         if optimizer_metrics_graph is not None:
             auxiliary_graph_list.append(optimizer_metrics_graph)
 
-        filtered_sfm_data_graph = dask.delayed(ba_output_graph.filter_landmarks)(
-            self.multiview_optimizer.data_association_module.reproj_error_thresh
-        )
-
-        if self._save_viz:
+        if self._save_3d_viz:
             os.makedirs(os.path.join(PLOT_PATH, "ba_input"), exist_ok=True)
             os.makedirs(os.path.join(PLOT_PATH, "results"), exist_ok=True)
 
