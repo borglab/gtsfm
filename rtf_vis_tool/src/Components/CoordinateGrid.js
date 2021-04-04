@@ -1,16 +1,21 @@
 import React from "react";
 import {Line, Html} from "drei";
 
+const lowerGridBound = -10;   //lower grid bound for coordinate axes
+const upperGridBound = 10;    //upper grid bound for coordinate axes
+const htmlSize = 50;          //size of the x,y,z axes labels
+
 //Function that creates the grid lines along with xy plane
 const getGridLines = () => {
     var coordPairSet = []
-    //add x grid lines
-    for (var z = -10; z <= 10; z++) {
-      coordPairSet.push([[-10, 0, z], [10, 0, z]]);
+
+    //add grid lines parallel to x axis
+    for (var z = lowerGridBound; z <= upperGridBound; z++) {
+      coordPairSet.push([[lowerGridBound, 0, z], [upperGridBound, 0, z]]);
     }
     //add z grid lines
-    for (var x = -10; x <= 10; x++) {
-      coordPairSet.push([[x, 0, -10], [x, 0, 10]]);
+    for (var x = lowerGridBound; x <= upperGridBound; x++) {
+      coordPairSet.push([[x, 0, lowerGridBound], [x, 0, upperGridBound]]);
     }
 
     var finalLineGridSet = []
@@ -20,41 +25,41 @@ const getGridLines = () => {
     return finalLineGridSet;
 }
 
-//Component which renders the x,y,z axes along with the grid lines along xy plane
+// Component which renders the x,y,z axes along with the grid lines along the xy plane.
+// Used within Data_Association_PC.js
+//  This component returns the format JSX, which is essentially a modified version of HTML  
+//  that is meant to be readable by React code. 
 const CoordinateGrid = () => { 
     return (
       <mesh>
           <Line 
-            points={[[-10,0,0], [10,0,0]]} 
+            points={[[lowerGridBound,0,0], [upperGridBound,0,0]]} 
             color="red" 
-            position={[0,0,0]}
             lineWidth={0.3}
           />
-          <Html scaleFactor={50} position={[10,0,0]}>
+          <Html scaleFactor={htmlSize} position={[upperGridBound,0,0]}>
             <div class="content">
               x
             </div>
           </Html>
 
           <Line 
-            points={[[0,-10,0], [0,10,0]]} 
+            points={[[0,lowerGridBound,0], [0,upperGridBound,0]]} 
             color="blue" 
-            position={[0,0,0]}
             lineWidth={0.3}
           />
-          <Html scaleFactor={50} position={[0,10,0]}>
+          <Html scaleFactor={htmlSize} position={[0,upperGridBound,0]}>
             <div class="content">
               z
             </div>
           </Html>
 
           <Line 
-            points={[[0,0,-10], [0,0,10]]} 
+            points={[[0,0,lowerGridBound], [0,0,upperGridBound]]} 
             color="green" 
-            position={[0,0,0]}
             lineWidth={0.3}
           />
-          <Html scaleFactor={50} position={[0,0,10]}>
+          <Html scaleFactor={htmlSize} position={[0,0,upperGridBound]}>
             <div class="content">
               y
             </div>

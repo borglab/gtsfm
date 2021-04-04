@@ -1,31 +1,21 @@
 import React from "react";
+import '.././stylesheets/Div_Node.css';
 
 //The Gray 'SfMData' Node Component 
-//When clicked, it spawns the data association point cloud (located in Data_Association_PC.js)
+//When clicked, it spawns the Bundle Adjustment point cloud (located in Bundle_Adj_PC.js)
 const SfMDataDivNode = (props) => {
 
-    //similar styling applies to DivNode.js
-    const divNodeStyle = {
-        position: 'absolute',
+    // defines the stylings that depends on parameters passed in from LandingPageGraph.js
+    const propStyling = {
         top: props.topOffset,
         left: props.leftOffset,
         backgroundColor: props.backgroundColor,
-        width: 'auto',
-        height: 'auto',
-        border: '1px solid black',
-        borderRadius: '10px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingRight: '5px',
-        paddingLeft: '5px',
-        cursor: 'pointer',
-        maxWidth: '5%',
     }
 
     return (
         <div id={props.text} 
-            style={divNodeStyle} 
+            className="standard_div_node_style"
+            style={propStyling} 
             onClick={(props.json) ? (() => props.toggleDA_PC(true)) : (null)}>     
             <p style={{fontSize: '75%', color: props.textColor}}>{props.text}</p>
         </div>

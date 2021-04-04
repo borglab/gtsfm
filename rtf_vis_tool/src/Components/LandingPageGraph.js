@@ -1,9 +1,9 @@
 import React, {useEffect, useState} from "react";
 import Xarrow from "react-xarrows";
-import '../stylesheets/DivGraph.css'
+import '../stylesheets/LandingPageGraph.css'
 
 //Loading Components
-import Data_Association_PC from './Data_Association_PC';
+import Bundle_Adj_PC from './Bundle_Adj_PC';
 import DivNode from './DivNode';
 import EdgeList from './gtsfm_edge_list.js';
 // import FrontendSummary from './FrontendSummary';         - add this in part 3
@@ -11,15 +11,14 @@ import EdgeList from './gtsfm_edge_list.js';
 //import RelativeRsDivNode from './relativeRsDivNode';      - add this in part 3
 //import RotSuccessSummary from './RotSuccessSummary';      - add this in part 3
 import SfMDataDivNode from './SfMDataDivNode';
- 
 
 //loading json files in result_metrics folders to display summary metrics
-import data_association_json from '.././result_metrics/data_association_metrics.json';
-import frontend_summary_json from '.././result_metrics/frontend_summary.json';
-import multiview_optimizer_json from '.././result_metrics/multiview_optimizer_metrics.json';
+import data_association_json from '../result_metrics/data_association_metrics.json';
+import frontend_summary_json from '../result_metrics/frontend_summary.json';
+import multiview_optimizer_json from '../result_metrics/multiview_optimizer_metrics.json';
 
 //Landing Page Component to display GTSFM graph (what user first sees)
-const DivGraph = (props) => {
+const LandingPageGraph = (props) => {
     const [arrowList, setArrowList] = useState([]);
     const leftShift = 0;
     const topShift = 0;
@@ -76,7 +75,7 @@ const DivGraph = (props) => {
     const toggleRotSummaryDisplay = (bool) => {setShowRSS(bool)};
 
     return (
-        <div className="div_graph_container">
+        <div className="lp_graph_container">
             <div className="navbar">
                 <h2 className="gtsfm_header">GTSFM Computational Graph Visualizer</h2>
             </div>
@@ -84,7 +83,7 @@ const DivGraph = (props) => {
             {/* Render popups only when the respective node is clicked*/}
             {/* {showFS && <FrontendSummary json={fs_json} toggleFS={toggleFrontEndSummaryDisplay}/>} */}
             {/* {showMVO && <MVOSummary json={mvo_json} toggleMVO={toggleMVOMetrics}/>} */}
-            {showDA_PC && <Data_Association_PC da_json={da_json} rotated_json={rotated_da_json} toggleDA_PC={toggleDataAssoc_PointCloud}/>}
+            {showDA_PC && <Bundle_Adj_PC da_json={da_json} rotated_json={rotated_da_json} toggleDA_PC={toggleDataAssoc_PointCloud}/>}
             {/* {showRSS && <RotSuccessSummary json={fs_json} toggleRSS={toggleRotSummaryDisplay}/>} */}
 
             <div className="gtsfm_graph">
@@ -139,26 +138,26 @@ const DivGraph = (props) => {
 
                 {/* Render Plates */}
                 <div className="scene_optimizer_plate">
-                    <p style={{color: 'red', fontWeight: 'bold'}}>Scene Optimizer Scenes</p>
+                    <p className="plate_title">Scene Optimizer Scenes</p>
                 </div>
                 <div className="feature_extractor_plate">
-                    <p style={{color: 'red', fontWeight: 'bold'}}>Feature Extractor Images</p>
+                    <p className="plate_title">Feature Extractor Images</p>
                 </div>
                 <div className="two_view_estimator_plate" onClick={(fs_json) ? (() => toggleFrontEndSummaryDisplay(true)) : (null)}>
-                    <p style={{color: 'red', fontWeight: 'bold'}}>TwoViewEstimator</p>
+                    <p className="plate_title">TwoViewEstimator</p>
                 </div>
                 <div className="averaging_plate">
-                    <p style={{color: 'red', fontWeight: 'bold'}}>Averaging</p>
+                    <p className="plate_title">Averaging</p>
                 </div>
                 <div className="sparse_multiview_optimizer_plate" onClick={(mvo_json) ? (() => toggleMVOMetrics(true)) : (null)}>
-                    <p style={{color: 'red', fontWeight: 'bold'}}>Sparse Multiview Optimizer</p>
+                    <p className="plate_title">Sparse Multiview Optimizer</p>
                 </div>
                 <div className="dense_multiview_optimizer_plate">
-                    <p style={{color: 'red', fontWeight: 'bold'}}>Dense Multiview Optimizer</p>
+                    <p className="plate_title">Dense Multiview Optimizer</p>
                 </div>
             </div>
         </div>
     )
 }
 
-export default DivGraph;
+export default LandingPageGraph;
