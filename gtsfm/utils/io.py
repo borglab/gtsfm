@@ -201,7 +201,7 @@ def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
     os.makedirs(save_dir, exist_ok=True)
 
     num_pts = gtsfm_data.number_tracks()
-    avg_track_length, _, _ = gtsfm_data.get_track_length_statistics()
+    avg_track_length, _ = gtsfm_data.get_track_length_statistics()
 
     file_path = os.path.join(save_dir, "points3D.txt")
     with open(file_path, "w") as f:

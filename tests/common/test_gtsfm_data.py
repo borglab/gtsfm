@@ -113,7 +113,7 @@ class TestGtsfmData(unittest.TestCase):
 
         # 7 tracks have length [3,2,3,3,3,2,3]
         gtsfm_data = io_utils.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
-        mean_length, median_length, _ = gtsfm_data.get_track_length_statistics()
+        mean_length, median_length = gtsfm_data.get_track_length_statistics()
 
         self.assertEqual(mean_length, expected_mean_length)
         self.assertEqual(median_length, expected_median_length)
