@@ -153,6 +153,7 @@
     z-index: 1;
 }
 
+/* Gives each plate title a bold font and red coloring */
 .plate_title {
     color: red;
     font-weight: bold;
