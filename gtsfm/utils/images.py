@@ -41,7 +41,7 @@ def rgb_to_gray_cv(image: Image) -> Image:
     return Image(output_array, image.exif_data)
 
 
-def vstack_images(image_i1: Image, image_i2: Image) -> Image:
+def vstack_image_pair(image_i1: Image, image_i2: Image) -> Image:
     """Vertically stack two images.
 
     Args:
@@ -66,6 +66,37 @@ def vstack_images(image_i1: Image, image_i2: Image) -> Image:
     stacked_arr[image_i1.height :, : image_i2.width, :] = image_i2.value_array
 
     return Image(stacked_arr)
+
+
+def vstack_image_list(imgs: List[np.ndarray]) -> Image:
+    """Concatenate images along a vertical axis and save them.
+
+    Args:
+        imgs: list of Images, must all be of same width
+
+    Returns:
+        vstack_img: new RGB image, containing vertically stacked images as tiles.
+    """
+    img_h, img_w, ch = imgs[0].value_array.shape
+    assert ch == 3
+
+    # width and number of channels must match
+    assert all(img.width == img_w for img in imgs)
+    assert all(img.value_array.shape[2] == ch for img in imgs)
+
+    num_imgs = len(imgs)
+    all_heights = [img.height for img in imgs]
+    vstack_img = np.zeros((sum(all_heights), img_w, 3), dtype=np.uint8)
+
+    running_h = 0
+    for i, img in enumerate(imgs):
+        h, w = img.height, img.width
+        start = running_h
+        end = start + h
+        vstack_img[start:end, :, :] = img.value_array
+        running_h += h
+
+    return Image(vstack_img)
 
 
 def resize_image(image: Image, new_height: int, new_width: int) -> Image:
@@ -150,4 +181,3 @@ def get_average_point_color(track: SfmTrack, images: List[Image]) -> Tuple[int, 
 
     r, g, b = np.array(rgb_measurements).mean(axis=0).astype(np.uint8)
     return r, g, b
-
