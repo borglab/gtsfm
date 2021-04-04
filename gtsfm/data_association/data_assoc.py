@@ -19,7 +19,6 @@ from gtsam import PinholeCameraCal3Bundler, SfmTrack
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.common.sfm_result import SfmResult
 from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.data_association.point3d_initializer import (
     Point3dInitializer,
