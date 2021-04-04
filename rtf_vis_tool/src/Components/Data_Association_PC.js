@@ -17,9 +17,11 @@ const Data_Association_PC = (props) => {
     const [pointCloud, setPointCloud] = useState([]);
     const [isCentered, setIsCentered] = useState(false);
     const [showCoordGrid, setShowCoordGrid] = useState(true);
+    const [pointRadius, setPointRadius] = useState(0.15);
     const lightgray = `rgb(163, 168, 165)`;
-    const pointSizeArr = [0.2,8,8];
+    const pointSizeArr = [pointRadius,8,8];
 
+    console.log(pointSizeArr);
     //render points_3d from data association json file (passed in through props)
     useEffect(() => {
         var finalPointsJSX = [];
@@ -106,6 +108,21 @@ const Data_Association_PC = (props) => {
             <button className="toggle_grid_btn" onClick={() => setShowCoordGrid(!showCoordGrid)}>Toggle Coordinate Grid</button>
             <button className="da_center_btn" onClick={centerPC}>Center</button>
             <button className="rotate_pc_btn" onClick={alignPC}>Align Point Cloud</button>
+
+            <div className="point_size_slider">
+                <p>Adjust Point Radius:</p>
+                <input
+                    type="range"
+                    min="0.05"
+                    max="0.25"
+                    value={pointRadius} 
+                    onChange={(e) => setPointRadius(e.target.value)}
+                    step="0.05"/>
+                
+                <p style={{position: "absolute", left: "0px", bottom: "-25px", fontSize: "small"}}>Small</p>
+                <p style={{position: "absolute", right: "0px", bottom: "-25px", fontSize: "small"}}>Large</p>
+            </div>
+
         </div>
     )
 }

@@ -43,3 +43,9 @@
     cursor: pointer;
     font-size: large;
 }
+
+.point_size_slider {
+    position: absolute;
+    right: 1%;
+    top: 20%;
+}
