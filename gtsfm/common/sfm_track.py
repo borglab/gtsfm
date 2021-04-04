@@ -14,7 +14,10 @@ from typing import Dict, List, NamedTuple, Tuple
 import gtsam
 import numpy as np
 
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.keypoints import Keypoints
+
+logger = logger_utils.get_logger()
 
 
 class SfmMeasurement(NamedTuple):
@@ -102,7 +105,6 @@ class SfmTrack2d(NamedTuple):
             boolean result of the validation.
         """
         track_cam_idxs = [measurement.i for measurement in self.measurements]
-
         return len(set(track_cam_idxs)) == len(track_cam_idxs)
 
     @staticmethod
@@ -141,6 +143,8 @@ class SfmTrack2d(NamedTuple):
                 dsf.merge(gtsam.IndexPair(i1, k1), gtsam.IndexPair(i2, k2))
 
         key_set = dsf.sets()
+
+        erroneous_track_count = 0
         # create a landmark map: a list of tracks
         # Each track is represented as a list of (camera_idx, measurements)
         for set_id in key_set:
@@ -158,7 +162,15 @@ class SfmTrack2d(NamedTuple):
 
             track_2d = SfmTrack2d(track_measurements)
 
+            # Skip erroneous track that had repeated measurements within the same image
+            # This is an expected result from an incorrect correspondence slipping through
             if track_2d.validate_unique_cameras():
                 track_2d_list += [track_2d]
+            else:
+                erroneous_track_count += 1
 
+        erroneous_track_pct = erroneous_track_count / len(key_set) * 100
+        logger.info(
+            f"During DSF Union-Find, {erroneous_track_pct:.2f}% of tracks discarded from multiple obs. in a single image."
+        )
         return track_2d_list
