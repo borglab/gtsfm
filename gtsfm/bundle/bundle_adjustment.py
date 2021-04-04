@@ -11,7 +11,6 @@ from gtsam import GeneralSFMFactorCal3Bundler, SfmTrack, Values, symbol_shorthan
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.common.sfm_result import SfmResult
 
 # TODO: any way this goes away?
 C = symbol_shorthand.C
@@ -31,7 +30,7 @@ class BundleAdjustmentOptimizer(NamedTuple):
     tracks from triangulation."""
     output_reproj_error_thresh: float
 
-    def run(self, initial_data: GtsfmData) -> SfmResult:
+    def run(self, initial_data: GtsfmData) -> GtsfmData:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
 
         Args:
@@ -100,7 +99,7 @@ class BundleAdjustmentOptimizer(NamedTuple):
         except Exception:
             logger.exception("LM Optimization failed")
             # as we did not perform the bundle adjustment, we skip computing the total reprojection error
-            return SfmResult(GtsfmData(initial_data.number_images()), total_reproj_error=float("Nan"))
+            return GtsfmData(initial_data.number_images())
 
         final_error = graph.error(result_values)
 
@@ -112,10 +111,8 @@ class BundleAdjustmentOptimizer(NamedTuple):
         optimized_data = values_to_gtsfm_data(result_values, initial_data)
         
         # filter the largest errors
-        filtered_data = optimized_data.filter_landmarks(self.output_reproj_error_thresh)
-
-        sfm_result = SfmResult(filtered_data, total_reproj_error=final_error)
-        return sfm_result
+        filtered_result = optimized_data.filter_landmarks(self.output_reproj_error_thresh)
+        return filtered_result
 
     def create_computation_graph(self, sfm_data_graph: Delayed) -> Delayed:
         """Create the computation graph for performing bundle adjustment.
@@ -124,7 +121,7 @@ class BundleAdjustmentOptimizer(NamedTuple):
             sfm_data_graph: an GtsfmData object wrapped up using dask.delayed
 
         Returns:
-            SfmResult wrapped up using dask.delayed
+            GtsfmData wrapped up using dask.delayed
         """
         return dask.delayed(self.run)(sfm_data_graph)
 
