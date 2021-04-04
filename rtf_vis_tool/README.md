@@ -29,7 +29,7 @@ Note: running the application for the first time will auto generate a `/node_mod
 - `node_modules`: internal packages used throughout the application. Don't edit these.
 - `public`: contains index.html file 
 - `src`
-    - `Components`: contains all React components used for rendering graph nodes, summaries, point cloud viewers, etc...
+    - `Components`: contains all React components used for rendering graph nodes, summaries, point cloud viewers, etc. Each file within this folder returns a format JSX, which is essentially a modified version of HTML that is meant to be readable by React code
     - `result_metrics`: folder generated from running `python gtsfm/runner/run_scene_optimizer.py`. These metrics are displayed on the application
     - `stylesheets`: css files relating to different JS Components
     - `ViewFrustum_Ported`: SE3 and View_Frustum classes rewritten in JS. Used to render camera frustums in point cloud.
