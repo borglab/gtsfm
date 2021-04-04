@@ -2,7 +2,7 @@
 
 Authors: Xiaolong Wu, Ayush Baid
 """
-from typing import List, NamedTuple, Optional, Tuple
+from typing import List, NamedTuple, Optional
 
 import numpy as np
 from gtsam import Pose3, SfmTrack
@@ -49,23 +49,6 @@ class SfmResult(NamedTuple):
 
         return poses
 
-    def get_track_length_statistics(self) -> Tuple[float, float, np.ndarray]:
-        """Compute mean and median lengths of all the tracks.
-
-        Returns:
-            Mean track length.
-            Median track length.
-            Array containing all track lengths.
-        """
-        if self.gtsfm_data.number_tracks() == 0:
-            return 0, 0, np.array([], dtype=np.uint32)
-
-        track_lengths = [
-            self.gtsfm_data.get_track(j).number_measurements() for j in range(self.gtsfm_data.number_tracks())
-        ]
-
-        return np.mean(track_lengths), np.median(track_lengths), np.array(track_lengths, dtype=np.uint32)
-
     def __validate_track(self, track: SfmTrack, reproj_err_thresh: float) -> bool:
         """Validates a track based on reprojection errors and cheirality checks.
 
@@ -102,3 +85,4 @@ class SfmResult(NamedTuple):
                 filtered_data.add_track(track)
 
         return filtered_data
+

@@ -3,7 +3,7 @@
 Authors: Ayush Baid
 """
 import itertools
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from gtsam import PinholeCameraCal3Bundler, SfmTrack
@@ -144,6 +144,33 @@ class GtsfmData:
         if camera is None:
             raise ValueError("Camera cannot be None, should be a valid camera")
         self._cameras[index] = camera
+
+    def get_track_length_statistics(self) -> Tuple[float, float]:
+        """Compute mean and median lengths of all the tracks.
+
+        Returns:
+            Mean track length.
+            Median track length.
+        """
+        if self.number_tracks() == 0:
+            return 0, 0
+
+        track_lengths = self.get_track_lengths()
+        return np.mean(track_lengths), np.median(track_lengths)
+
+    def get_track_lengths(self) -> np.ndarray:
+        """Get an array containing the lengths of all tracks.
+
+        Returns:
+            Array containing all track lengths.
+        """
+        if self.number_tracks() == 0:
+            return np.array([], dtype=np.uint32)
+
+        track_lengths = [
+            self.get_track(j).number_measurements() for j in range(self.number_tracks())
+        ]
+        return np.array(track_lengths, dtype=np.uint32)
 
     def select_largest_connected_component(self) -> "GtsfmData":
         """Selects the subset of data belonging to the largest connected component of the graph where the edges are
