@@ -119,9 +119,8 @@ class DataAssociation(NamedTuple):
         num_accepted_tracks = connected_data.number_tracks()
         accepted_tracks_ratio = num_accepted_tracks / len(tracks_2d)
 
-        mean_3d_track_length, median_3d_track_length, track_lengths_3d = SfmResult(
-            connected_data, total_reproj_error=float("Nan")
-        ).gtsfm_data.get_track_length_statistics()
+        mean_3d_track_length, median_3d_track_length = connected_data.get_track_length_statistics()
+        track_lengths_3d = connected_data.get_track_lengths()
 
         logger.debug("[Data association] output number of tracks: %s", num_accepted_tracks)
         logger.debug("[Data association] output avg. track length: %s", np.round(mean_3d_track_length,2))
