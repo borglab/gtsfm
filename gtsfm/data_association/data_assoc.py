@@ -19,7 +19,6 @@ from gtsam import PinholeCameraCal3Bundler, SfmTrack
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.common.sfm_result import SfmResult
 from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.data_association.point3d_initializer import (
     Point3dInitializer,
@@ -112,22 +111,21 @@ class DataAssociation(NamedTuple):
             else:
                 per_rejected_track_avg_errors.append(avg_track_reproj_error)
 
-        num_accepted_tracks = triangulated_data.number_tracks()
-        accepted_tracks_ratio = num_accepted_tracks / len(tracks_2d)
         track_cheirality_failure_ratio = num_tracks_w_cheirality_exceptions / len(tracks_2d)
 
         # pick only the largest connected component
-        result_data = triangulated_data.select_largest_connected_component()
+        connected_data = triangulated_data.select_largest_connected_component()
+        num_accepted_tracks = connected_data.number_tracks()
+        accepted_tracks_ratio = num_accepted_tracks / len(tracks_2d)
 
-        mean_3d_track_length, median_3d_track_length, track_lengths_3d = SfmResult(
-            result_data, total_reproj_error=float("Nan")
-        ).get_track_length_statistics()
+        mean_3d_track_length, median_3d_track_length = connected_data.get_track_length_statistics()
+        track_lengths_3d = connected_data.get_track_lengths()
 
         logger.debug("[Data association] output number of tracks: %s", num_accepted_tracks)
         logger.debug("[Data association] output avg. track length: %s", np.round(mean_3d_track_length,2))
 
         # dump the 3d point cloud before Bundle Adjustment for offline visualization
-        points_3d = [list(triangulated_data.get_track(j).point3()) for j in range(num_accepted_tracks)]
+        points_3d = [list(connected_data.get_track(j).point3()) for j in range(num_accepted_tracks)]
         # bin edges are halfway between each integer
         track_lengths_histogram, _ = np.histogram(track_lengths_3d, bins=np.linspace(-0.5, 10.5, 12))
 
@@ -152,7 +150,7 @@ class DataAssociation(NamedTuple):
             "points_3d": points_3d,
         }
 
-        return triangulated_data, data_assoc_metrics
+        return connected_data, data_assoc_metrics
 
     def create_computation_graph(
         self,

@@ -252,13 +252,20 @@ class TestDataAssociation(GtsamTestCase):
             2: PinholeCameraCal3Bundler(Pose3(Rot3.RzRyRx(0, 0, 0), np.array([10, 0, 0]))),
         }
 
-        # just have one track
+        # just have one track, chaining cams 0->1 , and cams 1->2
         corr_idxs_dict = {(0, 1): np.array([[0, 0]], dtype=np.int32), (1, 2): np.array([[0, 0]], dtype=np.int32)}
         keypoints_shared = Keypoints(coordinates=np.array([[20.0, 10.0]]))
 
-        sfm_data, _ = da.run(3, cameras, corr_idxs_dict, [keypoints_shared] * 3)
+        # will lead to a cheirality exception because keypoints are identical in two cameras
+        # no track will be formed, and thus connected component will be empty
+        sfm_data, _ = da.run(
+            num_images=3,
+            cameras=cameras,
+            corr_idxs_dict=corr_idxs_dict,
+            keypoints_list=[keypoints_shared] * 3
+        )
 
-        self.assertEqual(len(sfm_data.get_valid_camera_indices()), 2)
+        self.assertEqual(len(sfm_data.get_valid_camera_indices()), 0)
         self.assertEqual(sfm_data.number_tracks(), 0)
 
     def test_create_computation_graph(self):

@@ -2,12 +2,13 @@
 
 Authors: Xiaolong Wu, Ayush Baid
 """
-from typing import List, NamedTuple, Optional, Tuple
+from typing import List, NamedTuple, Optional
 
 import numpy as np
 from gtsam import Pose3, SfmTrack
 
 from gtsfm.common.gtsfm_data import GtsfmData
+import gtsfm.utils.reprojection as reproj_utils
 
 
 class SfmResult(NamedTuple):
@@ -48,23 +49,6 @@ class SfmResult(NamedTuple):
 
         return poses
 
-    def get_track_length_statistics(self) -> Tuple[float, float, np.ndarray]:
-        """Compute mean and median lengths of all the tracks.
-
-        Returns:
-            Mean track length.
-            Median track length.
-            Array containing all track lengths.
-        """
-        if self.gtsfm_data.number_tracks() == 0:
-            return 0, 0, np.array([], dtype=np.uint32)
-
-        track_lengths = [
-            self.gtsfm_data.get_track(j).number_measurements() for j in range(self.gtsfm_data.number_tracks())
-        ]
-
-        return np.mean(track_lengths), np.median(track_lengths), np.array(track_lengths, dtype=np.uint32)
-
     def __validate_track(self, track: SfmTrack, reproj_err_thresh: float) -> bool:
         """Validates a track based on reprojection errors and cheirality checks.
 
@@ -75,28 +59,11 @@ class SfmResult(NamedTuple):
         Returns:
             validity of the track.
         """
-
-        for k in range(track.number_measurements()):
-            # process each measurement
-            cam_idx, uv = track.measurement(k)
-
-            # get the camera associated with the measurement
-            camera = self.gtsfm_data.get_camera(cam_idx)
-
-            # Project to camera
-            uv_reprojected, success_flag = camera.projectSafe(track.point3())
-
-            if not success_flag:
-                # failure in projection
-                return False
-
-            # compute and check reprojection error
-            reproj_error = np.linalg.norm(uv - uv_reprojected)
-            if reproj_error > reproj_err_thresh:
-                return False
-
+        errors, avg_reproj_error = reproj_utils.compute_track_reprojection_errors(self.gtsfm_data._cameras, track)
         # track is valid as all measurements have error below the threshold
-        return True
+        cheirality_success = np.all(~np.isnan(errors))
+        return np.all(errors < reproj_err_thresh) and cheirality_success
+
 
     def filter_landmarks(self, reproj_err_thresh: float = 5) -> GtsfmData:
         """Filters out landmarks with high reprojection error
@@ -118,3 +85,4 @@ class SfmResult(NamedTuple):
                 filtered_data.add_track(track)
 
         return filtered_data
+

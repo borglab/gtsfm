@@ -40,16 +40,6 @@ class TestSfmResult(unittest.TestCase):
 
         self.assertNotEqual(NULL_RESULT, EXAMPLE_RESULT)
 
-    def testGetTrackLengthStatistics(self):
-        """Test computation of mean and median track length."""
-        expected_mean_length = 2.7142857142857144
-        expected_median_length = 3.0
-
-        mean_length, median_length, _ = EXAMPLE_RESULT.get_track_length_statistics()
-
-        self.assertEqual(mean_length, expected_mean_length)
-        self.assertEqual(median_length, expected_median_length)
-
     def test_filter_landmarks(self):
         """Tests filtering of SfmData based on reprojection error."""
         max_reproj_error = 15
