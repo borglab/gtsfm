@@ -12,8 +12,8 @@ import numpy as np
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
 
-import gtsfm.utils.reprojection as reproj_utils
 import gtsfm.utils.images as image_utils
+import gtsfm.utils.reprojection as reproj_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 

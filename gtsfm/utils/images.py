@@ -133,20 +133,19 @@ def get_average_point_color(track: SfmTrack, images: List[Image]) -> Tuple[int, 
 
     Returns:
         r: red color intensity, in range [0,255]
-        g: red color intensity, in range [0,255]
-        b: red color intensity, in range [0,255]
+        g: green color intensity, in range [0,255]
+        b: blue color intensity, in range [0,255]
     """
     rgb_measurements = []
     for k in range(track.number_measurements()):
 
         # process each measurement
         i, uv_measured = track.measurement(k)
-        img_h, img_w, _ = images[i].value_array.shape
 
         u, v = np.round(uv_measured).astype(np.int32)
         # ensure round did not push us out of bounds
-        u = np.clip(u, 0, img_w - 1)
-        v = np.clip(v, 0, img_h - 1)
+        u = np.clip(u, 0, images[i].width - 1)
+        v = np.clip(v, 0, images[i].height - 1)
         rgb_measurements += [images[i].value_array[v, u]]
 
     r, g, b = np.array(rgb_measurements).mean(axis=0).astype(np.uint8)
