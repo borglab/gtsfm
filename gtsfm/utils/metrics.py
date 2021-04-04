@@ -7,7 +7,6 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 from gtsam import Cal3Bundler, EssentialMatrix, Point3, Pose3, Rot3, Unit3
 
-import gtsfm.utils.features as feature_utils
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.verification as verification_utils
 from gtsfm.common.keypoints import Keypoints

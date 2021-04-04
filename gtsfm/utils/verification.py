@@ -6,7 +6,7 @@ from typing import Optional, Tuple
 
 import cv2 as cv
 import numpy as np
-from gtsam import Cal3Bundler, EssentialMatrix, Pose3, Rot3, Unit3
+from gtsam import Cal3Bundler, EssentialMatrix, Rot3, Unit3
 
 import gtsfm.utils.features as feature_utils
 
