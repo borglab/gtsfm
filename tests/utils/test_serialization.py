@@ -10,7 +10,6 @@ from distributed.protocol.serialize import serialize, deserialize
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point3, Pose3, Rot3, Unit3
 
 import gtsfm.utils.io as io_utils
-from gtsfm.common.sfm_result import SfmResult
 
 GTSAM_EXAMPLE_FILE = "dubrovnik-3-7-pre"
 EXAMPLE_DATA = io_utils.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
@@ -73,14 +72,6 @@ class TestSerialization(unittest.TestCase):
         recovered = deserialize(header, frames)
 
         # comparing tracks in an order-sensitive fashion.
-        self.assertEqual(recovered, expected)
-
-    def test_sfmResult_roundtrip(self):
-        """Test for equality after serializing and then de-serializing an SfmResult instance."""
-        expected = SfmResult(EXAMPLE_DATA, total_reproj_error=1.5)
-        header, frames = serialize(expected)
-        recovered = deserialize(header, frames)
-
         self.assertEqual(recovered, expected)
 
 

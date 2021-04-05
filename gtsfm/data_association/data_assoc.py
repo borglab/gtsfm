@@ -55,21 +55,21 @@ class DataAssociation(NamedTuple):
 
     def run(
         self,
-        images: List[Image],
         num_images: int,
         cameras: Dict[int, PinholeCameraCal3Bundler],
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
-        viz_patch_sz: int = 100
+        images: Optional[List[Image]] = None,
+        viz_patch_sz: int = 100,
     ) -> Tuple[GtsfmData, Dict[str, Any]]:
         """Perform the data association.
 
         Args:
-            images:
             num_images: Number of images in the scene.
             cameras: dictionary, with image index -> camera mapping.
             corr_idxs_dict: dictionary, with key as image pair (i1,i2) and value as matching keypoint indices.
             keypoints_list: keypoints for each image.
+            images: a list of all images in scene (optional and only for track patch visualization)
             viz_patch_sz: width and height of patches, if if dumping/visualizing a patch for each 2d track measurement
 
         Returns:
@@ -78,7 +78,7 @@ class DataAssociation(NamedTuple):
         # generate tracks for 3D points using pairwise correspondences
         tracks_2d = SfmTrack2d.generate_tracks_from_pairwise_matches(corr_idxs_dict, keypoints_list)
 
-        if self.save_track_patches_viz:
+        if self.save_track_patches_viz and images is not None:
             os.makedirs('plots/tracks_2d', exist_ok=True)
 
             # save each 2d track
@@ -177,11 +177,11 @@ class DataAssociation(NamedTuple):
 
     def create_computation_graph(
         self,
-        images_graph: Delayed,
         num_images: int,
         cameras: Delayed,
         corr_idxs_graph: Dict[Tuple[int, int], Delayed],
         keypoints_graph: List[Delayed],
+        images_graph: Optional[Delayed] = None,
     ) -> Tuple[Delayed, Delayed]:
         """Creates a computation graph for performing data association.
 
@@ -190,13 +190,14 @@ class DataAssociation(NamedTuple):
             cameras: list of cameras wrapped up as Delayed.
             corr_idxs_graph: dictionary of correspondence indices, each value wrapped up as Delayed.
             keypoints_graph: list of wrapped up keypoints for each image.
+            images_graph: a list of all images in scene (optional and only for track patch visualization)
 
         Returns:
             ba_input_graph: GtsfmData object wrapped up using dask.delayed
             data_assoc_metrics_graph: dictionary with different statistics about the data
                 association result
         """
-        data_assoc_graph = dask.delayed(self.run)(images_graph, num_images, cameras, corr_idxs_graph, keypoints_graph)
+        data_assoc_graph = dask.delayed(self.run)(num_images, cameras, corr_idxs_graph, keypoints_graph, images_graph)
         ba_input_graph = data_assoc_graph[0]
         data_assoc_metrics_graph = data_assoc_graph[1]
 
