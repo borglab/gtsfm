@@ -104,11 +104,12 @@ class TestGeometryComparisons(unittest.TestCase):
         rotation_shift = Rot3()
         scaling_factor = 1.0
 
-        transform = Similarity3(rotation_shift, translation_shift, scaling_factor)
-        ref_list = [transform.transformFrom(x) for x in sample_poses.PANORAMA_GLOBAL_POSES]
+        aTi_list = sample_poses.PANORAMA_GLOBAL_POSES
+        bSa = Similarity3(rotation_shift, translation_shift, scaling_factor)
+        bTi_list = [bSa.transformFrom(x) for x in aTi_list]
 
-        computed_poses = geometry_comparisons.align_poses_sim3(sample_poses.PANORAMA_GLOBAL_POSES, ref_list)
-        self.__assert_equality_on_pose3s(computed_poses, sample_poses.PANORAMA_GLOBAL_POSES)
+        aTi_list_ = geometry_comparisons.align_poses_sim3(aTi_list, bTi_list)
+        self.__assert_equality_on_pose3s(aTi_list_, aTi_list)
 
     @patch(
         "gtsfm.utils.geometry_comparisons.align_rotations",

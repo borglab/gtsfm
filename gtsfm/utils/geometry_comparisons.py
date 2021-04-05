@@ -62,6 +62,16 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> List[Pose3
 
     aSb = Similarity3.Align(ab_pairs)
 
+    if np.isnan(aSb.scale()):
+        # TODO: handle it in GTSAM
+        # we have run into a simple translation case, align the centroids
+        a_points = np.array([aTi.translation() for aTi in aTi_list])
+        b_points = np.array([bTi.translation() for bTi in bTi_list])
+
+        a_centroid = np.mean(a_points, axis=0)
+        b_centroid = np.mean(b_points, axis=0)
+        aSb = Similarity3(Rot3(), a_centroid - b_centroid, 1.0)
+
     # provide a summary of the estimated alignment transform
     aRb = aSb.rotation().matrix()
     atb = aSb.translation()
