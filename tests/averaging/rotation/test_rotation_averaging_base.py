@@ -5,7 +5,7 @@ Authors: Ayush Baid
 
 import pickle
 import unittest
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import dask
 import numpy as np
@@ -13,7 +13,7 @@ from gtsam import Rot3
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
 import tests.data.sample_poses as sample_poses
-from gtsfm.averaging.rotation.dummy_rotation_averaging import DummyRotationAveraging
+from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 
 ROTATION_ANGLE_ERROR_THRESHOLD_DEG = 2
 
@@ -102,6 +102,39 @@ class TestRotationAveragingBase(unittest.TestCase):
             pickle.dumps(self.obj)
         except TypeError:
             self.fail("Cannot dump rotation averaging object using pickle")
+
+
+class DummyRotationAveraging(RotationAveragingBase):
+    """Assigns random rotation matrices to each pose."""
+
+    def run(self, num_images: int, i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]]) -> List[Optional[Rot3]]:
+        """Run the rotation averaging.
+
+        Args:
+            num_images: number of poses.
+            i2Ri1_dict: relative rotations as dictionary (i1, i2): i2Ri1.
+
+        Returns:
+            Global rotations for each camera pose, i.e. wRi, as a list. The number of entries in the list is
+                `num_images`. The list may contain `None` where the global rotation could not be computed (either
+                underconstrained system or ill-constrained system).
+        """
+        if len(i2Ri1_dict) == 0:
+            return [None] * num_images
+
+        # create the random seed using relative rotations
+        seed_rotation = next(iter(i2Ri1_dict.values()))
+        np.random.seed(int(1000 * seed_rotation.xyz()[0]) % (2 ^ 32))
+
+        # TODO: do not assign values where we do not have any edge
+
+        # generate dummy rotations
+        wRi_list = []
+        for _ in range(num_images):
+            random_vector = np.random.rand(3) * 2 * np.pi
+            wRi_list.append(Rot3.Rodrigues(random_vector[0], random_vector[1], random_vector[2]))
+
+        return wRi_list
 
 
 if __name__ == "__main__":
