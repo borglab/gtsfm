@@ -14,7 +14,7 @@ from hydra.experimental import compose, initialize_config_module
 from hydra.utils import instantiate
 
 import gtsfm.utils.geometry_comparisons as comp_utils
-from gtsfm.common.sfm_result import SfmResult
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.scene_optimizer import SceneOptimizer
 
@@ -56,13 +56,13 @@ class TestSceneOptimizer(unittest.TestCase):
             with Client(cluster):
                 sfm_result = dask.compute(sfm_result_graph)[0]
 
-            self.assertIsInstance(sfm_result, SfmResult)
+            self.assertIsInstance(sfm_result, GtsfmData)
 
             # compare the camera poses
             poses = sfm_result.get_camera_poses()
 
             # get active cameras from largest connected component, may be <len(self.loader)
-            connected_camera_idxs = sfm_result.gtsfm_data.get_valid_camera_indices()
+            connected_camera_idxs = sfm_result.get_valid_camera_indices()
             expected_poses = [self.loader.get_camera_pose(i) for i in connected_camera_idxs]
 
             self.assertTrue(
