@@ -97,11 +97,11 @@ class TestGeometryComparisons(unittest.TestCase):
         computed_poses = geometry_comparisons.align_poses_sim3(sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES, ref_list)
         self.__assert_equality_on_pose3s(computed_poses, sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES)
 
-    def test_align_poses_on_panorama_after_forward_translation_transform(self):
+    def test_align_poses_on_panorama_after_sim3_transform(self):
         """Test for alignment of poses after applying a forward motion transformation."""
 
         translation_shift = np.array([0, 5, 0])
-        rotation_shift = Rot3()
+        rotation_shift = Rot3.RzRyRx(0, 0, np.deg2rad(30))
         scaling_factor = 1.0
 
         aTi_list = sample_poses.PANORAMA_GLOBAL_POSES
