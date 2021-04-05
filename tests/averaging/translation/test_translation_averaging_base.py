@@ -7,7 +7,7 @@ import unittest
 from typing import Dict, List, Tuple
 
 import dask
-from gtsam import Cal3_S2, Point3, Rot3, Unit3
+from gtsam import Cal3_S2, Point3, Pose3, Rot3, Unit3
 from gtsam.examples import SFMdata
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
@@ -42,9 +42,12 @@ class TestTranslationAveragingBase(unittest.TestCase):
             self.skipTest("Test case invalid for dummy class")
 
         wti_computed = self.obj.run(len(wRi_input), i2Ui1_input, wRi_input)
+
+        wTi_computed = [Pose3(wRi, wti) for wRi, wti in zip(wRi_input, wti_computed)]
+        wTi_expected = [Pose3(wRi, wti) for wRi, wti in zip(wRi_input, wti_expected)]
         self.assertTrue(
-            geometry_comparisons.align_and_compare_translations(
-                wti_computed, wti_expected, RELATIVE_ERROR_THRESHOLD, ABSOLUTE_ERROR_THRESHOLD
+            geometry_comparisons.compare_global_poses(
+                wTi_computed, wTi_expected, RELATIVE_ERROR_THRESHOLD, ABSOLUTE_ERROR_THRESHOLD
             )
         )
 
@@ -62,12 +65,13 @@ class TestTranslationAveragingBase(unittest.TestCase):
         )
         self.__execute_test(i2Ui1_dict, wRi_list, wti_expected)
 
-    def test_line_large_edges(self):
-        """Tests for 3 poses in a line, with large translations between them."""
-        wRi_list, i2Ui1_dict, wti_expected = sample_poses.convert_data_for_translation_averaging(
-            sample_poses.LINE_LARGE_EDGES_GLOBAL_POSES, sample_poses.LINE_LARGE_EDGES_RELATIVE_POSES
-        )
-        self.__execute_test(i2Ui1_dict, wRi_list, wti_expected)
+    # deprecating as underconstrained problem
+    # def test_line_large_edges(self):
+    #     """Tests for 3 poses in a line, with large translations between them."""
+    #     wRi_list, i2Ui1_dict, wti_expected = sample_poses.convert_data_for_translation_averaging(
+    #         sample_poses.LINE_LARGE_EDGES_GLOBAL_POSES, sample_poses.LINE_LARGE_EDGES_RELATIVE_POSES
+    #     )
+    #     self.__execute_test(i2Ui1_dict, wRi_list, wti_expected)
 
     def test_line_small_edges(self):
         """Tests for 3 poses in a line, with small translations between them."""
@@ -76,12 +80,12 @@ class TestTranslationAveragingBase(unittest.TestCase):
         )
         self.__execute_test(i2Ui1_dict, wRi_list, wti_expected)
 
-    # def test_panorama(self):
-    #     """Tests for 3 poses in a panorama configuration (large rotations at the same location)."""
-    #     wRi_list, i2Ui1_dict, wti_expected = sample_poses.convert_data_for_translation_averaging(
-    #         sample_poses.PANORAMA_GLOBAL_POSES, sample_poses.PANORAMA_RELATIVE_POSES
-    #     )
-    #     self.__execute_test(i2Ui1_dict, wRi_list, wti_expected)
+    def test_panorama(self):
+        """Tests for 3 poses in a panorama configuration (large rotations at the same location)."""
+        wRi_list, i2Ui1_dict, wti_expected = sample_poses.convert_data_for_translation_averaging(
+            sample_poses.PANORAMA_GLOBAL_POSES, sample_poses.PANORAMA_RELATIVE_POSES
+        )
+        self.__execute_test(i2Ui1_dict, wRi_list, wti_expected)
 
     def test_computation_graph(self):
         """Test the dask computation graph execution using a valid collection of relative unit-translations."""
@@ -109,18 +113,19 @@ class TestTranslationAveragingBase(unittest.TestCase):
                 i2Ui1_dict[(i1, i2)] = Unit3(expected_wTi_list[i2].between(expected_wTi_list[i1]).translation())
 
         # use the `run` API to get expected results
-        expected_wti_list = self.obj.run(len(wRi_list), i2Ui1_dict, wRi_list)
+        wti_expected = self.obj.run(len(wRi_list), i2Ui1_dict, wRi_list)
 
         # form computation graph and execute
         i2Ui1_graph = dask.delayed(i2Ui1_dict)
         wRi_graph = dask.delayed(wRi_list)
         computation_graph = self.obj.create_computation_graph(len(wRi_list), i2Ui1_graph, wRi_graph)
         with dask.config.set(scheduler="single-threaded"):
-            wti_list = dask.compute(computation_graph)[0]
-        # compare the entries
+            wti_computed = dask.compute(computation_graph)[0]
+        wTi_computed = [Pose3(wRi, wti) for wRi, wti in zip(wRi_list, wti_computed)]
+        wTi_expected = [Pose3(wRi, wti) for wRi, wti in zip(wRi_list, wti_expected)]
         self.assertTrue(
-            geometry_comparisons.align_and_compare_translations(
-                wti_list, expected_wti_list, RELATIVE_ERROR_THRESHOLD, ABSOLUTE_ERROR_THRESHOLD
+            geometry_comparisons.compare_global_poses(
+                wTi_computed, wTi_expected, RELATIVE_ERROR_THRESHOLD, ABSOLUTE_ERROR_THRESHOLD
             )
         )
 

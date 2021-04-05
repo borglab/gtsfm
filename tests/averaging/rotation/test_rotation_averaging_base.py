@@ -38,9 +38,7 @@ class TestRotationAveragingBase(unittest.TestCase):
 
         wRi_computed = self.obj.run(len(wRi_expected), i2Ri1_input)
         self.assertTrue(
-            geometry_comparisons.align_and_compare_rotations(
-                wRi_computed, wRi_expected, ROTATION_ANGLE_ERROR_THRESHOLD_DEG
-            )
+            geometry_comparisons.compare_rotations(wRi_computed, wRi_expected, ROTATION_ANGLE_ERROR_THRESHOLD_DEG)
         )
 
     def test_circle_two_edges(self):
@@ -94,9 +92,7 @@ class TestRotationAveragingBase(unittest.TestCase):
 
         # compare the two results
         self.assertTrue(
-            geometry_comparisons.align_and_compare_rotations(
-                wRi_list, expected_wRi_list, ROTATION_ANGLE_ERROR_THRESHOLD_DEG
-            )
+            geometry_comparisons.compare_rotations(wRi_list, expected_wRi_list, ROTATION_ANGLE_ERROR_THRESHOLD_DEG)
         )
 
     def test_pickleable(self):
