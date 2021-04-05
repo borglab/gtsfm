@@ -97,6 +97,19 @@ class TestGeometryComparisons(unittest.TestCase):
         computed_poses = geometry_comparisons.align_poses_sim3(sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES, ref_list)
         self.__assert_equality_on_pose3s(computed_poses, sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES)
 
+    def test_align_poses_on_panorama_after_forward_translation_transform(self):
+        """Test for alignment of poses after applying a forward motion transformation."""
+
+        translation_shift = np.array([0, 5, 0])
+        rotation_shift = Rot3()
+        scaling_factor = 1.0
+
+        transform = Similarity3(rotation_shift, translation_shift, scaling_factor)
+        ref_list = [transform.transformFrom(x) for x in sample_poses.PANORAMA_GLOBAL_POSES]
+
+        computed_poses = geometry_comparisons.align_poses_sim3(sample_poses.PANORAMA_GLOBAL_POSES, ref_list)
+        self.__assert_equality_on_pose3s(computed_poses, sample_poses.PANORAMA_GLOBAL_POSES)
+
     @patch(
         "gtsfm.utils.geometry_comparisons.align_rotations",
         return_value=[
