@@ -74,12 +74,13 @@ class TestTranslationAveragingBase(unittest.TestCase):
     #     )
     #     self.__execute_test(i2Ui1_dict, wRi_list, wti_expected)
 
-    def test_line_small_edges(self):
-        """Tests for 3 poses in a line, with small translations between them."""
-        wRi_list, i2Ui1_dict, wti_expected = sample_poses.convert_data_for_translation_averaging(
-            sample_poses.LINE_SMALL_EDGES_GLOBAL_POSES, sample_poses.LINE_SMALL_EDGES_RELATIVE_POSES
-        )
-        self.__execute_test(i2Ui1_dict, wRi_list, wti_expected)
+    # deprecating as underconstrained problem
+    # def test_line_small_edges(self):
+    #     """Tests for 3 poses in a line, with small translations between them."""
+    #     wRi_list, i2Ui1_dict, wti_expected = sample_poses.convert_data_for_translation_averaging(
+    #         sample_poses.LINE_SMALL_EDGES_GLOBAL_POSES, sample_poses.LINE_SMALL_EDGES_RELATIVE_POSES
+    #     )
+    #     self.__execute_test(i2Ui1_dict, wRi_list, wti_expected)
 
     def test_panorama(self):
         """Tests for 3 poses in a panorama configuration (large rotations at the same location)."""
