@@ -23,7 +23,8 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
     def setUp(self):
         super().setUp()
 
-        self.obj = BundleAdjustmentOptimizer()
+        output_reproj_error_thresh = 100
+        self.obj = BundleAdjustmentOptimizer(output_reproj_error_thresh)
 
         self.test_data = EXAMPLE_DATA
 
