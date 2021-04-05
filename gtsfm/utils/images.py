@@ -84,13 +84,12 @@ def vstack_image_list(imgs: List[np.ndarray]) -> Image:
     assert all(img.width == img_w for img in imgs)
     assert all(img.value_array.shape[2] == ch for img in imgs)
 
-    num_imgs = len(imgs)
     all_heights = [img.height for img in imgs]
     vstack_img = np.zeros((sum(all_heights), img_w, 3), dtype=np.uint8)
 
     running_h = 0
     for i, img in enumerate(imgs):
-        h, w = img.height, img.width
+        h = img.height
         start = running_h
         end = start + h
         vstack_img[start:end, :, :] = img.value_array

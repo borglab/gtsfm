@@ -171,6 +171,6 @@ class SfmTrack2d(NamedTuple):
 
         erroneous_track_pct = erroneous_track_count / len(key_set) * 100
         logger.info(
-            f"During DSF Union-Find, {erroneous_track_pct:.2f}% of tracks discarded from multiple obs. in a single image."
+            f"DSF Union-Find: {erroneous_track_pct:.2f}% of tracks discarded from multiple obs. in a single image."
         )
         return track_2d_list

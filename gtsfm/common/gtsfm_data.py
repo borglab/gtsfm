@@ -262,10 +262,11 @@ class GtsfmData:
 
         scene_avg_repoj_error = np.mean(scene_reproj_errors)
 
-        # DEBUG
         scene_reproj_errors = np.array(scene_reproj_errors)
-        scene_reproj_errors.sort()
-        print('Errors after BA: ',  list(np.round(scene_reproj_errors).astype(np.uint32)))
+        logger.info("Min scene reproj error: {}".format(scene_reproj_errors.min()))
+        logger.info("Avg scene reproj error: {}".format(scene_reproj_errors.mean()))
+        logger.info("Median scene reproj error: {}".format(np.median(scene_reproj_errors)))
+        logger.info("Max scene reproj error: {}".format(scene_reproj_errors.max()))
         return scene_avg_repoj_error
 
     def __validate_track(self, track: SfmTrack, reproj_err_thresh: float) -> bool:
