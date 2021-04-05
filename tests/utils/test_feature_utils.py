@@ -65,7 +65,8 @@ class TestFeatureUtils(unittest.TestCase):
         computation and with OpenCV's output."""
 
         points = np.array([[10.0, -5.0], [3.5, 20.0],])  # 2d points in homogenous coordinates
-        F_matrix = EssentialMatrix(Rot3.RzRyRx(0, np.deg2rad(45), 0), Unit3(np.array([-5, 2, 0]))).matrix()
+        E_matrix = EssentialMatrix(Rot3.RzRyRx(0, np.deg2rad(45), 0), Unit3(np.array([-5, 2, 0])))
+        F_matrix = E_matrix.matrix()  # using identity intrinsics
         expected_manual = np.array([[-0.37139068, -0.92847669, 0.27555824], [-0.37139067, -0.92847669, -11.17301786]])
         expected_opencv = cv.computeCorrespondEpilines(points.reshape(-1, 1, 2), 1, F_matrix)
         expected_opencv = np.squeeze(expected_opencv)
@@ -87,9 +88,10 @@ class TestFeatureUtils(unittest.TestCase):
         """Test conversion of None to epipolar lines using the essential matrix."""
 
         points = None
-        f_matrix = EssentialMatrix(Rot3.RzRyRx(0, np.deg2rad(45), 0), Unit3(np.array([-5, 2, 0]))).matrix()
+        E_matrix = EssentialMatrix(Rot3.RzRyRx(0, np.deg2rad(45), 0), Unit3(np.array([-5, 2, 0])))
+        F_matrix = E_matrix.matrix()  # using identity intrinsics
 
-        computed = feature_utils.convert_to_epipolar_lines(points, f_matrix)
+        computed = feature_utils.convert_to_epipolar_lines(points, F_matrix)
         self.assertIsNone(computed)
 
     def test_compute_point_line_distances(self):

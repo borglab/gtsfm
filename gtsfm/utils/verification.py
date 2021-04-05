@@ -84,12 +84,20 @@ def compute_epipolar_distances(
 ) -> Optional[np.ndarray]:
     """Compute point-line epipolar distance between corresponding coordinates in two images.
 
+    There are two options to compute the distance:
+    1. The Symmetric Epipolar Distance (SED) is the geometric point-line distance between a coordinate and
+       corresponding epipolar lines. The SED is a biased estimate of the gold-standard reprojection error.
+    2. Sampson distance: it is the first order approximation of the reprojection error.
+
+    References: 
+    - "Fathy et al., Fundamental Matrix Estimation: A Study of Error Criteria"
+
     Args:
         coordinates_i1: coordinates in image i1, of shape Nx2.
         coordinates_i2: corr. coordinates in image i2, of shape Nx2.
         i2Fi1: fundamental matrix between two images.
         distance_type (optional): type of distance metric to compute. The options are "sed" (symmetric epipolar
-                                  distance) and "sampson". Defaults to SED.
+                                  distance) and "sampson". Defaults to "sed".
 
     Returns:
         Epipolar point-line distances for each row of the input, of shape N.
@@ -100,12 +108,10 @@ def compute_epipolar_distances(
     if coordinates_i1 is None or coordinates_i1.size == 0 or coordinates_i2 is None or coordinates_i2.size == 0:
         return None
 
-    # # compute the pt line distance as done in Opencv
     epipolar_lines_i2 = feature_utils.convert_to_epipolar_lines(coordinates_i1, i2Fi1)  # Ex1
     epipolar_lines_i1 = feature_utils.convert_to_epipolar_lines(coordinates_i2, i2Fi1.T)  # Etx2
 
     if distance_type == "sampson":
-
         num = feature_utils.compute_point_line_distances(coordinates_i1, epipolar_lines_i1)
         denom = (
             np.sum(np.square(epipolar_lines_i1[:, :2]), axis=1) + np.sum(np.square(epipolar_lines_i2[:, :2]), axis=1)
