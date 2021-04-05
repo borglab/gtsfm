@@ -2,10 +2,10 @@
 
 Authors: Ayush Baid, John Lambert
 """
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import dask
-import networkx as nx
+import os
 from dask.delayed import Delayed
 from gtsam import (
     Cal3Bundler,
@@ -16,15 +16,11 @@ from gtsam import (
     Unit3,
 )
 
+import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.io as io
 import gtsfm.utils.metrics as metrics
-import gtsfm.utils.serialization  # import needed to register serialization fns
-from gtsfm.averaging.rotation.rotation_averaging_base import (
-    RotationAveragingBase,
-)
-from gtsfm.averaging.translation.translation_averaging_base import (
-    TranslationAveragingBase,
-)
+from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
+from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.data_association.data_assoc import DataAssociation
 
@@ -66,20 +62,27 @@ class MultiViewOptimizer:
             The final output, wrapped up as Delayed.
         """
         # prune the graph to a single connected component.
-        pruned_graph = dask.delayed(select_largest_connected_component)(i2Ri1_graph, i2Ui1_graph)
+        pruned_graph = dask.delayed(prune_to_largest_connected_component)(i2Ri1_graph, i2Ui1_graph)
 
         pruned_i2Ri1_graph = pruned_graph[0]
         pruned_i2Ui1_graph = pruned_graph[1]
 
         wRi_graph = self.rot_avg_module.create_computation_graph(num_images, pruned_i2Ri1_graph)
-
         wti_graph = self.trans_avg_module.create_computation_graph(num_images, pruned_i2Ui1_graph, wRi_graph)
-
         init_cameras_graph = dask.delayed(init_cameras)(wRi_graph, wti_graph, intrinsics_graph)
 
-        ba_input_graph = self.data_association_module.create_computation_graph(
-            init_cameras_graph, v_corr_idxs_graph, keypoints_graph
+        ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
+            num_images, init_cameras_graph, v_corr_idxs_graph, keypoints_graph
         )
+
+        auxiliary_graph_list = [
+            dask.delayed(io.save_json_file)(
+                os.path.join("result_metrics", "data_association_metrics.json"), data_assoc_metrics_graph
+            )
+        ]
+
+        # dummy graph to force an immediate dump of data association metrics
+        ba_input_graph = dask.delayed(lambda x, y: (x, y))(ba_input_graph, auxiliary_graph_list)[0]
 
         ba_result_graph = self.ba_optimizer.create_computation_graph(ba_input_graph)
 
@@ -95,9 +98,8 @@ class MultiViewOptimizer:
         return ba_input_graph, ba_result_graph, saved_metrics_graph
 
 
-def select_largest_connected_component(
-    rotations: Dict[Tuple[int, int], Optional[Rot3]],
-    unit_translations: Dict[Tuple[int, int], Optional[Unit3]],
+def prune_to_largest_connected_component(
+    rotations: Dict[Tuple[int, int], Optional[Rot3]], unit_translations: Dict[Tuple[int, int], Optional[Unit3]],
 ) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3]]:
     """Process the graph of image indices with Rot3s/Unit3s defining edges, and select the largest connected component.
 
@@ -110,25 +112,13 @@ def select_largest_connected_component(
         Subset of unit_translations which are in the largest connected components.
     """
     input_edges = [k for (k, v) in rotations.items() if v is not None]
+    nodes_in_pruned_graph = graph_utils.get_nodes_in_largest_connected_component(input_edges)
 
-    # create a graph from all edges which have an essential matrix
-    result_graph = nx.Graph()
-    result_graph.add_edges_from(input_edges)
-
-    # get the largest connected components
-    largest_cc = max(nx.connected_components(result_graph), key=len)
-    result_subgraph = result_graph.subgraph(largest_cc).copy()
-
-    # get the remaining edges and construct the dictionary back
-    pruned_edges = list(result_subgraph.edges())
-
-    # as the edges are non-directional, they might have flipped and should be corrected
+    # select the edges with nodes in the pruned graph
     selected_edges = []
-    for i1, i2 in pruned_edges:
-        if (i1, i2) in rotations:
+    for i1, i2 in rotations.keys():
+        if i1 in nodes_in_pruned_graph and i2 in nodes_in_pruned_graph:
             selected_edges.append((i1, i2))
-        else:
-            selected_edges.append((i2, i1))
 
     # return the subset of original input
     return (
@@ -138,9 +128,7 @@ def select_largest_connected_component(
 
 
 def init_cameras(
-    wRi_list: List[Optional[Rot3]],
-    wti_list: List[Optional[Point3]],
-    intrinsics_list: List[Cal3Bundler],
+    wRi_list: List[Optional[Rot3]], wti_list: List[Optional[Point3]], intrinsics_list: List[Cal3Bundler],
 ) -> Dict[int, PinholeCameraCal3Bundler]:
     """Generate camera from valid rotations and unit-translations.
 

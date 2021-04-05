@@ -2,10 +2,11 @@
 
 Authors: Ayush Baid
 """
-from typing import Tuple
+from typing import List, Tuple
 
 import cv2 as cv
 import numpy as np
+from gtsam import SfmTrack
 
 from gtsfm.common.image import Image
 
@@ -122,3 +123,31 @@ def match_image_widths(
     scaled_image_i2 = resize_image(image_i2, new_height, new_width)
 
     return scaled_image_i1, scaled_image_i2, scale_factor_i1, scale_factor_i2
+
+
+def get_average_point_color(track: SfmTrack, images: List[Image]) -> Tuple[int, int, int]:
+    """
+    Args:
+        track: 3d point/landmark and its corresponding 2d measurements in various cameras
+        images: list of all images for this scene
+
+    Returns:
+        r: red color intensity, in range [0,255]
+        g: green color intensity, in range [0,255]
+        b: blue color intensity, in range [0,255]
+    """
+    rgb_measurements = []
+    for k in range(track.number_measurements()):
+
+        # process each measurement
+        i, uv_measured = track.measurement(k)
+
+        u, v = np.round(uv_measured).astype(np.int32)
+        # ensure round did not push us out of bounds
+        u = np.clip(u, 0, images[i].width - 1)
+        v = np.clip(v, 0, images[i].height - 1)
+        rgb_measurements += [images[i].value_array[v, u]]
+
+    r, g, b = np.array(rgb_measurements).mean(axis=0).astype(np.uint8)
+    return r, g, b
+

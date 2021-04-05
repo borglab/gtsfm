@@ -1,19 +1,19 @@
 import os
 from pathlib import Path
 
-import hydra
+import numpy as np
 from dask.distributed import Client, LocalCluster, performance_report
 from hydra.experimental import compose, initialize_config_module
 from hydra.utils import instantiate
-from omegaconf import DictConfig
 
-import gtsfm
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.sfm_result import SfmResult
-from gtsfm.loader.folder_loader import FolderLoader
+from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.scene_optimizer import SceneOptimizer
 
-
 DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "tests" / "data"
+
+logger = logger_utils.get_logger()
 
 
 def run_scene_optimizer() -> None:
@@ -23,7 +23,7 @@ def run_scene_optimizer() -> None:
         cfg = compose(config_name="default_lund_door_set1_config.yaml")
         scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
-        loader = FolderLoader(os.path.join(DATA_ROOT, "set1_lund_door"), image_extension="JPG")
+        loader = OlssonLoader(os.path.join(DATA_ROOT, "set1_lund_door"), image_extension="JPG")
 
         sfm_result_graph = scene_optimizer.create_computation_graph(
             len(loader),
@@ -41,6 +41,9 @@ def run_scene_optimizer() -> None:
             sfm_result = sfm_result_graph.compute()
 
         assert isinstance(sfm_result, SfmResult)
+
+        scene_avg_reproj_error = sfm_result.gtsfm_data.get_scene_avg_reprojection_error()
+        logger.info('Scene avg reproj error: {}'.format(str(np.round(scene_avg_reproj_error,3))))
 
 
 if __name__ == "__main__":

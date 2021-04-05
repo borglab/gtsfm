@@ -421,5 +421,60 @@ class TestGeometryComparisons(unittest.TestCase):
         self.assertEqual(geometry_comparisons.compute_points_distance_l2(wti1, wti2), 2)
 
 
+def test_get_points_within_radius_of_cameras():
+    """Verify that points that fall outside of 10 meter radius of two camera poses.
+
+    Cameras are placed at (0,0,0) and (10,0,0).
+    """
+    wTi0 = Pose3(Rot3(), np.zeros(3))
+    wTi1 = Pose3(Rot3(), np.array([10.0, 0, 0]))
+    wTi_list = [wTi0, wTi1]
+    points_3d = np.array([[-15, 0, 0], [0, 15, 0], [-5, 0, 0], [15, 0, 0], [25, 0, 0]])
+    radius = 10.0
+    nearby_points_3d = geometry_comparisons.get_points_within_radius_of_cameras(wTi_list, points_3d, radius)
+
+    expected_nearby_points_3d = np.array(
+        [
+            [-5, 0, 0],
+            [15, 0, 0],
+        ]
+    )
+    np.testing.assert_allclose(nearby_points_3d, expected_nearby_points_3d)
+
+
+def test_get_points_within_radius_of_cameras_negative_radius():
+    """Catch degenerate input."""
+    wTi0 = Pose3(Rot3(), np.zeros(3))
+    wTi1 = Pose3(Rot3(), np.array([10.0, 0, 0]))
+    wTi_list = [wTi0, wTi1]
+    points_3d = np.array([[-15, 0, 0], [0, 15, 0], [-5, 0, 0], [15, 0, 0], [25, 0, 0]])
+    radius = -5
+    nearby_points_3d = geometry_comparisons.get_points_within_radius_of_cameras(wTi_list, points_3d, radius)
+    assert nearby_points_3d is None, "Non-positive radius is not allowed"
+
+
+def test_get_points_within_radius_of_cameras_no_points():
+    """Catch degenerate input."""
+
+    wTi0 = Pose3(Rot3(), np.zeros(3))
+    wTi1 = Pose3(Rot3(), np.array([10.0, 0, 0]))
+    wTi_list = [wTi0, wTi1]
+    points_3d = np.zeros((0, 3))
+    radius = 10.0
+
+    nearby_points_3d = geometry_comparisons.get_points_within_radius_of_cameras(wTi_list, points_3d, radius)
+    assert nearby_points_3d is None, "At least one 3d point must be provided"
+
+
+def test_get_points_within_radius_of_cameras_no_poses():
+    """Catch degenerate input."""
+    wTi_list = []
+    points_3d = np.array([[-15, 0, 0], [0, 15, 0], [-5, 0, 0], [15, 0, 0], [25, 0, 0]])
+    radius = 10.0
+
+    nearby_points_3d = geometry_comparisons.get_points_within_radius_of_cameras(wTi_list, points_3d, radius)
+    assert nearby_points_3d is None, "At least one camera pose must be provided"
+
+
 if __name__ == "__main__":
     unittest.main()

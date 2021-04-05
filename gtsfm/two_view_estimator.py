@@ -13,7 +13,6 @@ from gtsam import Cal3Bundler, Pose3, Rot3, Unit3
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
-import gtsfm.utils.serialization  # import needed to register serialization fns
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
@@ -153,9 +152,7 @@ def compute_correspondence_metrics(
 
 
 def compute_relative_pose_metrics(
-    i2Ri1_computed: Optional[Rot3],
-    i2Ui1_computed: Optional[Unit3],
-    i2Ti1_expected: Pose3,
+    i2Ri1_computed: Optional[Rot3], i2Ui1_computed: Optional[Unit3], i2Ti1_expected: Pose3,
 ) -> Tuple[Optional[float], Optional[float]]:
     """Compute the metrics on relative camera pose.
 

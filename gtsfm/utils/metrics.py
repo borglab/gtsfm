@@ -15,6 +15,9 @@ from gtsfm.common.keypoints import Keypoints
 # A StatsDict is a dict from string to optional floats or their lists.
 StatsDict = Dict[str, Union[Optional[float], List[Optional[float]]]]
 
+# number of digits (significant figures) to include in each entry of error metrics
+PRINT_NUM_SIG_FIGS = 2
+
 
 def count_correct_correspondences(
     keypoints_i1: Keypoints,
@@ -67,13 +70,12 @@ def compute_errors_statistics(errors: List[Optional[float]]) -> StatsDict:
         A dict with keys min_error, max_error, median_error,
         and errors_list mapping to the respective stats.
     """
-
     metrics = {}
     valid_errors = [error for error in errors if error is not None]
-    metrics["median_error"] = np.median(valid_errors)
-    metrics["min_error"] = np.min(valid_errors)
-    metrics["max_error"] = np.max(valid_errors)
-    metrics["errors_list"] = errors
+    metrics["median_error"] = np.round(np.median(valid_errors), PRINT_NUM_SIG_FIGS)
+    metrics["min_error"] = np.round(np.min(valid_errors), PRINT_NUM_SIG_FIGS)
+    metrics["max_error"] = np.round(np.max(valid_errors), PRINT_NUM_SIG_FIGS)
+    metrics["errors_list"] = [np.round(error, PRINT_NUM_SIG_FIGS) if error is not None else None for error in errors]
     return metrics
 
 
@@ -169,7 +171,7 @@ def compute_averaging_metrics(
     wTi_list = []
     for (wRi, wti) in zip(wRi_list, wti_list):
         wTi_list.append(Pose3(wRi, wti))
-    wTi_aligned_list = comp_utils.align_poses(wTi_list, gt_wTi_list)
+    wTi_aligned_list = comp_utils.align_poses_sim3(gt_wTi_list, wTi_list)
 
     def get_rotations_translations_from_poses(
         poses: List[Optional[Pose3]],
@@ -193,4 +195,3 @@ def compute_averaging_metrics(
     metrics["translation_averaging_distance"] = compute_translation_distance_metrics(wti_aligned_list, gt_wti_list)
     metrics["translation_to_direction_angle_deg"] = compute_translation_angle_metrics(i2Ui1_dict, wTi_aligned_list)
     return metrics
-

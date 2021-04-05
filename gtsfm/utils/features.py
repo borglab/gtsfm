@@ -76,7 +76,7 @@ def convert_to_homogenous_coordinates(
     )
 
 
-def convert_to_epipolar_lines(normalized_coordinates_i1: np.ndarray, i2Ei1: EssentialMatrix) -> Optional[np.array]:
+def convert_to_epipolar_lines(normalized_coordinates_i1: np.ndarray, i2Ei1: EssentialMatrix) -> Optional[np.ndarray]:
     """Convert coordinates to epipolar lines in image i2.
 
     The epipolar line in image i2 is given by i2Ei1 @ x_i1. A point x_i2 is on this line if x_i2^T @ i2Ei1 @ x_i1 = 0.

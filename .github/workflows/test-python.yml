@@ -22,5 +22,6 @@ jobs:
         python-version: 3.8
     - shell: bash -l {0}
       run: |
+        pip install pytest-cov
         conda info --envs
         bash .github/scripts/python.sh
