@@ -16,6 +16,7 @@ import gtsfm.utils.reprojection as reproj_utils
 logger = logger_utils.get_logger()
 
 EQUALITY_TOLERANCE = 1e-5
+PRINT_NUM_SIG_FIGS = 2
 
 
 class GtsfmData:
@@ -182,9 +183,7 @@ class GtsfmData:
         if self.number_tracks() == 0:
             return np.array([], dtype=np.uint32)
 
-        track_lengths = [
-            self.get_track(j).number_measurements() for j in range(self.number_tracks())
-        ]
+        track_lengths = [self.get_track(j).number_measurements() for j in range(self.number_tracks())]
         return np.array(track_lengths, dtype=np.uint32)
 
     def select_largest_connected_component(self) -> "GtsfmData":
@@ -263,10 +262,12 @@ class GtsfmData:
         scene_avg_repoj_error = np.mean(scene_reproj_errors)
 
         scene_reproj_errors = np.array(scene_reproj_errors)
-        logger.info("Min scene reproj error: {}".format(scene_reproj_errors.min()))
-        logger.info("Avg scene reproj error: {}".format(scene_reproj_errors.mean()))
-        logger.info("Median scene reproj error: {}".format(np.median(scene_reproj_errors)))
-        logger.info("Max scene reproj error: {}".format(scene_reproj_errors.max()))
+        logger.info("Min scene reproj error: {}".format(np.round(scene_reproj_errors.min(), PRINT_NUM_SIG_FIGS)))
+        logger.info("Avg scene reproj error: {}".format(np.round(scene_avg_repoj_error, PRINT_NUM_SIG_FIGS)))
+        logger.info(
+            "Median scene reproj error: {}".format(np.round(np.median(scene_reproj_errors), PRINT_NUM_SIG_FIGS))
+        )
+        logger.info("Max scene reproj error: {}".format(np.round(scene_reproj_errors.max(), PRINT_NUM_SIG_FIGS)))
         return scene_avg_repoj_error
 
     def __validate_track(self, track: SfmTrack, reproj_err_thresh: float) -> bool:
@@ -304,4 +305,3 @@ class GtsfmData:
                 filtered_data.add_track(track)
 
         return filtered_data
-
