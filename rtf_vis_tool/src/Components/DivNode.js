@@ -4,7 +4,7 @@ import '.././stylesheets/Div_Node.css';
 //Basic Div Component repeatedly rendered in LandingPageGraph.js
 /*
     A Div Node is just a short hand name for any of the 43 nodes within the GTSFM Landing Page Graph. It's called a 
-    "Div Node", primarily because in code, it is a div (a rectangulear container to hold text), while in concept,
+    "Div Node", primarily because in code, it is a div (a rectangular container to hold text), while in concept,
     it serves as a node/vertex in a directed graph.
 */
 const DivNode = (props) => {

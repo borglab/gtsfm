@@ -81,7 +81,7 @@ const LandingPageGraph = (props) => {
             </div>
 
             {/* Render popups only when the respective node is clicked*/} 
-            {showDA_PC && <Bundle_Adj_PC da_json={da_json} rotated_json={rotated_da_json} toggleDA_PC={toggleDataAssoc_PointCloud}/>}
+            {showDA_PC && <Bundle_Adj_PC toggleDA_PC={toggleDataAssoc_PointCloud}/>}
 
             <div className="gtsfm_graph">
                 {/* Render 43 Graph Nodes */}

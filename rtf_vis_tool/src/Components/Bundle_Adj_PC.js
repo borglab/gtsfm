@@ -1,15 +1,11 @@
 import React, {useEffect, useState} from "react";
-import {Canvas, extend} from "react-three-fiber";
-import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls';
+import {Canvas} from "react-three-fiber";
 import '../stylesheets/Bundle_Adj_PC.css';
 
 //Loading Helper Components
 import CoordinateGrid from './CoordinateGrid';
 import OrbitControlsComponent from './OrbitControlsComponent';
 import PointMesh from './PointMesh';
-
-//allows user to orbit and pan around the point cloud
-extend({OrbitControls});
 
 //Point Cloud Renderer Component
 //Spawned once the 'SfMData' node is clicked

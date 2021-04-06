@@ -17,7 +17,13 @@ python gtsfm/runner/run_scene_optimizer.py
 ```
 This will populate the `result_metrics` directory
 
-4. Now, run the web application:
+4. Run the React Unit Tests:
+```bash
+npm test
+```
+Currently, the unit tests are written for smaller, helper components that do not involve React Three Fiber. This is because the React unit testing framework, Enzyme, does not provide native support for third party packages like React Three Fiber. Thus, it's incompatible with components with render 3D-related components.
+
+5. Now, run the web application:
 ```bash
 npm start
 ```
@@ -49,7 +55,8 @@ package.json
 - `react-scripts` : used to run the application when user types `npm-start`
 - `react-three-fiber`: allows for 3D rendering in the browser
 - `react-xarrows`: renders arrows in the landing page graph (`DivGraph.js`)
-- `three` : required by the `react-three-fiber` dependency to run properly  
+- `three` : required by the `react-three-fiber` dependency to run properly 
+- `enzyme` & `enzyme-adapter-react-16` : used to write unit tests for React.js components 
 
 package-lock.json
 - Essentially, the need for this is that on top of just a general listing of dependencies (defined in `package.json`), this file goes one step deeper and describes the dependency tree along with the ordering of installation of dependencies so that the every user can run the application in exactly the same manner. Read here for more details regarding why `package-lock.json` must be checked in:
