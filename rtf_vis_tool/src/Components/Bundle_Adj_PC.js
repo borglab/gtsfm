@@ -1,4 +1,4 @@
-import React, {useEffect, useState, useRef} from "react";
+import React, {useEffect, useState} from "react";
 import {Canvas, extend} from "react-three-fiber";
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls';
 import '../stylesheets/Bundle_Adj_PC.css';
@@ -22,8 +22,8 @@ const Bundle_Adj_PC = (props) => {
 
     //render points3D.txt from COLMAP ba_output directory
     useEffect(() => {
-        //fetch the specific file from the public directory
-        fetch('results/ba_output/points3D.txt')
+        // fetch the specific file from the public directory
+        fetch('results/ba_input/points3D.txt')
             .then(function(response){
                 return response.text();
             })
@@ -40,12 +40,12 @@ const Bundle_Adj_PC = (props) => {
                 setPointCloudRaw(arrNumPoints);
 
                 //loop through array. convert strings to numbers. append to final point cloud
-                for (var i = 0; i < arrNumPoints.length; i += 1) {
-                    var pointArr = arrNumPoints[i];
+                for (var index = 0; index < arrNumPoints.length; index += 1) {
+                    var pointArr = arrNumPoints[index];
                     
                     finalPointsJSX.push(
                         <PointMesh  
-                            position={[pointArr[1], pointArr[3], pointArr[2]]}  
+                            position={[pointArr[1], pointArr[2], pointArr[3]]}  
                             color={`rgb(${pointArr[4]}, ${pointArr[5]}, ${pointArr[6]})`} 
                             size={pointSizeArr}/>
                     );
@@ -54,6 +54,8 @@ const Bundle_Adj_PC = (props) => {
             })
     }, []);
 
+    //Function that updates the radius of all points within a point cloud
+    //Called everytime the react slider input is interacted with
     const updatePointSizes = (radius) => {
         var finalPointsJSX = [];
         for (var i = 0; i < pointCloudRaw.length; i += 1) {
@@ -61,7 +63,7 @@ const Bundle_Adj_PC = (props) => {
             
             finalPointsJSX.push(
                 <PointMesh  
-                    position={[pointArr[1], pointArr[3], pointArr[2]]}  
+                    position={[pointArr[1], pointArr[2], pointArr[3]]}  
                     color={`rgb(${pointArr[4]}, ${pointArr[5]}, ${pointArr[6]})`} 
                     size={[radius]}/>
             );
@@ -72,7 +74,7 @@ const Bundle_Adj_PC = (props) => {
     return (
         <div className="ba-container">
             <h2>Bundle Adjustment Point Cloud</h2>
-            <Canvas colorManagement camera={{ fov: 20, position: [50, 50, 50]}}>
+            <Canvas colorManagement camera={{ fov: 20, position: [50, 50, 50], up: [0,0,1]}}>
                 <ambientLight intensity={0.5}/>
                 <pointLight position={[100, 100, 100]} intensity={1} castShadow />
                 <pointLight position={[-100, -100, -100]} intensity={0.8}/>

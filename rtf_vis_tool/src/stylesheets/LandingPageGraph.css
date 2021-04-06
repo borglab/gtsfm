@@ -1,7 +1,7 @@
 /* Stylings for LandingPageGraph.js Component */
 
-/* This container takes up 100% of the screen space.
- Sets relative positioning so that all nodes inside this primary container can be positioned absolutely 
+/*  This container takes up 100% of the screen space.
+    Sets relative positioning so that all nodes inside this primary container can be positioned absolutely 
    (meaning with percent offsets from the top and left side of the screen).
 */
 .lp_graph_container {
@@ -12,13 +12,13 @@
     height: 100vh;
 }
 
-/*  Container for  the 'GTSFM Computational Graph Visualizer' header with tan background, black text, and large font.
+/*  Container for  the 'GTSFM Computational Graph Visualizer' header with orange background, black text, and large font.
     The header has a black border with a width that spans the entire screen.
 */
 .navbar {
     height: 5%;
     width: 100%;
-    background-color: #D2B48C;
+    background-color: #fcaf3e;
     border: 1px solid black;
     border-radius: 5px;
     margin-bottom: 1%;

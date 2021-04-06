@@ -10,6 +10,7 @@ const SfMDataDivNode = (props) => {
         top: props.topOffset,
         left: props.leftOffset,
         backgroundColor: props.backgroundColor,
+        color: props.textColor
     }
 
     return (
@@ -17,7 +18,7 @@ const SfMDataDivNode = (props) => {
             className="standard_div_node_style"
             style={propStyling} 
             onClick={(props.json) ? (() => props.toggleDA_PC(true)) : (null)}>     
-            <p style={{fontSize: '75%', color: props.textColor}}>{props.text}</p>
+            <p>{props.text}</p>
         </div>
     )
 }

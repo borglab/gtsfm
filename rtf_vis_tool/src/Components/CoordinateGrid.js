@@ -10,12 +10,12 @@ const getGridLines = () => {
     var coordPairSet = []
 
     //add grid lines parallel to x axis
-    for (var z = lowerGridBound; z <= upperGridBound; z++) {
-      coordPairSet.push([[lowerGridBound, 0, z], [upperGridBound, 0, z]]);
+    for (var y = lowerGridBound; y <= upperGridBound; y++) {
+      coordPairSet.push([[lowerGridBound, y, 0], [upperGridBound, y, 0]]);
     }
     //add z grid lines
     for (var x = lowerGridBound; x <= upperGridBound; x++) {
-      coordPairSet.push([[x, 0, lowerGridBound], [x, 0, upperGridBound]]);
+      coordPairSet.push([[x, lowerGridBound, 0], [x, upperGridBound, 0]]);
     }
 
     var finalLineGridSet = []
@@ -45,23 +45,23 @@ const CoordinateGrid = () => {
 
           <Line 
             points={[[0,lowerGridBound,0], [0,upperGridBound,0]]} 
-            color="blue" 
+            color="green" 
             lineWidth={0.3}
           />
           <Html scaleFactor={htmlSize} position={[0,upperGridBound,0]}>
             <div class="content">
-              z
+              y
             </div>
           </Html>
 
           <Line 
             points={[[0,0,lowerGridBound], [0,0,upperGridBound]]} 
-            color="green" 
+            color="blue" 
             lineWidth={0.3}
           />
           <Html scaleFactor={htmlSize} position={[0,0,upperGridBound]}>
             <div class="content">
-              y
+              z
             </div>
           </Html>
 

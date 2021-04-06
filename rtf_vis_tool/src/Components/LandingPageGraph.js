@@ -80,11 +80,8 @@ const LandingPageGraph = (props) => {
                 <h2 className="gtsfm_header">GTSFM Computational Graph Visualizer</h2>
             </div>
 
-            {/* Render popups only when the respective node is clicked*/}
-            {/* {showFS && <FrontendSummary json={fs_json} toggleFS={toggleFrontEndSummaryDisplay}/>} */}
-            {/* {showMVO && <MVOSummary json={mvo_json} toggleMVO={toggleMVOMetrics}/>} */}
+            {/* Render popups only when the respective node is clicked*/} 
             {showDA_PC && <Bundle_Adj_PC da_json={da_json} rotated_json={rotated_da_json} toggleDA_PC={toggleDataAssoc_PointCloud}/>}
-            {/* {showRSS && <RotSuccessSummary json={fs_json} toggleRSS={toggleRotSummaryDisplay}/>} */}
 
             <div className="gtsfm_graph">
                 {/* Render 43 Graph Nodes */}
@@ -107,7 +104,7 @@ const LandingPageGraph = (props) => {
                 <DivNode textColor={'white'} backgroundColor={aquaBlue} topOffset={formatPercent(topShift, 8)} leftOffset={formatPercent(leftShift, 84)} text={'Post-Processor'}/>
                 <DivNode textColor={'black'} backgroundColor={lightGray} topOffset={formatPercent(topShift, 21)} leftOffset={formatPercent(leftShift, 72)} text={'Verified Correspondence Indices'}/>
                 <DivNode toggleRot={toggleRotSummaryDisplay} textColor={'black'} backgroundColor={lightGray} topOffset={formatPercent(topShift, 21)} leftOffset={formatPercent(leftShift, 79)} text={'relative Rs: i2Ri1'}/>
-                <DivNode textColor={'black'} backgroundColor={lightGray} topOffset={formatPercent(topShift, 21)} leftOffset={formatPercent(leftShift, 87)} text={'relative Ts: i2ti1'}/>
+                <DivNode textColor={'black'} backgroundColor={lightGray} topOffset={formatPercent(topShift, 21)} leftOffset={formatPercent(leftShift, 87)} text={'relative ts: i2ti1'}/>
                 <DivNode textColor={'black'} backgroundColor={lightGray} topOffset={formatPercent(topShift, 50)} leftOffset={formatPercent(leftShift, 10)} text={'Images'}/>
                 <DivNode textColor={'white'} backgroundColor={aquaBlue} topOffset={formatPercent(topShift, 43)} leftOffset={formatPercent(leftShift, 28)} text={'Optimizer'}/>
                 <DivNode textColor={'black'} backgroundColor={lightGray} topOffset={formatPercent(topShift, 40)} leftOffset={formatPercent(leftShift, 17)} text={'SFMResult (including Sparse Point Cloud, Optimized Intrinsics, absolute Rs, absolute Ts)'}/>
@@ -120,17 +117,17 @@ const LandingPageGraph = (props) => {
                 <DivNode textColor={'black'} backgroundColor={lightGray} topOffset={formatPercent(topShift, 78)} leftOffset={formatPercent(leftShift, 10)} text={'Dense Mesh Reconstruction'}/>
                 <DivNode textColor={'white'} backgroundColor={aquaBlue} topOffset={formatPercent(topShift, 83)} leftOffset={formatPercent(leftShift, 1)} text={'Aggregate'}/>
                 <DivNode textColor={'black'} backgroundColor={lightGray} topOffset={formatPercent(topShift, 63)} leftOffset={formatPercent(leftShift, 1)} text={'Zipped Results for All Scenes'}/>
-                <SfMDataDivNode json={da_json} toggleDA_PC={toggleDataAssoc_PointCloud} textColor={'black'} backgroundColor={lightGray} topOffset={formatPercent(topShift, 40)} leftOffset={formatPercent(leftShift, 34)} text={'SfMData'}/>
+                <SfMDataDivNode json={da_json} toggleDA_PC={toggleDataAssoc_PointCloud} textColor={'black'} backgroundColor={lightGray} topOffset={formatPercent(topShift, 40)} leftOffset={formatPercent(leftShift, 34)} text={'GtsfmData'}/>
                 <DivNode textColor={'white'} backgroundColor={aquaBlue} topOffset={formatPercent(topShift, 40)} leftOffset={formatPercent(leftShift, 42)} text={'Data Association w/ Track Filtering'}/>
                 <DivNode textColor={'black'} backgroundColor={lightGray} topOffset={formatPercent(topShift, 53)} leftOffset={formatPercent(leftShift, 45)} text={'Bundler Pinhole Cameras'}/>
                 <DivNode textColor={'white'} backgroundColor={aquaBlue} topOffset={formatPercent(topShift, 53)} leftOffset={formatPercent(leftShift, 53)} text={'Bundler Calibrator'}/>
-                <DivNode textColor={'black'} backgroundColor={lightGray} topOffset={formatPercent(topShift, 43)} leftOffset={formatPercent(leftShift, 60)} text={'absolute Ts'}/>
+                <DivNode textColor={'black'} backgroundColor={lightGray} topOffset={formatPercent(topShift, 43)} leftOffset={formatPercent(leftShift, 60)} text={'absolute ts'}/>
                 <DivNode textColor={'white'} backgroundColor={aquaBlue} topOffset={formatPercent(topShift, 43)} leftOffset={formatPercent(leftShift, 68)} text={'1d-SfM'}/>
-                <DivNode textColor={'black'} backgroundColor={lightGray} topOffset={formatPercent(topShift, 43)} leftOffset={formatPercent(leftShift, 76)} text={'relative Ts (2): i2ti1'}/>
+                <DivNode textColor={'black'} backgroundColor={lightGray} topOffset={formatPercent(topShift, 43)} leftOffset={formatPercent(leftShift, 76)} text={'Pruned relative ts: i2ti1'}/>
                 <DivNode textColor={'white'} backgroundColor={aquaBlue} topOffset={formatPercent(topShift, 43)} leftOffset={formatPercent(leftShift, 86)} text={'Largest Connected Component Extractor'}/>
                 <DivNode textColor={'black'} backgroundColor={lightGray} topOffset={formatPercent(topShift, 63)} leftOffset={formatPercent(leftShift, 65)} text={'absolute Rs'}/>
                 <DivNode textColor={'white'} backgroundColor={aquaBlue} topOffset={formatPercent(topShift, 65)} leftOffset={formatPercent(leftShift, 76)} text={'Shonan'}/>
-                <DivNode textColor={'black'} backgroundColor={lightGray} topOffset={formatPercent(topShift, 65)} leftOffset={formatPercent(leftShift, 87)} text={'relative Rs (2): i2Ri1'}/>
+                <DivNode textColor={'black'} backgroundColor={lightGray} topOffset={formatPercent(topShift, 62)} leftOffset={formatPercent(leftShift, 87)} text={'Pruned relative Rs (2): i2Ri1'}/>
         
                 {/* Render Directed Edges */}
                 {arrowList}
