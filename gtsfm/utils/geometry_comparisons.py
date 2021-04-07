@@ -63,16 +63,19 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> List[Pose3
     aSb = Similarity3.Align(ab_pairs)
 
     if np.isnan(aSb.scale()) or aSb.scale() == 0:
+        # we have run into a case where points have no translation between them (i.e. panorama).
+        # We will first align the rotations and then align the translation by using centroids.
         # TODO: handle it in GTSAM
 
-        # apply rotation and get the translation of the centroid, as we have a panorama case.
+        # align the rotations first, so that we can find the translation between the two panoramas
         aSb = Similarity3(aSb.rotation(), np.zeros((3,)), 1.0)
         aTi_list_rot_aligned = [aSb.transformFrom(bTi) for bTi in bTi_list]
 
-        # we have run into a simple translation case, align the centroids
+        # fit a single translation motion to the centroid
         aTi_centroid = np.array([aTi.translation() for aTi in aTi_list]).mean(axis=0)
         aTi_rot_aligned_centroid = np.array([aTi.translation() for aTi in aTi_list_rot_aligned]).mean(axis=0)
 
+        # construct the final SIM3 transform
         aSb = Similarity3(aSb.rotation(), aTi_centroid - aTi_rot_aligned_centroid, 1.0)
 
     # provide a summary of the estimated alignment transform
