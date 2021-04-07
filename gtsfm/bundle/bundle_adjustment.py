@@ -2,8 +2,6 @@
 
 Authors: Xiaolong Wu, John Lambert, Ayush Baid
 """
-from typing import NamedTuple
-
 import dask
 from dask.delayed import Delayed
 from gtsam import (
