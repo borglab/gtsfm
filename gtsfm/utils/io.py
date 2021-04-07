@@ -16,6 +16,7 @@ import gtsfm.utils.images as image_utils
 import gtsfm.utils.reprojection as reproj_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
+from gtsfm.common.sfm_track import SfmTrack2d
 
 
 def load_image(img_path: str) -> Image:
@@ -224,3 +225,28 @@ def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
                 i, uv_measured = track.measurement(k)
                 f.write(f"{i} {point2d_idx} ")
             f.write("\n")
+
+
+
+def save_track_visualizations(
+    tracks_2d: List[SfmTrack2d],
+    images: List[Image],
+    save_dir: str,
+    viz_patch_sz: int = 100,
+) -> None:
+    """
+    """
+    os.makedirs(save_dir, exist_ok=True)
+
+    # save each 2d track
+    for i, track in enumerate(tracks_2d):
+        patches = []
+        for m in track.measurements:
+            patches += [
+                images[m.i].extract_patch(center_x=m.uv[0], center_y=m.uv[1], patch_size=viz_patch_sz)
+            ]
+
+        stacked_image = image_utils.vstack_image_list(patches)
+        save_fpath = os.path.join(save_dir, f"track_{i}.jpg")
+        save_image(stacked_image, img_path=save_fpath)
+

@@ -40,6 +40,7 @@ class MultiViewOptimizer:
 
     def create_computation_graph(
         self,
+        images_graph: List[Delayed],
         num_images: int,
         keypoints_graph: List[Delayed],
         i2Ri1_graph: Dict[Tuple[int, int], Delayed],
@@ -73,7 +74,7 @@ class MultiViewOptimizer:
         init_cameras_graph = dask.delayed(init_cameras)(wRi_graph, wti_graph, intrinsics_graph)
 
         ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
-            num_images, init_cameras_graph, v_corr_idxs_graph, keypoints_graph
+            num_images, init_cameras_graph, v_corr_idxs_graph, keypoints_graph, images_graph
         )
 
         auxiliary_graph_list = [

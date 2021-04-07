@@ -2,6 +2,8 @@
 
 Authors: Xiaolong Wu, John Lambert, Ayush Baid
 """
+from typing import NamedTuple
+
 import dask
 from dask.delayed import Delayed
 from gtsam import (
@@ -20,7 +22,6 @@ from gtsam.noiseModel import Isotropic
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.common.sfm_result import SfmResult
 
 # TODO: any way this goes away?
 P = symbol_shorthand.P  # 3d point
@@ -41,14 +42,15 @@ class BundleAdjustmentOptimizer:
     This class refines global pose estimates and intrinsics of cameras, and also refines 3D point cloud structure given
     tracks from triangulation."""
 
-    def __init__(self, shared_calib: bool = False):
+    def __init__(self, output_reproj_error_thresh: float, shared_calib: bool = False):
         """Initializes the parameters for bundle adjustment module.
 
         Args:
+            output_reproj_error_thresh: the max reprojection error allowed in output.
             shared_calib (optional): Flag to enable shared calibration across
                                      all cameras. Defaults to False.
         """
-
+        self._output_reproj_error_thresh = output_reproj_error_thresh
         self._shared_calib = shared_calib
 
     def __add_camera_prior_and_initial_value(
@@ -113,7 +115,7 @@ class BundleAdjustmentOptimizer:
         # add initial value for 3d point
         initial_values.insert(P(track_idx), track.point3())
 
-    def run(self, initial_data: GtsfmData) -> SfmResult:
+    def run(self, initial_data: GtsfmData) -> GtsfmData:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
 
         Args:
@@ -156,7 +158,7 @@ class BundleAdjustmentOptimizer:
         except Exception:
             logger.exception("LM Optimization failed")
             # as we did not perform the bundle adjustment, we skip computing the total reprojection error
-            return SfmResult(GtsfmData(initial_data.number_images()), total_reproj_error=float("Nan"))
+            return GtsfmData(initial_data.number_images())
 
         initial_error = graph.error(initial_values)
         final_error = graph.error(result_values)
@@ -166,10 +168,11 @@ class BundleAdjustmentOptimizer:
         logger.info(f"final error: {final_error:.2f}")
 
         # construct the results
-        optimized_data = values_to_gtsfm_data(result_values, initial_data, self._shared_calib)
-        sfm_result = SfmResult(optimized_data, total_reproj_error=final_error)
+        optimized_data = values_to_gtsfm_data(result_values, initial_data)
 
-        return sfm_result
+        # filter the largest errors
+        filtered_result = optimized_data.filter_landmarks(self.output_reproj_error_thresh)
+        return filtered_result
 
     def create_computation_graph(self, sfm_data_graph: Delayed) -> Delayed:
         """Create the computation graph for performing bundle adjustment.
@@ -178,7 +181,7 @@ class BundleAdjustmentOptimizer:
             sfm_data_graph: an GtsfmData object wrapped up using dask.delayed
 
         Returns:
-            SfmResult wrapped up using dask.delayed
+            GtsfmData wrapped up using dask.delayed
         """
         return dask.delayed(self.run)(sfm_data_graph)
 
