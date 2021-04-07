@@ -21,9 +21,7 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
     """Unit tests for BundleAdjustmentOptimizer class."""
 
     def test_simple_scene_with_individual_calibration(self):
-        """Test the simple scene w/ individual calibration for each camera
-        using the `run` API.
-        """
+        """Test the simple scene w/ individual calibration for each camera using the `run` API."""
         expected_error = 2.197826405222743
         expected_mean_track_length = 2.7142857142857144
         expected_median_track_length = 3.0
@@ -32,7 +30,7 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
 
         computed_result = test_obj.run(EXAMPLE_DATA)
 
-        (mean_track_length, median_track_length,) = computed_result.get_track_length_statistics()
+        (mean_track_length, median_track_length,) = computed_result.gtsfm_data.get_track_length_statistics()
 
         np.testing.assert_allclose(
             expected_error, computed_result.total_reproj_error, atol=1e-2, rtol=1e-2,
@@ -47,8 +45,7 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         )
 
     def test_simple_scene_with_shared_calibration(self):
-        """Test the simple scene w/ shared calibration across all camera
-        using the `run` API.
+        """Test the simple scene w/ shared calibration across all camera using the `run` API.
 
         Note: higher error expected because intrinsics are different for
         cameras in the example data.
@@ -60,7 +57,7 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         test_obj = BundleAdjustmentOptimizer(shared_calib=True)
 
         computed_result = test_obj.run(EXAMPLE_DATA)
-        (mean_track_length, median_track_length,) = computed_result.get_track_length_statistics()
+        (mean_track_length, median_track_length,) = computed_result.gtsfm_data.get_track_length_statistics()
 
         np.testing.assert_allclose(
             expected_error, computed_result.total_reproj_error, atol=1e-2, rtol=1e-2,
