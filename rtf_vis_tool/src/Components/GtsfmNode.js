@@ -6,9 +6,9 @@ Author: Adi Singh
 import React from "react";
 
 // Local Imports.
-import '.././stylesheets/Node.css';
+import '.././stylesheets/GtsfmNode.css';
 
-const Node = (props) => {
+const GtsfmNode = (props) => {
 
     // Defines the stylings that depends on parameters passed in from LandingPageGraph.js.
     const propStyling = {
@@ -30,4 +30,4 @@ const Node = (props) => {
     )
 }
 
-export default Node;
+export default GtsfmNode;

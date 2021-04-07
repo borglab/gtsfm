@@ -1,11 +1,11 @@
-/* Gray Node Component. Built on top of Node.js with styling properties specific to a Gray Node.
+/* Gray Node Component. Built on top of GtsfmNode.js with styling properties specific to a Gray Node.
 
 Author: Adi Singh
 */
 import React from "react";
 
 // Local Imports.
-import Node from './Node';
+import GtsfmNode from './GtsfmNode';
 
 const GrayNode = (props) => {
     const lightGray = '#dfe8e6';
@@ -14,7 +14,7 @@ const GrayNode = (props) => {
     const nodeLeftOffset = props.nodeInfo.leftOffset;
 
     return (
-        <Node 
+        <GtsfmNode 
             textColor={'black'} 
             backgroundColor={lightGray} 
             topOffset={`${nodeTopOffset}%`} 

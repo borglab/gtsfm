@@ -1,11 +1,11 @@
-/* Blue Node Component. Built on top of Node.js with styling properties specific to a Blue Node.
+/* Blue Node Component. Built on top of GtsfmNode.js with styling properties specific to a Blue Node.
 
 Author: Adi Singh
 */
 import React from "react";
 
 // Local Imports.
-import Node from './Node';
+import GtsfmNode from './GtsfmNode';
 
 const BlueNode = (props) => {
     const aquaBlue = '#2255e0';
@@ -14,7 +14,7 @@ const BlueNode = (props) => {
     const nodeLeftOffset = props.nodeInfo.leftOffset;
 
     return (
-        <Node 
+        <GtsfmNode 
             textColor={'white'} 
             backgroundColor={aquaBlue} 
             topOffset={`${nodeTopOffset}%`} 

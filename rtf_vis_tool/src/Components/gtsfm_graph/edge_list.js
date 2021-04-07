@@ -1,4 +1,4 @@
-/* List of all Edges in GTSFM Visualization Graph. Imported in LandingPageGraph.js
+/* List of all Edges in GTSFM Visualization Graph. Imported in LandingPageGraph.js.
 
 Author: Adi Singh
 */
