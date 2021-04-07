@@ -8,12 +8,8 @@ import React from "react";
 // Third-Party Package Imports.
 import {Line, Html} from "drei";  // Used to render axes lines and text.
 
-const lowerGridBound = -10;   // Lower grid bound for coordinate axes.
-const upperGridBound = 10;    // Upper grid bound for coordinate axes.
-const htmlSize = 50;          // Size of the x,y,z axes labels.
-
-// Function that creates the grid lines along with xy plane.
-const getGridLines = () => {
+// Create grid lines along the xy plane.
+const getGridLines = (lowerGridBound = -10, upperGridBound = 10) => {
     var coordPairSet = []
 
     // Add grid lines parallel to x axis.
@@ -37,6 +33,9 @@ const getGridLines = () => {
 }
 
 const CoordinateGrid = () => { 
+  const lowerGridBound = -10;   // Lower grid bound for coordinate axes.
+  const upperGridBound = 10;    // Upper grid bound for coordinate axes.
+  const htmlSize = 50;          // Size of the x,y,z axes labels.
     return (
       <mesh>
           <Line 

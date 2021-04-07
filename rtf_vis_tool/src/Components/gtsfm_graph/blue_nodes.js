@@ -1,4 +1,5 @@
-/* List of all Blue Nodes in GTSFM Visualization Graph. Imported in LandingPageGraph.js.
+/* List of all Blue Nodes in GTSFM Visualization Graph. Imported in LandingPageGraph.js. Blue Nodes
+in the graph represent algorithms/functions that are called throughout the pipeline.
 
 Author: Adi Singh
 */

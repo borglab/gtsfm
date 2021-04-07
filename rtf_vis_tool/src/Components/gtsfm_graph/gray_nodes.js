@@ -1,4 +1,6 @@
 /* List of all Gray Nodes in GTSFM Visualization Graph. Imported in LandingPageGraph.js.
+Gray Nodes in the graph represent input/output data structures that are fed into or outputted
+by various functions.
 
 Author: Adi Singh
 */

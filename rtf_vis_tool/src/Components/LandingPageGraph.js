@@ -8,24 +8,23 @@ import React, {useEffect, useState} from "react";
 import Xarrow from "react-xarrows";  // Used to render directed edges.
 
 // Local Imports.
+import BlueNode from './BlueNode.js';
+import BlueNodes from './gtsfm_graph/blue_nodes.js';
 import Bundle_Adj_PC from './Bundle_Adj_PC';
 import data_association_json from '../result_metrics/data_association_metrics.json';
-import DivNode from './DivNode';
 import EdgeList from './gtsfm_graph/edge_list.js';
-import GrayNodes from './gtsfm_graph/gray_nodes.js';
-import BlueNodes from './gtsfm_graph/blue_nodes.js';
 import frontend_summary_json from '../result_metrics/frontend_summary.json';
+import GrayNode from './GrayNode';
+import GrayNodes from './gtsfm_graph/gray_nodes.js';
 import multiview_optimizer_json from '../result_metrics/multiview_optimizer_metrics.json';
+import Node from './Node';
 import '../stylesheets/LandingPageGraph.css'
 
 const LandingPageGraph = (props) => {
     const [arrowList, setArrowList] = useState([]); // Array storing all directed edges.
     const [grayNodesList, setGrayNodesList] = useState([]); // Array storing all gray nodes.
     const [blueNodesList, setBlueNodesList] = useState([]); // Array storing all bue nodes.
-    const leftShift = 0;  // Stores an absolute shift from left side of screen.
-    const topShift = 0;   // Stores an absolute shift from top of screen.
     
-    const aquaBlue = '#2255e0';
     const lightGray = '#dfe8e6';
 
     // Boolean variables indicating which pop ups to show
@@ -62,18 +61,7 @@ const LandingPageGraph = (props) => {
         var grayNodes = GrayNodes;
         var grayNodes_formatted = [];
         for (var j = 0; j < grayNodes.length; j++) {
-            const nodeText = grayNodes[j].text;
-            const nodeTopOffset = grayNodes[j].topOffset;
-            const nodeLeftOffset = grayNodes[j].leftOffset;
-
-            grayNodes_formatted.push(
-                <DivNode 
-                    textColor={'black'} 
-                    backgroundColor={lightGray} 
-                    topOffset={formatPercent(topShift, nodeTopOffset)} 
-                    leftOffset={formatPercent(leftShift, nodeLeftOffset)} 
-                    text={nodeText}/>
-            )
+            grayNodes_formatted.push(<GrayNode nodeInfo={grayNodes[j]}/>);
         }
         setGrayNodesList(grayNodes_formatted);
         
@@ -81,18 +69,7 @@ const LandingPageGraph = (props) => {
         var blueNodes = BlueNodes;
         var blueNodes_formatted = [];
         for (var k = 0; k < blueNodes.length; k++) {
-            const nodeText = blueNodes[k].text;
-            const nodeTopOffset = blueNodes[k].topOffset;
-            const nodeLeftOffset = blueNodes[k].leftOffset;
-
-            blueNodes_formatted.push(
-                <DivNode 
-                    textColor={'white'} 
-                    backgroundColor={aquaBlue} 
-                    topOffset={formatPercent(topShift, nodeTopOffset)} 
-                    leftOffset={formatPercent(leftShift, nodeLeftOffset)} 
-                    text={nodeText}/>
-            )
+            blueNodes_formatted.push(<BlueNode nodeInfo={blueNodes[k]}/>)
         }
         setBlueNodesList(blueNodes_formatted);
 
@@ -103,15 +80,7 @@ const LandingPageGraph = (props) => {
         setRotatedDAJSON(data_association_json.rotated_points_3d);
     }, [])
 
-    /* Function to define the percent offset each div node has from the top and left side of the screen.
-       Used to make positioning of nodes more dynamic.
-    */
-    function formatPercent(shift, percent) {
-        const str_percent = `${shift+percent}%`;
-        return str_percent
-    }
-
-    /* Functions to toggle the display of various pop ups on the screen.
+    /* Toggles the display of various pop ups on the screen.
        Like frontend metrics, multiview optimizer metrics, and data association point cloud.
     */
     const toggleFrontEndSummaryDisplay = (bool) => {setShowFS(bool)};
@@ -133,13 +102,13 @@ const LandingPageGraph = (props) => {
                 {/* Render all Gray and Blue Nodes (43 combined). */}
                 {grayNodesList}
                 {blueNodesList}
-                <DivNode 
+                <Node 
                     onClickFunction={toggleDataAssoc_PointCloud}
                     funcParam={true}
                     textColor={'black'} 
                     backgroundColor={lightGray} 
-                    topOffset={formatPercent(topShift, 40)} 
-                    leftOffset={formatPercent(leftShift, 34)} 
+                    topOffset={'40%'} 
+                    leftOffset={'34%'} 
                     text={'GtsfmData'}/>
 
                 {/* Render Directed Edges. */}

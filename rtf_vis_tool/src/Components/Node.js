@@ -1,15 +1,14 @@
-/* Basic Div Component repeatedly rendered which is rendered within LandingPageGraph.js. Called a 
-"Div Node", primarily because in code, it is a div (a rectangular container to hold text), while in
-concept, it serves as a node/vertex in a directed graph.
+/* Basic Div Component repeatedly rendered within LandingPageGraph.js. It is a div (a rectangular 
+container to hold text) which serves as a node/vertex in a directed graph.
 
 Author: Adi Singh
 */
 import React from "react";
 
 // Local Imports.
-import '.././stylesheets/Div_Node.css';
+import '.././stylesheets/Node.css';
 
-const DivNode = (props) => {
+const Node = (props) => {
 
     // Defines the stylings that depends on parameters passed in from LandingPageGraph.js.
     const propStyling = {
@@ -31,4 +30,4 @@ const DivNode = (props) => {
     )
 }
 
-export default DivNode;
+export default Node;
