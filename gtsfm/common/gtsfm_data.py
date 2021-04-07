@@ -250,10 +250,10 @@ class GtsfmData:
 
     def log_scene_reprojection_error_stats(self) -> None:
         """Logs reprojection error stats for all 3d points in the entire scene."""
-        scene_reproj_errors = [
-            reproj_utils.compute_track_reprojection_errors(self._cameras, track)[0] for track in self._tracks
-        ]
-
+        scene_reproj_errors = []
+        for track in self._tracks:
+            track_errors, _ = reproj_utils.compute_track_reprojection_errors(self._cameras, track)
+            scene_reproj_errors.extend(track_errors)
         scene_reproj_errors = np.array(scene_reproj_errors)
         logger.info("Min scene reproj error: %.3f", np.min(scene_reproj_errors))
         logger.info("Avg scene reproj error: %.3f", np.mean(scene_reproj_errors))
