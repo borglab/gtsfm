@@ -79,8 +79,8 @@ def essential_to_fundamental_matrix(
     return np.linalg.inv(camera_intrinsics_i2.K().T) @ i2Ei1.matrix() @ np.linalg.inv(camera_intrinsics_i1.K())
 
 
-def compute_epipolar_distances(
-    coordinates_i1: np.ndarray, coordinates_i2: np.ndarray, i2Fi1: np.ndarray, distance_type: str = "sed"
+def compute_epipolar_distances_sed(
+    coordinates_i1: np.ndarray, coordinates_i2: np.ndarray, i2Fi1: np.ndarray
 ) -> Optional[np.ndarray]:
     """Compute point-line epipolar distance between corresponding coordinates in two images.
 
@@ -102,8 +102,6 @@ def compute_epipolar_distances(
     Returns:
         Epipolar point-line distances for each row of the input, of shape N.
     """
-    if distance_type != "sed" and distance_type != "sampson":
-        raise ValueError("Invalid distance type for epipolar distances.")
 
     if coordinates_i1 is None or coordinates_i1.size == 0 or coordinates_i2 is None or coordinates_i2.size == 0:
         return None
@@ -111,23 +109,47 @@ def compute_epipolar_distances(
     epipolar_lines_i2 = feature_utils.convert_to_epipolar_lines(coordinates_i1, i2Fi1)  # Ex1
     epipolar_lines_i1 = feature_utils.convert_to_epipolar_lines(coordinates_i2, i2Fi1.T)  # Etx2
 
-    if distance_type == "sampson":
-        num = feature_utils.compute_point_line_distances(coordinates_i1, epipolar_lines_i1)
-        denom = (
-            np.sum(np.square(epipolar_lines_i1[:, :2]), axis=1) + np.sum(np.square(epipolar_lines_i2[:, :2]), axis=1)
-        ) + EPS
+    numerator = feature_utils.point_line_dotproduct(coordinates_i1, epipolar_lines_i1)
 
-        distances = np.abs(num / np.sqrt(denom))
+    line_sq_norms_i1 = np.sum(np.square(epipolar_lines_i1[:, :2]), axis=1)
+    line_sq_norms_i2 = np.sum(np.square(epipolar_lines_i2[:, :2]), axis=1)
 
-    else:
-        # get lines in i2 and i1
-        epipolar_lines_i2 = feature_utils.convert_to_epipolar_lines(coordinates_i1, i2Fi1)
-        epipolar_lines_i1 = feature_utils.convert_to_epipolar_lines(coordinates_i2, i2Fi1.T)
+    return numerator * np.sqrt(1 / line_sq_norms_i1 + 1 / line_sq_norms_i2)
 
-        # compute two distances and average them
-        distances = 0.5 * (
-            feature_utils.compute_point_line_distances(coordinates_i1, epipolar_lines_i1)
-            + feature_utils.compute_point_line_distances(coordinates_i2, epipolar_lines_i2)
-        )
 
-    return distances
+def compute_epipolar_distances_sampson(
+    coordinates_i1: np.ndarray, coordinates_i2: np.ndarray, i2Fi1: np.ndarray
+) -> Optional[np.ndarray]:
+    """Compute point-line epipolar distance between corresponding coordinates in two images.
+
+    There are two options to compute the distance:
+    1. The Symmetric Epipolar Distance (SED) is the geometric point-line distance between a coordinate and
+       corresponding epipolar lines. The SED is a biased estimate of the gold-standard reprojection error.
+    2. Sampson distance: it is the first order approximation of the reprojection error.
+
+    References: 
+    - "Fathy et al., Fundamental Matrix Estimation: A Study of Error Criteria"
+
+    Args:
+        coordinates_i1: coordinates in image i1, of shape Nx2.
+        coordinates_i2: corr. coordinates in image i2, of shape Nx2.
+        i2Fi1: fundamental matrix between two images.
+        distance_type (optional): type of distance metric to compute. The options are "sed" (symmetric epipolar
+                                  distance) and "sampson". Defaults to "sed".
+
+    Returns:
+        Epipolar point-line distances for each row of the input, of shape N.
+    """
+
+    if coordinates_i1 is None or coordinates_i1.size == 0 or coordinates_i2 is None or coordinates_i2.size == 0:
+        return None
+
+    epipolar_lines_i2 = feature_utils.convert_to_epipolar_lines(coordinates_i1, i2Fi1)  # Ex1
+    epipolar_lines_i1 = feature_utils.convert_to_epipolar_lines(coordinates_i2, i2Fi1.T)  # Etx2
+    line_sq_norms_i1 = np.sum(np.square(epipolar_lines_i1[:, :2]), axis=1)
+    line_sq_norms_i2 = np.sum(np.square(epipolar_lines_i2[:, :2]), axis=1)
+
+    numerator = feature_utils.point_line_dotproduct(coordinates_i1, epipolar_lines_i1)
+    denominator = np.sqrt(line_sq_norms_i1 + line_sq_norms_i2)
+
+    return numerator / denominator

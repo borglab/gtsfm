@@ -5,7 +5,7 @@ Authors: Ayush Baid
 import unittest
 
 import numpy as np
-from gtsam import Cal3Bundler, EssentialMatrix, Rot3, Unit3
+from gtsam import Cal3Bundler
 
 import gtsfm.utils.verification as verification_utils
 from tests.frontend.verifier.test_verifier_base import simulate_two_planes_scene
@@ -42,19 +42,28 @@ class TestVerificationUtils(unittest.TestCase):
         self.assertIsNone(i2Ri1)
         self.assertIsNone(i2Ui1)
 
-    def test_compute_epipolar_distances(self):
-        """Test for epipolar distance computation using 2 sets of points and the essential matrix."""
+    def test_compute_epipolar_distances_sed(self):
+        """Test for epipolar distance computation using 2 sets of points and the fundamental matrix."""
         points_i1 = np.array([[1.0, 3.5], [-2.0, 2.0]])
         points_i2 = np.array([[2.0, -1.0], [1.0, 0.0]])
+        i2Fi1 = np.array([[0, 1, 1], [1, 0, 0], [1, 0, 0]])
+        # i2Fi1 @ x1 = [4.5, 1.0, 1.0] and [3.0, -2.0, -2.0]. Norms^2 = 21.25 and 13.0
+        # x2 @ i2Fi1.T = [0.0, 2.0, 2.0] and [1.0, 1.0, 1.0]. Norms^2 = 4.0 and 2.0
+        # point line dot product: 9 and 1
+        expected = np.array([9 * np.sqrt(1 / 21.25 + 1 / 4.0), 1 * np.sqrt(1 / 13.0 + 1 / 2.0)])
+        computed = verification_utils.compute_epipolar_distances_sed(points_i1, points_i2, i2Fi1)
+        np.testing.assert_allclose(computed, expected, rtol=1e-3)
 
-        i2Ri1 = Rot3.RzRyRx(0, np.deg2rad(30), np.deg2rad(10))
-        i2ti1 = np.array([-0.5, 2.0, 0])
-        i2Ei1 = EssentialMatrix(i2Ri1, Unit3(i2ti1))
-
-        expected = np.array([1.637, 1.850])
-
-        computed = verification_utils.compute_epipolar_distances(points_i1, points_i2, i2Ei1.matrix())
-
+    def test_compute_epipolar_distances_sampson(self):
+        """Test for epipolar distance computation using 2 sets of points and the fundamental matrix."""
+        points_i1 = np.array([[1.0, 3.5], [-2.0, 2.0]])
+        points_i2 = np.array([[2.0, -1.0], [1.0, 0.0]])
+        i2Fi1 = np.array([[0, 1, 1], [1, 0, 0], [1, 0, 0]])
+        # i2Fi1 @ x1 = [4.5, 1.0, 1.0] and [3.0, -2.0, -2.0]. Norms^2 = 21.25 and 13.0
+        # x2 @ i2Fi1.T = [0.0, 2.0, 2.0] and [1.0, 1.0, 1.0]. Norms^2 = 4.0 and 2.0
+        # point line dot product: 9 and 1
+        expected = np.array([9 / np.sqrt(21.25 + 4.0), 1 / np.sqrt(13.0 + 2.0)])
+        computed = verification_utils.compute_epipolar_distances_sampson(points_i1, points_i2, i2Fi1)
         np.testing.assert_allclose(computed, expected, rtol=1e-3)
 
 

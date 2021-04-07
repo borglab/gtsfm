@@ -67,13 +67,12 @@ class TestFeatureUtils(unittest.TestCase):
         points = np.array([[10.0, -5.0], [3.5, 20.0],])  # 2d points in homogenous coordinates
         E_matrix = EssentialMatrix(Rot3.RzRyRx(0, np.deg2rad(45), 0), Unit3(np.array([-5, 2, 0])))
         F_matrix = E_matrix.matrix()  # using identity intrinsics
-        expected_manual = np.array([[-0.37139068, -0.92847669, 0.27555824], [-0.37139067, -0.92847669, -11.17301786]])
         expected_opencv = cv.computeCorrespondEpilines(points.reshape(-1, 1, 2), 1, F_matrix)
         expected_opencv = np.squeeze(expected_opencv)
 
         computed = feature_utils.convert_to_epipolar_lines(points, F_matrix)
-        np.testing.assert_allclose(computed, expected_manual)
-        np.testing.assert_allclose(computed, expected_opencv)
+        computed_normalized = computed / np.linalg.norm(computed[:, :2], axis=1, keepdims=True)
+        np.testing.assert_allclose(computed_normalized, expected_opencv)
 
     def test_convert_to_epipolar_lines_empty_input(self):
         """Test conversion of 0 2D points to epipolar lines using the essential matrix."""
@@ -94,14 +93,13 @@ class TestFeatureUtils(unittest.TestCase):
         computed = feature_utils.convert_to_epipolar_lines(points, F_matrix)
         self.assertIsNone(computed)
 
-    def test_compute_point_line_distances(self):
-        """Test for 2D point-line distance computation."""
+    def test_point_line_dotproduct(self):
+        """Test for 2D point-line dot product."""
 
         points = np.array([[-2.0, 1.0], [1.0, 3.0],])
-        lines = np.array([[1.0, 0.0, -1.0], [-1.0, 1.0, 2.0],])  # coefficients (a, b, c) for the line ax + by + c = 0
-        expected = np.array([3.0, 2 * math.sqrt(2)])
-        computed = feature_utils.compute_point_line_distances(points, lines)
-
+        lines = np.array([[1.0, 3.0, -1.0], [-1.0, 2.0, 2.0],])  # coefficients (a, b, c) for the line ax + by + c = 0
+        expected = np.array([0.0, 7.0])
+        computed = feature_utils.point_line_dotproduct(points, lines)
         np.testing.assert_allclose(computed, expected)
 
 

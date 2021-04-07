@@ -48,9 +48,7 @@ def normalize_coordinates(coordinates: np.ndarray, intrinsics: Cal3Bundler) -> n
     return np.vstack([intrinsics.calibrate(x[:2].reshape(2, 1)) for x in coordinates])
 
 
-def convert_to_homogenous_coordinates(
-    non_homogenous_coordinates: np.ndarray,
-) -> Optional[np.ndarray]:
+def convert_to_homogenous_coordinates(non_homogenous_coordinates: np.ndarray,) -> Optional[np.ndarray]:
     """Convert coordinates to homogenous system (by appending a column of ones).
 
     Args:
@@ -68,18 +66,13 @@ def convert_to_homogenous_coordinates(
     if non_homogenous_coordinates.shape[1] != 2:
         raise TypeError("Input should be 2D")
 
-    return np.hstack(
-        (
-            non_homogenous_coordinates,
-            np.ones((non_homogenous_coordinates.shape[0], 1)),
-        )
-    )
+    return np.hstack((non_homogenous_coordinates, np.ones((non_homogenous_coordinates.shape[0], 1)),))
 
 
 def convert_to_epipolar_lines(coordinates_i1: np.ndarray, i2Fi1: np.ndarray) -> Optional[np.ndarray]:
     """Convert coordinates to epipolar lines in image i2.
 
-    The epipolar line in image i2 is given by i2Ei1 @ x_i1. A point x_i2 is on this line if x_i2^T @ i2Ei1 @ x_i1 = 0.
+    The epipolar line in image i2 is given by i2Fi1 @ x_i1. A point x_i2 is on this line if x_i2^T @ i2Fi1 @ x_i1 = 0.
 
     Args:
         normalized_coordinates_i1: normalized coordinates in i1, of shape Nx2.
@@ -92,14 +85,14 @@ def convert_to_epipolar_lines(coordinates_i1: np.ndarray, i2Fi1: np.ndarray) -> 
         return None
 
     epipolar_lines = convert_to_homogenous_coordinates(coordinates_i1) @ i2Fi1.T
-    norms = np.linalg.norm(epipolar_lines[:, :2], axis=1, keepdims=True)
-    norms = np.where(norms > 0, norms, 1)
-    normalized_epipolar_lines = epipolar_lines / norms
+    # norms = np.linalg.norm(epipolar_lines[:, :2], axis=1, keepdims=True)
+    # norms = np.where(norms > 0, norms, 1)
+    # normalized_epipolar_lines = epipolar_lines / norms
 
-    return normalized_epipolar_lines
+    return epipolar_lines
 
 
-def compute_point_line_distances(points: np.ndarray, lines: np.ndarray) -> np.ndarray:
+def point_line_dotproduct(points: np.ndarray, lines: np.ndarray) -> np.ndarray:
     """Computes the distance of a point from a line in 2D. The function processed multiple inputs independently in a
     vectorized fashion.
 
@@ -110,6 +103,4 @@ def compute_point_line_distances(points: np.ndarray, lines: np.ndarray) -> np.nd
     Returns:
         Point-line distance for each row, of shape N.
     """
-    line_norms = np.linalg.norm(lines[:, :2], axis=1)
-
-    return np.abs(np.sum(np.multiply(convert_to_homogenous_coordinates(points), lines), axis=1)) / line_norms
+    return np.abs(np.sum(np.multiply(convert_to_homogenous_coordinates(points), lines), axis=1))
