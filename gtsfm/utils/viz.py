@@ -2,17 +2,20 @@
 
 Authors: Ayush Baid
 """
+from gtsfm.common.gtsfm_data import GtsfmData
 from typing import List, Optional, Tuple
 
 import cv2 as cv
 import matplotlib.pyplot as plt
 import numpy as np
-from gtsam import Pose3, SfmData
+from gtsam import Pose3
 from matplotlib.axes._axes import Axes
 
 import gtsfm.utils.images as image_utils
+import gtsfm.utils.geometry_comparisons as comp_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
+
 
 COLOR_RED = (255, 0, 0)
 COLOR_GREEN = (0, 255, 0)
@@ -20,9 +23,8 @@ COLOR_GREEN = (0, 255, 0)
 
 def set_axes_equal(ax: Axes):
     """
-    Make axes of 3D plot have equal scale so that spheres appear as spheres,
-    cubes as cubes, etc..  This is one possible solution to Matplotlib's
-    ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
+    Make axes of 3D plot have equal scale so that spheres appear as spheres, cubes as cubes, etc..  This is one
+    possible solution to Matplotlib's ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
 
     Ref: https://github.com/borglab/gtsam/blob/develop/python/gtsam/utils/plot.py#L13
 
@@ -32,13 +34,7 @@ def set_axes_equal(ax: Axes):
     # get the min and max value for each of (x, y, z) axes as 3x2 matrix.
     # This gives us the bounds of the minimum volume cuboid encapsulating all
     # data.
-    limits = np.array(
-        [
-            ax.get_xlim3d(),
-            ax.get_ylim3d(),
-            ax.get_zlim3d(),
-        ]
-    )
+    limits = np.array([ax.get_xlim3d(), ax.get_ylim3d(), ax.get_zlim3d(),])
 
     # find the centroid of the cuboid
     centroid = np.mean(limits, axis=1)
@@ -53,13 +49,7 @@ def set_axes_equal(ax: Axes):
     ax.set_zlim3d([centroid[2] - radius, centroid[2] + radius])
 
 
-def draw_circle_cv2(
-    image: Image,
-    x: int,
-    y: int,
-    color: Tuple[int, int, int],
-    circle_size: int = 10,
-) -> Image:
+def draw_circle_cv2(image: Image, x: int, y: int, color: Tuple[int, int, int], circle_size: int = 10,) -> Image:
     """Draw a solid circle on the image.
 
     Args:
@@ -72,24 +62,12 @@ def draw_circle_cv2(
         Image: image with the circle drawn on it.
     """
     return Image(
-        cv.circle(
-            image.value_array,
-            center=(x, y),
-            radius=circle_size,
-            color=color,
-            thickness=-1,  # solid circle
-        )
+        cv.circle(image.value_array, center=(x, y), radius=circle_size, color=color, thickness=-1,)  # solid circle
     )
 
 
 def draw_line_cv2(
-    image: Image,
-    x1: int,
-    y1: int,
-    x2: int,
-    y2: int,
-    line_color: Tuple[int, int, int],
-    line_thickness: int = 10,
+    image: Image, x1: int, y1: int, x2: int, y2: int, line_color: Tuple[int, int, int], line_thickness: int = 10,
 ) -> Image:
     """Draw a line on the image from coordinates (x1, y1) to (x2, y2).
 
@@ -105,16 +83,7 @@ def draw_line_cv2(
     Returns:
         Image: image with the line drawn on it.
     """
-    return Image(
-        cv.line(
-            image.value_array,
-            (x1, y1),
-            (x2, y2),
-            line_color,
-            line_thickness,
-            cv.LINE_AA,
-        )
-    )
+    return Image(cv.line(image.value_array, (x1, y1), (x2, y2), line_color, line_thickness, cv.LINE_AA,))
 
 
 def plot_twoview_correspondences(
@@ -135,26 +104,20 @@ def plot_twoview_correspondences(
         kps_i1: keypoints for image_i1.
         kps_i2: keypoints for image_i2.
         corr_idxs_i1i2: indices of correspondences between i1 and i2.
-        inlier_mask (optional): inlier mask for correspondences as boolean
-                                array. Defaults to None.
+        inlier_mask (optional): inlier mask for correspondences as boolean array. Defaults to None.
         dot_color (optional): color for keypoints. Defaults to (0, 0, 0).
-        max_corrs (optional): max number of correspondences to plot. Defaults
-                              to 50.
+        max_corrs (optional): max number of correspondences to plot. Defaults to 50.
 
     Returns:
         image visualizing correspondences between two images.
     """
-    image_i1, image_i2, scale_i1, scale_i2 = image_utils.match_image_widths(
-        image_i1, image_i2
-    )
+    image_i1, image_i2, scale_i1, scale_i2 = image_utils.match_image_widths(image_i1, image_i2)
 
     result = image_utils.vstack_images(image_i1, image_i2)
 
     if max_corrs is not None:
         # subsample matches
-        corr_idxs_i1i2 = corr_idxs_i1i2[
-            np.random.choice(corr_idxs_i1i2.shape[0], max_corrs)
-        ]
+        corr_idxs_i1i2 = corr_idxs_i1i2[np.random.choice(corr_idxs_i1i2.shape[0], max_corrs)]
 
     for corr_idx in range(corr_idxs_i1i2.shape[0]):
         # mark the points in both images as circles, and draw connecting line
@@ -163,15 +126,11 @@ def plot_twoview_correspondences(
         x_i1 = (kps_i1.coordinates[idx_i1, 0] * scale_i1[0]).astype(np.int32)
         y_i1 = (kps_i1.coordinates[idx_i1, 1] * scale_i1[1]).astype(np.int32)
         x_i2 = (kps_i2.coordinates[idx_i2, 0] * scale_i2[0]).astype(np.int32)
-        y_i2 = (kps_i2.coordinates[idx_i2, 1] * scale_i2[1]).astype(
-            np.int32
-        ) + image_i1.height
+        y_i2 = (kps_i2.coordinates[idx_i2, 1] * scale_i2[1]).astype(np.int32) + image_i1.height
 
         # drawing correspondences with optional inlier mask
         if inlier_mask is None:
-            line_color = tuple(
-                [int(c) for c in np.random.randint(0, 255 + 1, 3)]
-            )
+            line_color = tuple([int(c) for c in np.random.randint(0, 255 + 1, 3)])
         elif inlier_mask[corr_idx]:
             line_color = COLOR_GREEN
         else:
@@ -187,29 +146,31 @@ def plot_twoview_correspondences(
     return result
 
 
-def plot_sfm_data_3d(sfm_data: SfmData, ax: Axes) -> None:
+def plot_sfm_data_3d(sfm_data: GtsfmData, ax: Axes, max_plot_radius: float = 50) -> None:
     """Plot the camera poses and landmarks in 3D matplotlib plot.
 
     Args:
         sfm_data: SfmData object with camera and tracks.
         ax: axis to plot on.
+        max_plot_radius: maximum distance threshold away from any camera for which a point
+            will be plotted
     """
-    # extract camera poses
-    camera_poses = []
-    for i in range(sfm_data.number_cameras()):
-        camera_poses.append(sfm_data.camera(i).pose())
-
+    camera_poses = [sfm_data.get_camera(i).pose() for i in sfm_data.get_valid_camera_indices()]
     plot_poses_3d(camera_poses, ax)
 
-    # plot 3D points
-    for j in range(sfm_data.number_tracks()):
-        landmark = sfm_data.track(j).point3()
+    num_tracks = sfm_data.number_tracks()
+    # Restrict 3d points to some radius of camera poses
+    points_3d = np.array([list(sfm_data.get_track(j).point3()) for j in range(num_tracks)])
 
+    nearby_points_3d = comp_utils.get_points_within_radius_of_cameras(camera_poses, points_3d, max_plot_radius)
+
+    # plot 3D points
+    for landmark in nearby_points_3d:
         ax.plot(landmark[0], landmark[1], landmark[2], "g.", markersize=1)
 
 
 def plot_poses_3d(
-    wTi_list: List[Pose3], ax: Axes, center_marker_color: str = "k"
+    wTi_list: List[Pose3], ax: Axes, center_marker_color: str = "k", label_name: Optional[str] = None
 ) -> None:
     """Plot poses in 3D as dots for centers and lines denoting the orthonormal
     coordinate system for each camera.
@@ -219,15 +180,19 @@ def plot_poses_3d(
     Args:
         wTi_list: list of poses to plot.
         ax: axis to plot on.
-        center_marker_color (optional): color for camera center marker.
-                                        Defaults to "k".
+        center_marker_color (optional): color for camera center marker. Defaults to "k".
+        name:
     """
     spec = "{}.".format(center_marker_color)
 
-    for wTi in wTi_list:
+    for i, wTi in enumerate(wTi_list):
         x, y, z = wTi.translation().squeeze()
 
-        ax.plot(x, y, z, spec, markersize=10)
+        if i > 0:
+            # for the first loop iteration, add the label to the plot
+            # for the rest of iterations, set label to None (otherwise would be duplicated in legend)
+            label_name = None
+        ax.plot(x, y, z, spec, markersize=10, label=label_name)
 
         R = wTi.rotation().matrix()
 
@@ -242,9 +207,7 @@ def plot_poses_3d(
         ax.plot3D([x, x + v3[0]], [y, y + v3[1]], [z, z + v3[2]], c="b")
 
 
-def plot_and_compare_poses_3d(
-    wTi_list: List[Pose3], wTi_list_: List[Pose3]
-) -> None:
+def plot_and_compare_poses_3d(wTi_list: List[Pose3], wTi_list_: List[Pose3]) -> None:
     """Plots two sets poses in 3D with different markers to compare.
 
     The markers are colored black (k) and cyan (c) for the two lists.

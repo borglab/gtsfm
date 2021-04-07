@@ -12,7 +12,7 @@ ASSETS_ROOT = Path(__file__).resolve().parent.parent.parent / "assets"
 DEFAULT_SENSOR_DB_PATH = ASSETS_ROOT / "camera_details" / "sensor_database.csv"
 
 
-class SensorWidthDatabase():
+class SensorWidthDatabase:
     """Database class for sensor-width, reading data from a csv file."""
 
     def __init__(self, csv_path: str = DEFAULT_SENSOR_DB_PATH):
@@ -21,8 +21,8 @@ class SensorWidthDatabase():
         self.df = pd.read_csv(csv_path)
 
         # convert string to lower-case
-        self.df['CameraMaker'] = self.df['CameraMaker'].str.lower()
-        self.df['CameraModel'] = self.df['CameraModel'].str.lower()
+        self.df["CameraMaker"] = self.df["CameraMaker"].str.lower()
+        self.df["CameraModel"] = self.df["CameraModel"].str.lower()
 
     def lookup(self, make: str, model: str) -> float:
         """Look-up the sensor width given the camera make and model.
@@ -39,7 +39,6 @@ class SensorWidthDatabase():
         make = make.split()[0].lower()
         model = model.lower()
 
-        selection_condition = (self.df['CameraMaker'] == make) & (
-            self.df['CameraModel'] == model)
+        selection_condition = (self.df["CameraMaker"] == make) & (self.df["CameraModel"] == model)
 
-        return self.df.loc[selection_condition, 'SensorWidth(mm)'].values[0]
+        return self.df.loc[selection_condition, "SensorWidth(mm)"].values[0]

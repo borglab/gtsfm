@@ -4,7 +4,6 @@ Authors: Ayush Baid
 """
 import abc
 from enum import Enum
-from typing import Dict, List, Tuple
 
 import dask
 import numpy as np
@@ -42,13 +41,11 @@ class MatcherBase(metaclass=abc.ABCMeta):
         Args:
             descriptors_im1: descriptors from image #1, of shape (N1, D).
             descriptors_im2: descriptors from image #2, of shape (N2, D).
-            distance_type (optional): the space to compute the distance between
-                                      descriptors. Defaults to
+            distance_type (optional): the space to compute the distance between descriptors. Defaults to
                                       MatchingDistanceType.EUCLIDEAN.
 
         Returns:
-            Match indices (sorted by confidence), as matrix of shape
-                (N, 2), where N < min(N1, N2).
+            Match indices (sorted by confidence), as matrix of shape (N, 2), where N < min(N1, N2).
         """
         # TODO(ayush): should I define matcher on descriptors or the distance matrices.
         # TODO(ayush): how to handle deep-matchers which might require the full image as input
@@ -65,13 +62,10 @@ class MatcherBase(metaclass=abc.ABCMeta):
         Args:
             descriptors_im1_graph: descriptors for im1 wrapped in Delayed.
             descriptors_im2_graph: descriptors for im2 wrapped in Delayed.
-            distance_type (optional): the space to compute the distance between
-                                      descriptors. Defaults to
+            distance_type (optional): the space to compute the distance between descriptors. Defaults to
                                       MatchingDistanceType.EUCLIDEAN.
 
         Returns:
             Delayed dask tasks for matching for input camera pairs.
         """
-        return dask.delayed(self.match)(
-            descriptors_im1_graph, descriptors_im2_graph, distance_type
-        )
+        return dask.delayed(self.match)(descriptors_im1_graph, descriptors_im2_graph, distance_type)

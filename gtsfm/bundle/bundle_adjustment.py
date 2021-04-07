@@ -2,10 +2,6 @@
 
 Authors: Xiaolong Wu, John Lambert, Ayush Baid
 """
-
-import logging
-import sys
-
 import dask
 from dask.delayed import Delayed
 from gtsam import (
@@ -23,6 +19,8 @@ from gtsam import (
 )
 from gtsam.noiseModel import Isotropic
 
+import gtsfm.utils.logger as logger_utils
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.sfm_result import SfmResult
 
 # TODO: any way this goes away?
@@ -35,13 +33,14 @@ CAM_CAL3BUNDLER_DOF = 3  # 3 dof for f, k1, k2 for intrinsics of camera
 IMG_MEASUREMENT_DIM = 2  # 2d measurements (u,v) have 2 dof
 POINT3_DOF = 3  # 3d points have 3 dof
 
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+logger = logger_utils.get_logger()
 
 
 class BundleAdjustmentOptimizer:
     """Bundle adjustment using factor-graphs in GTSAM.
 
-    This class refines global pose estimates and intrinsics of cameras, and also refines 3D point cloud structure given tracks from triangulation."""
+    This class refines global pose estimates and intrinsics of cameras, and also refines 3D point cloud structure given
+    tracks from triangulation."""
 
     def __init__(self, shared_calib: bool = False):
         """Initializes the parameters for bundle adjustment module.
@@ -133,7 +132,7 @@ class BundleAdjustmentOptimizer:
         # add initial value for 3d point
         initial_values.insert(P(track_idx), track.point3())
 
-    def run(self, initial_data: SfmData) -> SfmResult:
+    def run(self, initial_data: GtsfmData) -> SfmResult:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
 
         Args:
@@ -142,8 +141,8 @@ class BundleAdjustmentOptimizer:
         Results:
             optimized camera poses, 3D point w/ tracks, and error metrics.
         """
-        logging.info(
-            f"Input: {initial_data.number_tracks()} tracks on {initial_data.number_cameras()} cameras\n"
+        logger.info(
+            f"Input: {initial_data.number_tracks()} tracks on {len(initial_data.get_valid_camera_indices())} cameras\n"
         )
 
         # noise model for measurements -- one pixel in u and v
@@ -160,14 +159,14 @@ class BundleAdjustmentOptimizer:
             self.__add_measurement_factors_and_initial_values(
                 graph,
                 initial_values,
-                initial_data.track(j),
+                initial_data.get_track(j),
                 j,
                 measurement_noise,
             )
 
         # add prior on all camera poses
         for i in range(initial_data.number_cameras()):
-            initialized_cam = initial_data.camera(i)
+            initialized_cam = initial_data.get_camera(i)
 
             self.__add_camera_prior_and_initial_value(
                 graph, initial_values, initialized_cam, i
@@ -179,20 +178,21 @@ class BundleAdjustmentOptimizer:
             params.setVerbosityLM("ERROR")
             lm = LevenbergMarquardtOptimizer(graph, initial_values, params)
             result_values = lm.optimize()
-        except RuntimeError:
-            logging.exception("LM Optimization failed")
-            return
+        except Exception:
+            logger.exception("LM Optimization failed")
+            # as we did not perform the bundle adjustment, we skip computing the total reprojection error
+            return SfmResult(GtsfmData(initial_data.number_images()), total_reproj_error=float("Nan"))
 
         initial_error = graph.error(initial_values)
         final_error = graph.error(result_values)
 
         # Error drops from ~2764.22 to ~0.046
-        logging.info(f"initial error: {initial_error:.2f}")
-        logging.info(f"final error: {final_error:.2f}")
+        logger.info(f"initial error: {graph.error(initial):.2f}")
+        logger.info(f"final error: {final_error:.2f}")
 
         # construct the results
-        optimized_data = self.__values_to_sfm_data(result_values, initial_data)
-        sfm_result = SfmResult(optimized_data, final_error)
+        optimized_data = values_to_gtsfm_data(result_values, initial_data)
+        sfm_result = SfmResult(optimized_data, total_reproj_error=final_error)
 
         return sfm_result
 
@@ -200,46 +200,36 @@ class BundleAdjustmentOptimizer:
         """Create the computation graph for performing bundle adjustment.
 
         Args:
-            sfm_data_graph: an SfmData object wrapped up using dask.delayed
+            sfm_data_graph: an GtsfmData object wrapped up using dask.delayed
 
         Returns:
             SfmResult wrapped up using dask.delayed
         """
         return dask.delayed(self.run)(sfm_data_graph)
 
-    def __values_to_sfm_data(
-        self, values: Values, initial_data: SfmData
-    ) -> SfmData:
-        """Cast results from the optimization to SfmData object.
+def values_to_gtsfm_data(values: Values, initial_data: GtsfmData) -> GtsfmData:
+    """Cast results from the optimization to GtsfmData object.
 
-        Args:
-            values: results of factor graph optimization.
-            initial_data: data used to generate the factor graph; used to
-                          extract information about poses and 3d points in the
-                          graph.
+    Args:
+        values: results of factor graph optimization.
+        initial_data: data used to generate the factor graph; used to extract information about poses and 3d points in
+                      the graph.
 
-        Returns:
-            optimized poses and landmarks.
-        """
-        result = SfmData()
+    Returns:
+        optimized poses and landmarks.
+    """
+    result = GtsfmData(initial_data.number_images())
 
-        # add cameras
-        for i in range(initial_data.number_cameras()):
-            result.add_camera(
-                PinholeCameraCal3Bundler(
-                    values.atPose3(X(i)),
-                    values.atCal3Bundler(K(0 if self._shared_calib else i)),
-                )
-            )
+    # add cameras
+    for i in initial_data.get_valid_camera_indices():
+        result.add_camera(i, values.atPinholeCameraCal3Bundler(C(i)))
 
-        # add tracks
-        for j in range(initial_data.number_tracks()):
-            input_track = initial_data.track(j)
+    # add tracks
+    for j in range(initial_data.number_tracks()):
+        input_track = initial_data.get_track(j)
 
-            # populate the result with optimized 3D point
-            result_track = SfmTrack(
-                values.atPoint3(P(j)),
-            )
+        # populate the result with optimized 3D point
+        result_track = SfmTrack(values.atPoint3(P(j)),)
 
             for measurement_idx in range(input_track.number_measurements()):
                 i, uv = input_track.measurement(measurement_idx)

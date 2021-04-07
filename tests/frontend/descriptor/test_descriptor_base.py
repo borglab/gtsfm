@@ -11,7 +11,7 @@ import numpy as np
 
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.descriptor.dummy_descriptor import DummyDescriptor
-from gtsfm.loader.folder_loader import FolderLoader
+from gtsfm.loader.olsson_loader import OlssonLoader
 
 # defining the path for test data
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent.parent / "data"
@@ -26,7 +26,7 @@ class TestDescriptorBase(unittest.TestCase):
 
     def setUp(self):
         self.descriptor = DummyDescriptor()
-        self.loader = FolderLoader(str(TEST_DATA_PATH), image_extension="JPG")
+        self.loader = OlssonLoader(str(TEST_DATA_PATH), image_extension="JPG")
 
     def test_result_size(self):
         """Check if the number of descriptors are same as number of features."""
@@ -71,15 +71,14 @@ class TestDescriptorBase(unittest.TestCase):
             )
 
             descriptor_graph = self.descriptor.create_computation_graph(
-                dask.delayed(test_image), dask.delayed(test_keypoints),
+                dask.delayed(test_image),
+                dask.delayed(test_keypoints),
             )
 
             with dask.config.set(scheduler="single-threaded"):
                 descriptors = dask.compute(descriptor_graph)[0]
 
-            expected_descriptors = self.descriptor.describe(
-                test_image, test_keypoints
-            )
+            expected_descriptors = self.descriptor.describe(test_image, test_keypoints)
 
             np.testing.assert_allclose(descriptors, expected_descriptors)
 

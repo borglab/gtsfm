@@ -9,7 +9,6 @@ pose problem. TPAMI, 2004.
 Authors: John Lambert
 """
 
-import logging
 from typing import Optional, Tuple
 
 import cv2
@@ -17,30 +16,17 @@ import numpy as np
 from gtsam import Cal3Bundler, Rot3, Unit3
 
 import gtsfm.utils.features as feature_utils
+import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.verification as verification_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
 # minimum matches required for computing the E-matrix
 NUM_MATCHES_REQ_E_MATRIX = 5
-NORMALIZED_COORD_RANSAC_THRESH = 0.001 # TODO: hyperparameter to tune
+NORMALIZED_COORD_RANSAC_THRESH = 0.001  # TODO: hyperparameter to tune
 DEFAULT_RANSAC_SUCCESS_PROB = 0.999
 
-
-def get_logger():
-    """
-    """
-    logger_name = "main-logger"
-    logger = logging.getLogger(logger_name)
-    logger.setLevel(logging.INFO)
-    if not logger.handlers:
-        handler = logging.StreamHandler()
-        fmt = "[%(asctime)s %(levelname)s %(filename)s line %(lineno)d %(process)d] %(message)s"
-        handler.setFormatter(logging.Formatter(fmt))
-        logger.addHandler(handler)
-    return logger
-
-logger = get_logger()
+logger = logger_utils.get_logger()
 
 
 class Ransac(VerifierBase):
@@ -70,7 +56,8 @@ class Ransac(VerifierBase):
             camera_intrinsics_i2: intrinsics for image #i2.
 
         Returns:
-            Estimated essential matrix i2Ei1, or None if it cannot be estimated.
+            Estimated rotation i2Ri1, or None if it cannot be estimated.
+            Estimated unit translation i2Ui1, or None if it cannot be estimated.
             Indices of verified correspondences, of shape (N, 2) with N <= N3.
                 These indices are subset of match_indices.
         """
@@ -78,19 +65,11 @@ class Ransac(VerifierBase):
 
         # check if we don't have the minimum number of points
         if match_indices.shape[0] < self.min_pts:
-            logger.info(
-                "No match indices were provided to the verifier, returning early with None output"
-            )
+            logger.info("No match indices were provided to the verifier, returning early with None output")
             return None, None, verified_indices
 
-        uv_norm_i1 = feature_utils.normalize_coordinates(
-            keypoints_i1.coordinates,
-            camera_intrinsics_i1
-        )
-        uv_norm_i2 = feature_utils.normalize_coordinates(
-            keypoints_i2.coordinates,
-            camera_intrinsics_i2
-        )
+        uv_norm_i1 = feature_utils.normalize_coordinates(keypoints_i1.coordinates, camera_intrinsics_i1)
+        uv_norm_i2 = feature_utils.normalize_coordinates(keypoints_i2.coordinates, camera_intrinsics_i2)
         K = np.eye(3)
 
         i2Ei1, inlier_mask = cv2.findEssentialMat(
@@ -99,21 +78,19 @@ class Ransac(VerifierBase):
             K,
             method=cv2.RANSAC,
             threshold=NORMALIZED_COORD_RANSAC_THRESH,
-            prob=DEFAULT_RANSAC_SUCCESS_PROB
+            prob=DEFAULT_RANSAC_SUCCESS_PROB,
         )
         inlier_idxs = np.where(inlier_mask.ravel() == 1)[0]
 
-        i2Ri1, i2Ui1 = \
-            verification_utils.recover_relative_pose_from_essential_matrix(
-                i2Ei1,
-                keypoints_i1.coordinates[match_indices[inlier_idxs, 0]],
-                keypoints_i2.coordinates[match_indices[inlier_idxs, 1]],
-                camera_intrinsics_i1,
-                camera_intrinsics_i2
-            )
+        (i2Ri1, i2Ui1,) = verification_utils.recover_relative_pose_from_essential_matrix(
+            i2Ei1,
+            keypoints_i1.coordinates[match_indices[inlier_idxs, 0]],
+            keypoints_i2.coordinates[match_indices[inlier_idxs, 1]],
+            camera_intrinsics_i1,
+            camera_intrinsics_i2,
+        )
 
         return i2Ri1, i2Ui1, match_indices[inlier_idxs]
-
 
     def verify_with_approximate_intrinsics(
         self,
@@ -138,7 +115,8 @@ class Ransac(VerifierBase):
             camera_intrinsics_i2: intrinsics for image #i2.
 
         Returns:
-            Estimated essential matrix i2Ei1, or None if it cannot be estimated.
+            Estimated rotation i2Ri1, or None if it cannot be estimated.
+            Estimated unit translation i2Ui1, or None if it cannot be estimated.
             Indices of verified correspondences, of shape (N, 2) with N <= N3.
                 These indices are subset of match_indices.
         """

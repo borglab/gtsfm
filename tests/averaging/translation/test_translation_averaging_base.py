@@ -18,8 +18,7 @@ from gtsfm.averaging.translation.dummy_translation_averaging import (
 class TestTranslationAveragingBase(unittest.TestCase):
     """Main tests for translation averaging base class.
 
-    This class should be inherited by all unit tests for translation averaging
-    implementations.
+    This class should be inherited by all unit tests for translation averaging implementations.
     """
 
     def setUp(self):
@@ -28,8 +27,7 @@ class TestTranslationAveragingBase(unittest.TestCase):
         self.obj = DummyTranslationAveraging()
 
     def test_computation_graph(self):
-        """Test the dask computation graph execution using a valid collection
-        of relative unit-translations."""
+        """Test the dask computation graph execution using a valid collection of relative unit-translations."""
 
         """Test a simple case with 8 camera poses.
 
@@ -51,39 +49,25 @@ class TestTranslationAveragingBase(unittest.TestCase):
         for i1 in range(len(expected_wTi_list) - 1):
             for i2 in range(i1 + 1, min(len(expected_wTi_list), i1 + 3)):
                 # create relative translations using global R and T.
-                i2Ui1_dict[(i1, i2)] = Unit3(
-                    expected_wTi_list[i2]
-                    .between(expected_wTi_list[i1])
-                    .translation()
-                )
+                i2Ui1_dict[(i1, i2)] = Unit3(expected_wTi_list[i2].between(expected_wTi_list[i1]).translation())
 
         # use the `run` API to get expected results
         expected_wti_list = self.obj.run(len(wRi_list), i2Ui1_dict, wRi_list)
         expected_wTi_list = [
-            Pose3(wRi, wti) if wti is not None else None
-            for (wRi, wti) in zip(wRi_list, expected_wti_list)
+            Pose3(wRi, wti) if wti is not None else None for (wRi, wti) in zip(wRi_list, expected_wti_list)
         ]
 
         # form computation graph and execute
         i2Ui1_graph = dask.delayed(i2Ui1_dict)
         wRi_graph = dask.delayed(wRi_list)
-        computation_graph = self.obj.create_computation_graph(
-            len(wRi_list), i2Ui1_graph, wRi_graph
-        )
+        computation_graph = self.obj.create_computation_graph(len(wRi_list), i2Ui1_graph, wRi_graph)
         with dask.config.set(scheduler="single-threaded"):
             wti_list = dask.compute(computation_graph)[0]
 
-        wTi_list = [
-            Pose3(wRi, wti) if wti is not None else None
-            for (wRi, wti) in zip(wRi_list, wti_list)
-        ]
+        wTi_list = [Pose3(wRi, wti) if wti is not None else None for (wRi, wti) in zip(wRi_list, wti_list)]
 
         # compare the entries
-        self.assertTrue(
-            geometry_comparisons.compare_global_poses(
-                wTi_list, expected_wTi_list
-            )
-        )
+        self.assertTrue(geometry_comparisons.compare_global_poses(wTi_list, expected_wTi_list))
 
     def test_pickleable(self):
         """Tests that the object is pickleable (required for dask)."""

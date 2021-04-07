@@ -5,13 +5,13 @@ Authors: Ayush Baid
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.detector.detector_base import DetectorBase
-from gtsfm.frontend.detector_descriptor.detector_descriptor_base import \
-    DetectorDescriptorBase
+from gtsfm.frontend.detector_descriptor.detector_descriptor_base import (
+    DetectorDescriptorBase,
+)
 
 
 class DetectorFromDetectorDescriptor(DetectorBase):
-    """A wrapper class to expose the Detector component of a
-    DetectorDescriptor. 
+    """A wrapper class to expose the Detector component of a DetectorDescriptor.
 
     Performs the joint detection and description but returns only the keypoints.
     """

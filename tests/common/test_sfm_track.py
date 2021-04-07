@@ -60,9 +60,8 @@ def get_dummy_keypoints_list() -> List[Keypoints]:
 
 
 def get_dummy_matches() -> Dict[Tuple[int, int], np.ndarray]:
-    """Set up correspondences for each (i1,i2) pair.
-    There should be 4 tracks, since we get one chained track
-    as (i=0, k=0) -> (i=1, k=2) -> (i=2,k=3)
+    """Set up correspondences for each (i1,i2) pair. There should be 4 tracks, since we get one chained track as
+    (i=0, k=0) -> (i=1, k=2) -> (i=2,k=3).
     """
     dummy_matches_dict = {
         (0, 1): np.array([[0, 2]]),
@@ -74,8 +73,7 @@ def get_dummy_matches() -> Dict[Tuple[int, int], np.ndarray]:
 
 class TestSfmTrack2d(GtsamTestCase):
     def test_eq_check_with_same_measurements(self) -> None:
-        """Tests the __eq__ function with the same set of measurements but with
-        different ordering."""
+        """Tests the __eq__ function with the same set of measurements but with different ordering."""
 
         # construct two tracks with different ordering of measurements
         track_1 = SfmTrack2d(SAMPLE_MEASUREMENTS)
@@ -91,9 +89,7 @@ class TestSfmTrack2d(GtsamTestCase):
         self.assertEqual(track_1, track_2)
 
     def test_eq_check_with_missing_measurements(self) -> None:
-        """Tests the __eq__ function with one track having subset of
-        measurements of the other.
-        """
+        """Tests the __eq__ function with one track having subset of measurements of the other."""
 
         track_1 = SfmTrack2d(SAMPLE_MEASUREMENTS)
         # dropping the last measurement
@@ -103,17 +99,12 @@ class TestSfmTrack2d(GtsamTestCase):
         self.assertNotEqual(track_2, track_1)
 
     def test_eq_check_with_different_measurements(self) -> None:
-        """Tests the __eq__ function with one measurement having different value
-        of the 2d point.
-        """
+        """Tests the __eq__ function with one measurement having different value of the 2d point."""
 
         track_1 = SfmTrack2d(SAMPLE_MEASUREMENTS)
         # changing the value of the last measurement
         old_measurement = SAMPLE_MEASUREMENTS[-1]
-        track_2 = SfmTrack2d(
-            SAMPLE_MEASUREMENTS[:3]
-            + [SfmMeasurement(old_measurement.i, np.random.rand(2))]
-        )
+        track_2 = SfmTrack2d(SAMPLE_MEASUREMENTS[:3] + [SfmMeasurement(old_measurement.i, np.random.rand(2))])
 
         self.assertNotEqual(track_1, track_2)
         self.assertNotEqual(track_2, track_1)
@@ -123,18 +114,15 @@ class TestSfmTrack2d(GtsamTestCase):
         dummy_keypoints_list = get_dummy_keypoints_list()
         dummy_matches_dict = get_dummy_matches()
 
-        tracks = SfmTrack2d.generate_tracks_from_pairwise_matches(
-            dummy_matches_dict, dummy_keypoints_list
-        )
+        tracks = SfmTrack2d.generate_tracks_from_pairwise_matches(dummy_matches_dict, dummy_keypoints_list)
         # len(track) value for toy case strictly
         self.assertEqual(len(tracks), 4, "tracks incorrectly mapped")
 
     def test_generate_tracks_from_pairwise_matches_with_duplicates(
         self,
     ) -> None:
-        """
-        Tests that the tracks are being filtered correctly.
-        Removes tracks that have two measurements in a single image.
+        """Tests that the tracks are being filtered correctly. Removes tracks that have two measurements in a single
+        image.
         """
         dummy_keypoints_list = get_dummy_keypoints_list()
 
@@ -144,9 +132,7 @@ class TestSfmTrack2d(GtsamTestCase):
         # add erroneous correspondence
         malformed_matches_dict[(1, 1)] = np.array([[0, 3]])
 
-        tracks = SfmTrack2d.generate_tracks_from_pairwise_matches(
-            malformed_matches_dict, dummy_keypoints_list
-        )
+        tracks = SfmTrack2d.generate_tracks_from_pairwise_matches(malformed_matches_dict, dummy_keypoints_list)
 
         # check that the length of the observation list corresponding to each key
         # is the same. Only good tracks will remain

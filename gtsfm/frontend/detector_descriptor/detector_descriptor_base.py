@@ -15,8 +15,7 @@ from gtsfm.common.keypoints import Keypoints
 
 
 class DetectorDescriptorBase(metaclass=abc.ABCMeta):
-    """Base class for all methods which provide a joint detector-descriptor to
-    work on an image.
+    """Base class for all methods which provide a joint detector-descriptor to work on an image.
 
     This class serves as a combination of individual detector and descriptor.
     """
@@ -25,8 +24,7 @@ class DetectorDescriptorBase(metaclass=abc.ABCMeta):
         """Initialize the detector-descriptor.
 
         Args:
-            max_keypoints: Maximum number of keypoints to detect. Defaults to
-                           5000.
+            max_keypoints: Maximum number of keypoints to detect. Defaults to 5000.
         """
         self.max_keypoints = max_keypoints
 
@@ -41,14 +39,11 @@ class DetectorDescriptorBase(metaclass=abc.ABCMeta):
             image: the input image.
 
         Returns:
-            detected keypoints, with length N <= max_keypoints.
-            corr. descriptors, of shape (N, D) where D is the dimension of each
-            descriptor.
+            Detected keypoints, with length N <= max_keypoints.
+            Corr. descriptors, of shape (N, D) where D is the dimension of each descriptor.
         """
 
-    def create_computation_graph(
-        self, image_graph: Delayed
-    ) -> Tuple[Delayed, Delayed]:
+    def create_computation_graph(self, image_graph: Delayed) -> Tuple[Delayed, Delayed]:
         """
         Generates the computation graph for detections and their descriptors.
 

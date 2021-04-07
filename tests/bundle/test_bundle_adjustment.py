@@ -9,10 +9,12 @@ import dask
 import gtsam
 import numpy as np
 
+import gtsfm.utils.io as io_utils
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
+from gtsfm.common.gtsfm_data import GtsfmData
 
 GTSAM_EXAMPLE_FILE = "dubrovnik-3-7-pre"
-EXAMPLE_DATA = gtsam.readBal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
+EXAMPLE_DATA = io_utils.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
 
 
 class TestBundleAdjustmentOptimizer(unittest.TestCase):
@@ -30,30 +32,18 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
 
         computed_result = test_obj.run(EXAMPLE_DATA)
 
-        (
-            mean_track_length,
-            median_track_length,
-        ) = computed_result.get_track_length_statistics()
+        (mean_track_length, median_track_length,) = computed_result.get_track_length_statistics()
 
         np.testing.assert_allclose(
-            expected_error,
-            computed_result.total_reproj_error,
-            atol=1e-2,
-            rtol=1e-2,
+            expected_error, computed_result.total_reproj_error, atol=1e-2, rtol=1e-2,
         )
 
         np.testing.assert_allclose(
-            mean_track_length,
-            expected_mean_track_length,
-            atol=1e-2,
-            rtol=1e-2,
+            mean_track_length, expected_mean_track_length, atol=1e-2, rtol=1e-2,
         )
 
         np.testing.assert_allclose(
-            median_track_length,
-            expected_median_track_length,
-            atol=1e-2,
-            rtol=1e-2,
+            median_track_length, expected_median_track_length, atol=1e-2, rtol=1e-2,
         )
 
     def test_simple_scene_with_shared_calibration(self):
@@ -70,30 +60,18 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         test_obj = BundleAdjustmentOptimizer(shared_calib=True)
 
         computed_result = test_obj.run(EXAMPLE_DATA)
-        (
-            mean_track_length,
-            median_track_length,
-        ) = computed_result.get_track_length_statistics()
+        (mean_track_length, median_track_length,) = computed_result.get_track_length_statistics()
 
         np.testing.assert_allclose(
-            expected_error,
-            computed_result.total_reproj_error,
-            atol=1e-2,
-            rtol=1e-2,
+            expected_error, computed_result.total_reproj_error, atol=1e-2, rtol=1e-2,
         )
 
         np.testing.assert_allclose(
-            mean_track_length,
-            expected_mean_track_length,
-            atol=1e-2,
-            rtol=1e-2,
+            mean_track_length, expected_mean_track_length, atol=1e-2, rtol=1e-2,
         )
 
         np.testing.assert_allclose(
-            median_track_length,
-            expected_median_track_length,
-            atol=1e-2,
-            rtol=1e-2,
+            median_track_length, expected_median_track_length, atol=1e-2, rtol=1e-2,
         )
 
     def test_create_computation_graph(self):
@@ -104,9 +82,7 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
 
         expected_result = test_obj.run(EXAMPLE_DATA)
 
-        computed_result = test_obj.create_computation_graph(
-            dask.delayed(sfm_data_graph)
-        )
+        computed_result = test_obj.create_computation_graph(dask.delayed(sfm_data_graph))
 
         with dask.config.set(scheduler="single-threaded"):
             result = dask.compute(computed_result)[0]

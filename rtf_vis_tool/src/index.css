@@ -1,0 +1,4 @@
+/* sets a standard font for all text in the React application*/
+body { 
+  font-family: 'Segoe UI';
+}
