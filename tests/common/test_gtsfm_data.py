@@ -8,7 +8,7 @@ import unittest.mock as mock
 
 import gtsam
 import numpy as np
-from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, SfmTrack
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, SfmData, SfmTrack
 
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.io as io_utils
@@ -16,6 +16,8 @@ from gtsfm.common.gtsfm_data import GtsfmData
 
 GTSAM_EXAMPLE_FILE = "dubrovnik-3-7-pre"  # example data with 3 cams and 7 tracks
 EXAMPLE_DATA = io_utils.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
+
+NULL_DATA = SfmData()
 
 # create example with non-consecutive cams
 EXAMPLE_WITH_NON_CONSECUTIVE_CAMS = GtsfmData(number_images=5)
@@ -30,12 +32,24 @@ class TestGtsfmData(unittest.TestCase):
     """Unit tests for GtsfmData."""
 
     def test_equality_with_same_data(self):
-        """Test equality with the same data."""
+        """Test equality with the same data (same value but not same object)"""
         self.assertEqual(EXAMPLE_DATA, copy.deepcopy(EXAMPLE_DATA))
 
     def test_equality_with_different_object(self):
         """Test equality with different data."""
         self.assertNotEqual(EXAMPLE_DATA, EXAMPLE_WITH_NON_CONSECUTIVE_CAMS)
+
+    def testEqualsWithDifferentObject(self):
+        """Test the equality function with different object, expecting false result."""
+        other_example_file = "dubrovnik-1-1-pre.txt"
+        other_data = io_utils.read_bal(gtsam.findExampleDataFile(other_example_file))
+        
+        self.assertNotEqual(EXAMPLE_DATA, other_data)
+
+    def testEqualsWithNullObject(self):
+        """Tests equality of null object with itself and other valid object."""
+        self.assertEqual(NULL_DATA, NULL_DATA)
+        self.assertNotEqual(NULL_DATA, EXAMPLE_DATA)
 
     def test_number_images(self):
         """Test for total number of images."""
@@ -188,6 +202,27 @@ class TestGtsfmData(unittest.TestCase):
         # check the exact track
         computed_track = largest_component_data.get_track(0)
         self.assertTrue(computed_track.equals(track_2, EQUALITY_TOLERANCE))
+
+    def test_filter_landmarks(self):
+        """Tests filtering of SfmData based on reprojection error."""
+        max_reproj_error = 15
+
+        VALID_TRACK_INDICES = [0, 1, 5]
+
+        # construct expected data w/ tracks with reprojection errors below the
+        # threshold
+        expected_data = GtsfmData(EXAMPLE_DATA.number_images())
+        for i in EXAMPLE_DATA.get_valid_camera_indices():
+            expected_data.add_camera(i, EXAMPLE_DATA.get_camera(i))
+
+        for j in VALID_TRACK_INDICES:
+            expected_data.add_track(EXAMPLE_DATA.get_track(j))
+
+        # run the fn under test
+        filtered_sfm_data = EXAMPLE_DATA.filter_landmarks(max_reproj_error)
+
+        # compare the SfmData objects
+        self.assertEqual(filtered_sfm_data, expected_data)
 
 
 if __name__ == "__main__":

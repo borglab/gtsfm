@@ -27,7 +27,8 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         expected_mean_track_length = 2.7142857142857144
         expected_median_track_length = 3.0
 
-        test_obj = BundleAdjustmentOptimizer(shared_calib=False)
+        output_reproj_error_thresh = 100
+        test_obj = BundleAdjustmentOptimizer(output_reproj_error_thresh, shared_calib=False)
 
         computed_result = test_obj.run(EXAMPLE_DATA)
 
@@ -55,7 +56,8 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         expected_mean_track_length = 2.7142857142857144
         expected_median_track_length = 3.0
 
-        test_obj = BundleAdjustmentOptimizer(shared_calib=True)
+        output_reproj_error_thresh = 100
+        test_obj = BundleAdjustmentOptimizer(output_reproj_error_thresh, shared_calib=True)
 
         computed_result = test_obj.run(EXAMPLE_DATA)
         (mean_track_length, median_track_length,) = computed_result.gtsfm_data.get_track_length_statistics()
