@@ -2,8 +2,6 @@
 
 Authors: Xiaolong Wu, John Lambert, Ayush Baid
 """
-from typing import NamedTuple
-
 import dask
 from dask.delayed import Delayed
 from gtsam import (
@@ -36,7 +34,7 @@ POINT3_DOF = 3  # 3d points have 3 dof
 logger = logger_utils.get_logger()
 
 
-class BundleAdjustmentOptimizer(NamedTuple):
+class BundleAdjustmentOptimizer:
     """Bundle adjustment using factor-graphs in GTSAM.
 
     This class refines global pose estimates and intrinsics of cameras, and also refines 3D point cloud structure given
