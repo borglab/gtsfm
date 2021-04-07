@@ -12,7 +12,6 @@ from gtsam import (
     PinholeCameraCal3Bundler,
     PriorFactorCal3Bundler,
     PriorFactorPose3,
-    SfmData,
     SfmTrack,
     Values,
     symbol_shorthand,
@@ -53,11 +52,7 @@ class BundleAdjustmentOptimizer:
         self._shared_calib = shared_calib
 
     def __add_camera_prior_and_initial_value(
-        self,
-        graph: NonlinearFactorGraph,
-        initial_values: Values,
-        camera: PinholeCameraCal3Bundler,
-        camera_idx: int,
+        self, graph: NonlinearFactorGraph, initial_values: Values, camera: PinholeCameraCal3Bundler, camera_idx: int,
     ) -> None:
         """Add a prior factor in the factor graph and initial values for the
         camera parameters.
@@ -71,13 +66,7 @@ class BundleAdjustmentOptimizer:
         """
 
         # add prior factor for pose
-        graph.push_back(
-            PriorFactorPose3(
-                X(camera_idx),
-                camera.pose(),
-                Isotropic.Sigma(CAM_POSE3_DOF, 0.1),
-            )
-        )
+        graph.push_back(PriorFactorPose3(X(camera_idx), camera.pose(), Isotropic.Sigma(CAM_POSE3_DOF, 0.1),))
 
         # add initial value for pose
         initial_values.insert(X(camera_idx), camera.pose())
@@ -86,11 +75,7 @@ class BundleAdjustmentOptimizer:
         if camera_idx == 0 or not self._shared_calib:
             # add prior factor for calibration
             graph.push_back(
-                PriorFactorCal3Bundler(
-                    K(camera_idx),
-                    camera.calibration(),
-                    Isotropic.Sigma(CAM_CAL3BUNDLER_DOF, 0.1),
-                )
+                PriorFactorCal3Bundler(K(camera_idx), camera.calibration(), Isotropic.Sigma(CAM_CAL3BUNDLER_DOF, 0.1),)
             )
 
             # add initial value for calibration
@@ -121,11 +106,7 @@ class BundleAdjustmentOptimizer:
             i, uv = track.measurement(m_idx)
             graph.add(
                 GeneralSFMFactor2Cal3Bundler(
-                    uv,
-                    measurement_noise,
-                    X(i),
-                    P(track_idx),
-                    K(0 if self._shared_calib else i),
+                    uv, measurement_noise, X(i), P(track_idx), K(0 if self._shared_calib else i),
                 )
             )
 
@@ -157,20 +138,14 @@ class BundleAdjustmentOptimizer:
         # adding factors for measurements and 3D points's initial values
         for j in range(initial_data.number_tracks()):
             self.__add_measurement_factors_and_initial_values(
-                graph,
-                initial_values,
-                initial_data.get_track(j),
-                j,
-                measurement_noise,
+                graph, initial_values, initial_data.get_track(j), j, measurement_noise,
             )
 
         # add prior on all camera poses
-        for i in range(initial_data.number_cameras()):
+        for i in initial_data.get_valid_camera_indices():
             initialized_cam = initial_data.get_camera(i)
 
-            self.__add_camera_prior_and_initial_value(
-                graph, initial_values, initialized_cam, i
-            )
+            self.__add_camera_prior_and_initial_value(graph, initial_values, initialized_cam, i)
 
         # Optimize the graph and print results
         try:
@@ -187,11 +162,11 @@ class BundleAdjustmentOptimizer:
         final_error = graph.error(result_values)
 
         # Error drops from ~2764.22 to ~0.046
-        logger.info(f"initial error: {graph.error(initial):.2f}")
+        logger.info(f"initial error: {initial_error:.2f}")
         logger.info(f"final error: {final_error:.2f}")
 
         # construct the results
-        optimized_data = values_to_gtsfm_data(result_values, initial_data)
+        optimized_data = values_to_gtsfm_data(result_values, initial_data, self._shared_calib)
         sfm_result = SfmResult(optimized_data, total_reproj_error=final_error)
 
         return sfm_result
@@ -207,7 +182,8 @@ class BundleAdjustmentOptimizer:
         """
         return dask.delayed(self.run)(sfm_data_graph)
 
-def values_to_gtsfm_data(values: Values, initial_data: GtsfmData) -> GtsfmData:
+
+def values_to_gtsfm_data(values: Values, initial_data: GtsfmData, shared_calib: bool) -> GtsfmData:
     """Cast results from the optimization to GtsfmData object.
 
     Args:
@@ -222,7 +198,9 @@ def values_to_gtsfm_data(values: Values, initial_data: GtsfmData) -> GtsfmData:
 
     # add cameras
     for i in initial_data.get_valid_camera_indices():
-        result.add_camera(i, values.atPinholeCameraCal3Bundler(C(i)))
+        result.add_camera(
+            i, PinholeCameraCal3Bundler(values.atPose3(X(i)), values.atCal3Bundler(K(0 if shared_calib else i)),)
+        )
 
     # add tracks
     for j in range(initial_data.number_tracks()):
@@ -231,10 +209,10 @@ def values_to_gtsfm_data(values: Values, initial_data: GtsfmData) -> GtsfmData:
         # populate the result with optimized 3D point
         result_track = SfmTrack(values.atPoint3(P(j)),)
 
-            for measurement_idx in range(input_track.number_measurements()):
-                i, uv = input_track.measurement(measurement_idx)
-                result_track.add_measurement(i, uv)
+        for measurement_idx in range(input_track.number_measurements()):
+            i, uv = input_track.measurement(measurement_idx)
+            result_track.add_measurement(i, uv)
 
-            result.add_track(result_track)
+        result.add_track(result_track)
 
-        return result
+    return result
