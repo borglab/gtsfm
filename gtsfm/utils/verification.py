@@ -82,12 +82,8 @@ def essential_to_fundamental_matrix(
 def compute_epipolar_distances_sed(
     coordinates_i1: np.ndarray, coordinates_i2: np.ndarray, i2Fi1: np.ndarray
 ) -> Optional[np.ndarray]:
-    """Compute point-line epipolar distance between corresponding coordinates in two images.
-
-    There are two options to compute the distance:
-    1. The Symmetric Epipolar Distance (SED) is the geometric point-line distance between a coordinate and
-       corresponding epipolar lines. The SED is a biased estimate of the gold-standard reprojection error.
-    2. Sampson distance: it is the first order approximation of the reprojection error.
+    """Compute symmetric point-line epipolar distance between corresponding coordinates in two images. The SED is the
+    geometric point-line distance and is a biased estimate of the gold-standard reprojection error.
 
     References: 
     - "Fathy et al., Fundamental Matrix Estimation: A Study of Error Criteria"
@@ -96,11 +92,9 @@ def compute_epipolar_distances_sed(
         coordinates_i1: coordinates in image i1, of shape Nx2.
         coordinates_i2: corr. coordinates in image i2, of shape Nx2.
         i2Fi1: fundamental matrix between two images.
-        distance_type (optional): type of distance metric to compute. The options are "sed" (symmetric epipolar
-                                  distance) and "sampson". Defaults to "sed".
 
     Returns:
-        Epipolar point-line distances for each row of the input, of shape N.
+        Symmetric epipolar point-line distances for each row of the input, of shape N.
     """
 
     if coordinates_i1 is None or coordinates_i1.size == 0 or coordinates_i2 is None or coordinates_i2.size == 0:
@@ -120,12 +114,8 @@ def compute_epipolar_distances_sed(
 def compute_epipolar_distances_sampson(
     coordinates_i1: np.ndarray, coordinates_i2: np.ndarray, i2Fi1: np.ndarray
 ) -> Optional[np.ndarray]:
-    """Compute point-line epipolar distance between corresponding coordinates in two images.
-
-    There are two options to compute the distance:
-    1. The Symmetric Epipolar Distance (SED) is the geometric point-line distance between a coordinate and
-       corresponding epipolar lines. The SED is a biased estimate of the gold-standard reprojection error.
-    2. Sampson distance: it is the first order approximation of the reprojection error.
+    """Compute the sampson distance between corresponding coordinates in two images. Sampson distance is the first
+    order approximation of the reprojection error.
 
     References: 
     - "Fathy et al., Fundamental Matrix Estimation: A Study of Error Criteria"
@@ -134,11 +124,9 @@ def compute_epipolar_distances_sampson(
         coordinates_i1: coordinates in image i1, of shape Nx2.
         coordinates_i2: corr. coordinates in image i2, of shape Nx2.
         i2Fi1: fundamental matrix between two images.
-        distance_type (optional): type of distance metric to compute. The options are "sed" (symmetric epipolar
-                                  distance) and "sampson". Defaults to "sed".
 
     Returns:
-        Epipolar point-line distances for each row of the input, of shape N.
+        Sampson distance for each row of the input, of shape N.
     """
 
     if coordinates_i1 is None or coordinates_i1.size == 0 or coordinates_i2 is None or coordinates_i2.size == 0:
