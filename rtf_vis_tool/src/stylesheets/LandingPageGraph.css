@@ -1,8 +1,11 @@
-/* Stylings for LandingPageGraph.js Component */
+/* Stylings for LandingPageGraph.js Component 
 
-/*  This container takes up 100% of the screen space.
-    Sets relative positioning so that all nodes inside this primary container can be positioned absolutely 
-   (meaning with percent offsets from the top and left side of the screen).
+Author: Adi Singh
+*/
+
+/*  This container takes up 100% of the screen space. Sets relative positioning so that all nodes
+    inside this primary container can be positioned absolutely (meaning with percent offsets 
+    from the top and left side of the screen).
 */
 .lp_graph_container {
     display: flex;
@@ -12,8 +15,8 @@
     height: 100vh;
 }
 
-/*  Container for  the 'GTSFM Computational Graph Visualizer' header with orange background, black text, and large font.
-    The header has a black border with a width that spans the entire screen.
+/*  Container for  the 'GTSFM Computational Graph Visualizer' header with orange background, black
+    text, and large font. The header has a black border with a width that spans the entire screen.
 */
 .navbar {
     height: 5%;
@@ -28,15 +31,17 @@
     padding-right: 2%;
 }
 
-/*  Gives the 'GTSFM Computational Graph Visualizer' text a large font size and some spacing on the right */
+/*  Gives the 'GTSFM Computational Graph Visualizer' text a large font size and some spacing on the
+    right.
+*/
 .gtsfm_header {
     font-size: 130%;
     margin-right: 10%;
 }
 
-/*  The area which renders all 43 nodes, edges connecting them, and plates. 
-    Makes the area span the entire width and height of the screen up to the tan navbad header.
-    Gives a z-index of 1 so other pop ups can appear on top of it.
+/*  The area which renders all 43 nodes, edges connecting them, and plates. Makes the area span the
+    entire width and height of the screen up to the tan navbad header. Gives a z-index of 1 so 
+    other pop ups can appear on top of it.
 */
 .gtsfm_graph {
     position: relative;
@@ -45,10 +50,9 @@
     z-index: 1;
 }
 
-/*  Styles the 'Scene Optimizer Scenes' Plate
-    Gives a blue, rectangular border around a large majority of the nodes
-    Located in Second Quadrant of Screen
-    Z-index of 1 allows for pop ups to overlay it
+/*  Styles the 'Scene Optimizer Scenes' Plate. Gives a blue, rectangular border around a large 
+    majority of the nodes. Located in Second Quadrant of Screen. Z-index of 1 allows for pop 
+    ups with greater z-index to overlay it.
 */
 .scene_optimizer_plate {
     position: absolute;
@@ -61,10 +65,8 @@
     z-index: 1;
 }
 
-/*  Styles the 'Feature Extractor Images' Plate
-    Gives a blue, rectangular border around 6 nodes
-    Located in Second Quadrant of Screen
-    Z-index of 1 allows for pop ups to overlay it
+/*  Styles the 'Feature Extractor Images' Plate. Gives a blue, rectangular border around 6 nodes.
+    Located in Second Quadrant of Screen. Z-index of 1 allows for pop ups to overlay it.
 */
 .feature_extractor_plate {
     position: absolute;
@@ -77,10 +79,8 @@
     z-index: 1; 
 }
 
-/*  Styles the 'Two View Estimator' Plate
-    Gives a blue, rectangular border around 9 nodes
-    Located in First Quadrant of Screen
-    Z-index of 1 allows for pop ups to overlay it
+/*  Styles the 'Two View Estimator' Plate. Gives a blue, rectangular border around 9 nodes.
+    Located in First Quadrant of Screen. Z-index of 1 allows for pop ups to overlay it.
 */
 .two_view_estimator_plate {
     position: absolute;
@@ -93,16 +93,14 @@
     z-index: 1;
 }
 
-/*  Makes the 'Two View Estimator' Plate have a gray background when hovered over */
+/*  Makes the 'Two View Estimator' Plate have a gray background when hovered over. */
 .two_view_estimator_plate:hover {
     background-color: whitesmoke;
     cursor: pointer;
 }
 
-/*  Styles the 'Sparse Multiview Optimizer' Plate
-    Gives a blue, rectangular border around 3 nodes
-    Located in Third Quadrant of Screen
-    Z-index of 1 allows for pop ups to overlay it
+/*  Styles the 'Sparse Multiview Optimizer' Plate. Gives a blue, rectangular border around 3 nodes
+    Located in Third Quadrant of Screen. Z-index of 1 allows for pop ups to overlay it.
 */
 .sparse_multiview_optimizer_plate {
     position: absolute;
@@ -115,16 +113,14 @@
     z-index: 1;
 }
 
-/*  Makes the 'Sparse Multiview Optimizer' Plate have a gray background when hovered over */
+/*  Makes the 'Sparse Multiview Optimizer' Plate have a gray background when hovered over. */
 .sparse_multiview_optimizer_plate:hover {
     background-color: whitesmoke;
     cursor: pointer;
 }
 
-/*  Styles the 'Averaging' Plate
-    Gives a blue, rectangular border around 7 nodes
-    Located in Fourth Quadrant of Screen
-    Z-index of 1 allows for pop ups to overlay it
+/*  Styles the 'Averaging' Plate. Gives a blue, rectangular border around 7 nodes. Located in 
+    Fourth Quadrant of Screen. Z-index of 1 allows for pop ups to overlay it.
 */
 .averaging_plate {
     position: absolute;
@@ -137,10 +133,8 @@
     z-index: 1;   
 }
 
-/*  Styles the 'Dense Multiview Optimizer' Plate
-    Gives a blue, rectangular border around 4 nodes
-    Located in Third Quadrant of Screen
-    Z-index of 1 allows for pop ups to overlay it
+/*  Styles the 'Dense Multiview Optimizer' Plate. Gives a blue, rectangular border around 4 nodes.
+    Located in Third Quadrant of Screen. Z-index of 1 allows for pop ups to overlay it.
 */
 .dense_multiview_optimizer_plate {
     position: absolute;
@@ -153,7 +147,7 @@
     z-index: 1;
 }
 
-/* Gives each plate title a bold font and red coloring */
+/* Gives each plate title a bold font and red coloring. */
 .plate_title {
     color: red;
     font-weight: bold;

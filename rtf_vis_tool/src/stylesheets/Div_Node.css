@@ -1,10 +1,11 @@
-/*  Gives the DivNode.js component a black curved border with some padding to center the text within it. 
-    Text is centered vertically within the node.
-    Cursor becomes a pointer when hovering over it.
+/* Stylings for DivNode.js Component 
 
-    A Div Node is just a short hand name for any of the 43 nodes within the GTSFM Landing Page Graph. It's called a 
-    "Div Node", primarily because in code, it is a div (a rectangulear container to hold text), while in concept,
-    it serves as a node/vertex in a directed graph.
+Author: Adi Singh
+*/
+
+/*  Gives the DivNode.js component a black curved border with some padding to center the text 
+    within it. Text is centered vertically within the node. Cursor becomes a pointer when 
+    hovering over it.
 */
 .standard_div_node_style {
     align-items: center;

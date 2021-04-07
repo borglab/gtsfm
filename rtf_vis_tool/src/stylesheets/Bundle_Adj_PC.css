@@ -1,8 +1,11 @@
-/* Stylings for Bundle_Adj.js Component */
+/* Stylings for Bundle_Adj.js Component 
 
-/*  Makes the Bundle Adjustment Point Cloud window occupy a majority of the screen.
-    White background with black curved border. 
-    Z-index of 2 makes it lay on top of other components which have z-index of 1
+Author: Adi Singh
+*/
+
+/*  Makes the Bundle Adjustment Point Cloud window occupy a majority of the screen. White 
+    background with black curved border. Z-index of 2 makes it lay on top of other components 
+    which have z-index of 1
 */
 .ba-container {
     position: absolute;
@@ -17,8 +20,8 @@
     padding: 1%;
 }
 
-/*  Positions the 'Go Back' button at the top right of the bundle adjusment container.
-    Mouse turns into a pointer when hovering over button.
+/*  Positions the 'Go Back' button at the top right of the bundle adjusment container. Mouse turns
+    into a pointer when hovering over button.
 */
 .ba_go_back_btn {
     position: absolute;
@@ -27,8 +30,8 @@
     cursor: pointer;
 }
 
-/*  Positions the 'Toggle Coordinate Grid' button at the upper right of the bundle adjustment container
-    Mouse turns into a pointer when hovering over button 
+/*  Positions the 'Toggle Coordinate Grid' button at the upper right of the bundle adjustment 
+    container Mouse turns into a pointer when hovering over button.
 */
 .toggle_grid_btn {
     position: absolute;
@@ -38,7 +41,9 @@
     font-size: large;
 }
 
-/* Positions the 'Adjust Point Radius' Slider Input to upper right of the bundle adjustment container */
+/* Positions the 'Adjust Point Radius' Slider Input to upper right of the bundle adjustment 
+   container 
+*/
 .point_size_slider {
     position: absolute;
     right: 1%;
