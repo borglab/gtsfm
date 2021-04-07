@@ -1,7 +1,12 @@
-import React, {useRef} from "react";
-import {useThree} from "react-three-fiber";
+/* Component which enables the user to pan and orbit around a point cloud.
 
-//Component which enables the user to pan and orbit around a point cloud
+Author: Adi Singh
+*/
+import React, {useRef} from "react";
+
+// Third-Party Package Imports.
+import {useThree} from "react-three-fiber"; // Used to define a three.js camera object.
+
 const OrbitControlsComponent = () => {
     const {
       camera,

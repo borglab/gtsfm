@@ -10,26 +10,19 @@ This React application was created for viewing metrics related to the various pr
 cd rtf_vis_tool
 npm install
 ```
-
-3. Run the scene_optimizer to test GTSFM on the sample lund door dataset:
-```bash
-python gtsfm/runner/run_scene_optimizer.py
-```
-This will populate the `result_metrics` directory
-
-4. Run the React Unit Tests:
-```bash
-npm test
-```
-Currently, the unit tests are written for smaller, helper components that do not involve React Three Fiber. This is because the React unit testing framework, Enzyme, does not provide native support for third party packages like React Three Fiber. Thus, it's incompatible with components with render 3D-related components.
-
-5. Now, run the web application:
+3. Now, run the web application:
 ```bash
 npm start
 ```
 Open [http://localhost:3000](http://localhost:3000) to view it in the browser.  
 Note: running the application for the first time will auto generate a `/node_modules` folder and `.eslintcache` file which are included in `.gitignore`.
 
+
+4. Run the React Unit Tests:
+```bash
+npm test
+```
+Currently, the unit tests are written for smaller, helper components that do not involve React Three Fiber. This is because the React unit testing framework, Enzyme, does not provide native support for third party packages like React Three Fiber. Thus, it's incompatible with components with render 3D-related components.
 
 ## Repository Structure
 - `node_modules`: internal packages used throughout the application. Don't edit these.
@@ -39,6 +32,8 @@ Note: running the application for the first time will auto generate a `/node_mod
     - `result_metrics`: folder generated from running `python gtsfm/runner/run_scene_optimizer.py`. These metrics are displayed on the application
     - `stylesheets`: css files relating to different JS Components
     - `ViewFrustum_Ported`: SE3 and View_Frustum classes rewritten in JS. Used to render camera frustums in point cloud.
+    - `tests`: contains unit tests for some helper React components.
+    - `index.js`: the highest level React Component. Hierarchy of Rendering is `index.html` -> `index.js` -> `LandingPageGraph.js`
 - `package-lock.json` & `package.json`: lists the dependencies for this react project. Don't edit these.
 
 ## Dependency Details  

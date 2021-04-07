@@ -1,7 +1,9 @@
-//List of all Edges in GTSFM Visualization Graph
-//imported in LandingPageGraph.js
+/* List of all Edges in GTSFM Visualization Graph. Imported in LandingPageGraph.js
 
-const gtsfm_edge_list = [['Scene Image Directories', 'Scene Looper'], 
+Author: Adi Singh
+*/
+
+const edge_list = [['Scene Image Directories', 'Scene Looper'], 
                         ['Scene Looper', 'Scene Directory'], 
                         ['DigiCamDB', 'Data Loader + Filter Invalid Edges'], 
                         ['Scene Directory', 'Data Loader + Filter Invalid Edges'], 
@@ -38,7 +40,7 @@ const gtsfm_edge_list = [['Scene Image Directories', 'Scene Looper'],
                         ['Shonan', 'absolute Rs'], 
                         ['absolute Rs', '1d-SfM'], 
                         ['absolute Rs', 'Bundler Calibrator'],
-                        ['absolute Ts', 'Bundler Calibrator'], 
+                        ['absolute ts', 'Bundler Calibrator'], 
                         ['Bundler Calibrator', 'Bundler Pinhole Cameras'], 
                         ['Bundler Pinhole Cameras', 'Data Association w/ Track Filtering'], 
                         ['Data Association w/ Track Filtering', 'GtsfmData'], 
@@ -55,4 +57,4 @@ const gtsfm_edge_list = [['Scene Image Directories', 'Scene Looper'],
                         ['Dense Mesh Reconstruction', 'Aggregate'], 
                         ['Aggregate', 'Zipped Results for All Scenes']]
 
-module.exports = gtsfm_edge_list;
+module.exports = edge_list;

@@ -1,34 +1,41 @@
+/* Component which renders the x,y,z axes along with the grid lines along the xy plane. Used within
+Data_Association_PC.js.
+
+Author: Adi Singh
+*/
 import React from "react";
-import {Line, Html} from "drei";
 
-const lowerGridBound = -10;   //lower grid bound for coordinate axes
-const upperGridBound = 10;    //upper grid bound for coordinate axes
-const htmlSize = 50;          //size of the x,y,z axes labels
+// Third-Party Package Imports.
+import {Line, Html} from "drei";  // Used to render axes lines and text.
 
-//Function that creates the grid lines along with xy plane
+const lowerGridBound = -10;   // Lower grid bound for coordinate axes.
+const upperGridBound = 10;    // Upper grid bound for coordinate axes.
+const htmlSize = 50;          // Size of the x,y,z axes labels.
+
+// Function that creates the grid lines along with xy plane.
 const getGridLines = () => {
     var coordPairSet = []
 
-    //add grid lines parallel to x axis
+    // Add grid lines parallel to x axis.
     for (var y = lowerGridBound; y <= upperGridBound; y++) {
       coordPairSet.push([[lowerGridBound, y, 0], [upperGridBound, y, 0]]);
     }
-    //add z grid lines
+    // Add grid lines parallel to y axis.
     for (var x = lowerGridBound; x <= upperGridBound; x++) {
       coordPairSet.push([[x, lowerGridBound, 0], [x, upperGridBound, 0]]);
     }
 
     var finalLineGridSet = []
     coordPairSet.map(coordPair => {
-      finalLineGridSet.push(<Line points={coordPair} color="black" position={[0,0,0]} lineWidth={0.1}/>);
+      finalLineGridSet.push(<Line 
+                              points={coordPair} 
+                              color="black" 
+                              position={[0,0,0]} 
+                              lineWidth={0.1}/>);
     });
     return finalLineGridSet;
 }
 
-// Component which renders the x,y,z axes along with the grid lines along the xy plane.
-// Used within Data_Association_PC.js
-//  This component returns the format JSX, which is essentially a modified version of HTML  
-//  that is meant to be readable by React code. 
 const CoordinateGrid = () => { 
     return (
       <mesh>

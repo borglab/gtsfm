@@ -1,7 +1,9 @@
+/* Spherical Point Component. Defined by position vector, radius, and color.
+
+Author: Adi Singh
+*/
 import React from "react";
 
-//Spherical Point Component
-//Slower Rendering Speeds than a Sprite Component
 const PointMesh = (props) => {
     return (
       <mesh position={props.position}>

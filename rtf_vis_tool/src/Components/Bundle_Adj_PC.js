@@ -1,24 +1,32 @@
-import React, {useEffect, useState} from "react";
-import {Canvas} from "react-three-fiber";
-import '../stylesheets/Bundle_Adj_PC.css';
+/* Component that renders the Point Cloud and Camera Frustums before Bundle Adjustment. Spawned 
+once the 'SfMData' node is clicked.
 
-//Loading Helper Components
+Author: Adi Singh
+*/
+import React, {useEffect, useState} from "react";
+
+// Third-Party Package Imports.
+import {Canvas} from "react-three-fiber"; // Used to render canvas containing 3D elements
+
+// Local Imports.
 import CoordinateGrid from './CoordinateGrid';
 import OrbitControlsComponent from './OrbitControlsComponent';
 import PointMesh from './PointMesh';
+import '../stylesheets/Bundle_Adj_PC.css';
 
-//Point Cloud Renderer Component
-//Spawned once the 'SfMData' node is clicked
 const Bundle_Adj_PC = (props) => {
+    // Variables to store the point cloud information and toggle the coordinate grid display.
     const [pointCloudRaw, setPointCloudRaw] = useState([]);
     const [pointCloudJSX, setPointCloudJSX] = useState([]);
     const [showCoordGrid, setShowCoordGrid] = useState(true);
-    const [pointRadius, setPointRadius] = useState(0.15);
-    const pointSizeArr = [pointRadius];         //point size simply defined by the radius, initialized as 0.15
 
-    //render points3D.txt from COLMAP ba_output directory
+    // Point size defined by radius, initialized as 0.15.
+    const [pointRadius, setPointRadius] = useState(0.15);
+    const pointSizeArr = [pointRadius]; 
+
+    // Render points3D.txt from COLMAP ba_input directory.
     useEffect(() => {
-        // fetch the specific file from the public directory
+        // Fetch the COLMAP file from the public directory.
         fetch('results/ba_input/points3D.txt')
             .then(function(response){
                 return response.text();
@@ -27,7 +35,7 @@ const Bundle_Adj_PC = (props) => {
                 const arrStringPoints = data.split('\n');
                 var finalPointsJSX = [];
                 
-                //remove the first 3 commented lines of points3D.txt
+                // Remove the first 3 commented lines of points3D.txt.
                 for (var i = 0; i < 3; i++) {
                     arrStringPoints.shift();
                 }
@@ -35,7 +43,7 @@ const Bundle_Adj_PC = (props) => {
                 const arrNumPoints = arrStringPoints.map(point => point.split(" ").map(Number));
                 setPointCloudRaw(arrNumPoints);
 
-                //loop through array. convert strings to numbers. append to final point cloud
+                // Loop through array. convert strings to numbers. Append to final point cloud.
                 for (var index = 0; index < arrNumPoints.length; index += 1) {
                     var pointArr = arrNumPoints[index];
                     
@@ -50,8 +58,9 @@ const Bundle_Adj_PC = (props) => {
             })
     }, []);
 
-    //Function that updates the radius of all points within a point cloud
-    //Called everytime the react slider input is interacted with
+    /* Function that updates the radius of all points within a point cloud.
+       Called everytime the react slider input is interacted with.
+    */
     const updatePointSizes = (radius) => {
         var finalPointsJSX = [];
         for (var i = 0; i < pointCloudRaw.length; i += 1) {
@@ -88,7 +97,9 @@ const Bundle_Adj_PC = (props) => {
             </Canvas>
 
             <button className="ba_go_back_btn" onClick={() => props.toggleDA_PC(false)}>Go Back</button>
-            <button className="toggle_grid_btn" onClick={() => setShowCoordGrid(!showCoordGrid)}>Toggle Coordinate Grid</button>
+            <button className="toggle_grid_btn" onClick={() => setShowCoordGrid(!showCoordGrid)}>
+                Toggle Coordinate Grid
+            </button>
 
             <div className="point_size_slider">
                 <p>Adjust Point Radius:</p>
