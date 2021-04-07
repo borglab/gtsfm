@@ -95,9 +95,6 @@ class Ransac(VerifierBase):
                 maxIters=10000,
             )
 
-            if i2Fi1 is None:
-                return None, None, verified_indices
-
             i2Ei1 = verification_utils.fundamental_to_essential_matrix(
                 i2Fi1, camera_intrinsics_i1, camera_intrinsics_i2
             )
