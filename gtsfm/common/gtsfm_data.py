@@ -248,6 +248,21 @@ class GtsfmData:
 
         return new_data
 
+    def get_avg_scene_reprojection_error(self) -> float:
+        """Get average reprojection error for all 3d points in the entire scene
+
+        Returns:
+            Average of reprojection errors for every 3d point to its 2d measurements
+        """
+        scene_reproj_errors: List[float] = []
+        for track in self._tracks:
+            track_errors, _ = reproj_utils.compute_track_reprojection_errors(self._cameras, track)
+            scene_reproj_errors.extend(track_errors)
+
+        scene_avg_reproj_error = np.mean(scene_reproj_errors)
+
+        return scene_avg_reproj_error
+
     def log_scene_reprojection_error_stats(self) -> None:
         """Logs reprojection error stats for all 3d points in the entire scene."""
         scene_reproj_errors = []
