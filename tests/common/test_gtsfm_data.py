@@ -32,7 +32,7 @@ class TestGtsfmData(unittest.TestCase):
     """Unit tests for GtsfmData."""
 
     def test_equality_with_same_data(self):
-        """Test equality with the same data (same object)."""
+        """Test equality with the same data (same value but not same object)"""
         self.assertEqual(EXAMPLE_DATA, copy.deepcopy(EXAMPLE_DATA))
 
     def test_equality_with_different_object(self):

@@ -60,7 +60,7 @@ class SceneOptimizer:
         feature_extractor: FeatureExtractor,
         two_view_estimator: TwoViewEstimator,
         multiview_optimizer: MultiViewOptimizer,
-        save_image_pair_viz: bool,
+        save_two_view_correspondences_viz: bool,
         save_3d_viz: bool,
         save_gtsfm_data: bool,
         pose_angular_error_thresh: float,
@@ -70,7 +70,7 @@ class SceneOptimizer:
         self.two_view_estimator = two_view_estimator
         self.multiview_optimizer = multiview_optimizer
 
-        self._save_image_pair_viz = save_image_pair_viz
+        self._save_two_view_correspondences_viz = save_two_view_correspondences_viz
         self._save_3d_viz = save_3d_viz
 
         self._save_gtsfm_data = save_gtsfm_data
@@ -147,7 +147,7 @@ class SceneOptimizer:
                     correspondence_stats[1],
                 )
 
-            if self._save_image_pair_viz:
+            if self._save_two_view_correspondences_viz:
                 auxiliary_graph_list.append(
                     dask.delayed(visualize_twoview_correspondences)(
                         image_graph[i1],
