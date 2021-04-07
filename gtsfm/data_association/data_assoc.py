@@ -9,6 +9,7 @@ References:
 
 Authors: Sushmita Warrier, Xiaolong Wu, John Lambert
 """
+import os
 from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 import dask
@@ -24,7 +25,8 @@ from gtsfm.data_association.point3d_initializer import (
     Point3dInitializer,
     TriangulationParam,
 )
-
+from gtsfm.common.image import Image
+import gtsfm.utils.io as io_utils
 
 logger = logger_utils.get_logger()
 
@@ -44,6 +46,7 @@ class DataAssociation(NamedTuple):
     min_track_len: int
     mode: TriangulationParam
     num_ransac_hypotheses: Optional[int] = None
+    save_track_patches_viz: Optional[bool] = False
 
     def __validate_track(self, sfm_track: Optional[SfmTrack]) -> bool:
         """Validate the track by checking its length."""
@@ -55,6 +58,7 @@ class DataAssociation(NamedTuple):
         cameras: Dict[int, PinholeCameraCal3Bundler],
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
+        images: Optional[List[Image]] = None
     ) -> Tuple[GtsfmData, Dict[str, Any]]:
         """Perform the data association.
 
@@ -63,12 +67,17 @@ class DataAssociation(NamedTuple):
             cameras: dictionary, with image index -> camera mapping.
             corr_idxs_dict: dictionary, with key as image pair (i1,i2) and value as matching keypoint indices.
             keypoints_list: keypoints for each image.
+            images: a list of all images in scene (optional and only for track patch visualization)
+            viz_patch_sz: width and height of patches, if if dumping/visualizing a patch for each 2d track measurement
 
         Returns:
             Cameras and tracks as GtsfmData.
         """
         # generate tracks for 3D points using pairwise correspondences
         tracks_2d = SfmTrack2d.generate_tracks_from_pairwise_matches(corr_idxs_dict, keypoints_list)
+
+        if self.save_track_patches_viz and images is not None:
+            io_utils.save_track_visualizations(tracks_2d, images, save_dir=os.path.join("plots", "tracks_2d"))
 
         # metrics on tracks w/o triangulation check
         num_tracks_2d = len(tracks_2d)
@@ -158,6 +167,7 @@ class DataAssociation(NamedTuple):
         cameras: Delayed,
         corr_idxs_graph: Dict[Tuple[int, int], Delayed],
         keypoints_graph: List[Delayed],
+        images_graph: Optional[Delayed] = None,
     ) -> Tuple[Delayed, Delayed]:
         """Creates a computation graph for performing data association.
 
@@ -166,13 +176,14 @@ class DataAssociation(NamedTuple):
             cameras: list of cameras wrapped up as Delayed.
             corr_idxs_graph: dictionary of correspondence indices, each value wrapped up as Delayed.
             keypoints_graph: list of wrapped up keypoints for each image.
+            images_graph: a list of all images in scene (optional and only for track patch visualization)
 
         Returns:
             ba_input_graph: GtsfmData object wrapped up using dask.delayed
             data_assoc_metrics_graph: dictionary with different statistics about the data
                 association result
         """
-        data_assoc_graph = dask.delayed(self.run)(num_images, cameras, corr_idxs_graph, keypoints_graph)
+        data_assoc_graph = dask.delayed(self.run)(num_images, cameras, corr_idxs_graph, keypoints_graph, images_graph)
         ba_input_graph = data_assoc_graph[0]
         data_assoc_metrics_graph = data_assoc_graph[1]
 
