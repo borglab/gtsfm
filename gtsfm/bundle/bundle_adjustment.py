@@ -28,6 +28,7 @@ class BundleAdjustmentOptimizer(NamedTuple):
 
     This class refines global pose estimates and intrinsics of cameras, and also refines 3D point cloud structure given
     tracks from triangulation."""
+
     output_reproj_error_thresh: float
 
     def run(self, initial_data: GtsfmData) -> GtsfmData:
@@ -109,9 +110,15 @@ class BundleAdjustmentOptimizer(NamedTuple):
 
         # construct the results
         optimized_data = values_to_gtsfm_data(result_values, initial_data)
-        
+
+        logger.info("[Result] Number of tracks before filtering %d", optimized_data.number_tracks())
+
         # filter the largest errors
         filtered_result = optimized_data.filter_landmarks(self.output_reproj_error_thresh)
+
+        logger.info("[Result] Number of tracks after filtering %d", filtered_result.number_tracks())
+        filtered_result.log_scene_reprojection_error_stats()
+
         return filtered_result
 
     def create_computation_graph(self, sfm_data_graph: Delayed) -> Delayed:
