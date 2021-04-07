@@ -26,7 +26,6 @@ from gtsfm.data_association.point3d_initializer import (
     TriangulationParam,
 )
 from gtsfm.common.image import Image
-import gtsfm.utils.images as image_utils
 import gtsfm.utils.io as io_utils
 
 logger = logger_utils.get_logger()
@@ -59,8 +58,7 @@ class DataAssociation(NamedTuple):
         cameras: Dict[int, PinholeCameraCal3Bundler],
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
-        images: Optional[List[Image]] = None,
-        viz_patch_sz: int = 100,
+        images: Optional[List[Image]] = None
     ) -> Tuple[GtsfmData, Dict[str, Any]]:
         """Perform the data association.
 
@@ -79,19 +77,7 @@ class DataAssociation(NamedTuple):
         tracks_2d = SfmTrack2d.generate_tracks_from_pairwise_matches(corr_idxs_dict, keypoints_list)
 
         if self.save_track_patches_viz and images is not None:
-            os.makedirs('plots/tracks_2d', exist_ok=True)
-
-            # save each 2d track
-            for i, track in enumerate(tracks_2d):
-                patches = []
-                for m in track.measurements:
-                    patches += [
-                        images[m.i].extract_patch(center_x=m.uv[0], center_y=m.uv[1], patch_size=viz_patch_sz)
-                    ]
-
-                stacked_image = image_utils.vstack_image_list(patches)
-                save_fpath = f'plots/tracks_2d/track_{i}.jpg'
-                io_utils.save_image(stacked_image, img_path=save_fpath)
+            io_utils.save_track_visualizations(tracks_2d, images, save_dir=os.path.join("plots", "tracks_2d"))
 
         # metrics on tracks w/o triangulation check
         num_tracks_2d = len(tracks_2d)
