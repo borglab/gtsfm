@@ -24,6 +24,9 @@ class MatcherBase(metaclass=abc.ABCMeta):
     ) -> np.ndarray:
         """Match descriptor vectors.
 
+        # Some matcher implementations (such as SuperGlue) utilize keypoint coordinates as
+        # positional encoding, so our matcher API provides them for optional use.
+
         Output format:
         1. Each row represents a match.
         2. First column represents keypoint index from image #i1.
