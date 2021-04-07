@@ -15,13 +15,13 @@ import tests.data.sample_poses as sample_poses
 
 POSE_LIST = SFMdata.createPoses(Cal3_S2())
 
-ROT3_EQUALITY_THRESH = 2
+ROT3_EULER_ANGLE_ERROR_THRESHOLD = 1e-2
 POINT3_RELATIVE_ERROR_THRESH = 1e-1
 POINT3_ABS_ERROR_THRESH = 1e-2
 
 
 def rot3_compare(R: Rot3, R_: Rot3, msg=None) -> bool:
-    return np.abs(geometry_comparisons.compute_relative_rotation_angle(R, R_)) < ROT3_EQUALITY_THRESH
+    return np.allclose(R.xyz(), R_.xyz(), atol=1e-2)
 
 
 def point3_compare(t: Point3, t_: Point3, msg=None) -> bool:
