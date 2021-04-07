@@ -1,12 +1,17 @@
-/* Dependencies */
+/* Unit Tests for the DivNode.js Component
+
+Author: Adi Singh
+*/
 import React from 'react'
+
+// Third-Party Package Imports.
 import Enzyme, { shallow } from 'enzyme'
 import Adapter from 'enzyme-adapter-react-16'
 
-/* Component to Test*/
+// Local Imports.
 import DivNode from '../Components/DivNode';
 
-// Configure enzyme for react 16
+// Configure enzyme for current React version.
 Enzyme.configure({ adapter: new Adapter() })
 
 describe('DivNode.js Test', () => {
@@ -29,8 +34,8 @@ describe('DivNode.js Test', () => {
         expect(div.text()).toEqual('Node Testing');
     });
 
-    /*  Passes in styling properties like textColor, backgroundColor, topOffset, and leftOffset and then
-        checks if the resulting DivNode component is styled properly.
+    /*  Passes in styling properties like textColor, backgroundColor, topOffset, and leftOffset and 
+        then checks if the resulting DivNode component is styled properly.
     */
     it('Node has all the correct stylings passed in from props', () => {
         const sample_json = {'num': 50};
