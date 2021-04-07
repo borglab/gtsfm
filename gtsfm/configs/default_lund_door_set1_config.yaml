@@ -40,3 +40,4 @@ SceneOptimizer:
     bundle_adjustment_module:
       _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptimizer
       shared_calib: False
+      robust_measurement_noise: False
