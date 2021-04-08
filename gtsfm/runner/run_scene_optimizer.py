@@ -42,9 +42,6 @@ def run_scene_optimizer() -> None:
 
         assert isinstance(sfm_result, GtsfmData)
 
-        scene_avg_reproj_error = sfm_result.get_scene_avg_reprojection_error()
-        logger.info('Scene avg reproj error: {}'.format(str(np.round(scene_avg_reproj_error,3))))
-
 
 if __name__ == "__main__":
     run_scene_optimizer()
