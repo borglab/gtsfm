@@ -31,7 +31,7 @@ class MultiViewOptimizer:
         rot_avg_module: RotationAveragingBase,
         trans_avg_module: TranslationAveragingBase,
         data_association_module: DataAssociation,
-        bundle_adjustment_module: BundleAdjustmentOptimizer
+        bundle_adjustment_module: BundleAdjustmentOptimizer,
     ) -> None:
         self.rot_avg_module = rot_avg_module
         self.trans_avg_module = trans_avg_module
