@@ -166,12 +166,12 @@ class BundleAdjustmentOptimizer:
         logger.info(f"final error: {final_error:.2f}")
 
         # construct the results
-        optimized_data = values_to_gtsfm_data(result_values, initial_data)
+        optimized_data = values_to_gtsfm_data(result_values, initial_data, self._shared_calib)
 
         logger.info("[Result] Number of tracks before filtering %d", optimized_data.number_tracks())
 
         # filter the largest errors
-        filtered_result = optimized_data.filter_landmarks(self.output_reproj_error_thresh)
+        filtered_result = optimized_data.filter_landmarks(self._output_reproj_error_thresh)
 
         logger.info("[Result] Number of tracks after filtering: %d", filtered_result.number_tracks())
         mean_track_length, median_track_length = filtered_result.get_track_length_statistics()
