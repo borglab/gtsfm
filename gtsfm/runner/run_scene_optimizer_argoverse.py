@@ -1,10 +1,11 @@
 import argparse
 
+import numpy as np
 from dask.distributed import Client, LocalCluster, performance_report
 from hydra.experimental import compose, initialize_config_module
 from hydra.utils import instantiate
 
-from gtsfm.common.sfm_result import SfmResult
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.scene_optimizer import SceneOptimizer
 
 from gtsfm.loader.argoverse_dataset_loader import ArgoverseDatasetLoader
@@ -44,7 +45,9 @@ def run_scene_optimizer(args) -> None:
         with Client(cluster), performance_report(filename="dask-report.html"):
             sfm_result = sfm_result_graph.compute()
 
-        assert isinstance(sfm_result, SfmResult)
+        assert isinstance(sfm_result, GtsfmData)
+        scene_avg_reproj_error = sfm_result.get_scene_avg_reprojection_error()
+        logger.info('Scene avg reproj error: {}'.format(str(np.round(scene_avg_reproj_error, 3))))
 
 
 if __name__ == "__main__":

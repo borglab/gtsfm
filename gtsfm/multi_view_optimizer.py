@@ -31,14 +31,16 @@ class MultiViewOptimizer:
         rot_avg_module: RotationAveragingBase,
         trans_avg_module: TranslationAveragingBase,
         data_association_module: DataAssociation,
+        bundle_adjustment_module: BundleAdjustmentOptimizer
     ) -> None:
         self.rot_avg_module = rot_avg_module
         self.trans_avg_module = trans_avg_module
         self.data_association_module = data_association_module
-        self.ba_optimizer = BundleAdjustmentOptimizer()
+        self.ba_optimizer = bundle_adjustment_module
 
     def create_computation_graph(
         self,
+        images_graph: List[Delayed],
         num_images: int,
         keypoints_graph: List[Delayed],
         i2Ri1_graph: Dict[Tuple[int, int], Delayed],
@@ -68,13 +70,11 @@ class MultiViewOptimizer:
         pruned_i2Ui1_graph = pruned_graph[1]
 
         wRi_graph = self.rot_avg_module.create_computation_graph(num_images, pruned_i2Ri1_graph)
-
         wti_graph = self.trans_avg_module.create_computation_graph(num_images, pruned_i2Ui1_graph, wRi_graph)
-
         init_cameras_graph = dask.delayed(init_cameras)(wRi_graph, wti_graph, intrinsics_graph)
 
         ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
-            num_images, init_cameras_graph, v_corr_idxs_graph, keypoints_graph
+            num_images, init_cameras_graph, v_corr_idxs_graph, keypoints_graph, images_graph
         )
 
         auxiliary_graph_list = [

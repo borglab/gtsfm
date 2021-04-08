@@ -114,7 +114,7 @@ def plot_twoview_correspondences(
     """
     image_i1, image_i2, scale_i1, scale_i2 = image_utils.match_image_widths(image_i1, image_i2)
 
-    result = image_utils.vstack_images(image_i1, image_i2)
+    result = image_utils.vstack_image_pair(image_i1, image_i2)
 
     if max_corrs is not None and corr_idxs_i1i2.shape[0] > max_corrs:
         # subsample matches

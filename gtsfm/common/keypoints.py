@@ -36,7 +36,7 @@ class Keypoints:
         Args:
             coordinates: the (x, y) coordinates of the features, of shape Nx2.
             scales: optional scale of the detections, of shape N.
-            responses: optional respose of the detections, of shape N.
+            responses: optional confidences/responses for each detection, of shape N.
         """
         self.coordinates = coordinates
         self.scales = scales
