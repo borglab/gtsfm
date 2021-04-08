@@ -16,7 +16,7 @@ from gtsam import (
     Values,
     symbol_shorthand,
 )
-from gtsam.noiseModel import Isotropic
+from gtsam.noiseModel import Isotropic, mEstimator, Robust
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -40,16 +40,21 @@ class BundleAdjustmentOptimizer:
     This class refines global pose estimates and intrinsics of cameras, and also refines 3D point cloud structure given
     tracks from triangulation."""
 
-    def __init__(self, output_reproj_error_thresh: float, shared_calib: bool = False):
+    def __init__(
+        self, output_reproj_error_thresh: float, shared_calib: bool = False, robust_measurement_noise: bool = False
+    ):
         """Initializes the parameters for bundle adjustment module.
 
         Args:
             output_reproj_error_thresh: the max reprojection error allowed in output.
-            shared_calib (optional): Flag to enable shared calibration across
-                                     all cameras. Defaults to False.
+            shared_calib (optional): Flag to enable shared calibration across all cameras. Defaults to False.
+            robust_measurement_noise (optional): Flag to enable use of robust noise model for measurement noise.
+                                                 Defaults to False.
+            
         """
         self._output_reproj_error_thresh = output_reproj_error_thresh
         self._shared_calib = shared_calib
+        self._robust_measurement_noise = robust_measurement_noise
 
     def __add_camera_prior_and_initial_value(
         self, graph: NonlinearFactorGraph, initial_values: Values, camera: PinholeCameraCal3Bundler, camera_idx: int,
@@ -87,7 +92,7 @@ class BundleAdjustmentOptimizer:
         initial_values: Values,
         track: SfmTrack,
         track_idx: int,
-        measurement_noise: Isotropic,
+        measurement_noise: Isotropic,  # TODO: change it
     ) -> None:
         """Add prior factor for each 2D measurement and initial values for each
         3d point.
@@ -127,7 +132,10 @@ class BundleAdjustmentOptimizer:
         )
 
         # noise model for measurements -- one pixel in u and v
-        measurement_noise = Isotropic.Sigma(IMG_MEASUREMENT_DIM, 1.0)
+        if self._robust_measurement_noise:
+            measurement_noise = Robust(mEstimator.Huber(1.35), Isotropic.Sigma(IMG_MEASUREMENT_DIM, 1.0),)
+        else:
+            measurement_noise = Isotropic.Sigma(IMG_MEASUREMENT_DIM, 1.0)
 
         # Create a factor graph
         graph = NonlinearFactorGraph()
