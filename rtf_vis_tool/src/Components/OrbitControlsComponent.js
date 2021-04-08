@@ -9,8 +9,6 @@ import {useThree} from "react-three-fiber"; // Used to define a three.js camera 
 
 function OrbitControlsComponent() {
     /*
-    Args:
-        None.
     Returns:
         A component to allow for orbit functionality.
     */

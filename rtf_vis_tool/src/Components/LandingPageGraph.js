@@ -22,9 +22,6 @@ import '../stylesheets/LandingPageGraph.css'
 
 function LandingPageGraph() {
     /*
-    Args:
-        None
-        
     Returns:
         The Landing Page Graph which the user can interact with.
     */
@@ -93,9 +90,6 @@ function LandingPageGraph() {
 
         Args:
             showDisplay (boolean): Sets the display to be shown or not.
-            
-        Returns:
-            None.
         */
         setShowFS(showDisplay);
     };
@@ -105,9 +99,6 @@ function LandingPageGraph() {
 
         Args:
             showDisplay (boolean): Sets the display to be shown or not.
-            
-        Returns:
-            None.
         */
         setShowMVO(showDisplay);
     };
@@ -117,9 +108,6 @@ function LandingPageGraph() {
 
         Args:
             showDisplay (boolean): Sets the display to be shown or not.
-            
-        Returns:
-            None.
         */
         setShowDA_PC(showDisplay);
     };
@@ -129,9 +117,6 @@ function LandingPageGraph() {
 
         Args:
             showDisplay (boolean): Sets the display to be shown or not.
-            
-        Returns:
-            None.
         */
         setShowRSS(showDisplay);
     };

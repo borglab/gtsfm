@@ -43,10 +43,7 @@ function getGridLines(lowerGridBound = -10, upperGridBound = 10) {
 }
 
 function CoordinateGrid() { 
-  /*
-  Args:
-      None.
-        
+  /*        
   Returns:
       3 lines and labels for the 3 major axes. Also the grid lines from the above function.
   */

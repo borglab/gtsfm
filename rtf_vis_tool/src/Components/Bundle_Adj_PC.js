@@ -50,9 +50,6 @@ function Bundle_Adj_PC(props) {
         Args:
             data (string): String of points directly from points3D.txt file. Each point is an 
                            array of length 7.
-            
-        Returns:
-            None.
         */
         const arrStringPoints = data.split('\n');
         var finalPointsJSX = [];
@@ -88,9 +85,6 @@ function Bundle_Adj_PC(props) {
 
         Args:
             radius (int): New radius for all points in point cloud.
-            
-        Returns:
-            None.
         */
 
         var finalPointsJSX = [];
