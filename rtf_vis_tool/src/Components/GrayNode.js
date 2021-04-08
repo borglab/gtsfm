@@ -7,7 +7,17 @@ import React from "react";
 // Local Imports.
 import GtsfmNode from './GtsfmNode';
 
-const GrayNode = (props) => {
+function GrayNode(props) {
+    /*
+    Args:
+        props.nodeInfo.text (string): Text to display in node.
+        props.nodeInfo.topOffset (int): Amount to offset from top of screen.
+        props.nodeInfo.leftOffset (int): Amount to offset from left of screen.
+        
+    Returns:
+        A GtsfmNode component with custom styling for a gray node.
+    */
+
     const lightGray = '#dfe8e6';
     const nodeText = props.nodeInfo.text;
     const nodeTopOffset = props.nodeInfo.topOffset;

@@ -8,7 +8,20 @@ import React from "react";
 // Local Imports.
 import '.././stylesheets/GtsfmNode.css';
 
-const GtsfmNode = (props) => {
+function GtsfmNode(props) {
+    /*
+    Args:
+        props.backgroundColor (string): Hex background color of string.
+        props.textColor (string): Hex color of node text.
+        props.leftOffset (string): Amount to offset from left of screen. 
+        props.topOffset (string): Amount to offset from top of screen.
+        props.text (string): Text to render in node.
+        props.onClickFunction (function): Function to be called when node is clicked.
+        props.funcParam (boolean): True/False value to feed into props.onClickFunction.
+        
+    Returns:
+        A GtsfmNode component with custom styling for a blue node.
+    */
 
     // Defines the stylings that depends on parameters passed in from LandingPageGraph.js.
     const propStyling = {

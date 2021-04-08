@@ -8,8 +8,18 @@ import React from "react";
 // Third-Party Package Imports.
 import {Line, Html} from "drei";  // Used to render axes lines and text.
 
-// Create grid lines along the xy plane.
-const getGridLines = (lowerGridBound = -10, upperGridBound = 10) => {
+function getGridLines(lowerGridBound = -10, upperGridBound = 10) {
+    /*Creates grid lines along the xy plane. These grid lines are meant to help establish the 
+    origin for the user and help them orient their point cloud.
+
+    Args:
+        lowerGridBound (int): Smallest x,y values to render grid lines from.
+        upperGridBound (int): Largest x,y values to render grid lines from.
+        
+    Returns:
+        An array (size 2*(upperGridBound - lowerGridBound)) of lines spanning the xy plane.
+    */
+
     var coordPairSet = []
 
     // Add grid lines parallel to x axis.
@@ -32,7 +42,15 @@ const getGridLines = (lowerGridBound = -10, upperGridBound = 10) => {
     return finalLineGridSet;
 }
 
-const CoordinateGrid = () => { 
+function CoordinateGrid() { 
+  /*
+  Args:
+      None.
+        
+  Returns:
+      3 lines and labels for the 3 major axes. Also the grid lines from the above function.
+  */
+
   const lowerGridBound = -10;   // Lower grid bound for coordinate axes.
   const upperGridBound = 10;    // Upper grid bound for coordinate axes.
   const htmlSize = 50;          // Size of the x,y,z axes labels.

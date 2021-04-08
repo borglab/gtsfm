@@ -7,7 +7,17 @@ import React from "react";
 // Local Imports.
 import GtsfmNode from './GtsfmNode';
 
-const BlueNode = (props) => {
+function BlueNode(props) {
+    /*
+    Args:
+        props.nodeInfo.text (string): Text to display in node.
+        props.nodeInfo.topOffset (int): Amount to offset from top of screen.
+        props.nodeInfo.leftOffset (int): Amount to offset from left of screen.
+        
+    Returns:
+        A GtsfmNode component with custom styling for a blue node.
+    */
+
     const aquaBlue = '#2255e0';
     const nodeText = props.nodeInfo.text;
     const nodeTopOffset = props.nodeInfo.topOffset;

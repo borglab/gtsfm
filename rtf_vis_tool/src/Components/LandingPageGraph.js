@@ -17,10 +17,18 @@ import frontend_summary_json from '../result_metrics/frontend_summary.json';
 import GrayNode from './GrayNode';
 import GrayNodes from './gtsfm_graph/gray_nodes.js';
 import multiview_optimizer_json from '../result_metrics/multiview_optimizer_metrics.json';
-import Node from './Node';
+import GtsfmNode from './GtsfmNode';
 import '../stylesheets/LandingPageGraph.css'
 
-const LandingPageGraph = (props) => {
+function LandingPageGraph() {
+    /*
+    Args:
+        None
+        
+    Returns:
+        The Landing Page Graph which the user can interact with.
+    */
+
     const [arrowList, setArrowList] = useState([]); // Array storing all directed edges.
     const [grayNodesList, setGrayNodesList] = useState([]); // Array storing all gray nodes.
     const [blueNodesList, setBlueNodesList] = useState([]); // Array storing all bue nodes.
@@ -80,13 +88,53 @@ const LandingPageGraph = (props) => {
         setRotatedDAJSON(data_association_json.rotated_points_3d);
     }, [])
 
-    /* Toggles the display of various pop ups on the screen.
-       Like frontend metrics, multiview optimizer metrics, and data association point cloud.
-    */
-    const toggleFrontEndSummaryDisplay = (bool) => {setShowFS(bool)};
-    const toggleMVOMetrics = (bool) => {setShowMVO(bool)};
-    const toggleDataAssoc_PointCloud = (bool) => {setShowDA_PC(bool)};
-    const toggleRotSummaryDisplay = (bool) => {setShowRSS(bool)};
+    function toggleFrontEndSummaryDisplay(showDisplay) {
+        /*Toggles the display of the frontend summary metrics.
+
+        Args:
+            showDisplay (boolean): Sets the display to be shown or not.
+            
+        Returns:
+            None.
+        */
+        setShowFS(showDisplay);
+    };
+
+    function toggleMVOMetrics(showDisplay) {
+        /*Toggles the display of the multiview optimizer metrics.
+
+        Args:
+            showDisplay (boolean): Sets the display to be shown or not.
+            
+        Returns:
+            None.
+        */
+        setShowMVO(showDisplay);
+    };
+
+    function toggleBundleAdj_PointCloud(showDisplay) {
+        /*Toggles the display of the Bundle Adjustment Point Cloud.
+
+        Args:
+            showDisplay (boolean): Sets the display to be shown or not.
+            
+        Returns:
+            None.
+        */
+        setShowDA_PC(showDisplay);
+    };
+
+    function toggleRotSummaryDisplay(showDisplay) {
+        /*Toggles the display of the rotation averaging metrics.
+
+        Args:
+            showDisplay (boolean): Sets the display to be shown or not.
+            
+        Returns:
+            None.
+        */
+        setShowRSS(showDisplay);
+    };
 
     return (
         <div className="lp_graph_container">
@@ -95,15 +143,15 @@ const LandingPageGraph = (props) => {
             </div>
 
             {/* Render popups only when the respective node is clicked. */} 
-            {showDA_PC && <Bundle_Adj_PC toggleDA_PC={toggleDataAssoc_PointCloud}/>}
+            {showDA_PC && <Bundle_Adj_PC toggleBA_PC={toggleBundleAdj_PointCloud}/>}
 
             <div className="gtsfm_graph">
 
                 {/* Render all Gray and Blue Nodes (43 combined). */}
                 {grayNodesList}
                 {blueNodesList}
-                <Node 
-                    onClickFunction={toggleDataAssoc_PointCloud}
+                <GtsfmNode 
+                    onClickFunction={toggleBundleAdj_PointCloud}
                     funcParam={true}
                     textColor={'black'} 
                     backgroundColor={lightGray} 

@@ -8,7 +8,17 @@ import React from "react";
 // Local Imports.
 import '.././stylesheets/PointSizeSlider.css';
 
-const PointSizeSlider = (props) => {
+function PointSizeSlider(props) {
+    /*
+    Args:
+        props.pointRadius (int): Radius for each point in point cloud.
+        props.setPointRadius (function): Updates the state value's point radius. 
+        props.updatePointSizes (function): Updates the point radius for all points in cloud.
+        
+    Returns:
+        A point size slider component to dynamically change radius of point cloud points.
+    */
+
     return (
         <div className="point_size_slider_container">
             <p>Adjust Point Radius:</p>

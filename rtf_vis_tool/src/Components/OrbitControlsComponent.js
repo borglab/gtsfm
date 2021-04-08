@@ -7,7 +7,14 @@ import React, {useRef} from "react";
 // Third-Party Package Imports.
 import {useThree} from "react-three-fiber"; // Used to define a three.js camera object.
 
-const OrbitControlsComponent = () => {
+function OrbitControlsComponent() {
+    /*
+    Args:
+        None.
+    Returns:
+        A component to allow for orbit functionality.
+    */
+
     const {
       camera,
       gl: {domElement}

@@ -15,7 +15,15 @@ import PointMesh from './PointMesh';
 import PointSizeSlider from './PointSizeSlider';
 import '../stylesheets/Bundle_Adj_PC.css';
 
-const Bundle_Adj_PC = (props) => {
+function Bundle_Adj_PC(props) {
+    /*
+    Args:
+        props.toggleBA_PC (function): toggles the display of the Bundle Adjustment Point Cloud.
+        
+    Returns:
+        A component rendering the point cloud after bundle adjustment.
+    */
+
     // Variables to store the point cloud information and toggle the coordinate grid display.
     const [pointCloudRaw, setPointCloudRaw] = useState([]);
     const [pointCloudJSX, setPointCloudJSX] = useState([]);
@@ -35,10 +43,17 @@ const Bundle_Adj_PC = (props) => {
             .then((data) => loadCOLMAPPointCloud(data))
     }, []);
 
-    /*  Accepts the raw COLMAP points3D.txt file and converts it into an array of JSX formatted
+    function loadCOLMAPPointCloud(data) {
+        /*Accepts the raw COLMAP points3D.txt file and converts it into an array of JSX formatted
         PointMeshes (which are then rendered on screen).
-    */ 
-    const loadCOLMAPPointCloud = (data) => {
+
+        Args:
+            data (string): String of points directly from points3D.txt file. Each point is an 
+                           array of length 7.
+            
+        Returns:
+            None.
+        */
         const arrStringPoints = data.split('\n');
         var finalPointsJSX = [];
                 
@@ -47,8 +62,11 @@ const Bundle_Adj_PC = (props) => {
             arrStringPoints.shift();
         }
 
+        /* Variable pointCloudRaw is an (N x 6) array, with the first 3 entries as (x,y,z) and the last
+           3 entries as (R,G,B). */
         const arrNumPoints = arrStringPoints.map(point => point.split(" ").map(Number));
         setPointCloudRaw(arrNumPoints);
+
 
         // Loop through array. convert strings to numbers. Append to final point cloud.
         for (var index = 0; index < arrNumPoints.length; index += 1) {
@@ -64,10 +82,17 @@ const Bundle_Adj_PC = (props) => {
         setPointCloudJSX(finalPointsJSX);
     }
 
-    /* Updates the radius of all points within a point cloud.
-       Called everytime the react slider input is interacted with.
-    */
-    const updatePointSizes = (radius) => {
+    function updatePointSizes(radius) {
+        /*Updates the radius of all points within a point cloud. Called everytime the react 
+        slider input is interacted with.
+
+        Args:
+            radius (int): New radius for all points in point cloud.
+            
+        Returns:
+            None.
+        */
+
         var finalPointsJSX = [];
         for (var i = 0; i < pointCloudRaw.length; i += 1) {
             var pointArr = pointCloudRaw[i];
@@ -102,7 +127,7 @@ const Bundle_Adj_PC = (props) => {
                 <OrbitControlsComponent />
             </Canvas>
 
-            <button className="ba_go_back_btn" onClick={() => props.toggleDA_PC(false)}>Go Back</button>
+            <button className="ba_go_back_btn" onClick={() => props.toggleBA_PC(false)}>Go Back</button>
             <button className="toggle_grid_btn" onClick={() => setShowCoordGrid(!showCoordGrid)}>
                 Toggle Coordinate Grid
             </button>
