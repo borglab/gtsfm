@@ -248,27 +248,36 @@ class GtsfmData:
 
         return new_data
 
-    def get_scene_avg_reprojection_error(self) -> float:
-        """Get average reprojection error for all 3d points in the entire scene
+    def get_scene_reprojection_errors(self) -> np.ndarray:
+        """Get the scene reprojection errors for all 3D points and all associated measurements.
 
         Returns:
-            scene_avg_reproj_error: average of reprojection errors for every 3d point to its 2d measurements
+            Reprojection errors as a 1D numpy array.
         """
-        scene_reproj_errors = []
+        scene_reproj_errors: List[float] = []
         for track in self._tracks:
             track_errors, _ = reproj_utils.compute_track_reprojection_errors(self._cameras, track)
             scene_reproj_errors.extend(track_errors)
 
-        scene_avg_repoj_error = np.mean(scene_reproj_errors)
+        return np.array(scene_reproj_errors)
 
-        scene_reproj_errors = np.array(scene_reproj_errors)
-        logger.info("Min scene reproj error: {}".format(np.round(scene_reproj_errors.min(), PRINT_NUM_SIG_FIGS)))
-        logger.info("Avg scene reproj error: {}".format(np.round(scene_avg_repoj_error, PRINT_NUM_SIG_FIGS)))
-        logger.info(
-            "Median scene reproj error: {}".format(np.round(np.median(scene_reproj_errors), PRINT_NUM_SIG_FIGS))
-        )
-        logger.info("Max scene reproj error: {}".format(np.round(scene_reproj_errors.max(), PRINT_NUM_SIG_FIGS)))
-        return scene_avg_repoj_error
+    def get_avg_scene_reprojection_error(self) -> float:
+        """Get average reprojection error for all 3d points in the entire scene
+
+        Returns:
+            Average of reprojection errors for every 3d point to its 2d measurements
+        """
+        scene_reproj_errors = self.get_scene_reprojection_errors()
+        scene_avg_reproj_error = np.mean(scene_reproj_errors)
+        return scene_avg_reproj_error
+
+    def log_scene_reprojection_error_stats(self) -> None:
+        """Logs reprojection error stats for all 3d points in the entire scene."""
+        scene_reproj_errors = self.get_scene_reprojection_errors()
+        logger.info("Min scene reproj error: %.3f", np.min(scene_reproj_errors))
+        logger.info("Avg scene reproj error: %.3f", np.mean(scene_reproj_errors))
+        logger.info("Median scene reproj error: %.3f", np.median(scene_reproj_errors))
+        logger.info("Max scene reproj error: %.3f", np.max(scene_reproj_errors))
 
     def __validate_track(self, track: SfmTrack, reproj_err_thresh: float) -> bool:
         """Validates a track based on reprojection errors and cheirality checks.
