@@ -14,7 +14,7 @@
     "react-scripts": "4.0.1",
     "react-three-fiber": "^5.3.12",
     "react-xarrows": "^1.5.2",
-    "three": "^0.127.0"
+    "three": "^0.124.0"
   },
   "scripts": {
     "start": "react-scripts start",
@@ -39,5 +39,9 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "enzyme": "^3.11.0",
+    "enzyme-adapter-react-16": "^1.15.6"
   }
 }

@@ -168,8 +168,17 @@ class BundleAdjustmentOptimizer:
         # construct the results
         optimized_data = values_to_gtsfm_data(result_values, initial_data)
 
+        logger.info("[Result] Number of tracks before filtering %d", optimized_data.number_tracks())
+
         # filter the largest errors
         filtered_result = optimized_data.filter_landmarks(self.output_reproj_error_thresh)
+
+        logger.info("[Result] Number of tracks after filtering: %d", filtered_result.number_tracks())
+        mean_track_length, median_track_length = filtered_result.get_track_length_statistics()
+        logger.info("[Result] Mean track length %.3f", mean_track_length)
+        logger.info("[Result] Median track length %.3f", median_track_length)
+        filtered_result.log_scene_reprojection_error_stats()
+
         return filtered_result
 
     def create_computation_graph(self, sfm_data_graph: Delayed) -> Delayed:
