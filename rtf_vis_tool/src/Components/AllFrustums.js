@@ -43,8 +43,12 @@ function AllFrustums() {
         rendered in react three fiber.
 
         Args:
-            in_data (string): Raw string from cameras.txt. 
-            ex_data (string): Raw string from images.txt.
+            in_data (string): Raw string from cameras.txt, which contains instrinsic parameters of all reconstructed
+                              cameras as per the COLMAP output convention. 
+                              (https://colmap.github.io/format.html#cameras-txt)
+            ex_data (string): Raw string from images.txt, which contains pose and keypoints of all reconstructed images
+                              as per the COLMAP output convention.
+                              (https://colmap.github.io/format.html#images-txt)
         */
 
         var in_cameraList = in_data.split('\n');

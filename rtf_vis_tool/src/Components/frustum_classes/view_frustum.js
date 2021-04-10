@@ -74,7 +74,6 @@ class ViewFrustum {
             [this.fx_]
         ]);
         var ray_dirs = nj.concatenate(center_offsets, fx_broadcasted);
-
         ray_dirs = this.normalize_ray_dirs(ray_dirs);
         return ray_dirs
     }
@@ -150,10 +149,7 @@ class ViewFrustum {
         */
 
         // Center v0 at the origin.
-        var v0_scaled = nj.array([ray_dirs.get(0,0) * 0, 
-                                ray_dirs.get(0,1) * 0, 
-                                ray_dirs.get(0,2) * 0]);
-        
+        var v0_scaled = nj.array([0,0,0]);
         var vectors_list = [v0_scaled];
 
         // Scale v1...v4 by scalar: frustum_ray_len

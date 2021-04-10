@@ -23,13 +23,19 @@ function BlueNode(props) {
     const nodeTopOffset = props.nodeInfo.topOffset;
     const nodeLeftOffset = props.nodeInfo.leftOffset;
 
+    function defaultFunction(text) {
+        alert(`You Clicked ${text}`);
+    }
+
     return (
         <GtsfmNode 
             textColor={'white'} 
             backgroundColor={aquaBlue} 
             topOffset={`${nodeTopOffset}%`} 
             leftOffset={`${nodeLeftOffset}%`}
-            text={nodeText}/>
+            text={nodeText}
+            onClickFunction={defaultFunction}
+            funcParam={nodeText}/>
     )
 }
 

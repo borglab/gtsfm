@@ -18,11 +18,11 @@ Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
 Note: running the application for the first time will auto generate a `/node_modules` folder and `.eslintcache` file which are included in `.gitignore`.
 
 
-4. Run the React Unit Tests:
+4. Run the React Unit Tests (within `gtsfm/rtf_vis_tool`):
 ```bash
-npm test
+npm test a
 ```
-Currently, the unit tests are written for smaller, helper components that do not involve React Three Fiber. This is because the React unit testing framework, Enzyme, does not provide native support for third party packages like React Three Fiber. Thus, it's incompatible with components with render 3D-related components.
+Currently, the unit tests are written for smaller, helper components that do not involve React Three Fiber. This is because the React unit testing framework, Enzyme, does not provide native support for third party packages like React Three Fiber. Thus, it's incompatible with components that render 3D-related components.
 
 ## Repository Structure
 - `node_modules`: internal packages used throughout the application. Don't edit these.

@@ -11,8 +11,8 @@ import '../stylesheets/FrontendSummary.css'
 function FrontendSummary(props) {
     /*
     Args:
-        props.json.rotation_success_count (int): Number of successes from rotation averaging.
-        props.json.translation_success_count (int): Number of successes frmo translation averaging.
+        props.json.rotation.success_count (int): Number of successes from rotation averaging.
+        props.json.translation.success_count (int): Number of successes frmo translation averaging.
         props.json.num_valid_entries (int): Number of valid image pair entries.
         props.json.num_total_entries (int): Number of total image pair entries.
         props.json.pose.success_count (int): Number of pose successes.
