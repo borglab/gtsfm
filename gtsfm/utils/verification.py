@@ -86,7 +86,15 @@ def compute_epipolar_distances_sed(
     geometric point-line distance and is a biased estimate of the gold-standard reprojection error.
 
     References: 
-    - "Fathy et al., Fundamental Matrix Estimation: A Study of Error Criteria"
+    - "Fathy et al., Fundamental Matrix Estimation: A Study of Error Criteria", https://arxiv.org/abs/1706.07886
+    - "Hartley, R.~I. et al. Multiple View Geometry in Computer Vision.. Cambridge University Press, Pg 288"
+
+    Algorithm:
+    - l2 = i2Fi1 @ x1
+    - l1 = x2 @ i2Fi1
+    - n1 = EuclideanNorm(Normal(l1))
+    - n2 = EuclideanNorm(Normal(l2))
+    - SED^2 = ( l1 @ x1 )^2 / n1^2 + ( l1 @ x1 )^2 / n2^2
 
     Args:
         coordinates_i1: coordinates in image i1, of shape Nx2.
@@ -118,7 +126,15 @@ def compute_epipolar_distances_sampson(
     order approximation of the reprojection error.
 
     References: 
-    - "Fathy et al., Fundamental Matrix Estimation: A Study of Error Criteria"
+    - "Fathy et al., Fundamental Matrix Estimation: A Study of Error Criteria", https://arxiv.org/abs/1706.07886
+    - "Hartley, R.~I. et al. Multiple View Geometry in Computer Vision.. Cambridge University Press, Pg 288"
+
+    Algorithm:
+    - l2 = i2Fi1 @ x1
+    - l1 = x2 @ i2Fi1
+    - n1 = EuclideanNorm(Normal(l1))
+    - n2 = EuclideanNorm(Normal(l2))
+    - Sampson^2 = ( l1 @ x1 )^2 / (n1^2 + n2^2)
 
     Args:
         coordinates_i1: coordinates in image i1, of shape Nx2.
