@@ -89,14 +89,17 @@ def convert_to_epipolar_lines(coordinates_i1: np.ndarray, i2Fi1: np.ndarray) -> 
 
 
 def point_line_dotproduct(points: np.ndarray, lines: np.ndarray) -> np.ndarray:
-    """Computes the distance of a point from a line in 2D. The function processed multiple inputs independently in a
+    """Computes the dot product of a point and a line in 2D. The function processed multiple inputs independently in a
     vectorized fashion.
+
+    Note: the reason to not compute actual point-line distances is to flexible in providing different choices of
+    denominator in the distance metric (e.g. SED, Sampson).
 
     Args:
         points: non-homogenous 2D points, of shape Nx2.
         lines: coefficients (a, b, c) of lines ax + by + c = 0, of shape Nx3.
 
     Returns:
-        Point-line distance for each row, of shape N.
+        Point-line dot-product for each row, of shape N.
     """
     return np.abs(np.sum(np.multiply(convert_to_homogenous_coordinates(points), lines), axis=1))
