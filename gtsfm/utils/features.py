@@ -75,7 +75,7 @@ def convert_to_epipolar_lines(coordinates_i1: np.ndarray, i2Fi1: np.ndarray) -> 
     The epipolar line in image i2 is given by i2Fi1 @ x_i1. A point x_i2 is on this line if x_i2^T @ i2Fi1 @ x_i1 = 0.
 
     Args:
-        normalized_coordinates_i1: normalized coordinates in i1, of shape Nx2.
+        coordinates_i1: coordinates in i1, of shape Nx2.
         i2Ei1: essential matrix.
 
     Returns:
@@ -85,10 +85,6 @@ def convert_to_epipolar_lines(coordinates_i1: np.ndarray, i2Fi1: np.ndarray) -> 
         return None
 
     epipolar_lines = convert_to_homogenous_coordinates(coordinates_i1) @ i2Fi1.T
-    # norms = np.linalg.norm(epipolar_lines[:, :2], axis=1, keepdims=True)
-    # norms = np.where(norms > 0, norms, 1)
-    # normalized_epipolar_lines = epipolar_lines / norms
-
     return epipolar_lines
 
 
