@@ -12,7 +12,8 @@ class Loader(object):
         img_files = sorted(img_files)
         images = []
         for img_file in img_files:
-            im = Image.open(img_file)
+            im = cv2.imread(img_file)
+            # im = Image.open(img_file)
             images.append(im)
 
         return images

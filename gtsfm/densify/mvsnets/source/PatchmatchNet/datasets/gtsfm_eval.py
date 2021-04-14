@@ -6,72 +6,40 @@ from datasets.data_io import *
 import cv2
 
 class MVSDataset(Dataset):
-    def __init__(self, datapath, mode, nviews, img_wh, **kwargs):
+    def __init__(self, mvsnetsData, nviews, img_wh):
         super(MVSDataset, self).__init__()
         
-        self.stages = 4
-        self.datapath = datapath
-        self.mode = mode
+        self.stage = 4
+        self.mode = "test"
         self.nviews = nviews
         self.img_wh = img_wh
-        
+        self.data = mvsnetsData
+
         assert self.mode == "test"
         self.metas = self.build_list()
 
     def build_list(self):
+
+        pairs = self.data['pairs']
+
+        num_viewpoint = pairs.shape[0]
+
+        for i in range(num_viewpoint):
+            pairs[i][i] = -np.inf 
+        
+        pair_idx = np.argsort(pairs, axis=0)[:, 1:][:, ::-1]
+
         metas = []
 
-        scans = ["scan1"]
+        for i in range(num_viewpoint):
+            metas.append(("scan1", i, pair_idx[i].tolist()))
 
-                  
-        for scan in scans:
-            pair_file = "{}/pair.txt".format(scan)
-            # read the pair file
-            with open(os.path.join(self.datapath, pair_file)) as f:
-                num_viewpoint = int(f.readline())
-                # viewpoints (49)
-                for view_idx in range(num_viewpoint):
-                    ref_view = int(f.readline().rstrip())
-                    src_views = [int(x) for x in f.readline().rstrip().split()[1::2]]
-                    metas.append((scan, ref_view, src_views))
         print("dataset", self.mode, "metas:", len(metas))
         return metas
-
+    
     def __len__(self):
         return len(self.metas)
-
-    def read_cam_file(self, filename):
-        with open(filename) as f:
-            lines = f.readlines()
-            lines = [line.rstrip() for line in lines]
-        # extrinsics: line [1,5), 4x4 matrix
-        extrinsics = np.fromstring(' '.join(lines[1:5]), dtype=np.float32, sep=' ').reshape((4, 4))
-        # intrinsics: line [7-10), 3x3 matrix
-        intrinsics = np.fromstring(' '.join(lines[7:10]), dtype=np.float32, sep=' ').reshape((3, 3))
-
-        depth_min = float(lines[11].split()[0])
-        depth_max = float(lines[11].split()[1])
-        return intrinsics, extrinsics, depth_min, depth_max
-
     
-    def read_img(self, filename):
-        img = Image.open(filename)
-        # scale 0~255 to 0~1
-        np_img = np.array(img, dtype=np.float32) / 255.
-        np_img = cv2.resize(np_img, self.img_wh, interpolation=cv2.INTER_LINEAR)
-        
-        h, w, _ = np_img.shape
-        
-        np_img_ms = {
-            "stage_3": cv2.resize(np_img, (w//8, h//8), interpolation=cv2.INTER_LINEAR),
-            "stage_2": cv2.resize(np_img, (w//4, h//4), interpolation=cv2.INTER_LINEAR),
-            "stage_1": cv2.resize(np_img, (w//2, h//2), interpolation=cv2.INTER_LINEAR),
-            "stage_0": np_img
-        }
-        return np_img_ms
-        
-
-
     def __getitem__(self, idx):
         meta = self.metas[idx]
         scan, ref_view, src_views = meta
@@ -92,16 +60,19 @@ class MVSDataset(Dataset):
         proj_matrices_3 = []
 
         for i, vid in enumerate(view_ids):
-            img_filename = os.path.join(self.datapath, '{}/images/{:0>8}.jpg'.format(scan, vid))
-            proj_mat_filename = os.path.join(self.datapath, '{}/cams_1/{:0>8}_cam.txt'.format(scan, vid))
+            img = self.data['images'][vid]
+            np_img = np.array(img, dtype=np.float32) / 255.
+            np_img = cv2.resize(np_img, self.img_wh, interpolation=cv2.INTER_LINEAR)
+            
+            h, w, _ = np_img.shape
+                    
+            imgs_0.append(np_img)
+            imgs_1.append(cv2.resize(np_img, (w//2, h//2), interpolation=cv2.INTER_LINEAR))
+            imgs_2.append(cv2.resize(np_img, (w//4, h//4), interpolation=cv2.INTER_LINEAR))
+            imgs_3.append(cv2.resize(np_img, (w//8, h//8), interpolation=cv2.INTER_LINEAR))
 
-            imgs = self.read_img(img_filename)
-            imgs_0.append(imgs['stage_0'])
-            imgs_1.append(imgs['stage_1'])
-            imgs_2.append(imgs['stage_2'])
-            imgs_3.append(imgs['stage_3'])
-
-            intrinsics, extrinsics, depth_min_, depth_max_ = self.read_cam_file(proj_mat_filename)
+            intrinsics, extrinsics = self.data['cameras'][vid]
+            depth_min_, depth_max_ = self.data['depthRange'][:-1]
             # intrinsics[0] *= self.img_wh[0]/img_w
             # intrinsics[1] *= self.img_wh[1]/img_h
 
@@ -155,4 +126,4 @@ class MVSDataset(Dataset):
                 "proj_matrices": proj, # N*4*4
                 "depth_min": depth_min,         # scalar
                 "depth_max": depth_max,         # scalar
-                "filename": scan + '/{}/' + '{:0>8}'.format(view_ids[0]) + "{}"}
+                "filename": '{}/' + '{:0>8}'.format(view_ids[0]) + "{}"}

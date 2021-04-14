@@ -21,7 +21,7 @@ class MVSNets:
 
         images = Loader.load_raw_images(image_path, image_extension)
 
-        Writer.writeOKLog("\n[1/4]Parsing sfmData to mvsnetsData...")
+        Writer.writeOKLog("\n[1/3]Parsing sfmData to mvsnetsData...")
 
         if not use_gt_cam:
             # == if use measured camera matrices ==
@@ -31,16 +31,15 @@ class MVSNets:
             labeled_cameras = Loader.load_labeled_cameras(image_path)
             mvsnetsData = Parser.to_mvsnets_data(images, sfmData, labeled_cameras)
 
-        prepared_input_path = Writer.write_mvsnets_data(mvsnetsData)
+        # prepared_input_path = Writer.write_mvsnets_data(mvsnetsData)
 
-        Writer.writeOKLog("\n[2/4]Writing parsed mvsnets data into {}...".format(prepared_input_path))
+        # Writer.writeOKLog("\n[2/4]Writing parsed mvsnets data into {}...".format(prepared_input_path))
 
-        del mvsnetsData
+        # del mvsnetsData
 
         args = {
-            'dataset': "gtsfm_eval",
-            'testpath': prepared_input_path,
-            'img_wh':   images[0].size,
+            'mvsnetsData': mvsnetsData,
+            'img_wh':   (images[0].shape[1], images[0].shape[0]),
             'outdir':   Writer.DENSIFY_RESULTS_PATH,
             'n_views':  view_number,
             'thres':    thres,
@@ -48,12 +47,12 @@ class MVSNets:
             'loadckpt': 'gtsfm/densify/mvsnets/checkpoints/{}.ckpt'.format(method[1].lower())
         }
 
-        Writer.writeOKLog("\n[3/4]Going through {}...".format(method[1]))
-        print(args)
+        Writer.writeOKLog("\n[2/3]Going through {}...".format(method[1]))
+        # print(args)
 
         MVSNetsModelManager.test(method[1], args)
 
-        Writer.writeOKLog("\n[4/4]Densified results are written to {}...".format(args['outdir']))
+        Writer.writeOKLog("\n[3/3]Densified results are written to {}...".format(args['outdir']))
 
 
         return True
