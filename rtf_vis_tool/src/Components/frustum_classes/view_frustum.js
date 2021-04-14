@@ -12,11 +12,11 @@ class ViewFrustum {
     constructor(fx, img_w, img_h, ray_len) {
         /*Initializes the ViewFrustum Object.
 
-            Args:
-                fx (float): Focal length in x-direction.
-                img_w (float): Image width (in pixels).
-                img_h (float): Image height (in pixels).
-                ray_len (float): Extent to which frustum rays extend away from optical center.
+        Args:
+            fx (float): Focal length in x-direction (in pixels).
+            img_w (float): Image width (in pixels).
+            img_h (float): Image height (in pixels).
+            ray_len (float): Extent to which frustum rays extend away from optical center.
         */
 
         this.fx_ = fx;
@@ -28,10 +28,10 @@ class ViewFrustum {
     normalize_ray_dirs(ray_dirs) {
         /*Normalizes the 5 ray directions of the frustum vertices to be of unit length.
 
-            Args:
-                ray_dirs: Array of shape (5,3) representing ray directions in camera frame.
-            Returns:
-                An array of shape (5,3) with normalized ray directions.
+        Args:
+            ray_dirs: Array of shape (5,3) representing ray directions in camera frame.
+        Returns:
+            An array of shape (5,3) with normalized ray directions.
         */
 
         for (var row = 0; row < ray_dirs.shape[0]; row++) {
@@ -47,12 +47,12 @@ class ViewFrustum {
         /*Given (u,v) coordinates and intrinsics, generate pixels rays in camera coord frame. Assume +z points out of
         the camera, +y is downwards, and +x is across the imager.
 
-            Args:
-                uv: Array of shape (5,2) with (u,v) coordinates.
-                img_w (float): Image width (in pixels).
-                img_h (height): Image height (in pixels).
-            Returns:
-                ray_dirs: Array of shape (5,3) with normalized ray vectors in camera frame
+        Args:
+            uv: Array of shape (5,2) with (u,v) coordinates.
+            img_w (float): Image width (in pixels).
+            img_h (height): Image height (in pixels).
+        Returns:
+            ray_dirs: Array of shape (5,3) with normalized ray vectors in camera frame
         */
 
         // Assume principal point is at center of images.
@@ -94,8 +94,8 @@ class ViewFrustum {
                         O PINHOLE                                 \\ //
                                                                     O PINHOLE
             
-            Returns:
-                Array, size 5, of frustum vertex coordinates in the camera coordinate system.                                                                
+        Returns:
+            Array, shape (5,3), of frustum vertex coordinates in the camera frame.                                                                
         */
 
         var uv = nj.array([
@@ -114,12 +114,13 @@ class ViewFrustum {
     get_mesh_vertices_worldframe(wTc) {
         /*Obtains 5 vertices defining the frustum mesh, in the world/global frame.
 
-            Args:
-                wTc: camera pose in world frame
-            Returns:
-                An array, length 5, of the frustum vertices.
+        Args:
+            wTc (SE3): camera pose in world frame
+        Returns:
+            An array, length 5, where each entry represents the 3d coordinate of a frustum vertex.
         */
         var vList = this.get_frustum_vertices_camfr();
+        console.log(vList);
 
         var v0_camframe = vList[0].reshape(1,3);
         var v1_camframe = vList[1].reshape(1,3);
@@ -127,11 +128,11 @@ class ViewFrustum {
         var v3_camframe = vList[3].reshape(1,3);
         var v4_camframe = vList[4].reshape(1,3);
 
-        var v0_worldframe = wTc.tranform_frustum_vertex(v0_camframe);
-        var v1_worldframe = wTc.tranform_frustum_vertex(v1_camframe);
-        var v2_worldframe = wTc.tranform_frustum_vertex(v2_camframe);
-        var v3_worldframe = wTc.tranform_frustum_vertex(v3_camframe);
-        var v4_worldframe = wTc.tranform_frustum_vertex(v4_camframe);
+        var v0_worldframe = wTc.transform_from(v0_camframe);
+        var v1_worldframe = wTc.transform_from(v1_camframe);
+        var v2_worldframe = wTc.transform_from(v2_camframe);
+        var v3_worldframe = wTc.transform_from(v3_camframe);
+        var v4_worldframe = wTc.transform_from(v4_camframe);
 
         return [v0_worldframe.tolist(), 
             v1_worldframe.tolist(), 
@@ -143,11 +144,11 @@ class ViewFrustum {
     calculate_scaled_ray_dirs(ray_dirs, frustum_ray_len) {
         /*Given frustum vertex ray directions and length, scale the rays to desired length.
 
-            Args:
-                ray_dirs: Array of shape (5,3) containing normalized vertex vectors.
-                frustum_ray_len (float): Amount to scale vectors by.
-            Returns:
-                A list, size 5, of the scaled frustum vertex vectors in camera coordinate frame.
+        Args:
+            ray_dirs: Array of shape (5,3) containing normalized vertex vectors.
+            frustum_ray_len (float): Amount to scale vectors by.
+        Returns:
+            An array, shape (5,3), of the scaled frustum vertex vectors in camera coordinate frame.
         */
 
         // Center v0 at the origin.

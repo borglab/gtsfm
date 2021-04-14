@@ -42,7 +42,7 @@ Author: Adi Singh
     cursor: pointer;
 }
 
-/* Gives any text with the tag className="fs-text" a bold weight. Specically, Rotation Success, Translation Success,
+/* Gives any text with the tag className="fs_text" a bold weight. Specically, Rotation Success, Translation Success,
 Pose Success, and Correspondence Inliers. 
 */
 .fs_text {

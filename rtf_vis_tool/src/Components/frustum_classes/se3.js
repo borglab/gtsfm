@@ -12,9 +12,9 @@ class SE3 {
     constructor(rotation, translation) {
         /*Initialize an SE3 instance and pose matrix with its rotation and translation matrices.
 
-            Args:
-                rotation: Matrix of shape 3x3
-                translation: Array of length 3
+        Args:
+            rotation: Matrix of shape 3x3
+            translation: Array of length 3
         */
         if (rotation.shape[0] != 3 || rotation.shape[1] != 3) throw 'Invalid Rotation Matrix';
         if (translation.shape[0] != [3]) throw 'Invalid Translation Matrix';
@@ -35,16 +35,16 @@ class SE3 {
         }
     }
 
-    tranform_frustum_vertex(point_cam_coords) {
+    transform_from(point) {
         /*Apply the SE3 transformation to the point.
 
-            Args:
-                point_cam_coords: Array of shape (1,3) representing the point in camera coordinates.
-            Returns:
-                Array, shape (1,3), representing the point in world coordinates.
+        Args:
+            point: Array of shape (1,3) representing the point in the c frame.
+        Returns:
+            Array, shape (1,3), representing the point in the w frame.
         */
         var ones = nj.ones([1, 1]);
-        var homogeneous_pt = nj.concatenate(point_cam_coords, ones);
+        var homogeneous_pt = nj.concatenate(point, ones);
 
         var point_world_coords = homogeneous_pt.dot(this.transform_matrix.T);
 

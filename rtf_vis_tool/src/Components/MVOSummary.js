@@ -16,7 +16,7 @@ function MVOSummary(props) {
                                                                    after rotation averaging (pre-BA).
         props.json.rotation_averaging_angle_deg.max_error (float): Max angular error on global rotation for any frame 
                                                                    after rotation averaging (pre-BA).
-        props.json.translation_averaging_distance.median_error (float): Median error of translation averaging.
+        props.json.translation_averaging_distance.median_error (float): Median Euclidean error of translation averaging.
         props.json.translation_averaging_distance.min_error (float): Min Euclidean error on global translation for 
                                                                     any frame after translation averaging (pre-BA).
         props.json.translation_averaging_distance.max_error (float): Max Euclidean error on global translation for 
@@ -31,7 +31,7 @@ function MVOSummary(props) {
 
     return (
         <div className="mvo_container">
-            <h3>MultiView Optimizer Metrics</h3>
+            <h3>Sparse MultiView Optimizer Metrics</h3>
             <div className="mvo_sub_container">
                 <div className="metrics_container">
                     <p className="mvo_header">Rotation Averaging Angle Metrics</p>

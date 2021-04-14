@@ -1,4 +1,4 @@
-/* Component that renders a single Camera Frustum given 5 vertices. USed in AllFrustums.js.
+/* Component that renders a single Camera Frustum given 5 vertices. Used in AllFrustums.js.
 
 Author: Adi Singh
 */

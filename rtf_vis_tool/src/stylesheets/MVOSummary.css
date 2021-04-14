@@ -34,7 +34,7 @@ Author: Adi Singh
     font-weight: 600;
 }
 
-/* Gives any text with the tag className="mvo-text" a lighter weight. Specically: Median Error, Min Error, and Max
+/* Gives any text with the tag className="mvo_text" a lighter weight. Specically: Median Error, Min Error, and Max
 Error.
 */
 .mvo_text {
