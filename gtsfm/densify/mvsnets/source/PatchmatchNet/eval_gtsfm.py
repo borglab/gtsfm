@@ -50,6 +50,7 @@ def save_mask(filename, mask):
     mask = mask.astype(np.uint8) * 255
     Image.fromarray(mask).save(filename)
 
+
 def save_depth_img(filename, depth):
     # assert mask.dtype == np.bool
     d = depth.max() - depth.min()
@@ -64,14 +65,14 @@ def save_depth_img(filename, depth):
     np.save(filename+'.npy', transform)
 
 
-def read_pair_file(pairs):
+def read_pair_file(pairs, nviews):
 
     num_viewpoint = pairs.shape[0]
 
     for i in range(num_viewpoint):
         pairs[i][i] = -np.inf 
     
-    pair_idx = np.argsort(pairs, axis=0)[:, 1:][:, ::-1]
+    pair_idx = np.argsort(pairs, axis=0)[:, 1:nviews][:, ::-1]
 
     data = []
     for view_idx in range(num_viewpoint):
@@ -79,57 +80,7 @@ def read_pair_file(pairs):
         src_views = pair_idx[i].tolist()
         data.append((ref_view, src_views))
     return data
-
-
-# run MVS model to save depth maps
-def save_depth(gtargs):
-    # dataset, dataloader
-    MVSDataset = find_dataset_def(gtargs["dataset"])
-    test_dataset = MVSDataset(gtargs["testpath"], "test", gtargs["n_views"], img_wh=gtargs["img_wh"])
-    TestImgLoader = DataLoader(test_dataset, 1, shuffle=False, num_workers=4, drop_last=False)
-
-    # model
-    model = PatchmatchNet(patchmatch_interval_scale=[0.005, 0.0125, 0.025],
-                propagation_range = [6, 4, 2], patchmatch_iteration=[1, 2, 2], 
-                patchmatch_num_sample = [8, 8, 16], 
-                propagate_neighbors=[0, 8, 16], evaluate_neighbors=[9, 9, 9])
-    model = nn.DataParallel(model)
-    model.cuda()
-
-    # load checkpoint file specified by args.loadckpt
-    print("loading model {}".format(gtargs["loadckpt"]))
-    state_dict = torch.load(gtargs["loadckpt"])
-    model.load_state_dict(state_dict['model'])
-    model.eval()
-    
-    with torch.no_grad():
-        for batch_idx, sample in enumerate(TestImgLoader):
-            start_time = time.time()
-            sample_cuda = tocuda(sample)
-            outputs = model(sample_cuda["imgs"], sample_cuda["proj_matrices"], 
-                            sample_cuda["depth_min"], sample_cuda["depth_max"])
-            
-            outputs = tensor2numpy(outputs)
-            del sample_cuda
-            print('Iter {}/{}, time = {:.3f}'.format(batch_idx, len(TestImgLoader), time.time() - start_time))
-            filenames = sample["filename"]
-
-            
-            
-            # save depth maps and confidence maps
-            for filename, depth_est, photometric_confidence in zip(filenames, outputs["refined_depth"]['stage_0'],
-                                                                outputs["photometric_confidence"]):
-                depth_filename = os.path.join(gtargs["outdir"], filename.format('depth_est', '.pfm'))
-                confidence_filename = os.path.join(gtargs["outdir"], filename.format('confidence', '.pfm'))
-                os.makedirs(depth_filename.rsplit('/', 1)[0], exist_ok=True)
-                os.makedirs(confidence_filename.rsplit('/', 1)[0], exist_ok=True)
-                # save depth maps
-                depth_est = np.squeeze(depth_est, 0)
-                save_pfm(depth_filename, depth_est)
-                # save confidence maps
-                save_pfm(confidence_filename, photometric_confidence)
                 
-
 
 # project the reference point cloud into the source view, then project back
 def reproject_with_depth(depth_ref, intrinsics_ref, extrinsics_ref, depth_src, intrinsics_src, extrinsics_src):
@@ -194,53 +145,42 @@ def check_geometric_consistency(depth_ref, intrinsics_ref, extrinsics_ref, depth
     return mask, depth_reprojected, x2d_src, y2d_src
 
 
-def filter_depth(data, out_folder, plyfilename, geo_pixel_thres, geo_depth_thres, photo_thres, img_wh):
+def filter_depth(data, nviews, depth_list, confidence_list, geo_pixel_thres, geo_depth_thres, photo_thres, img_wh, out_folder, plyfilename, save_output=False):
     # for the final point cloud
     vertexs = []
     vertex_colors = []
 
-    pair_data = read_pair_file(data['pairs'])
-    nviews = len(pair_data)
-    # original_w = 1296
-    # original_h = 1936
-    
+    pair_data = read_pair_file(data['pairs'], nviews)
 
     # for each reference view and the corresponding source views
     for ref_view, src_views in pair_data:
         # load the camera parameters
         ref_intrinsics, ref_extrinsics = data['cameras'][ref_view]
-        # ref_intrinsics[0] *= img_wh[0]/original_w
-        # ref_intrinsics[1] *= img_wh[1]/original_h
         
         # load the reference image
         ref_img = read_img(data['images'][ref_view], img_wh)
         # load the estimated depth of the reference view
-        ref_depth_est = read_pfm(os.path.join(out_folder, 'depth_est/{:0>8}.pfm'.format(ref_view)))[0]
-        ref_depth_est = np.squeeze(ref_depth_est, 2)
+        ref_depth_est = depth_list[ref_view][0]
         # load the photometric mask of the reference view
-        confidence = read_pfm(os.path.join(out_folder, 'confidence/{:0>8}.pfm'.format(ref_view)))[0]
-
-        os.makedirs(os.path.join(out_folder, "depth_img"), exist_ok=True)
-        save_depth_img(os.path.join(out_folder, 'depth_img/depth_{:0>8}.png'.format(ref_view)), ref_depth_est.astype(np.float32))
-        save_depth_img(os.path.join(out_folder, 'depth_img/conf_{:0>8}.png'.format(ref_view)), confidence.astype(np.float32))
+        confidence = confidence_list[ref_view]
+        
+        if save_output:
+            os.makedirs(os.path.join(out_folder, "depth_img"), exist_ok=True)
+            save_depth_img(os.path.join(out_folder, 'depth_img/depth_{:0>8}.png'.format(ref_view)), ref_depth_est.astype(np.float32))
+            save_depth_img(os.path.join(out_folder, 'depth_img/conf_{:0>8}.png'.format(ref_view)), confidence.astype(np.float32))
 
         photo_mask = confidence > photo_thres
-        photo_mask = np.squeeze(photo_mask, 2)
         
-
         all_srcview_depth_ests = []
-        
 
         # compute the geometric mask
         geo_mask_sum = 0
         for src_view in src_views:
             # camera parameters of the source view
             src_intrinsics, src_extrinsics = data['cameras'][src_view]
-            # src_intrinsics[0] *= img_wh[0]/original_w
-            # src_intrinsics[1] *= img_wh[1]/original_h
+
             # the estimated depth of the source view
-            src_depth_est = read_pfm(os.path.join(out_folder, 'depth_est/{:0>8}.pfm'.format(src_view)))[0]
-            
+            src_depth_est = depth_list[src_view][0]
 
             geo_mask, depth_reprojected, x2d_src, y2d_src = check_geometric_consistency(ref_depth_est, ref_intrinsics, ref_extrinsics,
                                                                       src_depth_est,
@@ -248,34 +188,21 @@ def filter_depth(data, out_folder, plyfilename, geo_pixel_thres, geo_depth_thres
                                                                       geo_pixel_thres, geo_depth_thres)
             geo_mask_sum += geo_mask.astype(np.int32)
             all_srcview_depth_ests.append(depth_reprojected)
-            
 
         depth_est_averaged = (sum(all_srcview_depth_ests) + ref_depth_est) / (geo_mask_sum + 1)
         # at least 3 source views matched
         # large threshold, high accuracy, low completeness
         geo_mask = geo_mask_sum >= 3
         final_mask = np.logical_and(photo_mask, geo_mask)
-        
        
-
-        os.makedirs(os.path.join(out_folder, "mask"), exist_ok=True)
-        save_mask(os.path.join(out_folder, "mask/{:0>8}_photo.png".format(ref_view)), photo_mask)
-        save_mask(os.path.join(out_folder, "mask/{:0>8}_geo.png".format(ref_view)), geo_mask)
-        save_mask(os.path.join(out_folder, "mask/{:0>8}_final.png".format(ref_view)), final_mask)
-
-        
+        if save_output:
+            os.makedirs(os.path.join(out_folder, "mask"), exist_ok=True)
+            save_mask(os.path.join(out_folder, "mask/{:0>8}_photo.png".format(ref_view)), photo_mask)
+            save_mask(os.path.join(out_folder, "mask/{:0>8}_geo.png".format(ref_view)), geo_mask)
+            save_mask(os.path.join(out_folder, "mask/{:0>8}_final.png".format(ref_view)), final_mask)
 
         print("processing ref-view{:0>2}, geo_mask:{:3f} photo_mask:{:3f} final_mask: {:3f}".format(ref_view,
                                                                 geo_mask.mean(), photo_mask.mean(), final_mask.mean()))
-
-        # if args.display:
-        #     import cv2
-        #     cv2.imshow('ref_img', ref_img[:, :, ::-1])
-        #     cv2.imshow('ref_depth', ref_depth_est / 800)
-        #     cv2.imshow('ref_depth * photo_mask', ref_depth_est * photo_mask.astype(np.float32) / 800)
-        #     cv2.imshow('ref_depth * geo_mask', ref_depth_est * geo_mask.astype(np.float32) / 800)
-        #     cv2.imshow('ref_depth * mask', ref_depth_est * final_mask.astype(np.float32) / 800)
-        #     cv2.waitKey(1)
 
         height, width = depth_est_averaged.shape[:2]
         x, y = np.meshgrid(np.arange(0, width), np.arange(0, height))
@@ -292,43 +219,36 @@ def filter_depth(data, out_folder, plyfilename, geo_pixel_thres, geo_depth_thres
         vertexs.append(xyz_world.transpose((1, 0)))
         vertex_colors.append((color * 255).astype(np.uint8))
 
-        
-    vertexs = np.concatenate(vertexs, axis=0)
-    vertex_colors = np.concatenate(vertex_colors, axis=0)
-    vertexs = np.array([tuple(v) for v in vertexs], dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4')])
-    vertex_colors = np.array([tuple(v) for v in vertex_colors], dtype=[('red', 'u1'), ('green', 'u1'), ('blue', 'u1')])
+    vertexs_raw = np.concatenate(vertexs, axis=0)
 
-    vertex_all = np.empty(len(vertexs), vertexs.dtype.descr + vertex_colors.dtype.descr)
-    for prop in vertexs.dtype.names:
-        vertex_all[prop] = vertexs[prop]
-    for prop in vertex_colors.dtype.names:
-        vertex_all[prop] = vertex_colors[prop]
+    if save_output:
+        vertex_colors = np.concatenate(vertex_colors, axis=0)
+        vertexs = np.array([tuple(v) for v in vertexs_raw], dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4')])
+        vertex_colors = np.array([tuple(v) for v in vertex_colors], dtype=[('red', 'u1'), ('green', 'u1'), ('blue', 'u1')])
 
-    el = PlyElement.describe(vertex_all, 'vertex')
-    PlyData([el]).write(plyfilename)
-    print("saving the final model to", plyfilename)
+        vertex_all = np.empty(len(vertexs), vertexs.dtype.descr + vertex_colors.dtype.descr)
+        for prop in vertexs.dtype.names:
+            vertex_all[prop] = vertexs[prop]
+        for prop in vertex_colors.dtype.names:
+            vertex_all[prop] = vertex_colors[prop]
 
-"""
-args = {
-            'mvsnetsData': mvsnetsData,
-            'img_wh':   images[0].size,
-            'outdir':   Writer.DENSIFY_RESULTS_PATH,
-            'n_views':  view_number,
-            'thres':    thres,
-            'gpu':      torch.cuda.is_available(),
-            'loadckpt': 'gtsfm/densify/mvsnets/checkpoints/{}.ckpt'.format(method[1].lower())
-        }
-"""
+        el = PlyElement.describe(vertex_all, 'vertex')
+        PlyData([el]).write(plyfilename)
+        print("saving the final model to", plyfilename)
+
+    return vertexs_raw
+
 
 def eval_function(gtargs):
     data = gtargs['mvsnetsData']
+    save_output = gtargs['save_output']
     """
         data.images
         data.cameras [[i1, e1], [i2, e2], ..., [in, en]]
         data.pairs   
         data.depthRange
     """
-    MVSDataset = find_dataset_def("gtsfm_eval")
+    MVSDataset = find_dataset_def("gtsfm")
     test_dataset = MVSDataset(data, gtargs["n_views"], img_wh=gtargs["img_wh"])
     TestImgLoader = DataLoader(test_dataset, 1, shuffle=False, num_workers=4, drop_last=False)
     # model
@@ -344,7 +264,8 @@ def eval_function(gtargs):
     state_dict = torch.load(gtargs["loadckpt"])
     model.load_state_dict(state_dict['model'])
     model.eval()
-
+    depth_est_list = {}
+    confidence_est_list = {}
     with torch.no_grad():
         for batch_idx, sample in enumerate(TestImgLoader):
             start_time = time.time()
@@ -356,23 +277,32 @@ def eval_function(gtargs):
             del sample_cuda
             print('Iter {}/{}, time = {:.3f}'.format(batch_idx, len(TestImgLoader), time.time() - start_time))
             filenames = sample["filename"]
+            ids = sample["idx"]
             
             # save depth maps and confidence maps
-            for filename, depth_est, photometric_confidence in zip(filenames, outputs["refined_depth"]['stage_0'],
+            for idx, filename, depth_est, photometric_confidence in zip(ids, filenames, outputs["refined_depth"]['stage_0'],
                                                                 outputs["photometric_confidence"]):
-                depth_filename = os.path.join(gtargs["outdir"], filename.format('depth_est', '.pfm'))
-                confidence_filename = os.path.join(gtargs["outdir"], filename.format('confidence', '.pfm'))
-                os.makedirs(depth_filename.rsplit('/', 1)[0], exist_ok=True)
-                os.makedirs(confidence_filename.rsplit('/', 1)[0], exist_ok=True)
-                # save depth maps
-                depth_est = np.squeeze(depth_est, 0)
-                save_pfm(depth_filename, depth_est)
-                # save confidence maps
-                save_pfm(confidence_filename, photometric_confidence)
                 
+                idx = idx.cpu().numpy().tolist()
+                depth_est_list[idx] = depth_est.copy()
+                confidence_est_list[idx] = photometric_confidence.copy()
+
+                if save_output:
+                    depth_filename = os.path.join(gtargs["outdir"], filename.format('depth_est', '.pfm'))
+                    confidence_filename = os.path.join(gtargs["outdir"], filename.format('confidence', '.pfm'))
+                    
+                    os.makedirs(depth_filename.rsplit('/', 1)[0], exist_ok=True)
+                    os.makedirs(confidence_filename.rsplit('/', 1)[0], exist_ok=True)
+                    # save depth maps
+                    depth_est = np.squeeze(depth_est, 0)
+                    save_pfm(depth_filename, depth_est)
+                    # save confidence maps
+                    save_pfm(confidence_filename, photometric_confidence)
+                             
     out_folder = gtargs["outdir"]
     
     # step2. filter saved depth maps with geometric constraints
-    filter_depth(data, out_folder, os.path.join(gtargs["outdir"], 'patchmatchnet_l3.ply'), 
-                gtargs["thres"][0], gtargs["thres"][1], gtargs["thres"][2], gtargs["img_wh"])
+    return filter_depth(data, gtargs["n_views"], depth_est_list, confidence_est_list,
+                gtargs["thres"][0], gtargs["thres"][1], gtargs["thres"][2], gtargs["img_wh"],
+                out_folder, os.path.join(gtargs["outdir"], 'patchmatchnet_l3.ply'), save_output)
  

@@ -13,7 +13,6 @@ class Loader(object):
         images = []
         for img_file in img_files:
             im = cv2.imread(img_file)
-            # im = Image.open(img_file)
             images.append(im)
 
         return images

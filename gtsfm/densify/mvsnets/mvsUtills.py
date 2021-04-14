@@ -25,18 +25,13 @@ class Math(object):
         return cam_p.reshape([4,])[:3]                       
 
 
-
-
 class MVSNetsModelManager(object):
 
     @classmethod
     def test(cls, method, args):
-        model = None 
         model_func = None 
         if method.lower() == 'PatchmatchNet'.lower():
             from .source.PatchmatchNet.eval_gtsfm import eval_function
             model_func = eval_function
-            
-        model_func(args)
 
-        return model
+        return model_func(args)

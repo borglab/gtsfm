@@ -7,20 +7,19 @@
   * ```python 
     from gtsfm.densify.mvsnets.mvsnets import MVSNets
 
-    MVSNets.densify(sfm_result.sfm_data, 
-                    image_path=os.path.join(DATA_ROOT, "set1_lund_door"), 
-                    image_extension="JPG",
-                    view_number=5,           # number of views as inputs of mvsnets
-                    thres=[1.0, 0.01, 0.8])  # [geometry_pixel_threshold, geometry_depth_threshold, photo_threshold]
+    dense_point_cloud = MVSNets().densify(images, 
+                                          sfm_result,
+                                          view_number=5,           # number of views as inputs of mvsnets
+                                          thres=[1.0, 0.01, 0.8])  # [geometry_pixel_threshold, geometry_depth_threshold, photo_threshold]
     ```
-* output path `results_densify/outputs/`
+<!-- * output path `results_densify/outputs/`
   * `results_densify/outputs/scan1/confidence`: .pfm confidence map from each view
   * `results_densify/outputs/scan1/depth_est`: .pfm expected depth map from each view
   * `results_densify/outputs/scan1/depth_img`: heatmap (.png) files of (.pfm) files above (grayscale images with .npy scaling parameters)
   * `results_densify/outputs/scan1/mask`: masks of photo/geo/final used for mesh construction
-  * `results_densify/*.ply`: generated mesh
+  * `results_densify/*.ply`: generated mesh -->
 
-#### Metrics
+<!-- #### Metrics
 
 * Depth range: 13 - 20
 * Resolution: 1296 x 1936
@@ -30,7 +29,7 @@
 |COLMAP|COLMAP| 17.088| 100.0 | 0.000 |  
 |COLMAP|mvsnets| 17.127| 74.36| 0.092 |
 |Carl Olsson's|mvsnets| 12.605| 40.98 | 4.377 |
-|**gtsfm** |**mvsnets**| **15.82** | **4.98** | **0.98** |
+|**gtsfm** |**mvsnets**| **15.82** | **4.98** | **0.98** | -->
 
 
 #### Sample output

@@ -2,10 +2,9 @@
 
 Authors: Ayush Baid, John Lambert
 """
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import dask
-import networkx as nx
 import os
 from dask.delayed import Delayed
 from gtsam import (
@@ -17,6 +16,7 @@ from gtsam import (
     Unit3,
 )
 
+import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.io as io
 import gtsfm.utils.metrics as metrics
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
@@ -31,14 +31,16 @@ class MultiViewOptimizer:
         rot_avg_module: RotationAveragingBase,
         trans_avg_module: TranslationAveragingBase,
         data_association_module: DataAssociation,
+        bundle_adjustment_module: BundleAdjustmentOptimizer
     ) -> None:
         self.rot_avg_module = rot_avg_module
         self.trans_avg_module = trans_avg_module
         self.data_association_module = data_association_module
-        self.ba_optimizer = BundleAdjustmentOptimizer()
+        self.ba_optimizer = bundle_adjustment_module
 
     def create_computation_graph(
         self,
+        images_graph: List[Delayed],
         num_images: int,
         keypoints_graph: List[Delayed],
         i2Ri1_graph: Dict[Tuple[int, int], Delayed],
@@ -62,19 +64,17 @@ class MultiViewOptimizer:
             The final output, wrapped up as Delayed.
         """
         # prune the graph to a single connected component.
-        pruned_graph = dask.delayed(select_largest_connected_component)(i2Ri1_graph, i2Ui1_graph)
+        pruned_graph = dask.delayed(prune_to_largest_connected_component)(i2Ri1_graph, i2Ui1_graph)
 
         pruned_i2Ri1_graph = pruned_graph[0]
         pruned_i2Ui1_graph = pruned_graph[1]
 
         wRi_graph = self.rot_avg_module.create_computation_graph(num_images, pruned_i2Ri1_graph)
-
         wti_graph = self.trans_avg_module.create_computation_graph(num_images, pruned_i2Ui1_graph, wRi_graph)
-
         init_cameras_graph = dask.delayed(init_cameras)(wRi_graph, wti_graph, intrinsics_graph)
 
         ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
-            init_cameras_graph, v_corr_idxs_graph, keypoints_graph
+            num_images, init_cameras_graph, v_corr_idxs_graph, keypoints_graph, images_graph
         )
 
         auxiliary_graph_list = [
@@ -100,7 +100,7 @@ class MultiViewOptimizer:
         return ba_input_graph, ba_result_graph, saved_metrics_graph
 
 
-def select_largest_connected_component(
+def prune_to_largest_connected_component(
     rotations: Dict[Tuple[int, int], Optional[Rot3]], unit_translations: Dict[Tuple[int, int], Optional[Unit3]],
 ) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3]]:
     """Process the graph of image indices with Rot3s/Unit3s defining edges, and select the largest connected component.
@@ -114,25 +114,13 @@ def select_largest_connected_component(
         Subset of unit_translations which are in the largest connected components.
     """
     input_edges = [k for (k, v) in rotations.items() if v is not None]
+    nodes_in_pruned_graph = graph_utils.get_nodes_in_largest_connected_component(input_edges)
 
-    # create a graph from all edges which have an essential matrix
-    result_graph = nx.Graph()
-    result_graph.add_edges_from(input_edges)
-
-    # get the largest connected components
-    largest_cc = max(nx.connected_components(result_graph), key=len)
-    result_subgraph = result_graph.subgraph(largest_cc).copy()
-
-    # get the remaining edges and construct the dictionary back
-    pruned_edges = list(result_subgraph.edges())
-
-    # as the edges are non-directional, they might have flipped and should be corrected
+    # select the edges with nodes in the pruned graph
     selected_edges = []
-    for i1, i2 in pruned_edges:
-        if (i1, i2) in rotations:
+    for i1, i2 in rotations.keys():
+        if i1 in nodes_in_pruned_graph and i2 in nodes_in_pruned_graph:
             selected_edges.append((i1, i2))
-        else:
-            selected_edges.append((i2, i1))
 
     # return the subset of original input
     return (

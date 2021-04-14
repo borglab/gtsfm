@@ -1,22 +1,18 @@
 import argparse
-import os
-from pathlib import Path
 
-import hydra
+import numpy as np
 from dask.distributed import Client, LocalCluster, performance_report
 from hydra.experimental import compose, initialize_config_module
 from hydra.utils import instantiate
-from omegaconf import DictConfig
 
-import gtsfm
-from gtsfm.common.sfm_result import SfmResult
-from gtsfm.loader.folder_loader import FolderLoader
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.scene_optimizer import SceneOptimizer
 
 from gtsfm.loader.argoverse_dataset_loader import ArgoverseDatasetLoader
 from gtsfm.utils.logger import get_logger
 
 logger = get_logger()
+
 
 def run_scene_optimizer(args) -> None:
     """ Run GTSFM over images from an Argoverse vehicle log"""
@@ -49,7 +45,9 @@ def run_scene_optimizer(args) -> None:
         with Client(cluster), performance_report(filename="dask-report.html"):
             sfm_result = sfm_result_graph.compute()
 
-        assert isinstance(sfm_result, SfmResult)
+        assert isinstance(sfm_result, GtsfmData)
+        scene_avg_reproj_error = sfm_result.get_scene_avg_reprojection_error()
+        logger.info('Scene avg reproj error: {}'.format(str(np.round(scene_avg_reproj_error, 3))))
 
 
 if __name__ == "__main__":

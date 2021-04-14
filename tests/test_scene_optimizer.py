@@ -4,7 +4,6 @@ Authors: Ayush Baid
 """
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
 
 import dask
 import hydra
@@ -15,10 +14,9 @@ from hydra.experimental import compose, initialize_config_module
 from hydra.utils import instantiate
 
 import gtsfm.utils.geometry_comparisons as comp_utils
-from gtsfm.common.sfm_result import SfmResult
-from gtsfm.loader.folder_loader import FolderLoader
+from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.scene_optimizer import SceneOptimizer
-from gtsfm.multi_view_optimizer import select_largest_connected_component
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent / "data"
 
@@ -27,70 +25,29 @@ class TestSceneOptimizer(unittest.TestCase):
     """Unit test for SceneOptimizer, which runs SfM for a scene."""
 
     def setUp(self) -> None:
-        self.loader = FolderLoader(str(DATA_ROOT_PATH / "set1_1_lund_door"), image_extension="JPG")
+        self.loader = OlssonLoader(str(DATA_ROOT_PATH / "set1_lund_door"), image_extension="JPG")
         assert len(self.loader)
-
-    def test_find_largest_connected_component(self):
-        """Tests the function to prune the scene graph to its largest connected
-        component."""
-
-        # create a graph with two connected components of length 4 and 3.
-        input_essential_matrices = {
-            (0, 1): generate_random_essential_matrix(),
-            (1, 5): None,
-            (3, 1): generate_random_essential_matrix(),
-            (3, 2): generate_random_essential_matrix(),
-            (2, 7): None,
-            (4, 6): generate_random_essential_matrix(),
-            (6, 7): generate_random_essential_matrix(),
-        }
-
-        # generate Rot3 and Unit3 inputs
-        input_relative_rotations = dict()
-        input_relative_unit_translations = dict()
-        for (i1, i2), i2Ei1 in input_essential_matrices.items():
-            if i2Ei1 is None:
-                input_relative_rotations[(i1, i2)] = None
-                input_relative_unit_translations[(i1, i2)] = None
-            else:
-                input_relative_rotations[(i1, i2)] = i2Ei1.rotation()
-                input_relative_unit_translations[(i1, i2)] = i2Ei1.direction()
-
-        expected_edges = [(0, 1), (3, 2), (3, 1)]
-
-        (
-            computed_relative_rotations,
-            computed_relative_unit_translations,
-        ) = select_largest_connected_component(input_relative_rotations, input_relative_unit_translations)
-
-        # check the edges in the pruned graph
-        self.assertCountEqual(list(computed_relative_rotations.keys()), expected_edges)
-        self.assertCountEqual(list(computed_relative_unit_translations.keys()), expected_edges)
-
-        # check the actual Rot3 and Unit3 values
-        for (i1, i2) in expected_edges:
-            self.assertTrue(computed_relative_rotations[(i1, i2)].equals(input_relative_rotations[(i1, i2)], 1e-2))
-            self.assertTrue(
-                computed_relative_unit_translations[(i1, i2)].equals(input_relative_unit_translations[(i1, i2)], 1e-2)
-            )
 
     def test_create_computation_graph(self):
         """Will test Dask multi-processing capabilities and ability to serialize all objects."""
+        self.loader = OlssonLoader(str(DATA_ROOT_PATH / "set1_lund_door"), image_extension="JPG")
+
         use_intrinsics_in_verification = False
 
         with initialize_config_module(config_module="gtsfm.configs"):
 
             # config is relative to the gtsfm module
             cfg = compose(config_name="scene_optimizer_unit_test_config.yaml")
-            self.obj: SceneOptimizer = instantiate(cfg.SceneOptimizer)
+            obj: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
             # generate the dask computation graph
-            sfm_result_graph = self.obj.create_computation_graph(
+            sfm_result_graph = obj.create_computation_graph(
                 len(self.loader),
                 self.loader.get_valid_pairs(),
                 self.loader.create_computation_graph_for_images(),
                 self.loader.create_computation_graph_for_intrinsics(),
                 use_intrinsics_in_verification=use_intrinsics_in_verification,
+                gt_pose_graph=self.loader.create_computation_graph_for_poses(),
             )
 
             # create dask client
@@ -99,14 +56,18 @@ class TestSceneOptimizer(unittest.TestCase):
             with Client(cluster):
                 sfm_result = dask.compute(sfm_result_graph)[0]
 
-            self.assertIsInstance(sfm_result, SfmResult)
+            self.assertIsInstance(sfm_result, GtsfmData)
 
             # compare the camera poses
-            poses = sfm_result.get_camera_poses()
+            computed_poses = sfm_result.get_camera_poses()
+            computed_rotations = [x.rotation() for x in computed_poses]
+            computed_translations = [x.translation() for x in computed_poses]
 
-            expected_poses = [self.loader.get_camera_pose(i) for i in range(len(self.loader))]
+            # get active cameras from largest connected component, may be <len(self.loader)
+            connected_camera_idxs = sfm_result.get_valid_camera_indices()
+            expected_poses = [self.loader.get_camera_pose(i) for i in connected_camera_idxs]
 
-            self.assertTrue(comp_utils.compare_global_poses(poses, expected_poses))
+            self.assertTrue(comp_utils.compare_global_poses(expected_poses, expected_poses))
 
 
 def generate_random_essential_matrix() -> EssentialMatrix:

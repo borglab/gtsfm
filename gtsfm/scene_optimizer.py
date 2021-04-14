@@ -2,28 +2,25 @@
 
 Authors: Ayush Baid, John Lambert
 """
+import copy
 import logging
 import os
 from typing import Dict, List, Optional, Tuple
 
 import dask
-import gtsam
 import matplotlib
-import numpy as np
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import (
-    Pose3,
-    SfmData,
-)
+from gtsam import Pose3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.viz as viz_utils
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.feature_extractor import FeatureExtractor
@@ -63,8 +60,9 @@ class SceneOptimizer:
         feature_extractor: FeatureExtractor,
         two_view_estimator: TwoViewEstimator,
         multiview_optimizer: MultiViewOptimizer,
-        save_viz: bool,
-        save_bal_files: bool,
+        save_two_view_correspondences_viz: bool,
+        save_3d_viz: bool,
+        save_gtsfm_data: bool,
         pose_angular_error_thresh: float,
     ) -> None:
         """ pose_angular_error_thresh is given in degrees """
@@ -72,8 +70,10 @@ class SceneOptimizer:
         self.two_view_estimator = two_view_estimator
         self.multiview_optimizer = multiview_optimizer
 
-        self._save_viz = save_viz
-        self._save_bal_files = save_bal_files
+        self._save_two_view_correspondences_viz = save_two_view_correspondences_viz
+        self._save_3d_viz = save_3d_viz
+
+        self._save_gtsfm_data = save_gtsfm_data
         self._pose_angular_error_thresh = pose_angular_error_thresh
 
         # make directories for persisting data
@@ -101,7 +101,7 @@ class SceneOptimizer:
         keypoints_graph_list = []
         descriptors_graph_list = []
         for delayed_image in image_graph:
-            (delayed_dets, delayed_descs,) = self.feature_extractor.create_computation_graph(delayed_image)
+            (delayed_dets, delayed_descs) = self.feature_extractor.create_computation_graph(delayed_image)
             keypoints_graph_list += [delayed_dets]
             descriptors_graph_list += [delayed_descs]
 
@@ -147,7 +147,7 @@ class SceneOptimizer:
                     correspondence_stats[1],
                 )
 
-            if self._save_viz:
+            if self._save_two_view_correspondences_viz:
                 auxiliary_graph_list.append(
                     dask.delayed(visualize_twoview_correspondences)(
                         image_graph[i1],
@@ -164,7 +164,7 @@ class SceneOptimizer:
             auxiliary_graph_list.append(dask.delayed(persist_frontend_metrics_full)(frontend_metrics_dict))
 
             auxiliary_graph_list.append(
-                dask.delayed(aggregate_frontend_metrics)(frontend_metrics_dict, self._pose_angular_error_thresh,)
+                dask.delayed(aggregate_frontend_metrics)(frontend_metrics_dict, self._pose_angular_error_thresh)
             )
 
         # as visualization tasks are not to be provided to the user, we create a
@@ -174,7 +174,8 @@ class SceneOptimizer:
         keypoints_graph_list = dask.delayed(lambda x, y: (x, y))(keypoints_graph_list, auxiliary_graph_list)[0]
         auxiliary_graph_list = []
 
-        (ba_input_graph, ba_output_graph, optimizer_metrics_graph,) = self.multiview_optimizer.create_computation_graph(
+        (ba_input_graph, ba_output_graph, optimizer_metrics_graph) = self.multiview_optimizer.create_computation_graph(
+            image_graph,
             num_images,
             keypoints_graph_list,
             i2Ri1_graph_dict,
@@ -188,11 +189,7 @@ class SceneOptimizer:
         if optimizer_metrics_graph is not None:
             auxiliary_graph_list.append(optimizer_metrics_graph)
 
-        filtered_sfm_data_graph = dask.delayed(ba_output_graph.filter_landmarks)(
-            self.multiview_optimizer.data_association_module.reproj_error_thresh
-        )
-
-        if self._save_viz:
+        if self._save_3d_viz:
             os.makedirs(os.path.join(PLOT_PATH, "ba_input"), exist_ok=True)
             os.makedirs(os.path.join(PLOT_PATH, "results"), exist_ok=True)
 
@@ -201,25 +198,36 @@ class SceneOptimizer:
             )
 
             auxiliary_graph_list.append(
-                dask.delayed(visualize_sfm_data)(filtered_sfm_data_graph, os.path.join(PLOT_PATH, "results"))
+                dask.delayed(visualize_sfm_data)(ba_output_graph, os.path.join(PLOT_PATH, "results"))
             )
 
             auxiliary_graph_list.append(
                 dask.delayed(visualize_camera_poses)(
-                    ba_input_graph, filtered_sfm_data_graph, gt_pose_graph, os.path.join(PLOT_PATH, "results")
+                    ba_input_graph, ba_output_graph, gt_pose_graph, os.path.join(PLOT_PATH, "results")
                 )
             )
 
-        if self._save_bal_files:
+        if self._save_gtsfm_data:
             # save the input to Bundle Adjustment (from data association)
+            ba_input_save_dir = os.path.join(RESULTS_PATH, "ba_input")
             auxiliary_graph_list.append(
-                dask.delayed(write_sfmdata_to_disk)(ba_input_graph, os.path.join(RESULTS_PATH, "ba_input.bal"))
+                dask.delayed(io_utils.write_cameras)(ba_input_graph, image_graph, save_dir=ba_input_save_dir)
             )
-            # save the output of Bundle Adjustment (after optimization)
+            auxiliary_graph_list.append(dask.delayed(io_utils.write_images)(ba_input_graph, save_dir=ba_input_save_dir))
             auxiliary_graph_list.append(
-                dask.delayed(write_sfmdata_to_disk)(
-                    filtered_sfm_data_graph, os.path.join(RESULTS_PATH, "ba_output.bal")
-                )
+                dask.delayed(io_utils.write_points)(ba_input_graph, image_graph, save_dir=ba_input_save_dir)
+            )
+
+            # save the output of Bundle Adjustment (after optimization)
+            ba_output_save_dir = os.path.join(RESULTS_PATH, "ba_output")
+            auxiliary_graph_list.append(
+                dask.delayed(io_utils.write_cameras)(ba_output_graph, image_graph, save_dir=ba_output_save_dir)
+            )
+            auxiliary_graph_list.append(
+                dask.delayed(io_utils.write_images)(ba_output_graph, save_dir=ba_output_save_dir)
+            )
+            auxiliary_graph_list.append(
+                dask.delayed(io_utils.write_points)(ba_output_graph, image_graph, save_dir=ba_output_save_dir)
             )
 
         # as visualization tasks are not to be provided to the user, we create a
@@ -249,12 +257,12 @@ def visualize_twoview_correspondences(
         corr_idxs_i1i2: correspondence indices.
         file_path: file path to save the visualization.
     """
-    plot_img = viz_utils.plot_twoview_correspondences(image_i1, image_i2, keypoints_i1, keypoints_i2, corr_idxs_i1i2,)
+    plot_img = viz_utils.plot_twoview_correspondences(image_i1, image_i2, keypoints_i1, keypoints_i2, corr_idxs_i1i2)
 
     io_utils.save_image(plot_img, file_path)
 
 
-def visualize_sfm_data(sfm_data: SfmData, folder_name: str) -> None:
+def visualize_sfm_data(sfm_data: GtsfmData, folder_name: str) -> None:
     """Visualize the camera poses and 3d points in SfmData.
 
     Args:
@@ -279,7 +287,7 @@ def visualize_sfm_data(sfm_data: SfmData, folder_name: str) -> None:
 
 
 def visualize_camera_poses(
-    pre_ba_sfm_data: SfmData, post_ba_sfm_data: SfmData, gt_pose_graph: Optional[List[Pose3]], folder_name: str,
+    pre_ba_sfm_data: GtsfmData, post_ba_sfm_data: GtsfmData, gt_pose_graph: Optional[List[Pose3]], folder_name: str
 ) -> None:
     """Visualize the camera pose and save to disk.
 
@@ -291,21 +299,28 @@ def visualize_camera_poses(
     """
     # extract camera poses
     pre_ba_poses = []
-    for i in range(pre_ba_sfm_data.number_cameras()):
-        pre_ba_poses.append(pre_ba_sfm_data.camera(i).pose())
+    for i in pre_ba_sfm_data.get_valid_camera_indices():
+        pre_ba_poses.append(pre_ba_sfm_data.get_camera(i).pose())
 
     post_ba_poses = []
-    for i in range(post_ba_sfm_data.number_cameras()):
-        post_ba_poses.append(post_ba_sfm_data.camera(i).pose())
+    for i in post_ba_sfm_data.get_valid_camera_indices():
+        post_ba_poses.append(post_ba_sfm_data.get_camera(i).pose())
+
+    # Select ground truth poses that correspond to pre-BA and post-BA estimated poses
+    # some may have been lost after pruning to largest connected component
+    corresponding_gt_poses = [gt_pose_graph[i] for i in pre_ba_sfm_data.get_valid_camera_indices()]
 
     fig = plt.figure()
     ax = fig.gca(projection="3d")
 
+    if gt_pose_graph is not None:
+        # ground truth is used as the reference
+        pre_ba_poses = comp_utils.align_poses_sim3(corresponding_gt_poses, copy.deepcopy(pre_ba_poses))
+        post_ba_poses = comp_utils.align_poses_sim3(corresponding_gt_poses, copy.deepcopy(post_ba_poses))
+        viz_utils.plot_poses_3d(gt_pose_graph, ax, center_marker_color="m", label_name="GT")
+
     viz_utils.plot_poses_3d(pre_ba_poses, ax, center_marker_color="c", label_name="Pre-BA")
     viz_utils.plot_poses_3d(post_ba_poses, ax, center_marker_color="k", label_name="Post-BA")
-    if gt_pose_graph is not None:
-        gt_pose_graph = comp_utils.align_poses_sim3(post_ba_poses, gt_pose_graph)
-        viz_utils.plot_poses_3d(gt_pose_graph, ax, center_marker_color="m", label_name="GT")
 
     ax.legend(loc="upper left")
     viz_utils.set_axes_equal(ax)
@@ -321,20 +336,7 @@ def visualize_camera_poses(
     plt.close(fig)
 
 
-def write_sfmdata_to_disk(sfm_data: SfmData, save_fpath: str) -> None:
-    """Write SfmData object as a "Bundle Adjustment in the Large" (BAL) file
-    See https://grail.cs.washington.edu/projects/bal/ for more details on the format.
-
-    Note: Need this wrapper as dask cannot directly work on gtsam function calls.
-
-    Args:
-        sfm_data: data to write.
-        save_fpath: filepath to save the data at.
-    """
-    gtsam.writeBAL(save_fpath, sfm_data)
-
-
-def persist_frontend_metrics_full(metrics: Dict[Tuple[int, int], FRONTEND_METRICS_FOR_PAIR],) -> None:
+def persist_frontend_metrics_full(metrics: Dict[Tuple[int, int], FRONTEND_METRICS_FOR_PAIR]) -> None:
     """Persist the front-end metrics for every pair on disk.
 
     Args:
@@ -384,7 +386,7 @@ def aggregate_frontend_metrics(
     all_correct = np.count_nonzero(metrics_array[:, 3] == 1.0)
 
     logger.debug(
-        "[Two view optimizer] [Summary] Rotation success: %d/%d/%d", success_count_rot3, num_valid_entries, num_entries,
+        "[Two view optimizer] [Summary] Rotation success: %d/%d/%d", success_count_rot3, num_valid_entries, num_entries
     )
 
     logger.debug(
@@ -395,21 +397,19 @@ def aggregate_frontend_metrics(
     )
 
     logger.debug(
-        "[Two view optimizer] [Summary] Pose success: %d/%d/%d", success_count_pose, num_valid_entries, num_entries,
+        "[Two view optimizer] [Summary] Pose success: %d/%d/%d", success_count_pose, num_valid_entries, num_entries
     )
 
-    logger.debug(
-        "[Two view optimizer] [Summary] Image pairs with 100%% inlier ratio:: %d/%d", all_correct, num_entries,
-    )
+    logger.debug("[Two view optimizer] [Summary] Image pairs with 100%% inlier ratio:: %d/%d", all_correct, num_entries)
 
     front_end_result_info = {
         "angular_err_threshold_deg": angular_err_threshold_deg,
         "num_valid_entries": int(num_valid_entries),
         "num_total_entries": int(num_entries),
-        "rotation": {"success_count": int(success_count_rot3),},
-        "translation": {"success_count": int(success_count_unit3),},
-        "pose": {"success_count": int(success_count_pose),},
-        "correspondences": {"all_inliers": int(all_correct),},
+        "rotation": {"success_count": int(success_count_rot3)},
+        "translation": {"success_count": int(success_count_unit3)},
+        "pose": {"success_count": int(success_count_pose)},
+        "correspondences": {"all_inliers": int(all_correct)},
     }
 
     io_utils.save_json_file(os.path.join(METRICS_PATH, "frontend_summary.json"), front_end_result_info)

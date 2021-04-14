@@ -90,14 +90,15 @@ PANORAMA_RELATIVE_POSES = generate_relative_from_global(PANORAMA_GLOBAL_POSES, [
 def convert_data_for_rotation_averaging(
     wTi_list: List[Pose3], i2Ti1_dict: Dict[Tuple[int, int], Pose3]
 ) -> Tuple[Dict[Tuple[int, int], Rot3], List[Rot3]]:
-    """[summary]
+    """Converts the poses to inputs and expected outputs for a rotation averaging algorithm.
 
     Args:
-        wTi_list (List[Pose3]): [description]
-        i2Ti1_dict (Dict[Tuple[int, int], Pose3]): [description]
+        wTi_list: List of global poses.
+        i2Ti1_dict: Dictionary of (i1, i2) -> i2Ti1 relative poses.
 
     Returns:
-        Tuple[Dict[Tuple[int, int], Rot3], List[Rot3]]: [description]
+        i2Ti1_dict's values mapped to relative rotations i2Ri1.
+        wTi_list mapped to global rotations.
     """
 
     wRi_list = [x.rotation() for x in wTi_list]
@@ -109,14 +110,16 @@ def convert_data_for_rotation_averaging(
 def convert_data_for_translation_averaging(
     wTi_list: List[Pose3], i2Ti1_dict: Dict[Tuple[int, int], Pose3]
 ) -> Tuple[List[Rot3], Dict[Tuple[int, int], Unit3], List[Point3]]:
-    """[summary]
+    """Converts the poses to inputs and expected outputs for a translation averaging algorithm.
 
     Args:
-        wTi_list (List[Pose3]): [description]
-        i2Ti1_dict (Dict[Tuple[int, int], Pose3]): [description]
+        wTi_list: List of global poses.
+        i2Ti1_dict: Dictionary of (i1, i2) -> i2Ti1 relative poses.
 
     Returns:
-        Tuple[List[Rot3], Dict[Tuple[int, int], Unit3], List[Point3]]: [description]
+        wTi_list mapped to global rotations.
+        i2Ti1_dict's values mapped to relative unit translations i2Ui1.
+        wTi_list mapped to global translations.
     """
 
     wRi_list = [x.rotation() for x in wTi_list]

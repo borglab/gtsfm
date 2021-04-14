@@ -1,22 +1,22 @@
 import os
 from pathlib import Path
 
-import hydra
 from dask.distributed import Client, LocalCluster, performance_report
 from hydra.experimental import compose, initialize_config_module
 from hydra.utils import instantiate
-from omegaconf import DictConfig
 
-import gtsfm
-from gtsfm.common.sfm_result import SfmResult
-from gtsfm.loader.folder_loader import FolderLoader
+import gtsfm.utils.logger as logger_utils
+from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.scene_optimizer import SceneOptimizer
 
 # densify
-from gtsfm.densify.mvsnets.mvsnets import MVSNets 
+from gtsfm.densify.mvsnets.mvsnets import MVSNets
 
 
 DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "tests" / "data"
+
+logger = logger_utils.get_logger()
 
 
 def run_scene_optimizer() -> None:
@@ -26,7 +26,7 @@ def run_scene_optimizer() -> None:
         cfg = compose(config_name="default_lund_door_set1_config.yaml")
         scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
-        loader = FolderLoader(os.path.join(DATA_ROOT, "set1_1_lund_door"), image_extension="JPG")
+        loader = OlssonLoader(os.path.join(DATA_ROOT, "set1_lund_door"), image_extension="JPG")
 
         sfm_result_graph = scene_optimizer.create_computation_graph(
             len(loader),
@@ -43,21 +43,18 @@ def run_scene_optimizer() -> None:
         with Client(cluster), performance_report(filename="dask-report.html"):
             sfm_result = sfm_result_graph.compute()
 
-        assert isinstance(sfm_result, SfmResult)
-        
-        MVSNets.densify(sfm_result.sfm_data, 
-                        image_path=os.path.join(DATA_ROOT, "set1_1_lund_door"), 
-                        image_extension="JPG",
-                        view_number=5,
-                        thres=[1.0, 0.01, 0.8])
-        
-        # # ------ test from result ------
-        # import gtsam
-        # sfm_result = gtsam.readBal('./results/ba_output.bal')
-        # print(DATA_ROOT)
-        # MVSNets.densify(sfm_result, image_path=os.path.join(DATA_ROOT, "set1_1_lund_door"), image_extension="JPG", use_gt_cam=True)
-        
+        assert isinstance(sfm_result, GtsfmData)
 
+        # ===== densify =====
+        #   step 1: form image dict
+        img_dict = dict()
+        for i in range(len(loader)):
+            img_dict[i] = loader.get_image(i)
+        #   step 2: call densify
+        mvsnet = MVSNets()
+        dense_points = mvsnet.densify(images=img_dict, sfm_result=sfm_result)
+
+        print(f"Output dense point cloud volume:{dense_points.shape}")
 
 if __name__ == "__main__":
     run_scene_optimizer()
