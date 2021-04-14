@@ -68,7 +68,7 @@ class TestFeatureUtils(unittest.TestCase):
         E_matrix = EssentialMatrix(Rot3.RzRyRx(0, np.deg2rad(45), 0), Unit3(np.array([-5, 2, 0])))
         F_matrix = E_matrix.matrix()  # using identity intrinsics
         expected_opencv = cv.computeCorrespondEpilines(points.reshape(-1, 1, 2), 1, F_matrix)
-        expected_opencv = np.squeeze(expected_opencv)
+        expected_opencv = np.squeeze(expected_opencv)  # converting to 2D array as opencv adds a singleton dimension
 
         computed = feature_utils.convert_to_epipolar_lines(points, F_matrix)
         computed_normalized = computed / np.linalg.norm(computed[:, :2], axis=1, keepdims=True)
