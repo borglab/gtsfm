@@ -83,7 +83,8 @@ def compute_epipolar_distances_sed(
     coordinates_i1: np.ndarray, coordinates_i2: np.ndarray, i2Fi1: np.ndarray
 ) -> Optional[np.ndarray]:
     """Compute symmetric point-line epipolar distance between corresponding coordinates in two images. The SED is the
-    geometric point-line distance and is a biased estimate of the gold-standard reprojection error.
+    geometric point-line distance and is an over-estimate of the gold-standard reprojection error. The over-estimate
+    can reject correspondences which are actually inliers.
 
     References: 
     - "Fathy et al., Fundamental Matrix Estimation: A Study of Error Criteria", https://arxiv.org/abs/1706.07886
@@ -123,7 +124,8 @@ def compute_epipolar_distances_sampson(
     coordinates_i1: np.ndarray, coordinates_i2: np.ndarray, i2Fi1: np.ndarray
 ) -> Optional[np.ndarray]:
     """Compute the sampson distance between corresponding coordinates in two images. Sampson distance is the first
-    order approximation of the reprojection error.
+    order approximation of the reprojection error, and well-estimates the gold standard reprojection error at low
+    values of the reprojection error.
 
     References: 
     - "Fathy et al., Fundamental Matrix Estimation: A Study of Error Criteria", https://arxiv.org/abs/1706.07886
