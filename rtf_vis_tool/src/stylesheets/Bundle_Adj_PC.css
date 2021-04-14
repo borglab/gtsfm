@@ -7,7 +7,7 @@ Author: Adi Singh
     background with black curved border. Z-index of 2 makes it lay on top of other components 
     which have z-index of 1.
 */
-.ba-container {
+.ba_container {
     position: absolute;
     top: 5%;
     left: 3%;

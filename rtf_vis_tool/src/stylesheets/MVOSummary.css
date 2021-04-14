@@ -3,7 +3,7 @@
 Author: Adi Singh
 */
 
-/* Styles the div containing all the multiview optimizer metrics text. Gives a tan background
+/* Styles the div containing all the multiview optimizer metrics text. Gives a light tango background
    with surrounding black border. Located in the second/third quadrant of the screen. 
 */
 .mvo_container {
@@ -30,12 +30,14 @@ Author: Adi Singh
 }
 
 /* Makes each metrics header bold. */
-.mvo-header {
+.mvo_header {
     font-weight: 600;
 }
 
-/* Makes each metrics text less bold than the header. */
-.mvo-text {
+/* Gives any text with the tag className="mvo-text" a lighter weight. Specically: Median Error, Min Error, and Max
+Error.
+*/
+.mvo_text {
     font-weight: 400;
 }
 

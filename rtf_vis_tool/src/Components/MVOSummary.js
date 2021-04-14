@@ -12,11 +12,15 @@ function MVOSummary(props) {
     /*
     Args:
         props.json.rotation_averaging_angle_deg.median_error (float): Median error of rotation averaging.
-        props.json.rotation_averaging_angle_deg.min_error (float): Min error of rotation averaging.
-        props.json.rotation_averaging_angle_deg.max_error (float): Max error of rotation averaging.
+        props.json.rotation_averaging_angle_deg.min_error (float): Min angular error on global rotation for any frame 
+                                                                   after rotation averaging (pre-BA).
+        props.json.rotation_averaging_angle_deg.max_error (float): Max angular error on global rotation for any frame 
+                                                                   after rotation averaging (pre-BA).
         props.json.translation_averaging_distance.median_error (float): Median error of translation averaging.
-        props.json.translation_averaging_distance.min_error (float): Min error of translation averaging.
-        props.json.translation_averaging_distance.max_error (float): Max error of translation averaging.
+        props.json.translation_averaging_distance.min_error (float): Min Euclidean error on global translation for 
+                                                                    any frame after translation averaging (pre-BA).
+        props.json.translation_averaging_distance.max_error (float): Max Euclidean error on global translation for 
+                                                                    any frame after translation averaging (pre-BA).
         props.json.translation_to_direction_angle_deg.median_error (float): Median error of translation to direction.
         props.json.translation_to_direction_angle_deg.min_error (float): Min error of translation to direction.
         props.json.translation_to_direction_angle_deg.max_error (float): Max error of tranlation to direction.
@@ -30,49 +34,49 @@ function MVOSummary(props) {
             <h3>MultiView Optimizer Metrics</h3>
             <div className="mvo_sub_container">
                 <div className="metrics_container">
-                    <p className="mvo-header">Rotation Averaging Angle Metrics</p>
+                    <p className="mvo_header">Rotation Averaging Angle Metrics</p>
 
-                    <p className="mvo-text">
+                    <p className="mvo_text">
                         Median Error: {props.json.rotation_averaging_angle_deg.median_error.toFixed(5)}
                     </p>
 
-                    <p className="mvo-text">
+                    <p className="mvo_text">
                         Min Error: {props.json.rotation_averaging_angle_deg.min_error.toFixed(5)}
                     </p>
 
-                    <p className="mvo-text">
+                    <p className="mvo_text">
                         Max Error: {props.json.rotation_averaging_angle_deg.max_error.toFixed(5)}
                     </p>
                 </div>
 
                 <div className="metrics_container">
-                    <p className="mvo-header">Translation Averaging Metrics</p>
+                    <p className="mvo_header">Translation Averaging Metrics</p>
 
-                    <p className="mvo-text">
+                    <p className="mvo_text">
                         Median Error: {props.json.translation_averaging_distance.median_error.toFixed(5)}
                     </p>
 
-                    <p className="mvo-text">
+                    <p className="mvo_text">
                         Min Error: {props.json.translation_averaging_distance.min_error.toFixed(5)}
                     </p>
 
-                    <p className="mvo-text">
+                    <p className="mvo_text">
                         Max Error: {props.json.translation_averaging_distance.max_error.toFixed(5)}
                     </p>
                 </div>
 
                 <div className="metrics_container">
-                    <p className="mvo-header">Translation to Direction Angle Metrics</p>
+                    <p className="mvo_header">Translation to Direction Angle Metrics</p>
 
-                    <p className="mvo-text">
+                    <p className="mvo_text">
                         Median Error: {props.json.translation_to_direction_angle_deg.median_error.toFixed(5)}
                     </p>
 
-                    <p className="mvo-text">
+                    <p className="mvo_text">
                         Min Error: {props.json.translation_to_direction_angle_deg.min_error.toFixed(5)}
                     </p>
 
-                    <p className="mvo-text">
+                    <p className="mvo_text">
                         Max Error: {props.json.translation_to_direction_angle_deg.max_error.toFixed(5)}
                     </p>
                 </div>

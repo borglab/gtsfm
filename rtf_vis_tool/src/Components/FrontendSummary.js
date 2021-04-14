@@ -11,11 +11,13 @@ import '../stylesheets/FrontendSummary.css'
 function FrontendSummary(props) {
     /*
     Args:
-        props.json.rotation.success_count (int): Number of successes from rotation averaging.
-        props.json.translation.success_count (int): Number of successes frmo translation averaging.
+        props.json.rotation.success_count (int): Number of image pairs with estimated relative rotation error 
+        underneath the threshold.
+        props.json.translation.success_count (int): Number of image pairs with estimated relative translation error 
+        underneath the threshold.
         props.json.num_valid_entries (int): Number of valid image pair entries.
         props.json.num_total_entries (int): Number of total image pair entries.
-        props.json.pose.success_count (int): Number of pose successes.
+        props.json.pose.success_count (int): Number of image pairs with successfully recovered relative pose.
         props.json.correspondence.all_inliers (int): Number of correspondence inliers.
         
     Returns:
@@ -30,25 +32,25 @@ function FrontendSummary(props) {
                     Format: (success count)/(valid entries)/(total entries)
                 </p>
 
-                <p className="fs-text">
+                <p className="fs_text">
                     Rotation Success: {props.json.rotation.success_count}/
                                     {props.json.num_valid_entries}/
                                     {props.json.num_total_entries}
                 </p>
 
-                <p className="fs-text">
+                <p className="fs_text">
                     Translation Success: {props.json.translation.success_count}/
                                         {props.json.num_valid_entries}/
                                         {props.json.num_total_entries}
                 </p>
 
-                <p className="fs-text">
+                <p className="fs_text">
                     Pose Success: {props.json.pose.success_count}/
                                 {props.json.num_valid_entries}/
                                 {props.json.num_total_entries}
                 </p>
 
-                <p className="fs-text">
+                <p className="fs_text">
                     Correspondence Inliners: {props.json.correspondences.all_inliers}
                 </p>
 

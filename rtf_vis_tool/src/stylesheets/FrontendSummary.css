@@ -3,7 +3,7 @@
 Author: Adi Singh
 */
 
-/* Styles the div containing all the frontend summary metrics text. Gives a tan background with surrounding black
+/* Styles the div containing all the frontend summary metrics text. Gives a light tango background with surrounding black
    border. Located in the first quadrant of the screen. 
 */
 .fs_container {
@@ -33,7 +33,7 @@ Author: Adi Singh
     margin-bottom: 5%;
 }
 
-/* Positinos the 'Go Back' button to be 10px away from the right. When hovered over, the mouse changes to a 
+/* Positions the 'Go Back' button to be 10px away from the right. When hovered over, the mouse changes to a 
    pointer.
 */
 .go_back_btn {
@@ -42,7 +42,9 @@ Author: Adi Singh
     cursor: pointer;
 }
 
-/* Gives the text a bold weight. */
-.fs-text {
+/* Gives any text with the tag className="fs-text" a bold weight. Specically, Rotation Success, Translation Success,
+Pose Success, and Correspondence Inliers. 
+*/
+.fs_text {
     font-weight: 600;
 }

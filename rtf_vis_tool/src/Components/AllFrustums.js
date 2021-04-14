@@ -76,20 +76,16 @@ function AllFrustums() {
             }
 
             // Set the important variables from inCamArray and exCamArray
-            var fx, img_w, img_h, qw, qx, qy, qz, tx, ty, tz;
+            var fx, img_w, img_h;
             inCamArray = inCamArray.map(Number);
             exCamArray = exCamArray.map(Number);
 
             fx = inCamArray[4];
             img_w = inCamArray[2];
             img_h = inCamArray[3];
-            qw = exCamArray[1];
-            qx = exCamArray[2];
-            qy = exCamArray[3];
-            qz = exCamArray[4];
-            tx = exCamArray[5];
-            ty = exCamArray[6];
-            tz = exCamArray[7];
+
+            const [qw, qx, qy, qz] = [exCamArray[1], exCamArray[2], exCamArray[3], exCamArray[4]];
+            const [tx, ty, tz] = [exCamArray[5], exCamArray[6], exCamArray[7]]
             const DEFAULT_FRUSTUM_RAY_LENGTH = 0.5;  //meters, arbitrary
 
             // Use Frustum and SE3 Classes to obtain frustum vertices in world frame coordinates.

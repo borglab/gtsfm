@@ -24,6 +24,12 @@ function BlueNode(props) {
     const nodeLeftOffset = props.nodeInfo.leftOffset;
 
     function defaultFunction(text) {
+        /* A placeholder function. Just displays the text of the node that is clicked on screen.
+
+        Args:
+            text (string): Name of the node.
+        */
+
         alert(`You Clicked ${text}`);
     }
 

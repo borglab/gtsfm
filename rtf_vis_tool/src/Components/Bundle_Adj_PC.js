@@ -103,7 +103,7 @@ function Bundle_Adj_PC(props) {
     }
 
     return (
-        <div className="ba-container">
+        <div className="ba_container">
             <h2>Bundle Adjustment Point Cloud</h2>
             <Canvas colorManagement camera={{ fov: 20, position: [50, 50, 50], up: [0,0,1]}}>
                 <ambientLight intensity={0.5}/>

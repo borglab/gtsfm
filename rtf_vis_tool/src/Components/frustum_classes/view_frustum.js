@@ -1,4 +1,4 @@
-/* Contains functions to transform camera instrinsic variables into a frustum consisting of 5 vertices.
+/*Contains functions to transform camera instrinsic variables into a frustum consisting of 5 vertices.
 
 Author: Adi Singh
 */
@@ -12,11 +12,11 @@ class ViewFrustum {
     constructor(fx, img_w, img_h, ray_len) {
         /*Initializes the ViewFrustum Object.
 
-        Args:
-            fx (float): Focal length in x-direction.
-            img_w (float): Image width (in pixels).
-            img_h (float): Image height (in pixels).
-            ray_len (float): Extent to which frustum rays extend away from optical center.
+            Args:
+                fx (float): Focal length in x-direction.
+                img_w (float): Image width (in pixels).
+                img_h (float): Image height (in pixels).
+                ray_len (float): Extent to which frustum rays extend away from optical center.
         */
 
         this.fx_ = fx;
@@ -80,6 +80,7 @@ class ViewFrustum {
 
     get_frustum_vertices_camfr() {
         /*Obtain 3d positions of all 5 frustum vertices in the camera frame
+
           (x,y,z)               (x,y,z)                (x,y,z)              (x,y,z)
               \\=================//                      \\                   //
                \\               //                        \\ 1-------------2 //
@@ -112,6 +113,7 @@ class ViewFrustum {
 
     get_mesh_vertices_worldframe(wTc) {
         /*Obtains 5 vertices defining the frustum mesh, in the world/global frame.
+
             Args:
                 wTc: camera pose in world frame
             Returns:

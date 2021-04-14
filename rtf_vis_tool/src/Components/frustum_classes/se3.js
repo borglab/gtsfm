@@ -1,4 +1,4 @@
-/* Contains the Pose Matrix used to convert points from camera coordinate system to world coordinate system.
+/*Contains the Pose Matrix used to convert points from camera coordinate system to world coordinate system.
 
 Author: Adi Singh
 */
@@ -10,8 +10,7 @@ class SE3 {
     // An SE3 class allows point cloud rotation and translation operations.
 
     constructor(rotation, translation) {
-        /*
-            Initialize an SE3 instance and pose matrix with its rotation and translation matrices.
+        /*Initialize an SE3 instance and pose matrix with its rotation and translation matrices.
 
             Args:
                 rotation: Matrix of shape 3x3
@@ -37,8 +36,7 @@ class SE3 {
     }
 
     tranform_frustum_vertex(point_cam_coords) {
-        /*
-            Apply the SE3 transformation to the point.
+        /*Apply the SE3 transformation to the point.
 
             Args:
                 point_cam_coords: Array of shape (1,3) representing the point in camera coordinates.
