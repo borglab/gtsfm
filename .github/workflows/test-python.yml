@@ -28,5 +28,5 @@ jobs:
         bash .github/scripts/python.sh
     - name: React-Three-Fiber app tests
       run: |
-        cd rtf_vis_tool && npm test a
+        cd rtf_vis_tool && npm install && npm test a
         
