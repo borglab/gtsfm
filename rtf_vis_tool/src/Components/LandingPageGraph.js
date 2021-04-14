@@ -14,10 +14,12 @@ import Bundle_Adj_PC from './Bundle_Adj_PC';
 import data_association_json from '../result_metrics/data_association_metrics.json';
 import EdgeList from './gtsfm_graph/edge_list.js';
 import frontend_summary_json from '../result_metrics/frontend_summary.json';
+import FrontendSummary from './FrontendSummary';
 import GrayNode from './GrayNode';
 import GrayNodes from './gtsfm_graph/gray_nodes.js';
-import multiview_optimizer_json from '../result_metrics/multiview_optimizer_metrics.json';
 import GtsfmNode from './GtsfmNode';
+import multiview_optimizer_json from '../result_metrics/multiview_optimizer_metrics.json';
+import MVOSummary from './MVOSummary';
 import '../stylesheets/LandingPageGraph.css'
 
 function LandingPageGraph() {
@@ -129,6 +131,8 @@ function LandingPageGraph() {
 
             {/* Render popups only when the respective node is clicked. */} 
             {showDA_PC && <Bundle_Adj_PC toggleBA_PC={toggleBundleAdj_PointCloud}/>}
+            {showFS && <FrontendSummary json={fs_json} toggleFS={toggleFrontEndSummaryDisplay}/>}
+            {showMVO && <MVOSummary json={mvo_json} toggleMVO={toggleMVOMetrics}/>}
 
             <div className="gtsfm_graph">
 
