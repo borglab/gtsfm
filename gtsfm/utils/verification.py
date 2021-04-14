@@ -91,8 +91,8 @@ def compute_epipolar_distances_sed(
 
     Algorithm:
     - l2 = i2Fi1 @ x1
-    - l1 = x2 @ i2Fi1
-    - n1 = EuclideanNorm(Normal(l1))
+    - l1 = x2 @ i2Fi1 = [a1, b1, c1]
+    - n1 = EuclideanNorm(Normal(l1)) = sqrt(a1^2 + b1^2)
     - n2 = EuclideanNorm(Normal(l2))
     - SED^2 = ( l1 @ x1 )^2 / n1^2 + ( l1 @ x1 )^2 / n2^2
 
@@ -131,8 +131,8 @@ def compute_epipolar_distances_sampson(
 
     Algorithm:
     - l2 = i2Fi1 @ x1
-    - l1 = x2 @ i2Fi1
-    - n1 = EuclideanNorm(Normal(l1))
+    - l1 = x2 @ i2Fi1 = [a1, b1, c2]
+    - n1 = EuclideanNorm(Normal(l1)) = sqrt(a1^2 + b1^2)
     - n2 = EuclideanNorm(Normal(l2))
     - Sampson^2 = ( l1 @ x1 )^2 / (n1^2 + n2^2)
 
