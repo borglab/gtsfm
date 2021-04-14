@@ -97,8 +97,8 @@ class TestFeatureUtils(unittest.TestCase):
         """Test for 2D point-line dot product."""
 
         points = np.array([[-2.0, 1.0], [1.0, 3.0],])
-        lines = np.array([[1.0, 3.0, -1.0], [-1.0, 2.0, 2.0],])  # coefficients (a, b, c) for the line ax + by + c = 0
-        expected = np.array([0.0, 7.0])
+        lines = np.array([[1.0, 3.0, -1.0], [-1.0, 2.0, 2.0]])  # coefficients (a, b, c) for the line ax + by + c = 0
+        expected = np.array([0.0, 7.0])  # (-2*1 + 1*3 + 1*-1)  and  (1*-1 + 3*2 + 1*2)
         computed = feature_utils.point_line_dotproduct(points, lines)
         np.testing.assert_allclose(computed, expected)
 
