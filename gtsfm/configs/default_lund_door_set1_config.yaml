@@ -19,6 +19,7 @@ SceneOptimizer:
 
     verifier:
       _target_: gtsfm.frontend.verifier.ransac.Ransac
+      use_intrinsics_in_verification: False
     
 
   multiview_optimizer:
