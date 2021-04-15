@@ -76,7 +76,7 @@ class TestVerifierBase(unittest.TestCase):
         """Test a simple scene with 10 points, 5 each on 2 planes, so that RANSAC family of methods do not
         get trapped into a degenerate sample."""
         # obtain the keypoints and the ground truth essential matrix.
-        keypoints_i1, keypoints_i2, i2Ei1_expected = simulate_two_planes_scene(5, 5)
+        keypoints_i1, keypoints_i2, i2Ei1_expected = simulate_two_planes_scene(4, 4)
 
         # match keypoints row by row
         match_indices = np.vstack((np.arange(len(keypoints_i1)), np.arange(len(keypoints_i1)))).T
