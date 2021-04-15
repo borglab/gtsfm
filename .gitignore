@@ -1,12 +1,9 @@
 # Customize
-gtsfm/densify/inputs/*
-gtsfm/densify/model/*
-gtsfm/densify/deprecated/*
 results_densify/*
 results/*
 results_densify/*
 result_metrics/*
-gtsfm/densify/deprecated
+dask-report.html
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

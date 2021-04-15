@@ -46,15 +46,16 @@ def run_scene_optimizer() -> None:
         assert isinstance(sfm_result, GtsfmData)
 
         # ===== densify =====
+        DENSIFY_RESULTS_PATH = 'results_densify'
         #   step 1: form image dict
         img_dict = dict()
         for i in range(len(loader)):
             img_dict[i] = loader.get_image(i)
         #   step 2: call densify
         mvsnet = MVSNets()
-        dense_points = mvsnet.densify(images=img_dict, sfm_result=sfm_result)
+        dense_points = mvsnet.densify(images=img_dict, sfm_result=sfm_result, save_output=False, output_path=DENSIFY_RESULTS_PATH)
 
-        print(f"Output dense point cloud volume:{dense_points.shape}")
+        logger.debug(f"[Densify] Output dense point cloud volume:{dense_points.shape}")
 
 if __name__ == "__main__":
     run_scene_optimizer()

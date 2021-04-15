@@ -1,8 +1,14 @@
+"""Customized MVSDataset class for gtsfm
+    reference: https://github.com/FangjinhuaWang/PatchmatchNet
+
+Authors: Ren Liu
+"""
+
 from torch.utils.data import Dataset
 import numpy as np
 import os
 from PIL import Image
-from datasets.data_io import *
+from .data_io import *
 import cv2
 
 class MVSDataset(Dataset):
@@ -34,7 +40,6 @@ class MVSDataset(Dataset):
         for i in range(num_viewpoint):
             metas.append(("scan1", i, pair_idx[i].tolist()))
 
-        print("dataset", self.mode, "metas:", len(metas))
         return metas
     
     def __len__(self):

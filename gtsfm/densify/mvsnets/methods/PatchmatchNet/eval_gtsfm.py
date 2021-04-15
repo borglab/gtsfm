@@ -1,5 +1,10 @@
+"""Customized MVSNet evaluation functions for gtsfm
+    reference: https://github.com/FangjinhuaWang/PatchmatchNet
+
+Authors: Ren Liu
+"""
+
 import sys
-sys.path.append("gtsfm/densify/mvsnets/source/PatchmatchNet")
 import argparse
 import os
 import torch
@@ -12,14 +17,17 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 import numpy as np
 import time
-from datasets import find_dataset_def
-from models import *
-from utils import *
-from datasets.data_io import read_pfm, save_pfm
 import cv2
 from plyfile import PlyData, PlyElement
 from PIL import Image
 from matplotlib import pyplot as plt
+
+from gtsfm.densify.mvsnets.methods.PatchmatchNet.datasets.gtsfm import MVSDataset
+from gtsfm.densify.mvsnets.methods.PatchmatchNet.models import *
+from gtsfm.densify.mvsnets.methods.PatchmatchNet.utils import *
+from gtsfm.densify.mvsnets.methods.PatchmatchNet.datasets.data_io import read_pfm, save_pfm
+import gtsfm.utils.logger as logger_utils
+logger = logger_utils.get_logger()
 
 cudnn.benchmark = True
 
@@ -129,8 +137,7 @@ def check_geometric_consistency(depth_ref, intrinsics_ref, extrinsics_ref, depth
     x_ref, y_ref = np.meshgrid(np.arange(0, width), np.arange(0, height))
     depth_reprojected, x2d_reprojected, y2d_reprojected, x2d_src, y2d_src = reproject_with_depth(depth_ref, intrinsics_ref, extrinsics_ref,
                                                      depth_src, intrinsics_src, extrinsics_src)
-    # print(depth_ref.shape)
-    # print(depth_reprojected.shape)
+
     # check |p_reproj-p_1| < 1
     dist = np.sqrt((x2d_reprojected - x_ref) ** 2 + (y2d_reprojected - y_ref) ** 2)
 
@@ -201,14 +208,13 @@ def filter_depth(data, nviews, depth_list, confidence_list, geo_pixel_thres, geo
             save_mask(os.path.join(out_folder, "mask/{:0>8}_geo.png".format(ref_view)), geo_mask)
             save_mask(os.path.join(out_folder, "mask/{:0>8}_final.png".format(ref_view)), final_mask)
 
-        print("processing ref-view{:0>2}, geo_mask:{:3f} photo_mask:{:3f} final_mask: {:3f}".format(ref_view,
+        logger.info("[Densify::PatchMatchNet] processing ref-view{:0>2}, geo_mask:{:3f} photo_mask:{:3f} final_mask: {:3f}".format(ref_view,
                                                                 geo_mask.mean(), photo_mask.mean(), final_mask.mean()))
 
         height, width = depth_est_averaged.shape[:2]
         x, y = np.meshgrid(np.arange(0, width), np.arange(0, height))
         
         valid_points = final_mask
-        # print("valid_points", valid_points.mean())
         x, y, depth = x[valid_points], y[valid_points], depth_est_averaged[valid_points]
         
         color = ref_img[valid_points]
@@ -234,7 +240,7 @@ def filter_depth(data, nviews, depth_list, confidence_list, geo_pixel_thres, geo
 
         el = PlyElement.describe(vertex_all, 'vertex')
         PlyData([el]).write(plyfilename)
-        print("saving the final model to", plyfilename)
+        logger.info("[Densify::PatchMatchNet] saving the final model to", plyfilename)
 
     return vertexs_raw
 
@@ -248,7 +254,6 @@ def eval_function(gtargs):
         data.pairs   
         data.depthRange
     """
-    MVSDataset = find_dataset_def("gtsfm")
     test_dataset = MVSDataset(data, gtargs["n_views"], img_wh=gtargs["img_wh"])
     TestImgLoader = DataLoader(test_dataset, 1, shuffle=False, num_workers=4, drop_last=False)
     # model
@@ -260,7 +265,7 @@ def eval_function(gtargs):
     model.cuda()
 
     # load checkpoint file specified by args.loadckpt
-    print("loading model {}".format(gtargs["loadckpt"]))
+    logger.info("[Densify::PatchMatchNet] loading model {}".format(gtargs["loadckpt"]))
     state_dict = torch.load(gtargs["loadckpt"])
     model.load_state_dict(state_dict['model'])
     model.eval()
@@ -275,7 +280,7 @@ def eval_function(gtargs):
             
             outputs = tensor2numpy(outputs)
             del sample_cuda
-            print('Iter {}/{}, time = {:.3f}'.format(batch_idx, len(TestImgLoader), time.time() - start_time))
+            logger.info('[Densify::PatchMatchNet] Iter {}/{}, time = {:.3f}'.format(batch_idx, len(TestImgLoader), time.time() - start_time))
             filenames = sample["filename"]
             ids = sample["idx"]
             

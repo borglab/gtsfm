@@ -1,3 +1,8 @@
+"""MVSNets utils class for gtsfm
+
+Authors: Ren Liu
+"""
+
 import math
 import numpy as np 
 
@@ -31,7 +36,7 @@ class MVSNetsModelManager(object):
     def test(cls, method, args):
         model_func = None 
         if method.lower() == 'PatchmatchNet'.lower():
-            from .source.PatchmatchNet.eval_gtsfm import eval_function
+            from gtsfm.densify.mvsnets.methods.PatchmatchNet.eval_gtsfm import eval_function
             model_func = eval_function
 
         return model_func(args)

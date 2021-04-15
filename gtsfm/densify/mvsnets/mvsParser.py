@@ -1,6 +1,12 @@
+"""MVSNets Parser class 
+    parse GtsfmData to fit input datatype of mvsnets
+
+Authors: Ren Liu
+"""
+
 import math
 import numpy as np 
-from .mvsUtills import Math
+from gtsfm.densify.mvsnets.mvsUtills import Math
 
 class Parser(object):
     @classmethod

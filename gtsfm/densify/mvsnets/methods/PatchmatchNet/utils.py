@@ -1,3 +1,8 @@
+"""PatchmatchNet utils
+    reference: https://github.com/FangjinhuaWang/PatchmatchNet
+
+"""
+
 import numpy as np
 import torchvision.utils as vutils
 import torch
