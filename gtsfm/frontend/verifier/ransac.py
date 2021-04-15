@@ -23,8 +23,7 @@ import gtsfm.utils.verification as verification_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
-NUM_MATCHES_REQ_E_MATRIX = 5
-NUM_MATCHES_REQ_F_MATRIX = 8
+
 NORMALIZED_COORD_RANSAC_THRESH = 0.001  # TODO: hyperparameter to tune
 PIXEL_COORD_RANSAC_THRESH = 0.5  # TODO: hyperparameter to tune
 DEFAULT_RANSAC_SUCCESS_PROB = 0.9999
@@ -33,18 +32,6 @@ logger = logger_utils.get_logger()
 
 
 class Ransac(VerifierBase):
-    def __init__(self, use_intrinsics_in_verification: bool = False) -> None:
-        """Initializes the verifier.
-
-        Args:
-            use_intrinsics_in_verification (optional): Flag to perform keypoint normalization and compute the essential
-                                                       matrix instead of fundamental matrix. This should be preferred
-                                                       when the exact intrinsics are known as opposed to approximating
-                                                       them from exif data. Defaults to False.
-        """
-        min_matches = NUM_MATCHES_REQ_E_MATRIX if use_intrinsics_in_verification else NUM_MATCHES_REQ_F_MATRIX
-        super().__init__(min_matches, use_intrinsics_in_verification)
-
     def verify(
         self,
         keypoints_i1: Keypoints,
@@ -69,8 +56,6 @@ class Ransac(VerifierBase):
         """
         if match_indices.shape[0] < self._min_matches:
             return self._failure_result
-
-        verified_indices = np.array([], dtype=np.uint32)
 
         if self._use_intrinsics_in_verification:
             uv_norm_i1 = feature_utils.normalize_coordinates(keypoints_i1.coordinates, camera_intrinsics_i1)

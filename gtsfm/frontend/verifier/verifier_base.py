@@ -13,6 +13,10 @@ from gtsam import Cal3Bundler, Rot3, Unit3
 from gtsfm.common.keypoints import Keypoints
 
 
+NUM_MATCHES_REQ_E_MATRIX = 5
+NUM_MATCHES_REQ_F_MATRIX = 8
+
+
 class VerifierBase(metaclass=abc.ABCMeta):
     """Base class for all verifiers.
 
@@ -20,18 +24,18 @@ class VerifierBase(metaclass=abc.ABCMeta):
     geometrically verified points.
     """
 
-    def __init__(self, min_matches: int, use_intrinsics_in_verification: bool = False):
+    def __init__(self, use_intrinsics_in_verification: bool):
         """Initializes the verifier.
 
         Args:
-            min_matches: minimum correspondences required for the verification algorithm.
-            use_intrinsics_in_verification (optional): Flag to perform keypoint normalization and compute the essential
-                                                       matrix instead of fundamental matrix. This should be preferred
-                                                       when the exact intrinsics are known as opposed to approximating
-                                                       them from exif data. Defaults to False.
+            use_intrinsics_in_verification: Flag to perform keypoint normalization and compute the essential matrix 
+                                            instead of fundamental matrix. This should be preferred when the exact
+                                            intrinsics are known as opposed to approximating them from exif data.
         """
-        self._min_matches = min_matches
         self._use_intrinsics_in_verification = use_intrinsics_in_verification
+        self._min_matches = (
+            NUM_MATCHES_REQ_E_MATRIX if self._use_intrinsics_in_verification else NUM_MATCHES_REQ_F_MATRIX
+        )
 
         self._failure_result = (None, None, np.array([], dtype=np.uint64))
 

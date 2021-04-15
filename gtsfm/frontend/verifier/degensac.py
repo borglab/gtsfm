@@ -23,15 +23,27 @@ import gtsfm.utils.verification as verification_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
-NUM_MATCHES_REQ_F_MATRIX = 8
 PIXEL_COORD_RANSAC_THRESH = 0.5
 
 logger = logger_utils.get_logger()
 
 
 class Degensac(VerifierBase):
-    def __init__(self) -> None:
-        super().__init__(min_matches=NUM_MATCHES_REQ_F_MATRIX, use_intrinsics_in_verification=False)
+    def __init__(self, use_intrinsics_in_verification: bool = False) -> None:
+        """Initializes the verifier.
+
+        Args:
+            use_intrinsics_in_verification: Flag to perform keypoint normalization and compute the essential matrix 
+                                            instead of fundamental matrix. This should be preferred when the exact
+                                            intrinsics are known as opposed to approximating them from exif data.
+
+        Raises:
+            NotImplementedError: when configured to compute essential matrices.
+        """
+        if use_intrinsics_in_verification is True:
+            raise NotImplementedError("DEGENSAC cannot estimate essential matrices")
+
+        super().__init__(use_intrinsics_in_verification)
 
     def verify(
         self,

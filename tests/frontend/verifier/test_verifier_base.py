@@ -15,6 +15,7 @@ from gtsam import Cal3Bundler, EssentialMatrix, PinholeCameraCal3Bundler, Point3
 import gtsfm.utils.features as feature_utils
 import gtsfm.utils.geometry_comparisons as geom_comp_utils
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.frontend.verifier.ransac import Ransac
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
 RANDOM_SEED = 15
@@ -36,7 +37,7 @@ class TestVerifierBase(unittest.TestCase):
         np.random.seed(RANDOM_SEED)
         random.seed(RANDOM_SEED)
 
-        self.verifier = DummyVerifier()
+        self.verifier: VerifierBase = Ransac(use_intrinsics_in_verification=True)
 
     def __execute_test(
         self,
@@ -74,9 +75,6 @@ class TestVerifierBase(unittest.TestCase):
     def test_simple_scene(self):
         """Test a simple scene with 10 points, 5 each on 2 planes, so that RANSAC family of methods do not
         get trapped into a degenerate sample."""
-        if isinstance(self.verifier, DummyVerifier):
-            self.skipTest("Cannot check correctness for dummy verifier")
-
         # obtain the keypoints and the ground truth essential matrix.
         keypoints_i1, keypoints_i2, i2Ei1_expected = simulate_two_planes_scene(5, 5)
 
@@ -351,62 +349,6 @@ def simulate_two_planes_scene(M: int, N: int) -> Tuple[Keypoints, Keypoints, Ess
 
     # return the points as keypoints and the essential matrix
     return Keypoints(coordinates=uv_im1), Keypoints(coordinates=uv_im2), i2Ei1
-
-
-class DummyVerifier(VerifierBase):
-    """A dummy verifier which produces random results"""
-
-    def __init__(self):
-        super().__init__(min_matches=5, use_intrinsics_in_verification=True)
-
-    def verify(
-        self,
-        keypoints_i1: Keypoints,  # pylint: disable=unused-argument
-        keypoints_i2: Keypoints,  # pylint: disable=unused-argument
-        match_indices: np.ndarray,
-        camera_intrinsics_i1: Cal3Bundler,  # pylint: disable=unused-argument
-        camera_intrinsics_i2: Cal3Bundler,  # pylint: disable=unused-argument
-    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
-        """Performs verification of correspondences between two images to recover the relative pose and indices of
-        verified correspondences.
-
-        Args:
-            keypoints_i1: detected features in image #i1.
-            keypoints_i2: detected features in image #i2.
-            match_indices: matches as indices of features from both images, of shape (N3, 2), where N3 <= min(N1, N2).
-            camera_intrinsics_i1: intrinsics for image #i1.
-            camera_intrinsics_i2: intrinsics for image #i2.
-
-        Returns:
-            Estimated rotation i2Ri1, or None if it cannot be estimated.
-            Estimated unit translation i2Ui1, or None if it cannot be estimated.
-            Indices of verified correspondences, of shape (N, 2) with N <= N3. These are subset of match_indices.
-        """
-        if match_indices.shape[0] < self._min_matches:
-            return self._failure_result
-
-        # set a random seed using descriptor data for repeatability
-        np.random.seed(int(1000 * (match_indices[0, 0] + match_indices[0, 1]) % (UINT32_MAX)))
-
-        # get the number of entries in the input
-        num_matches = match_indices.shape[0]
-
-        # get the number of verified_pts we will output
-        num_verifier_pts = np.random.randint(low=0, high=num_matches)
-
-        # randomly sample the indices for matches which will be verified
-        v_inlier_idxs = np.random.choice(num_matches, num_verifier_pts, replace=False).astype(np.uint32)
-
-        # use a random 3x3 matrix if the number of verified points are less that
-        if num_verifier_pts >= self._min_matches:
-            # generate random rotation and translation for essential matrix
-            rotation_angles = np.random.uniform(low=0.0, high=2 * np.pi, size=(3,))
-            i2Ri1 = Rot3.RzRyRx(rotation_angles[0], rotation_angles[1], rotation_angles[2])
-            i2Ti1 = Point3(np.random.uniform(low=-1.0, high=1.0, size=(3,)))
-
-            return i2Ri1, Unit3(i2Ti1), match_indices[v_inlier_idxs]
-        else:
-            return None, None, match_indices[v_inlier_idxs]
 
 
 if __name__ == "__main__":
