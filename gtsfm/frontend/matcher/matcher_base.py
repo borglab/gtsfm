@@ -3,7 +3,6 @@
 Authors: Ayush Baid
 """
 import abc
-from enum import Enum
 
 import dask
 import numpy as np
