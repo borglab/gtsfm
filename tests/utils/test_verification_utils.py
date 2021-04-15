@@ -50,7 +50,7 @@ class TestVerificationUtils(unittest.TestCase):
         # i2Fi1 @ x1 = [4.5, 1.0, 1.0] and [3.0, -2.0, -2.0]. Norms^2 = 21.25 and 13.0
         # x2 @ i2Fi1.T = [0.0, 2.0, 2.0] and [1.0, 1.0, 1.0]. Norms^2 = 4.0 and 2.0
         # point line dot product: 9 and 1
-        expected = np.array([9 * np.sqrt(1 / 21.25 + 1 / 4.0), 1 * np.sqrt(1 / 13.0 + 1 / 2.0)])
+        expected = np.array([81 * (1 / 21.25 + 1 / 4.0), 1 * (1 / 13.0 + 1 / 2.0)])
         computed = verification_utils.compute_epipolar_distances_sed(points_i1, points_i2, i2Fi1)
         np.testing.assert_allclose(computed, expected, rtol=1e-3)
 
@@ -62,7 +62,7 @@ class TestVerificationUtils(unittest.TestCase):
         # i2Fi1 @ x1 = [4.5, 1.0, 1.0] and [3.0, -2.0, -2.0]. Norms^2 = 21.25 and 13.0
         # x2 @ i2Fi1.T = [0.0, 2.0, 2.0] and [1.0, 1.0, 1.0]. Norms^2 = 4.0 and 2.0
         # point line dot product: 9 and 1
-        expected = np.array([9 / np.sqrt(21.25 + 4.0), 1 / np.sqrt(13.0 + 2.0)])
+        expected = np.array([81 / (21.25 + 4.0), 1 / (13.0 + 2.0)])
         computed = verification_utils.compute_epipolar_distances_sampson(points_i1, points_i2, i2Fi1)
         np.testing.assert_allclose(computed, expected, rtol=1e-3)
 

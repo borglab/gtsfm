@@ -95,7 +95,7 @@ def compute_epipolar_distances_sed(
     - l1 = x2 @ i2Fi1 = [a1, b1, c1]
     - n1 = EuclideanNorm(Normal(l1)) = sqrt(a1^2 + b1^2)
     - n2 = EuclideanNorm(Normal(l2))
-    - SED^2 = ( l1 @ x1 )^2 / n1^2 + ( l1 @ x1 )^2 / n2^2
+    - SED^2 = ( l1 @ x1 )^2 * (1/n1^2 + 1/n2^2)
 
     Args:
         coordinates_i1: coordinates in image i1, of shape Nx2.
@@ -112,12 +112,12 @@ def compute_epipolar_distances_sed(
     epipolar_lines_i2 = feature_utils.convert_to_epipolar_lines(coordinates_i1, i2Fi1)  # Ex1
     epipolar_lines_i1 = feature_utils.convert_to_epipolar_lines(coordinates_i2, i2Fi1.T)  # Etx2
 
-    numerator = feature_utils.point_line_dotproduct(coordinates_i1, epipolar_lines_i1)
+    numerator = np.square(feature_utils.point_line_dotproduct(coordinates_i1, epipolar_lines_i1))
 
     line_sq_norms_i1 = np.sum(np.square(epipolar_lines_i1[:, :2]), axis=1)
     line_sq_norms_i2 = np.sum(np.square(epipolar_lines_i2[:, :2]), axis=1)
 
-    return numerator * np.sqrt(1 / line_sq_norms_i1 + 1 / line_sq_norms_i2)
+    return numerator * (1 / line_sq_norms_i1 + 1 / line_sq_norms_i2)
 
 
 def compute_epipolar_distances_sampson(
@@ -130,6 +130,7 @@ def compute_epipolar_distances_sampson(
     References: 
     - "Fathy et al., Fundamental Matrix Estimation: A Study of Error Criteria", https://arxiv.org/abs/1706.07886
     - "Hartley, R.~I. et al. Multiple View Geometry in Computer Vision.. Cambridge University Press, Pg 288"
+    - TODO: add opencv ref
 
     Algorithm:
     - l2 = i2Fi1 @ x1
@@ -155,7 +156,7 @@ def compute_epipolar_distances_sampson(
     line_sq_norms_i1 = np.sum(np.square(epipolar_lines_i1[:, :2]), axis=1)
     line_sq_norms_i2 = np.sum(np.square(epipolar_lines_i2[:, :2]), axis=1)
 
-    numerator = feature_utils.point_line_dotproduct(coordinates_i1, epipolar_lines_i1)
-    denominator = np.sqrt(line_sq_norms_i1 + line_sq_norms_i2)
+    numerator = np.square(feature_utils.point_line_dotproduct(coordinates_i1, epipolar_lines_i1))
+    denominator = line_sq_norms_i1 + line_sq_norms_i2
 
     return numerator / denominator
