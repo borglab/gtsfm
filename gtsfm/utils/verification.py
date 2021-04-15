@@ -9,6 +9,9 @@ import numpy as np
 from gtsam import Cal3Bundler, EssentialMatrix, Pose3, Rot3, Unit3
 
 import gtsfm.utils.features as feature_utils
+import gtsfm.utils.logger as logger_utils
+
+logger = logger_utils.get_logger()
 
 
 def recover_relative_pose_from_essential_matrix(
@@ -38,8 +41,17 @@ def recover_relative_pose_from_essential_matrix(
 
     # use opencv to recover pose
     _, i2Ri1, i2ti1, _ = cv.recoverPose(i2Ei1, normalized_coordinates_i1, normalized_coordinates_i2)
+    i2Ri1 = Rot3(i2Ri1)
+    i2Ui1 = Unit3(i2ti1.squeeze())
+    i2Ei1_reconstructed = EssentialMatrix(i2Ri1, i2Ui1).matrix()
 
-    return Rot3(i2Ri1), Unit3(i2ti1.squeeze())
+    # normalizing the two essential matrices
+    i2Ei1_normalized = i2Ei1 / np.linalg.norm(i2Ei1, axis=None)
+    i2Ei1_reconstructed_normalized = i2Ei1_reconstructed / np.linalg.norm(i2Ei1_reconstructed, axis=None)
+    if not np.allclose(i2Ei1_normalized, i2Ei1_reconstructed_normalized):
+        logger.warn("Recovered R, t cannot create the input Essential Matrix")
+
+    return i2Ri1, i2Ui1
 
 
 def fundamental_to_essential_matrix(

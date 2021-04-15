@@ -23,13 +23,19 @@ function GrayNode(props) {
     const nodeTopOffset = props.nodeInfo.topOffset;
     const nodeLeftOffset = props.nodeInfo.leftOffset;
 
+    function defaultFunction(text) {
+        alert(`You Clicked ${text}`);
+    }
+
     return (
         <GtsfmNode 
             textColor={'black'} 
             backgroundColor={lightGray} 
             topOffset={`${nodeTopOffset}%`} 
             leftOffset={`${nodeLeftOffset}%`}
-            text={nodeText}/>
+            text={nodeText}
+            onClickFunction={defaultFunction}
+            funcParam={nodeText}/>
     )
 }
 
