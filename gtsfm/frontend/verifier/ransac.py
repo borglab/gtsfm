@@ -1,12 +1,12 @@
 """
 RANSAC verifier implementation.
 
-The verifier is the 5-Pt Algorithm with RANSAC and is implemented
-by wrapping over 3rd party implementation.
-Ref: David Nistér. An efficient solution to the five-point relative
-pose problem. TPAMI, 2004.
+The verifier is the 5-Pt/8-pt Algorithm with RANSAC and is implemented by wrapping over 3rd party implementation.\
 
-Note: LAPACK or eigen needs to be installed. Plus opencv install from source
+References: 
+- David Nistér. An efficient solution to the five-point relative pose problem. TPAMI, 2004.
+- https://docs.opencv.org/3.4/d9/d0c/group__calib3d.html#ga13f7e34de8fa516a686a56af1196247f
+- https://docs.opencv.org/3.4/d9/d0c/group__calib3d.html#gae420abc34eaa03d0c6a67359609d8429
 
 Authors: John Lambert
 """
