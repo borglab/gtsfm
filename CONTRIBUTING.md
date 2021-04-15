@@ -22,7 +22,10 @@ To open a pull request, here are some steps to get you started:
   - Hint: having unit tests that validate your changes with your pull
     request will help to land your changes faster.
 
-## Conventions
+## Type Hints and Docstrings
+Function signatures should include type hints and each function should be accompanied by a docstring.
+
+## Coordinate System Conventions
 
 Code in GTSFM adheres to a strict set of conventions about how rigid body transformations are expressed in code. A few examples are provided below:
 - wTc:
