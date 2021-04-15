@@ -24,7 +24,7 @@ To open a pull request, here are some steps to get you started:
 ## Python Style
 - **Auto-Formatting**:We format code with `black` and a maximum line length of 120 characters.
 - **Type hints**: Function signatures should include type hints. Do not put type information in the docstring if it is redundant with the type hint.
-- **Branch Logic*:* Return early, don't nest.
+- **Branch Logic**: Return early, don't nest.
 - **f-strings**: Use f-strings as a default for regular strings, except when logging, where there is a specific logging format.
 - Default arguments should never be mutable (these will lead to unexpected and strange behavior), `def foo(mylist = [])` is not ok
 - Do not use a dictionary as an object -- use `NamedTuple` instead.
