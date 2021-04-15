@@ -4,6 +4,7 @@ results/*
 results_densify/*
 result_metrics/*
 dask-report.html
+logs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
