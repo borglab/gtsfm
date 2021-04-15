@@ -26,6 +26,7 @@ from gtsfm.data_association.point3d_initializer import (
     TriangulationParam,
 )
 from gtsfm.common.image import Image
+from gtsfm.evaluation.metric import Metric
 import gtsfm.utils.io as io_utils
 
 logger = logger_utils.get_logger()
@@ -141,23 +142,15 @@ class DataAssociation(NamedTuple):
         # min possible track len is 2, above 10 is improbable
         histogram_dict = {f"num_len_{i}_tracks": int(track_lengths_histogram[i]) for i in range(2, 11)}
 
-        data_assoc_metrics = {
-            "mean_2d_track_length": np.round(mean_2d_track_length, 3),
-            "accepted_tracks_ratio": np.round(accepted_tracks_ratio, 3),
-            "track_cheirality_failure_ratio": np.round(track_cheirality_failure_ratio, 3),
-            "num_accepted_tracks": num_accepted_tracks,
-            "3d_tracks_length": {
-                "median": median_3d_track_length,
-                "mean": mean_3d_track_length,
-                "min": int(track_lengths_3d.min()) if track_lengths_3d.size > 0 else None,
-                "max": int(track_lengths_3d.max()) if track_lengths_3d.size > 0 else None,
-                "track_lengths_histogram": histogram_dict,
-            },
-            "mean_accepted_track_avg_error": np.array(per_accepted_track_avg_errors).mean(),
-            "per_rejected_track_avg_errors": per_rejected_track_avg_errors,
-            "per_accepted_track_avg_errors": per_accepted_track_avg_errors,
-            "points_3d": points_3d,
-        }
+        data_assoc_metrics = [
+            Metric("2d_track_length", np.array(track_lengths)),
+            Metric("accepted_tracks_ratio", accepted_tracks_ratio), 
+            Metric("track_cheirality_failure_ratio", track_cheirality_failure_ratio),
+            Metric("num_accepted_tracks", num_accepted_tracks),
+            Metric("3d_tracks_length", track_lengths), 
+            Metric("accepted_track_avg_error", accepted_track_avg_errors),
+            Metric("rejected_track_avg_errors", per_rejected_track_avg_errors),
+        ]
 
         return connected_data, data_assoc_metrics
 
