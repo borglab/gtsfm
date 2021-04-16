@@ -24,6 +24,8 @@ from gtsfm.averaging.translation.translation_averaging_base import TranslationAv
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.data_association.data_assoc import DataAssociation
 
+# Paths to Save Output in React Folders.
+REACT_METRICS_PATH = "rtf_vis_tool/src/result_metrics"
 
 class MultiViewOptimizer:
     def __init__(
@@ -83,6 +85,11 @@ class MultiViewOptimizer:
             )
         ]
 
+        # Save duplicate copy of 'data_association_metrics.json' to React Folder
+        dask.delayed(io.save_json_file)(
+            REACT_METRICS_PATH, data_assoc_metrics_graph
+        )
+
         # dummy graph to force an immediate dump of data association metrics
         ba_input_graph = dask.delayed(lambda x, y: (x, y))(ba_input_graph, auxiliary_graph_list)[0]
 
@@ -97,6 +104,12 @@ class MultiViewOptimizer:
         saved_metrics_graph = dask.delayed(io.save_json_file)(
             "result_metrics/multiview_optimizer_metrics.json", metrics_graph
         )
+
+        # Save duplicate copy of 'multiview_optimizer_metrics.json' to React Folder
+        dask.delayed(io.save_json_file)(
+            REACT_METRICS_PATH, metrics_graph
+        )
+
         return ba_input_graph, ba_result_graph, saved_metrics_graph
 
 

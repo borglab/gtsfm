@@ -33,6 +33,10 @@ PLOT_CORRESPONDENCE_PATH = os.path.join(PLOT_PATH, "correspondences")
 METRICS_PATH = "result_metrics"
 RESULTS_PATH = "results"
 
+# Paths to Save Output in React Folders.
+REACT_METRICS_PATH = "rtf_vis_tool/src/result_metrics"
+REACT_RESULTS_PATH = "rtf_vis_tool/public/results"
+
 """
 data type for frontend metrics on a pair of images, containing:
 1. rotation angular error
@@ -81,6 +85,10 @@ class SceneOptimizer:
         os.makedirs(PLOT_CORRESPONDENCE_PATH, exist_ok=True)
         os.makedirs(METRICS_PATH, exist_ok=True)
         os.makedirs(RESULTS_PATH, exist_ok=True)
+
+        # Save duplicate directories within React folders.
+        os.makedirs(REACT_RESULTS_PATH, exist_ok=True)
+        os.makedirs(REACT_METRICS_PATH, exist_ok=True)
 
     def create_computation_graph(
         self,
@@ -210,6 +218,8 @@ class SceneOptimizer:
         if self._save_gtsfm_data:
             # save the input to Bundle Adjustment (from data association)
             ba_input_save_dir = os.path.join(RESULTS_PATH, "ba_input")
+            react_ba_input_save_dir = os.path.join(REACT_RESULTS_PATH, "ba_input")
+
             auxiliary_graph_list.append(
                 dask.delayed(io_utils.write_cameras)(ba_input_graph, image_graph, save_dir=ba_input_save_dir)
             )
@@ -218,8 +228,15 @@ class SceneOptimizer:
                 dask.delayed(io_utils.write_points)(ba_input_graph, image_graph, save_dir=ba_input_save_dir)
             )
 
+            # Save duplicate copies of input to Bundle Adjustment to React Folder
+            dask.delayed(io_utils.write_cameras)(ba_input_graph, image_graph, save_dir=react_ba_input_save_dir)
+            dask.delayed(io_utils.write_images)(ba_input_graph, save_dir=react_ba_input_save_dir)
+            dask.delayed(io_utils.write_points)(ba_input_graph, image_graph, save_dir=react_ba_input_save_dir)
+
             # save the output of Bundle Adjustment (after optimization)
             ba_output_save_dir = os.path.join(RESULTS_PATH, "ba_output")
+            react_ba_output_save_dir = os.path.join(REACT_RESULTS_PATH, "ba_output")
+
             auxiliary_graph_list.append(
                 dask.delayed(io_utils.write_cameras)(ba_output_graph, image_graph, save_dir=ba_output_save_dir)
             )
@@ -229,6 +246,11 @@ class SceneOptimizer:
             auxiliary_graph_list.append(
                 dask.delayed(io_utils.write_points)(ba_output_graph, image_graph, save_dir=ba_output_save_dir)
             )
+
+            # Save duplicate copies of output to Bundle Adjustment to React Folder
+            dask.delayed(io_utils.write_cameras)(ba_output_graph, image_graph, save_dir=react_ba_output_save_dir)
+            dask.delayed(io_utils.write_images)(ba_output_graph, save_dir=react_ba_output_save_dir)
+            dask.delayed(io_utils.write_points)(ba_output_graph, image_graph, save_dir=react_ba_output_save_dir)
 
         # as visualization tasks are not to be provided to the user, we create a
         # dummy computation of concatenating viz tasks with the output graph,
@@ -357,6 +379,9 @@ def persist_frontend_metrics_full(metrics: Dict[Tuple[int, int], FRONTEND_METRIC
 
     io_utils.save_json_file(os.path.join(METRICS_PATH, "frontend_full.json"), metrics_list)
 
+    # Save duplicate copy of 'frontend_full.json' within React Folder.
+    io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, "frontend_full.json"), metrics_list)
+
 
 def aggregate_frontend_metrics(
     metrics: Dict[Tuple[int, int], FRONTEND_METRICS_FOR_PAIR], angular_err_threshold_deg: float
@@ -413,3 +438,6 @@ def aggregate_frontend_metrics(
     }
 
     io_utils.save_json_file(os.path.join(METRICS_PATH, "frontend_summary.json"), front_end_result_info)
+
+    # Save duplicate copy of 'frontend_summary.json' within React Folder.
+    io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, "frontend_summary.json"), front_end_result_info)
