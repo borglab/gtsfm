@@ -17,7 +17,7 @@ class TestDegensac(test_verifier_base.TestVerifierBase):
     def setUp(self):
         super().setUp()
 
-        self.verifier = Degensac()
+        self.verifier = Degensac(use_intrinsics_in_verification=False)
 
 
 if __name__ == "__main__":

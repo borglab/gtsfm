@@ -2,13 +2,15 @@
 
 Authors: Ayush Baid
 """
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import cv2 as cv
 import numpy as np
 from gtsam import Cal3Bundler, EssentialMatrix
 
 from gtsfm.common.keypoints import Keypoints
+
+EPS = 1e-8
 
 
 def cast_to_gtsfm_keypoints(keypoints: List[cv.KeyPoint]) -> Keypoints:
@@ -48,9 +50,7 @@ def normalize_coordinates(coordinates: np.ndarray, intrinsics: Cal3Bundler) -> n
     return np.vstack([intrinsics.calibrate(x[:2].reshape(2, 1)) for x in coordinates])
 
 
-def convert_to_homogenous_coordinates(
-    non_homogenous_coordinates: np.ndarray,
-) -> Optional[np.ndarray]:
+def convert_to_homogenous_coordinates(non_homogenous_coordinates: np.ndarray,) -> Optional[np.ndarray]:
     """Convert coordinates to homogenous system (by appending a column of ones).
 
     Args:
@@ -68,12 +68,7 @@ def convert_to_homogenous_coordinates(
     if non_homogenous_coordinates.shape[1] != 2:
         raise TypeError("Input should be 2D")
 
-    return np.hstack(
-        (
-            non_homogenous_coordinates,
-            np.ones((non_homogenous_coordinates.shape[0], 1)),
-        )
-    )
+    return np.hstack((non_homogenous_coordinates, np.ones((non_homogenous_coordinates.shape[0], 1)),))
 
 
 def convert_to_epipolar_lines(normalized_coordinates_i1: np.ndarray, i2Ei1: EssentialMatrix) -> Optional[np.ndarray]:
@@ -106,6 +101,25 @@ def compute_point_line_distances(points: np.ndarray, lines: np.ndarray) -> np.nd
     Returns:
         Point-line distance for each row, of shape N.
     """
-    line_norms = np.linalg.norm(lines[:, :2], axis=1)
+    line_norms = np.linalg.norm(lines[:, :2], axis=1) + EPS
 
     return np.abs(np.sum(np.multiply(convert_to_homogenous_coordinates(points), lines), axis=1)) / line_norms
+
+
+def generate_random_keypoints(num_keypoints: int, image_shape: Tuple[int, int]) -> Keypoints:
+    """Generates random keypoints within the image bounds.
+
+    Args:
+        num_keypoints: number of features to generate.
+        image_shape: size of the image.
+
+    Returns:
+        generated keypoints.
+    """
+
+    if num_keypoints == 0:
+        return Keypoints(coordinates=np.array([]))
+
+    return Keypoints(
+        coordinates=np.random.randint([0, 0], high=image_shape, size=(num_keypoints, 2)).astype(np.float32)
+    )
