@@ -322,7 +322,7 @@ def simulate_two_planes_scene(M: int, N: int) -> Tuple[Keypoints, Keypoints, Ess
 
     # define the camera poses and compute the essential matrix
     wti1 = np.array([0.1, 0, -20])
-    wti2 = np.array([1, -2, -15])
+    wti2 = np.array([1, -2, -20.4])
 
     wRi1 = Rot3.RzRyRx(np.pi / 20, 0, 0.0)
     wRi2 = Rot3.RzRyRx(0.0, np.pi / 6, 0.0)
