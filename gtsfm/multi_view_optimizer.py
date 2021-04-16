@@ -87,7 +87,7 @@ class MultiViewOptimizer:
 
         # Save duplicate copy of 'data_association_metrics.json' to React Folder
         dask.delayed(io.save_json_file)(
-            REACT_METRICS_PATH, data_assoc_metrics_graph
+            os.path.join(REACT_METRICS_PATH, "data_association_metrics.json"), data_assoc_metrics_graph
         )
 
         # dummy graph to force an immediate dump of data association metrics
@@ -107,7 +107,7 @@ class MultiViewOptimizer:
 
         # Save duplicate copy of 'multiview_optimizer_metrics.json' to React Folder
         dask.delayed(io.save_json_file)(
-            REACT_METRICS_PATH, metrics_graph
+            os.path.join(REACT_METRICS_PATH, "multiview_optimizer_metrics.json"), metrics_graph
         )
 
         return ba_input_graph, ba_result_graph, saved_metrics_graph
