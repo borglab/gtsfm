@@ -52,10 +52,10 @@ def count_correct_correspondences(
     i2Ei1 = EssentialMatrix(i2Ti1.rotation(), Unit3(i2Ti1.translation()))
     i2Fi1 = verification_utils.essential_to_fundamental_matrix(i2Ei1, intrinsics_i1, intrinsics_i2)
 
-    epipolar_distances = verification_utils.compute_epipolar_distances_sed(
+    distance_squared = verification_utils.compute_epipolar_distances_sampson(
         keypoints_i1.coordinates, keypoints_i2.coordinates, i2Fi1
     )
-    return np.count_nonzero(epipolar_distances < epipolar_dist_threshold)
+    return np.count_nonzero(distance_squared < epipolar_dist_threshold ** 2)
 
 
 def compute_errors_statistics(errors: List[Optional[float]]) -> StatsDict:
