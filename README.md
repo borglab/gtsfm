@@ -41,7 +41,8 @@ pip install -e .
 Make sure that you can run `python -c "import gtsfm; import gtsam; print('hello world')"` in python, and you are good to go!
 
 ## Compiling Additional Verifiers
-On Mac OSX, there is no `pydegensac` wheel in `pypi`, instead build pydegensac: ```bash
+On Mac OSX, there is no `pydegensac` wheel in `pypi`, instead build pydegensac: 
+```bash
 git clone https://github.com/ducha-aiki/pydegensac.git
 cd pydegensac
 python setup.py bdist_wheel
