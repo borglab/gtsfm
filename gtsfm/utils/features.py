@@ -2,13 +2,15 @@
 
 Authors: Ayush Baid
 """
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import cv2 as cv
 import numpy as np
 from gtsam import Cal3Bundler
 
 from gtsfm.common.keypoints import Keypoints
+
+EPS = 1e-8
 
 
 def cast_to_gtsfm_keypoints(keypoints: List[cv.KeyPoint]) -> Keypoints:
@@ -103,3 +105,22 @@ def point_line_dotproduct(points: np.ndarray, lines: np.ndarray) -> np.ndarray:
         Point-line dot-product for each row, of shape N.
     """
     return np.abs(np.sum(np.multiply(convert_to_homogenous_coordinates(points), lines), axis=1))
+
+
+def generate_random_keypoints(num_keypoints: int, image_shape: Tuple[int, int]) -> Keypoints:
+    """Generates random keypoints within the image bounds.
+
+    Args:
+        num_keypoints: number of features to generate.
+        image_shape: size of the image.
+
+    Returns:
+        generated keypoints.
+    """
+
+    if num_keypoints == 0:
+        return Keypoints(coordinates=np.array([]))
+
+    return Keypoints(
+        coordinates=np.random.randint([0, 0], high=image_shape, size=(num_keypoints, 2)).astype(np.float32)
+    )

@@ -22,7 +22,7 @@ conda activate gtsfm-v1 # you may need "source activate gtsfm-v1" depending upon
 The Python3.8 `gtsam` wheel for Linux is available [here](https://github.com/borglab/gtsam-manylinux-build/suites/2239592652/artifacts/46493264).
 
 **Mac**
-On Mac OSX, there is no CUDA support and no `pydegensac` wheel in `pypi`, so run:
+On Mac OSX, there is no CUDA support, so run:
 ```bash
 conda env create -f environment_mac.yml
 conda activate gtsfm-v1
@@ -31,13 +31,6 @@ Download the Python 3.8 gtsam wheel for Mac [here](https://github.com/borglab/gt
 ```bash
 pip install ~/Downloads/gtsam-4.1.1-py3-none-any.whl
 ```
-Now, inside the environment, build pydegensac:
-```bash
-git clone https://github.com/ducha-aiki/pydegensac.git
-cd pydegensac
-python setup.py bdist_wheel
-pip install dist/pydegensac-0.1.2-cp38-cp38-macosx_10_15_x86_64.whl
-```
 
 ## Completing Installation
 
@@ -45,7 +38,15 @@ Now, install `gtsfm` as a module:
 ```bash
 pip install -e .
 ```
-Make sure that you can run `python -c "import gtsfm; import gtsam; import pydegensac; print('hello world')"` in python, and you are good to go!
+Make sure that you can run `python -c "import gtsfm; import gtsam; print('hello world')"` in python, and you are good to go!
+
+## Compiling Additional Verifiers
+On Mac OSX, there is no `pydegensac` wheel in `pypi`, instead build pydegensac: ```bash
+git clone https://github.com/ducha-aiki/pydegensac.git
+cd pydegensac
+python setup.py bdist_wheel
+pip install dist/pydegensac-0.1.2-cp38-cp38-macosx_10_15_x86_64.whl
+```
 
 ## Usage Guide (Running 3d Reconstruction)
 
@@ -83,7 +84,7 @@ Our CI will enforce the unit tests (`pytest tests/`), as well as formatters -- `
 Open-source Python implementation:
 ```
 @misc{
-    author = {Ayush Baid, Fan Jiang, Akshay Krishnan, John Lambert,
+    author = {Ayush Baid, Fan Jiang, Akshay Krishnan, John Lambert, Aditya Singh
        Aishwarya Venkataramanan, Sushmita Warrier, Jing Wu, Xiaolong Wu, Frank Dellaert},
     title = {GTSFM: Georgia Tech Structure from Motion},
     howpublished={\url{https://github.com/borglab/gtsfm}},

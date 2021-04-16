@@ -2,6 +2,8 @@
 
 Authors: Xiaolong Wu, John Lambert, Ayush Baid
 """
+from typing import NamedTuple
+
 import dask
 import gtsam
 from dask.delayed import Delayed
@@ -9,7 +11,6 @@ from gtsam import GeneralSFMFactorCal3Bundler, SfmTrack, Values, symbol_shorthan
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.common.sfm_result import SfmResult
 
 # TODO: any way this goes away?
 C = symbol_shorthand.C
@@ -22,13 +23,15 @@ POINT3_DOF = 3  # 3d points have 3 dof
 logger = logger_utils.get_logger()
 
 
-class BundleAdjustmentOptimizer:
+class BundleAdjustmentOptimizer(NamedTuple):
     """Bundle adjustment using factor-graphs in GTSAM.
 
     This class refines global pose estimates and intrinsics of cameras, and also refines 3D point cloud structure given
     tracks from triangulation."""
 
-    def run(self, initial_data: GtsfmData) -> SfmResult:
+    output_reproj_error_thresh: float
+
+    def run(self, initial_data: GtsfmData) -> GtsfmData:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
 
         Args:
@@ -97,7 +100,7 @@ class BundleAdjustmentOptimizer:
         except Exception:
             logger.exception("LM Optimization failed")
             # as we did not perform the bundle adjustment, we skip computing the total reprojection error
-            return SfmResult(GtsfmData(initial_data.number_images()), total_reproj_error=float("Nan"))
+            return GtsfmData(initial_data.number_images())
 
         final_error = graph.error(result_values)
 
@@ -107,9 +110,19 @@ class BundleAdjustmentOptimizer:
 
         # construct the results
         optimized_data = values_to_gtsfm_data(result_values, initial_data)
-        sfm_result = SfmResult(optimized_data, total_reproj_error=final_error)
 
-        return sfm_result
+        logger.info("[Result] Number of tracks before filtering %d", optimized_data.number_tracks())
+
+        # filter the largest errors
+        filtered_result = optimized_data.filter_landmarks(self.output_reproj_error_thresh)
+
+        logger.info("[Result] Number of tracks after filtering: %d", filtered_result.number_tracks())
+        mean_track_length, median_track_length = filtered_result.get_track_length_statistics()
+        logger.info("[Result] Mean track length %.3f", mean_track_length)
+        logger.info("[Result] Median track length %.3f", median_track_length)
+        filtered_result.log_scene_reprojection_error_stats()
+
+        return filtered_result
 
     def create_computation_graph(self, sfm_data_graph: Delayed) -> Delayed:
         """Create the computation graph for performing bundle adjustment.
@@ -118,7 +131,7 @@ class BundleAdjustmentOptimizer:
             sfm_data_graph: an GtsfmData object wrapped up using dask.delayed
 
         Returns:
-            SfmResult wrapped up using dask.delayed
+            GtsfmData wrapped up using dask.delayed
         """
         return dask.delayed(self.run)(sfm_data_graph)
 

@@ -1,4 +1,3 @@
-
 from typing import Dict, List, Tuple
 
 import numpy as np
@@ -13,11 +12,11 @@ Note: cannot consolidate the two functions below, since SfmTrack has no measurem
 
 def compute_track_reprojection_errors(
     track_camera_dict: Dict[int, PinholeCameraCal3Bundler], track: SfmTrack
-) -> Tuple[np.ndarray,float]:
+) -> Tuple[np.ndarray, float]:
     """Compute reprojection errors for measurements in the tracks.
 
     Args:
-        track_camera_dict: Dict of cameras and their indices.
+        track_camera_dict: Dict of cameras, with camera indices as keys.
         track: 3d point/landmark and its corresponding 2d measurements in various cameras
 
     Returns:
@@ -48,12 +47,12 @@ def compute_track_reprojection_errors(
 
 def compute_point_reprojection_errors(
     track_camera_dict: Dict[int, PinholeCameraCal3Bundler], point3d: np.ndarray, measurements: List[SfmMeasurement]
-) -> Tuple[np.ndarray,float]:
+) -> Tuple[np.ndarray, float]:
     """Compute reprojection errors for a hypothesized 3d point vs. 2d measurements.
 
     Args:
-        track_camera_dict: Dict of cameras and their indices.
-        point3d: hypothesized 3d point/landmark 
+        track_camera_dict: Dict of cameras, with camera indices as keys.
+        point3d: hypothesized 3d point/landmark
         measurements: corresponding 2d measurements (of 3d point above) in various cameras
 
     Returns:
