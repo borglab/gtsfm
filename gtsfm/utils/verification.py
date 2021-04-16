@@ -142,7 +142,7 @@ def compute_epipolar_distances_sampson(
     References: 
     - "Fathy et al., Fundamental Matrix Estimation: A Study of Error Criteria", https://arxiv.org/abs/1706.07886
     - "Hartley, R.~I. et al. Multiple View Geometry in Computer Vision.. Cambridge University Press, Pg 288"
-    - TODO: add opencv ref
+    - https://docs.opencv.org/3.4/d9/d0c/group__calib3d.html#gacbba2ee98258ca81d352a31faa15a021
 
     Algorithm:
     - l2 = i2Fi1 @ x1
