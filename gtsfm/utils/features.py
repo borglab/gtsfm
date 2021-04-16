@@ -104,7 +104,7 @@ def point_line_dotproduct(points: np.ndarray, lines: np.ndarray) -> np.ndarray:
     Returns:
         Point-line dot-product for each row, of shape N.
     """
-    return np.abs(np.sum(np.multiply(convert_to_homogenous_coordinates(points), lines), axis=1))
+    return np.sum(np.multiply(convert_to_homogenous_coordinates(points), lines), axis=1)
 
 
 def generate_random_keypoints(num_keypoints: int, image_shape: Tuple[int, int]) -> Keypoints:
