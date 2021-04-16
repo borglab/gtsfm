@@ -61,6 +61,18 @@ class TestVerificationUtils(unittest.TestCase):
         #####
         # Test 2: testing on an example from real world
         #####
+        i2Fi1 = np.array(
+            [
+                [7.41572822e-09, 4.26005557e-07, -2.61114657e-04],
+                [-4.92270651e-07, 4.29568438e-09, 6.95083578e-04],
+                [2.89444929e-04, -1.49345006e-05, -4.01395060e-01],
+            ]
+        )
+        points_i1 = np.array([[1553, 622], [1553, 622]])
+        points_i2 = np.array([[357, 662], [818, 517]])
+        expected = np.array([4.483719e00, 6.336384e04])
+        computed = verification_utils.compute_epipolar_distances_sed(points_i1, points_i2, i2Fi1)
+        np.testing.assert_allclose(computed, expected, rtol=1e-3)
 
     def test_compute_epipolar_distances_sampson(self):
         """Test for epipolar distance computation using 2 sets of points and the fundamental matrix."""
@@ -79,8 +91,20 @@ class TestVerificationUtils(unittest.TestCase):
         np.testing.assert_allclose(computed, expected, rtol=1e-3)
 
         #####
-        # Test 2: testing on an example from real world
+        # Test 2: testing on an example from real world (argoverse)
         #####
+        i2Fi1 = np.array(
+            [
+                [7.41572822e-09, 4.26005557e-07, -2.61114657e-04],
+                [-4.92270651e-07, 4.29568438e-09, 6.95083578e-04],
+                [2.89444929e-04, -1.49345006e-05, -4.01395060e-01],
+            ]
+        )
+        points_i1 = np.array([[1553, 622], [1553, 622]])
+        points_i2 = np.array([[357, 662], [818, 517]])
+        expected = np.array([6.744895e-01, 2.397196e03])
+        computed = verification_utils.compute_epipolar_distances_sampson(points_i1, points_i2, i2Fi1)
+        np.testing.assert_allclose(computed, expected, rtol=1e-3)
 
 
 if __name__ == "__main__":
