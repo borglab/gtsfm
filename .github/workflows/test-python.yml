@@ -23,28 +23,12 @@ jobs:
       shell: bash -l {0}
       run: |
         bash .github/scripts/install_dependencies.sh
-
-  run-unit-tests:
-    name: Run all unit tests in code base
-    needs: install-dependencies
-    runs-on: ubuntu-latest
-    env:
-      PYTHON_VERSION: 3.8
-    steps:
     - name: Run unit tests
       shell: bash -l {0}
       run: |
         pip install pytest-cov
         conda info --envs
         bash .github/scripts/run_unit_tests.sh
-
-  run-eval:
-    name: Run evaluation pipeline
-    needs: run-unit-tests
-    runs-on: ubuntu-latest
-    env:
-      PYTHON_VERSION: 3.8
-    steps:
     - name: Run evaluation script
       shell: bash -l {0}
       run: |
