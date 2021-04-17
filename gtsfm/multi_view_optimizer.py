@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Tuple
 
 import dask
 import os
+from pathlib import Path
 from dask.delayed import Delayed
 from gtsam import (
     Cal3Bundler,
@@ -25,7 +26,7 @@ from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.data_association.data_assoc import DataAssociation
 
 # Paths to Save Output in React Folders.
-REACT_METRICS_PATH = "rtf_vis_tool/src/result_metrics"
+REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
 
 class MultiViewOptimizer:
     def __init__(

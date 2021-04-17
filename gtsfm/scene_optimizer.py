@@ -34,8 +34,8 @@ METRICS_PATH = "result_metrics"
 RESULTS_PATH = "results"
 
 # Paths to Save Output in React Folders.
-REACT_METRICS_PATH = "rtf_vis_tool/src/result_metrics"
-REACT_RESULTS_PATH = "rtf_vis_tool/public/results"
+REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
+REACT_RESULTS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "public" / "results"
 
 """
 data type for frontend metrics on a pair of images, containing:
