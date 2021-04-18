@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from dask.delayed import Delayed
 from gtsam import Pose3
+from pathlib import Path
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.io as io_utils
@@ -182,7 +183,7 @@ class SceneOptimizer:
         keypoints_graph_list = dask.delayed(lambda x, y: (x, y))(keypoints_graph_list, auxiliary_graph_list)[0]
         auxiliary_graph_list = []
 
-        (ba_input_graph, ba_output_graph, optimizer_metrics_graph) = self.multiview_optimizer.create_computation_graph(
+        (ba_input_graph, ba_output_graph, optimizer_metrics_graph, react_metrics_graph) = self.multiview_optimizer.create_computation_graph(
             image_graph,
             num_images,
             keypoints_graph_list,
@@ -196,6 +197,10 @@ class SceneOptimizer:
         # aggregate metrics for multiview optimizer
         if optimizer_metrics_graph is not None:
             auxiliary_graph_list.append(optimizer_metrics_graph)
+
+        # add duplicate of optimizer_metrics_graph to save within React file directory
+        if react_metrics_graph is not None:
+            auxiliary_graph_list.append(react_metrics_graph)
 
         if self._save_3d_viz:
             os.makedirs(os.path.join(PLOT_PATH, "ba_input"), exist_ok=True)
@@ -229,9 +234,15 @@ class SceneOptimizer:
             )
 
             # Save duplicate copies of input to Bundle Adjustment to React Folder
-            dask.delayed(io_utils.write_cameras)(ba_input_graph, image_graph, save_dir=react_ba_input_save_dir)
-            dask.delayed(io_utils.write_images)(ba_input_graph, save_dir=react_ba_input_save_dir)
-            dask.delayed(io_utils.write_points)(ba_input_graph, image_graph, save_dir=react_ba_input_save_dir)
+            auxiliary_graph_list.append(
+                dask.delayed(io_utils.write_cameras)(ba_input_graph, image_graph, save_dir=react_ba_input_save_dir)
+            )
+            auxiliary_graph_list.append(
+                dask.delayed(io_utils.write_images)(ba_input_graph, save_dir=react_ba_input_save_dir)
+            )
+            auxiliary_graph_list.append(
+                dask.delayed(io_utils.write_points)(ba_input_graph, image_graph, save_dir=react_ba_input_save_dir)
+            )
 
             # save the output of Bundle Adjustment (after optimization)
             ba_output_save_dir = os.path.join(RESULTS_PATH, "ba_output")
@@ -248,9 +259,15 @@ class SceneOptimizer:
             )
 
             # Save duplicate copies of output to Bundle Adjustment to React Folder
-            dask.delayed(io_utils.write_cameras)(ba_output_graph, image_graph, save_dir=react_ba_output_save_dir)
-            dask.delayed(io_utils.write_images)(ba_output_graph, save_dir=react_ba_output_save_dir)
-            dask.delayed(io_utils.write_points)(ba_output_graph, image_graph, save_dir=react_ba_output_save_dir)
+            auxiliary_graph_list.append(
+                dask.delayed(io_utils.write_cameras)(ba_output_graph, image_graph, save_dir=react_ba_output_save_dir)
+            )
+            auxiliary_graph_list.append(
+                dask.delayed(io_utils.write_images)(ba_output_graph, save_dir=react_ba_output_save_dir)
+            )
+            auxiliary_graph_list.append(
+                dask.delayed(io_utils.write_points)(ba_output_graph, image_graph, save_dir=react_ba_output_save_dir)
+            )
 
         # as visualization tasks are not to be provided to the user, we create a
         # dummy computation of concatenating viz tasks with the output graph,
