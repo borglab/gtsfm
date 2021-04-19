@@ -28,6 +28,7 @@ from gtsfm.data_association.data_assoc import DataAssociation
 # Paths to Save Output in React Folders.
 REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
 
+
 class MultiViewOptimizer:
     def __init__(
         self,

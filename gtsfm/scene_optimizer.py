@@ -183,7 +183,12 @@ class SceneOptimizer:
         keypoints_graph_list = dask.delayed(lambda x, y: (x, y))(keypoints_graph_list, auxiliary_graph_list)[0]
         auxiliary_graph_list = []
 
-        (ba_input_graph, ba_output_graph, optimizer_metrics_graph, react_metrics_graph) = self.multiview_optimizer.create_computation_graph(
+        (
+            ba_input_graph,
+            ba_output_graph,
+            optimizer_metrics_graph,
+            react_metrics_graph,
+        ) = self.multiview_optimizer.create_computation_graph(
             image_graph,
             num_images,
             keypoints_graph_list,
