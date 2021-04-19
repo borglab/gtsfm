@@ -73,5 +73,5 @@ Code in GTSFM adheres to a strict set of conventions about how rigid body transf
 - wTc_list:
 - w_wUc:
 
-We aks that contributors prefer GTSAM types wherever possible unless it's not already wrapped and is a lot of work to do so, or there are good advantages to using other types (like np arrays).
+We ask that contributors prefer GTSAM types wherever possible unless it's not already wrapped and is a lot of work to do so, or there are good advantages to using other types (like np arrays).
 
