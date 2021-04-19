@@ -77,9 +77,10 @@ GTSFM is designed in an extremely modular way. Each module can be swapped out wi
     - `utils`: utility functions such as serialization routines and pose comparisons, etc
 - `tests`: unit tests on every function and module
 
-## Contributing
 
-Our CI will enforce the unit tests (`pytest tests/`), as well as formatters -- `mypy`, `isort`, and also `black`. Please be sure your contribution passes these tests first.
+## Contributing
+Contributions are always welcome! Please be aware of our [contribution guidelines for this project](CONTRIBUTING.md).
+
 
 ## Citing this work
 Open-source Python implementation:
