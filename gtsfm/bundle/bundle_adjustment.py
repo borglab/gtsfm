@@ -3,6 +3,7 @@
 Authors: Xiaolong Wu, John Lambert, Ayush Baid
 """
 import os
+from pathlib import Path
 from typing import Any, Dict, NamedTuple
 
 import dask
@@ -15,7 +16,7 @@ import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 
-METRICS_PATH = "result_metrics"
+METRICS_PATH = Path(__file__).resolve().parent.parent.parent / "result_metrics"
 
 # TODO: any way this goes away?
 C = symbol_shorthand.C

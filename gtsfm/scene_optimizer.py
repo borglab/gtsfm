@@ -5,6 +5,7 @@ Authors: Ayush Baid, John Lambert
 import copy
 import logging
 import os
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import dask
@@ -30,8 +31,8 @@ from gtsfm.two_view_estimator import TwoViewEstimator
 # paths for storage
 PLOT_PATH = "plots"
 PLOT_CORRESPONDENCE_PATH = os.path.join(PLOT_PATH, "correspondences")
-METRICS_PATH = "result_metrics"
-RESULTS_PATH = "results"
+METRICS_PATH = Path(__file__).resolve().parent.parent / "result_metrics"
+RESULTS_PATH = Path(__file__).resolve().parent.parent / "results"
 
 """
 data type for frontend metrics on a pair of images, containing:
