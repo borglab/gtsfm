@@ -79,7 +79,7 @@ class BundleAdjustmentOptimizer(NamedTuple):
         # Also add a prior on the position of the first landmark to fix the scale
         graph.push_back(
             gtsam.PriorFactorPoint3(
-                P(0), initial_data.get_track(0).point3(), gtsam.noiseModel.Isotropic.Sigma(POINT3_DOF, 0.1),
+                P(0), initial_data.get_track(0).point3(), gtsam.noiseModel.Isotropic.Sigma(POINT3_DOF, 0.1)
             )
         )
 
@@ -145,7 +145,7 @@ class BundleAdjustmentOptimizer(NamedTuple):
         return dask.delayed(self.run)(sfm_data_graph)
 
 
-def aggregate_ba_stats(ba_data: GtsfmData) -> Dict[str,Any]:
+def aggregate_ba_stats(ba_data: GtsfmData) -> Dict[str, Any]:
     """Create a dictionary of summary statistics for a bundle adjustment result.
 
     Args:
@@ -157,7 +157,7 @@ def aggregate_ba_stats(ba_data: GtsfmData) -> Dict[str,Any]:
     track_lengths_3d = ba_data.get_track_lengths()
     scene_reproj_errors = ba_data.get_scene_reprojection_errors()
 
-    convert_to_rounded_float = lambda x: float(np.round(x,3))
+    convert_to_rounded_float = lambda x: float(np.round(x, 3))
 
     stats_dict = {}
     stats_dict["number_tracks"] = ba_data.number_tracks()
@@ -165,15 +165,15 @@ def aggregate_ba_stats(ba_data: GtsfmData) -> Dict[str,Any]:
         "min": convert_to_rounded_float(track_lengths_3d.min()),
         "mean": convert_to_rounded_float(np.mean(track_lengths_3d)),
         "median": convert_to_rounded_float(np.median(track_lengths_3d)),
-        "max": convert_to_rounded_float(track_lengths_3d.max())
+        "max": convert_to_rounded_float(track_lengths_3d.max()),
     }
     stats_dict["reprojection_errors"] = {
         "min": convert_to_rounded_float(np.min(scene_reproj_errors)),
         "mean": convert_to_rounded_float(np.mean(scene_reproj_errors)),
         "median": convert_to_rounded_float(np.median(scene_reproj_errors)),
-        "max": convert_to_rounded_float(np.max(scene_reproj_errors))
+        "max": convert_to_rounded_float(np.max(scene_reproj_errors)),
     }
-    return stats_dict 
+    return stats_dict
 
 
 def values_to_gtsfm_data(values: Values, initial_data: GtsfmData) -> GtsfmData:
@@ -198,7 +198,7 @@ def values_to_gtsfm_data(values: Values, initial_data: GtsfmData) -> GtsfmData:
         input_track = initial_data.get_track(j)
 
         # populate the result with optimized 3D point
-        result_track = SfmTrack(values.atPoint3(P(j)),)
+        result_track = SfmTrack(values.atPoint3(P(j)))
 
         for measurement_idx in range(input_track.number_measurements()):
             i, uv = input_track.measurement(measurement_idx)
