@@ -9,7 +9,7 @@ To open a pull request, here are some steps to get you started:
 - Create a branch for your changes.
   - `$ git checkout -b <name of your branch>`
 
-- Validate that your changes do not break any existing unit tests. CI (Github Actions) should also pass.
+- Validate that your changes do not break any existing unit tests. CI (Github Actions) should also pass. We use `pytest`.
   - Run all unit tests: `$ pytest tests`
  
 - Reformat your code using Python [black](https://github.com/psf/black), with `-l 120` for a max line length of 120. 
@@ -17,17 +17,61 @@ To open a pull request, here are some steps to get you started:
 
 - Please provide documentation for any new code your pull request provides.
 
-
 - [Open a pull request](https://help.github.com/en/articles/creating-a-pull-request-from-a-fork) https://github.com/borglab/gtsfm/pulls from your branch.
   - Hint: having unit tests that validate your changes with your pull
     request will help to land your changes faster.
 
-## Conventions
+## Python Style
+- **Auto-Formatting**:We format code with `black` and a maximum line length of 120 characters.
+- **Type hints**: Function signatures should include type hints. Do not put type information in the docstring if it is redundant with the type hint.
+- **Branch Logic**: Return early, don't nest.
+- **f-strings**: Use f-strings as a default for regular strings, except when logging, where there is a specific logging format.
+- Default arguments should never be mutable (these will lead to unexpected and strange behavior), `def foo(mylist = [])` is not ok
+- Do not use a dictionary as an object -- use `NamedTuple` instead.
+- **Docstrings Required**: Each function should be accompanied by a docstring. Docstrings should be added as [described here](https://google.github.io/styleguide/pyguide.html#383-functions-and-methods).
+    - Docstrings should start with a one-line summary of the program terminated by a period.
+    - Leave one blank line.
+    - If the input or return arguments are not None, use the following syntax:
+```python
+def fetch_smalltable_rows(
+    table_handle: smalltable.Table, keys: Sequence[Union[bytes, str]], require_all_keys: bool = False
+) -> Mapping[bytes, Tuple[str]]:
+    """Fetches rows from a Smalltable.
 
-Code in GTSFM adheres to a strict set of conventions about how rigid body transformations are expressed in code. A few examples are provided below:
+    Retrieves rows pertaining to the given keys from the Table instance
+    represented by table_handle.  String keys will be UTF-8 encoded.
+
+    Args:
+        table_handle: An open smalltable.Table instance.
+        keys: A sequence of strings representing the key of each table
+          row to fetch.  String keys will be UTF-8 encoded.
+        require_all_keys: Optional; If require_all_keys is True only
+          rows with values set for all keys will be returned.
+
+    Returns:
+        A dict mapping keys to the corresponding table row data
+        fetched. Each row is represented as a tuple of strings. For
+        example:
+
+        {b'Serak': ('Rigel VII', 'Preparer'),
+         b'Zim': ('Irk', 'Invader'),
+         b'Lrrr': ('Omicron Persei 8', 'Emperor')}
+
+        Returned keys are always bytes.  If a key from the keys argument is
+        missing from the dictionary, then that row was not found in the
+        table (and require_all_keys must have been False).
+
+    Raises:
+        IOError: An error occurred accessing the smalltable.
+    """
+```
+
+## Coordinate System Conventions
+
+Code in GTSFM adheres to a strict set of conventions about how rigid body transformations are expressed in code (described [here](https://gtsam.org/gtsam.org/2020/06/28/gtsam-conventions.html)). A few examples are provided below:
 - wTc:
 - wTc_list:
 - w_wUc:
 
-We aks that contributors prefer GTSMA types wherever possible unless it's not already wrapped and is a lot of work to do so, or there are good advantages to using other types (like np arrays).
+We ask that contributors prefer GTSAM types wherever possible unless it's not already wrapped and is a lot of work to do so, or there are good advantages to using other types (like np arrays).
 
