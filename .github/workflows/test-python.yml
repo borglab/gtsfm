@@ -30,7 +30,9 @@ jobs:
         bash .github/scripts/run_eval.sh
     - name: Upload generated plots HTML
       uses: actions/upload-artifact@v2
-      path: result_metrics/gtsfm_metrics_plots.html
+      with:
+        name: gtsfm-metrics-plots
+        path: result_metrics/gtsfm_metrics_plots.html
     - name: Run unit tests
       shell: bash -l {0}
       run: |
