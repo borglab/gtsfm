@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from dask.delayed import Delayed
 from gtsam import Pose3
+from pathlib import Path
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.io as io_utils
@@ -32,6 +33,10 @@ PLOT_PATH = "plots"
 PLOT_CORRESPONDENCE_PATH = os.path.join(PLOT_PATH, "correspondences")
 METRICS_PATH = "result_metrics"
 RESULTS_PATH = "results"
+
+# Paths to Save Output in React Folders.
+REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
+REACT_RESULTS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "public" / "results"
 
 """
 data type for frontend metrics on a pair of images, containing:
@@ -81,6 +86,10 @@ class SceneOptimizer:
         os.makedirs(PLOT_CORRESPONDENCE_PATH, exist_ok=True)
         os.makedirs(METRICS_PATH, exist_ok=True)
         os.makedirs(RESULTS_PATH, exist_ok=True)
+
+        # Save duplicate directories within React folders.
+        os.makedirs(REACT_RESULTS_PATH, exist_ok=True)
+        os.makedirs(REACT_METRICS_PATH, exist_ok=True)
 
     def create_computation_graph(
         self,
@@ -172,7 +181,12 @@ class SceneOptimizer:
         keypoints_graph_list = dask.delayed(lambda x, y: (x, y))(keypoints_graph_list, auxiliary_graph_list)[0]
         auxiliary_graph_list = []
 
-        (ba_input_graph, ba_output_graph, optimizer_metrics_graph) = self.multiview_optimizer.create_computation_graph(
+        (
+            ba_input_graph,
+            ba_output_graph,
+            optimizer_metrics_graph,
+            react_metrics_graph,
+        ) = self.multiview_optimizer.create_computation_graph(
             image_graph,
             num_images,
             keypoints_graph_list,
@@ -186,6 +200,10 @@ class SceneOptimizer:
         # aggregate metrics for multiview optimizer
         if optimizer_metrics_graph is not None:
             auxiliary_graph_list.append(optimizer_metrics_graph)
+
+        # add duplicate of optimizer_metrics_graph to save within React file directory
+        if react_metrics_graph is not None:
+            auxiliary_graph_list.append(react_metrics_graph)
 
         if self._save_3d_viz:
             os.makedirs(os.path.join(PLOT_PATH, "ba_input"), exist_ok=True)
@@ -208,6 +226,8 @@ class SceneOptimizer:
         if self._save_gtsfm_data:
             # save the input to Bundle Adjustment (from data association)
             ba_input_save_dir = os.path.join(RESULTS_PATH, "ba_input")
+            react_ba_input_save_dir = os.path.join(REACT_RESULTS_PATH, "ba_input")
+
             auxiliary_graph_list.append(
                 dask.delayed(io_utils.write_cameras)(ba_input_graph, image_graph, save_dir=ba_input_save_dir)
             )
@@ -216,8 +236,21 @@ class SceneOptimizer:
                 dask.delayed(io_utils.write_points)(ba_input_graph, image_graph, save_dir=ba_input_save_dir)
             )
 
+            # Save duplicate copies of input to Bundle Adjustment to React Folder
+            auxiliary_graph_list.append(
+                dask.delayed(io_utils.write_cameras)(ba_input_graph, image_graph, save_dir=react_ba_input_save_dir)
+            )
+            auxiliary_graph_list.append(
+                dask.delayed(io_utils.write_images)(ba_input_graph, save_dir=react_ba_input_save_dir)
+            )
+            auxiliary_graph_list.append(
+                dask.delayed(io_utils.write_points)(ba_input_graph, image_graph, save_dir=react_ba_input_save_dir)
+            )
+
             # save the output of Bundle Adjustment (after optimization)
             ba_output_save_dir = os.path.join(RESULTS_PATH, "ba_output")
+            react_ba_output_save_dir = os.path.join(REACT_RESULTS_PATH, "ba_output")
+
             auxiliary_graph_list.append(
                 dask.delayed(io_utils.write_cameras)(ba_output_graph, image_graph, save_dir=ba_output_save_dir)
             )
@@ -226,6 +259,17 @@ class SceneOptimizer:
             )
             auxiliary_graph_list.append(
                 dask.delayed(io_utils.write_points)(ba_output_graph, image_graph, save_dir=ba_output_save_dir)
+            )
+
+            # Save duplicate copies of output to Bundle Adjustment to React Folder
+            auxiliary_graph_list.append(
+                dask.delayed(io_utils.write_cameras)(ba_output_graph, image_graph, save_dir=react_ba_output_save_dir)
+            )
+            auxiliary_graph_list.append(
+                dask.delayed(io_utils.write_images)(ba_output_graph, save_dir=react_ba_output_save_dir)
+            )
+            auxiliary_graph_list.append(
+                dask.delayed(io_utils.write_points)(ba_output_graph, image_graph, save_dir=react_ba_output_save_dir)
             )
 
         # as visualization tasks are not to be provided to the user, we create a
@@ -355,6 +399,9 @@ def persist_frontend_metrics_full(metrics: Dict[Tuple[int, int], FRONTEND_METRIC
 
     io_utils.save_json_file(os.path.join(METRICS_PATH, "frontend_full.json"), metrics_list)
 
+    # Save duplicate copy of 'frontend_full.json' within React Folder.
+    io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, "frontend_full.json"), metrics_list)
+
 
 def aggregate_frontend_metrics(
     metrics: Dict[Tuple[int, int], FRONTEND_METRICS_FOR_PAIR], angular_err_threshold_deg: float
@@ -411,3 +458,6 @@ def aggregate_frontend_metrics(
     }
 
     io_utils.save_json_file(os.path.join(METRICS_PATH, "frontend_summary.json"), front_end_result_info)
+
+    # Save duplicate copy of 'frontend_summary.json' within React Folder.
+    io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, "frontend_summary.json"), front_end_result_info)
