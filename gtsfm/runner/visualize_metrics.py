@@ -45,8 +45,8 @@ def get_box_plot_for_metrics(title: str, metrics: Dict[Any, Any]):
     fig.update_layout({"height": 512, "width": 1024, "showlegend": False, "title": title})  # pixels
     for i, (metric_name, metric_value) in enumerate(metrics.items()):
         fig.add_trace(go.Box(y=metric_value, name=metric_name, marker={"color": COLOR0}), row=1, col=i+1)
-    return fig       
-
+    return fig
+    
 def create_metrics_plots_html(json_path: str, output_dir: str):
     all_metrics = get_all_metrics(json_path)
     with open(os.path.join(output_dir, 'gtsfm_metrics_plots.html'), mode='a') as f:

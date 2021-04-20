@@ -5,7 +5,7 @@ on: [pull_request, workflow_dispatch]
 
 jobs:
   install-dependencies:
-    name: Install gtsam and other dependencies
+    name: Unit testing and evaluation
     runs-on: ubuntu-latest
     env: 
       PYTHON_VERSION: 3.8
@@ -23,14 +23,18 @@ jobs:
       shell: bash -l {0}
       run: |
         bash .github/scripts/install_dependencies.sh
+    - name: Run evaluation script
+      shell: bash -l {0}
+      run: |
+        conda info --envs
+        bash .github/scripts/run_eval.sh
+    - name: Upload generated plots HTML
+      uses: actions/upload-artifact@v2
+      name: gtsfm-metrics-plots
+      path: result_metrics/gtsfm_metrics_plots.html
     - name: Run unit tests
       shell: bash -l {0}
       run: |
         pip install pytest-cov
         conda info --envs
         bash .github/scripts/run_unit_tests.sh
-    - name: Run evaluation script
-      shell: bash -l {0}
-      run: |
-        conda info --envs
-        bash .github/scripts/run_eval.sh
