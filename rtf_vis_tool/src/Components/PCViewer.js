@@ -14,12 +14,13 @@ import CoordinateGrid from './CoordinateGrid';
 import OrbitControlsComponent from './OrbitControlsComponent';
 import PointMesh from './PointMesh';
 import PointSizeSlider from './PointSizeSlider';
-import '../stylesheets/Bundle_Adj_PC.css';
+import '../stylesheets/PCViewer.css';
 
-function Bundle_Adj_PC(props) {
+function PCViewer(props) {
     /*
     Args:
-        props.toggleBA_PC (function): toggles the display of the Bundle Adjustment Point Cloud.
+        props.title (string): Title of the Point Cloud Viewer Pop Up.
+        props.toggleDA_PC (function): Toggles the display of the Bundle Adjustment Point Cloud.
         
     Returns:
         A component rendering the point cloud after bundle adjustment.
@@ -37,7 +38,7 @@ function Bundle_Adj_PC(props) {
     // Render points3D.txt from COLMAP ba_input directory.
     useEffect(() => {
         // Fetch the COLMAP file from the public directory.
-        fetch('results/ba_input/points3D.txt')
+        fetch(props.filePath)
             .then((response) => {
                 return response.text();
             })
@@ -103,8 +104,8 @@ function Bundle_Adj_PC(props) {
     }
 
     return (
-        <div className="ba_container">
-            <h2>Bundle Adjustment Point Cloud</h2>
+        <div className="pc_container">
+            <h2>{props.title}</h2>
             <Canvas colorManagement camera={{ fov: 20, position: [50, 50, 50], up: [0,0,1]}}>
                 <ambientLight intensity={0.5}/>
                 <pointLight position={[100, 100, 100]} intensity={1} castShadow />
@@ -123,7 +124,7 @@ function Bundle_Adj_PC(props) {
                 <AllFrustums/>
             </Canvas>
 
-            <button className="ba_go_back_btn" onClick={() => props.toggleBA_PC(false)}>Go Back</button>
+            <button className="pc_go_back_btn" onClick={() => props.togglePC(false)}>Go Back</button>
             <button className="toggle_grid_btn" onClick={() => setShowCoordGrid(!showCoordGrid)}>
                 Toggle Coordinate Grid
             </button>
@@ -132,4 +133,4 @@ function Bundle_Adj_PC(props) {
     )
 }
 
-export default Bundle_Adj_PC;
+export default PCViewer;

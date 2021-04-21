@@ -22,17 +22,17 @@ const blue_node_list = [
     },
     {
         text: 'Detector',
-        topOffset: 20,
+        topOffset: 18,
         leftOffset: 30
     },
     {
         text: 'Keypoint Describer',
-        topOffset: 15,
-        leftOffset: 40
+        topOffset: 10,
+        leftOffset: 39
     },
     {
         text: 'Putative Matcher',
-        topOffset: 20,
+        topOffset: 18,
         leftOffset: 53
     },
     {
@@ -47,52 +47,52 @@ const blue_node_list = [
     },
     {
         text: 'Optimizer',
-        topOffset: 43,
-        leftOffset: 28
+        topOffset: 39,
+        leftOffset: 34
     },
     {
         text: 'File Writer',
         topOffset: 70,
-        leftOffset: 40
+        leftOffset: 30
     },
     {
         text: 'MVSNet',
-        topOffset: 78,
-        leftOffset: 32
+        topOffset: 70,
+        leftOffset: 52
     },
     {
         text: 'Triangulation',
-        topOffset: 78,
-        leftOffset: 17
+        topOffset: 70,
+        leftOffset: 65
     },
     {
         text: 'Aggregate',
-        topOffset: 83,
-        leftOffset: 1
+        topOffset: 87,
+        leftOffset: 72.5
     },
     {
         text: 'Data Association w/ Track Filtering',
-        topOffset: 40,
-        leftOffset: 42
+        topOffset: 36,
+        leftOffset: 47
     },
     {
         text: 'Bundler Calibrator',
-        topOffset: 53,
+        topOffset: 49,
         leftOffset: 53
     },
     {
         text: '1d-SfM',
-        topOffset: 43,
-        leftOffset: 68
+        topOffset: 35,
+        leftOffset: 70
     },
     {
         text: 'Largest Connected Component Extractor',
-        topOffset: 43,
+        topOffset: 33,
         leftOffset: 86
     },
     {
         text: 'Shonan',
-        topOffset: 65,
+        topOffset: 52,
         leftOffset: 76
     },
 ]

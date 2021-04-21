@@ -10,8 +10,6 @@ import Xarrow from "react-xarrows";  // Used to render directed edges.
 // Local Imports.
 import BlueNode from './BlueNode.js';
 import BlueNodes from './gtsfm_graph/blue_nodes.js';
-import Bundle_Adj_PC from './Bundle_Adj_PC';
-import data_association_json from '../result_metrics/data_association_metrics.json';
 import EdgeList from './gtsfm_graph/edge_list.js';
 import frontend_summary_json from '../result_metrics/frontend_summary.json';
 import FrontendSummary from './FrontendSummary';
@@ -20,6 +18,7 @@ import GrayNodes from './gtsfm_graph/gray_nodes.js';
 import GtsfmNode from './GtsfmNode';
 import multiview_optimizer_json from '../result_metrics/multiview_optimizer_metrics.json';
 import MVOSummary from './MVOSummary';
+import PCViewer from './PCViewer.js';
 import '../stylesheets/LandingPageGraph.css'
 
 function LandingPageGraph() {
@@ -37,14 +36,12 @@ function LandingPageGraph() {
     // Boolean variables indicating which pop ups to show
     const [showFS, setShowFS] = useState(false);
     const [showMVO, setShowMVO] = useState(false);
-    const [showDA_PC, setShowDA_PC] = useState(null);
-    const [showRSS, setShowRSS] = useState(false);
-
+    const [showDA_PC, setShowDA_PC] = useState(false);
+    const [showBA_PC, setShowBA_PC] = useState(false);
+    
     // Variables storing JSON information from result_metrics directory.
     const [fs_json, setFS_JSON] = useState(null);
     const [mvo_json, setMVO_JSON] = useState(null);
-    const [da_json, setDA_JSON] = useState(null);
-    const [rotated_da_json, setRotatedDAJSON] = useState(null);
 
     useEffect(() => {
         var rawEdges = EdgeList
@@ -83,8 +80,6 @@ function LandingPageGraph() {
         // Save all the json resulting metrics in separate React variables.
         setFS_JSON(frontend_summary_json);
         setMVO_JSON(multiview_optimizer_json);
-        setDA_JSON(data_association_json.points_3d);
-        setRotatedDAJSON(data_association_json.rotated_points_3d);
     }, [])
 
     function toggleFrontEndSummaryDisplay(showDisplay) {
@@ -105,8 +100,8 @@ function LandingPageGraph() {
         setShowMVO(showDisplay);
     };
 
-    function toggleBundleAdj_PointCloud(showDisplay) {
-        /*Toggles the display of the Bundle Adjustment Point Cloud.
+    function toggleDA_PointCloud(showDisplay) {
+        /*Toggles the display of the Data Association Point Cloud.
 
         Args:
             showDisplay (boolean): Sets the display to be shown or not.
@@ -114,13 +109,13 @@ function LandingPageGraph() {
         setShowDA_PC(showDisplay);
     };
 
-    function toggleRotSummaryDisplay(showDisplay) {
-        /*Toggles the display of the rotation averaging metrics.
+    function toggleBA_PointCloud(showDisplay) {
+        /*Toggles the display of the Bundle Adjustment Point Cloud.
 
         Args:
             showDisplay (boolean): Sets the display to be shown or not.
         */
-        setShowRSS(showDisplay);
+        setShowBA_PC(showDisplay);
     };
 
     return (
@@ -130,23 +125,39 @@ function LandingPageGraph() {
             </div>
 
             {/* Render popups only when the respective node is clicked. */} 
-            {showDA_PC && <Bundle_Adj_PC toggleBA_PC={toggleBundleAdj_PointCloud}/>}
+            {showDA_PC && <PCViewer title={'Data Association Point Cloud'} 
+                                    togglePC={toggleDA_PointCloud} 
+                                    filePath={'results/ba_input/points3D.txt'}/>}
+            {showBA_PC && <PCViewer title={'Bundle Adjustment Point Cloud'}
+                                    togglePC={toggleBA_PointCloud}
+                                    filePath={'results/ba_output/points3D.txt'}/>}
             {showFS && <FrontendSummary json={fs_json} toggleFS={toggleFrontEndSummaryDisplay}/>}
             {showMVO && <MVOSummary json={mvo_json} toggleMVO={toggleMVOMetrics}/>}
 
             <div className="gtsfm_graph">
 
-                {/* Render all Gray and Blue Nodes (43 combined). */}
+                {/* Render basic Gray and Blue Nodes (41 combined). */}
                 {grayNodesList}
                 {blueNodesList}
+
+                {/* Render both nodes which spawn point clouds (from ba_input and ba_output) */}
                 <GtsfmNode 
-                    onClickFunction={toggleBundleAdj_PointCloud}
+                    onClickFunction={toggleDA_PointCloud}
                     funcParam={true}
                     textColor={'black'} 
                     backgroundColor={lightGray} 
-                    topOffset={'40%'} 
-                    leftOffset={'34%'} 
-                    text={'GtsfmData'}/>
+                    topOffset={'36%'} 
+                    leftOffset={'40%'} 
+                    text={'Data Association GtsfmData'}/>
+                
+                <GtsfmNode
+                    onClickFunction={toggleBA_PointCloud}
+                    funcParam={true}
+                    textColor={'black'}
+                    backgroundColor={lightGray}
+                    topOffset={'37%'}
+                    leftOffset={'27%'}
+                    text={'Bundle Adjustment GtsfmData'}/>
 
                 {/* Render Directed Edges. */}
                 {arrowList}
@@ -158,13 +169,15 @@ function LandingPageGraph() {
                 <div className="feature_extractor_plate">
                     <p className="plate_title">Feature Extractor Images</p>
                 </div>
-                <div className="two_view_estimator_plate" onClick={(fs_json) ? (() => toggleFrontEndSummaryDisplay(true)) : (null)}>
+                <div className="two_view_estimator_plate" 
+                     onClick={(fs_json) ? (() => toggleFrontEndSummaryDisplay(true)) : (null)}>
                     <p className="plate_title">TwoViewEstimator</p>
                 </div>
                 <div className="averaging_plate">
                     <p className="plate_title">Averaging</p>
                 </div>
-                <div className="sparse_multiview_optimizer_plate" onClick={(mvo_json) ? (() => toggleMVOMetrics(true)) : (null)}>
+                <div className="sparse_multiview_optimizer_plate" 
+                     onClick={(mvo_json) ? (() => toggleMVOMetrics(true)) : (null)}>
                     <p className="plate_title">Sparse Multiview Optimizer</p>
                 </div>
                 <div className="dense_multiview_optimizer_plate">
