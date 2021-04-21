@@ -43,6 +43,38 @@ class TestVerificationUtils(unittest.TestCase):
 
         np.testing.assert_allclose(computed, expected, rtol=1e-3)
 
+    # def test_decompose_essential_matrix(self):
+    #     essential_matrix = np.array(
+    #         [
+    #             [-0.48362874, -30.48212193, -0.06203549],
+    #             [35.37432649, -0.64255011, -11.40090193],
+    #             [-0.07330382, -20.71027389, -0.12439182],
+    #         ]
+    #     )
+    #     R1, _, U = verification_utils.decompose_essential_matrix(essential_matrix)
+
+    #     # reconstruct E using R and U
+    #     t = U.point3()
+    #     t_skew_symm = np.array([[0, -t[2], t[1]], [t[2], 0, -t[0]], [-t[1], t[0], 0]])
+    #     # e_reconstructed = t_skew_symm @ R1.matrix()
+    #     e_reconstructed = EssentialMatrix(R1, U).matrix()
+
+    #     np.testing.assert_allclose(
+    #         essential_matrix / np.linalg.norm(essential_matrix, axis=None),
+    #         e_reconstructed / np.linalg.norm(e_reconstructed, axis=None),
+    #     )
+
+    #     # again perform the decomposition
+    #     R1_, _, U_ = verification_utils.decompose_essential_matrix(e_reconstructed)
+    #     t = U_.point3()
+    #     t_skew_symm = np.array([[0, -t[2], t[1]], [t[2], 0, -t[0]], [-t[1], t[0], 0]])
+    #     e_recon_2 = t_skew_symm @ R1_.matrix()
+
+    #     np.testing.assert_allclose(
+    #         e_reconstructed / np.linalg.norm(e_reconstructed, axis=None),
+    #         e_recon_2 / np.linalg.norm(e_recon_2, axis=None),
+    #     )
+
 
 if __name__ == "__main__":
     unittest.main()
