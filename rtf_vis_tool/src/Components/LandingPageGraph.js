@@ -55,7 +55,7 @@ function LandingPageGraph() {
                     start={pair[0]}
                     end={pair[1]}
                     color='gray'
-                    strokeWidth='1.5'
+                    strokeWidth={1.5}
                     path='straight'
                 />)
         }
@@ -136,11 +136,11 @@ function LandingPageGraph() {
 
             <div className="gtsfm_graph">
 
-                {/* Render basic Gray and Blue Nodes (41 combined). */}
+                {/* Render basic Gray and Blue Nodes (41). These 41 + 2 point cloud nodes yield 43 nodes total. */}
                 {grayNodesList}
                 {blueNodesList}
 
-                {/* Render both nodes which spawn point clouds (from ba_input and ba_output) */}
+                {/* Render 2 more nodes which spawn point clouds (from ba_input and ba_output). */}
                 <GtsfmNode 
                     onClickFunction={toggleDA_PointCloud}
                     funcParam={true}

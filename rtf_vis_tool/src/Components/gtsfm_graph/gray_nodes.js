@@ -77,7 +77,7 @@ const gray_node_list = [
         leftOffset: 22
     },
     {
-        text: 'SFMResult as files',
+        text: 'GtsfmData as files',
         topOffset: 69,
         leftOffset: 37
     },

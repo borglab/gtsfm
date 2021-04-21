@@ -27,15 +27,15 @@ function PCViewer(props) {
     */
 
     // Variables to store the point cloud information and toggle the coordinate grid display.
-    const [pointCloudRaw, setPointCloudRaw] = useState([]);
     const [pointCloudJSX, setPointCloudJSX] = useState([]);
     const [showCoordGrid, setShowCoordGrid] = useState(true);
 
     // Point size defined by radius, initialized as 0.15.
     const [pointRadius, setPointRadius] = useState(0.15);
-    const pointSizeArr = [pointRadius]; 
 
-    // Render points3D.txt from COLMAP ba_input directory.
+    /* Render points3D.txt from COLMAP ba_input directory. Runs when component is first rendered and every time the
+       pointRadius is updated.
+    */
     useEffect(() => {
         // Fetch the COLMAP file from the public directory.
         fetch(props.filePath)
@@ -43,7 +43,7 @@ function PCViewer(props) {
                 return response.text();
             })
             .then((data) => loadCOLMAPPointCloud(data))
-    }, []);
+    });
 
     function loadCOLMAPPointCloud(data) {
         /*Accepts the raw COLMAP points3D.txt file and converts it into an array of JSX formatted
@@ -61,11 +61,9 @@ function PCViewer(props) {
             arrStringPoints.shift();
         }
 
-        /* Variable pointCloudRaw is an (N x 6) array, with the first 3 entries as (x,y,z) and the last
+        /* Variable arrNumPoints is an (N x 6) array, with the first 3 entries as (x,y,z) and the last
            3 entries as (R,G,B). */
         const arrNumPoints = arrStringPoints.map(point => point.split(" ").map(Number));
-        setPointCloudRaw(arrNumPoints);
-
 
         // Loop through array. convert strings to numbers. Append to final point cloud.
         for (var index = 0; index < arrNumPoints.length; index += 1) {
@@ -75,30 +73,8 @@ function PCViewer(props) {
                 <PointMesh  
                     position={[pointArr[1], pointArr[2], pointArr[3]]}  
                     color={`rgb(${pointArr[4]}, ${pointArr[5]}, ${pointArr[6]})`} 
-                    size={pointSizeArr}/>
+                    size={[pointRadius]}/>
                 );
-        }
-        setPointCloudJSX(finalPointsJSX);
-    }
-
-    function updatePointSizes(radius) {
-        /*Updates the radius of all points within a point cloud. Called everytime the react 
-        slider input is interacted with.
-
-        Args:
-            radius (int): New radius for all points in point cloud.
-        */
-
-        var finalPointsJSX = [];
-        for (var i = 0; i < pointCloudRaw.length; i += 1) {
-            var pointArr = pointCloudRaw[i];
-            
-            finalPointsJSX.push(
-                <PointMesh  
-                    position={[pointArr[1], pointArr[2], pointArr[3]]}  
-                    color={`rgb(${pointArr[4]}, ${pointArr[5]}, ${pointArr[6]})`} 
-                    size={[radius]}/>
-            );
         }
         setPointCloudJSX(finalPointsJSX);
     }
@@ -128,7 +104,7 @@ function PCViewer(props) {
             <button className="toggle_grid_btn" onClick={() => setShowCoordGrid(!showCoordGrid)}>
                 Toggle Coordinate Grid
             </button>
-            <PointSizeSlider pointRadius={pointRadius} setPointRadius={setPointRadius} updatePointSizes={updatePointSizes}/>
+            <PointSizeSlider pointRadius={pointRadius} setPointRadius={setPointRadius}/>
         </div>
     )
 }
