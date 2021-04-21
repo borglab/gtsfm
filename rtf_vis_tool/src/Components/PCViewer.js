@@ -61,13 +61,13 @@ function PCViewer(props) {
             arrStringPoints.shift();
         }
 
-        /* Variable arrNumPoints is an (N x 6) array, with the first 3 entries as (x,y,z) and the last
+        /* Variable arr_points is an (N x 6) array, with the first 3 entries as (x,y,z) and the last
            3 entries as (R,G,B). */
-        const arrNumPoints = arrStringPoints.map(point => point.split(" ").map(Number));
+        const arr_points = arrStringPoints.map(point => point.split(" ").map(Number));
 
         // Loop through array. convert strings to numbers. Append to final point cloud.
-        for (var index = 0; index < arrNumPoints.length; index += 1) {
-            var pointArr = arrNumPoints[index];
+        for (var index = 0; index < arr_points.length; index += 1) {
+            var pointArr = arr_points[index];
                     
             finalPointsJSX.push(
                 <PointMesh  
