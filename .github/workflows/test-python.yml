@@ -31,7 +31,7 @@ jobs:
     - name: Upload generated plots HTML
       uses: actions/upload-artifact@v2
       with:
-        name: gtsfm-metrics-plots
+        name: gtsfm-metrics-plots.html
         path: result_metrics/gtsfm_metrics_plots.html
     - name: Run unit tests
       shell: bash -l {0}
