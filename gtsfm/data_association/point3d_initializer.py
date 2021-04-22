@@ -322,21 +322,39 @@ class Point3dInitializer(NamedTuple):
         best_triplet_indices = None
         for k1 in range(track_2d.number_measurements()):
             for k2 in range(k1 + 1, track_2d.number_measurements()):
-                for k3 in range(k2 + 1, track_2d.number_measurements()):
-                    triplet_track_2d = track_2d.select_subset([k1, k2, k3])
-                    if not triplet_track_2d.validate_unique_cameras():
-                        # the triplet has to have unique cameras
-                        continue
+                
+                triplet_track_2d = track_2d.select_subset([k1, k2])
+                if not triplet_track_2d.validate_unique_cameras():
+                    # the triplet has to have unique cameras
+                    continue
 
-                    # initialize the 3D point for this track
-                    _, avg_reproj_error, _ = point3d_initializer_simple.triangulate(triplet_track_2d)
+                # initialize the 3D point for this track
+                _, avg_reproj_error, _ = point3d_initializer_simple.triangulate(triplet_track_2d)
 
-                    if avg_reproj_error is None:
-                        continue
+                if avg_reproj_error is None:
+                    continue
 
-                    if min_avg_reproj_error is None or avg_reproj_error < min_avg_reproj_error:
-                        min_avg_reproj_error = avg_reproj_error
-                        best_triplet_indices = [k1, k2, k3]
+                if min_avg_reproj_error is None or avg_reproj_error < min_avg_reproj_error:
+                    min_avg_reproj_error = avg_reproj_error
+                    best_triplet_indices = [k1, k2]
+
+        # for k1 in range(track_2d.number_measurements()):
+        #     for k2 in range(k1 + 1, track_2d.number_measurements()):
+        #         for k3 in range(k2 + 1, track_2d.number_measurements()):
+        #             triplet_track_2d = track_2d.select_subset([k1, k2, k3])
+        #             if not triplet_track_2d.validate_unique_cameras():
+        #                 # the triplet has to have unique cameras
+        #                 continue
+
+        #             # initialize the 3D point for this track
+        #             _, avg_reproj_error, _ = point3d_initializer_simple.triangulate(triplet_track_2d)
+
+        #             if avg_reproj_error is None:
+        #                 continue
+
+        #             if min_avg_reproj_error is None or avg_reproj_error < min_avg_reproj_error:
+        #                 min_avg_reproj_error = avg_reproj_error
+        #                 best_triplet_indices = [k1, k2, k3]
 
         if best_triplet_indices is None or min_avg_reproj_error > self.reproj_error_thresh:
             # there is no triplet which can be considered
