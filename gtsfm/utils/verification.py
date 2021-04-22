@@ -139,10 +139,15 @@ def compute_epipolar_distances_sampson(
     order approximation of the reprojection error, and well-estimates the gold standard reprojection error at low
     values of the reprojection error.
 
+    The squared Sampson distance is computed in OpenCV (Ref 3) as well COLMAP (Ref 4). OpenCV uses the squared sampson
+    error to find inliers in RANSAC (Ref 5).
+
     References: 
     - "Fathy et al., Fundamental Matrix Estimation: A Study of Error Criteria", https://arxiv.org/abs/1706.07886
     - "Hartley, R.~I. et al. Multiple View Geometry in Computer Vision.. Cambridge University Press, Pg 288"
-    - https://docs.opencv.org/3.4/d9/d0c/group__calib3d.html#gacbba2ee98258ca81d352a31faa15a021
+    - https://github.com/opencv/opencv/blob/29fb4f98b10767008d0751dd064023727d9d3e5d/modules/calib3d/src/five-point.cpp#L375
+    - https://github.com/colmap/colmap/blob/9f3a75ae9c72188244f2403eb085e51ecf4397a8/src/estimators/utils.cc#L87
+    - https://github.com/opencv/opencv/blob/29fb4f98b10767008d0751dd064023727d9d3e5d/modules/calib3d/src/ptsetreg.cpp#L85
 
     Algorithm:
     - l2 = i2Fi1 @ x1
