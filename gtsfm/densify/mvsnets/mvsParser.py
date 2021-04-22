@@ -3,14 +3,57 @@
 
 Authors: Ren Liu
 """
+from typing import Dict, List, Any
 
 import math
 import numpy as np 
+
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.densify.mvsnets.mvsUtills import Math
 
 class Parser(object):
+    """Parser class for parsing GtsfmData to fit MVSNets """
+    
     @classmethod
-    def parse_sparse_point_cloud(cls, sfmData, cameras):
+    def parse_camera_matrix(cls, sfmData: GtsfmData) -> List:
+        """Parse camera extrinsics and intrinsics from GtsfmData
+        
+        Args:
+            sfm_result: pre-computed GtsfmData
+        
+        Returns: 
+            List of camera parameters for MVSNets, the length is the number of cameras
+                each entrance camera[i] contains a 3x3 intrinsic matrix and a 4x4 extrinsic matrix
+        """
+
+        cn = sfmData.number_images()
+
+        cameras = []
+
+        for ci in range(cn):
+            intrinsics_i = sfmData.get_camera(ci).calibration().K()
+
+            extrinsics_i = np.linalg.inv(sfmData.get_camera(ci).pose().matrix())
+
+            cameras.append([intrinsics_i, extrinsics_i])
+
+        return cameras
+
+    @classmethod
+    def parse_sparse_point_cloud(cls, sfmData: GtsfmData, cameras: List) -> (np.ndarray, np.ndarray):
+        """ parse pair distances and depth ranges for each camera
+
+        Args:
+            sfm_result: pre-computed GtsfmData,
+            camera: List of camera parameters for MVSNets, the length is the number of cameras
+                each entrance camera[i] contains a 3x3 intrinsic matrix and a 4x4 extrinsic matrix
+        
+        Returns: 
+            pairs: a np.ndarray of shape [N, N], which calculates the pair distances between each view pairs,
+            depth_range: a np.ndarray of shape [N, 3], which calculates the minimum depth, maximum depth, and the number of virtual depth layers for each view
+        
+        """
+        
         cn = sfmData.number_images()
         tn = sfmData.number_tracks()
         pairs = np.zeros([cn, cn])
@@ -45,35 +88,31 @@ class Parser(object):
         min_depth = [ np.floor(np.mean(depth_array_cam[i]) - np.std(depth_array_cam[i]) ) for i in range(cn)] 
         max_depth = [  np.ceil(np.mean(depth_array_cam[i]) + np.std(depth_array_cam[i]) ) for i in range(cn)] 
         
-        depth_layer_numer = 192
+        depth_layer_numer = [ 192 for i in range(cn) ]
 
-        depth_range = [min_depth, max_depth, depth_layer_numer]
+        depth_range = np.array([min_depth, max_depth, depth_layer_numer])
 
         return pairs, depth_range
-    
-    @classmethod
-    def parse_camera_matrix(cls, sfmData):
-        cn = sfmData.number_images()
-
-        cameras = []
-
-        for ci in range(cn):
-            intrinsics_i = sfmData.get_camera(ci).calibration().K()
-
-            extrinsics_i = np.linalg.inv(sfmData.get_camera(ci).pose().matrix())
-
-            cameras.append([intrinsics_i, extrinsics_i])
-
-        return cameras
-    
 
     @classmethod
-    def to_mvsnets_data(cls, images, sfmData, labeled_cameras = None):
+    def to_mvsnets_data(
+        cls, 
+        images: np.ndarray, 
+        sfmData: GtsfmData
+    ) -> Dict[str, Any]:
+
+        """a combination parsing functions to parse images and GtsfmData to fit MVSNets 
+        
+        Args:
+            images: np.ndarray list of images, the shape is [N, H, W]
+            sfm_result: object containing camera parameters and the optimized point cloud.
+
+        Returns:
+            a dictionary includes necessary information for MVSNets that parsed from GtsfmData
+        
+        """
     
-        if labeled_cameras:
-            cameras = labeled_cameras
-        else:
-            cameras = cls.parse_camera_matrix(sfmData)
+        cameras = cls.parse_camera_matrix(sfmData)
    
         pairs, depthRange = cls.parse_sparse_point_cloud(sfmData, cameras)
 

@@ -40,7 +40,6 @@ dependencies:
     - argoverse @ git+https://github.com/argoai/argoverse-api.git@master
 
   # densify
-  - pytz
   - plyfile
   - torchvision
   - scipy
