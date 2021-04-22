@@ -9,11 +9,10 @@ References:
 
 Authors: Ayush Baid, Sushmita Warrier, John Lambert
 """
-from typing import Dict, List, NamedTuple, Set, Tuple
+from typing import Dict, List, NamedTuple, Tuple
 
 import gtsam
 import numpy as np
-from gtsam import PinholeCameraCal3Bundler
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.keypoints import Keypoints
