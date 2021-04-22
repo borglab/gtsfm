@@ -288,23 +288,30 @@ class Point3dInitializer(NamedTuple):
     def form_track_using_most_consistent_triplet(
         self, track_2d: SfmTrack2d
     ) -> Tuple[Optional[SfmTrack], Optional[float], bool]:
-        """Get the triplet of measurements which are the most consistent.
-
-        Raises:
-            Exception: [description]
+        """Form tracks starting with the most consistent triplet and adding measurements which do not push the average
+        reprojection error above the threshold.
 
         Returns:
-            [type]: [description]
+            track with inlier measurements and 3D landmark. None returned if triangulation fails or has high error.
+            avg_track_reproj_error: reprojection error of 3d triangulated point to each image plane.
+                                    Note: this may be "None" if the 3d point could not be triangulated successfully
+                                    due to a cheirality exception or less than 3 measurements required for a triplet.
+            is_cheirality_failure: boolean representing whether the selected 2d measurements lead to a cheirality
+                                   exception upon triangulation.
         """
         if track_2d.number_measurements() < 2:
+            # one measurement cannot be triangulated
             return None, None, False
 
         # initializer of 3D landmark for each track
         point3d_initializer_simple = Point3dInitializer(
-            self.track_camera_dict, TriangulationParam.NO_RANSAC, reproj_error_thresh=1e6  # just a large number
+            self.track_camera_dict,
+            TriangulationParam.NO_RANSAC,
+            reproj_error_thresh=1e6,  # just a large number, wont be used
         )
 
         if track_2d.number_measurements() == 2:
+            # with just two measurements, there is no iterative processing
             return point3d_initializer_simple.triangulate(track_2d)
 
         min_avg_reproj_error = None
@@ -312,12 +319,13 @@ class Point3dInitializer(NamedTuple):
         for k1 in range(track_2d.number_measurements()):
             for k2 in range(k1 + 1, track_2d.number_measurements()):
                 for k3 in range(k2 + 1, track_2d.number_measurements()):
-                    triplet_track = track_2d.select_subset([k1, k2, k3])
-                    if not triplet_track.validate_unique_cameras():
+                    triplet_track_2d = track_2d.select_subset([k1, k2, k3])
+                    if not triplet_track_2d.validate_unique_cameras():
+                        # the triplet has to have unique cameras
                         continue
 
                     # initialize the 3D point for this track
-                    _, avg_reproj_error, _ = point3d_initializer_simple.triangulate(triplet_track)
+                    _, avg_reproj_error, _ = point3d_initializer_simple.triangulate(triplet_track_2d)
 
                     if avg_reproj_error is None:
                         continue
@@ -327,54 +335,46 @@ class Point3dInitializer(NamedTuple):
                         best_triplet_indices = [k1, k2, k3]
 
         if best_triplet_indices is None:
+            # there is no triplet which can be considered
             return None, None, False
-            # TODO
 
         triplet_track_2d = track_2d.select_subset(best_triplet_indices)
         triplet_track_3d, _, _ = point3d_initializer_simple.triangulate(triplet_track_2d)
-        # order the other measurements by their reprojection error of the triplet
 
-        errors = []
+        if triplet_track_3d is None:
+            return None, None, False
 
-        for k in range(track_2d.number_measurements()):
-            if k in best_triplet_indices:
-                continue
+        # order the measurements by their reprojection error of the best triplet's 3D point.
+        errors, _ = reproj_utils.compute_point_reprojection_errors(
+            self.track_camera_dict,
+            triplet_track_3d.point3(),
+            [track_2d.measurement(k) for k in range(track_2d.number_measurements())],
+        )
+        ordered_indices = np.argsort(errors)
 
-            i, uv_measured = track_2d.measurement(k)
-            camera = self.track_camera_dict[i]
-
-            uv_reprojected, success_flag = camera.projectSafe(triplet_track_3d.point3())
-            if success_flag:
-                # Projection error in camera
-                reproj_error = np.linalg.norm(uv_measured - uv_reprojected)
-                errors.append((k, reproj_error))
-
-        # sort in ascending order of reprojection errors
-        errors.sort(key=lambda x: x[1])
-        measurement_indices = best_triplet_indices + list(map(lambda x: x[0], errors))
-
-        # accept measurements as long as as the reprojection error stays below the threshold, and we pick atmost one
-        # measurement per camera
+        # add measurements keeping reprojection error stays below the threshold, and we <=1 measurement per camera
         accepted_indices: Set[int] = set()
         accepted_measurements: List[SfmMeasurement] = []
-
-        for k in measurement_indices:
+        for k in ordered_indices:
             if len(accepted_indices) == 0:
                 accepted_indices.add(k)
                 accepted_measurements.append(track_2d.measurement(k))
                 continue
 
             if k in accepted_indices:
+                # cannot add 2 measurements from the same camera
                 continue
 
             current_measurement = track_2d.measurement(k)
-
-            # add the measurement to the track and triangulate it
+            # form the candidate by adding current measurement
             _, avg_track_reproj_error, cheirality_error = point3d_initializer_simple.triangulate(
                 SfmTrack2d(accepted_measurements + [current_measurement])
             )
-
-            if not cheirality_error and avg_track_reproj_error < self.reproj_error_thresh:
+            if (
+                not cheirality_error
+                and avg_track_reproj_error is not None
+                and avg_track_reproj_error < self.reproj_error_thresh
+            ):
                 accepted_indices.add(k)
                 accepted_measurements.append(current_measurement)
 
