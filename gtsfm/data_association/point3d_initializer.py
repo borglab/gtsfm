@@ -185,7 +185,7 @@ class Point3dInitializer(NamedTuple):
 
         # all the measurements should have error < threshold
         if not np.all(reproj_errors < self.reproj_error_thresh):
-            return None, avg_track_reproj_error, is_cheirality_failure
+            return None, None, is_cheirality_failure
 
         track_3d = SfmTrack(triangulated_pt)
         for i, uv in inlier_track.measurements:
@@ -312,7 +312,11 @@ class Point3dInitializer(NamedTuple):
 
         if track_2d.number_measurements() == 2:
             # with just two measurements, there is no iterative processing
-            return point3d_initializer_simple.triangulate(track_2d)
+
+            if track_2d.measurement(0).i != track_2d.measurement(1).i:
+                return point3d_initializer_simple.triangulate(track_2d)
+            else:
+                return None, None, False
 
         min_avg_reproj_error = None
         best_triplet_indices = None
@@ -334,7 +338,7 @@ class Point3dInitializer(NamedTuple):
                         min_avg_reproj_error = avg_reproj_error
                         best_triplet_indices = [k1, k2, k3]
 
-        if best_triplet_indices is None:
+        if best_triplet_indices is None or min_avg_reproj_error > self.reproj_error_thresh:
             # there is no triplet which can be considered
             return None, None, False
 
