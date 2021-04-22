@@ -14,6 +14,7 @@ To open a pull request, here are some steps to get you started:
  
 - Reformat your code using Python [black](https://github.com/psf/black), with `-l 120` for a max line length of 120. 
 - Ensure static analysis with flake8 does not throw any errors:
+  - `flake8 --max-line-length 120 --ignore E201,E202,E203,E231,W291,W293,E303,W391,E402,W503 gtsfm`
 
 - Please provide documentation for any new code your pull request provides.
 
