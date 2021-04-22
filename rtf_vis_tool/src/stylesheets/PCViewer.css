@@ -1,4 +1,4 @@
-/* Stylings for Bundle_Adj.js Component. 
+/* Stylings for PCViewer.js Component. 
 
 Author: Adi Singh
 */
@@ -7,7 +7,7 @@ Author: Adi Singh
     background with black curved border. Z-index of 2 makes it lay on top of other components 
     which have z-index of 1.
 */
-.ba_container {
+.pc_container {
     position: absolute;
     top: 5%;
     left: 3%;
@@ -23,7 +23,7 @@ Author: Adi Singh
 /*  Positions the 'Go Back' button at the top right of the bundle adjusment container. Mouse turns
     into a pointer when hovering over button.
 */
-.ba_go_back_btn {
+.pc_go_back_btn {
     position: absolute;
     right: 1%;
     top: 1%;

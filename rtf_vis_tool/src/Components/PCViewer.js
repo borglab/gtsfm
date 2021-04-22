@@ -14,35 +14,36 @@ import CoordinateGrid from './CoordinateGrid';
 import OrbitControlsComponent from './OrbitControlsComponent';
 import PointMesh from './PointMesh';
 import PointSizeSlider from './PointSizeSlider';
-import '../stylesheets/Bundle_Adj_PC.css';
+import '../stylesheets/PCViewer.css';
 
-function Bundle_Adj_PC(props) {
+function PCViewer(props) {
     /*
     Args:
-        props.toggleBA_PC (function): toggles the display of the Bundle Adjustment Point Cloud.
+        props.title (string): Title of the Point Cloud Viewer Pop Up.
+        props.toggleDA_PC (function): Toggles the display of the Bundle Adjustment Point Cloud.
         
     Returns:
         A component rendering the point cloud after bundle adjustment.
     */
 
     // Variables to store the point cloud information and toggle the coordinate grid display.
-    const [pointCloudRaw, setPointCloudRaw] = useState([]);
     const [pointCloudJSX, setPointCloudJSX] = useState([]);
     const [showCoordGrid, setShowCoordGrid] = useState(true);
 
     // Point size defined by radius, initialized as 0.15.
     const [pointRadius, setPointRadius] = useState(0.15);
-    const pointSizeArr = [pointRadius]; 
 
-    // Render points3D.txt from COLMAP ba_input directory.
+    /* Render points3D.txt from COLMAP ba_input directory. Runs when component is first rendered and every time the
+       pointRadius is updated.
+    */
     useEffect(() => {
         // Fetch the COLMAP file from the public directory.
-        fetch('results/ba_input/points3D.txt')
+        fetch(props.filePath)
             .then((response) => {
                 return response.text();
             })
             .then((data) => loadCOLMAPPointCloud(data))
-    }, []);
+    });
 
     function loadCOLMAPPointCloud(data) {
         /*Accepts the raw COLMAP points3D.txt file and converts it into an array of JSX formatted
@@ -60,51 +61,27 @@ function Bundle_Adj_PC(props) {
             arrStringPoints.shift();
         }
 
-        /* Variable pointCloudRaw is an (N x 6) array, with the first 3 entries as (x,y,z) and the last
+        /* Variable arr_points is an (N x 6) array, with the first 3 entries as (x,y,z) and the last
            3 entries as (R,G,B). */
-        const arrNumPoints = arrStringPoints.map(point => point.split(" ").map(Number));
-        setPointCloudRaw(arrNumPoints);
-
+        const arr_points = arrStringPoints.map(point => point.split(" ").map(Number));
 
         // Loop through array. convert strings to numbers. Append to final point cloud.
-        for (var index = 0; index < arrNumPoints.length; index += 1) {
-            var pointArr = arrNumPoints[index];
+        for (var index = 0; index < arr_points.length; index += 1) {
+            var pointArr = arr_points[index];
                     
             finalPointsJSX.push(
                 <PointMesh  
                     position={[pointArr[1], pointArr[2], pointArr[3]]}  
                     color={`rgb(${pointArr[4]}, ${pointArr[5]}, ${pointArr[6]})`} 
-                    size={pointSizeArr}/>
+                    size={[pointRadius]}/>
                 );
         }
         setPointCloudJSX(finalPointsJSX);
     }
 
-    function updatePointSizes(radius) {
-        /*Updates the radius of all points within a point cloud. Called everytime the react 
-        slider input is interacted with.
-
-        Args:
-            radius (int): New radius for all points in point cloud.
-        */
-
-        var finalPointsJSX = [];
-        for (var i = 0; i < pointCloudRaw.length; i += 1) {
-            var pointArr = pointCloudRaw[i];
-            
-            finalPointsJSX.push(
-                <PointMesh  
-                    position={[pointArr[1], pointArr[2], pointArr[3]]}  
-                    color={`rgb(${pointArr[4]}, ${pointArr[5]}, ${pointArr[6]})`} 
-                    size={[radius]}/>
-            );
-        }
-        setPointCloudJSX(finalPointsJSX);
-    }
-
     return (
-        <div className="ba_container">
-            <h2>Bundle Adjustment Point Cloud</h2>
+        <div className="pc_container">
+            <h2>{props.title}</h2>
             <Canvas colorManagement camera={{ fov: 20, position: [50, 50, 50], up: [0,0,1]}}>
                 <ambientLight intensity={0.5}/>
                 <pointLight position={[100, 100, 100]} intensity={1} castShadow />
@@ -123,13 +100,13 @@ function Bundle_Adj_PC(props) {
                 <AllFrustums/>
             </Canvas>
 
-            <button className="ba_go_back_btn" onClick={() => props.toggleBA_PC(false)}>Go Back</button>
+            <button className="pc_go_back_btn" onClick={() => props.togglePC(false)}>Go Back</button>
             <button className="toggle_grid_btn" onClick={() => setShowCoordGrid(!showCoordGrid)}>
                 Toggle Coordinate Grid
             </button>
-            <PointSizeSlider pointRadius={pointRadius} setPointRadius={setPointRadius} updatePointSizes={updatePointSizes}/>
+            <PointSizeSlider pointRadius={pointRadius} setPointRadius={setPointRadius}/>
         </div>
     )
 }
 
-export default Bundle_Adj_PC;
+export default PCViewer;
