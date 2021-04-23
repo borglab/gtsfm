@@ -91,20 +91,20 @@ def essential_to_fundamental_matrix(
     return np.linalg.inv(camera_intrinsics_i2.K().T) @ i2Ei1.matrix() @ np.linalg.inv(camera_intrinsics_i1.K())
 
 
-def compute_epipolar_distances_sed(
+def compute_epipolar_distances_sq_sed(
     coordinates_i1: np.ndarray, coordinates_i2: np.ndarray, i2Fi1: np.ndarray
 ) -> Optional[np.ndarray]:
-    """Compute symmetric point-line epipolar distance between corresponding coordinates in two images. The SED is the
-    geometric point-line distance and is an over-estimate of the gold-standard reprojection error. The over-estimate
-    can reject correspondences which are actually inliers.
+    """Compute symmetric point-line epipolar squared distance between corresponding coordinates in two images. The
+    squared SED is the geometric point-line distance and is an over-estimate of the gold-standard reprojection error. 
+    The over-estimate can reject correspondences which are actually inliers.
 
     References: 
-    - "Fathy et al., Fundamental Matrix Estimation: A Study of Error Criteria", https://arxiv.org/abs/1706.07886
-    - "Hartley, R.~I. et al. Multiple View Geometry in Computer Vision.. Cambridge University Press, Pg 288"
+    1 "Fathy et al., Fundamental Matrix Estimation: A Study of Error Criteria", https://arxiv.org/abs/1706.07886
+    2 "Hartley, R.~I. et al. Multiple View Geometry in Computer Vision.. Cambridge University Press, Pg 288"
 
     Algorithm:
     - l2 = i2Fi1 @ x1
-    - l1 = x2 @ i2Fi1 = [a1, b1, c1]
+    - l1 = x2.T @ i2Fi1 = [a1, b1, c1]
     - n1 = EuclideanNorm(Normal(l1)) = sqrt(a1^2 + b1^2)
     - n2 = EuclideanNorm(Normal(l2))
     - SED^2 = ( l1 @ x1 )^2 * (1/n1^2 + 1/n2^2)
@@ -132,7 +132,7 @@ def compute_epipolar_distances_sed(
     return numerator * (1 / line_sq_norms_i1 + 1 / line_sq_norms_i2)
 
 
-def compute_epipolar_distances_sampson(
+def compute_epipolar_distances_sq_sampson(
     coordinates_i1: np.ndarray, coordinates_i2: np.ndarray, i2Fi1: np.ndarray
 ) -> Optional[np.ndarray]:
     """Compute the sampson distance between corresponding coordinates in two images. Sampson distance is the first
@@ -143,15 +143,15 @@ def compute_epipolar_distances_sampson(
     error to find inliers in RANSAC (Ref 5).
 
     References: 
-    - "Fathy et al., Fundamental Matrix Estimation: A Study of Error Criteria", https://arxiv.org/abs/1706.07886
-    - "Hartley, R.~I. et al. Multiple View Geometry in Computer Vision.. Cambridge University Press, Pg 288"
-    - https://github.com/opencv/opencv/blob/29fb4f98b10767008d0751dd064023727d9d3e5d/modules/calib3d/src/five-point.cpp#L375 # noqa: E501
-    - https://github.com/colmap/colmap/blob/9f3a75ae9c72188244f2403eb085e51ecf4397a8/src/estimators/utils.cc#L87 
-    - https://github.com/opencv/opencv/blob/29fb4f98b10767008d0751dd064023727d9d3e5d/modules/calib3d/src/ptsetreg.cpp#L85 # noqa: E731
+    1 "Fathy et al., Fundamental Matrix Estimation: A Study of Error Criteria", https://arxiv.org/abs/1706.07886
+    2 "Hartley, R.~I. et al. Multiple View Geometry in Computer Vision.. Cambridge University Press, Pg 288"
+    3 https://github.com/opencv/opencv/blob/29fb4f98b10767008d0751dd064023727d9d3e5d/modules/calib3d/src/five-point.cpp#L375 # noqa: E501
+    4 https://github.com/colmap/colmap/blob/9f3a75ae9c72188244f2403eb085e51ecf4397a8/src/estimators/utils.cc#L87 
+    5 https://github.com/opencv/opencv/blob/29fb4f98b10767008d0751dd064023727d9d3e5d/modules/calib3d/src/ptsetreg.cpp#L85 # noqa: E731
 
     Algorithm:
     - l2 = i2Fi1 @ x1
-    - l1 = x2 @ i2Fi1 = [a1, b1, c2]
+    - l1 = x2.T @ i2Fi1 = [a1, b1, c2]
     - n1 = EuclideanNorm(Normal(l1)) = sqrt(a1^2 + b1^2)
     - n2 = EuclideanNorm(Normal(l2))
     - Sampson^2 = ( l1 @ x1 )^2 / (n1^2 + n2^2)

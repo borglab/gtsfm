@@ -78,7 +78,7 @@ def convert_to_epipolar_lines(coordinates_i1: np.ndarray, i2Fi1: np.ndarray) -> 
 
     Args:
         coordinates_i1: coordinates in i1, of shape Nx2.
-        i2Ei1: essential matrix.
+        i2Fi1: fundamental matrix.
 
     Returns:
         Corr. epipolar lines in i2, of shape Nx3.
