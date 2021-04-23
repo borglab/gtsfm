@@ -39,5 +39,12 @@ dependencies:
     - hydra-core==1.1.0dev3
     - argoverse @ git+https://github.com/argoai/argoverse-api.git@master
 
+  # densify
+  - plyfile
+  - torchvision
+  - scipy
+  - yacs
+
+
 
 
