@@ -55,8 +55,8 @@ class TestVerificationUtils(unittest.TestCase):
         points_i1 = np.array([[1.0, 3.5], [-2.0, 2.0]])
         points_i2 = np.array([[2.0, -1.0], [1.0, 0.0]])
         i2Fi1 = np.array([[0, 1, 1], [1, 0, 0], [1, 0, 0]])
-        # i2Fi1 @ x1 = [4.5, 1.0, 1.0] and [3.0, -2.0, -2.0]. Norms^2 = 21.25 and 13.0
-        # x2 @ i2Fi1.T = [0.0, 2.0, 2.0] and [1.0, 1.0, 1.0]. Norms^2 = 4.0 and 2.0
+        # i2Fi1 @ x1.T = [4.5, 1.0, 1.0] and [3.0, -2.0, -2.0]. Norms^2 = 21.25 and 13.0
+        # x2.T @ i2Fi1 = [0.0, 2.0, 2.0] and [1.0, 1.0, 1.0]. Norms^2 = 4.0 and 2.0
         # point line dot product: 9 and 1
         expected = np.array([81 * (1 / 21.25 + 1 / 4.0), 1 * (1 / 13.0 + 1 / 2.0)])
         computed = verification_utils.compute_epipolar_distances_sq_sed(points_i1, points_i2, i2Fi1)
@@ -88,7 +88,7 @@ class TestVerificationUtils(unittest.TestCase):
         points_i2 = np.array([[2.0, -1.0], [1.0, 0.0]])
         i2Fi1 = np.array([[0, 1, 1], [1, 0, 0], [1, 0, 0]])
         # i2Fi1 @ x1 = [4.5, 1.0, 1.0] and [3.0, -2.0, -2.0]. Norms^2 = 21.25 and 13.0
-        # x2 @ i2Fi1.T = [0.0, 2.0, 2.0] and [1.0, 1.0, 1.0]. Norms^2 = 4.0 and 2.0
+        # x2.T @ i2Fi1 = [0.0, 2.0, 2.0] and [1.0, 1.0, 1.0]. Norms^2 = 4.0 and 2.0
         # point line dot product: 9 and 1
         expected = np.array([81 / (21.25 + 4.0), 1 / (13.0 + 2.0)])
         computed = verification_utils.compute_epipolar_distances_sq_sampson(points_i1, points_i2, i2Fi1)
