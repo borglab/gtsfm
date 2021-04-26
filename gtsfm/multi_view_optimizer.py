@@ -35,7 +35,7 @@ class MultiViewOptimizer:
         rot_avg_module: RotationAveragingBase,
         trans_avg_module: TranslationAveragingBase,
         data_association_module: DataAssociation,
-        bundle_adjustment_module: BundleAdjustmentOptimizer
+        bundle_adjustment_module: BundleAdjustmentOptimizer,
     ) -> None:
         self.rot_avg_module = rot_avg_module
         self.trans_avg_module = trans_avg_module
@@ -52,7 +52,7 @@ class MultiViewOptimizer:
         v_corr_idxs_graph: Dict[Tuple[int, int], Delayed],
         intrinsics_graph: List[Delayed],
         gt_poses_graph: List[Delayed] = None,
-    ) -> Tuple[Delayed, Delayed]:
+    ) -> Tuple[Delayed, Delayed, Delayed, Delayed]:
         """Creates a computation graph for multi-view optimization.
 
         Args:
@@ -85,11 +85,10 @@ class MultiViewOptimizer:
             dask.delayed(io.save_json_file)(
                 os.path.join("result_metrics", "data_association_metrics.json"), data_assoc_metrics_graph
             ),
-
             # duplicate dask variable to save data_association_metrics within React directory
             dask.delayed(io.save_json_file)(
                 os.path.join(REACT_METRICS_PATH, "data_association_metrics.json"), data_assoc_metrics_graph
-            )
+            ),
         ]
 
         # dummy graph to force an immediate dump of data association metrics
@@ -98,7 +97,7 @@ class MultiViewOptimizer:
         ba_result_graph = self.ba_optimizer.create_computation_graph(ba_input_graph)
 
         if gt_poses_graph is None:
-            return ba_input_graph, ba_result_graph, None
+            return ba_input_graph, ba_result_graph, None, None
 
         metrics_graph = dask.delayed(metrics.compute_averaging_metrics)(
             i2Ui1_graph, wRi_graph, wti_graph, gt_poses_graph

@@ -9,20 +9,15 @@ Authors: Sushmita Warrier, Xiaolong Wu
 
 import itertools
 from enum import Enum
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Set, Tuple
 
 import gtsam
 import numpy as np
-from gtsam import (
-    CameraSetCal3Bundler,
-    PinholeCameraCal3Bundler,
-    Point2Vector,
-    SfmTrack,
-)
+from gtsam import CameraSetCal3Bundler, PinholeCameraCal3Bundler, Point2Vector, SfmTrack
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.common.sfm_track import SfmTrack2d
 import gtsfm.utils.reprojection as reproj_utils
+from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
 
 NUM_SAMPLES_PER_RANSAC_HYPOTHESIS = 2
 SVD_DLT_RANK_TOL = 1e-9
@@ -40,6 +35,7 @@ class TriangulationParam(Enum):
     RANSAC_SAMPLE_UNIFORM = 1  # sample a pair of cameras uniformly at random
     RANSAC_SAMPLE_BIASED_BASELINE = 2  # sample pair of cameras based on largest estimated baseline
     RANSAC_TOPK_BASELINES = 3  # deterministically choose hypotheses with largest estimate baseline
+    TRIPLET_START_AND_ITERATIVE = 4  # start with the best triplet and iteratively add measurements
 
 
 class Point3dInitializer(NamedTuple):
@@ -106,10 +102,7 @@ class Point3dInitializer(NamedTuple):
             # triangulate point for track
             try:
                 triangulated_pt = gtsam.triangulatePoint3(
-                    camera_estimates,
-                    img_measurements,
-                    rank_tol=SVD_DLT_RANK_TOL,
-                    optimize=True,
+                    camera_estimates, img_measurements, rank_tol=SVD_DLT_RANK_TOL, optimize=True
                 )
             except RuntimeError:
                 # TODO: handle cheirality exception properly?
@@ -155,6 +148,9 @@ class Point3dInitializer(NamedTuple):
             is_cheirality_failure: boolean representing whether the selected 2d measurements lead
                 to a cheirality exception upon triangulation
         """
+        if self.mode == TriangulationParam.TRIPLET_START_AND_ITERATIVE:
+            return self.form_track_using_most_consistent_triplet(track_2d)
+
         if self.mode in [
             TriangulationParam.RANSAC_SAMPLE_UNIFORM,
             TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
@@ -176,10 +172,7 @@ class Point3dInitializer(NamedTuple):
         camera_track, measurement_track = self.extract_measurements(inlier_track)
         try:
             triangulated_pt = gtsam.triangulatePoint3(
-                camera_track,
-                measurement_track,
-                rank_tol=SVD_DLT_RANK_TOL,
-                optimize=True,
+                camera_track, measurement_track, rank_tol=SVD_DLT_RANK_TOL, optimize=True
             )
         except RuntimeError:
             is_cheirality_failure = True
@@ -192,7 +185,7 @@ class Point3dInitializer(NamedTuple):
 
         # all the measurements should have error < threshold
         if not np.all(reproj_errors < self.reproj_error_thresh):
-            return None, avg_track_reproj_error, is_cheirality_failure
+            return None, None, is_cheirality_failure
 
         track_3d = SfmTrack(triangulated_pt)
         for i, uv in inlier_track.measurements:
@@ -216,10 +209,7 @@ class Point3dInitializer(NamedTuple):
         return measurement_pair_idxs
 
     def sample_ransac_hypotheses(
-        self,
-        track: SfmTrack2d,
-        measurement_pairs: List[Tuple[int, int]],
-        num_hypotheses: int,
+        self, track: SfmTrack2d, measurement_pairs: List[Tuple[int, int]], num_hypotheses: int
     ) -> List[int]:
         """Sample a list of hypotheses (camera pairs) to use during triangulation.
 
@@ -255,12 +245,7 @@ class Point3dInitializer(NamedTuple):
             TriangulationParam.RANSAC_SAMPLE_UNIFORM,
             TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
         ]:
-            sample_indices = np.random.choice(
-                len(scores),
-                size=num_hypotheses,
-                replace=False,
-                p=scores / scores.sum(),
-            )
+            sample_indices = np.random.choice(len(scores), size=num_hypotheses, replace=False, p=scores / scores.sum(),)
 
         if self.mode == TriangulationParam.RANSAC_TOPK_BASELINES:
             sample_indices = np.argsort(scores)[-num_hypotheses:]
@@ -299,3 +284,102 @@ class Point3dInitializer(NamedTuple):
             )
 
         return track_cameras, track_measurements
+
+    def form_track_using_most_consistent_triplet(
+        self, track_2d: SfmTrack2d
+    ) -> Tuple[Optional[SfmTrack], Optional[float], bool]:
+        """Form tracks starting with the most consistent triplet and adding measurements which do not push the average
+        reprojection error above the threshold.
+
+        Returns:
+            track with inlier measurements and 3D landmark. None returned if triangulation fails or has high error.
+            avg_track_reproj_error: reprojection error of 3d triangulated point to each image plane.
+                                    Note: this may be "None" if the 3d point could not be triangulated successfully
+                                    due to a cheirality exception or less than 3 measurements required for a triplet.
+            is_cheirality_failure: boolean representing whether the selected 2d measurements lead to a cheirality
+                                   exception upon triangulation.
+        """
+        if track_2d.number_measurements() < 2:
+            # one measurement cannot be triangulated
+            return None, None, False
+
+        # initializer of 3D landmark for each track
+        point3d_initializer_simple = Point3dInitializer(
+            self.track_camera_dict,
+            TriangulationParam.NO_RANSAC,
+            reproj_error_thresh=1e6,  # just a large number, wont be used
+        )
+
+        if track_2d.number_measurements() == 2:
+            # with just two measurements, there is no iterative processing
+
+            if track_2d.measurement(0).i != track_2d.measurement(1).i:
+                return point3d_initializer_simple.triangulate(track_2d)
+            else:
+                return None, None, False
+
+        min_avg_reproj_error = None
+        best_triplet_indices = None
+        for k1 in range(track_2d.number_measurements()):
+            for k2 in range(k1 + 1, track_2d.number_measurements()):
+                for k3 in range(k2 + 1, track_2d.number_measurements()):
+                    triplet_track_2d = track_2d.select_subset([k1, k2, k3])
+                    if not triplet_track_2d.validate_unique_cameras():
+                        # the triplet has to have unique cameras
+                        continue
+
+                    # initialize the 3D point for this track
+                    _, avg_reproj_error, _ = point3d_initializer_simple.triangulate(triplet_track_2d)
+
+                    if avg_reproj_error is None:
+                        continue
+
+                    if min_avg_reproj_error is None or avg_reproj_error < min_avg_reproj_error:
+                        min_avg_reproj_error = avg_reproj_error
+                        best_triplet_indices = [k1, k2, k3]
+
+        if best_triplet_indices is None or min_avg_reproj_error > self.reproj_error_thresh:
+            # there is no triplet which can be considered
+            return None, None, False
+
+        triplet_track_2d = track_2d.select_subset(best_triplet_indices)
+        triplet_track_3d, _, _ = point3d_initializer_simple.triangulate(triplet_track_2d)
+
+        if triplet_track_3d is None:
+            return None, None, False
+
+        # order the measurements by their reprojection error of the best triplet's 3D point.
+        errors, _ = reproj_utils.compute_point_reprojection_errors(
+            self.track_camera_dict,
+            triplet_track_3d.point3(),
+            [track_2d.measurement(k) for k in range(track_2d.number_measurements())],
+        )
+        ordered_indices = np.argsort(errors)
+
+        # add measurements keeping reprojection error stays below the threshold, and we <=1 measurement per camera
+        accepted_indices: Set[int] = set()
+        accepted_measurements: List[SfmMeasurement] = []
+        for k in ordered_indices:
+            if len(accepted_indices) == 0:
+                accepted_indices.add(k)
+                accepted_measurements.append(track_2d.measurement(k))
+                continue
+
+            if k in accepted_indices:
+                # cannot add 2 measurements from the same camera
+                continue
+
+            current_measurement = track_2d.measurement(k)
+            # form the candidate by adding current measurement
+            _, avg_track_reproj_error, cheirality_error = point3d_initializer_simple.triangulate(
+                SfmTrack2d(accepted_measurements + [current_measurement])
+            )
+            if (
+                not cheirality_error
+                and avg_track_reproj_error is not None
+                and avg_track_reproj_error < self.reproj_error_thresh
+            ):
+                accepted_indices.add(k)
+                accepted_measurements.append(current_measurement)
+
+        return point3d_initializer_simple.triangulate(SfmTrack2d(accepted_measurements))

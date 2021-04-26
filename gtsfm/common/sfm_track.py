@@ -109,8 +109,7 @@ class SfmTrack2d(NamedTuple):
 
     @staticmethod
     def generate_tracks_from_pairwise_matches(
-        matches_dict: Dict[Tuple[int, int], np.ndarray],
-        keypoints_list: List[Keypoints],
+        matches_dict: Dict[Tuple[int, int], np.ndarray], keypoints_list: List[Keypoints]
     ) -> List["SfmTrack2d"]:
         """Factory function that creates a list of tracks from 2d point correspondences.
 
@@ -167,6 +166,8 @@ class SfmTrack2d(NamedTuple):
             if track_2d.validate_unique_cameras():
                 track_2d_list += [track_2d]
             else:
+                # TODO: remove this
+                track_2d_list += [track_2d]
                 erroneous_track_count += 1
 
         erroneous_track_pct = erroneous_track_count / len(key_set) * 100
