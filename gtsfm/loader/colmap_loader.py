@@ -133,5 +133,5 @@ class ColmapLoader(LoaderBase):
         Returns:
             validation result.
         """
-        return idx1 < idx2 and abs(idx1 - idx2) <= self._max_frame_lookahead # and set([idx1,idx2]) != set([5,6])
+        return idx1 < idx2 and abs(idx1 - idx2) <= self._max_frame_lookahead
 
