@@ -1,4 +1,4 @@
-"""Simple loader class that reads any of Carl Olsson's datasets from a folder on disk.
+"""Simple loader class that reads a dataset with metadata formatted in the COLMAP style.
 
 Authors: John Lambert
 """
