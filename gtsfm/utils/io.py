@@ -218,6 +218,7 @@ def read_images_txt(fpath: str) -> Tuple[List[Pose3], List[str]]:
 
     return wTi_list, img_fnames
 
+
 def write_images(gtsfm_data: GtsfmData, save_dir: str) -> None:
     """Writes the image data file in the COLMAP format.
 
@@ -290,7 +291,6 @@ def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
                 i, uv_measured = track.measurement(k)
                 f.write(f"{i} {point2d_idx} ")
             f.write("\n")
-
 
 
 def save_track_visualizations(
