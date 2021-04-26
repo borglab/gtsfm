@@ -11,7 +11,7 @@ GTSFM is an end-to-end SFM pipeline based on [GTSAM](https://github.com/borglab/
 </p>
 
 ## License
-The majority of our code is governed by a MIT license and are suitable for commercial use. However, certain implementations featured in our repo (SuperPoint, SuperGlue) are governed by a non-commercial license and may not be used commercially.
+The majority of our code is governed by a MIT license and is suitable for commercial use. However, certain implementations featured in our repo (SuperPoint, SuperGlue) are governed by a non-commercial license and may not be used commercially.
 
 ## Installation
 First, we need to create a conda environment.
