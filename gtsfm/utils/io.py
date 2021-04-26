@@ -1,14 +1,16 @@
 """Functions to provide I/O APIs for all the modules.
 
-Authors: Ayush Baid
+Authors: Ayush Baid, John Lambert
 """
 import os
-from typing import Any, Dict, List, Union
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import gtsam
 import h5py
 import json
 import numpy as np
+from gtsam import Cal3Bundler, Rot3, Pose3
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
 
@@ -116,6 +118,35 @@ def read_bal(file_path: str) -> GtsfmData:
     return gtsfm_data
 
 
+def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
+    """
+    Read COLMAP-format cameras.txt file.
+    """
+    if not Path(fpath).exists():
+        return None
+
+    with open(fpath, "r") as f:
+        lines = f.readlines()
+
+    num_cams = int(lines[2].replace('# Number of cameras: ', '').strip())
+    # should have one line per camera
+    assert len(lines[3:]) == num_cams
+    
+    calibrations = []
+    for line in lines[3:]:
+
+        cam_params = line.split()
+        # Note that u0 is px, and v0 is py
+        cam_id, model, img_w, img_h, fx, u0, v0 = cam_params[:7]
+        img_w, img_h, fx, u0, v0 = int(img_w), int(img_h), float(fx), float(u0), float(v0)
+        # TODO: determine convention for storing/reading radial distortion parameters
+        k1 = 0
+        k2 = 0
+        calibrations.append(Cal3Bundler(fx, k1, k2, u0, v0))
+
+    return calibrations
+
+
 def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
     """Writes the camera data file in the COLMAP format.
 
@@ -152,6 +183,33 @@ def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> 
 
             f.write(f"{i} {camera_model} {image_width} {image_height} {fx} {u0} {v0} {k1} {k2}\n")
 
+
+def read_images_txt(fpath: str) -> Tuple[List[Pose3], List[str]]:
+    """Read camera poses and image file names from a COLMAP-format images.txt file.
+
+    Reference: https://colmap.github.io/format.html#images-txt
+
+    Args:
+        fpath: path to images.txt file
+
+    Returns:
+        wTi_list: list of camera poses for each image
+        img_fnames: name of image file, for each image
+    """
+    with open(fpath, "r") as f:
+        lines = f.readlines()
+
+    wTi_list = []
+    img_fnames = []
+    # ignore first 4 lines of text -- they are a description of the file format
+    for line in lines[4::2]:
+        i, qw, qx, qy, qz, tx, ty, tz, i, img_fname = line.split()
+        wRi = Rot3(float(qw), float(qx), float(qy), float(qz))
+        wTi = Pose3(wRi, np.array([float(tx),float(ty),float(tz)]))
+        wTi_list.append(wTi)
+        img_fnames.append(img_fname)
+
+    return wTi_list, img_fnames
 
 def write_images(gtsfm_data: GtsfmData, save_dir: str) -> None:
     """Writes the image data file in the COLMAP format.
