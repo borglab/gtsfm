@@ -4,11 +4,10 @@ Authors: Xiaolong Wu, John Lambert, Ayush Baid
 """
 import os
 from pathlib import Path
-from typing import Any, Dict, NamedTuple
+from typing import NamedTuple
 
 import dask
 import gtsam
-import numpy as np
 from dask.delayed import Delayed
 from gtsam import GeneralSFMFactorCal3Bundler, SfmTrack, Values, symbol_shorthand
 
@@ -118,13 +117,13 @@ class BundleAdjustmentOptimizer(NamedTuple):
         optimized_data = values_to_gtsfm_data(result_values, initial_data)
 
         metrics_dict = {}
-        metrics_dict["before_filtering"] = aggregate_ba_metrics(optimized_data)
+        metrics_dict["before_filtering"] = optimized_data.aggregate_metrics()
         logger.info("[Result] Number of tracks before filtering: %d", metrics_dict["before_filtering"]["number_tracks"])
 
         # filter the largest errors
         filtered_result = optimized_data.filter_landmarks(self.output_reproj_error_thresh)
 
-        metrics_dict["after_filtering"] = aggregate_ba_metrics(filtered_result)
+        metrics_dict["after_filtering"] = filtered_result.aggregate_metrics()
         io_utils.save_json_file(os.path.join(METRICS_PATH, "bundle_adjustment_metrics.json"), metrics_dict)
 
         logger.info("[Result] Number of tracks after filtering: %d", metrics_dict["after_filtering"]["number_tracks"])
@@ -144,39 +143,6 @@ class BundleAdjustmentOptimizer(NamedTuple):
             GtsfmData wrapped up using dask.delayed
         """
         return dask.delayed(self.run)(sfm_data_graph)
-
-
-def aggregate_ba_metrics(ba_data: GtsfmData) -> Dict[str, Any]:
-    """Create a dictionary of metrics for a bundle adjustment result.
-
-    These metrics include summary statistics about the reprojection errors and 3d track lengths.
-
-    Args:
-        ba_data: bundle adjustment result
-
-    Returns:
-        dictionary containing metrics of bundle adjustment result
-    """
-    track_lengths_3d = ba_data.get_track_lengths()
-    scene_reproj_errors = ba_data.get_scene_reprojection_errors()
-
-    convert_to_rounded_float = lambda x: float(np.round(x, 3))
-
-    stats_dict = {}
-    stats_dict["number_tracks"] = ba_data.number_tracks()
-    stats_dict["3d_track_lengths"] = {
-        "min": convert_to_rounded_float(track_lengths_3d.min()),
-        "mean": convert_to_rounded_float(np.mean(track_lengths_3d)),
-        "median": convert_to_rounded_float(np.median(track_lengths_3d)),
-        "max": convert_to_rounded_float(track_lengths_3d.max()),
-    }
-    stats_dict["reprojection_errors"] = {
-        "min": convert_to_rounded_float(np.min(scene_reproj_errors)),
-        "mean": convert_to_rounded_float(np.mean(scene_reproj_errors)),
-        "median": convert_to_rounded_float(np.median(scene_reproj_errors)),
-        "max": convert_to_rounded_float(np.max(scene_reproj_errors)),
-    }
-    return stats_dict
 
 
 def values_to_gtsfm_data(values: Values, initial_data: GtsfmData) -> GtsfmData:
