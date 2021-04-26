@@ -119,8 +119,15 @@ def read_bal(file_path: str) -> GtsfmData:
 
 
 def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
-    """
-    Read COLMAP-format cameras.txt file.
+    """Read camera calibrations from a COLMAP-formatted cameras.txt file.
+
+    Reference: https://colmap.github.io/format.html#cameras-txt
+
+    Args:
+        fpaths: path to cameras.txt file
+
+    Returns:
+        calibrations: calibration object for each camera
     """
     if not Path(fpath).exists():
         return None
