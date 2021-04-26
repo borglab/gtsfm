@@ -18,22 +18,22 @@ const gray_node_list = [
     },
     {
         text: 'Image i',
-        topOffset: 12.5,
+        topOffset: 10.5,
         leftOffset: 28
     },
     {
         text: 'Keypoints',
-        topOffset: 20,
+        topOffset: 18,
         leftOffset: 35
     },
     {
         text: 'Descriptors',
-        topOffset: 20,
+        topOffset: 18,
         leftOffset: 46
     },
     {
         text: 'Intrinsics',
-        topOffset: 9,
+        topOffset: 7,
         leftOffset: 45
     },
     {
@@ -43,7 +43,7 @@ const gray_node_list = [
     },
     {
         text: 'Putative Correspondence Indices',
-        topOffset: 19,
+        topOffset: 17,
         leftOffset: 60
     },
     {
@@ -53,77 +53,72 @@ const gray_node_list = [
     },
     {
         text: 'Verified Correspondence Indices',
-        topOffset: 21,
+        topOffset: 16,
         leftOffset: 72
     },
     {
         text: 'relative Rs: i2Ri1',
-        topOffset: 21,
+        topOffset: 17,
         leftOffset: 79
     },
     {
         text: 'relative ts: i2ti1',
-        topOffset: 21,
+        topOffset: 17,
         leftOffset: 87
     },
     {
         text: 'Images',
         topOffset: 50,
-        leftOffset: 10
-    },
-    {
-        text: 'SFMResult (including Sparse Point Cloud, Optimized Intrinsics, absolute Rs, absolute Ts)',
-        topOffset: 40,
-        leftOffset: 17
+        leftOffset: 21
     },
     {
         text: 'Output Directory',
-        topOffset: 70,
-        leftOffset: 47
+        topOffset: 69,
+        leftOffset: 22
     },
     {
-        text: 'SFMResult as files',
-        topOffset: 80,
-        leftOffset: 40
+        text: 'GtsfmData as files',
+        topOffset: 69,
+        leftOffset: 37
     },
     {
         text: 'Dense Point Cloud',
-        topOffset: 78,
-        leftOffset: 25
+        topOffset: 70,
+        leftOffset: 57
     },
     {
         text: 'Dense Mesh Reconstruction',
-        topOffset: 78,
-        leftOffset: 10
+        topOffset: 70,
+        leftOffset: 72
     },
     {
         text: 'Zipped Results for All Scenes',
-        topOffset: 63,
-        leftOffset: 1
+        topOffset: 86,
+        leftOffset: 60
     },
     {
         text: 'Bundler Pinhole Cameras',
-        topOffset: 53,
+        topOffset: 49,
         leftOffset: 45
     },
     {
         text: 'absolute ts',
-        topOffset: 43,
-        leftOffset: 60
+        topOffset: 39,
+        leftOffset: 64
     },
     {
         text: 'Pruned relative ts: i2ti1',
-        topOffset: 43,
+        topOffset: 33,
         leftOffset: 76
     },
     {
         text: 'absolute Rs',
-        topOffset: 63,
+        topOffset: 52,
         leftOffset: 65
     },
     {
         text: 'Pruned relative Rs (2): i2Ri1',
-        topOffset: 62,
+        topOffset: 50,
         leftOffset: 87
     }
 ]

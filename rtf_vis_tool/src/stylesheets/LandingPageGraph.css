@@ -59,7 +59,7 @@ Author: Adi Singh
     top: 0%;
     left: 7%;
     width: 90%;
-    height: 93%;
+    height: 85%;
     border: 2px solid #0b8db5;
     padding-left: 1%;
     z-index: 1;
@@ -70,10 +70,10 @@ Author: Adi Singh
 */
 .feature_extractor_plate {
     position: absolute;
-    top: 4%;
+    top: 2%;
     left: 26%;
     width: 24.5%;
-    height: 23%;
+    height: 25%;
     border: 2px solid #0b8db5;
     padding-left: 1%;  
     z-index: 1; 
@@ -84,10 +84,10 @@ Author: Adi Singh
 */
 .two_view_estimator_plate {
     position: absolute;
-    top: 4%;
+    top: 2%;
     left: 52.5%;
     width: 40%;
-    height: 27%;
+    height: 25%;
     border: 2px solid #0b8db5;
     padding-left: 7%;   
     z-index: 1;
@@ -104,10 +104,10 @@ Author: Adi Singh
 */
 .sparse_multiview_optimizer_plate {
     position: absolute;
-    top: 30%;
-    left: 16%;
-    width: 23%;
-    height: 32%;
+    top: 29%;
+    left: 26%;
+    width: 35%;
+    height: 31%;
     border: 2px solid #0b8db5;
     padding-left: 1%;   
     z-index: 1;
@@ -124,10 +124,10 @@ Author: Adi Singh
 */
 .averaging_plate {
     position: absolute;
-    top: 37%;
-    left: 59%;
-    width: 35%;
-    height: 37%;
+    top: 29%;
+    left: 62%;
+    width: 30.5%;
+    height: 31%;
     border: 2px solid #0b8db5;
     padding-left: 1%;   
     z-index: 1;   
@@ -138,8 +138,8 @@ Author: Adi Singh
 */
 .dense_multiview_optimizer_plate {
     position: absolute;
-    top: 70%;
-    left: 9%;
+    top: 62%;
+    left: 49%;
     width: 29%;
     height: 20%;
     border: 2px solid #0b8db5;
