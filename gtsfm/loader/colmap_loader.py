@@ -54,16 +54,6 @@ class ColmapLoader(LoaderBase):
         if self._calibrations is None or len(img_fnames) != len(self._calibrations):
             self._use_gt_intrinsics = False
 
-        # re-order lists to be in sequential order
-        import pdb; pdb.set_trace()
-        from pathlib import Path
-        frame_order = [int(Path(img_fname).stem.replace('img','')) for img_fname in img_fnames]
-        import numpy as np
-        sorted_idxs = np.argsort(frame_order)
-
-        img_fnames = [ img_fnames[i] for i in sorted_idxs ]
-        self._wTi_list = [ self._wTi_list[i] for i in sorted_idxs ]
-
         # preserve COLMAP ordering of images
         self._image_paths = []
         for img_fname in img_fnames:
