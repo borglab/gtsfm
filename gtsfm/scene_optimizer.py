@@ -16,7 +16,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from dask.delayed import Delayed
 from gtsam import Pose3
-from pathlib import Path
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.io as io_utils
