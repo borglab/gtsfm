@@ -5,7 +5,7 @@ Authors: Adi Singh
 """
 
 import numpy as np
-from numpy.linalg import eig, inv, norm, svd
+from numpy.linalg import inv, norm, svd
 
 
 def center_point_cloud(point_cloud: np.ndarray) -> np.ndarray:

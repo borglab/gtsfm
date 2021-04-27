@@ -223,8 +223,16 @@ def write_images(gtsfm_data: GtsfmData, means: np.ndarray, align_rot: np.ndarray
             final_rot_quat = R.from_matrix(final_rot_matrix).as_quat()  # [qx, qy, qz, qw]
             final_tran = final_pose[:3, 3]  # [x,y,z]
 
+            qw = final_rot_quat[3]
+            qx = final_rot_quat[0]
+            qy = final_rot_quat[1]
+            qz = final_rot_quat[2]
+            tx = final_tran[0]
+            ty = final_tran[1]
+            tz = final_tran[2]
+
             f.write(
-                f"{i} {final_rot_quat[3]} {final_rot_quat[0]} {final_rot_quat[1]} {final_rot_quat[2]} {final_tran[0]} {final_tran[1]} {final_tran[2]} {i} {img_fname}\n"
+                f"{i} {qw} {qx} {qy} {qz} {tx} {ty} {tz} {i} {img_fname}\n"
             )
             # TODO: write out the points2d
 
