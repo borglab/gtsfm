@@ -38,4 +38,4 @@ coverage report
 
 pip install flake8
 flake8 --max-line-length 120 --ignore E201,E202,E203,E231,W291,W293,E303,W391,E402,W503,E731 gtsfm
-pylint --indent-string='    ' --generated-members=numpy.* ,torch.* ,cv2.* , cv.*, scipy.*, gtsam.* --max-line-length=120
+pylint --indent-string='    ' --generated-members=numpy.* ,torch.* ,cv2.* , cv.*, scipy.*, gtsam.* --max-line-length=120 gtsfm
