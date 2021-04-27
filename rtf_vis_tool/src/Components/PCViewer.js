@@ -43,7 +43,7 @@ function PCViewer(props) {
                 return response.text();
             })
             .then((data) => loadCOLMAPPointCloud(data))
-    });
+    }, [pointRadius]);
 
     function loadCOLMAPPointCloud(data) {
         /*Accepts the raw COLMAP points3D.txt file and converts it into an array of JSX formatted
@@ -63,7 +63,7 @@ function PCViewer(props) {
 
         /* Variable arr_points is an (N x 6) array, with the first 3 entries as (x,y,z) and the last
            3 entries as (R,G,B). */
-        const arr_points = arrStringPoints.map(point => point.split(" ").map(Number));
+        const arr_points = arrStringPoints.map(point => point.split(" ").map(Number).slice(1,7));
 
         // Loop through array. convert strings to numbers. Append to final point cloud.
         for (var index = 0; index < arr_points.length; index += 1) {
@@ -71,8 +71,8 @@ function PCViewer(props) {
                     
             finalPointsJSX.push(
                 <PointMesh  
-                    position={[pointArr[1], pointArr[2], pointArr[3]]}  
-                    color={`rgb(${pointArr[4]}, ${pointArr[5]}, ${pointArr[6]})`} 
+                    position={[pointArr[0], pointArr[1], pointArr[2]]}  
+                    color={`rgb(${pointArr[3]}, ${pointArr[4]}, ${pointArr[5]})`} 
                     size={[pointRadius]}/>
                 );
         }
