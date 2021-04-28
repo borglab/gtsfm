@@ -66,7 +66,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
             index: the index to fetch.
 
         Returns:
-            the camera pose w_P_index.
+            the camera pose wTi.
         """
 
     @abc.abstractmethod
@@ -80,6 +80,25 @@ class LoaderBase(metaclass=abc.ABCMeta):
         Returns:
             validation result.
         """
+
+    def get_relative_pose(self, i1: int, i2: int) -> Optional[Pose3]:
+        """Relative pose i2Ti1 between indices i1 and i2.
+
+        Args:
+            i1: first index of the pair.
+            i2: second index of the pair.
+
+        Returns:
+            Relative pose i2Ti1 if both the indices have valid camera pose.
+        """
+        wTi1 = self.get_camera_pose(i1)
+        wTi2 = self.get_camera_pose(i2)
+
+        if wTi1 is None or wTi2 is None:
+            return None
+
+        i2Ti1 = wTi2.between(wTi1)
+        return i2Ti1
 
     def create_computation_graph_for_images(self) -> List[Delayed]:
         """Creates the computation graph for image fetches.
@@ -122,10 +141,28 @@ class LoaderBase(metaclass=abc.ABCMeta):
             list of valid index pairs.
         """
         indices = []
-
         for idx1 in range(self.__len__()):
             for idx2 in range(self.__len__()):
                 if self.validate_pair(idx1, idx2):
                     indices.append((idx1, idx2))
+
+        return indices
+
+    def get_valid_triplets(self) -> List[Tuple[int, int, int]]:
+        """Get the valid triplets of images.
+
+        Returns:
+            list of indices of valid triplets.
+        """
+        indices = []
+        for idx1 in range(self.__len__()):
+            for idx2 in range(self.__len__()):
+                if self.validate_pair(idx1, idx2):
+                    # 3rd idx has to be greater than the previous 2
+                    for idx3 in range(max(idx1, idx2) + 1, self.__len__()):
+                        if (self.validate_pair(idx2, idx3) or self.validate_pair(idx3, idx2)) and (
+                            self.validate_pair(idx1, idx3) or self.validate_pair(idx3, idx1)
+                        ):
+                            indices.append((idx1, idx2, idx3))
 
         return indices
