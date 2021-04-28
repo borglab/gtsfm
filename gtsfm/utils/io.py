@@ -11,7 +11,6 @@ import json
 import numpy as np
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
-from scipy.spatial.transform import Rotation as R
 
 import gtsfm.utils.ellipsoid as ellipsoid_utils
 import gtsfm.utils.images as image_utils
@@ -127,8 +126,9 @@ def export_as_colmap_txt(gtsfm_data: GtsfmData, images: List[Image], save_dir: s
         images: list of all images for this scene, in order of image index
         save_dir: folder to put the cameras.txt file in.
     """
-    means, rot = write_points(gtsfm_data, images, save_dir)
-    write_images(gtsfm_data, means, rot, save_dir)
+
+    means, wuprightRw = write_points(gtsfm_data, images, save_dir)
+    write_images(gtsfm_data, means, wuprightRw, save_dir)
     write_cameras(gtsfm_data, images, save_dir)
 
 
@@ -169,7 +169,7 @@ def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> 
             f.write(f"{i} {camera_model} {image_width} {image_height} {fx} {u0} {v0} {k1} {k2}\n")
 
 
-def write_images(gtsfm_data: GtsfmData, means: np.ndarray, align_rot: np.ndarray, save_dir: str) -> None:
+def write_images(gtsfm_data: GtsfmData, means: np.ndarray, wuprightRw: np.ndarray, save_dir: str) -> None:
     """Writes the image data file in the COLMAP format.
 
     Reference: https://colmap.github.io/format.html#images-txt
@@ -177,7 +177,7 @@ def write_images(gtsfm_data: GtsfmData, means: np.ndarray, align_rot: np.ndarray
     Args:
         gtsfm_data: scene data to write.
         means: the means of the x,y,z coordinates of the point cloud, array of length 3.
-        align_rot: rotation matrix, shape 3 x 3, required to align points with the x, y, and z axes.
+        wuprightRw: rotation matrix, shape 3 x 3, required to align points with the x, y, and z axes.
         save_dir: folder to put the images.txt file in.
     """
     os.makedirs(save_dir, exist_ok=True)
@@ -201,39 +201,11 @@ def write_images(gtsfm_data: GtsfmData, means: np.ndarray, align_rot: np.ndarray
             wRi_quaternion = camera.pose().rotation().quaternion()
             wti = camera.pose().translation()
 
-            tx, ty, tz = wti
-            qw, qx, qy, qz = wRi_quaternion
-            gtsfm_rot = R.from_quat([qx, qy, qz, qw]).as_matrix()
-            gtsfm_tran = np.array([tx, ty, tz])
+            final_quat, final_tran = ellipsoid_utils.transform_camera_frustums(wti, wRi_quaternion, means, wuprightRw)
+            qx, qy, qz, qw = final_quat
+            tx, ty, tz = final_tran
 
-            gtsfm_pose = np.eye(4)
-            gtsfm_pose[:3, :3] = gtsfm_rot
-            gtsfm_pose[:3, 3] = gtsfm_tran
-
-            center_pose = np.eye(4)
-            center_pose[:3, 3] = -1 * means
-
-            alignment_pose = np.eye(4)
-            alignment_pose[:3, :3] = align_rot
-
-            swap_x_z = np.array([[0, 0, -1, 0], [0, -1, 0, 0], [1, 0, 0, 0], [0, 0, 0, 1]])
-
-            final_pose = swap_x_z @ alignment_pose @ center_pose @ gtsfm_pose
-            final_rot_matrix = final_pose[:3, :3]
-            final_rot_quat = R.from_matrix(final_rot_matrix).as_quat()  # [qx, qy, qz, qw]
-            final_tran = final_pose[:3, 3]  # [x,y,z]
-
-            qw = final_rot_quat[3]
-            qx = final_rot_quat[0]
-            qy = final_rot_quat[1]
-            qz = final_rot_quat[2]
-            tx = final_tran[0]
-            ty = final_tran[1]
-            tz = final_tran[2]
-
-            f.write(
-                f"{i} {qw} {qx} {qy} {qz} {tx} {ty} {tz} {i} {img_fname}\n"
-            )
+            f.write(f"{i} {qw} {qx} {qy} {qz} {tx} {ty} {tz} {i} {img_fname}\n")
             # TODO: write out the points2d
 
 
@@ -248,8 +220,8 @@ def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
         save_dir: folder to put the points3D.txt file in.
 
     Returns:
-        means: the means for the x,y,z coordinates of the point cloud, array of length 3.
-        rot: rotation matrix, shape 3 x 3, required to align points with the x, y, and z axes.
+        The means for the x,y,z coordinates of the point cloud, array of length 3. Also the rotation matrix, shape
+        3 x 3, required to align points with the x, y, and z axes.
     """
     os.makedirs(save_dir, exist_ok=True)
 
@@ -265,19 +237,8 @@ def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
         # TODO: assign unique indices to all keypoints (2d points)
         point2d_idx = 0
 
-        # Iterate through track to gather a list of 3D points forming the point cloud.
-        point_cloud_list = []
-        for j in range(num_pts):
-            track = gtsfm_data.get_track(j)
-            x, y, z = track.point3()
-            point_cloud_list.append([x, y, z])
-
-        # Transform the point cloud to be aligned with x,y,z axes using SVD.
-        point_cloud = np.array([np.array(p) for p in point_cloud_list])  # point_cloud has shape Nx3
-        points_centered, means = ellipsoid_utils.center_point_cloud(point_cloud)
-        points_filtered = ellipsoid_utils.filter_outlier_points(points_centered)
-        rot = ellipsoid_utils.get_rotation_matrix(points_filtered)
-        aligned_points = ellipsoid_utils.apply_ellipsoid_rotation(rot, points_centered)
+        # Call wrapper function in ellipsoid.py to transform point cloud to be aligned with axes.
+        aligned_points, means, wuprightRw = ellipsoid_utils.transform_point_cloud_wrapper(gtsfm_data)
 
         for j in range(num_pts):
             track = gtsfm_data.get_track(j)
@@ -285,7 +246,7 @@ def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
             r, g, b = image_utils.get_average_point_color(track, images)
             _, avg_track_reproj_error = reproj_utils.compute_track_reprojection_errors(gtsfm_data._cameras, track)
 
-            # Get x,y,z from the aligned_points matrix instead of the inital raw values.
+            # Get x,y,z from the aligned_points matrix.
             x = aligned_points[j, 0]
             y = aligned_points[j, 1]
             z = aligned_points[j, 2]
@@ -297,7 +258,7 @@ def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
                 f.write(f"{i} {point2d_idx} ")
             f.write("\n")
 
-        return means, rot
+        return means, wuprightRw
 
 
 def save_track_visualizations(

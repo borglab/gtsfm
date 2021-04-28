@@ -12,11 +12,17 @@ class TestEllipsoidUtils(unittest.TestCase):
     """Class containing all unit tests for ellipsoid utils."""
 
     def test_center_point_cloud(self):
-        """Tests the center_point_cloud() function with 5 sample points."""
+        """Tests the center_point_cloud() function with 3 sample points.
 
-        sample_points = np.array([[6, 13, 9], [5, 9, 7], [6, 10, 9], [9, 13, 6], [5, 12, 9]])
+        Means of x,y,z is clearly (2,2,2), so centering the point cloud yields:
+            (1,1,1) -> (-1,-1,-1)
+            (2,2,2) -> (0,0,0)
+            (3,3,3) -> (1,1,1)
+        """
+
+        sample_points = np.array([[1, 1, 1], [2, 2, 2], [3, 3, 3]])
         computed, means = ellipsoid_utils.center_point_cloud(sample_points)
-        expected = np.array([[-0.2, 1.6, 1], [-1.2, -2.4, -1], [-0.2, -1.4, 1], [2.8, 1.6, -2], [-1.2, 0.6, 1]])
+        expected = np.array([[-1, -1, -1], [0, 0, 0], [1, 1, 1]])
         npt.assert_almost_equal(computed, expected, 6)
 
     def test_center_point_cloud_wrong_dims(self):
@@ -25,8 +31,8 @@ class TestEllipsoidUtils(unittest.TestCase):
         sample_points = np.array([[6, 13], [5, 9], [6, 10], [9, 13], [5, 12]])
         self.assertRaises(TypeError, ellipsoid_utils.center_point_cloud, sample_points)
 
-    def test_filter_outlier_points(self):
-        """Tests the filter_outlier_points() function with 5 sample points."""
+    def test_remove_outlier_points(self):
+        """Tests the remove_outlier_points() function with 5 sample points."""
 
         sample_points = np.array(
             [
@@ -37,24 +43,26 @@ class TestEllipsoidUtils(unittest.TestCase):
                 [0.3, 0.3, 0.3],
             ]
         )
-        computed = ellipsoid_utils.filter_outlier_points(sample_points)
+        computed = ellipsoid_utils.remove_outlier_points(sample_points)
         expected = np.array([[0.5, 0.6, 0.8], [0.9, 1, 0.2], [0.2, 0.2, 0.2], [0.3, 0.3, 0.3]])
         npt.assert_almost_equal(computed, expected, 6)
 
-    def test_filter_outlier_points_wrong_dims(self):
-        """Tests the filter_point_cloud() function with 5 sample points of 2 dimensions."""
+    def test_remove_outlier_points_wrong_dims(self):
+        """Tests the remove_outlier_points() function with 5 sample points of 2 dimensions."""
 
         sample_points = np.array([[6, 13], [5, 9], [6, 10], [9, 13], [5, 12]])
-        self.assertRaises(TypeError, ellipsoid_utils.filter_outlier_points, sample_points)
+        self.assertRaises(TypeError, ellipsoid_utils.remove_outlier_points, sample_points)
 
     def test_get_rotation_matrix(self):
-        """Tests the get_rotation_matrix() function with 5 sample points."""
+        """Tests the get_rotation_matrix() function with 5 sample points.
 
-        sample_points = np.array([[1, 1, 0], [2, 2, 0], [-1, -1, 0], [-2, -2, 0], [-1, 1, 0], [1, -1, 0]])
+        4 points create a cross in the xy plane. The 5th point lies on the z-axis to provide some depth to ellipsoid.
+        The resulting major axes will be along the x, y, and z axes.
+        """
+
+        sample_points = np.array([[1, 1, 0], [-1, 1, 0], [-1, -1, 0], [1, -1, 0], [0, 0, 1]])
         computed = ellipsoid_utils.get_rotation_matrix(sample_points)
-
-        sqrt2_2 = np.sqrt(2) / 2
-        expected = np.array([[-1 * sqrt2_2, -1 * sqrt2_2, 0], [sqrt2_2, -1 * sqrt2_2, 0], [0, 0, 1]])
+        expected = np.array([[0, -1, 0], [-1, 0, 0], [0, 0, -1]])
         npt.assert_almost_equal(computed, expected, 6)
 
     def test_get_rotation_matrix_wrong_dims(self):
