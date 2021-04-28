@@ -50,7 +50,8 @@ def center_point_cloud(point_cloud: np.ndarray) -> Tuple[np.ndarray, np.ndarray]
         point_cloud: N 3D points to center, of shape N x 3.
 
     Returns:
-        The centered point cloud of shape N x 3. Also an array of shape (3.) representing the mean x,y,z coordinates of point cloud.
+        The centered point cloud of shape N x 3. Also an array of shape (3.) representing the mean x,y,z 
+        coordinates of point cloud.
 
     Raises:
         TypeError: if points are not of shape N x 3.
