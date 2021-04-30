@@ -3,6 +3,7 @@
 Authors: Ayush Baid
 """
 import abc
+from typing import Tuple
 
 import dask
 import numpy as np
@@ -19,7 +20,13 @@ class MatcherBase(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def match(
-        self, keypoints_i1: Keypoints, keypoints_i2: Keypoints, descriptors_i1: np.ndarray, descriptors_i2: np.ndarray
+        self,
+        keypoints_i1: Keypoints,
+        keypoints_i2: Keypoints,
+        descriptors_i1: np.ndarray,
+        descriptors_i2: np.ndarray,
+        im_shape_i1: Tuple[int, int],
+        im_shape_i2: Tuple[int, int],
     ) -> np.ndarray:
         """Match descriptor vectors.
 
@@ -37,6 +44,8 @@ class MatcherBase(metaclass=abc.ABCMeta):
             keypoints_i2: keypoints for image #i2, of length N2.
             descriptors_i1: descriptors corr. to keypoints_i1.
             descriptors_i2: descriptors corr. to keypoints_i2.
+            im_shape_i1: shape of image #i1, as width, height.
+            im_shape_i2: shape of image #i2, as width, height.
             
 
         Returns:
@@ -51,6 +60,8 @@ class MatcherBase(metaclass=abc.ABCMeta):
         keypoints_i2_graph: Delayed,
         descriptors_i1_graph: Delayed,
         descriptors_i2_graph: Delayed,
+        im_shape_i1_graph: Delayed,
+        im_shape_i2_graph: Delayed,
     ) -> Delayed:
         """
         Generates computation graph for matched features using description graphs.
@@ -60,10 +71,17 @@ class MatcherBase(metaclass=abc.ABCMeta):
             keypoints_i2_graph: keypoints for image #i2, wrapped in Delayed.
             descriptors_i1_graph: descriptors corr. to keypoints_i1.
             descriptors_i2_graph: descriptors corr. to keypoints_i2.
+            im_shape_i1_graph: Delayed with the shape of image #i1.
+            im_shape_i2_graph: Delayed with the shape of image #i2.
 
         Returns:
             Delayed dask tasks for matching for input camera pairs.
         """
         return dask.delayed(self.match)(
-            keypoints_i1_graph, keypoints_i2_graph, descriptors_i1_graph, descriptors_i2_graph
+            keypoints_i1_graph,
+            keypoints_i2_graph,
+            descriptors_i1_graph,
+            descriptors_i2_graph,
+            im_shape_i1_graph,
+            im_shape_i2_graph,
         )

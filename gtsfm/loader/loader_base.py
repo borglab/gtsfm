@@ -81,6 +81,11 @@ class LoaderBase(metaclass=abc.ABCMeta):
             validation result.
         """
 
+    def get_image_shape(self, idx: int) -> Tuple[int, int]:
+        image = self.get_image(idx)
+
+        return (image.width, image.height)
+
     def create_computation_graph_for_images(self) -> List[Delayed]:
         """Creates the computation graph for image fetches.
 
@@ -114,6 +119,16 @@ class LoaderBase(metaclass=abc.ABCMeta):
             return None
 
         return [dask.delayed(self.get_camera_pose)(x) for x in range(N)]
+
+    def create_computation_graph_for_image_shapes(self) -> List[Delayed]:
+        """Creates the computation graph for image shapes.
+
+        Returns:
+            list of delayed tasks for image shapes.
+        """
+        N = self.__len__()
+
+        return [dask.delayed(self.get_image_shape)(x) for x in range(N)]
 
     def get_valid_pairs(self) -> List[Tuple[int, int]]:
         """Get the valid pairs of images for this loader.

@@ -44,6 +44,7 @@ class TestSceneOptimizer(unittest.TestCase):
                 self.loader.get_valid_pairs(),
                 self.loader.create_computation_graph_for_images(),
                 self.loader.create_computation_graph_for_intrinsics(),
+                self.loader.create_computation_graph_for_image_shapes(),
                 gt_pose_graph=self.loader.create_computation_graph_for_poses(),
             )
 

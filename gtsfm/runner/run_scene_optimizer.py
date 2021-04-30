@@ -1,3 +1,4 @@
+from gtsfm.common import image
 import os
 from pathlib import Path
 
@@ -29,11 +30,12 @@ def run_scene_optimizer() -> None:
             image_pair_indices=loader.get_valid_pairs(),
             image_graph=loader.create_computation_graph_for_images(),
             camera_intrinsics_graph=loader.create_computation_graph_for_intrinsics(),
+            image_shape_graph=loader.create_computation_graph_for_image_shapes(),
             gt_pose_graph=loader.create_computation_graph_for_poses(),
         )
 
         # create dask client
-        cluster = LocalCluster(n_workers=2, threads_per_worker=4)
+        cluster = LocalCluster(n_workers=1, threads_per_worker=1)
 
         with Client(cluster), performance_report(filename="dask-report.html"):
             sfm_result = sfm_result_graph.compute()

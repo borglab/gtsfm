@@ -31,11 +31,11 @@ def run_scene_optimizer(args) -> None:
         )
 
         sfm_result_graph = scene_optimizer.create_computation_graph(
-            len(loader),
-            loader.get_valid_pairs(),
-            loader.create_computation_graph_for_images(),
-            loader.create_computation_graph_for_intrinsics(),
-            use_intrinsics_in_verification=True,
+            num_images=len(loader),
+            image_pair_indices=loader.get_valid_pairs(),
+            image_graph=loader.create_computation_graph_for_images(),
+            camera_intrinsics_graph=loader.create_computation_graph_for_intrinsics(),
+            image_shape_graph=loader.create_computation_graph_for_image_shapes(),
             gt_pose_graph=loader.create_computation_graph_for_poses(),
         )
 
@@ -47,17 +47,14 @@ def run_scene_optimizer(args) -> None:
 
         assert isinstance(sfm_result, GtsfmData)
         scene_avg_reproj_error = sfm_result.get_scene_avg_reprojection_error()
-        logger.info('Scene avg reproj error: {}'.format(str(np.round(scene_avg_reproj_error, 3))))
+        logger.info("Scene avg reproj error: {}".format(str(np.round(scene_avg_reproj_error, 3))))
 
 
 if __name__ == "__main__":
     """ """
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--log_id",
-        default="273c1883-673a-36bf-b124-88311b1a80be",
-        type=str,
-        help="unique ID of Argoverse vehicle log",
+        "--log_id", default="273c1883-673a-36bf-b124-88311b1a80be", type=str, help="unique ID of Argoverse vehicle log",
     )
     parser.add_argument(
         "--dataset_dir",
@@ -66,16 +63,10 @@ if __name__ == "__main__":
         help="directory where raw Argoverse logs are stored on disk",
     )
     parser.add_argument(
-        "--camera_name",
-        default="ring_front_center",
-        type=str,
-        help="Which of 9 Argoverse cameras",
+        "--camera_name", default="ring_front_center", type=str, help="Which of 9 Argoverse cameras",
     )
     parser.add_argument(
-        "--stride",
-        default=10,
-        type=int,
-        help="image subsampling interval, e.g. every 2 images, every 4 images, etc.",
+        "--stride", default=10, type=int, help="image subsampling interval, e.g. every 2 images, every 4 images, etc.",
     )
     parser.add_argument(
         "--max_num_imgs",
@@ -84,10 +75,7 @@ if __name__ == "__main__":
         help="maximum number of images to include in dataset (starting from beginning of log sequence)",
     )
     parser.add_argument(
-        "--max_lookahead_sec",
-        default=2,
-        type=float,
-        help="",
+        "--max_lookahead_sec", default=2, type=float, help="",
     )
     args = parser.parse_args()
     logger.info(args)
