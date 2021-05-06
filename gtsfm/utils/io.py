@@ -212,7 +212,7 @@ def read_images_txt(fpath: str) -> Tuple[List[Pose3], List[str]]:
     for line in lines[4::2]:
         i, qw, qx, qy, qz, tx, ty, tz, i, img_fname = line.split()
         wRi = Rot3(float(qw), float(qx), float(qy), float(qz))
-        wTi = Pose3(wRi, np.array([float(tx),float(ty),float(tz)]))
+        wTi = Pose3(wRi, np.array([tx, ty, tz], dtype=np.float64))
         wTi_list.append(wTi)
         img_fnames.append(img_fname)
 
