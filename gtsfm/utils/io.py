@@ -135,10 +135,10 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
     with open(fpath, "r") as f:
         lines = f.readlines()
 
-    num_cams = int(lines[2].replace('# Number of cameras: ', '').strip())
+    num_cams = int(lines[2].replace("# Number of cameras: ", "").strip())
     # should have one line per camera
-    assert len(lines[3:]) == num_cams
-    
+    assert len(lines) - 3 == num_cams
+
     calibrations = []
     for line in lines[3:]:
 
@@ -299,19 +299,15 @@ def save_track_visualizations(
     save_dir: str,
     viz_patch_sz: int = 100,
 ) -> None:
-    """
-    """
+    """"""
     os.makedirs(save_dir, exist_ok=True)
 
     # save each 2d track
     for i, track in enumerate(tracks_2d):
         patches = []
         for m in track.measurements:
-            patches += [
-                images[m.i].extract_patch(center_x=m.uv[0], center_y=m.uv[1], patch_size=viz_patch_sz)
-            ]
+            patches += [images[m.i].extract_patch(center_x=m.uv[0], center_y=m.uv[1], patch_size=viz_patch_sz)]
 
         stacked_image = image_utils.vstack_image_list(patches)
         save_fpath = os.path.join(save_dir, f"track_{i}.jpg")
         save_image(stacked_image, img_path=save_fpath)
-
