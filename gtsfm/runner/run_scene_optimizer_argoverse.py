@@ -35,7 +35,6 @@ def run_scene_optimizer(args) -> None:
             loader.get_valid_pairs(),
             loader.create_computation_graph_for_images(),
             loader.create_computation_graph_for_intrinsics(),
-            use_intrinsics_in_verification=True,
             gt_pose_graph=loader.create_computation_graph_for_poses(),
         )
 
