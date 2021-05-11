@@ -1,3 +1,5 @@
+
+import argparse
 import os
 from pathlib import Path
 
@@ -15,14 +17,14 @@ DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "tests" / "data"
 logger = logger_utils.get_logger()
 
 
-def run_scene_optimizer() -> None:
+def run_scene_optimizer(args) -> None:
     """ """
     with initialize_config_module(config_module="gtsfm.configs"):
         # config is relative to the gtsfm module
         cfg = compose(config_name="default_lund_door_set1_config.yaml")
         scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
-        loader = OlssonLoader(os.path.join(DATA_ROOT, "set1_lund_door"), image_extension="JPG")
+        loader = OlssonLoader(args.dataset_root, image_extension=args.image_extension)
 
         sfm_result_graph = scene_optimizer.create_computation_graph(
             len(loader),
@@ -42,4 +44,14 @@ def run_scene_optimizer() -> None:
 
 
 if __name__ == "__main__":
-    run_scene_optimizer()
+
+    parser = argparse.ArgumentParser(description="GTSFM with intrinsics and image names stored in COLMAP-format")
+    parser.add_argument(
+        "--dataset_root", type=str, default=os.path.join(DATA_ROOT, "set1_lund_door"), help=""
+    )
+    parser.add_argument(
+        "--image_extension", type=str, default="JPG", help=""
+    )
+    args = parser.parse_args()
+
+    run_scene_optimizer(args)
