@@ -55,7 +55,7 @@ if __name__ == "__main__":
         "--colmap_files_dirpath", type=str, default="/Users/johnlambert/Downloads/Aishwarya_April21", help=""
     )
     parser.add_argument(
-        "--max_frame_lookahead", type=int, default=1, help=""
+        "--max_frame_lookahead", type=int, default=1, help="maximum number of consecutively ordered frames to consider for matching/co-visibility"
     )
     args = parser.parse_args()
 
