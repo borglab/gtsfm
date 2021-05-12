@@ -23,7 +23,7 @@ def align_rotations(aRi_list: List[Rot3], bRi_list: List[Rot3]) -> List[Rot3]:
     Args:
         aRi_list: reference rotations in frame "a" which are the targets for alignment
         bRi_list: input rotations which need to be aligned to frame "a"
-            
+
     Returns:
         aRi_list_: transformed input rotations previously "bRi_list" but now which
             have the same origin as reference (now living in "a" frame)
@@ -49,7 +49,7 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> List[Pose3
     Args:
         aTi_list: reference poses in frame "a" which are the targets for alignment
         bTi_list: input poses which need to be aligned to frame "a"
-            
+
     Returns:
         aTi_list_: transformed input poses previously "bTi_list" but now which
             have the same origin and scale as reference (now living in "a" frame)
@@ -61,6 +61,22 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> List[Pose3
     ab_pairs = Pose3Pairs(list(zip(aTi_list, bTi_list)))
 
     aSb = Similarity3.Align(ab_pairs)
+
+    if np.isnan(aSb.scale()) or aSb.scale() == 0:
+        # we have run into a case where points have no translation between them (i.e. panorama).
+        # We will first align the rotations and then align the translation by using centroids.
+        # TODO: handle it in GTSAM
+
+        # align the rotations first, so that we can find the translation between the two panoramas
+        aSb = Similarity3(aSb.rotation(), np.zeros((3,)), 1.0)
+        aTi_list_rot_aligned = [aSb.transformFrom(bTi) for bTi in bTi_list]
+
+        # fit a single translation motion to the centroid
+        aTi_centroid = np.array([aTi.translation() for aTi in aTi_list]).mean(axis=0)
+        aTi_rot_aligned_centroid = np.array([aTi.translation() for aTi in aTi_list_rot_aligned]).mean(axis=0)
+
+        # construct the final SIM3 transform
+        aSb = Similarity3(aSb.rotation(), aTi_centroid - aTi_rot_aligned_centroid, 1.0)
 
     # provide a summary of the estimated alignment transform
     aRb = aSb.rotation().matrix()
@@ -81,20 +97,20 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> List[Pose3
     return aTi_list_
 
 
-def compare_rotations(aRi_list: List[Optional[Rot3]], bRi_list: List[Optional[Rot3]]) -> bool:
-    """Helper function to compare two lists of global Rot3, considering the
-    origin as ambiguous.
+def compare_rotations(
+    aRi_list: List[Optional[Rot3]], bRi_list: List[Optional[Rot3]], angular_error_threshold_degrees: float
+) -> bool:
+    """Helper function to compare two lists of global Rot3, after aligning them.
 
     Notes:
     1. The input lists have the rotations in the same order, and can contain None entries.
-    2. To resolve global origin ambiguity, we will fix one image index as origin in both the inputs and transform both
-       the lists to the new origins.
 
     Args:
         aTi_list: 1st list of rotations.
         bTi_list: 2nd list of rotations.
+        angular_error_threshold_degrees: the threshold for angular error between two rotations.
     Returns:
-        result of the comparison.
+        Result of the comparison.
     """
     if len(aRi_list) != len(bRi_list):
         return False
@@ -115,27 +131,34 @@ def compare_rotations(aRi_list: List[Optional[Rot3]], bRi_list: List[Optional[Ro
     # frame 'a' is the target/reference, and bRi_list will be transformed
     aRi_list_ = align_rotations(aRi_list, bRi_list)
 
-    return all([aRi.equals(aRi_, 1e-1) for (aRi, aRi_) in zip(aRi_list, aRi_list_)])
+    return all(
+        [
+            compute_relative_rotation_angle(aRi, aRi_) < angular_error_threshold_degrees
+            for (aRi, aRi_) in zip(aRi_list, aRi_list_)
+        ]
+    )
 
 
 def compare_global_poses(
     aTi_list: List[Optional[Pose3]],
     bTi_list: List[Optional[Pose3]],
-    rot_err_thresh: float = 1e-3,
-    trans_err_thresh: float = 1e-1,
+    rot_angular_error_thresh_degrees: float = 2,
+    trans_err_atol: float = 1e-2,
+    trans_err_rtol: float = 1e-1,
+    verbose: bool = True,
 ) -> bool:
-    """Helper function to compare two lists of global Pose3, considering the
-    origin and scale ambiguous.
+    """Helper function to compare two lists of Point3s using L2 distances at each index.
 
     Notes:
     1. The input lists have the poses in the same order, and can contain None entries.
-    2. To resolve global origin ambiguity, we fit a Sim(3) transformation and align the two pose graphs
+    2. To resolve global origin ambiguity, we fit a Sim(3) transformation and align the two pose graphs.
 
     Args:
         aTi_list: 1st list of poses.
         bTi_list: 2nd list of poses.
-        rot_err_thresh (optional): error threshold for rotations. Defaults to 1e-3.
-        trans_err_thresh (optional): relative error threshold for translation. Defaults to 1e-1.
+        rot_angular_error_threshold_degrees (optional): angular error threshold for rotations. Defaults to 2.
+        trans_err_atol (optional): absolute error threshold for translation. Defaults to 1e-2.
+        trans_err_rtol (optional): relative error threshold for translation. Defaults to 1e-1.
 
     Returns:
         result of the comparison.
@@ -162,15 +185,32 @@ def compare_global_poses(
     #  We set frame "a" the target/reference
     aTi_list_ = align_poses_sim3(aTi_list, bTi_list)
 
-    return all(
+    rotations_equal = all(
         [
-            (
-                aTi.rotation().equals(aTi_.rotation(), rot_err_thresh)
-                and np.allclose(aTi.translation(), aTi_.translation(), rtol=trans_err_thresh,)
-            )
+            compute_relative_rotation_angle(aTi.rotation(), aTi_.rotation()) < rot_angular_error_thresh_degrees
             for (aTi, aTi_) in zip(aTi_list, aTi_list_)
         ]
     )
+    translations_equal = all(
+        [
+            np.allclose(aTi.translation(), aTi_.translation(), atol=trans_err_atol, rtol=trans_err_rtol)
+            for (aTi, aTi_) in zip(aTi_list, aTi_list_)
+        ]
+    )
+    if verbose:
+        rotation_errors = np.array(
+            [
+                compute_relative_rotation_angle(aTi.rotation(), aTi_.rotation())
+                for (aTi, aTi_) in zip(aTi_list, aTi_list_)
+            ]
+        )
+        translation_errors = np.array(
+            [np.linalg.norm(aTi.translation() - aTi_.translation()) for (aTi, aTi_) in zip(aTi_list, aTi_list_)]
+        )
+        logger.info("Comparison Rotation Errors (degrees): " + str(np.round(rotation_errors, 2)))
+        logger.info("Comparison Translation Errors: " + str(np.round(translation_errors, 2)))
+
+    return rotations_equal and translations_equal
 
 
 def compute_relative_rotation_angle(R_1: Optional[Rot3], R_2: Optional[Rot3]) -> Optional[float]:
@@ -263,7 +303,7 @@ def get_points_within_radius_of_cameras(
     wTi_list: List[Pose3], points_3d: np.ndarray, radius: float = 50
 ) -> Optional[np.ndarray]:
     """Return those 3d points that fall within a specified radius from any camera.
-    
+
     Args:
         wTi_list: camera poses
         points_3d: array of shape (N,3) representing 3d points
@@ -286,4 +326,3 @@ def get_points_within_radius_of_cameras(
     is_nearby_to_any_cam = np.any(is_nearby_matrix, axis=1)
     nearby_points_3d = points_3d[is_nearby_to_any_cam]
     return nearby_points_3d
-

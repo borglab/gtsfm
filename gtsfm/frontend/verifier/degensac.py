@@ -18,19 +18,34 @@ import numpy as np
 import pydegensac
 from gtsam import Cal3Bundler, Rot3, Unit3
 
+import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.verification as verification_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
-# minimum matches required for computing the F-matrix
-NUM_MATCHES_REQ_F_MATRIX = 8
+PIXEL_COORD_RANSAC_THRESH = 0.5
+
+logger = logger_utils.get_logger()
 
 
 class Degensac(VerifierBase):
-    def __init__(self):
-        super().__init__(min_pts=NUM_MATCHES_REQ_F_MATRIX)
+    def __init__(self, use_intrinsics_in_verification: bool = False) -> None:
+        """Initializes the verifier.
 
-    def verify_with_exact_intrinsics(
+        Args:
+            use_intrinsics_in_verification: Flag to perform keypoint normalization and compute the essential matrix 
+                                            instead of fundamental matrix. This should be preferred when the exact
+                                            intrinsics are known as opposed to approximating them from exif data.
+
+        Raises:
+            NotImplementedError: when configured to compute essential matrices.
+        """
+        if use_intrinsics_in_verification is True:
+            raise NotImplementedError("DEGENSAC cannot estimate essential matrices")
+
+        super().__init__(use_intrinsics_in_verification)
+
+    def verify(
         self,
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
@@ -38,10 +53,8 @@ class Degensac(VerifierBase):
         camera_intrinsics_i1: Cal3Bundler,
         camera_intrinsics_i2: Cal3Bundler,
     ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
-        """Estimates the essential matrix and verifies the feature matches.
-
-        Note: this function is preferred when camera intrinsics are known. The feature coordinates are normalized and
-        the essential matrix is directly estimated.
+        """Performs verification of correspondences between two images to recover the relative pose and indices of
+        verified correspondences.
 
         Args:
             keypoints_i1: detected features in image #i1.
@@ -55,50 +68,13 @@ class Degensac(VerifierBase):
             Estimated unit translation i2Ui1, or None if it cannot be estimated.
             Indices of verified correspondences, of shape (N, 2) with N <= N3. These are subset of match_indices.
         """
-        print("WARNING: Degensac verifier cannot compute essential matrix directly using exact intrinsics")
-
-        return self.verify_with_approximate_intrinsics(
-            keypoints_i1,
-            keypoints_i2,
-            match_indices,
-            camera_intrinsics_i1,
-            camera_intrinsics_i2,
-        )
-
-    def verify_with_approximate_intrinsics(
-        self,
-        keypoints_i1: Keypoints,
-        keypoints_i2: Keypoints,
-        match_indices: np.ndarray,
-        camera_intrinsics_i1: Cal3Bundler,
-        camera_intrinsics_i2: Cal3Bundler,
-    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
-        """Estimates the essential matrix and verifies the feature matches.
-
-        Note: this function is preferred when camera intrinsics are approximate (i.e from image size/exif). The feature
-        coordinates are used to compute the fundamental matrix, which is then converted to the essential matrix.
-
-        Args:
-            keypoints_i1: detected features in image #i1.
-            keypoints_i2: detected features in image #i2.
-            match_indices: matches as indices of features from both images, of shape (N3, 2), where N3 <= min(N1, N2).
-            camera_intrinsics_i1: intrinsics for image #i1.
-            camera_intrinsics_i2: intrinsics for image #i2.
-
-        Returns:
-            Estimated rotation i2Ri1, or None if it cannot be estimated.
-            Estimated unit translation i2Ui1, or None if it cannot be estimated.
-            Indices of verified correspondences, of shape (N, 2) with N <= N3. These are subset of match_indices.
-        """
-        verified_indices = np.array([], dtype=np.uint32)
-
-        # check if we don't have the minimum number of points
-        if match_indices.shape[0] < self.min_pts:
-            return None, None, verified_indices
+        if match_indices.shape[0] < self._min_matches:
+            return self._failure_result
 
         i2Fi1, mask = pydegensac.findFundamentalMatrix(
             keypoints_i1.coordinates[match_indices[:, 0]],
             keypoints_i2.coordinates[match_indices[:, 1]],
+            px_th=PIXEL_COORD_RANSAC_THRESH,
         )
 
         inlier_idxes = np.where(mask.ravel() == 1)[0]

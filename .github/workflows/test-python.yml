@@ -20,7 +20,13 @@ jobs:
         activate-environment: gtsfm-v1
         environment-file: environment_linux.yml
         python-version: 3.8
-    - shell: bash -l {0}
+    - name: Python tests and checks
+      shell: bash -l {0}
       run: |
+        pip install pytest-cov
         conda info --envs
         bash .github/scripts/python.sh
+    - name: React-Three-Fiber app tests
+      run: |
+        cd rtf_vis_tool && npm install && npm test a
+        

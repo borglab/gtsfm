@@ -9,22 +9,24 @@ References:
 
 Authors: Sushmita Warrier, Xiaolong Wu, John Lambert
 """
+import os
 from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 import dask
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import PinholeCameraCal3Bundler, SfmData, SfmTrack
+from gtsam import PinholeCameraCal3Bundler, SfmTrack
 
 import gtsfm.utils.logger as logger_utils
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.common.sfm_result import SfmResult
 from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.data_association.point3d_initializer import (
     Point3dInitializer,
     TriangulationParam,
 )
-
+from gtsfm.common.image import Image
+import gtsfm.utils.io as io_utils
 
 logger = logger_utils.get_logger()
 
@@ -44,6 +46,7 @@ class DataAssociation(NamedTuple):
     min_track_len: int
     mode: TriangulationParam
     num_ransac_hypotheses: Optional[int] = None
+    save_track_patches_viz: Optional[bool] = False
 
     def __validate_track(self, sfm_track: Optional[SfmTrack]) -> bool:
         """Validate the track by checking its length."""
@@ -51,22 +54,30 @@ class DataAssociation(NamedTuple):
 
     def run(
         self,
+        num_images: int,
         cameras: Dict[int, PinholeCameraCal3Bundler],
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
-    ) -> Tuple[SfmData, Dict[str,Any]]:
+        images: Optional[List[Image]] = None
+    ) -> Tuple[GtsfmData, Dict[str, Any]]:
         """Perform the data association.
 
         Args:
+            num_images: Number of images in the scene.
             cameras: dictionary, with image index -> camera mapping.
             corr_idxs_dict: dictionary, with key as image pair (i1,i2) and value as matching keypoint indices.
             keypoints_list: keypoints for each image.
+            images: a list of all images in scene (optional and only for track patch visualization)
+            viz_patch_sz: width and height of patches, if if dumping/visualizing a patch for each 2d track measurement
 
         Returns:
-            cameras and tracks as SfmData.
+            Cameras and tracks as GtsfmData.
         """
         # generate tracks for 3D points using pairwise correspondences
         tracks_2d = SfmTrack2d.generate_tracks_from_pairwise_matches(corr_idxs_dict, keypoints_list)
+
+        if self.save_track_patches_viz and images is not None:
+            io_utils.save_track_visualizations(tracks_2d, images, save_dir=os.path.join("plots", "tracks_2d"))
 
         # metrics on tracks w/o triangulation check
         num_tracks_2d = len(tracks_2d)
@@ -78,22 +89,30 @@ class DataAssociation(NamedTuple):
 
         # initializer of 3D landmark for each track
         point3d_initializer = Point3dInitializer(
-            cameras,
-            self.mode,
-            self.reproj_error_thresh,
-            self.num_ransac_hypotheses,
+            cameras, self.mode, self.reproj_error_thresh, self.num_ransac_hypotheses,
         )
 
         num_tracks_w_cheirality_exceptions = 0
         per_accepted_track_avg_errors = []
         per_rejected_track_avg_errors = []
-        # form SFMdata object after triangulation
-        triangulated_data = SfmData()
+
+        # form GtsfmData object after triangulation
+        triangulated_data = GtsfmData(num_images)
+
+        # add all cameras
+        for i, camera in cameras.items():
+            triangulated_data.add_camera(i, camera)
+
+        # add valid tracks where triangulation is successful
         for track_2d in tracks_2d:
             # triangulate and filter based on reprojection error
             sfm_track, avg_track_reproj_error, is_cheirality_failure = point3d_initializer.triangulate(track_2d)
             if is_cheirality_failure:
                 num_tracks_w_cheirality_exceptions += 1
+
+            if avg_track_reproj_error is not None:
+                # need no more than 3 significant figures in json report
+                avg_track_reproj_error = np.round(avg_track_reproj_error, 3) 
 
             if sfm_track is not None and self.__validate_track(sfm_track):
                 triangulated_data.add_track(sfm_track)
@@ -101,28 +120,21 @@ class DataAssociation(NamedTuple):
             else:
                 per_rejected_track_avg_errors.append(avg_track_reproj_error)
 
-        num_accepted_tracks = triangulated_data.number_tracks()
-        accepted_tracks_ratio = num_accepted_tracks / len(tracks_2d)
         track_cheirality_failure_ratio = num_tracks_w_cheirality_exceptions / len(tracks_2d)
 
-        # TODO: improve dropped camera handling
-        num_cameras = len(cameras.keys())
-        expected_camera_indices = np.arange(num_cameras)
-        # add cameras to landmark_map
-        for i, cam in cameras.items():
-            if i != expected_camera_indices[i]:
-                raise RuntimeError("Some cameras must have been dropped ")
-            triangulated_data.add_camera(cam)
+        # pick only the largest connected component
+        connected_data = triangulated_data.select_largest_connected_component()
+        num_accepted_tracks = connected_data.number_tracks()
+        accepted_tracks_ratio = num_accepted_tracks / len(tracks_2d)
 
-        mean_3d_track_length, median_3d_track_length, track_lengths_3d = SfmResult(
-            triangulated_data, None
-        ).get_track_length_statistics()
+        mean_3d_track_length, median_3d_track_length = connected_data.get_track_length_statistics()
+        track_lengths_3d = connected_data.get_track_lengths()
 
         logger.debug("[Data association] output number of tracks: %s", num_accepted_tracks)
-        logger.debug("[Data association] output avg. track length: %s", mean_3d_track_length)
+        logger.debug("[Data association] output avg. track length: %s", np.round(mean_3d_track_length,2))
 
         # dump the 3d point cloud before Bundle Adjustment for offline visualization
-        points_3d = [list(triangulated_data.track(j).point3()) for j in range(num_accepted_tracks)]
+        points_3d = [list(connected_data.get_track(j).point3()) for j in range(num_accepted_tracks)]
         # bin edges are halfway between each integer
         track_lengths_histogram, _ = np.histogram(track_lengths_3d, bins=np.linspace(-0.5, 10.5, 12))
 
@@ -147,27 +159,31 @@ class DataAssociation(NamedTuple):
             "points_3d": points_3d,
         }
 
-        return triangulated_data, data_assoc_metrics
+        return connected_data, data_assoc_metrics
 
     def create_computation_graph(
         self,
+        num_images: int,
         cameras: Delayed,
         corr_idxs_graph: Dict[Tuple[int, int], Delayed],
         keypoints_graph: List[Delayed],
+        images_graph: Optional[Delayed] = None,
     ) -> Tuple[Delayed, Delayed]:
         """Creates a computation graph for performing data association.
 
         Args:
+            num_images: number of images in the scene.
             cameras: list of cameras wrapped up as Delayed.
             corr_idxs_graph: dictionary of correspondence indices, each value wrapped up as Delayed.
             keypoints_graph: list of wrapped up keypoints for each image.
+            images_graph: a list of all images in scene (optional and only for track patch visualization)
 
         Returns:
-            ba_input_graph: SfmData object wrapped up using dask.delayed
+            ba_input_graph: GtsfmData object wrapped up using dask.delayed
             data_assoc_metrics_graph: dictionary with different statistics about the data
                 association result
         """
-        data_assoc_graph = dask.delayed(self.run)(cameras, corr_idxs_graph, keypoints_graph)
+        data_assoc_graph = dask.delayed(self.run)(num_images, cameras, corr_idxs_graph, keypoints_graph, images_graph)
         ba_input_graph = data_assoc_graph[0]
         data_assoc_metrics_graph = data_assoc_graph[1]
 

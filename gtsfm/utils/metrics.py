@@ -7,13 +7,15 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 from gtsam import Cal3Bundler, EssentialMatrix, Point3, Pose3, Rot3, Unit3
 
-import gtsfm.utils.features as feature_utils
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.verification as verification_utils
 from gtsfm.common.keypoints import Keypoints
 
 # A StatsDict is a dict from string to optional floats or their lists.
 StatsDict = Dict[str, Union[Optional[float], List[Optional[float]]]]
+
+# number of digits (significant figures) to include in each entry of error metrics
+PRINT_NUM_SIG_FIGS = 2
 
 
 def count_correct_correspondences(
@@ -47,14 +49,13 @@ def count_correct_correspondences(
     if len(keypoints_i1) == 0:
         return 0
 
-    normalized_coords_i1 = feature_utils.normalize_coordinates(keypoints_i1.coordinates, intrinsics_i1)
-    normalized_coords_i2 = feature_utils.normalize_coordinates(keypoints_i2.coordinates, intrinsics_i2)
     i2Ei1 = EssentialMatrix(i2Ti1.rotation(), Unit3(i2Ti1.translation()))
+    i2Fi1 = verification_utils.essential_to_fundamental_matrix(i2Ei1, intrinsics_i1, intrinsics_i2)
 
-    epipolar_distances = verification_utils.compute_epipolar_distances(
-        normalized_coords_i1, normalized_coords_i2, i2Ei1
+    distance_squared = verification_utils.compute_epipolar_distances_sq_sampson(
+        keypoints_i1.coordinates, keypoints_i2.coordinates, i2Fi1
     )
-    return np.count_nonzero(epipolar_distances < epipolar_dist_threshold)
+    return np.count_nonzero(distance_squared < epipolar_dist_threshold ** 2)
 
 
 def compute_errors_statistics(errors: List[Optional[float]]) -> StatsDict:
@@ -67,13 +68,12 @@ def compute_errors_statistics(errors: List[Optional[float]]) -> StatsDict:
         A dict with keys min_error, max_error, median_error,
         and errors_list mapping to the respective stats.
     """
-
     metrics = {}
     valid_errors = [error for error in errors if error is not None]
-    metrics["median_error"] = np.median(valid_errors)
-    metrics["min_error"] = np.min(valid_errors)
-    metrics["max_error"] = np.max(valid_errors)
-    metrics["errors_list"] = errors
+    metrics["median_error"] = np.round(np.median(valid_errors), PRINT_NUM_SIG_FIGS)
+    metrics["min_error"] = np.round(np.min(valid_errors), PRINT_NUM_SIG_FIGS)
+    metrics["max_error"] = np.round(np.max(valid_errors), PRINT_NUM_SIG_FIGS)
+    metrics["errors_list"] = [np.round(error, PRINT_NUM_SIG_FIGS) if error is not None else None for error in errors]
     return metrics
 
 
@@ -193,4 +193,3 @@ def compute_averaging_metrics(
     metrics["translation_averaging_distance"] = compute_translation_distance_metrics(wti_aligned_list, gt_wti_list)
     metrics["translation_to_direction_angle_deg"] = compute_translation_angle_metrics(i2Ui1_dict, wTi_aligned_list)
     return metrics
-

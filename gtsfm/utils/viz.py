@@ -2,12 +2,13 @@
 
 Authors: Ayush Baid
 """
+from gtsfm.common.gtsfm_data import GtsfmData
 from typing import List, Optional, Tuple
 
 import cv2 as cv
 import matplotlib.pyplot as plt
 import numpy as np
-from gtsam import Pose3, SfmData
+from gtsam import Pose3
 from matplotlib.axes._axes import Axes
 
 import gtsfm.utils.images as image_utils
@@ -33,13 +34,7 @@ def set_axes_equal(ax: Axes):
     # get the min and max value for each of (x, y, z) axes as 3x2 matrix.
     # This gives us the bounds of the minimum volume cuboid encapsulating all
     # data.
-    limits = np.array(
-        [
-            ax.get_xlim3d(),
-            ax.get_ylim3d(),
-            ax.get_zlim3d(),
-        ]
-    )
+    limits = np.array([ax.get_xlim3d(), ax.get_ylim3d(), ax.get_zlim3d()])
 
     # find the centroid of the cuboid
     centroid = np.mean(limits, axis=1)
@@ -54,13 +49,7 @@ def set_axes_equal(ax: Axes):
     ax.set_zlim3d([centroid[2] - radius, centroid[2] + radius])
 
 
-def draw_circle_cv2(
-    image: Image,
-    x: int,
-    y: int,
-    color: Tuple[int, int, int],
-    circle_size: int = 10,
-) -> Image:
+def draw_circle_cv2(image: Image, x: int, y: int, color: Tuple[int, int, int], circle_size: int = 10) -> Image:
     """Draw a solid circle on the image.
 
     Args:
@@ -68,29 +57,18 @@ def draw_circle_cv2(
         x: x coordinate of the center of the circle.
         y: y coordinate of the center of the circle.
         color: RGB color of the circle.
+        circle_size (optional): the size of the circle (in pixels). Defaults to 10.
 
     Returns:
         Image: image with the circle drawn on it.
     """
     return Image(
-        cv.circle(
-            image.value_array,
-            center=(x, y),
-            radius=circle_size,
-            color=color,
-            thickness=-1,  # solid circle
-        )
+        cv.circle(image.value_array, center=(x, y), radius=circle_size, color=color, thickness=-1)  # solid circle
     )
 
 
 def draw_line_cv2(
-    image: Image,
-    x1: int,
-    y1: int,
-    x2: int,
-    y2: int,
-    line_color: Tuple[int, int, int],
-    line_thickness: int = 10,
+    image: Image, x1: int, y1: int, x2: int, y2: int, line_color: Tuple[int, int, int], line_thickness: int = 10,
 ) -> Image:
     """Draw a line on the image from coordinates (x1, y1) to (x2, y2).
 
@@ -101,21 +79,12 @@ def draw_line_cv2(
         x2: x coordinate of end of the line.
         y2: y coordinate of end of the line.
         line_color: color of the line.
-        line_thickness (optional): line thickness. Defaults to 5.
+        line_thickness (optional): line thickness. Defaults to 10.
 
     Returns:
         Image: image with the line drawn on it.
     """
-    return Image(
-        cv.line(
-            image.value_array,
-            (x1, y1),
-            (x2, y2),
-            line_color,
-            line_thickness,
-            cv.LINE_AA,
-        )
-    )
+    return Image(cv.line(image.value_array, (x1, y1), (x2, y2), line_color, line_thickness, cv.LINE_AA))
 
 
 def plot_twoview_correspondences(
@@ -145,9 +114,9 @@ def plot_twoview_correspondences(
     """
     image_i1, image_i2, scale_i1, scale_i2 = image_utils.match_image_widths(image_i1, image_i2)
 
-    result = image_utils.vstack_images(image_i1, image_i2)
+    result = image_utils.vstack_image_pair(image_i1, image_i2)
 
-    if max_corrs is not None:
+    if max_corrs is not None and corr_idxs_i1i2.shape[0] > max_corrs:
         # subsample matches
         corr_idxs_i1i2 = corr_idxs_i1i2[np.random.choice(corr_idxs_i1i2.shape[0], max_corrs)]
 
@@ -168,17 +137,17 @@ def plot_twoview_correspondences(
         else:
             line_color = COLOR_RED
 
-        result = draw_line_cv2(result, x_i1, y_i1, x_i2, y_i2, line_color)
+        result = draw_line_cv2(result, x_i1, y_i1, x_i2, y_i2, line_color, line_thickness=2)
 
         if dot_color is None:
             dot_color = line_color
-        result = draw_circle_cv2(result, x_i1, y_i1, dot_color)
-        result = draw_circle_cv2(result, x_i2, y_i2, dot_color)
+        result = draw_circle_cv2(result, x_i1, y_i1, dot_color, circle_size=2)
+        result = draw_circle_cv2(result, x_i2, y_i2, dot_color, circle_size=2)
 
     return result
 
 
-def plot_sfm_data_3d(sfm_data: SfmData, ax: Axes, max_plot_radius: float = 50) -> None:
+def plot_sfm_data_3d(sfm_data: GtsfmData, ax: Axes, max_plot_radius: float = 50) -> None:
     """Plot the camera poses and landmarks in 3D matplotlib plot.
 
     Args:
@@ -187,16 +156,12 @@ def plot_sfm_data_3d(sfm_data: SfmData, ax: Axes, max_plot_radius: float = 50) -
         max_plot_radius: maximum distance threshold away from any camera for which a point
             will be plotted
     """
-    # extract camera poses
-    camera_poses = []
-    for i in range(sfm_data.number_cameras()):
-        camera_poses.append(sfm_data.camera(i).pose())
-
+    camera_poses = [sfm_data.get_camera(i).pose() for i in sfm_data.get_valid_camera_indices()]
     plot_poses_3d(camera_poses, ax)
 
     num_tracks = sfm_data.number_tracks()
     # Restrict 3d points to some radius of camera poses
-    points_3d = np.array([list(sfm_data.track(j).point3()) for j in range(num_tracks)])
+    points_3d = np.array([list(sfm_data.get_track(j).point3()) for j in range(num_tracks)])
 
     nearby_points_3d = comp_utils.get_points_within_radius_of_cameras(camera_poses, points_3d, max_plot_radius)
 
