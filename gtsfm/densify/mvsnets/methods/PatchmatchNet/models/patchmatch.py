@@ -184,7 +184,7 @@ class Evaluation(nn.Module):
         iter: iter,
         grid: torch.Tensor = None,
         weight: torch.Tensor = None,
-        view_weights: List = None,
+        view_weights: torch.Tensor = None,
     ) -> torch.Tensor:
         """forward function
         Args:
@@ -552,7 +552,7 @@ class PatchMatch(nn.Module):
         depth_max: int,
         depth: torch.Tensor = None,
         img: torch.Tensor = None,
-        view_weights: List = None,
+        view_weights: torch.Tensor = None,
     ):
         """forward
         Args:
