@@ -1,6 +1,6 @@
 # Georgia Tech Structure from Motion (GTSFM) Library
 
-![Linux CI](https://github.com/borglab/gtsfm/workflows/Python%20CI/badge.svg)
+[![Ubuntu CI](https://github.com/borglab/gtsfm/workflows/Python%20CI/badge.svg)](https://github.com/borglab/gtsfm/actions?query=workflow%3APython+CI)
 
 
 ### What is GTSFM?
@@ -9,6 +9,9 @@ GTSFM is an end-to-end SFM pipeline based on [GTSAM](https://github.com/borglab/
 <p align="left">
   <img src="https://dask.org/_images/dask_horizontal_white_no_pad_dark_bg.png" height="50">
 </p>
+
+## License
+The majority of our code is governed by a MIT license and is suitable for commercial use. However, certain implementations featured in our repo (SuperPoint, SuperGlue) are governed by a non-commercial license and may not be used commercially.
 
 ## Installation
 First, we need to create a conda environment.
@@ -22,7 +25,7 @@ conda activate gtsfm-v1 # you may need "source activate gtsfm-v1" depending upon
 The Python3.8 `gtsam` wheel for Linux is available [here](https://github.com/borglab/gtsam-manylinux-build/suites/2239592652/artifacts/46493264).
 
 **Mac**
-On Mac OSX, there is no CUDA support and no `pydegensac` wheel in `pypi`, so run:
+On Mac OSX, there is no CUDA support, so run:
 ```bash
 conda env create -f environment_mac.yml
 conda activate gtsfm-v1
@@ -31,13 +34,6 @@ Download the Python 3.8 gtsam wheel for Mac [here](https://github.com/borglab/gt
 ```bash
 pip install ~/Downloads/gtsam-4.1.1-py3-none-any.whl
 ```
-Now, inside the environment, build pydegensac:
-```bash
-git clone https://github.com/ducha-aiki/pydegensac.git
-cd pydegensac
-python setup.py bdist_wheel
-pip install dist/pydegensac-0.1.2-cp38-cp38-macosx_10_15_x86_64.whl
-```
 
 ## Completing Installation
 
@@ -45,7 +41,16 @@ Now, install `gtsfm` as a module:
 ```bash
 pip install -e .
 ```
-Make sure that you can run `python -c "import gtsfm; import gtsam; import pydegensac; print('hello world')"` in python, and you are good to go!
+Make sure that you can run `python -c "import gtsfm; import gtsam; print('hello world')"` in python, and you are good to go!
+
+## Compiling Additional Verifiers
+On Mac OSX, there is no `pydegensac` wheel in `pypi`, instead build pydegensac: 
+```bash
+git clone https://github.com/ducha-aiki/pydegensac.git
+cd pydegensac
+python setup.py bdist_wheel
+pip install dist/pydegensac-0.1.2-cp38-cp38-macosx_10_15_x86_64.whl
+```
 
 ## Usage Guide (Running 3d Reconstruction)
 
@@ -79,9 +84,10 @@ GTSFM is designed in an extremely modular way. Each module can be swapped out wi
     - `utils`: utility functions such as serialization routines and pose comparisons, etc
 - `tests`: unit tests on every function and module
 
-## Contributing
 
-Our CI will enforce the unit tests (`pytest tests/`), as well as formatters -- `mypy`, `isort`, and also `black`. Please be sure your contribution passes these tests first.
+## Contributing
+Contributions are always welcome! Please be aware of our [contribution guidelines for this project](CONTRIBUTING.md).
+
 
 ## Citing this work
 Open-source Python implementation:

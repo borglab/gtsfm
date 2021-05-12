@@ -32,7 +32,7 @@ function getGridLines(lowerGridBound = -10, upperGridBound = 10) {
     }
 
     var finalLineGridSet = []
-    coordPairSet.map(coordPair => {
+    coordPairSet.forEach(coordPair => {
       finalLineGridSet.push(<Line 
                               points={coordPair} 
                               color="black" 

@@ -7,7 +7,6 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 from gtsam import Cal3Bundler, EssentialMatrix, Point3, Pose3, Rot3, Unit3
 
-import gtsfm.utils.features as feature_utils
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.verification as verification_utils
 from gtsfm.common.keypoints import Keypoints
@@ -50,14 +49,13 @@ def count_correct_correspondences(
     if len(keypoints_i1) == 0:
         return 0
 
-    normalized_coords_i1 = feature_utils.normalize_coordinates(keypoints_i1.coordinates, intrinsics_i1)
-    normalized_coords_i2 = feature_utils.normalize_coordinates(keypoints_i2.coordinates, intrinsics_i2)
     i2Ei1 = EssentialMatrix(i2Ti1.rotation(), Unit3(i2Ti1.translation()))
+    i2Fi1 = verification_utils.essential_to_fundamental_matrix(i2Ei1, intrinsics_i1, intrinsics_i2)
 
-    epipolar_distances = verification_utils.compute_epipolar_distances(
-        normalized_coords_i1, normalized_coords_i2, i2Ei1
+    distance_squared = verification_utils.compute_epipolar_distances_sq_sampson(
+        keypoints_i1.coordinates, keypoints_i2.coordinates, i2Fi1
     )
-    return np.count_nonzero(epipolar_distances < epipolar_dist_threshold)
+    return np.count_nonzero(distance_squared < epipolar_dist_threshold ** 2)
 
 
 def compute_errors_statistics(errors: List[Optional[float]]) -> StatsDict:

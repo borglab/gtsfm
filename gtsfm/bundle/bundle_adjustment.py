@@ -2,6 +2,8 @@
 
 Authors: Xiaolong Wu, John Lambert, Ayush Baid
 """
+import os
+from pathlib import Path
 from typing import NamedTuple
 
 import dask
@@ -9,8 +11,11 @@ import gtsam
 from dask.delayed import Delayed
 from gtsam import GeneralSFMFactorCal3Bundler, SfmTrack, Values, symbol_shorthand
 
+import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
+
+METRICS_PATH = Path(__file__).resolve().parent.parent.parent / "result_metrics"
 
 # TODO: any way this goes away?
 C = symbol_shorthand.C
@@ -74,7 +79,7 @@ class BundleAdjustmentOptimizer(NamedTuple):
         # Also add a prior on the position of the first landmark to fix the scale
         graph.push_back(
             gtsam.PriorFactorPoint3(
-                P(0), initial_data.get_track(0).point3(), gtsam.noiseModel.Isotropic.Sigma(POINT3_DOF, 0.1),
+                P(0), initial_data.get_track(0).point3(), gtsam.noiseModel.Isotropic.Sigma(POINT3_DOF, 0.1)
             )
         )
 
@@ -111,15 +116,19 @@ class BundleAdjustmentOptimizer(NamedTuple):
         # construct the results
         optimized_data = values_to_gtsfm_data(result_values, initial_data)
 
-        logger.info("[Result] Number of tracks before filtering %d", optimized_data.number_tracks())
+        metrics_dict = {}
+        metrics_dict["before_filtering"] = optimized_data.aggregate_metrics()
+        logger.info("[Result] Number of tracks before filtering: %d", metrics_dict["before_filtering"]["number_tracks"])
 
         # filter the largest errors
         filtered_result = optimized_data.filter_landmarks(self.output_reproj_error_thresh)
 
-        logger.info("[Result] Number of tracks after filtering: %d", filtered_result.number_tracks())
-        mean_track_length, median_track_length = filtered_result.get_track_length_statistics()
-        logger.info("[Result] Mean track length %.3f", mean_track_length)
-        logger.info("[Result] Median track length %.3f", median_track_length)
+        metrics_dict["after_filtering"] = filtered_result.aggregate_metrics()
+        io_utils.save_json_file(os.path.join(METRICS_PATH, "bundle_adjustment_metrics.json"), metrics_dict)
+
+        logger.info("[Result] Number of tracks after filtering: %d", metrics_dict["after_filtering"]["number_tracks"])
+        logger.info("[Result] Mean track length %.3f", metrics_dict["after_filtering"]["3d_track_lengths"]["mean"])
+        logger.info("[Result] Median track length %.3f", metrics_dict["after_filtering"]["3d_track_lengths"]["median"])
         filtered_result.log_scene_reprojection_error_stats()
 
         return filtered_result
@@ -158,7 +167,7 @@ def values_to_gtsfm_data(values: Values, initial_data: GtsfmData) -> GtsfmData:
         input_track = initial_data.get_track(j)
 
         # populate the result with optimized 3D point
-        result_track = SfmTrack(values.atPoint3(P(j)),)
+        result_track = SfmTrack(values.atPoint3(P(j)))
 
         for measurement_idx in range(input_track.number_measurements()):
             i, uv = input_track.measurement(measurement_idx)
