@@ -29,11 +29,10 @@ def run_scene_optimizer() -> None:
         loader = OlssonLoader(os.path.join(DATA_ROOT, "set1_lund_door"), image_extension="JPG")
 
         sfm_result_graph = scene_optimizer.create_computation_graph(
-            len(loader),
-            loader.get_valid_pairs(),
-            loader.create_computation_graph_for_images(),
-            loader.create_computation_graph_for_intrinsics(),
-            use_intrinsics_in_verification=True,
+            num_images=len(loader),
+            image_pair_indices=loader.get_valid_pairs(),
+            image_graph=loader.create_computation_graph_for_images(),
+            camera_intrinsics_graph=loader.create_computation_graph_for_intrinsics(),
             gt_pose_graph=loader.create_computation_graph_for_poses(),
         )
 
