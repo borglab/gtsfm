@@ -19,8 +19,8 @@ import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader
 
 from gtsfm.densify.mvsnets.methods.PatchmatchNet.datasets.gtsfm import MVSDataset
-from gtsfm.densify.mvsnets.methods.PatchmatchNet.models import *
-from gtsfm.densify.mvsnets.methods.PatchmatchNet.utils import *
+from gtsfm.densify.mvsnets.methods.PatchmatchNet.models.net import PatchmatchNet
+from gtsfm.densify.mvsnets.methods.PatchmatchNet.utils import tocuda, tensor2numpy
 from gtsfm.densify.mvsnets.methods.PatchmatchNet.datasets.data_io import save_pfm
 import gtsfm.utils.logger as logger_utils
 
@@ -119,7 +119,7 @@ def reproject_with_depth(
 
     """
     width, height = depth_ref.shape[1], depth_ref.shape[0]
-    ## step1. project reference pixels to the source view
+    # step1. project reference pixels to the source view
     # reference view x, y
     x_ref, y_ref = np.meshgrid(np.arange(0, width), np.arange(0, height))
     x_ref, y_ref = x_ref.reshape([-1]), y_ref.reshape([-1])
@@ -135,7 +135,7 @@ def reproject_with_depth(
     K_xyz_src = np.matmul(intrinsics_src, xyz_src)
     xy_src = K_xyz_src[:2] / K_xyz_src[2:3]
 
-    ## step2. reproject the source view points with source view depth estimation
+    # step2. reproject the source view points with source view depth estimation
     # find the depth estimation of the source view
     x_src = xy_src[0].reshape([height, width]).astype(np.float32)
     y_src = xy_src[1].reshape([height, width]).astype(np.float32)
@@ -302,7 +302,7 @@ def filter_depth(
             save_mask(os.path.join(out_folder, "mask/{:0>8}_final.png".format(ref_view)), final_mask)
 
         logger.info(
-            "[Densify::PatchMatchNet] processing ref-view{:0>2}, geo_mask:{:3f} photo_mask:{:3f} final_mask: {:3f}".format(
+            "[Densify::PatchMatchNet] processing view:{:0>2}, geo_mask:{:3f} photo_mask:{:3f} final_mask:{:3f} ".format(
                 ref_view, geo_mask.mean(), photo_mask.mean(), final_mask.mean()
             )
         )

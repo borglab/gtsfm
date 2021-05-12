@@ -8,8 +8,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .module import *
-from .patchmatch import *
+from gtsfm.densify.mvsnets.methods.PatchmatchNet.models.module import ConvBnReLU, depth_regression
+from gtsfm.densify.mvsnets.methods.PatchmatchNet.models.patchmatch import PatchMatch
 
 
 class FeatureNet(nn.Module):
@@ -157,35 +157,35 @@ class PatchmatchNet(nn.Module):
         # number of groups for group-wise correlation
         self.G = [4, 8, 8]
 
-        for l in range(self.stages - 1):
+        for i in range(self.stages - 1):
 
-            if l == 2:
+            if i == 2:
                 patchmatch = PatchMatch(
                     True,
-                    propagation_range[l],
-                    patchmatch_iteration[l],
-                    patchmatch_num_sample[l],
-                    patchmatch_interval_scale[l],
-                    num_features[l + 1],
-                    self.G[l],
-                    self.propagate_neighbors[l],
-                    l + 1,
-                    evaluate_neighbors[l],
+                    propagation_range[i],
+                    patchmatch_iteration[i],
+                    patchmatch_num_sample[i],
+                    patchmatch_interval_scale[i],
+                    num_features[i + 1],
+                    self.G[i],
+                    self.propagate_neighbors[i],
+                    i + 1,
+                    evaluate_neighbors[i],
                 )
             else:
                 patchmatch = PatchMatch(
                     False,
-                    propagation_range[l],
-                    patchmatch_iteration[l],
-                    patchmatch_num_sample[l],
-                    patchmatch_interval_scale[l],
-                    num_features[l + 1],
-                    self.G[l],
-                    self.propagate_neighbors[l],
-                    l + 1,
-                    evaluate_neighbors[l],
+                    propagation_range[i],
+                    patchmatch_iteration[i],
+                    patchmatch_num_sample[i],
+                    patchmatch_interval_scale[i],
+                    num_features[i + 1],
+                    self.G[i],
+                    self.propagate_neighbors[i],
+                    i + 1,
+                    evaluate_neighbors[i],
                 )
-            setattr(self, f"patchmatch_{l+1}", patchmatch)
+            setattr(self, f"patchmatch_{i+1}", patchmatch)
 
         self.upsample_net = Refinement()
 
@@ -234,42 +234,42 @@ class PatchmatchNet(nn.Module):
         depth_patchmatch = {}
         refined_depth = {}
 
-        for l in reversed(range(1, self.stages)):
-            src_features_l = [src_fea[f"stage_{l}"] for src_fea in src_features]
-            projs_l = getattr(self, f"proj_matrices_{l}")
+        for li in reversed(range(1, self.stages)):
+            src_features_l = [src_fea[f"stage_{li}"] for src_fea in src_features]
+            projs_l = getattr(self, f"proj_matrices_{li}")
             ref_proj, src_projs = projs_l[0], projs_l[1:]
 
-            if l > 1:
-                depth, _, view_weights = getattr(self, f"patchmatch_{l}")(
-                    ref_feature[f"stage_{l}"],
+            if li > 1:
+                depth, _, view_weights = getattr(self, f"patchmatch_{li}")(
+                    ref_feature[f"stage_{li}"],
                     src_features_l,
                     ref_proj,
                     src_projs,
                     depth_min,
                     depth_max,
                     depth=depth,
-                    img=getattr(self, f"imgs_{l}_ref"),
+                    img=getattr(self, f"imgs_{li}_ref"),
                     view_weights=view_weights,
                 )
             else:
-                depth, score, _ = getattr(self, f"patchmatch_{l}")(
-                    ref_feature[f"stage_{l}"],
+                depth, score, _ = getattr(self, f"patchmatch_{li}")(
+                    ref_feature[f"stage_{li}"],
                     src_features_l,
                     ref_proj,
                     src_projs,
                     depth_min,
                     depth_max,
                     depth=depth,
-                    img=getattr(self, f"imgs_{l}_ref"),
+                    img=getattr(self, f"imgs_{li}_ref"),
                     view_weights=view_weights,
                 )
 
             del src_features_l, ref_proj, src_projs, projs_l
 
-            depth_patchmatch[f"stage_{l}"] = depth
+            depth_patchmatch[f"stage_{li}"] = depth
 
             depth = depth[-1].detach()
-            if l > 1:
+            if li > 1:
                 # upsampling the depth map and pixel-wise view weight for next stage
                 depth = F.interpolate(depth, scale_factor=2, mode="nearest")
                 view_weights = F.interpolate(view_weights, scale_factor=2, mode="nearest")
@@ -320,20 +320,20 @@ def patchmatchnet_loss(depth_patchmatch: Dict, refined_depth: Dict, depth_gt: Di
     stage = 4
 
     loss = 0
-    for l in range(1, stage):
-        depth_gt_l = depth_gt[f"stage_{l}"]
-        mask_l = mask[f"stage_{l}"] > 0.5
+    for li in range(1, stage):
+        depth_gt_l = depth_gt[f"stage_{li}"]
+        mask_l = mask[f"stage_{li}"] > 0.5
         depth2 = depth_gt_l[mask_l]
 
-        depth_patchmatch_l = depth_patchmatch[f"stage_{l}"]
+        depth_patchmatch_l = depth_patchmatch[f"stage_{li}"]
         for i in range(len(depth_patchmatch_l)):
             depth1 = depth_patchmatch_l[i][mask_l]
             loss = loss + F.smooth_l1_loss(depth1, depth2, reduction="mean")
 
-    l = 0
-    depth_refined_l = refined_depth[f"stage_{l}"]
-    depth_gt_l = depth_gt[f"stage_{l}"]
-    mask_l = mask[f"stage_{l}"] > 0.5
+    li = 0
+    depth_refined_l = refined_depth[f"stage_{li}"]
+    depth_gt_l = depth_gt[f"stage_{li}"]
+    mask_l = mask[f"stage_{li}"] > 0.5
 
     depth1 = depth_refined_l[mask_l]
     depth2 = depth_gt_l[mask_l]

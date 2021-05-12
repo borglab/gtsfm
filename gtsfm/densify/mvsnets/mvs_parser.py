@@ -51,7 +51,8 @@ class Parser(object):
 
         Returns:
             pairs: a np.ndarray of shape [N, N], which calculates the pair distances between each view pairs,
-            depth_range: a np.ndarray of shape [N, 3], which calculates the minimum depth, maximum depth, and the number of virtual depth layers for each view
+            depth_range: a np.ndarray of shape [N, 3], which calculates the minimum depth, maximum depth,
+                and the number of virtual depth layers for each view
 
         """
 

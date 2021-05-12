@@ -9,8 +9,6 @@ from torch.utils.data import Dataset
 import numpy as np
 import cv2
 
-from .data_io import *
-
 
 class MVSDataset(Dataset):
     """class inherite from Patchmatch Net's Dataset class for GTSFM"""
@@ -37,7 +35,8 @@ class MVSDataset(Dataset):
         """build input list for MVSNet
 
         Returns:
-            metas: a list of tuples, each tuple stores scan name string, reference view id, and a list of source view ids
+            metas: a list of tuples, each tuple stores scan name string, reference view id, and a list of source view
+                ids
         """
 
         pairs = self.data["pairs"]

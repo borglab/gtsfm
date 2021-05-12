@@ -39,8 +39,10 @@ class MVSNets(MVSBase):
         Args:
             images: image dictionary for each view,
             sfm_result: pre-computed GtsfmData,
-            view_number: the number of views when setting up MVSNets, including 1 reference view and (view_number - 1) other views,
-            thres: thresholds used in densify filters, the order is [geometric_pixel_threshold, geometric_depth_threshold, photography_threshold]
+            view_number: the number of views when setting up MVSNets, including 1 reference view and (view_number - 1)
+                other views,
+            thres: thresholds used in densify filters, the order is [geometric_pixel_threshold,
+                geometric_depth_threshold, photography_threshold]
             method: used to specify one of the supported MVSNets, the default one is PatchmatchNet
             save_output: decide whether to save densify results, including depth maps, confidence maps, mesh file(.ply).
             output_path: if save_output is True, this string will be the relative output path

@@ -5,12 +5,10 @@
 from typing import List
 
 import torch
-from torch import tensor
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.tensor import Tensor
 
-from .module import *
+from gtsfm.densify.mvsnets.methods.PatchmatchNet.models.module import ConvBnReLU3D, differentiable_warping
 
 
 class DepthInitialization(nn.Module):
@@ -211,7 +209,7 @@ class Evaluation(nn.Module):
         assert (
             num_src_features == num_src_projs
         ), "Patchmatch Evaluation: Different number of images and projection matrices"
-        if view_weights != None:
+        if view_weights is not None:
             assert (
                 num_src_features == view_weights.size()[1]
             ), "Patchmatch Evaluation: Different number of images and view weights"
@@ -222,7 +220,7 @@ class Evaluation(nn.Module):
 
         similarity_sum = 0
 
-        if self.stage == 3 and view_weights == None:
+        if self.stage == 3 and view_weights is None:
             view_weights = []
             for src_feature, src_proj in zip(src_features, src_projs):
 
