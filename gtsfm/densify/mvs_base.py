@@ -36,7 +36,6 @@ class MVSBase(metaclass=abc.ABCMeta):
         Returns:
             Dense point cloud, as an array of shape (N,3)
         """
-        
 
     def create_computation_graph(self, images_graph: Delayed, sfm_result_graph: Delayed) -> Delayed:
         """Generates the computation graph for performing multi-view stereo.
