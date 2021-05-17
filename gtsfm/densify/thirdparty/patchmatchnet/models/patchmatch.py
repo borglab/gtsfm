@@ -2,7 +2,7 @@
     reference: https://github.com/FangjinhuaWang/PatchmatchNet
 
 """
-from typing import List, Tuple, Optional, Union
+from typing import List, Tuple, Optional
 
 import torch
 import torch.nn as nn
