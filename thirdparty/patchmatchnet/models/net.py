@@ -8,8 +8,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from gtsfm.densify.thirdparty.patchmatchnet.models.module import ConvBnReLU, depth_regression
-from gtsfm.densify.thirdparty.patchmatchnet.models.patchmatch import PatchMatch
+from thirdparty.patchmatchnet.models.module import ConvBnReLU, depth_regression
+from thirdparty.patchmatchnet.models.patchmatch import PatchMatch
 
 
 class FeatureNet(nn.Module):
@@ -342,7 +342,7 @@ def patchmatchnet_loss(
     """
     stage = 4
 
-    loss = None
+    loss = torch.Tensor([0])
     for li in range(1, stage):
         depth_gt_l = depth_gt[f"stage_{li}"]
         mask_l = mask[f"stage_{li}"] > 0.5
@@ -351,10 +351,7 @@ def patchmatchnet_loss(
         depth_patchmatch_l = depth_patchmatch[f"stage_{li}"]
         for i in range(len(depth_patchmatch_l)):
             depth1 = depth_patchmatch_l[i][mask_l]
-            if loss is None:
-                loss = F.smooth_l1_loss(depth1, depth2, reduction="mean")
-            else:
-                loss = loss + F.smooth_l1_loss(depth1, depth2, reduction="mean")
+            loss = loss + F.smooth_l1_loss(depth1, depth2, reduction="mean")
 
     li = 0
     depth_refined_l = refined_depth[f"stage_{li}"]
@@ -363,9 +360,6 @@ def patchmatchnet_loss(
 
     depth1 = depth_refined_l[mask_l]
     depth2 = depth_gt_l[mask_l]
-    if loss is None:
-        loss = F.smooth_l1_loss(depth1, depth2, reduction="mean")
-    else:
-        loss = loss + F.smooth_l1_loss(depth1, depth2, reduction="mean")
+    loss = loss + F.smooth_l1_loss(depth1, depth2, reduction="mean")
 
     return loss
