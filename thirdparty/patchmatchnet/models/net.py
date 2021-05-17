@@ -2,7 +2,7 @@
     reference: https://github.com/FangjinhuaWang/PatchmatchNet
 
 """
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 import torch
 import torch.nn as nn
@@ -13,7 +13,7 @@ from thirdparty.patchmatchnet.models.patchmatch import PatchMatch
 
 
 class FeatureNet(nn.Module):
-    """Feature Extraction Network"""
+    """Feature Extraction Network: to extract features of original images from each view"""
 
     def __init__(self):
         """define and initialize different layers in the network"""
@@ -45,7 +45,7 @@ class FeatureNet(nn.Module):
     def forward(self, x: torch.Tensor) -> Dict[str, torch.Tensor]:
         """forward method
         Args:
-            x: batched of images from one view, in the shape of [B, C, H, W]. Generally, C=3
+            x: images from a single view, in the shape of [B, C, H, W]. Generally, C=3
         Returns:
             output_feature: a python dictionary contains extracted features from stage_1 to stage_3
                 keys are "stage_1", "stage_2", and "stage_3"
