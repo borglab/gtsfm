@@ -2,22 +2,22 @@
     reference: https://github.com/FangjinhuaWang/PatchmatchNet
 
 """
+import re
 import sys
 from typing import Tuple
 
-import re
 import numpy as np
 
 
 def read_pfm(filename: str) -> Tuple[np.ndarray, float]:
-    """Read a depth map from a .pfm file
+    """Read data from a .pfm file
 
     Args:
-        filename: .pfm file path string
+        filename: string of input .pfm file path
 
     Returns:
-        data: array of shape (H, w, C) representing loaded heat map
-        scale: float to recover heat map pixel values to actual probabilities
+        data: data read from .pfm file in the of shape (H, w, C)
+        scale: float scale parameter loaded from .pfm file
     """
     file = open(filename, "rb")
     color = None
@@ -57,12 +57,12 @@ def read_pfm(filename: str) -> Tuple[np.ndarray, float]:
 
 
 def save_pfm(filename: str, image: np.ndarray, scale: float = 1) -> None:
-    """Save a depth map from a .pfm file
+    """Save data to a .pfm file
 
     Args:
-        filename: output .pfm file path string,
-        image: depth map to output,
-        scale: scale parameter to output
+        filename: string of output .pfm file path
+        image: data in the shape of (H, W, C) to save in the .pfm file
+        scale: float scale parameter to save in the .pfm file
     """
     file = open(filename, "wb")
     color = None
