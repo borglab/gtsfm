@@ -128,8 +128,8 @@ class Propagation(nn.Module):
         width: int,
         depth_sample: torch.Tensor,
         grid: torch.Tensor,
-        depth_min: int,
-        depth_max: int,
+        depth_min: torch.Tensor,
+        depth_max: torch.Tensor,
         depth_interval_scale: float,
     ) -> torch.Tensor:
         # [B,D,H,W]
@@ -200,8 +200,8 @@ class Evaluation(nn.Module):
         ref_proj: torch.Tensor,
         src_projs: List[torch.Tensor],
         depth_sample: torch.Tensor,
-        depth_min: int,
-        depth_max: int,
+        depth_min: torch.Tensor,
+        depth_max: torch.Tensor,
         iter: int,
         grid: torch.Tensor = None,
         weight: torch.Tensor = None,
@@ -584,8 +584,8 @@ class PatchMatch(nn.Module):
         src_features: List[torch.Tensor],
         ref_proj: torch.Tensor,
         src_projs: List[torch.Tensor],
-        depth_min: int,
-        depth_max: int,
+        depth_min: torch.Tensor,
+        depth_max: torch.Tensor,
         depth: torch.Tensor = None,
         img: torch.Tensor = None,
         view_weights: torch.Tensor = None,
@@ -881,8 +881,8 @@ class FeatureWeightNet(nn.Module):
 
 def depth_weight(
     depth_sample: torch.Tensor,
-    depth_min: int,
-    depth_max: int,
+    depth_min: torch.Tensor,
+    depth_max: torch.Tensor,
     grid: torch.Tensor,
     patchmatch_interval_scale: float,
     evaluate_neighbors: int,
