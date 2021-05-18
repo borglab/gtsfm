@@ -36,7 +36,7 @@ dependencies:
   - h5py
   - pip:
     - pydegensac
-    - hydra-core==1.1.0dev6
+    - hydra-core==1.1.0dev3
     - argoverse @ git+https://github.com/argoai/argoverse-api.git@master
 
 

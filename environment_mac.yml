@@ -37,6 +37,6 @@ dependencies:
   # io
   - h5py
   - pip:
-    - hydra-core==1.1.0dev6
+    - hydra-core==1.1.0dev3
 
 

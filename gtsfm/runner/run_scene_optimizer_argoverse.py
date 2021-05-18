@@ -1,8 +1,8 @@
 import argparse
 
-import hydra
 import numpy as np
 from dask.distributed import Client, LocalCluster, performance_report
+from hydra.experimental import compose, initialize_config_module
 from hydra.utils import instantiate
 
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -16,9 +16,9 @@ logger = get_logger()
 
 def run_scene_optimizer(args) -> None:
     """ Run GTSFM over images from an Argoverse vehicle log"""
-    with hydra.initialize_config_module(config_module="gtsfm.configs"):
+    with initialize_config_module(config_module="gtsfm.configs"):
         # config is relative to the gtsfm module
-        cfg = hydra.compose(config_name="default_lund_door_set1_config.yaml")
+        cfg = compose(config_name="default_lund_door_set1_config.yaml")
         scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
         loader = ArgoverseDatasetLoader(
