@@ -194,7 +194,9 @@ def compute_metrics_for_each_image(metric_func: Callable) -> Callable:
 
 @make_nograd_func
 @compute_metrics_for_each_image
-def Thres_metrics(depth_est: torch.Tensor, depth_gt: torch.Tensor, mask: torch.Tensor, thres: Union[int, float]):
+def Thres_metrics(
+    depth_est: torch.Tensor, depth_gt: torch.Tensor, mask: torch.Tensor, thres: Union[int, float]
+) -> torch.Tensor:
     """Return error mask where absolute error is larger than threshold
 
     Args:
