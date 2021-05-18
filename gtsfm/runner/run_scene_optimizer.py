@@ -1,8 +1,8 @@
 import os
 from pathlib import Path
 
-import hydra
 from dask.distributed import Client, LocalCluster, performance_report
+from hydra.experimental import compose, initialize_config_module
 from hydra.utils import instantiate
 
 import gtsfm.utils.logger as logger_utils
@@ -17,9 +17,9 @@ logger = logger_utils.get_logger()
 
 def run_scene_optimizer() -> None:
     """ """
-    with hydra.initialize_config_module(config_module="gtsfm.configs"):
+    with initialize_config_module(config_module="gtsfm.configs"):
         # config is relative to the gtsfm module
-        cfg = hydra.compose(config_name="default_lund_door_set1_config.yaml")
+        cfg = compose(config_name="default_lund_door_set1_config.yaml")
         scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
         loader = OlssonLoader(os.path.join(DATA_ROOT, "set1_lund_door"), image_extension="JPG")
