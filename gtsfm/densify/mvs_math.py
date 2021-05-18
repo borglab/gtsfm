@@ -6,7 +6,7 @@ import math
 import numpy as np
 
 
-def theta_ij(v_a: np.ndarray, v_b: np.ndarray) -> float:
+def angle_between_vectors(v_a: np.ndarray, v_b: np.ndarray) -> float:
     """Calculate the angle between vector v_a and v_b
 
     Args:
@@ -35,7 +35,7 @@ def piecewise_gaussian(
     Returns:
         float piecewice gaussian value
     """
-    theta = theta_ij(p_a, p_b)
+    theta = angle_between_vectors(p_a, p_b)
     if theta <= theta_0:
         return math.exp(-((theta - theta_0) ** 2) / (2 * sigma_1 ** 2))
     else:
