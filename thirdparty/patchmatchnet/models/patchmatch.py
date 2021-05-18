@@ -15,7 +15,8 @@ class DepthInitialization(nn.Module):
     """Initialization Stage Class"""
 
     def __init__(self, patchmatch_num_sample: int = 1) -> None:
-        """init function
+        """Initialize method
+
         Args:
             patchmatch_num_sample: number of samples used in patchmatch process
         """
@@ -33,7 +34,8 @@ class DepthInitialization(nn.Module):
         device: torch.device,
         depth: torch.Tensor,
     ) -> torch.Tensor:
-        """forward function for depth initialization
+        """Forward function for depth initialization
+
         Args:
             random_initialization: whether to use random initialization
             min_depth: minimum virtual depth
@@ -43,6 +45,7 @@ class DepthInitialization(nn.Module):
             depth_interval_scale: depth interval scale
             device: decide data on which device
             depth: current depth
+
         Returns:
             depth_sample: initialized sample depth map by randomization or local perturbation
         """
@@ -105,7 +108,8 @@ class Propagation(nn.Module):
     """ Propagation module implementation"""
 
     def __init__(self, neighbors: int = 16) -> None:
-        """init methods
+        """Initialize method
+
         Args:
             neighbors: number of neighbor views
         """
@@ -124,7 +128,8 @@ class Propagation(nn.Module):
         depth_interval_scale: float,
     ) -> torch.Tensor:
         # [B,D,H,W]
-        """forward function of adaptive propagation
+        """Forward method of adaptive propagation
+
         Args:
             batch: batch size,
             height: depth map height,
@@ -135,6 +140,7 @@ class Propagation(nn.Module):
             depth_min: minimum virtual depth,
             depth_max: maximum virtual depth,
             depth_interval_scale: depth virtual interval scale,
+
         Returns:
             propagate depth: sorted propagate depth map [batch, num_depth+num_neighbors, height, width]
         """
@@ -161,7 +167,8 @@ class Evaluation(nn.Module):
     """Evaluation Class"""
 
     def __init__(self, G: int = 8, stage: int = 3, evaluate_neighbors: int = 9, iterations: int = 2) -> None:
-        """initialize
+        """Initialize method
+
         Args:
             G: number of groups
             stage: stage id
@@ -193,7 +200,8 @@ class Evaluation(nn.Module):
         weight: torch.Tensor = None,
         view_weights: torch.Tensor = None,
     ) -> Union[Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
-        """forward function for adaptive evaluation
+        """Forward method for adaptive evaluation
+
         Args:
             ref_feature: feature from reference view
             src_features: features from source views
@@ -206,6 +214,7 @@ class Evaluation(nn.Module):
             grid: grid,
             weight: weight,
             view_weights: list to store weights from source views,
+
         Returns:
             depth_sample: expectation of depth sample,
             score: probability map,
@@ -324,7 +333,7 @@ class Evaluation(nn.Module):
 
 
 class PatchMatch(nn.Module):
-    """patchmatch module"""
+    """Patchmatch module"""
 
     def __init__(
         self,
@@ -339,7 +348,8 @@ class PatchMatch(nn.Module):
         stage: int = 3,
         evaluate_neighbors: int = 9,
     ) -> None:
-        """initialize method
+        """Initialize method
+
         Args:
             random_initialization: whether to use random initialization,
             propagation_out_range: range of propagation out,
@@ -405,13 +415,15 @@ class PatchMatch(nn.Module):
     def get_propagation_grid(
         self, batch: int, height: int, width: int, offset: torch.Tensor, device: torch.device, img: torch.Tensor = None
     ) -> torch.Tensor:
-        """compute the offset for adaptive propagation
+        """Compute the offset for adaptive propagation
+
         Args:
             batch: batch size
             height: grid height
             width: grid width
             offset: grid offset
             device: decide the tensor on which device
+
         Returns:
             generated grid: in the shape of [batch, len(original_offset)*H, W, 2]
         """
@@ -481,13 +493,15 @@ class PatchMatch(nn.Module):
     def get_evaluation_grid(
         self, batch: int, height: int, width: int, offset: torch.Tensor, device: torch.device, img: torch.Tensor = None
     ) -> torch.Tensor:
-        """compute the offests for adaptive spatial cost aggregation in adaptive evaluation
+        """Compute the offests for adaptive spatial cost aggregation in adaptive evaluation
+
         Args:
             batch: batch size
             height: grid height
             width: grid width
             offset: grid offset
             device: decide the tensor on which device
+
         Returns:
             generated grid: in the shape of [batch, len(original_offset)*H, W, 2]
         """
@@ -568,19 +582,23 @@ class PatchMatch(nn.Module):
         img: torch.Tensor = None,
         view_weights: torch.Tensor = None,
     ) -> Tuple[List[torch.Tensor], torch.Tensor, Optional[torch.Tensor]]:
-        """forward function for PatchMatch
+        """Forward method for PatchMatch
+
         Args:
             ref_feature: feature from reference view
             src_features: features from source views
             ref_proj: projection matrix of reference view
             src_projs: source matrices of source views
-            depth_min: minimum virtual depth,
-            depth_max: maximum virtual depth,
-            depth: current depth map,
+            depth_min: minimum virtual depth
+            depth_max: maximum virtual depth
+            depth: current depth map
             img: image
-            view_weights: list to store weights from source views,
-        Returns:
+            view_weights: list to store weights from source views
 
+        Returns:
+            depth_samples: list of depth maps from each patchmatch iteration
+            score: evaluted probabilities
+            view_weights(optional): list to store weights from source views
         """
         depth_samples = []
 
@@ -756,12 +774,13 @@ class PatchMatch(nn.Module):
 
 class SimilarityNet(nn.Module):
     """Similarity Net
-    first, do convolution on aggregated cost among all the source views
-    second, perform adaptive spatial cost aggregation to get final cost
+    1. Do convolution on aggregated cost among all the source views
+    2. Perform adaptive spatial cost aggregation to get final cost
     """
 
     def __init__(self, G: int, neighbors: int = 9) -> None:
-        """initialize
+        """Initialize method
+
         Args:
             G: group number
             neighbors: number of neighbors
@@ -774,7 +793,8 @@ class SimilarityNet(nn.Module):
         self.similarity = nn.Conv3d(8, 1, kernel_size=1, stride=1, padding=0)
 
     def forward(self, x1: torch.Tensor, grid: torch.Tensor, weight: torch.Tensor) -> torch.Tensor:
-        """forward function for SimilarityNet
+        """Forward method for SimilarityNet
+
         Args:
             x1: [B, G, Ndepth, H, W], aggregated cost among all the source views with pixel-wise view weight
             grid: position of sampling points in adaptive spatial cost aggregation
@@ -798,12 +818,13 @@ class SimilarityNet(nn.Module):
 
 class FeatureWeightNet(nn.Module):
     """FeatureWeight Net
-    adaptive spatial cost aggregation
-    weight based on similarity of features of sampling points and center pixel
+    1. Adaptive spatial cost aggregation
+    2. Weight based on similarity of features of sampling points and center pixel
     """
 
     def __init__(self, num_feature: int, neighbors: int = 9, G: int = 8) -> None:
-        """initialize
+        """Initialize method
+
         Args:
             num_features: number of features
             neighbors: number of neighbors
@@ -820,10 +841,12 @@ class FeatureWeightNet(nn.Module):
         self.output = nn.Sigmoid()
 
     def forward(self, ref_feature: torch.Tensor, grid: torch.Tensor) -> torch.Tensor:
-        """forward function for FeatureWeightNet
+        """Forward method for FeatureWeightNet
+
         Args:
             ref_feature: reference feature map
             grid: position of sampling points in adaptive spatial cost aggregation
+
         Returns:
             weight based on similarity of features of sampling points and center pixel, [B,Neighbor,H,W]
         """
@@ -852,9 +875,10 @@ def depth_weight(
     patchmatch_interval_scale: float,
     evaluate_neighbors: int,
 ) -> torch.Tensor:
-    """calculate depth weight
-    adaptive spatial cost aggregation
-    weight based on depth difference of sampling points and center pixel
+    """Calculate depth weight
+    1. Adaptive spatial cost aggregation
+    2. Weight based on depth difference of sampling points and center pixel
+
     Args:
         depth_sample: sample depth map
         depth_min: minimum virtual depth
@@ -862,6 +886,7 @@ def depth_weight(
         grid: position of sampling points in adaptive spatial cost aggregation
         patchmatch_interval_scale: patchmatch interval scale,
         evaluate_neighbors: number of evaluate neighbors
+
     Returns:
         depth weight
     """
@@ -893,13 +918,13 @@ def depth_weight(
 
 
 class PixelwiseNet(nn.Module):
-    """Pixelwise Net
-    estimate pixel-wise view weight
-    """
+    """Pixelwise Net: estimate pixel-wise view weight"""
 
     def __init__(self, G: int) -> None:
-        """initialize
-        G: number of groups
+        """Initialize method
+
+        Args:
+            G: number of groups
         """
         super(PixelwiseNet, self).__init__()
         self.conv0 = ConvBnReLU3D(G, 16, 1, 1, 0)
@@ -908,7 +933,8 @@ class PixelwiseNet(nn.Module):
         self.output = nn.Sigmoid()
 
     def forward(self, x1: torch.Tensor) -> torch.Tensor:
-        """forward function for PixelwiseNet
+        """Forward method for PixelwiseNet
+
         Args:
             x1: pixel-wise view weight, [B, G, Ndepth, H, W]
         """

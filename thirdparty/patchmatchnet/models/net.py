@@ -16,7 +16,7 @@ class FeatureNet(nn.Module):
     """Feature Extraction Network: to extract features of original images from each view"""
 
     def __init__(self):
-        """define and initialize different layers in the network"""
+        """Initialize different layers in the network"""
 
         super(FeatureNet, self).__init__()
 
@@ -43,7 +43,8 @@ class FeatureNet(nn.Module):
         self.output3 = nn.Conv2d(64, 16, 1, bias=False)
 
     def forward(self, x: torch.Tensor) -> Dict[str, torch.Tensor]:
-        """forward method
+        """Forward method
+
         Args:
             x: images from a single view, in the shape of [B, C, H, W]. Generally, C=3
         Returns:
@@ -75,10 +76,10 @@ class FeatureNet(nn.Module):
 
 
 class Refinement(nn.Module):
-    """depth map refinement network"""
+    """Depth map refinement network"""
 
     def __init__(self):
-        """ initialization method"""
+        """Initialize"""
 
         super(Refinement, self).__init__()
 
@@ -98,7 +99,8 @@ class Refinement(nn.Module):
     def forward(
         self, img: torch.Tensor, depth_0: torch.Tensor, depth_min: torch.Tensor, depth_max: torch.Tensor
     ) -> torch.Tensor:
-        """forward methods
+        """Forward method
+
         Args:
             img: input source and reference images (B, 3, H, W)
             depth_0: current depth map (B, 1, H//2, W//2)
@@ -143,7 +145,8 @@ class PatchmatchNet(nn.Module):
         propagate_neighbors: List[int] = [0, 8, 16],
         evaluate_neighbors: List[int] = [9, 9, 9],
     ) -> None:
-        """initialize modulse in patchmatch net
+        """Initialize modules in patchmatch net
+
         Args:
             patchmatch_interval_scale: depth interval scale in patchmatch module
             propagation_range: propagation range
@@ -204,7 +207,8 @@ class PatchmatchNet(nn.Module):
         depth_min: torch.Tensor,
         depth_max: torch.Tensor,
     ) -> Dict[str, Any]:
-        """forward function for PatchMatchNet
+        """Forward method for PatchMatchNet
+
         Args:
             imgs: different stages of images stored in the dictionary
             proj_matrics: different stages of camera projection matrices stored in the dictionary
@@ -331,7 +335,8 @@ def patchmatchnet_loss(
     depth_gt: Dict[str, torch.Tensor],
     mask: Dict[str, torch.Tensor],
 ) -> torch.Tensor:
-    """patchmatchnet loss function
+    """Patchmatch Net loss function
+
     Args:
         depth_patchmatch: depth map predicted by patchmatch net
         refined_depth: refined depth map predicted by patchmatch net

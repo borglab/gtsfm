@@ -20,7 +20,8 @@ class ConvBnReLU(nn.Module):
         pad: int = 1,
         dilation: int = 1,
     ) -> None:
-        """initialization method for convolution2D + batch normalization + relu module
+        """Initialization method for convolution2D + batch normalization + relu module
+
         Args:
             in_channels: input channel number of convolution layer
             out_channels: output channel number of convolution layer
@@ -52,7 +53,8 @@ class ConvBnReLU3D(nn.Module):
         pad: int = 1,
         dilation: int = 1,
     ) -> None:
-        """initialization method for convolution3D + batch normalization + relu module
+        """Initialization method for convolution3D + batch normalization + relu module
+
         Args:
             in_channels: input channel number of convolution layer
             out_channels: output channel number of convolution layer
@@ -84,7 +86,8 @@ class ConvBnReLU1D(nn.Module):
         pad: int = 1,
         dilation: int = 1,
     ) -> None:
-        """initialization method for convolution1D + batch normalization + relu module
+        """Initialization method for convolution1D + batch normalization + relu module
+
         Args:
             in_channels: input channel number of convolution layer
             out_channels: output channel number of convolution layer
@@ -110,7 +113,8 @@ class ConvBn(nn.Module):
     def __init__(
         self, in_channels: int, out_channels: int, kernel_size: int = 3, stride: int = 1, pad: int = 1
     ) -> None:
-        """initialization method for convolution2D + batch normalization + ReLU module
+        """Initialization method for convolution2D + batch normalization + ReLU module
+
         Args:
             in_channels: input channel number of convolution layer
             out_channels: output channel number of convolution layer
@@ -137,6 +141,7 @@ def differentiable_warping(
         src_proj: [B, 4, 4] source camera poses, for each source view in batch
         ref_proj: [B, 4, 4] reference camera pose, for each ref view in batch
         depth_samples: [B, Ndepth, H, W] virtual depth layers
+
     Returns:
         warped_src_fea: [B, C, Ndepth, H, W] features on depths after perspective transformation
     """
@@ -197,6 +202,7 @@ def depth_regression(p: torch.Tensor, depth_values: torch.Tensor) -> torch.Tenso
     Args:
         p: probability volume [B, D, H, W]
         depth_values: discrete depth values [B, D]
+
     Returns:
         result depth: expected value, soft argmin [B, 1, H, W]
     """
@@ -208,10 +214,12 @@ def depth_regression(p: torch.Tensor, depth_values: torch.Tensor) -> torch.Tenso
 
 
 def depth_regression_1(p: torch.Tensor, depth_values: torch.Tensor) -> torch.Tensor:
-    """another version of depth regression function
+    """Another version of depth regression function
+
     Args:
         p: probability volume [B, D, H, W]
         depth_values: discrete depth values [B, D]
+
     Returns:
         result depth: expected value, soft argmin [B, 1, H, W]
     """

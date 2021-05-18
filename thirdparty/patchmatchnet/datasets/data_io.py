@@ -11,8 +11,10 @@ import numpy as np
 
 def read_pfm(filename: str) -> Tuple[np.ndarray, float]:
     """Read a depth map from a .pfm file
+
     Args:
         filename: .pfm file path string
+
     Returns:
         data: array of shape (H, w, C) representing loaded heat map
         scale: float to recover heat map pixel values to actual probabilities
@@ -56,12 +58,11 @@ def read_pfm(filename: str) -> Tuple[np.ndarray, float]:
 
 def save_pfm(filename: str, image: np.ndarray, scale: float = 1) -> None:
     """Save a depth map from a .pfm file
+
     Args:
         filename: output .pfm file path string,
         image: depth map to output,
         scale: scale parameter to output
-    Returns:
-        None
     """
     file = open(filename, "wb")
     color = None
