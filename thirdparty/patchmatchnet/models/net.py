@@ -47,6 +47,7 @@ class FeatureNet(nn.Module):
 
         Args:
             x: images from a single view, in the shape of [B, C, H, W]. Generally, C=3
+
         Returns:
             output_feature: a python dictionary contains extracted features from stage_1 to stage_3
                 keys are "stage_1", "stage_2", and "stage_3"
@@ -106,6 +107,7 @@ class Refinement(nn.Module):
             depth_0: current depth map (B, 1, H//2, W//2)
             depth_min: pre-defined minimum depth
             depth_max: pre-defined maximum depth
+
         Returns:
             depth: refined depth map (B, 1, H//2, W//2)
         """
@@ -342,6 +344,7 @@ def patchmatchnet_loss(
         refined_depth: refined depth map predicted by patchmatch net
         depth_gt: ground truth depth map
         mask: mask for filter valid points
+
     Returns:
         loss: result loss value
     """

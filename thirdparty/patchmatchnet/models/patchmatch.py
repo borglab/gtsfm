@@ -800,6 +800,7 @@ class SimilarityNet(nn.Module):
             grid: position of sampling points in adaptive spatial cost aggregation
             weight: weight of sampling points in adaptive spatial cost aggregation, combination of
                 feature weight and depth weight
+        
         Returns:
             final cost: in the shape of [B,Ndepth,H,W]
         """
