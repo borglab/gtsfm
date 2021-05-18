@@ -930,11 +930,14 @@ def depth_weight(
 
 
 class PixelwiseNet(nn.Module):
-    """Pixelwise Net: estimate pixel-wise view weight from the similarity.
-    The Pixelwise Net is used in adaptive evaluation step
-    The similarity is calculated by ref_feature and other source_features warped by differentiable_warping
-    The learned pixel-wise view weight is estimated in the first iteration of Patchmatch and kept fixed in the matching
-        cost computation.
+    """Pixelwise Net: A simple pixel-wise view weight network, composed of 3D convolution layers with 1×1×1 kernels
+    and sigmoid nonlinearities, takes the initial set of similarities to output a number between 0 and 1 per
+    pixel as estimated pixel-wise view weight.
+
+    1. The Pixelwise Net is used in adaptive evaluation step
+    2. The similarity is calculated by ref_feature and other source_features warped by differentiable_warping
+    3. The learned pixel-wise view weight is estimated in the first iteration of Patchmatch and kept fixed in the
+    matching cost computation.
     """
 
     def __init__(self, G: int) -> None:
