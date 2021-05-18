@@ -97,7 +97,7 @@ def tocuda(vars: Any) -> Union[str, torch.Tensor]:
         raise NotImplementedError("invalid input type {} for tocuda".format(type(vars)))
 
 
-def save_scalars(logger: tb.SummaryWriter, mode: str, scalar_dict: dict, global_step: int) -> None:
+def save_scalars(logger: tb.SummaryWriter, mode: str, scalar_dict: Dict[str, Any], global_step: int) -> None:
     """Log values stored in the scalar dictionary
 
     Args:
@@ -117,7 +117,7 @@ def save_scalars(logger: tb.SummaryWriter, mode: str, scalar_dict: dict, global_
                 logger.add_scalar(name, value[idx], global_step)
 
 
-def save_images(logger: tb.SummaryWriter, mode: str, images_dict: dict, global_step: int) -> None:
+def save_images(logger: tb.SummaryWriter, mode: str, images_dict: Dict[str, Any], global_step: int) -> None:
     """Log images stored in the image dictionary
 
     Args:

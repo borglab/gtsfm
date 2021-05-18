@@ -169,7 +169,7 @@ class Propagation(nn.Module):
 
 
 class Evaluation(nn.Module):
-    """Evaluation Class for adaptive evaluation step in Learning-based Patchmatch
+    """Evaluation module for adaptive evaluation step in Learning-based Patchmatch
     Used to compute the matching costs for all the hypotheses and choose best solutions.
     """
 
@@ -365,7 +365,7 @@ class PatchMatch(nn.Module):
             patchmatch_interval_scale: interval scale,
             num_feature: number of features,
             G: the feature channels of input will be divided evenly into G groups,
-            propagate_neighbors: number of neighbors to be sampled in propagration,
+            propagate_neighbors: number of neighbors to be sampled in propagation,
             stage: number of stage,
             evaluate_neighbors: number of neighbors to be sampled in evaluation,
         """
@@ -513,7 +513,7 @@ class PatchMatch(nn.Module):
         Returns:
             generated grid: in the shape of [batch, len(original_offset)*H, W, 2]
         """
-        if self.evaluate_neighbors == 9:  # if 17 neighbors to be sampled in evaluation
+        if self.evaluate_neighbors == 9:  # if 9 neighbors to be sampled in evaluation
             dilation = self.dilation - 1  # dilation of evaluation is a little smaller than propagation
             original_offset = [
                 [-dilation, -dilation],
@@ -781,8 +781,9 @@ class PatchMatch(nn.Module):
 
 
 class SimilarityNet(nn.Module):
-    """Similarity Net, used in Evalutaion class (adaptive evaluation step)
-    1. Do 3D convolution on aggregated cost [B, group_num(G), Ndepth, H, W] among all the source views
+    """Similarity Net, used in Evaluation module (adaptive evaluation step)
+    1. Do 3D convolution on aggregated cost [B, G, Ndepth, H, W] among all the source views,
+        where G is the number of groups
     2. Perform adaptive spatial cost aggregation to get final cost (scores)
     """
 
@@ -804,7 +805,8 @@ class SimilarityNet(nn.Module):
         """Forward method for SimilarityNet
 
         Args:
-            x1: [B, group_num(G), Ndepth, H, W], aggregated cost among all the source views with pixel-wise view weight
+            x1: [B, G, Ndepth, H, W], where G is the number of groups, aggregated cost among all the source views with
+                pixel-wise view weight
             grid: position of sampling points in adaptive spatial cost aggregation
             weight: weight of sampling points in adaptive spatial cost aggregation, combination of
                 feature weight and depth weight
@@ -930,7 +932,7 @@ def depth_weight(
 class PixelwiseNet(nn.Module):
     """Pixelwise Net: estimate pixel-wise view weight from the similarity.
     The Pixelwise Net is used in adaptive evaluation step
-    The similarity is calculated by ref_feature and other source_features warpped by differentiable_warping
+    The similarity is calculated by ref_feature and other source_features warped by differentiable_warping
     The learned pixel-wise view weight is estimated in the first iteration of Patchmatch and kept fixed in the matching
         cost computation.
     """
@@ -951,7 +953,7 @@ class PixelwiseNet(nn.Module):
         """Forward method for PixelwiseNet
 
         Args:
-            x1: pixel-wise view weight, [B, group_num(G), Ndepth, H, W]
+            x1: pixel-wise view weight, [B, G, Ndepth, H, W], where G is the number of groups
         """
 
         # [B, Ndepth, H, W]
