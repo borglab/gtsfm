@@ -119,11 +119,13 @@ class PatchmatchNetData(Dataset):
             index: index of yield item
 
         Returns:
-            python dictionary stores
-                test image index: int
-                source and reference images: (num_views, image_channel, image_h, image_w)
-                projection matrices: (num_views, 4, 4)
-                minimum and maximum depth, and output filename pattern.
+            return dictionary contains:
+                "idx" test image index: int
+                "imgs" source and reference images: (num_views, image_channel, image_h, image_w)
+                "proj_matrices" projection matrices: (num_views, 4, 4)
+                "depth_min" minimum depth: int
+                "depth_max" maximum depth: int
+                "filename" output filename pattern: string
         """
         ref_key = self.keys[index]
         src_keys = [self.keys[src_index] for src_index in self.pairs[index]]
