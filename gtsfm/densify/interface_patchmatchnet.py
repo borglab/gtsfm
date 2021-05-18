@@ -20,7 +20,7 @@ class PatchmatchNetData(Dataset):
         """Initialize method for PatchmatchnetData
 
         Args:
-            images: input images to GTSFM
+            images: input images (H, W, C) to GTSFM
             sfm_result: sfm results calculated by GTSFM
             num_views: number of views, containing 1 reference view and (num_views-1) source views
         """
@@ -40,6 +40,7 @@ class PatchmatchNetData(Dataset):
         self.keys_map = {}
         for i in range(self.num_images):
             self.keys_map[self.keys[i]] = i
+        self.images = images
         self.image_w = images[self.keys[0]].width
         self.image_h = images[self.keys[0]].height
 
@@ -80,8 +81,8 @@ class PatchmatchNetData(Dataset):
                         key_a_id = self.keys_map[cam_a_id]
                         key_b_id = self.keys_map[cam_b_id]
 
-                        cam_a_pos_i = self.sfm_result.get_camera_poses(cam_a_id) @ position_3d
-                        cam_b_pos_i = self.sfm_result.get_camera_poses(cam_b_id) @ position_3d
+                        cam_a_pos_i = self.sfm_result.get_camera(cam_a_id).pose().matrix() @ position_3d
+                        cam_b_pos_i = self.sfm_result.get_camera(cam_b_id).pose().matrix() @ position_3d
 
                         score_a_b = piecewise_gaussian(p_a=cam_a_pos_i, p_b=cam_b_pos_i)
 
@@ -93,7 +94,7 @@ class PatchmatchNetData(Dataset):
 
         depth_metas[:, 0] = np.array([np.floor(np.min(depth_collection_views[i])) for i in range(num_images)])
         depth_metas[:, 1] = np.array([np.ceil(np.max(depth_collection_views[i])) for i in range(num_images)])
-        pairs = np.argsort(pair_scores, axis=0)[:, 1:][:, ::-1]
+        pairs = np.argsort(pair_scores, axis=0)[:, -self.num_views + 1 :][:, ::-1]
 
         return pairs, depth_metas
 
@@ -107,13 +108,96 @@ class PatchmatchNetData(Dataset):
         return self.num_images
 
     def __getitem__(self, index: int) -> Dict[str, Any]:
-        """Get one test input to Patchmatch Net
+        """Get one test input to Patchmatch Net, Wang's work in https://github.com/FangjinhuaWang/PatchmatchNet.git is
+            referred to in this method
 
         Args:
             index: index of yield item
 
         Returns:
-            python dictionary stores test image index, source and reference images, projection matrices,
+            python dictionary stores
+                test image index: int
+                source and reference images: (num_views, image_channel, image_h, image_w)
+                projection matrices: (num_views, 4, 4)
                 minimum and maximum depth, and output filename pattern.
         """
-        return super().__getitem__(index)
+        ref_key = self.keys[index]
+        src_keys = [self.keys[src_index] for src_index in self.pairs[index]]
+
+        cam_keys = [ref_key] + src_keys
+
+        imgs_0 = []
+        imgs_1 = []
+        imgs_2 = []
+        imgs_3 = []
+        proj_matrices_0 = []
+        proj_matrices_1 = []
+        proj_matrices_2 = []
+        proj_matrices_3 = []
+
+        for cam_key in cam_keys:
+            img = self.images[cam_key]
+            np_img = np.array(img, dtype=np.float32) / 255.0
+            np_img = cv2.resize(np_img, (self.image_w, self.image_h), interpolation=cv2.INTER_LINEAR)
+
+            h, w, _ = np_img.shape
+
+            imgs_0.append(np_img)
+            imgs_1.append(cv2.resize(np_img, (w // 2, h // 2), interpolation=cv2.INTER_LINEAR))
+            imgs_2.append(cv2.resize(np_img, (w // 4, h // 4), interpolation=cv2.INTER_LINEAR))
+            imgs_3.append(cv2.resize(np_img, (w // 8, h // 8), interpolation=cv2.INTER_LINEAR))
+
+            # intrinsics, extrinsics = self.data["cameras"][vid]
+            intrinsics = self.sfm_result.get_camera(cam_key).calibration().K()
+            extrinsics = np.linalg.inv(self.sfm_result.get_camera(cam_key).pose().matrix())
+
+            # multiply intrinsics and extrinsics to get projection matrix
+            proj_mat = extrinsics.copy()
+            intrinsics[:2, :] *= 0.125
+            proj_mat[:3, :4] = np.matmul(intrinsics, proj_mat[:3, :4])
+            proj_matrices_3.append(proj_mat)
+
+            proj_mat = extrinsics.copy()
+            intrinsics[:2, :] *= 2
+            proj_mat[:3, :4] = np.matmul(intrinsics, proj_mat[:3, :4])
+            proj_matrices_2.append(proj_mat)
+
+            proj_mat = extrinsics.copy()
+            intrinsics[:2, :] *= 2
+            proj_mat[:3, :4] = np.matmul(intrinsics, proj_mat[:3, :4])
+            proj_matrices_1.append(proj_mat)
+
+            proj_mat = extrinsics.copy()
+            intrinsics[:2, :] *= 2
+            proj_mat[:3, :4] = np.matmul(intrinsics, proj_mat[:3, :4])
+            proj_matrices_0.append(proj_mat)
+
+        imgs_0 = np.stack(imgs_0).transpose([0, 3, 1, 2])
+        imgs_1 = np.stack(imgs_1).transpose([0, 3, 1, 2])
+        imgs_2 = np.stack(imgs_2).transpose([0, 3, 1, 2])
+        imgs_3 = np.stack(imgs_3).transpose([0, 3, 1, 2])
+        imgs = {}
+        imgs["stage_0"] = imgs_0
+        imgs["stage_1"] = imgs_1
+        imgs["stage_2"] = imgs_2
+        imgs["stage_3"] = imgs_3
+
+        # proj_matrices: N*4*4
+        proj_matrices_0 = np.stack(proj_matrices_0)
+        proj_matrices_1 = np.stack(proj_matrices_1)
+        proj_matrices_2 = np.stack(proj_matrices_2)
+        proj_matrices_3 = np.stack(proj_matrices_3)
+        proj = {}
+        proj["stage_3"] = proj_matrices_3
+        proj["stage_2"] = proj_matrices_2
+        proj["stage_1"] = proj_matrices_1
+        proj["stage_0"] = proj_matrices_0
+
+        return {
+            "idx": index,
+            "imgs": imgs,  # N*3*H0*W0
+            "proj_matrices": proj,  # N*4*4
+            "depth_min": self.depth_metas[index, 0],  # scalar
+            "depth_max": self.depth_metas[index, 1],  # scalar
+            "filename": "{}/" + "{:0>8}".format(ref_key) + "{}",
+        }
