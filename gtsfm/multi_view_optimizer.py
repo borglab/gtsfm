@@ -98,7 +98,7 @@ class MultiViewOptimizer:
         ba_result_graph = self.ba_optimizer.create_computation_graph(ba_input_graph)
 
         if gt_poses_graph is None:
-            return ba_input_graph, ba_result_graph, None
+            return ba_input_graph, ba_result_graph, None, None
 
         metrics_graph = dask.delayed(metrics.compute_averaging_metrics)(
             i2Ui1_graph, wRi_graph, wti_graph, gt_poses_graph

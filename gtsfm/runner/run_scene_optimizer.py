@@ -7,7 +7,7 @@ from hydra.utils import instantiate
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.loader.olsson_loader import OlssonLoader
+from gtsfm.loader.skydio_loader import SkydioLoader
 from gtsfm.scene_optimizer import SceneOptimizer
 
 DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "tests" / "data"
@@ -22,7 +22,7 @@ def run_scene_optimizer() -> None:
         cfg = hydra.compose(config_name="default_lund_door_set1_config.yaml")
         scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
-        loader = OlssonLoader(os.path.join(DATA_ROOT, "set1_lund_door"), image_extension="JPG")
+        loader = SkydioLoader(os.path.join(DATA_ROOT, "crane_tower_graffiti"), image_extension="JPG")
 
         sfm_result_graph = scene_optimizer.create_computation_graph(
             num_images=len(loader),

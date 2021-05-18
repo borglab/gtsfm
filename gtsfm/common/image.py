@@ -109,3 +109,14 @@ class Image(NamedTuple):
         patch_values = padded_value_array[center_y : center_y + patch_size, center_x : center_x + patch_size]
 
         return Image(value_array=patch_values, exif_data=None)
+
+    def modify_exif_data(self, key, value):
+        """Modifies the exif data of an image.
+
+        Args:
+            key: name of exif attribute to modify.
+            value: new value for specfied exif attribute.
+
+        Returns:
+        """
+        self.exif_data[key] = value
