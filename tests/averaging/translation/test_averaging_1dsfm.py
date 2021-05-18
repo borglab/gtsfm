@@ -14,7 +14,7 @@ from gtsam.examples import SFMdata
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
 
-# import tests.data.sample_poses as sample_poses
+import tests.data.sample_poses as sample_poses
 from gtsfm.averaging.translation.averaging_1dsfm import TranslationAveraging1DSFM
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.loader.olsson_loader import OlssonLoader
