@@ -102,7 +102,7 @@ class Refinement(nn.Module):
         """Forward method
 
         Args:
-            img: input source and reference images (B, 3, H, W)
+            img: input reference images (B, 3, H, W)
             depth_0: current depth map (B, 1, H//2, W//2)
             depth_min: pre-defined minimum depth (B, )
             depth_max: pre-defined maximum depth (B, )
