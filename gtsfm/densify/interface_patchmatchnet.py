@@ -10,7 +10,7 @@ from torch.utils.data import Dataset
 
 from gtsfm.common.image import Image
 from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.densify.mvs_math import piecewise_gaussian
+from gtsfm.densify.mvs_math import piecewise_gaussian, to_camera_coordinates
 
 
 class PatchmatchNetData(Dataset):
@@ -81,8 +81,12 @@ class PatchmatchNetData(Dataset):
                         key_a_id = self.keys_map[cam_a_id]
                         key_b_id = self.keys_map[cam_b_id]
 
-                        cam_a_pos_i = self.sfm_result.get_camera(cam_a_id).pose().matrix() @ position_3d
-                        cam_b_pos_i = self.sfm_result.get_camera(cam_b_id).pose().matrix() @ position_3d
+                        cam_a_pos_i = to_camera_coordinates(
+                            p=position_3d, camera_pose=self.sfm_result.get_camera(cam_a_id).pose().matrix()
+                        )
+                        cam_b_pos_i = to_camera_coordinates(
+                            p=position_3d, camera_pose=self.sfm_result.get_camera(cam_b_id).pose().matrix()
+                        )
 
                         score_a_b = piecewise_gaussian(p_a=cam_a_pos_i, p_b=cam_b_pos_i)
 
@@ -136,7 +140,7 @@ class PatchmatchNetData(Dataset):
         proj_matrices_3 = []
 
         for cam_key in cam_keys:
-            img = self.images[cam_key]
+            img = self.images[cam_key].value_array
             np_img = np.array(img, dtype=np.float32) / 255.0
             np_img = cv2.resize(np_img, (self.image_w, self.image_h), interpolation=cv2.INTER_LINEAR)
 

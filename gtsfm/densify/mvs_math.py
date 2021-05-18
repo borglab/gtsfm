@@ -2,8 +2,6 @@
 
 Authors: Ren Liu
 """
-from typing import Dict, Any
-
 import math
 import numpy as np
 
@@ -42,3 +40,21 @@ def piecewise_gaussian(
         return math.exp(-((theta - theta_0) ** 2) / (2 * sigma_1 ** 2))
     else:
         return math.exp(-((theta - theta_0) ** 2) / (2 * sigma_2 ** 2))
+
+
+def to_camera_coordinates(p: np.ndarray, camera_pose: np.ndarray) -> np.ndarray:
+    """convert world coordinates to camera coordinates
+
+    Args:
+        p: pose vector in np.ndarray of [3, ] shape,
+        camera_pose: target camera pose, a 4x4 np.ndarray
+
+    Returns:
+        pose vector in np.ndarray of [3, ] shape in target camera perspective
+    """
+    homo_p = np.ones([4])
+    homo_p[:3] = p
+    cam_p = camera_pose @ homo_p.reshape([4, 1])
+    cam_p /= cam_p[3, 0]
+
+    return cam_p.reshape([4])[:3]
