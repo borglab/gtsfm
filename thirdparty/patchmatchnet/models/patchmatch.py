@@ -1,6 +1,11 @@
 """Implementation of Patchmatch Module
     reference: https://github.com/FangjinhuaWang/PatchmatchNet
 
+PatchmatchNet uses the following main steps:
+
+1. Initialization: generate random hypotheses;
+2. Propagation: propagate hypotheses to neighbors;
+3. Evaluation: compute the matching costs for all the hypotheses and choose best solutions.
 """
 from typing import List, Optional, Tuple, Union
 
@@ -43,7 +48,7 @@ class DepthInitialization(nn.Module):
             height: height of depth map
             width: width of depth map
             depth_interval_scale: depth interval scale
-            device: decide data on which device
+            device: device on which to place tensor
             depth: current depth
 
         Returns:
@@ -164,15 +169,17 @@ class Propagation(nn.Module):
 
 
 class Evaluation(nn.Module):
-    """Evaluation Class"""
+    """Evaluation Class for adaptive evaluation step in Learning-based Patchmatch
+    Used to compute the matching costs for all the hypotheses and choose best solutions.
+    """
 
     def __init__(self, G: int = 8, stage: int = 3, evaluate_neighbors: int = 9, iterations: int = 2) -> None:
         """Initialize method
 
         Args:
-            G: number of groups
+            G: the feature channels of input will be divided evenly into G groups
             stage: stage id
-            evaluate neighbors: number of evaluate neighbors
+            evaluate_neighbors: number of neighbors to be sampled in evaluation
             iterations: number of evaluation iteration
         """
         super(Evaluation, self).__init__()
@@ -357,10 +364,10 @@ class PatchMatch(nn.Module):
             patchmatch_num_sample: number of samples in patchmatch,
             patchmatch_interval_scale: interval scale,
             num_feature: number of features,
-            G: number of groups,
-            propagate_neighbors: number of propagrate neighbors,
+            G: the feature channels of input will be divided evenly into G groups,
+            propagate_neighbors: number of neighbors to be sampled in propagration,
             stage: number of stage,
-            evaluate_neighbors: number of evaluate neighbors,
+            evaluate_neighbors: number of neighbors to be sampled in evaluation,
         """
         super(PatchMatch, self).__init__()
         self.random_initialization = random_initialization
@@ -422,14 +429,15 @@ class PatchMatch(nn.Module):
             height: grid height
             width: grid width
             offset: grid offset
-            device: decide the tensor on which device
+            device: device on which to place tensor
 
         Returns:
             generated grid: in the shape of [batch, len(original_offset)*H, W, 2]
         """
-        if self.propagate_neighbors == 4:
+
+        if self.propagate_neighbors == 4:  # if 4 neighbors to be sampled in propagation
             original_offset = [[-self.dilation, 0], [0, -self.dilation], [0, self.dilation], [self.dilation, 0]]
-        elif self.propagate_neighbors == 8:
+        elif self.propagate_neighbors == 8:  # if 8 neighbors to be sampled in propagation
             original_offset = [
                 [-self.dilation, -self.dilation],
                 [-self.dilation, 0],
@@ -440,7 +448,7 @@ class PatchMatch(nn.Module):
                 [self.dilation, 0],
                 [self.dilation, self.dilation],
             ]
-        elif self.propagate_neighbors == 16:
+        elif self.propagate_neighbors == 16:  # if 16 neighbors to be sampled in propagation
             original_offset = [
                 [-self.dilation, -self.dilation],
                 [-self.dilation, 0],
@@ -493,19 +501,19 @@ class PatchMatch(nn.Module):
     def get_evaluation_grid(
         self, batch: int, height: int, width: int, offset: torch.Tensor, device: torch.device, img: torch.Tensor = None
     ) -> torch.Tensor:
-        """Compute the offests for adaptive spatial cost aggregation in adaptive evaluation
+        """Compute the offsets for adaptive spatial cost aggregation in adaptive evaluation
 
         Args:
             batch: batch size
             height: grid height
             width: grid width
             offset: grid offset
-            device: decide the tensor on which device
+            device: device on which to place tensor
 
         Returns:
             generated grid: in the shape of [batch, len(original_offset)*H, W, 2]
         """
-        if self.evaluate_neighbors == 9:
+        if self.evaluate_neighbors == 9:  # if 17 neighbors to be sampled in evaluation
             dilation = self.dilation - 1  # dilation of evaluation is a little smaller than propagation
             original_offset = [
                 [-dilation, -dilation],
@@ -518,7 +526,7 @@ class PatchMatch(nn.Module):
                 [dilation, 0],
                 [dilation, dilation],
             ]
-        elif self.evaluate_neighbors == 17:
+        elif self.evaluate_neighbors == 17:  # if 17 neighbors to be sampled in evaluation
             dilation = self.dilation - 1
             original_offset = [
                 [-dilation, -dilation],
@@ -773,34 +781,34 @@ class PatchMatch(nn.Module):
 
 
 class SimilarityNet(nn.Module):
-    """Similarity Net
-    1. Do convolution on aggregated cost among all the source views
-    2. Perform adaptive spatial cost aggregation to get final cost
+    """Similarity Net, used in Evalutaion class (adaptive evaluation step)
+    1. Do 3D convolution on aggregated cost [B, group_num(G), Ndepth, H, W] among all the source views
+    2. Perform adaptive spatial cost aggregation to get final cost (scores)
     """
 
     def __init__(self, G: int, neighbors: int = 9) -> None:
         """Initialize method
 
         Args:
-            G: group number
-            neighbors: number of neighbors
+            G: the feature channels of input will be divided evenly into G groups
+            neighbors: number of neighbors to be sampled
         """
         super(SimilarityNet, self).__init__()
         self.neighbors = neighbors
 
-        self.conv0 = ConvBnReLU3D(G, 16, 1, 1, 0)
-        self.conv1 = ConvBnReLU3D(16, 8, 1, 1, 0)
-        self.similarity = nn.Conv3d(8, 1, kernel_size=1, stride=1, padding=0)
+        self.conv0 = ConvBnReLU3D(in_channels=G, out_channels=16, kernel_size=1, stride=1, pad=0)
+        self.conv1 = ConvBnReLU3D(in_channels=16, out_channels=8, kernel_size=1, stride=1, pad=0)
+        self.similarity = nn.Conv3d(in_channels=8, out_channels=1, kernel_size=1, stride=1, padding=0)
 
     def forward(self, x1: torch.Tensor, grid: torch.Tensor, weight: torch.Tensor) -> torch.Tensor:
         """Forward method for SimilarityNet
 
         Args:
-            x1: [B, G, Ndepth, H, W], aggregated cost among all the source views with pixel-wise view weight
+            x1: [B, group_num(G), Ndepth, H, W], aggregated cost among all the source views with pixel-wise view weight
             grid: position of sampling points in adaptive spatial cost aggregation
             weight: weight of sampling points in adaptive spatial cost aggregation, combination of
                 feature weight and depth weight
-        
+
         Returns:
             final cost: in the shape of [B,Ndepth,H,W]
         """
@@ -818,9 +826,9 @@ class SimilarityNet(nn.Module):
 
 
 class FeatureWeightNet(nn.Module):
-    """FeatureWeight Net
-    1. Adaptive spatial cost aggregation
-    2. Weight based on similarity of features of sampling points and center pixel
+    """FeatureWeight Net: Called at the beginning of patchmatch, to calculate feature weights based on similarity of
+    features of sampling points and center pixel. The feature weights is used to implement adaptive spatial
+    cost aggregation.
     """
 
     def __init__(self, num_feature: int, neighbors: int = 9, G: int = 8) -> None:
@@ -828,16 +836,17 @@ class FeatureWeightNet(nn.Module):
 
         Args:
             num_features: number of features
-            neighbors: number of neighbors
-            G: number of groups
+            neighbors: number of neighbors to be sampled
+            G: the feature channels of input will be divided evenly into G groups
         """
         super(FeatureWeightNet, self).__init__()
         self.neighbors = neighbors
         self.G = G
 
-        self.conv0 = ConvBnReLU3D(G, 16, 1, 1, 0)
-        self.conv1 = ConvBnReLU3D(16, 8, 1, 1, 0)
-        self.similarity = nn.Conv3d(8, 1, kernel_size=1, stride=1, padding=0)
+        self.conv0 = ConvBnReLU3D(in_channels=G, out_channels=16, kernel_size=1, stride=1, pad=0)
+        self.conv1 = ConvBnReLU3D(in_channels=16, out_channels=8, kernel_size=1, stride=1, pad=0)
+
+        self.similarity = nn.Conv3d(in_channels=8, out_channels=1, kernel_size=1, stride=1, padding=0)
 
         self.output = nn.Sigmoid()
 
@@ -845,7 +854,7 @@ class FeatureWeightNet(nn.Module):
         """Forward method for FeatureWeightNet
 
         Args:
-            ref_feature: reference feature map
+            ref_feature: reference feature map, [B,C,H,W]
             grid: position of sampling points in adaptive spatial cost aggregation
 
         Returns:
@@ -886,7 +895,7 @@ def depth_weight(
         depth_max: maximum virtual depth
         grid: position of sampling points in adaptive spatial cost aggregation
         patchmatch_interval_scale: patchmatch interval scale,
-        evaluate_neighbors: number of evaluate neighbors
+        evaluate_neighbors: number of neighbors to be sampled in evaluation
 
     Returns:
         depth weight
@@ -919,25 +928,30 @@ def depth_weight(
 
 
 class PixelwiseNet(nn.Module):
-    """Pixelwise Net: estimate pixel-wise view weight"""
+    """Pixelwise Net: estimate pixel-wise view weight from the similarity.
+    The Pixelwise Net is used in adaptive evaluation step
+    The similarity is calculated by ref_feature and other source_features warpped by differentiable_warping
+    The learned pixel-wise view weight is estimated in the first iteration of Patchmatch and kept fixed in the matching
+        cost computation.
+    """
 
     def __init__(self, G: int) -> None:
         """Initialize method
 
         Args:
-            G: number of groups
+            G: the feature channels of input will be divided evenly into G groups
         """
         super(PixelwiseNet, self).__init__()
-        self.conv0 = ConvBnReLU3D(G, 16, 1, 1, 0)
-        self.conv1 = ConvBnReLU3D(16, 8, 1, 1, 0)
-        self.conv2 = nn.Conv3d(8, 1, kernel_size=1, stride=1, padding=0)
+        self.conv0 = ConvBnReLU3D(in_channels=G, out_channels=16, kernel_size=1, stride=1, pad=0)
+        self.conv1 = ConvBnReLU3D(in_channels=16, out_channels=8, kernel_size=1, stride=1, pad=0)
+        self.conv2 = nn.Conv3d(in_channels=8, out_channels=1, kernel_size=1, stride=1, padding=0)
         self.output = nn.Sigmoid()
 
     def forward(self, x1: torch.Tensor) -> torch.Tensor:
         """Forward method for PixelwiseNet
 
         Args:
-            x1: pixel-wise view weight, [B, G, Ndepth, H, W]
+            x1: pixel-wise view weight, [B, group_num(G), Ndepth, H, W]
         """
 
         # [B, Ndepth, H, W]

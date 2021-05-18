@@ -97,7 +97,7 @@ def tocuda(vars: Any) -> Union[str, torch.Tensor]:
         raise NotImplementedError("invalid input type {} for tocuda".format(type(vars)))
 
 
-def save_scalars(logger: tb.SummaryWriter, mode: str, scalar_dict: dict, global_step: int):
+def save_scalars(logger: tb.SummaryWriter, mode: str, scalar_dict: dict, global_step: int) -> None:
     """Log values stored in the scalar dictionary
 
     Args:
@@ -117,7 +117,7 @@ def save_scalars(logger: tb.SummaryWriter, mode: str, scalar_dict: dict, global_
                 logger.add_scalar(name, value[idx], global_step)
 
 
-def save_images(logger: tb.SummaryWriter, mode: str, images_dict: dict, global_step: int):
+def save_images(logger: tb.SummaryWriter, mode: str, images_dict: dict, global_step: int) -> None:
     """Log images stored in the image dictionary
 
     Args:
@@ -195,16 +195,16 @@ def compute_metrics_for_each_image(metric_func: Callable) -> Callable:
 @make_nograd_func
 @compute_metrics_for_each_image
 def Thres_metrics(depth_est: torch.Tensor, depth_gt: torch.Tensor, mask: torch.Tensor, thres: Union[int, float]):
-    """Return error mask where error is larger than threshold
+    """Return error mask where absolute error is larger than threshold
 
     Args:
-        depth_est: expected depth map
+        depth_est: estimated depth map
         depth_gt: ground truth depth map
         mask: mask
         thres: threshold
 
     Returns:
-        error mask where error > threshold
+        error rate: error rate of the mask
     """
     # if thres is int or float, then True
     assert isinstance(thres, (int, float))
@@ -217,7 +217,7 @@ def Thres_metrics(depth_est: torch.Tensor, depth_gt: torch.Tensor, mask: torch.T
 # NOTE: please do not use this to build up training loss
 @make_nograd_func
 @compute_metrics_for_each_image
-def AbsDepthError_metrics(depth_est: torch.Tensor, depth_gt: torch.Tensor, mask: torch.Tensor):
+def AbsDepthError_metrics(depth_est: torch.Tensor, depth_gt: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
     """Calculate average absolute depth error
 
     Args:
