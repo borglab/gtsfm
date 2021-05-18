@@ -261,9 +261,9 @@ def write_images(gtsfm_data: GtsfmData, save_dir: str) -> None:
 
 def read_points_txt(fpath: str) -> np.ndarray:
     """Read 3d points and their associated colors from a COLMAP points.txt file.
-    
+
     Reference: https://colmap.github.io/format.html#points3d-txt
-    
+
     Args:
         fpath: absolute file path to points.txt file
 
@@ -284,7 +284,7 @@ def read_points_txt(fpath: str) -> np.ndarray:
 
         point = [float(x), float(y), float(z)]
         point_cloud += [point]
-        rgb += [( int(r),int(g),int(b) )]
+        rgb += [(int(r), int(g), int(b))]
 
     point_cloud = np.array(point_cloud)
     rgb = np.array(rgb).astype(np.uint8)
