@@ -137,7 +137,7 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
 
     num_cams = int(lines[2].replace("# Number of cameras: ", "").strip())
     # should have one line per camera
-    assert len(lines) - 3 == num_cams
+    # assert len(lines) - 3 == num_cams
 
     calibrations = []
     for line in lines[3:]:
@@ -256,6 +256,39 @@ def write_images(gtsfm_data: GtsfmData, save_dir: str) -> None:
 
             f.write(f"{i} {qw} {qx} {qy} {qz} {tx} {ty} {tz} {i} {img_fname}\n")
             # TODO: write out the points2d
+            f.write("TODO\n")
+
+
+def read_points_txt(fpath: str) -> np.ndarray:
+    """Read 3d points and their associated colors from a COLMAP points.txt file.
+    
+    Reference: https://colmap.github.io/format.html#points3d-txt
+    
+    Args:
+        fpath: absolute file path to points.txt file
+
+    Returns:
+        point_cloud: float array of shape (N,3)
+        rgb: uint8 array of shape (N,3)
+    """
+    with open(fpath, "r") as f:
+        data = f.readlines()
+
+    rgb = []
+    point_cloud = []
+    # first 3 lines are information about the file format
+    data = data[3:]
+    for line in data:
+        entries = line.split()
+        x, y, z, r, g, b = entries[1:7]
+
+        point = [float(x), float(y), float(z)]
+        point_cloud += [point]
+        rgb += [( int(r),int(g),int(b) )]
+
+    point_cloud = np.array(point_cloud)
+    rgb = np.array(rgb).astype(np.uint8)
+    return point_cloud, rgb
 
 
 def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
