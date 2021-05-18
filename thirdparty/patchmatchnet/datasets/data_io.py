@@ -16,7 +16,7 @@ def read_pfm(filename: str) -> Tuple[np.ndarray, float]:
         filename: string of input .pfm file path
 
     Returns:
-        data: data read from .pfm file in the of shape (H, w, C)
+        data: data read from .pfm file in the of shape (H, W, C)
         scale: float scale parameter loaded from .pfm file
     """
     file = open(filename, "rb")
