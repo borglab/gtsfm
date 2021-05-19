@@ -58,8 +58,7 @@ class ColmapLoader(LoaderBase):
         self._calibrations = io_utils.read_cameras_txt(fpath=os.path.join(colmap_files_dirpath,"cameras.txt"))
         if len(self._calibrations) == 1:
             # shared calibration!
-            import pdb; pdb.set_trace()
-            self._calibrations = [self._calibrations] * len(img_fnames)
+            self._calibrations = self._calibrations * len(img_fnames)
 
         if self._calibrations is None or len(img_fnames) != len(self._calibrations):
             self._use_gt_intrinsics = False
@@ -83,7 +82,7 @@ class ColmapLoader(LoaderBase):
         print(f"Has {self._num_imgs} images")
         # self.get_camera_intrinsics(0)
 
-        # import pdb; pdb.set_trace()
+        
         # # read one image, to check if we need to downsample the images
         # img = io_utils.load_image(self._image_paths[0])
 
@@ -93,6 +92,7 @@ class ColmapLoader(LoaderBase):
         # else:
         #     self._downsample_factor = 1
         self._downsample_factor = 4
+        
 
     def __len__(self) -> int:
         """The number of images in the dataset.
