@@ -108,7 +108,7 @@ class Refinement(nn.Module):
             depth_max: pre-defined maximum depth (B, )
 
         Returns:
-            depth: refined depth map (B, 1, H//2, W//2)
+            depth: refined depth map (B, 1, H, W)
         """
 
         batch_size = depth_min.size()[0]
@@ -135,7 +135,7 @@ class Refinement(nn.Module):
 
 
 class PatchmatchNet(nn.Module):
-    """ Implementation of complete structure of Patchmatch Net"""
+    """ Implementation of complete structure of PatchmatchNet"""
 
     def __init__(
         self,
@@ -146,7 +146,7 @@ class PatchmatchNet(nn.Module):
         propagate_neighbors: List[int] = [0, 8, 16],
         evaluate_neighbors: List[int] = [9, 9, 9],
     ) -> None:
-        """Initialize modules in patchmatch net
+        """Initialize modules in PatchmatchNet
 
         Args:
             patchmatch_interval_scale: depth interval scale in patchmatch module
@@ -336,11 +336,11 @@ def patchmatchnet_loss(
     depth_gt: Dict[str, torch.Tensor],
     mask: Dict[str, torch.Tensor],
 ) -> torch.Tensor:
-    """Patchmatch Net loss function
+    """PatchmatchNet loss function
 
     Args:
-        depth_patchmatch: depth map predicted by patchmatch net
-        refined_depth: refined depth map predicted by patchmatch net
+        depth_patchmatch: depth map predicted by PatchmatchNet
+        refined_depth: refined depth map predicted by PatchmatchNet
         depth_gt: ground truth depth map
         mask: mask for filter valid points
 
