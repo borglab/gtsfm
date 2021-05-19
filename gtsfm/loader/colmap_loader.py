@@ -4,6 +4,7 @@ Authors: John Lambert
 """
 
 import os
+from pathlib import Path
 from typing import Optional
 
 from gtsam import Cal3Bundler, Pose3
@@ -71,7 +72,6 @@ class ColmapLoader(LoaderBase):
         self._image_paths = []
         for img_fname in img_fnames:
             img_fpath = os.path.join(images_dir, img_fname)
-            from pathlib import Path
             if not Path(img_fpath).exists():
                 continue
             self._image_paths.append(img_fpath)
