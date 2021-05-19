@@ -52,7 +52,6 @@ class ColmapLoader(LoaderBase):
         self._use_gt_extrinsics = use_gt_extrinsics
         self._max_frame_lookahead = max_frame_lookahead
         self._max_resolution = max_resolution
-        #import pdb; pdb.set_trace()
 
         self._wTi_list, img_fnames = io_utils.read_images_txt(fpath=os.path.join(colmap_files_dirpath, "images.txt"))
         self._calibrations = io_utils.read_cameras_txt(fpath=os.path.join(colmap_files_dirpath,"cameras.txt"))
@@ -115,7 +114,7 @@ class ColmapLoader(LoaderBase):
             Image: the image at the query index.
         """
 
-        if index < 0 or index > self.__len__():
+        if index < 0 or index > len(self):
             raise IndexError("Image index is invalid")
 
         img = io_utils.load_image(self._image_paths[index])
