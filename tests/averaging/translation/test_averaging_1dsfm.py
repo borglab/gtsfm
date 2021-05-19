@@ -220,6 +220,7 @@ class Test1dsfmAllOutliers(unittest.TestCase):
         wti_computed = self.obj.run(len(wRi_input), i2Ui1_input, wRi_input)
 
         assert len(wti_computed) == 5
+        assert wti_computed[-1] is None
 
 
 if __name__ == "__main__":
