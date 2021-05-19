@@ -15,10 +15,14 @@ from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
 
 import gtsfm.utils.images as image_utils
+import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reproj_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.sfm_track import SfmTrack2d
+
+
+logger = logger_utils.get_logger()
 
 
 def load_image(img_path: str) -> Image:
@@ -68,7 +72,6 @@ def load_h5(file_path: str) -> Dict[Any, Any]:
     Returns:
         the dictionary from the h5 file
     """
-
     data = {}
 
     with h5py.File(file_path, "r") as f:
@@ -130,14 +133,14 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
         calibrations: calibration object for each camera
     """
     if not Path(fpath).exists():
+        logger.info("%s does not exist", fpath)
         return None
 
     with open(fpath, "r") as f:
         lines = f.readlines()
 
+    # may not be one line per camera (could be only one line of text if shared calibration)
     num_cams = int(lines[2].replace("# Number of cameras: ", "").strip())
-    # should have one line per camera
-    # assert len(lines) - 3 == num_cams
 
     calibrations = []
     for line in lines[3:]:
@@ -209,6 +212,7 @@ def read_images_txt(fpath: str) -> Tuple[Optional[List[Pose3]], Optional[List[st
         img_fnames: name of image file, for each image, or None if file path invalid
     """
     if not Path(fpath).exists():
+        logger.info("%s does not exist", fpath)
         return None, None
 
     with open(fpath, "r") as f:
@@ -278,6 +282,7 @@ def read_points_txt(fpath: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarr
         rgb: uint8 array of shape (N,3)
     """
     if not Path(fpath).exists():
+        logger.info("%s does not exist", fpath)
         return None, None
     
     with open(fpath, "r") as f:
@@ -286,6 +291,13 @@ def read_points_txt(fpath: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarr
     rgb = []
     point_cloud = []
     # first 3 lines are information about the file format
+    # line at index 2 will be of the form
+    # "# Number of points: 2122, mean track length: 2.8449575871819039"
+    points_metadata = data[2]
+    j = points_metadata.find(':')
+    k = points_metadata.find(',')
+    expected_num_pts = int(points_metadata[j+1:k])
+
     data = data[3:]
     for line in data:
         entries = line.split()
@@ -297,6 +309,9 @@ def read_points_txt(fpath: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarr
 
     point_cloud = np.array(point_cloud)
     rgb = np.array(rgb).astype(np.uint8)
+
+    assert point_cloud.shape[0] == expected_num_pts
+    assert rgb.shape[0] == expected_num_pts
     return point_cloud, rgb
 
 
