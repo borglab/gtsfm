@@ -65,7 +65,6 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 may contain `None` where the global translations could not be computed (either underconstrained system
                 or ill-constrained system).
         """
-
         noise_model = gtsam.noiseModel.Isotropic.Sigma(NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
 
         # Note: all measurements are relative translation directions in the
@@ -118,7 +117,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         # transforming the result to the list of Point3
         wti_list = [None] * num_images
         for i in range(num_images):
-            if wRi_list[i] is not None:
+            if wRi_list[i] is not None and wti_values.exists(i):
                 wti_list[i] = wti_values.atPoint3(i)
 
         return wti_list
