@@ -24,7 +24,7 @@ def run_scene_optimizer(args) -> None:
         cfg = compose(config_name="default_lund_door_set1_config.yaml")
         scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
-        loader = OlssonLoader(args.dataset_root, image_extension=args.image_extension)
+        loader = OlssonLoader(args.dataset_root, image_extension=args.image_extension, max_frame_lookahead=args.max_frame_lookahead)
 
         sfm_result_graph = scene_optimizer.create_computation_graph(
             len(loader),
@@ -51,6 +51,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--image_extension", type=str, default="JPG", help=""
+    )
+    parser.add_argument(
+        "--max_frame_lookahead", type=int, default=20, help="maximum number of consecutively ordered frames to consider for matching/co-visibility"
     )
     args = parser.parse_args()
 
