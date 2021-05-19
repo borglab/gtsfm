@@ -49,7 +49,7 @@ class DepthInitialization(nn.Module):
             width: width of depth map
             depth_interval_scale: depth interval scale
             device: device on which to place tensor
-            depth: current depth (B, 1, H', W')
+            depth: current depth (B, 1, H, W)
 
         Returns:
             depth_sample: initialized sample depth map by randomization or local perturbation (B, Ndepth, H, W)
@@ -140,7 +140,7 @@ class Propagation(nn.Module):
             height: depth map height,
             width: depth map width,
             depth_sample: sample depth map, in shape of [batch, num_depth, height, width],
-            grid: 2D grid for bilinear gridding, in shape of [batch, propagation_neighbors*H, W, 2],
+            grid: 2D grid for bilinear gridding, in shape of [batch, neighbors*H, W, 2],
                     Propagation neighbors generally equals to 9, suggesting the 3x3 neighbor grids.
             depth_min: minimum virtual depth, in shape of [batch, ]
             depth_max: maximum virtual depth, in shape of [batch, ]
@@ -211,9 +211,11 @@ class Evaluation(nn.Module):
 
         Args:
             ref_feature: feature from reference view, (B, C, H, W)
-            src_features: features from (Nview-1) source views, (Nview-1) * (B, C, H, W)
+            src_features: features from (Nview-1) source views, (Nview-1) * (B, C, H, W), where Nview is the number of
+                input images (or views) of PatchmatchNet
             ref_proj: projection matrix of reference view, (B, 4, 4)
-            src_projs: source matrices of source views, (Nview-1) * (B, 4, 4)
+            src_projs: source matrices of source views, (Nview-1) * (B, 4, 4), where Nview is the number of input
+                images (or views) of PatchmatchNet
             depth_sample: sample depth map, (B,Ndepth,H,W)
             depth_min: minimum virtual depth, (B,)
             depth_max: maximum virtual depth, (B,)
@@ -598,12 +600,14 @@ class PatchMatch(nn.Module):
 
         Args:
             ref_feature: feature from reference view, (B, C, H, W)
-            src_features: features from (Nview-1) source views, (Nview-1) * (B, C, H, W)
+            src_features: features from (Nview-1) source views, (Nview-1) * (B, C, H, W), where Nview is the number of
+                input images (or views) of PatchmatchNet
             ref_proj: projection matrix of reference view, (B, 4, 4)
-            src_projs: source matrices of source views, (Nview-1) * (B, 4, 4)
+            src_projs: source matrices of source views, (Nview-1) * (B, 4, 4), where Nview is the number of input
+                images (or views) of PatchmatchNet
             depth_min: minimum virtual depth, (B,)
             depth_max: maximum virtual depth, (B,)
-            depth: current depth map, (B,H',W')
+            depth: current depth map, (B,H,W) or None
             img: image, (B,C,image_H,image_W)
             view_weights: Tensor to store weights of source views, in shape of (B,Nview-1,H,W),
                 Nview-1 represents the number of source views
