@@ -35,6 +35,7 @@ class OlssonLoader(LoaderBase):
         image_extension: str = "jpg",
         use_gt_intrinsics: bool = True,
         use_gt_extrinsics: bool = True,
+        max_frame_lookahead: int = 20
     ) -> None:
         """Initializes to load from a specified folder on disk.
 
@@ -46,6 +47,7 @@ class OlssonLoader(LoaderBase):
         """
         self._use_gt_intrinsics = use_gt_intrinsics
         self._use_gt_extrinsics = use_gt_extrinsics
+        self._max_frame_lookahead = max_frame_lookahead
 
         # fetch all the file names in /images folder
         search_path = os.path.join(folder, "images", f"*.{image_extension}")
@@ -158,5 +160,5 @@ class OlssonLoader(LoaderBase):
         Returns:
             validation result.
         """
-        return idx1 < idx2
+        return idx1 < idx2 and abs(idx1 - idx2) <= self._max_frame_lookahead
 
