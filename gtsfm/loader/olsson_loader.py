@@ -104,7 +104,7 @@ class OlssonLoader(LoaderBase):
             Image: the image at the query index.
         """
 
-        if index < 0 or index > self.__len__():
+        if index < 0 or index > len(self):
             raise IndexError("Image index is invalid")
 
         return io_utils.load_image(self._image_paths[index])
