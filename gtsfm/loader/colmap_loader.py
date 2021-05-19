@@ -56,12 +56,16 @@ class ColmapLoader(LoaderBase):
 
         self._wTi_list, img_fnames = io_utils.read_images_txt(fpath=os.path.join(colmap_files_dirpath, "images.txt"))
         self._calibrations = io_utils.read_cameras_txt(fpath=os.path.join(colmap_files_dirpath,"cameras.txt"))
-        if len(self._calibrations) == 1:
+
+        # if img_fnames is None:
+        # default to using everything inside image directory
+
+        if self._calibrations is None:
+            self._use_gt_intrinsics = False
+
+        if self._calibrations is not None and len(self._calibrations) == 1:
             # shared calibration!
             self._calibrations = self._calibrations * len(img_fnames)
-
-        if self._calibrations is None or len(img_fnames) != len(self._calibrations):
-            self._use_gt_intrinsics = False
 
         # import pdb; pdb.set_trace()
         # self._wTi_list = [self._wTi_list[i] for i in [0, 8]]
