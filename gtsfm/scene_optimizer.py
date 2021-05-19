@@ -5,6 +5,7 @@ Authors: Ayush Baid, John Lambert
 import copy
 import logging
 import os
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import dask
@@ -15,7 +16,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from dask.delayed import Delayed
 from gtsam import Pose3
-from pathlib import Path
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.io as io_utils
@@ -31,8 +31,8 @@ from gtsfm.two_view_estimator import TwoViewEstimator
 # paths for storage
 PLOT_PATH = "plots"
 PLOT_CORRESPONDENCE_PATH = os.path.join(PLOT_PATH, "correspondences")
-METRICS_PATH = "result_metrics"
-RESULTS_PATH = "results"
+METRICS_PATH = Path(__file__).resolve().parent.parent / "result_metrics"
+RESULTS_PATH = Path(__file__).resolve().parent.parent / "results"
 
 # Paths to Save Output in React Folders.
 REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"

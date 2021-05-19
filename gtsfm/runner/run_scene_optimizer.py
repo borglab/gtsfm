@@ -3,8 +3,8 @@ import argparse
 import os
 from pathlib import Path
 
+import hydra
 from dask.distributed import Client, LocalCluster, performance_report
-from hydra.experimental import compose, initialize_config_module
 from hydra.utils import instantiate
 
 import gtsfm.utils.logger as logger_utils
@@ -19,18 +19,18 @@ logger = logger_utils.get_logger()
 
 def run_scene_optimizer(args) -> None:
     """ """
-    with initialize_config_module(config_module="gtsfm.configs"):
+    with hydra.initialize_config_module(config_module="gtsfm.configs"):
         # config is relative to the gtsfm module
-        cfg = compose(config_name="default_lund_door_set1_config.yaml")
+        cfg = hydra.compose(config_name="default_lund_door_set1_config.yaml")
         scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
         loader = OlssonLoader(args.dataset_root, image_extension=args.image_extension, max_frame_lookahead=args.max_frame_lookahead)
 
         sfm_result_graph = scene_optimizer.create_computation_graph(
-            len(loader),
-            loader.get_valid_pairs(),
-            loader.create_computation_graph_for_images(),
-            loader.create_computation_graph_for_intrinsics(),
+            num_images=len(loader),
+            image_pair_indices=loader.get_valid_pairs(),
+            image_graph=loader.create_computation_graph_for_images(),
+            camera_intrinsics_graph=loader.create_computation_graph_for_intrinsics(),
             gt_pose_graph=loader.create_computation_graph_for_poses(),
         )
 
@@ -44,7 +44,6 @@ def run_scene_optimizer(args) -> None:
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(description="GTSFM with intrinsics and image names stored in COLMAP-format")
     parser.add_argument(
         "--dataset_root", type=str, default=os.path.join(DATA_ROOT, "set1_lund_door"), help=""
