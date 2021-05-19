@@ -265,7 +265,7 @@ def write_images(gtsfm_data: GtsfmData, save_dir: str) -> None:
             f.write("TODO\n")
 
 
-def read_points_txt(fpath: str) -> np.ndarray:
+def read_points_txt(fpath: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
     """Read 3d points and their associated colors from a COLMAP points.txt file.
 
     Reference: https://colmap.github.io/format.html#points3d-txt
@@ -277,6 +277,9 @@ def read_points_txt(fpath: str) -> np.ndarray:
         point_cloud: float array of shape (N,3)
         rgb: uint8 array of shape (N,3)
     """
+    if not Path(fpath).exists():
+        return None, None
+    
     with open(fpath, "r") as f:
         data = f.readlines()
 
