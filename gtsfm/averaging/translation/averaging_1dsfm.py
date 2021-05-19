@@ -28,8 +28,9 @@ from gtsfm.averaging.translation.translation_averaging_base import (
     TranslationAveragingBase,
 )
 
-# hyperparamters for 1D-SFM
-MAX_PROJECTION_DISTANCE = 50
+# Hyperparameters for 1D-SFM
+# maximum number of times 1dsfm will project the Unit3's to a 1d subspace for outlier rejection
+MAX_PROJECTION_DIRECTIONS = 50
 OUTLIER_WEIGHT_THRESHOLD = 0.1
 
 NOISE_MODEL_DIMENSION = 3  # chordal distances on Unit3
@@ -42,7 +43,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
     def __init__(self) -> None:
         super().__init__()
 
-        self._max_1dsfm_projection_direction = MAX_PROJECTION_DISTANCE
+        self._max_1dsfm_projection_directions = MAX_PROJECTION_DIRECTIONS
         self._outlier_weight_threshold = OUTLIER_WEIGHT_THRESHOLD
 
     def run(
@@ -82,7 +83,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         num_measurements = len(i2Ui1_dict)
         indices = np.random.choice(
             num_measurements,
-            min(self._max_1dsfm_projection_direction, num_measurements),
+            min(self._max_1dsfm_projection_directions, num_measurements),
             replace=False,
         )
 
