@@ -195,6 +195,11 @@ def read_images_txt(fpath: str) -> Tuple[Optional[List[Pose3]], Optional[List[st
     """Read camera poses and image file names from a COLMAP-format images.txt file.
 
     Reference: https://colmap.github.io/format.html#images-txt
+        "The coordinates of the projection/camera center are given by -R^t * T, where
+        R^t is the inverse/transpose of the 3x3 rotation matrix composed from the
+        quaternion and T is the translation vector. The local camera coordinate system
+        of an image is defined in a way that the X axis points to the right, the Y axis
+        to the bottom, and the Z axis to the front as seen from the image."
 
     Args:
         fpath: path to images.txt file
@@ -214,8 +219,9 @@ def read_images_txt(fpath: str) -> Tuple[Optional[List[Pose3]], Optional[List[st
     # ignore first 4 lines of text -- they are a description of the file format
     for line in lines[4::2]:
         i, qw, qx, qy, qz, tx, ty, tz, i, img_fname = line.split()
-        wRi = Rot3(float(qw), float(qx), float(qy), float(qz))
-        wTi = Pose3(wRi, np.array([tx, ty, tz], dtype=np.float64))
+        # Colmap provides extrinsics, so must invert
+        iRw = Rot3(float(qw), float(qx), float(qy), float(qz))
+        wTi = Pose3(iRw, np.array([tx, ty, tz], dtype=np.float64)).inverse()
         wTi_list.append(wTi)
         img_fnames.append(img_fname)
 
