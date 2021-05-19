@@ -8,6 +8,7 @@ from typing import Optional
 
 from gtsam import Cal3Bundler, Pose3
 
+import gtsfm.utils.images as img_utils
 import gtsfm.utils.io as io_utils
 from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
@@ -30,7 +31,8 @@ class ColmapLoader(LoaderBase):
         images_dir: str,
         use_gt_intrinsics: bool = True,
         use_gt_extrinsics: bool = True,
-        max_frame_lookahead: int = 1
+        max_frame_lookahead: int = 1,
+        max_resolution: int = 1080
     ) -> None:
         """Initializes to load from a specified folder on disk.
 
@@ -41,26 +43,56 @@ class ColmapLoader(LoaderBase):
             use_gt_intrinsics: whether to use ground truth intrinsics
             use_gt_extrinsics: whether to use ground truth extrinsics
             max_frame_lookahead: if images were sequentially captured, maximum number
-               of frames to consider for matching/co-visibility. Defaults to 1, i.e. 
+               of consecutive frames to consider for matching/co-visibility. Defaults to 1, i.e. 
                assuming data is not sequentially captured.
+            max_resolution: integer representing maximum length of image's short side
+               e.g. for 1080p (1920 x 1080), max_resolution would be 1080
         """
         self._use_gt_intrinsics = use_gt_intrinsics
         self._use_gt_extrinsics = use_gt_extrinsics
         self._max_frame_lookahead = max_frame_lookahead
+        self._max_resolution = max_resolution
+        #import pdb; pdb.set_trace()
 
-        self._calibrations = io_utils.read_cameras_txt(fpath=os.path.join(colmap_files_dirpath,"cameras.txt"))
         self._wTi_list, img_fnames = io_utils.read_images_txt(fpath=os.path.join(colmap_files_dirpath, "images.txt"))
+        self._calibrations = io_utils.read_cameras_txt(fpath=os.path.join(colmap_files_dirpath,"cameras.txt"))
+        if len(self._calibrations) == 1:
+            # shared calibration!
+            import pdb; pdb.set_trace()
+            self._calibrations = [self._calibrations] * len(img_fnames)
 
         if self._calibrations is None or len(img_fnames) != len(self._calibrations):
             self._use_gt_intrinsics = False
+
+        # import pdb; pdb.set_trace()
+        # self._wTi_list = [self._wTi_list[i] for i in [0, 8]]
+        # img_fnames = [img_fnames[i] for i in [0,8]] 
+        # self._calibrations = [self._calibrations[i] for i in [0,8]]
 
         # preserve COLMAP ordering of images
         self._image_paths = []
         for img_fname in img_fnames:
             img_fpath = os.path.join(images_dir, img_fname)
+            from pathlib import Path
+            if not Path(img_fpath).exists():
+                continue
             self._image_paths.append(img_fpath)
 
+
         self._num_imgs = len(self._image_paths)
+        print(f"Has {self._num_imgs} images")
+        # self.get_camera_intrinsics(0)
+
+        # import pdb; pdb.set_trace()
+        # # read one image, to check if we need to downsample the images
+        # img = io_utils.load_image(self._image_paths[0])
+
+        # sample_h, sample_w = img.height, img.width
+        # if min(sample_h, sample_w) > self._max_resolution:
+        #     self._downsample_factor, self.target_h, self.target_w = img_utils.get_exact_downsample_factor(img, self._max_resolution)
+        # else:
+        #     self._downsample_factor = 1
+        self._downsample_factor = 4
 
     def __len__(self) -> int:
         """The number of images in the dataset.
@@ -86,7 +118,9 @@ class ColmapLoader(LoaderBase):
         if index < 0 or index > self.__len__():
             raise IndexError("Image index is invalid")
 
-        return io_utils.load_image(self._image_paths[index])
+        img = io_utils.load_image(self._image_paths[index])
+        img = img_utils.resize_image(img, new_height=img.height//self._downsample_factor, new_width=img.width//self._downsample_factor)
+        return img
 
 
     def get_camera_intrinsics(self, index: int) -> Cal3Bundler:
@@ -104,6 +138,14 @@ class ColmapLoader(LoaderBase):
 
         else:
             intrinsics = self._calibrations[index]
+
+        intrinsics = Cal3Bundler(
+            fx=intrinsics.fx() / self._downsample_factor,
+            k1=0.0,
+            k2=0.0,
+            u0=intrinsics.px() / self._downsample_factor,
+            v0=intrinsics.py() / self._downsample_factor,
+        )
         return intrinsics
 
 
