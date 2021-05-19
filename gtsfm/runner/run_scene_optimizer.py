@@ -52,7 +52,7 @@ if __name__ == "__main__":
         "--image_extension", type=str, default="JPG", help=""
     )
     parser.add_argument(
-        "--max_frame_lookahead", type=int, default=20, help="maximum number of consecutively ordered frames to consider for matching/co-visibility"
+        "--max_frame_lookahead", type=int, default=20, help="maximum number of consecutive frames to consider for matching/co-visibility"
     )
     args = parser.parse_args()
 
