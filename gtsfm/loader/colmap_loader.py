@@ -66,12 +66,7 @@ class ColmapLoader(LoaderBase):
         if self._calibrations is not None and len(self._calibrations) == 1:
             # shared calibration!
             self._calibrations = self._calibrations * len(img_fnames)
-
-        # import pdb; pdb.set_trace()
-        # self._wTi_list = [self._wTi_list[i] for i in [0, 8]]
-        # img_fnames = [img_fnames[i] for i in [0,8]] 
-        # self._calibrations = [self._calibrations[i] for i in [0,8]]
-
+        
         # preserve COLMAP ordering of images
         self._image_paths = []
         for img_fname in img_fnames:
