@@ -1,6 +1,6 @@
 """Translation averaging using 1DSFM.
 
-This algorithm was proposed in 'Robust Global Translations with 1DSFM' and is build by wrapping GTSAM's classes.
+This algorithm was proposed in 'Robust Global Translations with 1DSFM' and is implemented by wrapping GTSAM's classes.
 
 References:
 - https://research.cs.cornell.edu/1dsfm/
@@ -106,7 +106,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 else:
                     avg_outlier_weights[index_pair] = weight / len(outlier_weights)
 
-        # filter out oulier measumenets
+        # filter out outlier measurements
         w_i2Ui1_inlier_measurements = BinaryMeasurementsUnit3()
         for w_i2Ui1 in w_i2Ui1_measurements:
             if avg_outlier_weights[(w_i2Ui1.key1(), w_i2Ui1.key2())] < self._outlier_weight_threshold:
@@ -120,5 +120,4 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         for i in range(num_images):
             if wRi_list[i] is not None and wti_values.exists(i):
                 wti_list[i] = wti_values.atPoint3(i)
-
         return wti_list
