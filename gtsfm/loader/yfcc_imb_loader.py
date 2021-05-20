@@ -100,7 +100,7 @@ class YfccImbLoader(LoaderBase):
         Returns:
             intrinsics for the given camera.
         """
-        if index < 0 or index > self.__len__():
+        if index < 0 or index > len(self):
             raise IndexError("Image index is invalid")
 
         return self._cameras[index].calibration()
