@@ -49,7 +49,8 @@ class ColmapLoader(LoaderBase):
             colmap_files_dirpath: path to directory containing COLMAP-exported data, with images.txt
                 and cameras.txt files
             images_dir: path to directory containing images files
-            use_gt_intrinsics: whether to use ground truth intrinsics
+            use_gt_intrinsics: whether to use ground truth intrinsics. If COLMAP calibration is
+               not found on disk, then use_gt_intrinsics will be set to false automatically.
             use_gt_extrinsics: whether to use ground truth extrinsics
             max_frame_lookahead: if images were sequentially captured, maximum number
                of consecutive frames to consider for matching/co-visibility. Defaults to 1, i.e.
@@ -84,7 +85,7 @@ class ColmapLoader(LoaderBase):
 
         self._num_imgs = len(self._image_paths)
         logger.info("Colmap image loader found and loaded %d images", self._num_imgs)
-
+        
         # read one image, to check if we need to downsample the images
         img = io_utils.load_image(self._image_paths[0])
         sample_h, sample_w = img.height, img.width
@@ -99,6 +100,7 @@ class ColmapLoader(LoaderBase):
             # no downsampling required
             self._downsample_u = 1
             self._downsample_v = 1
+
 
     def __len__(self) -> int:
         """The number of images in the dataset.

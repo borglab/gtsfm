@@ -1,4 +1,3 @@
-
 import argparse
 import os
 from pathlib import Path
@@ -24,7 +23,9 @@ def run_scene_optimizer(args) -> None:
         cfg = hydra.compose(config_name="default_lund_door_set1_config.yaml")
         scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
-        loader = OlssonLoader(args.dataset_root, image_extension=args.image_extension, max_frame_lookahead=args.max_frame_lookahead)
+        loader = OlssonLoader(
+            args.dataset_root, image_extension=args.image_extension, max_frame_lookahead=args.max_frame_lookahead
+        )
 
         sfm_result_graph = scene_optimizer.create_computation_graph(
             num_images=len(loader),
@@ -45,14 +46,13 @@ def run_scene_optimizer(args) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="GTSFM with intrinsics and image names stored in COLMAP-format")
+    parser.add_argument("--dataset_root", type=str, default=os.path.join(DATA_ROOT, "set1_lund_door"), help="")
+    parser.add_argument("--image_extension", type=str, default="JPG", help="")
     parser.add_argument(
-        "--dataset_root", type=str, default=os.path.join(DATA_ROOT, "set1_lund_door"), help=""
-    )
-    parser.add_argument(
-        "--image_extension", type=str, default="JPG", help=""
-    )
-    parser.add_argument(
-        "--max_frame_lookahead", type=int, default=20, help="maximum number of consecutive frames to consider for matching/co-visibility"
+        "--max_frame_lookahead",
+        type=int,
+        default=20,
+        help="maximum number of consecutive frames to consider for matching/co-visibility",
     )
     args = parser.parse_args()
 

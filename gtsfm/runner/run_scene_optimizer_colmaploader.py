@@ -25,7 +25,7 @@ def run_scene_optimizer(args) -> None:
         loader = ColmapLoader(
             colmap_files_dirpath=args.colmap_files_dirpath,
             images_dir=args.images_dir,
-            max_frame_lookahead=args.max_frame_lookahead
+            max_frame_lookahead=args.max_frame_lookahead,
         )
 
         sfm_result_graph = scene_optimizer.create_computation_graph(
@@ -55,7 +55,10 @@ if __name__ == "__main__":
         "--colmap_files_dirpath", type=str, default="/Users/johnlambert/Downloads/Aishwarya_April21", help=""
     )
     parser.add_argument(
-        "--max_frame_lookahead", type=int, default=1, help="maximum number of consecutive frames to consider for matching/co-visibility"
+        "--max_frame_lookahead",
+        type=int,
+        default=1,
+        help="maximum number of consecutive frames to consider for matching/co-visibility",
     )
     args = parser.parse_args()
 

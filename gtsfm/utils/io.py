@@ -154,6 +154,7 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
         k2 = 0
         calibrations.append(Cal3Bundler(fx, k1, k2, u0, v0))
 
+    assert len(calibrations) == num_cams
     return calibrations
 
 
@@ -286,7 +287,7 @@ def read_points_txt(fpath: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarr
     if not Path(fpath).exists():
         logger.info("%s does not exist", fpath)
         return None, None
-    
+
     with open(fpath, "r") as f:
         data = f.readlines()
 
@@ -296,9 +297,9 @@ def read_points_txt(fpath: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarr
     # line at index 2 will be of the form
     # "# Number of points: 2122, mean track length: 2.8449575871819039"
     points_metadata = data[2]
-    j = points_metadata.find(':')
-    k = points_metadata.find(',')
-    expected_num_pts = int(points_metadata[j+1:k])
+    j = points_metadata.find(":")
+    k = points_metadata.find(",")
+    expected_num_pts = int(points_metadata[j + 1 : k])
 
     data = data[3:]
     for line in data:
@@ -362,7 +363,7 @@ def save_track_visualizations(
     viz_patch_sz: int = 100,
 ) -> None:
     """For every track, save an image with vertically stacked patches, each corresponding to a track keypoint.
-    
+
     The visualizations can serve as a useful debugging tool for finding erroneous matches within tracks.
     """
     os.makedirs(save_dir, exist_ok=True)
