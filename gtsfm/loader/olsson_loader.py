@@ -150,7 +150,7 @@ class OlssonLoader(LoaderBase):
         return wTi
 
 
-    def validate_pair(self, idx1: int, idx2: int) -> bool:
+    def is_valid_pair(self, idx1: int, idx2: int) -> bool:
         """Checks if (idx1, idx2) is a valid pair.
 
         Args:
