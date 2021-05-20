@@ -168,8 +168,14 @@ def compute_averaging_metrics(
 
     wTi_list = []
     for (wRi, wti) in zip(wRi_list, wti_list):
-        wTi_list.append(Pose3(wRi, wti))
-    wTi_aligned_list = comp_utils.align_poses_sim3(gt_wTi_list, wTi_list)
+        # if translation estimation failed in translation averaging, some wti_list values will be None
+        if wRi is None or wti is None:
+            wTi_list.append(None)
+        else:
+            wTi_list.append(Pose3(wRi, wti))
+
+    # ground truth is the reference/target for alignment
+    wTi_aligned_list = comp_utils.align_poses_sim3_wrapper(gt_wTi_list, wTi_list)
 
     def get_rotations_translations_from_poses(
         poses: List[Optional[Pose3]],
