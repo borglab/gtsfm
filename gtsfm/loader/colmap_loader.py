@@ -66,7 +66,7 @@ class ColmapLoader(LoaderBase):
         if self._calibrations is not None and len(self._calibrations) == 1:
             # shared calibration!
             self._calibrations = self._calibrations * len(img_fnames)
-        
+
         # preserve COLMAP ordering of images
         self._image_paths = []
         for img_fname in img_fnames:
@@ -163,7 +163,7 @@ class ColmapLoader(LoaderBase):
         return wTi
 
 
-    def validate_pair(self, idx1: int, idx2: int) -> bool:
+    def is_valid_pair(self, idx1: int, idx2: int) -> bool:
         """Checks if (idx1, idx2) is a valid pair.
 
         Args:

@@ -119,7 +119,7 @@ class YfccImbLoader(LoaderBase):
 
         return self._cameras[index].pose()
 
-    def validate_pair(self, idx1: int, idx2: int) -> bool:
+    def is_valid_pair(self, idx1: int, idx2: int) -> bool:
         """Checks if (idx1, idx2) is a valid pair.
 
         Args:
