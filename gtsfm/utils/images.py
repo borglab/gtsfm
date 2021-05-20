@@ -118,7 +118,7 @@ def resize_image(image: Image, new_height: int, new_width: int) -> Image:
     return Image(resized_value_array)
 
 
-def get_downsample_factor_per_axis(img: Image, max_resolution: int) -> Tuple[float, int, int]:
+def get_downsample_factor_per_axis(img: Image, max_resolution: int) -> Tuple[float, float, int, int]:
     """
     Resizing an image by a specific downsample ratio may not be possible due to lack of a clean
     divisor. However, we can still determine the exact downsampling ratio.
