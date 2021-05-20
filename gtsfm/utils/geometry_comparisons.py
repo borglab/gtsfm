@@ -72,7 +72,8 @@ def align_poses_sim3_wrapper(aTi_list: List[Optional[Pose3]], bTi_list: List[Opt
             valid_bTi_list.append(bTi)
             corresponding_aTi_list.append(aTi_list[i])
 
-    logger.info("Estimating Sim(3) without missing poses at %s", str(dropped_camera_idxs))
+    if len(dropped_camera_idxs) > 0:
+        logger.info("Estimating Sim(3) without missing poses at %s", str(dropped_camera_idxs))
     valid_aTi_list_ = align_poses_sim3(aTi_list=corresponding_aTi_list, bTi_list=valid_bTi_list)
 
     num_cameras = len(aTi_list)
