@@ -77,7 +77,7 @@ def test_read_cameras_txt() -> None:
 
 
 def test_read_cameras_txt_nonexistent_file() -> None:
-    """ """
+    """Ensure that providing a path to a nonexistent file returns None for calibrations return arg."""
     fpath = "nonexistent_dir/cameras.txt"
     calibrations = io_utils.read_cameras_txt(fpath)
     assert calibrations is None
