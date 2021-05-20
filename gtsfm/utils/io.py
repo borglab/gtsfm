@@ -361,7 +361,10 @@ def save_track_visualizations(
     save_dir: str,
     viz_patch_sz: int = 100,
 ) -> None:
-    """"""
+    """For every track, save an image with vertically stacked patches, each corresponding to a track keypoint.
+    
+    The visualizations can serve as a useful debugging tool for finding erroneous matches within tracks.
+    """
     os.makedirs(save_dir, exist_ok=True)
 
     # save each 2d track
