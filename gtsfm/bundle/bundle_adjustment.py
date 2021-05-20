@@ -50,7 +50,7 @@ class BundleAdjustmentOptimizer(NamedTuple):
         )
         if initial_data.number_tracks() == 0 or len(initial_data.get_valid_camera_indices()) == 0:
             # no cameras or tracks to optimize, so bundle adjustment is not possible
-            logger.info(
+            logger.error(
                 "Bundle adjustment aborting, optimization cannot be performed without any tracks or any cameras."
             )
             return initial_data
