@@ -11,8 +11,12 @@ from gtsam import Cal3Bundler, Pose3
 
 import gtsfm.utils.images as img_utils
 import gtsfm.utils.io as io_utils
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
+
+
+logger = logger_utils.get_logger()
 
 
 class ColmapLoader(LoaderBase):
@@ -77,9 +81,7 @@ class ColmapLoader(LoaderBase):
 
 
         self._num_imgs = len(self._image_paths)
-        print(f"Has {self._num_imgs} images")
-        # self.get_camera_intrinsics(0)
-
+        logger.info("Colmap image loader found and loaded %d images", self._num_imgs)
         
         # # read one image, to check if we need to downsample the images
         # img = io_utils.load_image(self._image_paths[0])
