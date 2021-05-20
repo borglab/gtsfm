@@ -117,28 +117,44 @@ def resize_image(image: Image, new_height: int, new_width: int) -> Image:
 
     return Image(resized_value_array)
 
-# def get_ax_downsample_factor(img: Image, max_resolution: int) -> Tuple[float, int, int]:
-#     """
-#     Resizing an image by a specific downsample ratio may not be possible due to lack of a clean
-#     divisor. However, we can still determine the exact downsampling ratio.
-#     """
-#     import pdb; pdb.set_trace()
-#     h, w = img.height, img.width
-#     shorter_size = min(h, w)
-#     if shorter_size == h:
-#         new_h = max_resolution
-#         scale = new_h / float(h)
-#         new_w = int(w * scale)
-#     else:
-#         new_w = max_resolution
-#         scale = new_w / float(w)
-#         new_h = int(h * scale)
 
-#     downsampled_img = resize_image(img, new_height=new_h, new_width=new_w)
-#     downsample_factor = orig_h / downsampled_img.width
-#     target_h = downsampled_img.height
-#     target_w = downsampled_img.width
-#     return downsample_factor, target_h, target_w
+def get_downsample_factor_per_axis(img: Image, max_resolution: int) -> Tuple[float, int, int]:
+    """
+    Resizing an image by a specific downsample ratio may not be possible due to lack of a clean
+    divisor. However, we can still determine the exact downsampling ratio.
+
+    Args:
+        img: image to be downsampled
+        max_resolution: integer representing maximum length of image's short side
+            e.g. for 1080p (1920 x 1080), max_resolution would be 1080
+
+    Returns:
+        downsample_u: downsampling factor for u coordinate
+        downsample_v: downsampling factor for v coordinate
+        new_h: new height that will preserve aspect ratio as closely as possible, while
+            respecting max_resolution constraint
+        new_w: new width
+    """
+    h, w = img.height, img.width
+    shorter_size = min(h, w)
+    if shorter_size == h:
+        new_h = max_resolution
+        # compute scaling that will be applied to original image
+        scale = new_h / float(h)
+        new_w = int(w * scale)
+    else:
+        new_w = max_resolution
+        scale = new_w / float(w)
+        new_h = int(h * scale)
+
+    downsampled_img = resize_image(img, new_height=new_h, new_width=new_w)
+    downsample_u = w / downsampled_img.width
+    downsample_v = h / downsampled_img.height
+
+    assert downsampled_img.height == new_h
+    assert downsampled_img.width == new_w
+
+    return downsample_u, downsample_v, new_h, new_w
 
 
 def match_image_widths(

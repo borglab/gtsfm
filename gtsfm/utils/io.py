@@ -130,7 +130,7 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
         fpaths: path to cameras.txt file
 
     Returns:
-        calibrations: calibration object for each camera
+        calibration object for each camera, or None if requested file is non-existent
     """
     if not Path(fpath).exists():
         logger.info("%s does not exist", fpath)

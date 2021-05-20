@@ -22,6 +22,10 @@ logger = logger_utils.get_logger()
 class ColmapLoader(LoaderBase):
     """Simple loader class that reads a dataset with metadata formatted in the COLMAP style.
 
+    Note: assumes all images are of the same dimensions.
+    TODO: support max-resolution constraint for images are of the same dimensions.
+       Would introduce a constraint between get_image() and get_intrinsics()
+
     Folder layout structure:
     - RGB Images: images/
     - Intrinsics data (optional): cameras.txt (see https://colmap.github.io/format.html#cameras-txt)
@@ -37,7 +41,7 @@ class ColmapLoader(LoaderBase):
         use_gt_intrinsics: bool = True,
         use_gt_extrinsics: bool = True,
         max_frame_lookahead: int = 1,
-        max_resolution: int = 1080
+        max_resolution: int = 760,
     ) -> None:
         """Initializes to load from a specified folder on disk.
 
@@ -48,8 +52,8 @@ class ColmapLoader(LoaderBase):
             use_gt_intrinsics: whether to use ground truth intrinsics
             use_gt_extrinsics: whether to use ground truth extrinsics
             max_frame_lookahead: if images were sequentially captured, maximum number
-               of consecutive frames to consider for matching/co-visibility. Defaults to 1, i.e. 
-               assuming data is not sequentially captured.
+               of consecutive frames to consider for matching/co-visibility. Defaults to 1, i.e.
+               assuming data is sequentially captured.
             max_resolution: integer representing maximum length of image's short side
                e.g. for 1080p (1920 x 1080), max_resolution would be 1080
         """
@@ -59,10 +63,9 @@ class ColmapLoader(LoaderBase):
         self._max_resolution = max_resolution
 
         self._wTi_list, img_fnames = io_utils.read_images_txt(fpath=os.path.join(colmap_files_dirpath, "images.txt"))
-        self._calibrations = io_utils.read_cameras_txt(fpath=os.path.join(colmap_files_dirpath,"cameras.txt"))
+        self._calibrations = io_utils.read_cameras_txt(fpath=os.path.join(colmap_files_dirpath, "cameras.txt"))
 
-        # if img_fnames is None:
-        # default to using everything inside image directory
+        # TODO in future PR: if img_fnames is None, default to using everything inside image directory
 
         if self._calibrations is None:
             self._use_gt_intrinsics = False
@@ -79,20 +82,23 @@ class ColmapLoader(LoaderBase):
                 continue
             self._image_paths.append(img_fpath)
 
-
         self._num_imgs = len(self._image_paths)
         logger.info("Colmap image loader found and loaded %d images", self._num_imgs)
-        
-        # # read one image, to check if we need to downsample the images
-        # img = io_utils.load_image(self._image_paths[0])
 
-        # sample_h, sample_w = img.height, img.width
-        # if min(sample_h, sample_w) > self._max_resolution:
-        #     self._downsample_factor, self.target_h, self.target_w = img_utils.get_exact_downsample_factor(img, self._max_resolution)
-        # else:
-        #     self._downsample_factor = 1
-        self._downsample_factor = 4
-        
+        # read one image, to check if we need to downsample the images
+        img = io_utils.load_image(self._image_paths[0])
+        sample_h, sample_w = img.height, img.width
+        if min(sample_h, sample_w) > self._max_resolution:
+            (
+                self._downsample_u,
+                self._downsample_v,
+                self._target_h,
+                self._target_w,
+            ) = img_utils.get_downsample_factor_per_axis(img, self._max_resolution)
+        else:
+            # no downsampling required
+            self._downsample_u = 1
+            self._downsample_v = 1
 
     def __len__(self) -> int:
         """The number of images in the dataset.
@@ -119,9 +125,8 @@ class ColmapLoader(LoaderBase):
             raise IndexError("Image index is invalid")
 
         img = io_utils.load_image(self._image_paths[index])
-        img = img_utils.resize_image(img, new_height=img.height//self._downsample_factor, new_width=img.width//self._downsample_factor)
+        img = img_utils.resize_image(img, new_height=self._target_h, new_width=self._target_w)
         return img
-
 
     def get_camera_intrinsics(self, index: int) -> Cal3Bundler:
         """Get the camera intrinsics at the given index.
@@ -140,14 +145,13 @@ class ColmapLoader(LoaderBase):
             intrinsics = self._calibrations[index]
 
         intrinsics = Cal3Bundler(
-            fx=intrinsics.fx() / self._downsample_factor,
+            fx=intrinsics.fx() / self._downsample_u,
             k1=0.0,
             k2=0.0,
-            u0=intrinsics.px() / self._downsample_factor,
-            v0=intrinsics.py() / self._downsample_factor,
+            u0=intrinsics.px() / self._downsample_u,
+            v0=intrinsics.py() / self._downsample_v,
         )
         return intrinsics
-
 
     def get_camera_pose(self, index: int) -> Optional[Pose3]:
         """Get the camera pose (in world coordinates) at the given index.
@@ -164,7 +168,6 @@ class ColmapLoader(LoaderBase):
         wTi = self._wTi_list[index]
         return wTi
 
-
     def is_valid_pair(self, idx1: int, idx2: int) -> bool:
         """Checks if (idx1, idx2) is a valid pair.
 
@@ -176,4 +179,3 @@ class ColmapLoader(LoaderBase):
             validation result.
         """
         return idx1 < idx2 and abs(idx1 - idx2) <= self._max_frame_lookahead
-

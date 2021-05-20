@@ -1,4 +1,3 @@
-
 import numpy as np
 from gtsam import SfmTrack
 
@@ -29,3 +28,19 @@ def test_get_average_point_color():
     assert r == 50
     assert g == 60
     assert b == 70
+
+
+def test_get_downsample_factor_per_axis() -> None:
+    """Ensure that max resolution constraint is met, when downsampling image.
+
+    Resize a 700x1500 image, so that the shorter image side is at most 600 px.
+    """
+    img = Image(np.zeros((700, 1500, 3), dtype=np.uint8))
+    max_resolution = 600
+    downsample_u, downsample_v, new_h, new_w = image_utils.get_downsample_factor_per_axis(img, max_resolution)
+
+    # 6/7 will not give a clean integer division
+    assert new_h == 1.167
+    assert new_w == 1.166
+    assert downsample_u == 600
+    assert downsample_v == 1285
