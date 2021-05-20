@@ -81,3 +81,6 @@ def test_read_cameras_txt_nonexistent_file() -> None:
     fpath = "nonexistent_dir/cameras.txt"
     calibrations = io_utils.read_cameras_txt(fpath)
     assert calibrations is None
+
+
+# TODO in future PR: add round-trip test on write poses to images.txt, and load poses (poses->extrinsics->poses)
