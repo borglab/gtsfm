@@ -41,7 +41,7 @@ def align_rotations(aRi_list: List[Rot3], bRi_list: List[Rot3]) -> List[Rot3]:
 
 
 def align_poses_sim3_wrapper(aTi_list: List[Optional[Pose3]], bTi_list: List[Optional[Pose3]]) -> List[Optional[Pose3]]:
-    """Align by similarity transformation, but allow
+    """Align by similarity transformation, but allow missing estimated poses in the input.
 
     Note: this is a wrapper for align_poses_sim3() that allows for missing poses/dropped cameras.
     This is necessary, as align_poses_sim3() requires a valid pose for every input pair.
@@ -128,11 +128,9 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> List[Pose3
     aRb = aSb.rotation().matrix()
     atb = aSb.translation()
     rz, ry, rx = Rotation.from_matrix(aRb).as_euler("zyx", degrees=True)
-    logger.info(
-        f"Sim(3) Rotation `aRb`: rz={rz:.2f} deg., ry={ry:.2f} deg., rx={rx:.2f} deg.",
-    )
+    logger.info("Sim(3) Rotation `aRb`: rz=%.2f deg., ry=%.2f deg., rx=%.2f deg.", rz, ry, rx)
     logger.info(f"Sim(3) Translation `atb`: [tx,ty,tz]={str(np.round(atb,2))}")
-    logger.info(f"Sim(3) Scale `asb`: {float(aSb.scale()):.2f}")
+    logger.info("Sim(3) Scale `asb`: %.2f", float(aSb.scale()))
 
     aTi_list_ = []
     for i in range(n_to_align):
