@@ -161,12 +161,12 @@ class Test1dsfmAllOutliers(unittest.TestCase):
         self.obj: TranslationAveragingBase = TranslationAveraging1DSFM()
 
     def test_outlier_case_missing_value(self) -> None:
-        """
-        Specific set of values that create an outlier configuration
-        without checking that each Value exists.
-
-        All edges to the node 4 are being rejected as outliers, so that Value cannot be
-        cast to Point3 -- it is returned as None.
+        """Ensure that a missing `Value` in the 1dsfm result is represented by `None` in the returned entries.
+        
+        The scenario below will lead to an outlier configuration -- all edges to the node 4 will be rejected
+        as outliers, so that Value cannot be cast to Point3 -- it is returned as None.
+        
+        This test ensures that 1dsfm checks if each Value exists in 1dsfm result, before casting it to a Point3.
         """
         # fmt: off
         wRi_list = [
@@ -220,6 +220,8 @@ class Test1dsfmAllOutliers(unittest.TestCase):
         wti_computed = self.obj.run(len(wRi_input), i2Ui1_input, wRi_input)
 
         assert len(wti_computed) == 5
+        assert wti_computed[-1] is None
+
 
 
 if __name__ == "__main__":
