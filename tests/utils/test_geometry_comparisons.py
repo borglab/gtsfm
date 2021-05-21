@@ -165,7 +165,7 @@ class TestGeometryComparisons(unittest.TestCase):
 
     @patch(
         "gtsfm.utils.geometry_comparisons.align_rotations",
-        return_value=[Rot3.RzRyRx(0, np.deg2rad(25), 0), Rot3.RzRyRx(0, 0, np.deg2rad(-20)),],  # compared with aRi_list
+        return_value=[Rot3.RzRyRx(0, np.deg2rad(25), 0), Rot3.RzRyRx(0, 0, np.deg2rad(-20))],  # compared with aRi_list
     )
     def test_compare_rotations_with_nones_at_same_indices(self, align_rotations_mocked):
         """Tests the comparison results on list of rotations."""
@@ -253,18 +253,36 @@ class TestGeometryComparisons(unittest.TestCase):
 
     def test_compute_points_distance_l2_is_zero(self):
         self.assertEqual(
-            geometry_comparisons.compute_points_distance_l2(Point3(1, -2, 3), Point3(1, -2, 3)), 0.0,
+            geometry_comparisons.compute_points_distance_l2(wti1=Point3(1, -2, 3), wti2=Point3(1, -2, 3)), 0.0
         )
 
     def test_compute_points_distance_l2_is_none(self):
-        self.assertEqual(
-            geometry_comparisons.compute_points_distance_l2(Point3(0, 0, 0), None), None,
-        )
+        self.assertEqual(geometry_comparisons.compute_points_distance_l2(wti1=Point3(0, 0, 0), wti2=None), None)
 
     def test_compute_points_distance_l2_is_nonzero(self):
         wti1 = Point3(1, 1, 1)
         wti2 = Point3(1, 1, -1)
         self.assertEqual(geometry_comparisons.compute_points_distance_l2(wti1, wti2), 2)
+
+    def test_align_poses_sim3_wrapper_missing_poses(self):
+        """Consider a simple cases with 3 poses in a line. Suppose SfM only recovers 1 of the 3 poses."""
+        wT0 = Pose3(Rot3(np.eye(3)), np.zeros(3))
+        wT1 = Pose3(Rot3(np.eye(3)), np.ones(3))
+        wT2 = Pose3(Rot3(np.eye(3)), np.ones(3) * 2)
+        wT3 = Pose3(Rot3(np.eye(3)), np.ones(3) * 3)
+
+        # `a` frame is the target/reference frame
+        aTi_list = [wT0, wT1, wT2, wT3]
+        # `b` frame contains the estimates
+        bTi_list = [None, wT1, None, wT3]
+        aTi_list_ = geometry_comparisons.align_poses_sim3_wrapper(aTi_list, bTi_list)
+
+        # indices 0 and 2 should still have no estimated pose, even after alignment
+        assert aTi_list_[0] is None
+        assert aTi_list_[2] is None
+
+        # identity alignment should preserve poses, should still match GT/targets at indices 1 and 3
+        self.__assert_equality_on_pose3s(computed=[aTi_list_[1], aTi_list_[3]], expected=[aTi_list[1], aTi_list[3]])
 
 
 def test_get_points_within_radius_of_cameras():
@@ -279,7 +297,7 @@ def test_get_points_within_radius_of_cameras():
     radius = 10.0
     nearby_points_3d = geometry_comparisons.get_points_within_radius_of_cameras(wTi_list, points_3d, radius)
 
-    expected_nearby_points_3d = np.array([[-5, 0, 0], [15, 0, 0],])
+    expected_nearby_points_3d = np.array([[-5, 0, 0], [15, 0, 0]])
     np.testing.assert_allclose(nearby_points_3d, expected_nearby_points_3d)
 
 
