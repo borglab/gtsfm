@@ -223,6 +223,5 @@ class Test1dsfmAllOutliers(unittest.TestCase):
         assert wti_computed[-1] is None
 
 
-
 if __name__ == "__main__":
     unittest.main()
