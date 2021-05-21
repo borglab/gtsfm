@@ -105,6 +105,11 @@ class PatchmatchNetData(Dataset):
         #   as (num_views-1) source views for i-th reference view.
         pairs = np.argsort(pair_scores, axis=0)[:, -self.num_views + 1 :][:, ::-1]
 
+        # convert float depth_ranges to integers
+        depth_ranges[:, 0] = np.floor(depth_ranges[:, 0])
+        depth_ranges[:, 1] = np.ceil(depth_ranges[:, 1])
+        depth_ranges = depth_ranges.astype(np.int32)
+
         return pairs, depth_ranges
 
     def __len__(self) -> int:
