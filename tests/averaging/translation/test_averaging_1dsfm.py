@@ -8,11 +8,12 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 import dask
-
+import numpy as np
 from gtsam import Cal3_S2, Point3, Pose3, Rot3, Unit3
 from gtsam.examples import SFMdata
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
+
 import tests.data.sample_poses as sample_poses
 from gtsfm.averaging.translation.averaging_1dsfm import TranslationAveraging1DSFM
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
@@ -151,6 +152,75 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
             pickle.dumps(self.obj)
         except TypeError:
             self.fail("Cannot dump rotation averaging object using pickle")
+
+
+class Test1dsfmAllOutliers(unittest.TestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.obj: TranslationAveragingBase = TranslationAveraging1DSFM()
+
+    def test_outlier_case_missing_value(self) -> None:
+        """Ensure that a missing `Value` in the 1dsfm result is represented by `None` in the returned entries.
+        
+        The scenario below will lead to an outlier configuration -- all edges to the node 4 will be rejected
+        as outliers, so that Value cannot be cast to Point3 -- it is returned as None.
+        
+        This test ensures that 1dsfm checks if each Value exists in 1dsfm result, before casting it to a Point3.
+        """
+        # fmt: off
+        wRi_list = [
+            np.array(
+                [
+                    [-0.382164, 0.89195, 0.241612],
+                    [-0.505682, 0.0169854, -0.862553],
+                    [-0.773458, -0.451815, 0.444551]
+                ]),
+            np.array(
+                [
+                    [-0.453335, 0.886803, -0.0898219],
+                    [-0.27425, -0.234656, -0.93259],
+                    [-0.8481, -0.398142, 0.349584]
+                ]),
+            np.array(
+                [
+                    [-0.385656, 0.90387, -0.18517],
+                    [0.125519, -0.147431, -0.981076],
+                    [-0.914065, -0.4016, -0.0565954]
+                ]),
+            np.array(
+                [
+                    [-0.359387, 0.898029, -0.253744],
+                    [0.253506, -0.167734, -0.95268],
+                    [-0.898096, -0.406706, -0.167375]
+                ]),
+            np.array(
+                [
+                    [-0.342447, 0.898333, -0.275186],
+                    [0.0881727, -0.260874, -0.961338],
+                    [-0.935391, -0.353471, 0.0101272]
+                ]),
+        ]
+        # fmt: on
+        wRi_input = [Rot3(wRi) for wRi in wRi_list]
+
+        i2Ui1_input = {
+            (0, 1): np.array([0.967948, -0.0290259, 0.24947]),
+            (0, 2): np.array([0.906879, -0.000610539, 0.42139]),
+            (0, 3): np.array([0.937168, -0.0161865, 0.348502]),
+            (0, 4): np.array([-0.975139, 0.0133109, -0.221193]),
+            (1, 2): np.array([0.990186, 0.0188153, 0.138484]),
+            (1, 3): np.array([0.986072, -0.00746304, 0.166149]),
+            (1, 4): np.array([-0.996558, 0.00911097, -0.0823996]),
+            (2, 3): np.array([0.990546, -0.0294894, 0.133976]),
+            (2, 4): np.array([0.998932, -0.0300599, -0.035099]),
+            (3, 4): np.array([0.994791, -0.033332, -0.0963361]),
+        }
+        i2Ui1_input = {(i, j): Unit3(t) for (i, j), t in i2Ui1_input.items()}
+        wti_computed = self.obj.run(len(wRi_input), i2Ui1_input, wRi_input)
+
+        assert len(wti_computed) == 5
+        assert wti_computed[-1] is None
 
 
 if __name__ == "__main__":
