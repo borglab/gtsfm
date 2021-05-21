@@ -82,7 +82,9 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> List[Pose3
     aRb = aSb.rotation().matrix()
     atb = aSb.translation()
     rz, ry, rx = Rotation.from_matrix(aRb).as_euler("zyx", degrees=True)
-    logger.info(f"Sim(3) Rotation `aRb`: rz={rz:.2f} deg., ry={ry:.2f} deg., rx={rx:.2f} deg.",)
+    logger.info(
+        f"Sim(3) Rotation `aRb`: rz={rz:.2f} deg., ry={ry:.2f} deg., rx={rx:.2f} deg.",
+    )
     logger.info(f"Sim(3) Translation `atb`: [tx,ty,tz]={str(np.round(atb,2))}")
     logger.info(f"Sim(3) Scale `asb`: {float(aSb.scale()):.2f}")
 
@@ -326,3 +328,17 @@ def get_points_within_radius_of_cameras(
     is_nearby_to_any_cam = np.any(is_nearby_matrix, axis=1)
     nearby_points_3d = points_3d[is_nearby_to_any_cam]
     return nearby_points_3d
+
+
+def angle_between_vectors(v_a: np.ndarray, v_b: np.ndarray) -> float:
+    """Calculate the angle between vector v_a and v_b
+
+    Args:
+        v_a: vector in np.ndarray of [3, ] shape
+        v_b: vector in np.ndarray of [3, ] shape
+
+    Returns:
+        angle between vector v_a and v_b in degree
+    """
+    angle_rad = np.arccos(np.dot(v_a, v_b) / np.linalg.norm(v_a) / np.linalg.norm(v_b))
+    return np.rad2deg(angle_rad)
