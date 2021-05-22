@@ -49,10 +49,10 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="GTSFM with intrinsics and image names stored in COLMAP-format")
     parser.add_argument(
-        "--images_dir", type=str, default="/Users/johnlambert/Downloads/Aishwarya_April21/10_test/images", help=""
+        "--images_dir", type=str, required=True, help="path to directory containing png, jpeg, or jpg images files"
     )
     parser.add_argument(
-        "--colmap_files_dirpath", type=str, default="/Users/johnlambert/Downloads/Aishwarya_April21", help=""
+        "--colmap_files_dirpath", type=str, required=True, help="path to directory containing images.txt, points3D.txt, and cameras.txt"
     )
     parser.add_argument(
         "--max_frame_lookahead",
