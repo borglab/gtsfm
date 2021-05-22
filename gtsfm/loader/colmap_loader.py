@@ -101,7 +101,6 @@ class ColmapLoader(LoaderBase):
             self._downsample_u = 1
             self._downsample_v = 1
 
-
     def __len__(self) -> int:
         """The number of images in the dataset.
 
@@ -122,8 +121,7 @@ class ColmapLoader(LoaderBase):
         Returns:
             Image: the image at the query index.
         """
-
-        if index < 0 or index > len(self):
+        if index < 0 or index >= len(self):
             raise IndexError("Image index is invalid")
 
         img = io_utils.load_image(self._image_paths[index])
@@ -139,6 +137,9 @@ class ColmapLoader(LoaderBase):
         Returns:
             intrinsics for the given camera.
         """
+        if index < 0 or index >= len(self):
+            raise IndexError("Image index is invalid")
+
         if not self._use_gt_intrinsics:
             # get intrinsics from exif
             intrinsics = io_utils.load_image(self._image_paths[index]).get_intrinsics_from_exif()
@@ -164,6 +165,9 @@ class ColmapLoader(LoaderBase):
         Returns:
             the camera pose w_T_index.
         """
+        if index < 0 or index >= len(self):
+            raise IndexError("Image index is invalid")
+
         if not self._use_gt_extrinsics:
             return None
 
