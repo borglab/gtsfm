@@ -6,7 +6,8 @@ non-commercial license, found here:
 https://github.com/magicleap/SuperGluePretrainedNetwork/blob/master/LICENSE
 
 However, if SuperPoint or SuperGlue are not specified in the configuration file, and thus are
-not used, then GTSFM may be used commercially, as well as for academic/research purposes.
+not used, then GTSFM may be used commercially or for academic/research purposes, per
+the Apache 2.0 license listed below.
  
 #################################################################################################
  
