@@ -52,7 +52,10 @@ if __name__ == "__main__":
         "--images_dir", type=str, required=True, help="path to directory containing png, jpeg, or jpg images files"
     )
     parser.add_argument(
-        "--colmap_files_dirpath", type=str, required=True, help="path to directory containing images.txt, points3D.txt, and cameras.txt"
+        "--colmap_files_dirpath",
+        type=str,
+        required=True,
+        help="path to directory containing images.txt, points3D.txt, and cameras.txt",
     )
     parser.add_argument(
         "--max_frame_lookahead",
