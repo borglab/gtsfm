@@ -1,6 +1,6 @@
 """Utility functions for comparing different types related to geometry.
 
-Authors: Ayush Baid
+Authors: Ayush Baid, John Lambert
 """
 from typing import List, Optional
 
