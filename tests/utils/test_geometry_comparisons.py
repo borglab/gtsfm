@@ -264,8 +264,8 @@ class TestGeometryComparisons(unittest.TestCase):
         wti2 = Point3(1, 1, -1)
         self.assertEqual(geometry_comparisons.compute_points_distance_l2(wti1, wti2), 2)
 
-    def test_align_poses_sim3_wrapper_missing_poses(self):
-        """Consider a simple cases with 3 poses in a line. Suppose SfM only recovers 1 of the 3 poses."""
+    def test_align_poses_sim3_ignore_missing(self):
+        """Consider a simple cases with 4 poses in a line. Suppose SfM only recovers 2 of the 4 poses."""
         wT0 = Pose3(Rot3(np.eye(3)), np.zeros(3))
         wT1 = Pose3(Rot3(np.eye(3)), np.ones(3))
         wT2 = Pose3(Rot3(np.eye(3)), np.ones(3) * 2)
@@ -275,7 +275,7 @@ class TestGeometryComparisons(unittest.TestCase):
         aTi_list = [wT0, wT1, wT2, wT3]
         # `b` frame contains the estimates
         bTi_list = [None, wT1, None, wT3]
-        aTi_list_ = geometry_comparisons.align_poses_sim3_wrapper(aTi_list, bTi_list)
+        aTi_list_ = geometry_comparisons.align_poses_sim3_ignore_missing(aTi_list, bTi_list)
 
         # indices 0 and 2 should still have no estimated pose, even after alignment
         assert aTi_list_[0] is None
