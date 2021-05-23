@@ -40,7 +40,9 @@ def align_rotations(aRi_list: List[Rot3], bRi_list: List[Rot3]) -> List[Rot3]:
     return [aRb.compose(bRi) for bRi in bRi_list]
 
 
-def align_poses_sim3_wrapper(aTi_list: List[Optional[Pose3]], bTi_list: List[Optional[Pose3]]) -> List[Optional[Pose3]]:
+def align_poses_sim3_ignore_missing(
+    aTi_list: List[Optional[Pose3]], bTi_list: List[Optional[Pose3]]
+) -> List[Optional[Pose3]]:
     """Align by similarity transformation, but allow missing estimated poses in the input.
 
     Note: this is a wrapper for align_poses_sim3() that allows for missing poses/dropped cameras.
@@ -62,18 +64,13 @@ def align_poses_sim3_wrapper(aTi_list: List[Optional[Pose3]], bTi_list: List[Opt
     # only choose target poses for which there is a corresponding estimated pose
     corresponding_aTi_list = []
     valid_camera_idxs = []
-    dropped_camera_idxs = []
     valid_bTi_list = []
     for i, bTi in enumerate(bTi_list):
-        if bTi is None:
-            dropped_camera_idxs.append(i)
-        else:
+        if bTi is not None:
             valid_camera_idxs.append(i)
             valid_bTi_list.append(bTi)
             corresponding_aTi_list.append(aTi_list[i])
 
-    if len(dropped_camera_idxs) > 0:
-        logger.info("Estimating Sim(3) without missing poses at %s", str(dropped_camera_idxs))
     valid_aTi_list_ = align_poses_sim3(aTi_list=corresponding_aTi_list, bTi_list=valid_bTi_list)
 
     num_cameras = len(aTi_list)
@@ -87,7 +84,7 @@ def align_poses_sim3_wrapper(aTi_list: List[Optional[Pose3]], bTi_list: List[Opt
 
 
 def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> List[Pose3]:
-    """Align by similarity transformation.
+    """Align two pose graphs via similarity transformation. Note: poses cannot be missing/invalid.
 
     We force SIM(3) alignment rather than SE(3) alignment.
     We assume the two trajectories are of the exact same length.
