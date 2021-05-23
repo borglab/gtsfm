@@ -40,7 +40,7 @@ def align_rotations(aRi_list: List[Rot3], bRi_list: List[Rot3]) -> List[Rot3]:
     return [aRb.compose(bRi) for bRi in bRi_list]
 
 
-def align_poses_sim3_wrapper(aTi_list: List[Optional[Pose3]], bTi_list: List[Optional[Pose3]]) -> List[Optional[Pose3]]:
+def align_poses_sim3_ignore_missing(aTi_list: List[Optional[Pose3]], bTi_list: List[Optional[Pose3]]) -> List[Optional[Pose3]]:
     """Align by similarity transformation, but allow missing estimated poses in the input.
 
     Note: this is a wrapper for align_poses_sim3() that allows for missing poses/dropped cameras.
@@ -82,7 +82,7 @@ def align_poses_sim3_wrapper(aTi_list: List[Optional[Pose3]], bTi_list: List[Opt
 
 
 def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> List[Pose3]:
-    """Align by similarity transformation.
+    """Align two pose graphs via similarity transformation. Note: poses cannot be missing/invalid.
 
     We force SIM(3) alignment rather than SE(3) alignment.
     We assume the two trajectories are of the exact same length.
