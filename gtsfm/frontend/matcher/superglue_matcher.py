@@ -67,7 +67,6 @@ class SuperGlueMatcher(MatcherBase):
             pred = self.superglue(data)
 
         matches = pred["matches0"][0].cpu().numpy()
-        confidence = pred["matching_scores0"][0].cpu().numpy()
 
         num_kps_i1 = len(keypoints_i1)
         num_kps_i2 = len(keypoints_i2)
