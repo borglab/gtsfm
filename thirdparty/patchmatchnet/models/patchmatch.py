@@ -37,7 +37,7 @@ class DepthInitialization(nn.Module):
         width: int,
         depth_interval_scale: float,
         device: torch.device,
-        depth: torch.Tensor,
+        depth: torch.Tensor = None,
     ) -> torch.Tensor:
         """Forward function for depth initialization
 
@@ -86,7 +86,7 @@ class DepthInitialization(nn.Module):
                 inverse_max_depth = 1.0 / max_depth
 
                 depth_sample = (
-                    torch.arange(-self.patchmatch_num_sample // 2, self.patchmatch_num_sample // 2, 1)
+                    torch.arange(-self.patchmatch_num_sample // 2, self.patchmatch_num_sample // 2, 1, device=device)
                     .view(1, self.patchmatch_num_sample, 1, 1)
                     .repeat(batch_size, 1, height, width)
                     .float()
@@ -244,11 +244,11 @@ class Evaluation(nn.Module):
                 num_src_features == view_weights.size()[1]
             ), "Patchmatch Evaluation: Different number of images and view weights"
 
-        pixel_wise_weight_sum = 0
+        pixel_wise_weight_sum = torch.Tensor([0]).to(device)
 
         ref_feature = ref_feature.view(batch, self.G, feature_channel // self.G, height, width)
 
-        similarity_sum = torch.Tensor([0])
+        similarity_sum = torch.Tensor([0]).to(device)
 
         if self.stage == 3 and view_weights is None:
             view_weights_list = []
@@ -266,8 +266,8 @@ class Evaluation(nn.Module):
                     similarity_sum = similarity_sum + similarity * view_weight.unsqueeze(1)  # [B, G, Ndepth, H, W]
                     pixel_wise_weight_sum = pixel_wise_weight_sum + view_weight.unsqueeze(1)  # [B,1,1,H,W]
                 else:
-                    similarity_sum += similarity * view_weight.unsqueeze(1)
-                    pixel_wise_weight_sum += view_weight.unsqueeze(1)
+                    similarity_sum = similarity_sum + similarity * view_weight.unsqueeze(1)
+                    pixel_wise_weight_sum = pixel_wise_weight_sum + view_weight.unsqueeze(1)
 
                 del warped_feature, src_feature, src_proj, similarity, view_weight
             del src_features, src_projs
@@ -303,8 +303,8 @@ class Evaluation(nn.Module):
                     similarity_sum = similarity_sum + similarity * view_weight.unsqueeze(1)  # [B, G, Ndepth, H, W]
                     pixel_wise_weight_sum = pixel_wise_weight_sum + view_weight.unsqueeze(1)  # [B,1,1,H,W]
                 else:
-                    similarity_sum += similarity * view_weight.unsqueeze(1)
-                    pixel_wise_weight_sum += view_weight.unsqueeze(1)
+                    similarity_sum = similarity_sum + similarity * view_weight.unsqueeze(1)
+                    pixel_wise_weight_sum = pixel_wise_weight_sum + view_weight.unsqueeze(1)
 
                 del warped_feature, src_feature, src_proj, similarity, view_weight
             del src_features, src_projs
@@ -404,7 +404,7 @@ class PatchMatch(nn.Module):
                     bias=True,
                 )
                 nn.init.constant_(self.propa_conv.weight, 0.0)
-                if self.propa_conv.bias:
+                if self.propa_conv.bias is not None:
                     nn.init.constant_(self.propa_conv.bias, 0.0)
 
         # adaptive spatial cost aggregation (adaptive evaluation)
@@ -418,7 +418,7 @@ class PatchMatch(nn.Module):
             bias=True,
         )
         nn.init.constant_(self.eval_conv.weight, 0.0)
-        if self.eval_conv.bias:
+        if self.eval_conv.bias is not None:
             nn.init.constant_(self.eval_conv.bias, 0.0)
         self.feature_weight_net = FeatureWeightNet(num_feature, self.evaluate_neighbors, self.G)
 
@@ -917,8 +917,8 @@ def depth_weight(
     # normalization
     x = 1.0 / depth_sample
     del depth_sample
-    inverse_depth_min = torch.Tensor([1.0]) / depth_min
-    inverse_depth_max = torch.Tensor([1.0]) / depth_max
+    inverse_depth_min = torch.Tensor([1.0]).to(x.device) / depth_min
+    inverse_depth_max = torch.Tensor([1.0]).to(x.device) / depth_max
     x = (x - inverse_depth_max.view(batch, 1, 1, 1)) / (
         inverse_depth_min.view(batch, 1, 1, 1) - inverse_depth_max.view(batch, 1, 1, 1)
     )
