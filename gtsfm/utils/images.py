@@ -118,43 +118,77 @@ def resize_image(image: Image, new_height: int, new_width: int) -> Image:
     return Image(resized_value_array)
 
 
-def get_downsample_factor_per_axis(img: Image, max_resolution: int) -> Tuple[float, float, int, int]:
-    """
+def get_rescaling_factor_per_axis(img_h: int, img_w: int, max_resolution: int) -> Tuple[float, float, int, int]:
+    """Resize an image such that the shorter image side is *exactly equal* to max_resolution.
+
+    Note: this may involve downsampling OR upsampling the image.
+
     Resizing an image by a specific downsample ratio may not be possible due to lack of a clean
     divisor. However, we can still determine the exact downsampling ratio.
 
     Args:
-        img: image to be downsampled
-        max_resolution: integer representing maximum length of image's short side
+        img_h: height of image to be resized
+        img_w: width of image to be resized
+        max_resolution: integer representing length of image's short side
             e.g. for 1080p (1920 x 1080), max_resolution would be 1080
 
     Returns:
-        downsample_u: downsampling factor for u coordinate
-        downsample_v: downsampling factor for v coordinate
+        scale_u: downsampling factor for u coordinate
+        scale_v: downsampling factor for v coordinate. May not be equal to scale_u due to integer-rounding.
         new_h: new height that will preserve aspect ratio as closely as possible, while
             respecting max_resolution constraint
         new_w: new width
     """
-    h, w = img.height, img.width
+    h, w = img_h, img_w
     shorter_size = min(h, w)
     if shorter_size == h:
         new_h = max_resolution
         # compute scaling that will be applied to original image
         scale = new_h / float(h)
-        new_w = int(w * scale)
+        new_w = np.round(w * scale)
     else:
         new_w = max_resolution
         scale = new_w / float(w)
-        new_h = int(h * scale)
+        new_h = np.round(h * scale)
 
-    downsampled_img = resize_image(img, new_height=new_h, new_width=new_w)
-    downsample_u = w / downsampled_img.width
-    downsample_v = h / downsampled_img.height
+    scale_u = new_w / w
+    scale_v = new_h / h
 
-    assert downsampled_img.height == new_h
-    assert downsampled_img.width == new_w
+    return scale_u, scale_v, new_h, new_w
 
-    return downsample_u, downsample_v, new_h, new_w
+
+def get_downsampling_factor_per_axis(img_h: int, img_w: int, max_resolution: int) -> Tuple[float, float, int, int]:
+    """Resize an image such that the shorter image side is *less than or equal to* the max_resolution.
+
+    This will always downsample the image or leave it intact.
+
+    Note: Different from COLMAP's `Downsize()`, which instead checks if ANY side is
+        larger than the max resolution.
+        See: https://github.com/colmap/colmap/blob/dev/src/mvs/image.cc#L83
+
+    Args:
+        img_h: height of image to be downsampled
+        img_w: width of image to be downsampled
+        max_resolution: integer representing maximum length of image's short side
+            e.g. for 1080p (1920 x 1080), max_resolution would be 1080
+
+    Returns:
+        scale_u: rescaling factor for u coordinate
+        scale_v: rescaling factor for v coordinate. May not be equal to scale_u due to integer-rounding.
+        new_h: new height that will preserve aspect ratio as closely as possible, while
+            respecting max_resolution constraint
+        new_w: new width
+    """
+    if min(img_h, img_w) > max_resolution:
+        scale_u, scale_v, new_h, new_w = get_rescaling_factor_per_axis(img_h, img_w, max_resolution)
+
+    else:
+        scale_u = 1.0
+        scale_v = 1.0
+        new_h = img_h
+        new_w = img_w
+
+    return scale_u, scale_v, new_h, new_w
 
 
 def match_image_widths(
