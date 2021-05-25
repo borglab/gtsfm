@@ -127,14 +127,14 @@ def get_rescaling_factor_per_axis(img_h: int, img_w: int, max_resolution: int) -
     divisor. However, we can still determine the exact downsampling ratio.
 
     Args:
-        img_h: height of image to be resized
-        img_w: width of image to be resized
+        img_h: height of image to be resized, in pixels
+        img_w: width of image to be resized, in pixels
         max_resolution: integer representing length of image's short side
             e.g. for 1080p (1920 x 1080), max_resolution would be 1080
 
     Returns:
-        scale_u: downsampling factor for u coordinate
-        scale_v: downsampling factor for v coordinate. May not be equal to scale_u due to integer-rounding.
+        scale_u: rescaling factor for u coordinate
+        scale_v: rescaling factor for v coordinate. May not be equal to scale_u due to integer-rounding.
         new_h: new height that will preserve aspect ratio as closely as possible, while
             respecting max_resolution constraint
         new_w: new width
@@ -167,8 +167,8 @@ def get_downsampling_factor_per_axis(img_h: int, img_w: int, max_resolution: int
         See: https://github.com/colmap/colmap/blob/dev/src/mvs/image.cc#L83
 
     Args:
-        img_h: height of image to be downsampled
-        img_w: width of image to be downsampled
+        img_h: height of image to be downsampled, in pixels
+        img_w: width of image to be downsampled, in pixels
         max_resolution: integer representing maximum length of image's short side
             e.g. for 1080p (1920 x 1080), max_resolution would be 1080
 
