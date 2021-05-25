@@ -95,17 +95,14 @@ class ColmapLoader(LoaderBase):
         # read one image, to check if we need to downsample the images
         img = io_utils.load_image(self._image_paths[0])
         sample_h, sample_w = img.height, img.width
-        if min(sample_h, sample_w) > self._max_resolution:
-            (
-                self._downsample_u,
-                self._downsample_v,
-                self._target_h,
-                self._target_w,
-            ) = img_utils.get_downsample_factor_per_axis(img, self._max_resolution)
-        else:
-            # no downsampling required
-            self._downsample_u = 1
-            self._downsample_v = 1
+        # no downsampling may be required, in which case scale_u and scale_v will be 1.0
+        (
+            self._scale_u,
+            self._scale_v,
+            self._target_h,
+            self._target_w,
+        ) = img_utils.get_downsampling_factor_per_axis(sample_h, sample_w, self._max_resolution)
+
 
     def __len__(self) -> int:
         """The number of images in the dataset.
@@ -154,11 +151,11 @@ class ColmapLoader(LoaderBase):
             intrinsics = self._calibrations[index]
 
         intrinsics = Cal3Bundler(
-            fx=intrinsics.fx() / self._downsample_u,
+            fx=intrinsics.fx() * self._scale_u,
             k1=0.0,
             k2=0.0,
-            u0=intrinsics.px() / self._downsample_u,
-            v0=intrinsics.py() / self._downsample_v,
+            u0=intrinsics.px() * self._scale_u,
+            v0=intrinsics.py() * self._scale_v,
         )
         return intrinsics
 
