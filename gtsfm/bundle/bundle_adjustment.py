@@ -68,20 +68,15 @@ class BundleAdjustmentOptimizer(NamedTuple):
         # get all the valid camera indices, which need to be added to the graph.
         valid_camera_indices = initial_data.get_valid_camera_indices()
 
-        # Add a prior on first pose. This indirectly specifies where the origin is.
-        graph.push_back(
-            gtsam.PriorFactorPinholeCameraCal3Bundler(
-                C(valid_camera_indices[0]),
-                initial_data.get_camera(valid_camera_indices[0]),
-                gtsam.noiseModel.Isotropic.Sigma(PINHOLE_CAM_CAL3BUNDLER_DOF, 0.1),
+        # Add a prior on all the poses.
+        for i in valid_camera_indices:
+            graph.push_back(
+                gtsam.PriorFactorPinholeCameraCal3Bundler(
+                    C(valid_camera_indices[0]),
+                    initial_data.get_camera(valid_camera_indices[0]),
+                    gtsam.noiseModel.Isotropic.Sigma(PINHOLE_CAM_CAL3BUNDLER_DOF, 0.1),
+                )
             )
-        )
-        # Also add a prior on the position of the first landmark to fix the scale
-        graph.push_back(
-            gtsam.PriorFactorPoint3(
-                P(0), initial_data.get_track(0).point3(), gtsam.noiseModel.Isotropic.Sigma(POINT3_DOF, 0.1)
-            )
-        )
 
         # Create initial estimate
         initial = gtsam.Values()
