@@ -334,8 +334,8 @@ def angle_between_vectors(v_a: np.ndarray, v_b: np.ndarray) -> float:
     """Calculate the angle between vector v_a and v_b
 
     Args:
-        v_a: vector in np.ndarray of [3, ] shape
-        v_b: vector in np.ndarray of [3, ] shape
+        v_a: a numpy vector of shape (3, )
+        v_b: a numpy vector of shape (3, )
 
     Returns:
         angle between vector v_a and v_b in degree
