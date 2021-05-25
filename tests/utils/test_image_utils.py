@@ -30,18 +30,129 @@ def test_get_average_point_color():
     assert b == 70
 
 
-def test_get_downsample_factor_per_axis() -> None:
-    """Ensure that max resolution constraint is met, when downsampling image.
+def test_get_downsampling_factor_per_axis_leaveintact() -> None:
+    """Ensure that image is left intact, when shorter side is smaller than max_resolution."""
+    img_h = 700
+    img_w = 1500
+    img = Image(np.zeros((img_h, img_w, 3), dtype=np.uint8))
+    max_resolution = 800
+    scale_u, scale_v, new_h, new_w = image_utils.get_downsampling_factor_per_axis(img_h, img_w, max_resolution)
 
-    Resize a 700x1500 image, so that the shorter image side is at most 600 px.
+    assert scale_u == 1.0
+    assert scale_v == 1.0
+    assert new_h == 700
+    assert new_w == 1500
+
+
+def test_get_rescaling_factor_per_axis_upsample() -> None:
+    """Ensure that max resolution constraint is met, when upsampling image.
+
+    Resize a 700x1500 image, so that the shorter image side is EXACTLY 800 px.
     """
-    img = Image(np.zeros((700, 1500, 3), dtype=np.uint8))
-    max_resolution = 600
-    downsample_u, downsample_v, new_h, new_w = image_utils.get_downsample_factor_per_axis(img, max_resolution)
+    img_h = 700
+    img_w = 1500
+    img = Image(np.zeros((img_h, img_w, 3), dtype=np.uint8))
+    max_resolution = 800
+    scale_u, scale_v, new_h, new_w = image_utils.get_rescaling_factor_per_axis(img_h, img_w, max_resolution)
     
     # 6/7 will not give a clean integer division
-    assert np.isclose(downsample_u, 1.1673, atol=4)
-    assert np.isclose(downsample_v, 1.1667, atol=4)
+    assert np.isclose(scale_u, 1.1427, atol=4)
+    assert np.isclose(scale_v, 1.1429, atol=4)
+    assert new_h == 800
+    assert new_w == 1714
+
+
+def test_get_downsampling_factor_per_axis() -> None:
+    """Ensure that max resolution constraint is met, when downsampling image.
+
+    Resize a 700x1500 image, so that the shorter image side is AT MOST 600 px.
+    Image is in landscape mode.
+    """
+    img_h = 700
+    img_w = 1500
+    img = Image(np.zeros((img_h, img_w, 3), dtype=np.uint8))
+    max_resolution = 600
+    scale_u, scale_v, new_h, new_w = image_utils.get_downsampling_factor_per_axis(img_h, img_w, max_resolution)
+
+    # Note that 600 / 700 = 0.85714
+    # 1500 * 0.85714 = 1285.7, which we round up to 1286.
+    assert np.isclose(scale_u, 0.8573, atol=4)
+    assert np.isclose(scale_v, 0.8571, atol=4)
     assert new_h == 600
-    assert new_w == 1285
+    assert new_w == 1286
+
+
+def test_get_rescaling_factor_per_axis_downsample() -> None:
+    """Ensure that max resolution constraint is met, when downsampling image.
+
+    Resize a 700x1500 image, so that the shorter image side is EXACTLY 600 px.
+    Image is in andscape mode.
+    """
+    img_h = 700
+    img_w = 1500
+    img = Image(np.zeros((img_h, img_w, 3), dtype=np.uint8))
+    max_resolution = 600
+    scale_u, scale_v, new_h, new_w = image_utils.get_rescaling_factor_per_axis(img_h, img_w, max_resolution)
+
+    # Note that 600 / 700 = 0.85714
+    # 1500 * 0.85714 = 1285.7, which we round up to 1286.
+    assert np.isclose(scale_u, 0.8573, atol=4)
+    assert np.isclose(scale_v, 0.8571, atol=4)
+    assert new_h == 600
+    assert new_w == 1286
+
+
+
+
+def test_get_downsampling_factor_per_axis_portrait() -> None:
+    """Ensure that max resolution constraint is met, when downsampling image.
+
+    Resize a 700x1500 image, so that the shorter image side is AT MOST 600 px.
+    Image is in portrait mode.
+    """
+    img_h = 1500 
+    img_w = 700
+    img = Image(np.zeros((img_h, img_w, 3), dtype=np.uint8))
+    max_resolution = 600
+    scale_u, scale_v, new_h, new_w = image_utils.get_downsampling_factor_per_axis(img_h, img_w, max_resolution)
+
+    # Note that 600 / 700 = 0.85714
+    # 1500 * 0.85714 = 1285.7, which we round up to 1286.
+    assert np.isclose(scale_u, 0.8571, atol=4)
+    assert np.isclose(scale_v, 0.8573, atol=4)
+    assert new_h == 1286
+    assert new_w == 600
+
+
+def test_get_rescaling_factor_per_axis_downsample_portrait() -> None:
+    """Ensure that max resolution constraint is met, when downsampling image.
+
+    Resize a 700x1500 image, so that the shorter image side is EXACTLY 600 px.
+    Image is in portrait mode.
+    """
+    img_h = 1500
+    img_w = 700
+    img = Image(np.zeros((img_h, img_w, 3), dtype=np.uint8))
+    max_resolution = 600
+    scale_u, scale_v, new_h, new_w = image_utils.get_rescaling_factor_per_axis(img_h, img_w, max_resolution)
+
+    # Note that 600 / 700 = 0.85714
+    # 1500 * 0.85714 = 1285.7, which we round up to 1286.
+    assert np.isclose(scale_v, 0.8571, atol=4)
+    assert np.isclose(scale_u, 0.8573, atol=4)
+    assert new_h == 1286
+    assert new_w == 600
+
+
+
+
+
+
+if __name__ == '__main__':
+    
+    test_get_downsampling_factor_per_axis_leaveintact()
+    test_get_rescaling_factor_per_axis_upsample()
+    test_get_downsampling_factor_per_axis()
+    test_get_rescaling_factor_per_axis_downsample()
+
 
