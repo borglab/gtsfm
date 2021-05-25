@@ -66,33 +66,33 @@ class PatchmatchNetData(Dataset):
         depth_ranges = np.zeros((num_images, 2))
         depth_ranges[:, 0] = np.inf
 
-        for i in range(num_tracks):
-            track = self._sfm_result.get_track(i)
+        for j in range(num_tracks):
+            track = self._sfm_result.get_track(j)
             num_measurements = track.number_measurements()
-            measurements = [track.measurement(j) for j in range(num_measurements)]
+            measurements = [track.measurement(k) for k in range(num_measurements)]
             w_x = track.point3()
-            for j1 in range(num_measurements):
-                for j2 in range(j1 + 1, num_measurements):
-                    id_a = measurements[j1][0]
-                    id_b = measurements[j2][0]
+            for k1 in range(num_measurements):
+                for k2 in range(k1 + 1, num_measurements):
+                    i_a = measurements[k1][0]
+                    i_b = measurements[k2][0]
 
                     key_a = -1
                     key_b = -1
 
                     # check if measurement j1 belongs to a valid camera a
-                    if id_a in self._keys_map:
-                        key_a = self._keys_map[id_a]
+                    if i_a in self._keys_map:
+                        key_a = self._keys_map[i_a]
                         # calculate track_i's 3D coordinates in the camera pose
-                        a_x = self._sfm_result.get_camera(id_a).pose().transformTo(w_x)
+                        a_x = self._sfm_result.get_camera(i_a).pose().transformTo(w_x)
                         # update depth ranges
                         depth_ranges[key_a, 0] = min(depth_ranges[key_a, 0], a_x[-1])
                         depth_ranges[key_a, 1] = max(depth_ranges[key_a, 1], a_x[-1])
 
                     # check if measurement j2 belongs to a valid camera b
-                    if id_b in self._keys_map:
-                        key_b = self._keys_map[id_b]
+                    if i_b in self._keys_map:
+                        key_b = self._keys_map[i_b]
                         # calculate track_i's 3D coordinates in the camera pose
-                        b_x = self._sfm_result.get_camera(id_b).pose().transformTo(w_x)
+                        b_x = self._sfm_result.get_camera(i_b).pose().transformTo(w_x)
                         # update depth ranges
                         depth_ranges[key_b, 0] = min(depth_ranges[key_b, 0], b_x[-1])
                         depth_ranges[key_b, 1] = max(depth_ranges[key_b, 1], b_x[-1])
