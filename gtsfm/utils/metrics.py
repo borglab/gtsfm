@@ -135,7 +135,6 @@ def compute_translation_angle_metrics(
         angles.append(comp_utils.compute_translation_to_direction_angle(i2Ui1, wTi_list[i2], wTi_list[i1]))
     return compute_errors_statistics(angles)
 
-
 def compute_averaging_metrics(
     i2Ui1_dict: Dict[Tuple[int, int], Unit3],
     wRi_list: List[Optional[Rot3]],
@@ -175,21 +174,7 @@ def compute_averaging_metrics(
             wTi_list.append(Pose3(wRi, wti))
 
     # ground truth is the reference/target for alignment
-    wTi_aligned_list = comp_utils.align_poses_sim3_wrapper(gt_wTi_list, wTi_list)
-
-    def get_rotations_translations_from_poses(
-        poses: List[Optional[Pose3]],
-    ) -> Tuple[List[Optional[Rot3]], List[Optional[Point3]]]:
-        rotations = []
-        translations = []
-        for pose in poses:
-            if pose is None:
-                rotations.append(None)
-                translations.append(None)
-                continue
-            rotations.append(pose.rotation())
-            translations.append(pose.translation())
-        return rotations, translations
+    wTi_aligned_list = comp_utils.align_poses_sim3_ignore_missing(gt_wTi_list, wTi_list)
 
     wRi_aligned_list, wti_aligned_list = get_rotations_translations_from_poses(wTi_aligned_list)
     gt_wRi_list, gt_wti_list = get_rotations_translations_from_poses(gt_wTi_list)
@@ -199,3 +184,19 @@ def compute_averaging_metrics(
     metrics["translation_averaging_distance"] = compute_translation_distance_metrics(wti_aligned_list, gt_wti_list)
     metrics["translation_to_direction_angle_deg"] = compute_translation_angle_metrics(i2Ui1_dict, wTi_aligned_list)
     return metrics
+
+
+def get_rotations_translations_from_poses(
+    poses: List[Optional[Pose3]],
+) -> Tuple[List[Optional[Rot3]], List[Optional[Point3]]]:
+    """Decompose each 6-dof pose to a 3-dof rotation and 3-dof position"""
+    rotations = []
+    translations = []
+    for pose in poses:
+        if pose is None:
+            rotations.append(None)
+            translations.append(None)
+            continue
+        rotations.append(pose.rotation())
+        translations.append(pose.translation())
+    return rotations, translations
