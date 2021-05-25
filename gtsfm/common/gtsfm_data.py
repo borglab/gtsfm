@@ -4,7 +4,7 @@ This can be the output of either data association or of bundle adjustment.
 Authors: Ayush Baid, John Lambert, Xiaolong Wu
 """
 import itertools
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from gtsam import PinholeCameraCal3Bundler, Pose3, SfmTrack
@@ -260,6 +260,37 @@ class GtsfmData:
             scene_reproj_errors.extend(track_errors)
 
         return np.array(scene_reproj_errors)
+
+
+    def aggregate_metrics(self) -> Dict[str, Any]:
+        """Aggregate metrics about the reprojection errors and 3d track lengths (summary stats).
+
+        Args:
+            ba_data: bundle adjustment result
+
+        Returns:
+            dictionary containing metrics of bundle adjustment result
+        """
+        track_lengths_3d = self.get_track_lengths()
+        scene_reproj_errors = self.get_scene_reprojection_errors()
+
+        convert_to_rounded_float = lambda x: float(np.round(x, 3))
+
+        stats_dict = {}
+        stats_dict["number_tracks"] = self.number_tracks()
+        stats_dict["3d_track_lengths"] = {
+            "min": convert_to_rounded_float(track_lengths_3d.min()),
+            "mean": convert_to_rounded_float(np.mean(track_lengths_3d)),
+            "median": convert_to_rounded_float(np.median(track_lengths_3d)),
+            "max": convert_to_rounded_float(track_lengths_3d.max()),
+        }
+        stats_dict["reprojection_errors"] = {
+            "min": convert_to_rounded_float(np.min(scene_reproj_errors)),
+            "mean": convert_to_rounded_float(np.mean(scene_reproj_errors)),
+            "median": convert_to_rounded_float(np.median(scene_reproj_errors)),
+            "max": convert_to_rounded_float(np.max(scene_reproj_errors)),
+        }
+        return stats_dict
 
     def get_avg_scene_reprojection_error(self) -> float:
         """Get average reprojection error for all 3d points in the entire scene

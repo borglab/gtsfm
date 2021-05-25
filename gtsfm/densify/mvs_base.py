@@ -10,7 +10,7 @@ import numpy as np
 from dask.delayed import Delayed
 
 from gtsfm.common.image import Image
-from gtsfm.common.sfm_result import SfmResult
+from gtsfm.common.gtsfm_data import GtsfmData
 
 
 class MVSBase(metaclass=abc.ABCMeta):
@@ -21,7 +21,7 @@ class MVSBase(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def densify(self, images: Dict[int, Image], sfm_result: SfmResult) -> np.ndarray:
+    def densify(self, images: Dict[int, Image], sfm_result: GtsfmData) -> np.ndarray:
         """Densify a point cloud using multi-view stereo.
 
         Note: we do not return depth maps here per image, as they would need to be aligned to ground truth

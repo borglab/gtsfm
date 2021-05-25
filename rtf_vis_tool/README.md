@@ -18,11 +18,11 @@ Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
 Note: running the application for the first time will auto generate a `/node_modules` folder and `.eslintcache` file which are included in `.gitignore`.
 
 
-4. Run the React Unit Tests:
+4. Run the React Unit Tests (within `gtsfm/rtf_vis_tool`):
 ```bash
-npm test
+npm test a
 ```
-Currently, the unit tests are written for smaller, helper components that do not involve React Three Fiber. This is because the React unit testing framework, Enzyme, does not provide native support for third party packages like React Three Fiber. Thus, it's incompatible with components with render 3D-related components.
+Currently, the unit tests are written for smaller, helper components that do not involve React Three Fiber. This is because the React unit testing framework, Enzyme, does not provide native support for third party packages like React Three Fiber. Thus, it's incompatible with components that render 3D-related components.
 
 ## Repository Structure
 - `node_modules`: internal packages used throughout the application. Don't edit these.
@@ -43,8 +43,8 @@ package.json
 - `@testing-library/react` : auto generated when initializing react app
 - `@testing-library/user-event` : auto generated when initializing react app
 - `drei` : used to render lines and text in the react three fiber point cloud (`Data_Association_PC.js`)
-- `numjs` : used to render camera frustums (`PCViewer.js`)
-- `quaternion` : used to extract rotation matrix from Quaternion (`PCViewer.js`)
+- `numjs` : used to render camera frustums (`AllFrustums.js`)
+- `quaternion` : used to extract rotation matrix from Quaternion (`AllFrustums.js`)
 - `react` : primary react import for all files in the `Components` folder
 - `react-dom` : helper library of react to perform live webpage updates upon refresh
 - `react-scripts` : used to run the application when user types `npm-start`

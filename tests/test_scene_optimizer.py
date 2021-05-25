@@ -32,8 +32,6 @@ class TestSceneOptimizer(unittest.TestCase):
         """Will test Dask multi-processing capabilities and ability to serialize all objects."""
         self.loader = OlssonLoader(str(DATA_ROOT_PATH / "set1_lund_door"), image_extension="JPG")
 
-        use_intrinsics_in_verification = False
-
         with initialize_config_module(config_module="gtsfm.configs"):
 
             # config is relative to the gtsfm module
@@ -46,7 +44,6 @@ class TestSceneOptimizer(unittest.TestCase):
                 self.loader.get_valid_pairs(),
                 self.loader.create_computation_graph_for_images(),
                 self.loader.create_computation_graph_for_intrinsics(),
-                use_intrinsics_in_verification=use_intrinsics_in_verification,
                 gt_pose_graph=self.loader.create_computation_graph_for_poses(),
             )
 
@@ -59,15 +56,15 @@ class TestSceneOptimizer(unittest.TestCase):
             self.assertIsInstance(sfm_result, GtsfmData)
 
             # compare the camera poses
-            poses = sfm_result.get_camera_poses()
+            computed_poses = sfm_result.get_camera_poses()
+            computed_rotations = [x.rotation() for x in computed_poses]
+            computed_translations = [x.translation() for x in computed_poses]
 
             # get active cameras from largest connected component, may be <len(self.loader)
             connected_camera_idxs = sfm_result.get_valid_camera_indices()
             expected_poses = [self.loader.get_camera_pose(i) for i in connected_camera_idxs]
 
-            self.assertTrue(
-                comp_utils.compare_global_poses(poses, expected_poses, rot_err_thresh=0.03, trans_err_thresh=0.35)
-            )
+            self.assertTrue(comp_utils.compare_global_poses(expected_poses, expected_poses))
 
 
 def generate_random_essential_matrix() -> EssentialMatrix:

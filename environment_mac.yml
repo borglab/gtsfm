@@ -27,6 +27,7 @@ dependencies:
   - matplotlib>=3.3.3
   - networkx
   - numpy
+  - nodejs
   - pandas
   - pillow>=8.0.1
   - scikit-learn
@@ -36,6 +37,6 @@ dependencies:
   # io
   - h5py
   - pip:
-    - hydra-core==1.1.0dev3
+    - hydra-core==1.1.0dev6
 
 

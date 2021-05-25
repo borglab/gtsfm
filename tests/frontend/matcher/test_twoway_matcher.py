@@ -6,6 +6,7 @@ import unittest
 import numpy as np
 
 import tests.frontend.matcher.test_matcher_base as test_matcher_base
+import gtsfm.utils.features as feature_utils
 from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
 
 
@@ -23,48 +24,23 @@ class TestTwoWayMatcher(test_matcher_base.TestMatcherBase):
     def test_on_dummy_data(self):
         """Test using dummy 1D descriptors to verify correctness."""
 
-        desc1 = (
-            np.array(
-                [
-                    0.4865,
-                    0.3752,
-                    0.3077,
-                    0.9188,
-                    0.7837,
-                    0.1083,
-                    0.6822,
-                    0.3764,
-                    0.2288,
-                    0.8018,
-                    1.1,
-                ]
-            )
+        descriptors_i1 = (
+            np.array([0.4865, 0.3752, 0.3077, 0.9188, 0.7837, 0.1083, 0.6822, 0.3764, 0.2288, 0.8018, 1.1,])
             .reshape(-1, 1)
             .astype(np.float32)
         )
+        keypoints_i1 = feature_utils.generate_random_keypoints(descriptors_i1.shape[0], (100, 300))
 
-        desc2 = (
-            np.array(
-                [
-                    0.9995,
-                    0.3376,
-                    0.9005,
-                    0.5382,
-                    0.3162,
-                    0.7974,
-                    0.1785,
-                    0.3491,
-                    0.8658,
-                    0.2912,
-                ]
-            )
+        descriptors_i2 = (
+            np.array([0.9995, 0.3376, 0.9005, 0.5382, 0.3162, 0.7974, 0.1785, 0.3491, 0.8658, 0.2912,])
             .reshape(-1, 1)
             .astype(np.float32)
         )
+        keypoints_i2 = feature_utils.generate_random_keypoints(descriptors_i2.shape[0], (100, 300))
+        expected_matches = np.array([[9, 5], [2, 4], [3, 2], [1, 7], [8, 6], [0, 3]])
 
-        result = self.matcher.match(desc1, desc2)
-
-        np.testing.assert_array_equal(np.array([[9, 5], [2, 4], [3, 2], [1, 7], [8, 6], [0, 3]]), result)
+        result = self.matcher.match(keypoints_i1, keypoints_i2, descriptors_i1, descriptors_i2)
+        np.testing.assert_array_equal(result, expected_matches)
 
 
 if __name__ == "__main__":

@@ -118,7 +118,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         # transforming the result to the list of Point3
         wti_list = [None] * num_images
         for i in range(num_images):
-            if wRi_list[i] is not None:
+            if wRi_list[i] is not None and wti_values.exists(i):
                 wti_list[i] = wti_values.atPoint3(i)
 
         return wti_list
