@@ -215,4 +215,3 @@ def compute_pose_errors(gt_wTi_list: List[Pose3], wTi_list: List[Pose3]) -> Dict
     metrics["rotation_angle_deg_errors"] = compute_rotation_angle_metrics(wRi_list, gt_wRi_list)
     metrics["translation_distance_errors"] = compute_translation_distance_metrics(wti_list, gt_wti_list)
     return metrics
-

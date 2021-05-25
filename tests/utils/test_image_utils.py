@@ -142,17 +142,3 @@ def test_get_rescaling_factor_per_axis_downsample_portrait() -> None:
     assert np.isclose(scale_u, 0.8573, atol=4)
     assert new_h == 1286
     assert new_w == 600
-
-
-
-
-
-
-if __name__ == '__main__':
-    
-    test_get_downsampling_factor_per_axis_leaveintact()
-    test_get_rescaling_factor_per_axis_upsample()
-    test_get_downsampling_factor_per_axis()
-    test_get_rescaling_factor_per_axis_downsample()
-
-
