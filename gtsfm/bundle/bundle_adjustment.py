@@ -28,6 +28,10 @@ from gtsfm.common.gtsfm_data import GtsfmData
 
 METRICS_PATH = Path(__file__).resolve().parent.parent.parent / "result_metrics"
 
+"""In this file, we use the GTSAM's GeneralSFMFactor2 instead of GeneralSFMFactor because Factor2 enables decoupling
+of the camera pose and the camera intrinsics, and hence gives an option to share the intrinsics between cameras.
+"""
+
 # TODO: any way this goes away?
 P = symbol_shorthand.P  # 3d point
 X = symbol_shorthand.X  # camera pose
