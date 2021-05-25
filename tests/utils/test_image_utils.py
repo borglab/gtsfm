@@ -38,9 +38,9 @@ def test_get_downsample_factor_per_axis() -> None:
     img = Image(np.zeros((700, 1500, 3), dtype=np.uint8))
     max_resolution = 600
     downsample_u, downsample_v, new_h, new_w = image_utils.get_downsample_factor_per_axis(img, max_resolution)
-
+    
     # 6/7 will not give a clean integer division
-    assert downsample_u == 1.167
-    assert downsample_v == 1.166
+    assert np.isclose(downsample_u, 1.1673, atol=4)
+    assert np.isclose(downsample_v, 1.1667, atol=4)
     assert new_h == 600
     assert new_w == 1285
