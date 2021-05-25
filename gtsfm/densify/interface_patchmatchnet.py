@@ -16,7 +16,9 @@ NUM_PATCHMATCHNET_STAGES = 4
 
 
 class PatchmatchNetData(Dataset):
-    """PatchmatchNetData class for Patchmatch Net. It contains the interface from GtsfmData"""
+    """PatchmatchNetData class for Patchmatch Net. It contains the interface from GtsfmData.
+    Wang's work in https://github.com/FangjinhuaWang/PatchmatchNet/blob/main/datasets/dtu_yao_eval.py is referred to.
+    """
 
     def __init__(self, images: Dict[int, Image], sfm_result: GtsfmData, num_views: int = 5) -> None:
         """Initialize method for PatchmatchnetData
@@ -29,23 +31,21 @@ class PatchmatchNetData(Dataset):
         assert images is not None and len(images) > 1
 
         # cache sfm result
-        self.sfm_result = sfm_result
+        self._sfm_result = sfm_result
 
         # Patchmatch Net meta
-        self.num_views = num_views
-        self.num_stages = NUM_PATCHMATCHNET_STAGES
+        self._num_views = num_views
+        self._num_stages = NUM_PATCHMATCHNET_STAGES
 
         # Test data preparation
-        self.keys = sorted(self.sfm_result.get_valid_camera_indices())
-        self.num_images = len(self.keys)
-        self.keys_map = {}
-        for i in range(self.num_images):
-            self.keys_map[self.keys[i]] = i
-        self.images = images
-        self.image_w = images[self.keys[0]].width
-        self.image_h = images[self.keys[0]].height
+        self._keys = sorted(self._sfm_result.get_valid_camera_indices())
+        self._num_images = len(self._keys)
+        self._keys_map = {}
+        for i in range(self._num_images):
+            self._keys_map[self._keys[i]] = i
+        self._images = images
 
-        self.pairs, self.depth_ranges = self.configure()
+        self._pairs, self._depth_ranges = self.configure()
 
     def configure(self) -> Tuple[np.ndarray, np.ndarray]:
         """Configure pairs and depth_ranges for each view from sfm_result
@@ -56,8 +56,8 @@ class PatchmatchNetData(Dataset):
             depth_ranges: array of shape (num_images, 2). Each row_id indicates the index of reference view
                 in self.keys, with 2 values indicating [min_depth, max_depth]
         """
-        num_images = self.num_images
-        num_tracks = self.sfm_result.number_tracks()
+        num_images = self._num_images
+        num_tracks = self._sfm_result.number_tracks()
 
         pair_scores = np.zeros((num_images, num_images))
         # initialize the pairwise scores between the same views as negative infinity
@@ -67,43 +67,47 @@ class PatchmatchNetData(Dataset):
         depth_ranges[:, 0] = np.inf
 
         for i in range(num_tracks):
-            track_i = self.sfm_result.get_track(i)
-            num_measurements_i = track_i.number_measurements()
-            measurements = [track_i.measurement(j) for j in range(num_measurements_i)]
-            coord_world = track_i.point3()
-            for cam_a in range(num_measurements_i):
-                for cam_b in range(cam_a + 1, num_measurements_i):
-                    cam_a_id = measurements[cam_a][0]
-                    cam_b_id = measurements[cam_b][0]
+            track = self._sfm_result.get_track(i)
+            num_measurements = track.number_measurements()
+            measurements = [track.measurement(j) for j in range(num_measurements)]
+            w_x = track.point3()
+            for j1 in range(num_measurements):
+                for j2 in range(j1 + 1, num_measurements):
+                    id_a = measurements[j1][0]
+                    id_b = measurements[j2][0]
+
+                    key_a = -1
+                    key_b = -1
+
+                    # check if measurement j1 belongs to a valid camera a
+                    if id_a in self._keys_map:
+                        key_a = self._keys_map[id_a]
+                        # calculate track_i's 3D coordinates in the camera pose
+                        a_x = self._sfm_result.get_camera(id_a).pose().transformTo(w_x)
+                        # update depth ranges
+                        depth_ranges[key_a, 0] = min(depth_ranges[key_a, 0], a_x[-1])
+                        depth_ranges[key_a, 1] = max(depth_ranges[key_a, 1], a_x[-1])
+
+                    # check if measurement j2 belongs to a valid camera b
+                    if id_b in self._keys_map:
+                        key_b = self._keys_map[id_b]
+                        # calculate track_i's 3D coordinates in the camera pose
+                        b_x = self._sfm_result.get_camera(id_b).pose().transformTo(w_x)
+                        # update depth ranges
+                        depth_ranges[key_b, 0] = min(depth_ranges[key_b, 0], b_x[-1])
+                        depth_ranges[key_b, 1] = max(depth_ranges[key_b, 1], b_x[-1])
 
                     # if both cameras are valid cameras
-                    if cam_a_id in self.keys_map and cam_b_id in self.keys_map:
-
-                        key_a_id = self.keys_map[cam_a_id]
-                        key_b_id = self.keys_map[cam_b_id]
-
-                        # calculate track_i's 3D coordinates in the camera pose
-                        coord_cam_a = self.sfm_result.get_camera(cam_a_id).pose().transformTo(coord_world)
-                        coord_cam_b = self.sfm_result.get_camera(cam_b_id).pose().transformTo(coord_world)
-
+                    if key_a > 0 and key_b > 0:
                         # calculate score for measurements of track_i in pair views (cam_a, cam_b)
-                        score_a_b = piecewise_gaussian(p_a=coord_cam_a, p_b=coord_cam_b)
-
+                        score_a_b = piecewise_gaussian(a_x=a_x, b_x=b_x)
                         # sum up pair scores for each track_i
-                        pair_scores[key_a_id, key_b_id] += score_a_b
-                        pair_scores[key_b_id, key_a_id] += score_a_b
-
-                        # update depth ranges
-                        depth_ranges[(key_a_id, key_b_id), 0] = np.minimum(
-                            depth_ranges[(key_a_id, key_b_id), 0], [coord_cam_a[-1], coord_cam_b[-1]]
-                        )
-                        depth_ranges[(key_a_id, key_b_id), 1] = np.maximum(
-                            depth_ranges[(key_a_id, key_b_id), 1], [coord_cam_a[-1], coord_cam_b[-1]]
-                        )
+                        pair_scores[key_a, key_b] += score_a_b
+                        pair_scores[key_b, key_a] = pair_scores[key_a, key_b]
 
         # sort pair scores, for i-th row, choose the largest (num_views-1) scores, the corresponding views are selected
         #   as (num_views-1) source views for i-th reference view.
-        pairs = np.argsort(pair_scores, axis=0)[:, -self.num_views + 1 :][:, ::-1]
+        pairs = np.argsort(pair_scores, axis=0)[:, -self._num_views + 1 :][:, ::-1]
 
         # convert float depth_ranges to integers
         depth_ranges[:, 0] = np.floor(depth_ranges[:, 0])
@@ -118,17 +122,16 @@ class PatchmatchNetData(Dataset):
         Returns:
             length of image dictionary's keys
         """
-        return self.num_images
+        return self._num_images
 
     def __getitem__(self, index: int) -> Dict[str, Any]:
-        """Get one test input to Patchmatch Net, Wang's work in https://github.com/FangjinhuaWang/PatchmatchNet.git is
-            referred to in this method
+        """Get one test input to Patchmatch Net
 
         Args:
             index: index of yield item
 
         Returns:
-            return dictionary contains:
+            Dictionary containing:
                 "idx" test image index: int
                 "imgs" source and reference images: (num_views, image_channel, image_h, image_w)
                 "proj_matrices" projection matrices: (num_views, 4, 4)
@@ -136,26 +139,27 @@ class PatchmatchNetData(Dataset):
                 "depth_max" maximum depth: int
                 "filename" output filename pattern: string
         """
-        ref_key = self.keys[index]
-        src_keys = [self.keys[src_index] for src_index in self.pairs[index]]
+        ref_key = self._keys[index]
+        src_keys = [self._keys[src_index] for src_index in self._pairs[index]]
 
         cam_keys = [ref_key] + src_keys
 
-        imgs: List[np.ndarray] = [[] for _ in range(self.num_stages)]
-        proj_mats: List[np.ndarray] = [[] for _ in range(self.num_stages)]
+        imgs: List[np.ndarray] = [[] for _ in range(self._num_stages)]
+        proj_mats: List[np.ndarray] = [[] for _ in range(self._num_stages)]
 
+        h, w, _ = self._images[self._keys[0]].value_array.shape
         for cam_key in cam_keys:
-            img = self.images[cam_key].value_array
+            img = self._images[cam_key].value_array
             np_img = np.array(img, dtype=np.float32) / 255.0
-            np_img = cv2.resize(np_img, (self.image_w, self.image_h), interpolation=cv2.INTER_LINEAR)
+            np_img = cv2.resize(np_img, (w, h), interpolation=cv2.INTER_LINEAR)
 
             h, w, _ = np_img.shape
 
-            intrinsics = self.sfm_result.get_camera(cam_key).calibration().K()
-            extrinsics = self.sfm_result.get_camera(cam_key).pose().inverse().matrix()
+            intrinsics = self._sfm_result.get_camera(cam_key).calibration().K()
+            extrinsics = self._sfm_result.get_camera(cam_key).pose().inverse().matrix()
             intrinsics[:2, :] /= 8.0
 
-            for i in range(self.num_stages):
+            for i in range(self._num_stages):
                 imgs[i].append(cv2.resize(np_img, (w // (2 ** i), h // (2 ** i)), interpolation=cv2.INTER_LINEAR))
                 proj_mat = extrinsics.copy()
                 proj_mat[:3, :4] = intrinsics @ proj_mat[:3, :4]
@@ -164,7 +168,7 @@ class PatchmatchNetData(Dataset):
 
         imgs_dict = {}
         proj_dict = {}
-        for i in range(self.num_stages):
+        for i in range(self._num_stages):
             imgs_dict[f"stage_{i}"] = np.stack(imgs[i]).transpose([0, 3, 1, 2])
             proj_dict[f"stage_{i}"] = np.stack(proj_mats[i])
 
@@ -172,7 +176,7 @@ class PatchmatchNetData(Dataset):
             "idx": index,
             "imgs": imgs_dict,  # N*3*H0*W0
             "proj_matrices": proj_dict,  # N*4*4
-            "depth_min": self.depth_ranges[index, 0],  # scalar
-            "depth_max": self.depth_ranges[index, 1],  # scalar
-            "filename": "{}/" + "{:0>8}".format(ref_key) + "{}",
+            "depth_min": self._depth_ranges[index, 0],  # scalar
+            "depth_max": self._depth_ranges[index, 1],  # scalar
+            "filename": "{}/" + f"{ref_key:0>8}" + "{}",
         }
