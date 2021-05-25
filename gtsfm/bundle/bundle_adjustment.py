@@ -4,7 +4,6 @@ Authors: Xiaolong Wu, John Lambert, Ayush Baid
 """
 import os
 from pathlib import Path
-from typing import NamedTuple
 
 import dask
 from dask.delayed import Delayed
