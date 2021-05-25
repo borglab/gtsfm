@@ -20,7 +20,13 @@ logger = logger_utils.get_logger()
 
 
 class ColmapLoader(LoaderBase):
-    """Simple loader class that reads a dataset with metadata formatted in the COLMAP style.
+    """Simple loader class that reads a dataset with ground-truth files and dataset meta-information
+    formatted in the COLMAP style. This meta-information may include image file names stored
+    in a images.txt file, or ground truth camera poses for each image/frame. Images should be
+    present in the specified image directory.
+
+    Note that these may not be actual ground truth, but just pseudo-ground truth, i.e. output of
+    COLMAP.
 
     Note: assumes all images are of the same dimensions.
     TODO: support max-resolution constraint for images are of the same dimensions.
