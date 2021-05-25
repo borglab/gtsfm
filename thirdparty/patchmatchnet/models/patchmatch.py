@@ -914,11 +914,12 @@ def depth_weight(
     """
     neighbors = evaluate_neighbors
     batch, num_depth, height, width = depth_sample.size()
+    device = depth_sample.device
     # normalization
     x = 1.0 / depth_sample
     del depth_sample
-    inverse_depth_min = torch.Tensor([1.0]).to(x.device) / depth_min
-    inverse_depth_max = torch.Tensor([1.0]).to(x.device) / depth_max
+    inverse_depth_min = torch.Tensor([1.0]).to(device) / depth_min
+    inverse_depth_max = torch.Tensor([1.0]).to(device) / depth_max
     x = (x - inverse_depth_max.view(batch, 1, 1, 1)) / (
         inverse_depth_min.view(batch, 1, 1, 1) - inverse_depth_max.view(batch, 1, 1, 1)
     )
