@@ -81,13 +81,18 @@ class LoaderBase(metaclass=abc.ABCMeta):
             validation result.
         """
 
+    def get_image_shape(self, idx: int) -> Tuple[int, int]:
+        """Return a (H,W) tuple for each image"""
+        image = self.get_image(idx)
+        return (image.height, image.width)
+
     def create_computation_graph_for_images(self) -> List[Delayed]:
         """Creates the computation graph for image fetches.
 
         Returns:
             list of delayed tasks for images.
         """
-        N = self.__len__()
+        N = len(self)
 
         return [dask.delayed(self.get_image)(x) for x in range(N)]
 
@@ -97,7 +102,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
         Returns:
             list of delayed tasks for camera intrinsics.
         """
-        N = self.__len__()
+        N = len(self)
 
         return [dask.delayed(self.get_camera_intrinsics)(x) for x in range(N)]
 
@@ -107,13 +112,22 @@ class LoaderBase(metaclass=abc.ABCMeta):
         Returns:
             list of delayed tasks for camera poses.
         """
-        N = self.__len__()
+        N = len(self)
 
         if self.get_camera_pose(0) is None:
             # if the 0^th pose is None, we assume none of the pose are available
             return None
 
         return [dask.delayed(self.get_camera_pose)(x) for x in range(N)]
+
+    def create_computation_graph_for_image_shapes(self) -> List[Delayed]:
+        """Creates the computation graph for image shapes.
+
+        Returns:
+            list of delayed tasks for image shapes.
+        """
+        N = len(self)
+        return [dask.delayed(self.get_image_shape)(x) for x in range(N)]
 
     def get_valid_pairs(self) -> List[Tuple[int, int]]:
         """Get the valid pairs of images for this loader.
