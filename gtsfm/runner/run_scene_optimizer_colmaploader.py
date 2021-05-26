@@ -19,7 +19,7 @@ def run_scene_optimizer(args) -> None:
     """ """
     with hydra.initialize_config_module(config_module="gtsfm.configs"):
         # config is relative to the gtsfm module
-        cfg = hydra.compose(config_name="default_lund_door_set1_config.yaml")
+        cfg = hydra.compose(config_name="deep_front_end.yaml")
         scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
         loader = ColmapLoader(
@@ -29,10 +29,11 @@ def run_scene_optimizer(args) -> None:
         )
 
         sfm_result_graph = scene_optimizer.create_computation_graph(
-            len(loader),
-            loader.get_valid_pairs(),
-            loader.create_computation_graph_for_images(),
-            loader.create_computation_graph_for_intrinsics(),
+            num_images=len(loader),
+            image_pair_indices=loader.get_valid_pairs(),
+            image_graph=loader.create_computation_graph_for_images(),
+            camera_intrinsics_graph=loader.create_computation_graph_for_intrinsics(),
+            image_shape_graph=loader.create_computation_graph_for_image_shapes(),
             gt_pose_graph=loader.create_computation_graph_for_poses(),
         )
 
