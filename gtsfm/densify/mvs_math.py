@@ -15,8 +15,9 @@ def piecewise_gaussian(
     1. This piecewise Gaussian function outputs a float score to show the evaluation result of the similarity.
     2. The total similarity between two views can be calculated by summing up the scores of all common tracks.
     3. A higher score suggests that the parallax of the track point between camera a and camera b is closer to a small
-    pre-defined angle theta_0 (5 degrees in default), which means views of camera a and camera b have many shared points
-    but with identifiable differences. So the view pair is suitable to be set as the reference view and the source view.
+    pre-defined angle theta_0 (5 degrees in default), which means views of camera a and camera b have many shared
+    points but with identifiable differences. So the view pair is suitable to be set as the reference view and
+    the source view.
 
     More details can be found in "View Selection" paragraphs in Yao's paper https://arxiv.org/abs/1804.02505.
 
