@@ -97,6 +97,7 @@ class SceneOptimizer:
         image_pair_indices: List[Tuple[int, int]],
         image_graph: List[Delayed],
         camera_intrinsics_graph: List[Delayed],
+        image_shape_graph: List[Delayed],
         gt_pose_graph: Optional[List[Delayed]] = None,
     ) -> Delayed:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
@@ -140,6 +141,8 @@ class SceneOptimizer:
                 descriptors_graph_list[i2],
                 camera_intrinsics_graph[i1],
                 camera_intrinsics_graph[i2],
+                image_shape_graph[i1],
+                image_shape_graph[i2],
                 gt_relative_pose,
             )
             i2Ri1_graph_dict[(i1, i2)] = i2Ri1
@@ -355,7 +358,7 @@ def visualize_camera_poses(
         # Select ground truth poses that correspond to pre-BA and post-BA estimated poses
         # some may have been lost after pruning to largest connected component
         corresponding_gt_poses = [gt_pose_graph[i] for i in pre_ba_sfm_data.get_valid_camera_indices()]
-
+        
         # ground truth is used as the reference
         pre_ba_poses = comp_utils.align_poses_sim3(corresponding_gt_poses, copy.deepcopy(pre_ba_poses))
         post_ba_poses = comp_utils.align_poses_sim3(corresponding_gt_poses, copy.deepcopy(post_ba_poses))
