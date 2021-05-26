@@ -31,10 +31,11 @@ def run_scene_optimizer(args) -> None:
         )
 
         sfm_result_graph = scene_optimizer.create_computation_graph(
-            len(loader),
-            loader.get_valid_pairs(),
-            loader.create_computation_graph_for_images(),
-            loader.create_computation_graph_for_intrinsics(),
+            num_images=len(loader),
+            image_pair_indices=loader.get_valid_pairs(),
+            image_graph=loader.create_computation_graph_for_images(),
+            camera_intrinsics_graph=loader.create_computation_graph_for_intrinsics(),
+            image_shape_graph=loader.create_computation_graph_for_image_shapes(),
             gt_pose_graph=loader.create_computation_graph_for_poses(),
         )
 
@@ -46,7 +47,7 @@ def run_scene_optimizer(args) -> None:
 
         assert isinstance(sfm_result, GtsfmData)
         scene_avg_reproj_error = sfm_result.get_scene_avg_reprojection_error()
-        logger.info('Scene avg reproj error: {}'.format(str(np.round(scene_avg_reproj_error, 3))))
+        logger.info("Scene avg reproj error: %.3f", scene_avg_reproj_error)
 
 
 if __name__ == "__main__":
