@@ -19,7 +19,7 @@ import gtsfm.utils.images as image_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.detector_descriptor.detector_descriptor_base import DetectorDescriptorBase
-from nonfree.thirdparty.SuperGluePretrainedNetwork.models.superpoint import SuperPoint
+from thirdparty.SuperGluePretrainedNetwork.models.superpoint import SuperPoint
 
 ROOT_PATH = Path(__file__).resolve().parent.parent.parent.parent
 MODEL_WEIGHTS_PATH = (
