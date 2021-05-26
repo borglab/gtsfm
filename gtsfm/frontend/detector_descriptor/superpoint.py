@@ -23,7 +23,7 @@ from thirdparty.SuperGluePretrainedNetwork.models.superpoint import SuperPoint
 
 ROOT_PATH = Path(__file__).resolve().parent.parent.parent.parent
 MODEL_WEIGHTS_PATH = (
-    ROOT_PATH / "nonfree" / "thirdparty" / "SuperGluePretrainedNetwork" / "models" / "weights" / "superpoint_v1.pth"
+    ROOT_PATH / "thirdparty" / "SuperGluePretrainedNetwork" / "models" / "weights" / "superpoint_v1.pth"
 )
 
 
