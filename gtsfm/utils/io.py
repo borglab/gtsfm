@@ -1,22 +1,28 @@
 """Functions to provide I/O APIs for all the modules.
 
-Authors: Ayush Baid
+Authors: Ayush Baid, John Lambert
 """
 import os
-from typing import Any, Dict, List, Union
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import gtsam
 import h5py
 import json
 import numpy as np
+from gtsam import Cal3Bundler, Rot3, Pose3
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
 
 import gtsfm.utils.images as image_utils
+import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reproj_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.sfm_track import SfmTrack2d
+
+
+logger = logger_utils.get_logger()
 
 
 def load_image(img_path: str) -> Image:
@@ -66,7 +72,6 @@ def load_h5(file_path: str) -> Dict[Any, Any]:
     Returns:
         the dictionary from the h5 file
     """
-
     data = {}
 
     with h5py.File(file_path, "r") as f:
@@ -116,6 +121,43 @@ def read_bal(file_path: str) -> GtsfmData:
     return gtsfm_data
 
 
+def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
+    """Read camera calibrations from a COLMAP-formatted cameras.txt file.
+
+    Reference: https://colmap.github.io/format.html#cameras-txt
+
+    Args:
+        fpaths: path to cameras.txt file
+
+    Returns:
+        calibration object for each camera, or None if requested file is non-existent
+    """
+    if not Path(fpath).exists():
+        logger.info("%s does not exist", fpath)
+        return None
+
+    with open(fpath, "r") as f:
+        lines = f.readlines()
+
+    # may not be one line per camera (could be only one line of text if shared calibration)
+    num_cams = int(lines[2].replace("# Number of cameras: ", "").strip())
+
+    calibrations = []
+    for line in lines[3:]:
+
+        cam_params = line.split()
+        # Note that u0 is px, and v0 is py
+        cam_id, model, img_w, img_h, fx, u0, v0 = cam_params[:7]
+        img_w, img_h, fx, u0, v0 = int(img_w), int(img_h), float(fx), float(u0), float(v0)
+        # TODO: determine convention for storing/reading radial distortion parameters
+        k1 = 0
+        k2 = 0
+        calibrations.append(Cal3Bundler(fx, k1, k2, u0, v0))
+
+    assert len(calibrations) == num_cams
+    return calibrations
+
+
 def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
     """Writes the camera data file in the COLMAP format.
 
@@ -153,6 +195,44 @@ def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> 
             f.write(f"{i} {camera_model} {image_width} {image_height} {fx} {u0} {v0} {k1} {k2}\n")
 
 
+def read_images_txt(fpath: str) -> Tuple[Optional[List[Pose3]], Optional[List[str]]]:
+    """Read camera poses and image file names from a COLMAP-format images.txt file.
+
+    Reference: https://colmap.github.io/format.html#images-txt
+        "The coordinates of the projection/camera center are given by -R^t * T, where
+        R^t is the inverse/transpose of the 3x3 rotation matrix composed from the
+        quaternion and T is the translation vector. The local camera coordinate system
+        of an image is defined in a way that the X axis points to the right, the Y axis
+        to the bottom, and the Z axis to the front as seen from the image."
+
+    Args:
+        fpath: path to images.txt file
+
+    Returns:
+        wTi_list: list of camera poses for each image, or None if file path invalid
+        img_fnames: name of image file, for each image, or None if file path invalid
+    """
+    if not Path(fpath).exists():
+        logger.info("%s does not exist", fpath)
+        return None, None
+
+    with open(fpath, "r") as f:
+        lines = f.readlines()
+
+    wTi_list = []
+    img_fnames = []
+    # ignore first 4 lines of text -- they are a description of the file format
+    for line in lines[4::2]:
+        i, qw, qx, qy, qz, tx, ty, tz, i, img_fname = line.split()
+        # Colmap provides extrinsics, so must invert
+        iRw = Rot3(float(qw), float(qx), float(qy), float(qz))
+        wTi = Pose3(iRw, np.array([tx, ty, tz], dtype=np.float64)).inverse()
+        wTi_list.append(wTi)
+        img_fnames.append(img_fname)
+
+    return wTi_list, img_fnames
+
+
 def write_images(gtsfm_data: GtsfmData, save_dir: str) -> None:
     """Writes the image data file in the COLMAP format.
 
@@ -180,13 +260,62 @@ def write_images(gtsfm_data: GtsfmData, save_dir: str) -> None:
 
         for i in gtsfm_data.get_valid_camera_indices():
             camera = gtsfm_data.get_camera(i)
-            wRi_quaternion = camera.pose().rotation().quaternion()
-            wti = camera.pose().translation()
-            tx, ty, tz = wti
-            qw, qx, qy, qz = wRi_quaternion
+            # COLMAP exports camera extrinsics (cTw), not the poses (wTc), so must invert
+            iTw = camera.pose().inverse()
+            iRw_quaternion = iTw.rotation().quaternion()
+            itw = iTw.translation()
+            tx, ty, tz = itw
+            qw, qx, qy, qz = iRw_quaternion
 
             f.write(f"{i} {qw} {qx} {qy} {qz} {tx} {ty} {tz} {i} {img_fname}\n")
             # TODO: write out the points2d
+            f.write("TODO\n")
+
+
+def read_points_txt(fpath: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    """Read 3d points and their associated colors from a COLMAP points.txt file.
+
+    Reference: https://colmap.github.io/format.html#points3d-txt
+
+    Args:
+        fpath: absolute file path to points.txt file
+
+    Returns:
+        point_cloud: float array of shape (N,3)
+        rgb: uint8 array of shape (N,3)
+    """
+    if not Path(fpath).exists():
+        logger.info("%s does not exist", fpath)
+        return None, None
+
+    with open(fpath, "r") as f:
+        data = f.readlines()
+
+    rgb = []
+    point_cloud = []
+    # first 3 lines are information about the file format
+    # line at index 2 will be of the form
+    # "# Number of points: 2122, mean track length: 2.8449575871819039"
+    points_metadata = data[2]
+    j = points_metadata.find(":")
+    k = points_metadata.find(",")
+    expected_num_pts = int(points_metadata[j + 1 : k])
+
+    data = data[3:]
+    for line in data:
+        entries = line.split()
+        x, y, z, r, g, b = entries[1:7]
+
+        point = [float(x), float(y), float(z)]
+        point_cloud += [point]
+        rgb += [(int(r), int(g), int(b))]
+
+    point_cloud = np.array(point_cloud)
+    rgb = np.array(rgb).astype(np.uint8)
+
+    assert point_cloud.shape[0] == expected_num_pts
+    assert rgb.shape[0] == expected_num_pts
+    return point_cloud, rgb
 
 
 def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
@@ -227,14 +356,15 @@ def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
             f.write("\n")
 
 
-
 def save_track_visualizations(
     tracks_2d: List[SfmTrack2d],
     images: List[Image],
     save_dir: str,
     viz_patch_sz: int = 100,
 ) -> None:
-    """
+    """For every track, save an image with vertically stacked patches, each corresponding to a track keypoint.
+
+    The visualizations can serve as a useful debugging tool for finding erroneous matches within tracks.
     """
     os.makedirs(save_dir, exist_ok=True)
 
@@ -242,11 +372,8 @@ def save_track_visualizations(
     for i, track in enumerate(tracks_2d):
         patches = []
         for m in track.measurements:
-            patches += [
-                images[m.i].extract_patch(center_x=m.uv[0], center_y=m.uv[1], patch_size=viz_patch_sz)
-            ]
+            patches += [images[m.i].extract_patch(center_x=m.uv[0], center_y=m.uv[1], patch_size=viz_patch_sz)]
 
         stacked_image = image_utils.vstack_image_list(patches)
         save_fpath = os.path.join(save_dir, f"track_{i}.jpg")
         save_image(stacked_image, img_path=save_fpath)
-
