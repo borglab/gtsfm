@@ -381,5 +381,5 @@ def angle_between_vectors(v_a: np.ndarray, v_b: np.ndarray) -> float:
     Returns:
         angle between vector v_a and v_b in degree
     """
-    angle_rad = np.arccos(np.dot(v_a, v_b) / np.linalg.norm(v_a) / np.linalg.norm(v_b))
+    angle_rad = np.arccos(np.dot(v_a, v_b) / (np.linalg.norm(v_a) * np.linalg.norm(v_b)))
     return np.rad2deg(angle_rad)

@@ -16,12 +16,12 @@ NUM_PATCHMATCHNET_STAGES = 4
 
 
 class PatchmatchNetData(Dataset):
-    """PatchmatchNetData class for Patchmatch Net. It contains the interface from GtsfmData.
+    """PatchmatchNetData class for PatchmatchNet. It contains the interface from GtsfmData.
     Wang's work in https://github.com/FangjinhuaWang/PatchmatchNet/blob/main/datasets/dtu_yao_eval.py is referred to.
     """
 
     def __init__(self, images: Dict[int, Image], sfm_result: GtsfmData, num_views: int = 5) -> None:
-        """Initialize method for PatchmatchnetData
+        """Initialize method for PatchmatchNetData
 
         Args:
             images: input images (H, W, C) to GTSFM
@@ -33,7 +33,7 @@ class PatchmatchNetData(Dataset):
         # cache sfm result
         self._sfm_result = sfm_result
 
-        # Patchmatch Net meta
+        # PatchmatchNet meta
         self._num_views = num_views
         self._num_stages = NUM_PATCHMATCHNET_STAGES
 
@@ -125,10 +125,11 @@ class PatchmatchNetData(Dataset):
         return self._num_images
 
     def __getitem__(self, index: int) -> Dict[str, Any]:
-        """Get one test input to Patchmatch Net
+        """Get test data to PatchmatchNet
+        produce data containing _num_views images, the first images is the reference image
 
         Args:
-            index: index of yield item
+            index: index of yield test data, the reference image ID of the test data is _keys[index]
 
         Returns:
             Dictionary containing:

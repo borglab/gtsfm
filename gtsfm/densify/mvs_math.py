@@ -38,7 +38,7 @@ def piecewise_gaussian(
     # 1. calculate the angle between measurement poses of track p in views a and b.
     theta = angle_between_vectors(a_x, b_x)
     # 2. calculate the score according to the angle
-    if theta <= theta_0:  # if the angle is no larger than the thresold, we should attach more importance
+    if theta <= theta_0:  # if the angle is no larger than the threshold, we should attach more importance
         return math.exp(-((theta - theta_0) ** 2) / (2 * sigma_1 ** 2))
-    else:  # if the angle is larger than the thresold, we should attach less importance
+    else:  # if the angle is larger than the threshold, we should attach less importance
         return math.exp(-((theta - theta_0) ** 2) / (2 * sigma_2 ** 2))
