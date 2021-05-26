@@ -114,8 +114,8 @@ class TestVerifierBase(unittest.TestCase):
     def test_verify_empty_matches(self):
         """Tests the output when there are no match indices."""
 
-        keypoints_i1 = feature_utils.generate_random_keypoints(10, [250, 300])
-        keypoints_i2 = feature_utils.generate_random_keypoints(12, [400, 300])
+        keypoints_i1 = feature_utils.generate_random_keypoints(10, [300, 250])
+        keypoints_i2 = feature_utils.generate_random_keypoints(12, [300, 400])
         match_indices = np.array([], dtype=np.int32)
         intrinsics_i1 = Cal3Bundler()
         intrinsics_i2 = Cal3Bundler()

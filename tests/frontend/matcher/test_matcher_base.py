@@ -53,16 +53,21 @@ class TestMatcherBase(unittest.TestCase):
     def test_empty_input(self):
         """Tests the matches when there are no descriptors."""
 
-        nonempty_keypoints, _, nonempty_descriptors, _, = generate_random_input()
+        nonempty_keypoints, _, nonempty_descriptors, _, _, _ = generate_random_input()
         empty_keypoints = Keypoints(coordinates=np.array([]))
         empty_descriptors = np.array([])
+        im_shape = (300, 200)
 
         # no keypoints for just i1
-        result = self.matcher.match(empty_keypoints, nonempty_keypoints, empty_descriptors, nonempty_descriptors)
+        result = self.matcher.match(
+            empty_keypoints, nonempty_keypoints, empty_descriptors, nonempty_descriptors, im_shape, im_shape
+        )
         self.assertEqual(result.size, 0)
 
         # no keypoints for just i2
-        result = self.matcher.match(nonempty_keypoints, empty_keypoints, nonempty_descriptors, empty_descriptors)
+        result = self.matcher.match(
+            nonempty_keypoints, empty_keypoints, nonempty_descriptors, empty_descriptors, im_shape, im_shape
+        )
         self.assertEqual(result.size, 0)
 
         # no keypoints for both i1 and i2
@@ -71,21 +76,34 @@ class TestMatcherBase(unittest.TestCase):
             deepcopy(empty_keypoints),
             deepcopy(empty_descriptors),
             deepcopy(empty_descriptors),
+            im_shape,
+            im_shape,
         )
         self.assertEqual(result.size, 0)
 
     def test_computation_graph(self):
         """Test that the computation graph is working exactly as the normal API
         """
-        keypoints_i1, keypoints_i2, descriptors_i1, descriptors_i2 = get_features_from_real_images()
+        (
+            keypoints_i1,
+            keypoints_i2,
+            descriptors_i1,
+            descriptors_i2,
+            im_shape_i1,
+            im_shape_i2,
+        ) = get_features_from_real_images()
 
-        expected_matches = self.matcher.match(keypoints_i1, keypoints_i2, descriptors_i1, descriptors_i2)
+        expected_matches = self.matcher.match(
+            keypoints_i1, keypoints_i2, descriptors_i1, descriptors_i2, im_shape_i1, im_shape_i2
+        )
 
         computed_matches_graph = self.matcher.create_computation_graph(
             dask.delayed(keypoints_i1),
             dask.delayed(keypoints_i2),
             dask.delayed(descriptors_i1),
             dask.delayed(descriptors_i2),
+            dask.delayed(im_shape_i1),
+            dask.delayed(im_shape_i2),
         )
         with dask.config.set(scheduler="single-threaded"):
             computed_matches = dask.compute(computed_matches_graph)[0]
@@ -102,9 +120,10 @@ class TestMatcherBase(unittest.TestCase):
             self.fail("Cannot dump matcher using pickle")
 
 
-def get_features_from_real_images() -> Tuple[Keypoints, Keypoints, np.ndarray, np.ndarray]:
-    """Load keypoints and descriptors from 2 real images.
-    """
+def get_features_from_real_images() -> Tuple[
+    Keypoints, Keypoints, np.ndarray, np.ndarray, Tuple[int, int], Tuple[int, int]
+]:
+    """Load keypoints and descriptors from 2 real images."""
     with open(REAL_FEATURES_PATH / "keypoints_0.pkl", "rb") as f:
         keypoints_i1 = pickle.load(f)
     with open(REAL_FEATURES_PATH / "keypoints_1.pkl", "rb") as f:
@@ -112,10 +131,10 @@ def get_features_from_real_images() -> Tuple[Keypoints, Keypoints, np.ndarray, n
     descriptors_i1 = np.load(REAL_FEATURES_PATH / "descriptors_0.npy")
     descriptors_i2 = np.load(REAL_FEATURES_PATH / "descriptors_1.npy")
 
-    return keypoints_i1, keypoints_i2, descriptors_i1, descriptors_i2
+    return keypoints_i1, keypoints_i2, descriptors_i1, descriptors_i2, (1936, 1296), (1936, 1296)
 
 
-def generate_random_input() -> Tuple[Keypoints, Keypoints, np.ndarray, np.ndarray]:
+def generate_random_input() -> Tuple[Keypoints, Keypoints, np.ndarray, np.ndarray, Tuple[int, int], Tuple[int, int]]:
     """Generates random keypoints and descriptors for a pair of images.
     """
 
@@ -124,12 +143,14 @@ def generate_random_input() -> Tuple[Keypoints, Keypoints, np.ndarray, np.ndarra
 
     descriptor_dim = random.randint(2, 10)
 
-    keypoints_i1 = feature_utils.generate_random_keypoints(num_keypoints_i1, (100, 300))
-    keypoints_i2 = feature_utils.generate_random_keypoints(num_keypoints_i2, (200, 150))
+    im_shape_i1 = (300, 100)
+    im_shape_i2 = (150, 200)
+    keypoints_i1 = feature_utils.generate_random_keypoints(num_keypoints_i1, im_shape_i1)
+    keypoints_i2 = feature_utils.generate_random_keypoints(num_keypoints_i2, im_shape_i2)
     descriptors_i1 = generate_random_binary_descriptors(num_keypoints_i1, descriptor_dim)
     descriptors_i2 = generate_random_binary_descriptors(num_keypoints_i2, descriptor_dim)
 
-    return keypoints_i1, keypoints_i2, descriptors_i1, descriptors_i2
+    return keypoints_i1, keypoints_i2, descriptors_i1, descriptors_i2, im_shape_i1, im_shape_i2
 
 
 def generate_random_binary_descriptors(num_descriptors: int, descriptor_dim: int) -> np.ndarray:
