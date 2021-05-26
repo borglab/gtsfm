@@ -12,11 +12,13 @@ def piecewise_gaussian(
     a_x: np.ndarray, b_x: np.ndarray, theta_0: float = 5, sigma_1: float = 1, sigma_2: float = 10
 ) -> float:
     """Evaluate the similarity of measurements for the same track in camera a and camera b.
+    1. This piecewise Gaussian function outputs a float score to show the evaluation result of the similarity.
+    2. The total similarity between two views can be calculated by summing up the scores of all common tracks.
+    3. A higher score suggests that the parallax of the track point between camera a and camera b is closer to a small
+    pre-defined angle theta_0 (5 degrees in default), which means views of camera a and camera b have many shared points
+    but with identifiable differences. So the view pair is suitable to be set as the reference view and the source view.
 
-    This piecewise Gaussian function outputs a float score to show the evaluation result of the similarity.
-    The total similarity between two views can be calculated by summing up the scores of all common tracks.
-
-    Details can be seen in "View Selection" paragraphs in Yao's paper https://arxiv.org/abs/1804.02505.
+    More details can be found in "View Selection" paragraphs in Yao's paper https://arxiv.org/abs/1804.02505.
 
     Args:
         a_x: 3D coordinates of the track point in camera a's frame, with shape (3,).
@@ -39,6 +41,6 @@ def piecewise_gaussian(
     theta_est = angle_between_vectors(a_x, b_x)
     # 2. calculate the score according to the angle
     if theta_est <= theta_0:  # if the angle is no larger than the threshold, we should attach more importance
-        return math.exp(-((theta_est - theta_0) ** 2) / (2 * sigma_1 ** 2))
+        return math.exp(-(((theta_est - theta_0) / sigma_1) ** 2) / 2)
     else:  # if the angle is larger than the threshold, we should attach less importance
-        return math.exp(-((theta_est - theta_0) ** 2) / (2 * sigma_2 ** 2))
+        return math.exp(-(((theta_est - theta_0) / sigma_2) ** 2) / 2)
