@@ -145,11 +145,11 @@ def get_rescaling_factor_per_axis(img_h: int, img_w: int, max_resolution: int) -
         new_h = max_resolution
         # compute scaling that will be applied to original image
         scale = new_h / float(h)
-        new_w = np.round(w * scale)
+        new_w = np.round(w * scale).astype(np.int32)
     else:
         new_w = max_resolution
         scale = new_w / float(w)
-        new_h = np.round(h * scale)
+        new_h = np.round(h * scale).astype(np.int32)
 
     scale_u = new_w / w
     scale_v = new_h / h
