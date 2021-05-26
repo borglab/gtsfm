@@ -139,14 +139,14 @@ class Propagation(nn.Module):
             batch: batch size,
             height: depth map height,
             width: depth map width,
-            depth_sample: sample depth map, in shape of [batch, num_depth, height, width],
-            grid: 2D grid for bilinear gridding, in shape of [batch, neighbors*H, W, 2]
-            depth_min: minimum virtual depth, in shape of [batch, ]
-            depth_max: maximum virtual depth, in shape of [batch, ]
+            depth_sample: sample depth map, in shape of (B, Ndepth, H, W),
+            grid: 2D grid for bilinear gridding, in shape of (B, neighbors*H, W, 2)
+            depth_min: minimum virtual depth, in shape of (B,)
+            depth_max: maximum virtual depth, in shape of (B,)
             depth_interval_scale: depth virtual interval scale,
 
         Returns:
-            propagate depth: sorted propagate depth map [batch, num_depth+num_neighbors, height, width]
+            propagate depth: sorted propagate depth map (B, Ndepth+neighbors, H, W)
         """
         num_depth = depth_sample.size()[1]
         propagate_depth = depth_sample.new_empty(batch, num_depth + self.neighbors, height, width)
@@ -436,7 +436,7 @@ class PatchMatch(nn.Module):
             img: reference images, (B, C, image_H, image_W)
 
         Returns:
-            generated grid: in the shape of [batch, propagate_neighbors*H, W, 2]
+            generated grid: in the shape of (B, propagate_neighbors*H, W, 2)
         """
 
         if self.propagate_neighbors == 4:  # if 4 neighbors to be sampled in propagation
@@ -516,7 +516,7 @@ class PatchMatch(nn.Module):
             img: reference images, (B, C, image_H, image_W)
 
         Returns:
-            generated grid: in the shape of [batch, evaluate_neighbors*H, W, 2]
+            generated grid: in the shape of (B, evaluate_neighbors*H, W, 2)
         """
         if self.evaluate_neighbors == 9:  # if 9 neighbors to be sampled in evaluation
             dilation = self.dilation - 1  # dilation of evaluation is a little smaller than propagation
@@ -613,7 +613,7 @@ class PatchMatch(nn.Module):
 
         Returns:
             depth_samples: list of depth maps from each patchmatch iteration, Niter * (B,1,H,W)
-            score: evaluted probabilities, (B,Ndepth,H,W)
+            score: evaluated probabilities, (B,Ndepth,H,W)
             view_weights(optional): Tensor to store weights of source views, in shape of (B,Nview-1,H,W),
                 Nview-1 represents the number of source views
         """
@@ -792,7 +792,7 @@ class PatchMatch(nn.Module):
 
 class SimilarityNet(nn.Module):
     """Similarity Net, used in Evaluation module (adaptive evaluation step)
-    1. Do 1x1x1 convolution on aggregated cost [B, G, Ndepth, H, W] among all the source views,
+    1. Do 1x1x1 convolution on aggregated cost (B, G, Ndepth, H, W) among all the source views,
         where G is the number of groups
     2. Perform adaptive spatial cost aggregation to get final cost (scores)
     """
@@ -815,14 +815,14 @@ class SimilarityNet(nn.Module):
         """Forward method for SimilarityNet
 
         Args:
-            x1: [B, G, Ndepth, H, W], where G is the number of groups, aggregated cost among all the source views with
+            x1: (B, G, Ndepth, H, W), where G is the number of groups, aggregated cost among all the source views with
                 pixel-wise view weight
             grid: position of sampling points in adaptive spatial cost aggregation, (B, evaluate_neighbors*H, W, 2)
             weight: weight of sampling points in adaptive spatial cost aggregation, combination of
-                feature weight and depth weight, [B,Ndepth,1,H,W]
+                feature weight and depth weight, (B,Ndepth,1,H,W)
 
         Returns:
-            final cost: in the shape of [B,Ndepth,H,W]
+            final cost: in the shape of (B,Ndepth,H,W)
         """
 
         batch, G, num_depth, height, width = x1.size()
@@ -866,11 +866,11 @@ class FeatureWeightNet(nn.Module):
         """Forward method for FeatureWeightNet
 
         Args:
-            ref_feature: reference feature map, [B,C,H,W]
+            ref_feature: reference feature map, (B,C,H,W)
             grid: position of sampling points in adaptive spatial cost aggregation, (B, evaluate_neighbors*H, W, 2)
 
         Returns:
-            weight based on similarity of features of sampling points and center pixel, [B,Neighbor,H,W]
+            weight based on similarity of features of sampling points and center pixel, (B,Neighbor,H,W)
         """
         batch, feature_channel, height, width = ref_feature.size()
 
@@ -967,7 +967,7 @@ class PixelwiseNet(nn.Module):
         """Forward method for PixelwiseNet
 
         Args:
-            x1: pixel-wise view weight, [B, G, Ndepth, H, W], where G is the number of groups
+            x1: pixel-wise view weight, (B, G, Ndepth, H, W), where G is the number of groups
         """
 
         # [B, Ndepth, H, W]

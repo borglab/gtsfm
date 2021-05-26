@@ -46,7 +46,7 @@ class FeatureNet(nn.Module):
         """Forward method
 
         Args:
-            x: images from a single view, in the shape of [B, C, H, W]. Generally, C=3
+            x: images from a single view, in the shape of (B, C, H, W). Generally, C=3
 
         Returns:
             output_feature: a python dictionary contains extracted features from stage_1 to stage_3
