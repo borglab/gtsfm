@@ -1,4 +1,4 @@
-"""Interface class from gtsfmData to patchmatchnetData
+"""Interface class from GtsfmData to PatchmatchNetData
 
 Authors: Ren Liu
 """
@@ -49,6 +49,10 @@ class PatchmatchNetData(Dataset):
 
     def configure(self) -> Tuple[np.ndarray, np.ndarray]:
         """Configure pairs and depth_ranges for each view from sfm_result
+        If there are N0 valid images and the patchmatchnet's number of views is num_views, the function does:
+            1. Calculate the similarity scores between N0 images. Then for every image as the reference image, find
+            (num_views - 1) most similar images as the source images;
+            2. For every image as the reference image, calculate the depth range
 
         Returns:
             pairs: array of shape (num_images, num_views-1). Each row_id indicates the index of reference view

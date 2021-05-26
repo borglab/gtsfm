@@ -19,26 +19,26 @@ def piecewise_gaussian(
     Details can be seen in "View Selection" paragraphs in Yao's paper https://arxiv.org/abs/1804.02505.
 
     Args:
-        a_x: 3D coordinates of the track point in pose a, with shape (3,),
-        b_x: 3D coordinates of the track point in pose b, with shape (3,),
+        a_x: 3D coordinates of the track point in camera a's frame, with shape (3,).
+        b_x: 3D coordinates of the track point in camera b's frame, with shape (3,).
         theta_0: Default theta_0 is set to be 5.
             theta_0 is the threshold angle (in degree) between coordinates in different poses.
         sigma_1: Default sigma_1 is set to be 1.
             If the angle between measurements in different views is no larger than the threshold angle, which means
-            view a and b are similar in this track, then the gaussian variance should be smaller to make the score
+            view a and b are similar in this track, then the Gaussian variance should be smaller to make the score
             higher.
         sigma_2: Default sigma_2 is set to be 10.
             If the angle between measurements in different views is larger than the threshold angle, which means
             view a and b are not similar in this track, so less importance should be attached to this track. The
-            gaussian variance should be larger to make the score lower.
+            Gaussian variance should be larger to make the score lower.
 
     Returns:
         A score of the track between two views in the range (0,1]
     """
     # 1. calculate the angle between measurement poses of track p in views a and b.
-    theta = angle_between_vectors(a_x, b_x)
+    theta_est = angle_between_vectors(a_x, b_x)
     # 2. calculate the score according to the angle
-    if theta <= theta_0:  # if the angle is no larger than the threshold, we should attach more importance
-        return math.exp(-((theta - theta_0) ** 2) / (2 * sigma_1 ** 2))
+    if theta_est <= theta_0:  # if the angle is no larger than the threshold, we should attach more importance
+        return math.exp(-((theta_est - theta_0) ** 2) / (2 * sigma_1 ** 2))
     else:  # if the angle is larger than the threshold, we should attach less importance
-        return math.exp(-((theta - theta_0) ** 2) / (2 * sigma_2 ** 2))
+        return math.exp(-((theta_est - theta_0) ** 2) / (2 * sigma_2 ** 2))

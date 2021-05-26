@@ -284,7 +284,7 @@ class TestGeometryComparisons(unittest.TestCase):
         # identity alignment should preserve poses, should still match GT/targets at indices 1 and 3
         self.__assert_equality_on_pose3s(computed=[aTi_list_[1], aTi_list_[3]], expected=[aTi_list[1], aTi_list[3]])
 
-    def test_angle_between_vectors(self):
+    def test_angle_between_vectors(self) -> None:
         """Test that the angle between two vectors is calculated correctly in degrees."""
         v_a = np.array([1.5, 0, 0])
         v_b = np.array([0, -4.0, 0])

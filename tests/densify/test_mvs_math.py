@@ -13,7 +13,7 @@ import gtsfm.densify.mvs_math as mvs_math
 class TestMVSMath(unittest.TestCase):
     """Unit tests for math utilities for MVS methods."""
 
-    def test_piecewise_gaussian_below_threshold(self):
+    def test_piecewise_gaussian_below_threshold(self) -> None:
         """Unit test for the case that the angle between two coordinates is below the threshold,
         where sigma_1 is used to calculate the score"""
 
@@ -25,7 +25,7 @@ class TestMVSMath(unittest.TestCase):
 
         self.assertAlmostEqual(score, np.exp(-(1.0 ** 2) / (2 * 1.0 ** 2)))
 
-    def test_piecewise_gaussian_above_threshold(self):
+    def test_piecewise_gaussian_above_threshold(self) -> None:
         """Unit test for the case that the angle between two coordinates is above the threshold,
         where sigma_2 is used to calculate the score"""
 

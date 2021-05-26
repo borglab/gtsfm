@@ -24,7 +24,7 @@ EXAMPLE_CAMERA_ID = 1
 class TestInterfacePatchmatchNet(unittest.TestCase):
     """Unit tests for the interface for PatchmatchNet."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up the image dictionary and gtsfm result for the test."""
         super().setUp()
 
@@ -76,11 +76,11 @@ class TestInterfacePatchmatchNet(unittest.TestCase):
 
         self._dataset_patchmatchnet = PatchmatchNetData(self._img_dict, self._sfm_result, num_views=NUM_VIEWS)
 
-    def test_initialize_and_configure(self):
+    def test_initialize_and_configure(self) -> None:
         """Test initialization method and whether configuration is correct"""
         self.assertEqual(len(self._dataset_patchmatchnet), self._num_valid_cameras)
 
-    def test_get_item(self):
+    def test_get_item(self) -> None:
         """Test get item method when yielding test data from dataset"""
         example = self._dataset_patchmatchnet[EXAMPLE_CAMERA_ID]
 
@@ -93,18 +93,11 @@ class TestInterfacePatchmatchNet(unittest.TestCase):
         h, w, c = self._img_dict[0].value_array.shape
         self.assertEqual((H, W, C), (h, w, c))
 
-        # test projection matrices
-        sample_proj_mat = example["proj_matrices"]["stage_0"][0]
+        # test 3x4 projection matrices
+        sample_proj_mat = example["proj_matrices"]["stage_0"][0][:3, :4]
         sample_camera = self._sfm_result.get_camera(EXAMPLE_CAMERA_ID)
-        self.assertAlmostEqual(
-            np.sum(
-                np.abs(
-                    sample_proj_mat[:3, :4]
-                    - sample_camera.calibration().K() @ sample_camera.pose().inverse().matrix()[:3, :4]
-                )
-            ),
-            0.0,
-        )
+        actual_proj_mat = sample_camera.calibration().K() @ sample_camera.pose().inverse().matrix()[:3, :4]
+        self.assertTrue(np.array_equal(sample_proj_mat, actual_proj_mat))
 
         # test depth range
         self.assertEqual(example["depth_min"], self._example_min_depth)
