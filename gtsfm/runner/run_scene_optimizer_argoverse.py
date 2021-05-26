@@ -1,7 +1,6 @@
 import argparse
 
 import hydra
-import numpy as np
 from dask.distributed import Client, LocalCluster, performance_report
 from hydra.utils import instantiate
 

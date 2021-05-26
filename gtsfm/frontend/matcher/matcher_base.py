@@ -46,7 +46,7 @@ class MatcherBase(metaclass=abc.ABCMeta):
             descriptors_i2: descriptors corr. to keypoints_i2.
             im_shape_i1: shape of image #i1, as width, height.
             im_shape_i2: shape of image #i2, as width, height.
-            
+
 
         Returns:
             Match indices (sorted by confidence), as matrix of shape (N, 2), where N < min(N1, N2).

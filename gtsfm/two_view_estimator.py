@@ -35,7 +35,7 @@ class TwoViewEstimator:
         Args:
             matcher: matcher to use.
             verifier: verifier to use.
-            corr_metric_dist_threshold: distance threshold for marking a correspondence pair as inlier. 
+            corr_metric_dist_threshold: distance threshold for marking a correspondence pair as inlier.
         """
         self._matcher = matcher
         self._verifier = verifier
@@ -168,7 +168,9 @@ def compute_correspondence_metrics(
 
 
 def compute_relative_pose_metrics(
-    i2Ri1_computed: Optional[Rot3], i2Ui1_computed: Optional[Unit3], i2Ti1_expected: Pose3,
+    i2Ri1_computed: Optional[Rot3],
+    i2Ui1_computed: Optional[Unit3],
+    i2Ti1_expected: Pose3,
 ) -> Tuple[Optional[float], Optional[float]]:
     """Compute the metrics on relative camera pose.
 
@@ -187,4 +189,3 @@ def compute_relative_pose_metrics(
     )
 
     return (R_error_deg, U_error_deg)
-    
