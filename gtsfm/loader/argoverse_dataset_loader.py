@@ -104,7 +104,7 @@ class ArgoverseDatasetLoader(LoaderBase):
             The image at the query index.
         """
 
-        if index < 0 or index >= self.__len__():
+        if index < 0 or index >= len(self):
             raise IndexError("Image index is invalid")
 
         return io_utils.load_image(self._image_paths[index])
@@ -144,7 +144,7 @@ class ArgoverseDatasetLoader(LoaderBase):
 
         return self._world_pose.between(Pose3(Rot3(city_SE3_camera.rotation), city_SE3_camera.translation))
 
-    def validate_pair(self, idx1: int, idx2: int) -> bool:
+    def is_valid_pair(self, idx1: int, idx2: int) -> bool:
         """Checks if (idx1, idx2) is a valid pair.
 
         Args:
