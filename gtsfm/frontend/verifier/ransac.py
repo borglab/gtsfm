@@ -23,9 +23,7 @@ import gtsfm.utils.verification as verification_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
-
-NORMALIZED_COORD_RANSAC_THRESH = 0.001  # TODO: hyperparameter to tune
-PIXEL_COORD_RANSAC_THRESH = 0.5  # TODO: hyperparameter to tune
+PIXEL_COORD_RANSAC_THRESH = 4  # TODO: hyperparameter to tune
 DEFAULT_RANSAC_SUCCESS_PROB = 0.9999
 
 logger = logger_utils.get_logger()
@@ -62,13 +60,15 @@ class Ransac(VerifierBase):
             uv_norm_i2 = feature_utils.normalize_coordinates(keypoints_i2.coordinates, camera_intrinsics_i2)
             K = np.eye(3)
 
+            # use stricter threshold, among the two choices
+            fx = max(camera_intrinsics_i1.K()[0,0], camera_intrinsics_i2.K()[0,0])
             i2Ei1, inlier_mask = cv2.findEssentialMat(
                 uv_norm_i1[match_indices[:, 0]],
                 uv_norm_i2[match_indices[:, 1]],
                 K,
                 method=cv2.RANSAC,
                 threshold=NORMALIZED_COORD_RANSAC_THRESH,
-                prob=DEFAULT_RANSAC_SUCCESS_PROB,
+                prob=PIXEL_COORD_RANSAC_THRESH / fx
             )
         else:
             i2Fi1, inlier_mask = cv2.findFundamentalMat(
