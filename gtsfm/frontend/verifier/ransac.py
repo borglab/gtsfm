@@ -67,8 +67,8 @@ class Ransac(VerifierBase):
                 uv_norm_i2[match_indices[:, 1]],
                 K,
                 method=cv2.RANSAC,
-                threshold=NORMALIZED_COORD_RANSAC_THRESH,
-                prob=PIXEL_COORD_RANSAC_THRESH / fx
+                threshold=PIXEL_COORD_RANSAC_THRESH / fx,
+                prob=DEFAULT_RANSAC_SUCCESS_PROB, 
             )
         else:
             i2Fi1, inlier_mask = cv2.findFundamentalMat(
