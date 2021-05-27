@@ -1,3 +1,18 @@
+"""SuperGlue matcher implementation
+
+The network was proposed in 'SuperGlue: Learning Feature Matching with Graph Neural Networks' and is implemented by 
+wrapping over author's source-code.
+
+Note: the pretrained model only supports superpoint detections right now.
+
+References:
+- http://openaccess.thecvf.com/content_CVPR_2020/papers/Sarlin_SuperGlue_Learning_Feature_Matching_With_Graph_Neural_Networks_CVPR_2020_paper.pdf
+- https://github.com/magicleap/SuperGluePretrainedNetwork
+
+Authors: Ayush Baid, John Lambert
+"""
+import os
+from typing import Tuple
 
 import numpy as np
 import torch
@@ -6,19 +21,23 @@ from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
 from thirdparty.SuperGluePretrainedNetwork.models.superglue import SuperGlue
 
+SUPERGLUE_DESC_DIM = 256
+
 
 class SuperGlueMatcher(MatcherBase):
     """Implements the SuperGlue matcher -- a pretrained graph neural network using attention."""
 
-    def __init__(self, use_cuda: bool = False):
+    def __init__(self, use_cuda: bool = True, use_outdoor_model: bool = True):
+        """Initialize the configuration and the parameters."""
         super().__init__()
-        self._use_cuda = use_cuda
 
-        config = {
-            "weights": "outdoor",
+        self._config = {
+            "descriptor_dim": 256,
+            "weights": "outdoor" if use_outdoor_model else "indoor",
             "sinkhorn_iterations": 20,
         }
-        self.superglue = SuperGlue(config).eval()
+
+        self._use_cuda = use_cuda and torch.cuda.is_available()
 
     def match(
         self,
@@ -26,52 +45,64 @@ class SuperGlueMatcher(MatcherBase):
         keypoints_i2: Keypoints,
         descriptors_i1: np.ndarray,
         descriptors_i2: np.ndarray,
-        img_height: int,
-        img_width: int,
+        im_shape_i1: Tuple[int, int],
+        im_shape_i2: Tuple[int, int],
     ) -> np.ndarray:
         """Match keypoints using their 2d positions and descriptor vectors.
+
+        Output format:
+        1. Each row represents a match.
+        2. First column represents keypoint index from image #i1.
+        3. Second column represents keypoint index from image #i2.
+        4. Matches are sorted in descending order of the confidence (score), if possible.
 
         Args:
             keypoints_i1: keypoints for image #i1, of length N1.
             keypoints_i2: keypoints for image #i2, of length N2.
             descriptors_i1: descriptors corr. to keypoints_i1.
             descriptors_i2: descriptors corr. to keypoints_i2.
-            img_height: height of input images, in pixels. Assumes images i1 and i2 have the same size.
-            img_width: width of input images, in pixels.
+            im_shape_i1: shape of image #i1, as (height,width).
+            im_shape_i2: shape of image #i2, as (height,width).
 
         Returns:
             Match indices (sorted by confidence), as matrix of shape (N, 2), where N < min(N1, N2).
         """
+        if keypoints_i1.responses is None or keypoints_i2.responses is None:
+            raise ValueError("Responses for keypoints required for SuperGlue")
+
+        if descriptors_i1.shape[1] != SUPERGLUE_DESC_DIM or descriptors_i2.shape[1] != SUPERGLUE_DESC_DIM:
+            raise Exception("Superglue pretrained network only works on 256 dimensional descriptors")
+
         device = torch.device("cuda" if self._use_cuda else "cpu")
-        data = {}
-
-        data["descriptors0"] = torch.from_numpy(descriptors_i1).T.unsqueeze(0).float().to(device)
-        data["descriptors1"] = torch.from_numpy(descriptors_i2).T.unsqueeze(0).float().to(device)
-
-        data["keypoints0"] = torch.from_numpy(keypoints_i1.coordinates).unsqueeze(0).float().to(device)
-        data["keypoints1"] = torch.from_numpy(keypoints_i2.coordinates).unsqueeze(0).float().to(device)
-
-        data["scores0"] = torch.from_numpy(keypoints_i1.responses).unsqueeze(0).float().to(device)
-        data["scores1"] = torch.from_numpy(keypoints_i2.responses).unsqueeze(0).float().to(device)
-
-        self.superglue = self.superglue.to(device)
+        model = SuperGlue(self._config).to(device).eval()
 
         # batch size and number of channels
         B, C = 1, 1
 
         # feed in dummy arguments, as they are only needed to determine image dimensions for normalization
-        data["image0"] = np.zeros((B, C, img_height, img_width))
-        data["image1"] = np.zeros((B, C, img_height, img_width))
+        empty_image_i1 = torch.empty((B, C, im_shape_i1[0], im_shape_i1[1]))
+        empty_image_i2 = torch.empty((B, C, im_shape_i2[0], im_shape_i2[1]))
+
+        input_data = {
+            "keypoints0": torch.from_numpy(keypoints_i1.coordinates).unsqueeze(0).float().to(device),
+            "keypoints1": torch.from_numpy(keypoints_i2.coordinates).unsqueeze(0).float().to(device),
+            "descriptors0": torch.from_numpy(descriptors_i1).T.unsqueeze(0).float().to(device),
+            "descriptors1": torch.from_numpy(descriptors_i2).T.unsqueeze(0).float().to(device),
+            "scores0": torch.from_numpy(keypoints_i1.responses).unsqueeze(0).float().to(device),
+            "scores1": torch.from_numpy(keypoints_i2.responses).unsqueeze(0).float().to(device),
+            "image0": empty_image_i1,
+            "image1": empty_image_i2,
+        }
 
         with torch.no_grad():
-            pred = self.superglue(data)
+            pred = model(input_data)
+            matches = pred["matches0"][0].detach().cpu().numpy()
 
-        matches = pred["matches0"][0].cpu().numpy()
+            num_kps_i1 = len(keypoints_i1)
+            num_kps_i2 = len(keypoints_i2)
+            valid = matches > -1
+            match_indices = np.hstack(
+                [np.arange(num_kps_i1)[valid].reshape(-1, 1), np.arange(num_kps_i2)[matches[valid]].reshape(-1, 1)]
+            ).astype(np.uint32)
 
-        num_kps_i1 = len(keypoints_i1)
-        num_kps_i2 = len(keypoints_i2)
-        valid = matches > -1
-        match_indices = np.hstack(
-            [np.arange(num_kps_i1)[valid].reshape(-1, 1), np.arange(num_kps_i2)[matches[valid]].reshape(-1, 1)]
-        )
         return match_indices
