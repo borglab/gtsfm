@@ -18,8 +18,8 @@ SceneOptimizer:
       _target_: gtsfm.frontend.matcher.superglue_matcher.SuperGlueMatcher
 
     verifier:
-      _target_: gtsfm.frontend.verifier.degensac.Degensac
-      use_intrinsics_in_verification: False
+      _target_: gtsfm.frontend.verifier.ransac.Ransac
+      use_intrinsics_in_verification: True
     
 
   multiview_optimizer:
