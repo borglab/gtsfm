@@ -121,6 +121,21 @@ def read_bal(file_path: str) -> GtsfmData:
     return gtsfm_data
 
 
+def export_model_as_colmap_text(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
+    """Emulates the COLMAP option to `Export model as text`.
+
+    Three text files will be save to disk: "points3D.txt", "images.txt", and "cameras.txt".
+
+    Args:
+        images: list of all images for this scene, in order of image index
+        save_dir: folder where text files will be saved
+    """
+    io_utils.write_cameras(gtsfm_data, images, save_dir)
+    io_utils.write_images(gtsfm_data, save_dir)
+    io_utils.write_points(gtsfm_data, images, save_dir)
+
+
+
 def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
     """Read camera calibrations from a COLMAP-formatted cameras.txt file.
 
