@@ -56,7 +56,7 @@ class DetectorDescriptorBase(metaclass=abc.ABCMeta):
         """
         # get delayed object, cannot separate two arguments immediately
         joint_graph = dask.delayed(self.detect_and_describe)(image_graph)
-        
+
         keypoints_graph = joint_graph[0]
         descriptor_graph = joint_graph[1]
 
