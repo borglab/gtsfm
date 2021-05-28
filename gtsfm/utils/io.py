@@ -132,9 +132,9 @@ def export_model_as_colmap_text(gtsfm_data: GtsfmData, images: List[Image], save
         images: list of all images for this scene, in order of image index.
         save_dir: folder where text files will be saved.
     """
-    io_utils.write_cameras(gtsfm_data, images, save_dir)
-    io_utils.write_images(gtsfm_data, images, save_dir)
-    io_utils.write_points(gtsfm_data, images, save_dir)
+    write_cameras(gtsfm_data, images, save_dir)
+    write_images(gtsfm_data, images, save_dir)
+    write_points(gtsfm_data, images, save_dir)
 
 
 def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
