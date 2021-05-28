@@ -128,8 +128,9 @@ def export_model_as_colmap_text(gtsfm_data: GtsfmData, images: List[Image], save
     Three text files will be save to disk: "points3D.txt", "images.txt", and "cameras.txt".
 
     Args:
-        images: list of all images for this scene, in order of image index
-        save_dir: folder where text files will be saved
+        gtsfm_data: scene data to write.
+        images: list of all images for this scene, in order of image index.
+        save_dir: folder where text files will be saved.
     """
     io_utils.write_cameras(gtsfm_data, images, save_dir)
     io_utils.write_images(gtsfm_data, images, save_dir)
