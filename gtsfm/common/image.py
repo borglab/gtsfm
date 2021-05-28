@@ -11,11 +11,12 @@ from gtsfm.utils.sensor_width_database import SensorWidthDatabase
 
 
 class Image(NamedTuple):
-    value_array: np.ndarray
-    exif_data: Optional[Dict[str, Any]] = None
     """Holds the image and associated exif data."""
 
+    value_array: np.ndarray
+    exif_data: Optional[Dict[str, Any]] = None
     sensor_width_db = SensorWidthDatabase()
+    file_name: Optional[str] = None
 
     @property
     def height(self) -> int:
