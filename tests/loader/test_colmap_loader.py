@@ -1,9 +1,9 @@
-
 import unittest
 from pathlib import Path
 
 import numpy as np
-from gtsam import Pose3
+from gtsam import Rot3, Pose3
+from scipy.spatial.transform import Rotation
 
 from gtsfm.common.image import Image
 from gtsfm.loader.colmap_loader import ColmapLoader
@@ -12,7 +12,6 @@ TEST_DATA_ROOT = Path(__file__).resolve().parent.parent / "data"
 
 
 class TestColmapLoader(unittest.TestCase):
-
     def setUp(self):
         """Set up the loader for the test."""
         super().setUp()
@@ -23,10 +22,10 @@ class TestColmapLoader(unittest.TestCase):
         self.loader = ColmapLoader(
             colmap_files_dirpath,
             images_dir,
-            use_gt_intrinsics= True,
-            use_gt_extrinsics= True,
-            max_frame_lookahead = 3,
-            max_resolution = 500
+            use_gt_intrinsics=True,
+            use_gt_extrinsics=True,
+            max_frame_lookahead=3,
+            max_resolution=500,
         )
 
     def test_constructor_set_properties(self) -> None:
@@ -54,8 +53,8 @@ class TestColmapLoader(unittest.TestCase):
 
         Note: native resolution is (1936, 1296) for (H,W)
         """
-        assert self.loader._scale_u == 500 / 1296
-        assert np.isclose(self.loader._scale_v, 500 / 1296, atol=1e-4)
+        assert self.loader._scale_u == 500.0 / 1296.0
+        assert np.isclose(self.loader._scale_v, 500.0 / 1296.0, atol=1e-4)
 
         assert self.loader._target_h == 747
         assert self.loader._target_w == 500
@@ -74,5 +73,18 @@ class TestColmapLoader(unittest.TestCase):
         wT0 = self.loader.get_camera_pose(0)
         assert isinstance(wT0, Pose3)
 
+        # From images.txt files, for DSC_0001.JPG (0th image)
+        qw, qx, qy, qz = 0.983789, 0.00113517, 0.176825, -0.0298644
+        tx, ty, tz = -7.60712, 0.428157, 2.75243
 
-# TODO in future: instantiate an object while providing bad paths 
+        cRw = Rotation.from_quat([qx, qy, qz, qw]).as_matrix()
+        ctw = np.array([tx, ty, tz])
+
+        # COLMAP saves extrinsics as cTw, not poses wTc
+        cTw_expected = Pose3(Rot3(cRw), ctw)
+        wT0_expected = cTw_expected.inverse()
+        np.testing.assert_allclose(wT0.rotation().matrix(), wT0_expected.rotation().matrix(), atol=1e-5)
+        np.testing.assert_allclose(wT0.translation(), wT0_expected.translation(), atol=1e-5)
+
+
+# TODO in future: instantiate an object while providing bad paths
