@@ -41,8 +41,14 @@ class PatchmatchNetData(Dataset):
         self._keys = sorted(self._sfm_result.get_valid_camera_indices())
         self._num_images = len(self._keys)
         self._keys_map = {}
+        self._camera_centers = {}
         for i in range(self._num_images):
             self._keys_map[self._keys[i]] = i
+            extrinsic = self._sfm_result.get_camera(self._keys[i]).pose().inverse().matrix()
+            rotation = extrinsic[:3, :3]
+            translation = extrinsic[:3, 3:4]
+            self._camera_centers[self._keys[i]] = (-rotation.T @ translation).flatten()
+
         self._images = images
 
         self._pairs, self._depth_ranges = self.configure()
@@ -50,8 +56,8 @@ class PatchmatchNetData(Dataset):
     def configure(self) -> Tuple[np.ndarray, np.ndarray]:
         """Configure pairs and depth_ranges for each view from sfm_result
         If there are N0 valid images and the patchmatchnet's number of views is num_views, the function does:
-            1. Calculate the similarity scores between N0 images. Then for every image as the reference image, find
-            (num_views - 1) most similar images as the source images;
+            1. Calculate the scores between N0 images. Then for every image as the reference image, find
+            (num_views - 1) images with highest scores as the source images;
             2. For every image as the reference image, calculate the depth range
 
         Returns:
@@ -86,25 +92,27 @@ class PatchmatchNetData(Dataset):
                     # check if measurement j1 belongs to a valid camera a
                     if i_a in self._keys_map:
                         key_a = self._keys_map[i_a]
-                        # calculate track_i's 3D coordinates in the camera pose
-                        a_x = self._sfm_result.get_camera(i_a).pose().transformTo(w_x)
+                        # calculate track_i's depth in the camera pose
+                        a_z = self._sfm_result.get_camera(i_a).pose().transformTo(w_x)[-1]
                         # update depth ranges
-                        depth_ranges[key_a, 0] = min(depth_ranges[key_a, 0], a_x[-1])
-                        depth_ranges[key_a, 1] = max(depth_ranges[key_a, 1], a_x[-1])
+                        depth_ranges[key_a, 0] = min(depth_ranges[key_a, 0], a_z)
+                        depth_ranges[key_a, 1] = max(depth_ranges[key_a, 1], a_z)
 
                     # check if measurement j2 belongs to a valid camera b
                     if i_b in self._keys_map:
                         key_b = self._keys_map[i_b]
-                        # calculate track_i's 3D coordinates in the camera pose
-                        b_x = self._sfm_result.get_camera(i_b).pose().transformTo(w_x)
+                        # calculate track_i's depth in the camera pose
+                        b_z = self._sfm_result.get_camera(i_b).pose().transformTo(w_x)[-1]
                         # update depth ranges
-                        depth_ranges[key_b, 0] = min(depth_ranges[key_b, 0], b_x[-1])
-                        depth_ranges[key_b, 1] = max(depth_ranges[key_b, 1], b_x[-1])
+                        depth_ranges[key_b, 0] = min(depth_ranges[key_b, 0], b_z)
+                        depth_ranges[key_b, 1] = max(depth_ranges[key_b, 1], b_z)
 
                     # if both cameras are valid cameras
                     if key_a > 0 and key_b > 0:
-                        # calculate score for measurements of track_i in pair views (cam_a, cam_b)
-                        score_a_b = piecewise_gaussian(a_x=a_x, b_x=b_x)
+                        # calculate score for track_i in the pair views (cam_a, cam_b)
+                        score_a_b = piecewise_gaussian(
+                            a_x=self._camera_centers[i_a] - w_x, b_x=self._camera_centers[i_b] - w_x
+                        )
                         # sum up pair scores for each track_i
                         pair_scores[key_a, key_b] += score_a_b
                         pair_scores[key_b, key_a] = pair_scores[key_a, key_b]
