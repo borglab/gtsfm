@@ -57,8 +57,6 @@ class DetectorDescriptorBase(metaclass=abc.ABCMeta):
         # get delayed object, cannot separate two arguments immediately
         joint_graph = dask.delayed(self.detect_and_describe)(image_graph)
 
-        # TODO: log the number of keypoints from each method (SIFT vs. SuperGlue)
-
         keypoints_graph = joint_graph[0]
         descriptor_graph = joint_graph[1]
 
