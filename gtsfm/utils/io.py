@@ -49,7 +49,8 @@ def load_image(img_path: str) -> Image:
 
         exif_data = parsed_data
 
-    return Image(np.asarray(original_image), exif_data)
+    img_fname = Path(img_path).name
+    return Image(value_array=np.asarray(original_image), exif_data=exif_data, file_name=img_fname)
 
 
 def save_image(image: Image, img_path: str) -> None:
@@ -131,9 +132,8 @@ def export_model_as_colmap_text(gtsfm_data: GtsfmData, images: List[Image], save
         save_dir: folder where text files will be saved
     """
     io_utils.write_cameras(gtsfm_data, images, save_dir)
-    io_utils.write_images(gtsfm_data, save_dir)
+    io_utils.write_images(gtsfm_data, images, save_dir)
     io_utils.write_points(gtsfm_data, images, save_dir)
-
 
 
 def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
@@ -248,13 +248,14 @@ def read_images_txt(fpath: str) -> Tuple[Optional[List[Pose3]], Optional[List[st
     return wTi_list, img_fnames
 
 
-def write_images(gtsfm_data: GtsfmData, save_dir: str) -> None:
+def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
     """Writes the image data file in the COLMAP format.
 
     Reference: https://colmap.github.io/format.html#images-txt
 
     Args:
         gtsfm_data: scene data to write.
+        images: list of all images for this scene, in order of image index.
         save_dir: folder to put the images.txt file in.
     """
     os.makedirs(save_dir, exist_ok=True)
@@ -262,9 +263,6 @@ def write_images(gtsfm_data: GtsfmData, save_dir: str) -> None:
     num_imgs = gtsfm_data.number_images()
     # TODO: compute this (from keypoint data? or from track data?)
     mean_obs_per_img = 0
-
-    # TODO: compute this
-    img_fname = "dummy.jpg"
 
     file_path = os.path.join(save_dir, "images.txt")
     with open(file_path, "w") as f:
@@ -274,6 +272,7 @@ def write_images(gtsfm_data: GtsfmData, save_dir: str) -> None:
         f.write(f"# Number of images: {num_imgs}, mean observations per image: {mean_obs_per_img}\n")
 
         for i in gtsfm_data.get_valid_camera_indices():
+            img_fname = images[i].file_name
             camera = gtsfm_data.get_camera(i)
             # COLMAP exports camera extrinsics (cTw), not the poses (wTc), so must invert
             iTw = camera.pose().inverse()
