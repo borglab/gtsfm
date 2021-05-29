@@ -123,7 +123,7 @@ class TestMatcherBase(unittest.TestCase):
 def get_features_from_real_images() -> Tuple[
     Keypoints, Keypoints, np.ndarray, np.ndarray, Tuple[int, int], Tuple[int, int]
 ]:
-    """Load keypoints and descriptors from 2 real images."""
+    """Load keypoints and descriptors from 2 real images, taken from Olsson's Lund Door dataset."""
     with open(REAL_FEATURES_PATH / "keypoints_0.pkl", "rb") as f:
         keypoints_i1 = pickle.load(f)
     with open(REAL_FEATURES_PATH / "keypoints_1.pkl", "rb") as f:
@@ -131,7 +131,10 @@ def get_features_from_real_images() -> Tuple[
     descriptors_i1 = np.load(REAL_FEATURES_PATH / "descriptors_0.npy")
     descriptors_i2 = np.load(REAL_FEATURES_PATH / "descriptors_1.npy")
 
-    return keypoints_i1, keypoints_i2, descriptors_i1, descriptors_i2, (1936, 1296), (1936, 1296)
+    # shape as (height, width)
+    im_shape_i1 = (1936, 1296)
+    im_shape_i2 =  (1936, 1296)
+    return keypoints_i1, keypoints_i2, descriptors_i1, descriptors_i2, im_shape_i1, im_shape_i2
 
 
 def generate_random_input() -> Tuple[Keypoints, Keypoints, np.ndarray, np.ndarray, Tuple[int, int], Tuple[int, int]]:
