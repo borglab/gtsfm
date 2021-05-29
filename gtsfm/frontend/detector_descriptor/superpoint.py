@@ -1,7 +1,7 @@
 """Superpoint detector+descriptor implementation.
 
 The network was proposed in 'SuperPoint: Self-Supervised Interest Point Detection and Description' and is implemented
-by wrapping over author's implementation.
+by wrapping over the authors' implementation.
 
 References:
 - https://arxiv.org/abs/1712.07629
@@ -10,7 +10,7 @@ References:
 Authors: Ayush Baid
 """
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, Union
 
 import numpy as np
 import torch
@@ -30,7 +30,7 @@ MODEL_WEIGHTS_PATH = (
 class SuperPointDetectorDescriptor(DetectorDescriptorBase):
     """Superpoint Detector+Descriptor implementation."""
 
-    def __init__(self, use_cuda=True, weights_path=MODEL_WEIGHTS_PATH) -> None:
+    def __init__(self, use_cuda: bool = True, weights_path: Union[Path,str] = MODEL_WEIGHTS_PATH) -> None:
         """Configures the object.
 
         Args:
@@ -43,6 +43,7 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
         self._config = {"weights_path": weights_path}
 
     def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
+        """Jointly generate keypoint detections and their associated descriptors from a single image."""
         device = torch.device("cuda" if self._use_cuda else "cpu")
         model = SuperPoint(self._config).to(device)
         model.eval()
