@@ -5,8 +5,8 @@ from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.matcher.superglue_matcher import SuperGlueMatcher
 
 
-def test_SuperGlueMatcher():
-    """ """
+def test_SuperGlueMatcher() -> None:
+    """Ensure the SuperGlue matcher returns output of the correct shape, for random input."""
     img_width = 20
     img_height = 20
 
