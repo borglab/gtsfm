@@ -7,8 +7,11 @@ from gtsfm.frontend.matcher.superglue_matcher import SuperGlueMatcher
 
 def test_SuperGlueMatcher() -> None:
     """Ensure the SuperGlue matcher returns output of the correct shape, for random input."""
-    img_width = 20
-    img_height = 20
+    # image height and width
+    H, W = 20, 20
+
+    im_shape_i1 = (H,W)
+    im_shape_i2 = (H,W)
 
     num_kps_i1 = 50
     kps_i1 = Keypoints(coordinates=np.random.randint(0, img_height, size=(num_kps_i1, 2)), responses=np.random.rand(50))
@@ -20,6 +23,6 @@ def test_SuperGlueMatcher() -> None:
 
     matcher = SuperGlueMatcher()
 
-    match_indices = matcher.match(kps_i1, kps_i2, descs_i1, descs_i2, img_height, img_width)
+    match_indices = matcher.match(kps_i1, kps_i2, descs_i1, descs_i2, im_shape_i1, im_shape_i2)
     assert isinstance(match_indices, np.ndarray)
     assert match_indices.dtype == np.int64

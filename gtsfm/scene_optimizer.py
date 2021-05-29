@@ -302,7 +302,7 @@ def visualize_sfm_data(sfm_data: GtsfmData, folder_name: str) -> None:
         folder_name: folder to save the visualization at.
     """
     fig = plt.figure()
-    ax = fig.gca(projection="3d")
+    ax = fig.add_subplot(projection='3d')
 
     viz_utils.plot_sfm_data_3d(sfm_data, ax)
     viz_utils.set_axes_equal(ax)
@@ -339,7 +339,7 @@ def visualize_camera_poses(
         post_ba_poses.append(post_ba_sfm_data.get_camera(i).pose())
 
     fig = plt.figure()
-    ax = fig.gca(projection="3d")
+    ax = fig.add_subplot(projection='3d')
 
     if gt_pose_graph is not None:
         # Select ground truth poses that correspond to pre-BA and post-BA estimated poses
