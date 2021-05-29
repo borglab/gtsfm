@@ -28,3 +28,4 @@ mkdir -p $PATCHMATCHNET_WEIGHTS_DIR
 PATCHMATCHNET_URL="https://github.com/FangjinhuaWang/PatchmatchNet/raw/main/checkpoints/model_000007.ckpt"
 
 wget -O $PATCHMATCHNET_WEIGHTS_DIR/model_000007.ckpt $PATCHMATCHNET_URL
+

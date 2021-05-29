@@ -230,49 +230,33 @@ class SceneOptimizer:
             # save the input to Bundle Adjustment (from data association)
             ba_input_save_dir = os.path.join(RESULTS_PATH, "ba_input")
             react_ba_input_save_dir = os.path.join(REACT_RESULTS_PATH, "ba_input")
-
             auxiliary_graph_list.append(
-                dask.delayed(io_utils.write_cameras)(ba_input_graph, image_graph, save_dir=ba_input_save_dir)
-            )
-            auxiliary_graph_list.append(dask.delayed(io_utils.write_images)(ba_input_graph, save_dir=ba_input_save_dir))
-            auxiliary_graph_list.append(
-                dask.delayed(io_utils.write_points)(ba_input_graph, image_graph, save_dir=ba_input_save_dir)
+                dask.delayed(io_utils.export_model_as_colmap_text)(
+                    ba_input_graph, image_graph, save_dir=ba_input_save_dir
+                )
             )
 
             # Save duplicate copies of input to Bundle Adjustment to React Folder
             auxiliary_graph_list.append(
-                dask.delayed(io_utils.write_cameras)(ba_input_graph, image_graph, save_dir=react_ba_input_save_dir)
-            )
-            auxiliary_graph_list.append(
-                dask.delayed(io_utils.write_images)(ba_input_graph, save_dir=react_ba_input_save_dir)
-            )
-            auxiliary_graph_list.append(
-                dask.delayed(io_utils.write_points)(ba_input_graph, image_graph, save_dir=react_ba_input_save_dir)
+                dask.delayed(io_utils.export_model_as_colmap_text)(
+                    ba_input_graph, image_graph, save_dir=react_ba_input_save_dir
+                )
             )
 
             # save the output of Bundle Adjustment (after optimization)
             ba_output_save_dir = os.path.join(RESULTS_PATH, "ba_output")
             react_ba_output_save_dir = os.path.join(REACT_RESULTS_PATH, "ba_output")
-
             auxiliary_graph_list.append(
-                dask.delayed(io_utils.write_cameras)(ba_output_graph, image_graph, save_dir=ba_output_save_dir)
-            )
-            auxiliary_graph_list.append(
-                dask.delayed(io_utils.write_images)(ba_output_graph, save_dir=ba_output_save_dir)
-            )
-            auxiliary_graph_list.append(
-                dask.delayed(io_utils.write_points)(ba_output_graph, image_graph, save_dir=ba_output_save_dir)
+                dask.delayed(io_utils.export_model_as_colmap_text)(
+                    ba_output_graph, image_graph, save_dir=ba_output_save_dir
+                )
             )
 
             # Save duplicate copies of output to Bundle Adjustment to React Folder
             auxiliary_graph_list.append(
-                dask.delayed(io_utils.write_cameras)(ba_output_graph, image_graph, save_dir=react_ba_output_save_dir)
-            )
-            auxiliary_graph_list.append(
-                dask.delayed(io_utils.write_images)(ba_output_graph, save_dir=react_ba_output_save_dir)
-            )
-            auxiliary_graph_list.append(
-                dask.delayed(io_utils.write_points)(ba_output_graph, image_graph, save_dir=react_ba_output_save_dir)
+                dask.delayed(io_utils.export_model_as_colmap_text)(
+                    ba_output_graph, image_graph, save_dir=react_ba_output_save_dir
+                )
             )
 
         # as visualization tasks are not to be provided to the user, we create a
