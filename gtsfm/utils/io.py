@@ -28,6 +28,9 @@ logger = logger_utils.get_logger()
 def load_image(img_path: str) -> Image:
     """Load the image from disk.
 
+    Note: EXIF is read as a map from (tag_id, value) where tag_id is an integer.
+    In order to extract human-readable names, we use the lookup table TAGS or GPSTAGS.
+
     Args:
         img_path (str): the path of image to load.
 
@@ -36,16 +39,18 @@ def load_image(img_path: str) -> Image:
     """
     original_image = PILImage.open(img_path)
 
-    exif_data = original_image.getexif()
+    exif_data = original_image._getexif()
     if exif_data is not None:
         parsed_data = {}
-        for tag, value in exif_data.items():
-            if tag in TAGS:
-                parsed_data[TAGS.get(tag)] = value
-            elif tag in GPSTAGS:
-                parsed_data[GPSTAGS.get(tag)] = value
+        for tag_id, value in exif_data.items():
+            # extract the human readable tag name
+            if tag_id in TAGS:
+                tag_name = TAGS.get(tag_id)
+            elif tag_id in GPSTAGS:
+                tag_name = GPSTAGS.get(tag_id)
             else:
-                parsed_data[tag] = value
+                tag_name = tag_id
+            parsed_data[tag_name] = value
 
         exif_data = parsed_data
 
