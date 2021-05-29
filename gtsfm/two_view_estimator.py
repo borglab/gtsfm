@@ -67,7 +67,7 @@ class TwoViewEstimator:
             camera_intrinsics_i1_graph: intrinsics for camera i1.
             camera_intrinsics_i2_graph: intrinsics for camera i2.
             im_shape_i1_graph: image shape for image i1.
-            im_shape_i2_graph: image shape for image i1.
+            im_shape_i2_graph: image shape for image i2.
             i2Ti1_expected_graph (optional): ground truth relative pose, used for evaluation if available. Defaults to
                                              None.
 

@@ -55,6 +55,8 @@ mpl_logger.setLevel(logging.WARNING)
 pil_logger = logging.getLogger("PIL")
 pil_logger.setLevel(logging.INFO)
 
+# number of digits (significant figures) to include in each entry of error metrics
+PRINT_NUM_SIG_FIGS = 2
 
 class SceneOptimizer:
     """Wrapper combining different modules to run the whole pipeline on a
@@ -376,8 +378,8 @@ def persist_frontend_metrics_full(metrics: Dict[Tuple[int, int], FRONTEND_METRIC
         {
             "i1": k[0],
             "i2": k[1],
-            "rotation_angular_error": v[0],
-            "translation_angular_error": v[1],
+            "rotation_angular_error": np.round(v[0], PRINT_NUM_SIG_FIGS),
+            "translation_angular_error": np.round(v[1], PRINT_NUM_SIG_FIGS),
             "num_correct_corr": v[2],
             "inlier_ratio": v[3],
         }
