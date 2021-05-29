@@ -8,6 +8,13 @@ import gtsfm.utils.io as io_utils
 TEST_DATA_ROOT = Path(__file__).resolve().parent.parent / "data"
 
 
+def test_load_image() -> None:
+    """Ensure focal length can be read from EXIF, for an image w/ known EXIF."""
+    img_fpath = TEST_DATA_ROOT / "set2_lund_door_nointrinsics/images/DSC_0001.JPG"
+    img = io_utils.load_image(img_fpath)
+    assert img.exif_data.get("FocalLength") == 29
+
+
 def test_read_points_txt() -> None:
     """ """
     fpath = TEST_DATA_ROOT / "crane_mast_8imgs_colmap_output" / "points3D.txt"
