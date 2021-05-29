@@ -45,8 +45,28 @@ class TestColmapLoader(unittest.TestCase):
 
     def test_get_camera_intrinsics(self) -> None:
         """Ensure that for shared calibration case, GT intrinsics are identical across frames."""
+        K0 = self.loader.get_camera_intrinsics(0).K()
+        K1 = self.loader.get_camera_intrinsics(1).K()
         # should be shared intrinsics
-        np.testing.assert_allclose(self.loader.get_camera_intrinsics(0).K(), self.loader.get_camera_intrinsics(1).K())
+        np.testing.assert_allclose(K0, K1)
+
+        # COLMAP estimates that original camera parameters are:
+        w_orig = 1296
+        h_orig = 1936
+        f_orig = 2435.38
+        px_orig = 648
+        py_orig = 968
+
+        scale_u = 500.0 / w_orig
+        scale_v = 747.0 / h_orig
+
+        f = K0[0, 0]
+        px = K0[0, 2]
+        py = K0[1, 2]
+
+        assert np.isclose(f, f_orig * scale_u)
+        assert np.isclose(px, px_orig * scale_u)
+        assert np.isclose(py, py_orig * scale_v)
 
     def test_image_resolution(self) -> None:
         """Ensure that the image is downsampled properly to a max resolution of 500 px.
