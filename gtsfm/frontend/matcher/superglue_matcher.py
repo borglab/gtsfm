@@ -6,12 +6,11 @@ wrapping over author's source-code.
 Note: the pretrained model only supports superpoint detections right now.
 
 References:
-- http://openaccess.thecvf.com/content_CVPR_2020/papers/Sarlin_SuperGlue_Learning_Feature_Matching_With_Graph_Neural_Networks_CVPR_2020_paper.pdf
+- http://openaccess.thecvf.com/content_CVPR_2020/papers/Sarlin_SuperGlue_Learning_Feature_Matching_With_Graph_Neural_Networks_CVPR_2020_paper.pdf # noqa
 - https://github.com/magicleap/SuperGluePretrainedNetwork
 
 Authors: Ayush Baid, John Lambert
 """
-import os
 from typing import Tuple
 
 import numpy as np
