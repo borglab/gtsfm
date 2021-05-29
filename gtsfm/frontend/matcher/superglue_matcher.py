@@ -3,7 +3,7 @@
 The network was proposed in 'SuperGlue: Learning Feature Matching with Graph Neural Networks' and is implemented by 
 wrapping over author's source-code.
 
-Note: the pretrained model only supports superpoint detections right now.
+Note: the pretrained model only supports SuperPoint detections currently.
 
 References:
 - http://openaccess.thecvf.com/content_CVPR_2020/papers/Sarlin_SuperGlue_Learning_Feature_Matching_With_Graph_Neural_Networks_CVPR_2020_paper.pdf # noqa
@@ -35,7 +35,6 @@ class SuperGlueMatcher(MatcherBase):
             "weights": "outdoor" if use_outdoor_model else "indoor",
             "sinkhorn_iterations": 20,
         }
-
         self._use_cuda = use_cuda and torch.cuda.is_available()
 
     def match(
@@ -51,8 +50,8 @@ class SuperGlueMatcher(MatcherBase):
 
         Output format:
         1. Each row represents a match.
-        2. First column represents keypoint index from image #i1.
-        3. Second column represents keypoint index from image #i2.
+        2. The first column of row `k` represents the keypoint index from image #i1, for the k'th match.
+        3. The second column of row `k` represents the keypoint index from image #i2, for the k'th match.
         4. Matches are sorted in descending order of the confidence (score), if possible.
 
         Args:
@@ -78,9 +77,11 @@ class SuperGlueMatcher(MatcherBase):
         # batch size and number of channels
         B, C = 1, 1
 
+        H1, W1 = im_shape_i1
+        H2, W2 = im_shape_i2
         # feed in dummy arguments, as they are only needed to determine image dimensions for normalization
-        empty_image_i1 = torch.empty((B, C, im_shape_i1[0], im_shape_i1[1]))
-        empty_image_i2 = torch.empty((B, C, im_shape_i2[0], im_shape_i2[1]))
+        empty_image_i1 = torch.empty((B, C, H1, W1))
+        empty_image_i2 = torch.empty((B, C, H2, W2))
 
         input_data = {
             "keypoints0": torch.from_numpy(keypoints_i1.coordinates).unsqueeze(0).float().to(device),
