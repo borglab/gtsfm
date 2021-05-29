@@ -58,6 +58,7 @@ pil_logger.setLevel(logging.INFO)
 # number of digits (significant figures) to include in each entry of error metrics
 PRINT_NUM_SIG_FIGS = 2
 
+
 class SceneOptimizer:
     """Wrapper combining different modules to run the whole pipeline on a
     loader."""
