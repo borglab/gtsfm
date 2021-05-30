@@ -1,4 +1,4 @@
-"""Unit test for the Olsson Loader class.
+"""Unit tests for the Olsson Loader class.
 
 Authors: John Lambert
 """
