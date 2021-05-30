@@ -38,7 +38,7 @@ def test_get_mesh_edges_camframe():
     edges_camfr = frustum_obj.get_mesh_edges_camframe()
 
     fig = plt.figure()
-    ax = fig.gca(projection="3d")
+    ax = fig.add_subplot(projection='3d')
 
     for edge_camfr in edges_camfr:
 
@@ -80,7 +80,7 @@ def test_get_mesh_edges_worldframe():
     edges_worldfr = frustum_obj.get_mesh_edges_worldframe(wTc)
 
     fig = plt.figure()
-    ax = fig.gca(projection="3d")
+    ax = fig.add_subplot(projection='3d')
 
     for edge_worldfr in edges_worldfr:
 
