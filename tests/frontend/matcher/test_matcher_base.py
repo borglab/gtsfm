@@ -56,17 +56,19 @@ class TestMatcherBase(unittest.TestCase):
         nonempty_keypoints, _, nonempty_descriptors, _, _, _ = generate_random_input()
         empty_keypoints = Keypoints(coordinates=np.array([]))
         empty_descriptors = np.array([])
-        im_shape = (300, 200)
+
+        im_shape_i1 = (300, 200)
+        im_shape_i2 = (300, 200)
 
         # no keypoints for just i1
         result = self.matcher.match(
-            empty_keypoints, nonempty_keypoints, empty_descriptors, nonempty_descriptors, im_shape, im_shape
+            empty_keypoints, nonempty_keypoints, empty_descriptors, nonempty_descriptors, im_shape_i1, im_shape_i2
         )
         self.assertEqual(result.size, 0)
 
         # no keypoints for just i2
         result = self.matcher.match(
-            nonempty_keypoints, empty_keypoints, nonempty_descriptors, empty_descriptors, im_shape, im_shape
+            nonempty_keypoints, empty_keypoints, nonempty_descriptors, empty_descriptors, im_shape_i1, im_shape_i2
         )
         self.assertEqual(result.size, 0)
 
@@ -76,8 +78,8 @@ class TestMatcherBase(unittest.TestCase):
             deepcopy(empty_keypoints),
             deepcopy(empty_descriptors),
             deepcopy(empty_descriptors),
-            im_shape,
-            im_shape,
+            im_shape_i1,
+            im_shape_i2,
         )
         self.assertEqual(result.size, 0)
 
