@@ -49,8 +49,7 @@ class TestInterfacePatchmatchNet(unittest.TestCase):
             )
 
         # initialize dummy depth range for the test example
-        self._example_min_depth = np.inf
-        self._example_max_depth = -np.inf
+        self._example_depths = []
 
         # the below number of tracks is a dummy value
         self._num_tracks = self._num_valid_cameras * 4
@@ -62,8 +61,7 @@ class TestInterfacePatchmatchNet(unittest.TestCase):
 
             # calculate dummy depth range for test example
             example_depth = self._sfm_result.get_camera(EXAMPLE_CAMERA_ID).pose().transformTo(world_x)[-1]
-            self._example_min_depth = min(self._example_min_depth, example_depth)
-            self._example_max_depth = max(self._example_max_depth, example_depth)
+            self._example_depths.append(example_depth)
 
             # add random measurements of the random track
             for i in range(self._num_valid_cameras):
@@ -71,8 +69,10 @@ class TestInterfacePatchmatchNet(unittest.TestCase):
                 track_to_add.add_measurement(idx=i, m=np.array([i, i]))
             self._sfm_result.add_track(track_to_add)
 
-        self._example_min_depth = np.floor(self._example_min_depth)
-        self._example_max_depth = np.ceil(self._example_max_depth)
+        self._example_depths = sorted(self._example_depths)
+
+        self._example_min_depth = self._example_depths[int(len(self._example_depths) * 0.01)]
+        self._example_max_depth = self._example_depths[int(len(self._example_depths) * 0.99)]
 
         self._dataset_patchmatchnet = PatchmatchNetData(self._img_dict, self._sfm_result, num_views=NUM_VIEWS)
 

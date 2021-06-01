@@ -41,7 +41,9 @@ def piecewise_gaussian(
     # 1. calculate the angle between the vectors from the track point to camera a's center and camera b's center
     theta_est = angle_between_vectors(a_x, b_x)
     # 2. calculate the score according to the angle
-    if theta_est <= theta_0:  # if the angle is no larger than the threshold, we should attach more importance
-        return math.exp(-(((theta_est - theta_0) / sigma_1) ** 2) / 2)
+    if theta_est <= theta_0:  # if the angle is less than or equal to the threshold, we should attach more importance
+        sigma = sigma_1
     else:  # if the angle is larger than the threshold, we should attach less importance
-        return math.exp(-(((theta_est - theta_0) / sigma_2) ** 2) / 2)
+        sigma = sigma_2
+
+    return math.exp(-((theta_est - theta_0) ** 2) / (2 * sigma ** 2))

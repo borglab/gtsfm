@@ -44,17 +44,16 @@ class PatchmatchNetData(Dataset):
         self._camera_centers = {}
         for i in range(self._num_images):
             self._keys_map[self._keys[i]] = i
-            extrinsic = self._sfm_result.get_camera(self._keys[i]).pose().inverse().matrix()
-            rotation = extrinsic[:3, :3]
-            translation = extrinsic[:3, 3:4]
-            self._camera_centers[self._keys[i]] = (-rotation.T @ translation).flatten()
+            self._camera_centers[self._keys[i]] = self._sfm_result.get_camera(self._keys[i]).pose().translation()
 
         self._images = images
 
         self._pairs, self._depth_ranges = self.configure()
 
     def configure(self) -> Tuple[np.ndarray, np.ndarray]:
-        """Configure pairs and depth_ranges for each view from sfm_result
+        """Configure pairs and depth_ranges for each view from sfm_result. The configure method is based on Wang's work
+        https://github.com/FangjinhuaWang/PatchmatchNet/blob/main/colmap_input.py (line 360-410)
+
         If there are N0 valid images and the patchmatchnet's number of views is num_views, the function does:
             1. Calculate the scores between N0 images. Then for every image as the reference image, find
             (num_views - 1) images with highest scores as the source images;
@@ -73,6 +72,8 @@ class PatchmatchNetData(Dataset):
         # initialize the pairwise scores between the same views as negative infinity
         np.fill_diagonal(pair_scores, -np.inf)
 
+        # initialize empty lists to collect all possible depths for each view
+        depths: List[List[float]] = [[] for _ in range(num_images)]
         depth_ranges = np.zeros((num_images, 2))
         depth_ranges[:, 0] = np.inf
 
@@ -95,8 +96,7 @@ class PatchmatchNetData(Dataset):
                         # calculate track_i's depth in the camera pose
                         a_z = self._sfm_result.get_camera(i_a).pose().transformTo(w_x)[-1]
                         # update depth ranges
-                        depth_ranges[key_a, 0] = min(depth_ranges[key_a, 0], a_z)
-                        depth_ranges[key_a, 1] = max(depth_ranges[key_a, 1], a_z)
+                        depths[key_a].append(a_z)
 
                     # check if measurement j2 belongs to a valid camera b
                     if i_b in self._keys_map:
@@ -104,8 +104,7 @@ class PatchmatchNetData(Dataset):
                         # calculate track_i's depth in the camera pose
                         b_z = self._sfm_result.get_camera(i_b).pose().transformTo(w_x)[-1]
                         # update depth ranges
-                        depth_ranges[key_b, 0] = min(depth_ranges[key_b, 0], b_z)
-                        depth_ranges[key_b, 1] = max(depth_ranges[key_b, 1], b_z)
+                        depths[key_b].append(b_z)
 
                     # if both cameras are valid cameras
                     if key_a > 0 and key_b > 0:
@@ -121,10 +120,11 @@ class PatchmatchNetData(Dataset):
         #   as (num_views-1) source views for i-th reference view.
         pairs = np.argsort(pair_scores, axis=0)[:, -self._num_views + 1 :][:, ::-1]
 
-        # convert float depth_ranges to integers
-        depth_ranges[:, 0] = np.floor(depth_ranges[:, 0])
-        depth_ranges[:, 1] = np.ceil(depth_ranges[:, 1])
-        depth_ranges = depth_ranges.astype(np.int32)
+        # filter out depth outliers and calculate depth ranges
+        for i in range(num_images):
+            depths_sorted = sorted(depths[i])
+            depth_ranges[i, 0] = depths_sorted[int(len(depths[i]) * 0.01)]
+            depth_ranges[i, 1] = depths_sorted[int(len(depths[i]) * 0.99)]
 
         return pairs, depth_ranges
 
@@ -170,12 +170,16 @@ class PatchmatchNetData(Dataset):
 
             intrinsics = self._sfm_result.get_camera(cam_key).calibration().K()
             extrinsics = self._sfm_result.get_camera(cam_key).pose().inverse().matrix()
-            intrinsics[:2, :] /= 8.0
+            # In the multi-scale feature extraction, there are NUM_PATCHMATCHNET_STAGES stages.
+            #   The scales are [2^0, 2^(-1), 2^(-2), ..., 2^(1-NUM_PATCHMATCHNET_STAGES)]
+            #   Initially the intrinsics is scaled to fit the smallest image size
+            intrinsics[:2, :] /= 2 ** (NUM_PATCHMATCHNET_STAGES - 1)
 
             for i in range(self._num_stages):
                 imgs[i].append(cv2.resize(np_img, (w // (2 ** i), h // (2 ** i)), interpolation=cv2.INTER_LINEAR))
                 proj_mat = extrinsics.copy()
                 proj_mat[:3, :4] = intrinsics @ proj_mat[:3, :4]
+                # For the next stage, the image size is doubled, so the intrinsics should also doubled.
                 intrinsics[:2, :] *= 2.0
                 proj_mats[-1 - i].append(proj_mat)
 
