@@ -24,11 +24,11 @@ class VerifierBase(metaclass=abc.ABCMeta):
     geometrically verified points.
     """
 
-    def __init__(self, use_intrinsics_in_verification: bool):
+    def __init__(self, use_intrinsics_in_verification: bool) -> None:
         """Initializes the verifier.
 
         Args:
-            use_intrinsics_in_verification: Flag to perform keypoint normalization and compute the essential matrix 
+            use_intrinsics_in_verification: Flag to perform keypoint normalization and compute the essential matrix
                                             instead of fundamental matrix. This should be preferred when the exact
                                             intrinsics are known as opposed to approximating them from exif data.
         """
@@ -87,7 +87,11 @@ class VerifierBase(metaclass=abc.ABCMeta):
         """
         # we cannot immediately unpack the result tuple, per dask syntax
         result = dask.delayed(self.verify)(
-            keypoints_i1_graph, keypoints_i2_graph, matches_i1i2_graph, intrinsics_i1_graph, intrinsics_i2_graph,
+            keypoints_i1_graph,
+            keypoints_i2_graph,
+            matches_i1i2_graph,
+            intrinsics_i1_graph,
+            intrinsics_i2_graph,
         )
         i2Ri1_graph = result[0]
         i2Ui1_graph = result[1]
