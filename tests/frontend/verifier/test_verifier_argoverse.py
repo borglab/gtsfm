@@ -95,10 +95,12 @@ def check_verifier_output_error(verifier: VerifierBase, euler_angle_err_tol: flo
         gt_euler_angles, euler_angles, atol=euler_angle_err_tol
     ), f"GT {gt_euler_angles_str} vs. Est. {euler_angles_str} w/ tol {euler_angle_err_tol:.1f}"
 
-    # gt_i1ti2 = np.array([0.21, -0.0024, 0.976])
-    # gt_i1ti2_str = str(np.round(gt_i1ti2, 1))
-    # i1ti2_str = str(np.round(i1ti2, 1))
-    # assert np.allclose(gt_i1ti2, i1ti2, atol=translation_err_tol), f"GT {gt_i1ti2_str} vs. Est. {i1ti2_str}"
+    gt_i1ti2 = np.array([0.21, -0.0024, 0.976])
+    gt_i1ti2_str = str(np.round(gt_i1ti2, 1))
+    i1ti2_str = str(np.round(i1ti2, 1))
+    assert np.allclose(
+        gt_i1ti2, i1ti2, atol=translation_err_tol
+    ), f"t: GT {gt_i1ti2_str} vs. Est. {i1ti2_str} w/ tol {translation_err_tol:.2f}"
 
 
 class TestRansacVerifierArgoverse(unittest.TestCase):
