@@ -131,7 +131,7 @@ class DataAssociation(NamedTuple):
         track_lengths_3d = connected_data.get_track_lengths()
 
         logger.debug("[Data association] output number of tracks: %s", num_accepted_tracks)
-        logger.debug("[Data association] output avg. track length: %s", np.round(mean_3d_track_length,2))
+        logger.debug("[Data association] output avg. track length: %.2f", mean_3d_track_length)
 
         # bin edges are halfway between each integer
         track_lengths_histogram, _ = np.histogram(track_lengths_3d, bins=np.linspace(-0.5, 10.5, 12))
