@@ -84,8 +84,7 @@ class TestMatcherBase(unittest.TestCase):
         self.assertEqual(result.size, 0)
 
     def test_computation_graph(self):
-        """Test that the computation graph is working exactly as the normal API
-        """
+        """Test that the computation graph is working exactly as the normal API"""
         (
             keypoints_i1,
             keypoints_i2,
@@ -135,13 +134,12 @@ def get_features_from_real_images() -> Tuple[
 
     # shape as (height, width)
     im_shape_i1 = (1936, 1296)
-    im_shape_i2 =  (1936, 1296)
+    im_shape_i2 = (1936, 1296)
     return keypoints_i1, keypoints_i2, descriptors_i1, descriptors_i2, im_shape_i1, im_shape_i2
 
 
 def generate_random_input() -> Tuple[Keypoints, Keypoints, np.ndarray, np.ndarray, Tuple[int, int], Tuple[int, int]]:
-    """Generates random keypoints and descriptors for a pair of images.
-    """
+    """Generates random keypoints and descriptors for a pair of images."""
 
     num_keypoints_i1 = random.randint(5, 15)
     num_keypoints_i2 = random.randint(5, 15)
