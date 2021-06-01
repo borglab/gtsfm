@@ -14,12 +14,6 @@ from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
 logger = logger_utils.get_logger()
 
-mpl_logger = logging.getLogger("matplotlib")
-mpl_logger.setLevel(logging.WARNING)
-
-pil_logger = logging.getLogger("PIL")
-pil_logger.setLevel(logging.INFO)
-
 
 class ThreeViewEstimator:
     """Wrapper for running three-view relative pose estimation on image triplets in the dataset."""
