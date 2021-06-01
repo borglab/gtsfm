@@ -70,7 +70,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
-    def validate_pair(self, idx1: int, idx2: int) -> bool:
+    def is_valid_pair(self, idx1: int, idx2: int) -> bool:
         """Checks if (idx1, idx2) is a valid pair.
 
         Args:
@@ -125,7 +125,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
 
         for idx1 in range(self.__len__()):
             for idx2 in range(self.__len__()):
-                if self.validate_pair(idx1, idx2):
+                if self.is_valid_pair(idx1, idx2):
                     indices.append((idx1, idx2))
 
         return indices
