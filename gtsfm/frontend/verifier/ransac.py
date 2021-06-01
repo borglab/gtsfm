@@ -21,7 +21,7 @@ import gtsfm.utils.features as feature_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.verification as verification_utils
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.frontend.verifier.verifier_base import VerifierBase
+from gtsfm.frontend.verifier.verifier_base import VerifierBase, NUM_MATCHES_REQ_E_MATRIX, NUM_MATCHES_REQ_F_MATRIX
 
 PIXEL_COORD_RANSAC_THRESH = 4  # TODO: hyperparameter to tune
 DEFAULT_RANSAC_SUCCESS_PROB = 0.9999
@@ -30,6 +30,23 @@ logger = logger_utils.get_logger()
 
 
 class Ransac(VerifierBase):
+    def __init__(self, use_intrinsics_in_verification: bool, px_threshold: float = PIXEL_COORD_RANSAC_THRESH) -> None:
+        """Initializes the verifier.
+
+        Args:
+            use_intrinsics_in_verification: Flag to perform keypoint normalization and compute the essential matrix
+                                            instead of fundamental matrix. This should be preferred when the exact
+                                            intrinsics are known as opposed to approximating them from exif data.
+            px_threshold: epipolar distance threshold (measured in pixels)
+        """
+        self._use_intrinsics_in_verification = use_intrinsics_in_verification
+        self._px_threshold = px_threshold
+        self._min_matches = (
+            NUM_MATCHES_REQ_E_MATRIX if self._use_intrinsics_in_verification else NUM_MATCHES_REQ_F_MATRIX
+        )
+
+        self._failure_result = (None, None, np.array([], dtype=np.uint64))
+
     def verify(
         self,
         keypoints_i1: Keypoints,
@@ -61,21 +78,21 @@ class Ransac(VerifierBase):
             K = np.eye(3)
 
             # use stricter threshold, among the two choices
-            fx = max(camera_intrinsics_i1.K()[0,0], camera_intrinsics_i2.K()[0,0])
+            fx = max(camera_intrinsics_i1.K()[0, 0], camera_intrinsics_i2.K()[0, 0])
             i2Ei1, inlier_mask = cv2.findEssentialMat(
                 uv_norm_i1[match_indices[:, 0]],
                 uv_norm_i2[match_indices[:, 1]],
                 K,
                 method=cv2.RANSAC,
-                threshold=PIXEL_COORD_RANSAC_THRESH / fx,
-                prob=DEFAULT_RANSAC_SUCCESS_PROB, 
+                threshold=self._px_threshold / fx,
+                prob=DEFAULT_RANSAC_SUCCESS_PROB,
             )
         else:
             i2Fi1, inlier_mask = cv2.findFundamentalMat(
                 keypoints_i1.extract_indices(match_indices[:, 0]).coordinates,
                 keypoints_i2.extract_indices(match_indices[:, 1]).coordinates,
                 method=cv2.FM_RANSAC,
-                ransacReprojThreshold=PIXEL_COORD_RANSAC_THRESH,
+                ransacReprojThreshold=self._px_threshold,
                 confidence=DEFAULT_RANSAC_SUCCESS_PROB,
                 maxIters=10000,
             )
