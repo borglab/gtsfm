@@ -87,11 +87,7 @@ class VerifierBase(metaclass=abc.ABCMeta):
         """
         # we cannot immediately unpack the result tuple, per dask syntax
         result = dask.delayed(self.verify)(
-            keypoints_i1_graph,
-            keypoints_i2_graph,
-            matches_i1i2_graph,
-            intrinsics_i1_graph,
-            intrinsics_i2_graph,
+            keypoints_i1_graph, keypoints_i2_graph, matches_i1i2_graph, intrinsics_i1_graph, intrinsics_i2_graph
         )
         i2Ri1_graph = result[0]
         i2Ui1_graph = result[1]
