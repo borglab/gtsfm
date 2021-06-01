@@ -4,6 +4,7 @@ Authors: Frank Dellaert and Ayush Baid
 """
 
 import abc
+import itertools
 from typing import List, Optional, Tuple
 
 import dask
@@ -155,14 +156,13 @@ class LoaderBase(metaclass=abc.ABCMeta):
             list of indices of valid triplets.
         """
         indices = []
-        for idx1 in range(self.__len__()):
-            for idx2 in range(self.__len__()):
-                if self.validate_pair(idx1, idx2):
-                    # 3rd idx has to be greater than the previous 2
-                    for idx3 in range(max(idx1, idx2) + 1, self.__len__()):
-                        if (self.validate_pair(idx2, idx3) or self.validate_pair(idx3, idx2)) and (
-                            self.validate_pair(idx1, idx3) or self.validate_pair(idx3, idx1)
-                        ):
-                            indices.append((idx1, idx2, idx3))
+        for idx1, idx2 in itertools.product(range(len(self)), range(len(self))):
+            if self.validate_pair(idx1, idx2):
+                # 3rd idx has to be greater than the previous 2
+                for idx3 in range(max(idx1, idx2) + 1, self.__len__()):
+                    if (self.validate_pair(idx2, idx3) or self.validate_pair(idx3, idx2)) and (
+                        self.validate_pair(idx1, idx3) or self.validate_pair(idx3, idx1)
+                    ):
+                        indices.append((idx1, idx2, idx3))
 
         return indices
