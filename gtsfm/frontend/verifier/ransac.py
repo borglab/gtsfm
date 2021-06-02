@@ -23,8 +23,9 @@ import gtsfm.utils.verification as verification_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.verifier_base import VerifierBase, NUM_MATCHES_REQ_E_MATRIX, NUM_MATCHES_REQ_F_MATRIX
 
-PIXEL_COORD_RANSAC_THRESH = 4  # TODO: hyperparameter to tune
+PIXEL_COORD_RANSAC_THRESH = 0.5  # TODO: hyperparameter to tune
 DEFAULT_RANSAC_SUCCESS_PROB = 0.9999
+MAX_TOLERATED_POLLUTION_INLIER_RATIO_EST_MODEL = 0.1
 
 logger = logger_utils.get_logger()
 
@@ -106,7 +107,7 @@ class Ransac(VerifierBase):
         v_corr_idxs = match_indices[inlier_idxs]
         inlier_ratio_est_model = np.mean(inlier_mask)
 
-        if inlier_ratio_est_model < 0.1:
+        if inlier_ratio_est_model < MAX_TOLERATED_POLLUTION_INLIER_RATIO_EST_MODEL:
             i2Ri1 = None
             i2Ui1 = None
             v_corr_idxs = np.array([], dtype=np.uint64)

@@ -3,6 +3,7 @@
 Authors: Ayush Baid, John Lambert
 """
 import logging
+from dataclasses import dataclass
 from typing import NamedTuple, Tuple, Optional
 
 import dask
@@ -26,7 +27,18 @@ pil_logger = logging.getLogger("PIL")
 pil_logger.setLevel(logging.INFO)
 
 
-class TwoViewEstimationReport(NamedTuple):
+# In case an epipolar geometry can be verified, it is checked whether
+# the geometry describes a planar scene or panoramic view (pure rotation)
+# described by a homography. This is a degenerate case, since epipolar
+# geometry is only defined for a moving camera. If the inlier ratio of
+# a homography comes close to the inlier ratio of the epipolar geometry,
+# a planar or panoramic configuration is assumed.
+# Based on COLMAP's front-end logic here:
+#    https://github.com/colmap/colmap/blob/dev/src/estimators/two_view_geometry.cc#L230
+MAX_H_INLIER_RATIO = 0.8
+
+@dataclass(frozen=False)
+class TwoViewEstimationReport:
     """
     Args:
         num_inliers_est_model: #correspondences consistent with estimated model (not necessarily "correct")
@@ -164,7 +176,36 @@ class TwoViewEstimator:
             H_inlier_ratio,
         )
 
+        result = dask.delayed(check_for_degeneracy)(
+            two_view_report_graph, i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph
+        )
+        i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph = result[0], result[1], result[2]
+
         return (i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph)
+
+
+def check_for_degeneracy(
+    two_view_report: TwoViewEstimationReport, i2Ri1: Optional[Rot3], i2Ui1: Optional[Unit3], v_corr_idxs: np.ndarray
+) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
+    """ """
+    H_EF_inlier_ratio = two_view_report.num_H_inliers / two_view_report.num_inliers_est_model
+    
+
+    # TODO: technically this should almost always be non-zero, just need to move up to earlier
+    valid_model = two_view_report.num_inliers_est_model > 0
+    if valid_model:
+        logger.info("H_EF_inlier_ratio: %.2f", H_EF_inlier_ratio)
+
+    if valid_model and H_EF_inlier_ratio > MAX_H_INLIER_RATIO:
+        logger.info("Planar or panoramic; pose from homography currently not supported")
+        i2Ri1 = None
+        i2Ui1 = None
+        v_corr_idxs = np.array([], dtype=np.uint64)
+        # remove mention of errors in the report
+        two_view_report.R_error_deg = None
+        two_view_report.U_error_deg = None
+
+    return i2Ri1, i2Ui1, v_corr_idxs
 
 
 def generate_two_view_report(

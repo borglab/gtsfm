@@ -129,6 +129,7 @@ def prune_to_largest_connected_component(
         Subset of rotations which are in the largest connected components.
         Subset of unit_translations which are in the largest connected components.
     """
+    print("Multiview input edges: ", rotations.keys())
     input_edges = [k for (k, v) in rotations.items() if v is not None]
     nodes_in_pruned_graph = graph_utils.get_nodes_in_largest_connected_component(input_edges)
 
@@ -138,6 +139,7 @@ def prune_to_largest_connected_component(
         if i1 in nodes_in_pruned_graph and i2 in nodes_in_pruned_graph:
             selected_edges.append((i1, i2))
 
+    print("Multiview pruned edges: ", selected_edges)
     # return the subset of original input
     return (
         {k: rotations[k] for k in selected_edges},

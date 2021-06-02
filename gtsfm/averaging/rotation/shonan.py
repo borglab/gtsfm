@@ -45,6 +45,9 @@ class ShonanRotationAveraging(RotationAveragingBase):
                 `num_images`. The list may contain `None` where the global rotation could not be computed (either
                 underconstrained system or ill-constrained system).
         """
+        print("Shonan num_images", num_images)
+        print("Shonan i2Ri1_dict", i2Ri1_dict)
+
         lm_params = LevenbergMarquardtParams.CeresDefaults()
         shonan_params = ShonanAveragingParameters3(lm_params)
         shonan_params.setUseHuber(False)
@@ -75,4 +78,6 @@ class ShonanRotationAveraging(RotationAveragingBase):
         initial = obj.initializeRandomly()
         result_values, _ = obj.run(initial, self._p_min, self._p_max)
 
+        for i in range(num_images):
+            print(f"Shonan {i}", result_values.exists(i))
         return [result_values.atRot3(i) for i in range(num_images)]
