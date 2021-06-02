@@ -1,4 +1,7 @@
+"""Tests for the SuperGlue matcher.
 
+Authors: John Lambert
+"""
 import numpy as np
 
 from gtsfm.common.keypoints import Keypoints
@@ -10,8 +13,8 @@ def test_SuperGlueMatcher() -> None:
     # image height and width
     H, W = 20, 20
 
-    im_shape_i1 = (H,W)
-    im_shape_i2 = (H,W)
+    im_shape_i1 = (H, W)
+    im_shape_i2 = (H, W)
 
     num_kps_i1 = 50
     kps_i1 = Keypoints(coordinates=np.random.randint(0, H, size=(num_kps_i1, 2)), responses=np.random.rand(50))
