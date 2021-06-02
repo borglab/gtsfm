@@ -78,12 +78,13 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 w_i2Ui1_measurements.append(
                     BinaryMeasurementUnit3(i2, i1, Unit3(wRi_list[i2].rotate(i2Ui1.point3())), noise_model)
                 )
-
+        
         # sample indices to be used as projection directions
-        num_measurements = len(i2Ui1_dict)
+        # note: if some unit translations are None, then we can only use valid values
+        num_measurements = len(w_i2Ui1_measurements)
         indices = np.random.choice(
             num_measurements,
-            min(self._max_1dsfm_projection_directions, num_measurements),
+            size=min(self._max_1dsfm_projection_directions, num_measurements),
             replace=False,
         )
 

@@ -103,12 +103,20 @@ class Ransac(VerifierBase):
 
         inlier_idxs = np.where(inlier_mask.ravel() == 1)[0]
 
-        (i2Ri1, i2Ui1) = verification_utils.recover_relative_pose_from_essential_matrix(
-            i2Ei1,
-            keypoints_i1.coordinates[match_indices[inlier_idxs, 0]],
-            keypoints_i2.coordinates[match_indices[inlier_idxs, 1]],
-            camera_intrinsics_i1,
-            camera_intrinsics_i2,
-        )
+        v_corr_idxs = match_indices[inlier_idxs]
+        inlier_ratio_est_model = np.mean(inlier_mask)
 
-        return i2Ri1, i2Ui1, match_indices[inlier_idxs]
+        if inlier_ratio_est_model < 0.1:
+            i2Ri1 = None
+            i2Ui1 = None
+            v_corr_idxs = np.array([], dtype=np.uint64)
+        else:
+            (i2Ri1, i2Ui1) = verification_utils.recover_relative_pose_from_essential_matrix(
+                i2Ei1,
+                keypoints_i1.coordinates[match_indices[inlier_idxs, 0]],
+                keypoints_i2.coordinates[match_indices[inlier_idxs, 1]],
+                camera_intrinsics_i1,
+                camera_intrinsics_i2,
+            )
+
+        return i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio_est_model

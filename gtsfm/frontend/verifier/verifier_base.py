@@ -92,5 +92,6 @@ class VerifierBase(metaclass=abc.ABCMeta):
         i2Ri1_graph = result[0]
         i2Ui1_graph = result[1]
         v_corr_idxs_graph = result[2]
+        inlier_ratio_est_model = result[3]
 
-        return i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph
+        return i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, inlier_ratio_est_model

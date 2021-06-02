@@ -3,7 +3,7 @@
 Authors: Ayush Baid, John Lambert
 """
 import logging
-from typing import Tuple, Optional
+from typing import NamedTuple, Tuple, Optional
 
 import dask
 import numpy as np
@@ -24,6 +24,26 @@ mpl_logger.setLevel(logging.WARNING)
 
 pil_logger = logging.getLogger("PIL")
 pil_logger.setLevel(logging.INFO)
+
+
+class TwoViewEstimationReport(NamedTuple):
+    """
+    Args:
+        num_inliers_est_model: #correspondences consistent with estimated model (not necessarily "correct")
+        inlier_ratio_est_model: measures how polluted the putative matches were 
+        num_inliers_gt_model: measures how well the verification worked, w.r.t. GT
+        inlier_ratio_gt_model: Only defined if GT relative pose provided
+        R_error_deg: relative pose error. Only defined if GT poses provided
+        U_error_deg
+    """
+
+    v_corr_idxs: np.ndarray
+    num_inliers_est_model: float
+    inlier_ratio_est_model: Optional[float] = None # TODO: make not optional (pass from verifier)
+    num_inliers_gt_model: Optional[float] = None
+    inlier_ratio_gt_model: Optional[float] = None
+    R_error_deg: Optional[float] = None
+    U_error_deg: Optional[float] = None
 
 
 class TwoViewEstimator:
@@ -92,7 +112,7 @@ class TwoViewEstimator:
 
         # verification on putative correspondences to obtain relative pose
         # and verified correspondences
-        (i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph,) = self._verifier.create_computation_graph(
+        (i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, inlier_ratio_est_model) = self._verifier.create_computation_graph(
             keypoints_i1_graph,
             keypoints_i2_graph,
             corr_idxs_graph,
@@ -114,18 +134,39 @@ class TwoViewEstimator:
                 i2Ti1_expected_graph,
                 self._corr_metric_dist_threshold,
             )
+            number_correct, inlier_ratio = corr_error_graph[0], corr_error_graph[1]
         else:
             pose_error_graphs = (None, None)
-            corr_error_graph = None
+            number_correct, inlier_ratio = None, None
 
-        return (
-            i2Ri1_graph,
-            i2Ui1_graph,
+        R_error_deg, U_error_deg = pose_error_graphs[0], pose_error_graphs[1]
+
+        two_view_report_graph = dask.delayed(generate_two_view_report)(
+            inlier_ratio_est_model,
+            R_error_deg,
+            U_error_deg,
+            number_correct,
+            inlier_ratio,
             v_corr_idxs_graph,
-            pose_error_graphs[0],
-            pose_error_graphs[1],
-            corr_error_graph,
         )
+
+        return (i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph)
+
+
+def generate_two_view_report(
+    inlier_ratio_est_model: float, R_error_deg: float, U_error_deg: float, number_correct: int, inlier_ratio: float, v_corr_idxs: np.ndarray
+) -> TwoViewEstimationReport:
+    """ """
+    two_view_report = TwoViewEstimationReport(
+        inlier_ratio_est_model=inlier_ratio_est_model,
+        num_inliers_est_model=v_corr_idxs.shape[0],
+        num_inliers_gt_model=number_correct,
+        inlier_ratio_gt_model=inlier_ratio,
+        v_corr_idxs=v_corr_idxs,
+        R_error_deg=R_error_deg,
+        U_error_deg=U_error_deg,
+    )
+    return two_view_report
 
 
 def compute_correspondence_metrics(
@@ -149,13 +190,13 @@ def compute_correspondence_metrics(
         epipolar_distance_threshold: max epipolar distance to qualify as a correct match.
 
     Returns:
-        Number of correct correspondences.
-        Inlier Ratio, i.e. ratio of correspondences which are correct.
+        Number of inlier correspondences to ground truth epipolar geometry, i.e. #correct correspondences.
+        Inlier Ratio, i.e. ratio of correspondences which are correct w.r.t. given relative pose.
     """
     if corr_idxs_i1i2.size == 0:
         return 0, float("Nan")
 
-    number_correct = metric_utils.count_correct_correspondences(
+    num_inliers_gt_model = metric_utils.count_correct_correspondences(
         keypoints_i1.extract_indices(corr_idxs_i1i2[:, 0]),
         keypoints_i2.extract_indices(corr_idxs_i1i2[:, 1]),
         intrinsics_i1,
@@ -163,8 +204,8 @@ def compute_correspondence_metrics(
         i2Ti1,
         epipolar_distance_threshold,
     )
-
-    return number_correct, number_correct / corr_idxs_i1i2.shape[0]
+    inlier_ratio_gt_model = num_inliers_gt_model / corr_idxs_i1i2.shape[0]
+    return num_inliers_gt_model, inlier_ratio_gt_model
 
 
 def compute_relative_pose_metrics(
