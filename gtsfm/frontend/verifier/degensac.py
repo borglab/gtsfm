@@ -71,24 +71,32 @@ class Degensac(VerifierBase):
         if match_indices.shape[0] < self._min_matches:
             return self._failure_result
 
-        i2Fi1, mask = pydegensac.findFundamentalMatrix(
+        i2Fi1, inlier_mask = pydegensac.findFundamentalMatrix(
             keypoints_i1.coordinates[match_indices[:, 0]],
             keypoints_i2.coordinates[match_indices[:, 1]],
             px_th=PIXEL_COORD_RANSAC_THRESH,
         )
 
-        inlier_idxes = np.where(mask.ravel() == 1)[0]
+        inlier_idxs = np.where(inlier_mask.ravel() == 1)[0]
 
-        i2Ei1_matrix = verification_utils.fundamental_to_essential_matrix(
-            i2Fi1, camera_intrinsics_i1, camera_intrinsics_i2
-        )
+        v_corr_idxs = match_indices[inlier_idxs]
+        inlier_ratio_est_model = np.mean(inlier_mask)
+        if inlier_ratio_est_model < 0.1:
+            i2Ri1 = None
+            i2Ui1 = None
+            v_corr_idxs = np.array([], dtype=np.uint64)
+        else:
 
-        i2Ri1, i2Ui1 = verification_utils.recover_relative_pose_from_essential_matrix(
-            i2Ei1_matrix,
-            keypoints_i1.coordinates[match_indices[inlier_idxes, 0]],
-            keypoints_i2.coordinates[match_indices[inlier_idxes, 1]],
-            camera_intrinsics_i1,
-            camera_intrinsics_i2,
-        )
+            i2Ei1_matrix = verification_utils.fundamental_to_essential_matrix(
+                i2Fi1, camera_intrinsics_i1, camera_intrinsics_i2
+            )
 
-        return i2Ri1, i2Ui1, match_indices[inlier_idxes]
+            i2Ri1, i2Ui1 = verification_utils.recover_relative_pose_from_essential_matrix(
+                i2Ei1_matrix,
+                keypoints_i1.coordinates[match_indices[inlier_idxs, 0]],
+                keypoints_i2.coordinates[match_indices[inlier_idxs, 1]],
+                camera_intrinsics_i1,
+                camera_intrinsics_i2,
+            )
+
+        return i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio_est_model
