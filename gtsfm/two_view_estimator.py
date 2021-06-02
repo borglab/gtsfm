@@ -30,16 +30,18 @@ class TwoViewEstimationReport(NamedTuple):
     """
     Args:
         num_inliers_est_model: #correspondences consistent with estimated model (not necessarily "correct")
-        inlier_ratio_est_model: measures how polluted the putative matches were 
+        inlier_ratio_est_model: measures how polluted the putative matches were
         num_inliers_gt_model: measures how well the verification worked, w.r.t. GT
         inlier_ratio_gt_model: Only defined if GT relative pose provided
         R_error_deg: relative pose error. Only defined if GT poses provided
         U_error_deg
     """
 
+    num_H_inliers: int
+    H_inlier_ratio: float
     v_corr_idxs: np.ndarray
     num_inliers_est_model: float
-    inlier_ratio_est_model: Optional[float] = None # TODO: make not optional (pass from verifier)
+    inlier_ratio_est_model: Optional[float] = None  # TODO: make not optional (pass from verifier)
     num_inliers_gt_model: Optional[float] = None
     inlier_ratio_gt_model: Optional[float] = None
     R_error_deg: Optional[float] = None
@@ -139,6 +141,16 @@ class TwoViewEstimator:
             pose_error_graphs = (None, None)
             number_correct, inlier_ratio = None, None
 
+        from gtsfm.frontend.verifier.homography import HomographyEstimator
+
+        homography_estimator = HomographyEstimator()
+        result = dask.delayed(homography_estimator.estimate)(
+            keypoints_i1_graph,
+            keypoints_i2_graph,
+            match_indices=corr_idxs_graph,
+        )
+        num_H_inliers, H_inlier_ratio = result[0], result[1]
+
         R_error_deg, U_error_deg = pose_error_graphs[0], pose_error_graphs[1]
 
         two_view_report_graph = dask.delayed(generate_two_view_report)(
@@ -148,13 +160,22 @@ class TwoViewEstimator:
             number_correct,
             inlier_ratio,
             v_corr_idxs_graph,
+            num_H_inliers,
+            H_inlier_ratio,
         )
 
         return (i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph)
 
 
 def generate_two_view_report(
-    inlier_ratio_est_model: float, R_error_deg: float, U_error_deg: float, number_correct: int, inlier_ratio: float, v_corr_idxs: np.ndarray
+    inlier_ratio_est_model: float,
+    R_error_deg: float,
+    U_error_deg: float,
+    number_correct: int,
+    inlier_ratio: float,
+    v_corr_idxs: np.ndarray,
+    num_H_inliers: int,
+    H_inlier_ratio: float,
 ) -> TwoViewEstimationReport:
     """ """
     two_view_report = TwoViewEstimationReport(
@@ -165,6 +186,8 @@ def generate_two_view_report(
         v_corr_idxs=v_corr_idxs,
         R_error_deg=R_error_deg,
         U_error_deg=U_error_deg,
+        num_H_inliers=num_H_inliers,
+        H_inlier_ratio=H_inlier_ratio,
     )
     return two_view_report
 
