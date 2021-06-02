@@ -18,6 +18,7 @@ from dask.delayed import Delayed
 from gtsam import Pose3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
+import gtsfm.utils.metrics as metric_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.viz as viz_utils
@@ -342,6 +343,10 @@ def visualize_camera_poses(
         post_ba_poses = comp_utils.align_poses_sim3(corresponding_gt_poses, copy.deepcopy(post_ba_poses))
         viz_utils.plot_poses_3d(gt_pose_graph, ax, center_marker_color="m", label_name="GT")
 
+        post_ba_pose_errors_dict = metric_utils.compute_pose_errors(gt_wTi_list=corresponding_gt_poses, wTi_list=post_ba_poses)
+        print("post_ba_pose_errors_dict: ", post_ba_pose_errors_dict)
+
+
     viz_utils.plot_poses_3d(pre_ba_poses, ax, center_marker_color="c", label_name="Pre-BA")
     viz_utils.plot_poses_3d(post_ba_poses, ax, center_marker_color="k", label_name="Post-BA")
 
@@ -375,7 +380,9 @@ def persist_frontend_metrics_full(two_view_report_dict: Dict[Tuple[int, int], Tw
             "num_inliers_gt_model":  report.num_inliers_gt_model,
             "inlier_ratio_gt_model": np.round(report.inlier_ratio_gt_model, PRINT_NUM_SIG_FIGS),
             "inlier_ratio_est_model": np.round(report.inlier_ratio_est_model, PRINT_NUM_SIG_FIGS),
-            "num_inliers_est_model": report.num_inliers_est_model
+            "num_inliers_est_model": report.num_inliers_est_model,
+            "num_H_inliers": int(report.num_H_inliers),
+            "H_inlier_ratio": np.round(report.H_inlier_ratio, PRINT_NUM_SIG_FIGS),
         }
         for (i1,i2), report in two_view_report_dict.items()
     ]
