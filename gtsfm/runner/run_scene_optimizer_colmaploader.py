@@ -1,4 +1,5 @@
 import argparse
+import time
 from pathlib import Path
 
 import hydra
@@ -17,6 +18,7 @@ logger = logger_utils.get_logger()
 
 def run_scene_optimizer(args) -> None:
     """ """
+    start = time.time()
     with hydra.initialize_config_module(config_module="gtsfm.configs"):
         # config is relative to the gtsfm module
         cfg = hydra.compose(config_name="deep_front_end.yaml")
@@ -38,12 +40,17 @@ def run_scene_optimizer(args) -> None:
         )
 
         # create dask client
-        cluster = LocalCluster(n_workers=2, threads_per_worker=4)
+        cluster = LocalCluster(n_workers=args.n_workers, threads_per_worker=args.threads_per_worker)
 
         with Client(cluster), performance_report(filename="dask-report.html"):
             sfm_result = sfm_result_graph.compute()
 
         assert isinstance(sfm_result, GtsfmData)
+    end = time.time()
+    duration = end - start
+    logger.info(f"SfM took {duration:.2f} seconds to complete.")
+
+    # add script to print error metrics
 
 
 if __name__ == "__main__":
@@ -63,6 +70,18 @@ if __name__ == "__main__":
         type=int,
         default=1,
         help="maximum number of consecutive frames to consider for matching/co-visibility",
+    )
+    parser.add_argument(
+        "--n_workers",
+        type=int,
+        default=1,
+        help="Number of workers to start (processes, by default)",
+    )
+    parser.add_argument(
+        "--threads_per_worker",
+        type=int,
+        default=1,
+        help="Number of threads per each worker",
     )
     args = parser.parse_args()
 

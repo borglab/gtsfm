@@ -17,7 +17,9 @@ def run_scene_optimizer(args) -> None:
     """ Run GTSFM over images from an Argoverse vehicle log"""
     with hydra.initialize_config_module(config_module="gtsfm.configs"):
         # config is relative to the gtsfm module
-        cfg = hydra.compose(config_name="default_lund_door_set1_config.yaml")
+        #config_name = "default_lund_door_set1_config.yaml"
+        config_name = "deep_front_end.yaml"
+        cfg = hydra.compose(config_name=config_name)
         scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
         loader = ArgoverseDatasetLoader(

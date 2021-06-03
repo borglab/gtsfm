@@ -16,6 +16,7 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
+from gtsfm.frontend.verifier.homography import HomographyEstimator
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
 logger = logger_utils.get_logger()
@@ -74,6 +75,7 @@ class TwoViewEstimator:
         self._matcher = matcher
         self._verifier = verifier
         self._corr_metric_dist_threshold = corr_metric_dist_threshold
+        self._homography_estimator = HomographyEstimator()
 
     def get_corr_metric_dist_threshold(self) -> float:
         """Getter for the distance threshold used in the metric for correct correspondences."""
@@ -153,10 +155,7 @@ class TwoViewEstimator:
             pose_error_graphs = (None, None)
             number_correct, inlier_ratio = None, None
 
-        from gtsfm.frontend.verifier.homography import HomographyEstimator
-
-        homography_estimator = HomographyEstimator()
-        result = dask.delayed(homography_estimator.estimate)(
+        result = dask.delayed(self._homography_estimator.estimate)(
             keypoints_i1_graph,
             keypoints_i2_graph,
             match_indices=corr_idxs_graph,

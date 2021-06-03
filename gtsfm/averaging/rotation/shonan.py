@@ -30,6 +30,10 @@ class ShonanRotationAveraging(RotationAveragingBase):
     """Performs Shonan rotation averaging."""
 
     def __init__(self) -> None:
+        """
+        p_min describes ... TODO: Frank
+        p_max describes ... TODO: Frank
+        """
         self._p_min = 5
         self._p_max = 30
 
@@ -38,16 +42,13 @@ class ShonanRotationAveraging(RotationAveragingBase):
 
         Args:
             num_images: number of poses.
-            i2Ri1_dict: relative rotations as dictionary (i1, i2): i2Ri1.
+            i2Ri1_dict: relative rotations for each image pair-edge as dictionary (i1, i2): i2Ri1.
 
         Returns:
             Global rotations for each camera pose, i.e. wRi, as a list. The number of entries in the list is
                 `num_images`. The list may contain `None` where the global rotation could not be computed (either
                 underconstrained system or ill-constrained system).
         """
-        print("Shonan num_images", num_images)
-        print("Shonan i2Ri1_dict", i2Ri1_dict)
-
         lm_params = LevenbergMarquardtParams.CeresDefaults()
         shonan_params = ShonanAveragingParameters3(lm_params)
         shonan_params.setUseHuber(False)
@@ -59,25 +60,13 @@ class ShonanRotationAveraging(RotationAveragingBase):
 
         for (i1, i2), i2Ri1 in i2Ri1_dict.items():
             if i2Ri1 is not None:
-                between_factors.append(
-                    BetweenFactorPose3(
-                        i2,
-                        i1,
-                        Pose3(
-                            i2Ri1,
-                            np.zeros(
-                                3,
-                            ),
-                        ),
-                        noise_model,
-                    )
-                )
+                # ignore translation during rotation averaging
+                i2Ti1 = Pose3(i2Ri1, np.zeros(3))
+                between_factors.append(BetweenFactorPose3(i2, i1, i2Ti1, noise_model))
 
         obj = ShonanAveraging3(between_factors, shonan_params)
 
         initial = obj.initializeRandomly()
         result_values, _ = obj.run(initial, self._p_min, self._p_max)
 
-        for i in range(num_images):
-            print(f"Shonan {i}", result_values.exists(i))
-        return [result_values.atRot3(i) for i in range(num_images)]
+        return [result_values.atRot3(i) if result_values.exists(i) else None for i in range(num_images) ]
