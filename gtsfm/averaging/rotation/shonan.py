@@ -31,8 +31,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
 
     def __init__(self) -> None:
         """
-        p_min describes ... TODO: Frank
-        p_max describes ... TODO: Frank
+        Note: `p_min` and `p_max` describe the minimum and maximum relaxation rank.
         """
         self._p_min = 5
         self._p_max = 30
