@@ -23,9 +23,7 @@ def run_scene_optimizer(args) -> None:
     start = time.time()
     with hydra.initialize_config_module(config_module="gtsfm.configs"):
         # config is relative to the gtsfm module
-        config_name = "default_lund_door_set1_config.yaml"
-        # config_name = "deep_front_end.yaml"
-        cfg = hydra.compose(config_name=config_name)
+        cfg = hydra.compose(config_name=args.config_name)
 
         scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
@@ -54,8 +52,6 @@ def run_scene_optimizer(args) -> None:
     end = time.time()
     duration = end - start
     logger.info(f"SfM took {duration:.2f} seconds to complete.")
-
-    # add script to print error metrics
 
 
 def print_metrics() -> None:
@@ -119,6 +115,13 @@ if __name__ == "__main__":
         default=1,
         help="Number of threads per each worker",
     )
+    parser.add_argument(
+        "--config_name",
+        type=str,
+        default="deep_front_end.yaml",
+        help="Choose default_lund_door_set1_config.yaml or deep_front_end.yaml",
+    )
+
     args = parser.parse_args()
 
     run_scene_optimizer(args)
