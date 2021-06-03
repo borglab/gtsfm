@@ -29,7 +29,7 @@ logger = logger_utils.get_logger()
 
 
 class Degensac(VerifierBase):
-    def __init__(self, use_intrinsics_in_verification: bool = False) -> None:
+    def __init__(self, use_intrinsics_in_verification: bool, ransac_threshold_px: float) -> None:
         """Initializes the verifier.
 
         Args:

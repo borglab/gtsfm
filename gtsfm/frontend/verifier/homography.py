@@ -19,11 +19,15 @@ COLMAP also checks degeneracy of structure here:
 """
 
 MIN_PTS_HOMOGRAPHY = 4
-REPROJECTION_THRESHOLD_PX = 0.5
 DEFAULT_RANSAC_PROB = 0.999
 
 
 class HomographyEstimator:
+    def __init__(self, ransac_threshold_px: float) -> None:
+        """
+        """
+        self._px_threshold = ransac_threshold_px
+
     def estimate(
         self, keypoints_i1: Keypoints, keypoints_i2: Keypoints, match_indices: np.ndarray
     ) -> Tuple[float, int]:
@@ -54,7 +58,7 @@ class HomographyEstimator:
             srcPoints=uv_i1[match_indices[:, 0]],
             dstPoints=uv_i2[match_indices[:, 1]],
             method=cv2.RANSAC,
-            ransacReprojThreshold=REPROJECTION_THRESHOLD_PX,
+            ransacReprojThreshold=self._px_threshold,
             # maxIters=10000,
             confidence=DEFAULT_RANSAC_PROB,
         )
