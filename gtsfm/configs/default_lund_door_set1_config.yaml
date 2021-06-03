@@ -18,7 +18,7 @@ SceneOptimizer:
       _target_: gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher
 
     verifier:
-      _target_: gtsfm.frontend.verifier.ransac.Ransac
+      _target_: gtsfm.frontend.verifier.degensac.Degensac
       use_intrinsics_in_verification: False
     
 
