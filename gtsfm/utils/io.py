@@ -101,6 +101,19 @@ def save_json_file(
         json.dump(data, f, indent=4)
 
 
+def read_json_file(fpath: Union[str, Path]) -> Any:
+    """Load dictionary from JSON file.
+
+    Args:
+        fpath: Path to JSON file.
+
+    Returns:
+        Deserialized Python dictionary or list.
+    """
+    with open(fpath, "rb") as f:
+        return json.load(f)
+
+
 def read_bal(file_path: str) -> GtsfmData:
     """Read a Bundle Adjustment in the Large" (BAL) file.
 
@@ -175,7 +188,6 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
         k2 = 0
         calibrations.append(Cal3Bundler(fx, k1, k2, u0, v0))
 
-    assert len(calibrations) == num_cams
     return calibrations
 
 
