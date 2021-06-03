@@ -64,7 +64,7 @@ class TwoViewEstimationReport:
 class TwoViewEstimator:
     """Wrapper for running two-view relative pose estimation on image pairs in the dataset."""
 
-    def __init__(self, matcher: MatcherBase, verifier: VerifierBase, corr_metric_dist_threshold: float) -> None:
+    def __init__(self, matcher: MatcherBase, verifier: VerifierBase, eval_threshold_px: float, estimation_threshold_px: float) -> None:
         """Initializes the two-view estimator from matcher and verifier.
 
         Args:
@@ -74,8 +74,9 @@ class TwoViewEstimator:
         """
         self._matcher = matcher
         self._verifier = verifier
-        self._corr_metric_dist_threshold = corr_metric_dist_threshold
-        self._homography_estimator = HomographyEstimator()
+        self._corr_metric_dist_threshold = eval_threshold_px
+        # Note: homography estimation threshold must match the E / F thresholds for #inliers to be comparable
+        self._homography_estimator = HomographyEstimator(estimation_threshold_px)
 
     def get_corr_metric_dist_threshold(self) -> float:
         """Getter for the distance threshold used in the metric for correct correspondences."""

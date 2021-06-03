@@ -23,7 +23,7 @@ import gtsfm.utils.verification as verification_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.verifier_base import VerifierBase, NUM_MATCHES_REQ_E_MATRIX, NUM_MATCHES_REQ_F_MATRIX
 
-PIXEL_COORD_RANSAC_THRESH = 0.5  # TODO: hyperparameter to tune
+
 DEFAULT_RANSAC_SUCCESS_PROB = 0.9999
 MAX_TOLERATED_POLLUTION_INLIER_RATIO_EST_MODEL = 0.1
 
@@ -31,17 +31,17 @@ logger = logger_utils.get_logger()
 
 
 class Ransac(VerifierBase):
-    def __init__(self, use_intrinsics_in_verification: bool, px_threshold: float = PIXEL_COORD_RANSAC_THRESH) -> None:
+    def __init__(self, use_intrinsics_in_verification: bool, estimation_threshold_px: float) -> None:
         """Initializes the verifier.
 
         Args:
             use_intrinsics_in_verification: Flag to perform keypoint normalization and compute the essential matrix
                                             instead of fundamental matrix. This should be preferred when the exact
                                             intrinsics are known as opposed to approximating them from exif data.
-            px_threshold: epipolar distance threshold (measured in pixels)
+            estimation_threshold_px: epipolar distance threshold (measured in pixels)
         """
         self._use_intrinsics_in_verification = use_intrinsics_in_verification
-        self._px_threshold = px_threshold
+        self._px_threshold = estimation_threshold_px
         self._min_matches = (
             NUM_MATCHES_REQ_E_MATRIX if self._use_intrinsics_in_verification else NUM_MATCHES_REQ_F_MATRIX
         )

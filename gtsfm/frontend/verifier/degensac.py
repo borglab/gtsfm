@@ -23,23 +23,25 @@ import gtsfm.utils.verification as verification_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
-PIXEL_COORD_RANSAC_THRESH = 0.5
-
 logger = logger_utils.get_logger()
+
+MAX_TOLERATED_POLLUTION_INLIER_RATIO_EST_MODEL = 0.1
 
 
 class Degensac(VerifierBase):
-    def __init__(self, use_intrinsics_in_verification: bool, ransac_threshold_px: float) -> None:
+    def __init__(self, use_intrinsics_in_verification: bool, estimation_threshold_px: float) -> None:
         """Initializes the verifier.
 
         Args:
             use_intrinsics_in_verification: Flag to perform keypoint normalization and compute the essential matrix 
                                             instead of fundamental matrix. This should be preferred when the exact
                                             intrinsics are known as opposed to approximating them from exif data.
+            estimation_threshold_px
 
         Raises:
             NotImplementedError: when configured to compute essential matrices.
         """
+        self._estimation_threshold_px = estimation_threshold_px
         if use_intrinsics_in_verification is True:
             raise NotImplementedError("DEGENSAC cannot estimate essential matrices")
 
@@ -74,14 +76,15 @@ class Degensac(VerifierBase):
         i2Fi1, inlier_mask = pydegensac.findFundamentalMatrix(
             keypoints_i1.coordinates[match_indices[:, 0]],
             keypoints_i2.coordinates[match_indices[:, 1]],
-            px_th=PIXEL_COORD_RANSAC_THRESH,
+            px_th=self._estimation_threshold_px,
         )
 
         inlier_idxs = np.where(inlier_mask.ravel() == 1)[0]
 
         v_corr_idxs = match_indices[inlier_idxs]
         inlier_ratio_est_model = np.mean(inlier_mask)
-        if inlier_ratio_est_model < 0.1:
+        if inlier_ratio_est_model < MAX_TOLERATED_POLLUTION_INLIER_RATIO_EST_MODEL:
+            logger.info("Discarding image pair, as inlier ratio w.r.t. estimated model was too low: %.2f", inlier_ratio_est_model)
             i2Ri1 = None
             i2Ui1 = None
             v_corr_idxs = np.array([], dtype=np.uint64)
