@@ -6,11 +6,13 @@ import hydra
 from dask.distributed import Client, LocalCluster, performance_report
 from hydra.utils import instantiate
 
+import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.loader.colmap_loader import ColmapLoader
 from gtsfm.scene_optimizer import SceneOptimizer
 
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "tests" / "data"
 
 logger = logger_utils.get_logger()
@@ -21,7 +23,10 @@ def run_scene_optimizer(args) -> None:
     start = time.time()
     with hydra.initialize_config_module(config_module="gtsfm.configs"):
         # config is relative to the gtsfm module
-        cfg = hydra.compose(config_name="deep_front_end.yaml")
+        config_name = "default_lund_door_set1_config.yaml"
+        # config_name = "deep_front_end.yaml"
+        cfg = hydra.compose(config_name=config_name)
+
         scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
         loader = ColmapLoader(
@@ -51,6 +56,37 @@ def run_scene_optimizer(args) -> None:
     logger.info(f"SfM took {duration:.2f} seconds to complete.")
 
     # add script to print error metrics
+
+
+def print_metrics() -> None:
+    """Dump to stdout a summary of metrics about the SfM reconstruction process."""
+    frontend_full_metrics_fpath = REPO_ROOT / "result_metrics" / "frontend_full.json"
+    frontend_metrics = io_utils.read_json_file(frontend_full_metrics_fpath)
+
+    max_rot_err_deg = max(
+        [
+            pair_stats["rotation_angular_error"]
+            for pair_stats in frontend_metrics
+            if pair_stats["rotation_angular_error"]
+        ]
+    )
+    max_trans_err_deg = max(
+        [
+            pair_stats["translation_angular_error"]
+            for pair_stats in frontend_metrics
+            if pair_stats["translation_angular_error"]
+        ]
+    )
+
+    print("=============> Metrics report ==============>")
+    print("Front-end max_rot_err_deg: ", max_rot_err_deg)
+    print("Front-end max_trans_err_deg: ", max_trans_err_deg)
+
+    averaging_metrics_fpath = REPO_ROOT / "result_metrics" / "multiview_optimizer_metrics.json"
+    averaging_metrics = io_utils.read_json_file(averaging_metrics_fpath)
+
+    print("Averaging max_rot_err_deg: ", averaging_metrics["rotation_averaging_angle_deg"]["max_error"])
+    print("Averaging max_trans_dist_err: ", averaging_metrics["translation_averaging_distance"]["max_error"])
 
 
 if __name__ == "__main__":
@@ -86,3 +122,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     run_scene_optimizer(args)
+    print_metrics()
