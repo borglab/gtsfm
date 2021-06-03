@@ -13,14 +13,15 @@ SceneOptimizer:
 
   two_view_estimator:
     _target_: gtsfm.two_view_estimator.TwoViewEstimator
-    corr_metric_dist_threshold: 3 # in px
+    eval_threshold_px: 3 # in px
+    estimation_threshold_px: 0.5 # for homography estimator
     matcher:
       _target_: gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher
 
     verifier:
       _target_: gtsfm.frontend.verifier.ransac.Ransac
       use_intrinsics_in_verification: False
-    
+      estimation_threshold_px: 0.5
 
   multiview_optimizer:
     _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer

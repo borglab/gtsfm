@@ -23,10 +23,10 @@ DEFAULT_RANSAC_PROB = 0.999
 
 
 class HomographyEstimator:
-    def __init__(self, ransac_threshold_px: float) -> None:
+    def __init__(self, estimation_threshold_px: float) -> None:
         """
         """
-        self._px_threshold = ransac_threshold_px
+        self._px_threshold = estimation_threshold_px
 
     def estimate(
         self, keypoints_i1: Keypoints, keypoints_i2: Keypoints, match_indices: np.ndarray
