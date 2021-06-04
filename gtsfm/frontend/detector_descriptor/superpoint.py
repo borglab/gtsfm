@@ -63,12 +63,12 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
         descriptors = model_results["descriptors"][0].detach().cpu().numpy().T
 
         # sort by scores
-        sort_idx = np.argsort(-scores)
+        sort_idxs = np.argsort(-scores)
         # limit the number of keypoints
-        sort_idx = sort_idx[: self.max_keypoints]
-        feature_points = feature_points[sort_idx]
-        scores = scores[sort_idx]
-        descriptors = descriptors[sort_idx]
+        sort_idxs = sort_idxs[: self.max_keypoints]
+        feature_points = feature_points[sort_idxs]
+        scores = scores[sort_idxs]
+        descriptors = descriptors[sort_idxs]
 
         keypoints = Keypoints(feature_points, responses=scores, scales=np.ones(scores.shape))
 
