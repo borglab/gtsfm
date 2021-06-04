@@ -74,7 +74,7 @@ class SceneOptimizer:
         save_gtsfm_data: bool,
         pose_angular_error_thresh: float,
     ) -> None:
-        """ pose_angular_error_thresh is given in degrees """
+        """pose_angular_error_thresh is given in degrees"""
         self.feature_extractor = feature_extractor
         self.two_view_estimator = two_view_estimator
         self.multiview_optimizer = multiview_optimizer
@@ -131,12 +131,7 @@ class SceneOptimizer:
             else:
                 gt_relative_pose = None
 
-            (
-                i2Ri1,
-                i2Ui1,
-                v_corr_idxs,
-                two_view_report,
-            ) = self.two_view_estimator.create_computation_graph(
+            (i2Ri1, i2Ui1, v_corr_idxs, two_view_report,) = self.two_view_estimator.create_computation_graph(
                 keypoints_graph_list[i1],
                 keypoints_graph_list[i2],
                 descriptors_graph_list[i1],
@@ -161,7 +156,7 @@ class SceneOptimizer:
                         keypoints_graph_list[i1],
                         keypoints_graph_list[i2],
                         v_corr_idxs,
-                        os.path.join(PLOT_CORRESPONDENCE_PATH, f"{i1}_{i2}.jpg")
+                        os.path.join(PLOT_CORRESPONDENCE_PATH, f"{i1}_{i2}.jpg"),
                     )
                 )
 
@@ -294,7 +289,7 @@ def visualize_sfm_data(sfm_data: GtsfmData, folder_name: str) -> None:
         folder_name: folder to save the visualization at.
     """
     fig = plt.figure()
-    ax = fig.add_subplot(projection='3d')
+    ax = fig.add_subplot(projection="3d")
 
     viz_utils.plot_sfm_data_3d(sfm_data, ax)
     viz_utils.set_axes_equal(ax)
@@ -331,7 +326,7 @@ def visualize_camera_poses(
         post_ba_poses.append(post_ba_sfm_data.get_camera(i).pose())
 
     fig = plt.figure()
-    ax = fig.add_subplot(projection='3d')
+    ax = fig.add_subplot(projection="3d")
 
     if gt_pose_graph is not None:
         # Select ground truth poses that correspond to pre-BA and post-BA estimated poses
@@ -343,9 +338,10 @@ def visualize_camera_poses(
         post_ba_poses = comp_utils.align_poses_sim3(corresponding_gt_poses, copy.deepcopy(post_ba_poses))
         viz_utils.plot_poses_3d(gt_pose_graph, ax, center_marker_color="m", label_name="GT")
 
-        post_ba_pose_errors_dict = metric_utils.compute_pose_errors(gt_wTi_list=corresponding_gt_poses, wTi_list=post_ba_poses)
+        post_ba_pose_errors_dict = metric_utils.compute_pose_errors(
+            gt_wTi_list=corresponding_gt_poses, wTi_list=post_ba_poses
+        )
         print("post_ba_pose_errors_dict: ", post_ba_pose_errors_dict)
-
 
     viz_utils.plot_poses_3d(pre_ba_poses, ax, center_marker_color="c", label_name="Pre-BA")
     viz_utils.plot_poses_3d(post_ba_poses, ax, center_marker_color="k", label_name="Post-BA")
@@ -376,15 +372,19 @@ def persist_frontend_metrics_full(two_view_report_dict: Dict[Tuple[int, int], Tw
             "i1": i1,
             "i2": i2,
             "rotation_angular_error": np.round(report.R_error_deg, PRINT_NUM_SIG_FIGS) if report.R_error_deg else None,
-            "translation_angular_error": np.round(report.U_error_deg, PRINT_NUM_SIG_FIGS) if report.U_error_deg else None,
-            "num_inliers_gt_model":  report.num_inliers_gt_model,
-            "inlier_ratio_gt_model": np.round(report.inlier_ratio_gt_model, PRINT_NUM_SIG_FIGS),
+            "translation_angular_error": np.round(report.U_error_deg, PRINT_NUM_SIG_FIGS)
+            if report.U_error_deg
+            else None,
+            "num_inliers_gt_model": report.num_inliers_gt_model if report.num_inliers_gt_model else None,
+            "inlier_ratio_gt_model": np.round(report.inlier_ratio_gt_model, PRINT_NUM_SIG_FIGS)
+            if report.inlier_ratio_gt_model
+            else None,
             "inlier_ratio_est_model": np.round(report.inlier_ratio_est_model, PRINT_NUM_SIG_FIGS),
             "num_inliers_est_model": report.num_inliers_est_model,
             "num_H_inliers": int(report.num_H_inliers),
             "H_inlier_ratio": np.round(report.H_inlier_ratio, PRINT_NUM_SIG_FIGS),
         }
-        for (i1,i2), report in two_view_report_dict.items()
+        for (i1, i2), report in two_view_report_dict.items()
     ]
 
     io_utils.save_json_file(os.path.join(METRICS_PATH, "frontend_full.json"), metrics_list)
@@ -404,36 +404,45 @@ def aggregate_frontend_metrics(
     """
     num_entries = len(two_view_report_dict.keys())
 
-    # metrics_array = np.array(list(metrics.values()), dtype=float)
+    # all rotational errors in degrees
+    rot3_angular_errors = []
+    trans_angular_errors = []
 
-    # # count number of rot3 errors which are not None. Should be same in rot3/unit3
-    # num_valid_entries = np.count_nonzero(~np.isnan(metrics_array[:, 0]))
+    for report in two_view_report_dict.values():
+        rot3_angular_errors.append(report["rotation_angular_error"])
+        trans_angular_errors.append(report["translation_angular_error"])
 
-    # # compute pose errors by picking the max error from rot3 and unit3 errors
-    # pose_errors = np.amax(metrics_array[:, :2], axis=1)
+    rot3_angular_errors = np.array(rot3_angular_errors, dtype=float)
+    trans_angular_errors = np.array(trans_angular_errors, dtype=float)
 
-    # # check errors against the threshold
-    # success_count_rot3 = np.sum(metrics_array[:, 0] < angular_err_threshold_deg)
-    # success_count_unit3 = np.sum(metrics_array[:, 1] < angular_err_threshold_deg)
-    # success_count_pose = np.sum(pose_errors < angular_err_threshold_deg)
+    # count number of rot3 errors which are not None. Should be same in rot3/unit3
+    num_valid_entries = np.count_nonzero(~np.isnan(rot3_angular_errors))
+
+    # compute pose errors by picking the max error from rot3 and unit3 errors
+    pose_errors = np.maximum(trans_angular_errors, trans_angular_errors)
+
+    # check errors against the threshold
+    success_count_rot3 = np.sum(rot3_angular_errors < angular_err_threshold_deg)
+    success_count_unit3 = np.sum(trans_angular_errors < angular_err_threshold_deg)
+    success_count_pose = np.sum(pose_errors < angular_err_threshold_deg)
 
     # # count entries with inlier ratio == 1.
     # all_correct = np.count_nonzero(metrics_array[:, 3] == 1.0)
 
-    # logger.debug(
-    #     "[Two view optimizer] [Summary] Rotation success: %d/%d/%d", success_count_rot3, num_valid_entries, num_entries
-    # )
+    logger.debug(
+        "[Two view optimizer] [Summary] Rotation success: %d/%d/%d", success_count_rot3, num_valid_entries, num_entries
+    )
 
-    # logger.debug(
-    #     "[Two view optimizer] [Summary] Translation success: %d/%d/%d",
-    #     success_count_unit3,
-    #     num_valid_entries,
-    #     num_entries,
-    # )
+    logger.debug(
+        "[Two view optimizer] [Summary] Translation success: %d/%d/%d",
+        success_count_unit3,
+        num_valid_entries,
+        num_entries,
+    )
 
-    # logger.debug(
-    #     "[Two view optimizer] [Summary] Pose success: %d/%d/%d", success_count_pose, num_valid_entries, num_entries
-    # )
+    logger.debug(
+        "[Two view optimizer] [Summary] Pose success: %d/%d/%d", success_count_pose, num_valid_entries, num_entries
+    )
 
     # logger.debug("[Two view optimizer] [Summary] Image pairs with 100%% inlier ratio:: %d/%d", all_correct, num_entries)
 
