@@ -371,18 +371,18 @@ def persist_frontend_metrics_full(two_view_report_dict: Dict[Tuple[int, int], Tw
         {
             "i1": i1,
             "i2": i2,
-            "rotation_angular_error": np.round(report.R_error_deg, PRINT_NUM_SIG_FIGS) if report.R_error_deg else None,
-            "translation_angular_error": np.round(report.U_error_deg, PRINT_NUM_SIG_FIGS)
+            "rotation_angular_error": round(report.R_error_deg, PRINT_NUM_SIG_FIGS) if report.R_error_deg else None,
+            "translation_angular_error": round(report.U_error_deg, PRINT_NUM_SIG_FIGS)
             if report.U_error_deg
             else None,
             "num_inliers_gt_model": report.num_inliers_gt_model if report.num_inliers_gt_model else None,
-            "inlier_ratio_gt_model": np.round(report.inlier_ratio_gt_model, PRINT_NUM_SIG_FIGS)
+            "inlier_ratio_gt_model": round(report.inlier_ratio_gt_model, PRINT_NUM_SIG_FIGS)
             if report.inlier_ratio_gt_model
             else None,
-            "inlier_ratio_est_model": np.round(report.inlier_ratio_est_model, PRINT_NUM_SIG_FIGS),
+            "inlier_ratio_est_model": round(report.inlier_ratio_est_model, PRINT_NUM_SIG_FIGS),
             "num_inliers_est_model": report.num_inliers_est_model,
             "num_H_inliers": int(report.num_H_inliers),
-            "H_inlier_ratio": np.round(report.H_inlier_ratio, PRINT_NUM_SIG_FIGS),
+            "H_inlier_ratio": round(report.H_inlier_ratio, PRINT_NUM_SIG_FIGS),
         }
         for (i1, i2), report in two_view_report_dict.items()
     ]
