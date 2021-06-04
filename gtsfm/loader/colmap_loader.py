@@ -3,6 +3,7 @@
 Authors: John Lambert
 """
 
+import glob
 import os
 from pathlib import Path
 from typing import Optional
@@ -48,6 +49,7 @@ class ColmapLoader(LoaderBase):
         use_gt_extrinsics: bool = True,
         max_frame_lookahead: int = 1,
         max_resolution: int = 760,
+        known_focal_length: Optional[float] = None
     ) -> None:
         """Initializes to load from a specified folder on disk.
 
@@ -63,19 +65,29 @@ class ColmapLoader(LoaderBase):
                 the dataset assumes data is sequentially captured
             max_resolution: integer representing maximum length of image's short side
                e.g. for 1080p (1920 x 1080), max_resolution would be 1080
+            known_focal_length: focal length, in pixels, if known, but not present in EXIF
         """
         self._use_gt_intrinsics = use_gt_intrinsics
         self._use_gt_extrinsics = use_gt_extrinsics
         self._max_frame_lookahead = max_frame_lookahead
         self._max_resolution = max_resolution
+        self._known_focal_length = known_focal_length
 
-        self._wTi_list, img_fnames = io_utils.read_images_txt(fpath=os.path.join(colmap_files_dirpath, "images.txt"))
-        self._calibrations = io_utils.read_cameras_txt(fpath=os.path.join(colmap_files_dirpath, "cameras.txt"))
+        if Path(colmap_files_dirpath).exists():
+            self._wTi_list, img_fnames = io_utils.read_images_txt(fpath=os.path.join(colmap_files_dirpath, "images.txt"))
+            self._calibrations = io_utils.read_cameras_txt(fpath=os.path.join(colmap_files_dirpath, "cameras.txt"))
 
-        # TODO in future PR: if img_fnames is None, default to using everything inside image directory
+        if img_fnames is None:
+            # fall back to using everything inside image directory
+            img_fnames = []
+            for suffix in [".jpg", ".JPG", ".png"]:
+                img_fnames.extend([ Path(fpath).name for fpath in glob.glob(f"{images_dir}/*{suffix}")])
 
         if self._calibrations is None:
             self._use_gt_intrinsics = False
+
+        if self._wTi_list is None:
+            self._use_gt_extrinsics = False
 
         if self._calibrations is not None and len(self._calibrations) == 1:
             # shared calibration!
@@ -143,17 +155,26 @@ class ColmapLoader(LoaderBase):
         if index < 0 or index >= len(self):
             raise IndexError("Image index is invalid")
 
-        if not self._use_gt_intrinsics:
-            # get intrinsics from exif
+        # assume no radial distortion
+        k1 = 0.0
+        k2 = 0.0
+
+        if self._use_gt_intrinsics:
+            intrinsics = self._calibrations[index]
+
+        elif self._known_focal_length:
+            h, w = self.get_image_shape()
+            intrinsics = Cal3Bundler(fx=self._known_focal_length, k1=k1, k2=k2, u0=w/2, v0=h/2)
+        
+        else:
+            # fall back to getting intrinsics from EXIF
             intrinsics = io_utils.load_image(self._image_paths[index]).get_intrinsics_from_exif()
 
-        else:
-            intrinsics = self._calibrations[index]
 
         intrinsics = Cal3Bundler(
             fx=intrinsics.fx() * self._scale_u,
-            k1=0.0,
-            k2=0.0,
+            k1=k1,
+            k2=k2,
             u0=intrinsics.px() * self._scale_u,
             v0=intrinsics.py() * self._scale_v,
         )
