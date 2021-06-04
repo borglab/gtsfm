@@ -46,7 +46,8 @@ class Ransac(VerifierBase):
             NUM_MATCHES_REQ_E_MATRIX if self._use_intrinsics_in_verification else NUM_MATCHES_REQ_F_MATRIX
         )
 
-        self._failure_result = (None, None, np.array([], dtype=np.uint64))
+        # for failure, i2Ri1 = None, and i2Ui1 = None, and no verified correspondences, and inlier_ratio_est_model = 0
+        self._failure_result = (None, None, np.array([], dtype=np.uint64), 0)
 
     def verify(
         self,
@@ -55,7 +56,7 @@ class Ransac(VerifierBase):
         match_indices: np.ndarray,
         camera_intrinsics_i1: Cal3Bundler,
         camera_intrinsics_i2: Cal3Bundler,
-    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, float]:
         """Performs verification of correspondences between two images to recover the relative pose and indices of
         verified correspondences.
 
@@ -71,16 +72,16 @@ class Ransac(VerifierBase):
             Indices of verified correspondences, of shape (N, 2) with N <= N3. These are subset of match_indices.
         """
         if match_indices.shape[0] < self._min_matches:
-            i2Ri1 = None
-            i2Ui1 = None
-            v_corr_idxs = np.array([], dtype=np.uint64)
-            inlier_ratio_est_model = 0
-            return i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio_est_model
+            return self._failure_result
 
         if self._use_intrinsics_in_verification:
             uv_norm_i1 = feature_utils.normalize_coordinates(keypoints_i1.coordinates, camera_intrinsics_i1)
             uv_norm_i2 = feature_utils.normalize_coordinates(keypoints_i2.coordinates, camera_intrinsics_i2)
             K = np.eye(3)
+
+            # OpenCV can fail here, for some reason
+            if match_indices.shape[0] < 6:
+                return self._failure_result
 
             # use stricter threshold, among the two choices
             fx = max(camera_intrinsics_i1.K()[0, 0], camera_intrinsics_i2.K()[0, 0])
