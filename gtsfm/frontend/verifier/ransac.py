@@ -71,7 +71,11 @@ class Ransac(VerifierBase):
             Indices of verified correspondences, of shape (N, 2) with N <= N3. These are subset of match_indices.
         """
         if match_indices.shape[0] < self._min_matches:
-            return self._failure_result
+            i2Ri1 = None
+            i2Ui1 = None
+            v_corr_idxs = np.array([], dtype=np.uint64)
+            inlier_ratio_est_model = 0
+            return i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio_est_model
 
         if self._use_intrinsics_in_verification:
             uv_norm_i1 = feature_utils.normalize_coordinates(keypoints_i1.coordinates, camera_intrinsics_i1)
