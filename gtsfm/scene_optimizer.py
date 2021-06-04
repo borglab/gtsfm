@@ -409,8 +409,8 @@ def aggregate_frontend_metrics(
     trans_angular_errors = []
 
     for report in two_view_report_dict.values():
-        rot3_angular_errors.append(report["rotation_angular_error"])
-        trans_angular_errors.append(report["translation_angular_error"])
+        rot3_angular_errors.append(report.R_error_deg)
+        trans_angular_errors.append(report.U_error_deg)
 
     rot3_angular_errors = np.array(rot3_angular_errors, dtype=float)
     trans_angular_errors = np.array(trans_angular_errors, dtype=float)
