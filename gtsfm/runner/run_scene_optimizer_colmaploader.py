@@ -31,6 +31,7 @@ def run_scene_optimizer(args) -> None:
             colmap_files_dirpath=args.colmap_files_dirpath,
             images_dir=args.images_dir,
             max_frame_lookahead=args.max_frame_lookahead,
+            known_focal_length=args.known_focal_length
         )
 
         sfm_result_graph = scene_optimizer.create_computation_graph(
@@ -94,8 +95,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--colmap_files_dirpath",
         type=str,
-        required=True,
-        help="path to directory containing images.txt, points3D.txt, and cameras.txt",
+        default="",
+        help="path to directory containing images.txt, points3D.txt, and cameras.txt (optional)",
     )
     parser.add_argument(
         "--max_frame_lookahead",
@@ -120,6 +121,11 @@ if __name__ == "__main__":
         type=str,
         default="deep_front_end.yaml",
         help="Choose default_lund_door_set1_config.yaml or deep_front_end.yaml",
+    )
+    parser.add_argument(
+        "--known_focal_length",
+        type=float,
+        help="If camera focal length (in pixels) in known a priori",
     )
 
     args = parser.parse_args()
