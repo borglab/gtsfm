@@ -38,6 +38,9 @@ pil_logger.setLevel(logging.INFO)
 #    https://github.com/colmap/colmap/blob/dev/src/estimators/two_view_geometry.cc#L230
 MAX_H_INLIER_RATIO = 0.8
 
+EPSILON = 1e-6
+
+
 @dataclass(frozen=False)
 class TwoViewEstimationReport:
     """
@@ -188,7 +191,7 @@ def check_for_degeneracy(
     two_view_report: TwoViewEstimationReport, i2Ri1: Optional[Rot3], i2Ui1: Optional[Unit3], v_corr_idxs: np.ndarray
 ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
     """ """
-    H_EF_inlier_ratio = two_view_report.num_H_inliers / two_view_report.num_inliers_est_model
+    H_EF_inlier_ratio = two_view_report.num_H_inliers / (two_view_report.num_inliers_est_model + EPSILON)
     
 
     # TODO: technically this should almost always be non-zero, just need to move up to earlier
