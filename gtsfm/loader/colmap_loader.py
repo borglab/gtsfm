@@ -163,7 +163,7 @@ class ColmapLoader(LoaderBase):
             intrinsics = self._calibrations[index]
 
         elif self._known_focal_length:
-            h, w = self.get_image_shape()
+            h, w = self.get_image_shape(index)
             intrinsics = Cal3Bundler(fx=self._known_focal_length, k1=k1, k2=k2, u0=w/2, v0=h/2)
         
         else:
