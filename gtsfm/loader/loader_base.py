@@ -157,6 +157,8 @@ class LoaderBase(metaclass=abc.ABCMeta):
         """
         indices = []
         for idx1, idx2 in itertools.product(range(len(self)), range(len(self))):
+            # the validate_pair function should take care of duplicate indices
+            # e.g. only one of (0, 1) and (1, 0) should be valid.
             if self.validate_pair(idx1, idx2):
                 # 3rd idx has to be greater than the previous 2
                 for idx3 in range(max(idx1, idx2) + 1, self.__len__()):
