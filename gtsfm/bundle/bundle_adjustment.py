@@ -122,6 +122,8 @@ class BundleAdjustmentOptimizer(NamedTuple):
         # construct the results
         optimized_data = values_to_gtsfm_data(result_values, initial_data)
 
+        # FIX CASE WHERE WE GET NaNs in reprojection error?
+
         metrics_dict = {}
         metrics_dict["before_filtering"] = optimized_data.aggregate_metrics()
         logger.info("[Result] Number of tracks before filtering: %d", metrics_dict["before_filtering"]["number_tracks"])
