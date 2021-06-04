@@ -67,19 +67,29 @@ class TwoViewEstimationReport:
 class TwoViewEstimator:
     """Wrapper for running two-view relative pose estimation on image pairs in the dataset."""
 
-    def __init__(self, matcher: MatcherBase, verifier: VerifierBase, eval_threshold_px: float, estimation_threshold_px: float) -> None:
+    def __init__(
+        self,
+        matcher: MatcherBase,
+        verifier: VerifierBase,
+        eval_threshold_px: float,
+        estimation_threshold_px: float,
+        min_num_inliers_acceptance: int,
+    ) -> None:
         """Initializes the two-view estimator from matcher and verifier.
 
         Args:
             matcher: matcher to use.
             verifier: verifier to use.
-            corr_metric_dist_threshold: distance threshold for marking a correspondence pair as inlier.
+            eval_threshold_px: distance threshold for marking a correspondence pair as inlier during evaluation (not estimation).
+            estimation_threshold_px: distance threshold for marking a correspondence pair as inlier during estimation
+            min_num_inliers_acceptance: minimum number of inliers that must agree w/ estimated model, to use image pair.
         """
         self._matcher = matcher
         self._verifier = verifier
         self._corr_metric_dist_threshold = eval_threshold_px
         # Note: homography estimation threshold must match the E / F thresholds for #inliers to be comparable
         self._homography_estimator = HomographyEstimator(estimation_threshold_px)
+        self._min_num_inliers_acceptance = min_num_inliers_acceptance
 
     def get_corr_metric_dist_threshold(self) -> float:
         """Getter for the distance threshold used in the metric for correct correspondences."""
@@ -179,36 +189,46 @@ class TwoViewEstimator:
             H_inlier_ratio,
         )
 
-        result = dask.delayed(check_for_degeneracy)(
+        result = dask.delayed(self.check_for_degeneracy)(
             two_view_report_graph, i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph
         )
         i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph = result[0], result[1], result[2]
 
         return (i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph)
 
+    def check_for_degeneracy(
+        self,
+        two_view_report: TwoViewEstimationReport,
+        i2Ri1: Optional[Rot3],
+        i2Ui1: Optional[Unit3],
+        v_corr_idxs: np.ndarray,
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
+        """ """
+        insufficient_inliers = two_view_report.num_inliers_est_model < self._min_num_inliers_acceptance
 
-def check_for_degeneracy(
-    two_view_report: TwoViewEstimationReport, i2Ri1: Optional[Rot3], i2Ui1: Optional[Unit3], v_corr_idxs: np.ndarray
-) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
-    """ """
-    H_EF_inlier_ratio = two_view_report.num_H_inliers / (two_view_report.num_inliers_est_model + EPSILON)
-    
+        H_EF_inlier_ratio = two_view_report.num_H_inliers / (two_view_report.num_inliers_est_model + EPSILON)
+        is_planar_or_panoramic = H_EF_inlier_ratio > MAX_H_INLIER_RATIO
 
-    # TODO: technically this should almost always be non-zero, just need to move up to earlier
-    valid_model = two_view_report.num_inliers_est_model > 0
-    if valid_model:
-        logger.info("H_EF_inlier_ratio: %.2f", H_EF_inlier_ratio)
+        # TODO: technically this should almost always be non-zero, just need to move up to earlier
+        valid_model = two_view_report.num_inliers_est_model > 0
+        if valid_model:
+            logger.info("H_EF_inlier_ratio: %.2f", H_EF_inlier_ratio)
 
-    if valid_model and H_EF_inlier_ratio > MAX_H_INLIER_RATIO:
-        logger.info("Planar or panoramic; pose from homography currently not supported")
-        i2Ri1 = None
-        i2Ui1 = None
-        v_corr_idxs = np.array([], dtype=np.uint64)
-        # remove mention of errors in the report
-        two_view_report.R_error_deg = None
-        two_view_report.U_error_deg = None
+        if (valid_model and is_planar_or_panoramic) or (valid_model and insufficient_inliers):
 
-    return i2Ri1, i2Ui1, v_corr_idxs
+            if is_planar_or_panoramic:
+                logger.info("Planar or panoramic; pose from homography currently not supported.")
+            if insufficient_inliers:
+                logger.info("Insufficient number of inliers.")
+
+            i2Ri1 = None
+            i2Ui1 = None
+            v_corr_idxs = np.array([], dtype=np.uint64)
+            # remove mention of errors in the report
+            two_view_report.R_error_deg = None
+            two_view_report.U_error_deg = None
+
+        return i2Ri1, i2Ui1, v_corr_idxs
 
 
 def generate_two_view_report(
