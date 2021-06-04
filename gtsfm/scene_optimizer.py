@@ -426,7 +426,7 @@ def aggregate_frontend_metrics(
     success_count_unit3 = np.sum(trans_angular_errors < angular_err_threshold_deg)
     success_count_pose = np.sum(pose_errors < angular_err_threshold_deg)
 
-    # # count entries with inlier ratio == 1.
+    # count entries with inlier ratio == 1.
     # all_correct = np.count_nonzero(metrics_array[:, 3] == 1.0)
 
     logger.debug(
@@ -446,17 +446,17 @@ def aggregate_frontend_metrics(
 
     # logger.debug("[Two view optimizer] [Summary] Image pairs with 100%% inlier ratio:: %d/%d", all_correct, num_entries)
 
-    # front_end_result_info = {
-    #     "angular_err_threshold_deg": angular_err_threshold_deg,
-    #     "num_valid_entries": int(num_valid_entries),
-    #     "num_total_entries": int(num_entries),
-    #     "rotation": {"success_count": int(success_count_rot3)},
-    #     "translation": {"success_count": int(success_count_unit3)},
-    #     "pose": {"success_count": int(success_count_pose)},
-    #     "correspondences": {"all_inliers": int(all_correct)},
-    # }
+    front_end_result_info = {
+        "angular_err_threshold_deg": angular_err_threshold_deg,
+        "num_valid_entries": int(num_valid_entries),
+        "num_total_entries": int(num_entries),
+        "rotation": {"success_count": int(success_count_rot3)},
+        "translation": {"success_count": int(success_count_unit3)},
+        "pose": {"success_count": int(success_count_pose)},
+        # "correspondences": {"all_inliers": int(all_correct)},
+    }
 
-    # io_utils.save_json_file(os.path.join(METRICS_PATH, "frontend_summary.json"), front_end_result_info)
+    io_utils.save_json_file(os.path.join(METRICS_PATH, "frontend_summary.json"), front_end_result_info)
 
-    # # Save duplicate copy of 'frontend_summary.json' within React Folder.
-    # io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, "frontend_summary.json"), front_end_result_info)
+    # Save duplicate copy of 'frontend_summary.json' within React Folder.
+    io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, "frontend_summary.json"), front_end_result_info)
