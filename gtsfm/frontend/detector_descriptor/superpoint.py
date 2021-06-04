@@ -30,12 +30,12 @@ MODEL_WEIGHTS_PATH = (
 class SuperPointDetectorDescriptor(DetectorDescriptorBase):
     """Superpoint Detector+Descriptor implementation."""
 
-    def __init__(self, use_cuda: bool = True, weights_path: Union[Path,str] = MODEL_WEIGHTS_PATH) -> None:
+    def __init__(self, use_cuda: bool = True, weights_path: Union[Path, str] = MODEL_WEIGHTS_PATH) -> None:
         """Configures the object.
 
         Args:
             max_keypoints: max keypoints to detect in an image.
-            is_cuda (optional): flag controlling the use of GPUs via CUDA. Defaults to True.
+            use_cuda (optional): flag controlling the use of GPUs via CUDA. Defaults to True.
             weights_path (optional): Path to the model weights. Defaults to MODEL_WEIGHT_PATH.
         """
         super().__init__()
@@ -58,21 +58,18 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
 
         torch.cuda.empty_cache()
 
-        features_points = model_results["keypoints"][0].detach().cpu().numpy()
+        feature_points = model_results["keypoints"][0].detach().cpu().numpy()
         scores = model_results["scores"][0].detach().cpu().numpy()
         descriptors = model_results["descriptors"][0].detach().cpu().numpy().T
 
         # sort by scores
         sort_idx = np.argsort(-scores)
-        features_points = features_points[sort_idx]
+        # limit the number of keypoints
+        sort_idx = sort_idx[: self.max_keypoints]
+        feature_points = feature_points[sort_idx]
         scores = scores[sort_idx]
         descriptors = descriptors[sort_idx]
 
-        # limit the number of keypoints
-        features_points = features_points[: self.max_keypoints]
-        scores = scores[: self.max_keypoints]
-        descriptors = descriptors[: self.max_keypoints]
-
-        keypoints = Keypoints(features_points, responses=scores, scales=np.ones(scores.shape))
+        keypoints = Keypoints(feature_points, responses=scores, scales=np.ones(scores.shape))
 
         return keypoints, descriptors
