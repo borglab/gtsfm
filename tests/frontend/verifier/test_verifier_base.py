@@ -31,13 +31,13 @@ class TestVerifierBase(unittest.TestCase):
     Should be inherited by all verifier unit tests.
     """
 
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
 
         np.random.seed(RANDOM_SEED)
         random.seed(RANDOM_SEED)
 
-        self.verifier: VerifierBase = Ransac(use_intrinsics_in_verification=True)
+        self.verifier: VerifierBase = Ransac(use_intrinsics_in_verification=True, px_threshold=0.5)
 
     def __execute_test(
         self,
@@ -53,15 +53,21 @@ class TestVerifierBase(unittest.TestCase):
         """Execute the verification and compute results."""
 
         i2Ri1_computed, i2Ui1_computed, verified_indices_computed = self.verifier.verify(
-            keypoints_i1, keypoints_i2, match_indices, camera_intrinsics_i1, camera_intrinsics_i2,
+            keypoints_i1,
+            keypoints_i2,
+            match_indices,
+            camera_intrinsics_i1,
+            camera_intrinsics_i2,
         )
 
         if i2Ri1_expected is None:
             self.assertIsNone(i2Ri1_computed)
         else:
+            angular_err = geom_comp_utils.compute_relative_rotation_angle(i2Ri1_expected, i2Ri1_computed)
             self.assertLess(
-                geom_comp_utils.compute_relative_rotation_angle(i2Ri1_expected, i2Ri1_computed),
+                angular_err,
                 ROTATION_ANGULAR_ERROR_DEG_THRESHOLD,
+                msg=f"Angular error {angular_err:.1f} vs. tol. {ROTATION_ANGULAR_ERROR_DEG_THRESHOLD:.1f}",
             )
         if i2Ui1_expected is None:
             self.assertIsNone(i2Ui1_computed)
@@ -72,7 +78,7 @@ class TestVerifierBase(unittest.TestCase):
             )
         np.testing.assert_array_equal(verified_indices_computed, verified_indices_expected)
 
-    def test_simple_scene(self):
+    def test_simple_scene(self) -> None:
         """Test a simple scene with 10 points, 5 each on 2 planes, so that RANSAC family of methods do not
         get trapped into a degenerate sample."""
         # obtain the keypoints and the ground truth essential matrix.
@@ -93,14 +99,14 @@ class TestVerifierBase(unittest.TestCase):
             match_indices,
         )
 
-    def test_valid_verified_indices(self):
+    def test_valid_verified_indices(self) -> None:
         """Test if valid indices in output."""
 
         # Repeat the experiment 10 times as we might not have successful
         # verification every time.
 
         for _ in range(10):
-            (_, _, verified_indices, keypoints_i1, keypoints_i2,) = self.__verify_random_inputs()
+            _, _, verified_indices, keypoints_i1, keypoints_i2 = self.__verify_random_inputs()
 
             if verified_indices.size > 0:
                 # check that the indices are not out of bounds
@@ -114,8 +120,8 @@ class TestVerifierBase(unittest.TestCase):
     def test_verify_empty_matches(self):
         """Tests the output when there are no match indices."""
 
-        keypoints_i1 = feature_utils.generate_random_keypoints(10, [250, 300])
-        keypoints_i2 = feature_utils.generate_random_keypoints(12, [400, 300])
+        keypoints_i1 = feature_utils.generate_random_keypoints(10, [300, 250])
+        keypoints_i2 = feature_utils.generate_random_keypoints(12, [300, 400])
         match_indices = np.array([], dtype=np.int32)
         intrinsics_i1 = Cal3Bundler()
         intrinsics_i2 = Cal3Bundler()
@@ -131,11 +137,11 @@ class TestVerifierBase(unittest.TestCase):
             verified_indices_expected=np.array([], dtype=np.uint32),
         )
 
-    def test_create_computation_graph(self):
+    def test_create_computation_graph(self) -> None:
         """Checks that the dask computation graph produces the same results as direct APIs."""
 
         # creating inputs for verification
-        (keypoints_i1, keypoints_i2, matches_i1i2, intrinsics_i1, intrinsics_i2,) = generate_random_input_for_verifier()
+        keypoints_i1, keypoints_i2, matches_i1i2, intrinsics_i1, intrinsics_i2 = generate_random_input_for_verifier()
 
         # and use GTSFM's direct API to get expected results
         expected_results = self.verifier.verify(keypoints_i1, keypoints_i2, matches_i1i2, intrinsics_i1, intrinsics_i2)
@@ -166,7 +172,7 @@ class TestVerifierBase(unittest.TestCase):
             self.assertTrue(expected_i2Ui1.equals(i2Ui1, 1e-2))
         np.testing.assert_array_equal(v_corr_idxs, expected_v_corr_idxs)
 
-    def test_pickleable(self):
+    def test_pickleable(self) -> None:
         """Tests that the verifier object is pickleable (required for dask)."""
 
         try:
@@ -174,7 +180,7 @@ class TestVerifierBase(unittest.TestCase):
         except TypeError:
             self.fail("Cannot dump verifier using pickle")
 
-    def __verify_random_inputs(self,) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, Keypoints, Keypoints]:
+    def __verify_random_inputs(self) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, Keypoints, Keypoints]:
         """Generates random inputs for pair (#i1, #i2) and perform verification.
 
         Returns:
@@ -193,9 +199,11 @@ class TestVerifierBase(unittest.TestCase):
             intrinsics_i2,
         ) = generate_random_input_for_verifier()
 
-        (i2Ri1, i2Ui1, verified_indices,) = self.verifier.verify(
-            keypoints_i1, keypoints_i2, match_indices, intrinsics_i1, intrinsics_i2
-        )
+        (
+            i2Ri1,
+            i2Ui1,
+            verified_indices,
+        ) = self.verifier.verify(keypoints_i1, keypoints_i2, match_indices, intrinsics_i1, intrinsics_i2)
 
         return i2Ri1, i2Ui1, verified_indices, keypoints_i1, keypoints_i2
 
@@ -221,11 +229,19 @@ def generate_random_input_for_verifier() -> Tuple[Keypoints, Keypoints, np.ndarr
 
     # generate intrinsics from image shapes
     intrinsics_i1 = Cal3Bundler(
-        fx=min(image_shape_i1[0], image_shape_i1[1]), k1=0, k2=0, u0=image_shape_i1[0] / 2, v0=image_shape_i1[1] / 2,
+        fx=min(image_shape_i1[0], image_shape_i1[1]),
+        k1=0,
+        k2=0,
+        u0=image_shape_i1[0] / 2,
+        v0=image_shape_i1[1] / 2,
     )
 
     intrinsics_i2 = Cal3Bundler(
-        fx=min(image_shape_i2[0], image_shape_i2[1]), k1=0, k2=0, u0=image_shape_i2[0] / 2, v0=image_shape_i2[1] / 2,
+        fx=min(image_shape_i2[0], image_shape_i2[1]),
+        k1=0,
+        k2=0,
+        u0=image_shape_i2[0] / 2,
+        v0=image_shape_i2[1] / 2,
     )
 
     # randomly generate the keypoints
@@ -274,8 +290,8 @@ def sample_points_on_plane(
         raise ValueError("z-coefficient for the plane should not be zero")
 
     # sample x and y coordinates randomly
-    x = np.random.uniform(low=range_x_coordinate[0], high=range_x_coordinate[1], size=(num_points, 1),)
-    y = np.random.uniform(low=range_y_coordinate[0], high=range_y_coordinate[1], size=(num_points, 1),)
+    x = np.random.uniform(low=range_x_coordinate[0], high=range_x_coordinate[1], size=(num_points, 1))
+    y = np.random.uniform(low=range_y_coordinate[0], high=range_y_coordinate[1], size=(num_points, 1))
 
     # calculate z coordinates using equation of the plane
     z = -(a * x + b * y + d) / c

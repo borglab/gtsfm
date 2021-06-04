@@ -1,3 +1,8 @@
+"""Unit tests for the COLMAP Loader class.
+
+Authors: John Lambert
+"""
+
 import unittest
 from pathlib import Path
 

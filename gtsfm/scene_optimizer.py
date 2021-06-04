@@ -55,6 +55,9 @@ mpl_logger.setLevel(logging.WARNING)
 pil_logger = logging.getLogger("PIL")
 pil_logger.setLevel(logging.INFO)
 
+# number of digits (significant figures) to include in each entry of error metrics
+PRINT_NUM_SIG_FIGS = 2
+
 
 class SceneOptimizer:
     """Wrapper combining different modules to run the whole pipeline on a
@@ -97,6 +100,7 @@ class SceneOptimizer:
         image_pair_indices: List[Tuple[int, int]],
         image_graph: List[Delayed],
         camera_intrinsics_graph: List[Delayed],
+        image_shape_graph: List[Delayed],
         gt_pose_graph: Optional[List[Delayed]] = None,
     ) -> Delayed:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
@@ -140,6 +144,8 @@ class SceneOptimizer:
                 descriptors_graph_list[i2],
                 camera_intrinsics_graph[i1],
                 camera_intrinsics_graph[i2],
+                image_shape_graph[i1],
+                image_shape_graph[i2],
                 gt_relative_pose,
             )
             i2Ri1_graph_dict[(i1, i2)] = i2Ri1
@@ -296,7 +302,7 @@ def visualize_sfm_data(sfm_data: GtsfmData, folder_name: str) -> None:
         folder_name: folder to save the visualization at.
     """
     fig = plt.figure()
-    ax = fig.gca(projection="3d")
+    ax = fig.add_subplot(projection='3d')
 
     viz_utils.plot_sfm_data_3d(sfm_data, ax)
     viz_utils.set_axes_equal(ax)
@@ -333,7 +339,7 @@ def visualize_camera_poses(
         post_ba_poses.append(post_ba_sfm_data.get_camera(i).pose())
 
     fig = plt.figure()
-    ax = fig.gca(projection="3d")
+    ax = fig.add_subplot(projection='3d')
 
     if gt_pose_graph is not None:
         # Select ground truth poses that correspond to pre-BA and post-BA estimated poses
@@ -373,10 +379,10 @@ def persist_frontend_metrics_full(metrics: Dict[Tuple[int, int], FRONTEND_METRIC
         {
             "i1": k[0],
             "i2": k[1],
-            "rotation_angular_error": v[0],
-            "translation_angular_error": v[1],
+            "rotation_angular_error": np.round(v[0], PRINT_NUM_SIG_FIGS),
+            "translation_angular_error": np.round(v[1], PRINT_NUM_SIG_FIGS),
             "num_correct_corr": v[2],
-            "inlier_ratio": v[3],
+            "inlier_ratio": np.round(v[3], PRINT_NUM_SIG_FIGS),
         }
         for k, v in metrics.items()
     ]
