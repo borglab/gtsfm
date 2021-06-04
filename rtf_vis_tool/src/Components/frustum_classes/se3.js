@@ -16,8 +16,8 @@ class SE3 {
             rotation: Matrix of shape 3x3
             translation: Array of length 3
         */
-        if (rotation.shape[0] != 3 || rotation.shape[1] != 3) throw 'Invalid Rotation Matrix';
-        if (translation.shape[0] != [3]) throw 'Invalid Translation Matrix';
+        if (rotation.shape[0] !== 3 || rotation.shape[1] !== 3) throw new Error('Invalid Rotation Matrix');
+        if (translation.shape[0] !== 3) throw new Error('Invalid Translation Matrix');
         this.rotation = rotation;
         this.translation = translation;
         this.transform_matrix = nj.identity(4);
@@ -27,10 +27,8 @@ class SE3 {
             for (var col = 0; col < 3; col++) {
                 this.transform_matrix.set(row, col, rotation.get(row,col));
             }
-        }
 
-        //set last column to translation array
-        for (var row = 0; row < 3; row++) {
+            //set last column to translation array
             this.transform_matrix.set(row, 3, this.translation.get(row));
         }
     }

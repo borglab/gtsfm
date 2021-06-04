@@ -1,3 +1,17 @@
+GTSFM includes a collection of modules, implemented by various authors.
+
+If a user chooses to utilize the SuperPoint feature detector/descriptor or SuperGlue matcher,
+GTSFM may *NOT* be used commercially. Those implementations are governed by a separate Magic Leap
+non-commercial license, found here:
+https://github.com/magicleap/SuperGluePretrainedNetwork/blob/master/LICENSE
+
+However, if SuperPoint or SuperGlue are not specified in the configuration file, and thus are
+not used, then GTSFM may be used commercially or for academic/research purposes, per
+the Apache 2.0 license listed below.
+ 
+#################################################################################################
+ 
+ 
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/

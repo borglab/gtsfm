@@ -10,8 +10,13 @@ GTSFM is an end-to-end SFM pipeline based on [GTSAM](https://github.com/borglab/
   <img src="https://dask.org/_images/dask_horizontal_white_no_pad_dark_bg.png" height="50">
 </p>
 
+## License
+The majority of our code is governed by a MIT license and is suitable for commercial use. However, certain implementations featured in our repo (SuperPoint, SuperGlue) are governed by a non-commercial license and may not be used commercially.
+
 ## Installation
-First, we need to create a conda environment.
+GTSFM requires no compilation, as Python wheels are provided for GTSAM. 
+
+To install GTSFM, first, we need to create a conda environment.
 
 **Linux**
 On Linux, with CUDA support:

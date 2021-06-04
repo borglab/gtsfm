@@ -24,7 +24,7 @@ dependencies:
   - dask # same as dask[complete] pip distribution
   - python-graphviz
   # core functionality and APIs
-  - matplotlib>=3.3.3
+  - matplotlib==3.4.2
   - networkx
   - numpy
   - nodejs
@@ -37,6 +37,7 @@ dependencies:
   # io
   - h5py
   - pip:
-    - hydra-core==1.1.0dev3
+    - hydra-core==1.1.0dev6
+    - argoverse @ git+https://github.com/argoai/argoverse-api.git@master
 
 

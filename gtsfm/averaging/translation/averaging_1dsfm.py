@@ -1,6 +1,6 @@
 """Translation averaging using 1DSFM.
 
-This algorithm was proposed in 'Robust Global Translations with 1DSFM' and is build by wrapping GTSAM's classes.
+This algorithm was proposed in 'Robust Global Translations with 1DSFM' and is implemented by wrapping GTSAM's classes.
 
 References:
 - https://research.cs.cornell.edu/1dsfm/
@@ -28,8 +28,9 @@ from gtsfm.averaging.translation.translation_averaging_base import (
     TranslationAveragingBase,
 )
 
-# hyperparamters for 1D-SFM
-MAX_PROJECTION_DISTANCE = 50
+# Hyperparameters for 1D-SFM
+# maximum number of times 1dsfm will project the Unit3's to a 1d subspace for outlier rejection
+MAX_PROJECTION_DIRECTIONS = 50
 OUTLIER_WEIGHT_THRESHOLD = 0.1
 
 NOISE_MODEL_DIMENSION = 3  # chordal distances on Unit3
@@ -42,7 +43,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
     def __init__(self) -> None:
         super().__init__()
 
-        self._max_1dsfm_projection_direction = MAX_PROJECTION_DISTANCE
+        self._max_1dsfm_projection_directions = MAX_PROJECTION_DIRECTIONS
         self._outlier_weight_threshold = OUTLIER_WEIGHT_THRESHOLD
 
     def run(
@@ -65,7 +66,6 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 may contain `None` where the global translations could not be computed (either underconstrained system
                 or ill-constrained system).
         """
-
         noise_model = gtsam.noiseModel.Isotropic.Sigma(NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
 
         # Note: all measurements are relative translation directions in the
@@ -83,7 +83,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         num_measurements = len(i2Ui1_dict)
         indices = np.random.choice(
             num_measurements,
-            min(self._max_1dsfm_projection_direction, num_measurements),
+            min(self._max_1dsfm_projection_directions, num_measurements),
             replace=False,
         )
 
@@ -106,7 +106,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 else:
                     avg_outlier_weights[index_pair] = weight / len(outlier_weights)
 
-        # filter out oulier measumenets
+        # filter out outlier measurements
         w_i2Ui1_inlier_measurements = BinaryMeasurementsUnit3()
         for w_i2Ui1 in w_i2Ui1_measurements:
             if avg_outlier_weights[(w_i2Ui1.key1(), w_i2Ui1.key2())] < self._outlier_weight_threshold:
@@ -118,7 +118,6 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         # transforming the result to the list of Point3
         wti_list = [None] * num_images
         for i in range(num_images):
-            if wRi_list[i] is not None:
+            if wRi_list[i] is not None and wti_values.exists(i):
                 wti_list[i] = wti_values.atPoint3(i)
-
         return wti_list

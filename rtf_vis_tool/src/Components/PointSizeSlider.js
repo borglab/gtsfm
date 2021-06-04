@@ -29,7 +29,6 @@ function PointSizeSlider(props) {
                 value={props.pointRadius} 
                 onChange={(e) => {
                     props.setPointRadius(e.target.value);
-                    props.updatePointSizes(e.target.value);
                 }}
                 step="0.05"/>
                 

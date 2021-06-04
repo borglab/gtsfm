@@ -1,6 +1,6 @@
 """Utility functions for comparing different types related to geometry.
 
-Authors: Ayush Baid
+Authors: Ayush Baid, John Lambert
 """
 from typing import List, Optional
 
@@ -40,8 +40,51 @@ def align_rotations(aRi_list: List[Rot3], bRi_list: List[Rot3]) -> List[Rot3]:
     return [aRb.compose(bRi) for bRi in bRi_list]
 
 
+def align_poses_sim3_ignore_missing(
+    aTi_list: List[Optional[Pose3]], bTi_list: List[Optional[Pose3]]
+) -> List[Optional[Pose3]]:
+    """Align by similarity transformation, but allow missing estimated poses in the input.
+
+    Note: this is a wrapper for align_poses_sim3() that allows for missing poses/dropped cameras.
+    This is necessary, as align_poses_sim3() requires a valid pose for every input pair.
+
+    We force SIM(3) alignment rather than SE(3) alignment.
+    We assume the two trajectories are of the exact same length.
+
+    Args:
+        aTi_list: reference poses in frame "a" which are the targets for alignment
+        bTi_list: input poses which need to be aligned to frame "a"
+
+    Returns:
+        aTi_list_: transformed input poses previously "bTi_list" but now which
+            have the same origin and scale as reference (now living in "a" frame)
+    """
+    assert len(aTi_list) == len(bTi_list)
+
+    # only choose target poses for which there is a corresponding estimated pose
+    corresponding_aTi_list = []
+    valid_camera_idxs = []
+    valid_bTi_list = []
+    for i, bTi in enumerate(bTi_list):
+        if bTi is not None:
+            valid_camera_idxs.append(i)
+            valid_bTi_list.append(bTi)
+            corresponding_aTi_list.append(aTi_list[i])
+
+    valid_aTi_list_ = align_poses_sim3(aTi_list=corresponding_aTi_list, bTi_list=valid_bTi_list)
+
+    num_cameras = len(aTi_list)
+    # now at valid indices
+    aTi_list_ = [None] * num_cameras
+    for i in range(num_cameras):
+        if i in valid_camera_idxs:
+            aTi_list_[i] = valid_aTi_list_.pop(0)
+
+    return aTi_list_
+
+
 def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> List[Pose3]:
-    """Align by similarity transformation.
+    """Align two pose graphs via similarity transformation. Note: poses cannot be missing/invalid.
 
     We force SIM(3) alignment rather than SE(3) alignment.
     We assume the two trajectories are of the exact same length.
@@ -82,9 +125,9 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> List[Pose3
     aRb = aSb.rotation().matrix()
     atb = aSb.translation()
     rz, ry, rx = Rotation.from_matrix(aRb).as_euler("zyx", degrees=True)
-    logger.info(f"Sim(3) Rotation `aRb`: rz={rz:.2f} deg., ry={ry:.2f} deg., rx={rx:.2f} deg.",)
+    logger.info("Sim(3) Rotation `aRb`: rz=%.2f deg., ry=%.2f deg., rx=%.2f deg.", rz, ry, rx)
     logger.info(f"Sim(3) Translation `atb`: [tx,ty,tz]={str(np.round(atb,2))}")
-    logger.info(f"Sim(3) Scale `asb`: {float(aSb.scale()):.2f}")
+    logger.info("Sim(3) Scale `asb`: %.2f", float(aSb.scale()))
 
     aTi_list_ = []
     for i in range(n_to_align):

@@ -6,7 +6,7 @@ from typing import List, Optional, Tuple
 
 import cv2 as cv
 import numpy as np
-from gtsam import Cal3Bundler, EssentialMatrix
+from gtsam import Cal3Bundler
 
 from gtsfm.common.keypoints import Keypoints
 
@@ -71,39 +71,40 @@ def convert_to_homogenous_coordinates(non_homogenous_coordinates: np.ndarray,) -
     return np.hstack((non_homogenous_coordinates, np.ones((non_homogenous_coordinates.shape[0], 1)),))
 
 
-def convert_to_epipolar_lines(normalized_coordinates_i1: np.ndarray, i2Ei1: EssentialMatrix) -> Optional[np.ndarray]:
+def convert_to_epipolar_lines(coordinates_i1: np.ndarray, i2Fi1: np.ndarray) -> Optional[np.ndarray]:
     """Convert coordinates to epipolar lines in image i2.
 
-    The epipolar line in image i2 is given by i2Ei1 @ x_i1. A point x_i2 is on this line if x_i2^T @ i2Ei1 @ x_i1 = 0.
+    The epipolar line in image i2 is given by i2Fi1 @ x_i1. A point x_i2 is on this line if x_i2^T @ i2Fi1 @ x_i1 = 0.
 
     Args:
-        normalized_coordinates_i1: normalized coordinates in i1, of shape Nx2.
-        i2Ei1: essential matrix.
+        coordinates_i1: coordinates in i1, of shape Nx2.
+        i2Fi1: fundamental matrix.
 
     Returns:
         Corr. epipolar lines in i2, of shape Nx3.
     """
-    if normalized_coordinates_i1 is None or normalized_coordinates_i1.size == 0:
+    if coordinates_i1 is None or coordinates_i1.size == 0:
         return None
 
-    epipolar_lines = convert_to_homogenous_coordinates(normalized_coordinates_i1) @ i2Ei1.matrix().T
+    epipolar_lines = convert_to_homogenous_coordinates(coordinates_i1) @ i2Fi1.T
     return epipolar_lines
 
 
-def compute_point_line_distances(points: np.ndarray, lines: np.ndarray) -> np.ndarray:
-    """Computes the distance of a point from a line in 2D. The function processed multiple inputs independently in a
+def point_line_dotproduct(points: np.ndarray, lines: np.ndarray) -> np.ndarray:
+    """Computes the dot product of a point and a line in 2D. The function processed multiple inputs independently in a
     vectorized fashion.
+
+    Note: the reason to not compute actual point-line distances is to flexible in providing different choices of
+    denominator in the distance metric (e.g. SED, Sampson).
 
     Args:
         points: non-homogenous 2D points, of shape Nx2.
         lines: coefficients (a, b, c) of lines ax + by + c = 0, of shape Nx3.
 
     Returns:
-        Point-line distance for each row, of shape N.
+        Point-line dot-product for each row, of shape N.
     """
-    line_norms = np.linalg.norm(lines[:, :2], axis=1) + EPS
-
-    return np.abs(np.sum(np.multiply(convert_to_homogenous_coordinates(points), lines), axis=1)) / line_norms
+    return np.sum(np.multiply(convert_to_homogenous_coordinates(points), lines), axis=1)
 
 
 def generate_random_keypoints(num_keypoints: int, image_shape: Tuple[int, int]) -> Keypoints:
@@ -111,15 +112,15 @@ def generate_random_keypoints(num_keypoints: int, image_shape: Tuple[int, int]) 
 
     Args:
         num_keypoints: number of features to generate.
-        image_shape: size of the image.
+        image_shape: size of the image, as (H,W)
 
     Returns:
         generated keypoints.
     """
-
     if num_keypoints == 0:
         return Keypoints(coordinates=np.array([]))
 
+    H, W = image_shape
     return Keypoints(
-        coordinates=np.random.randint([0, 0], high=image_shape, size=(num_keypoints, 2)).astype(np.float32)
+        coordinates=np.random.randint([0, 0], high=(W,H), size=(num_keypoints, 2)).astype(np.float32)
     )

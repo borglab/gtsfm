@@ -21,6 +21,13 @@ cd $GITHUB_WORKSPACE
 pip install -e .
 
 ##########################################################
+# Download pre-trained model weights
+##########################################################
+
+cd $GITHUB_WORKSPACE
+./download_model_weights.sh
+
+##########################################################
 # Run GTSFM unit tests
 ##########################################################
 
@@ -37,4 +44,4 @@ coverage report
 ##########################################################
 
 pip install flake8
-flake8 --max-line-length 120 --ignore E201,E202,E203,E231,W291,W293,E303,W391,E402,W503 gtsfm
+flake8 --max-line-length 120 --ignore E201,E202,E203,E231,W291,W293,E303,W391,E402,W503,E731 gtsfm

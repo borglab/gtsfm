@@ -120,7 +120,6 @@ class ViewFrustum {
             An array, length 5, where each entry represents the 3d coordinate of a frustum vertex.
         */
         var vList = this.get_frustum_vertices_camfr();
-        console.log(vList);
 
         var v0_camframe = vList[0].reshape(1,3);
         var v1_camframe = vList[1].reshape(1,3);

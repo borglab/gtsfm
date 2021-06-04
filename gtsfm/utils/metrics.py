@@ -7,7 +7,6 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 from gtsam import Cal3Bundler, EssentialMatrix, Point3, Pose3, Rot3, Unit3
 
-import gtsfm.utils.features as feature_utils
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.verification as verification_utils
 from gtsfm.common.keypoints import Keypoints
@@ -50,14 +49,13 @@ def count_correct_correspondences(
     if len(keypoints_i1) == 0:
         return 0
 
-    normalized_coords_i1 = feature_utils.normalize_coordinates(keypoints_i1.coordinates, intrinsics_i1)
-    normalized_coords_i2 = feature_utils.normalize_coordinates(keypoints_i2.coordinates, intrinsics_i2)
     i2Ei1 = EssentialMatrix(i2Ti1.rotation(), Unit3(i2Ti1.translation()))
+    i2Fi1 = verification_utils.essential_to_fundamental_matrix(i2Ei1, intrinsics_i1, intrinsics_i2)
 
-    epipolar_distances = verification_utils.compute_epipolar_distances(
-        normalized_coords_i1, normalized_coords_i2, i2Ei1
+    distance_squared = verification_utils.compute_epipolar_distances_sq_sampson(
+        keypoints_i1.coordinates, keypoints_i2.coordinates, i2Fi1
     )
-    return np.count_nonzero(epipolar_distances < epipolar_dist_threshold)
+    return np.count_nonzero(distance_squared < epipolar_dist_threshold ** 2)
 
 
 def compute_errors_statistics(errors: List[Optional[float]]) -> StatsDict:
@@ -170,22 +168,14 @@ def compute_averaging_metrics(
 
     wTi_list = []
     for (wRi, wti) in zip(wRi_list, wti_list):
-        wTi_list.append(Pose3(wRi, wti))
-    wTi_aligned_list = comp_utils.align_poses_sim3(gt_wTi_list, wTi_list)
+        # if translation estimation failed in translation averaging, some wti_list values will be None
+        if wRi is None or wti is None:
+            wTi_list.append(None)
+        else:
+            wTi_list.append(Pose3(wRi, wti))
 
-    def get_rotations_translations_from_poses(
-        poses: List[Optional[Pose3]],
-    ) -> Tuple[List[Optional[Rot3]], List[Optional[Point3]]]:
-        rotations = []
-        translations = []
-        for pose in poses:
-            if pose is None:
-                rotations.append(None)
-                translations.append(None)
-                continue
-            rotations.append(pose.rotation())
-            translations.append(pose.translation())
-        return rotations, translations
+    # ground truth is the reference/target for alignment
+    wTi_aligned_list = comp_utils.align_poses_sim3_ignore_missing(gt_wTi_list, wTi_list)
 
     wRi_aligned_list, wti_aligned_list = get_rotations_translations_from_poses(wTi_aligned_list)
     gt_wRi_list, gt_wti_list = get_rotations_translations_from_poses(gt_wTi_list)
@@ -194,4 +184,34 @@ def compute_averaging_metrics(
     metrics["rotation_averaging_angle_deg"] = compute_rotation_angle_metrics(wRi_aligned_list, gt_wRi_list)
     metrics["translation_averaging_distance"] = compute_translation_distance_metrics(wti_aligned_list, gt_wti_list)
     metrics["translation_to_direction_angle_deg"] = compute_translation_angle_metrics(i2Ui1_dict, wTi_aligned_list)
+    return metrics
+
+
+def get_rotations_translations_from_poses(
+    poses: List[Optional[Pose3]],
+) -> Tuple[List[Optional[Rot3]], List[Optional[Point3]]]:
+    """Decompose each 6-dof pose to a 3-dof rotation and 3-dof position"""
+    rotations = []
+    translations = []
+    for pose in poses:
+        if pose is None:
+            rotations.append(None)
+            translations.append(None)
+            continue
+        rotations.append(pose.rotation())
+        translations.append(pose.translation())
+    return rotations, translations
+
+
+def compute_pose_errors(gt_wTi_list: List[Pose3], wTi_list: List[Pose3]) -> Dict[str, StatsDict]:
+    """Compare orientation and location errors for each estimated poses, vs. ground truth.
+
+    Note: Poses must be aligned, before calling this function
+    """
+    wRi_list, wti_list = get_rotations_translations_from_poses(wTi_list)
+    gt_wRi_list, gt_wti_list = get_rotations_translations_from_poses(gt_wTi_list)
+
+    metrics = {}
+    metrics["rotation_angle_deg_errors"] = compute_rotation_angle_metrics(wRi_list, gt_wRi_list)
+    metrics["translation_distance_errors"] = compute_translation_distance_metrics(wti_list, gt_wti_list)
     return metrics
