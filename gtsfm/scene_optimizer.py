@@ -399,7 +399,7 @@ def aggregate_frontend_metrics(
     """Aggregate the front-end metrics to log summary statistics.
 
     Args:
-        metrics: front-end metrics for pairs of images.
+        two_view_report_dict: report containing front-end metrics for each image pair.
         angular_err_threshold_deg: threshold for classifying angular error metrics as success.
     """
     num_entries = len(two_view_report_dict.keys())
