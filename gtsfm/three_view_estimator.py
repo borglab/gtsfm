@@ -2,8 +2,6 @@
 
 Authors: Ayush Baid, John Lambert
 """
-import logging
-
 import dask
 import numpy as np
 from dask.delayed import Delayed
