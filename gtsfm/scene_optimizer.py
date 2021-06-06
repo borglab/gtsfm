@@ -366,40 +366,43 @@ def persist_frontend_metrics_full(two_view_report_dict: Dict[Tuple[int, int], Tw
     Args:
         two_view_report_dict: front-end metrics for pairs of images.
     """
+    metrics_list = []
 
-    if two_view_report_dict.i2Ri1:
-        qw, qx, qy, qz = two_view_report_dict.i2Ri1.quaternion()
-        i2ti1 = two_view_report_dict.i2Ui1.point3().tolist()
+    for (i1, i2), report in two_view_report_dict.items():
 
-        i2Ri1_coefficients = {"qw": qw, "qx": qx, "qy": qy, "qz": qz}
+        if two_view_report_dict.i2Ri1:
+            qw, qx, qy, qz = two_view_report_dict.i2Ri1.quaternion()
+            i2ti1 = two_view_report_dict.i2Ui1.point3().tolist()
 
-    else:
-        i2Ri1_coefficients = None
-        i2ti1 = None
+            i2Ri1_coefficients = {"qw": qw, "qx": qx, "qy": qy, "qz": qz}
 
-    # Note: if GT is unknown, then R_error_deg and U_error_deg will be None
-    metrics_list = [
-        {
-            "i1": i1,
-            "i2": i2,
-            "rotation_angular_error": round(report.R_error_deg, PRINT_NUM_SIG_FIGS) if report.R_error_deg else None,
-            "translation_angular_error": round(report.U_error_deg, PRINT_NUM_SIG_FIGS)
-            if report.U_error_deg
-            else None,
-            "num_inliers_gt_model": report.num_inliers_gt_model if report.num_inliers_gt_model else None,
-            "inlier_ratio_gt_model": round(report.inlier_ratio_gt_model, PRINT_NUM_SIG_FIGS)
-            if report.inlier_ratio_gt_model
-            else None,
-            "inlier_ratio_est_model": round(report.inlier_ratio_est_model, PRINT_NUM_SIG_FIGS),
-            "num_inliers_est_model": report.num_inliers_est_model,
-            "num_H_inliers": int(report.num_H_inliers),
-            "H_inlier_ratio": round(report.H_inlier_ratio, PRINT_NUM_SIG_FIGS),
-            
-            "i2Ri1": i2Ri1_coefficients,
-            "i2Ui1": i2ti1
-        }
-        for (i1, i2), report in two_view_report_dict.items()
-    ]
+        else:
+            i2Ri1_coefficients = None
+            i2ti1 = None
+
+        # Note: if GT is unknown, then R_error_deg and U_error_deg will be None
+        metrics_list.append(
+            {
+                "i1": i1,
+                "i2": i2,
+                "rotation_angular_error": round(report.R_error_deg, PRINT_NUM_SIG_FIGS) if report.R_error_deg else None,
+                "translation_angular_error": round(report.U_error_deg, PRINT_NUM_SIG_FIGS)
+                if report.U_error_deg
+                else None,
+                "num_inliers_gt_model": report.num_inliers_gt_model if report.num_inliers_gt_model else None,
+                "inlier_ratio_gt_model": round(report.inlier_ratio_gt_model, PRINT_NUM_SIG_FIGS)
+                if report.inlier_ratio_gt_model
+                else None,
+                "inlier_ratio_est_model": round(report.inlier_ratio_est_model, PRINT_NUM_SIG_FIGS),
+                "num_inliers_est_model": report.num_inliers_est_model,
+                "num_H_inliers": int(report.num_H_inliers),
+                "H_inlier_ratio": round(report.H_inlier_ratio, PRINT_NUM_SIG_FIGS),
+                
+                "i2Ri1": i2Ri1_coefficients,
+                "i2Ui1": i2ti1
+            }
+        )  
+        
 
     io_utils.save_json_file(os.path.join(METRICS_PATH, "frontend_full.json"), metrics_list)
 
