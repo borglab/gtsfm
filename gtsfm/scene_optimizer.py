@@ -366,6 +366,17 @@ def persist_frontend_metrics_full(two_view_report_dict: Dict[Tuple[int, int], Tw
     Args:
         two_view_report_dict: front-end metrics for pairs of images.
     """
+
+    if two_view_report_dict.i2Ri1:
+        qw, qx, qy, qz = two_view_report_dict.i2Ri1.quaternion()
+        i2ti1 = two_view_report_dict.i2Ui1.point3().tolist()
+
+        i2Ri1_coefficients = {"qw": qw, "qx": qx, "qy": qy, "qz": qz}
+
+    else:
+        i2Ri1_coefficients = None
+        i2ti1 = None
+
     # Note: if GT is unknown, then R_error_deg and U_error_deg will be None
     metrics_list = [
         {
@@ -383,6 +394,9 @@ def persist_frontend_metrics_full(two_view_report_dict: Dict[Tuple[int, int], Tw
             "num_inliers_est_model": report.num_inliers_est_model,
             "num_H_inliers": int(report.num_H_inliers),
             "H_inlier_ratio": round(report.H_inlier_ratio, PRINT_NUM_SIG_FIGS),
+            
+            "i2Ri1": i2Ri1_coefficients,
+            "i2Ui1": i2ti1
         }
         for (i1, i2), report in two_view_report_dict.items()
     ]

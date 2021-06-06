@@ -62,6 +62,8 @@ class TwoViewEstimationReport:
     inlier_ratio_gt_model: Optional[float] = None
     R_error_deg: Optional[float] = None
     U_error_deg: Optional[float] = None
+    i2Ri1: Optional[Rot3] = None
+    i2Ui1: Optional[Unit3] = None
 
 
 class TwoViewEstimator:
@@ -192,7 +194,7 @@ class TwoViewEstimator:
         result = dask.delayed(self.check_for_degeneracy)(
             two_view_report_graph, i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph
         )
-        i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph = result[0], result[1], result[2]
+        i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph = result[0], result[1], result[2], result[3]
 
         return (i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph)
 
@@ -228,7 +230,11 @@ class TwoViewEstimator:
             two_view_report.R_error_deg = None
             two_view_report.U_error_deg = None
 
-        return i2Ri1, i2Ui1, v_corr_idxs
+
+        two_view_report.i2Ri1 = i2Ri1
+        two_view_report.i2Ui1 = i2Ui1
+
+        return i2Ri1, i2Ui1, v_corr_idxs, two_view_report
 
 
 def generate_two_view_report(
