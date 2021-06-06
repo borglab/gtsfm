@@ -370,9 +370,9 @@ def persist_frontend_metrics_full(two_view_report_dict: Dict[Tuple[int, int], Tw
 
     for (i1, i2), report in two_view_report_dict.items():
 
-        if two_view_report_dict.i2Ri1:
-            qw, qx, qy, qz = two_view_report_dict.i2Ri1.quaternion()
-            i2ti1 = two_view_report_dict.i2Ui1.point3().tolist()
+        if report.i2Ri1:
+            qw, qx, qy, qz = report.i2Ri1.quaternion()
+            i2ti1 = report.i2Ui1.point3().tolist()
 
             i2Ri1_coefficients = {"qw": qw, "qx": qx, "qy": qy, "qz": qz}
 
