@@ -21,6 +21,8 @@ from gtsfm.frontend.matcher.matcher_base import MatcherBase
 from thirdparty.SuperGluePretrainedNetwork.models.superglue import SuperGlue
 
 SUPERGLUE_DESC_DIM = 256
+# hyperparameter below set per the author's default demo recommendations
+DEFAULT_NUM_SINKHORN_ITERATIONS = 20
 
 
 class SuperGlueMatcher(MatcherBase):
@@ -31,9 +33,9 @@ class SuperGlueMatcher(MatcherBase):
         super().__init__()
 
         self._config = {
-            "descriptor_dim": 256,
+            "descriptor_dim": SUPERGLUE_DESC_DIM,
             "weights": "outdoor" if use_outdoor_model else "indoor",
-            "sinkhorn_iterations": 20,
+            "sinkhorn_iterations": DEFAULT_NUM_SINKHORN_ITERATIONS,
         }
         self._use_cuda = use_cuda and torch.cuda.is_available()
 

@@ -290,8 +290,8 @@ def sample_points_on_plane(
         raise ValueError("z-coefficient for the plane should not be zero")
 
     # sample x and y coordinates randomly
-    x = np.random.uniform(low=range_x_coordinate[0],high=range_x_coordinate[1],size=(num_points, 1))
-    y = np.random.uniform(low=range_y_coordinate[0],high=range_y_coordinate[1],size=(num_points, 1))
+    x = np.random.uniform(low=range_x_coordinate[0], high=range_x_coordinate[1], size=(num_points, 1))
+    y = np.random.uniform(low=range_y_coordinate[0], high=range_y_coordinate[1], size=(num_points, 1))
 
     # calculate z coordinates using equation of the plane
     z = -(a * x + b * y + d) / c

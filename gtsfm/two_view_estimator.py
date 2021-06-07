@@ -302,9 +302,7 @@ def compute_correspondence_metrics(
 
 
 def compute_relative_pose_metrics(
-    i2Ri1_computed: Optional[Rot3],
-    i2Ui1_computed: Optional[Unit3],
-    i2Ti1_expected: Pose3,
+    i2Ri1_computed: Optional[Rot3], i2Ui1_computed: Optional[Unit3], i2Ti1_expected: Pose3
 ) -> Tuple[Optional[float], Optional[float]]:
     """Compute the metrics on relative camera pose.
 
