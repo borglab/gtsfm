@@ -24,7 +24,8 @@ from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.verifier_base import VerifierBase, NUM_MATCHES_REQ_E_MATRIX, NUM_MATCHES_REQ_F_MATRIX
 
 
-DEFAULT_RANSAC_SUCCESS_PROB = 0.9999
+DEFAULT_RANSAC_SUCCESS_PROB = 0.99999
+DEFAULT_RANSAC_MAX_ITERS = 20000
 MAX_TOLERATED_POLLUTION_INLIER_RATIO_EST_MODEL = 0.1
 
 logger = logger_utils.get_logger()
@@ -91,7 +92,7 @@ class Ransac(VerifierBase):
                 K,
                 method=cv2.RANSAC,
                 threshold=self._px_threshold / fx,
-                prob=DEFAULT_RANSAC_SUCCESS_PROB,
+                prob=DEFAULT_RANSAC_SUCCESS_PROB
             )
         else:
             i2Fi1, inlier_mask = cv2.findFundamentalMat(
@@ -100,7 +101,7 @@ class Ransac(VerifierBase):
                 method=cv2.FM_RANSAC,
                 ransacReprojThreshold=self._px_threshold,
                 confidence=DEFAULT_RANSAC_SUCCESS_PROB,
-                maxIters=10000,
+                maxIters=DEFAULT_RANSAC_MAX_ITERS
             )
 
             i2Ei1 = verification_utils.fundamental_to_essential_matrix(
