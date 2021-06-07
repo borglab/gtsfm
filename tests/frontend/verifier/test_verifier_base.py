@@ -37,7 +37,7 @@ class TestVerifierBase(unittest.TestCase):
         np.random.seed(RANDOM_SEED)
         random.seed(RANDOM_SEED)
 
-        self.verifier: VerifierBase = Ransac(use_intrinsics_in_verification=True, px_threshold=0.5)
+        self.verifier: VerifierBase = Ransac(use_intrinsics_in_verification=True, estimation_threshold_px=0.5)
 
     def __execute_test(
         self,
