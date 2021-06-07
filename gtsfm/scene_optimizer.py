@@ -161,7 +161,7 @@ class SceneOptimizer:
                 )
 
         # persist all front-end metrics and its summary
-        auxiliary_graph_list.append(dask.delayed(persist_frontend_metrics_full)(two_view_reports_dict))
+        auxiliary_graph_list.append(dask.delayed(persist_frontend_metrics_full)(two_view_reports_dict, image_graph))
 
         auxiliary_graph_list.append(
             dask.delayed(aggregate_frontend_metrics)(two_view_reports_dict, self._pose_angular_error_thresh)
@@ -360,7 +360,7 @@ def visualize_camera_poses(
     plt.close(fig)
 
 
-def persist_frontend_metrics_full(two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport]) -> None:
+def persist_frontend_metrics_full(two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport], images: List[Image]) -> None:
     """Persist the front-end metrics for every pair on disk.
 
     Args:
@@ -385,6 +385,8 @@ def persist_frontend_metrics_full(two_view_report_dict: Dict[Tuple[int, int], Tw
             {
                 "i1": i1,
                 "i2": i2,
+                "i1_filename": images[i1].file_name,
+                "i2_filename": images[i2].file_name,
                 "rotation_angular_error": round(report.R_error_deg, PRINT_NUM_SIG_FIGS) if report.R_error_deg else None,
                 "translation_angular_error": round(report.U_error_deg, PRINT_NUM_SIG_FIGS)
                 if report.U_error_deg
