@@ -375,10 +375,6 @@ def persist_frontend_metrics_full(two_view_report_dict: Dict[Tuple[int, int], Tw
             i2ti1 = report.i2Ui1.point3().tolist()
 
             i2Ri1_coefficients = {"qw": qw, "qx": qx, "qy": qy, "qz": qz}
-
-            from scipy.spatial.transform import Rotation
-            euler_xyz = Rotation.from_matrix(report.i2Ri1.matrix()).as_euler(seq="xyz", degrees=True).tolist()
-
         else:
             i2Ri1_coefficients = None
             i2ti1 = None
@@ -403,8 +399,7 @@ def persist_frontend_metrics_full(two_view_report_dict: Dict[Tuple[int, int], Tw
                 "H_inlier_ratio": round(report.H_inlier_ratio, PRINT_NUM_SIG_FIGS),
                 
                 "i2Ri1": i2Ri1_coefficients,
-                "i2Ui1": i2ti1,
-                "Euler_xyz": euler_xyz
+                "i2Ui1": i2ti1
             }
         )  
         
