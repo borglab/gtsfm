@@ -8,7 +8,7 @@ References:
 - https://arxiv.org/abs/2008.02737
 - https://gtsam.org/
 
-Authors: Jing Wu, Ayush Baid
+Authors: Jing Wu, Ayush Baid, John Lambert
 """
 from typing import Dict, List, Optional, Tuple
 
@@ -41,22 +41,22 @@ class ShonanRotationAveraging(RotationAveragingBase):
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging on a connected graph w/ N keys ordered consecutively [0,...,N-1].
 
-        Note: the assumption that Shonan keys are ordered as [0,...,N-1] goes deeper than ShonanAveraging::NrUnknowns(),
-        which just checks the assumption. Several other functions that construct matrices related to the
-        convergence certificate also use the fact that the graph is connected and keys are 0..N-1.
-        There are about 10 places where nrUnknowns is used to dimension a sparse or dense matrix.
+        Note: the assumption that Shonan keys are ordered as [0,...,N-1] goes deeper than
+        ShonanAveraging::NrUnknowns(), which just checks the assumption. Several other functions that construct
+        matrices related to the convergence certificate also use the fact that the graph is connected and
+        keys are 0..N-1. There are about 10 places where nrUnknowns is used to dimension a sparse or dense matrix.
         Modifying GTSAM would require a major philosophical overhaul, so we perform the re-ordering
         here in a sort of "wrapper". See: https://github.com/borglab/gtsam/issues/784
 
         Args:
-            num_connected_nodes: number of unique connected nodes in the graph (can be far less the number of images in the dataset)
+            num_connected_nodes: number of unique connected nodes in the graph (can be far less than the number
+                of images in the dataset)
             i2Ri1_dict: relative rotations for each image pair-edge as dictionary (i1, i2): i2Ri1.
 
         Returns:
-            Global rotations for each **CONNECTED** camera pose, i.e. wRi, as a list. The number of entries in the list is
-                `num_connected_nodes`. The list may contain `None` where the global rotation could not be computed (either
-                underconstrained system or ill-constrained system).
-
+            Global rotations for each **CONNECTED** camera pose, i.e. wRi, as a list. The number of entries in
+                the list is num_connected_nodes`. The list may contain `None` where the global rotation could
+                not be computed (either underconstrained system or ill-constrained system).
         """
         lm_params = LevenbergMarquardtParams.CeresDefaults()
         shonan_params = ShonanAveragingParameters3(lm_params)
