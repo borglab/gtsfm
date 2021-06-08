@@ -36,7 +36,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         self._p_min = 5
         self._p_max = 30
 
-    def run_with_consecutive_ordering(
+    def __run_with_consecutive_ordering(
         self, num_connected_nodes: int, i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]]
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging on a connected graph w/ N keys ordered consecutively [0,...,N-1].
@@ -46,9 +46,9 @@ class ShonanRotationAveraging(RotationAveragingBase):
         here in a sort of "wrapper". See https://github.com/borglab/gtsam/issues/784 for more details.
 
         Args:
-            num_connected_nodes: number of unique connected nodes in the graph (can be far less than the number
-                of images in the dataset)
-            i2Ri1_dict: relative rotations for each image pair-edge as dictionary (i1, i2): i2Ri1.
+            num_connected_nodes: number of unique connected nodes (i.e. images) in the graph
+                (<= the number of images in the dataset)
+            i2Ri1_dict: relative rotations for each edge between nodes as dictionary (i1, i2): i2Ri1.
 
         Returns:
             Global rotations for each **CONNECTED** camera pose, i.e. wRi, as a list. The number of entries in
@@ -110,21 +110,19 @@ class ShonanRotationAveraging(RotationAveragingBase):
         for (new_idx, i) in enumerate(connected_nodes):
             reordered_idx_map[i] = new_idx
 
-        # now, re-order all of the indices
+        # now, map the original indices to reordered indices
         i2Ri1_dict_reordered = {}
         for (i1, i2), i2Ri1 in i2Ri1_dict.items():
             i1_ = reordered_idx_map[i1]
             i2_ = reordered_idx_map[i2]
             i2Ri1_dict_reordered[(i1_, i2_)] = i2Ri1
 
-        wRi_list_subset = self.run_with_consecutive_ordering(
+        wRi_list_subset = self.__run_with_consecutive_ordering(
             num_connected_nodes=len(connected_nodes), i2Ri1_dict=i2Ri1_dict_reordered
         )
 
         wRi_list = [None] * num_images
-        for i in range(num_images):
-            if i in connected_nodes:
-                i_ = reordered_idx_map[i]
-                wRi_list[i] = wRi_list_subset[i_]
+        for remapped_i, original_i in enumerate(connected_nodes):
+            wRi_list[original_i] = wRi_list_subset[remapped_i]
 
         return wRi_list
