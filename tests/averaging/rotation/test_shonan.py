@@ -1,6 +1,6 @@
 """Tests for Shonan rotation averaging.
 
-Authors: Ayush Baid
+Authors: Ayush Baid, John Lambert
 """
 import pickle
 import unittest
