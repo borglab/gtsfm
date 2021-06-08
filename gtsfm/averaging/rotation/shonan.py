@@ -8,7 +8,7 @@ References:
 - https://arxiv.org/abs/2008.02737
 - https://gtsam.org/
 
-Authors: Jing Wu, Ayush Baid
+Authors: Jing Wu, Ayush Baid, John Lambert
 """
 from typing import Dict, List, Optional, Tuple
 
