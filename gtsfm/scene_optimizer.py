@@ -127,9 +127,10 @@ class SceneOptimizer:
 
         for (i1, i2) in image_pair_indices:
             if gt_pose_graph is not None:
-                gt_relative_pose = dask.delayed(lambda x, y: x.between(y))(gt_pose_graph[i2], gt_pose_graph[i1])
+                # compute GT relative pose
+                gt_i2Ti1 = dask.delayed(lambda x, y: x.between(y))(gt_pose_graph[i2], gt_pose_graph[i1])
             else:
-                gt_relative_pose = None
+                gt_i2Ti1 = None
 
             (i2Ri1, i2Ui1, v_corr_idxs, two_view_report,) = self.two_view_estimator.create_computation_graph(
                 keypoints_graph_list[i1],
@@ -140,7 +141,7 @@ class SceneOptimizer:
                 camera_intrinsics_graph[i2],
                 image_shape_graph[i1],
                 image_shape_graph[i2],
-                gt_relative_pose,
+                gt_i2Ti1,
             )
             i2Ri1_graph_dict[(i1, i2)] = i2Ri1
             i2Ui1_graph_dict[(i1, i2)] = i2Ui1

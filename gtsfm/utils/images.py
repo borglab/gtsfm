@@ -99,7 +99,7 @@ def vstack_image_list(imgs: List[np.ndarray]) -> Image:
 
 
 def resize_image(image: Image, new_height: int, new_width: int) -> Image:
-    """Resize the image to given dimensions.
+    """Resize the image to given dimensions, preserving filename metadata.
 
     Args:
         image: image to resize.
