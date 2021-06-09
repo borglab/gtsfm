@@ -49,10 +49,11 @@ class ShonanRotationAveraging(RotationAveragingBase):
             num_connected_nodes: number of unique connected nodes (i.e. images) in the graph
                 (<= the number of images in the dataset)
             i2Ri1_dict: relative rotations for each edge between nodes as dictionary (i1, i2): i2Ri1.
+                Note: i1 < num_connected_nodes, and also i2 < num_connected_nodes.
 
         Returns:
             Global rotations for each **CONNECTED** camera pose, i.e. wRi, as a list. The number of entries in
-                the list is num_connected_nodes`. The list may contain `None` where the global rotation could
+                the list is `num_connected_nodes`. The list may contain `None` where the global rotation could
                 not be computed (either underconstrained system or ill-constrained system).
         """
         lm_params = LevenbergMarquardtParams.CeresDefaults()
@@ -83,10 +84,11 @@ class ShonanRotationAveraging(RotationAveragingBase):
         return wRi_list_consecutive
 
     def run(self, num_images: int, i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]]) -> List[Optional[Rot3]]:
-        """Run the rotation averaging with arbitrary keys, where each key is a image/pose index.
+        """Run the rotation averaging on a connected graph with arbitrary keys, where each key is a image/pose index.
 
-        Note: run() functions as a wrapper that re-orders keys to prepare a connected graph,
-        w/ N keys ordered [0,...,N-1].
+        Note: run() functions as a wrapper that re-orders keys to prepare a graph w/ N keys ordered [0,...,N-1].
+        All input nodes must belong to a single connected component, in order to obtain an absolute pose for each
+        camera in a single, global coordinate frame.
 
         Args:
             num_images: number of images. Since we have one pose per image, it is also the number of poses.
