@@ -11,8 +11,8 @@ GTSFM is an end-to-end SFM pipeline based on [GTSAM](https://github.com/borglab/
 </p>
 
 <p align="left">
-  <img src="https://user-images.githubusercontent.com/16724970/121293582-db60ef00-c8b9-11eb-9400-f6bd96302799.gif" height="315" title="LundDoor_12_Images">
-  <img src="https://user-images.githubusercontent.com/16724970/121293398-8cb35500-c8b9-11eb-8898-6162cb2372e1.gif" height="315" title="LundDoor_SuperGlue_LORANSAC_4px_2021_06_08">
+  <img src="https://user-images.githubusercontent.com/16724970/121293582-db60ef00-c8b9-11eb-9400-f6bd96302799.gif" height="315" title="Olsson Lund Dataset: Door, 12 images">
+  <img src="https://user-images.githubusercontent.com/16724970/121293398-8cb35500-c8b9-11eb-8898-6162cb2372e1.gif" height="315">
 </p>
 
 ## License
