@@ -20,7 +20,7 @@ def run_scene_optimizer(args) -> None:
     """ """
     with hydra.initialize_config_module(config_module="gtsfm.configs"):
         # config is relative to the gtsfm module
-        cfg = hydra.compose(config_name="default_lund_door_set1_config.yaml")
+        cfg = hydra.compose(config_name=args.config_name)
         scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
         loader = OlssonLoader(
@@ -66,6 +66,12 @@ if __name__ == "__main__":
         type=int,
         default=1,
         help="Number of threads per each worker",
+    )
+    parser.add_argument(
+        "--config_name",
+        type=str,
+        default="deep_front_end.yaml",
+        help="Choose default_lund_door_set1_config.yaml or deep_front_end.yaml",
     )
     args = parser.parse_args()
 
