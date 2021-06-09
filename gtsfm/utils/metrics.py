@@ -2,14 +2,18 @@
 
 Authors: Ayush Baid, Akshay Krishnan
 """
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from gtsam import Cal3Bundler, EssentialMatrix, Point3, Pose3, Rot3, Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
+import gtsfm.utils.io as io_utils
 import gtsfm.utils.verification as verification_utils
 from gtsfm.common.keypoints import Keypoints
+
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # A StatsDict is a dict from string to optional floats or their lists.
 StatsDict = Dict[str, Union[Optional[float], List[Optional[float]]]]
@@ -215,3 +219,35 @@ def compute_pose_errors(gt_wTi_list: List[Pose3], wTi_list: List[Pose3]) -> Dict
     metrics["rotation_angle_deg_errors"] = compute_rotation_angle_metrics(wRi_list, gt_wRi_list)
     metrics["translation_distance_errors"] = compute_translation_distance_metrics(wti_list, gt_wti_list)
     return metrics
+
+
+def print_metrics() -> None:
+    """Dump to stdout a summary of metrics about the SfM reconstruction process."""
+    frontend_full_metrics_fpath = REPO_ROOT / "result_metrics" / "frontend_full.json"
+    frontend_metrics = io_utils.read_json_file(frontend_full_metrics_fpath)
+
+    max_rot_err_deg = max(
+        [
+            pair_stats["rotation_angular_error"]
+            for pair_stats in frontend_metrics
+            if pair_stats["rotation_angular_error"]
+        ]
+    )
+    max_trans_err_deg = max(
+        [
+            pair_stats["translation_angular_error"]
+            for pair_stats in frontend_metrics
+            if pair_stats["translation_angular_error"]
+        ]
+    )
+
+    print("=============> Metrics report ==============>")
+    print("Front-end max_rot_err_deg: ", max_rot_err_deg)
+    print("Front-end max_trans_err_deg: ", max_trans_err_deg)
+
+    averaging_metrics_fpath = REPO_ROOT / "result_metrics" / "multiview_optimizer_metrics.json"
+    averaging_metrics = io_utils.read_json_file(averaging_metrics_fpath)
+
+    print("Averaging max_rot_err_deg: ", averaging_metrics["rotation_averaging_angle_deg"]["max_error"])
+    print("Averaging max_trans_dist_err: ", averaging_metrics["translation_averaging_distance"]["max_error"])
+
