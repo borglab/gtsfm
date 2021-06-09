@@ -161,6 +161,7 @@ class ColmapLoader(LoaderBase):
 
         if self._use_gt_intrinsics:
             intrinsics = self._calibrations[index]
+            logger.info("Loading focal length from COLMAP files.")
 
         elif self._known_focal_length:
             h, w = self.get_image_shape(index)
@@ -169,7 +170,7 @@ class ColmapLoader(LoaderBase):
         else:
             # fall back to getting intrinsics from EXIF
             intrinsics = io_utils.load_image(self._image_paths[index]).get_intrinsics_from_exif()
-
+            logger.info("Resorted to loading focal length from EXIF")
 
         intrinsics = Cal3Bundler(
             fx=intrinsics.fx() * self._scale_u,
