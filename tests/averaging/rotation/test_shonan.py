@@ -127,12 +127,11 @@ class TestShonanRotationAveraging(unittest.TestCase):
         """
         num_images = 4
 
-        wTi0 = Pose3(Rot3(), np.array([1, 1, 0]))
+        # assume pose 0 is orphaned in the visibility graph
+        # Let wTi0's (R,t) be parameterized as identity Rot3(), and t = [1,1,0]
         wTi1 = Pose3(Rot3(), np.array([3, 1, 0]))
         wTi2 = Pose3(Rot3(), np.array([3, 3, 0]))
         wTi3 = Pose3(Rot3(), np.array([1, 3, 0]))
-
-        # assume pose 0 is orphaned in the visibility graph
 
         # generate i2Ri1 rotations
         # (i1,i2) -> i2Ri1
