@@ -8,7 +8,7 @@ References:
 - https://github.com/borglab/gtsam/blob/develop/gtsam/sfm/TranslationRecovery.h
 - https://github.com/borglab/gtsam/blob/develop/python/gtsam/examples/TranslationAveragingExample.py
 
-Authors: Jing Wu, Ayush Baid.
+Authors: Jing Wu, Ayush Baid, John Lambert.
 """
 from typing import Dict, List, Optional, Tuple
 
