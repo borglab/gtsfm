@@ -22,6 +22,10 @@ logger = logger_utils.get_logger()
 See: TheiaSfM/src/theia/math/graph/triplet_extractor.h
 
 https://github.com/sweeneychris/TheiaSfM/blob/master/src/theia/sfm/filter_view_graph_cycles_by_rotation.cc
+
+See also:
+C. Zach, M. Klopschitz, and M. Pollefeys. Disambiguating visual relations using loop constraints. In CVPR, 2010
+http://people.inf.ethz.ch/pomarc/pubs/ZachCVPR10.pdf
 """
 
 CYCLE_ERROR_THRESHOLD = 5.0
@@ -30,10 +34,15 @@ def filter_to_cycle_consistent_edges(i2Ri1_dict, i2Ui1_dict, two_view_reports_di
 	""""
 	Will return only a subset of these two dictionaries
 
+	Concatenating the transformations along a loop in the graph should return the identity function in an
+	ideal, noise-free setting.
 	"""
 	# they should have the same keys
 	edges = []
 	for (i1,i2), i2Ri1 in i2Ri1_dict.items():
+		
+		if i2Ri1 is None:
+			continue
 		edge = {
 			"i1": i1,
 			"i2": i2,
@@ -62,21 +71,12 @@ def filter_to_cycle_consistent_edges(i2Ri1_dict, i2Ui1_dict, two_view_reports_di
 	cycle_consistent_keys = set()
 
 	for edge_i_info in edges:
-
-		if not edge_i_info["i2Ri1"]:
-			continue
 		edge_i_keys = [edge_i_info["i1"], edge_i_info["i2"]]
 
 		for edge_j_info in edges:
-
-			if not edge_j_info["i2Ri1"]:
-				continue
 			edge_j_keys = [edge_j_info["i1"], edge_j_info["i2"]]
 
 			for edge_k_info in edges:
-
-				if not edge_k_info["i2Ri1"]:
-					continue
 				edge_k_keys = [edge_k_info["i1"], edge_k_info["i2"]]
 
 				cycle_nodes = set(edge_i_keys).union(set(edge_j_keys)).union(set(edge_k_keys))
@@ -84,10 +84,8 @@ def filter_to_cycle_consistent_edges(i2Ri1_dict, i2Ui1_dict, two_view_reports_di
 				unique_edges = set([ tuple(edge_i_keys), tuple(edge_j_keys), tuple(edge_k_keys) ])
 				edges_are_unique = len(unique_edges) == 3
 
-
 				if len(cycle_nodes) == 3 and edges_are_unique:
 					
-					#import pdb; pdb.set_trace()
 					if tuple(sorted(cycle_nodes)) in cycles_seen:
 						continue
 					else:
@@ -126,14 +124,14 @@ def filter_to_cycle_consistent_edges(i2Ri1_dict, i2Ui1_dict, two_view_reports_di
 	i2Ri1_dict_consistent, i2Ui1_dict_consistent = {}, {}
 	for (i1,i2) in cycle_consistent_keys:
 
-		if two_view_reports_dict[(i1,i2)].R_error_deg > 3 or two_view_reports_dict[(i1,i2)].U_error_deg > 3:
-			continue
+		# if two_view_reports_dict[(i1,i2)].R_error_deg > 3 or two_view_reports_dict[(i1,i2)].U_error_deg > 3:
+		# 	continue
 
 		i2Ri1_dict_consistent[(i1,i2)] = i2Ri1_dict[(i1,i2)]
 		i2Ui1_dict_consistent[(i1,i2)] = i2Ui1_dict[(i1,i2)]
 
 	num_consistent_rotations = len(i2Ri1_dict_consistent)
-	logger.info("Found %d consistent rotations", num_consistent_rotations)
+	logger.info("Found %d consistent rel. rotations from %d original edges.", num_consistent_rotations, len(edges))
 	assert len(i2Ui1_dict_consistent) == num_consistent_rotations
 	return i2Ri1_dict_consistent, i2Ui1_dict_consistent
 
