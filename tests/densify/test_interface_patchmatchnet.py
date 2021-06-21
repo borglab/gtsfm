@@ -10,7 +10,7 @@ from gtsam import PinholeCameraCal3Bundler
 
 from gtsfm.common.gtsfm_data import GtsfmData, SfmTrack
 from gtsfm.loader.olsson_loader import OlssonLoader
-from gtsfm.densify.interface_patchmatchnet import PatchmatchNetData
+from gtsfm.densify.patchmatchnet_data import PatchmatchNetData
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
 
@@ -21,7 +21,7 @@ NUM_VIEWS = 5
 EXAMPLE_CAMERA_ID = 1
 
 
-class TestInterfacePatchmatchNet(unittest.TestCase):
+class TestPatchmatchNetData(unittest.TestCase):
     """Unit tests for the interface for PatchmatchNet."""
 
     def setUp(self) -> None:
@@ -29,25 +29,37 @@ class TestInterfacePatchmatchNet(unittest.TestCase):
         super().setUp()
 
         # initialize Olsson Loader
-        loader = OlssonLoader(str(DEFAULT_FOLDER), image_extension="JPG")
-        self._num_images = len(loader)
+        self._loader = OlssonLoader(str(DEFAULT_FOLDER), image_extension="JPG")
+        self._num_images = len(self._loader)
 
         # set up image dictionary
-        self._img_dict = {i: loader.get_image(i) for i in range(self._num_images)}
+        self._img_dict = {i: self._loader.get_image(i) for i in range(self._num_images)}
 
         # initialize an empty sfm result in GtsfmData class
         self._sfm_result = GtsfmData(self._num_images)
+        # add randomized dummy valid cameras to the sfm result
+        self.add_dummy_cameras()
+        # add randomized dummy tracks to the sfm result and calculate the expected depth ranges
+        self.add_dummy_tracks()
+        # build PatchmatchNet dataset from input images, sfm result, and the number of views used in PatchmatchNet
+        self._dataset_patchmatchnet = PatchmatchNetData(self._img_dict, self._sfm_result, num_views=NUM_VIEWS)
 
+    def add_dummy_cameras(self) -> None:
+        """randomize half the number of all cameras as valid cameras, then add them into sfm_result"""
         # random valid cameras, the below number and indices of valid cameras are dummy values
         self._num_valid_cameras = self._num_images // 2
         valid_cameras = np.arange(self._num_valid_cameras)
 
-        # add dummy valid cameras to sfm result
+        # add dummy valid cameras (camera_idx in valid_cameras) to sfm result
         for i in valid_cameras:
             self._sfm_result.add_camera(
-                i, PinholeCameraCal3Bundler(loader.get_camera_pose(i), loader.get_camera_intrinsics(i))
+                i, PinholeCameraCal3Bundler(self._loader.get_camera_pose(i), self._loader.get_camera_intrinsics(i))
             )
 
+    def add_dummy_tracks(self) -> None:
+        """randomize some dummy common tracks and corresponding measurements, insert the tracks into sfm result, and
+        then calculate the expected depth ranges
+        """
         # initialize dummy depth range for the test example
         self._example_depths = []
 
@@ -73,8 +85,6 @@ class TestInterfacePatchmatchNet(unittest.TestCase):
 
         self._example_min_depth = self._example_depths[int(len(self._example_depths) * 0.01)]
         self._example_max_depth = self._example_depths[int(len(self._example_depths) * 0.99)]
-
-        self._dataset_patchmatchnet = PatchmatchNetData(self._img_dict, self._sfm_result, num_views=NUM_VIEWS)
 
     def test_initialize_and_configure(self) -> None:
         """Test initialization method and whether configuration is correct"""
