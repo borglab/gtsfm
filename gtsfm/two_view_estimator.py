@@ -35,7 +35,7 @@ class TwoViewEstimator:
         Args:
             matcher: matcher to use.
             verifier: verifier to use.
-            corr_metric_dist_threshold: distance threshold for marking a correspondence pair as inlier. 
+            corr_metric_dist_threshold: distance threshold for marking a correspondence pair as inlier.
         """
         self._matcher = matcher
         self._verifier = verifier
@@ -53,6 +53,8 @@ class TwoViewEstimator:
         descriptors_i2_graph: Delayed,
         camera_intrinsics_i1_graph: Delayed,
         camera_intrinsics_i2_graph: Delayed,
+        im_shape_i1_graph: Delayed,
+        im_shape_i2_graph: Delayed,
         i2Ti1_expected_graph: Optional[Delayed] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, Optional[Delayed], Optional[Delayed], Optional[Delayed]]:
         """Create delayed tasks for matching and verification.
@@ -64,6 +66,8 @@ class TwoViewEstimator:
             descriptors_i2_graph: corr. descriptors for image i2.
             camera_intrinsics_i1_graph: intrinsics for camera i1.
             camera_intrinsics_i2_graph: intrinsics for camera i2.
+            im_shape_i1_graph: image shape for image i1.
+            im_shape_i2_graph: image shape for image i2.
             i2Ti1_expected_graph (optional): ground truth relative pose, used for evaluation if available. Defaults to
                                              None.
 
@@ -78,7 +82,12 @@ class TwoViewEstimator:
 
         # graph for matching to obtain putative correspondences
         corr_idxs_graph = self._matcher.create_computation_graph(
-            keypoints_i1_graph, keypoints_i2_graph, descriptors_i1_graph, descriptors_i2_graph
+            keypoints_i1_graph,
+            keypoints_i2_graph,
+            descriptors_i1_graph,
+            descriptors_i2_graph,
+            im_shape_i1_graph,
+            im_shape_i2_graph,
         )
 
         # verification on putative correspondences to obtain relative pose
@@ -159,7 +168,7 @@ def compute_correspondence_metrics(
 
 
 def compute_relative_pose_metrics(
-    i2Ri1_computed: Optional[Rot3], i2Ui1_computed: Optional[Unit3], i2Ti1_expected: Pose3,
+    i2Ri1_computed: Optional[Rot3], i2Ui1_computed: Optional[Unit3], i2Ti1_expected: Pose3
 ) -> Tuple[Optional[float], Optional[float]]:
     """Compute the metrics on relative camera pose.
 

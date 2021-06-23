@@ -1,5 +1,4 @@
 import argparse
-import os
 from pathlib import Path
 
 import hydra
@@ -8,7 +7,7 @@ from hydra.utils import instantiate
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.loader.olsson_loader import OlssonLoader
+from gtsfm.loader.colmap_loader import ColmapLoader
 from gtsfm.scene_optimizer import SceneOptimizer
 
 DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "tests" / "data"
@@ -20,11 +19,13 @@ def run_scene_optimizer(args) -> None:
     """ """
     with hydra.initialize_config_module(config_module="gtsfm.configs"):
         # config is relative to the gtsfm module
-        cfg = hydra.compose(config_name="default_lund_door_set1_config.yaml")
+        cfg = hydra.compose(config_name="deep_front_end.yaml")
         scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
-        loader = OlssonLoader(
-            args.dataset_root, image_extension=args.image_extension, max_frame_lookahead=args.max_frame_lookahead
+        loader = ColmapLoader(
+            colmap_files_dirpath=args.colmap_files_dirpath,
+            images_dir=args.images_dir,
+            max_frame_lookahead=args.max_frame_lookahead,
         )
 
         sfm_result_graph = scene_optimizer.create_computation_graph(
@@ -46,13 +47,21 @@ def run_scene_optimizer(args) -> None:
 
 
 if __name__ == "__main__":
+
     parser = argparse.ArgumentParser(description="GTSFM with intrinsics and image names stored in COLMAP-format")
-    parser.add_argument("--dataset_root", type=str, default=os.path.join(DATA_ROOT, "set1_lund_door"), help="")
-    parser.add_argument("--image_extension", type=str, default="JPG", help="")
+    parser.add_argument(
+        "--images_dir", type=str, required=True, help="path to directory containing png, jpeg, or jpg images files"
+    )
+    parser.add_argument(
+        "--colmap_files_dirpath",
+        type=str,
+        required=True,
+        help="path to directory containing images.txt, points3D.txt, and cameras.txt",
+    )
     parser.add_argument(
         "--max_frame_lookahead",
         type=int,
-        default=20,
+        default=1,
         help="maximum number of consecutive frames to consider for matching/co-visibility",
     )
     args = parser.parse_args()

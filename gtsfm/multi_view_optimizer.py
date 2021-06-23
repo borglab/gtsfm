@@ -52,7 +52,7 @@ class MultiViewOptimizer:
         v_corr_idxs_graph: Dict[Tuple[int, int], Delayed],
         intrinsics_graph: List[Delayed],
         gt_poses_graph: List[Delayed] = None,
-    ) -> Tuple[Delayed, Delayed]:
+    ) -> Tuple[Delayed, Delayed, Optional[Delayed], Optional[Delayed]]:
         """Creates a computation graph for multi-view optimization.
 
         Args:
@@ -66,6 +66,7 @@ class MultiViewOptimizer:
         Returns:
             The input to bundle adjustment, wrapped up as Delayed.
             The final output, wrapped up as Delayed.
+            Dictionary containing metrics, wrapped up as Delayed
         """
         # prune the graph to a single connected component.
         pruned_graph = dask.delayed(prune_to_largest_connected_component)(i2Ri1_graph, i2Ui1_graph)
@@ -98,7 +99,7 @@ class MultiViewOptimizer:
         ba_result_graph = self.ba_optimizer.create_computation_graph(ba_input_graph)
 
         if gt_poses_graph is None:
-            return ba_input_graph, ba_result_graph, None
+            return ba_input_graph, ba_result_graph, None, None
 
         metrics_graph = dask.delayed(metrics.compute_averaging_metrics)(
             i2Ui1_graph, wRi_graph, wti_graph, gt_poses_graph
