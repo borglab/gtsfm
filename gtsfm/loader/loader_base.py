@@ -4,7 +4,7 @@ Authors: Frank Dellaert and Ayush Baid
 """
 
 import abc
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import dask
 from dask.delayed import Delayed
@@ -143,3 +143,12 @@ class LoaderBase(metaclass=abc.ABCMeta):
                     indices.append((idx1, idx2))
 
         return indices
+
+    def get_image_dictionary(self) -> Dict[int, Image]:
+        """Get the dictionary containing all loaded images. The keys are the images' indices.
+
+        Returns:
+            Dict[int, Image]: image dictionary
+        """
+        image_dictionary = {i: self.get_image(i) for i in range(self.__len__())}
+        return image_dictionary
