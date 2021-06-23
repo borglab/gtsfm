@@ -50,6 +50,14 @@ class PatchmatchNetData(Dataset):
 
         self._images = images
 
+        self._h, self._w = (
+            self._images[self._patchmatchnet_idx_to_camera_idx[0]].height,
+            self._images[self._patchmatchnet_idx_to_camera_idx[0]].width,
+        )
+        # calculate the cropped size of each image so that the height and width of the image can be divided by 8 evenly,
+        #   so that the image size can be matched after downsampling and then upsampling in PatchmatchNet
+        self._cropped_h, self._cropped_w = (self._h - self._h % 8, self._w - self._w % 8)
+
         self._pairs, self._depth_ranges = self.configure()
 
     def configure(self) -> Tuple[np.ndarray, np.ndarray]:
@@ -163,19 +171,11 @@ class PatchmatchNetData(Dataset):
         imgs: List[np.ndarray] = [[] for _ in range(self._num_stages)]
         proj_mats: List[np.ndarray] = [[] for _ in range(self._num_stages)]
 
-        h, w = (
-            self._images[self._patchmatchnet_idx_to_camera_idx[0]].height,
-            self._images[self._patchmatchnet_idx_to_camera_idx[0]].width,
-        )
-        # calculate the cropped size of each image so that the height and width of the image can be divided by 8 evenly,
-        #   so that the image size can be matched after downsampling and then upsampling in PatchmatchNet
-        cropped_h, cropped_w = (h - h % 8, w - w % 8)
-
         for cam_key in cam_keys:
             img = self._images[cam_key].value_array
             np_img = np.array(img, dtype=np.float32) / 255.0
-            np_img = cv2.resize(np_img, (w, h), interpolation=cv2.INTER_LINEAR)
-            np_img = np_img[:cropped_h, :cropped_w, :]
+            np_img = cv2.resize(np_img, (self._w, self._h), interpolation=cv2.INTER_LINEAR)
+            np_img = np_img[: self._cropped_h, : self._cropped_w, :]
 
             intrinsics = self._sfm_result.get_camera(cam_key).calibration().K()
             extrinsics = self._sfm_result.get_camera(cam_key).pose().inverse().matrix()
@@ -186,7 +186,11 @@ class PatchmatchNetData(Dataset):
 
             for i in range(self._num_stages):
                 imgs[i].append(
-                    cv2.resize(np_img, (cropped_w // (2 ** i), cropped_h // (2 ** i)), interpolation=cv2.INTER_LINEAR)
+                    cv2.resize(
+                        np_img,
+                        (self._cropped_w // (2 ** i), self._cropped_h // (2 ** i)),
+                        interpolation=cv2.INTER_LINEAR,
+                    )
                 )
                 proj_mat = extrinsics.copy()
                 intrinsics[:2, :] *= 2.0
@@ -209,3 +213,47 @@ class PatchmatchNetData(Dataset):
             "depth_max": self._depth_ranges[index, 1],  # scalar
             "filename": "{}/" + f"{ref_key:0>8}" + "{}",
         }
+
+    def get_packed_pairs(self) -> List[Tuple[int, List[int]]]:
+        """Pack view pair data in the form of (reference view index, source view indices) to fit with inference methods
+
+        Returns:
+            List[Tuple[int, List[int]]]: packed pair data in (reference view index, source view indices), the length of
+                source view indices is num_views
+        """
+        packed_pairs = []
+        for idx in range(self._num_images):
+            ref_view = idx
+            src_views = self._pairs[idx].tolist()
+            packed_pairs.append((ref_view, src_views))
+        return packed_pairs
+
+    def get_camera_params(self, index: int) -> Tuple[np.ndarray, np.ndarray]:
+        """Get camera intrinsics and extrinsics parameters by image(or view) index
+
+        Args:
+            index (int): image(or view) index
+
+        Returns:
+            Tuple[np.ndarray, np.ndarray]: (intrinsics (3, 3), extrinsics (4, 4)) of the input image(or view) index
+        """
+        cam_key = self._patchmatchnet_idx_to_camera_idx[index]
+        intrinsics = self._sfm_result.get_camera(cam_key).calibration().K()
+        extrinsics = self._sfm_result.get_camera(cam_key).pose().inverse().matrix()
+        return (intrinsics, extrinsics)
+
+    def get_image(self, index: int) -> np.ndarray:
+        """Get preprocessed image by image(or view) index
+
+        Args:
+            index (int): image(or view) index
+
+        Returns:
+            np.ndarray: preprocessed image, (cropped_h, cropped_w)
+        """
+        cam_key = self._patchmatchnet_idx_to_camera_idx[index]
+        img = self._images[cam_key].value_array
+        np_img = np.array(img, dtype=np.float32) / 255.0
+        np_img = cv2.resize(np_img, (self._w, self._h), interpolation=cv2.INTER_LINEAR)
+        np_img = np_img[: self._cropped_h, : self._cropped_w, :]
+        return np_img
