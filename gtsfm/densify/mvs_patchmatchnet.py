@@ -57,9 +57,11 @@ class MVSPatchmatchNet(MVSBase):
             thresholds (List[float], optional): geometric pixel threshold, geometric depth threshold, and photometric
                 threshold for filtering inference results.
                 Defaults to [DEFAULT_GEOMETRIC_PIXEL_THRESH, DEFAULT_GEOMETRIC_DEPTH_THRESH, DEFAULT_PHOTOMETRIC_THRESH]
+                1. for geometric thresholds, small threshold means high accuracy and low completeness
+                2. for photometric thresholds, large threshold means high accuracy and low completeness
 
         Returns:
-            np.ndarray: 3D coordinates of the dense point cloud, (point number, 3)
+            np.ndarray: 3D coordinates (in the world frame) of the dense point cloud, (point number, 3)
         """
         dataset = PatchmatchNetData(images=images, sfm_result=sfm_result, num_views=num_views)
         loader = DataLoader(
@@ -114,12 +116,6 @@ class MVSPatchmatchNet(MVSBase):
                 outputs = tensor2numpy(outputs)
                 del sample_device
 
-                logger.info(
-                    "[Densify::PatchMatchNet] Iter {}/{}, time = {:.3f}".format(
-                        batch_idx + 1, len(loader), time.time() - start_time
-                    )
-                )
-
                 ids = sample["idx"]
 
                 # save depth maps and confidence maps
@@ -130,6 +126,12 @@ class MVSPatchmatchNet(MVSBase):
                     idx = idx.cpu().numpy().tolist()
                     depth_est_list[idx] = depth_est.copy()
                     confidence_est_list[idx] = photometric_confidence.copy()
+
+                logger.info(
+                    "[Densify::PatchMatchNet] Iter {}/{}, time = {:.3f}".format(
+                        batch_idx + 1, len(loader), time.time() - start_time
+                    )
+                )
 
         # filter inference result with thresholds
         dense_point_cloud = self.filter_depth(
@@ -164,10 +166,11 @@ class MVSPatchmatchNet(MVSBase):
             photo_thres (float): photometric threshold
 
         Returns:
-            np.ndarray: 3D coordinates of the dense point cloud, (point number, 3)
+            np.ndarray: 3D coordinates (in the world frame) of the dense point cloud, (point number, 3)
         """
-        # for the final point cloud
-        vertexs = []
+        # coordinates of the final point cloud
+        vertices = []
+        # vertex colors of the final point cloud, used in generating colored mesh
         vertex_colors = []
 
         pair_data = dataset.get_packed_pairs()
@@ -183,12 +186,13 @@ class MVSPatchmatchNet(MVSBase):
             ref_depth_est = depth_list[ref_view][0]
             # load the photometric mask of the reference view
             confidence = confidence_list[ref_view]
-
+            # filter confidence map by photometric threshold
             photo_mask = confidence > photo_thres
 
             all_srcview_depth_ests = []
 
-            # compute the geometric mask
+            # compute the geometric mask, the value of geo_mask_sum means the number of source views where
+            #   the reference depth is valid according to the geometric thresholds
             geo_mask_sum = 0
             for src_view in src_views:
                 # camera parameters of the source view
@@ -197,6 +201,7 @@ class MVSPatchmatchNet(MVSBase):
                 # the estimated depth of the source view
                 src_depth_est = depth_list[src_view][0]
 
+                # check geometric consistency
                 geo_mask, depth_reprojected, _, _ = check_geometric_consistency(
                     ref_depth_est,
                     ref_intrinsics,
@@ -211,28 +216,32 @@ class MVSPatchmatchNet(MVSBase):
                 all_srcview_depth_ests.append(depth_reprojected)
 
             depth_est_averaged = (sum(all_srcview_depth_ests) + ref_depth_est) / (geo_mask_sum + 1)
-            # at least 3 source views matched
-            # large threshold, high accuracy, low completeness
+            # valid points requires at least 3 source views validated under geometric threshoulds
             geo_mask = geo_mask_sum >= 3
+
+            # combine geometric mask and photometric mask
             final_mask = np.logical_and(photo_mask, geo_mask)
+
+            # initialize coordinate grids
+            height, width = depth_est_averaged.shape[:2]
+            x, y = np.meshgrid(np.arange(0, width), np.arange(0, height))
+
+            # get valid points filtered by photometric and geometric thresholds
+            valid_points = final_mask
+            x, y, depth = x[valid_points], y[valid_points], depth_est_averaged[valid_points]
+
+            # get the point coordinates in world frame
+            xyz_ref = np.matmul(np.linalg.inv(ref_intrinsics), np.vstack((x, y, np.ones_like(x))) * depth)
+            xyz_world = np.matmul(np.linalg.inv(ref_extrinsics), np.vstack((xyz_ref, np.ones_like(x))))[:3]
+            vertices.append(xyz_world.transpose((1, 0)))
+
+            # get the point colors for colored mesh
+            color = ref_img[valid_points]
+            vertex_colors.append((color * 255).astype(np.uint8))
 
             logger.info(
                 f"[Densify::PatchMatchNet] processing view:{ref_view:0>2}"
                 + f" geo_mask:{geo_mask.mean():3f} photo_mask:{photo_mask.mean():3f} final_mask:{final_mask.mean():3f}"
             )
 
-            height, width = depth_est_averaged.shape[:2]
-            x, y = np.meshgrid(np.arange(0, width), np.arange(0, height))
-
-            valid_points = final_mask
-            x, y, depth = x[valid_points], y[valid_points], depth_est_averaged[valid_points]
-
-            color = ref_img[valid_points]
-            xyz_ref = np.matmul(np.linalg.inv(ref_intrinsics), np.vstack((x, y, np.ones_like(x))) * depth)
-            xyz_world = np.matmul(np.linalg.inv(ref_extrinsics), np.vstack((xyz_ref, np.ones_like(x))))[:3]
-            vertexs.append(xyz_world.transpose((1, 0)))
-            vertex_colors.append((color * 255).astype(np.uint8))
-
-        vertexs_raw = np.concatenate(vertexs, axis=0)
-
-        return vertexs_raw
+        return np.concatenate(vertices, axis=0)
