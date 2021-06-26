@@ -14,6 +14,7 @@ from gtsfm.common.view_frustum import ViewFrustum
 
 def main():
 	""" """
+
 	#colmap_output_dir = "/Users/johnlambert/Downloads/crane_tower_graffiti/colmap_crane_mast_32imgs"
 	#colmap_output_dir = "/Users/johnlambert/Downloads/crane_mast_with_exif/crane_mast_8imgs_v3"
 	#colmap_output_dir = "/Users/johnlambert/Downloads/crane_mast_with_exif/crane_mast_8imgs_v2"
@@ -21,6 +22,8 @@ def main():
 	colmap_output_dir = "/Users/johnlambert/Documents/gtsfm/results/ba_output"
 	#colmap_output_dir = "/Users/johnlambert/Downloads/crane_mast_with_exif/ForRen_Skydio/ba_output"
 	#colmap_output_dir = "/Users/johnlambert/Documents/gtsfm/tests/data/set1_lund_door/colmap_ground_truth"
+	#colmap_output_dir = "/Users/johnlambert/Downloads/gtsfm-skynet-2021-06-05/gtsfm/results/ba_output"
+
 
 	#fpath = "/Users/johnlambert/Documents/gtsfm/results/ba_input/points3D.txt"
 	points_fpath = f"{colmap_output_dir}/points3D.txt"
@@ -56,7 +59,7 @@ def main():
 	# f = open(fpath, "r")
 	# data = json.load(f)
 	# point_cloud = np.array(data["points_3d"])
-	is_nearby = np.linalg.norm(point_cloud, axis=1) < 2000
+	is_nearby = np.linalg.norm(point_cloud, axis=1) < 200
 	point_cloud = point_cloud[is_nearby]
 	rgb = rgb[is_nearby]
 	print(is_nearby.shape)
@@ -147,7 +150,7 @@ def draw_point_cloud(zcworldTworld, fig, point_cloud: np.ndarray, rgb: np.ndarra
 	pts.add_attribute(rgba, 'colors') # assign the colors to each point
 	pts.data.point_data.set_active_scalars('colors')
 	g = mlab.pipeline.glyph(pts)
-	g.glyph.glyph.scale_factor = 0.1 # set scaling for all the points
+	g.glyph.glyph.scale_factor = 0.3 # set scaling for all the points
 	g.glyph.scale_mode = 'data_scaling_off' # make all the points same size
 
 
