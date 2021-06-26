@@ -17,6 +17,7 @@ import numpy as np
 from dask.delayed import Delayed
 from gtsam import Pose3
 
+import gtsfm.utils.cycle_consistency as cycle_utils
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.metrics as metric_utils
 import gtsfm.utils.io as io_utils
@@ -143,6 +144,13 @@ class SceneOptimizer:
                 image_shape_graph[i2],
                 gt_i2Ti1,
             )
+
+            # optionally: GENERATE SYNTHETIC matches, using GT pose
+            # from gtsam import Unit3
+            # i2Ri1 = dask.delayed(lambda T: T.rotation())(gt_i2Ti1)
+            # i2Ui1 = dask.delayed(lambda T: Unit3(T.translation()))(gt_i2Ti1)
+
+
             i2Ri1_graph_dict[(i1, i2)] = i2Ri1
             i2Ui1_graph_dict[(i1, i2)] = i2Ui1
             v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
@@ -174,6 +182,12 @@ class SceneOptimizer:
         # frontend's auxiliary tasks to be computed before the multi-view stage.
         keypoints_graph_list = dask.delayed(lambda x, y: (x, y))(keypoints_graph_list, auxiliary_graph_list)[0]
         auxiliary_graph_list = []
+
+        # ensure cycle consistency in triplets
+        cycle_consistent_graph = dask.delayed(cycle_utils.filter_to_cycle_consistent_edges)(i2Ri1_graph_dict, i2Ui1_graph_dict, two_view_reports_dict)
+
+        i2Ri1_graph_dict = cycle_consistent_graph[0]
+        i2Ui1_graph_dict = cycle_consistent_graph[1]
 
         (
             ba_input_graph,
