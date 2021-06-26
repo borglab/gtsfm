@@ -140,11 +140,9 @@ class TestShonanRotationAveraging(unittest.TestCase):
             (2, 3): wTi3.between(wTi2).rotation(),
             (1, 3): wTi3.between(wTi1).rotation(),
         }
-
-        wRi_expected = [None, wTi1.rotation(), wTi2.rotation(), wTi3.rotation()]
-
+        
         wRi_computed = self.obj.run(num_images, i2Ri1_input)
-
+        wRi_expected = [None, wTi1.rotation(), wTi2.rotation(), wTi3.rotation()]
         self.assertTrue(
             geometry_comparisons.compare_rotations(wRi_computed, wRi_expected, angular_error_threshold_degrees=0.1)
         )
