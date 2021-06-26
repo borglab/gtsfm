@@ -26,6 +26,9 @@ https://github.com/sweeneychris/TheiaSfM/blob/master/src/theia/sfm/filter_view_g
 See also:
 C. Zach, M. Klopschitz, and M. Pollefeys. Disambiguating visual relations using loop constraints. In CVPR, 2010
 http://people.inf.ethz.ch/pomarc/pubs/ZachCVPR10.pdf
+
+Enqvist, Olof; Kahl, Fredrik; Olsson, Carl. Non-Sequential Structure from Motion. ICCVW, 2011.
+https://portal.research.lu.se/ws/files/6239297/2255278.pdf
 """
 
 CYCLE_ERROR_THRESHOLD = 5.0
