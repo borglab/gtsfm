@@ -10,6 +10,11 @@ GTSFM is an end-to-end SFM pipeline based on [GTSAM](https://github.com/borglab/
   <img src="https://dask.org/_images/dask_horizontal_white_no_pad_dark_bg.png" height="50">
 </p>
 
+<p align="left">
+  <img src="https://user-images.githubusercontent.com/16724970/121294002-a4d7a400-c8ba-11eb-895e-a50305c049b6.gif" height="315" title="Olsson Lund Dataset: Door, 12 images">
+  <img src="https://user-images.githubusercontent.com/16724970/121293398-8cb35500-c8b9-11eb-8898-6162cb2372e1.gif" height="315">
+</p>
+
 ## License
 The majority of our code is governed by a MIT license and is suitable for commercial use. However, certain implementations featured in our repo (SuperPoint, SuperGlue) are governed by a non-commercial license and may not be used commercially.
 
