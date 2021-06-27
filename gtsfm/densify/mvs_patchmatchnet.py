@@ -50,11 +50,11 @@ class MVSPatchmatchNet(MVSBase):
         Ref: Wang et al. https://github.com/FangjinhuaWang/PatchmatchNet/blob/main/eval.py
 
         Args:
-            images (Dict[int, Image]): image dictionary obtained from loaders
-            sfm_result (GtsfmData): result of GTSFM after bundle adjustment
-            num_views (int, optional): number of views, containing 1 reference view and (num_views-1) source views
+            images: image dictionary obtained from loaders
+            sfm_result: result of GTSFM after bundle adjustment
+            num_views: number of views, containing 1 reference view and (num_views-1) source views
                 Defaults to DEFAULT_VIEW_NUMBER
-            thresholds (List[float], optional): geometric pixel threshold, geometric depth threshold, and photometric
+            thresholds: geometric pixel threshold, geometric depth threshold, and photometric
                 threshold for filtering inference results.
                 Defaults to [DEFAULT_GEOMETRIC_PIXEL_THRESH, DEFAULT_GEOMETRIC_DEPTH_THRESH, DEFAULT_PHOTOMETRIC_THRESH]
                 1. for geometric thresholds, small threshold means high accuracy and low completeness
@@ -158,12 +158,12 @@ class MVSPatchmatchNet(MVSBase):
         Ref: Wang et al. https://github.com/FangjinhuaWang/PatchmatchNet/blob/main/eval.py
 
         Args:
-            dataset (PatchmatchNetData): an instance of PatchmatchData as the inference dataset
-            depth_list (Dict[int, np.ndarray]): list of 2D depth map (H, W) from each view
-            confidence_list (Dict[int, np.ndarray]): list of 2D confidence map (H, W) from each view
-            geo_pixel_thres (float): geometric pixel threshold
-            geo_depth_thres (float): geometric depth threshold
-            photo_thres (float): photometric threshold
+            dataset: an instance of PatchmatchData as the inference dataset
+            depth_list: list of 2D depth map (H, W) from each view
+            confidence_list: list of 2D confidence map (H, W) from each view
+            geo_pixel_thres: geometric pixel threshold
+            geo_depth_thres: geometric depth threshold
+            photo_thres: photometric threshold
 
         Returns:
             np.ndarray: 3D coordinates (in the world frame) of the dense point cloud, (point number, 3)
