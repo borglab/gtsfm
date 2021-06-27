@@ -43,7 +43,7 @@ def run_scene_optimizer(args) -> None:
         )
 
         # create dask client
-        cluster = LocalCluster(n_workers=args.n_workers, threads_per_worker=args.threads_per_worker)
+        cluster = LocalCluster(n_workers=args.num_workers, threads_per_worker=args.threads_per_worker)
 
         with Client(cluster), performance_report(filename="dask-report.html"):
             sfm_result = sfm_result_graph.compute()
@@ -74,7 +74,7 @@ if __name__ == "__main__":
         help="maximum number of consecutive frames to consider for matching/co-visibility",
     )
     parser.add_argument(
-        "--n_workers",
+        "--num_workers",
         type=int,
         default=1,
         help="Number of workers to start (processes, by default)",
