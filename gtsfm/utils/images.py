@@ -99,7 +99,7 @@ def vstack_image_list(imgs: List[np.ndarray]) -> Image:
 
 
 def resize_image(image: Image, new_height: int, new_width: int) -> Image:
-    """Resize the image to given dimensions.
+    """Resize the image to given dimensions, preserving filename metadata.
 
     Args:
         image: image to resize.
@@ -115,7 +115,7 @@ def resize_image(image: Image, new_height: int, new_width: int) -> Image:
         interpolation=cv.INTER_CUBIC,
     )
 
-    return Image(resized_value_array)
+    return Image(value_array=resized_value_array, file_name=image.file_name)
 
 
 def get_rescaling_factor_per_axis(img_h: int, img_w: int, max_resolution: int) -> Tuple[float, float, int, int]:
