@@ -20,7 +20,7 @@ def run_scene_optimizer(args) -> None:
     """ """
     with hydra.initialize_config_module(config_module="gtsfm.configs"):
         # config is relative to the gtsfm module
-        cfg = hydra.compose(config_name="default_lund_door_set1_config.yaml")
+        cfg = hydra.compose(config_name=args.config_name)
         scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
         loader = OlssonLoader(
@@ -37,7 +37,7 @@ def run_scene_optimizer(args) -> None:
         )
 
         # create dask client
-        cluster = LocalCluster(n_workers=2, threads_per_worker=4)
+        cluster = LocalCluster(n_workers=args.n_workers, threads_per_worker=args.threads_per_worker)
 
         with Client(cluster), performance_report(filename="dask-report.html"):
             sfm_result = sfm_result_graph.compute()
@@ -54,6 +54,24 @@ if __name__ == "__main__":
         type=int,
         default=20,
         help="maximum number of consecutive frames to consider for matching/co-visibility",
+    )
+    parser.add_argument(
+        "--n_workers",
+        type=int,
+        default=1,
+        help="Number of workers to start (processes, by default)",
+    )
+    parser.add_argument(
+        "--threads_per_worker",
+        type=int,
+        default=1,
+        help="Number of threads per each worker",
+    )
+    parser.add_argument(
+        "--config_name",
+        type=str,
+        default="deep_front_end.yaml",
+        help="Choose default_lund_door_set1_config.yaml or deep_front_end.yaml",
     )
     args = parser.parse_args()
 
