@@ -1,6 +1,6 @@
 """Unit tests for comparison functions for geometry types.
 
-Authors: Ayush Baid
+Authors: Ayush Baid, John Lambert
 """
 import unittest
 from typing import List
@@ -9,8 +9,10 @@ from unittest.mock import patch
 import numpy as np
 from gtsam import Cal3_S2, Point3, Pose3, Rot3, Similarity3, Unit3
 from gtsam.examples import SFMdata
+from scipy.spatial.transform import Rotation
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
+
 import tests.data.sample_poses as sample_poses
 
 POSE_LIST = SFMdata.createPoses(Cal3_S2())
@@ -216,6 +218,24 @@ class TestGeometryComparisons(unittest.TestCase):
         expected_deg = 45
 
         np.testing.assert_allclose(computed_deg, expected_deg, rtol=1e-3, atol=1e-3)
+
+    def test_compute_relative_rotation_angle_euler(self) -> None:
+        """"Sample 100 rotations about each individual Euler angle, and ensure Scipy and GTSAM result match."""
+        num_samples = 100
+        for axis in ["x", "y", "z"]:
+            for _ in range(num_samples):
+                theta = np.random.rand() * 360
+                R_1 = Rot3(Rotation.from_euler(axis, 0, degrees=True).as_matrix())
+                R_2 = Rot3(Rotation.from_euler(axis, theta, degrees=True).as_matrix())
+
+                # the minimum angle must be in the range [0,180], otherwise we could wrap around the opposite direction
+                if theta > 180:
+                    expected_angle_deg = 360 - theta
+                else:
+                    expected_angle_deg = theta
+
+                angle_deg = geometry_comparisons.compute_relative_rotation_angle(R_1, R_2)
+                np.testing.assert_allclose(angle_deg, expected_angle_deg, atol=1e-5)
 
     def test_compute_relative_unit_translation_angle(self):
         """Tests the relative angle between two unit-translations."""
