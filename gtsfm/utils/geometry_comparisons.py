@@ -1,359 +1,371 @@
-"""Unit tests for comparison functions for geometry types.
+"""Utility functions for comparing different types related to geometry.
 
 Authors: Ayush Baid, John Lambert
 """
-import unittest
-from typing import List
-from unittest.mock import patch
+from typing import List, Optional
 
 import numpy as np
-from gtsam import Cal3_S2, Point3, Pose3, Rot3, Similarity3, Unit3
-from gtsam.examples import SFMdata
+from gtsam import Point3, Pose3, Pose3Pairs, Rot3, Similarity3, Unit3
 from scipy.spatial.transform import Rotation
 
-import gtsfm.utils.geometry_comparisons as geometry_comparisons
+from gtsfm.utils.logger import get_logger
 
-import tests.data.sample_poses as sample_poses
+EPSILON = np.finfo(float).eps
 
-POSE_LIST = SFMdata.createPoses(Cal3_S2())
+logger = get_logger()
 
-ROT3_EULER_ANGLE_ERROR_THRESHOLD = 1e-2
-POINT3_RELATIVE_ERROR_THRESH = 1e-1
-POINT3_ABS_ERROR_THRESH = 1e-2
 
+def align_rotations(aRi_list: List[Rot3], bRi_list: List[Rot3]) -> List[Rot3]:
+    """Aligns the list of rotations to the reference list by shifting origin.
 
-def rot3_compare(R: Rot3, R_: Rot3, msg=None) -> bool:
-    return np.allclose(R.xyz(), R_.xyz(), atol=1e-2)
+    TODO (John): replace later with Karcher mean to account for noisy estimates
 
+    Args:
+        aRi_list: reference rotations in frame "a" which are the targets for alignment
+        bRi_list: input rotations which need to be aligned to frame "a"
 
-def point3_compare(t: Point3, t_: Point3, msg=None) -> bool:
-    return np.allclose(t, t_, rtol=POINT3_RELATIVE_ERROR_THRESH, atol=POINT3_ABS_ERROR_THRESH)
-
-
-class TestGeometryComparisons(unittest.TestCase):
-    """Unit tests for comparison functions for geometry types."""
-
-    def __assert_equality_on_rot3s(self, computed: List[Rot3], expected: List[Rot3]) -> None:
-
-        self.assertEqual(len(computed), len(expected))
-
-        for R, R_ in zip(computed, expected):
-            self.assertEqual(R, R_)
-
-    def __assert_equality_on_point3s(self, computed: List[Point3], expected: List[Point3]) -> None:
-
-        self.assertEqual(len(computed), len(expected))
-
-        for t, t_ in zip(computed, expected):
-            np.testing.assert_allclose(t, t_, rtol=POINT3_RELATIVE_ERROR_THRESH, atol=POINT3_ABS_ERROR_THRESH)
-
-    def __assert_equality_on_pose3s(self, computed: List[Pose3], expected: List[Pose3]) -> None:
-
-        self.assertEqual(len(computed), len(expected))
-
-        computed_rot3s = [x.rotation() for x in computed]
-        computed_point3s = [x.translation() for x in computed]
-        expected_rot3s = [x.rotation() for x in expected]
-        expected_point3s = [x.translation() for x in expected]
-
-        self.__assert_equality_on_rot3s(computed_rot3s, expected_rot3s)
-        self.__assert_equality_on_point3s(computed_point3s, expected_point3s)
-
-    def setUp(self):
-        super().setUp()
-
-        self.addTypeEqualityFunc(Rot3, rot3_compare)
-        self.addTypeEqualityFunc(Point3, point3_compare)
-
-    def test_align_rotations(self):
-        """Tests the alignment of rotations."""
-
-        # using rotation along just the Y-axis so that angles can be linearly added.
-        input_list = [
-            Rot3.RzRyRx(np.deg2rad(0), np.deg2rad(-10), 0),
-            Rot3.RzRyRx(np.deg2rad(0), np.deg2rad(30), 0),
-        ]
-        ref_list = [
-            Rot3.RzRyRx(np.deg2rad(0), np.deg2rad(80), 0),
-            Rot3.RzRyRx(np.deg2rad(0), np.deg2rad(-40), 0),
-        ]
-
-        computed = geometry_comparisons.align_rotations(input_list, ref_list)
-        expected = [
-            Rot3.RzRyRx(0, np.deg2rad(80), 0),
-            Rot3.RzRyRx(0, np.deg2rad(120), 0),
-        ]
-
-        self.__assert_equality_on_rot3s(computed, expected)
-
-    def test_align_poses_after_sim3_transform(self):
-        """Test for alignment of poses after applying a SIM3 transformation."""
-
-        translation_shift = np.array([5, 10, -5])
-        rotation_shift = Rot3.RzRyRx(0, 0, np.deg2rad(30))
-        scaling_factor = 0.7
-
-        transform = Similarity3(rotation_shift, translation_shift, scaling_factor)
-        ref_list = [transform.transformFrom(x) for x in sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES]
-
-        computed_poses = geometry_comparisons.align_poses_sim3(sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES, ref_list)
-        self.__assert_equality_on_pose3s(computed_poses, sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES)
-
-    def test_align_poses_on_panorama_after_sim3_transform(self):
-        """Test for alignment of poses after applying a forward motion transformation."""
-
-        translation_shift = np.array([0, 5, 0])
-        rotation_shift = Rot3.RzRyRx(0, 0, np.deg2rad(30))
-        scaling_factor = 1.0
-
-        aTi_list = sample_poses.PANORAMA_GLOBAL_POSES
-        bSa = Similarity3(rotation_shift, translation_shift, scaling_factor)
-        bTi_list = [bSa.transformFrom(x) for x in aTi_list]
-
-        aTi_list_ = geometry_comparisons.align_poses_sim3(aTi_list, bTi_list)
-        self.__assert_equality_on_pose3s(aTi_list_, aTi_list)
-
-    @patch(
-        "gtsfm.utils.geometry_comparisons.align_rotations",
-        return_value=[
-            Rot3.RzRyRx(0, np.deg2rad(32), 0),
-            Rot3.RzRyRx(0, 0, np.deg2rad(-22)),
-            Rot3.RzRyRx(0, 0, np.deg2rad(83)),
-        ],  # compared with aRi_list
-    )
-    def test_compare_rotations_with_all_valid_rot3s_success(self, align_rotations_mocked):
-        """Tests the comparison results on list of rotations."""
-
-        aRi_list = [
-            Rot3.RzRyRx(0, np.deg2rad(25), 0),
-            Rot3.RzRyRx(0, 0, np.deg2rad(-20)),
-            Rot3.RzRyRx(0, 0, np.deg2rad(80)),
-        ]
-        bRi_list = [
-            Rot3.RzRyRx(0, np.deg2rad(31), 0),
-            Rot3.RzRyRx(0, 0, np.deg2rad(-22)),
-            Rot3.RzRyRx(0, 0, np.deg2rad(77.5)),
-        ]  # meaningless as align function is mocked
-
-        # test with threshold of 10 degrees, which satisfies all the rotations.
-        self.assertTrue(geometry_comparisons.compare_rotations(aRi_list, bRi_list, 10))
-        align_rotations_mocked.assert_called_once()
-
-    @patch(
-        "gtsfm.utils.geometry_comparisons.align_rotations",
-        return_value=[
-            Rot3.RzRyRx(0, np.deg2rad(32), 0),
-            Rot3.RzRyRx(0, 0, np.deg2rad(-22)),
-            Rot3.RzRyRx(0, 0, np.deg2rad(83)),
-        ],  # compared with aRi_list
-    )
-    def test_compare_rotations_with_all_valid_rot3s_failure(self, align_rotations_mocked):
-        """Tests the comparison results on list of rotations."""
-
-        aRi_list = [
-            Rot3.RzRyRx(0, np.deg2rad(25), 0),
-            Rot3.RzRyRx(0, 0, np.deg2rad(-20)),
-            Rot3.RzRyRx(0, 0, np.deg2rad(80)),
-        ]
-        bRi_list = [
-            Rot3.RzRyRx(0, np.deg2rad(31), 0),
-            Rot3.RzRyRx(0, 0, np.deg2rad(-22)),
-            Rot3.RzRyRx(0, 0, np.deg2rad(77.5)),
-        ]  # meaningless as align function is mocked
-
-        # test with threshold of 5 degrees, which fails one rotation and hence the overall comparison
-        self.assertFalse(geometry_comparisons.compare_rotations(aRi_list, bRi_list, 5))
-        align_rotations_mocked.assert_called_once()
-
-    @patch(
-        "gtsfm.utils.geometry_comparisons.align_rotations",
-        return_value=[Rot3.RzRyRx(0, np.deg2rad(25), 0), Rot3.RzRyRx(0, 0, np.deg2rad(-20))],  # compared with aRi_list
-    )
-    def test_compare_rotations_with_nones_at_same_indices(self, align_rotations_mocked):
-        """Tests the comparison results on list of rotations."""
-
-        list1 = [
-            Rot3.RzRyRx(0, np.deg2rad(25), 0),
-            Rot3.RzRyRx(0, 0, np.deg2rad(-20)),
-            None,
-        ]
-        list2 = [
-            Rot3.RzRyRx(0, np.deg2rad(31), 0),
-            Rot3.RzRyRx(0, 0, np.deg2rad(-22)),
-            None,
-        ]
-        threshold_degrees = 10
-
-        # test with threshold of 10 degrees, which satisfies all the rotations.
-        self.assertTrue(geometry_comparisons.compare_rotations(list1, list2, threshold_degrees))
-        align_rotations_mocked.assert_called_once()
-
-    @patch("gtsfm.utils.geometry_comparisons.align_rotations", return_value=None)
-    def test_compare_rotations_with_nones_at_different_indices(self, aligned_rotations_mocked):
-        """Tests the comparison results on list of rotations."""
-
-        list1 = [
-            Rot3.RzRyRx(0, np.deg2rad(25), 0),
-            Rot3.RzRyRx(0, 0, np.deg2rad(-20)),
-            None,
-        ]
-        list2 = [
-            Rot3.RzRyRx(0, np.deg2rad(31), 0),
-            None,
-            Rot3.RzRyRx(0, 0, np.deg2rad(-22)),
-        ]
-
-        # test with threshold of 10 degrees, which satisfies all the rotations.
-        self.assertFalse(geometry_comparisons.compare_rotations(list1, list2, 10))
-        aligned_rotations_mocked.assert_not_called()
-
-    def test_compute_relative_rotation_angle(self):
-        """Tests the relative angle between two rotations."""
-
-        R_1 = Rot3.RzRyRx(0, np.deg2rad(45), np.deg2rad(22.5))
-        R_2 = Rot3.RzRyRx(0, np.deg2rad(90), np.deg2rad(22.5))
-
-        # returns angle in degrees
-        computed_deg = geometry_comparisons.compute_relative_rotation_angle(R_1, R_2)
-        expected_deg = 45
-
-        np.testing.assert_allclose(computed_deg, expected_deg, rtol=1e-3, atol=1e-3)
-
-    def test_compute_relative_rotation_angle_euler(self) -> None:
-        """"Sample 100 rotations about each individual Euler angle, and ensure Scipy and GTSAM result match."""
-        num_samples = 100
-        for axis in ["x", "y", "z"]:
-            for _ in range(num_samples):
-                theta = np.random.rand() * 360
-                R_1 = Rot3(Rotation.from_euler(axis, 0, degrees=True).as_matrix())
-                R_2 = Rot3(Rotation.from_euler(axis, theta, degrees=True).as_matrix())
-
-                # the minimum angle must be in the range [0,180], otherwise we could wrap around the opposite direction
-                if theta > 180:
-                    expected_angle_deg = 360 - theta
-                else:
-                    expected_angle_deg = theta
-
-                angle_deg = geometry_comparisons.compute_relative_rotation_angle(R_1, R_2)
-                np.testing.assert_allclose(angle_deg, expected_angle_deg, atol=1e-5)
-
-    def test_compute_relative_unit_translation_angle(self):
-        """Tests the relative angle between two unit-translations."""
-
-        U_1 = Unit3(np.array([1, 0, 0]))
-        U_2 = Unit3(np.array([0.5, 0.5, 0]))
-
-        # returns angle in degrees
-        computed_deg = geometry_comparisons.compute_relative_unit_translation_angle(U_1, U_2)
-        expected_deg = 45
-
-        self.assertAlmostEqual(computed_deg, expected_deg, places=3)
-
-    def test_compute_translation_to_direction_angle_is_zero(self):
-        i2Ui1_measured = Unit3(Point3(1, 0, 0))
-        wTi2_estimated = Pose3(Rot3(), Point3(0, 0, 0))
-        wTi1_estimated = Pose3(Rot3(), Point3(2, 0, 0))
-        self.assertEqual(
-            geometry_comparisons.compute_translation_to_direction_angle(i2Ui1_measured, wTi2_estimated, wTi1_estimated),
-            0.0,
-        )
-
-    def test_compute_translation_to_direction_angle_is_nonzero(self):
-        rz = np.deg2rad(90)
-        wRi2 = Rot3.RzRyRx(0, 0, rz)  # x-axis of i2 points along y in world frame
-        wTi2_estimated = Pose3(wRi2, Point3(0, 0, 0))
-        wTi1_estimated = Pose3(Rot3(), Point3(-1, 0, 0))  # At (0, 1, 0) in i2 frame, rotation of i1 is irrelevant here.
-        i2Ui1_measured = Unit3(Point3(1, 0, 0))
-        # Estimated relative translation of i1 in i2 frame is (0, 1, 0), and the measurement in i2 frame is (1, 0, 0).
-        # Expected angle between the two is 90 degrees.
-        self.assertTrue(
-            geometry_comparisons.compute_translation_to_direction_angle(i2Ui1_measured, wTi2_estimated, wTi1_estimated),
-            90.0,
-        )
-
-    def test_compute_points_distance_l2_is_zero(self):
-        self.assertEqual(
-            geometry_comparisons.compute_points_distance_l2(wti1=Point3(1, -2, 3), wti2=Point3(1, -2, 3)), 0.0
-        )
-
-    def test_compute_points_distance_l2_is_none(self):
-        self.assertEqual(geometry_comparisons.compute_points_distance_l2(wti1=Point3(0, 0, 0), wti2=None), None)
-
-    def test_compute_points_distance_l2_is_nonzero(self):
-        wti1 = Point3(1, 1, 1)
-        wti2 = Point3(1, 1, -1)
-        self.assertEqual(geometry_comparisons.compute_points_distance_l2(wti1, wti2), 2)
-
-    def test_align_poses_sim3_ignore_missing(self):
-        """Consider a simple cases with 4 poses in a line. Suppose SfM only recovers 2 of the 4 poses."""
-        wT0 = Pose3(Rot3(np.eye(3)), np.zeros(3))
-        wT1 = Pose3(Rot3(np.eye(3)), np.ones(3))
-        wT2 = Pose3(Rot3(np.eye(3)), np.ones(3) * 2)
-        wT3 = Pose3(Rot3(np.eye(3)), np.ones(3) * 3)
-
-        # `a` frame is the target/reference frame
-        aTi_list = [wT0, wT1, wT2, wT3]
-        # `b` frame contains the estimates
-        bTi_list = [None, wT1, None, wT3]
-        aTi_list_ = geometry_comparisons.align_poses_sim3_ignore_missing(aTi_list, bTi_list)
-
-        # indices 0 and 2 should still have no estimated pose, even after alignment
-        assert aTi_list_[0] is None
-        assert aTi_list_[2] is None
-
-        # identity alignment should preserve poses, should still match GT/targets at indices 1 and 3
-        self.__assert_equality_on_pose3s(computed=[aTi_list_[1], aTi_list_[3]], expected=[aTi_list[1], aTi_list[3]])
-
-
-def test_get_points_within_radius_of_cameras():
-    """Verify that points that fall outside of 10 meter radius of two camera poses.
-
-    Cameras are placed at (0,0,0) and (10,0,0).
+    Returns:
+        aRi_list_: transformed input rotations previously "bRi_list" but now which
+            have the same origin as reference (now living in "a" frame)
     """
-    wTi0 = Pose3(Rot3(), np.zeros(3))
-    wTi1 = Pose3(Rot3(), np.array([10.0, 0, 0]))
-    wTi_list = [wTi0, wTi1]
-    points_3d = np.array([[-15, 0, 0], [0, 15, 0], [-5, 0, 0], [15, 0, 0], [25, 0, 0]])
-    radius = 10.0
-    nearby_points_3d = geometry_comparisons.get_points_within_radius_of_cameras(wTi_list, points_3d, radius)
+    aRi0 = aRi_list[0]
 
-    expected_nearby_points_3d = np.array([[-5, 0, 0], [15, 0, 0]])
-    np.testing.assert_allclose(nearby_points_3d, expected_nearby_points_3d)
+    bRi0 = bRi_list[0]
+    i0Rb = bRi0.inverse()
 
+    # origin_transform -- map the origin of the input list to the reference list
+    aRb = aRi0.compose(i0Rb)
 
-def test_get_points_within_radius_of_cameras_negative_radius():
-    """Catch degenerate input."""
-    wTi0 = Pose3(Rot3(), np.zeros(3))
-    wTi1 = Pose3(Rot3(), np.array([10.0, 0, 0]))
-    wTi_list = [wTi0, wTi1]
-    points_3d = np.array([[-15, 0, 0], [0, 15, 0], [-5, 0, 0], [15, 0, 0], [25, 0, 0]])
-    radius = -5
-    nearby_points_3d = geometry_comparisons.get_points_within_radius_of_cameras(wTi_list, points_3d, radius)
-    assert nearby_points_3d is None, "Non-positive radius is not allowed"
+    # apply the coordinate shift to all entries in input
+    return [aRb.compose(bRi) for bRi in bRi_list]
 
 
-def test_get_points_within_radius_of_cameras_no_points():
-    """Catch degenerate input."""
+def align_poses_sim3_ignore_missing(
+    aTi_list: List[Optional[Pose3]], bTi_list: List[Optional[Pose3]]
+) -> List[Optional[Pose3]]:
+    """Align by similarity transformation, but allow missing estimated poses in the input.
 
-    wTi0 = Pose3(Rot3(), np.zeros(3))
-    wTi1 = Pose3(Rot3(), np.array([10.0, 0, 0]))
-    wTi_list = [wTi0, wTi1]
-    points_3d = np.zeros((0, 3))
-    radius = 10.0
+    Note: this is a wrapper for align_poses_sim3() that allows for missing poses/dropped cameras.
+    This is necessary, as align_poses_sim3() requires a valid pose for every input pair.
 
-    nearby_points_3d = geometry_comparisons.get_points_within_radius_of_cameras(wTi_list, points_3d, radius)
-    assert nearby_points_3d is None, "At least one 3d point must be provided"
+    We force SIM(3) alignment rather than SE(3) alignment.
+    We assume the two trajectories are of the exact same length.
+
+    Args:
+        aTi_list: reference poses in frame "a" which are the targets for alignment
+        bTi_list: input poses which need to be aligned to frame "a"
+
+    Returns:
+        aTi_list_: transformed input poses previously "bTi_list" but now which
+            have the same origin and scale as reference (now living in "a" frame)
+    """
+    assert len(aTi_list) == len(bTi_list)
+
+    # only choose target poses for which there is a corresponding estimated pose
+    corresponding_aTi_list = []
+    valid_camera_idxs = []
+    valid_bTi_list = []
+    for i, bTi in enumerate(bTi_list):
+        if bTi is not None:
+            valid_camera_idxs.append(i)
+            valid_bTi_list.append(bTi)
+            corresponding_aTi_list.append(aTi_list[i])
+
+    valid_aTi_list_ = align_poses_sim3(aTi_list=corresponding_aTi_list, bTi_list=valid_bTi_list)
+
+    num_cameras = len(aTi_list)
+    # now at valid indices
+    aTi_list_ = [None] * num_cameras
+    for i in range(num_cameras):
+        if i in valid_camera_idxs:
+            aTi_list_[i] = valid_aTi_list_.pop(0)
+
+    return aTi_list_
 
 
-def test_get_points_within_radius_of_cameras_no_poses():
-    """Catch degenerate input."""
-    wTi_list = []
-    points_3d = np.array([[-15, 0, 0], [0, 15, 0], [-5, 0, 0], [15, 0, 0], [25, 0, 0]])
-    radius = 10.0
+def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> List[Pose3]:
+    """Align two pose graphs via similarity transformation. Note: poses cannot be missing/invalid.
 
-    nearby_points_3d = geometry_comparisons.get_points_within_radius_of_cameras(wTi_list, points_3d, radius)
-    assert nearby_points_3d is None, "At least one camera pose must be provided"
+    We force SIM(3) alignment rather than SE(3) alignment.
+    We assume the two trajectories are of the exact same length.
+
+    Args:
+        aTi_list: reference poses in frame "a" which are the targets for alignment
+        bTi_list: input poses which need to be aligned to frame "a"
+
+    Returns:
+        aTi_list_: transformed input poses previously "bTi_list" but now which
+            have the same origin and scale as reference (now living in "a" frame)
+    """
+    n_to_align = len(aTi_list)
+    assert len(aTi_list) == len(bTi_list)
+    assert n_to_align >= 2, "SIM(3) alignment uses at least 2 frames"
+
+    ab_pairs = Pose3Pairs(list(zip(aTi_list, bTi_list)))
+
+    aSb = Similarity3.Align(ab_pairs)
+
+    if np.isnan(aSb.scale()) or aSb.scale() == 0:
+        # we have run into a case where points have no translation between them (i.e. panorama).
+        # We will first align the rotations and then align the translation by using centroids.
+        # TODO: handle it in GTSAM
+
+        # align the rotations first, so that we can find the translation between the two panoramas
+        aSb = Similarity3(aSb.rotation(), np.zeros((3,)), 1.0)
+        aTi_list_rot_aligned = [aSb.transformFrom(bTi) for bTi in bTi_list]
+
+        # fit a single translation motion to the centroid
+        aTi_centroid = np.array([aTi.translation() for aTi in aTi_list]).mean(axis=0)
+        aTi_rot_aligned_centroid = np.array([aTi.translation() for aTi in aTi_list_rot_aligned]).mean(axis=0)
+
+        # construct the final SIM3 transform
+        aSb = Similarity3(aSb.rotation(), aTi_centroid - aTi_rot_aligned_centroid, 1.0)
+
+    # provide a summary of the estimated alignment transform
+    aRb = aSb.rotation().matrix()
+    atb = aSb.translation()
+    rz, ry, rx = Rotation.from_matrix(aRb).as_euler("zyx", degrees=True)
+    logger.info("Sim(3) Rotation `aRb`: rz=%.2f deg., ry=%.2f deg., rx=%.2f deg.", rz, ry, rx)
+    logger.info(f"Sim(3) Translation `atb`: [tx,ty,tz]={str(np.round(atb,2))}")
+    logger.info("Sim(3) Scale `asb`: %.2f", float(aSb.scale()))
+
+    aTi_list_ = []
+    for i in range(n_to_align):
+        bTi = bTi_list[i]
+
+        aTi_list_.append(aSb.transformFrom(bTi))
+
+    logger.info("Pose graph Sim(3) alignment complete.")
+
+    return aTi_list_
 
 
-if __name__ == "__main__":
-    unittest.main()
+def compare_rotations(
+    aRi_list: List[Optional[Rot3]], bRi_list: List[Optional[Rot3]], angular_error_threshold_degrees: float
+) -> bool:
+    """Helper function to compare two lists of global Rot3, after aligning them.
+
+    Notes:
+    1. The input lists have the rotations in the same order, and can contain None entries.
+
+    Args:
+        aTi_list: 1st list of rotations.
+        bTi_list: 2nd list of rotations.
+        angular_error_threshold_degrees: the threshold for angular error between two rotations.
+    Returns:
+        Result of the comparison.
+    """
+    if len(aRi_list) != len(bRi_list):
+        return False
+
+    # check the presense of valid Rot3 objects in the same location
+    aRi_valid = [i for (i, aRi) in enumerate(aRi_list) if aRi is not None]
+    bRi_valid = [i for (i, bRi) in enumerate(bRi_list) if bRi is not None]
+    if aRi_valid != bRi_valid:
+        return False
+
+    if len(aRi_valid) <= 1:
+        # we need >= two entries going forward for meaningful comparisons
+        return False
+
+    aRi_list = [aRi_list[i] for i in aRi_valid]
+    bRi_list = [bRi_list[i] for i in bRi_valid]
+
+    # frame 'a' is the target/reference, and bRi_list will be transformed
+    aRi_list_ = align_rotations(aRi_list, bRi_list)
+
+    return all(
+        [
+            compute_relative_rotation_angle(aRi, aRi_) < angular_error_threshold_degrees
+            for (aRi, aRi_) in zip(aRi_list, aRi_list_)
+        ]
+    )
+
+
+def compare_global_poses(
+    aTi_list: List[Optional[Pose3]],
+    bTi_list: List[Optional[Pose3]],
+    rot_angular_error_thresh_degrees: float = 2,
+    trans_err_atol: float = 1e-2,
+    trans_err_rtol: float = 1e-1,
+    verbose: bool = True,
+) -> bool:
+    """Helper function to compare two lists of Point3s using L2 distances at each index.
+
+    Notes:
+    1. The input lists have the poses in the same order, and can contain None entries.
+    2. To resolve global origin ambiguity, we fit a Sim(3) transformation and align the two pose graphs.
+
+    Args:
+        aTi_list: 1st list of poses.
+        bTi_list: 2nd list of poses.
+        rot_angular_error_threshold_degrees (optional): angular error threshold for rotations. Defaults to 2.
+        trans_err_atol (optional): absolute error threshold for translation. Defaults to 1e-2.
+        trans_err_rtol (optional): relative error threshold for translation. Defaults to 1e-1.
+
+    Returns:
+        result of the comparison.
+    """
+
+    # check the length of the input lists
+    if len(aTi_list) != len(bTi_list):
+        return False
+
+    # check the presense of valid Pose3 objects in the same location
+    aTi_valid = [i for (i, aTi) in enumerate(aTi_list) if aTi is not None]
+    bTi_valid = [i for (i, bTi) in enumerate(bTi_list) if bTi is not None]
+    if aTi_valid != bTi_valid:
+        return False
+
+    if len(aTi_valid) <= 1:
+        # we need >= two entries going forward for meaningful comparisons
+        return False
+
+    # align the remaining poses
+    aTi_list = [aTi_list[i] for i in aTi_valid]
+    bTi_list = [bTi_list[i] for i in bTi_valid]
+
+    #  We set frame "a" the target/reference
+    aTi_list_ = align_poses_sim3(aTi_list, bTi_list)
+
+    rotations_equal = all(
+        [
+            compute_relative_rotation_angle(aTi.rotation(), aTi_.rotation()) < rot_angular_error_thresh_degrees
+            for (aTi, aTi_) in zip(aTi_list, aTi_list_)
+        ]
+    )
+    translations_equal = all(
+        [
+            np.allclose(aTi.translation(), aTi_.translation(), atol=trans_err_atol, rtol=trans_err_rtol)
+            for (aTi, aTi_) in zip(aTi_list, aTi_list_)
+        ]
+    )
+    if verbose:
+        rotation_errors = np.array(
+            [
+                compute_relative_rotation_angle(aTi.rotation(), aTi_.rotation())
+                for (aTi, aTi_) in zip(aTi_list, aTi_list_)
+            ]
+        )
+        translation_errors = np.array(
+            [np.linalg.norm(aTi.translation() - aTi_.translation()) for (aTi, aTi_) in zip(aTi_list, aTi_list_)]
+        )
+        logger.info("Comparison Rotation Errors (degrees): " + str(np.round(rotation_errors, 2)))
+        logger.info("Comparison Translation Errors: " + str(np.round(translation_errors, 2)))
+
+    return rotations_equal and translations_equal
+
+
+def compute_relative_rotation_angle(R_1: Optional[Rot3], R_2: Optional[Rot3]) -> Optional[float]:
+    """Compute the angle between two rotations.
+
+    Note: the angle is the norm of the angle-axis representation.
+
+    Args:
+        R_1: the first rotation.
+        R_2: the second rotation.
+
+    Returns:
+        the angle between two rotations, in degrees
+    """
+
+    if R_1 is None or R_2 is None:
+        return None
+
+    relative_rot = R_1.between(R_2)
+    relative_rot_angle_rad = relative_rot.axisAngle()[1]
+    relative_rot_angle_deg = np.rad2deg(relative_rot_angle_rad)
+    return relative_rot_angle_deg
+
+
+def compute_relative_unit_translation_angle(U_1: Optional[Unit3], U_2: Optional[Unit3]) -> Optional[float]:
+    """Compute the angle between two unit-translations.
+
+    Args:
+        U_1: the first unit-translation.
+        U_2: the second unit-translation.
+
+    Returns:
+        the angle between the two unit-vectors, in degrees
+    """
+    if U_1 is None or U_2 is None:
+        return None
+
+    # TODO: expose Unit3's dot function and use it directly
+    dot_product = np.dot(U_1.point3(), U_2.point3())
+    dot_product = np.clip(dot_product, -1, 1)
+    angle_rad = np.arccos(dot_product)
+    angle_deg = np.rad2deg(angle_rad)
+    return angle_deg
+
+
+def compute_translation_to_direction_angle(
+    i2Ui1: Optional[Unit3], wTi2: Optional[Pose3], wTi1: Optional[Pose3]
+) -> Optional[float]:
+    """Compute angle between a unit translation and the relative translation between 2 poses.
+
+    Given a unit translation measurement from i2 to i1, the estimated poses of
+    i1 and i2, returns the angle between the relative position of i1 wrt i2
+    and the unit translation measurement.
+
+    Args:
+        i2Ui1: Unit translation measurement.
+        wTi2: Pose of camera i2.
+        wTi1: Pose of camera i1.
+
+    Returns:
+        Angle between measurement and relative estimated translation in degrees.
+    """
+    if i2Ui1 is None or wTi2 is None or wTi1 is None:
+        return None
+
+    i2Ti1 = wTi2.between(wTi1)
+    i2Ui1_estimated = Unit3(i2Ti1.translation())
+    return compute_relative_unit_translation_angle(i2Ui1, i2Ui1_estimated)
+
+
+def compute_points_distance_l2(wti1: Optional[Point3], wti2: Optional[Point3]) -> Optional[float]:
+    """Computes the L2 distance between the two input 3D points.
+
+    Assumes the points are in the same coordinate frame. Returns None if either
+    point is None.
+
+    Args:
+        wti1: Point1 in world frame
+        wti2: Point2 in world frame
+
+    Returns:
+        L2 norm of wti1 - wti2
+    """
+    if wti1 is None or wti2 is None:
+        return None
+    return np.linalg.norm(wti1 - wti2)
+
+
+def get_points_within_radius_of_cameras(
+    wTi_list: List[Pose3], points_3d: np.ndarray, radius: float = 50
+) -> Optional[np.ndarray]:
+    """Return those 3d points that fall within a specified radius from any camera.
+
+    Args:
+        wTi_list: camera poses
+        points_3d: array of shape (N,3) representing 3d points
+        radius: distance threshold, in meters
+
+    Returns:
+        nearby_points_3d: array of shape (M,3), where M <= N
+    """
+    if len(wTi_list) == 0 or points_3d.size == 0 or radius <= 0:
+        return None
+
+    num_points = points_3d.shape[0]
+    num_poses = len(wTi_list)
+    # each row represents attributes for a single point
+    # each column represents
+    is_nearby_matrix = np.zeros((num_points, num_poses), dtype=bool)
+    for j, wTi in enumerate(wTi_list):
+        is_nearby_matrix[:, j] = np.linalg.norm(points_3d - wTi.translation(), axis=1) < radius
+
+    is_nearby_to_any_cam = np.any(is_nearby_matrix, axis=1)
+    nearby_points_3d = points_3d[is_nearby_to_any_cam]
+    return nearby_points_3d
