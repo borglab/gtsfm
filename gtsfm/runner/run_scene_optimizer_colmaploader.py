@@ -89,7 +89,7 @@ if __name__ == "__main__":
         "--config_name",
         type=str,
         default="deep_front_end.yaml",
-        help="Choose default_lund_door_set1_config.yaml or deep_front_end.yaml",
+        help="Choose sift_front_end.yaml or deep_front_end.yaml",
     )
     parser.add_argument(
         "--known_focal_length",
