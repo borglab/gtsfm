@@ -19,7 +19,8 @@ def run_scene_optimizer(args) -> None:
     """ """
     with hydra.initialize_config_module(config_module="gtsfm.configs"):
         # config is relative to the gtsfm module
-        cfg = hydra.compose(config_name="deep_front_end.yaml")
+        cfg = hydra.compose(config_name=args.config_name)
+
         scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
         loader = ColmapLoader(
@@ -38,7 +39,7 @@ def run_scene_optimizer(args) -> None:
         )
 
         # create dask client
-        cluster = LocalCluster(n_workers=2, threads_per_worker=4)
+        cluster = LocalCluster(n_workers=args.num_workers, threads_per_worker=args.threads_per_worker)
 
         with Client(cluster), performance_report(filename="dask-report.html"):
             sfm_result = sfm_result_graph.compute()
@@ -56,7 +57,7 @@ if __name__ == "__main__":
         "--colmap_files_dirpath",
         type=str,
         required=True,
-        help="path to directory containing images.txt, points3D.txt, and cameras.txt",
+        help="path to directory containing images.txt, points3D.txt, and cameras.txt (optional)",
     )
     parser.add_argument(
         "--max_frame_lookahead",
@@ -64,6 +65,25 @@ if __name__ == "__main__":
         default=1,
         help="maximum number of consecutive frames to consider for matching/co-visibility",
     )
+    parser.add_argument(
+        "--num_workers",
+        type=int,
+        default=1,
+        help="Number of workers to start (processes, by default)",
+    )
+    parser.add_argument(
+        "--threads_per_worker",
+        type=int,
+        default=1,
+        help="Number of threads per each worker",
+    )
+    parser.add_argument(
+        "--config_name",
+        type=str,
+        default="deep_front_end.yaml",
+        help="Choose sift_front_end.yaml or deep_front_end.yaml",
+    )
+
     args = parser.parse_args()
 
     run_scene_optimizer(args)
