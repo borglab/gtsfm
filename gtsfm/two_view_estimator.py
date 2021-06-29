@@ -167,12 +167,6 @@ class TwoViewEstimator:
             pose_error_graphs = (None, None)
             number_correct, inlier_ratio = None, None
 
-        result = dask.delayed(self._homography_estimator.estimate)(
-            keypoints_i1_graph,
-            keypoints_i2_graph,
-            match_indices=corr_idxs_graph,
-        )
-
         R_error_deg, U_error_deg = pose_error_graphs[0], pose_error_graphs[1]
 
         two_view_report_graph = dask.delayed(generate_two_view_report)(
