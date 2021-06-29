@@ -380,7 +380,6 @@ def persist_frontend_metrics_full(two_view_report_dict: Dict[Tuple[int, int], Tw
         else:
             i2Ri1_coefficients = None
             i2ti1 = None
-            euler_xyz = None
 
         # Note: if GT is unknown, then R_error_deg and U_error_deg will be None
         metrics_list.append(
@@ -399,9 +398,7 @@ def persist_frontend_metrics_full(two_view_report_dict: Dict[Tuple[int, int], Tw
                 else None,
                 "inlier_ratio_est_model": round(report.inlier_ratio_est_model, PRINT_NUM_SIG_FIGS),
                 "num_inliers_est_model": report.num_inliers_est_model,
-                "num_H_inliers": int(report.num_H_inliers),
-                "H_inlier_ratio": round(report.H_inlier_ratio, PRINT_NUM_SIG_FIGS),
-                
+
                 "i2Ri1": i2Ri1_coefficients,
                 "i2Ui1": i2ti1
             }
