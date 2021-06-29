@@ -18,6 +18,7 @@ from dask.delayed import Delayed
 from gtsam import Pose3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
+import gtsfm.utils.metrics as metric_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.viz as viz_utils
@@ -26,7 +27,7 @@ from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.feature_extractor import FeatureExtractor
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
-from gtsfm.two_view_estimator import TwoViewEstimator
+from gtsfm.two_view_estimator import TwoViewEstimator, TwoViewEstimationReport
 
 # paths for storage
 PLOT_PATH = "plots"
@@ -73,7 +74,7 @@ class SceneOptimizer:
         save_gtsfm_data: bool,
         pose_angular_error_thresh: float,
     ) -> None:
-        """ pose_angular_error_thresh is given in degrees """
+        """pose_angular_error_thresh is given in degrees"""
         self.feature_extractor = feature_extractor
         self.two_view_estimator = two_view_estimator
         self.multiview_optimizer = multiview_optimizer
@@ -122,22 +123,16 @@ class SceneOptimizer:
         i2Ui1_graph_dict = {}
         v_corr_idxs_graph_dict = {}
 
-        frontend_metrics_dict = {}
+        two_view_reports_dict = {}
 
         for (i1, i2) in image_pair_indices:
             if gt_pose_graph is not None:
-                gt_relative_pose = dask.delayed(lambda x, y: x.between(y))(gt_pose_graph[i2], gt_pose_graph[i1])
+                # compute GT relative pose
+                gt_i2Ti1 = dask.delayed(lambda x, y: x.between(y))(gt_pose_graph[i2], gt_pose_graph[i1])
             else:
-                gt_relative_pose = None
+                gt_i2Ti1 = None
 
-            (
-                i2Ri1,
-                i2Ui1,
-                v_corr_idxs,
-                rot_error,
-                unit_tran_error,
-                correspondence_stats,
-            ) = self.two_view_estimator.create_computation_graph(
+            (i2Ri1, i2Ui1, v_corr_idxs, two_view_report,) = self.two_view_estimator.create_computation_graph(
                 keypoints_graph_list[i1],
                 keypoints_graph_list[i2],
                 descriptors_graph_list[i1],
@@ -146,19 +141,14 @@ class SceneOptimizer:
                 camera_intrinsics_graph[i2],
                 image_shape_graph[i1],
                 image_shape_graph[i2],
-                gt_relative_pose,
+                gt_i2Ti1,
             )
+
             i2Ri1_graph_dict[(i1, i2)] = i2Ri1
             i2Ui1_graph_dict[(i1, i2)] = i2Ui1
             v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
 
-            if gt_pose_graph is not None:
-                frontend_metrics_dict[(i1, i2)] = (
-                    rot_error,
-                    unit_tran_error,
-                    correspondence_stats[0],
-                    correspondence_stats[1],
-                )
+            two_view_reports_dict[(i1, i2)] = two_view_report
 
             if self._save_two_view_correspondences_viz:
                 auxiliary_graph_list.append(
@@ -168,17 +158,16 @@ class SceneOptimizer:
                         keypoints_graph_list[i1],
                         keypoints_graph_list[i2],
                         v_corr_idxs,
-                        os.path.join(PLOT_CORRESPONDENCE_PATH, "{}_{}.jpg".format(i1, i2)),
+                        os.path.join(PLOT_CORRESPONDENCE_PATH, f"{i1}_{i2}.jpg"),
                     )
                 )
 
         # persist all front-end metrics and its summary
-        if gt_pose_graph is not None:
-            auxiliary_graph_list.append(dask.delayed(persist_frontend_metrics_full)(frontend_metrics_dict))
+        auxiliary_graph_list.append(dask.delayed(persist_frontend_metrics_full)(two_view_reports_dict, image_graph))
 
-            auxiliary_graph_list.append(
-                dask.delayed(aggregate_frontend_metrics)(frontend_metrics_dict, self._pose_angular_error_thresh)
-            )
+        auxiliary_graph_list.append(
+            dask.delayed(aggregate_frontend_metrics)(two_view_reports_dict, self._pose_angular_error_thresh)
+        )
 
         # as visualization tasks are not to be provided to the user, we create a
         # dummy computation of concatenating viz tasks with the output graph,
@@ -302,7 +291,7 @@ def visualize_sfm_data(sfm_data: GtsfmData, folder_name: str) -> None:
         folder_name: folder to save the visualization at.
     """
     fig = plt.figure()
-    ax = fig.add_subplot(projection='3d')
+    ax = fig.add_subplot(projection="3d")
 
     viz_utils.plot_sfm_data_3d(sfm_data, ax)
     viz_utils.set_axes_equal(ax)
@@ -339,7 +328,7 @@ def visualize_camera_poses(
         post_ba_poses.append(post_ba_sfm_data.get_camera(i).pose())
 
     fig = plt.figure()
-    ax = fig.add_subplot(projection='3d')
+    ax = fig.add_subplot(projection="3d")
 
     if gt_pose_graph is not None:
         # Select ground truth poses that correspond to pre-BA and post-BA estimated poses
@@ -350,6 +339,11 @@ def visualize_camera_poses(
         pre_ba_poses = comp_utils.align_poses_sim3(corresponding_gt_poses, copy.deepcopy(pre_ba_poses))
         post_ba_poses = comp_utils.align_poses_sim3(corresponding_gt_poses, copy.deepcopy(post_ba_poses))
         viz_utils.plot_poses_3d(gt_pose_graph, ax, center_marker_color="m", label_name="GT")
+
+        post_ba_pose_errors_dict = metric_utils.compute_pose_errors(
+            gt_wTi_list=corresponding_gt_poses, wTi_list=post_ba_poses
+        )
+        print("post_ba_pose_errors_dict: ", post_ba_pose_errors_dict)
 
     viz_utils.plot_poses_3d(pre_ba_poses, ax, center_marker_color="c", label_name="Pre-BA")
     viz_utils.plot_poses_3d(post_ba_poses, ax, center_marker_color="k", label_name="Post-BA")
@@ -368,24 +362,51 @@ def visualize_camera_poses(
     plt.close(fig)
 
 
-def persist_frontend_metrics_full(metrics: Dict[Tuple[int, int], FRONTEND_METRICS_FOR_PAIR]) -> None:
+def persist_frontend_metrics_full(two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport], images: List[Image]) -> None:
     """Persist the front-end metrics for every pair on disk.
 
     Args:
-        metrics: front-end metrics for pairs of images.
+        two_view_report_dict: front-end metrics for pairs of images.
     """
+    metrics_list = []
 
-    metrics_list = [
-        {
-            "i1": k[0],
-            "i2": k[1],
-            "rotation_angular_error": np.round(v[0], PRINT_NUM_SIG_FIGS),
-            "translation_angular_error": np.round(v[1], PRINT_NUM_SIG_FIGS),
-            "num_correct_corr": v[2],
-            "inlier_ratio": np.round(v[3], PRINT_NUM_SIG_FIGS),
-        }
-        for k, v in metrics.items()
-    ]
+    for (i1, i2), report in two_view_report_dict.items():
+
+        if report.i2Ri1:
+            qw, qx, qy, qz = report.i2Ri1.quaternion()
+            i2ti1 = report.i2Ui1.point3().tolist()
+
+            i2Ri1_coefficients = {"qw": qw, "qx": qx, "qy": qy, "qz": qz}
+        else:
+            i2Ri1_coefficients = None
+            i2ti1 = None
+            euler_xyz = None
+
+        # Note: if GT is unknown, then R_error_deg and U_error_deg will be None
+        metrics_list.append(
+            {
+                "i1": i1,
+                "i2": i2,
+                "i1_filename": images[i1].file_name,
+                "i2_filename": images[i2].file_name,
+                "rotation_angular_error": round(report.R_error_deg, PRINT_NUM_SIG_FIGS) if report.R_error_deg else None,
+                "translation_angular_error": round(report.U_error_deg, PRINT_NUM_SIG_FIGS)
+                if report.U_error_deg
+                else None,
+                "num_inliers_gt_model": report.num_inliers_gt_model if report.num_inliers_gt_model else None,
+                "inlier_ratio_gt_model": round(report.inlier_ratio_gt_model, PRINT_NUM_SIG_FIGS)
+                if report.inlier_ratio_gt_model
+                else None,
+                "inlier_ratio_est_model": round(report.inlier_ratio_est_model, PRINT_NUM_SIG_FIGS),
+                "num_inliers_est_model": report.num_inliers_est_model,
+                "num_H_inliers": int(report.num_H_inliers),
+                "H_inlier_ratio": round(report.H_inlier_ratio, PRINT_NUM_SIG_FIGS),
+                
+                "i2Ri1": i2Ri1_coefficients,
+                "i2Ui1": i2ti1
+            }
+        )  
+        
 
     io_utils.save_json_file(os.path.join(METRICS_PATH, "frontend_full.json"), metrics_list)
 
@@ -394,31 +415,40 @@ def persist_frontend_metrics_full(metrics: Dict[Tuple[int, int], FRONTEND_METRIC
 
 
 def aggregate_frontend_metrics(
-    metrics: Dict[Tuple[int, int], FRONTEND_METRICS_FOR_PAIR], angular_err_threshold_deg: float
+    two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport], angular_err_threshold_deg: float
 ) -> None:
     """Aggregate the front-end metrics to log summary statistics.
 
     Args:
-        metrics: front-end metrics for pairs of images.
+        two_view_report_dict: report containing front-end metrics for each image pair.
         angular_err_threshold_deg: threshold for classifying angular error metrics as success.
     """
-    num_entries = len(metrics)
+    num_entries = len(two_view_report_dict.keys())
 
-    metrics_array = np.array(list(metrics.values()), dtype=float)
+    # all rotational errors in degrees
+    rot3_angular_errors = []
+    trans_angular_errors = []
+
+    for report in two_view_report_dict.values():
+        rot3_angular_errors.append(report.R_error_deg)
+        trans_angular_errors.append(report.U_error_deg)
+
+    rot3_angular_errors = np.array(rot3_angular_errors, dtype=float)
+    trans_angular_errors = np.array(trans_angular_errors, dtype=float)
 
     # count number of rot3 errors which are not None. Should be same in rot3/unit3
-    num_valid_entries = np.count_nonzero(~np.isnan(metrics_array[:, 0]))
+    num_valid_entries = np.count_nonzero(~np.isnan(rot3_angular_errors))
 
     # compute pose errors by picking the max error from rot3 and unit3 errors
-    pose_errors = np.amax(metrics_array[:, :2], axis=1)
+    pose_errors = np.maximum(trans_angular_errors, trans_angular_errors)
 
     # check errors against the threshold
-    success_count_rot3 = np.sum(metrics_array[:, 0] < angular_err_threshold_deg)
-    success_count_unit3 = np.sum(metrics_array[:, 1] < angular_err_threshold_deg)
+    success_count_rot3 = np.sum(rot3_angular_errors < angular_err_threshold_deg)
+    success_count_unit3 = np.sum(trans_angular_errors < angular_err_threshold_deg)
     success_count_pose = np.sum(pose_errors < angular_err_threshold_deg)
 
     # count entries with inlier ratio == 1.
-    all_correct = np.count_nonzero(metrics_array[:, 3] == 1.0)
+    # all_correct = np.count_nonzero(metrics_array[:, 3] == 1.0)
 
     logger.debug(
         "[Two view optimizer] [Summary] Rotation success: %d/%d/%d", success_count_rot3, num_valid_entries, num_entries
@@ -435,7 +465,7 @@ def aggregate_frontend_metrics(
         "[Two view optimizer] [Summary] Pose success: %d/%d/%d", success_count_pose, num_valid_entries, num_entries
     )
 
-    logger.debug("[Two view optimizer] [Summary] Image pairs with 100%% inlier ratio:: %d/%d", all_correct, num_entries)
+    # logger.debug("[Two view optimizer] [Summary] Image pairs with 100%% inlier ratio:: %d/%d", all_correct, num_entries)
 
     front_end_result_info = {
         "angular_err_threshold_deg": angular_err_threshold_deg,
@@ -444,7 +474,7 @@ def aggregate_frontend_metrics(
         "rotation": {"success_count": int(success_count_rot3)},
         "translation": {"success_count": int(success_count_unit3)},
         "pose": {"success_count": int(success_count_pose)},
-        "correspondences": {"all_inliers": int(all_correct)},
+        # "correspondences": {"all_inliers": int(all_correct)},
     }
 
     io_utils.save_json_file(os.path.join(METRICS_PATH, "frontend_summary.json"), front_end_result_info)
