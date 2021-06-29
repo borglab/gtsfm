@@ -57,7 +57,7 @@ if __name__ == "__main__":
         "--colmap_files_dirpath",
         type=str,
         required=True,
-        help="path to directory containing images.txt, points3D.txt, and cameras.txt (optional)",
+        help="path to directory containing images.txt, points3D.txt, and cameras.txt",
     )
     parser.add_argument(
         "--max_frame_lookahead",
