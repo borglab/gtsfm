@@ -1,10 +1,14 @@
-import itertools
+"""
+Utilities for cycle triplet extraction and cycle error computation.
+
+Author: John Lambert
+"""
+
 from collections import defaultdict
 from typing import Dict, List, NamedTuple, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
-from argoverse.utils.json_utils import read_json_file
 from gtsam import Rot3, Pose3, Unit3
 from scipy.spatial.transform import Rotation
 
@@ -15,13 +19,6 @@ from gtsfm.two_view_estimator import TwoViewEstimationReport
 
 logger = logger_utils.get_logger()
 
-
-# find all triplets
-
-"""
-Utilities for cycle triplet extraction and cycle error computation.
-
-"""
 
 CYCLE_ERROR_THRESHOLD = 5.0
 
@@ -37,10 +34,10 @@ def extract_triplets_adjacency_list_intersection(i2Ri1_dict: Dict[Tuple[int, int
     connected to `a` and the nodes connected to `b`.
 
     Args:
-            i2Ri1_dict: TODO
+        i2Ri1_dict: mapping from image pair indices to relative rotation
 
     Returns:
-        triplets: 3-tuples of nodes that form a cycle
+        triplets: 3-tuples of nodes that form a cycle. Nodes of each triplet are provided in sorted order.
     """
     # only want to keep the unique ones
     triplets = set()
@@ -78,6 +75,12 @@ def extract_triplets_n3(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Tuple[i
     """Use triple for-loop to find triplets from a graph G=(V,E) in O(n^3) time.
 
     Slower implementation of extract_triplets_adjacency_list_intersection()
+
+    Args:
+        i2Ri1_dict: mapping from image pair indices to relative rotation
+
+    Returns:
+        triplets: 3-tuples of nodes that form a cycle. Nodes of each triplet are provided in sorted order.
     """
     triplets = set()
 
@@ -117,8 +120,9 @@ def filter_to_cycle_consistent_edges(
     two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
     visualize: bool = False,
 ):
-    """ "
-    Will return only a subset of these two dictionaries
+    """Remove edges in a graph where concatenated transformations along a 3-cycle does not compose to identity.
+
+    Note: Will return only a subset of these two dictionaries
 
     Concatenating the transformations along a loop in the graph should return the identity function in an
     ideal, noise-free setting.
@@ -132,45 +136,32 @@ def filter_to_cycle_consistent_edges(
 
         Enqvist, Olof; Kahl, Fredrik; Olsson, Carl. Non-Sequential Structure from Motion. ICCVW, 2011.
         https://portal.research.lu.se/ws/files/6239297/2255278.pdf
+
+    Args:
+        i2Ri1_dict
+        i2Ui1_dict: should have same keys as i2Ri1_dict
+        two_view_reports_dict
+        visualize: boolean indicating whether to plot cycle error vs. pose error w.r.t. GT
+
+    Returns:
+        i2Ri1_dict_consistent: subset of
+        i2Ui1_dict_consistent: subset of
     """
-    # they should have the same keys
-    edges = []
-    for (i1, i2), i2Ri1 in i2Ri1_dict.items():
-
-        if i2Ri1 is None:
-            continue
-        edge = {
-            "i1": i1,
-            "i2": i2,
-            "i2Ri1": i2Ri1,
-            "rotation_angular_error": two_view_reports_dict[(i1, i2)].R_error_deg,
-            "translation_angular_error": two_view_reports_dict[(i1, i2)].U_error_deg,
-        }
-        edges.append(edge)
-
-    # triplets = []
-
-    # triplets = itertools.product( range(num_images), range(num_images), range(num_images) )
-    # triplets = list(triplets)
-
-    # import pdb; pdb.set_trace()
-    # # for edge_info in data:
-
     # check the cumulative translation/rotation errors between triplets to throw away cameras
     cycle_errors = []
-    average_rot_errors = []
-    average_trans_errors = []
+    max_rot_errors = []
+    max_trans_errors = []
 
     # (i1,i2) pairs
     cycle_consistent_keys = set()
 
-    triplets = extract_triplets_n3(i2Ri1_dict)
+    # TODO: check which is faster in practice
+    # triplets = extract_triplets_n3(i2Ri1_dict)
     triplets = extract_triplets_adjacency_list_intersection(i2Ri1_dict)
 
     for triplet in triplets:
-
-        cycle_error, average_rot_error, average_trans_error = compute_cycle_error(
-            i2Ri1_dict, cycle_nodes, edge_i_info, edge_j_info, edge_k_info
+        cycle_error, max_rot_error, max_trans_error = compute_cycle_error(
+            i2Ri1_dict, cycle_nodes, two_view_reports_dict
         )
 
         if cycle_error < CYCLE_ERROR_THRESHOLD:
@@ -180,20 +171,16 @@ def filter_to_cycle_consistent_edges(
             cycle_consistent_keys.add(tuple(edge_k_keys))
 
         cycle_errors.append(cycle_error)
-        average_rot_errors.append(average_rot_error)
-        average_trans_errors.append(average_trans_error)
-
-    else:
-        # print("Not a cycle: Nodes", cycle_edges, " Edges: ", edge_i_keys, edge_j_keys, edge_k_keys)
-        pass
+        max_rot_errors.append(max_rot_error)
+        max_trans_errors.append(max_trans_error)
 
     if visualize:
-        plt.scatter(cycle_errors, average_rot_errors)
+        plt.scatter(cycle_errors, max_rot_errors)
         plt.xlabel("Cycle error")
         plt.ylabel("Avg. Rot3 error over cycle triplet")
         plt.show()
 
-        plt.scatter(cycle_errors, average_trans_errors)
+        plt.scatter(cycle_errors, max_trans_errors)
         plt.xlabel("Cycle error")
         plt.ylabel("Avg. Unit3 error over cycle triplet")
         plt.show()
@@ -201,9 +188,6 @@ def filter_to_cycle_consistent_edges(
     print("cycle_consistent_keys", cycle_consistent_keys)
     i2Ri1_dict_consistent, i2Ui1_dict_consistent = {}, {}
     for (i1, i2) in cycle_consistent_keys:
-
-        # if two_view_reports_dict[(i1,i2)].R_error_deg > 3 or two_view_reports_dict[(i1,i2)].U_error_deg > 3:
-        # 	continue
 
         i2Ri1_dict_consistent[(i1, i2)] = i2Ri1_dict[(i1, i2)]
         i2Ui1_dict_consistent[(i1, i2)] = i2Ui1_dict[(i1, i2)]
@@ -214,9 +198,24 @@ def filter_to_cycle_consistent_edges(
     return i2Ri1_dict_consistent, i2Ui1_dict_consistent
 
 
-def compute_cycle_error(i2Ri1_dict, cycle_nodes, edge_i_info, edge_j_info, edge_k_info):
-    """
-    Node that i1 < i2 for every valid edge
+def compute_cycle_error(
+    i2Ri1_dict: Dict[Tuple[int, int], Rot3],
+    cycle_nodes: Tuple[int, int, int],
+    two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
+) -> Tuple[float, float, float]:
+    """Compute the cycle error by the magnitude of the axis-angle rotation after composing 3 rotations.
+
+    Note: i1 < i2 for every valid edge, by construction.
+
+    Args:
+        i2Ri1_dict
+        cycle_nodes: 3-tuples of nodes that form a cycle. Nodes of are provided in sorted order.
+        two_view_reports_dict
+
+    Returns:
+        cycle_error
+        max_rot_error
+        max_trans_error
     """
     cycle_nodes = list(cycle_nodes)
     cycle_nodes.sort()
@@ -236,24 +235,16 @@ def compute_cycle_error(i2Ri1_dict, cycle_nodes, edge_i_info, edge_j_info, edge_
     i2Ri1_euler = Rotation.from_matrix(i2Ri1.matrix()).as_euler(seq="xyz", degrees=True).tolist()
     i0Ri2_euler = Rotation.from_matrix(i0Ri2.matrix()).as_euler(seq="xyz", degrees=True).tolist()
 
-    # import pdb; pdb.set_trace()
+    # edges i,j,k
+    e_i = (i0, i1)
+    e_j = (i1, i2)
+    e_k = (i0, i2)
 
-    rot_errors = [e_info["rotation_angular_error"] for e_info in [edge_i_info, edge_j_info, edge_k_info]]
-    trans_errors = [e_info["translation_angular_error"] for e_info in [edge_i_info, edge_j_info, edge_k_info]]
+    rot_errors = [two_view_reports_dict[e].R_error_deg for e in [e_i, e_j_e_k]]
+    trans_errors = [two_view_reports_dict[e].U_error_deg for e in [e_i, e_j_e_k]]
 
-    # average_rot_error = np.mean(rot_errors)
-    # average_trans_error = np.mean(trans_errors)
-
-    average_rot_error = np.max(rot_errors)
-    average_trans_error = np.max(trans_errors)
-
-    # if cycle_error < 10 and average_rot_error > 100:
-    # print()
-    # print(f"Cycle error is: {cycle_error:.1f}, w/ avg. R err {average_rot_error:.1f}, and w/ avg. t err {average_trans_error:.1f}", np.round(rot_errors,1))
-
-    # print(f"X {euler_x[0]:.1f}, {euler_x[1]:.1f},  {euler_x[2]:.1f}")
-    # print(f"Y {euler_y[0]:.1f}, {euler_y[1]:.1f},  {euler_y[2]:.1f}")
-    # print(f"Z {euler_z[0]:.1f}, {euler_z[1]:.1f}, {euler_z[2]:.1f}")
+    max_rot_error = np.max(rot_errors)
+    max_trans_error = np.max(trans_errors)
 
     if verbose:
 
@@ -261,7 +252,6 @@ def compute_cycle_error(i2Ri1_dict, cycle_nodes, edge_i_info, edge_j_info, edge_
         euler_y = [i1Ri0_euler[1], i2Ri1_euler[1], i0Ri2_euler[1]]
         euler_z = [i1Ri0_euler[2], i2Ri1_euler[2], i0Ri2_euler[2]]
 
-        # if cycle_error < 10:
         print()
         print(
             f"{i0},{i1},{i2} --> Cycle error is: {cycle_error:.1f}, w/ avg. R err {average_rot_error:.1f}, and w/ avg. t err {average_trans_error:.1f}"
@@ -270,115 +260,6 @@ def compute_cycle_error(i2Ri1_dict, cycle_nodes, edge_i_info, edge_j_info, edge_
         print(f"X {euler_x[0]:.1f}, {euler_x[1]:.1f},  {euler_x[2]:.1f}")
         print(f"Y {euler_y[0]:.1f}, {euler_y[1]:.1f},  {euler_y[2]:.1f}")
         print(f"Z {euler_z[0]:.1f}, {euler_z[1]:.1f}, {euler_z[2]:.1f}")
-        # else:
-        # 	import pdb; pdb.set_trace()
-        # 	assert average_rot_error > 10 or average_trans_error > 10
 
-    return cycle_error, average_rot_error, average_trans_error
+    return cycle_error, max_rot_error, max_trans_error
 
-
-def get_quaternion_coeff_dict(R: np.ndarray):
-    """ """
-    qx, qy, qz, qw = Rotation.from_matrix(R.matrix()).as_quat().tolist()
-
-    coeffs_dict = {"qx": qx, "qy": qy, "qz": qz, "qw": qw}
-    return coeffs_dict
-
-
-def test_compute_cycle_error():
-    """
-    0 -> 4
-    2 -> 4
-    0 -> 2
-    """
-
-    wTi0 = Pose3()
-    wTi2 = Pose3()
-    wTi4 = Pose3()
-
-    i4Ri0 = wTi4.between(wTi0).rotation()
-    i4Ri2 = wTi4.between(wTi2).rotation()
-    i2Ri0 = wTi2.between(wTi0).rotation()
-
-    i4Ri0 = Rot3(Rotation.from_euler("y", 95, degrees=True).as_matrix())
-    i4Ri2 = Rot3(Rotation.from_euler("y", 60, degrees=True).as_matrix())
-    i2Ri0 = Rot3(Rotation.from_euler("y", 30, degrees=True).as_matrix())
-
-    cycle_nodes = [4, 2, 0]
-    edge_i_info = {
-        "i1": 0,
-        "i2": 4,
-        "rotation_angular_error": 0,
-        "translation_angular_error": 0,
-        "i2Ri1": get_quaternion_coeff_dict(i4Ri0),
-    }
-    edge_j_info = {
-        "i1": 2,
-        "i2": 4,
-        "rotation_angular_error": 0,
-        "translation_angular_error": 0,
-        "i2Ri1": get_quaternion_coeff_dict(i4Ri2),
-    }
-    edge_k_info = {
-        "i1": 0,
-        "i2": 2,
-        "rotation_angular_error": 0,
-        "translation_angular_error": 0,
-        "i2Ri1": get_quaternion_coeff_dict(i2Ri0),
-    }
-
-    cycle_error, average_rot_error, average_trans_error = compute_cycle_error(
-        cycle_nodes, edge_i_info, edge_j_info, edge_k_info
-    )
-    assert np.isclose(cycle_error, 5)
-
-
-def main():
-
-    # edges = read_json_file("/Users/johnlambert/Downloads/gtsfm-skynet-2021-06-05/gtsfm/result_metrics/frontend_full.json")
-    edges = read_json_file("/Users/johnlambert/Documents/gtsfm/result_metrics/frontend_full.json")
-    num_images = 12
-
-    i2Ui1_dict = {}
-    i2Ri1_dict = {}
-
-    two_view_reports_dict = {}
-
-    for e_info in edges:
-
-        i1 = e_info["i1"]
-        i2 = e_info["i2"]
-
-        if e_info["i2Ri1"]:
-            coeffs_dict = e_info["i2Ri1"]
-            qx, qy, qz, qw = coeffs_dict["qx"], coeffs_dict["qy"], coeffs_dict["qz"], coeffs_dict["qw"]
-            i2Ri1 = Rot3(Rotation.from_quat([qx, qy, qz, qw]).as_matrix())
-        else:
-            i2Ri1 = None
-
-        i2Ri1_dict[(i1, i2)] = i2Ri1
-
-        if e_info["i2Ui1"]:
-            i2Ui1 = Unit3(np.array(e_info["i2Ui1"]))
-        else:
-            i2Ui1 = None
-        i2Ui1_dict[(i1, i2)] = i2Ui1
-
-        report_dict = {
-            "R_error_deg": e_info["rotation_angular_error"],
-            "U_error_deg": e_info["translation_angular_error"],
-        }
-        from types import SimpleNamespace
-
-        two_view_reports_dict[(i1, i2)] = SimpleNamespace(**report_dict)
-
-    filter_to_cycle_consistent_edges(i2Ri1_dict, i2Ui1_dict, two_view_reports_dict, visualize=True)
-
-
-if __name__ == "__main__":
-    # main()
-
-    test_extract_triplets_adjacency_list_intersection1()
-    test_extract_triplets_adjacency_list_intersection2()
-
-    # test_compute_cycle_error()
