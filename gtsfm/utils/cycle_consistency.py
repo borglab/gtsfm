@@ -47,7 +47,6 @@ def extract_triplets_adjacency_list_intersection(i2Ri1_dict: Dict[Tuple[int, int
     adj_list = defaultdict(set)
 
     for (i1, i2), i2Ri1 in i2Ri1_dict.items():
-
         if i2Ri1 is None:
             continue
 
@@ -56,7 +55,6 @@ def extract_triplets_adjacency_list_intersection(i2Ri1_dict: Dict[Tuple[int, int
 
     # find intersections
     for (i1, i2), i2Ri1 in i2Ri1_dict.items():
-
         if i2Ri1 is None:
             continue
 
@@ -68,49 +66,6 @@ def extract_triplets_adjacency_list_intersection(i2Ri1_dict: Dict[Tuple[int, int
         for node in node_intersection:
             cycle_nodes = tuple(sorted([i1, i2, node]))
             triplets.add(cycle_nodes)
-
-    return list(triplets)
-
-
-def extract_triplets_n3(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int, int, int]]:
-    """Use triple for-loop to find triplets from a graph G=(V,E) in O(n^3) time.
-
-    Slower implementation of extract_triplets_adjacency_list_intersection()
-
-    Args:
-        i2Ri1_dict: mapping from image pair indices to relative rotation.
-
-    Returns:
-        triplets: 3-tuples of nodes that form a cycle. Nodes of each triplet are provided in sorted order.
-    """
-    triplets = set()
-
-    for (i1, i2), i2Ri1 in i2Ri1_dict.items():
-
-        if i2Ri1 is None:
-            continue
-
-        for (j1, j2), j2Rj1 in i2Ri1_dict.items():
-
-            if j2Rj1 is None:
-                continue
-
-            for (k1, k2), k2Rk1 in i2Ri1_dict.items():
-
-                if k2Rk1 is None:
-                    continue
-
-                # check how many nodes are spanned by these 3 edges
-                cycle_nodes = set([i1, i2]).union(set([j1, j2])).union(set([k1, k2]))
-                # sort them in increasing order
-                cycle_nodes = tuple(sorted(cycle_nodes))
-
-                # nodes cannot be repeated
-                unique_edges = set([(i1, i2), (j1, j2), (k1, k2)])
-                edges_are_unique = len(unique_edges) == 3
-
-                if len(cycle_nodes) == 3 and edges_are_unique:
-                    triplets.add(cycle_nodes)
 
     return list(triplets)
 
@@ -237,14 +192,7 @@ def filter_to_cycle_consistent_edges(
     # (i1,i2) pairs
     cycle_consistent_keys = set()
 
-    # TODO: check which is faster in practice
-    # triplets = extract_triplets_n3(i2Ri1_dict)
-    import time
-    start = time.time()
     triplets = extract_triplets_adjacency_list_intersection(i2Ri1_dict)
-    end = time.time()
-    duration = end - start
-    logger.info("Triplet filtering took %.2f sec", duration)
 
     for (i0, i1, i2) in triplets:
         cycle_error, max_rot_error, max_trans_error = compute_cycle_error(
