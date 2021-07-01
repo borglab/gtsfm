@@ -185,9 +185,9 @@ def compute_cycle_error(
         if gt_known:
             logger.info(f"Triplet: w/ max. R err {max_rot_error:.1f}, and w/ max. t err {max_trans_error:.1f}")
 
-        logger.info(f"X: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", euler_x[0], euler_x[1], euler_x[2])
-        logger.info(f"Y: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", euler_y[0], euler_y[1], euler_y[2])
-        logger.info(f"Z: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", euler_z[0], euler_z[1], euler_z[2])
+        logger.info("X: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", euler_x[0], euler_x[1], euler_x[2])
+        logger.info("Y: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", euler_y[0], euler_y[1], euler_y[2])
+        logger.info("Z: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", euler_z[0], euler_z[1], euler_z[2])
 
     return cycle_error, max_rot_error, max_trans_error
 
@@ -196,7 +196,7 @@ def filter_to_cycle_consistent_edges(
     i2Ri1_dict: Dict[Tuple[int, int], Rot3],
     i2Ui1_dict: Dict[Tuple[int, int], Unit3],
     two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
-    visualize: bool = False,
+    visualize: bool = True,
 ) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3]]:
     """Remove edges in a graph where concatenated transformations along a 3-cycle does not compose to identity.
 
@@ -239,7 +239,12 @@ def filter_to_cycle_consistent_edges(
 
     # TODO: check which is faster in practice
     # triplets = extract_triplets_n3(i2Ri1_dict)
+    import time
+    start = time.time()
     triplets = extract_triplets_adjacency_list_intersection(i2Ri1_dict)
+    end = time.time()
+    duration = end - start
+    logger.info("Triplet filtering took %.2f sec", duration)
 
     for (i0, i1, i2) in triplets:
         cycle_error, max_rot_error, max_trans_error = compute_cycle_error(
