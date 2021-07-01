@@ -36,7 +36,7 @@ class Degensac(VerifierBase):
             use_intrinsics_in_verification: Flag to perform keypoint normalization and compute the essential matrix 
                                             instead of fundamental matrix. This should be preferred when the exact
                                             intrinsics are known as opposed to approximating them from exif data.
-            estimation_threshold_px
+            estimation_threshold_px: maximum distance (in pixels) to consider a match an inlier, under squared Sampson distance.
 
         Raises:
             NotImplementedError: when configured to compute essential matrices.
