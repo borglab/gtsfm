@@ -1,12 +1,14 @@
-
 """Unit tests to ensure correctness of cycle triplet extraction and cycle error computation.
 
 Author: John Lambert
 """
 
+import numpy as np
 from gtsam import Rot3
+from scipy.spatial.transform import Rotation
 
 import gtsfm.utils.cycle_consistency as cycle_utils
+from gtsfm.two_view_estimator import TwoViewEstimationReport
 
 
 def test_extract_triplets_adjacency_list_intersection1() -> None:
@@ -33,7 +35,6 @@ def test_extract_triplets_adjacency_list_intersection1() -> None:
 
     for extraction_fn in [cycle_utils.extract_triplets_adjacency_list_intersection, cycle_utils.extract_triplets_n3]:
 
-        import pdb; pdb.set_trace()
         triplets = extraction_fn(i2Ri1_dict)
         assert len(triplets) == 1
         assert triplets[0] == (1, 2, 3)
@@ -74,111 +75,141 @@ def test_extract_triplets_adjacency_list_intersection2() -> None:
         assert isinstance(triplets, list)
 
 
+def test_compute_cycle_error_known_GT() -> None:
+    """Ensure cycle error is computed correctly within a triplet, when ground truth is known.
 
-def get_quaternion_coeff_dict(R: np.ndarray):
-    """ """
-    qx, qy, qz, qw = Rotation.from_matrix(R.matrix()).as_quat().tolist()
+    Imagine 3 poses, all centered at the origin, at different orientations.
 
-    coeffs_dict = {"qx": qx, "qy": qy, "qz": qz, "qw": qw}
-    return coeffs_dict
+    Ground truth poses:
+       Let i0 face along +x axis (0 degrees in yaw)
+       Let i2 have a 30 degree rotation from the +x axis.
+       Let i4 have a 90 degree rotation from the +x axis.
 
-
-def test_compute_cycle_error():
+    However, suppose one edge measurement is corrupted (from i0 -> i4) by 5 degrees.
     """
-    0 -> 4
-    2 -> 4
-    0 -> 2
-    """
-
-    wTi0 = Pose3()
-    wTi2 = Pose3()
-    wTi4 = Pose3()
-
-    i4Ri0 = wTi4.between(wTi0).rotation()
-    i4Ri2 = wTi4.between(wTi2).rotation()
-    i2Ri0 = wTi2.between(wTi0).rotation()
-
-    i4Ri0 = Rot3(Rotation.from_euler("y", 95, degrees=True).as_matrix())
-    i4Ri2 = Rot3(Rotation.from_euler("y", 60, degrees=True).as_matrix())
     i2Ri0 = Rot3(Rotation.from_euler("y", 30, degrees=True).as_matrix())
+    i4Ri2 = Rot3(Rotation.from_euler("y", 60, degrees=True).as_matrix())
+    i4Ri0 = Rot3(Rotation.from_euler("y", 95, degrees=True).as_matrix())
 
-    cycle_nodes = [4, 2, 0]
-    edge_i_info = {
-        "i1": 0,
-        "i2": 4,
-        "rotation_angular_error": 0,
-        "translation_angular_error": 0,
-        "i2Ri1": get_quaternion_coeff_dict(i4Ri0),
-    }
-    edge_j_info = {
-        "i1": 2,
-        "i2": 4,
-        "rotation_angular_error": 0,
-        "translation_angular_error": 0,
-        "i2Ri1": get_quaternion_coeff_dict(i4Ri2),
-    }
-    edge_k_info = {
-        "i1": 0,
-        "i2": 2,
-        "rotation_angular_error": 0,
-        "translation_angular_error": 0,
-        "i2Ri1": get_quaternion_coeff_dict(i2Ri0),
+    cycle_nodes = [0, 2, 4]
+    i2Ri1_dict = {
+        (0, 2): i2Ri0,  # edge i
+        (2, 4): i4Ri2,  # edge j
+        (0, 4): i4Ri0,  # edge k
     }
 
-    cycle_error, average_rot_error, average_trans_error = compute_cycle_error(
-        cycle_nodes, edge_i_info, edge_j_info, edge_k_info
+    two_view_reports_dict = {}
+    # rest of attributes will default to None
+    two_view_reports_dict[(0, 4)] = TwoViewEstimationReport(
+        v_corr_idxs=np.array([]),  # dummy array
+        num_inliers_est_model=10,  # dummy value
+        num_H_inliers=0,
+        H_inlier_ratio=0,
+        R_error_deg=5,
+        U_error_deg=0,
     )
+
+    two_view_reports_dict[(0, 2)] = TwoViewEstimationReport(
+        v_corr_idxs=np.array([]),  # dummy array
+        num_inliers_est_model=10,  # dummy value
+        num_H_inliers=0,
+        H_inlier_ratio=0,
+        R_error_deg=0,
+        U_error_deg=0,
+    )
+
+    two_view_reports_dict[(2, 4)] = TwoViewEstimationReport(
+        v_corr_idxs=np.array([]),  # dummy array
+        num_inliers_est_model=10,  # dummy value
+        num_H_inliers=0,
+        H_inlier_ratio=0,
+        R_error_deg=0,
+        U_error_deg=0,
+    )
+
+    cycle_error, max_rot_error, max_trans_error = cycle_utils.compute_cycle_error(
+        i2Ri1_dict, cycle_nodes, two_view_reports_dict
+    )
+
     assert np.isclose(cycle_error, 5)
+    assert np.isclose(max_rot_error, 5)
+    assert max_trans_error == 0
 
 
-# def main():
+def test_compute_cycle_error_unknown_GT() -> None:
+    """Ensure cycle error is computed correctly within a triplet, when ground truth is known.
 
-#     # edges = read_json_file("/Users/johnlambert/Downloads/gtsfm-skynet-2021-06-05/gtsfm/result_metrics/frontend_full.json")
-#     edges = read_json_file("/Users/johnlambert/Documents/gtsfm/result_metrics/frontend_full.json")
-#     num_images = 12
+    Imagine 3 poses, all centered at the origin, at different orientations.
 
-#     i2Ui1_dict = {}
-#     i2Ri1_dict = {}
+    Ground truth poses:
+       Let i0 face along +x axis (0 degrees in yaw)
+       Let i2 have a 30 degree rotation from the +x axis.
+       Let i4 have a 90 degree rotation from the +x axis.
 
-#     two_view_reports_dict = {}
+    However, suppose one edge measurement is corrupted (from i0 -> i4) by 5 degrees.
+    """
+    i2Ri0 = Rot3(Rotation.from_euler("y", 30, degrees=True).as_matrix())
+    i4Ri2 = Rot3(Rotation.from_euler("y", 60, degrees=True).as_matrix())
+    i4Ri0 = Rot3(Rotation.from_euler("y", 95, degrees=True).as_matrix())
 
-#     for e_info in edges:
+    cycle_nodes = [0, 2, 4]
+    i2Ri1_dict = {
+        (0, 2): i2Ri0,  # edge i
+        (2, 4): i4Ri2,  # edge j
+        (0, 4): i4Ri0,  # edge k
+    }
 
-#         i1 = e_info["i1"]
-#         i2 = e_info["i2"]
+    two_view_reports_dict = {}
+    # rest of attributes will default to None
+    two_view_reports_dict[(0, 4)] = TwoViewEstimationReport(
+        v_corr_idxs=np.array([]),  # dummy array
+        num_inliers_est_model=10,  # dummy value
+        num_H_inliers=0,
+        H_inlier_ratio=0,
+    )
 
-#         if e_info["i2Ri1"]:
-#             coeffs_dict = e_info["i2Ri1"]
-#             qx, qy, qz, qw = coeffs_dict["qx"], coeffs_dict["qy"], coeffs_dict["qz"], coeffs_dict["qw"]
-#             i2Ri1 = Rot3(Rotation.from_quat([qx, qy, qz, qw]).as_matrix())
-#         else:
-#             i2Ri1 = None
+    two_view_reports_dict[(0, 2)] = TwoViewEstimationReport(
+        v_corr_idxs=np.array([]),  # dummy array
+        num_inliers_est_model=10,  # dummy value
+        num_H_inliers=0,
+        H_inlier_ratio=0,
+    )
 
-#         i2Ri1_dict[(i1, i2)] = i2Ri1
+    two_view_reports_dict[(2, 4)] = TwoViewEstimationReport(
+        v_corr_idxs=np.array([]),  # dummy array
+        num_inliers_est_model=10,  # dummy value
+        num_H_inliers=0,
+        H_inlier_ratio=0,
+    )
 
-#         if e_info["i2Ui1"]:
-#             i2Ui1 = Unit3(np.array(e_info["i2Ui1"]))
-#         else:
-#             i2Ui1 = None
-#         i2Ui1_dict[(i1, i2)] = i2Ui1
+    cycle_error, max_rot_error, max_trans_error = cycle_utils.compute_cycle_error(
+        i2Ri1_dict, cycle_nodes, two_view_reports_dict
+    )
 
-#         report_dict = {
-#             "R_error_deg": e_info["rotation_angular_error"],
-#             "U_error_deg": e_info["translation_angular_error"],
-#         }
-#         from types import SimpleNamespace
-
-#         two_view_reports_dict[(i1, i2)] = SimpleNamespace(**report_dict)
-
-#     filter_to_cycle_consistent_edges(i2Ri1_dict, i2Ui1_dict, two_view_reports_dict, visualize=True)
+    assert np.isclose(cycle_error, 5)
+    assert max_rot_error is None
+    assert max_trans_error is None
 
 
+def test_filter_to_cycle_consistent_edges():
+    """ """
+
+    i2Ri1_dict = {}  # Rot3()
+    i2Ui1_dict = {}  # Unit3()
+    two_view_reports_dict = {}
+
+    # i2Ri1_consistent, i2Ui1_consistent = filter_to_cycle_consistent_edges(
+    #     i2Ri1_dict,
+    #     i2Ui1_dict,
+    #     two_view_reports_dict,
+    #     visualize
+    # )
 
 
 if __name__ == "__main__":
 
-    test_extract_triplets_adjacency_list_intersection1()
-    test_extract_triplets_adjacency_list_intersection2()
+    # test_extract_triplets_adjacency_list_intersection1()
+    # test_extract_triplets_adjacency_list_intersection2()
 
-    test_compute_cycle_error()
-
+    # test_compute_cycle_error_known_GT()
+    test_compute_cycle_error_unknown_GT()
