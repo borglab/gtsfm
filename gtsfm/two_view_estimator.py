@@ -196,20 +196,11 @@ class TwoViewEstimator:
         """ """
         insufficient_inliers = two_view_report.num_inliers_est_model < self._min_num_inliers_acceptance
 
-        H_EF_inlier_ratio = two_view_report.num_H_inliers / (two_view_report.num_inliers_est_model + EPSILON)
-        is_planar_or_panoramic = H_EF_inlier_ratio > MAX_H_INLIER_RATIO
-
         # TODO: technically this should almost always be non-zero, just need to move up to earlier
         valid_model = two_view_report.num_inliers_est_model > 0
-        if valid_model:
-            logger.info("H_EF_inlier_ratio: %.2f", H_EF_inlier_ratio)
 
-        if (valid_model and is_planar_or_panoramic) or (valid_model and insufficient_inliers):
-
-            if is_planar_or_panoramic:
-                logger.info("Planar or panoramic; pose from homography currently not supported.")
-            if insufficient_inliers:
-                logger.info("Insufficient number of inliers.")
+        if valid_model and insufficient_inliers:
+            logger.info("Insufficient number of inliers.")
 
             i2Ri1 = None
             i2Ui1 = None
@@ -217,7 +208,6 @@ class TwoViewEstimator:
             # remove mention of errors in the report
             two_view_report.R_error_deg = None
             two_view_report.U_error_deg = None
-
 
         two_view_report.i2Ri1 = i2Ri1
         two_view_report.i2Ui1 = i2Ui1
