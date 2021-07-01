@@ -198,12 +198,14 @@ def test_filter_to_cycle_consistent_edges():
     i2Ui1_dict = {}  # Unit3()
     two_view_reports_dict = {}
 
-    # i2Ri1_consistent, i2Ui1_consistent = filter_to_cycle_consistent_edges(
-    #     i2Ri1_dict,
-    #     i2Ui1_dict,
-    #     two_view_reports_dict,
-    #     visualize
-    # )
+    import pdb; pdb.set_trace()
+
+    i2Ri1_consistent, i2Ui1_consistent = filter_to_cycle_consistent_edges(
+        i2Ri1_dict,
+        i2Ui1_dict,
+        two_view_reports_dict,
+        visualize
+    )
 
 
 if __name__ == "__main__":
@@ -212,4 +214,5 @@ if __name__ == "__main__":
     # test_extract_triplets_adjacency_list_intersection2()
 
     # test_compute_cycle_error_known_GT()
-    test_compute_cycle_error_unknown_GT()
+    # test_compute_cycle_error_unknown_GT()
+    test_filter_to_cycle_consistent_edges()
