@@ -5,7 +5,7 @@ Author: John Lambert
 """
 
 from collections import defaultdict
-from typing import Dict, List, NamedTuple, Tuple
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -34,7 +34,7 @@ def extract_triplets_adjacency_list_intersection(i2Ri1_dict: Dict[Tuple[int, int
     connected to `a` and the nodes connected to `b`.
 
     Args:
-        i2Ri1_dict: mapping from image pair indices to relative rotation
+        i2Ri1_dict: mapping from image pair indices to relative rotation.
 
     Returns:
         triplets: 3-tuples of nodes that form a cycle. Nodes of each triplet are provided in sorted order.
@@ -77,7 +77,7 @@ def extract_triplets_n3(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Tuple[i
     Slower implementation of extract_triplets_adjacency_list_intersection()
 
     Args:
-        i2Ri1_dict: mapping from image pair indices to relative rotation
+        i2Ri1_dict: mapping from image pair indices to relative rotation.
 
     Returns:
         triplets: 3-tuples of nodes that form a cycle. Nodes of each triplet are provided in sorted order.
@@ -138,8 +138,8 @@ def filter_to_cycle_consistent_edges(
         https://portal.research.lu.se/ws/files/6239297/2255278.pdf
 
     Args:
-        i2Ri1_dict
-        i2Ui1_dict: should have same keys as i2Ri1_dict
+        i2Ri1_dict: mapping from image pair indices to relative rotation.
+        i2Ui1_dict: smapping from image pair indices to relative translation direction. Should have same keys as i2Ri1_dict.
         two_view_reports_dict
         visualize: boolean indicating whether to plot cycle error vs. pose error w.r.t. GT
 
@@ -202,20 +202,25 @@ def compute_cycle_error(
     i2Ri1_dict: Dict[Tuple[int, int], Rot3],
     cycle_nodes: Tuple[int, int, int],
     two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
-) -> Tuple[float, float, float]:
+    verbose: bool = True
+) -> Tuple[float, Optional[float], Optional[float]]:
     """Compute the cycle error by the magnitude of the axis-angle rotation after composing 3 rotations.
 
     Note: i1 < i2 for every valid edge, by construction.
 
     Args:
-        i2Ri1_dict
+        i2Ri1_dict: mapping from image pair indices to relative rotation.
         cycle_nodes: 3-tuples of nodes that form a cycle. Nodes of are provided in sorted order.
-        two_view_reports_dict
+        two_view_reports_dict: 
+        verbose: whether to dump to logger information about error in each Euler angle
 
     Returns:
-        cycle_error
-        max_rot_error
-        max_trans_error
+        cycle_error: deviation from 3x3 identity matrix, in degrees. In other words,
+            it is defined as the magnitude of the axis-angle rotation of the composed transformations.
+        max_rot_error: maximum rotation error w.r.t. GT across triplet edges, in degrees.
+            If ground truth is not known for a scene, None will be returned instead.
+        max_trans_error: maximum translation error w.r.t. GT across triplet edges, in degrees.
+            If ground truth is not known for a scene, None will be returned instead.
     """
     cycle_nodes = list(cycle_nodes)
     cycle_nodes.sort()
@@ -226,40 +231,46 @@ def compute_cycle_error(
     i2Ri1 = i2Ri1_dict[(i1, i2)]
     i0Ri2 = i2Ri1_dict[(i0, i2)].inverse()
 
+    # should compose to identity, with ideal measurements
     i0Ri0 = i0Ri2.compose(i2Ri1).compose(i1Ri0)
 
     I_3x3 = Rot3()
     cycle_error = comp_utils.compute_relative_rotation_angle(I_3x3, i0Ri0)
 
-    i1Ri0_euler = Rotation.from_matrix(i1Ri0.matrix()).as_euler(seq="xyz", degrees=True).tolist()
-    i2Ri1_euler = Rotation.from_matrix(i2Ri1.matrix()).as_euler(seq="xyz", degrees=True).tolist()
-    i0Ri2_euler = Rotation.from_matrix(i0Ri2.matrix()).as_euler(seq="xyz", degrees=True).tolist()
-
-    # edges i,j,k
+    # form 3 edges between fully connected subgraph (nodes i,j,k)
     e_i = (i0, i1)
     e_j = (i1, i2)
     e_k = (i0, i2)
 
-    rot_errors = [two_view_reports_dict[e].R_error_deg for e in [e_i, e_j_e_k]]
-    trans_errors = [two_view_reports_dict[e].U_error_deg for e in [e_i, e_j_e_k]]
+    rot_errors = [two_view_reports_dict[e].R_error_deg for e in [e_i, e_j, e_k]]
+    trans_errors = [two_view_reports_dict[e].U_error_deg for e in [e_i, e_j, e_k]]
 
-    max_rot_error = np.max(rot_errors)
-    max_trans_error = np.max(trans_errors)
+    gt_known = all([err is not None for err in rot_errors])
+    if gt_known:
+        max_rot_error = np.max(rot_errors)
+        max_trans_error = np.max(trans_errors)
+    else:
+        # ground truth unknown, so cannot estimate error w.r.t. GT
+        max_rot_error = None
+        max_trans_error = None
 
     if verbose:
+        i1Ri0_euler = Rotation.from_matrix(i1Ri0.matrix()).as_euler(seq="xyz", degrees=True).tolist()
+        i2Ri1_euler = Rotation.from_matrix(i2Ri1.matrix()).as_euler(seq="xyz", degrees=True).tolist()
+        i0Ri2_euler = Rotation.from_matrix(i0Ri2.matrix()).as_euler(seq="xyz", degrees=True).tolist()
 
         euler_x = [i1Ri0_euler[0], i2Ri1_euler[0], i0Ri2_euler[0]]
         euler_y = [i1Ri0_euler[1], i2Ri1_euler[1], i0Ri2_euler[1]]
         euler_z = [i1Ri0_euler[2], i2Ri1_euler[2], i0Ri2_euler[2]]
 
-        print()
-        print(
-            f"{i0},{i1},{i2} --> Cycle error is: {cycle_error:.1f}, w/ avg. R err {average_rot_error:.1f}, and w/ avg. t err {average_trans_error:.1f}"
+        logger.info("\n")
+        logger.info(
+        f"{i0},{i1},{i2} --> Cycle error is: {cycle_error:.1f}, w/ max. R err {max_rot_error:.1f}, and w/ max. t err {max_trans_error:.1f}"
         )
 
-        print(f"X {euler_x[0]:.1f}, {euler_x[1]:.1f},  {euler_x[2]:.1f}")
-        print(f"Y {euler_y[0]:.1f}, {euler_y[1]:.1f},  {euler_y[2]:.1f}")
-        print(f"Z {euler_z[0]:.1f}, {euler_z[1]:.1f}, {euler_z[2]:.1f}")
+        logger.info(f"X: (0->1) {euler_x[0]:.1f} deg., (1->2) {euler_x[1]:.1f} deg., (2->0) {euler_x[2]:.1f} deg.")
+        logger.info(f"Y: (0->1) {euler_y[0]:.1f} deg., (1->2) {euler_y[1]:.1f} deg., (2->0) {euler_y[2]:.1f} deg.")
+        logger.info(f"Z: (0->1) {euler_z[0]:.1f} deg., (1->2) {euler_z[1]:.1f} deg., (2->0) {euler_z[2]:.1f} deg.")
 
     return cycle_error, max_rot_error, max_trans_error
 

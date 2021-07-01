@@ -76,16 +76,17 @@ def test_extract_triplets_adjacency_list_intersection2() -> None:
         assert isinstance(triplets, list)
 
 
-def test_compute_cycle_error():
-    """
+def test_compute_cycle_error_known_GT() -> None:
+    """Ensure cycle error is computed correctly within a triplet, when ground truth is known.
 
     Imagine 3 poses, all centered at the origin, at different orientations.
 
-    Let i0 face along +x axis (0 degrees in yaw)
-    Let i2 have a 30 degree rotation from the +x axis.
-    Let i4 have a 90 degree rotation from the +x axis.
+    Ground truth poses:
+       Let i0 face along +x axis (0 degrees in yaw)
+       Let i2 have a 30 degree rotation from the +x axis.
+       Let i4 have a 90 degree rotation from the +x axis.
 
-    However, one edge measurement is corrupted (from i0 -> i4) by 5 degrees.
+    However, suppose one edge measurement is corrupted (from i0 -> i4) by 5 degrees.
     """
     i2Ri0 = Rot3(Rotation.from_euler("y", 30, degrees=True).as_matrix())
     i4Ri2 = Rot3(Rotation.from_euler("y", 60, degrees=True).as_matrix())
@@ -93,36 +94,49 @@ def test_compute_cycle_error():
 
     cycle_nodes = [0, 2, 4]
     i2Ri1_dict = {
-        (0,4): i4Ri0,
-        (2,4): i4Ri2,
-        (0,2): i2Ri0
+        (0,2): i2Ri0, # edge i
+        (2,4): i4Ri2, # edge j
+        (0,4): i4Ri0, # edge k
     }
 
     two_view_reports_dict = {}
     # rest of attributes will default to None
     two_view_reports_dict[(0,4)] = TwoViewEstimationReport(
         v_corr_idxs = np.array([]), # dummy array
-        num_inliers_est_model = 10 # dummy value
+        num_inliers_est_model = 10, # dummy value
+        num_H_inliers=0,
+        H_inlier_ratio=0,
+        R_error_deg=5,
+        U_error_deg=0
     )
 
     two_view_reports_dict[(0,2)] = TwoViewEstimationReport(
         v_corr_idxs = np.array([]), # dummy array
-        num_inliers_est_model = 10 # dummy value
+        num_inliers_est_model = 10, # dummy value
+        num_H_inliers=0,
+        H_inlier_ratio=0,
+        R_error_deg=0,
+        U_error_deg=0
     )
 
     two_view_reports_dict[(2,4)] = TwoViewEstimationReport(
         v_corr_idxs = np.array([]), # dummy array
-        num_inliers_est_model = 10 # dummy value
+        num_inliers_est_model = 10, # dummy value
+        num_H_inliers=0,
+        H_inlier_ratio=0,
+        R_error_deg=0,
+        U_error_deg=0
     )
 
-    cycle_error, max_rot_error, max_trans_error = compute_cycle_error(
+    cycle_error, max_rot_error, max_trans_error = cycle_utils.compute_cycle_error(
         i2Ri1_dict,
         cycle_nodes,
         two_view_reports_dict
     )
-    import pdb; pdb.set_trace()
+    
     assert np.isclose(cycle_error, 5)
-
+    assert np.isclose(max_rot_error, 5)
+    assert max_trans_error == 0
 
 
 # def main():
@@ -171,8 +185,8 @@ def test_compute_cycle_error():
 
 if __name__ == "__main__":
 
-    test_extract_triplets_adjacency_list_intersection1()
-    test_extract_triplets_adjacency_list_intersection2()
+    # test_extract_triplets_adjacency_list_intersection1()
+    # test_extract_triplets_adjacency_list_intersection2()
 
-    test_compute_cycle_error()
+    test_compute_cycle_error_known_GT()
 
