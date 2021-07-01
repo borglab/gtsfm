@@ -34,7 +34,7 @@ cd $GITHUB_WORKSPACE
 cd $GITHUB_WORKSPACE
 
 # check that main script executes on toy Door dataset
-python gtsfm/runner/run_scene_optimizer.py
+python gtsfm/runner/run_scene_optimizer.py --config_name sift_front_end.yaml
 
 pytest tests --cov gtsfm
 coverage report
