@@ -47,7 +47,6 @@ def extract_triplets_adjacency_list_intersection(i2Ri1_dict: Dict[Tuple[int, int
     adj_list = defaultdict(set)
 
     for (i1, i2), i2Ri1 in i2Ri1_dict.items():
-
         if i2Ri1 is None:
             continue
 
@@ -56,7 +55,6 @@ def extract_triplets_adjacency_list_intersection(i2Ri1_dict: Dict[Tuple[int, int
 
     # find intersections
     for (i1, i2), i2Ri1 in i2Ri1_dict.items():
-
         if i2Ri1 is None:
             continue
 
@@ -68,49 +66,6 @@ def extract_triplets_adjacency_list_intersection(i2Ri1_dict: Dict[Tuple[int, int
         for node in node_intersection:
             cycle_nodes = tuple(sorted([i1, i2, node]))
             triplets.add(cycle_nodes)
-
-    return list(triplets)
-
-
-def extract_triplets_n3(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int, int, int]]:
-    """Use triple for-loop to find triplets from a graph G=(V,E) in O(n^3) time.
-
-    Slower implementation of extract_triplets_adjacency_list_intersection()
-
-    Args:
-        i2Ri1_dict: mapping from image pair indices to relative rotation.
-
-    Returns:
-        triplets: 3-tuples of nodes that form a cycle. Nodes of each triplet are provided in sorted order.
-    """
-    triplets = set()
-
-    for (i1, i2), i2Ri1 in i2Ri1_dict.items():
-
-        if i2Ri1 is None:
-            continue
-
-        for (j1, j2), j2Rj1 in i2Ri1_dict.items():
-
-            if j2Rj1 is None:
-                continue
-
-            for (k1, k2), k2Rk1 in i2Ri1_dict.items():
-
-                if k2Rk1 is None:
-                    continue
-
-                # check how many nodes are spanned by these 3 edges
-                cycle_nodes = set([i1, i2]).union(set([j1, j2])).union(set([k1, k2]))
-                # sort them in increasing order
-                cycle_nodes = tuple(sorted(cycle_nodes))
-
-                # nodes cannot be repeated
-                unique_edges = set([(i1, i2), (j1, j2), (k1, k2)])
-                edges_are_unique = len(unique_edges) == 3
-
-                if len(cycle_nodes) == 3 and edges_are_unique:
-                    triplets.add(cycle_nodes)
 
     return list(triplets)
 
@@ -185,9 +140,9 @@ def compute_cycle_error(
         if gt_known:
             logger.info(f"Triplet: w/ max. R err {max_rot_error:.1f}, and w/ max. t err {max_trans_error:.1f}")
 
-        logger.info(f"X: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", euler_x[0], euler_x[1], euler_x[2])
-        logger.info(f"Y: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", euler_y[0], euler_y[1], euler_y[2])
-        logger.info(f"Z: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", euler_z[0], euler_z[1], euler_z[2])
+        logger.info("X: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", euler_x[0], euler_x[1], euler_x[2])
+        logger.info("Y: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", euler_y[0], euler_y[1], euler_y[2])
+        logger.info("Z: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", euler_z[0], euler_z[1], euler_z[2])
 
     return cycle_error, max_rot_error, max_trans_error
 
@@ -196,7 +151,7 @@ def filter_to_cycle_consistent_edges(
     i2Ri1_dict: Dict[Tuple[int, int], Rot3],
     i2Ui1_dict: Dict[Tuple[int, int], Unit3],
     two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
-    visualize: bool = False,
+    visualize: bool = True,
 ) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3]]:
     """Remove edges in a graph where concatenated transformations along a 3-cycle does not compose to identity.
 
@@ -237,8 +192,6 @@ def filter_to_cycle_consistent_edges(
     # (i1,i2) pairs
     cycle_consistent_keys = set()
 
-    # TODO: check which is faster in practice
-    # triplets = extract_triplets_n3(i2Ri1_dict)
     triplets = extract_triplets_adjacency_list_intersection(i2Ri1_dict)
 
     for (i0, i1, i2) in triplets:
