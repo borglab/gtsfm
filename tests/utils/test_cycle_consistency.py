@@ -4,9 +4,12 @@
 Author: John Lambert
 """
 
+import numpy as np
 from gtsam import Rot3
+from scipy.spatial.transform import Rotation
 
 import gtsfm.utils.cycle_consistency as cycle_utils
+from gtsfm.two_view_estimator import TwoViewEstimationReport
 
 
 def test_extract_triplets_adjacency_list_intersection1() -> None:
@@ -33,7 +36,6 @@ def test_extract_triplets_adjacency_list_intersection1() -> None:
 
     for extraction_fn in [cycle_utils.extract_triplets_adjacency_list_intersection, cycle_utils.extract_triplets_n3]:
 
-        import pdb; pdb.set_trace()
         triplets = extraction_fn(i2Ri1_dict)
         assert len(triplets) == 1
         assert triplets[0] == (1, 2, 3)
@@ -74,61 +76,53 @@ def test_extract_triplets_adjacency_list_intersection2() -> None:
         assert isinstance(triplets, list)
 
 
-
-def get_quaternion_coeff_dict(R: np.ndarray):
-    """ """
-    qx, qy, qz, qw = Rotation.from_matrix(R.matrix()).as_quat().tolist()
-
-    coeffs_dict = {"qx": qx, "qy": qy, "qz": qz, "qw": qw}
-    return coeffs_dict
-
-
 def test_compute_cycle_error():
     """
-    0 -> 4
-    2 -> 4
-    0 -> 2
+
+    Imagine 3 poses, all centered at the origin, at different orientations.
+
+    Let i0 face along +x axis (0 degrees in yaw)
+    Let i2 have a 30 degree rotation from the +x axis.
+    Let i4 have a 90 degree rotation from the +x axis.
+
+    However, one edge measurement is corrupted (from i0 -> i4) by 5 degrees.
     """
-
-    wTi0 = Pose3()
-    wTi2 = Pose3()
-    wTi4 = Pose3()
-
-    i4Ri0 = wTi4.between(wTi0).rotation()
-    i4Ri2 = wTi4.between(wTi2).rotation()
-    i2Ri0 = wTi2.between(wTi0).rotation()
-
-    i4Ri0 = Rot3(Rotation.from_euler("y", 95, degrees=True).as_matrix())
-    i4Ri2 = Rot3(Rotation.from_euler("y", 60, degrees=True).as_matrix())
     i2Ri0 = Rot3(Rotation.from_euler("y", 30, degrees=True).as_matrix())
+    i4Ri2 = Rot3(Rotation.from_euler("y", 60, degrees=True).as_matrix())
+    i4Ri0 = Rot3(Rotation.from_euler("y", 95, degrees=True).as_matrix())
 
-    cycle_nodes = [4, 2, 0]
-    edge_i_info = {
-        "i1": 0,
-        "i2": 4,
-        "rotation_angular_error": 0,
-        "translation_angular_error": 0,
-        "i2Ri1": get_quaternion_coeff_dict(i4Ri0),
-    }
-    edge_j_info = {
-        "i1": 2,
-        "i2": 4,
-        "rotation_angular_error": 0,
-        "translation_angular_error": 0,
-        "i2Ri1": get_quaternion_coeff_dict(i4Ri2),
-    }
-    edge_k_info = {
-        "i1": 0,
-        "i2": 2,
-        "rotation_angular_error": 0,
-        "translation_angular_error": 0,
-        "i2Ri1": get_quaternion_coeff_dict(i2Ri0),
+    cycle_nodes = [0, 2, 4]
+    i2Ri1_dict = {
+        (0,4): i4Ri0,
+        (2,4): i4Ri2,
+        (0,2): i2Ri0
     }
 
-    cycle_error, average_rot_error, average_trans_error = compute_cycle_error(
-        cycle_nodes, edge_i_info, edge_j_info, edge_k_info
+    two_view_reports_dict = {}
+    # rest of attributes will default to None
+    two_view_reports_dict[(0,4)] = TwoViewEstimationReport(
+        v_corr_idxs = np.array([]), # dummy array
+        num_inliers_est_model = 10 # dummy value
     )
+
+    two_view_reports_dict[(0,2)] = TwoViewEstimationReport(
+        v_corr_idxs = np.array([]), # dummy array
+        num_inliers_est_model = 10 # dummy value
+    )
+
+    two_view_reports_dict[(2,4)] = TwoViewEstimationReport(
+        v_corr_idxs = np.array([]), # dummy array
+        num_inliers_est_model = 10 # dummy value
+    )
+
+    cycle_error, max_rot_error, max_trans_error = compute_cycle_error(
+        i2Ri1_dict,
+        cycle_nodes,
+        two_view_reports_dict
+    )
+    import pdb; pdb.set_trace()
     assert np.isclose(cycle_error, 5)
+
 
 
 # def main():
