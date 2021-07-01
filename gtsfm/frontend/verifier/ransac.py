@@ -39,7 +39,7 @@ class Ransac(VerifierBase):
             use_intrinsics_in_verification: Flag to perform keypoint normalization and compute the essential matrix
                                             instead of fundamental matrix. This should be preferred when the exact
                                             intrinsics are known as opposed to approximating them from exif data.
-            estimation_threshold_px: epipolar distance threshold (measured in pixels)
+            estimation_threshold_px: maximum distance (in pixels) to consider a match an inlier, under squared Sampson distance.
         """
         self._use_intrinsics_in_verification = use_intrinsics_in_verification
         self._px_threshold = estimation_threshold_px
@@ -71,6 +71,7 @@ class Ransac(VerifierBase):
             Estimated rotation i2Ri1, or None if it cannot be estimated.
             Estimated unit translation i2Ui1, or None if it cannot be estimated.
             Indices of verified correspondences, of shape (N, 2) with N <= N3. These are subset of match_indices.
+            Inlier ratio w.r.t. the estimated model, i.e. #ransac inliers / # putative matches.
         """
         if match_indices.shape[0] < self._min_matches:
             return self._failure_result
