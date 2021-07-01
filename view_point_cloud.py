@@ -150,7 +150,7 @@ def draw_point_cloud(zcworldTworld, fig, point_cloud: np.ndarray, rgb: np.ndarra
 	pts.add_attribute(rgba, 'colors') # assign the colors to each point
 	pts.data.point_data.set_active_scalars('colors')
 	g = mlab.pipeline.glyph(pts)
-	g.glyph.glyph.scale_factor = 0.3 # set scaling for all the points
+	g.glyph.glyph.scale_factor = 0.1 # set scaling for all the points
 	g.glyph.scale_mode = 'data_scaling_off' # make all the points same size
 
 
