@@ -4,12 +4,13 @@ Utilities for cycle triplet extraction and cycle error computation.
 Author: John Lambert
 """
 
+import os
 from collections import defaultdict
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
-from gtsam import Rot3, Pose3, Unit3
+from gtsam import Rot3, Unit3
 from scipy.spatial.transform import Rotation
 
 import gtsfm.utils.geometry_comparisons as comp_utils
@@ -114,91 +115,6 @@ def extract_triplets_n3(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Tuple[i
     return list(triplets)
 
 
-def filter_to_cycle_consistent_edges(
-    i2Ri1_dict: Dict[Tuple[int, int], Rot3],
-    i2Ui1_dict: Dict[Tuple[int, int], Unit3],
-    two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
-    visualize: bool = False,
-) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3]]:
-    """Remove edges in a graph where concatenated transformations along a 3-cycle does not compose to identity.
-
-    Note: Will return only a subset of these two dictionaries
-
-    Concatenating the transformations along a loop in the graph should return the identity function in an
-    ideal, noise-free setting.
-
-    Based off of:
-        https://github.com/sweeneychris/TheiaSfM/blob/master/src/theia/sfm/filter_view_graph_cycles_by_rotation.cc
-
-    See also:
-        C. Zach, M. Klopschitz, and M. Pollefeys. Disambiguating visual relations using loop constraints. In CVPR, 2010
-        http://people.inf.ethz.ch/pomarc/pubs/ZachCVPR10.pdf
-
-        Enqvist, Olof; Kahl, Fredrik; Olsson, Carl. Non-Sequential Structure from Motion. ICCVW, 2011.
-        https://portal.research.lu.se/ws/files/6239297/2255278.pdf
-
-    Args:
-        i2Ri1_dict: mapping from image pair indices to relative rotation.
-        i2Ui1_dict: smapping from image pair indices to relative translation direction. Should have same keys as i2Ri1_dict.
-        two_view_reports_dict
-        visualize: boolean indicating whether to plot cycle error vs. pose error w.r.t. GT
-
-    Returns:
-        i2Ri1_dict_consistent: subset of i2Ri1_dict, i.e. only including edges that belonged to some triplet
-            and had cycle error below the predefined threshold.
-        i2Ui1_dict_consistent: subset of i2Ui1_dict, as above.
-    """
-    # check the cumulative translation/rotation errors between triplets to throw away cameras
-    cycle_errors = []
-    max_rot_errors = []
-    max_trans_errors = []
-
-    # (i1,i2) pairs
-    cycle_consistent_keys = set()
-
-    # TODO: check which is faster in practice
-    # triplets = extract_triplets_n3(i2Ri1_dict)
-    triplets = extract_triplets_adjacency_list_intersection(i2Ri1_dict)
-
-    for triplet in triplets:
-        cycle_error, max_rot_error, max_trans_error = compute_cycle_error(
-            i2Ri1_dict, cycle_nodes, two_view_reports_dict
-        )
-
-        if cycle_error < CYCLE_ERROR_THRESHOLD:
-
-            cycle_consistent_keys.add(tuple(edge_i_keys))
-            cycle_consistent_keys.add(tuple(edge_j_keys))
-            cycle_consistent_keys.add(tuple(edge_k_keys))
-
-        cycle_errors.append(cycle_error)
-        max_rot_errors.append(max_rot_error)
-        max_trans_errors.append(max_trans_error)
-
-    if visualize:
-        plt.scatter(cycle_errors, max_rot_errors)
-        plt.xlabel("Cycle error")
-        plt.ylabel("Avg. Rot3 error over cycle triplet")
-        plt.show()
-
-        plt.scatter(cycle_errors, max_trans_errors)
-        plt.xlabel("Cycle error")
-        plt.ylabel("Avg. Unit3 error over cycle triplet")
-        plt.savefig(os.path.join("plots", "cycle_error_vs_GTerror.jpg"), dpi=200)
-
-    logger.info("cycle_consistent_keys: ", cycle_consistent_keys)
-
-    i2Ri1_dict_consistent, i2Ui1_dict_consistent = {}, {}
-    for (i1, i2) in cycle_consistent_keys:
-        i2Ri1_dict_consistent[(i1, i2)] = i2Ri1_dict[(i1, i2)]
-        i2Ui1_dict_consistent[(i1, i2)] = i2Ui1_dict[(i1, i2)]
-
-    num_consistent_rotations = len(i2Ri1_dict_consistent)
-    logger.info("Found %d consistent rel. rotations from %d original edges.", num_consistent_rotations, len(edges))
-    assert len(i2Ui1_dict_consistent) == num_consistent_rotations
-    return i2Ri1_dict_consistent, i2Ui1_dict_consistent
-
-
 def compute_cycle_error(
     i2Ri1_dict: Dict[Tuple[int, int], Rot3],
     cycle_nodes: Tuple[int, int, int],
@@ -274,3 +190,91 @@ def compute_cycle_error(
         logger.info(f"Z: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", euler_z[0], euler_z[1], euler_z[2])
 
     return cycle_error, max_rot_error, max_trans_error
+
+
+def filter_to_cycle_consistent_edges(
+    i2Ri1_dict: Dict[Tuple[int, int], Rot3],
+    i2Ui1_dict: Dict[Tuple[int, int], Unit3],
+    two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
+    visualize: bool = False,
+) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3]]:
+    """Remove edges in a graph where concatenated transformations along a 3-cycle does not compose to identity.
+
+    Note: Will return only a subset of these two dictionaries
+
+    Concatenating the transformations along a loop in the graph should return the identity function in an
+    ideal, noise-free setting.
+
+    Based off of:
+        https://github.com/sweeneychris/TheiaSfM/blob/master/src/theia/sfm/filter_view_graph_cycles_by_rotation.cc
+
+    See also:
+        C. Zach, M. Klopschitz, and M. Pollefeys. Disambiguating visual relations using loop constraints. In CVPR, 2010
+        http://people.inf.ethz.ch/pomarc/pubs/ZachCVPR10.pdf
+
+        Enqvist, Olof; Kahl, Fredrik; Olsson, Carl. Non-Sequential Structure from Motion. ICCVW, 2011.
+        https://portal.research.lu.se/ws/files/6239297/2255278.pdf
+
+    Args:
+        i2Ri1_dict: mapping from image pair indices to relative rotation.
+        i2Ui1_dict: smapping from image pair indices to relative translation direction.
+            Should have same keys as i2Ri1_dict.
+        two_view_reports_dict
+        visualize: boolean indicating whether to plot cycle error vs. pose error w.r.t. GT
+
+    Returns:
+        i2Ri1_dict_consistent: subset of i2Ri1_dict, i.e. only including edges that belonged to some triplet
+            and had cycle error below the predefined threshold.
+        i2Ui1_dict_consistent: subset of i2Ui1_dict, as above.
+    """
+    # check the cumulative translation/rotation errors between triplets to throw away cameras
+    cycle_errors = []
+    max_rot_errors = []
+    max_trans_errors = []
+
+    n_valid_edges = len([i2Ri1 for (i1, i2), i2Ri1 in i2Ri1_dict.items() if i2Ri1 is not None])
+
+    # (i1,i2) pairs
+    cycle_consistent_keys = set()
+
+    # TODO: check which is faster in practice
+    # triplets = extract_triplets_n3(i2Ri1_dict)
+    triplets = extract_triplets_adjacency_list_intersection(i2Ri1_dict)
+
+    for (i0, i1, i2) in triplets:
+        cycle_error, max_rot_error, max_trans_error = compute_cycle_error(
+            i2Ri1_dict, [i0, i1, i2], two_view_reports_dict
+        )
+
+        if cycle_error < CYCLE_ERROR_THRESHOLD:
+
+            cycle_consistent_keys.add((i0, i1))
+            cycle_consistent_keys.add((i1, i2))
+            cycle_consistent_keys.add((i0, i2))
+
+        cycle_errors.append(cycle_error)
+        max_rot_errors.append(max_rot_error)
+        max_trans_errors.append(max_trans_error)
+
+    if visualize:
+        plt.scatter(cycle_errors, max_rot_errors)
+        plt.xlabel("Cycle error")
+        plt.ylabel("Avg. Rot3 error over cycle triplet")
+        plt.savefig(os.path.join("plots", "cycle_error_vs_GT_rot_error.jpg"), dpi=200)
+
+        plt.scatter(cycle_errors, max_trans_errors)
+        plt.xlabel("Cycle error")
+        plt.ylabel("Avg. Unit3 error over cycle triplet")
+        plt.savefig(os.path.join("plots", "cycle_error_vs_GT_trans_error.jpg"), dpi=200)
+
+    logger.info("cycle_consistent_keys: " + str(cycle_consistent_keys))
+
+    i2Ri1_dict_consistent, i2Ui1_dict_consistent = {}, {}
+    for (i1, i2) in cycle_consistent_keys:
+        i2Ri1_dict_consistent[(i1, i2)] = i2Ri1_dict[(i1, i2)]
+        i2Ui1_dict_consistent[(i1, i2)] = i2Ui1_dict[(i1, i2)]
+
+    num_consistent_rotations = len(i2Ri1_dict_consistent)
+    logger.info("Found %d consistent rel. rotations from %d original edges.", num_consistent_rotations, n_valid_edges)
+    assert len(i2Ui1_dict_consistent) == num_consistent_rotations
+    return i2Ri1_dict_consistent, i2Ui1_dict_consistent
