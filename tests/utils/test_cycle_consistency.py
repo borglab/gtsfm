@@ -2,6 +2,8 @@
 
 Author: John Lambert
 """
+import time
+from typing import Dict, List, Tuple
 
 import numpy as np
 from gtsam import Rot3, Unit3
@@ -33,7 +35,7 @@ def test_extract_triplets_adjacency_list_intersection1() -> None:
         (3, 4): Rot3(),
     }
 
-    for extraction_fn in [cycle_utils.extract_triplets_adjacency_list_intersection, cycle_utils.extract_triplets_n3]:
+    for extraction_fn in [cycle_utils.extract_triplets_adjacency_list_intersection, extract_triplets_brute_force]:
 
         triplets = extraction_fn(i2Ri1_dict)
         assert len(triplets) == 1
@@ -65,7 +67,7 @@ def test_extract_triplets_adjacency_list_intersection2() -> None:
         (3, 5): Rot3(),
     }
 
-    for extraction_fn in [cycle_utils.extract_triplets_adjacency_list_intersection, cycle_utils.extract_triplets_n3]:
+    for extraction_fn in [cycle_utils.extract_triplets_adjacency_list_intersection, extract_triplets_brute_force]:
 
         triplets = extraction_fn(i2Ri1_dict)
         assert len(triplets) == 2
@@ -197,7 +199,7 @@ def test_filter_to_cycle_consistent_edges() -> None:
     Scenario Ground Truth: consider 5 camera poses in a line, connected as follows, all with identity rotations:
 
       _________    ________
-     /          \ /         \
+     /         \\ /        \
     i4 -- i3 -- i2 -- i1 -- i0
 
     In the measurements, suppose, the measurement for (i2,i4) was corrupted by 15 degrees.
@@ -238,6 +240,79 @@ def test_filter_to_cycle_consistent_edges() -> None:
     assert set(i2Ri1_dict_consistent.keys()) == expected_keys
 
 
+def extract_triplets_brute_force(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int, int, int]]:
+    """Use triple for-loop to find triplets from a graph G=(V,E) in O(n^3) time.
+
+    **Much** slower implementation for large graphs, when compared to `extract_triplets_adjacency_list_intersection()`.
+    Used to check correctness inside the unit test.
+
+    Args:
+        i2Ri1_dict: mapping from image pair indices to relative rotation.
+
+    Returns:
+        triplets: 3-tuples of nodes that form a cycle. Nodes of each triplet are provided in sorted order.
+    """
+    triplets = set()
+
+    for (i1, i2), i2Ri1 in i2Ri1_dict.items():
+        if i2Ri1 is None:
+            continue
+
+        for (j1, j2), j2Rj1 in i2Ri1_dict.items():
+            if j2Rj1 is None:
+                continue
+
+            for (k1, k2), k2Rk1 in i2Ri1_dict.items():
+                if k2Rk1 is None:
+                    continue
+
+                # check how many nodes are spanned by these 3 edges
+                cycle_nodes = set([i1, i2]).union(set([j1, j2])).union(set([k1, k2]))
+                # sort them in increasing order
+                cycle_nodes = tuple(sorted(cycle_nodes))
+
+                # nodes cannot be repeated
+                unique_edges = set([(i1, i2), (j1, j2), (k1, k2)])
+                edges_are_unique = len(unique_edges) == 3
+
+                if len(cycle_nodes) == 3 and edges_are_unique:
+                    triplets.add(cycle_nodes)
+
+    return list(triplets)
+
+
+def test_triplet_extraction_correctness_runtime() -> None:
+    """Ensure that for large graphs, the adjacency-list-based algorithm is faster and still correct,
+    when compared with the brute-force O(n^3) implementation.
+    """
+    num_pairs = 100
+    # suppose we have 200 images for a scene
+    pairs = np.random.randint(low=0, high=200, size=(num_pairs, 2))
+    # i1 < i2 by construction inside loader classes
+    pairs = np.sort(pairs, axis=1)
+
+    # remove edges that would represent self-loops, i.e. (i1,i1) is not valid for a measurement
+    invalid = pairs[:, 0] == pairs[:, 1]
+    pairs = pairs[~invalid]
+    num_valid_pairs = pairs.shape[0]
+
+    i2Ri1_dict = {(pairs[i, 0], pairs[i, 1]): Rot3() for i in range(num_valid_pairs)}
+
+    start = time.time()
+    triplets = cycle_utils.extract_triplets_adjacency_list_intersection(i2Ri1_dict)
+    end = time.time()
+    duration = end - start
+
+    # Now, compare with the brute force method
+    start = time.time()
+    triplets_bf = extract_triplets_brute_force(i2Ri1_dict)
+    end = time.time()
+    duration_bf = end - start
+
+    assert duration < duration_bf
+    assert set(triplets) == set(triplets_bf)
+
+
 if __name__ == "__main__":
 
     # test_extract_triplets_adjacency_list_intersection1()
@@ -245,4 +320,6 @@ if __name__ == "__main__":
 
     # test_compute_cycle_error_known_GT()
     # test_compute_cycle_error_unknown_GT()
-    test_filter_to_cycle_consistent_edges()
+    # test_filter_to_cycle_consistent_edges()
+
+    test_triplet_extraction_correctness_runtime()
