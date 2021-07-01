@@ -4,7 +4,7 @@ Author: John Lambert
 """
 
 import numpy as np
-from gtsam import Rot3
+from gtsam import Rot3, Unit3
 from scipy.spatial.transform import Rotation
 
 import gtsfm.utils.cycle_consistency as cycle_utils
@@ -191,21 +191,51 @@ def test_compute_cycle_error_unknown_GT() -> None:
     assert max_trans_error is None
 
 
-def test_filter_to_cycle_consistent_edges():
-    """ """
+def test_filter_to_cycle_consistent_edges() -> None:
+    """Ensure correct edges are kept in a 2-triplet scenario.
 
-    i2Ri1_dict = {}  # Rot3()
-    i2Ui1_dict = {}  # Unit3()
+    Scenario Ground Truth: consider 5 camera poses in a line, connected as follows, all with identity rotations:
+
+      _________    ________
+     /          \ /         \
+    i4 -- i3 -- i2 -- i1 -- i0
+
+    In the measurements, suppose, the measurement for (i2,i4) was corrupted by 15 degrees.
+    """
+
+    i2Ri1_dict = {
+        (0, 1): Rot3(),
+        (1, 2): Rot3(),
+        (0, 2): Rot3(),
+        (2, 3): Rot3(),
+        (3, 4): Rot3(),
+        (2, 4): Rot3(Rotation.from_euler("y", 15, degrees=True).as_matrix()),
+    }
+    i2Ui1_dict = {
+        (0, 1): Unit3(np.array([1, 0, 0])),
+        (1, 2): Unit3(np.array([1, 0, 0])),
+        (0, 2): Unit3(np.array([1, 0, 0])),
+        (2, 3): Unit3(np.array([1, 0, 0])),
+        (3, 4): Unit3(np.array([1, 0, 0])),
+        (2, 4): Unit3(np.array([1, 0, 0])),
+    }
+    # assume no ground truth information available at runtime
     two_view_reports_dict = {}
 
-    import pdb; pdb.set_trace()
+    for (i1, i2) in i2Ri1_dict.keys():
+        two_view_reports_dict[(i1, i2)] = TwoViewEstimationReport(
+            v_corr_idxs=np.array([]),  # dummy array
+            num_inliers_est_model=10,  # dummy value
+            num_H_inliers=0,
+            H_inlier_ratio=0,
+        )
 
-    i2Ri1_consistent, i2Ui1_consistent = filter_to_cycle_consistent_edges(
-        i2Ri1_dict,
-        i2Ui1_dict,
-        two_view_reports_dict,
-        visualize
+    i2Ri1_dict_consistent, i2Ui1_dict_consistent = cycle_utils.filter_to_cycle_consistent_edges(
+        i2Ri1_dict, i2Ui1_dict, two_view_reports_dict, visualize=True
     )
+    # non-self-consistent triplet should have been removed
+    expected_keys = {(0, 1), (1, 2), (0, 2)}
+    assert set(i2Ri1_dict_consistent.keys()) == expected_keys
 
 
 if __name__ == "__main__":
