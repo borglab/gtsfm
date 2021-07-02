@@ -60,9 +60,7 @@ def extract_triplets_adjacency_list_intersection(i2Ri1_dict: Dict[Tuple[int, int
 
         nodes_from_i1 = adj_list[i1]
         nodes_from_i2 = adj_list[i2]
-
         node_intersection = (nodes_from_i1).intersection(nodes_from_i2)
-
         for node in node_intersection:
             cycle_nodes = tuple(sorted([i1, i2, node]))
             triplets.add(cycle_nodes)
@@ -78,7 +76,7 @@ def compute_cycle_error(
 ) -> Tuple[float, Optional[float], Optional[float]]:
     """Compute the cycle error by the magnitude of the axis-angle rotation after composing 3 rotations.
 
-    Note: i1 < i2 for every valid edge, by construction.
+    Note: a < b for every valid edge (a,b), by construction inside the image loader class.
 
     Args:
         i2Ri1_dict: mapping from image pair indices to relative rotation.
@@ -109,13 +107,11 @@ def compute_cycle_error(
     I_3x3 = Rot3()
     cycle_error = comp_utils.compute_relative_rotation_angle(I_3x3, i0Ri0)
 
-    # form 3 edges between fully connected subgraph (nodes i,j,k)
-    e_i = (i0, i1)
-    e_j = (i1, i2)
-    e_k = (i0, i2)
+    # form 3 edges e_i, e_j, e_k between fully connected subgraph (nodes i0,i1,i2)
+    edges = [(i0, i1), (i1, i2), (i0, i2)]
 
-    rot_errors = [two_view_reports_dict[e].R_error_deg for e in [e_i, e_j, e_k]]
-    trans_errors = [two_view_reports_dict[e].U_error_deg for e in [e_i, e_j, e_k]]
+    rot_errors = [two_view_reports_dict[e].R_error_deg for e in edges]
+    trans_errors = [two_view_reports_dict[e].U_error_deg for e in edges]
 
     gt_known = all([err is not None for err in rot_errors])
     if gt_known:
@@ -171,10 +167,11 @@ def filter_to_cycle_consistent_edges(
         https://portal.research.lu.se/ws/files/6239297/2255278.pdf
 
     Args:
-        i2Ri1_dict: mapping from image pair indices to relative rotation.
-        i2Ui1_dict: smapping from image pair indices to relative translation direction.
+        i2Ri1_dict: mapping from image pair indices (i1,i2) to relative rotation i2Ri1.
+        i2Ui1_dict: mapping from image pair indices (i1,i2) to relative translation direction i2Ui1.
             Should have same keys as i2Ri1_dict.
-        two_view_reports_dict
+        two_view_reports_dict: mapping from image pair indices (i1,i2) to a report containing information
+            about the verifier's output (and optionally measurement error w.r.t GT). Note: i1 < i2 always.
         visualize: boolean indicating whether to plot cycle error vs. pose error w.r.t. GT
 
     Returns:
@@ -201,6 +198,7 @@ def filter_to_cycle_consistent_edges(
 
         if cycle_error < CYCLE_ERROR_THRESHOLD:
 
+            # since i0 < i1 < i2 by construction, we preserve the property `a < b` for each edge (a,b)
             cycle_consistent_keys.add((i0, i1))
             cycle_consistent_keys.add((i1, i2))
             cycle_consistent_keys.add((i0, i2))
@@ -227,7 +225,5 @@ def filter_to_cycle_consistent_edges(
         i2Ri1_dict_consistent[(i1, i2)] = i2Ri1_dict[(i1, i2)]
         i2Ui1_dict_consistent[(i1, i2)] = i2Ui1_dict[(i1, i2)]
 
-    num_consistent_rotations = len(i2Ri1_dict_consistent)
-    logger.info("Found %d consistent rel. rotations from %d original edges.", num_consistent_rotations, n_valid_edges)
-    assert len(i2Ui1_dict_consistent) == num_consistent_rotations
+    logger.info("Found %d consistent rel. rotations from %d original edges.", len(i2Ri1_dict_consistent), n_valid_edges)
     return i2Ri1_dict_consistent, i2Ui1_dict_consistent
