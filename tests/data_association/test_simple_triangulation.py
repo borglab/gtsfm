@@ -93,11 +93,10 @@ class TestSimpleTriangulation(unittest.TestCase):
             CAMERA_PAIR_SMALL_BASELINE, TriangulationParam.NO_RANSAC, reproj_error_thresh=5
         )
 
-        for idx, track_2d in enumerate(tracks_2d):
+        for track_2d in tracks_2d:
             track_3d, _, _ = point3d_initializer.triangulate(track_2d)
 
-            self.assertIsNotNone(track_3d)
-            np.testing.assert_allclose(track_3d.point3(), LANDMARK_POINTS_3D[idx], atol=1e-5)
+            self.assertIsNone(track_3d)
 
     def test_2pxnoise_with_camera_pair_good(self):
         """Tests the good pair of cameras with 2px measurement noise."""
@@ -122,6 +121,7 @@ class TestSimpleTriangulation(unittest.TestCase):
         for idx, track_2d in enumerate(tracks_2d):
             track_3d, _, _ = point3d_initializer.triangulate(track_2d)
 
+            # TODO: can this be solved to return None tracks
             assert track_3d is None or not np.allclose(track_3d.point3(), LANDMARK_POINTS_3D[idx], atol=10, rtol=0.1)
 
 
