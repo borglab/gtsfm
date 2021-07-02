@@ -100,34 +100,22 @@ def test_compute_cycle_error_known_GT() -> None:
         (0, 4): i4Ri0,  # edge k
     }
 
+    def make_dummy_report(R_error_deg: float, U_error_deg: float) -> TwoViewEstimationReport:
+        """Create a dummy report about a two-view verification result."""
+        # rest of attributes will default to None
+        return TwoViewEstimationReport(
+            v_corr_idxs=np.array([]),  # dummy array
+            num_inliers_est_model=10,  # dummy value
+            num_H_inliers=0,
+            H_inlier_ratio=0,
+            R_error_deg=R_error_deg,
+            U_error_deg=U_error_deg,
+        )
+
     two_view_reports_dict = {}
-    # rest of attributes will default to None
-    two_view_reports_dict[(0, 4)] = TwoViewEstimationReport(
-        v_corr_idxs=np.array([]),  # dummy array
-        num_inliers_est_model=10,  # dummy value
-        num_H_inliers=0,
-        H_inlier_ratio=0,
-        R_error_deg=5,
-        U_error_deg=0,
-    )
-
-    two_view_reports_dict[(0, 2)] = TwoViewEstimationReport(
-        v_corr_idxs=np.array([]),  # dummy array
-        num_inliers_est_model=10,  # dummy value
-        num_H_inliers=0,
-        H_inlier_ratio=0,
-        R_error_deg=0,
-        U_error_deg=0,
-    )
-
-    two_view_reports_dict[(2, 4)] = TwoViewEstimationReport(
-        v_corr_idxs=np.array([]),  # dummy array
-        num_inliers_est_model=10,  # dummy value
-        num_H_inliers=0,
-        H_inlier_ratio=0,
-        R_error_deg=0,
-        U_error_deg=0,
-    )
+    two_view_reports_dict[(0, 4)] = make_dummy_report(R_error_deg=5, U_error_deg=0)
+    two_view_reports_dict[(0, 2)] = make_dummy_report(R_error_deg=0, U_error_deg=0)
+    two_view_reports_dict[(2, 4)] = make_dummy_report(R_error_deg=0, U_error_deg=0)
 
     cycle_error, max_rot_error, max_trans_error = cycle_utils.compute_cycle_error(
         i2Ri1_dict, cycle_nodes, two_view_reports_dict
@@ -161,28 +149,20 @@ def test_compute_cycle_error_unknown_GT() -> None:
         (0, 4): i4Ri0,  # edge k
     }
 
+    def make_dummy_report() -> TwoViewEstimationReport:
+        """Create a dummy report about a two-view verification result."""
+        # rest of attributes will default to None
+        return TwoViewEstimationReport(
+            v_corr_idxs=np.array([]),  # dummy array
+            num_inliers_est_model=10,  # dummy value
+            num_H_inliers=0,
+            H_inlier_ratio=0
+        )
+
     two_view_reports_dict = {}
-    # rest of attributes will default to None
-    two_view_reports_dict[(0, 4)] = TwoViewEstimationReport(
-        v_corr_idxs=np.array([]),  # dummy array
-        num_inliers_est_model=10,  # dummy value
-        num_H_inliers=0,
-        H_inlier_ratio=0,
-    )
-
-    two_view_reports_dict[(0, 2)] = TwoViewEstimationReport(
-        v_corr_idxs=np.array([]),  # dummy array
-        num_inliers_est_model=10,  # dummy value
-        num_H_inliers=0,
-        H_inlier_ratio=0,
-    )
-
-    two_view_reports_dict[(2, 4)] = TwoViewEstimationReport(
-        v_corr_idxs=np.array([]),  # dummy array
-        num_inliers_est_model=10,  # dummy value
-        num_H_inliers=0,
-        H_inlier_ratio=0,
-    )
+    two_view_reports_dict[(0, 4)] = make_dummy_report()
+    two_view_reports_dict[(0, 2)] = make_dummy_report()
+    two_view_reports_dict[(2, 4)] = make_dummy_report()
 
     cycle_error, max_rot_error, max_trans_error = cycle_utils.compute_cycle_error(
         i2Ri1_dict, cycle_nodes, two_view_reports_dict
