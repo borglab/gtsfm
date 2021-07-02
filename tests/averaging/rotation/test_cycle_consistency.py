@@ -105,8 +105,6 @@ def test_compute_cycle_error_known_GT() -> None:
     two_view_reports_dict[(0, 4)] = TwoViewEstimationReport(
         v_corr_idxs=np.array([]),  # dummy array
         num_inliers_est_model=10,  # dummy value
-        num_H_inliers=0,
-        H_inlier_ratio=0,
         R_error_deg=5,
         U_error_deg=0,
     )
@@ -114,8 +112,6 @@ def test_compute_cycle_error_known_GT() -> None:
     two_view_reports_dict[(0, 2)] = TwoViewEstimationReport(
         v_corr_idxs=np.array([]),  # dummy array
         num_inliers_est_model=10,  # dummy value
-        num_H_inliers=0,
-        H_inlier_ratio=0,
         R_error_deg=0,
         U_error_deg=0,
     )
@@ -123,8 +119,6 @@ def test_compute_cycle_error_known_GT() -> None:
     two_view_reports_dict[(2, 4)] = TwoViewEstimationReport(
         v_corr_idxs=np.array([]),  # dummy array
         num_inliers_est_model=10,  # dummy value
-        num_H_inliers=0,
-        H_inlier_ratio=0,
         R_error_deg=0,
         U_error_deg=0,
     )
@@ -166,22 +160,16 @@ def test_compute_cycle_error_unknown_GT() -> None:
     two_view_reports_dict[(0, 4)] = TwoViewEstimationReport(
         v_corr_idxs=np.array([]),  # dummy array
         num_inliers_est_model=10,  # dummy value
-        num_H_inliers=0,
-        H_inlier_ratio=0,
     )
 
     two_view_reports_dict[(0, 2)] = TwoViewEstimationReport(
         v_corr_idxs=np.array([]),  # dummy array
         num_inliers_est_model=10,  # dummy value
-        num_H_inliers=0,
-        H_inlier_ratio=0,
     )
 
     two_view_reports_dict[(2, 4)] = TwoViewEstimationReport(
         v_corr_idxs=np.array([]),  # dummy array
         num_inliers_est_model=10,  # dummy value
-        num_H_inliers=0,
-        H_inlier_ratio=0,
     )
 
     cycle_error, max_rot_error, max_trans_error = cycle_utils.compute_cycle_error(
@@ -228,8 +216,6 @@ def test_filter_to_cycle_consistent_edges() -> None:
         two_view_reports_dict[(i1, i2)] = TwoViewEstimationReport(
             v_corr_idxs=np.array([]),  # dummy array
             num_inliers_est_model=10,  # dummy value
-            num_H_inliers=0,
-            H_inlier_ratio=0,
         )
 
     i2Ri1_dict_consistent, i2Ui1_dict_consistent = cycle_utils.filter_to_cycle_consistent_edges(
