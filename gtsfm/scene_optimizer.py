@@ -17,7 +17,7 @@ import numpy as np
 from dask.delayed import Delayed
 from gtsam import Pose3
 
-import gtsfm.utils.cycle_consistency as cycle_utils
+import gtsfm.averaging.rotation.cycle_consistency as cycle_utils
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.metrics as metric_utils
 import gtsfm.utils.io as io_utils
