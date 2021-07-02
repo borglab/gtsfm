@@ -21,8 +21,9 @@ from gtsam import (
 )
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.common.sfm_track import SfmTrack2d
 import gtsfm.utils.reprojection as reproj_utils
+import gtsfm.utils.triangulation as triangulation_utils
+from gtsfm.common.sfm_track import SfmTrack2d
 
 NUM_SAMPLES_PER_RANSAC_HYPOTHESIS = 2
 SVD_DLT_RANK_TOL = 1e-9
@@ -106,10 +107,7 @@ class Point3dInitializer(NamedTuple):
             # triangulate point for track
             try:
                 triangulated_pt = gtsam.triangulatePoint3(
-                    camera_estimates,
-                    img_measurements,
-                    rank_tol=SVD_DLT_RANK_TOL,
-                    optimize=True,
+                    camera_estimates, img_measurements, rank_tol=SVD_DLT_RANK_TOL, optimize=True,
                 )
             except RuntimeError:
                 # TODO: handle cheirality exception properly?
@@ -176,14 +174,15 @@ class Point3dInitializer(NamedTuple):
         camera_track, measurement_track = self.extract_measurements(inlier_track)
         try:
             triangulated_pt = gtsam.triangulatePoint3(
-                camera_track,
-                measurement_track,
-                rank_tol=SVD_DLT_RANK_TOL,
-                optimize=True,
+                camera_track, measurement_track, rank_tol=SVD_DLT_RANK_TOL, optimize=True,
             )
         except RuntimeError:
             is_cheirality_failure = True
             return None, None, is_cheirality_failure
+
+        # check for small baseline case
+        if self.is_small_triangulation_angle(triangulated_pt, inlier_idxs):
+            return None, None, False
 
         # compute reprojection errors for each measurement
         reproj_errors, avg_track_reproj_error = reproj_utils.compute_point_reprojection_errors(
@@ -199,6 +198,35 @@ class Point3dInitializer(NamedTuple):
             track_3d.add_measurement(i, uv)
 
         return track_3d, avg_track_reproj_error, is_cheirality_failure
+
+    def is_small_triangulation_angle(
+        self, point_3d: np.ndarray, camera_indices: List[int], angle_threshold_deg: float = 1.5
+    ) -> bool:
+        """Check if all pairs of cameras have a small triangulation angle.
+
+        Args:
+            point_3d: the 3d point which has been triangulated.
+            camera_indices: indices of the cameras associated with the triangulation.
+            angle_threshold_deg (optional): threshold for the angle subtended at the 3D point by a pair of cameras.
+                                            Defaults to 1.5.
+
+        Returns:
+            True if all the pairs of camera subtend a small angle, and hence resulting in a small baseline track.
+        """
+
+        for i1, i2 in itertools.combinations(camera_indices, 2):
+            camera_i1 = self.track_camera_dict[i1]
+            camera_i2 = self.track_camera_dict[i2]
+
+            triangulation_angle = triangulation_utils.calculate_triangulation_angle_in_degrees(
+                camera_i1, camera_i2, point_3d
+            )
+
+            if triangulation_angle > angle_threshold_deg:
+                # we have found one pair
+                return False
+
+        return True
 
     def generate_measurement_pairs(self, track: SfmTrack2d) -> List[Tuple[int, int]]:
         """
@@ -216,10 +244,7 @@ class Point3dInitializer(NamedTuple):
         return measurement_pair_idxs
 
     def sample_ransac_hypotheses(
-        self,
-        track: SfmTrack2d,
-        measurement_pairs: List[Tuple[int, int]],
-        num_hypotheses: int,
+        self, track: SfmTrack2d, measurement_pairs: List[Tuple[int, int]], num_hypotheses: int,
     ) -> List[int]:
         """Sample a list of hypotheses (camera pairs) to use during triangulation.
 
@@ -255,12 +280,7 @@ class Point3dInitializer(NamedTuple):
             TriangulationParam.RANSAC_SAMPLE_UNIFORM,
             TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
         ]:
-            sample_indices = np.random.choice(
-                len(scores),
-                size=num_hypotheses,
-                replace=False,
-                p=scores / scores.sum(),
-            )
+            sample_indices = np.random.choice(len(scores), size=num_hypotheses, replace=False, p=scores / scores.sum(),)
 
         if self.mode == TriangulationParam.RANSAC_TOPK_BASELINES:
             sample_indices = np.argsort(scores)[-num_hypotheses:]
@@ -291,7 +311,7 @@ class Point3dInitializer(NamedTuple):
 
         if len(track_cameras) < 2 or len(track_measurements) < 2:
             raise Exception(
-                "Nb of measurements should not be <= 2. \
+                "Nb of measurements should not be < 2. \
                     number of cameras is: {} \
                     and number of observations is {}".format(
                     len(track_cameras), len(track_measurements)
