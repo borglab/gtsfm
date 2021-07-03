@@ -156,7 +156,7 @@ def test_compute_cycle_error_unknown_GT() -> None:
             v_corr_idxs=np.array([]),  # dummy array
             num_inliers_est_model=10,  # dummy value
             num_H_inliers=0,
-            H_inlier_ratio=0
+            H_inlier_ratio=0,
         )
 
     two_view_reports_dict = {}
@@ -197,7 +197,7 @@ def test_filter_to_cycle_consistent_edges() -> None:
         (0, 2): Rot3(),
         (2, 3): Rot3(),
         (3, 4): Rot3(),
-        (2, 4): Rot3.Ry(np.deg2rad(15))
+        (2, 4): Rot3.Ry(np.deg2rad(15)),
     }
     i2Ui1_dict = {
         (0, 1): Unit3(np.array([1, 0, 0])),
@@ -327,5 +327,3 @@ if __name__ == "__main__":
     # test_triplet_extraction_correctness_runtime()
 
     compare_scipy_gtsam()
-
-
