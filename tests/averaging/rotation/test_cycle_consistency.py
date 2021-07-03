@@ -7,7 +7,6 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 from gtsam import Rot3, Unit3
-from scipy.spatial.transform import Rotation
 
 import gtsfm.averaging.rotation.cycle_consistency as cycle_utils
 from gtsfm.two_view_estimator import TwoViewEstimationReport
@@ -89,9 +88,9 @@ def test_compute_cycle_error_known_GT() -> None:
 
     However, suppose one edge measurement is corrupted (from i0 -> i4) by 5 degrees.
     """
-    i2Ri0 = Rot3(Rotation.from_euler("y", 30, degrees=True).as_matrix())
-    i4Ri2 = Rot3(Rotation.from_euler("y", 60, degrees=True).as_matrix())
-    i4Ri0 = Rot3(Rotation.from_euler("y", 95, degrees=True).as_matrix())
+    i2Ri0 = Rot3.Ry(np.deg2rad(30))
+    i4Ri2 = Rot3.Ry(np.deg2rad(60))
+    i4Ri0 = Rot3.Ry(np.deg2rad(95))
 
     cycle_nodes = [0, 2, 4]
     i2Ri1_dict = {
@@ -136,9 +135,9 @@ def test_compute_cycle_error_unknown_GT() -> None:
 
     However, suppose one edge measurement is corrupted (from i0 -> i4) by 5 degrees.
     """
-    i2Ri0 = Rot3(Rotation.from_euler("y", 30, degrees=True).as_matrix())
-    i4Ri2 = Rot3(Rotation.from_euler("y", 60, degrees=True).as_matrix())
-    i4Ri0 = Rot3(Rotation.from_euler("y", 95, degrees=True).as_matrix())
+    i2Ri0 = Rot3.Ry(np.deg2rad(30))
+    i4Ri2 = Rot3.Ry(np.deg2rad(60))
+    i4Ri0 = Rot3.Ry(np.deg2rad(95))
 
     cycle_nodes = [0, 2, 4]
     i2Ri1_dict = {
@@ -174,20 +173,26 @@ def test_filter_to_cycle_consistent_edges() -> None:
 
     Scenario Ground Truth: consider 5 camera poses in a line, connected as follows, all with identity rotations:
 
+    Spatial layout:
       _________    ________
      /         \\ /        \
     i4 -- i3 -- i2 -- i1 -- i0
 
+    Topological layout:
+
+     i4          i0
+           i2
+     i3          i1
+
     In the measurements, suppose, the measurement for (i2,i4) was corrupted by 15 degrees.
     """
-
     i2Ri1_dict = {
         (0, 1): Rot3(),
         (1, 2): Rot3(),
         (0, 2): Rot3(),
         (2, 3): Rot3(),
         (3, 4): Rot3(),
-        (2, 4): Rot3(Rotation.from_euler("y", 15, degrees=True).as_matrix()),
+        (2, 4): Rot3.Ry(np.deg2rad(15)),
     }
     i2Ui1_dict = {
         (0, 1): Unit3(np.array([1, 0, 0])),
