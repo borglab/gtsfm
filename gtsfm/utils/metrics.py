@@ -10,6 +10,7 @@ from gtsam import Cal3Bundler, EssentialMatrix, Point3, Pose3, Rot3, Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.io as io_utils
+import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.verification as verification_utils
 from gtsfm.common.keypoints import Keypoints
 
@@ -20,6 +21,9 @@ StatsDict = Dict[str, Union[Optional[float], List[Optional[float]]]]
 
 # number of digits (significant figures) to include in each entry of error metrics
 PRINT_NUM_SIG_FIGS = 2
+
+
+logger = logger_utils.get_logger()
 
 
 def count_correct_correspondences(
@@ -226,28 +230,22 @@ def print_metrics() -> None:
     frontend_full_metrics_fpath = REPO_ROOT / "result_metrics" / "frontend_full.json"
     frontend_metrics = io_utils.read_json_file(frontend_full_metrics_fpath)
 
-    max_rot_err_deg = max(
-        [
-            pair_stats["rotation_angular_error"]
-            for pair_stats in frontend_metrics
-            if pair_stats["rotation_angular_error"]
-        ]
-    )
-    max_trans_err_deg = max(
-        [
-            pair_stats["translation_angular_error"]
-            for pair_stats in frontend_metrics
-            if pair_stats["translation_angular_error"]
-        ]
-    )
+    rot_errs_deg = [pair_stats["rotation_angular_error"] for pair_stats in frontend_metrics if pair_stats["rotation_angular_error"]]
+    trans_errs_deg = [pair_stats["translation_angular_error"] for pair_stats in frontend_metrics if pair_stats["translation_angular_error"]]
 
-    print("=============> Metrics report ==============>")
-    print("Front-end max_rot_err_deg: ", max_rot_err_deg)
-    print("Front-end max_trans_err_deg: ", max_trans_err_deg)
+    logger.info("=============> Metrics report ==============>")
+    logger.info("Front-end median_rot_err_deg: %.2f", np.median(rot_errs_deg))
+    logger.info("Front-end max_rot_err_deg: %.2f", max(rot_errs_deg))
+
+    logger.info("Front-end median_trans_err_deg: %.2f", np.median(trans_errs_deg))
+    logger.info("Front-end max_trans_err_deg: %.2f", max(trans_errs_deg))
 
     averaging_metrics_fpath = REPO_ROOT / "result_metrics" / "multiview_optimizer_metrics.json"
     averaging_metrics = io_utils.read_json_file(averaging_metrics_fpath)
 
-    print("Averaging max_rot_err_deg: ", averaging_metrics["rotation_averaging_angle_deg"]["max_error"])
-    print("Averaging max_trans_dist_err: ", averaging_metrics["translation_averaging_distance"]["max_error"])
+    logger.info("Averaging median_rot_err_deg: %.2f", averaging_metrics["rotation_averaging_angle_deg"]["median_error"])
+    logger.info("Averaging max_rot_err_deg: %.2f", averaging_metrics["rotation_averaging_angle_deg"]["max_error"])
+
+    logger.info("Averaging median_trans_dist_err: %.2f", averaging_metrics["translation_averaging_distance"]["median_error"])
+    logger.info("Averaging max_trans_dist_err: %.2f", averaging_metrics["translation_averaging_distance"]["max_error"])
 
