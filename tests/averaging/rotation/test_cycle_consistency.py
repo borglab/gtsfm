@@ -7,7 +7,6 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 from gtsam import Rot3, Unit3
-from scipy.spatial.transform import Rotation
 
 import gtsfm.averaging.rotation.cycle_consistency as cycle_utils
 from gtsfm.two_view_estimator import TwoViewEstimationReport
