@@ -299,22 +299,6 @@ def test_triplet_extraction_correctness_runtime() -> None:
     assert set(triplets) == set(triplets_bf)
 
 
-def compare_scipy_gtsam() -> None:
-    """ """
-    num_trials = 1000
-    for axis in ["x", "y", "z"]:
-        constructor = {"x": Rot3.Rx, "y": Rot3.Ry, "z": Rot3.Rz}
-
-        for _ in range(num_trials):
-
-            euler_angle_deg = np.random.rand() * 360
-
-            R1 = Rotation.from_euler(axis, euler_angle_deg, degrees=True).as_matrix()
-            R2 = constructor[axis](np.deg2rad(euler_angle_deg)).matrix()
-
-            assert np.allclose(R1, R2)
-
-
 if __name__ == "__main__":
 
     # test_extract_triplets_adjacency_list_intersection1()
@@ -324,6 +308,4 @@ if __name__ == "__main__":
     # test_compute_cycle_error_unknown_GT()
     # test_filter_to_cycle_consistent_edges()
 
-    # test_triplet_extraction_correctness_runtime()
-
-    compare_scipy_gtsam()
+    test_triplet_extraction_correctness_runtime()
