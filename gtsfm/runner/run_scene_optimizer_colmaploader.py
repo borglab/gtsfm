@@ -100,4 +100,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     run_scene_optimizer(args)
-    metrics_utils.print_metrics()
+    metrics_utils.log_sfm_summary()

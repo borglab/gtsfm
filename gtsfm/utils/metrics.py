@@ -225,7 +225,7 @@ def compute_pose_errors(gt_wTi_list: List[Pose3], wTi_list: List[Pose3]) -> Dict
     return metrics
 
 
-def print_metrics() -> None:
+def log_sfm_summary() -> None:
     """Dump to stdout a summary of metrics about the SfM reconstruction process."""
     frontend_full_metrics_fpath = REPO_ROOT / "result_metrics" / "frontend_full.json"
     frontend_metrics = io_utils.read_json_file(frontend_full_metrics_fpath)
