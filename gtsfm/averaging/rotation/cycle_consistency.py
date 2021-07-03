@@ -1,6 +1,9 @@
 """
 Utilities for cycle triplet extraction and cycle error computation.
 
+In short, one can check the cumulative rotation errors between triplets to throw away cameras.
+Note: the same property does not hold for cumulative translation errors when scale is unknown (i.e. in SfM).
+
 Author: John Lambert
 """
 
@@ -179,7 +182,6 @@ def filter_to_cycle_consistent_edges(
             and had cycle error below the predefined threshold.
         i2Ui1_dict_consistent: subset of i2Ui1_dict, as above.
     """
-    # check the cumulative translation/rotation errors between triplets to throw away cameras
     cycle_errors = []
     max_rot_errors = []
     max_trans_errors = []
@@ -197,7 +199,6 @@ def filter_to_cycle_consistent_edges(
         )
 
         if cycle_error < CYCLE_ERROR_THRESHOLD:
-
             # since i0 < i1 < i2 by construction, we preserve the property `a < b` for each edge (a,b)
             cycle_consistent_keys.add((i0, i1))
             cycle_consistent_keys.add((i1, i2))
@@ -212,6 +213,7 @@ def filter_to_cycle_consistent_edges(
         plt.xlabel("Cycle error")
         plt.ylabel("Avg. Rot3 error over cycle triplet")
         plt.savefig(os.path.join("plots", "cycle_error_vs_GT_rot_error.jpg"), dpi=200)
+        plt.close("all")
 
         plt.scatter(cycle_errors, max_trans_errors)
         plt.xlabel("Cycle error")
