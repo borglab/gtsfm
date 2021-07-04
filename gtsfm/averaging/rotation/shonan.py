@@ -23,7 +23,11 @@ from gtsam import (
     ShonanAveragingParameters3,
 )
 
+import gtsfm.utils.logger as logger_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
+
+
+logger = logger_utils.get_logger()
 
 
 class ShonanRotationAveraging(RotationAveragingBase):
@@ -101,7 +105,10 @@ class ShonanRotationAveraging(RotationAveragingBase):
                 in the input to run().
         """
         if len(i2Ri1_dict) == 0:
-            # no cycle-consistent triplets found, so no measurements survived the filtering step.
+            logger.warning(
+                "Shonan cannot proceed: No cycle-consistent triplets found, so no measurements survived the filtering step."
+            )
+
             wRi_list = [None] * num_images
             return wRi_list
 
