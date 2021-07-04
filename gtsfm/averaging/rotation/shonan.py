@@ -100,6 +100,11 @@ class ShonanRotationAveraging(RotationAveragingBase):
                 underconstrained system or ill-constrained system), or where the camera pose had no valid observation
                 in the input to run().
         """
+        if len(i2Ri1_dict) == 0:
+            # no cycle-consistent triplets found, so no measurements survived the filtering step.
+            wRi_list = [None] * num_images
+            return wRi_list
+
         connected_nodes = set()
         for (i1, i2) in i2Ri1_dict.keys():
             connected_nodes.add(i1)
