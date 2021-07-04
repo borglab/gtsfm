@@ -7,10 +7,8 @@ import numpy as np
 import open3d as o3d
 
 from argoverse.data_loading.simple_track_dataloader import SimpleArgoverseTrackingDataLoader
-from argoverse.map_representation.map_api import ArgoverseMap
 from argoverse.utils.calibration import (
     CameraConfig,
-    get_calibration_config,
     point_cloud_to_homogeneous,
     project_lidar_to_img
 )
@@ -77,8 +75,15 @@ def main(dataset_dir: str, log_id: str) -> None:
     for i in range(num_images):
         wTe = city_SE3_egovehicle_list[i]
         wTi = wTe.compose(egovehicle_SE3_camera)
+        wTi = wTi.transform_matrix
+
+        # optionally add noise to translations, and later to rotations
+        noise = np.random.randn(3) / 10
+        print(f"Add noise to {i}: ", noise)
+        wTi[:3,3] += noise
+
         track_camera_dict[i] = PinholeCameraCal3Bundler(
-            Pose3(wTi.transform_matrix),
+            Pose3(wTi),
             calib_cal3bundler
         ) 
 
@@ -120,7 +125,7 @@ def main(dataset_dir: str, log_id: str) -> None:
                 continue
 
             # try adding some random noise
-            uv += np.random.randint(low=0, high=3, size=(2,))
+            # uv += np.random.randint(low=0, high=3, size=(2,))
 
             measurements.append(SfmMeasurement(i=i, uv=uv))
 
