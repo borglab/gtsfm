@@ -66,7 +66,8 @@ def extract_triplets_adjacency_list_intersection(i2Ri1_dict: Dict[Tuple[int, int
         node_intersection = (nodes_from_i1).intersection(nodes_from_i2)
         for node in node_intersection:
             cycle_nodes = tuple(sorted([i1, i2, node]))
-            triplets.add(cycle_nodes)
+            if cycle_nodes not in triplets:
+                triplets.add(cycle_nodes)
 
     return list(triplets)
 
