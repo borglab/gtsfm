@@ -61,10 +61,22 @@ pip install dist/pydegensac-0.1.2-cp38-cp38-macosx_10_15_x86_64.whl
 
 ## Usage Guide (Running 3d Reconstruction)
 
-Please run
-```python
-python gtsfm/runner/run_scene_optimizer.py
+Before running reconstruction, if you intend to use modules with pre-trained weights, such as SuperPoint, SuperGlue, or PatchmatchNet, please first run:
+```bash
+./download_model_weights.sh
 ```
+
+To run SfM with a dataset with only a image directory and EXIF, with image file names ending with "jpg", run:
+```python
+python gtsfm/runner/run_scene_optimizer.py --config_name {CONFIG_NAME} --dataset_root {DATASET_ROOT} --image_extension jpg --num_workers {NUM_WORKERS}
+```
+
+If you would like to compare GTSFM output with COLMAP output, please run:
+```python
+python gtsfm/runner/run_scene_optimizer_colmap_loader.py --config_name {CONFIG_NAME} --images_dir {IMAGES_DIR} --colmap_files_dirpath {COLMAP_FILES_DIRPATH} --image_extension jpg --num_workers {NUM_WORKERS} --max_frame_lookahead {MAX_FRAME_LOOKAHEAD}
+```
+where `COLMAP_FILES_DIRPATH` is a directory where .txt files such as `cameras.txt`, `images.txt`, etc have been saved.
+
 
 ## Repository Structure
 
@@ -76,7 +88,7 @@ GTSFM is designed in an extremely modular way. Each module can be swapped out wi
         - `translation`: translation averaging implementations (1d-SFM, etc)
     - `bundle`: bundle adjustment implementations
     - `common`: basic classes used through GTSFM, such as `Keypoints`, `Image`, `SfmTrack2d`, etc
-    - `data_association`: 3d point triangulation w/ or w/o RANSAC, from 2d point-tracks 
+    - `data_association`: 3d point triangulation (DLT) w/ or w/o RANSAC, from 2d point-tracks 
     - `densify`
     - `frontend`: SfM front-end code, including:
         - `detector`: keypoint detector implementations (DoG, etc)
