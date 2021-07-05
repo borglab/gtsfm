@@ -1,4 +1,3 @@
-
 """
 Script to render a GTSFM scene using either Open3d or Mayavi mlab.
 
@@ -22,11 +21,10 @@ from gtsfm.common.view_frustum import ViewFrustum
 REPO_ROOT = Path(__file__).parent.resolve()
 
 
-
 def draw_cameras_mayavi(zcworldTworld, fig, calibrations, wTi_list: List[Pose3]):
     """ """
     colormap = np.array(
-        [[color_obj.rgb] for color_obj in Color("red").range_to(Color("green"), len(wTi_list) )]
+        [[color_obj.rgb] for color_obj in Color("red").range_to(Color("green"), len(wTi_list))]
     ).squeeze()
 
     for i, (K, wTi) in enumerate(zip(calibrations, wTi_list)):
@@ -35,12 +33,12 @@ def draw_cameras_mayavi(zcworldTworld, fig, calibrations, wTi_list: List[Pose3])
         color = tuple(colormap[i].tolist())
 
         K = K.K()
-        fx = K[0,0]
+        fx = K[0, 0]
 
         # TODO: use the real image height and width
 
-        px = K[0,2]
-        py = K[1,2]
+        px = K[0, 2]
+        py = K[1, 2]
 
         img_w = px * 2
         img_h = py * 2
@@ -63,6 +61,7 @@ def draw_cameras_mayavi(zcworldTworld, fig, calibrations, wTi_list: List[Pose3])
                 figure=fig,
             )
 
+
 def draw_point_cloud_mayavi(args, fig, point_cloud: np.ndarray, rgb: np.ndarray):
     """
     Args:
@@ -73,15 +72,15 @@ def draw_point_cloud_mayavi(args, fig, point_cloud: np.ndarray, rgb: np.ndarray)
     """
     n = point_cloud.shape[0]
     x, y, z = point_cloud.T
-    alpha = np.ones((n,1)).astype(np.uint8) * 255 # no transparency
-    rgba = np.hstack([ rgb, alpha ]).astype(np.uint8)
+    alpha = np.ones((n, 1)).astype(np.uint8) * 255  # no transparency
+    rgba = np.hstack([rgb, alpha]).astype(np.uint8)
 
-    pts = mlab.pipeline.scalar_scatter(x, y, z) # plot the points
-    pts.add_attribute(rgba, 'colors') # assign the colors to each point
-    pts.data.point_data.set_active_scalars('colors')
+    pts = mlab.pipeline.scalar_scatter(x, y, z)  # plot the points
+    pts.add_attribute(rgba, "colors")  # assign the colors to each point
+    pts.data.point_data.set_active_scalars("colors")
     g = mlab.pipeline.glyph(pts)
-    g.glyph.glyph.scale_factor = args.sphere_radius # set scaling for all the points
-    g.glyph.scale_mode = 'data_scaling_off' # make all the points same size
+    g.glyph.glyph.scale_factor = args.sphere_radius  # set scaling for all the points
+    g.glyph.scale_mode = "data_scaling_off"  # make all the points same size
 
 
 def create_colored_point_cloud_open3d(point_cloud: np.ndarray, rgb: np.ndarray) -> open3d.geometry.PointCloud:
@@ -109,7 +108,7 @@ def create_colored_spheres_open3d(args, point_cloud: np.ndarray, rgb: np.ndarray
 
     Args:
         point_cloud:
-        rgb: 
+        rgb:
 
     Returns:
         spheres
@@ -200,7 +199,14 @@ def compute_point_cloud_center_robust(point_cloud: np.ndarray) -> np.ndarray:
     return mean_pt
 
 
-def draw_scene_open3d(args: argparse.Namespace, point_cloud: np.ndarray, rgb: np.ndarray, calibrations: List[Cal3Bundler], wTi_list: List[Pose3], zcwTw: Pose3) -> None:
+def draw_scene_open3d(
+    args: argparse.Namespace,
+    point_cloud: np.ndarray,
+    rgb: np.ndarray,
+    calibrations: List[Cal3Bundler],
+    wTi_list: List[Pose3],
+    zcwTw: Pose3,
+) -> None:
     """
     Args:
         args
@@ -219,7 +225,14 @@ def draw_scene_open3d(args: argparse.Namespace, point_cloud: np.ndarray, rgb: np
     open3d.visualization.draw_geometries(geometries)
 
 
-def draw_scene_mayavi(args: argparse.Namespace, point_cloud: np.ndarray, rgb: np.ndarray, calibrations: List[Cal3Bundler], wTi_list: List[Pose3], zcwTw: Pose3) -> None:
+def draw_scene_mayavi(
+    args: argparse.Namespace,
+    point_cloud: np.ndarray,
+    rgb: np.ndarray,
+    calibrations: List[Cal3Bundler],
+    wTi_list: List[Pose3],
+    zcwTw: Pose3,
+) -> None:
     """
     White background
 
@@ -229,10 +242,8 @@ def draw_scene_mayavi(args: argparse.Namespace, point_cloud: np.ndarray, rgb: np
         rgb
         calibrations
     """
-    bgcolor = (1,1,1)
-    fig = mlab.figure(  # type: ignore
-        figure=None, bgcolor=bgcolor, fgcolor=None, engine=None, size=(1600, 1000)
-    )
+    bgcolor = (1, 1, 1)
+    fig = mlab.figure(figure=None, bgcolor=bgcolor, fgcolor=None, engine=None, size=(1600, 1000))  # type: ignore
     draw_cameras_mayavi(zcwTw, fig, calibrations, wTi_list)
     draw_point_cloud_mayavi(args, fig, point_cloud, rgb)
     mlab.show()
