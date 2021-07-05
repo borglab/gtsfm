@@ -45,7 +45,7 @@ def test_extract_triplets_adjacency_list_intersection1() -> None:
 def test_extract_triplets_adjacency_list_intersection2() -> None:
     """Ensure triplets are recovered accurately.
 
-	Consider the following undirected graph with 2 cycles:
+	Consider the following undirected graph with 2 cycles. The cycles share an edge:
 
 	0 ---- 1
 	      /|\
@@ -72,6 +72,41 @@ def test_extract_triplets_adjacency_list_intersection2() -> None:
         assert len(triplets) == 2
         assert triplets[0] == (1, 2, 3)
         assert triplets[1] == (1, 3, 5)
+
+        assert isinstance(triplets, list)
+
+
+def test_extract_triplets_adjacency_list_intersection3() -> None:
+    """Ensure triplets are recovered accurately.
+
+    Consider the following undirected graph with 2 cycles. The cycles share a node:
+
+    0 ---- 1
+          /|
+         / |
+        /  |
+      2 -- 3
+           |\
+           | \
+           |  \
+           4 -- 5
+    """
+    i2Ri1_dict = {
+        (0, 1): Rot3(),
+        (1, 2): Rot3(),
+        (2, 3): Rot3(),
+        (1, 3): Rot3(),
+        (3, 4): Rot3(),
+        (3, 5): Rot3(),
+        (4, 5): Rot3(),
+    }
+
+    for extraction_fn in [cycle_utils.extract_triplets_adjacency_list_intersection, extract_triplets_brute_force]:
+        triplets = extraction_fn(i2Ri1_dict)
+        assert len(triplets) == 2
+
+        assert triplets[0] == (3, 4, 5)
+        assert triplets[1] == (1, 2, 3)
 
         assert isinstance(triplets, list)
 
