@@ -1,7 +1,7 @@
 """
-Utilities for cycle triplet extraction and cycle error computation.
+A library for cycle triplet extraction and cycle error computation.
 
-In short, one can check the cumulative rotation errors between triplets to throw away cameras.
+Checks the cumulative rotation errors between triplets to throw away cameras.
 Note: the same property does not hold for cumulative translation errors when scale is unknown (i.e. in SfM).
 
 Author: John Lambert
@@ -27,8 +27,8 @@ logger = logger_utils.get_logger()
 CYCLE_ERROR_THRESHOLD = 5.0
 
 
-def extract_triplets_adjacency_list_intersection(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int, int, int]]:
-    """Discover triplets from a graph, without O(n^3) complexity.
+def extract_triplets(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int, int, int]]:
+    """Discover triplets from a graph, without O(n^3) complexity, by using intersection within adjacency lists.
 
     Based off of Theia's implementation:
         https://github.com/sweeneychris/TheiaSfM/blob/master/src/theia/math/graph/triplet_extractor.h
@@ -85,7 +85,8 @@ def compute_cycle_error(
     Args:
         i2Ri1_dict: mapping from image pair indices to relative rotation.
         cycle_nodes: 3-tuples of nodes that form a cycle. Nodes of are provided in sorted order.
-        two_view_reports_dict:
+        two_view_reports_dict: mapping from image pair indices (i1,i2) to a report containing information
+            about the verifier's output (and optionally measurement error w.r.t GT). Note: i1 < i2 always.
         verbose: whether to dump to logger information about error in each Euler angle
 
     Returns:
@@ -192,7 +193,7 @@ def filter_to_cycle_consistent_edges(
     # (i1,i2) pairs
     cycle_consistent_keys = set()
 
-    triplets = extract_triplets_adjacency_list_intersection(i2Ri1_dict)
+    triplets = extract_triplets(i2Ri1_dict)
 
     for (i0, i1, i2) in triplets:
         cycle_error, max_rot_error, max_trans_error = compute_cycle_error(
