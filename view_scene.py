@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 from typing import List
 
+import mayavi
 import numpy as np
 import open3d
 from colour import Color
@@ -21,54 +22,16 @@ from gtsfm.common.view_frustum import ViewFrustum
 REPO_ROOT = Path(__file__).parent.resolve()
 
 
-def draw_cameras_mayavi(zcworldTworld, fig, calibrations, wTi_list: List[Pose3]):
-    """ """
-    colormap = np.array(
-        [[color_obj.rgb] for color_obj in Color("red").range_to(Color("green"), len(wTi_list))]
-    ).squeeze()
+def draw_point_cloud_mayavi(
+    args: argparse.Namespace, fig: mayavi.core.scene.Scene, point_cloud: np.ndarray, rgb: np.ndarray
+) -> None:
+    """Render a point cloud as a collection of spheres, using Mayavi.
 
-    for i, (K, wTi) in enumerate(zip(calibrations, wTi_list)):
-        wTi = zcworldTworld.compose(wTi)
-
-        color = tuple(colormap[i].tolist())
-
-        K = K.K()
-        fx = K[0, 0]
-
-        # TODO: use the real image height and width
-
-        px = K[0, 2]
-        py = K[1, 2]
-
-        img_w = px * 2
-        img_h = py * 2
-        frustum_obj = ViewFrustum(fx, img_w, img_h)
-
-        edges_worldfr = frustum_obj.get_mesh_edges_worldframe(wTi)
-        for edge_worldfr in edges_worldfr:
-
-            # start and end vertices
-            vs = edge_worldfr[0]
-            ve = edge_worldfr[1]
-
-            #  color, line_width, tube_radius, figure
-            mlab.plot3d(  # type: ignore
-                [vs[0], ve[0]],
-                [vs[1], ve[1]],
-                [vs[2], ve[2]],
-                color=color,
-                tube_radius=None,
-                figure=fig,
-            )
-
-
-def draw_point_cloud_mayavi(args, fig, point_cloud: np.ndarray, rgb: np.ndarray):
-    """
     Args:
-
-
-    Returns:
-
+        args: rendering options.
+        fig: Mayavi figure object.
+        point_cloud: array of shape (N,3) representing 3d points.
+        rgb: uint8 array of shape (N,3) representing colors in RGB order, in the range [0,255]
     """
     n = point_cloud.shape[0]
     x, y, z = point_cloud.T
@@ -84,13 +47,14 @@ def draw_point_cloud_mayavi(args, fig, point_cloud: np.ndarray, rgb: np.ndarray)
 
 
 def create_colored_point_cloud_open3d(point_cloud: np.ndarray, rgb: np.ndarray) -> open3d.geometry.PointCloud:
-    """
+    """Render a point cloud as individual colored points, using Open3d.
+
     Args:
-        point_cloud
-        rgb
+        point_cloud: array of shape (N,3) representing 3d points.
+        rgb: uint8 array of shape (N,3) representing colors in RGB order, in the range [0,255]
 
     Returns:
-        pcd
+        pcd: Open3d geometry object representing a colored 3d point cloud.
     """
     colors = rgb.astype(np.float64) / 255
 
@@ -101,17 +65,19 @@ def create_colored_point_cloud_open3d(point_cloud: np.ndarray, rgb: np.ndarray) 
     return pcd
 
 
-def create_colored_spheres_open3d(args, point_cloud: np.ndarray, rgb: np.ndarray) -> List[open3d.geometry.TriangleMesh]:
-    """Create a colored sphere mesh for every point inside the point cloud.
+def create_colored_spheres_open3d(
+    args: argparse.Namespace, point_cloud: np.ndarray, rgb: np.ndarray
+) -> List[open3d.geometry.TriangleMesh]:
+    """Create a colored sphere mesh for every point inside the point cloud, using Open3d.
 
     Note: this is quite computationally expensive.
 
     Args:
-        point_cloud:
-        rgb:
+        point_cloud: array of shape (N,3) representing 3d points.
+        rgb: uint8 array of shape (N,3) representing colors in RGB order, in the range [0,255]
 
     Returns:
-        spheres
+        spheres: list of Open3d geometry objects, where each element (a sphere) represents a 3d point.
     """
     colors = rgb.astype(np.float64) / 255
 
@@ -133,7 +99,7 @@ def create_colored_spheres_open3d(args, point_cloud: np.ndarray, rgb: np.ndarray
 def create_all_frustums_open3d(
     zcwTw: Pose3, calibrations: List[Cal3Bundler], wTi_list: List[Pose3]
 ) -> List[open3d.geometry.LineSet]:
-    """
+    """Render camera frustums as collections of line segments, using Open3d.
 
     Args:
         zcwTw: transforms world points to a new world frame where the point cloud is zero-centered
@@ -141,7 +107,7 @@ def create_all_frustums_open3d(
         wTi_list: list of camera poses for each image
 
     Returns:
-        line_sets:
+        line_sets: list of line segments that together parameterize all camera frustums
     """
     line_sets = []
 
@@ -184,14 +150,64 @@ def create_all_frustums_open3d(
     return line_sets
 
 
+def draw_cameras_mayavi(
+    zcwTw: Pose3, fig: mayavi.core.scene.Scene, calibrations: List[Cal3Bundler], wTi_list: List[Pose3]
+) -> None:
+    """Render camera frustums as collections of line segments, using Mayavi mlab.
+
+    Args:
+        zcwTw: transforms world points to a new world frame where the point cloud is zero-centered
+        fig: Mayavi mlab figure object.
+        calibrations: calibration object for each camera
+        wTi_list: list of camera poses for each image
+    """
+    colormap = np.array(
+        [[color_obj.rgb] for color_obj in Color("red").range_to(Color("green"), len(wTi_list))]
+    ).squeeze()
+
+    for i, (K, wTi) in enumerate(zip(calibrations, wTi_list)):
+        wTi = zcwTw.compose(wTi)
+
+        color = tuple(colormap[i].tolist())
+
+        K = K.K()
+        fx = K[0, 0]
+
+        # Use 2*principal point as proxy measure for image height and width
+        # TODO (in future PR): use the real image height and width
+        px = K[0, 2]
+        py = K[1, 2]
+
+        img_w = px * 2
+        img_h = py * 2
+        frustum_obj = ViewFrustum(fx, img_w, img_h)
+
+        edges_worldfr = frustum_obj.get_mesh_edges_worldframe(wTi)
+        for edge_worldfr in edges_worldfr:
+
+            # start and end vertices
+            vs = edge_worldfr[0]
+            ve = edge_worldfr[1]
+
+            # TODO: consider adding line_width
+            mlab.plot3d(  # type: ignore
+                [vs[0], ve[0]],
+                [vs[1], ve[1]],
+                [vs[2], ve[2]],
+                color=color,
+                tube_radius=None,
+                figure=fig,
+            )
+
+
 def compute_point_cloud_center_robust(point_cloud: np.ndarray) -> np.ndarray:
     """Robustly estimate the point cloud center.
 
     Args:
-
+        point_cloud: array of shape (N,3) representing 3d points.
 
     Returns:
-
+        mean_pt: coordinates of central point, ignoring outliers.
     """
     ranges = np.linalg.norm(point_cloud, axis=1)
     outlier_thresh = np.percentile(ranges, 75)
@@ -207,12 +223,15 @@ def draw_scene_open3d(
     wTi_list: List[Pose3],
     zcwTw: Pose3,
 ) -> None:
-    """
+    """Render camera frustums and a 3d point cloud, using Open3d.
+
     Args:
-        args
-        point_cloud
-        rgb
-        calibrations
+        args: rendering options.
+        point_cloud: array of shape (N,3) representing 3d points.
+        rgb: uint8 array of shape (N,3) representing colors in RGB order, in the range [0,255].
+        calibrations: calibration object for each camera
+        wTi_list: list of camera poses for each image
+        zcwTw: transforms world points to a new world frame where the point cloud is zero-centered
     """
     frustums = create_all_frustums_open3d(zcwTw, calibrations, wTi_list)
     if args.point_rendering_mode == "point":
@@ -233,14 +252,15 @@ def draw_scene_mayavi(
     wTi_list: List[Pose3],
     zcwTw: Pose3,
 ) -> None:
-    """
-    White background
+    """Render camera frustums and a 3d point cloud against a white background, using Mayavi.
 
     Args:
-        args
+        args: rendering options.
         point_cloud
-        rgb
-        calibrations
+        rgb: uint8 array of shape (N,3) representing colors in RGB order, in the range [0,255].
+        calibrations: calibration object for each camera
+        wTi_list: list of camera poses for each image
+        zcwTw: transforms world points to a new world frame where the point cloud is zero-centered
     """
     bgcolor = (1, 1, 1)
     fig = mlab.figure(figure=None, bgcolor=bgcolor, fgcolor=None, engine=None, size=(1600, 1000))  # type: ignore
@@ -249,8 +269,12 @@ def draw_scene_mayavi(
     mlab.show()
 
 
-def view_scene(args) -> None:
-    """ """
+def view_scene(args: argparse.Namespace) -> None:
+    """Read GTSFM output from .txt files and render the scene to the GUI.
+
+    Args:
+        args: rendering options.
+    """
     points_fpath = f"{args.output_dir}/points3D.txt"
     images_fpath = f"{args.output_dir}/images.txt"
     cameras_fpath = f"{args.output_dir}/cameras.txt"
