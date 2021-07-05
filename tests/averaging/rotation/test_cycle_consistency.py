@@ -12,8 +12,8 @@ import gtsfm.averaging.rotation.cycle_consistency as cycle_utils
 from gtsfm.two_view_estimator import TwoViewEstimationReport
 
 
-def test_extract_triplets_adjacency_list_intersection1() -> None:
-    """Ensure triplets are recovered accurately.
+def test_extract_triplets_1() -> None:
+    """Ensure triplets are recovered accurately via intersection of adjacency lists.
 
     Consider the following undirected graph with 1 cycle:
 
@@ -34,7 +34,7 @@ def test_extract_triplets_adjacency_list_intersection1() -> None:
         (3, 4): Rot3(),
     }
 
-    for extraction_fn in [cycle_utils.extract_triplets_adjacency_list_intersection, extract_triplets_brute_force]:
+    for extraction_fn in [cycle_utils.extract_triplets, extract_triplets_brute_force]:
 
         triplets = extraction_fn(i2Ri1_dict)
         assert len(triplets) == 1
@@ -42,8 +42,8 @@ def test_extract_triplets_adjacency_list_intersection1() -> None:
         assert isinstance(triplets, list)
 
 
-def test_extract_triplets_adjacency_list_intersection2() -> None:
-    """Ensure triplets are recovered accurately.
+def test_extract_triplets_2() -> None:
+    """Ensure triplets are recovered accurately via intersection of adjacency lists.
 
 	Consider the following undirected graph with 2 cycles. The cycles share an edge:
 
@@ -66,7 +66,7 @@ def test_extract_triplets_adjacency_list_intersection2() -> None:
         (3, 5): Rot3(),
     }
 
-    for extraction_fn in [cycle_utils.extract_triplets_adjacency_list_intersection, extract_triplets_brute_force]:
+    for extraction_fn in [cycle_utils.extract_triplets, extract_triplets_brute_force]:
 
         triplets = extraction_fn(i2Ri1_dict)
         assert len(triplets) == 2
@@ -76,8 +76,8 @@ def test_extract_triplets_adjacency_list_intersection2() -> None:
         assert isinstance(triplets, list)
 
 
-def test_extract_triplets_adjacency_list_intersection3() -> None:
-    """Ensure triplets are recovered accurately.
+def test_extract_triplets_3() -> None:
+    """Ensure triplets are recovered accurately via intersection of adjacency lists.
 
     Consider the following undirected graph with 2 cycles. The cycles share a node:
 
@@ -101,7 +101,7 @@ def test_extract_triplets_adjacency_list_intersection3() -> None:
         (4, 5): Rot3(),
     }
 
-    for extraction_fn in [cycle_utils.extract_triplets_adjacency_list_intersection, extract_triplets_brute_force]:
+    for extraction_fn in [cycle_utils.extract_triplets, extract_triplets_brute_force]:
         triplets = extraction_fn(i2Ri1_dict)
         assert len(triplets) == 2
 
@@ -257,7 +257,7 @@ def test_filter_to_cycle_consistent_edges() -> None:
 def extract_triplets_brute_force(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int, int, int]]:
     """Use triple for-loop to find triplets from a graph G=(V,E) in O(n^3) time.
 
-    **Much** slower implementation for large graphs, when compared to `extract_triplets_adjacency_list_intersection()`.
+    **Much** slower implementation for large graphs, when compared to `extract_triplets()` that uses intersection of adjacency lists.
     Used to check correctness inside the unit test.
 
     Args:
@@ -313,7 +313,7 @@ def test_triplet_extraction_correctness_runtime() -> None:
     i2Ri1_dict = {(pairs[i, 0], pairs[i, 1]): Rot3() for i in range(num_valid_pairs)}
 
     start = time.time()
-    triplets = cycle_utils.extract_triplets_adjacency_list_intersection(i2Ri1_dict)
+    triplets = cycle_utils.extract_triplets(i2Ri1_dict)
     end = time.time()
     duration = end - start
 
@@ -329,11 +329,12 @@ def test_triplet_extraction_correctness_runtime() -> None:
 
 if __name__ == "__main__":
 
-    # test_extract_triplets_adjacency_list_intersection1()
-    # test_extract_triplets_adjacency_list_intersection2()
+    test_extract_triplets_1()
+    test_extract_triplets_2()
+    test_extract_triplets_3()
 
-    # test_compute_cycle_error_known_GT()
-    # test_compute_cycle_error_unknown_GT()
-    # test_filter_to_cycle_consistent_edges()
+    test_compute_cycle_error_known_GT()
+    test_compute_cycle_error_unknown_GT()
+    test_filter_to_cycle_consistent_edges()
 
     test_triplet_extraction_correctness_runtime()
