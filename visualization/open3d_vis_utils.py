@@ -35,13 +35,14 @@ def create_colored_point_cloud_open3d(point_cloud: np.ndarray, rgb: np.ndarray) 
 
 
 def create_colored_spheres_open3d(
-    args: argparse.Namespace, point_cloud: np.ndarray, rgb: np.ndarray
+    sphere_radius: float, point_cloud: np.ndarray, rgb: np.ndarray
 ) -> List[open3d.geometry.TriangleMesh]:
     """Create a colored sphere mesh for every point inside the point cloud, using Open3d.
 
     Note: this is quite computationally expensive.
 
     Args:
+        sphere_radius: radius of each rendered sphere.
         point_cloud: array of shape (N,3) representing 3d points.
         rgb: uint8 array of shape (N,3) representing colors in RGB order, in the range [0,255]
 
@@ -56,7 +57,7 @@ def create_colored_spheres_open3d(
     for j in range(n):
         wTj = np.eye(4)
         wTj[:3, 3] = point_cloud[j]
-        mesh = open3d.geometry.TriangleMesh.create_sphere(radius=args.sphere_radius, resolution=20)
+        mesh = open3d.geometry.TriangleMesh.create_sphere(radius=sphere_radius, resolution=20)
         mesh.transform(wTj)
         mesh.paint_uniform_color(colors[j])
 
@@ -142,7 +143,7 @@ def draw_scene_open3d(
         pcd = create_colored_point_cloud_open3d(point_cloud, rgb)
         geometries = frustums + [pcd]
     elif args.point_rendering_mode == "sphere":
-        spheres = create_colored_spheres_open3d(args, point_cloud, rgb)
+        spheres = create_colored_spheres_open3d(args.sphere_radius, point_cloud, rgb)
         geometries = frustums + spheres
 
     open3d.visualization.draw_geometries(geometries)
