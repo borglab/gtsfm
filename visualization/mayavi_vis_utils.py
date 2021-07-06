@@ -1,4 +1,3 @@
-
 """
 Utilities for rendering camera frustums and 3d point clouds using Mayavi mlab.
 
@@ -115,6 +114,3 @@ def draw_scene_mayavi(
     draw_cameras_mayavi(zcwTw, fig, calibrations, wTi_list)
     draw_point_cloud_mayavi(args, fig, point_cloud, rgb)
     mlab.show()
-
-
-
