@@ -1,4 +1,3 @@
-
 """
 Utilities for rendering camera frustums and 3d point clouds using Open3d.
 
@@ -14,7 +13,6 @@ from colour import Color
 from gtsam import Cal3Bundler, Pose3
 
 from gtsfm.common.view_frustum import ViewFrustum
-
 
 
 def create_colored_point_cloud_open3d(point_cloud: np.ndarray, rgb: np.ndarray) -> open3d.geometry.PointCloud:
@@ -148,4 +146,3 @@ def draw_scene_open3d(
         geometries = frustums + spheres
 
     open3d.visualization.draw_geometries(geometries)
-
