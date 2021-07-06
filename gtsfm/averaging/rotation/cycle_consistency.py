@@ -14,7 +14,6 @@ from typing import Dict, List, Optional, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 from gtsam import Rot3, Unit3
-from scipy.spatial.transform import Rotation
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
@@ -128,9 +127,11 @@ def compute_cycle_error(
         max_trans_error = None
 
     if verbose:
-        i1Ri0_euler = Rotation.from_matrix(i1Ri0.matrix()).as_euler(seq="xyz", degrees=True).tolist()
-        i2Ri1_euler = Rotation.from_matrix(i2Ri1.matrix()).as_euler(seq="xyz", degrees=True).tolist()
-        i0Ri2_euler = Rotation.from_matrix(i0Ri2.matrix()).as_euler(seq="xyz", degrees=True).tolist()
+        # for each rotation R: find a vector [x,y,z] s.t. R = Rot3.RzRyRx(x,y,z)
+        # this is equivalent to scipy.spatial.transform's `.as_euler("xyz")`
+        i1Ri0_euler = np.rad2deg(i1Ri0.xyz()).tolist()
+        i2Ri1_euler = np.rad2deg(i2Ri1.xyz()).tolist()
+        i0Ri2_euler = np.rad2deg(i0Ri2.xyz()).tolist()
 
         euler_x = [i1Ri0_euler[0], i2Ri1_euler[0], i0Ri2_euler[0]]
         euler_y = [i1Ri0_euler[1], i2Ri1_euler[1], i0Ri2_euler[1]]
