@@ -325,16 +325,3 @@ def test_triplet_extraction_correctness_runtime() -> None:
 
     assert duration < duration_bf
     assert set(triplets) == set(triplets_bf)
-
-
-if __name__ == "__main__":
-
-    test_extract_triplets_1()
-    test_extract_triplets_2()
-    test_extract_triplets_3()
-
-    test_compute_cycle_error_known_GT()
-    test_compute_cycle_error_unknown_GT()
-    test_filter_to_cycle_consistent_edges()
-
-    test_triplet_extraction_correctness_runtime()
