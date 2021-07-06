@@ -331,30 +331,3 @@ def test_triplet_extraction_correctness_runtime() -> None:
 
     assert duration < duration_bf
     assert set(triplets) == set(triplets_bf)
-
-
-def test_gtsam_scipy_xyz():
-    """ """
-    from scipy.spatial.transform import Rotation
-    num_trials = 10000
-
-    for _ in range(num_trials):
-
-        q = np.random.randn(4)
-        q /= np.linalg.norm(q)
-        R = Rotation.from_quat(q).as_matrix()
-        i1Ri0 = Rot3(R)
-
-        i1Ri0_euler = Rotation.from_matrix(i1Ri0.matrix()).as_euler(seq="xyz", degrees=True)
-        i1Ri0_euler_ = np.rad2deg(i1Ri0.xyz())
-
-        assert np.allclose(i1Ri0_euler, i1Ri0_euler_, atol=1e-6)
-        print(i1Ri0_euler, i1Ri0_euler_)
-
-
-
-
-
-if __name__ == "__main__":
-
-    test_gtsam_scipy_xyz()
