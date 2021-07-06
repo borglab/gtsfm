@@ -333,14 +333,28 @@ def test_triplet_extraction_correctness_runtime() -> None:
     assert set(triplets) == set(triplets_bf)
 
 
+def test_gtsam_scipy_xyz():
+    """ """
+    from scipy.spatial.transform import Rotation
+    num_trials = 10000
+
+    for _ in range(num_trials):
+
+        q = np.random.randn(4)
+        q /= np.linalg.norm(q)
+        R = Rotation.from_quat(q).as_matrix()
+        i1Ri0 = Rot3(R)
+
+        i1Ri0_euler = Rotation.from_matrix(i1Ri0.matrix()).as_euler(seq="xyz", degrees=True)
+        i1Ri0_euler_ = np.rad2deg(i1Ri0.xyz())
+
+        assert np.allclose(i1Ri0_euler, i1Ri0_euler_, atol=1e-6)
+        print(i1Ri0_euler, i1Ri0_euler_)
+
+
+
+
+
 if __name__ == "__main__":
 
-    test_extract_triplets_1()
-    test_extract_triplets_2()
-    test_extract_triplets_3()
-
-    test_compute_cycle_error_known_GT()
-    test_compute_cycle_error_unknown_GT()
-    test_filter_to_cycle_consistent_edges()
-
-    test_triplet_extraction_correctness_runtime()
+    test_gtsam_scipy_xyz()
