@@ -1,3 +1,4 @@
+
 """
 Utilities for rendering camera frustums and 3d point clouds using Mayavi mlab.
 
@@ -18,12 +19,12 @@ from gtsfm.common.view_frustum import ViewFrustum
 
 
 def draw_point_cloud_mayavi(
-    args: argparse.Namespace, fig: mayavi.core.scene.Scene, point_cloud: np.ndarray, rgb: np.ndarray
+    sphere_radius: float, fig: mayavi.core.scene.Scene, point_cloud: np.ndarray, rgb: np.ndarray
 ) -> None:
     """Render a point cloud as a collection of spheres, using Mayavi.
 
     Args:
-        args: rendering options.
+        sphere_radius: radius of each rendered sphere.
         fig: Mayavi figure object.
         point_cloud: array of shape (N,3) representing 3d points.
         rgb: uint8 array of shape (N,3) representing colors in RGB order, in the range [0,255]
@@ -37,7 +38,7 @@ def draw_point_cloud_mayavi(
     pts.add_attribute(rgba, "colors")  # assign the colors to each point
     pts.data.point_data.set_active_scalars("colors")
     g = mlab.pipeline.glyph(pts)
-    g.glyph.glyph.scale_factor = args.sphere_radius  # set scaling for all the points
+    g.glyph.glyph.scale_factor = sphere_radius  # set scaling for all the points
     g.glyph.scale_mode = "data_scaling_off"  # make all the points same size
 
 
@@ -112,5 +113,5 @@ def draw_scene_mayavi(
     bgcolor = (1, 1, 1)
     fig = mlab.figure(figure=None, bgcolor=bgcolor, fgcolor=None, engine=None, size=(1600, 1000))  # type: ignore
     draw_cameras_mayavi(zcwTw, fig, calibrations, wTi_list)
-    draw_point_cloud_mayavi(args, fig, point_cloud, rgb)
+    draw_point_cloud_mayavi(args.sphere_radius, fig, point_cloud, rgb)
     mlab.show()
