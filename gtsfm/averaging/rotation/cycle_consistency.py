@@ -152,22 +152,18 @@ def compute_cycle_error(
     if verbose:
         # for each rotation R: find a vector [x,y,z] s.t. R = Rot3.RzRyRx(x,y,z)
         # this is equivalent to scipy.spatial.transform's `.as_euler("xyz")`
-        i1Ri0_euler = np.rad2deg(i1Ri0.xyz()).tolist()
-        i2Ri1_euler = np.rad2deg(i2Ri1.xyz()).tolist()
-        i0Ri2_euler = np.rad2deg(i0Ri2.xyz()).tolist()
-
-        euler_x = [i1Ri0_euler[0], i2Ri1_euler[0], i0Ri2_euler[0]]
-        euler_y = [i1Ri0_euler[1], i2Ri1_euler[1], i0Ri2_euler[1]]
-        euler_z = [i1Ri0_euler[2], i2Ri1_euler[2], i0Ri2_euler[2]]
+        i1Ri0_euler = np.rad2deg(i1Ri0.xyz())
+        i2Ri1_euler = np.rad2deg(i2Ri1.xyz())
+        i0Ri2_euler = np.rad2deg(i0Ri2.xyz())
 
         logger.info("\n")
         logger.info(f"{i0},{i1},{i2} --> Cycle error is: {cycle_error:.1f}")
         if gt_known:
             logger.info(f"Triplet: w/ max. R err {max_rot_error:.1f}, and w/ max. t err {max_trans_error:.1f}")
 
-        logger.info("X: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", euler_x[0], euler_x[1], euler_x[2])
-        logger.info("Y: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", euler_y[0], euler_y[1], euler_y[2])
-        logger.info("Z: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", euler_z[0], euler_z[1], euler_z[2])
+        logger.info("X: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", i1Ri0_euler[0], i2Ri1_euler[0], i0Ri2_euler[0])
+        logger.info("Y: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", i1Ri0_euler[1], i2Ri1_euler[1], i0Ri2_euler[1])
+        logger.info("Z: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", i1Ri0_euler[2], i2Ri1_euler[2], i0Ri2_euler[2])
 
     return cycle_error, max_rot_error, max_trans_error
 
@@ -180,7 +176,7 @@ def filter_to_cycle_consistent_edges(
 ) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3]]:
     """Remove edges in a graph where concatenated transformations along a 3-cycle does not compose to identity.
 
-    Note: Will return only a subset of these two dictionaries
+    Note: will return only a subset of these two dictionaries
 
     Concatenating the transformations along a loop in the graph should return the identity function in an
     ideal, noise-free setting.
