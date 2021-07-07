@@ -16,7 +16,7 @@ import gtsfm.utils.io as io_utils
 from visualization.open3d_vis_utils import draw_scene_open3d
 from visualization.mayavi_vis_utils import draw_scene_mayavi
 
-REPO_ROOT = Path(__file__).parent.resolve()
+REPO_ROOT = Path(__file__).parent.parent.resolve()
 
 
 def compute_point_cloud_center_robust(point_cloud: np.ndarray) -> np.ndarray:
@@ -56,9 +56,8 @@ def view_scene(args: argparse.Namespace) -> None:
 
     # Zero-center the point cloud (about estimated center)
     zcwTw = Pose3(Rot3(np.eye(3)), -mean_pt)
-    n = point_cloud.shape[0]
-    for j in range(n):
-        point_cloud[j] = zcwTw.transformFrom(point_cloud[j])
+    # expression below is equivalent to applying zcwTw.transformFrom() to each world point
+    point_cloud -= mean_pt
 
     is_nearby = np.linalg.norm(point_cloud, axis=1) < args.max_range
     point_cloud = point_cloud[is_nearby]
