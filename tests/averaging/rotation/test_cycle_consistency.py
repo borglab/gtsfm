@@ -3,9 +3,11 @@
 Author: John Lambert
 """
 import time
+from collections import defaultdict
 from typing import Dict, List, Tuple
 
 import numpy as np
+import pytest
 from gtsam import Rot3, Unit3
 
 import gtsfm.averaging.rotation.cycle_consistency as cycle_utils
@@ -109,6 +111,28 @@ def test_extract_triplets_3() -> None:
         assert triplets[1] == (1, 2, 3)
 
         assert isinstance(triplets, list)
+
+
+def test_extract_triplets_4() -> None:
+    """Ensure that triplets cannot be extracted when an invalid graph (i.e. one with invalid edges) is provided.
+
+    Consider the following undirected graph:
+
+    0 ---- 1
+          /|
+         / |
+        /  |
+      2 -- 3
+    """
+    i2Ri1_dict = {
+        (0, 1): Rot3(),
+        (1, 2): Rot3(),
+        (2, 3): Rot3(),
+        (3, 1): Rot3(),  # this edge is ordered incorrectly, since i1 >= i2, when we need i1 < i2
+    }
+
+    with pytest.raises(RuntimeError) as e_info:
+        triplets = cycle_utils.extract_triplets(i2Ri1_dict)
 
 
 def test_compute_cycle_error_known_GT() -> None:
@@ -325,3 +349,60 @@ def test_triplet_extraction_correctness_runtime() -> None:
 
     assert duration < duration_bf
     assert set(triplets) == set(triplets_bf)
+
+
+def test_create_adjacency_list() -> None:
+    """Ensure the generated adjacency graph is empty, for a simple rotation graph.
+
+    Graph topology (assume all graph vertices have the same orientation):
+
+    0 ---- 1
+          /|
+         / |
+        /  |
+      2 -- 3
+           |\
+           | \
+           |  \
+           4 -- 5
+    """
+    i2Ri1_dict = {
+        (0, 1): Rot3(),
+        (1, 2): Rot3(),
+        (2, 3): Rot3(),
+        (1, 3): Rot3(),
+        (3, 4): Rot3(),
+        (4, 5): Rot3(),
+        (3, 5): Rot3(),
+    }
+    adj_list = cycle_utils.create_adjacency_list(i2Ri1_dict)
+
+    # fmt: off
+    expected_adj_list = {
+        0: {1},
+        1: {0, 2, 3},
+        2: {1, 3},
+        3: {1, 2, 4, 5},
+        4: {3, 5},
+        5: {3, 4}
+    }
+    # fmt: on
+    assert isinstance(adj_list, defaultdict)
+
+
+def test_create_adjacency_list_empty() -> None:
+    """Ensure the generated adjacency graph is empty, when no rotation graph edges are provided."""
+    i2Ri1_dict = {}
+    adj_list = cycle_utils.create_adjacency_list(i2Ri1_dict)
+
+    assert len(adj_list.keys()) == 0
+    assert isinstance(adj_list, defaultdict)
+
+
+def test_create_adjacency_list_unestimated_rotations() -> None:
+    """Ensure the generated adjacency graph is empty, when all rotation graph edges are unestimated."""
+    i2Ri1_dict = {(0, 1): None, (1, 2): None, (0, 2): None}
+    adj_list = cycle_utils.create_adjacency_list(i2Ri1_dict)
+
+    assert len(adj_list.keys()) == 0
+    assert isinstance(adj_list, defaultdict)
