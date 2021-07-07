@@ -9,7 +9,7 @@ Author: John Lambert
 
 import os
 from collections import defaultdict
-from typing import Dict, List, Optional, Tuple
+from typing import DefaultDict, Dict, List, Optional, Set, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -42,23 +42,18 @@ def extract_triplets(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int,
     Returns:
         triplets: 3-tuples of nodes that form a cycle. Nodes of each triplet are provided in sorted order.
     """
+    adj_list = create_adjacency_list(i2Ri1_dict)
+
     # only want to keep the unique ones
     triplets = set()
-
-    # form adjacency list
-    adj_list = defaultdict(set)
-
-    for (i1, i2), i2Ri1 in i2Ri1_dict.items():
-        if i2Ri1 is None:
-            continue
-
-        adj_list[i1].add(i2)
-        adj_list[i2].add(i1)
 
     # find intersections
     for (i1, i2), i2Ri1 in i2Ri1_dict.items():
         if i2Ri1 is None:
             continue
+
+        if i1 >= i2:
+            raise RuntimeError("Graph edges (i1,i2) must be ordered with i1 < i2 in the image loader.")
 
         nodes_from_i1 = adj_list[i1]
         nodes_from_i2 = adj_list[i2]
@@ -69,6 +64,34 @@ def extract_triplets(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int,
                 triplets.add(cycle_nodes)
 
     return list(triplets)
+
+
+def create_adjacency_list(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> DefaultDict[int, Set[int]]:
+    """Create an adjacency-list representation of a **rotation** graph G=(V,E) when provided its edges E.
+
+    Note: this is specific to the rotation averaging use case, where some edges may be unestimated
+    (i.e. their relative rotation is None), in which case they are not incorporated into the graph.
+
+    In an adjacency list, the neighbors of each vertex may be listed efficiently, in time proportional to the
+    degree of the vertex. In an adjacency matrix, this operation takes time proportional to the number of
+    vertices in the graph, which may be significantly higher than the degree.
+
+    Args:
+        i2Ri1_dict: mapping from image pair indices to relative rotation.
+
+    Returns:
+        adj_list: adjacency list representation of the graph, mapping an image index to its neighbors
+    """
+    adj_list = defaultdict(set)
+
+    for (i1, i2), i2Ri1 in i2Ri1_dict.items():
+        if i2Ri1 is None:
+            continue
+
+        adj_list[i1].add(i2)
+        adj_list[i2].add(i1)
+
+    return adj_list
 
 
 def compute_cycle_error(
@@ -119,8 +142,8 @@ def compute_cycle_error(
 
     gt_known = all([err is not None for err in rot_errors])
     if gt_known:
-        max_rot_error = np.max(rot_errors)
-        max_trans_error = np.max(trans_errors)
+        max_rot_error = float(np.max(rot_errors))
+        max_trans_error = float(np.max(trans_errors))
     else:
         # ground truth unknown, so cannot estimate error w.r.t. GT
         max_rot_error = None
@@ -129,22 +152,18 @@ def compute_cycle_error(
     if verbose:
         # for each rotation R: find a vector [x,y,z] s.t. R = Rot3.RzRyRx(x,y,z)
         # this is equivalent to scipy.spatial.transform's `.as_euler("xyz")`
-        i1Ri0_euler = np.rad2deg(i1Ri0.xyz()).tolist()
-        i2Ri1_euler = np.rad2deg(i2Ri1.xyz()).tolist()
-        i0Ri2_euler = np.rad2deg(i0Ri2.xyz()).tolist()
-
-        euler_x = [i1Ri0_euler[0], i2Ri1_euler[0], i0Ri2_euler[0]]
-        euler_y = [i1Ri0_euler[1], i2Ri1_euler[1], i0Ri2_euler[1]]
-        euler_z = [i1Ri0_euler[2], i2Ri1_euler[2], i0Ri2_euler[2]]
+        i1Ri0_euler = np.rad2deg(i1Ri0.xyz())
+        i2Ri1_euler = np.rad2deg(i2Ri1.xyz())
+        i0Ri2_euler = np.rad2deg(i0Ri2.xyz())
 
         logger.info("\n")
         logger.info(f"{i0},{i1},{i2} --> Cycle error is: {cycle_error:.1f}")
         if gt_known:
             logger.info(f"Triplet: w/ max. R err {max_rot_error:.1f}, and w/ max. t err {max_trans_error:.1f}")
 
-        logger.info("X: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", euler_x[0], euler_x[1], euler_x[2])
-        logger.info("Y: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", euler_y[0], euler_y[1], euler_y[2])
-        logger.info("Z: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", euler_z[0], euler_z[1], euler_z[2])
+        logger.info("X: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", i1Ri0_euler[0], i2Ri1_euler[0], i0Ri2_euler[0])
+        logger.info("Y: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", i1Ri0_euler[1], i2Ri1_euler[1], i0Ri2_euler[1])
+        logger.info("Z: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", i1Ri0_euler[2], i2Ri1_euler[2], i0Ri2_euler[2])
 
     return cycle_error, max_rot_error, max_trans_error
 
@@ -157,7 +176,7 @@ def filter_to_cycle_consistent_edges(
 ) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3]]:
     """Remove edges in a graph where concatenated transformations along a 3-cycle does not compose to identity.
 
-    Note: Will return only a subset of these two dictionaries
+    Note: will return only a subset of these two dictionaries
 
     Concatenating the transformations along a loop in the graph should return the identity function in an
     ideal, noise-free setting.
@@ -198,7 +217,7 @@ def filter_to_cycle_consistent_edges(
 
     for (i0, i1, i2) in triplets:
         cycle_error, max_rot_error, max_trans_error = compute_cycle_error(
-            i2Ri1_dict, [i0, i1, i2], two_view_reports_dict
+            i2Ri1_dict, (i0, i1, i2), two_view_reports_dict
         )
 
         if cycle_error < CYCLE_ERROR_THRESHOLD:
