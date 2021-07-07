@@ -9,7 +9,7 @@ Author: John Lambert
 
 import os
 from collections import defaultdict
-from typing import Dict, List, Optional, Tuple
+from typing import DefaultDict, Dict, List, Optional, Set, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -42,23 +42,18 @@ def extract_triplets(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int,
     Returns:
         triplets: 3-tuples of nodes that form a cycle. Nodes of each triplet are provided in sorted order.
     """
+    adj_list = create_adjacency_list(i2Ri1_dict)
+
     # only want to keep the unique ones
     triplets = set()
-
-    # form adjacency list
-    adj_list = defaultdict(set)
-
-    for (i1, i2), i2Ri1 in i2Ri1_dict.items():
-        if i2Ri1 is None:
-            continue
-
-        adj_list[i1].add(i2)
-        adj_list[i2].add(i1)
 
     # find intersections
     for (i1, i2), i2Ri1 in i2Ri1_dict.items():
         if i2Ri1 is None:
             continue
+
+        if i1 >= i2:
+            raise RuntimeError("Graph edges (i1,i2) must be ordered with i1 < i2 in the image loader.")
 
         nodes_from_i1 = adj_list[i1]
         nodes_from_i2 = adj_list[i2]
@@ -69,6 +64,34 @@ def extract_triplets(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int,
                 triplets.add(cycle_nodes)
 
     return list(triplets)
+
+
+def create_adjacency_list(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> DefaultDict[int, Set[int]]:
+    """Create an adjacency-list representation of a **rotation** graph G=(V,E) when provided its edges E.
+
+    Note: this is specific to the rotation averaging use case, where some edges may be unestimated
+    (i.e. their relative rotation is None), in which case they are not incorporated into the graph.
+
+    In an adjacency list, the neighbors of each vertex may be listed efficiently, in time proportional to the
+    degree of the vertex. In an adjacency matrix, this operation takes time proportional to the number of
+    vertices in the graph, which may be significantly higher than the degree.
+
+    Args:
+        i2Ri1_dict: mapping from image pair indices to relative rotation.
+
+    Returns:
+        adj_list: adjacency list representation of the graph, mapping an image index to its neighbors
+    """
+    adj_list = defaultdict(set)
+
+    for (i1, i2), i2Ri1 in i2Ri1_dict.items():
+        if i2Ri1 is None:
+            continue
+
+        adj_list[i1].add(i2)
+        adj_list[i2].add(i1)
+
+    return adj_list
 
 
 def compute_cycle_error(
@@ -119,8 +142,8 @@ def compute_cycle_error(
 
     gt_known = all([err is not None for err in rot_errors])
     if gt_known:
-        max_rot_error = np.max(rot_errors)
-        max_trans_error = np.max(trans_errors)
+        max_rot_error = float(np.max(rot_errors))
+        max_trans_error = float(np.max(trans_errors))
     else:
         # ground truth unknown, so cannot estimate error w.r.t. GT
         max_rot_error = None
@@ -198,7 +221,7 @@ def filter_to_cycle_consistent_edges(
 
     for (i0, i1, i2) in triplets:
         cycle_error, max_rot_error, max_trans_error = compute_cycle_error(
-            i2Ri1_dict, [i0, i1, i2], two_view_reports_dict
+            i2Ri1_dict, (i0, i1, i2), two_view_reports_dict
         )
 
         if cycle_error < CYCLE_ERROR_THRESHOLD:
