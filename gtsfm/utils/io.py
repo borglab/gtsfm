@@ -110,7 +110,7 @@ def read_json_file(fpath: Union[str, Path]) -> Any:
     Returns:
         Deserialized Python dictionary or list.
     """
-    with open(fpath, "rb") as f:
+    with open(fpath, "r") as f:
         return json.load(f)
 
 
