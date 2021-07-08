@@ -42,9 +42,9 @@ def create_colored_spheres_open3d(
     Note: this is quite computationally expensive.
 
     Args:
-        sphere_radius: radius of each rendered sphere.
         point_cloud: array of shape (N,3) representing 3d points.
         rgb: uint8 array of shape (N,3) representing colors in RGB order, in the range [0,255].
+        sphere_radius: radius of each rendered sphere.
 
     Returns:
         spheres: list of Open3d geometry objects, where each element (a sphere) represents a 3d point.
@@ -72,9 +72,9 @@ def create_all_frustums_open3d(
     """Render camera frustums as collections of line segments, using Open3d.
 
     Args:
-        zcwTw: transforms world points to a new world frame where the point cloud is zero-centered
-        calibrations: calibration object for each camera
         wTi_list: list of camera poses for each image
+        calibrations: calibration object for each camera
+        zcwTw: transforms world points to a new world frame where the point cloud is zero-centered
 
     Returns:
         line_sets: list of line segments that together parameterize all camera frustums
@@ -137,7 +137,6 @@ def draw_scene_open3d(
         calibrations: calibration object for each camera.
         zcwTw: transforms world points to a new world frame where the point cloud is zero-centered.
         args: rendering options.
-
     """
     frustums = create_all_frustums_open3d(wTi_list, calibrations, zcwTw)
     if args.point_rendering_mode == "point":
