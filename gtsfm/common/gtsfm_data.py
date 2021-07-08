@@ -283,7 +283,7 @@ class GtsfmData:
             "min": convert_to_rounded_float(track_lengths_3d.min()),
             "mean": convert_to_rounded_float(np.mean(track_lengths_3d)),
             "median": convert_to_rounded_float(np.median(track_lengths_3d)),
-            "max": convert_to_rounded_float(np.max(track_lengths_3d)),
+            "max": convert_to_rounded_float(track_lengths_3d.max()),
         }
         stats_dict["reprojection_errors"] = {
             "min": convert_to_rounded_float(np.nanmin(scene_reproj_errors)),
