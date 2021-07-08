@@ -281,8 +281,9 @@ def test_filter_to_cycle_consistent_edges() -> None:
 def extract_triplets_brute_force(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int, int, int]]:
     """Use triple for-loop to find triplets from a graph G=(V,E) in O(n^3) time.
 
-    **Much** slower implementation for large graphs, when compared to `extract_triplets()` that uses intersection of adjacency lists.
-    Used to check correctness inside the unit test.
+    Note: this method should **never** be used in practice, other than for exhaustively checking for correctness.
+    It is a **much** slower implementation for large graphs, when compared to `extract_triplets()` that uses
+    intersection of adjacency lists. It is used to check correctness inside the unit test below.
 
     Args:
         i2Ri1_dict: mapping from image pair indices to relative rotation.
@@ -319,8 +320,8 @@ def extract_triplets_brute_force(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> Lis
     return list(triplets)
 
 
-def test_triplet_extraction_correctness_runtime() -> None:
-    """Ensure that for large graphs, the adjacency-list-based algorithm is faster and still correct,
+def test_triplet_extraction_correctness() -> None:
+    """Ensure that for large graphs, the adjacency-list-based algorithm is still correct,
     when compared with the brute-force O(n^3) implementation.
     """
     num_pairs = 100
@@ -336,18 +337,11 @@ def test_triplet_extraction_correctness_runtime() -> None:
 
     i2Ri1_dict = {(pairs[i, 0], pairs[i, 1]): Rot3() for i in range(num_valid_pairs)}
 
-    start = time.time()
     triplets = cycle_utils.extract_triplets(i2Ri1_dict)
-    end = time.time()
-    duration = end - start
 
     # Now, compare with the brute force method
-    start = time.time()
     triplets_bf = extract_triplets_brute_force(i2Ri1_dict)
-    end = time.time()
-    duration_bf = end - start
 
-    assert duration < duration_bf
     assert set(triplets) == set(triplets_bf)
 
 
