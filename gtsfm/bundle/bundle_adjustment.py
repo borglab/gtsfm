@@ -115,31 +115,18 @@ class BundleAdjustmentOptimizer(NamedTuple):
 
         final_error = graph.error(result_values)
 
-        # Error drops from ~2764.22 to ~0.046
         logger.info(f"initial error: {graph.error(initial):.2f}")
         logger.info(f"final error: {final_error:.2f}")
 
         # construct the results
         optimized_data = values_to_gtsfm_data(result_values, initial_data)
 
-        # FIX CASE WHERE WE GET NaNs in reprojection error?
-
         metrics_dict = {}
         metrics_dict["before_filtering"] = optimized_data.aggregate_metrics()
         logger.info("[Result] Number of tracks before filtering: %d", metrics_dict["before_filtering"]["number_tracks"])
-
-        # filter the largest errors
-        filtered_result = optimized_data.filter_landmarks(self.output_reproj_error_thresh)
-
-        metrics_dict["after_filtering"] = filtered_result.aggregate_metrics()
         io_utils.save_json_file(os.path.join(METRICS_PATH, "bundle_adjustment_metrics.json"), metrics_dict)
 
-        logger.info("[Result] Number of tracks after filtering: %d", metrics_dict["after_filtering"]["number_tracks"])
-        logger.info("[Result] Mean track length %.3f", metrics_dict["after_filtering"]["3d_track_lengths"]["mean"])
-        logger.info("[Result] Median track length %.3f", metrics_dict["after_filtering"]["3d_track_lengths"]["median"])
-        filtered_result.log_scene_reprojection_error_stats()
-
-        return filtered_result
+        return optimized_data
 
     def create_computation_graph(self, sfm_data_graph: Delayed) -> Delayed:
         """Create the computation graph for performing bundle adjustment.
