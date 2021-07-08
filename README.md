@@ -84,17 +84,17 @@ GTSFM is designed in an extremely modular way. Each module can be swapped out wi
 
 - `gtsfm`: source code, organized as:
     - `averaging`
-        - `rotation`: rotation averaging implementations (Shonan, Chordal, etc)
-        - `translation`: translation averaging implementations (1d-SFM, etc)
+        - `rotation`: rotation averaging implementations ([Shonan](https://arxiv.org/abs/2008.02737), Chordal, etc)
+        - `translation`: translation averaging implementations ([1d-SFM](https://www.cs.cornell.edu/projects/1dsfm/docs/1DSfM_ECCV14.pdf), etc)
     - `bundle`: bundle adjustment implementations
     - `common`: basic classes used through GTSFM, such as `Keypoints`, `Image`, `SfmTrack2d`, etc
     - `data_association`: 3d point triangulation (DLT) w/ or w/o RANSAC, from 2d point-tracks 
     - `densify`
     - `frontend`: SfM front-end code, including:
         - `detector`: keypoint detector implementations (DoG, etc)
-        - `descriptor`: feature descriptor implementations (SIFT, etc)
-        - `matcher`: descriptor matching implementations (Superglue, etc)
-        - `verifier`: 2d-correspondence verifier implementations (Degensac, OA-Net, etc)
+        - `descriptor`: feature descriptor implementations ([SIFT](https://www.cs.ubc.ca/~lowe/papers/ijcv04.pdf), [SuperPoint](https://arxiv.org/abs/1712.07629) etc)
+        - `matcher`: descriptor matching implementations ([Superglue](https://arxiv.org/abs/1911.11763), etc)
+        - `verifier`: 2d-correspondence verifier implementations ([Degensac](https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.466.2719&rep=rep1&type=pdf), OA-Net, etc)
     - `loader`: image data loaders
     - `utils`: utility functions such as serialization routines and pose comparisons, etc
 - `tests`: unit tests on every function and module
