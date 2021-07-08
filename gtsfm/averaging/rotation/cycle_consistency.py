@@ -161,9 +161,15 @@ def compute_cycle_error(
         if gt_known:
             logger.info(f"Triplet: w/ max. R err {max_rot_error:.1f}, and w/ max. t err {max_trans_error:.1f}")
 
-        logger.info("X: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", i1Ri0_euler[0], i2Ri1_euler[0], i0Ri2_euler[0])
-        logger.info("Y: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", i1Ri0_euler[1], i2Ri1_euler[1], i0Ri2_euler[1])
-        logger.info("Z: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", i1Ri0_euler[2], i2Ri1_euler[2], i0Ri2_euler[2])
+        logger.info(
+            "X: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", i1Ri0_euler[0], i2Ri1_euler[0], i0Ri2_euler[0]
+        )
+        logger.info(
+            "Y: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", i1Ri0_euler[1], i2Ri1_euler[1], i0Ri2_euler[1]
+        )
+        logger.info(
+            "Z: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", i1Ri0_euler[2], i2Ri1_euler[2], i0Ri2_euler[2]
+        )
 
     return cycle_error, max_rot_error, max_trans_error
 
