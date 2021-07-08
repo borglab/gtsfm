@@ -5,6 +5,7 @@ Authors: Ayush Baid, John Lambert
 from typing import Dict, List, Optional, Tuple
 
 import dask
+import numpy as np
 import os
 from pathlib import Path
 from dask.delayed import Delayed
@@ -20,9 +21,11 @@ from gtsam import (
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.io as io
 import gtsfm.utils.metrics as metrics
+import gtsfm.utils.reprojection as reproj_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.data_association.data_assoc import DataAssociation
 
 # Paths to Save Output in React Folders.
@@ -98,6 +101,24 @@ class MultiViewOptimizer:
 
         ba_result_graph = self.ba_optimizer.create_computation_graph(ba_input_graph)
 
+        save_track_patches_viz = True
+        if save_track_patches_viz:
+
+            # save vstacked-patched for each 3d track
+            track3d_vis_graph = dask.delayed(save_ba_output_track_visualizations)(ba_result_graph)
+
+            # as visualization tasks are not to be provided to the user, we create a
+            # dummy computation of concatenating viz tasks with the output graph,
+            # forcing computation of viz tasks
+            ba_result_aux_graph = dask.delayed(lambda x, y: (x, y))(ba_result_graph, track3d_vis_graph)
+
+            # return the entry with just the sfm result
+            ba_result_graph = ba_result_aux_graph[0]
+
+        # filter by reprojection error threshold
+        ba_result_graph = dask.delayed(filter_ba_result)(ba_result_graph, self.ba_optimizer.output_reproj_error_thresh)
+
+
         if gt_poses_graph is None:
             return ba_input_graph, ba_result_graph, None, None
 
@@ -105,15 +126,56 @@ class MultiViewOptimizer:
             i2Ui1_graph, wRi_graph, wti_graph, gt_poses_graph
         )
         saved_metrics_graph = dask.delayed(io.save_json_file)(
-            "result_metrics/multiview_optimizer_metrics.json", metrics_graph
+            "result_metrics/averaging_metrics.json", metrics_graph
         )
 
         # duplicate dask variable to save optimizer_metrics within React directory
         react_saved_metrics_graph = dask.delayed(io.save_json_file)(
-            os.path.join(REACT_METRICS_PATH, "multiview_optimizer_metrics.json"), metrics_graph
+            os.path.join(REACT_METRICS_PATH, "averaging_metrics.json"), metrics_graph
         )
 
         return ba_input_graph, ba_result_graph, saved_metrics_graph, react_saved_metrics_graph
+
+
+def save_ba_output_track_visualizations(optimized_data: GtsfmData) -> None:
+    """Bin reprojection errors per track, and for each bin, save vstacked-patches for each 3d track
+
+    Args:
+        optimized_data: optimized camera poses and 3d point tracks.
+    """
+    for j in range(optimized_data.number_tracks()):
+        track_3d = optimized_data.get_track(j)
+        track_errors, _ = reproj_utils.compute_track_reprojection_errors(optimized_data._cameras, track_3d)
+        avg_track_reproj_error = np.mean(track_errors)
+        if np.isnan(avg_track_reproj_error):
+            # ignore NaN tracks
+            continue
+        io.save_track3d_visualizations(j, [track_3d], images, save_dir=os.path.join("plots", "tracks_3d", f"{int(np.round(avg_track_reproj_error))}"))
+
+
+def filter_ba_result(optimized_data: GtsfmData, output_reproj_error_thresh: float) -> GtsfmData:
+    """Return a new GtsfmData object, preserving only tracks with low average reprojection error.
+
+    Args:
+        optimized_data: optimized camera poses and 3d point tracks.
+
+    Returns:
+        filtered_result: optimized camera poses and filtered 3d point tracks.
+    """
+    # filter the largest errors
+    filtered_result = optimized_data.filter_landmarks(output_reproj_error_thresh)
+
+    metrics_dict["after_filtering"] = filtered_result.aggregate_metrics()
+
+    logger.info("[Result] Number of tracks after filtering: %d", metrics_dict["after_filtering"]["number_tracks"])
+    logger.info("[Result] Mean track length %.3f", metrics_dict["after_filtering"]["3d_track_lengths"]["mean"])
+    logger.info("[Result] Median track length %.3f", metrics_dict["after_filtering"]["3d_track_lengths"]["median"])
+    filtered_result.log_scene_reprojection_error_stats()
+
+    io.save_json_file(os.path.join(METRICS_PATH, "bundle_adjustment_filtering_metrics.json"), metrics_dict)
+
+    return filtered_result
+
 
 
 def prune_to_largest_connected_component(
