@@ -18,8 +18,10 @@ from gtsam import (
     Unit3,
 )
 
+from gtsfm.common.image import Image
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.io as io
+import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics
 import gtsfm.utils.reprojection as reproj_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
@@ -28,8 +30,12 @@ from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.data_association.data_assoc import DataAssociation
 
+METRICS_PATH = Path(__file__).resolve().parent.parent.parent / "result_metrics"
+
 # Paths to Save Output in React Folders.
 REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
+
+logger = logger_utils.get_logger()
 
 
 class MultiViewOptimizer:
@@ -105,7 +111,7 @@ class MultiViewOptimizer:
         if save_track_patches_viz:
 
             # save vstacked-patched for each 3d track
-            track3d_vis_graph = dask.delayed(save_ba_output_track_visualizations)(ba_result_graph)
+            track3d_vis_graph = dask.delayed(save_ba_output_track_visualizations)(ba_result_graph, images_graph)
 
             # as visualization tasks are not to be provided to the user, we create a
             # dummy computation of concatenating viz tasks with the output graph,
@@ -137,11 +143,12 @@ class MultiViewOptimizer:
         return ba_input_graph, ba_result_graph, saved_metrics_graph, react_saved_metrics_graph
 
 
-def save_ba_output_track_visualizations(optimized_data: GtsfmData) -> None:
+def save_ba_output_track_visualizations(optimized_data: GtsfmData, images: List[Image]) -> None:
     """Bin reprojection errors per track, and for each bin, save vstacked-patches for each 3d track
 
     Args:
         optimized_data: optimized camera poses and 3d point tracks.
+        images: a list of all images in scene (optional and only for track patch visualization).
     """
     for j in range(optimized_data.number_tracks()):
         track_3d = optimized_data.get_track(j)
@@ -165,6 +172,7 @@ def filter_ba_result(optimized_data: GtsfmData, output_reproj_error_thresh: floa
     # filter the largest errors
     filtered_result = optimized_data.filter_landmarks(output_reproj_error_thresh)
 
+    metrics_dict = {}
     metrics_dict["after_filtering"] = filtered_result.aggregate_metrics()
 
     logger.info("[Result] Number of tracks after filtering: %d", metrics_dict["after_filtering"]["number_tracks"])
