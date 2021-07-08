@@ -41,7 +41,7 @@ def compute_track_reprojection_errors(
             errors.append(np.nan)
 
     errors = np.array(errors)
-    avg_track_reproj_error = errors.mean()
+    avg_track_reproj_error = np.nanmean(errors)
     return errors, avg_track_reproj_error
 
 
@@ -74,6 +74,6 @@ def compute_point_reprojection_errors(
             errors.append(np.nan)
 
     errors = np.array(errors)
-    avg_track_reproj_error = errors.mean()
+    avg_track_reproj_error = np.nanmean(errors)
     return errors, avg_track_reproj_error
 
