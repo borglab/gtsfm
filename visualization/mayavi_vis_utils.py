@@ -101,7 +101,7 @@ def draw_scene_mayavi(
     """Render camera frustums and a 3d point cloud against a white background, using Mayavi.
 
     Args:
-        point_cloud
+        point_cloud: array of shape (N,3) representing 3d points.
         rgb: uint8 array of shape (N,3) representing colors in RGB order, in the range [0,255].
         wTi_list: list of camera poses for each image.
         calibrations: calibration object for each camera.
