@@ -64,9 +64,9 @@ def view_scene(args: argparse.Namespace) -> None:
     rgb = rgb[is_nearby]
 
     if args.rendering_library == "open3d":
-        draw_scene_open3d(args, point_cloud, rgb, calibrations, wTi_list, zcwTw)
+        draw_scene_open3d(point_cloud, rgb, wTi_list, calibrations, zcwTw, args)
     elif args.rendering_library == "mayavi":
-        draw_scene_mayavi(args, point_cloud, rgb, calibrations, wTi_list, zcwTw)
+        draw_scene_mayavi(point_cloud, rgb, wTi_list, calibrations, zcwTw, args)
     else:
         raise RuntimeError("Unsupported rendering library")
 
@@ -100,7 +100,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--sphere_radius",
         type=float,
-        default=0.001,
+        default=0.1,
         help="if points are rendered as spheres, then spheres are rendered with this radius.",
     )
 
