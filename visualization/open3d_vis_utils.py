@@ -1,5 +1,5 @@
 """
-Utilities for rendering camera frustums and 3d point clouds using Open3d.
+Utilities for rendering camera frustums and 3d point clouds using the Open3d library.
 
 Author: John Lambert
 """
@@ -20,7 +20,7 @@ def create_colored_point_cloud_open3d(point_cloud: np.ndarray, rgb: np.ndarray) 
 
     Args:
         point_cloud: array of shape (N,3) representing 3d points.
-        rgb: uint8 array of shape (N,3) representing colors in RGB order, in the range [0,255]
+        rgb: uint8 array of shape (N,3) representing colors in RGB order, in the range [0,255].
 
     Returns:
         pcd: Open3d geometry object representing a colored 3d point cloud.
@@ -35,7 +35,7 @@ def create_colored_point_cloud_open3d(point_cloud: np.ndarray, rgb: np.ndarray) 
 
 
 def create_colored_spheres_open3d(
-    sphere_radius: float, point_cloud: np.ndarray, rgb: np.ndarray
+    point_cloud: np.ndarray, rgb: np.ndarray, sphere_radius: float
 ) -> List[open3d.geometry.TriangleMesh]:
     """Create a colored sphere mesh for every point inside the point cloud, using Open3d.
 
@@ -44,7 +44,7 @@ def create_colored_spheres_open3d(
     Args:
         sphere_radius: radius of each rendered sphere.
         point_cloud: array of shape (N,3) representing 3d points.
-        rgb: uint8 array of shape (N,3) representing colors in RGB order, in the range [0,255]
+        rgb: uint8 array of shape (N,3) representing colors in RGB order, in the range [0,255].
 
     Returns:
         spheres: list of Open3d geometry objects, where each element (a sphere) represents a 3d point.
@@ -67,7 +67,7 @@ def create_colored_spheres_open3d(
 
 
 def create_all_frustums_open3d(
-    zcwTw: Pose3, calibrations: List[Cal3Bundler], wTi_list: List[Pose3]
+    wTi_list: List[Pose3], calibrations: List[Cal3Bundler], zcwTw: Pose3
 ) -> List[open3d.geometry.LineSet]:
     """Render camera frustums as collections of line segments, using Open3d.
 
@@ -121,29 +121,30 @@ def create_all_frustums_open3d(
 
 
 def draw_scene_open3d(
-    args: argparse.Namespace,
     point_cloud: np.ndarray,
     rgb: np.ndarray,
-    calibrations: List[Cal3Bundler],
     wTi_list: List[Pose3],
+    calibrations: List[Cal3Bundler],
     zcwTw: Pose3,
+    args: argparse.Namespace,
 ) -> None:
     """Render camera frustums and a 3d point cloud, using Open3d.
 
     Args:
-        args: rendering options.
         point_cloud: array of shape (N,3) representing 3d points.
         rgb: uint8 array of shape (N,3) representing colors in RGB order, in the range [0,255].
-        calibrations: calibration object for each camera
-        wTi_list: list of camera poses for each image
-        zcwTw: transforms world points to a new world frame where the point cloud is zero-centered
+        wTi_list: list of camera poses for each image.
+        calibrations: calibration object for each camera.
+        zcwTw: transforms world points to a new world frame where the point cloud is zero-centered.
+        args: rendering options.
+
     """
-    frustums = create_all_frustums_open3d(zcwTw, calibrations, wTi_list)
+    frustums = create_all_frustums_open3d(wTi_list, calibrations, zcwTw)
     if args.point_rendering_mode == "point":
         pcd = create_colored_point_cloud_open3d(point_cloud, rgb)
         geometries = frustums + [pcd]
     elif args.point_rendering_mode == "sphere":
-        spheres = create_colored_spheres_open3d(args.sphere_radius, point_cloud, rgb)
+        spheres = create_colored_spheres_open3d(point_cloud, rgb, args.sphere_radius)
         geometries = frustums + spheres
 
     open3d.visualization.draw_geometries(geometries)
