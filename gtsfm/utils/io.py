@@ -10,7 +10,7 @@ import gtsam
 import h5py
 import json
 import numpy as np
-from gtsam import Cal3Bundler, Rot3, Pose3
+from gtsam import Cal3Bundler, Rot3, Pose3, SfmTrack
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
 
@@ -110,7 +110,7 @@ def read_json_file(fpath: Union[str, Path]) -> Any:
     Returns:
         Deserialized Python dictionary or list.
     """
-    with open(fpath, "rb") as f:
+    with open(fpath, "r") as f:
         return json.load(f)
 
 
@@ -389,6 +389,7 @@ def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
 
 
 def save_track_visualizations(
+    j: int,
     tracks_2d: List[SfmTrack2d],
     images: List[Image],
     save_dir: str,
@@ -407,5 +408,28 @@ def save_track_visualizations(
             patches += [images[m.i].extract_patch(center_x=m.uv[0], center_y=m.uv[1], patch_size=viz_patch_sz)]
 
         stacked_image = image_utils.vstack_image_list(patches)
-        save_fpath = os.path.join(save_dir, f"track_{i}.jpg")
+        save_fpath = os.path.join(save_dir, f"track_{j}.jpg")
         save_image(stacked_image, img_path=save_fpath)
+
+
+def save_track3d_visualizations(
+    j: int,
+    tracks_3d: List[SfmTrack],
+    images: List[Image],
+    save_dir: str,
+    viz_patch_sz: int = 200,
+) -> None:
+    """ """
+    os.makedirs(save_dir, exist_ok=True)
+
+    for track in tracks_3d:
+        patches = []
+        for k in range(track.number_measurements()):
+            i, uv = track.measurement(k)
+            patches += [images[i].extract_patch(center_x=uv[0], center_y=uv[1], patch_size=viz_patch_sz)]
+
+        stacked_image = image_utils.vstack_image_list(patches)
+        save_fpath = os.path.join(save_dir, f"track_{j}.jpg")
+        save_image(stacked_image, img_path=save_fpath)
+
+
