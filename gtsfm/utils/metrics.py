@@ -245,7 +245,7 @@ def log_sfm_summary() -> None:
 
     logger.info("Front-end median_trans_err_deg: %.2f", np.median(trans_errs_deg))
     logger.info("Front-end max_trans_err_deg: %.2f", max(trans_errs_deg))
-
+    
     averaging_metrics_fpath = REPO_ROOT / "result_metrics" / "averaging_metrics.json"
     averaging_metrics = io_utils.read_json_file(averaging_metrics_fpath)
 
