@@ -3,18 +3,13 @@
 Authors: Ayush Baid
 """
 import abc
-from enum import Enum
+from typing import Tuple
 
 import dask
 import numpy as np
 from dask.delayed import Delayed
 
-
-class MatchingDistanceType(Enum):
-    """Type of distance metric to use for matching descriptors."""
-
-    HAMMING = 1
-    EUCLIDEAN = 2
+from gtsfm.common.keypoints import Keypoints
 
 
 class MatcherBase(metaclass=abc.ABCMeta):
@@ -26,23 +21,32 @@ class MatcherBase(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def match(
         self,
-        descriptors_im1: np.ndarray,
-        descriptors_im2: np.ndarray,
-        distance_type: MatchingDistanceType = MatchingDistanceType.EUCLIDEAN,
+        keypoints_i1: Keypoints,
+        keypoints_i2: Keypoints,
+        descriptors_i1: np.ndarray,
+        descriptors_i2: np.ndarray,
+        im_shape_i1: Tuple[int, int],
+        im_shape_i2: Tuple[int, int],
     ) -> np.ndarray:
         """Match descriptor vectors.
 
+        # Some matcher implementations (such as SuperGlue) utilize keypoint coordinates as
+        # positional encoding, so our matcher API provides them for optional use.
+
         Output format:
         1. Each row represents a match.
-        2. First column represents descriptor index from image #1.
-        3. Second column represents descriptor index from image #2.
-        4. Matches are sorted in descending order of the confidence (score).
+        2. First column represents keypoint index from image #i1.
+        3. Second column represents keypoint index from image #i2.
+        4. Matches are sorted in descending order of the confidence (score), if possible.
 
         Args:
-            descriptors_im1: descriptors from image #1, of shape (N1, D).
-            descriptors_im2: descriptors from image #2, of shape (N2, D).
-            distance_type (optional): the space to compute the distance between descriptors. Defaults to
-                                      MatchingDistanceType.EUCLIDEAN.
+            keypoints_i1: keypoints for image #i1, of length N1.
+            keypoints_i2: keypoints for image #i2, of length N2.
+            descriptors_i1: descriptors corr. to keypoints_i1.
+            descriptors_i2: descriptors corr. to keypoints_i2.
+            im_shape_i1: shape of image #i1, as (height,width).
+            im_shape_i2: shape of image #i2, as (height,width).
+
 
         Returns:
             Match indices (sorted by confidence), as matrix of shape (N, 2), where N < min(N1, N2).
@@ -52,20 +56,32 @@ class MatcherBase(metaclass=abc.ABCMeta):
 
     def create_computation_graph(
         self,
-        descriptors_im1_graph: Delayed,
-        descriptors_im2_graph: Delayed,
-        distance_type: MatchingDistanceType = MatchingDistanceType.EUCLIDEAN,
+        keypoints_i1_graph: Delayed,
+        keypoints_i2_graph: Delayed,
+        descriptors_i1_graph: Delayed,
+        descriptors_i2_graph: Delayed,
+        im_shape_i1_graph: Delayed,
+        im_shape_i2_graph: Delayed,
     ) -> Delayed:
         """
-        Generates computation graph for matched features using the detection and description graph.
+        Generates computation graph for matched features using description graphs.
 
         Args:
-            descriptors_im1_graph: descriptors for im1 wrapped in Delayed.
-            descriptors_im2_graph: descriptors for im2 wrapped in Delayed.
-            distance_type (optional): the space to compute the distance between descriptors. Defaults to
-                                      MatchingDistanceType.EUCLIDEAN.
+            keypoints_i1_graph: keypoints for image #i1, wrapped in Delayed.
+            keypoints_i2_graph: keypoints for image #i2, wrapped in Delayed.
+            descriptors_i1_graph: descriptors corr. to keypoints_i1.
+            descriptors_i2_graph: descriptors corr. to keypoints_i2.
+            im_shape_i1_graph: Delayed with the (H,W) shape of image #i1.
+            im_shape_i2_graph: Delayed with the (H,W) shape of image #i2.
 
         Returns:
             Delayed dask tasks for matching for input camera pairs.
         """
-        return dask.delayed(self.match)(descriptors_im1_graph, descriptors_im2_graph, distance_type)
+        return dask.delayed(self.match)(
+            keypoints_i1_graph,
+            keypoints_i2_graph,
+            descriptors_i1_graph,
+            descriptors_i2_graph,
+            im_shape_i1_graph,
+            im_shape_i2_graph,
+        )

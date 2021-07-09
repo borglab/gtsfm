@@ -30,5 +30,5 @@ describe('BlueNode.js Test', () => {
         const div = wrapper.find('GtsfmNode');
         expect(div.props().backgroundColor).toEqual('#2255e0');
         expect(div.props().textColor).toEqual('white');
-    })
+    });
 })

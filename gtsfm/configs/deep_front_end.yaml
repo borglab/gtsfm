@@ -3,22 +3,23 @@ SceneOptimizer:
   save_gtsfm_data: True
   save_two_view_correspondences_viz: False
   save_3d_viz: True
-  pose_angular_error_thresh: 10 # degrees
+  pose_angular_error_thresh: 5 # degrees
 
   feature_extractor:
     _target_: gtsfm.feature_extractor.FeatureExtractor
     detector_descriptor:
-      _target_: gtsfm.frontend.detector_descriptor.sift.SIFTDetectorDescriptor
+      _target_: gtsfm.frontend.detector_descriptor.superpoint.SuperPointDetectorDescriptor
 
 
   two_view_estimator:
     _target_: gtsfm.two_view_estimator.TwoViewEstimator
-    corr_metric_dist_threshold: 0.1
+    corr_metric_dist_threshold: 3 # in px
     matcher:
-      _target_: gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher
+      _target_: gtsfm.frontend.matcher.superglue_matcher.SuperGlueMatcher
 
     verifier:
-      _target_: gtsfm.frontend.verifier.degensac.Degensac
+      _target_: gtsfm.frontend.verifier.ransac.Ransac
+      use_intrinsics_in_verification: True
     
 
   multiview_optimizer:

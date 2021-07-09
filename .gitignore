@@ -139,6 +139,8 @@ dask-worker-space/
 
 # Third party model code
 thirdparty/models/
+thirdparty/patchmatchnet/checkpoints/
+thirdparty/SuperGluePretrainedNetwork/models/weights/
 
 # Data folder
 data/

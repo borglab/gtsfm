@@ -28,34 +28,29 @@ class TestFrontend(unittest.TestCase):
     def setUp(self) -> None:
         """ """
         self.loader = ArgoverseDatasetLoader(
-            dataset_dir= TEST_DATA_ROOT_PATH / "argoverse" / "train1",
-            log_id = "273c1883-673a-36bf-b124-88311b1a80be",
-            stride = 1,
-            max_num_imgs = 2,
-            max_lookahead_sec = 50,
-            camera_name = "ring_front_center"
+            dataset_dir=TEST_DATA_ROOT_PATH / "argoverse" / "train1",
+            log_id="273c1883-673a-36bf-b124-88311b1a80be",
+            stride=1,
+            max_num_imgs=2,
+            max_lookahead_sec=50,
+            camera_name="ring_front_center",
         )
         assert len(self.loader)
 
     def __get_frontend_computation_graph(
-        self,
-        feature_extractor: FeatureExtractor,
-        two_view_estimator: TwoViewEstimator,
+        self, feature_extractor: FeatureExtractor, two_view_estimator: TwoViewEstimator,
     ) -> Tuple[Delayed, Delayed]:
         """Copied from SceneOptimizer class, without back-end code"""
         image_pair_indices = self.loader.get_valid_pairs()
         image_graph = self.loader.create_computation_graph_for_images()
         camera_intrinsics_graph = self.loader.create_computation_graph_for_intrinsics()
-        use_intrinsics_in_verification = True
+        image_shape_graph = self.loader.create_computation_graph_for_image_shapes()
 
         # detection and description graph
         keypoints_graph_list = []
         descriptors_graph_list = []
         for delayed_image in image_graph:
-            (
-                delayed_dets,
-                delayed_descs,
-            ) = feature_extractor.create_computation_graph(delayed_image)
+            (delayed_dets, delayed_descs,) = feature_extractor.create_computation_graph(delayed_image)
             keypoints_graph_list += [delayed_dets]
             descriptors_graph_list += [delayed_descs]
 
@@ -70,7 +65,8 @@ class TestFrontend(unittest.TestCase):
                 descriptors_graph_list[i2],
                 camera_intrinsics_graph[i1],
                 camera_intrinsics_graph[i2],
-                use_intrinsics_in_verification,
+                image_shape_graph[i1],
+                image_shape_graph[i2],
             )
             i2Ri1_graph_dict[(i1, i2)] = i2Ri1
             i2Ui1_graph_dict[(i1, i2)] = i2Ui1
@@ -82,13 +78,12 @@ class TestFrontend(unittest.TestCase):
         det_desc = SIFTDetectorDescriptor()
         feature_extractor = FeatureExtractor(det_desc)
         two_view_estimator = TwoViewEstimator(
-            matcher=TwoWayMatcher(), verifier=Ransac(), corr_metric_dist_threshold=0.1
+            matcher=TwoWayMatcher(),
+            verifier=Ransac(use_intrinsics_in_verification=True),
+            corr_metric_dist_threshold=0.1,
         )
         self.__compare_frontend_result_error(
-            feature_extractor,
-            two_view_estimator,
-            euler_angle_err_tol=1.4,
-            translation_err_tol=0.026,
+            feature_extractor, two_view_estimator, euler_angle_err_tol=1.4, translation_err_tol=0.026,
         )
 
     def test_sift_twoway_degensac(self):
@@ -99,10 +94,7 @@ class TestFrontend(unittest.TestCase):
             matcher=TwoWayMatcher(), verifier=Degensac(), corr_metric_dist_threshold=0.1
         )
         self.__compare_frontend_result_error(
-            feature_extractor,
-            two_view_estimator,
-            euler_angle_err_tol=0.95,
-            translation_err_tol=0.03,
+            feature_extractor, two_view_estimator, euler_angle_err_tol=0.95, translation_err_tol=0.03,
         )
 
     def __compare_frontend_result_error(
@@ -113,10 +105,9 @@ class TestFrontend(unittest.TestCase):
         translation_err_tol: float,
     ) -> None:
         """Compare recovered relative rotation and translation with ground truth."""
-        (
-            i2Ri1_graph_dict,
-            i2Ui1_graph_dict,
-        ) = self.__get_frontend_computation_graph(feature_extractor, two_view_estimator)
+        (i2Ri1_graph_dict, i2Ui1_graph_dict,) = self.__get_frontend_computation_graph(
+            feature_extractor, two_view_estimator
+        )
 
         with dask.config.set(scheduler="single-threaded"):
             i2Ri1_results, i2ti1_results = dask.compute(i2Ri1_graph_dict, i2Ui1_graph_dict)

@@ -131,10 +131,8 @@ class DataAssociation(NamedTuple):
         track_lengths_3d = connected_data.get_track_lengths()
 
         logger.debug("[Data association] output number of tracks: %s", num_accepted_tracks)
-        logger.debug("[Data association] output avg. track length: %s", np.round(mean_3d_track_length,2))
+        logger.debug("[Data association] output avg. track length: %.2f", mean_3d_track_length)
 
-        # dump the 3d point cloud before Bundle Adjustment for offline visualization
-        points_3d = [list(connected_data.get_track(j).point3()) for j in range(num_accepted_tracks)]
         # bin edges are halfway between each integer
         track_lengths_histogram, _ = np.histogram(track_lengths_3d, bins=np.linspace(-0.5, 10.5, 12))
 
@@ -156,7 +154,6 @@ class DataAssociation(NamedTuple):
             "mean_accepted_track_avg_error": np.array(per_accepted_track_avg_errors).mean(),
             "per_rejected_track_avg_errors": per_rejected_track_avg_errors,
             "per_accepted_track_avg_errors": per_accepted_track_avg_errors,
-            "points_3d": points_3d,
         }
 
         return connected_data, data_assoc_metrics

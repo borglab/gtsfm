@@ -4,7 +4,7 @@ This can be the output of either data association or of bundle adjustment.
 Authors: Ayush Baid, John Lambert, Xiaolong Wu
 """
 import itertools
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from gtsam import PinholeCameraCal3Bundler, Pose3, SfmTrack
@@ -257,9 +257,41 @@ class GtsfmData:
         scene_reproj_errors: List[float] = []
         for track in self._tracks:
             track_errors, _ = reproj_utils.compute_track_reprojection_errors(self._cameras, track)
+            # passing an array argument to .extend() will convert the array to a list, and append its elements
             scene_reproj_errors.extend(track_errors)
 
         return np.array(scene_reproj_errors)
+
+
+    def aggregate_metrics(self) -> Dict[str, Any]:
+        """Aggregate metrics about the reprojection errors and 3d track lengths (summary stats).
+
+        Args:
+            ba_data: bundle adjustment result
+
+        Returns:
+            dictionary containing metrics of bundle adjustment result
+        """
+        track_lengths_3d = self.get_track_lengths()
+        scene_reproj_errors = self.get_scene_reprojection_errors()
+
+        convert_to_rounded_float = lambda x: float(np.round(x, 3))
+
+        stats_dict = {}
+        stats_dict["number_tracks"] = self.number_tracks()
+        stats_dict["3d_track_lengths"] = {
+            "min": convert_to_rounded_float(track_lengths_3d.min()),
+            "mean": convert_to_rounded_float(np.mean(track_lengths_3d)),
+            "median": convert_to_rounded_float(np.median(track_lengths_3d)),
+            "max": convert_to_rounded_float(track_lengths_3d.max()),
+        }
+        stats_dict["reprojection_errors"] = {
+            "min": convert_to_rounded_float(np.nanmin(scene_reproj_errors)),
+            "mean": convert_to_rounded_float(np.nanmean(scene_reproj_errors)),
+            "median": convert_to_rounded_float(np.nanmedian(scene_reproj_errors)),
+            "max": convert_to_rounded_float(np.nanmax(scene_reproj_errors)),
+        }
+        return stats_dict
 
     def get_avg_scene_reprojection_error(self) -> float:
         """Get average reprojection error for all 3d points in the entire scene
@@ -268,16 +300,16 @@ class GtsfmData:
             Average of reprojection errors for every 3d point to its 2d measurements
         """
         scene_reproj_errors = self.get_scene_reprojection_errors()
-        scene_avg_reproj_error = np.mean(scene_reproj_errors)
+        scene_avg_reproj_error = np.nanmean(scene_reproj_errors)
         return scene_avg_reproj_error
 
     def log_scene_reprojection_error_stats(self) -> None:
         """Logs reprojection error stats for all 3d points in the entire scene."""
         scene_reproj_errors = self.get_scene_reprojection_errors()
-        logger.info("Min scene reproj error: %.3f", np.min(scene_reproj_errors))
-        logger.info("Avg scene reproj error: %.3f", np.mean(scene_reproj_errors))
-        logger.info("Median scene reproj error: %.3f", np.median(scene_reproj_errors))
-        logger.info("Max scene reproj error: %.3f", np.max(scene_reproj_errors))
+        logger.info("Min scene reproj error: %.3f", np.nanmin(scene_reproj_errors))
+        logger.info("Avg scene reproj error: %.3f", np.nanmean(scene_reproj_errors))
+        logger.info("Median scene reproj error: %.3f", np.nanmedian(scene_reproj_errors))
+        logger.info("Max scene reproj error: %.3f", np.nanmax(scene_reproj_errors))
 
     def __validate_track(self, track: SfmTrack, reproj_err_thresh: float) -> bool:
         """Validates a track based on reprojection errors and cheirality checks.

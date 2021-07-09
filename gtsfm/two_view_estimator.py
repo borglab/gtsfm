@@ -35,10 +35,15 @@ class TwoViewEstimator:
         Args:
             matcher: matcher to use.
             verifier: verifier to use.
+            corr_metric_dist_threshold: distance threshold for marking a correspondence pair as inlier.
         """
-        self.matcher = matcher
-        self.verifier = verifier
+        self._matcher = matcher
+        self._verifier = verifier
         self._corr_metric_dist_threshold = corr_metric_dist_threshold
+
+    def get_corr_metric_dist_threshold(self) -> float:
+        """Getter for the distance threshold used in the metric for correct correspondences."""
+        return self._corr_metric_dist_threshold
 
     def create_computation_graph(
         self,
@@ -48,7 +53,8 @@ class TwoViewEstimator:
         descriptors_i2_graph: Delayed,
         camera_intrinsics_i1_graph: Delayed,
         camera_intrinsics_i2_graph: Delayed,
-        exact_intrinsics: bool = True,
+        im_shape_i1_graph: Delayed,
+        im_shape_i2_graph: Delayed,
         i2Ti1_expected_graph: Optional[Delayed] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, Optional[Delayed], Optional[Delayed], Optional[Delayed]]:
         """Create delayed tasks for matching and verification.
@@ -60,7 +66,8 @@ class TwoViewEstimator:
             descriptors_i2_graph: corr. descriptors for image i2.
             camera_intrinsics_i1_graph: intrinsics for camera i1.
             camera_intrinsics_i2_graph: intrinsics for camera i2.
-            exact_intrinsics (optional): flag to use intrinsics as exact. Defaults to True.
+            im_shape_i1_graph: image shape for image i1.
+            im_shape_i2_graph: image shape for image i2.
             i2Ti1_expected_graph (optional): ground truth relative pose, used for evaluation if available. Defaults to
                                              None.
 
@@ -74,17 +81,23 @@ class TwoViewEstimator:
         """
 
         # graph for matching to obtain putative correspondences
-        corr_idxs_graph = self.matcher.create_computation_graph(descriptors_i1_graph, descriptors_i2_graph)
+        corr_idxs_graph = self._matcher.create_computation_graph(
+            keypoints_i1_graph,
+            keypoints_i2_graph,
+            descriptors_i1_graph,
+            descriptors_i2_graph,
+            im_shape_i1_graph,
+            im_shape_i2_graph,
+        )
 
         # verification on putative correspondences to obtain relative pose
         # and verified correspondences
-        (i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph,) = self.verifier.create_computation_graph(
+        (i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph,) = self._verifier.create_computation_graph(
             keypoints_i1_graph,
             keypoints_i2_graph,
             corr_idxs_graph,
             camera_intrinsics_i1_graph,
             camera_intrinsics_i2_graph,
-            exact_intrinsics,
         )
 
         # if we have the expected data, evaluate the computed relative pose
@@ -139,6 +152,9 @@ def compute_correspondence_metrics(
         Number of correct correspondences.
         Inlier Ratio, i.e. ratio of correspondences which are correct.
     """
+    if corr_idxs_i1i2.size == 0:
+        return 0, float("Nan")
+
     number_correct = metric_utils.count_correct_correspondences(
         keypoints_i1.extract_indices(corr_idxs_i1i2[:, 0]),
         keypoints_i2.extract_indices(corr_idxs_i1i2[:, 1]),
@@ -152,7 +168,7 @@ def compute_correspondence_metrics(
 
 
 def compute_relative_pose_metrics(
-    i2Ri1_computed: Optional[Rot3], i2Ui1_computed: Optional[Unit3], i2Ti1_expected: Pose3,
+    i2Ri1_computed: Optional[Rot3], i2Ui1_computed: Optional[Unit3], i2Ti1_expected: Pose3
 ) -> Tuple[Optional[float], Optional[float]]:
     """Compute the metrics on relative camera pose.
 
