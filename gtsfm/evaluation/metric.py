@@ -2,9 +2,11 @@
 
 Authors: Akshay Krishnan
 """
+from __future__ import annotations
+
 import numpy as np
 from enum import Enum
-from typing import List, Any
+from typing import Any, Dict, List, Union
 
 import gtsfm.utils.io as io
 
@@ -19,69 +21,71 @@ class GtsfmMetric:
         BOX = 2         # For 1D distributions
         HISTOGRAM = 3   # For 1D distributions
 
-    def _get_plot_types_for_dim(self, dim): -> List[PlotType]
+    def _get_plot_types_for_dim(self, dim) -> List[PlotType]:
         if dim == 0:
-            return [PlotType.BAR]
+            return [self.PlotType.BAR]
         if dim == 1:
-            return [PlotType.BOX, PlotType.HISTOGRAM]
+            return [self.PlotType.BOX, self.PlotType.HISTOGRAM]
         return []
 
-    def __init__(self, name: str, data: np.array, plot_type: PlotType = None):
+    def __init__(self, name: str, data: Union[np.array, float], plot_type: PlotType = None):
+        if not isinstance(data, np.ndarray):
+            data = np.array(data)
         if data.ndim > 1:
             raise ValueError('Metrics must be scalars on 1D-distributions.')
-        self.name = name
-        self.data = data
-        self.dim = data.dim
+        self._name = name
+        self._data = data
+        self._dim = data.ndim
 
-        plot_types_for_dim = self._get_plot_types_for_dim(self.dim)
+        plot_types_for_dim = self._get_plot_types_for_dim(self._dim)
         if plot_type is None:
-            self.plot_type = plot_types_for_dim[0]
+            self._plot_type = plot_types_for_dim[0]
         else:
-            if plot_type in plot_types_for_dim
-                self.plot_type = plot_type
+            if plot_type in plot_types_for_dim:
+                self._plot_type = plot_type
             else:
                 raise ValueError('Unsupported plot type for the data dimension')
 
     @property
-    def name(self): 
-        return self.name
+    def name(self) -> str: 
+        return self._name
 
     @property
-    def data(self): -> np.array
-        return self.data
+    def data(self) -> np.array:
+        return self._data
 
     @property
     def plot_type(self):
-        return self.plot_type
+        return self._plot_type
 
-    def get_distribution_percentiles(self): Dict[int, float]
+    def get_distribution_percentiles(self) -> Dict[int, float]:
         query = list(range(0, 101, 10))
-        percentiles = np.percentile(self.data, query)
+        percentiles = np.percentile(self._data, query)
         output = {}
         for i, q in enumerate(query):
             output[q] = percentiles[i]
         return output
 
-    def get_summary_dict(self): Dict[str, Any]
-        if self.dim == 0:
-            return {self.name: self.data[0]}
+    def get_summary_dict(self) -> Dict[str, Any]:
+        if self._dim == 0:
+            return {self._name: self._data}
         return {
-            "min": np.min(self.data),
-            "max": np.max(self.data),
-            "median": np.median(self.data),
-            "mean": np.mean(self.data)
-            "stddev": np.std(self.data)
-            "percentiles": self.get_distribution_percentiles()
+            "min": np.min(self._data),
+            "max": np.max(self._data),
+            "median": np.median(self._data),
+            "mean": np.mean(self._data),
+            "stddev": np.std(self._data),
+            "percentiles": self.get_distribution_percentiles(),
         }
 
-    def get_metric_as_dict(self): -> Dict[str, Any]
-        if self.dim == 0:
+    def get_metric_as_dict(self) -> Dict[str, Any]:
+        if self._dim == 0:
             return self.get_summary_dict()
 
         return {
-            self.name: {
-                SUMMARY_KEY: self.get_summary_dict()
-                DATA_KEY: self.data,
+            self._name: {
+                SUMMARY_KEY: self.get_summary_dict(),
+                DATA_KEY: list(self._data),
             }
         }
 
@@ -92,12 +96,12 @@ class GtsfmMetric:
     def parse_from_dict(cls, metric_dict: Dict[str, Any]) -> GtsfmMetric:
         if len(metric_dict) != 1:
             raise AttributeError("Input metric dict should have a single key-value pair.")
-        metric_name = metric_dict.keys()[0]
+        metric_name = list(metric_dict.keys())[0]
         metric_value = metric_dict[metric_name]
         
         # 1D distribution metrics
-        if isinstance(metric_value, dict):            
-            if not DATA_KEY in metric_dict:
+        if isinstance(metric_value, dict):
+            if not DATA_KEY in metric_value:
                 raise AttributeError('Unable to parse metrics dict: missing data field.')
             return cls(metric_name, metric_value[DATA_KEY])
 
@@ -107,32 +111,32 @@ class GtsfmMetric:
 
 class GtsfmMetricsGroup:
     """Stores GtsfmMetrics from the same module. """
-    def __init__(self, name: str, metrics: List[GtsfmMetric])
-        self.name = name
-        self.metrics = metrics
+    def __init__(self, name: str, metrics: List[GtsfmMetric]):
+        self._name = name
+        self._metrics = metrics
 
     @property
     def name(self):
-        return self.name
+        return self._name
 
     @property
-    def metrics(self)
-        return self.metrics
+    def metrics(self):
+        return self._metrics
 
-    def get_metrics_as_dict(self): -> Dict[str, Dict[str, Any]]
+    def get_metrics_as_dict(self) -> Dict[str, Dict[str, Any]]:
         metrics_dict = {}
-        for metric in self.metrics:
-            metrics_dict[metric.name] = metric.get_metric_as_dict()
-        return {self.name: metrics_dict}
+        for metric in self._metrics:
+            metrics_dict.update(metric.get_metric_as_dict())
+        return {self._name: metrics_dict}
 
     def save_to_json(self):
         io.save_to_json(self.get_metrics_as_dict())
 
     @classmethod
-    def parse_from_dict(cls, metrics_group_dict): -> GtsfmMetricsGroup
+    def parse_from_dict(cls, metrics_group_dict) -> GtsfmMetricsGroup:
         if(len(metrics_dict) != 1):
             raise AttributeError('Metrics group dict must have a single key-value pair.')
-        metrics_group_name = metrics_group_dict.keys()[0]
+        metrics_group_name = list(metrics_group_dict.keys())[0]
         metrics_dict = metrics_group_dict[metrics_group_name]
         gtsfm_metrics_list = []
         for metric_name, metric_value in metrics_dict:
