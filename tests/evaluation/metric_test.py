@@ -54,3 +54,6 @@ class TestGtsfmMetricsGroup(unittest.TestCase):
         metric2_dict = metrics_group_dict['test_metrics']['metric2']
         np.testing.assert_equal(metric1_dict, np.array([2]))
         np.testing.assert_equal(metric2_dict['full_data'], np.array([2]))
+
+if __name__ == "__main__":
+    unittest.main()
