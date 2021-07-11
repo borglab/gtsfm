@@ -123,14 +123,23 @@ class GtsfmMetricsGroup:
     def metrics(self):
         return self._metrics
 
+    def add_metric(self, metric: GtsfmMetric):
+        self._metrics.append(metric)
+
+    def add_metrics(self, metrics: List[GtsfmMetric]):
+        self._metrics.extend(metrics)
+
+    def extend(self, metrics_group: GtsfmMetricsGroup):
+        self._metrics.extend(metrics_group.metrics)
+
     def get_metrics_as_dict(self) -> Dict[str, Dict[str, Any]]:
         metrics_dict = {}
         for metric in self._metrics:
             metrics_dict.update(metric.get_metric_as_dict())
         return {self._name: metrics_dict}
 
-    def save_to_json(self):
-        io.save_to_json(self.get_metrics_as_dict())
+    def save_to_json(self, path: str):
+        io.save_json_file(path, self.get_metrics_as_dict())
 
     @classmethod
     def parse_from_dict(cls, metrics_group_dict) -> GtsfmMetricsGroup:

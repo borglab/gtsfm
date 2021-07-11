@@ -3,8 +3,9 @@
 Authors: Xiaolong Wu, John Lambert, Ayush Baid
 """
 import os
+import numpy as np
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, Tuple
 
 import dask
 import gtsam
@@ -14,6 +15,7 @@ from gtsam import GeneralSFMFactorCal3Bundler, SfmTrack, Values, symbol_shorthan
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.evaluation.metric import GtsfmMetric, GtsfmMetricsGroup
 
 METRICS_PATH = Path(__file__).resolve().parent.parent.parent / "result_metrics"
 
@@ -36,7 +38,7 @@ class BundleAdjustmentOptimizer(NamedTuple):
 
     output_reproj_error_thresh: float
 
-    def run(self, initial_data: GtsfmData) -> GtsfmData:
+    def run(self, initial_data: GtsfmData) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
 
         Args:
@@ -122,22 +124,27 @@ class BundleAdjustmentOptimizer(NamedTuple):
         # construct the results
         optimized_data = values_to_gtsfm_data(result_values, initial_data)
 
-        metrics_dict = {}
-        metrics_dict["before_filtering"] = optimized_data.aggregate_metrics()
-        logger.info("[Result] Number of tracks before filtering: %d", metrics_dict["before_filtering"]["number_tracks"])
+        def get_metrics_from_sfm_data(sfm_data: GtsfmData, suffix: str) -> GtsfmMetricsGroup:
+            metrics = []
+            metrics.append(GtsfmMetric("number_tracks" + suffix, sfm_data.number_tracks()))
+            metrics.append(GtsfmMetric("3d_track_lengths" + suffix, sfm_data.get_track_lengths()))
+            metrics.append(GtsfmMetric("reprojection_errors" + suffix, sfm_data.get_scene_reprojection_errors()))
+
+        ba_metrics = GtsfmMetricsGroup(name, get_metrics_from_sfm_data(optimized_data, "_unfiltered"))
+        logger.info("[Result] Number of tracks before filtering: %d", optimized_data.number_tracks())
 
         # filter the largest errors
         filtered_result = optimized_data.filter_landmarks(self.output_reproj_error_thresh)
 
-        metrics_dict["after_filtering"] = filtered_result.aggregate_metrics()
-        io_utils.save_json_file(os.path.join(METRICS_PATH, "bundle_adjustment_metrics.json"), metrics_dict)
+        ba_metrics.add_metrics(get_metrics_from_sfm_data(filtered_result, "_filtered"))
+        # ba_metrics.save_to_json(os.path.join(METRICS_PATH, "bundle_adjustment_metrics.json"))
 
-        logger.info("[Result] Number of tracks after filtering: %d", metrics_dict["after_filtering"]["number_tracks"])
-        logger.info("[Result] Mean track length %.3f", metrics_dict["after_filtering"]["3d_track_lengths"]["mean"])
-        logger.info("[Result] Median track length %.3f", metrics_dict["after_filtering"]["3d_track_lengths"]["median"])
+        logger.info("[Result] Number of tracks after filtering: %d", filtered_result.number_tracks())
+        logger.info("[Result] Mean track length %.3f", np.mean(filtered_result.get_track_lengths()))
+        logger.info("[Result] Median track length %.3f", np.median(filtered_result.get_track_lengths()))
         filtered_result.log_scene_reprojection_error_stats()
 
-        return filtered_result
+        return filtered_result, ba_metrics
 
     def create_computation_graph(self, sfm_data_graph: Delayed) -> Delayed:
         """Create the computation graph for performing bundle adjustment.

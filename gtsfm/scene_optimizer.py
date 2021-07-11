@@ -191,7 +191,6 @@ class SceneOptimizer:
             ba_input_graph,
             ba_output_graph,
             optimizer_metrics_graph,
-            react_metrics_graph,
         ) = self.multiview_optimizer.create_computation_graph(
             image_graph,
             num_images,
@@ -206,10 +205,6 @@ class SceneOptimizer:
         # aggregate metrics for multiview optimizer
         if optimizer_metrics_graph is not None:
             auxiliary_graph_list.append(optimizer_metrics_graph)
-
-        # add duplicate of optimizer_metrics_graph to save within React file directory
-        if react_metrics_graph is not None:
-            auxiliary_graph_list.append(react_metrics_graph)
 
         if self._save_3d_viz:
             os.makedirs(os.path.join(PLOT_PATH, "ba_input"), exist_ok=True)
