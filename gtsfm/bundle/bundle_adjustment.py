@@ -129,8 +129,9 @@ class BundleAdjustmentOptimizer(NamedTuple):
             metrics.append(GtsfmMetric("number_tracks" + suffix, sfm_data.number_tracks()))
             metrics.append(GtsfmMetric("3d_track_lengths" + suffix, sfm_data.get_track_lengths()))
             metrics.append(GtsfmMetric("reprojection_errors" + suffix, sfm_data.get_scene_reprojection_errors()))
+            return metrics
 
-        ba_metrics = GtsfmMetricsGroup(name, get_metrics_from_sfm_data(optimized_data, "_unfiltered"))
+        ba_metrics = GtsfmMetricsGroup("bundle_adjustment_metrics", get_metrics_from_sfm_data(optimized_data, "_unfiltered"))
         logger.info("[Result] Number of tracks before filtering: %d", optimized_data.number_tracks())
 
         # filter the largest errors
@@ -146,7 +147,7 @@ class BundleAdjustmentOptimizer(NamedTuple):
 
         return filtered_result, ba_metrics
 
-    def create_computation_graph(self, sfm_data_graph: Delayed) -> Delayed:
+    def create_computation_graph(self, sfm_data_graph: Delayed) -> Tuple[Delayed, Delayed]:
         """Create the computation graph for performing bundle adjustment.
 
         Args:
@@ -155,7 +156,8 @@ class BundleAdjustmentOptimizer(NamedTuple):
         Returns:
             GtsfmData wrapped up using dask.delayed
         """
-        return dask.delayed(self.run)(sfm_data_graph)
+        data_metrics_graph =  dask.delayed(self.run)(sfm_data_graph)
+        return data_metrics_graph[0], data_metrics_graph[1]
 
 
 def values_to_gtsfm_data(values: Values, initial_data: GtsfmData) -> GtsfmData:

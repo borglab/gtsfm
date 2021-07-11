@@ -63,34 +63,35 @@ class GtsfmMetric:
         percentiles = np.percentile(self._data, query)
         output = {}
         for i, q in enumerate(query):
-            output[q] = percentiles[i]
+            output[q] = percentiles[i].tolist()
         return output
 
     def get_summary_dict(self) -> Dict[str, Any]:
         if self._dim == 0:
-            return {self._name: self._data}
+            return {self._name: self._data.tolist()}
         return {
-            "min": np.min(self._data),
-            "max": np.max(self._data),
-            "median": np.median(self._data),
-            "mean": np.mean(self._data),
-            "stddev": np.std(self._data),
+            "min": np.min(self._data).tolist(),
+            "max": np.max(self._data).tolist(),
+            "median": np.median(self._data).tolist(),
+            "mean": np.mean(self._data).tolist(),
+            "stddev": np.std(self._data).tolist(),
             "percentiles": self.get_distribution_percentiles(),
         }
 
-    def get_metric_as_dict(self) -> Dict[str, Any]:
+    def get_metric_as_dict(self) -> Dict[str, Any]: 
         if self._dim == 0:
             return self.get_summary_dict()
+
 
         return {
             self._name: {
                 SUMMARY_KEY: self.get_summary_dict(),
-                DATA_KEY: list(self._data),
+                DATA_KEY: self._data.tolist(),
             }
         }
 
     def save_to_json(self, json_filename):
-        io.save_to_json(self.get_metric_as_dict())
+        io.save_json_file(json_filename, self.get_metric_as_dict())
 
     @classmethod
     def parse_from_dict(cls, metric_dict: Dict[str, Any]) -> GtsfmMetric:

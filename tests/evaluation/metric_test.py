@@ -4,6 +4,8 @@ Authors: Akshay Krishnan
 """
 import numpy as np
 import unittest
+import tempfile
+import os
 
 from gtsfm.evaluation.metric import GtsfmMetric, GtsfmMetricsGroup
 
@@ -34,6 +36,11 @@ class TestGtsfmMetric(unittest.TestCase):
         parsed_metric = GtsfmMetric.parse_from_dict(metric_dict)
         self.assertEqual(parsed_metric.name, metric.name)
         np.testing.assert_equal(parsed_metric.data, metric.data)
+
+    def test_saves_to_json(self):
+        metric = GtsfmMetric('to_be_written_metric', np.arange(10.0))
+        with tempfile.TemporaryDirectory() as tempdir:
+            metric.save_to_json(os.path.join(tempdir, 'test_metrics.json'))
 
 
 class TestGtsfmMetricsGroup(unittest.TestCase):

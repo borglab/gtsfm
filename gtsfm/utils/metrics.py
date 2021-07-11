@@ -82,7 +82,7 @@ def compute_rotation_angle_metric(wRi_list: List[Optional[Rot3]], gt_wRi_list: L
     """
     errors = []
     for (wRi, gt_wRi) in zip(wRi_list, gt_wRi_list):
-        if wRi and gt_wRi:
+        if wRi is not None and gt_wRi is not None:
             errors.append(comp_utils.compute_relative_rotation_angle(wRi, gt_wRi))
     return GtsfmMetric("rotation_averaging_angle_deg", np.array(errors))
 
@@ -104,7 +104,7 @@ def compute_translation_distance_metric(
     """
     errors = []
     for (wti, gt_wti) in zip(wti_list, gt_wti_list):
-        if wti and gt_wti:
+        if wti is not None and gt_wti is not None:
             errors.append(comp_utils.compute_points_distance_l2(wti, gt_wti))
     return GtsfmMetric("translation_averaging_distance", np.array(errors))
 
@@ -173,9 +173,9 @@ def compute_averaging_metrics(
     gt_wRi_list, gt_wti_list = get_rotations_translations_from_poses(gt_wTi_list)
 
     metrics = []
-    metrics.append(compute_rotation_angle_metrics(wRi_aligned_list, gt_wRi_list))
-    metrics.append(compute_translation_distance_metrics(wti_aligned_list, gt_wti_list))
-    metrics.append(compute_translation_angle_metrics(i2Ui1_dict, wTi_aligned_list))
+    metrics.append(compute_rotation_angle_metric(wRi_aligned_list, gt_wRi_list))
+    metrics.append(compute_translation_distance_metric(wti_aligned_list, gt_wti_list))
+    metrics.append(compute_translation_angle_metric(i2Ui1_dict, wTi_aligned_list))
     return GtsfmMetricsGroup("averaging_metrics", metrics)
 
 
