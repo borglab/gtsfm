@@ -101,6 +101,19 @@ def save_json_file(
         json.dump(data, f, indent=4)
 
 
+def read_json_file(fpath: Union[str, Path]) -> Any:
+    """Load dictionary from JSON file.
+
+    Args:
+        fpath: Path to JSON file.
+
+    Returns:
+        Deserialized Python dictionary or list.
+    """
+    with open(fpath, "r") as f:
+        return json.load(f)
+
+
 def read_bal(file_path: str) -> GtsfmData:
     """Read a Bundle Adjustment in the Large" (BAL) file.
 
