@@ -21,10 +21,7 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.sfm_track import SfmTrack2d
-from gtsfm.data_association.point3d_initializer import (
-    Point3dInitializer,
-    TriangulationParam,
-)
+from gtsfm.data_association.point3d_initializer import Point3dInitializer, TriangulationParam, TriangulationResult
 from gtsfm.common.image import Image
 import gtsfm.utils.io as io_utils
 
@@ -39,12 +36,16 @@ class DataAssociation(NamedTuple):
         min_track_len: min length required for valid feature track / min nb of supporting views required for a landmark
                        to be valid.
         mode: triangulation mode, which dictates whether or not to use robust estimation.
+        min_angle_thresh (optional): threshold of the angle at the 3D point by backprojected rays from 2 cameras for
+                                     the cameras to be qualified as large-baseline. Defaults to None (check inactive).
         num_ransac_hypotheses (optional): number of hypothesis for RANSAC-based triangulation.
+        save_track_patches_viz (optional): flag to turn on saving visualization of patches for each track.
     """
 
     reproj_error_thresh: float
     min_track_len: int
     mode: TriangulationParam
+    min_baseline_thresh: Optional[float] = None
     num_ransac_hypotheses: Optional[int] = None
     save_track_patches_viz: Optional[bool] = False
 
@@ -58,7 +59,7 @@ class DataAssociation(NamedTuple):
         cameras: Dict[int, PinholeCameraCal3Bundler],
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
-        images: Optional[List[Image]] = None
+        images: Optional[List[Image]] = None,
     ) -> Tuple[GtsfmData, Dict[str, Any]]:
         """Perform the data association.
 
@@ -89,10 +90,17 @@ class DataAssociation(NamedTuple):
 
         # initializer of 3D landmark for each track
         point3d_initializer = Point3dInitializer(
-            cameras, self.mode, self.reproj_error_thresh, self.num_ransac_hypotheses,
+            track_camera_dict=cameras,
+            mode=self.mode,
+            reproj_error_thresh=self.reproj_error_thresh,
+            min_baseline_thresh=self.min_baseline_thresh,
+            num_ransac_hypotheses=self.num_ransac_hypotheses,
         )
 
-        num_tracks_w_cheirality_exceptions = 0
+        # aggregating the failure types
+        num_cheirality_error_tracks = 0
+        num_high_reproj_error_tracks = 0
+        num_small_baseline_error_tracks = 0
         per_accepted_track_avg_errors = []
         per_rejected_track_avg_errors = []
 
@@ -106,21 +114,23 @@ class DataAssociation(NamedTuple):
         # add valid tracks where triangulation is successful
         for track_2d in tracks_2d:
             # triangulate and filter based on reprojection error
-            sfm_track, avg_track_reproj_error, is_cheirality_failure = point3d_initializer.triangulate(track_2d)
-            if is_cheirality_failure:
-                num_tracks_w_cheirality_exceptions += 1
+            sfm_track, avg_track_reproj_error, triangulation_result = point3d_initializer.triangulate(track_2d)
+            if triangulation_result == TriangulationResult.CHEIRALITY_ERROR:
+                num_cheirality_error_tracks += 1
+            elif triangulation_result == TriangulationResult.HIGH_REPROJECTION_ERROR:
+                num_high_reproj_error_tracks += 1
+            elif triangulation_result == TriangulationResult.SMALL_BASELINE_ERROR:
+                num_small_baseline_error_tracks += 1
 
             if avg_track_reproj_error is not None:
                 # need no more than 3 significant figures in json report
-                avg_track_reproj_error = np.round(avg_track_reproj_error, 3) 
+                avg_track_reproj_error = np.round(avg_track_reproj_error, 3)
 
-            if sfm_track is not None and self.__validate_track(sfm_track):
+            if sfm_track is not None and self.__validate_track(sfm_track) and TriangulationResult.SUCCESS:
                 triangulated_data.add_track(sfm_track)
                 per_accepted_track_avg_errors.append(avg_track_reproj_error)
             else:
                 per_rejected_track_avg_errors.append(avg_track_reproj_error)
-
-        track_cheirality_failure_ratio = num_tracks_w_cheirality_exceptions / len(tracks_2d)
 
         # pick only the largest connected component
         connected_data = triangulated_data.select_largest_connected_component()
@@ -142,7 +152,9 @@ class DataAssociation(NamedTuple):
         data_assoc_metrics = {
             "mean_2d_track_length": np.round(mean_2d_track_length, 3),
             "accepted_tracks_ratio": np.round(accepted_tracks_ratio, 3),
-            "track_cheirality_failure_ratio": np.round(track_cheirality_failure_ratio, 3),
+            "cheirality_error_ratio": np.round(num_cheirality_error_tracks / len(tracks_2d), 3),
+            "high_reproj_error_ratio": np.round(num_high_reproj_error_tracks / len(tracks_2d), 3),
+            "small_error_ratio": np.round(num_small_baseline_error_tracks / len(tracks_2d), 3),
             "num_accepted_tracks": num_accepted_tracks,
             "3d_tracks_length": {
                 "median": median_3d_track_length,

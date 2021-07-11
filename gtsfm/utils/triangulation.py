@@ -10,6 +10,12 @@ def calculate_triangulation_angle_in_degrees(
     camera_1: PinholeCameraCal3Bundler, camera_2: PinholeCameraCal3Bundler, point_3d: np.ndarray
 ) -> float:
     """Calculates the angle formed at the 3D point by the rays backprojected from 2 cameras.
+    In the setup with X (point_3d) and two cameras C1 and C2, the triangulation angle is the angle between rays C1-X and C2-X, i.e. the angle subtendted at the 3d point.1
+        X
+       / \
+      /   \
+     /     \
+    C1      C2
 
     Args:
         camera_1: the first camera.
@@ -17,7 +23,7 @@ def calculate_triangulation_angle_in_degrees(
         point_3d: the 3d point to compute the angle at.
 
     Returns:
-        the angle formed at the 3d point, in radians.
+        the angle formed at the 3d point, in degrees.
     """
     camera_center_1: np.ndarray = camera_1.pose().translation()
     camera_center_2: np.ndarray = camera_2.pose().translation()

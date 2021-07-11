@@ -77,7 +77,9 @@ class TestSimpleTriangulation(unittest.TestCase):
         """Tests the good pair of cameras with no measurement noise."""
         tracks_2d = generate_measurements_for_tracks(LANDMARK_POINTS_3D, CAMERA_PAIR_GOOD)
 
-        point3d_initializer = Point3dInitializer(CAMERA_PAIR_GOOD, TriangulationParam.NO_RANSAC, reproj_error_thresh=5)
+        point3d_initializer = Point3dInitializer(
+            CAMERA_PAIR_GOOD, TriangulationParam.NO_RANSAC, reproj_error_thresh=5, min_baseline_thresh=4.0
+        )
 
         for idx, track_2d in enumerate(tracks_2d):
             track_3d, _, _ = point3d_initializer.triangulate(track_2d)
@@ -90,7 +92,7 @@ class TestSimpleTriangulation(unittest.TestCase):
         tracks_2d = generate_measurements_for_tracks(LANDMARK_POINTS_3D, CAMERA_PAIR_SMALL_BASELINE)
 
         point3d_initializer = Point3dInitializer(
-            CAMERA_PAIR_SMALL_BASELINE, TriangulationParam.NO_RANSAC, reproj_error_thresh=5
+            CAMERA_PAIR_SMALL_BASELINE, TriangulationParam.NO_RANSAC, reproj_error_thresh=5, min_baseline_thresh=4.0
         )
 
         for track_2d in tracks_2d:
@@ -102,7 +104,9 @@ class TestSimpleTriangulation(unittest.TestCase):
         """Tests the good pair of cameras with 2px measurement noise."""
         tracks_2d = generate_measurements_for_tracks(LANDMARK_POINTS_3D, CAMERA_PAIR_GOOD, noise_sigma=2)
 
-        point3d_initializer = Point3dInitializer(CAMERA_PAIR_GOOD, TriangulationParam.NO_RANSAC, reproj_error_thresh=5)
+        point3d_initializer = Point3dInitializer(
+            CAMERA_PAIR_GOOD, TriangulationParam.NO_RANSAC, reproj_error_thresh=5, min_baseline_thresh=4.0
+        )
 
         for idx, track_2d in enumerate(tracks_2d):
             track_3d, _, _ = point3d_initializer.triangulate(track_2d)
@@ -115,7 +119,7 @@ class TestSimpleTriangulation(unittest.TestCase):
         tracks_2d = generate_measurements_for_tracks(LANDMARK_POINTS_3D, CAMERA_PAIR_SMALL_BASELINE, noise_sigma=2)
 
         point3d_initializer = Point3dInitializer(
-            CAMERA_PAIR_SMALL_BASELINE, TriangulationParam.NO_RANSAC, reproj_error_thresh=5
+            CAMERA_PAIR_SMALL_BASELINE, TriangulationParam.NO_RANSAC, reproj_error_thresh=5, min_baseline_thresh=4.0
         )
 
         for idx, track_2d in enumerate(tracks_2d):

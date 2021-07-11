@@ -43,6 +43,14 @@ class TriangulationParam(Enum):
     RANSAC_TOPK_BASELINES = 3  # deterministically choose hypotheses with largest estimate baseline
 
 
+class TriangulationResult(Enum):
+    SUCCESS = 0
+    CHEIRALITY_ERROR = 1  # cheirality exception while trying a simple triangulation
+    HIGH_REPROJECTION_ERROR = 2  # atleast one measurement has a high reprojection error
+    SMALL_BASELINE_ERROR = 3  # no pair of camera in the selected subset of the track doesn't have a high baseline
+    NA = 4  # could not perform triangulation
+
+
 class Point3dInitializer(NamedTuple):
     """Class to initialize landmark points via triangulation w/ or w/o RANSAC inlier/outlier selection.
 
@@ -52,12 +60,15 @@ class Point3dInitializer(NamedTuple):
         track_cameras: Dict of cameras and their indices.
         mode: triangulation mode, which dictates whether or not to use robust estimation.
         reproj_error_thresh: threshold on reproj errors for inliers.
+        min_angle_thresh (optional): threshold of the angle at the 3D point by backprojected rays from 2 cameras for
+                                     the cameras to be qualified as large-baseline. Defaults to None (check inactive).
         num_ransac_hypotheses (optional): desired number of RANSAC hypotheses.
     """
 
     track_camera_dict: Dict[int, PinholeCameraCal3Bundler]
     mode: TriangulationParam
     reproj_error_thresh: float
+    min_baseline_thresh: Optional[float] = None
     num_ransac_hypotheses: Optional[int] = None
 
     def execute_ransac_variant(self, track_2d: SfmTrack2d) -> np.ndarray:
@@ -116,6 +127,11 @@ class Point3dInitializer(NamedTuple):
                 )
                 continue
 
+            if self.min_baseline_thresh is not None:
+                # the selected cameras should have a high baseline; if not skip the iteration
+                if self.is_small_triangulation_angle(triangulated_pt, [i1, i2]):
+                    continue
+
             errors, _ = reproj_utils.compute_point_reprojection_errors(
                 self.track_camera_dict, triangulated_pt, track_2d.measurements
             )
@@ -139,7 +155,7 @@ class Point3dInitializer(NamedTuple):
 
         return best_inliers
 
-    def triangulate(self, track_2d: SfmTrack2d) -> Tuple[Optional[SfmTrack], Optional[float], bool]:
+    def triangulate(self, track_2d: SfmTrack2d) -> Tuple[Optional[SfmTrack], Optional[float], TriangulationResult]:
         """Triangulates 3D point according to the configured triangulation mode.
 
         Args:
@@ -147,11 +163,10 @@ class Point3dInitializer(NamedTuple):
 
         Returns:
             track with inlier measurements and 3D landmark. None returned if triangulation fails or has high error.
-            avg_track_reproj_error: reprojection error of 3d triangulated point to each image plane
+            avg_track_reproj_error: reprojection error of 3d triangulated point to each image plane.
                 Note: this may be "None" if the 3d point could not be triangulated successfully
-                due to a cheirality exception or insufficient number of RANSAC inlier measurements
-            is_cheirality_failure: boolean representing whether the selected 2d measurements lead
-                to a cheirality exception upon triangulation
+                due to a cheirality exception or insufficient number of RANSAC inlier measurements.
+            triangulation_result: result of triangulation. 
         """
         if self.mode in [
             TriangulationParam.RANSAC_SAMPLE_UNIFORM,
@@ -165,9 +180,8 @@ class Point3dInitializer(NamedTuple):
 
         inlier_idxs = (np.where(best_inliers)[0]).tolist()
 
-        is_cheirality_failure = False
         if len(inlier_idxs) < 2:
-            return None, None, is_cheirality_failure
+            return None, None, TriangulationResult.NA
 
         inlier_track = track_2d.select_subset(inlier_idxs)
 
@@ -177,12 +191,12 @@ class Point3dInitializer(NamedTuple):
                 camera_track, measurement_track, rank_tol=SVD_DLT_RANK_TOL, optimize=True,
             )
         except RuntimeError:
-            is_cheirality_failure = True
-            return None, None, is_cheirality_failure
+            return None, None, TriangulationResult.CHEIRALITY_ERROR
 
-        # check for small baseline case
-        if self.is_small_triangulation_angle(triangulated_pt, inlier_idxs):
-            return None, None, False
+        if self.min_baseline_thresh is not None:
+            # check for small baseline case
+            if self.is_small_triangulation_angle(triangulated_pt, inlier_idxs):
+                return None, None, TriangulationResult.SMALL_BASELINE_ERROR
 
         # compute reprojection errors for each measurement
         reproj_errors, avg_track_reproj_error = reproj_utils.compute_point_reprojection_errors(
@@ -191,28 +205,32 @@ class Point3dInitializer(NamedTuple):
 
         # all the measurements should have error < threshold
         if not np.all(reproj_errors < self.reproj_error_thresh):
-            return None, avg_track_reproj_error, is_cheirality_failure
+            return None, avg_track_reproj_error, TriangulationResult.HIGH_REPROJECTION_ERROR
 
         track_3d = SfmTrack(triangulated_pt)
         for i, uv in inlier_track.measurements:
             track_3d.add_measurement(i, uv)
 
-        return track_3d, avg_track_reproj_error, is_cheirality_failure
+        return track_3d, avg_track_reproj_error, TriangulationResult.SUCCESS
 
-    def is_small_triangulation_angle(
-        self, point_3d: np.ndarray, camera_indices: List[int], angle_threshold_deg: float = 1.5
-    ) -> bool:
+    def is_small_triangulation_angle(self, point_3d: np.ndarray, camera_indices: List[int]) -> bool:
         """Check if all pairs of cameras have a small triangulation angle.
+
+        References:
+        - https://github.com/colmap/colmap/blob/513fef3e39f99b50279bf5aee1c5b597cba53c3b/src/base/reconstruction.cc#L616
+        - https://github.com/sweeneychris/TheiaSfM/blob/d2112f15aa69a53dda68fe6c4bd4b0f1e2fe915b/src/theia/sfm/set_outlier_tracks_to_unestimated.cc#L121
+
 
         Args:
             point_3d: the 3d point which has been triangulated.
             camera_indices: indices of the cameras associated with the triangulation.
-            angle_threshold_deg (optional): threshold for the angle subtended at the 3D point by a pair of cameras.
-                                            Defaults to 1.5.
 
         Returns:
             True if all the pairs of camera subtend a small angle, and hence resulting in a small baseline track.
         """
+
+        if self.min_baseline_thresh is None:
+            raise TypeError("The threshold should not be None for the check")
 
         for i1, i2 in itertools.combinations(camera_indices, 2):
             camera_i1 = self.track_camera_dict[i1]
@@ -222,7 +240,7 @@ class Point3dInitializer(NamedTuple):
                 camera_i1, camera_i2, point_3d
             )
 
-            if triangulation_angle > angle_threshold_deg:
+            if triangulation_angle > self.min_baseline_thresh:
                 # we have found one pair
                 return False
 

@@ -121,7 +121,11 @@ class TestPoint3dInitializer(unittest.TestCase):
         }
 
         obj_with_flipped_cameras = Point3dInitializer(
-            flipped_cameras, obj.mode, obj.reproj_error_thresh, obj.num_ransac_hypotheses,
+            track_camera_dict=flipped_cameras,
+            mode=obj.mode,
+            reproj_error_thresh=obj.reproj_error_thresh,
+            min_baseline_thresh=None,
+            num_ransac_hypotheses=obj.num_ransac_hypotheses,
         )
 
         sfm_track, _, _ = obj_with_flipped_cameras.triangulate(SfmTrack2d(MEASUREMENTS))
