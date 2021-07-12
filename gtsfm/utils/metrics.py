@@ -226,3 +226,96 @@ def log_sfm_summary() -> None:
         "Averaging median_trans_dist_err: %.2f", averaging_metrics["translation_averaging_distance"]["median_error"]
     )
     logger.info("Averaging max_trans_dist_err: %.2f", averaging_metrics["translation_averaging_distance"]["max_error"])
+
+
+def persist_frontend_metrics_full(metrics: Dict[Tuple[int, int], FRONTEND_METRICS_FOR_PAIR]) -> None:
+    """Persist the front-end metrics for every pair on disk.
+
+    Args:
+        metrics: front-end metrics for pairs of images.
+    """
+
+    metrics_list = [
+        {
+            "i1": k[0],
+            "i2": k[1],
+            "rotation_angular_error": np.round(v[0], PRINT_NUM_SIG_FIGS),
+            "translation_angular_error": np.round(v[1], PRINT_NUM_SIG_FIGS),
+            "num_correct_corr": v[2],
+            "inlier_ratio": np.round(v[3], PRINT_NUM_SIG_FIGS),
+        }
+        for k, v in metrics.items()
+    ]
+
+    io_utils.save_json_file(os.path.join(METRICS_PATH, "frontend_full.json"), metrics_list)
+
+    # Save duplicate copy of 'frontend_full.json' within React Folder.
+    io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, "frontend_full.json"), metrics_list)
+
+
+def aggregate_frontend_metrics(
+    metrics: Dict[Tuple[int, int], FRONTEND_METRICS_FOR_PAIR], angular_err_threshold_deg: float
+) -> None:
+    """Aggregate the front-end metrics to log summary statistics.
+
+    Args:
+        metrics: front-end metrics for pairs of images.
+        angular_err_threshold_deg: threshold for classifying angular error metrics as success.
+    """
+    num_entries = len(metrics)
+
+    metrics_array = np.array(list(metrics.values()), dtype=float)
+
+    # count number of rot3 errors which are not None. Should be same in rot3/unit3
+    num_valid_entries = int(np.count_nonzero(~np.isnan(metrics_array[:, 0])))
+
+    # compute pose errors by picking the max error from rot3 and unit3 errors
+    pose_errors = np.amax(metrics_array[:, :2], axis=1)
+
+    # check errors against the threshold
+    success_count_rot3 = int(np.sum(metrics_array[:, 0] < angular_err_threshold_deg))
+    success_count_unit3 = int(np.sum(metrics_array[:, 1] < angular_err_threshold_deg))
+    success_count_pose = int(np.sum(pose_errors < angular_err_threshold_deg))
+
+    # count entries with inlier ratio == 1.
+    all_correct = int(np.count_nonzero(metrics_array[:, 3] == 1.0))
+
+    logger.debug(
+        "[Two view optimizer] [Summary] Rotation success: %d/%d/%d", success_count_rot3, num_valid_entries, num_entries
+    )
+
+    logger.debug(
+        "[Two view optimizer] [Summary] Translation success: %d/%d/%d",
+        success_count_unit3,
+        num_valid_entries,
+        num_entries,
+    )
+
+    logger.debug(
+        "[Two view optimizer] [Summary] Pose success: %d/%d/%d", success_count_pose, num_valid_entries, num_entries
+    )
+
+    logger.debug("[Two view optimizer] [Summary] Image pairs with 100%% inlier ratio:: %d/%d", all_correct, num_entries)
+
+    front_end_result_info = {
+        "angular_err_threshold_deg": angular_err_threshold_deg,
+        "num_valid_entries": num_valid_entries,
+        "num_total_entries": num_entries,
+        "rotation": {"success_count": success_count_rot3},
+        "translation": {"success_count": success_count_unit3},
+        "pose": {"success_count": success_count_pose},
+        "correspondences": {"all_inliers": all_correct},
+    }
+    frontend_metrics = GtsfmMetricsGroup("frontend_metrics", [
+        GtsfmMetric("angular_err_threshold_deg", angular_err_threshold_deg),
+        GtsfmMetric("num_valid_entries", num_valid_entries),
+        GtsfmMetric("num_total_entries", num_entries),
+        GtsfmMetric("rotation_success_count", success_count_rot3),
+        GtsfmMetric("translation_success_count": success_count_unit3),
+        GtsfmMetric("pose_success_count" success_count_pose),
+        GtsfmMetric("correspondences_all_inliers": all_correct),
+    ])
+    frontend_metrics.save_to_json(os.path.join(METRICS_PATH, "frontend_summary.json"))
+
+    # Save duplicate copy of 'frontend_summary.json' within React Folder.
+    io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, "frontend_summary.json"), front_end_result_info)

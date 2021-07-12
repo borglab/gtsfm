@@ -21,12 +21,14 @@ import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.viz as viz_utils
+import gtsfm.utils.metrics as metrics_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.feature_extractor import FeatureExtractor
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.two_view_estimator import TwoViewEstimator
+from gtsfm.evaluation.metric import GtsfmMetric, GtsfmMetricsGroup
 
 # paths for storage
 PLOT_PATH = "plots"
@@ -174,10 +176,14 @@ class SceneOptimizer:
 
         # persist all front-end metrics and its summary
         if gt_pose_graph is not None:
-            auxiliary_graph_list.append(dask.delayed(persist_frontend_metrics_full)(frontend_metrics_dict))
+            auxiliary_graph_list.append(
+                dask.delayed(metrics_utils.persist_frontend_metrics_full)(frontend_metrics_dict)
+            )
 
             auxiliary_graph_list.append(
-                dask.delayed(aggregate_frontend_metrics)(frontend_metrics_dict, self._pose_angular_error_thresh)
+                dask.delayed(metrics_utils.aggregate_frontend_metrics)(
+                    frontend_metrics_dict, self._pose_angular_error_thresh
+                )
             )
 
         # as visualization tasks are not to be provided to the user, we create a
@@ -187,11 +193,7 @@ class SceneOptimizer:
         keypoints_graph_list = dask.delayed(lambda x, y: (x, y))(keypoints_graph_list, auxiliary_graph_list)[0]
         auxiliary_graph_list = []
 
-        (
-            ba_input_graph,
-            ba_output_graph,
-            optimizer_metrics_graph,
-        ) = self.multiview_optimizer.create_computation_graph(
+        (ba_input_graph, ba_output_graph, optimizer_metrics_graph,) = self.multiview_optimizer.create_computation_graph(
             image_graph,
             num_images,
             keypoints_graph_list,
@@ -297,7 +299,7 @@ def visualize_sfm_data(sfm_data: GtsfmData, folder_name: str) -> None:
         folder_name: folder to save the visualization at.
     """
     fig = plt.figure()
-    ax = fig.add_subplot(projection='3d')
+    ax = fig.add_subplot(projection="3d")
 
     viz_utils.plot_sfm_data_3d(sfm_data, ax)
     viz_utils.set_axes_equal(ax)
@@ -334,7 +336,7 @@ def visualize_camera_poses(
         post_ba_poses.append(post_ba_sfm_data.get_camera(i).pose())
 
     fig = plt.figure()
-    ax = fig.add_subplot(projection='3d')
+    ax = fig.add_subplot(projection="3d")
 
     if gt_pose_graph is not None:
         # Select ground truth poses that correspond to pre-BA and post-BA estimated poses
@@ -361,88 +363,3 @@ def visualize_camera_poses(
     fig.savefig(os.path.join(folder_name, "poses_bev.png"))
 
     plt.close(fig)
-
-
-def persist_frontend_metrics_full(metrics: Dict[Tuple[int, int], FRONTEND_METRICS_FOR_PAIR]) -> None:
-    """Persist the front-end metrics for every pair on disk.
-
-    Args:
-        metrics: front-end metrics for pairs of images.
-    """
-
-    metrics_list = [
-        {
-            "i1": k[0],
-            "i2": k[1],
-            "rotation_angular_error": np.round(v[0], PRINT_NUM_SIG_FIGS),
-            "translation_angular_error": np.round(v[1], PRINT_NUM_SIG_FIGS),
-            "num_correct_corr": v[2],
-            "inlier_ratio": np.round(v[3], PRINT_NUM_SIG_FIGS),
-        }
-        for k, v in metrics.items()
-    ]
-
-    io_utils.save_json_file(os.path.join(METRICS_PATH, "frontend_full.json"), metrics_list)
-
-    # Save duplicate copy of 'frontend_full.json' within React Folder.
-    io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, "frontend_full.json"), metrics_list)
-
-
-def aggregate_frontend_metrics(
-    metrics: Dict[Tuple[int, int], FRONTEND_METRICS_FOR_PAIR], angular_err_threshold_deg: float
-) -> None:
-    """Aggregate the front-end metrics to log summary statistics.
-
-    Args:
-        metrics: front-end metrics for pairs of images.
-        angular_err_threshold_deg: threshold for classifying angular error metrics as success.
-    """
-    num_entries = len(metrics)
-
-    metrics_array = np.array(list(metrics.values()), dtype=float)
-
-    # count number of rot3 errors which are not None. Should be same in rot3/unit3
-    num_valid_entries = np.count_nonzero(~np.isnan(metrics_array[:, 0]))
-
-    # compute pose errors by picking the max error from rot3 and unit3 errors
-    pose_errors = np.amax(metrics_array[:, :2], axis=1)
-
-    # check errors against the threshold
-    success_count_rot3 = np.sum(metrics_array[:, 0] < angular_err_threshold_deg)
-    success_count_unit3 = np.sum(metrics_array[:, 1] < angular_err_threshold_deg)
-    success_count_pose = np.sum(pose_errors < angular_err_threshold_deg)
-
-    # count entries with inlier ratio == 1.
-    all_correct = np.count_nonzero(metrics_array[:, 3] == 1.0)
-
-    logger.debug(
-        "[Two view optimizer] [Summary] Rotation success: %d/%d/%d", success_count_rot3, num_valid_entries, num_entries
-    )
-
-    logger.debug(
-        "[Two view optimizer] [Summary] Translation success: %d/%d/%d",
-        success_count_unit3,
-        num_valid_entries,
-        num_entries,
-    )
-
-    logger.debug(
-        "[Two view optimizer] [Summary] Pose success: %d/%d/%d", success_count_pose, num_valid_entries, num_entries
-    )
-
-    logger.debug("[Two view optimizer] [Summary] Image pairs with 100%% inlier ratio:: %d/%d", all_correct, num_entries)
-
-    front_end_result_info = {
-        "angular_err_threshold_deg": angular_err_threshold_deg,
-        "num_valid_entries": int(num_valid_entries),
-        "num_total_entries": int(num_entries),
-        "rotation": {"success_count": int(success_count_rot3)},
-        "translation": {"success_count": int(success_count_unit3)},
-        "pose": {"success_count": int(success_count_pose)},
-        "correspondences": {"all_inliers": int(all_correct)},
-    }
-
-    io_utils.save_json_file(os.path.join(METRICS_PATH, "frontend_summary.json"), front_end_result_info)
-
-    # Save duplicate copy of 'frontend_summary.json' within React Folder.
-    io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, "frontend_summary.json"), front_end_result_info)
