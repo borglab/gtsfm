@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid, Akshay Krishnan
 """
+import os
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -20,8 +21,20 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 # A StatsDict is a dict from string to optional floats or their lists.
 StatsDict = Dict[str, Union[Optional[float], List[Optional[float]]]]
 
+"""
+data type for frontend metrics on a pair of images, containing:
+1. rotation angular error
+2. translation angular error
+3. number of correct correspondences
+4. inlier ratio
+"""
+FRONTEND_METRICS_FOR_PAIR = Tuple[Optional[float], Optional[float], int, float]
+
 # number of digits (significant figures) to include in each entry of error metrics
 PRINT_NUM_SIG_FIGS = 2
+
+METRICS_PATH = Path(__file__).resolve().parent.parent.parent / "result_metrics"
+REACT_METRICS_PATH = Path(__file__).resolve().parent.parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
 
 
 logger = logger_utils.get_logger()
@@ -311,9 +324,9 @@ def aggregate_frontend_metrics(
         GtsfmMetric("num_valid_entries", num_valid_entries),
         GtsfmMetric("num_total_entries", num_entries),
         GtsfmMetric("rotation_success_count", success_count_rot3),
-        GtsfmMetric("translation_success_count": success_count_unit3),
-        GtsfmMetric("pose_success_count" success_count_pose),
-        GtsfmMetric("correspondences_all_inliers": all_correct),
+        GtsfmMetric("translation_success_count", success_count_unit3),
+        GtsfmMetric("pose_success_count", success_count_pose),
+        GtsfmMetric("correspondences_all_inliers", all_correct),
     ])
     frontend_metrics.save_to_json(os.path.join(METRICS_PATH, "frontend_summary.json"))
 
