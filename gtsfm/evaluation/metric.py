@@ -33,7 +33,7 @@ class GtsfmMetric:
         self,
         name: str,
         data: Union[np.array, float, List[Union[int, float]]],
-        save_full_data: bool = False,
+        save_full_data: bool = True,
         plot_type: PlotType = None,
     ):
         if not isinstance(data, np.ndarray):
@@ -93,7 +93,7 @@ class GtsfmMetric:
         metric_dict = {SUMMARY_KEY: self.get_summary_dict()}
         if self._save_full_data:
             metric_dict[DATA_KEY] = self._data.tolist()
-        return metric_dict
+        return { self._name: metric_dict }
 
     def save_to_json(self, json_filename):
         io.save_json_file(json_filename, self.get_metric_as_dict(save_full_data))

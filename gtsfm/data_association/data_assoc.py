@@ -132,7 +132,7 @@ class DataAssociation(NamedTuple):
 
         data_assoc_metrics = GtsfmMetricsGroup("data_association_metrics", [
             GtsfmMetric("2D_track_lengths", track_lengths_2d, save_full_data=False),
-            GtsfmMetric("accepted_tracks_ratio": accepted_tracks_ratio),
+            GtsfmMetric("accepted_tracks_ratio", accepted_tracks_ratio),
             GtsfmMetric("track_cheirality_failure_ratio", track_cheirality_failure_ratio),
             GtsfmMetric("num_accepted_tracks", num_accepted_tracks),
             GtsfmMetric("3d_tracks_length", track_lengths_3d, save_full_data=False), 
