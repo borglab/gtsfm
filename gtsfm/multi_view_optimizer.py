@@ -156,11 +156,11 @@ def merge_and_save_metrics(
     averaging_metrics: GtsfmMetricsGroup, data_association_metrics: GtsfmMetricsGroup, ba_metrics: GtsfmMetricsGroup
 ) -> List[GtsfmMetricsGroup]:
     averaging_metrics.save_to_json(os.path.join("result_metrics", "multiview_optimizer_metrics.json"))
-    # data_association_metrics.save_to_json(os.path.join("result_metrics", "data_association_metrics.json"))
+    data_association_metrics.save_to_json(os.path.join("result_metrics", "data_association_metrics.json"))
     ba_metrics.save_to_json(os.path.join("result_metrics", "bundle_adjustment_metrics.json"))
 
     # duplicate copy for react frontend.
     averaging_metrics.save_to_json(os.path.join(REACT_METRICS_PATH, "multiview_optimizer_metrics.json"))
-    # data_association_metrics.save_to_json(os.path.join(REACT_METRICS_PATH, "data_association_metrics.json"))
+    data_association_metrics.save_to_json(os.path.join(REACT_METRICS_PATH, "data_association_metrics.json"))
     ba_metrics.save_to_json(os.path.join(REACT_METRICS_PATH, "bundle_adjustment_metrics.json"))
     return [averaging_metrics, data_association_metrics, ba_metrics]

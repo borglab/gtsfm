@@ -26,6 +26,8 @@ from gtsfm.data_association.point3d_initializer import (
     TriangulationParam,
 )
 from gtsfm.common.image import Image
+from gtsfm.evaluation.metric import GtsfmMetric, GtsfmMetricsGroup
+
 import gtsfm.utils.io as io_utils
 
 logger = logger_utils.get_logger()
@@ -79,13 +81,11 @@ class DataAssociation(NamedTuple):
         if self.save_track_patches_viz and images is not None:
             io_utils.save_track_visualizations(tracks_2d, images, save_dir=os.path.join("plots", "tracks_2d"))
 
-        # metrics on tracks w/o triangulation check
-        num_tracks_2d = len(tracks_2d)
-        track_lengths = list(map(lambda x: x.number_measurements(), tracks_2d))
-        mean_2d_track_length = np.mean(track_lengths)
+        # track lengths w/o triangulation check
+        track_lengths_2d = list(map(lambda x: x.number_measurements(), tracks_2d))
 
-        logger.debug("[Data association] input number of tracks: %s", num_tracks_2d)
-        logger.debug("[Data association] input avg. track length: %s", mean_2d_track_length)
+        logger.debug("[Data association] input number of tracks: %s", len(tracks_2d))
+        logger.debug("[Data association] input avg. track length: %s", np.mean(track_lengths_2d))
 
         # initializer of 3D landmark for each track
         point3d_initializer = Point3dInitializer(
@@ -109,10 +109,7 @@ class DataAssociation(NamedTuple):
             sfm_track, avg_track_reproj_error, is_cheirality_failure = point3d_initializer.triangulate(track_2d)
             if is_cheirality_failure:
                 num_tracks_w_cheirality_exceptions += 1
-
-            if avg_track_reproj_error is not None:
-                # need no more than 3 significant figures in json report
-                avg_track_reproj_error = np.round(avg_track_reproj_error, 3) 
+                continue
 
             if sfm_track is not None and self.__validate_track(sfm_track):
                 triangulated_data.add_track(sfm_track)
@@ -133,28 +130,15 @@ class DataAssociation(NamedTuple):
         logger.debug("[Data association] output number of tracks: %s", num_accepted_tracks)
         logger.debug("[Data association] output avg. track length: %.2f", mean_3d_track_length)
 
-        # bin edges are halfway between each integer
-        track_lengths_histogram, _ = np.histogram(track_lengths_3d, bins=np.linspace(-0.5, 10.5, 12))
-
-        # min possible track len is 2, above 10 is improbable
-        histogram_dict = {f"num_len_{i}_tracks": int(track_lengths_histogram[i]) for i in range(2, 11)}
-
-        data_assoc_metrics = {
-            "mean_2d_track_length": np.round(mean_2d_track_length, 3),
-            "accepted_tracks_ratio": np.round(accepted_tracks_ratio, 3),
-            "track_cheirality_failure_ratio": np.round(track_cheirality_failure_ratio, 3),
-            "num_accepted_tracks": num_accepted_tracks,
-            "3d_tracks_length": {
-                "median": median_3d_track_length,
-                "mean": mean_3d_track_length,
-                "min": int(track_lengths_3d.min()) if track_lengths_3d.size > 0 else None,
-                "max": int(track_lengths_3d.max()) if track_lengths_3d.size > 0 else None,
-                "track_lengths_histogram": histogram_dict,
-            },
-            "mean_accepted_track_avg_error": np.array(per_accepted_track_avg_errors).mean(),
-            "per_rejected_track_avg_errors": per_rejected_track_avg_errors,
-            "per_accepted_track_avg_errors": per_accepted_track_avg_errors,
-        }
+        data_assoc_metrics = GtsfmMetricsGroup("data_association_metrics", [
+            GtsfmMetric("2D_track_lengths", track_lengths_2d, save_full_data=False),
+            GtsfmMetric("accepted_tracks_ratio": accepted_tracks_ratio),
+            GtsfmMetric("track_cheirality_failure_ratio", track_cheirality_failure_ratio),
+            GtsfmMetric("num_accepted_tracks", num_accepted_tracks),
+            GtsfmMetric("3d_tracks_length", track_lengths_3d, save_full_data=False), 
+            GtsfmMetric("accepted_track_avg_error", per_accepted_track_avg_errors, save_full_data=False),
+            GtsfmMetric("rejected_track_avg_errors", per_rejected_track_avg_errors, save_full_data=False),
+        ])
 
         return connected_data, data_assoc_metrics
 

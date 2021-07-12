@@ -13,13 +13,14 @@ import gtsfm.utils.io as io
 DATA_KEY = "full_data"
 SUMMARY_KEY = "summary"
 
+
 class GtsfmMetric:
     """Class to store a metric computed in a GTSfM module."""
 
     class PlotType(Enum):
-        BAR = 1         # For scalars
-        BOX = 2         # For 1D distributions
-        HISTOGRAM = 3   # For 1D distributions
+        BAR = 1  # For scalars
+        BOX = 2  # For 1D distributions
+        HISTOGRAM = 3  # For 1D distributions
 
     def _get_plot_types_for_dim(self, dim) -> List[PlotType]:
         if dim == 0:
@@ -28,14 +29,21 @@ class GtsfmMetric:
             return [self.PlotType.BOX, self.PlotType.HISTOGRAM]
         return []
 
-    def __init__(self, name: str, data: Union[np.array, float], plot_type: PlotType = None):
+    def __init__(
+        self,
+        name: str,
+        data: Union[np.array, float, List[Union[int, float]]],
+        save_full_data: bool = False,
+        plot_type: PlotType = None,
+    ):
         if not isinstance(data, np.ndarray):
             data = np.array(data)
         if data.ndim > 1:
-            raise ValueError('Metrics must be scalars on 1D-distributions.')
+            raise ValueError("Metrics must be scalars on 1D-distributions.")
         self._name = name
         self._data = data
         self._dim = data.ndim
+        self._save_full_data = save_full_data
 
         plot_types_for_dim = self._get_plot_types_for_dim(self._dim)
         if plot_type is None:
@@ -44,10 +52,10 @@ class GtsfmMetric:
             if plot_type in plot_types_for_dim:
                 self._plot_type = plot_type
             else:
-                raise ValueError('Unsupported plot type for the data dimension')
+                raise ValueError("Unsupported plot type for the data dimension")
 
     @property
-    def name(self) -> str: 
+    def name(self) -> str:
         return self._name
 
     @property
@@ -78,20 +86,17 @@ class GtsfmMetric:
             "percentiles": self.get_distribution_percentiles(),
         }
 
-    def get_metric_as_dict(self) -> Dict[str, Any]: 
+    def get_metric_as_dict(self) -> Dict[str, Any]:
         if self._dim == 0:
             return self.get_summary_dict()
 
-
-        return {
-            self._name: {
-                SUMMARY_KEY: self.get_summary_dict(),
-                DATA_KEY: self._data.tolist(),
-            }
-        }
+        metric_dict = {SUMMARY_KEY: self.get_summary_dict()}
+        if self._save_full_data:
+            metric_dict[DATA_KEY] = self._data.tolist()
+        return metric_dict
 
     def save_to_json(self, json_filename):
-        io.save_json_file(json_filename, self.get_metric_as_dict())
+        io.save_json_file(json_filename, self.get_metric_as_dict(save_full_data))
 
     @classmethod
     def parse_from_dict(cls, metric_dict: Dict[str, Any]) -> GtsfmMetric:
@@ -99,11 +104,11 @@ class GtsfmMetric:
             raise AttributeError("Input metric dict should have a single key-value pair.")
         metric_name = list(metric_dict.keys())[0]
         metric_value = metric_dict[metric_name]
-        
+
         # 1D distribution metrics
         if isinstance(metric_value, dict):
             if not DATA_KEY in metric_value:
-                raise AttributeError('Unable to parse metrics dict: missing data field.')
+                raise AttributeError("Unable to parse metrics dict: missing data field.")
             return cls(metric_name, metric_value[DATA_KEY])
 
         # Scalar metrics
@@ -112,6 +117,7 @@ class GtsfmMetric:
 
 class GtsfmMetricsGroup:
     """Stores GtsfmMetrics from the same module. """
+
     def __init__(self, name: str, metrics: List[GtsfmMetric]):
         self._name = name
         self._metrics = metrics
@@ -144,8 +150,8 @@ class GtsfmMetricsGroup:
 
     @classmethod
     def parse_from_dict(cls, metrics_group_dict) -> GtsfmMetricsGroup:
-        if(len(metrics_dict) != 1):
-            raise AttributeError('Metrics group dict must have a single key-value pair.')
+        if len(metrics_dict) != 1:
+            raise AttributeError("Metrics group dict must have a single key-value pair.")
         metrics_group_name = list(metrics_group_dict.keys())[0]
         metrics_dict = metrics_group_dict[metrics_group_name]
         gtsfm_metrics_list = []
@@ -154,7 +160,7 @@ class GtsfmMetricsGroup:
         return GtsfmMetricsGroup(metrics_group_name, gtsfm_metrics_list)
 
     @classmethod
-    def parse_from_json(cls, json_filename):            
+    def parse_from_json(cls, json_filename):
         with open(json_filename) as f:
             metric_group_dict = json.load(f)
         return cls.parse_from_dict(metric_group_dict)
