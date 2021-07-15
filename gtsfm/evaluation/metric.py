@@ -32,18 +32,28 @@ class GtsfmMetric:
     def __init__(
         self,
         name: str,
-        data: Union[np.array, float, List[Union[int, float]]],
-        save_full_data: bool = True,
+        data: Optional[Union[np.array, float, List[Union[int, float]]]],
+        summary: Optional[Dict[str, Any]],
+        store_full_data: bool = True,
         plot_type: PlotType = None,
     ):
+        if summary is None and data is None:
+            raise ValueError("Data and summary cannot both be None.")
+        if data is not None and summary is not None:
+            print("Summary will be recomputed from data.")
+
         if not isinstance(data, np.ndarray):
             data = np.array(data)
         if data.ndim > 1:
             raise ValueError("Metrics must be scalars on 1D-distributions.")
+
         self._name = name
-        self._data = data
-        self._dim = data.ndim
-        self._save_full_data = save_full_data
+        self._dim = data.ndim if data is not None else 1
+        self._data = data if self._dim == 0 or self._store_full_data else None
+        if self._dim == 1:
+            self._summary = summary if self._data is None else _create_summary(self._data)
+        else:
+            self._summary = None
 
         plot_types_for_dim = self._get_plot_types_for_dim(self._dim)
         if plot_type is None:
@@ -66,50 +76,62 @@ class GtsfmMetric:
     def plot_type(self):
         return self._plot_type
 
-    def get_distribution_percentiles(self) -> Dict[int, float]:
+    @property
+    def dim(self):
+        return self._dim
+
+    @property
+    def summary(self):
+        return self._summary
+
+    def _get_distribution_percentiles(data: np.ndarray) -> Dict[int, float]:
         query = list(range(0, 101, 10))
-        percentiles = np.percentile(self._data, query)
+        percentiles = np.percentile(data, query)
         output = {}
         for i, q in enumerate(query):
             output[q] = percentiles[i].tolist()
         return output
 
-    def get_summary_dict(self) -> Dict[str, Any]:
-        if self._dim == 0:
-            return {self._name: self._data.tolist()}
+    def _create_summary(data: np.ndarray) -> Dict[str, Any]:
+        if data.ndim > 1:
+            raise ValueError('Metric must be a 1D distribution to get summary.')
         return {
-            "min": np.min(self._data).tolist(),
-            "max": np.max(self._data).tolist(),
-            "median": np.median(self._data).tolist(),
-            "mean": np.mean(self._data).tolist(),
-            "stddev": np.std(self._data).tolist(),
-            "percentiles": self.get_distribution_percentiles(),
+            "min": np.min(data).tolist(),
+            "max": np.max(data).tolist(),
+            "median": np.median(data).tolist(),
+            "mean": np.mean(data).tolist(),
+            "stddev": np.std(data).tolist(),
+            "percentiles": _get_distribution_percentiles(data),
         }
 
     def get_metric_as_dict(self) -> Dict[str, Any]:
         if self._dim == 0:
-            return self.get_summary_dict()
+            return {self._name: self._data.tolist()}
 
-        metric_dict = {SUMMARY_KEY: self.get_summary_dict()}
-        if self._save_full_data:
+        metric_dict = {SUMMARY_KEY: self.summary}
+        if self._data is not None:
             metric_dict[DATA_KEY] = self._data.tolist()
         return { self._name: metric_dict }
 
     def save_to_json(self, json_filename):
-        io.save_json_file(json_filename, self.get_metric_as_dict(save_full_data))
+        io.save_json_file(json_filename, self.get_metric_as_dict())
 
     @classmethod
     def parse_from_dict(cls, metric_dict: Dict[str, Any]) -> GtsfmMetric:
         if len(metric_dict) != 1:
             raise AttributeError("Input metric dict should have a single key-value pair.")
+
         metric_name = list(metric_dict.keys())[0]
         metric_value = metric_dict[metric_name]
 
         # 1D distribution metrics
         if isinstance(metric_value, dict):
             if not DATA_KEY in metric_value:
-                raise AttributeError("Unable to parse metrics dict: missing data field.")
-            return cls(metric_name, metric_value[DATA_KEY])
+                if not SUMMARY_KEY in metric_value:
+                    raise ValueError("Metric {metric_name} does not have summary or data.")
+                return cls(metric_name, summary=metric_value[SUMMARY_KEY])
+            else:    
+                return cls(metric_name, metric_value[DATA_KEY])
 
         # Scalar metrics
         return cls(metric_name, metric_value)
