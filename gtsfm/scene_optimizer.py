@@ -432,6 +432,13 @@ def aggregate_frontend_metrics(
 ) -> None:
     """Aggregate the front-end metrics to log summary statistics.
 
+    We define "pose error" as the maximum of the angular errors in rotation and translation.
+    References:
+        SuperGlue, CVPR 2020: https://arxiv.org/pdf/1911.11763.pdf
+        Learning to find good correspondences. CVPR 2018:
+        OA-Net, ICCV 2019:
+        NG-RANSAC, ICCV 2019:
+
     Args:
         two_view_report_dict: report containing front-end metrics for each image pair.
         angular_err_threshold_deg: threshold for classifying angular error metrics as success.
