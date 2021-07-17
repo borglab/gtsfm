@@ -1,7 +1,7 @@
 """
 Script to render a GTSFM scene using either Open3d or Mayavi mlab.
 
-Author: John Lambert
+Authors: John Lambert
 """
 
 import argparse
@@ -37,6 +37,9 @@ def compute_point_cloud_center_robust(point_cloud: np.ndarray) -> np.ndarray:
 def view_scene(args: argparse.Namespace) -> None:
     """Read GTSFM output from .txt files and render the scene to the GUI.
 
+    We also zero-center the point cloud, and transform camera poses to a new
+    world frame, where the point cloud is zero-centered.
+
     Args:
         args: rendering options.
     """
@@ -63,10 +66,13 @@ def view_scene(args: argparse.Namespace) -> None:
     point_cloud = point_cloud[is_nearby]
     rgb = rgb[is_nearby]
 
+    for i in range(len(wTi_list)):
+        wTi_list[i] = zcwTw.compose(wTi_list[i])
+
     if args.rendering_library == "open3d":
-        draw_scene_open3d(point_cloud, rgb, wTi_list, calibrations, zcwTw, args)
+        draw_scene_open3d(point_cloud, rgb, wTi_list, calibrations, args)
     elif args.rendering_library == "mayavi":
-        draw_scene_mayavi(point_cloud, rgb, wTi_list, calibrations, zcwTw, args)
+        draw_scene_mayavi(point_cloud, rgb, wTi_list, calibrations, args)
     else:
         raise RuntimeError("Unsupported rendering library")
 
