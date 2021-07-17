@@ -1,7 +1,7 @@
 """
 Utilities for rendering camera frustums and 3d point clouds using the Mayavi mlab library.
 
-Author: John Lambert
+Authors: John Lambert
 """
 
 import argparse
@@ -41,7 +41,7 @@ def draw_point_cloud_mayavi(
 
 
 def draw_cameras_mayavi(
-    fig: mayavi.core.scene.Scene, wTi_list: List[Pose3], calibrations: List[Cal3Bundler], zcwTw: Pose3
+    fig: mayavi.core.scene.Scene, wTi_list: List[Pose3], calibrations: List[Cal3Bundler]
 ) -> None:
     """Render camera frustums as collections of line segments, using Mayavi mlab.
 
@@ -49,15 +49,12 @@ def draw_cameras_mayavi(
         fig: Mayavi mlab figure object.
         wTi_list: list of camera poses for each image.
         calibrations: calibration object for each camera.
-        zcwTw: transforms world points to a new world frame where the point cloud is zero-centered.
     """
     colormap = np.array(
         [[color_obj.rgb] for color_obj in Color("red").range_to(Color("green"), len(wTi_list))]
     ).squeeze()
 
     for i, (K, wTi) in enumerate(zip(calibrations, wTi_list)):
-        wTi = zcwTw.compose(wTi)
-
         color = tuple(colormap[i].tolist())
 
         K = K.K()
@@ -95,7 +92,6 @@ def draw_scene_mayavi(
     rgb: np.ndarray,
     wTi_list: List[Pose3],
     calibrations: List[Cal3Bundler],
-    zcwTw: Pose3,
     args: argparse.Namespace,
 ) -> None:
     """Render camera frustums and a 3d point cloud against a white background, using Mayavi.
@@ -110,6 +106,6 @@ def draw_scene_mayavi(
     """
     bgcolor = (1, 1, 1)
     fig = mlab.figure(figure=None, bgcolor=bgcolor, fgcolor=None, engine=None, size=(1600, 1000))  # type: ignore
-    draw_cameras_mayavi(fig, wTi_list, calibrations, zcwTw)
+    draw_cameras_mayavi(fig, wTi_list, calibrations)
     draw_point_cloud_mayavi(fig, point_cloud, rgb, args.sphere_radius)
     mlab.show()
