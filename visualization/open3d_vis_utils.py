@@ -1,7 +1,7 @@
 """
 Utilities for rendering camera frustums and 3d point clouds using the Open3d library.
 
-Author: John Lambert
+Authors: John Lambert
 """
 
 import argparse
@@ -66,15 +66,12 @@ def create_colored_spheres_open3d(
     return spheres
 
 
-def create_all_frustums_open3d(
-    wTi_list: List[Pose3], calibrations: List[Cal3Bundler], zcwTw: Pose3
-) -> List[open3d.geometry.LineSet]:
+def create_all_frustums_open3d(wTi_list: List[Pose3], calibrations: List[Cal3Bundler]) -> List[open3d.geometry.LineSet]:
     """Render camera frustums as collections of line segments, using Open3d.
 
     Args:
         wTi_list: list of camera poses for each image
         calibrations: calibration object for each camera
-        zcwTw: transforms world points to a new world frame where the point cloud is zero-centered
 
     Returns:
         line_sets: list of line segments that together parameterize all camera frustums
@@ -87,9 +84,6 @@ def create_all_frustums_open3d(
     ).squeeze()
 
     for i, (K, wTi) in enumerate(zip(calibrations, wTi_list)):
-
-        # get camera pose, after zero-centering
-        wTi = zcwTw.compose(wTi)
 
         K = K.K()
         fx = K[0, 0]
@@ -125,7 +119,6 @@ def draw_scene_open3d(
     rgb: np.ndarray,
     wTi_list: List[Pose3],
     calibrations: List[Cal3Bundler],
-    zcwTw: Pose3,
     args: argparse.Namespace,
 ) -> None:
     """Render camera frustums and a 3d point cloud, using Open3d.
@@ -138,7 +131,7 @@ def draw_scene_open3d(
         zcwTw: transforms world points to a new world frame where the point cloud is zero-centered.
         args: rendering options.
     """
-    frustums = create_all_frustums_open3d(wTi_list, calibrations, zcwTw)
+    frustums = create_all_frustums_open3d(wTi_list, calibrations)
     if args.point_rendering_mode == "point":
         pcd = create_colored_point_cloud_open3d(point_cloud, rgb)
         geometries = frustums + [pcd]
