@@ -88,7 +88,11 @@ if __name__ == "__main__":
         help="3d rendering library to use.",
     )
     parser.add_argument(
-        "--output_dir", type=str, default=os.path.join(REPO_ROOT, "results", "ba_output"), help="Path to GTSFM output"
+        "--output_dir",
+        type=str,
+        default=os.path.join(REPO_ROOT, "results", "ba_output"),
+        help="Path to a directory containing GTSFM output. "
+        "This directory should contain 3 files: cameras.txt, images.txt, and points3D.txt",
     )
     parser.add_argument(
         "--point_rendering_mode",
