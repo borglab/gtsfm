@@ -40,9 +40,7 @@ def draw_point_cloud_mayavi(
     g.glyph.scale_mode = "data_scaling_off"  # make all the points same size
 
 
-def draw_cameras_mayavi(
-    fig: mayavi.core.scene.Scene, wTi_list: List[Pose3], calibrations: List[Cal3Bundler]
-) -> None:
+def draw_cameras_mayavi(fig: mayavi.core.scene.Scene, wTi_list: List[Pose3], calibrations: List[Cal3Bundler]) -> None:
     """Render camera frustums as collections of line segments, using Mayavi mlab.
 
     Args:
