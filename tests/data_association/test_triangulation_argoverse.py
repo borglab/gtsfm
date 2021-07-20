@@ -38,6 +38,8 @@ def draw_points_by_range(points: np.ndarray, center: np.ndarray):
 
 def main(dataset_dir: str, log_id: str) -> None:
     """ """
+    np.random.seed(0)
+
     camera_name = "ring_front_center"
 
     dl = SimpleArgoverseTrackingDataLoader(data_dir=dataset_dir, labels_dir=dataset_dir)
@@ -87,13 +89,22 @@ def main(dataset_dir: str, log_id: str) -> None:
             calib_cal3bundler
         ) 
 
-    triangulator = Point3dInitializer(track_camera_dict=track_camera_dict, mode=TriangulationParam.NO_RANSAC, reproj_error_thresh=100)
+    triangulation_mode = TriangulationParam.NO_RANSAC
+    #triangulation_mode = TriangulationParam.RANSAC_TOPK_BASELINES
+
+    triangulator = Point3dInitializer(track_camera_dict=track_camera_dict, mode=triangulation_mode, reproj_error_thresh=100)
+
+    triangulated_pts = []
+    errs = []
 
     # Find a LiDAR point in the 0th frame
     for j, pt_city in enumerate(lidar_cityfr):
 
-        if j < 30000:
-            continue
+        # if j < 30000:
+        #     continue
+
+        # if j > 40000:
+        #     continue
 
         if j % 1000 == 0:
             print(f"On LiDAR point {j}")
@@ -142,10 +153,29 @@ def main(dataset_dir: str, log_id: str) -> None:
 
         # Compare point-point error
         err = np.linalg.norm(pt_city - track_3d.point3())
-        print(f"Point error was {err:.2f} from {len(measurements)} measurements.")
+        print(f"\tPoint error was {err:.2f} from {len(measurements)} measurements.")
 
-        # Triangulate it using GT poses, and then run bundle-adjustment on track point only
-        # Compare point-point error
+        triangulated_pts.append(track_3d.point3())
+        errs.append(err)
+
+    triangulated_pts = np.array(triangulated_pts)
+    draw_points_by_range(triangulated_pts, center=city_SE3_egovehicle_list[0].translation)
+
+    mean_err = np.mean(errs)
+    print("Mean error: ", mean_err)
+
+    # NO_RANSAC:
+    # optimize = True -> 22.1582 (other runs: 13.799)
+    # optimize = False -> 1.959 (other runs: 4.559, 2.388)
+
+    # RANSAC_TOPK_BASELINES:
+    # optimize = True
+    # optimize = False
+
+    # RANSAC_SAMPLE_UNIFORM = 1  # sample a pair of cameras uniformly at random
+    # RANSAC_SAMPLE_BIASED_BASELINE = 2  # sample pair of cameras based on largest estimated baseline
+    # RANSAC_TOPK_BASELINES = 3  # deterministically choose hypotheses with largest estimate baseline
+
 
 
 if __name__ == "__main__":
