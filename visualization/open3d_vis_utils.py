@@ -66,9 +66,7 @@ def create_colored_spheres_open3d(
     return spheres
 
 
-def create_all_frustums_open3d(
-    wTi_list: List[Pose3], calibrations: List[Cal3Bundler]
-) -> List[open3d.geometry.LineSet]:
+def create_all_frustums_open3d(wTi_list: List[Pose3], calibrations: List[Cal3Bundler]) -> List[open3d.geometry.LineSet]:
     """Render camera frustums as collections of line segments, using Open3d.
 
     Args:
