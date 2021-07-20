@@ -128,7 +128,6 @@ def draw_scene_open3d(
         rgb: uint8 array of shape (N,3) representing colors in RGB order, in the range [0,255].
         wTi_list: list of camera poses for each image.
         calibrations: calibration object for each camera.
-        zcwTw: transforms world points to a new world frame where the point cloud is zero-centered.
         args: rendering options.
     """
     frustums = create_all_frustums_open3d(wTi_list, calibrations)
