@@ -11,10 +11,8 @@ SUMMARY_KEY = "summary"
 DATA_KEY = "full_data"
 
 def create_table_for_scalar_metrics(table_name: str, metrics_dict: Dict[str, Union[float, int]]) -> go.Figure:
-    fig = go.Figure(data=[go.Table(header=dict(values=['Metric', 'Value']), 
-        cells=dict(values=[list(metrics_dict.keys()), list(metrics_dict.values())]))])
-    fig.update_layout(title=table_name, height=512, width=1024)
-    return fig
+    table = {"Metric name": list(metrics_dict.keys()), "Value": list(metrics_dict.values())}
+    return tabulate(table, headers="keys", tablefmt="html")
 
 def create_plots_for_distributions(metrics_dict: Dict[str, Any]):
     distribution_metrics = []
@@ -47,15 +45,15 @@ def get_figures_for_metrics(metrics: GtsfmMetricsGroup):
             scalar_metrics["max_"+ metric] = value[SUMMARY_KEY]["max"]
         else:
             scalar_metrics[metric] = value
-    table_fig = create_table_for_scalar_metrics(metrics.name, scalar_metrics)
+    table = create_table_for_scalar_metrics(metrics.name, scalar_metrics)
     plots_fig = create_plots_for_distributions(metrics_dict)
-    return table_fig, plots_fig
+    return table, plots_fig
 
 
 def save_html_for_metrics_groups(metrics_groups: List[GtsfmMetricsGroup], html_path: str):
     with open(html_path, mode='a') as f:
         for metrics_group in metrics_groups:
-            table_fig, plots_fig = get_figures_for_metrics(metrics_group)
-            f.write(table_fig.to_html(full_html=False, include_plotlyjs='cdn'))
+            table, plots_fig = get_figures_for_metrics(metrics_group)
+            f.write(table)
             if plots_fig is not None:
                 f.write(plots_fig.to_html(full_html=False, include_plotlyjs='cdn'))
