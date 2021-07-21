@@ -4,6 +4,7 @@ Authors: Akshay Krishnan
 """
 from __future__ import annotations
 
+import json
 import numpy as np
 from enum import Enum
 from typing import Any, Dict, List, Union
@@ -29,11 +30,32 @@ class GtsfmMetric:
             return [self.PlotType.BOX, self.PlotType.HISTOGRAM]
         return []
 
+    def _create_summary(self, data: np.ndarray) -> Dict[str, Any]:
+        if data.ndim > 1:
+            raise ValueError('Metric must be a 1D distribution to get summary.')
+        return {
+            "min": np.min(data).tolist(),
+            "max": np.max(data).tolist(),
+            "median": np.median(data).tolist(),
+            "mean": np.mean(data).tolist(),
+            "stddev": np.std(data).tolist(),
+            "percentiles": self._get_distribution_percentiles(data),
+        }
+
+    def _get_distribution_percentiles(self, data: np.ndarray) -> Dict[int, float]:
+        query = list(range(0, 101, 10))
+        percentiles = np.percentile(data, query)
+        output = {}
+        for i, q in enumerate(query):
+            output[q] = percentiles[i].tolist()
+        return output
+
+
     def __init__(
         self,
         name: str,
         data: Optional[Union[np.array, float, List[Union[int, float]]]],
-        summary: Optional[Dict[str, Any]],
+        summary: Optional[Dict[str, Any]] = None,
         store_full_data: bool = True,
         plot_type: PlotType = None,
     ):
@@ -49,9 +71,9 @@ class GtsfmMetric:
 
         self._name = name
         self._dim = data.ndim if data is not None else 1
-        self._data = data if self._dim == 0 or self._store_full_data else None
+        self._data = data if self._dim == 0 or store_full_data else None
         if self._dim == 1:
-            self._summary = summary if self._data is None else _create_summary(self._data)
+            self._summary = summary if self._data is None else self._create_summary(self._data)
         else:
             self._summary = None
 
@@ -83,26 +105,6 @@ class GtsfmMetric:
     @property
     def summary(self):
         return self._summary
-
-    def _get_distribution_percentiles(data: np.ndarray) -> Dict[int, float]:
-        query = list(range(0, 101, 10))
-        percentiles = np.percentile(data, query)
-        output = {}
-        for i, q in enumerate(query):
-            output[q] = percentiles[i].tolist()
-        return output
-
-    def _create_summary(data: np.ndarray) -> Dict[str, Any]:
-        if data.ndim > 1:
-            raise ValueError('Metric must be a 1D distribution to get summary.')
-        return {
-            "min": np.min(data).tolist(),
-            "max": np.max(data).tolist(),
-            "median": np.median(data).tolist(),
-            "mean": np.mean(data).tolist(),
-            "stddev": np.std(data).tolist(),
-            "percentiles": _get_distribution_percentiles(data),
-        }
 
     def get_metric_as_dict(self) -> Dict[str, Any]:
         if self._dim == 0:
@@ -172,12 +174,12 @@ class GtsfmMetricsGroup:
 
     @classmethod
     def parse_from_dict(cls, metrics_group_dict) -> GtsfmMetricsGroup:
-        if len(metrics_dict) != 1:
+        if len(metrics_group_dict) != 1:
             raise AttributeError("Metrics group dict must have a single key-value pair.")
         metrics_group_name = list(metrics_group_dict.keys())[0]
         metrics_dict = metrics_group_dict[metrics_group_name]
         gtsfm_metrics_list = []
-        for metric_name, metric_value in metrics_dict:
+        for metric_name, metric_value in metrics_dict.items():
             gtsfm_metrics_list.append(GtsfmMetric.parse_from_dict({metric_name: metric_value}))
         return GtsfmMetricsGroup(metrics_group_name, gtsfm_metrics_list)
 
