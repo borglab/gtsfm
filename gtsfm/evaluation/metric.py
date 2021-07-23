@@ -54,23 +54,26 @@ class GtsfmMetric:
     def __init__(
         self,
         name: str,
-        data: Optional[Union[np.array, float, List[Union[int, float]]]],
+        data: Optional[Union[np.array, float, List[Union[int, float]]]] = None,
         summary: Optional[Dict[str, Any]] = None,
         store_full_data: bool = True,
         plot_type: PlotType = None,
     ):
         if summary is None and data is None:
             raise ValueError("Data and summary cannot both be None.")
-        if data is not None and summary is not None:
-            print("Summary will be recomputed from data.")
-
-        if not isinstance(data, np.ndarray):
-            data = np.array(data)
-        if data.ndim > 1:
-            raise ValueError("Metrics must be scalars on 1D-distributions.")
 
         self._name = name
-        self._dim = data.ndim if data is not None else 1
+        if data is not None:
+            if summary is not None:
+                print("Summary will be recomputed from data")
+            if not isinstance(data, np.ndarray):
+                data = np.array(data)
+            if data.ndim > 1:
+                raise ValueError("Metrics must be scalars on 1D-distributions.")
+            self._dim = data.ndim
+        else:
+            self._dim = 1
+
         self._data = data if self._dim == 0 or store_full_data else None
         if self._dim == 1:
             self._summary = summary if self._data is None else self._create_summary(self._data)
