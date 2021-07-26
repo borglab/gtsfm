@@ -3,7 +3,9 @@
 Authors: Ayush Baid
 """
 import numpy as np
-from gtsam import PinholeCameraCal3Bundler
+from gtsam import PinholeCameraCal3Bundler, Unit3
+
+import gtsfm.utils.geometry_comparisons as geometry_utils
 
 
 def calculate_triangulation_angle_in_degrees(
@@ -17,6 +19,9 @@ def calculate_triangulation_angle_in_degrees(
      /     \
     C1      C2
 
+    References:
+    - https://github.com/colmap/colmap/blob/dev/src/base/triangulation.cc#L122
+
     Args:
         camera_1: the first camera.
         camera_2: the second camera.
@@ -28,20 +33,8 @@ def calculate_triangulation_angle_in_degrees(
     camera_center_1: np.ndarray = camera_1.pose().translation()
     camera_center_2: np.ndarray = camera_2.pose().translation()
 
-    # compute the three squared edge lengths of the triangle formed between camera centers and the 3d point
-    def squared_dist_fn(x, y):
-        return np.sum(np.square(x - y), axis=None)
+    # compute the two rays
+    ray_1 = point_3d - camera_center_1
+    ray_2 = point_3d - camera_center_2
 
-    baseline_squared = squared_dist_fn(camera_center_1, camera_center_2)
-    ray_length_1_squared = squared_dist_fn(camera_center_1, point_3d)
-    ray_length_2_squared = squared_dist_fn(camera_center_2, point_3d)
-
-    # use the law of cosines to estimate the angle at the 3d point
-    numerator = ray_length_1_squared + ray_length_2_squared - baseline_squared
-    denominator = 2 * np.sqrt(ray_length_1_squared * ray_length_2_squared)
-    if denominator == 0:
-        return 0
-    angle_radians = np.arccos(numerator / denominator)
-
-    return np.rad2deg(angle_radians)
-
+    return geometry_utils.compute_relative_unit_translation_angle(Unit3(ray_1), Unit3(ray_2))
