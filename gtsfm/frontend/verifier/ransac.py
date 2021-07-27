@@ -26,13 +26,17 @@ from gtsfm.frontend.verifier.verifier_base import VerifierBase, NUM_MATCHES_REQ_
 
 RANSAC_SUCCESS_PROB = 0.99999
 RANSAC_MAX_ITERS = 20000
-MAX_TOLERATED_POLLUTION_INLIER_RATIO_EST_MODEL = 0.1
 
 logger = logger_utils.get_logger()
 
 
 class Ransac(VerifierBase):
-    def __init__(self, use_intrinsics_in_verification: bool, estimation_threshold_px: float, min_allowed_inlier_ratio_est_model: float) -> None:
+    def __init__(
+        self,
+        use_intrinsics_in_verification: bool,
+        estimation_threshold_px: float,
+        min_allowed_inlier_ratio_est_model: float,
+    ) -> None:
         """Initializes the verifier.
 
         Args:
@@ -97,7 +101,7 @@ class Ransac(VerifierBase):
                 K,
                 method=cv2.RANSAC,
                 threshold=self._px_threshold / fx,
-                prob=RANSAC_SUCCESS_PROB
+                prob=RANSAC_SUCCESS_PROB,
             )
         else:
             i2Fi1, inlier_mask = cv2.findFundamentalMat(
@@ -106,7 +110,7 @@ class Ransac(VerifierBase):
                 method=cv2.FM_RANSAC,
                 ransacReprojThreshold=self._px_threshold,
                 confidence=RANSAC_SUCCESS_PROB,
-                maxIters=RANSAC_MAX_ITERS
+                maxIters=RANSAC_MAX_ITERS,
             )
 
             i2Ei1 = verification_utils.fundamental_to_essential_matrix(
