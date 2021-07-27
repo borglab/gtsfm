@@ -17,14 +17,13 @@ from gtsfm.frontend.verifier.verifier_base import VerifierBase, NUM_MATCHES_REQ_
 
 DEFAULT_RANSAC_SUCCESS_PROB = 0.99999
 DEFAULT_RANSAC_MAX_ITERS = 20000
-MAX_TOLERATED_POLLUTION_INLIER_RATIO_EST_MODEL = 0.1
 
 logger = logger_utils.get_logger()
 
 
 class LoRansac(VerifierBase):
     def __init__(
-        self, use_intrinsics_in_verification: bool, estimation_threshold_px: float
+        self, use_intrinsics_in_verification: bool, estimation_threshold_px: float, min_allowed_inlier_ratio_est_model: float
     ) -> None:
         """Initializes the verifier.
 
@@ -36,6 +35,7 @@ class LoRansac(VerifierBase):
         """
         self._use_intrinsics_in_verification = use_intrinsics_in_verification
         self._px_threshold = estimation_threshold_px
+        self._min_allowed_inlier_ratio_est_model = min_allowed_inlier_ratio_est_model
         self._min_matches = (
             NUM_MATCHES_REQ_E_MATRIX
             if self._use_intrinsics_in_verification
@@ -93,13 +93,17 @@ class LoRansac(VerifierBase):
         qw, qx, qy, qz = result_dict["qvec"]
         i2Ui1 = result_dict["tvec"]
         num_inliers = result_dict["num_inliers"]
-        inlier_mask = result_dict["inliers"]
-
-        i2Ri1 = Rot3(Rotation.from_quat([qx,qy,qz,qw]).as_matrix())
-        i2Ui1 = Unit3(i2Ui1)
 
         inlier_ratio_est_model = num_inliers / match_indices.shape[0]
+        if inlier_ratio_est_model >= self._min_allowed_inlier_ratio_est_model:
+            i2Ri1 = Rot3(Rotation.from_quat([qx,qy,qz,qw]).as_matrix())
+            i2Ui1 = Unit3(i2Ui1)
+            inlier_mask = result_dict["inliers"]
+            v_corr_idxs = match_indices[inlier_mask]
 
-        v_corr_idxs = match_indices[inlier_mask]
-
+        else:
+            i2Ri1 = None
+            i2Ui1 = None
+            v_corr_idxs = np.array([])
+        
         return i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio_est_model
