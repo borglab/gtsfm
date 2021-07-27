@@ -10,6 +10,7 @@ import dask
 import numpy as np
 from dask.delayed import Delayed
 from gtsam import Cal3Bundler, Pose3, Rot3, Unit3
+import trimesh
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
@@ -71,6 +72,7 @@ class TwoViewEstimationReport:
     inlier_ratio_est_model: Optional[float] = None  # TODO: make not optional (pass from verifier)
     num_inliers_gt_model: Optional[float] = None
     inlier_ratio_gt_model: Optional[float] = None
+    inlier_mask_gt_model: Optional[np.ndarray] = None,
     R_error_deg: Optional[float] = None
     U_error_deg: Optional[float] = None
     i2Ri1: Optional[Rot3] = None
@@ -119,6 +121,9 @@ class TwoViewEstimator:
         im_shape_i1_graph: Delayed,
         im_shape_i2_graph: Delayed,
         i2Ti1_expected_graph: Optional[Delayed] = None,
+        wTi1_expected_graph: Optional[Delayed] = None,
+        wTi2_expected_graph: Optional[Delayed] = None,
+        scene_mesh_expected: Optional[Delayed] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, Optional[Delayed], Optional[Delayed], Optional[Delayed]]:
         """Create delayed tasks for matching and verification.
 
@@ -163,11 +168,33 @@ class TwoViewEstimator:
             camera_intrinsics_i2_graph,
         )
 
-        # if we have the expected data, evaluate the computed relative pose
+        # Evaluate the computed relative pose
         if i2Ti1_expected_graph is not None:
             pose_error_graphs = dask.delayed(compute_relative_pose_metrics)(
                 i2Ri1_graph, i2Ui1_graph, i2Ti1_expected_graph
             )
+        else:
+            pose_error_graphs = (None, None)
+
+        # Evaluate the correspondences
+        #if None not in (wTi1_expected_graph, wTi2_expected_graph, scene_mesh_expected):
+        if (wTi1_expected_graph is not None and 
+            wTi2_expected_graph is not None and 
+            scene_mesh_expected is not None):
+            corr_error_graph = dask.delayed(compute_correspondence_metrics)(
+                keypoints_i1_graph,
+                keypoints_i2_graph,
+                v_corr_idxs_graph,
+                camera_intrinsics_i1_graph,
+                camera_intrinsics_i2_graph,
+                i2Ti1_expected_graph,
+                self._corr_metric_dist_threshold,
+                wTi1_expected_graph,
+                wTi2_expected_graph,
+                scene_mesh_expected,
+            )
+            number_correct, inlier_ratio, inlier_mask = corr_error_graph[0], corr_error_graph[1], corr_error_graph[2]
+        elif i2Ti1_expected_graph is not None:
             corr_error_graph = dask.delayed(compute_correspondence_metrics)(
                 keypoints_i1_graph,
                 keypoints_i2_graph,
@@ -177,10 +204,10 @@ class TwoViewEstimator:
                 i2Ti1_expected_graph,
                 self._corr_metric_dist_threshold,
             )
-            number_correct, inlier_ratio = corr_error_graph[0], corr_error_graph[1]
+            number_correct, inlier_ratio, inlier_mask = corr_error_graph[0], corr_error_graph[1], corr_error_graph[2]
         else:
-            pose_error_graphs = (None, None)
-            number_correct, inlier_ratio = None, None
+            number_correct, inlier_ratio, inlier_mask = None, None, None
+
 
         result = dask.delayed(self._homography_estimator.estimate)(
             keypoints_i1_graph,
@@ -197,6 +224,7 @@ class TwoViewEstimator:
             U_error_deg,
             number_correct,
             inlier_ratio,
+            inlier_mask,
             v_corr_idxs_graph,
             num_H_inliers,
             H_inlier_ratio,
@@ -254,6 +282,7 @@ def generate_two_view_report(
     U_error_deg: float,
     number_correct: int,
     inlier_ratio: float,
+    inlier_mask: np.ndarray,
     v_corr_idxs: np.ndarray,
     num_H_inliers: int,
     H_inlier_ratio: float,
@@ -264,6 +293,7 @@ def generate_two_view_report(
         num_inliers_est_model=v_corr_idxs.shape[0],
         num_inliers_gt_model=number_correct,
         inlier_ratio_gt_model=inlier_ratio,
+        inlier_mask_gt_model=inlier_mask,
         v_corr_idxs=v_corr_idxs,
         R_error_deg=R_error_deg,
         U_error_deg=U_error_deg,
@@ -281,7 +311,10 @@ def compute_correspondence_metrics(
     intrinsics_i2: Cal3Bundler,
     i2Ti1: Pose3,
     epipolar_distance_threshold: float,
-) -> Tuple[int, float]:
+    wTi1: Optional[Pose3] = None,
+    wTi2: Optional[Pose3] = None,
+    scene_mesh: Optional[trimesh.Trimesh] = None,
+) -> Tuple[int, float, np.ndarray]:
     """Compute the metrics for the generated verified correspondence.
 
     Args:
@@ -300,16 +333,29 @@ def compute_correspondence_metrics(
     if corr_idxs_i1i2.size == 0:
         return 0, float("Nan")
 
-    num_inliers_gt_model = metric_utils.count_correct_correspondences(
-        keypoints_i1.extract_indices(corr_idxs_i1i2[:, 0]),
-        keypoints_i2.extract_indices(corr_idxs_i1i2[:, 1]),
-        intrinsics_i1,
-        intrinsics_i2,
-        i2Ti1,
-        epipolar_distance_threshold,
-    )
-    inlier_ratio_gt_model = num_inliers_gt_model / corr_idxs_i1i2.shape[0]
-    return num_inliers_gt_model, inlier_ratio_gt_model
+    if None not in (wTi1, wTi2, scene_mesh):
+        inlier_mask = metric_utils.mesh_inlier_correspondences(
+            keypoints_i1.extract_indices(corr_idxs_i1i2[:, 0]),
+            keypoints_i2.extract_indices(corr_idxs_i1i2[:, 1]),
+            intrinsics_i1,
+            intrinsics_i2,
+            wTi1,
+            wTi2,
+            scene_mesh,
+        )
+    else:
+        inlier_mask = metric_utils.count_correct_correspondences(
+            keypoints_i1.extract_indices(corr_idxs_i1i2[:, 0]),
+            keypoints_i2.extract_indices(corr_idxs_i1i2[:, 1]),
+            intrinsics_i1,
+            intrinsics_i2,
+            i2Ti1,
+            epipolar_distance_threshold,
+        )
+    num_inliers_gt_model = np.count_nonzero(inlier_mask)
+    inlier_ratio_gt_model = num_inliers_gt_model / inlier_mask.size
+    logger.info(f'# corr outliers: {inlier_mask.size - num_inliers_gt_model} | corr inlier ratio: {inlier_ratio_gt_model}')
+    return num_inliers_gt_model, inlier_ratio_gt_model, inlier_mask
 
 
 def compute_relative_pose_metrics(

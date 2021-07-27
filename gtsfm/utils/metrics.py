@@ -2,10 +2,12 @@
 
 Authors: Ayush Baid, Akshay Krishnan
 """
+import timeit
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
+import trimesh
 from gtsam import Cal3Bundler, EssentialMatrix, Point3, Pose3, Rot3, Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
@@ -33,7 +35,7 @@ def count_correct_correspondences(
     intrinsics_i2: Cal3Bundler,
     i2Ti1: Pose3,
     epipolar_dist_threshold: float,
-) -> int:
+) -> np.ndarray:
     """Checks the correspondences for epipolar distances and counts ones which are below the threshold.
 
     Args:
@@ -63,7 +65,72 @@ def count_correct_correspondences(
     distance_squared = verification_utils.compute_epipolar_distances_sq_sampson(
         keypoints_i1.coordinates, keypoints_i2.coordinates, i2Fi1
     )
-    return np.count_nonzero(distance_squared < epipolar_dist_threshold ** 2)
+    return np.array(distance_squared < epipolar_dist_threshold ** 2)
+
+
+def mesh_inlier_correspondences(
+    keypoints_i1: Keypoints,
+    keypoints_i2: Keypoints,
+    camera_intrinsics_i1: Cal3Bundler,
+    camera_intrinsics_i2: Cal3Bundler,
+    gt_wTi1: Pose3,
+    gt_wTi2: Pose3,
+    gt_scene_mesh: trimesh.Trimesh,
+) -> np.ndarray:
+    """Visualize correspondences between pairs of images.
+
+    Args:
+        image_i1: image #i1.
+        image_i2: image #i2.
+        keypoints_i1: detected Keypoints for image #i1.
+        keypoints_i2: detected Keypoints for image #i2.
+        corr_idxs_i1i2: correspondence indices.
+        file_path: file path to save the visualization.
+    """
+    # back projection function
+    def back_project(u, v, fx, fy, cx, cy, wRi: Rot3):            
+        zhat = (1 + (u - cx)**2/fx**2 + (v - cy)**2/fy**2)**(-1/2)
+        xhat = zhat/fx*(u - cx)
+        yhat = zhat/fy*(v - cy)
+        return np.dot(wRi.matrix(), np.array([[xhat], [yhat], [zhat]]))
+
+    fx_i1, fy_i1, cx_i1, cy_i1 = camera_intrinsics_i1.fx(), camera_intrinsics_i1.fy(), camera_intrinsics_i1.px(), camera_intrinsics_i1.py()
+    fx_i2, fy_i2, cx_i2, cy_i2 = camera_intrinsics_i2.fx(), camera_intrinsics_i2.fy(), camera_intrinsics_i2.px(), camera_intrinsics_i2.py()
+    n_corrs = len(keypoints_i1)
+    is_inlier = np.zeros(n_corrs, dtype=bool)
+    src_i1 = np.repeat(np.reshape(gt_wTi1.translation(), (-1, 3)), n_corrs, axis=0) 
+    src_i2 = np.repeat(np.reshape(gt_wTi2.translation(), (-1, 3)), n_corrs, axis=0) 
+
+    # compute ketpoint rays
+    drc_i1 = np.empty((n_corrs, 3), dtype=float)
+    drc_i2 = np.empty((n_corrs, 3), dtype=float)
+    for corr_idx in range(n_corrs):
+        x_i1, y_i1 = keypoints_i1.coordinates[corr_idx]
+        x_i2, y_i2 = keypoints_i2.coordinates[corr_idx]
+        drc_i1[corr_idx, :] = np.reshape(back_project(x_i1, y_i1, fx_i1, fy_i1, cx_i1, cy_i1, gt_wTi1.rotation()), (-1, 3))
+        drc_i2[corr_idx, :] = np.reshape(back_project(x_i2, y_i2, fx_i2, fy_i2, cx_i2, cy_i2, gt_wTi2.rotation()), (-1, 3))
+
+    # perform ray tracing
+    src = np.vstack((src_i1, src_i2))
+    drc = np.vstack((drc_i1, drc_i2))
+    #logger.info(f'Computing ray intersections...')
+    _start = timeit.default_timer()
+    loc, idr, _ = gt_scene_mesh.ray.intersects_location(src, drc, multiple_hits=False)
+    _end = timeit.default_timer()
+    #logger.info(f'Cast {2 * n_corrs} rays in {_end - _start} seconds.')
+
+    # unpack results
+    idr_i1 = idr[idr < n_corrs]
+    loc_i1 = loc[idr < n_corrs]
+    idr_i2 = idr[idr >= n_corrs]-n_corrs
+    loc_i2 = loc[idr >= n_corrs]
+
+    # record inliers
+    idr, i1_idx, i2_idx = np.intersect1d(idr_i1, idr_i2, return_indices=True)
+    max_dist = max(np.linalg.norm(gt_wTi1.translation()), np.linalg.norm(gt_wTi2.translation()))
+    is_inlier[idr] = (np.linalg.norm(loc_i1[i1_idx] - loc_i2[i2_idx], axis=1) / max_dist) < 0.005 
+
+    return is_inlier
 
 
 def compute_errors_statistics(errors: List[Optional[float]]) -> StatsDict:

@@ -5,17 +5,19 @@ Authors: Ayush Baid, John Lambert
 import copy
 import logging
 import os
+import timeit
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import dask
 import matplotlib
+import trimesh
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import Pose3
+from gtsam import Pose3, Rot3, Unit3, Cal3Bundler
 
 import gtsfm.averaging.rotation.cycle_consistency as cycle_utils
 import gtsfm.utils.geometry_comparisons as comp_utils
@@ -104,6 +106,7 @@ class SceneOptimizer:
         camera_intrinsics_graph: List[Delayed],
         image_shape_graph: List[Delayed],
         gt_pose_graph: Optional[List[Delayed]] = None,
+        gt_scene_mesh: Optional[trimesh.Trimesh] = None
     ) -> Delayed:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
 
@@ -143,6 +146,9 @@ class SceneOptimizer:
                 image_shape_graph[i1],
                 image_shape_graph[i2],
                 gt_i2Ti1,
+                gt_pose_graph[i1],
+                gt_pose_graph[i2],
+                gt_scene_mesh,
             )
 
             # optionally: GENERATE SYNTHETIC matches, using GT pose
@@ -157,7 +163,20 @@ class SceneOptimizer:
 
             two_view_reports_dict[(i1, i2)] = two_view_report
 
-            if self._save_two_view_correspondences_viz:
+            # Get inlier mask using ground truth scene mesh
+            # if gt_scene_mesh is not None:
+            #     inlier_mask = dask.delayed(mesh_inlier_correspondences)(
+            #             keypoints_graph_list[i1],
+            #             keypoints_graph_list[i2],
+            #             v_corr_idxs,
+            #             camera_intrinsics_graph[i1],
+            #             camera_intrinsics_graph[i2],
+            #             gt_pose_graph[i1],
+            #             gt_pose_graph[i2],
+            #             gt_scene_mesh,
+            #     )
+
+            if self._save_two_view_correspondences_viz:                    
                 auxiliary_graph_list.append(
                     dask.delayed(visualize_twoview_correspondences)(
                         image_graph[i1],
@@ -166,6 +185,7 @@ class SceneOptimizer:
                         keypoints_graph_list[i2],
                         v_corr_idxs,
                         os.path.join(PLOT_CORRESPONDENCE_PATH, f"{i1}_{i2}.jpg"),
+                        inlier_mask=two_view_report.inlier_mask_gt_model
                     )
                 )
 
@@ -280,6 +300,7 @@ def visualize_twoview_correspondences(
     keypoints_i2: Keypoints,
     corr_idxs_i1i2: np.ndarray,
     file_path: str,
+    inlier_mask: Optional[np.ndarray] = None,
 ) -> None:
     """Visualize correspondences between pairs of images.
 
@@ -291,7 +312,14 @@ def visualize_twoview_correspondences(
         corr_idxs_i1i2: correspondence indices.
         file_path: file path to save the visualization.
     """
-    plot_img = viz_utils.plot_twoview_correspondences(image_i1, image_i2, keypoints_i1, keypoints_i2, corr_idxs_i1i2)
+    plot_img = viz_utils.plot_twoview_correspondences(
+        image_i1, 
+        image_i2, 
+        keypoints_i1, 
+        keypoints_i2, 
+        corr_idxs_i1i2, 
+        inlier_mask=inlier_mask
+    )
 
     io_utils.save_image(plot_img, file_path)
 
