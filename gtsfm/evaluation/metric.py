@@ -33,23 +33,51 @@ class GtsfmMetric:
     def _create_summary(self, data: np.ndarray) -> Dict[str, Any]:
         if data.ndim > 1:
             raise ValueError('Metric must be a 1D distribution to get summary.')
-        return {
+        summary = {
             "min": np.min(data).tolist(),
             "max": np.max(data).tolist(),
             "median": np.median(data).tolist(),
             "mean": np.mean(data).tolist(),
             "stddev": np.std(data).tolist(),
-            "percentiles": self._get_distribution_percentiles(data),
         }
+        if self.plot_type == self.PlotType.BOX:
+            summary.update({"quartiles": self._get_distribution_quartiles(data)})
+        elif self.plot_type == self.PlotType.HISTOGRAM:
+            summary.update({"histogram": self._get_distribution_histogram(data)})
+        return summary
 
-    def _get_distribution_percentiles(self, data: np.ndarray) -> Dict[int, float]:
-        query = list(range(0, 101, 10))
-        percentiles = np.percentile(data, query)
+    def _get_distribution_quartiles(self, data: np.ndarray) -> Dict[int, float]:
+        query = list(range(0, 101, 25))
+        quartiles = np.percentile(data, query)
         output = {}
         for i, q in enumerate(query):
-            output[q] = percentiles[i].tolist()
+            output[q] = quartiles[i].tolist()
         return output
 
+    def get_distribution_histogram(self, data: np.ndarray) -> Dict[int, float]:
+        if data.size == 0:
+            print("Requested histogram for empty data metric, returning None.")
+            return None
+        if isinstance(data.tolist()[0], int):
+            # One bin for each integer
+            bins = int(np.max(data) - np.min(data) + 1)
+            discrete = True
+        else:
+            bins = 10
+            discrete = False
+        count, bins = np.histogram(data, bins=bins)
+
+        if discrete:
+            bins_lower = [str(num) for num in bins[:-1].tolist()]
+            bins_upper = [str(num) for num in bins[1:].tolist()]            
+        else:
+            bins_lower = ["{%.2f}".format(num) for num in bins[:-1].tolist()]
+            bins_upper = ["{%.2f}".format(num) for num in bins[1:].tolist()]            
+
+        histogram = {}
+        for i in range(len(count)):
+            histogram[bins_lower[i] + '-' + bins_upper[i]] = count[i]
+        return histogram
 
     def __init__(
         self,
