@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 import trimesh
 from gtsam import Cal3Bundler, EssentialMatrix, Point3, Pose3, Rot3, Unit3
+import matplotlib.pyplot as plt
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.io as io_utils
@@ -94,12 +95,19 @@ def mesh_inlier_correspondences(
     Returns:
         is_inlier: (N, ) mask of inlier correspondences.
     """
-    # back projection function
     def back_project(u, v, fx, fy, cx, cy, wRi: Rot3):            
+        """Back-project ray from pixel coord"""
         zhat = (1 + (u - cx)**2/fx**2 + (v - cy)**2/fy**2)**(-1/2)
         xhat = zhat/fx*(u - cx)
         yhat = zhat/fy*(v - cy)
         return np.dot(wRi.matrix(), np.array([[xhat], [yhat], [zhat]]))
+
+    def forward_project(wtlw: np.ndarray, fx, fy, cx, cy, iTw: Pose3):            
+        itwi = np.reshape(iTw.translation(), (3, 1))
+        wtlw = np.reshape(wtlw, (3, 1))
+        itli = np.dot(iTw.rotation().matrix(), wtlw) + itwi    
+        x, y, z = itli
+        return np.array([fx/z*x + cx, fy/z*y + cy])
 
     # TODO: add unit test, with mocking.
     if len(keypoints_i1) != len(keypoints_i2):
@@ -135,11 +143,17 @@ def mesh_inlier_correspondences(
     loc_i1 = loc[idr < n_corrs]
     idr_i2 = idr[idr >= n_corrs]-n_corrs
     loc_i2 = loc[idr >= n_corrs]
-
-    # record inliers
     idr, i1_idx, i2_idx = np.intersect1d(idr_i1, idr_i2, return_indices=True)
-    max_dist = max(np.linalg.norm(gt_wTi1.translation()), np.linalg.norm(gt_wTi2.translation()))
-    is_inlier[idr] = (np.linalg.norm(loc_i1[i1_idx] - loc_i2[i2_idx], axis=1) / max_dist) < 0.005 
+
+    # forward project intersections into other image to compute error
+    for i in range(len(idr)):
+        x_i1, y_i1 = keypoints_i1.coordinates[idr[i]]
+        x_i2, y_i2 = keypoints_i2.coordinates[idr[i]]
+        x_i2i1, y_i2i1 = forward_project(loc_i2[i2_idx[i]], fx_i1, fy_i1, cx_i1, cy_i1, gt_wTi1.inverse())
+        x_i1i2, y_i1i2 = forward_project(loc_i1[i1_idx[i]], fx_i2, fy_i2, cx_i2, cy_i2, gt_wTi2.inverse())
+        err_i2i1 = ((x_i1 - x_i2i1)**2 + (y_i1 - y_i2i1)**2)**0.5 # pixels
+        err_i1i2 = ((x_i2 - x_i1i2)**2 + (y_i2 - y_i1i2)**2)**0.5 # pixels
+        is_inlier[idr[i]] = max(err_i1i2, err_i2i1) < 10
 
     return is_inlier
 
