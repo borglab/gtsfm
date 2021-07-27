@@ -146,6 +146,7 @@ def mesh_inlier_correspondences(
     idr, i1_idx, i2_idx = np.intersect1d(idr_i1, idr_i2, return_indices=True)
 
     # forward project intersections into other image to compute error
+    sverr = []
     for i in range(len(idr)):
         x_i1, y_i1 = keypoints_i1.coordinates[idr[i]]
         x_i2, y_i2 = keypoints_i2.coordinates[idr[i]]
@@ -154,6 +155,15 @@ def mesh_inlier_correspondences(
         err_i2i1 = ((x_i1 - x_i2i1)**2 + (y_i1 - y_i2i1)**2)**0.5 # pixels
         err_i1i2 = ((x_i2 - x_i1i2)**2 + (y_i2 - y_i1i2)**2)**0.5 # pixels
         is_inlier[idr[i]] = max(err_i1i2, err_i2i1) < 10
+        sverr.append([keypoints_i2.scales[idr[i]], err_i2i1])
+        sverr.append([keypoints_i1.scales[idr[i]], err_i1i2])
+
+    sverr = np.array(sverr)
+    logger.info(f'sverr.shape {sverr.shape}')
+    plt.scatter(sverr[:, 0], sverr[:, 1])
+    plt.xlabel('Scale')
+    plt.ylabel('Reprojection Error')
+    plt.savefig('disp.jpg', dpi=300)
 
     return is_inlier
 
