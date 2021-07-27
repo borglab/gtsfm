@@ -35,12 +35,6 @@ def run_scene_optimizer(args) -> None:
             max_frame_lookahead=args.max_frame_lookahead,
         )
 
-        test_img = loader.get_image(0).value_array
-        print('test_img.shape', test_img.shape)
-        plt.imshow(test_img, cmap='gray')
-        plt.savefig('disp.jpg', dpi=300)
-
-
         sfm_result_graph = scene_optimizer.create_computation_graph(
             num_images=len(loader),
             image_pair_indices=loader.get_valid_pairs(),
