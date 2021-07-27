@@ -138,6 +138,9 @@ class TwoViewEstimator:
             im_shape_i2_graph: image shape for image i2.
             i2Ti1_expected_graph (optional): ground truth relative pose, used for evaluation if available. Defaults to
                                              None.
+            wTi1_expected_graph (optional): ground truth pose of the world frame relative to i1.
+            wTi2_expected_graph (optional): ground truth pose of the world frame relative to i2.
+            scene_mesh_expected (optional): ground truth triangular surface mesh of the scene in the world frame.
 
         Returns:
             Computed relative rotation wrapped as Delayed.
@@ -325,6 +328,9 @@ def compute_correspondence_metrics(
         intrinsics_i2: intrinsics for i2.
         i2Ti1: relative pose.
         epipolar_distance_threshold: max epipolar distance to qualify as a correct match.
+        wTi1 (optional): ground truth pose of the world frame relative to i1.
+        wTi2 (optional): ground truth pose of the world frame relative to i2.
+        scene_mesh (optional): ground truth triangular surface mesh of the scene in the world frame.
 
     Returns:
         Number of inlier correspondences to ground truth epipolar geometry, i.e. #correct correspondences.

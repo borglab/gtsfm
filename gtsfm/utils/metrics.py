@@ -50,7 +50,7 @@ def count_correct_correspondences(
         ValueError: when the number of keypoints do not match.
 
     Returns:
-        Number of correspondences which are correct.
+        Mask of inlier correspondences.
     """
     # TODO: add unit test, with mocking.
     if len(keypoints_i1) != len(keypoints_i2):
@@ -77,15 +77,22 @@ def mesh_inlier_correspondences(
     gt_wTi2: Pose3,
     gt_scene_mesh: trimesh.Trimesh,
 ) -> np.ndarray:
-    """Visualize correspondences between pairs of images.
+    """Compute inlier correspondences using the ground truth triangular surface mesh of the scene.
 
     Args:
-        image_i1: image #i1.
-        image_i2: image #i2.
-        keypoints_i1: detected Keypoints for image #i1.
-        keypoints_i2: detected Keypoints for image #i2.
-        corr_idxs_i1i2: correspondence indices.
-        file_path: file path to save the visualization.
+        keypoints_i1: N keypoints in image i1.
+        keypoints_i2: N corresponding keypoints in image i2.
+        intrinsics_i1: intrinsics for i1.
+        intrinsics_i2: intrinsics for i2.
+        gt_wTi1: ground truth pose of the world frame relative to i1.
+        gt_wTi2: ground truth pose of the world frame relative to i2.
+        gt_scene_mesh: ground truth triangular surface mesh of the scene in the world frame.
+
+    Raises:
+        ValueError: when the number of keypoints do not match.
+
+    Returns:
+        is_inlier: (N, ) mask of inlier correspondences.
     """
     # back projection function
     def back_project(u, v, fx, fy, cx, cy, wRi: Rot3):            
@@ -93,6 +100,10 @@ def mesh_inlier_correspondences(
         xhat = zhat/fx*(u - cx)
         yhat = zhat/fy*(v - cy)
         return np.dot(wRi.matrix(), np.array([[xhat], [yhat], [zhat]]))
+
+    # TODO: add unit test, with mocking.
+    if len(keypoints_i1) != len(keypoints_i2):
+        raise ValueError("Keypoints must have same counts")
 
     fx_i1, fy_i1, cx_i1, cy_i1 = camera_intrinsics_i1.fx(), camera_intrinsics_i1.fy(), camera_intrinsics_i1.px(), camera_intrinsics_i1.py()
     fx_i2, fy_i2, cx_i2, cy_i2 = camera_intrinsics_i2.fx(), camera_intrinsics_i2.fy(), camera_intrinsics_i2.px(), camera_intrinsics_i2.py()
