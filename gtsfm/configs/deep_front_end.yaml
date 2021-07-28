@@ -13,14 +13,18 @@ SceneOptimizer:
 
   two_view_estimator:
     _target_: gtsfm.two_view_estimator.TwoViewEstimator
-    corr_metric_dist_threshold: 3 # in px
+    eval_threshold_px: 3 # in px
+    min_num_inliers_acceptance: 15
+
     matcher:
       _target_: gtsfm.frontend.matcher.superglue_matcher.SuperGlueMatcher
+      use_outdoor_model: True
 
     verifier:
       _target_: gtsfm.frontend.verifier.ransac.Ransac
       use_intrinsics_in_verification: True
-    
+      estimation_threshold_px: 4 # for H/E/F estimators
+      min_allowed_inlier_ratio_est_model: 0.1
 
   multiview_optimizer:
     _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
