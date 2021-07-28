@@ -56,12 +56,12 @@ class TwoViewEstimationReport:
         num_inliers_est_model: #correspondences consistent with estimated model (not necessarily "correct")
         inlier_ratio_est_model: #matches consistent with est. model / # putative matches, i.e.
            measures how consistent the model is with the putative matches.
-        num_inliers_gt_model: measures how well the verification worked, w.r.t. GT
+        num_inliers_gt_model: measures how well the verification worked, w.r.t. GT, i.e. #correct correspondences.
         inlier_ratio_gt_model: #correct matches/#putative matches. Only defined if GT relative pose provided.
         R_error_deg: relative pose error w.r.t. GT. Only defined if GT poses provided.
         U_error_deg: relative translation error w.r.t. GT. Only defined if GT poses provided.
-        i2Ri1: relative rotation
-        i2Ui1: relative translation direction
+        i2Ri1: relative rotation.
+        i2Ui1: relative translation direction.
     """
 
     num_H_inliers: int
@@ -85,7 +85,6 @@ class TwoViewEstimator:
         matcher: MatcherBase,
         verifier: VerifierBase,
         eval_threshold_px: float,
-        estimation_threshold_px: float,
         min_num_inliers_acceptance: int,
     ) -> None:
         """Initializes the two-view estimator from matcher and verifier.
@@ -94,14 +93,13 @@ class TwoViewEstimator:
             matcher: matcher to use.
             verifier: verifier to use.
             eval_threshold_px: distance threshold for marking a correspondence pair as inlier during evaluation (not estimation).
-            estimation_threshold_px: distance threshold for marking a correspondence pair as inlier during estimation
             min_num_inliers_acceptance: minimum number of inliers that must agree w/ estimated model, to use image pair.
         """
         self._matcher = matcher
         self._verifier = verifier
         self._corr_metric_dist_threshold = eval_threshold_px
         # Note: homography estimation threshold must match the E / F thresholds for #inliers to be comparable
-        self._homography_estimator = HomographyEstimator(estimation_threshold_px)
+        self._homography_estimator = HomographyEstimator(verifier._estimation_threshold_px)
         self._min_num_inliers_acceptance = min_num_inliers_acceptance
 
     def get_corr_metric_dist_threshold(self) -> float:
@@ -163,7 +161,7 @@ class TwoViewEstimator:
             camera_intrinsics_i2_graph,
         )
 
-        # if we have the expected data, evaluate the computed relative pose
+        # if we have the expected GT data, evaluate the computed relative pose
         if i2Ti1_expected_graph is not None:
             pose_error_graphs = dask.delayed(compute_relative_pose_metrics)(
                 i2Ri1_graph, i2Ui1_graph, i2Ti1_expected_graph
@@ -177,10 +175,10 @@ class TwoViewEstimator:
                 i2Ti1_expected_graph,
                 self._corr_metric_dist_threshold,
             )
-            number_correct, inlier_ratio = corr_error_graph[0], corr_error_graph[1]
+            num_inliers_gt_model, inlier_ratio = corr_error_graph[0], corr_error_graph[1]
         else:
             pose_error_graphs = (None, None)
-            number_correct, inlier_ratio = None, None
+            num_inliers_gt_model, inlier_ratio = None, None
 
         result = dask.delayed(self._homography_estimator.estimate)(
             keypoints_i1_graph,
@@ -195,7 +193,7 @@ class TwoViewEstimator:
             inlier_ratio_est_model,
             R_error_deg,
             U_error_deg,
-            number_correct,
+            num_inliers_gt_model,
             inlier_ratio,
             v_corr_idxs_graph,
             num_H_inliers,
@@ -252,17 +250,17 @@ def generate_two_view_report(
     inlier_ratio_est_model: float,
     R_error_deg: float,
     U_error_deg: float,
-    number_correct: int,
+    num_inliers_gt_model: int,
     inlier_ratio: float,
     v_corr_idxs: np.ndarray,
     num_H_inliers: int,
     H_inlier_ratio: float,
 ) -> TwoViewEstimationReport:
-    """ """
+    """Wrapper around class constructor for Dask."""
     two_view_report = TwoViewEstimationReport(
         inlier_ratio_est_model=inlier_ratio_est_model,
         num_inliers_est_model=v_corr_idxs.shape[0],
-        num_inliers_gt_model=number_correct,
+        num_inliers_gt_model=num_inliers_gt_model,
         inlier_ratio_gt_model=inlier_ratio,
         v_corr_idxs=v_corr_idxs,
         R_error_deg=R_error_deg,
