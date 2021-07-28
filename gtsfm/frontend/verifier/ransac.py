@@ -49,14 +49,14 @@ class Ransac(VerifierBase):
                 A lower fraction indicates less consistency among the result.
         """
         self._use_intrinsics_in_verification = use_intrinsics_in_verification
-        self._px_threshold = estimation_threshold_px
+        self._estimation_threshold_px = estimation_threshold_px
         self._min_allowed_inlier_ratio_est_model = min_allowed_inlier_ratio_est_model
         self._min_matches = (
             NUM_MATCHES_REQ_E_MATRIX if self._use_intrinsics_in_verification else NUM_MATCHES_REQ_F_MATRIX
         )
 
         # for failure, i2Ri1 = None, and i2Ui1 = None, and no verified correspondences, and inlier_ratio_est_model = 0
-        self._failure_result = (None, None, np.array([], dtype=np.uint64), 0)
+        self._failure_result = (None, None, np.array([], dtype=np.uint64), 0.0)
 
     def verify(
         self,
@@ -100,7 +100,7 @@ class Ransac(VerifierBase):
                 uv_norm_i2[match_indices[:, 1]],
                 K,
                 method=cv2.RANSAC,
-                threshold=self._px_threshold / fx,
+                threshold=self._estimation_threshold_px / fx,
                 prob=RANSAC_SUCCESS_PROB,
             )
         else:
@@ -108,7 +108,7 @@ class Ransac(VerifierBase):
                 keypoints_i1.extract_indices(match_indices[:, 0]).coordinates,
                 keypoints_i2.extract_indices(match_indices[:, 1]).coordinates,
                 method=cv2.FM_RANSAC,
-                ransacReprojThreshold=self._px_threshold,
+                ransacReprojThreshold=self._estimation_threshold_px,
                 confidence=RANSAC_SUCCESS_PROB,
                 maxIters=RANSAC_MAX_ITERS,
             )
