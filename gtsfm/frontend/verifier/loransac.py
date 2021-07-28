@@ -73,6 +73,10 @@ class LoRansac(VerifierBase):
             Indices of verified correspondences, of shape (N, 2) with N <= N3. These are subset of match_indices.
             Inlier ratio of w.r.t. the estimated model, i.e. the #final RANSAC inliers/ #putatives.
         """
+        if match_indices.shape[0] < self._min_matches:
+            logger.info('[LORANSAC] Not enough correspondences for verification.')
+            return self._failure_result
+
         uv_i1 = keypoints_i1.coordinates
         uv_i2 = keypoints_i2.coordinates
 
@@ -107,6 +111,9 @@ class LoRansac(VerifierBase):
         )
 
         success = result_dict["success"]
+        if not success:
+            logger.info('[LORANSAC] Essential matrix estimation unsuccessful.')
+            return self._failure_result
         E = result_dict["E"]
         # See https://github.com/colmap/colmap/blob/dev/src/base/pose.h#L72
         qw, qx, qy, qz = result_dict["qvec"]
