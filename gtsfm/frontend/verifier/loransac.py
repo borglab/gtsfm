@@ -29,12 +29,13 @@ class LoRansac(VerifierBase):
 
         Args:
             use_intrinsics_in_verification: Flag to perform keypoint normalization and compute the essential matrix
-                instead of fundamental matrix. This should be preferred when the exact
-                intrinsics are known as opposed to approximating them from exif data.
-            estimation_threshold_px: epipolar distance threshold (measured in pixels)
+                instead of fundamental matrix. This should be preferred when the exact intrinsics are known as opposed
+                to approximating them from exif data.
+            estimation_threshold_px: maximum distance (in pixels) to consider a match an inlier, under squared
+                Sampson distance.
             min_allowed_inlier_ratio_est_model: minimum allowed inlier ratio w.r.t. the estimated model to accept
-                the verification result and use the image pair, i.e. the lowest allowed ratio of #final RANSAC inliers/ #putatives.
-                A lower fraction indicates less consistency among the result.
+                the verification result and use the image pair, i.e. the lowest allowed ratio of
+                #final RANSAC inliers/ #putatives. A lower fraction indicates less agreement among the result.
         """
         self._use_intrinsics_in_verification = use_intrinsics_in_verification
         self._estimation_threshold_px = estimation_threshold_px
