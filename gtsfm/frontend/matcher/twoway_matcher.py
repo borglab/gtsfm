@@ -6,13 +6,13 @@ from typing import Tuple
 
 import cv2 as cv
 from cv2.xfeatures2d import matchGMS
-from opencvhelper import MatcherWrapper
 
 import numpy as np
 from enum import Enum
 
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
+from gtsfm.utils.opencvhelper import MatcherWrapper
 
 
 class MatchingDistanceType(Enum):
@@ -75,8 +75,25 @@ class TwoWayMatcher(MatcherBase):
         descriptors_2 = descriptors_i2[valid_idx_i2]
 
         # run OpenCV's matcher
-        bf = cv.BFMatcher(normType=distance_metric, crossCheck=True)
-        matches = bf.match(descriptors_1, descriptors_2)
+        #bf = cv.BFMatcher(normType=distance_metric, crossCheck=True)
+        #matches = bf.match(descriptors_1, descriptors_2)
+        matcher = MatcherWrapper()
+        matches, _, _, _, _ = matcher.get_matches(
+            descriptors_1, 
+            descriptors_2,
+            keypoints_i1.cast_to_opencv_keypoints(), 
+            keypoints_i2.cast_to_opencv_keypoints(),
+            ratio=0.80, cross_check=True,
+            err_thld=3, ransac=True, info=''
+        ) 
+        matches = matchGMS(
+            np.array(im_shape_i1), 
+            np.array(im_shape_i2), 
+            keypoints_i1.cast_to_opencv_keypoints(), 
+            keypoints_i2.cast_to_opencv_keypoints(), 
+            matches,
+            withScale=True, withRotation=True, thresholdFactor=6
+        )
         matches = sorted(matches, key=lambda r: r.distance)
 
         match_indices = np.array([[m.queryIdx, m.trainIdx] for m in matches]).astype(np.int32)

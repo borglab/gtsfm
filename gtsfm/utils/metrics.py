@@ -77,7 +77,7 @@ def mesh_inlier_correspondences(
     gt_wTi1: Pose3,
     gt_wTi2: Pose3,
     gt_scene_mesh: trimesh.Trimesh,
-) -> np.ndarray:
+) -> Tuple[np.ndarray, Optional[float]]:
     """Compute inlier correspondences using the ground truth triangular surface mesh of the scene.
 
     Args:
@@ -146,7 +146,7 @@ def mesh_inlier_correspondences(
     idr, i1_idx, i2_idx = np.intersect1d(idr_i1, idr_i2, return_indices=True)
 
     # forward project intersections into other image to compute error
-    sverr = []
+    reproj_err = []
     for i in range(len(idr)):
         x_i1, y_i1 = keypoints_i1.coordinates[idr[i]]
         x_i2, y_i2 = keypoints_i2.coordinates[idr[i]]
@@ -154,18 +154,11 @@ def mesh_inlier_correspondences(
         x_i1i2, y_i1i2 = forward_project(loc_i1[i1_idx[i]], fx_i2, fy_i2, cx_i2, cy_i2, gt_wTi2.inverse())
         err_i2i1 = ((x_i1 - x_i2i1)**2 + (y_i1 - y_i2i1)**2)**0.5 # pixels
         err_i1i2 = ((x_i2 - x_i1i2)**2 + (y_i2 - y_i1i2)**2)**0.5 # pixels
-        is_inlier[idr[i]] = max(err_i1i2, err_i2i1) < 10
-        sverr.append([keypoints_i2.scales[idr[i]], err_i2i1])
-        sverr.append([keypoints_i1.scales[idr[i]], err_i1i2])
+        is_inlier[idr[i]] = max(err_i2i1, err_i1i2) < 10
+        if is_inlier[idr[i]]:
+            reproj_err.append(max(err_i2i1, err_i1i2))
 
-    sverr = np.array(sverr)
-    logger.info(f'sverr.shape {sverr.shape}')
-    plt.scatter(sverr[:, 0], sverr[:, 1])
-    plt.xlabel('Scale')
-    plt.ylabel('Reprojection Error')
-    plt.savefig('disp.jpg', dpi=300)
-
-    return is_inlier
+    return is_inlier, np.mean(reproj_err)
 
 
 def compute_errors_statistics(errors: List[Optional[float]]) -> StatsDict:

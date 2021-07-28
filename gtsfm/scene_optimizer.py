@@ -476,10 +476,17 @@ def aggregate_frontend_metrics(
     # all rotational errors in degrees
     rot3_angular_errors = []
     trans_angular_errors = []
+    avg_inlier_reproj_errors = []
+    avg_precisions = []
 
     for report in two_view_report_dict.values():
         rot3_angular_errors.append(report.R_error_deg)
         trans_angular_errors.append(report.U_error_deg)
+        if report.avg_inlier_reproj_err is not None:
+            avg_inlier_reproj_errors.append(report.avg_inlier_reproj_err)
+        if report.inlier_ratio_gt_model is not None:
+            avg_precisions.append(report.inlier_ratio_gt_model)
+
 
     rot3_angular_errors = np.array(rot3_angular_errors, dtype=float)
     trans_angular_errors = np.array(trans_angular_errors, dtype=float)
@@ -497,6 +504,10 @@ def aggregate_frontend_metrics(
 
     # count entries with inlier ratio == 1.
     # all_correct = np.count_nonzero(metrics_array[:, 3] == 1.0)
+
+    # Note: average of each two view average
+    logger.debug(f'[Front end] [Summary] Average precision: {np.mean(avg_precisions)}')
+    logger.debug(f'[Front end] [Summary] Average inlier reprojection error: {np.mean(avg_inlier_reproj_errors)}')
 
     logger.debug(
         "[Two view optimizer] [Summary] Rotation success: %d/%d/%d", success_count_rot3, num_valid_entries, num_entries
