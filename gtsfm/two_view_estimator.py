@@ -4,7 +4,7 @@ Authors: Ayush Baid, John Lambert
 """
 import logging
 from dataclasses import dataclass
-from typing import NamedTuple, Tuple, Optional
+from typing import Tuple, Optional
 
 import dask
 import numpy as np
@@ -238,7 +238,6 @@ class TwoViewEstimator:
             # remove mention of errors in the report
             two_view_report.R_error_deg = None
             two_view_report.U_error_deg = None
-
 
         two_view_report.i2Ri1 = i2Ri1
         two_view_report.i2Ui1 = i2Ui1
