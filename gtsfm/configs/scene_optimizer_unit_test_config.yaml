@@ -3,7 +3,7 @@ SceneOptimizer:
   save_gtsfm_data: True
   save_two_view_correspondences_viz: False
   save_3d_viz: True
-  pose_angular_error_thresh: 10 # degrees
+  pose_angular_error_thresh: 5 # degrees
 
   feature_extractor:
     _target_: gtsfm.feature_extractor.FeatureExtractor
@@ -15,6 +15,8 @@ SceneOptimizer:
     _target_: gtsfm.two_view_estimator.TwoViewEstimator
     eval_threshold_px: 3 # in px
     estimation_threshold_px: 0.5 # for homography estimator
+    min_num_inliers_acceptance: 15
+    
     matcher:
       _target_: gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher
 
@@ -22,6 +24,7 @@ SceneOptimizer:
       _target_: gtsfm.frontend.verifier.ransac.Ransac
       use_intrinsics_in_verification: False
       estimation_threshold_px: 0.5
+      min_allowed_inlier_ratio_est_model: 0.1
 
   multiview_optimizer:
     _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
