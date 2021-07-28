@@ -9,7 +9,7 @@ References:
 - http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.466.2719&rep=rep1&type=pdf
 - https://github.com/ducha-aiki/pyransac
 
-Authors: Ayush Baid
+Authors: Ayush Baid, John Lambert
 """
 
 from typing import Optional, Tuple
@@ -37,12 +37,13 @@ class Degensac(VerifierBase):
 
         Args:
             use_intrinsics_in_verification: Flag to perform keypoint normalization and compute the essential matrix
-                                            instead of fundamental matrix. This should be preferred when the exact
-                                            intrinsics are known as opposed to approximating them from exif data.
-            estimation_threshold_px: maximum distance (in pixels) to consider a match an inlier, under squared Sampson distance.
+                instead of fundamental matrix. This should be preferred when the exact intrinsics are known as opposed
+                to approximating them from exif data.
+            estimation_threshold_px: maximum distance (in pixels) to consider a match an inlier, under squared
+                Sampson distance.
             min_allowed_inlier_ratio_est_model: minimum allowed inlier ratio w.r.t. the estimated model to accept
-                the verification result and use the image pair, i.e. the lowest allowed ratio of #final RANSAC inliers/ #putatives.
-                A lower fraction indicates less consistency among the result.
+                the verification result and use the image pair, i.e. the lowest allowed ratio of
+                #final RANSAC inliers/ #putatives. A lower fraction indicates less agreement among the result.
         Raises:
             NotImplementedError: when configured to compute essential matrices.
         """
@@ -85,7 +86,6 @@ class Degensac(VerifierBase):
             keypoints_i2.coordinates[match_indices[:, 1]],
             px_th=self._estimation_threshold_px,
         )
-
         inlier_idxs = np.where(inlier_mask.ravel() == 1)[0]
 
         v_corr_idxs = match_indices[inlier_idxs]
