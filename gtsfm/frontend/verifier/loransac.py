@@ -28,10 +28,13 @@ class LoRansac(VerifierBase):
         """Initializes the verifier.
 
         Args:
-        use_intrinsics_in_verification: Flag to perform keypoint normalization and compute the essential matrix
+            use_intrinsics_in_verification: Flag to perform keypoint normalization and compute the essential matrix
                 instead of fundamental matrix. This should be preferred when the exact
                 intrinsics are known as opposed to approximating them from exif data.
-        estimation_threshold_px: epipolar distance threshold (measured in pixels)
+            estimation_threshold_px: epipolar distance threshold (measured in pixels)
+            min_allowed_inlier_ratio_est_model: minimum allowed inlier ratio w.r.t. the estimated model to accept
+                the verification result and use the image pair, i.e. the lowest allowed ratio of #final RANSAC inliers/ #putatives.
+                A lower fraction indicates less consistency among the result.
         """
         self._use_intrinsics_in_verification = use_intrinsics_in_verification
         self._px_threshold = estimation_threshold_px
@@ -53,7 +56,22 @@ class LoRansac(VerifierBase):
         camera_intrinsics_i1: Cal3Bundler,
         camera_intrinsics_i2: Cal3Bundler,
     ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, float]:
-        """ """
+        """Performs verification of correspondences between two images to recover the relative pose and indices of
+        verified correspondences.
+
+        Args:
+            keypoints_i1: detected features in image #i1.
+            keypoints_i2: detected features in image #i2.
+            match_indices: matches as indices of features from both images, of shape (N3, 2), where N3 <= min(N1, N2).
+            camera_intrinsics_i1: intrinsics for image #i1.
+            camera_intrinsics_i2: intrinsics for image #i2.
+
+        Returns:
+            Estimated rotation i2Ri1, or None if it cannot be estimated.
+            Estimated unit translation i2Ui1, or None if it cannot be estimated.
+            Indices of verified correspondences, of shape (N, 2) with N <= N3. These are subset of match_indices.
+            Inlier ratio of w.r.t. the estimated model, i.e. the #final RANSAC inliers/ #putatives.
+        """
         uv_i1 = keypoints_i1.coordinates
         uv_i2 = keypoints_i2.coordinates
 
