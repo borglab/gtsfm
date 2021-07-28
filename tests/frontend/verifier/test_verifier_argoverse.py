@@ -18,7 +18,6 @@ from scipy.spatial.transform import Rotation
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.degensac import Degensac
 from gtsfm.frontend.verifier.ransac import Ransac
-from gtsfm.frontend.verifier.loransac import LoRansac
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
 
@@ -155,23 +154,6 @@ class TestDegensacVerifierArgoverse(unittest.TestCase):
 
         self.euler_angle_err_tol = 2.0
         self.translation_err_tol = 0.02
-
-    def testRecoveredPoseError(self):
-        check_verifier_output_error(self.verifier, self.euler_angle_err_tol, self.translation_err_tol)
-
-
-class TestLoRansacVerifierArgoverse(unittest.TestCase):
-    def setUp(self):
-        super().setUp()
-
-        np.random.seed(RANDOM_SEED)
-        random.seed(RANDOM_SEED)
-        self.verifier = LoRansac(
-            use_intrinsics_in_verification=False, estimation_threshold_px=0.5, min_allowed_inlier_ratio_est_model=0.1
-        )
-
-        self.euler_angle_err_tol = 1.0
-        self.translation_err_tol = 0.01
 
     def testRecoveredPoseError(self):
         check_verifier_output_error(self.verifier, self.euler_angle_err_tol, self.translation_err_tol)
