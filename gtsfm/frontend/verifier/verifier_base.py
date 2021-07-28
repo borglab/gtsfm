@@ -47,8 +47,8 @@ class VerifierBase(metaclass=abc.ABCMeta):
         self._min_matches = (
             NUM_MATCHES_REQ_E_MATRIX if self._use_intrinsics_in_verification else NUM_MATCHES_REQ_F_MATRIX
         )
-        # represents i2Ri1=None, i2Ui1=None, and v_corr_idxs is an empty array.
-        self._failure_result = (None, None, np.array([], dtype=np.uint64))
+        # represents i2Ri1=None, i2Ui1=None, v_corr_idxs is an empty array, and inlier_ratio_est_model is 0.0
+        self._failure_result = (None, None, np.array([], dtype=np.uint64), 0.0)
 
     @abc.abstractmethod
     def verify(
