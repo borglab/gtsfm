@@ -175,10 +175,10 @@ class TwoViewEstimator:
                 i2Ti1_expected_graph,
                 self._corr_metric_dist_threshold,
             )
-            num_inliers_gt_model, inlier_ratio = corr_error_graph[0], corr_error_graph[1]
+            num_inliers_gt_model, inlier_ratio_gt_model = corr_error_graph[0], corr_error_graph[1]
         else:
             pose_error_graphs = (None, None)
-            num_inliers_gt_model, inlier_ratio = None, None
+            num_inliers_gt_model, inlier_ratio_gt_model = None, None
 
         result = dask.delayed(self._homography_estimator.estimate)(
             keypoints_i1_graph,
@@ -194,7 +194,7 @@ class TwoViewEstimator:
             R_error_deg,
             U_error_deg,
             num_inliers_gt_model,
-            inlier_ratio,
+            inlier_ratio_gt_model,
             v_corr_idxs_graph,
             num_H_inliers,
             H_inlier_ratio,
@@ -250,7 +250,7 @@ def generate_two_view_report(
     R_error_deg: float,
     U_error_deg: float,
     num_inliers_gt_model: int,
-    inlier_ratio: float,
+    inlier_ratio_gt_model: float,
     v_corr_idxs: np.ndarray,
     num_H_inliers: int,
     H_inlier_ratio: float,
@@ -260,7 +260,7 @@ def generate_two_view_report(
         inlier_ratio_est_model=inlier_ratio_est_model,
         num_inliers_est_model=v_corr_idxs.shape[0],
         num_inliers_gt_model=num_inliers_gt_model,
-        inlier_ratio_gt_model=inlier_ratio,
+        inlier_ratio_gt_model=inlier_ratio_gt_model,
         v_corr_idxs=v_corr_idxs,
         R_error_deg=R_error_deg,
         U_error_deg=U_error_deg,
