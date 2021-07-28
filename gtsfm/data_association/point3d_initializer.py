@@ -218,7 +218,7 @@ class Point3dInitializer(NamedTuple):
 
         References:
         - https://github.com/colmap/colmap/blob/513fef3e39f99b50279bf5aee1c5b597cba53c3b/src/base/reconstruction.cc#L616
-        - https://github.com/sweeneychris/TheiaSfM/blob/d2112f15aa69a53dda68fe6c4bd4b0f1e2fe915b/src/theia/sfm/set_outlier_tracks_to_unestimated.cc#L121
+        - https://github.com/sweeneychris/TheiaSfM/blob/d2112f15aa69a53dda68fe6c4bd4b0f1e2fe915b/src/theia/sfm/set_outlier_tracks_to_unestimated.cc#L121 # noqa: E501
         - https://github.com/colmap/colmap/blob/dev/src/base/reconstruction.cc#L1412"
 
 
