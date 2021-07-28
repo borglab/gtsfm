@@ -131,13 +131,13 @@ class DataAssociation(NamedTuple):
         logger.debug("[Data association] output avg. track length: %.2f", mean_3d_track_length)
 
         data_assoc_metrics = GtsfmMetricsGroup("data_association_metrics", [
-            GtsfmMetric("2D_track_lengths", track_lengths_2d, save_full_data=False),
+            GtsfmMetric("2D_track_lengths", track_lengths_2d, store_full_data=False, plot_type=GtsfmMetric.PlotType.HISTOGRAM),
             GtsfmMetric("accepted_tracks_ratio", accepted_tracks_ratio),
             GtsfmMetric("track_cheirality_failure_ratio", track_cheirality_failure_ratio),
             GtsfmMetric("num_accepted_tracks", num_accepted_tracks),
-            GtsfmMetric("3d_tracks_length", track_lengths_3d, save_full_data=False), 
-            GtsfmMetric("accepted_track_avg_error", per_accepted_track_avg_errors, save_full_data=False),
-            GtsfmMetric("rejected_track_avg_errors", per_rejected_track_avg_errors, save_full_data=False),
+            GtsfmMetric("3d_tracks_length", track_lengths_3d, store_full_data=False, plot_type=GtsfmMetric.PlotType.HISTOGRAM), 
+            GtsfmMetric("accepted_track_avg_error", per_accepted_track_avg_errors, store_full_data=False),
+            GtsfmMetric("rejected_track_avg_errors", per_rejected_track_avg_errors, store_full_data=False),
         ])
 
         return connected_data, data_assoc_metrics

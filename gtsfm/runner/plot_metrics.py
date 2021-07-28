@@ -7,6 +7,7 @@ import gtsfm.evaluation.metrics_visualizer as metrics_viz
 def create_metrics_plots_html(json_path: str, output_dir: str):
     metrics_groups = []
     for filename in ['frontend_summary.json', 'data_association_metrics.json', 'multiview_optimizer_metrics.json', 'bundle_adjustment_metrics.json']:
+        print('adding plot for ', filename)
         metric_path = os.path.join(json_path, filename)
         metrics_groups.append(GtsfmMetricsGroup.parse_from_json(metric_path))
     output_file = os.path.join(output_dir, 'gtsfm_metrics_report.html')

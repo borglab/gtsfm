@@ -30,31 +30,7 @@ class GtsfmMetric:
             return [self.PlotType.BOX, self.PlotType.HISTOGRAM]
         return []
 
-    def _create_summary(self, data: np.ndarray) -> Dict[str, Any]:
-        if data.ndim > 1:
-            raise ValueError('Metric must be a 1D distribution to get summary.')
-        summary = {
-            "min": np.min(data).tolist(),
-            "max": np.max(data).tolist(),
-            "median": np.median(data).tolist(),
-            "mean": np.mean(data).tolist(),
-            "stddev": np.std(data).tolist(),
-        }
-        if self.plot_type == self.PlotType.BOX:
-            summary.update({"quartiles": self._get_distribution_quartiles(data)})
-        elif self.plot_type == self.PlotType.HISTOGRAM:
-            summary.update({"histogram": self._get_distribution_histogram(data)})
-        return summary
-
-    def _get_distribution_quartiles(self, data: np.ndarray) -> Dict[int, float]:
-        query = list(range(0, 101, 25))
-        quartiles = np.percentile(data, query)
-        output = {}
-        for i, q in enumerate(query):
-            output[q] = quartiles[i].tolist()
-        return output
-
-    def get_distribution_histogram(self, data: np.ndarray) -> Dict[int, float]:
+    def _get_distribution_histogram(self, data: np.ndarray) -> Dict[int, float]:
         if data.size == 0:
             print("Requested histogram for empty data metric, returning None.")
             return None
@@ -66,18 +42,43 @@ class GtsfmMetric:
             bins = 10
             discrete = False
         count, bins = np.histogram(data, bins=bins)
-
-        if discrete:
-            bins_lower = [str(num) for num in bins[:-1].tolist()]
-            bins_upper = [str(num) for num in bins[1:].tolist()]            
-        else:
-            bins_lower = ["{%.2f}".format(num) for num in bins[:-1].tolist()]
-            bins_upper = ["{%.2f}".format(num) for num in bins[1:].tolist()]            
+        count = count.tolist()
+        bins = bins.tolist()
+        bins_lower = bins[:-1]
+        bins_upper = bins[1:]
 
         histogram = {}
         for i in range(len(count)):
-            histogram[bins_lower[i] + '-' + bins_upper[i]] = count[i]
+            if discrete:
+                key = str(int(bins_lower[i]))
+            else:
+                key = "%.2f-%.2f" % (bins_lower[i], bins_upper[i])
+            histogram[key] = count[i]
         return histogram
+
+    def _create_summary(self, data: np.ndarray) -> Dict[str, Any]:
+        if data.ndim != 1:
+            raise ValueError('Metric must be a 1D distribution to get summary.')
+        summary = {
+            "min": np.min(data).tolist(),
+            "max": np.max(data).tolist(),
+            "median": np.median(data).tolist(),
+            "mean": np.mean(data).tolist(),
+            "stddev": np.std(data).tolist(),
+        }
+        if self._plot_type == self.PlotType.BOX:
+            summary.update({"quartiles": self._get_distribution_quartiles(data)})
+        elif self._plot_type == self.PlotType.HISTOGRAM:
+            summary.update({"histogram": self._get_distribution_histogram(data)})
+        return summary
+
+    def _get_distribution_quartiles(self, data: np.ndarray) -> Dict[int, float]:
+        query = list(range(0, 101, 25))
+        quartiles = np.percentile(data, query)
+        output = {}
+        for i, q in enumerate(query):
+            output['q'+str(i)] = quartiles[i].tolist()
+        return output
 
     def __init__(
         self,
@@ -92,30 +93,30 @@ class GtsfmMetric:
 
         self._name = name
         if data is not None:
-            if summary is not None:
-                print("Summary will be recomputed from data")
             if not isinstance(data, np.ndarray):
                 data = np.array(data)
             if data.ndim > 1:
                 raise ValueError("Metrics must be scalars on 1D-distributions.")
-            self._dim = data.ndim
-        else:
-            self._dim = 1
-
-        self._data = data if self._dim == 0 or store_full_data else None
-        if self._dim == 1:
-            self._summary = summary if self._data is None else self._create_summary(self._data)
-        else:
-            self._summary = None
-
-        plot_types_for_dim = self._get_plot_types_for_dim(self._dim)
-        if plot_type is None:
-            self._plot_type = plot_types_for_dim[0]
-        else:
-            if plot_type in plot_types_for_dim:
+            self._dim = data.ndim 
+            plot_types_for_dim = self._get_plot_types_for_dim(self._dim)
+            if plot_type is None:
+                self._plot_type = plot_types_for_dim[0]
+            elif plot_type in plot_types_for_dim:
                 self._plot_type = plot_type
             else:
                 raise ValueError("Unsupported plot type for the data dimension")
+
+            if self._dim == 1:
+                self._summary = self._create_summary(data)
+            if self._dim == 0 or store_full_data:
+                self._data = data
+            else:
+                self._data = None
+        else:
+            self._dim = 1
+            self._summary = summary
+            self._plot_type = self.PlotType.HISTOGRAM if "histogram" in summary else self.PlotType.BOX
+            self._data = None
 
     @property
     def name(self) -> str:

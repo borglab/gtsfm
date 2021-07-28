@@ -43,17 +43,17 @@ def create_plots_for_distributions(metrics_dict: Dict[str, Any]):
         if DATA_KEY in metric_value:
             fig.add_trace(go.Box(y=metric_value[DATA_KEY], name=metric_name), row=row, col=col)
         elif SUMMARY_KEY in metric_value and "histogram" in metric_value[SUMMARY_KEY]:
-            histogram = metric_value[SUMMARY_KEY][histogram]
-            fig.add_trace(go.Bar(x=histogram.keys(), y=histogram.values(), name=metric_name), row=row, col=col)
+            histogram = metric_value[SUMMARY_KEY]["histogram"]
+            fig.add_trace(go.Bar(x=list(histogram.keys()), y=list(histogram.values()), name=metric_name), row=row, col=col)
         elif SUMMARY_KEY in metric_value and "quartiles" in metric_value[SUMMARY_KEY]:
             quartiles = metric_value[SUMMARY_KEY]["quartiles"]
             fig.add_trace(
                 go.Box(
-                    q1=quartiles["q1"],
-                    median=quartiles["q2"],
-                    q3=quartiles["q3"],
-                    lowerfence=quartiles["q0"],
-                    upperfence=quartiles["q4"],
+                    q1=[quartiles["q1"]],
+                    median=[quartiles["q2"]],
+                    q3=[quartiles["q3"]],
+                    lowerfence=[quartiles["q0"]],
+                    upperfence=[quartiles["q4"]],
                     name=metric_name,
                 ),
                 row=row,
