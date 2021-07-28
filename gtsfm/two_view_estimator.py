@@ -159,10 +159,10 @@ class TwoViewEstimator:
                 i2Ti1_expected_graph,
                 self._corr_metric_dist_threshold,
             )
-            num_inliers_gt_model, inlier_ratio = corr_error_graph[0], corr_error_graph[1]
+            num_inliers_gt_model, inlier_ratio_gt_model = corr_error_graph[0], corr_error_graph[1]
         else:
             pose_error_graphs = (None, None)
-            num_inliers_gt_model, inlier_ratio = None, None
+            num_inliers_gt_model, inlier_ratio_gt_model = None, None
 
         R_error_deg, U_error_deg = pose_error_graphs[0], pose_error_graphs[1]
 
@@ -171,7 +171,7 @@ class TwoViewEstimator:
             R_error_deg,
             U_error_deg,
             num_inliers_gt_model,
-            inlier_ratio,
+            inlier_ratio_gt_model,
             v_corr_idxs_graph,
         )
 
@@ -205,7 +205,6 @@ class TwoViewEstimator:
             two_view_report.R_error_deg = None
             two_view_report.U_error_deg = None
 
-
         two_view_report.i2Ri1 = i2Ri1
         two_view_report.i2Ui1 = i2Ui1
 
@@ -217,7 +216,7 @@ def generate_two_view_report(
     R_error_deg: float,
     U_error_deg: float,
     num_inliers_gt_model: int,
-    inlier_ratio: float,
+    inlier_ratio_gt_model: float,
     v_corr_idxs: np.ndarray,
 ) -> TwoViewEstimationReport:
     """Wrapper around class constructor for Dask."""
@@ -225,7 +224,7 @@ def generate_two_view_report(
         inlier_ratio_est_model=inlier_ratio_est_model,
         num_inliers_est_model=v_corr_idxs.shape[0],
         num_inliers_gt_model=num_inliers_gt_model,
-        inlier_ratio_gt_model=inlier_ratio,
+        inlier_ratio_gt_model=inlier_ratio_gt_model,
         v_corr_idxs=v_corr_idxs,
         R_error_deg=R_error_deg,
         U_error_deg=U_error_deg,
