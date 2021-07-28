@@ -25,7 +25,8 @@ def calculate_triangulation_angle_in_degrees(
     Args:
         camera_1: the first camera.
         camera_2: the second camera.
-        point_3d: the 3d point to compute the angle at.
+        point_3d: the 3d point which is imaged by the two camera centers, and where the angle between the light rays 
+                  associated with the measurements are computed.
 
     Returns:
         the angle formed at the 3d point, in degrees.
