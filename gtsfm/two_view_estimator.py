@@ -9,6 +9,7 @@ from typing import Tuple, Optional
 import dask
 import numpy as np
 from dask.delayed import Delayed
+from dataclasses import dataclass
 from gtsam import Cal3Bundler, Pose3, Rot3, Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
@@ -26,7 +27,6 @@ mpl_logger.setLevel(logging.WARNING)
 
 pil_logger = logging.getLogger("PIL")
 pil_logger.setLevel(logging.INFO)
-
 
 # In case an epipolar geometry can be verified, it is checked whether
 # the geometry describes a planar scene or panoramic view (pure rotation)
