@@ -24,15 +24,19 @@ from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.verifier_base import VerifierBase, NUM_MATCHES_REQ_E_MATRIX, NUM_MATCHES_REQ_F_MATRIX
 
 
-DEFAULT_RANSAC_SUCCESS_PROB = 0.99999
-DEFAULT_RANSAC_MAX_ITERS = 20000
-MAX_TOLERATED_POLLUTION_INLIER_RATIO_EST_MODEL = 0.1
+RANSAC_SUCCESS_PROB = 0.9999
+RANSAC_MAX_ITERS = 10000
 
 logger = logger_utils.get_logger()
 
 
 class Ransac(VerifierBase):
-    def __init__(self, use_intrinsics_in_verification: bool, estimation_threshold_px: float) -> None:
+    def __init__(
+        self,
+        use_intrinsics_in_verification: bool,
+        estimation_threshold_px: float,
+        min_allowed_inlier_ratio_est_model: float,
+    ) -> None:
         """Initializes the verifier.
 
         Args:
@@ -40,9 +44,13 @@ class Ransac(VerifierBase):
                                             instead of fundamental matrix. This should be preferred when the exact
                                             intrinsics are known as opposed to approximating them from exif data.
             estimation_threshold_px: maximum distance (in pixels) to consider a match an inlier, under squared Sampson distance.
+            min_allowed_inlier_ratio_est_model: minimum allowed inlier ratio w.r.t. the estimated model to accept
+                the verification result and use the image pair, i.e. the lowest allowed ratio of #final RANSAC inliers/ #putatives.
+                A lower fraction indicates less consistency among the result.
         """
         self._use_intrinsics_in_verification = use_intrinsics_in_verification
         self._px_threshold = estimation_threshold_px
+        self._min_allowed_inlier_ratio_est_model = min_allowed_inlier_ratio_est_model
         self._min_matches = (
             NUM_MATCHES_REQ_E_MATRIX if self._use_intrinsics_in_verification else NUM_MATCHES_REQ_F_MATRIX
         )
@@ -93,7 +101,7 @@ class Ransac(VerifierBase):
                 K,
                 method=cv2.RANSAC,
                 threshold=self._px_threshold / fx,
-                prob=DEFAULT_RANSAC_SUCCESS_PROB
+                prob=RANSAC_SUCCESS_PROB,
             )
         else:
             i2Fi1, inlier_mask = cv2.findFundamentalMat(
@@ -101,8 +109,8 @@ class Ransac(VerifierBase):
                 keypoints_i2.extract_indices(match_indices[:, 1]).coordinates,
                 method=cv2.FM_RANSAC,
                 ransacReprojThreshold=self._px_threshold,
-                confidence=DEFAULT_RANSAC_SUCCESS_PROB,
-                maxIters=DEFAULT_RANSAC_MAX_ITERS
+                confidence=RANSAC_SUCCESS_PROB,
+                maxIters=RANSAC_MAX_ITERS,
             )
 
             i2Ei1 = verification_utils.fundamental_to_essential_matrix(
@@ -114,7 +122,7 @@ class Ransac(VerifierBase):
         v_corr_idxs = match_indices[inlier_idxs]
         inlier_ratio_est_model = np.mean(inlier_mask)
 
-        if inlier_ratio_est_model < MAX_TOLERATED_POLLUTION_INLIER_RATIO_EST_MODEL:
+        if inlier_ratio_est_model < self._min_allowed_inlier_ratio_est_model:
             i2Ri1 = None
             i2Ui1 = None
             v_corr_idxs = np.array([], dtype=np.uint64)
