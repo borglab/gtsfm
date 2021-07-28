@@ -37,7 +37,7 @@ class LoRansac(VerifierBase):
                 A lower fraction indicates less consistency among the result.
         """
         self._use_intrinsics_in_verification = use_intrinsics_in_verification
-        self._px_threshold = estimation_threshold_px
+        self._estimation_threshold_px = estimation_threshold_px
         self._min_allowed_inlier_ratio_est_model = min_allowed_inlier_ratio_est_model
         self._min_matches = (
             NUM_MATCHES_REQ_E_MATRIX
@@ -46,7 +46,7 @@ class LoRansac(VerifierBase):
         )
 
         # for failure, i2Ri1 = None, and i2Ui1 = None, and no verified correspondences, and inlier_ratio_est_model = 0
-        self._failure_result = (None, None, np.array([], dtype=np.uint64), 0)
+        self._failure_result = (None, None, np.array([], dtype=np.uint64), 0.0)
 
     def verify(
         self,
@@ -102,7 +102,7 @@ class LoRansac(VerifierBase):
         points2D2 = uv_i2[match_indices[:, 1]]
 
         result_dict = pycolmap.essential_matrix_estimation(
-            points2D1, points2D2, camera_dict1, camera_dict2, max_error_px=4.0
+            points2D1, points2D2, camera_dict1, camera_dict2, max_error_px=self._estimation_threshold_px
         )
 
         success = result_dict["success"]
