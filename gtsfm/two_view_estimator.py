@@ -9,6 +9,7 @@ from typing import Tuple, Optional
 import dask
 import numpy as np
 from dask.delayed import Delayed
+from dataclasses import dataclass
 from gtsam import Cal3Bundler, Pose3, Rot3, Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
@@ -50,6 +51,40 @@ class TwoViewEstimationReport:
         U_error_deg: relative translation error w.r.t. GT. Only defined if GT poses provided.
         i2Ri1: relative rotation.
         i2Ui1: relative translation direction.
+    """
+
+    v_corr_idxs: np.ndarray
+    num_inliers_est_model: float
+    inlier_ratio_est_model: Optional[float] = None  # TODO: make not optional (pass from verifier)
+    num_inliers_gt_model: Optional[float] = None
+    inlier_ratio_gt_model: Optional[float] = None
+    R_error_deg: Optional[float] = None
+    U_error_deg: Optional[float] = None
+    i2Ri1: Optional[Rot3] = None
+    i2Ui1: Optional[Unit3] = None
+
+
+@dataclass(frozen=False)
+class TwoViewEstimationReport:
+    """Information about verifier result on an edge between two nodes (i1,i2).
+
+    In the spirit of COLMAP's Report class:
+    https://github.com/colmap/colmap/blob/dev/src/optim/ransac.h#L82
+
+    Inlier ratio is defined in Heinly12eccv: https://www.cs.unc.edu/~jheinly/publications/eccv2012-heinly.pdf
+    or in Slide 59: https://www.cc.gatech.edu/~afb/classes/CS4495-Fall2014/slides/CS4495-Ransac.pdf
+
+    Args:
+        v_corr_idxs: verified correspondence indices.
+        num_inliers_est_model: #correspondences consistent with estimated model (not necessarily "correct")
+        inlier_ratio_est_model: #matches consistent with est. model / # putative matches, i.e.
+           measures how consistent the model is with the putative matches.
+        num_inliers_gt_model: measures how well the verification worked, w.r.t. GT
+        inlier_ratio_gt_model: #correct matches/#putative matches. Only defined if GT relative pose provided.
+        R_error_deg: relative pose error w.r.t. GT. Only defined if GT poses provided.
+        U_error_deg: relative translation error w.r.t. GT. Only defined if GT poses provided.
+        i2Ri1: relative rotation
+        i2Ui1: relative translation direction
     """
 
     v_corr_idxs: np.ndarray
