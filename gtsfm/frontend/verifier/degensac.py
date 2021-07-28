@@ -51,7 +51,7 @@ class Degensac(VerifierBase):
         if use_intrinsics_in_verification is True:
             raise NotImplementedError("DEGENSAC cannot estimate essential matrices")
 
-        super().__init__(use_intrinsics_in_verification)
+        super().__init__(use_intrinsics_in_verification, estimation_threshold_px, min_allowed_inlier_ratio_est_model)
 
     def verify(
         self,
@@ -85,7 +85,6 @@ class Degensac(VerifierBase):
             keypoints_i2.coordinates[match_indices[:, 1]],
             px_th=self._estimation_threshold_px,
         )
-
         inlier_idxs = np.where(inlier_mask.ravel() == 1)[0]
 
         v_corr_idxs = match_indices[inlier_idxs]
