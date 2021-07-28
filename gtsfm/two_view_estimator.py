@@ -71,7 +71,6 @@ class TwoViewEstimator:
         matcher: MatcherBase,
         verifier: VerifierBase,
         eval_threshold_px: float,
-        estimation_threshold_px: float,
         min_num_inliers_acceptance: int,
     ) -> None:
         """Initializes the two-view estimator from matcher and verifier.
@@ -80,12 +79,13 @@ class TwoViewEstimator:
             matcher: matcher to use.
             verifier: verifier to use.
             eval_threshold_px: distance threshold for marking a correspondence pair as inlier during evaluation (not estimation).
-            estimation_threshold_px: distance threshold for marking a correspondence pair as inlier during estimation
             min_num_inliers_acceptance: minimum number of inliers that must agree w/ estimated model, to use image pair.
         """
         self._matcher = matcher
         self._verifier = verifier
         self._corr_metric_dist_threshold = eval_threshold_px
+        # Note: homography estimation threshold must match the E / F thresholds for #inliers to be comparable
+        self._homography_estimator = HomographyEstimator(verifier._estimation_threshold_px)
         self._min_num_inliers_acceptance = min_num_inliers_acceptance
 
     def get_corr_metric_dist_threshold(self) -> float:
@@ -196,6 +196,7 @@ class TwoViewEstimator:
 
         # TODO: technically this should almost always be non-zero, just need to move up to earlier
         valid_model = two_view_report.num_inliers_est_model > 0
+
         if valid_model and insufficient_inliers:
             logger.info("Insufficient number of inliers.")
 
