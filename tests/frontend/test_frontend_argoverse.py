@@ -85,7 +85,6 @@ class TestFrontend(unittest.TestCase):
                 min_allowed_inlier_ratio_est_model=0.1
             ),
             eval_threshold_px=4,
-            estimation_threshold_px=0.5,
             min_num_inliers_acceptance=15
         )
         self.__compare_frontend_result_error(
@@ -104,7 +103,6 @@ class TestFrontend(unittest.TestCase):
     #             min_allowed_inlier_ratio_est_model=0.05
     #         ),
     #         eval_threshold_px=4,
-    #         estimation_threshold_px=0.5,
     #         min_num_inliers_acceptance=15
     #     )
     #     self.__compare_frontend_result_error(
