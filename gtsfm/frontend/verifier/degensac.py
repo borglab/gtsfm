@@ -51,7 +51,7 @@ class Degensac(VerifierBase):
         if use_intrinsics_in_verification is True:
             raise NotImplementedError("DEGENSAC cannot estimate essential matrices")
 
-        super().__init__(use_intrinsics_in_verification)
+        super().__init__(use_intrinsics_in_verification, estimation_threshold_px, min_allowed_inlier_ratio_est_model)
 
     def verify(
         self,
