@@ -96,13 +96,9 @@ class ColmapLoader(LoaderBase):
         img = io_utils.load_image(self._image_paths[0])
         sample_h, sample_w = img.height, img.width
         # no downsampling may be required, in which case scale_u and scale_v will be 1.0
-        (
-            self._scale_u,
-            self._scale_v,
-            self._target_h,
-            self._target_w,
-        ) = img_utils.get_downsampling_factor_per_axis(sample_h, sample_w, self._max_resolution)
-
+        (self._scale_u, self._scale_v, self._target_h, self._target_w,) = img_utils.get_downsampling_factor_per_axis(
+            sample_h, sample_w, self._max_resolution
+        )
 
     def __len__(self) -> int:
         """The number of images in the dataset.
@@ -178,7 +174,7 @@ class ColmapLoader(LoaderBase):
         return wTi
 
     def is_valid_pair(self, idx1: int, idx2: int) -> bool:
-        """Checks if (idx1, idx2) is a valid pair.
+        """Checks if (idx1, idx2) is a valid pair. idx1 < idx2 is required.
 
         Args:
             idx1: first index of the pair.
@@ -187,4 +183,4 @@ class ColmapLoader(LoaderBase):
         Returns:
             validation result.
         """
-        return idx1 < idx2 and abs(idx1 - idx2) <= self._max_frame_lookahead
+        return super().is_valid_pair(idx1, idx2) and abs(idx1 - idx2) <= self._max_frame_lookahead

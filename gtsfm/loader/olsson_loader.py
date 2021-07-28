@@ -35,7 +35,7 @@ class OlssonLoader(LoaderBase):
         image_extension: str = "jpg",
         use_gt_intrinsics: bool = True,
         use_gt_extrinsics: bool = True,
-        max_frame_lookahead: int = 20
+        max_frame_lookahead: int = 20,
     ) -> None:
         """Initializes to load from a specified folder on disk.
 
@@ -71,17 +71,16 @@ class OlssonLoader(LoaderBase):
 
         # M = K [R | t]
         # in GTSAM notation, M = K @ cTw
-        M_list = [data['P'][0][i] for i in range(self._num_imgs)]
+        M_list = [data["P"][0][i] for i in range(self._num_imgs)]
 
         # first pose is identity, so K is immediate given
-        self._K = M_list[0][:3,:3]
+        self._K = M_list[0][:3, :3]
         Kinv = np.linalg.inv(self._K)
 
-        # decode camera poses as: 
+        # decode camera poses as:
         #    K^{-1} @ M = cTw
-        iTw_list = [ Kinv @ M_list[i] for i in range(self._num_imgs)]
-        self._wTi_list = [Pose3(Rot3(iTw[:3,:3]), iTw[:,3]).inverse() for iTw in iTw_list ]
-
+        iTw_list = [Kinv @ M_list[i] for i in range(self._num_imgs)]
+        self._wTi_list = [Pose3(Rot3(iTw[:3, :3]), iTw[:, 3]).inverse() for iTw in iTw_list]
 
     def __len__(self) -> int:
         """The number of images in the dataset.
@@ -109,7 +108,6 @@ class OlssonLoader(LoaderBase):
 
         return io_utils.load_image(self._image_paths[index])
 
-
     def get_camera_intrinsics(self, index: int) -> Cal3Bundler:
         """Get the camera intrinsics at the given index.
 
@@ -125,14 +123,9 @@ class OlssonLoader(LoaderBase):
 
         else:
             intrinsics = Cal3Bundler(
-                fx=min(self._K[0, 0], self._K[1, 1]),
-                k1=0,
-                k2=0,
-                u0=self._K[0, 2],
-                v0=self._K[1, 2],
+                fx=min(self._K[0, 0], self._K[1, 1]), k1=0, k2=0, u0=self._K[0, 2], v0=self._K[1, 2],
             )
         return intrinsics
-
 
     def get_camera_pose(self, index: int) -> Optional[Pose3]:
         """Get the camera pose (in world coordinates) at the given index.
@@ -149,9 +142,8 @@ class OlssonLoader(LoaderBase):
         wTi = self._wTi_list[index]
         return wTi
 
-
     def is_valid_pair(self, idx1: int, idx2: int) -> bool:
-        """Checks if (idx1, idx2) is a valid pair.
+        """Checks if (idx1, idx2) is a valid pair. idx1 < idx2 is required.
 
         Args:
             idx1: first index of the pair.
@@ -160,5 +152,5 @@ class OlssonLoader(LoaderBase):
         Returns:
             validation result.
         """
-        return idx1 < idx2 and abs(idx1 - idx2) <= self._max_frame_lookahead
+        return super().is_valid_pair(idx1, idx2) and abs(idx1 - idx2) <= self._max_frame_lookahead
 
