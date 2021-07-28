@@ -84,8 +84,6 @@ class TwoViewEstimator:
         self._matcher = matcher
         self._verifier = verifier
         self._corr_metric_dist_threshold = eval_threshold_px
-        # Note: homography estimation threshold must match the E / F thresholds for #inliers to be comparable
-        self._homography_estimator = HomographyEstimator(verifier._estimation_threshold_px)
         self._min_num_inliers_acceptance = min_num_inliers_acceptance
 
     def get_corr_metric_dist_threshold(self) -> float:
