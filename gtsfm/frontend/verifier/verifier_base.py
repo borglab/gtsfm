@@ -24,19 +24,30 @@ class VerifierBase(metaclass=abc.ABCMeta):
     geometrically verified points.
     """
 
-    def __init__(self, use_intrinsics_in_verification: bool) -> None:
+    def __init__(
+        self,
+        use_intrinsics_in_verification: bool,
+        estimation_threshold_px: float,
+        min_allowed_inlier_ratio_est_model: float,
+    ) -> None:
         """Initializes the verifier.
 
         Args:
             use_intrinsics_in_verification: Flag to perform keypoint normalization and compute the essential matrix
                                             instead of fundamental matrix. This should be preferred when the exact
                                             intrinsics are known as opposed to approximating them from exif data.
+            estimation_threshold_px
+            min_allowed_inlier_ratio_est_model: minimum allowed inlier ratio w.r.t. the estimated model to accept
+                the verification result and use the image pair, i.e. the lowest allowed ratio of #final RANSAC inliers/ #putatives.
+                A lower fraction indicates less consistency among the result.
         """
         self._use_intrinsics_in_verification = use_intrinsics_in_verification
+        self._estimation_threshold_px = estimation_threshold_px
+        self._min_allowed_inlier_ratio_est_model = min_allowed_inlier_ratio_est_model
         self._min_matches = (
             NUM_MATCHES_REQ_E_MATRIX if self._use_intrinsics_in_verification else NUM_MATCHES_REQ_F_MATRIX
         )
-
+        # represents i2Ri1=None, i2Ui1=None, and v_corr_idxs is an empty array.
         self._failure_result = (None, None, np.array([], dtype=np.uint64))
 
     @abc.abstractmethod
@@ -47,7 +58,7 @@ class VerifierBase(metaclass=abc.ABCMeta):
         match_indices: np.ndarray,
         camera_intrinsics_i1: Cal3Bundler,
         camera_intrinsics_i2: Cal3Bundler,
-    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, float]:
         """Performs verification of correspondences between two images to recover the relative pose and indices of
         verified correspondences.
 
@@ -62,6 +73,7 @@ class VerifierBase(metaclass=abc.ABCMeta):
             Estimated rotation i2Ri1, or None if it cannot be estimated.
             Estimated unit translation i2Ui1, or None if it cannot be estimated.
             Indices of verified correspondences, of shape (N, 2) with N <= N3. These are subset of match_indices.
+            Inlier ratio of w.r.t. the estimated model, i.e. the #final RANSAC inliers/ #putatives.
         """
 
     def create_computation_graph(
@@ -83,7 +95,8 @@ class VerifierBase(metaclass=abc.ABCMeta):
         Returns:
             Delayed dask task for rotation i2Ri1 for specific image pair.
             Delayed dask task for unit translation i2Ui1 for specific image pair.
-            Delayed dask task for indices of verified correspondence indices for the specific image pair
+            Delayed dask task for indices of verified correspondence indices for the specific image pair.
+            Delayed dask task for inlier ratio w.r.t. the estimated model, i.e. #final RANSAC inliers/ #putatives.
         """
         # we cannot immediately unpack the result tuple, per dask syntax
         result = dask.delayed(self.verify)(
