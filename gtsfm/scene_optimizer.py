@@ -440,7 +440,7 @@ def aggregate_frontend_metrics(
     num_valid_entries = np.count_nonzero(~np.isnan(rot3_angular_errors))
 
     # compute pose errors by picking the max error from rot3 and unit3 errors
-    pose_errors = np.maximum(trans_angular_errors, trans_angular_errors)
+    pose_errors = np.maximum(rot3_angular_errors, trans_angular_errors)
 
     # check errors against the threshold
     success_count_rot3 = np.sum(rot3_angular_errors < angular_err_threshold_deg)
