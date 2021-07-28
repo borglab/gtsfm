@@ -1,6 +1,6 @@
 """Base class for the V (verification) stage of the frontend.
 
-Authors: Ayush Baid
+Authors: Ayush Baid, John Lambert
 """
 import abc
 from typing import Optional, Tuple
@@ -34,12 +34,13 @@ class VerifierBase(metaclass=abc.ABCMeta):
 
         Args:
             use_intrinsics_in_verification: Flag to perform keypoint normalization and compute the essential matrix
-                                            instead of fundamental matrix. This should be preferred when the exact
-                                            intrinsics are known as opposed to approximating them from exif data.
-            estimation_threshold_px
+                instead of fundamental matrix. This should be preferred when the exact intrinsics are known as opposed
+                to approximating them from exif data.
+            estimation_threshold_px: maximum distance (in pixels) to consider a match an inlier, under squared
+                Sampson distance.
             min_allowed_inlier_ratio_est_model: minimum allowed inlier ratio w.r.t. the estimated model to accept
-                the verification result and use the image pair, i.e. the lowest allowed ratio of #final RANSAC inliers/ #putatives.
-                A lower fraction indicates less consistency among the result.
+                the verification result and use the image pair, i.e. the lowest allowed ratio of
+                #final RANSAC inliers/ #putatives. A lower fraction indicates less agreement among the result.
         """
         self._use_intrinsics_in_verification = use_intrinsics_in_verification
         self._estimation_threshold_px = estimation_threshold_px
@@ -47,8 +48,8 @@ class VerifierBase(metaclass=abc.ABCMeta):
         self._min_matches = (
             NUM_MATCHES_REQ_E_MATRIX if self._use_intrinsics_in_verification else NUM_MATCHES_REQ_F_MATRIX
         )
-        # represents i2Ri1=None, i2Ui1=None, and v_corr_idxs is an empty array.
-        self._failure_result = (None, None, np.array([], dtype=np.uint64))
+        # represents i2Ri1=None, i2Ui1=None, v_corr_idxs is an empty array, and inlier_ratio_est_model is 0.0
+        self._failure_result = (None, None, np.array([], dtype=np.uint64), 0.0)
 
     @abc.abstractmethod
     def verify(
