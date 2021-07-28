@@ -435,8 +435,8 @@ def persist_frontend_metrics_full(two_view_report_dict: Dict[Tuple[int, int], Tw
                 if report.U_error_deg
                 else None,
                 "num_inliers_gt_model": report.num_inliers_gt_model if report.num_inliers_gt_model else None,
-                "inlier_ratio_gt_model": round(report.inlier_ratio_gt_model, PRINT_NUM_SIG_FIGS)
-                if report.inlier_ratio_gt_model
+                "precision_gt_model": round(report.precision_gt_model, PRINT_NUM_SIG_FIGS)
+                if report.precision_gt_model
                 else None,
                 "inlier_ratio_est_model": round(report.inlier_ratio_est_model, PRINT_NUM_SIG_FIGS),
                 "num_inliers_est_model": report.num_inliers_est_model,
@@ -477,15 +477,18 @@ def aggregate_frontend_metrics(
     rot3_angular_errors = []
     trans_angular_errors = []
     avg_inlier_reproj_errors = []
-    avg_precisions = []
+    precisions = []
+    recalls = []
 
     for report in two_view_report_dict.values():
         rot3_angular_errors.append(report.R_error_deg)
         trans_angular_errors.append(report.U_error_deg)
         if report.avg_inlier_reproj_err is not None:
             avg_inlier_reproj_errors.append(report.avg_inlier_reproj_err)
-        if report.inlier_ratio_gt_model is not None:
-            avg_precisions.append(report.inlier_ratio_gt_model)
+        if report.precision_gt_model is not None:
+            precisions.append(report.precision_gt_model)
+        if report.recall_gt_model is not None:
+            recalls.append(report.recall_gt_model)
 
 
     rot3_angular_errors = np.array(rot3_angular_errors, dtype=float)
@@ -506,7 +509,9 @@ def aggregate_frontend_metrics(
     # all_correct = np.count_nonzero(metrics_array[:, 3] == 1.0)
 
     # Note: average of each two view average
-    logger.debug(f'[Front end] [Summary] Average precision: {np.mean(avg_precisions)}')
+    logger.debug(f'[Front end] [Summary] Average PMR:       TODO')
+    logger.debug(f'[Front end] [Summary] Average Recall:    {np.mean(recalls) if len(recalls) > 0 else -1}')
+    logger.debug(f'[Front end] [Summary] Average Precision: {np.mean(precisions)}')
     logger.debug(f'[Front end] [Summary] Average inlier reprojection error: {np.mean(avg_inlier_reproj_errors)}')
 
     logger.debug(

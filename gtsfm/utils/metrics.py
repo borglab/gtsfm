@@ -79,7 +79,6 @@ def mesh_inlier_correspondences(
     gt_scene_mesh: trimesh.Trimesh,
 ) -> Tuple[np.ndarray, Optional[float]]:
     """Compute inlier correspondences using the ground truth triangular surface mesh of the scene.
-
     Args:
         keypoints_i1: N keypoints in image i1.
         keypoints_i2: N corresponding keypoints in image i2.
@@ -88,10 +87,8 @@ def mesh_inlier_correspondences(
         gt_wTi1: ground truth pose of the world frame relative to i1.
         gt_wTi2: ground truth pose of the world frame relative to i2.
         gt_scene_mesh: ground truth triangular surface mesh of the scene in the world frame.
-
     Raises:
         ValueError: when the number of keypoints do not match.
-
     Returns:
         is_inlier: (N, ) mask of inlier correspondences.
     """
@@ -154,11 +151,89 @@ def mesh_inlier_correspondences(
         x_i1i2, y_i1i2 = forward_project(loc_i1[i1_idx[i]], fx_i2, fy_i2, cx_i2, cy_i2, gt_wTi2.inverse())
         err_i2i1 = ((x_i1 - x_i2i1)**2 + (y_i1 - y_i2i1)**2)**0.5 # pixels
         err_i1i2 = ((x_i2 - x_i1i2)**2 + (y_i2 - y_i1i2)**2)**0.5 # pixels
-        is_inlier[idr[i]] = max(err_i2i1, err_i1i2) < 10
+        is_inlier[idr[i]] = max(err_i2i1, err_i1i2) < 4
         if is_inlier[idr[i]]:
             reproj_err.append(max(err_i2i1, err_i1i2))
+    if np.count_nonzero(is_inlier) == 0: reproj_err = 0
 
     return is_inlier, np.mean(reproj_err)
+
+
+def compute_gt_correspondences(
+    keypoints_i1: Keypoints,
+    keypoints_i2: Keypoints,
+    camera_intrinsics_i1: Cal3Bundler,
+    camera_intrinsics_i2: Cal3Bundler,
+    gt_wTi1: Pose3,
+    gt_wTi2: Pose3,
+    gt_scene_mesh: trimesh.Trimesh,
+) -> np.ndarray:
+    """Compute inlier correspondences using the ground truth triangular surface mesh of the scene.
+
+    Args:
+        keypoints_i1: N keypoints in image i1.
+        keypoints_i2: N corresponding keypoints in image i2.
+        intrinsics_i1: intrinsics for i1.
+        intrinsics_i2: intrinsics for i2.
+        gt_wTi1: ground truth pose of the world frame relative to i1.
+        gt_wTi2: ground truth pose of the world frame relative to i2.
+        gt_scene_mesh: ground truth triangular surface mesh of the scene in the world frame.
+
+    Raises:
+        ValueError: when the number of keypoints do not match.
+
+    Returns:
+        is_inlier: (N, ) mask of inlier correspondences.
+    """
+    def back_project(u, v, fx, fy, cx, cy, wRi: Rot3):            
+        """Back-project ray from pixel coord"""
+        zhat = (1 + (u - cx)**2/fx**2 + (v - cy)**2/fy**2)**(-1/2)
+        xhat = zhat/fx*(u - cx)
+        yhat = zhat/fy*(v - cy)
+        return np.dot(wRi.matrix(), np.vstack((xhat, yhat, zhat))).T # (N, 3)
+
+    def forward_project(wtlw: np.ndarray, fx, fy, cx, cy, iTw: Pose3):            
+        itwi = iTw.translation().reshape((3, 1))
+        wtlw = wtlw.reshape((3, 1))
+        itli = np.dot(iTw.rotation().matrix(), wtlw) + itwi    
+        x, y, z = itli
+        return np.array([fx/z*x + cx, fy/z*y + cy]).T
+
+    coords_i1 = keypoints_i1.coordinates
+    coords_i2 = keypoints_i2.coordinates
+    fx_i1, fy_i1, cx_i1, cy_i1 = camera_intrinsics_i1.fx(), camera_intrinsics_i1.fy(), camera_intrinsics_i1.px(), camera_intrinsics_i1.py()
+    fx_i2, fy_i2, cx_i2, cy_i2 = camera_intrinsics_i2.fx(), camera_intrinsics_i2.fy(), camera_intrinsics_i2.px(), camera_intrinsics_i2.py()
+    n_kpts_i1 = len(keypoints_i1)
+    n_kpts_i2 = len(keypoints_i2)
+    src_i1 = np.repeat(np.reshape(gt_wTi1.translation(), (-1, 3)), n_kpts_i1, axis=0) 
+    src_i2 = np.repeat(np.reshape(gt_wTi2.translation(), (-1, 3)), n_kpts_i2, axis=0) 
+
+    # compute ketpoint rays
+    drc_i1 = back_project(coords_i1[:, 0], coords_i1[:, 1], fx_i1, fy_i1, cx_i1, cy_i1, gt_wTi1.rotation())
+    drc_i2 = back_project(coords_i2[:, 0], coords_i2[:, 1], fx_i2, fy_i2, cx_i2, cy_i2, gt_wTi2.rotation())
+
+    # perform ray tracing
+    src = np.vstack((src_i1, src_i2))
+    drc = np.vstack((drc_i1, drc_i2))
+    loc, idr, _ = gt_scene_mesh.ray.intersects_location(src, drc, multiple_hits=False)
+
+    # unpack results
+    idr_i1 = idr[idr < n_kpts_i1]
+    loc_i1 = loc[idr_i1]
+    idr_i2 = idr[idr >= n_kpts_i1]-n_kpts_i1
+    loc_i2 = loc[idr_i2]
+
+    # forward project intersections into other image to compute correspondences
+    # Note: compute one-sided correspondence, i.e., i2 -> i1
+    gt_corr_i1i2 = []
+    for i in range(len(idr_i2)):
+        coord_i2i1 = forward_project(loc_i2[i], fx_i1, fy_i1, cx_i1, cy_i1, gt_wTi1.inverse())
+        dists = np.linalg.norm(coords_i1[idr_i1] - coord_i2i1, axis=1)
+        idx_min = np.argmin(dists)
+        if dists[idx_min] < 4:
+            gt_corr_i1i2.append([idr_i1[idx_min], i])
+
+    return np.array(gt_corr_i1i2)
 
 
 def compute_errors_statistics(errors: List[Optional[float]]) -> StatsDict:
@@ -203,7 +278,8 @@ def compute_translation_distance_metrics(
     wti_list: List[Optional[Point3]], gt_wti_list: List[Optional[Point3]]
 ) -> StatsDict:
     """Computes statistics for the distance between estimated and GT translations.
-
+.extract_indices(corr_idxs_i1i2[:, 0])
+.extract_indices(corr_idxs_i1i2[:, 1])
     Assumes that the estimated and GT translations have been aligned and do not
     have a gauge freedom (including scale).
 

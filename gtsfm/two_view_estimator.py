@@ -71,7 +71,8 @@ class TwoViewEstimationReport:
     num_inliers_est_model: float
     inlier_ratio_est_model: Optional[float] = None  # TODO: make not optional (pass from verifier)
     num_inliers_gt_model: Optional[float] = None
-    inlier_ratio_gt_model: Optional[float] = None
+    precision_gt_model: Optional[float] = None
+    recall_gt_model: Optional[float] = None
     inlier_mask_gt_model: Optional[np.ndarray] = None,
     avg_inlier_reproj_err: Optional[float] = None
     R_error_deg: Optional[float] = None
@@ -181,11 +182,10 @@ class TwoViewEstimator:
             pose_error_graphs = (None, None)
 
         # Evaluate the correspondences
-        #if None not in (wTi1_expected_graph, wTi2_expected_graph, scene_mesh_expected):
         if (wTi1_expected_graph is not None and 
             wTi2_expected_graph is not None and 
             scene_mesh_expected is not None):
-            corr_error_graph = dask.delayed(compute_correspondence_metrics)(
+            corr_metric_graph = dask.delayed(compute_correspondence_metrics)(
                 keypoints_i1_graph,
                 keypoints_i2_graph,
                 v_corr_idxs_graph,
@@ -197,11 +197,11 @@ class TwoViewEstimator:
                 wTi2_expected_graph,
                 scene_mesh_expected,
             )
-            number_correct, inlier_ratio, inlier_mask, avg_inlier_reproj_err = (
-                corr_error_graph[0], corr_error_graph[1], corr_error_graph[2], corr_error_graph[3]
+            number_correct, precision, recall, inlier_mask, avg_inlier_reproj_err = (
+                corr_metric_graph[0], corr_metric_graph[1], corr_metric_graph[2], corr_metric_graph[3], corr_metric_graph[4]
             )
         elif i2Ti1_expected_graph is not None:
-            corr_error_graph = dask.delayed(compute_correspondence_metrics)(
+            corr_metric_graph = dask.delayed(compute_correspondence_metrics)(
                 keypoints_i1_graph,
                 keypoints_i2_graph,
                 v_corr_idxs_graph,
@@ -210,11 +210,11 @@ class TwoViewEstimator:
                 i2Ti1_expected_graph,
                 self._corr_metric_dist_threshold,
             )
-            number_correct, inlier_ratio, inlier_mask, avg_inlier_reproj_err = (
-                corr_error_graph[0], corr_error_graph[1], corr_error_graph[2], corr_error_graph[3]
+            number_correct, precision, recall, inlier_mask, avg_inlier_reproj_err = (
+                corr_metric_graph[0], corr_metric_graph[1], corr_metric_graph[2], corr_metric_graph[3], corr_metric_graph[4]
             )
         else:
-            number_correct, inlier_ratio, inlier_mask, avg_inlier_reproj_err = None, None, None, None
+            number_correct, precision, recall, inlier_mask, avg_inlier_reproj_err = [None for x in range(5)]
 
 
         result = dask.delayed(self._homography_estimator.estimate)(
@@ -231,7 +231,8 @@ class TwoViewEstimator:
             R_error_deg,
             U_error_deg,
             number_correct,
-            inlier_ratio,
+            precision,
+            recall,
             inlier_mask,
             avg_inlier_reproj_err,
             v_corr_idxs_graph,
@@ -290,7 +291,8 @@ def generate_two_view_report(
     R_error_deg: float,
     U_error_deg: float,
     number_correct: int,
-    inlier_ratio: float,
+    precision: float,
+    recall: float,
     inlier_mask: np.ndarray,
     avg_inlier_reproj_err: float,
     v_corr_idxs: np.ndarray,
@@ -302,7 +304,8 @@ def generate_two_view_report(
         inlier_ratio_est_model=inlier_ratio_est_model,
         num_inliers_est_model=v_corr_idxs.shape[0],
         num_inliers_gt_model=number_correct,
-        inlier_ratio_gt_model=inlier_ratio,
+        precision_gt_model=precision,
+        recall_gt_model=recall,
         inlier_mask_gt_model=inlier_mask,
         avg_inlier_reproj_err=avg_inlier_reproj_err,
         v_corr_idxs=v_corr_idxs,
@@ -325,7 +328,7 @@ def compute_correspondence_metrics(
     wTi1: Optional[Pose3] = None,
     wTi2: Optional[Pose3] = None,
     scene_mesh: Optional[trimesh.Trimesh] = None,
-) -> Tuple[int, float, np.ndarray, float]:
+) -> Tuple[int, float, float, np.ndarray, float]:
     """Compute the metrics for the generated verified correspondence.
 
     Args:
@@ -345,9 +348,18 @@ def compute_correspondence_metrics(
         Inlier Ratio, i.e. ratio of correspondences which are correct w.r.t. given relative pose.
     """
     if corr_idxs_i1i2.size == 0:
-        return 0, float("Nan")
+        return 0, float("Nan"), float("Nan"), None, float("Nan")
 
     if None not in (wTi1, wTi2, scene_mesh):
+        gt_corr_i1i2_model = metric_utils.compute_gt_correspondences(
+            keypoints_i1,
+            keypoints_i2,
+            intrinsics_i1,
+            intrinsics_i2,
+            wTi1,
+            wTi2,
+            scene_mesh,
+        )
         inlier_mask, avg_inlier_reproj_error = metric_utils.mesh_inlier_correspondences(
             keypoints_i1.extract_indices(corr_idxs_i1i2[:, 0]),
             keypoints_i2.extract_indices(corr_idxs_i1i2[:, 1]),
@@ -358,6 +370,7 @@ def compute_correspondence_metrics(
             scene_mesh,
         )
         logger.info(f'avg. inlier reproj. error:   {avg_inlier_reproj_error}')
+        logger.info(f'Recall: {np.count_nonzero(inlier_mask) / gt_corr_i1i2_model.shape[0]}')
     else:
         inlier_mask = metric_utils.count_correct_correspondences(
             keypoints_i1.extract_indices(corr_idxs_i1i2[:, 0]),
@@ -368,11 +381,14 @@ def compute_correspondence_metrics(
             epipolar_distance_threshold,
         )
         avg_inlier_reproj_error = None
-    num_inliers_gt_model = np.count_nonzero(inlier_mask)
-    inlier_ratio_gt_model = num_inliers_gt_model / inlier_mask.size
+        gt_corr_i1i2_model = np.array([])
+    num_inliers_gt_model = np.count_nonzero(inlier_mask) # TP
+    pmr_gt_model = num_inliers_gt_model / max(len(keypoints_i1), len(keypoints_i2)) # TP / (Total Features)
+    precision_gt_model = num_inliers_gt_model / inlier_mask.size # TP / (TP + FP)
+    recall_gt_model = num_inliers_gt_model / gt_corr_i1i2_model.shape[0] # TP / (TP + FN)
     logger.info(f'# corr outliers:   {inlier_mask.size - num_inliers_gt_model}')
-    logger.info(f'corr inlier ratio: {inlier_ratio_gt_model}')
-    return num_inliers_gt_model, inlier_ratio_gt_model, inlier_mask, avg_inlier_reproj_error
+    logger.info(f'Precision: {precision_gt_model}')
+    return num_inliers_gt_model, precision_gt_model, recall_gt_model, inlier_mask, avg_inlier_reproj_error
 
 
 def compute_relative_pose_metrics(

@@ -36,8 +36,8 @@ SceneOptimizer:
 
     data_association_module:
       _target_: gtsfm.data_association.data_assoc.DataAssociation
-      reproj_error_thresh: 100
-      min_track_len: 2
+      reproj_error_thresh: 1000
+      min_track_len: 3
       mode:
         _target_: gtsfm.data_association.data_assoc.TriangulationParam
         value: 0 # 0 corresponds to NO_RANSAC

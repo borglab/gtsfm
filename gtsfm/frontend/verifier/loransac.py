@@ -54,9 +54,10 @@ class LoRansac(VerifierBase):
         camera_intrinsics_i2: Cal3Bundler,
     ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, float]:
         """ """
-        # # return if not enough matches
-        # if match_indices.shape[0] < self._min_matches:
-        #     return None, None, np.array([]), 0.0 
+        # return if not enough matches
+        if match_indices.shape[0] < self._min_matches:
+            logger.info('[LORANSAC] Not enough matches for verification.')
+            return self._failure_result 
 
         uv_i1 = keypoints_i1.coordinates
         uv_i2 = keypoints_i2.coordinates
@@ -92,6 +93,9 @@ class LoRansac(VerifierBase):
         )
 
         success = result_dict["success"]
+        if not success:
+            logger.info('[LORANSAC] Essential matrix estimation unsuccessful.')
+            return self._failure_result
         E = result_dict["E"]
         # See https://github.com/colmap/colmap/blob/dev/src/base/pose.h#L72
         qw, qx, qy, qz = result_dict["qvec"]
