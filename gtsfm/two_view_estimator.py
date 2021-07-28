@@ -92,8 +92,10 @@ class TwoViewEstimator:
         Args:
             matcher: matcher to use.
             verifier: verifier to use.
-            eval_threshold_px: distance threshold for marking a correspondence pair as inlier during evaluation (not estimation).
-            min_num_inliers_acceptance: minimum number of inliers that must agree w/ estimated model, to use image pair.
+            eval_threshold_px: distance threshold for marking a correspondence pair as inlier during evaluation
+                (not during estimation).
+            min_num_inliers_acceptance: minimum number of inliers that must agree w/ estimated model, to use
+                image pair.
         """
         self._matcher = matcher
         self._verifier = verifier
