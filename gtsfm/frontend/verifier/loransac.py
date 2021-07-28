@@ -17,25 +17,29 @@ from gtsfm.frontend.verifier.verifier_base import VerifierBase, NUM_MATCHES_REQ_
 
 DEFAULT_RANSAC_SUCCESS_PROB = 0.99999
 DEFAULT_RANSAC_MAX_ITERS = 20000
-MAX_TOLERATED_POLLUTION_INLIER_RATIO_EST_MODEL = 0.1
 
 logger = logger_utils.get_logger()
 
 
 class LoRansac(VerifierBase):
     def __init__(
-        self, use_intrinsics_in_verification: bool, estimation_threshold_px: float
+        self, use_intrinsics_in_verification: bool, estimation_threshold_px: float, min_allowed_inlier_ratio_est_model: float
     ) -> None:
         """Initializes the verifier.
 
         Args:
-        use_intrinsics_in_verification: Flag to perform keypoint normalization and compute the essential matrix
-                instead of fundamental matrix. This should be preferred when the exact
-                intrinsics are known as opposed to approximating them from exif data.
-        estimation_threshold_px: epipolar distance threshold (measured in pixels)
+            use_intrinsics_in_verification: Flag to perform keypoint normalization and compute the essential matrix
+                instead of fundamental matrix. This should be preferred when the exact intrinsics are known as opposed
+                to approximating them from exif data.
+            estimation_threshold_px: maximum distance (in pixels) to consider a match an inlier, under squared
+                Sampson distance.
+            min_allowed_inlier_ratio_est_model: minimum allowed inlier ratio w.r.t. the estimated model to accept
+                the verification result and use the image pair, i.e. the lowest allowed ratio of
+                #final RANSAC inliers/ #putatives. A lower fraction indicates less agreement among the result.
         """
         self._use_intrinsics_in_verification = use_intrinsics_in_verification
-        self._px_threshold = estimation_threshold_px
+        self._estimation_threshold_px = estimation_threshold_px
+        self._min_allowed_inlier_ratio_est_model = min_allowed_inlier_ratio_est_model
         self._min_matches = (
             NUM_MATCHES_REQ_E_MATRIX
             if self._use_intrinsics_in_verification
@@ -43,7 +47,7 @@ class LoRansac(VerifierBase):
         )
 
         # for failure, i2Ri1 = None, and i2Ui1 = None, and no verified correspondences, and inlier_ratio_est_model = 0
-        self._failure_result = (None, None, np.array([], dtype=np.uint64), 0)
+        self._failure_result = (None, None, np.array([], dtype=np.uint64), 0.0)
 
     def verify(
         self,
@@ -53,7 +57,22 @@ class LoRansac(VerifierBase):
         camera_intrinsics_i1: Cal3Bundler,
         camera_intrinsics_i2: Cal3Bundler,
     ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, float]:
-        """ """
+        """Performs verification of correspondences between two images to recover the relative pose and indices of
+        verified correspondences.
+
+        Args:
+            keypoints_i1: detected features in image #i1.
+            keypoints_i2: detected features in image #i2.
+            match_indices: matches as indices of features from both images, of shape (N3, 2), where N3 <= min(N1, N2).
+            camera_intrinsics_i1: intrinsics for image #i1.
+            camera_intrinsics_i2: intrinsics for image #i2.
+
+        Returns:
+            Estimated rotation i2Ri1, or None if it cannot be estimated.
+            Estimated unit translation i2Ui1, or None if it cannot be estimated.
+            Indices of verified correspondences, of shape (N, 2) with N <= N3. These are subset of match_indices.
+            Inlier ratio of w.r.t. the estimated model, i.e. the #final RANSAC inliers/ #putatives.
+        """
         # return if not enough matches
         if match_indices.shape[0] < self._min_matches:
             logger.info('[LORANSAC] Not enough matches for verification.')
@@ -89,7 +108,7 @@ class LoRansac(VerifierBase):
         points2D2 = uv_i2[match_indices[:, 1]]
 
         result_dict = pycolmap.essential_matrix_estimation(
-            points2D1, points2D2, camera_dict1, camera_dict2, max_error_px=4.0
+            points2D1, points2D2, camera_dict1, camera_dict2, max_error_px=self._estimation_threshold_px
         )
 
         success = result_dict["success"]
@@ -101,13 +120,17 @@ class LoRansac(VerifierBase):
         qw, qx, qy, qz = result_dict["qvec"]
         i2Ui1 = result_dict["tvec"]
         num_inliers = result_dict["num_inliers"]
-        inlier_mask = result_dict["inliers"]
-
-        i2Ri1 = Rot3(Rotation.from_quat([qx,qy,qz,qw]).as_matrix())
-        i2Ui1 = Unit3(i2Ui1)
 
         inlier_ratio_est_model = num_inliers / match_indices.shape[0]
+        if inlier_ratio_est_model >= self._min_allowed_inlier_ratio_est_model:
+            i2Ri1 = Rot3(Rotation.from_quat([qx,qy,qz,qw]).as_matrix())
+            i2Ui1 = Unit3(i2Ui1)
+            inlier_mask = result_dict["inliers"]
+            v_corr_idxs = match_indices[inlier_mask]
 
-        v_corr_idxs = match_indices[inlier_mask]
-
+        else:
+            i2Ri1 = None
+            i2Ui1 = None
+            v_corr_idxs = np.array([])
+        
         return i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio_est_model

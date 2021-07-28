@@ -1,3 +1,8 @@
+"""Ensure that Verifier classes can compute relative pose for Argoverse image pairs.
+
+Authors: John Lambert
+"""
+
 import pickle
 import pdb
 import random
@@ -104,56 +109,55 @@ def check_verifier_output_error(verifier: VerifierBase, euler_angle_err_tol: flo
     ), f"t: GT {gt_i1ti2_str} vs. Est. {i1ti2_str} w/ tol {translation_err_tol:.2f}"
 
 
-# class TestRansacVerifierArgoverse(unittest.TestCase):
-#     def setUp(self):
-#         super().setUp()
+class TestRansacVerifierArgoverse(unittest.TestCase):
+    def setUp(self):
+        super().setUp()
 
-#         np.random.seed(RANDOM_SEED)
-#         random.seed(RANDOM_SEED)
-#         self.verifier = Ransac(use_intrinsics_in_verification=True, estimation_threshold_px=0.5)
+        np.random.seed(RANDOM_SEED)
+        random.seed(RANDOM_SEED)
+        self.verifier = Ransac(
+            use_intrinsics_in_verification=True, estimation_threshold_px=0.5, min_allowed_inlier_ratio_est_model=0.1
+        )
 
-#         self.euler_angle_err_tol = 1.0
-#         self.translation_err_tol = 0.01
+        self.euler_angle_err_tol = 1.0
+        self.translation_err_tol = 0.01
 
-#     def testRecoveredPoseError(self):
-#         check_verifier_output_error(self.verifier, self.euler_angle_err_tol, self.translation_err_tol)
+    def testRecoveredPoseError(self):
+        check_verifier_output_error(self.verifier, self.euler_angle_err_tol, self.translation_err_tol)
 
+    def test_5pt_algo_5correspondences(self) -> None:
+        """ """
+        fx, px, py, k1, k2 = load_log_front_center_intrinsics()
+        keypoints_i1, keypoints_i2 = load_argoverse_log_annotated_correspondences()
 
-#     def test_5pt_algo_5correspondences(self) -> None:
-#         """ """
-#         fx, px, py, k1, k2 = load_log_front_center_intrinsics()
-#         keypoints_i1, keypoints_i2 = load_argoverse_log_annotated_correspondences()
+        # match keypoints row by row
+        match_indices = np.vstack([np.arange(len(keypoints_i1)), np.arange(len(keypoints_i1))]).T
 
-#         # match keypoints row by row
-#         match_indices = np.vstack([np.arange(len(keypoints_i1)), np.arange(len(keypoints_i1))]).T
+        intrinsics_i1 = Cal3Bundler(fx, k1, k2, px, py)
+        intrinsics_i2 = Cal3Bundler(fx, k1, k2, px, py)
 
-#         intrinsics_i1 = Cal3Bundler(fx, k1, k2, px, py)
-#         intrinsics_i2 = Cal3Bundler(fx, k1, k2, px, py)
+        match_indices = match_indices[:5]
 
-#         match_indices = match_indices[:5]
-
-#         import pdb; pdb.set_trace()
-#         i2Ri1, i2ti1, _, _ = self.verifier.verify(
-#             keypoints_i1, keypoints_i2, match_indices, intrinsics_i1, intrinsics_i2
-#         )
-
-
+        i2Ri1, i2ti1, _, _ = self.verifier.verify(
+            keypoints_i1, keypoints_i2, match_indices, intrinsics_i1, intrinsics_i2
+        )
 
 
-# class TestDegensacVerifierArgoverse(unittest.TestCase):
-#     def setUp(self):
-#         super().setUp()
+class TestDegensacVerifierArgoverse(unittest.TestCase):
+    def setUp(self):
+        super().setUp()
 
-#         np.random.seed(RANDOM_SEED)
-#         random.seed(RANDOM_SEED)
-#         self.verifier = Degensac(use_intrinsics_in_verification=False, estimation_threshold_px=0.5)
+        np.random.seed(RANDOM_SEED)
+        random.seed(RANDOM_SEED)
+        self.verifier = Degensac(
+            use_intrinsics_in_verification=False, estimation_threshold_px=0.5, min_allowed_inlier_ratio_est_model=0.1
+        )
 
-#         self.euler_angle_err_tol = 2.0
-#         self.translation_err_tol = 0.02
+        self.euler_angle_err_tol = 2.0
+        self.translation_err_tol = 0.02
 
-#     def testRecoveredPoseError(self):
-#         check_verifier_output_error(self.verifier, self.euler_angle_err_tol, self.translation_err_tol)
-
+    def testRecoveredPoseError(self):
+        check_verifier_output_error(self.verifier, self.euler_angle_err_tol, self.translation_err_tol)
 
 
 class TestLoRansacVerifierArgoverse(unittest.TestCase):
@@ -162,20 +166,12 @@ class TestLoRansacVerifierArgoverse(unittest.TestCase):
 
         np.random.seed(RANDOM_SEED)
         random.seed(RANDOM_SEED)
-        self.verifier = LoRansac(use_intrinsics_in_verification=False, estimation_threshold_px=0.5)
+        self.verifier = LoRansac(
+            use_intrinsics_in_verification=False, estimation_threshold_px=0.5, min_allowed_inlier_ratio_est_model=0.1
+        )
 
-        self.euler_angle_err_tol = 2.0
-        self.translation_err_tol = 0.02
+        self.euler_angle_err_tol = 1.0
+        self.translation_err_tol = 0.01
 
     def testRecoveredPoseError(self):
-        import pdb; pdb.set_trace()
         check_verifier_output_error(self.verifier, self.euler_angle_err_tol, self.translation_err_tol)
-
-
-
-
-
-
-
-
-

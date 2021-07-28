@@ -4,11 +4,12 @@ Authors: Ayush Baid, John Lambert
 """
 import logging
 from dataclasses import dataclass
-from typing import NamedTuple, Tuple, Optional
+from typing import Tuple, Optional
 
 import dask
 import numpy as np
 from dask.delayed import Delayed
+from dataclasses import dataclass
 from gtsam import Cal3Bundler, Pose3, Rot3, Unit3
 import trimesh
 
@@ -27,7 +28,6 @@ mpl_logger.setLevel(logging.WARNING)
 
 pil_logger = logging.getLogger("PIL")
 pil_logger.setLevel(logging.INFO)
-
 
 # In case an epipolar geometry can be verified, it is checked whether
 # the geometry describes a planar scene or panoramic view (pure rotation)
@@ -57,12 +57,12 @@ class TwoViewEstimationReport:
         num_inliers_est_model: #correspondences consistent with estimated model (not necessarily "correct")
         inlier_ratio_est_model: #matches consistent with est. model / # putative matches, i.e.
            measures how consistent the model is with the putative matches.
-        num_inliers_gt_model: measures how well the verification worked, w.r.t. GT
+        num_inliers_gt_model: measures how well the verification worked, w.r.t. GT, i.e. #correct correspondences.
         inlier_ratio_gt_model: #correct matches/#putative matches. Only defined if GT relative pose provided.
         R_error_deg: relative pose error w.r.t. GT. Only defined if GT poses provided.
         U_error_deg: relative translation error w.r.t. GT. Only defined if GT poses provided.
-        i2Ri1: relative rotation
-        i2Ui1: relative translation direction
+        i2Ri1: relative rotation.
+        i2Ui1: relative translation direction.
     """
 
     num_H_inliers: int
@@ -89,7 +89,6 @@ class TwoViewEstimator:
         matcher: MatcherBase,
         verifier: VerifierBase,
         eval_threshold_px: float,
-        estimation_threshold_px: float,
         min_num_inliers_acceptance: int,
     ) -> None:
         """Initializes the two-view estimator from matcher and verifier.
@@ -97,15 +96,16 @@ class TwoViewEstimator:
         Args:
             matcher: matcher to use.
             verifier: verifier to use.
-            eval_threshold_px: distance threshold for marking a correspondence pair as inlier during evaluation (not estimation).
-            estimation_threshold_px: distance threshold for marking a correspondence pair as inlier during estimation
-            min_num_inliers_acceptance: minimum number of inliers that must agree w/ estimated model, to use image pair.
+            eval_threshold_px: distance threshold for marking a correspondence pair as inlier during evaluation
+                (not during estimation).
+            min_num_inliers_acceptance: minimum number of inliers that must agree w/ estimated model, to use
+                image pair.
         """
         self._matcher = matcher
         self._verifier = verifier
         self._corr_metric_dist_threshold = eval_threshold_px
         # Note: homography estimation threshold must match the E / F thresholds for #inliers to be comparable
-        self._homography_estimator = HomographyEstimator(estimation_threshold_px)
+        self._homography_estimator = HomographyEstimator(verifier._estimation_threshold_px)
         self._min_num_inliers_acceptance = min_num_inliers_acceptance
 
     def get_corr_metric_dist_threshold(self) -> float:
@@ -279,7 +279,6 @@ class TwoViewEstimator:
             two_view_report.R_error_deg = None
             two_view_report.U_error_deg = None
 
-
         two_view_report.i2Ri1 = i2Ri1
         two_view_report.i2Ui1 = i2Ui1
 
@@ -299,7 +298,7 @@ def generate_two_view_report(
     num_H_inliers: int,
     H_inlier_ratio: float,
 ) -> TwoViewEstimationReport:
-    """ """
+    """Wrapper around class constructor for Dask."""
     two_view_report = TwoViewEstimationReport(
         inlier_ratio_est_model=inlier_ratio_est_model,
         num_inliers_est_model=v_corr_idxs.shape[0],

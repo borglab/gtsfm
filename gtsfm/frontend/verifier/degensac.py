@@ -9,7 +9,7 @@ References:
 - http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.466.2719&rep=rep1&type=pdf
 - https://github.com/ducha-aiki/pyransac
 
-Authors: Ayush Baid
+Authors: Ayush Baid, John Lambert
 """
 
 from typing import Optional, Tuple
@@ -25,27 +25,34 @@ from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
 logger = logger_utils.get_logger()
 
-MAX_TOLERATED_POLLUTION_INLIER_RATIO_EST_MODEL = 0.1
-
 
 class Degensac(VerifierBase):
-    def __init__(self, use_intrinsics_in_verification: bool, estimation_threshold_px: float) -> None:
+    def __init__(
+        self,
+        use_intrinsics_in_verification: bool,
+        estimation_threshold_px: float,
+        min_allowed_inlier_ratio_est_model: float,
+    ) -> None:
         """Initializes the verifier.
 
         Args:
-            use_intrinsics_in_verification: Flag to perform keypoint normalization and compute the essential matrix 
-                                            instead of fundamental matrix. This should be preferred when the exact
-                                            intrinsics are known as opposed to approximating them from exif data.
-            estimation_threshold_px: maximum distance (in pixels) to consider a match an inlier, under squared Sampson distance.
-
+            use_intrinsics_in_verification: Flag to perform keypoint normalization and compute the essential matrix
+                instead of fundamental matrix. This should be preferred when the exact intrinsics are known as opposed
+                to approximating them from exif data.
+            estimation_threshold_px: maximum distance (in pixels) to consider a match an inlier, under squared
+                Sampson distance.
+            min_allowed_inlier_ratio_est_model: minimum allowed inlier ratio w.r.t. the estimated model to accept
+                the verification result and use the image pair, i.e. the lowest allowed ratio of
+                #final RANSAC inliers/ #putatives. A lower fraction indicates less agreement among the result.
         Raises:
             NotImplementedError: when configured to compute essential matrices.
         """
         self._estimation_threshold_px = estimation_threshold_px
+        self._min_allowed_inlier_ratio_est_model = min_allowed_inlier_ratio_est_model
         if use_intrinsics_in_verification is True:
             raise NotImplementedError("DEGENSAC cannot estimate essential matrices")
 
-        super().__init__(use_intrinsics_in_verification)
+        super().__init__(use_intrinsics_in_verification, estimation_threshold_px, min_allowed_inlier_ratio_est_model)
 
     def verify(
         self,
@@ -69,6 +76,7 @@ class Degensac(VerifierBase):
             Estimated rotation i2Ri1, or None if it cannot be estimated.
             Estimated unit translation i2Ui1, or None if it cannot be estimated.
             Indices of verified correspondences, of shape (N, 2) with N <= N3. These are subset of match_indices.
+            Inlier ratio of w.r.t. the estimated model, i.e. the #final RANSAC inliers/ #putatives.
         """
         if match_indices.shape[0] < self._min_matches:
             return self._failure_result
@@ -78,13 +86,15 @@ class Degensac(VerifierBase):
             keypoints_i2.coordinates[match_indices[:, 1]],
             px_th=self._estimation_threshold_px,
         )
-
         inlier_idxs = np.where(inlier_mask.ravel() == 1)[0]
 
         v_corr_idxs = match_indices[inlier_idxs]
         inlier_ratio_est_model = np.mean(inlier_mask)
-        if inlier_ratio_est_model < MAX_TOLERATED_POLLUTION_INLIER_RATIO_EST_MODEL:
-            logger.info("Discarding image pair, as inlier ratio w.r.t. estimated model was too low: %.2f", inlier_ratio_est_model)
+        if inlier_ratio_est_model < self._min_allowed_inlier_ratio_est_model:
+            logger.info(
+                "Discarding image pair, as inlier ratio w.r.t. estimated model was too low: %.2f",
+                inlier_ratio_est_model,
+            )
             i2Ri1 = None
             i2Ui1 = None
             v_corr_idxs = np.array([], dtype=np.uint64)

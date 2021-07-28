@@ -42,15 +42,6 @@ RESULTS_PATH = Path(__file__).resolve().parent.parent / "results"
 REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
 REACT_RESULTS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "public" / "results"
 
-"""
-data type for frontend metrics on a pair of images, containing:
-1. rotation angular error
-2. translation angular error
-3. number of correct correspondences
-4. inlier ratio
-"""
-FRONTEND_METRICS_FOR_PAIR = Tuple[Optional[float], Optional[float], int, float]
-
 logger = logger_utils.get_logger()
 
 mpl_logger = logging.getLogger("matplotlib")
@@ -156,7 +147,6 @@ class SceneOptimizer:
             # i2Ri1 = dask.delayed(lambda T: T.rotation())(gt_i2Ti1)
             # i2Ui1 = dask.delayed(lambda T: Unit3(T.translation()))(gt_i2Ti1)
 
-
             i2Ri1_graph_dict[(i1, i2)] = i2Ri1
             i2Ui1_graph_dict[(i1, i2)] = i2Ui1
             v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
@@ -204,7 +194,9 @@ class SceneOptimizer:
         auxiliary_graph_list = []
 
         # ensure cycle consistency in triplets
-        cycle_consistent_graph = dask.delayed(cycle_utils.filter_to_cycle_consistent_edges)(i2Ri1_graph_dict, i2Ui1_graph_dict, two_view_reports_dict)
+        cycle_consistent_graph = dask.delayed(cycle_utils.filter_to_cycle_consistent_edges)(
+            i2Ri1_graph_dict, i2Ui1_graph_dict, two_view_reports_dict
+        )
 
         i2Ri1_graph_dict = cycle_consistent_graph[0]
         i2Ui1_graph_dict = cycle_consistent_graph[1]
@@ -403,27 +395,20 @@ def visualize_camera_poses(
     plt.close(fig)
 
 
-def persist_frontend_metrics_full(two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport], images: List[Image]) -> None:
+def persist_frontend_metrics_full(
+    two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport], images: List[Image]
+) -> None:
     """Persist the front-end metrics for every pair on disk.
 
     Args:
         two_view_report_dict: front-end metrics for pairs of images.
+        images: list of all images for this scene, in order of image/frame index.
     """
     metrics_list = []
 
     for (i1, i2), report in two_view_report_dict.items():
 
-        if report.i2Ri1:
-            qw, qx, qy, qz = report.i2Ri1.quaternion()
-            i2ti1 = report.i2Ui1.point3().tolist()
-
-            i2Ri1_coefficients = {"qw": qw, "qx": qx, "qy": qy, "qz": qz}
-        else:
-            i2Ri1_coefficients = None
-            i2ti1 = None
-            euler_xyz = None
-
-        # Note: if GT is unknown, then R_error_deg and U_error_deg will be None
+        # Note: if GT is unknown, then R_error_deg, U_error_deg, and inlier_ratio_gt_model will be None
         metrics_list.append(
             {
                 "i1": i1,
@@ -442,12 +427,8 @@ def persist_frontend_metrics_full(two_view_report_dict: Dict[Tuple[int, int], Tw
                 "num_inliers_est_model": report.num_inliers_est_model,
                 "num_H_inliers": int(report.num_H_inliers),
                 "H_inlier_ratio": round(report.H_inlier_ratio, PRINT_NUM_SIG_FIGS),
-                
-                "i2Ri1": i2Ri1_coefficients,
-                "i2Ui1": i2ti1
             }
-        )  
-        
+        )
 
     io_utils.save_json_file(os.path.join(METRICS_PATH, "frontend_full.json"), metrics_list)
 
@@ -456,12 +437,11 @@ def persist_frontend_metrics_full(two_view_report_dict: Dict[Tuple[int, int], Tw
 
 
 def aggregate_frontend_metrics(
-    two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport], angular_err_threshold_deg: float
+    two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport], angular_err_threshold_deg: float
 ) -> None:
     """Aggregate the front-end metrics to log summary statistics.
 
-    We define "pose error" as the maximum of the angular errors in rotation and translation.
-    References:
+    We define "pose error" as the maximum of the angular errors in rotation and translation, per:
         SuperGlue, CVPR 2020: https://arxiv.org/pdf/1911.11763.pdf
         Learning to find good correspondences. CVPR 2018:
         OA-Net, ICCV 2019:
@@ -471,7 +451,7 @@ def aggregate_frontend_metrics(
         two_view_report_dict: report containing front-end metrics for each image pair.
         angular_err_threshold_deg: threshold for classifying angular error metrics as success.
     """
-    num_entries = len(two_view_report_dict.keys())
+    num_entries = len(two_view_reports_dict.keys())
 
     # all rotational errors in degrees
     rot3_angular_errors = []
@@ -480,7 +460,7 @@ def aggregate_frontend_metrics(
     precisions = []
     recalls = []
 
-    for report in two_view_report_dict.values():
+    for report in two_view_reports_dict.values():
         rot3_angular_errors.append(report.R_error_deg)
         trans_angular_errors.append(report.U_error_deg)
         if report.avg_inlier_reproj_err is not None:
@@ -498,15 +478,15 @@ def aggregate_frontend_metrics(
     num_valid_entries = np.count_nonzero(~np.isnan(rot3_angular_errors))
 
     # compute pose errors by picking the max error from rot3 and unit3 errors
-    pose_errors = np.maximum(trans_angular_errors, trans_angular_errors)
+    pose_errors = np.maximum(rot3_angular_errors, trans_angular_errors)
 
     # check errors against the threshold
     success_count_rot3 = np.sum(rot3_angular_errors < angular_err_threshold_deg)
     success_count_unit3 = np.sum(trans_angular_errors < angular_err_threshold_deg)
     success_count_pose = np.sum(pose_errors < angular_err_threshold_deg)
 
-    # count entries with inlier ratio == 1.
-    # all_correct = np.count_nonzero(metrics_array[:, 3] == 1.0)
+    # count image pair entries where inlier ratio w.r.t. GT model == 1.
+    all_correct = np.count_nonzero([report.precision_gt_model == 1.0 for report in two_view_reports_dict.values()])
 
     # Note: average of each two view average
     logger.debug(f'[Front end] [Summary] Average PMR:       TODO')
@@ -529,7 +509,9 @@ def aggregate_frontend_metrics(
         "[Two view optimizer] [Summary] Pose success: %d/%d/%d", success_count_pose, num_valid_entries, num_entries
     )
 
-    # logger.debug("[Two view optimizer] [Summary] Image pairs with 100%% inlier ratio:: %d/%d", all_correct, num_entries)
+    logger.debug(
+        "[Two view optimizer] [Summary] # Image pairs with 100%% inlier ratio:: %d/%d", all_correct, num_entries
+    )
 
     front_end_result_info = {
         "angular_err_threshold_deg": angular_err_threshold_deg,
@@ -538,7 +520,7 @@ def aggregate_frontend_metrics(
         "rotation": {"success_count": int(success_count_rot3)},
         "translation": {"success_count": int(success_count_unit3)},
         "pose": {"success_count": int(success_count_pose)},
-        # "correspondences": {"all_inliers": int(all_correct)},
+        "correspondences": {"all_inliers_wrt_gt_model": int(all_correct)},
     }
 
     io_utils.save_json_file(os.path.join(METRICS_PATH, "frontend_summary.json"), front_end_result_info)
