@@ -174,6 +174,9 @@ class Point3dInitializer(NamedTuple):
         inlier_track = track_2d.select_subset(inlier_idxs)
 
         camera_track, measurement_track = self.extract_measurements(inlier_track)
+        if camera_track is None:
+            # weren't at least 2 cameras with poses
+            return None, None, is_cheirality_failure
         try:
             triangulated_pt = gtsam.triangulatePoint3(
                 camera_track,
@@ -290,12 +293,6 @@ class Point3dInitializer(NamedTuple):
                 logger.warning("Unestimated cameras found at index {}. Skipping them.".format(i))
 
         if len(track_cameras) < 2 or len(track_measurements) < 2:
-            raise Exception(
-                "Nb of measurements should not be <= 2. \
-                    number of cameras is: {} \
-                    and number of observations is {}".format(
-                    len(track_cameras), len(track_measurements)
-                )
-            )
+            return None, None
 
         return track_cameras, track_measurements
