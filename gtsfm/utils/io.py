@@ -188,7 +188,7 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
         k2 = 0
         calibrations.append(Cal3Bundler(fx, k1, k2, u0, v0))
 
-    #assert len(calibrations) == num_cams
+    assert len(calibrations) == num_cams
     return calibrations
 
 
