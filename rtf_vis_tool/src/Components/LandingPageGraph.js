@@ -127,10 +127,10 @@ function LandingPageGraph() {
             {/* Render popups only when the respective node is clicked. */} 
             {showDA_PC && <PCViewer title={'Data Association Point Cloud'} 
                                     togglePC={toggleDA_PointCloud} 
-                                    filePath={'results/ba_input/points3D.txt'}/>}
+                                    pointCloudType={'ba_input'}/>}
             {showBA_PC && <PCViewer title={'Bundle Adjustment Point Cloud'}
                                     togglePC={toggleBA_PointCloud}
-                                    filePath={'results/ba_output/points3D.txt'}/>}
+                                    pointCloudType={'ba_output'}/>}
             {showFS && <FrontendSummary json={fs_json} toggleFS={toggleFrontEndSummaryDisplay}/>}
             {showMVO && <MVOSummary json={mvo_json} toggleMVO={toggleMVOMetrics}/>}
 
