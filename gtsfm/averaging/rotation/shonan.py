@@ -106,7 +106,8 @@ class ShonanRotationAveraging(RotationAveragingBase):
         """
         if len(i2Ri1_dict) == 0:
             logger.warning(
-                "Shonan cannot proceed: No cycle-consistent triplets found, so no measurements survived the filtering step."
+                "Shonan cannot proceed: No cycle-consistent triplets found, "
+                + "so no measurements survived the filtering step."
             )
 
             wRi_list = [None] * num_images
