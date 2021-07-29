@@ -1,4 +1,3 @@
-
 from typing import Optional, Tuple
 
 import cv2
@@ -23,7 +22,10 @@ logger = logger_utils.get_logger()
 
 class LoRansac(VerifierBase):
     def __init__(
-        self, use_intrinsics_in_verification: bool, estimation_threshold_px: float, min_allowed_inlier_ratio_est_model: float
+        self,
+        use_intrinsics_in_verification: bool,
+        estimation_threshold_px: float,
+        min_allowed_inlier_ratio_est_model: float,
     ) -> None:
         """Initializes the verifier.
 
@@ -41,9 +43,7 @@ class LoRansac(VerifierBase):
         self._estimation_threshold_px = estimation_threshold_px
         self._min_allowed_inlier_ratio_est_model = min_allowed_inlier_ratio_est_model
         self._min_matches = (
-            NUM_MATCHES_REQ_E_MATRIX
-            if self._use_intrinsics_in_verification
-            else NUM_MATCHES_REQ_F_MATRIX
+            NUM_MATCHES_REQ_E_MATRIX if self._use_intrinsics_in_verification else NUM_MATCHES_REQ_F_MATRIX
         )
 
         # for failure, i2Ri1 = None, and i2Ui1 = None, and no verified correspondences, and inlier_ratio_est_model = 0
@@ -75,8 +75,8 @@ class LoRansac(VerifierBase):
         """
         # return if not enough matches
         if match_indices.shape[0] < self._min_matches:
-            logger.info('[LORANSAC] Not enough matches for verification.')
-            return self._failure_result 
+            logger.info("[LORANSAC] Not enough matches for verification.")
+            return self._failure_result
 
         uv_i1 = keypoints_i1.coordinates
         uv_i2 = keypoints_i2.coordinates
@@ -85,8 +85,8 @@ class LoRansac(VerifierBase):
         cx, cy = camera_intrinsics_i1.px(), camera_intrinsics_i1.py()
 
         # TODO: use more accurate proxy?
-        width = int(cx*2)
-        height = int(cy*2)
+        width = int(cx * 2)
+        height = int(cy * 2)
 
         camera_dict1 = {
             "model": "SIMPLE_PINHOLE",
@@ -113,7 +113,7 @@ class LoRansac(VerifierBase):
 
         success = result_dict["success"]
         if not success:
-            logger.info('[LORANSAC] Essential matrix estimation unsuccessful.')
+            logger.info("[LORANSAC] Essential matrix estimation unsuccessful.")
             return self._failure_result
         E = result_dict["E"]
         # See https://github.com/colmap/colmap/blob/dev/src/base/pose.h#L72
@@ -123,7 +123,7 @@ class LoRansac(VerifierBase):
 
         inlier_ratio_est_model = num_inliers / match_indices.shape[0]
         if inlier_ratio_est_model >= self._min_allowed_inlier_ratio_est_model:
-            i2Ri1 = Rot3(Rotation.from_quat([qx,qy,qz,qw]).as_matrix())
+            i2Ri1 = Rot3(Rotation.from_quat([qx, qy, qz, qw]).as_matrix())
             i2Ui1 = Unit3(i2Ui1)
             inlier_mask = result_dict["inliers"]
             v_corr_idxs = match_indices[inlier_mask]
@@ -132,5 +132,5 @@ class LoRansac(VerifierBase):
             i2Ri1 = None
             i2Ui1 = None
             v_corr_idxs = np.array([])
-        
+
         return i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio_est_model
