@@ -7,18 +7,14 @@ import os
 from pathlib import Path
 from typing import Optional, Dict, Tuple, List
 
-import numpy as np
 from gtsam import Cal3Bundler, Pose3, Rot3, Point3, SfmTrack
 import trimesh
-import pyvista as pv
 
-import gtsfm.utils.images as img_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
 
-# from colmap.scripts.python.read_write_model import read_model
 from gtsfm.utils.read_write_model import read_model
 from gtsfm.utils.read_write_model import Camera as ColmapCamera
 from gtsfm.utils.read_write_model import Image as ColmapImage
@@ -29,12 +25,10 @@ logger = logger_utils.get_logger()
 
 
 class AstroNetLoader(LoaderBase):
-    """Simple loader class that reads a dataset with ground-truth files and dataset meta-information
-    formatted in the COLMAP style. This meta-information may include image file names stored
-    in a images.txt file, or ground truth camera poses for each image/frame. Images should be
-    present in the specified image directory.
-
-    Note: assumes all images are of the same dimensions.
+    """Simple loader class that reads an AstroNet data segment. 
+    
+    Refs:
+    - https://github.com/travisdriver/astronet
     """
 
     def __init__(
@@ -43,6 +37,7 @@ class AstroNetLoader(LoaderBase):
         gt_scene_mesh_path: str = None,
         use_gt_intrinsics: bool = True,
         use_gt_extrinsics: bool = True,
+        use_gt_tracks3D: bool = False,
         max_frame_lookahead: int = 2,
     ) -> None:
         """Initialize loader from a specified segment directory (data_dir) on disk.
@@ -56,10 +51,12 @@ class AstroNetLoader(LoaderBase):
 
         Args:
             data_dir: path to directory containing the COLMAP-formatted data: cameras.bin, images.bin, and points3D.bin
-            gt_scene_mesh_path (optional): path to Alias Wavefront Object (.obj) file of target small body
+            gt_scene_mesh_path (optional): path to file of target small body surface mesh.
+                Note: vertex size mismath observed when reading in from OBJ format. Prefer PLY. 
             use_gt_intrinsics: whether to use ground truth intrinsics. If calibration is
                not found on disk, then use_gt_intrinsics will be set to false automatically.
             use_gt_extrinsics (optional): whether to use ground truth extrinsics
+            use_gt_tracks3D (optional): whether to use ground truth tracks
             max_frame_lookahead (optional): maximum number of consecutive frames to consider for
                 matching/co-visibility. Any value of max_frame_lookahead less than the size of
                 the dataset assumes data is sequentially captured
@@ -70,21 +67,21 @@ class AstroNetLoader(LoaderBase):
         """
         self._use_gt_intrinsics = use_gt_intrinsics
         self._use_gt_extrinsics = use_gt_extrinsics
+        self._use_gt_tracks3D = use_gt_tracks3D
         self._max_frame_lookahead = max_frame_lookahead
 
         # Use COLMAP model reader to load data and convert to GTSfM format
         if Path(data_dir).exists():
             _cameras, _images, _points = read_model(path=data_dir, ext=".bin")
-            self._calibrations, self._wTi_list, img_fnames, self._sfmtracks = self.colmap2gtsfm(
-                _cameras, _images, _points
+            self._calibrations, self._wTi_list, img_fnames, self._tracks3D = self.colmap2gtsfm(
+                _cameras, _images, _points, load_tracks3D=use_gt_tracks3D
             )
 
         # Read in scene mesh as Trimesh object
         if gt_scene_mesh_path is not None:
             if not Path(gt_scene_mesh_path).exists():
                  raise FileNotFoundError(f'No mesh found at {gt_scene_mesh_path}')
-            _vertices, _faces = self.load_obj(gt_scene_mesh_path)
-            self._gt_scene_trimesh = trimesh.Trimesh(_vertices, _faces)
+            self._gt_scene_trimesh = trimesh.load(gt_scene_mesh_path, process=False, maintain_order=True)
         else:
             self._gt_scene_trimesh = None
 
@@ -93,6 +90,12 @@ class AstroNetLoader(LoaderBase):
 
         if self._wTi_list is None:
             self._use_gt_extrinsics = False
+
+        if self._tracks3D is None:
+            self._use_gt_tracks3D = False
+            self._num_tracks3D = 0
+        else:
+            self._num_tracks3D = len(self._tracks3D)
 
         # Prepare image paths
         self._image_paths = []
@@ -103,14 +106,15 @@ class AstroNetLoader(LoaderBase):
             self._image_paths.append(img_fpath)
 
         self._num_imgs = len(self._image_paths)
-        logger.info("AstroNet loader found and loaded %d images", self._num_imgs)
+        logger.info("AstroNet loader found and loaded %d images and %d tracks.", 
+            self._num_imgs, self._num_tracks3D)
 
     @staticmethod
     def colmap2gtsfm(
         cameras: Dict[int, ColmapCamera],
         images: Dict[int, ColmapImage],
         points3D: Dict[int, ColmapPoint3D],
-        return_tracks: Optional[bool] = False,
+        load_tracks3D: Optional[bool] = False,
     ) -> Tuple[List[Cal3Bundler], List[Pose3], List[str], List[Point3]]:
         """Converts COLMAP-formatted variables to GTSfM format
 
@@ -139,7 +143,7 @@ class AstroNetLoader(LoaderBase):
                 fx, fy, cx, cy, k1, k2, p1, p2, k3, k4, k5, k6 = cameras[img.camera_id].params
                 cameras_gtsfm.append(Cal3Bundler(fx, k1, k2, cx, cy))
 
-        if len(points3D) > 0 and return_tracks:
+        if len(points3D) > 0 and load_tracks3D:
             tracks3D_gtsfm = []
             for point3D in points3D.values():
                 track3D = SfmTrack(point3D.xyz)
@@ -148,33 +152,6 @@ class AstroNetLoader(LoaderBase):
                 tracks3D_gtsfm.append(track3D)
 
         return cameras_gtsfm, images_gtsfm, img_fnames, tracks3D_gtsfm
-
-    @staticmethod
-    def load_obj(fn: str) -> Tuple[np.ndarray, np.ndarray]:
-        """Reads in Alias Wavefront Object (.obj) file
-
-        Args:
-            fn: path to .obj file
-
-        Returns:
-            vertices: (V, 3) array of mesh vertices
-            faces: (F, 3) array of mesh faces
-
-        Raises:
-            ValueError if no information found at fn
-        """
-        # TODO: don't rely on PyVista
-        polydata = pv.read(fn)
-
-        # If there are no points in 'vtkPolyData' something went wrong
-        if polydata.GetNumberOfPoints() == 0:
-            raise ValueError("No point data could be loaded from '" + fn + "'")
-
-        # Extract vertex and face arrays
-        vertices = polydata.points  # (V, 3)
-        faces = polydata.faces.reshape(-1, 4)[:, 1:]  # (F, 3)
-
-        return vertices, faces
 
     def __len__(self) -> int:
         """The number of images in the dataset.
@@ -197,7 +174,7 @@ class AstroNetLoader(LoaderBase):
             Image: the image at the query index.
         """
         if index < 0 or index >= len(self):
-            raise IndexError("Image index is invalid")
+            raise IndexError(f"Image index {index} is invalid")
 
         img = io_utils.load_image(self._image_paths[index])
         return img
@@ -212,7 +189,7 @@ class AstroNetLoader(LoaderBase):
             intrinsics for the given camera.
         """
         if index < 0 or index >= len(self):
-            raise IndexError("Image index is invalid")
+            raise IndexError(f"Image index {index} is invalid")
 
         if self._use_gt_intrinsics:
             intrinsics = self._calibrations[index]
@@ -227,16 +204,34 @@ class AstroNetLoader(LoaderBase):
             index: the index to fetch.
 
         Returns:
-            the camera pose w_T_index.
+            pose for the given camera.
         """
         if index < 0 or index >= len(self):
-            raise IndexError("Image index is invalid")
+            raise IndexError(f"Image index {index} is invalid")
 
         if not self._use_gt_extrinsics:
             return None
 
         wTi = self._wTi_list[index]
         return wTi
+
+    def get_track3D(self, index: int) -> Optional[SfmTrack]:
+        """Get the SfmTracks(s) (in world coordinates) at the given index.
+
+        Args:
+            index: the index to fetch.
+
+        Returns:
+            SfmTrack at index.
+        """
+        if index < 0 or index >= len(self._tracks3D):
+            raise IndexError(f"Track3D index {index} is invalid")
+
+        if not self._use_gt_tracks3D:
+            return None
+
+        track3D = self._tracks3D[index]
+        return track3D
 
     def is_valid_pair(self, idx1: int, idx2: int) -> bool:
         """Checks if (idx1, idx2) is a valid pair.

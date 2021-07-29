@@ -32,9 +32,11 @@ def run_scene_optimizer(args) -> None:
             gt_scene_mesh_path=args.scene_mesh_path,
             use_gt_intrinsics=True,
             use_gt_extrinsics=True,
+            use_gt_tracks3D=False,
             max_frame_lookahead=args.max_frame_lookahead,
         )
 
+        # Note: scene mesh not surrently used by scene_optimizer
         sfm_result_graph = scene_optimizer.create_computation_graph(
             num_images=len(loader),
             image_pair_indices=loader.get_valid_pairs(),
@@ -59,39 +61,42 @@ def run_scene_optimizer(args) -> None:
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description="GTSFM with intrinsics and image names stored in COLMAP-format")
+    parser = argparse.ArgumentParser(description="Run GTSfM on AstroNet segment.")
     parser.add_argument(
-        "--data_dir", type=str, required=True, help="path to directory containing COLMAP-format data"
+        "--data_dir", '-d', 
+        type=str, 
+        required=True, 
+        help="path to directory containing AstroNet segment"
     )
     parser.add_argument(
-        "--max_frame_lookahead",
+        "--max_frame_lookahead", '-l',
         type=int,
         default=2,
         help="maximum number of consecutive frames to consider for matching/co-visibility",
     )
     parser.add_argument(
-        "--num_workers",
+        "--num_workers", '-nw',
         type=int,
         default=1,
         help="Number of workers to start (processes, by default)",
     )
     parser.add_argument(
-        "--threads_per_worker",
+        "--threads_per_worker", '-th',
         type=int,
         default=1,
         help="Number of threads per each worker",
     )
     parser.add_argument(
-        "--config_name",
+        "--config_name", '-c',
         type=str,
         default="deep_front_end.yaml",
         help="Choose sift_front_end.yaml or deep_front_end.yaml",
     )
     parser.add_argument(
-        "--scene_mesh_path",
+        "--scene_mesh_path", '-m',
         type=str,
         default=None,
-        help="Path to Alias Wavefront Object (.obj) file of scene mesh.",
+        help="Path to file containing triangular surface mesh of target body.",
     )
 
     args = parser.parse_args()
