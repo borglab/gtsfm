@@ -454,7 +454,10 @@ def aggregate_frontend_metrics(
     all_correct = np.count_nonzero([report.inlier_ratio_gt_model == 1.0 for report in two_view_reports_dict.values()])
 
     logger.debug(
-        "[Two view optimizer] [Summary] Rotation success: %d/%d/%d", success_count_rot3, num_valid_image_pairs, num_image_pairs
+        "[Two view optimizer] [Summary] Rotation success: %d/%d/%d",
+        success_count_rot3,
+        num_valid_image_pairs,
+        num_image_pairs,
     )
 
     logger.debug(
@@ -465,7 +468,10 @@ def aggregate_frontend_metrics(
     )
 
     logger.debug(
-        "[Two view optimizer] [Summary] Pose success: %d/%d/%d", success_count_pose, num_valid_image_pairs, num_image_pairs
+        "[Two view optimizer] [Summary] Pose success: %d/%d/%d",
+        success_count_pose,
+        num_valid_image_pairs,
+        num_image_pairs,
     )
 
     logger.debug(
