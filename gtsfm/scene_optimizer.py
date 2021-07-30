@@ -442,7 +442,7 @@ def aggregate_frontend_metrics(
         "[Two view optimizer] [Summary] Translation success: %d/%d/%d",
         success_count_unit3,
         num_valid_image_pairs,
-        num_image_apirs,
+        num_image_pairs,
     )
 
     logger.debug(
