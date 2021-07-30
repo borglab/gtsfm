@@ -16,7 +16,6 @@ import gtsfm.utils.io as io_utils
 from visualization.mayavi_vis_utils import draw_scene_mayavi
 from visualization.open3d_vis_utils import draw_scene_open3d
 
-
 REPO_ROOT = Path(__file__).parent.parent.resolve()
 
 
