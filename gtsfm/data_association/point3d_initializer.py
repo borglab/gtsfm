@@ -4,7 +4,7 @@ References:
 1. Richard I. Hartley and Peter Sturm. Triangulation. Computer Vision and Image Understanding, Vol. 68, No. 2,
    November, pp. 146–157, 1997
 
-Authors: Sushmita Warrier, Xiaolong Wu
+Authors: Sushmita Warrier, Xiaolong Wu, John Lambert
 """
 
 import itertools
@@ -270,7 +270,7 @@ class Point3dInitializer(NamedTuple):
         return sample_indices.tolist()
 
     def extract_measurements(self, track: SfmTrack2d) -> Tuple[CameraSetCal3Bundler, Point2Vector]:
-        """Extract measurements in a track for triangulation.
+        """Convert measurements in a track into GTSAM primitive types for triangulation arguments.
 
         Args:
             track: feature track from which measurements are to be extracted.
@@ -291,6 +291,7 @@ class Point3dInitializer(NamedTuple):
             else:
                 logger.warning("Unestimated cameras found at index %d. Skipping them.", i)
 
+        # triangulation is impossible with <2 measurements
         if len(track_cameras) < 2 or len(track_measurements) < 2:
             return None, None
 
