@@ -28,7 +28,8 @@ def run_scene_optimizer(args) -> None:
             colmap_files_dirpath=args.colmap_files_dirpath,
             images_dir=args.images_dir,
             max_frame_lookahead=args.max_frame_lookahead,
-            known_focal_length=args.known_focal_length
+            known_focal_length=args.known_focal_length,
+            max_resolution=args.max_resolution
         )
 
         sfm_result_graph = scene_optimizer.create_computation_graph(
@@ -87,6 +88,13 @@ if __name__ == "__main__":
         "--known_focal_length",
         type=float,
         help="If camera focal length (in pixels) in known a priori",
+    )
+    parser.add_argument(
+        "--max_resolution",
+        type=int,
+        default=760,
+        help="integer representing maximum length of image's short side, e.g. for 1080p (1920 x 1080)"
+        "max resolution should be 1080 pixels."
     )
 
     args = parser.parse_args()
