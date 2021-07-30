@@ -76,8 +76,8 @@ class DataAssociation(NamedTuple):
         # generate tracks for 3D points using pairwise correspondences
         tracks_2d = SfmTrack2d.generate_tracks_from_pairwise_matches(corr_idxs_dict, keypoints_list)
 
-        # if self.save_track_patches_viz and images is not None:
-        #     io_utils.save_track_visualizations(tracks_2d, images, save_dir=os.path.join("plots", "tracks_2d"))
+        if self.save_track_patches_viz and images is not None:
+            io_utils.save_track_visualizations(tracks_2d, images, save_dir=os.path.join("plots", "tracks_2d"))
 
         # metrics on tracks w/o triangulation check
         num_tracks_2d = len(tracks_2d)
@@ -85,7 +85,7 @@ class DataAssociation(NamedTuple):
         mean_2d_track_length = np.mean(track_lengths)
 
         logger.debug("[Data association] input number of tracks: %s", num_tracks_2d)
-        logger.debug("[Data association] input avg. track length: %.2f", mean_2d_track_length)
+        logger.debug("[Data association] input avg. track length: %s", mean_2d_track_length)
 
         # initializer of 3D landmark for each track
         point3d_initializer = Point3dInitializer(
@@ -104,7 +104,7 @@ class DataAssociation(NamedTuple):
             triangulated_data.add_camera(i, camera)
 
         # add valid tracks where triangulation is successful
-        for j, track_2d in enumerate(tracks_2d):
+        for track_2d in tracks_2d:
             # triangulate and filter based on reprojection error
             sfm_track, avg_track_reproj_error, is_cheirality_failure = point3d_initializer.triangulate(track_2d)
             if is_cheirality_failure:
@@ -117,13 +117,8 @@ class DataAssociation(NamedTuple):
             if sfm_track is not None and self.__validate_track(sfm_track):
                 triangulated_data.add_track(sfm_track)
                 per_accepted_track_avg_errors.append(avg_track_reproj_error)
-
-                # io_utils.save_track_visualizations(j, [track_2d], images, save_dir=os.path.join("plots", "tracks_2d", f"{int(np.round(avg_track_reproj_error))}"))
-
             else:
                 per_rejected_track_avg_errors.append(avg_track_reproj_error)
-
-
 
         track_cheirality_failure_ratio = num_tracks_w_cheirality_exceptions / len(tracks_2d)
 
