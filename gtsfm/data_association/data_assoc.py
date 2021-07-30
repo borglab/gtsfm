@@ -156,9 +156,9 @@ class DataAssociation(NamedTuple):
                 "max": int(track_lengths_3d.max()) if track_lengths_3d.size > 0 else None,
                 "track_lengths_histogram": histogram_dict,
             },
-            "mean_accepted_track_avg_error": np.array(per_accepted_track_avg_errors).mean(),
-            "per_rejected_track_avg_errors": per_rejected_track_avg_errors,
-            "per_accepted_track_avg_errors": per_accepted_track_avg_errors,
+            "mean_accepted_track_avg_error_px": np.array(per_accepted_track_avg_errors).mean(),
+            "per_rejected_track_avg_errors_px": per_rejected_track_avg_errors,
+            "per_accepted_track_avg_errors_px": per_accepted_track_avg_errors,
         }
 
         return connected_data, data_assoc_metrics
