@@ -269,6 +269,9 @@ def visualize_twoview_correspondences(
         corr_idxs_i1i2: correspondence indices.
         file_path: file path to save the visualization.
     """
+    if corr_idxs_i1i2.shape[0] == 0:
+        logger.info("No correspondences to render for this image pair, so skipping")
+        return
     plot_img = viz_utils.plot_twoview_correspondences(image_i1, image_i2, keypoints_i1, keypoints_i2, corr_idxs_i1i2)
 
     io_utils.save_image(plot_img, file_path)
