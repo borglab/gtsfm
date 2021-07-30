@@ -30,7 +30,17 @@ class GtsfmMetric:
             return [self.PlotType.BOX, self.PlotType.HISTOGRAM]
         return []
 
-    def _get_distribution_histogram(self, data: np.ndarray) -> Dict[int, float]:
+    def _get_distribution_histogram(self, data: np.ndarray) -> Dict[str, Union[float, int]]:
+        """Returns the histogram of data as a dictionary.
+
+        If the data is float, the keys of the dictionary are interval buckets, and if the data is int, the keys are also int.
+
+        Args:
+            data: 1D array of all values of the metric
+
+        Returns:
+            Histogram of data as a dict from bucket to count.
+        """
         if data.size == 0:
             print("Requested histogram for empty data metric, returning None.")
             return None
@@ -57,8 +67,21 @@ class GtsfmMetric:
         return histogram
 
     def _create_summary(self, data: np.ndarray) -> Dict[str, Any]:
+        """Creates a summary of the given data.
+
+        This is useful for analysis as data can be very large. The summary is a dict contains the following fields:
+            - Min, max, median of data
+            - Mean and std dev of data
+            - Either quartiles or histogram of the data depending on plot_type of this metric.
+
+        Args:
+            data: 1D array of all values of the metric
+
+        Returns:
+            summary as a dict that can be serialized to JSON for storage.
+        """
         if data.ndim != 1:
-            raise ValueError('Metric must be a 1D distribution to get summary.')
+            raise ValueError("Metric must be a 1D distribution to get summary.")
         summary = {
             "min": np.min(data).tolist(),
             "max": np.max(data).tolist(),
@@ -73,11 +96,19 @@ class GtsfmMetric:
         return summary
 
     def _get_distribution_quartiles(self, data: np.ndarray) -> Dict[int, float]:
+        """Computes quartiles for the provided 1D data distribution.
+
+        Args:
+            data: 1D distribution of metric values
+
+        Returns:
+            Quartiles of the data as a dict where keys are q0, q1, q2, q3, and q4
+        """
         query = list(range(0, 101, 25))
         quartiles = np.percentile(data, query)
         output = {}
         for i, q in enumerate(query):
-            output['q'+str(i)] = quartiles[i].tolist()
+            output["q" + str(i)] = quartiles[i].tolist()
         return output
 
     def __init__(
@@ -93,11 +124,14 @@ class GtsfmMetric:
 
         self._name = name
         if data is not None:
+            # Cast to a numpy array
             if not isinstance(data, np.ndarray):
                 data = np.array(data)
             if data.ndim > 1:
                 raise ValueError("Metrics must be scalars on 1D-distributions.")
-            self._dim = data.ndim 
+
+            # Save dimension and plot_type for data
+            self._dim = data.ndim
             plot_types_for_dim = self._get_plot_types_for_dim(self._dim)
             if plot_type is None:
                 self._plot_type = plot_types_for_dim[0]
@@ -106,8 +140,11 @@ class GtsfmMetric:
             else:
                 raise ValueError("Unsupported plot type for the data dimension")
 
+            # Create a summary if the data is a 1D distribution
             if self._dim == 1:
                 self._summary = self._create_summary(data)
+
+            # Store full data only if its a scalar or if asked to.
             if self._dim == 0 or store_full_data:
                 self._data = data
             else:
@@ -139,19 +176,43 @@ class GtsfmMetric:
         return self._summary
 
     def get_metric_as_dict(self) -> Dict[str, Any]:
+        """Provides a dict based representation of the metric that can be serialized to JSON.
+
+        The dict contains a single element, for which the key is the name of the metric.
+        If the metric is scalar, the value of this element is the scalar itself.
+        If the metric is a 1D distribution, the value is another dict which contains the summary of the data and also all the raw values (if they are stored).
+
+        Returns:
+            The metric as a dict representation explained above.
+        """
         if self._dim == 0:
             return {self._name: self._data.tolist()}
 
         metric_dict = {SUMMARY_KEY: self.summary}
         if self._data is not None:
             metric_dict[DATA_KEY] = self._data.tolist()
-        return { self._name: metric_dict }
+        return {self._name: metric_dict}
 
     def save_to_json(self, json_filename):
+        """Saves this metric's dict representation to a JSON file.
+
+        Args:
+            Path to the json file.
+        """
         io.save_json_file(json_filename, self.get_metric_as_dict())
 
     @classmethod
     def parse_from_dict(cls, metric_dict: Dict[str, Any]) -> GtsfmMetric:
+        """Creates a GtsfmMetric by parsing a dict representation.
+
+        It is assumed that the dict representation is the format created by GtsfmMetric.
+
+        Args:
+            metric_dict: Dict representation of the metric.
+
+        Returns:
+            Parsed GtsfmMetric instance.
+        """
         if len(metric_dict) != 1:
             raise AttributeError("Input metric dict should have a single key-value pair.")
 
@@ -164,7 +225,7 @@ class GtsfmMetric:
                 if not SUMMARY_KEY in metric_value:
                     raise ValueError("Metric {metric_name} does not have summary or data.")
                 return cls(metric_name, summary=metric_value[SUMMARY_KEY])
-            else:    
+            else:
                 return cls(metric_name, metric_value[DATA_KEY])
 
         # Scalar metrics
