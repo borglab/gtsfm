@@ -134,7 +134,10 @@ class GtsfmMetric:
             self._dim = data.ndim
             plot_types_for_dim = self._get_plot_types_for_dim(self._dim)
             if plot_type is None:
-                self._plot_type = plot_types_for_dim[0]
+                if summary is not None:
+                    self._plot_type = self.PlotType.HISTOGRAM if "histogram" in summary else self.PlotType.BOX
+                else:
+                    self._plot_type = plot_types_for_dim[0]
             elif plot_type in plot_types_for_dim:
                 self._plot_type = plot_type
             else:
@@ -221,12 +224,13 @@ class GtsfmMetric:
 
         # 1D distribution metrics
         if isinstance(metric_value, dict):
-            if not DATA_KEY in metric_value:
-                if not SUMMARY_KEY in metric_value:
-                    raise ValueError("Metric {metric_name} does not have summary or data.")
-                return cls(metric_name, summary=metric_value[SUMMARY_KEY])
-            else:
-                return cls(metric_name, metric_value[DATA_KEY])
+            data = None
+            summary = None
+            if DATA_KEY in metric_value:
+                data = metric_value[DATA_KEY]
+            if SUMMARY_KEY in metric_value:
+                summary = metric_value[SUMMARY_KEY]
+            return cls(metric_name, data=data, summary=summary)
 
         # Scalar metrics
         return cls(metric_name, metric_value)

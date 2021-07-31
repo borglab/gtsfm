@@ -2,6 +2,7 @@
 
 Authors: Akshay Krishnan
 """
+import copy
 import numpy as np
 import unittest
 import tempfile
@@ -16,44 +17,44 @@ class TestGtsfmMetric(unittest.TestCase):
     def setUp(self):
         super().setUp()
         self._metric_dict_quartiles = {
-            'bar_metric': {
+            'foo_metric': {
                 'summary': {
-                    'min': 0
-                    'max': 7
-                    'median': 3.5
-                    'mean': 3.5
-                    'stddev': 2
+                    'min': 0,
+                    'max': 7,
+                    'median': 3.5,
+                    'mean': 3.5,
+                    'stddev': 2,
                     'quartiles': {
-                        'q0': 0
-                        'q1': 1
-                        'q2': 3
-                        'q3': 5
-                        'q4': 7
+                        'q0': 0,
+                        'q1': 1,
+                        'q2': 3,
+                        'q3': 5,
+                        'q4': 7,
                     }
-                }
+                },
                 'full_data': [0, 1, 2, 3, 4, 5, 6, 7]
             }
         }
         self._metric_dict_histogram = {
             'bar_metric': {
                 'summary': {
-                    'min': 0
-                    'max': 3
-                    'median': 1.5
-                    'mean': 1.5
-                    'stddev': 2
+                    'min': 0,
+                    'max': 3,
+                    'median': 1.5,
+                    'mean': 1.5,
+                    'stddev': 2,
                     'histogram': {
-                        '0': 2
-                        '1': 2
-                        '2': 2
-                        '3': 2
+                        '0': 2,
+                        '1': 2,
+                        '2': 2,
+                        '3': 2,
                     }
-                }
+                },
                 'full_data': [0, 1, 0, 2, 2, 1, 3, 3]
             }
         }
-        self._metric_dict_no_data = self._metric_dict_histogram
-        del self._metric_dict_no_data['full_data']
+        self._metric_dict_no_data = copy.deepcopy(self._metric_dict_histogram)
+        del self._metric_dict_no_data['bar_metric']['full_data']
 
     def test_create_scalar_metric(self):
         metric = GtsfmMetric('a_scalar', 2)
@@ -81,21 +82,21 @@ class TestGtsfmMetric(unittest.TestCase):
         self.assertEqual(parsed_metric.name, 'foo_metric')
         self.assertEqual(parsed_metric.plot_type, GtsfmMetric.PlotType.BOX)
         self.assertIn('quartiles', parsed_metric.summary)
-        self.assertIn('full_data', parsed_metric.get_metrics_as_dict()[parsed_metric.name])
+        self.assertIn('full_data', parsed_metric.get_metric_as_dict()[parsed_metric.name])
 
     def test_parses_from_dict_1D_distribution_histogram(self):
         parsed_metric = GtsfmMetric.parse_from_dict(self._metric_dict_histogram)
         self.assertEqual(parsed_metric.name, 'bar_metric')
         self.assertEqual(parsed_metric.plot_type, GtsfmMetric.PlotType.HISTOGRAM)
         self.assertIn('histogram', parsed_metric.summary)
-        self.assertIn('full_data', parsed_metric.get_metrics_as_dict()[parsed_metric.name])
+        self.assertIn('full_data', parsed_metric.get_metric_as_dict()[parsed_metric.name])
 
     def test_parses_from_dict_no_full_data(self):
         parsed_metric = GtsfmMetric.parse_from_dict(self._metric_dict_no_data)
         self.assertEqual(parsed_metric.name, 'bar_metric')
         self.assertEqual(parsed_metric.plot_type, GtsfmMetric.PlotType.HISTOGRAM)
         self.assertIn('histogram', parsed_metric.summary)
-        self.assertNotIn('full_data', parsed_metric.get_metrics_as_dict()[parsed_metric.name])
+        self.assertNotIn('full_data', parsed_metric.get_metric_as_dict()[parsed_metric.name])
 
     def test_saves_to_json(self):
         metric = GtsfmMetric('to_be_written_metric', np.arange(10.0))
