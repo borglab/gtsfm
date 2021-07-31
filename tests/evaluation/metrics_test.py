@@ -3,10 +3,11 @@
 Authors: Akshay Krishnan
 """
 import copy
-import numpy as np
 import unittest
 import tempfile
 import os
+
+import numpy as np
 
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
