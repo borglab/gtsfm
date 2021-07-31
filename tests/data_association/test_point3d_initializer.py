@@ -250,7 +250,8 @@ class TestPoint3dInitializerUnestimatedCameras(unittest.TestCase):
         wti2 = np.array([-1.95517763, 1.44100216, -0.442089696])
         wTi2 = Pose3(Rot3(wRi2), wti2)
 
-        # should be 3 cameras, but one is unestimated
+        # Should be 3 cameras, but one is unestimated. Since camera 0 is unestimated, triangulation
+        # cannot succeed later if only 2 views are provided and one of them is from camera 0.
         cameras = {1: PinholeCameraCal3Bundler(wTi1, calibration), 2: PinholeCameraCal3Bundler(wTi2, calibration)}
 
         self.triangulator = Point3dInitializer(cameras, TriangulationParam.NO_RANSAC, reproj_error_thresh=5)
@@ -259,7 +260,7 @@ class TestPoint3dInitializerUnestimatedCameras(unittest.TestCase):
         """Ensure triangulation args are None for length-2 tracks where one or more measurements come from
         unestimated cameras.
 
-        Since camera 0 is unestimated, we have only 1 valid view within the track, so triangulation cannot succeed later.
+        In the corresponding camera data, we have only 1 valid view within the track.
         The function `extract_measurements()` should return None for the GTSAM primitives it generates.
         """
         inlier_track = SfmTrack2d(
