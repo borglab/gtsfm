@@ -44,6 +44,19 @@ class GtsfmMetric:
         store_full_data: bool = True,
         plot_type: PlotType = None,
     ) -> GtsfmMetric:
+    """Creates a GtsfmMetric. 
+       Args: 
+            name: name of the metric
+            data: All values of the metric, optional, uses summary if not provided.
+            summary: A summary dict of the metric, generated previously using the same class. 
+                     Has to be provided if data = None.
+            store_full_data: Whether all the values have to be stored and saved or only summary is required. True by default.
+            plot_type: The plot to use for visualization of the metric. 
+                       Defaults:
+                          PlotType.BAR if data is a scalar
+                          PlotType.BOX if data is a distribution (other option is PlotType.HISTOGRAM)
+                        It is inferred from the summary if plot_type is not provided and summary is.
+    """
         if summary is None and data is None:
             raise ValueError("Data and summary cannot both be None.")
 
