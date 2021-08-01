@@ -226,7 +226,7 @@ class GtsfmData:
         Returns:
             New object with the selected cameras and associated tracks.
         """
-        new_data = cls(len(camera_indices))
+        new_data = cls(number_images=len(camera_indices))
 
         for i in gtsfm_data.get_valid_camera_indices():
             if i in camera_indices:
