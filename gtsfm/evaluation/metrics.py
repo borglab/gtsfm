@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Union
 import numpy as np
 
 import gtsfm.utils.io as io
+import gtsfm.utils.logger as logger_utils
 
 """Keys to access data in the dictionary of the metric, or the JSON file. 
    If metric is a distribution, it is saved to JSON in the below format: 
@@ -27,11 +28,15 @@ import gtsfm.utils.io as io
 DATA_KEY = "full_data"
 SUMMARY_KEY = "summary"
 
+logger = logger_utils.get_logger()
 
 class GtsfmMetric:
     """Class to store a metric computed in a GTSfM module."""
 
     class PlotType(Enum):
+        """This enum is used by the GtsfmMetric class to decide how the data summary must be stored.
+        For example: box plots store quartiles, where as histogram stores a histogram.
+        """
         BAR = 1  # For scalars
         BOX = 2  # For 1D distributions
         HISTOGRAM = 3  # For 1D distributions
@@ -135,7 +140,7 @@ class GtsfmMetric:
             Histogram of data as a dict from bucket to count.
         """
         if data.size == 0:
-            print("Requested histogram for empty data metric, returning None.")
+            logger.info("Requested histogram for empty data metric, returning None.")
             return None
         if isinstance(data.tolist()[0], int):
             # One bin for each integer
@@ -232,7 +237,7 @@ class GtsfmMetric:
             metric_dict[DATA_KEY] = self._data.tolist()
         return {self._name: metric_dict}
 
-    def save_to_json(self, json_filename: str):
+    def save_to_json(self, json_filename: str) -> None:
         """Saves this metric's dict representation to a JSON file.
 
         Args:
@@ -287,13 +292,13 @@ class GtsfmMetricsGroup:
     def metrics(self) -> List[GtsfmMetric]:
         return self._metrics
 
-    def add_metric(self, metric: GtsfmMetric):
+    def add_metric(self, metric: GtsfmMetric) -> None:
         self._metrics.append(metric)
 
-    def add_metrics(self, metrics: List[GtsfmMetric]):
+    def add_metrics(self, metrics: List[GtsfmMetric]) -> None:
         self._metrics.extend(metrics)
 
-    def extend(self, metrics_group: GtsfmMetricsGroup):
+    def extend(self, metrics_group: GtsfmMetricsGroup) -> None:
         self._metrics.extend(metrics_group.metrics)
 
     def get_metrics_as_dict(self) -> Dict[str, Dict[str, Any]]:
@@ -316,7 +321,7 @@ class GtsfmMetricsGroup:
             metrics_dict.update(metric.get_metric_as_dict())
         return {self._name: metrics_dict}
 
-    def save_to_json(self, path: str):
+    def save_to_json(self, path: str) -> None:
         """Saves the dictionary representation of the metrics group to json.
         
         Args:
