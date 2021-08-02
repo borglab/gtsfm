@@ -3,9 +3,9 @@
 Authors: Akshay Krishnan
 """
 import copy
-import unittest
-import tempfile
 import os
+import tempfile
+import unittest
 
 import numpy as np
 
@@ -13,9 +13,9 @@ from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 
 class TestGtsfmMetric(unittest.TestCase):
-    """Tests for the Metrics class."""
+    """Unit tests for GtsfmMetric class."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
         self._metric_dict_quartiles = {
             "foo_metric": {
@@ -57,61 +57,63 @@ class TestGtsfmMetric(unittest.TestCase):
         self._metric_dict_no_data = copy.deepcopy(self._metric_dict_histogram)
         del self._metric_dict_no_data["bar_metric"]["full_data"]
 
-    def test_create_scalar_metric(self):
+    def test_create_scalar_metric(self) -> None:
         metric = GtsfmMetric("a_scalar", 2)
         self.assertEqual(metric.name, "a_scalar")
         np.testing.assert_equal(metric.data, np.array([2]))
         self.assertEqual(metric.plot_type, GtsfmMetric.PlotType.BAR)
 
-    def test_create_1d_distribution_metric(self):
+    def test_create_1d_distribution_metric(self) -> None:
         data = np.array([1, 2, 3, 4, 5, 6], dtype=np.float32)
         metric = GtsfmMetric("dist_metric", data)
         self.assertEqual(metric.name, "dist_metric")
         np.testing.assert_equal(metric.data, data)
         self.assertEqual(metric.plot_type, GtsfmMetric.PlotType.BOX)
 
-    def test_parses_from_dict_scalar(self):
+    def test_parses_from_dict_scalar(self) -> None:
         scalar_metric_dict = {"foo_metric": 2}
         parsed_metric = GtsfmMetric.parse_from_dict(scalar_metric_dict)
         self.assertEqual(parsed_metric.name, "foo_metric")
         np.testing.assert_equal(parsed_metric.data, 2)
 
-    def test_parses_from_dict_1D_distribution(self):
+    def test_parses_from_dict_1D_distribution(self) -> None:
         parsed_metric = GtsfmMetric.parse_from_dict(self._metric_dict_quartiles)
         self.assertEqual(parsed_metric.name, "foo_metric")
         self.assertEqual(parsed_metric.plot_type, GtsfmMetric.PlotType.BOX)
         self.assertIn("quartiles", parsed_metric.summary)
         self.assertIn("full_data", parsed_metric.get_metric_as_dict()[parsed_metric.name])
 
-    def test_parses_from_dict_1D_distribution_histogram(self):
+    def test_parses_from_dict_1D_distribution_histogram(self) -> None:
         parsed_metric = GtsfmMetric.parse_from_dict(self._metric_dict_histogram)
         self.assertEqual(parsed_metric.name, "bar_metric")
         self.assertEqual(parsed_metric.plot_type, GtsfmMetric.PlotType.HISTOGRAM)
         self.assertIn("histogram", parsed_metric.summary)
         self.assertIn("full_data", parsed_metric.get_metric_as_dict()[parsed_metric.name])
 
-    def test_parses_from_dict_no_full_data(self):
+    def test_parses_from_dict_no_full_data(self) -> None:
         parsed_metric = GtsfmMetric.parse_from_dict(self._metric_dict_no_data)
         self.assertEqual(parsed_metric.name, "bar_metric")
         self.assertEqual(parsed_metric.plot_type, GtsfmMetric.PlotType.HISTOGRAM)
         self.assertIn("histogram", parsed_metric.summary)
         self.assertNotIn("full_data", parsed_metric.get_metric_as_dict()[parsed_metric.name])
 
-    def test_saves_to_json(self):
+    def test_saves_to_json(self) -> None:
         metric = GtsfmMetric("to_be_written_metric", np.arange(10.0))
         with tempfile.TemporaryDirectory() as tempdir:
             metric.save_to_json(os.path.join(tempdir, "test_metrics.json"))
 
 
 class TestGtsfmMetricsGroup(unittest.TestCase):
-    def setUp(self):
+    """Unit tests for GtsfmMetricsGroup class."""
+
+    def setUp(self) -> None:
         super().setUp()
         self._metrics_list = []
-        self._metrics_list.append(GtsfmMetric("metric1", 2))
-        self._metrics_list.append(GtsfmMetric("metric2", np.array([1, 2, 3])))
-        self._metrics_group = GtsfmMetricsGroup("test_metrics", self._metrics_list)
+        self._metrics_list.append(GtsfmMetric(name="metric1", data=2))
+        self._metrics_list.append(GtsfmMetric(name="metric2", data=np.array([1, 2, 3])))
+        self._metrics_group = GtsfmMetricsGroup(name="test_metrics", metrics=self._metrics_list)
 
-    def test_get_metric_as_dict(self):
+    def test_get_metric_as_dict(self) -> None:
         metrics_group_dict = self._metrics_group.get_metrics_as_dict()
         self.assertEqual(len(metrics_group_dict), 1)
         self.assertEqual(len(metrics_group_dict["test_metrics"]), 2)
@@ -120,11 +122,11 @@ class TestGtsfmMetricsGroup(unittest.TestCase):
         np.testing.assert_equal(metric1_dict, np.array(2))
         np.testing.assert_equal(metric2_dict["full_data"], np.array([1, 2, 3]))
 
-    def test_saves_to_json(self):
+    def test_saves_to_json(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             self._metrics_group.save_to_json(os.path.join(tempdir, "test_metrics.json"))
 
-    def test_parse_metrics_from_dict(self):
+    def test_parse_metrics_from_dict(self) -> None:
         metrics_group_dict = self._metrics_group.get_metrics_as_dict()
         parsed_metrics = GtsfmMetricsGroup.parse_from_dict(metrics_group_dict)
         self.assertEqual(parsed_metrics.name, "test_metrics")
