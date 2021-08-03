@@ -117,18 +117,18 @@ class PatchmatchNetData(Dataset):
                         depths[key_b].append(b_z)
 
                     # if both cameras are valid cameras
-                    if key_a > 0 and key_b > 0:
+                    if key_a >= 0 and key_b >= 0:
                         # calculate score for track_i in the pair views (cam_a, cam_b)
                         score_a_b = piecewise_gaussian(
                             xPa=self._camera_centers[i_a] - w_x, xPb=self._camera_centers[i_b] - w_x
                         )
                         # sum up pair scores for each track_i
                         pair_scores[key_a, key_b] += score_a_b
-                        pair_scores[key_b, key_a] = pair_scores[key_a, key_b]
+                        pair_scores[key_b, key_a] += score_a_b
 
         # sort pair scores, for i-th row, choose the largest (num_views-1) scores, the corresponding views are selected
         #   as (num_views-1) source views for i-th reference view.
-        pairs = np.argsort(pair_scores, axis=0)[:, -self._num_views + 1 :][:, ::-1]
+        pairs = np.argsort(pair_scores, axis=1)[:, -self._num_views + 1 :][:, ::-1]
 
         # filter out depth outliers and calculate depth ranges
         depth_ranges = np.zeros((self._num_images, 2))
@@ -238,8 +238,8 @@ class PatchmatchNetData(Dataset):
             Tuple[np.ndarray, np.ndarray]: (intrinsics (3, 3), extrinsics (4, 4)) of the input image(or view) index
         """
         cam_key = self._patchmatchnet_idx_to_camera_idx[index]
-        intrinsics = self._sfm_result.get_camera(cam_key).calibration().K()
-        extrinsics = self._sfm_result.get_camera(cam_key).pose().inverse().matrix()
+        intrinsics = self._sfm_result.get_camera(cam_key).calibration().K().copy()
+        extrinsics = self._sfm_result.get_camera(cam_key).pose().inverse().matrix().copy()
         return (intrinsics, extrinsics)
 
     def get_image(self, index: int) -> np.ndarray:
