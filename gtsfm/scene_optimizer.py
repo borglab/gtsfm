@@ -407,7 +407,7 @@ def aggregate_frontend_metrics(
         two_view_report_dict: report containing front-end metrics for each image pair.
         angular_err_threshold_deg: threshold for classifying angular error metrics as success.
     """
-    num_entries = len(two_view_reports_dict.keys())
+    num_image_pairs = len(two_view_reports_dict.keys())
 
     # all rotational errors in degrees
     rot3_angular_errors = []
@@ -421,7 +421,7 @@ def aggregate_frontend_metrics(
     trans_angular_errors = np.array(trans_angular_errors, dtype=float)
 
     # count number of rot3 errors which are not None. Should be same in rot3/unit3
-    num_valid_entries = np.count_nonzero(~np.isnan(rot3_angular_errors))
+    num_valid_image_pairs = np.count_nonzero(~np.isnan(rot3_angular_errors))
 
     # compute pose errors by picking the max error from rot3 and unit3 errors
     pose_errors = np.maximum(rot3_angular_errors, trans_angular_errors)
@@ -435,28 +435,34 @@ def aggregate_frontend_metrics(
     all_correct = np.count_nonzero([report.inlier_ratio_gt_model == 1.0 for report in two_view_reports_dict.values()])
 
     logger.debug(
-        "[Two view optimizer] [Summary] Rotation success: %d/%d/%d", success_count_rot3, num_valid_entries, num_entries
+        "[Two view optimizer] [Summary] Rotation success: %d/%d/%d",
+        success_count_rot3,
+        num_valid_image_pairs,
+        num_image_pairs,
     )
 
     logger.debug(
         "[Two view optimizer] [Summary] Translation success: %d/%d/%d",
         success_count_unit3,
-        num_valid_entries,
-        num_entries,
+        num_valid_image_pairs,
+        num_image_pairs,
     )
 
     logger.debug(
-        "[Two view optimizer] [Summary] Pose success: %d/%d/%d", success_count_pose, num_valid_entries, num_entries
+        "[Two view optimizer] [Summary] Pose success: %d/%d/%d",
+        success_count_pose,
+        num_valid_image_pairs,
+        num_image_pairs,
     )
 
     logger.debug(
-        "[Two view optimizer] [Summary] # Image pairs with 100%% inlier ratio:: %d/%d", all_correct, num_entries
+        "[Two view optimizer] [Summary] # Image pairs with 100%% inlier ratio:: %d/%d", all_correct, num_image_pairs
     )
 
     front_end_result_info = {
         "angular_err_threshold_deg": angular_err_threshold_deg,
-        "num_valid_entries": int(num_valid_entries),
-        "num_total_entries": int(num_entries),
+        "num_valid_image_pairs": int(num_valid_image_pairs),
+        "num_total_image_pairs": int(num_image_pairs),
         "rotation": {"success_count": int(success_count_rot3)},
         "translation": {"success_count": int(success_count_unit3)},
         "pose": {"success_count": int(success_count_pose)},

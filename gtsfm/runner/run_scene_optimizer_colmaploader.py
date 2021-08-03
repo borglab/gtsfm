@@ -1,5 +1,4 @@
 import argparse
-from pathlib import Path
 
 import hydra
 from dask.distributed import Client, LocalCluster, performance_report
