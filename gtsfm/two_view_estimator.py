@@ -9,7 +9,6 @@ from typing import Tuple, Optional
 import dask
 import numpy as np
 from dask.delayed import Delayed
-from dataclasses import dataclass
 from gtsam import Cal3Bundler, Pose3, Rot3, Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
