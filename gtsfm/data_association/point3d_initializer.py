@@ -155,27 +155,32 @@ class Point3dInitializer(NamedTuple):
             is_cheirality_failure: boolean representing whether the selected 2d measurements lead
                 to a cheirality exception upon triangulation
         """
+        # Check if we will run RANSAC, or not.
         if self.mode in [
             TriangulationParam.RANSAC_SAMPLE_UNIFORM,
             TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
             TriangulationParam.RANSAC_TOPK_BASELINES,
         ]:
             best_inliers = self.execute_ransac_variant(track_2d)
-
         elif self.mode == TriangulationParam.NO_RANSAC:
             best_inliers = np.ones(len(track_2d.measurements), dtype=bool)  # all marked as inliers
 
-        inlier_idxs = (np.where(best_inliers)[0]).tolist()
-
         is_cheirality_failure = False
+      
+        # Verify we have at least 2 inliers.
+        inlier_idxs = (np.where(best_inliers)[0]).tolist()
         if len(inlier_idxs) < 2:
             return None, None, is_cheirality_failure
 
+        # Extract keypoint measurements corresponding to inlier indices.
         inlier_track = track_2d.select_subset(inlier_idxs)
         track_cameras, track_measurements = self.extract_measurements(inlier_track)
+        
+        # Exit if we do not have at least 2 measurements in cameras with estimated poses.
         if track_cameras is None:
-            # weren't at least 2 cameras with poses
             return None, None, is_cheirality_failure
+        
+        # Triangulate and check for cheirality failure from GTSAM.
         try:
             triangulated_pt = gtsam.triangulatePoint3(
                 track_cameras,
@@ -187,15 +192,17 @@ class Point3dInitializer(NamedTuple):
             is_cheirality_failure = True
             return None, None, is_cheirality_failure
 
-        # compute reprojection errors for each measurement
+        # Compute reprojection errors for each measurement.
         reproj_errors, avg_track_reproj_error = reproj_utils.compute_point_reprojection_errors(
             self.track_camera_dict, triangulated_pt, inlier_track.measurements
         )
 
-        # all the measurements should have error < threshold
+        # Check that all the measurements have reprojection error < threshold.
+        # TODO(johnwlambert): compare with approach where we only throw away the outlier measurements.
         if not np.all(reproj_errors < self.reproj_error_thresh):
             return None, avg_track_reproj_error, is_cheirality_failure
 
+        # Create a gtsam.SfmTrack with the triangulated 3d point and associated 2d measurements.
         track_3d = SfmTrack(triangulated_pt)
         for i, uv in inlier_track.measurements:
             track_3d.add_measurement(i, uv)
@@ -271,6 +278,8 @@ class Point3dInitializer(NamedTuple):
 
     def extract_measurements(self, track: SfmTrack2d) -> Tuple[CameraSetCal3Bundler, Point2Vector]:
         """Convert measurements in a track into GTSAM primitive types for triangulation arguments.
+        
+        Returns None, None if less than 2 measurements were found with available, estimated camera poses after averaging.
 
         Args:
             track: feature track from which measurements are to be extracted.
