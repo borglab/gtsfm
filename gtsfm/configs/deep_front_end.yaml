@@ -10,7 +10,6 @@ SceneOptimizer:
     detector_descriptor:
       _target_: gtsfm.frontend.detector_descriptor.superpoint.SuperPointDetectorDescriptor
 
-
   two_view_estimator:
     _target_: gtsfm.two_view_estimator.TwoViewEstimator
     eval_threshold_px: 3 # in px
@@ -37,7 +36,7 @@ SceneOptimizer:
     data_association_module:
       _target_: gtsfm.data_association.data_assoc.DataAssociation
       reproj_error_thresh: 100
-      min_track_len: 2
+      min_track_len: 3
       mode:
         _target_: gtsfm.data_association.data_assoc.TriangulationParam
         value: 0 # 0 corresponds to NO_RANSAC
