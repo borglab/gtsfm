@@ -9,6 +9,7 @@ Authors: Sushmita Warrier, Xiaolong Wu, John Lambert
 
 import itertools
 from enum import Enum
+import random
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import gtsam
@@ -87,7 +88,8 @@ class Point3dInitializer(NamedTuple):
             raise ValueError("RANSAC triangulation requested but number of hypothesis is None.")
 
         # Generate all possible matches
-        measurement_pairs = self.generate_measurement_pairs(track_2d)
+        measurement_pairs = generate_measurement_pairs(track_2d)
+        random.shuffle(measurement_pairs)  # puts the random in RANSAC
 
         # limit the number of samples to the number of available pairs
         num_hypotheses = min(self.num_ransac_hypotheses, len(measurement_pairs))
@@ -108,7 +110,7 @@ class Point3dInitializer(NamedTuple):
 
             # check for unestimated cameras
             if self.track_camera_dict.get(i1) is None or self.track_camera_dict.get(i2) is None:
-                logger.warning("Unestimated cameras found at indices %d or %d. Skipping them." % (i1, i2))
+                logger.warning("Unestimated cameras found at indices %d or %d. Skipping them.", i1, i2)
                 continue
 
             camera_estimates = CameraSetCal3Bundler()
@@ -217,25 +219,10 @@ class Point3dInitializer(NamedTuple):
 
         # Create a gtsam.SfmTrack with the triangulated 3d point and associated 2d measurements.
         track_3d = SfmTrack(triangulated_pt)
-        for camera_id, uv in inlier_track.measurements:
-            track_3d.add_measurement(camera_id, uv)
+        for i, uv in inlier_track.measurements:
+            track_3d.add_measurement(i, uv)
 
         return track_3d, avg_track_reproj_error, TriangulationExitCode.SUCCESS
-
-    def generate_measurement_pairs(self, track: SfmTrack2d) -> List[Tuple[int, ...]]:
-        """
-        Extract all possible measurement pairs in a track for triangulation.
-
-        Args:
-            track: feature track from which measurements are to be extracted
-
-        Returns:
-            measurement_idxs: all possible matching measurement indices in a given track
-        """
-        num_track_measurements = track.number_measurements()
-        all_measurement_idxs = range(num_track_measurements)
-        measurement_pair_idxs = list(itertools.combinations(all_measurement_idxs, NUM_SAMPLES_PER_RANSAC_HYPOTHESIS))
-        return measurement_pair_idxs
 
     def sample_ransac_hypotheses(
         self,
@@ -305,17 +292,33 @@ class Point3dInitializer(NamedTuple):
         track_measurements = Point2Vector()  # vector of 2d points
 
         # Compile valid measurements.
-        for camera_id, uv in track.measurements:
+        for i, uv in track.measurements:
 
             # check for unestimated cameras
-            if self.track_camera_dict.get(camera_id) is not None:
-                track_cameras.append(self.track_camera_dict.get(camera_id))
+            if self.track_camera_dict.get(i) is not None:
+                track_cameras.append(self.track_camera_dict.get(i))
                 track_measurements.append(uv)
             else:
-                logger.warning("Unestimated cameras found at index %d. Skipping them.", camera_id)
+                logger.warning("Unestimated cameras found at index %d. Skipping them.", i)
 
         # Triangulation is underconstrained with <2 measurements.
         if len(track_cameras) < 2:
             return None, None
 
         return track_cameras, track_measurements
+
+
+def generate_measurement_pairs(track: SfmTrack2d) -> List[Tuple[int, ...]]:
+    """
+    Extract all possible measurement pairs in a track for triangulation.
+
+    Args:
+        track: feature track from which measurements are to be extracted
+
+    Returns:
+        measurement_idxs: all possible matching measurement indices in a given track
+    """
+    num_track_measurements = track.number_measurements()
+    all_measurement_idxs = range(num_track_measurements)
+    measurement_pair_idxs = list(itertools.combinations(all_measurement_idxs, NUM_SAMPLES_PER_RANSAC_HYPOTHESIS))
+    return measurement_pair_idxs
