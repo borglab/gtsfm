@@ -70,6 +70,9 @@ class Point3dInitializer(NamedTuple):
             best_inliers: boolean array of length N. Indices of measurements
                are set to true if they correspond to the best RANSAC hypothesis
         """
+        if self.num_ransac_hypotheses is None:
+            raise ValueError("RANSAC triangulation requested but number of hypothesis is None.")
+
         # Generate all possible matches
         measurement_pairs = self.generate_measurement_pairs(track_2d)
 
@@ -202,7 +205,7 @@ class Point3dInitializer(NamedTuple):
 
         return track_3d, avg_track_reproj_error, is_cheirality_failure
 
-    def generate_measurement_pairs(self, track: SfmTrack2d) -> List[Tuple[int, int]]:
+    def generate_measurement_pairs(self, track: SfmTrack2d) -> List[Tuple[int, ...]]:
         """
         Extract all possible measurement pairs in a track for triangulation.
 
@@ -220,7 +223,7 @@ class Point3dInitializer(NamedTuple):
     def sample_ransac_hypotheses(
         self,
         track: SfmTrack2d,
-        measurement_pairs: List[Tuple[int, int]],
+        measurement_pairs: List[Tuple[int, ...]],
         num_hypotheses: int,
     ) -> List[int]:
         """Sample a list of hypotheses (camera pairs) to use during triangulation.
@@ -282,17 +285,19 @@ class Point3dInitializer(NamedTuple):
         track_cameras = CameraSetCal3Bundler()
         track_measurements = Point2Vector()  # vector of 2d points
 
+        n_meas = 0
         for i, uv in track.measurements:
 
             # check for unestimated cameras
             if self.track_camera_dict.get(i) is not None:
                 track_cameras.append(self.track_camera_dict.get(i))
                 track_measurements.append(uv)
+                n_meas += 1
             else:
                 logger.warning("Unestimated cameras found at index %d. Skipping them.", i)
 
-        # triangulation is impossible with <2 measurements
-        if len(track_cameras) < 2 or len(track_measurements) < 2:
+        # triangulation is underconstrained with <2 measurements
+        if n_meas < 2:
             return None, None
 
         return track_cameras, track_measurements
