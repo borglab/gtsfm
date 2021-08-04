@@ -37,7 +37,9 @@ class TestVerifierBase(unittest.TestCase):
         np.random.seed(RANDOM_SEED)
         random.seed(RANDOM_SEED)
 
-        self.verifier: VerifierBase = Ransac(use_intrinsics_in_verification=True, px_threshold=0.5)
+        self.verifier: VerifierBase = Ransac(
+            use_intrinsics_in_verification=True, estimation_threshold_px=0.5, min_allowed_inlier_ratio_est_model=0.1
+        )
 
     def __execute_test(
         self,
@@ -52,7 +54,7 @@ class TestVerifierBase(unittest.TestCase):
     ) -> None:
         """Execute the verification and compute results."""
 
-        i2Ri1_computed, i2Ui1_computed, verified_indices_computed = self.verifier.verify(
+        i2Ri1_computed, i2Ui1_computed, verified_indices_computed, inlier_ratio_est_model = self.verifier.verify(
             keypoints_i1,
             keypoints_i2,
             match_indices,
@@ -149,9 +151,10 @@ class TestVerifierBase(unittest.TestCase):
         expected_i2Ri1 = expected_results[0]
         expected_i2Ui1 = expected_results[1]
         expected_v_corr_idxs = expected_results[2]
+        expected_inlier_ratio_est_model = expected_results[3]
 
         # generate the computation graph for the verifier
-        (delayed_i2Ri1, delayed_i2Ui1, delayed_v_corr_idxs,) = self.verifier.create_computation_graph(
+        (delayed_i2Ri1, delayed_i2Ui1, delayed_v_corr_idxs, delayed_inlier_ratio_est_model) = self.verifier.create_computation_graph(
             dask.delayed(keypoints_i1),
             dask.delayed(keypoints_i2),
             dask.delayed(matches_i1i2),
@@ -160,7 +163,7 @@ class TestVerifierBase(unittest.TestCase):
         )
 
         with dask.config.set(scheduler="single-threaded"):
-            i2Ri1, i2Ui1, v_corr_idxs = dask.compute(delayed_i2Ri1, delayed_i2Ui1, delayed_v_corr_idxs)
+            i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio_est_model = dask.compute(delayed_i2Ri1, delayed_i2Ui1, delayed_v_corr_idxs, delayed_inlier_ratio_est_model)
 
         if expected_i2Ri1 is None:
             self.assertIsNone(i2Ri1)
@@ -171,6 +174,7 @@ class TestVerifierBase(unittest.TestCase):
         else:
             self.assertTrue(expected_i2Ui1.equals(i2Ui1, 1e-2))
         np.testing.assert_array_equal(v_corr_idxs, expected_v_corr_idxs)
+        np.testing.assert_almost_equal(inlier_ratio_est_model, expected_inlier_ratio_est_model)
 
     def test_pickleable(self) -> None:
         """Tests that the verifier object is pickleable (required for dask)."""
@@ -203,6 +207,7 @@ class TestVerifierBase(unittest.TestCase):
             i2Ri1,
             i2Ui1,
             verified_indices,
+            inlier_ratio_est_model,
         ) = self.verifier.verify(keypoints_i1, keypoints_i2, match_indices, intrinsics_i1, intrinsics_i2)
 
         return i2Ri1, i2Ui1, verified_indices, keypoints_i1, keypoints_i2
