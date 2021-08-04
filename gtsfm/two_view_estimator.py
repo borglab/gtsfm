@@ -6,14 +6,19 @@ import logging
 from typing import Tuple, Optional
 
 import dask
+import gtsam
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import Cal3Bundler, Pose3, Rot3, Unit3
+from gtsam import Cal3Bundler, EssentialMatrix, EssentialMatrixFactor, Pose3, PinholeCameraCal3Bundler, Rot3, Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
+import gtsfm.utils.features as feature_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
+from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.data_association.point3d_initializer import TriangulationParam
+from gtsfm.data_association.data_assoc import DataAssociation
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
@@ -24,6 +29,13 @@ mpl_logger.setLevel(logging.WARNING)
 
 pil_logger = logging.getLogger("PIL")
 pil_logger.setLevel(logging.INFO)
+
+BA_NOISE_MODEL_EPIPOLAR_ALGEBRAIC_ERROR = gtsam.noiseModel.Isotropic.Sigma(1, 0.01)
+
+DATA_ASSOC_2VIEW = DataAssociation(reproj_error_thresh=3, min_track_len=2, mode=TriangulationParam.NO_RANSAC)
+BUNDLE_ADJUST_2VIEW = BundleAdjustmentOptimizer(
+    output_reproj_error_thresh=100
+)  # we dont care about output error threshold
 
 
 class TwoViewEstimator:
@@ -40,6 +52,46 @@ class TwoViewEstimator:
         self._matcher = matcher
         self._verifier = verifier
         self._corr_metric_dist_threshold = corr_metric_dist_threshold
+
+    @classmethod
+    def bundle_adjust(
+        cls,
+        keypoints_i1: Keypoints,
+        keypoints_i2: Keypoints,
+        verified_corr_idxes: np.ndarray,
+        camera_intrinsics_i1: Cal3Bundler,
+        camera_intrinsics_i2: Cal3Bundler,
+        i2Ri1_initial: Optional[Rot3],
+        i2Ui1_initial: Optional[Unit3],
+    ) -> Tuple[Optional[Rot3], Optional[Unit3]]:
+
+        if i2Ri1_initial is None or i2Ui1_initial is None:
+            return None, None
+
+        # set the camera 2 pose as the global coordinate system
+        camera_i1 = PinholeCameraCal3Bundler(Pose3(i2Ri1_initial, i2Ui1_initial.point3()), camera_intrinsics_i1)
+        camera_i2 = PinholeCameraCal3Bundler(Pose3(), camera_intrinsics_i2)
+
+        # perform data association to construct 2-view BA input
+        ba_input, _ = DATA_ASSOC_2VIEW.run(
+            num_images=2,
+            cameras={0: camera_i1, 1: camera_i2},
+            corr_idxs_dict={(0, 1): verified_corr_idxes},
+            keypoints_list=[keypoints_i1, keypoints_i2],
+        )
+
+        ba_output = BUNDLE_ADJUST_2VIEW.run(ba_input)
+
+        # extract the camera poses
+        wPi1, wPi2 = ba_output.get_camera_poses()
+
+        if wPi1 is None or wPi2 is None:
+            logger.warning("2-view BA failed")
+            return i2Ri1_initial, i2Ui1_initial
+
+        i2Pi1_optimized = wPi2.between(wPi1)
+
+        return i2Pi1_optimized.rotation(), Unit3(i2Pi1_optimized.translation())
 
     def get_corr_metric_dist_threshold(self) -> float:
         """Getter for the distance threshold used in the metric for correct correspondences."""
@@ -92,13 +144,26 @@ class TwoViewEstimator:
 
         # verification on putative correspondences to obtain relative pose
         # and verified correspondences
-        (i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph,) = self._verifier.create_computation_graph(
+        (i2Ri1_pre_ba_graph, i2Ui1_pre_ba_graph, v_corr_idxs_graph,) = self._verifier.create_computation_graph(
             keypoints_i1_graph,
             keypoints_i2_graph,
             corr_idxs_graph,
             camera_intrinsics_i1_graph,
             camera_intrinsics_i2_graph,
         )
+
+        ba_output_graph = dask.delayed(self.bundle_adjust)(
+            keypoints_i1_graph,
+            keypoints_i2_graph,
+            v_corr_idxs_graph,
+            camera_intrinsics_i1_graph,
+            camera_intrinsics_i2_graph,
+            i2Ri1_pre_ba_graph,
+            i2Ui1_pre_ba_graph,
+        )
+
+        i2Ri1_graph = ba_output_graph[0]
+        i2Ui1_graph = ba_output_graph[1]
 
         # if we have the expected data, evaluate the computed relative pose
         if i2Ti1_expected_graph is not None:
