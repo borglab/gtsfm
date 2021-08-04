@@ -38,6 +38,7 @@ cameras will be sampled."""
 class TriangulationExitCode(Enum):
     """Exit codes for triangulation computation."""
 
+    # TODO(travisdriver): enforce exit codes in unit tests
     SUCCESS = 0  # successfully estimated 3d point from measurements
     CHEIRALITY_FAILURE = 1  # cheirality exception from gtsam.triangulatePoint3
     INLIERS_UNDERCONSTRAINED = 2  # insufficent number of inlier measurements
