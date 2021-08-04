@@ -35,7 +35,19 @@ in a track are used w/o ransac. If one of the three sampling modes for robust tr
 cameras will be sampled."""
 
 
+class TriangulationExitCode(Enum):
+    """Exit codes for trinaulation computation."""
+
+    SUCCESS = 0
+    CHEIRALITY_FAILURE = 1
+    INLIERS_UNDERCONSTRAINED = 2
+    POSES_UNDERCONSTRAINED = 3
+    EXCEEDS_REPROJ_THRESH = 4
+
+
 class TriangulationParam(Enum):
+    """Triangulation modes."""
+
     NO_RANSAC = 0  # do not use filtering
     RANSAC_SAMPLE_UNIFORM = 1  # sample a pair of cameras uniformly at random
     RANSAC_SAMPLE_BIASED_BASELINE = 2  # sample pair of cameras based on largest estimated baseline
@@ -144,7 +156,7 @@ class Point3dInitializer(NamedTuple):
 
         return best_inliers
 
-    def triangulate(self, track_2d: SfmTrack2d) -> Tuple[Optional[SfmTrack], Optional[float], bool]:
+    def triangulate(self, track_2d: SfmTrack2d) -> Tuple[Optional[SfmTrack], Optional[float], TriangulationExitCode]:
         """Triangulates 3D point according to the configured triangulation mode.
 
         Args:
@@ -168,21 +180,19 @@ class Point3dInitializer(NamedTuple):
         elif self.mode == TriangulationParam.NO_RANSAC:
             best_inliers = np.ones(len(track_2d.measurements), dtype=bool)  # all marked as inliers
 
-        is_cheirality_failure = False
-      
         # Verify we have at least 2 inliers.
         inlier_idxs = (np.where(best_inliers)[0]).tolist()
         if len(inlier_idxs) < 2:
-            return None, None, is_cheirality_failure
+            return None, None, TriangulationExitCode.INLIERS_UNDERCONSTRAINED
 
         # Extract keypoint measurements corresponding to inlier indices.
         inlier_track = track_2d.select_subset(inlier_idxs)
         track_cameras, track_measurements = self.extract_measurements(inlier_track)
-        
+
         # Exit if we do not have at least 2 measurements in cameras with estimated poses.
         if track_cameras is None:
-            return None, None, is_cheirality_failure
-        
+            return None, None, TriangulationExitCode.POSES_UNDERCONSTRAINED
+
         # Triangulate and check for cheirality failure from GTSAM.
         try:
             triangulated_pt = gtsam.triangulatePoint3(
@@ -192,8 +202,7 @@ class Point3dInitializer(NamedTuple):
                 optimize=True,
             )
         except RuntimeError:
-            is_cheirality_failure = True
-            return None, None, is_cheirality_failure
+            return None, None, TriangulationExitCode.CHEIRALITY_FAILURE
 
         # Compute reprojection errors for each measurement.
         reproj_errors, avg_track_reproj_error = reproj_utils.compute_point_reprojection_errors(
@@ -203,14 +212,14 @@ class Point3dInitializer(NamedTuple):
         # Check that all the measurements have reprojection error < threshold.
         # TODO(johnwlambert): compare with approach where we only throw away the outlier measurements.
         if not np.all(reproj_errors < self.reproj_error_thresh):
-            return None, avg_track_reproj_error, is_cheirality_failure
+            return None, avg_track_reproj_error, TriangulationExitCode.EXCEEDS_REPROJ_THRESH
 
         # Create a gtsam.SfmTrack with the triangulated 3d point and associated 2d measurements.
         track_3d = SfmTrack(triangulated_pt)
         for i, uv in inlier_track.measurements:
             track_3d.add_measurement(i, uv)
 
-        return track_3d, avg_track_reproj_error, is_cheirality_failure
+        return track_3d, avg_track_reproj_error, TriangulationExitCode.SUCCESS
 
     def generate_measurement_pairs(self, track: SfmTrack2d) -> List[Tuple[int, ...]]:
         """
@@ -281,8 +290,8 @@ class Point3dInitializer(NamedTuple):
 
     def extract_measurements(self, track: SfmTrack2d) -> Tuple[CameraSetCal3Bundler, Point2Vector]:
         """Convert measurements in a track into GTSAM primitive types for triangulation arguments.
-        
-        Returns None, None if less than 2 measurements were found with available, estimated camera poses after averaging.
+
+        Returns None, None if less than 2 measurements were found with estimated camera poses after averaging.
 
         Args:
             track: feature track from which measurements are to be extracted.

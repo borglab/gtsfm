@@ -24,6 +24,7 @@ from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.data_association.point3d_initializer import (
     Point3dInitializer,
     TriangulationParam,
+    TriangulationExitCode,
 )
 from gtsfm.common.image import Image
 import gtsfm.utils.io as io_utils
@@ -58,7 +59,7 @@ class DataAssociation(NamedTuple):
         cameras: Dict[int, PinholeCameraCal3Bundler],
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
-        images: Optional[List[Image]] = None
+        images: Optional[List[Image]] = None,
     ) -> Tuple[GtsfmData, Dict[str, Any]]:
         """Perform the data association.
 
@@ -89,7 +90,10 @@ class DataAssociation(NamedTuple):
 
         # initializer of 3D landmark for each track
         point3d_initializer = Point3dInitializer(
-            cameras, self.mode, self.reproj_error_thresh, self.num_ransac_hypotheses,
+            cameras,
+            self.mode,
+            self.reproj_error_thresh,
+            self.num_ransac_hypotheses,
         )
 
         num_tracks_w_cheirality_exceptions = 0
@@ -106,13 +110,13 @@ class DataAssociation(NamedTuple):
         # add valid tracks where triangulation is successful
         for track_2d in tracks_2d:
             # triangulate and filter based on reprojection error
-            sfm_track, avg_track_reproj_error, is_cheirality_failure = point3d_initializer.triangulate(track_2d)
-            if is_cheirality_failure:
+            sfm_track, avg_track_reproj_error, triangulation_exit_code = point3d_initializer.triangulate(track_2d)
+            if triangulation_exit_code == TriangulationExitCode.CHEIRALITY_FAILURE:
                 num_tracks_w_cheirality_exceptions += 1
 
             if avg_track_reproj_error is not None:
                 # need no more than 3 significant figures in json report
-                avg_track_reproj_error = np.round(avg_track_reproj_error, 3) 
+                avg_track_reproj_error = np.round(avg_track_reproj_error, 3)
 
             if sfm_track is not None and self.__validate_track(sfm_track):
                 triangulated_data.add_track(sfm_track)
