@@ -1,7 +1,12 @@
-"""Class to store metrics computed in different GTSfM modules.
+"""Classes to store metrics computed in different GTSfM modules.
+
+The GtsfmMetric class stores a single metric, and the GtsfmMetricsGroup stores a list of metrics.
+These classes are used to compute statistics on the metrics (min, max, etc), 
+save them to JSON, parse metrics from JSON, and plot them.
 
 Authors: Akshay Krishnan
 """
+
 from __future__ import annotations
 
 import json
@@ -13,38 +18,53 @@ import numpy as np
 import gtsfm.utils.io as io
 import gtsfm.utils.logger as logger_utils
 
-"""Keys to access data in the dictionary of the metric, or the JSON file. 
-   If metric is a distribution, it is saved to JSON in the below format: 
-   metric_name: {
-       DATA_KEY: {
-           .. raw data if stored ..
-       }
-       SUMMARY_KEY: {
-            .. summary (stats) of distribution ..    
-       }
-   }
-   If the metric is scalar, it is stored simply as {metric_name: value}. 
-"""
+# Keys to access data and summary in the dictionary representation of metrics.
 DATA_KEY = "full_data"
 SUMMARY_KEY = "summary"
+
+# Type hint for a 1D distribution
+Distribution1D = Union[np.ndarray, float, List[Union[int, float]]]
 
 logger = logger_utils.get_logger()
 
 class GtsfmMetric:
-    """Class to store a metric computed in a GTSfM module."""
+    """Class to store a metric computed in a GTSfM module. 
+
+    A GtsfmMetric has a name and data which can either be a scalar or a 1D distribution. 
+    A metric can be represented as a dictionary for serialization. 
+    A scalar metric is represented as : {"metric_name": metric_value}
+    A 1D distribution metric is represented as:
+    {
+        "metric_name": {
+            "full_data": [list of values] (optional)
+            "summary": {
+                "min": min value
+                "max": max value
+                "median": median value
+                "mean": mean value
+                "stddev": standard deviation value
+                "histogram": {} (OR) "quartiles": {}
+            }
+        }
+    }
+    For a 1D distribution, storing all the values of the metric is optional, as this can be large.
+    The summary contains either a histogram or quartiles of the distribution depending on how it is to be plotted.
+    When a 1D metric is first created, it is constructed using full_data, but if is parsed from a dict, 
+    it can also be constructed using just the summary.    
+    """
 
     class PlotType(Enum):
-        """This enum is used by the GtsfmMetric class to decide how the data summary must be stored.
-        For example: box plots store quartiles, where as histogram stores a histogram.
+        """Used to select how the metric is to be plotted. Also decides the format of the summary.
+        Example: Summaries of box plots store quartiles, and histogram plotted metrics store a histogram.
         """
-        BAR = 1  # For scalars
-        BOX = 2  # For 1D distributions
-        HISTOGRAM = 3  # For 1D distributions
+        BAR = 1         # For scalars
+        BOX = 2         # For 1D distributions
+        HISTOGRAM = 3   # For 1D distributions
 
     def __init__(
         self,
         name: str,
-        data: Optional[Union[np.array, float, List[Union[int, float]]]] = None,
+        data: Optional[Distribution1D] = None,
         summary: Optional[Dict[str, Any]] = None,
         store_full_data: bool = True,
         plot_type: PlotType = None,
@@ -106,7 +126,7 @@ class GtsfmMetric:
         return self._name
 
     @property
-    def data(self) -> np.array:
+    def data(self) -> np.ndarray:
         return self._data
 
     @property
@@ -131,8 +151,9 @@ class GtsfmMetric:
     def _get_distribution_histogram(self, data: np.ndarray) -> Dict[str, Union[float, int]]:
         """Returns the histogram of data as a dictionary.
 
+        Metrics that are plotted as a histogram contain histogram in their summary.
         If the data is float, the keys of the dictionary are interval buckets, and if the data is int, the keys are also int.
-
+        
         Args:
             data: 1D array of all values of the metric
 
@@ -196,6 +217,8 @@ class GtsfmMetric:
     def _get_distribution_quartiles(self, data: np.ndarray) -> Dict[int, float]:
         """Computes quartiles for the provided 1D data distribution.
 
+        Metrics that are to be plotted as box plots contain quartiles in their summary.        
+
         Args:
             data: 1D distribution of metric values
 
@@ -210,15 +233,13 @@ class GtsfmMetric:
         return output
 
     def get_metric_as_dict(self) -> Dict[str, Any]:
-        """Provides a dict based representation of the metric that can be serialized to JSON.
+        """Provides a dictionary representation of the metric that can be serialized to JSON.
 
         The dict contains a single element, for which the key is the name of the metric.
         If metric is a distribution, the dict is in the below format: 
         {
             metric_name: {
-               DATA_KEY: {
-                   .. raw data if stored ..
-               }
+               DATA_KEY: [.. raw data if stored ..]
                SUMMARY_KEY: {
                     .. summary (stats) of distribution ..    
                }
@@ -278,7 +299,20 @@ class GtsfmMetric:
 
 
 class GtsfmMetricsGroup:
-    """Stores GtsfmMetrics from the same module. """
+    """Stores a list of `GtsfmMetric`s. 
+
+    A GtsfmMetricsGroup comprises a list of metrics that are semantically related, so that they can be 
+    given a name, saved and plotted together. This is the case when the metrics belong to the same Gtsfm module. 
+
+    A GtsfmMetricsGroup can be represented as a dictionary that can be serialized:
+    {
+        "metrics_group_name": {
+            dictionary repesentation of metric1, 
+            dictionary repesentation of metric2, 
+            ...
+        }
+    }
+    """
 
     def __init__(self, name: str, metrics: List[GtsfmMetric]) -> GtsfmMetricsGroup:
         self._name = name
@@ -306,9 +340,9 @@ class GtsfmMetricsGroup:
 
         This is the below format:
         {
-            metrics_group_name: {
-                metric1_name: metric1_dict
-                metric2_name: metric2_dict
+            "metrics_group_name": {
+                "metric1_name": metric1_dict
+                "metric2_name": metric2_dict
                 ...
             }
         }
