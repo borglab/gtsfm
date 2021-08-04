@@ -13,8 +13,9 @@ from typing import List
 import numpy as np
 from gtsam import Cal3_S2, Cal3Bundler, PinholeCameraCal3Bundler, Point2, Point3, Pose3, Rot3
 from gtsam.examples import SFMdata
+from numpy.lib.twodim_base import tri
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
-from gtsfm.data_association.point3d_initializer import Point3dInitializer, TriangulationParam
+from gtsfm.data_association.point3d_initializer import Point3dInitializer, TriangulationExitCode, TriangulationParam
 from gtsfm.loader.olsson_loader import OlssonLoader
 
 # path for data used in this test
@@ -124,7 +125,7 @@ class TestPoint3dInitializer(unittest.TestCase):
             flipped_cameras, obj.mode, obj.reproj_error_thresh, obj.num_ransac_hypotheses
         )
 
-        sfm_track, _, _ = obj_with_flipped_cameras.triangulate(SfmTrack2d(MEASUREMENTS))
+        sfm_track, _, triangulation_exit_code = obj_with_flipped_cameras.triangulate(SfmTrack2d(MEASUREMENTS))
 
         return sfm_track is None
 
