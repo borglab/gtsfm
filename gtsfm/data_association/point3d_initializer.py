@@ -36,13 +36,13 @@ cameras will be sampled."""
 
 
 class TriangulationExitCode(Enum):
-    """Exit codes for trinaulation computation."""
+    """Exit codes for triangulation computation."""
 
-    SUCCESS = 0
-    CHEIRALITY_FAILURE = 1
-    INLIERS_UNDERCONSTRAINED = 2
-    POSES_UNDERCONSTRAINED = 3
-    EXCEEDS_REPROJ_THRESH = 4
+    SUCCESS = 0  # successfully estimated 3d point from measurements
+    CHEIRALITY_FAILURE = 1  # cheirality exception from gtsam.triangulatePoint3
+    INLIERS_UNDERCONSTRAINED = 2  # insufficent number of inlier measurements
+    POSES_UNDERCONSTRAINED = 3  # insufficent number of estimated camera poses
+    EXCEEDS_REPROJ_THRESH = 4  # estimated 3d point exceeds reprojection threshold
 
 
 class TriangulationParam(Enum):
@@ -107,7 +107,7 @@ class Point3dInitializer(NamedTuple):
 
             # check for unestimated cameras
             if self.track_camera_dict.get(i1) is None or self.track_camera_dict.get(i2) is None:
-                logger.warning("Unestimated cameras found at indices {} or {}. Skipping them.".format(i1, i2))
+                logger.warning("Unestimated cameras found at indices %d or %d. Skipping them." % (i1, i2))
                 continue
 
             camera_estimates = CameraSetCal3Bundler()
@@ -216,8 +216,8 @@ class Point3dInitializer(NamedTuple):
 
         # Create a gtsam.SfmTrack with the triangulated 3d point and associated 2d measurements.
         track_3d = SfmTrack(triangulated_pt)
-        for i, uv in inlier_track.measurements:
-            track_3d.add_measurement(i, uv)
+        for camera_id, uv in inlier_track.measurements:
+            track_3d.add_measurement(camera_id, uv)
 
         return track_3d, avg_track_reproj_error, TriangulationExitCode.SUCCESS
 
@@ -303,19 +303,18 @@ class Point3dInitializer(NamedTuple):
         track_cameras = CameraSetCal3Bundler()
         track_measurements = Point2Vector()  # vector of 2d points
 
-        n_meas = 0
-        for i, uv in track.measurements:
+        # Compile valid measurements.
+        for camera_id, uv in track.measurements:
 
             # check for unestimated cameras
-            if self.track_camera_dict.get(i) is not None:
-                track_cameras.append(self.track_camera_dict.get(i))
+            if self.track_camera_dict.get(camera_id) is not None:
+                track_cameras.append(self.track_camera_dict.get(camera_id))
                 track_measurements.append(uv)
-                n_meas += 1
             else:
-                logger.warning("Unestimated cameras found at index %d. Skipping them.", i)
+                logger.warning("Unestimated cameras found at index %d. Skipping them.", camera_id)
 
-        # triangulation is underconstrained with <2 measurements
-        if n_meas < 2:
+        # Triangulation is underconstrained with <2 measurements.
+        if len(track_cameras) < 2:
             return None, None
 
         return track_cameras, track_measurements
