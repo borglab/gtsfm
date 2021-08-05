@@ -116,7 +116,7 @@ class DataAssociation(NamedTuple):
 
             if avg_track_reproj_error is not None:
                 # need no more than 3 significant figures in json report
-                avg_track_reproj_error = np.round(avg_track_reproj_error, 3) 
+                avg_track_reproj_error = np.round(avg_track_reproj_error, 3)
 
             if sfm_track is not None and self.__validate_track(sfm_track):
                 triangulated_data.add_track(sfm_track)
