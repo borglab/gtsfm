@@ -4,7 +4,7 @@ References:
 1. Richard I. Hartley and Peter Sturm. Triangulation. Computer Vision and Image Understanding, Vol. 68, No. 2,
    November, pp. 146–157, 1997
 
-Authors: Sushmita Warrier, Xiaolong Wu, John Lambert
+Authors: Sushmita Warrier, Xiaolong Wu, John Lambert, Travis Driver
 """
 
 import itertools
