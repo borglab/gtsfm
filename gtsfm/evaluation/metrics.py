@@ -19,19 +19,20 @@ import gtsfm.utils.io as io
 import gtsfm.utils.logger as logger_utils
 
 # Keys to access data and summary in the dictionary representation of metrics.
-DATA_KEY = "full_data"
+FULL_DATA_KEY = "full_data"
 SUMMARY_KEY = "summary"
 
 # Type hint for a 1D distribution
-Distribution1D = Union[np.ndarray, float, List[Union[int, float]]]
+Distribution1D = Union[np.ndarray, List[Union[int, float]]]
 
 logger = logger_utils.get_logger()
 
-class GtsfmMetric:
-    """Class to store a metric computed in a GTSfM module. 
 
-    A GtsfmMetric has a name and data which can either be a scalar or a 1D distribution. 
-    A metric can be represented as a dictionary for serialization. 
+class GtsfmMetric:
+    """Class to store a metric computed in a GTSfM module.
+
+    A GtsfmMetric has a name and data which can either be a scalar or a 1D distribution.
+    A metric can be represented as a dictionary for serialization.
     A scalar metric is represented as : {"metric_name": metric_value}
     A 1D distribution metric is represented as:
     {
@@ -49,39 +50,40 @@ class GtsfmMetric:
     }
     For a 1D distribution, storing all the values of the metric is optional, as this can be large.
     The summary contains either a histogram or quartiles of the distribution depending on how it is to be plotted.
-    When a 1D metric is first created, it is constructed using full_data, but if is parsed from a dict, 
-    it can also be constructed using just the summary.    
+    When a 1D metric is first created, it is constructed using full_data, but if is parsed from a dict,
+    it can also be constructed using just the summary.
     """
 
     class PlotType(Enum):
         """Used to select how the metric is to be plotted. Also decides the format of the summary.
         Example: Summaries of box plots store quartiles, and histogram plotted metrics store a histogram.
         """
-        BAR = 1         # For scalars
-        BOX = 2         # For 1D distributions
-        HISTOGRAM = 3   # For 1D distributions
+
+        BAR = 1  # For scalars
+        BOX = 2  # For 1D distributions
+        HISTOGRAM = 3  # For 1D distributions
 
     def __init__(
         self,
         name: str,
-        data: Optional[Distribution1D] = None,
+        data: Optional[Union[float, Distribution1D]] = None,
         summary: Optional[Dict[str, Any]] = None,
         store_full_data: bool = True,
         plot_type: PlotType = None,
     ) -> GtsfmMetric:
-    """Creates a GtsfmMetric. 
-       Args: 
-            name: name of the metric
-            data: All values of the metric, optional, uses summary if not provided.
-            summary: A summary dict of the metric, generated previously using the same class. 
-                     Has to be provided if data = None.
-            store_full_data: Whether all the values have to be stored and saved or only summary is required. True by default.
-            plot_type: The plot to use for visualization of the metric. 
-                       Defaults:
-                          PlotType.BAR if data is a scalar
-                          PlotType.BOX if data is a distribution (other option is PlotType.HISTOGRAM)
-                        It is inferred from the summary if plot_type is not provided and summary is.
-    """
+        """Creates a GtsfmMetric.
+        Args:
+             name: name of the metric
+             data: All values of the metric, optional for 1D distributions, uses summary if not provided.
+             summary: A summary dict of the metric, generated previously using the same class.
+                      Has to be provided if data = None.
+             store_full_data: Whether all the values have to be stored and saved or only summary is required. True by default.
+             plot_type: The plot to use for visualization of the metric.
+                        Defaults:
+                           PlotType.BAR if data is a scalar
+                           PlotType.BOX if data is a distribution (other option is PlotType.HISTOGRAM)
+                         It is inferred from the summary if plot_type is not provided and summary is.
+        """
         if summary is None and data is None:
             raise ValueError("Data and summary cannot both be None.")
 
@@ -116,6 +118,7 @@ class GtsfmMetric:
             else:
                 self._data = None
         else:
+            # Metrics created from summary alone are 1D distribution metrics
             self._dim = 1
             self._summary = summary
             self._plot_type = self.PlotType.HISTOGRAM if "histogram" in summary else self.PlotType.BOX
@@ -153,7 +156,7 @@ class GtsfmMetric:
 
         Metrics that are plotted as a histogram contain histogram in their summary.
         If the data is float, the keys of the dictionary are interval buckets, and if the data is int, the keys are also int.
-        
+
         Args:
             data: 1D array of all values of the metric
 
@@ -217,7 +220,7 @@ class GtsfmMetric:
     def _get_distribution_quartiles(self, data: np.ndarray) -> Dict[int, float]:
         """Computes quartiles for the provided 1D data distribution.
 
-        Metrics that are to be plotted as box plots contain quartiles in their summary.        
+        Metrics that are to be plotted as box plots contain quartiles in their summary.
 
         Args:
             data: 1D distribution of metric values
@@ -236,16 +239,16 @@ class GtsfmMetric:
         """Provides a dictionary representation of the metric that can be serialized to JSON.
 
         The dict contains a single element, for which the key is the name of the metric.
-        If metric is a distribution, the dict is in the below format: 
+        If metric is a distribution, the dict is in the below format:
         {
             metric_name: {
-               DATA_KEY: [.. raw data if stored ..]
+               FULL_DATA_KEY: [.. raw data if stored ..]
                SUMMARY_KEY: {
-                    .. summary (stats) of distribution ..    
+                    .. summary (stats) of distribution ..
                }
             }
         }
-        If the metric is scalar, it is stored simply as {metric_name: value}. 
+        If the metric is scalar, it is stored simply as {metric_name: value}.
 
         Returns:
             The metric as a dict representation explained above.
@@ -255,7 +258,7 @@ class GtsfmMetric:
 
         metric_dict = {SUMMARY_KEY: self.summary}
         if self._data is not None:
-            metric_dict[DATA_KEY] = self._data.tolist()
+            metric_dict[FULL_DATA_KEY] = self._data.tolist()
         return {self._name: metric_dict}
 
     def save_to_json(self, json_filename: str) -> None:
@@ -288,8 +291,8 @@ class GtsfmMetric:
         if isinstance(metric_value, dict):
             data = None
             summary = None
-            if DATA_KEY in metric_value:
-                data = metric_value[DATA_KEY]
+            if FULL_DATA_KEY in metric_value:
+                data = metric_value[FULL_DATA_KEY]
             if SUMMARY_KEY in metric_value:
                 summary = metric_value[SUMMARY_KEY]
             return cls(metric_name, data=data, summary=summary)
@@ -299,16 +302,16 @@ class GtsfmMetric:
 
 
 class GtsfmMetricsGroup:
-    """Stores a list of `GtsfmMetric`s. 
+    """Stores a list of `GtsfmMetric`s.
 
-    A GtsfmMetricsGroup comprises a list of metrics that are semantically related, so that they can be 
-    given a name, saved and plotted together. This is the case when the metrics belong to the same Gtsfm module. 
+    A GtsfmMetricsGroup comprises a list of metrics that are semantically related, so that they can be
+    given a name, saved and plotted together. This is the case when the metrics belong to the same Gtsfm module.
 
     A GtsfmMetricsGroup can be represented as a dictionary that can be serialized:
     {
         "metrics_group_name": {
-            dictionary repesentation of metric1, 
-            dictionary repesentation of metric2, 
+            dictionary repesentation of metric1,
+            dictionary repesentation of metric2,
             ...
         }
     }
@@ -336,7 +339,7 @@ class GtsfmMetricsGroup:
         self._metrics.extend(metrics_group.metrics)
 
     def get_metrics_as_dict(self) -> Dict[str, Dict[str, Any]]:
-        """Creates the dictionary representation of the metrics group. 
+        """Creates the dictionary representation of the metrics group.
 
         This is the below format:
         {
@@ -357,7 +360,7 @@ class GtsfmMetricsGroup:
 
     def save_to_json(self, path: str) -> None:
         """Saves the dictionary representation of the metrics group to json.
-        
+
         Args:
             path: path to json file.
         """
@@ -365,12 +368,12 @@ class GtsfmMetricsGroup:
 
     @classmethod
     def parse_from_dict(cls, metrics_group_dict: Dict[str, Any]) -> GtsfmMetricsGroup:
-        """Creates a metric group from its dictionary representation. 
-        
-        Args: 
+        """Creates a metric group from its dictionary representation.
+
+        Args:
             metrics_group_dict: Dictionary representation generated by get_metrics_as_dict().
 
-        Returns: 
+        Returns:
             A new GtsfmMetricsGroup parsed from the dict.
         """
         if len(metrics_group_dict) != 1:
