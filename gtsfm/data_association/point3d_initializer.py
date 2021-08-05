@@ -9,7 +9,6 @@ Authors: Sushmita Warrier, Xiaolong Wu, John Lambert, Travis Driver
 
 import itertools
 from enum import Enum
-import random
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import gtsam
