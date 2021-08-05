@@ -89,7 +89,6 @@ class Point3dInitializer(NamedTuple):
 
         # Generate all possible matches
         measurement_pairs = generate_measurement_pairs(track_2d)
-        random.shuffle(measurement_pairs)  # puts the random in RANSAC
 
         # limit the number of samples to the number of available pairs
         num_hypotheses = min(self.num_ransac_hypotheses, len(measurement_pairs))
