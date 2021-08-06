@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 from enum import Enum
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 
@@ -77,7 +77,7 @@ class GtsfmMetric:
              data: All values of the metric, optional for 1D distributions, uses summary if not provided.
              summary: A summary dict of the metric, generated previously using the same class.
                       Has to be provided if data = None.
-             store_full_data: Whether all the values have to be stored and saved or only summary is required. True by default.
+             store_full_data: Whether all the values are to be stored or only summary is required. True by default.
              plot_type: The plot to use for visualization of the metric.
                         Defaults:
                            PlotType.BAR if data is a scalar
@@ -151,43 +151,6 @@ class GtsfmMetric:
             return [self.PlotType.BOX, self.PlotType.HISTOGRAM]
         return []
 
-    def _get_distribution_histogram(self, data: np.ndarray) -> Dict[str, Union[float, int]]:
-        """Returns the histogram of data as a dictionary.
-
-        Metrics that are plotted as a histogram contain histogram in their summary.
-        If the data is float, the keys of the dictionary are interval buckets, and if the data is int, the keys are also int.
-
-        Args:
-            data: 1D array of all values of the metric
-
-        Returns:
-            Histogram of data as a dict from bucket to count.
-        """
-        if data.size == 0:
-            logger.info("Requested histogram for empty data metric, returning None.")
-            return None
-        if isinstance(data.tolist()[0], int):
-            # One bin for each integer
-            bins = int(np.max(data) - np.min(data) + 1)
-            discrete = True
-        else:
-            bins = 10
-            discrete = False
-        count, bins = np.histogram(data, bins=bins)
-        count = count.tolist()
-        bins = bins.tolist()
-        bins_lower = bins[:-1]
-        bins_upper = bins[1:]
-
-        histogram = {}
-        for i in range(len(count)):
-            if discrete:
-                key = str(int(bins_lower[i]))
-            else:
-                key = "%.2f-%.2f" % (bins_lower[i], bins_upper[i])
-            histogram[key] = count[i]
-        return histogram
-
     def _create_summary(self, data: np.ndarray) -> Dict[str, Any]:
         """Creates a summary of the given data.
 
@@ -212,28 +175,10 @@ class GtsfmMetric:
             "stddev": np.nanstd(data).tolist(),
         }
         if self._plot_type == self.PlotType.BOX:
-            summary.update({"quartiles": self._get_distribution_quartiles(data)})
+            summary.update({"quartiles": get_quartiles_dict(data)})
         elif self._plot_type == self.PlotType.HISTOGRAM:
-            summary.update({"histogram": self._get_distribution_histogram(data)})
+            summary.update({"histogram": get_histogram_dict(data)})
         return summary
-
-    def _get_distribution_quartiles(self, data: np.ndarray) -> Dict[int, float]:
-        """Computes quartiles for the provided 1D data distribution.
-
-        Metrics that are to be plotted as box plots contain quartiles in their summary.
-
-        Args:
-            data: 1D distribution of metric values
-
-        Returns:
-            Quartiles of the data as a dict where keys are q0, q1, q2, q3, and q4
-        """
-        query = list(range(0, 101, 25))
-        quartiles = np.percentile(data, query)
-        output = {}
-        for i, q in enumerate(query):
-            output["q" + str(i)] = quartiles[i].tolist()
-        return output
 
     def get_metric_as_dict(self) -> Dict[str, Any]:
         """Provides a dictionary representation of the metric that can be serialized to JSON.
@@ -397,3 +342,58 @@ class GtsfmMetricsGroup:
         with open(json_filename) as f:
             metric_group_dict = json.load(f)
         return cls.parse_from_dict(metric_group_dict)
+
+
+def get_histogram_dict(self, data: np.ndarray) -> Dict[str, Union[float, int]]:
+    """Returns the histogram of data as a dictionary.
+
+    If the data is float, the keys of the dictionary are interval buckets.
+    If the data is int, the keys are also int.
+
+    Args:
+        data: 1D array of all values of the metric
+
+    Returns:
+        Histogram of data as a dict from bucket to count.
+    """
+    if data.size == 0:
+        logger.info("Requested histogram for empty data metric, returning None.")
+        return None
+    if isinstance(data.tolist()[0], int):
+        # One bin for each integer
+        bins = int(np.max(data) - np.min(data) + 1)
+        discrete = True
+    else:
+        bins = 10
+        discrete = False
+    count, bins = np.histogram(data, bins=bins)
+    count = count.tolist()
+    bins = bins.tolist()
+    bins_lower = bins[:-1]
+    bins_upper = bins[1:]
+
+    histogram = {}
+    for i in range(len(count)):
+        if discrete:
+            key = str(int(bins_lower[i]))
+        else:
+            key = "%.2f-%.2f" % (bins_lower[i], bins_upper[i])
+        histogram[key] = count[i]
+    return histogram
+
+
+def get_quartiles_dict(self, data: np.ndarray) -> Dict[int, float]:
+    """Returns quartiles for the provided data as a dict.
+
+    Args:
+        data: 1D distribution of metric values
+
+    Returns:
+        Quartiles of the data as a dict where keys are q0, q1, q2, q3, and q4
+    """
+    query = list(range(0, 101, 25))
+    quartiles = np.percentile(data, query)
+    output = {}
+    for i, q in enumerate(query):
+        output["q" + str(i)] = quartiles[i].tolist()
+    return output
