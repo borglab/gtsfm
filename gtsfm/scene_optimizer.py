@@ -2,7 +2,6 @@
 
 Authors: Ayush Baid, John Lambert
 """
-import copy
 import logging
 import os
 from pathlib import Path

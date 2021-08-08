@@ -2,7 +2,8 @@
 
 Authors: Ayush Baid
 """
-from gtsfm.common.gtsfm_data import GtsfmData
+import copy
+import os
 from typing import List, Optional, Tuple
 
 import cv2 as cv
@@ -14,6 +15,8 @@ from matplotlib.axes._axes import Axes
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.images as image_utils
 import gtsfm.utils.io as io_utils
+import gtsfm.utils.metrics as metric_utils
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 
@@ -261,8 +264,8 @@ def save_sfm_data_viz(sfm_data: GtsfmData, folder_name: str) -> None:
     fig = plt.figure()
     ax = fig.add_subplot(projection="3d")
 
-    viz_utils.plot_sfm_data_3d(sfm_data, ax)
-    viz_utils.set_axes_equal(ax)
+    plot_sfm_data_3d(sfm_data, ax)
+    set_axes_equal(ax)
 
     # save the 3D plot in the original view
     fig.savefig(os.path.join(folder_name, "3d.png"))
@@ -306,18 +309,18 @@ def save_camera_poses_viz(
         # ground truth is used as the reference
         pre_ba_poses = comp_utils.align_poses_sim3(corresponding_gt_poses, copy.deepcopy(pre_ba_poses))
         post_ba_poses = comp_utils.align_poses_sim3(corresponding_gt_poses, copy.deepcopy(post_ba_poses))
-        viz_utils.plot_poses_3d(gt_pose_graph, ax, center_marker_color="m", label_name="GT")
+        plot_poses_3d(gt_pose_graph, ax, center_marker_color="m", label_name="GT")
 
         post_ba_pose_errors_dict = metric_utils.compute_pose_errors(
             gt_wTi_list=corresponding_gt_poses, wTi_list=post_ba_poses
         )
         print("post_ba_pose_errors_dict: ", post_ba_pose_errors_dict)
 
-    viz_utils.plot_poses_3d(pre_ba_poses, ax, center_marker_color="c", label_name="Pre-BA")
-    viz_utils.plot_poses_3d(post_ba_poses, ax, center_marker_color="k", label_name="Post-BA")
+    plot_poses_3d(pre_ba_poses, ax, center_marker_color="c", label_name="Pre-BA")
+    plot_poses_3d(post_ba_poses, ax, center_marker_color="k", label_name="Post-BA")
 
     ax.legend(loc="upper left")
-    viz_utils.set_axes_equal(ax)
+    set_axes_equal(ax)
 
     # save the 3D plot in the original view
     fig.savefig(os.path.join(folder_name, "poses_3d.png"))
