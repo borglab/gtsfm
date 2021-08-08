@@ -194,53 +194,10 @@ class SceneOptimizer:
         if self._save_3d_viz:
             os.makedirs(os.path.join(PLOT_PATH, "ba_input"), exist_ok=True)
             os.makedirs(os.path.join(PLOT_PATH, "results"), exist_ok=True)
-
-            auxiliary_graph_list.append(
-                dask.delayed(visualize_sfm_data)(ba_input_graph, os.path.join(PLOT_PATH, "ba_input"))
-            )
-
-            auxiliary_graph_list.append(
-                dask.delayed(visualize_sfm_data)(ba_output_graph, os.path.join(PLOT_PATH, "results"))
-            )
-
-            auxiliary_graph_list.append(
-                dask.delayed(visualize_camera_poses)(
-                    ba_input_graph, ba_output_graph, gt_pose_graph, os.path.join(PLOT_PATH, "results")
-                )
-            )
+            auxiliary_graph_list.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_pose_graph))
 
         if self._save_gtsfm_data:
-            # save the input to Bundle Adjustment (from data association)
-            ba_input_save_dir = os.path.join(RESULTS_PATH, "ba_input")
-            react_ba_input_save_dir = os.path.join(REACT_RESULTS_PATH, "ba_input")
-            auxiliary_graph_list.append(
-                dask.delayed(io_utils.export_model_as_colmap_text)(
-                    ba_input_graph, image_graph, save_dir=ba_input_save_dir
-                )
-            )
-
-            # Save duplicate copies of input to Bundle Adjustment to React Folder
-            auxiliary_graph_list.append(
-                dask.delayed(io_utils.export_model_as_colmap_text)(
-                    ba_input_graph, image_graph, save_dir=react_ba_input_save_dir
-                )
-            )
-
-            # save the output of Bundle Adjustment (after optimization)
-            ba_output_save_dir = os.path.join(RESULTS_PATH, "ba_output")
-            react_ba_output_save_dir = os.path.join(REACT_RESULTS_PATH, "ba_output")
-            auxiliary_graph_list.append(
-                dask.delayed(io_utils.export_model_as_colmap_text)(
-                    ba_output_graph, image_graph, save_dir=ba_output_save_dir
-                )
-            )
-
-            # Save duplicate copies of output to Bundle Adjustment to React Folder
-            auxiliary_graph_list.append(
-                dask.delayed(io_utils.export_model_as_colmap_text)(
-                    ba_output_graph, image_graph, save_dir=react_ba_output_save_dir
-                )
-            )
+            auxiliary_graph_list.extend(save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph))
 
         # as visualization tasks are not to be provided to the user, we create a
         # dummy computation of concatenating viz tasks with the output graph,
@@ -251,106 +208,58 @@ class SceneOptimizer:
         return output_graph[0]
 
 
-def visualize_twoview_correspondences(
-    image_i1: Image,
-    image_i2: Image,
-    keypoints_i1: Keypoints,
-    keypoints_i2: Keypoints,
-    corr_idxs_i1i2: np.ndarray,
-    file_path: str,
-) -> None:
-    """Visualize correspondences between pairs of images.
+def save_visualizations(
+    ba_input_graph: Delayed, ba_output_graph: Delayed, gt_pose_graph: Optional[List[Delayed]]
+) -> List[Delayed]:
+    """Save SfmData before and after bundle adjustment and camera poses for visualization.
+
+    Accepts delayed GtsfmData before and after bundle adjustment, along with GT poses,
+    saves them and returns a delayed object.
 
     Args:
-        image_i1: image #i1.
-        image_i2: image #i2.
-        keypoints_i1: detected Keypoints for image #i1.
-        keypoints_i2: detected Keypoints for image #i2.
-        corr_idxs_i1i2: correspondence indices.
-        file_path: file path to save the visualization.
+        ba_input_graph: Delayed GtsfmData input to bundle adjustment.
+        ba_output_graph: Delayed GtsfmData output from bundle adjustment.
+        gt_pose_graph: Delayed ground truth poses.
+
+    Returns:
+        A list of Delayed objects after saving the different visualizations.
     """
-    plot_img = viz_utils.plot_twoview_correspondences(image_i1, image_i2, keypoints_i1, keypoints_i2, corr_idxs_i1i2)
-
-    io_utils.save_image(plot_img, file_path)
-
-
-def visualize_sfm_data(sfm_data: GtsfmData, folder_name: str) -> None:
-    """Visualize the camera poses and 3d points in SfmData.
-
-    Args:
-        sfm_data: data to visualize.
-        folder_name: folder to save the visualization at.
-    """
-    fig = plt.figure()
-    ax = fig.add_subplot(projection="3d")
-
-    viz_utils.plot_sfm_data_3d(sfm_data, ax)
-    viz_utils.set_axes_equal(ax)
-
-    # save the 3D plot in the original view
-    fig.savefig(os.path.join(folder_name, "3d.png"))
-
-    # save the BEV representation
-    default_camera_elevation = 100  # in metres above ground
-    ax.view_init(azim=0, elev=default_camera_elevation)
-    fig.savefig(os.path.join(folder_name, "bev.png"))
-
-    plt.close(fig)
-
-
-def visualize_camera_poses(
-    pre_ba_sfm_data: GtsfmData, post_ba_sfm_data: GtsfmData, gt_pose_graph: Optional[List[Pose3]], folder_name: str
-) -> None:
-    """Visualize the camera pose and save to disk.
-
-    Args:
-        pre_ba_sfm_data: data input to bundle adjustment.
-        post_ba_sfm_data: output of bundle adjustment.
-        gt_pose_graph: ground truth poses.
-        folder_name: folder to save the visualization at.
-    """
-    # extract camera poses
-    pre_ba_poses = []
-    for i in pre_ba_sfm_data.get_valid_camera_indices():
-        pre_ba_poses.append(pre_ba_sfm_data.get_camera(i).pose())
-
-    post_ba_poses = []
-    for i in post_ba_sfm_data.get_valid_camera_indices():
-        post_ba_poses.append(post_ba_sfm_data.get_camera(i).pose())
-
-    fig = plt.figure()
-    ax = fig.add_subplot(projection="3d")
-
-    if gt_pose_graph is not None:
-        # Select ground truth poses that correspond to pre-BA and post-BA estimated poses
-        # some may have been lost after pruning to largest connected component
-        corresponding_gt_poses = [gt_pose_graph[i] for i in pre_ba_sfm_data.get_valid_camera_indices()]
-
-        # ground truth is used as the reference
-        pre_ba_poses = comp_utils.align_poses_sim3(corresponding_gt_poses, copy.deepcopy(pre_ba_poses))
-        post_ba_poses = comp_utils.align_poses_sim3(corresponding_gt_poses, copy.deepcopy(post_ba_poses))
-        viz_utils.plot_poses_3d(gt_pose_graph, ax, center_marker_color="m", label_name="GT")
-
-        post_ba_pose_errors_dict = metric_utils.compute_pose_errors(
-            gt_wTi_list=corresponding_gt_poses, wTi_list=post_ba_poses
+    viz_graph_list = []
+    viz_graph_list.append(dask.delayed(save_sfm_data_viz)(ba_input_graph, os.path.join(PLOT_PATH, "ba_input")))
+    viz_graph_list.append(dask.delayed(save_sfm_data_viz)(ba_output_graph, os.path.join(PLOT_PATH, "results")))
+    viz_graph_list.append(
+        dask.delayed(save_camera_poses_viz)(
+            ba_input_graph, ba_output_graph, gt_pose_graph, os.path.join(PLOT_PATH, "results")
         )
-        print("post_ba_pose_errors_dict: ", post_ba_pose_errors_dict)
+    )
 
-    viz_utils.plot_poses_3d(pre_ba_poses, ax, center_marker_color="c", label_name="Pre-BA")
-    viz_utils.plot_poses_3d(post_ba_poses, ax, center_marker_color="k", label_name="Post-BA")
+def save_gtsfm_data(image_graph: Delayed, ba_input_graph: Delayed, ba_output_graph: Delayed):
+    """Saves the Gtsfm data before and after bundle adjustment.
 
-    ax.legend(loc="upper left")
-    viz_utils.set_axes_equal(ax)
+    Args:
+        image_graph: input image wrapped as Delayed objects.
+        ba_input_graph: GtsfmData input to bundle adjustment wrapped as Delayed.
+        ba_output_graph: GtsfmData output to bundle adjustment wrapped as Delayed.
 
-    # save the 3D plot in the original view
-    fig.savefig(os.path.join(folder_name, "poses_3d.png"))
-
-    # save the BEV representation
-    default_camera_elevation = 100  # in metres above ground
-    ax.view_init(azim=0, elev=default_camera_elevation)
-    fig.savefig(os.path.join(folder_name, "poses_bev.png"))
-
-    plt.close(fig)
+    Returns:
+        A list of delayed objects after saving the input and outputs to bundle adjustment.
+    """
+    saving_graph_list = []
+    # Save a duplicate in REACT_RESULTS_PATH.
+    for output_dir in [RESULTS_PATH, REACT_RESULTS_PATH]:
+        # Save the input to Bundle Adjustment (from data association).
+        saving_graph_list.append(
+            dask.delayed(io_utils.export_model_as_colmap_text)(
+                ba_input_graph, image_graph, save_dir=os.path.join(output_dir, "ba_input")
+            )
+        )
+        # Save the output of Bundle Adjustment.
+        saving_graph_list.append(
+            dask.delayed(io_utils.export_model_as_colmap_text)(
+                ba_output_graph, image_graph, save_dir=os.path.join(output_dir, "ba_output")
+            )
+        )
+    return saving_graph_list
 
 
 def persist_frontend_metrics_full(
