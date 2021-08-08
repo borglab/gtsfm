@@ -17,6 +17,7 @@ import numpy as np
 from dask.delayed import Delayed
 from gtsam import Pose3
 
+import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.metrics as metric_utils
 import gtsfm.utils.io as io_utils
@@ -193,6 +194,11 @@ class SceneOptimizer:
         )
         auxiliary_graph_list.append(
             dask.delayed(metrics_utils.save_metrics_as_json)(metrics_graph_list, REACT_METRICS_PATH)
+        )
+        auxiliary_graph_list.append(
+            dask.delayed(metrics_report.save_metrics_report_html)(
+                metrics_graph_list, os.path.join("result_metrics", "gtsfm_metrics_report.html")
+            )
         )
 
         if self._save_3d_viz:
