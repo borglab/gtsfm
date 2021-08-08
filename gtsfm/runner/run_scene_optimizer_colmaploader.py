@@ -1,5 +1,4 @@
 import argparse
-from pathlib import Path
 
 import hydra
 from dask.distributed import Client, LocalCluster, performance_report
@@ -9,8 +8,6 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.loader.colmap_loader import ColmapLoader
 from gtsfm.scene_optimizer import SceneOptimizer
-
-DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "tests" / "data"
 
 logger = logger_utils.get_logger()
 
@@ -66,16 +63,10 @@ if __name__ == "__main__":
         help="maximum number of consecutive frames to consider for matching/co-visibility",
     )
     parser.add_argument(
-        "--num_workers",
-        type=int,
-        default=1,
-        help="Number of workers to start (processes, by default)",
+        "--num_workers", type=int, default=1, help="Number of workers to start (processes, by default)",
     )
     parser.add_argument(
-        "--threads_per_worker",
-        type=int,
-        default=1,
-        help="Number of threads per each worker",
+        "--threads_per_worker", type=int, default=1, help="Number of threads per each worker",
     )
     parser.add_argument(
         "--config_name",
