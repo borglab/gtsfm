@@ -14,6 +14,7 @@ import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.verification as verification_utils
+from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.evaluation.metric import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.two_view_estimator import TwoViewEstimationReport
@@ -302,7 +303,8 @@ def aggregate_frontend_metrics(
     # all rotational errors in degrees
     rot3_angular_errors = [report.R_error_deg for report in two_view_reports_dict.values()]
     trans_angular_errors = [report.U_error_deg for report in two_view_reports_dict.values()]
-
+    rot3_angular_errors = np.array(rot3_angular_errors, dtype=float)
+    trans_angular_errors = np.array(trans_angular_errors, dtype=float)
     # count number of rot3 errors which are not None. Should be same in rot3/unit3
     num_valid_image_pairs = np.count_nonzero(~np.isnan(rot3_angular_errors))
 
@@ -342,14 +344,15 @@ def aggregate_frontend_metrics(
         "[Two view optimizer] [Summary] # Image pairs with 100%% inlier ratio:: %d/%d", all_correct, num_image_pairs
     )
 
-    fronted_metrics = GtsfmMetricsGroup("frontend_summary", [
+    frontend_metrics = GtsfmMetricsGroup("frontend_summary", [
         GtsfmMetric("angular_err_threshold_deg", angular_err_threshold_deg), 
         GtsfmMetric("num_valid_image_pairs", int(num_valid_image_pairs)), 
-        GtsfmMetric("rotation_success_count": int(success_count_rot3)), 
-        GtsfmMetric("translation_success_count": int(success_count_unit3)), 
-        GtsfmMetric("pose_success_count": int(success_count_pose)), 
-        GtsfmMetric("num_all_inlier_correspondeces_wrt_gt_model": int(all_correct))
+        GtsfmMetric("rotation_success_count", int(success_count_rot3)), 
+        GtsfmMetric("translation_success_count", int(success_count_unit3)), 
+        GtsfmMetric("pose_success_count", int(success_count_pose)), 
+        GtsfmMetric("num_all_inlier_correspondeces_wrt_gt_model", int(all_correct))
     ])
+    return frontend_metrics
 
 
 def save_metrics_as_json(metrics_groups: Delayed, output_dir: str) -> None:
