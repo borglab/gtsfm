@@ -69,7 +69,7 @@ class MultiViewOptimizer:
             Dictionary containing metrics, wrapped up as Delayed
         """
         # prune the graph to a single connected component.
-        pruned_graph = dask.delayed(prune_to_largest_connected_component)(i2Ri1_graph, i2Ui1_graph)
+        pruned_graph = dask.delayed(graph_utils.prune_to_largest_connected_component)(i2Ri1_graph, i2Ui1_graph)
 
         pruned_i2Ri1_graph = pruned_graph[0]
         pruned_i2Ui1_graph = pruned_graph[1]
