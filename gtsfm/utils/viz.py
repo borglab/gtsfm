@@ -11,8 +11,9 @@ import numpy as np
 from gtsam import Pose3
 from matplotlib.axes._axes import Axes
 
-import gtsfm.utils.images as image_utils
 import gtsfm.utils.geometry_comparisons as comp_utils
+import gtsfm.utils.images as image_utils
+import gtsfm.utils.io as io_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 
@@ -225,3 +226,105 @@ def plot_and_compare_poses_3d(wTi_list: List[Pose3], wTi_list_: List[Pose3]) -> 
     set_axes_equal(ax)
 
     plt.show()
+
+
+def save_twoview_correspondences_viz(
+    image_i1: Image,
+    image_i2: Image,
+    keypoints_i1: Keypoints,
+    keypoints_i2: Keypoints,
+    corr_idxs_i1i2: np.ndarray,
+    file_path: str,
+) -> None:
+    """Visualize correspondences between pairs of images.
+
+    Args:
+        image_i1: image #i1.
+        image_i2: image #i2.
+        keypoints_i1: detected Keypoints for image #i1.
+        keypoints_i2: detected Keypoints for image #i2.
+        corr_idxs_i1i2: correspondence indices.
+        file_path: file path to save the visualization.
+    """
+    plot_img = plot_twoview_correspondences(image_i1, image_i2, keypoints_i1, keypoints_i2, corr_idxs_i1i2)
+
+    io_utils.save_image(plot_img, file_path)
+
+
+def save_sfm_data_viz(sfm_data: GtsfmData, folder_name: str) -> None:
+    """Visualize the camera poses and 3d points in SfmData.
+
+    Args:
+        sfm_data: data to visualize.
+        folder_name: folder to save the visualization at.
+    """
+    fig = plt.figure()
+    ax = fig.add_subplot(projection="3d")
+
+    viz_utils.plot_sfm_data_3d(sfm_data, ax)
+    viz_utils.set_axes_equal(ax)
+
+    # save the 3D plot in the original view
+    fig.savefig(os.path.join(folder_name, "3d.png"))
+
+    # save the BEV representation
+    default_camera_elevation = 100  # in metres above ground
+    ax.view_init(azim=0, elev=default_camera_elevation)
+    fig.savefig(os.path.join(folder_name, "bev.png"))
+
+    plt.close(fig)
+
+
+def save_camera_poses_viz(
+    pre_ba_sfm_data: GtsfmData, post_ba_sfm_data: GtsfmData, gt_pose_graph: Optional[List[Pose3]], folder_name: str
+) -> None:
+    """Visualize the camera pose and save to disk.
+
+    Args:
+        pre_ba_sfm_data: data input to bundle adjustment.
+        post_ba_sfm_data: output of bundle adjustment.
+        gt_pose_graph: ground truth poses.
+        folder_name: folder to save the visualization at.
+    """
+    # extract camera poses
+    pre_ba_poses = []
+    for i in pre_ba_sfm_data.get_valid_camera_indices():
+        pre_ba_poses.append(pre_ba_sfm_data.get_camera(i).pose())
+
+    post_ba_poses = []
+    for i in post_ba_sfm_data.get_valid_camera_indices():
+        post_ba_poses.append(post_ba_sfm_data.get_camera(i).pose())
+
+    fig = plt.figure()
+    ax = fig.add_subplot(projection="3d")
+
+    if gt_pose_graph is not None:
+        # Select ground truth poses that correspond to pre-BA and post-BA estimated poses
+        # some may have been lost after pruning to largest connected component
+        corresponding_gt_poses = [gt_pose_graph[i] for i in pre_ba_sfm_data.get_valid_camera_indices()]
+
+        # ground truth is used as the reference
+        pre_ba_poses = comp_utils.align_poses_sim3(corresponding_gt_poses, copy.deepcopy(pre_ba_poses))
+        post_ba_poses = comp_utils.align_poses_sim3(corresponding_gt_poses, copy.deepcopy(post_ba_poses))
+        viz_utils.plot_poses_3d(gt_pose_graph, ax, center_marker_color="m", label_name="GT")
+
+        post_ba_pose_errors_dict = metric_utils.compute_pose_errors(
+            gt_wTi_list=corresponding_gt_poses, wTi_list=post_ba_poses
+        )
+        print("post_ba_pose_errors_dict: ", post_ba_pose_errors_dict)
+
+    viz_utils.plot_poses_3d(pre_ba_poses, ax, center_marker_color="c", label_name="Pre-BA")
+    viz_utils.plot_poses_3d(post_ba_poses, ax, center_marker_color="k", label_name="Post-BA")
+
+    ax.legend(loc="upper left")
+    viz_utils.set_axes_equal(ax)
+
+    # save the 3D plot in the original view
+    fig.savefig(os.path.join(folder_name, "poses_3d.png"))
+
+    # save the BEV representation
+    default_camera_elevation = 100  # in metres above ground
+    ax.view_init(azim=0, elev=default_camera_elevation)
+    fig.savefig(os.path.join(folder_name, "poses_bev.png"))
+
+    plt.close(fig)
