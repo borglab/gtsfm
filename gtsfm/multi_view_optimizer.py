@@ -24,10 +24,7 @@ from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBa
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.data_association.data_assoc import DataAssociation
-from gtsfm.evaluation.metric import GtsfmMetric, GtsfmMetricsGroup
-
-# Paths to Save Output in React Folders.
-REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
+from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 
 class MultiViewOptimizer:
@@ -92,11 +89,9 @@ class MultiViewOptimizer:
             i2Ui1_graph, wRi_graph, wti_graph, gt_poses_graph
         )
 
-        saved_metrics_graph = dask.delayed(merge_and_save_metrics)(
-            averaging_metrics_graph, data_assoc_metrics_graph, ba_metrics_graph
-        )
+        multiview_optimizer_metrics_graph = [averaging_metrics_graph, data_assoc_metrics_graph, ba_metrics_graph]
 
-        return ba_input_graph, ba_result_graph, saved_metrics_graph
+        return ba_input_graph, ba_result_graph, multiview_optimizer_metrics_graph
 
 
 def prune_to_largest_connected_component(
@@ -150,17 +145,3 @@ def init_cameras(
             cameras[idx] = PinholeCameraCal3Bundler(Pose3(wRi, wti), intrinsics_list[idx])
 
     return cameras
-
-
-def merge_and_save_metrics(
-    averaging_metrics: GtsfmMetricsGroup, data_association_metrics: GtsfmMetricsGroup, ba_metrics: GtsfmMetricsGroup
-) -> List[GtsfmMetricsGroup]:
-    averaging_metrics.save_to_json(os.path.join("result_metrics", "multiview_optimizer_metrics.json"))
-    data_association_metrics.save_to_json(os.path.join("result_metrics", "data_association_metrics.json"))
-    ba_metrics.save_to_json(os.path.join("result_metrics", "bundle_adjustment_metrics.json"))
-
-    # duplicate copy for react frontend.
-    averaging_metrics.save_to_json(os.path.join(REACT_METRICS_PATH, "multiview_optimizer_metrics.json"))
-    data_association_metrics.save_to_json(os.path.join(REACT_METRICS_PATH, "data_association_metrics.json"))
-    ba_metrics.save_to_json(os.path.join(REACT_METRICS_PATH, "bundle_adjustment_metrics.json"))
-    return [averaging_metrics, data_association_metrics, ba_metrics]
