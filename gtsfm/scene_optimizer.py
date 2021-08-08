@@ -225,13 +225,19 @@ def save_visualizations(
         A list of Delayed objects after saving the different visualizations.
     """
     viz_graph_list = []
-    viz_graph_list.append(dask.delayed(save_sfm_data_viz)(ba_input_graph, os.path.join(PLOT_PATH, "ba_input")))
-    viz_graph_list.append(dask.delayed(save_sfm_data_viz)(ba_output_graph, os.path.join(PLOT_PATH, "results")))
     viz_graph_list.append(
-        dask.delayed(save_camera_poses_viz)(
+        dask.delayed(viz_utils.save_sfm_data_viz)(ba_input_graph, os.path.join(PLOT_PATH, "ba_input"))
+    )
+    viz_graph_list.append(
+        dask.delayed(viz_utils.save_sfm_data_viz)(ba_output_graph, os.path.join(PLOT_PATH, "results"))
+    )
+    viz_graph_list.append(
+        dask.delayed(viz_utils.save_camera_poses_viz)(
             ba_input_graph, ba_output_graph, gt_pose_graph, os.path.join(PLOT_PATH, "results")
         )
     )
+    return viz_graph_list
+
 
 def save_gtsfm_data(image_graph: Delayed, ba_input_graph: Delayed, ba_output_graph: Delayed):
     """Saves the Gtsfm data before and after bundle adjustment.
