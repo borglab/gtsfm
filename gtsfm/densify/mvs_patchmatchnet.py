@@ -50,18 +50,18 @@ class MVSPatchmatchNet(MVSBase):
         Ref: Wang et al. https://github.com/FangjinhuaWang/PatchmatchNet/blob/main/eval.py
 
         Args:
-            images (Dict[int, Image]): image dictionary obtained from loaders
-            sfm_result (GtsfmData): result of GTSFM after bundle adjustment
-            num_views (int, optional): number of views, containing 1 reference view and (num_views-1) source views
+            images: image dictionary obtained from loaders
+            sfm_result: result of GTSFM after bundle adjustment
+            num_views: number of views, containing 1 reference view and (num_views-1) source views
                 Defaults to DEFAULT_VIEW_NUMBER
-            thresholds (List[float], optional): geometric pixel threshold, geometric depth threshold, and photometric
+            thresholds: geometric pixel threshold, geometric depth threshold, and photometric
                 threshold for filtering inference results.
                 Defaults to [DEFAULT_GEOMETRIC_PIXEL_THRESH, DEFAULT_GEOMETRIC_DEPTH_THRESH, DEFAULT_PHOTOMETRIC_THRESH]
                 1. for geometric thresholds, small threshold means high accuracy and low completeness
                 2. for photometric thresholds, large threshold means high accuracy and low completeness
 
         Returns:
-            np.ndarray: 3D coordinates (in the world frame) of the dense point cloud, (point number, 3)
+            3D coordinates (in the world frame) of the dense point cloud, (point number, 3)
         """
         dataset = PatchmatchNetData(images=images, sfm_result=sfm_result, num_views=num_views)
         loader = DataLoader(
@@ -82,8 +82,8 @@ class MVSPatchmatchNet(MVSBase):
         )
         model = nn.DataParallel(model)
 
-        # check if cuda devices is supported, and load the pretrained model
-        # the pretrained checkpoint should be pre-downloaded using gtsfm/download_model_weights.sh
+        # Check if cuda devices is supported, and load the pretrained model
+        #   the pretrained checkpoint should be pre-downloaded using gtsfm/download_model_weights.sh
         if torch.cuda.is_available():
             model.cuda()
             state_dict = torch.load(PATCHMATCHNET_WEIGHTS_PATH)
@@ -99,13 +99,13 @@ class MVSPatchmatchNet(MVSBase):
             for batch_idx, sample in enumerate(loader):
                 start_time = time.time()
 
-                # check if cuda devices is supported, and store the inference data to the target device
+                # Check if cuda devices is supported, and store the inference data to the target device
                 if torch.cuda.is_available():
                     sample_device = tocuda(sample)
                 else:
                     sample_device = copy.copy(sample)
 
-                # inference using PatchmatchNet
+                # Inference using PatchmatchNet
                 outputs = model(
                     sample_device["imgs"],
                     sample_device["proj_matrices"],
@@ -118,7 +118,7 @@ class MVSPatchmatchNet(MVSBase):
 
                 ids = sample["idx"]
 
-                # save depth maps and confidence maps
+                # Save depth maps and confidence maps
                 for idx, depth_est, photometric_confidence in zip(
                     ids, outputs["refined_depth"]["stage_0"], outputs["photometric_confidence"]
                 ):
@@ -133,14 +133,14 @@ class MVSPatchmatchNet(MVSBase):
                     )
                 )
 
-        # filter inference result with thresholds
+        # Filter inference result with thresholds
         dense_point_cloud = self.filter_depth(
             dataset=dataset,
             depth_list=depth_est_list,
             confidence_list=confidence_est_list,
-            geo_pixel_thres=thresholds[0],
-            geo_depth_thres=thresholds[1],
-            photo_thres=thresholds[2],
+            geo_pixel_thresh=thresholds[0],
+            geo_depth_thresh=thresholds[1],
+            photo_thresh=thresholds[2],
         )
 
         return dense_point_cloud
@@ -150,48 +150,52 @@ class MVSPatchmatchNet(MVSBase):
         dataset: PatchmatchNetData,
         depth_list: Dict[int, np.ndarray],
         confidence_list: Dict[int, np.ndarray],
-        geo_pixel_thres: float,
-        geo_depth_thres: float,
-        photo_thres: float,
+        geo_pixel_thresh: float,
+        geo_depth_thresh: float,
+        photo_thresh: float,
     ) -> np.ndarray:
         """Filter depth map and get filtered dense point cloud
         Ref: Wang et al. https://github.com/FangjinhuaWang/PatchmatchNet/blob/main/eval.py
 
         Args:
-            dataset (PatchmatchNetData): an instance of PatchmatchData as the inference dataset
-            depth_list (Dict[int, np.ndarray]): list of 2D depth map (H, W) from each view
-            confidence_list (Dict[int, np.ndarray]): list of 2D confidence map (H, W) from each view
-            geo_pixel_thres (float): geometric pixel threshold
-            geo_depth_thres (float): geometric depth threshold
-            photo_thres (float): photometric threshold
+            dataset: an instance of PatchmatchData as the inference dataset
+            depth_list: list of 2D depth map (H, W) from each view
+            confidence_list: list of 2D confidence map (H, W) from each view
+            geo_pixel_thresh: geometric pixel threshold
+            geo_depth_thresh: geometric depth threshold
+            photo_thresh: photometric threshold
 
         Returns:
-            np.ndarray: 3D coordinates (in the world frame) of the dense point cloud, (point number, 3)
+            3D coordinates (in the world frame) of the dense point cloud, (point number, 3)
         """
         # coordinates of the final point cloud
         vertices = []
         # vertex colors of the final point cloud, used in generating colored mesh
         vertex_colors = []
 
-        pair_data = dataset.get_packed_pairs()
+        packed_pairs = dataset.get_packed_pairs()
 
-        # for each reference view and the corresponding source views
-        for ref_view, src_views in pair_data:
-            # load the camera parameters
+        # For each reference view and the corresponding source views
+        for pair in packed_pairs:
+            ref_view = pair["ref_id"]
+            src_views = pair["src_ids"]
+
+            # Load the camera parameters
             ref_intrinsics, ref_extrinsics = dataset.get_camera_params(ref_view)
 
-            # load the reference image
+            # Load the reference image
             ref_img = dataset.get_image(ref_view)
-            # load the estimated depth of the reference view
+            # Load the estimated depth of the reference view
             ref_depth_est = depth_list[ref_view][0]
-            # load the photometric mask of the reference view
+            # Load the photometric mask of the reference view
             confidence = confidence_list[ref_view]
-            # filter confidence map by photometric threshold
-            photo_mask = confidence > photo_thres
+            # Filter the pixels that satisfy photometric consistancy among reference view and source views,
+            #   by checking whether the confidence is larger than the pre-defined photometric threshold
+            photo_mask = confidence > photo_thresh
 
             all_srcview_depth_ests = []
 
-            # compute the geometric mask, the value of geo_mask_sum means the number of source views where
+            # Compute the geometric mask, the value of geo_mask_sum means the number of source views where
             #   the reference depth is valid according to the geometric thresholds
             geo_mask_sum = 0
             for src_view in src_views:
@@ -201,7 +205,7 @@ class MVSPatchmatchNet(MVSBase):
                 # the estimated depth of the source view
                 src_depth_est = depth_list[src_view][0]
 
-                # check geometric consistency
+                # Check geometric consistency
                 geo_mask, depth_reprojected, _, _ = check_geometric_consistency(
                     ref_depth_est,
                     ref_intrinsics,
@@ -209,33 +213,33 @@ class MVSPatchmatchNet(MVSBase):
                     src_depth_est,
                     src_intrinsics,
                     src_extrinsics,
-                    geo_pixel_thres,
-                    geo_depth_thres,
+                    geo_pixel_thresh,
+                    geo_depth_thresh,
                 )
                 geo_mask_sum += geo_mask.astype(np.int32)
                 all_srcview_depth_ests.append(depth_reprojected)
 
             depth_est_averaged = (sum(all_srcview_depth_ests) + ref_depth_est) / (geo_mask_sum + 1)
-            # valid points requires at least 3 source views validated under geometric threshoulds
+            # Valid points requires at least 3 source views validated under geometric threshoulds
             geo_mask = geo_mask_sum >= 3
 
-            # combine geometric mask and photometric mask
+            # Combine geometric mask and photometric mask
             final_mask = np.logical_and(photo_mask, geo_mask)
 
-            # initialize coordinate grids
+            # Initialize coordinate grids
             height, width = depth_est_averaged.shape[:2]
             x, y = np.meshgrid(np.arange(0, width), np.arange(0, height))
 
-            # get valid points filtered by photometric and geometric thresholds
+            # Get valid points filtered by photometric and geometric thresholds
             valid_points = final_mask
             x, y, depth = x[valid_points], y[valid_points], depth_est_averaged[valid_points]
 
-            # get the point coordinates in world frame
+            # Get the point coordinates in world frame
             xyz_ref = np.matmul(np.linalg.inv(ref_intrinsics), np.vstack((x, y, np.ones_like(x))) * depth)
             xyz_world = np.matmul(np.linalg.inv(ref_extrinsics), np.vstack((xyz_ref, np.ones_like(x))))[:3]
             vertices.append(xyz_world.transpose((1, 0)))
 
-            # get the point colors for colored mesh
+            # Get the point colors for colored mesh
             color = ref_img[valid_points]
             vertex_colors.append((color * 255).astype(np.uint8))
 
