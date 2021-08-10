@@ -9,8 +9,8 @@ import numpy as np
 from gtsam import PinholeCameraCal3Bundler
 
 from gtsfm.common.gtsfm_data import GtsfmData, SfmTrack
-from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.densify.patchmatchnet_data import PatchmatchNetData
+from gtsfm.loader.olsson_loader import OlssonLoader
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
 
@@ -19,6 +19,9 @@ DEFAULT_FOLDER = DATA_ROOT_PATH / "set1_lund_door"
 NUM_VIEWS = 5
 
 EXAMPLE_CAMERA_ID = 1
+
+MIN_DEPTH_PERCENTILE = 0.01
+MAX_DEPTH_PERCENTILE = 0.99
 
 
 class TestPatchmatchNetData(unittest.TestCase):
@@ -83,8 +86,8 @@ class TestPatchmatchNetData(unittest.TestCase):
 
         self._example_depths = sorted(self._example_depths)
 
-        self._example_min_depth = self._example_depths[int(len(self._example_depths) * 0.01)]
-        self._example_max_depth = self._example_depths[int(len(self._example_depths) * 0.99)]
+        self._example_min_depth = np.percentile(self._example_depths, MIN_DEPTH_PERCENTILE)
+        self._example_max_depth = np.percentile(self._example_depths, MAX_DEPTH_PERCENTILE)
 
     def test_initialize_and_configure(self) -> None:
         """Test initialization method and whether configuration is correct"""
