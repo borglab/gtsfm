@@ -24,15 +24,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 # A StatsDict is a dict from string to optional floats or their lists.
 StatsDict = Dict[str, Union[Optional[float], List[Optional[float]]]]
 
-"""
-data type for frontend metrics on a pair of images, containing:
-1. rotation angular error
-2. translation angular error
-3. number of correct correspondences
-4. inlier ratio
-"""
-FRONTEND_METRICS_FOR_PAIR = Tuple[Optional[float], Optional[float], int, float]
-
 # number of digits (significant figures) to include in each entry of error metrics
 PRINT_NUM_SIG_FIGS = 2
 
@@ -100,7 +91,7 @@ def compute_rotation_angle_metric(wRi_list: List[Optional[Rot3]], gt_wRi_list: L
     for (wRi, gt_wRi) in zip(wRi_list, gt_wRi_list):
         if wRi is not None and gt_wRi is not None:
             errors.append(comp_utils.compute_relative_rotation_angle(wRi, gt_wRi))
-    return GtsfmMetric("rotation_averaging_angle_deg", np.array(errors))
+    return GtsfmMetric("rotation_averaging_angle_deg", errors)
 
 
 def compute_translation_distance_metric(
@@ -122,7 +113,7 @@ def compute_translation_distance_metric(
     for (wti, gt_wti) in zip(wti_list, gt_wti_list):
         if wti is not None and gt_wti is not None:
             errors.append(comp_utils.compute_points_distance_l2(wti, gt_wti))
-    return GtsfmMetric("translation_averaging_distance", np.array(errors))
+    return GtsfmMetric("translation_averaging_distance", errors)
 
 
 def compute_translation_angle_metric(
@@ -141,7 +132,7 @@ def compute_translation_angle_metric(
     for (i1, i2) in i2Ui1_dict:
         i2Ui1 = i2Ui1_dict[(i1, i2)]
         angles.append(comp_utils.compute_translation_to_direction_angle(i2Ui1, wTi_list[i2], wTi_list[i1]))
-    return GtsfmMetric("translation_to_direction_angle_deg", np.array(angles))
+    return GtsfmMetric("translation_angle_deg", angles)
 
 
 def compute_averaging_metrics(
@@ -192,7 +183,7 @@ def compute_averaging_metrics(
     metrics.append(compute_rotation_angle_metric(wRi_aligned_list, gt_wRi_list))
     metrics.append(compute_translation_distance_metric(wti_aligned_list, gt_wti_list))
     metrics.append(compute_translation_angle_metric(i2Ui1_dict, wTi_aligned_list))
-    return GtsfmMetricsGroup("averaging_metrics", metrics)
+    return GtsfmMetricsGroup(name="averaging_metrics", metrics=metrics)
 
 
 def get_rotations_translations_from_poses(
@@ -350,7 +341,7 @@ def aggregate_frontend_metrics(
         GtsfmMetric("rotation_success_count", int(success_count_rot3)), 
         GtsfmMetric("translation_success_count", int(success_count_unit3)), 
         GtsfmMetric("pose_success_count", int(success_count_pose)), 
-        GtsfmMetric("num_all_inlier_correspondeces_wrt_gt_model", int(all_correct))
+        GtsfmMetric("num_all_inlier_correspondences_wrt_gt_model", int(all_correct))
     ])
     return frontend_metrics
 

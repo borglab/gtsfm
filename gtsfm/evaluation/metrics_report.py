@@ -1,3 +1,10 @@
+"""Functions to generate a report of metrics with tables and plots.
+
+A HTML report can be generated using the save_metrics_report_html() function, 
+if called with a list of GtsfmMetricsGroup. 
+
+Authors: Akshay Krishnan
+"""
 import os
 from typing import Any, Dict, List, Tuple, Union
 
@@ -5,17 +12,17 @@ import plotly.graph_objects as go
 import plotly.subplots as psubplot
 from tabulate import tabulate
 
+import gtsfm.evaluation.metrics as metrics
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 SUBPLOTS_PER_ROW = 3
-SUMMARY_KEY = "summary"
-DATA_KEY = "full_data"
 
 
-def get_readable_metric_name(metric_name: str):
+def get_readable_metric_name(metric_name: str) -> str:
     """Helper to convert a metric name separated by underscores to readable format.
 
     In readable format, each word is capitalized and are separated by spaces.
+    Ex: bundle_adjustment_metrics -> Bundle Adjustment Metrics
 
     Args:
         metric_name: where words are separated by underscores.
@@ -67,24 +74,24 @@ def create_plots_for_distributions(metrics_dict: Dict[str, Any]) -> str:
     # Iterate over all metrics.
     for metric_name, metric_value in metrics_dict.items():
         # Check if this is a 1D distribution metric and has a summary.
-        if metric_name not in distribution_metrics or SUMMARY_KEY not in metric_value:
+        if metric_name not in distribution_metrics or metrics.SUMMARY_KEY not in metric_value:
             continue
         row = i // SUBPLOTS_PER_ROW + 1
         col = i % SUBPLOTS_PER_ROW + 1
         i += 1
         # Histogram metrics are plotted directly from summary.
-        if "histogram" in metric_value[SUMMARY_KEY]:
-            histogram = metric_value[SUMMARY_KEY]["histogram"]
+        if "histogram" in metric_value[metrics.SUMMARY_KEY]:
+            histogram = metric_value[metrics.SUMMARY_KEY]["histogram"]
             fig.add_trace(
                 go.Bar(x=list(histogram.keys()), y=list(histogram.values()), name=metric_name), row=row, col=col
             )
-        elif "quartiles" in metric_value[SUMMARY_KEY]:
+        elif "quartiles" in metric_value[metrics.SUMMARY_KEY]:
             # If all values are available, use them to create box plot.
-            if DATA_KEY in metric_value:
-                fig.add_trace(go.Box(y=metric_value[DATA_KEY], name=metric_name), row=row, col=col)
+            if metrics.FULL_DATA_KEY in metric_value:
+                fig.add_trace(go.Box(y=metric_value[metrics.FULL_DATA_KEY], name=metric_name), row=row, col=col)
             # Else use summary to create box plot.
             else:
-                quartiles = metric_value[SUMMARY_KEY]["quartiles"]
+                quartiles = metric_value[metrics.SUMMARY_KEY]["quartiles"]
                 fig.add_trace(
                     go.Box(
                         q1=[quartiles["q1"]],
@@ -122,10 +129,10 @@ def get_figures_for_metrics(metrics_group: GtsfmMetricsGroup) -> Tuple[str, str]
     for metric, value in metrics_dict.items():
         if isinstance(value, dict):
             # Metrics with a dict representation must contain a summary.
-            if not SUMMARY_KEY in value:
+            if not metrics.SUMMARY_KEY in value:
                 raise ValueError("Metric {metric} does not contain a summary.")
             # Add a scalar metric for mean of 1D distributions.
-            scalar_metrics["mean_" + metric] = value[SUMMARY_KEY]["mean"]
+            scalar_metrics["mean_" + metric] = value[metrics.SUMMARY_KEY]["mean"]
         else:
             scalar_metrics[metric] = value
     table = create_table_for_scalar_metrics(scalar_metrics)
