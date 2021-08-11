@@ -14,8 +14,8 @@ from gtsfm.densify.mvs_math import piecewise_gaussian
 
 NUM_PATCHMATCHNET_STAGES = 4
 
-MIN_DEPTH_PERCENTILE = 0.01
-MAX_DEPTH_PERCENTILE = 0.99
+MIN_DEPTH_PERCENTILE = 1
+MAX_DEPTH_PERCENTILE = 99
 
 
 class PatchmatchNetData(Dataset):
