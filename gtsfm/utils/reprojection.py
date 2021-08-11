@@ -62,6 +62,11 @@ def compute_point_reprojection_errors(
     errors = []
     for (i, uv_measured) in measurements:
 
+        if i not in track_camera_dict:
+            # camera pose was not successfully estimated, PinholeCameraCal3Bundler was uninitialized
+            errors.append(np.nan)
+            continue
+
         # get the camera associated with the measurement
         camera = track_camera_dict[i]
         # Project to camera
