@@ -124,20 +124,21 @@ class BundleAdjustmentOptimizer(NamedTuple):
         # construct the results
         optimized_data = values_to_gtsfm_data(result_values, initial_data)
 
-        def get_metrics_from_sfm_data(sfm_data: GtsfmData, suffix: str) -> GtsfmMetricsGroup:
+        def get_metrics_from_sfm_data(sfm_data: GtsfmData, suffix: str) -> List[GtsfmMetric]:
+            """Helper to get bundle adjustment metrics from a GtsfmData object with a suffix for metric names."""
             metrics = []
             metrics.append(GtsfmMetric("number_tracks" + suffix, sfm_data.number_tracks()))
             metrics.append(GtsfmMetric("3d_track_lengths" + suffix, sfm_data.get_track_lengths()))
             metrics.append(GtsfmMetric("reprojection_errors" + suffix, sfm_data.get_scene_reprojection_errors()))
             return metrics
 
-        ba_metrics = GtsfmMetricsGroup("bundle_adjustment_metrics", get_metrics_from_sfm_data(optimized_data, "_unfiltered"))
+        ba_metrics = GtsfmMetricsGroup("bundle_adjustment_metrics", get_metrics_from_sfm_data(optimized_data, suffix="_unfiltered"))
         logger.info("[Result] Number of tracks before filtering: %d", optimized_data.number_tracks())
 
         # filter the largest errors
         filtered_result = optimized_data.filter_landmarks(self.output_reproj_error_thresh)
 
-        ba_metrics.add_metrics(get_metrics_from_sfm_data(filtered_result, "_filtered"))
+        ba_metrics.add_metrics(get_metrics_from_sfm_data(filtered_result, suffix="_filtered"))
         # ba_metrics.save_to_json(os.path.join(METRICS_PATH, "bundle_adjustment_metrics.json"))
 
         logger.info("[Result] Number of tracks after filtering: %d", filtered_result.number_tracks())

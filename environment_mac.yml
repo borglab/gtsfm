@@ -1,5 +1,8 @@
 name: gtsfm-v1
 channels:
+  # The GTSFM mac environment closely follows the linux conda environment file, 
+  # except for two noticeable differences: no CUDA support and no DEGENSAC support.
+  #
   # for priority order, we prefer pytorch as the highest priority as it supplies
   # latest stable packages for numerous deep learning based methods. conda-forge
   # supplies higher versions of packages like opencv compared to the defaults
@@ -29,16 +32,13 @@ dependencies:
   - pillow>=8.0.1
   - scikit-learn
   # 3rd party algorithms for different modules
-  - cudatoolkit=10.2
   - opencv=4.5.0 # preferring conda-forge's distribution as it provides the latest distribution
   - pytorch
   # io
   - h5py
   - plotly=4.14.3
   - pip:
-    - pydegensac
     - hydra-core==1.1.0
     - argoverse @ git+https://github.com/argoai/argoverse-api.git@master
-
 
 

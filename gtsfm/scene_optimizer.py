@@ -22,8 +22,8 @@ import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.metrics as metric_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
-import gtsfm.utils.viz as viz_utils
 import gtsfm.utils.metrics as metrics_utils
+import gtsfm.utils.viz as viz_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
@@ -155,11 +155,10 @@ class SceneOptimizer:
                 )
 
         # persist all front-end metrics and its summary
+        auxiliary_graph_list.append(
+            dask.delayed(metrics_utils.persist_frontend_metrics_full)(two_view_reports_dict, image_graph)
+        )
         if gt_pose_graph is not None:
-            auxiliary_graph_list.append(
-                dask.delayed(metrics_utils.persist_frontend_metrics_full)(two_view_reports_dict, image_graph)
-            )
-
             metrics_graph_list.append(
                 dask.delayed(metrics_utils.aggregate_frontend_metrics)(
                     two_view_reports_dict, self._pose_angular_error_thresh
