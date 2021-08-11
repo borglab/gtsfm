@@ -21,6 +21,11 @@ To open a pull request, here are some steps to get you started:
   - Hint: having unit tests that validate your changes with your pull
     request will help to land your changes faster.
 
+## SfM Variable Name Conventions
+We use a specific naming convention for image/SfM data throughout the codebase:
+- `i` for camera indices
+- `j` for 3d point indices
+- `k` for measurement indices
 
 ## Coordinate System Conventions
 

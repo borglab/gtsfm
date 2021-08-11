@@ -21,7 +21,11 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.sfm_track import SfmTrack2d
-from gtsfm.data_association.point3d_initializer import Point3dInitializer, TriangulationParam, TriangulationResult
+from gtsfm.data_association.point3d_initializer import (
+    Point3dInitializer,
+    TriangulationParam,
+    TriangulationExitCode,
+)
 from gtsfm.common.image import Image
 import gtsfm.utils.io as io_utils
 
@@ -115,11 +119,11 @@ class DataAssociation(NamedTuple):
         for track_2d in tracks_2d:
             # triangulate and filter based on reprojection error
             sfm_track, avg_track_reproj_error, triangulation_result = point3d_initializer.triangulate(track_2d)
-            if triangulation_result == TriangulationResult.CHEIRALITY_ERROR:
+            if triangulation_result == TriangulationExitCode.CHEIRALITY_FAILURE:
                 num_cheirality_error_tracks += 1
-            elif triangulation_result == TriangulationResult.HIGH_REPROJECTION_ERROR:
+            elif triangulation_result == TriangulationExitCode.HIGH_REPROJECTION_ERROR:
                 num_high_reproj_error_tracks += 1
-            elif triangulation_result == TriangulationResult.SMALL_BASELINE_ERROR:
+            elif triangulation_result == TriangulationExitCode.SMALL_BASELINE_ERROR:
                 num_small_baseline_error_tracks += 1
 
             if avg_track_reproj_error is not None:
@@ -163,9 +167,9 @@ class DataAssociation(NamedTuple):
                 "max": int(track_lengths_3d.max()) if track_lengths_3d.size > 0 else None,
                 "track_lengths_histogram": histogram_dict,
             },
-            "mean_accepted_track_avg_error": np.array(per_accepted_track_avg_errors).mean(),
-            "per_rejected_track_avg_errors": per_rejected_track_avg_errors,
-            "per_accepted_track_avg_errors": per_accepted_track_avg_errors,
+            "mean_accepted_track_avg_error_px": np.array(per_accepted_track_avg_errors).mean(),
+            "per_rejected_track_avg_errors_px": per_rejected_track_avg_errors,
+            "per_accepted_track_avg_errors_px": per_accepted_track_avg_errors,
         }
 
         return connected_data, data_assoc_metrics

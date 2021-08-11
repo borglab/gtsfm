@@ -23,7 +23,11 @@ from gtsam import (
     ShonanAveragingParameters3,
 )
 
+import gtsfm.utils.logger as logger_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
+
+
+logger = logger_utils.get_logger()
 
 
 class ShonanRotationAveraging(RotationAveragingBase):
@@ -100,6 +104,11 @@ class ShonanRotationAveraging(RotationAveragingBase):
                 underconstrained system or ill-constrained system), or where the camera pose had no valid observation
                 in the input to run().
         """
+        if len(i2Ri1_dict) == 0:
+            logger.warning("Shonan cannot proceed: No cycle-consistent triplets found after filtering.")
+            wRi_list = [None] * num_images
+            return wRi_list
+
         connected_nodes = set()
         for (i1, i2) in i2Ri1_dict.keys():
             connected_nodes.add(i1)
