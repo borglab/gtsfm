@@ -16,9 +16,10 @@ import numpy as np
 from dask.delayed import Delayed
 
 import gtsfm.evaluation.metrics_report as metrics_report
-import gtsfm.two_view_estimator
+import gtsfm.two_view_estimator as two_view_estimator
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.viz as viz_utils
 from gtsfm.common.image import Image
 from gtsfm.feature_extractor import FeatureExtractor
@@ -261,7 +262,7 @@ def save_gtsfm_data(image_graph: Delayed, ba_input_graph: Delayed, ba_output_gra
     return saving_graph_list
 
 
-def save_metrics_reports(metrics_graph: Delayed) -> List[Delayed]:
+def save_metrics_reports(metrics_graph_list: Delayed) -> List[Delayed]:
     """Saves metrics to JSON and HTML report.
 
     Args:
@@ -272,13 +273,13 @@ def save_metrics_reports(metrics_graph: Delayed) -> List[Delayed]:
     """
     save_metrics_graph_list = []
 
-    if len(metrics_graph) == 0:
+    if len(metrics_graph_list) == 0:
         return save_metrics_list
 
     # Save metrics to JSON
-    save_metrics_graph_list.append(dask.delayed(io_utils.save_metrics_as_json)(metrics_graph_list, METRICS_PATH))
+    save_metrics_graph_list.append(dask.delayed(metrics_utils.save_metrics_as_json)(metrics_graph_list, METRICS_PATH))
     save_metrics_graph_list.append(
-        dask.delayed(io_utils.save_metrics_as_json)(metrics_graph_list, REACT_METRICS_PATH)
+        dask.delayed(metrics_utils.save_metrics_as_json)(metrics_graph_list, REACT_METRICS_PATH)
     )
     save_metrics_graph_list.append(
         dask.delayed(metrics_report.generate_metrics_report_html)(
