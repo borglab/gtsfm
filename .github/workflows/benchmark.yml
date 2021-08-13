@@ -20,6 +20,7 @@ jobs:
         shell: bash -l {0}
         run: |
           bash .github/scripts/setup.sh
+          pip install hydra-core==1.1.0
       - name: Execute SFM
         run: |
           python gtsfm/runner/run_scene_optimizer.py --config_name sift_front_end.yaml
