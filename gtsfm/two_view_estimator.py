@@ -4,7 +4,7 @@ Authors: Ayush Baid, John Lambert
 """
 import logging
 from dataclasses import dataclass
-from typing import Tuple, Optional
+from typing import Dict, Optional, Tuple
 
 import dask
 import numpy as np
