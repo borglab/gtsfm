@@ -67,7 +67,7 @@ class MultiViewOptimizer:
             List of GtsfmMetricGroups from different modules, wrapped up as Delayed.
         """
         # prune the graph to a single connected component.
-        pruned_graph = dask.delayed(prune_to_largest_connected_component)(i2Ri1_graph, i2Ui1_graph)
+        pruned_graph = dask.delayed(graph_utils.prune_to_largest_connected_component)(i2Ri1_graph, i2Ui1_graph)
 
         pruned_i2Ri1_graph = pruned_graph[0]
         pruned_i2Ui1_graph = pruned_graph[1]
@@ -94,6 +94,7 @@ class MultiViewOptimizer:
         return ba_input_graph, ba_result_graph, multiview_optimizer_metrics_graph
 
 
+<<<<<<< HEAD
 def prune_to_largest_connected_component(
     rotations: Dict[Tuple[int, int], Optional[Rot3]],
     unit_translations: Dict[Tuple[int, int], Optional[Unit3]],
@@ -124,6 +125,8 @@ def prune_to_largest_connected_component(
     )
 
 
+=======
+>>>>>>> 81692c104aef60f8666dca2e2448849b1ac8006d
 def init_cameras(
     wRi_list: List[Optional[Rot3]],
     wti_list: List[Optional[Point3]],
@@ -135,6 +138,7 @@ def init_cameras(
         wRi_list: rotations for cameras.
         wti_list: translations for cameras.
         intrinsics_list: intrinsics for cameras.
+
     Returns:
         Valid cameras.
     """

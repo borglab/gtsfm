@@ -107,12 +107,12 @@ Contributions are always welcome! Please be aware of our [contribution guideline
 ## Citing this work
 Open-source Python implementation:
 ```
-@misc{
-    author = {Ayush Baid, Fan Jiang, Akshay Krishnan, John Lambert, Aditya Singh
-       Aishwarya Venkataramanan, Sushmita Warrier, Jing Wu, Xiaolong Wu, Frank Dellaert},
-    title = {GTSFM: Georgia Tech Structure from Motion},
+@misc{GTSFM,
+    author = {Ayush Baid and Fan Jiang and Akshay Krishnan and John Lambert and Aditya Singh and
+       Aishwarya Venkataramanan and Sushmita Warrier and Jing Wu and Xiaolong Wu and Frank Dellaert},
+    title = { {GTSFM}: Georgia Tech Structure from Motion},
     howpublished={\url{https://github.com/borglab/gtsfm}},
-    year = {2021},
+    year = {2021}
 }
 ```
 Note: authors are listed in alphabetical order.
