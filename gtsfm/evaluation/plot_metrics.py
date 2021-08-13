@@ -26,7 +26,7 @@ def create_metrics_plots_html(json_path: str, output_dir: str) -> None:
     # The provided JSON path must contain these files which contain metrics from the respective modules.
     GTSFM_MODULE_METRICS_FNAMES = [
         "frontend_summary.json",
-        "multiview_optimizer_metrics.json",
+        "averaging_metrics.json",
         "data_association_metrics.json",
         "bundle_adjustment_metrics.json",
     ]
