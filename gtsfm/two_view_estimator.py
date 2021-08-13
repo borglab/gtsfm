@@ -357,14 +357,17 @@ def aggregate_frontend_metrics(
         "[Two view optimizer] [Summary] # Image pairs with 100%% inlier ratio:: %d/%d", all_correct, num_image_pairs
     )
 
-    #TODO(akshay-krishnan): Move angular_err_threshold_deg and num_total_image_pairs to metadata.
-    frontend_metrics = GtsfmMetricsGroup("frontend_summary", [
-        GtsfmMetric("angular_err_threshold_deg", angular_err_threshold_deg), 
-        GtsfmMetric("num_total_image_pairs", int(num_image_pairs)),
-        GtsfmMetric("num_valid_image_pairs", int(num_valid_image_pairs)), 
-        GtsfmMetric("rotation_success_count", int(success_count_rot3)), 
-        GtsfmMetric("translation_success_count", int(success_count_unit3)), 
-        GtsfmMetric("pose_success_count", int(success_count_pose)), 
-        GtsfmMetric("num_all_inlier_correspondences_wrt_gt_model", int(all_correct))
-    ])
+    # TODO(akshay-krishnan): Move angular_err_threshold_deg and num_total_image_pairs to metadata.
+    frontend_metrics = GtsfmMetricsGroup(
+        "frontend_summary",
+        [
+            GtsfmMetric("angular_err_threshold_deg", angular_err_threshold_deg),
+            GtsfmMetric("num_total_image_pairs", int(num_image_pairs)),
+            GtsfmMetric("num_valid_image_pairs", int(num_valid_image_pairs)),
+            GtsfmMetric("rotation_success_count", int(success_count_rot3)),
+            GtsfmMetric("translation_success_count", int(success_count_unit3)),
+            GtsfmMetric("pose_success_count", int(success_count_pose)),
+            GtsfmMetric("num_all_inlier_correspondences_wrt_gt_model", int(all_correct)),
+        ],
+    )
     return frontend_metrics
