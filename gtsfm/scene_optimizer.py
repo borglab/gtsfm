@@ -337,7 +337,7 @@ def aggregate_frontend_metrics(
         trans_angular_errors.append(report.U_error_deg)
 
     if len(metrics_graph_list) == 0:
-        return save_metrics_list
+        return save_metrics_graph_list
 
     # Save metrics to JSON
     save_metrics_graph_list.append(dask.delayed(metrics_utils.save_metrics_as_json)(metrics_graph_list, METRICS_PATH))
