@@ -1,7 +1,9 @@
 """Functions to generate a report of metrics with tables and plots.
 
-A HTML report can be generated using the save_metrics_report_html() function, 
+A HTML report can be generated using the generate_metrics_report_html() function, 
 if called with a list of GtsfmMetricsGroup. 
+The HTML report has headers, section headings, tables generated using tabulate
+and grids of box or histogram plots generated using plotly.
 
 Authors: Akshay Krishnan
 """
@@ -178,7 +180,7 @@ def get_html_header() -> str:
               </head>"""
 
 
-def save_metrics_report_html(metrics_groups: List[GtsfmMetricsGroup], html_path: str) -> None:
+def generate_metrics_report_html(metrics_groups: List[GtsfmMetricsGroup], html_path: str) -> None:
     """Generates a report for metrics groups with plots and tables and saves it to HTML.
 
     Args:

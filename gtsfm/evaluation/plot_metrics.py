@@ -7,7 +7,7 @@ import os
 import argparse
 
 from gtsfm.evaluation.metric import GtsfmMetric, GtsfmMetricsGroup
-import gtsfm.evaluation.metrics_visualizer as metrics_viz
+import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.utils.logger as logger_utils
 
 logger = logger_utils.get_logger()
@@ -23,6 +23,7 @@ def create_metrics_plots_html(json_path: str, output_dir: str) -> None:
         output_dir: directory to save the report, uses json_path if empty.
     """
     metrics_groups = []
+    # The provided JSON path must contain these files which contain metrics from the respective modules.
     GTSFM_MODULE_METRICS_FNAMES = [
         "frontend_summary.json",
         "multiview_optimizer_metrics.json",
@@ -30,13 +31,13 @@ def create_metrics_plots_html(json_path: str, output_dir: str) -> None:
         "bundle_adjustment_metrics.json",
     ]
     for filename in GTSFM_MODULE_METRICS_FNAMES:
-        logger.info("adding plot for %s", filename)
+        logger.info("Adding metrics from %s", filename)
         metric_path = os.path.join(json_path, filename)
         metrics_groups.append(GtsfmMetricsGroup.parse_from_json(metric_path))
     if len(output_dir) == 0:
         output_dir = json_path
     output_file = os.path.join(output_dir, "gtsfm_metrics_report.html")
-    metrics_viz.save_html_for_metrics_groups(metrics_groups, output_file)
+    metrics_report.generate_metrics_report_html(metrics_groups, output_file)
 
 
 if __name__ == "__main__":
