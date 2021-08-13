@@ -2,7 +2,7 @@
 
 Authors: Xiaolong Wu, John Lambert, Ayush Baid
 """
-import os
+
 import numpy as np
 from pathlib import Path
 from typing import List, NamedTuple, Tuple
@@ -12,7 +12,6 @@ import gtsam
 from dask.delayed import Delayed
 from gtsam import GeneralSFMFactorCal3Bundler, SfmTrack, Values, symbol_shorthand
 
-import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
@@ -133,7 +132,9 @@ class BundleAdjustmentOptimizer(NamedTuple):
             metrics.append(GtsfmMetric("reprojection_errors" + suffix, sfm_data.get_scene_reprojection_errors()))
             return metrics
 
-        ba_metrics = GtsfmMetricsGroup("bundle_adjustment_metrics", get_metrics_from_sfm_data(optimized_data, suffix="_unfiltered"))
+        ba_metrics = GtsfmMetricsGroup(
+            "bundle_adjustment_metrics", get_metrics_from_sfm_data(optimized_data, suffix="_unfiltered")
+        )
         logger.info("[Result] Number of tracks before filtering: %d", optimized_data.number_tracks())
 
         # filter the largest errors
@@ -159,7 +160,7 @@ class BundleAdjustmentOptimizer(NamedTuple):
             GtsfmData wrapped up using dask.delayed
             Metrics group for BA results, wrapped up using dask.delayed
         """
-        data_metrics_graph =  dask.delayed(self.run)(sfm_data_graph)
+        data_metrics_graph = dask.delayed(self.run)(sfm_data_graph)
         return data_metrics_graph[0], data_metrics_graph[1]
 
 

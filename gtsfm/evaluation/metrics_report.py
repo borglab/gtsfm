@@ -15,7 +15,7 @@ import plotly.subplots as psubplot
 from tabulate import tabulate
 
 import gtsfm.evaluation.metrics as metrics
-from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
+from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 
 SUBPLOTS_PER_ROW = 3
 
