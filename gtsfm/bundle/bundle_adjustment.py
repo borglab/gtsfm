@@ -45,7 +45,8 @@ class BundleAdjustmentOptimizer(NamedTuple):
             initial_data: initialized cameras, tracks w/ their 3d landmark from triangulation.
 
         Results:
-            optimized camera poses, 3D point w/ tracks, and error metrics.
+            Optimized camera poses, 3D point w/ tracks, and error metrics.
+            Metrics group containing metrics for both filtered and unfiltered BA results.
         """
         logger.info(
             f"Input: {initial_data.number_tracks()} tracks on {len(initial_data.get_valid_camera_indices())} cameras\n"
@@ -156,6 +157,7 @@ class BundleAdjustmentOptimizer(NamedTuple):
 
         Returns:
             GtsfmData wrapped up using dask.delayed
+            Metrics group for BA results, wrapped up using dask.delayed
         """
         data_metrics_graph =  dask.delayed(self.run)(sfm_data_graph)
         return data_metrics_graph[0], data_metrics_graph[1]
