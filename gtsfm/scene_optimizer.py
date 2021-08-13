@@ -151,7 +151,7 @@ class SceneOptimizer:
 
         # persist all front-end metrics and its summary
         auxiliary_graph_list.append(
-            dask.delayed(io_utils.save_full_frontend_metrics)(two_view_reports_dict, image_graph)
+            dask.delayed(save_full_frontend_metrics)(two_view_reports_dict, image_graph)
         )
         if gt_pose_graph is not None:
             metrics_graph_list.append(
@@ -287,3 +287,42 @@ def save_metrics_reports(metrics_graph_list: Delayed) -> List[Delayed]:
         )
     )
     return save_metrics_graph_list
+
+
+def save_full_frontend_metrics(
+    two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport], images: List[Image]
+) -> None:
+    """Converts the TwoViewEstimationReports for all image pairs to a Dict and saves it as JSON.
+
+    Args:
+        two_view_report_dict: front-end metrics for pairs of images.
+        images: list of all images for this scene, in order of image/frame index.
+    """
+    metrics_list = []
+
+    for (i1, i2), report in two_view_report_dict.items():
+
+        # Note: if GT is unknown, then R_error_deg, U_error_deg, and inlier_ratio_gt_model will be None
+        metrics_list.append(
+            {
+                "i1": i1,
+                "i2": i2,
+                "i1_filename": images[i1].file_name,
+                "i2_filename": images[i2].file_name,
+                "rotation_angular_error": round(report.R_error_deg, PRINT_NUM_SIG_FIGS) if report.R_error_deg else None,
+                "translation_angular_error": round(report.U_error_deg, PRINT_NUM_SIG_FIGS)
+                if report.U_error_deg
+                else None,
+                "num_inliers_gt_model": report.num_inliers_gt_model if report.num_inliers_gt_model else None,
+                "inlier_ratio_gt_model": round(report.inlier_ratio_gt_model, PRINT_NUM_SIG_FIGS)
+                if report.inlier_ratio_gt_model
+                else None,
+                "inlier_ratio_est_model": round(report.inlier_ratio_est_model, PRINT_NUM_SIG_FIGS),
+                "num_inliers_est_model": report.num_inliers_est_model,
+            }
+        )
+
+    save_json_file(os.path.join(METRICS_PATH, "frontend_full.json"), metrics_list)
+
+    # Save duplicate copy of 'frontend_full.json' within React Folder.
+    save_json_file(os.path.join(REACT_METRICS_PATH, "frontend_full.json"), metrics_list)
