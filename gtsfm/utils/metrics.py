@@ -2,9 +2,11 @@
 
 Authors: Ayush Baid, Akshay Krishnan
 """
+import os
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
+from dask.delayed import Delayed
 import numpy as np
 from gtsam import Cal3Bundler, EssentialMatrix, Point3, Pose3, Rot3, Unit3
 
@@ -12,15 +14,17 @@ import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.verification as verification_utils
+from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # A StatsDict is a dict from string to optional floats or their lists.
 StatsDict = Dict[str, Union[Optional[float], List[Optional[float]]]]
 
-# number of digits (significant figures) to include in each entry of error metrics
-PRINT_NUM_SIG_FIGS = 2
+METRICS_PATH = Path(__file__).resolve().parent.parent.parent / "result_metrics"
+REACT_METRICS_PATH = Path(__file__).resolve().parent.parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
 
 
 logger = logger_utils.get_logger()
@@ -66,26 +70,7 @@ def count_correct_correspondences(
     return np.count_nonzero(distance_squared < epipolar_dist_threshold ** 2)
 
 
-def compute_errors_statistics(errors: List[Optional[float]]) -> StatsDict:
-    """Computes statistics (min, max, median) on the given list of errors
-
-    Args:
-        errors: List of errors for a metric.
-
-    Returns:
-        A dict with keys min_error, max_error, median_error,
-        and errors_list mapping to the respective stats.
-    """
-    metrics = {}
-    valid_errors = [error for error in errors if error is not None]
-    metrics["median_error"] = np.round(np.median(valid_errors), PRINT_NUM_SIG_FIGS)
-    metrics["min_error"] = np.round(np.min(valid_errors), PRINT_NUM_SIG_FIGS)
-    metrics["max_error"] = np.round(np.max(valid_errors), PRINT_NUM_SIG_FIGS)
-    metrics["errors_list"] = [np.round(error, PRINT_NUM_SIG_FIGS) if error is not None else None for error in errors]
-    return metrics
-
-
-def compute_rotation_angle_metrics(wRi_list: List[Optional[Rot3]], gt_wRi_list: List[Optional[Pose3]]) -> StatsDict:
+def compute_rotation_angle_metric(wRi_list: List[Optional[Rot3]], gt_wRi_list: List[Optional[Pose3]]) -> GtsfmMetric:
     """Computes statistics for the angle between estimated and GT rotations.
 
     Assumes that the estimated and GT rotations have been aligned and do not
@@ -100,13 +85,14 @@ def compute_rotation_angle_metrics(wRi_list: List[Optional[Rot3]], gt_wRi_list: 
     """
     errors = []
     for (wRi, gt_wRi) in zip(wRi_list, gt_wRi_list):
-        errors.append(comp_utils.compute_relative_rotation_angle(wRi, gt_wRi))
-    return compute_errors_statistics(errors)
+        if wRi is not None and gt_wRi is not None:
+            errors.append(comp_utils.compute_relative_rotation_angle(wRi, gt_wRi))
+    return GtsfmMetric("rotation_averaging_angle_deg", errors)
 
 
-def compute_translation_distance_metrics(
+def compute_translation_distance_metric(
     wti_list: List[Optional[Point3]], gt_wti_list: List[Optional[Point3]]
-) -> StatsDict:
+) -> GtsfmMetric:
     """Computes statistics for the distance between estimated and GT translations.
 
     Assumes that the estimated and GT translations have been aligned and do not
@@ -121,13 +107,14 @@ def compute_translation_distance_metrics(
     """
     errors = []
     for (wti, gt_wti) in zip(wti_list, gt_wti_list):
-        errors.append(comp_utils.compute_points_distance_l2(wti, gt_wti))
-    return compute_errors_statistics(errors)
+        if wti is not None and gt_wti is not None:
+            errors.append(comp_utils.compute_points_distance_l2(wti, gt_wti))
+    return GtsfmMetric("translation_averaging_distance", errors)
 
 
-def compute_translation_angle_metrics(
+def compute_translation_angle_metric(
     i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]], wTi_list: List[Optional[Pose3]]
-) -> StatsDict:
+) -> GtsfmMetric:
     """Computes statistics for angle between translations and direction measurements.
 
     Args:
@@ -141,7 +128,7 @@ def compute_translation_angle_metrics(
     for (i1, i2) in i2Ui1_dict:
         i2Ui1 = i2Ui1_dict[(i1, i2)]
         angles.append(comp_utils.compute_translation_to_direction_angle(i2Ui1, wTi_list[i2], wTi_list[i1]))
-    return compute_errors_statistics(angles)
+    return GtsfmMetric("translation_angle_deg", angles)
 
 
 def compute_averaging_metrics(
@@ -149,7 +136,7 @@ def compute_averaging_metrics(
     wRi_list: List[Optional[Rot3]],
     wti_list: List[Optional[Point3]],
     gt_wTi_list: List[Optional[Pose3]],
-) -> Dict[str, StatsDict]:
+) -> GtsfmMetricsGroup:
     """Computes statistics of multiple metrics for the averaging modules.
 
     Specifically, computes statistics of:
@@ -188,11 +175,11 @@ def compute_averaging_metrics(
     wRi_aligned_list, wti_aligned_list = get_rotations_translations_from_poses(wTi_aligned_list)
     gt_wRi_list, gt_wti_list = get_rotations_translations_from_poses(gt_wTi_list)
 
-    metrics = {}
-    metrics["rotation_averaging_angle_deg"] = compute_rotation_angle_metrics(wRi_aligned_list, gt_wRi_list)
-    metrics["translation_averaging_distance"] = compute_translation_distance_metrics(wti_aligned_list, gt_wti_list)
-    metrics["translation_to_direction_angle_deg"] = compute_translation_angle_metrics(i2Ui1_dict, wTi_aligned_list)
-    return metrics
+    metrics = []
+    metrics.append(compute_rotation_angle_metric(wRi_aligned_list, gt_wRi_list))
+    metrics.append(compute_translation_distance_metric(wti_aligned_list, gt_wti_list))
+    metrics.append(compute_translation_angle_metric(i2Ui1_dict, wTi_aligned_list))
+    return GtsfmMetricsGroup(name="averaging_metrics", metrics=metrics)
 
 
 def get_rotations_translations_from_poses(
@@ -209,20 +196,6 @@ def get_rotations_translations_from_poses(
         rotations.append(pose.rotation())
         translations.append(pose.translation())
     return rotations, translations
-
-
-def compute_pose_errors(gt_wTi_list: List[Pose3], wTi_list: List[Pose3]) -> Dict[str, StatsDict]:
-    """Compare orientation and location errors for each estimated poses, vs. ground truth.
-
-    Note: Poses must be aligned, before calling this function
-    """
-    wRi_list, wti_list = get_rotations_translations_from_poses(wTi_list)
-    gt_wRi_list, gt_wti_list = get_rotations_translations_from_poses(gt_wTi_list)
-
-    metrics = {}
-    metrics["rotation_angle_deg_errors"] = compute_rotation_angle_metrics(wRi_list, gt_wRi_list)
-    metrics["translation_distance_errors"] = compute_translation_distance_metrics(wti_list, gt_wti_list)
-    return metrics
 
 
 def log_sfm_summary() -> None:
@@ -256,3 +229,14 @@ def log_sfm_summary() -> None:
         "Averaging median_trans_dist_err: %.2f", averaging_metrics["translation_averaging_distance"]["median_error"]
     )
     logger.info("Averaging max_trans_dist_err: %.2f", averaging_metrics["translation_averaging_distance"]["max_error"])
+
+
+def save_metrics_as_json(metrics_groups: Delayed, output_dir: str) -> None:
+    """Saves the input metrics groups as JSON files using the name of the group.
+
+    Args:
+        metrics_groups: List of GtsfmMetricsGroup to be saved.
+        output_dir: Directory to save metrics to.
+    """
+    for metrics_group in metrics_groups:
+        metrics_group.save_to_json(os.path.join(output_dir, metrics_group.name + ".json"))

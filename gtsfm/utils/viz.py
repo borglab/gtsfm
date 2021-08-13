@@ -311,11 +311,6 @@ def save_camera_poses_viz(
         post_ba_poses = comp_utils.align_poses_sim3(corresponding_gt_poses, copy.deepcopy(post_ba_poses))
         plot_poses_3d(gt_pose_graph, ax, center_marker_color="m", label_name="GT")
 
-        post_ba_pose_errors_dict = metric_utils.compute_pose_errors(
-            gt_wTi_list=corresponding_gt_poses, wTi_list=post_ba_poses
-        )
-        print("post_ba_pose_errors_dict: ", post_ba_pose_errors_dict)
-
     plot_poses_3d(pre_ba_poses, ax, center_marker_color="c", label_name="Pre-BA")
     plot_poses_3d(post_ba_poses, ax, center_marker_color="k", label_name="Post-BA")
 
