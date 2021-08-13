@@ -21,7 +21,6 @@ import gtsfm.utils.reprojection as reproj_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.sfm_track import SfmTrack2d
-from gtsfm.two_view_estimator import TwoViewEstimationReport
 
 
 logger = logger_utils.get_logger()
