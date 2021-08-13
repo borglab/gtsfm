@@ -14,7 +14,7 @@ logger = logger_utils.get_logger()
 
 
 def create_metrics_plots_html(json_path: str, output_dir: str) -> None:
-    """Creates a HTML report of metrics from frontend, avergaging, data association and bundle adjustment.
+    """Creates a HTML report of metrics from frontend, averaging, data association and bundle adjustment.
 
     Reads the metrics from JSON files in a previous run.
 
