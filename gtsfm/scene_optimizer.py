@@ -277,7 +277,7 @@ def save_metrics_reports(metrics_graph_list: Delayed) -> List[Delayed]:
     save_metrics_graph_list = []
 
     if len(metrics_graph_list) == 0:
-        return save_metrics_list
+        return save_metrics_graph_list
 
     # Save metrics to JSON
     save_metrics_graph_list.append(dask.delayed(metrics_utils.save_metrics_as_json)(metrics_graph_list, METRICS_PATH))
