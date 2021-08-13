@@ -246,7 +246,7 @@ def save_visualizations(
     return viz_graph_list
 
 
-def save_gtsfm_data(image_graph: Delayed, ba_input_graph: Delayed, ba_output_graph: Delayed):
+def save_gtsfm_data(image_graph: Delayed, ba_input_graph: Delayed, ba_output_graph: Delayed) -> List[Delayed]:
     """Saves the Gtsfm data before and after bundle adjustment.
 
     Args:
