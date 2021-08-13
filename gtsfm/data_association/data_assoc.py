@@ -152,8 +152,8 @@ class DataAssociation(NamedTuple):
                     store_full_data=False,
                     plot_type=GtsfmMetric.PlotType.HISTOGRAM,
                 ),
-                GtsfmMetric("accepted_track_avg_errors", per_accepted_track_avg_errors, store_full_data=False),
-                GtsfmMetric("rejected_track_avg_errors", per_rejected_track_avg_errors, store_full_data=False),
+                GtsfmMetric("accepted_track_avg_errors_px", per_accepted_track_avg_errors, store_full_data=False),
+                GtsfmMetric("rejected_track_avg_errors_px", per_rejected_track_avg_errors, store_full_data=False),
             ],
         )
 
