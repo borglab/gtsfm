@@ -21,7 +21,6 @@ import gtsfm.utils.reprojection as reproj_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.sfm_track import SfmTrack2d
-from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.two_view_estimator import TwoViewEstimationReport
 
 
@@ -456,14 +455,3 @@ def save_full_frontend_metrics(
 
     # Save duplicate copy of 'frontend_full.json' within React Folder.
     save_json_file(os.path.join(REACT_METRICS_PATH, "frontend_full.json"), metrics_list)
-
-
-def save_metrics_as_json(metrics_groups: Delayed, output_dir: str) -> None:
-    """Saves the input metrics groups as JSON files using the name of the group.
-
-    Args:
-        metrics_groups: List of GtsfmMetricsGroup to be saved.
-        output_dir: Directory to save metrics to.
-    """
-    for metrics_group in metrics_groups:
-        metrics_group.save_to_json(os.path.join(output_dir, metrics_group.name + ".json"))
