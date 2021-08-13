@@ -25,7 +25,7 @@ from gtsfm.common.image import Image
 from gtsfm.feature_extractor import FeatureExtractor
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.two_view_estimator import TwoViewEstimator
+from gtsfm.two_view_estimator import TwoViewEstimator, TwoViewEstimationReport
 
 # paths for storage
 PLOT_PATH = "plots"
@@ -44,6 +44,9 @@ mpl_logger.setLevel(logging.WARNING)
 
 pil_logger = logging.getLogger("PIL")
 pil_logger.setLevel(logging.INFO)
+
+# number of digits (significant figures) to include in each entry of error metrics
+PRINT_NUM_SIG_FIGS = 2
 
 
 class SceneOptimizer:
@@ -322,7 +325,7 @@ def save_full_frontend_metrics(
             }
         )
 
-    save_json_file(os.path.join(METRICS_PATH, "frontend_full.json"), metrics_list)
+    io_utils.save_json_file(os.path.join(METRICS_PATH, "frontend_full.json"), metrics_list)
 
     # Save duplicate copy of 'frontend_full.json' within React Folder.
-    save_json_file(os.path.join(REACT_METRICS_PATH, "frontend_full.json"), metrics_list)
+    io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, "frontend_full.json"), metrics_list)

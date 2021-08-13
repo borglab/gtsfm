@@ -5,7 +5,7 @@ Authors: Xiaolong Wu, John Lambert, Ayush Baid
 import os
 import numpy as np
 from pathlib import Path
-from typing import NamedTuple, Tuple
+from typing import List, NamedTuple, Tuple
 
 import dask
 import gtsam
