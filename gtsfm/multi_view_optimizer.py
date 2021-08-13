@@ -8,14 +8,7 @@ import dask
 import os
 from pathlib import Path
 from dask.delayed import Delayed
-from gtsam import (
-    Cal3Bundler,
-    PinholeCameraCal3Bundler,
-    Point3,
-    Pose3,
-    Rot3,
-    Unit3,
-)
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point3, Pose3, Rot3
 
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.io as io
@@ -35,7 +28,7 @@ class MultiViewOptimizer:
         rot_avg_module: RotationAveragingBase,
         trans_avg_module: TranslationAveragingBase,
         data_association_module: DataAssociation,
-        bundle_adjustment_module: BundleAdjustmentOptimizer
+        bundle_adjustment_module: BundleAdjustmentOptimizer,
     ) -> None:
         self.rot_avg_module = rot_avg_module
         self.trans_avg_module = trans_avg_module
@@ -86,11 +79,10 @@ class MultiViewOptimizer:
             dask.delayed(io.save_json_file)(
                 os.path.join("result_metrics", "data_association_metrics.json"), data_assoc_metrics_graph
             ),
-
             # duplicate dask variable to save data_association_metrics within React directory
             dask.delayed(io.save_json_file)(
                 os.path.join(REACT_METRICS_PATH, "data_association_metrics.json"), data_assoc_metrics_graph
-            )
+            ),
         ]
 
         # dummy graph to force an immediate dump of data association metrics
