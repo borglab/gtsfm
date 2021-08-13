@@ -10,6 +10,7 @@ import gtsam
 import h5py
 import json
 import numpy as np
+from dask.delayed import Delayed
 from gtsam import Cal3Bundler, Rot3, Pose3
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
@@ -20,6 +21,8 @@ import gtsfm.utils.reprojection as reproj_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.sfm_track import SfmTrack2d
+from gtsfm.evaluation.metrics import GtsfmMetricsGroup
+from gtsfm.two_view_estimator import TwoViewEstimationReport
 
 
 logger = logger_utils.get_logger()
@@ -414,3 +417,53 @@ def save_track_visualizations(
         stacked_image = image_utils.vstack_image_list(patches)
         save_fpath = os.path.join(save_dir, f"track_{i}.jpg")
         save_image(stacked_image, img_path=save_fpath)
+
+
+def save_full_frontend_metrics(
+    two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport], images: List[Image]
+) -> None:
+    """Converts the TwoViewEstimationReports for all image pairs to a Dict and saves it as JSON.
+
+    Args:
+        two_view_report_dict: front-end metrics for pairs of images.
+        images: list of all images for this scene, in order of image/frame index.
+    """
+    metrics_list = []
+
+    for (i1, i2), report in two_view_report_dict.items():
+
+        # Note: if GT is unknown, then R_error_deg, U_error_deg, and inlier_ratio_gt_model will be None
+        metrics_list.append(
+            {
+                "i1": i1,
+                "i2": i2,
+                "i1_filename": images[i1].file_name,
+                "i2_filename": images[i2].file_name,
+                "rotation_angular_error": round(report.R_error_deg, PRINT_NUM_SIG_FIGS) if report.R_error_deg else None,
+                "translation_angular_error": round(report.U_error_deg, PRINT_NUM_SIG_FIGS)
+                if report.U_error_deg
+                else None,
+                "num_inliers_gt_model": report.num_inliers_gt_model if report.num_inliers_gt_model else None,
+                "inlier_ratio_gt_model": round(report.inlier_ratio_gt_model, PRINT_NUM_SIG_FIGS)
+                if report.inlier_ratio_gt_model
+                else None,
+                "inlier_ratio_est_model": round(report.inlier_ratio_est_model, PRINT_NUM_SIG_FIGS),
+                "num_inliers_est_model": report.num_inliers_est_model,
+            }
+        )
+
+    save_json_file(os.path.join(METRICS_PATH, "frontend_full.json"), metrics_list)
+
+    # Save duplicate copy of 'frontend_full.json' within React Folder.
+    save_json_file(os.path.join(REACT_METRICS_PATH, "frontend_full.json"), metrics_list)
+
+
+def save_metrics_as_json(metrics_groups: Delayed, output_dir: str) -> None:
+    """Saves the input metrics groups as JSON files using the name of the group.
+
+    Args:
+        metrics_groups: List of GtsfmMetricsGroup to be saved.
+        output_dir: Directory to save metrics to.
+    """
+    for metrics_group in metrics_groups:
+        metrics_group.save_to_json(os.path.join(output_dir, metrics_group.name + ".json"))
