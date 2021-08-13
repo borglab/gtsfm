@@ -368,6 +368,9 @@ def aggregate_frontend_metrics(
             GtsfmMetric("translation_success_count", int(success_count_unit3)),
             GtsfmMetric("pose_success_count", int(success_count_pose)),
             GtsfmMetric("num_all_inlier_correspondences_wrt_gt_model", int(all_correct)),
+            GtsfmMetric("rot3_angular_errors_deg", rot3_angular_errors),
+            GtsfmMetric("trans_angular_errors_deg", trans_angular_errors),
+            GtsfmMetric("pose_errors_deg", pose_errors)
         ],
     )
     return frontend_metrics
