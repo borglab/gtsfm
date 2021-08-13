@@ -10,7 +10,6 @@ import gtsam
 import h5py
 import json
 import numpy as np
-from dask.delayed import Delayed
 from gtsam import Cal3Bundler, Rot3, Pose3
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
