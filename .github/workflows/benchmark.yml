@@ -19,7 +19,7 @@ jobs:
       - name: Environment setup
         shell: bash -l {0}
         run: |
-          bash ./github/scripts/setup.sh
+          bash .github/scripts/setup.sh
       - name: Execute SFM
         run: |
           python gtsfm/runner/run_scene_optimizer.py --config_name sift_front_end.yaml
