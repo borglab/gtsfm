@@ -14,9 +14,10 @@ matplotlib.use("Agg")
 import numpy as np
 from dask.delayed import Delayed
 
+import gtsfm.evaluation.metrics_report as metrics_report
+import gtsfm.two_view_estimator
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
-import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.viz as viz_utils
 from gtsfm.common.image import Image
 from gtsfm.feature_extractor import FeatureExtractor
@@ -148,11 +149,11 @@ class SceneOptimizer:
 
         # persist all front-end metrics and its summary
         auxiliary_graph_list.append(
-            dask.delayed(metrics_utils.persist_frontend_metrics_full)(two_view_reports_dict, image_graph)
+            dask.delayed(io_utils.save_full_frontend_metrics)(two_view_reports_dict, image_graph)
         )
         if gt_pose_graph is not None:
             metrics_graph_list.append(
-                dask.delayed(metrics_utils.aggregate_frontend_metrics)(
+                dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
                     two_view_reports_dict, self._pose_angular_error_thresh
                 )
             )
@@ -339,22 +340,10 @@ def aggregate_frontend_metrics(
     # count number of rot3 errors which are not None. Should be same in rot3/unit3
     num_valid_image_pairs = np.count_nonzero(~np.isnan(rot3_angular_errors))
 
-    # compute pose errors by picking the max error from rot3 and unit3 errors
-    pose_errors = np.maximum(rot3_angular_errors, trans_angular_errors)
-
-    # check errors against the threshold
-    success_count_rot3 = np.sum(rot3_angular_errors < angular_err_threshold_deg)
-    success_count_unit3 = np.sum(trans_angular_errors < angular_err_threshold_deg)
-    success_count_pose = np.sum(pose_errors < angular_err_threshold_deg)
-
-    # count image pair entries where inlier ratio w.r.t. GT model == 1.
-    all_correct = np.count_nonzero([report.inlier_ratio_gt_model == 1.0 for report in two_view_reports_dict.values()])
-
-    logger.debug(
-        "[Two view optimizer] [Summary] Rotation success: %d/%d/%d",
-        success_count_rot3,
-        num_valid_image_pairs,
-        num_image_pairs,
+    # Save metrics to JSON
+    save_metrics_graph_list.append(dask.delayed(io_utils.save_metrics_as_json)(metrics_graph_list, METRICS_PATH))
+    save_metrics_graph_list.append(
+        dask.delayed(io_utils.save_metrics_as_json)(metrics_graph_list, REACT_METRICS_PATH)
     )
 
     logger.debug(
