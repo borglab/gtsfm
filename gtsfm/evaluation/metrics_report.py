@@ -7,7 +7,6 @@ and grids of box or histogram plots generated using plotly.
 
 Authors: Akshay Krishnan
 """
-import os
 from typing import Any, Dict, List, Tuple, Union
 
 import plotly.graph_objects as go
@@ -131,7 +130,7 @@ def get_figures_for_metrics(metrics_group: GtsfmMetricsGroup) -> Tuple[str, str]
     for metric_name, value in metrics_dict.items():
         if isinstance(value, dict):
             # Metrics with a dict representation must contain a summary.
-            if not metrics.SUMMARY_KEY in value:
+            if metrics.SUMMARY_KEY not in value:
                 raise ValueError(f"Metric {metric_name} does not contain a summary.")
             # Add a scalar metric for mean of 1D distributions.
             scalar_metrics["mean_" + metric_name] = value[metrics.SUMMARY_KEY]["mean"]
