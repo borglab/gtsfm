@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
+from dask.delayed import Delayed
 import numpy as np
 from gtsam import Cal3Bundler, EssentialMatrix, Point3, Pose3, Rot3, Unit3
 
@@ -21,9 +22,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # A StatsDict is a dict from string to optional floats or their lists.
 StatsDict = Dict[str, Union[Optional[float], List[Optional[float]]]]
-
-# number of digits (significant figures) to include in each entry of error metrics
-PRINT_NUM_SIG_FIGS = 2
 
 METRICS_PATH = Path(__file__).resolve().parent.parent.parent / "result_metrics"
 REACT_METRICS_PATH = Path(__file__).resolve().parent.parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
