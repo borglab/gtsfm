@@ -50,7 +50,7 @@ class MultiViewOptimizer:
         v_corr_idxs_graph: Dict[Tuple[int, int], Delayed],
         intrinsics_graph: List[Delayed],
         gt_poses_graph: List[Delayed] = None,
-    ) -> Tuple[Delayed, Delayed, Optional[Delayed]]:
+    ) -> Tuple[Delayed, Delayed, Delayed]:
         """Creates a computation graph for multi-view optimization.
 
         Args:
