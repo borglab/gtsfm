@@ -74,7 +74,7 @@ class DataAssociation(NamedTuple):
             viz_patch_sz: width and height of patches, if if dumping/visualizing a patch for each 2d track measurement
 
         Returns:
-            Cameras and tracks as GtsfmData.
+            A tuple of GtsfmData with cameras and tracks, and a GtsfmMetricsGroup with data association metrics
         """
         # generate tracks for 3D points using pairwise correspondences
         tracks_2d = SfmTrack2d.generate_tracks_from_pairwise_matches(corr_idxs_dict, keypoints_list)
@@ -134,15 +134,28 @@ class DataAssociation(NamedTuple):
         logger.debug("[Data association] output number of tracks: %s", num_accepted_tracks)
         logger.debug("[Data association] output avg. track length: %.2f", mean_3d_track_length)
 
-        data_assoc_metrics = GtsfmMetricsGroup("data_association_metrics", [
-            GtsfmMetric("2D_track_lengths", track_lengths_2d, store_full_data=False, plot_type=GtsfmMetric.PlotType.HISTOGRAM),
-            GtsfmMetric("accepted_tracks_ratio", accepted_tracks_ratio),
-            GtsfmMetric("track_cheirality_failure_ratio", track_cheirality_failure_ratio),
-            GtsfmMetric("num_accepted_tracks", num_accepted_tracks),
-            GtsfmMetric("3d_tracks_length", track_lengths_3d, store_full_data=False, plot_type=GtsfmMetric.PlotType.HISTOGRAM), 
-            GtsfmMetric("accepted_track_avg_error", per_accepted_track_avg_errors, store_full_data=False),
-            GtsfmMetric("rejected_track_avg_errors", per_rejected_track_avg_errors, store_full_data=False),
-        ])
+        data_assoc_metrics = GtsfmMetricsGroup(
+            "data_association_metrics",
+            [
+                GtsfmMetric(
+                    "2D_track_lengths",
+                    track_lengths_2d,
+                    store_full_data=False,
+                    plot_type=GtsfmMetric.PlotType.HISTOGRAM,
+                ),
+                GtsfmMetric("accepted_tracks_ratio", accepted_tracks_ratio),
+                GtsfmMetric("track_cheirality_failure_ratio", track_cheirality_failure_ratio),
+                GtsfmMetric("num_accepted_tracks", num_accepted_tracks),
+                GtsfmMetric(
+                    "3d_tracks_length",
+                    track_lengths_3d,
+                    store_full_data=False,
+                    plot_type=GtsfmMetric.PlotType.HISTOGRAM,
+                ),
+                GtsfmMetric("accepted_track_avg_errors", per_accepted_track_avg_errors, store_full_data=False),
+                GtsfmMetric("rejected_track_avg_errors", per_rejected_track_avg_errors, store_full_data=False),
+            ],
+        )
 
         return connected_data, data_assoc_metrics
 

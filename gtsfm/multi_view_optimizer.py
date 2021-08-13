@@ -62,9 +62,9 @@ class MultiViewOptimizer:
             intrinsics_graph: intrinsics for images, wrapped up as Delayed.
 
         Returns:
-            The input to bundle adjustment, wrapped up as Delayed.
-            The final output, wrapped up as Delayed.
-            Dictionary containing metrics, wrapped up as Delayed
+            The GtsfmData input to bundle adjustment, wrapped up as Delayed.
+            The final output GtsfmData, wrapped up as Delayed.
+            List of GtsfmMetricGroups from different modules, wrapped up as Delayed.
         """
         # prune the graph to a single connected component.
         pruned_graph = dask.delayed(prune_to_largest_connected_component)(i2Ri1_graph, i2Ui1_graph)
