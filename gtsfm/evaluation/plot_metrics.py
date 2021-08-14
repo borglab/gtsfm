@@ -6,7 +6,7 @@ Authors: Akshay Krishnan
 import os
 import argparse
 
-from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
+from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.utils.logger as logger_utils
 

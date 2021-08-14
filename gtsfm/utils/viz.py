@@ -15,7 +15,6 @@ from matplotlib.axes._axes import Axes
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.images as image_utils
 import gtsfm.utils.io as io_utils
-import gtsfm.utils.metrics as metric_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints

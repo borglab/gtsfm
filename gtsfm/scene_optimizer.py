@@ -12,7 +12,6 @@ import matplotlib
 
 matplotlib.use("Agg")
 
-import numpy as np
 from dask.delayed import Delayed
 
 import gtsfm.evaluation.metrics_report as metrics_report
@@ -24,7 +23,6 @@ import gtsfm.utils.viz as viz_utils
 from gtsfm.common.image import Image
 from gtsfm.feature_extractor import FeatureExtractor
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
-from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.two_view_estimator import TwoViewEstimator, TwoViewEstimationReport
 
 # paths for storage

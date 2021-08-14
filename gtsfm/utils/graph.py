@@ -31,7 +31,8 @@ def get_nodes_in_largest_connected_component(edges: List[Tuple[int, int]]) -> Li
 
 
 def prune_to_largest_connected_component(
-    rotations: Dict[Tuple[int, int], Optional[Rot3]], unit_translations: Dict[Tuple[int, int], Optional[Unit3]],
+    rotations: Dict[Tuple[int, int], Optional[Rot3]],
+    unit_translations: Dict[Tuple[int, int], Optional[Unit3]],
 ) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3]]:
     """Process the graph of image indices with Rot3s/Unit3s defining edges, and select the largest connected component.
 
