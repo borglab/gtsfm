@@ -40,7 +40,7 @@ jobs:
           wget --save-cookies cookies.txt $gdrive_url -O- \
             | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1/p' > confirm.txt
           wget --load-cookies cookies.txt -O skydio-8.zip \
-            $gdrive_url&confirm='$(<confirm.txt)
+            $gdrive_url'&confirm='$(<confirm.txt)
       - name: Download Skydio-crane-32 dataset
         run: |
           export gdrive_fileid='1BQ6jp0DD3D9yhTnrDoEddzlMYT0RRH68'
@@ -48,7 +48,7 @@ jobs:
           wget --save-cookies cookies.txt $gdrive_url -O- \
             | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1/p' > confirm.txt
           wget --load-cookies cookies.txt -O skydio-32.zip \
-            $gdrive_url&confirm='$(<confirm.txt)
+            $gdrive_url'&confirm='$(<confirm.txt)
       - name: Decompress Skydio-crane-8 dataset
         uses: TonyBogdanov/zip@1.0
         with:
