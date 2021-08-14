@@ -24,9 +24,7 @@ from gtsam import (
     Unit3,
 )
 
-from gtsfm.averaging.translation.translation_averaging_base import (
-    TranslationAveragingBase,
-)
+from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 
 # Hyperparameters for 1D-SFM
 # maximum number of times 1dsfm will project the Unit3's to a 1d subspace for outlier rejection
@@ -73,18 +71,17 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         # convert translation direction in global frame using rotations.
         w_i2Ui1_measurements = BinaryMeasurementsUnit3()
+        num_valid_measurements = 0
         for (i1, i2), i2Ui1 in i2Ui1_dict.items():
             if i2Ui1 is not None and wRi_list[i2] is not None:
                 w_i2Ui1_measurements.append(
                     BinaryMeasurementUnit3(i2, i1, Unit3(wRi_list[i2].rotate(i2Ui1.point3())), noise_model)
                 )
+                num_valid_measurements += 1
 
         # sample indices to be used as projection directions
-        num_measurements = len(i2Ui1_dict)
         indices = np.random.choice(
-            num_measurements,
-            min(self._max_1dsfm_projection_directions, num_measurements),
-            replace=False,
+            num_valid_measurements, min(self._max_1dsfm_projection_directions, num_valid_measurements), replace=False,
         )
 
         projection_directions = [w_i2Ui1_measurements[idx].measured() for idx in indices]
