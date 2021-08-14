@@ -17,6 +17,15 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - name: Cache conda env
+        uses: actions/cache@v2
+        env:
+          # Increase this value to reset cache if environment_linux.yml has not changed
+          CACHE_NUMBER: 0
+        with:
+          path: ~/conda_pkgs_dir
+          key:
+            ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('environment_linux.yml') }}
     - uses: conda-incubator/setup-miniconda@v2
       with:
         miniconda-version: "latest"
@@ -28,7 +37,6 @@ jobs:
         bash .github/scripts/setup.sh
         pip install pytest-cov
         pip install flake8
-        pip install hydra-core==1.1.0
         conda info
     - name: Flake check
       run: |
