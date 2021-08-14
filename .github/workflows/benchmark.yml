@@ -35,16 +35,20 @@ jobs:
           conda info
       - name: Download Skydio-crane-8 dataset
         run: |
-          wget --save-cookies cookies.txt 'https://docs.google.com/uc?export=download&id=1mmM1p_NpL7-pnf3iHWeWVKpsm1pcBoD5' -O- \
+          export gdrive_fileid='1mmM1p_NpL7-pnf3iHWeWVKpsm1pcBoD5'
+          export gdrive_url='https://docs.google.com/uc?export=download&id='$gdrive_fileid 
+          wget --save-cookies cookies.txt $gdrive_url -O- \
             | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1/p' > confirm.txt
           wget --load-cookies cookies.txt -O skydio-8.zip \
-            'https://docs.google.com/uc?export=download&id=1mmM1p_NpL7-pnf3iHWeWVKpsm1pcBoD5&confirm='$(<confirm.txt)
+            $gdrive_url&confirm='$(<confirm.txt)
       - name: Download Skydio-crane-32 dataset
         run: |
-          wget --save-cookies cookies.txt 'https://docs.google.com/uc?export=download&id=1BQ6jp0DD3D9yhTnrDoEddzlMYT0RRH68' -O- \
+          export gdrive_fileid='1BQ6jp0DD3D9yhTnrDoEddzlMYT0RRH68'
+          export gdrive_url='https://docs.google.com/uc?export=download&id='$gdrive_fileid 
+          wget --save-cookies cookies.txt $gdrive_url -O- \
             | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1/p' > confirm.txt
           wget --load-cookies cookies.txt -O skydio-32.zip \
-            'https://docs.google.com/uc?export=download&id=1BQ6jp0DD3D9yhTnrDoEddzlMYT0RRH68&confirm='$(<confirm.txt)
+            $gdrive_url&confirm='$(<confirm.txt)
       - name: Decompress Skydio-crane-8 dataset
         uses: TonyBogdanov/zip@1.0
         with:
