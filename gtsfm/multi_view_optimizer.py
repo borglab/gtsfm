@@ -5,19 +5,15 @@ Authors: Ayush Baid, John Lambert
 from typing import Dict, List, Optional, Tuple
 
 import dask
-import os
-from pathlib import Path
 from dask.delayed import Delayed
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point3, Pose3, Rot3
 
 import gtsfm.utils.graph as graph_utils
-import gtsfm.utils.io as io
 import gtsfm.utils.metrics as metrics
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.data_association.data_assoc import DataAssociation
-from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 
 class MultiViewOptimizer:

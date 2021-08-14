@@ -14,7 +14,6 @@ import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.verification as verification_utils
-from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
