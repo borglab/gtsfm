@@ -6,7 +6,6 @@ channels:
   # channel.
   - pytorch
   - conda-forge
-  - defaults
 dependencies:
   # python essentials
   - python=3.8
