@@ -1,4 +1,4 @@
-name: Python CI
+name: Unit tests and python checks
 
 # Run this workflow every time a new commit pushed to your repository
 on: [pull_request]
