@@ -17,9 +17,7 @@ from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBa
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.data_association.data_assoc import DataAssociation
-
-# Paths to Save Output in React Folders.
-REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
+from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 
 class MultiViewOptimizer:
@@ -45,7 +43,7 @@ class MultiViewOptimizer:
         v_corr_idxs_graph: Dict[Tuple[int, int], Delayed],
         intrinsics_graph: List[Delayed],
         gt_poses_graph: List[Delayed] = None,
-    ) -> Tuple[Delayed, Delayed, Optional[Delayed], Optional[Delayed]]:
+    ) -> Tuple[Delayed, Delayed, Delayed]:
         """Creates a computation graph for multi-view optimization.
 
         Args:
@@ -57,9 +55,9 @@ class MultiViewOptimizer:
             intrinsics_graph: intrinsics for images, wrapped up as Delayed.
 
         Returns:
-            The input to bundle adjustment, wrapped up as Delayed.
-            The final output, wrapped up as Delayed.
-            Dictionary containing metrics, wrapped up as Delayed
+            The GtsfmData input to bundle adjustment, wrapped up as Delayed.
+            The final output GtsfmData, wrapped up as Delayed.
+            List of GtsfmMetricGroups from different modules, wrapped up as Delayed.
         """
         # prune the graph to a single connected component.
         pruned_graph = dask.delayed(graph_utils.prune_to_largest_connected_component)(i2Ri1_graph, i2Ui1_graph)
@@ -75,41 +73,24 @@ class MultiViewOptimizer:
             num_images, init_cameras_graph, v_corr_idxs_graph, keypoints_graph, images_graph
         )
 
-        auxiliary_graph_list = [
-            dask.delayed(io.save_json_file)(
-                os.path.join("result_metrics", "data_association_metrics.json"), data_assoc_metrics_graph
-            ),
-            # duplicate dask variable to save data_association_metrics within React directory
-            dask.delayed(io.save_json_file)(
-                os.path.join(REACT_METRICS_PATH, "data_association_metrics.json"), data_assoc_metrics_graph
-            ),
-        ]
-
-        # dummy graph to force an immediate dump of data association metrics
-        ba_input_graph = dask.delayed(lambda x, y: (x, y))(ba_input_graph, auxiliary_graph_list)[0]
-
-        ba_result_graph = self.ba_optimizer.create_computation_graph(ba_input_graph)
+        ba_result_graph, ba_metrics_graph = self.ba_optimizer.create_computation_graph(ba_input_graph)
 
         if gt_poses_graph is None:
             return ba_input_graph, ba_result_graph, None, None
 
-        metrics_graph = dask.delayed(metrics.compute_averaging_metrics)(
+        averaging_metrics_graph = dask.delayed(metrics.compute_averaging_metrics)(
             i2Ui1_graph, wRi_graph, wti_graph, gt_poses_graph
         )
-        saved_metrics_graph = dask.delayed(io.save_json_file)(
-            "result_metrics/multiview_optimizer_metrics.json", metrics_graph
-        )
 
-        # duplicate dask variable to save optimizer_metrics within React directory
-        react_saved_metrics_graph = dask.delayed(io.save_json_file)(
-            os.path.join(REACT_METRICS_PATH, "multiview_optimizer_metrics.json"), metrics_graph
-        )
+        multiview_optimizer_metrics_graph = [averaging_metrics_graph, data_assoc_metrics_graph, ba_metrics_graph]
 
-        return ba_input_graph, ba_result_graph, saved_metrics_graph, react_saved_metrics_graph
+        return ba_input_graph, ba_result_graph, multiview_optimizer_metrics_graph
 
 
 def init_cameras(
-    wRi_list: List[Optional[Rot3]], wti_list: List[Optional[Point3]], intrinsics_list: List[Cal3Bundler],
+    wRi_list: List[Optional[Rot3]],
+    wti_list: List[Optional[Point3]],
+    intrinsics_list: List[Cal3Bundler],
 ) -> Dict[int, PinholeCameraCal3Bundler]:
     """Generate camera from valid rotations and unit-translations.
 
