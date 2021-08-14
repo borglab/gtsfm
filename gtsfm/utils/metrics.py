@@ -219,16 +219,17 @@ def log_sfm_summary() -> None:
     logger.info("Front-end median_trans_err_deg: %.2f", np.median(trans_errs_deg))
     logger.info("Front-end max_trans_err_deg: %.2f", max(trans_errs_deg))
 
-    averaging_metrics_fpath = REPO_ROOT / "result_metrics" / "multiview_optimizer_metrics.json"
-    averaging_metrics = io_utils.read_json_file(averaging_metrics_fpath)
+    # TODO: fix this
+    # averaging_metrics_fpath = REPO_ROOT / "result_metrics" / "multiview_optimizer_metrics.json"
+    # averaging_metrics = io_utils.read_json_file(averaging_metrics_fpath)
 
-    logger.info("Averaging median_rot_err_deg: %.2f", averaging_metrics["rotation_averaging_angle_deg"]["median_error"])
-    logger.info("Averaging max_rot_err_deg: %.2f", averaging_metrics["rotation_averaging_angle_deg"]["max_error"])
+    # logger.info("Averaging median_rot_err_deg: %.2f", averaging_metrics["rotation_averaging_angle_deg"]["median_error"])
+    # logger.info("Averaging max_rot_err_deg: %.2f", averaging_metrics["rotation_averaging_angle_deg"]["max_error"])
 
-    logger.info(
-        "Averaging median_trans_dist_err: %.2f", averaging_metrics["translation_averaging_distance"]["median_error"]
-    )
-    logger.info("Averaging max_trans_dist_err: %.2f", averaging_metrics["translation_averaging_distance"]["max_error"])
+    # logger.info(
+    #     "Averaging median_trans_dist_err: %.2f", averaging_metrics["translation_averaging_distance"]["median_error"]
+    # )
+    # logger.info("Averaging max_trans_dist_err: %.2f", averaging_metrics["translation_averaging_distance"]["max_error"])
 
 
 def save_metrics_as_json(metrics_groups: Delayed, output_dir: str) -> None:
