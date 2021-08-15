@@ -61,7 +61,7 @@ jobs:
           args: unzip -qq skydio-32.zip -d skydio-32
       - name: Execute door dataset
         run: |
-          python gtsfm/runner/run_scene_optimizer.py --config_name sift_front_end.yaml
+          python gtsfm/runner/run_scene_optimizer.py --dataset_root tests/data/set1_lund_door --config_name sift_front_end.yaml
       - name: Archive door dataset metrics
         uses: actions/upload-artifact@v2
         with:
