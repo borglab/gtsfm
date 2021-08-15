@@ -14,15 +14,7 @@ from typing import Dict, List, Optional, Tuple
 
 import gtsam
 import numpy as np
-from gtsam import (
-    MFAS,
-    BinaryMeasurementsUnit3,
-    BinaryMeasurementUnit3,
-    Point3,
-    Rot3,
-    TranslationRecovery,
-    Unit3,
-)
+from gtsam import MFAS, BinaryMeasurementsUnit3, BinaryMeasurementUnit3, Point3, Rot3, TranslationRecovery, Unit3
 
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 
@@ -71,15 +63,14 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         # convert translation direction in global frame using rotations.
         w_i2Ui1_measurements = BinaryMeasurementsUnit3()
-        num_valid_measurements = 0
         for (i1, i2), i2Ui1 in i2Ui1_dict.items():
             if i2Ui1 is not None and wRi_list[i2] is not None:
                 w_i2Ui1_measurements.append(
                     BinaryMeasurementUnit3(i2, i1, Unit3(wRi_list[i2].rotate(i2Ui1.point3())), noise_model)
                 )
-                num_valid_measurements += 1
 
         # sample indices to be used as projection directions
+        num_valid_measurements = len(w_i2Ui1_measurements)
         indices = np.random.choice(
             num_valid_measurements, min(self._max_1dsfm_projection_directions, num_valid_measurements), replace=False,
         )
