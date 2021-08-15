@@ -168,8 +168,8 @@ class GtsfmMetric:
         if data.ndim != 1:
             raise ValueError("Metric must be a 1D distribution to get summary.")
         summary = {
-            "min": np.min(data).tolist(),
-            "max": np.max(data).tolist(),
+            "min": np.nanmin(data).tolist(),
+            "max": np.nanmax(data).tolist(),
             "median": np.nanmedian(data).tolist(),
             "mean": np.nanmean(data).tolist(),
             "stddev": np.nanstd(data).tolist(),
@@ -344,7 +344,7 @@ class GtsfmMetricsGroup:
         return cls.parse_from_dict(metric_group_dict)
 
 
-def get_histogram_dict(self, data: np.ndarray) -> Dict[str, Union[float, int]]:
+def get_histogram_dict(data: np.ndarray) -> Dict[str, Union[float, int]]:
     """Returns the histogram of data as a dictionary.
 
     If the data is float, the keys of the dictionary are interval buckets.
@@ -382,7 +382,7 @@ def get_histogram_dict(self, data: np.ndarray) -> Dict[str, Union[float, int]]:
     return histogram
 
 
-def get_quartiles_dict(self, data: np.ndarray) -> Dict[int, float]:
+def get_quartiles_dict(data: np.ndarray) -> Dict[int, float]:
     """Returns quartiles for the provided data as a dict.
 
     Args:

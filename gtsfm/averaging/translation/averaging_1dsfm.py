@@ -14,19 +14,9 @@ from typing import Dict, List, Optional, Tuple
 
 import gtsam
 import numpy as np
-from gtsam import (
-    MFAS,
-    BinaryMeasurementsUnit3,
-    BinaryMeasurementUnit3,
-    Point3,
-    Rot3,
-    TranslationRecovery,
-    Unit3,
-)
+from gtsam import MFAS, BinaryMeasurementsUnit3, BinaryMeasurementUnit3, Point3, Rot3, TranslationRecovery, Unit3
 
-from gtsfm.averaging.translation.translation_averaging_base import (
-    TranslationAveragingBase,
-)
+from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 
 # Hyperparameters for 1D-SFM
 # maximum number of times 1dsfm will project the Unit3's to a 1d subspace for outlier rejection
@@ -80,11 +70,9 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 )
 
         # sample indices to be used as projection directions
-        num_measurements = len(i2Ui1_dict)
+        num_valid_measurements = len(w_i2Ui1_measurements)
         indices = np.random.choice(
-            num_measurements,
-            min(self._max_1dsfm_projection_directions, num_measurements),
-            replace=False,
+            num_valid_measurements, min(self._max_1dsfm_projection_directions, num_valid_measurements), replace=False,
         )
 
         projection_directions = [w_i2Ui1_measurements[idx].measured() for idx in indices]
