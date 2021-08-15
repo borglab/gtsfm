@@ -1,7 +1,7 @@
 name: Benchmark GTSFM on select datasets
 on: [pull_request]
 jobs:
-  door-dataset-sift:
+  benchmark:
     name: Run GTSFM on the select dataset using SIFT front-end
     runs-on: ubuntu-latest
     defaults:
@@ -34,6 +34,7 @@ jobs:
           bash .github/scripts/setup.sh
           conda info
       - name: Download Skydio-crane-8 dataset
+        # large files from google drive first have a prompt about virus scan being inactive. Need 2 WGET commands.
         run: |
           export gdrive_fileid='1mmM1p_NpL7-pnf3iHWeWVKpsm1pcBoD5'
           export gdrive_url='https://docs.google.com/uc?export=download&id='$gdrive_fileid 
@@ -42,6 +43,7 @@ jobs:
           wget --load-cookies cookies.txt -O skydio-8.zip \
             $gdrive_url'&confirm='$(<confirm.txt)
       - name: Download Skydio-crane-32 dataset
+        # large files from google drive first have a prompt about virus scan being inactive. Need 2 WGET commands.
         run: |
           export gdrive_fileid='1BQ6jp0DD3D9yhTnrDoEddzlMYT0RRH68'
           export gdrive_url='https://docs.google.com/uc?export=download&id='$gdrive_fileid 
