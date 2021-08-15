@@ -6,13 +6,7 @@ from typing import Dict, List, Optional, Tuple
 
 import dask
 from dask.delayed import Delayed
-from gtsam import (
-    Cal3Bundler,
-    PinholeCameraCal3Bundler,
-    Point3,
-    Pose3,
-    Rot3,
-)
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point3, Pose3, Rot3
 
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.metrics as metrics
@@ -78,7 +72,7 @@ class MultiViewOptimizer:
         ba_result_graph, ba_metrics_graph = self.ba_optimizer.create_computation_graph(ba_input_graph)
 
         if gt_poses_graph is None:
-            return ba_input_graph, ba_result_graph, None, None
+            return ba_input_graph, ba_result_graph, None
 
         averaging_metrics_graph = dask.delayed(metrics.compute_averaging_metrics)(
             i2Ui1_graph, wRi_graph, wti_graph, gt_poses_graph
@@ -90,9 +84,7 @@ class MultiViewOptimizer:
 
 
 def init_cameras(
-    wRi_list: List[Optional[Rot3]],
-    wti_list: List[Optional[Point3]],
-    intrinsics_list: List[Cal3Bundler],
+    wRi_list: List[Optional[Rot3]], wti_list: List[Optional[Point3]], intrinsics_list: List[Cal3Bundler],
 ) -> Dict[int, PinholeCameraCal3Bundler]:
     """Generate camera from valid rotations and unit-translations.
 

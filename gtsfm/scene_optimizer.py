@@ -25,11 +25,16 @@ from gtsfm.feature_extractor import FeatureExtractor
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.two_view_estimator import TwoViewEstimator, TwoViewEstimationReport
 
-# paths for storage
-PLOT_PATH = "plots"
-PLOT_CORRESPONDENCE_PATH = os.path.join(PLOT_PATH, "correspondences")
+# base paths for storage
+PLOT_BASE_PATH = Path(__file__).resolve().parent.parent / "plots"
 METRICS_PATH = Path(__file__).resolve().parent.parent / "result_metrics"
 RESULTS_PATH = Path(__file__).resolve().parent.parent / "results"
+
+# plot baths
+PLOT_CORRESPONDENCE_PATH = PLOT_BASE_PATH / "correspondences"
+PLOT_BA_INPUT_PATH = PLOT_BASE_PATH / "ba_input"
+PLOT_RESULTS_PATH = PLOT_BASE_PATH / "results"
+
 
 # Paths to Save Output in React Folders.
 REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
@@ -73,10 +78,13 @@ class SceneOptimizer:
         self._pose_angular_error_thresh = pose_angular_error_thresh
 
         # make directories for persisting data
-        os.makedirs(PLOT_PATH, exist_ok=True)
-        os.makedirs(PLOT_CORRESPONDENCE_PATH, exist_ok=True)
+        os.makedirs(PLOT_BASE_PATH, exist_ok=True)
         os.makedirs(METRICS_PATH, exist_ok=True)
         os.makedirs(RESULTS_PATH, exist_ok=True)
+
+        os.makedirs(PLOT_CORRESPONDENCE_PATH, exist_ok=True)
+        os.makedirs(PLOT_BA_INPUT_PATH, exist_ok=True)
+        os.makedirs(PLOT_RESULTS_PATH, exist_ok=True)
 
         # Save duplicate directories within React folders.
         os.makedirs(REACT_RESULTS_PATH, exist_ok=True)
@@ -151,9 +159,7 @@ class SceneOptimizer:
                 )
 
         # persist all front-end metrics and its summary
-        auxiliary_graph_list.append(
-            dask.delayed(save_full_frontend_metrics)(two_view_reports_dict, image_graph)
-        )
+        auxiliary_graph_list.append(dask.delayed(save_full_frontend_metrics)(two_view_reports_dict, image_graph))
         if gt_pose_graph is not None:
             metrics_graph_list.append(
                 dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
@@ -168,7 +174,7 @@ class SceneOptimizer:
         keypoints_graph_list = dask.delayed(lambda x, y: (x, y))(keypoints_graph_list, auxiliary_graph_list)[0]
         auxiliary_graph_list = []
 
-        (ba_input_graph, ba_output_graph, optimizer_metrics_graph,) = self.multiview_optimizer.create_computation_graph(
+        (ba_input_graph, ba_output_graph, optimizer_metrics_graph) = self.multiview_optimizer.create_computation_graph(
             image_graph,
             num_images,
             keypoints_graph_list,
@@ -187,8 +193,6 @@ class SceneOptimizer:
         auxiliary_graph_list.extend(save_metrics_reports(metrics_graph_list))
 
         if self._save_3d_viz:
-            os.makedirs(os.path.join(PLOT_PATH, "ba_input"), exist_ok=True)
-            os.makedirs(os.path.join(PLOT_PATH, "results"), exist_ok=True)
             auxiliary_graph_list.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_pose_graph))
 
         if self._save_gtsfm_data:
@@ -220,16 +224,10 @@ def save_visualizations(
         A list of Delayed objects after saving the different visualizations.
     """
     viz_graph_list = []
+    viz_graph_list.append(dask.delayed(viz_utils.save_sfm_data_viz)(ba_input_graph, PLOT_BA_INPUT_PATH))
+    viz_graph_list.append(dask.delayed(viz_utils.save_sfm_data_viz)(ba_output_graph, PLOT_RESULTS_PATH))
     viz_graph_list.append(
-        dask.delayed(viz_utils.save_sfm_data_viz)(ba_input_graph, os.path.join(PLOT_PATH, "ba_input"))
-    )
-    viz_graph_list.append(
-        dask.delayed(viz_utils.save_sfm_data_viz)(ba_output_graph, os.path.join(PLOT_PATH, "results"))
-    )
-    viz_graph_list.append(
-        dask.delayed(viz_utils.save_camera_poses_viz)(
-            ba_input_graph, ba_output_graph, gt_pose_graph, os.path.join(PLOT_PATH, "results")
-        )
+        dask.delayed(viz_utils.save_camera_poses_viz)(ba_input_graph, ba_output_graph, gt_pose_graph, PLOT_RESULTS_PATH)
     )
     return viz_graph_list
 
