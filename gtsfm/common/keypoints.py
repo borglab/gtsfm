@@ -163,7 +163,7 @@ class Keypoints:
                     cv.KeyPoint(
                         x=keypoints.coordinates[idx, 0],
                         y=keypoints.coordinates[idx, 1],
-                        _size=OPENCV_DEFAULT_SIZE,
+                        size=OPENCV_DEFAULT_SIZE,
                     )
                 )
         elif keypoints.responses is None:
@@ -172,7 +172,7 @@ class Keypoints:
                     cv.KeyPoint(
                         x=keypoints.coordinates[idx, 0],
                         y=keypoints.coordinates[idx, 1],
-                        _size=keypoints.scales[idx],
+                        size=keypoints.scales[idx],
                     )
                 )
         elif keypoints.scales is None:
@@ -181,8 +181,8 @@ class Keypoints:
                     cv.KeyPoint(
                         x=keypoints.coordinates[idx, 0],
                         y=keypoints.coordinates[idx, 1],
-                        _size=OPENCV_DEFAULT_SIZE,
-                        _response=keypoints.responses[idx],
+                        size=OPENCV_DEFAULT_SIZE,
+                        response=keypoints.responses[idx],
                     )
                 )
         else:
@@ -191,8 +191,8 @@ class Keypoints:
                     cv.KeyPoint(
                         x=keypoints.coordinates[idx, 0],
                         y=keypoints.coordinates[idx, 1],
-                        _size=keypoints.scales[idx],
-                        _response=keypoints.responses[idx],
+                        size=keypoints.scales[idx],
+                        response=keypoints.responses[idx],
                     )
                 )
 
