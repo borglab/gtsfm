@@ -62,7 +62,7 @@ class DataAssociation(NamedTuple):
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
         images: Optional[List[Image]] = None,
-    ) -> Tuple[GtsfmData, Dict[str, Any]]:
+    ) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
         """Perform the data association.
 
         Args:
