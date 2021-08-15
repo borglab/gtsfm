@@ -32,7 +32,6 @@ mpl_logger.setLevel(logging.WARNING)
 pil_logger = logging.getLogger("PIL")
 pil_logger.setLevel(logging.INFO)
 
-BA_NOISE_MODEL_EPIPOLAR_ALGEBRAIC_ERROR = gtsam.noiseModel.Isotropic.Sigma(1, 0.01)
 
 DATA_ASSOC_2VIEW = DataAssociation(reproj_error_thresh=3, min_track_len=2, mode=TriangulationParam.NO_RANSAC)
 BUNDLE_ADJUST_2VIEW = BundleAdjustmentOptimizer(
