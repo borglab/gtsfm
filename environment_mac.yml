@@ -19,6 +19,7 @@ dependencies:
   - mypy
   - pylint
   - pytest
+  - flake8
   # dask and related
   - dask # same as dask[complete] pip distribution
   - python-graphviz
