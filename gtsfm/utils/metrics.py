@@ -11,7 +11,6 @@ import numpy as np
 from gtsam import Cal3Bundler, EssentialMatrix, Point3, Pose3, Rot3, Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
-import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.verification as verification_utils
 from gtsfm.common.keypoints import Keypoints
@@ -195,40 +194,6 @@ def get_rotations_translations_from_poses(
         rotations.append(pose.rotation())
         translations.append(pose.translation())
     return rotations, translations
-
-
-def log_sfm_summary() -> None:
-    """Dump to stdout a summary of metrics about the SfM reconstruction process."""
-    frontend_full_metrics_fpath = REPO_ROOT / "result_metrics" / "frontend_full.json"
-    frontend_metrics = io_utils.read_json_file(frontend_full_metrics_fpath)
-
-    rot_errs_deg = [
-        pair_stats["rotation_angular_error"] for pair_stats in frontend_metrics if pair_stats["rotation_angular_error"]
-    ]
-    trans_errs_deg = [
-        pair_stats["translation_angular_error"]
-        for pair_stats in frontend_metrics
-        if pair_stats["translation_angular_error"]
-    ]
-
-    logger.info("=============> Metrics report ==============>")
-    logger.info("Front-end median_rot_err_deg: %.2f", np.median(rot_errs_deg))
-    logger.info("Front-end max_rot_err_deg: %.2f", max(rot_errs_deg))
-
-    logger.info("Front-end median_trans_err_deg: %.2f", np.median(trans_errs_deg))
-    logger.info("Front-end max_trans_err_deg: %.2f", max(trans_errs_deg))
-
-    # TODO: fix this
-    # averaging_metrics_fpath = REPO_ROOT / "result_metrics" / "multiview_optimizer_metrics.json"
-    # averaging_metrics = io_utils.read_json_file(averaging_metrics_fpath)
-
-    # logger.info("Averaging median_rot_err_deg: %.2f", averaging_metrics["rotation_averaging_angle_deg"]["median_error"])
-    # logger.info("Averaging max_rot_err_deg: %.2f", averaging_metrics["rotation_averaging_angle_deg"]["max_error"])
-
-    # logger.info(
-    #     "Averaging median_trans_dist_err: %.2f", averaging_metrics["translation_averaging_distance"]["median_error"]
-    # )
-    # logger.info("Averaging max_trans_dist_err: %.2f", averaging_metrics["translation_averaging_distance"]["max_error"])
 
 
 def save_metrics_as_json(metrics_groups: Delayed, output_dir: str) -> None:

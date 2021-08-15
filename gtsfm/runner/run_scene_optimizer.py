@@ -7,7 +7,6 @@ from dask.distributed import Client, LocalCluster, performance_report
 from hydra.utils import instantiate
 
 import gtsfm.utils.logger as logger_utils
-import gtsfm.utils.metrics as metrics_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.scene_optimizer import SceneOptimizer
