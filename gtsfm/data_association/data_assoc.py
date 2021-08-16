@@ -10,7 +10,7 @@ References:
 Authors: Sushmita Warrier, Xiaolong Wu, John Lambert
 """
 import os
-from typing import Any, Dict, List, NamedTuple, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import dask
 import numpy as np
