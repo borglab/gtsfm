@@ -14,6 +14,7 @@ matplotlib.use("Agg")
 
 from dask.delayed import Delayed
 
+import gtsfm.averaging.rotation.cycle_consistency as cycle_utils
 import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.two_view_estimator as two_view_estimator
 import gtsfm.utils.io as io_utils
@@ -174,6 +175,14 @@ class SceneOptimizer:
         keypoints_graph_list = dask.delayed(lambda x, y: (x, y))(keypoints_graph_list, auxiliary_graph_list)[0]
         auxiliary_graph_list = []
 
+        # ensure cycle consistency in triplets
+        cycle_consistent_graph = dask.delayed(cycle_utils.filter_to_cycle_consistent_edges)(
+            i2Ri1_graph_dict, i2Ui1_graph_dict, two_view_reports_dict
+        )
+
+        i2Ri1_graph_dict = cycle_consistent_graph[0]
+        i2Ui1_graph_dict = cycle_consistent_graph[1]
+        
         (ba_input_graph, ba_output_graph, optimizer_metrics_graph) = self.multiview_optimizer.create_computation_graph(
             image_graph,
             num_images,
