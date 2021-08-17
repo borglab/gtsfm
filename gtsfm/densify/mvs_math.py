@@ -22,15 +22,15 @@ def piecewise_gaussian(
     More details can be found in "View Selection" paragraphs in Yao's paper https://arxiv.org/abs/1804.02505.
 
     Args:
-        xPa (np.ndarray): vector from the track point to camera a's center in the world frame, with shape (3,).
-        xPb (np.ndarray): vector from the track point to camera b's center in the world frame, with shape (3,).
-        theta_0 (float, optional): Defaults to 5.
+        xPa: vector from the track point to camera a's center in the world frame, with shape (3,).
+        xPb: vector from the track point to camera b's center in the world frame, with shape (3,).
+        theta_0: Defaults to 5.
             theta_0 is the threshold angle (in degrees) between vectors from the track point to camera a and b's centers
-        sigma_1 (float, optional): Defaults to 1.
+        sigma_1: Defaults to 1.
             If the angle between vectors from the track point to camera a and b's centers is no larger than the
             threshold angle, which means for this track, the relative position of centers of camera a and b are close,
             and they can both see the track point. The Gaussian variance should be smaller to make the score higher.
-        sigma_2 (float, optional): Defaults to 10.
+        sigma_2: Defaults to 10.
             If the angle between vectors from the track point to camera a and b's centers is larger than the threshold
             angle, which means for this track, the relative position of centers of camera a and b are not close enough,
             although they can both see the track point. The Gaussian variance should be larger to make the score lower.
@@ -38,9 +38,9 @@ def piecewise_gaussian(
     Returns:
         float: A score of the track between two views in the range (0,1]
     """
-    # 1. calculate the angle between the vectors from the track point to camera a's center and camera b's center
+    # 1. Calculate the angle between the vectors from the track point to camera a's center and camera b's center
     theta_est = angle_between_vectors(xPa, xPb)
-    # 2. calculate the score according to the angle
+    # 2. Calculate the score according to the angle
     if theta_est <= theta_0:  # if the angle is less than or equal to the threshold, we should attach more importance
         sigma = sigma_1
     else:  # if the angle is larger than the threshold, we should attach less importance

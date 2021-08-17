@@ -18,8 +18,8 @@ class TestMVSMath(unittest.TestCase):
         where sigma_1 is used to calculate the score"""
 
         xPa = np.array([15.0, 7.5, 0.0])
-        rot = R.from_euler("z", 4, degrees=True)
-        xPb = rot.apply(xPa)
+        bRa = R.from_euler("z", 4, degrees=True)
+        xPb = bRa.apply(xPa)
 
         score = mvs_math.piecewise_gaussian(xPa=xPa, xPb=xPb, theta_0=5, sigma_1=1, sigma_2=10)
 
@@ -30,8 +30,8 @@ class TestMVSMath(unittest.TestCase):
         where sigma_2 is used to calculate the score"""
 
         xPa = np.array([0.0, 12.0, 15.0])
-        rot = R.from_euler("x", 10, degrees=True)
-        xPb = rot.apply(xPa)
+        bRa = R.from_euler("x", 10, degrees=True)
+        xPb = bRa.apply(xPa)
 
         score = mvs_math.piecewise_gaussian(xPa=xPa, xPb=xPb, theta_0=5, sigma_1=1, sigma_2=10)
 
