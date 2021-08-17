@@ -2,6 +2,7 @@
 
 Authors: Ren Liu
 """
+from collections import defaultdict
 from typing import Any, Dict, List, Tuple
 
 import cv2
@@ -31,28 +32,33 @@ class PatchmatchNetData(Dataset):
             sfm_result: sfm results calculated by GTSFM
             num_views: number of views, containing 1 reference view and (num_views-1) source views
         """
-        assert images is not None and len(images) > 1
 
         # Cache sfm result
         self._sfm_result = sfm_result
 
-        # PatchmatchNet meta
-        self._num_views = num_views
-        self._num_stages = NUM_PATCHMATCHNET_STAGES
-
         # Test data preparation
-        self._patchmatchnet_idx_to_camera_idx = sorted(self._sfm_result.get_valid_camera_indices())
-        self._num_images = len(self._patchmatchnet_idx_to_camera_idx)
+        valid_camera_idxs = sorted(self._sfm_result.get_valid_camera_indices())
+        self._patchmatchnet_idx_to_camera_idx = {i_pm: i for i_pm, i in enumerate(valid_camera_idxs)}
+        #   the number of images with estimated poses，not the number of images provided to GTSFM
+        self._num_images_cal = len(valid_camera_idxs)
 
-        # Store locations of camera centers in the world frame and create mapping from image indices (with some entries
-        #   potentially missing) to [0,N-1] tensor indices for N inputs to PatchmatchNet
+        # Verify that there should be at least 2 valid images
+        if self._num_images_cal <= 1:
+            raise ValueError("At least 2 or more images with estimated poses must be provided")
+
+        # PatchmatchNet meta
+        self._num_stages = NUM_PATCHMATCHNET_STAGES
+        #   the number of views must be equal to or larger than the number of images
+        self._num_views = min(num_views, self._num_images_cal)
+
+        # Store locations of camera centers in the world frame
         self._camera_centers = {}
-        self._camera_idx_to_patchmatchnet_idx = {}
-        for i in range(self._num_images):
-            self._camera_centers[self._patchmatchnet_idx_to_camera_idx[i]] = (
-                self._sfm_result.get_camera(self._patchmatchnet_idx_to_camera_idx[i]).pose().translation()
-            )
-            self._camera_idx_to_patchmatchnet_idx[self._patchmatchnet_idx_to_camera_idx[i]] = i
+        for i in self._patchmatchnet_idx_to_camera_idx.values():
+            self._camera_centers[i] = self._sfm_result.get_camera(i).pose().translation()
+
+        # Create mapping from image indices (with some entries
+        #   potentially missing) to [0,N-1] tensor indices for N inputs to PatchmatchNet
+        self._camera_idx_to_patchmatchnet_idx = {i: i_pm for i_pm, i in self._patchmatchnet_idx_to_camera_idx.items()}
 
         self._images = images
 
@@ -88,11 +94,11 @@ class PatchmatchNetData(Dataset):
         num_tracks = self._sfm_result.number_tracks()
 
         # Initialize the pairwise scores between the same views as negative infinity
-        pair_scores = np.zeros((self._num_images, self._num_images))
+        pair_scores = np.zeros((self._num_images_cal, self._num_images_cal))
         np.fill_diagonal(pair_scores, -np.inf)
 
         # Initialize empty lists to collect all possible depths for each view
-        depths: List[List[float]] = [[] for _ in range(self._num_images)]
+        depths = defaultdict(list)
 
         for j in range(num_tracks):
             track = self._sfm_result.get_track(j)
@@ -107,55 +113,53 @@ class PatchmatchNetData(Dataset):
                     key_a = -1
                     key_b = -1
 
-                    # Check if measurement j1 belongs to a valid camera a
-                    if i_a in self._camera_idx_to_patchmatchnet_idx:
-                        key_a = self._camera_idx_to_patchmatchnet_idx[i_a]
+                    for i in [i_a, i_b]:
+                        # Check if measurement k belongs to a valid camera
+                        if i not in self._camera_idx_to_patchmatchnet_idx:
+                            continue
+                        key = self._camera_idx_to_patchmatchnet_idx[i]
                         # Calculate track_i's depth in the camera pose
-                        a_z = self._sfm_result.get_camera(i_a).pose().transformTo(w_x)[-1]
-                        # Update image i_a's depth list only when i_a in a valid camera
-                        depths[key_a].append(a_z)
+                        z = self._sfm_result.get_camera(i).pose().transformTo(w_x)[-1]
+                        # Update image i's depth list only when i in a valid camera
+                        depths[key].append(z)
 
-                    # Check if measurement j2 belongs to a valid camera b
-                    if i_b in self._camera_idx_to_patchmatchnet_idx:
-                        key_b = self._camera_idx_to_patchmatchnet_idx[i_b]
-                        # Calculate track_i's depth in the camera pose
-                        b_z = self._sfm_result.get_camera(i_b).pose().transformTo(w_x)[-1]
-                        # Update image i_b's depth list only when i_b in a valid camera
-                        depths[key_b].append(b_z)
+                    if key_a < 0 or key_b < 0:
+                        continue
 
-                    # If both cameras are valid cameras
-                    if key_a >= 0 and key_b >= 0:
-                        # Calculate score for track_i in the pair views (cam_a, cam_b)
-                        score_a_b = piecewise_gaussian(
-                            xPa=self._camera_centers[i_a] - w_x, xPb=self._camera_centers[i_b] - w_x
-                        )
-                        # Sum up pair scores for each track_i
-                        pair_scores[key_a, key_b] += score_a_b
-                        pair_scores[key_b, key_a] += score_a_b
+                    # If both cameras are valid cameras,
+                    #   calculate score for track_i in the pair views (cam_a, cam_b)
+                    score_a_b = piecewise_gaussian(
+                        xPa=self._camera_centers[i_a] - w_x, xPb=self._camera_centers[i_b] - w_x
+                    )
+                    # Sum up pair scores for each track_i
+                    pair_scores[key_a, key_b] += score_a_b
+                    pair_scores[key_b, key_a] += score_a_b
 
         # Sort pair scores, for i-th row, choose the largest (num_views-1) scores, the corresponding views are selected
         #   as (num_views-1) source views for i-th reference view.
-        pairs = np.argsort(pair_scores, axis=1)[:, -self._num_views + 1 :][:, ::-1]
+        pairs = np.argsort(-pair_scores, axis=1)[:, : self._num_views]
 
         # Filter out depth outliers and calculate depth ranges
-        depth_ranges = np.zeros((self._num_images, 2))
-        for i in range(self._num_images):
+        depth_ranges = np.zeros((self._num_images_cal, 2))
+        for i in range(self._num_images_cal):
             depth_ranges[i, 0] = np.percentile(depths[i], MIN_DEPTH_PERCENTILE)
             depth_ranges[i, 1] = np.percentile(depths[i], MAX_DEPTH_PERCENTILE)
 
         return pairs, depth_ranges
 
     def __len__(self) -> int:
-        """Get the number of images
+        """Get the length of the dataset
+        In the PatchMatchNet workflow, each input image will be treated as a reference view once, and each input image
+        corresponds to a estimated camera pose. So the length of the dataset is equal to the number of reference views.
 
         Returns:
-            length of image dictionary's keys
+            the length of the dataset
         """
-        return self._num_images
+        return self._num_images_cal
 
     def __getitem__(self, index: int) -> Dict[str, Any]:
         """Get inference data to PatchmatchNet
-        produce data containing _num_views images, the first images is the reference image
+        Produces data containing _num_views images, the first images is the reference image
 
         Args:
             index: index of yield test data, the reference image ID of the test data is _keys[index]
@@ -230,7 +234,7 @@ class PatchmatchNetData(Dataset):
                 the length of source view indices is num_views
         """
         packed_pairs = []
-        for idx in range(self._num_images):
+        for idx in range(self._num_images_cal):
             ref_view = idx
             src_views = self._pairs[idx].tolist()
             packed_pairs.append({"ref_id": ref_view, "src_ids": src_views})
