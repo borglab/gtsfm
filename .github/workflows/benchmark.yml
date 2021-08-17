@@ -61,7 +61,8 @@ jobs:
           args: unzip -qq skydio-32.zip -d skydio-32
       - name: Execute door dataset
         run: |
-          python gtsfm/runner/run_scene_optimizer.py --dataset_root tests/data/set1_lund_door --config_name sift_front_end.yaml
+          python gtsfm/runner/run_scene_optimizer.py --dataset_root tests/data/set1_lund_door \
+          --config_name sift_degensac_front_end.yaml
       - name: Archive door dataset metrics
         uses: actions/upload-artifact@v2
         with:
@@ -74,7 +75,7 @@ jobs:
             --images_dir skydio_crane_mast_8imgs_with_exif/images \
             --colmap_files_dirpath skydio_crane_mast_8imgs_with_exif/crane_mast_8imgs_colmap_output \
             --max_frame_lookahead 8 \
-            --config_name sift_front_end.yaml
+            --config_name sift_degensac_front_end.yaml
       - name: Archive skydio-crane-8 metrics
         uses: actions/upload-artifact@v2
         with:
@@ -87,7 +88,7 @@ jobs:
             --images_dir skydio-32/images \
             --colmap_files_dirpath skydio-32/colmap_crane_mast_32imgs \
             --max_frame_lookahead 32 \
-            --config_name sift_front_end.yaml
+            --config_name sift_degensac_front_end.yaml
       - name: Archive skydio-crane-32 metrics
         uses: actions/upload-artifact@v2
         with:
