@@ -124,7 +124,7 @@ class TestPoint3dInitializer(unittest.TestCase):
             track_camera_dict=flipped_cameras,
             mode=obj.mode,
             reproj_error_thresh=obj.reproj_error_thresh,
-            min_baseline_thresh=None,
+            min_tri_angle_deg=None,
             num_ransac_hypotheses=obj.num_ransac_hypotheses,
         )
 

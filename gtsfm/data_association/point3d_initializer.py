@@ -4,7 +4,7 @@ References:
 1. Richard I. Hartley and Peter Sturm. Triangulation. Computer Vision and Image Understanding, Vol. 68, No. 2,
    November, pp. 146–157, 1997
 
-Authors: Sushmita Warrier, Xiaolong Wu, John Lambert, Travis Driver
+Authors: Sushmita Warrier, Xiaolong Wu, John Lambert, Travis Driver, Ayush Baid
 """
 
 import itertools
@@ -13,12 +13,7 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import gtsam
 import numpy as np
-from gtsam import (
-    CameraSetCal3Bundler,
-    PinholeCameraCal3Bundler,
-    Point2Vector,
-    SfmTrack,
-)
+from gtsam import CameraSetCal3Bundler, PinholeCameraCal3Bundler, Point2Vector, SfmTrack
 
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reproj_utils
@@ -45,7 +40,7 @@ class TriangulationExitCode(Enum):
     INLIERS_UNDERCONSTRAINED = 2  # insufficent number of inlier measurements
     POSES_UNDERCONSTRAINED = 3  # insufficent number of estimated camera poses
     EXCEEDS_REPROJ_THRESH = 4  # estimated 3d point exceeds reprojection threshold
-    SMALL_BASELINE_ERROR = 5  # no pair of camera in the selected subset of the track doesn't have a high baseline
+    SMALL_BASELINE = 5  # no pair of camera in the selected subset of the track doesn't have a high baseline
 
 
 class TriangulationParam(Enum):
@@ -66,15 +61,17 @@ class Point3dInitializer(NamedTuple):
         track_cameras: Dict of cameras and their indices.
         mode: triangulation mode, which dictates whether or not to use robust estimation.
         reproj_error_thresh: threshold on reproj errors for inliers.
-        min_angle_thresh (optional): threshold of the angle at the 3D point by backprojected rays from 2 cameras for
-                                     the cameras to be qualified as large-baseline. Defaults to None (check inactive).
+        min_tri_angle_deg (optional): minimum allowed angle in degrees between any two rays during triangulation. Each
+                                      ray originates at a camera and shoots towards the triangulated 3d point. Small
+                                      angles indicate small baselines, which are unreliable. Defaults to None (check
+                                      inactive).
         num_ransac_hypotheses (optional): desired number of RANSAC hypotheses.
     """
 
     track_camera_dict: Dict[int, PinholeCameraCal3Bundler]
     mode: TriangulationParam
     reproj_error_thresh: float
-    min_baseline_thresh: Optional[float] = None
+    min_tri_angle_deg: Optional[float] = None
     num_ransac_hypotheses: Optional[int] = None
 
     def execute_ransac_variant(self, track_2d: SfmTrack2d) -> np.ndarray:
@@ -127,7 +124,10 @@ class Point3dInitializer(NamedTuple):
             # triangulate point for track
             try:
                 triangulated_pt = gtsam.triangulatePoint3(
-                    camera_estimates, img_measurements, rank_tol=SVD_DLT_RANK_TOL, optimize=True,
+                    camera_estimates,
+                    img_measurements,
+                    rank_tol=SVD_DLT_RANK_TOL,
+                    optimize=True,
                 )
             except RuntimeError:
                 # TODO: handle cheirality exception properly?
@@ -136,7 +136,7 @@ class Point3dInitializer(NamedTuple):
                 )
                 continue
 
-            if self.min_baseline_thresh is not None:
+            if self.min_tri_angle_deg is not None:
                 # the selected cameras should have a high baseline; if not skip the iteration
                 if self.is_small_triangulation_angle(triangulated_pt, [i1, i2]):
                     continue
@@ -172,10 +172,10 @@ class Point3dInitializer(NamedTuple):
 
         Returns:
             track with inlier measurements and 3D landmark. None returned if triangulation fails or has high error.
-            avg_track_reproj_error: reprojection error of 3d triangulated point to each image plane.
+            Reprojection error of 3d triangulated point to each image plane.
                 Note: this may be "None" if the 3d point could not be triangulated successfully
                 due to a cheirality exception or insufficient number of RANSAC inlier measurements.
-            triangulation_result: result of triangulation. 
+            Exit code for the triangulation process.
         """
         # Check if we will run RANSAC, or not.
         if self.mode in [
@@ -203,13 +203,16 @@ class Point3dInitializer(NamedTuple):
         # Triangulate and check for cheirality failure from GTSAM.
         try:
             triangulated_pt = gtsam.triangulatePoint3(
-                track_cameras, track_measurements, rank_tol=SVD_DLT_RANK_TOL, optimize=True,
+                track_cameras,
+                track_measurements,
+                rank_tol=SVD_DLT_RANK_TOL,
+                optimize=True,
             )
 
-            if self.min_baseline_thresh is not None:
-                # check for small baseline case
+            if self.min_tri_angle_deg is not None:
+                # check if no camera pairs within the track have a large enough baseline for reliable triangulation.
                 if self.is_small_triangulation_angle(triangulated_pt, inlier_idxs):
-                    return None, None, TriangulationExitCode.SMALL_BASELINE_ERROR
+                    return None, None, TriangulationExitCode.SMALL_BASELINE
         except RuntimeError:
             return None, None, TriangulationExitCode.CHEIRALITY_FAILURE
 
@@ -236,7 +239,7 @@ class Point3dInitializer(NamedTuple):
         References:
         - https://github.com/colmap/colmap/blob/513fef3e39f99b50279bf5aee1c5b597cba53c3b/src/base/reconstruction.cc#L616
         - https://github.com/sweeneychris/TheiaSfM/blob/d2112f15aa69a53dda68fe6c4bd4b0f1e2fe915b/src/theia/sfm/set_outlier_tracks_to_unestimated.cc#L121 # noqa: E501
-        - https://github.com/colmap/colmap/blob/dev/src/base/reconstruction.cc#L1412"
+        - https://github.com/colmap/colmap/blob/dev/src/base/reconstruction.cc#L1412
 
 
         Args:
@@ -246,7 +249,7 @@ class Point3dInitializer(NamedTuple):
         Returns:
             True if all the pairs of camera subtend a small angle, and hence resulting in a small baseline track.
         """
-        if self.min_baseline_thresh is None:
+        if self.min_tri_angle_deg is None:
             raise TypeError("The threshold should not be None for the check")
 
         for i1, i2 in itertools.combinations(camera_indices, 2):
@@ -257,7 +260,7 @@ class Point3dInitializer(NamedTuple):
                 camera_i1, camera_i2, point_3d
             )
 
-            if triangulation_angle > self.min_baseline_thresh:
+            if triangulation_angle > self.min_tri_angle_deg:
                 # we have found one pair
                 return False
 
@@ -279,7 +282,10 @@ class Point3dInitializer(NamedTuple):
         return measurement_pair_idxs
 
     def sample_ransac_hypotheses(
-        self, track: SfmTrack2d, measurement_pairs: List[Tuple[int, ...]], num_hypotheses: int,
+        self,
+        track: SfmTrack2d,
+        measurement_pairs: List[Tuple[int, ...]],
+        num_hypotheses: int,
     ) -> List[int]:
         """Sample a list of hypotheses (camera pairs) to use during triangulation.
 
@@ -315,7 +321,12 @@ class Point3dInitializer(NamedTuple):
             TriangulationParam.RANSAC_SAMPLE_UNIFORM,
             TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
         ]:
-            sample_indices = np.random.choice(len(scores), size=num_hypotheses, replace=False, p=scores / scores.sum(),)
+            sample_indices = np.random.choice(
+                len(scores),
+                size=num_hypotheses,
+                replace=False,
+                p=scores / scores.sum(),
+            )
 
         if self.mode == TriangulationParam.RANSAC_TOPK_BASELINES:
             sample_indices = np.argsort(scores)[-num_hypotheses:]

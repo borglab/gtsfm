@@ -10,7 +10,8 @@ References:
 Authors: Sushmita Warrier, Xiaolong Wu, John Lambert
 """
 import os
-from typing import Any, Counter, Dict, List, NamedTuple, Optional, Tuple
+from collections import Counter
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 import dask
 import numpy as np
@@ -21,12 +22,8 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.sfm_track import SfmTrack2d
-from gtsfm.data_association.point3d_initializer import (
-    Point3dInitializer,
-    TriangulationParam,
-    TriangulationExitCode,
-)
 from gtsfm.common.image import Image
+from gtsfm.data_association.point3d_initializer import Point3dInitializer, TriangulationParam, TriangulationExitCode
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 import gtsfm.utils.io as io_utils
@@ -42,8 +39,10 @@ class DataAssociation(NamedTuple):
         min_track_len: min length required for valid feature track / min nb of supporting views required for a landmark
                        to be valid.
         mode: triangulation mode, which dictates whether or not to use robust estimation.
-        min_angle_thresh (optional): threshold of the angle at the 3D point by backprojected rays from 2 cameras for
-                                     the cameras to be qualified as large-baseline. Defaults to None (check inactive).
+        min_tri_angle_deg (optional): minimum allowed angle in degrees between any two rays during triangulation. Each
+                                      ray originates at a camera and shoots towards the triangulated 3d point. Small
+                                      angles indicate small baselines, which are unreliable. Defaults to None (check
+                                      inactive).
         num_ransac_hypotheses (optional): number of hypothesis for RANSAC-based triangulation.
         save_track_patches_viz (optional): flag to turn on saving visualization of patches for each track.
     """
@@ -51,7 +50,7 @@ class DataAssociation(NamedTuple):
     reproj_error_thresh: float
     min_track_len: int
     mode: TriangulationParam
-    min_baseline_thresh: Optional[float] = None
+    min_tri_angle_deg: Optional[float] = None
     num_ransac_hypotheses: Optional[int] = None
     save_track_patches_viz: Optional[bool] = False
 
@@ -97,12 +96,12 @@ class DataAssociation(NamedTuple):
             track_camera_dict=cameras,
             mode=self.mode,
             reproj_error_thresh=self.reproj_error_thresh,
-            min_baseline_thresh=self.min_baseline_thresh,
+            min_tri_angle_deg=self.min_tri_angle_deg,
             num_ransac_hypotheses=self.num_ransac_hypotheses,
         )
 
         # aggregating the failure types
-        triangulation_result_counter = Counter()
+        triangulation_result_counter: Counter = Counter()
         per_accepted_track_avg_errors = []
         per_rejected_track_avg_errors = []
 
@@ -130,7 +129,10 @@ class DataAssociation(NamedTuple):
         num_accepted_tracks = connected_data.number_tracks()
         accepted_tracks_ratio = num_accepted_tracks / len(tracks_2d)
 
-        mean_3d_track_length, median_3d_track_length = connected_data.get_track_length_statistics()
+        per_accepted_track_avg_errors = np.array(per_accepted_track_avg_errors, dtype=np.float32)
+        per_rejected_track_avg_errors = np.array(per_rejected_track_avg_errors, dtype=np.float32)
+
+        mean_3d_track_length, _ = connected_data.get_track_length_statistics()
         track_lengths_3d = connected_data.get_track_lengths()
 
         logger.debug("[Data association] output number of tracks: %s", num_accepted_tracks)
@@ -146,7 +148,18 @@ class DataAssociation(NamedTuple):
                     plot_type=GtsfmMetric.PlotType.HISTOGRAM,
                 ),
                 GtsfmMetric("accepted_tracks_ratio", accepted_tracks_ratio),
-                GtsfmMetric("track_cheirality_failure_ratio", track_cheirality_failure_ratio),
+                GtsfmMetric(
+                    "triangulation_success_ratio",
+                    triangulation_result_counter[TriangulationExitCode.SUCCESS] / len(tracks_2d),
+                ),
+                GtsfmMetric(
+                    "cheirality_failure_ratio",
+                    triangulation_result_counter[TriangulationExitCode.CHEIRALITY_FAILURE] / len(tracks_2d),
+                ),
+                GtsfmMetric(
+                    "small_baseline_failure_ratio",
+                    triangulation_result_counter[TriangulationExitCode.SMALL_BASELINE] / len(tracks_2d),
+                ),
                 GtsfmMetric("num_accepted_tracks", num_accepted_tracks),
                 GtsfmMetric(
                     "3d_tracks_length",
