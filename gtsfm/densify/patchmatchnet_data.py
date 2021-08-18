@@ -71,10 +71,10 @@ class PatchmatchNetData(Dataset):
         #   so that the image size can be matched after downsampling and then upsampling in PatchmatchNet
         self._cropped_h, self._cropped_w = (self._h - self._h % 8, self._w - self._w % 8)
 
-        self._pairs, self._depth_ranges = self.configure()
+        self._pairs, self._depth_ranges = self.select_src_views_depth_ranges()
 
-    def configure(self) -> Tuple[np.ndarray, np.ndarray]:
-        """Configure pairs and depth_ranges for each view from sfm_result.
+    def select_src_views_depth_ranges(self) -> Tuple[np.ndarray, np.ndarray]:
+        """Configure (ref_view, src_view) pairs and depth_ranges for each view from sfm_result.
         Ref: Wang et al. https://github.com/FangjinhuaWang/PatchmatchNet/blob/main/colmap_input.py (line 360-410)
 
         If there are N0 valid images and the patchmatchnet's number of views is num_views, the function does:
@@ -106,24 +106,29 @@ class PatchmatchNetData(Dataset):
             measurements = [track.measurement(k) for k in range(num_measurements)]
             w_x = track.point3()
             for k1 in range(num_measurements):
+                i_a = measurements[k1][0]
+                # Check if i_a is a valid image with estimated camera pose, then get its id for patchmatchnet
+                if i_a in self._camera_idx_to_patchmatchnet_idx:
+                    i_pm_a = self._camera_idx_to_patchmatchnet_idx[i_a]
+                else:
+                    i_pm_a = -1
+
+                # Calculate track_i's depth in the camera pose
+                z_a = self._sfm_result.get_camera(i_a).pose().transformTo(w_x)[-1]
+                # Update image i's depth list only when i in a valid camera
+                depths[i_pm_a].append(z_a)
+
                 for k2 in range(k1 + 1, num_measurements):
-                    i_a = measurements[k1][0]
                     i_b = measurements[k2][0]
 
-                    key_a = -1
-                    key_b = -1
+                    # Check if i_b is a valid image with estimated camera pose, then get its id for patchmatchnet
+                    if i_b in self._camera_idx_to_patchmatchnet_idx:
+                        i_pm_b = self._camera_idx_to_patchmatchnet_idx[i_b]
+                    else:
+                        i_pm_b = -1
 
-                    for i in [i_a, i_b]:
-                        # Check if measurement k belongs to a valid camera
-                        if i not in self._camera_idx_to_patchmatchnet_idx:
-                            continue
-                        key = self._camera_idx_to_patchmatchnet_idx[i]
-                        # Calculate track_i's depth in the camera pose
-                        z = self._sfm_result.get_camera(i).pose().transformTo(w_x)[-1]
-                        # Update image i's depth list only when i in a valid camera
-                        depths[key].append(z)
-
-                    if key_a < 0 or key_b < 0:
+                    # Calculate the pairwise gaussian score only if i_a and i_b are both images with estimated poses
+                    if i_pm_a < 0 or i_pm_b < 0:
                         continue
 
                     # If both cameras are valid cameras,
@@ -132,12 +137,12 @@ class PatchmatchNetData(Dataset):
                         xPa=self._camera_centers[i_a] - w_x, xPb=self._camera_centers[i_b] - w_x
                     )
                     # Sum up pair scores for each track_i
-                    pair_scores[key_a, key_b] += score_a_b
-                    pair_scores[key_b, key_a] += score_a_b
+                    pair_scores[i_pm_b, i_pm_a] += score_a_b
+                    pair_scores[i_pm_a, i_pm_b] += score_a_b
 
         # Sort pair scores, for i-th row, choose the largest (num_views-1) scores, the corresponding views are selected
         #   as (num_views-1) source views for i-th reference view.
-        pairs = np.argsort(-pair_scores, axis=1)[:, : self._num_views]
+        pairs = np.argsort(-pair_scores, axis=1)[:, : self._num_views - 1]
 
         # Filter out depth outliers and calculate depth ranges
         depth_ranges = np.zeros((self._num_images_cal, 2))

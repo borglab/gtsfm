@@ -11,13 +11,14 @@ from gtsfm.utils.geometry_comparisons import angle_between_vectors
 def piecewise_gaussian(
     xPa: np.ndarray, xPb: np.ndarray, theta_0: float = 5, sigma_1: float = 1, sigma_2: float = 10
 ) -> float:
-    """Evaluate the similarity of vectors from a common track's coordinates to different cameras' centers in world frame
+    """Evaluate the angle between two rays, extending from the 3d coordinates of a track point to two different camera
+    centers (all in the world frame)
     1. This piecewise Gaussian function outputs a float score to show the evaluation result.
     2. The total score of a view can be calculated by summing up the scores of all common tracks with other views.
-    3. A higher score suggests that the angle between vectors from a common track's coordinates to different cameras'
-    centers in world frame is closer to a small pre-defined angle theta_0 (5 degrees in default), which means the
-    centers of camera a and camera b are close but not the same, and they have common track points. So the view pair is
-    suitable to be set as the reference view and the source view.
+    3. A higher score suggests that the angle between two rays, extending from the 3d coordinates of a track point to
+    two different camera centers is closer to a small pre-defined angle theta_0 (5 degrees in default), which means the
+    centers of camera a and camera b are close but not the same, and they have common the track point. So the view pair
+    is suitable to be set as the reference view and the source view.
 
     More details can be found in "View Selection" paragraphs in Yao's paper https://arxiv.org/abs/1804.02505.
 
@@ -26,14 +27,20 @@ def piecewise_gaussian(
         xPb: vector from the track point to camera b's center in the world frame, with shape (3,).
         theta_0: Defaults to 5.
             theta_0 is the threshold angle (in degrees) between vectors from the track point to camera a and b's centers
+            theta_0 is also the angle that reaches the peak score. So, theta_0 will be a small angle but not
+            very closed to 0, which suggests the image pair is suitable for MVS reconstruction.
         sigma_1: Defaults to 1.
+            sigma_1 is the Gaussian function's standard deviation when the angle is smaller than theta_0.
             If the angle between vectors from the track point to camera a and b's centers is no larger than the
             threshold angle, which means for this track, the relative position of centers of camera a and b are close,
-            and they can both see the track point. The Gaussian variance should be smaller to make the score higher.
+            and they can both see the track point. It is detrimental if two cameras are too close, so a smaller standard
+            deviation (compared with sigma_2) should be used to prevent too close pairs.
         sigma_2: Defaults to 10.
+            sigma_2 is the Gaussian function's standard deviation when the angle is larger than theta_0.
             If the angle between vectors from the track point to camera a and b's centers is larger than the threshold
-            angle, which means for this track, the relative position of centers of camera a and b are not close enough,
-            although they can both see the track point. The Gaussian variance should be larger to make the score lower.
+            angle, which means for this track, the relative position of centers of camera a and b are not very close,
+            but they can both see the track point. The impact of larger angles is relatively mild if both cameras can
+            see the track point, so a larger standard deviation (compared with sigma_1) will be used.
 
     Returns:
         float: A score of the track between two views in the range (0,1]
