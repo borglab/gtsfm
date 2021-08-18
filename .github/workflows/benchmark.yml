@@ -1,5 +1,7 @@
 name: Benchmark GTSFM on select datasets
-on: [pull_request]
+
+on: [pull_request, workflow_dispatch]
+
 jobs:
   benchmark:
     name: Run GTSFM on the select dataset using SIFT front-end
