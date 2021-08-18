@@ -22,6 +22,21 @@ To open a pull request, here are some steps to get you started:
   - Hint: having unit tests that validate your changes with your pull
     request will help to land your changes faster.
 
+## SfM Variable Name Conventions
+We use a specific naming convention for image/SfM data throughout the codebase:
+- `i` for camera indices
+- `j` for 3d point indices
+- `k` for measurement indices
+
+## Coordinate System Conventions
+
+Code in GTSFM adheres to a strict set of conventions about how rigid body transformations are expressed in code (described [here](https://gtsam.org/gtsam.org/2020/06/28/gtsam-conventions.html)). A few examples are provided below:
+- `wTi`: pose of the i'th camera in the world frame. If there is only a single camera, `wTc` is also acceptable.
+- `wTi_list`: pose of the i'th camera in the world frame, for n cameras
+- `w_i2Ui1`: a ray from camera i2 to camera i1, inside the world coordinate system. Mathematically, `w_i2Ui1 = wRi_list[i2].rotate(i2Ui1)`. Since `i2Ui1` is the unit-normalized translational component of the pose of camera i1 inside i2's frame, then intuitively this is the ray from i2 to i1.
+
+We ask that contributors prefer GTSAM types wherever possible unless it's not already wrapped and is a lot of work to do so, or there are good advantages to using other types (like np arrays).
+
 ## Python Style
 - **Auto-Formatting**:We format code with `black` and a maximum line length of 120 characters.
 - **Type hints**: Function signatures should include type hints. Do not put type information in the docstring if it is redundant with the type hint.
@@ -67,12 +82,66 @@ def fetch_smalltable_rows(
     """
 ```
 
-## Coordinate System Conventions
-
-Code in GTSFM adheres to a strict set of conventions about how rigid body transformations are expressed in code (described [here](https://gtsam.org/gtsam.org/2020/06/28/gtsam-conventions.html)). A few examples are provided below:
-- wTc:
-- wTc_list:
-- w_wUc:
-
-We ask that contributors prefer GTSAM types wherever possible unless it's not already wrapped and is a lot of work to do so, or there are good advantages to using other types (like np arrays).
-
+If you use VSCode as your editor, please use these settings:
+```
+{
+    "python.linting.pylintEnabled": true,
+    "python.linting.mypyEnabled": true,
+    "python.linting.flake8Enabled": true,
+    "python.linting.enabled": true,
+    "python.linting.pylintArgs": [
+        "--indent-string='    '",
+        "--generated-members=numpy.* ,torch.* ,cv2.* , cv.*, scipy.*, gtsam.*",
+        "--max-line-length=120"
+    ],
+    "python.linting.flake8Args": [
+        "--max-line-length",
+        "120",
+        "--ignore",
+        "E201,E202,E203,E231,W291,W293,E303,W391,E402,W503"
+    ],
+    "python.formatting.provider": "black",
+    "editor.formatOnSave": true,
+    "python.formatting.blackArgs": [
+        "--line-length=120"
+    ],
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": false
+    },
+    "editor.rulers": [
+        120
+    ],
+    "[python]": {
+        "editor.insertSpaces": true,
+        "editor.tabSize": 4
+    },
+    "python.testing.unittestArgs": [
+        "-v",
+        "-s",
+        "./tests",
+        "-p",
+        "test*.py"
+    ],
+    "python.testing.pytestEnabled": true,
+    "python.testing.nosetestsEnabled": false,
+    "python.testing.unittestEnabled": true,
+    "cSpell.words": [
+        "pylint"
+    ],
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/.DS_Store": true,
+        "**/.git": true,
+        "**/.hg": true,
+        "**/.pytest_cache": true,
+        "**/.pytype": true,
+        "**/.svn": true,
+        "**/*.egg-info": true,
+        "**/*.pyc": {
+            "when": "$(basename).py"
+        },
+        "**/CVS": true,
+        "**/dask-worker-space": true
+    }
+}
+```

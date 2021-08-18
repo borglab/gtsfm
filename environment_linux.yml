@@ -6,7 +6,6 @@ channels:
   # channel.
   - pytorch
   - conda-forge
-  - defaults
 dependencies:
   # python essentials
   - python=3.8
@@ -21,22 +20,24 @@ dependencies:
   - dask # same as dask[complete] pip distribution
   - python-graphviz
   # core functionality and APIs
-  - matplotlib>=3.3.3
+  - matplotlib==3.4.2
   - networkx
   - numpy
   - nodejs
   - pandas
   - pillow>=8.0.1
   - scikit-learn
+  - hydra-core
   # 3rd party algorithms for different modules
   - cudatoolkit=10.2
   - opencv=4.5.0 # preferring conda-forge's distribution as it provides the latest distribution
   - pytorch
   # io
   - h5py
+  - plotly=4.14.3
+  - tabulate
   - pip:
     - pydegensac
-    - hydra-core==1.1.0dev3
     - argoverse @ git+https://github.com/argoai/argoverse-api.git@master
 
 

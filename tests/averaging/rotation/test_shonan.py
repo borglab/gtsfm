@@ -1,6 +1,6 @@
 """Tests for Shonan rotation averaging.
 
-Authors: Ayush Baid
+Authors: Ayush Baid, John Lambert
 """
 import pickle
 import unittest
@@ -8,7 +8,7 @@ from typing import Dict, List, Tuple
 
 import dask
 import numpy as np
-from gtsam import Rot3
+from gtsam import Rot3, Pose3
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
 import tests.data.sample_poses as sample_poses
@@ -118,6 +118,34 @@ class TestShonanRotationAveraging(unittest.TestCase):
             pickle.dumps(self.obj)
         except TypeError:
             self.fail("Cannot dump rotation averaging object using pickle")
+
+    def test_nonconsecutive_indices(self):
+        """Run rotation averaging on a graph with indices that are not ordered as [0,...,N-1].
+
+        Note: Test would fail if Shonan keys were not temporarily re-ordered inside the implementation.
+        See https://github.com/borglab/gtsam/issues/784
+        """
+        num_images = 4
+
+        # assume pose 0 is orphaned in the visibility graph
+        # Let wTi0's (R,t) be parameterized as identity Rot3(), and t = [1,1,0]
+        wTi1 = Pose3(Rot3(), np.array([3, 1, 0]))
+        wTi2 = Pose3(Rot3(), np.array([3, 3, 0]))
+        wTi3 = Pose3(Rot3(), np.array([1, 3, 0]))
+
+        # generate i2Ri1 rotations
+        # (i1,i2) -> i2Ri1
+        i2Ri1_input = {
+            (1, 2): wTi2.between(wTi1).rotation(),
+            (2, 3): wTi3.between(wTi2).rotation(),
+            (1, 3): wTi3.between(wTi1).rotation(),
+        }
+        
+        wRi_computed = self.obj.run(num_images, i2Ri1_input)
+        wRi_expected = [None, wTi1.rotation(), wTi2.rotation(), wTi3.rotation()]
+        self.assertTrue(
+            geometry_comparisons.compare_rotations(wRi_computed, wRi_expected, angular_error_threshold_degrees=0.1)
+        )
 
 
 if __name__ == "__main__":

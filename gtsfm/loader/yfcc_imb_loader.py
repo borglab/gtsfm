@@ -100,7 +100,7 @@ class YfccImbLoader(LoaderBase):
         Returns:
             intrinsics for the given camera.
         """
-        if index < 0 or index > self.__len__():
+        if index < 0 or index >= len(self):
             raise IndexError("Image index is invalid")
 
         return self._cameras[index].calibration()
@@ -114,12 +114,12 @@ class YfccImbLoader(LoaderBase):
         Returns:
             the camera pose w_P_index.
         """
-        if index < 0 or index > self.__len__():
+        if index < 0 or index >= len(self):
             raise IndexError("Image index is invalid")
 
         return self._cameras[index].pose()
 
-    def validate_pair(self, idx1: int, idx2: int) -> bool:
+    def is_valid_pair(self, idx1: int, idx2: int) -> bool:
         """Checks if (idx1, idx2) is a valid pair.
 
         Args:

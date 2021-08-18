@@ -4,7 +4,7 @@ References:
 1. Richard I. Hartley and Peter Sturm. Triangulation. Computer Vision and Image Understanding, Vol. 68, No. 2,
    November, pp. 146–157, 1997
 
-Authors: Sushmita Warrier, Xiaolong Wu
+Authors: Sushmita Warrier, Xiaolong Wu, John Lambert, Travis Driver
 """
 
 import itertools
@@ -30,7 +30,20 @@ in a track are used w/o ransac. If one of the three sampling modes for robust tr
 cameras will be sampled."""
 
 
+class TriangulationExitCode(Enum):
+    """Exit codes for triangulation computation."""
+
+    # TODO(travisdriver): enforce exit codes in unit tests
+    SUCCESS = 0  # successfully estimated 3d point from measurements
+    CHEIRALITY_FAILURE = 1  # cheirality exception from gtsam.triangulatePoint3
+    INLIERS_UNDERCONSTRAINED = 2  # insufficent number of inlier measurements
+    POSES_UNDERCONSTRAINED = 3  # insufficent number of estimated camera poses
+    EXCEEDS_REPROJ_THRESH = 4  # estimated 3d point exceeds reprojection threshold
+
+
 class TriangulationParam(Enum):
+    """Triangulation modes."""
+
     NO_RANSAC = 0  # do not use filtering
     RANSAC_SAMPLE_UNIFORM = 1  # sample a pair of cameras uniformly at random
     RANSAC_SAMPLE_BIASED_BASELINE = 2  # sample pair of cameras based on largest estimated baseline
@@ -66,8 +79,11 @@ class Point3dInitializer(NamedTuple):
             best_inliers: boolean array of length N. Indices of measurements
                are set to true if they correspond to the best RANSAC hypothesis
         """
+        if self.num_ransac_hypotheses is None:
+            raise ValueError("RANSAC triangulation requested but number of hypothesis is None.")
+
         # Generate all possible matches
-        measurement_pairs = self.generate_measurement_pairs(track_2d)
+        measurement_pairs = generate_measurement_pairs(track_2d)
 
         # limit the number of samples to the number of available pairs
         num_hypotheses = min(self.num_ransac_hypotheses, len(measurement_pairs))
@@ -88,7 +104,7 @@ class Point3dInitializer(NamedTuple):
 
             # check for unestimated cameras
             if self.track_camera_dict.get(i1) is None or self.track_camera_dict.get(i2) is None:
-                logger.warning("Unestimated cameras found at indices {} or {}. Skipping them.".format(i1, i2))
+                logger.warning("Unestimated cameras found at indices %d or %d. Skipping them.", i1, i2)
                 continue
 
             camera_estimates = CameraSetCal3Bundler()
@@ -134,7 +150,7 @@ class Point3dInitializer(NamedTuple):
 
         return best_inliers
 
-    def triangulate(self, track_2d: SfmTrack2d) -> Tuple[Optional[SfmTrack], Optional[float], bool]:
+    def triangulate(self, track_2d: SfmTrack2d) -> Tuple[Optional[SfmTrack], Optional[float], TriangulationExitCode]:
         """Triangulates 3D point according to the configured triangulation mode.
 
         Args:
@@ -151,65 +167,62 @@ class Point3dInitializer(NamedTuple):
         if self.mode == TriangulationParam.TRIPLET_START_AND_ITERATIVE:
             return self.form_track_using_most_consistent_triplet(track_2d)
 
+        # Check if we will run RANSAC, or not.
         if self.mode in [
             TriangulationParam.RANSAC_SAMPLE_UNIFORM,
             TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
             TriangulationParam.RANSAC_TOPK_BASELINES,
         ]:
             best_inliers = self.execute_ransac_variant(track_2d)
-
         elif self.mode == TriangulationParam.NO_RANSAC:
             best_inliers = np.ones(len(track_2d.measurements), dtype=bool)  # all marked as inliers
 
+        # Verify we have at least 2 inliers.
         inlier_idxs = (np.where(best_inliers)[0]).tolist()
-
-        is_cheirality_failure = False
         if len(inlier_idxs) < 2:
-            return None, None, is_cheirality_failure
+            return None, None, TriangulationExitCode.INLIERS_UNDERCONSTRAINED
 
+        # Extract keypoint measurements corresponding to inlier indices.
         inlier_track = track_2d.select_subset(inlier_idxs)
+        track_cameras, track_measurements = self.extract_measurements(inlier_track)
 
-        camera_track, measurement_track = self.extract_measurements(inlier_track)
+        # Exit if we do not have at least 2 measurements in cameras with estimated poses.
+        if track_cameras is None:
+            return None, None, TriangulationExitCode.POSES_UNDERCONSTRAINED
+
+        # Triangulate and check for cheirality failure from GTSAM.
         try:
             triangulated_pt = gtsam.triangulatePoint3(
-                camera_track, measurement_track, rank_tol=SVD_DLT_RANK_TOL, optimize=True
+                track_cameras,
+                track_measurements,
+                rank_tol=SVD_DLT_RANK_TOL,
+                optimize=True,
             )
         except RuntimeError:
-            is_cheirality_failure = True
-            return None, None, is_cheirality_failure
+            return None, None, TriangulationExitCode.CHEIRALITY_FAILURE
 
-        # compute reprojection errors for each measurement
+        # Compute reprojection errors for each measurement.
         reproj_errors, avg_track_reproj_error = reproj_utils.compute_point_reprojection_errors(
             self.track_camera_dict, triangulated_pt, inlier_track.measurements
         )
 
-        # all the measurements should have error < threshold
+        # Check that all the measurements have reprojection error < threshold.
+        # TODO(johnwlambert): compare with approach where we only throw away the outlier measurements.
         if not np.all(reproj_errors < self.reproj_error_thresh):
-            return None, None, is_cheirality_failure
+            return None, avg_track_reproj_error, TriangulationExitCode.EXCEEDS_REPROJ_THRESH
 
+        # Create a gtsam.SfmTrack with the triangulated 3d point and associated 2d measurements.
         track_3d = SfmTrack(triangulated_pt)
         for i, uv in inlier_track.measurements:
             track_3d.add_measurement(i, uv)
 
-        return track_3d, avg_track_reproj_error, is_cheirality_failure
-
-    def generate_measurement_pairs(self, track: SfmTrack2d) -> List[Tuple[int, int]]:
-        """
-        Extract all possible measurement pairs in a track for triangulation.
-
-        Args:
-            track: feature track from which measurements are to be extracted
-
-        Returns:
-            measurement_idxs: all possible matching measurement indices in a given track
-        """
-        num_track_measurements = track.number_measurements()
-        all_measurement_idxs = range(num_track_measurements)
-        measurement_pair_idxs = list(itertools.combinations(all_measurement_idxs, NUM_SAMPLES_PER_RANSAC_HYPOTHESIS))
-        return measurement_pair_idxs
+        return track_3d, avg_track_reproj_error, TriangulationExitCode.SUCCESS
 
     def sample_ransac_hypotheses(
-        self, track: SfmTrack2d, measurement_pairs: List[Tuple[int, int]], num_hypotheses: int
+        self,
+        track: SfmTrack2d,
+        measurement_pairs: List[Tuple[int, ...]],
+        num_hypotheses: int,
     ) -> List[int]:
         """Sample a list of hypotheses (camera pairs) to use during triangulation.
 
@@ -245,7 +258,12 @@ class Point3dInitializer(NamedTuple):
             TriangulationParam.RANSAC_SAMPLE_UNIFORM,
             TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
         ]:
-            sample_indices = np.random.choice(len(scores), size=num_hypotheses, replace=False, p=scores / scores.sum(),)
+            sample_indices = np.random.choice(
+                len(scores),
+                size=num_hypotheses,
+                replace=False,
+                p=scores / scores.sum(),
+            )
 
         if self.mode == TriangulationParam.RANSAC_TOPK_BASELINES:
             sample_indices = np.argsort(scores)[-num_hypotheses:]
@@ -253,7 +271,9 @@ class Point3dInitializer(NamedTuple):
         return sample_indices.tolist()
 
     def extract_measurements(self, track: SfmTrack2d) -> Tuple[CameraSetCal3Bundler, Point2Vector]:
-        """Extract measurements in a track for triangulation.
+        """Convert measurements in a track into GTSAM primitive types for triangulation arguments.
+
+        Returns None, None if less than 2 measurements were found with estimated camera poses after averaging.
 
         Args:
             track: feature track from which measurements are to be extracted.
@@ -265,6 +285,7 @@ class Point3dInitializer(NamedTuple):
         track_cameras = CameraSetCal3Bundler()
         track_measurements = Point2Vector()  # vector of 2d points
 
+        # Compile valid measurements.
         for i, uv in track.measurements:
 
             # check for unestimated cameras
@@ -272,16 +293,11 @@ class Point3dInitializer(NamedTuple):
                 track_cameras.append(self.track_camera_dict.get(i))
                 track_measurements.append(uv)
             else:
-                logger.warning("Unestimated cameras found at index {}. Skipping them.".format(i))
+                logger.warning("Unestimated cameras found at index %d. Skipping them.", i)
 
-        if len(track_cameras) < 2 or len(track_measurements) < 2:
-            raise Exception(
-                "Nb of measurements should not be <= 2. \
-                    number of cameras is: {} \
-                    and number of observations is {}".format(
-                    len(track_cameras), len(track_measurements)
-                )
-            )
+        # Triangulation is underconstrained with <2 measurements.
+        if len(track_cameras) < 2:
+            return None, None
 
         return track_cameras, track_measurements
 
@@ -322,7 +338,7 @@ class Point3dInitializer(NamedTuple):
         best_triplet_indices = None
         for k1 in range(track_2d.number_measurements()):
             for k2 in range(k1 + 1, track_2d.number_measurements()):
-                
+
                 triplet_track_2d = track_2d.select_subset([k1, k2])
                 if not triplet_track_2d.validate_unique_cameras():
                     # the triplet has to have unique cameras
@@ -401,3 +417,19 @@ class Point3dInitializer(NamedTuple):
                 accepted_measurements.append(current_measurement)
 
         return point3d_initializer_simple.triangulate(SfmTrack2d(accepted_measurements))
+
+
+def generate_measurement_pairs(track: SfmTrack2d) -> List[Tuple[int, ...]]:
+    """
+    Extract all possible measurement pairs in a track for triangulation.
+
+    Args:
+        track: feature track from which measurements are to be extracted
+
+    Returns:
+        measurement_idxs: all possible matching measurement indices in a given track
+    """
+    num_track_measurements = track.number_measurements()
+    all_measurement_idxs = range(num_track_measurements)
+    measurement_pair_idxs = list(itertools.combinations(all_measurement_idxs, NUM_SAMPLES_PER_RANSAC_HYPOTHESIS))
+    return measurement_pair_idxs
