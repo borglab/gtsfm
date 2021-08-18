@@ -31,7 +31,7 @@ DEFAULT_IMAGE_C = 3
 DEFAULT_TRACK_POINTS = [Point3(0.5, 0.5, 0), Point3(-0.1, -1.0, 0.1)]
 DEFAULT_NUM_TRACKS = len(DEFAULT_TRACK_POINTS)
 
-# set default camera intrinsicts
+# set default camera intrinsics
 DEFAULT_CAMERA_INTRINSICS = Cal3Bundler(
     fx=100.0,
     k1=0,
@@ -90,13 +90,13 @@ class TestPatchmatchNetData(unittest.TestCase):
         self._dataset_patchmatchnet = PatchmatchNetData(self._img_dict, self._sfm_result)
 
     def add_default_cameras(self) -> None:
-        """assume all default cameras are valid cameras, add them into sfm_result"""
+        """Assume all default cameras are valid cameras, add them into sfm_result"""
         self._num_valid_cameras = DEFAULT_NUM_CAMERAS
         for i in range(DEFAULT_NUM_CAMERAS):
             self._sfm_result.add_camera(i, DEFAULT_CAMERAS[i])
 
     def add_default_tracks(self) -> None:
-        """calculate the measurements under each camera for all track points, then insert the tracks into sfm result"""
+        """Calculate the measurements under each camera for all track points, then insert the tracks into sfm result"""
 
         self._num_tracks = DEFAULT_NUM_TRACKS
         for j in range(self._num_tracks):

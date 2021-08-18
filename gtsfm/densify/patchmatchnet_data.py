@@ -108,10 +108,7 @@ class PatchmatchNetData(Dataset):
             for k1 in range(num_measurements):
                 i_a = measurements[k1][0]
                 # Check if i_a is a valid image with estimated camera pose, then get its id for patchmatchnet
-                if i_a in self._camera_idx_to_patchmatchnet_idx:
-                    i_pm_a = self._camera_idx_to_patchmatchnet_idx[i_a]
-                else:
-                    i_pm_a = -1
+                i_pm_a = self._camera_idx_to_patchmatchnet_idx.get(i_a, -1)
 
                 # Calculate track_i's depth in the camera pose
                 z_a = self._sfm_result.get_camera(i_a).pose().transformTo(w_x)[-1]
@@ -122,10 +119,7 @@ class PatchmatchNetData(Dataset):
                     i_b = measurements[k2][0]
 
                     # Check if i_b is a valid image with estimated camera pose, then get its id for patchmatchnet
-                    if i_b in self._camera_idx_to_patchmatchnet_idx:
-                        i_pm_b = self._camera_idx_to_patchmatchnet_idx[i_b]
-                    else:
-                        i_pm_b = -1
+                    i_pm_b = self._camera_idx_to_patchmatchnet_idx.get(i_b, -1)
 
                     # Calculate the pairwise gaussian score only if i_a and i_b are both images with estimated poses
                     if i_pm_a < 0 or i_pm_b < 0:
