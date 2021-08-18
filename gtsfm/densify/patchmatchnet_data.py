@@ -48,7 +48,7 @@ class PatchmatchNetData(Dataset):
 
         # PatchmatchNet meta
         self._num_stages = NUM_PATCHMATCHNET_STAGES
-        #   the number of views must be equal to or larger than the number of images
+        #   the number of views must be no larger than the number of images
         self._num_views = min(num_views, self._num_images_cal)
 
         # Store locations of camera centers in the world frame
