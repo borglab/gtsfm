@@ -41,7 +41,7 @@ def compute_track_reprojection_errors(
             errors.append(np.nan)
 
     errors = np.array(errors)
-    avg_track_reproj_error = errors.mean()
+    avg_track_reproj_error = np.nanmean(errors)
     return errors, avg_track_reproj_error
 
 
@@ -62,6 +62,11 @@ def compute_point_reprojection_errors(
     errors = []
     for (i, uv_measured) in measurements:
 
+        if i not in track_camera_dict:
+            # camera pose was not successfully estimated, PinholeCameraCal3Bundler was uninitialized
+            errors.append(np.nan)
+            continue
+
         # get the camera associated with the measurement
         camera = track_camera_dict[i]
         # Project to camera
@@ -74,6 +79,6 @@ def compute_point_reprojection_errors(
             errors.append(np.nan)
 
     errors = np.array(errors)
-    avg_track_reproj_error = errors.mean()
+    avg_track_reproj_error = np.nanmean(errors)
     return errors, avg_track_reproj_error
 

@@ -9,7 +9,6 @@ channels:
   # channel.
   - pytorch
   - conda-forge
-  - defaults
 dependencies:
   # python essentials
   - python=3.8
@@ -31,13 +30,15 @@ dependencies:
   - pandas
   - pillow>=8.0.1
   - scikit-learn
+  - hydra-core
   # 3rd party algorithms for different modules
   - opencv=4.5.0 # preferring conda-forge's distribution as it provides the latest distribution
   - pytorch
   # io
   - h5py
+  - plotly=4.14.3
+  - tabulate
   - pip:
-    - hydra-core==1.1.0dev6
     - argoverse @ git+https://github.com/argoai/argoverse-api.git@master
 
 
