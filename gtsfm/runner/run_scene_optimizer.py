@@ -7,7 +7,6 @@ from dask.distributed import Client, LocalCluster, performance_report
 from hydra.utils import instantiate
 
 import gtsfm.utils.logger as logger_utils
-import gtsfm.utils.metrics as metrics_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.scene_optimizer import SceneOptimizer
@@ -57,24 +56,17 @@ if __name__ == "__main__":
         help="maximum number of consecutive frames to consider for matching/co-visibility",
     )
     parser.add_argument(
-        "--num_workers",
-        type=int,
-        default=1,
-        help="Number of workers to start (processes, by default)",
+        "--num_workers", type=int, default=1, help="Number of workers to start (processes, by default)",
     )
     parser.add_argument(
-        "--threads_per_worker",
-        type=int,
-        default=1,
-        help="Number of threads per each worker",
+        "--threads_per_worker", type=int, default=1, help="Number of threads per each worker",
     )
     parser.add_argument(
         "--config_name",
         type=str,
-        default="deep_front_end.yaml",
+        default="sift_front_end.yaml",
         help="Choose sift_front_end.yaml or deep_front_end.yaml",
     )
     args = parser.parse_args()
 
     run_scene_optimizer(args)
-    metrics_utils.log_sfm_summary()
