@@ -1,8 +1,8 @@
-name: Benchmark GTSFM on select datasets
+name: Benchmark GTSFM on select datasets using SIFT front-end
 on: [pull_request]
 jobs:
-  benchmark:
-    name: Run GTSFM on the select dataset using SIFT front-end
+  benchmark-sift:
+    name: Run GTSFM
     runs-on: ubuntu-latest
     defaults:
       run:
