@@ -7,7 +7,7 @@ and grids of box or histogram plots generated using plotly.
 
 Authors: Akshay Krishnan
 """
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import plotly.graph_objects as go
 import plotly.subplots as psubplot
@@ -140,6 +140,17 @@ def get_figures_for_metrics(metrics_group: GtsfmMetricsGroup) -> Tuple[str, str]
     plots_fig = create_plots_for_distributions(metrics_dict)
     return table, plots_fig
 
+def get_heading_as_formatted_html(heading: str) -> str:
+    """Returns a HTML formatted tag for a heading. 
+    
+    Args:
+        heading: Content of the heading.
+
+    Returns:
+        HTML formatted tag with the heading content.
+    """ 
+    return f'<p style="font-size:25px;font-family:Arial">{heading}</p>'
+
 
 def get_html_metric_heading(metric_name: str) -> str:
     """Helper to get the HTML heading for a metric name.
@@ -149,9 +160,8 @@ def get_html_metric_heading(metric_name: str) -> str:
     Returns:
         HTML for heading as a string.
     """
-    metric_name = get_readable_metric_name(metric_name)
-    metric_html = f'<p style="font-size:25px;font-family:Arial">{metric_name}</p>'
-    return metric_html
+    readable_metric_name = get_readable_metric_name(metric_name)
+    return get_heading_as_formatted_html(readable_metric_name)
 
 
 def get_html_header() -> str:
@@ -179,16 +189,37 @@ def get_html_header() -> str:
               </head>"""
 
 
-def generate_metrics_report_html(metrics_groups: List[GtsfmMetricsGroup], html_path: str) -> None:
+def create_table_for_metadata(metadata: metadata: Dict[str, Union[int, float, str]]):
+    """Creates a HTML table for the metadata attributes.
+    
+    Args:
+        metadata: Dict of key-value pairs, which constitute experiment settings etc.
+
+    Returns:
+        A HTML table with the metadata.
+    """
+    table = {"Attribute": list(metadata.keys()), "Value": list(metadata.values())}
+    return tabulate(table, tablefmt="html")
+
+def generate_metrics_report_html(
+    metrics_groups: List[GtsfmMetricsGroup], html_path: str, metadata: Optional[Dict[str, Union[int, float, str]]] = {}
+) -> None:
     """Generates a report for metrics groups with plots and tables and saves it to HTML.
 
     Args:
         metrics_groups: List of metrics to be reported.
+        html_path: Path to save the HTML report.
+        metadata: Metadata dict (simple key-value pairs) that contains some params from the experiment's config.
     """
     with open(html_path, mode="w") as f:
         # Write HTML headers.
         f.write("<!DOCTYPE html>" "<html>")
         f.write(get_html_header())
+
+        # Write the experiment metadata as a table.
+        if len(metadata) > 0:
+            f.write(get_heading_as_formatted_html("Experiment metadata"))
+            f.write(create_table_for_metadata(metadata))
 
         # Iterate over all metrics groups
         for metrics_group in metrics_groups:

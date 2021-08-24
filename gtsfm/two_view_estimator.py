@@ -361,8 +361,6 @@ def aggregate_frontend_metrics(
     frontend_metrics = GtsfmMetricsGroup(
         "frontend_summary",
         [
-            GtsfmMetric("angular_err_threshold_deg", angular_err_threshold_deg),
-            GtsfmMetric("num_total_image_pairs", int(num_image_pairs)),
             GtsfmMetric("num_valid_image_pairs", int(num_valid_image_pairs)),
             GtsfmMetric("rotation_success_count", int(success_count_rot3)),
             GtsfmMetric("translation_success_count", int(success_count_unit3)),

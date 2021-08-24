@@ -189,8 +189,12 @@ class SceneOptimizer:
         if optimizer_metrics_graph is not None:
             metrics_graph_list.extend(optimizer_metrics_graph)
 
-        # Save metrics to JSON and generate HTML report.
-        auxiliary_graph_list.extend(save_metrics_reports(metrics_graph_list))
+        # Save metrics to JSON and generate HTML report with some experiment metadata.
+        metadata = {
+            "angular_err_threshold_deg": self._pose_angular_error_thresh,
+            "num_total_image_pairs": len(image_pair_indices),
+        }
+        auxiliary_graph_list.extend(save_metrics_reports(metrics_graph_list, metadata))
 
         if self._save_3d_viz:
             auxiliary_graph_list.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_pose_graph))
@@ -261,11 +265,12 @@ def save_gtsfm_data(image_graph: Delayed, ba_input_graph: Delayed, ba_output_gra
     return saving_graph_list
 
 
-def save_metrics_reports(metrics_graph_list: Delayed) -> List[Delayed]:
+def save_metrics_reports(metrics_graph_list: Delayed, metadata: Delayed) -> List[Delayed]:
     """Saves metrics to JSON and HTML report.
 
     Args:
         metrics_graph: List of GtsfmMetricsGroup from different modules wrapped as Delayed.
+        metadata: Dict of metadata key-value pairs, wrapped as Delayed.
 
     Returns:
         List of delayed objects after saving metrics.
@@ -282,7 +287,7 @@ def save_metrics_reports(metrics_graph_list: Delayed) -> List[Delayed]:
     )
     save_metrics_graph_list.append(
         dask.delayed(metrics_report.generate_metrics_report_html)(
-            metrics_graph_list, os.path.join(METRICS_PATH, "gtsfm_metrics_report.html")
+            metrics_graph_list, os.path.join(METRICS_PATH, "gtsfm_metrics_report.html"), metadata
         )
     )
     return save_metrics_graph_list
