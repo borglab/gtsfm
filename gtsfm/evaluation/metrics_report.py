@@ -189,7 +189,7 @@ def get_html_header() -> str:
               </head>"""
 
 
-def create_table_for_metadata(metadata: metadata: Dict[str, Union[int, float, str]]):
+def create_table_for_metadata(metadata: Dict[str, Union[int, float, str]]):
     """Creates a HTML table for the metadata attributes.
     
     Args:
@@ -198,6 +198,7 @@ def create_table_for_metadata(metadata: metadata: Dict[str, Union[int, float, st
     Returns:
         A HTML table with the metadata.
     """
+    print("creating table")
     table = {"Attribute": list(metadata.keys()), "Value": list(metadata.values())}
     return tabulate(table, tablefmt="html")
 
@@ -217,6 +218,7 @@ def generate_metrics_report_html(
         f.write(get_html_header())
 
         # Write the experiment metadata as a table.
+        print("length of metadata ", len(metadata))
         if len(metadata) > 0:
             f.write(get_heading_as_formatted_html("Experiment metadata"))
             f.write(create_table_for_metadata(metadata))
