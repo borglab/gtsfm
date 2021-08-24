@@ -7,13 +7,11 @@ from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
 
 import dask
-import gtsam
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import Cal3Bundler, EssentialMatrix, EssentialMatrixFactor, Pose3, PinholeCameraCal3Bundler, Rot3, Unit3
+from gtsam import Cal3Bundler, Pose3, PinholeCameraCal3Bundler, Rot3, Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
-import gtsfm.utils.features as feature_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
