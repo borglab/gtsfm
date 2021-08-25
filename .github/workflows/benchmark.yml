@@ -1,4 +1,4 @@
-name: Benchmark GTSFM on select datasets using the SIFT front-end
+name: Benchmark GTSFM on select datasets using SIFT and Deep front-ends
 
 on: [pull_request, workflow_dispatch]
 
@@ -81,7 +81,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-      config: ["deep-front-end.yaml", "sift-front-end.yaml"] 
+        config: ["deep-front-end.yaml", "sift-front-end.yaml"] 
     defaults:
       run:
         shell: bash -l {0}
