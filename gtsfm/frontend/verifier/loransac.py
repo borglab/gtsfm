@@ -2,6 +2,9 @@
 """
 Wrapper about COLMAP's LORANSAC Essential matrix estimation, using pycolmap's pybind API.
 
+LORANSAC paper:
+ftp://cmp.felk.cvut.cz/pub/cmp/articles/matas/chum-dagm03.pdf
+
 On Linux, a python wheel is available:
 (add URL)
 
