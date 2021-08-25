@@ -1,18 +1,19 @@
 
 """
-Wrapper about COLMAP's Essential matrix estimation, using pycolmap's pybind API.
+Wrapper about COLMAP's LORANSAC Essential matrix estimation, using pycolmap's pybind API.
 
-Note: system-wide installation of COLMAP is required using this module. Follow the instructions first here:
-https://colmap.github.io/install.html
-and then here:
-https://github.com/mihaidusmanu/pycolmap#getting-started
+On Linux, a python wheel is available:
+(add URL)
+
+On Mac, no wheel is available, so system-wide installation of COLMAP is required using this module.
+   Follow the instructions first here: https://colmap.github.io/install.html
+   and then here: https://github.com/mihaidusmanu/pycolmap#getting-started
 
 Authors: John Lambert
 """
 
 from typing import Optional, Tuple
 
-import cv2
 import numpy as np
 import pycolmap
 from gtsam import Cal3Bundler, Rot3, Unit3
@@ -26,9 +27,6 @@ from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.verifier_base import VerifierBase, NUM_MATCHES_REQ_E_MATRIX, NUM_MATCHES_REQ_F_MATRIX
 
 
-DEFAULT_RANSAC_SUCCESS_PROB = 0.99999
-DEFAULT_RANSAC_MAX_ITERS = 20000
-
 logger = logger_utils.get_logger()
 
 
@@ -37,6 +35,14 @@ class LoRansac(VerifierBase):
         self, use_intrinsics_in_verification: bool, estimation_threshold_px: float, min_allowed_inlier_ratio_est_model: float
     ) -> None:
         """Initializes the verifier.
+
+        Note: LoRANSAC is hard-coded in pycolmap to use the following hyperparameters:
+            min_inlier_ratio = 0.01
+            min_num_trials = 1000
+            max_num_trials = 100000
+            confidence = 0.9999
+
+        (See https://github.com/mihaidusmanu/pycolmap/blob/master/essential_matrix.cc#L98)
 
         Args:
             use_intrinsics_in_verification: Flag to perform keypoint normalization and compute the essential matrix
