@@ -3,8 +3,8 @@ name: Benchmark GTSFM on select datasets using the SIFT front-end
 on: [pull_request, workflow_dispatch]
 
 jobs:
-  benchmark-sift:
-    name: Run GTSFM
+  env-setup:
+    name: Setup the environment
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -35,6 +35,19 @@ jobs:
         run: |
           bash .github/scripts/setup.sh
           conda info
+
+  database-setup:
+    needs: env-setup
+    name: Setup the datasets
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+
+    env:
+      PYTHON_VERSION: 3.8
+
+    steps:
       - name: Download Skydio-crane-8 dataset
         # large files from google drive first have a prompt about virus scan being inactive. Need 2 WGET commands.
         run: |
@@ -61,13 +74,31 @@ jobs:
         uses: TonyBogdanov/zip@1.0
         with:
           args: unzip -qq skydio-32.zip -d skydio-32
+
+  benchmark:
+    needs: database-setup
+    name: Run GTSFM
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+      config: [deep-front-end.yaml, sift-front-end.yaml] 
+    defaults:
+      run:
+        shell: bash -l {0}
+
+    env:
+      PYTHON_VERSION: 3.8
+
+    steps:
       - name: Execute door dataset
         run: |
-          python gtsfm/runner/run_scene_optimizer.py --dataset_root tests/data/set1_lund_door --config_name sift_front_end.yaml
+          python gtsfm/runner/run_scene_optimizer.py \
+            --dataset_root tests/data/set1_lund_door \
+            --config_name ${{ matrix.config }}
       - name: Archive door dataset metrics
         uses: actions/upload-artifact@v2
         with:
-          name: door-raw-metrics
+          name: door-metrics-${{ matrix.config }}
           path: |
             result_metrics
       - name: Execute skydio-crane-8 dataset
@@ -76,11 +107,11 @@ jobs:
             --images_dir skydio_crane_mast_8imgs_with_exif/images \
             --colmap_files_dirpath skydio_crane_mast_8imgs_with_exif/crane_mast_8imgs_colmap_output \
             --max_frame_lookahead 8 \
-            --config_name sift_front_end.yaml
+            --config_name ${{ matrix.config }}
       - name: Archive skydio-crane-8 metrics
         uses: actions/upload-artifact@v2
         with:
-          name: skydio-crane-8-raw-metrics
+          name: skydio-crane-8-metrics-${{ matrix.config }}
           path: |
             result_metrics
       - name: Execute skydio-crane-32 dataset
@@ -89,10 +120,10 @@ jobs:
             --images_dir skydio-32/images \
             --colmap_files_dirpath skydio-32/colmap_crane_mast_32imgs \
             --max_frame_lookahead 32 \
-            --config_name sift_front_end.yaml
+            --config_name ${{ matrix.config }}
       - name: Archive skydio-crane-32 metrics
         uses: actions/upload-artifact@v2
         with:
-          name: skydio-crane-32-raw-metrics
+          name: skydio-crane-32-metrics-${{ matrix.config }}
           path: |
             result_metrics
