@@ -143,7 +143,6 @@ class LoRansac(VerifierBase):
             i2Ui1 = Unit3(i2Ui1)
             inlier_mask = result_dict["inliers"]
             v_corr_idxs = match_indices[inlier_mask]
-
         else:
             i2Ri1 = None
             i2Ui1 = None
