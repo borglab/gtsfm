@@ -100,7 +100,7 @@ class Ransac(VerifierBase):
                 uv_norm_i1[match_indices[:, 0]],
                 uv_norm_i2[match_indices[:, 1]],
                 K,
-                method=cv2.RANSAC,
+                method=cv2.USAC_ACCURATE,
                 threshold=self._estimation_threshold_px / fx,
                 prob=RANSAC_SUCCESS_PROB,
             )

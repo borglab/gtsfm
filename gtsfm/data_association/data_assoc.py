@@ -10,7 +10,7 @@ References:
 Authors: Sushmita Warrier, Xiaolong Wu, John Lambert
 """
 import os
-from typing import Any, Dict, List, NamedTuple, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import dask
 import numpy as np
@@ -62,7 +62,7 @@ class DataAssociation(NamedTuple):
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
         images: Optional[List[Image]] = None,
-    ) -> Tuple[GtsfmData, Dict[str, Any]]:
+    ) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
         """Perform the data association.
 
         Args:
