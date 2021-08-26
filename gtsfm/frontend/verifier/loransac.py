@@ -17,7 +17,8 @@ Authors: John Lambert
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
-#import pycolmap
+
+import pycolmap
 from gtsam import Cal3Bundler, Rot3, Unit3
 
 import gtsfm.utils.logger as logger_utils
@@ -69,10 +70,10 @@ class LoRansac(VerifierBase):
     def estimate_essential_matrix(
         self,
         uv_i1: np.ndarray,
-        uv_i2: np.ndarray, 
+        uv_i2: np.ndarray,
         camera_intrinsics_i1: Cal3Bundler,
         camera_intrinsics_i2: Cal3Bundler,
-     ) -> Dict[str, Any]:
+    ) -> Dict[str, Any]:
         """Use the pycolmap Pybind wrapper to estimate an Essential matrix using LORANSAC.
 
         Args:
@@ -82,7 +83,7 @@ class LoRansac(VerifierBase):
             camera_intrinsics_i2: intrinsics for image #i2.
 
         Returns:
-            result_dict: 
+            dictionary containing result status code, estimated relative pose (R,t), and inlier mask.
         """
         focal_length = camera_intrinsics_i1.fx()
         cx, cy = camera_intrinsics_i1.px(), camera_intrinsics_i1.py()
