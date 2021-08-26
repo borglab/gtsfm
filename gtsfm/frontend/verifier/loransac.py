@@ -108,7 +108,7 @@ class LoRansac(VerifierBase):
             "params": [focal_length, cx, cy],
         }
         result_dict = pycolmap.essential_matrix_estimation(
-            points2D1, points2D2, camera_dict1, camera_dict2, max_error_px=self._estimation_threshold_px
+            uv_i1, uv_i2, camera_dict1, camera_dict2, max_error_px=self._estimation_threshold_px
         )
         return result_dict
 
@@ -162,35 +162,33 @@ class LoRansac(VerifierBase):
         num_inliers = result_dict["num_inliers"]
         inlier_ratio_est_model = num_inliers / match_indices.shape[0]
 
-        # only extract the relative pose if we have sufficient inliers.
-        if inlier_ratio_est_model >= self._min_allowed_inlier_ratio_est_model:
-
-            inlier_mask = result_dict["inliers"]
-            v_corr_idxs = match_indices[inlier_mask]
-
-            if self._use_intrinsics_in_verification:
-                # case where E-matrix was estimated
-                # See https://github.com/colmap/colmap/blob/dev/src/base/pose.h#L72 for quaternion ordering
-                qw, qx, qy, qz = result_dict["qvec"]
-                i2Ui1 = result_dict["tvec"]
-                i2Ri1 = Rot3(qw, qx, qy, qz)
-                i2Ui1 = Unit3(i2Ui1)
-            else:
-                # case where F-matrix was estimated
-                F = result_dict["F"]
-                i2Ei1 = verification_utils.fundamental_to_essential_matrix(
-                    i2Fi1, camera_intrinsics_i1, camera_intrinsics_i2
-                )
-                (i2Ri1, i2Ui1) = verification_utils.recover_relative_pose_from_essential_matrix(
-                    i2Ei1,
-                    uv_i1_[inlier_idxs, 0],
-                    uv_i2_[inlier_idxs, 1],
-                    camera_intrinsics_i1,
-                    camera_intrinsics_i2,
-                )
-        else:
+        # no need to extract the relative pose if we have insufficient inliers.
+        if inlier_ratio_est_model < self._min_allowed_inlier_ratio_est_model:
             i2Ri1 = None
             i2Ui1 = None
             v_corr_idxs = np.array([])
+            return i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio_est_model
 
+        inlier_mask = result_dict["inliers"]
+        v_corr_idxs = match_indices[inlier_mask]
+        if self._use_intrinsics_in_verification:
+            # case where E-matrix was estimated
+            # See https://github.com/colmap/colmap/blob/dev/src/base/pose.h#L72 for quaternion ordering
+            qw, qx, qy, qz = result_dict["qvec"]
+            i2Ui1 = result_dict["tvec"]
+            i2Ri1 = Rot3(qw, qx, qy, qz)
+            i2Ui1 = Unit3(i2Ui1)
+        else:
+            # case where F-matrix was estimated
+            i2Fi1 = result_dict["F"]
+            i2Ei1 = verification_utils.fundamental_to_essential_matrix(
+                i2Fi1, camera_intrinsics_i1, camera_intrinsics_i2
+            )
+            (i2Ri1, i2Ui1) = verification_utils.recover_relative_pose_from_essential_matrix(
+                i2Ei1,
+                uv_i1_[inlier_mask, 0],
+                uv_i2_[inlier_mask, 1],
+                camera_intrinsics_i1,
+                camera_intrinsics_i2,
+            )
         return i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio_est_model
