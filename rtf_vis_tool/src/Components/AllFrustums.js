@@ -58,6 +58,7 @@ function AllFrustums() {
         var ex_cameraList = ex_data.split('\n');
         ex_cameraList = ex_cameraList.slice(4); // Remove the 4 lines of comments in images.txt.
         ex_cameraList.pop() // remove the last empty string from list.
+        ex_cameraList = ex_cameraList.filter(line => line !== "TODO"); // remove any lines with text "TODO"
 
         if (in_cameraList.length !== ex_cameraList.length) {
             alert('Camera count mismatch between images.txt and cameras.txt');
