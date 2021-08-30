@@ -43,7 +43,6 @@ package.json
 - `@testing-library/react` : auto generated when initializing react app
 - `@testing-library/user-event` : auto generated when initializing react app
 - `drei` : used to render lines and text in the react three fiber point cloud (`Data_Association_PC.js`)
-- `numjs` : used to render camera frustums (`AllFrustums.js`)
 - `quaternion` : used to extract rotation matrix from Quaternion (`AllFrustums.js`)
 - `react` : primary react import for all files in the `Components` folder
 - `react-dom` : helper library of react to perform live webpage updates upon refresh

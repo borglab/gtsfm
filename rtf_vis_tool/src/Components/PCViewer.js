@@ -9,7 +9,6 @@ import React, {useEffect, useState} from "react";
 import {Canvas} from "react-three-fiber"; // Used to render canvas containing 3D elements
 
 // Local Imports.
-import AllFrustums from './AllFrustums';
 import CoordinateGrid from './CoordinateGrid';
 import OrbitControlsComponent from './OrbitControlsComponent';
 import PointMesh from './PointMesh';
@@ -97,7 +96,6 @@ function PCViewer(props) {
                 {pointCloudJSX}
                 {showCoordGrid && <CoordinateGrid />}
                 <OrbitControlsComponent />
-                <AllFrustums/>
             </Canvas>
 
             <button className="pc_go_back_btn" onClick={() => props.togglePC(false)}>Go Back</button>
