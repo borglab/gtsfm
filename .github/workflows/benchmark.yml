@@ -3,9 +3,12 @@ name: Benchmark GTSFM on select datasets using SIFT and Deep front-ends
 on: [pull_request, workflow_dispatch]
 
 jobs:
-  env-setup:
-    name: Setup the environment
+  benchmark:
+    name: Benchmark
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        config: ["deep-front-end.yaml", "sift-front-end.yaml"]
     defaults:
       run:
         shell: bash -l {0}
@@ -35,19 +38,6 @@ jobs:
         run: |
           bash .github/scripts/setup.sh
           conda info
-
-  database-setup:
-    needs: env-setup
-    name: Setup the datasets
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash -l {0}
-
-    env:
-      PYTHON_VERSION: 3.8
-
-    steps:
       - name: Download Skydio-crane-8 dataset
         # large files from google drive first have a prompt about virus scan being inactive. Need 2 WGET commands.
         run: |
@@ -74,23 +64,7 @@ jobs:
         uses: TonyBogdanov/zip@1.0
         with:
           args: unzip -qq skydio-32.zip -d skydio-32
-
-  benchmark:
-    needs: database-setup
-    name: Run GTSFM
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        config: ["deep-front-end.yaml", "sift-front-end.yaml"] 
-    defaults:
-      run:
-        shell: bash -l {0}
-
-    env:
-      PYTHON_VERSION: 3.8
-
-    steps:
-      - name: Execute door dataset
+      - name: Execute door-12 dataset
         run: |
           python gtsfm/runner/run_scene_optimizer.py \
             --dataset_root tests/data/set1_lund_door \
@@ -98,7 +72,7 @@ jobs:
       - name: Archive door dataset metrics
         uses: actions/upload-artifact@v2
         with:
-          name: door-metrics-${{ matrix.config }}
+          name: door-12-metrics-${{ matrix.config }}
           path: |
             result_metrics
       - name: Execute skydio-crane-8 dataset
