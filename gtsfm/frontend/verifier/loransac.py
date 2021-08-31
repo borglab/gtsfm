@@ -89,9 +89,9 @@ class LoRansac(VerifierBase):
             dictionary containing result status code, estimated relative pose (R,t), and inlier mask.
         """
 
-        def get_pycolmap_camera_dict(camera_intrinsics: Cal3Bundler) -> Dict[str,Any]:
+        def get_pycolmap_camera_dict(camera_intrinsics: Cal3Bundler) -> Dict[str, Any]:
             """Convert Cal3Bundler intrinsics to a pycolmap-compatible format (a dictionary).
-            
+
             See https://colmap.github.io/cameras.html#camera-models for info about the COLMAP camera models.
             Both SIMPLE_PINHOLE and SIMPLE_RADIAL use 1 focal length.
             """
@@ -103,7 +103,7 @@ class LoRansac(VerifierBase):
             height = int(cy * 2)
 
             camera_dict = {
-                "model": "SIMPLE_PINHOLE", # "SIMPLE_RADIAL"
+                "model": "SIMPLE_PINHOLE",  # "SIMPLE_RADIAL"
                 "width": width,
                 "height": height,
                 "params": [focal_length, cx, cy],
