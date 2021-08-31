@@ -75,6 +75,26 @@ class TestGtsfmMetric(unittest.TestCase):
         np.testing.assert_equal(metric.data, data)
         self.assertEqual(metric.plot_type, GtsfmMetric.PlotType.BOX)
 
+    def test_create_empty_metric(self) -> None:
+        """Check that a 1D distribution metric created has the right attributes."""
+        data = np.array([], dtype=np.float32)
+        metric = GtsfmMetric("empty_metric", data)
+        self.assertEqual(metric.name, "empty_metric")
+        np.testing.assert_equal(metric.data, data)
+        print(metric.summary.values)
+        np.testing.assert_equal(list(metric.summary.values()), [np.NaN for _ in range(5)])
+        self.assertEqual(metric.plot_type, GtsfmMetric.PlotType.BOX)
+
+    def test_create_all_nan_metric(self) -> None:
+        """Check that a 1D distribution metric created has the right attributes."""
+        data = np.array([np.NaN for _ in range(5)], dtype=np.float32)
+        metric = GtsfmMetric("nan_metric", data)
+        self.assertEqual(metric.name, "nan_metric")
+        np.testing.assert_equal(metric.data, data)
+        print(metric.summary.values)
+        np.testing.assert_equal(list(metric.summary.values()), [np.NaN for _ in range(5)])
+        self.assertEqual(metric.plot_type, GtsfmMetric.PlotType.BOX)
+
     def test_parses_from_dict_scalar(self) -> None:
         """Check that a scalar metric can be parsed from its dict representation."""
         scalar_metric_dict = {"foo_metric": 2}
@@ -134,7 +154,7 @@ class TestGtsfmMetricsGroup(unittest.TestCase):
         np.testing.assert_equal(metric2_dict["full_data"], np.array([1, 2, 3]))
 
     def test_saves_to_json(self) -> None:
-        """Check that no errors are raised when saving metrics group to json."""        
+        """Check that no errors are raised when saving metrics group to json."""
         with tempfile.TemporaryDirectory() as tempdir:
             self._metrics_group.save_to_json(os.path.join(tempdir, "test_metrics.json"))
 
