@@ -24,6 +24,7 @@ from gtsfm.common.image import Image
 from gtsfm.feature_extractor import FeatureExtractor
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.two_view_estimator import TwoViewEstimator, TwoViewEstimationReport
+from gtsfm.frontend.retriever.retriever_base import RetirieverBase
 
 # base paths for storage
 PLOT_BASE_PATH = Path(__file__).resolve().parent.parent / "plots"
@@ -114,6 +115,14 @@ class SceneOptimizer:
             keypoints_graph_list += [delayed_dets]
             descriptors_graph_list += [delayed_descs]
 
+        # Add detections and descriptors to the Retriever.
+        image_retriever = RetirieverBase(
+            self.two_view_estimator, camera_intrinsics_graph, image_shape_graph, gt_pose_graph
+        )
+        local_matching_graph_dict = image_retriever.create_computation_graph(
+            keypoints_graph_list, descriptors_graph_list
+        )
+
         # estimate two-view geometry and get indices of verified correspondences.
         i2Ri1_graph_dict = {}
         i2Ui1_graph_dict = {}
@@ -121,24 +130,33 @@ class SceneOptimizer:
 
         two_view_reports_dict = {}
 
-        for (i1, i2) in image_pair_indices:
+        # for (i1, i2) in image_pair_indices:
+        for (i1, i2), local_matching_graph in local_matching_graph_dict.items():
             if gt_pose_graph is not None:
                 # compute GT relative pose
                 gt_i2Ti1 = dask.delayed(lambda x, y: x.between(y))(gt_pose_graph[i2], gt_pose_graph[i1])
             else:
                 gt_i2Ti1 = None
 
-            (i2Ri1, i2Ui1, v_corr_idxs, two_view_report,) = self.two_view_estimator.create_computation_graph(
-                keypoints_graph_list[i1],
-                keypoints_graph_list[i2],
-                descriptors_graph_list[i1],
-                descriptors_graph_list[i2],
-                camera_intrinsics_graph[i1],
-                camera_intrinsics_graph[i2],
-                image_shape_graph[i1],
-                image_shape_graph[i2],
-                gt_i2Ti1,
+            # Unpack local matching results. The result will be a Tuple of Nones if image pair invalid.
+            (i2Ri1, i2Ui1, v_corr_idxs, two_view_report) = (
+                local_matching_graph[0],
+                local_matching_graph[1],
+                local_matching_graph[2],
+                local_matching_graph[3],
             )
+
+            # (i2Ri1, i2Ui1, v_corr_idxs, two_view_report) = self.two_view_estimator.create_computation_graph(
+            #     keypoints_graph_list[i1],
+            #     keypoints_graph_list[i2],
+            #     descriptors_graph_list[i1],
+            #     descriptors_graph_list[i2],
+            #     camera_intrinsics_graph[i1],
+            #     camera_intrinsics_graph[i2],
+            #     image_shape_graph[i1],
+            #     image_shape_graph[i2],
+            #     gt_i2Ti1,
+            # )
 
             i2Ri1_graph_dict[(i1, i2)] = i2Ri1
             i2Ui1_graph_dict[(i1, i2)] = i2Ui1

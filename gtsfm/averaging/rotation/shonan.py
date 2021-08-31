@@ -136,4 +136,6 @@ class ShonanRotationAveraging(RotationAveragingBase):
         for remapped_i, original_i in enumerate(connected_nodes):
             wRi_list[original_i] = wRi_list_subset[remapped_i]
 
+        logger.debug(wRi_list)
+
         return wRi_list

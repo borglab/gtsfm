@@ -104,7 +104,7 @@ class TwoViewEstimator:
         im_shape_i1_graph: Delayed,
         im_shape_i2_graph: Delayed,
         i2Ti1_expected_graph: Optional[Delayed] = None,
-    ) -> Tuple[Delayed, Delayed, Delayed, Optional[Delayed], Optional[Delayed], Optional[Delayed]]:
+    ) -> Tuple[Delayed, Delayed, Delayed, Optional[Delayed]]:
         """Create delayed tasks for matching and verification.
 
         Args:
@@ -191,7 +191,7 @@ class TwoViewEstimator:
         i2Ri1: Optional[Rot3],
         i2Ui1: Optional[Unit3],
         v_corr_idxs: np.ndarray,
-    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, TwoViewEstimationReport]:
         """ """
         insufficient_inliers = two_view_report.num_inliers_est_model < self._min_num_inliers_acceptance
 
@@ -312,6 +312,7 @@ def aggregate_frontend_metrics(
         angular_err_threshold_deg: threshold for classifying angular error metrics as success.
     """
     num_image_pairs = len(two_view_reports_dict.keys())
+    logger.debug(two_view_reports_dict)
 
     # all rotational errors in degrees
     rot3_angular_errors = [report.R_error_deg for report in two_view_reports_dict.values()]
@@ -370,7 +371,7 @@ def aggregate_frontend_metrics(
             GtsfmMetric("num_all_inlier_correspondences_wrt_gt_model", int(all_correct)),
             GtsfmMetric("rot3_angular_errors_deg", rot3_angular_errors),
             GtsfmMetric("trans_angular_errors_deg", trans_angular_errors),
-            GtsfmMetric("pose_errors_deg", pose_errors)
+            GtsfmMetric("pose_errors_deg", pose_errors),
         ],
     )
     return frontend_metrics
