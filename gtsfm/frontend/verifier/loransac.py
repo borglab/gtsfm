@@ -21,10 +21,11 @@ import numpy as np
 import pycolmap
 from gtsam import Cal3Bundler, Rot3, Unit3
 
+import gtsfm.frontend.verifier.verifier_base as verifier_base
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.verification as verification_utils
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.frontend.verifier.verifier_base import VerifierBase, NUM_MATCHES_REQ_E_MATRIX, NUM_MATCHES_REQ_F_MATRIX
+from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
 
 logger = logger_utils.get_logger()
@@ -61,7 +62,9 @@ class LoRansac(VerifierBase):
         self._estimation_threshold_px = estimation_threshold_px
         self._min_allowed_inlier_ratio_est_model = min_allowed_inlier_ratio_est_model
         self._min_matches = (
-            NUM_MATCHES_REQ_E_MATRIX if self._use_intrinsics_in_verification else NUM_MATCHES_REQ_F_MATRIX
+            verifier_base.NUM_MATCHES_REQ_E_MATRIX
+            if self._use_intrinsics_in_verification
+            else verifier_base.NUM_MATCHES_REQ_F_MATRIX
         )
 
         # for failure, i2Ri1 = None, and i2Ui1 = None, and no verified correspondences, and inlier_ratio_est_model = 0
