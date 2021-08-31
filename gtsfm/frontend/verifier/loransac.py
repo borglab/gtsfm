@@ -173,7 +173,7 @@ class LoRansac(VerifierBase):
         v_corr_idxs = match_indices[inlier_mask]
         if self._use_intrinsics_in_verification:
             # case where E-matrix was estimated
-            # See https://github.com/colmap/colmap/blob/dev/src/base/pose.h#L72 for quaternion ordering
+            # See https://github.com/colmap/colmap/blob/dev/src/base/pose.h#L72 for quaternion coefficient ordering
             qw, qx, qy, qz = result_dict["qvec"]
             i2Ui1 = result_dict["tvec"]
             i2Ri1 = Rot3(qw, qx, qy, qz)
