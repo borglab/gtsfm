@@ -103,7 +103,7 @@ class LoRansac(VerifierBase):
             height = int(cy * 2)
 
             camera_dict = {
-                "model": "SIMPLE_PINHOLE",  # "SIMPLE_RADIAL"
+                "model": "SIMPLE_PINHOLE",
                 "width": width,
                 "height": height,
                 "params": [focal_length, cx, cy],
