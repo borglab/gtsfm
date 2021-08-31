@@ -117,7 +117,7 @@ class DataAssociation(NamedTuple):
 
             if sfm_tracks is not None:
                 for t in range(len(sfm_tracks)):
-                    track = sfm_tracks[i]
+                    track = sfm_tracks[t]
                     if self.__validate_track(track):
                         triangulated_data.add_track(track)
                         per_accepted_track_avg_errors.append(avg_track_reproj_errors[t])
