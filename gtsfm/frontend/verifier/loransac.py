@@ -5,7 +5,7 @@ LORANSAC paper:
 ftp://cmp.felk.cvut.cz/pub/cmp/articles/matas/chum-dagm03.pdf
 
 On Linux, a python wheel is available:
-(add URL)
+https://pypi.org/project/pycolmap/#files
 
 On Mac, no wheel is available, so system-wide installation of COLMAP is required using this module.
    Follow the instructions first here: https://colmap.github.io/install.html
@@ -70,7 +70,7 @@ class LoRansac(VerifierBase):
         # for failure, i2Ri1 = None, and i2Ui1 = None, and no verified correspondences, and inlier_ratio_est_model = 0
         self._failure_result = (None, None, np.array([], dtype=np.uint64), 0.0)
 
-    def estimate_essential_matrix(
+    def __estimate_essential_matrix(
         self,
         uv_i1: np.ndarray,
         uv_i2: np.ndarray,
@@ -88,28 +88,27 @@ class LoRansac(VerifierBase):
         Returns:
             dictionary containing result status code, estimated relative pose (R,t), and inlier mask.
         """
-        focal_length = camera_intrinsics_i1.fx()
-        cx, cy = camera_intrinsics_i1.px(), camera_intrinsics_i1.py()
 
-        # TODO: use more accurate proxy?
-        width = int(cx * 2)
-        height = int(cy * 2)
+        def get_pycolmap_camera_dict(camera_intrinsics: Cal3Bundler) -> Dict[str,Any]:
+            """Convert Cal3Bundler intrinsics to a pycolmap-compatible format (a dictionary)."""
+            focal_length = camera_intrinsics.fx()
+            cx, cy = camera_intrinsics.px(), camera_intrinsics.py()
 
-        camera_dict1 = {
-            "model": "SIMPLE_PINHOLE",
-            "width": width,
-            "height": height,
-            "params": [focal_length, cx, cy],
-        }
+            # TODO: use more accurate proxy?
+            width = int(cx * 2)
+            height = int(cy * 2)
 
-        focal_length = camera_intrinsics_i2.fx()
-        cx, cy = camera_intrinsics_i2.px(), camera_intrinsics_i2.py()
-        camera_dict2 = {
-            "model": "SIMPLE_PINHOLE",
-            "width": width,
-            "height": height,
-            "params": [focal_length, cx, cy],
-        }
+            camera_dict = {
+                "model": "SIMPLE_PINHOLE",
+                "width": width,
+                "height": height,
+                "params": [focal_length, cx, cy],
+            }
+            return camera_dict
+
+        camera_dict_1 = get_pycolmap_camera_dict(camera_intrinsics_i1)
+        camera_dict_2 = get_pycolmap_camera_dict(camera_intrinsics_i2)
+
         result_dict = pycolmap.essential_matrix_estimation(
             uv_i1, uv_i2, camera_dict1, camera_dict2, max_error_px=self._estimation_threshold_px
         )
@@ -150,7 +149,7 @@ class LoRansac(VerifierBase):
         uv_i2_ = uv_i2[match_indices[:, 1]]
 
         if self._use_intrinsics_in_verification:
-            result_dict = self.estimate_essential_matrix(uv_i1_, uv_i2_, camera_intrinsics_i1, camera_intrinsics_i2)
+            result_dict = self.__estimate_essential_matrix(uv_i1_, uv_i2_, camera_intrinsics_i1, camera_intrinsics_i2)
         else:
             result_dict = pycolmap.fundamental_matrix_estimation(
                 uv_i1_, uv_i2_, max_error_px=self._estimation_threshold_px
