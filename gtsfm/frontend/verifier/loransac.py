@@ -81,7 +81,7 @@ class LoRansac(VerifierBase):
 
         Args:
             uv_i1: array of shape (N3,2) representing coordinates of 2d points in image 1.
-            uv_i2: array of shape (N3,2) representing coordinates of 2d points in image 2.
+            uv_i2: array of shape (N3,2) representing corresponding coordinates of 2d points in image 2.
             camera_intrinsics_i1: intrinsics for image #i1.
             camera_intrinsics_i2: intrinsics for image #i2.
 
@@ -146,17 +146,14 @@ class LoRansac(VerifierBase):
             logger.info("[LORANSAC] Not enough correspondences for verification.")
             return self._failure_result
 
-        uv_i1 = keypoints_i1.coordinates
-        uv_i2 = keypoints_i2.coordinates
-
-        uv_i1_ = uv_i1[match_indices[:, 0]]
-        uv_i2_ = uv_i2[match_indices[:, 1]]
+        uv_i1 = keypoints_i1.coordinates[match_indices[:, 0]]
+        uv_i2 = keypoints_i2.coordinates[match_indices[:, 1]]
 
         if self._use_intrinsics_in_verification:
-            result_dict = self.__estimate_essential_matrix(uv_i1_, uv_i2_, camera_intrinsics_i1, camera_intrinsics_i2)
+            result_dict = self.__estimate_essential_matrix(uv_i1, uv_i2, camera_intrinsics_i1, camera_intrinsics_i2)
         else:
             result_dict = pycolmap.fundamental_matrix_estimation(
-                uv_i1_, uv_i2_, max_error_px=self._estimation_threshold_px
+                uv_i1, uv_i2, max_error_px=self._estimation_threshold_px
             )
 
         success = result_dict["success"]
@@ -192,8 +189,8 @@ class LoRansac(VerifierBase):
             )
             (i2Ri1, i2Ui1) = verification_utils.recover_relative_pose_from_essential_matrix(
                 i2Ei1,
-                uv_i1_[inlier_mask, 0],
-                uv_i2_[inlier_mask, 1],
+                uv_i1[inlier_mask, 0],
+                uv_i2[inlier_mask, 1],
                 camera_intrinsics_i1,
                 camera_intrinsics_i2,
             )
