@@ -215,20 +215,24 @@ class Point3dInitializer(NamedTuple):
         )
         acceptable_idxs = (np.where(reproj_errors < self.reproj_error_thresh)[0]).tolist()
         track = inlier_track.select_subset(acceptable_idxs)
-        track_3d = SfmTrack(triangulated_pt)
-        for i, uv in track.measurements:
-            track_3d.add_measurement(i, uv)
-        output_tracks = [track_3d]
-        output_errors = [avg_track_reproj_error]
+        output_tracks = []
+        output_errors = []
+        if track.number_measurements() > 0:
+            track_3d = SfmTrack(triangulated_pt)
+            for i, uv in track.measurements:
+                track_3d.add_measurement(i, uv)
+            output_tracks.append(track_3d)
+            output_errors.append(avg_track_reproj_error)
 
-        outlier_idxs = (np.where(best_inliers == 0)[0]).tolist()
-        outlier_idxs.extend((np.where(reproj_errors >= self.reproj_error_thresh)[0]).tolist())
-        outliers_track_2d = track_2d.select_subset(outlier_idxs)
+            outlier_idxs = (np.where(best_inliers == 0)[0]).tolist()
+            outlier_idxs.extend((np.where(reproj_errors >= self.reproj_error_thresh)[0]).tolist())
+            outliers_track_2d = track_2d.select_subset(outlier_idxs)
 
-        outlier_tracks_3d, outlier_errors, outlier_status = self.triangulate(outliers_track_2d)
-        if outlier_status == TriangulationExitCode.SUCCESS:
-            output_tracks.extend(outlier_tracks_3d)
-            output_errors.extend(outlier_errors)
+            if outliers_track_2d.number_measurements() < track_2d.number_measurements():
+                outlier_tracks_3d, outlier_errors, outlier_status = self.triangulate(outliers_track_2d)
+                if outlier_status == TriangulationExitCode.SUCCESS:
+                    output_tracks.extend(outlier_tracks_3d)
+                    output_errors.extend(outlier_errors)
 
         # # Check that all the measurements have reprojection error < threshold.
         # # TODO(johnwlambert): compare with approach where we only throw away the outlier measurements.
