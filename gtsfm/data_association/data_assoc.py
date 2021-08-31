@@ -110,16 +110,19 @@ class DataAssociation(NamedTuple):
         # add valid tracks where triangulation is successful
         for track_2d in tracks_2d:
             # triangulate and filter based on reprojection error
-            sfm_track, avg_track_reproj_error, triangulation_exit_code = point3d_initializer.triangulate(track_2d)
+            sfm_tracks, avg_track_reproj_errors, triangulation_exit_code = point3d_initializer.triangulate(track_2d)
             if triangulation_exit_code == TriangulationExitCode.CHEIRALITY_FAILURE:
                 num_tracks_w_cheirality_exceptions += 1
                 continue
 
-            if sfm_track is not None and self.__validate_track(sfm_track):
-                triangulated_data.add_track(sfm_track)
-                per_accepted_track_avg_errors.append(avg_track_reproj_error)
-            else:
-                per_rejected_track_avg_errors.append(avg_track_reproj_error)
+            if sfm_tracks is not None:
+                for t in range(len(sfm_tracks)):
+                    track = sfm_tracks[i]
+                    if self.__validate_track(track):
+                        triangulated_data.add_track(track)
+                        per_accepted_track_avg_errors.append(avg_track_reproj_errors[t])
+                    else:
+                        per_rejected_track_avg_errors.append(avg_track_reproj_errors[t])
 
         track_cheirality_failure_ratio = num_tracks_w_cheirality_exceptions / len(tracks_2d)
 

@@ -157,7 +157,7 @@ class Point3dInitializer(NamedTuple):
 
         return best_inliers
 
-    def triangulate(self, track_2d: SfmTrack2d) -> Tuple[Optional[SfmTrack], Optional[float], TriangulationExitCode]:
+    def triangulate(self, track_2d: SfmTrack2d) -> Tuple[Optional[List[SfmTrack]], Optional[List[float]], TriangulationExitCode]:
         """Triangulates 3D point according to the configured triangulation mode.
 
         Args:
@@ -171,6 +171,10 @@ class Point3dInitializer(NamedTuple):
             is_cheirality_failure: boolean representing whether the selected 2d measurements lead
                 to a cheirality exception upon triangulation
         """
+        # Check if we have enough measurements.
+        if track_2d.number_measurements() < 3:
+            return None, None, TriangulationExitCode.INLIERS_UNDERCONSTRAINED
+
         # Check if we will run RANSAC, or not.
         if self.mode in [
             TriangulationParam.RANSAC_SAMPLE_UNIFORM,
@@ -181,9 +185,9 @@ class Point3dInitializer(NamedTuple):
         elif self.mode == TriangulationParam.NO_RANSAC:
             best_inliers = np.ones(len(track_2d.measurements), dtype=bool)  # all marked as inliers
 
-        # Verify we have at least 2 inliers.
+        # Verify we have at least 3 inliers.
         inlier_idxs = (np.where(best_inliers)[0]).tolist()
-        if len(inlier_idxs) < 2:
+        if len(inlier_idxs) < 3:
             return None, None, TriangulationExitCode.INLIERS_UNDERCONSTRAINED
 
         # Extract keypoint measurements corresponding to inlier indices.
@@ -209,18 +213,31 @@ class Point3dInitializer(NamedTuple):
         reproj_errors, avg_track_reproj_error = reproj_utils.compute_point_reprojection_errors(
             self.track_camera_dict, triangulated_pt, inlier_track.measurements
         )
+        acceptable_idxs = (np.where(reproj_errors < self.reproj_error_thresh)[0]).tolist()
+        track = inlier_track.select_subset(acceptable_idxs)
+        track_3d = SfmTrack(triangulated_pt)
+        for i, uv in track.measurements:
+            track_3d.add_measurement(i, uv)
+        output_tracks = [track_3d]
+        output_errors = [avg_track_reproj_error]
 
-        # Check that all the measurements have reprojection error < threshold.
-        # TODO(johnwlambert): compare with approach where we only throw away the outlier measurements.
-        if not np.all(reproj_errors < self.reproj_error_thresh):
-            return None, avg_track_reproj_error, TriangulationExitCode.EXCEEDS_REPROJ_THRESH
+        outlier_idxs = (np.where(best_inliers == 0)[0]).tolist()
+        outlier_idxs.extend((np.where(reproj_errors >= self.reproj_error_thresh)[0]).tolist())
+        outliers_track_2d = track_2d.select_subset(outlier_idxs)
+
+        outlier_tracks_3d, outlier_errors, outlier_status = self.triangulate(outliers_track_2d)
+        if outlier_status == TriangulationExitCode.SUCCESS:
+            output_tracks.extend(outlier_tracks_3d)
+            output_errors.extend(outlier_errors)
+
+        # # Check that all the measurements have reprojection error < threshold.
+        # # TODO(johnwlambert): compare with approach where we only throw away the outlier measurements.
+        # if not np.all(reproj_errors < self.reproj_error_thresh):
+        #     return None, avg_track_reproj_error, TriangulationExitCode.EXCEEDS_REPROJ_THRESH
 
         # Create a gtsam.SfmTrack with the triangulated 3d point and associated 2d measurements.
-        track_3d = SfmTrack(triangulated_pt)
-        for i, uv in inlier_track.measurements:
-            track_3d.add_measurement(i, uv)
 
-        return track_3d, avg_track_reproj_error, TriangulationExitCode.SUCCESS
+        return output_tracks, output_errors, TriangulationExitCode.SUCCESS
 
     def sample_ransac_hypotheses(
         self,
