@@ -312,7 +312,6 @@ def aggregate_frontend_metrics(
         angular_err_threshold_deg: threshold for classifying angular error metrics as success.
     """
     num_image_pairs = len(two_view_reports_dict.keys())
-    logger.debug(two_view_reports_dict)
 
     # all rotational errors in degrees
     rot3_angular_errors = [report.R_error_deg for report in two_view_reports_dict.values()]
