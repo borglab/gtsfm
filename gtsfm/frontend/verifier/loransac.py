@@ -90,7 +90,11 @@ class LoRansac(VerifierBase):
         """
 
         def get_pycolmap_camera_dict(camera_intrinsics: Cal3Bundler) -> Dict[str,Any]:
-            """Convert Cal3Bundler intrinsics to a pycolmap-compatible format (a dictionary)."""
+            """Convert Cal3Bundler intrinsics to a pycolmap-compatible format (a dictionary).
+            
+            See https://colmap.github.io/cameras.html#camera-models for info about the COLMAP camera models.
+            Both SIMPLE_PINHOLE and SIMPLE_RADIAL use 1 focal length.
+            """
             focal_length = camera_intrinsics.fx()
             cx, cy = camera_intrinsics.px(), camera_intrinsics.py()
 
@@ -99,15 +103,15 @@ class LoRansac(VerifierBase):
             height = int(cy * 2)
 
             camera_dict = {
-                "model": "SIMPLE_PINHOLE",
+                "model": "SIMPLE_PINHOLE", # "SIMPLE_RADIAL"
                 "width": width,
                 "height": height,
                 "params": [focal_length, cx, cy],
             }
             return camera_dict
 
-        camera_dict_1 = get_pycolmap_camera_dict(camera_intrinsics_i1)
-        camera_dict_2 = get_pycolmap_camera_dict(camera_intrinsics_i2)
+        camera_dict1 = get_pycolmap_camera_dict(camera_intrinsics_i1)
+        camera_dict2 = get_pycolmap_camera_dict(camera_intrinsics_i2)
 
         result_dict = pycolmap.essential_matrix_estimation(
             uv_i1, uv_i2, camera_dict1, camera_dict2, max_error_px=self._estimation_threshold_px
