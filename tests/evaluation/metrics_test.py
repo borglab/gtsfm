@@ -111,6 +111,19 @@ class TestGtsfmMetric(unittest.TestCase):
         metric = GtsfmMetric("to_be_written_metric", np.arange(10.0))
         with tempfile.TemporaryDirectory() as tempdir:
             metric.save_to_json(os.path.join(tempdir, "test_metrics.json"))
+            
+    def test_list_input_with_none_entries(self) -> None:
+        """Ensure that a GtsfmMetric can be successfully instantiated even with None entries."""
+        per_rejected_track_avg_errors = [
+            0.4943377406921827,
+            0.07750727215807857,
+            None,
+            50.555624633887966,
+            0.4105653459580154,
+            None,
+            None,
+        ]
+        metric = GtsfmMetric("rejected_track_avg_errors_px", per_rejected_track_avg_errors, store_full_data=False)
 
 
 class TestGtsfmMetricsGroup(unittest.TestCase):
