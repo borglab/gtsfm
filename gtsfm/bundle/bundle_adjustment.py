@@ -135,7 +135,7 @@ class BundleAdjustmentOptimizer(NamedTuple):
                     plot_type=GtsfmMetric.PlotType.HISTOGRAM,
                 )
             )
-            metrics.append(GtsfmMetric("reprojection_errors" + suffix, sfm_data.get_scene_reprojection_errors()))
+            metrics.append(GtsfmMetric(f"reprojection_errors{suffix}_px", sfm_data.get_scene_reprojection_errors()))
             return metrics
 
         ba_metrics = GtsfmMetricsGroup(
