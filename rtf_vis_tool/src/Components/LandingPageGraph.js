@@ -16,7 +16,7 @@ import FrontendSummary from './FrontendSummary';
 import GrayNode from './GrayNode';
 import GrayNodes from './gtsfm_graph/gray_nodes.js';
 import GtsfmNode from './GtsfmNode';
-import multiview_optimizer_json from '../result_metrics/multiview_optimizer_metrics.json';
+import averaging_metrics_json from '../result_metrics/averaging_metrics.json';
 import MVOSummary from './MVOSummary';
 import PCViewer from './PCViewer.js';
 import '../stylesheets/LandingPageGraph.css'
@@ -35,13 +35,13 @@ function LandingPageGraph() {
 
     // Boolean variables indicating which pop ups to show
     const [showFS, setShowFS] = useState(false);
-    const [showMVO, setShowMVO] = useState(false);
+    const [showAveragingMetrics, setShowAveragingMetrics] = useState(false);
     const [showDA_PC, setShowDA_PC] = useState(false);
     const [showBA_PC, setShowBA_PC] = useState(false);
     
     // Variables storing JSON information from result_metrics directory.
     const [fs_json, setFS_JSON] = useState(null);
-    const [mvo_json, setMVO_JSON] = useState(null);
+    const [averaging_json, setAveragingJSON] = useState(null);
 
     useEffect(() => {
         var rawEdges = EdgeList
@@ -79,7 +79,7 @@ function LandingPageGraph() {
 
         // Save all the json resulting metrics in separate React variables.
         setFS_JSON(frontend_summary_json);
-        setMVO_JSON(multiview_optimizer_json);
+        setAveragingJSON(averaging_metrics_json);
     }, [])
 
     function toggleFrontEndSummaryDisplay(showDisplay) {
@@ -91,13 +91,13 @@ function LandingPageGraph() {
         setShowFS(showDisplay);
     };
 
-    function toggleMVOMetrics(showDisplay) {
+    function toggleAveragingMetrics(showDisplay) {
         /*Toggles the display of the multiview optimizer metrics.
 
         Args:
             showDisplay (boolean): Sets the display to be shown or not.
         */
-        setShowMVO(showDisplay);
+        setShowAveragingMetrics(showDisplay);
     };
 
     function toggleDA_PointCloud(showDisplay) {
@@ -132,7 +132,7 @@ function LandingPageGraph() {
                                     togglePC={toggleBA_PointCloud}
                                     filePath={'results/ba_output/points3D.txt'}/>}
             {showFS && <FrontendSummary json={fs_json} toggleFS={toggleFrontEndSummaryDisplay}/>}
-            {showMVO && <MVOSummary json={mvo_json} toggleMVO={toggleMVOMetrics}/>}
+            {showAveragingMetrics && <MVOSummary json={averaging_json} toggleMVO={toggleAveragingMetrics}/>}
 
             <div className="gtsfm_graph">
 
@@ -177,7 +177,7 @@ function LandingPageGraph() {
                     <p className="plate_title">Averaging</p>
                 </div>
                 <div className="sparse_multiview_optimizer_plate" 
-                     onClick={(mvo_json) ? (() => toggleMVOMetrics(true)) : (null)}>
+                     onClick={(averaging_json) ? (() => toggleAveragingMetrics(true)) : (null)}>
                     <p className="plate_title">Sparse Multiview Optimizer</p>
                 </div>
                 <div className="dense_multiview_optimizer_plate">
