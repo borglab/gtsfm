@@ -134,8 +134,6 @@ class DataAssociation(NamedTuple):
         logger.debug("[Data association] output number of tracks: %s", num_accepted_tracks)
         logger.debug("[Data association] output avg. track length: %.2f", mean_3d_track_length)
 
-        print("per_rejected_track_avg_errors", per_rejected_track_avg_errors) 
-        logger.info("per_rejected_track_avg_errors" + str(per_rejected_track_avg_errors))
         data_assoc_metrics = GtsfmMetricsGroup(
             "data_association_metrics",
             [
