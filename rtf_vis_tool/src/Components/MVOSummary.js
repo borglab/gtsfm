@@ -23,11 +23,11 @@ function MVOSummary(props) {
                                                         translation for any frame after translation averaging (pre-BA).
         props.json.averaging_metrics.translation_averaging_distance.summary.max (float): Max Euclidean error on global
                                                         translation for any frame after translation averaging (pre-BA).
-        props.json.averaging_metrics.translation_to_direction_angle_deg.summary.median (float): Median error of 
+        props.json.averaging_metrics.translation_angle_deg.summary.median (float): Median error of 
                                                         translation to direction.
-        props.json.averaging_metrics.translation_to_direction_angle_deg.summary.min (float): Min error of translation 
+        props.json.averaging_metrics.translation_angle_deg.summary.min (float): Min error of translation 
                                                         to direction.
-        props.json.averaging_metrics.translation_to_direction_angle_deg.summary.max (float): Max error of tranlation to
+        props.json.averaging_metrics.translation_angle_deg.summary.max (float): Max error of tranlation to
                                                         direction.
 
     Returns:
