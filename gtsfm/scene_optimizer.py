@@ -11,6 +11,8 @@ import dask
 import matplotlib
 from dask.delayed import Delayed
 
+from gtsfm.averaging.rotation import cycle_consistency
+from gtsfm import two_view_estimator
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
@@ -19,7 +21,6 @@ from gtsfm.evaluation import metrics_report
 from gtsfm.common.image import Image
 from gtsfm.feature_extractor import FeatureExtractor
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
-from gtsfm import two_view_estimator
 from gtsfm.two_view_estimator import TwoViewEstimationReport
 from gtsfm.frontend.retriever.default_retriever import DefaultRetriever
 
@@ -169,6 +170,13 @@ class SceneOptimizer:
         # frontend's auxiliary tasks to be computed before the multi-view stage.
         keypoints_graph_list = dask.delayed(lambda x, y: (x, y))(keypoints_graph_list, auxiliary_graph_list)[0]
         auxiliary_graph_list = []
+
+        # ensure cycle consistency in triplets
+        cycle_consistent_graph = dask.delayed(cycle_consistency.filter_to_cycle_consistent_edges)(
+            i2Ri1_graph_dict, i2Ui1_graph_dict, two_view_reports_dict
+        )
+        i2Ri1_graph_dict = cycle_consistent_graph[0]
+        i2Ui1_graph_dict = cycle_consistent_graph[1]
 
         (ba_input_graph, ba_output_graph, optimizer_metrics_graph) = self.multiview_optimizer.create_computation_graph(
             image_graph,

@@ -26,11 +26,7 @@ class RetrieverBase(metaclass=abc.ABCMeta):
     The Retriever proposes image pairs to conduct local feature matching.
     """
 
-    def __init__(
-        self,
-        two_view_estimator: TwoViewEstimator,
-        max_frame_lookahead: Optional[int] = None,
-    ):
+    def __init__(self, two_view_estimator: TwoViewEstimator):
         """Initialize the Retriever.
 
         Args:
@@ -39,7 +35,6 @@ class RetrieverBase(metaclass=abc.ABCMeta):
                 than the size of the dataset assumes data is sequentially captured
         """
         self._two_view_estimator = two_view_estimator
-        self._max_frame_lookahead = max_frame_lookahead
 
         # Initialize data for the TwoViewEstimator as None until computed later. These variables are assigned as
         # attributes to avoid large inputs to delayed calls as per Dask documentation.
