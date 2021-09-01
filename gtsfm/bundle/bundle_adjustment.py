@@ -129,7 +129,7 @@ class BundleAdjustmentOptimizer(NamedTuple):
             metrics = []
             metrics.append(GtsfmMetric("number_tracks" + suffix, sfm_data.number_tracks()))
             metrics.append(GtsfmMetric("3d_track_lengths" + suffix, sfm_data.get_track_lengths()))
-            metrics.append(GtsfmMetric("reprojection_errors" + suffix, sfm_data.get_scene_reprojection_errors()))
+            metrics.append(GtsfmMetric(f"reprojection_errors{suffix}_px", sfm_data.get_scene_reprojection_errors()))
             return metrics
 
         ba_metrics = GtsfmMetricsGroup(
