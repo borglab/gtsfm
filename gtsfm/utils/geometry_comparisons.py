@@ -58,6 +58,7 @@ def align_poses_sim3_ignore_missing(
     Returns:
         aTi_list_: transformed input poses previously "bTi_list" but now which
             have the same origin and scale as reference (now living in "a" frame)
+        aSb: Similarity(3) object that aligns the two pose graphs.
     """
     assert len(aTi_list) == len(bTi_list)
 
@@ -96,6 +97,7 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Tuple[List
     Returns:
         aTi_list_: transformed input poses previously "bTi_list" but now which
             have the same origin and scale as reference (now living in "a" frame)
+        aSb: Similarity(3) object that aligns the two pose graphs.
     """
     n_to_align = len(aTi_list)
     assert len(aTi_list) == len(bTi_list)
