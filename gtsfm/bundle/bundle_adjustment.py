@@ -128,7 +128,13 @@ class BundleAdjustmentOptimizer(NamedTuple):
             """Helper to get bundle adjustment metrics from a GtsfmData object with a suffix for metric names."""
             metrics = []
             metrics.append(GtsfmMetric("number_tracks" + suffix, sfm_data.number_tracks()))
-            metrics.append(GtsfmMetric("3d_track_lengths" + suffix, sfm_data.get_track_lengths()))
+            metrics.append(
+                GtsfmMetric(
+                    "3d_track_lengths" + suffix,
+                    sfm_data.get_track_lengths(),
+                    plot_type=GtsfmMetric.PlotType.HISTOGRAM,
+                )
+            )
             metrics.append(GtsfmMetric(f"reprojection_errors{suffix}_px", sfm_data.get_scene_reprojection_errors()))
             return metrics
 
