@@ -1,6 +1,6 @@
 name: gtsfm-v1
 channels:
-  # The GTSFM mac environment closely follows the linux conda environment file, 
+  # The GTSFM mac environment closely follows the linux conda environment file,
   # except for two noticeable differences: no CUDA support and no DEGENSAC support.
   #
   # for priority order, we prefer pytorch as the highest priority as it supplies
@@ -39,11 +39,3 @@ dependencies:
   - h5py
   - plotly=4.14.3
   - tabulate
-<<<<<<< HEAD
-=======
-  - pip:
-    - hydra-core==1.1.0
-    - argoverse @ git+https://github.com/argoai/argoverse-api.git@master
->>>>>>> fb026607590280b36b3915fa3bab2877835f976f
-
-
