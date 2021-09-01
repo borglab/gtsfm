@@ -25,7 +25,7 @@ SceneOptimizer:
       estimation_threshold_px: 0.5 # for H/E/F estimators
       min_allowed_inlier_ratio_est_model: 0.1
 
-  multiview_optimizer:
+  multiview_optimizer:True
     _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
     rot_avg_module:
       _target_: gtsfm.averaging.rotation.shonan.ShonanRotationAveraging
@@ -46,3 +46,4 @@ SceneOptimizer:
     bundle_adjustment_module:
       _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptimizer
       output_reproj_error_thresh: 3 # for post-optimization filtering
+      robust_measurement_noise: True
