@@ -121,7 +121,7 @@ def compute_translation_angle_metric(
         wTi_list: List of estimated camera poses.
 
     Returns:
-        A statistics dict of the metrics errors in degrees.
+        A GtsfmMetric for the translation angle errors, in degrees.
     """
     angles = []
     for (i1, i2) in i2Ui1_dict:
@@ -146,7 +146,7 @@ def compute_averaging_metrics(
     Estimated poses and ground truth poses are first aligned before computing metrics.
 
     Args:
-        i2Ui1_dict: Dict from (i1, i2) to unit translation measurement i2Ui1.
+        i2Ui1_dict: Dict from (i1, i2) to unit translation direction measurement i2Ui1.
         wRi_list: List of estimated rotations.
         wti_list: List of estimated translations.
         gt_wTi_list: List of ground truth poses.
@@ -191,8 +191,9 @@ def compute_ba_pose_metrics(
     Note: inputs must be aligned beforehand to the ground truth.
 
     Args:
-        ba_output
-        i2Ui1_dict
+        gt_wTi_list: List of ground truth poses.
+        ba_output: sparse multi-view result, as output of bundle adjustment.
+        i2Ui1_dict: Dict from (i1, i2) to unit translation direction measurement i2Ui1.
 
     Returns:
         A group of metrics that describe errors associated with a bundle adjustment result (w.r.t. GT).
@@ -206,7 +207,6 @@ def compute_ba_pose_metrics(
     metrics.append(compute_translation_distance_metric(wti_aligned_list, gt_wti_list))
     metrics.append(compute_translation_angle_metric(i2Ui1_dict, wTi_aligned_list))
     return GtsfmMetricsGroup(name="mvs_input_metrics", metrics=metrics)
-
 
 
 def get_rotations_translations_from_poses(
