@@ -231,26 +231,31 @@ class TestGtsfmData(unittest.TestCase):
         When fitting the Similarity(3), all correspondences should have no noise, and alignment should be exact.
         
         GT: ===========================================
-                  . (pose 3)
-                  .
-                  X . .
-                  |
-        . (pose 2).         . (pose 0)
-        .         .(pose 1) .
-        X . . ----X . . --- X . .
-                  |
-                  |
+                    |
+                    . (pose 3)
+                    .
+                    X . .
+                    |
+          . (pose 2).         . (pose 0)
+          .         .(pose 1) .
+        --X . . ----X . . --- X . .
+                    |
+                    |
+                    |
 
         Estimate: =====================================
-                  . (pose 3)
-                  .
-                  X . .
-                  |
-                  .         . (pose 0)
-                  .(pose 1) .
-        ----------X . . --- X . .
-                  |
-                  |
+
+                    |  . (pose 3)
+                    |  .
+                    |  X . .
+                    |
+                    |  .         . (pose 0)
+                    |  .(pose 1) .
+                    |  X . . --- X . .
+                    |
+        ---------------------------
+                    |
+                    |
         """
         dummy_calibration = Cal3Bundler(fx=900, k1=0, k2=0, u0=100, v0=100)
 
