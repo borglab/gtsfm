@@ -5,7 +5,7 @@ Authors: Xiaolong Wu, John Lambert, Ayush Baid
 
 import numpy as np
 from pathlib import Path
-from typing import List, NamedTuple, Tuple
+from typing import List, Tuple
 
 import dask
 from dask.delayed import Delayed
