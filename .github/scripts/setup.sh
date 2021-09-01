@@ -4,7 +4,7 @@
 # GTSFM dependencies (including GTSAM) previously installed using conda
 ##########################################################
 
-echo "Running .github/scripts/python.sh..."
+echo "Running .github/scripts/setup.sh..."
 conda init
 conda info --envs
 
@@ -21,20 +21,8 @@ cd $GITHUB_WORKSPACE
 pip install -e .
 
 ##########################################################
-# Run GTSFM unit tests
+# Download pre-trained model weights
 ##########################################################
 
 cd $GITHUB_WORKSPACE
-
-# check that main script executes on toy Door dataset
-python gtsfm/runner/run_scene_optimizer.py
-
-pytest tests --cov gtsfm
-coverage report
-
-##########################################################
-# Test with flake8
-##########################################################
-
-pip install flake8
-flake8 --max-line-length 120 --ignore E201,E202,E203,E231,W291,W293,E303,W391,E402,W503 gtsfm
+./download_model_weights.sh

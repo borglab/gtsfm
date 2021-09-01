@@ -2,7 +2,8 @@
 
 Authors: Ayush Baid
 """
-from gtsfm.common.gtsfm_data import GtsfmData
+import copy
+import os
 from typing import List, Optional, Tuple
 
 import cv2 as cv
@@ -11,8 +12,10 @@ import numpy as np
 from gtsam import Pose3
 from matplotlib.axes._axes import Axes
 
-import gtsfm.utils.images as image_utils
 import gtsfm.utils.geometry_comparisons as comp_utils
+import gtsfm.utils.images as image_utils
+import gtsfm.utils.io as io_utils
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 
@@ -34,7 +37,7 @@ def set_axes_equal(ax: Axes):
     # get the min and max value for each of (x, y, z) axes as 3x2 matrix.
     # This gives us the bounds of the minimum volume cuboid encapsulating all
     # data.
-    limits = np.array([ax.get_xlim3d(), ax.get_ylim3d(), ax.get_zlim3d(),])
+    limits = np.array([ax.get_xlim3d(), ax.get_ylim3d(), ax.get_zlim3d()])
 
     # find the centroid of the cuboid
     centroid = np.mean(limits, axis=1)
@@ -49,7 +52,7 @@ def set_axes_equal(ax: Axes):
     ax.set_zlim3d([centroid[2] - radius, centroid[2] + radius])
 
 
-def draw_circle_cv2(image: Image, x: int, y: int, color: Tuple[int, int, int], circle_size: int = 10,) -> Image:
+def draw_circle_cv2(image: Image, x: int, y: int, color: Tuple[int, int, int], circle_size: int = 10) -> Image:
     """Draw a solid circle on the image.
 
     Args:
@@ -57,12 +60,13 @@ def draw_circle_cv2(image: Image, x: int, y: int, color: Tuple[int, int, int], c
         x: x coordinate of the center of the circle.
         y: y coordinate of the center of the circle.
         color: RGB color of the circle.
+        circle_size (optional): the size of the circle (in pixels). Defaults to 10.
 
     Returns:
         Image: image with the circle drawn on it.
     """
     return Image(
-        cv.circle(image.value_array, center=(x, y), radius=circle_size, color=color, thickness=-1,)  # solid circle
+        cv.circle(image.value_array, center=(x, y), radius=circle_size, color=color, thickness=-1)  # solid circle
     )
 
 
@@ -78,12 +82,12 @@ def draw_line_cv2(
         x2: x coordinate of end of the line.
         y2: y coordinate of end of the line.
         line_color: color of the line.
-        line_thickness (optional): line thickness. Defaults to 5.
+        line_thickness (optional): line thickness. Defaults to 10.
 
     Returns:
         Image: image with the line drawn on it.
     """
-    return Image(cv.line(image.value_array, (x1, y1), (x2, y2), line_color, line_thickness, cv.LINE_AA,))
+    return Image(cv.line(image.value_array, (x1, y1), (x2, y2), line_color, line_thickness, cv.LINE_AA))
 
 
 def plot_twoview_correspondences(
@@ -115,7 +119,7 @@ def plot_twoview_correspondences(
 
     result = image_utils.vstack_image_pair(image_i1, image_i2)
 
-    if max_corrs is not None:
+    if max_corrs is not None and corr_idxs_i1i2.shape[0] > max_corrs:
         # subsample matches
         corr_idxs_i1i2 = corr_idxs_i1i2[np.random.choice(corr_idxs_i1i2.shape[0], max_corrs)]
 
@@ -136,12 +140,12 @@ def plot_twoview_correspondences(
         else:
             line_color = COLOR_RED
 
-        result = draw_line_cv2(result, x_i1, y_i1, x_i2, y_i2, line_color)
+        result = draw_line_cv2(result, x_i1, y_i1, x_i2, y_i2, line_color, line_thickness=2)
 
         if dot_color is None:
             dot_color = line_color
-        result = draw_circle_cv2(result, x_i1, y_i1, dot_color)
-        result = draw_circle_cv2(result, x_i2, y_i2, dot_color)
+        result = draw_circle_cv2(result, x_i1, y_i1, dot_color, circle_size=2)
+        result = draw_circle_cv2(result, x_i2, y_i2, dot_color, circle_size=2)
 
     return result
 
@@ -224,3 +228,100 @@ def plot_and_compare_poses_3d(wTi_list: List[Pose3], wTi_list_: List[Pose3]) -> 
     set_axes_equal(ax)
 
     plt.show()
+
+
+def save_twoview_correspondences_viz(
+    image_i1: Image,
+    image_i2: Image,
+    keypoints_i1: Keypoints,
+    keypoints_i2: Keypoints,
+    corr_idxs_i1i2: np.ndarray,
+    file_path: str,
+) -> None:
+    """Visualize correspondences between pairs of images.
+
+    Args:
+        image_i1: image #i1.
+        image_i2: image #i2.
+        keypoints_i1: detected Keypoints for image #i1.
+        keypoints_i2: detected Keypoints for image #i2.
+        corr_idxs_i1i2: correspondence indices.
+        file_path: file path to save the visualization.
+    """
+    plot_img = plot_twoview_correspondences(image_i1, image_i2, keypoints_i1, keypoints_i2, corr_idxs_i1i2)
+
+    io_utils.save_image(plot_img, file_path)
+
+
+def save_sfm_data_viz(sfm_data: GtsfmData, folder_name: str) -> None:
+    """Visualize the camera poses and 3d points in SfmData.
+
+    Args:
+        sfm_data: data to visualize.
+        folder_name: folder to save the visualization at.
+    """
+    fig = plt.figure()
+    ax = fig.add_subplot(projection="3d")
+
+    plot_sfm_data_3d(sfm_data, ax)
+    set_axes_equal(ax)
+
+    # save the 3D plot in the original view
+    fig.savefig(os.path.join(folder_name, "3d.png"))
+
+    # save the BEV representation
+    default_camera_elevation = 100  # in metres above ground
+    ax.view_init(azim=0, elev=default_camera_elevation)
+    fig.savefig(os.path.join(folder_name, "bev.png"))
+
+    plt.close(fig)
+
+
+def save_camera_poses_viz(
+    pre_ba_sfm_data: GtsfmData, post_ba_sfm_data: GtsfmData, gt_pose_graph: Optional[List[Pose3]], folder_name: str
+) -> None:
+    """Visualize the camera pose and save to disk.
+
+    Args:
+        pre_ba_sfm_data: data input to bundle adjustment.
+        post_ba_sfm_data: output of bundle adjustment.
+        gt_pose_graph: ground truth poses.
+        folder_name: folder to save the visualization at.
+    """
+    # extract camera poses
+    pre_ba_poses = []
+    for i in pre_ba_sfm_data.get_valid_camera_indices():
+        pre_ba_poses.append(pre_ba_sfm_data.get_camera(i).pose())
+
+    post_ba_poses = []
+    for i in post_ba_sfm_data.get_valid_camera_indices():
+        post_ba_poses.append(post_ba_sfm_data.get_camera(i).pose())
+
+    fig = plt.figure()
+    ax = fig.add_subplot(projection="3d")
+
+    if gt_pose_graph is not None:
+        # Select ground truth poses that correspond to pre-BA and post-BA estimated poses
+        # some may have been lost after pruning to largest connected component
+        corresponding_gt_poses = [gt_pose_graph[i] for i in pre_ba_sfm_data.get_valid_camera_indices()]
+
+        # ground truth is used as the reference
+        pre_ba_poses = comp_utils.align_poses_sim3(corresponding_gt_poses, copy.deepcopy(pre_ba_poses))
+        post_ba_poses = comp_utils.align_poses_sim3(corresponding_gt_poses, copy.deepcopy(post_ba_poses))
+        plot_poses_3d(gt_pose_graph, ax, center_marker_color="m", label_name="GT")
+
+    plot_poses_3d(pre_ba_poses, ax, center_marker_color="c", label_name="Pre-BA")
+    plot_poses_3d(post_ba_poses, ax, center_marker_color="k", label_name="Post-BA")
+
+    ax.legend(loc="upper left")
+    set_axes_equal(ax)
+
+    # save the 3D plot in the original view
+    fig.savefig(os.path.join(folder_name, "poses_3d.png"))
+
+    # save the BEV representation
+    default_camera_elevation = 100  # in metres above ground
+    ax.view_init(azim=0, elev=default_camera_elevation)
+    fig.savefig(os.path.join(folder_name, "poses_bev.png"))
+
+    plt.close(fig)

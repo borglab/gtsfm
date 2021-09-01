@@ -1,8 +1,7 @@
 import argparse
 
-import numpy as np
+import hydra
 from dask.distributed import Client, LocalCluster, performance_report
-from hydra.experimental import compose, initialize_config_module
 from hydra.utils import instantiate
 
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -16,9 +15,9 @@ logger = get_logger()
 
 def run_scene_optimizer(args) -> None:
     """ Run GTSFM over images from an Argoverse vehicle log"""
-    with initialize_config_module(config_module="gtsfm.configs"):
+    with hydra.initialize_config_module(config_module="gtsfm.configs"):
         # config is relative to the gtsfm module
-        cfg = compose(config_name="default_lund_door_set1_config.yaml")
+        cfg = hydra.compose(config_name=args.config_name)
         scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
         loader = ArgoverseDatasetLoader(
@@ -31,23 +30,23 @@ def run_scene_optimizer(args) -> None:
         )
 
         sfm_result_graph = scene_optimizer.create_computation_graph(
-            len(loader),
-            loader.get_valid_pairs(),
-            loader.create_computation_graph_for_images(),
-            loader.create_computation_graph_for_intrinsics(),
-            use_intrinsics_in_verification=True,
+            num_images=len(loader),
+            image_pair_indices=loader.get_valid_pairs(),
+            image_graph=loader.create_computation_graph_for_images(),
+            camera_intrinsics_graph=loader.create_computation_graph_for_intrinsics(),
+            image_shape_graph=loader.create_computation_graph_for_image_shapes(),
             gt_pose_graph=loader.create_computation_graph_for_poses(),
         )
 
         # create dask client
-        cluster = LocalCluster(n_workers=2, threads_per_worker=4)
+        cluster = LocalCluster(n_workers=args.num_workers, threads_per_worker=args.threads_per_worker)
 
         with Client(cluster), performance_report(filename="dask-report.html"):
             sfm_result = sfm_result_graph.compute()
 
         assert isinstance(sfm_result, GtsfmData)
-        scene_avg_reproj_error = sfm_result.get_scene_avg_reprojection_error()
-        logger.info('Scene avg reproj error: {}'.format(str(np.round(scene_avg_reproj_error, 3))))
+        scene_avg_reproj_error = sfm_result.get_avg_scene_reprojection_error()
+        logger.info("Scene avg reproj error: %.3f", scene_avg_reproj_error)
 
 
 if __name__ == "__main__":
@@ -88,6 +87,24 @@ if __name__ == "__main__":
         default=2,
         type=float,
         help="",
+    )
+    parser.add_argument(
+        "--num_workers",
+        type=int,
+        default=1,
+        help="Number of workers to start (processes, by default)",
+    )
+    parser.add_argument(
+        "--threads_per_worker",
+        type=int,
+        default=1,
+        help="Number of threads per each worker",
+    )
+    parser.add_argument(
+        "--config_name",
+        type=str,
+        default="deep_front_end.yaml",
+        help="Choose sift_front_end.yaml or deep_front_end.yaml",
     )
     args = parser.parse_args()
     logger.info(args)
