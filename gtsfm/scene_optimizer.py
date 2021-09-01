@@ -174,6 +174,7 @@ class SceneOptimizer:
         keypoints_graph_list = dask.delayed(lambda x, y: (x, y))(keypoints_graph_list, auxiliary_graph_list)[0]
         auxiliary_graph_list = []
 
+        # TODO: add results after cycle consistency
         (ba_input_graph, ba_output_graph, optimizer_metrics_graph) = self.multiview_optimizer.create_computation_graph(
             image_graph,
             num_images,
@@ -184,6 +185,14 @@ class SceneOptimizer:
             camera_intrinsics_graph,
             gt_pose_graph,
         )
+
+        if gt_pose_graph is not None:
+            # align the estimates to the ground truth
+            ba_input_graph = dask.delayed(ba_input_graph.align_via_Sim3_to_gt)(gt_pose_graph)
+            ba_output_graph = dask.delayed(ba_output_graph.align_via_Sim3_to_gt)(gt_pose_graph)
+
+            mvs_input_metrics_graph = dask.delayed(metrics_utils.compute_ba_pose_metrics)(ba_output_graph, i2Ui1_graph_dict)
+            metrics_graph_list.append(mvs_input_metrics_graph)
 
         # aggregate metrics for multiview optimizer
         if optimizer_metrics_graph is not None:

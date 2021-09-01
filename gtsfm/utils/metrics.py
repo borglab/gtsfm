@@ -13,6 +13,7 @@ from gtsam import Cal3Bundler, EssentialMatrix, Point3, Pose3, Rot3, Unit3
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.verification as verification_utils
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
@@ -151,7 +152,7 @@ def compute_averaging_metrics(
         gt_wTi_list: List of ground truth poses.
 
     Returns:
-        Dict from metric name to a StatsDict.
+        A group of metrics that describe errors associated with an averaging result (w.r.t. GT).
 
     Raises:
         ValueError if lengths of wRi_list, wti_list and gt_wTi_list are not all same.
@@ -167,8 +168,8 @@ def compute_averaging_metrics(
         else:
             wTi_list.append(Pose3(wRi, wti))
 
-    # ground truth is the reference/target for alignment
-    wTi_aligned_list = comp_utils.align_poses_sim3_ignore_missing(gt_wTi_list, wTi_list)
+    # ground truth is the reference/target for alignment. discard 2nd return arg -- the estimated Similarity(3) object
+    wTi_aligned_list, _ = comp_utils.align_poses_sim3_ignore_missing(gt_wTi_list, wTi_list)
 
     wRi_aligned_list, wti_aligned_list = get_rotations_translations_from_poses(wTi_aligned_list)
     gt_wRi_list, gt_wti_list = get_rotations_translations_from_poses(gt_wTi_list)
@@ -178,6 +179,30 @@ def compute_averaging_metrics(
     metrics.append(compute_translation_distance_metric(wti_aligned_list, gt_wti_list))
     metrics.append(compute_translation_angle_metric(i2Ui1_dict, wTi_aligned_list))
     return GtsfmMetricsGroup(name="averaging_metrics", metrics=metrics)
+
+
+def compute_ba_pose_metrics(ba_output: GtsfmData, i2Ui1_dict: Dict[Tuple[int, int], Unit3]) -> GtsfmMetricsGroup:
+    """
+
+    Note: inputs must be aligned beforehand to the ground truth.
+
+    Args:
+        ba_output
+        i2Ui1_dict
+
+    Returns:
+        A group of metrics that describe errors associated with a bundle adjustment result (w.r.t. GT).
+    """
+    wTi_aligned_list = ba_output.get_camera_poses()
+    wRi_aligned_list, wti_aligned_list = get_rotations_translations_from_poses(wTi_aligned_list)
+    gt_wRi_list, gt_wti_list = get_rotations_translations_from_poses(gt_wTi_list)
+
+    metrics = []
+    metrics.append(compute_rotation_angle_metric(wRi_aligned_list, gt_wRi_list))
+    metrics.append(compute_translation_distance_metric(wti_aligned_list, gt_wti_list))
+    metrics.append(compute_translation_angle_metric(i2Ui1_dict, wTi_aligned_list))
+    return GtsfmMetricsGroup(name="mvs_input_metrics", metrics=metrics)
+
 
 
 def get_rotations_translations_from_poses(

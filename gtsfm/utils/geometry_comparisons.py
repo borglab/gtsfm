@@ -2,7 +2,7 @@
 
 Authors: Ayush Baid, John Lambert
 """
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import numpy as np
 from gtsam import Point3, Pose3, Pose3Pairs, Rot3, Similarity3, Unit3
@@ -42,7 +42,7 @@ def align_rotations(aRi_list: List[Rot3], bRi_list: List[Rot3]) -> List[Rot3]:
 
 def align_poses_sim3_ignore_missing(
     aTi_list: List[Optional[Pose3]], bTi_list: List[Optional[Pose3]]
-) -> List[Optional[Pose3]]:
+) -> Tuple[List[Optional[Pose3]], Similarity3]:
     """Align by similarity transformation, but allow missing estimated poses in the input.
 
     Note: this is a wrapper for align_poses_sim3() that allows for missing poses/dropped cameras.
@@ -71,7 +71,7 @@ def align_poses_sim3_ignore_missing(
             valid_bTi_list.append(bTi)
             corresponding_aTi_list.append(aTi_list[i])
 
-    valid_aTi_list_ = align_poses_sim3(aTi_list=corresponding_aTi_list, bTi_list=valid_bTi_list)
+    valid_aTi_list_, aSb = align_poses_sim3(aTi_list=corresponding_aTi_list, bTi_list=valid_bTi_list)
 
     num_cameras = len(aTi_list)
     # now at valid indices
@@ -80,10 +80,10 @@ def align_poses_sim3_ignore_missing(
         if i in valid_camera_idxs:
             aTi_list_[i] = valid_aTi_list_.pop(0)
 
-    return aTi_list_
+    return aTi_list_, aSb
 
 
-def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> List[Pose3]:
+def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Tuple[List[Pose3], Similarity3]:
     """Align two pose graphs via similarity transformation. Note: poses cannot be missing/invalid.
 
     We force SIM(3) alignment rather than SE(3) alignment.
@@ -137,7 +137,7 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> List[Pose3
 
     logger.info("Pose graph Sim(3) alignment complete.")
 
-    return aTi_list_
+    return aTi_list_, aSb
 
 
 def compare_rotations(
