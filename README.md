@@ -29,7 +29,7 @@ On Linux, with CUDA support:
 conda env create -f environment_linux.yml
 conda activate gtsfm-v1 # you may need "source activate gtsfm-v1" depending upon your bash and conda set-up
 ```
-The Python3.8 `gtsam` wheel for Linux is available [here](https://github.com/borglab/gtsam-manylinux-build/suites/2239592652/artifacts/46493264).
+The Python3.8 `gtsam` wheel for Linux is available [here](https://github.com/borglab/gtsam-manylinux-build/suites/3489546443/artifacts/83058971).
 
 **Mac**
 On Mac OSX, there is no CUDA support, so run:
@@ -37,7 +37,7 @@ On Mac OSX, there is no CUDA support, so run:
 conda env create -f environment_mac.yml
 conda activate gtsfm-v1
 ```
-Download the Python 3.8 gtsam wheel for Mac [here](https://github.com/borglab/gtsam-manylinux-build/suites/2239592652/artifacts/46493266), and install it as
+Download the Python 3.8 gtsam wheel for Mac [here](https://github.com/borglab/gtsam-manylinux-build/suites/3489546443/artifacts/83058973), and install it as
 ```bash
 pip install ~/Downloads/gtsam-4.1.1-py3-none-any.whl
 ```
@@ -107,12 +107,12 @@ Contributions are always welcome! Please be aware of our [contribution guideline
 ## Citing this work
 Open-source Python implementation:
 ```
-@misc{
-    author = {Ayush Baid, Fan Jiang, Akshay Krishnan, John Lambert, Aditya Singh
-       Aishwarya Venkataramanan, Sushmita Warrier, Jing Wu, Xiaolong Wu, Frank Dellaert},
-    title = {GTSFM: Georgia Tech Structure from Motion},
+@misc{GTSFM,
+    author = {Ayush Baid and Fan Jiang and Akshay Krishnan and John Lambert and Aditya Singh and
+       Aishwarya Venkataramanan and Sushmita Warrier and Jing Wu and Xiaolong Wu and Frank Dellaert},
+    title = { {GTSFM}: Georgia Tech Structure from Motion},
     howpublished={\url{https://github.com/borglab/gtsfm}},
-    year = {2021},
+    year = {2021}
 }
 ```
 Note: authors are listed in alphabetical order.
