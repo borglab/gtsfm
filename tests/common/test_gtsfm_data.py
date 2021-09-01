@@ -302,6 +302,10 @@ class TestGtsfmData(unittest.TestCase):
         # tracks and poses should match GT now, after applying estimated scale and shift.
         assert aligned_sfm_result == gt_gtsfm_data
 
+        # 3d points from tracks should now match the GT.
+        assert np.allclose(aligned_sfm_result.get_track(0).point3(), np.array([1., 1., 0.]))
+        assert np.allclose(aligned_sfm_result.get_track(1).point3(), np.array([3., 3., 0.]))
+
 
 
 if __name__ == "__main__":
