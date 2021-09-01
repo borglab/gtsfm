@@ -252,7 +252,7 @@ class GtsfmData:
         """Get the scene reprojection errors for all 3D points and all associated measurements.
 
         Returns:
-            Reprojection errors as a 1D numpy array.
+            Reprojection errors (measured in pixels) as a 1D numpy array.
         """
         scene_reproj_errors: List[float] = []
         for track in self._tracks:
