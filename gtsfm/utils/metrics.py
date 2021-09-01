@@ -86,7 +86,7 @@ def compute_rotation_angle_metric(wRi_list: List[Optional[Rot3]], gt_wRi_list: L
     for (wRi, gt_wRi) in zip(wRi_list, gt_wRi_list):
         if wRi is not None and gt_wRi is not None:
             errors.append(comp_utils.compute_relative_rotation_angle(wRi, gt_wRi))
-    return GtsfmMetric("rotation_averaging_angle_deg", errors)
+    return GtsfmMetric("rotation_error_angle_deg", errors)
 
 
 def compute_translation_distance_metric(
@@ -108,7 +108,7 @@ def compute_translation_distance_metric(
     for (wti, gt_wti) in zip(wti_list, gt_wti_list):
         if wti is not None and gt_wti is not None:
             errors.append(comp_utils.compute_points_distance_l2(wti, gt_wti))
-    return GtsfmMetric("translation_averaging_distance", errors)
+    return GtsfmMetric("translation_error_distance", errors)
 
 
 def compute_translation_angle_metric(
@@ -127,7 +127,7 @@ def compute_translation_angle_metric(
     for (i1, i2) in i2Ui1_dict:
         i2Ui1 = i2Ui1_dict[(i1, i2)]
         angles.append(comp_utils.compute_translation_to_direction_angle(i2Ui1, wTi_list[i2], wTi_list[i1]))
-    return GtsfmMetric("translation_angle_deg", np.array(angles, dtype=np.float))
+    return GtsfmMetric("translation_angle_error_deg", np.array(angles, dtype=np.float))
 
 
 def compute_averaging_metrics(
@@ -181,8 +181,12 @@ def compute_averaging_metrics(
     return GtsfmMetricsGroup(name="averaging_metrics", metrics=metrics)
 
 
-def compute_ba_pose_metrics(ba_output: GtsfmData, i2Ui1_dict: Dict[Tuple[int, int], Unit3]) -> GtsfmMetricsGroup:
-    """
+def compute_ba_pose_metrics(
+    gt_wTi_list: List[Optional[Pose3]],
+    ba_output: GtsfmData,
+    i2Ui1_dict: Dict[Tuple[int, int], Unit3]
+) -> GtsfmMetricsGroup:
+    """Compute pose errors w.r.t. GT for the bundle adjustment result.
 
     Note: inputs must be aligned beforehand to the ground truth.
 

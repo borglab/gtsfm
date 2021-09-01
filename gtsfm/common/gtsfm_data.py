@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 from gtsam import PinholeCameraCal3Bundler, Pose3, SfmTrack
 
+import gtsfm.utils.geometry_comparisons as geometry_comparisons
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reproj_utils
@@ -262,7 +263,6 @@ class GtsfmData:
 
         return np.array(scene_reproj_errors)
 
-
     def aggregate_metrics(self) -> Dict[str, Any]:
         """Aggregate metrics about the reprojection errors and 3d track lengths (summary stats).
 
@@ -346,3 +346,44 @@ class GtsfmData:
                 filtered_data.add_track(track)
 
         return filtered_data
+
+    def align_via_Sim3_to_gt(self, wTi_list_gt: List[Optional[Pose3]]) -> "GtsfmData":
+        """Align estimated, sparse multiview result (self) to the ground truth.
+
+        Args:
+            wTi_list_gt: list of ground truth camera poses, ordered by camera index.
+
+        Returns:
+            aligned_estimate: sparse multiview result that is aligned to ground truth.
+        """
+        aligned_estimate = GtsfmData(number_images=self.number_images())
+
+        wTi_list_est = self.get_camera_poses()
+
+        # align the poses which are valid (i.e. are not None)
+        # some camera indices may have been lost after pruning to largest connected component, leading to None values
+        wTi_list_est_aligned, gtSest = geometry_comparisons.align_poses_sim3_ignore_missing(wTi_list_gt, wTi_list_est)
+
+        # update the camera pose to the aligned poses, but use the previous calibration
+        for i, wTi in enumerate(wTi_list_est_aligned):
+            if wTi is None:
+                continue
+            calibration = self.get_camera(i).calibration()
+            aligned_estimate.add_camera(i, PinholeCameraCal3Bundler(wTi, calibration))
+
+        # align estimated tracks to the ground truth
+        for j in range(self.number_tracks()):
+
+            # align each 3d point
+            track_est = self.get_track(index=j)
+            # place into the GT reference frame
+            pt_gt = gtSest.transformFrom(track_est.point3())
+            track_aligned = SfmTrack(pt_gt)
+
+            # copy over the 2d measurements directly into the new track
+            for k in range(track_est.number_measurements()):
+                i, uv = track_est.measurement(k)
+                track_aligned.add_measurement(i, uv)
+            aligned_estimate.add_track(track_aligned)
+
+        return aligned_estimate
