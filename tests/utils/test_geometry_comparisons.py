@@ -264,7 +264,7 @@ class TestGeometryComparisons(unittest.TestCase):
         wti2 = Point3(1, 1, -1)
         self.assertEqual(geometry_comparisons.compute_points_distance_l2(wti1, wti2), 2)
 
-    def test_align_poses_sim3_ignore_missing(self):
+    def test_align_poses_sim3_ignore_missing(self) -> None:
         """Consider a simple cases with 4 poses in a line. Suppose SfM only recovers 2 of the 4 poses."""
         wT0 = Pose3(Rot3(np.eye(3)), np.zeros(3))
         wT1 = Pose3(Rot3(np.eye(3)), np.ones(3))
@@ -283,6 +283,76 @@ class TestGeometryComparisons(unittest.TestCase):
 
         # identity alignment should preserve poses, should still match GT/targets at indices 1 and 3
         self.__assert_equality_on_pose3s(computed=[aTi_list_[1], aTi_list_[3]], expected=[aTi_list[1], aTi_list[3]])
+
+
+    # def test_compare_global_poses(self) -> None:
+    #     """ """
+    # geometry_comparisons.compare_global_poses()
+
+    def test_compute_aligned_pose_errors_equal(self) -> None:
+        """Ensure zero error for identical pose graph inputs."""
+        # fmt: off
+        aTi_list = [
+            Pose3(Rot3(), np.array([1,1,1])),
+            Pose3(Rot3(), np.array([2,2,2]))
+        ]
+        bTi_list = [
+            Pose3(Rot3(), np.array([1,1,1])),
+            Pose3(Rot3(), np.array([2,2,2]))
+        ]
+        # fmt: on
+        rot_errors, trans_errors = geometry_comparisons.compute_aligned_pose_errors(aTi_list, bTi_list)
+
+        assert np.allclose(rot_errors, np.array([0., 0.]))
+        assert np.allclose(trans_errors, np.array([0., 0.]))
+
+        assert geometry_comparisons.compare_global_poses(aTi_list, bTi_list, rot_angular_error_thresh_degrees=0.01, trans_err_atol=0.01)
+
+    def test_compute_aligned_pose_errors_equal_with_none(self) -> None:
+        """Ensure zero error for identical pose graph inputs, with None entries."""
+        # fmt: off
+        aTi_list = [
+            Pose3(Rot3(), np.array([1,1,1])),
+            None,
+            Pose3(Rot3(), np.array([2,2,2])),
+            None
+        ]
+        bTi_list = [
+            Pose3(Rot3(), np.array([1,1,1])),
+            None,
+            Pose3(Rot3(), np.array([2,2,2])),
+            None
+        ]
+        # fmt: on
+        rot_errors, trans_errors = geometry_comparisons.compute_aligned_pose_errors(aTi_list, bTi_list)
+        assert np.allclose(rot_errors, np.array([0., 0.]))
+        assert np.allclose(trans_errors, np.array([0., 0.]))
+
+        assert geometry_comparisons.compare_global_poses(aTi_list, bTi_list, rot_angular_error_thresh_degrees=0.01, trans_err_atol=0.01)
+
+
+    def test_compute_aligned_pose_errors_nonequal_with_none(self) -> None:
+        """Ensure small but non-zero error for near-identical pose graph inputs, with None entries."""
+        # fmt: off
+        aTi_list = [
+            Pose3(Rot3(), np.array([0, 0, 0])),
+            None,
+            Pose3(Rot3(), np.array([3, 4, 0])),
+            None
+        ]
+        bTi_list = [
+            Pose3(Rot3(), np.array([2,2,2])),
+            None,
+            Pose3(Rot3(), np.array([5,6.2,2])),
+            None
+        ]
+        # fmt: on
+        rot_errors, trans_errors = geometry_comparisons.compute_aligned_pose_errors(aTi_list, bTi_list)
+        
+        assert np.allclose(rot_errors, np.array([0., 0.]))
+        assert np.allclose(trans_errors, np.array([0.058, 0.058]), atol=0.001)
+        import pdb; pdb.set_trace()
+        assert not geometry_comparisons.compare_global_poses(aTi_list, bTi_list, rot_angular_error_thresh_degrees=0.01, trans_err_atol=0.04)
 
 
 def test_get_points_within_radius_of_cameras():

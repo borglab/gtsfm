@@ -2,7 +2,7 @@
 
 Authors: Ayush Baid, John Lambert
 """
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import numpy as np
 from gtsam import Point3, Pose3, Pose3Pairs, Rot3, Similarity3, Unit3
@@ -182,6 +182,59 @@ def compare_rotations(
     )
 
 
+def compute_aligned_pose_errors(
+    aTi_list: List[Optional[Pose3]],
+    bTi_list: List[Optional[Pose3]],
+) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    """Helper function to compute errors between two lists of Point3s using axis-angle magnitudes and L2 distances at each index.
+
+    Notes:
+    1. The input lists have the poses in the same order, and can contain None entries.
+    2. To resolve global origin ambiguity, we fit a Sim(3) transformation and align the two pose graphs.
+
+    Args:
+        aTi_list: 1st list of poses.
+        bTi_list: 2nd list of poses.
+
+    Returns:
+        rotation errors measured in degrees, as list of length N, where N is number of poses that are not None.
+        translation errors (unit-less because of scale ambiguity), as list of length N.
+    """
+
+    # check the length of the input lists
+    if len(aTi_list) != len(bTi_list):
+        return None, None
+
+    # check the presense of valid Pose3 objects in the same location
+    aTi_valid = [i for (i, aTi) in enumerate(aTi_list) if aTi is not None]
+    bTi_valid = [i for (i, bTi) in enumerate(bTi_list) if bTi is not None]
+    if aTi_valid != bTi_valid:
+        return None, None
+
+    if len(aTi_valid) <= 1:
+        # we need >= two entries going forward for meaningful comparisons
+        return None, None
+
+    # align the remaining poses
+    aTi_list = [aTi_list[i] for i in aTi_valid]
+    bTi_list = [bTi_list[i] for i in bTi_valid]
+
+    #  We set frame "a" the target/reference
+    aTi_list_ = align_poses_sim3(aTi_list, bTi_list)
+
+    rotation_errors = np.array(
+        [
+            compute_relative_rotation_angle(aTi.rotation(), aTi_.rotation())
+            for (aTi, aTi_) in zip(aTi_list, aTi_list_)
+        ]
+    )
+    translation_errors = np.array(
+        [np.linalg.norm(aTi.translation() - aTi_.translation()) for (aTi, aTi_) in zip(aTi_list, aTi_list_)]
+    )
+
+    return rotation_errors, translation_errors
+
+
 def compare_global_poses(
     aTi_list: List[Optional[Pose3]],
     bTi_list: List[Optional[Pose3]],
@@ -190,7 +243,7 @@ def compare_global_poses(
     trans_err_rtol: float = 1e-1,
     verbose: bool = True,
 ) -> bool:
-    """Helper function to compare two lists of Point3s using L2 distances at each index.
+    """Helper function to compare two lists of Point3s using using axis-angle magnitudes and L2 distances at each index.
 
     Notes:
     1. The input lists have the poses in the same order, and can contain None entries.
@@ -206,50 +259,15 @@ def compare_global_poses(
     Returns:
         result of the comparison.
     """
-
-    # check the length of the input lists
-    if len(aTi_list) != len(bTi_list):
+    rotation_errors, translation_errors = compute_aligned_pose_errors(aTi_list, bTi_list)
+    if rotation_errors is None:
+        # means the poses could not be aligned bc were invalid, so cannot say pose graphs are equal.
         return False
 
-    # check the presense of valid Pose3 objects in the same location
-    aTi_valid = [i for (i, aTi) in enumerate(aTi_list) if aTi is not None]
-    bTi_valid = [i for (i, bTi) in enumerate(bTi_list) if bTi is not None]
-    if aTi_valid != bTi_valid:
-        return False
+    rotations_equal = np.all(rotation_errors < rot_angular_error_thresh_degrees)
+    translations_equal = np.allclose(np.zeros_like(translation_errors), translation_errors, atol=trans_err_atol, rtol=trans_err_rtol)
 
-    if len(aTi_valid) <= 1:
-        # we need >= two entries going forward for meaningful comparisons
-        return False
-
-    # align the remaining poses
-    aTi_list = [aTi_list[i] for i in aTi_valid]
-    bTi_list = [bTi_list[i] for i in bTi_valid]
-
-    #  We set frame "a" the target/reference
-    aTi_list_ = align_poses_sim3(aTi_list, bTi_list)
-
-    rotations_equal = all(
-        [
-            compute_relative_rotation_angle(aTi.rotation(), aTi_.rotation()) < rot_angular_error_thresh_degrees
-            for (aTi, aTi_) in zip(aTi_list, aTi_list_)
-        ]
-    )
-    translations_equal = all(
-        [
-            np.allclose(aTi.translation(), aTi_.translation(), atol=trans_err_atol, rtol=trans_err_rtol)
-            for (aTi, aTi_) in zip(aTi_list, aTi_list_)
-        ]
-    )
     if verbose:
-        rotation_errors = np.array(
-            [
-                compute_relative_rotation_angle(aTi.rotation(), aTi_.rotation())
-                for (aTi, aTi_) in zip(aTi_list, aTi_list_)
-            ]
-        )
-        translation_errors = np.array(
-            [np.linalg.norm(aTi.translation() - aTi_.translation()) for (aTi, aTi_) in zip(aTi_list, aTi_list_)]
-        )
         logger.info("Comparison Rotation Errors (degrees): " + str(np.round(rotation_errors, 2)))
         logger.info("Comparison Translation Errors: " + str(np.round(translation_errors, 2)))
 
