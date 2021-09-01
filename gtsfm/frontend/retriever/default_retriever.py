@@ -1,9 +1,9 @@
-"""Image retriever for front-end.
+"""Default image retriever for front-end.
 
 Authors: Travis Driver
 """
 
-import abc
+# import abc
 from typing import List, Optional, Tuple, Dict
 import itertools
 
@@ -20,11 +20,8 @@ from gtsfm.common.keypoints import Keypoints
 logger = logger_utils.get_logger()
 
 
-class RetrieverBase(metaclass=abc.ABCMeta):
-    """Base class for image retrieval.
-
-    The Retriever proposes image pairs to conduct local feature matching.
-    """
+class DefaultRetriever:
+    """Default image retriever."""
 
     def __init__(
         self,
@@ -51,6 +48,8 @@ class RetrieverBase(metaclass=abc.ABCMeta):
         self._gt_pose_list: Optional[List[Pose3]] = None
         self.putative_image_pairs_ind: List[Tuple[int, int]] = []
 
+    # ignored-abstractmethod
+    # @abc.abstractmethod
     def __len__(self) -> int:
         """
         The number of images in the dataset.
@@ -61,7 +60,7 @@ class RetrieverBase(metaclass=abc.ABCMeta):
         return len(self._image_shape_list) if self._image_shape_list is not None else 0
 
     # ignored-abstractmethod
-    @abc.abstractmethod
+    # @abc.abstractmethod
     def _is_valid_pair(self, idx1: int, idx2: int) -> bool:
         """Checks if (idx1, idx2) is a valid pair.
 
@@ -72,8 +71,11 @@ class RetrieverBase(metaclass=abc.ABCMeta):
             idx2: second index of the pair.
 
         Returns:
-            validation result.
+            Whether the pair is valid according to the image retrieval method.
         """
+        if self._max_frame_lookahead is None:
+            return idx1 < idx2
+        return idx1 < idx2 and idx2 - idx1 <= self._max_frame_lookahead
 
     def _compute_local_matches(self, i1: int, i2: int) -> Tuple[Delayed, Delayed, Delayed, Optional[Delayed]]:
         """Performs local matching and computes relative rotations and relative (unit) translations for valid image

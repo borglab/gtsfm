@@ -9,22 +9,21 @@ from typing import Dict, List, Optional, Tuple
 
 import dask
 import matplotlib
-
-matplotlib.use("Agg")
-
 from dask.delayed import Delayed
 
-import gtsfm.evaluation.metrics_report as metrics_report
-import gtsfm.two_view_estimator as two_view_estimator
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.viz as viz_utils
+from gtsfm.evaluation import metrics_report
 from gtsfm.common.image import Image
 from gtsfm.feature_extractor import FeatureExtractor
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
-from gtsfm.two_view_estimator import TwoViewEstimator, TwoViewEstimationReport
-from gtsfm.frontend.retriever.retriever_base import RetirieverBase
+from gtsfm import two_view_estimator
+from gtsfm.two_view_estimator import TwoViewEstimationReport
+from gtsfm.frontend.retriever.default_retriever import DefaultRetriever
+
+matplotlib.use("Agg")
 
 # base paths for storage
 PLOT_BASE_PATH = Path(__file__).resolve().parent.parent / "plots"
@@ -60,7 +59,7 @@ class SceneOptimizer:
     def __init__(
         self,
         feature_extractor: FeatureExtractor,
-        two_view_estimator: TwoViewEstimator,
+        image_retriever: DefaultRetriever,
         multiview_optimizer: MultiViewOptimizer,
         save_two_view_correspondences_viz: bool,
         save_3d_viz: bool,
@@ -69,7 +68,7 @@ class SceneOptimizer:
     ) -> None:
         """pose_angular_error_thresh is given in degrees"""
         self.feature_extractor = feature_extractor
-        self.two_view_estimator = two_view_estimator
+        self.image_retriever = image_retriever
         self.multiview_optimizer = multiview_optimizer
 
         self._save_two_view_correspondences_viz = save_two_view_correspondences_viz
@@ -94,7 +93,6 @@ class SceneOptimizer:
     def create_computation_graph(
         self,
         num_images: int,
-        image_pair_indices: List[Tuple[int, int]],
         image_graph: List[Delayed],
         camera_intrinsics_graph: List[Delayed],
         image_shape_graph: List[Delayed],
@@ -115,19 +113,15 @@ class SceneOptimizer:
             keypoints_graph_list += [delayed_dets]
             descriptors_graph_list += [delayed_descs]
 
-        # Add detections and descriptors to the Retriever.
-        image_retriever = RetirieverBase(
-            self.two_view_estimator, camera_intrinsics_graph, image_shape_graph, gt_pose_graph
-        )
-        local_matching_graph_dict = image_retriever.create_computation_graph(
-            keypoints_graph_list, descriptors_graph_list
+        # Add detections and descriptors to the Retriever and create local matching graph.
+        local_matching_graph_dict = self.image_retriever.create_computation_graph(
+            keypoints_graph_list, descriptors_graph_list, camera_intrinsics_graph, image_shape_graph, gt_pose_graph
         )
 
-        # estimate two-view geometry and get indices of verified correspondences.
+        # Initialize Dicts to store two-view geometry data.
         i2Ri1_graph_dict = {}
         i2Ui1_graph_dict = {}
         v_corr_idxs_graph_dict = {}
-
         two_view_reports_dict = {}
 
         # Loop through putative image pairs.
@@ -141,7 +135,7 @@ class SceneOptimizer:
                 local_matching_graph[3],
             )
 
-            # Store results in Dicts.
+            # Store two-view results.
             i2Ri1_graph_dict[(i1, i2)] = i2Ri1
             i2Ui1_graph_dict[(i1, i2)] = i2Ui1
             v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
@@ -169,7 +163,7 @@ class SceneOptimizer:
                 )
             )
 
-        # as visualization tasks are not to be provided to the user, we create a
+        # As visualization tasks are not to be provided to the user, we create a
         # dummy computation of concatenating viz tasks with the output graph,
         # forcing computation of viz tasks. Doing this here forces the
         # frontend's auxiliary tasks to be computed before the multi-view stage.
@@ -272,7 +266,7 @@ def save_metrics_reports(metrics_graph_list: Delayed) -> List[Delayed]:
     Returns:
         List of delayed objects after saving metrics.
     """
-    save_metrics_graph_list = []
+    save_metrics_graph_list: List[Delayed] = []
 
     if len(metrics_graph_list) == 0:
         return save_metrics_graph_list
@@ -318,7 +312,9 @@ def save_full_frontend_metrics(
                 "inlier_ratio_gt_model": round(report.inlier_ratio_gt_model, PRINT_NUM_SIG_FIGS)
                 if report.inlier_ratio_gt_model
                 else None,
-                "inlier_ratio_est_model": round(report.inlier_ratio_est_model, PRINT_NUM_SIG_FIGS),
+                "inlier_ratio_est_model": round(report.inlier_ratio_est_model, PRINT_NUM_SIG_FIGS)
+                if report.inlier_ratio_est_model
+                else None,
                 "num_inliers_est_model": report.num_inliers_est_model,
             }
         )
