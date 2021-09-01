@@ -21,13 +21,18 @@ To open a pull request, here are some steps to get you started:
   - Hint: having unit tests that validate your changes with your pull
     request will help to land your changes faster.
 
+## SfM Variable Name Conventions
+We use a specific naming convention for image/SfM data throughout the codebase:
+- `i` for camera indices
+- `j` for 3d point indices
+- `k` for measurement indices
 
 ## Coordinate System Conventions
 
 Code in GTSFM adheres to a strict set of conventions about how rigid body transformations are expressed in code (described [here](https://gtsam.org/gtsam.org/2020/06/28/gtsam-conventions.html)). A few examples are provided below:
-- wTc:
-- wTc_list:
-- w_wUc:
+- `wTi`: pose of the i'th camera in the world frame. If there is only a single camera, `wTc` is also acceptable.
+- `wTi_list`: pose of the i'th camera in the world frame, for n cameras
+- `w_i2Ui1`: a ray from camera i2 to camera i1, inside the world coordinate system. Mathematically, `w_i2Ui1 = wRi_list[i2].rotate(i2Ui1)`. Since `i2Ui1` is the unit-normalized translational component of the pose of camera i1 inside i2's frame, then intuitively this is the ray from i2 to i1.
 
 We ask that contributors prefer GTSAM types wherever possible unless it's not already wrapped and is a lot of work to do so, or there are good advantages to using other types (like np arrays).
 

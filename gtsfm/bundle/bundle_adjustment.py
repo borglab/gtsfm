@@ -2,8 +2,10 @@
 
 Authors: Xiaolong Wu, John Lambert, Ayush Baid
 """
-import os
+
+import numpy as np
 from pathlib import Path
+from typing import List, NamedTuple, Tuple
 
 import dask
 from dask.delayed import Delayed
@@ -21,9 +23,9 @@ from gtsam import (
 )
 from gtsam.noiseModel import Isotropic
 
-import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 METRICS_PATH = Path(__file__).resolve().parent.parent.parent / "result_metrics"
 
@@ -68,7 +70,10 @@ class BundleAdjustmentOptimizer:
         self._shared_calib = shared_calib
 
     def __add_camera_prior(
-        self, graph: NonlinearFactorGraph, camera: PinholeCameraCal3Bundler, camera_idx: int,
+        self,
+        graph: NonlinearFactorGraph,
+        camera: PinholeCameraCal3Bundler,
+        camera_idx: int,
     ) -> None:
         """Add a prior factor in the factor graph for the camera parameters.
 
@@ -92,7 +97,10 @@ class BundleAdjustmentOptimizer:
             )
 
     def __add_camera_initial_value(
-        self, initial_values: Values, camera: PinholeCameraCal3Bundler, camera_idx: int,
+        self,
+        initial_values: Values,
+        camera: PinholeCameraCal3Bundler,
+        camera_idx: int,
     ) -> None:
         """Add initial values for the camera parameters.
 
@@ -109,7 +117,11 @@ class BundleAdjustmentOptimizer:
             initial_values.insert(K(camera_idx), camera.calibration())
 
     def __add_measurement_factor(
-        self, graph: NonlinearFactorGraph, track: SfmTrack, track_idx: int, measurement_noise: Isotropic,
+        self,
+        graph: NonlinearFactorGraph,
+        track: SfmTrack,
+        track_idx: int,
+        measurement_noise: Isotropic,
     ) -> None:
         """Add factor for each 2D measurement in the track.
 
@@ -127,24 +139,35 @@ class BundleAdjustmentOptimizer:
             # add the factor, using the 3D point, camera, and the associated 2d measurement
             graph.add(
                 GeneralSFMFactor2Cal3Bundler(
-                    uv, measurement_noise, X(i), P(track_idx), K(0 if self._shared_calib else i),
+                    uv,
+                    measurement_noise,
+                    X(i),
+                    P(track_idx),
+                    K(0 if self._shared_calib else i),
                 )
             )
 
-    def run(self, initial_data: GtsfmData) -> GtsfmData:
+    def run(self, initial_data: GtsfmData) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
 
         Args:
             initial_data: initialized cameras, tracks w/ their 3d landmark from triangulation.
 
         Results:
-            optimized camera poses, 3D point w/ tracks, and error metrics.
+            Optimized camera poses, 3D point w/ tracks, and error metrics.
+            Metrics group containing metrics for both filtered and unfiltered BA results.
         """
         logger.info(
             "Input: %d tracks on %d cameras\n",
             initial_data.number_tracks(),
             len(initial_data.get_valid_camera_indices()),
         )
+        if initial_data.number_tracks() == 0 or len(initial_data.get_valid_camera_indices()) == 0:
+            # no cameras or tracks to optimize, so bundle adjustment is not possible
+            logger.error(
+                "Bundle adjustment aborting, optimization cannot be performed without any tracks or any cameras."
+            )
+            return initial_data
 
         # noise model for measurements -- one pixel in u and v
         measurement_noise = Isotropic.Sigma(IMG_MEASUREMENT_DIM, MEASUREMENT_NOISE_SIGMA)
@@ -189,24 +212,33 @@ class BundleAdjustmentOptimizer:
         # construct the results
         optimized_data = values_to_gtsfm_data(result_values, initial_data, self._shared_calib)
 
-        metrics_dict = {}
-        metrics_dict["before_filtering"] = optimized_data.aggregate_metrics()
-        logger.info("[Result] Number of tracks before filtering: %d", metrics_dict["before_filtering"]["number_tracks"])
+        def get_metrics_from_sfm_data(sfm_data: GtsfmData, suffix: str) -> List[GtsfmMetric]:
+            """Helper to get bundle adjustment metrics from a GtsfmData object with a suffix for metric names."""
+            metrics = []
+            metrics.append(GtsfmMetric("number_tracks" + suffix, sfm_data.number_tracks()))
+            metrics.append(GtsfmMetric("3d_track_lengths" + suffix, sfm_data.get_track_lengths()))
+            metrics.append(GtsfmMetric("reprojection_errors" + suffix, sfm_data.get_scene_reprojection_errors()))
+            return metrics
+
+        ba_metrics = GtsfmMetricsGroup(
+            "bundle_adjustment_metrics", get_metrics_from_sfm_data(optimized_data, suffix="_unfiltered")
+        )
+        logger.info("[Result] Number of tracks before filtering: %d", optimized_data.number_tracks())
 
         # filter the largest errors
         filtered_result = optimized_data.filter_landmarks(self._output_reproj_error_thresh)
 
-        metrics_dict["after_filtering"] = filtered_result.aggregate_metrics()
-        io_utils.save_json_file(os.path.join(METRICS_PATH, "bundle_adjustment_metrics.json"), metrics_dict)
+        ba_metrics.add_metrics(get_metrics_from_sfm_data(filtered_result, suffix="_filtered"))
+        # ba_metrics.save_to_json(os.path.join(METRICS_PATH, "bundle_adjustment_metrics.json"))
 
-        logger.info("[Result] Number of tracks after filtering: %d", metrics_dict["after_filtering"]["number_tracks"])
-        logger.info("[Result] Mean track length %.3f", metrics_dict["after_filtering"]["3d_track_lengths"]["mean"])
-        logger.info("[Result] Median track length %.3f", metrics_dict["after_filtering"]["3d_track_lengths"]["median"])
+        logger.info("[Result] Number of tracks after filtering: %d", filtered_result.number_tracks())
+        logger.info("[Result] Mean track length %.3f", np.mean(filtered_result.get_track_lengths()))
+        logger.info("[Result] Median track length %.3f", np.median(filtered_result.get_track_lengths()))
         filtered_result.log_scene_reprojection_error_stats()
 
-        return filtered_result
+        return filtered_result, ba_metrics
 
-    def create_computation_graph(self, sfm_data_graph: Delayed) -> Delayed:
+    def create_computation_graph(self, sfm_data_graph: Delayed) -> Tuple[Delayed, Delayed]:
         """Create the computation graph for performing bundle adjustment.
 
         Args:
@@ -214,8 +246,10 @@ class BundleAdjustmentOptimizer:
 
         Returns:
             GtsfmData wrapped up using dask.delayed
+            Metrics group for BA results, wrapped up using dask.delayed
         """
-        return dask.delayed(self.run)(sfm_data_graph)
+        data_metrics_graph = dask.delayed(self.run)(sfm_data_graph)
+        return data_metrics_graph[0], data_metrics_graph[1]
 
 
 def values_to_gtsfm_data(values: Values, initial_data: GtsfmData, shared_calib: bool) -> GtsfmData:
@@ -234,7 +268,11 @@ def values_to_gtsfm_data(values: Values, initial_data: GtsfmData, shared_calib: 
     # add cameras
     for i in initial_data.get_valid_camera_indices():
         result.add_camera(
-            i, PinholeCameraCal3Bundler(values.atPose3(X(i)), values.atCal3Bundler(K(0 if shared_calib else i)),)
+            i,
+            PinholeCameraCal3Bundler(
+                values.atPose3(X(i)),
+                values.atCal3Bundler(K(0 if shared_calib else i)),
+            ),
         )
 
     # add tracks
