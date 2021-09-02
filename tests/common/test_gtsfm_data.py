@@ -43,7 +43,7 @@ class TestGtsfmData(unittest.TestCase):
         """Test the equality function with different object, expecting false result."""
         other_example_file = "dubrovnik-1-1-pre.txt"
         other_data = io_utils.read_bal(gtsam.findExampleDataFile(other_example_file))
-        
+
         self.assertNotEqual(EXAMPLE_DATA, other_data)
 
     def testEqualsWithNullObject(self) -> None:
@@ -160,7 +160,7 @@ class TestGtsfmData(unittest.TestCase):
     @mock.patch.object(graph_utils, "get_nodes_in_largest_connected_component", return_value=[1, 2, 4])
     def test_select_largest_connected_component(self, graph_largest_cc_mock):
         """Test pruning to largest connected component according to tracks.
-        
+
         The function under test calles the graph utility, which has been mocked and we test the call against the mocked
         object.
         """
@@ -224,12 +224,12 @@ class TestGtsfmData(unittest.TestCase):
         # compare the SfmData objects
         self.assertEqual(filtered_sfm_data, expected_data)
 
-    def test_align_via_Sim3_to_gt(self) -> None:
+    def test_align_via_Sim3_to_poses(self) -> None:
         """Ensure that alignment of a SFM result to ground truth camera poses works correctly.
 
         Consider a simple example, wih 3 estimated poses and 2 points.
         When fitting the Similarity(3), all correspondences should have no noise, and alignment should be exact.
-        
+
         GT: ===========================================
                     |
                     . (pose 3)
@@ -258,30 +258,32 @@ class TestGtsfmData(unittest.TestCase):
                     |
         """
         dummy_calibration = Cal3Bundler(fx=900, k1=0, k2=0, u0=100, v0=100)
-
+        
+        # fmt: off
         wTi_list_gt = [
-            Pose3(Rot3(), np.array([3, 0,0])), # wTi0
-            Pose3(Rot3(), np.array([0, 0,0])), # wTi1
-            Pose3(Rot3(), np.array([0,-3,0])), # wTi2
-            Pose3(Rot3(), np.array([0, 3,0]))  # wTi3
+            Pose3(Rot3(), np.array([3, 0, 0])),  # wTi0
+            Pose3(Rot3(), np.array([0, 0, 0])),  # wTi1
+            Pose3(Rot3(), np.array([0, -3, 0])), # wTi2
+            Pose3(Rot3(), np.array([0, 3, 0])),  # wTi3
         ]
         points_gt = [
-            np.array([1,1,0]),
-            np.array([3,3,0])
+            np.array([1, 1, 0]),
+            np.array([3, 3, 0])
         ]
 
         # pose graph is scaled by a factor of 2, and shifted also.
         wTi_list_est = [
-            Pose3(Rot3(), np.array([8,2,0])), # wTi0
-            Pose3(Rot3(), np.array([2,2,0])), # wTi1
-            None,                             # wTi2
-            Pose3(Rot3(), np.array([2,8,0])), # wTi3
+            Pose3(Rot3(), np.array([8, 2, 0])),  # wTi0
+            Pose3(Rot3(), np.array([2, 2, 0])),  # wTi1
+            None,                                # wTi2
+            Pose3(Rot3(), np.array([2, 8, 0])),  # wTi3
         ]
         points_est = [
-            np.array([4,4,0]),
-            np.array([8,8,0])
+            np.array([4, 4, 0]),
+            np.array([8, 8, 0])
         ]
-
+        # fmt: on
+        
         def add_dummy_measurements_to_track(track: SfmTrack) -> SfmTrack:
             """Add some dummy 2d measurements in three views in cameras 0,1,3."""
             track.add_measurement(0, np.array([100, 200]))
@@ -303,14 +305,13 @@ class TestGtsfmData(unittest.TestCase):
                 track = add_dummy_measurements_to_track(track)
                 gtsfm_data.add_track(track)
 
-        aligned_sfm_result = sfm_result.align_via_Sim3_to_poses(wTi_list_gt=gt_gtsfm_data.get_camera_poses())
+        aligned_sfm_result = sfm_result.align_via_Sim3_to_poses(wTi_list_ref=gt_gtsfm_data.get_camera_poses())
         # tracks and poses should match GT now, after applying estimated scale and shift.
         assert aligned_sfm_result == gt_gtsfm_data
 
         # 3d points from tracks should now match the GT.
-        assert np.allclose(aligned_sfm_result.get_track(0).point3(), np.array([1., 1., 0.]))
-        assert np.allclose(aligned_sfm_result.get_track(1).point3(), np.array([3., 3., 0.]))
-
+        assert np.allclose(aligned_sfm_result.get_track(0).point3(), np.array([1.0, 1.0, 0.0]))
+        assert np.allclose(aligned_sfm_result.get_track(1).point3(), np.array([3.0, 3.0, 0.0]))
 
 
 if __name__ == "__main__":
