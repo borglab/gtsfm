@@ -55,7 +55,7 @@ def load_image(img_path: str) -> Image:
         exif_data = parsed_data
 
     img_fname = Path(img_path).name
-    return Image(value_array=np.asarray(original_image.convert('RGB')), exif_data=exif_data, file_name=img_fname)
+    return Image(value_array=np.asarray(original_image.convert("RGB")), exif_data=exif_data, file_name=img_fname)
 
 
 def save_image(image: Image, img_path: str) -> None:
@@ -188,7 +188,7 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
         k2 = 0
         calibrations.append(Cal3Bundler(fx, k1, k2, u0, v0))
 
-    #assert len(calibrations) == num_cams
+    assert len(calibrations) == num_cams
     return calibrations
 
 

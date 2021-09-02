@@ -33,7 +33,7 @@ def run_scene_optimizer(args) -> None:
             gt_scene_mesh_path=args.scene_mesh_path,
             use_gt_intrinsics=True,
             use_gt_extrinsics=True,
-            use_gt_tracks3D=False,
+            use_gt_sfmtracks=False,
             max_frame_lookahead=args.max_frame_lookahead,
         )
 
