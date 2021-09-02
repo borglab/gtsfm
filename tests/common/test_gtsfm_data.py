@@ -303,7 +303,7 @@ class TestGtsfmData(unittest.TestCase):
                 track = add_dummy_measurements_to_track(track)
                 gtsfm_data.add_track(track)
 
-        aligned_sfm_result = sfm_result.align_via_Sim3_to_gt(wTi_list_gt=gt_gtsfm_data.get_camera_poses())
+        aligned_sfm_result = sfm_result.align_via_Sim3_to_poses(wTi_list_gt=gt_gtsfm_data.get_camera_poses())
         # tracks and poses should match GT now, after applying estimated scale and shift.
         assert aligned_sfm_result == gt_gtsfm_data
 
