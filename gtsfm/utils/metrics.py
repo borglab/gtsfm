@@ -214,7 +214,7 @@ def compute_ba_pose_metrics(
     return GtsfmMetricsGroup(name="mvs_input_metrics", metrics=metrics)
 
 
-def simulate_twoview_translation_direction_measurements(gt_wTi_list: List[Pose3]) -> Dict[Tuple[int,int], Unit3]:
+def simulate_twoview_translation_direction_measurements(gt_wTi_list: List[Pose3]) -> Dict[Tuple[int, int], Unit3]:
     """Generate simulated measurements of the 2-view translation directions between image pairs.
 
     Args:
@@ -223,7 +223,7 @@ def simulate_twoview_translation_direction_measurements(gt_wTi_list: List[Pose3]
     Returns:
         i2Ui1_dict_gt: Dict from (i1, i2) to ground truth unit translation direction i2Ui1.
     """
-    number_images = len(gt_wTi_list) # vs. using ba_output.number_images()
+    number_images = len(gt_wTi_list)  # vs. using ba_output.number_images()
 
     # check against all possible image pairs -- compute GT unit translation directions
     i2Ui1_dict_gt = {}
@@ -231,7 +231,7 @@ def simulate_twoview_translation_direction_measurements(gt_wTi_list: List[Pose3]
     for (i1, i2) in possible_img_pair_idxs:
         # compute GT relative pose
         i2Ti1 = gt_wTi_list[i2].between(gt_wTi_list[i1])
-        i2Ui1_dict_gt[(i1,i2)] = Unit3(i2Ti1.translation())
+        i2Ui1_dict_gt[(i1, i2)] = Unit3(i2Ti1.translation())
 
     return i2Ui1_dict_gt
 
