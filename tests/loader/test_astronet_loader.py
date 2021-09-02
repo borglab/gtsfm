@@ -15,8 +15,8 @@ from gtsfm.loader.astronet_loader import AstroNetLoader
 import gtsfm.utils.io as io_utils
 
 TEST_DATA_ROOT = Path(__file__).resolve().parent.parent / "data"
-TEST_POINT3D_IDS = [86, 2319, 51861, 56761, 60903, 63386, 65177, 67191, 68980, 70079]
-TEST_SFMTRACKS_INDICES = [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000]
+TEST_POINT3D_IDS = [7, 2560, 3063, 3252, 3424, 3534, 3653, 3786, 3920, 4062, 4420, 4698, 3311, 3963, 325]
+TEST_SFMTRACKS_INDICES = [0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400]
 
 
 class TestAstroNetLoader(unittest.TestCase):
@@ -25,7 +25,7 @@ class TestAstroNetLoader(unittest.TestCase):
         super().setUp()
 
         data_dir = TEST_DATA_ROOT / "test_2011212_opnav_022"
-        gt_scene_mesh_path = data_dir / "vesta_99846.ply"
+        gt_scene_mesh_path = data_dir / "vesta_5002.ply"
 
         self.loader = AstroNetLoader(
             data_dir,
@@ -46,7 +46,7 @@ class TestAstroNetLoader(unittest.TestCase):
 
     def test_len(self) -> None:
         """Ensure we have one calibration per image/frame."""
-        # there are 4 images and 28620 tracks in 2011212_opnav_022
+        # there are 4 images and 1465 tracks in 2011212_opnav_022
         assert len(self.loader) == 4
         assert len(self.loader._calibrations) == 4
         assert self.loader._num_imgs == 4
@@ -54,9 +54,9 @@ class TestAstroNetLoader(unittest.TestCase):
 
     def test_sfmtracks(self) -> None:
         """Ensure we have one sfmtrack per mesh vertex"""
-        # there are 4 images and 28620 tracks in 2011212_opnav_022
-        assert self.loader.num_sfmtracks == 28620
-        assert len(self.loader._sfmtracks) == 28620
+        # there are 4 images and 1465 tracks in 2011212_opnav_022
+        assert self.loader.num_sfmtracks == 1465
+        assert len(self.loader._sfmtracks) == 1465
 
     def test_get_image_valid_index(self):
         """Tests that get_image works for all valid indices."""
