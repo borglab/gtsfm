@@ -354,26 +354,24 @@ class GtsfmData:
             wTi_list_gt: list of ground truth camera poses, ordered by camera index.
 
         Returns:
-            aligned_estimate: sparse multiview result that is aligned to ground truth.
+            aligned_data: sparse multiview result that is aligned to ground truth.
         """
-        aligned_estimate = GtsfmData(number_images=self.number_images())
-
         wTi_list_est = self.get_camera_poses()
 
         # align the poses which are valid (i.e. are not None)
         # some camera indices may have been lost after pruning to largest connected component, leading to None values
         wTi_list_est_aligned, gtSest = geometry_comparisons.align_poses_sim3_ignore_missing(wTi_list_gt, wTi_list_est)
 
+        aligned_data = GtsfmData(number_images=self.number_images())
         # update the camera pose to the aligned poses, but use the previous calibration
         for i, wTi in enumerate(wTi_list_est_aligned):
             if wTi is None:
                 continue
             calibration = self.get_camera(i).calibration()
-            aligned_estimate.add_camera(i, PinholeCameraCal3Bundler(wTi, calibration))
+            aligned_data.add_camera(i, PinholeCameraCal3Bundler(wTi, calibration))
 
         # align estimated tracks to the ground truth
         for j in range(self.number_tracks()):
-
             # align each 3d point
             track_est = self.get_track(index=j)
             # place into the GT reference frame
@@ -384,6 +382,6 @@ class GtsfmData:
             for k in range(track_est.number_measurements()):
                 i, uv = track_est.measurement(k)
                 track_aligned.add_measurement(i, uv)
-            aligned_estimate.add_track(track_aligned)
+            aligned_data.add_track(track_aligned)
 
-        return aligned_estimate
+        return aligned_data

@@ -170,7 +170,7 @@ def compute_averaging_metrics(
     # ground truth is the reference/target for alignment. discard 2nd return arg -- the estimated Similarity(3) object
     wTi_aligned_list, _ = comp_utils.align_poses_sim3_ignore_missing(gt_wTi_list, wTi_list)
 
-    i2Ui1_dict_gt = simulate_twoview_translation_direction_measurements(gt_wTi_list)
+    i2Ui1_dict_gt = get_twoview_translation_directions(gt_wTi_list)
 
     wRi_aligned_list, wti_aligned_list = get_rotations_translations_from_poses(wTi_aligned_list)
     gt_wRi_list, gt_wti_list = get_rotations_translations_from_poses(gt_wTi_list)
@@ -198,8 +198,8 @@ def compute_ba_pose_metrics(
         A group of metrics that describe errors associated with a bundle adjustment result (w.r.t. GT).
     """
     wTi_aligned_list = ba_output.get_camera_poses()
-    i2Ui1_dict_gt = simulate_twoview_translation_direction_measurements(gt_wTi_list)
-    
+    i2Ui1_dict_gt = get_twoview_translation_directions(gt_wTi_list)
+
     wRi_aligned_list, wti_aligned_list = get_rotations_translations_from_poses(wTi_aligned_list)
     gt_wRi_list, gt_wti_list = get_rotations_translations_from_poses(gt_wTi_list)
 
@@ -210,8 +210,8 @@ def compute_ba_pose_metrics(
     return GtsfmMetricsGroup(name="mvs_input_metrics", metrics=metrics)
 
 
-def simulate_twoview_translation_direction_measurements(gt_wTi_list: List[Pose3]) -> Dict[Tuple[int, int], Unit3]:
-    """Generate simulated measurements of the 2-view translation directions between image pairs.
+def get_twoview_translation_directions(gt_wTi_list: List[Pose3]) -> Dict[Tuple[int, int], Unit3]:
+    """Generate synthetic measurements of the 2-view translation directions between image pairs.
 
     Args:
         gt_wTi_list: List of ground truth poses.

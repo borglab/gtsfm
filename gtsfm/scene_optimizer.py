@@ -182,7 +182,7 @@ class SceneOptimizer:
         i2Ri1_graph_dict = cycle_consistent_graph[0]
         i2Ui1_graph_dict = cycle_consistent_graph[1]
 
-        # TODO: dump metrics after cycle consistency
+        # TODO (johnwlambert): dump metrics after cycle consistency
         (ba_input_graph, ba_output_graph, optimizer_metrics_graph) = self.multiview_optimizer.create_computation_graph(
             image_graph,
             num_images,
