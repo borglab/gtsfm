@@ -75,7 +75,7 @@ class MultiViewOptimizer:
             return ba_input_graph, ba_result_graph, None
 
         averaging_metrics_graph = dask.delayed(metrics.compute_averaging_metrics)(
-            i2Ui1_graph, wRi_graph, wti_graph, gt_poses_graph
+            wRi_graph, wti_graph, gt_poses_graph
         )
 
         multiview_optimizer_metrics_graph = [averaging_metrics_graph, data_assoc_metrics_graph, ba_metrics_graph]

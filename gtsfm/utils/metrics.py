@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid, Akshay Krishnan
 """
+import itertools
 import os
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
@@ -131,10 +132,9 @@ def compute_translation_angle_metric(
 
 
 def compute_averaging_metrics(
-    i2Ui1_dict: Dict[Tuple[int, int], Unit3],
     wRi_list: List[Optional[Rot3]],
     wti_list: List[Optional[Point3]],
-    gt_wTi_list: List[Optional[Pose3]],
+    gt_wTi_list: List[Pose3],
 ) -> GtsfmMetricsGroup:
     """Computes statistics of multiple metrics for the averaging modules.
 
@@ -146,7 +146,6 @@ def compute_averaging_metrics(
     Estimated poses and ground truth poses are first aligned before computing metrics.
 
     Args:
-        i2Ui1_dict: Dict from (i1, i2) to unit translation direction measurement i2Ui1.
         wRi_list: List of estimated rotations.
         wti_list: List of estimated translations.
         gt_wTi_list: List of ground truth poses.
@@ -171,20 +170,21 @@ def compute_averaging_metrics(
     # ground truth is the reference/target for alignment. discard 2nd return arg -- the estimated Similarity(3) object
     wTi_aligned_list, _ = comp_utils.align_poses_sim3_ignore_missing(gt_wTi_list, wTi_list)
 
+    i2Ui1_dict_gt = simulate_twoview_translation_direction_measurements(gt_wTi_list)
+
     wRi_aligned_list, wti_aligned_list = get_rotations_translations_from_poses(wTi_aligned_list)
     gt_wRi_list, gt_wti_list = get_rotations_translations_from_poses(gt_wTi_list)
 
     metrics = []
     metrics.append(compute_rotation_angle_metric(wRi_aligned_list, gt_wRi_list))
     metrics.append(compute_translation_distance_metric(wti_aligned_list, gt_wti_list))
-    metrics.append(compute_translation_angle_metric(i2Ui1_dict, wTi_aligned_list))
+    metrics.append(compute_translation_angle_metric(i2Ui1_dict=i2Ui1_dict_gt, wTi_list=wTi_aligned_list))
     return GtsfmMetricsGroup(name="averaging_metrics", metrics=metrics)
 
 
 def compute_ba_pose_metrics(
-    gt_wTi_list: List[Optional[Pose3]],
+    gt_wTi_list: List[Pose3],
     ba_output: GtsfmData,
-    i2Ui1_dict: Dict[Tuple[int, int], Unit3]
 ) -> GtsfmMetricsGroup:
     """Compute pose errors w.r.t. GT for the bundle adjustment result.
 
@@ -193,20 +193,47 @@ def compute_ba_pose_metrics(
     Args:
         gt_wTi_list: List of ground truth poses.
         ba_output: sparse multi-view result, as output of bundle adjustment.
-        i2Ui1_dict: Dict from (i1, i2) to unit translation direction measurement i2Ui1.
 
     Returns:
         A group of metrics that describe errors associated with a bundle adjustment result (w.r.t. GT).
     """
     wTi_aligned_list = ba_output.get_camera_poses()
+    i2Ui1_dict_gt = simulate_twoview_translation_direction_measurements(gt_wTi_list)
+
+    print("wTi_aligned_list", wTi_aligned_list)
+    print("gt_wTi_list", gt_wTi_list)
+    print("i2Ui1_dict_gt", i2Ui1_dict_gt)
+
     wRi_aligned_list, wti_aligned_list = get_rotations_translations_from_poses(wTi_aligned_list)
     gt_wRi_list, gt_wti_list = get_rotations_translations_from_poses(gt_wTi_list)
 
     metrics = []
     metrics.append(compute_rotation_angle_metric(wRi_aligned_list, gt_wRi_list))
     metrics.append(compute_translation_distance_metric(wti_aligned_list, gt_wti_list))
-    metrics.append(compute_translation_angle_metric(i2Ui1_dict, wTi_aligned_list))
+    metrics.append(compute_translation_angle_metric(i2Ui1_dict_gt, wTi_aligned_list))
     return GtsfmMetricsGroup(name="mvs_input_metrics", metrics=metrics)
+
+
+def simulate_twoview_translation_direction_measurements(gt_wTi_list: List[Pose3]) -> Dict[Tuple[int,int], Unit3]:
+    """Generate simulated measurements of the 2-view translation directions between image pairs.
+
+    Args:
+        gt_wTi_list: List of ground truth poses.
+
+    Returns:
+        i2Ui1_dict_gt: Dict from (i1, i2) to ground truth unit translation direction i2Ui1.
+    """
+    number_images = len(gt_wTi_list) # vs. using ba_output.number_images()
+
+    # check against all possible image pairs -- compute GT unit translation directions
+    i2Ui1_dict_gt = {}
+    possible_img_pair_idxs = list(itertools.combinations(range(number_images), 2))
+    for (i1, i2) in possible_img_pair_idxs:
+        # compute GT relative pose
+        i2Ti1 = gt_wTi_list[i2].between(gt_wTi_list[i1])
+        i2Ui1_dict_gt[(i1,i2)] = Unit3(i2Ti1.translation())
+
+    return i2Ui1_dict_gt
 
 
 def get_rotations_translations_from_poses(

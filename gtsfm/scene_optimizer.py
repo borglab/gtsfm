@@ -198,9 +198,8 @@ class SceneOptimizer:
             # align the estimates to the ground truth
             ba_input_graph = dask.delayed(ba_input_graph.align_via_Sim3_to_gt)(gt_pose_graph)
             ba_output_graph = dask.delayed(ba_output_graph.align_via_Sim3_to_gt)(gt_pose_graph)
-
             mvs_input_metrics_graph = dask.delayed(metrics_utils.compute_ba_pose_metrics)(
-                gt_pose_graph, ba_output_graph, i2Ui1_graph_dict
+                gt_pose_graph, ba_output_graph
             )
             metrics_graph_list.append(mvs_input_metrics_graph)
 
