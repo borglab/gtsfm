@@ -226,7 +226,7 @@ class GtsfmData:
         Returns:
             New object with the selected cameras and associated tracks.
         """
-        new_data = cls(gtsfm_data.number_images())
+        new_data = cls(number_images=len(camera_indices))
 
         for i in gtsfm_data.get_valid_camera_indices():
             if i in camera_indices:
@@ -252,7 +252,7 @@ class GtsfmData:
         """Get the scene reprojection errors for all 3D points and all associated measurements.
 
         Returns:
-            Reprojection errors as a 1D numpy array.
+            Reprojection errors (measured in pixels) as a 1D numpy array.
         """
         scene_reproj_errors: List[float] = []
         for track in self._tracks:
@@ -285,7 +285,7 @@ class GtsfmData:
             "median": convert_to_rounded_float(np.median(track_lengths_3d)),
             "max": convert_to_rounded_float(track_lengths_3d.max()),
         }
-        stats_dict["reprojection_errors"] = {
+        stats_dict["reprojection_errors_px"] = {
             "min": convert_to_rounded_float(np.nanmin(scene_reproj_errors)),
             "mean": convert_to_rounded_float(np.nanmean(scene_reproj_errors)),
             "median": convert_to_rounded_float(np.nanmedian(scene_reproj_errors)),
