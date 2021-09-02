@@ -210,26 +210,26 @@ def compute_ba_pose_metrics(
     return GtsfmMetricsGroup(name="mvs_input_metrics", metrics=metrics)
 
 
-def get_twoview_translation_directions(gt_wTi_list: List[Pose3]) -> Dict[Tuple[int, int], Unit3]:
+def get_twoview_translation_directions(wTi_list: List[Pose3]) -> Dict[Tuple[int, int], Unit3]:
     """Generate synthetic measurements of the 2-view translation directions between image pairs.
 
     Args:
-        gt_wTi_list: List of ground truth poses.
+        wTi_list: List of poses (e.g. could be ground truth).
 
     Returns:
-        i2Ui1_dict_gt: Dict from (i1, i2) to ground truth unit translation direction i2Ui1.
+        i2Ui1_dict: Dict from (i1, i2) to unit translation direction i2Ui1.
     """
-    number_images = len(gt_wTi_list)  # vs. using ba_output.number_images()
+    number_images = len(wTi_list)  # vs. using ba_output.number_images()
 
-    # check against all possible image pairs -- compute GT unit translation directions
-    i2Ui1_dict_gt = {}
+    # check against all possible image pairs -- compute unit translation directions
+    i2Ui1_dict = {}
     possible_img_pair_idxs = list(itertools.combinations(range(number_images), 2))
     for (i1, i2) in possible_img_pair_idxs:
-        # compute GT relative pose
-        i2Ti1 = gt_wTi_list[i2].between(gt_wTi_list[i1])
-        i2Ui1_dict_gt[(i1, i2)] = Unit3(i2Ti1.translation())
+        # compute the exact relative pose
+        i2Ti1 = wTi_list[i2].between(wTi_list[i1])
+        i2Ui1_dict[(i1, i2)] = Unit3(i2Ti1.translation())
 
-    return i2Ui1_dict_gt
+    return i2Ui1_dict
 
 
 def get_rotations_translations_from_poses(
