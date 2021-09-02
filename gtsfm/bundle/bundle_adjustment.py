@@ -106,12 +106,11 @@ class BundleAdjustmentOptimizer(NamedTuple):
 
         # Optimize the graph and print results
         try:
-            params = gtsam.LevenbergMarquardtParams()
-            params.setVerbosityLM("ERROR")
-            lm = gtsam.LevenbergMarquardtOptimizer(graph, initial, params)
-            result_values = lm.optimize()
+            params = gtsam.GncLMParams()
+            optimizer = gtsam.GncLMOptimizer(graph, initial, params)
+            result_values = optimizer.optimize()
         except Exception:
-            logger.exception("LM Optimization failed")
+            logger.exception("GNC Optimization failed")
             # as we did not perform the bundle adjustment, we skip computing the total reprojection error
             return GtsfmData(initial_data.number_images())
 
