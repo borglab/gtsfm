@@ -199,11 +199,7 @@ def compute_ba_pose_metrics(
     """
     wTi_aligned_list = ba_output.get_camera_poses()
     i2Ui1_dict_gt = simulate_twoview_translation_direction_measurements(gt_wTi_list)
-
-    print("wTi_aligned_list", wTi_aligned_list)
-    print("gt_wTi_list", gt_wTi_list)
-    print("i2Ui1_dict_gt", i2Ui1_dict_gt)
-
+    
     wRi_aligned_list, wti_aligned_list = get_rotations_translations_from_poses(wTi_aligned_list)
     gt_wRi_list, gt_wti_list = get_rotations_translations_from_poses(gt_wTi_list)
 
