@@ -1,25 +1,31 @@
-"""Unit tests for the COLMAP Loader class.
+"""Unit tests for the AstroNetLoader class.
 
-Authors: John Lambert
+Authors: Travis Driver
 """
 
 import unittest
 from pathlib import Path
 
 import numpy as np
-import trimesh
 from gtsam import Pose3, PinholeCameraCal3Bundler
 
 from gtsfm.common.image import Image
 from gtsfm.loader.astronet_loader import AstroNetLoader
+from gtsfm.utils.read_write_model import read_model
 import gtsfm.utils.io as io_utils
 
 TEST_DATA_ROOT = Path(__file__).resolve().parent.parent / "data"
+
+# These lists specify a subset of the Point3D IDs, and their corresponding SfmTrack index in the loader, for testing.
+# Specifically, given some index `j`, the data in the Point3D with ID `TEST_POINT3D_IDS[j]` should match that in the
+# SfmTrack indexed by `TEST_SFMTRACKS_INDICES[j]`.
 TEST_POINT3D_IDS = [7, 2560, 3063, 3252, 3424, 3534, 3653, 3786, 3920, 4062, 4420, 4698, 3311, 3963, 325]
 TEST_SFMTRACKS_INDICES = [0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400]
 
 
 class TestAstroNetLoader(unittest.TestCase):
+    """Class containing tests for the AstroNetLoader."""
+
     def setUp(self):
         """Set up the loader for the test."""
         super().setUp()
@@ -27,6 +33,10 @@ class TestAstroNetLoader(unittest.TestCase):
         data_dir = TEST_DATA_ROOT / "test_2011212_opnav_022"
         gt_scene_mesh_path = data_dir / "vesta_5002.ply"
 
+        # Read in COLMAP-formatted data for comparison.
+        self.cameras, self.images, self.points3d = read_model(data_dir)
+
+        # Initialize Loader.
         self.loader = AstroNetLoader(
             data_dir,
             gt_scene_mesh_path=gt_scene_mesh_path,
@@ -128,17 +138,28 @@ class TestAstroNetLoader(unittest.TestCase):
             fetched_pose = self.loader.get_camera_pose(25)
             self.assertIsNone(fetched_pose)
 
-    def test_trimesh_sfmtracks_align(self):
-        """Tests that the ground truth scene mesh aligns with sfmtracks"""
-        prox = trimesh.proximity.ProximityQuery(self.loader._gt_scene_trimesh)
-        sfmtracks_point3s, surface_point3s = [], []
-        for idx_sfmtrack in TEST_SFMTRACKS_INDICES:
-            point3D = self.loader.get_sfmtrack(idx_sfmtrack).point3().reshape((1, 3))
-            closest, _, _ = prox.on_surface(point3D)
-            sfmtracks_point3s.append(point3D.flatten())
-            surface_point3s.append(closest.flatten())
-        np.testing.assert_allclose(sfmtracks_point3s, surface_point3s)
-        np.testing.assert_allclose(sfmtracks_point3s, self.loader._gt_scene_trimesh.vertices[TEST_POINT3D_IDS])
+    def test_sfmtracks_point3(self):
+        """Tests that the 3D point of the SfmTrack matches the AstroNet data."""
+        sfmtracks_point3s = [
+            self.loader.get_sfmtrack(sfmtrack_idx).point3().flatten() for sfmtrack_idx in TEST_SFMTRACKS_INDICES
+        ]
+        astronet_point3s = [self.points3d[point3d_id].xyz.flatten() for point3d_id in TEST_POINT3D_IDS]
+        # np.testing.assert_allclose(sfmtracks_point3s, self.loader._gt_scene_trimesh.vertices[TEST_POINT3D_IDS])
+        np.testing.assert_allclose(sfmtracks_point3s, astronet_point3s)
+
+    def test_sfmtracks_measurements(self):
+        """Tests that the SfmTrack measurements match the AstroNet data."""
+        for idx in range(len(TEST_SFMTRACKS_INDICES)):
+            sfmtrack = self.loader.get_sfmtrack(TEST_SFMTRACKS_INDICES[idx])
+            sfmtrack_measurements = [
+                sfmtrack.measurement(image_idx)[1].flatten() for image_idx in range(sfmtrack.number_measurements())
+            ]
+            point3d = self.points3d[TEST_POINT3D_IDS[idx]]
+            astronet_measurements = [
+                self.images[image_id].xys[point2d_idx]
+                for (image_id, point2d_idx) in zip(point3d.image_ids, point3d.point2D_idxs)
+            ]
+            np.testing.assert_allclose(sfmtrack_measurements, astronet_measurements)
 
     def test_colmap2gtsfm(self):
         """Tests the colmap2gtsfm static method by forward projecting tracks.
