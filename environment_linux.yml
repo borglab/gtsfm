@@ -33,12 +33,11 @@ dependencies:
   - cudatoolkit=10.2
   - opencv=4.5.0 # preferring conda-forge's distribution as it provides the latest distribution
   - pytorch
+  - embree
   # io
   - h5py
   - plotly=4.14.3
   - tabulate
   - pip:
-    - pydegensac
-
-
-
+      - pydegensac
+      - trimesh
