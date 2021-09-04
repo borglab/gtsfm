@@ -8,7 +8,7 @@ SceneOptimizer:
   feature_extractor:
     _target_: gtsfm.feature_extractor.FeatureExtractor
     detector_descriptor:
-      _target_: gtsfm.frontend.detector_descriptor.sift.SIFTDetectorDescriptor
+      _target_: gtsfm.frontend.detector_descriptor.sift.SIFTColmap
 
 
   two_view_estimator:
