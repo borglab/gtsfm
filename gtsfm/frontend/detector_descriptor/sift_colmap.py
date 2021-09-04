@@ -9,6 +9,7 @@ from typing import Tuple
 import numpy as np
 import pycolmap
 
+import gtsfm.utils.images as image_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.detector_descriptor.detector_descriptor_base import DetectorDescriptorBase
@@ -29,7 +30,8 @@ class SIFTColmap(DetectorDescriptorBase):
             Detected keypoints, with length N <= max_keypoints.
             Corr. descriptors, of shape (N, D) where D is the dimension of each descriptor.
         """
-        vlfeat_keypoints, responses, descriptors = pycolmap.extract_sift(image.value_array)
+        gray_image = image_utils.rgb_to_gray_cv(image)
+        vlfeat_keypoints, responses, descriptors = pycolmap.extract_sift(gray_image.value_array)
 
         # sort the features and descriptors by the score
         # (need to sort here as we need the sorting order for descriptors)
