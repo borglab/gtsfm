@@ -5,14 +5,15 @@ Authors: Xiaolong Wu, John Lambert, Ayush Baid
 
 import numpy as np
 from pathlib import Path
-from typing import List, NamedTuple, Tuple
+from typing import List, NamedTuple, Optional, Tuple
 
 import dask
 import gtsam
 from dask.delayed import Delayed
-from gtsam import GeneralSFMFactorCal3Bundler, SfmTrack, Values, symbol_shorthand
+from gtsam import GeneralSFMFactorCal3Bundler, Pose3, SfmTrack, Values, symbol_shorthand
 
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.metrics as metrics_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
@@ -37,14 +38,17 @@ class BundleAdjustmentOptimizer(NamedTuple):
 
     output_reproj_error_thresh: float
 
-    def run(self, initial_data: GtsfmData) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
+    def run(
+        self, initial_data: GtsfmData, wTi_list_gt: Optional[List[Pose3]] = None
+    ) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
 
         Args:
             initial_data: initialized cameras, tracks w/ their 3d landmark from triangulation.
+            wTi_list_gt: list of GT camera poses, ordered by camera index.
 
         Results:
-            Optimized camera poses, 3D point w/ tracks, and error metrics.
+            Optimized camera poses, 3D point w/ tracks, and error metrics, aligned to GT (if provided).
             Metrics group containing metrics for both filtered and unfiltered BA results.
         """
         logger.info(
@@ -127,18 +131,33 @@ class BundleAdjustmentOptimizer(NamedTuple):
         def get_metrics_from_sfm_data(sfm_data: GtsfmData, suffix: str) -> List[GtsfmMetric]:
             """Helper to get bundle adjustment metrics from a GtsfmData object with a suffix for metric names."""
             metrics = []
+            metrics.append(GtsfmMetric(name="number_cameras", data=len(sfm_data.get_valid_camera_indices())))
             metrics.append(GtsfmMetric("number_tracks" + suffix, sfm_data.number_tracks()))
-            metrics.append(GtsfmMetric("3d_track_lengths" + suffix, sfm_data.get_track_lengths()))
-            metrics.append(GtsfmMetric("reprojection_errors" + suffix, sfm_data.get_scene_reprojection_errors()))
+            metrics.append(
+                GtsfmMetric(
+                    "3d_track_lengths" + suffix,
+                    sfm_data.get_track_lengths(),
+                    plot_type=GtsfmMetric.PlotType.HISTOGRAM,
+                )
+            )
+            metrics.append(GtsfmMetric(f"reprojection_errors{suffix}_px", sfm_data.get_scene_reprojection_errors()))
             return metrics
 
         ba_metrics = GtsfmMetricsGroup(
-            "bundle_adjustment_metrics", get_metrics_from_sfm_data(optimized_data, suffix="_unfiltered")
+            name="bundle_adjustment_metrics", metrics=get_metrics_from_sfm_data(optimized_data, suffix="_unfiltered")
         )
         logger.info("[Result] Number of tracks before filtering: %d", optimized_data.number_tracks())
 
         # filter the largest errors
         filtered_result = optimized_data.filter_landmarks(self.output_reproj_error_thresh)
+
+        if wTi_list_gt is not None:
+            # align the sparse multi-view estimate after BA to the ground truth pose graph.
+            filtered_result = filtered_result.align_via_Sim3_to_poses(wTi_list_gt)
+            ba_pose_error_metrics = metrics_utils.compute_ba_pose_metrics(
+                gt_wTi_list=wTi_list_gt, ba_output=filtered_result
+            )
+            ba_metrics.extend(metrics_group=ba_pose_error_metrics)
 
         ba_metrics.add_metrics(get_metrics_from_sfm_data(filtered_result, suffix="_filtered"))
         # ba_metrics.save_to_json(os.path.join(METRICS_PATH, "bundle_adjustment_metrics.json"))
@@ -150,17 +169,20 @@ class BundleAdjustmentOptimizer(NamedTuple):
 
         return filtered_result, ba_metrics
 
-    def create_computation_graph(self, sfm_data_graph: Delayed) -> Tuple[Delayed, Delayed]:
+    def create_computation_graph(
+        self, sfm_data_graph: Delayed, gt_poses_graph: Optional[List[Delayed]] = None
+    ) -> Tuple[Delayed, Delayed]:
         """Create the computation graph for performing bundle adjustment.
 
         Args:
             sfm_data_graph: an GtsfmData object wrapped up using dask.delayed
+            gt_poses_graph: list of GT camera poses, ordered by camera index (Pose3), wrapped up as Delayed
 
         Returns:
-            GtsfmData wrapped up using dask.delayed
+            GtsfmData aligned to GT (if provided), wrapped up using dask.delayed
             Metrics group for BA results, wrapped up using dask.delayed
         """
-        data_metrics_graph = dask.delayed(self.run)(sfm_data_graph)
+        data_metrics_graph = dask.delayed(self.run)(sfm_data_graph, gt_poses_graph)
         return data_metrics_graph[0], data_metrics_graph[1]
 
 
