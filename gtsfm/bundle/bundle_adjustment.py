@@ -38,7 +38,9 @@ class BundleAdjustmentOptimizer(NamedTuple):
 
     output_reproj_error_thresh: float
 
-    def run(self, initial_data: GtsfmData, wTi_list_gt: Optional[List[Pose3]] = None) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
+    def run(
+        self, initial_data: GtsfmData, wTi_list_gt: Optional[List[Pose3]] = None
+    ) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
 
         Args:
