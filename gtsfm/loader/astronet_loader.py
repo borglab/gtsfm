@@ -53,14 +53,15 @@ class AstroNetLoader(LoaderBase):
                 Note: vertex size mismath observed when reading in from OBJ format. Prefer PLY.
             use_gt_intrinsics: whether to use ground truth intrinsics. If calibration is
                not found on disk, then use_gt_intrinsics will be set to false automatically.
-            use_gt_extrinsics (optional): whether to use ground truth extrinsics
-            use_gt_sfmtracks (optional): whether to use ground truth tracks
+            use_gt_extrinsics (optional): whether to use ground truth extrinsics.
+            use_gt_sfmtracks (optional): whether to use ground truth tracks.
             max_frame_lookahead (optional): maximum number of consecutive frames to consider for
                 matching/co-visibility. Any value of max_frame_lookahead less than the size of
-                the dataset assumes data is sequentially captured
+                the dataset assumes data is sequentially captured.
 
         Raises:
-            FileNotFoundError if image path does not exist
+            FileNotFoundError if image path does not exist.
+            ValueError if ground truth camera calibrations not provided.
         """
         self._use_gt_intrinsics = use_gt_intrinsics
         self._use_gt_extrinsics = use_gt_extrinsics
@@ -74,8 +75,10 @@ class AstroNetLoader(LoaderBase):
                 _cameras, _images, _points3d, load_sfmtracks=use_gt_sfmtracks
             )
 
+        # Camera intrinsics are currently required due to absense of EXIF data and diffculty in approximating focal
+        # length (usually 10000 to 100000 pixels).
         if self._calibrations is None:
-            self._use_gt_intrinsics = False
+            raise ValueError("Camera calibrations cannot be None.")
 
         if self._wTi_list is None:
             self._use_gt_extrinsics = False
