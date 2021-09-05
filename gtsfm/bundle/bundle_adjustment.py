@@ -131,6 +131,7 @@ class BundleAdjustmentOptimizer(NamedTuple):
         def get_metrics_from_sfm_data(sfm_data: GtsfmData, suffix: str) -> List[GtsfmMetric]:
             """Helper to get bundle adjustment metrics from a GtsfmData object with a suffix for metric names."""
             metrics = []
+            metrics.append(GtsfmMetric(name="number_cameras", data=sfm_data.number_images()))
             metrics.append(GtsfmMetric("number_tracks" + suffix, sfm_data.number_tracks()))
             metrics.append(
                 GtsfmMetric(

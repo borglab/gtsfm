@@ -158,6 +158,7 @@ class DataAssociation(NamedTuple):
                     np.array(per_rejected_track_avg_errors).astype(np.float32),
                     store_full_data=False,
                 ),
+                GtsfmMetric(name="number_cameras", data=connected_data.number_images()),
             ],
         )
 
