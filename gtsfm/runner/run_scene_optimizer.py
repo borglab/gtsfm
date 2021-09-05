@@ -16,7 +16,7 @@ DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "tests" / "data"
 logger = logger_utils.get_logger()
 
 
-def run_scene_optimizer(args) -> None:
+def run_scene_optimizer(args: argparse.Namespace) -> None:
     """ """
     with hydra.initialize_config_module(config_module="gtsfm.configs"):
         # config is relative to the gtsfm module
