@@ -20,7 +20,7 @@ def compute_track_reprojection_errors(
         track: 3d point/landmark and its corresponding 2d measurements in various cameras
 
     Returns:
-        reprojection errors for each measurement.
+        reprojection errors for each measurement (measured in pixels).
         avg_track_reproj_error: average reprojection error of all meausurements in track.
     """
     errors = []
@@ -41,7 +41,7 @@ def compute_track_reprojection_errors(
             errors.append(np.nan)
 
     errors = np.array(errors)
-    avg_track_reproj_error = errors.mean()
+    avg_track_reproj_error = np.nanmean(errors)
     return errors, avg_track_reproj_error
 
 
@@ -56,11 +56,16 @@ def compute_point_reprojection_errors(
         measurements: corresponding 2d measurements (of 3d point above) in various cameras
 
     Returns:
-        reprojection errors for each measurement.
+        reprojection errors for each measurement (measured in pixels).
         avg_track_reproj_error: average reprojection error of all meausurements in track.
     """
     errors = []
     for (i, uv_measured) in measurements:
+
+        if i not in track_camera_dict:
+            # camera pose was not successfully estimated, PinholeCameraCal3Bundler was uninitialized
+            errors.append(np.nan)
+            continue
 
         # get the camera associated with the measurement
         camera = track_camera_dict[i]
@@ -74,6 +79,6 @@ def compute_point_reprojection_errors(
             errors.append(np.nan)
 
     errors = np.array(errors)
-    avg_track_reproj_error = errors.mean()
+    avg_track_reproj_error = np.nanmean(errors)
     return errors, avg_track_reproj_error
 

@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 from gtsam import PinholeCameraCal3Bundler, Pose3, SfmTrack
 
+import gtsfm.utils.geometry_comparisons as geometry_comparisons
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reproj_utils
@@ -226,7 +227,7 @@ class GtsfmData:
         Returns:
             New object with the selected cameras and associated tracks.
         """
-        new_data = cls(gtsfm_data.number_images())
+        new_data = cls(number_images=gtsfm_data.number_images())
 
         for i in gtsfm_data.get_valid_camera_indices():
             if i in camera_indices:
@@ -252,15 +253,15 @@ class GtsfmData:
         """Get the scene reprojection errors for all 3D points and all associated measurements.
 
         Returns:
-            Reprojection errors as a 1D numpy array.
+            Reprojection errors (measured in pixels) as a 1D numpy array.
         """
         scene_reproj_errors: List[float] = []
         for track in self._tracks:
             track_errors, _ = reproj_utils.compute_track_reprojection_errors(self._cameras, track)
+            # passing an array argument to .extend() will convert the array to a list, and append its elements
             scene_reproj_errors.extend(track_errors)
 
         return np.array(scene_reproj_errors)
-
 
     def aggregate_metrics(self) -> Dict[str, Any]:
         """Aggregate metrics about the reprojection errors and 3d track lengths (summary stats).
@@ -284,11 +285,11 @@ class GtsfmData:
             "median": convert_to_rounded_float(np.median(track_lengths_3d)),
             "max": convert_to_rounded_float(track_lengths_3d.max()),
         }
-        stats_dict["reprojection_errors"] = {
-            "min": convert_to_rounded_float(np.min(scene_reproj_errors)),
-            "mean": convert_to_rounded_float(np.mean(scene_reproj_errors)),
-            "median": convert_to_rounded_float(np.median(scene_reproj_errors)),
-            "max": convert_to_rounded_float(np.max(scene_reproj_errors)),
+        stats_dict["reprojection_errors_px"] = {
+            "min": convert_to_rounded_float(np.nanmin(scene_reproj_errors)),
+            "mean": convert_to_rounded_float(np.nanmean(scene_reproj_errors)),
+            "median": convert_to_rounded_float(np.nanmedian(scene_reproj_errors)),
+            "max": convert_to_rounded_float(np.nanmax(scene_reproj_errors)),
         }
         return stats_dict
 
@@ -299,16 +300,16 @@ class GtsfmData:
             Average of reprojection errors for every 3d point to its 2d measurements
         """
         scene_reproj_errors = self.get_scene_reprojection_errors()
-        scene_avg_reproj_error = np.mean(scene_reproj_errors)
+        scene_avg_reproj_error = np.nanmean(scene_reproj_errors)
         return scene_avg_reproj_error
 
     def log_scene_reprojection_error_stats(self) -> None:
         """Logs reprojection error stats for all 3d points in the entire scene."""
         scene_reproj_errors = self.get_scene_reprojection_errors()
-        logger.info("Min scene reproj error: %.3f", np.min(scene_reproj_errors))
-        logger.info("Avg scene reproj error: %.3f", np.mean(scene_reproj_errors))
-        logger.info("Median scene reproj error: %.3f", np.median(scene_reproj_errors))
-        logger.info("Max scene reproj error: %.3f", np.max(scene_reproj_errors))
+        logger.info("Min scene reproj error: %.3f", np.nanmin(scene_reproj_errors))
+        logger.info("Avg scene reproj error: %.3f", np.nanmean(scene_reproj_errors))
+        logger.info("Median scene reproj error: %.3f", np.nanmedian(scene_reproj_errors))
+        logger.info("Max scene reproj error: %.3f", np.nanmax(scene_reproj_errors))
 
     def __validate_track(self, track: SfmTrack, reproj_err_thresh: float) -> bool:
         """Validates a track based on reprojection errors and cheirality checks.
@@ -345,3 +346,44 @@ class GtsfmData:
                 filtered_data.add_track(track)
 
         return filtered_data
+
+    def align_via_Sim3_to_poses(self, wTi_list_ref: List[Optional[Pose3]]) -> "GtsfmData":
+        """Align estimated, sparse multiview result (self) to a set of reference poses.
+
+        Args:
+            wTi_list_ref: list of reference/target camera poses, ordered by camera index.
+
+        Returns:
+            aligned_data: sparse multiview result that is aligned to the poses above.
+        """
+        # these are the estimated poses (source, to be aligned)
+        wTi_list = self.get_camera_poses()
+
+        # align the poses which are valid (i.e. are not None)
+        # some camera indices may have been lost after pruning to largest connected component, leading to None values
+        # rSe aligns the estimate `e` frame to the reference `r` frame
+        wTi_list_aligned, rSe = geometry_comparisons.align_poses_sim3_ignore_missing(wTi_list_ref, wTi_list)
+
+        aligned_data = GtsfmData(number_images=self.number_images())
+        # update the camera pose to the aligned poses, but use the previous calibration
+        for i, wTi in enumerate(wTi_list_aligned):
+            if wTi is None:
+                continue
+            calibration = self.get_camera(i).calibration()
+            aligned_data.add_camera(i, PinholeCameraCal3Bundler(wTi, calibration))
+
+        # align estimated tracks to the ground truth
+        for j in range(self.number_tracks()):
+            # align each 3d point
+            track_est = self.get_track(index=j)
+            # place into the GT reference frame
+            pt_ref = rSe.transformFrom(track_est.point3())
+            track_aligned = SfmTrack(pt_ref)
+
+            # copy over the 2d measurements directly into the new track
+            for k in range(track_est.number_measurements()):
+                i, uv = track_est.measurement(k)
+                track_aligned.add_measurement(i, uv)
+            aligned_data.add_track(track_aligned)
+
+        return aligned_data

@@ -39,13 +39,13 @@ class TestSceneOptimizer(unittest.TestCase):
 
             # generate the dask computation graph
             sfm_result_graph = obj.create_computation_graph(
-                len(self.loader),
-                self.loader.get_valid_pairs(),
-                self.loader.create_computation_graph_for_images(),
-                self.loader.create_computation_graph_for_intrinsics(),
+                num_images=len(self.loader),
+                image_pair_indices=self.loader.get_valid_pairs(),
+                image_graph=self.loader.create_computation_graph_for_images(),
+                camera_intrinsics_graph=self.loader.create_computation_graph_for_intrinsics(),
+                image_shape_graph=self.loader.create_computation_graph_for_image_shapes(),
                 gt_pose_graph=self.loader.create_computation_graph_for_poses(),
             )
-
             # create dask client
             cluster = LocalCluster(n_workers=1, threads_per_worker=4)
 

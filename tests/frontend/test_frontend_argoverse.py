@@ -44,7 +44,7 @@ class TestFrontend(unittest.TestCase):
         image_pair_indices = self.loader.get_valid_pairs()
         image_graph = self.loader.create_computation_graph_for_images()
         camera_intrinsics_graph = self.loader.create_computation_graph_for_intrinsics()
-        use_intrinsics_in_verification = True
+        image_shape_graph = self.loader.create_computation_graph_for_image_shapes()
 
         # detection and description graph
         keypoints_graph_list = []
@@ -58,14 +58,15 @@ class TestFrontend(unittest.TestCase):
         i2Ri1_graph_dict = {}
         i2Ui1_graph_dict = {}
         for (i1, i2) in image_pair_indices:
-            (i2Ri1, i2Ui1, _, _, _, _) = two_view_estimator.create_computation_graph(
+            (i2Ri1, i2Ui1, v_corr_idxs, two_view_report) = two_view_estimator.create_computation_graph(
                 keypoints_graph_list[i1],
                 keypoints_graph_list[i2],
                 descriptors_graph_list[i1],
                 descriptors_graph_list[i2],
                 camera_intrinsics_graph[i1],
                 camera_intrinsics_graph[i2],
-                use_intrinsics_in_verification,
+                image_shape_graph[i1],
+                image_shape_graph[i2],
             )
             i2Ri1_graph_dict[(i1, i2)] = i2Ri1
             i2Ui1_graph_dict[(i1, i2)] = i2Ui1
@@ -78,23 +79,35 @@ class TestFrontend(unittest.TestCase):
         feature_extractor = FeatureExtractor(det_desc)
         two_view_estimator = TwoViewEstimator(
             matcher=TwoWayMatcher(),
-            verifier=Ransac(use_intrinsics_in_verification=True),
-            corr_metric_dist_threshold=0.1,
+            verifier=Ransac(
+                use_intrinsics_in_verification=True,
+                estimation_threshold_px=4,
+                min_allowed_inlier_ratio_est_model=0.1
+            ),
+            eval_threshold_px=4,
+            min_num_inliers_acceptance=15
         )
         self.__compare_frontend_result_error(
             feature_extractor, two_view_estimator, euler_angle_err_tol=1.4, translation_err_tol=0.026,
         )
 
-    def test_sift_twoway_degensac(self):
-        """Check DoG + SIFT + 2-way Matcher + DEGENSAC-8pt frontend."""
-        det_desc = SIFTDetectorDescriptor()
-        feature_extractor = FeatureExtractor(det_desc)
-        two_view_estimator = TwoViewEstimator(
-            matcher=TwoWayMatcher(), verifier=Degensac(), corr_metric_dist_threshold=0.1
-        )
-        self.__compare_frontend_result_error(
-            feature_extractor, two_view_estimator, euler_angle_err_tol=0.95, translation_err_tol=0.03,
-        )
+    # def test_sift_twoway_degensac(self):
+    #     """Check DoG + SIFT + 2-way Matcher + DEGENSAC-8pt frontend."""
+    #     det_desc = SIFTDetectorDescriptor()
+    #     feature_extractor = FeatureExtractor(det_desc)
+    #     two_view_estimator = TwoViewEstimator(
+    #         matcher=TwoWayMatcher(),
+    #         verifier=Degensac(
+    #             use_intrinsics_in_verification=False,
+    #             estimation_threshold_px=0.5,
+    #             min_allowed_inlier_ratio_est_model=0.05
+    #         ),
+    #         eval_threshold_px=4,
+    #         min_num_inliers_acceptance=15
+    #     )
+    #     self.__compare_frontend_result_error(
+    #         feature_extractor, two_view_estimator, euler_angle_err_tol=0.95, translation_err_tol=0.03,
+    #     )
 
     def __compare_frontend_result_error(
         self,
@@ -111,8 +124,9 @@ class TestFrontend(unittest.TestCase):
         with dask.config.set(scheduler="single-threaded"):
             i2Ri1_results, i2ti1_results = dask.compute(i2Ri1_graph_dict, i2Ui1_graph_dict)
 
-        i2Ri1 = i2Ri1_results[(0, 1)]
-        i2Ui1 = i2ti1_results[(0, 1)]
+        i1, i2 = 0, 1
+        i2Ri1 = i2Ri1_results[(i1, i2)]
+        i2Ui1 = i2ti1_results[(i1, i2)]
 
         # Ground truth is provided in inverse format, so invert SE(3) object
         i2Ti1 = Pose3(i2Ri1, i2Ui1.point3())

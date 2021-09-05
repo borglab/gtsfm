@@ -112,15 +112,15 @@ def generate_random_keypoints(num_keypoints: int, image_shape: Tuple[int, int]) 
 
     Args:
         num_keypoints: number of features to generate.
-        image_shape: size of the image.
+        image_shape: size of the image, as (H,W)
 
     Returns:
         generated keypoints.
     """
-
     if num_keypoints == 0:
         return Keypoints(coordinates=np.array([]))
 
+    H, W = image_shape
     return Keypoints(
-        coordinates=np.random.randint([0, 0], high=image_shape, size=(num_keypoints, 2)).astype(np.float32)
+        coordinates=np.random.randint([0, 0], high=(W,H), size=(num_keypoints, 2)).astype(np.float32)
     )
