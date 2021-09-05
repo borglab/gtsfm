@@ -166,7 +166,9 @@ class BundleAdjustmentOptimizer(NamedTuple):
 
         return filtered_result, ba_metrics
 
-    def create_computation_graph(self, sfm_data_graph: Delayed, gt_poses_graph: Optional[List[Delayed]] = None) -> Tuple[Delayed, Delayed]:
+    def create_computation_graph(
+        self, sfm_data_graph: Delayed, gt_poses_graph: Optional[List[Delayed]] = None
+    ) -> Tuple[Delayed, Delayed]:
         """Create the computation graph for performing bundle adjustment.
 
         Args:
