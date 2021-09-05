@@ -13,7 +13,7 @@ from gtsfm.utils.logger import get_logger
 logger = get_logger()
 
 
-def run_scene_optimizer(args) -> None:
+def run_scene_optimizer(args: argparse.Namespace) -> None:
     """ Run GTSFM over images from an Argoverse vehicle log"""
     with hydra.initialize_config_module(config_module="gtsfm.configs"):
         # config is relative to the gtsfm module
