@@ -26,7 +26,7 @@ TEST_SFMTRACKS_INDICES = [0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
 class TestAstroNetLoader(unittest.TestCase):
     """Class containing tests for the AstroNetLoader."""
 
-    def setUp(self) -> None:
+    def setUp(self):
         """Set up the loader for the test."""
         super().setUp()
 
@@ -124,7 +124,7 @@ class TestAstroNetLoader(unittest.TestCase):
         index_to_test = 1
         file_path = TEST_DATA_ROOT / "test_2011212_opnav_022" / "images" / "00000001.png"
         loader_image = self.loader.get_image(index_to_test)
-        expected_image = io_utils.load_image(file_path)
+        expected_image = io_utils.load_image(str(file_path))
         np.testing.assert_allclose(expected_image.value_array, loader_image.value_array)
 
     def test_get_camera_pose_exists(self) -> None:
