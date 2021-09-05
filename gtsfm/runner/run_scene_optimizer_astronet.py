@@ -20,45 +20,9 @@ DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "tests" / "data"
 logger = logger_utils.get_logger()
 
 
-def run_scene_optimizer(args) -> None:
-    """Runs SceneOptimizer."""
-    with hydra.initialize_config_module(config_module="gtsfm.configs"):
-        # config is relative to the gtsfm module
-        cfg = hydra.compose(config_name=args.config_name)
-        scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
-
-        # Initialize loader.
-        loader = AstroNetLoader(
-            data_dir=args.data_dir,
-            gt_scene_mesh_path=args.scene_mesh_path,
-            use_gt_intrinsics=True,
-            use_gt_extrinsics=True,
-            use_gt_sfmtracks=False,
-            max_frame_lookahead=args.max_frame_lookahead,
-        )
-
-        # Create Dask task graph.
-        # Note: scene mesh not surrently used by scene_optimizer
-        sfm_result_graph = scene_optimizer.create_computation_graph(
-            num_images=len(loader),
-            image_pair_indices=loader.get_valid_pairs(),
-            image_graph=loader.create_computation_graph_for_images(),
-            camera_intrinsics_graph=loader.create_computation_graph_for_intrinsics(),
-            image_shape_graph=loader.create_computation_graph_for_image_shapes(),
-            gt_pose_graph=loader.create_computation_graph_for_poses(),
-        )
-
-        # Create Dask client.
-        cluster = LocalCluster(n_workers=args.num_workers, threads_per_worker=args.threads_per_worker)
-
-        # Compute SfM solution.
-        with Client(cluster), performance_report(filename="dask-report.html"):
-            sfm_result = sfm_result_graph.compute()
-        assert isinstance(sfm_result, GtsfmData)
-
-
-if __name__ == "__main__":
-
+def run_scene_optimizer() -> None:
+    """Runs SceneOptimizer on AstroNet data."""
+    # Parse inputs.
     parser = argparse.ArgumentParser(description="Run GTSfM on AstroNet segment.")
     parser.add_argument(
         "--data_dir", "-d", type=str, required=True, help="path to directory containing AstroNet segment"
@@ -98,7 +62,42 @@ if __name__ == "__main__":
         default=None,
         help="Path to file containing triangular surface mesh of target body.",
     )
-
     args = parser.parse_args()
 
-    run_scene_optimizer(args)
+    # Initialize SceneOptimizer from config.
+    with hydra.initialize_config_module(config_module="gtsfm.configs"):  # config is relative to the gtsfm module
+        cfg = hydra.compose(config_name=args.config_name)
+    scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
+
+    # Initialize loader.
+    loader = AstroNetLoader(
+        data_dir=args.data_dir,
+        gt_scene_mesh_path=args.scene_mesh_path,
+        use_gt_intrinsics=True,
+        use_gt_extrinsics=True,
+        use_gt_sfmtracks=False,
+        max_frame_lookahead=args.max_frame_lookahead,
+    )
+
+    # Create Dask task graph.
+    # Note: scene mesh not surrently used by scene_optimizer
+    sfm_result_graph = scene_optimizer.create_computation_graph(
+        num_images=len(loader),
+        image_pair_indices=loader.get_valid_pairs(),
+        image_graph=loader.create_computation_graph_for_images(),
+        camera_intrinsics_graph=loader.create_computation_graph_for_intrinsics(),
+        image_shape_graph=loader.create_computation_graph_for_image_shapes(),
+        gt_pose_graph=loader.create_computation_graph_for_poses(),
+    )
+
+    # Create Dask client.
+    cluster = LocalCluster(n_workers=args.num_workers, threads_per_worker=args.threads_per_worker)
+
+    # Compute SfM solution.
+    with Client(cluster), performance_report(filename="dask-report.html"):
+        sfm_result = sfm_result_graph.compute()
+    assert isinstance(sfm_result, GtsfmData)
+
+
+if __name__ == "__main__":
+    run_scene_optimizer()

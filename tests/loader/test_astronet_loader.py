@@ -26,7 +26,7 @@ TEST_SFMTRACKS_INDICES = [0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 
 class TestAstroNetLoader(unittest.TestCase):
     """Class containing tests for the AstroNetLoader."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up the loader for the test."""
         super().setUp()
 
@@ -68,13 +68,13 @@ class TestAstroNetLoader(unittest.TestCase):
         assert self.loader.num_sfmtracks == 1465
         assert len(self.loader._sfmtracks) == 1465
 
-    def test_get_image_valid_index(self):
+    def test_get_image_valid_index(self) -> None:
         """Tests that get_image works for all valid indices."""
 
         for idx in range(len(self.loader)):
             self.assertIsNotNone(self.loader.get_image(idx))
 
-    def test_get_image_invalid_index(self):
+    def test_get_image_invalid_index(self) -> None:
         """Test that get_image raises an exception on an invalid index."""
         # negative index
         with self.assertRaises(IndexError):
@@ -98,13 +98,13 @@ class TestAstroNetLoader(unittest.TestCase):
         img0 = self.loader.get_image(0)
         assert isinstance(img0, Image)
 
-    def test_get_sfmtrack_valid_index(self):
+    def test_get_sfmtrack_valid_index(self) -> None:
         """Tests that get_sfmtrack works for all valid indices."""
         for idx_sfmtrack in TEST_SFMTRACKS_INDICES:
             sfmtrack = self.loader.get_sfmtrack(idx_sfmtrack)
             self.assertIsNotNone(sfmtrack.point3())
 
-    def test_get_sfmtrack_invalid_index(self):
+    def test_get_sfmtrack_invalid_index(self) -> None:
         """Test that get_sfmtrack raises an exception on an invalid index."""
         # negative index
         with self.assertRaises(IndexError):
@@ -116,7 +116,7 @@ class TestAstroNetLoader(unittest.TestCase):
         with self.assertRaises(IndexError):
             self.loader.get_sfmtrack(99999)
 
-    def test_image_contents(self):
+    def test_image_contents(self) -> None:
         """Test the actual image which is being fetched by the loader at an index.
 
         This test's primary purpose is to check if the ordering of filename is being respected by the loader
@@ -127,18 +127,18 @@ class TestAstroNetLoader(unittest.TestCase):
         expected_image = io_utils.load_image(file_path)
         np.testing.assert_allclose(expected_image.value_array, loader_image.value_array)
 
-    def test_get_camera_pose_exists(self):
+    def test_get_camera_pose_exists(self) -> None:
         """Tests that the correct pose is fetched (present on disk)."""
         fetched_pose = self.loader.get_camera_pose(1)
         self.assertTrue(isinstance(fetched_pose, Pose3))
 
-    def test_get_camera_invalid_index(self):
+    def test_get_camera_invalid_index(self) -> None:
         """Tests that the camera pose is None, because it is missing on disk."""
         with self.assertRaises(IndexError):
             fetched_pose = self.loader.get_camera_pose(25)
             self.assertIsNone(fetched_pose)
 
-    def test_sfmtracks_point3(self):
+    def test_sfmtracks_point3(self) -> None:
         """Tests that the 3D point of the SfmTrack matches the AstroNet data."""
         sfmtracks_point3s = [
             self.loader.get_sfmtrack(sfmtrack_idx).point3().flatten() for sfmtrack_idx in TEST_SFMTRACKS_INDICES
@@ -147,7 +147,7 @@ class TestAstroNetLoader(unittest.TestCase):
         # np.testing.assert_allclose(sfmtracks_point3s, self.loader._gt_scene_trimesh.vertices[TEST_POINT3D_IDS])
         np.testing.assert_allclose(sfmtracks_point3s, astronet_point3s)
 
-    def test_sfmtracks_measurements(self):
+    def test_sfmtracks_measurements(self) -> None:
         """Tests that the SfmTrack measurements match the AstroNet data."""
         for idx in range(len(TEST_SFMTRACKS_INDICES)):
             sfmtrack = self.loader.get_sfmtrack(TEST_SFMTRACKS_INDICES[idx])
@@ -161,7 +161,7 @@ class TestAstroNetLoader(unittest.TestCase):
             ]
             np.testing.assert_allclose(sfmtrack_measurements, astronet_measurements)
 
-    def test_colmap2gtsfm(self):
+    def test_colmap2gtsfm(self) -> None:
         """Tests the colmap2gtsfm static method by forward projecting tracks.
 
         This test also verifys that all data was read and ordered correctly.
