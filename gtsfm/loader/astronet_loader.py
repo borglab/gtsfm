@@ -14,10 +14,10 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
 
-from gtsfm.utils.read_write_model import read_model
-from gtsfm.utils.read_write_model import Camera as ColmapCamera
-from gtsfm.utils.read_write_model import Image as ColmapImage
-from gtsfm.utils.read_write_model import Point3D as ColmapPoint3D
+from thirdparty.colmap.scripts.python.read_write_model import read_model
+from thirdparty.colmap.scripts.python.read_write_model import Camera as ColmapCamera
+from thirdparty.colmap.scripts.python.read_write_model import Image as ColmapImage
+from thirdparty.colmap.scripts.python.read_write_model import Point3D as ColmapPoint3D
 
 
 logger = logger_utils.get_logger()
