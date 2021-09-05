@@ -28,8 +28,7 @@ def create_metrics_plots_html(json_path: str, output_dir: str) -> None:
         "frontend_summary.json",
         "averaging_metrics.json",
         "data_association_metrics.json",
-        "bundle_adjustment_metrics.json",
-        "mvs_input_metrics.json"
+        "bundle_adjustment_metrics.json"
     ]
     for filename in GTSFM_MODULE_METRICS_FNAMES:
         logger.info("Adding metrics from %s", filename)
