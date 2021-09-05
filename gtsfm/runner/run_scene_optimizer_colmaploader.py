@@ -1,4 +1,5 @@
 import argparse
+import time
 
 import hydra
 from dask.distributed import Client, LocalCluster, performance_report
@@ -12,8 +13,9 @@ from gtsfm.scene_optimizer import SceneOptimizer
 logger = logger_utils.get_logger()
 
 
-def run_scene_optimizer(args) -> None:
+def run_scene_optimizer(args: argparse.Namespace) -> None:
     """ """
+    start = time.time()
     with hydra.initialize_config_module(config_module="gtsfm.configs"):
         # config is relative to the gtsfm module
         cfg = hydra.compose(config_name=args.config_name)
@@ -42,6 +44,10 @@ def run_scene_optimizer(args) -> None:
             sfm_result = sfm_result_graph.compute()
 
         assert isinstance(sfm_result, GtsfmData)
+
+    end = time.time()
+    duration_sec = end - start
+    logger.info("GTSFM took %.2f minutes to compute sparse multi-view result.", duration_sec / 60)
 
 
 if __name__ == "__main__":
@@ -82,5 +88,4 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-
     run_scene_optimizer(args)

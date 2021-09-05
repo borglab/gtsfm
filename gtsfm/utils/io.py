@@ -211,7 +211,9 @@ def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> 
     with open(file_path, "w") as f:
         f.write("# Camera list with one line of data per camera:\n")
         f.write("#   CAMERA_ID, MODEL, WIDTH, HEIGHT, PARAMS[]\n")
-        f.write(f"# Number of cameras: {gtsfm_data.number_images()}\n")
+        # note that we save the number of etimated cameras, not the number of input images,
+        # which would instead be gtsfm_data.number_images().
+        f.write(f"# Number of cameras: {len(gtsfm_data.get_valid_camera_indices())}\n")
 
         for i in gtsfm_data.get_valid_camera_indices():
             camera = gtsfm_data.get_camera(i)
