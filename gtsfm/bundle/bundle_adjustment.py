@@ -84,8 +84,8 @@ class BundleAdjustmentOptimizer(NamedTuple):
         for i in valid_camera_indices:
             graph.push_back(
                 gtsam.PriorFactorPinholeCameraCal3Bundler(
-                    C(valid_camera_indices[i]),
-                    initial_data.get_camera(valid_camera_indices[i]),
+                    C(i),
+                    initial_data.get_camera(i),
                     gtsam.noiseModel.Isotropic.Sigma(PINHOLE_CAM_CAL3BUNDLER_DOF, 0.1),
                 )
             )
