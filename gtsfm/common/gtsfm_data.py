@@ -262,7 +262,6 @@ class GtsfmData:
 
         return np.array(scene_reproj_errors)
 
-
     def aggregate_metrics(self) -> Dict[str, Any]:
         """Aggregate metrics about the reprojection errors and 3d track lengths (summary stats).
 

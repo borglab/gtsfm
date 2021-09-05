@@ -69,9 +69,9 @@ class AstroNetLoader(LoaderBase):
 
         # Use COLMAP model reader to load data and convert to GTSfM format
         if Path(data_dir).exists():
-            _cameras, _images, _points = read_model(path=data_dir, ext=".bin")
+            _cameras, _images, _points3d = read_model(path=data_dir, ext=".bin")
             self._calibrations, self._wTi_list, img_fnames, self._sfmtracks = self.colmap2gtsfm(
-                _cameras, _images, _points, load_sfmtracks=use_gt_sfmtracks
+                _cameras, _images, _points3d, load_sfmtracks=use_gt_sfmtracks
             )
 
         if self._calibrations is None:
