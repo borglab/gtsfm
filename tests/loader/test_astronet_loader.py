@@ -11,7 +11,7 @@ from gtsam import Pose3, PinholeCameraCal3Bundler
 
 from gtsfm.common.image import Image
 from gtsfm.loader.astronet_loader import AstroNetLoader
-from thirdparty.colmap.scripts.python import read_model
+from thirdparty.colmap.scripts.python.read_write_model import read_model
 import gtsfm.utils.io as io_utils
 
 TEST_DATA_ROOT = Path(__file__).resolve().parent.parent / "data"
