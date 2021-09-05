@@ -9,7 +9,7 @@ from dask.delayed import Delayed
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point3, Pose3, Rot3
 
 import gtsfm.utils.graph as graph_utils
-import gtsfm.utils.metrics as metrics
+import gtsfm.utils.metrics as metrics_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
@@ -38,7 +38,7 @@ class MultiViewOptimizer:
         i2Ui1_graph: Dict[Tuple[int, int], Delayed],
         v_corr_idxs_graph: Dict[Tuple[int, int], Delayed],
         intrinsics_graph: List[Delayed],
-        gt_poses_graph: List[Delayed] = None,
+        gt_poses_graph: Optional[List[Delayed]] = None,
     ) -> Tuple[Delayed, Delayed, Delayed]:
         """Creates a computation graph for multi-view optimization.
 
@@ -49,9 +49,10 @@ class MultiViewOptimizer:
             i2Ui1_graph: relative unit-translations for image pairs, each value wrapped up as Delayed.
             v_corr_idxs_graph: indices of verified correspondences for image pairs, wrapped up as Delayed.
             intrinsics_graph: intrinsics for images, wrapped up as Delayed.
+            gt_poses_graph: list of GT camera poses, ordered by camera index (Pose3), wrapped up as Delayed
 
         Returns:
-            The GtsfmData input to bundle adjustment, wrapped up as Delayed.
+            The GtsfmData input to bundle adjustment, aligned to GT (if provided), wrapped up as Delayed.
             The final output GtsfmData, wrapped up as Delayed.
             List of GtsfmMetricGroups from different modules, wrapped up as Delayed.
         """
@@ -69,16 +70,20 @@ class MultiViewOptimizer:
             num_images, init_cameras_graph, v_corr_idxs_graph, keypoints_graph, images_graph
         )
 
-        ba_result_graph, ba_metrics_graph = self.ba_optimizer.create_computation_graph(ba_input_graph)
+        ba_result_graph, ba_metrics_graph = self.ba_optimizer.create_computation_graph(ba_input_graph, gt_poses_graph)
 
         if gt_poses_graph is None:
             return ba_input_graph, ba_result_graph, None
 
-        averaging_metrics_graph = dask.delayed(metrics.compute_averaging_metrics)(
+        averaging_metrics_graph = dask.delayed(metrics_utils.compute_averaging_metrics)(
             wRi_graph, wti_graph, gt_poses_graph
         )
 
         multiview_optimizer_metrics_graph = [averaging_metrics_graph, data_assoc_metrics_graph, ba_metrics_graph]
+
+        if gt_poses_graph is not None:
+            # align the sparse multi-view estimate before BA to the ground truth pose graph.
+            ba_input_graph = dask.delayed(ba_input_graph.align_via_Sim3_to_poses)(gt_poses_graph)
 
         return ba_input_graph, ba_result_graph, multiview_optimizer_metrics_graph
 

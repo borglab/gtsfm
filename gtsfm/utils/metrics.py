@@ -207,7 +207,7 @@ def compute_ba_pose_metrics(
     metrics.append(compute_rotation_angle_metric(wRi_aligned_list, gt_wRi_list))
     metrics.append(compute_translation_distance_metric(wti_aligned_list, gt_wti_list))
     metrics.append(compute_translation_angle_metric(i2Ui1_dict_gt, wTi_aligned_list))
-    return GtsfmMetricsGroup(name="mvs_input_metrics", metrics=metrics)
+    return GtsfmMetricsGroup(name="ba_pose_error_metrics", metrics=metrics)
 
 
 def get_twoview_translation_directions(wTi_list: List[Pose3]) -> Dict[Tuple[int, int], Unit3]:

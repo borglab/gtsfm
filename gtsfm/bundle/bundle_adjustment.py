@@ -46,7 +46,7 @@ class BundleAdjustmentOptimizer(NamedTuple):
             wTi_list_gt: list of GT camera poses, ordered by camera index.
 
         Results:
-            Optimized camera poses, 3D point w/ tracks, and error metrics.
+            Optimized camera poses, 3D point w/ tracks, and error metrics, aligned to GT (if provided).
             Metrics group containing metrics for both filtered and unfiltered BA results.
         """
         logger.info(
@@ -174,7 +174,7 @@ class BundleAdjustmentOptimizer(NamedTuple):
             gt_poses_graph: list of GT camera poses, ordered by camera index (Pose3), wrapped up as Delayed
 
         Returns:
-            GtsfmData wrapped up using dask.delayed
+            GtsfmData aligned to GT (if provided), wrapped up using dask.delayed
             Metrics group for BA results, wrapped up using dask.delayed
         """
         data_metrics_graph = dask.delayed(self.run)(sfm_data_graph, gt_poses_graph)

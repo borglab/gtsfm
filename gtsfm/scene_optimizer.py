@@ -183,6 +183,7 @@ class SceneOptimizer:
         i2Ui1_graph_dict = cycle_consistent_graph[1]
 
         # TODO (johnwlambert): dump metrics after cycle consistency
+        # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
         (ba_input_graph, ba_output_graph, optimizer_metrics_graph) = self.multiview_optimizer.create_computation_graph(
             image_graph,
             num_images,
@@ -193,15 +194,6 @@ class SceneOptimizer:
             camera_intrinsics_graph,
             gt_pose_graph,
         )
-
-        if gt_pose_graph is not None:
-            # align the estimates to the ground truth
-            ba_input_graph = dask.delayed(ba_input_graph.align_via_Sim3_to_poses)(gt_pose_graph)
-            ba_output_graph = dask.delayed(ba_output_graph.align_via_Sim3_to_poses)(gt_pose_graph)
-            mvs_input_metrics_graph = dask.delayed(metrics_utils.compute_ba_pose_metrics)(
-                gt_pose_graph, ba_output_graph
-            )
-            metrics_graph_list.append(mvs_input_metrics_graph)
 
         # aggregate metrics for multiview optimizer
         if optimizer_metrics_graph is not None:
