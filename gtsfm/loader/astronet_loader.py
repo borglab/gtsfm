@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Optional, Dict, Tuple, List
 
 from gtsam import Cal3Bundler, Pose3, Rot3, Point3, SfmTrack
-import trimesh
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
@@ -34,7 +33,6 @@ class AstroNetLoader(LoaderBase):
     def __init__(
         self,
         data_dir: str,
-        gt_scene_mesh_path: str = None,
         use_gt_intrinsics: bool = True,
         use_gt_extrinsics: bool = True,
         use_gt_sfmtracks: bool = False,
@@ -75,14 +73,6 @@ class AstroNetLoader(LoaderBase):
             self._calibrations, self._wTi_list, img_fnames, self._sfmtracks = self.colmap2gtsfm(
                 _cameras, _images, _points, load_sfmtracks=use_gt_sfmtracks
             )
-
-        # Read in scene mesh as Trimesh object
-        if gt_scene_mesh_path is not None:
-            if not Path(gt_scene_mesh_path).exists():
-                raise FileNotFoundError(f"No mesh found at {gt_scene_mesh_path}")
-            self._gt_scene_trimesh = trimesh.load(gt_scene_mesh_path, process=False, maintain_order=True)
-        else:
-            self._gt_scene_trimesh = None
 
         if self._calibrations is None:
             self._use_gt_intrinsics = False
