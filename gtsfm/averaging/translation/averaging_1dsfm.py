@@ -56,6 +56,23 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 may contain `None` where the global translations could not be computed (either underconstrained system
                 or ill-constrained system).
         """
+        # save to disk
+
+        import gtsfm.utils.io as io_utils
+        data_dict = { f"{i1}_{i2}": [(i1,i2), i2Ui1.point3().tolist()] for (i1,i2), i2Ui1 in i2Ui1_dict.items()}
+        #print("mydict: ", data_dict)
+        io_utils.save_json_file(
+            json_fpath="translation_averaging_inputs/i2Ui1_dict.json",
+            data=data_dict
+        )
+
+        data_list = [wRi.matrix().tolist() if wRi is not None else None for wRi in wRi_list]
+        print("mylist: ", data_list)
+        io_utils.save_json_file(
+            json_fpath="translation_averaging_inputs/wRi_list.json",
+            data=data_list
+        )
+
         noise_model = gtsam.noiseModel.Isotropic.Sigma(NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
 
         # Note: all measurements are relative translation directions in the
