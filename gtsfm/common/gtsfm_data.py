@@ -361,7 +361,8 @@ class GtsfmData:
 
         # align the poses which are valid (i.e. are not None)
         # some camera indices may have been lost after pruning to largest connected component, leading to None values
-        wTi_list_aligned, gtSest = geometry_comparisons.align_poses_sim3_ignore_missing(wTi_list_ref, wTi_list)
+        # rSe aligns the estimate `e` frame to the reference `r` frame
+        wTi_list_aligned, rSe = geometry_comparisons.align_poses_sim3_ignore_missing(wTi_list_ref, wTi_list)
 
         aligned_data = GtsfmData(number_images=self.number_images())
         # update the camera pose to the aligned poses, but use the previous calibration
@@ -376,8 +377,8 @@ class GtsfmData:
             # align each 3d point
             track_est = self.get_track(index=j)
             # place into the GT reference frame
-            pt_gt = gtSest.transformFrom(track_est.point3())
-            track_aligned = SfmTrack(pt_gt)
+            pt_ref = rSe.transformFrom(track_est.point3())
+            track_aligned = SfmTrack(pt_ref)
 
             # copy over the 2d measurements directly into the new track
             for k in range(track_est.number_measurements()):
