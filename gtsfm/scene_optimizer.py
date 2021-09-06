@@ -181,7 +181,9 @@ class SceneOptimizer:
         )
         i2Ri1_graph_dict = cycle_consistent_graph[0]
         i2Ui1_graph_dict = cycle_consistent_graph[1]
-        
+
+        # TODO (johnwlambert): dump metrics after cycle consistency
+        # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
         (ba_input_graph, ba_output_graph, optimizer_metrics_graph) = self.multiview_optimizer.create_computation_graph(
             image_graph,
             num_images,
