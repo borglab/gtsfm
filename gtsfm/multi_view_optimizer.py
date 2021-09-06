@@ -5,28 +5,15 @@ Authors: Ayush Baid, John Lambert
 from typing import Dict, List, Optional, Tuple
 
 import dask
-import os
-from pathlib import Path
 from dask.delayed import Delayed
-from gtsam import (
-    Cal3Bundler,
-    PinholeCameraCal3Bundler,
-    Point3,
-    Pose3,
-    Rot3,
-    Unit3,
-)
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point3, Pose3, Rot3
 
 import gtsfm.utils.graph as graph_utils
-import gtsfm.utils.io as io
-import gtsfm.utils.metrics as metrics
+import gtsfm.utils.metrics as metrics_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.data_association.data_assoc import DataAssociation
-
-# Paths to Save Output in React Folders.
-REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
 
 
 class MultiViewOptimizer:
@@ -35,7 +22,7 @@ class MultiViewOptimizer:
         rot_avg_module: RotationAveragingBase,
         trans_avg_module: TranslationAveragingBase,
         data_association_module: DataAssociation,
-        bundle_adjustment_module: BundleAdjustmentOptimizer
+        bundle_adjustment_module: BundleAdjustmentOptimizer,
     ) -> None:
         self.rot_avg_module = rot_avg_module
         self.trans_avg_module = trans_avg_module
@@ -51,8 +38,8 @@ class MultiViewOptimizer:
         i2Ui1_graph: Dict[Tuple[int, int], Delayed],
         v_corr_idxs_graph: Dict[Tuple[int, int], Delayed],
         intrinsics_graph: List[Delayed],
-        gt_poses_graph: List[Delayed] = None,
-    ) -> Tuple[Delayed, Delayed, Optional[Delayed], Optional[Delayed]]:
+        gt_poses_graph: Optional[List[Delayed]] = None,
+    ) -> Tuple[Delayed, Delayed, Delayed]:
         """Creates a computation graph for multi-view optimization.
 
         Args:
@@ -62,14 +49,15 @@ class MultiViewOptimizer:
             i2Ui1_graph: relative unit-translations for image pairs, each value wrapped up as Delayed.
             v_corr_idxs_graph: indices of verified correspondences for image pairs, wrapped up as Delayed.
             intrinsics_graph: intrinsics for images, wrapped up as Delayed.
+            gt_poses_graph: list of GT camera poses, ordered by camera index (Pose3), wrapped up as Delayed
 
         Returns:
-            The input to bundle adjustment, wrapped up as Delayed.
-            The final output, wrapped up as Delayed.
-            Dictionary containing metrics, wrapped up as Delayed
+            The GtsfmData input to bundle adjustment, aligned to GT (if provided), wrapped up as Delayed.
+            The final output GtsfmData, wrapped up as Delayed.
+            List of GtsfmMetricGroups from different modules, wrapped up as Delayed.
         """
         # prune the graph to a single connected component.
-        pruned_graph = dask.delayed(prune_to_largest_connected_component)(i2Ri1_graph, i2Ui1_graph)
+        pruned_graph = dask.delayed(graph_utils.prune_to_largest_connected_component)(i2Ri1_graph, i2Ui1_graph)
 
         pruned_i2Ri1_graph = pruned_graph[0]
         pruned_i2Ui1_graph = pruned_graph[1]
@@ -82,67 +70,22 @@ class MultiViewOptimizer:
             num_images, init_cameras_graph, v_corr_idxs_graph, keypoints_graph, images_graph
         )
 
-        auxiliary_graph_list = [
-            dask.delayed(io.save_json_file)(
-                os.path.join("result_metrics", "data_association_metrics.json"), data_assoc_metrics_graph
-            ),
-
-            # duplicate dask variable to save data_association_metrics within React directory
-            dask.delayed(io.save_json_file)(
-                os.path.join(REACT_METRICS_PATH, "data_association_metrics.json"), data_assoc_metrics_graph
-            )
-        ]
-
-        # dummy graph to force an immediate dump of data association metrics
-        ba_input_graph = dask.delayed(lambda x, y: (x, y))(ba_input_graph, auxiliary_graph_list)[0]
-
-        ba_result_graph = self.ba_optimizer.create_computation_graph(ba_input_graph)
+        ba_result_graph, ba_metrics_graph = self.ba_optimizer.create_computation_graph(ba_input_graph, gt_poses_graph)
 
         if gt_poses_graph is None:
-            return ba_input_graph, ba_result_graph, None, None
+            return ba_input_graph, ba_result_graph, None
 
-        metrics_graph = dask.delayed(metrics.compute_averaging_metrics)(
-            i2Ui1_graph, wRi_graph, wti_graph, gt_poses_graph
-        )
-        saved_metrics_graph = dask.delayed(io.save_json_file)(
-            "result_metrics/multiview_optimizer_metrics.json", metrics_graph
+        averaging_metrics_graph = dask.delayed(metrics_utils.compute_averaging_metrics)(
+            wRi_graph, wti_graph, gt_poses_graph
         )
 
-        # duplicate dask variable to save optimizer_metrics within React directory
-        react_saved_metrics_graph = dask.delayed(io.save_json_file)(
-            os.path.join(REACT_METRICS_PATH, "multiview_optimizer_metrics.json"), metrics_graph
-        )
+        multiview_optimizer_metrics_graph = [averaging_metrics_graph, data_assoc_metrics_graph, ba_metrics_graph]
 
-        return ba_input_graph, ba_result_graph, saved_metrics_graph, react_saved_metrics_graph
+        if gt_poses_graph is not None:
+            # align the sparse multi-view estimate before BA to the ground truth pose graph.
+            ba_input_graph = dask.delayed(ba_input_graph.align_via_Sim3_to_poses)(gt_poses_graph)
 
-
-def prune_to_largest_connected_component(
-    rotations: Dict[Tuple[int, int], Optional[Rot3]], unit_translations: Dict[Tuple[int, int], Optional[Unit3]],
-) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3]]:
-    """Process the graph of image indices with Rot3s/Unit3s defining edges, and select the largest connected component.
-
-    Args:
-        rotations: dictionary of relative rotations for pairs.
-        unit_translations: dictionary of relative unit-translations for pairs.
-
-    Returns:
-        Subset of rotations which are in the largest connected components.
-        Subset of unit_translations which are in the largest connected components.
-    """
-    input_edges = [k for (k, v) in rotations.items() if v is not None]
-    nodes_in_pruned_graph = graph_utils.get_nodes_in_largest_connected_component(input_edges)
-
-    # select the edges with nodes in the pruned graph
-    selected_edges = []
-    for i1, i2 in rotations.keys():
-        if i1 in nodes_in_pruned_graph and i2 in nodes_in_pruned_graph:
-            selected_edges.append((i1, i2))
-
-    # return the subset of original input
-    return (
-        {k: rotations[k] for k in selected_edges},
-        {k: unit_translations[k] for k in selected_edges},
-    )
+        return ba_input_graph, ba_result_graph, multiview_optimizer_metrics_graph
 
 
 def init_cameras(
@@ -154,6 +97,7 @@ def init_cameras(
         wRi_list: rotations for cameras.
         wti_list: translations for cameras.
         intrinsics_list: intrinsics for cameras.
+
     Returns:
         Valid cameras.
     """

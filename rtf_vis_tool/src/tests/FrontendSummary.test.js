@@ -20,25 +20,18 @@ describe('FrontendSummary.js Test', () => {
        tags.
     */
     it('Frontend Summary has 1 <h3> tag, 5 <p> tags, and 1 <button>.', () => {
-        const fs_summary = {
-            "angular_err_threshold_deg": 10,
-            "num_valid_entries": 66,
-            "num_total_entries": 66,
-            "rotation": {
-                "success_count": 66
-            },
-            "translation": {
-                "success_count": 66
-            },
-            "pose": {
-                "success_count": 66
-            },
-            "correspondences": {
-                "all_inliers": 66
+        const frontendSummaryJSON = {
+            "frontend_summary": {
+                "num_total_image_pairs": 66,
+                "num_valid_image_pairs": 66,
+                "rotation_success_count": 66,
+                "translation_success_count": 66,
+                "pose_success_count": 66,
+                "num_all_inlier_correspondences_wrt_gt_model": 43,
             }
         };
     
-        const wrapper = shallow(<FrontendSummary json={fs_summary}/>);
+        const wrapper = shallow(<FrontendSummary json={frontendSummaryJSON}/>);
         const div = wrapper.find('div[className="fs_container"]');
         const tagList = div.props().children.props.children;
 

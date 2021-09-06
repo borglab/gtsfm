@@ -211,7 +211,9 @@ def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> 
     with open(file_path, "w") as f:
         f.write("# Camera list with one line of data per camera:\n")
         f.write("#   CAMERA_ID, MODEL, WIDTH, HEIGHT, PARAMS[]\n")
-        f.write(f"# Number of cameras: {gtsfm_data.number_images()}\n")
+        # note that we save the number of etimated cameras, not the number of input images,
+        # which would instead be gtsfm_data.number_images().
+        f.write(f"# Number of cameras: {len(gtsfm_data.get_valid_camera_indices())}\n")
 
         for i in gtsfm_data.get_valid_camera_indices():
             camera = gtsfm_data.get_camera(i)
@@ -255,7 +257,8 @@ def read_images_txt(fpath: str) -> Tuple[Optional[List[Pose3]], Optional[List[st
 
     wTi_list = []
     img_fnames = []
-    # ignore first 4 lines of text -- they are a description of the file format
+    # ignore first 4 lines of text -- they contain a description of the file format
+    # and a record of the number of reconstructed images.
     for line in lines[4::2]:
         i, qw, qx, qy, qz, tx, ty, tz, i, img_fname = line.split()
         # Colmap provides extrinsics, so must invert
@@ -271,6 +274,9 @@ def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
     """Writes the image data file in the COLMAP format.
 
     Reference: https://colmap.github.io/format.html#images-txt
+    Note: the "Number of images" saved to the .txt file is not the number of images
+    fed to the SfM algorithm, but rather the number of localized camera poses/images,
+    which COLMAP refers to as the "reconstructed cameras".
 
     Args:
         gtsfm_data: scene data to write.

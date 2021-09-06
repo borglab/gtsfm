@@ -59,6 +59,10 @@ function AllFrustums() {
         ex_cameraList = ex_cameraList.slice(4); // Remove the 4 lines of comments in images.txt.
         ex_cameraList.pop() // remove the last empty string from list.
 
+        // remove any dummy lines from images.txt that contain the string "TODO", until gtsfm.utils.io.write_images is
+        // updated
+        ex_cameraList = ex_cameraList.filter(line => line !== "TODO"); 
+
         if (in_cameraList.length !== ex_cameraList.length) {
             alert('Camera count mismatch between images.txt and cameras.txt');
             return;
