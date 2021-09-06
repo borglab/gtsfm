@@ -11,7 +11,7 @@ from torch.utils.data import Dataset
 
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
-from gtsfm.densify.mvs_math import piecewise_gaussian
+import gtsfm.densify.mvs_utils as mvs_utils
 
 NUM_PATCHMATCHNET_STAGES = 4
 
@@ -86,9 +86,9 @@ class PatchmatchNetData(Dataset):
             3. For every image as the reference image, calculate the depth range.
 
         Returns:
-            pairs: array of shape (num_images, num_views-1). Each row_id indicates the index of reference view
+            pairs: 2d array of shape (num_images, num_views-1). Each row_id indicates the index of reference view
                 in self.keys, with (num_views-1) values indicating the indices of source views in self.keys
-            depth_ranges: array of shape (num_images, 2). Each row_id indicates the index of reference view
+            depth_ranges: 2d array of shape (num_images, 2). Each row_id indicates the index of reference view
                 in self.keys, with 2 values indicating [min_depth, max_depth]
         """
         num_tracks = self._sfm_result.number_tracks()
@@ -127,7 +127,7 @@ class PatchmatchNetData(Dataset):
 
                     # If both cameras are valid cameras,
                     #   calculate score for track_i in the pair views (cam_a, cam_b)
-                    score_a_b = piecewise_gaussian(
+                    score_a_b = mvs_utils.piecewise_gaussian(
                         xPa=self._camera_centers[i_a] - w_x, xPb=self._camera_centers[i_b] - w_x
                     )
                     # Sum up pair scores for each track_i
@@ -161,7 +161,8 @@ class PatchmatchNetData(Dataset):
         Produces data containing _num_views images, the first images is the reference image
 
         Args:
-            index: index of yield test data, the reference image ID of the test data is _keys[index]
+            index: index of yield test data, the reference image ID of the test data the patchmatchnet index (from 0 to
+            number_of_views - 1), not the camera index in the sfm_result
 
         Returns:
             Dictionary containing:
@@ -191,7 +192,7 @@ class PatchmatchNetData(Dataset):
             intrinsics = self._sfm_result.get_camera(cam_key).calibration().K()
             cTw = self._sfm_result.get_camera(cam_key).pose().inverse().matrix()
             # In the multi-scale feature extraction, there are NUM_PATCHMATCHNET_STAGES stages.
-            #   The scales are [2^0, 2^(-1), 2^(-2), ..., 2^(1-NUM_PATCHMATCHNET_STAGES)]
+            #   Resize the image to scales in [2^0, 2^(-1), 2^(-2), ..., 2^(1-NUM_PATCHMATCHNET_STAGES)]
             #   Initially the intrinsics is scaled to fit the smallest image size
             intrinsics[:2, :] /= 2 ** NUM_PATCHMATCHNET_STAGES
 

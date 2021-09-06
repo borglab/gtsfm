@@ -7,7 +7,7 @@ import unittest
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-import gtsfm.densify.mvs_math as mvs_math
+import gtsfm.densify.mvs_utils as mvs_utils
 
 
 class TestMVSMath(unittest.TestCase):
@@ -21,7 +21,7 @@ class TestMVSMath(unittest.TestCase):
         bRa = R.from_euler("z", 4, degrees=True)
         xPb = bRa.apply(xPa)
 
-        score = mvs_math.piecewise_gaussian(xPa=xPa, xPb=xPb, theta_0=5, sigma_1=1, sigma_2=10)
+        score = mvs_utils.piecewise_gaussian(xPa=xPa, xPb=xPb, theta_0=5, sigma_1=1, sigma_2=10)
 
         self.assertAlmostEqual(score, np.exp(-(1.0 ** 2) / (2 * 1.0 ** 2)))
 
@@ -33,7 +33,7 @@ class TestMVSMath(unittest.TestCase):
         bRa = R.from_euler("x", 10, degrees=True)
         xPb = bRa.apply(xPa)
 
-        score = mvs_math.piecewise_gaussian(xPa=xPa, xPb=xPb, theta_0=5, sigma_1=1, sigma_2=10)
+        score = mvs_utils.piecewise_gaussian(xPa=xPa, xPb=xPb, theta_0=5, sigma_1=1, sigma_2=10)
 
         self.assertAlmostEqual(score, np.exp(-(5.0 ** 2) / (2 * 10.0 ** 2)))
 

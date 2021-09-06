@@ -25,22 +25,22 @@ def piecewise_gaussian(
     Args:
         xPa: vector from the track point to camera a's center in the world frame, with shape (3,).
         xPb: vector from the track point to camera b's center in the world frame, with shape (3,).
-        theta_0: Defaults to 5.
+        theta_0:
             theta_0 is the threshold angle (in degrees) between vectors from the track point to camera a and b's centers
             theta_0 is also the angle that reaches the peak score. So, theta_0 will be a small angle but not
-            very closed to 0, which suggests the image pair is suitable for MVS reconstruction.
-        sigma_1: Defaults to 1.
+            very closed to 0, which suggests the image pair is suitable for MVS reconstruction. Defaults to 5.
+        sigma_1:
             sigma_1 is the Gaussian function's standard deviation when the angle is smaller than theta_0.
             If the angle between vectors from the track point to camera a and b's centers is no larger than the
             threshold angle, which means for this track, the relative position of centers of camera a and b are close,
             and they can both see the track point. It is detrimental if two cameras are too close, so a smaller standard
-            deviation (compared with sigma_2) should be used to prevent too close pairs.
-        sigma_2: Defaults to 10.
+            deviation (compared with sigma_2) should be used to prevent too close pairs. Defaults to 1.
+        sigma_2:
             sigma_2 is the Gaussian function's standard deviation when the angle is larger than theta_0.
             If the angle between vectors from the track point to camera a and b's centers is larger than the threshold
             angle, which means for this track, the relative position of centers of camera a and b are not very close,
             but they can both see the track point. The impact of larger angles is relatively mild if both cameras can
-            see the track point, so a larger standard deviation (compared with sigma_1) will be used.
+            see the track point, so a larger standard deviation (compared with sigma_1) will be used. Defaults to 10.
 
     Returns:
         float: A score of the track between two views in the range (0,1]
