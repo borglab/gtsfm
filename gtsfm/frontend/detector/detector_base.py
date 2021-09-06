@@ -10,16 +10,17 @@ from dask.delayed import Delayed
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 
+DEFAULT_MAX_KEYPOINTS = 8192
+
 
 class DetectorBase(metaclass=abc.ABCMeta):
     """Base class for all the feature detectors."""
 
-    def __init__(self, max_keypoints: int = 5000) -> None:
+    def __init__(self, max_keypoints: int = DEFAULT_MAX_KEYPOINTS) -> None:
         """Initialize the detector.
 
         Args:
-            max_keypoints: Maximum number of keypoints to detect. Defaults to
-                           5000.
+            max_keypoints: Maximum number of keypoints to detect. Defaults to 8192.
         """
         self.max_keypoints = max_keypoints
 

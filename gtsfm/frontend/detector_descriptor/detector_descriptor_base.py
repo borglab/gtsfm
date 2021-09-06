@@ -10,6 +10,7 @@ import dask
 import numpy as np
 from dask.delayed import Delayed
 
+import gtsfm.frontend.detector.detector_base as detector_base
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 
@@ -20,11 +21,11 @@ class DetectorDescriptorBase(metaclass=abc.ABCMeta):
     This class serves as a combination of individual detector and descriptor.
     """
 
-    def __init__(self, max_keypoints: int = 5000):
+    def __init__(self, max_keypoints: int = detector_base.DEFAULT_MAX_KEYPOINTS):
         """Initialize the detector-descriptor.
 
         Args:
-            max_keypoints: Maximum number of keypoints to detect. Defaults to 5000.
+            max_keypoints: Maximum number of keypoints to detect. Defaults to 8192.
         """
         self.max_keypoints = max_keypoints
 
