@@ -46,4 +46,4 @@ SceneOptimizer:
     bundle_adjustment_module:
       _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptimizer
       output_reproj_error_thresh: 3 # for post-optimization filtering
-      shared_calib: False
+      shared_calib: True

@@ -8,20 +8,18 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 import dask
+import gtsam
 from dask.delayed import Delayed
 from gtsam import (
     GeneralSFMFactor2Cal3Bundler,
-    LevenbergMarquardtOptimizer,
-    LevenbergMarquardtParams,
-    NonlinearFactorGraph,
     PinholeCameraCal3Bundler,
+    Pose3,
     PriorFactorCal3Bundler,
     PriorFactorPose3,
     SfmTrack,
     Values,
     symbol_shorthand,
 )
-from gtsam.noiseModel import Isotropic
 
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
@@ -70,83 +68,8 @@ class BundleAdjustmentOptimizer:
         self._output_reproj_error_thresh = output_reproj_error_thresh
         self._shared_calib = shared_calib
 
-    def __add_camera_prior(
-        self,
-        graph: NonlinearFactorGraph,
-        camera: PinholeCameraCal3Bundler,
-        camera_idx: int,
-    ) -> None:
-        """Add a prior factor in the factor graph for the camera parameters.
-
-        Args:
-            graph: factor graph for the problem.
-            camera: the camera object to add to graph and to initial values.
-            camera_idx: index of the camera.
-        """
-        graph.push_back(
-            PriorFactorPose3(X(camera_idx), camera.pose(), Isotropic.Sigma(CAM_POSE3_DOF, CAM_POSE3_PRIOR_NOISE_SIGMA))
-        )
-
-        # process just one camera if shared calibration; otherwise process all
-        if camera_idx == 0 or not self._shared_calib:
-            graph.push_back(
-                PriorFactorCal3Bundler(
-                    K(camera_idx),
-                    camera.calibration(),
-                    Isotropic.Sigma(CAM_CAL3BUNDLER_DOF, CAM_CAL3BUNDLER_PRIOR_NOISE_SIGMA),
-                )
-            )
-
-    def __add_camera_initial_value(
-        self,
-        initial_values: Values,
-        camera: PinholeCameraCal3Bundler,
-        camera_idx: int,
-    ) -> None:
-        """Add initial values for the camera parameters.
-
-        Args:
-            initial_values: object holding the initial values for camera parameters and 3d points.
-            camera: the camera object to add to graph and to initial values.
-            camera_idx: index of the camera.
-        """
-        # add initial value for pose
-        initial_values.insert(X(camera_idx), camera.pose())
-
-        # process just one camera if shared calibration; otherwise process all
-        if camera_idx == 0 or not self._shared_calib:
-            initial_values.insert(K(camera_idx), camera.calibration())
-
-    def __add_measurement_factor(
-        self,
-        graph: NonlinearFactorGraph,
-        track: SfmTrack,
-        track_idx: int,
-        measurement_noise: Isotropic,
-    ) -> None:
-        """Add factor for each 2D measurement in the track.
-
-        Args:
-            graph: factor graph for the problem.
-            track: the track to be added.
-            track_idx: index of the track to be added.
-            measurement_noise: noise associated with the factor.
-        """
-
-        for k in range(track.number_measurements()):
-            # i represents the camera index, and uv is the 2d measurement
-            i, uv = track.measurement(k)
-
-            # add the factor, using the 3D point, camera, and the associated 2d measurement
-            graph.add(
-                GeneralSFMFactor2Cal3Bundler(
-                    uv,
-                    measurement_noise,
-                    X(i),
-                    P(track_idx),
-                    K(0 if self._shared_calib else i),
-                )
-            )
+    def __map_to_calibration_variable(self, camera_idx: int) -> int:
+        return 0 if self._shared_calib else camera_idx
 
     def run(
         self, initial_data: GtsfmData, wTi_list_gt: Optional[List[Pose3]] = None
@@ -162,9 +85,7 @@ class BundleAdjustmentOptimizer:
             Metrics group containing metrics for both filtered and unfiltered BA results.
         """
         logger.info(
-            "Input: %d tracks on %d cameras\n",
-            initial_data.number_tracks(),
-            len(initial_data.get_valid_camera_indices()),
+            f"Input: {initial_data.number_tracks()} tracks on {len(initial_data.get_valid_camera_indices())} cameras\n"
         )
         if initial_data.number_tracks() == 0 or len(initial_data.get_valid_camera_indices()) == 0:
             # no cameras or tracks to optimize, so bundle adjustment is not possible
@@ -174,44 +95,90 @@ class BundleAdjustmentOptimizer:
             return initial_data
 
         # noise model for measurements -- one pixel in u and v
-        measurement_noise = Isotropic.Sigma(IMG_MEASUREMENT_DIM, MEASUREMENT_NOISE_SIGMA)
+        measurement_noise = gtsam.noiseModel.Isotropic.Sigma(IMG_MEASUREMENT_DIM, MEASUREMENT_NOISE_SIGMA)
 
         # Create a factor graph
-        graph = NonlinearFactorGraph()
+        graph = gtsam.NonlinearFactorGraph()
+
+        # Add measurements to the factor graph
+        for j in range(initial_data.number_tracks()):
+            track = initial_data.get_track(j)  # SfmTrack
+            # retrieve the SfmMeasurement objects
+            for m_idx in range(track.number_measurements()):
+                # i represents the camera index, and uv is the 2d measurement
+                i, uv = track.measurement(m_idx)
+                # note use of shorthand symbols C and P
+                graph.add(
+                    GeneralSFMFactor2Cal3Bundler(
+                        uv,
+                        measurement_noise,
+                        X(i),
+                        P(j),
+                        K(self.__map_to_calibration_variable(i)),
+                    )
+                )
+
+        # get all the valid camera indices, which need to be added to the graph.
+        valid_camera_indices = initial_data.get_valid_camera_indices()
+
+        # Add a prior on first pose. This indirectly specifies where the origin is.
+        graph.push_back(
+            PriorFactorPose3(
+                X(valid_camera_indices[0]),
+                initial_data.get_camera(valid_camera_indices[0]).pose(),
+                gtsam.noiseModel.Isotropic.Sigma(CAM_POSE3_DOF, CAM_POSE3_PRIOR_NOISE_SIGMA),
+            )
+        )
+
+        # add prior on first camera calibration.
+        # TODO: how does it make sense for non-shared calibrations.
+        graph.push_back(
+            PriorFactorCal3Bundler(
+                K(self.__map_to_calibration_variable(valid_camera_indices[0])),
+                initial_data.get_camera(valid_camera_indices[0]).calibration(),
+                gtsam.noiseModel.Isotropic.Sigma(CAM_CAL3BUNDLER_DOF, CAM_CAL3BUNDLER_PRIOR_NOISE_SIGMA),
+            )
+        )
+
+        # Also add a prior on the position of the first landmark to fix the scale
+        graph.push_back(
+            gtsam.PriorFactorPoint3(
+                P(0), initial_data.get_track(0).point3(), gtsam.noiseModel.Isotropic.Sigma(POINT3_DOF, 0.1)
+            )
+        )
 
         # Create initial estimate
-        initial_values = Values()
+        initial = gtsam.Values()
 
-        # adding factors for measurements and 3D points's initial values
+        # add each camera
+        for loop_idx, i in enumerate(valid_camera_indices):
+            camera = initial_data.get_camera(i)
+            initial.insert(X(i), camera.pose())
+            if not self._shared_calib or loop_idx == 0:
+                # add only one value if calibrations are shared
+                initial.insert(K(self.__map_to_calibration_variable(i)), camera.calibration())
+
+        # add each SfmTrack
         for j in range(initial_data.number_tracks()):
             track = initial_data.get_track(j)
-            self.__add_measurement_factor(graph, track, j, measurement_noise)
-            initial_values.insert(P(j), track.point3())
-
-        # add prior and initial values for cameras
-        for i in initial_data.get_valid_camera_indices():
-            initialized_cam = initial_data.get_camera(i)
-
-            self.__add_camera_prior(graph, initialized_cam, i)
-            self.__add_camera_initial_value(initial_values, initialized_cam, i)
+            initial.insert(P(j), track.point3())
 
         # Optimize the graph and print results
         try:
-            params = LevenbergMarquardtParams()
+            params = gtsam.LevenbergMarquardtParams()
             params.setVerbosityLM("ERROR")
-            lm = LevenbergMarquardtOptimizer(graph, initial_values, params)
+            lm = gtsam.LevenbergMarquardtOptimizer(graph, initial, params)
             result_values = lm.optimize()
         except Exception:
             logger.exception("LM Optimization failed")
             # as we did not perform the bundle adjustment, we skip computing the total reprojection error
             return GtsfmData(initial_data.number_images())
 
-        initial_error = graph.error(initial_values)
         final_error = graph.error(result_values)
 
         # Error drops from ~2764.22 to ~0.046
-        logger.info("initial error: %.2f", initial_error)
-        logger.info("final error: %.2f", final_error)
+        logger.info(f"initial error: {graph.error(initial):.2f}")
+        logger.info(f"final error: {final_error:.2f}")
 
         # construct the results
         optimized_data = values_to_gtsfm_data(result_values, initial_data, self._shared_calib)
