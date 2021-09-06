@@ -19,7 +19,7 @@ from gtsfm.data_association.data_assoc import DataAssociation, TriangulationPara
 
 
 def get_pose3_vector(num_poses: int) -> Pose3Vector:
-    """ Generate camera poses for use in triangulation tests """
+    """Generate camera poses for use in triangulation tests"""
 
     # Looking along X-axis, 1 meter above ground plane (x-y)
     upright = Rot3.Ypr(-np.pi / 2, 0.0, -np.pi / 2)
@@ -41,10 +41,8 @@ def get_pose3_vector(num_poses: int) -> Pose3Vector:
 
 
 def generate_noisy_2d_measurements(
-    world_point: Point3, calibrations: List[Cal3Bundler], per_image_noise_vecs: np.ndarray, poses: Pose3Vector,
-) -> Tuple[
-    List[Keypoints], List[Tuple[int, int]], Dict[int, PinholeCameraCal3Bundler],
-]:
+    world_point: Point3, calibrations: List[Cal3Bundler], per_image_noise_vecs: np.ndarray, poses: Pose3Vector
+) -> Tuple[List[Keypoints], List[Tuple[int, int]], Dict[int, PinholeCameraCal3Bundler]]:
     """
     Generate PinholeCameras from specified poses and calibrations, and then generate
     1 measurement per camera of a given 3d point.
@@ -259,10 +257,7 @@ class TestDataAssociation(GtsamTestCase):
         # will lead to a cheirality exception because keypoints are identical in two cameras
         # no track will be formed, and thus connected component will be empty
         sfm_data, _ = da.run(
-            num_images=3,
-            cameras=cameras,
-            corr_idxs_dict=corr_idxs_dict,
-            keypoints_list=[keypoints_shared] * 3
+            num_images=3, cameras=cameras, corr_idxs_dict=corr_idxs_dict, keypoints_list=[keypoints_shared] * 3
         )
 
         self.assertEqual(len(sfm_data.get_valid_camera_indices()), 0)
@@ -293,14 +288,17 @@ class TestDataAssociation(GtsamTestCase):
 
         # Run with computation graph
         delayed_sfm_data, delayed_metrics = da.create_computation_graph(
-            len(cameras), cameras, matches_dict, keypoints_list,
+            len(cameras),
+            cameras,
+            matches_dict,
+            keypoints_list,
         )
 
         with dask.config.set(scheduler="single-threaded"):
             dask_sfm_data, dask_metrics = dask.compute(delayed_sfm_data, delayed_metrics)
 
         assert expected_sfm_data.number_tracks() == dask_sfm_data.number_tracks(), "Dask not configured correctly"
-        self.assertDictEqual(dask_metrics, expected_metrics)
+        self.assertDictEqual(expected_metrics.get_metrics_as_dict(), dask_metrics.get_metrics_as_dict())
 
         for k in range(expected_sfm_data.number_tracks()):
             assert (

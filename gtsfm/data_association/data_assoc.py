@@ -10,7 +10,7 @@ References:
 Authors: Sushmita Warrier, Xiaolong Wu, John Lambert
 """
 import os
-from typing import Any, Dict, List, NamedTuple, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import dask
 import numpy as np
@@ -62,7 +62,7 @@ class DataAssociation(NamedTuple):
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
         images: Optional[List[Image]] = None,
-    ) -> Tuple[GtsfmData, Dict[str, Any]]:
+    ) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
         """Perform the data association.
 
         Args:
@@ -153,7 +153,12 @@ class DataAssociation(NamedTuple):
                     plot_type=GtsfmMetric.PlotType.HISTOGRAM,
                 ),
                 GtsfmMetric("accepted_track_avg_errors_px", per_accepted_track_avg_errors, store_full_data=False),
-                GtsfmMetric("rejected_track_avg_errors_px", per_rejected_track_avg_errors, store_full_data=False),
+                GtsfmMetric(
+                    "rejected_track_avg_errors_px",
+                    np.array(per_rejected_track_avg_errors).astype(np.float32),
+                    store_full_data=False,
+                ),
+                GtsfmMetric(name="number_cameras", data=len(connected_data.get_valid_camera_indices())),
             ],
         )
 
