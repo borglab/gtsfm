@@ -135,7 +135,7 @@ class Refinement(nn.Module):
 
 
 class PatchmatchNet(nn.Module):
-    """ Implementation of complete structure of PatchmatchNet"""
+    """Implementation of complete structure of PatchmatchNet"""
 
     def __init__(
         self,

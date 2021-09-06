@@ -19,20 +19,20 @@ def reproject_with_depth(
     """Project the reference points to the source view, then project back to calculate the reprojection error
 
     Args:
-        depth_ref (np.ndarray): depths of points in the reference view, (H, W)
-        intrinsics_ref (np.ndarray): camera intrinsic of the reference view, (3, 3)
-        extrinsics_ref (np.ndarray): camera extrinsic of the reference view, (4, 4)
-        depth_src (np.ndarray): depths of points in the source view, (H, W)
-        intrinsics_src (np.ndarray): camera intrinsic of the source view, (3, 3)
-        extrinsics_src (np.ndarray): camera extrinsic of the source view, (4, 4)
+        depth_ref: depths of points in the reference view, of shape (H, W)
+        intrinsics_ref: camera intrinsic of the reference view, of shape (3, 3)
+        extrinsics_ref: camera extrinsic of the reference view, of shape (4, 4)
+        depth_src: depths of points in the source view, of shape (H, W)
+        intrinsics_src: camera intrinsic of the source view, of shape (3, 3)
+        extrinsics_src: camera extrinsic of the source view, of shape (4, 4)
 
     Returns:
-        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-            depth_reprojected: reprojected depths of points in the reference view, (H, W)
-            x_reprojected: reprojected x coordinates of points in the reference view, (H, W)
-            y_reprojected: reprojected y coordinates of points in the reference view, (H, W)
-            x_src: x coordinates of points in the source view, (H, W)
-            y_src: y coordinates of points in the source view, (H, W)
+        A tuble contains
+            depth_reprojected: reprojected depths of points in the reference view, of shape (H, W)
+            x_reprojected: reprojected x coordinates of points in the reference view, of shape (H, W)
+            y_reprojected: reprojected y coordinates of points in the reference view, of shape (H, W)
+            x_src: x coordinates of points in the source view, of shape (H, W)
+            y_src: y coordinates of points in the source view, of shape (H, W)
     """
     width, height = depth_ref.shape[1], depth_ref.shape[0]
     # step1. project reference pixels to the source view
@@ -89,21 +89,21 @@ def check_geometric_consistency(
     """Check geometric consistency and return valid points
 
     Args:
-        depth_ref (np.ndarray): depths of points in the reference view, (H, W)
-        intrinsics_ref (np.ndarray): camera intrinsic of the reference view, (3, 3)
-        extrinsics_ref (np.ndarray): camera extrinsic of the reference view, (4, 4)
-        depth_src (np.ndarray): depths of points in the source view, (H, W)
-        intrinsics_src (np.ndarray): camera intrinsic of the source view, (3, 3)
-        extrinsics_src (np.ndarray): camera extrinsic of the source view, (4, 4)
-        geo_pixel_thres (float): geometric pixel threshold
-        geo_depth_thres (float): geometric depth threshold
+        depth_ref: depths of points in the reference view, of shape (H, W)
+        intrinsics_ref: camera intrinsic of the reference view, of shape (3, 3)
+        extrinsics_ref: camera extrinsic of the reference view, of shape (4, 4)
+        depth_src: depths of points in the source view, of shape (H, W)
+        intrinsics_src: camera intrinsic of the source view, of shape (3, 3)
+        extrinsics_src: camera extrinsic of the source view, of shape (4, 4)
+        geo_pixel_thres: geometric pixel threshold
+        geo_depth_thres: geometric depth threshold
 
     Returns:
         Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-            mask: mask for points with geometric consistency, (H, W)
-            depth_reprojected: reprojected depths of points in the reference view, (H, W)
-            x2d_src: x coordinates of points in the source view, (H, W)
-            y2d_src: y coordinates of points in the source view, (H, W)
+            mask: mask for points with geometric consistency, of shape (H, W)
+            depth_reprojected: reprojected depths of points in the reference view, of shape (H, W)
+            x2d_src: x coordinates of points in the source view, of shape (H, W)
+            y2d_src: y coordinates of points in the source view, of shape (H, W)
     """
     width, height = depth_ref.shape[1], depth_ref.shape[0]
     x_ref, y_ref = np.meshgrid(np.arange(0, width), np.arange(0, height))

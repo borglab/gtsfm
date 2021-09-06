@@ -43,8 +43,8 @@ class DepthInitialization(nn.Module):
 
         Args:
             random_initialization: whether to use random initialization
-            min_depth: minimum virtual depth, (B, )
-            max_depth: maximum virtual depth, (B, )
+            min_depth: minimum virtual depth, of shape (B, )
+            max_depth: maximum virtual depth, of shape (B, )
             height: height of depth map
             width: width of depth map
             depth_interval_scale: depth interval scale
@@ -110,7 +110,7 @@ class DepthInitialization(nn.Module):
 
 
 class Propagation(nn.Module):
-    """ Propagation module implementation"""
+    """Propagation module implementation"""
 
     def __init__(self, neighbors: int = 16) -> None:
         """Initialize method
