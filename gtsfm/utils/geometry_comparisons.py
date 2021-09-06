@@ -371,17 +371,3 @@ def get_points_within_radius_of_cameras(
     is_nearby_to_any_cam = np.any(is_nearby_matrix, axis=1)
     nearby_points_3d = points_3d[is_nearby_to_any_cam]
     return nearby_points_3d
-
-
-def angle_between_vectors(v_a: np.ndarray, v_b: np.ndarray) -> float:
-    """Calculate the angle between vector v_a and v_b, using a dot b = cos(theta) * || a || * || b ||
-
-    Args:
-        v_a: a numpy vector of shape (3, )
-        v_b: a numpy vector of shape (3, )
-
-    Returns:
-        angle between vector v_a and v_b in degrees
-    """
-    angle_rad = np.arccos(np.dot(v_a, v_b) / (np.linalg.norm(v_a) * np.linalg.norm(v_b)))
-    return np.rad2deg(angle_rad)

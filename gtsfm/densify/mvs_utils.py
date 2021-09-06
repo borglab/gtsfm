@@ -5,7 +5,8 @@ Authors: Ren Liu
 import math
 import numpy as np
 
-from gtsfm.utils.geometry_comparisons import angle_between_vectors
+from gtsam import Unit3
+from gtsfm.utils.geometry_comparisons import compute_relative_unit_translation_angle
 
 
 def piecewise_gaussian(
@@ -46,7 +47,9 @@ def piecewise_gaussian(
         float: A score of the track between two views in the range (0,1]
     """
     # 1. Calculate the angle between the vectors from the track point to camera a's center and camera b's center
-    theta_est = angle_between_vectors(xPa, xPb)
+    xPa = Unit3(xPa / np.linalg.norm(xPa))
+    xPb = Unit3(xPb / np.linalg.norm(xPb))
+    theta_est = compute_relative_unit_translation_angle(xPa, xPb)
     # 2. Calculate the score according to the angle
     if theta_est <= theta_0:  # if the angle is less than or equal to the threshold, we should attach more importance
         sigma = sigma_1

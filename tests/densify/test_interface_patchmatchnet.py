@@ -109,7 +109,7 @@ class TestPatchmatchNetData(unittest.TestCase):
                 {"ref_id": 2, "src_ids": [3, 1, 4, 0]},
                 {"ref_id": 3, "src_ids": [4, 2, 5, 1]},
                 {"ref_id": 4, "src_ids": [5, 3, 6, 2]},
-                {"ref_id": 5, "src_ids": [6, 4, 3, 7]},
+                {"ref_id": 5, "src_ids": [6, 4, 7, 3]},
                 {"ref_id": 6, "src_ids": [5, 7, 4, 0]},
                 {"ref_id": 7, "src_ids": [6, 0, 5, 1]},
             ]
