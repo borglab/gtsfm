@@ -57,13 +57,11 @@ jobs:
           wget --load-cookies cookies.txt -O skydio-32.zip \
             $GDRIVE_URL'&confirm='$(<confirm.txt)
       - name: Decompress Skydio-crane-8 dataset
-        uses: TonyBogdanov/zip@1.0
-        with:
-          args: unzip -qq skydio-8.zip 
+        run: |
+          unzip -qq skydio-8.zip 
       - name: Decompress Skydio-crane-32 dataset
-        uses: TonyBogdanov/zip@1.0
-        with:
-          args: unzip -qq skydio-32.zip -d skydio-32
+        run: |
+          unzip -qq skydio-32.zip -d skydio-32
       - name: Execute door-12 dataset
         run: |
           python gtsfm/runner/run_scene_optimizer.py \
