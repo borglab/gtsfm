@@ -29,7 +29,7 @@ class PatchmatchNetData(Dataset):
 
         Args:
             images: input images (H, W, C) to GTSFM
-            sfm_result: sfm results calculated by GTSFM
+            sfm_result: sparse multiview reconstruction result
             num_views: number of views, containing 1 reference view and (num_views-1) source views
         """
 
@@ -158,7 +158,9 @@ class PatchmatchNetData(Dataset):
 
     def __getitem__(self, index: int) -> Dict[str, Any]:
         """Get inference data to PatchmatchNet
-        Produces data containing _num_views images, the first images is the reference image
+        Produces test data from one inference view.
+        Returns meta data including ids and depth range, input images(_num_views images, the first images is the
+        reference image) and projection matrices, as well as the output filename
 
         Args:
             index: index of yield test data, the reference image ID of the test data the patchmatchnet index (from 0 to
