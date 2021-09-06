@@ -1,22 +1,16 @@
 """Unit tests for the interface for PatchmatchNet
 
-   _C1_ (0, 0, 1)
- /     \\
-|       |
-|       |C0 (1, 0, 0)                      ---------P2(0.5, 0, 0.5)-----  camera plane
- \\_ _ /
-  C2 (-0.5, 0, -0.5 * sqrt(3))                 P1(-0.1, -1.0, 0.1)
-
-In this unit test, we make a simple scenario that three cameras {C0, C1, C2} are around a circle (radius = 1.0).
-Every camera's pose is towards the center of the circle (0, 0, 0).
-Two track points {P1, P2} are set on the camera plane and under the camera plane.
+In this unit test, we make a simple scenario that eight cameras are around a circle (radius = 40.0).
+Every camera's pose is towards the center of the circle (0, 0, 0). 100 track points are set on the camera plane or 
+upper the camera plane.
 
 Authors: Ren Liu
 """
 import unittest
 
 import numpy as np
-from gtsam import PinholeCameraCal3Bundler, Cal3Bundler, Pose3, Rot3, Point3
+from gtsam import PinholeCameraCal3_S2, Cal3_S2, Point3
+from gtsam.examples import SFMdata
 
 from gtsfm.common.image import Image
 from gtsfm.common.gtsfm_data import GtsfmData, SfmTrack
@@ -28,30 +22,22 @@ DEFAULT_IMAGE_H = 600
 DEFAULT_IMAGE_C = 3
 
 # set default track points, the coordinates are in the world frame
-DEFAULT_TRACK_POINTS = [Point3(0.5, 0.5, 0), Point3(-0.1, -1.0, 0.1)]
-DEFAULT_NUM_TRACKS = len(DEFAULT_TRACK_POINTS)
+DEFAULT_NUM_TRACKS = 100
+DEFAULT_TRACK_POINTS = [Point3(5, 5, float(i)) for i in range(DEFAULT_NUM_TRACKS)]
 
 # set default camera intrinsics
-DEFAULT_CAMERA_INTRINSICS = Cal3Bundler(
+DEFAULT_CAMERA_INTRINSICS = Cal3_S2(
     fx=100.0,
-    k1=0,
-    k2=0,
+    fy=100.0,
+    s=1.0,
     u0=DEFAULT_IMAGE_W // 2,
     v0=DEFAULT_IMAGE_H // 2,
 )
-# set default camera poses as described above
-DEFAULT_CAMERA_POSES = [
-    Pose3(Rot3(np.array([[0, 0, -1], [0, 1, 0], [1, 0, 0]])), np.array([1, 0, 0])),
-    Pose3(Rot3(np.array([[-1, 0, 0], [0, 1, 0], [0, 0, -1]])), np.array([0, 0, 1])),
-    Pose3(
-        Rot3(np.array([[0.5 * np.sqrt(3), 0.0, 0.5], [0, 1, 0], [-0.5, 0, 0.5 * np.sqrt(3)]])),
-        np.array([-0.5, 0, -0.5 * np.sqrt(3)]),
-    ),
-]
+# set default camera poses as described in GTSAM example
+DEFAULT_CAMERA_POSES = SFMdata.createPoses(DEFAULT_CAMERA_INTRINSICS)
 # set default camera instances
 DEFAULT_CAMERAS = [
-    PinholeCameraCal3Bundler(DEFAULT_CAMERA_POSES[i], DEFAULT_CAMERA_INTRINSICS)
-    for i in range(len(DEFAULT_CAMERA_POSES))
+    PinholeCameraCal3_S2(DEFAULT_CAMERA_POSES[i], DEFAULT_CAMERA_INTRINSICS) for i in range(len(DEFAULT_CAMERA_POSES))
 ]
 DEFAULT_NUM_CAMERAS = len(DEFAULT_CAMERAS)
 # the number of valid images should be equal to the number of cameras (with estimated pose)
@@ -115,25 +101,28 @@ class TestPatchmatchNetData(unittest.TestCase):
 
     def test_select_src_views(self) -> None:
         """Test whether the (ref_view, src_view) pairs are selected correctly."""
-        self.assertTrue(np.all(self._dataset_patchmatchnet._pairs == np.array([[1, 2], [0, 2], [0, 1]])))
+        self.assertTrue(
+            self._dataset_patchmatchnet.get_packed_pairs()
+            == [
+                {"ref_id": 0, "src_ids": [7, 1, 6, 2]},
+                {"ref_id": 1, "src_ids": [0, 2, 3, 7]},
+                {"ref_id": 2, "src_ids": [3, 1, 4, 0]},
+                {"ref_id": 3, "src_ids": [4, 2, 5, 1]},
+                {"ref_id": 4, "src_ids": [5, 3, 6, 2]},
+                {"ref_id": 5, "src_ids": [6, 4, 3, 7]},
+                {"ref_id": 6, "src_ids": [5, 7, 4, 0]},
+                {"ref_id": 7, "src_ids": [6, 0, 5, 1]},
+            ]
+        )
 
     def test_depth_ranges(self) -> None:
-        """Test whether the depth ranges for each camera are calculated correctly."""
-        # extract depth values for every track point in each camera's frame
-        depths = [
-            [
-                self._sfm_result.get_camera(i).pose().transformTo(DEFAULT_TRACK_POINTS[j])[-1]
-                for j in range(DEFAULT_NUM_TRACKS)
-            ]
-            for i in range(DEFAULT_NUM_CAMERAS)
-        ]
-        # calculate the depth range for each camera, using the pre-defined minimum and maximum depth percentile
-        depth_ranges = [
-            [np.percentile(depths[i], MIN_DEPTH_PERCENTILE), np.percentile(depths[i], MAX_DEPTH_PERCENTILE)]
-            for i in range(DEFAULT_NUM_CAMERAS)
-        ]
+        """Test whether the depth ranges for each camera are calculated correctly and whether the depth outliers
+        (one too close and one too far) are filtered out in the depth range"""
 
-        self.assertTrue(np.all(self._dataset_patchmatchnet._depth_ranges == depth_ranges))
+        # test the lower bound of the depth range
+        self.assertAlmostEqual(self._dataset_patchmatchnet._depth_ranges[EXAMPLE_CAMERA_ID][0], 10.60262, 2)
+        # test the upper bound of the depth range
+        self.assertAlmostEqual(self._dataset_patchmatchnet._depth_ranges[EXAMPLE_CAMERA_ID][1], 34.12857, 2)
 
     def test_get_item(self) -> None:
         """Test get item method when yielding test data from dataset."""
