@@ -1,4 +1,4 @@
-"""Unit tests for math utilities for MVS methods
+"""Unit tests for utilities for MVS methods
 
 Authors: Ren Liu
 """
@@ -10,8 +10,8 @@ from scipy.spatial.transform import Rotation as R
 import gtsfm.densify.mvs_utils as mvs_utils
 
 
-class TestMVSMath(unittest.TestCase):
-    """Unit tests for math utilities for MVS methods."""
+class TestMVSUtils(unittest.TestCase):
+    """Unit tests for utilities for MVS methods."""
 
     def test_piecewise_gaussian_below_threshold(self) -> None:
         """Unit test for the case that the angle between two coordinates is below the threshold,

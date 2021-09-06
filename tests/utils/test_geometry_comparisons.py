@@ -94,7 +94,9 @@ class TestGeometryComparisons(unittest.TestCase):
         transform = Similarity3(rotation_shift, translation_shift, scaling_factor)
         ref_list = [transform.transformFrom(x) for x in sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES]
 
-        computed_poses, aSb = geometry_comparisons.align_poses_sim3(sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES, ref_list)
+        computed_poses, aSb = geometry_comparisons.align_poses_sim3(
+            sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES, ref_list
+        )
         assert isinstance(aSb, Similarity3)
         self.__assert_equality_on_pose3s(computed_poses, sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES)
 
@@ -285,14 +287,6 @@ class TestGeometryComparisons(unittest.TestCase):
 
         # identity alignment should preserve poses, should still match GT/targets at indices 1 and 3
         self.__assert_equality_on_pose3s(computed=[aTi_list_[1], aTi_list_[3]], expected=[aTi_list[1], aTi_list[3]])
-
-    def test_angle_between_vectors(self) -> None:
-        """Test that the angle between two vectors is calculated correctly in degrees."""
-        v_a = np.array([1.5, 0, 0])
-        v_b = np.array([0, -4.0, 0])
-
-        angle_deg = geometry_comparisons.angle_between_vectors(v_a=v_a, v_b=v_b)
-        self.assertAlmostEqual(angle_deg, 90.0)
 
 
 def test_get_points_within_radius_of_cameras():
