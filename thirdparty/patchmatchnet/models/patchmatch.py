@@ -49,7 +49,7 @@ class DepthInitialization(nn.Module):
             width: width of depth map
             depth_interval_scale: depth interval scale
             device: device on which to place tensor
-            depth: current depth (B, 1, H, W)
+            depth: current depth, of shape (B, 1, H, W)
 
         Returns:
             depth_sample: initialized sample depth map by randomization or local perturbation (B, Ndepth, H, W)
@@ -209,24 +209,24 @@ class Evaluation(nn.Module):
         """Forward method for adaptive evaluation
 
         Args:
-            ref_feature: feature from reference view, (B, C, H, W)
-            src_features: features from (Nview-1) source views, (Nview-1) * (B, C, H, W), where Nview is the number of
-                input images (or views) of PatchmatchNet
-            ref_proj: projection matrix of reference view, (B, 4, 4)
-            src_projs: source matrices of source views, (Nview-1) * (B, 4, 4), where Nview is the number of input
-                images (or views) of PatchmatchNet
-            depth_sample: sample depth map, (B,Ndepth,H,W)
-            depth_min: minimum virtual depth, (B,)
-            depth_max: maximum virtual depth, (B,)
+            ref_feature: feature from reference view, of shape (B, C, H, W)
+            src_features: features from (Nview-1) source views, of shape (Nview-1) * (B, C, H, W),
+                where Nview is the number of input images (or views) of PatchmatchNet
+            ref_proj: projection matrix of reference view, of shape (B, 4, 4)
+            src_projs: source matrices of source views, of shape (Nview-1) * (B, 4, 4),
+                where Nview is the number of input images (or views) of PatchmatchNet
+            depth_sample: sample depth map, of shape (B,Ndepth,H,W)
+            depth_min: minimum virtual depth, of shape (B,)
+            depth_max: maximum virtual depth, of shape (B,)
             iter: iteration number,
-            grid: grid, (B, evaluate_neighbors*H, W, 2)
-            weight: weight, (B,Ndepth,1,H,W)
+            grid: grid, of shape (B, evaluate_neighbors*H, W, 2)
+            weight: weight, of shape (B,Ndepth,1,H,W)
             view_weights: Tensor to store weights of source views, in shape of (B,Nview-1,H,W),
                 Nview-1 represents the number of source views
 
         Returns:
-            depth_sample: expectation of depth sample, (B,H,W)
-            score: probability map, (B,Ndepth,H,W)
+            depth_sample: expectation of depth sample, of shape (B,H,W)
+            score: probability map, of shape (B,Ndepth,H,W)
             view_weights: optional, Tensor to store weights of source views, in shape of (B,Nview-1,H,W),
                 Nview-1 represents the number of source views
         """
@@ -433,7 +433,7 @@ class PatchMatch(nn.Module):
             width: grid width
             offset: grid offset
             device: device on which to place tensor
-            img: reference images, (B, C, image_H, image_W)
+            img: reference images, of shape (B, C, image_H, image_W)
 
         Returns:
             generated grid: in the shape of (B, propagate_neighbors*H, W, 2)
@@ -513,7 +513,7 @@ class PatchMatch(nn.Module):
             width: grid width
             offset: grid offset
             device: device on which to place tensor
-            img: reference images, (B, C, image_H, image_W)
+            img: reference images, of shape (B, C, image_H, image_W)
 
         Returns:
             generated grid: in the shape of (B, evaluate_neighbors*H, W, 2)
@@ -598,22 +598,22 @@ class PatchMatch(nn.Module):
         """Forward method for PatchMatch
 
         Args:
-            ref_feature: feature from reference view, (B, C, H, W)
-            src_features: features from (Nview-1) source views, (Nview-1) * (B, C, H, W), where Nview is the number of
-                input images (or views) of PatchmatchNet
-            ref_proj: projection matrix of reference view, (B, 4, 4)
-            src_projs: source matrices of source views, (Nview-1) * (B, 4, 4), where Nview is the number of input
-                images (or views) of PatchmatchNet
-            depth_min: minimum virtual depth, (B,)
-            depth_max: maximum virtual depth, (B,)
-            depth: current depth map, (B,1,H,W) or None
-            img: image, (B,C,image_H,image_W)
+            ref_feature: feature from reference view, of shape (B, C, H, W)
+            src_features: features from (Nview-1) source views, of shape (Nview-1) * (B, C, H, W),
+                where Nview is the number of input images (or views) of PatchmatchNet
+            ref_proj: projection matrix of reference view, of shape (B, 4, 4)
+            src_projs: source matrices of source views, of shape (Nview-1) * (B, 4, 4),
+                where Nview is the number of input images (or views) of PatchmatchNet
+            depth_min: minimum virtual depth, of shape (B,)
+            depth_max: maximum virtual depth, of shape (B,)
+            depth: current depth map, of shape (B,1,H,W) or None
+            img: image, of shape (B,C,image_H,image_W)
             view_weights: Tensor to store weights of source views, in shape of (B,Nview-1,H,W),
                 Nview-1 represents the number of source views
 
         Returns:
             depth_samples: list of depth maps from each patchmatch iteration, Niter * (B,1,H,W)
-            score: evaluated probabilities, (B,Ndepth,H,W)
+            score: evaluated probabilities, of shape (B,Ndepth,H,W)
             view_weights(optional): Tensor to store weights of source views, in shape of (B,Nview-1,H,W),
                 Nview-1 represents the number of source views
         """
@@ -817,9 +817,10 @@ class SimilarityNet(nn.Module):
         Args:
             x1: (B, G, Ndepth, H, W), where G is the number of groups, aggregated cost among all the source views with
                 pixel-wise view weight
-            grid: position of sampling points in adaptive spatial cost aggregation, (B, evaluate_neighbors*H, W, 2)
+            grid: position of sampling points in adaptive spatial cost aggregation,
+                of shape (B, evaluate_neighbors*H, W, 2)
             weight: weight of sampling points in adaptive spatial cost aggregation, combination of
-                feature weight and depth weight, (B,Ndepth,1,H,W)
+                feature weight and depth weight, of shape (B,Ndepth,1,H,W)
 
         Returns:
             final cost: in the shape of (B,Ndepth,H,W)
@@ -866,11 +867,12 @@ class FeatureWeightNet(nn.Module):
         """Forward method for FeatureWeightNet
 
         Args:
-            ref_feature: reference feature map, (B,C,H,W)
-            grid: position of sampling points in adaptive spatial cost aggregation, (B, evaluate_neighbors*H, W, 2)
+            ref_feature: reference feature map, of shape (B,C,H,W)
+            grid: position of sampling points in adaptive spatial cost aggregation,
+                of shape (B, evaluate_neighbors*H, W, 2)
 
         Returns:
-            weight based on similarity of features of sampling points and center pixel, (B,Neighbor,H,W)
+            weight based on similarity of features of sampling points and center pixel, of shape (B,Neighbor,H,W)
         """
         batch, feature_channel, height, width = ref_feature.size()
 
@@ -902,10 +904,10 @@ def depth_weight(
     2. Weight based on depth difference of sampling points and center pixel
 
     Args:
-        depth_sample: sample depth map, (B,Ndepth,H,W)
-        depth_min: minimum virtual depth, (B,)
-        depth_max: maximum virtual depth, (B,)
-        grid: position of sampling points in adaptive spatial cost aggregation, (B, evaluate_neighbors*H, W, 2)
+        depth_sample: sample depth map, of shape (B,Ndepth,H,W)
+        depth_min: minimum virtual depth, of shape (B,)
+        depth_max: maximum virtual depth, of shape (B,)
+        grid: position of sampling points in adaptive spatial cost aggregation, of shape (B, evaluate_neighbors*H, W, 2)
         patchmatch_interval_scale: patchmatch interval scale,
         evaluate_neighbors: number of neighbors to be sampled in evaluation
 
@@ -967,7 +969,7 @@ class PixelwiseNet(nn.Module):
         """Forward method for PixelwiseNet
 
         Args:
-            x1: pixel-wise view weight, (B, G, Ndepth, H, W), where G is the number of groups
+            x1: pixel-wise view weight, of shape (B, G, Ndepth, H, W), where G is the number of groups
         """
 
         # [B, Ndepth, H, W]

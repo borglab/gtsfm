@@ -137,13 +137,13 @@ def differentiable_warping(
     """Differentiable homography-based warping, implemented in Pytorch.
 
     Args:
-        src_fea: (B, C, H, W) source features, for each source view in batch
-        src_proj: (B, 4, 4) source projection matrices, for each source view in batch
-        ref_proj: (B, 4, 4) reference projection matrix, for each ref view in batch
-        depth_samples: (B, Ndepth, H, W) virtual depth layers
+        src_fea: source features, for each source view in batch, of shape (B, C, H, W)
+        src_proj: source projection matrices, for each source view in batch, of shape (B, 4, 4)
+        ref_proj: reference projection matrix, for each ref view in batch, of shape (B, 4, 4)
+        depth_samples: virtual depth layers, of shape (B, Ndepth, H, W)
 
     Returns:
-        warped_src_fea: (B, C, Ndepth, H, W) features on depths after perspective transformation
+        warped_src_fea: features on depths after perspective transformation, of shape (B, C, Ndepth, H, W)
     """
 
     batch, channels, height, width = src_fea.shape
@@ -200,11 +200,11 @@ def depth_regression(p: torch.Tensor, depth_values: torch.Tensor) -> torch.Tenso
     The regressed depth value D(p) at pixel p is found as the expectation w.r.t. P of the hypotheses.
 
     Args:
-        p: probability volume (B, D, H, W)
-        depth_values: discrete depth values (B, D)
+        p: probability volume, of shape (B, D, H, W)
+        depth_values: discrete depth values, of shape (B, D)
 
     Returns:
-        result depth: expected value, soft argmin (B, 1, H, W)
+        result depth: expected value, soft argmin, of shape (B, 1, H, W)
     """
 
     depth_values = depth_values.view(*depth_values.shape, 1, 1)
@@ -217,11 +217,11 @@ def depth_regression_1(p: torch.Tensor, depth_values: torch.Tensor) -> torch.Ten
     """Another version of depth regression function
 
     Args:
-        p: probability volume (B, D, H, W)
-        depth_values: discrete depth values (B, D)
+        p: probability volume, of shape (B, D, H, W)
+        depth_values: discrete depth values, of shape (B, D)
 
     Returns:
-        result depth: expected value, soft argmin (B, 1, H, W)
+        result depth: expected value, soft argmin, of shape (B, 1, H, W)
     """
 
     depth = torch.sum(p * depth_values, 1)
