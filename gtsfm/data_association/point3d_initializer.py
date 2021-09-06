@@ -6,7 +6,7 @@ References:
 
 Authors: Sushmita Warrier, Xiaolong Wu, John Lambert, Travis Driver
 """
-
+import copy
 import itertools
 from enum import Enum
 from typing import Dict, List, NamedTuple, Optional, Set, Tuple
@@ -17,7 +17,7 @@ from gtsam import CameraSetCal3Bundler, PinholeCameraCal3Bundler, Point2Vector, 
 
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reproj_utils
-from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
+from gtsfm.common.sfm_track import SfmTrack2d
 
 NUM_SAMPLES_PER_RANSAC_HYPOTHESIS = 2
 SVD_DLT_RANK_TOL = 1e-9
@@ -161,8 +161,7 @@ class Point3dInitializer(NamedTuple):
             avg_track_reproj_error: reprojection error of 3d triangulated point to each image plane
                 Note: this may be "None" if the 3d point could not be triangulated successfully
                 due to a cheirality exception or insufficient number of RANSAC inlier measurements
-            is_cheirality_failure: boolean representing whether the selected 2d measurements lead
-                to a cheirality exception upon triangulation
+            Exit code of the triangulation.
         """
         if self.mode == TriangulationParam.TRIPLET_START_AND_ITERATIVE:
             return self.form_track_using_most_consistent_triplet(track_2d)
@@ -303,120 +302,87 @@ class Point3dInitializer(NamedTuple):
 
     def form_track_using_most_consistent_triplet(
         self, track_2d: SfmTrack2d
-    ) -> Tuple[Optional[SfmTrack], Optional[float], bool]:
-        """Form tracks starting with the most consistent triplet and adding measurements which do not push the average
+    ) -> Tuple[Optional[SfmTrack], Optional[float], TriangulationExitCode]:
+        """Form tracks starting with the most consistent pair and adding measurements which do not push the average
         reprojection error above the threshold.
 
         Returns:
             track with inlier measurements and 3D landmark. None returned if triangulation fails or has high error.
-            avg_track_reproj_error: reprojection error of 3d triangulated point to each image plane.
-                                    Note: this may be "None" if the 3d point could not be triangulated successfully
-                                    due to a cheirality exception or less than 3 measurements required for a triplet.
-            is_cheirality_failure: boolean representing whether the selected 2d measurements lead to a cheirality
-                                   exception upon triangulation.
+            avg_track_reproj_error: reprojection error of 3d triangulated point to each image plane
+                Note: this may be "None" if the 3d point could not be triangulated successfully
+                due to a cheirality exception or insufficient number of RANSAC inlier measurements
+            Exit code of the triangulation.
         """
         if track_2d.number_measurements() < 2:
             # one measurement cannot be triangulated
-            return None, None, False
+            return None, None, TriangulationExitCode.POSES_UNDERCONSTRAINED
 
-        # initializer of 3D landmark for each track
+        # initializer of 3D landmark for each track using simple triangulation
         point3d_initializer_simple = Point3dInitializer(
             self.track_camera_dict,
             TriangulationParam.NO_RANSAC,
             reproj_error_thresh=1e6,  # just a large number, wont be used
         )
 
-        if track_2d.number_measurements() == 2:
-            # with just two measurements, there is no iterative processing
-
-            if track_2d.measurement(0).i != track_2d.measurement(1).i:
-                return point3d_initializer_simple.triangulate(track_2d)
-            else:
-                return None, None, False
-
+        # find the best pair (lowest reprojection error) from all possible triplet.
+        pair_subtracks: List[Tuple[int, int, "SfmTrack2d"]] = track_2d.generate_pairs()
         min_avg_reproj_error = None
-        best_triplet_indices = None
-        for k1 in range(track_2d.number_measurements()):
-            for k2 in range(k1 + 1, track_2d.number_measurements()):
+        best_pair_indices = None
+        for k1, k2, pair in pair_subtracks:
+            if not pair.validate_unique_cameras():
+                # the triplet has to have unique cameras
+                continue
 
-                triplet_track_2d = track_2d.select_subset([k1, k2])
-                if not triplet_track_2d.validate_unique_cameras():
-                    # the triplet has to have unique cameras
-                    continue
+            # initialize the 3D point for this track
+            _, avg_reproj_error, _ = point3d_initializer_simple.triangulate(pair)
 
-                # initialize the 3D point for this track
-                _, avg_reproj_error, _ = point3d_initializer_simple.triangulate(triplet_track_2d)
+            if avg_reproj_error is None:
+                continue
 
-                if avg_reproj_error is None:
-                    continue
+            if min_avg_reproj_error is None or avg_reproj_error < min_avg_reproj_error:
+                min_avg_reproj_error = avg_reproj_error
+                best_pair_indices = (k1, k2)
 
-                if min_avg_reproj_error is None or avg_reproj_error < min_avg_reproj_error:
-                    min_avg_reproj_error = avg_reproj_error
-                    best_triplet_indices = [k1, k2]
-
-        # for k1 in range(track_2d.number_measurements()):
-        #     for k2 in range(k1 + 1, track_2d.number_measurements()):
-        #         for k3 in range(k2 + 1, track_2d.number_measurements()):
-        #             triplet_track_2d = track_2d.select_subset([k1, k2, k3])
-        #             if not triplet_track_2d.validate_unique_cameras():
-        #                 # the triplet has to have unique cameras
-        #                 continue
-
-        #             # initialize the 3D point for this track
-        #             _, avg_reproj_error, _ = point3d_initializer_simple.triangulate(triplet_track_2d)
-
-        #             if avg_reproj_error is None:
-        #                 continue
-
-        #             if min_avg_reproj_error is None or avg_reproj_error < min_avg_reproj_error:
-        #                 min_avg_reproj_error = avg_reproj_error
-        #                 best_triplet_indices = [k1, k2, k3]
-
-        if best_triplet_indices is None or min_avg_reproj_error > self.reproj_error_thresh:
+        if best_pair_indices is None:
             # there is no triplet which can be considered
-            return None, None, False
+            return None, None, TriangulationExitCode.POSES_UNDERCONSTRAINED
+        elif min_avg_reproj_error > self.reproj_error_thresh:
+            return None, None, TriangulationExitCode.EXCEEDS_REPROJ_THRESH
 
-        triplet_track_2d = track_2d.select_subset(best_triplet_indices)
-        triplet_track_3d, _, _ = point3d_initializer_simple.triangulate(triplet_track_2d)
+        # use the best track as the seed, onto which more measurements can be added
+        seed_track_2d = track_2d.select_subset(best_pair_indices)
+        seed_track_3d, _, _ = point3d_initializer_simple.triangulate(seed_track_2d)
+        accepted_indices: Set[int] = set(best_pair_indices)
 
-        if triplet_track_3d is None:
-            return None, None, False
-
-        # order the measurements by their reprojection error of the best triplet's 3D point.
-        errors, _ = reproj_utils.compute_point_reprojection_errors(
-            self.track_camera_dict,
-            triplet_track_3d.point3(),
-            [track_2d.measurement(k) for k in range(track_2d.number_measurements())],
+        # we can only add new measurements which are not in the seed.
+        remaining_indices = np.array(
+            [k for k in range(track_2d.number_measurements()) if k not in accepted_indices], dtype=np.uint32
         )
-        ordered_indices = np.argsort(errors)
+
+        # order the remaining measurements by their reprojection erorr w.r.t the seed 3D point.
+        errors, _ = reproj_utils.compute_point_reprojection_errors(
+            self.track_camera_dict, seed_track_3d.point3(), [track_2d.measurement(k) for k in remaining_indices]
+        )
+        remaining_indices = remaining_indices[np.argsort(errors).astype(np.uint32).tolist()]
 
         # add measurements keeping reprojection error stays below the threshold, and we <=1 measurement per camera
-        accepted_indices: Set[int] = set()
-        accepted_measurements: List[SfmMeasurement] = []
-        for k in ordered_indices:
-            if len(accepted_indices) == 0:
-                accepted_indices.add(k)
-                accepted_measurements.append(track_2d.measurement(k))
-                continue
-
-            if k in accepted_indices:
-                # cannot add 2 measurements from the same camera
-                continue
-
+        current_track_2d = copy.deepcopy(seed_track_2d)
+        for k in remaining_indices:
+            # construct the candidate track by adding the new measurement
             current_measurement = track_2d.measurement(k)
-            # form the candidate by adding current measurement
-            _, avg_track_reproj_error, cheirality_error = point3d_initializer_simple.triangulate(
-                SfmTrack2d(accepted_measurements + [current_measurement])
-            )
-            if (
-                not cheirality_error
-                and avg_track_reproj_error is not None
-                and avg_track_reproj_error < self.reproj_error_thresh
-            ):
-                accepted_indices.add(k)
-                accepted_measurements.append(current_measurement)
+            tentative_track_2d = SfmTrack2d(current_track_2d.measurements + [current_measurement])
 
-        return point3d_initializer_simple.triangulate(SfmTrack2d(accepted_measurements))
+            if not tentative_track_2d.validate_unique_cameras():
+                continue
+
+            # triangulate the candidate track and check reprojection error.
+            _, avg_track_reproj_error, exit_code = point3d_initializer_simple.triangulate(tentative_track_2d)
+
+            if exit_code == TriangulationExitCode.SUCCESS and avg_track_reproj_error < self.reproj_error_thresh:
+                accepted_indices.add(k)
+                current_track_2d = copy.deepcopy(tentative_track_2d)
+
+        return point3d_initializer_simple.triangulate(current_track_2d)
 
 
 def generate_measurement_pairs(track: SfmTrack2d) -> List[Tuple[int, ...]]:

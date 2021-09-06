@@ -65,7 +65,7 @@ class SfmTrack2d(NamedTuple):
         """
         return self.measurements[idx]
 
-    def select_subset(self, idxs: List[int]) -> "SfmTrack2d":
+    def select_subset(self, idxs: Tuple[int, ...]) -> "SfmTrack2d":
         """Generates a new track with the subset of measurements.
 
         Returns:
@@ -107,9 +107,41 @@ class SfmTrack2d(NamedTuple):
         track_cam_idxs = [measurement.i for measurement in self.measurements]
         return len(set(track_cam_idxs)) == len(track_cam_idxs)
 
+    def generate_pairs(self) -> List[Tuple[int, int, "SfmTrack2d"]]:
+        """Generete all possible pair from the measurements.
+
+        Returns:
+            List of all the pair subtracks.
+        """
+        pairs: List[Tuple[int, int, "SfmTrack2d"]] = []
+
+        # loop over all pairs (k1, k2) with contstraints k1 < k2.
+        for k1 in range(self.number_measurements()):
+            for k2 in range(k1 + 1, self.number_measurements()):
+                pairs.append((k1, k2, self.select_subset([k1, k2])))
+
+        return pairs
+
+    def generate_triplets(self) -> List[Tuple[int, int, int, "SfmTrack2d"]]:
+        """Generete all possible triplets from the measurements.
+
+        Returns:
+            List of all the triplet subtracks.
+        """
+        triplets: List[Tuple[int, int, int, "SfmTrack2d"]] = []
+
+        # loop over all triplets (k1, k2, k3) with constraints k1 < k2 < k3.
+        for k1 in range(self.number_measurements()):
+            for k2 in range(k1 + 1, self.number_measurements()):
+                for k3 in range(k2 + 1, self.number_measurements()):
+                    triplets.append((k1, k2, k3, self.select_subset([k1, k2, k3])))
+
+        return triplets
+
     @staticmethod
     def generate_tracks_from_pairwise_matches(
-        matches_dict: Dict[Tuple[int, int], np.ndarray], keypoints_list: List[Keypoints]
+        matches_dict: Dict[Tuple[int, int], np.ndarray],
+        keypoints_list: List[Keypoints],
     ) -> List["SfmTrack2d"]:
         """Factory function that creates a list of tracks from 2d point correspondences.
 
@@ -159,19 +191,6 @@ class SfmTrack2d(NamedTuple):
                 # add measurement in this track
                 track_measurements += [SfmMeasurement(i, keypoints_list[i].coordinates[k])]
 
-            track_2d = SfmTrack2d(track_measurements)
+            track_2d_list.append(SfmTrack2d(track_measurements))
 
-            # Skip erroneous track that had repeated measurements within the same image
-            # This is an expected result from an incorrect correspondence slipping through
-            if track_2d.validate_unique_cameras():
-                track_2d_list += [track_2d]
-            else:
-                # TODO: remove this
-                track_2d_list += [track_2d]
-                erroneous_track_count += 1
-
-        erroneous_track_pct = erroneous_track_count / len(key_set) * 100
-        logger.info(
-            f"DSF Union-Find: {erroneous_track_pct:.2f}% of tracks discarded from multiple obs. in a single image."
-        )
         return track_2d_list
