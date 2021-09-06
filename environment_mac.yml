@@ -19,6 +19,7 @@ dependencies:
   - mypy
   - pylint
   - pytest
+  - flake8
   # dask and related
   - dask # same as dask[complete] pip distribution
   - python-graphviz
@@ -38,7 +39,5 @@ dependencies:
   - h5py
   - plotly=4.14.3
   - tabulate
-  - pip:
-    - argoverse @ git+https://github.com/argoai/argoverse-api.git@master
 
 

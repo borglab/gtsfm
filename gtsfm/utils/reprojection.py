@@ -20,7 +20,7 @@ def compute_track_reprojection_errors(
         track: 3d point/landmark and its corresponding 2d measurements in various cameras
 
     Returns:
-        reprojection errors for each measurement.
+        reprojection errors for each measurement (measured in pixels).
         avg_track_reproj_error: average reprojection error of all meausurements in track.
     """
     errors = []
@@ -56,7 +56,7 @@ def compute_point_reprojection_errors(
         measurements: corresponding 2d measurements (of 3d point above) in various cameras
 
     Returns:
-        reprojection errors for each measurement.
+        reprojection errors for each measurement (measured in pixels).
         avg_track_reproj_error: average reprojection error of all meausurements in track.
     """
     errors = []
