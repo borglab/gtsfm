@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        config: ["deep_front_end.yaml", "sift_front_end.yaml"]
+        config: ["deep_front_end", "sift_front_end"]
     defaults:
       run:
         shell: bash -l {0}
@@ -68,11 +68,11 @@ jobs:
         run: |
           python gtsfm/runner/run_scene_optimizer.py \
             --dataset_root tests/data/set1_lund_door \
-            --config_name ${{ matrix.config }}
+            --config_name ${{ matrix.config }}.yaml
       - name: Archive door dataset metrics
         uses: actions/upload-artifact@v2
         with:
-          name: door-12-metrics-${{ matrix.config }}
+          name: door-12-metrics-${{ matrix.config }}.zip
           path: |
             result_metrics
       - name: Execute skydio-crane-8 dataset
@@ -81,11 +81,11 @@ jobs:
             --images_dir skydio_crane_mast_8imgs_with_exif/images \
             --colmap_files_dirpath skydio_crane_mast_8imgs_with_exif/crane_mast_8imgs_colmap_output \
             --max_frame_lookahead 8 \
-            --config_name ${{ matrix.config }}
+            --config_name ${{ matrix.config }}.yaml
       - name: Archive skydio-crane-8 metrics
         uses: actions/upload-artifact@v2
         with:
-          name: skydio-crane-8-metrics-${{ matrix.config }}
+          name: skydio-crane-8-metrics-${{ matrix.config }}.zip
           path: |
             result_metrics
       - name: Execute skydio-crane-32 dataset
@@ -94,10 +94,10 @@ jobs:
             --images_dir skydio-32/images \
             --colmap_files_dirpath skydio-32/colmap_crane_mast_32imgs \
             --max_frame_lookahead 32 \
-            --config_name ${{ matrix.config }}
+            --config_name ${{ matrix.config }}.yaml
       - name: Archive skydio-crane-32 metrics
         uses: actions/upload-artifact@v2
         with:
-          name: skydio-crane-32-metrics-${{ matrix.config }}
+          name: skydio-crane-32-metrics-${{ matrix.config }}.zip
           path: |
             result_metrics
