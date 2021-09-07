@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Tuple
 
 import dask
 from dask.delayed import Delayed
-from gtsam import Point3, Rot3, Unit3
+from gtsam import Point3, Pose3, Rot3, Unit3
 
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 
@@ -27,7 +27,7 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
         wRi_list: List[Optional[Rot3]],
         scale_factor: float = 1.0,
         gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
-    ) -> List[Optional[Point3]], Optional[GtsfmMetricsGroup]:
+    ) -> Tuple[List[Optional[Point3]], Optional[GtsfmMetricsGroup]]:
         """Run the translation averaging.
 
         Args:
@@ -49,7 +49,7 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
         wRi_graph: Delayed,
         scale_factor: float = 1.0,
         gt_wTi_graph: Optional[Delayed] = None,
-    ) -> Delayed, Delayed:
+    ) -> Delayed:
         """Create the computation graph for performing translation averaging.
 
         Args:
@@ -63,4 +63,4 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
             Global unit translations wrapped as Delayed.
             A GtsfmMetricsGroup with translation averaging metrics wrapped as Delayed. 
         """
-        return dask.delayed(self.run)(num_images, i2Ui1_graph, wRi_graph, scale_factor, gt_poses_graph)
+        return dask.delayed(self.run, nout=2)(num_images, i2Ui1_graph, wRi_graph, scale_factor, gt_wTi_graph)
