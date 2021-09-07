@@ -41,5 +41,8 @@ dependencies:
   # visualization
   - open3d
   - pip:
-      - pydegensac
-      - pycolmap
+    - pydegensac
+    - colour
+
+
+
