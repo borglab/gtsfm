@@ -29,8 +29,9 @@ CYCLE_ERROR_THRESHOLD = 5.0
 def extract_triplets(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int, int, int]]:
     """Discover triplets from a graph, without O(n^3) complexity, by using intersection within adjacency lists.
 
-    Based off of Theia's implementation:
+    Based off of Theia and OpenMVG's implementations:
         https://github.com/sweeneychris/TheiaSfM/blob/master/src/theia/math/graph/triplet_extractor.h
+        https://github.com/openMVG/openMVG/blob/develop/src/openMVG/graph/triplet_finder.hpp
 
     If we have an edge a<->b, if we can find any node c such that a<->c and b<->c, then we have
     discovered a triplet. In other words, we need only look at the intersection between the nodes
