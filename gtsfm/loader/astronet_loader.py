@@ -66,7 +66,7 @@ class AstroNetLoader(LoaderBase):
         self._use_gt_sfmtracks = use_gt_sfmtracks
         self._max_frame_lookahead = max_frame_lookahead
 
-        # Use COLMAP model reader to load data and convert to GTSfM format
+        # Use COLMAP model reader to load data and convert to GTSfM format.
         if Path(data_dir).exists():
             _cameras, _images, _points3d = read_model(path=data_dir, ext=".bin")
             self._calibrations, self._wTi_list, img_fnames, self._sfmtracks = self.colmap2gtsfm(
@@ -101,8 +101,8 @@ class AstroNetLoader(LoaderBase):
         cameras: Dict[int, ColmapCamera],
         images: Dict[int, ColmapImage],
         points3D: Dict[int, ColmapPoint3D],
-        load_sfmtracks: Optional[bool] = False,
-    ) -> Tuple[List[Cal3Bundler], List[Pose3], List[str], List[Point3]]:
+        load_sfmtracks: bool = False,
+    ) -> Tuple[List[Cal3Bundler], List[Pose3], List[str], Optional[List[Point3]]]:
         """Converts COLMAP-formatted variables to GTSfM format
 
         Args:
@@ -117,19 +117,19 @@ class AstroNetLoader(LoaderBase):
             img_fnames: file names of images in images_gtsfm
             sfmtracks_gtsfm: tracks of points in points3D
         """
-        cameras_gtsfm, images_gtsfm, img_fnames, sfmtracks_gtsfm = None, None, None, None
-
         # Note: Assumes input cameras use `PINHOLE` model
-        if len(images) > 0 and len(cameras) > 0:
-            cameras_gtsfm, images_gtsfm, img_fnames = [], [], []
-            image_id_to_idx = {}  # keeps track of discrepencies between `image_id` and List index.
-            for idx, img in enumerate(images.values()):
-                images_gtsfm.append(Pose3(Rot3(img.qvec2rotmat()), img.tvec).inverse())
-                img_fnames.append(img.name)
-                fx, _, cx, cy = cameras[img.camera_id].params[:4]
-                cameras_gtsfm.append(Cal3Bundler(fx, 0.0, 0.0, cx, cy))
-                image_id_to_idx[img.id] = idx
+        if len(images) == 0 and len(cameras) == 0:
+            raise RuntimeError("No Image or Camera data provided to loader.")
+        cameras_gtsfm, images_gtsfm, img_fnames = [], [], []
+        image_id_to_idx = {}  # keeps track of discrepencies between `image_id` and List index.
+        for idx, img in enumerate(images.values()):
+            images_gtsfm.append(Pose3(Rot3(img.qvec2rotmat()), img.tvec).inverse())
+            img_fnames.append(img.name)
+            fx, _, cx, cy = cameras[img.camera_id].params[:4]
+            cameras_gtsfm.append(Cal3Bundler(fx, 0.0, 0.0, cx, cy))
+            image_id_to_idx[img.id] = idx
 
+        sfmtracks_gtsfm = None
         if len(points3D) > 0 and load_sfmtracks:
             sfmtracks_gtsfm = []
             for point3D in points3D.values():
@@ -209,11 +209,11 @@ class AstroNetLoader(LoaderBase):
         Returns:
             SfmTrack at index.
         """
+        if not self._use_gt_sfmtracks or self._sfmtracks is None:
+            return None
+
         if index < 0 or index >= len(self._sfmtracks):
             raise IndexError(f"Track3D index {index} is invalid")
-
-        if not self._use_gt_sfmtracks:
-            return None
 
         sfmtrack = self._sfmtracks[index]
         return sfmtrack
