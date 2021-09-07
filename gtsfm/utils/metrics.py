@@ -176,6 +176,8 @@ def compute_averaging_metrics(
     gt_wRi_list, gt_wti_list = get_rotations_translations_from_poses(gt_wTi_list)
 
     metrics = []
+    metrics.append(GtsfmMetric(name="num_rotations_computed", data=len([x for x in wRi_list if x is not None])))
+    metrics.append(GtsfmMetric(name="num_translations_computed", data=len([x for x in wti_list if x is not None])))
     metrics.append(compute_rotation_angle_metric(wRi_aligned_list, gt_wRi_list))
     metrics.append(compute_translation_distance_metric(wti_aligned_list, gt_wti_list))
     metrics.append(compute_translation_angle_metric(i2Ui1_dict=i2Ui1_dict_gt, wTi_list=wTi_aligned_list))
