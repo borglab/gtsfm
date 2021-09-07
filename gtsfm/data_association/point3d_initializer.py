@@ -59,6 +59,8 @@ class Point3dInitializer(NamedTuple):
     """Class to initialize landmark points via triangulation w/ or w/o RANSAC inlier/outlier selection.
 
     Note: We currently limit the size of each sample to 2 camera views in our RANSAC scheme.
+    Comparable to OpenSfM's `TrackTriangulator` class:
+        https://github.com/mapillary/OpenSfM/blob/master/opensfm/reconstruction.py#L755
 
     Args:
         track_cameras: Dict of cameras and their indices.
