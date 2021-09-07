@@ -33,7 +33,6 @@ class AstroNetLoader(LoaderBase):
     def __init__(
         self,
         data_dir: str,
-        use_gt_intrinsics: bool = True,
         use_gt_extrinsics: bool = True,
         use_gt_sfmtracks: bool = False,
         max_frame_lookahead: int = 2,
@@ -61,9 +60,8 @@ class AstroNetLoader(LoaderBase):
 
         Raises:
             FileNotFoundError if image path does not exist.
-            ValueError if ground truth camera calibrations not provided.
+            RuntimeError if ground truth camera calibrations not provided.
         """
-        self._use_gt_intrinsics = use_gt_intrinsics
         self._use_gt_extrinsics = use_gt_extrinsics
         self._use_gt_sfmtracks = use_gt_sfmtracks
         self._max_frame_lookahead = max_frame_lookahead
@@ -78,7 +76,7 @@ class AstroNetLoader(LoaderBase):
         # Camera intrinsics are currently required due to absense of EXIF data and diffculty in approximating focal
         # length (usually 10000 to 100000 pixels).
         if self._calibrations is None:
-            raise ValueError("Camera calibrations cannot be None.")
+            raise RuntimeError("Camera intrinsics cannot be None.")
 
         if self._wTi_list is None:
             self._use_gt_extrinsics = False
@@ -179,10 +177,8 @@ class AstroNetLoader(LoaderBase):
         """
         if index < 0 or index >= len(self):
             raise IndexError(f"Image index {index} is invalid")
-
-        if self._use_gt_intrinsics:
-            intrinsics = self._calibrations[index]
-            logger.info("Loading ground truth calibration.")
+        intrinsics = self._calibrations[index]
+        logger.info("Loading ground truth calibration.")
 
         return intrinsics
 

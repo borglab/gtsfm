@@ -72,7 +72,6 @@ def run_scene_optimizer() -> None:
     # Initialize loader.
     loader = AstroNetLoader(
         data_dir=args.data_dir,
-        use_gt_intrinsics=True,
         use_gt_extrinsics=True,
         use_gt_sfmtracks=False,
         max_frame_lookahead=args.max_frame_lookahead,
