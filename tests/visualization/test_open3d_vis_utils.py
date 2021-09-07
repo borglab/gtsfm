@@ -23,8 +23,6 @@ def test_create_colored_spheres_open3d() -> None:
     assert isinstance(spheres, list)
     assert all([isinstance(sphere, open3d.geometry.TriangleMesh) for sphere in spheres])
 
-    open3d.visualization.draw_geometries(spheres)
-
 
 def test_create_colored_point_cloud_open3d() -> None:
     """Try creating points at randomly generated 3d locations (should be fast)."""
@@ -35,11 +33,3 @@ def test_create_colored_point_cloud_open3d() -> None:
 
     pcd = open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud, rgb)
     assert isinstance(pcd, open3d.geometry.PointCloud)
-
-    open3d.visualization.draw_geometries([pcd])
-
-
-if __name__ == "__main__":
-    test_create_colored_spheres_open3d()
-
-    # test_create_colored_point_cloud_open3d()
