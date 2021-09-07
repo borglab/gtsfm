@@ -56,12 +56,25 @@ jobs:
             | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1/p' > confirm.txt
           wget --load-cookies cookies.txt -O skydio-32.zip \
             $GDRIVE_URL'&confirm='$(<confirm.txt)
+
+      - name: Download Palace-fine-arts-281 dataset
+        run: |
+          wget http://vision.maths.lth.se/calledataset/fine_arts_palace/fine_arts_palace.zip
+          wget http://vision.maths.lth.se/calledataset/fine_arts_palace/data.mat
+
       - name: Decompress Skydio-crane-8 dataset
         run: |
           unzip -qq skydio-8.zip 
       - name: Decompress Skydio-crane-32 dataset
         run: |
           unzip -qq skydio-32.zip -d skydio-32
+
+      - name: Decompress Palace-fine-arts-281 dataset
+        run: |
+          mkdir palace-fine-arts-281
+          unzip -qq fine_arts_palace.zip -d palace-fine-arts-281/images
+          mv data.mat palace-fine-arts-281/
+          
       - name: Execute door-12 dataset
         run: |
           python gtsfm/runner/run_scene_optimizer.py \
@@ -98,5 +111,18 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: skydio-crane-32-metrics-${{ matrix.config }}.zip
+          path: |
+            result_metrics
+
+      - name: Execute Palace-fine-arts-281 dataset
+        run: |
+          python gtsfm/runner/run_scene_optimizer.py \
+            --dataset_root palace-fine-arts-281 \
+            --max_frame_lookahead 281 \
+            --config_name ${{ matrix.config }}.yaml
+      - name: Archive Palace-fine-arts-281 metrics
+        uses: actions/upload-artifact@v2
+        with:
+          name: palace-fine-arts-281-metrics-${{ matrix.config }}.zip
           path: |
             result_metrics
