@@ -6,14 +6,20 @@ from typing import Dict, List, Optional, Tuple
 
 import dask
 from dask.delayed import Delayed
-from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point3, Pose3, Rot3
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point3, Pose3, Rot3, Unit3
 
 import gtsfm.utils.graph as graph_utils
+import gtsfm.utils.geometry_comparisons as geom_utils
+import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.data_association.data_assoc import DataAssociation
+
+POST_ROTATION_AVEGARING_OUTLIER_REMOVAL_ANGULAR_THRESHOLD_DEGREES = 2
+
+logger = logger_utils.get_logger()
 
 
 class MultiViewOptimizer:
@@ -60,10 +66,11 @@ class MultiViewOptimizer:
         pruned_graph = dask.delayed(graph_utils.prune_to_largest_connected_component)(i2Ri1_graph, i2Ui1_graph)
 
         pruned_i2Ri1_graph = pruned_graph[0]
-        pruned_i2Ui1_graph = pruned_graph[1]
 
         wRi_graph = self.rot_avg_module.create_computation_graph(num_images, pruned_i2Ri1_graph)
-        wti_graph = self.trans_avg_module.create_computation_graph(num_images, pruned_i2Ui1_graph, wRi_graph)
+        filtered_graph = dask.delayed(filter_inconsistent_pairwise_rotations)(wRi_graph, i2Ri1_graph, i2Ui1_graph)
+        filtered_i2Ui1_graph = filtered_graph[1]
+        wti_graph = self.trans_avg_module.create_computation_graph(num_images, filtered_i2Ui1_graph, wRi_graph)
         init_cameras_graph = dask.delayed(init_cameras)(wRi_graph, wti_graph, intrinsics_graph)
 
         ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
@@ -88,8 +95,51 @@ class MultiViewOptimizer:
         return ba_input_graph, ba_result_graph, multiview_optimizer_metrics_graph
 
 
+def filter_inconsistent_pairwise_rotations(
+    wRi_list: List[Optional[Rot3]],
+    i2Ri1_dict: Dict[Tuple[int, int], Rot3],
+    i2Ui1_dict: Dict[Tuple[int, int], Unit3],
+) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3]]:
+    """[summary]
+
+    Args:
+        wRi_list (List[Optional[Rot3]]): [description]
+        i2Ri1_dict (Dict[Tuple[int, int], Optional[Rot3]]): [description]
+        i2Ui1_dict (Dict[Tuple[int, int], Optional[Unit3]]): [description]
+
+    Returns:
+        Tuple[Dict[Tuple[int, int], Optional[Rot3]], Dict[Tuple[int, int], Optional[Unit3]]]: [description]
+    """
+
+    # keep the pairwise rotations which agree with the global rotations. mirror the keys in i2Ui1s.
+    filtered_i2Ri1_dict: Dict[Tuple[int, int], Rot3] = dict()
+    filtered_i2Ui1_dict: Dict[Tuple[int, int], Unit3] = dict()
+    for i1i2, i2Ri1 in i2Ri1_dict.items():
+        if i2Ri1 is None:
+            continue
+        i1, i2 = i1i2
+        wRi1 = wRi_list[i1]
+        wRi2 = wRi_list[i2]
+        if wRi1 is None or wRi2 is None:
+            continue
+        i2Ri1_from_global = wRi2.between(wRi1)
+
+        angular_error = geom_utils.compute_relative_rotation_angle(i2Ri1, i2Ri1_from_global)
+        if angular_error < POST_ROTATION_AVEGARING_OUTLIER_REMOVAL_ANGULAR_THRESHOLD_DEGREES:
+            filtered_i2Ri1_dict[(i1, i2)] = i2Ri1
+            filtered_i2Ui1_dict[(i1, i2)] = i2Ui1_dict[(i1, i2)]
+
+    input_len = len(i2Ri1_dict)
+    output_len = len(filtered_i2Ri1_dict)
+    logger.info("Dropped %d/%d unit-translations post rotation averaging", input_len - output_len, input_len)
+
+    return filtered_i2Ri1_dict, filtered_i2Ui1_dict
+
+
 def init_cameras(
-    wRi_list: List[Optional[Rot3]], wti_list: List[Optional[Point3]], intrinsics_list: List[Cal3Bundler],
+    wRi_list: List[Optional[Rot3]],
+    wti_list: List[Optional[Point3]],
+    intrinsics_list: List[Cal3Bundler],
 ) -> Dict[int, PinholeCameraCal3Bundler]:
     """Generate camera from valid rotations and unit-translations.
 
