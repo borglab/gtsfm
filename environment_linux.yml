@@ -42,6 +42,7 @@ dependencies:
   - open3d
   - pip:
     - pydegensac
+    - colour
 
 
 
