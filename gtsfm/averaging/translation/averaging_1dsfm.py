@@ -8,15 +8,18 @@ References:
 - https://github.com/borglab/gtsam/blob/develop/gtsam/sfm/TranslationRecovery.h
 - https://github.com/borglab/gtsam/blob/develop/python/gtsam/examples/TranslationAveragingExample.py
 
-Authors: Jing Wu, Ayush Baid.
+Authors: Jing Wu, Ayush Baid, Akshay Krishnan
 """
 from typing import Dict, List, Optional, Tuple
 
 import gtsam
 import numpy as np
-from gtsam import MFAS, BinaryMeasurementsUnit3, BinaryMeasurementUnit3, Point3, Rot3, TranslationRecovery, Unit3
+from gtsam import MFAS, BinaryMeasurementsUnit3, BinaryMeasurementUnit3, Point3, Pose3, Rot3, TranslationRecovery, Unit3
 
+import gtsfm.utils.geometry_comparisons as comp_utils
+import gtsfm.utils.metrics as metrics_utils
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
+from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 # Hyperparameters for 1D-SFM
 # maximum number of times 1dsfm will project the Unit3's to a 1d subspace for outlier rejection
@@ -42,7 +45,8 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
         wRi_list: List[Optional[Rot3]],
         scale_factor: float = 1.0,
-    ) -> List[Optional[Point3]]:
+        gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
+    ) -> Tuple[List[Optional[Point3]], Optional[GtsfmMetricsGroup]]:
         """Run the translation averaging.
 
         Args:
@@ -50,11 +54,13 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             i2Ui1_dict: relative unit-translation as dictionary (i1, i2): i2Ui1
             wRi_list: global rotations for each camera pose in the world coordinates.
             scale_factor: non-negative global scaling factor.
+            gt_wTi_list: ground truth poses for computing metrics.
 
         Returns:
             Global translation wti for each camera pose. The number of entries in the list is `num_images`. The list
                 may contain `None` where the global translations could not be computed (either underconstrained system
                 or ill-constrained system).
+            A GtsfmMetricsGroup of 1DSfM metrics.
         """
         noise_model = gtsam.noiseModel.Isotropic.Sigma(NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
 
@@ -72,7 +78,9 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         # sample indices to be used as projection directions
         num_valid_measurements = len(w_i2Ui1_measurements)
         indices = np.random.choice(
-            num_valid_measurements, min(self._max_1dsfm_projection_directions, num_valid_measurements), replace=False,
+            num_valid_measurements,
+            min(self._max_1dsfm_projection_directions, num_valid_measurements),
+            replace=False,
         )
 
         projection_directions = [w_i2Ui1_measurements[idx].measured() for idx in indices]
@@ -96,9 +104,16 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         # filter out outlier measurements
         w_i2Ui1_inlier_measurements = BinaryMeasurementsUnit3()
+        inliers = []
+        outliers = []
         for w_i2Ui1 in w_i2Ui1_measurements:
-            if avg_outlier_weights[(w_i2Ui1.key1(), w_i2Ui1.key2())] < self._outlier_weight_threshold:
+            i1 = w_i2Ui1.key1()
+            i2 = w_i2Ui1.key2()
+            if avg_outlier_weights[(i1, i2)] < self._outlier_weight_threshold:
                 w_i2Ui1_inlier_measurements.append(w_i2Ui1)
+                inliers.append((i1, i2))
+            else:
+                outliers.append((i1, i2))
 
         # Run the optimizer
         wti_values = TranslationRecovery(w_i2Ui1_inlier_measurements).run(scale_factor)
@@ -108,4 +123,97 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         for i in range(num_images):
             if wRi_list[i] is not None and wti_values.exists(i):
                 wti_list[i] = wti_values.atPoint3(i)
-        return wti_list
+
+        # Compute the metrics.
+        if gt_wTi_list is not None:
+            ta_metrics = _compute_metrics(inliers, outliers, i2Ui1_dict, wRi_list, wti_list, gt_wTi_list)
+        else:
+            ta_metrics = None
+
+        return wti_list, ta_metrics
+
+
+def _get_measurement_angle_errors(
+    i1_i2_pairs: Tuple[int, int],
+    i2Ui1_measurements: Dict[Tuple[int, int], Unit3],
+    gt_i2Ui1_measurements: Dict[Tuple[int, int], Unit3],
+) -> List[float]:
+    """Returns a list of the angle between i2Ui1_measurements and gt_i2Ui1_measurements for every 
+    (i1, i2) in i1_i2_pairs.
+
+    Args:
+        i1_i2_pairs: List of (i1, i2) tuples for which the angles must be computed.
+        i2Ui1_measurements: Measured translation direction of i1 WRT i2.
+        gt_i2Ui1_measurements: Ground truth translation direction of i1 WRT i2.
+
+    Returns:
+        List of angles between the measured and ground truth translation directions.
+    """
+    errors = []
+    for (i1, i2) in i1_i2_pairs:
+        if (i1, i2) in i2Ui1_measurements and (i1, i2) in gt_i2Ui1_measurements:
+            errors.append(
+                comp_utils.compute_relative_unit_translation_angle(
+                    i2Ui1_measurements[(i1, i2)], gt_i2Ui1_measurements[(i1, i2)]
+                )
+            )
+    return errors
+
+
+def _compute_metrics(
+    inlier_i1_i2_pairs: List[Tuple[int, int]],
+    outlier_i1_i2_pairs: List[Tuple[int, int]],
+    i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
+    wRi_list: List[Optional[Rot3]],
+    wti_list: List[Optional[Point3]],
+    gt_wTi_list: List[Optional[Pose3]],
+) -> GtsfmMetricsGroup:
+    """Computes the translation averaging metrics as a metrics group.
+
+    Args:
+        w_i2Ui1_inlier_measurements: Inlier 1DSfM translation direction measurements in world frame.
+        w_i2Ui1_outlier_measurements: Outlier 1DSfM translation direction measurements in world frame.
+        wRi_list: Estimated camera rotations from rotation averaging.
+        wti_list: Estimated camera translations from translation averaging.
+        gt_wTi_list: List of ground truth camera poses.
+
+    Returns:
+        Translation averaging metrics as a metrics group. Includes the following metrics:
+        - Number of inlier, outlier and total measurements.
+        - Distribution of translation direction angles for inlier measurements.
+        - Distribution of translation direction angle for outlier measurements.
+    """
+    # Get ground truth translation directions for the measurements.
+    gt_i2Ui1_dict = metrics_utils.get_twoview_translation_directions(gt_wTi_list)
+
+    # Angle between i2Ui1 measurement and GT i2Ui1 measurement for inliers and outliers.
+    inlier_measurement_angles = _get_measurement_angle_errors(inlier_i1_i2_pairs, i2Ui1_dict, gt_i2Ui1_dict)
+    outlier_measurement_angles = _get_measurement_angle_errors(outlier_i1_i2_pairs, i2Ui1_dict, gt_i2Ui1_dict)
+
+    measured_gt_i2Ui1_dict = {}
+    for (i1, i2) in inlier_i1_i2_pairs + outlier_i1_i2_pairs:
+        measured_gt_i2Ui1_dict[(i1, i2)] = gt_i2Ui1_dict[(i1, i2)]
+
+    # Compute estimated poses after the averaging step and align them to ground truth.
+    wTi_list = []
+    for (wRi, wti) in zip(wRi_list, wti_list):
+        if wRi is None or wti is None:
+            wTi_list.append(None)
+        else:
+            wTi_list.append(Pose3(wRi, wti))
+    wTi_aligned_list, _ = comp_utils.align_poses_sim3_ignore_missing(gt_wTi_list, wTi_list)
+
+    # Angle between relative estimated translations and ground truth measurements.
+    translation_angles = metrics_utils.compute_translation_angle_metric(measured_gt_i2Ui1_dict, wTi_aligned_list)
+
+    ta_metrics = []
+    num_total_measurements = len(inlier_i1_i2_pairs) + len(outlier_i1_i2_pairs)
+    ta_metrics.append(GtsfmMetric("num_total_1dsfm_measurements", num_total_measurements))
+    ta_metrics.append(GtsfmMetric("num_inlier_1dsfm_measurements", len(inlier_i1_i2_pairs)))
+    ta_metrics.append(GtsfmMetric("num_outlier_1dsfm_measurements", len(outlier_i1_i2_pairs)))
+    ta_metrics.append(GtsfmMetric("num_translations_estimated", len([wti for wti in wti_list if wti is not None])))
+    ta_metrics.append(GtsfmMetric("inlier_measurement_angles", inlier_measurement_angles))
+    ta_metrics.append(GtsfmMetric("outlier_measurement_angles", outlier_measurement_angles))
+    ta_metrics.append(GtsfmMetric("estimated_translation_angles", translation_angles.data))
+
+    return GtsfmMetricsGroup("translation_averaging_metrics", ta_metrics)

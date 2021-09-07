@@ -63,7 +63,7 @@ class MultiViewOptimizer:
         pruned_i2Ui1_graph = pruned_graph[1]
 
         wRi_graph = self.rot_avg_module.create_computation_graph(num_images, pruned_i2Ri1_graph)
-        wti_graph = self.trans_avg_module.create_computation_graph(num_images, pruned_i2Ui1_graph, wRi_graph)
+        wti_graph, ta_metrics = self.trans_avg_module.create_computation_graph(num_images, pruned_i2Ui1_graph, wRi_graph, gt_poses_graph)
         init_cameras_graph = dask.delayed(init_cameras)(wRi_graph, wti_graph, intrinsics_graph)
 
         ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
@@ -75,11 +75,11 @@ class MultiViewOptimizer:
         if gt_poses_graph is None:
             return ba_input_graph, ba_result_graph, None
 
-        averaging_metrics_graph = dask.delayed(metrics_utils.compute_averaging_metrics)(
+        rot_avg_metrics = dask.delayed(metrics_utils.compute_rotation_averaging_metrics)(
             wRi_graph, wti_graph, gt_poses_graph
         )
 
-        multiview_optimizer_metrics_graph = [averaging_metrics_graph, data_assoc_metrics_graph, ba_metrics_graph]
+        multiview_optimizer_metrics_graph = [rot_avg_metrics, ta_metrics, data_assoc_metrics_graph, ba_metrics_graph]
 
         if gt_poses_graph is not None:
             # align the sparse multi-view estimate before BA to the ground truth pose graph.
