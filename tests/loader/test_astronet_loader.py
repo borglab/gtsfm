@@ -39,7 +39,6 @@ class TestAstroNetLoader(unittest.TestCase):
         # Initialize Loader.
         self.loader = AstroNetLoader(
             data_dir,
-            use_gt_intrinsics=True,
             use_gt_extrinsics=True,
             use_gt_sfmtracks=True,
             max_frame_lookahead=2,
@@ -49,7 +48,6 @@ class TestAstroNetLoader(unittest.TestCase):
         """Ensure that constructor sets class properties correctly."""
         # assert self.loader._gt_scene_trimesh is not None
         # assert self.loader._gt_scene_trimesh.vertices;shape[0] == 5002
-        assert self.loader._use_gt_intrinsics
         assert self.loader._use_gt_extrinsics
         assert self.loader._use_gt_sfmtracks
         assert self.loader._max_frame_lookahead == 2
