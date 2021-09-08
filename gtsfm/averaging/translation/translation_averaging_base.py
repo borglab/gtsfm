@@ -61,6 +61,6 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
 
         Returns:
             Global unit translations wrapped as Delayed.
-            A GtsfmMetricsGroup with translation averaging metrics wrapped as Delayed. 
+            A GtsfmMetricsGroup with translation averaging metrics wrapped as Delayed.
         """
         return dask.delayed(self.run, nout=2)(num_images, i2Ui1_graph, wRi_graph, scale_factor, gt_wTi_graph)

@@ -64,7 +64,9 @@ class MultiViewOptimizer:
         pruned_i2Ui1_graph = pruned_graph[1]
 
         wRi_graph = self.rot_avg_module.create_computation_graph(num_images, pruned_i2Ri1_graph)
-        wti_graph, ta_metrics = self.trans_avg_module.create_computation_graph(num_images, pruned_i2Ui1_graph, wRi_graph, gt_wTi_graph=gt_poses_graph)
+        wti_graph, ta_metrics = self.trans_avg_module.create_computation_graph(
+            num_images, pruned_i2Ui1_graph, wRi_graph, gt_wTi_graph=gt_poses_graph
+        )
         init_cameras_graph = dask.delayed(init_cameras)(wRi_graph, wti_graph, intrinsics_graph)
 
         ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
@@ -80,7 +82,7 @@ class MultiViewOptimizer:
             wRi_graph, wti_graph, gt_poses_graph
         )
         averaging_metrics = dask.delayed(get_averaging_metrics)(rot_avg_metrics, ta_metrics)
-        
+
         multiview_optimizer_metrics_graph = [averaging_metrics, data_assoc_metrics_graph, ba_metrics_graph]
 
         if gt_poses_graph is not None:
@@ -91,7 +93,9 @@ class MultiViewOptimizer:
 
 
 def init_cameras(
-    wRi_list: List[Optional[Rot3]], wti_list: List[Optional[Point3]], intrinsics_list: List[Cal3Bundler],
+    wRi_list: List[Optional[Rot3]],
+    wti_list: List[Optional[Point3]],
+    intrinsics_list: List[Cal3Bundler],
 ) -> Dict[int, PinholeCameraCal3Bundler]:
     """Generate camera from valid rotations and unit-translations.
 
@@ -115,13 +119,13 @@ def init_cameras(
 def get_averaging_metrics(
     rot_avg_metrics: GtsfmMetricsGroup, trans_avg_metrics: GtsfmMetricsGroup
 ) -> GtsfmMetricsGroup:
-    """Helper to combine rotation and translation averaging metrics groups into a single averaging metrics group. 
+    """Helper to combine rotation and translation averaging metrics groups into a single averaging metrics group.
 
     Args:
         rot_avg_metrics: Rotation averaging metrics group.
         trans_avg_metrics: Translation averaging metrics group.
 
-    Returns: 
+    Returns:
         An averaging metrics group with both rotation and translation averaging metrics.
     """
     return GtsfmMetricsGroup("averaging_metrics", rot_avg_metrics.metrics + trans_avg_metrics.metrics)

@@ -139,7 +139,7 @@ def _get_measurement_angle_errors(
     i2Ui1_measurements: Dict[Tuple[int, int], Unit3],
     gt_i2Ui1_measurements: Dict[Tuple[int, int], Unit3],
 ) -> List[float]:
-    """Returns a list of the angle between i2Ui1_measurements and gt_i2Ui1_measurements for every 
+    """Returns a list of the angle between i2Ui1_measurements and gt_i2Ui1_measurements for every
     (i1, i2) in i1_i2_pairs.
 
     Args:
@@ -172,8 +172,9 @@ def _compute_metrics(
     """Computes the translation averaging metrics as a metrics group.
 
     Args:
-        w_i2Ui1_inlier_measurements: Inlier 1DSfM translation direction measurements in world frame.
-        w_i2Ui1_outlier_measurements: Outlier 1DSfM translation direction measurements in world frame.
+        inlier_i1_i2_pairs: List of inlier camera pair indices.
+        outlier_i1_i2_pairs: List of outlier camera pair indices.
+        i2Ui1_dict: Translation directions between camera pairs (inputs to translation averaging).
         wRi_list: Estimated camera rotations from rotation averaging.
         wti_list: Estimated camera translations from translation averaging.
         gt_wTi_list: List of ground truth camera poses.
