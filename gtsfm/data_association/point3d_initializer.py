@@ -190,7 +190,7 @@ class Point3dInitializer(NamedTuple):
         inlier_track = track_2d.select_subset(inlier_idxs)
         track_cameras, track_measurements = self.extract_measurements(inlier_track)
 
-        # Exit if we do not have at least `min_track_length` measurements in cameras with estimated poses.
+        # Exit if we do not have at least 2 measurements in cameras with estimated poses.
         if track_cameras is None:
             return None, None, TriangulationExitCode.POSES_UNDERCONSTRAINED
 
