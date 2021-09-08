@@ -176,12 +176,9 @@ class SceneOptimizer:
         auxiliary_graph_list = []
 
         # ensure cycle consistency in triplets
-        cycle_consistent_graph = dask.delayed(cycle_consistency.filter_to_cycle_consistent_edges)(
-            i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict, two_view_reports_dict
-        )
-        i2Ri1_graph_dict = cycle_consistent_graph[0]
-        i2Ui1_graph_dict = cycle_consistent_graph[1]
-        v_corr_idxs_graph_dict = cycle_consistent_graph[2]
+        i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict = dask.delayed(
+            cycle_consistency.filter_to_cycle_consistent_edges, nout=3
+        )(i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict, two_view_reports_dict)
 
         # TODO (johnwlambert): dump metrics after cycle consistency
         # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
