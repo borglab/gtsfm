@@ -17,7 +17,7 @@ from gtsfm.averaging.translation.translation_averaging_base import TranslationAv
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.data_association.data_assoc import DataAssociation
 
-POST_ROTATION_AVEGARING_OUTLIER_REMOVAL_ANGULAR_THRESHOLD_DEGREES = 2
+POST_ROTATION_AVEGARING_OUTLIER_REMOVAL_ANGULAR_THRESHOLD_DEGREES = 10
 
 logger = logger_utils.get_logger()
 
