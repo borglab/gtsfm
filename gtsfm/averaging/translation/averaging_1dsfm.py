@@ -107,9 +107,10 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         inliers = []
         outliers = []
         for w_i2Ui1 in w_i2Ui1_measurements:
-            i1 = w_i2Ui1.key1()
-            i2 = w_i2Ui1.key2()
-            if avg_outlier_weights[(i1, i2)] < self._outlier_weight_threshold:
+            # key1 is i2 and key2 is i1 above.
+            i1 = w_i2Ui1.key2()
+            i2 = w_i2Ui1.key1()
+            if avg_outlier_weights[(i2, i1)] < self._outlier_weight_threshold:
                 w_i2Ui1_inlier_measurements.append(w_i2Ui1)
                 inliers.append((i1, i2))
             else:
@@ -187,8 +188,8 @@ def _compute_metrics(
     gt_i2Ui1_dict = metrics_utils.get_twoview_translation_directions(gt_wTi_list)
 
     # Angle between i2Ui1 measurement and GT i2Ui1 measurement for inliers and outliers.
-    inlier_measurement_angles = _get_measurement_angle_errors(inlier_i1_i2_pairs, i2Ui1_dict, gt_i2Ui1_dict)
-    outlier_measurement_angles = _get_measurement_angle_errors(outlier_i1_i2_pairs, i2Ui1_dict, gt_i2Ui1_dict)
+    inlier_angular_errors = _get_measurement_angle_errors(inlier_i1_i2_pairs, i2Ui1_dict, gt_i2Ui1_dict)
+    outlier_angular_errors = _get_measurement_angle_errors(outlier_i1_i2_pairs, i2Ui1_dict, gt_i2Ui1_dict)
 
     measured_gt_i2Ui1_dict = {}
     for (i1, i2) in inlier_i1_i2_pairs + outlier_i1_i2_pairs:
@@ -202,18 +203,19 @@ def _compute_metrics(
         else:
             wTi_list.append(Pose3(wRi, wti))
     wTi_aligned_list, _ = comp_utils.align_poses_sim3_ignore_missing(gt_wTi_list, wTi_list)
+    wti_aligned_list = [wTi.translation() if wTi is not None else None for wTi in wTi_aligned_list]
+    gt_wti_list = [gt_wTi.translation() if gt_wTi is not None else None for gt_wTi in gt_wTi_list]
 
-    # Angle between relative estimated translations and ground truth measurements.
-    translation_angles = metrics_utils.compute_translation_angle_metric(measured_gt_i2Ui1_dict, wTi_aligned_list)
-
-    ta_metrics = []
     num_total_measurements = len(inlier_i1_i2_pairs) + len(outlier_i1_i2_pairs)
-    ta_metrics.append(GtsfmMetric("num_total_1dsfm_measurements", num_total_measurements))
-    ta_metrics.append(GtsfmMetric("num_inlier_1dsfm_measurements", len(inlier_i1_i2_pairs)))
-    ta_metrics.append(GtsfmMetric("num_outlier_1dsfm_measurements", len(outlier_i1_i2_pairs)))
-    ta_metrics.append(GtsfmMetric("num_translations_estimated", len([wti for wti in wti_list if wti is not None])))
-    ta_metrics.append(GtsfmMetric("inlier_measurement_angles", inlier_measurement_angles))
-    ta_metrics.append(GtsfmMetric("outlier_measurement_angles", outlier_measurement_angles))
-    ta_metrics.append(GtsfmMetric("estimated_translation_angles", translation_angles.data))
+    ta_metrics = [
+        GtsfmMetric("num_total_1dsfm_measurements", num_total_measurements),
+        GtsfmMetric("num_inlier_1dsfm_measurements", len(inlier_i1_i2_pairs)),
+        GtsfmMetric("num_outlier_1dsfm_measurements", len(outlier_i1_i2_pairs)),
+        GtsfmMetric("num_translations_estimated", len([wti for wti in wti_list if wti is not None])),
+        GtsfmMetric("1dsfm_inlier_angular_errors_deg", inlier_angular_errors),
+        GtsfmMetric("1dsfm_outlier_angular_errors_deg", outlier_angular_errors),
+        metrics_utils.compute_translation_angle_metric(measured_gt_i2Ui1_dict, wTi_aligned_list),
+        metrics_utils.compute_translation_distance_metric(wti_aligned_list, gt_wti_list),
+    ]
 
     return GtsfmMetricsGroup("translation_averaging_metrics", ta_metrics)
