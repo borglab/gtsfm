@@ -70,7 +70,6 @@ class Point3dInitializer(NamedTuple):
     track_camera_dict: Dict[int, PinholeCameraCal3Bundler]
     mode: TriangulationParam
     reproj_error_thresh: float
-    min_track_length: int
     num_ransac_hypotheses: Optional[int] = None
 
     def execute_ransac_variant(self, track_2d: SfmTrack2d) -> np.ndarray:
@@ -182,9 +181,9 @@ class Point3dInitializer(NamedTuple):
         elif self.mode == TriangulationParam.NO_RANSAC:
             best_inliers = np.ones(len(track_2d.measurements), dtype=bool)  # all marked as inliers
 
-        # Verify we have at least `min_track_length` inliers.
+        # Verify we have at least 2 inliers.
         inlier_idxs = (np.where(best_inliers)[0]).tolist()
-        if len(inlier_idxs) < self.min_track_length:
+        if len(inlier_idxs) < 2:
             return None, None, TriangulationExitCode.INLIERS_UNDERCONSTRAINED
 
         # Extract keypoint measurements corresponding to inlier indices.
@@ -301,7 +300,7 @@ class Point3dInitializer(NamedTuple):
                 logger.warning("Unestimated cameras found at index %d. Skipping them.", i)
 
         # Triangulation is underconstrained with <2 measurements.
-        if len(track_cameras) < self.min_track_length:
+        if len(track_cameras) < 2:
             return None, None
 
         return track_cameras, track_measurements

@@ -93,7 +93,6 @@ class DataAssociation(NamedTuple):
             cameras,
             self.mode,
             self.reproj_error_thresh,
-            self.min_track_len,
             self.num_ransac_hypotheses,
         )
 
