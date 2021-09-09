@@ -55,7 +55,8 @@ def load_image(img_path: str) -> Image:
         exif_data = parsed_data
 
     img_fname = Path(img_path).name
-    return Image(value_array=np.asarray(original_image.convert("RGB")), exif_data=exif_data, file_name=img_fname)
+    original_image = original_image.convert("RGB") if original_image.mode != "RGB" else original_image
+    return Image(value_array=np.asarray(original_image), exif_data=exif_data, file_name=img_fname)
 
 
 def save_image(image: Image, img_path: str) -> None:

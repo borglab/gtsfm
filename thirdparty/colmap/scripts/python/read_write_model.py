@@ -31,9 +31,11 @@
 
 import os
 import collections
-import numpy as np
+from typing import Dict, Tuple, Any, BinaryIO
 import struct
 import argparse
+
+import numpy as np
 
 
 CameraModel = collections.namedtuple("CameraModel", ["model_id", "model_name", "num_params"])
@@ -43,7 +45,10 @@ Point3D = collections.namedtuple("Point3D", ["id", "xyz", "rgb", "error", "image
 
 
 class Image(BaseImage):
+    """Class for relevant image data."""
+
     def qvec2rotmat(self):
+        """Convert quaternion to rotation matrix."""
         return qvec2rotmat(self.qvec)
 
 
@@ -64,26 +69,32 @@ CAMERA_MODEL_IDS = dict([(camera_model.model_id, camera_model) for camera_model 
 CAMERA_MODEL_NAMES = dict([(camera_model.model_name, camera_model) for camera_model in CAMERA_MODELS])
 
 
-def read_next_bytes(fid, num_bytes, format_char_sequence, endian_character="<"):
+def read_next_bytes(fid: BinaryIO, num_bytes: int, format_char_sequence: str, endian_character: str = "<") -> Tuple:
     """Read and unpack the next bytes from a binary file.
-    :param fid:
-    :param num_bytes: Sum of combination of {2, 4, 8}, e.g. 2, 6, 16, 30, etc.
-    :param format_char_sequence: List of {c, e, f, d, h, H, i, I, l, L, q, Q}.
-    :param endian_character: Any of {@, =, <, >, !}
-    :return: Tuple of read and unpacked values.
+
+    Args:
+        fid: file handle.
+        num_bytes: Sum of combination of {2, 4, 8}, e.g. 2, 6, 16, 30, etc.
+        format_char_sequence: List of {c, e, f, d, h, H, i, I, l, L, q, Q}.
+        endian_character: Any of {@, =, <, >, !}
+
+    Returns:
+        Tuple of read and unpacked values.
     """
     data = fid.read(num_bytes)
     return struct.unpack(endian_character + format_char_sequence, data)
 
 
-def write_next_bytes(fid, data, format_char_sequence, endian_character="<"):
-    """pack and write to a binary file.
-    :param fid:
-    :param data: data to send, if multiple elements are sent at the same time,
-    they should be encapsuled either in a list or a tuple
-    :param format_char_sequence: List of {c, e, f, d, h, H, i, I, l, L, q, Q}.
-    should be the same length as the data list or tuple
-    :param endian_character: Any of {@, =, <, >, !}
+def write_next_bytes(fid: BinaryIO, data: Any, format_char_sequence: str, endian_character="<") -> None:
+    """Pack and write to a binary file.
+
+    Args:
+        fid: file handle.
+        data: data to send, if multiple elements are sent at the same time,
+            they should be encapsuled either in a list or a tuple
+        format_char_sequence: List of {c, e, f, d, h, H, i, I, l, L, q, Q}.
+            should be the same length as the data list or tuple
+        endian_character: Any of {@, =, <, >, !}
     """
     if isinstance(data, (list, tuple)):
         bytes = struct.pack(endian_character + format_char_sequence, *data)
@@ -92,11 +103,16 @@ def write_next_bytes(fid, data, format_char_sequence, endian_character="<"):
     fid.write(bytes)
 
 
-def read_cameras_text(path):
-    """
-    see: src/base/reconstruction.cc
-        void Reconstruction::WriteCamerasText(const std::string& path)
-        void Reconstruction::ReadCamerasText(const std::string& path)
+def read_cameras_text(path: str) -> Dict[int, Camera]:
+    """Read intrinsic parameters of reconstructed cameras from text file.
+
+    Ref: https://colmap.github.io/format.html#cameras-txt
+
+    Args:
+        path: path to cameras.txt file.
+
+    Returns:
+        Dictionary of Camera objects referenced by (possibly noncontiguous) IDs.
     """
     cameras = {}
     with open(path, "r") as fid:
@@ -116,11 +132,16 @@ def read_cameras_text(path):
     return cameras
 
 
-def read_cameras_binary(path_to_model_file):
-    """
-    see: src/base/reconstruction.cc
-        void Reconstruction::WriteCamerasBinary(const std::string& path)
-        void Reconstruction::ReadCamerasBinary(const std::string& path)
+def read_cameras_binary(path_to_model_file: str) -> Dict[int, Camera]:
+    """Read intrinsic parameters of reconstructed cameras from binary file.
+
+    Ref: https://colmap.github.io/format.html#cameras-txt
+
+    Args:
+        path_to_model_file: path to cameras.bin file.
+
+    Returns:
+        Dictionary of Camera objects referenced by (possibly noncontiguous) IDs.
     """
     cameras = {}
     with open(path_to_model_file, "rb") as fid:
@@ -141,11 +162,14 @@ def read_cameras_binary(path_to_model_file):
     return cameras
 
 
-def write_cameras_text(cameras, path):
-    """
-    see: src/base/reconstruction.cc
-        void Reconstruction::WriteCamerasText(const std::string& path)
-        void Reconstruction::ReadCamerasText(const std::string& path)
+def write_cameras_text(cameras: Dict[int, Camera], path: str) -> None:
+    """Write intrinsic parameters of reconstructed cameras to text file.
+
+    Ref: https://colmap.github.io/format.html#cameras-txt
+
+    Args:
+        cameras: Dictionary of Camera(s).
+        path: path to text file.
     """
     HEADER = (
         "# Camera list with one line of data per camera:\n"
@@ -160,11 +184,14 @@ def write_cameras_text(cameras, path):
             fid.write(line + "\n")
 
 
-def write_cameras_binary(cameras, path_to_model_file):
-    """
-    see: src/base/reconstruction.cc
-        void Reconstruction::WriteCamerasBinary(const std::string& path)
-        void Reconstruction::ReadCamerasBinary(const std::string& path)
+def write_cameras_binary(cameras: Dict[int, Camera], path_to_model_file: str) -> None:
+    """Write intrinsic parameters of reconstructed cameras to binary file.
+
+    Ref: https://colmap.github.io/format.html#cameras-txt
+
+    Args:
+        cameras: Dictionary of Camera(s).
+        path_to_model_file: path to binary file.
     """
     with open(path_to_model_file, "wb") as fid:
         write_next_bytes(fid, len(cameras), "Q")
@@ -174,14 +201,18 @@ def write_cameras_binary(cameras, path_to_model_file):
             write_next_bytes(fid, camera_properties, "iiQQ")
             for p in cam.params:
                 write_next_bytes(fid, float(p), "d")
-    return cameras
 
 
-def read_images_text(path):
-    """
-    see: src/base/reconstruction.cc
-        void Reconstruction::ReadImagesText(const std::string& path)
-        void Reconstruction::WriteImagesText(const std::string& path)
+def read_images_text(path: str) -> Dict[int, Image]:
+    """Read pose and keypoints of all reconstructed images from text file.
+
+    Ref: https://colmap.github.io/format.html#images-txt
+
+    Args:
+        path: path to images.txt file.
+
+    Returns:
+        Dictionary of Image objects referenced by (possibly noncontiguous) IDs.
     """
     images = {}
     with open(path, "r") as fid:
@@ -212,11 +243,18 @@ def read_images_text(path):
     return images
 
 
-def read_images_binary(path_to_model_file):
-    """
-    see: src/base/reconstruction.cc
-        void Reconstruction::ReadImagesBinary(const std::string& path)
-        void Reconstruction::WriteImagesBinary(const std::string& path)
+def read_images_binary(path_to_model_file: str) -> Dict[int, Image]:
+    """Read pose and keypoints of all reconstructed images from binary file.
+
+    Refs:
+    - https://colmap.github.io/format.html#images-txt
+    - https://colmap.github.io/format.html#binary-file-format
+
+    Args:
+        path_to_model_file: path to images.txt file.
+
+    Returns:
+        Dictionary of Image objects referenced by (possibly noncontiguous) IDs.
     """
     images = {}
     with open(path_to_model_file, "rb") as fid:
@@ -248,11 +286,14 @@ def read_images_binary(path_to_model_file):
     return images
 
 
-def write_images_text(images, path):
-    """
-    see: src/base/reconstruction.cc
-        void Reconstruction::ReadImagesText(const std::string& path)
-        void Reconstruction::WriteImagesText(const std::string& path)
+def write_images_text(images: Dict[int, Image], path: str) -> None:
+    """Write pose and keypoints of all reconstructed images to text file.
+
+    Ref: https://colmap.github.io/format.html#images-txt
+
+    Args:
+        images: Dictionary of Image(s) to write.
+        path: file path to write data.
     """
     if len(images) == 0:
         mean_observations = 0
@@ -279,10 +320,15 @@ def write_images_text(images, path):
 
 
 def write_images_binary(images, path_to_model_file):
-    """
-    see: src/base/reconstruction.cc
-        void Reconstruction::ReadImagesBinary(const std::string& path)
-        void Reconstruction::WriteImagesBinary(const std::string& path)
+    """Write pose and keypoints of all reconstructed images to binary file.
+
+    Refs:
+    - https://colmap.github.io/format.html#images-txt
+    - https://colmap.github.io/format.html#binary-file-format
+
+    Args:
+        images: Dictionary of Image(s) to write.
+        path_to_model_file: file path to write data.
     """
     with open(path_to_model_file, "wb") as fid:
         write_next_bytes(fid, len(images), "Q")
@@ -299,11 +345,16 @@ def write_images_binary(images, path_to_model_file):
                 write_next_bytes(fid, [*xy, p3d_id], "ddq")
 
 
-def read_points3D_text(path):
-    """
-    see: src/base/reconstruction.cc
-        void Reconstruction::ReadPoints3DText(const std::string& path)
-        void Reconstruction::WritePoints3DText(const std::string& path)
+def read_points3D_text(path: str) -> Dict[int, Point3D]:
+    """Read information of all reconstructed 3D points from text file.
+
+    Ref: https://colmap.github.io/format.html#points3d-txt
+
+    Args:
+        path: path to points3d.txt file.
+
+    Returns:
+        Dictionary of Point3D objects referenced by (possibly noncontiguous) IDs.
     """
     points3D = {}
     with open(path, "r") as fid:
@@ -326,11 +377,18 @@ def read_points3D_text(path):
     return points3D
 
 
-def read_points3D_binary(path_to_model_file):
-    """
-    see: src/base/reconstruction.cc
-        void Reconstruction::ReadPoints3DBinary(const std::string& path)
-        void Reconstruction::WritePoints3DBinary(const std::string& path)
+def read_points3D_binary(path_to_model_file: str) -> Dict[int, Point3D]:
+    """Read information of all reconstructed 3D points from binary file.
+
+    Refs:
+    - https://colmap.github.io/format.html#points3d-txt
+    - https://colmap.github.io/format.html#binary-file-format
+
+    Args:
+        path_to_model_file: path to points3d.bin file.
+
+    Returns:
+        Dictionary of Point3D objects referenced by (possibly noncontiguous) IDs.
     """
     points3D = {}
     with open(path_to_model_file, "rb") as fid:
@@ -351,11 +409,14 @@ def read_points3D_binary(path_to_model_file):
     return points3D
 
 
-def write_points3D_text(points3D, path):
-    """
-    see: src/base/reconstruction.cc
-        void Reconstruction::ReadPoints3DText(const std::string& path)
-        void Reconstruction::WritePoints3DText(const std::string& path)
+def write_points3D_text(points3D: Dict[int, Point3D], path: str) -> None:
+    """Write information of all reconstructed 3D points to text file.
+
+    Ref: https://colmap.github.io/format.html#points3d-txt
+
+    Args:
+        points3D: Dictionary of Point3D(s) to write.
+        path: file path to write data.
     """
     if len(points3D) == 0:
         mean_track_length = 0
@@ -378,11 +439,16 @@ def write_points3D_text(points3D, path):
             fid.write(" ".join(track_strings) + "\n")
 
 
-def write_points3D_binary(points3D, path_to_model_file):
-    """
-    see: src/base/reconstruction.cc
-        void Reconstruction::ReadPoints3DBinary(const std::string& path)
-        void Reconstruction::WritePoints3DBinary(const std::string& path)
+def write_points3D_binary(points3D: Dict[int, Point3D], path_to_model_file: str) -> None:
+    """Write information of all reconstructed 3D points to binary file.
+
+    Refs:
+    - https://colmap.github.io/format.html#points3d-txt
+    - https://colmap.github.io/format.html#binary-file-format
+
+    Args:
+        points3D: Dictionary of Point3D(s) to write.
+        path_to_model_file: file path to write data.
     """
     with open(path_to_model_file, "wb") as fid:
         write_next_bytes(fid, len(points3D), "Q")
@@ -397,7 +463,8 @@ def write_points3D_binary(points3D, path_to_model_file):
                 write_next_bytes(fid, [image_id, point2D_id], "ii")
 
 
-def detect_model_format(path, ext):
+def detect_model_format(path: str, ext: str) -> bool:
+    """Returns whether directory specified by `path` contains file with the extention `ext`."""
     if (
         os.path.isfile(os.path.join(path, "cameras" + ext))
         and os.path.isfile(os.path.join(path, "images" + ext))
@@ -410,6 +477,7 @@ def detect_model_format(path, ext):
 
 
 def read_model(path, ext=""):
+    """Read model data."""
     # try to detect the extension automatically
     if ext == "":
         if detect_model_format(path, ".bin"):
@@ -432,6 +500,7 @@ def read_model(path, ext=""):
 
 
 def write_model(cameras, images, points3D, path, ext=".bin"):
+    """Write model data."""
     if ext == ".txt":
         write_cameras_text(cameras, os.path.join(path, "cameras" + ext))
         write_images_text(images, os.path.join(path, "images" + ext))
@@ -443,7 +512,8 @@ def write_model(cameras, images, points3D, path, ext=".bin"):
     return cameras, images, points3D
 
 
-def qvec2rotmat(qvec):
+def qvec2rotmat(qvec: np.ndarray) -> np.ndarray:
+    """Converts unit quaternion to rotation matrix."""
     return np.array(
         [
             [
@@ -465,7 +535,8 @@ def qvec2rotmat(qvec):
     )
 
 
-def rotmat2qvec(R):
+def rotmat2qvec(R: np.ndarray) -> np.ndarray:
+    """Convert rotation matrix to unit quaternion."""
     Rxx, Ryx, Rzx, Rxy, Ryy, Rzy, Rxz, Ryz, Rzz = R.flat
     K = (
         np.array(
@@ -486,6 +557,7 @@ def rotmat2qvec(R):
 
 
 def main():
+    """Program entrance."""
     parser = argparse.ArgumentParser(description="Read and write COLMAP binary and text models")
     parser.add_argument("--input_model", help="path to input model folder")
     parser.add_argument("--input_format", choices=[".bin", ".txt"], help="input model format", default="")

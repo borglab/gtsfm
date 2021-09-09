@@ -31,7 +31,7 @@ def run_scene_optimizer() -> None:
         "--max_frame_lookahead",
         "-l",
         type=int,
-        default=5,
+        default=14,
         help="maximum number of consecutive frames to consider for matching/co-visibility",
     )
     parser.add_argument(
