@@ -30,7 +30,7 @@ class TestAstroNetLoader(unittest.TestCase):
         """Set up the loader for the test."""
         super().setUp()
 
-        data_dir = TEST_DATA_ROOT / "test_2011212_opnav_022"
+        data_dir = TEST_DATA_ROOT / "astronet" / "test_2011212_opnav_022"
         # gt_scene_mesh_path = data_dir / "vesta_5002.ply"
 
         # Read in COLMAP-formatted data for comparison.
@@ -120,7 +120,7 @@ class TestAstroNetLoader(unittest.TestCase):
         This test's primary purpose is to check if the ordering of filename is being respected by the loader
         """
         index_to_test = 1
-        file_path = TEST_DATA_ROOT / "test_2011212_opnav_022" / "images" / "00000001.png"
+        file_path = TEST_DATA_ROOT / "astronet" / "test_2011212_opnav_022" / "images" / "00000001.png"
         loader_image = self.loader.get_image(index_to_test)
         expected_image = io_utils.load_image(str(file_path))
         np.testing.assert_allclose(expected_image.value_array, loader_image.value_array)
