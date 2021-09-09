@@ -39,7 +39,7 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
     ) -> None:
         """Helper function to run the averagaing and assert w/ expected."""
 
-        wti_computed = self.obj.run(len(wRi_input), i2Ui1_input, wRi_input)
+        wti_computed, _ = self.obj.run(len(wRi_input), i2Ui1_input, wRi_input)
 
         wTi_computed = [Pose3(wRi, wti) for wRi, wti in zip(wRi_input, wti_computed)]
         wTi_expected = [Pose3(wRi, wti) for wRi, wti in zip(wRi_input, wti_expected)]
@@ -129,15 +129,15 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
                 # create relative translations using global R and T.
                 i2Ui1_dict[(i1, i2)] = Unit3(expected_wTi_list[i2].between(expected_wTi_list[i1]).translation())
 
-        # use the `run` API to get expected results
-        wti_expected = self.obj.run(len(wRi_list), i2Ui1_dict, wRi_list)
+        # use the `run` API to get expected results, ignore the metrics
+        wti_expected, _ = self.obj.run(len(wRi_list), i2Ui1_dict, wRi_list)
 
         # form computation graph and execute
         i2Ui1_graph = dask.delayed(i2Ui1_dict)
         wRi_graph = dask.delayed(wRi_list)
         computation_graph = self.obj.create_computation_graph(len(wRi_list), i2Ui1_graph, wRi_graph)
         with dask.config.set(scheduler="single-threaded"):
-            wti_computed = dask.compute(computation_graph)[0]
+            wti_computed, _ = dask.compute(computation_graph)[0]
         wTi_computed = [Pose3(wRi, wti) for wRi, wti in zip(wRi_list, wti_computed)]
         wTi_expected = [Pose3(wRi, wti) for wRi, wti in zip(wRi_list, wti_expected)]
         self.assertTrue(
@@ -218,7 +218,7 @@ class Test1dsfmAllOutliers(unittest.TestCase):
             (3, 4): np.array([0.994791, -0.033332, -0.0963361]),
         }
         i2Ui1_input = {(i, j): Unit3(t) for (i, j), t in i2Ui1_input.items()}
-        wti_computed = self.obj.run(len(wRi_input), i2Ui1_input, wRi_input)
+        wti_computed, _ = self.obj.run(len(wRi_input), i2Ui1_input, wRi_input)
 
         assert len(wti_computed) == 5
         assert wti_computed[-1] is None
