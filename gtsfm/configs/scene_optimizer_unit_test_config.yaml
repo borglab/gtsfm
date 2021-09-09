@@ -25,7 +25,7 @@ SceneOptimizer:
       estimation_threshold_px: 0.5 # for H/E/F estimators
       min_allowed_inlier_ratio_est_model: 0.1
 
-  multiview_optimizer:True
+  multiview_optimizer:
     _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
     rot_avg_module:
       _target_: gtsfm.averaging.rotation.shonan.ShonanRotationAveraging
