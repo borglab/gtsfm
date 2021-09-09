@@ -1,13 +1,15 @@
 """Base class for the translation averaging component of the GTSFM pipeline.
 
-Authors: Ayush Baid
+Authors: Ayush Baid, Akshay Krishnan
 """
 import abc
 from typing import Dict, List, Optional, Tuple
 
 import dask
 from dask.delayed import Delayed
-from gtsam import Point3, Rot3, Unit3
+from gtsam import Point3, Pose3, Rot3, Unit3
+
+from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 
 
 class TranslationAveragingBase(metaclass=abc.ABCMeta):
@@ -24,7 +26,8 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
         i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
         wRi_list: List[Optional[Rot3]],
         scale_factor: float = 1.0,
-    ) -> List[Optional[Point3]]:
+        gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
+    ) -> Tuple[List[Optional[Point3]], Optional[GtsfmMetricsGroup]]:
         """Run the translation averaging.
 
         Args:
@@ -45,6 +48,7 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
         i2Ui1_graph: Delayed,
         wRi_graph: Delayed,
         scale_factor: float = 1.0,
+        gt_wTi_graph: Optional[Delayed] = None,
     ) -> Delayed:
         """Create the computation graph for performing translation averaging.
 
@@ -53,9 +57,10 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
             i2Ui1_graph: dictionary of relative unit translations as a delayed task.
             wRi_graph: list of global rotations wrapped up in Delayed.
             scale_factor: non-negative global scaling factor.
+            gt_poses_graph: List of ground truth poses (wTi) wrapped as Delayed for computing metrics.
 
         Returns:
-            Delayed: global unit translations wrapped using dask.delayed.
+            Global unit translations wrapped as Delayed.
+            A GtsfmMetricsGroup with translation averaging metrics wrapped as Delayed.
         """
-
-        return dask.delayed(self.run)(num_images, i2Ui1_graph, wRi_graph, scale_factor)
+        return dask.delayed(self.run, nout=2)(num_images, i2Ui1_graph, wRi_graph, scale_factor, gt_wTi_graph)
