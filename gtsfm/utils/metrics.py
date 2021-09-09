@@ -247,8 +247,8 @@ def get_precision_recall_from_errors(
     fp = np.sum(np.array(positive_errors) > max_positive_error)
     tn = np.sum(np.array(negative_errors) > max_positive_error)
     fn = np.sum(np.array(negative_errors) <= max_positive_error)
-    precision = tp / tp + fp
-    recall = tp / tp + fn
+    precision = tp * 1.0 / (tp + fp)
+    recall = tp * 1.0/ (tp + fn)
     return precision, recall
 
 
