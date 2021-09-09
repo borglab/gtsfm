@@ -48,18 +48,16 @@ class AstroNetLoader(LoaderBase):
 
         Args:
             data_dir: path to directory containing the COLMAP-formatted data: cameras.bin, images.bin, and points3D.bin
-            gt_scene_mesh_path (optional): path to file of target small body surface mesh.
-                Note: vertex size mismath observed when reading in from OBJ format. Prefer PLY.
-            use_gt_intrinsics: whether to use ground truth intrinsics. If calibration is
-               not found on disk, then use_gt_intrinsics will be set to false automatically.
-            use_gt_extrinsics (optional): whether to use ground truth extrinsics.
-            use_gt_sfmtracks (optional): whether to use ground truth tracks.
+            use_gt_extrinsics (optional): whether to use ground truth extrinsics. Used only for comparison with
+                reconstructed values.
+            use_gt_sfmtracks (optional): whether to use ground truth tracks. Used only for comparison with reconstructed
+                values.
             max_frame_lookahead (optional): maximum number of consecutive frames to consider for
                 matching/co-visibility. Any value of max_frame_lookahead less than the size of
                 the dataset assumes data is sequentially captured.
 
         Raises:
-            FileNotFoundError if image path does not exist.
+            FileNotFoundError if `data_dir` doesn't exist or image path does not exist.
             RuntimeError if ground truth camera calibrations not provided.
         """
         self._use_gt_extrinsics = use_gt_extrinsics
@@ -68,12 +66,14 @@ class AstroNetLoader(LoaderBase):
 
         # Use COLMAP model reader to load data and convert to GTSfM format.
         if Path(data_dir).exists():
-            _cameras, _images, _points3d = read_model(path=data_dir, ext=".bin")
+            cameras, images, points3d = read_model(path=data_dir, ext=".bin")
             self._calibrations, self._wTi_list, img_fnames, self._sfmtracks = self.colmap2gtsfm(
-                _cameras, _images, _points3d, load_sfmtracks=use_gt_sfmtracks
+                cameras, images, points3d, load_sfmtracks=use_gt_sfmtracks
             )
+        else:
+            raise FileNotFoundError("No data found at %s." % data_dir)
 
-        # Camera intrinsics are currently required due to absense of EXIF data and diffculty in approximating focal
+        # Camera intrinsics are currently required due to absence of EXIF data and diffculty in approximating focal
         # length (usually 10000 to 100000 pixels).
         if self._calibrations is None:
             raise RuntimeError("Camera intrinsics cannot be None.")
@@ -103,7 +103,7 @@ class AstroNetLoader(LoaderBase):
         points3D: Dict[int, ColmapPoint3D],
         load_sfmtracks: bool = False,
     ) -> Tuple[List[Cal3Bundler], List[Pose3], List[str], Optional[List[Point3]]]:
-        """Converts COLMAP-formatted variables to GTSfM format
+        """Converts COLMAP-formatted variables to GTSfM format.
 
         Args:
             cameras: dictionary of COLMAP-formatted Cameras
