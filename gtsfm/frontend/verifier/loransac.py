@@ -17,7 +17,6 @@ Authors: John Lambert
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
-
 import pycolmap
 from gtsam import Cal3Bundler, Rot3, Unit3
 
