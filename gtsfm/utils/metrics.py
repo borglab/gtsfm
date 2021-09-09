@@ -229,6 +229,29 @@ def get_twoview_translation_directions(wTi_list: List[Pose3]) -> Dict[Tuple[int,
     return i2Ui1_dict
 
 
+def get_precision_recall_from_errors(
+    positive_errors: List[float], negative_errors: List[float], max_positive_error: float
+) -> Tuple[float, float]:
+    """Computes the precision and recall from a list of errors for positive and negative classes.
+    True positives are those for which the error is less than max_positive_error.
+
+    Args:
+        positive_errors: List of errors for the predicted positive instances.
+        negative_errors: List of errors for the predicted negative instances.
+        max_positive_error: Maximum error for a true positive prediction.
+
+    Returns:
+        Tuple of precision, recall.
+    """
+    tp = np.sum(np.array(positive_errors) <= max_positive_error)
+    fp = np.sum(np.array(positive_errors) > max_positive_error)
+    tn = np.sum(np.array(negative_errors) > max_positive_error)
+    fn = np.sum(np.array(negative_errors) <= max_positive_error)
+    precision = tp / tp + fp
+    recall = tp / tp + fn
+    return precision, recall
+
+
 def get_rotations_translations_from_poses(
     poses: List[Optional[Pose3]],
 ) -> Tuple[List[Optional[Rot3]], List[Optional[Point3]]]:

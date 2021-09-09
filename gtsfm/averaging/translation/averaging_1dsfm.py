@@ -29,6 +29,8 @@ OUTLIER_WEIGHT_THRESHOLD = 0.1
 NOISE_MODEL_DIMENSION = 3  # chordal distances on Unit3
 NOISE_MODEL_SIGMA = 0.01
 
+MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
+
 
 class TranslationAveraging1DSFM(TranslationAveragingBase):
     """1D-SFM translation averaging with outlier rejection."""
@@ -191,6 +193,9 @@ def _compute_metrics(
     # Angle between i2Ui1 measurement and GT i2Ui1 measurement for inliers and outliers.
     inlier_angular_errors = _get_measurement_angle_errors(inlier_i1_i2_pairs, i2Ui1_dict, gt_i2Ui1_dict)
     outlier_angular_errors = _get_measurement_angle_errors(outlier_i1_i2_pairs, i2Ui1_dict, gt_i2Ui1_dict)
+    precision, recall = metrics_utils.get_precision_recall_from_errors(
+        inlier_angular_errors, outlier_angular_errors, MAX_INLIER_MEASUREMENT_ERROR_DEG
+    )
 
     measured_gt_i2Ui1_dict = {}
     for (i1, i2) in inlier_i1_i2_pairs + outlier_i1_i2_pairs:
@@ -208,10 +213,13 @@ def _compute_metrics(
     gt_wti_list = [gt_wTi.translation() if gt_wTi is not None else None for gt_wTi in gt_wTi_list]
 
     num_total_measurements = len(inlier_i1_i2_pairs) + len(outlier_i1_i2_pairs)
+    threshold_suffix = str(int(MAX_INLIER_MEASUREMENT_ERROR_DEG)) + "_deg"
     ta_metrics = [
         GtsfmMetric("num_total_1dsfm_measurements", num_total_measurements),
         GtsfmMetric("num_inlier_1dsfm_measurements", len(inlier_i1_i2_pairs)),
         GtsfmMetric("num_outlier_1dsfm_measurements", len(outlier_i1_i2_pairs)),
+        GtsfmMetric("1dsfm_precision_" + threshold_suffix, precision),
+        GtsfmMetric("1dsfm_recall_" + threshold_suffix, recall),
         GtsfmMetric("num_translations_estimated", len([wti for wti in wti_list if wti is not None])),
         GtsfmMetric("1dsfm_inlier_angular_errors_deg", inlier_angular_errors),
         GtsfmMetric("1dsfm_outlier_angular_errors_deg", outlier_angular_errors),
