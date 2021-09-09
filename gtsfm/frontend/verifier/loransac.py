@@ -172,7 +172,7 @@ class LoRansac(VerifierBase):
             v_corr_idxs = np.array([])
             return i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio_est_model
 
-        inlier_mask = result_dict["inliers"]
+        inlier_mask = np.array(result_dict["inliers"])
         v_corr_idxs = match_indices[inlier_mask]
         if self._use_intrinsics_in_verification:
             # case where E-matrix was estimated
@@ -188,10 +188,10 @@ class LoRansac(VerifierBase):
                 i2Fi1, camera_intrinsics_i1, camera_intrinsics_i2
             )
             (i2Ri1, i2Ui1) = verification_utils.recover_relative_pose_from_essential_matrix(
-                i2Ei1,
-                uv_i1[inlier_mask, 0],
-                uv_i2[inlier_mask, 1],
-                camera_intrinsics_i1,
-                camera_intrinsics_i2,
+                i2Ei1=i2Ei1,
+                verified_coordinates_i1=uv_i1[inlier_mask],
+                verified_coordinates_i2=uv_i2[inlier_mask],
+                camera_intrinsics_i1=camera_intrinsics_i1,
+                camera_intrinsics_i2=camera_intrinsics_i2,
             )
         return i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio_est_model
