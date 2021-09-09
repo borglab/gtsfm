@@ -31,9 +31,9 @@
 
 import os
 import collections
-from typing import Dict, Tuple, Any, BinaryIO
 import struct
 import argparse
+from typing import Dict, Tuple, Any, BinaryIO
 
 import numpy as np
 
@@ -476,8 +476,11 @@ def detect_model_format(path: str, ext: str) -> bool:
     return False
 
 
-def read_model(path, ext=""):
-    """Read model data."""
+def read_model(path: str, ext: str = "") -> Tuple[Dict[int, Camera], Dict[int, Image], Dict[int, Point3D]]:
+    """Read model data.
+
+    Ref: https://colmap.github.io/format.html#
+    """
     # try to detect the extension automatically
     if ext == "":
         if detect_model_format(path, ".bin"):
@@ -485,8 +488,7 @@ def read_model(path, ext=""):
         elif detect_model_format(path, ".txt"):
             ext = ".txt"
         else:
-            print("Provide model format: '.bin' or '.txt'")
-            return
+            raise FileNotFoundError("Provide model format: '.bin' or '.txt'.")
 
     if ext == ".txt":
         cameras = read_cameras_text(os.path.join(path, "cameras" + ext))
@@ -499,8 +501,13 @@ def read_model(path, ext=""):
     return cameras, images, points3D
 
 
-def write_model(cameras, images, points3D, path, ext=".bin"):
-    """Write model data."""
+def write_model(
+    cameras: Dict[int, Camera], images: Dict[int, Image], points3D: Dict[int, Point3D], path: str, ext: str = ".bin"
+) -> None:
+    """Write model data.
+
+    Ref: https://colmap.github.io/format.html#
+    """
     if ext == ".txt":
         write_cameras_text(cameras, os.path.join(path, "cameras" + ext))
         write_images_text(images, os.path.join(path, "images" + ext))
@@ -509,7 +516,6 @@ def write_model(cameras, images, points3D, path, ext=".bin"):
         write_cameras_binary(cameras, os.path.join(path, "cameras" + ext))
         write_images_binary(images, os.path.join(path, "images" + ext))
         write_points3D_binary(points3D, os.path.join(path, "points3D") + ext)
-    return cameras, images, points3D
 
 
 def qvec2rotmat(qvec: np.ndarray) -> np.ndarray:
