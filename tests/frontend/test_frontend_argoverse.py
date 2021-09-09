@@ -2,6 +2,10 @@
 
 Authors: John Lambert
 """
+
+import os
+os.environ['KMP_DUPLICATE_LIB_OK']='True'
+
 import unittest
 from pathlib import Path
 from typing import Tuple
@@ -12,12 +16,17 @@ from dask.delayed import Delayed
 from gtsam import Pose3
 from scipy.spatial.transform import Rotation
 
+from gtsfm.frontend.detector_descriptor.superpoint import SuperPointDetectorDescriptor
 from gtsfm.frontend.detector_descriptor.sift import SIFTDetectorDescriptor
+from gtsfm.frontend.matcher.superglue_matcher import SuperGlueMatcher
 from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
 from gtsfm.frontend.verifier.degensac import Degensac
 from gtsfm.frontend.verifier.ransac import Ransac
+from gtsfm.frontend.verifier.loransac import LoRansac
 from gtsfm.loader.argoverse_dataset_loader import ArgoverseDatasetLoader
 from gtsfm.scene_optimizer import FeatureExtractor, TwoViewEstimator
+
+
 
 TEST_DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
 
@@ -91,6 +100,60 @@ class TestFrontend(unittest.TestCase):
             feature_extractor, two_view_estimator, euler_angle_err_tol=1.4, translation_err_tol=0.026,
         )
 
+    def test_superpoint_superglue_twoway_ransac(self):
+        """Check SuperPoint + SuperGlue + OpenCV RANSAC-5pt frontend (Essential matrix estimation)."""
+        det_desc = SuperPointDetectorDescriptor()
+        feature_extractor = FeatureExtractor(det_desc)
+        two_view_estimator = TwoViewEstimator(
+            matcher=SuperGlueMatcher(use_outdoor_model=True),
+            verifier=Ransac(
+                use_intrinsics_in_verification=True,
+                estimation_threshold_px=4,
+                min_allowed_inlier_ratio_est_model=0.1
+            ),
+            eval_threshold_px=4,
+            min_num_inliers_acceptance=15
+        )
+        self.__compare_frontend_result_error(
+            feature_extractor, two_view_estimator, euler_angle_err_tol=1.4, translation_err_tol=0.026,
+        )
+
+    def test_superpoint_superglue_twoway_loransac(self):
+        """Check SuperPoint + SuperGlue + LORANSAC-5pt frontend (Essential matrix estimation)."""
+        det_desc = SuperPointDetectorDescriptor()
+        feature_extractor = FeatureExtractor(det_desc)
+        two_view_estimator = TwoViewEstimator(
+            matcher=SuperGlueMatcher(use_outdoor_model=True),
+            verifier=LoRansac(
+                use_intrinsics_in_verification=True,
+                estimation_threshold_px=4,
+                min_allowed_inlier_ratio_est_model=0.1
+            ),
+            eval_threshold_px=4,
+            min_num_inliers_acceptance=15
+        )
+        self.__compare_frontend_result_error(
+            feature_extractor, two_view_estimator, euler_angle_err_tol=1.4, translation_err_tol=0.026,
+        )
+
+    def test_superpoint_superglue_twoway_loransac(self):
+        """Check SuperPoint + SuperGlue + LORANSAC-8pt frontend (Fundamental matrix estimation)."""
+        det_desc = SuperPointDetectorDescriptor()
+        feature_extractor = FeatureExtractor(det_desc)
+        two_view_estimator = TwoViewEstimator(
+            matcher=SuperGlueMatcher(use_outdoor_model=True),
+            verifier=LoRansac(
+                use_intrinsics_in_verification=False,
+                estimation_threshold_px=4,
+                min_allowed_inlier_ratio_est_model=0.1
+            ),
+            eval_threshold_px=4,
+            min_num_inliers_acceptance=15
+        )
+        self.__compare_frontend_result_error(
+            feature_extractor, two_view_estimator, euler_angle_err_tol=1.4, translation_err_tol=0.026,
+        )
+
     # def test_sift_twoway_degensac(self):
     #     """Check DoG + SIFT + 2-way Matcher + DEGENSAC-8pt frontend."""
     #     det_desc = SIFTDetectorDescriptor()
@@ -144,3 +207,4 @@ class TestFrontend(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
