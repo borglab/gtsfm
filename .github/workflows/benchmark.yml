@@ -38,36 +38,36 @@ jobs:
         run: |
           bash .github/scripts/setup.sh
           conda info
-#       - name: Download Skydio-crane-8 dataset
-#         # large files from google drive first have a prompt about virus scan being inactive. Need 2 WGET commands.
-#         run: |
-#           export GDRIVE_FILEID='1mmM1p_NpL7-pnf3iHWeWVKpsm1pcBoD5'
-#           export GDRIVE_URL='https://docs.google.com/uc?export=download&id='$GDRIVE_FILEID 
-#           wget --save-cookies cookies.txt $GDRIVE_URL -O- \
-#             | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1/p' > confirm.txt
-#           wget --load-cookies cookies.txt -O skydio-8.zip \
-#             $GDRIVE_URL'&confirm='$(<confirm.txt)
-#       - name: Download Skydio-crane-32 dataset
-#         # large files from google drive first have a prompt about virus scan being inactive. Need 2 WGET commands.
-#         run: |
-#           export GDRIVE_FILEID='1BQ6jp0DD3D9yhTnrDoEddzlMYT0RRH68'
-#           export GDRIVE_URL='https://docs.google.com/uc?export=download&id='$GDRIVE_FILEID 
-#           wget --save-cookies cookies.txt $GDRIVE_URL -O- \
-#             | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1/p' > confirm.txt
-#           wget --load-cookies cookies.txt -O skydio-32.zip \
-#             $GDRIVE_URL'&confirm='$(<confirm.txt)
+      - name: Download Skydio-crane-8 dataset
+        # large files from google drive first have a prompt about virus scan being inactive. Need 2 WGET commands.
+        run: |
+          export GDRIVE_FILEID='1mmM1p_NpL7-pnf3iHWeWVKpsm1pcBoD5'
+          export GDRIVE_URL='https://docs.google.com/uc?export=download&id='$GDRIVE_FILEID 
+          wget --save-cookies cookies.txt $GDRIVE_URL -O- \
+            | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1/p' > confirm.txt
+          wget --load-cookies cookies.txt -O skydio-8.zip \
+            $GDRIVE_URL'&confirm='$(<confirm.txt)
+      - name: Download Skydio-crane-32 dataset
+        # large files from google drive first have a prompt about virus scan being inactive. Need 2 WGET commands.
+        run: |
+          export GDRIVE_FILEID='1BQ6jp0DD3D9yhTnrDoEddzlMYT0RRH68'
+          export GDRIVE_URL='https://docs.google.com/uc?export=download&id='$GDRIVE_FILEID 
+          wget --save-cookies cookies.txt $GDRIVE_URL -O- \
+            | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1/p' > confirm.txt
+          wget --load-cookies cookies.txt -O skydio-32.zip \
+            $GDRIVE_URL'&confirm='$(<confirm.txt)
 
       - name: Download Palace-fine-arts-281 dataset
         run: |
           wget http://vision.maths.lth.se/calledataset/fine_arts_palace/fine_arts_palace.zip
           wget http://vision.maths.lth.se/calledataset/fine_arts_palace/data.mat
 
-#       - name: Decompress Skydio-crane-8 dataset
-#         run: |
-#           unzip -qq skydio-8.zip 
-#       - name: Decompress Skydio-crane-32 dataset
-#         run: |
-#           unzip -qq skydio-32.zip -d skydio-32
+      - name: Decompress Skydio-crane-8 dataset
+        run: |
+          unzip -qq skydio-8.zip 
+      - name: Decompress Skydio-crane-32 dataset
+        run: |
+          unzip -qq skydio-32.zip -d skydio-32
 
       - name: Decompress Palace-fine-arts-281 dataset
         run: |
@@ -84,7 +84,7 @@ jobs:
           python gtsfm/runner/run_scene_optimizer.py \
             --dataset_root tests/data/set1_lund_door \
             --config_name ${{ matrix.config }}.yaml \
-            --max_resolution 1296
+            --image_extension JPG
       - name: Archive door dataset metrics
         uses: actions/upload-artifact@v2
         with:
@@ -123,7 +123,8 @@ jobs:
           python gtsfm/runner/run_scene_optimizer.py \
             --dataset_root palace-fine-arts-281 \
             --max_frame_lookahead 281 \
-            --config_name ${{ matrix.config }}.yaml
+            --config_name ${{ matrix.config }}.yaml \
+            --image_extension jpg
       - name: Archive Palace-fine-arts-281 metrics
         uses: actions/upload-artifact@v2
         with:
