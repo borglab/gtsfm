@@ -193,11 +193,10 @@ class SceneOptimizer:
                 dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
                     two_view_reports_dict_cycle_consistent,
                     self._pose_angular_error_thresh,
-                    metric_group_name="frontend_summary_after_cycle_consistency",
+                    metric_group_name="cycle_consistent_frontend_summary",
                 )
             )
 
-        # TODO (johnwlambert): dump metrics after cycle consistency
         # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
         (ba_input_graph, ba_output_graph, optimizer_metrics_graph) = self.multiview_optimizer.create_computation_graph(
             image_graph,
