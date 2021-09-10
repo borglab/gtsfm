@@ -71,13 +71,9 @@ jobs:
 
       - name: Decompress Palace-fine-arts-281 dataset
         run: |
-          ls -ltrh palace-fine-arts-281
           mkdir palace-fine-arts-281
-          ls -ltrh palace-fine-arts-281
           unzip -qq fine_arts_palace.zip -d palace-fine-arts-281/images
-          ls -ltrh palace-fine-arts-281
           mv data.mat palace-fine-arts-281/
-          ls -ltrh palace-fine-arts-281
           
       - name: Execute door-12 dataset
         run: |
