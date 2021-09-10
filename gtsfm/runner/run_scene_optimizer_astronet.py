@@ -12,7 +12,7 @@ from hydra.utils import instantiate
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.loader.astronet_loader import AstroNetLoader
+from gtsfm.loader.astronet_loader import AstronetLoader
 from gtsfm.scene_optimizer import SceneOptimizer
 
 DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "tests" / "data"
@@ -31,7 +31,7 @@ def run_scene_optimizer() -> None:
         "--max_frame_lookahead",
         "-l",
         type=int,
-        default=14,
+        default=5,
         help="maximum number of consecutive frames to consider for matching/co-visibility",
     )
     parser.add_argument(
@@ -70,7 +70,7 @@ def run_scene_optimizer() -> None:
     scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
     # Initialize loader.
-    loader = AstroNetLoader(
+    loader = AstronetLoader(
         data_dir=args.data_dir,
         use_gt_extrinsics=True,
         use_gt_sfmtracks=False,

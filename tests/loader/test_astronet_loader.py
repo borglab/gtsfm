@@ -13,7 +13,7 @@ from gtsam import Pose3, PinholeCameraCal3Bundler
 import thirdparty.colmap.scripts.python.read_write_model as colmap_io
 import gtsfm.utils.io as io_utils
 from gtsfm.common.image import Image
-from gtsfm.loader.astronet_loader import AstroNetLoader
+from gtsfm.loader.astronet_loader import AstronetLoader
 
 TEST_DATA_ROOT = Path(__file__).resolve().parent.parent / "data"
 
@@ -38,7 +38,7 @@ class TestAstroNetLoader(unittest.TestCase):
         self.cameras, self.images, self.points3d = colmap_io.read_model(data_dir)
 
         # Initialize Loader.
-        self.loader = AstroNetLoader(
+        self.loader = AstronetLoader(
             data_dir,
             use_gt_extrinsics=True,
             use_gt_sfmtracks=True,

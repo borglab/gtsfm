@@ -23,7 +23,7 @@ from thirdparty.colmap.scripts.python.read_write_model import Point3D as ColmapP
 logger = logger_utils.get_logger()
 
 
-class AstroNetLoader(LoaderBase):
+class AstronetLoader(LoaderBase):
     """Loader class that reads an AstroNet data segment.
 
     Refs:
