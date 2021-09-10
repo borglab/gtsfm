@@ -58,7 +58,7 @@ class OlssonLoader(LoaderBase):
         self._image_paths.sort()
         self._num_imgs = len(self._image_paths)
         
-        if len(self._num_imgs) == 0:
+        if self._num_imgs == 0:
             raise RuntimeError(f"Loader could not find any images with the specified file extension in {folder}")
 
         cam_matrices_fpath = os.path.join(folder, "data.mat")
