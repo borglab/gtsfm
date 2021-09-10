@@ -39,3 +39,4 @@ dependencies:
   - tabulate
   - pip:
       - pydegensac
+      - pycolmap

@@ -14,7 +14,7 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
 
-from thirdparty.colmap.scripts.python.read_write_model import read_model
+import thirdparty.colmap.scripts.python.read_write_model as colmap_io
 from thirdparty.colmap.scripts.python.read_write_model import Camera as ColmapCamera
 from thirdparty.colmap.scripts.python.read_write_model import Image as ColmapImage
 from thirdparty.colmap.scripts.python.read_write_model import Point3D as ColmapPoint3D
@@ -24,7 +24,7 @@ logger = logger_utils.get_logger()
 
 
 class AstroNetLoader(LoaderBase):
-    """Simple loader class that reads an AstroNet data segment.
+    """Loader class that reads an AstroNet data segment.
 
     Refs:
     - https://github.com/travisdriver/astronet
@@ -65,24 +65,23 @@ class AstroNetLoader(LoaderBase):
         self._max_frame_lookahead = max_frame_lookahead
 
         # Use COLMAP model reader to load data and convert to GTSfM format.
-        if Path(data_dir).exists():
-            cameras, images, points3d = read_model(path=data_dir, ext=".bin")
-            self._calibrations, self._wTi_list, img_fnames, self._sfmtracks = self.colmap2gtsfm(
-                cameras, images, points3d, load_sfmtracks=use_gt_sfmtracks
-            )
-        else:
+        if not Path(data_dir).exists():
             raise FileNotFoundError("No data found at %s." % data_dir)
+        cameras, images, points3d = colmap_io.read_model(path=data_dir, ext=".bin")
+        self._calibrations, self._wTi_list, img_fnames, self._sfmtracks = self.colmap2gtsfm(
+            cameras, images, points3d, load_sfmtracks=use_gt_sfmtracks
+        )
 
         # Camera intrinsics are currently required due to absence of EXIF data and diffculty in approximating focal
         # length (usually 10000 to 100000 pixels).
         if self._calibrations is None:
             raise RuntimeError("Camera intrinsics cannot be None.")
 
-        if self._wTi_list is None:
-            self._use_gt_extrinsics = False
+        if self._wTi_list is None and self._use_gt_extrinsics:
+            raise RuntimeError("Ground truth extrinsic data requested but missing.")
 
-        if self._sfmtracks is None:
-            self._use_gt_sfmtracks = False
+        if self._sfmtracks is None and self._use_gt_sfmtracks:
+            raise RuntimeError("Ground truth SfMTrack data requested but missing.")
         self.num_sfmtracks = len(self._sfmtracks) if self._sfmtracks is not None else 0
 
         # Prepare image paths
@@ -129,6 +128,8 @@ class AstroNetLoader(LoaderBase):
             cameras_gtsfm.append(Cal3Bundler(fx, 0.0, 0.0, cx, cy))
             image_id_to_idx[img.id] = idx
 
+        if len(points3D) == 0 and load_sfmtracks:
+            raise RuntimeError("No SfMTrack data provided to loader.")
         sfmtracks_gtsfm = None
         if len(points3D) > 0 and load_sfmtracks:
             sfmtracks_gtsfm = []
@@ -191,11 +192,11 @@ class AstroNetLoader(LoaderBase):
         Returns:
             pose for the given camera.
         """
+        if not self._use_gt_extrinsics or self._wTi_list is None:
+            return None
+
         if index < 0 or index >= len(self):
             raise IndexError(f"Image index {index} is invalid")
-
-        if not self._use_gt_extrinsics:
-            return None
 
         wTi = self._wTi_list[index]
         return wTi
