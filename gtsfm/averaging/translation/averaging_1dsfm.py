@@ -28,6 +28,7 @@ OUTLIER_WEIGHT_THRESHOLD = 0.1
 
 NOISE_MODEL_DIMENSION = 3  # chordal distances on Unit3
 NOISE_MODEL_SIGMA = 0.01
+HUBER_LOSS_K = 1.345 # default value from GTSAM
 
 MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
 
@@ -65,8 +66,8 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             A GtsfmMetricsGroup of 1DSfM metrics.
         """
         noise_model = gtsam.noiseModel.Isotropic.Sigma(NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
-        huber = gtsam.noiseModel.mEstimator.Huber.Create(1.345)
-        robust_noise_model = gtsam.noiseModel.Robust.Create(huber, noise_model) 
+        huber_loss = gtsam.noiseModel.mEstimator.Huber.Create(HUBER_LOSS_K)
+        robust_noise_model = gtsam.noiseModel.Robust.Create(huber_loss, noise_model) 
 
         # Note: all measurements are relative translation directions in the
         # world frame.
