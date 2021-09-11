@@ -120,7 +120,7 @@ class ColmapLoader(LoaderBase):
         return img
 
     def get_camera_intrinsics_native_resolution(self, index: int) -> Cal3Bundler:
-        """Get the camera intrinsics at the given index.
+        """Get the camera intrinsics at the given index, for images at the native resolution of dataset.
 
         Args:
             the index to fetch.

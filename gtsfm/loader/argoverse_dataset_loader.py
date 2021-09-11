@@ -95,8 +95,8 @@ class ArgoverseDatasetLoader(LoaderBase):
         """
         return len(self._image_paths)
 
-    def get_image(self, index: int) -> Image:
-        """Get the image at the given index.
+    def get_image_native_resolution(self, index: int) -> Image:
+        """Get the image at the given index, at native resolution.
 
         Args:
             index: the index to fetch.
@@ -113,8 +113,8 @@ class ArgoverseDatasetLoader(LoaderBase):
 
         return io_utils.load_image(self._image_paths[index])
 
-    def get_camera_intrinsics(self, index: int) -> Optional[Cal3Bundler]:
-        """Get the camera intrinsics at the given index.
+    def get_camera_intrinsics_native_resolution(self, index: int) -> Cal3Bundler:
+        """Get the camera intrinsics at the given index, for images at the native resolution of dataset.
 
         Args:
             the index to fetch.
