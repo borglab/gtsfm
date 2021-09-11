@@ -36,6 +36,7 @@ class AstronetLoader(LoaderBase):
         use_gt_extrinsics: bool = True,
         use_gt_sfmtracks: bool = False,
         max_frame_lookahead: int = 2,
+        max_resolution: int = 760,
     ) -> None:
         """Initialize loader from a specified segment directory (data_dir) on disk.
 
@@ -55,6 +56,8 @@ class AstronetLoader(LoaderBase):
             max_frame_lookahead (optional): maximum number of consecutive frames to consider for
                 matching/co-visibility. Any value of max_frame_lookahead less than the size of
                 the dataset assumes data is sequentially captured.
+            max_resolution: integer representing maximum length of image's short side
+               e.g. for 1080p (1920 x 1080), max_resolution would be 1080
 
         Raises:
             FileNotFoundError if `data_dir` doesn't exist or image path does not exist.
@@ -63,6 +66,7 @@ class AstronetLoader(LoaderBase):
         self._use_gt_extrinsics = use_gt_extrinsics
         self._use_gt_sfmtracks = use_gt_sfmtracks
         self._max_frame_lookahead = max_frame_lookahead
+        self._max_resolution = max_resolution
 
         # Use COLMAP model reader to load data and convert to GTSfM format.
         if not Path(data_dir).exists():

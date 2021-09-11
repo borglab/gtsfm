@@ -9,7 +9,6 @@ from typing import Optional
 
 from gtsam import Cal3Bundler, Pose3
 
-import gtsfm.utils.images as img_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
@@ -92,17 +91,7 @@ class ColmapLoader(LoaderBase):
         self._num_imgs = len(self._image_paths)
         logger.info("Colmap image loader found and loaded %d images", self._num_imgs)
 
-        # read one image, to check if we need to downsample the images
-        img = io_utils.load_image(self._image_paths[0])
-        sample_h, sample_w = img.height, img.width
-        # no downsampling may be required, in which case scale_u and scale_v will be 1.0
-        (
-            self._scale_u,
-            self._scale_v,
-            self._target_h,
-            self._target_w,
-        ) = img_utils.get_downsampling_factor_per_axis(sample_h, sample_w, self._max_resolution)
-
+        super().__init__()
 
     def __len__(self) -> int:
         """The number of images in the dataset.
@@ -112,8 +101,8 @@ class ColmapLoader(LoaderBase):
         """
         return self._num_imgs
 
-    def get_image(self, index: int) -> Image:
-        """Get the image at the given index.
+    def get_image_native_resolution(self, index: int) -> Image:
+        """Get the image at the given index, at native resolution.
 
         Args:
             index: the index to fetch.
@@ -128,10 +117,9 @@ class ColmapLoader(LoaderBase):
             raise IndexError("Image index is invalid")
 
         img = io_utils.load_image(self._image_paths[index])
-        img = img_utils.resize_image(img, new_height=self._target_h, new_width=self._target_w)
         return img
 
-    def get_camera_intrinsics(self, index: int) -> Cal3Bundler:
+    def get_camera_intrinsics_native_resolution(self, index: int) -> Cal3Bundler:
         """Get the camera intrinsics at the given index.
 
         Args:
@@ -150,13 +138,6 @@ class ColmapLoader(LoaderBase):
         else:
             intrinsics = self._calibrations[index]
 
-        intrinsics = Cal3Bundler(
-            fx=intrinsics.fx() * self._scale_u,
-            k1=0.0,
-            k2=0.0,
-            u0=intrinsics.px() * self._scale_u,
-            v0=intrinsics.py() * self._scale_v,
-        )
         return intrinsics
 
     def get_camera_pose(self, index: int) -> Optional[Pose3]:
