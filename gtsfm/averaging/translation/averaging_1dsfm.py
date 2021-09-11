@@ -65,6 +65,8 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             A GtsfmMetricsGroup of 1DSfM metrics.
         """
         noise_model = gtsam.noiseModel.Isotropic.Sigma(NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
+        huber = gtsam.noiseModel.mEstimator.Huber.Create(1.345)
+        robust_noise_model = gtsam.noiseModel.Robust.Create(huber, noise_model) 
 
         # Note: all measurements are relative translation directions in the
         # world frame.
@@ -74,7 +76,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         for (i1, i2), i2Ui1 in i2Ui1_dict.items():
             if i2Ui1 is not None and wRi_list[i2] is not None:
                 w_i2Ui1_measurements.append(
-                    BinaryMeasurementUnit3(i2, i1, Unit3(wRi_list[i2].rotate(i2Ui1.point3())), noise_model)
+                    BinaryMeasurementUnit3(i2, i1, Unit3(wRi_list[i2].rotate(i2Ui1.point3())), robust_noise_model)
                 )
 
         # sample indices to be used as projection directions
