@@ -75,10 +75,10 @@ class BundleAdjustmentOptimizer:
         if self._robust_measurement_noise:
             measurement_noise = gtsam.noiseModel.Robust(
                 gtsam.noiseModel.mEstimator.Huber(1.345),
-                gtsam.noiseModel.Isotropic.Sigma(IMG_MEASUREMENT_DIM, 2.0),
+                gtsam.noiseModel.Isotropic.Sigma(IMG_MEASUREMENT_DIM, 1.0),
             )
         else:
-            measurement_noise = gtsam.noiseModel.Isotropic.Sigma(IMG_MEASUREMENT_DIM, 2.0)
+            measurement_noise = gtsam.noiseModel.Isotropic.Sigma(IMG_MEASUREMENT_DIM, 1.0)
 
         # Create a factor graph
         graph = gtsam.NonlinearFactorGraph()
