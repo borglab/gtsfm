@@ -48,6 +48,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
         wRi_list: List[Optional[Rot3]],
         scale_factor: float = 1.0,
+        robust_measurement_noise: bool = True,
         gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
     ) -> Tuple[List[Optional[Point3]], Optional[GtsfmMetricsGroup]]:
         """Run the translation averaging.
@@ -57,6 +58,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             i2Ui1_dict: relative unit-translation as dictionary (i1, i2): i2Ui1
             wRi_list: global rotations for each camera pose in the world coordinates.
             scale_factor: non-negative global scaling factor.
+            robust_measurement_noise: Whether to use Huber noise model for the measurements, defaults to true.
             gt_wTi_list: ground truth poses for computing metrics.
 
         Returns:
@@ -65,9 +67,12 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 or ill-constrained system).
             A GtsfmMetricsGroup of 1DSfM metrics.
         """
-        noise_model = gtsam.noiseModel.Isotropic.Sigma(NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
-        huber_loss = gtsam.noiseModel.mEstimator.Huber.Create(HUBER_LOSS_K)
-        robust_noise_model = gtsam.noiseModel.Robust.Create(huber_loss, noise_model) 
+        isotropic_noise_model = gtsam.noiseModel.Isotropic.Sigma(NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
+        if robust_measurement_noise:
+            huber_loss = gtsam.noiseModel.mEstimator.Huber.Create(HUBER_LOSS_K)
+            noise_model = gtsam.noiseModel.Robust.Create(huber_loss, noise_model)
+        else:
+            noise_model = isotropic_noise_model
 
         # Note: all measurements are relative translation directions in the
         # world frame.
@@ -77,7 +82,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         for (i1, i2), i2Ui1 in i2Ui1_dict.items():
             if i2Ui1 is not None and wRi_list[i2] is not None:
                 w_i2Ui1_measurements.append(
-                    BinaryMeasurementUnit3(i2, i1, Unit3(wRi_list[i2].rotate(i2Ui1.point3())), robust_noise_model)
+                    BinaryMeasurementUnit3(i2, i1, Unit3(wRi_list[i2].rotate(i2Ui1.point3())), noise_model)
                 )
 
         # sample indices to be used as projection directions
