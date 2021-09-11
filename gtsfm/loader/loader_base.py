@@ -26,7 +26,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
         Each loader implementation should set a `_max_resolution` attribute, that is
         used to determine how the camera intrinsics and images should be jointly rescaled.
         """
-        if not hasattr(self, '_max_resolution'):
+        if not hasattr(self, "_max_resolution"):
             raise RuntimeError("Each loader implementation must set the maximum image resolution for inference.")
 
         # read one image, to check if we need to downsample the images
@@ -39,7 +39,6 @@ class LoaderBase(metaclass=abc.ABCMeta):
             self._target_h,
             self._target_w,
         ) = img_utils.get_downsampling_factor_per_axis(sample_h, sample_w, self._max_resolution)
-
 
     # ignored-abstractmethod
     @abc.abstractmethod
@@ -120,7 +119,6 @@ class LoaderBase(metaclass=abc.ABCMeta):
             validation result.
         """
 
-
     def get_image(self, index: int) -> Image:
         """Get the image at the given index, for possibly resized image.
 
@@ -136,7 +134,6 @@ class LoaderBase(metaclass=abc.ABCMeta):
         img_native = self.get_image_native_resolution(index)
         resized_img = img_utils.resize_image(img_native, new_height=self._target_h, new_width=self._target_w)
         return resized_img
-
 
     def get_camera_intrinsics(self, index: int) -> Cal3Bundler:
         """Get the camera intrinsics at the given index, for possibly resized image.
@@ -156,8 +153,6 @@ class LoaderBase(metaclass=abc.ABCMeta):
             v0=intrinsics_native.py() * self._scale_v,
         )
         return rescaled_intrinsics
-
-
 
     def get_image_shape(self, idx: int) -> Tuple[int, int]:
         """Return a (H,W) tuple for each image"""
