@@ -63,6 +63,10 @@ class YfccImbLoader(LoaderBase):
 
         self._cameras = self.__read_calibrations()  # self.__read_colmap_model()
 
+        # call the BaseLoader's constructor, which will compute a re-scaling factor for all images
+        # and for all intrinsics, using the desired image resolution for inference.
+        super().__init__()
+
     def __len__(self) -> int:
         """
         The number of images in the dataset.
