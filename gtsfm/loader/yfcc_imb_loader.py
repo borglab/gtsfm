@@ -21,16 +21,19 @@ class YfccImbLoader(LoaderBase):
     Code ref: https://github.com/vcg-uvic/image-matching-benchmark/blob/master/compute_stereo.py
     """
 
-    def __init__(self, folder: str, coviz_thresh: float = 0.1):
+    def __init__(self, folder: str, coviz_thresh: float = 0.1, max_resolution: int = 760) -> None:
         """Initializes the loader.
 
         Args:
             folder: the base folder of the dataset.
             coviz_thresh (optional): threshold for covisibility between two images to be considered a valid pair.
                                      Defaults to 0.1.
+            max_resolution: integer representing maximum length of image's short side
+               e.g. for 1080p (1920 x 1080), max_resolution would be 1080
         """
 
         self._folder = folder
+        self._max_resolution = max_resolution
 
         # load all the image pairs according to the covisibility threshold used
         # in IMB's reporting

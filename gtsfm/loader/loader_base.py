@@ -10,6 +10,8 @@ import dask
 from dask.delayed import Delayed
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3
 
+import gtsfm.utils.images as img_utils
+import gtsfm.utils.io as io_utils
 from gtsfm.common.image import Image
 
 
@@ -18,6 +20,26 @@ class LoaderBase(metaclass=abc.ABCMeta):
 
     The loader provides APIs to get an image, either directly or as a dask delayed task
     """
+
+    def __init__(self) -> None:
+        """
+        Each loader implementation should set a `_max_resolution` attribute, that is
+        used to determine how the camera intrinsics and images should be jointly rescaled.
+        """
+        if not hasattr(self, '_max_resolution'):
+            raise RuntimeError("Each loader implementation must set the maximum image resolution for inference.")
+
+        # read one image, to check if we need to downsample the images
+        img = io_utils.load_image(self._image_paths[0])
+        sample_h, sample_w = img.height, img.width
+        # no downsampling may be required, in which case scale_u and scale_v will be 1.0
+        (
+            self._scale_u,
+            self._scale_v,
+            self._target_h,
+            self._target_w,
+        ) = img_utils.get_downsampling_factor_per_axis(sample_h, sample_w, self._max_resolution)
+
 
     # ignored-abstractmethod
     @abc.abstractmethod
@@ -31,9 +53,9 @@ class LoaderBase(metaclass=abc.ABCMeta):
 
     # ignored-abstractmethod
     @abc.abstractmethod
-    def get_image(self, index: int) -> Image:
+    def get_image_native_resolution(self, index: int) -> Image:
         """
-        Get the image at the given index.
+        Get the image at the given index, at native resolution.
 
         Args:
             index: the index to fetch.
@@ -47,7 +69,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
 
     # ignored-abstractmethod
     @abc.abstractmethod
-    def get_camera_intrinsics(self, index: int) -> Optional[Cal3Bundler]:
+    def get_camera_intrinsics_native_resolution(self, index: int) -> Optional[Cal3Bundler]:
         """Get the camera intrinsics at the given index.
 
         Args:
@@ -97,6 +119,45 @@ class LoaderBase(metaclass=abc.ABCMeta):
         Returns:
             validation result.
         """
+
+
+    def get_image(self, index: int) -> Image:
+        """Get the image at the given index, for possibly resized image.
+
+        Args:
+            index: the index to fetch.
+
+        Raises:
+            IndexError: if an out-of-bounds image index is requested.
+
+        Returns:
+            Image: the image at the query index.
+        """
+        img_native = self.get_image_native_resolution(index)
+        resized_img = img_utils.resize_image(img_native, new_height=self._target_h, new_width=self._target_w)
+        return resized_img
+
+
+    def get_camera_intrinsics(self, index: int) -> Cal3Bundler:
+        """Get the camera intrinsics at the given index, for possibly resized image.
+
+        Args:
+            the index to fetch.
+
+        Returns:
+            intrinsics for the given camera.
+        """
+        intrinsics_native = self.get_camera_intrinsics_native_resolution(index)
+        rescaled_intrinsics = Cal3Bundler(
+            fx=intrinsics_native.fx() * self._scale_u,
+            k1=0.0,
+            k2=0.0,
+            u0=intrinsics_native.px() * self._scale_u,
+            v0=intrinsics_native.py() * self._scale_v,
+        )
+        return rescaled_intrinsics
+
+
 
     def get_image_shape(self, idx: int) -> Tuple[int, int]:
         """Return a (H,W) tuple for each image"""
