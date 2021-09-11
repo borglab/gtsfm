@@ -131,7 +131,7 @@ def compute_translation_angle_metric(
     return GtsfmMetric("translation_angle_error_deg", np.array(angles, dtype=np.float))
 
 
-def compute_averaging_metrics(
+def compute_rotation_averaging_metrics(
     wRi_list: List[Optional[Rot3]],
     wti_list: List[Optional[Point3]],
     gt_wTi_list: List[Pose3],
@@ -170,18 +170,13 @@ def compute_averaging_metrics(
     # ground truth is the reference/target for alignment. discard 2nd return arg -- the estimated Similarity(3) object
     wTi_aligned_list, _ = comp_utils.align_poses_sim3_ignore_missing(gt_wTi_list, wTi_list)
 
-    i2Ui1_dict_gt = get_twoview_translation_directions(gt_wTi_list)
-
     wRi_aligned_list, wti_aligned_list = get_rotations_translations_from_poses(wTi_aligned_list)
     gt_wRi_list, gt_wti_list = get_rotations_translations_from_poses(gt_wTi_list)
 
     metrics = []
     metrics.append(GtsfmMetric(name="num_rotations_computed", data=len([x for x in wRi_list if x is not None])))
-    metrics.append(GtsfmMetric(name="num_translations_computed", data=len([x for x in wti_list if x is not None])))
     metrics.append(compute_rotation_angle_metric(wRi_aligned_list, gt_wRi_list))
-    metrics.append(compute_translation_distance_metric(wti_aligned_list, gt_wti_list))
-    metrics.append(compute_translation_angle_metric(i2Ui1_dict=i2Ui1_dict_gt, wTi_list=wTi_aligned_list))
-    return GtsfmMetricsGroup(name="averaging_metrics", metrics=metrics)
+    return GtsfmMetricsGroup(name="rotation_averaging_metrics", metrics=metrics)
 
 
 def compute_ba_pose_metrics(
@@ -232,6 +227,28 @@ def get_twoview_translation_directions(wTi_list: List[Pose3]) -> Dict[Tuple[int,
         i2Ui1_dict[(i1, i2)] = Unit3(i2Ti1.translation())
 
     return i2Ui1_dict
+
+
+def get_precision_recall_from_errors(
+    positive_errors: List[float], negative_errors: List[float], max_positive_error: float
+) -> Tuple[float, float]:
+    """Computes the precision and recall from a list of errors for positive and negative classes.
+    True positives are those for which the error is less than max_positive_error.
+
+    Args:
+        positive_errors: List of errors for the predicted positive instances.
+        negative_errors: List of errors for the predicted negative instances.
+        max_positive_error: Maximum error for a true positive prediction.
+
+    Returns:
+        Tuple of precision, recall.
+    """
+    tp = np.sum(np.array(positive_errors) <= max_positive_error)
+    fp = np.sum(np.array(positive_errors) > max_positive_error)
+    fn = np.sum(np.array(negative_errors) <= max_positive_error)
+    precision = tp * 1.0 / (tp + fp)
+    recall = tp * 1.0 / (tp + fn)
+    return precision, recall
 
 
 def get_rotations_translations_from_poses(
