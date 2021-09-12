@@ -63,10 +63,10 @@ class ColmapLoader(LoaderBase):
             max_resolution: integer representing maximum length of image's short side
                e.g. for 1080p (1920 x 1080), max_resolution would be 1080
         """
+        super().__init__(max_resolution)
         self._use_gt_intrinsics = use_gt_intrinsics
         self._use_gt_extrinsics = use_gt_extrinsics
         self._max_frame_lookahead = max_frame_lookahead
-        self._max_resolution = max_resolution
 
         self._wTi_list, img_fnames = io_utils.read_images_txt(fpath=os.path.join(colmap_files_dirpath, "images.txt"))
         self._calibrations = io_utils.read_cameras_txt(fpath=os.path.join(colmap_files_dirpath, "cameras.txt"))

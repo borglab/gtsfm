@@ -63,10 +63,10 @@ class AstronetLoader(LoaderBase):
             FileNotFoundError if `data_dir` doesn't exist or image path does not exist.
             RuntimeError if ground truth camera calibrations not provided.
         """
+        super().__init__(max_resolution)
         self._use_gt_extrinsics = use_gt_extrinsics
         self._use_gt_sfmtracks = use_gt_sfmtracks
         self._max_frame_lookahead = max_frame_lookahead
-        self._max_resolution = max_resolution
 
         # Use COLMAP model reader to load data and convert to GTSfM format.
         if not Path(data_dir).exists():
