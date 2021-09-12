@@ -73,10 +73,6 @@ class ArgoverseDatasetLoader(LoaderBase):
         self._world_pose = Pose3(Rot3(), np.zeros((3, 1)))
         self._world_pose = self.get_camera_pose(0)
 
-        # call the BaseLoader's constructor, which will compute a re-scaling factor for all images
-        # and for all intrinsics, using the desired image resolution for inference.
-        super().__init__()
-
     def load_camera_calibration(self, log_id: str, camera_name: str) -> None:
         """Load extrinsics and intrinsics from disk."""
         calib_data = self._dl.get_log_calibration_data(log_id)

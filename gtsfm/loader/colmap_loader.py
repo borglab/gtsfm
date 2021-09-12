@@ -91,10 +91,6 @@ class ColmapLoader(LoaderBase):
         self._num_imgs = len(self._image_paths)
         logger.info("Colmap image loader found and loaded %d images", self._num_imgs)
 
-        # call the BaseLoader's constructor, which will compute a re-scaling factor for all images
-        # and for all intrinsics, using the desired image resolution for inference.
-        super().__init__()
-
     def __len__(self) -> int:
         """The number of images in the dataset.
 
