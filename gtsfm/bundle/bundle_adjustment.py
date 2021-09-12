@@ -5,7 +5,7 @@ Authors: Xiaolong Wu, John Lambert, Ayush Baid
 
 import numpy as np
 from pathlib import Path
-from typing import List, NamedTuple, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import dask
 import gtsam
@@ -30,13 +30,23 @@ POINT3_DOF = 3  # 3d points have 3 dof
 logger = logger_utils.get_logger()
 
 
-class BundleAdjustmentOptimizer(NamedTuple):
+class BundleAdjustmentOptimizer:
     """Bundle adjustment using factor-graphs in GTSAM.
 
     This class refines global pose estimates and intrinsics of cameras, and also refines 3D point cloud structure given
     tracks from triangulation."""
 
-    output_reproj_error_thresh: float
+    def __init__(self, output_reproj_error_thresh: float, robust_measurement_noise: bool = False):
+        """Initializes the parameters for bundle adjustment module.
+
+        Args:
+            output_reproj_error_thresh: the max reprojection error allowed in output.
+            robust_measurement_noise (optional): Flag to enable use of robust noise model for measurement noise.
+                                                 Defaults to False.
+
+        """
+        self.output_reproj_error_thresh = output_reproj_error_thresh
+        self._robust_measurement_noise = robust_measurement_noise
 
     def run(
         self,
@@ -66,7 +76,13 @@ class BundleAdjustmentOptimizer(NamedTuple):
             return initial_data
 
         # noise model for measurements -- one pixel in u and v
-        measurement_noise = gtsam.noiseModel.Isotropic.Sigma(IMG_MEASUREMENT_DIM, 1.0)
+        if self._robust_measurement_noise:
+            measurement_noise = gtsam.noiseModel.Robust(
+                gtsam.noiseModel.mEstimator.Huber(1.345),
+                gtsam.noiseModel.Isotropic.Sigma(IMG_MEASUREMENT_DIM, 1.0),
+            )
+        else:
+            measurement_noise = gtsam.noiseModel.Isotropic.Sigma(IMG_MEASUREMENT_DIM, 1.0)
 
         # Create a factor graph
         graph = gtsam.NonlinearFactorGraph()
