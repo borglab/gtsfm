@@ -31,9 +31,8 @@ class YfccImbLoader(LoaderBase):
             max_resolution: integer representing maximum length of image's short side
                e.g. for 1080p (1920 x 1080), max_resolution would be 1080
         """
-
+        super().__init__(max_resolution)
         self._folder = folder
-        self._max_resolution = max_resolution
 
         # load all the image pairs according to the covisibility threshold used
         # in IMB's reporting

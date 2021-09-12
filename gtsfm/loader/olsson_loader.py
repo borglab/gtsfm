@@ -48,10 +48,10 @@ class OlssonLoader(LoaderBase):
             max_resolution: integer representing maximum length of image's short side
                e.g. for 1080p (1920 x 1080), max_resolution would be 1080
         """
+        super().__init__(max_resolution)
         self._use_gt_intrinsics = use_gt_intrinsics
         self._use_gt_extrinsics = use_gt_extrinsics
         self._max_frame_lookahead = max_frame_lookahead
-        self._max_resolution = max_resolution
 
         # fetch all the file names in /images folder
         search_path = os.path.join(folder, "images", f"*.{image_extension}")

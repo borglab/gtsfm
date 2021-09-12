@@ -24,6 +24,14 @@ class LoaderBase(metaclass=abc.ABCMeta):
     The loader provides APIs to get an image, either directly or as a dask delayed task
     """
 
+    def __init__(self, max_resolution: int) -> None:
+        """
+        Args:
+            max_resolution: integer representing maximum length of image's short side
+               e.g. for 1080p (1920 x 1080), max_resolution would be 1080
+        """
+        self._max_resolution = max_resolution
+
     # ignored-abstractmethod
     @abc.abstractmethod
     def __len__(self) -> int:
@@ -102,9 +110,6 @@ class LoaderBase(metaclass=abc.ABCMeta):
                 allowed loader image resolution if the full-resolution images for a dataset
                 are too large.
         """
-        if not hasattr(self, "_max_resolution"):
-            raise RuntimeError("Each loader implementation must set the maximum image resolution for inference.")
-
         # no downsampling may be required, in which case target_h and target_w will be identical
         # to the full res height & width.
         img_full_res = self.get_image_full_res(index)
@@ -137,9 +142,6 @@ class LoaderBase(metaclass=abc.ABCMeta):
         Returns:
             intrinsics for the given camera.
         """
-        if not hasattr(self, "_max_resolution"):
-            raise RuntimeError("Each loader implementation must set the maximum image resolution for inference.")
-
         intrinsics_full_res = self.get_camera_intrinsics_full_res(index)
 
         img_full_res = self.get_image_full_res(index)
