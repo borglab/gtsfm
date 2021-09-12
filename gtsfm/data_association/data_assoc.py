@@ -153,7 +153,12 @@ class DataAssociation(NamedTuple):
                     plot_type=GtsfmMetric.PlotType.HISTOGRAM,
                 ),
                 GtsfmMetric("accepted_track_avg_errors_px", per_accepted_track_avg_errors, store_full_data=False),
-                GtsfmMetric("rejected_track_avg_errors_px", per_rejected_track_avg_errors, store_full_data=False),
+                GtsfmMetric(
+                    "rejected_track_avg_errors_px",
+                    np.array(per_rejected_track_avg_errors).astype(np.float32),
+                    store_full_data=False,
+                ),
+                GtsfmMetric(name="number_cameras", data=len(connected_data.get_valid_camera_indices())),
             ],
         )
 

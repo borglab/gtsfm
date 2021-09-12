@@ -11,14 +11,16 @@ import '../stylesheets/FrontendSummary.css'
 function FrontendSummary(props) {
     /*
     Args:
-        props.json.rotation.success_count (int): Number of image pairs with estimated relative rotation error 
-        underneath the threshold.
-        props.json.translation.success_count (int): Number of image pairs with estimated relative translation error 
-        underneath the threshold.
-        props.json.num_valid_entries (int): Number of valid image pair entries.
-        props.json.num_total_entries (int): Number of total image pair entries.
-        props.json.pose.success_count (int): Number of image pairs with successfully recovered relative pose.
-        props.json.correspondence.all_inliers (int): Number of correspondence inliers.
+        props.json.frontend_summary.rotation_success_count (int): Number of image pairs with estimated relative
+            rotation error underneath the threshold.
+        props.json.frontend_summary.translation_success_count (int): Number of image pairs with estimated relative 
+            translation error underneath the threshold.
+        props.json.frontend_summary.num_valid_image_pairs (int): Number of valid image pair entries.
+        props.json.frontend_summary.num_total_image_pairs (int): Number of total image pair entries.
+        props.json.frontend_summary.pose_success_count (int): Number of image pairs with successfully recovered 
+            relative pose.
+        props.json.correspondences.frontend_summary.num_all_inlier_correspondences_wrt_gt_model (int): Number of 
+            correspondence inliers.
         
     Returns:
         A component showing frontend summary metrics after clicking the 'TwoViewEstimator' Plate.
@@ -33,25 +35,25 @@ function FrontendSummary(props) {
                 </p>
 
                 <p className="fs_text">
-                    Rotation Success: {props.json.rotation.success_count}/
-                                    {props.json.num_valid_entries}/
-                                    {props.json.num_total_entries}
+                    Rotation Success: {props.json.frontend_summary.rotation_success_count}/
+                                    {props.json.frontend_summary.num_valid_image_pairs}/
+                                    {props.json.frontend_summary.num_total_image_pairs}
                 </p>
 
                 <p className="fs_text">
-                    Translation Success: {props.json.translation.success_count}/
-                                        {props.json.num_valid_entries}/
-                                        {props.json.num_total_entries}
+                    Translation Success: {props.json.frontend_summary.translation_success_count}/
+                                        {props.json.frontend_summary.num_valid_image_pairs}/
+                                        {props.json.frontend_summary.num_total_image_pairs}
                 </p>
 
                 <p className="fs_text">
-                    Pose Success: {props.json.pose.success_count}/
-                                {props.json.num_valid_entries}/
-                                {props.json.num_total_entries}
+                    Pose Success: {props.json.frontend_summary.pose_success_count}/
+                                {props.json.frontend_summary.num_valid_image_pairs}/
+                                {props.json.frontend_summary.num_total_image_pairs}
                 </p>
 
                 <p className="fs_text">
-                    Correspondence Inliners: {props.json.correspondences.all_inliers}
+                    Correspondence Inliners: {props.json.frontend_summary.num_all_inlier_correspondences_wrt_gt_model}
                 </p>
 
                 <button className="go_back_btn" onClick={() => props.toggleFS(false)}>
