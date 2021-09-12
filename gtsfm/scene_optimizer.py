@@ -176,9 +176,9 @@ class SceneOptimizer:
         auxiliary_graph_list = []
 
         # ensure cycle consistency in triplets
-        i2Ri1_graph_dict, i2Ui1_graph_dict = dask.delayed(cycle_consistency.filter_to_cycle_consistent_edges, nout=2)(
-            i2Ri1_graph_dict, i2Ui1_graph_dict, two_view_reports_dict
-        )
+        i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict = dask.delayed(
+            cycle_consistency.filter_to_cycle_consistent_edges, nout=3
+        )(i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict, two_view_reports_dict)
 
         def _filter_dict_keys(dict: Dict[Any, Any], ref_dict: Dict[Any,Any]) -> Dict[Any, Any]:
             """Return a subset of a dictionary based on keys present in the reference dictionary."""

@@ -38,8 +38,5 @@ dependencies:
   - plotly=4.14.3
   - tabulate
   - pip:
-    - pydegensac
-    - pycolmap
-
-
-
+      - pydegensac
+      - pycolmap
