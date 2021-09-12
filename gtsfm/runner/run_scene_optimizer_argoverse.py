@@ -14,7 +14,7 @@ logger = get_logger()
 
 
 def run_scene_optimizer(args: argparse.Namespace) -> None:
-    """ Run GTSFM over images from an Argoverse vehicle log"""
+    """Run GTSFM over images from an Argoverse vehicle log"""
     with hydra.initialize_config_module(config_module="gtsfm.configs"):
         # config is relative to the gtsfm module
         cfg = hydra.compose(config_name=args.config_name)
@@ -36,6 +36,7 @@ def run_scene_optimizer(args: argparse.Namespace) -> None:
             camera_intrinsics_graph=loader.create_computation_graph_for_intrinsics(),
             image_shape_graph=loader.create_computation_graph_for_image_shapes(),
             gt_pose_graph=loader.create_computation_graph_for_poses(),
+            gt_cameras_graph=loader.create_computation_graph_for_cameras(),
         )
 
         # create dask client
