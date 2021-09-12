@@ -30,6 +30,8 @@ class LoaderBase(metaclass=abc.ABCMeta):
             max_resolution: integer representing maximum length of image's short side
                e.g. for 1080p (1920 x 1080), max_resolution would be 1080
         """
+        if not isinstance(max_resolution, int):
+            raise ValueError("Maximum image resolution must be an integer argument.")
         self._max_resolution = max_resolution
 
     # ignored-abstractmethod
