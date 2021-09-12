@@ -1,5 +1,4 @@
-"""
-Unit tests for Open3d visualizaation code.
+"""Unit tests for Open3d visualizaation code.
 
 Author: John Lambert
 """
@@ -12,6 +11,7 @@ import visualization.open3d_vis_utils as open3d_vis_utils
 
 def test_create_colored_spheres_open3d() -> None:
     """Try creating spheres centered at randomly generated 3d locations (disclaimer: slow)."""
+    np.random.seed(0)
     num_points = 1000
     point_cloud = np.random.randn(num_points, 3)
     # high bound is exclusive
@@ -26,6 +26,7 @@ def test_create_colored_spheres_open3d() -> None:
 
 def test_create_colored_point_cloud_open3d() -> None:
     """Try creating points at randomly generated 3d locations (should be fast)."""
+    np.random.seed(0)
     num_points = 10000
     point_cloud = np.random.randn(num_points, 3)
     # high bound is exclusive
