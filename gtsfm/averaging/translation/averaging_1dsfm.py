@@ -67,12 +67,10 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 or ill-constrained system).
             A GtsfmMetricsGroup of 1DSfM metrics.
         """
-        isotropic_noise_model = gtsam.noiseModel.Isotropic.Sigma(NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
+        noise_model = gtsam.noiseModel.Isotropic.Sigma(NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
         if robust_measurement_noise:
             huber_loss = gtsam.noiseModel.mEstimator.Huber.Create(HUBER_LOSS_K)
             noise_model = gtsam.noiseModel.Robust.Create(huber_loss, noise_model)
-        else:
-            noise_model = isotropic_noise_model
 
         # Note: all measurements are relative translation directions in the
         # world frame.
