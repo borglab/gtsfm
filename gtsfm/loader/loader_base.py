@@ -11,8 +11,11 @@ from dask.delayed import Delayed
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3
 
 import gtsfm.utils.images as img_utils
-import gtsfm.utils.io as io_utils
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
+
+
+logger = logger_utils.get_logger()
 
 
 class LoaderBase(metaclass=abc.ABCMeta):
@@ -124,10 +127,18 @@ class LoaderBase(metaclass=abc.ABCMeta):
         img_full_res = self.get_image_full_res(index)
         (
             _,
-            scale_v,
+            _,
             target_h,
             target_w,
         ) = img_utils.get_downsampling_factor_per_axis(img_full_res.height, img_full_res.width, self._max_resolution)
+        logger.info(
+            "Image %d resized from (H,W)=(%d,%d) -> (%d,%d)",
+            index,
+            img_full_res.height,
+            img_full_res.width,
+            target_h,
+            target_w,
+        )
         resized_img = img_utils.resize_image(img_full_res, new_height=target_h, new_width=target_w)
         return resized_img
 
@@ -150,7 +161,9 @@ class LoaderBase(metaclass=abc.ABCMeta):
 
         img_full_res = self.get_image_full_res(index)
         # no downsampling may be required, in which case scale_u and scale_v will be 1.0
-        scale_u, scale_v, _, _ = img_utils.get_downsampling_factor_per_axis(img_full_res.height, img_full_res.width, self._max_resolution)
+        scale_u, scale_v, _, _ = img_utils.get_downsampling_factor_per_axis(
+            img_full_res.height, img_full_res.width, self._max_resolution
+        )
         rescaled_intrinsics = Cal3Bundler(
             fx=intrinsics_full_res.fx() * scale_u,
             k1=0.0,
