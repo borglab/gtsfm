@@ -99,10 +99,6 @@ class AstronetLoader(LoaderBase):
         self._num_imgs = len(self._image_paths)
         logger.info("AstroNet loader found and loaded %d images and %d tracks.", self._num_imgs, self.num_sfmtracks)
 
-        # call the BaseLoader's constructor, which will compute a re-scaling factor for all images
-        # and for all intrinsics, using the desired image resolution for inference.
-        super().__init__()
-
     @staticmethod
     def colmap2gtsfm(
         cameras: Dict[int, ColmapCamera],
