@@ -148,6 +148,14 @@ class GtsfmData:
         self._tracks.append(track)
         return True
 
+    def get_tracks(self) -> List[SfmTrack]:
+        """Getter for all the tracks.
+
+        Returns:
+            Tracks in the object
+        """
+        return self._tracks
+
     def add_camera(self, index: int, camera: PinholeCameraCal3Bundler) -> None:
         """Adds a camera.
 

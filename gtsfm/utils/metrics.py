@@ -4,18 +4,25 @@ Authors: Ayush Baid, Akshay Krishnan
 """
 import itertools
 import os
+from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 from dask.delayed import Delayed
 import numpy as np
-from gtsam import Cal3Bundler, EssentialMatrix, Point3, Pose3, Rot3, Unit3
+from gtsam import Cal3Bundler, EssentialMatrix, Point3, Pose3, Rot3, SfmTrack, Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.verification as verification_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
+from gtsfm.data_association.point3d_initializer import (
+    Point3dInitializer,
+    TriangulationParam,
+    TriangulationExitCode,
+)
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -265,6 +272,74 @@ def get_rotations_translations_from_poses(
         rotations.append(pose.rotation())
         translations.append(pose.translation())
     return rotations, translations
+
+
+def benchmark_tracks2d_with_gt_cameras(
+    tracks: List[SfmTrack2d], cameras_gt: List[Cal3Bundler], reproj_error_thresh_px: float = 3, metric_prefix: str = ""
+) -> List[GtsfmMetric]:
+    """Benchmark the 2D tracks w.r.t ground truth cameras by performing triangulation and aggregating the error codes.
+
+    Args:
+        tracks: list of 2d tracks.
+        cameras_gt: cameras with GT params.
+        reproj_error_thresh_px (optional): Reprojection error threshold (in pixels) for a track to be considered an
+                                           all-inlier one. Defaults to 3.
+        metric_prefix (optional): Prefix for the metric names computed in this function. Defaults to "".
+
+    Returns:
+        List of metrics for the tracks, particularly the count of each triangulation result w.r.t GT cameras.
+    """
+    # do a simple triangulation with the GT cameras
+    cameras_dict: Dict[int, Cal3Bundler] = {i: cam for i, cam in enumerate(cameras_gt)}
+    point3d_initializer = Point3dInitializer(
+        track_camera_dict=cameras_dict, mode=TriangulationParam.NO_RANSAC, reproj_error_thresh=reproj_error_thresh_px
+    )
+
+    exit_code_counts: Dict[TriangulationExitCode, int] = defaultdict(int)
+    for track in tracks:
+        _, _, triangulation_exit_code = point3d_initializer.triangulate(track_2d=track)
+        exit_code_counts[triangulation_exit_code] += 1
+
+    metrics = [
+        GtsfmMetric(name=metric_prefix + "tracks_with_gt_cams_{}".format(exit_code.name), data=count)
+        for exit_code, count in exit_code_counts.items()
+    ]
+
+    return metrics
+
+
+def benchmark_tracks3d_with_gt_cameras(
+    tracks: List[SfmTrack], cameras_gt: List[Cal3Bundler], reproj_error_thresh_px: float = 3, metric_prefix: str = ""
+) -> List[GtsfmMetric]:
+    """Benchmark the 3D tracks w.r.t ground truth cameras by performing triangulation of 2D measurements and
+    aggregating the error codes.
+
+    Args:
+        tracks: list of 3d tracks.
+        cameras_gt: cameras with GT params.
+        reproj_error_thresh_px (optional): Reprojection error threshold (in pixels) for a track to be considered an
+                                           all-inlier one. Defaults to 3.
+        metric_prefix (optional): Prefix for the metric names computed in this function. Defaults to "".
+
+    Returns:
+        List of metrics for the tracks, particularly the count of each triangulation result w.r.t GT cameras.
+    """
+    # convert the 3D tracks to 2D tracks
+    tracks_2d: List[SfmTrack2d] = []
+    for track_3d in tracks:
+        num_measurements = track_3d.number_measurements()
+
+        measurements: List[SfmMeasurement] = []
+        for k in range(num_measurements):
+            i, uv = track_3d.measurement(k)
+
+            measurements.append(SfmMeasurement(i, uv))
+
+        tracks_2d.append(SfmTrack2d(measurements))
+
+    return benchmark_tracks2d_with_gt_cameras(
+        tracks_2d, cameras_gt, reproj_error_thresh_px, metric_prefix=metric_prefix
+    )
 
 
 def save_metrics_as_json(metrics_groups: Delayed, output_dir: str) -> None:

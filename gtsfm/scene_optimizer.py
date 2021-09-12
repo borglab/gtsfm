@@ -99,6 +99,7 @@ class SceneOptimizer:
         camera_intrinsics_graph: List[Delayed],
         image_shape_graph: List[Delayed],
         gt_pose_graph: Optional[List[Delayed]] = None,
+        gt_cameras_graph: Optional[List[Delayed]] = None,
     ) -> Delayed:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
 
@@ -193,6 +194,7 @@ class SceneOptimizer:
             v_corr_idxs_graph_dict,
             camera_intrinsics_graph,
             gt_pose_graph,
+            gt_cameras_graph,
         )
 
         # aggregate metrics for multiview optimizer

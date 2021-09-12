@@ -34,6 +34,7 @@ def run_scene_optimizer(args: argparse.Namespace) -> None:
             camera_intrinsics_graph=loader.create_computation_graph_for_intrinsics(),
             image_shape_graph=loader.create_computation_graph_for_image_shapes(),
             gt_pose_graph=loader.create_computation_graph_for_poses(),
+            gt_cameras_graph=loader.create_computation_graph_for_cameras(),
         )
 
         # create dask client
@@ -56,10 +57,16 @@ if __name__ == "__main__":
         help="maximum number of consecutive frames to consider for matching/co-visibility",
     )
     parser.add_argument(
-        "--num_workers", type=int, default=1, help="Number of workers to start (processes, by default)",
+        "--num_workers",
+        type=int,
+        default=1,
+        help="Number of workers to start (processes, by default)",
     )
     parser.add_argument(
-        "--threads_per_worker", type=int, default=1, help="Number of threads per each worker",
+        "--threads_per_worker",
+        type=int,
+        default=1,
+        help="Number of threads per each worker",
     )
     parser.add_argument(
         "--config_name",

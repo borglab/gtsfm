@@ -8,7 +8,7 @@ from typing import List, Optional, Tuple
 
 import dask
 from dask.delayed import Delayed
-from gtsam import Cal3Bundler, Pose3
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3
 
 from gtsfm.common.image import Image
 
@@ -69,6 +69,23 @@ class LoaderBase(metaclass=abc.ABCMeta):
             the camera pose w_P_index.
         """
 
+    def get_camera(self, index: int) -> Optional[Cal3Bundler]:
+        """Gets the camera at the given index.
+
+        Args:
+            index: the index to fetch.
+
+        Returns:
+            Camera object with intrinsics and extrinsics, if they exist.
+        """
+        pose = self.get_camera_pose(index)
+        intrinsics = self.get_camera_intrinsics(index)
+
+        if pose is None or intrinsics is None:
+            return None
+
+        return PinholeCameraCal3Bundler(pose, intrinsics)
+
     @abc.abstractmethod
     def is_valid_pair(self, idx1: int, idx2: int) -> bool:
         """Checks if (idx1, idx2) is a valid pair.
@@ -119,6 +136,19 @@ class LoaderBase(metaclass=abc.ABCMeta):
             return None
 
         return [dask.delayed(self.get_camera_pose)(x) for x in range(N)]
+
+    def create_computation_graph_for_cameras(self) -> Optional[List[Delayed]]:
+        """Creates the computation graph for cameras.
+
+        Returns:
+            OList of delayed tasks for cameras.
+        """
+        N = len(self)
+
+        if self.get_camera(0) is None:
+            return None
+
+        return [dask.delayed(self.get_camera)(i) for i in range(N)]
 
     def create_computation_graph_for_image_shapes(self) -> List[Delayed]:
         """Creates the computation graph for image shapes.

@@ -15,9 +15,10 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 import dask
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import PinholeCameraCal3Bundler, SfmTrack
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, SfmTrack
 
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.metrics as metric_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.sfm_track import SfmTrack2d
@@ -62,6 +63,7 @@ class DataAssociation(NamedTuple):
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
         images: Optional[List[Image]] = None,
+        cameras_gt: Optional[List[Cal3Bundler]] = None,
     ) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
         """Perform the data association.
 
@@ -71,7 +73,7 @@ class DataAssociation(NamedTuple):
             corr_idxs_dict: dictionary, with key as image pair (i1,i2) and value as matching keypoint indices.
             keypoints_list: keypoints for each image.
             images: a list of all images in scene (optional and only for track patch visualization)
-            viz_patch_sz: width and height of patches, if if dumping/visualizing a patch for each 2d track measurement
+            cameras_gt: list of GT cameras, to be used for benchmarking the tracks.
 
         Returns:
             A tuple of GtsfmData with cameras and tracks, and a GtsfmMetricsGroup with data association metrics
@@ -162,6 +164,17 @@ class DataAssociation(NamedTuple):
             ],
         )
 
+        if cameras_gt is not None:
+            input_metrics_wrt_gt_cameras: List[GtsfmMetric] = metric_utils.benchmark_tracks2d_with_gt_cameras(
+                tracks_2d, cameras_gt, metric_prefix="2d_"
+            )
+
+            triangulated_metrics_wrt_gt_cameras: List[GtsfmMetric] = metric_utils.benchmark_tracks3d_with_gt_cameras(
+                triangulated_data.get_tracks(), cameras_gt, metric_prefix="3d_"
+            )
+
+            data_assoc_metrics.add_metrics(input_metrics_wrt_gt_cameras + triangulated_metrics_wrt_gt_cameras)
+
         return connected_data, data_assoc_metrics
 
     def create_computation_graph(
@@ -171,6 +184,7 @@ class DataAssociation(NamedTuple):
         corr_idxs_graph: Dict[Tuple[int, int], Delayed],
         keypoints_graph: List[Delayed],
         images_graph: Optional[Delayed] = None,
+        gt_cameras_graph: Optional[List[Delayed]] = None,
     ) -> Tuple[Delayed, Delayed]:
         """Creates a computation graph for performing data association.
 
@@ -180,14 +194,16 @@ class DataAssociation(NamedTuple):
             corr_idxs_graph: dictionary of correspondence indices, each value wrapped up as Delayed.
             keypoints_graph: list of wrapped up keypoints for each image.
             images_graph: a list of all images in scene (optional and only for track patch visualization)
+            gt_cameras_graph: a list of cameras with ground truth params, if they exist, with each object
+                              wrapped up as Delayed.
 
         Returns:
             ba_input_graph: GtsfmData object wrapped up using dask.delayed
             data_assoc_metrics_graph: dictionary with different statistics about the data
                 association result
         """
-        data_assoc_graph = dask.delayed(self.run)(num_images, cameras, corr_idxs_graph, keypoints_graph, images_graph)
-        ba_input_graph = data_assoc_graph[0]
-        data_assoc_metrics_graph = data_assoc_graph[1]
+        ba_input_graph, data_assoc_metrics_graph = dask.delayed(self.run, nout=2)(
+            num_images, cameras, corr_idxs_graph, keypoints_graph, images_graph, gt_cameras_graph
+        )
 
         return ba_input_graph, data_assoc_metrics_graph
