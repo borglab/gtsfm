@@ -148,6 +148,7 @@ class TestPoint3dInitializer(unittest.TestCase):
 
     def testSimpleTriangulationWithOutlierMeasurements(self):
         sfm_track, _, _ = self.simple_triangulation_initializer.triangulate(SfmTrack2d(get_track_with_one_outlier()))
+        # There are 8 total measurements, one of which is an outlier.
         assert sfm_track.number_measurements() == 7
 
     def testSimpleTriangulationWithCheiralityException(self):
