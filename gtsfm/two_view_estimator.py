@@ -33,8 +33,8 @@ pil_logger.setLevel(logging.INFO)
 
 DATA_ASSOC_2VIEW = DataAssociation(reproj_error_thresh=3, min_track_len=2, mode=TriangulationParam.NO_RANSAC)
 BUNDLE_ADJUST_2VIEW = BundleAdjustmentOptimizer(
-    output_reproj_error_thresh=100
-)  # we dont care about output error threshold
+    output_reproj_error_thresh=100, robust_measurement_noise=True
+)  # we dont care about output error threshold as we do not access the tracks of 2-view BA, which the threshold affects.
 
 
 @dataclass(frozen=False)
