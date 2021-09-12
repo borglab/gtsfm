@@ -101,8 +101,8 @@ class OlssonLoader(LoaderBase):
         """
         return self._num_imgs
 
-    def get_image_native_resolution(self, index: int) -> Image:
-        """Get the image at the given index, at native resolution.
+    def get_image_full_res(self, index: int) -> Image:
+        """Get the image at the given index, at full resolution.
 
         Args:
             index: the index to fetch.
@@ -119,9 +119,8 @@ class OlssonLoader(LoaderBase):
 
         return io_utils.load_image(self._image_paths[index])
 
-
-    def get_camera_intrinsics_native_resolution(self, index: int) -> Cal3Bundler:
-        """Get the camera intrinsics at the given index, for images at the native resolution of dataset.
+    def get_camera_intrinsics_full_res(self, index: int) -> Cal3Bundler:
+        """Get the camera intrinsics at the given index, valid for a full-resolution image.
 
         Args:
             the index to fetch.
