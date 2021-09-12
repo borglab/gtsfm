@@ -211,7 +211,8 @@ class Point3dInitializer(NamedTuple):
         )
 
         # Filter measurements by the reprojection error.
-        inlier_track = inlier_track.select_subset(np.where(reproj_errors.flatten() < self.reproj_error_thresh)[0])
+        valid_reproj_err_ind = np.where(reproj_errors.flatten() < self.reproj_error_thresh)[0]
+        inlier_track = inlier_track.select_subset(valid_reproj_err_ind)
         if inlier_track.number_measurements() < 2:
             return None, avg_track_reproj_error, TriangulationExitCode.EXCEEDS_REPROJ_THRESH
 
