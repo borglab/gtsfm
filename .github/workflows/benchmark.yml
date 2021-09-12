@@ -66,7 +66,8 @@ jobs:
         run: |
           python gtsfm/runner/run_scene_optimizer.py \
             --dataset_root tests/data/set1_lund_door \
-            --config_name ${{ matrix.config }}.yaml
+            --config_name ${{ matrix.config }}.yaml \
+            --max_resolution 1296
       - name: Archive door dataset metrics
         uses: actions/upload-artifact@v2
         with:
