@@ -22,7 +22,7 @@ SceneOptimizer:
     verifier:
       _target_: gtsfm.frontend.verifier.ransac.Ransac
       use_intrinsics_in_verification: True
-      estimation_threshold_px: 4 # for H/E/F estimators
+      estimation_threshold_px: 3 # for H/E/F estimators
       min_allowed_inlier_ratio_est_model: 0.1
 
   multiview_optimizer:
@@ -35,12 +35,12 @@ SceneOptimizer:
 
     data_association_module:
       _target_: gtsfm.data_association.data_assoc.DataAssociation
-      reproj_error_thresh: 100
+      reproj_error_thresh: 3
       min_track_len: 2
       mode:
         _target_: gtsfm.data_association.data_assoc.TriangulationParam
-        value: 0 # 0 corresponds to NO_RANSAC
-      num_ransac_hypotheses: 20
+        value: 1 # 0 corresponds to NO_RANSAC
+      num_ransac_hypotheses: 1000
       save_track_patches_viz: False
 
     bundle_adjustment_module:
