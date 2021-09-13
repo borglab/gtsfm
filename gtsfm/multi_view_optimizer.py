@@ -14,6 +14,7 @@ from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBa
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.data_association.data_assoc import DataAssociation
+from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 
 
 class MultiViewOptimizer:
@@ -63,7 +64,9 @@ class MultiViewOptimizer:
         pruned_i2Ui1_graph = pruned_graph[1]
 
         wRi_graph = self.rot_avg_module.create_computation_graph(num_images, pruned_i2Ri1_graph)
-        wti_graph = self.trans_avg_module.create_computation_graph(num_images, pruned_i2Ui1_graph, wRi_graph)
+        wti_graph, ta_metrics = self.trans_avg_module.create_computation_graph(
+            num_images, pruned_i2Ui1_graph, wRi_graph, gt_wTi_graph=gt_poses_graph
+        )
         init_cameras_graph = dask.delayed(init_cameras)(wRi_graph, wti_graph, intrinsics_graph)
 
         ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
@@ -75,11 +78,12 @@ class MultiViewOptimizer:
         if gt_poses_graph is None:
             return ba_input_graph, ba_result_graph, None
 
-        averaging_metrics_graph = dask.delayed(metrics_utils.compute_averaging_metrics)(
+        rot_avg_metrics = dask.delayed(metrics_utils.compute_rotation_averaging_metrics)(
             wRi_graph, wti_graph, gt_poses_graph
         )
+        averaging_metrics = dask.delayed(get_averaging_metrics)(rot_avg_metrics, ta_metrics)
 
-        multiview_optimizer_metrics_graph = [averaging_metrics_graph, data_assoc_metrics_graph, ba_metrics_graph]
+        multiview_optimizer_metrics_graph = [averaging_metrics, data_assoc_metrics_graph, ba_metrics_graph]
 
         if gt_poses_graph is not None:
             # align the sparse multi-view estimate before BA to the ground truth pose graph.
@@ -89,7 +93,9 @@ class MultiViewOptimizer:
 
 
 def init_cameras(
-    wRi_list: List[Optional[Rot3]], wti_list: List[Optional[Point3]], intrinsics_list: List[Cal3Bundler],
+    wRi_list: List[Optional[Rot3]],
+    wti_list: List[Optional[Point3]],
+    intrinsics_list: List[Cal3Bundler],
 ) -> Dict[int, PinholeCameraCal3Bundler]:
     """Generate camera from valid rotations and unit-translations.
 
@@ -108,3 +114,18 @@ def init_cameras(
             cameras[idx] = PinholeCameraCal3Bundler(Pose3(wRi, wti), intrinsics_list[idx])
 
     return cameras
+
+
+def get_averaging_metrics(
+    rot_avg_metrics: GtsfmMetricsGroup, trans_avg_metrics: GtsfmMetricsGroup
+) -> GtsfmMetricsGroup:
+    """Helper to combine rotation and translation averaging metrics groups into a single averaging metrics group.
+
+    Args:
+        rot_avg_metrics: Rotation averaging metrics group.
+        trans_avg_metrics: Translation averaging metrics group.
+
+    Returns:
+        An averaging metrics group with both rotation and translation averaging metrics.
+    """
+    return GtsfmMetricsGroup("averaging_metrics", rot_avg_metrics.metrics + trans_avg_metrics.metrics)
