@@ -41,8 +41,8 @@ class ArgoverseDatasetLoader(LoaderBase):
             max_resolution: integer representing maximum length of image's short side
                e.g. for 1080p (1920 x 1080), max_resolution would be 1080
         """
+        super().__init__(max_resolution)
         self._log_id = log_id
-        self._max_resolution = max_resolution
         self._dl = SimpleArgoverseTrackingDataLoader(data_dir=dataset_dir, labels_dir=dataset_dir)
         self.load_camera_calibration(log_id, camera_name)
 
