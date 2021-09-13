@@ -93,6 +93,7 @@ class DataAssociation(NamedTuple):
             cameras,
             self.mode,
             self.reproj_error_thresh,
+            self.min_track_len,
             self.num_ransac_hypotheses,
         )
 
@@ -115,7 +116,7 @@ class DataAssociation(NamedTuple):
                 num_tracks_w_cheirality_exceptions += 1
                 continue
 
-            if sfm_track is not None and self.__validate_track(sfm_track):
+            if sfm_track is not None:
                 triangulated_data.add_track(sfm_track)
                 per_accepted_track_avg_errors.append(avg_track_reproj_error)
             else:

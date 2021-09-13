@@ -44,6 +44,7 @@ class TriangulationExitCode(Enum):
     INLIERS_UNDERCONSTRAINED = 2  # insufficent number of inlier measurements
     POSES_UNDERCONSTRAINED = 3  # insufficent number of estimated camera poses
     EXCEEDS_REPROJ_THRESH = 4  # estimated 3d point exceeds reprojection threshold
+    VIOLATES_MIN_TRACK_LENGTH = 5  # does not satisify the minimum number of tracks threshold
 
 
 class TriangulationParam(Enum):
@@ -70,6 +71,7 @@ class Point3dInitializer(NamedTuple):
     track_camera_dict: Dict[int, PinholeCameraCal3Bundler]
     mode: TriangulationParam
     reproj_error_thresh: float
+    min_track_length: int
     num_ransac_hypotheses: Optional[int] = None
 
     def execute_ransac_variant(self, track_2d: SfmTrack2d) -> np.ndarray:
@@ -215,6 +217,10 @@ class Point3dInitializer(NamedTuple):
         inlier_track = inlier_track.select_subset(valid_reproj_err_ind)
         if inlier_track.number_measurements() < 2:
             return None, avg_track_reproj_error, TriangulationExitCode.EXCEEDS_REPROJ_THRESH
+
+        # Check that track satisifies minimum track length threshold
+        if inlier_track.number_measurements() < self.min_track_length:
+            return None, avg_track_reproj_error, TriangulationExitCode.VIOLATES_MIN_TRACK_LENGTH
 
         # Create a gtsam.SfmTrack with the triangulated 3d point and associated 2d measurements.
         track_3d = SfmTrack(triangulated_pt)
