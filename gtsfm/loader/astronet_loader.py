@@ -36,7 +36,7 @@ class AstronetLoader(LoaderBase):
         use_gt_extrinsics: bool = True,
         use_gt_sfmtracks: bool = False,
         max_frame_lookahead: int = 2,
-        max_resolution: int = 760,
+        max_resolution: int = 1024,
     ) -> None:
         """Initialize loader from a specified segment directory (data_dir) on disk.
 
