@@ -10,6 +10,7 @@ References:
 Authors: Sushmita Warrier, Xiaolong Wu, John Lambert
 """
 import os
+from collections import Counter
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import dask
@@ -18,7 +19,7 @@ from dask.delayed import Delayed
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, SfmTrack
 
 import gtsfm.utils.logger as logger_utils
-import gtsfm.utils.metrics as metric_utils
+import gtsfm.utils.tracks as track_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.sfm_track import SfmTrack2d
@@ -98,7 +99,6 @@ class DataAssociation(NamedTuple):
             self.num_ransac_hypotheses,
         )
 
-        num_tracks_w_cheirality_exceptions = 0
         per_accepted_track_avg_errors = []
         per_rejected_track_avg_errors = []
 
@@ -109,12 +109,19 @@ class DataAssociation(NamedTuple):
         for i, camera in cameras.items():
             triangulated_data.add_camera(i, camera)
 
+        input_tracks_classification: Optional[List[TriangulationExitCode]] = None
+        if cameras_gt is not None:
+            input_tracks_classification = track_utils.classify_tracks2d_with_gt_cameras(
+                tracks=tracks_2d, cameras_gt=cameras_gt
+            )
+
+        triangulation_exit_codes: List[TriangulationExitCode] = []
         # add valid tracks where triangulation is successful
         for track_2d in tracks_2d:
             # triangulate and filter based on reprojection error
             sfm_track, avg_track_reproj_error, triangulation_exit_code = point3d_initializer.triangulate(track_2d)
+            triangulation_exit_codes.append(triangulation_exit_code)
             if triangulation_exit_code == TriangulationExitCode.CHEIRALITY_FAILURE:
-                num_tracks_w_cheirality_exceptions += 1
                 continue
 
             if sfm_track is not None and self.__validate_track(sfm_track):
@@ -123,7 +130,15 @@ class DataAssociation(NamedTuple):
             else:
                 per_rejected_track_avg_errors.append(avg_track_reproj_error)
 
-        track_cheirality_failure_ratio = num_tracks_w_cheirality_exceptions / len(tracks_2d)
+        # aggregate the exit codes
+        triangulation_exit_codes_distribution = Counter(triangulation_exit_codes)
+        gt_computed_exit_codes_distribution = None
+        if input_tracks_classification is not None:
+            gt_computed_exit_codes_distribution = Counter(zip(input_tracks_classification, triangulation_exit_codes))
+
+        track_cheirality_failure_ratio = triangulation_exit_codes_distribution[
+            TriangulationExitCode.CHEIRALITY_FAILURE
+        ] / len(tracks_2d)
 
         # pick only the largest connected component
         connected_data = triangulated_data.select_largest_connected_component()
@@ -164,16 +179,13 @@ class DataAssociation(NamedTuple):
             ],
         )
 
-        if cameras_gt is not None:
-            input_metrics_wrt_gt_cameras: List[GtsfmMetric] = metric_utils.benchmark_tracks2d_with_gt_cameras(
-                tracks_2d, cameras_gt, metric_prefix="2d_"
-            )
+        if gt_computed_exit_codes_distribution is not None:
+            for exit_code_tuple, count in gt_computed_exit_codes_distribution.items():
+                metric_name = "#tracks triangulated with GT pose: {}, computed pose: {}".format(
+                    exit_code_tuple[0].name, exit_code_tuple[1].name
+                )
 
-            triangulated_metrics_wrt_gt_cameras: List[GtsfmMetric] = metric_utils.benchmark_tracks3d_with_gt_cameras(
-                triangulated_data.get_tracks(), cameras_gt, metric_prefix="3d_"
-            )
-
-            data_assoc_metrics.add_metrics(input_metrics_wrt_gt_cameras + triangulated_metrics_wrt_gt_cameras)
+                data_assoc_metrics.add_metric(GtsfmMetric(name=metric_name, data=count))
 
         return connected_data, data_assoc_metrics
 

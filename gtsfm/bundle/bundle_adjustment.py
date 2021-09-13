@@ -2,18 +2,19 @@
 
 Authors: Xiaolong Wu, John Lambert, Ayush Baid
 """
-
-import numpy as np
+from collections import Counter
 from pathlib import Path
 from typing import List, Optional, Tuple
 
 import dask
 import gtsam
+import numpy as np
 from dask.delayed import Delayed
 from gtsam import GeneralSFMFactorCal3Bundler, PinholeCameraCal3Bundler, Pose3, SfmTrack, Values, symbol_shorthand
 
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
+import gtsfm.utils.tracks as track_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
@@ -180,17 +181,14 @@ class BundleAdjustmentOptimizer:
             ba_metrics.extend(metrics_group=ba_pose_error_metrics)
 
         if cameras_gt is not None:
-            ba_metrics.add_metrics(
-                metrics_utils.benchmark_tracks3d_with_gt_cameras(
-                    tracks=optimized_data.get_tracks(), cameras_gt=cameras_gt, metric_prefix="unfiltered_"
-                )
+            output_tracks_classification = track_utils.classify_tracks3d_with_gt_cameras(
+                tracks=optimized_data.get_tracks(), cameras_gt=cameras_gt
             )
+            output_tracks_classification_frequency = Counter(output_tracks_classification)
 
-            ba_metrics.add_metrics(
-                metrics_utils.benchmark_tracks3d_with_gt_cameras(
-                    tracks=filtered_result.get_tracks(), cameras_gt=cameras_gt, metric_prefix="filtered_"
-                )
-            )
+            for exit_code, count in output_tracks_classification_frequency.items():
+                metric_name = "Filtered tracks triangulated with GT pose: {}".format(exit_code.name)
+                ba_metrics.add_metric(GtsfmMetric(name=metric_name, data=count))
 
         ba_metrics.add_metrics(get_metrics_from_sfm_data(filtered_result, suffix="_filtered"))
         # ba_metrics.save_to_json(os.path.join(METRICS_PATH, "bundle_adjustment_metrics.json"))
