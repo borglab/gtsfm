@@ -2,6 +2,7 @@
 
 Authors: John Lambert
 """
+
 import unittest
 from pathlib import Path
 from typing import Tuple
@@ -12,12 +13,16 @@ from dask.delayed import Delayed
 from gtsam import Pose3
 from scipy.spatial.transform import Rotation
 
+from gtsfm.frontend.detector_descriptor.superpoint import SuperPointDetectorDescriptor
 from gtsfm.frontend.detector_descriptor.sift import SIFTDetectorDescriptor
+from gtsfm.frontend.matcher.superglue_matcher import SuperGlueMatcher
 from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
 from gtsfm.frontend.verifier.degensac import Degensac
 from gtsfm.frontend.verifier.ransac import Ransac
+from gtsfm.frontend.verifier.loransac import LoRansac
 from gtsfm.loader.argoverse_dataset_loader import ArgoverseDatasetLoader
 from gtsfm.scene_optimizer import FeatureExtractor, TwoViewEstimator
+
 
 TEST_DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
 
@@ -38,7 +43,7 @@ class TestFrontend(unittest.TestCase):
         assert len(self.loader)
 
     def __get_frontend_computation_graph(
-        self, feature_extractor: FeatureExtractor, two_view_estimator: TwoViewEstimator,
+        self, feature_extractor: FeatureExtractor, two_view_estimator: TwoViewEstimator
     ) -> Tuple[Delayed, Delayed]:
         """Copied from SceneOptimizer class, without back-end code"""
         image_pair_indices = self.loader.get_valid_pairs()
@@ -50,7 +55,7 @@ class TestFrontend(unittest.TestCase):
         keypoints_graph_list = []
         descriptors_graph_list = []
         for delayed_image in image_graph:
-            (delayed_dets, delayed_descs,) = feature_extractor.create_computation_graph(delayed_image)
+            delayed_dets, delayed_descs = feature_extractor.create_computation_graph(delayed_image)
             keypoints_graph_list += [delayed_dets]
             descriptors_graph_list += [delayed_descs]
 
@@ -80,15 +85,61 @@ class TestFrontend(unittest.TestCase):
         two_view_estimator = TwoViewEstimator(
             matcher=TwoWayMatcher(),
             verifier=Ransac(
-                use_intrinsics_in_verification=True,
-                estimation_threshold_px=4,
-                min_allowed_inlier_ratio_est_model=0.1
+                use_intrinsics_in_verification=True, estimation_threshold_px=4, min_allowed_inlier_ratio_est_model=0.1
             ),
             eval_threshold_px=4,
-            min_num_inliers_acceptance=15
+            min_num_inliers_acceptance=15,
         )
         self.__compare_frontend_result_error(
-            feature_extractor, two_view_estimator, euler_angle_err_tol=1.4, translation_err_tol=0.026,
+            feature_extractor, two_view_estimator, euler_angle_err_tol=1.4, translation_err_tol=0.026
+        )
+
+    def test_superpoint_superglue_twoway_ransac(self):
+        """Check SuperPoint + SuperGlue + OpenCV RANSAC-5pt frontend (Essential matrix estimation)."""
+        det_desc = SuperPointDetectorDescriptor()
+        feature_extractor = FeatureExtractor(det_desc)
+        two_view_estimator = TwoViewEstimator(
+            matcher=SuperGlueMatcher(use_outdoor_model=True),
+            verifier=Ransac(
+                use_intrinsics_in_verification=True, estimation_threshold_px=4, min_allowed_inlier_ratio_est_model=0.1
+            ),
+            eval_threshold_px=4,
+            min_num_inliers_acceptance=15,
+        )
+        self.__compare_frontend_result_error(
+            feature_extractor, two_view_estimator, euler_angle_err_tol=1.4, translation_err_tol=0.026
+        )
+
+    def test_superpoint_superglue_twoway_loransac(self):
+        """Check SuperPoint + SuperGlue + LORANSAC-5pt frontend (Essential matrix estimation)."""
+        det_desc = SuperPointDetectorDescriptor()
+        feature_extractor = FeatureExtractor(det_desc)
+        two_view_estimator = TwoViewEstimator(
+            matcher=SuperGlueMatcher(use_outdoor_model=True),
+            verifier=LoRansac(
+                use_intrinsics_in_verification=True, estimation_threshold_px=4, min_allowed_inlier_ratio_est_model=0.1
+            ),
+            eval_threshold_px=4,
+            min_num_inliers_acceptance=15,
+        )
+        self.__compare_frontend_result_error(
+            feature_extractor, two_view_estimator, euler_angle_err_tol=1.4, translation_err_tol=0.026
+        )
+
+    def test_superpoint_superglue_twoway_loransac(self):
+        """Check SuperPoint + SuperGlue + LORANSAC-8pt frontend (Fundamental matrix estimation)."""
+        det_desc = SuperPointDetectorDescriptor()
+        feature_extractor = FeatureExtractor(det_desc)
+        two_view_estimator = TwoViewEstimator(
+            matcher=SuperGlueMatcher(use_outdoor_model=True),
+            verifier=LoRansac(
+                use_intrinsics_in_verification=False, estimation_threshold_px=4, min_allowed_inlier_ratio_est_model=0.1
+            ),
+            eval_threshold_px=4,
+            min_num_inliers_acceptance=15,
+        )
+        self.__compare_frontend_result_error(
+            feature_extractor, two_view_estimator, euler_angle_err_tol=1.4, translation_err_tol=0.026
         )
 
     # def test_sift_twoway_degensac(self):
@@ -117,7 +168,7 @@ class TestFrontend(unittest.TestCase):
         translation_err_tol: float,
     ) -> None:
         """Compare recovered relative rotation and translation with ground truth."""
-        (i2Ri1_graph_dict, i2Ui1_graph_dict,) = self.__get_frontend_computation_graph(
+        i2Ri1_graph_dict, i2Ui1_graph_dict = self.__get_frontend_computation_graph(
             feature_extractor, two_view_estimator
         )
 

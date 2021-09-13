@@ -28,8 +28,9 @@ logger = logger_utils.get_logger()
 def load_image(img_path: str) -> Image:
     """Load the image from disk.
 
-    Note: EXIF is read as a map from (tag_id, value) where tag_id is an integer.
+    Notes: EXIF is read as a map from (tag_id, value) where tag_id is an integer.
     In order to extract human-readable names, we use the lookup table TAGS or GPSTAGS.
+    Images will be converted to RGB if in a different format.
 
     Args:
         img_path (str): the path of image to load.
@@ -55,6 +56,7 @@ def load_image(img_path: str) -> Image:
         exif_data = parsed_data
 
     img_fname = Path(img_path).name
+    original_image = original_image.convert("RGB") if original_image.mode != "RGB" else original_image
     return Image(value_array=np.asarray(original_image), exif_data=exif_data, file_name=img_fname)
 
 
@@ -211,7 +213,9 @@ def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> 
     with open(file_path, "w") as f:
         f.write("# Camera list with one line of data per camera:\n")
         f.write("#   CAMERA_ID, MODEL, WIDTH, HEIGHT, PARAMS[]\n")
-        f.write(f"# Number of cameras: {gtsfm_data.number_images()}\n")
+        # note that we save the number of etimated cameras, not the number of input images,
+        # which would instead be gtsfm_data.number_images().
+        f.write(f"# Number of cameras: {len(gtsfm_data.get_valid_camera_indices())}\n")
 
         for i in gtsfm_data.get_valid_camera_indices():
             camera = gtsfm_data.get_camera(i)

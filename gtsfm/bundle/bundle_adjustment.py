@@ -5,14 +5,15 @@ Authors: Xiaolong Wu, John Lambert, Ayush Baid
 
 import numpy as np
 from pathlib import Path
-from typing import List, NamedTuple, Tuple
+from typing import List, Optional, Tuple
 
 import dask
 import gtsam
 from dask.delayed import Delayed
-from gtsam import GeneralSFMFactorCal3Bundler, SfmTrack, Values, symbol_shorthand
+from gtsam import GeneralSFMFactorCal3Bundler, Pose3, SfmTrack, Values, symbol_shorthand
 
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.metrics as metrics_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
@@ -29,22 +30,35 @@ POINT3_DOF = 3  # 3d points have 3 dof
 logger = logger_utils.get_logger()
 
 
-class BundleAdjustmentOptimizer(NamedTuple):
+class BundleAdjustmentOptimizer:
     """Bundle adjustment using factor-graphs in GTSAM.
 
     This class refines global pose estimates and intrinsics of cameras, and also refines 3D point cloud structure given
     tracks from triangulation."""
 
-    output_reproj_error_thresh: float
+    def __init__(self, output_reproj_error_thresh: float, robust_measurement_noise: bool = False):
+        """Initializes the parameters for bundle adjustment module.
 
-    def run(self, initial_data: GtsfmData) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
+        Args:
+            output_reproj_error_thresh: the max reprojection error allowed in output.
+            robust_measurement_noise (optional): Flag to enable use of robust noise model for measurement noise.
+                                                 Defaults to False.
+
+        """
+        self.output_reproj_error_thresh = output_reproj_error_thresh
+        self._robust_measurement_noise = robust_measurement_noise
+
+    def run(
+        self, initial_data: GtsfmData, wTi_list_gt: Optional[List[Pose3]] = None
+    ) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
 
         Args:
             initial_data: initialized cameras, tracks w/ their 3d landmark from triangulation.
+            wTi_list_gt: list of GT camera poses, ordered by camera index.
 
         Results:
-            Optimized camera poses, 3D point w/ tracks, and error metrics.
+            Optimized camera poses, 3D point w/ tracks, and error metrics, aligned to GT (if provided).
             Metrics group containing metrics for both filtered and unfiltered BA results.
         """
         logger.info(
@@ -58,7 +72,13 @@ class BundleAdjustmentOptimizer(NamedTuple):
             return initial_data
 
         # noise model for measurements -- one pixel in u and v
-        measurement_noise = gtsam.noiseModel.Isotropic.Sigma(IMG_MEASUREMENT_DIM, 1.0)
+        if self._robust_measurement_noise:
+            measurement_noise = gtsam.noiseModel.Robust(
+                gtsam.noiseModel.mEstimator.Huber(1.345),
+                gtsam.noiseModel.Isotropic.Sigma(IMG_MEASUREMENT_DIM, 1.0),
+            )
+        else:
+            measurement_noise = gtsam.noiseModel.Isotropic.Sigma(IMG_MEASUREMENT_DIM, 1.0)
 
         # Create a factor graph
         graph = gtsam.NonlinearFactorGraph()
@@ -127,6 +147,7 @@ class BundleAdjustmentOptimizer(NamedTuple):
         def get_metrics_from_sfm_data(sfm_data: GtsfmData, suffix: str) -> List[GtsfmMetric]:
             """Helper to get bundle adjustment metrics from a GtsfmData object with a suffix for metric names."""
             metrics = []
+            metrics.append(GtsfmMetric(name="number_cameras", data=len(sfm_data.get_valid_camera_indices())))
             metrics.append(GtsfmMetric("number_tracks" + suffix, sfm_data.number_tracks()))
             metrics.append(
                 GtsfmMetric(
@@ -139,12 +160,20 @@ class BundleAdjustmentOptimizer(NamedTuple):
             return metrics
 
         ba_metrics = GtsfmMetricsGroup(
-            "bundle_adjustment_metrics", get_metrics_from_sfm_data(optimized_data, suffix="_unfiltered")
+            name="bundle_adjustment_metrics", metrics=get_metrics_from_sfm_data(optimized_data, suffix="_unfiltered")
         )
         logger.info("[Result] Number of tracks before filtering: %d", optimized_data.number_tracks())
 
         # filter the largest errors
         filtered_result = optimized_data.filter_landmarks(self.output_reproj_error_thresh)
+
+        if wTi_list_gt is not None:
+            # align the sparse multi-view estimate after BA to the ground truth pose graph.
+            filtered_result = filtered_result.align_via_Sim3_to_poses(wTi_list_gt)
+            ba_pose_error_metrics = metrics_utils.compute_ba_pose_metrics(
+                gt_wTi_list=wTi_list_gt, ba_output=filtered_result
+            )
+            ba_metrics.extend(metrics_group=ba_pose_error_metrics)
 
         ba_metrics.add_metrics(get_metrics_from_sfm_data(filtered_result, suffix="_filtered"))
         # ba_metrics.save_to_json(os.path.join(METRICS_PATH, "bundle_adjustment_metrics.json"))
@@ -156,17 +185,20 @@ class BundleAdjustmentOptimizer(NamedTuple):
 
         return filtered_result, ba_metrics
 
-    def create_computation_graph(self, sfm_data_graph: Delayed) -> Tuple[Delayed, Delayed]:
+    def create_computation_graph(
+        self, sfm_data_graph: Delayed, gt_poses_graph: Optional[List[Delayed]] = None
+    ) -> Tuple[Delayed, Delayed]:
         """Create the computation graph for performing bundle adjustment.
 
         Args:
             sfm_data_graph: an GtsfmData object wrapped up using dask.delayed
+            gt_poses_graph: list of GT camera poses, ordered by camera index (Pose3), wrapped up as Delayed
 
         Returns:
-            GtsfmData wrapped up using dask.delayed
+            GtsfmData aligned to GT (if provided), wrapped up using dask.delayed
             Metrics group for BA results, wrapped up using dask.delayed
         """
-        data_metrics_graph = dask.delayed(self.run)(sfm_data_graph)
+        data_metrics_graph = dask.delayed(self.run)(sfm_data_graph, gt_poses_graph)
         return data_metrics_graph[0], data_metrics_graph[1]
 
 

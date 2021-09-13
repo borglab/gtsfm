@@ -27,7 +27,7 @@ dependencies:
   - matplotlib==3.4.2
   - networkx
   - numpy
-  - nodejs==13.13.0 # will be updated to version 16.16.1 when numjs issue #81 is fixed
+  - nodejs
   - pandas
   - pillow>=8.0.1
   - scikit-learn
