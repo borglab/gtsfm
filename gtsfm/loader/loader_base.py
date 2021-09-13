@@ -69,7 +69,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
             the camera pose w_P_index.
         """
 
-    def get_camera(self, index: int) -> Optional[Cal3Bundler]:
+    def get_camera(self, index: int) -> Optional[PinholeCameraCal3Bundler]:
         """Gets the camera at the given index.
 
         Args:
