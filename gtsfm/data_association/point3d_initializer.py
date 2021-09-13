@@ -218,6 +218,10 @@ class Point3dInitializer(NamedTuple):
         if inlier_track.number_measurements() < 2:
             return None, avg_track_reproj_error, TriangulationExitCode.EXCEEDS_REPROJ_THRESH
 
+        # Check that track satisifies the minimum track length threshold.
+        if inlier_track.number_measurements() < self.min_track_length:
+            return None, avg_track_reproj_error, TriangulationExitCode.VIOLATES_MIN_TRACK_LENGTH
+
         # Create a gtsam.SfmTrack with the triangulated 3d point and associated 2d measurements.
         track_3d = SfmTrack(triangulated_pt)
         for i, uv in inlier_track.measurements:
