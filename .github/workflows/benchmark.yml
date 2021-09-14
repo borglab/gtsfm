@@ -76,7 +76,7 @@ jobs:
               echo "Downloading ${DATASET_NAME} from GDRIVE"
               export GDRIVE_URL='https://docs.google.com/uc?export=download&id='$GDRIVE_FILEID
               wget --save-cookies cookies.txt $GDRIVE_URL -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1/p' > confirm.txt
-              wget --load-cookies cookies.txt -O .zip $GDRIVE_URL'&confirm='$(<confirm.txt)
+              wget --load-cookies cookies.txt -O ${DATASET_NAME}.zip $GDRIVE_URL'&confirm='$(<confirm.txt)
 
           elif [ "$DATASET_SRC" == "wget" ]; then
               echo "Downloading ${DATASET_NAME} with WGET"
