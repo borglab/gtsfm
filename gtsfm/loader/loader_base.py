@@ -162,6 +162,8 @@ class LoaderBase(metaclass=abc.ABCMeta):
             intrinsics for the given camera.
         """
         intrinsics_full_res = self.get_camera_intrinsics_full_res(index)
+        if intrinsics_full_res is None:
+            raise ValueError(f"No intrinsics found for index {index}.")
 
         img_full_res = self.get_image_full_res(index)
         # no downsampling may be required, in which case scale_u and scale_v will be 1.0

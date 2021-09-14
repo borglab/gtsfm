@@ -7,6 +7,7 @@ from pathlib import Path
 
 import dask
 import numpy as np
+import pytest
 from gtsam import Cal3Bundler, Rot3, Pose3
 
 import gtsfm.utils.io as io_utils
@@ -112,10 +113,10 @@ class TestFolderLoader(unittest.TestCase):
         self.assertTrue(expected.equals(computed, 1e-3))
 
     def test_get_camera_intrinsics_missing(self) -> None:
-        """Tests getter for intrinsics when explicit numpy arrays are absent and we fall back on exif."""
+        """Tests getter for intrinsics when explicit numpy arrays are absent, exif is missing, and we raise an error."""
         loader = OlssonLoader(NO_EXIF_FOLDER, image_extension="JPG")
-        computed = loader.get_camera_intrinsics(5)
-        self.assertIsNone(computed)
+        with pytest.raises(ValueError):
+            computed = loader.get_camera_intrinsics(5)
 
     def test_create_computation_graph_for_images(self) -> None:
         """Tests the graph for loading all the images."""

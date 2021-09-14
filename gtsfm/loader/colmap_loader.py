@@ -117,7 +117,7 @@ class ColmapLoader(LoaderBase):
         img = io_utils.load_image(self._image_paths[index])
         return img
 
-    def get_camera_intrinsics_full_res(self, index: int) -> Cal3Bundler:
+    def get_camera_intrinsics_full_res(self, index: int) -> Optional[Cal3Bundler]:
         """Get the camera intrinsics at the given index, valid for a full-resolution image.
 
         Args:
