@@ -79,8 +79,8 @@ class TestColmapLoader(unittest.TestCase):
         Note: full resolution is (1936, 1296) for (H,W)
         """
         img0_full_res = self.loader.get_image_full_res(0)
-        assert img0.width == 1296
-        assert img0.height == 1936
+        assert img0_full_res.width == 1296
+        assert img0_full_res.height == 1936
 
         img0 = self.loader.get_image(0)
 
