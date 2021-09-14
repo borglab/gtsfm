@@ -7,6 +7,7 @@ import argparse
 from pathlib import Path
 
 import hydra
+import trimesh
 from dask.distributed import Client, LocalCluster, performance_report
 from hydra.utils import instantiate
 
@@ -69,6 +70,13 @@ def run_scene_optimizer() -> None:
         cfg = hydra.compose(config_name=args.config_name)
     scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
+    if args.scene_mesh_path is not None:
+        if not Path(args.scene_mesh_path).exists():
+            raise FileNotFoundError(f"No mesh found at {args.scene_mesh_path}")
+        scene_trimesh = trimesh.load(args.scene_mesh_path, process=False, maintain_order=True)
+    else:
+        scene_trimesh = None
+
     # Initialize loader.
     loader = AstronetLoader(
         data_dir=args.data_dir,
@@ -86,6 +94,7 @@ def run_scene_optimizer() -> None:
         camera_intrinsics_graph=loader.create_computation_graph_for_intrinsics(),
         image_shape_graph=loader.create_computation_graph_for_image_shapes(),
         gt_pose_graph=loader.create_computation_graph_for_poses(),
+        gt_scene_mesh=scene_trimesh,
     )
 
     # Create Dask client.

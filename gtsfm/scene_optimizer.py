@@ -12,6 +12,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 
+import trimesh
 from dask.delayed import Delayed
 
 import gtsfm.averaging.rotation.cycle_consistency as cycle_consistency
@@ -99,6 +100,7 @@ class SceneOptimizer:
         camera_intrinsics_graph: List[Delayed],
         image_shape_graph: List[Delayed],
         gt_pose_graph: Optional[List[Delayed]] = None,
+        gt_scene_mesh: Optional[trimesh.Trimesh] = None,
     ) -> Delayed:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
 
@@ -139,6 +141,9 @@ class SceneOptimizer:
                 image_shape_graph[i1],
                 image_shape_graph[i2],
                 gt_i2Ti1,
+                gt_pose_graph[i1],
+                gt_pose_graph[i2],
+                gt_scene_mesh,
             )
 
             i2Ri1_graph_dict[(i1, i2)] = i2Ri1
@@ -180,7 +185,7 @@ class SceneOptimizer:
             cycle_consistency.filter_to_cycle_consistent_edges, nout=3
         )(i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict, two_view_reports_dict)
 
-        def _filter_dict_keys(dict: Dict[Any, Any], ref_dict: Dict[Any,Any]) -> Dict[Any, Any]:
+        def _filter_dict_keys(dict: Dict[Any, Any], ref_dict: Dict[Any, Any]) -> Dict[Any, Any]:
             """Return a subset of a dictionary based on keys present in the reference dictionary."""
             valid_keys = list(ref_dict.keys())
             return {k: v for k, v in dict.items() if k in valid_keys}

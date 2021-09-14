@@ -8,6 +8,7 @@ from typing import Dict, Optional, Tuple
 
 import dask
 import numpy as np
+import trimesh
 from dask.delayed import Delayed
 from gtsam import Cal3Bundler, Pose3, Rot3, Unit3
 
@@ -104,6 +105,9 @@ class TwoViewEstimator:
         im_shape_i1_graph: Delayed,
         im_shape_i2_graph: Delayed,
         i2Ti1_expected_graph: Optional[Delayed] = None,
+        wTi1_expected_graph: Optional[Delayed] = None,
+        wTi2_expected_graph: Optional[Delayed] = None,
+        scene_mesh_expected_graph: Optional[Delayed] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, Optional[Delayed], Optional[Delayed], Optional[Delayed]]:
         """Create delayed tasks for matching and verification.
 
@@ -243,6 +247,9 @@ def compute_correspondence_metrics(
     intrinsics_i2: Cal3Bundler,
     i2Ti1: Pose3,
     epipolar_distance_threshold: float,
+    wTi1: Optional[Pose3] = None,
+    wTi2: Optional[Pose3] = None,
+    gt_scene_mesh: Optional[trimesh.Trimesh] = None,
 ) -> Tuple[int, float]:
     """Compute the metrics for the generated verified correspondence.
 
@@ -269,8 +276,12 @@ def compute_correspondence_metrics(
         intrinsics_i2,
         i2Ti1,
         epipolar_distance_threshold,
+        wTi1,
+        wTi2,
+        gt_scene_mesh,
     )
     inlier_ratio_gt_model = num_inliers_gt_model / corr_idxs_i1i2.shape[0]
+    logger.debug(inlier_ratio_gt_model)
     return num_inliers_gt_model, inlier_ratio_gt_model
 
 
