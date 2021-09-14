@@ -28,7 +28,7 @@ OUTLIER_WEIGHT_THRESHOLD = 0.1
 
 NOISE_MODEL_DIMENSION = 3  # chordal distances on Unit3
 NOISE_MODEL_SIGMA = 0.01
-HUBER_LOSS_K = 1.345       # default value from GTSAM
+HUBER_LOSS_K = 1.345  # default value from GTSAM
 
 MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
 
@@ -36,8 +36,13 @@ MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
 class TranslationAveraging1DSFM(TranslationAveragingBase):
     """1D-SFM translation averaging with outlier rejection."""
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, robust_measurement_noise: bool = True) -> None:
+        """Initializes the 1DSFM averaging instance.
+
+        Args:
+            robust_measurement_noise: Whether to use a robust noise model for the measurements, defaults to true.
+        """
+        super().__init__(robust_measurement_noise)
 
         self._max_1dsfm_projection_directions = MAX_PROJECTION_DIRECTIONS
         self._outlier_weight_threshold = OUTLIER_WEIGHT_THRESHOLD
@@ -48,7 +53,6 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
         wRi_list: List[Optional[Rot3]],
         scale_factor: float = 1.0,
-        robust_measurement_noise: bool = True,
         gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
     ) -> Tuple[List[Optional[Point3]], Optional[GtsfmMetricsGroup]]:
         """Run the translation averaging.
@@ -58,7 +62,6 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             i2Ui1_dict: relative unit-translation as dictionary (i1, i2): i2Ui1
             wRi_list: global rotations for each camera pose in the world coordinates.
             scale_factor: non-negative global scaling factor.
-            robust_measurement_noise: Whether to use Huber noise model for the measurements, defaults to true.
             gt_wTi_list: ground truth poses for computing metrics.
 
         Returns:
@@ -68,7 +71,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             A GtsfmMetricsGroup of 1DSfM metrics.
         """
         noise_model = gtsam.noiseModel.Isotropic.Sigma(NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
-        if robust_measurement_noise:
+        if self._robust_measurement_noise:
             huber_loss = gtsam.noiseModel.mEstimator.Huber.Create(HUBER_LOSS_K)
             noise_model = gtsam.noiseModel.Robust.Create(huber_loss, noise_model)
 
