@@ -60,9 +60,9 @@ jobs:
           echo "Config: ${CONFIG_NAME}, Dataset: ${DATASET_NAME}, Download Source: ${DATASET_SRC}, Loader: ${LOADER_NAME}"
 
           # PREPARE THE DOWNLOAD URLs
-          if [ "$dataset_name" == "skydio-8" ]; then
+          if [ "$DATASET_NAME" == "skydio-8" ]; then
               export GDRIVE_FILEID='1mmM1p_NpL7-pnf3iHWeWVKpsm1pcBoD5'
-          elif [ "$dataset_name" == "skydio-32" ]; then
+          elif [ "$DATASET_NAME" == "skydio-32" ]; then
               export GDRIVE_FILEID='1BQ6jp0DD3D9yhTnrDoEddzlMYT0RRH68'
           elif [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then
               WGET_URL1=http://vision.maths.lth.se/calledataset/fine_arts_palace/fine_arts_palace.zip
