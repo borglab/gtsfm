@@ -32,6 +32,7 @@ SceneOptimizer:
 
     trans_avg_module:
       _target_: gtsfm.averaging.translation.averaging_1dsfm.TranslationAveraging1DSFM
+      robust_measurement_noise: True
 
     data_association_module:
       _target_: gtsfm.data_association.data_assoc.DataAssociation
