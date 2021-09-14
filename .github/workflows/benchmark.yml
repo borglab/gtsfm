@@ -49,7 +49,7 @@ jobs:
       - name: Parse args
         # large files from google drive first have a prompt about virus scan being inactive. Need 2 WGET commands.
         run: |
-          IFS=',  ' read -r -a array <<< "$config_dataset_info"
+          IFS=',  ' read -r -a array <<< "${{ matrix.config_dataset_info }}"
           config_name=$(echo ${array[0]} | sed 's/ //g')
           dataset_name=$(echo ${array[1]} | sed 's/ //g')
           max_frame_lookahead=$(echo ${array[2]} | sed 's/ //g')
