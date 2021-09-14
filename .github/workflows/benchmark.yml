@@ -123,6 +123,6 @@ jobs:
       - name: Archive dataset metrics
         uses: actions/upload-artifact@v2
         with:
-          name: ${{ dataset_name }}-metrics-${{ matrix.config }}.zip
+          name: ${{ DATASET_NAME }}-metrics-${{ CONFIG_NAME }}.zip
           path: |
             result_metrics
