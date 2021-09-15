@@ -32,6 +32,10 @@ class SE3 {
             this.transform_matrix.set(row, 3, this.translation.get(row));
         }
     }
+    
+    inverse {
+     // to be implemented :-)
+    }
 
     transform_from(point) {
         /*Apply the SE3 transformation to the point.
