@@ -52,9 +52,11 @@ def run_scene_optimizer(args: argparse.Namespace) -> None:
                 min_allowed_inlier_ratio_est_model
             )
 
-            logger.info("New threshold:  %d inliers", scene_optimizer.two_view_estimator.min_num_inliers_acceptance)
             logger.info(
-                "New threshold: %.f inlier ratio",
+                "New #inliers threshold:  %d inliers", scene_optimizer.two_view_estimator.min_num_inliers_acceptance
+            )
+            logger.info(
+                "New min. inlier ratio threshold: %.1f inlier ratio",
                 scene_optimizer.two_view_estimator._verifier.min_allowed_inlier_ratio_est_model,
             )
 
@@ -84,11 +86,15 @@ def run_scene_optimizer(args: argparse.Namespace) -> None:
                         num_required_backend_input_pairs,
                     )
                 else:
+                    logger.info(
+                        "GTSFM Succeeded, with %d num_backend_input_pairs, needed %d",
+                        num_backend_input_pairs,
+                        num_required_backend_input_pairs,
+                    )
                     break
 
             except Exception as e:
-                logger.exception("Failed")
-                print("Computation failed, will try relaxing the problem ...")
+                logger.exception("Computation was unsuccessful, will try relaxing the problem ...")
 
     end = time.time()
     duration_sec = end - start
