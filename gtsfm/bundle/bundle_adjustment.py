@@ -187,7 +187,7 @@ class BundleAdjustmentOptimizer:
             output_tracks_classification_frequency = Counter(output_tracks_classification)
 
             for exit_code, count in output_tracks_classification_frequency.items():
-                metric_name = "Filtered tracks triangulated with GT pose: {}".format(exit_code.name)
+                metric_name = "Filtered tracks triangulated with GT cams: {}".format(exit_code.name)
                 ba_metrics.add_metric(GtsfmMetric(name=metric_name, data=count))
 
         ba_metrics.add_metrics(get_metrics_from_sfm_data(filtered_result, suffix="_filtered"))

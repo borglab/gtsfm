@@ -181,7 +181,7 @@ class DataAssociation(NamedTuple):
 
         if gt_computed_exit_codes_distribution is not None:
             for exit_code_tuple, count in gt_computed_exit_codes_distribution.items():
-                metric_name = "#tracks triangulated with GT pose: {}, computed pose: {}".format(
+                metric_name = "#tracks triangulated with GT cams: {}, computed cams: {}".format(
                     exit_code_tuple[0].name, exit_code_tuple[1].name
                 )
 
