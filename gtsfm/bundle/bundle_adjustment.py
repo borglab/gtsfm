@@ -182,7 +182,7 @@ class BundleAdjustmentOptimizer:
 
         if cameras_gt is not None:
             output_tracks_classification = track_utils.classify_tracks3d_with_gt_cameras(
-                tracks=optimized_data.get_tracks(), cameras_gt=cameras_gt
+                tracks=filtered_result.get_tracks(), cameras_gt=cameras_gt
             )
             output_tracks_classification_frequency = Counter(output_tracks_classification)
 
