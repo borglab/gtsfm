@@ -17,8 +17,8 @@ logger = logger_utils.get_logger()
 # fmt: off
 # Successive relaxation threshold pairs -- from strictest to loosest
 # `inlier ratio` is the minimum allowed inlier ratio w.r.t. the estimated model
-NUM_INLIERS_THRESHOLDS      =  [200, 175, 150, 125, 100, 75,  50,   25, 15]
-MIN_INLIER_RATIOS_THRESHOLDS = [0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.1, 0.1, 0.1]
+NUM_INLIERS_THRESHOLDS      =  [200, 175, 150, 125, 100, 75,  50,   25, 15] # noqa
+MIN_INLIER_RATIOS_THRESHOLDS = [0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.1, 0.1, 0.1] # noqa
 # fmt: on
 
 
@@ -79,7 +79,7 @@ def run_scene_optimizer(args: argparse.Namespace) -> None:
                 if num_backend_input_pairs < num_required_backend_input_pairs:
                     logger.info("Too few measurements at this threshold, will try relaxing the problem...")
                     logger.info(
-                        f"Found only %d num_backend_input_pairs, needed %d",
+                        "Found only %d num_backend_input_pairs, needed %d",
                         num_backend_input_pairs,
                         num_required_backend_input_pairs,
                     )
