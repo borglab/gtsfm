@@ -13,7 +13,7 @@ from gtsam import Rot3, Pose3
 
 import gtsfm.utils.io as io_utils
 
-from visualization.mayavi_vis_utils import draw_scene_mayavi
+# from visualization.mayavi_vis_utils import draw_scene_mayavi
 from visualization.open3d_vis_utils import draw_scene_open3d
 
 REPO_ROOT = Path(__file__).parent.parent.resolve()
@@ -71,8 +71,8 @@ def view_scene(args: argparse.Namespace) -> None:
 
     if args.rendering_library == "open3d":
         draw_scene_open3d(point_cloud, rgb, wTi_list, calibrations, args)
-    elif args.rendering_library == "mayavi":
-        draw_scene_mayavi(point_cloud, rgb, wTi_list, calibrations, args)
+    # elif args.rendering_library == "mayavi":
+    #     draw_scene_mayavi(point_cloud, rgb, wTi_list, calibrations, args)
     else:
         raise RuntimeError("Unsupported rendering library")
 

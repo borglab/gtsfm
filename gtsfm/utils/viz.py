@@ -70,7 +70,13 @@ def draw_circle_cv2(image: Image, x: int, y: int, color: Tuple[int, int, int], c
 
 
 def draw_line_cv2(
-    image: Image, x1: int, y1: int, x2: int, y2: int, line_color: Tuple[int, int, int], line_thickness: int = 10,
+    image: Image,
+    x1: int,
+    y1: int,
+    x2: int,
+    y2: int,
+    line_color: Tuple[int, int, int],
+    line_thickness: int = 10,
 ) -> Image:
     """Draw a line on the image from coordinates (x1, y1) to (x2, y2).
 
@@ -236,6 +242,7 @@ def save_twoview_correspondences_viz(
     keypoints_i2: Keypoints,
     corr_idxs_i1i2: np.ndarray,
     file_path: str,
+    inlier_mask: Optional[np.ndarray] = None,
 ) -> None:
     """Visualize correspondences between pairs of images.
 
@@ -247,7 +254,9 @@ def save_twoview_correspondences_viz(
         corr_idxs_i1i2: correspondence indices.
         file_path: file path to save the visualization.
     """
-    plot_img = plot_twoview_correspondences(image_i1, image_i2, keypoints_i1, keypoints_i2, corr_idxs_i1i2)
+    plot_img = plot_twoview_correspondences(
+        image_i1, image_i2, keypoints_i1, keypoints_i2, corr_idxs_i1i2, inlier_mask=inlier_mask
+    )
 
     io_utils.save_image(plot_img, file_path)
 

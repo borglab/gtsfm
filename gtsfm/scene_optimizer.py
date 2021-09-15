@@ -161,6 +161,7 @@ class SceneOptimizer:
                         keypoints_graph_list[i2],
                         v_corr_idxs,
                         file_path=os.path.join(PLOT_CORRESPONDENCE_PATH, f"{i1}_{i2}.jpg"),
+                        inlier_mask=two_view_reports_dict[(i1, i2)].inlier_mask_gt_model,
                     )
                 )
 

@@ -38,11 +38,11 @@ def count_correct_correspondences(
     intrinsics_i1: Cal3Bundler,
     intrinsics_i2: Cal3Bundler,
     i2Ti1: Pose3,
-    epipolar_dist_threshold: float,
+    dist_threshold: float,
     gt_wTi1: Optional[Pose3] = None,
     gt_wTi2: Optional[Pose3] = None,
     gt_scene_mesh: Optional[trimesh.Trimesh] = None,
-) -> int:
+) -> Optional[np.ndarray]:
     """Checks the correspondences for epipolar distances and counts ones which are below the threshold.
 
     Args:
@@ -51,7 +51,7 @@ def count_correct_correspondences(
         intrinsics_i1: intrinsics for i1.
         intrinsics_i2: intrinsics for i2.
         i2Ti1: relative pose
-        epipolar_dist_threshold: max acceptable distance for a correct correspondence.
+        dist_threshold: max acceptable distance for a correct correspondence.
 
     Raises:
         ValueError: when the number of keypoints do not match.
@@ -64,10 +64,10 @@ def count_correct_correspondences(
         raise ValueError("Keypoints must have same counts")
 
     if len(keypoints_i1) == 0:
-        return 0
+        return None
 
-    # Compute ground truth correspondences if mesh and ground truth poses (w.r.t. world frame) are available.
-    if gt_scene_mesh is not None and gt_wTi1 is not None and gt_wTi2 is not None:
+    # Compute ground truth correspondences.
+    if None not in [gt_scene_mesh, gt_wTi1, gt_wTi2]:
         is_inlier, _ = mesh_inlier_correspondences(
             keypoints_i1,
             keypoints_i2,
@@ -76,18 +76,51 @@ def count_correct_correspondences(
             gt_wTi1,
             gt_wTi2,
             gt_scene_mesh,
+            dist_threshold,
         )
-        print(is_inlier)
-        return np.count_nonzero(is_inlier)
+    else:
+        is_inlier, _ = epipolar_inlier_correspondences(
+            keypoints_i1,
+            keypoints_i2,
+            intrinsics_i1,
+            intrinsics_i2,
+            i2Ti1,
+            dist_threshold,
+        )
 
-    # Compute ground truth correspondences via the essenital matrix.
+    return is_inlier
+
+
+def epipolar_inlier_correspondences(
+    keypoints_i1: Keypoints,
+    keypoints_i2: Keypoints,
+    intrinsics_i1: Cal3Bundler,
+    intrinsics_i2: Cal3Bundler,
+    i2Ti1: Pose3,
+    dist_threshold: float,
+) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    """Compute inlier correspondences using epipolar geometry and the ground truth relative pose.
+
+    Args:
+        keypoints_i1: keypoints in image i1.
+        keypoints_i2: corr. keypoints in image i2.
+        intrinsics_i1: intrinsics for i1.
+        intrinsics_i2: intrinsics for i2.
+        i2Ti1: relative pose
+        dist_threshold: max acceptable distance for a correct correspondence.
+
+    Returns:
+        is_inlier: (N, ) mask of inlier correspondences.
+        distance_squared: squared sampson distance between corresponding keypoints.
+    """
     i2Ei1 = EssentialMatrix(i2Ti1.rotation(), Unit3(i2Ti1.translation()))
     i2Fi1 = verification_utils.essential_to_fundamental_matrix(i2Ei1, intrinsics_i1, intrinsics_i2)
-
     distance_squared = verification_utils.compute_epipolar_distances_sq_sampson(
         keypoints_i1.coordinates, keypoints_i2.coordinates, i2Fi1
     )
-    return np.count_nonzero(distance_squared < epipolar_dist_threshold ** 2)
+    is_inlier = distance_squared < dist_threshold ** 2 if distance_squared is not None else None
+
+    return is_inlier, distance_squared
 
 
 def mesh_inlier_correspondences(
@@ -98,8 +131,10 @@ def mesh_inlier_correspondences(
     gt_wTi1: Pose3,
     gt_wTi2: Pose3,
     gt_scene_mesh: trimesh.Trimesh,
-) -> Tuple[np.ndarray, Optional[float]]:
+    dist_threshold: float,
+) -> Tuple[np.ndarray, np.ndarray]:
     """Compute inlier correspondences using the ground truth triangular surface mesh of the scene.
+
     Args:
         keypoints_i1: N keypoints in image i1.
         keypoints_i2: N corresponding keypoints in image i2.
@@ -108,22 +143,25 @@ def mesh_inlier_correspondences(
         gt_wTi1: ground truth pose of the world frame relative to i1.
         gt_wTi2: ground truth pose of the world frame relative to i2.
         gt_scene_mesh: ground truth triangular surface mesh of the scene in the world frame.
+        dist_threshold: max acceptable distance for a correct correspondence.
 
     Returns:
         is_inlier: (N, ) mask of inlier correspondences.
+        reproj_err: maximum error between forward-projected ground truth landmark and corresponding keypoints
 
     Raises:
-        ValueError: when the number of keypoints do not match.
+        ValueError if the number of keypoints do not match.
     """
 
     def back_project(u, v, fx, fy, cx, cy, wRi: Rot3):
-        """Back-project ray from pixel coord"""
+        """Back-project ray from pixel coord."""
         zhat = (1 + (u - cx) ** 2 / fx ** 2 + (v - cy) ** 2 / fy ** 2) ** (-1 / 2)
         xhat = zhat / fx * (u - cx)
         yhat = zhat / fy * (v - cy)
         return np.dot(wRi.matrix(), np.array([[xhat], [yhat], [zhat]]))
 
     def forward_project(wtlw: np.ndarray, fx, fy, cx, cy, iTw: Pose3):
+        """Forward-project ray into image."""
         itwi = np.reshape(iTw.translation(), (3, 1))
         wtlw = np.reshape(wtlw, (3, 1))
         itli = np.dot(iTw.rotation().matrix(), wtlw) + itwi
@@ -150,7 +188,7 @@ def mesh_inlier_correspondences(
     src_i1 = np.repeat(np.reshape(gt_wTi1.translation(), (-1, 3)), n_corrs, axis=0)
     src_i2 = np.repeat(np.reshape(gt_wTi2.translation(), (-1, 3)), n_corrs, axis=0)
 
-    # compute ketpoint rays
+    # Compute ketpoint rays.
     drc_i1 = np.empty((n_corrs, 3), dtype=float)
     drc_i2 = np.empty((n_corrs, 3), dtype=float)
     for corr_idx in range(n_corrs):
@@ -163,7 +201,7 @@ def mesh_inlier_correspondences(
             back_project(x_i2, y_i2, fx_i2, fy_i2, cx_i2, cy_i2, gt_wTi2.rotation()), (-1, 3)
         )
 
-    # perform ray tracing
+    # Perform ray tracing.
     src = np.vstack((src_i1, src_i2))
     drc = np.vstack((drc_i1, drc_i2))
     logger.info("Computing ray intersections...")
@@ -172,15 +210,15 @@ def mesh_inlier_correspondences(
     _end = timeit.default_timer()
     logger.info(f"Cast {2 * n_corrs} rays in {_end - _start} seconds.")
 
-    # unpack results
+    # Unpack results.
     idr_i1 = idr[idr < n_corrs]
     loc_i1 = loc[idr < n_corrs]
     idr_i2 = idr[idr >= n_corrs] - n_corrs
     loc_i2 = loc[idr >= n_corrs]
     idr, i1_idx, i2_idx = np.intersect1d(idr_i1, idr_i2, return_indices=True)
 
-    # forward project intersections into other image to compute error
-    reproj_err = []
+    # Forward project intersections into other image to compute error.
+    reproj_err = np.array([np.nan] * len(keypoints_i1))
     for i in range(len(idr)):
         x_i1, y_i1 = keypoints_i1.coordinates[idr[i]]
         x_i2, y_i2 = keypoints_i2.coordinates[idr[i]]
@@ -188,13 +226,10 @@ def mesh_inlier_correspondences(
         x_i1i2, y_i1i2 = forward_project(loc_i1[i1_idx[i]], fx_i2, fy_i2, cx_i2, cy_i2, gt_wTi2.inverse())
         err_i2i1 = ((x_i1 - x_i2i1) ** 2 + (y_i1 - y_i2i1) ** 2) ** 0.5  # pixels
         err_i1i2 = ((x_i2 - x_i1i2) ** 2 + (y_i2 - y_i1i2) ** 2) ** 0.5  # pixels
-        is_inlier[idr[i]] = max(err_i2i1, err_i1i2) < 4
-        if is_inlier[idr[i]]:
-            reproj_err.append(max(err_i2i1, err_i1i2))
-    if np.count_nonzero(is_inlier) == 0:
-        reproj_err = [0]
+        is_inlier[idr[i]] = max(err_i2i1, err_i1i2) < dist_threshold
+        reproj_err[idr[i]] = max(err_i2i1, err_i1i2)
 
-    return is_inlier, np.mean(reproj_err)
+    return is_inlier, reproj_err
 
 
 def compute_rotation_angle_metric(wRi_list: List[Optional[Rot3]], gt_wRi_list: List[Optional[Pose3]]) -> GtsfmMetric:

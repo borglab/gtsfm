@@ -59,6 +59,7 @@ class TwoViewEstimationReport:
     inlier_ratio_est_model: Optional[float] = None  # TODO: make not optional (pass from verifier)
     num_inliers_gt_model: Optional[float] = None
     inlier_ratio_gt_model: Optional[float] = None
+    inlier_mask_gt_model: Optional[np.ndarray] = None
     R_error_deg: Optional[float] = None
     U_error_deg: Optional[float] = None
     i2Ri1: Optional[Rot3] = None
@@ -166,10 +167,14 @@ class TwoViewEstimator:
                 i2Ti1_expected_graph,
                 self._corr_metric_dist_threshold,
             )
-            num_inliers_gt_model, inlier_ratio_gt_model = corr_error_graph[0], corr_error_graph[1]
+            num_inliers_gt_model, inlier_ratio_gt_model, inlier_mask_gt_model = (
+                corr_error_graph[0],
+                corr_error_graph[1],
+                corr_error_graph[2],
+            )
         else:
             pose_error_graphs = (None, None)
-            num_inliers_gt_model, inlier_ratio_gt_model = None, None
+            num_inliers_gt_model, inlier_ratio_gt_model, inlier_mask_gt_model = None, None, None
 
         R_error_deg, U_error_deg = pose_error_graphs[0], pose_error_graphs[1]
 
@@ -177,9 +182,10 @@ class TwoViewEstimator:
             inlier_ratio_est_model,
             R_error_deg,
             U_error_deg,
+            v_corr_idxs_graph,
             num_inliers_gt_model,
             inlier_ratio_gt_model,
-            v_corr_idxs_graph,
+            inlier_mask_gt_model,
         )
 
         result = dask.delayed(self.check_for_degeneracy)(
@@ -222,9 +228,10 @@ def generate_two_view_report(
     inlier_ratio_est_model: float,
     R_error_deg: float,
     U_error_deg: float,
-    num_inliers_gt_model: int,
-    inlier_ratio_gt_model: float,
     v_corr_idxs: np.ndarray,
+    num_inliers_gt_model: Optional[int] = None,
+    inlier_ratio_gt_model: Optional[float] = None,
+    inlier_mask_gt_model: Optional[np.ndarray] = None,
 ) -> TwoViewEstimationReport:
     """Wrapper around class constructor for Dask."""
     two_view_report = TwoViewEstimationReport(
@@ -232,6 +239,7 @@ def generate_two_view_report(
         num_inliers_est_model=v_corr_idxs.shape[0],
         num_inliers_gt_model=num_inliers_gt_model,
         inlier_ratio_gt_model=inlier_ratio_gt_model,
+        inlier_mask_gt_model=inlier_mask_gt_model,
         v_corr_idxs=v_corr_idxs,
         R_error_deg=R_error_deg,
         U_error_deg=U_error_deg,
@@ -269,7 +277,7 @@ def compute_correspondence_metrics(
     if corr_idxs_i1i2.size == 0:
         return 0, float("Nan")
 
-    num_inliers_gt_model = metric_utils.count_correct_correspondences(
+    is_inlier_gt_model = metric_utils.count_correct_correspondences(
         keypoints_i1.extract_indices(corr_idxs_i1i2[:, 0]),
         keypoints_i2.extract_indices(corr_idxs_i1i2[:, 1]),
         intrinsics_i1,
@@ -280,9 +288,9 @@ def compute_correspondence_metrics(
         wTi2,
         gt_scene_mesh,
     )
+    num_inliers_gt_model = np.count_nonzero(is_inlier_gt_model) if is_inlier_gt_model is not None else 0
     inlier_ratio_gt_model = num_inliers_gt_model / corr_idxs_i1i2.shape[0]
-    logger.debug(inlier_ratio_gt_model)
-    return num_inliers_gt_model, inlier_ratio_gt_model
+    return num_inliers_gt_model, inlier_ratio_gt_model, is_inlier_gt_model
 
 
 def compute_relative_pose_metrics(
