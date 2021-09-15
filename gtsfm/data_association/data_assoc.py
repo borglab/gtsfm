@@ -180,9 +180,13 @@ class DataAssociation(NamedTuple):
         )
 
         if gt_computed_exit_codes_distribution is not None:
-            for exit_code_tuple, count in gt_computed_exit_codes_distribution.items():
+            for (gt_exit_code, computed_exit_code), count in gt_computed_exit_codes_distribution.items():
+                # We have assigned two tags to each track: the triangulation exit codes w.r.t ground truth cameras
+                # and w.r.t cameras computed by upstream modules of GTSFM. We get the distribution of the number of
+                # tracks for each pair of (triangulation exit code w.r.t GT cams, triangulation exit code w.r.t
+                # computed cams)
                 metric_name = "#tracks triangulated with GT cams: {}, computed cams: {}".format(
-                    exit_code_tuple[0].name, exit_code_tuple[1].name
+                    gt_exit_code.name, computed_exit_code.name
                 )
 
                 data_assoc_metrics.add_metric(GtsfmMetric(name=metric_name, data=count))
