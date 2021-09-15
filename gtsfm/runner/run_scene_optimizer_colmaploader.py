@@ -95,7 +95,7 @@ def run_scene_optimizer(args: argparse.Namespace) -> None:
                     )
                     break
 
-            except Exception as e:
+            except Exception:
                 logger.exception("Computation was unsuccessful, will try relaxing the problem ...")
 
     end = time.time()
