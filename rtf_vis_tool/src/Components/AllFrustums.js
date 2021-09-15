@@ -60,6 +60,10 @@ function AllFrustums(props) {
         ex_cameraList.pop() // remove the last empty string from list.
         ex_cameraList = ex_cameraList.filter(line => line !== "TODO"); // remove any lines that say 'TODO' from images.txt
 
+        // remove any dummy lines from images.txt that contain the string "TODO", until gtsfm.utils.io.write_images is
+        // updated
+        ex_cameraList = ex_cameraList.filter(line => line !== "TODO"); 
+
         if (in_cameraList.length !== ex_cameraList.length) {
             alert('Camera count mismatch between images.txt and cameras.txt');
             return;
