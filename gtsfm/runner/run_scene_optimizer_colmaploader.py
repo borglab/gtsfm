@@ -32,32 +32,34 @@ def run_scene_optimizer(args: argparse.Namespace) -> None:
     cluster = LocalCluster(n_workers=args.num_workers, threads_per_worker=args.threads_per_worker)
 
     start = time.time()
-    with hydra.initialize_config_module(config_module="gtsfm.configs"):
-        # config is relative to the gtsfm module
-        cfg = hydra.compose(config_name=args.config_name)
 
-        scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
-        loader = ColmapLoader(
-            colmap_files_dirpath=args.colmap_files_dirpath,
-            images_dir=args.images_dir,
-            max_frame_lookahead=args.max_frame_lookahead,
-        )
+    # try to relax the problem repeatedly
+    for (num_inliers_required, min_allowed_inlier_ratio_est_model) in zip(
+        NUM_INLIERS_THRESHOLDS, MIN_INLIER_RATIOS_THRESHOLDS
+    ):
+        with hydra.initialize_config_module(config_module="gtsfm.configs"):
+            # config is relative to the gtsfm module
+            cfg = hydra.compose(config_name=args.config_name)
 
-        # try to relax the problem repeatedly
-        for (num_inliers_required, min_allowed_inlier_ratio_est_model) in zip(
-            NUM_INLIERS_THRESHOLDS, MIN_INLIER_RATIOS_THRESHOLDS
-        ):
-            scene_optimizer.two_view_estimator.min_num_inliers_acceptance = num_inliers_required
-            scene_optimizer.two_view_estimator._verifier.min_allowed_inlier_ratio_est_model = (
-                min_allowed_inlier_ratio_est_model
+            # cannot easily modify the scene optimizer's attributes later, as children inherit from parent attributes
+            cfg["SceneOptimizer"]["two_view_estimator"]["min_num_inliers_acceptance"] = num_inliers_required
+            cfg["SceneOptimizer"]["two_view_estimator"]["verifier"][
+                "min_allowed_inlier_ratio_est_model"
+            ] = min_allowed_inlier_ratio_est_model
+
+            scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
+            loader = ColmapLoader(
+                colmap_files_dirpath=args.colmap_files_dirpath,
+                images_dir=args.images_dir,
+                max_frame_lookahead=args.max_frame_lookahead,
             )
 
             logger.info(
-                "New #inliers threshold:  %d inliers", scene_optimizer.two_view_estimator.min_num_inliers_acceptance
+                "New #inliers threshold:  %d inliers", scene_optimizer.two_view_estimator._min_num_inliers_acceptance
             )
             logger.info(
                 "New min. inlier ratio threshold: %.1f inlier ratio",
-                scene_optimizer.two_view_estimator._verifier.min_allowed_inlier_ratio_est_model,
+                scene_optimizer.two_view_estimator._verifier._min_allowed_inlier_ratio_est_model,
             )
 
             sfm_result_graph = scene_optimizer.create_computation_graph(

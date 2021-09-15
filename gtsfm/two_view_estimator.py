@@ -199,7 +199,11 @@ class TwoViewEstimator:
         valid_model = two_view_report.num_inliers_est_model > 0
 
         if valid_model and insufficient_inliers:
-            logger.info("Insufficient number of inliers.")
+            logger.info(
+                "Insufficient number of inliers: %d < %d.",
+                two_view_report.num_inliers_est_model,
+                self._min_num_inliers_acceptance,
+            )
 
             i2Ri1 = None
             i2Ui1 = None
