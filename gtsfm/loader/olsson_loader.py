@@ -45,8 +45,10 @@ class OlssonLoader(LoaderBase):
             image_extension: file extension for the image files. Defaults to 'jpg'.
             use_gt_intrinsics: whether to use ground truth intrinsics
             use_gt_extrinsics: whether to use ground truth extrinsics
-            max_resolution: integer representing maximum length of image's short side
-               e.g. for 1080p (1920 x 1080), max_resolution would be 1080
+            max_resolution: integer representing maximum length of image's short side, i.e.
+               the smaller of the height/width of the image. e.g. for 1080p (1920 x 1080),
+               max_resolution would be 1080. If the image resolution max(height, width) is
+               greater than the max_resolution, it will be downsampled to match the max_resolution.
         """
         super().__init__(max_resolution)
         self._use_gt_intrinsics = use_gt_intrinsics

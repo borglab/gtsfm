@@ -28,8 +28,10 @@ class YfccImbLoader(LoaderBase):
             folder: the base folder of the dataset.
             coviz_thresh (optional): threshold for covisibility between two images to be considered a valid pair.
                                      Defaults to 0.1.
-            max_resolution: integer representing maximum length of image's short side
-               e.g. for 1080p (1920 x 1080), max_resolution would be 1080
+            max_resolution: integer representing maximum length of image's short side, i.e.
+               the smaller of the height/width of the image. e.g. for 1080p (1920 x 1080),
+               max_resolution would be 1080. If the image resolution max(height, width) is
+               greater than the max_resolution, it will be downsampled to match the max_resolution.
         """
         super().__init__(max_resolution)
         self._folder = folder
