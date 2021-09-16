@@ -26,6 +26,7 @@ def run_scene_optimizer(args: argparse.Namespace) -> None:
             colmap_files_dirpath=args.colmap_files_dirpath,
             images_dir=args.images_dir,
             max_frame_lookahead=args.max_frame_lookahead,
+            max_resolution=args.max_resolution,
         )
 
         sfm_result_graph = scene_optimizer.create_computation_graph(
@@ -86,6 +87,12 @@ if __name__ == "__main__":
         default="deep_front_end.yaml",
         help="Choose sift_front_end.yaml or deep_front_end.yaml",
     )
-
+    parser.add_argument(
+        "--max_resolution",
+        type=int,
+        default=760,
+        help="integer representing maximum length of image's short side"
+        " e.g. for 1080p (1920 x 1080), max_resolution would be 1080",
+    )
     args = parser.parse_args()
     run_scene_optimizer(args)
