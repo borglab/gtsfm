@@ -316,6 +316,11 @@ def aggregate_frontend_metrics(
     """
     num_image_pairs = len(two_view_reports_dict.keys())
 
+    inlier_ratio_gt_model_all_pairs = [report.inlier_ratio_gt_model for report in two_view_reports_dict.values()]
+    inlier_ratio_est_model_all_pairs = [report.inlier_ratio_est_model for report in two_view_reports_dict.values()]
+    num_inliers_gt_model_all_pairs = [report.num_inliers_est_model for report in two_view_reports_dict.values()]
+    num_inliers_est_model_all_pairs = [report.num_inliers_gt_model for report in two_view_reports_dict.values()]
+
     # all rotational errors in degrees
     rot3_angular_errors = [report.R_error_deg for report in two_view_reports_dict.values()]
     trans_angular_errors = [report.U_error_deg for report in two_view_reports_dict.values()]
@@ -374,6 +379,10 @@ def aggregate_frontend_metrics(
             GtsfmMetric("rot3_angular_errors_deg", rot3_angular_errors),
             GtsfmMetric("trans_angular_errors_deg", trans_angular_errors),
             GtsfmMetric("pose_errors_deg", pose_errors),
+            GtsfmMetric("inlier_ratio_wrt_gt_model", inlier_ratio_gt_model_all_pairs),
+            GtsfmMetric("inlier_ratio_wrt_est_model", inlier_ratio_est_model_all_pairs),
+            GtsfmMetric("num_inliers_est_model", num_inliers_est_model_all_pairs),
+            GtsfmMetric("num_inliers_gt_model", num_inliers_gt_model_all_pairs),
         ],
     )
     return frontend_metrics
