@@ -8,7 +8,15 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        config: ["deep_front_end", "sift_front_end"]
+        config_dataset_info: [
+            "sift_front_end,  door-12,               12,  JPG,  test_data,  olsson-loader",
+            "deep_front_end,  door-12,               12,  JPG,  test_data,  olsson-loader",
+            "sift_front_end,  skydio-8,              8,   jpg,  gdrive ,    colmap-loader",
+            "deep_front_end,  skydio-8,              8,   jpg,  gdrive,     colmap-loader",
+            "sift_front_end,  skydio-32,             32,  jpg,  gdrive,     colmap-loader",
+            "deep_front_end,  skydio-32,             32,  jpg,  gdrive,     colmap-loader",
+            "sift_front_end,  palace-fine-arts-281,  25,  jpg,  wget,       olsson-loader"
+        ]
     defaults:
       run:
         shell: bash -l {0}
@@ -38,64 +46,29 @@ jobs:
         run: |
           bash .github/scripts/setup.sh
           conda info
-      - name: Download Skydio-crane-8 dataset
+      - name: Parse args and prepare dataset, Execute dataset
         # large files from google drive first have a prompt about virus scan being inactive. Need 2 WGET commands.
         run: |
-          export GDRIVE_FILEID='1mmM1p_NpL7-pnf3iHWeWVKpsm1pcBoD5'
-          export GDRIVE_URL='https://docs.google.com/uc?export=download&id='$GDRIVE_FILEID 
-          wget --save-cookies cookies.txt $GDRIVE_URL -O- \
-            | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1/p' > confirm.txt
-          wget --load-cookies cookies.txt -O skydio-8.zip \
-            $GDRIVE_URL'&confirm='$(<confirm.txt)
-      - name: Download Skydio-crane-32 dataset
-        # large files from google drive first have a prompt about virus scan being inactive. Need 2 WGET commands.
-        run: |
-          export GDRIVE_FILEID='1BQ6jp0DD3D9yhTnrDoEddzlMYT0RRH68'
-          export GDRIVE_URL='https://docs.google.com/uc?export=download&id='$GDRIVE_FILEID 
-          wget --save-cookies cookies.txt $GDRIVE_URL -O- \
-            | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1/p' > confirm.txt
-          wget --load-cookies cookies.txt -O skydio-32.zip \
-            $GDRIVE_URL'&confirm='$(<confirm.txt)
-      - name: Decompress Skydio-crane-8 dataset
-        run: |
-          unzip -qq skydio-8.zip 
-      - name: Decompress Skydio-crane-32 dataset
-        run: |
-          unzip -qq skydio-32.zip -d skydio-32
-      - name: Execute door-12 dataset
-        run: |
-          python gtsfm/runner/run_scene_optimizer.py \
-            --dataset_root tests/data/set1_lund_door \
-            --config_name ${{ matrix.config }}.yaml
-      - name: Archive door dataset metrics
+          IFS=',  ' read -r -a array <<< "${{ matrix.config_dataset_info }}"
+          # strip out the whitespace with the stream editor (sed)
+          CONFIG_NAME=$(echo ${array[0]} | sed 's/ //g')
+          DATASET_NAME=$(echo ${array[1]} | sed 's/ //g')
+          MAX_FRAME_LOOKAHEAD=$(echo ${array[2]} | sed 's/ //g')
+          IMAGE_EXTENSION=$(echo ${array[3]} | sed 's/ //g')
+          DATASET_SRC=$(echo ${array[4]} | sed 's/ //g')
+          LOADER_NAME=$(echo ${array[5]} | sed 's/ //g')
+
+          bash .github/scripts/execute_single_benchmark.sh \
+            $CONFIG_NAME \
+            $DATASET_NAME \
+            $MAX_FRAME_LOOKAHEAD \
+            $IMAGE_EXTENSION \
+            $DATASET_SRC \
+            $LOADER_NAME
+        
+      - name: Archive dataset metrics
         uses: actions/upload-artifact@v2
         with:
-          name: door-12-metrics-${{ matrix.config }}.zip
-          path: |
-            result_metrics
-      - name: Execute skydio-crane-8 dataset
-        run: |
-          python gtsfm/runner/run_scene_optimizer_colmaploader.py \
-            --images_dir skydio_crane_mast_8imgs_with_exif/images \
-            --colmap_files_dirpath skydio_crane_mast_8imgs_with_exif/crane_mast_8imgs_colmap_output \
-            --max_frame_lookahead 8 \
-            --config_name ${{ matrix.config }}.yaml
-      - name: Archive skydio-crane-8 metrics
-        uses: actions/upload-artifact@v2
-        with:
-          name: skydio-crane-8-metrics-${{ matrix.config }}.zip
-          path: |
-            result_metrics
-      - name: Execute skydio-crane-32 dataset
-        run: |
-          python gtsfm/runner/run_scene_optimizer_colmaploader.py \
-            --images_dir skydio-32/images \
-            --colmap_files_dirpath skydio-32/colmap_crane_mast_32imgs \
-            --max_frame_lookahead 32 \
-            --config_name ${{ matrix.config }}.yaml
-      - name: Archive skydio-crane-32 metrics
-        uses: actions/upload-artifact@v2
-        with:
-          name: skydio-crane-32-metrics-${{ matrix.config }}.zip
+          name: metrics-${{ matrix.config_dataset_info }}.zip
           path: |
             result_metrics
