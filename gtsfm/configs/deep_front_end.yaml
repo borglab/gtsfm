@@ -32,6 +32,7 @@ SceneOptimizer:
 
     trans_avg_module:
       _target_: gtsfm.averaging.translation.averaging_1dsfm.TranslationAveraging1DSFM
+      robust_measurement_noise: True
 
     data_association_module:
       _target_: gtsfm.data_association.data_assoc.DataAssociation
@@ -46,3 +47,4 @@ SceneOptimizer:
     bundle_adjustment_module:
       _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptimizer
       output_reproj_error_thresh: 3 # for post-optimization filtering
+      robust_measurement_noise: True

@@ -297,7 +297,9 @@ def compute_relative_pose_metrics(
 
 
 def aggregate_frontend_metrics(
-    two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport], angular_err_threshold_deg: float
+    two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
+    angular_err_threshold_deg: float,
+    metric_group_name: str,
 ) -> None:
     """Aggregate the front-end metrics to log summary statistics.
 
@@ -310,6 +312,7 @@ def aggregate_frontend_metrics(
     Args:
         two_view_report_dict: report containing front-end metrics for each image pair.
         angular_err_threshold_deg: threshold for classifying angular error metrics as success.
+        metric_group_name: name we will assign to the GtsfmMetricGroup returned by this fn.
     """
     num_image_pairs = len(two_view_reports_dict.keys())
 
@@ -359,7 +362,7 @@ def aggregate_frontend_metrics(
 
     # TODO(akshay-krishnan): Move angular_err_threshold_deg and num_total_image_pairs to metadata.
     frontend_metrics = GtsfmMetricsGroup(
-        "frontend_summary",
+        metric_group_name,
         [
             GtsfmMetric("angular_err_threshold_deg", angular_err_threshold_deg),
             GtsfmMetric("num_total_image_pairs", int(num_image_pairs)),
@@ -370,7 +373,7 @@ def aggregate_frontend_metrics(
             GtsfmMetric("num_all_inlier_correspondences_wrt_gt_model", int(all_correct)),
             GtsfmMetric("rot3_angular_errors_deg", rot3_angular_errors),
             GtsfmMetric("trans_angular_errors_deg", trans_angular_errors),
-            GtsfmMetric("pose_errors_deg", pose_errors)
+            GtsfmMetric("pose_errors_deg", pose_errors),
         ],
     )
     return frontend_metrics

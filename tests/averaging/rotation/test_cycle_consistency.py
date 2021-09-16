@@ -262,15 +262,21 @@ def test_filter_to_cycle_consistent_edges() -> None:
     }
     # assume no ground truth information available at runtime
     two_view_reports_dict = {}
+    v_corr_idxs_dict = {}
 
     for (i1, i2) in i2Ri1_dict.keys():
         two_view_reports_dict[(i1, i2)] = TwoViewEstimationReport(
             v_corr_idxs=np.array([]),  # dummy array
             num_inliers_est_model=10,  # dummy value
         )
+        v_corr_idxs_dict[(i1, i2)] = None  # fill with dummy value
 
-    i2Ri1_dict_consistent, i2Ui1_dict_consistent = cycle_utils.filter_to_cycle_consistent_edges(
-        i2Ri1_dict, i2Ui1_dict, two_view_reports_dict, visualize=True
+    (
+        i2Ri1_dict_consistent,
+        i2Ui1_dict_consistent,
+        v_corr_idxs_dict_consistent,
+    ) = cycle_utils.filter_to_cycle_consistent_edges(
+        i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports_dict, visualize=True
     )
     # non-self-consistent triplet should have been removed
     expected_keys = {(0, 1), (1, 2), (0, 2)}

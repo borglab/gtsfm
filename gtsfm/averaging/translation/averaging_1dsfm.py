@@ -28,6 +28,7 @@ OUTLIER_WEIGHT_THRESHOLD = 0.1
 
 NOISE_MODEL_DIMENSION = 3  # chordal distances on Unit3
 NOISE_MODEL_SIGMA = 0.01
+HUBER_LOSS_K = 1.345  # default value from GTSAM
 
 MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
 
@@ -35,8 +36,13 @@ MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
 class TranslationAveraging1DSFM(TranslationAveragingBase):
     """1D-SFM translation averaging with outlier rejection."""
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, robust_measurement_noise: bool = True) -> None:
+        """Initializes the 1DSFM averaging instance.
+
+        Args:
+            robust_measurement_noise: Whether to use a robust noise model for the measurements, defaults to true.
+        """
+        super().__init__(robust_measurement_noise)
 
         self._max_1dsfm_projection_directions = MAX_PROJECTION_DIRECTIONS
         self._outlier_weight_threshold = OUTLIER_WEIGHT_THRESHOLD
@@ -65,6 +71,9 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             A GtsfmMetricsGroup of 1DSfM metrics.
         """
         noise_model = gtsam.noiseModel.Isotropic.Sigma(NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
+        if self._robust_measurement_noise:
+            huber_loss = gtsam.noiseModel.mEstimator.Huber.Create(HUBER_LOSS_K)
+            noise_model = gtsam.noiseModel.Robust.Create(huber_loss, noise_model)
 
         # Note: all measurements are relative translation directions in the
         # world frame.
