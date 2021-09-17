@@ -52,14 +52,12 @@ class BundleAdjustmentOptimizer:
     def run(
         self,
         initial_data: GtsfmData,
-        wTi_list_gt: Optional[List[Pose3]] = None,
         cameras_gt: Optional[List[PinholeCameraCal3Bundler]] = None,
     ) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
 
         Args:
             initial_data: initialized cameras, tracks w/ their 3d landmark from triangulation.
-            wTi_list_gt: list of GT camera poses, ordered by camera index.
             cameras_gt: list of GT cameras, ordered by camera index.
 
         Results:
@@ -172,15 +170,14 @@ class BundleAdjustmentOptimizer:
         # filter the largest errors
         filtered_result = optimized_data.filter_landmarks(self.output_reproj_error_thresh)
 
-        if wTi_list_gt is not None:
+        if cameras_gt is not None:
             # align the sparse multi-view estimate after BA to the ground truth pose graph.
             filtered_result = filtered_result.align_via_Sim3_to_poses(wTi_list_gt)
             ba_pose_error_metrics = metrics_utils.compute_ba_pose_metrics(
-                gt_wTi_list=wTi_list_gt, ba_output=filtered_result
+                gt_wTi_list=[cam.pose() for cam in cameras_gt], ba_output=filtered_result
             )
             ba_metrics.extend(metrics_group=ba_pose_error_metrics)
 
-        if cameras_gt is not None:
             output_tracks_classification = track_utils.classify_tracks3d_with_gt_cameras(
                 tracks=filtered_result.get_tracks(), cameras_gt=cameras_gt
             )
@@ -203,21 +200,19 @@ class BundleAdjustmentOptimizer:
     def create_computation_graph(
         self,
         sfm_data_graph: Delayed,
-        gt_poses_graph: Optional[List[Delayed]] = None,
         gt_cameras_graph: Optional[List[Delayed]] = None,
     ) -> Tuple[Delayed, Delayed]:
         """Create the computation graph for performing bundle adjustment.
 
         Args:
             sfm_data_graph: an GtsfmData object wrapped up using dask.delayed
-            gt_poses_graph: list of GT camera poses, ordered by camera index (Pose3), each object wrapped up as Delayed.
             gt_cameras_graph: list of GT cameras, ordered by camera index, each object wrapped up as Delayed.
 
         Returns:
             GtsfmData aligned to GT (if provided), wrapped up using dask.delayed
             Metrics group for BA results, wrapped up using dask.delayed
         """
-        data_metrics_graph = dask.delayed(self.run)(sfm_data_graph, gt_poses_graph, gt_cameras_graph)
+        data_metrics_graph = dask.delayed(self.run)(sfm_data_graph, gt_cameras_graph)
         return data_metrics_graph[0], data_metrics_graph[1]
 
 

@@ -109,11 +109,9 @@ class DataAssociation(NamedTuple):
         for i, camera in cameras.items():
             triangulated_data.add_camera(i, camera)
 
-        input_tracks_classification: Optional[List[TriangulationExitCode]] = None
+        exit_codes_wrt_gt: Optional[List[TriangulationExitCode]] = None
         if cameras_gt is not None:
-            input_tracks_classification = track_utils.classify_tracks2d_with_gt_cameras(
-                tracks=tracks_2d, cameras_gt=cameras_gt
-            )
+            exit_codes_wrt_gt = track_utils.classify_tracks2d_with_gt_cameras(tracks=tracks_2d, cameras_gt=cameras_gt)
 
         triangulation_exit_codes: List[TriangulationExitCode] = []
         # add valid tracks where triangulation is successful
@@ -133,8 +131,8 @@ class DataAssociation(NamedTuple):
         # aggregate the exit codes
         triangulation_exit_codes_distribution = Counter(triangulation_exit_codes)
         gt_computed_exit_codes_distribution = None
-        if input_tracks_classification is not None:
-            gt_computed_exit_codes_distribution = Counter(zip(input_tracks_classification, triangulation_exit_codes))
+        if exit_codes_wrt_gt is not None:
+            gt_computed_exit_codes_distribution = Counter(zip(exit_codes_wrt_gt, triangulation_exit_codes))
 
         track_cheirality_failure_ratio = triangulation_exit_codes_distribution[
             TriangulationExitCode.CHEIRALITY_FAILURE
@@ -181,7 +179,7 @@ class DataAssociation(NamedTuple):
 
         if gt_computed_exit_codes_distribution is not None:
             for (gt_exit_code, computed_exit_code), count in gt_computed_exit_codes_distribution.items():
-                # We have assigned two tags to each track: the triangulation exit codes w.r.t ground truth cameras
+                # Each track has 2 associated exit codes: the triangulation exit codes w.r.t ground truth cameras
                 # and w.r.t cameras computed by upstream modules of GTSFM. We get the distribution of the number of
                 # tracks for each pair of (triangulation exit code w.r.t GT cams, triangulation exit code w.r.t
                 # computed cams)
