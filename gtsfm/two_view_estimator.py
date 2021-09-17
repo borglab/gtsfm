@@ -328,11 +328,11 @@ def aggregate_frontend_metrics(
     for report in two_view_reports_dict.values():
         rot3_angular_errors.append(report.R_error_deg)
         trans_angular_errors.append(report.U_error_deg)
-        
+
         inlier_ratio_gt_model_all_pairs.append(report.inlier_ratio_gt_model)
         inlier_ratio_est_model_all_pairs.append(report.inlier_ratio_est_model)
-        num_inliers_gt_model_all_pairs.append(report.num_inliers_est_model)
-        num_inliers_est_model_all_pairs.append(report.num_inliers_gt_model)
+        num_inliers_gt_model_all_pairs.append(report.num_inliers_gt_model)
+        num_inliers_est_model_all_pairs.append(report.num_inliers_est_model)
 
     rot3_angular_errors = np.array(rot3_angular_errors, dtype=float)
     trans_angular_errors = np.array(trans_angular_errors, dtype=float)
