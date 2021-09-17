@@ -117,12 +117,4 @@ Note: authors are listed in alphabetical order.
 
 
 ## Compiling Additional Verifiers
-On Mac OSX, there is no `pydegensac` wheel in `pypi`, instead build pydegensac: 
-```bash
-git clone https://github.com/ducha-aiki/pydegensac.git
-cd pydegensac
-python setup.py bdist_wheel
-pip install dist/pydegensac-0.1.2-cp38-cp38-macosx_10_15_x86_64.whl
-```
-
 On Linux, we have made `pycolmap`'s LORANSAC available in [pypi](https://pypi.org/project/pycolmap/). However, on Mac, `pycolmap` must be built from scratch. See the instructions [here](https://github.com/borglab/gtsfm/blob/master/gtsfm/frontend/verifier/loransac.py#L10).
