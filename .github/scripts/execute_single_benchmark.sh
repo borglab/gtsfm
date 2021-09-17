@@ -7,6 +7,7 @@ MAX_FRAME_LOOKAHEAD=$3
 IMAGE_EXTENSION=$4
 DATASET_SRC=$5
 LOADER_NAME=$6
+MAX_RESOLUTION=$7
 
 
 echo "Config: ${CONFIG_NAME}, Dataset: ${DATASET_NAME}, Download Source: ${DATASET_SRC}, Loader: ${LOADER_NAME}"
@@ -64,12 +65,14 @@ if [ "$LOADER_NAME" == "olsson-loader" ]; then
   --dataset_root $DATASET_ROOT \
   --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
   --config_name ${CONFIG_NAME}.yaml \
-  --image_extension $IMAGE_EXTENSION
+  --image_extension $IMAGE_EXTENSION \
+  --max_resolution ${MAX_RESOLUTION}
 
 elif [ "$LOADER_NAME" == "colmap-loader" ]; then
   python gtsfm/runner/run_scene_optimizer_colmaploader.py \
   --images_dir ${IMAGES_DIR} \
   --colmap_files_dirpath $COLMAP_FILES_DIRPATH \
   --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
-  --config_name ${CONFIG_NAME}.yaml
+  --config_name ${CONFIG_NAME}.yaml \
+  --max_resolution ${MAX_RESOLUTION}
 fi

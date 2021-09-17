@@ -1,4 +1,4 @@
-"""Unit tests for Open3d visualizaation code.
+"""Unit tests for Open3d visualization code.
 
 Author: John Lambert
 """
