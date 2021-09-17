@@ -20,16 +20,16 @@ class SE3 {
         if (translation.shape[0] !== 3) throw new Error('Invalid Translation Matrix');
         this.rotation = rotation;
         this.translation = translation;
-        this.transform_matrix = nj.identity(4);
+        this.cTw = nj.identity(4);
 
         //set upper left 3x3 to rotation matrix
         for (var row = 0; row < 3; row++) {
             for (var col = 0; col < 3; col++) {
-                this.transform_matrix.set(row, col, rotation.get(row,col));
+                this.cTw.set(row, col, rotation.get(row,col));
             }
 
             //set last column to translation array
-            this.transform_matrix.set(row, 3, this.translation.get(row));
+            this.cTw.set(row, 3, this.translation.get(row));
         }
     }
 
@@ -44,7 +44,7 @@ class SE3 {
         var ones = nj.ones([1, 1]);
         var homogeneous_pt = nj.concatenate(point, ones);
 
-        var point_world_coords = homogeneous_pt.dot(this.transform_matrix.T);
+        var point_world_coords = homogeneous_pt.dot(this.cTw.T);
 
         point_world_coords = nj.array([[point_world_coords.get(0,0),
                             point_world_coords.get(0,1),

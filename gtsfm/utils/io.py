@@ -14,7 +14,6 @@ from gtsam import Cal3Bundler, Rot3, Pose3
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
 
-import gtsfm.utils.ellipsoid as ellipsoid_utils
 import gtsfm.utils.images as image_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reproj_utils
@@ -153,10 +152,9 @@ def export_model_as_colmap_text(gtsfm_data: GtsfmData, images: List[Image], save
         images: list of all images for this scene, in order of image index.
         save_dir: folder where text files will be saved.
     """
-
-    mean, wuprightRw = write_points(gtsfm_data, images, save_dir)
-    write_images(gtsfm_data, mean, wuprightRw, images, save_dir)
     write_cameras(gtsfm_data, images, save_dir)
+    write_images(gtsfm_data, images, save_dir)
+    write_points(gtsfm_data, images, save_dir)
 
 
 def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
@@ -274,9 +272,7 @@ def read_images_txt(fpath: str) -> Tuple[Optional[List[Pose3]], Optional[List[st
     return wTi_list, img_fnames
 
 
-def write_images(
-    gtsfm_data: GtsfmData, mean: np.ndarray, wuprightRw: np.ndarray, images: List[Image], save_dir: str
-) -> None:
+def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
     """Writes the image data file in the COLMAP format.
 
     Reference: https://colmap.github.io/format.html#images-txt
@@ -286,8 +282,6 @@ def write_images(
 
     Args:
         gtsfm_data: scene data to write.
-        mean: means of x,y,z coordinate values of point cloud, array of shape (1,3).
-        wuprightRw: rotation matrix used to align point cloud to x,y,z axes, array of shape (3,3)
         images: list of all images for this scene, in order of image index.
         save_dir: folder to put the images.txt file in.
     """
@@ -311,10 +305,8 @@ def write_images(
             iTw = camera.pose().inverse()
             iRw_quaternion = iTw.rotation().quaternion()
             itw = iTw.translation()
-
-            iuprightRi, iupright_t_i = ellipsoid_utils.transform_camera_frustums(itw, iRw_quaternion, mean, wuprightRw)
-            qx, qy, qz, qw = iuprightRi
-            tx, ty, tz = iupright_t_i
+            tx, ty, tz = itw
+            qw, qx, qy, qz = iRw_quaternion
 
             f.write(f"{i} {qw} {qx} {qy} {qz} {tx} {ty} {tz} {i} {img_fname}\n")
             # TODO: write out the points2d
@@ -367,7 +359,7 @@ def read_points_txt(fpath: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarr
     return point_cloud, rgb
 
 
-def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> Tuple[np.ndarray, np.ndarray]:
+def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
     """Writes the point cloud data file in the COLMAP format.
 
     Reference: https://colmap.github.io/format.html#points3d-txt
@@ -376,10 +368,6 @@ def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> T
         gtsfm_data: scene data to write.
         images: list of all images for this scene, in order of image index
         save_dir: folder to put the points3D.txt file in.
-
-    Returns:
-        mean: means values of x,y,z coordinates, array of shape (1,3)
-        wuprightRw: rotation matrix used to align point cloud to x,y,z axes, array of shape (3,3)
     """
     os.makedirs(save_dir, exist_ok=True)
 
@@ -395,27 +383,18 @@ def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> T
         # TODO: assign unique indices to all keypoints (2d points)
         point2d_idx = 0
 
-        aligned_points, mean, wuprightRw = ellipsoid_utils.transform_point_cloud_wrapper(gtsfm_data)
-
         for j in range(num_pts):
             track = gtsfm_data.get_track(j)
 
             r, g, b = image_utils.get_average_point_color(track, images)
             _, avg_track_reproj_error = reproj_utils.compute_track_reprojection_errors(gtsfm_data._cameras, track)
-
-            # Get x,y,z from the aligned_points matrix.
-            x = aligned_points[j, 0]
-            y = aligned_points[j, 1]
-            z = aligned_points[j, 2]
-
+            x, y, z = track.point3()
             f.write(f"{j} {x} {y} {z} {r} {g} {b} {np.round(avg_track_reproj_error, 2)} ")
 
             for k in range(track.number_measurements()):
                 i, uv_measured = track.measurement(k)
                 f.write(f"{i} {point2d_idx} ")
             f.write("\n")
-
-    return mean, wuprightRw
 
 
 def save_track_visualizations(

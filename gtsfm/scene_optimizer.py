@@ -2,10 +2,12 @@
 
 Authors: Ayush Baid, John Lambert
 """
+from gtsfm.common.gtsfm_data import GtsfmData
 import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from gtsam import PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack
 
 import dask
 import matplotlib
@@ -17,6 +19,7 @@ from dask.delayed import Delayed
 import gtsfm.averaging.rotation.cycle_consistency as cycle_consistency
 import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.two_view_estimator as two_view_estimator
+import gtsfm.utils.ellipsoid as ellipsoid_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
@@ -216,6 +219,10 @@ class SceneOptimizer:
         # Save metrics to JSON and generate HTML report.
         auxiliary_graph_list.extend(save_metrics_reports(metrics_graph_list))
 
+        # Modify BA input and BA output to have point clouds and frustums aligned with x,y,z axes.
+        ba_input_graph = dask.delayed(align_gtsfm_data)(ba_input_graph)
+        ba_output_graph = dask.delayed(align_gtsfm_data)(ba_output_graph)
+
         if self._save_3d_viz:
             auxiliary_graph_list.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_pose_graph))
 
@@ -230,6 +237,51 @@ class SceneOptimizer:
         # return the entry with just the sfm result
         return output_graph[0]
 
+def align_gtsfm_data(gtsfm_data: GtsfmData) -> Delayed:
+    """Creates a new GtsfmData object that emulates the inputted GtsfmData object but with point cloud and camera 
+    frustums aligned to the x,y,z axes.
+
+    Args:
+        gtsfm: GtsfmData object
+
+    Returns:
+        Delayed GtsfmData object that has point cloud and camera frustums aligned to x,y,z axes.
+    """
+    num_images = gtsfm_data.number_images()
+    num_tracks = gtsfm_data.number_tracks()
+    aligned_gtsfm_data = GtsfmData(num_images)
+
+    # Populate aligned_gtsfm_data with duplicate camera data.
+    for camera_index in gtsfm_data.get_valid_camera_indices():
+        aligned_gtsfm_data.add_camera(camera_index, gtsfm_data.get_camera(camera_index))
+
+    # Populate aligned_gtsfm_data with tracks.
+    aligned_points, mean, wuprightRw = ellipsoid_utils.transform_point_cloud_wrapper(gtsfm_data)
+    for i in range(num_tracks):
+        original_track_3d = gtsfm_data.get_track(i)
+
+        # Create a gtsam.SfmTrack with the aligned 3d point and duplicate 2d measurements.
+        new_track_3d = SfmTrack(aligned_points[i,:])
+        for m in range(original_track_3d.number_measurements()):
+            i, uv = original_track_3d.measurement(m)
+            new_track_3d.add_measurement(i, uv)
+
+        aligned_gtsfm_data.add_track(new_track_3d)
+
+    # Update aligned_gtsfm_data with aligned camera data.
+    for camera_index in aligned_gtsfm_data.get_valid_camera_indices():
+        camera = aligned_gtsfm_data.get_camera(camera_index)
+
+        wTi = camera.pose()
+        walignedTi = ellipsoid_utils.transform_camera_frustums(wTi, mean, wuprightRw)
+        walignedRi = walignedTi[:3,:3]
+        waligned_t_i = walignedTi[:3,3]
+
+        aligned_camera = PinholeCameraCal3Bundler(Pose3(Rot3(walignedRi), waligned_t_i), camera.calibration())
+
+        aligned_gtsfm_data.add_camera(camera_index, aligned_camera)
+
+    return aligned_gtsfm_data
 
 def save_visualizations(
     ba_input_graph: Delayed, ba_output_graph: Delayed, gt_pose_graph: Optional[List[Delayed]]
