@@ -210,9 +210,10 @@ class Point3dInitializer(NamedTuple):
             self.track_camera_dict, triangulated_pt, inlier_track.measurements
         )
 
-        # Check that all the measurements have reprojection error < threshold.
-        # TODO(johnwlambert): compare with approach where we only throw away the outlier measurements.
-        if not np.all(reproj_errors < self.reproj_error_thresh):
+        # Filter measurements by the reprojection error.
+        valid_reproj_err_ind = np.where(reproj_errors.flatten() < self.reproj_error_thresh)[0]
+        inlier_track = inlier_track.select_subset(valid_reproj_err_ind)
+        if inlier_track.number_measurements() < 2:
             return None, avg_track_reproj_error, TriangulationExitCode.EXCEEDS_REPROJ_THRESH
 
         # Create a gtsam.SfmTrack with the triangulated 3d point and associated 2d measurements.
