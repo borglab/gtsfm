@@ -117,4 +117,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     logger.info(args)
 
-    run_scene_optimizer(args)
+    try:
+        run_scene_optimizer(args)
+    except Exception:
+        logger.info("GTSFM was unsuccessful. Try providing more images.")

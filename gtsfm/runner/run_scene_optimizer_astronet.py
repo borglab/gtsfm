@@ -98,4 +98,7 @@ def run_scene_optimizer() -> None:
 
 
 if __name__ == "__main__":
-    run_scene_optimizer()
+    try:
+        run_scene_optimizer()
+    except Exception:
+        logger.info("GTSFM was unsuccessful. Try providing more images.")

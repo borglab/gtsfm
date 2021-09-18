@@ -100,4 +100,7 @@ if __name__ == "__main__":
         " e.g. for 1080p (1920 x 1080), max_resolution would be 1080",
     )
     args = parser.parse_args()
-    run_scene_optimizer(args)
+    try:
+        run_scene_optimizer(args)
+    except Exception:
+        logger.info("GTSFM was unsuccessful. Try providing more images.")
