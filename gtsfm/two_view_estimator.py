@@ -273,7 +273,7 @@ def aggregate_frontend_metrics(
         NG-RANSAC, ICCV 2019:
 
     Args:
-        two_view_report_dict: report containing front-end metrics for each image pair.
+        two_view_report_dict: reports containing front-end metrics for each image pair.
         angular_err_threshold_deg: threshold for classifying angular error metrics as success.
         metric_group_name: name we will assign to the GtsfmMetricGroup returned by this fn.
     """

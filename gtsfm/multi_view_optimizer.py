@@ -66,7 +66,7 @@ class MultiViewOptimizer:
             i2Ui1_graph: relative unit-translations for image pairs, each value wrapped up as Delayed.
             v_corr_idxs_graph: indices of verified correspondences for image pairs, wrapped up as Delayed.
             intrinsics_graph: intrinsics for images, wrapped up as Delayed.
-            two_view_reports_dict:
+            two_view_report_dict: front-end metrics for pairs of images.
             pose_angular_error_thresh:
             gt_poses_graph: list of GT camera poses, ordered by camera index (Pose3), wrapped up as Delayed
 
@@ -139,13 +139,34 @@ def filter_edges_by_strictest_threshold(
     two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
     num_images: int,
 ) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3]]:
-    """
-    min_num_inliers_acceptance: minimum number of inliers that must agree w/ estimated model, to use
-        image pair.
+    """Relax the strictness of front-end image pair acceptance thresholds until sufficient measurements are obtained.
 
-    min_allowed_inlier_ratio_est_model: minimum allowed inlier ratio w.r.t. the estimated model to accept
+    Empirically, we require at least (3 * number of images in the dataset) for # of backend measurements, to accept
+    result. In other words, we use as a proxy "number of backend measurements coming out of cycle consistency" for
+    "is the problem solvable". We only run the front-end computation once, however.
+
+    Relaxation is necessary because no set of hyperparameters will generalize to all scenes, based on the width of
+    baselines and # of total images. COLMAP does the same thing here:
+        https://github.com/colmap/colmap/blob/dev/src/controllers/incremental_mapper.cc#L322
+
+    We modify the following two thresholds:
+    - min_num_inliers_acceptance: minimum number of inliers that must agree w/ estimated model, to use
+        image pair.
+    - min_allowed_inlier_ratio_est_model: minimum allowed inlier ratio w.r.t. the estimated model to accept
         the verification result and use the image pair, i.e. the lowest allowed ratio of
         #final RANSAC inliers/ #putatives. A lower fraction indicates less agreement among the result.
+
+    Args:
+        i2Ri1_dict: relative rotations for image pairs.
+        i2Ui1_dict: relative unit-translations for image pairs.
+        v_corr_idxs_graph: indices of verified correspondences for image pairs.
+        two_view_report_dict: front-end metrics for pairs of images.
+        num_images: number of images in the scene.
+
+    Returns:
+        i2Ri1_dict_cc: relative rotations for cycle-consistent, high-confidence image pairs.
+        i2Ui1_dict_cc: relative unit-translations for cycle-consistent, high-confidence image pairs.
+        v_corr_idxs_dict_cc: indices of verified correspondences for cycle-consistent, high-confidence image pairs.
     """
     # try to relax the problem repeatedly
     for (min_num_inliers_acceptance, min_allowed_inlier_ratio_est_model) in zip(
