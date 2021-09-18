@@ -18,7 +18,7 @@ from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.data_association.data_assoc import DataAssociation
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 
-POST_ROTATION_AVEGARING_OUTLIER_REMOVAL_ANGULAR_THRESHOLD_DEGREES = 10
+POST_ROTATION_AVERAGING_OUTLIER_REMOVAL_ANGULAR_THRESHOLD_DEGREES = 10
 
 logger = logger_utils.get_logger()
 
@@ -72,7 +72,7 @@ class MultiViewOptimizer:
         filtered_graph = dask.delayed(filter_inconsistent_pairwise_rotations)(wRi_graph, i2Ri1_graph, i2Ui1_graph)
         filtered_i2Ui1_graph = filtered_graph[1]
         wti_graph, ta_metrics = self.trans_avg_module.create_computation_graph(
-            num_images, filtered_i2Ui1_graph, wRi_graph, gt_wTi_graph=gt_pose_graph
+            num_images, filtered_i2Ui1_graph, wRi_graph, gt_wTi_graph=gt_poses_graph
         )
         init_cameras_graph = dask.delayed(init_cameras)(wRi_graph, wti_graph, intrinsics_graph)
 
@@ -129,7 +129,7 @@ def filter_inconsistent_pairwise_rotations(
         i2Ri1_from_global = wRi2.between(wRi1)
 
         angular_error = geom_utils.compute_relative_rotation_angle(i2Ri1, i2Ri1_from_global)
-        if angular_error < POST_ROTATION_AVEGARING_OUTLIER_REMOVAL_ANGULAR_THRESHOLD_DEGREES:
+        if angular_error < POST_ROTATION_AVERAGING_OUTLIER_REMOVAL_ANGULAR_THRESHOLD_DEGREES:
             filtered_i2Ri1_dict[(i1, i2)] = i2Ri1
             filtered_i2Ui1_dict[(i1, i2)] = i2Ui1_dict[(i1, i2)]
 
