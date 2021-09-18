@@ -104,15 +104,16 @@ def filter_inconsistent_pairwise_rotations(
     i2Ri1_dict: Dict[Tuple[int, int], Rot3],
     i2Ui1_dict: Dict[Tuple[int, int], Unit3],
 ) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3]]:
-    """[summary]
+    """Filter out the two-view geometries where the global rotations are inconsistent with the global rotations.
 
     Args:
-        wRi_list (List[Optional[Rot3]]): [description]
-        i2Ri1_dict (Dict[Tuple[int, int], Optional[Rot3]]): [description]
-        i2Ui1_dict (Dict[Tuple[int, int], Optional[Unit3]]): [description]
+        wRi_list: global rotations, obtained after averaging.
+        i2Ri1_dict: pairwise rotations, which are to be filtered.
+        i2Ui1_dict: pairwise unit translations, which are to be filtered.
 
     Returns:
-        Tuple[Dict[Tuple[int, int], Optional[Rot3]], Dict[Tuple[int, int], Optional[Unit3]]]: [description]
+        Subset of i2Ri1_dict, where i2Ri1 are consistent with the global rotations.
+        Subset of i2Ui1_dict, having the same indices as the consistent entries of i2Ri1_dict.
     """
 
     # keep the pairwise rotations which agree with the global rotations. mirror the keys in i2Ui1s.
