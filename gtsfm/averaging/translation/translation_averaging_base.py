@@ -18,6 +18,14 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
     This class generates global unit translation estimates from pairwise relative unit translation and global rotations.
     """
 
+    def __init__(self, robust_measurement_noise: bool = True) -> None:
+        """Initializes the translation averaging.
+
+        Args:
+            robust_measurement_noise: Whether to use a robust noise model for the measurements, defaults to true.
+        """
+        self._robust_measurement_noise = robust_measurement_noise
+
     # ignored-abstractmethod
     @abc.abstractmethod
     def run(
@@ -35,6 +43,7 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
             i2Ui1_dict: relative unit-trans as dictionary (i1, i2): i2Ui1.
             wRi_list: global rotations for each camera pose in the world coordinates.
             scale_factor: non-negative global scaling factor.
+            gt_wTi_list: List of ground truth poses (wTi) for computing metrics.
 
         Returns:
             Global translation wti for each camera pose. The number of entries in the list is `num_images`. The list
@@ -57,7 +66,7 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
             i2Ui1_graph: dictionary of relative unit translations as a delayed task.
             wRi_graph: list of global rotations wrapped up in Delayed.
             scale_factor: non-negative global scaling factor.
-            gt_poses_graph: List of ground truth poses (wTi) wrapped as Delayed for computing metrics.
+            gt_wTi_graph: List of ground truth poses (wTi) wrapped as Delayed for computing metrics.
 
         Returns:
             Global unit translations wrapped as Delayed.

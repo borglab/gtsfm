@@ -36,6 +36,7 @@ class OlssonLoader(LoaderBase):
         use_gt_intrinsics: bool = True,
         use_gt_extrinsics: bool = True,
         max_frame_lookahead: int = 20,
+        max_resolution: int = 760,
     ) -> None:
         """Initializes to load from a specified folder on disk.
 
@@ -44,7 +45,12 @@ class OlssonLoader(LoaderBase):
             image_extension: file extension for the image files. Defaults to 'jpg'.
             use_gt_intrinsics: whether to use ground truth intrinsics
             use_gt_extrinsics: whether to use ground truth extrinsics
+            max_resolution: integer representing maximum length of image's short side, i.e.
+               the smaller of the height/width of the image. e.g. for 1080p (1920 x 1080),
+               max_resolution would be 1080. If the image resolution max(height, width) is
+               greater than the max_resolution, it will be downsampled to match the max_resolution.
         """
+        super().__init__(max_resolution)
         self._use_gt_intrinsics = use_gt_intrinsics
         self._use_gt_extrinsics = use_gt_extrinsics
         self._max_frame_lookahead = max_frame_lookahead
@@ -57,7 +63,7 @@ class OlssonLoader(LoaderBase):
         # sort the file names
         self._image_paths.sort()
         self._num_imgs = len(self._image_paths)
-        
+
         if self._num_imgs == 0:
             raise RuntimeError(f"Loader could not find any images with the specified file extension in {folder}")
 
@@ -93,8 +99,8 @@ class OlssonLoader(LoaderBase):
         """
         return self._num_imgs
 
-    def get_image(self, index: int) -> Image:
-        """Get the image at the given index.
+    def get_image_full_res(self, index: int) -> Image:
+        """Get the image at the given index, at full resolution.
 
         Args:
             index: the index to fetch.
@@ -111,8 +117,8 @@ class OlssonLoader(LoaderBase):
 
         return io_utils.load_image(self._image_paths[index])
 
-    def get_camera_intrinsics(self, index: int) -> Cal3Bundler:
-        """Get the camera intrinsics at the given index.
+    def get_camera_intrinsics_full_res(self, index: int) -> Optional[Cal3Bundler]:
+        """Get the camera intrinsics at the given index, valid for a full-resolution image.
 
         Args:
             the index to fetch.
@@ -126,7 +132,11 @@ class OlssonLoader(LoaderBase):
 
         else:
             intrinsics = Cal3Bundler(
-                fx=min(self._K[0, 0], self._K[1, 1]), k1=0, k2=0, u0=self._K[0, 2], v0=self._K[1, 2],
+                fx=min(self._K[0, 0], self._K[1, 1]),
+                k1=0,
+                k2=0,
+                u0=self._K[0, 2],
+                v0=self._K[1, 2],
             )
         return intrinsics
 
@@ -156,4 +166,3 @@ class OlssonLoader(LoaderBase):
             validation result.
         """
         return super().is_valid_pair(idx1, idx2) and abs(idx1 - idx2) <= self._max_frame_lookahead
-

@@ -36,6 +36,7 @@ class AstronetLoader(LoaderBase):
         use_gt_extrinsics: bool = True,
         use_gt_sfmtracks: bool = False,
         max_frame_lookahead: int = 2,
+        max_resolution: int = 1024,
     ) -> None:
         """Initialize loader from a specified segment directory (data_dir) on disk.
 
@@ -55,11 +56,16 @@ class AstronetLoader(LoaderBase):
             max_frame_lookahead (optional): maximum number of consecutive frames to consider for
                 matching/co-visibility. Any value of max_frame_lookahead less than the size of
                 the dataset assumes data is sequentially captured.
+            max_resolution: integer representing maximum length of image's short side, i.e.
+               the smaller of the height/width of the image. e.g. for 1080p (1920 x 1080),
+               max_resolution would be 1080. If the image resolution max(height, width) is
+               greater than the max_resolution, it will be downsampled to match the max_resolution.
 
         Raises:
             FileNotFoundError if `data_dir` doesn't exist or image path does not exist.
             RuntimeError if ground truth camera calibrations not provided.
         """
+        super().__init__(max_resolution)
         self._use_gt_extrinsics = use_gt_extrinsics
         self._use_gt_sfmtracks = use_gt_sfmtracks
         self._max_frame_lookahead = max_frame_lookahead
@@ -149,8 +155,8 @@ class AstronetLoader(LoaderBase):
         """
         return self._num_imgs
 
-    def get_image(self, index: int) -> Image:
-        """Get the image at the given index.
+    def get_image_full_res(self, index: int) -> Image:
+        """Get the image at the given index, at full resolution.
 
         Args:
             index: the index to fetch.
@@ -167,8 +173,8 @@ class AstronetLoader(LoaderBase):
         img = io_utils.load_image(self._image_paths[index])
         return img
 
-    def get_camera_intrinsics(self, index: int) -> Cal3Bundler:
-        """Get the camera intrinsics at the given index.
+    def get_camera_intrinsics_full_res(self, index: int) -> Cal3Bundler:
+        """Get the camera intrinsics at the given index, valid for a full-resolution image.
 
         Args:
             the index to fetch.
