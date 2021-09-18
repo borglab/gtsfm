@@ -30,6 +30,8 @@ NUM_INLIERS_THRESHOLDS      =  [200, 175, 150, 125, 100, 75,  50,   25, 15] # no
 MIN_INLIER_RATIOS_THRESHOLDS = [0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.1, 0.1, 0.1] # noqa
 # fmt: on
 
+MEASUREMENT_TO_IMAGE_RATIO = 3
+
 
 class MultiViewOptimizer:
     def __init__(
@@ -172,6 +174,7 @@ def filter_edges_by_strictest_threshold(
     for (min_num_inliers_acceptance, min_allowed_inlier_ratio_est_model) in zip(
         NUM_INLIERS_THRESHOLDS, MIN_INLIER_RATIOS_THRESHOLDS
     ):
+        logger.info("New #measurement to #image ratio:  %d", measurement_to_image_ratio)
         logger.info("New #inliers threshold:  %d inliers", min_num_inliers_acceptance)
         logger.info("New min. inlier ratio threshold: %.1f inlier ratio", min_allowed_inlier_ratio_est_model)
 
@@ -203,7 +206,7 @@ def filter_edges_by_strictest_threshold(
 
         # check for success
         num_backend_input_pairs = len(i2Ri1_dict_cc)
-        num_required_backend_input_pairs = 3 * num_images
+        num_required_backend_input_pairs = MEASUREMENT_TO_IMAGE_RATIO * num_images
         if num_backend_input_pairs < num_required_backend_input_pairs:
             logger.info("Too few measurements at this threshold, will try relaxing the problem...")
             logger.info(
@@ -220,7 +223,8 @@ def filter_edges_by_strictest_threshold(
             )
             return i2Ri1_dict_cc, i2Ui1_dict_cc, v_corr_idxs_dict_cc
 
-    raise RuntimeError("No problem relaxation yielded sufficient number of edges for back-end optimization.")
+    logger.error("No problem relaxation yielded sufficient number of edges for back-end optimization. Aborting...")
+    exit()
 
 
 def init_cameras(
