@@ -28,7 +28,6 @@ class VerifierBase(metaclass=abc.ABCMeta):
         self,
         use_intrinsics_in_verification: bool,
         estimation_threshold_px: float,
-        min_allowed_inlier_ratio_est_model: float,
     ) -> None:
         """Initializes the verifier.
 
@@ -44,7 +43,6 @@ class VerifierBase(metaclass=abc.ABCMeta):
         """
         self._use_intrinsics_in_verification = use_intrinsics_in_verification
         self._estimation_threshold_px = estimation_threshold_px
-        self._min_allowed_inlier_ratio_est_model = min_allowed_inlier_ratio_est_model
         self._min_matches = (
             NUM_MATCHES_REQ_E_MATRIX if self._use_intrinsics_in_verification else NUM_MATCHES_REQ_F_MATRIX
         )
