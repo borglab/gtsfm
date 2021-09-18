@@ -14,7 +14,6 @@ matplotlib.use("Agg")
 
 from dask.delayed import Delayed
 
-import gtsfm.averaging.rotation.cycle_consistency as cycle_consistency
 import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.two_view_estimator as two_view_estimator
 import gtsfm.utils.io as io_utils
@@ -175,28 +174,6 @@ class SceneOptimizer:
         keypoints_graph_list = dask.delayed(lambda x, y: (x, y))(keypoints_graph_list, auxiliary_graph_list)[0]
         auxiliary_graph_list = []
 
-        # ensure cycle consistency in triplets
-        i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict = dask.delayed(
-            cycle_consistency.filter_to_cycle_consistent_edges, nout=3
-        )(i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict, two_view_reports_dict)
-
-        def _filter_dict_keys(dict: Dict[Any, Any], ref_dict: Dict[Any,Any]) -> Dict[Any, Any]:
-            """Return a subset of a dictionary based on keys present in the reference dictionary."""
-            valid_keys = list(ref_dict.keys())
-            return {k: v for k, v in dict.items() if k in valid_keys}
-
-        if gt_pose_graph is not None:
-            two_view_reports_dict_cycle_consistent = dask.delayed(_filter_dict_keys)(
-                dict=two_view_reports_dict, ref_dict=i2Ri1_graph_dict
-            )
-            metrics_graph_list.append(
-                dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
-                    two_view_reports_dict_cycle_consistent,
-                    self._pose_angular_error_thresh,
-                    metric_group_name="cycle_consistent_frontend_summary",
-                )
-            )
-
         # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
         (ba_input_graph, ba_output_graph, optimizer_metrics_graph) = self.multiview_optimizer.create_computation_graph(
             image_graph,
@@ -206,6 +183,8 @@ class SceneOptimizer:
             i2Ui1_graph_dict,
             v_corr_idxs_graph_dict,
             camera_intrinsics_graph,
+            two_view_reports_dict,
+            self._pose_angular_error_thresh,
             gt_pose_graph,
         )
 

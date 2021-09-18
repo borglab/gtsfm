@@ -76,17 +76,19 @@ class TestColmapLoader(unittest.TestCase):
     def test_image_resolution(self) -> None:
         """Ensure that the image is downsampled properly to a max resolution of 500 px.
 
-        Note: native resolution is (1936, 1296) for (H,W)
+        Note: full resolution is (1936, 1296) for (H,W)
         """
-        assert self.loader._scale_u == 500.0 / 1296.0
-        assert np.isclose(self.loader._scale_v, 500.0 / 1296.0, atol=1e-4)
+        img0_full_res = self.loader.get_image_full_res(0)
+        assert img0_full_res.width == 1296
+        assert img0_full_res.height == 1936
 
-        assert self.loader._target_h == 747
-        assert self.loader._target_w == 500
+        img0 = self.loader.get_image(0)
 
-        # ensure that the aspect ratios match up to 3 decimal places
-        downsampled_aspect_ratio = self.loader._target_w / self.loader._target_h
-        assert np.isclose(downsampled_aspect_ratio, 1296 / 1936, atol=1e-3)
+        # scale_u is 500.0 / 1296.0
+        # scale_v is 500.0 / 1296.0
+        # downsampled aspect ratio is 1296 / 1936
+        assert img0.width == 500
+        assert img0.height == 747
 
     def test_get_image(self) -> None:
         """Ensure a downsampled image can be successfully provided."""

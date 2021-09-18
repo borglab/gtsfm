@@ -72,7 +72,6 @@ class TwoViewEstimator:
         matcher: MatcherBase,
         verifier: VerifierBase,
         eval_threshold_px: float,
-        min_num_inliers_acceptance: int,
     ) -> None:
         """Initializes the two-view estimator from matcher and verifier.
 
@@ -81,13 +80,10 @@ class TwoViewEstimator:
             verifier: verifier to use.
             eval_threshold_px: distance threshold for marking a correspondence pair as inlier during evaluation
                 (not during estimation).
-            min_num_inliers_acceptance: minimum number of inliers that must agree w/ estimated model, to use
-                image pair.
         """
         self._matcher = matcher
         self._verifier = verifier
         self._corr_metric_dist_threshold = eval_threshold_px
-        self._min_num_inliers_acceptance = min_num_inliers_acceptance
 
     def get_corr_metric_dist_threshold(self) -> float:
         """Getter for the distance threshold used in the metric for correct correspondences."""
@@ -178,44 +174,7 @@ class TwoViewEstimator:
             v_corr_idxs_graph,
         )
 
-        result = dask.delayed(self.check_for_degeneracy)(
-            two_view_report_graph, i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph
-        )
-        i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph = result[0], result[1], result[2], result[3]
-
         return (i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph)
-
-    def check_for_degeneracy(
-        self,
-        two_view_report: TwoViewEstimationReport,
-        i2Ri1: Optional[Rot3],
-        i2Ui1: Optional[Unit3],
-        v_corr_idxs: np.ndarray,
-    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
-        """ """
-        insufficient_inliers = two_view_report.num_inliers_est_model < self._min_num_inliers_acceptance
-
-        # TODO: technically this should almost always be non-zero, just need to move up to earlier
-        valid_model = two_view_report.num_inliers_est_model > 0
-
-        if valid_model and insufficient_inliers:
-            logger.info(
-                "Insufficient number of inliers: %d < %d.",
-                two_view_report.num_inliers_est_model,
-                self._min_num_inliers_acceptance,
-            )
-
-            i2Ri1 = None
-            i2Ui1 = None
-            v_corr_idxs = np.array([], dtype=np.uint64)
-            # remove mention of errors in the report
-            two_view_report.R_error_deg = None
-            two_view_report.U_error_deg = None
-
-        two_view_report.i2Ri1 = i2Ri1
-        two_view_report.i2Ui1 = i2Ui1
-
-        return i2Ri1, i2Ui1, v_corr_idxs, two_view_report
 
 
 def generate_two_view_report(

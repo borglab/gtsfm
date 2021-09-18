@@ -14,89 +14,43 @@ from gtsfm.scene_optimizer import SceneOptimizer
 logger = logger_utils.get_logger()
 
 
-# fmt: off
-# Successive relaxation threshold pairs -- from strictest to loosest
-# `inlier ratio` is the minimum allowed inlier ratio w.r.t. the estimated model
-NUM_INLIERS_THRESHOLDS      =  [200, 175, 150, 125, 100, 75,  50,   25, 15] # noqa
-MIN_INLIER_RATIOS_THRESHOLDS = [0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.1, 0.1, 0.1] # noqa
-# fmt: on
-
-
 def run_scene_optimizer(args: argparse.Namespace) -> None:
     """We solve the problem at varying level of difficulties, starting at the strictest
     setting, and gradually relaxing the problem until a sufficient number of inliers can be found.
     As for measurements that are fed to the backend, we require three times the number of input
     images, for sufficient redundancy in the graph.
     """
-    # create dask client only once, and will be re-used for all relaxations
-    cluster = LocalCluster(n_workers=args.num_workers, threads_per_worker=args.threads_per_worker)
-
     start = time.time()
 
-    # try to relax the problem repeatedly
-    for (num_inliers_required, min_allowed_inlier_ratio_est_model) in zip(
-        NUM_INLIERS_THRESHOLDS, MIN_INLIER_RATIOS_THRESHOLDS
-    ):
-        with hydra.initialize_config_module(config_module="gtsfm.configs"):
-            # config is relative to the gtsfm module
-            cfg = hydra.compose(config_name=args.config_name)
+    with hydra.initialize_config_module(config_module="gtsfm.configs"):
+        # config is relative to the gtsfm module
+        cfg = hydra.compose(config_name=args.config_name)
 
-            # cannot easily modify the scene optimizer's attributes later, as children inherit from parent attributes
-            cfg["SceneOptimizer"]["two_view_estimator"]["min_num_inliers_acceptance"] = num_inliers_required
-            cfg["SceneOptimizer"]["two_view_estimator"]["verifier"][
-                "min_allowed_inlier_ratio_est_model"
-            ] = min_allowed_inlier_ratio_est_model
+        scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
-            scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
-            loader = ColmapLoader(
-                colmap_files_dirpath=args.colmap_files_dirpath,
-                images_dir=args.images_dir,
-                max_frame_lookahead=args.max_frame_lookahead,
-            )
+        loader = ColmapLoader(
+            colmap_files_dirpath=args.colmap_files_dirpath,
+            images_dir=args.images_dir,
+            max_frame_lookahead=args.max_frame_lookahead,
+            max_resolution=args.max_resolution,
+        )
 
-            logger.info(
-                "New #inliers threshold:  %d inliers", scene_optimizer.two_view_estimator._min_num_inliers_acceptance
-            )
-            logger.info(
-                "New min. inlier ratio threshold: %.1f inlier ratio",
-                scene_optimizer.two_view_estimator._verifier._min_allowed_inlier_ratio_est_model,
-            )
+        sfm_result_graph = scene_optimizer.create_computation_graph(
+            num_images=len(loader),
+            image_pair_indices=loader.get_valid_pairs(),
+            image_graph=loader.create_computation_graph_for_images(),
+            camera_intrinsics_graph=loader.create_computation_graph_for_intrinsics(),
+            image_shape_graph=loader.create_computation_graph_for_image_shapes(),
+            gt_pose_graph=loader.create_computation_graph_for_poses(),
+        )
 
-            sfm_result_graph = scene_optimizer.create_computation_graph(
-                num_images=len(loader),
-                image_pair_indices=loader.get_valid_pairs(),
-                image_graph=loader.create_computation_graph_for_images(),
-                camera_intrinsics_graph=loader.create_computation_graph_for_intrinsics(),
-                image_shape_graph=loader.create_computation_graph_for_image_shapes(),
-                gt_pose_graph=loader.create_computation_graph_for_poses(),
-            )
+        # create dask client
+        cluster = LocalCluster(n_workers=args.num_workers, threads_per_worker=args.threads_per_worker)
 
-            try:
-                with Client(cluster), performance_report(filename="dask-report.html"):
-                    sfm_result = sfm_result_graph.compute()
-                assert isinstance(sfm_result, GtsfmData)
+        with Client(cluster), performance_report(filename="dask-report.html"):
+            sfm_result = sfm_result_graph.compute()
 
-                # check for success
-                frontend_result = io_utils.read_json_file("result_metrics/cycle_consistent_frontend_summary.json")
-                num_backend_input_pairs = frontend_result["cycle_consistent_frontend_summary"]["num_valid_image_pairs"]
-                num_required_backend_input_pairs = 3 * len(loader)
-                if num_backend_input_pairs < num_required_backend_input_pairs:
-                    logger.info("Too few measurements at this threshold, will try relaxing the problem...")
-                    logger.info(
-                        "Found only %d num_backend_input_pairs, needed %d",
-                        num_backend_input_pairs,
-                        num_required_backend_input_pairs,
-                    )
-                else:
-                    logger.info(
-                        "GTSFM Succeeded, with %d num_backend_input_pairs, needed %d",
-                        num_backend_input_pairs,
-                        num_required_backend_input_pairs,
-                    )
-                    break
-
-            except Exception:
-                logger.exception("Computation was unsuccessful, will try relaxing the problem ...")
+        assert isinstance(sfm_result, GtsfmData)
 
     end = time.time()
     duration_sec = end - start
@@ -139,6 +93,12 @@ if __name__ == "__main__":
         default="deep_front_end.yaml",
         help="Choose sift_front_end.yaml or deep_front_end.yaml",
     )
-
+    parser.add_argument(
+        "--max_resolution",
+        type=int,
+        default=760,
+        help="integer representing maximum length of image's short side"
+        " e.g. for 1080p (1920 x 1080), max_resolution would be 1080",
+    )
     args = parser.parse_args()
     run_scene_optimizer(args)
