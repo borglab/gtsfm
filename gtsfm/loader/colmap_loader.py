@@ -158,7 +158,7 @@ class ColmapLoader(LoaderBase):
         return wTi
 
     def is_valid_pair(self, idx1: int, idx2: int) -> bool:
-        """Checks if (idx1, idx2) is a valid pair. idx1 < idx2 is required.
+        """Checks if (idx1, idx2) is a valid pair.
 
         Args:
             idx1: first index of the pair.
@@ -167,4 +167,4 @@ class ColmapLoader(LoaderBase):
         Returns:
             validation result.
         """
-        return super().is_valid_pair(idx1, idx2) and abs(idx1 - idx2) <= self._max_frame_lookahead
+        return idx1 < idx2 and abs(idx1 - idx2) <= self._max_frame_lookahead

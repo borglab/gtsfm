@@ -31,7 +31,10 @@ pil_logger = logging.getLogger("PIL")
 pil_logger.setLevel(logging.INFO)
 
 
-DATA_ASSOC_2VIEW = DataAssociation(reproj_error_thresh=3, min_track_len=2, mode=TriangulationParam.NO_RANSAC)
+DATA_ASSOC_REPROJ_ERROR_THRESH = 3
+DATA_ASSOC_2VIEW = DataAssociation(
+    reproj_error_thresh=DATA_ASSOC_REPROJ_ERROR_THRESH, min_track_len=2, mode=TriangulationParam.NO_RANSAC
+)
 BUNDLE_ADJUST_2VIEW = BundleAdjustmentOptimizer(
     output_reproj_error_thresh=100, robust_measurement_noise=True
 )  # we dont care about output error threshold as we do not access the tracks of 2-view BA, which the threshold affects.
@@ -75,7 +78,11 @@ class TwoViewEstimator:
     """Wrapper for running two-view relative pose estimation on image pairs in the dataset."""
 
     def __init__(
-        self, matcher: MatcherBase, verifier: VerifierBase, eval_threshold_px: float, min_num_inliers_acceptance: int
+        self,
+        matcher: MatcherBase,
+        verifier: VerifierBase,
+        eval_threshold_px: float,
+        min_num_inliers_acceptance: int,
     ) -> None:
         """Initializes the two-view estimator from matcher and verifier.
 
@@ -122,15 +129,15 @@ class TwoViewEstimator:
         ba_output, _ = BUNDLE_ADJUST_2VIEW.run(ba_input)
 
         # extract the camera poses
-        wPi1, wPi2 = ba_output.get_camera_poses()
+        wTi1, wTi2 = ba_output.get_camera_poses()
 
-        if wPi1 is None or wPi2 is None:
+        if wTi1 is None or wTi2 is None:
             logger.warning("2-view BA failed")
             return i2Ri1_initial, i2Ui1_initial
 
-        i2Pi1_optimized = wPi2.between(wPi1)
+        i2Ti1_optimized = wTi2.between(wTi1)
 
-        return i2Pi1_optimized.rotation(), Unit3(i2Pi1_optimized.translation())
+        return i2Ti1_optimized.rotation(), Unit3(i2Ti1_optimized.translation())
 
     def get_corr_metric_dist_threshold(self) -> float:
         """Getter for the distance threshold used in the metric for correct correspondences."""
@@ -196,7 +203,7 @@ class TwoViewEstimator:
             camera_intrinsics_i2_graph,
         )
 
-        ba_output_graph = dask.delayed(self.bundle_adjust)(
+        i2Ri1_graph, i2Ui1_graph = dask.delayed(self.bundle_adjust, nout=2)(
             keypoints_i1_graph,
             keypoints_i2_graph,
             v_corr_idxs_graph,
@@ -205,9 +212,6 @@ class TwoViewEstimator:
             i2Ri1_pre_ba_graph,
             i2Ui1_pre_ba_graph,
         )
-
-        i2Ri1_graph = ba_output_graph[0]
-        i2Ui1_graph = ba_output_graph[1]
 
         # if we have the expected GT data, evaluate the computed relative pose
         if i2Ti1_expected_graph is not None:
