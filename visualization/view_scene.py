@@ -62,9 +62,9 @@ def view_scene(args: argparse.Namespace) -> None:
     # expression below is equivalent to applying zcwTw.transformFrom() to each world point
     point_cloud -= mean_pt
 
-    is_nearby = np.linalg.norm(point_cloud, axis=1) < args.max_range
-    point_cloud = point_cloud[is_nearby]
-    rgb = rgb[is_nearby]
+    # is_nearby = np.linalg.norm(point_cloud, axis=1) < args.max_range
+    # point_cloud = point_cloud[is_nearby]
+    # rgb = rgb[is_nearby]
 
     for i in range(len(wTi_list)):
         wTi_list[i] = zcwTw.compose(wTi_list[i])
@@ -110,7 +110,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--sphere_radius",
         type=float,
-        default=0.1,
+        default=100,
         help="if points are rendered as spheres, then spheres are rendered with this radius.",
     )
 

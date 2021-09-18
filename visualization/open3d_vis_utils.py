@@ -105,7 +105,7 @@ def create_all_frustums_open3d(wTi_list: List[Pose3], calibrations: List[Cal3Bun
             colors = [color for i in range(len(lines))]
 
             line_set = open3d.geometry.LineSet(
-                points=open3d.utility.Vector3dVector(verts_worldfr),
+                points=open3d.utility.Vector3dVector(verts_worldfr * 2),
                 lines=open3d.utility.Vector2iVector(lines),
             )
             line_set.colors = open3d.utility.Vector3dVector(colors)
