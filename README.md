@@ -50,14 +50,7 @@ pip install -e .
 ```
 Make sure that you can run `python -c "import gtsfm; import gtsam; print('hello world')"` in python, and you are good to go!
 
-## Compiling Additional Verifiers
-On Mac OSX, there is no `pydegensac` wheel in `pypi`, instead build pydegensac: 
-```bash
-git clone https://github.com/ducha-aiki/pydegensac.git
-cd pydegensac
-python setup.py bdist_wheel
-pip install dist/pydegensac-0.1.2-cp38-cp38-macosx_10_15_x86_64.whl
-```
+
 
 ## Usage Guide (Running 3d Reconstruction)
 
@@ -77,6 +70,11 @@ python gtsfm/runner/run_scene_optimizer_colmap_loader.py --config_name {CONFIG_N
 ```
 where `COLMAP_FILES_DIRPATH` is a directory where .txt files such as `cameras.txt`, `images.txt`, etc have been saved.
 
+
+To visualize the result using Open3D, run:
+```bash
+python visualization/view_scene.py --rendering_library open3d --point_rendering_mode point
+```
 
 ## Repository Structure
 
@@ -116,3 +114,7 @@ Open-source Python implementation:
 }
 ```
 Note: authors are listed in alphabetical order.
+
+
+## Compiling Additional Verifiers
+On Linux, we have made `pycolmap`'s LORANSAC available in [pypi](https://pypi.org/project/pycolmap/). However, on Mac, `pycolmap` must be built from scratch. See the instructions [here](https://github.com/borglab/gtsfm/blob/master/gtsfm/frontend/verifier/loransac.py#L10).

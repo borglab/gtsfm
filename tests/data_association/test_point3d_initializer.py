@@ -179,11 +179,12 @@ class TestPoint3dInitializer(unittest.TestCase):
         """Test the tracks of the door dataset using simple triangulation initialization. Using computed tracks with
         ground truth camera params.
 
-        Expecting failures on 2 tracks which have incorrect matches."""
+        Expecting failures on 2 tracks which have incorrect matches.
+        """
         with open(DOOR_TRACKS_PATH, "rb") as handle:
             tracks = pickle.load(handle)
 
-        loader = OlssonLoader(DOOR_DATASET_PATH, image_extension="JPG")
+        loader = OlssonLoader(DOOR_DATASET_PATH, image_extension="JPG", max_resolution=1296)
 
         camera_dict = {
             i: PinholeCameraCal3Bundler(loader.get_camera_pose(i), loader.get_camera_intrinsics(i))
