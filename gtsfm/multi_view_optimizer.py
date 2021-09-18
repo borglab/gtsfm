@@ -174,7 +174,6 @@ def filter_edges_by_strictest_threshold(
     for (min_num_inliers_acceptance, min_allowed_inlier_ratio_est_model) in zip(
         NUM_INLIERS_THRESHOLDS, MIN_INLIER_RATIOS_THRESHOLDS
     ):
-        logger.info("New #measurement to #image ratio:  %d", measurement_to_image_ratio)
         logger.info("New #inliers threshold:  %d inliers", min_num_inliers_acceptance)
         logger.info("New min. inlier ratio threshold: %.1f inlier ratio", min_allowed_inlier_ratio_est_model)
 
