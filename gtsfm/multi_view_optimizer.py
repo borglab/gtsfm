@@ -66,7 +66,7 @@ class MultiViewOptimizer:
             i2Ui1_graph: relative unit-translations for image pairs, each value wrapped up as Delayed.
             v_corr_idxs_graph: indices of verified correspondences for image pairs, wrapped up as Delayed.
             intrinsics_graph: intrinsics for images, wrapped up as Delayed.
-            two_view_report_dict: front-end metrics for pairs of images.
+            two_view_reports_dict: front-end metrics for pairs of images.
             pose_angular_error_thresh:
             gt_poses_graph: list of GT camera poses, ordered by camera index (Pose3), wrapped up as Delayed
 
@@ -160,7 +160,7 @@ def filter_edges_by_strictest_threshold(
         i2Ri1_dict: relative rotations for image pairs.
         i2Ui1_dict: relative unit-translations for image pairs.
         v_corr_idxs_graph: indices of verified correspondences for image pairs.
-        two_view_report_dict: front-end metrics for pairs of images.
+        two_view_reports_dict: front-end metrics for pairs of images.
         num_images: number of images in the scene.
 
     Returns:
