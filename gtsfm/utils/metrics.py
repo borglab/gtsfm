@@ -11,7 +11,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 import trimesh
 from dask.delayed import Delayed
-from gtsam import Cal3Bundler, EssentialMatrix, Point3, Pose3, Rot3, Unit3
+from gtsam import PinholeCameraCal3Bundler, Cal3Bundler, EssentialMatrix, Point3, Pose3, Rot3, Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
@@ -68,13 +68,13 @@ def count_correct_correspondences(
 
     # Compute ground truth correspondences.
     if None not in [gt_scene_mesh, gt_wTi1, gt_wTi2]:
+        gt_camera_i1 = PinholeCameraCal3Bundler(gt_wTi1, intrinsics_i1)
+        gt_camera_i2 = PinholeCameraCal3Bundler(gt_wTi2, intrinsics_i2)
         is_inlier, _ = mesh_inlier_correspondences(
             keypoints_i1,
             keypoints_i2,
-            intrinsics_i1,
-            intrinsics_i2,
-            gt_wTi1,
-            gt_wTi2,
+            gt_camera_i1,
+            gt_camera_i2,
             gt_scene_mesh,
             dist_threshold,
         )
@@ -126,10 +126,8 @@ def epipolar_inlier_correspondences(
 def mesh_inlier_correspondences(
     keypoints_i1: Keypoints,
     keypoints_i2: Keypoints,
-    camera_intrinsics_i1: Cal3Bundler,
-    camera_intrinsics_i2: Cal3Bundler,
-    gt_wTi1: Pose3,
-    gt_wTi2: Pose3,
+    gt_camera_i1: PinholeCameraCal3Bundler,
+    gt_camera_i2: PinholeCameraCal3Bundler,
     gt_scene_mesh: trimesh.Trimesh,
     dist_threshold: float,
 ) -> Tuple[np.ndarray, np.ndarray]:
@@ -171,35 +169,31 @@ def mesh_inlier_correspondences(
     if len(keypoints_i1) != len(keypoints_i2):
         raise ValueError("Keypoints must have same counts")
 
-    fx_i1, fy_i1, cx_i1, cy_i1 = (
-        camera_intrinsics_i1.fx(),
-        camera_intrinsics_i1.fy(),
-        camera_intrinsics_i1.px(),
-        camera_intrinsics_i1.py(),
-    )
-    fx_i2, fy_i2, cx_i2, cy_i2 = (
-        camera_intrinsics_i2.fx(),
-        camera_intrinsics_i2.fy(),
-        camera_intrinsics_i2.px(),
-        camera_intrinsics_i2.py(),
-    )
     n_corrs = len(keypoints_i1)
     is_inlier = np.zeros(n_corrs, dtype=bool)
-    src_i1 = np.repeat(np.reshape(gt_wTi1.translation(), (-1, 3)), n_corrs, axis=0)
-    src_i2 = np.repeat(np.reshape(gt_wTi2.translation(), (-1, 3)), n_corrs, axis=0)
+    src_i1 = np.repeat(np.reshape(gt_camera_i1.translation(), (-1, 3)), n_corrs, axis=0)
+    src_i2 = np.repeat(np.reshape(gt_camera_i2.translation(), (-1, 3)), n_corrs, axis=0)
 
     # Compute ketpoint rays.
     drc_i1 = np.empty((n_corrs, 3), dtype=float)
     drc_i2 = np.empty((n_corrs, 3), dtype=float)
     for corr_idx in range(n_corrs):
-        x_i1, y_i1 = keypoints_i1.coordinates[corr_idx]
-        x_i2, y_i2 = keypoints_i2.coordinates[corr_idx]
-        drc_i1[corr_idx, :] = np.reshape(
-            back_project(x_i1, y_i1, fx_i1, fy_i1, cx_i1, cy_i1, gt_wTi1.rotation()), (-1, 3)
+        # x_i1, y_i1 = keypoints_i1.coordinates[corr_idx]
+        # x_i2, y_i2 = keypoints_i2.coordinates[corr_idx]
+        drc_i1[corr_idx, :] = (
+            gt_camera_i1.BackprojectFromCamera(keypoints_i1.coordinates[corr_idx], depth=1.0)
+            - gt_camera_i1.translation()
         )
-        drc_i2[corr_idx, :] = np.reshape(
-            back_project(x_i2, y_i2, fx_i2, fy_i2, cx_i2, cy_i2, gt_wTi2.rotation()), (-1, 3)
+        drc_i2[corr_idx, :] = (
+            gt_camera_i2.BackprojectFromCamera(keypoints_i2.coordinates[corr_idx], depth=1.0)
+            - gt_camera_i2.translation()
         )
+        # drc_i1[corr_idx, :] = np.reshape(
+        #     back_project(x_i1, y_i1, fx_i1, fy_i1, cx_i1, cy_i1, gt_wTi1.rotation()), (-1, 3)
+        # )
+        # drc_i2[corr_idx, :] = np.reshape(
+        #     back_project(x_i2, y_i2, fx_i2, fy_i2, cx_i2, cy_i2, gt_wTi2.rotation()), (-1, 3)
+        # )
 
     # Perform ray tracing.
     src = np.vstack((src_i1, src_i2))
@@ -220,14 +214,23 @@ def mesh_inlier_correspondences(
     # Forward project intersections into other image to compute error.
     reproj_err = np.array([np.nan] * len(keypoints_i1))
     for i in range(len(idr)):
-        x_i1, y_i1 = keypoints_i1.coordinates[idr[i]]
-        x_i2, y_i2 = keypoints_i2.coordinates[idr[i]]
-        x_i2i1, y_i2i1 = forward_project(loc_i2[i2_idx[i]], fx_i1, fy_i1, cx_i1, cy_i1, gt_wTi1.inverse())
-        x_i1i2, y_i1i2 = forward_project(loc_i1[i1_idx[i]], fx_i2, fy_i2, cx_i2, cy_i2, gt_wTi2.inverse())
-        err_i2i1 = ((x_i1 - x_i2i1) ** 2 + (y_i1 - y_i2i1) ** 2) ** 0.5  # pixels
-        err_i1i2 = ((x_i2 - x_i1i2) ** 2 + (y_i2 - y_i1i2) ** 2) ** 0.5  # pixels
-        is_inlier[idr[i]] = max(err_i2i1, err_i1i2) < dist_threshold
-        reproj_err[idr[i]] = max(err_i2i1, err_i1i2)
+        xy_i1 = keypoints_i1.coordinates[idr[i]]
+        xy_i2 = keypoints_i2.coordinates[idr[i]]
+        # x_i2i1, y_i2i1 = forward_project(loc_i2[i2_idx[i]], fx_i1, fy_i1, cx_i1, cy_i1, gt_wTi1.inverse())
+        # x_i1i2, y_i1i2 = forward_project(loc_i1[i1_idx[i]], fx_i2, fy_i2, cx_i2, cy_i2, gt_wTi2.inverse())
+        # err_i2i1 = ((x_i1 - x_i2i1) ** 2 + (y_i1 - y_i2i1) ** 2) ** 0.5  # pixels
+        # err_i1i2 = ((x_i2 - x_i1i2) ** 2 + (y_i2 - y_i1i2) ** 2) ** 0.5  # pixels
+
+        xy_i2i1, success_flag_i1 = gt_camera_i1.projectSafe(loc_i2[i2_idx[i]])
+        xy_i1i2, success_flag_i2 = gt_camera_i2.projectSafe(loc_i1[i1_idx[i]])
+        if success_flag_i1 and success_flag_i2:
+            err_i2i1 = np.linalg.norm(xy_i1 - xy_i2i1)
+            err_i1i2 = np.linalg.norm(xy_i2 - xy_i1i2)
+            is_inlier[idr[i]] = max(err_i2i1, err_i1i2) < dist_threshold
+            reproj_err[idr[i]] = max(err_i2i1, err_i1i2)
+        else:
+            is_inlier[idr[i]] = False
+            reproj_err[idr[i]] = np.nan
 
     return is_inlier, reproj_err
 
