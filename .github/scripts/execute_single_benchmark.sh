@@ -14,7 +14,7 @@ function retry {
   shift
 
   local count=0
-  until "$@"; do
+  until "$@"; do # actual command execution happening here, and will continue till signal 0 (success).
     exit=$?
     wait=$((2 ** $count))
     count=$(($count + 1))
