@@ -20,13 +20,13 @@ def classify_tracks2d_with_gt_cameras(
     """Classifies the 2D tracks w.r.t ground truth cameras by performing triangulation and collecting exit codes.
 
     Args:
-        tracks: list of 2d tracks, of length J.
+        tracks: list of 2d tracks.
         cameras_gt: cameras with GT params.
         reproj_error_thresh_px (optional): Reprojection error threshold (in pixels) for a track to be considered an
                                            all-inlier one. Defaults to 3.
 
     Returns:
-        The triangulation exit code for each input track, as list of length J (same as input).
+        The triangulation exit code for each input track, as list of the same length as of tracks.
     """
     # do a simple triangulation with the GT cameras
     cameras_dict: Dict[int, Cal3Bundler] = {i: cam for i, cam in enumerate(cameras_gt)}
