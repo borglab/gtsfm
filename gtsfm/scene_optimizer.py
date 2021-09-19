@@ -183,7 +183,7 @@ class SceneOptimizer:
             cycle_consistency.filter_to_cycle_consistent_edges, nout=3
         )(i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict, two_view_reports_dict)
 
-        def _filter_dict_keys(dict: Dict[Any, Any], ref_dict: Dict[Any,Any]) -> Dict[Any, Any]:
+        def _filter_dict_keys(dict: Dict[Any, Any], ref_dict: Dict[Any, Any]) -> Dict[Any, Any]:
             """Return a subset of a dictionary based on keys present in the reference dictionary."""
             valid_keys = list(ref_dict.keys())
             return {k: v for k, v in dict.items() if k in valid_keys}
@@ -220,8 +220,9 @@ class SceneOptimizer:
         auxiliary_graph_list.extend(save_metrics_reports(metrics_graph_list))
 
         # Modify BA input and BA output to have point clouds and frustums aligned with x,y,z axes.
-        ba_input_graph = dask.delayed(align_gtsfm_data)(ba_input_graph)
-        ba_output_graph = dask.delayed(align_gtsfm_data)(ba_output_graph)
+        aligned_pose_graphs = dask.delayed(align_estimated_gtsfm_data)(ba_input_graph, ba_output_graph)
+        ba_input_graph = aligned_pose_graphs[0]
+        ba_output_graph = aligned_pose_graphs[1]
 
         if self._save_3d_viz:
             auxiliary_graph_list.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_pose_graph))
@@ -237,51 +238,24 @@ class SceneOptimizer:
         # return the entry with just the sfm result
         return output_graph[0]
 
-def align_gtsfm_data(gtsfm_data: GtsfmData) -> Delayed:
-    """Creates a new GtsfmData object that emulates the inputted GtsfmData object but with point cloud and camera 
+
+def align_estimated_gtsfm_data(ba_input: GtsfmData, ba_output: GtsfmData) -> Tuple[Delayed]:
+    """Creates modified GtsfmData objects that emulate ba_input and ba_output but with point cloud and camera
     frustums aligned to the x,y,z axes.
 
     Args:
-        gtsfm: GtsfmData object
+        ba_input: GtsfmData input to bundle adjustment.
+        ba_output: GtsfmData output from bundle adjustment.
 
     Returns:
-        Delayed GtsfmData object that has point cloud and camera frustums aligned to x,y,z axes.
+        Delayed object for ba_input GtsfmData.
+        Delayed object for ba_output GtsfmData.
     """
-    num_images = gtsfm_data.number_images()
-    num_tracks = gtsfm_data.number_tracks()
-    aligned_gtsfm_data = GtsfmData(num_images)
+    walignedTw = ellipsoid_utils.transform_point_cloud_wrapper(ba_output)
+    ba_input = GtsfmData.align_data_to_axes(ba_input, walignedTw)
+    ba_output = GtsfmData.align_data_to_axes(ba_output, walignedTw)
+    return ba_input, ba_output
 
-    # Populate aligned_gtsfm_data with duplicate camera data.
-    for camera_index in gtsfm_data.get_valid_camera_indices():
-        aligned_gtsfm_data.add_camera(camera_index, gtsfm_data.get_camera(camera_index))
-
-    # Populate aligned_gtsfm_data with tracks.
-    aligned_points, mean, wuprightRw = ellipsoid_utils.transform_point_cloud_wrapper(gtsfm_data)
-    for i in range(num_tracks):
-        original_track_3d = gtsfm_data.get_track(i)
-
-        # Create a gtsam.SfmTrack with the aligned 3d point and duplicate 2d measurements.
-        new_track_3d = SfmTrack(aligned_points[i,:])
-        for m in range(original_track_3d.number_measurements()):
-            i, uv = original_track_3d.measurement(m)
-            new_track_3d.add_measurement(i, uv)
-
-        aligned_gtsfm_data.add_track(new_track_3d)
-
-    # Update aligned_gtsfm_data with aligned camera data.
-    for camera_index in aligned_gtsfm_data.get_valid_camera_indices():
-        camera = aligned_gtsfm_data.get_camera(camera_index)
-
-        wTi = camera.pose()
-        walignedTi = ellipsoid_utils.transform_camera_frustums(wTi, mean, wuprightRw)
-        walignedRi = walignedTi[:3,:3]
-        waligned_t_i = walignedTi[:3,3]
-
-        aligned_camera = PinholeCameraCal3Bundler(Pose3(Rot3(walignedRi), waligned_t_i), camera.calibration())
-
-        aligned_gtsfm_data.add_camera(camera_index, aligned_camera)
-
-    return aligned_gtsfm_data
 
 def save_visualizations(
     ba_input_graph: Delayed, ba_output_graph: Delayed, gt_pose_graph: Optional[List[Delayed]]
