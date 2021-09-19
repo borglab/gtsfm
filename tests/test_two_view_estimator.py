@@ -47,8 +47,6 @@ class TestTwoViewEstimator(unittest.TestCase):
         normalized_coordinates_i1 = np.array(normalized_coordinates_i1)
         normalized_coordinates_i2 = np.array(normalized_coordinates_i2)
 
-        print(normalized_coordinates_i1.shape)
-
         i2Ri1_optimized, i2Ui1_optimized = TwoViewEstimator.bundle_adjust(
             keypoints_i1=Keypoints(normalized_coordinates_i1),
             keypoints_i2=Keypoints(normalized_coordinates_i2),
@@ -59,11 +57,13 @@ class TestTwoViewEstimator(unittest.TestCase):
             i2Ui1_initial=i2Ei1.direction(),
         )
 
-        self.assertLessEqual(comp_utils.compute_relative_rotation_angle(i2Ri1_optimized, i2Ei1.rotation()), 1)
-        self.assertLessEqual(comp_utils.compute_relative_unit_translation_angle(i2Ui1_optimized, i2Ei1.direction()), 1)
+        rotation_angular_deviation = comp_utils.compute_relative_rotation_angle(i2Ri1_optimized, i2Ei1.rotation())
+        translation_angular_deviation = comp_utils.compute_relative_unit_translation_angle(
+            i2Ui1_optimized, i2Ei1.direction()
+        )
 
-        # self.assertEqual(i2Ri1_optimized, i2Ei1.rotation())
-        # self.assertEqual(i2Ui1_optimized, i2Ei1.direction())
+        self.assertLessEqual(rotation_angular_deviation, 1)
+        self.assertLessEqual(translation_angular_deviation, 1)
 
 
 if __name__ == "__main__":

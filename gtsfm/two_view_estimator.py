@@ -110,6 +110,21 @@ class TwoViewEstimator:
         i2Ri1_initial: Optional[Rot3],
         i2Ui1_initial: Optional[Unit3],
     ) -> Tuple[Optional[Rot3], Optional[Unit3]]:
+        """Refine the relative pose using bundle adjustment on the 2-view scene.
+
+        Args:
+            keypoints_i1: keypoints from image i1.
+            keypoints_i2: keypoints from image i2.
+            verified_corr_idxes: indices of verified correspondences between i1 and i2.
+            camera_intrinsics_i1: intrinsics for i1.
+            camera_intrinsics_i2: intrinsics for i2.
+            i2Ri1_initial: the relative rotation to be used as initial rotation between cameras.
+            i2Ui1_initial: the relative unit direction, to be used to initialize initial translation between cameras.
+
+        Returns:
+            Optimized relative rotation i2Ri1.
+            Optimized unit translation i2Ui1.
+        """
 
         if i2Ri1_initial is None or i2Ui1_initial is None:
             return None, None
