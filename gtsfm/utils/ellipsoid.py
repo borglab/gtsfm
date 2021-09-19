@@ -5,8 +5,7 @@ Authors: Adi Singh
 """
 
 import numpy as np
-from scipy.spatial.transform import Rotation as R
-from typing import List, Tuple
+from typing import Tuple
 from gtsam import Pose3, Rot3
 
 from gtsfm.common.gtsfm_data import GtsfmData

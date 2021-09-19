@@ -7,7 +7,6 @@ import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from gtsam import PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack
 
 import dask
 import matplotlib
