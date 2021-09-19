@@ -111,11 +111,11 @@ class ViewFrustum {
         return scaled_ray_dirs
     }
 
-    get_mesh_vertices_worldframe(cTw) {
+    get_mesh_vertices_worldframe(wTc) {
         /*Obtains 5 vertices defining the frustum mesh, in the world/global frame.
 
         Args:
-            cTw (SE3): camera extrinsics matrix
+            wTc (SE3): camera pose in world frame
         Returns:
             An array, length 5, where each entry represents the 3d coordinate of a frustum vertex.
         */
@@ -127,11 +127,11 @@ class ViewFrustum {
         var v3_camframe = vList[3].reshape(1,3);
         var v4_camframe = vList[4].reshape(1,3);
 
-        var v0_worldframe = cTw.transform_from(v0_camframe);
-        var v1_worldframe = cTw.transform_from(v1_camframe);
-        var v2_worldframe = cTw.transform_from(v2_camframe);
-        var v3_worldframe = cTw.transform_from(v3_camframe);
-        var v4_worldframe = cTw.transform_from(v4_camframe);
+        var v0_worldframe = wTc.transform_from(v0_camframe);
+        var v1_worldframe = wTc.transform_from(v1_camframe);
+        var v2_worldframe = wTc.transform_from(v2_camframe);
+        var v3_worldframe = wTc.transform_from(v3_camframe);
+        var v4_worldframe = wTc.transform_from(v4_camframe);
 
         return [v0_worldframe.tolist(), 
             v1_worldframe.tolist(), 

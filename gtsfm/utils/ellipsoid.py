@@ -7,12 +7,12 @@ Authors: Adi Singh
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 from typing import List, Tuple
-from gtsam import Pose3
+from gtsam import Pose3, Rot3
 
 from gtsfm.common.gtsfm_data import GtsfmData
 
 
-def transform_point_cloud_wrapper(gtsfm_data: GtsfmData) -> np.ndarray:
+def transform_point_cloud_wrapper(gtsfm_data: GtsfmData) -> Pose3:
     """Wrapper function for all the functions in ellipsoid.py. Transforms the point cloud contained within gtsfm_Data
     to be aligned with the x, y, and z axes.
 
@@ -20,11 +20,8 @@ def transform_point_cloud_wrapper(gtsfm_data: GtsfmData) -> np.ndarray:
         gtsfm_data: scene data to write to transform.
 
     Returns:
-        aligned_points: transformed, aligned point cloud of shape (N,3)
-        mean: array of shape (3.) representing the mean x,y,z coordinates of point cloud
-        wuprightRw: array of shape (3,3) representing the rotation matrix to align point cloud with axes
+        The final transformation required to align point cloud and frustums.
     """
-
     # Iterate through each track to gather a list of 3D points forming the point cloud.
     point_cloud_list = []
     num_pts = gtsfm_data.number_tracks()
@@ -39,9 +36,11 @@ def transform_point_cloud_wrapper(gtsfm_data: GtsfmData) -> np.ndarray:
     points_centered, mean = center_point_cloud(point_cloud)
     points_filtered = remove_outlier_points(points_centered)
     wuprightRw = get_alignment_rotation_matrix_from_svd(points_filtered)
-    aligned_points = apply_ellipsoid_rotation(wuprightRw, points_centered)
 
-    return aligned_points, mean, wuprightRw
+    # Obtain the Pose3 object needed to align camera frustums.
+    walignedTw = Pose3(Rot3(wuprightRw), -1 * mean)
+
+    return walignedTw
 
 
 def center_point_cloud(point_cloud: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -108,53 +107,3 @@ def get_alignment_rotation_matrix_from_svd(point_cloud: np.ndarray) -> np.ndarra
     U, S, Vt = np.linalg.svd(point_cloud, full_matrices=True)
     wuprightRw = Vt
     return wuprightRw
-
-
-def apply_ellipsoid_rotation(wuprightRw: np.ndarray, point_cloud: np.ndarray) -> np.ndarray:
-    """Applies a rotation on the centered, filtered point cloud.
-
-    Args:
-        wuprightRw: rotation matrix, shape (3,3).
-        point_cloud: point cloud, shape (N,3).
-
-    Returns:
-        A transformed, aligned point cloud of shape (N,3).
-
-    Raises:
-        TypeError: if rot matrix isn't (3,3) or centered_pc is not of shape (3,3).
-    """
-    if wuprightRw.shape[0] != 3 or wuprightRw.shape[1] != 3:
-        raise TypeError("Rotation Matrix should be of shape 3 x 3")
-    if point_cloud.shape[1] != 3:
-        raise TypeError("Point Cloud shoud be 3 dimensional")
-
-    rotated_points = wuprightRw @ point_cloud.T
-    return rotated_points.T
-
-
-def transform_camera_frustums(
-    wTi: Pose3, mean: np.ndarray, wuprightRw: np.ndarray
-) -> Tuple[List[float], List[float]]:
-    """Transforms the camera frustums in a similar manner as the point cloud.
-
-    Args:
-        wTi: camera pose in world frame, array of shape (4,4).
-        means: the mean x,y,z coordinates of point cloud, array of shape (3.).
-        wuprightRw: rotation matrix to align point cloud with x,y,z axes, shape (3,3).
-
-    Returns:
-        final_rot_quat: list, length 4, representing the quaternion for camera frustum rotation.
-        final_tran: list, length 3, representing the camera frustum translation.
-    """
-
-    wTi = wTi.matrix() # Convert Pose3 to (4,4) numpy array
-
-    wcenteredTw = np.eye(4)
-    wcenteredTw[:3, 3] = -1 * mean
-
-    walignedRw = np.eye(4)
-    walignedRw[:3, :3] = wuprightRw
-
-    walignedTi = walignedRw @ wcenteredTw @ wTi
-
-    return walignedTi
