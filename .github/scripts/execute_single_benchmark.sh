@@ -15,13 +15,18 @@ echo "Config: ${CONFIG_NAME}, Dataset: ${DATASET_NAME}, Download Source: ${DATAS
 # Prepare the download URLs.
 if [ "$DATASET_NAME" == "skydio-8" ]; then
   export GDRIVE_FILEID='1mmM1p_NpL7-pnf3iHWeWVKpsm1pcBoD5'
+
 elif [ "$DATASET_NAME" == "skydio-32" ]; then
   export GDRIVE_FILEID='1BQ6jp0DD3D9yhTnrDoEddzlMYT0RRH68'
+
 elif [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then
   WGET_URL1=http://vision.maths.lth.se/calledataset/fine_arts_palace/fine_arts_palace.zip
   WGET_URL2=http://vision.maths.lth.se/calledataset/fine_arts_palace/data.mat
   echo $WGET_URL1
   echo $WGET_URL2
+
+elif [ "$DATASET_NAME" == "2011205_rc3" ]; then
+  WGET_URL1=https://www.dropbox.com/s/q02mgq1unbw068t/2011205_rc3.zip
 fi
 
 # Download the data.
@@ -34,7 +39,9 @@ if [ "$DATASET_SRC" == "gdrive" ]; then
 elif [ "$DATASET_SRC" == "wget" ]; then
   echo "Downloading ${DATASET_NAME} with WGET"
   wget $WGET_URL1
-  wget $WGET_URL2
+  if [ ! -z "$WGET_URL2" ]; then
+    wget $WGET_URL2
+  fi
 fi
 
 # Extract the data, configure arguments for runner.
@@ -56,6 +63,10 @@ elif [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then \
   unzip -qq fine_arts_palace.zip -d palace-fine-arts-281/images
   mv data.mat palace-fine-arts-281/
   DATASET_ROOT="palace-fine-arts-281"
+
+elif [ "$DATASET_NAME" == "2011205_rc3" ]; then 
+  unzip -qq 2011205_rc3.zip
+  DATASET_ROOT="2011205_rc3"
 fi
 
 
@@ -72,6 +83,13 @@ elif [ "$LOADER_NAME" == "colmap-loader" ]; then
   python gtsfm/runner/run_scene_optimizer_colmaploader.py \
   --images_dir ${IMAGES_DIR} \
   --colmap_files_dirpath $COLMAP_FILES_DIRPATH \
+  --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
+  --config_name ${CONFIG_NAME}.yaml \
+  --max_resolution ${MAX_RESOLUTION}
+
+elif [ "$LOADER_NAME" == "astronet" ]; then
+  python gtsfm/runner/run_scene_optimizer_astronet.py \
+  --data_dir $DATASET_ROOT \
   --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
   --config_name ${CONFIG_NAME}.yaml \
   --max_resolution ${MAX_RESOLUTION}
