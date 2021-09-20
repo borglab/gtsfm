@@ -34,20 +34,24 @@ echo "Config: ${CONFIG_NAME}, Dataset: ${DATASET_NAME}, Download Source: ${DATAS
 
 # Prepare the download URLs.
 if [ "$DATASET_NAME" == "skydio-8" ]; then
+  # Description: TODO
   export GDRIVE_FILEID='1mmM1p_NpL7-pnf3iHWeWVKpsm1pcBoD5'
 
 elif [ "$DATASET_NAME" == "skydio-32" ]; then
+  # Description: TODO
   export GDRIVE_FILEID='1BQ6jp0DD3D9yhTnrDoEddzlMYT0RRH68'
 
 elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
+  # Description: TODO
   export GDRIVE_FILEID='1t_CptH7ZWdKQVW-yw56bpLS83TntNQiK'
 
 elif [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then
+  # Description: TODO
   WGET_URL1=http://vision.maths.lth.se/calledataset/fine_arts_palace/fine_arts_palace.zip
   WGET_URL2=http://vision.maths.lth.se/calledataset/fine_arts_palace/data.mat
 
 elif [ "$DATASET_NAME" == "2011205_rc3" ]; then
-  # Description: images captured during the Rotation Characterization 3 (RC3) phase of the Dawn mission to Asteroid 4
+  # Description: images captured during the Rotation Characterization 3 (RC3) phase of NASA's Dawn mission to Asteroid 4
   #   Vesta.
   WGET_URL1=https://www.dropbox.com/s/q02mgq1unbw068t/2011205_rc3.zip
 fi
