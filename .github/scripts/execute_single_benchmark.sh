@@ -89,16 +89,12 @@ elif [ "$DATASET_NAME" == "skydio-32" ]; then
   COLMAP_FILES_DIRPATH=skydio-32/colmap_crane_mast_32imgs
   IMAGES_DIR=skydio-32/images
 
-<<<<<<< HEAD
-elif [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then 
-=======
 elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
   unzip -qq notre-dame-20.zip
   COLMAP_FILES_DIRPATH=notre-dame-20/notre-dame-20-colmap
   IMAGES_DIR=notre-dame-20/images
 
 elif [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then \
->>>>>>> 941761452178fae4c12f3ad12b3dc95b8455ff44
   mkdir palace-fine-arts-281
   unzip -qq fine_arts_palace.zip -d palace-fine-arts-281/images
   mv data.mat palace-fine-arts-281/
