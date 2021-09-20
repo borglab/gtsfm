@@ -143,9 +143,13 @@ def filter_edges_by_strictest_threshold(
 ) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3]]:
     """Relax the strictness of front-end image pair acceptance thresholds until sufficient measurements are obtained.
 
-    Empirically, we require at least (3 * number of images in the dataset) for # of backend measurements, to accept
-    result. In other words, we use as a proxy "number of backend measurements coming out of cycle consistency" for
-    "is the problem solvable". We only run the front-end computation once, however.
+    We try to solve the problem at varying level of difficulties, starting at the strictest
+    setting, and gradually relaxing the problem until a sufficient number of inliers can be found.
+    
+    Empirically we require at least (3 * number of images in the dataset) for # of backend measurements, to accept
+    result, for sufficient redundancy in the graph. In other words, we use as a proxy "number of backend measurements
+    coming out of cycle consistency" for "is the problem solvable". We only run the front-end computation once, however.
+    These measurements are then fed to the backend.
 
     Relaxation is necessary because no set of hyperparameters will generalize to all scenes, based on the width of
     baselines and # of total images. COLMAP does the same thing here:

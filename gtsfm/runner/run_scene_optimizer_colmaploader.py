@@ -14,11 +14,7 @@ logger = logger_utils.get_logger()
 
 
 def run_scene_optimizer(args: argparse.Namespace) -> None:
-    """We solve the problem at varying level of difficulties, starting at the strictest
-    setting, and gradually relaxing the problem until a sufficient number of inliers can be found.
-    As for measurements that are fed to the backend, we require three times the number of input
-    images, for sufficient redundancy in the graph.
-    """
+    """ """
     start = time.time()
 
     with hydra.initialize_config_module(config_module="gtsfm.configs"):
