@@ -9,6 +9,26 @@ DATASET_SRC=$5
 LOADER_NAME=$6
 MAX_RESOLUTION=$7
 
+function retry {
+  local retries=$1
+  shift
+
+  local count=0
+  until "$@"; do # actual command execution happening here, and will continue till signal 0 (success).
+    exit=$?
+    wait=$((2 ** $count))
+    count=$(($count + 1))
+    if [ $count -lt $retries ]; then
+      echo "Retry $count/$retries exited $exit, retrying in $wait seconds..."
+      sleep $wait
+    else
+      echo "Retry $count/$retries exited $exit, no more retries left."
+      return $exit
+    fi
+  done
+  return 0
+}
+
 
 echo "Config: ${CONFIG_NAME}, Dataset: ${DATASET_NAME}, Download Source: ${DATASET_SRC}, Loader: ${LOADER_NAME}"
 
@@ -28,13 +48,13 @@ fi
 if [ "$DATASET_SRC" == "gdrive" ]; then
   echo "Downloading ${DATASET_NAME} from GDRIVE"
   export GDRIVE_URL='https://docs.google.com/uc?export=download&id='$GDRIVE_FILEID
-  wget --save-cookies cookies.txt $GDRIVE_URL -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1/p' > confirm.txt
-  wget --load-cookies cookies.txt -O ${DATASET_NAME}.zip $GDRIVE_URL'&confirm='$(<confirm.txt)
+  retry 3 wget --save-cookies cookies.txt $GDRIVE_URL -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1/p' > confirm.txt
+  retry 3 wget --load-cookies cookies.txt -O ${DATASET_NAME}.zip $GDRIVE_URL'&confirm='$(<confirm.txt)
 
 elif [ "$DATASET_SRC" == "wget" ]; then
   echo "Downloading ${DATASET_NAME} with WGET"
-  wget $WGET_URL1
-  wget $WGET_URL2
+  retry 3 wget $WGET_URL1
+  retry 3 wget $WGET_URL2
 fi
 
 # Extract the data, configure arguments for runner.
