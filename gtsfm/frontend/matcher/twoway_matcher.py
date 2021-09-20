@@ -35,7 +35,7 @@ class TwoWayMatcher(MatcherBase):
         descriptors_i2: np.ndarray,
         im_shape_i1: Tuple[int, int],  # pylint: disable=unused-argument
         im_shape_i2: Tuple[int, int],  # pylint: disable=unused-argument
-        ratio: Optional[float] = True,
+        ratio: Optional[float] = 0.8,
         cross_check: bool = True,
         use_gms: bool = True,
         with_scale: bool = True,
