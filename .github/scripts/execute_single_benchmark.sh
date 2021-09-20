@@ -37,6 +37,8 @@ if [ "$DATASET_NAME" == "skydio-8" ]; then
   export GDRIVE_FILEID='1mmM1p_NpL7-pnf3iHWeWVKpsm1pcBoD5'
 elif [ "$DATASET_NAME" == "skydio-32" ]; then
   export GDRIVE_FILEID='1BQ6jp0DD3D9yhTnrDoEddzlMYT0RRH68'
+elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
+  export GDRIVE_FILEID='1t_CptH7ZWdKQVW-yw56bpLS83TntNQiK'
 elif [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then
   WGET_URL1=http://vision.maths.lth.se/calledataset/fine_arts_palace/fine_arts_palace.zip
   WGET_URL2=http://vision.maths.lth.se/calledataset/fine_arts_palace/data.mat
@@ -70,6 +72,11 @@ elif [ "$DATASET_NAME" == "skydio-32" ]; then
   unzip -qq skydio-32.zip -d skydio-32
   COLMAP_FILES_DIRPATH=skydio-32/colmap_crane_mast_32imgs
   IMAGES_DIR=skydio-32/images
+
+elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
+  unzip -qq notre-dame-20.zip
+  COLMAP_FILES_DIRPATH=notre-dame-20/notre-dame-20-colmap
+  IMAGES_DIR=notre-dame-20/images
 
 elif [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then \
   mkdir palace-fine-arts-281
