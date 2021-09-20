@@ -10,6 +10,10 @@ jobs:
       matrix:
         config_dataset_info:
           [
+            "sift_front_end,  door-12,               12,  JPG,  test_data,  olsson-loader,  1296",
+            "deep_front_end,  door-12,               12,  JPG,  test_data,  olsson-loader,  1296",
+            "sift_front_end,  skydio-8,              8,   jpg,  gdrive ,    colmap-loader,  760",
+            "deep_front_end,  skydio-8,              8,   jpg,  gdrive,     colmap-loader,  760",
             "sift_front_end,  skydio-32,             32,  jpg,  gdrive,     colmap-loader,  760",
             "deep_front_end,  skydio-32,             32,  jpg,  gdrive,     colmap-loader,  760",
             "sift_front_end,  palace-fine-arts-281,  25,  jpg,  wget,       olsson-loader,  320",

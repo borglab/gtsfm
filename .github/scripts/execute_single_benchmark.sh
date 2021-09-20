@@ -44,6 +44,8 @@ elif [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then
   WGET_URL2=http://vision.maths.lth.se/calledataset/fine_arts_palace/data.mat
 
 elif [ "$DATASET_NAME" == "2011205_rc3" ]; then
+  # Description: images captured during the Rotation Characterization 3 (RC3) phase of the Dawn mission to Asteroid 4
+  #   Vesta.
   WGET_URL1=https://www.dropbox.com/s/q02mgq1unbw068t/2011205_rc3.zip
 fi
 
@@ -57,6 +59,8 @@ if [ "$DATASET_SRC" == "gdrive" ]; then
 elif [ "$DATASET_SRC" == "wget" ]; then
   echo "Downloading ${DATASET_NAME} with WGET"
   retry 3 wget $WGET_URL1
+
+  # Check if $WGET_URL2 has been set.
   if [ ! -z "$WGET_URL2" ]; then
     retry 3 wget $WGET_URL2
   fi
