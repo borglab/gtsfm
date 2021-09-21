@@ -181,7 +181,7 @@ class TwoViewEstimator:
             R_error_deg, U_error_deg = (None, None)
             num_inliers_gt_model, inlier_ratio_gt_model = None, None
 
-        num_H_inliers, H_inlier_ratio = dask.delayed(self._homography_estimator.estimate, nout=2)(
+        H, num_H_inliers, H_inlier_ratio = dask.delayed(self._homography_estimator.estimate, nout=3)(
             keypoints_i1_graph,
             keypoints_i2_graph,
             match_indices=corr_idxs_graph,
@@ -222,9 +222,7 @@ class TwoViewEstimator:
         valid_model = two_view_report.num_inliers_est_model > 0
         if valid_model:
             logger.info("H_EF_inlier_ratio: %.2f", H_EF_inlier_ratio)
-
         if (valid_model and is_planar_or_panoramic) or (valid_model and insufficient_inliers):
-
             if is_planar_or_panoramic:
                 logger.info("Planar or panoramic; pose from homography currently not supported.")
             if insufficient_inliers:
