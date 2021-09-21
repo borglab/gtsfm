@@ -162,7 +162,7 @@ class SceneOptimizer:
         # persist all front-end metrics and its summary
         auxiliary_graph_list.append(
             dask.delayed(save_full_frontend_metrics)(
-                two_view_reports_dict, image_graph, save_fname="frontend_full.json"
+                two_view_reports_dict, image_graph, filename="frontend_full.json"
             )
         )
         if gt_pose_graph is not None:
@@ -204,7 +204,7 @@ class SceneOptimizer:
                 dask.delayed(save_full_frontend_metrics)(
                     two_view_reports_dict_cycle_consistent,
                     image_graph,
-                    save_fname="cycle_consistent_frontend_full.json",
+                    filename="cycle_consistent_frontend_full.json",
                 )
             )
 
@@ -324,14 +324,14 @@ def save_metrics_reports(metrics_graph_list: Delayed) -> List[Delayed]:
 
 
 def save_full_frontend_metrics(
-    two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport], images: List[Image], save_fname: str
+    two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport], images: List[Image], filename: str
 ) -> None:
     """Converts the TwoViewEstimationReports for all image pairs to a Dict and saves it as JSON.
 
     Args:
         two_view_report_dict: front-end metrics for pairs of images.
         images: list of all images for this scene, in order of image/frame index.
-        save_fname: file name to use when saving report to JSON.
+        filename: file name to use when saving report to JSON.
     """
     metrics_list = []
 
@@ -357,7 +357,7 @@ def save_full_frontend_metrics(
             }
         )
 
-    io_utils.save_json_file(os.path.join(METRICS_PATH, save_fname), metrics_list)
+    io_utils.save_json_file(os.path.join(METRICS_PATH, filename), metrics_list)
 
     # Save duplicate copy of 'frontend_full.json' within React Folder.
-    io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, save_fname), metrics_list)
+    io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, filename), metrics_list)
