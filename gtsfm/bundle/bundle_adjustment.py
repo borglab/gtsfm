@@ -32,11 +32,12 @@ METRICS_PATH = Path(__file__).resolve().parent.parent.parent / "result_metrics"
 of the camera pose and the camera intrinsics, and hence gives an option to share the intrinsics between cameras.
 """
 
-# TODO: any way this goes away?
-C = symbol_shorthand.C
-P = symbol_shorthand.P
+P = symbol_shorthand.P  # 3d point
+X = symbol_shorthand.X  # camera pose
+K = symbol_shorthand.K  # calibration
 
-PINHOLE_CAM_CAL3BUNDLER_DOF = 9  # 6 dof for pose, and 3 dof for f, k1, k2
+CAM_POSE3_DOF = 6  # 6 dof for pose of camera
+CAM_CAL3BUNDLER_DOF = 3  # 3 dof for f, k1, k2 for intrinsics of camera
 IMG_MEASUREMENT_DIM = 2  # 2d measurements (u,v) have 2 dof
 POINT3_DOF = 3  # 3d points have 3 dof
 
@@ -95,7 +96,7 @@ class BundleAdjustmentOptimizer:
             logger.error(
                 "Bundle adjustment aborting, optimization cannot be performed without any tracks or any cameras."
             )
-            return initial_data
+            return initial_data, GtsfmMetricsGroup()
 
         # noise model for measurements -- one pixel in u and v
         measurement_noise = gtsam.noiseModel.Isotropic.Sigma(IMG_MEASUREMENT_DIM, MEASUREMENT_NOISE_SIGMA)
@@ -177,7 +178,7 @@ class BundleAdjustmentOptimizer:
         except Exception:
             logger.exception("LM Optimization failed")
             # as we did not perform the bundle adjustment, we skip computing the total reprojection error
-            return GtsfmData(initial_data.number_images())
+            return GtsfmData(initial_data.number_images()), GtsfmMetricsGroup()
 
         final_error = graph.error(result_values)
 
@@ -186,7 +187,7 @@ class BundleAdjustmentOptimizer:
         logger.info(f"final error: {final_error:.2f}")
 
         # construct the results
-        optimized_data = values_to_gtsfm_data(result_values, initial_data)
+        optimized_data = values_to_gtsfm_data(result_values, initial_data, self._shared_calib)
 
         def get_metrics_from_sfm_data(sfm_data: GtsfmData, suffix: str) -> List[GtsfmMetric]:
             """Helper to get bundle adjustment metrics from a GtsfmData object with a suffix for metric names."""
@@ -209,7 +210,7 @@ class BundleAdjustmentOptimizer:
         logger.info("[Result] Number of tracks before filtering: %d", optimized_data.number_tracks())
 
         # filter the largest errors
-        filtered_result = optimized_data.filter_landmarks(self.output_reproj_error_thresh)
+        filtered_result = optimized_data.filter_landmarks(self._output_reproj_error_thresh)
 
         if wTi_list_gt is not None:
             # align the sparse multi-view estimate after BA to the ground truth pose graph.
@@ -246,13 +247,14 @@ class BundleAdjustmentOptimizer:
         return data_metrics_graph[0], data_metrics_graph[1]
 
 
-def values_to_gtsfm_data(values: Values, initial_data: GtsfmData) -> GtsfmData:
+def values_to_gtsfm_data(values: Values, initial_data: GtsfmData, shared_calib: bool) -> GtsfmData:
     """Cast results from the optimization to GtsfmData object.
 
     Args:
         values: results of factor graph optimization.
         initial_data: data used to generate the factor graph; used to extract information about poses and 3d points in
                       the graph.
+        shared_calib: flag indicating if calibrations were shared between the cameras.
 
     Returns:
         optimized poses and landmarks.
