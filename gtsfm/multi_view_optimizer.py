@@ -39,7 +39,6 @@ class MultiViewOptimizer:
         i2Ui1_graph: Dict[Tuple[int, int], Delayed],
         v_corr_idxs_graph: Dict[Tuple[int, int], Delayed],
         intrinsics_graph: List[Delayed],
-        gt_poses_graph: Optional[List[Delayed]] = None,
         gt_cameras_graph: Optional[List[Delayed]] = None,
     ) -> Tuple[Delayed, Delayed, Delayed]:
         """Creates a computation graph for multi-view optimization.
@@ -51,7 +50,6 @@ class MultiViewOptimizer:
             i2Ui1_graph: relative unit-translations for image pairs, each value wrapped up as Delayed.
             v_corr_idxs_graph: indices of verified correspondences for image pairs, wrapped up as Delayed.
             intrinsics_graph: intrinsics for images, wrapped up as Delayed.
-            gt_poses_graph: list of GT camera poses, ordered by camera index (Pose3), wrapped up as Delayed.
             gt_cameras_graph: list of GT cameras (if they exist), ordered by camera index, wrapped up as Delayed.
 
         Returns:
@@ -75,12 +73,12 @@ class MultiViewOptimizer:
             num_images, init_cameras_graph, v_corr_idxs_graph, keypoints_graph, images_graph, gt_cameras_graph
         )
 
-        ba_result_graph, ba_metrics_graph = self.ba_optimizer.create_computation_graph(
-            ba_input_graph, gt_poses_graph, gt_cameras_graph
-        )
+        ba_result_graph, ba_metrics_graph = self.ba_optimizer.create_computation_graph(ba_input_graph, gt_cameras_graph)
 
-        if gt_poses_graph is None:
+        if gt_cameras_graph is None:
             return ba_input_graph, ba_result_graph, None
+
+        gt_poses_graph = [dask.delayed(lambda x: x.pose())(cam) for cam in gt_cameras_graph]
 
         rot_avg_metrics = dask.delayed(metrics_utils.compute_rotation_averaging_metrics)(
             wRi_graph, wti_graph, gt_poses_graph

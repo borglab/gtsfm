@@ -27,7 +27,7 @@ def run_scene_optimizer(args: argparse.Namespace) -> None:
             max_num_imgs=args.max_num_imgs,
             max_lookahead_sec=args.max_lookahead_sec,
             camera_name=args.camera_name,
-            max_resolution=args.max_resolution
+            max_resolution=args.max_resolution,
         )
 
         sfm_result_graph = scene_optimizer.create_computation_graph(
@@ -36,7 +36,6 @@ def run_scene_optimizer(args: argparse.Namespace) -> None:
             image_graph=loader.create_computation_graph_for_images(),
             camera_intrinsics_graph=loader.create_computation_graph_for_intrinsics(),
             image_shape_graph=loader.create_computation_graph_for_image_shapes(),
-            gt_pose_graph=loader.create_computation_graph_for_poses(),
             gt_cameras_graph=loader.create_computation_graph_for_cameras(),
         )
 

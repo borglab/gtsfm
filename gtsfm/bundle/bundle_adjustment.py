@@ -172,7 +172,9 @@ class BundleAdjustmentOptimizer:
 
         if cameras_gt is not None:
             # align the sparse multi-view estimate after BA to the ground truth pose graph.
-            filtered_result = filtered_result.align_via_Sim3_to_poses(wTi_list_gt)
+            filtered_result = filtered_result.align_via_Sim3_to_poses(
+                wTi_list_ref=[cam.pose() for cam in cameras_gt] if cameras_gt else []
+            )
             ba_pose_error_metrics = metrics_utils.compute_ba_pose_metrics(
                 gt_wTi_list=[cam.pose() for cam in cameras_gt], ba_output=filtered_result
             )

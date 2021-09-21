@@ -123,9 +123,11 @@ class SceneOptimizer:
         two_view_reports_dict = {}
 
         for (i1, i2) in image_pair_indices:
-            if gt_pose_graph is not None:
+            if gt_cameras_graph is not None:
                 # compute GT relative pose
-                gt_i2Ti1 = dask.delayed(lambda x, y: x.between(y))(gt_pose_graph[i2], gt_pose_graph[i1])
+                gt_i2Ti1 = dask.delayed(lambda x, y: x.pose().between(y.pose()))(
+                    gt_cameras_graph[i2], gt_cameras_graph[i1]
+                )
             else:
                 gt_i2Ti1 = None
 
@@ -161,7 +163,7 @@ class SceneOptimizer:
 
         # persist all front-end metrics and its summary
         auxiliary_graph_list.append(dask.delayed(save_full_frontend_metrics)(two_view_reports_dict, image_graph))
-        if gt_pose_graph is not None:
+        if gt_cameras_graph is not None:
             metrics_graph_list.append(
                 dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
                     two_view_reports_dict, self._pose_angular_error_thresh, metric_group_name="frontend_summary"
@@ -185,7 +187,7 @@ class SceneOptimizer:
             valid_keys = list(ref_dict.keys())
             return {k: v for k, v in dict.items() if k in valid_keys}
 
-        if gt_pose_graph is not None:
+        if gt_cameras_graph is not None:
             two_view_reports_dict_cycle_consistent = dask.delayed(_filter_dict_keys)(
                 dict=two_view_reports_dict, ref_dict=i2Ri1_graph_dict
             )
@@ -217,7 +219,10 @@ class SceneOptimizer:
         auxiliary_graph_list.extend(save_metrics_reports(metrics_graph_list))
 
         if self._save_3d_viz:
-            auxiliary_graph_list.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_pose_graph))
+            gt_poses_graph = (
+                [dask.delayed(lambda x: x.pose())(cam) for cam in gt_cameras_graph] if gt_cameras_graph else []
+            )
+            auxiliary_graph_list.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_poses_graph))
 
         if self._save_gtsfm_data:
             auxiliary_graph_list.extend(save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph))
