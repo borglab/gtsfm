@@ -1,4 +1,3 @@
-
 """
 Decompose an homography matrix into the possible rotations, translations,
 and plane normal vectors.
@@ -44,6 +43,7 @@ PoseFromHomographyMatrix(
     }
 """
 
+
 def pose_from_homography_matrix(
     H: np.ndarray,
     K1: np.ndarray,
@@ -51,8 +51,8 @@ def pose_from_homography_matrix(
     points1: np.ndarray,
     points2: np.ndarray,
     n: np.ndarray,
-    points3D: np.ndarray
-) -> Tuple[Rot3, Unit3]:
+    points3D: np.ndarray,
+) -> Tuple[Rot3, Unit3, np.ndarray, np.ndarray]:
     """Recover the most probable pose from the given homography matrix.
 
     Args:
@@ -65,15 +65,15 @@ def pose_from_homography_matrix(
     Returns:
         R: relative rotation matrix.
         t: translation direction.
-        n: 
-        points3D:
+        n: array of shape (3,) representing plane normal vector.
+        points3D: array of shape (N,3) representing triangulated 3d points.
     """
     if points1.shape != points2.shape:
         raise RuntimeError("Coordinates of 2d correspondences must have the same shape.")
 
     R_cmbs, t_cmbs, n_cmbs = decompose_homography_matrix(H, K1, K2)
 
-    points3d = np.zeros((0,3))
+    points3d = np.zeros((0, 3))
     for i in range(len(R_cmbs)):
         points3D_cmb = check_cheirality(R_cmbs[i], t_cmbs[i], points1, points2)
         if len(points3D_cmb) >= len(points3D):
@@ -82,7 +82,7 @@ def pose_from_homography_matrix(
             n = n_cmbs[i]
             points3D = points3D_cmb
 
-    return R, t
+    return R, t, n, points3D
 
 
 def check_cheirality(R: Rot3, t: np.ndarray, points1, points2) -> np.ndarray:
@@ -90,7 +90,7 @@ def check_cheirality(R: Rot3, t: np.ndarray, points1, points2) -> np.ndarray:
     Args:
         R: array of shape (3,3)
         t: array of shape (3,)
-        points1: 
+        points1:
         points2:
 
     Returns:
@@ -99,31 +99,29 @@ def check_cheirality(R: Rot3, t: np.ndarray, points1, points2) -> np.ndarray:
     if points1.shape != points2.shape:
         raise RuntimeError("Coordinates of 2d correspondences must have the same shape.")
 
-  # const Eigen::Matrix3x4d proj_matrix1 = Eigen::Matrix3x4d::Identity();
-  # const Eigen::Matrix3x4d proj_matrix2 = ComposeProjectionMatrix(R, t);
-  # const double kMinDepth = std::numeric_limits<double>::epsilon();
-  # const double max_depth = 1000.0f * (R.transpose() * t).norm();
-  # points3D->clear();
-  # for (size_t i = 0; i < points1.size(); ++i) {
-  #   const Eigen::Vector3d point3D =
-  #       TriangulatePoint(proj_matrix1, proj_matrix2, points1[i], points2[i]);
-  #   const double depth1 = CalculateDepth(proj_matrix1, point3D);
-  #   if (depth1 > kMinDepth && depth1 < max_depth) {
-  #     const double depth2 = CalculateDepth(proj_matrix2, point3D);
-  #     if (depth2 > kMinDepth && depth2 < max_depth) {
-  #       points3D->push_back(point3D);
-  #     }
-  #   }
-  # }
-  # return !points3D->empty();
+    # const Eigen::Matrix3x4d proj_matrix1 = Eigen::Matrix3x4d::Identity();
+    # const Eigen::Matrix3x4d proj_matrix2 = ComposeProjectionMatrix(R, t);
+    # const double kMinDepth = std::numeric_limits<double>::epsilon();
+    # const double max_depth = 1000.0f * (R.transpose() * t).norm();
+    # points3D->clear();
+    # for (size_t i = 0; i < points1.size(); ++i) {
+    #   const Eigen::Vector3d point3D =
+    #       TriangulatePoint(proj_matrix1, proj_matrix2, points1[i], points2[i]);
+    #   const double depth1 = CalculateDepth(proj_matrix1, point3D);
+    #   if (depth1 > kMinDepth && depth1 < max_depth) {
+    #     const double depth2 = CalculateDepth(proj_matrix2, point3D);
+    #     if (depth2 > kMinDepth && depth2 < max_depth) {
+    #       points3D->push_back(point3D);
+    #     }
+    #   }
+    # }
+    # return !points3D->empty();
 
 
 def decompose_homography_matrix(
-    H: np.ndarray,
-    K1: np.ndarray,
-    K2: np.ndarray
-) -> Tuple[]:
-    """TODO
+    H: np.ndarray, K1: np.ndarray, K2: np.ndarray
+) -> Tuple[List[Rot3], List[Unit3], List[Unit3]]:
+    """Decompose an homography matrix into the possible rotations, translations, and plane normal vectors.
 
     Args:
         H: array of shape (3,3)
@@ -131,9 +129,9 @@ def decompose_homography_matrix(
         K2: array of shape (3,3) representing camera 2's intrinsics
 
     Returns:
-        R_cmbs: list of length 4, representing combinations of possible R matrices (3,3)
-        t_cmbs: list of length 4, representing combinations of possible t directions (3,)
-        n_cmbs: list of length 4, representing combinations of (3,)
+        R_cmbs: list representing combinations of possible R matrices of shape (3,3).
+        t_cmbs: list representing combinations of possible t directions of shape (3,).
+        n_cmbs: list representing combinations of possible plane normals vectors of shape (3,).
     """
     # Remove calibration from homography.
     H_normalized = np.linalg.inv(K2) @ H @ K1
@@ -157,12 +155,12 @@ def decompose_homography_matrix(
     # - So det(R) and det(H_normalized) have the same sign.
     if np.linalg.det(H_normalized) < 0:
         H_normalized *= -1
-    
+
     S = H_normalized.T * H_normalized - np.eye(3)
 
     # Check if H is rotation matrix.
-    const double kMinInfinityNorm = 1e-3;
-    if (S.lpNorm<Eigen::Infinity>() < kMinInfinityNorm):
+    kMinInfinityNorm = 1e-3
+    if np.linalg.norm(S, ord=inf) < kMinInfinityNorm:
         R_cmbs = [H_normalized]
         t_cmbs = [np.zeros(3)]
         n_cmbs = [np.zeros(3)]
@@ -188,10 +186,9 @@ def decompose_homography_matrix(
     nS11 = np.absolute(S[1, 1])
     nS22 = np.absolute(S[2, 2])
 
-    nS = np.array([])
-
-  const std::array<double, 3> nS{{nS00, nS11, nS22}};
-    idx = std::distance(nS.begin(), std::max_element(nS.begin(), nS.end()));
+    nS = np.array([nS00, nS11, nS22])
+    # count the number of elements between the first element in the array, and the largest element.
+    idx = np.argmax(nS)
 
     np1 = np.zeros(3)
     np2 = np.zeros(3)
@@ -228,8 +225,8 @@ def decompose_homography_matrix(
     n_t = np.sqrt(nt_2)
 
     # normalize
-    n1 = np1 /= np.linalg.norm(np1)
-    n2 = np2 /= np.linalg.norm(np2)
+    n1 = np1 / np.linalg.norm(np1)
+    n2 = np2 / np.linalg.norm(np2)
 
     half_nt = 0.5 * n_t
     esii_t_r = ESii * r
@@ -238,10 +235,10 @@ def decompose_homography_matrix(
     t2_star = half_nt * (esii_t_r * n1 - n_t * n2)
 
     R1 = compute_homography_rotation(H_normalized, t1_star, n1, v)
-    t1 = R1 * t1_star;
+    t1 = R1 * t1_star
 
     R2 = compute_homography_rotation(H_normalized, t2_star, n2, v)
-    t2 = R2 * t2_star;
+    t2 = R2 * t2_star
 
     R_cmbs = [R1, R1, R2, R2]
     t_cmbs = [t1, -t1, t2, -t2]
@@ -252,25 +249,21 @@ def decompose_homography_matrix(
 def ComputeOppositeOfMinor(matrix: np.ndarray, row: int, col: int) -> float:
     """
     Args:
-        matrix: array of shape 
+        matrix: array of shape
         row: row index.
         col: column index.
 
     Returns:
         float representing ...
     """
-    col1 = col == 0 ? 1 : 0
-    col2 = col == 2 ? 1 : 2
-    row1 = row == 0 ? 1 : 0
-    row2 = row == 2 ? 1 : 2
+    col1 = 1 if col == 0 else 0
+    col2 = 1 if col == 2 else 2
+    row1 = 1 if row == 0 else 0
+    row2 = 1 if row == 2 else 2
     return matrix[row1, col2] * matrix[row2, col1] - matrix[row1, col1] * matrix[row2, col2]
 
-def compute_homography_rotation(
-    H_normalized: np.ndarray,
-    tstar: np.ndarray,
-    n: np.ndarray,
-    v: float
-) -> np.ndarray:
+
+def compute_homography_rotation(H_normalized: np.ndarray, tstar: np.ndarray, n: np.ndarray, v: float) -> np.ndarray:
     """Returns 3x3 matrix
 
     See Equation 99 on Page 32 of https://hal.inria.fr/inria-00174036/PDF/RR-6303.pdf
@@ -279,11 +272,10 @@ def compute_homography_rotation(
         H_normalized: array of shape (3,3)
         tstar: array of shape (3,)
         n: array of shape (3,)
-        v: 
+        v:
 
     Returns:
         array of shape (3,3) representing rotation matrix
     """
     I = np.eye(3)
     return H_normalized @ (I - (2.0 / v) @ tstar @ n.T)
-
