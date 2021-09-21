@@ -161,9 +161,7 @@ class SceneOptimizer:
 
         # persist all front-end metrics and its summary
         auxiliary_graph_list.append(
-            dask.delayed(save_full_frontend_metrics)(
-                two_view_reports_dict, image_graph, filename="frontend_full.json"
-            )
+            dask.delayed(save_full_frontend_metrics)(two_view_reports_dict, image_graph, filename="frontend_full.json")
         )
         if gt_pose_graph is not None:
             metrics_graph_list.append(
