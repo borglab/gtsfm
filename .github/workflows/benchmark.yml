@@ -8,15 +8,18 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        config_dataset_info: [
+        config_dataset_info:
+          [
             "sift_front_end,  door-12,               12,  JPG,  test_data,  olsson-loader,  1296",
             "deep_front_end,  door-12,               12,  JPG,  test_data,  olsson-loader,  1296",
             "sift_front_end,  skydio-8,              8,   jpg,  gdrive ,    colmap-loader,  760",
             "deep_front_end,  skydio-8,              8,   jpg,  gdrive,     colmap-loader,  760",
             "sift_front_end,  skydio-32,             32,  jpg,  gdrive,     colmap-loader,  760",
             "deep_front_end,  skydio-32,             32,  jpg,  gdrive,     colmap-loader,  760",
-            "sift_front_end,  palace-fine-arts-281,  25,  jpg,  wget,       olsson-loader,  320"
-        ]
+            "sift_front_end,  palace-fine-arts-281,  25,  jpg,  wget,       olsson-loader,  320",
+            "deep_front_end,  notre-dame-20,         20,  jpg,  gdrive,     colmap-loader,  760",
+            "sift_front_end,  2011205_rc3,           65,  png,  wget,       astronet,       1024",
+          ]
     defaults:
       run:
         shell: bash -l {0}
@@ -33,8 +36,7 @@ jobs:
           CACHE_NUMBER: 0
         with:
           path: ~/conda_pkgs_dir
-          key:
-            ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('environment_linux.yml') }}
+          key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('environment_linux.yml') }}
       - uses: conda-incubator/setup-miniconda@v2
         with:
           miniconda-version: "latest"
@@ -67,7 +69,7 @@ jobs:
             $DATASET_SRC \
             $LOADER_NAME \
             $MAX_RESOLUTION
-        
+
       - name: Archive dataset metrics
         uses: actions/upload-artifact@v2
         with:
