@@ -177,6 +177,7 @@ def compute_cycle_error(
 def filter_to_cycle_consistent_edges(
     i2Ri1_dict: Dict[Tuple[int, int], Rot3],
     i2Ui1_dict: Dict[Tuple[int, int], Unit3],
+    v_corr_idxs_dict: Dict[Tuple[int,int], np.ndarray],
     two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
     visualize: bool = True,
 ) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3]]:
@@ -201,6 +202,7 @@ def filter_to_cycle_consistent_edges(
         i2Ri1_dict: mapping from image pair indices (i1,i2) to relative rotation i2Ri1.
         i2Ui1_dict: mapping from image pair indices (i1,i2) to relative translation direction i2Ui1.
             Should have same keys as i2Ri1_dict.
+        v_corr_idxs_dict: dictionary, with key as image pair (i1,i2) and value as matching keypoint indices.
         two_view_reports_dict: mapping from image pair indices (i1,i2) to a report containing information
             about the verifier's output (and optionally measurement error w.r.t GT). Note: i1 < i2 always.
         visualize: boolean indicating whether to plot cycle error vs. pose error w.r.t. GT
@@ -250,10 +252,11 @@ def filter_to_cycle_consistent_edges(
 
     logger.info("cycle_consistent_keys: " + str(cycle_consistent_keys))
 
-    i2Ri1_dict_consistent, i2Ui1_dict_consistent = {}, {}
+    i2Ri1_dict_consistent, i2Ui1_dict_consistent, v_corr_idxs_dict_consistent = {}, {}, {}
     for (i1, i2) in cycle_consistent_keys:
         i2Ri1_dict_consistent[(i1, i2)] = i2Ri1_dict[(i1, i2)]
         i2Ui1_dict_consistent[(i1, i2)] = i2Ui1_dict[(i1, i2)]
+        v_corr_idxs_dict_consistent[(i1,i2)] = v_corr_idxs_dict[(i1,i2)]
 
     logger.info("Found %d consistent rel. rotations from %d original edges.", len(i2Ri1_dict_consistent), n_valid_edges)
-    return i2Ri1_dict_consistent, i2Ui1_dict_consistent
+    return i2Ri1_dict_consistent, i2Ui1_dict_consistent, v_corr_idxs_dict_consistent
