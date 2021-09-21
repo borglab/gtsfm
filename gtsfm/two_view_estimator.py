@@ -16,6 +16,7 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
+from gtsfm.frontend.verifier.homography import HomographyEstimator
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
@@ -26,6 +27,16 @@ mpl_logger.setLevel(logging.WARNING)
 
 pil_logger = logging.getLogger("PIL")
 pil_logger.setLevel(logging.INFO)
+
+# In case an epipolar geometry can be verified, it is checked whether
+# the geometry describes a planar scene or panoramic view (pure rotation)
+# described by a homography. This is a degenerate case, since epipolar
+# geometry is only defined for a moving camera. If the inlier ratio of
+# a homography comes close to the inlier ratio of the epipolar geometry,
+# a planar or panoramic configuration is assumed.
+# Based on COLMAP's front-end logic here:
+#    https://github.com/colmap/colmap/blob/dev/src/estimators/two_view_geometry.cc#L230
+MAX_H_INLIER_RATIO = 0.8
 
 EPSILON = 1e-6
 
@@ -54,6 +65,8 @@ class TwoViewEstimationReport:
     """
 
     v_corr_idxs: np.ndarray
+    num_H_inliers: int
+    H_inlier_ratio: float
     num_inliers_est_model: float
     inlier_ratio_est_model: Optional[float] = None  # TODO: make not optional (pass from verifier)
     num_inliers_gt_model: Optional[float] = None
@@ -62,7 +75,6 @@ class TwoViewEstimationReport:
     U_error_deg: Optional[float] = None
     i2Ri1: Optional[Rot3] = None
     i2Ui1: Optional[Unit3] = None
-
 
 class TwoViewEstimator:
     """Wrapper for running two-view relative pose estimation on image pairs in the dataset."""
@@ -88,6 +100,8 @@ class TwoViewEstimator:
         self._verifier = verifier
         self._corr_metric_dist_threshold = eval_threshold_px
         self._min_num_inliers_acceptance = min_num_inliers_acceptance
+        # Note: homography estimation threshold must match the E / F thresholds for #inliers to be comparable
+        self._homography_estimator = HomographyEstimator(verifier._estimation_threshold_px)
 
     def get_corr_metric_dist_threshold(self) -> float:
         """Getter for the distance threshold used in the metric for correct correspondences."""
@@ -150,7 +164,7 @@ class TwoViewEstimator:
 
         # if we have the expected GT data, evaluate the computed relative pose
         if i2Ti1_expected_graph is not None:
-            pose_error_graphs = dask.delayed(compute_relative_pose_metrics)(
+            R_error_deg, U_error_deg = dask.delayed(compute_relative_pose_metrics, nout=2)(
                 i2Ri1_graph, i2Ui1_graph, i2Ti1_expected_graph
             )
             corr_error_graph = dask.delayed(compute_correspondence_metrics)(
@@ -164,10 +178,14 @@ class TwoViewEstimator:
             )
             num_inliers_gt_model, inlier_ratio_gt_model = corr_error_graph[0], corr_error_graph[1]
         else:
-            pose_error_graphs = (None, None)
+            R_error_deg, U_error_deg = (None, None)
             num_inliers_gt_model, inlier_ratio_gt_model = None, None
 
-        R_error_deg, U_error_deg = pose_error_graphs[0], pose_error_graphs[1]
+        num_H_inliers, H_inlier_ratio = dask.delayed(self._homography_estimator.estimate, nout=2)(
+            keypoints_i1_graph,
+            keypoints_i2_graph,
+            match_indices=corr_idxs_graph,
+        )
 
         two_view_report_graph = dask.delayed(generate_two_view_report)(
             inlier_ratio_est_model,
@@ -176,6 +194,8 @@ class TwoViewEstimator:
             num_inliers_gt_model,
             inlier_ratio_gt_model,
             v_corr_idxs_graph,
+            num_H_inliers,
+            H_inlier_ratio,
         )
 
         result = dask.delayed(self.check_for_degeneracy)(
@@ -195,11 +215,20 @@ class TwoViewEstimator:
         """ """
         insufficient_inliers = two_view_report.num_inliers_est_model < self._min_num_inliers_acceptance
 
+        H_EF_inlier_ratio = two_view_report.num_H_inliers / (two_view_report.num_inliers_est_model + EPSILON)
+        is_planar_or_panoramic = H_EF_inlier_ratio > MAX_H_INLIER_RATIO
+
         # TODO: technically this should almost always be non-zero, just need to move up to earlier
         valid_model = two_view_report.num_inliers_est_model > 0
+        if valid_model:
+            logger.info("H_EF_inlier_ratio: %.2f", H_EF_inlier_ratio)
 
-        if valid_model and insufficient_inliers:
-            logger.info("Insufficient number of inliers.")
+        if (valid_model and is_planar_or_panoramic) or (valid_model and insufficient_inliers):
+
+            if is_planar_or_panoramic:
+                logger.info("Planar or panoramic; pose from homography currently not supported.")
+            if insufficient_inliers:
+                logger.info("Insufficient number of inliers.")
 
             i2Ri1 = None
             i2Ui1 = None
@@ -221,6 +250,8 @@ def generate_two_view_report(
     num_inliers_gt_model: int,
     inlier_ratio_gt_model: float,
     v_corr_idxs: np.ndarray,
+    num_H_inliers: int,
+    H_inlier_ratio: float,
 ) -> TwoViewEstimationReport:
     """Wrapper around class constructor for Dask."""
     two_view_report = TwoViewEstimationReport(
@@ -231,6 +262,8 @@ def generate_two_view_report(
         v_corr_idxs=v_corr_idxs,
         R_error_deg=R_error_deg,
         U_error_deg=U_error_deg,
+        num_H_inliers=num_H_inliers,
+        H_inlier_ratio=H_inlier_ratio
     )
     return two_view_report
 
