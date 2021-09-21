@@ -44,7 +44,7 @@ POINT3_DOF = 3  # 3d points have 3 dof
 
 # noise model params
 CAM_POSE3_PRIOR_NOISE_SIGMA = 0.1
-CAM_CAL3BUNDLER_PRIOR_NOISE_SIGMA = 0.1
+CAM_CAL3BUNDLER_PRIOR_NOISE_SIGMA = 1e-5  # essentially fixed
 MEASUREMENT_NOISE_SIGMA = 1.0  # in pixels
 
 logger = logger_utils.get_logger()
@@ -136,15 +136,25 @@ class BundleAdjustmentOptimizer:
             )
         )
 
-        # add prior on first camera calibration.
-        # TODO: how does it make sense for non-shared calibrations.
-        graph.push_back(
-            PriorFactorCal3Bundler(
-                K(self.__map_to_calibration_variable(valid_camera_indices[0])),
-                initial_data.get_camera(valid_camera_indices[0]).calibration(),
-                gtsam.noiseModel.Isotropic.Sigma(CAM_CAL3BUNDLER_DOF, CAM_CAL3BUNDLER_PRIOR_NOISE_SIGMA),
+        # add prior on all calibrations
+        if self._shared_calib:
+            i = valid_camera_indices[0]
+            graph.push_back(
+                PriorFactorCal3Bundler(
+                    K(self.__map_to_calibration_variable(i)),
+                    initial_data.get_camera(i).calibration(),
+                    gtsam.noiseModel.Isotropic.Sigma(CAM_CAL3BUNDLER_DOF, CAM_CAL3BUNDLER_PRIOR_NOISE_SIGMA),
+                )
             )
-        )
+        else:
+            for i in valid_camera_indices:
+                graph.push_back(
+                    PriorFactorCal3Bundler(
+                        K(self.__map_to_calibration_variable(i)),
+                        initial_data.get_camera(i).calibration(),
+                        gtsam.noiseModel.Isotropic.Sigma(CAM_CAL3BUNDLER_DOF, CAM_CAL3BUNDLER_PRIOR_NOISE_SIGMA),
+                    )
+                )
 
         # Also add a prior on the position of the first landmark to fix the scale
         graph.push_back(
