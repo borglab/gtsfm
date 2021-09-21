@@ -62,6 +62,13 @@ def run_scene_optimizer() -> None:
         default=None,
         help="Path to file containing triangular surface mesh of target body.",
     )
+    parser.add_argument(
+        "--max_resolution",
+        type=int,
+        default=1024,
+        help="integer representing maximum length of image's short side"
+        " e.g. for 1080p (1920 x 1080), max_resolution would be 1080",
+    )
     args = parser.parse_args()
 
     # Initialize SceneOptimizer from config.
@@ -75,6 +82,7 @@ def run_scene_optimizer() -> None:
         use_gt_extrinsics=True,
         use_gt_sfmtracks=False,
         max_frame_lookahead=args.max_frame_lookahead,
+        max_resolution=args.max_resolution,
     )
 
     # Create Dask task graph.
