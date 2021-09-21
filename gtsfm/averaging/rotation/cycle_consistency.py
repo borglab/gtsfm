@@ -215,6 +215,8 @@ def filter_to_cycle_consistent_edges(
         i2Ri1_dict_consistent: subset of i2Ri1_dict, i.e. only including edges that belonged to some triplet
             and had cycle error below the predefined threshold.
         i2Ui1_dict_consistent: subset of i2Ui1_dict, as above.
+        v_corr_idxs_dict_consistent: subset of v_corr_idxs_dict above.
+        metrics_group: Rotation cycle consistency metrics as a metrics group.
     """
     cycle_errors = []
     max_rot_errors = []
