@@ -22,6 +22,9 @@ from typing import List, Tuple
 import numpy as np
 from gtsam import Rot3, Unit3
 
+from gtsfm.common.sfm_track import SfmTrack2d, SfmMeasurement
+from gtsfm.data_association.point3d_initializer import TriangulationParam, Point3dInitializer
+
 """
 PoseFromHomographyMatrix(
         H, camera1.CalibrationMatrix(), camera2.CalibrationMatrix(),
@@ -109,7 +112,7 @@ def check_cheirality(R: Rot3, t: np.ndarray, points1: np.ndarray, points2: np.nd
     
     for point1, point2 in zip(points1, points2)
 
-        track_2d = : SfmTrack2d()
+        track_2d = SfmTrack2d(measurements=[SfmMeasurement(i=0, uv=point1), SfmMeasurement(i=1, uv=point2)])
         track_3d, _, exit_code = triangulator.triangulate(track_2d)
         if exit_code == TriangulationExitCode.CHEIRALITY_FAILURE:
             continue
