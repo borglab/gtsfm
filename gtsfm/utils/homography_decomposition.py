@@ -17,8 +17,9 @@ OpenCV does not support the case of intrinsics from two separate cameras, howeve
 Authors: John Lambert (Python), from original C++
 """
 
-from typing import Tuple
+from typing import List, Tuple
 
+import numpy as np
 from gtsam import Rot3, Unit3
 
 """
@@ -120,6 +121,10 @@ def decompose_homography_matrix(
     H: np.ndarray, K1: np.ndarray, K2: np.ndarray
 ) -> Tuple[List[Rot3], List[Unit3], List[Unit3]]:
     """Decompose an homography matrix into the possible rotations, translations, and plane normal vectors.
+    
+    Based off of the OpenCV and COLMAP implementations:
+    `HomographyDecompInria::findRmatFrom_tstar_n()` at 
+    https://github.com/opencv/opencv/blob/master/modules/calib3d/src/homography_decomp.cpp#L325
 
     Args:
         H: array of shape (3,3)
@@ -131,6 +136,7 @@ def decompose_homography_matrix(
         t_cmbs: list representing combinations of possible t directions of shape (3,).
         n_cmbs: list representing combinations of possible plane normals vectors of shape (3,).
     """
+    import pdb; pdb.set_trace()
     # Remove calibration from homography.
     H_normalized = np.linalg.inv(K2) @ H @ K1
 
@@ -138,6 +144,7 @@ def decompose_homography_matrix(
     _, S, _ = np.linalg.svd(H_normalized)
 
     # Singular values are always sorted in decreasing order (same as in Eigen)
+    # Use the median of the singular values to compute \gammma
     H_normalized /= S[1]
 
     # Ensure that we always return rotations, and never reflections.
@@ -154,69 +161,99 @@ def decompose_homography_matrix(
     if np.linalg.det(H_normalized) < 0:
         H_normalized *= -1
 
-    S = H_normalized.T * H_normalized - np.eye(3)
+    # See Section 4.1 (Page 14)
+    S = H_normalized.T @ H_normalized - np.eye(3)
 
     # Check if H is rotation matrix.
     kMinInfinityNorm = 1e-3
-    if np.linalg.norm(S, ord=inf) < kMinInfinityNorm:
+    # matrix infinity norm is max(sum(abs(x), axis=1)) in numpy
+    # and we want the vector infinity norm max(abs(x)), so flatten.
+    if np.linalg.norm(S.flatten(), ord=np.inf) < kMinInfinityNorm:
         R_cmbs = [H_normalized]
         t_cmbs = [np.zeros(3)]
         n_cmbs = [np.zeros(3)]
         return R_cmbs, t_cmbs, n_cmbs
 
-    M00 = ComputeOppositeOfMinor(S, 0, 0)
-    M11 = ComputeOppositeOfMinor(S, 1, 1)
-    M22 = ComputeOppositeOfMinor(S, 2, 2)
+    M00 = compute_opposite_of_minor(S, row=0, col=0)
+    M11 = compute_opposite_of_minor(S, row=1, col=1)
+    M22 = compute_opposite_of_minor(S, row=2, col=2)
 
     rtM00 = np.sqrt(M00)
     rtM11 = np.sqrt(M11)
     rtM22 = np.sqrt(M22)
 
-    M01 = compute_opposite_of_minor(S, 0, 1)
-    M12 = compute_opposite_of_minor(S, 1, 2)
-    M02 = compute_opposite_of_minor(S, 0, 2)
+    M01 = compute_opposite_of_minor(S, row=0, col=1)
+    M12 = compute_opposite_of_minor(S, row=1, col=2)
+    M02 = compute_opposite_of_minor(S, row=0, col=2)
 
-    e12 = SignOfNumber(M12)
-    e02 = SignOfNumber(M02)
-    e01 = SignOfNumber(M01)
+    e12 = np.sign(M12)
+    e02 = np.sign(M02)
+    e01 = np.sign(M01)
 
     nS00 = np.absolute(S[0, 0])
     nS11 = np.absolute(S[1, 1])
     nS22 = np.absolute(S[2, 2])
 
     nS = np.array([nS00, nS11, nS22])
-    # count the number of elements between the first element in the array, and the largest element.
+    # use the alternative among the three given corresponding to the s_ii with largest absolute value
+    # (the most well conditioned option)
     idx = np.argmax(nS)
 
-    np1 = np.zeros(3)
-    np2 = np.zeros(3)
+    # See equations 11,12,13.
+    # fmt: off
     if idx == 0:
-        np1[0] = S[0, 0]
-        np2[0] = S[0, 0]
-        np1[1] = S[0, 1] + rtM22
-        np2[1] = S[0, 1] - rtM22
-        np1[2] = S[0, 2] + e12 * rtM11
-        np2[2] = S[0, 2] - e12 * rtM11
+        np1 = np.array(
+            [
+                S[0, 0],
+                S[0, 1] + rtM22,
+                S[0, 2] + e12 * rtM11
+            ]
+        )
+        np2 = np.array(
+            [
+                S[0, 0],
+                S[0, 1] - rtM22,
+                S[0, 2] - e12 * rtM11
+            ]
+        )
     elif idx == 1:
-        np1[0] = S[0, 1] + rtM22
-        np2[0] = S[0, 1] - rtM22
-        np1[1] = S[1, 1]
-        np2[1] = S[1, 1]
-        np1[2] = S[1, 2] - e02 * rtM00
-        np2[2] = S[1, 2] + e02 * rtM00
+        np1 = np.array(
+            [
+                S[0, 1] + rtM22,
+                S[1, 1],
+                S[1, 2] - e02 * rtM00
+            ]
+        )
+        np2 = np.array(
+            [
+                S[0, 1] - rtM22,
+                S[1, 1],
+                S[1, 2] + e02 * rtM00
+            ]
+        )
     elif idx == 2:
-        np1[0] = S[0, 2] + e01 * rtM11
-        np2[0] = S[0, 2] - e01 * rtM11
-        np1[1] = S[1, 2] + rtM00
-        np2[1] = S[1, 2] - rtM00
-        np1[2] = S[2, 2]
-        np2[2] = S[2, 2]
+        np1 = np.array(
+            [
+                S[0, 2] + e01 * rtM11,
+                S[1, 2] + rtM00,
+                S[2, 2]
+            ]
+        )
+        np2 = np.array(
+            [
+                S[0, 2] - e01 * rtM11,
+                S[1, 2] - rtM00,
+                S[2, 2]
+            ]
+        )
+    # fmt: on
 
     traceS = np.trace(S)
     v = 2.0 * np.sqrt(1.0 + traceS - M00 - M11 - M22)
 
-    ESii = SignOfNumber(S[idx, idx])
-    r_2 = 2 + traceS + v
+    ESii = np.sign(S[idx, idx])
+
+    r_2 = 2 + traceS + v # this is \rho^2 + trace(S) + \nu
     nt_2 = 2 + traceS - v
 
     r = np.sqrt(r_2)
@@ -229,15 +266,19 @@ def decompose_homography_matrix(
     half_nt = 0.5 * n_t
     esii_t_r = ESii * r
 
+    # Equations 16,17
     t1_star = half_nt * (esii_t_r * n2 - n_t * n1)
     t2_star = half_nt * (esii_t_r * n1 - n_t * n2)
 
     R1 = compute_homography_rotation(H_normalized, t1_star, n1, v)
-    t1 = R1 * t1_star
+    # See Equation 20
+    t1 = R1 @ t1_star
 
     R2 = compute_homography_rotation(H_normalized, t2_star, n2, v)
-    t2 = R2 * t2_star
+    # See Equation 21
+    t2 = R2 @ t2_star
 
+    # combinations differ from OpenCV's implementations (using COLMAP's)
     R_cmbs = [R1, R1, R2, R2]
     t_cmbs = [t1, -t1, t2, -t2]
     n_cmbs = [-n1, n1, -n2, n2]
@@ -245,14 +286,25 @@ def decompose_homography_matrix(
 
 
 def compute_opposite_of_minor(matrix: np.ndarray, row: int, col: int) -> float:
-    """
+    """Compute the opposite of a 3x3 matrix's 2x2 minor (multiply determinant by -1).
+
+    If A is a square matrix, then the minor of the entry in the i'th row and j'th column
+    (also called the (i, j) minor, or a first minor[1]) is the determinant of the submatrix
+    formed by deleting the i'th row and j'th column.
+
+    Reference: https://en.wikipedia.org/wiki/Minor_(linear_algebra)
+
+    Implemented as OpenCV:
+    https://github.com/opencv/opencv/blob/master/modules/calib3d/src/homography_decomp.cpp#L299
+    and COLMAP do so.
+
     Args:
-        matrix: array of shape
+        matrix: array of shape (3,3)
         row: row index.
         col: column index.
 
     Returns:
-        float representing ...
+        float representing opposite of matrix minor.
     """
     col1 = 1 if col == 0 else 0
     col2 = 1 if col == 2 else 2
@@ -265,15 +317,56 @@ def compute_homography_rotation(H_normalized: np.ndarray, tstar: np.ndarray, n: 
     """Returns 3x3 matrix
 
     See Equation 99 on Page 32 of https://hal.inria.fr/inria-00174036/PDF/RR-6303.pdf
+    Reference: See OpenCV's `HomographyDecompInria::findRmatFrom_tstar_n()`
+    https://github.com/opencv/opencv/blob/master/modules/calib3d/src/homography_decomp.cpp#L310
 
     Args:
         H_normalized: array of shape (3,3)
         tstar: array of shape (3,)
-        n: array of shape (3,)
+        n: array of shape (3,) representing normal vector.
         v:
 
     Returns:
         array of shape (3,3) representing rotation matrix
     """
     I = np.eye(3)
-    return H_normalized @ (I - (2.0 / v) @ tstar @ n.T)
+    tstar = tstar.reshape(3,1)
+    n = n.reshape(3,1)
+
+    # fmt: off
+    R = H_normalized @ (I - (2.0/v) * tstar @ n.T) # noqa
+    # fmt: on
+    return R
+
+
+def homography_matrix_from_pose(
+    K1: np.ndarray,
+    K2: np.ndarray,
+    R: Rot3,
+    t: np.ndarray,
+    n: np.ndarray,
+    d: float
+) -> np.ndarray:
+    """Compute a homography matrix from a known relative pose.
+
+    Args:
+        K1: array of shape (3,3)
+        K2: array of shape (3,3)
+        R: 3x3 rotation matrix
+        t: array of shape (3,) representing translation
+        n: arary of shape (3,) representing normal vector.
+        d: 
+
+    Returns:
+        H: array of shape (3,3) representing homography matrix.
+    """
+    if not d > 0:
+        raise RuntimeError("d must be positive.")
+
+    # normalize
+    n /= np.linalg.norm(n)
+
+    t = t.reshape(3,1)
+    n = n.reshape(3,1)
+
+    return K2 @ (R - t @ n.T / d) @ np.linalg.inv(K1)
