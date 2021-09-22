@@ -17,6 +17,8 @@ from gtsam import Rot3, Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.metrics as metrics_utils
+from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.two_view_estimator import TwoViewEstimationReport
 
 
@@ -24,6 +26,8 @@ logger = logger_utils.get_logger()
 
 
 CYCLE_ERROR_THRESHOLD = 5.0
+
+MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
 
 
 def extract_triplets(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int, int, int]]:
@@ -177,10 +181,10 @@ def compute_cycle_error(
 def filter_to_cycle_consistent_edges(
     i2Ri1_dict: Dict[Tuple[int, int], Rot3],
     i2Ui1_dict: Dict[Tuple[int, int], Unit3],
-    v_corr_idxs_dict: Dict[Tuple[int,int], np.ndarray],
+    v_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
     two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
     visualize: bool = True,
-) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3]]:
+) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3], GtsfmMetricsGroup]:
     """Remove edges in a graph where concatenated transformations along a 3-cycle does not compose to identity.
 
     Note: will return only a subset of these two dictionaries
@@ -211,6 +215,8 @@ def filter_to_cycle_consistent_edges(
         i2Ri1_dict_consistent: subset of i2Ri1_dict, i.e. only including edges that belonged to some triplet
             and had cycle error below the predefined threshold.
         i2Ui1_dict_consistent: subset of i2Ui1_dict, as above.
+        v_corr_idxs_dict_consistent: subset of v_corr_idxs_dict above.
+        metrics_group: Rotation cycle consistency metrics as a metrics group.
     """
     cycle_errors = []
     max_rot_errors = []
@@ -256,7 +262,75 @@ def filter_to_cycle_consistent_edges(
     for (i1, i2) in cycle_consistent_keys:
         i2Ri1_dict_consistent[(i1, i2)] = i2Ri1_dict[(i1, i2)]
         i2Ui1_dict_consistent[(i1, i2)] = i2Ui1_dict[(i1, i2)]
-        v_corr_idxs_dict_consistent[(i1,i2)] = v_corr_idxs_dict[(i1,i2)]
+        v_corr_idxs_dict_consistent[(i1, i2)] = v_corr_idxs_dict[(i1, i2)]
 
     logger.info("Found %d consistent rel. rotations from %d original edges.", len(i2Ri1_dict_consistent), n_valid_edges)
-    return i2Ri1_dict_consistent, i2Ui1_dict_consistent, v_corr_idxs_dict_consistent
+
+    metrics_group = _compute_metrics(
+        inlier_i1_i2_pairs=cycle_consistent_keys, two_view_reports_dict=two_view_reports_dict
+    )
+    return i2Ri1_dict_consistent, i2Ui1_dict_consistent, v_corr_idxs_dict_consistent, metrics_group
+
+
+def _compute_metrics(
+    inlier_i1_i2_pairs: List[Tuple[int, int]], two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport]
+) -> GtsfmMetricsGroup:
+    """Computes the rotation cycle consistency metrics as a metrics group.
+
+    Args:
+        inlier_i1_i2_pairs: List of inlier camera pair indices.
+        two_view_reports_dict: mapping from image pair indices (i1,i2) to a report containing information
+            about the verifier's output (and optionally measurement error w.r.t GT). Note: i1 < i2 always.
+
+    Returns:
+        Rotation cycle consistency metrics as a metrics group. Includes the following metrics:
+        - Number of inlier, outlier and total measurements.
+        - Distribution of relative rotation angular errors for inlier measurements.
+        - Distribution of relative rotation angular errors for outlier measurements.
+        - Distribution of translation direction angular errors for inlier measurements.
+        - Distribution of translation direction angular errors for outlier measurements.
+    """
+    all_pairs = list(two_view_reports_dict.keys())
+    outlier_i1_i2_pairs = list(set(all_pairs) - set(inlier_i1_i2_pairs))
+    num_total_measurements = len(all_pairs)
+
+    inlier_R_angular_errors = []
+    outlier_R_angular_errors = []
+
+    inlier_U_angular_errors = []
+    outlier_U_angular_errors = []
+
+    for (i1, i2), report in two_view_reports_dict.items():
+
+        if report.R_error_deg is None or report.U_error_deg is None:
+            continue
+        if (i1, i2) in inlier_i1_i2_pairs:
+            inlier_R_angular_errors.append(report.R_error_deg)
+            inlier_U_angular_errors.append(report.U_error_deg)
+        else:
+            outlier_R_angular_errors.append(report.R_error_deg)
+            outlier_U_angular_errors.append(report.U_error_deg)
+
+    R_precision, R_recall = metrics_utils.get_precision_recall_from_errors(
+        inlier_R_angular_errors, outlier_R_angular_errors, MAX_INLIER_MEASUREMENT_ERROR_DEG
+    )
+
+    U_precision, U_recall = metrics_utils.get_precision_recall_from_errors(
+        inlier_U_angular_errors, outlier_U_angular_errors, MAX_INLIER_MEASUREMENT_ERROR_DEG
+    )
+
+    rcc_metrics = [
+        GtsfmMetric("num_total_frontend_measurements", num_total_measurements),
+        GtsfmMetric("num_inlier_rcc_measurements", len(inlier_i1_i2_pairs)),
+        GtsfmMetric("num_outlier_rcc_measurements", len(outlier_i1_i2_pairs)),
+        GtsfmMetric("rot_cycle_consistency_R_precision", R_precision),
+        GtsfmMetric("rot_cycle_consistency_R_recall", R_recall),
+        GtsfmMetric("rot_cycle_consistency_U_precision", U_precision),
+        GtsfmMetric("rot_cycle_consistency_U_recall", U_recall),
+        GtsfmMetric("inlier_R_angular_errors_deg", inlier_R_angular_errors),
+        GtsfmMetric("outlier_R_angular_errors_deg", outlier_R_angular_errors),
+        GtsfmMetric("inlier_U_angular_errors_deg", inlier_U_angular_errors),
+        GtsfmMetric("outlier_U_angular_errors_deg", outlier_U_angular_errors),
+    ]
+
+    return GtsfmMetricsGroup("rotation_cycle_consistency_metrics", rcc_metrics)
