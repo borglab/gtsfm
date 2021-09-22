@@ -72,7 +72,6 @@ def pose_from_homography_matrix(
 
     R_cmbs, t_cmbs, n_cmbs = decompose_homography_matrix(H, K1, K2)
 
-    points3d = np.zeros((0, 3))
     for i in range(len(R_cmbs)):
         points3D_cmb = check_cheirality(R_cmbs[i], t_cmbs[i], points1, points2)
         if len(points3D_cmb) >= len(points3D):
@@ -84,7 +83,7 @@ def pose_from_homography_matrix(
     return R, t, n, points3D
 
 
-def check_cheirality(R: Rot3, t: np.ndarray, points1, points2) -> np.ndarray:
+def check_cheirality(R: Rot3, t: np.ndarray, points1: np.ndarray, points2: np.ndarray) -> np.ndarray:
     """
     Args:
         R: array of shape (3,3)
@@ -97,6 +96,23 @@ def check_cheirality(R: Rot3, t: np.ndarray, points1, points2) -> np.ndarray:
     """
     if points1.shape != points2.shape:
         raise RuntimeError("Coordinates of 2d correspondences must have the same shape.")
+
+    # try triangulating each point
+
+    camera_dict = {0: PinholeCameraCal3Bundler(), 1: PinholeCameraCal3Bundler()}
+
+    triangulator = Point3dInitializer(
+        track_camera_dict=camera_dict,
+        mode=TriangulationParam.NO_RANSAC,
+        reproj_error_thresh=float('inf')
+    )
+    
+    for point1, point2 in zip(points1, points2)
+
+        track_2d = : SfmTrack2d()
+        track_3d, _, exit_code = triangulator.triangulate(track_2d)
+        if exit_code == TriangulationExitCode.CHEIRALITY_FAILURE:
+            continue
 
     # const Eigen::Matrix3x4d proj_matrix1 = Eigen::Matrix3x4d::Identity();
     # const Eigen::Matrix3x4d proj_matrix2 = ComposeProjectionMatrix(R, t);
@@ -138,9 +154,6 @@ def decompose_homography_matrix(
         t_cmbs: list representing combinations of possible t directions of shape (3,).
         n_cmbs: list representing combinations of possible plane normals vectors of shape (3,).
     """
-    import pdb
-
-    pdb.set_trace()
     # Remove calibration from homography.
     H_normalized = np.linalg.inv(K2) @ H @ K1
 
@@ -359,8 +372,8 @@ def homography_matrix_from_pose(
     Returns:
         H: array of shape (3,3) representing homography matrix.
     """
-    if not d > 0:
-        raise RuntimeError("d must be positive.")
+    if d <= 0:
+        raise RuntimeError("Orthogonal distance from plane `d` must be positive.")
 
     # normalize
     n /= np.linalg.norm(n)

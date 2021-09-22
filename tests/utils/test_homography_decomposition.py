@@ -61,50 +61,51 @@ def test_decompose_homography_matrix() -> None:
     assert ref_solution_exists
 
 
-# def test_pose_from_homography_matrix() -> None:
-#     """
+def test_pose_from_homography_matrix() -> None:
+    """Ensure relative pose is correctly extracted from a homography matrix.
 
-#     See: https://github.com/colmap/colmap/blob/dev/src/base/homography_matrix_test.cc#L120
-#     """
-#     K1 = np.eye(3)
-#     K2 = np.eye(3)
-#     R_ref = np.eye(3)
-#     t_ref = np.array([1, 0, 0])
-#     n_ref = np.array([-1, 0, 0])
-#     d_ref = 1
-#     H = homography_utils.homography_matrix_from_pose(K1, K2, R_ref, t_ref, n_ref, d_ref)
+    See: https://github.com/colmap/colmap/blob/dev/src/base/homography_matrix_test.cc#L120
+    """
+    K1 = np.eye(3)
+    K2 = np.eye(3)
+    R_ref = np.eye(3)
+    t_ref = np.array([1, 0, 0], dtype=np.float32)
+    n_ref = np.array([-1, 0, 0], dtype=np.float32)
+    d_ref = 1 # orthogonal distance to plane
+    H = homography_utils.homography_matrix_from_pose(K1, K2, R_ref, t_ref, n_ref, d_ref)
 
-#     # fmt: off
-#     points1 = np.array(
-#     [
-#     [0.1, 0.4],
-#     [0.2, 0.3],
-#     [0.3, 0.2],
-#     [0.4, 0.1]
-#     ]
-#     )
-#     # fmt: on
+    # fmt: off
+    points1 = np.array(
+        [
+            [0.1, 0.4],
+            [0.2, 0.3],
+            [0.3, 0.2],
+            [0.4, 0.1]
+        ]
+    )
+    # fmt: on
 
-#     points2 = np.zeros((0, 2))
-#     for point1 in points1:
-#         # affine to homogeneous
-#         point2 = H @ np.array([point1[0], point1[1], 1.0])
-#         # convert homogenous to affine
-#         point2 /= point2[2]
-#         points2.append(point2)
+    points2 = np.zeros((4, 2))
+    for i, point1 in enumerate(points1):
+        # affine to homogeneous
+        point2 = H @ np.array([point1[0], point1[1], 1.0])
+        # convert homogenous to affine
+        point2 /= point2[2]
+        points2[i] = point2[:2]
 
-#     R, t, n, points3D = homography_utils.pose_from_homography_matrix(
-#         H,
-#         K1,
-#         K2,
-#         points1,
-#         points2,
-#     )
+    import pdb; pdb.set_trace()
+    R, t, n, points3D = homography_utils.pose_from_homography_matrix(
+        H,
+        K1,
+        K2,
+        points1,
+        points2,
+    )
 
-#     np.testing.assert_almost_equal(R, R_ref)
-#     np.testing.assert_almost_equal(t, t_ref)
-#     np.testing.assert_almost_equal(n, n_ref)
-#     assert points3D.shape == points1.shape
+    np.testing.assert_almost_equal(R, R_ref)
+    np.testing.assert_almost_equal(t, t_ref)
+    np.testing.assert_almost_equal(n, n_ref)
+    assert points3D.shape == points1.shape
 
 
 # def test_check_cheirality() -> None:

@@ -37,9 +37,9 @@ class HomographyEstimator:
         https://github.com/colmap/colmap/blob/dev/src/optim/loransac.h
 
         Args:
-        keypoints_i1: detected features in image #i1.
-        keypoints_i2: detected features in image #i2.
-        match_indices: matches as indices of features from both images, of shape (N3, 2), where N3 <= min(N1, N2).
+            keypoints_i1: detected features in image #i1.
+            keypoints_i2: detected features in image #i2.
+            match_indices: matches as indices of features from both images, of shape (N3, 2), where N3 <= min(N1, N2).
 
         Returns:
             H: array of shape (3,3) representing homography matrix.
@@ -54,7 +54,7 @@ class HomographyEstimator:
         uv_i1 = keypoints_i1.coordinates
         uv_i2 = keypoints_i2.coordinates
 
-        # TODO: cast as np.float32?
+        # TODO(johnwlambert): cast as np.float32?
         H, inlier_mask = cv2.findHomography(
             srcPoints=uv_i1[match_indices[:, 0]],
             dstPoints=uv_i2[match_indices[:, 1]],
