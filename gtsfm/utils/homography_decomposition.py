@@ -132,7 +132,9 @@ def decompose_homography_matrix(
         K2: array of shape (3,3) representing camera 2's intrinsics
 
     Returns:
-        R_cmbs: list representing combinations of possible R matrices of shape (3,3).
+        R_cmbs: list representing combinations of possible R matrices of shape (3,3). If H
+           corresponds to a pure rotation, then this list will only have 1 entry. Otherwise,
+           a list of 4 possible rotations is returned.
         t_cmbs: list representing combinations of possible t directions of shape (3,).
         n_cmbs: list representing combinations of possible plane normals vectors of shape (3,).
     """
@@ -347,12 +349,12 @@ def homography_matrix_from_pose(
     """Compute a homography matrix from a known relative pose.
 
     Args:
-        K1: array of shape (3,3)
-        K2: array of shape (3,3)
+        K1: array of shape (3,3) representing intrinsic matrix of camera 1.
+        K2: array of shape (3,3) representing intrinsic matrix of camera 2.
         R: 3x3 rotation matrix
-        t: array of shape (3,) representing translation
-        n: arary of shape (3,) representing normal vector.
-        d:
+        t: array of shape (3,) representing translation vector.
+        n: array of shape (3,) representing normal vector.
+        d: Orthogonal distance from plane.
 
     Returns:
         H: array of shape (3,3) representing homography matrix.
