@@ -50,8 +50,6 @@ def pose_from_homography_matrix(
     K2: np.ndarray,
     points1: np.ndarray,
     points2: np.ndarray,
-    n: np.ndarray,
-    points3D: np.ndarray,
 ) -> Tuple[Rot3, Unit3, np.ndarray, np.ndarray]:
     """Recover the most probable pose from the given homography matrix.
 
@@ -174,9 +172,9 @@ def decompose_homography_matrix(
     rtM11 = np.sqrt(M11)
     rtM22 = np.sqrt(M22)
 
-    M01 = ComputeOppositeOfMinor(S, 0, 1)
-    M12 = ComputeOppositeOfMinor(S, 1, 2)
-    M02 = ComputeOppositeOfMinor(S, 0, 2)
+    M01 = compute_opposite_of_minor(S, 0, 1)
+    M12 = compute_opposite_of_minor(S, 1, 2)
+    M02 = compute_opposite_of_minor(S, 0, 2)
 
     e12 = SignOfNumber(M12)
     e02 = SignOfNumber(M02)
@@ -246,7 +244,7 @@ def decompose_homography_matrix(
     return R_cmbs, t_cmbs, n_cmbs
 
 
-def ComputeOppositeOfMinor(matrix: np.ndarray, row: int, col: int) -> float:
+def compute_opposite_of_minor(matrix: np.ndarray, row: int, col: int) -> float:
     """
     Args:
         matrix: array of shape
