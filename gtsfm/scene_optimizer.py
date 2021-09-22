@@ -160,7 +160,9 @@ class SceneOptimizer:
                 )
 
         # persist all front-end metrics and its summary
-        auxiliary_graph_list.append(dask.delayed(save_full_frontend_metrics)(two_view_reports_dict, image_graph))
+        auxiliary_graph_list.append(
+            dask.delayed(save_full_frontend_metrics)(two_view_reports_dict, image_graph, filename="frontend_full.json")
+        )
         if gt_pose_graph is not None:
             metrics_graph_list.append(
                 dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
@@ -179,10 +181,9 @@ class SceneOptimizer:
         i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict, rcc_metrics_graph = dask.delayed(
             cycle_consistency.filter_to_cycle_consistent_edges, nout=4
         )(i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict, two_view_reports_dict)
-
         metrics_graph_list.append(rcc_metrics_graph)
 
-        def _filter_dict_keys(dict: Dict[Any, Any], ref_dict: Dict[Any,Any]) -> Dict[Any, Any]:
+        def _filter_dict_keys(dict: Dict[Any, Any], ref_dict: Dict[Any, Any]) -> Dict[Any, Any]:
             """Return a subset of a dictionary based on keys present in the reference dictionary."""
             valid_keys = list(ref_dict.keys())
             return {k: v for k, v in dict.items() if k in valid_keys}
@@ -196,6 +197,13 @@ class SceneOptimizer:
                     two_view_reports_dict_cycle_consistent,
                     self._pose_angular_error_thresh,
                     metric_group_name="cycle_consistent_frontend_summary",
+                )
+            )
+            auxiliary_graph_list.append(
+                dask.delayed(save_full_frontend_metrics)(
+                    two_view_reports_dict_cycle_consistent,
+                    image_graph,
+                    filename="cycle_consistent_frontend_full.json",
                 )
             )
 
@@ -315,13 +323,14 @@ def save_metrics_reports(metrics_graph_list: Delayed) -> List[Delayed]:
 
 
 def save_full_frontend_metrics(
-    two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport], images: List[Image]
+    two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport], images: List[Image], filename: str
 ) -> None:
     """Converts the TwoViewEstimationReports for all image pairs to a Dict and saves it as JSON.
 
     Args:
         two_view_report_dict: front-end metrics for pairs of images.
         images: list of all images for this scene, in order of image/frame index.
+        filename: file name to use when saving report to JSON.
     """
     metrics_list = []
 
@@ -347,7 +356,7 @@ def save_full_frontend_metrics(
             }
         )
 
-    io_utils.save_json_file(os.path.join(METRICS_PATH, "frontend_full.json"), metrics_list)
+    io_utils.save_json_file(os.path.join(METRICS_PATH, filename), metrics_list)
 
     # Save duplicate copy of 'frontend_full.json' within React Folder.
-    io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, "frontend_full.json"), metrics_list)
+    io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, filename), metrics_list)
