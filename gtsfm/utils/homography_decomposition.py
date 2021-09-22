@@ -121,9 +121,9 @@ def decompose_homography_matrix(
     H: np.ndarray, K1: np.ndarray, K2: np.ndarray
 ) -> Tuple[List[Rot3], List[Unit3], List[Unit3]]:
     """Decompose an homography matrix into the possible rotations, translations, and plane normal vectors.
-    
+
     Based off of the OpenCV and COLMAP implementations:
-    `HomographyDecompInria::findRmatFrom_tstar_n()` at 
+    `HomographyDecompInria::findRmatFrom_tstar_n()` at
     https://github.com/opencv/opencv/blob/master/modules/calib3d/src/homography_decomp.cpp#L325
 
     Args:
@@ -136,7 +136,9 @@ def decompose_homography_matrix(
         t_cmbs: list representing combinations of possible t directions of shape (3,).
         n_cmbs: list representing combinations of possible plane normals vectors of shape (3,).
     """
-    import pdb; pdb.set_trace()
+    import pdb
+
+    pdb.set_trace()
     # Remove calibration from homography.
     H_normalized = np.linalg.inv(K2) @ H @ K1
 
@@ -253,7 +255,7 @@ def decompose_homography_matrix(
 
     ESii = np.sign(S[idx, idx])
 
-    r_2 = 2 + traceS + v # this is \rho^2 + trace(S) + \nu
+    r_2 = 2 + traceS + v  # this is \rho^2 + trace(S) + \nu
     nt_2 = 2 + traceS - v
 
     r = np.sqrt(r_2)
@@ -330,8 +332,8 @@ def compute_homography_rotation(H_normalized: np.ndarray, tstar: np.ndarray, n: 
         array of shape (3,3) representing rotation matrix
     """
     I = np.eye(3)
-    tstar = tstar.reshape(3,1)
-    n = n.reshape(3,1)
+    tstar = tstar.reshape(3, 1)
+    n = n.reshape(3, 1)
 
     # fmt: off
     R = H_normalized @ (I - (2.0/v) * tstar @ n.T) # noqa
@@ -340,12 +342,7 @@ def compute_homography_rotation(H_normalized: np.ndarray, tstar: np.ndarray, n: 
 
 
 def homography_matrix_from_pose(
-    K1: np.ndarray,
-    K2: np.ndarray,
-    R: Rot3,
-    t: np.ndarray,
-    n: np.ndarray,
-    d: float
+    K1: np.ndarray, K2: np.ndarray, R: Rot3, t: np.ndarray, n: np.ndarray, d: float
 ) -> np.ndarray:
     """Compute a homography matrix from a known relative pose.
 
@@ -355,7 +352,7 @@ def homography_matrix_from_pose(
         R: 3x3 rotation matrix
         t: array of shape (3,) representing translation
         n: arary of shape (3,) representing normal vector.
-        d: 
+        d:
 
     Returns:
         H: array of shape (3,3) representing homography matrix.
@@ -366,7 +363,7 @@ def homography_matrix_from_pose(
     # normalize
     n /= np.linalg.norm(n)
 
-    t = t.reshape(3,1)
-    n = n.reshape(3,1)
+    t = t.reshape(3, 1)
+    n = n.reshape(3, 1)
 
     return K2 @ (R - t @ n.T / d) @ np.linalg.inv(K1)

@@ -120,6 +120,7 @@ def test_decompose_homography_matrix() -> None:
 
 def test_compute_opposite_of_minor_M00() -> None:
     """Ensure negative of lower-right 2x2 determinant is returned (M00)."""
+    # fmt: off
     matrix = np.array(
         [
             [1,2,3],
@@ -127,14 +128,17 @@ def test_compute_opposite_of_minor_M00() -> None:
             [7,8,9]
         ]
     )
+    # fmt: on
     neg_minor = homography_utils.compute_opposite_of_minor(matrix, row=0, col=0)
 
     # det is -3 = 45 - 48 = 5*9 - 6 * 8
     ref_neg_minor = 3
     assert neg_minor == ref_neg_minor
 
+
 def test_compute_opposite_of_minor_M22() -> None:
     """Ensure negative of upper-left 2x2 determinant is returned (M22)."""
+    # fmt: off
     matrix = np.array(
         [
             [1,2,3],
@@ -142,14 +146,17 @@ def test_compute_opposite_of_minor_M22() -> None:
             [7,8,9]
         ]
     )
+    # fmt: on
     neg_minor = homography_utils.compute_opposite_of_minor(matrix, row=2, col=2)
 
     # det is -3 = 5 - 8 = 1*5 - 2*4
     ref_neg_minor = 3
     assert neg_minor == ref_neg_minor
 
+
 def test_compute_opposite_of_minor_M11() -> None:
     """Ensure negative of 2x2 determinant is returned (M11)."""
+    # fmt: off
     matrix = np.array(
         [
             [1,2,3],
@@ -157,10 +164,9 @@ def test_compute_opposite_of_minor_M11() -> None:
             [7,8,9]
         ]
     )
+    # fmt: on
     neg_minor = homography_utils.compute_opposite_of_minor(matrix, row=1, col=1)
 
-    # det is -12 = 9 - 21 = 1*9 - 3*7 
+    # det is -12 = 9 - 21 = 1*9 - 3*7
     ref_neg_minor = 12
     assert neg_minor == ref_neg_minor
-
-
