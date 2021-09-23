@@ -380,7 +380,6 @@ class GtsfmData:
                 continue
             calibration = self.get_camera(i).calibration()
             aligned_data.add_camera(i, PinholeCameraCal3Bundler(aTi, calibration))
-
         # Align estimated tracks to ground truth.
         for j in range(self.number_tracks()):
             # Align each 3d point
