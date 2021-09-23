@@ -44,12 +44,28 @@ class SE3 {
         var ones = nj.ones([1, 1]);
         var homogeneous_pt = nj.concatenate(point, ones);
 
-        var point_world_coords = homogeneous_pt.dot(this.transform_matrix);
+        var point_world_coords = homogeneous_pt.dot(this.transform_matrix.T);
 
         point_world_coords = nj.array([[point_world_coords.get(0,0),
                             point_world_coords.get(0,1),
                             point_world_coords.get(0,2)]])
         return point_world_coords;
+    }
+
+    inverse() {
+        /* Computes the inverse of the current pose matrix. (Since numjs doesn't have a function for it)
+
+        Returns:
+            A new SE3 object storing the inverse of the current pose matrix.
+        */
+        const Rt = this.rotation.T;
+        const t_negative = nj.array([-1 * this.translation.get(0), 
+                              -1 * this.translation.get(1), 
+                              -1 * this.translation.get(2)]);
+
+        const t_inverse = Rt.dot(t_negative);
+        const inverse = new SE3(Rt, t_inverse);
+        return inverse;
     }
 }
 

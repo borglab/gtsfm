@@ -100,7 +100,8 @@ function AllFrustums(props) {
             const rotation = nj.array(rotation_matrix);
             const translation = nj.array([tx,ty,tz]);
             const cTw = new SE3(rotation, translation);
-            var verts_worldframe = frustumObj.get_mesh_vertices_worldframe(cTw);
+            const wTc = cTw.inverse();
+            var verts_worldframe = frustumObj.get_mesh_vertices_worldframe(wTc);
 
             finalFrustumsJSX.push(<Frustum 
                 v0={verts_worldframe[0][0]}
