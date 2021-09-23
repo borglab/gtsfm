@@ -1,7 +1,8 @@
 # Georgia Tech Structure from Motion (GTSFM) Library
 
-![Linux CI](https://github.com/borglab/gtsfm/workflows/Unit%20tests%20and%20python%20checks/badge.svg)
-
+| Platform     | Build Status  |
+|:------------:| :-------------:|
+| Ubuntu 18.04 |  ![Linux CI](https://github.com/borglab/gtsfm/workflows/Unit%20tests%20and%20python%20checks/badge.svg) |
 
 ### What is GTSFM?
 GTSFM is an end-to-end SFM pipeline based on [GTSAM](https://github.com/borglab/gtsam). GTSFM was designed from the ground-up to natively support parallel computation using [Dask](https://dask.org/).
