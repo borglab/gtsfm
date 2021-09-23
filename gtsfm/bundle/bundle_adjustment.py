@@ -10,7 +10,7 @@ import dask
 import gtsam
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import GeneralSFMFactorCal3Bundler, PinholeCameraCal3Bundler, Pose3, SfmTrack, Values, symbol_shorthand
+from gtsam import GeneralSFMFactorCal3Bundler, PinholeCameraCal3Bundler, SfmTrack, Values, symbol_shorthand
 
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
@@ -171,21 +171,21 @@ class BundleAdjustmentOptimizer:
         filtered_result = optimized_data.filter_landmarks(self.output_reproj_error_thresh)
 
         if cameras_gt is not None:
+            poses_gt = [cam.pose() for cam in cameras_gt]
+
             # align the sparse multi-view estimate after BA to the ground truth pose graph.
-            filtered_result = filtered_result.align_via_Sim3_to_poses(
-                wTi_list_ref=[cam.pose() for cam in cameras_gt] if cameras_gt else []
-            )
+            filtered_result = filtered_result.align_via_Sim3_to_poses(wTi_list_ref=poses_gt)
             ba_pose_error_metrics = metrics_utils.compute_ba_pose_metrics(
-                gt_wTi_list=[cam.pose() for cam in cameras_gt], ba_output=filtered_result
+                gt_wTi_list=poses_gt, ba_output=filtered_result
             )
             ba_metrics.extend(metrics_group=ba_pose_error_metrics)
 
-            output_tracks_classification = track_utils.classify_tracks3d_with_gt_cameras(
+            output_tracks_exit_codes = track_utils.classify_tracks3d_with_gt_cameras(
                 tracks=filtered_result.get_tracks(), cameras_gt=cameras_gt
             )
-            output_tracks_classification_frequency = Counter(output_tracks_classification)
+            output_tracks_exit_codes_distribution = Counter(output_tracks_exit_codes)
 
-            for exit_code, count in output_tracks_classification_frequency.items():
+            for exit_code, count in output_tracks_exit_codes_distribution.items():
                 metric_name = "Filtered tracks triangulated with GT cams: {}".format(exit_code.name)
                 ba_metrics.add_metric(GtsfmMetric(name=metric_name, data=count))
 
@@ -214,8 +214,7 @@ class BundleAdjustmentOptimizer:
             GtsfmData aligned to GT (if provided), wrapped up using dask.delayed
             Metrics group for BA results, wrapped up using dask.delayed
         """
-        data_metrics_graph = dask.delayed(self.run)(sfm_data_graph, gt_cameras_graph)
-        return data_metrics_graph[0], data_metrics_graph[1]
+        return dask.delayed(self.run, nout=2)(sfm_data_graph, gt_cameras_graph)
 
 
 def values_to_gtsfm_data(values: Values, initial_data: GtsfmData) -> GtsfmData:

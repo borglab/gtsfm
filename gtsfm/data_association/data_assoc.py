@@ -113,12 +113,12 @@ class DataAssociation(NamedTuple):
         if cameras_gt is not None:
             exit_codes_wrt_gt = track_utils.classify_tracks2d_with_gt_cameras(tracks=tracks_2d, cameras_gt=cameras_gt)
 
-        triangulation_exit_codes: List[TriangulationExitCode] = []
+        exit_codes_wrt_computed: List[TriangulationExitCode] = []
         # add valid tracks where triangulation is successful
         for track_2d in tracks_2d:
             # triangulate and filter based on reprojection error
             sfm_track, avg_track_reproj_error, triangulation_exit_code = point3d_initializer.triangulate(track_2d)
-            triangulation_exit_codes.append(triangulation_exit_code)
+            exit_codes_wrt_computed.append(triangulation_exit_code)
             if triangulation_exit_code == TriangulationExitCode.CHEIRALITY_FAILURE:
                 continue
 
@@ -129,12 +129,12 @@ class DataAssociation(NamedTuple):
                 per_rejected_track_avg_errors.append(avg_track_reproj_error)
 
         # aggregate the exit codes
-        triangulation_exit_codes_distribution = Counter(triangulation_exit_codes)
-        gt_computed_exit_codes_distribution = None
+        exit_codes_wrt_computed_distribution = Counter(exit_codes_wrt_computed)
+        exit_codes_wrt_gt_and_computed_distribution = None
         if exit_codes_wrt_gt is not None:
-            gt_computed_exit_codes_distribution = Counter(zip(exit_codes_wrt_gt, triangulation_exit_codes))
+            exit_codes_wrt_gt_and_computed_distribution = Counter(zip(exit_codes_wrt_gt, exit_codes_wrt_computed))
 
-        track_cheirality_failure_ratio = triangulation_exit_codes_distribution[
+        track_cheirality_failure_ratio = exit_codes_wrt_computed_distribution[
             TriangulationExitCode.CHEIRALITY_FAILURE
         ] / len(tracks_2d)
 
@@ -177,8 +177,8 @@ class DataAssociation(NamedTuple):
             ],
         )
 
-        if gt_computed_exit_codes_distribution is not None:
-            for (gt_exit_code, computed_exit_code), count in gt_computed_exit_codes_distribution.items():
+        if exit_codes_wrt_gt_and_computed_distribution is not None:
+            for (gt_exit_code, computed_exit_code), count in exit_codes_wrt_gt_and_computed_distribution.items():
                 # Each track has 2 associated exit codes: the triangulation exit codes w.r.t ground truth cameras
                 # and w.r.t cameras computed by upstream modules of GTSFM. We get the distribution of the number of
                 # tracks for each pair of (triangulation exit code w.r.t GT cams, triangulation exit code w.r.t

@@ -230,7 +230,7 @@ class SceneOptimizer:
 
         if self._save_3d_viz:
             gt_poses_graph = (
-                [dask.delayed(lambda x: x.pose())(cam) for cam in gt_cameras_graph] if gt_cameras_graph else []
+                [dask.delayed(lambda x: x.pose())(cam) for cam in gt_cameras_graph] if gt_cameras_graph else None
             )
             auxiliary_graph_list.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_poses_graph))
 
