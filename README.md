@@ -1,6 +1,6 @@
 # Georgia Tech Structure from Motion (GTSFM) Library
 
-[![Ubuntu CI](https://github.com/borglab/gtsfm/workflows/Python%20CI/badge.svg)](https://github.com/borglab/gtsfm/actions?query=workflow%3APython+CI)
+![Linux CI](https://github.com/borglab/gtsam/workflows/Unit%20tests%20and%20python%20checks/badge.svg)
 
 
 ### What is GTSFM?
