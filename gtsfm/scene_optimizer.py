@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import dask
 import matplotlib
+from gtsam import Similarity3
 
 matplotlib.use("Agg")
 
@@ -251,8 +252,9 @@ def align_estimated_gtsfm_data(ba_input: GtsfmData, ba_output: GtsfmData) -> Tup
         Delayed object for ba_output GtsfmData.
     """
     walignedTw = ellipsoid_utils.transform_point_cloud_wrapper(ba_output)
-    ba_input = GtsfmData.align_data_to_axes(ba_input, walignedTw)
-    ba_output = GtsfmData.align_data_to_axes(ba_output, walignedTw)
+    walignedTw = Similarity3(R=walignedTw.rotation(), t=walignedTw.translation(), s=1.0)
+    ba_input = ba_input.apply_Sim3(walignedTw)
+    ba_output = ba_output.apply_Sim3(walignedTw)
     return ba_input, ba_output
 
 

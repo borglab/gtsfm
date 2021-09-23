@@ -7,7 +7,7 @@ import itertools
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-from gtsam import PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack
+from gtsam import PinholeCameraCal3Bundler, Pose3, SfmTrack, Similarity3
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
 import gtsfm.utils.graph as graph_utils
@@ -358,82 +358,40 @@ class GtsfmData:
         """
         # these are the estimated poses (source, to be aligned)
         wTi_list = self.get_camera_poses()
-
         # align the poses which are valid (i.e. are not None)
         # some camera indices may have been lost after pruning to largest connected component, leading to None values
         # rSe aligns the estimate `e` frame to the reference `r` frame
-        wTi_list_aligned, rSe = geometry_comparisons.align_poses_sim3_ignore_missing(wTi_list_ref, wTi_list)
+        _, rSe = geometry_comparisons.align_poses_sim3_ignore_missing(wTi_list_ref, wTi_list)
+        return self.apply_Sim3(aSb=rSe)
 
+    def apply_Sim3(self, aSb: Similarity3) -> "GtsfmData":
+        """Assume current tracks and cameras are in frame "b", then transport them to frame "a".
+
+        Returns:
+            New GtsfmData object which has been transformed from frame a to frame b.
+        """
+        bTi_list = self.get_camera_poses()
+        aTi_list = [aSb.transformFrom(bTi) if bTi is not None else None for bTi in bTi_list]
         aligned_data = GtsfmData(number_images=self.number_images())
-        # update the camera pose to the aligned poses, but use the previous calibration
-        for i, wTi in enumerate(wTi_list_aligned):
-            if wTi is None:
+
+        # Update the camera poses to their aligned poses, but use the previous calibration.
+        for i, aTi in enumerate(aTi_list):
+            if aTi is None:
                 continue
             calibration = self.get_camera(i).calibration()
-            aligned_data.add_camera(i, PinholeCameraCal3Bundler(wTi, calibration))
+            aligned_data.add_camera(i, PinholeCameraCal3Bundler(aTi, calibration))
 
-        # align estimated tracks to the ground truth
+        # Align estimated tracks to ground truth.
         for j in range(self.number_tracks()):
-            # align each 3d point
-            track_est = self.get_track(index=j)
-            # place into the GT reference frame
-            pt_ref = rSe.transformFrom(track_est.point3())
-            track_aligned = SfmTrack(pt_ref)
-
-            # copy over the 2d measurements directly into the new track
-            for k in range(track_est.number_measurements()):
-                i, uv = track_est.measurement(k)
-                track_aligned.add_measurement(i, uv)
-            aligned_data.add_track(track_aligned)
-
-        return aligned_data
-
-    @classmethod
-    def align_data_to_axes(cls, gtsfm_data: "GtsfmData", walignedTw: Pose3) -> None:
-        """Align the GtsfmData's tracks and poses to the x,y,z axes.
-
-        Args:
-            gtsfm_data: data to perform alignment on.
-            walignedTw: transformation required to align point cloud and frustums to axes.
-
-        Raises:
-            ValueError: if walignedTw is not a valid Pose3 object.
-        """
-        if walignedTw is None:
-            raise ValueError("walignedTw cannot be None, should be a valid alignment transformation.")
-
-        num_tracks = gtsfm_data.number_tracks()
-        aligned_data = cls(gtsfm_data.number_images())
-
-        # Populate aligned_gtsfm_data with duplicate camera data.
-        for camera_index in gtsfm_data.get_valid_camera_indices():
-            aligned_data.add_camera(camera_index, gtsfm_data.get_camera(camera_index))
-
-        # Populate aligned_data with tracks.
-        for i in range(num_tracks):
-            original_track_3d = gtsfm_data.get_track(i)
-            point = original_track_3d.point3()
-            aligned_point = walignedTw.matrix() @ np.append(point, [1], 0)
-
-            # Create a gtsam.SfmTrack with the aligned 3d point and duplicate 2d measurements.
-            new_track_3d = SfmTrack(aligned_point[:3])
-            for m in range(original_track_3d.number_measurements()):
-                i, uv = original_track_3d.measurement(m)
-                new_track_3d.add_measurement(i, uv)
-
-            aligned_data.add_track(new_track_3d)
-
-        # Update aligned_data with aligned camera data.
-        for camera_index in gtsfm_data.get_valid_camera_indices():
-            camera = gtsfm_data.get_camera(camera_index)
-
-            wTi = camera.pose()
-            walignedTi = walignedTw.matrix() @ wTi.matrix()
-            walignedRi = walignedTi[:3, :3]
-            waligned_t_i = walignedTi[:3, 3]
-
-            aligned_camera = PinholeCameraCal3Bundler(Pose3(Rot3(walignedRi), waligned_t_i), camera.calibration())
-
-            aligned_data.add_camera(camera_index, aligned_camera)
+            # Align each 3d point
+            track_b = self.get_track(index=j)
+            # Place into the "a" reference frame
+            pt_a = aSb.transformFrom(track_b.point3())
+            track_a = SfmTrack(pt_a)
+            # Copy over the 2d measurements directly into the new track.
+            for k in range(track_b.number_measurements()):
+                i, uv = track_b.measurement(k)
+                track_a.add_measurement(i, uv)
+            aligned_data.add_track(track_a)
 
         return aligned_data
