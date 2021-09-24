@@ -1,0 +1,2 @@
+_target_: gtsfm.frontend.matcher.superglue_matcher.SuperGlueMatcher
+use_outdoor_model: True

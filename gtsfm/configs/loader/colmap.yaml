@@ -1,0 +1,7 @@
+_target_: gtsfm.loader.colmap_loader.ColmapLoader
+colmap_files_dirpath: ${hydra:runtime.cwd}/tests/data/set1_lund_door/colmap_ground_truth
+images_dir: ${hydra:runtime.cwd}/tests/data/set1_lund_door/images
+use_gt_intrinsics: True
+use_gt_extrinsics: True
+max_frame_lookahead: 1
+max_resolution: 760

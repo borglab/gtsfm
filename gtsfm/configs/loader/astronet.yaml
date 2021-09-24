@@ -1,0 +1,6 @@
+_target_: gtsfm.loader.yfcc_imb_loader.YfccImbLoader
+data_dir: ${hydra:runtime.cwd}/tests/data/astronet/test_2011212_opnav_022
+use_gt_extrinsics: True
+use_gt_sfmtracks: False
+max_frame_lookahead: 2
+max_resolution: 1024

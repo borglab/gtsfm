@@ -1,0 +1,3 @@
+_target_: gtsfm.loader.yfcc_imb_loader.YfccImbLoader
+folder: ${hydra:runtime.cwd}/tests/data/imb_reichstag
+coviz_thresh: 0.1
