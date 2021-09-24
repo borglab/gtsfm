@@ -14,40 +14,42 @@ from hydra.utils import instantiate
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.loader.olsson_loader import OlssonLoader
+from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.scene_optimizer import SceneOptimizer
 
-DATA_ROOT_PATH = Path(__file__).resolve().parent / "data"
+ROOT_PATH = Path(__file__).resolve().parent.parent
 
 
 class TestSceneOptimizer(unittest.TestCase):
     """Unit test for SceneOptimizer, which runs SfM for a scene."""
 
-    def setUp(self) -> None:
-        self.loader = OlssonLoader(str(DATA_ROOT_PATH / "set1_lund_door"), image_extension="JPG")
-        assert len(self.loader)
-
     def test_create_computation_graph(self):
         """Will test Dask multi-processing capabilities and ability to serialize all objects."""
-        self.loader = OlssonLoader(str(DATA_ROOT_PATH / "set1_lund_door"), image_extension="JPG")
 
-        with hydra.initialize_config_module(config_module="gtsfm.configs"):
+        with hydra.initialize(config_path="../gtsfm/configs"):
 
             # config is relative to the gtsfm module
-            cfg = hydra.compose(config_name="scene_optimizer_unit_test_config.yaml")
-            obj: SceneOptimizer = instantiate(cfg.SceneOptimizer)
+            cfg = hydra.compose(
+                config_name="defaults",
+                overrides=[
+                    "loader.folder={}".format(ROOT_PATH / "tests" / "data" / "set1_lund_door"),
+                    "loader.image_extension=JPG",
+                ],
+            )
+            obj: SceneOptimizer = instantiate(cfg.scene_optimizer)
+            loader: LoaderBase = instantiate(cfg.loader)
 
             # generate the dask computation graph
             sfm_result_graph = obj.create_computation_graph(
-                num_images=len(self.loader),
-                image_pair_indices=self.loader.get_valid_pairs(),
-                image_graph=self.loader.create_computation_graph_for_images(),
-                camera_intrinsics_graph=self.loader.create_computation_graph_for_intrinsics(),
-                image_shape_graph=self.loader.create_computation_graph_for_image_shapes(),
-                gt_pose_graph=self.loader.create_computation_graph_for_poses(),
+                num_images=len(loader),
+                image_pair_indices=loader.get_valid_pairs(),
+                image_graph=loader.create_computation_graph_for_images(),
+                camera_intrinsics_graph=loader.create_computation_graph_for_intrinsics(),
+                image_shape_graph=loader.create_computation_graph_for_image_shapes(),
+                gt_pose_graph=loader.create_computation_graph_for_poses(),
             )
             # create dask client
-            cluster = LocalCluster(n_workers=1, threads_per_worker=4)
+            cluster = LocalCluster(n_workers=cfg.dask.num_workers, threads_per_worker=cfg.dask.threads_per_worker)
 
             with Client(cluster):
                 sfm_result = dask.compute(sfm_result_graph)[0]
@@ -56,14 +58,14 @@ class TestSceneOptimizer(unittest.TestCase):
 
             # compare the camera poses
             computed_poses = sfm_result.get_camera_poses()
-            computed_rotations = [x.rotation() for x in computed_poses]
-            computed_translations = [x.translation() for x in computed_poses]
 
             # get active cameras from largest connected component, may be <len(self.loader)
             connected_camera_idxs = sfm_result.get_valid_camera_indices()
             expected_poses = [self.loader.get_camera_pose(i) for i in connected_camera_idxs]
 
-            self.assertTrue(comp_utils.compare_global_poses(expected_poses, expected_poses))
+            self.assertTrue(
+                comp_utils.compare_global_poses(expected_poses, computed_poses, trans_err_atol=1.00, trans_err_rtol=0.1)
+            )
 
 
 def generate_random_essential_matrix() -> EssentialMatrix:
