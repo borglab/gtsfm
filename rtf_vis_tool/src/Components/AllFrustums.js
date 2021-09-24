@@ -1,5 +1,5 @@
 /* Component that renders all of the Frustums using the files: cameras.txt and images.txt. Will be rendered within
-Bundle_Adj_PC.js.
+PCViewer.js
 
 Author: Adi Singh
 */
@@ -14,7 +14,7 @@ var Quaternion = require('quaternion');
 var SE3 = require('./frustum_classes/se3');
 var ViewFrustum = require('./frustum_classes/view_frustum');
 
-function AllFrustums() {
+function AllFrustums(props) {
     /* 
     Returns:
         A component rendering all the camera frustums.
@@ -25,18 +25,18 @@ function AllFrustums() {
     useEffect(() => {
         
         // Fetch camera intrinsics from cameras.txt.
-        fetch('results/ba_input/cameras.txt')
+        fetch(`results/${props.pointCloudType}/cameras.txt`)
             .then((response) => response.text())
             .then((in_data) => {
 
                 // Fetch camera extrinsics from images.txt.
-                fetch('results/ba_input/images.txt')
+                fetch(`results/${props.pointCloudType}/images.txt`)
                 .then((response) => response.text())
                 .then((ex_data) => {
                     visualize_camera_frustums(in_data, ex_data)
                 });
             });
-    }, []);
+    });
 
     function visualize_camera_frustums(in_data, ex_data) {
         /* Given all the intrinsic and extrinsic data for all cameras, creates an array of frustums to be 
@@ -58,6 +58,7 @@ function AllFrustums() {
         var ex_cameraList = ex_data.split('\n');
         ex_cameraList = ex_cameraList.slice(4); // Remove the 4 lines of comments in images.txt.
         ex_cameraList.pop() // remove the last empty string from list.
+        ex_cameraList = ex_cameraList.filter(line => line !== "TODO"); // remove any lines that say 'TODO' from images.txt
 
         // remove any dummy lines from images.txt that contain the string "TODO", until gtsfm.utils.io.write_images is
         // updated
@@ -98,7 +99,8 @@ function AllFrustums() {
             const rotation_matrix = q.toMatrix(true);
             const rotation = nj.array(rotation_matrix);
             const translation = nj.array([tx,ty,tz]);
-            const wTc = new SE3(rotation, translation);
+            const cTw = new SE3(rotation, translation);
+            const wTc = cTw.inverse();
             var verts_worldframe = frustumObj.get_mesh_vertices_worldframe(wTc);
 
             finalFrustumsJSX.push(<Frustum 

@@ -9,7 +9,6 @@ from typing import Optional
 
 from gtsam import Cal3Bundler, Pose3
 
-import gtsfm.utils.images as img_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
@@ -61,13 +60,15 @@ class ColmapLoader(LoaderBase):
             max_frame_lookahead: maximum number of consecutive frames to consider for
                 matching/co-visibility. Any value of max_frame_lookahead less than the size of
                 the dataset assumes data is sequentially captured
-            max_resolution: integer representing maximum length of image's short side
-               e.g. for 1080p (1920 x 1080), max_resolution would be 1080
+            max_resolution: integer representing maximum length of image's short side, i.e.
+               the smaller of the height/width of the image. e.g. for 1080p (1920 x 1080),
+               max_resolution would be 1080. If the image resolution max(height, width) is
+               greater than the max_resolution, it will be downsampled to match the max_resolution.
         """
+        super().__init__(max_resolution)
         self._use_gt_intrinsics = use_gt_intrinsics
         self._use_gt_extrinsics = use_gt_extrinsics
         self._max_frame_lookahead = max_frame_lookahead
-        self._max_resolution = max_resolution
 
         self._wTi_list, img_fnames = io_utils.read_images_txt(fpath=os.path.join(colmap_files_dirpath, "images.txt"))
         self._calibrations = io_utils.read_cameras_txt(fpath=os.path.join(colmap_files_dirpath, "cameras.txt"))
@@ -92,18 +93,6 @@ class ColmapLoader(LoaderBase):
         self._num_imgs = len(self._image_paths)
         logger.info("Colmap image loader found and loaded %d images", self._num_imgs)
 
-        # read one image, to check if we need to downsample the images
-        img = io_utils.load_image(self._image_paths[0])
-        sample_h, sample_w = img.height, img.width
-        # no downsampling may be required, in which case scale_u and scale_v will be 1.0
-        (
-            self._scale_u,
-            self._scale_v,
-            self._target_h,
-            self._target_w,
-        ) = img_utils.get_downsampling_factor_per_axis(sample_h, sample_w, self._max_resolution)
-
-
     def __len__(self) -> int:
         """The number of images in the dataset.
 
@@ -112,8 +101,8 @@ class ColmapLoader(LoaderBase):
         """
         return self._num_imgs
 
-    def get_image(self, index: int) -> Image:
-        """Get the image at the given index.
+    def get_image_full_res(self, index: int) -> Image:
+        """Get the image at the given index, at full resolution.
 
         Args:
             index: the index to fetch.
@@ -128,11 +117,10 @@ class ColmapLoader(LoaderBase):
             raise IndexError("Image index is invalid")
 
         img = io_utils.load_image(self._image_paths[index])
-        img = img_utils.resize_image(img, new_height=self._target_h, new_width=self._target_w)
         return img
 
-    def get_camera_intrinsics(self, index: int) -> Cal3Bundler:
-        """Get the camera intrinsics at the given index.
+    def get_camera_intrinsics_full_res(self, index: int) -> Optional[Cal3Bundler]:
+        """Get the camera intrinsics at the given index, valid for a full-resolution image.
 
         Args:
             the index to fetch.
@@ -146,17 +134,9 @@ class ColmapLoader(LoaderBase):
         if not self._use_gt_intrinsics:
             # get intrinsics from exif
             intrinsics = io_utils.load_image(self._image_paths[index]).get_intrinsics_from_exif()
-
         else:
             intrinsics = self._calibrations[index]
 
-        intrinsics = Cal3Bundler(
-            fx=intrinsics.fx() * self._scale_u,
-            k1=0.0,
-            k2=0.0,
-            u0=intrinsics.px() * self._scale_u,
-            v0=intrinsics.py() * self._scale_v,
-        )
         return intrinsics
 
     def get_camera_pose(self, index: int) -> Optional[Pose3]:
