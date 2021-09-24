@@ -14,20 +14,28 @@ class TestTriangulationUtils(unittest.TestCase):
     def test_calculate_triangulation_angle_in_degrees(self) -> None:
         """Test the computation of triangulation angle using a simple example.
 
+        Lengths of line segments are defined as follows:
+
+                   5*sqrt(2)
+                  X ---- C1
+                  |    /
+        5*sqrt(2) |  / 10 = 5*sqrt(2)*sqrt(2)
+                  C2
+
         Cameras and point situated as follows in the x-z plane:
 
         (0,0,0)
-        ____ +z
-        | 
-        |
-        +x          
-                   X (5,0,5)
+             o---- +z
+             | 
+             |
+             +x          
+                      X (5,0,5)
                         
         (10,0,0)
-        ____ +z
-        |
-        |
-        +x
+             o---- +z
+             |
+             |
+             +x
         """
         camera_center_1 = np.array([0, 0, 0])
         camera_center_2 = np.array([10, 0, 0])
