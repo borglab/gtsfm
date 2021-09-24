@@ -63,8 +63,7 @@ class SE3 {
                               -1 * this.translation.get(1), 
                               -1 * this.translation.get(2)]);
 
-        const t_inverse = Rt.dot(t_negative);
-        const inverse = new SE3(Rt, t_inverse);
+        const inverse = new SE3(Rt, Rt.dot(t_negative));
         return inverse;
     }
 }

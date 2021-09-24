@@ -3,17 +3,20 @@ Three Fiber Visulization Tool.
 
 Authors: Adi Singh
 """
+from typing import Tuple
 
 import numpy as np
-from typing import Tuple
 from gtsam import Pose3, Rot3
 
 from gtsfm.common.gtsfm_data import GtsfmData
 
+# percentile threshold to classify points as outlier based on magnitude
+OUTLIER_DISTANCE_PERCENTILE = 95
 
-def transform_point_cloud_wrapper(gtsfm_data: GtsfmData) -> Pose3:
-    """Wrapper function for all the functions in ellipsoid.py. Transforms the point cloud contained within gtsfm_Data
-    to be aligned with the x, y, and z axes.
+
+def get_ortho_axis_alignment_transform(gtsfm_data: GtsfmData) -> Pose3:
+    """Wrapper function for all the functions in ellipsoid.py. Obtains the Pose3 transformation required to align
+    the GtsfmData to the x,y,z axes.
 
     Args:
         gtsfm_data: scene data to write to transform.
@@ -22,16 +25,11 @@ def transform_point_cloud_wrapper(gtsfm_data: GtsfmData) -> Pose3:
         The final transformation required to align point cloud and frustums.
     """
     # Iterate through each track to gather a list of 3D points forming the point cloud.
-    point_cloud_list = []
     num_pts = gtsfm_data.number_tracks()
+    point_cloud = [gtsfm_data.get_track(j).point3() for j in range(num_pts)]
+    point_cloud = np.array(point_cloud)  # point_cloud has shape Nx3
 
-    for j in range(num_pts):
-        track = gtsfm_data.get_track(j)  # TEMP: might need an extra import for track
-        x, y, z = track.point3()
-        point_cloud_list.append([x, y, z])
-
-    # Transform the point cloud to be aligned with x,y,z axes using SVD.
-    point_cloud = np.array([np.array(p) for p in point_cloud_list])  # point_cloud has shape Nx3
+    # Center point cloud, filter outlier points, and obtain alignment rotation.
     points_centered, mean = center_point_cloud(point_cloud)
     points_filtered = remove_outlier_points(points_centered)
     wuprightRw = get_alignment_rotation_matrix_from_svd(points_filtered)
@@ -79,14 +77,14 @@ def remove_outlier_points(point_cloud: np.ndarray) -> np.ndarray:
         raise TypeError("Point Cloud should be 3 dimensional")
 
     mags = np.linalg.norm(point_cloud, axis=1)
-    cutoff_mag = np.percentile(mags, 95)
+    cutoff_mag = np.percentile(mags, OUTLIER_DISTANCE_PERCENTILE)
     points_filtered = point_cloud[mags < cutoff_mag]
     return points_filtered
 
 
 def get_alignment_rotation_matrix_from_svd(point_cloud: np.ndarray) -> np.ndarray:
-    """Applies SVD on a point cloud. The resulting V contains the rotation matrix required to align the 3 principal
-    axes of the point cloud's ellipsoid with the x, y, z coordinate axes.
+    """Applies SVD to fit an ellipsoid to the point cloud. The resulting V contains the rotation matrix required to align the 3 principal
+    axes of the ellipsoid with the x, y, z coordinate axes.
 
     Args:
         point_cloud: point cloud of shape (N,3).

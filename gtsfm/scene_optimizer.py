@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import dask
 import matplotlib
-from gtsam import Similarity3
+from gtsam import Pose3, Similarity3
 
 matplotlib.use("Agg")
 
@@ -34,7 +34,7 @@ PLOT_BASE_PATH = Path(__file__).resolve().parent.parent / "plots"
 METRICS_PATH = Path(__file__).resolve().parent.parent / "result_metrics"
 RESULTS_PATH = Path(__file__).resolve().parent.parent / "results"
 
-# plot baths
+# plot paths
 PLOT_CORRESPONDENCE_PATH = PLOT_BASE_PATH / "correspondences"
 PLOT_BA_INPUT_PATH = PLOT_BASE_PATH / "ba_input"
 PLOT_RESULTS_PATH = PLOT_BASE_PATH / "results"
@@ -220,9 +220,9 @@ class SceneOptimizer:
         auxiliary_graph_list.extend(save_metrics_reports(metrics_graph_list))
 
         # Modify BA input and BA output to have point clouds and frustums aligned with x,y,z axes.
-        aligned_pose_graphs = dask.delayed(align_estimated_gtsfm_data)(ba_input_graph, ba_output_graph)
-        ba_input_graph = aligned_pose_graphs[0]
-        ba_output_graph = aligned_pose_graphs[1]
+        ba_input_graph, ba_output_graph, gt_pose_graph = dask.delayed(align_estimated_gtsfm_data, nout=3)(
+            ba_input_graph, ba_output_graph, gt_pose_graph
+        )
 
         if self._save_3d_viz:
             auxiliary_graph_list.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_pose_graph))
@@ -239,23 +239,28 @@ class SceneOptimizer:
         return output_graph[0]
 
 
-def align_estimated_gtsfm_data(ba_input: GtsfmData, ba_output: GtsfmData) -> Tuple[Delayed]:
+def align_estimated_gtsfm_data(
+    ba_input: GtsfmData, ba_output: GtsfmData, gt_pose_graph: List[Pose3]
+) -> Tuple[GtsfmData, GtsfmData, List[Pose3]]:
     """Creates modified GtsfmData objects that emulate ba_input and ba_output but with point cloud and camera
-    frustums aligned to the x,y,z axes.
+    frustums aligned to the x,y,z axes. Also transforms GT camera poses to be aligned to axes.
 
     Args:
         ba_input: GtsfmData input to bundle adjustment.
         ba_output: GtsfmData output from bundle adjustment.
+        gt_pose_graph: list of GT camera poses.
 
     Returns:
-        Delayed object for ba_input GtsfmData.
-        Delayed object for ba_output GtsfmData.
+        Updated ba_input GtsfmData object aligned to axes.
+        Updated ba_output GtsfmData object aligned to axes.
+        Updated gt_pose_graph with GT poses aligned to axes.
     """
-    walignedTw = ellipsoid_utils.transform_point_cloud_wrapper(ba_output)
+    walignedTw = ellipsoid_utils.get_ortho_axis_alignment_transform(ba_output)
     walignedTw = Similarity3(R=walignedTw.rotation(), t=walignedTw.translation(), s=1.0)
     ba_input = ba_input.apply_Sim3(walignedTw)
     ba_output = ba_output.apply_Sim3(walignedTw)
-    return ba_input, ba_output
+    gt_pose_graph = [walignedTw.transformFrom(wTi) for wTi in gt_pose_graph]
+    return ba_input, ba_output, gt_pose_graph
 
 
 def save_visualizations(
