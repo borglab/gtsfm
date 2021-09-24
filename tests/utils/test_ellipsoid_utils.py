@@ -58,13 +58,22 @@ class TestEllipsoidUtils(unittest.TestCase):
     def test_get_alignment_rotation_matrix_from_svd(self) -> None:
         """Tests the get_alignment_rotation_matrix_from_svd() function with 6 sample points."""
 
-        sample_points = np.array([[1, 1, 0], [-1, 1, 0], [-2, 2, 0], [-1, -1, 0], [1, -1, 0], [2, -2, 0]])
+        sample_points = np.array(
+            [
+                [1, 1, 0], 
+                [-1, 1, 0], 
+                [-2, 2, 0], 
+                [-1, -1, 0], 
+                [1, -1, 0], 
+                [2, -2, 0]
+            ]
+        )
         computed = ellipsoid_utils.get_alignment_rotation_matrix_from_svd(sample_points)
         num = np.sqrt(2) / 2
         expected = np.array([[-num, num, 0], [-num, -num, 0], [0, 0, 1]])
         npt.assert_almost_equal(computed, expected, decimal=6)
 
-    def test_get_alignment_rotation_matrix_from_svd_wrong_gims(self) -> None:
+    def test_get_alignment_rotation_matrix_from_svd_wrong_dims(self) -> None:
         """Tests the get_alignment_rotation_matrix_from_svd() function with 6 sample points of 2 dimensions."""
 
         sample_points = np.array([[1, 1], [-1, 1], [-2, 2], [-1, -1], [1, -1], [2, -2]])
