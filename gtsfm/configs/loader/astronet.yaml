@@ -1,4 +1,4 @@
-_target_: gtsfm.loader.yfcc_imb_loader.YfccImbLoader
+_target_: gtsfm.loader.astronet_loader.AstronetLoader
 data_dir: ${hydra:runtime.cwd}/tests/data/astronet/test_2011212_opnav_022
 use_gt_extrinsics: True
 use_gt_sfmtracks: False
