@@ -36,6 +36,7 @@ class TestEllipsoidUtils(unittest.TestCase):
     def test_remove_outlier_points(self) -> None:
         """Tests the remove_outlier_points() function with 5 sample points."""
 
+        # fmt: off
         sample_points = np.array(
             [
                 [0.5, 0.6, 0.8],
@@ -45,6 +46,8 @@ class TestEllipsoidUtils(unittest.TestCase):
                 [0.3, 0.3, 0.3],
             ]
         )
+        # fmt: on
+
         computed = ellipsoid_utils.remove_outlier_points(sample_points)
         expected = np.array([[0.5, 0.6, 0.8], [0.9, 1, 0.2], [0.2, 0.2, 0.2], [0.3, 0.3, 0.3]])
         npt.assert_almost_equal(computed, expected, decimal=6)
@@ -56,8 +59,23 @@ class TestEllipsoidUtils(unittest.TestCase):
         self.assertRaises(TypeError, ellipsoid_utils.remove_outlier_points, sample_points)
 
     def test_get_alignment_rotation_matrix_from_svd(self) -> None:
-        """Tests the get_alignment_rotation_matrix_from_svd() function with 6 sample points."""
+        """Tests the get_alignment_rotation_matrix_from_svd() function with 6 sample points. Transforms a rotated cross
+        to points lying on the x and y axes.
 
+        sample_points:        aligned_points:
+
+             |                       |
+         o   |                       o
+           o | o                     |
+        -------------   ==>  --o--o-----o--o--
+           o | o                     |
+             |   o                   o
+             |                       |
+
+         o = point
+        """
+
+        # fmt: off
         sample_points = np.array(
             [
                 [1, 1, 0], 
@@ -68,10 +86,19 @@ class TestEllipsoidUtils(unittest.TestCase):
                 [2, -2, 0]
             ]
         )
-        computed = ellipsoid_utils.get_alignment_rotation_matrix_from_svd(sample_points)
+        # fmt: on
+
+        computed_rotation = ellipsoid_utils.get_alignment_rotation_matrix_from_svd(sample_points)
         num = np.sqrt(2) / 2
-        expected = np.array([[-num, num, 0], [-num, -num, 0], [0, 0, 1]])
-        npt.assert_almost_equal(computed, expected, decimal=6)
+        expected_rotation = np.array([[-num, num, 0], [-num, -num, 0], [0, 0, 1]])
+        npt.assert_almost_equal(computed_rotation, expected_rotation, decimal=6)
+
+        # Apply the rotation transformation to sample_points
+        # Verify that every aligned point's x or y coordinate is 0
+        aligned_points = sample_points @ computed_rotation.T
+
+        closeToZero = np.isclose(aligned_points[:, :2], 0)
+        assert np.all(closeToZero[:, 0] | closeToZero[:, 1])
 
     def test_get_alignment_rotation_matrix_from_svd_wrong_dims(self) -> None:
         """Tests the get_alignment_rotation_matrix_from_svd() function with 6 sample points of 2 dimensions."""

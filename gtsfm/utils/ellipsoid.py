@@ -1,5 +1,5 @@
-"""Algorithms to center and align 3D points and camera frustums to the x, y, and z axes using SVD. Used in React
-Three Fiber Visulization Tool.
+"""Algorithms to center and align 3D points and camera frustums (belonging to GtsfmData object) to the x, y, and z axes 
+using SVD. Process is similar to Principal Component Analysis. Used in React Three Fiber Visulization Tool.
 
 Authors: Adi Singh
 """
@@ -83,7 +83,7 @@ def remove_outlier_points(point_cloud: np.ndarray) -> np.ndarray:
 
 
 def get_alignment_rotation_matrix_from_svd(point_cloud: np.ndarray) -> np.ndarray:
-    """Applies SVD to fit an ellipsoid to the point cloud. The resulting V contains the rotation matrix required to 
+    """Applies SVD to fit an ellipsoid to the point cloud. The resulting V contains the rotation matrix required to
     align the 3 principal axes of the ellipsoid with the x, y, z coordinate axes.
 
     Args:
