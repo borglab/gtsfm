@@ -1,5 +1,8 @@
 """Interface class from GtsfmData to PatchmatchNetData
 
+For terminology, we will estimate a depth map for each reference view, by warping features from the source views to 
+frontoparallel planes of the reference view.
+
 Authors: Ren Liu
 """
 from collections import defaultdict
@@ -9,9 +12,9 @@ import cv2
 import numpy as np
 from torch.utils.data import Dataset
 
+import gtsfm.densify.mvs_utils as mvs_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
-import gtsfm.densify.mvs_utils as mvs_utils
 
 NUM_PATCHMATCHNET_STAGES = 4
 
@@ -20,17 +23,18 @@ MAX_DEPTH_PERCENTILE = 99
 
 
 class PatchmatchNetData(Dataset):
-    """PatchmatchNetData class for PatchmatchNet. It contains the interface from GtsfmData.
+    """Converts the data format from GtsfmData to PatchmatchNet input, remapping camera indices.
     Ref: Wang et al. https://github.com/FangjinhuaWang/PatchmatchNet/blob/main/datasets/dtu_yao_eval.py
     """
 
-    def __init__(self, images: Dict[int, Image], sfm_result: GtsfmData, num_views: int = 5) -> None:
-        """Cache image and camera pose metadata for PatchmatchNet inference.
+    def __init__(self, images: Dict[int, Image], sfm_result: GtsfmData, max_num_views: int = 5) -> None:
+        """Cache images and GtsfmData for PatchmatchNet inference, including camera poses and tracks.
 
         Args:
             images: input images (H, W, C) to GTSFM
             sfm_result: sparse multiview reconstruction result
-            num_views: number of views, containing 1 reference view and (num_views-1) source views
+            max_num_views: defaults to 5, maximum number of views used to reconstruct one scene in PatchmatchNet,
+                containing 1 reference view and (num_views-1) source views
         """
 
         # Cache sfm result
@@ -40,21 +44,22 @@ class PatchmatchNetData(Dataset):
         valid_camera_idxs = sorted(self._sfm_result.get_valid_camera_indices())
         self._patchmatchnet_idx_to_camera_idx = {i_pm: i for i_pm, i in enumerate(valid_camera_idxs)}
         #   the number of images with estimated poses，not the number of images provided to GTSFM
-        self._num_images_cal = len(valid_camera_idxs)
+        self._num_valid_cameras = len(valid_camera_idxs)
 
         # Verify that there should be at least 2 valid images
-        if self._num_images_cal <= 1:
+        if self._num_valid_cameras <= 1:
             raise ValueError("At least 2 or more images with estimated poses must be provided")
 
         # PatchmatchNet meta
         self._num_stages = NUM_PATCHMATCHNET_STAGES
         #   the number of views must be no larger than the number of images
-        self._num_views = min(num_views, self._num_images_cal)
+        self._num_views = min(max_num_views, self._num_valid_cameras)
 
         # Store locations of camera centers in the world frame
-        self._camera_centers = {}
+        self._wti_list = {}
         for i in self._patchmatchnet_idx_to_camera_idx.values():
-            self._camera_centers[i] = self._sfm_result.get_camera(i).pose().translation()
+            # extract camera centers in world frame
+            self._wti_list[i] = self._sfm_result.get_camera(i).pose().translation()
 
         # Create mapping from image indices (with some entries
         #   potentially missing) to [0,N-1] tensor indices for N inputs to PatchmatchNet
@@ -94,7 +99,7 @@ class PatchmatchNetData(Dataset):
         num_tracks = self._sfm_result.number_tracks()
 
         # Initialize the pairwise scores between the same views as negative infinity
-        pair_scores = np.zeros((self._num_images_cal, self._num_images_cal))
+        pair_scores = np.zeros((self._num_valid_cameras, self._num_valid_cameras))
         np.fill_diagonal(pair_scores, -np.inf)
 
         # Initialize empty lists to collect all possible depths for each view
@@ -125,10 +130,11 @@ class PatchmatchNetData(Dataset):
                     if i_pm_a < 0 or i_pm_b < 0:
                         continue
 
-                    # If both cameras are valid cameras,
-                    #   calculate score for track_i in the pair views (cam_a, cam_b)
+                    # If both cameras are valid cameras, calculate score for track_i in the pair views (i_pm_a, i_pm_b)
+                    #   1. calculate the baseline angle of the common track j in both view i_a and i_b
+                    theta_a_b = 
                     score_a_b = mvs_utils.piecewise_gaussian(
-                        xPa=self._camera_centers[i_a] - w_x, xPb=self._camera_centers[i_b] - w_x
+                        xPa=self._wti_list[i_a] - w_x, xPb=self._wti_list[i_b] - w_x
                     )
                     # Sum up pair scores for each track_i
                     pair_scores[i_pm_b, i_pm_a] += score_a_b
@@ -139,8 +145,8 @@ class PatchmatchNetData(Dataset):
         pairs = np.argsort(-pair_scores, axis=1)[:, : self._num_views - 1]
 
         # Filter out depth outliers and calculate depth ranges
-        depth_ranges = np.zeros((self._num_images_cal, 2))
-        for i in range(self._num_images_cal):
+        depth_ranges = np.zeros((self._num_valid_cameras, 2))
+        for i in range(self._num_valid_cameras):
             depth_ranges[i, 0] = np.percentile(depths[i], MIN_DEPTH_PERCENTILE)
             depth_ranges[i, 1] = np.percentile(depths[i], MAX_DEPTH_PERCENTILE)
 
@@ -154,7 +160,7 @@ class PatchmatchNetData(Dataset):
         Returns:
             the length of the dataset
         """
-        return self._num_images_cal
+        return self._num_valid_cameras
 
     def __getitem__(self, index: int) -> Dict[str, Any]:
         """Get inference data to PatchmatchNet
@@ -236,7 +242,7 @@ class PatchmatchNetData(Dataset):
                 the length of source view indices is num_views
         """
         packed_pairs = []
-        for idx in range(self._num_images_cal):
+        for idx in range(self._num_valid_cameras):
             ref_view = idx
             src_views = self._pairs[idx].tolist()
             packed_pairs.append({"ref_id": ref_view, "src_ids": src_views})
