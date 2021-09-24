@@ -26,11 +26,11 @@ class TestTriangulationUtils(unittest.TestCase):
 
         (0,0,0)
              o---- +z
-             | 
              |
-             +x          
+             |
+             +x
                       X (5,0,5)
-                        
+
         (10,0,0)
              o---- +z
              |
