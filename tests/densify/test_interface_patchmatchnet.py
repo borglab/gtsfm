@@ -9,7 +9,7 @@ Authors: Ren Liu
 import unittest
 
 import numpy as np
-from gtsam import PinholeCameraCal3_S2, Cal3_S2, Point3
+from gtsam import Cal3_S2, PinholeCameraCal3_S2, Point3
 from gtsam.examples import SFMdata
 
 from gtsfm.common.image import Image
@@ -66,38 +66,35 @@ class TestPatchmatchNetData(unittest.TestCase):
         # set up the default image dictionary
         self._img_dict = DEFAULT_DUMMY_IMAGE_DICT
 
-        # initialize an empty sfm result in GtsfmData class
-        self._sfm_result = GtsfmData(self._num_images)
-        # add default cameras to the sfm result
-        self.add_default_cameras()
-        # add default tracks to the sfm result
-        self.add_default_tracks()
+        # initialize sfm result
+        self._sfm_result = self.get_dummy_gtsfm_data()
+
         # build PatchmatchNet dataset from input images and the sfm result
         self._dataset_patchmatchnet = PatchmatchNetData(self._img_dict, self._sfm_result)
 
-    def add_default_cameras(self) -> None:
-        """Assume all default cameras are valid cameras, add them into sfm_result"""
-        self._num_valid_cameras = DEFAULT_NUM_CAMERAS
+    def get_dummy_gtsfm_data(self) -> GtsfmData:
+        """ """
+        sfm_result = GtsfmData(self._num_images)
+        # Assume all default cameras are valid cameras, add toy data for cameras
         for i in range(DEFAULT_NUM_CAMERAS):
-            self._sfm_result.add_camera(i, DEFAULT_CAMERAS[i])
+            sfm_result.add_camera(i, DEFAULT_CAMERAS[i])
 
-    def add_default_tracks(self) -> None:
-        """Calculate the measurements under each camera for all track points, then insert the tracks into sfm result"""
-
-        self._num_tracks = DEFAULT_NUM_TRACKS
-        for j in range(self._num_tracks):
+        # Calculate the measurements under each camera for all track points, then add toy data for tracks:
+        for j in range(DEFAULT_NUM_TRACKS):
             world_x = DEFAULT_TRACK_POINTS[j]
             track_to_add = SfmTrack(world_x)
 
-            for i in range(self._num_valid_cameras):
-                measurement = self._sfm_result.get_camera(i).project(world_x)
-                track_to_add.add_measurement(idx=i, m=measurement)
-            self._sfm_result.add_track(track_to_add)
+            for i in range(DEFAULT_NUM_CAMERAS):
+                uv = sfm_result.get_camera(i).project(world_x)
+                track_to_add.add_measurement(idx=i, m=uv)
+            sfm_result.add_track(track_to_add)
+
+        return sfm_result
 
     def test_dataset_length(self) -> None:
         """Test whether the dataset length is equal to the number of valid cameras, because every valid camera will be
         regarded as reference view once."""
-        self.assertEqual(len(self._dataset_patchmatchnet), self._num_valid_cameras)
+        self.assertEqual(len(self._dataset_patchmatchnet), DEFAULT_NUM_CAMERAS)
 
     def test_select_src_views(self) -> None:
         """Test whether the (ref_view, src_view) pairs are selected correctly."""
@@ -125,7 +122,7 @@ class TestPatchmatchNetData(unittest.TestCase):
         self.assertAlmostEqual(self._dataset_patchmatchnet._depth_ranges[EXAMPLE_CAMERA_ID][1], 34.12857, 2)
 
     def test_get_item(self) -> None:
-        """Test get item method when yielding test data from dataset."""
+        """Test get_item method when yielding test data from dataset for inference."""
         example = self._dataset_patchmatchnet[EXAMPLE_CAMERA_ID]
 
         B, C, H, W = example["imgs"]["stage_0"].shape
@@ -134,15 +131,20 @@ class TestPatchmatchNetData(unittest.TestCase):
         #   the number of views must not be larger than the number of valid cameras, or the number of images
         self.assertLessEqual(B, DEFAULT_NUM_IMAGES)
 
-        # test images size and channel number are correct
+        # test that the image tensor is identical to original image dimensions
         h, w, c = self._img_dict[0].value_array.shape
         self.assertEqual((H, W, C), (h, w, c))
 
         # test 3x4 projection matrices are correct
         sample_proj_mat = example["proj_matrices"]["stage_0"][0][:3, :4]
-        sample_camera = self._sfm_result.get_camera(EXAMPLE_CAMERA_ID)
-        actual_proj_mat = sample_camera.calibration().K() @ sample_camera.pose().inverse().matrix()[:3, :4]
-        self.assertTrue(np.array_equal(sample_proj_mat, actual_proj_mat))
+        actual_proj_mat = np.array(
+            [
+                [-344.936916, -203.515560, -97.9843925, 16492.4225],
+                [-188.648444, -188.648444, -169.774938, 12369.3169],
+                [-0.685994341, -0.685994341, -0.242535625, 41.2310563],
+            ]
+        )
+        np.testing.assert_array_almost_equal(sample_proj_mat, actual_proj_mat, decimal=4)
 
 
 if __name__ == "__main__":

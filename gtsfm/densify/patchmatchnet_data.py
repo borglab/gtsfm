@@ -42,7 +42,7 @@ class PatchmatchNetData(Dataset):
 
         # Test data preparation
         valid_camera_idxs = sorted(self._sfm_result.get_valid_camera_indices())
-        self._patchmatchnet_idx_to_camera_idx = {i_pm: i for i_pm, i in enumerate(valid_camera_idxs)}
+        self._patchmatchnet_idx_to_camera_idx = {pm_i: i for pm_i, i in enumerate(valid_camera_idxs)}
         #   the number of images with estimated poses，not the number of images provided to GTSFM
         self._num_valid_cameras = len(valid_camera_idxs)
 
@@ -55,15 +55,9 @@ class PatchmatchNetData(Dataset):
         #   the number of views must be no larger than the number of images
         self._num_views = min(max_num_views, self._num_valid_cameras)
 
-        # Store locations of camera centers in the world frame
-        self._wti_list = {}
-        for i in self._patchmatchnet_idx_to_camera_idx.values():
-            # extract camera centers in world frame
-            self._wti_list[i] = self._sfm_result.get_camera(i).pose().translation()
-
         # Create mapping from image indices (with some entries
         #   potentially missing) to [0,N-1] tensor indices for N inputs to PatchmatchNet
-        self._camera_idx_to_patchmatchnet_idx = {i: i_pm for i_pm, i in self._patchmatchnet_idx_to_camera_idx.items()}
+        self._camera_idx_to_patchmatchnet_idx = {i: pm_i for pm_i, i in self._patchmatchnet_idx_to_camera_idx.items()}
 
         self._images = images
 
@@ -76,19 +70,22 @@ class PatchmatchNetData(Dataset):
         #   so that the image size can be matched after downsampling and then upsampling in PatchmatchNet
         self._cropped_h, self._cropped_w = (self._h - self._h % 8, self._w - self._w % 8)
 
-        self._pairs, self._depth_ranges = self.select_src_views_depth_ranges()
+        self._src_views_dict, self._depth_ranges = self.select_src_views_depth_ranges()
 
     def select_src_views_depth_ranges(self) -> Tuple[np.ndarray, np.ndarray]:
-        """Configure (ref_view, src_view) pairs and depth_ranges for each view from sfm_result.
+        """Compute image pair indices such that baseline angles are approximately 5 degree.
+        Larger baseline angles are more acceptable than small baseline angles.
+
         Ref: Wang et al. https://github.com/FangjinhuaWang/PatchmatchNet/blob/main/colmap_input.py (line 360-410)
 
         If there are N0 valid images and the patchmatchnet's number of views is num_views, the function does:
-            1. Calculate the scores between each pair of the N0 images. Then for every image as the reference image,
-            find (num_views - 1) images with highest scores as the source images.
-            2. The scores between each pair of the N0 images is the sum of piecewise Gaussian scores between vectors
-            from a common track's coordinates to each camera center, which is mentioned in "View Selection" paragraphs
-            in Yao's paper https://arxiv.org/abs/1804.02505.
-            3. For every image as the reference image, calculate the depth range.
+            - Calculate the scores between each image pair among all the N0 images. Then for every image as
+            the reference image, find (num_views - 1) images with the highest scores as the source images.
+            The scores between each image pair is the summation of piecewise Gaussian scores of all common tracks
+            in both images,which is mentioned in "View Selection" paragraphs in Yao's paper
+            https://arxiv.org/abs/1804.02505.
+
+            - For every image as the reference image, calculate the depth range.
 
         Returns:
             pairs: 2d array of shape (num_images, num_views-1). Each row_id indicates the index of reference view
@@ -109,40 +106,43 @@ class PatchmatchNetData(Dataset):
             track = self._sfm_result.get_track(j)
             num_measurements = track.number_measurements()
             measurements = [track.measurement(k) for k in range(num_measurements)]
-            w_x = track.point3()
+            wtj = track.point3()
             for k1 in range(num_measurements):
-                i_a = measurements[k1][0]
-                # Check if i_a is a valid image with estimated camera pose, then get its id for patchmatchnet
-                i_pm_a = self._camera_idx_to_patchmatchnet_idx.get(i_a, -1)
+                i1, _ = measurements[k1]
+                # Check if i1 is a valid image with estimated camera pose, then get its id for patchmatchnet
+                pm_i1 = self._camera_idx_to_patchmatchnet_idx.get(i1, -1)
 
-                # Calculate track_i's depth in the camera pose
-                z_a = self._sfm_result.get_camera(i_a).pose().transformTo(w_x)[-1]
-                # Update image i's depth list only when i in a valid camera
-                depths[i_pm_a].append(z_a)
+                # Calculate track j's depth in the camera i1 frame
+                z1 = self._sfm_result.get_camera(i1).pose().transformTo(wtj)[-1]
+                # Update image i1's depth list only when i1 in a valid camera
+                depths[pm_i1].append(z1)
 
                 for k2 in range(k1 + 1, num_measurements):
-                    i_b = measurements[k2][0]
+                    i2, _ = measurements[k2]
 
-                    # Check if i_b is a valid image with estimated camera pose, then get its id for patchmatchnet
-                    i_pm_b = self._camera_idx_to_patchmatchnet_idx.get(i_b, -1)
+                    # Check if i2 is a valid image with estimated camera pose, then get its id for patchmatchnet
+                    pm_i2 = self._camera_idx_to_patchmatchnet_idx.get(i2, -1)
 
-                    # Calculate the pairwise gaussian score only if i_a and i_b are both images with estimated poses
-                    if i_pm_a < 0 or i_pm_b < 0:
+                    # Calculate the pairwise gaussian score only if i1 and i2 are both images with estimated poses
+                    if pm_i1 < 0 or pm_i2 < 0:
                         continue
 
-                    # If both cameras are valid cameras, calculate score for track_i in the pair views (i_pm_a, i_pm_b)
-                    #   1. calculate the baseline angle of the common track j in both view i_a and i_b
-                    theta_a_b = 
-                    score_a_b = mvs_utils.piecewise_gaussian(
-                        xPa=self._wti_list[i_a] - w_x, xPb=self._wti_list[i_b] - w_x
+                    # If both cameras are valid, calculate the score of track j in view pair (pm_i1, pm_i2)
+                    #   1. calculate the baseline angle of track j
+                    theta_i1_i2 = mvs_utils.calculate_triangulation_angle_in_degrees(
+                        camera_1=self._sfm_result.get_camera(i1),
+                        camera_2=self._sfm_result.get_camera(i2),
+                        point_3d=wtj,
                     )
-                    # Sum up pair scores for each track_i
-                    pair_scores[i_pm_b, i_pm_a] += score_a_b
-                    pair_scores[i_pm_a, i_pm_b] += score_a_b
+                    #   2. calculate the result of the Gaussian function as the score
+                    score_i1_i2 = mvs_utils.piecewise_gaussian(theta=theta_i1_i2)
+                    #   3. add the score of track j to the total score of view pair (pm_i1, pm_i2)
+                    pair_scores[pm_i2, pm_i1] += score_i1_i2
+                    pair_scores[pm_i1, pm_i2] += score_i1_i2
 
         # Sort pair scores, for i-th row, choose the largest (num_views-1) scores, the corresponding views are selected
         #   as (num_views-1) source views for i-th reference view.
-        pairs = np.argsort(-pair_scores, axis=1)[:, : self._num_views - 1]
+        src_views_dict = np.argsort(-pair_scores, axis=1)[:, : self._num_views - 1]
 
         # Filter out depth outliers and calculate depth ranges
         depth_ranges = np.zeros((self._num_valid_cameras, 2))
@@ -150,15 +150,16 @@ class PatchmatchNetData(Dataset):
             depth_ranges[i, 0] = np.percentile(depths[i], MIN_DEPTH_PERCENTILE)
             depth_ranges[i, 1] = np.percentile(depths[i], MAX_DEPTH_PERCENTILE)
 
-        return pairs, depth_ranges
+        return src_views_dict, depth_ranges
 
     def __len__(self) -> int:
-        """Get the length of the dataset
-        In the PatchMatchNet workflow, each input image will be treated as a reference view once, and each input image
-        corresponds to a estimated camera pose. So the length of the dataset is equal to the number of reference views.
+        """Returns the number of reference views in the dataset. A depth map will be estimated for each.
+
+        In the PatchmatchNet workflow, each input image will be treated as a reference view once, and each input
+        image corresponds to a estimated camera pose.
 
         Returns:
-            the length of the dataset
+            the length of the dataset.
         """
         return self._num_valid_cameras
 
@@ -181,34 +182,32 @@ class PatchmatchNetData(Dataset):
                 "depth_max" maximum depth: int
                 "filename" output filename pattern: string
         """
-        ref_key = self._patchmatchnet_idx_to_camera_idx[index]
-        src_keys = [self._patchmatchnet_idx_to_camera_idx[src_index] for src_index in self._pairs[index]]
+        ref_idx = self._patchmatchnet_idx_to_camera_idx[index]
+        src_idxs = [self._patchmatchnet_idx_to_camera_idx[src_index] for src_index in self._src_views_dict[index]]
 
-        cam_keys = [ref_key] + src_keys
+        imgs: List[List[np.ndarray]] = [[] for _ in range(self._num_stages)]
+        proj_mats: List[List[np.ndarray]] = [[] for _ in range(self._num_stages)]
 
-        imgs: List[np.ndarray] = [[] for _ in range(self._num_stages)]
-        proj_mats: List[np.ndarray] = [[] for _ in range(self._num_stages)]
-
-        for cam_key in cam_keys:
-            img = self._images[cam_key].value_array
+        for i in [ref_idx] + src_idxs:
+            img = self._images[i].value_array
             np_img = np.array(img, dtype=np.float32) / 255.0
             np_img = cv2.resize(np_img, (self._w, self._h), interpolation=cv2.INTER_LINEAR)
             # Crop the image from the upper left corner, instead of from the center
             #   to align with the 2D coordinates in track's measurements.
             np_img = np_img[: self._cropped_h, : self._cropped_w, :]
 
-            intrinsics = self._sfm_result.get_camera(cam_key).calibration().K()
-            cTw = self._sfm_result.get_camera(cam_key).pose().inverse().matrix()
+            intrinsics = self._sfm_result.get_camera(i).calibration().K()
+            cTw = self._sfm_result.get_camera(i).pose().inverse().matrix()
             # In the multi-scale feature extraction, there are NUM_PATCHMATCHNET_STAGES stages.
             #   Resize the image to scales in [2^0, 2^(-1), 2^(-2), ..., 2^(1-NUM_PATCHMATCHNET_STAGES)]
             #   Initially the intrinsics is scaled to fit the smallest image size
             intrinsics[:2, :] /= 2 ** NUM_PATCHMATCHNET_STAGES
 
-            for i in range(self._num_stages):
-                imgs[i].append(
+            for j in range(self._num_stages):
+                imgs[j].append(
                     cv2.resize(
                         np_img,
-                        (self._cropped_w // (2 ** i), self._cropped_h // (2 ** i)),
+                        (self._cropped_w // (2 ** j), self._cropped_h // (2 ** j)),
                         interpolation=cv2.INTER_LINEAR,
                     )
                 )
@@ -216,14 +215,14 @@ class PatchmatchNetData(Dataset):
                 intrinsics[:2, :] *= 2.0
                 proj_mat[:3, :4] = intrinsics @ proj_mat[:3, :4]
                 # For the next stage, the image size is doubled, so the intrinsics should also be doubled.
-                proj_mats[-1 - i].append(proj_mat)
+                proj_mats[-1 - j].append(proj_mat)
 
         imgs_dict = {}
         proj_dict = {}
-        for i in range(self._num_stages):
+        for j in range(self._num_stages):
             # Reshaping the images from (B, H, W, C) to (B, C, H, W)
-            imgs_dict[f"stage_{i}"] = np.stack(imgs[i]).transpose([0, 3, 1, 2])
-            proj_dict[f"stage_{i}"] = np.stack(proj_mats[i])
+            imgs_dict[f"stage_{j}"] = np.stack(imgs[j]).transpose([0, 3, 1, 2])
+            proj_dict[f"stage_{j}"] = np.stack(proj_mats[j])
 
         return {
             "idx": index,
@@ -231,7 +230,7 @@ class PatchmatchNetData(Dataset):
             "proj_matrices": proj_dict,  # N*4*4
             "depth_min": self._depth_ranges[index, 0],  # scalar
             "depth_max": self._depth_ranges[index, 1],  # scalar
-            "filename": "{}/" + f"{ref_key:0>8}" + "{}",
+            "filename": "{}/" + f"{ref_idx:0>8}" + "{}",
         }
 
     def get_packed_pairs(self) -> List[Dict[str, Any]]:
@@ -242,9 +241,9 @@ class PatchmatchNetData(Dataset):
                 the length of source view indices is num_views
         """
         packed_pairs = []
-        for idx in range(self._num_valid_cameras):
-            ref_view = idx
-            src_views = self._pairs[idx].tolist()
+        for pm_i in range(self._num_valid_cameras):
+            ref_view = pm_i
+            src_views = self._src_views_dict[pm_i].tolist()
             packed_pairs.append({"ref_id": ref_view, "src_ids": src_views})
         return packed_pairs
 
@@ -252,27 +251,27 @@ class PatchmatchNetData(Dataset):
         """Get camera intrinsics and extrinsics parameters by image(or view) index
 
         Args:
-            index: image(or view) index
+            index: image(or view) index, known as `pm_i` elsewhere
 
         Returns:
             The camera parameter tuple of the input image(or view) index, (intrinsics (3, 3), extrinsics (4, 4))
         """
-        cam_key = self._patchmatchnet_idx_to_camera_idx[index]
-        intrinsics = self._sfm_result.get_camera(cam_key).calibration().K()
-        cTw = self._sfm_result.get_camera(cam_key).pose().inverse().matrix()
+        i = self._patchmatchnet_idx_to_camera_idx[index]
+        intrinsics = self._sfm_result.get_camera(i).calibration().K()
+        cTw = self._sfm_result.get_camera(i).pose().inverse().matrix()
         return (intrinsics, cTw)
 
     def get_image(self, index: int) -> np.ndarray:
         """Get preprocessed image by image(or view) index
 
         Args:
-            index: image(or view) index
+            index: image(or view) index, known as `pm_i` elsewher
 
         Returns:
             Preprocessed image, of shape (cropped_h, cropped_w, 3)
         """
-        cam_key = self._patchmatchnet_idx_to_camera_idx[index]
-        img = self._images[cam_key].value_array
+        i = self._patchmatchnet_idx_to_camera_idx[index]
+        img = self._images[i].value_array
         np_img = np.array(img, dtype=np.float32) / 255.0
         np_img = cv2.resize(np_img, (self._w, self._h), interpolation=cv2.INTER_LINEAR)
         np_img = np_img[: self._cropped_h, : self._cropped_w, :]
