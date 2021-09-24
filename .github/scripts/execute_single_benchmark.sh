@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-CONFIG_NAME=$1
+DETECTOR=$1
 DATASET_NAME=$2
 MAX_FRAME_LOOKAHEAD=$3
 IMAGE_EXTENSION=$4
@@ -29,6 +29,11 @@ function retry {
   return 0
 }
 
+if [ "$DETECTOR" == "sift" ]; then
+  MATCHER="classic"
+else
+  MATCHER="deep"
+fi
 
 echo "Config: ${CONFIG_NAME}, Dataset: ${DATASET_NAME}, Download Source: ${DATASET_SRC}, Loader: ${LOADER_NAME}"
 
@@ -107,26 +112,32 @@ fi
 
 
 # Run GTSFM on the dataset.
-if [ "$LOADER_NAME" == "olsson-loader" ]; then
+if [ "$LOADER_NAME" == "olsson" ]; then
   python gtsfm/runner/run_scene_optimizer.py \
-  --dataset_root $DATASET_ROOT \
-  --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
-  --config_name ${CONFIG_NAME}.yaml \
-  --image_extension $IMAGE_EXTENSION \
-  --max_resolution ${MAX_RESOLUTION}
+  scene_optimizer/feature_extractor/detector_descriptor=$DETECTOR \
+  scene_optimizer/two_view_estimator/matcher=$MATCHER \
+  loader=$LOADER_NAME \
+  loader.folder=$DATASET_ROOT \
+  loader.max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
+  loader.image_extension $IMAGE_EXTENSION \
+  loader.max_resolution ${MAX_RESOLUTION}
 
-elif [ "$LOADER_NAME" == "colmap-loader" ]; then
-  python gtsfm/runner/run_scene_optimizer_colmaploader.py \
-  --images_dir ${IMAGES_DIR} \
-  --colmap_files_dirpath $COLMAP_FILES_DIRPATH \
-  --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
-  --config_name ${CONFIG_NAME}.yaml \
-  --max_resolution ${MAX_RESOLUTION}
+elif [ "$LOADER_NAME" == "colmap" ]; then
+  python gtsfm/runner/run_scene_optimizer.py \
+  scene_optimizer/feature_extractor/detector_descriptor=$DETECTOR \
+  scene_optimizer/two_view_estimator/matcher=$MATCHER \
+  loader=$LOADER_NAME \
+  loader.colmap_files_dirpath=$COLMAP_FILES_DIRPATH \
+  loader.images_dir=$IMAGES_DIR \
+  loader.max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
+  loader.max_resolution $MAX_RESOLUTION
 
 elif [ "$LOADER_NAME" == "astronet" ]; then
-  python gtsfm/runner/run_scene_optimizer_astronet.py \
-  --data_dir $DATASET_ROOT \
-  --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
-  --config_name ${CONFIG_NAME}.yaml \
-  --max_resolution ${MAX_RESOLUTION}
+  python gtsfm/runner/run_scene_optimizer.py \
+  scene_optimizer/feature_extractor/detector_descriptor=$DETECTOR \
+  scene_optimizer/two_view_estimator/matcher=$MATCHER \
+  loader=$LOADER_NAME \
+  loader.data_dir=$DATASET_ROOT \
+  loader.max_frame_lookahead=$MAX_FRAME_LOOKAHEAD \
+  loader.max_resolution=$MAX_RESOLUTION
 fi
