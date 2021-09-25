@@ -203,11 +203,11 @@ class PatchmatchNetData(Dataset):
             #   Initially the intrinsics is scaled to fit the smallest image size
             intrinsics[:2, :] /= 2 ** NUM_PATCHMATCHNET_STAGES
 
-            for j in range(self._num_stages):
-                imgs[j].append(
+            for s in range(self._num_stages):
+                imgs[s].append(
                     cv2.resize(
                         np_img,
-                        (self._cropped_w // (2 ** j), self._cropped_h // (2 ** j)),
+                        (self._cropped_w // (2 ** s), self._cropped_h // (2 ** s)),
                         interpolation=cv2.INTER_LINEAR,
                     )
                 )
@@ -215,14 +215,14 @@ class PatchmatchNetData(Dataset):
                 intrinsics[:2, :] *= 2.0
                 proj_mat[:3, :4] = intrinsics @ proj_mat[:3, :4]
                 # For the next stage, the image size is doubled, so the intrinsics should also be doubled.
-                proj_mats[-1 - j].append(proj_mat)
+                proj_mats[-1 - s].append(proj_mat)
 
         imgs_dict = {}
         proj_dict = {}
-        for j in range(self._num_stages):
+        for s in range(self._num_stages):
             # Reshaping the images from (B, H, W, C) to (B, C, H, W)
-            imgs_dict[f"stage_{j}"] = np.stack(imgs[j]).transpose([0, 3, 1, 2])
-            proj_dict[f"stage_{j}"] = np.stack(proj_mats[j])
+            imgs_dict[f"stage_{s}"] = np.stack(imgs[s]).transpose([0, 3, 1, 2])
+            proj_dict[f"stage_{s}"] = np.stack(proj_mats[s])
 
         return {
             "idx": index,
