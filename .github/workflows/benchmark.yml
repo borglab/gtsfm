@@ -60,7 +60,7 @@ jobs:
           DATASET_SRC=$(echo ${array[4]} | sed 's/ //g')
           LOADER_NAME=$(echo ${array[5]} | sed 's/ //g')
           MAX_RESOLUTION=$(echo ${array[6]} | sed 's/ //g')
-          SHARE_INTRINSICS=$(echo ${array[6]} | sed 's/ //g')
+          SHARE_INTRINSICS=$(echo ${array[7]} | sed 's/ //g')
 
           bash .github/scripts/execute_single_benchmark.sh \
             $CONFIG_NAME \
