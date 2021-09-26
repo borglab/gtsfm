@@ -75,11 +75,9 @@ class GtsfmRunnerBase:
             # config is relative to the gtsfm module
             cfg = hydra.compose(
                 config_name=self.parsed_args.config_name,
-                overrides=[
-                    "SceneOptimizer.multiview_optimizer.bundle_adjustment_module.shared_calib=True"
-                    if self.parsed_args.share_intrinsics
-                    else None
-                ],
+                overrides=["SceneOptimizer.multiview_optimizer.bundle_adjustment_module.shared_calib=True"]
+                if self.parsed_args.share_intrinsics
+                else [],
             )
             scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
