@@ -10,15 +10,15 @@ jobs:
       matrix:
         config_dataset_info:
           [
-            "sift_front_end,  door-12,               12,  JPG,  test_data,  olsson-loader,  1296", true,
-            "deep_front_end,  door-12,               12,  JPG,  test_data,  olsson-loader,  1296", true,
-            "sift_front_end,  skydio-8,              8,   jpg,  gdrive ,    colmap-loader,  760", true,
-            "deep_front_end,  skydio-8,              8,   jpg,  gdrive,     colmap-loader,  760", true,
-            "sift_front_end,  skydio-32,             32,  jpg,  gdrive,     colmap-loader,  760", true,
-            "deep_front_end,  skydio-32,             32,  jpg,  gdrive,     colmap-loader,  760", true,
-            "sift_front_end,  palace-fine-arts-281,  25,  jpg,  wget,       olsson-loader,  320", true,
-            "deep_front_end,  notre-dame-20,         20,  jpg,  gdrive,     colmap-loader,  760", false,
-            "sift_front_end,  2011205_rc3,           65,  png,  wget,       astronet,       1024", true,
+            "sift_front_end,  door-12,               12,  JPG,  test_data,  olsson-loader,  1296, true",
+            "deep_front_end,  door-12,               12,  JPG,  test_data,  olsson-loader,  1296, true",
+            "sift_front_end,  skydio-8,              8,   jpg,  gdrive ,    colmap-loader,  760, true",
+            "deep_front_end,  skydio-8,              8,   jpg,  gdrive,     colmap-loader,  760, true",
+            "sift_front_end,  skydio-32,             32,  jpg,  gdrive,     colmap-loader,  760, true",
+            "deep_front_end,  skydio-32,             32,  jpg,  gdrive,     colmap-loader,  760, true",
+            "sift_front_end,  palace-fine-arts-281,  25,  jpg,  wget,       olsson-loader,  320, true",
+            "deep_front_end,  notre-dame-20,         20,  jpg,  gdrive,     colmap-loader,  760, false",
+            "sift_front_end,  2011205_rc3,           65,  png,  wget,       astronet,       1024, true",
           ]
     defaults:
       run:
@@ -49,7 +49,6 @@ jobs:
           bash .github/scripts/setup.sh
           conda info
       - name: Parse args and prepare dataset, Execute dataset
-        # large files from google drive first have a prompt about virus scan being inactive. Need 2 WGET commands.
         run: |
           IFS=',  ' read -r -a array <<< "${{ matrix.config_dataset_info }}"
           # strip out the whitespace with the stream editor (sed)
