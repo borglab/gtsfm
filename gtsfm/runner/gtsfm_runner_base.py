@@ -5,6 +5,7 @@ from abc import abstractmethod
 import hydra
 from dask.distributed import Client, LocalCluster, performance_report
 from hydra.utils import instantiate
+from omegaconf import OmegaConf
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -79,6 +80,8 @@ class GtsfmRunnerBase:
                 if self.parsed_args.share_intrinsics
                 else [],
             )
+            logger.info("Using config: ")
+            logger.info(OmegaConf.to_yaml(cfg))
             scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
         return scene_optimizer
