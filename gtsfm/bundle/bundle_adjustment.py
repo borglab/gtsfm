@@ -137,8 +137,7 @@ class BundleAdjustmentOptimizer:
         )
 
         # add prior on all calibrations
-        if self._shared_calib:
-            i = valid_camera_indices[0]
+        for i in valid_camera_indices[: 1 if self._shared_calib else len(valid_camera_indices)]:
             graph.push_back(
                 PriorFactorCal3Bundler(
                     K(self.__map_to_calibration_variable(i)),
@@ -146,15 +145,6 @@ class BundleAdjustmentOptimizer:
                     gtsam.noiseModel.Isotropic.Sigma(CAM_CAL3BUNDLER_DOF, CAM_CAL3BUNDLER_PRIOR_NOISE_SIGMA),
                 )
             )
-        else:
-            for i in valid_camera_indices:
-                graph.push_back(
-                    PriorFactorCal3Bundler(
-                        K(self.__map_to_calibration_variable(i)),
-                        initial_data.get_camera(i).calibration(),
-                        gtsam.noiseModel.Isotropic.Sigma(CAM_CAL3BUNDLER_DOF, CAM_CAL3BUNDLER_PRIOR_NOISE_SIGMA),
-                    )
-                )
 
         # Also add a prior on the position of the first landmark to fix the scale
         graph.push_back(
@@ -164,26 +154,26 @@ class BundleAdjustmentOptimizer:
         )
 
         # Create initial estimate
-        initial = gtsam.Values()
+        initial_values = gtsam.Values()
 
         # add each camera
         for loop_idx, i in enumerate(valid_camera_indices):
             camera = initial_data.get_camera(i)
-            initial.insert(X(i), camera.pose())
+            initial_values.insert(X(i), camera.pose())
             if not self._shared_calib or loop_idx == 0:
                 # add only one value if calibrations are shared
-                initial.insert(K(self.__map_to_calibration_variable(i)), camera.calibration())
+                initial_values.insert(K(self.__map_to_calibration_variable(i)), camera.calibration())
 
         # add each SfmTrack
         for j in range(initial_data.number_tracks()):
             track = initial_data.get_track(j)
-            initial.insert(P(j), track.point3())
+            initial_values.insert(P(j), track.point3())
 
         # Optimize the graph and print results
         try:
             params = gtsam.LevenbergMarquardtParams()
             params.setVerbosityLM("ERROR")
-            lm = gtsam.LevenbergMarquardtOptimizer(graph, initial, params)
+            lm = gtsam.LevenbergMarquardtOptimizer(graph, initial_values, params)
             result_values = lm.optimize()
         except Exception:
             logger.exception("LM Optimization failed")
@@ -193,7 +183,7 @@ class BundleAdjustmentOptimizer:
         final_error = graph.error(result_values)
 
         # Error drops from ~2764.22 to ~0.046
-        logger.info(f"initial error: {graph.error(initial):.2f}")
+        logger.info(f"initial error: {graph.error(initial_values):.2f}")
         logger.info(f"final error: {final_error:.2f}")
 
         # construct the results
