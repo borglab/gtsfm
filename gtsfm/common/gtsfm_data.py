@@ -7,7 +7,7 @@ import itertools
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-from gtsam import PinholeCameraCal3Bundler, Pose3, SfmTrack
+from gtsam import PinholeCameraCal3Bundler, Pose3, SfmTrack, Similarity3
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
 import gtsfm.utils.graph as graph_utils
@@ -306,10 +306,18 @@ class GtsfmData:
     def log_scene_reprojection_error_stats(self) -> None:
         """Logs reprojection error stats for all 3d points in the entire scene."""
         scene_reproj_errors = self.get_scene_reprojection_errors()
-        logger.info("Min scene reproj error: %.3f", np.nanmin(scene_reproj_errors))
-        logger.info("Avg scene reproj error: %.3f", np.nanmean(scene_reproj_errors))
-        logger.info("Median scene reproj error: %.3f", np.nanmedian(scene_reproj_errors))
-        logger.info("Max scene reproj error: %.3f", np.nanmax(scene_reproj_errors))
+        logger.info(
+            "Min scene reproj error: %.3f", np.nanmin(scene_reproj_errors) if len(scene_reproj_errors) else np.NaN
+        )
+        logger.info(
+            "Avg scene reproj error: %.3f", np.nanmean(scene_reproj_errors) if len(scene_reproj_errors) else np.NaN
+        )
+        logger.info(
+            "Median scene reproj error: %.3f", np.nanmedian(scene_reproj_errors) if len(scene_reproj_errors) else np.NaN
+        )
+        logger.info(
+            "Max scene reproj error: %.3f", np.nanmax(scene_reproj_errors) if len(scene_reproj_errors) else np.NaN
+        )
 
     def __validate_track(self, track: SfmTrack, reproj_err_thresh: float) -> bool:
         """Validates a track based on reprojection errors and cheirality checks.
@@ -358,32 +366,39 @@ class GtsfmData:
         """
         # these are the estimated poses (source, to be aligned)
         wTi_list = self.get_camera_poses()
-
         # align the poses which are valid (i.e. are not None)
         # some camera indices may have been lost after pruning to largest connected component, leading to None values
         # rSe aligns the estimate `e` frame to the reference `r` frame
-        wTi_list_aligned, rSe = geometry_comparisons.align_poses_sim3_ignore_missing(wTi_list_ref, wTi_list)
+        _, rSe = geometry_comparisons.align_poses_sim3_ignore_missing(wTi_list_ref, wTi_list)
+        return self.apply_Sim3(aSb=rSe)
 
+    def apply_Sim3(self, aSb: Similarity3) -> "GtsfmData":
+        """Assume current tracks and cameras are in frame "b", then transport them to frame "a".
+
+        Returns:
+            New GtsfmData object which has been transformed from frame a to frame b.
+        """
+        bTi_list = self.get_camera_poses()
+        aTi_list = [aSb.transformFrom(bTi) if bTi is not None else None for bTi in bTi_list]
         aligned_data = GtsfmData(number_images=self.number_images())
-        # update the camera pose to the aligned poses, but use the previous calibration
-        for i, wTi in enumerate(wTi_list_aligned):
-            if wTi is None:
+
+        # Update the camera poses to their aligned poses, but use the previous calibration.
+        for i, aTi in enumerate(aTi_list):
+            if aTi is None:
                 continue
             calibration = self.get_camera(i).calibration()
-            aligned_data.add_camera(i, PinholeCameraCal3Bundler(wTi, calibration))
-
-        # align estimated tracks to the ground truth
+            aligned_data.add_camera(i, PinholeCameraCal3Bundler(aTi, calibration))
+        # Align estimated tracks to ground truth.
         for j in range(self.number_tracks()):
-            # align each 3d point
-            track_est = self.get_track(index=j)
-            # place into the GT reference frame
-            pt_ref = rSe.transformFrom(track_est.point3())
-            track_aligned = SfmTrack(pt_ref)
-
-            # copy over the 2d measurements directly into the new track
-            for k in range(track_est.number_measurements()):
-                i, uv = track_est.measurement(k)
-                track_aligned.add_measurement(i, uv)
-            aligned_data.add_track(track_aligned)
+            # Align each 3d point
+            track_b = self.get_track(index=j)
+            # Place into the "a" reference frame
+            pt_a = aSb.transformFrom(track_b.point3())
+            track_a = SfmTrack(pt_a)
+            # Copy over the 2d measurements directly into the new track.
+            for k in range(track_b.number_measurements()):
+                i, uv = track_b.measurement(k)
+                track_a.add_measurement(i, uv)
+            aligned_data.add_track(track_a)
 
         return aligned_data

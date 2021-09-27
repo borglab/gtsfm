@@ -94,7 +94,9 @@ class TestGeometryComparisons(unittest.TestCase):
         transform = Similarity3(rotation_shift, translation_shift, scaling_factor)
         ref_list = [transform.transformFrom(x) for x in sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES]
 
-        computed_poses, aSb = geometry_comparisons.align_poses_sim3(sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES, ref_list)
+        computed_poses, aSb = geometry_comparisons.align_poses_sim3(
+            sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES, ref_list
+        )
         assert isinstance(aSb, Similarity3)
         self.__assert_equality_on_pose3s(computed_poses, sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES)
 
