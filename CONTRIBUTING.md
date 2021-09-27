@@ -43,6 +43,7 @@ We ask that contributors prefer GTSAM types wherever possible unless it's not al
 - **f-strings**: Use f-strings as a default for regular strings, except when logging, where there is a specific logging format.
 - Default arguments should never be mutable (these will lead to unexpected and strange behavior), `def foo(mylist = [])` is not ok
 - Do not use a dictionary as an object -- use `NamedTuple` instead.
+- **Imports**: Imports should be grouped from most generic to least generic. Within each grouping, imports should be sorted lexicographically. See the [Google python style guide](https://google.github.io/styleguide/pyguide.html#313-imports-formatting) for more details.
 - **Docstrings Required**: Each function should be accompanied by a docstring. Docstrings should be added as [described here](https://google.github.io/styleguide/pyguide.html#383-functions-and-methods).
     - Docstrings should start with a one-line summary of the program terminated by a period.
     - Leave one blank line.
