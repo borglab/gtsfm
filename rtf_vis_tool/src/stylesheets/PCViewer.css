@@ -11,7 +11,7 @@ Author: Adi Singh
     position: absolute;
     top: 5%;
     left: 3%;
-    z-index: 2;
+    z-index: 4;
     border: 3px solid black;
     background-color: whitesmoke;
     width: 90%;
@@ -31,7 +31,7 @@ Author: Adi Singh
 }
 
 /*  Positions the 'Toggle Coordinate Grid' button at the upper right of the bundle adjustment 
-    container Mouse turns into a pointer when hovering over button.
+    container. Mouse turns into a pointer when hovering over button.
 */
 .toggle_grid_btn {
     position: absolute;
