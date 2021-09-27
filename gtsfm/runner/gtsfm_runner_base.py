@@ -1,6 +1,10 @@
-import argparse
+"""Base class for all runners.
+
+Authors: Ayush Baid
+"""
 import time
 from abc import abstractmethod
+from argparse import ArgumentParser, Namespace
 
 import hydra
 from dask.distributed import Client, LocalCluster, performance_report
@@ -17,16 +21,39 @@ logger = logger_utils.get_logger()
 
 
 class GtsfmRunnerBase:
+    """Base class for all runners, which handles argument parsing, loader and SceneOptimizer instantiation and
+    execution."""
+
     def __init__(self, tag: str):
+        """Initialize the argument parser, and parses the command line args to create loader and scene optimizer
+        objects.
+
+        Args:
+            tag: the description associated with the runner, which will be used in the argument parser.
+        """
         self._tag: str = tag
-        argparser: argparse.ArgumentParser = self.construct_argparser()
-        self.parsed_args: argparse.Namespace = argparser.parse_args()
+        argparser: ArgumentParser = self.construct_argparser()
+        self.parsed_args: Namespace = argparser.parse_args()
 
         self.loader: LoaderBase = self.construct_loader()
         self.scene_optimizer: SceneOptimizer = self.construct_scene_optimizer()
 
-    def construct_argparser(self) -> argparse.ArgumentParser:
-        parser = argparse.ArgumentParser(description=self._tag)
+    def construct_argparser(self) -> ArgumentParser:
+        """Constructs the argument parser, with the arguments common to all runners. All implementations of the function
+        in the child classes of GtsfmRunnerBase should call this method.
+
+        The following command line args are set up in this method:
+        - num_workers
+        - threads_per_worker
+        - config_name
+        - max_resolution
+        - max_frame_lookahead
+        - share_intrinsics
+
+        Returns:
+            The argument parser.
+        """
+        parser = ArgumentParser(description=self._tag)
 
         parser.add_argument(
             "--num_workers",
@@ -69,9 +96,10 @@ class GtsfmRunnerBase:
 
     @abstractmethod
     def construct_loader(self) -> LoaderBase:
-        pass
+        """Constructs the loader."""
 
     def construct_scene_optimizer(self) -> SceneOptimizer:
+        """Constructs the scene optimizer."""
         with hydra.initialize_config_module(config_module="gtsfm.configs"):
             # config is relative to the gtsfm module
             cfg = hydra.compose(
@@ -87,6 +115,7 @@ class GtsfmRunnerBase:
         return scene_optimizer
 
     def run(self) -> None:
+        """Runs GTSFM using the instantiated Loader and SceneOptimizer."""
         start_time = time.time()
         sfm_result_graph = self.scene_optimizer.create_computation_graph(
             num_images=len(self.loader),
@@ -97,11 +126,9 @@ class GtsfmRunnerBase:
             gt_pose_graph=self.loader.create_computation_graph_for_poses(),
         )
 
-        # create dask client
         cluster = LocalCluster(
             n_workers=self.parsed_args.num_workers, threads_per_worker=self.parsed_args.threads_per_worker
         )
-
         with Client(cluster), performance_report(filename="dask-report.html"):
             sfm_result = sfm_result_graph.compute()
 

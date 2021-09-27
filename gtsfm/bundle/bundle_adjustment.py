@@ -96,7 +96,7 @@ class BundleAdjustmentOptimizer:
             logger.error(
                 "Bundle adjustment aborting, optimization cannot be performed without any tracks or any cameras."
             )
-            return initial_data, GtsfmMetricsGroup()
+            return initial_data
 
         # noise model for measurements -- one pixel in u and v
         measurement_noise = gtsam.noiseModel.Isotropic.Sigma(IMG_MEASUREMENT_DIM, MEASUREMENT_NOISE_SIGMA)
@@ -178,7 +178,7 @@ class BundleAdjustmentOptimizer:
         except Exception:
             logger.exception("LM Optimization failed")
             # as we did not perform the bundle adjustment, we skip computing the total reprojection error
-            return GtsfmData(initial_data.number_images()), GtsfmMetricsGroup()
+            return GtsfmData(initial_data.number_images())
 
         final_error = graph.error(result_values)
 

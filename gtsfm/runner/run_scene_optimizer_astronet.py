@@ -1,9 +1,8 @@
 """Runs GTSfM on an AstroNet dataset.
 
-Author: Travis Driver
+Author: Travis Driver, Ayush Baid
 """
-import argparse
-
+from argparse import ArgumentParser, Namespace
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.loader.loader_base import LoaderBase
@@ -14,10 +13,14 @@ logger = logger_utils.get_logger()
 
 
 class GtsfmRunnerAstronetLoader(GtsfmRunnerBase):
+    """Gtsfm runner for Astronet loader."""
+
     def __init__(self):
+        """Initializes the class by calling the base class' constructor with a tag."""
         super(GtsfmRunnerAstronetLoader, self).__init__(tag="Run GTSfM on AstroNet segment")
 
-    def construct_argparser(self) -> argparse.ArgumentParser:
+    def construct_argparser(self) -> ArgumentParser:
+        """Constructs the argparser by using the super class implementation and adding Astronet specific args."""
         parser = super(GtsfmRunnerAstronetLoader, self).construct_argparser()
 
         parser.add_argument(
@@ -34,7 +37,7 @@ class GtsfmRunnerAstronetLoader(GtsfmRunnerBase):
         return parser
 
     def construct_loader(self) -> LoaderBase:
-        # Initialize loader.
+        """Constructs the AstronetLoader."""
         loader = AstronetLoader(
             data_dir=self.parsed_args.data_dir,
             use_gt_extrinsics=True,

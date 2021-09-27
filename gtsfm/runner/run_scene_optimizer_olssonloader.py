@@ -1,5 +1,9 @@
-import argparse
+"""Runs Gtsfm using OlssonLoader.
+
+Author: Ayush Baid
+"""
 import os
+from argparse import ArgumentParser
 from pathlib import Path
 
 
@@ -14,10 +18,14 @@ logger = logger_utils.get_logger()
 
 
 class GtsfmRunnerOlssonLoader(GtsfmRunnerBase):
+    """Gtsfm runner for OlssonLoader."""
+
     def __init__(self):
+        """Initializes the class by calling the base class' constructor with a tag."""
         super(GtsfmRunnerOlssonLoader, self).__init__(tag="GTSFM on Dataset in Olsson's Lund format")
 
-    def construct_argparser(self) -> argparse.ArgumentParser:
+    def construct_argparser(self) -> ArgumentParser:
+        """Constructs the argparser by using the super class implementation and adding OlssonLoader specific args."""
         parser = super(GtsfmRunnerOlssonLoader, self).construct_argparser()
 
         parser.add_argument("--dataset_root", type=str, default=os.path.join(DATA_ROOT, "set1_lund_door"), help="")
@@ -26,6 +34,7 @@ class GtsfmRunnerOlssonLoader(GtsfmRunnerBase):
         return parser
 
     def construct_loader(self) -> LoaderBase:
+        """Constructs the OlssonLoader."""
         loader = OlssonLoader(
             self.parsed_args.dataset_root,
             image_extension=self.parsed_args.image_extension,
