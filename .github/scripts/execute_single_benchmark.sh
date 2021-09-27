@@ -8,6 +8,7 @@ IMAGE_EXTENSION=$4
 DATASET_SRC=$5
 LOADER_NAME=$6
 MAX_RESOLUTION=$7
+SHARE_INTRINSICS=$8
 
 function retry {
   local retries=$1
@@ -31,6 +32,13 @@ function retry {
 
 
 echo "Config: ${CONFIG_NAME}, Dataset: ${DATASET_NAME}, Download Source: ${DATASET_SRC}, Loader: ${LOADER_NAME}"
+
+# Setup the command line arg if intrinsics are to be shared
+if [ "$SHARE_INTRINSICS" ]; then
+  export SHARE_INTRINSICS_ARG = "--share_intrinsics"
+else
+  export SHARE_INTRINSICS_ARG = ""
+fi
 
 # Prepare the download URLs.
 if [ "$DATASET_NAME" == "skydio-8" ]; then
@@ -108,12 +116,13 @@ fi
 
 # Run GTSFM on the dataset.
 if [ "$LOADER_NAME" == "olsson-loader" ]; then
-  python gtsfm/runner/run_scene_optimizer.py \
+  python gtsfm/runner/run_scene_optimizer_olssonloader.py \
   --dataset_root $DATASET_ROOT \
   --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
   --config_name ${CONFIG_NAME}.yaml \
   --image_extension $IMAGE_EXTENSION \
-  --max_resolution ${MAX_RESOLUTION}
+  --max_resolution ${MAX_RESOLUTION} \
+  ${SHARE_INTRINSICS_ARG}
 
 elif [ "$LOADER_NAME" == "colmap-loader" ]; then
   python gtsfm/runner/run_scene_optimizer_colmaploader.py \
@@ -121,12 +130,14 @@ elif [ "$LOADER_NAME" == "colmap-loader" ]; then
   --colmap_files_dirpath $COLMAP_FILES_DIRPATH \
   --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
   --config_name ${CONFIG_NAME}.yaml \
-  --max_resolution ${MAX_RESOLUTION}
+  --max_resolution ${MAX_RESOLUTION} \
+  ${SHARE_INTRINSICS_ARG}
 
 elif [ "$LOADER_NAME" == "astronet" ]; then
   python gtsfm/runner/run_scene_optimizer_astronet.py \
   --data_dir $DATASET_ROOT \
   --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
   --config_name ${CONFIG_NAME}.yaml \
-  --max_resolution ${MAX_RESOLUTION}
+  --max_resolution ${MAX_RESOLUTION} \
+  ${SHARE_INTRINSICS_ARG}
 fi
