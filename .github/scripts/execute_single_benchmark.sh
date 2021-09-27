@@ -8,6 +8,7 @@ IMAGE_EXTENSION=$4
 DATASET_SRC=$5
 LOADER_NAME=$6
 MAX_RESOLUTION=$7
+SHARE_INTRINSICS=$8
 
 function retry {
   local retries=$1
@@ -32,18 +33,35 @@ function retry {
 
 echo "Config: ${CONFIG_NAME}, Dataset: ${DATASET_NAME}, Download Source: ${DATASET_SRC}, Loader: ${LOADER_NAME}"
 
+# Setup the command line arg if intrinsics are to be shared
+if [ "$SHARE_INTRINSICS" ]; then
+  export SHARE_INTRINSICS_ARG = "--share_intrinsics"
+else
+  export SHARE_INTRINSICS_ARG = ""
+fi
+
 # Prepare the download URLs.
 if [ "$DATASET_NAME" == "skydio-8" ]; then
+  # Description: TODO
   export GDRIVE_FILEID='1mmM1p_NpL7-pnf3iHWeWVKpsm1pcBoD5'
+
 elif [ "$DATASET_NAME" == "skydio-32" ]; then
+  # Description: TODO
   export GDRIVE_FILEID='1BQ6jp0DD3D9yhTnrDoEddzlMYT0RRH68'
+
 elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
+  # Description: TODO
   export GDRIVE_FILEID='1t_CptH7ZWdKQVW-yw56bpLS83TntNQiK'
+
 elif [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then
+  # Description: TODO
   WGET_URL1=http://vision.maths.lth.se/calledataset/fine_arts_palace/fine_arts_palace.zip
   WGET_URL2=http://vision.maths.lth.se/calledataset/fine_arts_palace/data.mat
-  echo $WGET_URL1
-  echo $WGET_URL2
+
+elif [ "$DATASET_NAME" == "2011205_rc3" ]; then
+  # Description: images captured during the Rotation Characterization 3 (RC3) phase of NASA's Dawn mission to Asteroid 4
+  #   Vesta.
+  WGET_URL1=https://www.dropbox.com/s/q02mgq1unbw068t/2011205_rc3.zip
 fi
 
 # Download the data.
@@ -56,7 +74,13 @@ if [ "$DATASET_SRC" == "gdrive" ]; then
 elif [ "$DATASET_SRC" == "wget" ]; then
   echo "Downloading ${DATASET_NAME} with WGET"
   retry 3 wget $WGET_URL1
-  retry 3 wget $WGET_URL2
+
+  # Check if $WGET_URL2 has been set.
+  if [ ! -z "$WGET_URL2" ]; then
+    retry 3 wget $WGET_URL2
+  fi
+  echo $WGET_URL1
+  echo $WGET_URL2
 fi
 
 # Extract the data, configure arguments for runner.
@@ -83,17 +107,22 @@ elif [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then \
   unzip -qq fine_arts_palace.zip -d palace-fine-arts-281/images
   mv data.mat palace-fine-arts-281/
   DATASET_ROOT="palace-fine-arts-281"
+
+elif [ "$DATASET_NAME" == "2011205_rc3" ]; then 
+  unzip -qq 2011205_rc3.zip
+  DATASET_ROOT="2011205_rc3"
 fi
 
 
 # Run GTSFM on the dataset.
 if [ "$LOADER_NAME" == "olsson-loader" ]; then
-  python gtsfm/runner/run_scene_optimizer.py \
+  python gtsfm/runner/run_scene_optimizer_olssonloader.py \
   --dataset_root $DATASET_ROOT \
   --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
   --config_name ${CONFIG_NAME}.yaml \
   --image_extension $IMAGE_EXTENSION \
-  --max_resolution ${MAX_RESOLUTION}
+  --max_resolution ${MAX_RESOLUTION} \
+  ${SHARE_INTRINSICS_ARG}
 
 elif [ "$LOADER_NAME" == "colmap-loader" ]; then
   python gtsfm/runner/run_scene_optimizer_colmaploader.py \
@@ -101,5 +130,14 @@ elif [ "$LOADER_NAME" == "colmap-loader" ]; then
   --colmap_files_dirpath $COLMAP_FILES_DIRPATH \
   --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
   --config_name ${CONFIG_NAME}.yaml \
-  --max_resolution ${MAX_RESOLUTION}
+  --max_resolution ${MAX_RESOLUTION} \
+  ${SHARE_INTRINSICS_ARG}
+
+elif [ "$LOADER_NAME" == "astronet" ]; then
+  python gtsfm/runner/run_scene_optimizer_astronet.py \
+  --data_dir $DATASET_ROOT \
+  --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
+  --config_name ${CONFIG_NAME}.yaml \
+  --max_resolution ${MAX_RESOLUTION} \
+  ${SHARE_INTRINSICS_ARG}
 fi

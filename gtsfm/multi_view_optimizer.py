@@ -77,17 +77,18 @@ class MultiViewOptimizer:
             The final output GtsfmData, wrapped up as Delayed.
             List of GtsfmMetricGroups from different modules, wrapped up as Delayed.
         """
+        multiview_optimizer_metrics_graph = []
 
-        i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph = dask.delayed(filter_edges_by_strictest_threshold, nout=3)(
-            i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_reports_dict, num_images
-        )
+        i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, rcc_metrics_graph = dask.delayed(
+            filter_edges_by_strictest_threshold, nout=4
+        )(i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_reports_dict, num_images)
 
         def _filter_dict_keys(dict: Dict[Any, Any], ref_dict: Dict[Any, Any]) -> Dict[Any, Any]:
             """Return a subset of a dictionary based on keys present in the reference dictionary."""
             valid_keys = list(ref_dict.keys())
             return {k: v for k, v in dict.items() if k in valid_keys}
 
-        multiview_optimizer_metrics_graph = []
+        auxiliary_graph_list = []
         if gt_poses_graph is not None:
             two_view_reports_dict_cycle_consistent = dask.delayed(_filter_dict_keys)(
                 dict=two_view_reports_dict, ref_dict=i2Ri1_graph
@@ -99,6 +100,31 @@ class MultiViewOptimizer:
                     metric_group_name="cycle_consistent_frontend_summary",
                 )
             )
+            auxiliary_graph_list.append(
+                dask.delayed(two_view_estimator.save_full_frontend_metrics)(
+                    two_view_reports_dict_cycle_consistent,
+                    images_graph,
+                    filename="cycle_consistent_frontend_full.json",
+                )
+            )
+
+        def _filter_dict_keys(dict: Dict[Any, Any], ref_dict: Dict[Any, Any]) -> Dict[Any, Any]:
+            """Return a subset of a dictionary based on keys present in the reference dictionary."""
+            valid_keys = list(ref_dict.keys())
+            return {k: v for k, v in dict.items() if k in valid_keys}
+
+        if gt_poses_graph is not None:
+            two_view_reports_dict_cycle_consistent = dask.delayed(_filter_dict_keys)(
+                dict=two_view_reports_dict, ref_dict=i2Ri1_graph
+            )
+            multiview_optimizer_metrics_graph.append(
+                dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
+                    two_view_reports_dict_cycle_consistent,
+                    pose_angular_error_thresh,
+                    metric_group_name="cycle_consistent_frontend_summary",
+                )
+            )
+        i2Ri1_graph = dask.delayed(lambda x, y: (x, y))(i2Ri1_graph, auxiliary_graph_list)[0]
 
         # prune the graph to a single connected component.
         pruned_i2Ri1_graph, pruned_i2Ui1_graph = dask.delayed(graph_utils.prune_to_largest_connected_component, nout=2)(
@@ -125,7 +151,9 @@ class MultiViewOptimizer:
         )
         averaging_metrics = dask.delayed(get_averaging_metrics)(rot_avg_metrics, ta_metrics)
 
-        multiview_optimizer_metrics_graph.extend([averaging_metrics, data_assoc_metrics_graph, ba_metrics_graph])
+        multiview_optimizer_metrics_graph.extend(
+            [rcc_metrics_graph, averaging_metrics, data_assoc_metrics_graph, ba_metrics_graph]
+        )
 
         if gt_poses_graph is not None:
             # align the sparse multi-view estimate before BA to the ground truth pose graph.
@@ -145,7 +173,7 @@ def filter_edges_by_strictest_threshold(
 
     We try to solve the problem at varying level of difficulties, starting at the strictest
     setting, and gradually relaxing the problem until a sufficient number of inliers can be found.
-    
+
     Empirically we require at least (3 * number of images in the dataset) for # of backend measurements, to accept
     result, for sufficient redundancy in the graph. In other words, we use as a proxy "number of backend measurements
     coming out of cycle consistency" for "is the problem solvable". We only run the front-end computation once, however.
@@ -203,7 +231,12 @@ def filter_edges_by_strictest_threshold(
             v_corr_idxs_dict_conf = _filter_dict_keys(dict=v_corr_idxs_dict, valid_keys=high_confidence_edges)
 
             # ensure cycle consistency in triplets
-            i2Ri1_dict_cc, i2Ui1_dict_cc, v_corr_idxs_dict_cc = cycle_consistency.filter_to_cycle_consistent_edges(
+            (
+                i2Ri1_dict_cc,
+                i2Ui1_dict_cc,
+                v_corr_idxs_dict_cc,
+                rcc_metrics,
+            ) = cycle_consistency.filter_to_cycle_consistent_edges(
                 i2Ri1_dict_conf, i2Ui1_dict_conf, v_corr_idxs_dict_conf, two_view_reports_dict
             )
 
@@ -224,7 +257,7 @@ def filter_edges_by_strictest_threshold(
                     num_backend_input_pairs,
                     num_required_backend_input_pairs,
                 )
-                return i2Ri1_dict_cc, i2Ui1_dict_cc, v_corr_idxs_dict_cc
+                return i2Ri1_dict_cc, i2Ui1_dict_cc, v_corr_idxs_dict_cc, rcc_metrics
 
     raise RuntimeError(
         "No problem relaxation yielded sufficient number of edges for back-end optimization. Aborting..."

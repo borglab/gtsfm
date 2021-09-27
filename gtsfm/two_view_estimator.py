@@ -3,8 +3,10 @@
 Authors: Ayush Baid, John Lambert
 """
 import logging
+import os
 from dataclasses import dataclass
-from typing import Dict, Optional, Tuple
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 import dask
 import numpy as np
@@ -12,8 +14,10 @@ from dask.delayed import Delayed
 from gtsam import Cal3Bundler, Pose3, Rot3, Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
+import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
+from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
@@ -28,6 +32,14 @@ pil_logger = logging.getLogger("PIL")
 pil_logger.setLevel(logging.INFO)
 
 EPSILON = 1e-6
+
+# number of digits (significant figures) to include in each entry of error metrics
+PRINT_NUM_SIG_FIGS = 2
+
+# base paths for storage
+PLOT_BASE_PATH = Path(__file__).resolve().parent.parent / "plots"
+METRICS_PATH = Path(__file__).resolve().parent.parent / "result_metrics"
+REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
 
 
 @dataclass(frozen=False)
@@ -359,3 +371,45 @@ def aggregate_frontend_metrics(
         ],
     )
     return frontend_metrics
+
+
+def save_full_frontend_metrics(
+    two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport], images: List[Image], filename: str
+) -> None:
+    """Converts the TwoViewEstimationReports for all image pairs to a Dict and saves it as JSON.
+
+    Args:
+        two_view_report_dict: front-end metrics for pairs of images.
+        images: list of all images for this scene, in order of image/frame index.
+        filename: file name to use when saving report to JSON.
+    """
+    metrics_list = []
+
+    for (i1, i2), report in two_view_report_dict.items():
+
+        # Note: if GT is unknown, then R_error_deg, U_error_deg, and inlier_ratio_gt_model will be None
+        metrics_list.append(
+            {
+                "i1": i1,
+                "i2": i2,
+                "i1_filename": images[i1].file_name,
+                "i2_filename": images[i2].file_name,
+                "rotation_angular_error": round(report.R_error_deg, PRINT_NUM_SIG_FIGS) if report.R_error_deg else None,
+                "translation_angular_error": round(report.U_error_deg, PRINT_NUM_SIG_FIGS)
+                if report.U_error_deg
+                else None,
+                "num_inliers_gt_model": report.num_inliers_gt_model if report.num_inliers_gt_model else None,
+                "inlier_ratio_gt_model": round(report.inlier_ratio_gt_model, PRINT_NUM_SIG_FIGS)
+                if report.inlier_ratio_gt_model
+                else None,
+                "inlier_ratio_est_model": round(report.inlier_ratio_est_model, PRINT_NUM_SIG_FIGS),
+                "num_inliers_est_model": report.num_inliers_est_model,
+            }
+        )
+
+    io_utils.save_json_file(os.path.join(METRICS_PATH, filename), metrics_list)
+
+    # Save duplicate copy of 'frontend_full.json' within React Folder.
+    io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, filename), metrics_list)
+
+
