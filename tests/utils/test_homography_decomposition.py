@@ -108,6 +108,29 @@ def test_pose_from_homography_matrix() -> None:
     assert points3D.shape == points1.shape
 
 
+def test_pose_from_homography_matrix_notre_dame():
+    """ """
+
+    "beggs_2604036425.jpg"
+    "beggs_2603656317.jpg"
+
+
+    {
+        "i1": 11,
+        "i2": 12,
+        "i1_filename": "beggs_2603656317.jpg",
+        "i2_filename": "beggs_2604036425.jpg",
+        "rotation_angular_error": 0.28,
+        "translation_angular_error": 72.44,
+        "num_inliers_gt_model": 1394,
+        "inlier_ratio_gt_model": 1.0,
+        "inlier_ratio_est_model": 0.95,
+        "num_inliers_est_model": 1394
+    },
+
+
+
+
 # def test_check_cheirality() -> None:
 #     """ """
 #     R = ""
