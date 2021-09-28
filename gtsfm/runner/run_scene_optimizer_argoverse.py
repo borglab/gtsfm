@@ -13,11 +13,11 @@ from gtsfm.utils.logger import get_logger
 logger = get_logger()
 
 
-def run_scene_optimizer(args) -> None:
-    """ Run GTSFM over images from an Argoverse vehicle log"""
+def run_scene_optimizer(args: argparse.Namespace) -> None:
+    """Run GTSFM over images from an Argoverse vehicle log"""
     with hydra.initialize_config_module(config_module="gtsfm.configs"):
         # config is relative to the gtsfm module
-        cfg = hydra.compose(config_name="default_lund_door_set1_config.yaml")
+        cfg = hydra.compose(config_name=args.config_name)
         scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
         loader = ArgoverseDatasetLoader(
@@ -27,6 +27,7 @@ def run_scene_optimizer(args) -> None:
             max_num_imgs=args.max_num_imgs,
             max_lookahead_sec=args.max_lookahead_sec,
             camera_name=args.camera_name,
+            max_resolution=args.max_resolution,
         )
 
         sfm_result_graph = scene_optimizer.create_computation_graph(
@@ -39,7 +40,7 @@ def run_scene_optimizer(args) -> None:
         )
 
         # create dask client
-        cluster = LocalCluster(n_workers=2, threads_per_worker=4)
+        cluster = LocalCluster(n_workers=args.num_workers, threads_per_worker=args.threads_per_worker)
 
         with Client(cluster), performance_report(filename="dask-report.html"):
             sfm_result = sfm_result_graph.compute()
@@ -87,6 +88,31 @@ if __name__ == "__main__":
         default=2,
         type=float,
         help="",
+    )
+    parser.add_argument(
+        "--num_workers",
+        type=int,
+        default=1,
+        help="Number of workers to start (processes, by default)",
+    )
+    parser.add_argument(
+        "--threads_per_worker",
+        type=int,
+        default=1,
+        help="Number of threads per each worker",
+    )
+    parser.add_argument(
+        "--config_name",
+        type=str,
+        default="deep_front_end.yaml",
+        help="Choose sift_front_end.yaml or deep_front_end.yaml",
+    )
+    parser.add_argument(
+        "--max_resolution",
+        type=int,
+        default=760,
+        help="integer representing maximum length of image's short side"
+        " e.g. for 1080p (1920 x 1080), max_resolution would be 1080",
     )
     args = parser.parse_args()
     logger.info(args)

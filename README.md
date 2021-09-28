@@ -1,7 +1,8 @@
 # Georgia Tech Structure from Motion (GTSFM) Library
 
-[![Ubuntu CI](https://github.com/borglab/gtsfm/workflows/Python%20CI/badge.svg)](https://github.com/borglab/gtsfm/actions?query=workflow%3APython+CI)
-
+| Platform     | Build Status  |
+|:------------:| :-------------:|
+| Ubuntu 20.04.3 |  ![Linux CI](https://github.com/borglab/gtsfm/workflows/Unit%20tests%20and%20python%20checks/badge.svg) |
 
 ### What is GTSFM?
 GTSFM is an end-to-end SFM pipeline based on [GTSAM](https://github.com/borglab/gtsam). GTSFM was designed from the ground-up to natively support parallel computation using [Dask](https://dask.org/).
@@ -29,7 +30,7 @@ On Linux, with CUDA support:
 conda env create -f environment_linux.yml
 conda activate gtsfm-v1 # you may need "source activate gtsfm-v1" depending upon your bash and conda set-up
 ```
-The Python3.8 `gtsam` wheel for Linux is available [here](https://github.com/borglab/gtsam-manylinux-build/suites/2239592652/artifacts/46493264).
+The Python3.8 `gtsam` wheel for Linux is available [here](https://github.com/borglab/gtsam-manylinux-build/suites/3489546443/artifacts/83058971).
 
 **Mac**
 On Mac OSX, there is no CUDA support, so run:
@@ -37,7 +38,7 @@ On Mac OSX, there is no CUDA support, so run:
 conda env create -f environment_mac.yml
 conda activate gtsfm-v1
 ```
-Download the Python 3.8 gtsam wheel for Mac [here](https://github.com/borglab/gtsam-manylinux-build/suites/2239592652/artifacts/46493266), and install it as
+Download the Python 3.8 gtsam wheel for Mac [here](https://github.com/borglab/gtsam-manylinux-build/suites/3489546443/artifacts/83058973), and install it as
 ```bash
 pip install ~/Downloads/gtsam-4.1.1-py3-none-any.whl
 ```
@@ -50,20 +51,30 @@ pip install -e .
 ```
 Make sure that you can run `python -c "import gtsfm; import gtsam; print('hello world')"` in python, and you are good to go!
 
-## Compiling Additional Verifiers
-On Mac OSX, there is no `pydegensac` wheel in `pypi`, instead build pydegensac: 
-```bash
-git clone https://github.com/ducha-aiki/pydegensac.git
-cd pydegensac
-python setup.py bdist_wheel
-pip install dist/pydegensac-0.1.2-cp38-cp38-macosx_10_15_x86_64.whl
-```
+
 
 ## Usage Guide (Running 3d Reconstruction)
 
-Please run
+Before running reconstruction, if you intend to use modules with pre-trained weights, such as SuperPoint, SuperGlue, or PatchmatchNet, please first run:
+```bash
+./download_model_weights.sh
+```
+
+To run SfM with a dataset with only a image directory and EXIF, with image file names ending with "jpg", run:
 ```python
-python gtsfm/runner/run_scene_optimizer.py
+python gtsfm/runner/run_scene_optimizer.py --config_name {CONFIG_NAME} --dataset_root {DATASET_ROOT} --image_extension jpg --num_workers {NUM_WORKERS}
+```
+
+If you would like to compare GTSFM output with COLMAP output, please run:
+```python
+python gtsfm/runner/run_scene_optimizer_colmap_loader.py --config_name {CONFIG_NAME} --images_dir {IMAGES_DIR} --colmap_files_dirpath {COLMAP_FILES_DIRPATH} --image_extension jpg --num_workers {NUM_WORKERS} --max_frame_lookahead {MAX_FRAME_LOOKAHEAD}
+```
+where `COLMAP_FILES_DIRPATH` is a directory where .txt files such as `cameras.txt`, `images.txt`, etc have been saved.
+
+
+To visualize the result using Open3D, run:
+```bash
+python visualization/view_scene.py --rendering_library open3d --point_rendering_mode point
 ```
 
 ## Repository Structure
@@ -72,17 +83,17 @@ GTSFM is designed in an extremely modular way. Each module can be swapped out wi
 
 - `gtsfm`: source code, organized as:
     - `averaging`
-        - `rotation`: rotation averaging implementations (Shonan, Chordal, etc)
-        - `translation`: translation averaging implementations (1d-SFM, etc)
+        - `rotation`: rotation averaging implementations ([Shonan](https://arxiv.org/abs/2008.02737), Chordal, etc)
+        - `translation`: translation averaging implementations ([1d-SFM](https://www.cs.cornell.edu/projects/1dsfm/docs/1DSfM_ECCV14.pdf), etc)
     - `bundle`: bundle adjustment implementations
     - `common`: basic classes used through GTSFM, such as `Keypoints`, `Image`, `SfmTrack2d`, etc
-    - `data_association`: 3d point triangulation w/ or w/o RANSAC, from 2d point-tracks 
+    - `data_association`: 3d point triangulation (DLT) w/ or w/o RANSAC, from 2d point-tracks 
     - `densify`
     - `frontend`: SfM front-end code, including:
         - `detector`: keypoint detector implementations (DoG, etc)
-        - `descriptor`: feature descriptor implementations (SIFT, etc)
-        - `matcher`: descriptor matching implementations (Superglue, etc)
-        - `verifier`: 2d-correspondence verifier implementations (Degensac, OA-Net, etc)
+        - `descriptor`: feature descriptor implementations ([SIFT](https://www.cs.ubc.ca/~lowe/papers/ijcv04.pdf), [SuperPoint](https://arxiv.org/abs/1712.07629) etc)
+        - `matcher`: descriptor matching implementations ([Superglue](https://arxiv.org/abs/1911.11763), etc)
+        - `verifier`: 2d-correspondence verifier implementations ([Degensac](https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.466.2719&rep=rep1&type=pdf), OA-Net, etc)
     - `loader`: image data loaders
     - `utils`: utility functions such as serialization routines and pose comparisons, etc
 - `tests`: unit tests on every function and module
@@ -95,12 +106,16 @@ Contributions are always welcome! Please be aware of our [contribution guideline
 ## Citing this work
 Open-source Python implementation:
 ```
-@misc{
-    author = {Ayush Baid, Fan Jiang, Akshay Krishnan, John Lambert, Aditya Singh
-       Aishwarya Venkataramanan, Sushmita Warrier, Jing Wu, Xiaolong Wu, Frank Dellaert},
-    title = {GTSFM: Georgia Tech Structure from Motion},
+@misc{GTSFM,
+    author = {Ayush Baid and Fan Jiang and Akshay Krishnan and John Lambert and Aditya Singh and
+       Aishwarya Venkataramanan and Sushmita Warrier and Jing Wu and Xiaolong Wu and Frank Dellaert},
+    title = { {GTSFM}: Georgia Tech Structure from Motion},
     howpublished={\url{https://github.com/borglab/gtsfm}},
-    year = {2021},
+    year = {2021}
 }
 ```
 Note: authors are listed in alphabetical order.
+
+
+## Compiling Additional Verifiers
+On Linux, we have made `pycolmap`'s LORANSAC available in [pypi](https://pypi.org/project/pycolmap/). However, on Mac, `pycolmap` must be built from scratch. See the instructions [here](https://github.com/borglab/gtsfm/blob/master/gtsfm/frontend/verifier/loransac.py#L10).

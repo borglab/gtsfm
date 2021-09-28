@@ -17,7 +17,7 @@ class MVSBase(metaclass=abc.ABCMeta):
     """Base class for all multi-view stereo implementations."""
 
     def __init__(self) -> None:
-        """Initialize the MVS module """
+        """Initialize the MVS module"""
         pass
 
     @abc.abstractmethod

@@ -28,8 +28,9 @@ logger = logger_utils.get_logger()
 def load_image(img_path: str) -> Image:
     """Load the image from disk.
 
-    Note: EXIF is read as a map from (tag_id, value) where tag_id is an integer.
+    Notes: EXIF is read as a map from (tag_id, value) where tag_id is an integer.
     In order to extract human-readable names, we use the lookup table TAGS or GPSTAGS.
+    Images will be converted to RGB if in a different format.
 
     Args:
         img_path (str): the path of image to load.
@@ -55,6 +56,7 @@ def load_image(img_path: str) -> Image:
         exif_data = parsed_data
 
     img_fname = Path(img_path).name
+    original_image = original_image.convert("RGB") if original_image.mode != "RGB" else original_image
     return Image(value_array=np.asarray(original_image), exif_data=exif_data, file_name=img_fname)
 
 
@@ -99,6 +101,19 @@ def save_json_file(
     os.makedirs(os.path.dirname(json_fpath), exist_ok=True)
     with open(json_fpath, "w") as f:
         json.dump(data, f, indent=4)
+
+
+def read_json_file(fpath: Union[str, Path]) -> Any:
+    """Load dictionary from JSON file.
+
+    Args:
+        fpath: Path to JSON file.
+
+    Returns:
+        Deserialized Python dictionary or list.
+    """
+    with open(fpath, "r") as f:
+        return json.load(f)
 
 
 def read_bal(file_path: str) -> GtsfmData:
@@ -198,7 +213,9 @@ def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> 
     with open(file_path, "w") as f:
         f.write("# Camera list with one line of data per camera:\n")
         f.write("#   CAMERA_ID, MODEL, WIDTH, HEIGHT, PARAMS[]\n")
-        f.write(f"# Number of cameras: {gtsfm_data.number_images()}\n")
+        # note that we save the number of etimated cameras, not the number of input images,
+        # which would instead be gtsfm_data.number_images().
+        f.write(f"# Number of cameras: {len(gtsfm_data.get_valid_camera_indices())}\n")
 
         for i in gtsfm_data.get_valid_camera_indices():
             camera = gtsfm_data.get_camera(i)
@@ -242,7 +259,8 @@ def read_images_txt(fpath: str) -> Tuple[Optional[List[Pose3]], Optional[List[st
 
     wTi_list = []
     img_fnames = []
-    # ignore first 4 lines of text -- they are a description of the file format
+    # ignore first 4 lines of text -- they contain a description of the file format
+    # and a record of the number of reconstructed images.
     for line in lines[4::2]:
         i, qw, qx, qy, qz, tx, ty, tz, i, img_fname = line.split()
         # Colmap provides extrinsics, so must invert
@@ -258,6 +276,9 @@ def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
     """Writes the image data file in the COLMAP format.
 
     Reference: https://colmap.github.io/format.html#images-txt
+    Note: the "Number of images" saved to the .txt file is not the number of images
+    fed to the SfM algorithm, but rather the number of localized camera poses/images,
+    which COLMAP refers to as the "reconstructed cameras".
 
     Args:
         gtsfm_data: scene data to write.

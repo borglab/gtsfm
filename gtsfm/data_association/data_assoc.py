@@ -10,7 +10,7 @@ References:
 Authors: Sushmita Warrier, Xiaolong Wu, John Lambert
 """
 import os
-from typing import Any, Dict, List, NamedTuple, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import dask
 import numpy as np
@@ -24,8 +24,11 @@ from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.data_association.point3d_initializer import (
     Point3dInitializer,
     TriangulationParam,
+    TriangulationExitCode,
 )
 from gtsfm.common.image import Image
+from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
+
 import gtsfm.utils.io as io_utils
 
 logger = logger_utils.get_logger()
@@ -58,8 +61,8 @@ class DataAssociation(NamedTuple):
         cameras: Dict[int, PinholeCameraCal3Bundler],
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
-        images: Optional[List[Image]] = None
-    ) -> Tuple[GtsfmData, Dict[str, Any]]:
+        images: Optional[List[Image]] = None,
+    ) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
         """Perform the data association.
 
         Args:
@@ -71,7 +74,7 @@ class DataAssociation(NamedTuple):
             viz_patch_sz: width and height of patches, if if dumping/visualizing a patch for each 2d track measurement
 
         Returns:
-            Cameras and tracks as GtsfmData.
+            A tuple of GtsfmData with cameras and tracks, and a GtsfmMetricsGroup with data association metrics
         """
         # generate tracks for 3D points using pairwise correspondences
         tracks_2d = SfmTrack2d.generate_tracks_from_pairwise_matches(corr_idxs_dict, keypoints_list)
@@ -79,17 +82,18 @@ class DataAssociation(NamedTuple):
         if self.save_track_patches_viz and images is not None:
             io_utils.save_track_visualizations(tracks_2d, images, save_dir=os.path.join("plots", "tracks_2d"))
 
-        # metrics on tracks w/o triangulation check
-        num_tracks_2d = len(tracks_2d)
-        track_lengths = list(map(lambda x: x.number_measurements(), tracks_2d))
-        mean_2d_track_length = np.mean(track_lengths)
+        # track lengths w/o triangulation check
+        track_lengths_2d = list(map(lambda x: x.number_measurements(), tracks_2d))
 
-        logger.debug("[Data association] input number of tracks: %s", num_tracks_2d)
-        logger.debug("[Data association] input avg. track length: %s", mean_2d_track_length)
+        logger.debug("[Data association] input number of tracks: %s", len(tracks_2d))
+        logger.debug("[Data association] input avg. track length: %s", np.mean(track_lengths_2d))
 
         # initializer of 3D landmark for each track
         point3d_initializer = Point3dInitializer(
-            cameras, self.mode, self.reproj_error_thresh, self.num_ransac_hypotheses,
+            cameras,
+            self.mode,
+            self.reproj_error_thresh,
+            self.num_ransac_hypotheses,
         )
 
         num_tracks_w_cheirality_exceptions = 0
@@ -106,13 +110,10 @@ class DataAssociation(NamedTuple):
         # add valid tracks where triangulation is successful
         for track_2d in tracks_2d:
             # triangulate and filter based on reprojection error
-            sfm_track, avg_track_reproj_error, is_cheirality_failure = point3d_initializer.triangulate(track_2d)
-            if is_cheirality_failure:
+            sfm_track, avg_track_reproj_error, triangulation_exit_code = point3d_initializer.triangulate(track_2d)
+            if triangulation_exit_code == TriangulationExitCode.CHEIRALITY_FAILURE:
                 num_tracks_w_cheirality_exceptions += 1
-
-            if avg_track_reproj_error is not None:
-                # need no more than 3 significant figures in json report
-                avg_track_reproj_error = np.round(avg_track_reproj_error, 3) 
+                continue
 
             if sfm_track is not None and self.__validate_track(sfm_track):
                 triangulated_data.add_track(sfm_track)
@@ -131,30 +132,35 @@ class DataAssociation(NamedTuple):
         track_lengths_3d = connected_data.get_track_lengths()
 
         logger.debug("[Data association] output number of tracks: %s", num_accepted_tracks)
-        logger.debug("[Data association] output avg. track length: %s", np.round(mean_3d_track_length,2))
+        logger.debug("[Data association] output avg. track length: %.2f", mean_3d_track_length)
 
-        # bin edges are halfway between each integer
-        track_lengths_histogram, _ = np.histogram(track_lengths_3d, bins=np.linspace(-0.5, 10.5, 12))
-
-        # min possible track len is 2, above 10 is improbable
-        histogram_dict = {f"num_len_{i}_tracks": int(track_lengths_histogram[i]) for i in range(2, 11)}
-
-        data_assoc_metrics = {
-            "mean_2d_track_length": np.round(mean_2d_track_length, 3),
-            "accepted_tracks_ratio": np.round(accepted_tracks_ratio, 3),
-            "track_cheirality_failure_ratio": np.round(track_cheirality_failure_ratio, 3),
-            "num_accepted_tracks": num_accepted_tracks,
-            "3d_tracks_length": {
-                "median": median_3d_track_length,
-                "mean": mean_3d_track_length,
-                "min": int(track_lengths_3d.min()) if track_lengths_3d.size > 0 else None,
-                "max": int(track_lengths_3d.max()) if track_lengths_3d.size > 0 else None,
-                "track_lengths_histogram": histogram_dict,
-            },
-            "mean_accepted_track_avg_error": np.array(per_accepted_track_avg_errors).mean(),
-            "per_rejected_track_avg_errors": per_rejected_track_avg_errors,
-            "per_accepted_track_avg_errors": per_accepted_track_avg_errors,
-        }
+        data_assoc_metrics = GtsfmMetricsGroup(
+            "data_association_metrics",
+            [
+                GtsfmMetric(
+                    "2D_track_lengths",
+                    track_lengths_2d,
+                    store_full_data=False,
+                    plot_type=GtsfmMetric.PlotType.HISTOGRAM,
+                ),
+                GtsfmMetric("accepted_tracks_ratio", accepted_tracks_ratio),
+                GtsfmMetric("track_cheirality_failure_ratio", track_cheirality_failure_ratio),
+                GtsfmMetric("num_accepted_tracks", num_accepted_tracks),
+                GtsfmMetric(
+                    "3d_tracks_length",
+                    track_lengths_3d,
+                    store_full_data=False,
+                    plot_type=GtsfmMetric.PlotType.HISTOGRAM,
+                ),
+                GtsfmMetric("accepted_track_avg_errors_px", per_accepted_track_avg_errors, store_full_data=False),
+                GtsfmMetric(
+                    "rejected_track_avg_errors_px",
+                    np.array(per_rejected_track_avg_errors).astype(np.float32),
+                    store_full_data=False,
+                ),
+                GtsfmMetric(name="number_cameras", data=len(connected_data.get_valid_camera_indices())),
+            ],
+        )
 
         return connected_data, data_assoc_metrics
 

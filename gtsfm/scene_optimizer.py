@@ -2,50 +2,47 @@
 
 Authors: Ayush Baid, John Lambert
 """
-import copy
+from gtsfm.common.gtsfm_data import GtsfmData
 import logging
 import os
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import dask
 import matplotlib
+from gtsam import Pose3, Similarity3
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import numpy as np
-from dask.delayed import Delayed
-from gtsam import Pose3
 
-import gtsfm.utils.geometry_comparisons as comp_utils
+from dask.delayed import Delayed
+
+import gtsfm.averaging.rotation.cycle_consistency as cycle_consistency
+import gtsfm.evaluation.metrics_report as metrics_report
+import gtsfm.two_view_estimator as two_view_estimator
+import gtsfm.utils.ellipsoid as ellipsoid_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.viz as viz_utils
-from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
-from gtsfm.common.keypoints import Keypoints
 from gtsfm.feature_extractor import FeatureExtractor
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
-from gtsfm.two_view_estimator import TwoViewEstimator
+from gtsfm.two_view_estimator import TwoViewEstimator, TwoViewEstimationReport
 
-# paths for storage
-PLOT_PATH = "plots"
-PLOT_CORRESPONDENCE_PATH = os.path.join(PLOT_PATH, "correspondences")
+# base paths for storage
+PLOT_BASE_PATH = Path(__file__).resolve().parent.parent / "plots"
 METRICS_PATH = Path(__file__).resolve().parent.parent / "result_metrics"
 RESULTS_PATH = Path(__file__).resolve().parent.parent / "results"
+
+# plot paths
+PLOT_CORRESPONDENCE_PATH = PLOT_BASE_PATH / "correspondences"
+PLOT_BA_INPUT_PATH = PLOT_BASE_PATH / "ba_input"
+PLOT_RESULTS_PATH = PLOT_BASE_PATH / "results"
+
 
 # Paths to Save Output in React Folders.
 REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
 REACT_RESULTS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "public" / "results"
-
-"""
-data type for frontend metrics on a pair of images, containing:
-1. rotation angular error
-2. translation angular error
-3. number of correct correspondences
-4. inlier ratio
-"""
-FRONTEND_METRICS_FOR_PAIR = Tuple[Optional[float], Optional[float], int, float]
 
 logger = logger_utils.get_logger()
 
@@ -73,7 +70,7 @@ class SceneOptimizer:
         save_gtsfm_data: bool,
         pose_angular_error_thresh: float,
     ) -> None:
-        """ pose_angular_error_thresh is given in degrees """
+        """pose_angular_error_thresh is given in degrees"""
         self.feature_extractor = feature_extractor
         self.two_view_estimator = two_view_estimator
         self.multiview_optimizer = multiview_optimizer
@@ -85,10 +82,13 @@ class SceneOptimizer:
         self._pose_angular_error_thresh = pose_angular_error_thresh
 
         # make directories for persisting data
-        os.makedirs(PLOT_PATH, exist_ok=True)
-        os.makedirs(PLOT_CORRESPONDENCE_PATH, exist_ok=True)
+        os.makedirs(PLOT_BASE_PATH, exist_ok=True)
         os.makedirs(METRICS_PATH, exist_ok=True)
         os.makedirs(RESULTS_PATH, exist_ok=True)
+
+        os.makedirs(PLOT_CORRESPONDENCE_PATH, exist_ok=True)
+        os.makedirs(PLOT_BA_INPUT_PATH, exist_ok=True)
+        os.makedirs(PLOT_RESULTS_PATH, exist_ok=True)
 
         # Save duplicate directories within React folders.
         os.makedirs(REACT_RESULTS_PATH, exist_ok=True)
@@ -108,6 +108,7 @@ class SceneOptimizer:
         # auxiliary graph elements for visualizations and saving intermediate
         # data for analysis, not returned to the user.
         auxiliary_graph_list = []
+        metrics_graph_list = []
 
         # detection and description graph
         keypoints_graph_list = []
@@ -122,22 +123,16 @@ class SceneOptimizer:
         i2Ui1_graph_dict = {}
         v_corr_idxs_graph_dict = {}
 
-        frontend_metrics_dict = {}
+        two_view_reports_dict = {}
 
         for (i1, i2) in image_pair_indices:
             if gt_pose_graph is not None:
-                gt_relative_pose = dask.delayed(lambda x, y: x.between(y))(gt_pose_graph[i2], gt_pose_graph[i1])
+                # compute GT relative pose
+                gt_i2Ti1 = dask.delayed(lambda x, y: x.between(y))(gt_pose_graph[i2], gt_pose_graph[i1])
             else:
-                gt_relative_pose = None
+                gt_i2Ti1 = None
 
-            (
-                i2Ri1,
-                i2Ui1,
-                v_corr_idxs,
-                rot_error,
-                unit_tran_error,
-                correspondence_stats,
-            ) = self.two_view_estimator.create_computation_graph(
+            (i2Ri1, i2Ui1, v_corr_idxs, two_view_report,) = self.two_view_estimator.create_computation_graph(
                 keypoints_graph_list[i1],
                 keypoints_graph_list[i2],
                 descriptors_graph_list[i1],
@@ -146,38 +141,36 @@ class SceneOptimizer:
                 camera_intrinsics_graph[i2],
                 image_shape_graph[i1],
                 image_shape_graph[i2],
-                gt_relative_pose,
+                gt_i2Ti1,
             )
+
             i2Ri1_graph_dict[(i1, i2)] = i2Ri1
             i2Ui1_graph_dict[(i1, i2)] = i2Ui1
             v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
 
-            if gt_pose_graph is not None:
-                frontend_metrics_dict[(i1, i2)] = (
-                    rot_error,
-                    unit_tran_error,
-                    correspondence_stats[0],
-                    correspondence_stats[1],
-                )
+            two_view_reports_dict[(i1, i2)] = two_view_report
 
             if self._save_two_view_correspondences_viz:
                 auxiliary_graph_list.append(
-                    dask.delayed(visualize_twoview_correspondences)(
+                    dask.delayed(viz_utils.save_twoview_correspondences_viz)(
                         image_graph[i1],
                         image_graph[i2],
                         keypoints_graph_list[i1],
                         keypoints_graph_list[i2],
                         v_corr_idxs,
-                        os.path.join(PLOT_CORRESPONDENCE_PATH, "{}_{}.jpg".format(i1, i2)),
+                        file_path=os.path.join(PLOT_CORRESPONDENCE_PATH, f"{i1}_{i2}.jpg"),
                     )
                 )
 
         # persist all front-end metrics and its summary
+        auxiliary_graph_list.append(
+            dask.delayed(save_full_frontend_metrics)(two_view_reports_dict, image_graph, filename="frontend_full.json")
+        )
         if gt_pose_graph is not None:
-            auxiliary_graph_list.append(dask.delayed(persist_frontend_metrics_full)(frontend_metrics_dict))
-
-            auxiliary_graph_list.append(
-                dask.delayed(aggregate_frontend_metrics)(frontend_metrics_dict, self._pose_angular_error_thresh)
+            metrics_graph_list.append(
+                dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
+                    two_view_reports_dict, self._pose_angular_error_thresh, metric_group_name="frontend_summary"
+                )
             )
 
         # as visualization tasks are not to be provided to the user, we create a
@@ -187,12 +180,38 @@ class SceneOptimizer:
         keypoints_graph_list = dask.delayed(lambda x, y: (x, y))(keypoints_graph_list, auxiliary_graph_list)[0]
         auxiliary_graph_list = []
 
-        (
-            ba_input_graph,
-            ba_output_graph,
-            optimizer_metrics_graph,
-            react_metrics_graph,
-        ) = self.multiview_optimizer.create_computation_graph(
+        # ensure cycle consistency in triplets
+        i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict, rcc_metrics_graph = dask.delayed(
+            cycle_consistency.filter_to_cycle_consistent_edges, nout=4
+        )(i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict, two_view_reports_dict)
+        metrics_graph_list.append(rcc_metrics_graph)
+
+        def _filter_dict_keys(dict: Dict[Any, Any], ref_dict: Dict[Any, Any]) -> Dict[Any, Any]:
+            """Return a subset of a dictionary based on keys present in the reference dictionary."""
+            valid_keys = list(ref_dict.keys())
+            return {k: v for k, v in dict.items() if k in valid_keys}
+
+        if gt_pose_graph is not None:
+            two_view_reports_dict_cycle_consistent = dask.delayed(_filter_dict_keys)(
+                dict=two_view_reports_dict, ref_dict=i2Ri1_graph_dict
+            )
+            metrics_graph_list.append(
+                dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
+                    two_view_reports_dict_cycle_consistent,
+                    self._pose_angular_error_thresh,
+                    metric_group_name="cycle_consistent_frontend_summary",
+                )
+            )
+            auxiliary_graph_list.append(
+                dask.delayed(save_full_frontend_metrics)(
+                    two_view_reports_dict_cycle_consistent,
+                    image_graph,
+                    filename="cycle_consistent_frontend_full.json",
+                )
+            )
+
+        # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
+        (ba_input_graph, ba_output_graph, optimizer_metrics_graph) = self.multiview_optimizer.create_computation_graph(
             image_graph,
             num_images,
             keypoints_graph_list,
@@ -205,62 +224,21 @@ class SceneOptimizer:
 
         # aggregate metrics for multiview optimizer
         if optimizer_metrics_graph is not None:
-            auxiliary_graph_list.append(optimizer_metrics_graph)
+            metrics_graph_list.extend(optimizer_metrics_graph)
 
-        # add duplicate of optimizer_metrics_graph to save within React file directory
-        if react_metrics_graph is not None:
-            auxiliary_graph_list.append(react_metrics_graph)
+        # Save metrics to JSON and generate HTML report.
+        auxiliary_graph_list.extend(save_metrics_reports(metrics_graph_list))
+
+        # # Modify BA input and BA output to have point clouds and frustums aligned with x,y,z axes.
+        # ba_input_graph, ba_output_graph, gt_pose_graph = dask.delayed(align_estimated_gtsfm_data, nout=3)(
+        #     ba_input_graph, ba_output_graph, gt_pose_graph
+        # )
 
         if self._save_3d_viz:
-            os.makedirs(os.path.join(PLOT_PATH, "ba_input"), exist_ok=True)
-            os.makedirs(os.path.join(PLOT_PATH, "results"), exist_ok=True)
-
-            auxiliary_graph_list.append(
-                dask.delayed(visualize_sfm_data)(ba_input_graph, os.path.join(PLOT_PATH, "ba_input"))
-            )
-
-            auxiliary_graph_list.append(
-                dask.delayed(visualize_sfm_data)(ba_output_graph, os.path.join(PLOT_PATH, "results"))
-            )
-
-            auxiliary_graph_list.append(
-                dask.delayed(visualize_camera_poses)(
-                    ba_input_graph, ba_output_graph, gt_pose_graph, os.path.join(PLOT_PATH, "results")
-                )
-            )
+            auxiliary_graph_list.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_pose_graph))
 
         if self._save_gtsfm_data:
-            # save the input to Bundle Adjustment (from data association)
-            ba_input_save_dir = os.path.join(RESULTS_PATH, "ba_input")
-            react_ba_input_save_dir = os.path.join(REACT_RESULTS_PATH, "ba_input")
-            auxiliary_graph_list.append(
-                dask.delayed(io_utils.export_model_as_colmap_text)(
-                    ba_input_graph, image_graph, save_dir=ba_input_save_dir
-                )
-            )
-
-            # Save duplicate copies of input to Bundle Adjustment to React Folder
-            auxiliary_graph_list.append(
-                dask.delayed(io_utils.export_model_as_colmap_text)(
-                    ba_input_graph, image_graph, save_dir=react_ba_input_save_dir
-                )
-            )
-
-            # save the output of Bundle Adjustment (after optimization)
-            ba_output_save_dir = os.path.join(RESULTS_PATH, "ba_output")
-            react_ba_output_save_dir = os.path.join(REACT_RESULTS_PATH, "ba_output")
-            auxiliary_graph_list.append(
-                dask.delayed(io_utils.export_model_as_colmap_text)(
-                    ba_output_graph, image_graph, save_dir=ba_output_save_dir
-                )
-            )
-
-            # Save duplicate copies of output to Bundle Adjustment to React Folder
-            auxiliary_graph_list.append(
-                dask.delayed(io_utils.export_model_as_colmap_text)(
-                    ba_output_graph, image_graph, save_dir=react_ba_output_save_dir
-                )
-            )
+            auxiliary_graph_list.extend(save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph))
 
         # as visualization tasks are not to be provided to the user, we create a
         # dummy computation of concatenating viz tasks with the output graph,
@@ -271,183 +249,146 @@ class SceneOptimizer:
         return output_graph[0]
 
 
-def visualize_twoview_correspondences(
-    image_i1: Image,
-    image_i2: Image,
-    keypoints_i1: Keypoints,
-    keypoints_i2: Keypoints,
-    corr_idxs_i1i2: np.ndarray,
-    file_path: str,
+def align_estimated_gtsfm_data(
+    ba_input: GtsfmData, ba_output: GtsfmData, gt_pose_graph: List[Pose3]
+) -> Tuple[GtsfmData, GtsfmData, List[Pose3]]:
+    """Creates modified GtsfmData objects that emulate ba_input and ba_output but with point cloud and camera
+    frustums aligned to the x,y,z axes. Also transforms GT camera poses to be aligned to axes.
+
+    Args:
+        ba_input: GtsfmData input to bundle adjustment.
+        ba_output: GtsfmData output from bundle adjustment.
+        gt_pose_graph: list of GT camera poses.
+
+    Returns:
+        Updated ba_input GtsfmData object aligned to axes.
+        Updated ba_output GtsfmData object aligned to axes.
+        Updated gt_pose_graph with GT poses aligned to axes.
+    """
+    walignedTw = ellipsoid_utils.get_ortho_axis_alignment_transform(ba_output)
+    walignedTw = Similarity3(R=walignedTw.rotation(), t=walignedTw.translation(), s=1.0)
+    ba_input = ba_input.apply_Sim3(walignedTw)
+    ba_output = ba_output.apply_Sim3(walignedTw)
+    gt_pose_graph = [walignedTw.transformFrom(wTi) for wTi in gt_pose_graph]
+    return ba_input, ba_output, gt_pose_graph
+
+
+def save_visualizations(
+    ba_input_graph: Delayed, ba_output_graph: Delayed, gt_pose_graph: Optional[List[Delayed]]
+) -> List[Delayed]:
+    """Save SfmData before and after bundle adjustment and camera poses for visualization.
+
+    Accepts delayed GtsfmData before and after bundle adjustment, along with GT poses,
+    saves them and returns a delayed object.
+
+    Args:
+        ba_input_graph: Delayed GtsfmData input to bundle adjustment.
+        ba_output_graph: Delayed GtsfmData output from bundle adjustment.
+        gt_pose_graph: Delayed ground truth poses.
+
+    Returns:
+        A list of Delayed objects after saving the different visualizations.
+    """
+    viz_graph_list = []
+    viz_graph_list.append(dask.delayed(viz_utils.save_sfm_data_viz)(ba_input_graph, PLOT_BA_INPUT_PATH))
+    viz_graph_list.append(dask.delayed(viz_utils.save_sfm_data_viz)(ba_output_graph, PLOT_RESULTS_PATH))
+    viz_graph_list.append(
+        dask.delayed(viz_utils.save_camera_poses_viz)(ba_input_graph, ba_output_graph, gt_pose_graph, PLOT_RESULTS_PATH)
+    )
+    return viz_graph_list
+
+
+def save_gtsfm_data(image_graph: Delayed, ba_input_graph: Delayed, ba_output_graph: Delayed) -> List[Delayed]:
+    """Saves the Gtsfm data before and after bundle adjustment.
+
+    Args:
+        image_graph: input image wrapped as Delayed objects.
+        ba_input_graph: GtsfmData input to bundle adjustment wrapped as Delayed.
+        ba_output_graph: GtsfmData output to bundle adjustment wrapped as Delayed.
+
+    Returns:
+        A list of delayed objects after saving the input and outputs to bundle adjustment.
+    """
+    saving_graph_list = []
+    # Save a duplicate in REACT_RESULTS_PATH.
+    for output_dir in [RESULTS_PATH, REACT_RESULTS_PATH]:
+        # Save the input to Bundle Adjustment (from data association).
+        saving_graph_list.append(
+            dask.delayed(io_utils.export_model_as_colmap_text)(
+                ba_input_graph, image_graph, save_dir=os.path.join(output_dir, "ba_input")
+            )
+        )
+        # Save the output of Bundle Adjustment.
+        saving_graph_list.append(
+            dask.delayed(io_utils.export_model_as_colmap_text)(
+                ba_output_graph, image_graph, save_dir=os.path.join(output_dir, "ba_output")
+            )
+        )
+    return saving_graph_list
+
+
+def save_metrics_reports(metrics_graph_list: Delayed) -> List[Delayed]:
+    """Saves metrics to JSON and HTML report.
+
+    Args:
+        metrics_graph: List of GtsfmMetricsGroup from different modules wrapped as Delayed.
+
+    Returns:
+        List of delayed objects after saving metrics.
+    """
+    save_metrics_graph_list = []
+
+    if len(metrics_graph_list) == 0:
+        return save_metrics_graph_list
+
+    # Save metrics to JSON
+    save_metrics_graph_list.append(dask.delayed(metrics_utils.save_metrics_as_json)(metrics_graph_list, METRICS_PATH))
+    save_metrics_graph_list.append(
+        dask.delayed(metrics_utils.save_metrics_as_json)(metrics_graph_list, REACT_METRICS_PATH)
+    )
+    save_metrics_graph_list.append(
+        dask.delayed(metrics_report.generate_metrics_report_html)(
+            metrics_graph_list, os.path.join(METRICS_PATH, "gtsfm_metrics_report.html")
+        )
+    )
+    return save_metrics_graph_list
+
+
+def save_full_frontend_metrics(
+    two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport], images: List[Image], filename: str
 ) -> None:
-    """Visualize correspondences between pairs of images.
+    """Converts the TwoViewEstimationReports for all image pairs to a Dict and saves it as JSON.
 
     Args:
-        image_i1: image #i1.
-        image_i2: image #i2.
-        keypoints_i1: detected Keypoints for image #i1.
-        keypoints_i2: detected Keypoints for image #i2.
-        corr_idxs_i1i2: correspondence indices.
-        file_path: file path to save the visualization.
+        two_view_report_dict: front-end metrics for pairs of images.
+        images: list of all images for this scene, in order of image/frame index.
+        filename: file name to use when saving report to JSON.
     """
-    plot_img = viz_utils.plot_twoview_correspondences(image_i1, image_i2, keypoints_i1, keypoints_i2, corr_idxs_i1i2)
+    metrics_list = []
 
-    io_utils.save_image(plot_img, file_path)
+    for (i1, i2), report in two_view_report_dict.items():
 
+        # Note: if GT is unknown, then R_error_deg, U_error_deg, and inlier_ratio_gt_model will be None
+        metrics_list.append(
+            {
+                "i1": i1,
+                "i2": i2,
+                "i1_filename": images[i1].file_name,
+                "i2_filename": images[i2].file_name,
+                "rotation_angular_error": round(report.R_error_deg, PRINT_NUM_SIG_FIGS) if report.R_error_deg else None,
+                "translation_angular_error": round(report.U_error_deg, PRINT_NUM_SIG_FIGS)
+                if report.U_error_deg
+                else None,
+                "num_inliers_gt_model": report.num_inliers_gt_model if report.num_inliers_gt_model else None,
+                "inlier_ratio_gt_model": round(report.inlier_ratio_gt_model, PRINT_NUM_SIG_FIGS)
+                if report.inlier_ratio_gt_model
+                else None,
+                "inlier_ratio_est_model": round(report.inlier_ratio_est_model, PRINT_NUM_SIG_FIGS),
+                "num_inliers_est_model": report.num_inliers_est_model,
+            }
+        )
 
-def visualize_sfm_data(sfm_data: GtsfmData, folder_name: str) -> None:
-    """Visualize the camera poses and 3d points in SfmData.
-
-    Args:
-        sfm_data: data to visualize.
-        folder_name: folder to save the visualization at.
-    """
-    fig = plt.figure()
-    ax = fig.add_subplot(projection='3d')
-
-    viz_utils.plot_sfm_data_3d(sfm_data, ax)
-    viz_utils.set_axes_equal(ax)
-
-    # save the 3D plot in the original view
-    fig.savefig(os.path.join(folder_name, "3d.png"))
-
-    # save the BEV representation
-    default_camera_elevation = 100  # in metres above ground
-    ax.view_init(azim=0, elev=default_camera_elevation)
-    fig.savefig(os.path.join(folder_name, "bev.png"))
-
-    plt.close(fig)
-
-
-def visualize_camera_poses(
-    pre_ba_sfm_data: GtsfmData, post_ba_sfm_data: GtsfmData, gt_pose_graph: Optional[List[Pose3]], folder_name: str
-) -> None:
-    """Visualize the camera pose and save to disk.
-
-    Args:
-        pre_ba_sfm_data: data input to bundle adjustment.
-        post_ba_sfm_data: output of bundle adjustment.
-        gt_pose_graph: ground truth poses.
-        folder_name: folder to save the visualization at.
-    """
-    # extract camera poses
-    pre_ba_poses = []
-    for i in pre_ba_sfm_data.get_valid_camera_indices():
-        pre_ba_poses.append(pre_ba_sfm_data.get_camera(i).pose())
-
-    post_ba_poses = []
-    for i in post_ba_sfm_data.get_valid_camera_indices():
-        post_ba_poses.append(post_ba_sfm_data.get_camera(i).pose())
-
-    fig = plt.figure()
-    ax = fig.add_subplot(projection='3d')
-
-    if gt_pose_graph is not None:
-        # Select ground truth poses that correspond to pre-BA and post-BA estimated poses
-        # some may have been lost after pruning to largest connected component
-        corresponding_gt_poses = [gt_pose_graph[i] for i in pre_ba_sfm_data.get_valid_camera_indices()]
-
-        # ground truth is used as the reference
-        pre_ba_poses = comp_utils.align_poses_sim3(corresponding_gt_poses, copy.deepcopy(pre_ba_poses))
-        post_ba_poses = comp_utils.align_poses_sim3(corresponding_gt_poses, copy.deepcopy(post_ba_poses))
-        viz_utils.plot_poses_3d(gt_pose_graph, ax, center_marker_color="m", label_name="GT")
-
-    viz_utils.plot_poses_3d(pre_ba_poses, ax, center_marker_color="c", label_name="Pre-BA")
-    viz_utils.plot_poses_3d(post_ba_poses, ax, center_marker_color="k", label_name="Post-BA")
-
-    ax.legend(loc="upper left")
-    viz_utils.set_axes_equal(ax)
-
-    # save the 3D plot in the original view
-    fig.savefig(os.path.join(folder_name, "poses_3d.png"))
-
-    # save the BEV representation
-    default_camera_elevation = 100  # in metres above ground
-    ax.view_init(azim=0, elev=default_camera_elevation)
-    fig.savefig(os.path.join(folder_name, "poses_bev.png"))
-
-    plt.close(fig)
-
-
-def persist_frontend_metrics_full(metrics: Dict[Tuple[int, int], FRONTEND_METRICS_FOR_PAIR]) -> None:
-    """Persist the front-end metrics for every pair on disk.
-
-    Args:
-        metrics: front-end metrics for pairs of images.
-    """
-
-    metrics_list = [
-        {
-            "i1": k[0],
-            "i2": k[1],
-            "rotation_angular_error": np.round(v[0], PRINT_NUM_SIG_FIGS),
-            "translation_angular_error": np.round(v[1], PRINT_NUM_SIG_FIGS),
-            "num_correct_corr": v[2],
-            "inlier_ratio": np.round(v[3], PRINT_NUM_SIG_FIGS),
-        }
-        for k, v in metrics.items()
-    ]
-
-    io_utils.save_json_file(os.path.join(METRICS_PATH, "frontend_full.json"), metrics_list)
+    io_utils.save_json_file(os.path.join(METRICS_PATH, filename), metrics_list)
 
     # Save duplicate copy of 'frontend_full.json' within React Folder.
-    io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, "frontend_full.json"), metrics_list)
-
-
-def aggregate_frontend_metrics(
-    metrics: Dict[Tuple[int, int], FRONTEND_METRICS_FOR_PAIR], angular_err_threshold_deg: float
-) -> None:
-    """Aggregate the front-end metrics to log summary statistics.
-
-    Args:
-        metrics: front-end metrics for pairs of images.
-        angular_err_threshold_deg: threshold for classifying angular error metrics as success.
-    """
-    num_entries = len(metrics)
-
-    metrics_array = np.array(list(metrics.values()), dtype=float)
-
-    # count number of rot3 errors which are not None. Should be same in rot3/unit3
-    num_valid_entries = np.count_nonzero(~np.isnan(metrics_array[:, 0]))
-
-    # compute pose errors by picking the max error from rot3 and unit3 errors
-    pose_errors = np.amax(metrics_array[:, :2], axis=1)
-
-    # check errors against the threshold
-    success_count_rot3 = np.sum(metrics_array[:, 0] < angular_err_threshold_deg)
-    success_count_unit3 = np.sum(metrics_array[:, 1] < angular_err_threshold_deg)
-    success_count_pose = np.sum(pose_errors < angular_err_threshold_deg)
-
-    # count entries with inlier ratio == 1.
-    all_correct = np.count_nonzero(metrics_array[:, 3] == 1.0)
-
-    logger.debug(
-        "[Two view optimizer] [Summary] Rotation success: %d/%d/%d", success_count_rot3, num_valid_entries, num_entries
-    )
-
-    logger.debug(
-        "[Two view optimizer] [Summary] Translation success: %d/%d/%d",
-        success_count_unit3,
-        num_valid_entries,
-        num_entries,
-    )
-
-    logger.debug(
-        "[Two view optimizer] [Summary] Pose success: %d/%d/%d", success_count_pose, num_valid_entries, num_entries
-    )
-
-    logger.debug("[Two view optimizer] [Summary] Image pairs with 100%% inlier ratio:: %d/%d", all_correct, num_entries)
-
-    front_end_result_info = {
-        "angular_err_threshold_deg": angular_err_threshold_deg,
-        "num_valid_entries": int(num_valid_entries),
-        "num_total_entries": int(num_entries),
-        "rotation": {"success_count": int(success_count_rot3)},
-        "translation": {"success_count": int(success_count_unit3)},
-        "pose": {"success_count": int(success_count_pose)},
-        "correspondences": {"all_inliers": int(all_correct)},
-    }
-
-    io_utils.save_json_file(os.path.join(METRICS_PATH, "frontend_summary.json"), front_end_result_info)
-
-    # Save duplicate copy of 'frontend_summary.json' within React Folder.
-    io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, "frontend_summary.json"), front_end_result_info)
+    io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, filename), metrics_list)

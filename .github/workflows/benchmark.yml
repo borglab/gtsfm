@@ -1,0 +1,80 @@
+name: Benchmark GTSFM on select datasets using SIFT and Deep front-ends
+
+on: [pull_request, workflow_dispatch]
+
+jobs:
+  benchmark:
+    name: Benchmark
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        config_dataset_info:
+          [
+            "sift_front_end,  door-12,               12,  JPG,  test_data,  olsson-loader,  1296, true",
+            "deep_front_end,  door-12,               12,  JPG,  test_data,  olsson-loader,  1296, true",
+            "sift_front_end,  skydio-8,              8,   jpg,  gdrive ,    colmap-loader,  760, true",
+            "deep_front_end,  skydio-8,              8,   jpg,  gdrive,     colmap-loader,  760, true",
+            "sift_front_end,  skydio-32,             32,  jpg,  gdrive,     colmap-loader,  760, true",
+            "deep_front_end,  skydio-32,             32,  jpg,  gdrive,     colmap-loader,  760, true",
+            "sift_front_end,  palace-fine-arts-281,  25,  jpg,  wget,       olsson-loader,  320, true",
+            "deep_front_end,  notre-dame-20,         20,  jpg,  gdrive,     colmap-loader,  760, false",
+            "sift_front_end,  2011205_rc3,           65,  png,  wget,       astronet,       1024, true",
+          ]
+    defaults:
+      run:
+        shell: bash -l {0}
+
+    env:
+      PYTHON_VERSION: 3.8
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Cache conda env
+        uses: actions/cache@v2
+        env:
+          # Increase this value to reset cache if environment_linux.yml has not changed
+          CACHE_NUMBER: 0
+        with:
+          path: ~/conda_pkgs_dir
+          key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('environment_linux.yml') }}
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          miniconda-version: "latest"
+          activate-environment: gtsfm-v1
+          environment-file: environment_linux.yml
+          python-version: 3.8
+          use-only-tar-bz2: true # IMPORTANT: This needs to be set for caching to work properly!
+      - name: Environment setup
+        run: |
+          bash .github/scripts/setup.sh
+          conda info
+      - name: Parse args and prepare dataset, Execute dataset
+        run: |
+          IFS=',  ' read -r -a array <<< "${{ matrix.config_dataset_info }}"
+          # strip out the whitespace with the stream editor (sed)
+          CONFIG_NAME=$(echo ${array[0]} | sed 's/ //g')
+          DATASET_NAME=$(echo ${array[1]} | sed 's/ //g')
+          MAX_FRAME_LOOKAHEAD=$(echo ${array[2]} | sed 's/ //g')
+          IMAGE_EXTENSION=$(echo ${array[3]} | sed 's/ //g')
+          DATASET_SRC=$(echo ${array[4]} | sed 's/ //g')
+          LOADER_NAME=$(echo ${array[5]} | sed 's/ //g')
+          MAX_RESOLUTION=$(echo ${array[6]} | sed 's/ //g')
+          SHARE_INTRINSICS=$(echo ${array[7]} | sed 's/ //g')
+
+          bash .github/scripts/execute_single_benchmark.sh \
+            $CONFIG_NAME \
+            $DATASET_NAME \
+            $MAX_FRAME_LOOKAHEAD \
+            $IMAGE_EXTENSION \
+            $DATASET_SRC \
+            $LOADER_NAME \
+            $MAX_RESOLUTION \
+            $SHARE_INTRINSICS
+
+
+      - name: Archive dataset metrics
+        uses: actions/upload-artifact@v2
+        with:
+          name: metrics-${{ matrix.config_dataset_info }}.zip
+          path: |
+            result_metrics

@@ -44,7 +44,7 @@ def get_track_with_one_outlier() -> List[SfmMeasurement]:
 
     original_measurement = perturbed_measurements[idx_to_perturb]
     perturbed_measurements[idx_to_perturb] = SfmMeasurement(
-        original_measurement.i, perturbed_measurements[idx_to_perturb].uv + Point2(20.0, -10.0),
+        original_measurement.i, perturbed_measurements[idx_to_perturb].uv + Point2(20.0, -10.0)
     )
 
     return perturbed_measurements
@@ -55,7 +55,7 @@ def get_track_with_duplicate_measurements() -> List[SfmMeasurement]:
 
     new_measurements = copy.deepcopy(MEASUREMENTS)
 
-    new_measurements.append(SfmMeasurement(new_measurements[0].i, new_measurements[0].uv + Point2(2.0, -3.0),))
+    new_measurements.append(SfmMeasurement(new_measurements[0].i, new_measurements[0].uv + Point2(2.0, -3.0)))
 
     return new_measurements
 
@@ -71,7 +71,7 @@ class TestPoint3dInitializer(unittest.TestCase):
         )
 
         self.ransac_uniform_sampling_initializer = Point3dInitializer(
-            CAMERAS, TriangulationParam.RANSAC_SAMPLE_UNIFORM, reproj_error_thresh=5, num_ransac_hypotheses=100,
+            CAMERAS, TriangulationParam.RANSAC_SAMPLE_UNIFORM, reproj_error_thresh=5, num_ransac_hypotheses=100
         )
 
     def __runWithCorrectMeasurements(self, obj: Point3dInitializer) -> bool:
@@ -121,7 +121,7 @@ class TestPoint3dInitializer(unittest.TestCase):
         }
 
         obj_with_flipped_cameras = Point3dInitializer(
-            flipped_cameras, obj.mode, obj.reproj_error_thresh, obj.num_ransac_hypotheses,
+            flipped_cameras, obj.mode, obj.reproj_error_thresh, obj.num_ransac_hypotheses
         )
 
         sfm_track, _, _ = obj_with_flipped_cameras.triangulate(SfmTrack2d(MEASUREMENTS))
@@ -147,10 +147,9 @@ class TestPoint3dInitializer(unittest.TestCase):
         self.assertTrue(self.__runWithOneMeasurement(self.simple_triangulation_initializer))
 
     def testSimpleTriangulationWithOutlierMeasurements(self):
-
         sfm_track, _, _ = self.simple_triangulation_initializer.triangulate(SfmTrack2d(get_track_with_one_outlier()))
-
-        self.assertIsNone(sfm_track)
+        # There are 8 total measurements, one of which is an outlier.
+        assert sfm_track.number_measurements() == 7
 
     def testSimpleTriangulationWithCheiralityException(self):
         self.assertTrue(self.__runWithCheiralityException(self.simple_triangulation_initializer))
@@ -180,11 +179,12 @@ class TestPoint3dInitializer(unittest.TestCase):
         """Test the tracks of the door dataset using simple triangulation initialization. Using computed tracks with
         ground truth camera params.
 
-        Expecting failures on 2 tracks which have incorrect matches."""
+        Expecting failures on 2 tracks which have incorrect matches.
+        """
         with open(DOOR_TRACKS_PATH, "rb") as handle:
             tracks = pickle.load(handle)
 
-        loader = OlssonLoader(DOOR_DATASET_PATH, image_extension="JPG")
+        loader = OlssonLoader(DOOR_DATASET_PATH, image_extension="JPG", max_resolution=1296)
 
         camera_dict = {
             i: PinholeCameraCal3Bundler(loader.get_camera_pose(i), loader.get_camera_intrinsics(i))
@@ -218,3 +218,57 @@ class TestPoint3dInitializer(unittest.TestCase):
             if triangulated_track is None:
                 # assert we have failures which are already expected
                 self.assertIn(track_2d, expected_failures)
+
+
+class TestPoint3dInitializerUnestimatedCameras(unittest.TestCase):
+    """Unit tests for Point3dInitializer when a camera pose could not be estimated."""
+
+    def setUp(self):
+        """Data taken from Skydio-CraneMast-8, with images resized to 760 px resolution."""
+        super().setUp()
+
+        fx, k1, k2, u0, v0 = 583.1175, 0, 0, 507, 380
+        calibration = Cal3Bundler(fx, k1, k2, u0, v0)
+
+        wRi1 = np.array(
+            [
+                [-0.736357028, -0.589757459, 0.331608908],
+                [0.565525823, -0.805544778, -0.176856308],
+                [0.371428151, 0.0573040157, 0.926691631],
+            ]
+        )
+        wti1 = np.array([-0.649658109, 0.656963354, -0.382548681])
+        wTi1 = Pose3(Rot3(wRi1), wti1)
+
+        wRi2 = np.array(
+            [
+                [-0.802732442, -0.594660358, 0.0447178336],
+                [0.59626145, -0.80157983, 0.0440688035],
+                [0.009638943, 0.0620389785, 0.998027182],
+            ]
+        )
+        wti2 = np.array([-1.95517763, 1.44100216, -0.442089696])
+        wTi2 = Pose3(Rot3(wRi2), wti2)
+
+        # Should be 3 cameras, but one is unestimated. Since camera 0 is unestimated, triangulation
+        # cannot succeed later if only 2 views are provided and one of them is from camera 0.
+        cameras = {1: PinholeCameraCal3Bundler(wTi1, calibration), 2: PinholeCameraCal3Bundler(wTi2, calibration)}
+
+        self.triangulator = Point3dInitializer(cameras, TriangulationParam.NO_RANSAC, reproj_error_thresh=5)
+
+    def test_extract_measurements_unestimated_camera(self) -> None:
+        """Ensure triangulation args are None for length-2 tracks where one or more measurements come from
+        unestimated cameras.
+
+        In the corresponding camera data, we have only 1 valid view within the track.
+        The function `extract_measurements()` should return None for the GTSAM primitives it generates.
+        """
+        inlier_track = SfmTrack2d(
+            measurements=[
+                SfmMeasurement(i=0, uv=np.array([229.0, 500.0], dtype=np.float32)),
+                SfmMeasurement(i=1, uv=np.array([69.0, 532.0], dtype=np.float32)),
+            ]
+        )
+        track_cameras, track_measurements = self.triangulator.extract_measurements(inlier_track)
+        assert track_cameras is None
+        assert track_measurements is None

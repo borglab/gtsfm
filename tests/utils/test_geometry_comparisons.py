@@ -94,7 +94,10 @@ class TestGeometryComparisons(unittest.TestCase):
         transform = Similarity3(rotation_shift, translation_shift, scaling_factor)
         ref_list = [transform.transformFrom(x) for x in sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES]
 
-        computed_poses = geometry_comparisons.align_poses_sim3(sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES, ref_list)
+        computed_poses, aSb = geometry_comparisons.align_poses_sim3(
+            sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES, ref_list
+        )
+        assert isinstance(aSb, Similarity3)
         self.__assert_equality_on_pose3s(computed_poses, sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES)
 
     def test_align_poses_on_panorama_after_sim3_transform(self):
@@ -108,7 +111,8 @@ class TestGeometryComparisons(unittest.TestCase):
         bSa = Similarity3(rotation_shift, translation_shift, scaling_factor)
         bTi_list = [bSa.transformFrom(x) for x in aTi_list]
 
-        aTi_list_ = geometry_comparisons.align_poses_sim3(aTi_list, bTi_list)
+        aTi_list_, aSb = geometry_comparisons.align_poses_sim3(aTi_list, bTi_list)
+        assert isinstance(aSb, Similarity3)
         self.__assert_equality_on_pose3s(aTi_list_, aTi_list)
 
     @patch(
@@ -275,7 +279,7 @@ class TestGeometryComparisons(unittest.TestCase):
         aTi_list = [wT0, wT1, wT2, wT3]
         # `b` frame contains the estimates
         bTi_list = [None, wT1, None, wT3]
-        aTi_list_ = geometry_comparisons.align_poses_sim3_ignore_missing(aTi_list, bTi_list)
+        aTi_list_, _ = geometry_comparisons.align_poses_sim3_ignore_missing(aTi_list, bTi_list)
 
         # indices 0 and 2 should still have no estimated pose, even after alignment
         assert aTi_list_[0] is None
