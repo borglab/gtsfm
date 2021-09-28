@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid, John Lambert
 """
+from gtsfm.common.gtsfm_data import GtsfmData
 import logging
 import os
 from pathlib import Path
@@ -9,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import dask
 import matplotlib
+from gtsam import Pose3, Similarity3
 
 matplotlib.use("Agg")
 
@@ -17,6 +19,7 @@ from dask.delayed import Delayed
 import gtsfm.averaging.rotation.cycle_consistency as cycle_consistency
 import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.two_view_estimator as two_view_estimator
+import gtsfm.utils.ellipsoid as ellipsoid_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
@@ -31,7 +34,7 @@ PLOT_BASE_PATH = Path(__file__).resolve().parent.parent / "plots"
 METRICS_PATH = Path(__file__).resolve().parent.parent / "result_metrics"
 RESULTS_PATH = Path(__file__).resolve().parent.parent / "results"
 
-# plot baths
+# plot paths
 PLOT_CORRESPONDENCE_PATH = PLOT_BASE_PATH / "correspondences"
 PLOT_BA_INPUT_PATH = PLOT_BASE_PATH / "ba_input"
 PLOT_RESULTS_PATH = PLOT_BASE_PATH / "results"
@@ -228,6 +231,11 @@ class SceneOptimizer:
         # Save metrics to JSON and generate HTML report.
         auxiliary_graph_list.extend(save_metrics_reports(metrics_graph_list))
 
+        # # Modify BA input and BA output to have point clouds and frustums aligned with x,y,z axes.
+        # ba_input_graph, ba_output_graph, gt_pose_graph = dask.delayed(align_estimated_gtsfm_data, nout=3)(
+        #     ba_input_graph, ba_output_graph, gt_pose_graph
+        # )
+
         if self._save_3d_viz:
             gt_poses_graph = (
                 [dask.delayed(lambda x: x.pose())(cam) for cam in gt_cameras_graph] if gt_cameras_graph else None
@@ -244,6 +252,30 @@ class SceneOptimizer:
 
         # return the entry with just the sfm result
         return output_graph[0]
+
+
+def align_estimated_gtsfm_data(
+    ba_input: GtsfmData, ba_output: GtsfmData, gt_pose_graph: List[Pose3]
+) -> Tuple[GtsfmData, GtsfmData, List[Pose3]]:
+    """Creates modified GtsfmData objects that emulate ba_input and ba_output but with point cloud and camera
+    frustums aligned to the x,y,z axes. Also transforms GT camera poses to be aligned to axes.
+
+    Args:
+        ba_input: GtsfmData input to bundle adjustment.
+        ba_output: GtsfmData output from bundle adjustment.
+        gt_pose_graph: list of GT camera poses.
+
+    Returns:
+        Updated ba_input GtsfmData object aligned to axes.
+        Updated ba_output GtsfmData object aligned to axes.
+        Updated gt_pose_graph with GT poses aligned to axes.
+    """
+    walignedTw = ellipsoid_utils.get_ortho_axis_alignment_transform(ba_output)
+    walignedTw = Similarity3(R=walignedTw.rotation(), t=walignedTw.translation(), s=1.0)
+    ba_input = ba_input.apply_Sim3(walignedTw)
+    ba_output = ba_output.apply_Sim3(walignedTw)
+    gt_pose_graph = [walignedTw.transformFrom(wTi) for wTi in gt_pose_graph]
+    return ba_input, ba_output, gt_pose_graph
 
 
 def save_visualizations(
