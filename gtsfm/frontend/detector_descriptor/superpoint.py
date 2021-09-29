@@ -10,10 +10,12 @@ References:
 Authors: Ayush Baid
 """
 from pathlib import Path
-from typing import Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
+import dask
 import numpy as np
 import torch
+from dask.delayed import Delayed
 
 import gtsfm.utils.images as image_utils
 from gtsfm.common.image import Image
@@ -39,19 +41,19 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
             weights_path (optional): Path to the model weights. Defaults to MODEL_WEIGHT_PATH.
         """
         super().__init__()
-        self._use_cuda = use_cuda and torch.cuda.is_available()
         self._config = {"weights_path": weights_path}
+        self._extra_args = None
 
-    def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
+    def detect_and_describe(
+        self, image: Image, extra_args: Optional[Dict[Any, Any]] = None
+    ) -> Tuple[Keypoints, np.ndarray]:
         """Jointly generate keypoint detections and their associated descriptors from a single image."""
-        device = torch.device("cuda" if self._use_cuda else "cpu")
-        model = SuperPoint(self._config).to(device)
-        model.eval()
+        model = extra_args["model"]
         # TODO: fix inference issue #110
 
         image_tensor = torch.from_numpy(
             np.expand_dims(image_utils.rgb_to_gray_cv(image).value_array.astype(np.float32) / 255.0, (0, 1))
-        ).to(device)
+        ).to("cpu")
 
         with torch.no_grad():
             model_results = model({"image": image_tensor})
@@ -73,3 +75,14 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
         keypoints = Keypoints(feature_points, responses=scores, scales=np.ones(scores.shape))
 
         return keypoints, descriptors
+
+    def get_delayed_extra_args(self) -> Delayed:
+        if self._extra_args is None:
+            model = SuperPoint(self._config).cpu()
+            extra_args = {"model": model}
+            self._extra_args = dask.delayed(extra_args)
+
+        return self._extra_args
+
+    def create_computation_graph(self, image_graph: Delayed) -> Tuple[Delayed, Delayed]:
+        return dask.delayed(self.detect_and_describe, nout=2)(image_graph, self.get_delayed_extra_args())

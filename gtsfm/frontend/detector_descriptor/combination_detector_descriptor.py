@@ -3,7 +3,7 @@ Joint detector-description combination from stand-alone detector and descriptor.
 
 Authors: Ayush Baid
 """
-from typing import Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 
@@ -29,7 +29,9 @@ class CombinationDetectorDescriptor(DetectorDescriptorBase):
         self.detector = detector
         self.descriptor = descriptor
 
-    def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
+    def detect_and_describe(
+        self, image: Image, extra_args: Optional[Dict[Any, Any]] = None
+    ) -> Tuple[Keypoints, np.ndarray]:
         """Perform feature detection as well as their description.
 
         Refer to detect() in DetectorBase and describe() in DescriptorBase for
@@ -37,6 +39,7 @@ class CombinationDetectorDescriptor(DetectorDescriptorBase):
 
         Args:
             image: the input image.
+            extra_args: extra arguments, like models
 
         Returns:
             Detected keypoints, with length N <= max_keypoints.

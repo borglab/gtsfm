@@ -9,7 +9,7 @@ References:
 
 Authors: Ayush Baid
 """
-from typing import Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import cv2 as cv
 import numpy as np
@@ -26,7 +26,9 @@ from gtsfm.frontend.detector_descriptor.detector_descriptor_base import (
 class SIFTDetectorDescriptor(DetectorDescriptorBase):
     """SIFT detector-descriptor using OpenCV's implementation."""
 
-    def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
+    def detect_and_describe(
+        self, image: Image, extra_args: Optional[Dict[Any, Any]] = None
+    ) -> Tuple[Keypoints, np.ndarray]:
         """Perform feature detection as well as their description.
 
         Refer to detect() in DetectorBase and describe() in DescriptorBase for details about the output format.
