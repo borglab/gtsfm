@@ -128,8 +128,11 @@ class DataAssociation(NamedTuple):
             else:
                 per_rejected_track_avg_errors.append(avg_track_reproj_error)
 
-        # aggregate the exit codes
+        # aggregate the exit codes to get the distribution w.r.t each triangulation exit
+        # get the exit codes distribution w.r.t. the camera params computed by the upstream modules of GTSFM
         exit_codes_wrt_computed_distribution = Counter(exit_codes_wrt_computed)
+        # compute the exit codes distribution w.r.t. a tuple of exit codes: the exit code when triangulated with the
+        # ground truth cameras and the exit code when triangulated with the computed cameras.
         exit_codes_wrt_gt_and_computed_distribution = None
         if exit_codes_wrt_gt is not None:
             exit_codes_wrt_gt_and_computed_distribution = Counter(zip(exit_codes_wrt_gt, exit_codes_wrt_computed))
