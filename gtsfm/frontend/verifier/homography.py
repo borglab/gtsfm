@@ -1,22 +1,24 @@
+
+"""
+Fit a homography matrix from correspondences.
+
+Useful for determineing whether the scene is planar or the camera motion is a pure rotation.
+
+COLMAP also checks degeneracy of structure here:
+    https://github.com/colmap/colmap/blob/dev/src/estimators/two_view_geometry.cc#L277
+"""
+
 from typing import Tuple
 
 import cv2
 import numpy as np
 
-from gtsfm.common.keypoints import Keypoints
-
-# from gtsfm.frontend.verifier.verifier_base import TwoViewEstimationReport
-
 import gtsfm.utils.logger as logger_utils
+from gtsfm.common.keypoints import Keypoints
 
 logger = logger_utils.get_logger()
 
-"""
-Verification that determines whether the scene is planar or the camera motion is a pure rotation.
 
-COLMAP also checks degeneracy of structure here:
-    https://github.com/colmap/colmap/blob/dev/src/estimators/two_view_geometry.cc#L277
-"""
 
 MIN_PTS_HOMOGRAPHY = 4
 DEFAULT_RANSAC_PROB = 0.999
