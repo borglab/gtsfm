@@ -99,7 +99,6 @@ def check_cheirality(
     if points1.shape != points2.shape:
         raise RuntimeError("Coordinates of 2d correspondences must have the same shape.")
 
-    
     i2Ti1 = Pose3(i2Ri1, i2ti1)
     camera_dict = {
         1: PinholeCameraCal3Bundler(i2Ti1, camera_intrinsics_i1),
@@ -182,7 +181,7 @@ def decompose_homography_matrix(
     # matrix infinity norm is max(sum(abs(x), axis=1)) in numpy
     # and we want the vector infinity norm max(abs(x)), so flatten.
     if np.linalg.norm(S.flatten(), ord=np.inf) < kMinInfinityNorm:
-        R_cmbs = [ Rot3(H_normalized) ]
+        R_cmbs = [Rot3(H_normalized)]
         t_cmbs = [np.zeros(3)]
         n_cmbs = [np.zeros(3)]
         return R_cmbs, t_cmbs, n_cmbs
@@ -292,7 +291,7 @@ def decompose_homography_matrix(
     t2 = R2 @ t2_star
 
     # combinations differ from OpenCV's implementations (using COLMAP's)
-    R_cmbs = [ Rot3(R1), Rot3(R1), Rot3(R2), Rot3(R2)]
+    R_cmbs = [Rot3(R1), Rot3(R1), Rot3(R2), Rot3(R2)]
     t_cmbs = [t1, -t1, t2, -t2]
     n_cmbs = [-n1, n1, -n2, n2]
     return R_cmbs, t_cmbs, n_cmbs
@@ -342,7 +341,7 @@ def compute_homography_rotation(H_normalized: np.ndarray, tstar: np.ndarray, n: 
     Returns:
         array of shape (3,3) representing rotation matrix
     """
-    I = np.eye(3) # noqa
+    I = np.eye(3)  # noqa
     tstar = tstar.reshape(3, 1)
     n = n.reshape(3, 1)
 

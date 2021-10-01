@@ -71,7 +71,11 @@ def test_decompose_homography_matrix() -> None:
     ref_solution_exists = False
 
     for i in range(4):
-        if np.allclose(R_cmbs[i].matrix(), R_ref) and np.allclose(t_cmbs[i].point3(), t_ref) and np.allclose(n_cmbs[i], n_ref):
+        if (
+            np.allclose(R_cmbs[i].matrix(), R_ref)
+            and np.allclose(t_cmbs[i].point3(), t_ref)
+            and np.allclose(n_cmbs[i], n_ref)
+        ):
             ref_solution_exists = True
 
     assert ref_solution_exists
@@ -128,7 +132,7 @@ def test_pose_from_homography_matrix() -> None:
 
 
 def test_pose_from_homography_matrix_notre_dame() -> None:
-    """ Purely planar scene.
+    """Purely planar scene.
 
     Check SuperPoint + SuperGlue + OpenCV RANSAC-5pt frontend (Essential matrix estimation).
 
@@ -171,6 +175,7 @@ Another homography dataset (planar graffiti scene).
 https://www.robots.ox.ac.uk/~vgg/data/affine/
 """
 
+
 def __run_superglue_front_end(loader: LoaderBase) -> TwoViewEstimationReport:
     """Run all image pairs from a data loader through the SuperPoint + SuperGlue front-end."""
     det_desc = SuperPointDetectorDescriptor()
@@ -188,7 +193,9 @@ def __run_superglue_front_end(loader: LoaderBase) -> TwoViewEstimationReport:
     )
 
     with dask.config.set(scheduler="single-threaded"):
-        i2Ri1_results, i2ti1_results, two_view_report_dict = dask.compute(i2Ri1_graph_dict, i2Ui1_graph_dict, two_view_report_dict)
+        i2Ri1_results, i2ti1_results, two_view_report_dict = dask.compute(
+            i2Ri1_graph_dict, i2Ui1_graph_dict, two_view_report_dict
+        )
     return two_view_report_dict
 
 
@@ -226,11 +233,11 @@ def __get_frontend_computation_graph(
             camera_intrinsics_graph[i2],
             image_shape_graph[i1],
             image_shape_graph[i2],
-            gt_i2Ti1
+            gt_i2Ti1,
         )
         i2Ri1_graph_dict[(i1, i2)] = i2Ri1
         i2Ui1_graph_dict[(i1, i2)] = i2Ui1
-        two_view_report_dict[(i1,i2)] = two_view_report
+        two_view_report_dict[(i1, i2)] = two_view_report
 
     return i2Ri1_graph_dict, i2Ui1_graph_dict, two_view_report_dict
 

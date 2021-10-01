@@ -181,9 +181,7 @@ class TwoViewEstimator:
             H_inlier_ratio,
         )
 
-        i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph = dask.delayed(
-            check_for_degeneracy, nout=4
-        )(
+        i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph = dask.delayed(check_for_degeneracy, nout=4)(
             self._min_num_inliers_acceptance,
             H_graph,
             camera_intrinsics_i1_graph,
@@ -246,6 +244,7 @@ class TwoViewEstimator:
 
         return two_view_report
 
+
 def check_for_degeneracy(
     min_num_inliers_acceptance: float,
     H: np.ndarray,
@@ -270,16 +269,16 @@ def check_for_degeneracy(
     Args:
         min_num_inliers_acceptance: float,
         H: array of shape (3,3) representing homography matrix.
-        camera_intrinsics_i1: 
-        camera_intrinsics_i2: 
-        two_view_report: 
-        i2Ri1: 
-        i2Ui1: 
+        camera_intrinsics_i1:
+        camera_intrinsics_i2:
+        two_view_report:
+        i2Ri1:
+        i2Ui1:
         v_corr_idxs: verified correspondence indices, as reported by the estimated E or F matrix.
-        keypoints_i1: 
-        keypoints_i2: 
+        keypoints_i1:
+        keypoints_i2:
         corr_idxs: keypoint matches.
-        H_inlier_idxs: 
+        H_inlier_idxs:
     """
     insufficient_inliers = two_view_report.num_inliers_est_model < min_num_inliers_acceptance
 
