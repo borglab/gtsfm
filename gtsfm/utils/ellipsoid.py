@@ -29,10 +29,10 @@ def get_ortho_axis_alignment_transform(gtsfm_data: GtsfmData) -> Pose3:
     point_cloud = [gtsfm_data.get_track(j).point3() for j in range(num_pts)]
     point_cloud = np.array(point_cloud)  # point_cloud has shape Nx3
 
-    # Center point cloud, filter outlier points, and obtain alignment rotation.
-    points_centered, mean = center_point_cloud(point_cloud)
-    points_filtered = remove_outlier_points(points_centered)
-    wuprightRw = get_alignment_rotation_matrix_from_svd(points_filtered)
+    # Filter outlier points, Center point cloud, and obtain alignment rotation.
+    points_filtered = remove_outlier_points(point_cloud)
+    points_centered, mean = center_point_cloud(points_filtered)
+    wuprightRw = get_alignment_rotation_matrix_from_svd(points_centered)
 
     # Obtain the Pose3 object needed to align camera frustums.
     walignedTw = Pose3(Rot3(wuprightRw), -1 * mean)
@@ -78,7 +78,7 @@ def remove_outlier_points(point_cloud: np.ndarray) -> np.ndarray:
 
     mags = np.linalg.norm(point_cloud, axis=1)
     cutoff_mag = np.percentile(mags, OUTLIER_DISTANCE_PERCENTILE)
-    points_filtered = point_cloud[mags < cutoff_mag]
+    points_filtered = point_cloud[mags <= cutoff_mag]
     return points_filtered
 
 

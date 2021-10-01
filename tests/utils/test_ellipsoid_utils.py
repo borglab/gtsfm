@@ -3,6 +3,9 @@
 Authors: Adi Singh
 """
 import unittest
+from gtsfm.common.gtsfm_data import GtsfmData
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack, Similarity3
+from gtsfm.utils.ellipsoid import get_ortho_axis_alignment_transform
 
 import numpy as np
 import numpy.testing as npt
@@ -12,6 +15,93 @@ import gtsfm.utils.ellipsoid as ellipsoid_utils
 
 class TestEllipsoidUtils(unittest.TestCase):
     """Class containing all unit tests for ellipsoid utils."""
+
+    def test_get_ortho_axis_alignment_transform(self) -> None:
+        """Tests the get_otho_axis_alignment_transform() function with a GtsfmData object containing 3 camera frustums
+        and 6 points in the point cloud. All points lie on z=0 plane. All frustums lie on z=2 plane and look down on
+        the z=0 plane.
+
+           sample_data:              output_data:
+
+               y                         y
+               |                         |
+           o   |                         o
+             c | c                       |
+          ------------- x   ==>  --o--c-----c--o-- x
+             o | c                       |
+               |   o                     c
+               |                         |
+
+        c = point at (xi,yi,0) with a camera frustum at (xi,yi,2)
+        o = point at (xi,yi,0)
+        """
+
+        sample_data = GtsfmData(number_images=3)
+        default_intrinsics = Cal3Bundler(fx=100, k1=0, k2=0, u0=0, v0=0)
+
+        # Add 3 camera frustums to sample_data (looking down at z=0 plane)
+        camera0 = PinholeCameraCal3Bundler(Pose3(Rot3(np.eye(3)), np.array([-1, 1, 2])), default_intrinsics)
+        camera1 = PinholeCameraCal3Bundler(Pose3(Rot3(np.eye(3)), np.array([1, 1, 2])), default_intrinsics)
+        camera2 = PinholeCameraCal3Bundler(Pose3(Rot3(np.eye(3)), np.array([1, -1, 2])), default_intrinsics)
+
+        sample_data.add_camera(0, camera0)
+        sample_data.add_camera(1, camera1)
+        sample_data.add_camera(2, camera2)
+
+        # Add 6 tracks to sample_data
+        track1 = SfmTrack(np.array([1, 1, 0]))
+        track2 = SfmTrack(np.array([-1, 1, 0]))
+        track3 = SfmTrack(np.array([-2, 2, 0]))
+        track4 = SfmTrack(np.array([-1, -1, 0]))
+        track5 = SfmTrack(np.array([1, -1, 0]))
+        track6 = SfmTrack(np.array([2, -2, 0]))
+
+        sample_data.add_track(track1)
+        sample_data.add_track(track2)
+        sample_data.add_track(track3)
+        sample_data.add_track(track4)
+        sample_data.add_track(track5)
+        sample_data.add_track(track6)
+
+        # Apply alignment transformation to sample_data
+        walignedTw = get_ortho_axis_alignment_transform(sample_data)
+        sim3_walignedTw = Similarity3(R=walignedTw.rotation(), t=walignedTw.translation(), s=1.0)
+        sample_data = sample_data.apply_Sim3(sim3_walignedTw)
+
+        # Verify correct 3d points.
+        computed_3d_points = [sample_data.get_track(i).point3() for i in range(sample_data.number_tracks())]
+        expected_3d_points = np.array(
+            [
+                [0, -np.sqrt(2), 0],
+                [np.sqrt(2), 0, 0],
+                [2 * np.sqrt(2), 0, 0],
+                [0, np.sqrt(2), 0],
+                [-np.sqrt(2), 0, 0],
+                [-2 * np.sqrt(2), 0, 0],
+            ]
+        )
+        npt.assert_almost_equal(computed_3d_points, expected_3d_points, decimal=6)
+
+        # Verify correct camera poses.
+        computed_camera_poses = sample_data.get_camera_poses()
+
+        computed_cam0_pose = computed_camera_poses[0]
+        computed_cam0_rotation = computed_cam0_pose.rotation().matrix()
+        computed_cam0_translation = computed_cam0_pose.translation()
+        npt.assert_almost_equal(computed_cam0_rotation, walignedTw.rotation().matrix())
+        npt.assert_almost_equal(computed_cam0_translation, np.array([np.sqrt(2), 0, 2]))
+
+        computed_cam1_pose = computed_camera_poses[1]
+        computed_cam1_rotation = computed_cam1_pose.rotation().matrix()
+        computed_cam1_translation = computed_cam1_pose.translation()
+        npt.assert_almost_equal(computed_cam1_rotation, walignedTw.rotation().matrix())
+        npt.assert_almost_equal(computed_cam1_translation, np.array([0, -np.sqrt(2), 2]))
+
+        computed_cam2_pose = computed_camera_poses[2]
+        computed_cam2_rotation = computed_cam2_pose.rotation().matrix()
+        computed_cam2_translation = computed_cam2_pose.translation()
+        npt.assert_almost_equal(computed_cam2_rotation, walignedTw.rotation().matrix())
+        npt.assert_almost_equal(computed_cam2_translation, np.array([-np.sqrt(2), 0, 2]))
 
     def test_center_point_cloud(self) -> None:
         """Tests the center_point_cloud() function with 3 sample points.
@@ -78,11 +168,11 @@ class TestEllipsoidUtils(unittest.TestCase):
         # fmt: off
         sample_points = np.array(
             [
-                [1, 1, 0], 
-                [-1, 1, 0], 
-                [-2, 2, 0], 
-                [-1, -1, 0], 
-                [1, -1, 0], 
+                [1, 1, 0],
+                [-1, 1, 0],
+                [-2, 2, 0],
+                [-1, -1, 0],
+                [1, -1, 0],
                 [2, -2, 0]
             ]
         )

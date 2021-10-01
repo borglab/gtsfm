@@ -230,9 +230,9 @@ class SceneOptimizer:
         auxiliary_graph_list.extend(save_metrics_reports(metrics_graph_list))
 
         # # Modify BA input and BA output to have point clouds and frustums aligned with x,y,z axes.
-        # ba_input_graph, ba_output_graph, gt_pose_graph = dask.delayed(align_estimated_gtsfm_data, nout=3)(
-        #     ba_input_graph, ba_output_graph, gt_pose_graph
-        # )
+        ba_input_graph, ba_output_graph, gt_pose_graph = dask.delayed(align_estimated_gtsfm_data, nout=3)(
+            ba_input_graph, ba_output_graph, gt_pose_graph
+        )
 
         if self._save_3d_viz:
             auxiliary_graph_list.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_pose_graph))
