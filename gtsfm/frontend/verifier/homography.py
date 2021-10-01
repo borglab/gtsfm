@@ -30,7 +30,7 @@ class HomographyEstimator:
 
     def estimate(
         self, keypoints_i1: Keypoints, keypoints_i2: Keypoints, match_indices: np.ndarray
-    ) -> Tuple[np.ndarray, float, int]:
+    ) -> Tuple[np.ndarray, float, int, np.ndarray]:
         """Estimate to what extent the correspondences agree with an estimated homography.
 
         We provide statistics of the RANSAC result, like COLMAP does here for LORANSAC:
@@ -68,4 +68,4 @@ class HomographyEstimator:
         inlier_ratio = inlier_mask.mean()
 
         num_inliers = inlier_mask.sum()
-        return H, num_inliers, inlier_ratio
+        return H, num_inliers, inlier_ratio, inlier_idxs

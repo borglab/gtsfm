@@ -60,8 +60,8 @@ def pose_from_homography_matrix(
 
     Args:
         H: array of shape (3,3)
-        camera_intrinsics_i1: camera 1's intrinsics
-        camera_intrinsics_i2: camera 2's intrinsics
+        camera_intrinsics_i1: camera 1's intrinsics.
+        camera_intrinsics_i2: camera 2's intrinsics.
         points1: array of shape (N,2)
         points2: array of shape (N,2)
 
