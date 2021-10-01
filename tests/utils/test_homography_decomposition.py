@@ -164,6 +164,7 @@ def test_pose_from_homography_matrix_notre_dame() -> None:
 
 
 """
+Another homography dataset (planar graffiti scene).
 https://www.robots.ox.ac.uk/~vgg/data/affine/
 """
 

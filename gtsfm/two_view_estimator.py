@@ -266,6 +266,20 @@ def check_for_degeneracy(
     https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.34.3878&rep=rep1&type=pdf
 
     See https://github.com/colmap/colmap/blob/dev/src/estimators/two_view_geometry.cc#L230
+
+    Args:
+        min_num_inliers_acceptance: float,
+        H: array of shape (3,3) representing homography matrix.
+        camera_intrinsics_i1: 
+        camera_intrinsics_i2: 
+        two_view_report: 
+        i2Ri1: 
+        i2Ui1: 
+        v_corr_idxs: verified correspondence indices, as reported by the estimated E or F matrix.
+        keypoints_i1: 
+        keypoints_i2: 
+        corr_idxs: keypoint matches.
+        H_inlier_idxs: 
     """
     insufficient_inliers = two_view_report.num_inliers_est_model < min_num_inliers_acceptance
 
@@ -324,7 +338,7 @@ def generate_two_view_report(
 ) -> TwoViewEstimationReport:
     """Wrapper around class constructor for Dask.
 
-    Note: the following 4 fields are initially set to None, and then updated if GT is available.
+    Note: the following 4 fields are initially set to None, and then updated later if GT is available.
         R_error_deg
         U_error_deg
         num_inliers_gt_model

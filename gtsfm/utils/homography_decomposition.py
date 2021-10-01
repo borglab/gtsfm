@@ -26,28 +26,6 @@ from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3
 from gtsfm.common.sfm_track import SfmTrack2d, SfmMeasurement
 from gtsfm.data_association.point3d_initializer import Point3dInitializer, TriangulationParam, TriangulationExitCode
 
-"""
-PoseFromHomographyMatrix(
-        H, camera1.CalibrationMatrix(), camera2.CalibrationMatrix(),
-        inlier_points1_normalized, inlier_points2_normalized, &R, &tvec, &n,
-        &points3D);
-
-  if (points3D.empty()) {
-    tri_angle = 0;
-  } else {
-    tri_angle = Median(CalculateTriangulationAngles(
-        Eigen::Vector3d::Zero(), -R.transpose() * tvec, points3D));
-  }
-
-  if (config == PLANAR_OR_PANORAMIC) {
-    if (tvec.norm() == 0) {
-      config = PANORAMIC;
-      tri_angle = 0;
-    } else {
-      config = PLANAR;
-    }
-"""
-
 
 def pose_from_homography_matrix(
     H: np.ndarray,
@@ -92,8 +70,8 @@ def pose_from_homography_matrix(
             points3D = points3D_cmb
 
     points3D = np.array(points3D)
-    print("Translation direction: ", i2ti1)
-    print(f"Triangulated {points3D.shape} points from {points1.shape} correspondences.")
+
+    # Note: if norm(i2ti1) == 0, this is a pure rotation. Otherwise, planar scene.
 
     # Note: we cannot blindly cast the translation direction to Unit3, as zero translation is valid
     # from a rotation, and should be noted in 1dsfm.
