@@ -160,7 +160,10 @@ def test_pose_from_homography_matrix_notre_dame() -> None:
     i2Ti1_gt = wTi2.between(wTi1)
 
     two_view_report = __run_superglue_front_end(loader)
-    import pdb; pdb.set_trace()
+
+    # TODO: these thresholds may be impossible
+    assert two_view_report.R_error_deg < 5
+    assert two_view_report.U_error_deg < 5
 
 
 """
