@@ -20,10 +20,10 @@ Authors: John Lambert (Python), from original C++
 from typing import List, Tuple
 
 import numpy as np
-from gtsam import Rot3, Unit3
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3
 
 from gtsfm.common.sfm_track import SfmTrack2d, SfmMeasurement
-from gtsfm.data_association.point3d_initializer import TriangulationParam, Point3dInitializer
+from gtsfm.data_association.point3d_initializer import Point3dInitializer, TriangulationParam, TriangulationExitCode
 
 """
 PoseFromHomographyMatrix(
@@ -50,8 +50,8 @@ PoseFromHomographyMatrix(
 
 def pose_from_homography_matrix(
     H: np.ndarray,
-    K1: np.ndarray,
-    K2: np.ndarray,
+    camera_intrinsics_i1: Cal3Bundler,
+    camera_intrinsics_i2: Cal3Bundler,
     points1: np.ndarray,
     points2: np.ndarray,
 ) -> Tuple[Rot3, Unit3, np.ndarray, np.ndarray]:
@@ -59,34 +59,54 @@ def pose_from_homography_matrix(
 
     Args:
         H: array of shape (3,3)
-        K1: array of shape (3,3) representing camera 1's intrinsics
-        K2: array of shape (3,3) representing camera 2's intrinsics
+        camera_intrinsics_i1: camera 1's intrinsics
+        camera_intrinsics_i2: camera 2's intrinsics
         points1: array of shape (N,2)
         points2: array of shape (N,2)
 
     Returns:
-        R: relative rotation matrix.
-        t: translation direction.
+        i2Ri1: relative rotation matrix.
+        i2Ui1: translation direction.
         n: array of shape (3,) representing plane normal vector.
         points3D: array of shape (N,3) representing triangulated 3d points.
     """
     if points1.shape != points2.shape:
         raise RuntimeError("Coordinates of 2d correspondences must have the same shape.")
 
-    R_cmbs, t_cmbs, n_cmbs = decompose_homography_matrix(H, K1, K2)
+    K1 = camera_intrinsics_i1.K()
+    K2 = camera_intrinsics_i2.K()
+    i2Ri1_cmbs, i2ti1_cmbs, n_cmbs = decompose_homography_matrix(H, K1, K2)
 
-    for i in range(len(R_cmbs)):
-        points3D_cmb = check_cheirality(R_cmbs[i], t_cmbs[i], points1, points2)
+    points3D = []
+    for i in range(len(i2Ri1_cmbs)):
+        points3D_cmb = check_cheirality(
+            i2Ri1_cmbs[i], i2ti1_cmbs[i], camera_intrinsics_i1, camera_intrinsics_i2, points1, points2
+        )
+        print(f"hypothesis {i}  -> {len(points3D_cmb)}")
+        print(i2ti1_cmbs[i])
         if len(points3D_cmb) >= len(points3D):
-            R = R_cmbs[i]
-            t = t_cmbs[i]
+            i2Ri1 = i2Ri1_cmbs[i]
+            i2ti1 = i2ti1_cmbs[i]
             n = n_cmbs[i]
             points3D = points3D_cmb
 
-    return R, t, n, points3D
+    points3D = np.array(points3D)
+    print("Translation direction: ", i2ti1)
+    print(f"Triangulated {points3D.shape} points from {points1.shape} correspondences.")
+
+    # Note: we cannot blindly cast the translation direction to Unit3, as zero translation is valid
+    # from a rotation, and should be noted in 1dsfm.
+    return i2Ri1, Unit3(i2ti1), n, points3D
 
 
-def check_cheirality(R: Rot3, t: np.ndarray, points1: np.ndarray, points2: np.ndarray) -> np.ndarray:
+def check_cheirality(
+    i2Ri1: Rot3,
+    i2ti1: np.ndarray,
+    camera_intrinsics_i1: Cal3Bundler,
+    camera_intrinsics_i2: Cal3Bundler,
+    points1: np.ndarray,
+    points2: np.ndarray,
+) -> np.ndarray:
     """
     Args:
         R: array of shape (3,3)
@@ -100,40 +120,33 @@ def check_cheirality(R: Rot3, t: np.ndarray, points1: np.ndarray, points2: np.nd
     if points1.shape != points2.shape:
         raise RuntimeError("Coordinates of 2d correspondences must have the same shape.")
 
-    # try triangulating each point
-
-    camera_dict = {0: PinholeCameraCal3Bundler(), 1: PinholeCameraCal3Bundler()}
-
-    triangulator = Point3dInitializer(
-        track_camera_dict=camera_dict,
-        mode=TriangulationParam.NO_RANSAC,
-        reproj_error_thresh=float('inf')
-    )
     
-    for point1, point2 in zip(points1, points2)
+    i2Ti1 = Pose3(i2Ri1, i2ti1)
+    camera_dict = {
+        1: PinholeCameraCal3Bundler(i2Ti1, camera_intrinsics_i1),
+        2: PinholeCameraCal3Bundler(Pose3(), camera_intrinsics_i2),
+    }
 
-        track_2d = SfmTrack2d(measurements=[SfmMeasurement(i=0, uv=point1), SfmMeasurement(i=1, uv=point2)])
+    # set the camera 2 pose as the global coordinate system
+    # COLMAP states that wTc for camera 2 is equal to (R,t) from homography.
+    # given wTi1 and wTi2, then if
+    # i2Ti1 = wTi2.inverse() * wTi1
+    # thus, wTi2 is identity, and wTi1 = i2Ti1
+    triangulator = Point3dInitializer(
+        track_camera_dict=camera_dict, mode=TriangulationParam.NO_RANSAC, reproj_error_thresh=float("inf")
+    )
+
+    points3d = []
+    # try triangulating each point
+    for point1, point2 in zip(points1, points2):
+
+        track_2d = SfmTrack2d(measurements=[SfmMeasurement(i=1, uv=point1), SfmMeasurement(i=2, uv=point2)])
         track_3d, _, exit_code = triangulator.triangulate(track_2d)
         if exit_code == TriangulationExitCode.CHEIRALITY_FAILURE:
             continue
+        points3d.append(track_3d.point3())
 
-    # const Eigen::Matrix3x4d proj_matrix1 = Eigen::Matrix3x4d::Identity();
-    # const Eigen::Matrix3x4d proj_matrix2 = ComposeProjectionMatrix(R, t);
-    # const double kMinDepth = std::numeric_limits<double>::epsilon();
-    # const double max_depth = 1000.0f * (R.transpose() * t).norm();
-    # points3D->clear();
-    # for (size_t i = 0; i < points1.size(); ++i) {
-    #   const Eigen::Vector3d point3D =
-    #       TriangulatePoint(proj_matrix1, proj_matrix2, points1[i], points2[i]);
-    #   const double depth1 = CalculateDepth(proj_matrix1, point3D);
-    #   if (depth1 > kMinDepth && depth1 < max_depth) {
-    #     const double depth2 = CalculateDepth(proj_matrix2, point3D);
-    #     if (depth2 > kMinDepth && depth2 < max_depth) {
-    #       points3D->push_back(point3D);
-    #     }
-    #   }
-    # }
-    # return !points3D->empty();
+    return points3d
 
 
 def decompose_homography_matrix(
@@ -155,6 +168,7 @@ def decompose_homography_matrix(
            corresponds to a pure rotation, then this list will only have 1 entry. Otherwise,
            a list of 4 possible rotations is returned.
         t_cmbs: list representing combinations of possible t directions of shape (3,).
+           Note: `t` is not necessarily a unit vector, as it can have zero norm (pure rotation).
         n_cmbs: list representing combinations of possible plane normals vectors of shape (3,).
     """
     # Remove calibration from homography.
@@ -189,7 +203,7 @@ def decompose_homography_matrix(
     # matrix infinity norm is max(sum(abs(x), axis=1)) in numpy
     # and we want the vector infinity norm max(abs(x)), so flatten.
     if np.linalg.norm(S.flatten(), ord=np.inf) < kMinInfinityNorm:
-        R_cmbs = [H_normalized]
+        R_cmbs = [ Rot3(H_normalized) ]
         t_cmbs = [np.zeros(3)]
         n_cmbs = [np.zeros(3)]
         return R_cmbs, t_cmbs, n_cmbs
@@ -299,7 +313,7 @@ def decompose_homography_matrix(
     t2 = R2 @ t2_star
 
     # combinations differ from OpenCV's implementations (using COLMAP's)
-    R_cmbs = [R1, R1, R2, R2]
+    R_cmbs = [ Rot3(R1), Rot3(R1), Rot3(R2), Rot3(R2)]
     t_cmbs = [t1, -t1, t2, -t2]
     n_cmbs = [-n1, n1, -n2, n2]
     return R_cmbs, t_cmbs, n_cmbs
@@ -360,13 +374,18 @@ def compute_homography_rotation(H_normalized: np.ndarray, tstar: np.ndarray, n: 
 
 
 def homography_matrix_from_pose(
-    K1: np.ndarray, K2: np.ndarray, R: Rot3, t: np.ndarray, n: np.ndarray, d: float
+    camera_intrinsics_i1: Cal3Bundler,
+    camera_intrinsics_i2: Cal3Bundler,
+    R: Rot3,
+    t: np.ndarray,
+    n: np.ndarray,
+    d: float,
 ) -> np.ndarray:
     """Compute a homography matrix from a known relative pose.
 
     Args:
-        K1: array of shape (3,3) representing intrinsic matrix of camera 1.
-        K2: array of shape (3,3) representing intrinsic matrix of camera 2.
+        camera_intrinsics_i1: camera 1's intrinsics.
+        camera_intrinsics_i2: camera 2's intrinsics.
         R: 3x3 rotation matrix
         t: array of shape (3,) representing translation vector.
         n: array of shape (3,) representing normal vector.
@@ -377,6 +396,9 @@ def homography_matrix_from_pose(
     """
     if d <= 0:
         raise RuntimeError("Orthogonal distance from plane `d` must be positive.")
+
+    K1 = camera_intrinsics_i1.K()
+    K2 = camera_intrinsics_i2.K()
 
     # normalize
     n /= np.linalg.norm(n)
