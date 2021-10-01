@@ -6,6 +6,8 @@ Useful for determineing whether the scene is planar or the camera motion is a pu
 
 COLMAP also checks degeneracy of structure here:
     https://github.com/colmap/colmap/blob/dev/src/estimators/two_view_geometry.cc#L277
+
+Authors: John Lambert
 """
 
 from typing import Tuple
@@ -24,7 +26,7 @@ MIN_PTS_HOMOGRAPHY = 4
 DEFAULT_RANSAC_PROB = 0.999
 
 
-class HomographyEstimator:
+class RansacHomographyEstimator:
     def __init__(self, estimation_threshold_px: float) -> None:
         """
         """

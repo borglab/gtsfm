@@ -17,7 +17,7 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
-from gtsfm.frontend.verifier.homography import HomographyEstimator
+from gtsfm.frontend.verifier.homography import RansacHomographyEstimator
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
@@ -105,7 +105,7 @@ class TwoViewEstimator:
         self._corr_metric_dist_threshold = eval_threshold_px
         self._min_num_inliers_acceptance = min_num_inliers_acceptance
         # Note: homography estimation threshold must match the E / F thresholds for #inliers to be comparable
-        self._homography_estimator = HomographyEstimator(verifier._estimation_threshold_px)
+        self._homography_estimator = RansacHomographyEstimator(verifier._estimation_threshold_px)
 
     def get_corr_metric_dist_threshold(self) -> float:
         """Getter for the distance threshold used in the metric for correct correspondences."""

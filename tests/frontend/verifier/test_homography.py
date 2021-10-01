@@ -7,7 +7,7 @@ Author: John Lambert
 import numpy as np
 
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.frontend.verifier.homography import HomographyEstimator
+from gtsfm.frontend.verifier.homography import RansacHomographyEstimator
 
 
 def test_estimate_homography_inliers_minimalset() -> None:
@@ -46,7 +46,7 @@ def test_estimate_homography_inliers_minimalset() -> None:
     )
 
     # fmt: on
-    estimator = HomographyEstimator()
+    estimator = RansacHomographyEstimator()
     num_inliers, inlier_ratio = estimator.estimate(keypoints_i1, keypoints_i2, match_indices)
     assert inlier_ratio == 1.0
     assert num_inliers == 4
@@ -95,7 +95,7 @@ def test_estimate_homography_inliers_minimalset() -> None:
 # 	# )
 
 # 	# fmt: on
-# 	estimator = HomographyEstimator()
+# 	estimator = RansacHomographyEstimator()
 # 	num_inliers, inlier_ratio = estimator.estimate(
 # 		keypoints_i1,
 # 		keypoints_i2,
