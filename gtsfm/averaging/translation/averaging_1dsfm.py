@@ -15,9 +15,11 @@ from typing import Dict, List, Optional, Tuple
 import gtsam
 import numpy as np
 from gtsam import MFAS, BinaryMeasurementsUnit3, BinaryMeasurementUnit3, Point3, Pose3, Rot3, TranslationRecovery, Unit3
+from scipy import stats
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.metrics as metrics_utils
+import gtsfm.utils.transforms as transform_utils
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
@@ -25,6 +27,7 @@ from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 # maximum number of times 1dsfm will project the Unit3's to a 1d subspace for outlier rejection
 MAX_PROJECTION_DIRECTIONS = 50
 OUTLIER_WEIGHT_THRESHOLD = 0.1
+MAX_KDE_SAMPLES = 2000
 
 NOISE_MODEL_DIMENSION = 3  # chordal distances on Unit3
 NOISE_MODEL_SIGMA = 0.01
@@ -80,29 +83,43 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         # convert translation direction in global frame using rotations.
         w_i2Ui1_measurements = BinaryMeasurementsUnit3()
+        w_i2Ui1_dict = {}
         for (i1, i2), i2Ui1 in i2Ui1_dict.items():
             if i2Ui1 is not None and wRi_list[i2] is not None:
+                measured = Unit3(wRi_list[i2].rotate(i2Ui1.point3()))
                 w_i2Ui1_measurements.append(
                     BinaryMeasurementUnit3(i2, i1, Unit3(wRi_list[i2].rotate(i2Ui1.point3())), noise_model)
                 )
+                w_i2Ui1_dict[(i1, i2)] = measured
 
         # sample indices to be used as projection directions
-        num_valid_measurements = len(w_i2Ui1_measurements)
-        indices = np.random.choice(
-            num_valid_measurements,
-            min(self._max_1dsfm_projection_directions, num_valid_measurements),
-            replace=False,
-        )
-
-        projection_directions = [w_i2Ui1_measurements[idx].measured() for idx in indices]
+        w_i2Ui1_list = [w_i2Ui1.measured().point3() for w_i2Ui1 in w_i2Ui1_measurements]
+        projection_directions = _sample_kde_directions(w_i2Ui1_measurements, self._max_1dsfm_projection_directions)
 
         # compute outlier weights using MFAS
         outlier_weights = []
+        ow_weights_dict = {}
 
         # TODO(ayush): parallelize this step.
         for direction in projection_directions:
             algorithm = MFAS(w_i2Ui1_measurements, direction)
-            outlier_weights.append(algorithm.computeOutlierWeights())
+            this_ow_dict = algorithm.computeOutlierWeights()
+            outlier_weights.append(this_ow_dict)
+            for (i2, i1), weight in this_ow_dict.items():
+                if (i1, i2) in ow_weights_dict:
+                    ow_weights_dict[(i1, i2)].append(weight)
+                else:
+                    ow_weights_dict[(i1, i2)] = [weight]
+        
+        with open("result_metrics/proj_weights_1dsfm.txt", 'w') as f:
+            f.write("# i1,i2,ux,uy,uz,weights_list\n")
+            for (i1, i2), weights_list in ow_weights_dict.items():
+                f.write(str(i1) + ","+ str(i2)+",")
+                d = w_i2Ui1_dict[(i1, i2)].point3()
+                f.write(str(d[0]) + "," + str(d[1]) +"," + str(d[2]))
+                for weight in weights_list:
+                    f.write(","+str(weight))
+                f.write("\n")
 
         # compute average outlier weight
         avg_outlier_weights = {}
@@ -162,13 +179,16 @@ def _get_measurement_angle_errors(
         List of angles between the measured and ground truth translation directions.
     """
     errors = []
-    for (i1, i2) in i1_i2_pairs:
-        if (i1, i2) in i2Ui1_measurements and (i1, i2) in gt_i2Ui1_measurements:
-            errors.append(
-                comp_utils.compute_relative_unit_translation_angle(
+    with open("result_metrics/measurement_errors_1dsfm.txt", 'w') as f:
+        for (i1, i2) in i1_i2_pairs:
+            print("idx ", i1, i2,)
+            if (i1, i2) in i2Ui1_measurements and (i1, i2) in gt_i2Ui1_measurements:
+                error = comp_utils.compute_relative_unit_translation_angle(
                     i2Ui1_measurements[(i1, i2)], gt_i2Ui1_measurements[(i1, i2)]
                 )
-            )
+                print("error is ", error)
+                f.write(str(i1) + "," + str(i2) + "," + str(error) + "\n")
+                errors.append(error)
     return errors
 
 
@@ -202,6 +222,8 @@ def _compute_metrics(
     # Angle between i2Ui1 measurement and GT i2Ui1 measurement for inliers and outliers.
     inlier_angular_errors = _get_measurement_angle_errors(inlier_i1_i2_pairs, i2Ui1_dict, gt_i2Ui1_dict)
     outlier_angular_errors = _get_measurement_angle_errors(outlier_i1_i2_pairs, i2Ui1_dict, gt_i2Ui1_dict)
+    # for saving only
+    _ = _get_measurement_angle_errors(inlier_i1_i2_pairs + outlier_i1_i2_pairs, i2Ui1_dict, gt_i2Ui1_dict)
     precision, recall = metrics_utils.get_precision_recall_from_errors(
         inlier_angular_errors, outlier_angular_errors, MAX_INLIER_MEASUREMENT_ERROR_DEG
     )
@@ -237,3 +259,26 @@ def _compute_metrics(
     ]
 
     return GtsfmMetricsGroup("translation_averaging_metrics", ta_metrics)
+
+
+def _sample_kde_directions(w_i2Ui1_measurements, num_samples):
+    """Fits a Gaussian density kernel to the provided measurements, and then samples num_samples from this kernel.
+
+    Args:
+        w_i2Ui1_measurements: List of BinaryMeasurementUnit3 direction measurements.
+        num_samples: Number of samples to be sampled from the kernel.
+
+    Returns: 
+        List of sampled Unit3 directions.
+    """
+    w_i2Ui1_list = [w_i2Ui1.measured().point3() for w_i2Ui1 in w_i2Ui1_measurements]
+    if len(w_i2Ui1_list) > MAX_KDE_SAMPLES:
+        w_i2Ui1_list = w_i2Ui1_list[random.sample(xrange(len(w_i2Ui1_list)), MAX_KDE_SAMPLES)]
+
+    w_i2Ui1_spherical = transform_utils.euclidean_to_spherical_directions(w_i2Ui1_list)
+
+    # gaussian_kde expects each sample to be a column, hence transpose.
+    kde = stats.gaussian_kde(w_i2Ui1_spherical.T)
+    sampled_directions_spherical = kde.resample(size=num_samples).T
+
+    return transform_utils.spherical_to_euclidean_directions(sampled_directions_spherical)
