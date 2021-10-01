@@ -9,7 +9,8 @@ See how it is used in COLMAP:
 https://github.com/colmap/colmap/blob/dev/src/estimators/two_view_geometry.cc#L198
 
 COLMAP and OpenCV's implementationsare based off of:
-Ezio Malis, Manuel Vargas, and others. Deeper understanding of the homography decomposition for vision-based control. 2007.
+Ezio Malis, Manuel Vargas, and others.
+Deeper understanding of the homography decomposition for vision-based control. 2007.
 https://hal.inria.fr/inria-00174036/PDF/RR-6303.pdf
 
 OpenCV does not support the case of intrinsics from two separate cameras, however.
@@ -363,7 +364,7 @@ def compute_homography_rotation(H_normalized: np.ndarray, tstar: np.ndarray, n: 
     Returns:
         array of shape (3,3) representing rotation matrix
     """
-    I = np.eye(3)
+    I = np.eye(3) # noqa
     tstar = tstar.reshape(3, 1)
     n = n.reshape(3, 1)
 
