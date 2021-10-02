@@ -29,6 +29,8 @@ DEFAULT_RANSAC_PROB = 0.999
 class RansacHomographyEstimator:
     def __init__(self, estimation_threshold_px: float) -> None:
         """
+        Args:
+           estimation_threshold_px: threshold value (in pixels) to use for classifying inliers in RANSAC.
         """
         self._px_threshold = estimation_threshold_px
 
@@ -49,6 +51,7 @@ class RansacHomographyEstimator:
             H: array of shape (3,3) representing homography matrix.
             inlier_ratio: i.e. ratio of correspondences which approximately agree with planar geometry.
             num_inliers: number of correspondence consistent with estimated homography H.
+            inlier_idxs: indices of inliers from matches array.
         """
         if match_indices.shape[0] < MIN_PTS_HOMOGRAPHY:
             num_inliers = 0

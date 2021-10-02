@@ -11,7 +11,6 @@ import numpy as np
 from dask.delayed import Delayed
 from gtsam import Cal3Bundler, Pose3, Rot3, Unit3
 
-import gtsfm.utils.features as feature_utils
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
@@ -309,18 +308,12 @@ def check_for_degeneracy(
         logger.info("Homography had %d inliers.", len(h_corr_idxs))
 
         # discard normal vector and 3d triangulated points
-        uv_i1_normalized = feature_utils.normalize_coordinates(
-            coordinates=keypoints_i1.coordinates[h_corr_idxs[:, 0]], intrinsics=camera_intrinsics_i1
-        )
-        uv_i2_normalized = feature_utils.normalize_coordinates(
-            coordinates=keypoints_i2.coordinates[h_corr_idxs[:, 1]], intrinsics=camera_intrinsics_i2
-        )
         i2Ri1, i2Ui1, _, _ = homography_decomposition.pose_from_homography_matrix(
             H=H,
             camera_intrinsics_i1=camera_intrinsics_i1,
             camera_intrinsics_i2=camera_intrinsics_i2,
-            points1=uv_i1_normalized,
-            points2=uv_i2_normalized,
+            points1=keypoints_i1.coordinates[h_corr_idxs[:, 0]],
+            points2=keypoints_i2.coordinates[h_corr_idxs[:, 1]],
         )
         two_view_report.v_corr_idxs = h_corr_idxs
         v_corr_idxs = h_corr_idxs
