@@ -246,7 +246,7 @@ class TwoViewEstimator:
 
 
 def check_for_degeneracy(
-    min_num_inliers_acceptance: float,
+    min_num_inliers_acceptance: int,
     H: np.ndarray,
     camera_intrinsics_i1: Cal3Bundler,
     camera_intrinsics_i2: Cal3Bundler,
@@ -267,13 +267,13 @@ def check_for_degeneracy(
     See https://github.com/colmap/colmap/blob/dev/src/estimators/two_view_geometry.cc#L230
 
     Args:
-        min_num_inliers_acceptance: float,
+        min_num_inliers_acceptance: the minimum number of inliers required to accept image pair.
         H: array of shape (3,3) representing homography matrix.
-        camera_intrinsics_i1:
-        camera_intrinsics_i2:
+        camera_intrinsics_i1: camera intrinsics for camera i1.
+        camera_intrinsics_i2: camera intrinsics for camera i2.
         two_view_report:
-        i2Ri1:
-        i2Ui1:
+        i2Ri1: estimated relative rotation.
+        i2Ui1: estimated relative translation direction.
         v_corr_idxs: verified correspondence indices, as reported by the estimated E or F matrix.
         keypoints_i1:
         keypoints_i2:
@@ -281,30 +281,32 @@ def check_for_degeneracy(
         H_inlier_idxs:
     """
     insufficient_inliers = two_view_report.num_inliers_est_model < min_num_inliers_acceptance
-
-    H_EF_inlier_ratio = two_view_report.num_H_inliers / (two_view_report.num_inliers_est_model + EPSILON)
-    is_planar_or_panoramic = H_EF_inlier_ratio > MAX_H_INLIER_RATIO
-
-    # TODO: technically this should almost always be non-zero, just need to move up to earlier
     valid_model = two_view_report.num_inliers_est_model > 0
-    if valid_model:
-        logger.info("H_EF_inlier_ratio: %.2f", H_EF_inlier_ratio)
-    if valid_model and insufficient_inliers:
-        if insufficient_inliers:
-            logger.info("Insufficient number of inliers.")
 
+    if not valid_model or insufficient_inliers:
+        # TODO(johnwlambert): also try fitting a homography immediately and check for minimum number of inliers to H.
+        logger.info(
+            "Degenerate: insufficient number of inliers %d < %d.",
+            two_view_report.num_inliers_est_model,
+            min_num_inliers_acceptance,
+        )
         i2Ri1 = None
         i2Ui1 = None
         v_corr_idxs = np.array([], dtype=np.uint64)
         # remove mention of errors in the report, as pair will be discarded
         two_view_report.R_error_deg = None
         two_view_report.U_error_deg = None
+        return i2Ri1, i2Ui1, v_corr_idxs, two_view_report
 
-    elif valid_model and is_planar_or_panoramic:
-        if is_planar_or_panoramic:
-            logger.info("Planar or panoramic; pose will be extracted from decomposed homography.")
+    H_EF_inlier_ratio = two_view_report.num_H_inliers / (two_view_report.num_inliers_est_model + EPSILON)
+    is_planar_or_panoramic = H_EF_inlier_ratio > MAX_H_INLIER_RATIO
+    logger.info("H_EF_inlier_ratio: %.2f", H_EF_inlier_ratio)
 
+    if is_planar_or_panoramic:
+        logger.info("Planar or panoramic; pose will be extracted from decomposed homography.")
         h_corr_idxs = corr_idxs[H_inlier_idxs]
+        # TODO(johnwlambert): count number of inliers for homography, and check against threshold.
+        logger.info("Homography had %d inliers.", len(h_corr_idxs))
 
         # discard normal vector and 3d triangulated points
         uv_i1_normalized = feature_utils.normalize_coordinates(

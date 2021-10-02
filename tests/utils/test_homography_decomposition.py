@@ -250,6 +250,7 @@ def test_pose_from_homography_skydio() -> None:
     11.16 degrees of rotation error, and 156.54 errors of translation error w/o homography consideration
     seems planar.
     """
+    # TODO(johnwlambert): add additional test for these planar matches.
     pass
 
 
