@@ -12,16 +12,21 @@ from typing import Tuple
 import dask
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import Cal3Bundler
+from gtsam import Cal3Bundler, Rot3, PinholeCameraCal3Bundler, Pose3, Unit3
 
+import gtsfm.utils.geometry_comparisons as geom_comp_utils
 import gtsfm.utils.homography_decomposition as homography_utils
+import gtsfm.utils.plane as plane_utils
+from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.detector_descriptor.superpoint import SuperPointDetectorDescriptor
 from gtsfm.frontend.matcher.superglue_matcher import SuperGlueMatcher
+from gtsfm.frontend.verifier.homography import RansacHomographyEstimator
 from gtsfm.frontend.verifier.ransac import Ransac
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.loader.colmap_loader import ColmapLoader
 from gtsfm.scene_optimizer import FeatureExtractor, TwoViewEstimator
 from gtsfm.two_view_estimator import TwoViewEstimationReport
+
 
 TEST_DATA_ROOT = Path(__file__).parent.parent.resolve() / "data"
 
@@ -163,11 +168,12 @@ def test_pose_from_homography_matrix_notre_dame() -> None:
 
     i2Ti1_gt = wTi2.between(wTi1)
 
-    two_view_report = __run_superglue_front_end(loader)
+    i2Ri1_dict, i2Ui1_dict, two_view_report_dict = __run_superglue_front_end(loader)
 
+    import pdb; pdb.set_trace()
     # TODO: these thresholds may be impossible
-    assert two_view_report.R_error_deg < 5
-    assert two_view_report.U_error_deg < 5
+    assert two_view_report_dict[(0,1)].R_error_deg < 5
+    assert two_view_report_dict[(0,1)].U_error_deg < 5
 
 
 """
@@ -193,10 +199,10 @@ def __run_superglue_front_end(loader: LoaderBase) -> TwoViewEstimationReport:
     )
 
     with dask.config.set(scheduler="single-threaded"):
-        i2Ri1_results, i2ti1_results, two_view_report_dict = dask.compute(
+        i2Ri1_results, i2Ui1_results, two_view_report_results = dask.compute(
             i2Ri1_graph_dict, i2Ui1_graph_dict, two_view_report_dict
         )
-    return two_view_report_dict
+    return i2Ri1_results, i2Ui1_results, two_view_report_results
 
 
 def __get_frontend_computation_graph(
@@ -254,23 +260,23 @@ def test_pose_from_homography_skydio() -> None:
     pass
 
 
-def test_check_cheirality() -> None:
-    """Ensure that points obviously behind the camera are treated as cheirality failures during triangulation."""
+# def test_check_cheirality() -> None:
+#     """Ensure that points obviously behind the camera are treated as cheirality failures during triangulation."""
 
-    # consider i2's frame to be the world frame
-    i2Ri1 = Rot3() # set to identity.
-    i2ti1 = np.array([1,0,0]) # set baseline to 1 meter.
+#     # consider i2's frame to be the world frame
+#     i2Ri1 = Rot3() # set to identity.
+#     i2ti1 = np.array([1,0,0]) # set baseline to 1 meter.
 
-    cam_i1 = PinholeCameraCal3Bundler()
-    cam_i2 = PinholeCameraCal3Bundler()
+#     cam_i1 = PinholeCameraCal3Bundler()
+#     cam_i2 = PinholeCameraCal3Bundler()
 
-    # halfway between the cameras, and 10 meters ahead
-    point_3d = np.array([0.5,0,10])
-    points1 = cam_i1.projectSafe(point_3d)
-    points2 = cam_i2.projectSafe(point_3d)
-    points3D = check_cheirality(i2Ri1, i2ti1, points1, points2)
+#     # halfway between the cameras, and 10 meters ahead
+#     point_3d = np.array([0.5,0,10])
+#     points1 = cam_i1.projectSafe(point_3d)
+#     points2 = cam_i2.projectSafe(point_3d)
+#     points3D = check_cheirality(i2Ri1, i2ti1, points1, points2)
 
-    assert len(points3D) == 0
+#     assert len(points3D) == 0
 
 
 def test_compute_opposite_of_minor_M00() -> None:
@@ -327,6 +333,139 @@ def test_compute_opposite_of_minor_M11() -> None:
     assert neg_minor == ref_neg_minor
 
 
+def test_pose_from_homography_matrix_planar_scene() -> None:
+    """Ensure we can extract pose from homography, for a simple planar scene with 400 points on 1 planes.
+
+    We project the 3d points sampled on a plane to 2d, using known pose.
+    """
+    np.random.seed(0)
+    n_pts = 400 # 10
+    # obtain the keypoints and the ground truth essential matrix.
+    intrinsics = Cal3Bundler(fx=1000, k1=0, k2=0, u0=1000, v0=500) # suppose (H,W)=(1000,2000).
+    keypoints_i1, keypoints_i2, i2Ti1_expected = simulate_planar_scene(N=n_pts, intrinsics=intrinsics)
+
+    # match keypoints row by row
+    match_indices = np.hstack([np.arange(n_pts).reshape(-1,1), np.arange(n_pts).reshape(-1,1)])
+
+    # import pdb; pdb.set_trace()
+
+    homography_estimator = RansacHomographyEstimator(estimation_threshold_px=4)
+    H, num_H_inliers, H_inlier_ratio, H_inlier_idxs = homography_estimator.estimate(
+        keypoints_i1,
+        keypoints_i2,
+        match_indices=match_indices
+    )
+    h_corr_idxs = match_indices[H_inlier_idxs]
+    i2Ri1, i2Ui1, _, _ = homography_utils.pose_from_homography_matrix(
+        H=H,
+        camera_intrinsics_i1=intrinsics,
+        camera_intrinsics_i2=intrinsics,
+        points1=keypoints_i1.coordinates[h_corr_idxs[:, 0]],
+        points2=keypoints_i2.coordinates[h_corr_idxs[:, 1]]
+    )
+
+    rot_angular_error = geom_comp_utils.compute_relative_rotation_angle(i2Ti1_expected.rotation(), i2Ri1)
+    assert np.isclose(rot_angular_error, 0, atol=1e-3)
+
+    # given wti1 = np.array([0, -1, -5])
+    # given wti2 = np.array([2, 0, -5.4])
+    # expected translation i2ti1 = (-2, -1, 0.44)
+    translation_error_vec = Unit3(i2Ti1_expected.translation()).point3() - i2Ui1.point3()
+    assert np.allclose(translation_error_vec, 0, atol=1e-3)
+    import pdb; pdb.set_trace()
+
+
+def simulate_planar_scene(N: int, intrinsics: Cal3Bundler) -> Tuple[Keypoints, Keypoints, Pose3]:
+    """Generate a scene where 3D points are on one plane, and projects the points to the 2 cameras.
+
+    There are N points on plane 1.
+
+    Camera 1 is 1 meter above Camera 2 (in -y direction).
+    Camera 2 is 0.4 meters behind Camera 1 (in -z direction).
+
+       cam 1                        plane @ z=10
+       o ----                         |
+       |           |                  |
+       |         --|-- +z             |
+                   | world origin     |
+    o -----
+    |
+    | cam 2
+
+    Args:
+        N: number of points on plane.
+        intrinsics: intrinsics for both cameras.
+
+    Returns:
+        keypoints for image i1, of length (N).
+        keypoints for image i2, of length (N).
+        Relative pose i2Ti1.
+    """
+    # range of 3D points
+    range_x_coordinate = (-7, 7)
+    range_y_coordinate = (-10, 10)
+
+    # define the plane equation
+    # plane at z=10, so ax + by + cz + d = 0 + 0 + -z + 10 = 0
+    plane1_coeffs = (0, 0, -1, 10)
+
+    # sample the points from planes
+    points_3d = plane_utils.sample_points_on_plane(plane1_coeffs, range_x_coordinate, range_y_coordinate, N)
+
+    # import visualization.open3d_vis_utils as open3d_vis_utils
+    # colors = np.zeros_like(points_3d).astype(np.uint8)
+    # colors[:, 0] = 255
+    # spheres = open3d_vis_utils.create_colored_spheres_open3d(
+    #     point_cloud=points_3d, rgb=colors, sphere_radius=0.1
+    # )
+
+    # define the camera poses and compute the essential matrix
+    wti1 = np.array([0, -1, -5])
+    wti2 = np.array([2, 0, -5.4])
+
+    wRi1 = Rot3.RzRyRx(x=0.0, y=np.deg2rad(1), z=0.0)
+    wRi2 = Rot3.RzRyRx(x=0.0, y=np.deg2rad(-1), z=0.0)
+
+    wTi1 = Pose3(wRi1, wti1)
+    wTi2 = Pose3(wRi2, wti2)
+    i2Ti1 = wTi2.between(wTi1)
+
+    # project 3D points to 2D image measurements
+    camera_i1 = PinholeCameraCal3Bundler(wTi1, intrinsics)
+    camera_i2 = PinholeCameraCal3Bundler(wTi2, intrinsics)
+
+    # coord_frame = open3d_vis_utils.draw_coordinate_frame(wTc=Pose3(), axis_length= 1.0)
+    # frustums = open3d_vis_utils.create_all_frustums_open3d([wTi1, wTi2], [intrinsics]*2)
+    # import open3d
+    # open3d.visualization.draw_geometries(spheres + frustums + coord_frame)
+
+    uv_im1 = []
+    uv_im2 = []
+    for point in points_3d:
+        uv_im1.append(camera_i1.project(point))
+        uv_im2.append(camera_i2.project(point))
+
+    uv_im1 = np.vstack(uv_im1)
+    uv_im2 = np.vstack(uv_im2)
+
+    import matplotlib
+    matplotlib.use('TkAgg')
+    import matplotlib.pyplot as plt
+    import pdb; pdb.set_trace()
+    plt.scatter(uv_im1[:,0], uv_im1[:,1], 1, color='r', marker='.')
+    plt.title("im1 keypoints")
+    plt.show()
+
+    plt.scatter(uv_im2[:,0], uv_im2[:,1], 1, color='r', marker='.')
+    plt.title("im2 keypoints")
+    plt.show()
+
+
+    # return the points as keypoints and the relative pose
+    return Keypoints(coordinates=uv_im1), Keypoints(coordinates=uv_im2), i2Ti1
+
+
 if __name__ == "__main__":
 
+    # test_pose_from_homography_matrix_planar_scene()
     test_pose_from_homography_matrix_notre_dame()
