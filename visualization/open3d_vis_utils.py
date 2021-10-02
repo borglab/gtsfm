@@ -1,5 +1,5 @@
 """
-Utilities for rendering camera frustums and 3d point clouds using the Open3d library.
+Utilities for rendering camera frustums, 3d point clouds, and coordinate frames using the Open3d library.
 
 Authors: John Lambert
 """
@@ -67,7 +67,7 @@ def create_colored_spheres_open3d(
 
 
 def create_all_frustums_open3d(wTi_list: List[Pose3], calibrations: List[Cal3Bundler]) -> List[open3d.geometry.LineSet]:
-    """Render camera frustums as collections of line segments, using Open3d.
+    """Render camera frustums as collections of line segments, using Open3d. Colored red-to-green by trajectory order.
 
     Args:
         wTi_list: list of camera poses for each image
@@ -110,6 +110,47 @@ def create_all_frustums_open3d(wTi_list: List[Pose3], calibrations: List[Cal3Bun
             )
             line_set.colors = open3d.utility.Vector3dVector(colors)
             line_sets.append(line_set)
+
+    return line_sets
+
+
+def draw_coordinate_frame(wTc: Pose3, axis_length: float = 1.0) -> List[open3d.geometry.LineSet]:
+    """Draw 3 orthogonal axes representing a camera coordinate frame.
+
+    Note: x,y,z axes correspond to red, green, blue colors.
+
+    Args:
+        wTc: Pose of a camera in the world frame.
+        axis_length: length to use for line segments (representing coordinate frame axes).
+
+    Returns:
+        line_sets: list of Open3D LineSet objects, representing 3 axes (a coordinate frame).
+    """
+    RED = np.array([1, 0, 0])  # x-axis
+    GREEN = np.array([0, 1, 0])  # y-axis
+    BLUE = np.array([0, 0, 1])  # z-axis
+    colors = (RED, GREEN, BLUE)
+
+    # line segment on each axis will connect just 2 vertices.
+    lines = [[0, 1]]
+
+    line_sets = []
+    for axis, color in zip([0, 1, 2], colors):
+        # one point at optical center, other point along specified axis.
+        verts_camfr = np.zeros((2, 3))
+        verts_camfr[0, axis] = axis_length
+
+        verts_worldfr = []
+        for i in range(2):
+            verts_worldfr.append(wTc.transformFrom(verts_camfr[i]))
+        verts_worldfr = np.array(verts_worldfr)
+
+        line_set = open3d.geometry.LineSet(
+            points=open3d.utility.Vector3dVector(verts_worldfr),
+            lines=open3d.utility.Vector2iVector(lines),
+        )
+        line_set.colors = open3d.utility.Vector3dVector(color.reshape(1, 3))
+        line_sets.append(line_set)
 
     return line_sets
 
