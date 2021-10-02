@@ -13,7 +13,6 @@ from dask.delayed import Delayed
 from gtsam import (
     GeneralSFMFactor2Cal3Bundler,
     PinholeCameraCal3Bundler,
-    Pose3,
     PriorFactorCal3Bundler,
     PriorFactorPose3,
     SfmTrack,
