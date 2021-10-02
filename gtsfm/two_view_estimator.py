@@ -274,8 +274,8 @@ def check_for_degeneracy(
         i2Ri1: estimated relative rotation.
         i2Ui1: estimated relative translation direction.
         v_corr_idxs: verified correspondence indices, as reported by the estimated E or F matrix.
-        keypoints_i1:
-        keypoints_i2:
+        keypoints_i1: detected features in image #i1.
+        keypoints_i2: detected features in image #i2.
         corr_idxs: keypoint matches.
         H_inlier_idxs:
     """

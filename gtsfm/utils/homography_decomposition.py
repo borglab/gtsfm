@@ -8,7 +8,7 @@ Based off of homography decomposition implementation in COLMAP:
 See how it is used in COLMAP:
 https://github.com/colmap/colmap/blob/dev/src/estimators/two_view_geometry.cc#L198
 
-COLMAP and OpenCV's implementationsare based off of:
+COLMAP and OpenCV's implementation sare based off of:
 Ezio Malis, Manuel Vargas, and others.
 Deeper understanding of the homography decomposition for vision-based control. 2007.
 https://hal.inria.fr/inria-00174036/PDF/RR-6303.pdf
@@ -90,7 +90,7 @@ def check_cheirality(
     points1: np.ndarray,
     points2: np.ndarray,
 ) -> np.ndarray:
-    """
+    """Triangulate 3d points using the estimated relative pose and count feasible and reasonable point locations.
 
     Set the camera 1 pose as the global coordinate system
     COLMAP states that:

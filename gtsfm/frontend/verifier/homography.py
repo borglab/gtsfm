@@ -2,7 +2,7 @@
 """
 Fit a homography matrix from correspondences.
 
-Useful for determineing whether the scene is planar or the camera motion is a pure rotation.
+Useful for determining whether the scene is planar or the camera motion is a pure rotation.
 
 COLMAP also checks degeneracy of structure here:
     https://github.com/colmap/colmap/blob/dev/src/estimators/two_view_geometry.cc#L277
@@ -37,7 +37,9 @@ class RansacHomographyEstimator:
     def estimate(
         self, keypoints_i1: Keypoints, keypoints_i2: Keypoints, match_indices: np.ndarray
     ) -> Tuple[np.ndarray, float, int, np.ndarray]:
-        """Estimate to what extent the correspondences agree with an estimated homography.
+        """Fit a homography to the correspondences.
+
+        We also estimate to what extent the correspondences agree with the estimated homography.
 
         We provide statistics of the RANSAC result, like COLMAP does here for LORANSAC:
         https://github.com/colmap/colmap/blob/dev/src/optim/loransac.h

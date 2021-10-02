@@ -126,9 +126,9 @@ def draw_coordinate_frame(wTc: Pose3, axis_length: float = 1.0) -> List[open3d.g
     Returns:
         line_sets: list of Open3D LineSet objects, representing 3 axes (a coordinate frame).
     """
-    RED = np.array([1, 0, 0]) # x-axis
-    GREEN = np.array([0, 1, 0]) # y-axis
-    BLUE = np.array([0, 0, 1]) # z-axis
+    RED = np.array([1, 0, 0])  # x-axis
+    GREEN = np.array([0, 1, 0])  # y-axis
+    BLUE = np.array([0, 0, 1])  # z-axis
     colors = (RED, GREEN, BLUE)
 
     # line segment on each axis will connect just 2 vertices.
