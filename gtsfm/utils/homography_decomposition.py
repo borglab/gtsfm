@@ -25,6 +25,7 @@ from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3
 
 from gtsfm.common.sfm_track import SfmTrack2d, SfmMeasurement
 from gtsfm.data_association.point3d_initializer import Point3dInitializer, TriangulationParam, TriangulationExitCode
+import gtsfm.utils.features as feature_utils
 
 
 def pose_from_homography_matrix(
@@ -36,12 +37,15 @@ def pose_from_homography_matrix(
 ) -> Tuple[Rot3, Unit3, np.ndarray, np.ndarray]:
     """Recover the most probable pose from the given homography matrix.
 
+    Note: differs from COLMAP's implementation, as COLMAP accepts normalized image coordinates
+    COLMAP expects keypoints that have undergone COLMAP's .ImageToWorld(), identical to GTSAM's .calibrate().
+
     Args:
         H: array of shape (3,3)
         camera_intrinsics_i1: camera 1's intrinsics.
         camera_intrinsics_i2: camera 2's intrinsics.
-        points1: array of shape (N,2)
-        points2: array of shape (N,2)
+        points1: array of shape (N,2) representing image keypoints in [0,W] x [0,H]
+        points2: array of shape (N,2) representing image keypoints in [0,W] x [0,H]
 
     Returns:
         i2Ri1: relative rotation matrix.
@@ -63,6 +67,7 @@ def pose_from_homography_matrix(
         points3D_cmb = check_cheirality(
             i2Ri1_cmbs[i], i2ti1_cmbs[i], camera_intrinsics_i1, camera_intrinsics_i2, points1, points2
         )
+
         print(f"hypothesis {i}  -> {len(points3D_cmb)}")
         print(i2ti1_cmbs[i])
         if len(points3D_cmb) >= len(best_points3D):
@@ -70,8 +75,6 @@ def pose_from_homography_matrix(
             i2ti1 = i2ti1_cmbs[i]
             n = n_cmbs[i]
             best_points3D = points3D_cmb
-
-    best_points3D = np.array(best_points3D)
 
     # TODO(johnwlambert) we cannot blindly cast the translation direction to Unit3, as zero translation is valid
     # from a rotation, and should be noted in 1dsfm.
@@ -88,6 +91,13 @@ def check_cheirality(
     points2: np.ndarray,
 ) -> np.ndarray:
     """
+
+    Set the camera 1 pose as the global coordinate system
+    COLMAP states that:
+    cTw for camera 1 is (I, 0)
+    cTw for camera 2 is equal to (R,t) from homography. Thus, wTi2 = (R,t)^(-1)
+    See: https://github.com/colmap/colmap/blob/dev/src/base/pose.h#L207 for explanation of poses.
+
     Args:
         i2Ri1: rotation matrix.
         i2ti1: array of shape (3,)
@@ -95,22 +105,16 @@ def check_cheirality(
         points2: array of shape (N,2) representing 2d keypoint coordinates.
 
     Returns:
-        points3D: array of shape (N,3) representing successfully triangulated 3d points.
+        points3D: array of shape (N,3) representing successfully triangulated 3d points, in frame i1.
     """
     if points1.shape != points2.shape:
         raise RuntimeError("Coordinates of 2d correspondences must have the same shape.")
 
     i2Ti1 = Pose3(i2Ri1, i2ti1)
     camera_dict = {
-        1: PinholeCameraCal3Bundler(i2Ti1, camera_intrinsics_i1),
-        2: PinholeCameraCal3Bundler(Pose3(), camera_intrinsics_i2),
+        1: PinholeCameraCal3Bundler(Pose3(), camera_intrinsics_i1),
+        2: PinholeCameraCal3Bundler(i2Ti1.inverse(), camera_intrinsics_i2),
     }
-
-    # set the camera 2 pose as the global coordinate system
-    # COLMAP states that wTc for camera 2 is equal to (R,t) from homography.
-    # given wTi1 and wTi2, then if
-    # i2Ti1 = wTi2.inverse() * wTi1
-    # thus, wTi2 is identity, and wTi1 = i2Ti1
     triangulator = Point3dInitializer(
         track_camera_dict=camera_dict, mode=TriangulationParam.NO_RANSAC, reproj_error_thresh=float("inf")
     )
@@ -123,7 +127,31 @@ def check_cheirality(
         track_3d, _, exit_code = triangulator.triangulate(track_2d)
         if exit_code == TriangulationExitCode.CHEIRALITY_FAILURE:
             continue
+
+        # TODO(johnwlambert): acceptance check based on min_depth and max_depth, per COLMAP
+        # See https://github.com/colmap/colmap/blob/dev/src/base/pose.cc#L238
         points3d.append(track_3d.point3())
+
+    points3d = np.array(points3d)
+
+    # if len(points3d) != 0:
+    #     # plot everything 
+    #     import visualization.open3d_vis_utils as open3d_vis_utils
+
+    #     colors = np.zeros_like(points3d).astype(np.uint8)
+    #     colors[:, 0] = 255
+    #     spheres = open3d_vis_utils.create_colored_spheres_open3d(
+    #         point_cloud=points3d, rgb=colors, sphere_radius=0.1
+    #     )
+
+    #     coord_frame1 = open3d_vis_utils.draw_coordinate_frame(wTc=camera_dict[1].pose(), axis_length= 1.0)
+    #     coord_frame2 = open3d_vis_utils.draw_coordinate_frame(wTc=camera_dict[2].pose(), axis_length= 1.0)
+    #     frustums = open3d_vis_utils.create_all_frustums_open3d(
+    #         [camera_dict[1].pose(), camera_dict[2].pose()],
+    #         [camera_intrinsics_i1, camera_intrinsics_i2]
+    #     )
+    #     import open3d
+    #     open3d.visualization.draw_geometries(spheres + frustums + coord_frame1 + coord_frame2)
 
     return points3d
 
@@ -336,7 +364,7 @@ def compute_homography_rotation(H_normalized: np.ndarray, tstar: np.ndarray, n: 
     Args:
         H_normalized: array of shape (3,3)
         tstar: array of shape (3,)
-        n: array of shape (3,) representing normal vector.
+        n: array of shape (3,) representing plane normal vector.
         v:
 
     Returns:
@@ -367,7 +395,7 @@ def homography_matrix_from_pose(
         camera_intrinsics_i2: camera 2's intrinsics.
         R: 3x3 rotation matrix
         t: array of shape (3,) representing translation vector.
-        n: array of shape (3,) representing normal vector.
+        n: array of shape (3,) representing plane normal vector.
         d: Orthogonal distance from plane.
 
     Returns:
