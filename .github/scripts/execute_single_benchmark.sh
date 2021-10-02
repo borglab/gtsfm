@@ -35,9 +35,9 @@ echo "Config: ${CONFIG_NAME}, Dataset: ${DATASET_NAME}, Download Source: ${DATAS
 
 # Setup the command line arg if intrinsics are to be shared
 if [ "$SHARE_INTRINSICS" ]; then
-  export SHARE_INTRINSICS_ARG = "--share_intrinsics"
+  export SHARE_INTRINSICS_ARG="--share_intrinsics"
 else
-  export SHARE_INTRINSICS_ARG = ""
+  export SHARE_INTRINSICS_ARG=""
 fi
 
 # Prepare the download URLs.
