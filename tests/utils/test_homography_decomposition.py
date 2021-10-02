@@ -254,15 +254,23 @@ def test_pose_from_homography_skydio() -> None:
     pass
 
 
-# def test_check_cheirality() -> None:
-#     """ """
-#     R = ""
-#     t = ""
-#     points1 = ""
-#     points2 = ""
-#     points3D = check_cheirality(R, t, points1, points2)
+def test_check_cheirality() -> None:
+    """Ensure that points obviously behind the camera are treated as cheirality failures during triangulation."""
 
-#     assert False
+    # consider i2's frame to be the world frame
+    i2Ri1 = Rot3() # set to identity.
+    i2ti1 = np.array([1,0,0]) # set baseline to 1 meter.
+
+    cam_i1 = PinholeCameraCal3Bundler()
+    cam_i2 = PinholeCameraCal3Bundler()
+
+    # halfway between the cameras, and 10 meters ahead
+    point_3d = np.array([0.5,0,10])
+    points1 = cam_i1.projectSafe(point_3d)
+    points2 = cam_i2.projectSafe(point_3d)
+    points3D = check_cheirality(i2Ri1, i2ti1, points1, points2)
+
+    assert len(points3D) == 0
 
 
 def test_compute_opposite_of_minor_M00() -> None:
