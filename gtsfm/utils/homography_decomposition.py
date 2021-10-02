@@ -25,7 +25,6 @@ from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3
 
 from gtsfm.common.sfm_track import SfmTrack2d, SfmMeasurement
 from gtsfm.data_association.point3d_initializer import Point3dInitializer, TriangulationParam, TriangulationExitCode
-import gtsfm.utils.features as feature_utils
 
 
 def pose_from_homography_matrix(

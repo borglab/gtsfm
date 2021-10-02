@@ -1,4 +1,3 @@
-
 """Utilities for generating data on planar surfaces.
 
 Authors: Ayush Baid
@@ -6,6 +5,7 @@ Authors: Ayush Baid
 from typing import Tuple
 
 import numpy as np
+
 
 def sample_points_on_plane(
     plane_coefficients: Tuple[float, float, float, float],

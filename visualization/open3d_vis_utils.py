@@ -1,5 +1,5 @@
 """
-Utilities for rendering camera frustums and 3d point clouds using the Open3d library.
+Utilities for rendering camera frustums, 3d point clouds, and coordinate frames using the Open3d library.
 
 Authors: John Lambert
 """
