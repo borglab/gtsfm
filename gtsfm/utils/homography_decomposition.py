@@ -47,35 +47,36 @@ def pose_from_homography_matrix(
         i2Ri1: relative rotation matrix.
         i2Ui1: translation direction.
         n: array of shape (3,) representing plane normal vector.
-        points3D: array of shape (N,3) representing triangulated 3d points.
+        best_points3D: array of shape (N,3) representing triangulated 3d points.
     """
     if points1.shape != points2.shape:
         raise RuntimeError("Coordinates of 2d correspondences must have the same shape.")
 
     K1 = camera_intrinsics_i1.K()
     K2 = camera_intrinsics_i2.K()
+    # compute valid (R,t,n) combinations.
     i2Ri1_cmbs, i2ti1_cmbs, n_cmbs = decompose_homography_matrix(H, K1, K2)
 
-    points3D = []
+    # find the (R,t,n) variant with the highest support among triangulated points.
+    best_points3D = []
     for i in range(len(i2Ri1_cmbs)):
         points3D_cmb = check_cheirality(
             i2Ri1_cmbs[i], i2ti1_cmbs[i], camera_intrinsics_i1, camera_intrinsics_i2, points1, points2
         )
         print(f"hypothesis {i}  -> {len(points3D_cmb)}")
         print(i2ti1_cmbs[i])
-        if len(points3D_cmb) >= len(points3D):
+        if len(points3D_cmb) >= len(best_points3D):
             i2Ri1 = i2Ri1_cmbs[i]
             i2ti1 = i2ti1_cmbs[i]
             n = n_cmbs[i]
-            points3D = points3D_cmb
+            best_points3D = points3D_cmb
 
-    points3D = np.array(points3D)
+    best_points3D = np.array(best_points3D)
 
-    # Note: if norm(i2ti1) == 0, this is a pure rotation. Otherwise, planar scene.
-
-    # Note: we cannot blindly cast the translation direction to Unit3, as zero translation is valid
+    # TODO(johnwlambert) we cannot blindly cast the translation direction to Unit3, as zero translation is valid
     # from a rotation, and should be noted in 1dsfm.
-    return i2Ri1, Unit3(i2ti1), n, points3D
+    # Note: if norm(i2ti1) == 0, this is a pure rotation. Otherwise, planar scene.
+    return i2Ri1, Unit3(i2ti1), n, best_points3D
 
 
 def check_cheirality(
@@ -88,13 +89,13 @@ def check_cheirality(
 ) -> np.ndarray:
     """
     Args:
-        R: array of shape (3,3)
-        t: array of shape (3,)
-        points1:
-        points2:
+        i2Ri1: rotation matrix.
+        i2ti1: array of shape (3,)
+        points1: array of shape (N,2) representing 2d keypoint coordinates.
+        points2: array of shape (N,2) representing 2d keypoint coordinates.
 
     Returns:
-        points3D: array of shape (N,3)
+        points3D: array of shape (N,3) representing successfully triangulated 3d points.
     """
     if points1.shape != points2.shape:
         raise RuntimeError("Coordinates of 2d correspondences must have the same shape.")
