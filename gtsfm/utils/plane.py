@@ -38,9 +38,4 @@ def sample_points_on_plane(
     z = -(a * x + b * y + d) / c
 
     pts = np.hstack([x, y, z])
-
-    # assert points are on the plane
-    pts_residuals = pts @ np.array(plane_coefficients[:3]).reshape(3, 1) + plane_coefficients[3]
-    np.testing.assert_almost_equal(pts_residuals, np.zeros((num_points, 1)))
-
     return pts
