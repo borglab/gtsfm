@@ -271,7 +271,7 @@ def _sample_kde_directions(w_i2Ui1_measurements, num_samples):
     Returns: 
         List of sampled Unit3 directions.
     """
-    w_i2Ui1_list = [w_i2Ui1.measured().point3() for w_i2Ui1 in w_i2Ui1_measurements]
+    w_i2Ui1_list = [w_i2Ui1.measured() for w_i2Ui1 in w_i2Ui1_measurements]
     if len(w_i2Ui1_list) > MAX_KDE_SAMPLES:
         w_i2Ui1_list = w_i2Ui1_list[random.sample(xrange(len(w_i2Ui1_list)), MAX_KDE_SAMPLES)]
 
