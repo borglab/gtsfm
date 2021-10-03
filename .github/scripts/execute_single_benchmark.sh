@@ -35,9 +35,9 @@ echo "Config: ${CONFIG_NAME}, Dataset: ${DATASET_NAME}, Download Source: ${DATAS
 
 # Setup the command line arg if intrinsics are to be shared
 if [ "$SHARE_INTRINSICS" ]; then
-  export SHARE_INTRINSICS_ARG = "--share_intrinsics"
+  export SHARE_INTRINSICS_ARG="--share_intrinsics"
 else
-  export SHARE_INTRINSICS_ARG = ""
+  export SHARE_INTRINSICS_ARG=""
 fi
 
 # Prepare the download URLs.
@@ -68,16 +68,16 @@ fi
 if [ "$DATASET_SRC" == "gdrive" ]; then
   echo "Downloading ${DATASET_NAME} from GDRIVE"
   export GDRIVE_URL='https://docs.google.com/uc?export=download&id='$GDRIVE_FILEID
-  retry 3 wget --save-cookies cookies.txt $GDRIVE_URL -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1/p' > confirm.txt
-  retry 3 wget --load-cookies cookies.txt -O ${DATASET_NAME}.zip $GDRIVE_URL'&confirm='$(<confirm.txt)
+  retry 10 wget --save-cookies cookies.txt $GDRIVE_URL -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1/p' > confirm.txt
+  retry 10 wget --load-cookies cookies.txt -O ${DATASET_NAME}.zip $GDRIVE_URL'&confirm='$(<confirm.txt)
 
 elif [ "$DATASET_SRC" == "wget" ]; then
   echo "Downloading ${DATASET_NAME} with WGET"
-  retry 3 wget $WGET_URL1
+  retry 10 wget $WGET_URL1
 
   # Check if $WGET_URL2 has been set.
   if [ ! -z "$WGET_URL2" ]; then
-    retry 3 wget $WGET_URL2
+    retry 10 wget $WGET_URL2
   fi
   echo $WGET_URL1
   echo $WGET_URL2
