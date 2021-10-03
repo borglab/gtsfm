@@ -13,15 +13,15 @@ def test_sample_points_on_plane() -> None:
 
     num_points = 10
 
-    # range of 3D points
-    range_x_coordinate = (-7, 7)
-    range_y_coordinate = (-10, 10)
+    # range of x and y coordinates for 3D points
+    range_x = (-7, 7)
+    range_y = (-10, 10)
 
     # define the plane equation
     # plane at z=10, so ax + by + cz + d = 0 + 0 + -z + 10 = 0
     plane_coefficients = (0, 0, -1, 10)
 
-    pts = plane_utils.sample_points_on_plane(plane_coefficients, range_x_coordinate, range_y_coordinate, num_points)
+    pts = plane_utils.sample_points_on_plane(plane_coefficients, range_x, range_y, num_points)
 
     # ensure ax + by + cz + d = 0
     pts_residuals = pts @ np.array(plane_coefficients[:3]).reshape(3, 1) + plane_coefficients[3]
