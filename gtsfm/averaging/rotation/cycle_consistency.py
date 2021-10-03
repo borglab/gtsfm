@@ -228,21 +228,24 @@ def filter_to_cycle_consistent_edges(
     cycle_consistent_keys = set()
 
     triplets = extract_triplets(i2Ri1_dict)
+    cycle_errors_per_pair = defaultdict(list)
 
     for (i0, i1, i2) in triplets:
         cycle_error, max_rot_error, max_trans_error = compute_cycle_error(
             i2Ri1_dict, (i0, i1, i2), two_view_reports_dict
         )
 
-        if cycle_error < CYCLE_ERROR_THRESHOLD:
-            # since i0 < i1 < i2 by construction, we preserve the property `a < b` for each edge (a,b)
-            cycle_consistent_keys.add((i0, i1))
-            cycle_consistent_keys.add((i1, i2))
-            cycle_consistent_keys.add((i0, i2))
+        cycle_errors_per_pair[(i0, i1)].append(cycle_error)
+        cycle_errors_per_pair[(i1, i2)].append(cycle_error)
+        cycle_errors_per_pair[(i0, i2)].append(cycle_error)
 
         cycle_errors.append(cycle_error)
         max_rot_errors.append(max_rot_error)
         max_trans_errors.append(max_trans_error)
+    
+    for (i1, i2), i1_i2_cycle_errors in cycle_errors_per_pair.items():
+        if np.median(i1_i2_cycle_errors) < CYCLE_ERROR_THRESHOLD:
+            cycle_consistent_keys.add((i1, i2))
 
     if visualize:
         plt.scatter(cycle_errors, max_rot_errors)
