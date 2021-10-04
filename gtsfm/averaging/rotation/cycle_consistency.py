@@ -278,9 +278,6 @@ def filter_to_cycle_consistent_edges(
         elif edge_acceptance_criterion == EdgeErrorAggregationCriterion.MEDIAN_EDGE_ERROR:
             error_summary = np.median(edge_cycle_errors)
 
-        elif edge_acceptance_criterion == EdgeErrorAggregationCriterion.MEAN_EDGE_ERROR:
-            error_summary = np.mean(edge_cycle_errors)
-
         if error_summary < CYCLE_ERROR_THRESHOLD:
             cycle_consistent_keys.add((i1, i2))
 
