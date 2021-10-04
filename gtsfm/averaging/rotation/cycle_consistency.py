@@ -38,8 +38,7 @@ class EdgeErrorAggregationCriterion(str, Enum):
         with low error is accepted. High recall, but can have low precision, as false positives can enter
         (error was randomly cancelled out by another error, meaning accepted).
     MEDIAN: Choose the median cycle error. robust summary statistic. At least half of the time, this edge
-        appears in a good cycle (i.e. of low error).
-    MEAN: Choose the mean cycle error. Note: this is a non-robust summary statistic.
+        appears in a good cycle (i.e. of low error). Note: preferred over mean, which is not robust to outliers.
 
     Note: all summary statistics will be compared with an allowed upper bound/threshold. If they exceed the
     upper bound, they will be rejected.
@@ -47,7 +46,6 @@ class EdgeErrorAggregationCriterion(str, Enum):
 
     MIN_EDGE_ERROR = "MIN_EDGE_ERROR"
     MEDIAN_EDGE_ERROR = "MEDIAN_EDGE_ERROR"
-    MEAN_EDGE_ERROR = "MEAN_EDGE_ERROR"
 
 
 def extract_triplets(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int, int, int]]:
@@ -292,7 +290,8 @@ def filter_to_cycle_consistent_edges(
     plt.scatter(errors_summary, errors_wrt_gt, 10, color="r", marker=".")
     plt.xlabel(f"{edge_acceptance_criterion} cycle error")
     plt.ylabel("Rotation error w.r.t GT")
-    plt.savefig(f"gt_err_vs_{edge_acceptance_criterion}_agg_error.jpg", dpi=400)
+    plt.savefig(os.path.join("plots", f"gt_err_vs_{edge_acceptance_criterion}_agg_error.jpg"), dpi=400)
+    plt.close("all")
 
     if visualize:
         plt.scatter(cycle_errors, max_rot_errors)
