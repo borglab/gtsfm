@@ -69,3 +69,20 @@ def piecewise_gaussian(theta: float, theta_0: float = 5, sigma_1: float = 1, sig
         sigma = sigma_2
 
     return math.exp(-((theta - theta_0) ** 2) / (2 * sigma ** 2))
+
+
+def cart_to_homogenous(
+    non_homogenous_coordinates: np.ndarray,
+) -> np.ndarray:
+    """Convert cartesian coordinates to homogenous system (by appending a row of ones).
+    Args:
+        non_homogenous_coordinates: d-dim non-homogenous coordinates, of shape dxN.
+
+    Returns:
+        (d+1)-dim homogenous coordinates, of shape (d+1)xN.
+
+    Raises: TypeError: if input is not 2 dimensional.
+    """
+    n = non_homogenous_coordinates.shape[1]
+
+    return np.vstack([non_homogenous_coordinates, np.ones((1, n))])

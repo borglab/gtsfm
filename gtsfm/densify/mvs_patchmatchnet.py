@@ -2,7 +2,6 @@
 
 Authors: Ren Liu
 """
-import copy
 import time
 from typing import Dict, List
 
@@ -11,25 +10,38 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-from gtsfm.common.image import Image
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common.image import Image
 from gtsfm.densify.mvs_base import MVSBase
+import gtsfm.densify.mvs_utils as mvs_utils
 from gtsfm.densify.patchmatchnet_data import PatchmatchNetData
 from gtsfm.utils import logger as logger_utils
 from thirdparty.patchmatchnet.models.net import PatchmatchNet
-from thirdparty.patchmatchnet.utils import tensor2numpy, tocuda
-from thirdparty.patchmatchnet.eval import check_geometric_consistency
+import thirdparty.patchmatchnet.utils as patchmatchnet_utils
+import thirdparty.patchmatchnet.eval as patchmatchnet_eval_funcs
 
 logger = logger_utils.get_logger()
 
 torch.backends.cudnn.benchmark = True
 PATCHMATCHNET_WEIGHTS_PATH = "thirdparty/patchmatchnet/checkpoints/model_000007.ckpt"
+
+# all default values are assigned by Wang et al. https://github.com/FangjinhuaWang/PatchmatchNet/blob/main/eval.py
+DEFAULT_BATCH_SIZE = 1
 DEFAULT_VIEW_NUMBER = 5
+DEFAULT_WORKERS_NUMBER = 4
+
 DEFAULT_GEOMETRIC_PIXEL_THRESH = 1.0
 DEFAULT_GEOMETRIC_DEPTH_THRESH = 0.01
 DEFAULT_PHOTOMETRIC_THRESH = 0.8
-DEFAULT_BATCH_SIZE = 1
-DEFAULT_WORKERS_NUMBER = 4
+
+DEFAULT_INTERVAL_SCALE = [0.005, 0.0125, 0.025]
+DEFAULT_PROPAGATION_RANGE = [6, 4, 2]
+DEFAULT_ITERATION_NUMBER = [1, 2, 2]
+DEFAULT_SAMPLE_NUMBER = [8, 8, 16]
+DEFAULT_PROPAGATE_NEIGHBORS = [0, 8, 16]
+DEFAULT_EVALUATE_NEIGHBORS = [9, 9, 9]
+
+DEFAULT_MINIMUM_CONSISTENT_VIEW_NUMBER = 3
 
 
 class MVSPatchmatchNet(MVSBase):
@@ -39,7 +51,7 @@ class MVSPatchmatchNet(MVSBase):
         self,
         images: Dict[int, Image],
         sfm_result: GtsfmData,
-        num_views: int = DEFAULT_VIEW_NUMBER,
+        max_num_views: int = DEFAULT_VIEW_NUMBER,
         thresholds: List[float] = [
             DEFAULT_GEOMETRIC_PIXEL_THRESH,
             DEFAULT_GEOMETRIC_DEPTH_THRESH,
@@ -52,8 +64,8 @@ class MVSPatchmatchNet(MVSBase):
         Args:
             images: image dictionary obtained from loaders
             sfm_result: result of GTSFM after bundle adjustment
-            num_views: number of views, containing 1 reference view and (num_views-1) source views
-                Defaults to DEFAULT_VIEW_NUMBER
+            num_views: Defaults to DEFAULT_VIEW_NUMBER. maximum number of views,
+                containing 1 reference view and (num_views-1) source views
             thresholds: geometric pixel threshold, geometric depth threshold, and photometric
                 threshold for filtering inference results.
                 Defaults to [DEFAULT_GEOMETRIC_PIXEL_THRESH, DEFAULT_GEOMETRIC_DEPTH_THRESH, DEFAULT_PHOTOMETRIC_THRESH]
@@ -63,7 +75,7 @@ class MVSPatchmatchNet(MVSBase):
         Returns:
             3D coordinates (in the world frame) of the dense point cloud, (point number, 3)
         """
-        dataset = PatchmatchNetData(images=images, sfm_result=sfm_result, num_views=num_views)
+        dataset = PatchmatchNetData(images=images, sfm_result=sfm_result, max_num_views=max_num_views)
         loader = DataLoader(
             dataset=dataset,
             batch_size=DEFAULT_BATCH_SIZE,
@@ -73,12 +85,12 @@ class MVSPatchmatchNet(MVSBase):
         )
 
         model = PatchmatchNet(
-            patchmatch_interval_scale=[0.005, 0.0125, 0.025],
-            propagation_range=[6, 4, 2],
-            patchmatch_iteration=[1, 2, 2],
-            patchmatch_num_sample=[8, 8, 16],
-            propagate_neighbors=[0, 8, 16],
-            evaluate_neighbors=[9, 9, 9],
+            patchmatch_interval_scale=DEFAULT_INTERVAL_SCALE,
+            propagation_range=DEFAULT_PROPAGATION_RANGE,
+            patchmatch_iteration=DEFAULT_ITERATION_NUMBER,
+            patchmatch_num_sample=DEFAULT_SAMPLE_NUMBER,
+            propagate_neighbors=DEFAULT_PROPAGATE_NEIGHBORS,
+            evaluate_neighbors=DEFAULT_EVALUATE_NEIGHBORS,
         )
         model = nn.DataParallel(model)
 
@@ -99,11 +111,13 @@ class MVSPatchmatchNet(MVSBase):
             for batch_idx, sample in enumerate(loader):
                 start_time = time.time()
 
+                ids = sample["idx"]
+
                 # Check if cuda devices is supported, and store the inference data to the target device
                 if torch.cuda.is_available():
-                    sample_device = tocuda(sample)
+                    sample_device = patchmatchnet_utils.tocuda(sample)
                 else:
-                    sample_device = copy.copy(sample)
+                    sample_device = sample
 
                 # Inference using PatchmatchNet
                 outputs = model(
@@ -113,10 +127,8 @@ class MVSPatchmatchNet(MVSBase):
                     sample_device["depth_max"],
                 )
 
-                outputs = tensor2numpy(outputs)
+                outputs = patchmatchnet_utils.tensor2numpy(outputs)
                 del sample_device
-
-                ids = sample["idx"]
 
                 # Save depth maps and confidence maps
                 for idx, depth_est, photometric_confidence in zip(
@@ -128,9 +140,10 @@ class MVSPatchmatchNet(MVSBase):
                     confidence_est_list[idx] = photometric_confidence.copy()
 
                 logger.info(
-                    "[Densify::PatchMatchNet] Iter {}/{}, time = {:.3f}".format(
-                        batch_idx + 1, len(loader), time.time() - start_time
-                    )
+                    "[Densify::PatchMatchNet] Iter %d/%d, time = %.3f",
+                    batch_idx + 1,
+                    len(loader),
+                    time.time() - start_time,
                 )
 
         # Filter inference result with thresholds
@@ -154,7 +167,18 @@ class MVSPatchmatchNet(MVSBase):
         geo_depth_thresh: float,
         photo_thresh: float,
     ) -> np.ndarray:
-        """Filter depth map and get filtered dense point cloud
+        """Create a dense point cloud by filtering depth maps based on estimated confidence maps and consistent geometry
+
+        A 3D point is consistent in geometry between two views if:
+            1. the location distance between the original pixel in one view and the corresponding pixel
+                reprojected from the other view is less than geo_pixel_thresh;
+            2. the distance between the estimated depth in one view and its reprojected depth from the other view
+                is less than geo_depth_thresh.
+
+        A 3D point is consistent in geometry in the output point cloud if it is consistent in geometry between the
+            reference view and more than DEFAULT_MINIMUM_CONSISTENT_VIEW_NUMBER source views.
+
+
         Ref: Wang et al. https://github.com/FangjinhuaWang/PatchmatchNet/blob/main/eval.py
 
         Args:
@@ -206,7 +230,7 @@ class MVSPatchmatchNet(MVSBase):
                 src_depth_est = depth_list[src_view][0]
 
                 # Check geometric consistency
-                geo_mask, depth_reprojected, _, _ = check_geometric_consistency(
+                geo_mask, depth_reprojected, _, _ = patchmatchnet_eval_funcs.check_geometric_consistency(
                     ref_depth_est,
                     ref_intrinsics,
                     ref_extrinsics,
@@ -221,31 +245,36 @@ class MVSPatchmatchNet(MVSBase):
 
             depth_est_averaged = (sum(all_srcview_depth_ests) + ref_depth_est) / (geo_mask_sum + 1)
             # Valid points requires at least 3 source views validated under geometric threshoulds
-            geo_mask = geo_mask_sum >= 3
+            geo_mask = geo_mask_sum >= DEFAULT_MINIMUM_CONSISTENT_VIEW_NUMBER
 
             # Combine geometric mask and photometric mask
             final_mask = np.logical_and(photo_mask, geo_mask)
 
             # Initialize coordinate grids
             height, width = depth_est_averaged.shape[:2]
-            x, y = np.meshgrid(np.arange(0, width), np.arange(0, height))
+            u, v = np.meshgrid(np.arange(0, width), np.arange(0, height))
 
             # Get valid points filtered by photometric and geometric thresholds
             valid_points = final_mask
-            x, y, depth = x[valid_points], y[valid_points], depth_est_averaged[valid_points]
+            u, v, depth = u[valid_points], v[valid_points], depth_est_averaged[valid_points]
 
-            # Get the point coordinates in world frame
-            xyz_ref = np.matmul(np.linalg.inv(ref_intrinsics), np.vstack((x, y, np.ones_like(x))) * depth)
-            xyz_world = np.matmul(np.linalg.inv(ref_extrinsics), np.vstack((xyz_ref, np.ones_like(x))))[:3]
-            vertices.append(xyz_world.transpose((1, 0)))
+            # Get the point coordinates inside the reference view's camera frame
+            xyz_ref = np.linalg.inv(ref_intrinsics) @ mvs_utils.cart_to_homogenous(np.array([u, v])) * depth
+
+            # Get the point coordinates inside the world frame
+            xyz_world = (np.linalg.inv(ref_extrinsics) @ mvs_utils.cart_to_homogenous(xyz_ref))[:3]
+            vertices.append(xyz_world.T)
 
             # Get the point colors for colored mesh
             color = ref_img[valid_points]
             vertex_colors.append((color * 255).astype(np.uint8))
 
             logger.info(
-                f"[Densify::PatchMatchNet] processing view:{ref_view:0>2}"
-                + f" geo_mask:{geo_mask.mean():3f} photo_mask:{photo_mask.mean():3f} final_mask:{final_mask.mean():3f}"
+                "[Densify::PatchMatchNet] RefView: %03d Geometric: %.03f Photometric: %.03f Final: %.03f",
+                ref_view,
+                geo_mask.mean(),
+                photo_mask.mean(),
+                final_mask.mean(),
             )
 
         return np.concatenate(vertices, axis=0)
