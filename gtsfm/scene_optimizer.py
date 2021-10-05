@@ -191,7 +191,7 @@ class SceneOptimizer:
             i2Ui1_graph_dict,
             v_corr_idxs_graph_dict,
             two_view_reports_dict,
-            EdgeErrorAggregationCriterion.MEDIAN_EDGE_ERROR,
+            EdgeErrorAggregationCriterion.MIN_AND_MEDIAN_EDGE_ERROR,
         )
         metrics_graph_list.append(rcc_metrics_graph)
 

@@ -27,6 +27,7 @@ logger = logger_utils.get_logger()
 
 
 CYCLE_ERROR_THRESHOLD = 5.0
+MEDIAN_CYCLE_ERROR_THRESHOLD = 10.0
 
 MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
 
@@ -36,9 +37,12 @@ class EdgeErrorAggregationCriterion(str, Enum):
 
     MIN: Choose the mininum cycle error of all cyles this edge appears in. An edge that appears in ANY cycle
         with low error is accepted. High recall, but can have low precision, as false positives can enter
-        (error was randomly cancelled out by another error, meaning accepted).
+        (error was randomly cancelled out by another error, meaning accepted). Recall near 100%, for gains
+        in precision.
     MEDIAN: Choose the median cycle error. robust summary statistic. At least half of the time, this edge
         appears in a good cycle (i.e. of low error). Note: preferred over mean, which is not robust to outliers.
+        Improves precision at the cost of recall.
+    MIN AND MEDIAN: Both conditions above must be satisfied.
 
     Note: all summary statistics will be compared with an allowed upper bound/threshold. If they exceed the
     upper bound, they will be rejected.
@@ -46,6 +50,7 @@ class EdgeErrorAggregationCriterion(str, Enum):
 
     MIN_EDGE_ERROR = "MIN_EDGE_ERROR"
     MEDIAN_EDGE_ERROR = "MEDIAN_EDGE_ERROR"
+    MIN_AND_MEDIAN_EDGE_ERROR = "MIN_AND_MEDIAN_EDGE_ERROR"
 
 
 def extract_triplets(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int, int, int]]:
@@ -240,21 +245,14 @@ def filter_to_cycle_consistent_edges(
         v_corr_idxs_dict_consistent: subset of v_corr_idxs_dict above.
         metrics_group: Rotation cycle consistency metrics as a metrics group.
     """
-    cycle_errors = []
-    max_rot_errors = []
-    max_trans_errors = []
-
     n_valid_edges = len([i2Ri1 for (i1, i2), i2Ri1 in i2Ri1_dict.items() if i2Ri1 is not None])
-
-    # (i1,i2) pairs
-    cycle_consistent_keys = set()
 
     per_edge_errors = defaultdict(list)
 
     triplets = extract_triplets(i2Ri1_dict)
 
     for (i0, i1, i2) in triplets:
-        cycle_error, max_rot_error, max_trans_error = compute_cycle_error(
+        cycle_error, _, _ = compute_cycle_error(
             i2Ri1_dict, (i0, i1, i2), two_view_reports_dict
         )
         # since i0 < i1 < i2 by construction, we preserve the property `a < b` for each edge (a,b)
@@ -262,45 +260,46 @@ def filter_to_cycle_consistent_edges(
         per_edge_errors[(i1, i2)].append(cycle_error)
         per_edge_errors[(i0, i2)].append(cycle_error)
 
-        cycle_errors.append(cycle_error)
-        max_rot_errors.append(max_rot_error)
-        max_trans_errors.append(max_trans_error)
 
-    errors_summary = []
-    errors_wrt_gt = []
+    # (i1,i2) pairs
+    cycle_consistent_keys = set()
+    
+    inlier_errors_wrt_gt = []
+    outlier_errors_wrt_gt = []
 
-    plt.close("all")
     # aggregate info over per edge_errors
     for (i1, i2), edge_cycle_errors in per_edge_errors.items():
         if edge_acceptance_criterion == EdgeErrorAggregationCriterion.MIN_EDGE_ERROR:
-            error_summary = np.amin(edge_cycle_errors)
+            is_inlier = np.amin(edge_cycle_errors) < CYCLE_ERROR_THRESHOLD
 
         elif edge_acceptance_criterion == EdgeErrorAggregationCriterion.MEDIAN_EDGE_ERROR:
-            error_summary = np.median(edge_cycle_errors)
+            is_inlier = np.median(edge_cycle_errors) < MEDIAN_CYCLE_ERROR_THRESHOLD
 
-        if error_summary < CYCLE_ERROR_THRESHOLD:
+        elif edge_acceptance_criterion == EdgeErrorAggregationCriterion.MIN_AND_MEDIAN_EDGE_ERROR:
+            is_inlier = (np.amin(edge_cycle_errors) < CYCLE_ERROR_THRESHOLD) and (
+                np.median(edge_cycle_errors) < MEDIAN_CYCLE_ERROR_THRESHOLD
+            )
+
+        error_wrt_gt = two_view_reports_dict[(i1, i2)].R_error_deg
+        if is_inlier:
             cycle_consistent_keys.add((i1, i2))
-
-        errors_summary.append(error_summary)
-        errors_wrt_gt.append(two_view_reports_dict[(i1, i2)].R_error_deg)
-
-    plt.scatter(errors_summary, errors_wrt_gt, 10, color="r", marker=".")
-    plt.xlabel(f"{edge_acceptance_criterion} cycle error")
-    plt.ylabel("Rotation error w.r.t GT")
-    plt.savefig(os.path.join("plots", f"gt_err_vs_{edge_acceptance_criterion}_agg_error.jpg"), dpi=400)
-    plt.close("all")
+            inlier_errors_wrt_gt.append(error_wrt_gt)
+        else:
+            outlier_errors_wrt_gt.append(error_wrt_gt)
 
     if visualize:
-        plt.scatter(cycle_errors, max_rot_errors)
-        plt.xlabel("Cycle error")
-        plt.ylabel("Avg. Rot3 error over cycle triplet")
-        plt.savefig(os.path.join("plots", "cycle_error_vs_GT_rot_error.jpg"), dpi=200)
+        plt.close("all")
+        plt.hist(inlier_errors_wrt_gt)
+        plt.ylabel("Count")
+        plt.xlabel("Rotation error w.r.t. GT (deg.)")
+        plt.savefig(os.path.join("plots", f"inlier_errors_wrt_gt_{edge_acceptance_criterion}.jpg"), dpi=400)
         plt.close("all")
 
-        plt.scatter(cycle_errors, max_trans_errors)
-        plt.xlabel("Cycle error")
-        plt.ylabel("Avg. Unit3 error over cycle triplet")
-        plt.savefig(os.path.join("plots", "cycle_error_vs_GT_trans_error.jpg"), dpi=200)
+        plt.hist(outlier_errors_wrt_gt)
+        plt.ylabel("Count")
+        plt.xlabel("Rotation error w.r.t. GT (deg.)")
+        plt.savefig(os.path.join("plots", f"outlier_errors_wrt_gt_{edge_acceptance_criterion}.jpg"), dpi=400)
+        plt.close("all")
 
     logger.info("cycle_consistent_keys: " + str(cycle_consistent_keys))
 
