@@ -278,7 +278,7 @@ def _sample_kde_directions(w_i2Ui1_measurements, num_samples):
     """
     w_i2Ui1_list = [w_i2Ui1.measured() for w_i2Ui1 in w_i2Ui1_measurements]
     if len(w_i2Ui1_list) > MAX_KDE_SAMPLES:
-        w_i2Ui1_list = w_i2Ui1_list[random.sample(range(len(w_i2Ui1_list)), MAX_KDE_SAMPLES)]
+        w_i2Ui1_list = [w_i2Ui1_list[i] for i in random.sample(range(len(w_i2Ui1_list)), MAX_KDE_SAMPLES)]
 
     w_i2Ui1_spherical = transform_utils.euclidean_to_spherical_directions(w_i2Ui1_list)
 
