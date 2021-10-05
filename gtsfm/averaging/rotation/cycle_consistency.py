@@ -242,7 +242,6 @@ def filter_to_cycle_consistent_edges(
     """
     cycle_errors = []
     max_rot_errors = []
-    max_trans_errors = []
 
     n_valid_edges = len([i2Ri1 for (i1, i2), i2Ri1 in i2Ri1_dict.items() if i2Ri1 is not None])
 
@@ -254,9 +253,7 @@ def filter_to_cycle_consistent_edges(
     triplets = extract_triplets(i2Ri1_dict)
 
     for (i0, i1, i2) in triplets:
-        cycle_error, max_rot_error, max_trans_error = compute_cycle_error(
-            i2Ri1_dict, (i0, i1, i2), two_view_reports_dict
-        )
+        cycle_error, max_rot_error, _ = compute_cycle_error(i2Ri1_dict, (i0, i1, i2), two_view_reports_dict)
         # since i0 < i1 < i2 by construction, we preserve the property `a < b` for each edge (a,b)
         per_edge_errors[(i0, i1)].append(cycle_error)
         per_edge_errors[(i1, i2)].append(cycle_error)
@@ -264,31 +261,51 @@ def filter_to_cycle_consistent_edges(
 
         cycle_errors.append(cycle_error)
         max_rot_errors.append(max_rot_error)
-        max_trans_errors.append(max_trans_error)
 
-    errors_summary = []
-    errors_wrt_gt = []
+    inlier_errors_aggregate = []
+    inlier_errors_wrt_gt = []
+
+    outlier_errors_aggregate = []
+    outlier_errors_wrt_gt = []
 
     plt.close("all")
     # aggregate info over per edge_errors
     for (i1, i2), edge_cycle_errors in per_edge_errors.items():
         if edge_acceptance_criterion == EdgeErrorAggregationCriterion.MIN_EDGE_ERROR:
-            error_summary = np.amin(edge_cycle_errors)
+            error_aggregate = np.amin(edge_cycle_errors)
 
         elif edge_acceptance_criterion == EdgeErrorAggregationCriterion.MEDIAN_EDGE_ERROR:
-            error_summary = np.median(edge_cycle_errors)
+            error_aggregate = np.median(edge_cycle_errors)
 
-        if error_summary < CYCLE_ERROR_THRESHOLD:
+        if error_aggregate < CYCLE_ERROR_THRESHOLD:
             cycle_consistent_keys.add((i1, i2))
-
-        errors_summary.append(error_summary)
-        errors_wrt_gt.append(two_view_reports_dict[(i1, i2)].R_error_deg)
+            inlier_errors_aggregate.append(error_aggregate)
+            inlier_errors_wrt_gt.append(two_view_reports_dict[(i1, i2)].R_error_deg)
+        else:
+            outlier_errors_aggregate.append(error_aggregate)
+            outlier_errors_wrt_gt.append(two_view_reports_dict[(i1, i2)].R_error_deg)
 
     if visualize:
-        plt.scatter(errors_summary, errors_wrt_gt, 10, color="r", marker=".")
+        plt.scatter(
+            inlier_errors_aggregate,
+            inlier_errors_wrt_gt,
+            10,
+            color="g",
+            marker=".",
+            label=f"outliers @ {CYCLE_ERROR_THRESHOLD} deg.",
+        )
+        plt.scatter(
+            outlier_errors_aggregate,
+            outlier_errors_wrt_gt,
+            10,
+            color="r",
+            marker=".",
+            label=f"inliers @ {CYCLE_ERROR_THRESHOLD} deg.",
+        )
         plt.xlabel(f"{edge_acceptance_criterion} cycle error")
         plt.ylabel("Rotation error w.r.t GT")
         plt.axis("equal")
+        plt.legend()
         plt.savefig(os.path.join("plots", f"gt_err_vs_{edge_acceptance_criterion}_agg_error.jpg"), dpi=400)
         plt.close("all")
 
@@ -296,14 +313,8 @@ def filter_to_cycle_consistent_edges(
         plt.xlabel("Cycle error")
         plt.ylabel("Avg. Rot3 error over cycle triplet")
         plt.axis("equal")
-        plt.savefig(os.path.join("plots", "cycle_error_vs_GT_rot_error.jpg"), dpi=200)
+        plt.savefig(os.path.join("plots", "cycle_error_vs_GT_rot_error.jpg"), dpi=400)
         plt.close("all")
-
-        plt.scatter(cycle_errors, max_trans_errors)
-        plt.xlabel("Cycle error")
-        plt.ylabel("Avg. Unit3 error over cycle triplet")
-        plt.axis("equal")
-        plt.savefig(os.path.join("plots", "cycle_error_vs_GT_trans_error.jpg"), dpi=200)
 
     logger.info("cycle_consistent_keys: " + str(cycle_consistent_keys))
 
