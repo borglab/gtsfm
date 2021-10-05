@@ -10,6 +10,7 @@ References:
 
 Authors: Jing Wu, Ayush Baid, Akshay Krishnan
 """
+import random
 from typing import Dict, List, Optional, Tuple
 
 import gtsam
@@ -110,15 +111,15 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                     ow_weights_dict[(i1, i2)].append(weight)
                 else:
                     ow_weights_dict[(i1, i2)] = [weight]
-        
-        with open("result_metrics/proj_weights_1dsfm.txt", 'w') as f:
+
+        with open("result_metrics/proj_weights_1dsfm.txt", "w") as f:
             f.write("# i1,i2,ux,uy,uz,weights_list\n")
             for (i1, i2), weights_list in ow_weights_dict.items():
-                f.write(str(i1) + ","+ str(i2)+",")
+                f.write(str(i1) + "," + str(i2) + ",")
                 d = w_i2Ui1_dict[(i1, i2)].point3()
-                f.write(str(d[0]) + "," + str(d[1]) +"," + str(d[2]))
+                f.write(str(d[0]) + "," + str(d[1]) + "," + str(d[2]))
                 for weight in weights_list:
-                    f.write(","+str(weight))
+                    f.write("," + str(weight))
                 f.write("\n")
 
         # compute average outlier weight
@@ -179,9 +180,13 @@ def _get_measurement_angle_errors(
         List of angles between the measured and ground truth translation directions.
     """
     errors = []
-    with open("result_metrics/measurement_errors_1dsfm.txt", 'w') as f:
+    with open("result_metrics/measurement_errors_1dsfm.txt", "w") as f:
         for (i1, i2) in i1_i2_pairs:
-            print("idx ", i1, i2,)
+            print(
+                "idx ",
+                i1,
+                i2,
+            )
             if (i1, i2) in i2Ui1_measurements and (i1, i2) in gt_i2Ui1_measurements:
                 error = comp_utils.compute_relative_unit_translation_angle(
                     i2Ui1_measurements[(i1, i2)], gt_i2Ui1_measurements[(i1, i2)]
@@ -268,7 +273,7 @@ def _sample_kde_directions(w_i2Ui1_measurements, num_samples):
         w_i2Ui1_measurements: List of BinaryMeasurementUnit3 direction measurements.
         num_samples: Number of samples to be sampled from the kernel.
 
-    Returns: 
+    Returns:
         List of sampled Unit3 directions.
     """
     w_i2Ui1_list = [w_i2Ui1.measured() for w_i2Ui1 in w_i2Ui1_measurements]
