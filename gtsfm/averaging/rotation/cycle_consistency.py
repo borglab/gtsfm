@@ -286,13 +286,13 @@ def filter_to_cycle_consistent_edges(
 
     if visualize:
         plt.close("all")
-        plt.hist(inlier_errors_wrt_gt, bins=60)
+        plt.hist(inlier_errors_wrt_gt, bins=np.linspace(0,180,61))
         plt.ylabel("Count")
         plt.xlabel("Rotation error w.r.t. GT (deg.)")
         plt.savefig(os.path.join("plots", f"inlier_errors_wrt_gt_{edge_acceptance_criterion}.jpg"), dpi=400)
         plt.close("all")
 
-        plt.hist(outlier_errors_wrt_gt, bins=60)
+        plt.hist(outlier_errors_wrt_gt, bins=np.linspace(0,180,61))
         plt.ylabel("Count")
         plt.xlabel("Rotation error w.r.t. GT (deg.)")
         plt.savefig(os.path.join("plots", f"outlier_errors_wrt_gt_{edge_acceptance_criterion}.jpg"), dpi=400)
