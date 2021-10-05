@@ -2,7 +2,7 @@
 
 Author: Travis Driver, Ayush Baid
 """
-from argparse import ArgumentParser, Namespace
+from argparse import ArgumentParser
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.loader.loader_base import LoaderBase
