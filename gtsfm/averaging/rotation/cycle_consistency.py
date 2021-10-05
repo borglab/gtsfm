@@ -291,7 +291,7 @@ def filter_to_cycle_consistent_edges(
         plt.axis("equal")
         plt.savefig(os.path.join("plots", f"gt_err_vs_{edge_acceptance_criterion}_agg_error.jpg"), dpi=400)
         plt.close("all")
-    
+
         plt.scatter(cycle_errors, max_rot_errors)
         plt.xlabel("Cycle error")
         plt.ylabel("Avg. Rot3 error over cycle triplet")
