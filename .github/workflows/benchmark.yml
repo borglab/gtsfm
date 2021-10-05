@@ -72,23 +72,11 @@ jobs:
             $SHARE_INTRINSICS
 
 
-      - name: Archive dataset metrics
-        uses: actions/upload-artifact@v2
-        with:
-          name: metrics-${{ matrix.config_dataset_info }}.zip
-          path: |
-            result_metrics
-
-      - name: Archive dataset plots
-        uses: actions/upload-artifact@v2
-        with:
-          name: plots-${{ matrix.config_dataset_info }}.zip
-          path: |
-            plots
-
-      - name: Archive dataset output data (camera poses + points)
+      - name: Archive dataset metrics, plots, and output data (camera poses + points)
         uses: actions/upload-artifact@v2
         with:
           name: results-${{ matrix.config_dataset_info }}.zip
           path: |
+            result_metrics
+            plots
             results
