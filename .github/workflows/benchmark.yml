@@ -7,6 +7,8 @@ jobs:
     name: Benchmark
     runs-on: ubuntu-latest
     strategy:
+      # Prevents other configs from being canceled if one of them fails.
+      fail-fast: false
       matrix:
         config_dataset_info:
           [
