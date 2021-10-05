@@ -252,18 +252,15 @@ def filter_to_cycle_consistent_edges(
     triplets = extract_triplets(i2Ri1_dict)
 
     for (i0, i1, i2) in triplets:
-        cycle_error, _, _ = compute_cycle_error(
-            i2Ri1_dict, (i0, i1, i2), two_view_reports_dict
-        )
+        cycle_error, _, _ = compute_cycle_error(i2Ri1_dict, (i0, i1, i2), two_view_reports_dict)
         # since i0 < i1 < i2 by construction, we preserve the property `a < b` for each edge (a,b)
         per_edge_errors[(i0, i1)].append(cycle_error)
         per_edge_errors[(i1, i2)].append(cycle_error)
         per_edge_errors[(i0, i2)].append(cycle_error)
 
-
     # (i1,i2) pairs
     cycle_consistent_keys = set()
-    
+
     inlier_errors_wrt_gt = []
     outlier_errors_wrt_gt = []
 
@@ -289,13 +286,13 @@ def filter_to_cycle_consistent_edges(
 
     if visualize:
         plt.close("all")
-        plt.hist(inlier_errors_wrt_gt)
+        plt.hist(inlier_errors_wrt_gt, bins=60)
         plt.ylabel("Count")
         plt.xlabel("Rotation error w.r.t. GT (deg.)")
         plt.savefig(os.path.join("plots", f"inlier_errors_wrt_gt_{edge_acceptance_criterion}.jpg"), dpi=400)
         plt.close("all")
 
-        plt.hist(outlier_errors_wrt_gt)
+        plt.hist(outlier_errors_wrt_gt, bins=60)
         plt.ylabel("Count")
         plt.xlabel("Rotation error w.r.t. GT (deg.)")
         plt.savefig(os.path.join("plots", f"outlier_errors_wrt_gt_{edge_acceptance_criterion}.jpg"), dpi=400)
