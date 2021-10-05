@@ -305,7 +305,7 @@ def filter_to_cycle_consistent_edges(
         plt.xlabel(f"{edge_acceptance_criterion} cycle error")
         plt.ylabel("Rotation error w.r.t GT")
         plt.axis("equal")
-        plt.legend()
+        plt.legend(loc="lower right")
         plt.savefig(os.path.join("plots", f"gt_err_vs_{edge_acceptance_criterion}_agg_error.jpg"), dpi=400)
         plt.close("all")
 
