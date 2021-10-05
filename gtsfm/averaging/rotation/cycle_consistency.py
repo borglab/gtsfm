@@ -102,7 +102,7 @@ def compute_cycle_error(
     i2Ri1_dict: Dict[Tuple[int, int], Rot3],
     cycle_nodes: Tuple[int, int, int],
     two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
-    verbose: bool = True,
+    verbose: bool = False,
 ) -> Tuple[float, Optional[float], Optional[float]]:
     """Compute the cycle error by the magnitude of the axis-angle rotation after composing 3 rotations.
 
