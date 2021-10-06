@@ -76,13 +76,6 @@ if [ "$DATASET_SRC" == "gdrive" ]; then
   export GDRIVE_URL='https://docs.google.com/uc?export=download&id='$GDRIVE_FILEID
   retry 10 wget --save-cookies cookies.txt $GDRIVE_URL -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1/p' > confirm.txt
   retry 10 wget --load-cookies cookies.txt -O ${DATASET_NAME}.zip $GDRIVE_URL'&confirm='$(<confirm.txt)
-  
-  # Check if GDRIVE_FILEID2 has been set.
-  if [ ! -z "$GDRIVE_FILEID2" ]; then
-    export GDRIVE_URL='https://docs.google.com/uc?export=download&id='$GDRIVE_FILEID2
-    retry 10 wget --save-cookies cookies.txt $GDRIVE_URL -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1/p' > confirm.txt
-    retry 10 wget --load-cookies cookies.txt -O ${DATASET_NAME2}.zip $GDRIVE_URL'&confirm='$(<confirm.txt)
-  fi
 
 elif [ "$DATASET_SRC" == "wget" ]; then
   echo "Downloading ${DATASET_NAME} with WGET"
