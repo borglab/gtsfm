@@ -15,7 +15,16 @@ GTSFM_MERGED_REPORT_TABLES = Dict[str, List[Tuple[str, Any, Any]]]
 
 
 def extract_tables_from_report(report_fpath: str) -> GTSFM_REPORT_TABLES:
-    """ """
+    """Given an HTML text file containing HTML table info (and Plotly rendering code), rip out the table information
+    for each table.
+
+    Args:
+        report_fpath: file path to a GTSFM HTML report.
+
+    Returns:
+        table_dict: Dictionary mapping the names of GTSFM modules to their associated table information.
+            Each table is represented as a map from metric names to their associated values.
+    """
     with open(report_fpath, "r") as f:
         lines = f.readlines()
 
