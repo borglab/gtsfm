@@ -271,6 +271,16 @@ def filter_to_cycle_consistent_edges(
     plt.close("all")
     # aggregate info over per edge_errors
     for (i1, i2), edge_cycle_errors in per_edge_errors.items():
+
+        json_dict = {
+            "num_inliers_est_model": two_view_reports_dict[(i1,i2)].num_inliers_est_model,
+            "inlier_ratio_est_model": two_view_reports_dict[(i1,i2)].inlier_ratio_est_model,
+            "edge_cycle_errors": edge_cycle_errors,
+            "R_error_deg": two_view_reports_dict[(i1, i2)].R_error_deg
+        }
+        import gtsfm.utils.io as io_utils
+        io_utils.save_json_file(f"skydio-501-cycle-error-training-data/{i1}_{i2}.json", json_dict)
+
         if edge_acceptance_criterion == EdgeErrorAggregationCriterion.MIN_EDGE_ERROR:
             error_aggregate = np.amin(edge_cycle_errors)
 
