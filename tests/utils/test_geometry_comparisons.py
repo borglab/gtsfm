@@ -223,23 +223,38 @@ class TestGeometryComparisons(unittest.TestCase):
         np.testing.assert_allclose(computed_deg, expected_deg, rtol=1e-3, atol=1e-3)
 
 
-    def test_compute_relative_rotation_angle(self):
-        """Tests the relative angle between two rotations.
+    def test_compute_relative_rotation_angle(self) -> None:
+        """Tests the relative angle between two rotations
+
+        Currently compute_relative_rotation_angle() uses Scipy, so this test compares with GTSAM.
 
         TODO(johnwlambert): replace this test with Scipy function calls once we fix the GTSAM's .axisAngle() code.
-
         """
         num_trials = 1000
         np.random.seed(0)
-        for _ in range(num_trials)
-        R_1 = Rot3.RzRyRx(0, np.deg2rad(45), np.deg2rad(22.5))
-        R_2 = Rot3.RzRyRx(0, np.deg2rad(90), np.deg2rad(22.5))
+        for _ in range(num_trials):
 
-        # returns angle in degrees
-        computed_deg = geometry_comparisons.compute_relative_rotation_angle(R_1, R_2)
-        expected_deg = 45
+            def random_rotation() -> Rot3:
+                """Sample a random rotation by generating a sample from the 4d unit sphere."""
+                q = np.random.randn(4)
+                # make unit-length quaternion
+                q /= np.linalg.norm(q)
+                qw, qx, qy, qz = q
+                R = Rot3(qw, qx, qy, qz)
+                return R
 
-        np.testing.assert_allclose(computed_deg, expected_deg, rtol=1e-3, atol=1e-3)
+            # generate 2 random rotations
+            wR1 = random_rotation()
+            wR2 = random_rotation()
+
+            error_deg = geometry_comparisons.compute_relative_rotation_angle(wR1, wR2)
+
+            i2Ri1 = wR2.between(wR1)
+            axis, angle_rad = i2Ri1.axisAngle()
+            angle_deg = np.rad2deg(angle_rad)
+
+            np.testing.assert_almost_equal(angle_deg, error_deg)
+            print(angle_deg, error_deg)
 
 
     def test_compute_relative_unit_translation_angle(self):
