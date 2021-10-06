@@ -88,6 +88,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--report_fpath1", required=True, help="Path to previous report.")
     parser.add_argument("--report_fpath2", required=True, help="Path to new report.")
-    parser.add_argument("--table_format", default="github", choices=["github", "html"], help="Output format for exported table (markdown or HTML).")
+    parser.add_argument(
+        "--table_format",
+        default="github",
+        choices=["github", "html"],
+        help="Output format for exported table (markdown or HTML).",
+    )
     args = parser.parse_args()
     merge_reports(args.report_fpath1, args.report_fpath2, args.table_format)
