@@ -49,6 +49,12 @@ elif [ "$DATASET_NAME" == "skydio-32" ]; then
   # Description: TODO
   export GDRIVE_FILEID='1BQ6jp0DD3D9yhTnrDoEddzlMYT0RRH68'
 
+elif [ "$DATASET_NAME" == "skydio-501" ]; then
+  # 501-image Crane Mast collection released by Skydio via Sketchfab
+  WGET_URL1=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/skydio-crane-mast-501-images/skydio-crane-mast-501-images1.tar.gz
+  WGET_URL2=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/skydio-crane-mast-501-images/skydio-crane-mast-501-images2.tar.gz
+  WGET_URL3=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/skydio-501-colmap-pseudo-gt/skydio-501-colmap-pseudo-gt.tar.gz
+
 elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
   # Description: TODO
   export GDRIVE_FILEID='1t_CptH7ZWdKQVW-yw56bpLS83TntNQiK'
@@ -70,6 +76,13 @@ if [ "$DATASET_SRC" == "gdrive" ]; then
   export GDRIVE_URL='https://docs.google.com/uc?export=download&id='$GDRIVE_FILEID
   retry 10 wget --save-cookies cookies.txt $GDRIVE_URL -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1/p' > confirm.txt
   retry 10 wget --load-cookies cookies.txt -O ${DATASET_NAME}.zip $GDRIVE_URL'&confirm='$(<confirm.txt)
+  
+  # Check if GDRIVE_FILEID2 has been set.
+  if [ ! -z "$GDRIVE_FILEID2" ]; then
+    export GDRIVE_URL='https://docs.google.com/uc?export=download&id='$GDRIVE_FILEID2
+    retry 10 wget --save-cookies cookies.txt $GDRIVE_URL -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1/p' > confirm.txt
+    retry 10 wget --load-cookies cookies.txt -O ${DATASET_NAME2}.zip $GDRIVE_URL'&confirm='$(<confirm.txt)
+  fi
 
 elif [ "$DATASET_SRC" == "wget" ]; then
   echo "Downloading ${DATASET_NAME} with WGET"
@@ -78,6 +91,10 @@ elif [ "$DATASET_SRC" == "wget" ]; then
   # Check if $WGET_URL2 has been set.
   if [ ! -z "$WGET_URL2" ]; then
     retry 10 wget $WGET_URL2
+  fi
+  # Check if $WGET_URL3 has been set.
+  if [ ! -z "$WGET_URL3" ]; then
+    retry 10 wget $WGET_URL3
   fi
   echo $WGET_URL1
   echo $WGET_URL2
@@ -96,6 +113,16 @@ elif [ "$DATASET_NAME" == "skydio-32" ]; then
   unzip -qq skydio-32.zip -d skydio-32
   COLMAP_FILES_DIRPATH=skydio-32/colmap_crane_mast_32imgs
   IMAGES_DIR=skydio-32/images
+
+elif [ "$DATASET_NAME" == "skydio-501" ]; then
+  tar -xvzf skydio-crane-mast-501-images1.tar.gz
+  tar -xvzf skydio-crane-mast-501-images2.tar.gz
+  tar -xvzf skydio-501-colmap-pseudo-gt.tar.gz
+  IMAGES_DIR="skydio-crane-mast-501-images"
+  mkdir $IMAGES_DIR
+  mv skydio-crane-mast-501-images1/* $IMAGES_DIR
+  mv skydio-crane-mast-501-images2/* $IMAGES_DIR
+  COLMAP_FILES_DIRPATH="skydio-501-colmap-pseudo-gt"
 
 elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
   unzip -qq notre-dame-20.zip
