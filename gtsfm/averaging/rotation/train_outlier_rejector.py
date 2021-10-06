@@ -68,6 +68,7 @@ def create_fixed_length_feature(
     Form a feature from rotation cycle consistency information and #inliers  / %inliers.
     """
     num_participating_cycles = len(edge_cycle_errors)
+    edge_cycle_errors.sort()
     edge_cycle_errors = torch.tensor(edge_cycle_errors)
     edge_cycle_errors = edge_cycle_errors.reshape(1, 1, -1)
     cycle_error_feat = torch.nn.functional.interpolate(input=edge_cycle_errors, size=INTERP_FEATURE_DIM, mode="linear")
