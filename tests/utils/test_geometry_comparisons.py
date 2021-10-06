@@ -222,7 +222,6 @@ class TestGeometryComparisons(unittest.TestCase):
 
         np.testing.assert_allclose(computed_deg, expected_deg, rtol=1e-3, atol=1e-3)
 
-
     def test_compute_relative_rotation_angle(self) -> None:
         """Tests the relative angle between two rotations
 
@@ -256,7 +255,6 @@ class TestGeometryComparisons(unittest.TestCase):
 
             np.testing.assert_almost_equal(angle_deg, error_deg)
             print(angle_deg, error_deg)
-
 
     def test_compute_relative_unit_translation_angle(self):
         """Tests the relative angle between two unit-translations."""
