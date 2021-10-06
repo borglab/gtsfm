@@ -3,6 +3,7 @@
 Authors: John Lambert
 """
 
+import argparse
 from collections import defaultdict
 from typing import Any, Dict, List, Tuple
 
@@ -51,17 +52,6 @@ def extract_tables_from_report(report_fpath: str) -> GTSFM_REPORT_TABLES:
     return table_dict
 
 
-def print_tables_tabulate(merged_table_dict: GTSFM_MERGED_REPORT_TABLES) -> None:
-    """Dump to stdout Markdown-formatted tables."""
-    for tab_name, tab_metrics in merged_table_dict.items():
-
-        headers = [f"{tab_name}", "Report 1", "Report 2"]
-        table = tab_metrics
-        print(tabulate(table, headers, tablefmt="github"))
-        # add newline between tables
-        print()
-
-
 def merge_tables(table_dict1: GTSFM_REPORT_TABLES, table_dict2: GTSFM_REPORT_TABLES) -> GTSFM_MERGED_REPORT_TABLES:
     """Combine 2-column tables from single reports, to 3-column tables, with columns corresponding to each report."""
 
@@ -75,25 +65,29 @@ def merge_tables(table_dict1: GTSFM_REPORT_TABLES, table_dict2: GTSFM_REPORT_TAB
     return new_table_dict
 
 
-def main() -> None:
-    """ """
+def print_tables_tabulate(merged_table_dict: GTSFM_MERGED_REPORT_TABLES, table_format: str) -> None:
+    """Dump to stdout Markdown-formatted tables."""
+    for tab_name, tab_metrics in merged_table_dict.items():
 
-    report_fpath1 = "/Users/jlambert/Downloads/prev_master/metrics-deep_front_end____skydio-32_______________32____jpg____gdrive_______colmap-loader____760___true.zip/gtsfm_metrics_report.html"
+        headers = [f"{tab_name}", "Report 1", "Report 2"]
+        table = tab_metrics
+        print(tabulate(table, headers, tablefmt=table_format))
+        # add newline between tables
+        print()
 
-    report_fpath2 = "/Users/jlambert/Downloads/rcc_median/metrics-deep_front_end____skydio-32_______________32____jpg____gdrive_______colmap-loader____760___true.zip/gtsfm_metrics_report.html"
 
-    """ """  # TODO(johnwlambert): remove spaces from artifact file names
-    # report_fpath1 = report_fpath1.replace("\ ", "_")
-    # report_fpath1 = report_fpath1.replace("\\", "_")
-    # report_fpath1 = report_fpath1.replace(",", "_")
-    # print(report_fpath1)
-    """ """
-
+def merge_reports(report_fpath1: str, report_fpath2: str, output_format: str) -> None:
+    """Combine all tables from two reports into a single table, for side-by-side comparisons."""
     table_dict1 = extract_tables_from_report(report_fpath1)
     table_dict2 = extract_tables_from_report(report_fpath2)
     merged_table_dict = merge_tables(table_dict1, table_dict2)
-    print_tables_tabulate(merged_table_dict)
+    print_tables_tabulate(merged_table_dict, output_format)
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--report_fpath1", required=True, help="Path to previous report.")
+    parser.add_argument("--report_fpath2", required=True, help="Path to new report.")
+    parser.add_argument("--table_format", default="github", choices=["github", "html"], help="Output format for exported table (markdown or HTML).")
+    args = parser.parse_args()
+    merge_reports(args.report_fpath1, args.report_fpath2, args.table_format)
