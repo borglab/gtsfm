@@ -275,7 +275,11 @@ def compute_relative_rotation_angle(R_1: Optional[Rot3], R_2: Optional[Rot3]) ->
         return None
 
     relative_rot = R_1.between(R_2)
-    relative_rot_angle_rad = relative_rot.axisAngle()[1]
+    # TODO(johnwlambert): we are using scipy.spatial.transform as a hotfix until GTSAM axisAngle() is patched.
+    # See https://github.com/borglab/gtsam/issues/886
+    scaled_axis = Rotation.from_matrix(relative_rot.matrix()).as_rotvec()
+    relative_rot_angle_rad = np.linalg.norm(scaled_axis)
+    axis = scaled_axis / relative_rot_angle_rad
     relative_rot_angle_deg = np.rad2deg(relative_rot_angle_rad)
     return relative_rot_angle_deg
 
