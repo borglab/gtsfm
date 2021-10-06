@@ -232,16 +232,17 @@ class TestGeometryComparisons(unittest.TestCase):
         """
         num_trials = 1000
         np.random.seed(0)
-        for _ in range(num_trials):
 
-            def random_rotation() -> Rot3:
-                """Sample a random rotation by generating a sample from the 4d unit sphere."""
-                q = np.random.randn(4)
-                # make unit-length quaternion
-                q /= np.linalg.norm(q)
-                qw, qx, qy, qz = q
-                R = Rot3(qw, qx, qy, qz)
-                return R
+        def random_rotation() -> Rot3:
+            """Sample a random rotation by generating a sample from the 4d unit sphere."""
+            q = np.random.randn(4)
+            # make unit-length quaternion
+            q /= np.linalg.norm(q)
+            qw, qx, qy, qz = q
+            R = Rot3(qw, qx, qy, qz)
+            return R
+
+        for _ in range(num_trials):
 
             # generate 2 random rotations
             wR1 = random_rotation()
