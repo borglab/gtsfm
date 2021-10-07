@@ -82,3 +82,4 @@ jobs:
             result_metrics
             plots
             results
+            cycle-error-training-data
