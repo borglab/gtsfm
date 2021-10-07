@@ -3,6 +3,7 @@
 Author: John Lambert
 """
 
+import argparse
 import glob
 import math
 from types import SimpleNamespace
@@ -120,14 +121,24 @@ def compute_population_statistics(fpaths: List[str]) -> Tuple[torch.Tensor, torc
 
 
 class SimpleData(Dataset):
-    def __init__(self, split: str, training_data_dirpath: str) -> None:
-        """ """
-        all_fpaths = glob.glob(f"{training_data_dirpath}/*.json")
-        all_fpaths.sort()
+    def __init__(self, split: str, train_data_dirpath: str, test_data_dirpath: str) -> None:
+        """
+        Args:
+            split
+            train_data_dirpath
+            test_data_dirpath
+        """
+        if test_data_dirpath is None:
+            # siphon off val split from training data
+            all_fpaths = glob.glob(f"{train_data_dirpath}/*.json")
+            all_fpaths.sort()
 
-        num_train_examples = math.ceil(len(all_fpaths) * TRAIN_PERCENT / 100)
-        train_fpaths = all_fpaths[:num_train_examples]
-        val_fpaths = all_fpaths[num_train_examples:]
+            num_train_examples = math.ceil(len(all_fpaths) * TRAIN_PERCENT / 100)
+            train_fpaths = all_fpaths[:num_train_examples]
+            val_fpaths = all_fpaths[num_train_examples:]
+        else:
+            train_fpaths = glob.glob(f"{train_data_dirpath}/*.json")
+            val_fpaths = glob.glob(f"{test_data_dirpath}/*.json")
 
         self.mean, self.std = compute_population_statistics(train_fpaths)
 
@@ -141,10 +152,10 @@ class SimpleData(Dataset):
 
         logger.info("%s has %d examples", split, len(self.fpaths))
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.fpaths)
 
-    def __getitem__(self, index: int):
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, int]:
         """ """
         fpath = self.fpaths[index]
         d = io_utils.read_json_file(fpath)
@@ -260,7 +271,7 @@ def poly_learning_rate(base_lr: float, curr_iter: int, max_iter: int, power: flo
 
 
 def run_epoch(
-    args: SimpleNamespace,
+    args: argparse.Namespace,
     epoch: int,
     model: nn.Module,
     use_gpu: bool,
@@ -328,8 +339,8 @@ def train(args: SimpleNamespace) -> None:
     use_gpu = torch.cuda.is_available()
 
     # read in the data
-    train_data = SimpleData("train", args.training_data_dirpath)
-    val_data = SimpleData("val", args.training_data_dirpath)
+    train_data = SimpleData("train", args.train_data_dirpath, args.test_data_dirpath)
+    val_data = SimpleData("val", args.train_data_dirpath, args.test_data_dirpath)
 
     train_loader = get_dataloader(train_data, args.batch_size, args.workers)
     val_loader = get_dataloader(val_data, args.batch_size, args.workers)
@@ -372,19 +383,28 @@ def train(args: SimpleNamespace) -> None:
 
 if __name__ == "__main__":
     """ """
-    args = SimpleNamespace(
-        **{
-            # training_data_dirpath = "/home/jlambert/gtsfm/skydio-501-cycle-error-training-data_lookahead3"
-            "training_data_dirpath": "/home/jlambert/gtsfm/skydio-501-cycle-error-training-data",
-            "base_lr": 1e-3,
-            "poly_lr_power": 0.9,
-            "momentum": None,
-            "weight_decay": 0.0001,
-            "optimizer_type": "adam",  # "sgd"
-            "batch_size": 256,
-            "num_epochs": 20,
-            "workers": 1,
-        }
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--train_data_dirpath",
+        type=str,
+        help="Path to train data dir.",
+        default="/home/jlambert/gtsfm/skydio-501-cycle-error-training-data",
     )
+    parser.add_argument(
+        "--test_data_dirpath",
+        type=str,
+        default=None,
+        help="Path to test data dir. If empty, will partition 20% from train instead.",
+    )
+    parser.add_argument("--base_lr", type=float, default=1e-3)
+    parser.add_argument("--poly_lr_power", type=float, default=0.9)
+    parser.add_argument("--momentum", type=float, default=None)
+    parser.add_argument("--weight_decay", type=float, default=0.0001)
+    parser.add_argument("--optimizer_type", type=str, choices=["adam", "sgd"], default="adam")
+    parser.add_argument("--batch_size", type=float, default=256)
+    parser.add_argument("--num_epochs", type=float, default=20)
+    parser.add_argument("--workers", type=float, default=1)
+
+    args = parser.parse_args()
     print(args)
     train(args)
