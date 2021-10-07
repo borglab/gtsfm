@@ -14,7 +14,7 @@ from gtsam import Cal3Bundler, EssentialMatrix, PinholeCameraCal3Bundler, Point3
 
 import gtsfm.utils.features as feature_utils
 import gtsfm.utils.geometry_comparisons as geom_comp_utils
-import gtsfm.utils.plane as plane_utils
+import gtsfm.utils.sampling as sampling_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.ransac import Ransac
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
@@ -298,8 +298,8 @@ def simulate_two_planes_scene(M: int, N: int) -> Tuple[Keypoints, Keypoints, Ess
     plane2_coeffs = (15, -2, -35, 200)
 
     # sample the points from planes
-    plane1_points = plane_utils.sample_points_on_plane(plane1_coeffs, range_x_coordinate, range_y_coordinate, M)
-    plane2_points = plane_utils.sample_points_on_plane(plane2_coeffs, range_x_coordinate, range_y_coordinate, N)
+    plane1_points = sampling_utils.sample_points_on_plane(plane1_coeffs, range_x_coordinate, range_y_coordinate, M)
+    plane2_points = sampling_utils.sample_points_on_plane(plane2_coeffs, range_x_coordinate, range_y_coordinate, N)
 
     points_3d = np.vstack((plane1_points, plane2_points))
 

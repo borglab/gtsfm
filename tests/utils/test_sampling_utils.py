@@ -1,4 +1,4 @@
-"""Unit test on utility for generating data on planar surfaces.
+"""Unit test on utility for sampling/generating data on planar surfaces.
 
 Authors: Ayush Baid, John Lambert
 """

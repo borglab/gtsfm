@@ -1,4 +1,4 @@
-"""Utilities for generating data on planar surfaces.
+"""Utilities for sampling/generating data on planar surfaces.
 
 Authors: Ayush Baid, John Lambert
 """
