@@ -5,6 +5,7 @@ Author: John Lambert
 
 import glob
 import math
+from types import SimpleNamespace
 from typing import List, Tuple
 
 import numpy as np
@@ -53,12 +54,16 @@ class SimpleModel(nn.Module):
         """ """
         super(SimpleModel, self).__init__()
         num_classes = 2
-        self.fc = nn.Linear(INTERP_FEATURE_DIM + 3, num_classes)
+        self.fc1 = nn.Linear(INTERP_FEATURE_DIM + 3, 256)
+        self.fc2 = nn.Linear(256, num_classes)
         self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """ """
-        return self.fc(x)
+        x = self.fc1(x)
+        x = self.relu(x)
+        x = self.fc2(x)
+        return x
 
 
 def create_fixed_length_feature(
@@ -69,6 +74,7 @@ def create_fixed_length_feature(
     """
     num_participating_cycles = len(edge_cycle_errors)
     edge_cycle_errors.sort()
+    # print("Edge cycle errors: ", edge_cycle_errors)
     edge_cycle_errors = torch.tensor(edge_cycle_errors)
     edge_cycle_errors = edge_cycle_errors.reshape(1, 1, -1)
     cycle_error_feat = torch.nn.functional.interpolate(input=edge_cycle_errors, size=INTERP_FEATURE_DIM, mode="linear")
@@ -120,8 +126,6 @@ class SimpleData(Dataset):
         all_fpaths.sort()
 
         num_train_examples = math.ceil(len(all_fpaths) * TRAIN_PERCENT / 100)
-        num_val_examples = math.ceil(len(all_fpaths) * VAL_PERCENT / 100)
-
         train_fpaths = all_fpaths[:num_train_examples]
         val_fpaths = all_fpaths[num_train_examples:]
 
@@ -147,6 +151,28 @@ class SimpleData(Dataset):
         feature = create_fixed_length_feature(
             d["edge_cycle_errors"], d["inlier_ratio_est_model"], d["num_inliers_est_model"]
         )
+
+        if self.split == "train":
+
+            if np.random.rand() < 0.5:
+                # on num edges
+                feature[-1] += 1
+
+            noise = torch.randn(8)
+            noise, _ = torch.sort(noise)
+            feature[:INTERP_FEATURE_DIM] += noise
+            feature[:INTERP_FEATURE_DIM] = torch.clamp(feature[:INTERP_FEATURE_DIM], min=0.01)
+
+            if np.random.rand() < 0.5:
+                noise = torch.zeros(1)
+                noise.uniform_(-0.03, 0.03)
+                # inlier ratio
+                feature[-3] += noise.squeeze()
+
+            if np.random.rand() < 0.5:
+                noise = torch.randint(low=-5, high=5, size=(1, 1))
+                # inliers
+                feature[-2] += noise.squeeze()
 
         # TODO: zero-center and normalize the data.
         feature = (feature - self.mean) / self.std
@@ -227,7 +253,14 @@ def test_compute_accuracy_all_incorrect() -> None:
     assert rec == 0
 
 
+def poly_learning_rate(base_lr: float, curr_iter: int, max_iter: int, power: float = 0.9) -> float:
+    """Polynomial-decay learning rate policy."""
+    lr = base_lr * (1 - float(curr_iter) / max_iter) ** power
+    return lr
+
+
 def run_epoch(
+    args: SimpleNamespace,
     epoch: int,
     model: nn.Module,
     use_gpu: bool,
@@ -236,8 +269,7 @@ def run_epoch(
     criterion,
     optimizer,
 ) -> None:
-    """ """
-
+    """Run all data for a single split through the network once."""
     f1_meter = AverageMeter("F1", ":.4e")
     prec_meter = AverageMeter("Precision", ":.4e")
     rec_meter = AverageMeter("Recall", ":.4e")
@@ -280,26 +312,27 @@ def run_epoch(
             loss.backward()
             optimizer.step()
 
+        max_iter = args.num_epochs * len(dataloader)
+        current_iter = epoch * len(dataloader) + iter + 1
 
-def train() -> None:
+        if split == "train":
+            # decay learning rate only during training
+            current_lr = poly_learning_rate(args.base_lr, current_iter, max_iter, power=args.poly_lr_power)
+
+            for param_group in optimizer.param_groups:
+                param_group["lr"] = current_lr
+
+
+def train(args: SimpleNamespace) -> None:
     """ """
     use_gpu = torch.cuda.is_available()
-    base_lr = 1e-3
-    momentum = ""
-    weight_decay = 0.0001
-    optimizer_type = "adam"  # "sgd"
-    batch_size = 16
-    num_epochs = 20
-    workers = 1
 
     # read in the data
-    training_data_dirpath = "/home/jlambert/gtsfm/skydio-501-cycle-error-training-data_lookahead3"
+    train_data = SimpleData("train", args.training_data_dirpath)
+    val_data = SimpleData("val", args.training_data_dirpath)
 
-    train_data = SimpleData("train", training_data_dirpath)
-    val_data = SimpleData("val", training_data_dirpath)
-
-    train_loader = get_dataloader(train_data, batch_size, workers)
-    val_loader = get_dataloader(val_data, batch_size, workers)
+    train_loader = get_dataloader(train_data, args.batch_size, args.workers)
+    val_loader = get_dataloader(val_data, args.batch_size, args.workers)
 
     model = SimpleModel()
     if use_gpu:
@@ -307,13 +340,16 @@ def train() -> None:
     criterion = nn.CrossEntropyLoss()
     if use_gpu:
         criterion = criterion.cuda()
-    if optimizer_type == "sgd":
-        optimizer = torch.optim.SGD(model.parameters(), base_lr, momentum=momentum, weight_decay=weight_decay)
-    elif optimizer_type == "adam":
-        optimizer = torch.optim.Adam(model.parameters(), lr=base_lr, weight_decay=weight_decay)
+    if args.optimizer_type == "sgd":
+        optimizer = torch.optim.SGD(
+            model.parameters(), args.base_lr, momentum=args.momentum, weight_decay=args.weight_decay
+        )
+    elif args.optimizer_type == "adam":
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.base_lr, weight_decay=args.weight_decay)
 
-    for epoch in range(num_epochs):
+    for epoch in range(args.num_epochs):
         run_epoch(
+            args,
             epoch,
             model=model,
             use_gpu=use_gpu,
@@ -323,6 +359,7 @@ def train() -> None:
             optimizer=optimizer,
         )
         run_epoch(
+            args,
             epoch,
             model=model,
             use_gpu=use_gpu,
@@ -332,11 +369,22 @@ def train() -> None:
             optimizer=optimizer,
         )
 
-    print("Linear classifier learned weights: ")
-    weight = model.fc.weight.detach().cpu().numpy()
-    print("Class 0 weights: ", np.round(weight[0], 2))
-    print("Class 1 weights: ", np.round(weight[1], 2))
-
 
 if __name__ == "__main__":
-    train()
+    """ """
+    args = SimpleNamespace(
+        **{
+            # training_data_dirpath = "/home/jlambert/gtsfm/skydio-501-cycle-error-training-data_lookahead3"
+            "training_data_dirpath": "/home/jlambert/gtsfm/skydio-501-cycle-error-training-data",
+            "base_lr": 1e-3,
+            "poly_lr_power": 0.9,
+            "momentum": None,
+            "weight_decay": 0.0001,
+            "optimizer_type": "adam",  # "sgd"
+            "batch_size": 256,
+            "num_epochs": 20,
+            "workers": 1,
+        }
+    )
+    print(args)
+    train(args)
