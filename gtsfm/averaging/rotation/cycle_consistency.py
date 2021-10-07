@@ -279,7 +279,9 @@ def filter_to_cycle_consistent_edges(
             "R_error_deg": two_view_reports_dict[(i1, i2)].R_error_deg
         }
         import gtsfm.utils.io as io_utils
-        io_utils.save_json_file(f"skydio-501-cycle-error-training-data/{i1}_{i2}.json", json_dict)
+        import os
+        os.makedirs("cycle-error-training-data", exist_ok=True)
+        io_utils.save_json_file(f"cycle-error-training-data/{i1}_{i2}.json", json_dict)
 
         if edge_acceptance_criterion == EdgeErrorAggregationCriterion.MIN_EDGE_ERROR:
             error_aggregate = np.amin(edge_cycle_errors)
