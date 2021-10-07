@@ -16,8 +16,11 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
+from gtsfm.frontend.verifier.homography import RansacHomographyEstimator
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
+
+import gtsfm.utils.homography_decomposition as homography_decomposition
 
 logger = logger_utils.get_logger()
 
@@ -26,6 +29,16 @@ mpl_logger.setLevel(logging.WARNING)
 
 pil_logger = logging.getLogger("PIL")
 pil_logger.setLevel(logging.INFO)
+
+# In case an epipolar geometry can be verified, it is checked whether
+# the geometry describes a planar scene or panoramic view (pure rotation)
+# described by a homography. This is a degenerate case, since epipolar
+# geometry is only defined for a moving camera. If the inlier ratio of
+# a homography comes close to the inlier ratio of the epipolar geometry,
+# a planar or panoramic configuration is assumed.
+# Based on COLMAP's front-end logic here:
+#    https://github.com/colmap/colmap/blob/dev/src/estimators/two_view_geometry.cc#L230
+MAX_H_INLIER_RATIO = 0.8
 
 EPSILON = 1e-6
 
@@ -54,6 +67,8 @@ class TwoViewEstimationReport:
     """
 
     v_corr_idxs: np.ndarray
+    num_H_inliers: int
+    H_inlier_ratio: float
     num_inliers_est_model: float
     inlier_ratio_est_model: Optional[float] = None  # TODO: make not optional (pass from verifier)
     num_inliers_gt_model: Optional[float] = None
@@ -88,6 +103,8 @@ class TwoViewEstimator:
         self._verifier = verifier
         self._corr_metric_dist_threshold = eval_threshold_px
         self._min_num_inliers_acceptance = min_num_inliers_acceptance
+        # Note: homography estimation threshold must match the E / F thresholds for #inliers to be comparable
+        self._homography_estimator = RansacHomographyEstimator(verifier._estimation_threshold_px)
 
     def get_corr_metric_dist_threshold(self) -> float:
         """Getter for the distance threshold used in the metric for correct correspondences."""
@@ -148,89 +165,185 @@ class TwoViewEstimator:
             camera_intrinsics_i2_graph,
         )
 
-        # if we have the expected GT data, evaluate the computed relative pose
-        if i2Ti1_expected_graph is not None:
-            pose_error_graphs = dask.delayed(compute_relative_pose_metrics)(
-                i2Ri1_graph, i2Ui1_graph, i2Ti1_expected_graph
-            )
-            corr_error_graph = dask.delayed(compute_correspondence_metrics)(
-                keypoints_i1_graph,
-                keypoints_i2_graph,
-                v_corr_idxs_graph,
-                camera_intrinsics_i1_graph,
-                camera_intrinsics_i2_graph,
-                i2Ti1_expected_graph,
-                self._corr_metric_dist_threshold,
-            )
-            num_inliers_gt_model, inlier_ratio_gt_model = corr_error_graph[0], corr_error_graph[1]
-        else:
-            pose_error_graphs = (None, None)
-            num_inliers_gt_model, inlier_ratio_gt_model = None, None
-
-        R_error_deg, U_error_deg = pose_error_graphs[0], pose_error_graphs[1]
+        H_graph, num_H_inliers, H_inlier_ratio, H_inlier_idxs = dask.delayed(
+            self._homography_estimator.estimate, nout=4
+        )(
+            keypoints_i1_graph,
+            keypoints_i2_graph,
+            match_indices=corr_idxs_graph,
+        )
 
         two_view_report_graph = dask.delayed(generate_two_view_report)(
             inlier_ratio_est_model,
-            R_error_deg,
-            U_error_deg,
-            num_inliers_gt_model,
-            inlier_ratio_gt_model,
             v_corr_idxs_graph,
+            num_H_inliers,
+            H_inlier_ratio,
         )
 
-        result = dask.delayed(self.check_for_degeneracy)(
-            two_view_report_graph, i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph
+        i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph = dask.delayed(check_for_degeneracy, nout=4)(
+            self._min_num_inliers_acceptance,
+            H_graph,
+            camera_intrinsics_i1_graph,
+            camera_intrinsics_i2_graph,
+            two_view_report_graph,
+            i2Ri1_graph,
+            i2Ui1_graph,
+            v_corr_idxs_graph,
+            keypoints_i1_graph,
+            keypoints_i2_graph,
+            corr_idxs_graph,
+            H_inlier_idxs,
         )
-        i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph = result[0], result[1], result[2], result[3]
+
+        # if we have the expected GT data, evaluate the computed relative pose
+        if i2Ti1_expected_graph is not None:
+            two_view_report_graph = dask.delayed(self.add_metrics_wrt_gt_to_report)(
+                two_view_report_graph,
+                i2Ri1_graph,
+                i2Ui1_graph,
+                keypoints_i1_graph,
+                keypoints_i2_graph,
+                camera_intrinsics_i1_graph,
+                camera_intrinsics_i2_graph,
+                v_corr_idxs_graph,
+                i2Ti1_expected_graph,
+            )
 
         return (i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph)
 
-    def check_for_degeneracy(
+    def add_metrics_wrt_gt_to_report(
         self,
         two_view_report: TwoViewEstimationReport,
-        i2Ri1: Optional[Rot3],
-        i2Ui1: Optional[Unit3],
-        v_corr_idxs: np.ndarray,
-    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
+        i2Ri1: Rot3,
+        i2Ui1: Unit3,
+        keypoints_i1: Keypoints,
+        keypoints_i2: Keypoints,
+        camera_intrinsics_i1: Cal3Bundler,
+        camera_intrinsics_i2: Cal3Bundler,
+        v_corr_idxs,
+        i2Ti1_expected: Optional[Pose3],
+    ) -> TwoViewEstimationReport:
         """ """
-        insufficient_inliers = two_view_report.num_inliers_est_model < self._min_num_inliers_acceptance
 
-        # TODO: technically this should almost always be non-zero, just need to move up to earlier
-        valid_model = two_view_report.num_inliers_est_model > 0
+        R_error_deg, U_error_deg = compute_relative_pose_metrics(i2Ri1, i2Ui1, i2Ti1_expected)
+        num_inliers_gt_model, inlier_ratio_gt_model = compute_correspondence_metrics(
+            keypoints_i1,
+            keypoints_i2,
+            v_corr_idxs,
+            camera_intrinsics_i1,
+            camera_intrinsics_i2,
+            i2Ti1_expected,
+            self._corr_metric_dist_threshold,
+        )
 
-        if valid_model and insufficient_inliers:
-            logger.info("Insufficient number of inliers.")
+        two_view_report.R_error_deg = R_error_deg
+        two_view_report.U_error_deg = U_error_deg
+        two_view_report.num_inliers_gt_model = num_inliers_gt_model
+        two_view_report.inlier_ratio_gt_model = inlier_ratio_gt_model
 
-            i2Ri1 = None
-            i2Ui1 = None
-            v_corr_idxs = np.array([], dtype=np.uint64)
-            # remove mention of errors in the report
-            two_view_report.R_error_deg = None
-            two_view_report.U_error_deg = None
+        return two_view_report
 
-        two_view_report.i2Ri1 = i2Ri1
-        two_view_report.i2Ui1 = i2Ui1
 
+def check_for_degeneracy(
+    min_num_inliers_acceptance: int,
+    H: np.ndarray,
+    camera_intrinsics_i1: Cal3Bundler,
+    camera_intrinsics_i2: Cal3Bundler,
+    two_view_report: TwoViewEstimationReport,
+    i2Ri1: Optional[Rot3],
+    i2Ui1: Optional[Unit3],
+    v_corr_idxs: np.ndarray,
+    keypoints_i1: Keypoints,
+    keypoints_i2: Keypoints,
+    corr_idxs: np.ndarray,
+    H_inlier_idxs: np.ndarray,
+) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
+    """GRIC-based multiple model checking.
+
+    http://cmp.felk.cvut.cz/cmp/events/_colloquia/colloquium-2002-04-04/torr.pdf
+    https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.34.3878&rep=rep1&type=pdf
+
+    See https://github.com/colmap/colmap/blob/dev/src/estimators/two_view_geometry.cc#L230
+
+    Args:
+        min_num_inliers_acceptance: the minimum number of inliers required to accept image pair.
+        H: array of shape (3,3) representing homography matrix.
+        camera_intrinsics_i1: camera intrinsics for camera i1.
+        camera_intrinsics_i2: camera intrinsics for camera i2.
+        two_view_report:
+        i2Ri1: estimated relative rotation.
+        i2Ui1: estimated relative translation direction.
+        v_corr_idxs: verified correspondence indices, as reported by the estimated E or F matrix.
+        keypoints_i1: detected features in image #i1.
+        keypoints_i2: detected features in image #i2.
+        corr_idxs: keypoint matches.
+        H_inlier_idxs:
+    """
+    insufficient_inliers = two_view_report.num_inliers_est_model < min_num_inliers_acceptance
+    valid_model = two_view_report.num_inliers_est_model > 0
+
+    if not valid_model or insufficient_inliers:
+        # TODO(johnwlambert): also try fitting a homography immediately and check for minimum number of inliers to H.
+        logger.info(
+            "Degenerate: insufficient number of inliers %d < %d.",
+            two_view_report.num_inliers_est_model,
+            min_num_inliers_acceptance,
+        )
+        i2Ri1 = None
+        i2Ui1 = None
+        v_corr_idxs = np.array([], dtype=np.uint64)
+        # remove mention of errors in the report, as pair will be discarded
+        two_view_report.R_error_deg = None
+        two_view_report.U_error_deg = None
         return i2Ri1, i2Ui1, v_corr_idxs, two_view_report
+
+    H_EF_inlier_ratio = two_view_report.num_H_inliers / (two_view_report.num_inliers_est_model + EPSILON)
+    is_planar_or_panoramic = H_EF_inlier_ratio > MAX_H_INLIER_RATIO
+    logger.info("H_EF_inlier_ratio: %.2f", H_EF_inlier_ratio)
+
+    if is_planar_or_panoramic:
+        logger.info("Planar or panoramic; pose will be extracted from decomposed homography.")
+        h_corr_idxs = corr_idxs[H_inlier_idxs]
+        # TODO(johnwlambert): count number of inliers for homography, and check against threshold.
+        logger.info("Homography had %d inliers.", len(h_corr_idxs))
+
+        # discard normal vector and 3d triangulated points
+        i2Ri1, i2Ui1, _, _ = homography_decomposition.pose_from_homography_matrix(
+            H=H,
+            camera_intrinsics_i1=camera_intrinsics_i1,
+            camera_intrinsics_i2=camera_intrinsics_i2,
+            points1=keypoints_i1.coordinates[h_corr_idxs[:, 0]],
+            points2=keypoints_i2.coordinates[h_corr_idxs[:, 1]],
+        )
+        two_view_report.v_corr_idxs = h_corr_idxs
+        v_corr_idxs = h_corr_idxs
+
+    two_view_report.i2Ri1 = i2Ri1
+    two_view_report.i2Ui1 = i2Ui1
+
+    return i2Ri1, i2Ui1, v_corr_idxs, two_view_report
 
 
 def generate_two_view_report(
     inlier_ratio_est_model: float,
-    R_error_deg: float,
-    U_error_deg: float,
-    num_inliers_gt_model: int,
-    inlier_ratio_gt_model: float,
     v_corr_idxs: np.ndarray,
+    num_H_inliers: int,
+    H_inlier_ratio: float,
 ) -> TwoViewEstimationReport:
-    """Wrapper around class constructor for Dask."""
+    """Wrapper around class constructor for Dask.
+
+    Note: the following 4 fields are initially set to None, and then updated later if GT is available.
+        R_error_deg
+        U_error_deg
+        num_inliers_gt_model
+        inlier_ratio_gt_model
+    """
     two_view_report = TwoViewEstimationReport(
         inlier_ratio_est_model=inlier_ratio_est_model,
         num_inliers_est_model=v_corr_idxs.shape[0],
-        num_inliers_gt_model=num_inliers_gt_model,
-        inlier_ratio_gt_model=inlier_ratio_gt_model,
         v_corr_idxs=v_corr_idxs,
-        R_error_deg=R_error_deg,
-        U_error_deg=U_error_deg,
+        num_H_inliers=num_H_inliers,
+        H_inlier_ratio=H_inlier_ratio,
     )
     return two_view_report
 
