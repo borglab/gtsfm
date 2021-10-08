@@ -72,7 +72,7 @@ def view_scene(args: argparse.Namespace) -> None:
     if args.rendering_library == "open3d":
         draw_scene_open3d(point_cloud, rgb, wTi_list, calibrations, args)
     # elif args.rendering_library == "mayavi":
-    #    draw_scene_mayavi(point_cloud, rgb, wTi_list, calibrations, args)
+    #     draw_scene_mayavi(point_cloud, rgb, wTi_list, calibrations, args)
     else:
         raise RuntimeError("Unsupported rendering library")
 
@@ -83,7 +83,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--rendering_library",
         type=str,
-        default="mayavi",
+        default="open3d",
         choices=["mayavi", "open3d"],
         help="3d rendering library to use.",
     )
@@ -97,7 +97,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--point_rendering_mode",
         type=str,
-        default="sphere",
+        default="point",
         choices=["point", "sphere"],
         help="Render each 3d point as a `point` (optimized in Open3d) or `sphere` (optimized in Mayavi).",
     )
