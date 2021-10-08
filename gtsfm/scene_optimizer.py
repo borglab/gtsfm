@@ -104,8 +104,8 @@ class SceneOptimizer:
         camera_intrinsics_graph: List[Delayed],
         image_shape_graph: List[Delayed],
         gt_pose_graph: Optional[List[Delayed]] = None,
-        gt_scene_mesh: Optional[trimesh.Trimesh] = None,
         gt_cameras_graph: Optional[List[Delayed]] = None,
+        gt_scene_mesh: Optional[trimesh.Trimesh] = None,
     ) -> Delayed:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
 
