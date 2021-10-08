@@ -103,8 +103,8 @@ class SceneOptimizer:
         image_graph: List[Delayed],
         camera_intrinsics_graph: List[Delayed],
         image_shape_graph: List[Delayed],
-        gt_pose_graph: Optional[List[Delayed]] = None,
         gt_cameras_graph: Optional[List[Delayed]] = None,
+        gt_pose_graph: Optional[List[Delayed]] = None,
         gt_scene_mesh: Optional[trimesh.Trimesh] = None,
     ) -> Delayed:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
@@ -130,14 +130,19 @@ class SceneOptimizer:
         two_view_reports_dict = {}
 
         for (i1, i2) in image_pair_indices:
+            # Compute ground truth relative pose is available.
             if gt_cameras_graph is not None:
-                # compute GT relative pose
                 gt_i2Ti1 = dask.delayed(lambda x, y: x.pose().between(y.pose()))(
                     gt_cameras_graph[i2], gt_cameras_graph[i1]
                 )
             else:
                 gt_i2Ti1 = None
 
+            # Collect ground truth absolute poses if available.
+            gt_pose_i1 = gt_pose_graph[i1] if gt_pose_graph is not None else None
+            gt_pose_i2 = gt_pose_graph[i2] if gt_pose_graph is not None else None
+
+            # Compute relative rotations, (unit) translation, and verified correspondences.
             (i2Ri1, i2Ui1, v_corr_idxs, two_view_report,) = self.two_view_estimator.create_computation_graph(
                 keypoints_graph_list[i1],
                 keypoints_graph_list[i2],
@@ -148,17 +153,18 @@ class SceneOptimizer:
                 image_shape_graph[i1],
                 image_shape_graph[i2],
                 gt_i2Ti1,
-                gt_pose_graph[i1],
-                gt_pose_graph[i2],
+                gt_pose_i1,
+                gt_pose_i2,
                 gt_scene_mesh,
             )
 
+            # Store results.
             i2Ri1_graph_dict[(i1, i2)] = i2Ri1
             i2Ui1_graph_dict[(i1, i2)] = i2Ui1
             v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
-
             two_view_reports_dict[(i1, i2)] = two_view_report
 
+            # Visualize verified two-view correspondnces.
             if self._save_two_view_correspondences_viz:
                 auxiliary_graph_list.append(
                     dask.delayed(viz_utils.save_twoview_correspondences_viz)(
