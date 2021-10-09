@@ -157,11 +157,11 @@ class SceneOptimizer:
             v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
             two_view_reports_dict[(i1, i2)] = two_view_report
 
-            # Use ground truth relative poses.
-            from gtsam import Unit3
+            # # Use ground truth relative poses.
+            # from gtsam import Unit3
 
-            i2Ri1_graph_dict[(i1, i2)] = gt_i2Ti1.rotation()
-            i2Ui1_graph_dict[(i1, i2)] = dask.delayed(lambda x: Unit3(np.array([x.x(), x.y(), x.z()])))(gt_i2Ti1)
+            # i2Ri1_graph_dict[(i1, i2)] = gt_i2Ti1.rotation()
+            # i2Ui1_graph_dict[(i1, i2)] = dask.delayed(lambda x: Unit3(np.array([x.x(), x.y(), x.z()])))(gt_i2Ti1)
 
             # Visualize verified two-view correspondnces.
             if self._save_two_view_correspondences_viz:
