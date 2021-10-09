@@ -6,12 +6,12 @@ from typing import Dict, Tuple
 import unittest
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack, Similarity3
-from gtsfm.utils.ellipsoid import get_ortho_axis_alignment_transform
 
 import numpy as np
 import numpy.testing as npt
 
 import gtsfm.utils.ellipsoid as ellipsoid_utils
+from scipy.io import loadmat
 
 
 class TestEllipsoidUtils(unittest.TestCase):
@@ -71,7 +71,7 @@ class TestEllipsoidUtils(unittest.TestCase):
             sample_data.add_track(SfmTrack(pt_3d))
 
         # Apply alignment transformation to sample_data
-        walignedTw = get_ortho_axis_alignment_transform(sample_data)
+        walignedTw = ellipsoid_utils.get_ortho_axis_alignment_transform(sample_data)
         walignedTw = Similarity3(R=walignedTw.rotation(), t=walignedTw.translation(), s=1.0)
         sample_data = sample_data.apply_Sim3(walignedTw)
 
@@ -109,47 +109,18 @@ class TestEllipsoidUtils(unittest.TestCase):
 
         sample_data = GtsfmData(number_images=12)
 
-        # fmt: off
-        camera_rotations = np.array(
-            [
-                [0.9999998447593831, 1.1417402647582947e-05, -0.0005560104530481775, 3.468759506231243e-05],
-                [0.9995136351774726, 0.001828651147351114, -0.03008309804543026, 0.008009765370116636],
-                [0.9970874902147401, 0.018252605499050226, -0.07262460477616217, 0.014458424218177786],
-                [0.9936952358054102, 0.014015743345306576, -0.10906395003410695, 0.02187217591065432],
-                [0.989329890103814, -0.0010530184030079614, -0.142189654679541, 0.03173896346025128],
-                [0.9833849860715913, -0.0014030690202723683, -0.17862108789671424, 0.03234976854469622],
-                [0.9774833274265902, -0.00378574949023753, -0.20836133309086646, 0.033129557444009895],
-                [0.9704083254046114, -0.010793591066242695, -0.23833905440090336, 0.03722466285401185],
-                [0.960600358539938, -0.012504596462849266, -0.274638208916899, 0.04079755437720905],
-                [0.953733866739889, -0.00860199538166799, -0.2955277491681979, 0.05459914450256389],
-                [0.9493214986564442, -0.014695628398273269, -0.31101388206318636, 0.04293129230117615],
-                [0.9399839877935723, -0.012027558186297983, -0.3359345325083303, 0.0585954810900816]
-            ]
-        )
+        # Read all 12 camera poses /data/set1_lund_door folder.
+        data = loadmat("../data/set1_lund_door/data.mat")
+        M_list = [data["P"][0][i] for i in range(12)]
+        K = M_list[0][:3, :3]
+        Kinv = np.linalg.inv(K)
+        iTw_list = [Kinv @ M_list[i] for i in range(12)]
+        wTi_list = [Pose3(Rot3(iTw[:3, :3]), iTw[:, 3]).inverse() for iTw in iTw_list]
 
-        camera_translations = np.array(
-            [
-                [0.008800121152611574, 0.0007141263181849019, 0.002817403334051625],
-                [0.8300887912277424, 0.01410277633103259, -0.06030205404378542],
-                [1.7306949813194408, 0.021258565393368827, -0.18892067817191444],
-                [2.6910414872549824, 0.07414836494892013, -0.07548834659649717],
-                [3.6941764033802267, 0.09544270661110316, 0.01676263485115892],
-                [4.673843209495996, 0.07539611837657942, 0.23840610902768944],
-                [5.402559601223315, 0.026358515716331174, 0.4586402355996675],
-                [6.31333070240205, 0.022871515711057763, 0.6857086248655833],
-                [6.923886545179155, 0.06808805928475041, 1.1473408960868587],
-                [7.530518308816488, 0.28808544158440896, 1.4819172717072404],
-                [8.028592490458774, 0.08865620551543868, 1.7179844667998094],
-                [8.476132976532003, 0.32905651920076096, 2.1255119615808105]
-            ]
-        )
-        # fmt: on
-
-        # Add 12 camera frustums to sample_data
+        # Add 12 camera frustums to sample_data.
         default_intrinsics = Cal3Bundler(fx=100, k1=0, k2=0, u0=0, v0=0)
-        for idx, (rotation, translation) in enumerate(zip(camera_rotations, camera_translations)):
-            qw, qx, qy, qz = rotation
-            camera = PinholeCameraCal3Bundler(Pose3(Rot3(qw, qx, qy, qz), translation), default_intrinsics)
+        for idx, pose in enumerate(wTi_list):
+            camera = PinholeCameraCal3Bundler(pose, default_intrinsics)
             sample_data.add_camera(idx, camera)
 
         # fmt: off
@@ -170,15 +141,18 @@ class TestEllipsoidUtils(unittest.TestCase):
         )
         # fmt: on
 
-        # Add 11 point cloud points to sample_data
+        # Add all point cloud points to sample_data
         for point_3d in points_3d:
             sample_data.add_track(SfmTrack(point_3d))
 
-        initial_points_3d = np.concatenate((camera_translations, points_3d), axis=0)  # (23, 3)
-        initial_relative_distances = self.compute_relative_distances(initial_points_3d)
+        camera_translations = np.array([pose.translation() for pose in sample_data.get_camera_poses()])
+        initial_relative_distances = self.compute_relative_distances(camera_translations, points_3d)
+        # np.save("original_point_cloud", points_3d)
+        # np.save("original_camera_centers", camera_translations)
+        # np.save("initial_relative_distances", initial_relative_distances)
 
         # Apply alignment transformation to sample_data
-        walignedTw = get_ortho_axis_alignment_transform(sample_data)
+        walignedTw = ellipsoid_utils.get_ortho_axis_alignment_transform(sample_data)
         walignedTw = Similarity3(R=walignedTw.rotation(), t=walignedTw.translation(), s=1.0)
         sample_data = sample_data.apply_Sim3(walignedTw)
 
@@ -187,41 +161,47 @@ class TestEllipsoidUtils(unittest.TestCase):
         transformed_points_3d = [np.array(sample_data.get_track(i).point3()) for i in range(num_tracks)]
         transformed_points_3d = np.array(transformed_points_3d)
         transformed_camera_translations = np.array([pose.translation() for pose in sample_data.get_camera_poses()])
-        transformed_points_3d = np.concatenate(
-            (transformed_camera_translations, transformed_points_3d), axis=0
-        )  # shape (23,3)
 
-        final_relative_distances = self.compute_relative_distances(transformed_points_3d)
+        final_relative_distances = self.compute_relative_distances(
+            transformed_camera_translations, transformed_points_3d
+        )
+        # np.save("transformed_point_cloud", transformed_points_3d)
+        # np.save("transformed_camera_centers", transformed_camera_translations)
+        # np.save("transformed_relative_distances", final_relative_distances)
 
-        # Determine if all relative distances remain the same after alignment transformation
-        for index_pair in initial_relative_distances.keys():
-            initial_distance = initial_relative_distances[index_pair]
-            final_distance = final_relative_distances[index_pair]
+        npt.assert_almost_equal(final_relative_distances, initial_relative_distances, decimal=6)
 
-            npt.assert_almost_equal(initial_distance, final_distance, decimal=6)
-
-    def compute_relative_distances(self, all_points_3d: np.ndarray) -> Dict[Tuple[int, int], float]:
-        """Computes the relative distances between all possible pairs of points in all_points_3d and returns a
-        dictionary containing all the relative distance information.
+    def compute_relative_distances(
+        self, camera_translations: np.ndarray, points_3d: np.ndarray
+    ) -> Dict[Tuple[int, int], float]:
+        """Computes the relative distances between every camera frustum and every point in the point cloud.
+        Let M be the number of cameras and N be the number of point cloud points.
 
         Args:
-            all_points_3d: collection of points, shape (N,3).
+            camera_translations: camera center coordinates, shape (M,3).
+            points_3d: points in the point cloud, shape (N,3).
 
         Returns:
-            Dictionary storing the relative distances between all possible pairs of points.
+            Array containing relative distances between each camera center to every point in the point cloud,
+            shape (M, N).
 
         Raises:
             TypeError: if collection of points is not of shape (N,3).
         """
-        if all_points_3d.shape[1] != 3:
+        if camera_translations.shape[1] != 3 or points_3d.shape[1] != 3:
             raise TypeError("Points should be 3 dimensional")
 
-        relative_distances = {}
-        N = all_points_3d.shape[0]
+        M = camera_translations.shape[0]
+        N = points_3d.shape[0]
 
-        for i in range(0, N):
-            for j in range(i + 1, N):
-                relative_distances[(i, j)] = np.linalg.norm(all_points_3d[i, :] - all_points_3d[j, :])
+        relative_distances = np.zeros((M, N))
+
+        for camera_index in range(0, M):
+            for point_index in range(0, N):
+                camera_center = camera_translations[camera_index, :]
+                point = points_3d[point_index, :]
+
+                relative_distances[camera_index, point_index] = np.linalg.norm(point - camera_center)
 
         return relative_distances
 
