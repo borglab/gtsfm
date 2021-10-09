@@ -39,13 +39,14 @@ jobs:
         with:
           path: ~/conda_pkgs_dir
           key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('environment_linux.yml') }}
-      - name: Cache frontend 
+      - name: Cache frontend
         uses: actions/cache@v2
         env:
+          # Increase this value to reset cache
           CACHE_NUMBER: 0
         with:
-          # Increase this value to reset cache
           path: cache
+          key: ${{ matrix.config_dataset_info }}
       - uses: conda-incubator/setup-miniconda@v2
         with:
           miniconda-version: "latest"
