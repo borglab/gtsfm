@@ -3,6 +3,7 @@
 Authors: Ayush Baid
 """
 import pickle
+from bz2 import BZ2File
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -27,10 +28,9 @@ class DetectorDescriptorCacher(DetectorDescriptorBase):
         self._detector_descriptor = detector_descriptor_obj
         # TODO: make the obj cache key dependent on the code
         self._detector_descriptor_obj_cache_key = type(self._detector_descriptor).__name__
-        logger.info(self._detector_descriptor_obj_cache_key)
 
     def __get_cache_path(self, cache_key: str) -> Path:
-        return CACHE_ROOT_PATH / "detector_descriptor" / "{}.pkl".format(cache_key)
+        return CACHE_ROOT_PATH / "detector_descriptor" / "{}.pbz2".format(cache_key)
 
     def __get_cache_key(self, image: Image) -> str:
         input_key = cache_utils.generate_hash_for_image(image)
@@ -42,7 +42,7 @@ class DetectorDescriptorCacher(DetectorDescriptorBase):
         if not cache_path.exists():
             return None
 
-        cached_data = pickle.load(open(cache_path, "rb"))
+        cached_data = pickle.load(BZ2File(cache_path, "rb"))
 
         return cached_data["keypoints"], cached_data["descriptors"]
 
@@ -53,7 +53,7 @@ class DetectorDescriptorCacher(DetectorDescriptorBase):
 
         cached_data = {"keypoints": keypoints, "descriptors": descriptors}
 
-        pickle.dump(cached_data, open(cache_path, "wb"))
+        pickle.dump(cached_data, BZ2File(cache_path, "wb"))
 
     def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
         cached_data = self.__load_result_from_cache(image)
