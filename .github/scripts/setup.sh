@@ -26,3 +26,10 @@ pip install -e .
 
 cd $GITHUB_WORKSPACE
 ./download_model_weights.sh
+
+##########################################################
+# Download the front-end cache (temporary)
+##########################################################
+wget https://github.com/ayushbaid/gtsfm-cache/archive/main.zip
+unzip main.zip 
+mv gtsfm-cache-main cache

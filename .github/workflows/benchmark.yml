@@ -39,6 +39,13 @@ jobs:
         with:
           path: ~/conda_pkgs_dir
           key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('environment_linux.yml') }}
+      - name: Cache frontend 
+        uses: actions/cache@v2
+        env:
+          CACHE_NUMBER: 0
+        with:
+          # Increase this value to reset cache
+          path: cache
       - uses: conda-incubator/setup-miniconda@v2
         with:
           miniconda-version: "latest"
@@ -82,10 +89,3 @@ jobs:
             result_metrics
             plots
             results
-
-      - name: Archive frontend cache
-        uses: actions/upload-artifact@v2
-        with:
-          name: cache-${{ matrix.config_dataset_info }}.zip
-          path: |
-            cache
