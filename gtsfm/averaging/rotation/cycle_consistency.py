@@ -9,6 +9,7 @@ Author: John Lambert
 
 import os
 from collections import defaultdict
+from enum import Enum
 from typing import DefaultDict, Dict, List, Optional, Set, Tuple
 
 import matplotlib.pyplot as plt
@@ -25,9 +26,26 @@ from gtsfm.two_view_estimator import TwoViewEstimationReport
 logger = logger_utils.get_logger()
 
 
-CYCLE_ERROR_THRESHOLD = 5.0
+CYCLE_ERROR_THRESHOLD = 7.0
 
 MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
+
+
+class EdgeErrorAggregationCriterion(str, Enum):
+    """Aggregate cycle errors over each edge by choosing one of the following summary statistics:
+
+    MIN: Choose the mininum cycle error of all cyles this edge appears in. An edge that appears in ANY cycle
+        with low error is accepted. High recall, but can have low precision, as false positives can enter
+        (error was randomly cancelled out by another error, meaning accepted).
+    MEDIAN: Choose the median cycle error. robust summary statistic. At least half of the time, this edge
+        appears in a good cycle (i.e. of low error). Note: preferred over mean, which is not robust to outliers.
+
+    Note: all summary statistics will be compared with an allowed upper bound/threshold. If they exceed the
+    upper bound, they will be rejected.
+    """
+
+    MIN_EDGE_ERROR = "MIN_EDGE_ERROR"
+    MEDIAN_EDGE_ERROR = "MEDIAN_EDGE_ERROR"
 
 
 def extract_triplets(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int, int, int]]:
@@ -102,7 +120,7 @@ def compute_cycle_error(
     i2Ri1_dict: Dict[Tuple[int, int], Rot3],
     cycle_nodes: Tuple[int, int, int],
     two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
-    verbose: bool = True,
+    verbose: bool = False,
 ) -> Tuple[float, Optional[float], Optional[float]]:
     """Compute the cycle error by the magnitude of the axis-angle rotation after composing 3 rotations.
 
@@ -183,6 +201,7 @@ def filter_to_cycle_consistent_edges(
     i2Ui1_dict: Dict[Tuple[int, int], Unit3],
     v_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
     two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
+    edge_acceptance_criterion: EdgeErrorAggregationCriterion = EdgeErrorAggregationCriterion.MIN_EDGE_ERROR,
     visualize: bool = True,
 ) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3], GtsfmMetricsGroup]:
     """Remove edges in a graph where concatenated transformations along a 3-cycle does not compose to identity.
@@ -191,6 +210,9 @@ def filter_to_cycle_consistent_edges(
 
     Concatenating the transformations along a loop in the graph should return the identity function in an
     ideal, noise-free setting.
+
+    This can be implemented by immediately accepting all edges in the cycle if cycle error below a threshold,
+    or assigning that error to each edge, and choosing the minimum (equivalent) / median / mean.
 
     Based off of:
         https://github.com/sweeneychris/TheiaSfM/blob/master/src/theia/sfm/filter_view_graph_cycles_by_rotation.cc
@@ -220,41 +242,79 @@ def filter_to_cycle_consistent_edges(
     """
     cycle_errors = []
     max_rot_errors = []
-    max_trans_errors = []
 
     n_valid_edges = len([i2Ri1 for (i1, i2), i2Ri1 in i2Ri1_dict.items() if i2Ri1 is not None])
 
     # (i1,i2) pairs
     cycle_consistent_keys = set()
 
+    per_edge_errors = defaultdict(list)
+
     triplets = extract_triplets(i2Ri1_dict)
 
     for (i0, i1, i2) in triplets:
-        cycle_error, max_rot_error, max_trans_error = compute_cycle_error(
-            i2Ri1_dict, (i0, i1, i2), two_view_reports_dict
-        )
-
-        if cycle_error < CYCLE_ERROR_THRESHOLD:
-            # since i0 < i1 < i2 by construction, we preserve the property `a < b` for each edge (a,b)
-            cycle_consistent_keys.add((i0, i1))
-            cycle_consistent_keys.add((i1, i2))
-            cycle_consistent_keys.add((i0, i2))
+        cycle_error, max_rot_error, _ = compute_cycle_error(i2Ri1_dict, (i0, i1, i2), two_view_reports_dict)
+        # since i0 < i1 < i2 by construction, we preserve the property `a < b` for each edge (a,b)
+        per_edge_errors[(i0, i1)].append(cycle_error)
+        per_edge_errors[(i1, i2)].append(cycle_error)
+        per_edge_errors[(i0, i2)].append(cycle_error)
 
         cycle_errors.append(cycle_error)
         max_rot_errors.append(max_rot_error)
-        max_trans_errors.append(max_trans_error)
+
+    inlier_errors_aggregate = []
+    inlier_errors_wrt_gt = []
+
+    outlier_errors_aggregate = []
+    outlier_errors_wrt_gt = []
+
+    plt.close("all")
+    # aggregate info over per edge_errors
+    for (i1, i2), edge_cycle_errors in per_edge_errors.items():
+        if edge_acceptance_criterion == EdgeErrorAggregationCriterion.MIN_EDGE_ERROR:
+            error_aggregate = np.amin(edge_cycle_errors)
+
+        elif edge_acceptance_criterion == EdgeErrorAggregationCriterion.MEDIAN_EDGE_ERROR:
+            error_aggregate = np.median(edge_cycle_errors)
+
+        if error_aggregate < CYCLE_ERROR_THRESHOLD:
+            cycle_consistent_keys.add((i1, i2))
+            inlier_errors_aggregate.append(error_aggregate)
+            inlier_errors_wrt_gt.append(two_view_reports_dict[(i1, i2)].R_error_deg)
+        else:
+            outlier_errors_aggregate.append(error_aggregate)
+            outlier_errors_wrt_gt.append(two_view_reports_dict[(i1, i2)].R_error_deg)
 
     if visualize:
+        plt.scatter(
+            inlier_errors_aggregate,
+            inlier_errors_wrt_gt,
+            10,
+            color="g",
+            marker=".",
+            label=f"outliers @ {CYCLE_ERROR_THRESHOLD} deg.",
+        )
+        plt.scatter(
+            outlier_errors_aggregate,
+            outlier_errors_wrt_gt,
+            10,
+            color="r",
+            marker=".",
+            label=f"inliers @ {CYCLE_ERROR_THRESHOLD} deg.",
+        )
+        plt.xlabel(f"{edge_acceptance_criterion} cycle error")
+        plt.ylabel("Rotation error w.r.t GT")
+        plt.axis("equal")
+        plt.legend(loc="lower right")
+        plt.savefig(os.path.join("plots", f"gt_err_vs_{edge_acceptance_criterion}_agg_error.jpg"), dpi=400)
+        plt.close("all")
+
         plt.scatter(cycle_errors, max_rot_errors)
         plt.xlabel("Cycle error")
         plt.ylabel("Avg. Rot3 error over cycle triplet")
-        plt.savefig(os.path.join("plots", "cycle_error_vs_GT_rot_error.jpg"), dpi=200)
+        plt.axis("equal")
+        plt.savefig(os.path.join("plots", "cycle_error_vs_GT_rot_error.jpg"), dpi=400)
         plt.close("all")
-
-        plt.scatter(cycle_errors, max_trans_errors)
-        plt.xlabel("Cycle error")
-        plt.ylabel("Avg. Unit3 error over cycle triplet")
-        plt.savefig(os.path.join("plots", "cycle_error_vs_GT_trans_error.jpg"), dpi=200)
 
     logger.info("cycle_consistent_keys: " + str(cycle_consistent_keys))
 
