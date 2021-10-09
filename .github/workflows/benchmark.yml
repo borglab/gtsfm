@@ -82,3 +82,10 @@ jobs:
             result_metrics
             plots
             results
+
+      - name: Archive frontend cache
+        uses: actions/upload-artifact@v2
+        with:
+          name: cache-${{ matrix.config_dataset_info }}.zip
+          path: |
+            cache
