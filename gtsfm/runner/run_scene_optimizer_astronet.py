@@ -49,6 +49,8 @@ class GtsfmRunnerAstronetLoader(GtsfmRunnerBase):
         return loader
 
     def run(self) -> None:
+        """Run Structure-from-Motion (SfM) pipeline."""
+        # Prepare computation graph.
         start_time = time.time()
         sfm_result_graph = self.scene_optimizer.create_computation_graph(
             num_images=len(self.loader),
@@ -60,11 +62,12 @@ class GtsfmRunnerAstronetLoader(GtsfmRunnerBase):
             gt_scene_mesh=self.loader.gt_scene_trimesh,
         )
 
-        # create dask client
+        # Create dask client.
         cluster = LocalCluster(
             n_workers=self.parsed_args.num_workers, threads_per_worker=self.parsed_args.threads_per_worker
         )
 
+        # Run SfM pipeline.
         with Client(cluster), performance_report(filename="dask-report.html"):
             sfm_result = sfm_result_graph.compute()
         assert isinstance(sfm_result, GtsfmData)
