@@ -2,7 +2,6 @@
 
 Authors: Ayush Baid, John Lambert
 """
-from gtsfm.common.gtsfm_data import GtsfmData
 import logging
 import os
 from pathlib import Path
@@ -10,11 +9,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import dask
 import matplotlib
-from gtsam import Pose3, Similarity3
-
-matplotlib.use("Agg")
-
+import numpy as np
 import trimesh
+from gtsam import Pose3, Similarity3
 from dask.delayed import Delayed
 
 import gtsfm.averaging.rotation.cycle_consistency as cycle_consistency
@@ -25,11 +22,14 @@ import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.viz as viz_utils
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.averaging.rotation.cycle_consistency import EdgeErrorAggregationCriterion
 from gtsfm.common.image import Image
 from gtsfm.feature_extractor import FeatureExtractor
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.two_view_estimator import TwoViewEstimator, TwoViewEstimationReport
+
+matplotlib.use("Agg")
 
 # base paths for storage
 PLOT_BASE_PATH = Path(__file__).resolve().parent.parent / "plots"
@@ -122,27 +122,20 @@ class SceneOptimizer:
             keypoints_graph_list += [delayed_dets]
             descriptors_graph_list += [delayed_descs]
 
-        # estimate two-view geometry and get indices of verified correspondences.
+        # Estimate two-view geometry and get indices of verified correspondences.
         i2Ri1_graph_dict = {}
         i2Ui1_graph_dict = {}
-        v_corr_idxs_graph_dict = {}
-
-        two_view_reports_dict = {}
-
+        v_corr_idxs_graph_dict: Dict[Tuple[int, int], np.ndarray] = {}
+        two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport] = {}
         for (i1, i2) in image_pair_indices:
-            # Compute ground truth relative pose is available.
+            # Collect ground truth relative and absolute poses if available.
             if gt_cameras_graph is not None:
-                gt_i2Ti1 = dask.delayed(lambda x, y: x.pose().between(y.pose()))(
-                    gt_cameras_graph[i2], gt_cameras_graph[i1]
-                )
+                gt_pose_i1, gt_pose_i2 = gt_cameras_graph[i1].pose(), gt_cameras_graph[i2].pose()
+                gt_i2Ti1 = dask.delayed(lambda x, y: x.between(y))(gt_pose_i2, gt_pose_i1)
             else:
-                gt_i2Ti1 = None
+                gt_pose_i1, gt_pose_i2, gt_i2Ti1 = None, None, None
 
-            # Collect ground truth absolute poses if available.
-            gt_pose_i1 = gt_pose_graph[i1] if gt_pose_graph is not None else None
-            gt_pose_i2 = gt_pose_graph[i2] if gt_pose_graph is not None else None
-
-            # Compute relative rotations, (unit) translation, and verified correspondences.
+            # Compute relative rotation, (unit) translation, and verified correspondences.
             (i2Ri1, i2Ui1, v_corr_idxs, two_view_report,) = self.two_view_estimator.create_computation_graph(
                 keypoints_graph_list[i1],
                 keypoints_graph_list[i2],
@@ -178,7 +171,7 @@ class SceneOptimizer:
                     )
                 )
 
-        # persist all front-end metrics and its summary
+        # Persist all front-end metrics and its summaries.
         auxiliary_graph_list.append(
             dask.delayed(save_full_frontend_metrics)(two_view_reports_dict, image_graph, filename="frontend_full.json")
         )
@@ -189,7 +182,7 @@ class SceneOptimizer:
                 )
             )
 
-        # as visualization tasks are not to be provided to the user, we create a
+        # As visualization tasks are not to be provided to the user, we create a
         # dummy computation of concatenating viz tasks with the output graph,
         # forcing computation of viz tasks. Doing this here forces the
         # frontend's auxiliary tasks to be computed before the multi-view stage.
