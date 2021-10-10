@@ -12,6 +12,7 @@ jobs:
       matrix:
         config_dataset_info:
           [
+            # config          dataset    lookahead    img-extension  source  loader      max-res  share-intrinsics
             [sift_front_end,  door-12,               12,  JPG,  test_data,  olsson-loader,  1296, true],
             [deep_front_end,  door-12,               12,  JPG,  test_data,  olsson-loader,  1296, true],
             [sift_front_end,  skydio-8,              8,   jpg,  gdrive ,    colmap-loader,  760, true],
@@ -61,14 +62,14 @@ jobs:
       - name: Parse args and prepare dataset, Execute dataset
         run: |
           bash .github/scripts/execute_single_benchmark.sh \
-            ${{ matrix.config_dataset_info[0] }} \
-            ${{ matrix.config_dataset_info[1] }} \
-            ${{ matrix.config_dataset_info[2] }} \
-            ${{ matrix.config_dataset_info[3] }} \
-            ${{ matrix.config_dataset_info[4] }} \
-            ${{ matrix.config_dataset_info[5] }} \
-            ${{ matrix.config_dataset_info[6] }} \
-            ${{ matrix.config_dataset_info[7] }}
+            ${{ matrix.config_dataset_info[0] }} # config \
+            ${{ matrix.config_dataset_info[1] }} # dataset \
+            ${{ matrix.config_dataset_info[2] }} # max-frame-lookahead\
+            ${{ matrix.config_dataset_info[3] }} # image extension \
+            ${{ matrix.config_dataset_info[4] }} # dataset source \
+            ${{ matrix.config_dataset_info[5] }} # loader name \
+            ${{ matrix.config_dataset_info[6] }} # max resolution \
+            ${{ matrix.config_dataset_info[7] }} # share intrinsics
 
 
       - name: Archive dataset metrics, plots, and output data (camera poses + points)

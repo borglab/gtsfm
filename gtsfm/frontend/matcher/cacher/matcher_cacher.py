@@ -1,5 +1,10 @@
 """Decorator for caching matcher output.
 
+This class provides the caching functionality to a GTSFM matcher. To use this cacher, initialize it with the matcher obj
+you want to apply the cache on.
+
+Example: To cache output of `TwoWayMatcher`, use `MatcherCacher(matcher_obj=TwoWayMatcher())`.
+
 Authors: Ayush Baid
 """
 from pathlib import Path
@@ -41,7 +46,12 @@ class MatcherCacher(MatcherBase):
         im_shape_i1: Tuple[int, int],
         im_shape_i2: Tuple[int, int],
     ) -> str:
-        """Generates the cache key from the input detections, image shapes, and underlying matcher."""
+        """Generates the cache key from the input detections, image shapes, and underlying matcher.
+
+        This function uses the first few keypoints and descriptors to generate a key, and hence is not guaranteed to
+        be unique. However, since its unlikely that keypoints/descriptors exactly match in the selected few indices,
+        and differ in the remaining, its a good choice for a key.
+        """
         numpy_arrays_to_hash: List[np.ndarray] = []
 
         # subsample and concatenate keypoints and descriptors
@@ -75,7 +85,7 @@ class MatcherCacher(MatcherBase):
         im_shape_i1: Tuple[int, int],
         im_shape_i2: Tuple[int, int],
     ) -> Optional[np.ndarray]:
-        """Load cached result, if it exists."""
+        """Load cached result, if it exists. The cached result will be a 2D numpy array with 2 columns."""
         cache_path = self.__get_cache_path(
             cache_key=self.__generate_cache_key(
                 keypoints_i1=keypoints_i1,
@@ -99,7 +109,7 @@ class MatcherCacher(MatcherBase):
         im_shape_i2: Tuple[int, int],
         match_indices: np.ndarray,
     ) -> None:
-        """Save the results to the cache."""
+        """Save the results (match indice) to the cache."""
         cache_path = self.__get_cache_path(
             cache_key=self.__generate_cache_key(
                 keypoints_i1=keypoints_i1,

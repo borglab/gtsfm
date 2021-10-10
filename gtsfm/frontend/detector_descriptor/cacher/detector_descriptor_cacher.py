@@ -1,5 +1,11 @@
 """Decorater for caching detector-descriptor output.
 
+This class provides the caching functionality to a GTSFM detector-descriptor. To use this cacher, initialize it with
+the detector-descriptor you want to apply the cache on.
+
+Example: To cache output of `SiftDetectorDescriptor`, use 
+`DetectorDescriptorCacher(detector_descriptor_obj=SiftDetectorDescriptor())`.
+
 Authors: Ayush Baid
 """
 from pathlib import Path
