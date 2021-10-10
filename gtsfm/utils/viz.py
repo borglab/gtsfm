@@ -252,6 +252,7 @@ def save_twoview_correspondences_viz(
         keypoints_i1: detected Keypoints for image #i1.
         keypoints_i2: detected Keypoints for image #i2.
         corr_idxs_i1i2: correspondence indices.
+        two_view_report: front-end metrics and inlier/outlier info for image pair.
         file_path: file path to save the visualization.
     """
     plot_img = plot_twoview_correspondences(
