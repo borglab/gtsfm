@@ -2,8 +2,6 @@
 
 Authors: Ayush Baid
 """
-import pickle
-from bz2 import BZ2File
 from pathlib import Path
 from typing import List, Optional, Tuple
 
