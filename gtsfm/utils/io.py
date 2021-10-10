@@ -424,7 +424,7 @@ def save_track_visualizations(
 
 def read_from_compressed_file(file_path: Path) -> Optional[Any]:
     """Reads data using pickle from a compressed file, if it exists."""
-    if file_path.exists:
+    if file_path.exists():
         return pickle.load(BZ2File(file_path, "rb"))
 
     return None
