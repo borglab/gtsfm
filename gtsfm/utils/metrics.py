@@ -53,7 +53,8 @@ def count_correct_correspondences(
 
     Returns:
         Number of correspondences which are correct.
-        Mask of which verified correspondences are classified as correct under Sampson error (using GT epipolar geometry).
+        Mask of which verified correspondences are classified as correct under Sampson error
+            (using GT epipolar geometry).
     """
     # TODO: add unit test, with mocking.
     if len(keypoints_i1) != len(keypoints_i2):
