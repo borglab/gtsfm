@@ -14,7 +14,7 @@ logger = get_logger()
 
 
 def run_scene_optimizer(args: argparse.Namespace) -> None:
-    """ Run GTSFM over images from an Argoverse vehicle log"""
+    """Run GTSFM over images from an Argoverse vehicle log"""
     with hydra.initialize_config_module(config_module="gtsfm.configs"):
         # config is relative to the gtsfm module
         cfg = hydra.compose(config_name=args.config_name)
@@ -27,6 +27,7 @@ def run_scene_optimizer(args: argparse.Namespace) -> None:
             max_num_imgs=args.max_num_imgs,
             max_lookahead_sec=args.max_lookahead_sec,
             camera_name=args.camera_name,
+            max_resolution=args.max_resolution,
         )
 
         sfm_result_graph = scene_optimizer.create_computation_graph(
@@ -35,7 +36,7 @@ def run_scene_optimizer(args: argparse.Namespace) -> None:
             image_graph=loader.create_computation_graph_for_images(),
             camera_intrinsics_graph=loader.create_computation_graph_for_intrinsics(),
             image_shape_graph=loader.create_computation_graph_for_image_shapes(),
-            gt_pose_graph=loader.create_computation_graph_for_poses(),
+            gt_cameras_graph=loader.create_computation_graph_for_cameras(),
         )
 
         # create dask client
@@ -105,6 +106,13 @@ if __name__ == "__main__":
         type=str,
         default="deep_front_end.yaml",
         help="Choose sift_front_end.yaml or deep_front_end.yaml",
+    )
+    parser.add_argument(
+        "--max_resolution",
+        type=int,
+        default=760,
+        help="integer representing maximum length of image's short side"
+        " e.g. for 1080p (1920 x 1080), max_resolution would be 1080",
     )
     args = parser.parse_args()
     logger.info(args)

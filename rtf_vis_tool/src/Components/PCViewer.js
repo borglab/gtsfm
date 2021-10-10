@@ -19,6 +19,7 @@ import '../stylesheets/PCViewer.css';
 function PCViewer(props) {
     /*
     Args:
+        props.pointCloudType (string): Type of Point Cloud. Either 'ba_input' or 'ba_output'.
         props.title (string): Title of the Point Cloud Viewer Pop Up.
         props.toggleDA_PC (function): Toggles the display of the Bundle Adjustment Point Cloud.
         
@@ -38,7 +39,7 @@ function PCViewer(props) {
     */
     useEffect(() => {
         // Fetch the COLMAP file from the public directory.
-        fetch(props.filePath)
+        fetch(`results/${props.pointCloudType}/points3D.txt`)
             .then((response) => {
                 return response.text();
             })
@@ -97,7 +98,7 @@ function PCViewer(props) {
                 {pointCloudJSX}
                 {showCoordGrid && <CoordinateGrid />}
                 <OrbitControlsComponent />
-                <AllFrustums/>
+                <AllFrustums pointCloudType={props.pointCloudType}/>
             </Canvas>
 
             <button className="pc_go_back_btn" onClick={() => props.togglePC(false)}>Go Back</button>
