@@ -47,7 +47,8 @@ class TwoViewEstimationReport:
            measures how consistent the model is with the putative matches.
         num_inliers_gt_model: measures how well the verification worked, w.r.t. GT, i.e. #correct correspondences.
         inlier_ratio_gt_model: #correct matches/#putative matches. Only defined if GT relative pose provided.
-        v_corr_idxs_inlier_mask_gt
+        v_corr_idxs_inlier_mask_gt: Mask of which verified correspondences are classified as correct under
+            Sampson error (using GT epipolar geometry).
         R_error_deg: relative pose error w.r.t. GT. Only defined if GT poses provided.
         U_error_deg: relative translation error w.r.t. GT. Only defined if GT poses provided.
         i2Ri1: relative rotation.
@@ -263,7 +264,8 @@ def compute_correspondence_metrics(
     Returns:
         Number of inlier correspondences to ground truth epipolar geometry, i.e. #correct correspondences.
         Inlier Ratio, i.e. ratio of correspondences which are correct w.r.t. given relative pose.
-        v_corr_idxs_inlier_mask_gt:
+        Mask of which verified correspondences are classified as correct under Sampson error
+            (using GT epipolar geometry).
     """
     if corr_idxs_i1i2.size == 0:
         return 0, float("Nan"), None
