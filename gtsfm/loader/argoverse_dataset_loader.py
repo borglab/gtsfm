@@ -124,7 +124,13 @@ class ArgoverseDatasetLoader(LoaderBase):
         Returns:
             Intrinsics for the given camera.
         """
-        return Cal3Bundler(fx=self._K[0, 0], k1=0, k2=0, u0=self._K[0, 2], v0=self._K[1, 2],)
+        return Cal3Bundler(
+            fx=self._K[0, 0],
+            k1=0,
+            k2=0,
+            u0=self._K[0, 2],
+            v0=self._K[1, 2],
+        )
 
     def get_camera_pose(self, index: int) -> Optional[Pose3]:
         """Get the camera pose (in world coordinates) at the given index.

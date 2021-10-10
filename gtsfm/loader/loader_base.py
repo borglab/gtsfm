@@ -100,7 +100,6 @@ class LoaderBase(metaclass=abc.ABCMeta):
 
         return PinholeCameraCal3Bundler(pose, intrinsics)
 
-    @abc.abstractmethod
     def is_valid_pair(self, idx1: int, idx2: int) -> bool:
         """Checks if (idx1, idx2) is a valid pair. idx1 < idx2 is required.
 
@@ -187,6 +186,21 @@ class LoaderBase(metaclass=abc.ABCMeta):
         image = self.get_image(idx)
         return (image.height, image.width)
 
+    def get_valid_pairs(self) -> List[Tuple[int, int]]:
+        """Get the valid pairs of images for this loader.
+
+        Returns:
+            list of valid index pairs.
+        """
+        indices = []
+
+        for idx1 in range(self.__len__()):
+            for idx2 in range(self.__len__()):
+                if self.is_valid_pair(idx1, idx2):
+                    indices.append((idx1, idx2))
+
+        return indices
+
     def create_computation_graph_for_images(self) -> List[Delayed]:
         """Creates the computation graph for image fetches.
 
@@ -242,18 +256,3 @@ class LoaderBase(metaclass=abc.ABCMeta):
         """
         N = len(self)
         return [dask.delayed(self.get_image_shape)(x) for x in range(N)]
-
-    def get_valid_pairs(self) -> List[Tuple[int, int]]:
-        """Get the valid pairs of images for this loader.
-
-        Returns:
-            list of valid index pairs.
-        """
-        indices = []
-
-        for idx1 in range(self.__len__()):
-            for idx2 in range(self.__len__()):
-                if self.is_valid_pair(idx1, idx2):
-                    indices.append((idx1, idx2))
-
-        return indices

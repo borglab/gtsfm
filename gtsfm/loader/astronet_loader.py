@@ -235,4 +235,4 @@ class AstronetLoader(LoaderBase):
         Returns:
             validation result.
         """
-        return idx1 < idx2 and abs(idx1 - idx2) <= self._max_frame_lookahead
+        return super().is_valid_pair(idx1, idx2) and abs(idx1 - idx2) <= self._max_frame_lookahead

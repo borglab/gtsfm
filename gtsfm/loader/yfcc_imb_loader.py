@@ -38,7 +38,11 @@ class YfccImbLoader(LoaderBase):
 
         # load all the image pairs according to the covisibility threshold used
         # in IMB's reporting
-        visibility_file = osp.join(self._folder, "new-vis-pairs", "keys-th-{:0.1f}.npy".format(coviz_thresh),)
+        visibility_file = osp.join(
+            self._folder,
+            "new-vis-pairs",
+            "keys-th-{:0.1f}.npy".format(coviz_thresh),
+        )
 
         image_pairs = list()  # list of image pairs
         image_names = set()  # set of image names (for uniqueness)
@@ -133,10 +137,7 @@ class YfccImbLoader(LoaderBase):
         Returns:
             validation result.
         """
-        if not super().is_valid_pair(idx1, idx2):
-            return False
-
-        return (idx1, idx2) in self._image_pairs
+        return super().is_valid_pair(idx1, idx2) and (idx1, idx2) in self._image_pairs
 
     def __read_calibrations(self) -> List[PinholeCameraCal3Bundler]:
         """Read camera params from the calibration stored as h5 files.
