@@ -1,4 +1,4 @@
-"""Decorater for caching detector-descriptor output.
+"""Cacher for any detector-descriptor, which caches the output on disk in the top level folder `cache`.
 
 This class provides the caching functionality to a GTSFM detector-descriptor. To use this cacher, initialize it with
 the detector-descriptor you want to apply the cache on.
@@ -26,7 +26,7 @@ CACHE_ROOT_PATH = Path(__file__).resolve().parent.parent.parent.parent.parent / 
 
 
 class DetectorDescriptorCacher(DetectorDescriptorBase):
-    """Decorator which caches detector-descriptor output, keyed on the input."""
+    """Cacher for detector-descriptor output on disk, keyed on the input."""
 
     def __init__(self, detector_descriptor_obj: DetectorDescriptorBase) -> None:
         """Initializes the cacher with the actual detector-descriptor object.

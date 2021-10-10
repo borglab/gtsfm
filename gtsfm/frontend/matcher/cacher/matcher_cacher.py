@@ -1,4 +1,4 @@
-"""Decorator for caching matcher output.
+"""Cacher for any matcher, which caches the output on disk in the top level folder `cache`.
 
 This class provides the caching functionality to a GTSFM matcher. To use this cacher, initialize it with the matcher obj
 you want to apply the cache on.
@@ -25,7 +25,7 @@ NUM_KEYPOINTS_TO_SAMPLE_FOR_HASH = 10
 
 
 class MatcherCacher(MatcherBase):
-    """Decorator which caches matcher output, keyed on the input."""
+    """Cacher for matcher output on disk, keyed on the input."""
 
     def __init__(self, matcher_obj: MatcherBase) -> None:
         super().__init__()
