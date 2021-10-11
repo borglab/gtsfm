@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
-from gtsfm.frontend.detector_descriptor.cacher.detector_descriptor_cacher import DetectorDescriptorCacher
+from gtsfm.frontend.cacher.detector_descriptor_cacher import DetectorDescriptorCacher
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 

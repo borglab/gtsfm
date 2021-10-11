@@ -3,14 +3,12 @@
 Authors: Ayush Baid
 """
 from pathlib import Path
-from typing import Match
 import unittest
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 
-from gtsfm.frontend.matcher.cacher.matcher_cacher import MatcherCacher
-from gtsfm.common.image import Image
+from gtsfm.frontend.cacher.matcher_cacher import MatcherCacher
 from gtsfm.common.keypoints import Keypoints
 
 DUMMY_KEYPOINTS_I1 = Keypoints(
