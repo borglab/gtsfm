@@ -24,7 +24,7 @@ DUMMY_IM_SHAPE_I2 = (50, 50)
 
 DUMMY_MATCH_INDICES = np.random.rand(5, 2)
 
-ROOT_PATH = Path(__file__).resolve().parent.parent.parent.parent.parent
+ROOT_PATH = Path(__file__).resolve().parent.parent.parent.parent
 
 
 class TestMatcherCacher(unittest.TestCase):

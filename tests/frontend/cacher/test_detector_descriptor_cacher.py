@@ -17,7 +17,7 @@ DUMMY_IMAGE = Image(value_array=np.random.randint(low=0, high=255, size=(100, 12
 DUMMY_KEYPOINTS = Keypoints(coordinates=np.random.rand(10, 2), scales=np.random.rand(10), responses=np.random.rand(10))
 DUMMY_DESCRIPTORS = np.random.rand(len(DUMMY_KEYPOINTS), 128)
 
-ROOT_PATH = Path(__file__).resolve().parent.parent.parent.parent.parent
+ROOT_PATH = Path(__file__).resolve().parent.parent.parent.parent
 
 
 class TestDetectorDescriptorCacher(unittest.TestCase):
