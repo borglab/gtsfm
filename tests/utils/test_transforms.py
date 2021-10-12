@@ -8,6 +8,7 @@ import numpy as np
 import gtsfm.utils.transforms as transform_utils
 
 def test_convert_euclidean_to_spherical_directions() -> None:
+    """Check that correct spherical coordinates are obtained for certain directions."""
     directions = [
         Unit3(np.array([1, 0, 0])),
         Unit3(np.array([0, 1, 0])),
@@ -23,6 +24,7 @@ def test_convert_euclidean_to_spherical_directions() -> None:
 
 
 def test_convert_spherical_to_euclidean_directions() -> None:
+    """Check that Euclidean -> Spherical -> Euclidean conversion yields same results."""
     directions = [
         Unit3(np.array([1, 0, 0])),
         Unit3(np.array([0, 1, 0])),

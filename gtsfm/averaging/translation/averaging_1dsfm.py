@@ -26,7 +26,7 @@ from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 # Hyperparameters for 1D-SFM
 # maximum number of times 1dsfm will project the Unit3's to a 1d subspace for outlier rejection
-MAX_PROJECTION_DIRECTIONS = 50
+MAX_PROJECTION_DIRECTIONS = 200
 OUTLIER_WEIGHT_THRESHOLD = 0.1
 MAX_KDE_SAMPLES = 2000
 
@@ -91,36 +91,18 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 w_i2Ui1_measurements.append(
                     BinaryMeasurementUnit3(i2, i1, Unit3(wRi_list[i2].rotate(i2Ui1.point3())), noise_model)
                 )
-                w_i2Ui1_dict[(i1, i2)] = measured
 
-        # sample indices to be used as projection directions
+        # sample projection directions
         w_i2Ui1_list = [w_i2Ui1.measured().point3() for w_i2Ui1 in w_i2Ui1_measurements]
-        projection_directions = _sample_kde_directions(w_i2Ui1_measurements, self._max_1dsfm_projection_directions)
+        projection_directions = _sample_random_directions(self._max_1dsfm_projection_directions)
 
         # compute outlier weights using MFAS
         outlier_weights = []
-        ow_weights_dict = {}
 
         # TODO(ayush): parallelize this step.
         for direction in projection_directions:
             algorithm = MFAS(w_i2Ui1_measurements, direction)
-            this_ow_dict = algorithm.computeOutlierWeights()
-            outlier_weights.append(this_ow_dict)
-            for (i2, i1), weight in this_ow_dict.items():
-                if (i1, i2) in ow_weights_dict:
-                    ow_weights_dict[(i1, i2)].append(weight)
-                else:
-                    ow_weights_dict[(i1, i2)] = [weight]
-
-        with open("result_metrics/proj_weights_1dsfm.txt", "w") as f:
-            f.write("# i1,i2,ux,uy,uz,weights_list\n")
-            for (i1, i2), weights_list in ow_weights_dict.items():
-                f.write(str(i1) + "," + str(i2) + ",")
-                d = w_i2Ui1_dict[(i1, i2)].point3()
-                f.write(str(d[0]) + "," + str(d[1]) + "," + str(d[2]))
-                for weight in weights_list:
-                    f.write("," + str(weight))
-                f.write("\n")
+            outlier_weights.append(algorithm.computeOutlierWeights())
 
         # compute average outlier weight
         avg_outlier_weights = {}
@@ -163,6 +145,22 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         return wti_list, ta_metrics
 
 
+def _sample_random_directions(num_samples):
+    """Samples num_samples Unit3 3D directions.
+    The sampling is done in 2D spherical coordinates (azimuth, zenith) values, and then converted to Euclidean 
+    coordinates. 
+
+    Args:
+        num_samples: Number of samples required.
+
+    Returns:
+        List of sampled Unit3 directions.
+    """
+    sampled_azimuth_zenith = np.random.uniform(low=0.0, high=2*np.pi, size=(num_samples, 2))
+
+    return transform_utils.spherical_to_euclidean_directions(sampled_directions_spherical)
+
+
 def _get_measurement_angle_errors(
     i1_i2_pairs: Tuple[int, int],
     i2Ui1_measurements: Dict[Tuple[int, int], Unit3],
@@ -180,20 +178,13 @@ def _get_measurement_angle_errors(
         List of angles between the measured and ground truth translation directions.
     """
     errors = []
-    with open("result_metrics/measurement_errors_1dsfm.txt", "w") as f:
-        for (i1, i2) in i1_i2_pairs:
-            print(
-                "idx ",
-                i1,
-                i2,
-            )
-            if (i1, i2) in i2Ui1_measurements and (i1, i2) in gt_i2Ui1_measurements:
-                error = comp_utils.compute_relative_unit_translation_angle(
+    for (i1, i2) in i1_i2_pairs:
+        if (i1, i2) in i2Ui1_measurements and (i1, i2) in gt_i2Ui1_measurements:
+            errors.append(
+                comp_utils.compute_relative_unit_translation_angle(
                     i2Ui1_measurements[(i1, i2)], gt_i2Ui1_measurements[(i1, i2)]
                 )
-                print("error is ", error)
-                f.write(str(i1) + "," + str(i2) + "," + str(error) + "\n")
-                errors.append(error)
+            )
     return errors
 
 
@@ -206,7 +197,6 @@ def _compute_metrics(
     gt_wTi_list: List[Optional[Pose3]],
 ) -> GtsfmMetricsGroup:
     """Computes the translation averaging metrics as a metrics group.
-
     Args:
         inlier_i1_i2_pairs: List of inlier camera pair indices.
         outlier_i1_i2_pairs: List of outlier camera pair indices.
@@ -214,7 +204,6 @@ def _compute_metrics(
         wRi_list: Estimated camera rotations from rotation averaging.
         wti_list: Estimated camera translations from translation averaging.
         gt_wTi_list: List of ground truth camera poses.
-
     Returns:
         Translation averaging metrics as a metrics group. Includes the following metrics:
         - Number of inlier, outlier and total measurements.
@@ -227,8 +216,6 @@ def _compute_metrics(
     # Angle between i2Ui1 measurement and GT i2Ui1 measurement for inliers and outliers.
     inlier_angular_errors = _get_measurement_angle_errors(inlier_i1_i2_pairs, i2Ui1_dict, gt_i2Ui1_dict)
     outlier_angular_errors = _get_measurement_angle_errors(outlier_i1_i2_pairs, i2Ui1_dict, gt_i2Ui1_dict)
-    # for saving only
-    _ = _get_measurement_angle_errors(inlier_i1_i2_pairs + outlier_i1_i2_pairs, i2Ui1_dict, gt_i2Ui1_dict)
     precision, recall = metrics_utils.get_precision_recall_from_errors(
         inlier_angular_errors, outlier_angular_errors, MAX_INLIER_MEASUREMENT_ERROR_DEG
     )
@@ -264,26 +251,3 @@ def _compute_metrics(
     ]
 
     return GtsfmMetricsGroup("translation_averaging_metrics", ta_metrics)
-
-
-def _sample_kde_directions(w_i2Ui1_measurements, num_samples):
-    """Fits a Gaussian density kernel to the provided measurements, and then samples num_samples from this kernel.
-
-    Args:
-        w_i2Ui1_measurements: List of BinaryMeasurementUnit3 direction measurements.
-        num_samples: Number of samples to be sampled from the kernel.
-
-    Returns:
-        List of sampled Unit3 directions.
-    """
-    w_i2Ui1_list = [w_i2Ui1.measured() for w_i2Ui1 in w_i2Ui1_measurements]
-    if len(w_i2Ui1_list) > MAX_KDE_SAMPLES:
-        w_i2Ui1_list = [w_i2Ui1_list[i] for i in random.sample(range(len(w_i2Ui1_list)), MAX_KDE_SAMPLES)]
-
-    w_i2Ui1_spherical = transform_utils.euclidean_to_spherical_directions(w_i2Ui1_list)
-
-    # gaussian_kde expects each sample to be a column, hence transpose.
-    kde = stats.gaussian_kde(w_i2Ui1_spherical.T)
-    sampled_directions_spherical = kde.resample(size=num_samples).T
-
-    return transform_utils.spherical_to_euclidean_directions(sampled_directions_spherical)
