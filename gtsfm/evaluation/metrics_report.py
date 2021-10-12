@@ -42,9 +42,23 @@ def create_table_for_scalar_metrics(metrics_dict: Dict[str, Union[float, int]]) 
     Returns:
         Table with scalar metrics and their values in HTML format.
     """
-    table = {"Metric name": list(metrics_dict.keys()), "Value": list(metrics_dict.values())}
+    if "gtsfm" in list(metrics_dict.keys())[0] or "colmap" in list(metrics_dict.keys())[0]:
+        key_list = []
+        gtsfm_values = []
+        colmap_values = []
+        for key in metrics_dict.keys():
+            if "gtsfm" in key:
+                key_list.append(key.replace("gtsfm", ""))
+                gtsfm_values.append(metrics_dict[key])
+            elif "colmap" in key:
+                key_list.append(key.replace("colmap", ""))
+                colmap_values.append(metrics_dict[key])
+        key_list = list(dict.fromkeys(key_list))
+        table = {"Metric name": key_list, "GTSFM": gtsfm_values,
+                 "COLMAP": colmap_values}
+    else:
+        table = {"Metric name": list(metrics_dict.keys()), "Value": list(metrics_dict.values())}
     return tabulate(table, headers="keys", tablefmt="html")
-
 
 def create_plots_for_distributions(metrics_dict: Dict[str, Any]) -> str:
     """Creates plots for 1D distribution metrics using plotly, and converts them to HTML.
@@ -134,6 +148,7 @@ def get_figures_for_metrics(metrics_group: GtsfmMetricsGroup) -> Tuple[str, str]
                 raise ValueError(f"Metric {metric_name} does not contain a summary.")
             # Add a scalar metric for mean of 1D distributions.
             scalar_metrics["mean_" + metric_name] = value[metrics.SUMMARY_KEY]["mean"]
+            scalar_metrics["median_" + metric_name] = value[metrics.SUMMARY_KEY]["median"]
         else:
             scalar_metrics[metric_name] = value
     table = create_table_for_scalar_metrics(scalar_metrics)
