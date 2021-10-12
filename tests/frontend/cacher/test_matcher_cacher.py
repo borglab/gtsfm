@@ -33,7 +33,9 @@ class TestMatcherCacher(unittest.TestCase):
     @patch("gtsfm.utils.cache.generate_hash_for_numpy_array", return_value="numpy_key")
     @patch("gtsfm.utils.io.read_from_compressed_file", return_value=None)
     @patch("gtsfm.utils.io.write_to_compressed_file")
-    def test_cache_miss(self, write_mock, read_mock, generate_hash_for_numpy_array_mock):
+    def test_cache_miss(
+        self, write_mock: MagicMock, read_mock: MagicMock, generate_hash_for_numpy_array_mock: MagicMock
+    ) -> None:
         """Test the scenario of cache miss."""
 
         # mock the underlying detector-descriptor which is used on cache miss
@@ -64,8 +66,8 @@ class TestMatcherCacher(unittest.TestCase):
         )
 
         # assert that hash generation was called twice
-        # TODO: this need proper values
-        # generate_hash_for_numpy_array_mock.assert_is_called()
+        # TODO(ayushbaid): this need proper values
+        generate_hash_for_numpy_array_mock.assert_called()
 
         # assert that read function was called once and write function was called once
         cache_path = ROOT_PATH / "cache" / "matcher" / "mock_matcher_numpy_key.pbz2"
@@ -75,7 +77,9 @@ class TestMatcherCacher(unittest.TestCase):
     @patch("gtsfm.utils.cache.generate_hash_for_numpy_array", return_value="numpy_key")
     @patch("gtsfm.utils.io.read_from_compressed_file", return_value=DUMMY_MATCH_INDICES)
     @patch("gtsfm.utils.io.write_to_compressed_file")
-    def test_cache_hit(self, write_mock, read_mock, generate_hash_for_numpy_array_mock):
+    def test_cache_hit(
+        self, write_mock: MagicMock, read_mock: MagicMock, generate_hash_for_numpy_array_mock: MagicMock
+    ) -> None:
         """Test the scenario of cache miss."""
 
         # mock the underlying detector-descriptor which is used on cache miss
@@ -99,8 +103,8 @@ class TestMatcherCacher(unittest.TestCase):
         underlying_matcher_mock.match.assert_not_called()
 
         # assert that hash generation was called twice
-        # TODO: this need proper values
-        # generate_hash_for_numpy_array_mock.assert_is_called()
+        # TODO(ayushbaid): this need proper values
+        generate_hash_for_numpy_array_mock.assert_called()
 
         # assert that read function was called once and write function was called once
         cache_path = ROOT_PATH / "cache" / "matcher" / "mock_matcher_numpy_key.pbz2"

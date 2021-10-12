@@ -26,7 +26,9 @@ class TestDetectorDescriptorCacher(unittest.TestCase):
     @patch("gtsfm.utils.cache.generate_hash_for_image", return_value="img_key")
     @patch("gtsfm.utils.io.read_from_compressed_file", return_value=None)
     @patch("gtsfm.utils.io.write_to_compressed_file")
-    def test_cache_miss(self, write_mock, read_mock, generate_hash_for_image_mock):
+    def test_cache_miss(
+        self, write_mock: MagicMock, read_mock: MagicMock, generate_hash_for_image_mock: MagicMock
+    ) -> None:
         """Test the scenario of cache miss."""
 
         # mock the underlying detector-descriptor which is used on cache miss
@@ -57,7 +59,7 @@ class TestDetectorDescriptorCacher(unittest.TestCase):
         return_value={"keypoints": DUMMY_KEYPOINTS, "descriptors": DUMMY_DESCRIPTORS},
     )
     @patch("gtsfm.utils.io.write_to_compressed_file")
-    def test_cache_hit(self, write_mock, read_mock, generate_hash_for_image_mock):
+    def test_cache_hit(self, write_mock: MagicMock, read_mock: MagicMock, generate_hash_for_image_mock: MagicMock):
         """Test the scenario of cache miss."""
 
         # mock the underlying detector-descriptor which is used on cache miss

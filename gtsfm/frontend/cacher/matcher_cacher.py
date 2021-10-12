@@ -30,7 +30,7 @@ class MatcherCacher(MatcherBase):
     def __init__(self, matcher_obj: MatcherBase) -> None:
         super().__init__()
         self._matcher = matcher_obj
-        # TODO: make the obj cache key dependent on the code
+        # TODO(ayushbaid): make the obj cache key dependent on the code
         self._matcher_obj_key = type(self._matcher).__name__
 
     def __get_cache_path(self, cache_key: str) -> Path:
@@ -96,7 +96,6 @@ class MatcherCacher(MatcherBase):
                 im_shape_i2=im_shape_i2,
             )
         )
-
         return io_utils.read_from_compressed_file(cache_path)
 
     def __save_result_to_cache(
@@ -152,7 +151,6 @@ class MatcherCacher(MatcherBase):
             descriptors_i2: descriptors corr. to keypoints_i2.
             im_shape_i1: shape of image #i1, as (height,width).
             im_shape_i2: shape of image #i2, as (height,width).
-
 
         Returns:
             Match indices (sorted by confidence), as matrix of shape (N, 2), where N < min(N1, N2).

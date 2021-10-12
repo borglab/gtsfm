@@ -3,8 +3,8 @@ pattern](https://en.wikipedia.org/wiki/Decorator_pattern), which allows us to ad
 various implementations with minimal code changes in other classes.
 
 ## Why?
-- In the deep-learning based front-end configuration for GTSFM, neural-nets are used for both these modules. These slow
-down the pipeline by a significant factor and leads to slower iteration.
+- In the deep-learning based front-end configuration for GTSFM, neural-nets are used for both these modules. Executing 
+these on a CPU slows down the pipeline by a significant factor and leads to slower iteration.
 - Having a cache will speed up local testing, as well as CI runs.
 
 ## Design Philosophy
@@ -22,9 +22,10 @@ classes. No other class except the utility functions are changed.
 
 ## How to use the cache?
 - Enabled in the CI runs by this PR.
-- For local testing, the cache will be generated when the user first runs GTSFM. TO use precomputed cache, download the 
-repo https://github.com/ayushbaid/gtsfm-cache to a top level folder called cache. This repo contains the front-end cache 
-of all the benchmarks in the CI.
+- When run locally, the cache will be generated when the user first runs GTSFM. To use precomputed cache for certain 
+datasets (door-12, skydio-8, skydio-32, palace-of-fine-arts-281, notre-dame-20, 
+2011205_rc3), download the repo [gtsfm-cache](https://github.com/ayushbaid/gtsfm-cache) to a top level folder called 
+cache. This repo contains the front-end cache of all the benchmarks in the CI.
 
 ## How to regenerate cache?
 - CI: Change the cache env variable in `benchmark.yaml`

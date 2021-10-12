@@ -36,7 +36,7 @@ class DetectorDescriptorCacher(DetectorDescriptorBase):
         """
         super().__init__(max_keypoints=detector_descriptor_obj.max_keypoints)
         self._detector_descriptor = detector_descriptor_obj
-        # TODO: make the obj cache key dependent on the code
+        # TODO(ayushbaid): make the obj cache key dependent on the code
         self._detector_descriptor_obj_cache_key = type(self._detector_descriptor).__name__
 
     def __get_cache_path(self, cache_key: str) -> Path:
