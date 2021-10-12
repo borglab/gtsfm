@@ -145,10 +145,10 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         return wti_list, ta_metrics
 
 
-def _sample_random_directions(num_samples):
+def _sample_random_directions(num_samples: int) -> List[Unit3]:
     """Samples num_samples Unit3 3D directions.
-    The sampling is done in 2D spherical coordinates (azimuth, zenith) values, and then converted to Euclidean 
-    coordinates. 
+    The sampling is done in 2D spherical coordinates (azimuth, zenith) values, and then converted to Euclidean
+    coordinates.
 
     Args:
         num_samples: Number of samples required.
@@ -156,7 +156,7 @@ def _sample_random_directions(num_samples):
     Returns:
         List of sampled Unit3 directions.
     """
-    sampled_azimuth_zenith = np.random.uniform(low=0.0, high=2*np.pi, size=(num_samples, 2))
+    sampled_azimuth_zenith = np.random.uniform(low=0.0, high=2 * np.pi, size=(num_samples, 2))
 
     return transform_utils.spherical_to_euclidean_directions(sampled_azimuth_zenith)
 
