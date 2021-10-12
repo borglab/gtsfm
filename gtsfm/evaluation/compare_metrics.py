@@ -24,7 +24,7 @@ def compare_metrics(txt_metric_paths: Dict[str, str], json_path: str) -> None:
             points = data[3:]
             track_lengths = []
             for point in points:
-                track_lengths.append(len(point.split()[8:]) / 2)
+                track_lengths.append(len(point.split()[8:]) // 2)
 
         gtsfm_metrics.append(
             GtsfmMetric(
