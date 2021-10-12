@@ -158,7 +158,7 @@ def _sample_random_directions(num_samples):
     """
     sampled_azimuth_zenith = np.random.uniform(low=0.0, high=2*np.pi, size=(num_samples, 2))
 
-    return transform_utils.spherical_to_euclidean_directions(sampled_directions_spherical)
+    return transform_utils.spherical_to_euclidean_directions(sampled_azimuth_zenith)
 
 
 def _get_measurement_angle_errors(
