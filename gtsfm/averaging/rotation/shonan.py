@@ -33,12 +33,19 @@ logger = logger_utils.get_logger()
 class ShonanRotationAveraging(RotationAveragingBase):
     """Performs Shonan rotation averaging."""
 
-    def __init__(self) -> None:
-        """
+    def __init__(self, robust_measurement_noise: bool = False) -> None:
+        """Initializes Shonan rotation averaging.
+
         Note: `p_min` and `p_max` describe the minimum and maximum relaxation rank.
+
+        Args:
+            robust_measurement_noise: Whether to use a robust noise model for the measurements, defaults to false.
         """
-        self._p_min = 30
+        self._robust_measurement_noise = robust_measurement_noise
+        self._p_min = 5
         self._p_max = 30
+        if robust_measurement_noise:
+            self._p_min = self._p_max
 
     def __run_with_consecutive_ordering(
         self, num_connected_nodes: int, i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]]
@@ -62,8 +69,8 @@ class ShonanRotationAveraging(RotationAveragingBase):
         """
         lm_params = LevenbergMarquardtParams.CeresDefaults()
         shonan_params = ShonanAveragingParameters3(lm_params)
-        shonan_params.setUseHuber(True)
-        shonan_params.setCertifyOptimality(False)
+        shonan_params.setUseHuber(self._robust_measurement_noise)
+        shonan_params.setCertifyOptimality(not self._robust_measurement_noise)
 
         noise_model = gtsam.noiseModel.Unit.Create(6)
 
