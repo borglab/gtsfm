@@ -6,8 +6,8 @@ import json
 import os
 from typing import Dict
 
+import gtsfm.utils.io as io_utils
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-
 
 def compare_metrics(txt_metric_paths: Dict[str, str], json_path: str) -> None:
     """Produces a json file containing data across SfM pipelines formatted as a GTSfMMetricsGroup.
@@ -65,13 +65,10 @@ def compare_metrics(txt_metric_paths: Dict[str, str], json_path: str) -> None:
         )
 
         # Add camera information
-        fpath = os.path.join(txt_metric_paths[pipeline_name], "cameras.txt")
-        with open(fpath, "r") as f:
-            data = f.readlines()
-            images = data[2:]
+        calibrations = io_utils.read_cameras_txt(os.path.join(txt_metric_paths[pipeline_name], "cameras.txt"))
         gtsfm_metrics.append(
             GtsfmMetric(
-                "Number of Cameras " + pipeline_name, data[2][data[2].rindex(":") + 1 :]
+                "Number of Cameras " + pipeline_name, len(calibrations)
             )
         )
 
