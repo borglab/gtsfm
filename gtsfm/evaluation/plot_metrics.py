@@ -26,7 +26,7 @@ def create_metrics_plots_html(json_path: str, colmap_files_dirpath: str, output_
     metrics_groups = []
     # The provided JSON path must contain these files which contain metrics from the respective modules.
     GTSFM_MODULE_METRICS_FNAMES = [
-        "comparison_metrics.json",
+        "gt_comparison_metrics.json",
         "frontend_summary.json",
         "rotation_cycle_consistency_metrics.json",
         "averaging_metrics.json",
