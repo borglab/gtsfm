@@ -2,16 +2,16 @@
 
 Authors: Jon Womack
 """
-import os
 import json
+import os
 from typing import Dict
 
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 
 def compare_metrics(txt_metric_paths: Dict[str, str], json_path: str) -> None:
-    """
-    Produces a json file containing data across SfM pipelines formatted as a GTSfMMetricsGroup.
+    """Produces a json file containing data across SfM pipelines formatted as a GTSfMMetricsGroup.
+
     Args:
         txt_metric_paths: a list of paths to directories containing: cameras.txt, images.txt, and points3D.txt files
     """
