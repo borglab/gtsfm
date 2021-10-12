@@ -84,7 +84,7 @@ class VerifierBase(metaclass=abc.ABCMeta):
         matches_i1i2_graph: Delayed,
         intrinsics_i1_graph: Delayed,
         intrinsics_i2_graph: Delayed,
-    ) -> Tuple[Delayed, Delayed, Delayed]:
+    ) -> Tuple[Delayed, Delayed, Delayed, Delayed]:
         """Generates the computation graph to perform verification of putative correspondences.
 
         Args:

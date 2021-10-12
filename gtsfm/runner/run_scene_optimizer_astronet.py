@@ -44,6 +44,7 @@ class GtsfmRunnerAstronetLoader(GtsfmRunnerBase):
             use_gt_sfmtracks=False,
             max_frame_lookahead=self.parsed_args.max_frame_lookahead,
             max_resolution=self.parsed_args.max_resolution,
+            gt_scene_mesh_path=self.parsed_args.scene_mesh_path,
         )
 
         return loader

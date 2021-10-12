@@ -131,9 +131,8 @@ class SceneOptimizer:
             # Collect ground truth relative and absolute poses if available.
             if gt_cameras_graph is not None:
                 gt_pose_i1, gt_pose_i2 = gt_cameras_graph[i1].pose(), gt_cameras_graph[i2].pose()
-                gt_i2Ti1 = dask.delayed(lambda x, y: x.between(y))(gt_pose_i2, gt_pose_i1)
             else:
-                gt_pose_i1, gt_pose_i2, gt_i2Ti1 = None, None, None
+                gt_pose_i1, gt_pose_i2 = None, None
 
             # Compute relative rotation, (unit) translation, and verified correspondences.
             (i2Ri1, i2Ui1, v_corr_idxs, two_view_report,) = self.two_view_estimator.create_computation_graph(
@@ -145,7 +144,6 @@ class SceneOptimizer:
                 camera_intrinsics_graph[i2],
                 image_shape_graph[i1],
                 image_shape_graph[i2],
-                gt_i2Ti1,
                 gt_pose_i1,
                 gt_pose_i2,
                 gt_scene_mesh,
@@ -157,9 +155,9 @@ class SceneOptimizer:
             v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
             two_view_reports_dict[(i1, i2)] = two_view_report
 
-            # # Use ground truth relative poses.
+            # Use ground truth relative poses.
             # from gtsam import Unit3
-
+            # gt_i2Ti1 = dask.delayed(lambda x, y: x.between(y))(gt_pose_i2, gt_pose_i1)
             # i2Ri1_graph_dict[(i1, i2)] = gt_i2Ti1.rotation()
             # i2Ui1_graph_dict[(i1, i2)] = dask.delayed(lambda x: Unit3(np.array([x.x(), x.y(), x.z()])))(gt_i2Ti1)
 
@@ -407,6 +405,17 @@ def save_full_frontend_metrics(
                 "inlier_ratio_gt_model": round(report.inlier_ratio_gt_model, PRINT_NUM_SIG_FIGS)
                 if report.inlier_ratio_gt_model
                 else None,
+                # "inlier_avg_reproj_error_gt_model": round(
+                #     np.nanmean(report.reproj_error_gt_model[report.inlier_mask_gt_model]), PRINT_NUM_SIG_FIGS
+                # )
+                # if report.reproj_error_gt_model is not None and report.inlier_mask_gt_model is not None
+                # else None,
+                # "outlier_avg_reproj_error_gt_model": round(
+                #     np.nanmean(report.reproj_error_gt_model[np.logical_not(report.inlier_mask_gt_model)]),
+                #     PRINT_NUM_SIG_FIGS,
+                # )
+                # if report.reproj_error_gt_model is not None and report.inlier_mask_gt_model is not None
+                # else None,
                 "inlier_ratio_est_model": round(report.inlier_ratio_est_model, PRINT_NUM_SIG_FIGS),
                 "num_inliers_est_model": report.num_inliers_est_model,
             }

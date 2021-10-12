@@ -37,12 +37,11 @@ def count_correct_correspondences(
     keypoints_i2: Keypoints,
     intrinsics_i1: Cal3Bundler,
     intrinsics_i2: Cal3Bundler,
-    i2Ti1: Pose3,
     dist_threshold: float,
     gt_wTi1: Optional[Pose3] = None,
     gt_wTi2: Optional[Pose3] = None,
     gt_scene_mesh: Optional[trimesh.Trimesh] = None,
-) -> Optional[np.ndarray]:
+) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
     """Checks the correspondences for epipolar distances and counts ones which are below the threshold.
 
     Args:
@@ -64,13 +63,13 @@ def count_correct_correspondences(
         raise ValueError("Keypoints must have same counts")
 
     if len(keypoints_i1) == 0:
-        return None
+        return None, None
 
     # Compute ground truth correspondences.
     if None not in [gt_scene_mesh, gt_wTi1, gt_wTi2]:
         gt_camera_i1 = PinholeCameraCal3Bundler(gt_wTi1, intrinsics_i1)
         gt_camera_i2 = PinholeCameraCal3Bundler(gt_wTi2, intrinsics_i2)
-        is_inlier, _ = mesh_inlier_correspondences(
+        is_inlier, reproj_error = mesh_inlier_correspondences(
             keypoints_i1,
             keypoints_i2,
             gt_camera_i1,
@@ -78,17 +77,20 @@ def count_correct_correspondences(
             gt_scene_mesh,
             dist_threshold,
         )
-    else:
-        is_inlier, _ = epipolar_inlier_correspondences(
+    elif gt_wTi1 is not None and gt_wTi2 is not None:
+        gt_i2Ti1 = gt_wTi2.between(gt_wTi1)
+        is_inlier, reproj_error = epipolar_inlier_correspondences(
             keypoints_i1,
             keypoints_i2,
             intrinsics_i1,
             intrinsics_i2,
-            i2Ti1,
+            gt_i2Ti1,
             dist_threshold,
         )
+    else:
+        return None, None
 
-    return is_inlier
+    return is_inlier, reproj_error
 
 
 def epipolar_inlier_correspondences(
@@ -119,6 +121,7 @@ def epipolar_inlier_correspondences(
         keypoints_i1.coordinates, keypoints_i2.coordinates, i2Fi1
     )
     is_inlier = distance_squared < dist_threshold ** 2 if distance_squared is not None else None
+    logger.info("Computed Sampson error.")
 
     return is_inlier, distance_squared
 
@@ -155,20 +158,18 @@ def mesh_inlier_correspondences(
 
     n_corrs = len(keypoints_i1)
     is_inlier = np.zeros(n_corrs, dtype=bool)
-    src_i1 = np.repeat(np.reshape(gt_camera_i1.translation(), (-1, 3)), n_corrs, axis=0)
-    src_i2 = np.repeat(np.reshape(gt_camera_i2.translation(), (-1, 3)), n_corrs, axis=0)
+    src_i1 = np.repeat(gt_camera_i1.pose().translation().reshape((-1, 3)), n_corrs, axis=0)  # At_i1A
+    src_i2 = np.repeat(gt_camera_i2.pose().translation().reshape((-1, 3)), n_corrs, axis=0)  # At_i2A
 
     # Compute ketpoint rays.
     drc_i1 = np.empty((n_corrs, 3), dtype=float)
     drc_i2 = np.empty((n_corrs, 3), dtype=float)
     for corr_idx in range(n_corrs):
         drc_i1[corr_idx, :] = (
-            gt_camera_i1.BackprojectFromCamera(keypoints_i1.coordinates[corr_idx], depth=1.0)
-            - gt_camera_i1.translation()
+            gt_camera_i1.backproject(keypoints_i1.coordinates[corr_idx], depth=1.0) - src_i1[corr_idx, :]
         )
         drc_i2[corr_idx, :] = (
-            gt_camera_i2.BackprojectFromCamera(keypoints_i2.coordinates[corr_idx], depth=1.0)
-            - gt_camera_i2.translation()
+            gt_camera_i2.backproject(keypoints_i2.coordinates[corr_idx], depth=1.0) - src_i2[corr_idx, :]
         )
 
     # Perform ray tracing.
@@ -177,7 +178,9 @@ def mesh_inlier_correspondences(
     logger.info("Computing ray intersections...")
     start_time = timeit.default_timer()
     loc, idr, _ = gt_scene_mesh.ray.intersects_location(src, drc, multiple_hits=False)
-    logger.info(f"Cast {2 * n_corrs} rays in {timeit.default_timer() - start_time} seconds.")
+    logger.info(
+        f"Cast {2 * n_corrs} rays ({loc.shape[0]} intersections) in {timeit.default_timer() - start_time} seconds."
+    )
 
     # Unpack results.
     idr_i1 = idr[idr < n_corrs]
@@ -194,8 +197,8 @@ def mesh_inlier_correspondences(
         xy_i2i1, success_flag_i1 = gt_camera_i1.projectSafe(loc_i2[i2_idx[i]])
         xy_i1i2, success_flag_i2 = gt_camera_i2.projectSafe(loc_i1[i1_idx[i]])
         if success_flag_i1 and success_flag_i2:
-            err_i2i1 = np.linalg.norm(xy_i1 - xy_i2i1)
-            err_i1i2 = np.linalg.norm(xy_i2 - xy_i1i2)
+            err_i2i1 = np.linalg.norm(xy_i1.flatten() - xy_i2i1.flatten())
+            err_i1i2 = np.linalg.norm(xy_i2.flatten() - xy_i1i2.flatten())
             is_inlier[idr[i]] = max(err_i2i1, err_i1i2) < dist_threshold
             reproj_err[idr[i]] = max(err_i2i1, err_i1i2)
         else:
