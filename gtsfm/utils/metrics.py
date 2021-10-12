@@ -37,7 +37,7 @@ def count_correct_correspondences(
     intrinsics_i2: Cal3Bundler,
     i2Ti1: Pose3,
     epipolar_dist_threshold: float,
-) -> Tuple[int, np.ndarray]:
+) -> np.ndarray:
     """Checks the correspondences for epipolar distances and counts ones which are below the threshold.
 
     Args:
@@ -52,8 +52,7 @@ def count_correct_correspondences(
         ValueError: when the number of keypoints do not match.
 
     Returns:
-        Number of correspondences which are correct.
-        Mask of which verified correspondences are classified as correct under Sampson error
+        Boolean mask of which verified correspondences are classified as correct under Sampson error
             (using GT epipolar geometry).
     """
     # TODO: add unit test, with mocking.
@@ -70,7 +69,7 @@ def count_correct_correspondences(
         keypoints_i1.coordinates, keypoints_i2.coordinates, i2Fi1
     )
     inlier_mask_gt = distance_squared < epipolar_dist_threshold ** 2
-    return np.count_nonzero(inlier_mask_gt), inlier_mask_gt
+    return inlier_mask_gt
 
 
 def compute_rotation_angle_metric(wRi_list: List[Optional[Rot3]], gt_wRi_list: List[Optional[Pose3]]) -> GtsfmMetric:

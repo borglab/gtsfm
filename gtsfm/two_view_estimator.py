@@ -270,7 +270,7 @@ def compute_correspondence_metrics(
     if corr_idxs_i1i2.size == 0:
         return 0, float("Nan"), None
 
-    num_inliers_gt_model, v_corr_idxs_inlier_mask_gt = metric_utils.count_correct_correspondences(
+    v_corr_idxs_inlier_mask_gt = metric_utils.count_correct_correspondences(
         keypoints_i1.extract_indices(corr_idxs_i1i2[:, 0]),
         keypoints_i2.extract_indices(corr_idxs_i1i2[:, 1]),
         intrinsics_i1,
@@ -278,6 +278,7 @@ def compute_correspondence_metrics(
         i2Ti1,
         epipolar_distance_threshold,
     )
+    num_inliers_gt_model = np.count_nonzero(v_corr_idxs_inlier_mask_gt)
     inlier_ratio_gt_model = num_inliers_gt_model / corr_idxs_i1i2.shape[0]
     return num_inliers_gt_model, inlier_ratio_gt_model, v_corr_idxs_inlier_mask_gt
 
