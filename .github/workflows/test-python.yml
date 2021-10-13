@@ -19,12 +19,12 @@ jobs:
     - name: Cache conda env
       uses: actions/cache@v2
       env:
-        # Increase this value to reset cache if environment_linux.yml has not changed
+        # Increase this value to reset cache if environment_linux_cpuonly.yml has not changed
         CACHE_NUMBER: 0
       with:
         path: ~/conda_pkgs_dir
         key:
-          ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('environment_linux.yml') }}
+          ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('environment_linux_cpuonly.yml') }}
     - uses: conda-incubator/setup-miniconda@v2
       with:
         miniconda-version: "latest"
