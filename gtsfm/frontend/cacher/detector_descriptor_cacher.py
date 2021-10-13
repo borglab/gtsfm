@@ -40,7 +40,7 @@ class DetectorDescriptorCacher(DetectorDescriptorBase):
         self._detector_descriptor_obj_cache_key = type(self._detector_descriptor).__name__
 
     def __get_cache_path(self, cache_key: str) -> Path:
-        """Gets the cache path from the cache key."""
+        """Gets the file path to the cache bz2 file from the cache key."""
         return CACHE_ROOT_PATH / "detector_descriptor" / "{}.pbz2".format(cache_key)
 
     def __generate_cache_key(self, image: Image) -> str:

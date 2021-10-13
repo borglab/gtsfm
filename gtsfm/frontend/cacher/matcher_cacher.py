@@ -34,7 +34,7 @@ class MatcherCacher(MatcherBase):
         self._matcher_obj_key = type(self._matcher).__name__
 
     def __get_cache_path(self, cache_key: str) -> Path:
-        """Gets the cache path from the cache key."""
+        """Gets the file path to the cache bz2 file from the cache key."""
         return CACHE_ROOT_PATH / "matcher" / "{}.pbz2".format(cache_key)
 
     def __generate_cache_key(
@@ -54,22 +54,19 @@ class MatcherCacher(MatcherBase):
         """
         numpy_arrays_to_hash: List[np.ndarray] = []
 
-        # subsample and concatenate keypoints and descriptors
-        numpy_arrays_to_hash.append(keypoints_i1.coordinates[:NUM_KEYPOINTS_TO_SAMPLE_FOR_HASH].flatten())
-        if keypoints_i1.responses is not None:
-            numpy_arrays_to_hash.append(keypoints_i1.responses[:NUM_KEYPOINTS_TO_SAMPLE_FOR_HASH].flatten())
-        if keypoints_i1.scales is not None:
-            numpy_arrays_to_hash.append(keypoints_i1.scales[:NUM_KEYPOINTS_TO_SAMPLE_FOR_HASH].flatten())
-        numpy_arrays_to_hash.append(descriptors_i1[:NUM_KEYPOINTS_TO_SAMPLE_FOR_HASH].flatten())
-        numpy_arrays_to_hash.append(keypoints_i2.coordinates[:NUM_KEYPOINTS_TO_SAMPLE_FOR_HASH].flatten())
-        if keypoints_i2.responses is not None:
-            numpy_arrays_to_hash.append(keypoints_i2.responses[:NUM_KEYPOINTS_TO_SAMPLE_FOR_HASH].flatten())
-        if keypoints_i2.scales is not None:
-            numpy_arrays_to_hash.append(keypoints_i2.scales[:NUM_KEYPOINTS_TO_SAMPLE_FOR_HASH].flatten())
-        numpy_arrays_to_hash.append(descriptors_i2[:NUM_KEYPOINTS_TO_SAMPLE_FOR_HASH].flatten())
+        for keypoints_i, descriptors_i in zip([keypoints_i1, keypoints_i2], [descriptors_i1, descriptors_i2]):
+            # subsample and concatenate keypoints and descriptors
+            numpy_arrays_to_hash.append(keypoints_i.coordinates[:NUM_KEYPOINTS_TO_SAMPLE_FOR_HASH].flatten())
+            if keypoints_i.responses is not None:
+                numpy_arrays_to_hash.append(keypoints_i.responses[:NUM_KEYPOINTS_TO_SAMPLE_FOR_HASH].flatten())
+            if keypoints_i.scales is not None:
+                numpy_arrays_to_hash.append(keypoints_i.scales[:NUM_KEYPOINTS_TO_SAMPLE_FOR_HASH].flatten())
+            numpy_arrays_to_hash.append(descriptors_i[:NUM_KEYPOINTS_TO_SAMPLE_FOR_HASH].flatten())
 
         # add the shapes as a numpy array
-        numpy_arrays_to_hash.append(np.array([im_shape_i1[0], im_shape_i1[1], im_shape_i2[0], im_shape_i2[1]]))
+        h1, w1 = im_shape_i1
+        h2, w2 = im_shape_i2
+        numpy_arrays_to_hash.append(np.array([h1, w1, h2, w2]))
 
         # hash the concatenation of all the numpy arrays
         input_key = cache_utils.generate_hash_for_numpy_array(np.concatenate(numpy_arrays_to_hash))
