@@ -31,8 +31,8 @@ class TestMatcherCacher(unittest.TestCase):
     """Unit tests for MatcherCacher."""
 
     @patch("gtsfm.utils.cache.generate_hash_for_numpy_array", return_value="numpy_key")
-    @patch("gtsfm.utils.io.read_from_compressed_file", return_value=None)
-    @patch("gtsfm.utils.io.write_to_compressed_file")
+    @patch("gtsfm.utils.io.read_from_bz2_file", return_value=None)
+    @patch("gtsfm.utils.io.write_to_bz2_file")
     def test_cache_miss(
         self, write_mock: MagicMock, read_mock: MagicMock, generate_hash_for_numpy_array_mock: MagicMock
     ) -> None:
@@ -75,8 +75,8 @@ class TestMatcherCacher(unittest.TestCase):
         write_mock.assert_called_once_with(DUMMY_MATCH_INDICES, cache_path)
 
     @patch("gtsfm.utils.cache.generate_hash_for_numpy_array", return_value="numpy_key")
-    @patch("gtsfm.utils.io.read_from_compressed_file", return_value=DUMMY_MATCH_INDICES)
-    @patch("gtsfm.utils.io.write_to_compressed_file")
+    @patch("gtsfm.utils.io.read_from_bz2_file", return_value=DUMMY_MATCH_INDICES)
+    @patch("gtsfm.utils.io.write_to_bz2_file")
     def test_cache_hit(
         self, write_mock: MagicMock, read_mock: MagicMock, generate_hash_for_numpy_array_mock: MagicMock
     ) -> None:

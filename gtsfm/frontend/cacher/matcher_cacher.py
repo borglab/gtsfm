@@ -96,7 +96,7 @@ class MatcherCacher(MatcherBase):
                 im_shape_i2=im_shape_i2,
             )
         )
-        return io_utils.read_from_compressed_file(cache_path)
+        return io_utils.read_from_bz2_file(cache_path)
 
     def __save_result_to_cache(
         self,
@@ -119,7 +119,7 @@ class MatcherCacher(MatcherBase):
                 im_shape_i2=im_shape_i2,
             )
         )
-        io_utils.write_to_compressed_file(match_indices, cache_path)
+        io_utils.write_to_bz2_file(match_indices, cache_path)
 
     def match(
         self,

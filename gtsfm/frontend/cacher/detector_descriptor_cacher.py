@@ -51,7 +51,7 @@ class DetectorDescriptorCacher(DetectorDescriptorBase):
     def __load_result_from_cache(self, image: Image) -> Optional[Tuple[Keypoints, np.ndarray]]:
         """Load cached result, if they exist."""
         cache_path = self.__get_cache_path(cache_key=self.__generate_cache_key(image=image))
-        cached_data = io_utils.read_from_compressed_file(cache_path)
+        cached_data = io_utils.read_from_bz2_file(cache_path)
         if cached_data is None:
             return None
         return cached_data["keypoints"], cached_data["descriptors"]
@@ -60,7 +60,7 @@ class DetectorDescriptorCacher(DetectorDescriptorBase):
         """Save the results to the cache."""
         cache_path = self.__get_cache_path(cache_key=self.__generate_cache_key(image=image))
         data = {"keypoints": keypoints, "descriptors": descriptors}
-        io_utils.write_to_compressed_file(data, cache_path)
+        io_utils.write_to_bz2_file(data, cache_path)
 
     def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
         """Perform feature detection as well as their description, with caching.

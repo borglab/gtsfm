@@ -422,7 +422,7 @@ def save_track_visualizations(
         save_image(stacked_image, img_path=save_fpath)
 
 
-def read_from_compressed_file(file_path: Path) -> Optional[Any]:
+def read_from_bz2_file(file_path: Path) -> Optional[Any]:
     """Reads data using pickle from a compressed file, if it exists."""
     if file_path.exists():
         return pickle.load(BZ2File(file_path, "rb"))
@@ -430,7 +430,7 @@ def read_from_compressed_file(file_path: Path) -> Optional[Any]:
     return None
 
 
-def write_to_compressed_file(data: Any, file_path: Path) -> None:
+def write_to_bz2_file(data: Any, file_path: Path) -> None:
     """Writes data using pickle to a compressed file."""
     file_path.parent.mkdir(exist_ok=True, parents=True)
     pickle.dump(data, BZ2File(file_path, "wb"))
