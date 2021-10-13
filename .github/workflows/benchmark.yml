@@ -44,10 +44,10 @@ jobs:
         uses: actions/cache@v2
         env:
           # Increase this value to reset cache
-          CACHE_NUMBER: 0
+          CACHE_NUMBER_FRONTEND: 0
         with:
           path: cache
-          key: ${{ matrix.config_dataset_info[0] }}-${{ matrix.config_dataset_info[1] }}-${{ matrix.config_dataset_info[2] }}-${{ matrix.config_dataset_info[6] }}
+          key: ${{ matrix.config_dataset_info[0] }}-${{ matrix.config_dataset_info[1] }}-${{ matrix.config_dataset_info[2] }}-${{ matrix.config_dataset_info[6] }}-${{ env.CACHE_NUMBER_FRONTEND }}
       - uses: conda-incubator/setup-miniconda@v2
         with:
           miniconda-version: "latest"
