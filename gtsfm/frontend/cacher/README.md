@@ -27,10 +27,10 @@ datasets (`door-12`, `skydio-8`, `skydio-32`, `palace-of-fine-arts-281`, `notre-
 `2011205_rc3`), download the repo [gtsfm-cache](https://github.com/ayushbaid/gtsfm-cache) to a top level folder called 
 cache. This repo contains the front-end cache of all the benchmarks in the CI.
 
-## Regenerate the cache
+## How to regenerate the cache?
 - CI: Increment the cache env variable in `benchmark.yml` by 1.
 - Local testing: delete the files manually.
 
-## Add new data to the cache
+## How to add new data to the cache?
 - CI: Will be automatically generated, provided we stay below 5 GB total cache limit. Run the benchmarks on master manually.
 - Local testing: commit to the gtsfm-cache repo.
