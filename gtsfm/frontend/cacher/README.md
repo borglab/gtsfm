@@ -17,6 +17,42 @@ create a new class which is the subclass of `DetectorDescriptor` and has an unde
 it uses in case of cache miss. We went ahead with this design as it involves the least number of changes in other 
 classes. No other class except the utility functions are changed.
 - There is a config change which needs to happen to use this cache functionality.
+
+Example for `SIFTDetectorDescriptor`:
+
+No cache:
+```
+detector_descriptor:
+    _target_: gtsfm.frontend.detector_descriptor.sift.SIFTDetectorDescriptor
+
+```
+
+With cache:
+```
+detector_descriptor:
+    _target_: gtsfm.frontend.cacher.detector_descriptor_cacher.DetectorDescriptorCacher
+    detector_descriptor_obj:
+        _target_: gtsfm.frontend.detector_descriptor.sift.SIFTDetectorDescriptor
+
+```
+
+Example for `TwoWayMatcher`:
+
+No cache:
+```
+matcher:
+    _target_: gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher
+```
+
+With cache:
+```
+matcher:
+    _target_: gtsfm.frontend.cacher.matcher_cacher.MatcherCacher
+    matcher_obj:
+        _target_: gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher
+
+```
+
 - On the CI, we use Github action's cache to reuse data between different runs.
 
 
