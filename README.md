@@ -78,7 +78,7 @@ python visualization/view_scene.py --rendering_library open3d --point_rendering_
 ```
 
 For users that are working with the same dataset repeatedly, we provide functionality to cache front-end results for 
-GTSFM for very fast inference afterwards. For more information, please refer to `gtsfm/frontend/cacher/README.md`.
+GTSFM for very fast inference afterwards. For more information, please refer to [`gtsfm/frontend/cacher/README.md`](https://github.com/borglab/gtsfm/tree/master/gtsfm/frontend/cacher).
 
 ## Repository Structure
 
