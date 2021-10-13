@@ -2,22 +2,21 @@
 
 import numpy as np
 
-def RANSACTrifocal(vpts1, vpts2, vpts3, matchedTriplets ):
+def RANSACTrifocal(vpts1: np.ndarray, vpts2: np.ndarray, vpts3: np.ndarray, matchedTriplets: np.ndarray):
    """Computing the estimated Trifocal tensor using matches1 and matches2.
 
     Args:
         vpts1
         vpts2
         vpts3
-        matchedTriplets
+        matchedTriplets: array of shape (N,3)
 
     Returns:
         Tfinal
         matcheper
         m
         m1
-   """
-
+    """
     matcheper = 0
     iter = 0
     Tfinal = 0
@@ -31,29 +30,30 @@ def RANSACTrifocal(vpts1, vpts2, vpts3, matchedTriplets ):
         n = matchTriplets.shape[0]
         idx = np.random.choice(n, size=(6,1))
         
-        m(1).a1 = [vpts1(matchedTriplets(idx(1),1)).Location'; 1]
-        m(1).a2 = [vpts2(matchedTriplets(idx(1),2)).Location'; 1]
-        m(1).a3 = [vpts3(matchedTriplets(idx(1),3)).Location'; 1]
+        # convert to homogeneous
+        m(1).a1 = [vpts1[matchedTriplets[idx[1],1]].Location'; 1]
+        m(1).a2 = [vpts2[matchedTriplets[idx[1],2]].Location'; 1]
+        m(1).a3 = [vpts3[matchedTriplets[idx[1],3]].Location'; 1]
 
-        m(2).a1 = [vpts1(matchedTriplets(idx(2),1)).Location'; 1]
-        m(2).a2 = [vpts2(matchedTriplets(idx(2),2)).Location'; 1]
-        m(2).a3 = [vpts3(matchedTriplets(idx(2),3)).Location'; 1]
+        m(2).a1 = [vpts1[matchedTriplets[idx[2],1]].Location'; 1]
+        m(2).a2 = [vpts2[matchedTriplets[idx[2],2]].Location'; 1]
+        m(2).a3 = [vpts3[matchedTriplets[idx[2],3]].Location'; 1]
 
-        m(3).a1 = [vpts1(matchedTriplets(idx(3),1)).Location'; 1]
-        m(3).a2 = [vpts2(matchedTriplets(idx(3),2)).Location'; 1]
-        m(3).a3 = [vpts3(matchedTriplets(idx(3),3)).Location'; 1]
+        m(3).a1 = [vpts1[matchedTriplets[idx(3),1]].Location'; 1]
+        m(3).a2 = [vpts2[matchedTriplets[idx(3),2]].Location'; 1]
+        m(3).a3 = [vpts3[matchedTriplets[idx(3),3]].Location'; 1]
 
-        m(4).a1 = [vpts1(matchedTriplets(idx(4),1)).Location'; 1]
-        m(4).a2 = [vpts2(matchedTriplets(idx(4),2)).Location'; 1]
-        m(4).a3 = [vpts3(matchedTriplets(idx(4),3)).Location'; 1]
+        m(4).a1 = [vpts1[matchedTriplets[idx(4),1]].Location'; 1]
+        m(4).a2 = [vpts2[matchedTriplets[idx(4),2]].Location'; 1]
+        m(4).a3 = [vpts3[matchedTriplets[idx(4),3]].Location'; 1]
 
-        m(5).a1 = [vpts1(matchedTriplets(idx(5),1)).Location'; 1]
-        m(5).a2 = [vpts2(matchedTriplets(idx(5),2)).Location'; 1]
-        m(5).a3 = [vpts3(matchedTriplets(idx(5),3)).Location'; 1]
+        m(5).a1 = [vpts1[matchedTriplets[idx(5),1]].Location'; 1]
+        m(5).a2 = [vpts2[matchedTriplets[idx(5),2]].Location'; 1]
+        m(5).a3 = [vpts3[matchedTriplets[idx(5),3]].Location'; 1]
 
-        m(6).a1 = [vpts1(matchedTriplets(idx(6),1)).Location'; 1]
-        m(6).a2 = [vpts2(matchedTriplets(idx(6),2)).Location'; 1]
-        m(6).a3 = [vpts3(matchedTriplets(idx(6),3)).Location'; 1]
+        m(6).a1 = [vpts1[matchedTriplets[idx[6], 1]].Location'; 1]
+        m(6).a2 = [vpts2[matchedTriplets[idx[6], 2]].Location'; 1]
+        m(6).a3 = [vpts3[matchedTriplets[idx[6], 3]].Location'; 1]
         
         lamb1 = ([m(1).a1, m(2).a1, m(3).a1])
         lambda1 = lamb1\m(4).a1
@@ -62,9 +62,9 @@ def RANSACTrifocal(vpts1, vpts2, vpts3, matchedTriplets ):
         lamb3 = ([m(1).a3, m(2).a3, m(3).a3])
         lambda3 = lamb3\m(4).a3
         
-        B1 = ([lambda1(1) * m(1).a1, lambda1(2) * m(2).a1, lambda1(3) * m(3).a1])
-        B2 = ([lambda2(1) * m(1).a2, lambda2(2) * m(2).a2, lambda2(3) * m(3).a2])
-        B3 = ([lambda3(1) * m(1).a3, lambda3(2) * m(2).a3, lambda3(3) * m(3).a3])
+        B1 = ([lambda1[1] * m[1].a1, lambda1[2] * m[2].a1, lambda1[3] * m[3].a1])
+        B2 = ([lambda2[1] * m[1].a2, lambda2[2] * m[2].a2, lambda2[3] * m[3].a2])
+        B3 = ([lambda3[1] * m[1].a3, lambda3[2] * m[2].a3, lambda3[3] * m[3].a3])
         
         w1, w2, w3, w4, w5, w6 = 1, 1, 1, 1, 1, 1
         

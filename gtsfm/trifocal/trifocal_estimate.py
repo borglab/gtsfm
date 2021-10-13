@@ -25,10 +25,12 @@ def main() -> None:
 	points2 = detectHarrisFeatures(img2)
 	points3 = detectHarrisFeatures(img3)
 
+	# get back the features and valid points
 	f1, vpts1 = extractFeatures(img1, points1)
 	f2, vpts2 = extractFeatures(img2, points2)
 	f3, vpts3 = extractFeatures(img3, points3)
 
+	# get back (P,2) matrix
 	pairs12 = matchFeatures(f1, f2)
 	pairs23 = matchFeatures(f2, f3)
 
@@ -39,20 +41,21 @@ def main() -> None:
 
 	matchedTriplets = []
 
-	for i=1:size(pairs12,1),
-	    match = find(pairs23(:,1) == pairs12(i,2));
-	    if(size(match,1)~= 0)
-	        matchedTriplets = [matchedTriplets; pairs12(i,1), pairs12(i,2), pairs23(match, 2)];
-	    end;
-	end;
+	# simple version of Union-Find
+	for i in range(pairs12.shape[0]):
+	    match = np.where(pairs23[:,1] == pairs12[i,2])[0]
+	    if match.shape[0] != 0:
+	        matchedTriplets.append((pairs12[i,1], pairs12[i,2], pairs23[match, 2]))
+
+	matchedTriplets = np.array(matchedTriplets)
 
 	Tri, matchper, m, m1 = RANSACTrifocal(vpts1, vpts2, vpts3, matchedTriplets)
 
 	for i in range(6):
-	    m(i) = MLEupdate(Tri, m(i))
+	    m[i] = MLEupdate(Tri, m[i])
 
 	shapeInserter = vision.ShapeInserter('Shape', 'Rectangles', 'BorderColor', 'Custom', 'CustomBorderColor', uint8([255 120 0]), 'Fill', true, 'FillColor', 'Custom', 'CustomFillColor', uint8([255, 0, 0]));
-	figure(1) 
+	plt.figure(1)
 	RGB1 = img1_;
 	hold on;
 	for i in range(6):
@@ -64,7 +67,7 @@ def main() -> None:
 	figure(2)
 
 	RGB2 = img2_
-	for i=1:6,
+	for i in range(6):
 	    circle2 = int16([m(i).a2(1) m(i).a2(2) 20 20]);
 	    RGB2 = step(shapeInserter, RGB2, circle2);
 	    # RGB2 = insertMarker(RGB2,int16(m(i).a2(1:2)'),'x', 'color', 'white', 'size', 10);
@@ -80,7 +83,7 @@ def main() -> None:
 
 	plt.imshow(RGB3)
 
-	for i=1:6,
+	for i in range(6):
 	    p3 = pointTransfer(Tri, m1(i).a1, m1(i).a2)
 	    p3 = p3/p3(3)
 	    m1(i).a3 = p3
