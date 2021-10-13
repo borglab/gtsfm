@@ -5,6 +5,8 @@
 def pointTransfer(Tri, point1, point2):
     """
 
+    See Equation (1) of Torr & Zisserman, Image & Vision Computing, 1997.
+
     Args:
         Tri
         point1

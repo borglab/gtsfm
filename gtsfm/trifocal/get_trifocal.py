@@ -1,4 +1,8 @@
 
+"""
+Reference:
+https://github.com/san25dec/Trifocal-Tensor-Estimation/blob/master/GeometryReport.pdf
+"""
 
 import numpy as np
 
@@ -18,8 +22,8 @@ def getTrifocal( m1, m2, m3, m4, m5, m6 ):
     Returns:
         Tri
     """
-    lambda1 = inv([m1.a1, m2.a1, m3.a1])*m4.a1
-    B1 = inv([lambda1(1)*m1.a1, lambda1(2)*m2.a1, lambda1(3)*m3.a1])
+    lambda1 = np.linalg.inv([m1.a1, m2.a1, m3.a1])*m4.a1
+    B1 = np.linalg.inv([lambda1(1)*m1.a1, lambda1(2)*m2.a1, lambda1(3)*m3.a1])
 
     print('***** 1 ****', lambda1)
     m1.a1
@@ -29,7 +33,7 @@ def getTrifocal( m1, m2, m3, m4, m5, m6 ):
     B1
 
     lambda2 = inv([m1.a2, m2.a2, m3.a2]) * m4.a2
-    B2 = inv([lambda2(1)*m1.a2, lambda2(2)*m2.a2, lambda2(3)*m3.a2]);
+    B2 = np.linalg.inv([lambda2(1)*m1.a2, lambda2(2)*m2.a2, lambda2(3)*m3.a2]);
 
     print('***** 2 ****')
     lambda2
@@ -71,42 +75,42 @@ def getTrifocal( m1, m2, m3, m4, m5, m6 ):
     
     Matrix[0,:] = np.array([-x5*y6 + x5*w6, x6*y5 - y5*w6, -x6*w5 + y6*w5, -x5*w6 + y5*w6, x5*y6 - y6*w5 ])
                 
-    x5 = X5.a2(1);
-    y5 = X5.a2(2);
-    w5 = X5.a2(3);
+    x5 = X5.a2(1)
+    y5 = X5.a2(2)
+    w5 = X5.a2(3)
     
-    x6 = X6.a2(1);
-    y6 = X6.a2(2);
-    w6 = X6.a2(3);
+    x6 = X6.a2(1)
+    y6 = X6.a2(2)
+    w6 = X6.a2(3)
     
     Matrix[1,:] = np.array([-x5*y6 + x5*w6, x6*y5 - y5*w6, -x6*w5 + y6*w5, -x5*w6 + y5*w6, x5*y6 - y6*w5 ])
-    x5 = X5.a3(1);
-    y5 = X5.a3(2);
-    w5 = X5.a3(3);
+    x5 = X5.a3(1)
+    y5 = X5.a3(2)
+    w5 = X5.a3(3)
     
-    x6 = X6.a3(1);
-    y6 = X6.a3(2);
-    w6 = X6.a3(3);
+    x6 = X6.a3(1)
+    y6 = X6.a3(2)
+    w6 = X6.a3(3)
     
     Matrix[2,:] = np.array([-x5*y6 + x5*w6, x6*y5 - y5*w6, -x6*w5 + y6*w5, -x5*w6 + y5*w6, x5*y6 - y6*w5 ])
                     
     _, _, Vh = np.linalg.svd(Matrix)
     V = Vh.T
     
-    T1 = V(:, end-1);
-    T2 = V(:, end);
+    T1 = V[:, -2]
+    T2 = V[:, -1]
     
-    a1 = T1(1);
-    a2 = T1(2);
-    a3 = T1(3);
-    a4 = T1(4);
-    a5 = T1(5);
+    a1 = T1[0]
+    a2 = T1[1]
+    a3 = T1[2]
+    a4 = T1[3]
+    a5 = T1[4]
     
-    b1 = T2(1);
-    b2 = T2(2);
-    b3 = T2(3);
-    b4 = T2(4);
-    b5 = T2(5);
+    b1 = T2[0]
+    b2 = T2[1]
+    b3 = T2[2]
+    b4 = T2[3]
+    b5 = T2[4]
     
     polynomial = Fun(a1,b1,a2,b2,a5,b5)-Fun(a2,b2,a3,b3,a5,b5) ...
                 -Fun(a2,b2,a4,b4,a5,b5)-Fun(a1,b1,a3,b3,a4,b4) ...
@@ -222,3 +226,30 @@ def getTrifocal( m1, m2, m3, m4, m5, m6 ):
                 Tri[i,j,k] = P2[j,i] * P3[k,3] - P2[j,3] * P3[k,i]
 
     return Tri
+
+
+
+
+def cross4( a, b, c ):
+    """
+    Args:
+        a
+        b
+        c
+
+    Returns:
+        d
+    """
+    l1 = det([a[2:4]'; b(2:4)'; c(2:4)'])
+    l2 = -det([[a(1),a(3:4)'] ; [b(1),b[3:4]']; [c(1),c[3:4]']])
+    l3 = det([[a[1:2]',a(4)] ; [b[1:2]',b(4)]; [c[1:2]',c(4)]])
+    l4 = -det([a[1:3]' ; b(1:3)'; c[1:3]'])
+    d = [l1; l2; l3; l4]
+
+    return d
+    
+
+
+
+
+
