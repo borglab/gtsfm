@@ -177,3 +177,6 @@ result_metrics/
 
 # Folder created by hydra
 output/
+
+# Cache dir
+cache/

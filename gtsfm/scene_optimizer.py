@@ -161,6 +161,7 @@ class SceneOptimizer:
                         keypoints_graph_list[i1],
                         keypoints_graph_list[i2],
                         v_corr_idxs,
+                        two_view_report=two_view_report,
                         file_path=os.path.join(PLOT_CORRESPONDENCE_PATH, f"{i1}_{i2}.jpg"),
                     )
                 )
