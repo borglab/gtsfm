@@ -21,16 +21,16 @@ classes. No other class except the utility functions are changed.
 
 
 ## How to use the cache?
-- Enabled in the CI runs by this PR.
+- Enabled in the CI by default.
 - When run locally, the cache will be generated when the user first runs GTSFM. To use precomputed cache for certain 
-datasets (door-12, skydio-8, skydio-32, palace-of-fine-arts-281, notre-dame-20, 
-2011205_rc3), download the repo [gtsfm-cache](https://github.com/ayushbaid/gtsfm-cache) to a top level folder called 
+datasets (`door-12`, `skydio-8`, `skydio-32`, `palace-of-fine-arts-281`, `notre-dame-20`, 
+`2011205_rc3`), download the repo [gtsfm-cache](https://github.com/ayushbaid/gtsfm-cache) to a top level folder called 
 cache. This repo contains the front-end cache of all the benchmarks in the CI.
 
-## How to regenerate cache?
-- CI: Change the cache env variable in `benchmark.yaml`
+## Regenerate the cache
+- CI: Increment the cache env variable in `benchmark.yml` by 1.
 - Local testing: delete the files manually.
 
-## How to add new data to cache?
+## Add new data to the cache
 - CI: Will be automatically generated, provided we stay below 5 GB total cache limit. Run the benchmarks on master manually.
 - Local testing: commit to the gtsfm-cache repo.
