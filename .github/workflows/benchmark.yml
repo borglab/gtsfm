@@ -22,7 +22,7 @@ jobs:
             [sift_front_end,  palace-fine-arts-281,  25,  jpg,  wget,       olsson-loader,  320, true],
             [deep_front_end,  notre-dame-20,         20,  jpg,  gdrive,     colmap-loader,  760, false],
             [sift_front_end,  2011205_rc3,           65,  png,  wget,       astronet,       1024, true],
-            [deep_front_end,  2011205_rc3,           10,  png,  wget,       astronet,       1024, true],
+            [deep_front_end,  2011205_rc3,           20,  png,  wget,       astronet,       1024, true],
           ]
     defaults:
       run:
@@ -41,6 +41,14 @@ jobs:
         with:
           path: ~/conda_pkgs_dir
           key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('environment_linux.yml') }}
+      - name: Cache frontend
+        uses: actions/cache@v2
+        env:
+          # Increase this value to reset cache
+          CACHE_NUMBER: 0
+        with:
+          path: cache
+          key: ${{ matrix.config_dataset_info[0] }}-${{ matrix.config_dataset_info[1] }}-${{ matrix.config_dataset_info[2] }}-${{ matrix.config_dataset_info[6] }}
       - uses: conda-incubator/setup-miniconda@v2
         with:
           miniconda-version: "latest"
