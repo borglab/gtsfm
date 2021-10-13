@@ -77,6 +77,9 @@ To visualize the result using Open3D, run:
 python visualization/view_scene.py --rendering_library open3d --point_rendering_mode point
 ```
 
+For users that are working with the same dataset repeatedly, we provide functionality to cache front-end results for 
+GTSFM for very fast inference afterwards. For more information, please refer to [`gtsfm/frontend/cacher/README.md`](https://github.com/borglab/gtsfm/tree/master/gtsfm/frontend/cacher).
+
 ## Repository Structure
 
 GTSFM is designed in an extremely modular way. Each module can be swapped out with a new one, as long as it implements the API of the module's abstract base class. The code is organized as follows:
@@ -94,6 +97,7 @@ GTSFM is designed in an extremely modular way. Each module can be swapped out wi
         - `descriptor`: feature descriptor implementations ([SIFT](https://www.cs.ubc.ca/~lowe/papers/ijcv04.pdf), [SuperPoint](https://arxiv.org/abs/1712.07629) etc)
         - `matcher`: descriptor matching implementations ([Superglue](https://arxiv.org/abs/1911.11763), etc)
         - `verifier`: 2d-correspondence verifier implementations ([Degensac](https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.466.2719&rep=rep1&type=pdf), OA-Net, etc)
+        - `cacher`: Cache implementations for different stages of the front-end.
     - `loader`: image data loaders
     - `utils`: utility functions such as serialization routines and pose comparisons, etc
 - `tests`: unit tests on every function and module
