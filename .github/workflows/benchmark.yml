@@ -61,15 +61,24 @@ jobs:
           conda info
       - name: Parse args and prepare dataset, Execute dataset
         run: |
+          CONFIG_NAME=${{ matrix.config_dataset_info[0] }}
+          DATASET_NAME=${{ matrix.config_dataset_info[1] }}
+          MAX_FRAME_LOOKAHEAD=${{ matrix.config_dataset_info[2] }}
+          IMAGE_EXTENSION=${{ matrix.config_dataset_info[3] }}
+          DATASET_SRC=${{ matrix.config_dataset_info[4] }}
+          LOADER_NAME=${{ matrix.config_dataset_info[5] }}
+          MAX_RESOLUTION=${{ matrix.config_dataset_info[6] }}
+          SHARE_INTRINSICS=${{ matrix.config_dataset_info[7] }}
+
           bash .github/scripts/execute_single_benchmark.sh \
-            ${{ matrix.config_dataset_info[0] }} \ # config
-            ${{ matrix.config_dataset_info[1] }} \ # dataset
-            ${{ matrix.config_dataset_info[2] }} \ # max-frame-lookahead
-            ${{ matrix.config_dataset_info[3] }} \ # image extension
-            ${{ matrix.config_dataset_info[4] }} \ # dataset source
-            ${{ matrix.config_dataset_info[5] }} \ # loader name
-            ${{ matrix.config_dataset_info[6] }} \ # max resolution
-            ${{ matrix.config_dataset_info[7] }} # share intrinsics
+            $CONFIG_NAME \
+            $DATASET_NAME \
+            $MAX_FRAME_LOOKAHEAD \
+            $IMAGE_EXTENSION \
+            $DATASET_SRC \
+            $LOADER_NAME \
+            $MAX_RESOLUTION \
+            $SHARE_INTRINSICS
 
       - name: Archive dataset metrics, plots, and output data (camera poses + points)
         uses: actions/upload-artifact@v2
