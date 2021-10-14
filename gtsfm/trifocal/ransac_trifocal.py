@@ -2,8 +2,13 @@
 
 import numpy as np
 
-def RANSACTrifocal(vpts1: np.ndarray, vpts2: np.ndarray, vpts3: np.ndarray, matchedTriplets: np.ndarray):
+from gtsfm.common.keypoints import Keypoints
+
+def RANSACTrifocal(vpts1: Keypoints, vpts2: Keypoints, vpts3: Keypoints, matchedTriplets: np.ndarray):
    """Computing the estimated Trifocal tensor using matches1 and matches2.
+
+   Note: original implementation was in MATLAB and used the .Location field of cornerpoints
+   https://www.mathworks.com/help/vision/ref/cornerpoints.html
 
     Args:
         vpts1
@@ -31,29 +36,33 @@ def RANSACTrifocal(vpts1: np.ndarray, vpts2: np.ndarray, vpts3: np.ndarray, matc
         idx = np.random.choice(n, size=(6,1))
         
         # convert to homogeneous
-        m(1).a1 = [vpts1[matchedTriplets[idx[1],1]].Location'; 1]
-        m(1).a2 = [vpts2[matchedTriplets[idx[1],2]].Location'; 1]
-        m(1).a3 = [vpts3[matchedTriplets[idx[1],3]].Location'; 1]
+        vpts1_h = convert_to_homogenous_coordinates(non_homogenous_coordinates=vpts1.coordinates)
+        vpts2_h = convert_to_homogenous_coordinates(non_homogenous_coordinates=vpts2.coordinates)
+        vpts3_h = convert_to_homogenous_coordinates(non_homogenous_coordinates=vpts3.coordinates)
 
-        m(2).a1 = [vpts1[matchedTriplets[idx[2],1]].Location'; 1]
-        m(2).a2 = [vpts2[matchedTriplets[idx[2],2]].Location'; 1]
-        m(2).a3 = [vpts3[matchedTriplets[idx[2],3]].Location'; 1]
+        m(1).a1 = vpts1_h[matchedTriplets[idx[1],1]]
+        m(1).a2 = vpts2_h[matchedTriplets[idx[1],2]]
+        m(1).a3 = vpts3_h[matchedTriplets[idx[1],3]]
 
-        m(3).a1 = [vpts1[matchedTriplets[idx(3),1]].Location'; 1]
-        m(3).a2 = [vpts2[matchedTriplets[idx(3),2]].Location'; 1]
-        m(3).a3 = [vpts3[matchedTriplets[idx(3),3]].Location'; 1]
+        m(2).a1 = vpts1[matchedTriplets[idx[2],1]]
+        m(2).a2 = vpts2[matchedTriplets[idx[2],2]]
+        m(2).a3 = vpts3[matchedTriplets[idx[2],3]]
 
-        m(4).a1 = [vpts1[matchedTriplets[idx(4),1]].Location'; 1]
-        m(4).a2 = [vpts2[matchedTriplets[idx(4),2]].Location'; 1]
-        m(4).a3 = [vpts3[matchedTriplets[idx(4),3]].Location'; 1]
+        m(3).a1 = vpts1_h[matchedTriplets[idx[3],1]]
+        m(3).a2 = vpts2_h[matchedTriplets[idx[3],2]]
+        m(3).a3 = vpts3_h[matchedTriplets[idx[3],3]]
 
-        m(5).a1 = [vpts1[matchedTriplets[idx(5),1]].Location'; 1]
-        m(5).a2 = [vpts2[matchedTriplets[idx(5),2]].Location'; 1]
-        m(5).a3 = [vpts3[matchedTriplets[idx(5),3]].Location'; 1]
+        m(4).a1 = vpts1_h[matchedTriplets[idx[4],1]]
+        m(4).a2 = vpts2_h[matchedTriplets[idx[4],2]]
+        m(4).a3 = vpts3_h[matchedTriplets[idx[4],3]]
 
-        m(6).a1 = [vpts1[matchedTriplets[idx[6], 1]].Location'; 1]
-        m(6).a2 = [vpts2[matchedTriplets[idx[6], 2]].Location'; 1]
-        m(6).a3 = [vpts3[matchedTriplets[idx[6], 3]].Location'; 1]
+        m(5).a1 = vpts1_h[matchedTriplets[idx(5),1]]
+        m(5).a2 = vpts2_h[matchedTriplets[idx(5),2]]
+        m(5).a3 = vpts3_h[matchedTriplets[idx(5),3]]
+
+        m(6).a1 = vpts1_h[matchedTriplets[idx[6], 1]]
+        m(6).a2 = vpts2_h[matchedTriplets[idx[6], 2]]
+        m(6).a3 = vpts3_h[matchedTriplets[idx[6], 3]]
         
         lamb1 = ([m(1).a1, m(2).a1, m(3).a1])
         lambda1 = lamb1\m(4).a1
