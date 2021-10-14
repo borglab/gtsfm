@@ -75,7 +75,7 @@ python gtsfm/runner/run_scene_optimizer_olssonloader.py --config_name {CONFIG_NA
 ```
 For example, if you had 4 cores available and wanted to use the Deep Front-End (recommended), you should run:
 ```bash
-python gtsfm/runner/run_scene_optimizer_olssonloader.py --dataset_root /path/to/DATASET_ROOT --image_extension jpg --config_name deep_front_end.yaml --num_workers 4
+python gtsfm/runner/run_scene_optimizer_olssonloader.py --dataset_root /path/to/{DATASET_NAME} --image_extension jpg --config_name deep_front_end.yaml --num_workers 4
 ```
 (or however many workers you desire).
 
