@@ -10,7 +10,6 @@ References:
 
 Authors: Jing Wu, Ayush Baid, Akshay Krishnan
 """
-import random
 from typing import Dict, List, Optional, Tuple
 
 import gtsam
@@ -82,16 +81,13 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         # convert translation direction in global frame using rotations.
         w_i2Ui1_measurements = BinaryMeasurementsUnit3()
-        w_i2Ui1_dict = {}
         for (i1, i2), i2Ui1 in i2Ui1_dict.items():
             if i2Ui1 is not None and wRi_list[i2] is not None:
-                measured = Unit3(wRi_list[i2].rotate(i2Ui1.point3()))
                 w_i2Ui1_measurements.append(
                     BinaryMeasurementUnit3(i2, i1, Unit3(wRi_list[i2].rotate(i2Ui1.point3())), noise_model)
                 )
 
         # sample projection directions
-        w_i2Ui1_list = [w_i2Ui1.measured().point3() for w_i2Ui1 in w_i2Ui1_measurements]
         projection_directions = _sample_random_directions(self._max_1dsfm_projection_directions)
 
         # compute outlier weights using MFAS
@@ -153,9 +149,9 @@ def _sample_random_directions(num_samples: int) -> List[Unit3]:
     Returns:
         List of sampled Unit3 directions.
     """
-    sampled_azimuth_zenith = np.random.uniform(low=0.0, high=2 * np.pi, size=(num_samples, 2))
+    sampled_azimuth_elevation = np.random.uniform(low=0.0, high=2 * np.pi, size=(num_samples, 2))
 
-    return transform_utils.spherical_to_cartesian_directions(sampled_azimuth_zenith)
+    return transform_utils.spherical_to_cartesian_directions(sampled_azimuth_elevation)
 
 
 def _get_measurement_angle_errors(
