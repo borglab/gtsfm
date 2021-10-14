@@ -142,7 +142,8 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 def _sample_random_directions(num_samples: int) -> List[Unit3]:
     """Samples num_samples Unit3 3D directions.
     The sampling is done in 2D spherical coordinates (azimuth, elevation), and then converted to Cartesian coordinates.
-
+    Sampling in spherical coordinates was found to have precision-recall for 1dsfm outlier rejection.
+    
     Args:
         num_samples: Number of samples required.
 
