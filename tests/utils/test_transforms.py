@@ -2,8 +2,8 @@
 
 Authors: Akshay Krishnan
 """
-from gtsam import Unit3
 import numpy as np
+from gtsam import Unit3
 
 import gtsfm.utils.transforms as transform_utils
 
