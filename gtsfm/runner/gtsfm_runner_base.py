@@ -65,6 +65,20 @@ class GtsfmRunnerBase:
             "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras"
         )
 
+        parser.add_argument(
+            "--max_iters",
+            type=int,
+            default=10,
+            help="max number ransac iters",
+        )
+
+        parser.add_argument(
+            "--success_prob",
+            type=float,
+            default=0.9,
+            help="RANSAC guaranteed success probability",
+        )
+
         return parser
 
     @abstractmethod
@@ -76,9 +90,10 @@ class GtsfmRunnerBase:
             # config is relative to the gtsfm module
             cfg = hydra.compose(
                 config_name=self.parsed_args.config_name,
-                overrides=["SceneOptimizer.multiview_optimizer.bundle_adjustment_module.shared_calib=True"]
-                if self.parsed_args.share_intrinsics
-                else [],
+                overrides=[
+                    f"SceneOptimizer.two_view_estimator.verifier.success_prob={self.parsed_args.success_prob}",
+                    f"SceneOptimizer.two_view_estimator.verifier.max_iters={self.parsed_args.max_iters}"
+                ]
             )
             logger.info("Using config: ")
             logger.info(OmegaConf.to_yaml(cfg))

@@ -24,9 +24,6 @@ from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.verifier_base import VerifierBase, NUM_MATCHES_REQ_E_MATRIX, NUM_MATCHES_REQ_F_MATRIX
 
 
-RANSAC_SUCCESS_PROB = 0.9999
-RANSAC_MAX_ITERS = 10000
-
 logger = logger_utils.get_logger()
 
 
@@ -36,6 +33,8 @@ class Ransac(VerifierBase):
         use_intrinsics_in_verification: bool,
         estimation_threshold_px: float,
         min_allowed_inlier_ratio_est_model: float,
+        success_prob: float,
+        max_iters: int
     ) -> None:
         """Initializes the verifier.
 
@@ -49,6 +48,9 @@ class Ransac(VerifierBase):
                 the verification result and use the image pair, i.e. the lowest allowed ratio of
                 #final RANSAC inliers/ #putatives. A lower fraction indicates less agreement among the result.
         """
+        self._ransac_success_prob = success_prob
+        self._ransac_max_iters = max_iters
+
         self._use_intrinsics_in_verification = use_intrinsics_in_verification
         self._estimation_threshold_px = estimation_threshold_px
         self._min_allowed_inlier_ratio_est_model = min_allowed_inlier_ratio_est_model
@@ -102,7 +104,7 @@ class Ransac(VerifierBase):
                 K,
                 method=cv2.USAC_ACCURATE,
                 threshold=self._estimation_threshold_px / fx,
-                prob=RANSAC_SUCCESS_PROB,
+                prob=self._ransac_success_prob,
             )
         else:
             i2Fi1, inlier_mask = cv2.findFundamentalMat(
@@ -110,8 +112,8 @@ class Ransac(VerifierBase):
                 keypoints_i2.extract_indices(match_indices[:, 1]).coordinates,
                 method=cv2.FM_RANSAC,
                 ransacReprojThreshold=self._estimation_threshold_px,
-                confidence=RANSAC_SUCCESS_PROB,
-                maxIters=RANSAC_MAX_ITERS,
+                confidence=self._ransac_success_prob,
+                maxIters=self._ransac_max_iters,
             )
 
             i2Ei1 = verification_utils.fundamental_to_essential_matrix(
