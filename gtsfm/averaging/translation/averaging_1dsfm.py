@@ -16,7 +16,6 @@ from typing import Dict, List, Optional, Tuple
 import gtsam
 import numpy as np
 from gtsam import MFAS, BinaryMeasurementsUnit3, BinaryMeasurementUnit3, Point3, Pose3, Rot3, TranslationRecovery, Unit3
-from scipy import stats
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.metrics as metrics_utils
@@ -28,7 +27,6 @@ from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 # maximum number of times 1dsfm will project the Unit3's to a 1d subspace for outlier rejection
 MAX_PROJECTION_DIRECTIONS = 200
 OUTLIER_WEIGHT_THRESHOLD = 0.1
-MAX_KDE_SAMPLES = 2000
 
 NOISE_MODEL_DIMENSION = 3  # chordal distances on Unit3
 NOISE_MODEL_SIGMA = 0.01
@@ -147,8 +145,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
 def _sample_random_directions(num_samples: int) -> List[Unit3]:
     """Samples num_samples Unit3 3D directions.
-    The sampling is done in 2D spherical coordinates (azimuth, zenith) values, and then converted to Euclidean
-    coordinates.
+    The sampling is done in 2D spherical coordinates (azimuth, elevation), and then converted to Cartesian coordinates.
 
     Args:
         num_samples: Number of samples required.
@@ -158,7 +155,7 @@ def _sample_random_directions(num_samples: int) -> List[Unit3]:
     """
     sampled_azimuth_zenith = np.random.uniform(low=0.0, high=2 * np.pi, size=(num_samples, 2))
 
-    return transform_utils.spherical_to_euclidean_directions(sampled_azimuth_zenith)
+    return transform_utils.spherical_to_cartesian_directions(sampled_azimuth_zenith)
 
 
 def _get_measurement_angle_errors(

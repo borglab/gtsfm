@@ -8,7 +8,7 @@ import numpy as np
 from gtsam import Unit3
 
 
-def euclidean_to_spherical_directions(directions: List[Unit3]) -> np.ndarray:
+def cartesian_to_spherical_directions(directions: List[Unit3]) -> np.ndarray:
     """Converts a list of Unit3 directions to spherical coordinates (azimuth, elevation).
     Angles are given in a compass frame:
     zenith is along +y, azimuth=0 is along -z, and azimuth=pi/2 is along +x.
@@ -27,7 +27,7 @@ def euclidean_to_spherical_directions(directions: List[Unit3]) -> np.ndarray:
     return np.column_stack((azimuth, elevation))
 
 
-def spherical_to_euclidean_directions(spherical_coords: np.ndarray) -> List[Unit3]:
+def spherical_to_cartesian_directions(spherical_coords: np.ndarray) -> List[Unit3]:
     """Converts an array of spherical coordinates to a list of Unit3 directions.
 
     Args:
