@@ -7,18 +7,21 @@ jobs:
     name: Benchmark
     runs-on: ubuntu-latest
     strategy:
+      # Prevents other configs from being canceled if one of them fails.
+      fail-fast: false
       matrix:
         config_dataset_info:
           [
-            "sift_front_end,  door-12,               12,  JPG,  test_data,  olsson-loader,  1296, true",
-            "deep_front_end,  door-12,               12,  JPG,  test_data,  olsson-loader,  1296, true",
-            "sift_front_end,  skydio-8,              8,   jpg,  gdrive ,    colmap-loader,  760, true",
-            "deep_front_end,  skydio-8,              8,   jpg,  gdrive,     colmap-loader,  760, true",
-            "sift_front_end,  skydio-32,             32,  jpg,  gdrive,     colmap-loader,  760, true",
-            "deep_front_end,  skydio-32,             32,  jpg,  gdrive,     colmap-loader,  760, true",
-            "sift_front_end,  palace-fine-arts-281,  25,  jpg,  wget,       olsson-loader,  320, true",
-            "deep_front_end,  notre-dame-20,         20,  jpg,  gdrive,     colmap-loader,  760, false",
-            "sift_front_end,  2011205_rc3,           65,  png,  wget,       astronet,       1024, true",
+            # config          dataset    lookahead    img-extension  source  loader      max-res  share-intrinsics
+            [sift_front_end,  door-12,               12,  JPG,  test_data,  olsson-loader,  1296, true],
+            [deep_front_end,  door-12,               12,  JPG,  test_data,  olsson-loader,  1296, true],
+            [sift_front_end,  skydio-8,              8,   jpg,  gdrive ,    colmap-loader,  760, true],
+            [deep_front_end,  skydio-8,              8,   jpg,  gdrive,     colmap-loader,  760, true],
+            [sift_front_end,  skydio-32,             32,  jpg,  gdrive,     colmap-loader,  760, true],
+            [deep_front_end,  skydio-32,             32,  jpg,  gdrive,     colmap-loader,  760, true],
+            [sift_front_end,  palace-fine-arts-281,  25,  jpg,  wget,       olsson-loader,  320, true],
+            [deep_front_end,  notre-dame-20,         20,  jpg,  gdrive,     colmap-loader,  760, false],
+            [sift_front_end,  2011205_rc3,           65,  png,  wget,       astronet,       1024, true],
           ]
     defaults:
       run:
@@ -37,6 +40,14 @@ jobs:
         with:
           path: ~/conda_pkgs_dir
           key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('environment_linux.yml') }}
+      - name: Cache frontend
+        uses: actions/cache@v2
+        env:
+          # Increase this value to reset cache
+          CACHE_NUMBER: 0
+        with:
+          path: cache
+          key: ${{ matrix.config_dataset_info[0] }}-${{ matrix.config_dataset_info[1] }}-${{ matrix.config_dataset_info[2] }}-${{ matrix.config_dataset_info[6] }}
       - uses: conda-incubator/setup-miniconda@v2
         with:
           miniconda-version: "latest"
@@ -50,16 +61,14 @@ jobs:
           conda info
       - name: Parse args and prepare dataset, Execute dataset
         run: |
-          IFS=',  ' read -r -a array <<< "${{ matrix.config_dataset_info }}"
-          # strip out the whitespace with the stream editor (sed)
-          CONFIG_NAME=$(echo ${array[0]} | sed 's/ //g')
-          DATASET_NAME=$(echo ${array[1]} | sed 's/ //g')
-          MAX_FRAME_LOOKAHEAD=$(echo ${array[2]} | sed 's/ //g')
-          IMAGE_EXTENSION=$(echo ${array[3]} | sed 's/ //g')
-          DATASET_SRC=$(echo ${array[4]} | sed 's/ //g')
-          LOADER_NAME=$(echo ${array[5]} | sed 's/ //g')
-          MAX_RESOLUTION=$(echo ${array[6]} | sed 's/ //g')
-          SHARE_INTRINSICS=$(echo ${array[7]} | sed 's/ //g')
+          CONFIG_NAME=${{ matrix.config_dataset_info[0] }}
+          DATASET_NAME=${{ matrix.config_dataset_info[1] }}
+          MAX_FRAME_LOOKAHEAD=${{ matrix.config_dataset_info[2] }}
+          IMAGE_EXTENSION=${{ matrix.config_dataset_info[3] }}
+          DATASET_SRC=${{ matrix.config_dataset_info[4] }}
+          LOADER_NAME=${{ matrix.config_dataset_info[5] }}
+          MAX_RESOLUTION=${{ matrix.config_dataset_info[6] }}
+          SHARE_INTRINSICS=${{ matrix.config_dataset_info[7] }}
 
           bash .github/scripts/execute_single_benchmark.sh \
             $CONFIG_NAME \
@@ -71,10 +80,11 @@ jobs:
             $MAX_RESOLUTION \
             $SHARE_INTRINSICS
 
-
-      - name: Archive dataset metrics
+      - name: Archive dataset metrics, plots, and output data (camera poses + points)
         uses: actions/upload-artifact@v2
         with:
-          name: metrics-${{ matrix.config_dataset_info }}.zip
+          name: results-${{ matrix.config_dataset_info[0] }}-${{ matrix.config_dataset_info[1] }}-${{ matrix.config_dataset_info[2] }}-${{ matrix.config_dataset_info[3] }}-${{ matrix.config_dataset_info[4] }}-${{ matrix.config_dataset_info[5] }}-${{ matrix.config_dataset_info[6] }}-${{ matrix.config_dataset_info[7] }}.zip
           path: |
             result_metrics
+            plots
+            results
