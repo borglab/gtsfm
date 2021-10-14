@@ -18,7 +18,7 @@ from gtsam import MFAS, BinaryMeasurementsUnit3, BinaryMeasurementUnit3, Point3,
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.metrics as metrics_utils
-import gtsfm.utils.transforms as transform_utils
+import gtsfm.utils.coordinate_conversions as conversion_utils
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
@@ -152,7 +152,7 @@ def _sample_random_directions(num_samples: int) -> List[Unit3]:
     """
     sampled_azimuth_elevation = np.random.uniform(low=0.0, high=2 * np.pi, size=(num_samples, 2))
 
-    return transform_utils.spherical_to_cartesian_directions(sampled_azimuth_elevation)
+    return conversion_utils.spherical_to_cartesian_directions(sampled_azimuth_elevation)
 
 
 def _get_measurement_angle_errors(
