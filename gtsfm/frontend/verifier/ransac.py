@@ -24,8 +24,8 @@ from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.verifier_base import VerifierBase, NUM_MATCHES_REQ_E_MATRIX, NUM_MATCHES_REQ_F_MATRIX
 
 
-RANSAC_SUCCESS_PROB = 0.9999
-RANSAC_MAX_ITERS = 10000
+RANSAC_SUCCESS_PROB = 0.999999
+RANSAC_MAX_ITERS = 1000000
 
 logger = logger_utils.get_logger()
 
