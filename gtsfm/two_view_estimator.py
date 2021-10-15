@@ -67,6 +67,8 @@ class TwoViewEstimationReport:
     i2Ri1: Optional[Rot3] = None
     i2Ui1: Optional[Unit3] = None
     reproj_error_gt_model: Optional[np.ndarray] = None
+    inlier_avg_reproj_error_gt_model: Optional[float] = None
+    outlier_avg_reproj_error_gt_model: Optional[float] = None
 
 
 class TwoViewEstimator:
@@ -322,6 +324,8 @@ def generate_two_view_report(
         R_error_deg=R_error_deg,
         U_error_deg=U_error_deg,
         reproj_error_gt_model=reproj_error_gt_model,
+        inlier_avg_reproj_error_gt_model=inlier_avg_reproj_error_gt_model,
+        outlier_avg_reproj_error_gt_model=outlier_avg_reproj_error_gt_model,
     )
     return two_view_report
 

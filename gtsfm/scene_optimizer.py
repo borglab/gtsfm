@@ -405,17 +405,17 @@ def save_full_frontend_metrics(
                 "inlier_ratio_gt_model": round(report.inlier_ratio_gt_model, PRINT_NUM_SIG_FIGS)
                 if report.inlier_ratio_gt_model
                 else None,
-                # "inlier_avg_reproj_error_gt_model": round(
-                #     np.nanmean(report.reproj_error_gt_model[report.inlier_mask_gt_model]), PRINT_NUM_SIG_FIGS
-                # )
-                # if report.reproj_error_gt_model is not None and report.inlier_mask_gt_model is not None
-                # else None,
-                # "outlier_avg_reproj_error_gt_model": round(
-                #     np.nanmean(report.reproj_error_gt_model[np.logical_not(report.inlier_mask_gt_model)]),
-                #     PRINT_NUM_SIG_FIGS,
-                # )
-                # if report.reproj_error_gt_model is not None and report.inlier_mask_gt_model is not None
-                # else None,
+                "inlier_avg_reproj_error_gt_model": round(
+                    np.nanmean(report.reproj_error_gt_model[report.inlier_mask_gt_model]), PRINT_NUM_SIG_FIGS
+                )
+                if report.reproj_error_gt_model is not None and report.inlier_mask_gt_model is not None
+                else None,
+                "outlier_avg_reproj_error_gt_model": round(
+                    np.nanmean(report.reproj_error_gt_model[np.logical_not(report.inlier_mask_gt_model)]),
+                    PRINT_NUM_SIG_FIGS,
+                )
+                if report.reproj_error_gt_model is not None and report.inlier_mask_gt_model is not None
+                else None,
                 "inlier_ratio_est_model": round(report.inlier_ratio_est_model, PRINT_NUM_SIG_FIGS),
                 "num_inliers_est_model": report.num_inliers_est_model,
             }
