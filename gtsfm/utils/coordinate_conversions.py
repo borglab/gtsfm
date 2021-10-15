@@ -9,7 +9,7 @@ from gtsam import Unit3
 
 
 def cartesian_to_spherical_directions(directions: List[Unit3]) -> np.ndarray:
-    """Converts a list of Unit3 directions to spherical coordinates (azimuth, elevation).
+    """Converts a list of Unit3 directions to spherical coordinates (azimuth, elevation) in radians.
     Angles are given in a compass frame:
     zenith is along +y, azimuth=0 is along +z, and azimuth=pi/2 is along +x.
     This follows 1DSfM's convention
@@ -19,7 +19,7 @@ def cartesian_to_spherical_directions(directions: List[Unit3]) -> np.ndarray:
         directions: List of Unit3 directions.
 
     Returns:
-        Nx2 numpy array where N is the length of the list and columns are (azimuth, elevation).
+        Nx2 numpy array where N is the length of the list and columns are (azimuth, elevation) in radians.
     """
     directions_array = np.array([d.point3() for d in directions])
     azimuth = np.arctan2(directions_array[:, 0], directions_array[:, 2])
@@ -31,7 +31,7 @@ def spherical_to_cartesian_directions(spherical_coords: np.ndarray) -> List[Unit
     """Converts an array of spherical coordinates to a list of Unit3 directions.
 
     Args:
-        directions: Nx2 array where the first column are [azimuth, elevation].
+        directions: Nx2 array where the first column are [azimuth, elevation] in radians.
 
     Returns:
         List of Unit3 directions for the provided spherical coordinates.
