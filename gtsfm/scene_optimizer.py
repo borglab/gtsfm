@@ -170,8 +170,8 @@ class SceneOptimizer:
                         keypoints_graph_list[i1],
                         keypoints_graph_list[i2],
                         v_corr_idxs,
+                        two_view_report=two_view_report,
                         file_path=os.path.join(PLOT_CORRESPONDENCE_PATH, f"{i1}_{i2}.jpg"),
-                        inlier_mask=two_view_reports_dict[(i1, i2)].inlier_mask_gt_model,
                     )
                 )
 
@@ -406,15 +406,15 @@ def save_full_frontend_metrics(
                 if report.inlier_ratio_gt_model
                 else None,
                 "inlier_avg_reproj_error_gt_model": round(
-                    np.nanmean(report.reproj_error_gt_model[report.inlier_mask_gt_model]), PRINT_NUM_SIG_FIGS
+                    np.nanmean(report.reproj_error_gt_model[report.v_corr_idxs_inlier_mask_gt]), PRINT_NUM_SIG_FIGS
                 )
-                if report.reproj_error_gt_model is not None and report.inlier_mask_gt_model is not None
+                if report.reproj_error_gt_model is not None and report.v_corr_idxs_inlier_mask_gt is not None
                 else None,
                 "outlier_avg_reproj_error_gt_model": round(
-                    np.nanmean(report.reproj_error_gt_model[np.logical_not(report.inlier_mask_gt_model)]),
+                    np.nanmean(report.reproj_error_gt_model[np.logical_not(report.v_corr_idxs_inlier_mask_gt)]),
                     PRINT_NUM_SIG_FIGS,
                 )
-                if report.reproj_error_gt_model is not None and report.inlier_mask_gt_model is not None
+                if report.reproj_error_gt_model is not None and report.v_corr_idxs_inlier_mask_gt is not None
                 else None,
                 "inlier_ratio_est_model": round(report.inlier_ratio_est_model, PRINT_NUM_SIG_FIGS),
                 "num_inliers_est_model": report.num_inliers_est_model,

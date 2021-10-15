@@ -56,7 +56,8 @@ def count_correct_correspondences(
         ValueError: when the number of keypoints do not match.
 
     Returns:
-        Number of correspondences which are correct.
+        Boolean mask of which verified correspondences are classified as correct under Sampson error
+            (using GT epipolar geometry).
     """
     # TODO: add unit test, with mocking.
     if len(keypoints_i1) != len(keypoints_i2):
