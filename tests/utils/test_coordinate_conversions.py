@@ -16,8 +16,8 @@ def test_convert_cartesian_to_spherical_directions() -> None:
     ]
     expected_spherical_coordinates = np.deg2rad(np.array([
         [90, 90], 
-        [180, 0],
-        [180, 90]
+        [0, 0],
+        [0, 90]
         ]))
     spherical_coordinates = conversion_utils.cartesian_to_spherical_directions(directions)
     np.testing.assert_allclose(spherical_coordinates, expected_spherical_coordinates)
