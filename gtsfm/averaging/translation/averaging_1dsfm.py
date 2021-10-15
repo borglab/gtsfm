@@ -143,14 +143,16 @@ def _sample_random_directions(num_samples: int) -> List[Unit3]:
     """Samples num_samples Unit3 3D directions.
     The sampling is done in 2D spherical coordinates (azimuth, elevation), and then converted to Cartesian coordinates.
     Sampling in spherical coordinates was found to have precision-recall for 1dsfm outlier rejection.
-    
+
     Args:
         num_samples: Number of samples required.
 
     Returns:
         List of sampled Unit3 directions.
     """
-    sampled_azimuth_elevation = np.random.uniform(low=0.0, high=2 * np.pi, size=(num_samples, 2))
+    sampled_azimuth = np.random.uniform(low=-np.pi, high=np.pi, size=(num_samples, 1))
+    sampled_elevation = np.random.uniform(low=0.0, high=np.pi, size=(num_samples, 1))
+    sampled_azimuth_elevation = np.concatenate((sampled_azimuth, sampled_elevation), axis=1)
 
     return conversion_utils.spherical_to_cartesian_directions(sampled_azimuth_elevation)
 
