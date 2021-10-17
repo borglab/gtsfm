@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import gtsam
 import h5py
 import numpy as np
-from gtsam import Cal3Bundler, Rot3, Pose3
+from gtsam import Cal3Bundler, Rot3, Pose3, PinholeCameraCal3Bundler
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
 
@@ -265,13 +265,34 @@ def read_images_txt(fpath: str) -> Tuple[Optional[List[Pose3]], Optional[List[st
     # and a record of the number of reconstructed images.
     for line in lines[4::2]:
         i, qw, qx, qy, qz, tx, ty, tz, i, img_fname = line.split()
-        # Colmap provides extrinsics, so must invert
-        iRw = Rot3(float(qw), float(qx), float(qy), float(qz))
-        wTi = Pose3(iRw, np.array([tx, ty, tz], dtype=np.float64)).inverse()
+        iRw_quaternion = np.array([qw, qx, qy, qz])
+        itw = np.array([tx, ty, tz])
+
+        wTi = recover_pose_from_extrinsics(iRw_quaternion, itw)
         wTi_list.append(wTi)
         img_fnames.append(img_fname)
 
     return wTi_list, img_fnames
+
+
+def recover_pose_from_extrinsics(iRw_quaternion: np.ndarray, itw: np.ndarray) -> Pose3:
+    """Converts the quaternion and translation values into a camera pose.
+
+    Args:
+        iRw_quaternion: camera rotation extrinsics, array of shape (4,)
+        itw: camera translation extrinsics, array of shape (3,)
+
+    Returns:
+        The pose of the camera in world frame.
+    """
+    qw, qx, qy, qz = iRw_quaternion
+    tx, ty, tz = itw
+
+    # Colmap provides extrinsics, so must invert
+    iRw = Rot3(float(qw), float(qx), float(qy), float(qz))
+    wTi = Pose3(iRw, np.array([tx, ty, tz], dtype=np.float64)).inverse()
+
+    return wTi
 
 
 def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
@@ -303,16 +324,31 @@ def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
         for i in gtsfm_data.get_valid_camera_indices():
             img_fname = images[i].file_name
             camera = gtsfm_data.get_camera(i)
-            # COLMAP exports camera extrinsics (cTw), not the poses (wTc), so must invert
-            iTw = camera.pose().inverse()
-            iRw_quaternion = iTw.rotation().quaternion()
-            itw = iTw.translation()
+            iRw_quaternion, itw = extract_extrinsics_from_camera(camera)
             tx, ty, tz = itw
             qw, qx, qy, qz = iRw_quaternion
 
             f.write(f"{i} {qw} {qx} {qy} {qz} {tx} {ty} {tz} {i} {img_fname}\n")
             # TODO: write out the points2d
             f.write("TODO\n")
+
+
+def extract_extrinsics_from_camera(camera: PinholeCameraCal3Bundler) -> Tuple[np.ndarray, np.ndarray]:
+    """Converts a camera object into extrinsics values.
+
+    Args:
+        camera: pinhole camera object
+
+    Returns:
+        iRw_quaternion: array of shape (4,) representing the rotation of the camera
+        itw: array of shape (3,) representing the translation of the camera
+    """
+    # COLMAP exports camera extrinsics (cTw), not the poses (wTc), so must invert
+    iTw = camera.pose().inverse()
+    iRw_quaternion = iTw.rotation().quaternion()
+    itw = iTw.translation()
+
+    return iRw_quaternion, itw
 
 
 def read_points_txt(fpath: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:

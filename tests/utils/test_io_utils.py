@@ -1,7 +1,8 @@
 from pathlib import Path
+from gtsfm.utils.io import extract_extrinsics_from_camera, recover_pose_from_extrinsics
 
 import numpy as np
-from gtsam import Cal3Bundler, Pose3
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3
 
 import gtsfm.utils.io as io_utils
 
@@ -91,3 +92,28 @@ def test_read_cameras_txt_nonexistent_file() -> None:
 
 
 # TODO in future PR: add round-trip test on write poses to images.txt, and load poses (poses->extrinsics->poses)
+
+
+def test_round_trip_images_txt() -> None:
+    """Loads a pose from file that was produced after applying an alignment transformation to a camera frustum. Converts
+    sample pose into extrinsics. Then converts these extrinsics back into a pose and verifies it matches
+    with the original."""
+
+    # Setup dummy pinhole camera object
+    default_intrinsics = Cal3Bundler(fx=100, k1=0, k2=0, u0=0, v0=0)
+
+    pose_from_file = np.load("gtsfm_incorrect_alignment_cameras_wTc.npy")
+    firstPose = pose_from_file[0, :, :]
+    wTc = Pose3(Rot3(firstPose[:3, :3]), firstPose[:3, 3])
+    camera = PinholeCameraCal3Bundler(wTc, default_intrinsics)
+
+    # pose -> extrinsics
+    iRw_quaternion, itw = extract_extrinsics_from_camera(camera)
+
+    # extrinsics -> recovered pose
+    recovered_wTc = recover_pose_from_extrinsics(iRw_quaternion, itw)
+
+    assert wTc == recovered_wTc
+
+
+test_round_trip_images_txt()
