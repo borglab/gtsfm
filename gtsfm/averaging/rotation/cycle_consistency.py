@@ -346,7 +346,7 @@ def _compute_metrics(
             about the verifier's output (and optionally measurement error w.r.t GT). Note: i1 < i2 always.
         n_valid_edges: number of edges that are fed into the cycle consistency filtering algorithm.
             This is not equal to the number of image pairs to the verifier, as many image pair measurements
-            may be rejected for lack of sufficient support.
+            may been previously rejected for lack of sufficient support.
 
     Returns:
         Rotation cycle consistency metrics as a metrics group. Includes the following metrics:
