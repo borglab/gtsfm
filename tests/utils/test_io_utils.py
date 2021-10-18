@@ -95,16 +95,22 @@ def test_read_cameras_txt_nonexistent_file() -> None:
 
 
 def test_round_trip_images_txt() -> None:
-    """Loads a pose from file that was produced after applying an alignment transformation to a camera frustum. Converts
+    """Starts with a pose that was produced after applying an alignment transformation to a camera frustum. Converts
     sample pose into extrinsics. Then converts these extrinsics back into a pose and verifies it matches
     with the original."""
 
     # Setup dummy pinhole camera object
     default_intrinsics = Cal3Bundler(fx=100, k1=0, k2=0, u0=0, v0=0)
 
-    pose_from_file = np.load("gtsfm_incorrect_alignment_cameras_wTc.npy")
-    firstPose = pose_from_file[0, :, :]
-    wTc = Pose3(Rot3(firstPose[:3, :3]), firstPose[:3, 3])
+    original_pose = np.array(
+        [
+            [0.0018451, -0.994551, 0.104234, -0.0121756],
+            [-0.933994, 0.0355273, 0.355519, 0.349357],
+            [0.357285, 0.0980096, 0.928839, -13.563],
+            [0, 0, 0, 1],
+        ]
+    )
+    wTc = Pose3(Rot3(original_pose[:3, :3]), original_pose[:3, 3])
     camera = PinholeCameraCal3Bundler(wTc, default_intrinsics)
 
     # pose -> extrinsics
