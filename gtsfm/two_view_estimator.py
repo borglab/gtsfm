@@ -143,6 +143,7 @@ class TwoViewEstimator:
 
         # verification on putative correspondences to obtain relative pose
         # and verified correspondences
+        # TODO: name this verified_correspondence_idxs (add note: everything here is delayed)
         (i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, inlier_ratio_est_model) = self._verifier.create_computation_graph(
             keypoints_i1_graph,
             keypoints_i2_graph,
@@ -211,6 +212,10 @@ class TwoViewEstimator:
             # remove mention of errors in the report
             two_view_report.R_error_deg = None
             two_view_report.U_error_deg = None
+
+            # num_inliers_est_model
+            # don't modify the report!
+            # every blue box should have a piece in the report.
 
         two_view_report.i2Ri1 = i2Ri1
         two_view_report.i2Ui1 = i2Ui1
