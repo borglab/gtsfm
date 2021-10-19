@@ -60,10 +60,27 @@ Before running reconstruction, if you intend to use modules with pre-trained wei
 ./download_model_weights.sh
 ```
 
-To run SfM with a dataset with only a image directory and EXIF, with image file names ending with "jpg", run:
-```python
-python gtsfm/runner/run_scene_optimizer.py --config_name {CONFIG_NAME} --dataset_root {DATASET_ROOT} --image_extension jpg --num_workers {NUM_WORKERS}
+To run SfM with a dataset with only an image directory and EXIF, with image file names ending with "jpg", please create the following file structure like
+
+```   
+└── {DATASET_NAME}
+       ├── images
+               ├── image1.jpg
+               ├── image2.jpg
+               ├── image3.jpg
 ```
+and run
+```python
+python gtsfm/runner/run_scene_optimizer_olssonloader.py --config_name {CONFIG_NAME} --dataset_root {DATASET_ROOT} --image_extension jpg --num_workers {NUM_WORKERS}
+```
+For example, if you had 4 cores available and wanted to use the Deep Front-End (recommended), you should run:
+```bash
+python gtsfm/runner/run_scene_optimizer_olssonloader.py --dataset_root /path/to/{DATASET_NAME} --image_extension jpg --config_name deep_front_end.yaml --num_workers 4
+```
+(or however many workers you desire).
+
+Currently we require EXIF data embedded into your images (or you can provide ground truth intrinsics in the expected format for an Olsson dataset, or COLMAP-exported text data, etc)
+
 
 If you would like to compare GTSFM output with COLMAP output, please run:
 ```python
@@ -76,6 +93,9 @@ To visualize the result using Open3D, run:
 ```bash
 python visualization/view_scene.py --rendering_library open3d --point_rendering_mode point
 ```
+
+For users that are working with the same dataset repeatedly, we provide functionality to cache front-end results for 
+GTSFM for very fast inference afterwards. For more information, please refer to [`gtsfm/frontend/cacher/README.md`](https://github.com/borglab/gtsfm/tree/master/gtsfm/frontend/cacher).
 
 ## Repository Structure
 
@@ -94,6 +114,7 @@ GTSFM is designed in an extremely modular way. Each module can be swapped out wi
         - `descriptor`: feature descriptor implementations ([SIFT](https://www.cs.ubc.ca/~lowe/papers/ijcv04.pdf), [SuperPoint](https://arxiv.org/abs/1712.07629) etc)
         - `matcher`: descriptor matching implementations ([Superglue](https://arxiv.org/abs/1911.11763), etc)
         - `verifier`: 2d-correspondence verifier implementations ([Degensac](https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.466.2719&rep=rep1&type=pdf), OA-Net, etc)
+        - `cacher`: Cache implementations for different stages of the front-end.
     - `loader`: image data loaders
     - `utils`: utility functions such as serialization routines and pose comparisons, etc
 - `tests`: unit tests on every function and module

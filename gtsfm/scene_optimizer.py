@@ -24,6 +24,7 @@ import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.viz as viz_utils
+from gtsfm.averaging.rotation.cycle_consistency import EdgeErrorAggregationCriterion
 from gtsfm.common.image import Image
 from gtsfm.feature_extractor import FeatureExtractor
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
@@ -101,7 +102,7 @@ class SceneOptimizer:
         image_graph: List[Delayed],
         camera_intrinsics_graph: List[Delayed],
         image_shape_graph: List[Delayed],
-        gt_pose_graph: Optional[List[Delayed]] = None,
+        gt_cameras_graph: Optional[List[Delayed]] = None,
     ) -> Delayed:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
 
@@ -126,9 +127,11 @@ class SceneOptimizer:
         two_view_reports_dict = {}
 
         for (i1, i2) in image_pair_indices:
-            if gt_pose_graph is not None:
+            if gt_cameras_graph is not None:
                 # compute GT relative pose
-                gt_i2Ti1 = dask.delayed(lambda x, y: x.between(y))(gt_pose_graph[i2], gt_pose_graph[i1])
+                gt_i2Ti1 = dask.delayed(lambda x, y: x.pose().between(y.pose()))(
+                    gt_cameras_graph[i2], gt_cameras_graph[i1]
+                )
             else:
                 gt_i2Ti1 = None
 
@@ -158,6 +161,7 @@ class SceneOptimizer:
                         keypoints_graph_list[i1],
                         keypoints_graph_list[i2],
                         v_corr_idxs,
+                        two_view_report=two_view_report,
                         file_path=os.path.join(PLOT_CORRESPONDENCE_PATH, f"{i1}_{i2}.jpg"),
                     )
                 )
@@ -166,7 +170,7 @@ class SceneOptimizer:
         auxiliary_graph_list.append(
             dask.delayed(save_full_frontend_metrics)(two_view_reports_dict, image_graph, filename="frontend_full.json")
         )
-        if gt_pose_graph is not None:
+        if gt_cameras_graph is not None:
             metrics_graph_list.append(
                 dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
                     two_view_reports_dict, self._pose_angular_error_thresh, metric_group_name="frontend_summary"
@@ -183,7 +187,13 @@ class SceneOptimizer:
         # ensure cycle consistency in triplets
         i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict, rcc_metrics_graph = dask.delayed(
             cycle_consistency.filter_to_cycle_consistent_edges, nout=4
-        )(i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict, two_view_reports_dict)
+        )(
+            i2Ri1_graph_dict,
+            i2Ui1_graph_dict,
+            v_corr_idxs_graph_dict,
+            two_view_reports_dict,
+            EdgeErrorAggregationCriterion.MEDIAN_EDGE_ERROR,
+        )
         metrics_graph_list.append(rcc_metrics_graph)
 
         def _filter_dict_keys(dict: Dict[Any, Any], ref_dict: Dict[Any, Any]) -> Dict[Any, Any]:
@@ -191,7 +201,7 @@ class SceneOptimizer:
             valid_keys = list(ref_dict.keys())
             return {k: v for k, v in dict.items() if k in valid_keys}
 
-        if gt_pose_graph is not None:
+        if gt_cameras_graph is not None:
             two_view_reports_dict_cycle_consistent = dask.delayed(_filter_dict_keys)(
                 dict=two_view_reports_dict, ref_dict=i2Ri1_graph_dict
             )
@@ -219,7 +229,7 @@ class SceneOptimizer:
             i2Ui1_graph_dict,
             v_corr_idxs_graph_dict,
             camera_intrinsics_graph,
-            gt_pose_graph,
+            gt_cameras_graph,
         )
 
         # aggregate metrics for multiview optimizer
@@ -235,7 +245,10 @@ class SceneOptimizer:
         # )
 
         if self._save_3d_viz:
-            auxiliary_graph_list.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_pose_graph))
+            gt_poses_graph = (
+                [dask.delayed(lambda x: x.pose())(cam) for cam in gt_cameras_graph] if gt_cameras_graph else None
+            )
+            auxiliary_graph_list.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_poses_graph))
 
         if self._save_gtsfm_data:
             auxiliary_graph_list.extend(save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph))

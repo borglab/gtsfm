@@ -14,6 +14,7 @@ from gtsam import Cal3Bundler, EssentialMatrix, PinholeCameraCal3Bundler, Point3
 
 import gtsfm.utils.features as feature_utils
 import gtsfm.utils.geometry_comparisons as geom_comp_utils
+import gtsfm.utils.sampling as sampling_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.ransac import Ransac
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
@@ -41,7 +42,7 @@ class TestVerifierBase(unittest.TestCase):
             use_intrinsics_in_verification=True, estimation_threshold_px=0.5, min_allowed_inlier_ratio_est_model=0.1
         )
 
-    def __execute_test(
+    def __execute_verifier_test(
         self,
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
@@ -80,7 +81,7 @@ class TestVerifierBase(unittest.TestCase):
             )
         np.testing.assert_array_equal(verified_indices_computed, verified_indices_expected)
 
-    def test_simple_scene(self) -> None:
+    def test_verifier_two_plane_scene(self) -> None:
         """Test a simple scene with 10 points, 5 each on 2 planes, so that RANSAC family of methods do not
         get trapped into a degenerate sample."""
         # obtain the keypoints and the ground truth essential matrix.
@@ -90,7 +91,7 @@ class TestVerifierBase(unittest.TestCase):
         match_indices = np.vstack((np.arange(len(keypoints_i1)), np.arange(len(keypoints_i1)))).T
 
         # run the test w/ and w/o using intrinsics in verification
-        self.__execute_test(
+        self.__execute_verifier_test(
             keypoints_i1,
             keypoints_i2,
             match_indices,
@@ -128,7 +129,7 @@ class TestVerifierBase(unittest.TestCase):
         intrinsics_i1 = Cal3Bundler()
         intrinsics_i2 = Cal3Bundler()
 
-        self.__execute_test(
+        self.__execute_verifier_test(
             keypoints_i1,
             keypoints_i2,
             match_indices,
@@ -271,45 +272,6 @@ def generate_random_input_for_verifier() -> Tuple[Keypoints, Keypoints, np.ndarr
     )
 
 
-def sample_points_on_plane(
-    plane_coefficients: Tuple[float, float, float, float],
-    range_x_coordinate: Tuple[float, float],
-    range_y_coordinate: Tuple[float, float],
-    num_points: int,
-) -> np.ndarray:
-    """Sample random points on a 3D plane ax + by + cz + d = 0.
-
-    Args:
-        plane_coefficients: coefficients (a,b,c,d) of the plane equation.
-        range_x_coordinate: desired range of the x coordinates of samples.
-        range_y_coordinate: desired range of the y coordinates of samples.
-        num_points: number of points to sample.
-
-    Returns:
-        3d points on the plane, of shape (num_points, 3).
-    """
-
-    a, b, c, d = plane_coefficients
-
-    if c == 0:
-        raise ValueError("z-coefficient for the plane should not be zero")
-
-    # sample x and y coordinates randomly
-    x = np.random.uniform(low=range_x_coordinate[0], high=range_x_coordinate[1], size=(num_points, 1))
-    y = np.random.uniform(low=range_y_coordinate[0], high=range_y_coordinate[1], size=(num_points, 1))
-
-    # calculate z coordinates using equation of the plane
-    z = -(a * x + b * y + d) / c
-
-    pts = np.hstack([x, y, z])
-
-    # assert points are on the plane
-    pts_residuals = pts @ np.array(plane_coefficients[:3]).reshape(3, 1) + plane_coefficients[3]
-    np.testing.assert_almost_equal(pts_residuals, np.zeros((num_points, 1)))
-
-    return pts
-
-
 def simulate_two_planes_scene(M: int, N: int) -> Tuple[Keypoints, Keypoints, EssentialMatrix]:
     """Generate a scene where 3D points are on two planes, and projects the points to the 2 cameras. There are M points
     on plane 1, and N points on plane 2.
@@ -336,8 +298,8 @@ def simulate_two_planes_scene(M: int, N: int) -> Tuple[Keypoints, Keypoints, Ess
     plane2_coeffs = (15, -2, -35, 200)
 
     # sample the points from planes
-    plane1_points = sample_points_on_plane(plane1_coeffs, range_x_coordinate, range_y_coordinate, M)
-    plane2_points = sample_points_on_plane(plane2_coeffs, range_x_coordinate, range_y_coordinate, N)
+    plane1_points = sampling_utils.sample_points_on_plane(plane1_coeffs, range_x_coordinate, range_y_coordinate, M)
+    plane2_points = sampling_utils.sample_points_on_plane(plane2_coeffs, range_x_coordinate, range_y_coordinate, N)
 
     points_3d = np.vstack((plane1_points, plane2_points))
 
@@ -374,3 +336,4 @@ def simulate_two_planes_scene(M: int, N: int) -> Tuple[Keypoints, Keypoints, Ess
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -18,12 +18,13 @@ from gtsam import MFAS, BinaryMeasurementsUnit3, BinaryMeasurementUnit3, Point3,
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.metrics as metrics_utils
+import gtsfm.utils.coordinate_conversions as conversion_utils
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 # Hyperparameters for 1D-SFM
 # maximum number of times 1dsfm will project the Unit3's to a 1d subspace for outlier rejection
-MAX_PROJECTION_DIRECTIONS = 50
+MAX_PROJECTION_DIRECTIONS = 200
 OUTLIER_WEIGHT_THRESHOLD = 0.1
 
 NOISE_MODEL_DIMENSION = 3  # chordal distances on Unit3
@@ -86,15 +87,8 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                     BinaryMeasurementUnit3(i2, i1, Unit3(wRi_list[i2].rotate(i2Ui1.point3())), noise_model)
                 )
 
-        # sample indices to be used as projection directions
-        num_valid_measurements = len(w_i2Ui1_measurements)
-        indices = np.random.choice(
-            num_valid_measurements,
-            min(self._max_1dsfm_projection_directions, num_valid_measurements),
-            replace=False,
-        )
-
-        projection_directions = [w_i2Ui1_measurements[idx].measured() for idx in indices]
+        # sample projection directions
+        projection_directions = _sample_random_directions(self._max_1dsfm_projection_directions)
 
         # compute outlier weights using MFAS
         outlier_weights = []
@@ -145,6 +139,24 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         return wti_list, ta_metrics
 
 
+def _sample_random_directions(num_samples: int) -> List[Unit3]:
+    """Samples num_samples Unit3 3D directions.
+    The sampling is done in 2D spherical coordinates (azimuth, elevation), and then converted to Cartesian coordinates.
+    Sampling in spherical coordinates was found to have precision-recall for 1dsfm outlier rejection.
+
+    Args:
+        num_samples: Number of samples required.
+
+    Returns:
+        List of sampled Unit3 directions.
+    """
+    sampled_azimuth = np.random.uniform(low=-np.pi, high=np.pi, size=(num_samples, 1))
+    sampled_elevation = np.random.uniform(low=0.0, high=np.pi, size=(num_samples, 1))
+    sampled_azimuth_elevation = np.concatenate((sampled_azimuth, sampled_elevation), axis=1)
+
+    return conversion_utils.spherical_to_cartesian_directions(sampled_azimuth_elevation)
+
+
 def _get_measurement_angle_errors(
     i1_i2_pairs: Tuple[int, int],
     i2Ui1_measurements: Dict[Tuple[int, int], Unit3],
@@ -181,7 +193,6 @@ def _compute_metrics(
     gt_wTi_list: List[Optional[Pose3]],
 ) -> GtsfmMetricsGroup:
     """Computes the translation averaging metrics as a metrics group.
-
     Args:
         inlier_i1_i2_pairs: List of inlier camera pair indices.
         outlier_i1_i2_pairs: List of outlier camera pair indices.
@@ -189,7 +200,6 @@ def _compute_metrics(
         wRi_list: Estimated camera rotations from rotation averaging.
         wti_list: Estimated camera translations from translation averaging.
         gt_wTi_list: List of ground truth camera poses.
-
     Returns:
         Translation averaging metrics as a metrics group. Includes the following metrics:
         - Number of inlier, outlier and total measurements.
