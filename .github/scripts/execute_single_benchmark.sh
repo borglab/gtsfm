@@ -117,6 +117,7 @@ elif [ "$DATASET_NAME" == "skydio-501" ]; then
   mv skydio-crane-mast-501-images2/* $IMAGES_DIR
   COLMAP_FILES_DIRPATH="skydio-501-colmap-pseudo-gt"
 
+  mkdir cache
   wget https://github.com/johnwlambert/gtsfm-cache/releases/download/skydio-501-lookahead50-deep-front-end-cache/skydio-501-lookahead50-deep-front-end-cache.tar.gz
   mkdir skydio-501-cache
   tar -xvzf skydio-501-lookahead50-deep-front-end-cache.tar.gz --directory skydio-501-cache
