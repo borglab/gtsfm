@@ -1,11 +1,10 @@
-"""Unit tests for using Patchmatchnet method for dense point cloud reconstruction
+"""Unit tests for using Patchmatchnet method for dense point cloud reconstruction period
 
 In this unit test, we make a simple scenario that eight cameras are around a circle (radius = 40.0).
 Every camera's pose is towards the center of the circle (0, 0, 0).
 
 There are 30 toy points uniformly located at the same line:
-  /  z - 2y = 0
-  \\ x = 0
+  0x + -2y + 1z = 0, i.e. x=0
 
 Authors: Ren Liu
 """
@@ -24,9 +23,9 @@ DEFAULT_IMAGE_W = 400
 DEFAULT_IMAGE_H = 300
 DEFAULT_IMAGE_C = 3
 
-# set default track points, the coordinates are in the world frame
+# set dummy track points, the coordinates are in the world frame
 DEFAULT_NUM_TRACKS = 30
-DEFAULT_TRACK_POINTS = [Point3(0, 0.5 * float(i), float(i)) for i in range(DEFAULT_NUM_TRACKS)]
+DUMMY_TRACK_PTS_WORLD = [Point3(0, 0.5 * float(i), float(i)) for i in range(DEFAULT_NUM_TRACKS)]
 
 # set default camera intrinsics
 DEFAULT_CAMERA_INTRINSICS = Cal3_S2(
@@ -83,7 +82,7 @@ class TestMVSPatchmatchNet(unittest.TestCase):
 
         # Calculate the measurements under each camera for all track points, then add toy data for tracks:
         for j in range(DEFAULT_NUM_TRACKS):
-            world_x = DEFAULT_TRACK_POINTS[j]
+            world_x = DUMMY_TRACK_PTS_WORLD[j]
             track_to_add = SfmTrack(world_x)
 
             for i in range(DEFAULT_NUM_CAMERAS):
@@ -105,15 +104,17 @@ class TestMVSPatchmatchNet(unittest.TestCase):
 
         self.assertTrue(n > 0 and d == 3)
 
-        # calculate mean relative error for z - 2y = 0 as avg(|(z-2y)/z|)
-        yz_error = np.abs(
-            (self._dense_points[:, 2] - 2 * self._dense_points[:, 1]) / (1e-10 + self._dense_points[:, 2])
-        ).mean()
+        x = self._dense_points[:, 0]
+        y = self._dense_points[:, 1]
+        z = self._dense_points[:, 2]
 
-        # calculate mean absolute error for x = 0 as avg(|x|)
-        x_error = np.abs(self._dense_points[:, 0]).mean()
+        # per the line `0x + -2y + 1z = 0`, so check the slope k_yz == 2 (avoid [y=0, z=0] case)
+        mean_k_yz_error = np.abs((z[1:] - 0) / (y[1:] - 0)).mean() - 2
 
-        self.assertTrue(yz_error < 0.15 and x_error < 0.5)
+        # should be close to 0
+        x_error = np.abs(x).mean()
+
+        self.assertTrue(mean_k_yz_error < 0.2 and x_error < 0.5)
 
 
 if __name__ == "__main__":

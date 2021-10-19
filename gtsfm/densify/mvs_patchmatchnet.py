@@ -30,10 +30,11 @@ DEFAULT_BATCH_SIZE = 1
 DEFAULT_NUM_VIEWS = 5
 DEFAULT_NUM_WORKERS = 4
 
-# default
+# default pixel coordinates error threshold for geometric consistency check
 DEFAULT_GEOMETRIC_PIXEL_THRESH = 1.0
+# default depth error threshold for geometric consistency check
 DEFAULT_GEOMETRIC_DEPTH_THRESH = 0.01
-DEFAULT_PHOTOMETRIC_THRESH = 0.8
+DEFAULT_CONFIDENCE_THRESH = 0.8
 
 DEFAULT_INTERVAL_SCALE = [0.005, 0.0125, 0.025]
 DEFAULT_PROPAGATION_RANGE = [6, 4, 2]
@@ -42,6 +43,7 @@ DEFAULT_NUM_SAMPLES = [8, 8, 16]
 DEFAULT_PROPAGATE_NEIGHBORS = [0, 8, 16]
 DEFAULT_EVALUATE_NEIGHBORS = [9, 9, 9]
 
+# a reconstructed point is consistent in geometry if it satisfies all gemetric thresholds in more than 3 source views
 DEFAULT_MIN_NUM_CONSISTENT_VIEWS = 3
 
 
@@ -56,7 +58,7 @@ class MVSPatchmatchNet(MVSBase):
         thresholds: List[float] = [
             DEFAULT_GEOMETRIC_PIXEL_THRESH,
             DEFAULT_GEOMETRIC_DEPTH_THRESH,
-            DEFAULT_PHOTOMETRIC_THRESH,
+            DEFAULT_CONFIDENCE_THRESH,
         ],
     ) -> np.ndarray:
         """Get dense point cloud using PatchmatchNet from GtsfmData. The method implements the densify method in MVSBase
@@ -65,13 +67,12 @@ class MVSPatchmatchNet(MVSBase):
         Args:
             images: image dictionary obtained from loaders
             sfm_result: result of GTSFM after bundle adjustment
-            num_views: Defaults to DEFAULT_NUM_VIEWS. maximum number of views,
-                containing 1 reference view and (num_views-1) source views
-            thresholds: geometric pixel threshold, geometric depth threshold, and photometric
+            num_views: maximum number of views, containing 1 reference view and (num_views-1) source views
+            thresholds: geometric pixel threshold, geometric depth threshold, and confidence
                 threshold for filtering inference results.
-                Defaults to [DEFAULT_GEOMETRIC_PIXEL_THRESH, DEFAULT_GEOMETRIC_DEPTH_THRESH, DEFAULT_PHOTOMETRIC_THRESH]
+                Defaults to [DEFAULT_GEOMETRIC_PIXEL_THRESH, DEFAULT_GEOMETRIC_DEPTH_THRESH, DEFAULT_CONFIDENCE_THRESH]
                 1. for geometric thresholds, small threshold means high accuracy and low completeness
-                2. for photometric thresholds, large threshold means high accuracy and low completeness
+                2. for confidence thresholds, large threshold means high accuracy and low completeness
 
         Returns:
             3D coordinates (in the world frame) of the dense point cloud, (point number, 3)
@@ -154,7 +155,7 @@ class MVSPatchmatchNet(MVSBase):
             confidence_list=confidence_est_list,
             geo_pixel_thresh=thresholds[0],
             geo_depth_thresh=thresholds[1],
-            photo_thresh=thresholds[2],
+            conf_thresh=thresholds[2],
         )
 
         return dense_point_cloud
@@ -166,7 +167,7 @@ class MVSPatchmatchNet(MVSBase):
         confidence_list: Dict[int, np.ndarray],
         geo_pixel_thresh: float,
         geo_depth_thresh: float,
-        photo_thresh: float,
+        conf_thresh: float,
     ) -> np.ndarray:
         """Create a dense point cloud by filtering depth maps based on estimated confidence maps and consistent geometry
 
@@ -188,7 +189,7 @@ class MVSPatchmatchNet(MVSBase):
             confidence_list: list of 2D confidence map (H, W) from each view
             geo_pixel_thresh: geometric pixel threshold
             geo_depth_thresh: geometric depth threshold
-            photo_thresh: photometric threshold
+            conf_thresh: photometric confidence threshold
 
         Returns:
             3D coordinates (in the world frame) of the dense point cloud, (point number, 3)
@@ -214,11 +215,11 @@ class MVSPatchmatchNet(MVSBase):
             ref_img = dataset.get_image(ref_view)
             # Load the estimated depth of the reference view
             ref_depth_est = depth_list[ref_view][0]
-            # Load the photometric mask of the reference view
+            # Load the confidence mask of the reference view
             confidence = confidence_list[ref_view]
-            # Filter the pixels that satisfy photometric consistancy among reference view and source views,
-            #   by checking whether the confidence is larger than the pre-defined photometric threshold
-            photo_mask = confidence > photo_thresh
+            # Filter the pixels that have enough confidence among reference view and source views,
+            #   by checking whether the confidence is larger than the pre-defined confidence threshold
+            confidence_mask = confidence > conf_thresh
 
             all_srcview_depth_ests = []
 
@@ -250,8 +251,8 @@ class MVSPatchmatchNet(MVSBase):
             # Valid points requires at least 3 source views validated under geometric threshoulds
             geo_mask = geo_mask_sum >= DEFAULT_MIN_NUM_CONSISTENT_VIEWS
 
-            # Combine geometric mask and photometric mask
-            joint_mask = np.logical_and(photo_mask, geo_mask)
+            # Combine geometric mask and confidence mask
+            joint_mask = np.logical_and(confidence_mask, geo_mask)
             # Set the depths of invalid positions to 0
             depth_est_averaged[np.logical_not(joint_mask)] = 0
             # Append the depth map to the depth map list
@@ -261,7 +262,7 @@ class MVSPatchmatchNet(MVSBase):
             height, width = depth_est_averaged.shape[:2]
             u, v = np.meshgrid(np.arange(0, width), np.arange(0, height))
 
-            # Get valid points filtered by photometric and geometric thresholds
+            # Get valid points filtered by confidence and geometric thresholds
             valid_points = joint_mask
             u, v, depth = u[valid_points], v[valid_points], depth_est_averaged[valid_points]
 
@@ -277,36 +278,11 @@ class MVSPatchmatchNet(MVSBase):
             vertex_colors.append((color * 255).astype(np.uint8))
 
             logger.info(
-                "[Densify::PatchMatchNet] RefView: %03d Geometric: %.03f Photometric: %.03f Joint: %.03f",
+                "[Densify::PatchMatchNet] RefView: %03d Geometric: %.03f Confidence: %.03f Joint: %.03f",
                 ref_view,
                 geo_mask.mean(),
-                photo_mask.mean(),
+                confidence_mask.mean(),
                 joint_mask.mean(),
             )
-
-        vertexs = np.concatenate(vertices, axis=0)
-        vertex_colors = np.concatenate(vertex_colors, axis=0)
-        vertexs = np.array([tuple(v) for v in vertexs], dtype=[("x", "f4"), ("y", "f4"), ("z", "f4")])
-        vertex_colors = np.array(
-            [tuple(v) for v in vertex_colors], dtype=[("red", "u1"), ("green", "u1"), ("blue", "u1")]
-        )
-
-        vertex_all = np.empty(len(vertexs), vertexs.dtype.descr + vertex_colors.dtype.descr)
-        for prop in vertexs.dtype.names:
-            vertex_all[prop] = vertexs[prop]
-        for prop in vertex_colors.dtype.names:
-            vertex_all[prop] = vertex_colors[prop]
-
-        from plyfile import PlyData, PlyElement
-        import cv2
-
-        el = PlyElement.describe(vertex_all, "vertex")
-        PlyData([el]).write("/home/ren/points.ply")
-        cnt = 0
-        for depth in depths:
-            depth = (depth - depth.min()) / (depth.max() - depth.min() + 1e-10)
-            depth = (depth * 255).astype(np.uint8)
-            cv2.imwrite(f"/home/ren/d{cnt:02d}.png", depth)
-            cnt += 1
 
         return np.concatenate(vertices, axis=0)

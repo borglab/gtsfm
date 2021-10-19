@@ -108,12 +108,6 @@ class GtsfmRunnerBase:
 
         assert isinstance(sfm_result, GtsfmData)
 
-        img_dict = {i: self.loader.get_image(i) for i in range(len(self.loader))}
-        import numpy as np
-        from gtsfm.densify.mvs_patchmatchnet import MVSPatchmatchNet
-
-        points = MVSPatchmatchNet().densify(img_dict, sfm_result)
-
         end_time = time.time()
         duration_sec = end_time - start_time
         logger.info("GTSFM took %.2f minutes to compute sparse multi-view result.", duration_sec / 60)
