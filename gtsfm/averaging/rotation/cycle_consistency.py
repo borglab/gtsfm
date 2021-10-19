@@ -385,7 +385,7 @@ def _compute_metrics(
     )
 
     rcc_metrics = [
-        GtsfmMetric("num_total_rcc_input_measurements", n_valid_edges),
+        GtsfmMetric("num_input_measurements", n_valid_edges),
         GtsfmMetric("num_inlier_rcc_measurements", len(inlier_i1_i2_pairs)),
         GtsfmMetric("num_outlier_rcc_measurements", len(outlier_i1_i2_pairs)),
         GtsfmMetric("rot_cycle_consistency_R_precision", R_precision),
