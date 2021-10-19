@@ -15,11 +15,15 @@ from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.loader.olsson_loader import OlssonLoader
 import gtsfm.utils.ellipsoid as ellipsoid_utils
 
-DOOR_12_DATA_ROOT = Path(__file__).resolve().parent.parent / "data" / "set1_lund_door"
+DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
 
 
 class TestEllipsoidUtils(unittest.TestCase):
     """Class containing all unit tests for ellipsoid utils."""
+
+    def setUp(self) -> None:
+        self.loader = OlssonLoader(str(DATA_ROOT_PATH / "set1_lund_door"), image_extension="JPG")
+        assert len(self.loader)
 
     def test_get_ortho_axis_alignment_transform(self) -> None:
         """Tests the get_ortho_axis_alignment_transform() function with a GtsfmData object containing 3 camera frustums
@@ -114,8 +118,7 @@ class TestEllipsoidUtils(unittest.TestCase):
         sample_data = GtsfmData(number_images=12)
 
         # Instantiate OlssonLoader to read camera poses from door12 dataset.
-        loader = OlssonLoader(str(DOOR_12_DATA_ROOT), image_extension="JPG")
-        wTi_list = loader._wTi_list
+        wTi_list = self.loader._wTi_list
 
         # Add 12 camera frustums to sample_data.
         default_intrinsics = Cal3Bundler(fx=100, k1=0, k2=0, u0=0, v0=0)
