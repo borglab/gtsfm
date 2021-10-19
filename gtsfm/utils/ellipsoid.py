@@ -103,13 +103,10 @@ def get_alignment_rotation_matrix_from_svd(point_cloud: np.ndarray) -> np.ndarra
     # ref: https://en.wikipedia.org/wiki/Singular_value_decomposition#Rotation,_coordinate_scaling,_and_reflection
     U, S, Vt = np.linalg.svd(point_cloud, full_matrices=True)
 
-    Vt_det = np.linalg.det(Vt)
-
     # If det(Vt) = -1, then Vt is a reflection matrix and not a valid SO(3) transformation. Thus, we must estimate the
     # closest rotation matrix to the reflection.
-    if np.rint(Vt_det) == -1:
-        valid_Rot3 = Rot3.ClosestTo(Vt)
-        wuprightRw = valid_Rot3.matrix()
+    if not np.isclose(np.linalg.det(Vt), 1):
+        wuprightRw = Rot3.ClosestTo(Vt).matrix()
     else:
         wuprightRw = Vt
 

@@ -4,14 +4,18 @@ Authors: Adi Singh
 """
 from typing import Dict, Tuple
 import unittest
-from gtsfm.common.gtsfm_data import GtsfmData
+from pathlib import Path
+
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack, Similarity3
 
 import numpy as np
 import numpy.testing as npt
 
+from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.loader.olsson_loader import OlssonLoader
 import gtsfm.utils.ellipsoid as ellipsoid_utils
-from scipy.io import loadmat
+
+DOOR_12_DATA_ROOT = Path(__file__).resolve().parent.parent / "data" / "set1_lund_door"
 
 
 class TestEllipsoidUtils(unittest.TestCase):
@@ -109,13 +113,9 @@ class TestEllipsoidUtils(unittest.TestCase):
 
         sample_data = GtsfmData(number_images=12)
 
-        # Read all 12 camera poses from data.mat file which contains extrinsics for all cameras in door12 dataset.
-        data = loadmat("data.mat")
-        M_list = [data["P"][0][i] for i in range(12)]
-        K = M_list[0][:3, :3]
-        Kinv = np.linalg.inv(K)
-        iTw_list = [Kinv @ M_list[i] for i in range(12)]
-        wTi_list = [Pose3(Rot3(iTw[:3, :3]), iTw[:, 3]).inverse() for iTw in iTw_list]
+        # Instantiate OlssonLoader to read camera poses from door12 dataset.
+        loader = OlssonLoader(str(DOOR_12_DATA_ROOT), image_extension="JPG")
+        wTi_list = loader._wTi_list
 
         # Add 12 camera frustums to sample_data.
         default_intrinsics = Cal3Bundler(fx=100, k1=0, k2=0, u0=0, v0=0)
