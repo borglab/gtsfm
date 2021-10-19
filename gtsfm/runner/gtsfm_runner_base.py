@@ -44,7 +44,6 @@ class GtsfmRunnerBase:
             "--config_name",
             type=str,
             default="sift_front_end.yaml",
-            # default="deep_front_end.yaml",
             help="Choose sift_front_end.yaml or deep_front_end.yaml",
         )
         parser.add_argument(
