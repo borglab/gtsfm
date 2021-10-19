@@ -347,7 +347,6 @@ def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
 
 
 
-        f.write(str(gtsfm_data.number_tracks()))
         for i in gtsfm_data.get_valid_camera_indices():
             img_fname = images[i].file_name
             camera = gtsfm_data.get_camera(i)
@@ -359,19 +358,19 @@ def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
             qw, qx, qy, qz = iRw_quaternion
 
             f.write(f"{i} {qw} {qx} {qy} {qz} {tx} {ty} {tz} {i} {img_fname}\n")
+
+
             # TODO: write out the points2d
-            gtsfm_data_subset = gtsfm_data.from_selected_cameras(gtsfm_data, [i])
-
+            gtsfm_data_subset = gtsfm_data.from_selected_cameras(gtsfm_data, [int(i)])
             subset_tracks = gtsfm_data_subset.get_tracks()
-            track_str = ""
+            f.write(str(len(subset_tracks)) + " " + str(gtsfm_data.number_tracks()) + "\n")
 
-            f.write(str(gtsfm_data_subset.number_tracks()) + "\n")
-
-            for track in subset_tracks:
-                for k in range(track.number_measurements()):
-                    # process each measurement
-                    i, uv_measured = track.measurement(k)
-                track_str = track_str + " " + str(track.measurements())
+            # track_str = ""
+            # for track in subset_tracks:
+            #     for k in range(track.number_measurements()):
+            #         # process each measurement
+            #         i, uv_measured = track.measurement(k)
+            #     track_str = track_str + " " + str(track.measurements())
 
 
 def read_points_txt(fpath: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
