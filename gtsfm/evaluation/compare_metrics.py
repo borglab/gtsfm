@@ -9,12 +9,33 @@ from typing import Dict
 import gtsfm.utils.io as io_utils
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
+import thirdparty.colmap.scripts.python.read_write_model as colmap_io
+
 def compare_metrics(txt_metric_paths: Dict[str, str], json_path: str) -> None:
     """Produces a json file containing data across SfM pipelines formatted as a GTSfMMetricsGroup.
 
     Args:
         txt_metric_paths: a list of paths to directories containing: cameras.txt, images.txt, and points3D.txt files
     """
+    cameras, images, points3d = colmap_io.read_model(path=txt_metric_paths['colmap'], ext=".txt")
+    cameras, images, image_files, sfmtracks = io_utils.colmap2gtsfm(cameras, images, points3d, load_sfmtracks=True)
+
+    print(len(images))
+    print(len(cameras))
+    num_images = len(images)
+    num_tracks = len(sfmtracks)
+
+    cameras, images, points3d = colmap_io.read_model(path=txt_metric_paths['gtsfm'], ext=".txt")
+    cameras, images, image_files, sfmtracks = io_utils.colmap2gtsfm(cameras, images, points3d, load_sfmtracks=True)
+
+    print(len(images))
+    print(len(cameras))
+    num_images = len(images)
+    num_tracks = len(sfmtracks)
+
+
+
+
     gtsfm_metrics = []
     for pipeline_name in txt_metric_paths.keys():
         # Add 3D point information

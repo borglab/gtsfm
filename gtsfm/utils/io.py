@@ -10,7 +10,7 @@ import gtsam
 import h5py
 import json
 import numpy as np
-from gtsam import Cal3Bundler, Rot3, Pose3
+from gtsam import Cal3Bundler, Rot3, Pose3, Point3, SfmTrack
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
 
@@ -20,6 +20,10 @@ import gtsfm.utils.reprojection as reproj_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.sfm_track import SfmTrack2d
+
+from thirdparty.colmap.scripts.python.read_write_model import Camera as ColmapCamera
+from thirdparty.colmap.scripts.python.read_write_model import Image as ColmapImage
+from thirdparty.colmap.scripts.python.read_write_model import Point3D as ColmapPoint3D
 
 
 logger = logger_utils.get_logger()
@@ -155,6 +159,49 @@ def export_model_as_colmap_text(gtsfm_data: GtsfmData, images: List[Image], save
     write_cameras(gtsfm_data, images, save_dir)
     write_images(gtsfm_data, images, save_dir)
     write_points(gtsfm_data, images, save_dir)
+
+def colmap2gtsfm(
+    cameras: Dict[int, ColmapCamera],
+    images: Dict[int, ColmapImage],
+    points3D: Dict[int, ColmapPoint3D],
+    load_sfmtracks: bool = False,
+) -> Tuple[List[Cal3Bundler], List[Pose3], List[str], Optional[List[Point3]]]:
+    """Converts COLMAP-formatted variables to GTSfM format.
+    Args:
+        cameras: dictionary of COLMAP-formatted Cameras
+        images: dictionary of COLMAP-formatted Images
+        points3D: dictionary of COLMAP-formatted Point3Ds
+        return_tracks (optional): whether or not to return tracks
+    Returns:
+        cameras_gtsfm: list of N camera calibrations corresponding to the N images in images_gtsfm
+        images_gtsfm: list of N camera poses when each image was taken
+        img_fnames: file names of images in images_gtsfm
+        sfmtracks_gtsfm: tracks of points in points3D
+    """
+    # Note: Assumes input cameras use `PINHOLE` model
+    if len(images) == 0 and len(cameras) == 0:
+        raise RuntimeError("No Image or Camera data provided to loader.")
+    cameras_gtsfm, images_gtsfm, img_fnames = [], [], []
+    image_id_to_idx = {}  # keeps track of discrepencies between `image_id` and List index.
+    for idx, img in enumerate(images.values()):
+        images_gtsfm.append(Pose3(Rot3(img.qvec2rotmat()), img.tvec).inverse())
+        img_fnames.append(img.name)
+        fx, _, cx, cy = cameras[img.camera_id].params[:4]
+        cameras_gtsfm.append(Cal3Bundler(fx, 0.0, 0.0, cx, cy))
+        image_id_to_idx[img.id] = idx
+
+    if len(points3D) == 0 and load_sfmtracks:
+        raise RuntimeError("No SfMTrack data provided to loader.")
+    sfmtracks_gtsfm = None
+    if len(points3D) > 0 and load_sfmtracks:
+        sfmtracks_gtsfm = []
+        for point3D in points3D.values():
+            sfmtrack = SfmTrack(point3D.xyz)
+            for (image_id, point2d_idx) in zip(point3D.image_ids, point3D.point2D_idxs):
+                sfmtrack.add_measurement(image_id_to_idx[image_id], images[image_id].xys[point2d_idx])
+            sfmtracks_gtsfm.append(sfmtrack)
+
+    return cameras_gtsfm, images_gtsfm, img_fnames, sfmtracks_gtsfm
 
 
 def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
@@ -298,6 +345,9 @@ def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
         f.write("#   POINTS2D[] as (X, Y, POINT3D_ID)\n")
         f.write(f"# Number of images: {num_imgs}, mean observations per image: {mean_obs_per_img}\n")
 
+
+
+        f.write(str(gtsfm_data.number_tracks()))
         for i in gtsfm_data.get_valid_camera_indices():
             img_fname = images[i].file_name
             camera = gtsfm_data.get_camera(i)
@@ -310,7 +360,18 @@ def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
 
             f.write(f"{i} {qw} {qx} {qy} {qz} {tx} {ty} {tz} {i} {img_fname}\n")
             # TODO: write out the points2d
-            f.write("TODO\n")
+            gtsfm_data_subset = gtsfm_data.from_selected_cameras(gtsfm_data, [i])
+
+            subset_tracks = gtsfm_data_subset.get_tracks()
+            track_str = ""
+
+            f.write(str(gtsfm_data_subset.number_tracks()) + "\n")
+
+            for track in subset_tracks:
+                for k in range(track.number_measurements()):
+                    # process each measurement
+                    i, uv_measured = track.measurement(k)
+                track_str = track_str + " " + str(track.measurements())
 
 
 def read_points_txt(fpath: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
