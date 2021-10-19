@@ -109,8 +109,8 @@ class TestEllipsoidUtils(unittest.TestCase):
 
         sample_data = GtsfmData(number_images=12)
 
-        # Read all 12 camera poses /data/set1_lund_door folder.
-        data = loadmat("../data/set1_lund_door/data.mat")
+        # Read all 12 camera poses from data.mat file which contains extrinsics for all cameras in door12 dataset.
+        data = loadmat("data.mat")
         M_list = [data["P"][0][i] for i in range(12)]
         K = M_list[0][:3, :3]
         Kinv = np.linalg.inv(K)
@@ -147,9 +147,6 @@ class TestEllipsoidUtils(unittest.TestCase):
 
         camera_translations = np.array([pose.translation() for pose in sample_data.get_camera_poses()])
         initial_relative_distances = self.compute_relative_distances(camera_translations, points_3d)
-        # np.save("original_point_cloud", points_3d)
-        # np.save("original_camera_centers", camera_translations)
-        # np.save("initial_relative_distances", initial_relative_distances)
 
         # Apply alignment transformation to sample_data
         walignedTw = ellipsoid_utils.get_ortho_axis_alignment_transform(sample_data)
@@ -165,9 +162,6 @@ class TestEllipsoidUtils(unittest.TestCase):
         final_relative_distances = self.compute_relative_distances(
             transformed_camera_translations, transformed_points_3d
         )
-        # np.save("transformed_point_cloud", transformed_points_3d)
-        # np.save("transformed_camera_centers", transformed_camera_translations)
-        # np.save("transformed_relative_distances", final_relative_distances)
 
         npt.assert_almost_equal(final_relative_distances, initial_relative_distances, decimal=6)
 
