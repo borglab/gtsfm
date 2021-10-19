@@ -10,15 +10,15 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
+import gtsfm.densify.mvs_utils as mvs_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.densify.mvs_base import MVSBase
-import gtsfm.densify.mvs_utils as mvs_utils
 from gtsfm.densify.patchmatchnet_data import PatchmatchNetData
 from gtsfm.utils import logger as logger_utils
-from thirdparty.patchmatchnet.models.net import PatchmatchNet
 import thirdparty.patchmatchnet.utils as patchmatchnet_utils
-import thirdparty.patchmatchnet.eval as patchmatchnet_eval_funcs
+import thirdparty.patchmatchnet.eval as patchmatchnet_eval
+from thirdparty.patchmatchnet.models.net import PatchmatchNet
 
 logger = logger_utils.get_logger()
 
@@ -27,21 +27,22 @@ PATCHMATCHNET_WEIGHTS_PATH = "thirdparty/patchmatchnet/checkpoints/model_000007.
 
 # all default values are assigned by Wang et al. https://github.com/FangjinhuaWang/PatchmatchNet/blob/main/eval.py
 DEFAULT_BATCH_SIZE = 1
-DEFAULT_VIEW_NUMBER = 5
-DEFAULT_WORKERS_NUMBER = 4
+DEFAULT_NUM_VIEWS = 5
+DEFAULT_NUM_WORKERS = 4
 
+# default
 DEFAULT_GEOMETRIC_PIXEL_THRESH = 1.0
 DEFAULT_GEOMETRIC_DEPTH_THRESH = 0.01
 DEFAULT_PHOTOMETRIC_THRESH = 0.8
 
 DEFAULT_INTERVAL_SCALE = [0.005, 0.0125, 0.025]
 DEFAULT_PROPAGATION_RANGE = [6, 4, 2]
-DEFAULT_ITERATION_NUMBER = [1, 2, 2]
-DEFAULT_SAMPLE_NUMBER = [8, 8, 16]
+DEFAULT_NUM_ITERS = [1, 2, 2]
+DEFAULT_NUM_SAMPLES = [8, 8, 16]
 DEFAULT_PROPAGATE_NEIGHBORS = [0, 8, 16]
 DEFAULT_EVALUATE_NEIGHBORS = [9, 9, 9]
 
-DEFAULT_MINIMUM_CONSISTENT_VIEW_NUMBER = 3
+DEFAULT_MIN_NUM_CONSISTENT_VIEWS = 3
 
 
 class MVSPatchmatchNet(MVSBase):
@@ -51,7 +52,7 @@ class MVSPatchmatchNet(MVSBase):
         self,
         images: Dict[int, Image],
         sfm_result: GtsfmData,
-        max_num_views: int = DEFAULT_VIEW_NUMBER,
+        max_num_views: int = DEFAULT_NUM_VIEWS,
         thresholds: List[float] = [
             DEFAULT_GEOMETRIC_PIXEL_THRESH,
             DEFAULT_GEOMETRIC_DEPTH_THRESH,
@@ -64,7 +65,7 @@ class MVSPatchmatchNet(MVSBase):
         Args:
             images: image dictionary obtained from loaders
             sfm_result: result of GTSFM after bundle adjustment
-            num_views: Defaults to DEFAULT_VIEW_NUMBER. maximum number of views,
+            num_views: Defaults to DEFAULT_NUM_VIEWS. maximum number of views,
                 containing 1 reference view and (num_views-1) source views
             thresholds: geometric pixel threshold, geometric depth threshold, and photometric
                 threshold for filtering inference results.
@@ -80,15 +81,15 @@ class MVSPatchmatchNet(MVSBase):
             dataset=dataset,
             batch_size=DEFAULT_BATCH_SIZE,
             shuffle=False,
-            num_workers=DEFAULT_WORKERS_NUMBER,
+            num_workers=DEFAULT_NUM_WORKERS,
             drop_last=False,
         )
 
         model = PatchmatchNet(
             patchmatch_interval_scale=DEFAULT_INTERVAL_SCALE,
             propagation_range=DEFAULT_PROPAGATION_RANGE,
-            patchmatch_iteration=DEFAULT_ITERATION_NUMBER,
-            patchmatch_num_sample=DEFAULT_SAMPLE_NUMBER,
+            patchmatch_iteration=DEFAULT_NUM_ITERS,
+            patchmatch_num_sample=DEFAULT_NUM_SAMPLES,
             propagate_neighbors=DEFAULT_PROPAGATE_NEIGHBORS,
             evaluate_neighbors=DEFAULT_EVALUATE_NEIGHBORS,
         )
@@ -196,6 +197,8 @@ class MVSPatchmatchNet(MVSBase):
         vertices = []
         # vertex colors of the final point cloud, used in generating colored mesh
         vertex_colors = []
+        # depth maps from each view
+        depths = []
 
         packed_pairs = dataset.get_packed_pairs()
 
@@ -230,7 +233,7 @@ class MVSPatchmatchNet(MVSBase):
                 src_depth_est = depth_list[src_view][0]
 
                 # Check geometric consistency
-                geo_mask, depth_reprojected, _, _ = patchmatchnet_eval_funcs.check_geometric_consistency(
+                geo_mask, depth_reprojected, _, _ = patchmatchnet_eval.check_geometric_consistency(
                     ref_depth_est,
                     ref_intrinsics,
                     ref_extrinsics,
@@ -245,17 +248,21 @@ class MVSPatchmatchNet(MVSBase):
 
             depth_est_averaged = (sum(all_srcview_depth_ests) + ref_depth_est) / (geo_mask_sum + 1)
             # Valid points requires at least 3 source views validated under geometric threshoulds
-            geo_mask = geo_mask_sum >= DEFAULT_MINIMUM_CONSISTENT_VIEW_NUMBER
+            geo_mask = geo_mask_sum >= DEFAULT_MIN_NUM_CONSISTENT_VIEWS
 
             # Combine geometric mask and photometric mask
-            final_mask = np.logical_and(photo_mask, geo_mask)
+            joint_mask = np.logical_and(photo_mask, geo_mask)
+            # Set the depths of invalid positions to 0
+            depth_est_averaged[np.logical_not(joint_mask)] = 0
+            # Append the depth map to the depth map list
+            depths.append(depth_est_averaged)
 
             # Initialize coordinate grids
             height, width = depth_est_averaged.shape[:2]
             u, v = np.meshgrid(np.arange(0, width), np.arange(0, height))
 
             # Get valid points filtered by photometric and geometric thresholds
-            valid_points = final_mask
+            valid_points = joint_mask
             u, v, depth = u[valid_points], v[valid_points], depth_est_averaged[valid_points]
 
             # Get the point coordinates inside the reference view's camera frame
@@ -270,11 +277,36 @@ class MVSPatchmatchNet(MVSBase):
             vertex_colors.append((color * 255).astype(np.uint8))
 
             logger.info(
-                "[Densify::PatchMatchNet] RefView: %03d Geometric: %.03f Photometric: %.03f Final: %.03f",
+                "[Densify::PatchMatchNet] RefView: %03d Geometric: %.03f Photometric: %.03f Joint: %.03f",
                 ref_view,
                 geo_mask.mean(),
                 photo_mask.mean(),
-                final_mask.mean(),
+                joint_mask.mean(),
             )
+
+        vertexs = np.concatenate(vertices, axis=0)
+        vertex_colors = np.concatenate(vertex_colors, axis=0)
+        vertexs = np.array([tuple(v) for v in vertexs], dtype=[("x", "f4"), ("y", "f4"), ("z", "f4")])
+        vertex_colors = np.array(
+            [tuple(v) for v in vertex_colors], dtype=[("red", "u1"), ("green", "u1"), ("blue", "u1")]
+        )
+
+        vertex_all = np.empty(len(vertexs), vertexs.dtype.descr + vertex_colors.dtype.descr)
+        for prop in vertexs.dtype.names:
+            vertex_all[prop] = vertexs[prop]
+        for prop in vertex_colors.dtype.names:
+            vertex_all[prop] = vertex_colors[prop]
+
+        from plyfile import PlyData, PlyElement
+        import cv2
+
+        el = PlyElement.describe(vertex_all, "vertex")
+        PlyData([el]).write("/home/ren/points.ply")
+        cnt = 0
+        for depth in depths:
+            depth = (depth - depth.min()) / (depth.max() - depth.min() + 1e-10)
+            depth = (depth * 255).astype(np.uint8)
+            cv2.imwrite(f"/home/ren/d{cnt:02d}.png", depth)
+            cnt += 1
 
         return np.concatenate(vertices, axis=0)

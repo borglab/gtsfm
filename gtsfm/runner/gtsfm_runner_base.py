@@ -44,6 +44,7 @@ class GtsfmRunnerBase:
             "--config_name",
             type=str,
             default="sift_front_end.yaml",
+            # default="deep_front_end.yaml",
             help="Choose sift_front_end.yaml or deep_front_end.yaml",
         )
         parser.add_argument(
@@ -106,6 +107,12 @@ class GtsfmRunnerBase:
             sfm_result = sfm_result_graph.compute()
 
         assert isinstance(sfm_result, GtsfmData)
+
+        img_dict = {i: self.loader.get_image(i) for i in range(len(self.loader))}
+        import numpy as np
+        from gtsfm.densify.mvs_patchmatchnet import MVSPatchmatchNet
+
+        points = MVSPatchmatchNet().densify(img_dict, sfm_result)
 
         end_time = time.time()
         duration_sec = end_time - start_time

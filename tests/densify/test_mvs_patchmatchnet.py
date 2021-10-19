@@ -19,7 +19,7 @@ from gtsfm.common.image import Image
 from gtsfm.common.gtsfm_data import GtsfmData, SfmTrack
 from gtsfm.densify.mvs_patchmatchnet import MVSPatchmatchNet
 
-# set the default image size as 800x600, with 3 channels
+# set the default image size as 400x300, with 3 channels
 DEFAULT_IMAGE_W = 400
 DEFAULT_IMAGE_H = 300
 DEFAULT_IMAGE_C = 3
