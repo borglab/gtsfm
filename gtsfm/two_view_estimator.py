@@ -47,6 +47,8 @@ class TwoViewEstimationReport:
            measures how consistent the model is with the putative matches.
         num_inliers_gt_model: measures how well the verification worked, w.r.t. GT, i.e. #correct correspondences.
         inlier_ratio_gt_model: #correct matches/#putative matches. Only defined if GT relative pose provided.
+        v_corr_idxs_inlier_mask_gt: Mask of which verified correspondences are classified as correct under
+            Sampson error (using GT epipolar geometry).
         R_error_deg: relative pose error w.r.t. GT. Only defined if GT poses provided.
         U_error_deg: relative translation error w.r.t. GT. Only defined if GT poses provided.
         i2Ri1: relative rotation.
@@ -58,6 +60,7 @@ class TwoViewEstimationReport:
     inlier_ratio_est_model: Optional[float] = None  # TODO: make not optional (pass from verifier)
     num_inliers_gt_model: Optional[float] = None
     inlier_ratio_gt_model: Optional[float] = None
+    v_corr_idxs_inlier_mask_gt: Optional[np.ndarray] = None
     R_error_deg: Optional[float] = None
     U_error_deg: Optional[float] = None
     i2Ri1: Optional[Rot3] = None
@@ -150,10 +153,12 @@ class TwoViewEstimator:
 
         # if we have the expected GT data, evaluate the computed relative pose
         if i2Ti1_expected_graph is not None:
-            pose_error_graphs = dask.delayed(compute_relative_pose_metrics)(
+            R_error_deg, U_error_deg = dask.delayed(compute_relative_pose_metrics, nout=2)(
                 i2Ri1_graph, i2Ui1_graph, i2Ti1_expected_graph
             )
-            corr_error_graph = dask.delayed(compute_correspondence_metrics)(
+            num_inliers_gt_model, inlier_ratio_gt_model, v_corr_idxs_inlier_mask_gt = dask.delayed(
+                compute_correspondence_metrics, nout=3
+            )(
                 keypoints_i1_graph,
                 keypoints_i2_graph,
                 v_corr_idxs_graph,
@@ -162,12 +167,10 @@ class TwoViewEstimator:
                 i2Ti1_expected_graph,
                 self._corr_metric_dist_threshold,
             )
-            num_inliers_gt_model, inlier_ratio_gt_model = corr_error_graph[0], corr_error_graph[1]
         else:
-            pose_error_graphs = (None, None)
+            R_error_deg, U_error_deg = None, None
             num_inliers_gt_model, inlier_ratio_gt_model = None, None
-
-        R_error_deg, U_error_deg = pose_error_graphs[0], pose_error_graphs[1]
+            v_corr_idxs_inlier_mask_gt = None
 
         two_view_report_graph = dask.delayed(generate_two_view_report)(
             inlier_ratio_est_model,
@@ -175,6 +178,7 @@ class TwoViewEstimator:
             U_error_deg,
             num_inliers_gt_model,
             inlier_ratio_gt_model,
+            v_corr_idxs_inlier_mask_gt,
             v_corr_idxs_graph,
         )
 
@@ -220,6 +224,7 @@ def generate_two_view_report(
     U_error_deg: float,
     num_inliers_gt_model: int,
     inlier_ratio_gt_model: float,
+    v_corr_idxs_inlier_mask_gt: np.ndarray,
     v_corr_idxs: np.ndarray,
 ) -> TwoViewEstimationReport:
     """Wrapper around class constructor for Dask."""
@@ -228,6 +233,7 @@ def generate_two_view_report(
         num_inliers_est_model=v_corr_idxs.shape[0],
         num_inliers_gt_model=num_inliers_gt_model,
         inlier_ratio_gt_model=inlier_ratio_gt_model,
+        v_corr_idxs_inlier_mask_gt=v_corr_idxs_inlier_mask_gt,
         v_corr_idxs=v_corr_idxs,
         R_error_deg=R_error_deg,
         U_error_deg=U_error_deg,
@@ -243,7 +249,7 @@ def compute_correspondence_metrics(
     intrinsics_i2: Cal3Bundler,
     i2Ti1: Pose3,
     epipolar_distance_threshold: float,
-) -> Tuple[int, float]:
+) -> Tuple[int, float, Optional[np.ndarray]]:
     """Compute the metrics for the generated verified correspondence.
 
     Args:
@@ -258,11 +264,13 @@ def compute_correspondence_metrics(
     Returns:
         Number of inlier correspondences to ground truth epipolar geometry, i.e. #correct correspondences.
         Inlier Ratio, i.e. ratio of correspondences which are correct w.r.t. given relative pose.
+        Mask of which verified correspondences are classified as correct under Sampson error
+            (using GT epipolar geometry).
     """
     if corr_idxs_i1i2.size == 0:
-        return 0, float("Nan")
+        return 0, float("Nan"), None
 
-    num_inliers_gt_model = metric_utils.count_correct_correspondences(
+    v_corr_idxs_inlier_mask_gt = metric_utils.count_correct_correspondences(
         keypoints_i1.extract_indices(corr_idxs_i1i2[:, 0]),
         keypoints_i2.extract_indices(corr_idxs_i1i2[:, 1]),
         intrinsics_i1,
@@ -270,8 +278,9 @@ def compute_correspondence_metrics(
         i2Ti1,
         epipolar_distance_threshold,
     )
+    num_inliers_gt_model = np.count_nonzero(v_corr_idxs_inlier_mask_gt)
     inlier_ratio_gt_model = num_inliers_gt_model / corr_idxs_i1i2.shape[0]
-    return num_inliers_gt_model, inlier_ratio_gt_model
+    return num_inliers_gt_model, inlier_ratio_gt_model, v_corr_idxs_inlier_mask_gt
 
 
 def compute_relative_pose_metrics(

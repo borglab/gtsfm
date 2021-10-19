@@ -24,6 +24,7 @@ import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.viz as viz_utils
+from gtsfm.averaging.rotation.cycle_consistency import EdgeErrorAggregationCriterion
 from gtsfm.common.image import Image
 from gtsfm.feature_extractor import FeatureExtractor
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
@@ -160,6 +161,7 @@ class SceneOptimizer:
                         keypoints_graph_list[i1],
                         keypoints_graph_list[i2],
                         v_corr_idxs,
+                        two_view_report=two_view_report,
                         file_path=os.path.join(PLOT_CORRESPONDENCE_PATH, f"{i1}_{i2}.jpg"),
                     )
                 )
@@ -185,7 +187,13 @@ class SceneOptimizer:
         # ensure cycle consistency in triplets
         i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict, rcc_metrics_graph = dask.delayed(
             cycle_consistency.filter_to_cycle_consistent_edges, nout=4
-        )(i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict, two_view_reports_dict)
+        )(
+            i2Ri1_graph_dict,
+            i2Ui1_graph_dict,
+            v_corr_idxs_graph_dict,
+            two_view_reports_dict,
+            EdgeErrorAggregationCriterion.MEDIAN_EDGE_ERROR,
+        )
         metrics_graph_list.append(rcc_metrics_graph)
 
         def _filter_dict_keys(dict: Dict[Any, Any], ref_dict: Dict[Any, Any]) -> Dict[Any, Any]:
