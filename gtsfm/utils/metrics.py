@@ -135,7 +135,10 @@ def mesh_inlier_correspondences(
     gt_scene_mesh: trimesh.Trimesh,
     dist_threshold: float,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Compute inlier correspondences using the ground truth triangular surface mesh of the scene.
+    """Compute inlier correspondences using the ground truth triangular surface mesh of the scene. First, rays are
+    back-projected at each keypoint in the images and intersections between these rays and the ground truth mesh are
+    recorded. Next, given a match, the the mesh intersections corresponding to each keypoint is forward-projected into
+    the other image and the reprojection error is computed to decide whether the match is an inlier.
 
     Args:
         keypoints_i1: N keypoints in image i1.
@@ -156,50 +159,24 @@ def mesh_inlier_correspondences(
     """
     if len(keypoints_i1) != len(keypoints_i2):
         raise ValueError("Keypoints must have same counts")
-
     n_corrs = len(keypoints_i1)
     is_inlier = np.zeros(n_corrs, dtype=bool)
-    src_i1 = np.repeat(gt_camera_i1.pose().translation().reshape((-1, 3)), n_corrs, axis=0)  # At_i1A
-    src_i2 = np.repeat(gt_camera_i2.pose().translation().reshape((-1, 3)), n_corrs, axis=0)  # At_i2A
 
-    # Compute ketpoint rays.
-    drc_i1 = np.empty((n_corrs, 3), dtype=float)
-    drc_i2 = np.empty((n_corrs, 3), dtype=float)
-    for corr_idx in range(n_corrs):
-        drc_i1[corr_idx, :] = (
-            gt_camera_i1.backproject(keypoints_i1.coordinates[corr_idx], depth=1.0) - src_i1[corr_idx, :]
-        )
-        drc_i2[corr_idx, :] = (
-            gt_camera_i2.backproject(keypoints_i2.coordinates[corr_idx], depth=1.0) - src_i2[corr_idx, :]
-        )
-
-    # Perform ray tracing.
-    src = np.vstack((src_i1, src_i2))
-    drc = np.vstack((drc_i1, drc_i2))
-    logger.info("Computing ray intersections...")
-    start_time = timeit.default_timer()
-    loc, idr, _ = gt_scene_mesh.ray.intersects_location(src, drc, multiple_hits=False)
-    logger.info(
-        f"Cast {2 * n_corrs} rays ({loc.shape[0]} intersections) in {timeit.default_timer() - start_time} seconds."
-    )
-
-    # Unpack results.
-    idr_i1 = idr[idr < n_corrs]
-    loc_i1 = loc[idr < n_corrs]
-    idr_i2 = idr[idr >= n_corrs] - n_corrs
-    loc_i2 = loc[idr >= n_corrs]
+    # Perform ray tracing to compute keypoint intersections.
+    idr_i1, loc_i1 = compute_keypoint_intersections(keypoints_i1, gt_camera_i1, gt_scene_mesh)
+    idr_i2, loc_i2 = compute_keypoint_intersections(keypoints_i2, gt_camera_i2, gt_scene_mesh)
     idr, i1_idx, i2_idx = np.intersect1d(idr_i1, idr_i2, return_indices=True)
 
     # Forward project intersections into other image to compute error.
     reproj_err = np.array([np.nan] * len(keypoints_i1))
     for i in range(len(idr)):
-        xy_i1 = keypoints_i1.coordinates[idr[i]]
-        xy_i2 = keypoints_i2.coordinates[idr[i]]
-        xy_i2i1, success_flag_i1 = gt_camera_i1.projectSafe(loc_i2[i2_idx[i]])
-        xy_i1i2, success_flag_i2 = gt_camera_i2.projectSafe(loc_i1[i1_idx[i]])
+        uv_i1 = keypoints_i1.coordinates[idr[i]]
+        uv_i2 = keypoints_i2.coordinates[idr[i]]
+        uv_i2i1, success_flag_i1 = gt_camera_i1.projectSafe(loc_i2[i2_idx[i]])
+        uv_i1i2, success_flag_i2 = gt_camera_i2.projectSafe(loc_i1[i1_idx[i]])
         if success_flag_i1 and success_flag_i2:
-            err_i2i1 = np.linalg.norm(xy_i1.flatten() - xy_i2i1.flatten())
-            err_i1i2 = np.linalg.norm(xy_i2.flatten() - xy_i1i2.flatten())
+            err_i2i1 = np.linalg.norm(uv_i1.flatten() - uv_i2i1.flatten())
+            err_i1i2 = np.linalg.norm(uv_i2.flatten() - uv_i1i2.flatten())
             is_inlier[idr[i]] = max(err_i2i1, err_i1i2) < dist_threshold
             reproj_err[idr[i]] = max(err_i2i1, err_i1i2)
         else:
@@ -207,6 +184,23 @@ def mesh_inlier_correspondences(
             reproj_err[idr[i]] = np.nan
 
     return is_inlier, reproj_err
+
+
+def compute_keypoint_intersections(
+    keypoints: Keypoints, gt_camera: PinholeCameraCal3Bundler, gt_scene_mesh: trimesh.Trimesh
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Computes intersections between ground truth surface mesh and rays originating from image keypoints."""
+    # Compute keypoint rays.
+    num_kpts = len(keypoints)
+    src = np.repeat(gt_camera.pose().translation().reshape((-1, 3)), num_kpts, axis=0)  # At_i1A
+    drc = np.asarray([gt_camera.backproject(keypoints.coordinates[i], depth=1.0) - src[i, :] for i in range(num_kpts)])
+
+    # Perform ray tracing.
+    start_time = timeit.default_timer()
+    loc, idr, _ = gt_scene_mesh.ray.intersects_location(src, drc, multiple_hits=False)
+    logger.info(f"Cast {num_kpts} rays ({loc.shape[0]}) in {timeit.default_timer() - start_time} seconds.")
+
+    return idr, loc
 
 
 def compute_rotation_angle_metric(wRi_list: List[Optional[Rot3]], gt_wRi_list: List[Optional[Pose3]]) -> GtsfmMetric:
