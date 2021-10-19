@@ -243,8 +243,6 @@ def filter_to_cycle_consistent_edges(
     cycle_errors = []
     max_rot_errors = []
 
-    n_valid_edges = len([i2Ri1 for (i1, i2), i2Ri1 in i2Ri1_dict.items() if i2Ri1 is not None])
-
     # (i1,i2) pairs
     cycle_consistent_keys = set()
 
@@ -292,7 +290,7 @@ def filter_to_cycle_consistent_edges(
             10,
             color="g",
             marker=".",
-            label=f"outliers @ {CYCLE_ERROR_THRESHOLD} deg.",
+            label=f"inliers @ {CYCLE_ERROR_THRESHOLD} deg.",
         )
         plt.scatter(
             outlier_errors_aggregate,
@@ -300,7 +298,7 @@ def filter_to_cycle_consistent_edges(
             10,
             color="r",
             marker=".",
-            label=f"inliers @ {CYCLE_ERROR_THRESHOLD} deg.",
+            label=f"outliers @ {CYCLE_ERROR_THRESHOLD} deg.",
         )
         plt.xlabel(f"{edge_acceptance_criterion} cycle error")
         plt.ylabel("Rotation error w.r.t GT")
@@ -324,16 +322,21 @@ def filter_to_cycle_consistent_edges(
         i2Ui1_dict_consistent[(i1, i2)] = i2Ui1_dict[(i1, i2)]
         v_corr_idxs_dict_consistent[(i1, i2)] = v_corr_idxs_dict[(i1, i2)]
 
+    n_valid_edges = len([i2Ri1 for (i1, i2), i2Ri1 in i2Ri1_dict.items() if i2Ri1 is not None])
     logger.info("Found %d consistent rel. rotations from %d original edges.", len(i2Ri1_dict_consistent), n_valid_edges)
 
     metrics_group = _compute_metrics(
-        inlier_i1_i2_pairs=cycle_consistent_keys, two_view_reports_dict=two_view_reports_dict
+        inlier_i1_i2_pairs=cycle_consistent_keys,
+        two_view_reports_dict=two_view_reports_dict,
+        n_valid_edges=n_valid_edges,
     )
     return i2Ri1_dict_consistent, i2Ui1_dict_consistent, v_corr_idxs_dict_consistent, metrics_group
 
 
 def _compute_metrics(
-    inlier_i1_i2_pairs: List[Tuple[int, int]], two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport]
+    inlier_i1_i2_pairs: List[Tuple[int, int]],
+    two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
+    n_valid_edges: int,
 ) -> GtsfmMetricsGroup:
     """Computes the rotation cycle consistency metrics as a metrics group.
 
@@ -341,6 +344,9 @@ def _compute_metrics(
         inlier_i1_i2_pairs: List of inlier camera pair indices.
         two_view_reports_dict: mapping from image pair indices (i1,i2) to a report containing information
             about the verifier's output (and optionally measurement error w.r.t GT). Note: i1 < i2 always.
+        n_valid_edges: number of edges that are fed into the cycle consistency filtering algorithm.
+            This is not equal to the number of image pairs to the verifier, as many image pair measurements
+            may been previously rejected for lack of sufficient support.
 
     Returns:
         Rotation cycle consistency metrics as a metrics group. Includes the following metrics:
@@ -352,7 +358,6 @@ def _compute_metrics(
     """
     all_pairs = list(two_view_reports_dict.keys())
     outlier_i1_i2_pairs = list(set(all_pairs) - set(inlier_i1_i2_pairs))
-    num_total_measurements = len(all_pairs)
 
     inlier_R_angular_errors = []
     outlier_R_angular_errors = []
@@ -380,7 +385,7 @@ def _compute_metrics(
     )
 
     rcc_metrics = [
-        GtsfmMetric("num_total_frontend_measurements", num_total_measurements),
+        GtsfmMetric("num_input_measurements", n_valid_edges),
         GtsfmMetric("num_inlier_rcc_measurements", len(inlier_i1_i2_pairs)),
         GtsfmMetric("num_outlier_rcc_measurements", len(outlier_i1_i2_pairs)),
         GtsfmMetric("rot_cycle_consistency_R_precision", R_precision),

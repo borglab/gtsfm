@@ -36,24 +36,24 @@ jobs:
       - name: Cache conda env
         uses: actions/cache@v2
         env:
-          # Increase this value to reset cache if environment_linux.yml has not changed
+          # Increase this value to reset cache if environment_linux_cpuonly.yml has not changed
           CACHE_NUMBER: 0
         with:
           path: ~/conda_pkgs_dir
-          key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('environment_linux.yml') }}
+          key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('environment_linux_cpuonly.yml') }}
       - name: Cache frontend
         uses: actions/cache@v2
         env:
           # Increase this value to reset cache
-          CACHE_NUMBER: 0
+          CACHE_NUMBER_FRONTEND: 0
         with:
           path: cache
-          key: ${{ matrix.config_dataset_info[0] }}-${{ matrix.config_dataset_info[1] }}-${{ matrix.config_dataset_info[2] }}-${{ matrix.config_dataset_info[6] }}
+          key: ${{ matrix.config_dataset_info[0] }}-${{ matrix.config_dataset_info[1] }}-${{ matrix.config_dataset_info[2] }}-${{ matrix.config_dataset_info[6] }}-${{ env.CACHE_NUMBER_FRONTEND }}
       - uses: conda-incubator/setup-miniconda@v2
         with:
           miniconda-version: "latest"
           activate-environment: gtsfm-v1
-          environment-file: environment_linux.yml
+          environment-file: environment_linux_cpuonly.yml
           python-version: 3.8
           use-only-tar-bz2: true # IMPORTANT: This needs to be set for caching to work properly!
       - name: Environment setup
