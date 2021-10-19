@@ -3,7 +3,7 @@
 In this unit test, we make a simple scenario that eight cameras are around a circle (radius = 40.0).
 Every camera's pose is towards the center of the circle (0, 0, 0).
 
-There are 30 toy points uniformly located at the same line:
+The input sparse point cloud includes 30 toy points uniformly located at the same line:
   0x + -2y + 1z = 0, i.e. x=0
 
 Authors: Ren Liu
@@ -108,8 +108,9 @@ class TestMVSPatchmatchNet(unittest.TestCase):
         y = self._dense_points[:, 1]
         z = self._dense_points[:, 2]
 
-        # per the line `0x + -2y + 1z = 0`, so check the slope k_yz == 2 (avoid [y=0, z=0] case)
-        mean_k_yz_error = np.abs((z[1:] - 0) / (y[1:] - 0)).mean() - 2
+        # per the line `0x + -2y + 1z = 0`, so check the slope k_yz == 2 (avoid [y=0, z=0] case by adding an epsilon)
+        eps = 1e-20
+        mean_k_yz_error = np.abs((z - 0 + 2 * eps) / (y - 0 + eps)).mean() - 2
 
         # should be close to 0
         x_error = np.abs(x).mean()
