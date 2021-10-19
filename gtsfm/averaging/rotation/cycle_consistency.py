@@ -292,7 +292,7 @@ def filter_to_cycle_consistent_edges(
             10,
             color="g",
             marker=".",
-            label=f"outliers @ {CYCLE_ERROR_THRESHOLD} deg.",
+            label=f"inliers @ {CYCLE_ERROR_THRESHOLD} deg.",
         )
         plt.scatter(
             outlier_errors_aggregate,
@@ -300,7 +300,7 @@ def filter_to_cycle_consistent_edges(
             10,
             color="r",
             marker=".",
-            label=f"inliers @ {CYCLE_ERROR_THRESHOLD} deg.",
+            label=f"outliers @ {CYCLE_ERROR_THRESHOLD} deg.",
         )
         plt.xlabel(f"{edge_acceptance_criterion} cycle error")
         plt.ylabel("Rotation error w.r.t GT")
