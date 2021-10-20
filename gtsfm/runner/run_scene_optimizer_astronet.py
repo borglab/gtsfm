@@ -51,25 +51,28 @@ class GtsfmRunnerAstronetLoader(GtsfmRunnerBase):
 
     def run(self) -> None:
         """Run Structure-from-Motion (SfM) pipeline."""
-        # Prepare computation graph.
-        start_time = time.time()
-        sfm_result_graph = self.scene_optimizer.create_computation_graph(
-            num_images=len(self.loader),
-            image_pair_indices=self.loader.get_valid_pairs(),
-            image_graph=self.loader.create_computation_graph_for_images(),
-            camera_intrinsics_graph=self.loader.create_computation_graph_for_intrinsics(),
-            image_shape_graph=self.loader.create_computation_graph_for_image_shapes(),
-            gt_cameras_graph=self.loader.create_computation_graph_for_cameras(),
-            gt_scene_mesh=self.loader.gt_scene_trimesh,
-        )
-
         # Create dask client.
         cluster = LocalCluster(
             n_workers=self.parsed_args.num_workers, threads_per_worker=self.parsed_args.threads_per_worker
         )
 
-        # Run SfM pipeline.
-        with Client(cluster), performance_report(filename="dask-report.html"):
+        with Client(cluster) as client, performance_report(filename="dask-report.html"):
+            # Scatter surface mesh across all nodes to preserve computation time and memory.
+            gt_scene_trimesh_future = client.scatter(self.loader.gt_scene_trimesh, broadcast=True)
+
+            # Prepare computation graph.
+            start_time = time.time()
+            sfm_result_graph = self.scene_optimizer.create_computation_graph(
+                num_images=len(self.loader),
+                image_pair_indices=self.loader.get_valid_pairs(),
+                image_graph=self.loader.create_computation_graph_for_images(),
+                camera_intrinsics_graph=self.loader.create_computation_graph_for_intrinsics(),
+                image_shape_graph=self.loader.create_computation_graph_for_image_shapes(),
+                gt_cameras_graph=self.loader.create_computation_graph_for_cameras(),
+                gt_scene_mesh=gt_scene_trimesh_future,
+            )
+
+            # Run SfM pipeline.
             sfm_result = sfm_result_graph.compute()
         assert isinstance(sfm_result, GtsfmData)
         logger.info("GTSFM took %.2f minutes to compute sparse multi-view result.", (time.time() - start_time) / 60)

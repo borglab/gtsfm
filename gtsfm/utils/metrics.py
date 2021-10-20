@@ -49,8 +49,10 @@ def count_correct_correspondences(
         keypoints_i2: corr. keypoints in image i2.
         intrinsics_i1: intrinsics for i1.
         intrinsics_i2: intrinsics for i2.
-        i2Ti1: relative pose
         dist_threshold: max acceptable distance for a correct correspondence.
+        gt_wTi1: ground truth pose of image i1.
+        gt_wTi2: ground truth pose of image i2.
+        gt_scene_mesh: ground truth triangular surface mesh of the scene in the world frame.
 
     Raises:
         ValueError: when the number of keypoints do not match.
@@ -78,6 +80,7 @@ def count_correct_correspondences(
             gt_scene_mesh,
             dist_threshold,
         )
+        logger.info("Computed mesh-based correspondence error.")
     elif gt_wTi1 is not None and gt_wTi2 is not None:
         gt_i2Ti1 = gt_wTi2.between(gt_wTi1)
         is_inlier, reproj_error = epipolar_inlier_correspondences(
@@ -88,6 +91,7 @@ def count_correct_correspondences(
             gt_i2Ti1,
             dist_threshold,
         )
+        logger.info("Computed Sampson distance correspondence error.")
     else:
         return None, None
 
@@ -122,7 +126,6 @@ def epipolar_inlier_correspondences(
         keypoints_i1.coordinates, keypoints_i2.coordinates, i2Fi1
     )
     is_inlier = distance_squared < dist_threshold ** 2 if distance_squared is not None else None
-    logger.info("Computed Sampson error.")
 
     return is_inlier, distance_squared
 
@@ -143,10 +146,8 @@ def mesh_inlier_correspondences(
     Args:
         keypoints_i1: N keypoints in image i1.
         keypoints_i2: N corresponding keypoints in image i2.
-        intrinsics_i1: intrinsics for i1.
-        intrinsics_i2: intrinsics for i2.
-        gt_wTi1: ground truth pose of the world frame relative to i1.
-        gt_wTi2: ground truth pose of the world frame relative to i2.
+        gt_camera_i1: ground truth camera for image i1, i.e., wTi1 and intrinsics.
+        gt_camera_i1: ground truth camera for image i2, i.e., wTi2 and intrinsics.
         gt_scene_mesh: ground truth triangular surface mesh of the scene in the world frame.
         dist_threshold: max acceptable distance for a correct correspondence.
 
@@ -163,25 +164,25 @@ def mesh_inlier_correspondences(
     is_inlier = np.zeros(n_corrs, dtype=bool)
 
     # Perform ray tracing to compute keypoint intersections.
-    idr_i1, loc_i1 = compute_keypoint_intersections(keypoints_i1, gt_camera_i1, gt_scene_mesh)
-    idr_i2, loc_i2 = compute_keypoint_intersections(keypoints_i2, gt_camera_i2, gt_scene_mesh)
-    idr, i1_idx, i2_idx = np.intersect1d(idr_i1, idr_i2, return_indices=True)
+    keypoint_ind_i1, intersections_i1 = compute_keypoint_intersections(keypoints_i1, gt_camera_i1, gt_scene_mesh)
+    keypoint_ind_i2, intersections_i2 = compute_keypoint_intersections(keypoints_i2, gt_camera_i2, gt_scene_mesh)
+    keypoint_ind, i1_idx, i2_idx = np.intersect1d(keypoint_ind_i1, keypoint_ind_i2, return_indices=True)
 
     # Forward project intersections into other image to compute error.
     reproj_err = np.array([np.nan] * len(keypoints_i1))
-    for i in range(len(idr)):
-        uv_i1 = keypoints_i1.coordinates[idr[i]]
-        uv_i2 = keypoints_i2.coordinates[idr[i]]
-        uv_i2i1, success_flag_i1 = gt_camera_i1.projectSafe(loc_i2[i2_idx[i]])
-        uv_i1i2, success_flag_i2 = gt_camera_i2.projectSafe(loc_i1[i1_idx[i]])
+    for i in range(len(keypoint_ind)):
+        uv_i1 = keypoints_i1.coordinates[keypoint_ind[i]]
+        uv_i2 = keypoints_i2.coordinates[keypoint_ind[i]]
+        uv_i2i1, success_flag_i1 = gt_camera_i1.projectSafe(intersections_i2[i2_idx[i]])
+        uv_i1i2, success_flag_i2 = gt_camera_i2.projectSafe(intersections_i1[i1_idx[i]])
         if success_flag_i1 and success_flag_i2:
             err_i2i1 = np.linalg.norm(uv_i1.flatten() - uv_i2i1.flatten())
             err_i1i2 = np.linalg.norm(uv_i2.flatten() - uv_i1i2.flatten())
-            is_inlier[idr[i]] = max(err_i2i1, err_i1i2) < dist_threshold
-            reproj_err[idr[i]] = max(err_i2i1, err_i1i2)
+            is_inlier[keypoint_ind[i]] = max(err_i2i1, err_i1i2) < dist_threshold
+            reproj_err[keypoint_ind[i]] = max(err_i2i1, err_i1i2)
         else:
-            is_inlier[idr[i]] = False
-            reproj_err[idr[i]] = np.nan
+            is_inlier[keypoint_ind[i]] = False
+            reproj_err[keypoint_ind[i]] = np.nan
 
     return is_inlier, reproj_err
 
@@ -197,15 +198,17 @@ def compute_keypoint_intersections(
         gt_scene_mesh: ground truth triangular surface mesh.
 
     Returns:
-        ray_ids: (M,) array of keypoint indices whose corresponding ray intersected the ground truth mesh.
+        keypoint_ind: (M,) array of keypoint indices whose corresponding ray intersected the ground truth mesh.
         intersections_locations: (M, 3), array of ray intersection locations.
     """
     num_kpts = len(keypoints)
     src = np.repeat(gt_camera.pose().translation().reshape((-1, 3)), num_kpts, axis=0)  # At_i1A
     drc = np.asarray([gt_camera.backproject(keypoints.coordinates[i], depth=1.0) - src[i, :] for i in range(num_kpts)])
-    intersection_locations, ray_ids, _ = gt_scene_mesh.ray.intersects_location(src, drc, multiple_hits=False)
+    start_time = timeit.default_timer()
+    intersections, keypoint_ind, _ = gt_scene_mesh.ray.intersects_location(src, drc, multiple_hits=False)
+    logger.info(f"Case {num_kpts} rays in {timeit.default_timer() - start_time} seconds.")
 
-    return ray_ids, intersection_locations
+    return keypoint_ind, intersections
 
 
 def compute_rotation_angle_metric(wRi_list: List[Optional[Rot3]], gt_wRi_list: List[Optional[Pose3]]) -> GtsfmMetric:

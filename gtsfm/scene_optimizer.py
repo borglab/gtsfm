@@ -104,7 +104,6 @@ class SceneOptimizer:
         camera_intrinsics_graph: List[Delayed],
         image_shape_graph: List[Delayed],
         gt_cameras_graph: Optional[List[Delayed]] = None,
-        gt_pose_graph: Optional[List[Delayed]] = None,
         gt_scene_mesh: Optional[trimesh.Trimesh] = None,
     ) -> Delayed:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
@@ -175,7 +174,7 @@ class SceneOptimizer:
                     )
                 )
 
-        # Persist all front-end metrics and its summaries.
+        # Persist all front-end metrics and their summaries.
         auxiliary_graph_list.append(
             dask.delayed(save_full_frontend_metrics)(two_view_reports_dict, image_graph, filename="frontend_full.json")
         )
