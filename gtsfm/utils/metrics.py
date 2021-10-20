@@ -80,7 +80,6 @@ def count_correct_correspondences(
             gt_scene_mesh,
             dist_threshold,
         )
-        logger.info("Computed mesh-based correspondence error.")
     elif gt_wTi1 is not None and gt_wTi2 is not None:
         gt_i2Ti1 = gt_wTi2.between(gt_wTi1)
         is_inlier, reproj_error = epipolar_inlier_correspondences(
@@ -91,7 +90,6 @@ def count_correct_correspondences(
             gt_i2Ti1,
             dist_threshold,
         )
-        logger.info("Computed Sampson distance correspondence error.")
     else:
         return None, None
 
