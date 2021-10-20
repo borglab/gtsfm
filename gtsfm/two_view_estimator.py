@@ -130,9 +130,8 @@ class TwoViewEstimator:
             Computed relative rotation wrapped as Delayed.
             Computed relative translation direction wrapped as Delayed.
             Indices of verified correspondences wrapped as Delayed.
-            Error in relative rotation wrapped as Delayed
-            Error in relative translation direction wrapped as Delayed.
-            Correspondence correctness metrics wrapped as Delayed.
+            Two view report w/ verifier metrics wrapped as Delayed.
+            Two view report w/ post-processor metrics wrapped as Delayed.
         """
 
         # graph for matching to obtain putative correspondences
@@ -253,16 +252,16 @@ class ImagePairPostProcessor:
         We don't modify the report (to stay functional), but report PostProcessor metrics separately.
 
         Args:
-            i2Ri1
-            i2Ui1
-            v_corr_idxs
-            two_view_report
+            i2Ri1: relative rotation measurement.
+            i2Ui1: relative translation direction measurement:
+            v_corr_idxs: verified correspondence indices as (N,2) array.
+            two_view_report: two-view estimation report.
 
         Returns:
-            i2Ri1
-            i2Ui1
-            v_corr_idxs
-            two_view_report
+            i2Ri1: relative rotation, or None if insufficient support
+            i2Ui1: relative translation direction, or None if insufficient support
+            v_corr_idxs: empty (0,2) array if insufficient support
+            two_view_report: two-view estimation report, or None if insufficient support
         """
         insufficient_inliers = two_view_report.num_inliers_est_model < self._min_num_inliers_acceptance
 

@@ -180,7 +180,6 @@ class SceneOptimizer:
                     two_view_reports_dict, self._pose_angular_error_thresh, metric_group_name="verifier_summary"
                 )
             )
-
             metrics_graph_list.append(
                 dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
                     two_view_reports_pp_dict, self._pose_angular_error_thresh, metric_group_name="image_pair_postprocessor_summary"
