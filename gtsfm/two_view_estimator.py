@@ -76,6 +76,7 @@ class TwoViewEstimator:
         verifier: VerifierBase,
         eval_threshold_px: float,
         min_num_inliers_acceptance: int,
+        min_allowed_inlier_ratio_est_model: float,
     ) -> None:
         """Initializes the two-view estimator from matcher and verifier.
 
@@ -86,11 +87,14 @@ class TwoViewEstimator:
                 (not during estimation).
             min_num_inliers_acceptance: minimum number of inliers that must agree w/ estimated model, to use
                 image pair.
+            min_allowed_inlier_ratio_est_model: minimum allowed inlier ratio w.r.t. the estimated model to accept
+                the verification result and use the image pair, i.e. the lowest allowed ratio of
+                #final RANSAC inliers/ #putatives. A lower fraction indicates less agreement among the result.
         """
         self._matcher = matcher
         self._verifier = verifier
         self._corr_metric_dist_threshold = eval_threshold_px
-        self._min_num_inliers_acceptance = min_num_inliers_acceptance
+        self.postprocessor = ImagePairPostProcessor(min_num_inliers_acceptance, min_allowed_inlier_ratio_est_model)
 
     def get_corr_metric_dist_threshold(self) -> float:
         """Getter for the distance threshold used in the metric for correct correspondences."""
@@ -183,44 +187,17 @@ class TwoViewEstimator:
             v_corr_idxs_graph,
         )
 
-        result = dask.delayed(self.check_for_degeneracy)(
-            two_view_report_graph, i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph
+        # Note: We name the output as _pp, as it represents a post-processed quantity.
+        (
+            i2Ri1_pp_graph,
+            i2Ui1_pp_graph,
+            v_corr_idxs_pp_graph,
+            two_view_report_pp_graph,
+        ) = self.postprocessor.create_computation_graph(
+            i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph
         )
-        i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph = result[0], result[1], result[2], result[3]
-
-        return (i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph)
-
-    def check_for_degeneracy(
-        self,
-        two_view_report: TwoViewEstimationReport,
-        i2Ri1: Optional[Rot3],
-        i2Ui1: Optional[Unit3],
-        v_corr_idxs: np.ndarray,
-    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
-        """ """
-        insufficient_inliers = two_view_report.num_inliers_est_model < self._min_num_inliers_acceptance
-
-        # TODO: technically this should almost always be non-zero, just need to move up to earlier
-        valid_model = two_view_report.num_inliers_est_model > 0
-
-        if valid_model and insufficient_inliers:
-            logger.info("Insufficient number of inliers.")
-
-            i2Ri1 = None
-            i2Ui1 = None
-            v_corr_idxs = np.array([], dtype=np.uint64)
-            # remove mention of errors in the report
-            two_view_report.R_error_deg = None
-            two_view_report.U_error_deg = None
-
-            # num_inliers_est_model
-            # don't modify the report!
-            # every blue box should have a piece in the report.
-
-        two_view_report.i2Ri1 = i2Ri1
-        two_view_report.i2Ui1 = i2Ui1
-
-        return i2Ri1, i2Ui1, v_corr_idxs, two_view_report
+        # We provide both, as we will create reports for both.
+        return (i2Ri1_pp_graph, i2Ui1_pp_graph, v_corr_idxs_pp_graph, two_view_report_graph, two_view_report_pp_graph)
 
 
 def generate_two_view_report(
@@ -244,6 +221,91 @@ def generate_two_view_report(
         U_error_deg=U_error_deg,
     )
     return two_view_report
+
+
+class ImagePairPostProcessor:
+    def __init__(
+        self,
+        min_num_inliers_acceptance: int,
+        min_allowed_inlier_ratio_est_model: float,
+    ) -> None:
+        """Reasons about the amount of support for a relative pose measurement between an image pair.
+
+        Args:
+            min_num_inliers_acceptance: minimum number of inliers that must agree w/ estimated model, to use
+                image pair.
+            min_allowed_inlier_ratio_est_model: minimum allowed inlier ratio w.r.t. the estimated model to accept
+                the verification result and use the image pair, i.e. the lowest allowed ratio of
+                #final RANSAC inliers/ #putatives. A lower fraction indicates less agreement among the result.
+        """
+        self._min_num_inliers_acceptance = min_num_inliers_acceptance
+        self._min_allowed_inlier_ratio_est_model = min_allowed_inlier_ratio_est_model
+
+    def run(
+        self,
+        i2Ri1: Optional[Rot3],
+        i2Ui1: Optional[Unit3],
+        v_corr_idxs: np.ndarray,
+        two_view_report: TwoViewEstimationReport,
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, Optional[TwoViewEstimationReport]]:
+        """Check for insufficient support among correspondences to estimate this image pair.
+
+        We don't modify the report (to stay functional), but report PostProcessor metrics separately.
+
+        Args:
+            i2Ri1
+            i2Ui1
+            v_corr_idxs
+            two_view_report
+
+        Returns:
+            i2Ri1
+            i2Ui1
+            v_corr_idxs
+            two_view_report
+        """
+        insufficient_inliers = two_view_report.num_inliers_est_model < self._min_num_inliers_acceptance
+
+        # TODO: technically this should almost always be non-zero, just need to move up to earlier
+        valid_model = two_view_report.num_inliers_est_model > 0
+
+        # no need to extract the relative pose if we have insufficient inliers.
+        if two_view_report.inlier_ratio_est_model < self._min_allowed_inlier_ratio_est_model:
+            logger.info(
+                "Insufficient inlier ratio. %d vs. %d", two_view_report.inlier_ratio_est_model, self._min_allowed_inlier_ratio_est_model
+            )
+            i2Ri1 = None
+            i2Ui1 = None
+            v_corr_idxs = np.array([], dtype=np.uint64)
+            return i2Ri1, i2Ui1, v_corr_idxs, None
+
+        if valid_model and insufficient_inliers:
+            logger.info(
+                "Insufficient number of inliers. %d vs. %d",
+                two_view_report.num_inliers_est_model,
+                self._min_num_inliers_acceptance,
+            )
+
+            i2Ri1 = None
+            i2Ui1 = None
+            v_corr_idxs = np.array([], dtype=np.uint64)
+            return i2Ri1, i2Ui1, v_corr_idxs, None
+
+        two_view_report.i2Ri1 = i2Ri1
+        two_view_report.i2Ui1 = i2Ui1
+
+        return i2Ri1, i2Ui1, v_corr_idxs, two_view_report
+
+    def create_computation_graph(
+        self, i2Ri1_graph: Delayed, i2Ui1_graph: Delayed, v_corr_idxs_graph: Delayed, two_view_report_graph: Delayed
+    ) -> Tuple[Delayed, Delayed, Delayed, Delayed]:
+        """Create the Dask computational graph for the ImagePairPostProcessor."""
+
+        # `pp` represents `post-processed`
+        i2Ri1_pp_graph, i2Ui1_pp_graph, v_corr_idxs_pp_graph, two_view_report_pp_graph = dask.delayed(self.run, nout=4)(
+            i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph
+        )
+        return i2Ri1_pp_graph, i2Ui1_pp_graph, v_corr_idxs_pp_graph, two_view_report_pp_graph
 
 
 def compute_correspondence_metrics(
