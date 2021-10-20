@@ -271,7 +271,9 @@ class ImagePairPostProcessor:
         # no need to extract the relative pose if we have insufficient inliers.
         if two_view_report.inlier_ratio_est_model < self._min_allowed_inlier_ratio_est_model:
             logger.info(
-                "Insufficient inlier ratio. %d vs. %d", two_view_report.inlier_ratio_est_model, self._min_allowed_inlier_ratio_est_model
+                "Insufficient inlier ratio. %d vs. %d",
+                two_view_report.inlier_ratio_est_model,
+                self._min_allowed_inlier_ratio_est_model,
             )
             i2Ri1 = None
             i2Ui1 = None
@@ -425,7 +427,9 @@ def aggregate_frontend_metrics(
     success_count_pose = np.sum(pose_errors < angular_err_threshold_deg)
 
     # count image pair entries where inlier ratio w.r.t. GT model == 1.
-    all_correct = np.count_nonzero([report.inlier_ratio_gt_model == 1.0 for report in two_view_reports_dict.values() if report is not None])
+    all_correct = np.count_nonzero(
+        [report.inlier_ratio_gt_model == 1.0 for report in two_view_reports_dict.values() if report is not None]
+    )
 
     logger.debug(
         "[Two view optimizer] [Summary] Rotation success: %d/%d/%d",
