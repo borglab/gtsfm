@@ -67,7 +67,7 @@ class TestEllipsoidUtils(unittest.TestCase):
                 [-1, -1, 0],
                 [1, -1, 0],
                 [2, -2, 0],
-                [5, 5, 0]
+                [5, 5, 0]   # represents an outlier in this set of points
             ]
         )
         # fmt: on
