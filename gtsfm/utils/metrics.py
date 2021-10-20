@@ -189,18 +189,23 @@ def mesh_inlier_correspondences(
 def compute_keypoint_intersections(
     keypoints: Keypoints, gt_camera: PinholeCameraCal3Bundler, gt_scene_mesh: trimesh.Trimesh
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Computes intersections between ground truth surface mesh and rays originating from image keypoints."""
-    # Compute keypoint rays.
+    """Computes intersections between ground truth surface mesh and rays originating from image keypoints.
+
+    Args:
+        keypoints: N keypoints computed in image.
+        gt_camera: ground truth camera.
+        gt_scene_mesh: ground truth triangular surface mesh.
+
+    Returns:
+        ray_ids: (M,) array of keypoint indices whose corresponding ray intersected the ground truth mesh.
+        intersections_locations: (M, 3), array of ray intersection locations.
+    """
     num_kpts = len(keypoints)
     src = np.repeat(gt_camera.pose().translation().reshape((-1, 3)), num_kpts, axis=0)  # At_i1A
     drc = np.asarray([gt_camera.backproject(keypoints.coordinates[i], depth=1.0) - src[i, :] for i in range(num_kpts)])
+    intersection_locations, ray_ids, _ = gt_scene_mesh.ray.intersects_location(src, drc, multiple_hits=False)
 
-    # Perform ray tracing.
-    start_time = timeit.default_timer()
-    loc, idr, _ = gt_scene_mesh.ray.intersects_location(src, drc, multiple_hits=False)
-    logger.info(f"Cast {num_kpts} rays ({loc.shape[0]}) in {timeit.default_timer() - start_time} seconds.")
-
-    return idr, loc
+    return ray_ids, intersection_locations
 
 
 def compute_rotation_angle_metric(wRi_list: List[Optional[Rot3]], gt_wRi_list: List[Optional[Pose3]]) -> GtsfmMetric:

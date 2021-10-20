@@ -161,7 +161,7 @@ class SceneOptimizer:
             # i2Ri1_graph_dict[(i1, i2)] = gt_i2Ti1.rotation()
             # i2Ui1_graph_dict[(i1, i2)] = dask.delayed(lambda x: Unit3(np.array([x.x(), x.y(), x.z()])))(gt_i2Ti1)
 
-            # Visualize verified two-view correspondnces.
+            # Visualize verified two-view correspondences.
             if self._save_two_view_correspondences_viz:
                 auxiliary_graph_list.append(
                     dask.delayed(viz_utils.save_twoview_correspondences_viz)(
