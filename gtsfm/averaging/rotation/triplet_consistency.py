@@ -1,20 +1,11 @@
-"""
-A library for cycle triplet extraction and cycle error computation.
-
-Checks the cumulative rotation errors between triplets to throw away cameras.
-Note: the same property does not hold for cumulative translation errors when scale is unknown (i.e. in SfM).
-
-Author: John Lambert
-"""
-
-import os
-from collections import defaultdict
-from enum import Enum
 from typing import DefaultDict, Dict, List, Optional, Set, Tuple
-
-import matplotlib.pyplot as plt
-import numpy as np
 from gtsam import Rot3, Unit3
+from collections import defaultdict
+import os
+from enum import Enum
+
+import numpy as np
+import matplotlib.pyplot as plt
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
@@ -22,73 +13,7 @@ import gtsfm.utils.metrics as metrics_utils
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.two_view_estimator import TwoViewEstimationReport
 
-
-logger = logger_utils.get_logger()
-
-
-CYCLE_ERROR_THRESHOLD = 7.0
-
-MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
-
-
-class EdgeErrorAggregationCriterion(str, Enum):
-    """Aggregate cycle errors over each edge by choosing one of the following summary statistics:
-
-    MIN: Choose the mininum cycle error of all cyles this edge appears in. An edge that appears in ANY cycle
-        with low error is accepted. High recall, but can have low precision, as false positives can enter
-        (error was randomly cancelled out by another error, meaning accepted).
-    MEDIAN: Choose the median cycle error. robust summary statistic. At least half of the time, this edge
-        appears in a good cycle (i.e. of low error). Note: preferred over mean, which is not robust to outliers.
-
-    Note: all summary statistics will be compared with an allowed upper bound/threshold. If they exceed the
-    upper bound, they will be rejected.
-    """
-
-    MIN_EDGE_ERROR = "MIN_EDGE_ERROR"
-    MEDIAN_EDGE_ERROR = "MEDIAN_EDGE_ERROR"
-
-
-def extract_triplets(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int, int, int]]:
-    """Discover triplets from a graph, without O(n^3) complexity, by using intersection within adjacency lists.
-
-    Based off of Theia's implementation:
-        https://github.com/sweeneychris/TheiaSfM/blob/master/src/theia/math/graph/triplet_extractor.h
-
-    If we have an edge a<->b, if we can find any node c such that a<->c and b<->c, then we have
-    discovered a triplet. In other words, we need only look at the intersection between the nodes
-    connected to `a` and the nodes connected to `b`.
-
-    Args:
-        i2Ri1_dict: mapping from image pair indices to relative rotation.
-
-    Returns:
-        triplets: 3-tuples of nodes that form a cycle. Nodes of each triplet are provided in sorted order.
-    """
-    adj_list = create_adjacency_list(i2Ri1_dict)
-
-    # only want to keep the unique ones
-    triplets = set()
-
-    # find intersections
-    for (i1, i2), i2Ri1 in i2Ri1_dict.items():
-        if i2Ri1 is None:
-            continue
-
-        if i1 >= i2:
-            raise RuntimeError("Graph edges (i1,i2) must be ordered with i1 < i2 in the image loader.")
-
-        nodes_from_i1 = adj_list[i1]
-        nodes_from_i2 = adj_list[i2]
-        node_intersection = (nodes_from_i1).intersection(nodes_from_i2)
-        for node in node_intersection:
-            cycle_nodes = tuple(sorted([i1, i2, node]))
-            if cycle_nodes not in triplets:
-                triplets.add(cycle_nodes)
-
-    return list(triplets)
-
-
-def create_adjacency_list(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> DefaultDict[int, Set[int]]:
+def create_adjacency_list(i2Ri1_dict: Dict[Tuple[int, int], Rot3], i2Ui1_dict: Dict[Tuple[int, int], Unit3]) -> DefaultDict[int, Set[int]]:
     """Create an adjacency-list representation of a **rotation** graph G=(V,E) when provided its edges E.
 
     Note: this is specific to the rotation averaging use case, where some edges may be unestimated
@@ -107,7 +32,7 @@ def create_adjacency_list(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> DefaultDic
     adj_list = defaultdict(set)
 
     for (i1, i2), i2Ri1 in i2Ri1_dict.items():
-        if i2Ri1 is None:
+        if i2Ri1 is None or ((i1, i2) not in i2Ui1_dict or i2Ui1_dict[(i1, i2)] is None):
             continue
 
         adj_list[i1].add(i2)
@@ -116,45 +41,74 @@ def create_adjacency_list(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> DefaultDic
     return adj_list
 
 
+def extract_triplets(i2Ri1_dict: Dict[Tuple[int, int], Rot3], i2Ui1_dict: Dict[Tuple[int, int], Unit3]) -> List[Tuple[int, int, int]]:
+    """Discover triplets from a graph, without O(n^3) complexity, by using intersection within adjacency lists.
+
+    Based off of Theia's implementation:
+        https://github.com/sweeneychris/TheiaSfM/blob/master/src/theia/math/graph/triplet_extractor.h
+
+    If we have an edge a<->b, if we can find any node c such that a<->c and b<->c, then we have
+    discovered a triplet. In other words, we need only look at the intersection between the nodes
+    connected to `a` and the nodes connected to `b`.
+
+    Args:
+        i2Ri1_dict: mapping from image pair indices to relative rotation.
+
+    Returns:
+        triplets: 3-tuples of nodes that form a cycle. Nodes of each triplet are provided in sorted order.
+    """
+    adj_list = create_adjacency_list(i2Ri1_dict, i2Ui1_dict)
+
+    # only want to keep the unique ones
+    triplets = set()
+
+    # find intersections
+    for (i1, i2), i2Ri1 in i2Ri1_dict.items():
+        if i2Ri1 is None or ((i1, i2) not in i2Ui1_dict or i2Ui1_dict[(i1, i2)] is None):
+            continue
+
+        if i1 >= i2:
+            raise RuntimeError("Graph edges (i1,i2) must be ordered with i1 < i2 in the image loader.")
+
+        nodes_from_i1 = adj_list[i1]
+        nodes_from_i2 = adj_list[i2]
+        node_intersection = (nodes_from_i1).intersection(nodes_from_i2)
+        for node in node_intersection:
+            cycle_nodes = tuple(sorted([i1, i2, node]))
+            if cycle_nodes not in triplets:
+                triplets.add(cycle_nodes)
+
+    return list(triplets)
+
+
 def compute_cycle_error(
     i2Ri1_dict: Dict[Tuple[int, int], Rot3],
+    i2Ui1_dict: Dict[Tuple[int, int], Unit3],
     cycle_nodes: Tuple[int, int, int],
     two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
     verbose: bool = False,
 ) -> Tuple[float, Optional[float], Optional[float]]:
-    """Compute the cycle error by the magnitude of the axis-angle rotation after composing 3 rotations.
-
-    Note: a < b for every valid edge (a,b), by construction inside the image loader class.
-
-    Args:
-        i2Ri1_dict: mapping from image pair indices to relative rotation.
-        cycle_nodes: 3-tuples of nodes that form a cycle. Nodes of are provided in sorted order.
-        two_view_reports_dict: mapping from image pair indices (i1,i2) to a report containing information
-            about the verifier's output (and optionally measurement error w.r.t GT). Note: i1 < i2 always.
-        verbose: whether to dump to logger information about error in each Euler angle
-
-    Returns:
-        cycle_error: deviation from 3x3 identity matrix, in degrees. In other words,
-            it is defined as the magnitude of the axis-angle rotation of the composed transformations.
-        max_rot_error: maximum rotation error w.r.t. GT across triplet edges, in degrees.
-            If ground truth is not known for a scene, None will be returned instead.
-        max_trans_error: maximum translation error w.r.t. GT across triplet edges, in degrees.
-            If ground truth is not known for a scene, None will be returned instead.
-    """
     cycle_nodes = list(cycle_nodes)
     cycle_nodes.sort()
 
     i0, i1, i2 = cycle_nodes
 
+    # 1 --- 0
+    #  \   /
+    #    2
+
     i1Ri0 = i2Ri1_dict[(i0, i1)]
     i2Ri1 = i2Ri1_dict[(i1, i2)]
-    i0Ri2 = i2Ri1_dict[(i0, i2)].inverse()
+    i2Ri0 = i2Ri1_dict[(i0, i2)]
+    i1Ui0 = i2Ui1_dict[(i0, i1)]
+    i2Ui1 = i2Ui1_dict[(i1, i2)]
+    i2Ui0 = i2Ui1_dict[(i0, i2)]
 
-    # should compose to identity, with ideal measurements
-    i0Ri0 = i0Ri2.compose(i2Ri1).compose(i1Ri0)
-
-    I_3x3 = Rot3()
-    cycle_error = comp_utils.compute_relative_rotation_angle(I_3x3, i0Ri0)
+    # Compute plane containing cameras
+    i2_plane_normal = np.cross(i2Ui0, i2Ui1)
+    i1_plane_normal = i2Ri1.inverse() * i2_plane_normal
+    cycle_error = i1_plane_normal.dot(i1Ui0.point3()) / np.linalg.norm(i1_plane_normal)
+    cycle_error = np.rad2deg(np.arccos(cycle_error))
 
     # form 3 edges e_i, e_j, e_k between fully connected subgraph (nodes i0,i1,i2)
     edges = [(i0, i1), (i1, i2), (i0, i2)]
@@ -171,28 +125,6 @@ def compute_cycle_error(
         max_rot_error = None
         max_trans_error = None
 
-    if verbose:
-        # for each rotation R: find a vector [x,y,z] s.t. R = Rot3.RzRyRx(x,y,z)
-        # this is equivalent to scipy.spatial.transform's `.as_euler("xyz")`
-        i1Ri0_euler = np.rad2deg(i1Ri0.xyz())
-        i2Ri1_euler = np.rad2deg(i2Ri1.xyz())
-        i0Ri2_euler = np.rad2deg(i0Ri2.xyz())
-
-        logger.info("\n")
-        logger.info(f"{i0},{i1},{i2} --> Cycle error is: {cycle_error:.1f}")
-        if gt_known:
-            logger.info(f"Triplet: w/ max. R err {max_rot_error:.1f}, and w/ max. t err {max_trans_error:.1f}")
-
-        logger.info(
-            "X: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", i1Ri0_euler[0], i2Ri1_euler[0], i0Ri2_euler[0]
-        )
-        logger.info(
-            "Y: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", i1Ri0_euler[1], i2Ri1_euler[1], i0Ri2_euler[1]
-        )
-        logger.info(
-            "Z: (0->1) %.1f deg., (1->2) %.1f deg., (2->0) %.1f deg.", i1Ri0_euler[2], i2Ri1_euler[2], i0Ri2_euler[2]
-        )
-
     return cycle_error, max_rot_error, max_trans_error
 
 
@@ -201,59 +133,24 @@ def filter_to_cycle_consistent_edges(
     i2Ui1_dict: Dict[Tuple[int, int], Unit3],
     v_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
     two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
-    edge_acceptance_criterion: EdgeErrorAggregationCriterion = EdgeErrorAggregationCriterion.MEDIAN_EDGE_ERROR,
     visualize: bool = True,
 ) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3], GtsfmMetricsGroup]:
-    """Remove edges in a graph where concatenated transformations along a 3-cycle does not compose to identity.
 
-    Note: will return only a subset of these two dictionaries
-
-    Concatenating the transformations along a loop in the graph should return the identity function in an
-    ideal, noise-free setting.
-
-    This can be implemented by immediately accepting all edges in the cycle if cycle error below a threshold,
-    or assigning that error to each edge, and choosing the minimum (equivalent) / median / mean.
-
-    Based off of:
-        https://github.com/sweeneychris/TheiaSfM/blob/master/src/theia/sfm/filter_view_graph_cycles_by_rotation.cc
-
-    See also:
-        C. Zach, M. Klopschitz, and M. Pollefeys. Disambiguating visual relations using loop constraints. In CVPR, 2010
-        http://people.inf.ethz.ch/pomarc/pubs/ZachCVPR10.pdf
-
-        Enqvist, Olof; Kahl, Fredrik; Olsson, Carl. Non-Sequential Structure from Motion. ICCVW, 2011.
-        https://portal.research.lu.se/ws/files/6239297/2255278.pdf
-
-    Args:
-        i2Ri1_dict: mapping from image pair indices (i1,i2) to relative rotation i2Ri1.
-        i2Ui1_dict: mapping from image pair indices (i1,i2) to relative translation direction i2Ui1.
-            Should have same keys as i2Ri1_dict.
-        v_corr_idxs_dict: dictionary, with key as image pair (i1,i2) and value as matching keypoint indices.
-        two_view_reports_dict: mapping from image pair indices (i1,i2) to a report containing information
-            about the verifier's output (and optionally measurement error w.r.t GT). Note: i1 < i2 always.
-        visualize: boolean indicating whether to plot cycle error vs. pose error w.r.t. GT
-
-    Returns:
-        i2Ri1_dict_consistent: subset of i2Ri1_dict, i.e. only including edges that belonged to some triplet
-            and had cycle error below the predefined threshold.
-        i2Ui1_dict_consistent: subset of i2Ui1_dict, as above.
-        v_corr_idxs_dict_consistent: subset of v_corr_idxs_dict above.
-        metrics_group: Rotation cycle consistency metrics as a metrics group.
-    """
     cycle_errors = []
     max_rot_errors = []
+    max_t_errors = []
 
-    n_valid_edges = len([i2Ri1 for (i1, i2), i2Ri1 in i2Ri1_dict.items() if i2Ri1 is not None])
+    n_valid_edges = len([i2Ri1 for (i1, i2), i2Ri1 in i2Ri1_dict.items() if (i2Ri1 is not None and (i1, i2) in i2Ui1_dict and i2Ui1_dict[(i1, i2)] is not None)])
 
     # (i1,i2) pairs
     cycle_consistent_keys = set()
 
     per_edge_errors = defaultdict(list)
 
-    triplets = extract_triplets(i2Ri1_dict)
+    triplets = extract_triplets(i2Ri1_dict, i2Ui1_dict)
 
     for (i0, i1, i2) in triplets:
-        cycle_error, max_rot_error, _ = compute_cycle_error(i2Ri1_dict, (i0, i1, i2), two_view_reports_dict)
+        cycle_error, max_rot_error, max_t_error = compute_cycle_error(i2Ri1_dict, i2Ui1_dict, (i0, i1, i2), two_view_reports_dict)
         # since i0 < i1 < i2 by construction, we preserve the property `a < b` for each edge (a,b)
         per_edge_errors[(i0, i1)].append(cycle_error)
         per_edge_errors[(i1, i2)].append(cycle_error)
@@ -261,6 +158,7 @@ def filter_to_cycle_consistent_edges(
 
         cycle_errors.append(cycle_error)
         max_rot_errors.append(max_rot_error)
+        max_t_errors.append(max_rot_error)
 
     inlier_errors_aggregate = []
     inlier_errors_wrt_gt = []
@@ -271,19 +169,7 @@ def filter_to_cycle_consistent_edges(
     plt.close("all")
     # aggregate info over per edge_errors
     for (i1, i2), edge_cycle_errors in per_edge_errors.items():
-        if edge_acceptance_criterion == EdgeErrorAggregationCriterion.MIN_EDGE_ERROR:
-            error_aggregate = np.amin(edge_cycle_errors)
-
-        elif edge_acceptance_criterion == EdgeErrorAggregationCriterion.MEDIAN_EDGE_ERROR:
-            error_aggregate = np.median(edge_cycle_errors)
-
-        if error_aggregate < CYCLE_ERROR_THRESHOLD:
-            cycle_consistent_keys.add((i1, i2))
-            inlier_errors_aggregate.append(error_aggregate)
-            inlier_errors_wrt_gt.append(two_view_reports_dict[(i1, i2)].R_error_deg)
-        else:
-            outlier_errors_aggregate.append(error_aggregate)
-            outlier_errors_wrt_gt.append(two_view_reports_dict[(i1, i2)].R_error_deg)
+        error_aggregate = np.median(edge_cycle_errors)
 
     if visualize:
         plt.scatter(
@@ -302,11 +188,11 @@ def filter_to_cycle_consistent_edges(
             marker=".",
             label=f"inliers @ {CYCLE_ERROR_THRESHOLD} deg.",
         )
-        plt.xlabel(f"{edge_acceptance_criterion} cycle error")
+        plt.xlabel("cycle error")
         plt.ylabel("Rotation error w.r.t GT")
         plt.axis("equal")
         plt.legend(loc="lower right")
-        plt.savefig(os.path.join("plots", f"gt_err_vs_{edge_acceptance_criterion}_agg_error.jpg"), dpi=400)
+        plt.savefig(os.path.join("plots", "gt_err_vs_agg_error.jpg"), dpi=400)
         plt.close("all")
 
         plt.scatter(cycle_errors, max_rot_errors)
@@ -314,6 +200,13 @@ def filter_to_cycle_consistent_edges(
         plt.ylabel("Avg. Rot3 error over cycle triplet")
         plt.axis("equal")
         plt.savefig(os.path.join("plots", "cycle_error_vs_GT_rot_error.jpg"), dpi=400)
+        plt.close("all")
+
+        plt.scatter(cycle_errors, max_t_errors)
+        plt.xlabel("Cycle error")
+        plt.ylabel("Avg. Rot3 error over cycle triplet")
+        plt.axis("equal")
+        plt.savefig(os.path.join("plots", "cycle_error_vs_GT_T_error.jpg"), dpi=400)
         plt.close("all")
 
     logger.info("cycle_consistent_keys: " + str(cycle_consistent_keys))

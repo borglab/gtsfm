@@ -16,7 +16,8 @@ matplotlib.use("Agg")
 
 from dask.delayed import Delayed
 
-import gtsfm.averaging.rotation.cycle_consistency as cycle_consistency
+# import gtsfm.averaging.rotation.cycle_consistency as cycle_consistency
+import gtsfm.averaging.rotation.triplet_consistency as cycle_consistency
 import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.two_view_estimator as two_view_estimator
 import gtsfm.utils.ellipsoid as ellipsoid_utils
@@ -192,7 +193,6 @@ class SceneOptimizer:
             i2Ui1_graph_dict,
             v_corr_idxs_graph_dict,
             two_view_reports_dict,
-            EdgeErrorAggregationCriterion.MEDIAN_EDGE_ERROR,
         )
         metrics_graph_list.append(rcc_metrics_graph)
 
