@@ -154,8 +154,7 @@ class SceneOptimizer:
             i2Ui1_graph_dict[(i1, i2)] = i2Ui1
             v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
             two_view_reports_dict[(i1, i2)] = two_view_report
-            if two_view_report_pp is not None:
-                two_view_reports_pp_dict[(i1,i2)] = two_view_report_pp
+            two_view_reports_pp_dict[(i1,i2)] = two_view_report_pp
 
             if self._save_two_view_correspondences_viz:
                 auxiliary_graph_list.append(

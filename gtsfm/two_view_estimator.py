@@ -372,7 +372,7 @@ def compute_relative_pose_metrics(
 
 
 def aggregate_frontend_metrics(
-    two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
+    two_view_reports_dict: Dict[Tuple[int, int], Optional[TwoViewEstimationReport]],
     angular_err_threshold_deg: float,
     metric_group_name: str,
 ) -> None:
@@ -401,6 +401,8 @@ def aggregate_frontend_metrics(
     num_inliers_est_model_all_pairs = []
     # populate the distributions
     for report in two_view_reports_dict.values():
+        if report is None:
+            continue
         rot3_angular_errors.append(report.R_error_deg)
         trans_angular_errors.append(report.U_error_deg)
 
@@ -423,7 +425,7 @@ def aggregate_frontend_metrics(
     success_count_pose = np.sum(pose_errors < angular_err_threshold_deg)
 
     # count image pair entries where inlier ratio w.r.t. GT model == 1.
-    all_correct = np.count_nonzero([report.inlier_ratio_gt_model == 1.0 for report in two_view_reports_dict.values()])
+    all_correct = np.count_nonzero([report.inlier_ratio_gt_model == 1.0 for report in two_view_reports_dict.values() if report is not None])
 
     logger.debug(
         "[Two view optimizer] [Summary] Rotation success: %d/%d/%d",
