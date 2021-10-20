@@ -129,9 +129,9 @@ class SceneOptimizer:
         for (i1, i2) in image_pair_indices:
             # Collect ground truth relative and absolute poses if available.
             if gt_cameras_graph is not None:
-                gt_pose_i1, gt_pose_i2 = gt_cameras_graph[i1].pose(), gt_cameras_graph[i2].pose()
+                gt_wTi1, gt_wTi2 = gt_cameras_graph[i1].pose(), gt_cameras_graph[i2].pose()
             else:
-                gt_pose_i1, gt_pose_i2 = None, None
+                gt_wTi1, gt_wTi2 = None, None
 
             # Compute relative rotation, (unit) translation, and verified correspondences.
             (i2Ri1, i2Ui1, v_corr_idxs, two_view_report,) = self.two_view_estimator.create_computation_graph(
@@ -143,8 +143,8 @@ class SceneOptimizer:
                 camera_intrinsics_graph[i2],
                 image_shape_graph[i1],
                 image_shape_graph[i2],
-                gt_pose_i1,
-                gt_pose_i2,
+                gt_wTi1,
+                gt_wTi2,
                 gt_scene_mesh,
             )
 
