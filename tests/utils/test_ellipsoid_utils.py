@@ -53,7 +53,7 @@ class TestEllipsoidUtils(unittest.TestCase):
         cam_translations = np.array([[-1, 1, 2], [1, 1, 2], [1, -1, 2]])
 
         for i in range(len(cam_translations)):
-            camera = PinholeCameraCal3Bundler(Pose3(Rot3(np.eye(3)), cam_translations[i, :]), default_intrinsics)
+            camera = PinholeCameraCal3Bundler(Pose3(Rot3(), cam_translations[i, :]), default_intrinsics)
             sample_data.add_camera(i, camera)
 
         # Add 6 tracks to sample_data
@@ -166,9 +166,7 @@ class TestEllipsoidUtils(unittest.TestCase):
 
         npt.assert_almost_equal(final_relative_distances, initial_relative_distances, decimal=6)
 
-    def compute_relative_distances(
-        self, camera_translations: np.ndarray, points_3d: np.ndarray
-    ) -> Dict[Tuple[int, int], float]:
+    def compute_relative_distances(self, camera_translations: np.ndarray, points_3d: np.ndarray) -> np.ndarray:
         """Computes the relative distances between every camera frustum and every point in the point cloud.
         Let M be the number of cameras and N be the number of point cloud points.
 
