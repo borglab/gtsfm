@@ -1,7 +1,7 @@
 """Implements a base class for ViewGraph estimation.
 
 Estimating the ViewGraph can be done trivially by adding all the two-view estimates into a ViewGraph data structure.
-The purpose of this class, however, is to define an API for more sophistacated methods for estimating a ViewGraph 
+The purpose of this class, however, is to define an API for more sophisticated methods for estimating a ViewGraph 
 that include filtering or optimizing the two-view estimates.
 
 Authors: Akshay Krishnan
