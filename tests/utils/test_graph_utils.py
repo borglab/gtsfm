@@ -1,6 +1,6 @@
 """Unit tests for functions in the graph utils file.
 
-Authors: Ayush Baid
+Authors: Ayush Baid, John Lambert, Akshay Krishnan
 """
 import unittest
 from unittest import mock
@@ -74,6 +74,91 @@ class TestGraphUtils(unittest.TestCase):
             self.assertTrue(
                 computed_relative_unit_translations[(i1, i2)].equals(input_relative_unit_translations[(i1, i2)], 1e-2)
             )
+
+    def test_extract_triplets_1(self) -> None:
+        """Ensure triplets are recovered accurately via intersection of adjacency lists.
+
+        Consider the following undirected graph with 1 cycle:
+
+        0 ---- 1
+              /|
+             / |
+            /  |
+          2 -- 3
+               |
+               |
+               4
+        """
+        edges = [
+            (0, 1),
+            (1, 2),
+            (2, 3),
+            (1, 3),
+            (3, 4),
+        ]
+        triplets = graph_utils.extract_cyclic_triplets_from_edges(edges)
+        assert len(triplets) == 1
+        assert triplets[0] == (1, 2, 3)
+        assert isinstance(triplets, list)
+
+    def test_extract_triplets_2(self) -> None:
+        """Ensure triplets are recovered accurately via intersection of adjacency lists.
+
+        Consider the following undirected graph with 2 cycles. The cycles share an edge:
+
+        0 ---- 1
+              /|\
+             / | \
+            /  |  \
+          2 -- 3 -- 5
+               |
+               |
+               4
+        """
+        edges = [
+            (0, 1),
+            (1, 2),
+            (2, 3),
+            (1, 3),
+            (3, 4),
+            (1, 5),
+            (3, 5),
+        ]
+        triplets = graph_utils.extract_cyclic_triplets_from_edges(edges)
+        assert isinstance(triplets, list)
+        assert len(triplets) == 2
+        assert triplets[0] == (1, 2, 3)
+        assert triplets[1] == (1, 3, 5)
+
+    def test_extract_triplets_3(self) -> None:
+        """Ensure triplets are recovered accurately via intersection of adjacency lists.
+
+        Consider the following undirected graph with 2 cycles. The cycles share a node:
+
+        0 ---- 1
+              /|
+             / |
+            /  |
+          2 -- 3
+               |\
+               | \
+               |  \
+               4 -- 5
+        """
+        edges = [
+            (0, 1),
+            (1, 2),
+            (2, 3),
+            (1, 3),
+            (3, 4),
+            (3, 5),
+            (4, 5),
+        ]
+        triplets = graph_utils.extract_cyclic_triplets_from_edges(edges)
+        assert isinstance(triplets, list)
+        assert len(triplets) == 2
+        assert triplets[0] == (3, 4, 5)
+        assert triplets[1] == (1, 2, 3)
 
 
 def generate_random_essential_matrix() -> EssentialMatrix:
