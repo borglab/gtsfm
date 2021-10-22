@@ -68,7 +68,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             i2Fi1: Dict from (i1, i2) to Fundamental matrix between them (optional)  (wrapped as Delayed).
 
         Returns:
-            global rotations wrapped using dask.delayed.
+            Tuple of a ViewGraph, metrics for ViewGraph estimation, wrapped as Delayed.
         """
 
         return dask.delayed(self.run, nout=2)(i2Ri1, i2Ui1, K, correspondeces_i1_i2, i2Ei1, i2Fi1)
