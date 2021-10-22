@@ -2,7 +2,7 @@
 
 Authors: Adi Singh
 """
-from typing import Dict, Tuple
+
 import unittest
 from pathlib import Path
 
@@ -10,6 +10,7 @@ from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack, 
 
 import numpy as np
 import numpy.testing as npt
+from scipy.spatial.distance import cdist
 
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.loader.olsson_loader import OlssonLoader
@@ -77,8 +78,8 @@ class TestEllipsoidUtils(unittest.TestCase):
 
         # Apply alignment transformation to sample_data
         walignedTw = ellipsoid_utils.get_ortho_axis_alignment_transform(sample_data)
-        walignedTw = Similarity3(R=walignedTw.rotation(), t=walignedTw.translation(), s=1.0)
-        sample_data = sample_data.apply_Sim3(walignedTw)
+        walignedSw = Similarity3(R=walignedTw.rotation(), t=walignedTw.translation(), s=1.0)
+        sample_data = sample_data.apply_Sim3(walignedSw)
 
         # Verify correct 3d points.
         computed_3d_points = np.array([sample_data.get_track(i).point3() for i in range(sample_data.number_tracks())])
@@ -93,7 +94,7 @@ class TestEllipsoidUtils(unittest.TestCase):
                 [0, -5 * np.sqrt(2), 0],
             ]
         )
-        npt.assert_almost_equal(computed_3d_points, expected_3d_points, decimal=6)
+        npt.assert_almost_equal(computed_3d_points, expected_3d_points, decimal=3)
 
         # Verify correct camera poses.
         expected_wTi_list = [
@@ -108,8 +109,8 @@ class TestEllipsoidUtils(unittest.TestCase):
 
     def test_point_cloud_cameras_locked(self) -> None:
         """Tests the get_ortho_axis_alignment_transform() function with a GtsfmData object containing 11 point cloud
-        points and 12 camera frustums from the door-12 dataset. Determines if the points are properly "locked" in
-        with one another before and after the alignment transformation is applied.
+        points and 12 camera frustums from the door-12 dataset. Determines if the points and frustums are properly
+        "locked" in with one another before and after the alignment transformation is applied.
         """
         sample_data = GtsfmData(number_images=12)
 
@@ -147,12 +148,12 @@ class TestEllipsoidUtils(unittest.TestCase):
             sample_data.add_track(SfmTrack(point_3d))
 
         camera_translations = np.array([pose.translation() for pose in sample_data.get_camera_poses()])
-        initial_relative_distances = self.compute_relative_distances(camera_translations, points_3d)
+        initial_relative_distances = cdist(camera_translations, points_3d, metric="euclidean")
 
         # Apply alignment transformation to sample_data
         walignedTw = ellipsoid_utils.get_ortho_axis_alignment_transform(sample_data)
-        walignedTw = Similarity3(R=walignedTw.rotation(), t=walignedTw.translation(), s=1.0)
-        sample_data = sample_data.apply_Sim3(walignedTw)
+        walignedSw = Similarity3(R=walignedTw.rotation(), t=walignedTw.translation(), s=1.0)
+        sample_data = sample_data.apply_Sim3(walignedSw)
 
         # Aggregate the final, transformed points
         num_tracks = sample_data.number_tracks()
@@ -160,42 +161,9 @@ class TestEllipsoidUtils(unittest.TestCase):
         transformed_points_3d = np.array(transformed_points_3d)
         transformed_camera_translations = np.array([pose.translation() for pose in sample_data.get_camera_poses()])
 
-        final_relative_distances = self.compute_relative_distances(
-            transformed_camera_translations, transformed_points_3d
-        )
+        final_relative_distances = cdist(transformed_camera_translations, transformed_points_3d, metric="euclidean")
 
-        npt.assert_almost_equal(final_relative_distances, initial_relative_distances, decimal=6)
-
-    def compute_relative_distances(self, camera_translations: np.ndarray, points_3d: np.ndarray) -> np.ndarray:
-        """Computes the relative distances between every camera frustum and every point in the point cloud.
-        Let M be the number of cameras and N be the number of point cloud points.
-
-        Args:
-            camera_translations: camera center coordinates, shape (M,3).
-            points_3d: points in the point cloud, shape (N,3).
-
-        Returns:
-            Array containing relative distances between each camera center to every point in the point cloud,
-            shape (M, N).
-
-        Raises:
-            TypeError: if collection of points is not of shape (N,3).
-        """
-        if camera_translations.shape[1] != 3 or points_3d.shape[1] != 3:
-            raise TypeError("Points should be 3 dimensional")
-
-        M = camera_translations.shape[0]
-        N = points_3d.shape[0]
-
-        relative_distances = np.zeros((M, N))
-
-        for camera_index in range(0, M):
-            for point_index in range(0, N):
-                camera_center = camera_translations[camera_index, :]
-                point = points_3d[point_index, :]
-                relative_distances[camera_index, point_index] = np.linalg.norm(point - camera_center)
-
-        return relative_distances
+        npt.assert_almost_equal(final_relative_distances, initial_relative_distances, decimal=3)
 
     def test_center_point_cloud(self) -> None:
         """Tests the center_point_cloud() function with 3 sample points.
@@ -208,7 +176,7 @@ class TestEllipsoidUtils(unittest.TestCase):
         sample_points = np.array([[1, 1, 1], [2, 2, 2], [3, 3, 3]])
         computed, mean = ellipsoid_utils.center_point_cloud(sample_points)
         expected = np.array([[-1, -1, -1], [0, 0, 0], [1, 1, 1]])
-        npt.assert_almost_equal(computed, expected, decimal=6)
+        npt.assert_almost_equal(computed, expected, decimal=3)
 
     def test_center_point_cloud_wrong_dims(self) -> None:
         """Tests the center_point_cloud() function with 5 sample points of 2 dimensions."""
@@ -233,7 +201,7 @@ class TestEllipsoidUtils(unittest.TestCase):
 
         computed = ellipsoid_utils.remove_outlier_points(sample_points)
         expected = np.array([[0.5, 0.6, 0.8], [0.9, 1, 0.2], [0.2, 0.2, 0.2], [0.3, 0.3, 0.3]])
-        npt.assert_almost_equal(computed, expected, decimal=6)
+        npt.assert_almost_equal(computed, expected, decimal=3)
 
     def test_remove_outlier_points_wrong_dims(self) -> None:
         """Tests the remove_outlier_points() function with 5 sample points of 2 dimensions."""
@@ -274,7 +242,7 @@ class TestEllipsoidUtils(unittest.TestCase):
         computed_rotation = ellipsoid_utils.get_alignment_rotation_matrix_from_svd(sample_points)
         num = np.sqrt(2) / 2
         expected_rotation = np.array([[-num, num, 0], [-num, -num, 0], [0, 0, 1]])
-        npt.assert_almost_equal(computed_rotation, expected_rotation, decimal=6)
+        npt.assert_almost_equal(computed_rotation, expected_rotation, decimal=3)
 
         # Apply the rotation transformation to sample_points
         # Verify that every aligned point's x or y coordinate is 0

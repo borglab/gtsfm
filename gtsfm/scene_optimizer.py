@@ -280,10 +280,10 @@ def align_estimated_gtsfm_data(
         Updated gt_pose_graph with GT poses aligned to axes.
     """
     walignedTw = ellipsoid_utils.get_ortho_axis_alignment_transform(ba_output)
-    walignedTw = Similarity3(R=walignedTw.rotation(), t=walignedTw.translation(), s=1.0)
-    ba_input = ba_input.apply_Sim3(walignedTw)
-    ba_output = ba_output.apply_Sim3(walignedTw)
-    gt_pose_graph = [walignedTw.transformFrom(wTi) for wTi in gt_pose_graph]
+    walignedSw = Similarity3(R=walignedTw.rotation(), t=walignedTw.translation(), s=1.0)
+    ba_input = ba_input.apply_Sim3(walignedSw)
+    ba_output = ba_output.apply_Sim3(walignedSw)
+    gt_pose_graph = [walignedSw.transformFrom(wTi) for wTi in gt_pose_graph]
     return ba_input, ba_output, gt_pose_graph
 
 
