@@ -10,11 +10,11 @@ from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack, 
 
 import numpy as np
 import numpy.testing as npt
-from scipy.spatial.distance import cdist
+import scipy.spatial.distance
 
+import gtsfm.utils.ellipsoid as ellipsoid_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.loader.olsson_loader import OlssonLoader
-import gtsfm.utils.ellipsoid as ellipsoid_utils
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
 
@@ -148,7 +148,7 @@ class TestEllipsoidUtils(unittest.TestCase):
             sample_data.add_track(SfmTrack(point_3d))
 
         camera_translations = np.array([pose.translation() for pose in sample_data.get_camera_poses()])
-        initial_relative_distances = cdist(camera_translations, points_3d, metric="euclidean")
+        initial_relative_distances = scipy.spatial.cdist(camera_translations, points_3d, metric="euclidean")
 
         # Apply alignment transformation to sample_data
         walignedTw = ellipsoid_utils.get_ortho_axis_alignment_transform(sample_data)
@@ -161,7 +161,9 @@ class TestEllipsoidUtils(unittest.TestCase):
         transformed_points_3d = np.array(transformed_points_3d)
         transformed_camera_translations = np.array([pose.translation() for pose in sample_data.get_camera_poses()])
 
-        final_relative_distances = cdist(transformed_camera_translations, transformed_points_3d, metric="euclidean")
+        final_relative_distances = scipy.spatial.cdist(
+            transformed_camera_translations, transformed_points_3d, metric="euclidean"
+        )
 
         npt.assert_almost_equal(final_relative_distances, initial_relative_distances, decimal=3)
 
