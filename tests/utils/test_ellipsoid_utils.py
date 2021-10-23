@@ -148,7 +148,7 @@ class TestEllipsoidUtils(unittest.TestCase):
             sample_data.add_track(SfmTrack(point_3d))
 
         camera_translations = np.array([pose.translation() for pose in sample_data.get_camera_poses()])
-        initial_relative_distances = scipy.spatial.cdist(camera_translations, points_3d, metric="euclidean")
+        initial_relative_distances = scipy.spatial.distance.cdist(camera_translations, points_3d, metric="euclidean")
 
         # Apply alignment transformation to sample_data
         walignedTw = ellipsoid_utils.get_ortho_axis_alignment_transform(sample_data)
@@ -161,7 +161,7 @@ class TestEllipsoidUtils(unittest.TestCase):
         transformed_points_3d = np.array(transformed_points_3d)
         transformed_camera_translations = np.array([pose.translation() for pose in sample_data.get_camera_poses()])
 
-        final_relative_distances = scipy.spatial.cdist(
+        final_relative_distances = scipy.spatial.distance.cdist(
             transformed_camera_translations, transformed_points_3d, metric="euclidean"
         )
 
