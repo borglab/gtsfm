@@ -3,6 +3,8 @@
 Authors: Ayush Baid, John Lambert, Akshay Krishnan
 """
 import unittest
+from collections import defaultdict
+from typing import List, Tuple
 from unittest import mock
 
 import numpy as np
@@ -127,8 +129,8 @@ class TestGraphUtils(unittest.TestCase):
         triplets = graph_utils.extract_cyclic_triplets_from_edges(edges)
         assert isinstance(triplets, list)
         assert len(triplets) == 2
-        assert triplets[0] == (1, 2, 3)
-        assert triplets[1] == (1, 3, 5)
+        assert triplets[0] == (1, 3, 5)
+        assert triplets[1] == (1, 2, 3)
 
     def test_extract_triplets_3(self) -> None:
         """Ensure triplets are recovered accurately via intersection of adjacency lists.
@@ -159,6 +161,105 @@ class TestGraphUtils(unittest.TestCase):
         assert len(triplets) == 2
         assert triplets[0] == (3, 4, 5)
         assert triplets[1] == (1, 2, 3)
+
+    def test_triplet_extraction_correctness(self) -> None:
+        """Ensure that for large graphs, the adjacency-list-based algorithm is still correct,
+        when compared with the brute-force O(n^3) implementation.
+        """
+        num_pairs = 100
+        # suppose we have 200 images for a scene
+        pairs = np.random.randint(low=0, high=200, size=(num_pairs, 2))
+        # i1 < i2 by construction inside loader classes
+        pairs = np.sort(pairs, axis=1)
+
+        # remove edges that would represent self-loops, i.e. (i1,i1) is not valid for a measurement
+        invalid = pairs[:, 0] == pairs[:, 1]
+        pairs = pairs[~invalid]
+        edges = pairs.tolist()
+        triplets = graph_utils.extract_cyclic_triplets_from_edges(edges)
+
+        # Now, compare with the brute force method
+        triplets_bf = extract_triplets_brute_force(edges)
+
+        assert set(triplets) == set(triplets_bf)
+
+    def test_create_adjacency_list(self) -> None:
+        """Ensure the generated adjacency graph is empty, for a simple graph.
+
+        Graph topology (assume all graph vertices have the same orientation):
+
+        0 ---- 1
+              /|
+             / |
+            /  |
+          2 -- 3
+               |\
+               | \
+               |  \
+               4 -- 5
+        """
+        edges = [
+            (0, 1),
+            (1, 2),
+            (2, 3),
+            (1, 3),
+            (3, 4),
+            (4, 5),
+            (3, 5),
+        ]
+        adj_list = graph_utils.create_adjacency_list(edges)
+
+        # fmt: off
+        expected_adj_list = {
+            0: {1},
+            1: {0, 2, 3},
+            2: {1, 3},
+            3: {1, 2, 4, 5},
+            4: {3, 5},
+            5: {3, 4}
+        }
+        # fmt: on
+        assert isinstance(adj_list, defaultdict)
+
+    def test_create_adjacency_list_empty(self) -> None:
+        """Ensure the generated adjacency graph is empty, when no edges are provided."""
+        edges = []
+        adj_list = graph_utils.create_adjacency_list(edges)
+
+        assert len(adj_list.keys()) == 0
+        assert isinstance(adj_list, defaultdict)
+
+
+def extract_triplets_brute_force(edges: List[Tuple[int, int]]) -> List[Tuple[int, int, int]]:
+    """Use triple for-loop to find triplets from a graph G=(V,E) in O(n^3) time.
+
+    Note: this method should **never** be used in practice, other than for exhaustively checking for correctness.
+    It is a **much** slower implementation for large graphs, when compared to `extract_triplets()` that uses
+    intersection of adjacency lists. It is used to check correctness inside the unit test below.
+
+    Args:
+        edges: edges between image pair indices.
+
+    Returns:
+        triplets: 3-tuples of nodes that form a cycle. Nodes of each triplet are provided in sorted order.
+    """
+    triplets = set()
+
+    for (i1, i2) in edges:
+        for (j1, j2) in edges:
+            for (k1, k2) in edges:
+                # check how many nodes are spanned by these 3 edges
+                cycle_nodes = set([i1, i2]).union(set([j1, j2])).union(set([k1, k2]))
+                # sort them in increasing order
+                cycle_nodes = tuple(sorted(cycle_nodes))
+
+                # nodes cannot be repeated
+                unique_edges = set([(i1, i2), (j1, j2), (k1, k2)])
+                edges_are_unique = len(unique_edges) == 3
+
+                if len(cycle_nodes) == 3 and edges_are_unique:
+                    triplets.add(cycle_nodes)
+    return list(triplets)
 
 
 def generate_random_essential_matrix() -> EssentialMatrix:

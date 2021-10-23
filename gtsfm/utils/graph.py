@@ -61,7 +61,7 @@ def prune_to_largest_connected_component(
     )
 
 
-def create_adjacency_list(edges: Tuple[int, int]) -> DefaultDict[int, Set[int]]:
+def create_adjacency_list(edges: List[Tuple[int, int]]) -> DefaultDict[int, Set[int]]:
     """Create an adjacency-list representation of a graph G=(V,E) when provided its edges E.
 
     In an adjacency list, the neighbors of each vertex may be listed efficiently, in time proportional to the
@@ -83,7 +83,7 @@ def create_adjacency_list(edges: Tuple[int, int]) -> DefaultDict[int, Set[int]]:
     return adj_list
 
 
-def extract_cyclic_triplets_from_edges(edges: Tuple[int, int]) -> List[Tuple[int, int, int]]:
+def extract_cyclic_triplets_from_edges(edges: List[Tuple[int, int]]) -> List[Tuple[int, int, int]]:
     """Extracts triplets from a graph's edges by using intersection within adjacency lists.
 
     Based on Theia's implementation:
