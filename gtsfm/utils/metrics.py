@@ -60,7 +60,7 @@ def count_correct_correspondences(
         raise ValueError("Keypoints must have same counts")
 
     if len(keypoints_i1) == 0:
-        return 0
+        return np.array([], dtype=np.bool8)
 
     i2Ei1 = EssentialMatrix(i2Ti1.rotation(), Unit3(i2Ti1.translation()))
     i2Fi1 = verification_utils.essential_to_fundamental_matrix(i2Ei1, intrinsics_i1, intrinsics_i2)

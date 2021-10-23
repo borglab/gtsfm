@@ -94,6 +94,7 @@ class GtsfmRunnerBase:
             image_graph=self.loader.create_computation_graph_for_images(),
             camera_intrinsics_graph=self.loader.create_computation_graph_for_intrinsics(),
             image_shape_graph=self.loader.create_computation_graph_for_image_shapes(),
+            correspondence_eval_fn_graph=self.loader.create_computation_graph_for_correspondence_eval_function(),
             gt_cameras_graph=self.loader.create_computation_graph_for_cameras(),
         )
 

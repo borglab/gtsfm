@@ -4,18 +4,24 @@ Authors: Frank Dellaert and Ayush Baid
 """
 
 import abc
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import dask
+import numpy as np
 from dask.delayed import Delayed
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3
 
 import gtsfm.utils.images as img_utils
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.metrics as metric_utils
 from gtsfm.common.image import Image
+from gtsfm.common.keypoints import Keypoints
 
 
 logger = logger_utils.get_logger()
+
+# TODO(Ayush): figure out how to use value from the config here
+SAMPSON_ERROR_EPIPOLAR_DISTANCE_THRESHOLD = 4
 
 
 class LoaderBase(metaclass=abc.ABCMeta):
@@ -254,3 +260,47 @@ class LoaderBase(metaclass=abc.ABCMeta):
                     indices.append((idx1, idx2))
 
         return indices
+
+    def evaluate_correspondences(
+        self, i1: int, i2: int, keypoints_i1: Keypoints, keypoints_i2: Keypoints
+    ) -> Optional[np.ndarray]:
+        """Evaluate the correspondences by using ground truth geometry/object model.
+
+        Args:
+            i1: index of the first image.
+            i2: index of the second image.
+            keypoints_i1: keypoints for the correspondences in i1, of length N.
+            keypoints_i2: keypoints for the correspondences in i2, of length N.
+
+        Returns:
+            Boolean numpy array indicating the correctness of the correspondences, of shape (N, ).
+        """
+        wTi1 = self.get_camera_pose(i1)
+        wTi2 = self.get_camera_pose(i2)
+        if wTi1 is None or wTi2 is None:
+            return None
+
+        i2Ti1 = wTi2.between(wTi1)
+        return metric_utils.count_correct_correspondences(
+            keypoints_i1=keypoints_i1,
+            keypoints_i2=keypoints_i2,
+            intrinsics_i1=self.get_camera_intrinsics(i1),
+            intrinsics_i2=self.get_camera_intrinsics(i2),
+            i2Ti1=i2Ti1,
+            epipolar_dist_threshold=SAMPSON_ERROR_EPIPOLAR_DISTANCE_THRESHOLD,
+        )
+
+    def create_computation_graph_for_correspondence_eval_function(self) -> Dict[Tuple[int, int], Delayed]:
+        """Creates the delayed `evaluate_correspondences` function nodes for each valid pair.
+
+        Returns:
+            The delayed objects as a dict, keyed by the indices of image pairs.
+        """
+        return {
+            (idx1, idx2): dask.delayed(
+                lambda keypoints_i1, keypoints_i2, i1=idx1, i2=idx2: self.evaluate_correspondences(
+                    i1, i2, keypoints_i1, keypoints_i2
+                )
+            )
+            for idx1, idx2 in self.get_valid_pairs()
+        }

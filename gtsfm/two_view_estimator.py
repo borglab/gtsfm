@@ -4,7 +4,7 @@ Authors: Ayush Baid, John Lambert
 """
 import logging
 from dataclasses import dataclass
-from typing import Dict, Optional, Tuple
+from typing import Callable, Dict, Optional, Tuple
 
 import dask
 import numpy as np
@@ -106,6 +106,7 @@ class TwoViewEstimator:
         camera_intrinsics_i2_graph: Delayed,
         im_shape_i1_graph: Delayed,
         im_shape_i2_graph: Delayed,
+        correspondence_eval_fn: Delayed,
         i2Ti1_expected_graph: Optional[Delayed] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, Optional[Delayed], Optional[Delayed], Optional[Delayed]]:
         """Create delayed tasks for matching and verification.
@@ -119,6 +120,7 @@ class TwoViewEstimator:
             camera_intrinsics_i2_graph: intrinsics for camera i2.
             im_shape_i1_graph: image shape for image i1.
             im_shape_i2_graph: image shape for image i2.
+            correspondence_eval_fn: function to evaluate correspondences between two images w.r.t ground truth.
             i2Ti1_expected_graph (optional): ground truth relative pose, used for evaluation if available. Defaults to
                                              None.
 
@@ -151,26 +153,18 @@ class TwoViewEstimator:
             camera_intrinsics_i2_graph,
         )
 
+        num_inliers_gt_model, inlier_ratio_gt_model, v_corr_idxs_inlier_mask_gt = dask.delayed(
+            compute_correspondence_metrics, nout=3
+        )(keypoints_i1_graph, keypoints_i2_graph, v_corr_idxs_graph, correspondence_eval_fn)
+
         # if we have the expected GT data, evaluate the computed relative pose
         if i2Ti1_expected_graph is not None:
             R_error_deg, U_error_deg = dask.delayed(compute_relative_pose_metrics, nout=2)(
                 i2Ri1_graph, i2Ui1_graph, i2Ti1_expected_graph
             )
-            num_inliers_gt_model, inlier_ratio_gt_model, v_corr_idxs_inlier_mask_gt = dask.delayed(
-                compute_correspondence_metrics, nout=3
-            )(
-                keypoints_i1_graph,
-                keypoints_i2_graph,
-                v_corr_idxs_graph,
-                camera_intrinsics_i1_graph,
-                camera_intrinsics_i2_graph,
-                i2Ti1_expected_graph,
-                self._corr_metric_dist_threshold,
-            )
+
         else:
             R_error_deg, U_error_deg = None, None
-            num_inliers_gt_model, inlier_ratio_gt_model = None, None
-            v_corr_idxs_inlier_mask_gt = None
 
         two_view_report_graph = dask.delayed(generate_two_view_report)(
             inlier_ratio_est_model,
@@ -245,42 +239,30 @@ def compute_correspondence_metrics(
     keypoints_i1: Keypoints,
     keypoints_i2: Keypoints,
     corr_idxs_i1i2: np.ndarray,
-    intrinsics_i1: Cal3Bundler,
-    intrinsics_i2: Cal3Bundler,
-    i2Ti1: Pose3,
-    epipolar_distance_threshold: float,
-) -> Tuple[int, float, Optional[np.ndarray]]:
+    correspondence_eval_fn: Callable[[Keypoints, Keypoints], np.ndarray],
+) -> Tuple[Optional[int], Optional[float], Optional[np.ndarray]]:
     """Compute the metrics for the generated verified correspondence.
 
     Args:
         keypoints_i1: detected keypoints in image i1.
         keypoints_i2: detected keypoints in image i2.
         corr_idxs_i1i2: indices of correspondences.
-        intrinsics_i1: intrinsics for i1.
-        intrinsics_i2: intrinsics for i2.
-        i2Ti1: relative pose.
-        epipolar_distance_threshold: max epipolar distance to qualify as a correct match.
+        correspondence_eval_fn: function to evaluate the correspondences w.r.t. ground truth.
 
     Returns:
         Number of inlier correspondences to ground truth epipolar geometry, i.e. #correct correspondences.
         Inlier Ratio, i.e. ratio of correspondences which are correct w.r.t. given relative pose.
-        Mask of which verified correspondences are classified as correct under Sampson error
-            (using GT epipolar geometry).
+        Mask of which verified correspondences are evaluated as correct.
     """
-    if corr_idxs_i1i2.size == 0:
-        return 0, float("Nan"), None
-
-    v_corr_idxs_inlier_mask_gt = metric_utils.count_correct_correspondences(
-        keypoints_i1.extract_indices(corr_idxs_i1i2[:, 0]),
-        keypoints_i2.extract_indices(corr_idxs_i1i2[:, 1]),
-        intrinsics_i1,
-        intrinsics_i2,
-        i2Ti1,
-        epipolar_distance_threshold,
+    corr_evaluation = correspondence_eval_fn(
+        keypoints_i1.extract_indices(corr_idxs_i1i2[:, 0]), keypoints_i2.extract_indices(corr_idxs_i1i2[:, 1])
     )
-    num_inliers_gt_model = np.count_nonzero(v_corr_idxs_inlier_mask_gt)
+
+    if corr_evaluation is None:
+        return None, None, None
+    num_inliers_gt_model = np.count_nonzero(corr_evaluation)
     inlier_ratio_gt_model = num_inliers_gt_model / corr_idxs_i1i2.shape[0]
-    return num_inliers_gt_model, inlier_ratio_gt_model, v_corr_idxs_inlier_mask_gt
+    return num_inliers_gt_model, inlier_ratio_gt_model, corr_evaluation
 
 
 def compute_relative_pose_metrics(

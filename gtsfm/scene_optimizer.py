@@ -102,6 +102,7 @@ class SceneOptimizer:
         image_graph: List[Delayed],
         camera_intrinsics_graph: List[Delayed],
         image_shape_graph: List[Delayed],
+        correspondence_eval_fn_graph: Dict[Tuple[int, int], Delayed],
         gt_cameras_graph: Optional[List[Delayed]] = None,
     ) -> Delayed:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
@@ -144,6 +145,7 @@ class SceneOptimizer:
                 camera_intrinsics_graph[i2],
                 image_shape_graph[i1],
                 image_shape_graph[i2],
+                correspondence_eval_fn_graph[(i1, i2)],
                 gt_i2Ti1,
             )
 
