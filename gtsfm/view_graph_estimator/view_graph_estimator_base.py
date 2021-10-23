@@ -10,8 +10,9 @@ import abc
 from typing import Dict, Tuple
 
 import dask
+import numpy as np
 from dask.delayed import Delayed
-from gtsam import Rot3, Unit3
+from gtsam import Cal3Bundler, Rot3, Unit3
 
 from gtsfm.view_graph_estimator.view_graph import ViewGraph
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup

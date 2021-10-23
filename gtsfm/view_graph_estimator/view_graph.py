@@ -4,7 +4,6 @@ Authors: Akshay Krishnan
 """
 from dataclasses import dataclass
 from typing import Dict, Tuple
-from dataclasses import dataclass
 
 import numpy as np
 from gtsam import Rot3, Unit3, Cal3Bundler
