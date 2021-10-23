@@ -129,8 +129,8 @@ class TestGraphUtils(unittest.TestCase):
         triplets = graph_utils.extract_cyclic_triplets_from_edges(edges)
         assert isinstance(triplets, list)
         assert len(triplets) == 2
-        assert triplets[0] == (1, 3, 5)
-        assert triplets[1] == (1, 2, 3)
+        assert triplets[0] == (1, 2, 3)
+        assert triplets[1] == (1, 3, 5)
 
     def test_extract_triplets_3(self) -> None:
         """Ensure triplets are recovered accurately via intersection of adjacency lists.
