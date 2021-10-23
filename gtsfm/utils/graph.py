@@ -2,7 +2,8 @@
 
 Authors: Ayush Baid, John Lambert, Akshay Krishnan
 """
-from typing import Dict, List, Optional, Tuple
+from collections import defaultdict
+from typing import DefaultDict, Dict, List, Optional, Set, Tuple
 
 import networkx as nx
 from gtsam import Rot3, Unit3
@@ -83,7 +84,7 @@ def create_adjacency_list(edges: Tuple[int, int]) -> DefaultDict[int, Set[int]]:
 
 
 def extract_cyclic_triplets_from_edges(edges: Tuple[int, int]) -> List[Tuple[int, int, int]]:
-    """Extracts triplets from a graph edges by using intersection within adjacency lists.
+    """Extracts triplets from a graph's edges by using intersection within adjacency lists.
 
     Based on Theia's implementation:
         https://github.com/sweeneychris/TheiaSfM/blob/master/src/theia/math/graph/triplet_extractor.h
@@ -98,7 +99,7 @@ def extract_cyclic_triplets_from_edges(edges: Tuple[int, int]) -> List[Tuple[int
     Returns:
         triplets: 3-tuples of nodes that form a cycle. Nodes of each triplet are provided in sorted order.
     """
-    adj_list = create_adjacency_list(i2Ri1_dict)
+    adj_list = create_adjacency_list(edges)
 
     # only want to keep the unique ones
     triplets = set()

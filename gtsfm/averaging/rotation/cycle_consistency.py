@@ -10,7 +10,7 @@ Author: John Lambert
 import os
 from collections import defaultdict
 from enum import Enum
-from typing import DefaultDict, Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -184,7 +184,7 @@ def filter_to_cycle_consistent_edges(
     # Extract edges that are ordered correctly and have a valid rotation.
     valid_edges = []
     for (i1, i2), i2Ri1 in i2Ri1_dict.items():
-        if i2Ri1 is None or i1 > i2:
+        if i2Ri1 is None or i1 >= i2:
             logger.error("Incorrectly ordered edge indices found in cycle consistency for ({i1}, {i2})")
             continue
         else:
