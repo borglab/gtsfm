@@ -34,7 +34,6 @@ dependencies:
   - scikit-learn
   - hydra-core
   # 3rd party algorithms for different modules
-  - opencv=4.5.0 # preferring conda-forge's distribution as it provides the latest distribution
   - pytorch
   # io
   - h5py
@@ -43,6 +42,7 @@ dependencies:
   # visualization
   - open3d
   - pip:
+    - opencv-python>=4.5.4.58 # pypi has a more recent distribution than conda-forge
     - pydegensac
     - colour
 
