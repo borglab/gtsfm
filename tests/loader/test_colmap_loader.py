@@ -5,6 +5,7 @@ Authors: John Lambert
 
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 from gtsam import Rot3, Pose3
@@ -113,5 +114,21 @@ class TestColmapLoader(unittest.TestCase):
         np.testing.assert_allclose(wT0.rotation().matrix(), wT0_expected.rotation().matrix(), atol=1e-5)
         np.testing.assert_allclose(wT0.translation(), wT0_expected.translation(), atol=1e-5)
 
+    @patch("gtsfm.loader.loader_base.LoaderBase.is_valid_pair", return_value=True)
+    def test_is_valid_pair_within_lookahead(self, base_is_valid_pair_mock) -> None:
+        i1 = 5
+        i2 = 7
+        self.assertTrue(self.loader.is_valid_pair(i1, i2))
+        base_is_valid_pair_mock.assert_called_once_with(i1, i2)
+
+    @patch("gtsfm.loader.loader_base.LoaderBase.is_valid_pair", return_value=True)
+    def test_is_valid_pair_outside_lookahead(self, base_is_valid_pair_mock) -> None:
+        i1 = 5
+        i2 = 15
+        self.assertFalse(self.loader.is_valid_pair(i1, i2))
+        base_is_valid_pair_mock.assert_called_once_with(i1, i2)
+
 
 # TODO in future: instantiate an object while providing bad paths
+if __name__ == "__main__":
+    unittest.main()
