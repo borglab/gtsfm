@@ -144,7 +144,7 @@ class TestFolderLoader(unittest.TestCase):
     @patch("gtsfm.loader.loader_base.LoaderBase.is_valid_pair", return_value=True)
     def test_is_valid_pair_within_lookahead(self, base_is_valid_pair_mock: MagicMock) -> None:
         i1 = 1
-        i2 = 10
+        i2 = 3
         self.assertTrue(self.loader.is_valid_pair(i1, i2))
         base_is_valid_pair_mock.assert_called_once_with(i1, i2)
 
