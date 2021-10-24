@@ -5,7 +5,7 @@ Authors: Travis Driver
 
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 from gtsam import Pose3, PinholeCameraCal3Bundler
@@ -181,14 +181,14 @@ class TestAstroNetLoader(unittest.TestCase):
         np.testing.assert_allclose(uvs_measured, uvs_expected, atol=1)
 
     @patch("gtsfm.loader.loader_base.LoaderBase.is_valid_pair", return_value=True)
-    def test_is_valid_pair_within_lookahead(self, base_is_valid_pair_mock) -> None:
+    def test_is_valid_pair_within_lookahead(self, base_is_valid_pair_mock: MagicMock) -> None:
         i1 = 5
         i2 = 7
         self.assertTrue(self.loader.is_valid_pair(i1, i2))
         base_is_valid_pair_mock.assert_called_once_with(i1, i2)
 
     @patch("gtsfm.loader.loader_base.LoaderBase.is_valid_pair", return_value=True)
-    def test_is_valid_pair_outside_lookahead(self, base_is_valid_pair_mock) -> None:
+    def test_is_valid_pair_outside_lookahead(self, base_is_valid_pair_mock: MagicMock) -> None:
         i1 = 5
         i2 = 15
         self.assertFalse(self.loader.is_valid_pair(i1, i2))

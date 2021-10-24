@@ -4,7 +4,7 @@ Authors: John Lambert
 """
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import dask
 import numpy as np
@@ -142,14 +142,14 @@ class TestFolderLoader(unittest.TestCase):
         self.assertTrue(self.loader.get_camera_intrinsics(7).equals(results[7], 1e-5))
 
     @patch("gtsfm.loader.loader_base.LoaderBase.is_valid_pair", return_value=True)
-    def test_is_valid_pair_within_lookahead(self, base_is_valid_pair_mock) -> None:
+    def test_is_valid_pair_within_lookahead(self, base_is_valid_pair_mock: MagicMock) -> None:
         i1 = 1
         i2 = 10
         self.assertTrue(self.loader.is_valid_pair(i1, i2))
         base_is_valid_pair_mock.assert_called_once_with(i1, i2)
 
     @patch("gtsfm.loader.loader_base.LoaderBase.is_valid_pair", return_value=True)
-    def test_is_valid_pair_outside_lookahead(self, base_is_valid_pair_mock) -> None:
+    def test_is_valid_pair_outside_lookahead(self, base_is_valid_pair_mock: MagicMock) -> None:
         i1 = 1
         i2 = 10
         self.assertFalse(self.loader.is_valid_pair(i1, i2))
