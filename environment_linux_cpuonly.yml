@@ -44,3 +44,4 @@ dependencies:
     - pydegensac
     - colour
     - pycolmap
+    - argoverse @ git+https://github.com/argoai/argoverse-api.git@master
