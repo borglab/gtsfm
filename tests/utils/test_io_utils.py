@@ -1,10 +1,13 @@
+import os
 from pathlib import Path
-from gtsfm.utils.io import extract_extrinsics_from_camera, recover_pose_from_extrinsics
 
 import numpy as np
+import numpy.testing as npt
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3
 
 import gtsfm.utils.io as io_utils
+from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common.image import Image
 
 TEST_DATA_ROOT = Path(__file__).resolve().parent.parent / "data"
 
@@ -95,31 +98,37 @@ def test_read_cameras_txt_nonexistent_file() -> None:
 
 
 def test_round_trip_images_txt() -> None:
-    """Starts with a pose that was produced after applying an alignment transformation to a camera frustum. Converts
-    sample pose into extrinsics. Then converts these extrinsics back into a pose and verifies it matches
-    with the original."""
+    """Starts with a pose. Writes the pose to images.txt (temporarily). Then reads images.txt to recover that
+    same pose. Checks if the original wTc and recovered wTc match up."""
 
-    # Setup dummy pinhole camera object
-    default_intrinsics = Cal3Bundler(fx=100, k1=0, k2=0, u0=0, v0=0)
-
-    original_pose = np.array(
+    # fmt: off
+    # Rotation 45 degrees about the z-axis.
+    original_wRc = np.array(
         [
-            [0.0018451, -0.994551, 0.104234, -0.0121756],
-            [-0.933994, 0.0355273, 0.355519, 0.349357],
-            [0.357285, 0.0980096, 0.928839, -13.563],
-            [0, 0, 0, 1],
+            [np.cos(np.pi / 4), -np.sin(np.pi / 4), 0],
+            [np.sin(np.pi / 4), np.cos(np.pi / 4), 0],
+            [0, 0, 1]
         ]
     )
-    wTc = Pose3(Rot3(original_pose[:3, :3]), original_pose[:3, 3])
-    camera = PinholeCameraCal3Bundler(wTc, default_intrinsics)
+    original_wtc = np.array([3,-2,1])
+    # fmt: on
 
-    # pose -> extrinsics
-    iRw_quaternion, itw = extract_extrinsics_from_camera(camera)
+    # Setup dummy GtsfmData Object with one image
+    original_wTc = Pose3(Rot3(original_wRc), original_wtc)
+    default_intrinsics = Cal3Bundler(fx=100, k1=0, k2=0, u0=0, v0=0)
+    camera = PinholeCameraCal3Bundler(original_wTc, default_intrinsics)
+    gtsfm_data = GtsfmData(number_images=1)
+    gtsfm_data.add_camera(0, camera)
 
-    # extrinsics -> recovered pose
-    recovered_wTc = recover_pose_from_extrinsics(iRw_quaternion, itw)
+    image = Image(value_array=None, file_name="dummy_image.jpg")
+    images = [image]
 
-    assert wTc == recovered_wTc
+    # write and read operations
+    io_utils.write_images(gtsfm_data, images, "./")
+    wTi_list, _ = io_utils.read_images_txt("images.txt")
+    recovered_wTc = wTi_list[0]
 
+    # Delete images.txt
+    os.remove("images.txt")
 
-test_round_trip_images_txt()
+    npt.assert_almost_equal(original_wTc.matrix(), recovered_wTc.matrix(), decimal=3)
