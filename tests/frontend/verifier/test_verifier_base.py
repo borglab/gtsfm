@@ -38,9 +38,7 @@ class TestVerifierBase(unittest.TestCase):
         np.random.seed(RANDOM_SEED)
         random.seed(RANDOM_SEED)
 
-        self.verifier: VerifierBase = Ransac(
-            use_intrinsics_in_verification=True, estimation_threshold_px=0.5, min_allowed_inlier_ratio_est_model=0.1
-        )
+        self.verifier: VerifierBase = Ransac(use_intrinsics_in_verification=True, estimation_threshold_px=0.5)
 
     def __execute_verifier_test(
         self,
@@ -155,7 +153,12 @@ class TestVerifierBase(unittest.TestCase):
         expected_inlier_ratio_est_model = expected_results[3]
 
         # generate the computation graph for the verifier
-        (delayed_i2Ri1, delayed_i2Ui1, delayed_v_corr_idxs, delayed_inlier_ratio_est_model) = self.verifier.create_computation_graph(
+        (
+            delayed_i2Ri1,
+            delayed_i2Ui1,
+            delayed_v_corr_idxs,
+            delayed_inlier_ratio_est_model,
+        ) = self.verifier.create_computation_graph(
             dask.delayed(keypoints_i1),
             dask.delayed(keypoints_i2),
             dask.delayed(matches_i1i2),
@@ -164,7 +167,9 @@ class TestVerifierBase(unittest.TestCase):
         )
 
         with dask.config.set(scheduler="single-threaded"):
-            i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio_est_model = dask.compute(delayed_i2Ri1, delayed_i2Ui1, delayed_v_corr_idxs, delayed_inlier_ratio_est_model)
+            i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio_est_model = dask.compute(
+                delayed_i2Ri1, delayed_i2Ui1, delayed_v_corr_idxs, delayed_inlier_ratio_est_model
+            )
 
         if expected_i2Ri1 is None:
             self.assertIsNone(i2Ri1)
@@ -336,4 +341,3 @@ def simulate_two_planes_scene(M: int, N: int) -> Tuple[Keypoints, Keypoints, Ess
 
 if __name__ == "__main__":
     unittest.main()
-
