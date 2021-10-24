@@ -14,8 +14,8 @@ import numpy as np
 from dask.delayed import Delayed
 from gtsam import Cal3Bundler, Rot3, Unit3
 
-from gtsfm.view_graph_estimator.view_graph import ViewGraph
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
+from gtsfm.view_graph_estimator.view_graph import ViewGraph
 
 
 class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
@@ -31,7 +31,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         i2Ri1: Dict[Tuple[int, int], Rot3],
         i2Ui1: Dict[Tuple[int, int], Unit3],
         K: Dict[int, Cal3Bundler],
-        correspondeces_i1_i2: Dict[Tuple[int, int], np.ndarray],
+        correspondeces_i1i2: Dict[Tuple[int, int], np.ndarray],
         i2Ei1: Dict[Tuple[int, int], np.ndarray] = None,
         i2Fi1: Dict[Tuple[int, int], np.ndarray] = None,
     ) -> Tuple[ViewGraph, GtsfmMetricsGroup]:
@@ -41,7 +41,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             i2Ri1: Dict from (i1, i2) to relative rotation of i1 with respect to i2.
             i2Ui1: Dict from (i1, i2) to relative translation direction of i1 with respect to i2.
             K: Dict from camera idx to its intrinsic parameters (Cal3Bundler)
-            correspondeces_i1_i2: Dict from (i1, i2) to indices of verified correspondences from i1 to i2.
+            correspondeces_i1i2: Dict from (i1, i2) to indices of verified correspondences from i1 to i2.
             i2Ei1: Dict from (i1, i2) to essential matrix between them (optional).
             i2Fi1: Dict from (i1, i2) to Fundamental matrix between them (optional).
 
@@ -54,7 +54,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         i2Ri1: Delayed,
         i2Ui1: Delayed,
         K: Delayed,
-        correspondeces_i1_i2: Delayed,
+        correspondeces_i1i2: Delayed,
         i2Ei1: Delayed = None,
         i2Fi1: Delayed = None,
     ) -> Delayed:
@@ -64,7 +64,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             i2Ri1: Dict from (i1, i2) to relative rotation of i1 with respect to i2 (wrapped as Delayed).
             i2Ui1: Dict from (i1, i2) to relative translation direction of i1 with respect to i2 (wrapped as Delayed).
             K: Dict from camera idx to its intrinsic parameters (Cal3Bundler) (wrapped as Delayed).
-            correspondeces_i1_i2: Dict from (i1, i2) to correspondences from i1 to i2  (wrapped as Delayed).
+            correspondeces_i1i2: Dict from (i1, i2) to correspondences from i1 to i2  (wrapped as Delayed).
             i2Ei1: Dict from (i1, i2) to essential matrix between them (optional)  (wrapped as Delayed).
             i2Fi1: Dict from (i1, i2) to Fundamental matrix between them (optional)  (wrapped as Delayed).
 

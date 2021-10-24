@@ -16,6 +16,6 @@ class ViewGraph:
     i2Ri1: Dict[Tuple[int, int], Rot3]
     i2Ui1: Dict[Tuple[int, int], Unit3]
     K: Dict[int, Cal3Bundler]
-    correspondeces_i1_i2: Dict[Tuple[int, int], np.ndarray]
+    correspondences_i1i2: Dict[Tuple[int, int], np.ndarray]
     i2Ei1: Dict[Tuple[int, int], np.ndarray] = None
     i2Fi1: Dict[Tuple[int, int], np.ndarray] = None
