@@ -181,92 +181,10 @@ class LoaderBase(metaclass=abc.ABCMeta):
         )
         return rescaled_intrinsics
 
-    def get_image(self, index: int) -> Image:
-        """Get the image at the given index, satisfying a maximum image resolution constraint.
-
-        Determine how the camera intrinsics and images should be jointly rescaled based on desired img. resolution.
-        Each loader implementation should set a `_max_resolution` attribute.
-
-        Args:
-            index: the index to fetch.
-
-        Raises:
-            IndexError: if an out-of-bounds image index is requested.
-
-        Returns:
-            Image: the image at the query index. It will be resized to satisfy the maximum
-                allowed loader image resolution if the full-resolution images for a dataset
-                are too large.
-        """
-        # no downsampling may be required, in which case target_h and target_w will be identical
-        # to the full res height & width.
-        img_full_res = self.get_image_full_res(index)
-        (
-            _,
-            _,
-            target_h,
-            target_w,
-        ) = img_utils.get_downsampling_factor_per_axis(img_full_res.height, img_full_res.width, self._max_resolution)
-        logger.info(
-            "Image %d resized from (H,W)=(%d,%d) -> (%d,%d)",
-            index,
-            img_full_res.height,
-            img_full_res.width,
-            target_h,
-            target_w,
-        )
-        resized_img = img_utils.resize_image(img_full_res, new_height=target_h, new_width=target_w)
-        return resized_img
-
-    def get_camera_intrinsics(self, index: int) -> Cal3Bundler:
-        """Get the camera intrinsics at the given index, for a possibly resized image.
-
-        Determine how the camera intrinsics and images should be jointly rescaled based on desired img. resolution.
-        Each loader implementation should set a `_max_resolution` attribute.
-
-        Args:
-            the index to fetch.
-
-        Returns:
-            intrinsics for the given camera.
-        """
-        intrinsics_full_res = self.get_camera_intrinsics_full_res(index)
-        if intrinsics_full_res is None:
-            raise ValueError(f"No intrinsics found for index {index}.")
-
-        img_full_res = self.get_image_full_res(index)
-        # no downsampling may be required, in which case scale_u and scale_v will be 1.0
-        scale_u, scale_v, _, _ = img_utils.get_downsampling_factor_per_axis(
-            img_full_res.height, img_full_res.width, self._max_resolution
-        )
-        rescaled_intrinsics = Cal3Bundler(
-            fx=intrinsics_full_res.fx() * scale_u,
-            k1=0.0,
-            k2=0.0,
-            u0=intrinsics_full_res.px() * scale_u,
-            v0=intrinsics_full_res.py() * scale_v,
-        )
-        return rescaled_intrinsics
-
     def get_image_shape(self, idx: int) -> Tuple[int, int]:
         """Return a (H,W) tuple for each image"""
         image = self.get_image(idx)
         return (image.height, image.width)
-
-    def get_valid_pairs(self) -> List[Tuple[int, int]]:
-        """Get the valid pairs of images for this loader.
-
-        Returns:
-            list of valid index pairs.
-        """
-        indices = []
-
-        for idx1 in range(self.__len__()):
-            for idx2 in range(self.__len__()):
-                if self.is_valid_pair(idx1, idx2):
-                    indices.append((idx1, idx2))
-
-        return indices
 
     def create_computation_graph_for_images(self) -> List[Delayed]:
         """Creates the computation graph for image fetches.
@@ -323,3 +241,18 @@ class LoaderBase(metaclass=abc.ABCMeta):
         """
         N = len(self)
         return [dask.delayed(self.get_image_shape)(x) for x in range(N)]
+
+    def get_valid_pairs(self) -> List[Tuple[int, int]]:
+        """Get the valid pairs of images for this loader.
+
+        Returns:
+            list of valid index pairs.
+        """
+        indices = []
+
+        for idx1 in range(self.__len__()):
+            for idx2 in range(self.__len__()):
+                if self.is_valid_pair(idx1, idx2):
+                    indices.append((idx1, idx2))
+
+        return indices

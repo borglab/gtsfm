@@ -226,7 +226,7 @@ class AstronetLoader(LoaderBase):
         return sfmtrack
 
     def is_valid_pair(self, idx1: int, idx2: int) -> bool:
-        """Checks if (idx1, idx2) is a valid pair.
+        """Checks if (idx1, idx2) is a valid pair. idx1 < idx2 is required.
 
         Args:
             idx1: first index of the pair.
