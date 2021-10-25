@@ -10,6 +10,7 @@ from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 
 TEST_DATA_ROOT = Path(__file__).resolve().parent.parent / "data"
+TEMPORARY_IMAGE_ROOT = Path(__file__).resolve().parent / "temp"
 
 
 def test_load_image() -> None:
@@ -94,9 +95,6 @@ def test_read_cameras_txt_nonexistent_file() -> None:
     assert calibrations is None
 
 
-# TODO in future PR: add round-trip test on write poses to images.txt, and load poses (poses->extrinsics->poses)
-
-
 def test_round_trip_images_txt() -> None:
     """Starts with a pose. Writes the pose to images.txt (temporarily). Then reads images.txt to recover that
     same pose. Checks if the original wTc and recovered wTc match up."""
@@ -124,11 +122,13 @@ def test_round_trip_images_txt() -> None:
     images = [image]
 
     # write and read operations
-    io_utils.write_images(gtsfm_data, images, "./")
-    wTi_list, _ = io_utils.read_images_txt("images.txt")
+    images_fpath = TEMPORARY_IMAGE_ROOT / "images.txt"
+    io_utils.write_images(gtsfm_data, images, TEMPORARY_IMAGE_ROOT)
+    wTi_list, _ = io_utils.read_images_txt(images_fpath)
     recovered_wTc = wTi_list[0]
 
-    # Delete images.txt
-    os.remove("images.txt")
+    # Delete images.txt and its folder
+    os.remove(images_fpath)
+    os.rmdir(TEMPORARY_IMAGE_ROOT)
 
     npt.assert_almost_equal(original_wTc.matrix(), recovered_wTc.matrix(), decimal=3)

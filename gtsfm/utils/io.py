@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import gtsam
 import h5py
 import numpy as np
-from gtsam import Cal3Bundler, Rot3, Pose3, PinholeCameraCal3Bundler
+from gtsam import Cal3Bundler, Rot3, Pose3
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
 
