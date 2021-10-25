@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import tempfile
 
 import numpy as np
 import numpy.testing as npt
@@ -10,7 +11,6 @@ from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 
 TEST_DATA_ROOT = Path(__file__).resolve().parent.parent / "data"
-TEMPORARY_IMAGE_ROOT = Path(__file__).resolve().parent / "temp"
 
 
 def test_load_image() -> None:
@@ -96,8 +96,8 @@ def test_read_cameras_txt_nonexistent_file() -> None:
 
 
 def test_round_trip_images_txt() -> None:
-    """Starts with a pose. Writes the pose to images.txt (temporarily). Then reads images.txt to recover that
-    same pose. Checks if the original wTc and recovered wTc match up."""
+    """Starts with a pose. Writes the pose to images.txt (in a temporary directory). Then reads images.txt to recover
+    that same pose. Checks if the original wTc and recovered wTc match up."""
 
     # fmt: off
     # Rotation 45 degrees about the z-axis.
@@ -121,14 +121,12 @@ def test_round_trip_images_txt() -> None:
     image = Image(value_array=None, file_name="dummy_image.jpg")
     images = [image]
 
-    # write and read operations
-    images_fpath = TEMPORARY_IMAGE_ROOT / "images.txt"
-    io_utils.write_images(gtsfm_data, images, TEMPORARY_IMAGE_ROOT)
-    wTi_list, _ = io_utils.read_images_txt(images_fpath)
-    recovered_wTc = wTi_list[0]
+    # Perform write and read operations inside a temporary directory
+    with tempfile.TemporaryDirectory() as tempdir:
+        images_fpath = os.path.join(tempdir, "images.txt")
 
-    # Delete images.txt and its folder
-    os.remove(images_fpath)
-    os.rmdir(TEMPORARY_IMAGE_ROOT)
+        io_utils.write_images(gtsfm_data, images, tempdir)
+        wTi_list, _ = io_utils.read_images_txt(images_fpath)
+        recovered_wTc = wTi_list[0]
 
     npt.assert_almost_equal(original_wTc.matrix(), recovered_wTc.matrix(), decimal=3)
