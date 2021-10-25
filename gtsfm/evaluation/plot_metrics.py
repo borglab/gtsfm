@@ -26,7 +26,6 @@ def create_metrics_plots_html(json_path: str, colmap_files_dirpath: str, output_
     metrics_groups = []
     # The provided JSON path must contain these files which contain metrics from the respective modules.
     GTSFM_MODULE_METRICS_FNAMES = [
-        "gt_comparison_metrics.json",
         "frontend_summary.json",
         "rotation_cycle_consistency_metrics.json",
         "averaging_metrics.json",
@@ -36,17 +35,19 @@ def create_metrics_plots_html(json_path: str, colmap_files_dirpath: str, output_
     if colmap_files_dirpath != "":
         txt_metric_paths = {
             "colmap": colmap_files_dirpath,
-            "gtsfm": os.path.join(os.path.dirname(os.path.abspath(json_path)), "results", "ba_output")
         }
-        compare_metrics.compare_metrics(txt_metric_paths, json_path)
+        compare_metrics.compare_metrics(txt_metric_paths, json_path, GTSFM_MODULE_METRICS_FNAMES)
+
+    metric_paths = []
     for filename in GTSFM_MODULE_METRICS_FNAMES:
         logger.info("Adding metrics from %s", filename)
         metric_path = os.path.join(json_path, filename)
+        metric_paths.append(metric_path)
         metrics_groups.append(GtsfmMetricsGroup.parse_from_json(metric_path))
     if len(output_dir) == 0:
         output_dir = json_path
     output_file = os.path.join(output_dir, "gtsfm_metrics_report.html")
-    metrics_report.generate_metrics_report_html(metrics_groups, output_file)
+    metrics_report.generate_metrics_report_html(metrics_groups, output_file, colmap_files_dirpath, metric_paths)
 
 
 if __name__ == "__main__":
