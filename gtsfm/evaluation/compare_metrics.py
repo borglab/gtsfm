@@ -3,6 +3,7 @@
 Authors: Jon Womack
 """
 import json
+import numpy as np
 import os
 from typing import Dict
 
@@ -17,45 +18,38 @@ def compare_metrics(txt_metric_paths: Dict[str, str], json_path: str) -> None:
     Args:
         txt_metric_paths: a list of paths to directories containing: cameras.txt, images.txt, and points3D.txt files
     """
-    cameras, images, points3d = colmap_io.read_model(path=txt_metric_paths['colmap'], ext=".txt")
-    cameras, images, image_files, sfmtracks = io_utils.colmap2gtsfm(cameras, images, points3d, load_sfmtracks=True)
-
-    print(len(images))
-    print(len(cameras))
-    num_images = len(images)
-    num_tracks = len(sfmtracks)
-
-    cameras, images, points3d = colmap_io.read_model(path=txt_metric_paths['gtsfm'], ext=".txt")
-    cameras, images, image_files, sfmtracks = io_utils.colmap2gtsfm(cameras, images, points3d, load_sfmtracks=True)
-
-    print(len(images))
-    print(len(cameras))
-    num_images = len(images)
-    num_tracks = len(sfmtracks)
-
-
-
-
     gtsfm_metrics = []
     for pipeline_name in txt_metric_paths.keys():
-        # Add 3D point information
-        fpath = os.path.join(txt_metric_paths[pipeline_name], "points3D.txt")
-        with open(fpath, "r") as f:
-            data = f.readlines()
-            points = data[3:]
-            track_lengths = []
-            for point in points:
-                track_lengths.append(len(point.split()[8:]) // 2)
-
+        cameras, images, points3d = colmap_io.read_model(path=txt_metric_paths[pipeline_name], ext=".txt")
+        cameras, images, image_files, sfmtracks = io_utils.colmap2gtsfm(cameras, images, points3d, load_sfmtracks=True)
+        num_images = len(images)
+        num_cameras = len(cameras)
+        num_tracks = len(sfmtracks)
+        # mean_observation_per_image =
+        track_lengths = []
+        image_id_num_measurements = {}
+        for track in sfmtracks:
+            track_lengths.append(track.number_measurements())
+            for k in range(track.number_measurements()):
+                image_id, uv_measured = track.measurement(k)
+                if not image_id in image_id_num_measurements:
+                    image_id_num_measurements[image_id] = 1
+                else:
+                    image_id_num_measurements[image_id] += 1
+        observations_per_image = list(image_id_num_measurements.values())
         gtsfm_metrics.append(
             GtsfmMetric(
-                "Number of 3D Points " + pipeline_name,
-                data[2][data[2].find(":") + 1 : data[2].find(",")],
+                "Number of 3D Points " + pipeline_name, num_tracks
             )
         )
         gtsfm_metrics.append(
             GtsfmMetric(
-                "Mean Track Length " + pipeline_name, data[2][data[2].rindex(":") + 1 :]
+                "Number of Images " + pipeline_name, num_images
+            )
+        )
+        gtsfm_metrics.append(
+            GtsfmMetric(
+                "Number of Cameras " + pipeline_name,  num_cameras
             )
         )
         gtsfm_metrics.append(
@@ -66,30 +60,14 @@ def compare_metrics(txt_metric_paths: Dict[str, str], json_path: str) -> None:
                 plot_type=GtsfmMetric.PlotType.HISTOGRAM,
             )
         )
-
-        # Add image information
-        fpath = os.path.join(txt_metric_paths[pipeline_name], "images.txt")
-        with open(fpath, "r") as f:
-            data = f.readlines()
-            images = data[4:]
         gtsfm_metrics.append(
             GtsfmMetric(
-                "Number of Images " + pipeline_name,
-                data[3][data[3].find(":") + 1 : data[3].find(",")],
+                "Mean Observations Per Image " + pipeline_name, np.mean(observations_per_image)
             )
         )
         gtsfm_metrics.append(
             GtsfmMetric(
-                "Mean Observations Per Image " + pipeline_name,
-                data[3][data[3].rindex(":") + 1 :],
-            )
-        )
-
-        # Add camera information
-        calibrations = io_utils.read_cameras_txt(os.path.join(txt_metric_paths[pipeline_name], "cameras.txt"))
-        gtsfm_metrics.append(
-            GtsfmMetric(
-                "Number of Cameras " + pipeline_name, len(calibrations)
+                "Median Observations Per Image " + pipeline_name, np.median(observations_per_image)
             )
         )
 

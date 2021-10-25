@@ -336,14 +336,24 @@ def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
 
     num_imgs = gtsfm_data.number_images()
     # TODO: compute this (from keypoint data? or from track data?)
-    mean_obs_per_img = 0
+
+    image_id_num_measurements = {}
+    for j in range(gtsfm_data.number_tracks()):
+        track = gtsfm_data.get_track(j)
+        for k in range(track.number_measurements()):
+            image_id, uv_measured = track.measurement(k)
+            if not image_id in image_id_num_measurements:
+                image_id_num_measurements[image_id] = 1
+            else:
+                image_id_num_measurements[image_id] += 1
+    mean_obs_per_img = sum(image_id_num_measurements.values()) / len(image_id_num_measurements)
 
     file_path = os.path.join(save_dir, "images.txt")
     with open(file_path, "w") as f:
         f.write("# Image list with two lines of data per image:\n")
         f.write("#   IMAGE_ID, QW, QX, QY, QZ, TX, TY, TZ, CAMERA_ID, NAME\n")
         f.write("#   POINTS2D[] as (X, Y, POINT3D_ID)\n")
-        f.write(f"# Number of images: {num_imgs}, mean observations per image: {mean_obs_per_img}\n")
+        f.write(f"# Number of images: {num_imgs}, mean observations per image: {mean_obs_per_img:.3f}\n")
 
 
 
@@ -360,18 +370,15 @@ def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
             f.write(f"{i} {qw} {qx} {qy} {qz} {tx} {ty} {tz} {i} {img_fname}\n")
 
 
-            # TODO: write out the points2d
-            gtsfm_data_subset = gtsfm_data.from_selected_cameras(gtsfm_data, [int(i)])
-            subset_tracks = gtsfm_data_subset.get_tracks()
-            f.write(str(len(subset_tracks)) + " " + str(gtsfm_data.number_tracks()) + "\n")
-
-            # track_str = ""
-            # for track in subset_tracks:
-            #     for k in range(track.number_measurements()):
-            #         # process each measurement
-            #         i, uv_measured = track.measurement(k)
-            #     track_str = track_str + " " + str(track.measurements())
-
+            # write out points2d
+            for j in range(gtsfm_data.number_tracks()):
+                track = gtsfm_data.get_track(j)
+                for k in range(track.number_measurements()):
+                    # process each measurement
+                    image_id, uv_measured = track.measurement(k)
+                    if image_id == i:
+                        f.write(f" {uv_measured[0]:.3f} {uv_measured[1]:.3f} {j}")
+            f.write("\n")
 
 def read_points_txt(fpath: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
     """Read 3d points and their associated colors from a COLMAP points.txt file.
