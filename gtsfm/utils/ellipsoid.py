@@ -101,7 +101,7 @@ def get_alignment_rotation_matrix_from_svd(point_cloud: np.ndarray) -> np.ndarra
     # U is NxN, S has 3 values along the diagonal, and Vt is 3x3
     # S represents the scaling (lengths) of each of the three ellipsoid semi-axes
     # ref: https://en.wikipedia.org/wiki/Singular_value_decomposition#Rotation,_coordinate_scaling,_and_reflection
-    U, S, Vt = np.linalg.svd(point_cloud, full_matrices=True)
+    U, S, Vt = np.linalg.svd(point_cloud, full_matrices=False)
 
     # If det(Vt) = -1, then Vt is a reflection matrix and not a valid SO(3) transformation. Thus, we must estimate the
     # closest rotation matrix to the reflection.
