@@ -94,7 +94,7 @@ class TwoViewEstimator:
         self._matcher = matcher
         self._verifier = verifier
         self._corr_metric_dist_threshold = eval_threshold_px
-        self.postprocessor = InlierSupportPostprocessor(min_num_inliers_acceptance, min_allowed_inlier_ratio_est_model)
+        self.processor = InlierSupportProcessor(min_num_inliers_acceptance, min_allowed_inlier_ratio_est_model)
 
     def get_corr_metric_dist_threshold(self) -> float:
         """Getter for the distance threshold used in the metric for correct correspondences."""
@@ -192,7 +192,7 @@ class TwoViewEstimator:
             i2Ui1_pp_graph,
             v_corr_idxs_pp_graph,
             two_view_report_pp_graph,
-        ) = self.postprocessor.create_computation_graph(
+        ) = self.processor.create_computation_graph(
             i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph
         )
         # We provide both, as we will create reports for both.
@@ -222,7 +222,7 @@ def generate_two_view_report(
     return two_view_report
 
 
-class InlierSupportPostprocessor:
+class InlierSupportProcessor:
     """Reasons about the amount of support for a relative pose measurement between an image pair."""
     def __init__(
         self,
@@ -250,7 +250,7 @@ class InlierSupportPostprocessor:
     ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, Optional[TwoViewEstimationReport]]:
         """Check for insufficient support among correspondences to estimate this image pair.
 
-        We don't modify the report (to stay functional), but report InlierSupportPostprocessor metrics separately.
+        We don't modify the report (to stay functional), but report InlierSupportProcessor metrics separately.
 
         Args:
             i2Ri1: relative rotation measurement.
@@ -301,7 +301,7 @@ class InlierSupportPostprocessor:
     def create_computation_graph(
         self, i2Ri1_graph: Delayed, i2Ui1_graph: Delayed, v_corr_idxs_graph: Delayed, two_view_report_graph: Delayed
     ) -> Tuple[Delayed, Delayed, Delayed, Delayed]:
-        """Create the Dask computational graph for the InlierSupportPostprocessor."""
+        """Create the Dask computational graph for the InlierSupportProcessor."""
 
         # `pp` represents `post-processed`
         i2Ri1_pp_graph, i2Ui1_pp_graph, v_corr_idxs_pp_graph, two_view_report_pp_graph = dask.delayed(self.run, nout=4)(
