@@ -3,6 +3,7 @@
 Authors: Ren Liu
 """
 import time
+from pathlib import Path
 from typing import Dict
 
 import numpy as np
@@ -23,7 +24,9 @@ from thirdparty.patchmatchnet.models.net import PatchmatchNet
 logger = logger_utils.get_logger()
 
 torch.backends.cudnn.benchmark = True
-PATCHMATCHNET_WEIGHTS_PATH = "thirdparty/patchmatchnet/checkpoints/model_000007.ckpt"
+PATCHMATCHNET_WEIGHTS_PATH = (
+    Path(__file__).resolve().parent.parent.parent / "thirdparty" / "patchmatchnet" / "checkpoints" / "model_000007.ckpt"
+)
 
 # all default values are assigned by Wang et al. https://github.com/FangjinhuaWang/PatchmatchNet/blob/main/eval.py
 BATCH_SIZE = 1
@@ -119,7 +122,7 @@ class MVSPatchmatchNet(MVSBase):
             for batch_idx, sample in enumerate(loader):
                 start_time = time.time()
 
-                ids = sample["idx"]
+                pm_ids = sample["idx"]
 
                 # Check if cuda devices are available
                 if torch.cuda.is_available():
@@ -136,16 +139,14 @@ class MVSPatchmatchNet(MVSBase):
                 )
 
                 outputs = patchmatchnet_utils.tensor2numpy(outputs)
-                del sample_device
 
                 # Save depth maps and confidence maps
-                for idx, depth_est, photometric_confidence in zip(
-                    ids, outputs["refined_depth"]["stage_0"], outputs["photometric_confidence"]
+                for pm_i, depth_est, photometric_confidence in zip(
+                    pm_ids, outputs["refined_depth"]["stage_0"], outputs["photometric_confidence"]
                 ):
-
-                    idx = idx.cpu().numpy().tolist()
-                    depth_est_list[idx] = depth_est.copy()
-                    confidence_est_list[idx] = photometric_confidence.copy()
+                    pm_i = pm_i.cpu().numpy().tolist()
+                    depth_est_list[pm_i] = depth_est.copy()
+                    confidence_est_list[pm_i] = photometric_confidence.copy()
 
                 logger.debug(
                     "[Densify::PatchMatchNet] Iter %d/%d, time = %.3f",
