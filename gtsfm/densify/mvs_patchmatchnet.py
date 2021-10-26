@@ -186,8 +186,8 @@ class MVSPatchmatchNet(MVSBase):
         A 3D point is consistent in geometry in the output point cloud if it is consistent in geometry between the
             reference view and more than MINIMUM_CONSISTENT_VIEW_NUMBER source views.
 
-
-        Ref: Wang et al. https://github.com/FangjinhuaWang/PatchmatchNet/blob/main/eval.py
+        Reference: Wang et al., https://github.com/FangjinhuaWang/PatchmatchNet/blob/main/eval.py#L227
+        Note: we rename the photometric threshold as a "confidence threshold".
 
         Args:
             dataset: an instance of PatchmatchData as the inference dataset

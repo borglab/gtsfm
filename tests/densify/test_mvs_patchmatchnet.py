@@ -11,12 +11,17 @@ Authors: Ren Liu
 import unittest
 
 import numpy as np
+import torch
 from gtsam import Cal3_S2, PinholeCameraCal3_S2, Point3
 from gtsam.examples import SFMdata
 
 from gtsfm.common.image import Image
 from gtsfm.common.gtsfm_data import GtsfmData, SfmTrack
 from gtsfm.densify.mvs_patchmatchnet import MVSPatchmatchNet
+
+
+# set dummy random seed
+torch.manual_seed(0)
 
 # set the dummy image size as 400x300, with 3 channels
 IMAGE_W = 400
