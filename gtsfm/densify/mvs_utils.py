@@ -81,8 +81,13 @@ def cart_to_homogenous(
     Returns:
         (d+1)-dim homogenous coordinates, of shape (d+1)xN.
 
-    Raises: TypeError: if input is not 2 dimensional.
+    Raises:
+        TypeError if input non_homogenous_coordinates is not 2 dimensional.
     """
+
+    if len(non_homogenous_coordinates.shape) != 2:
+        raise TypeError("Input non-homogenous coordinates should be 2 dimensional")
+
     n = non_homogenous_coordinates.shape[1]
 
     return np.vstack([non_homogenous_coordinates, np.ones((1, n))])
