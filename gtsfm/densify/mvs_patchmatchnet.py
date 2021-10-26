@@ -11,13 +11,13 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 import gtsfm.densify.mvs_utils as mvs_utils
+import thirdparty.patchmatchnet.eval as patchmatchnet_eval
+import thirdparty.patchmatchnet.utils as patchmatchnet_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.densify.patchmatchnet_data import PatchmatchNetData
 from gtsfm.utils import logger as logger_utils
-import thirdparty.patchmatchnet.utils as patchmatchnet_utils
-import thirdparty.patchmatchnet.eval as patchmatchnet_eval
 from thirdparty.patchmatchnet.models.net import PatchmatchNet
 
 logger = logger_utils.get_logger()
