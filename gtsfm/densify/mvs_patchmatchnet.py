@@ -96,7 +96,7 @@ class MVSPatchmatchNet(MVSBase):
         )
         model = nn.DataParallel(model)
 
-        # Check if cuda devices is supported, and load the pretrained model
+        # Check if cuda devices are available, and load the pretrained model
         #   the pretrained checkpoint should be pre-downloaded using gtsfm/download_model_weights.sh
         if torch.cuda.is_available():
             model.cuda()
