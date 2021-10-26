@@ -77,7 +77,8 @@ class MVSPatchmatchNet(MVSBase):
             num_workers: number of workers when loading data
 
         Returns:
-            3D coordinates (in the world frame) of the dense point cloud, (point number, 3)
+            3D coordinates (in the world frame) of the dense point cloud,
+                with shape (N, 3) where N is the number of points
         """
         dataset = PatchmatchNetData(images=images, sfm_result=sfm_result, max_num_views=max_num_views)
 
