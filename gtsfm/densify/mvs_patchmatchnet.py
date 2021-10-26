@@ -47,7 +47,9 @@ MIN_NUM_CONSISTENT_VIEWS = 3
 
 
 class MVSPatchmatchNet(MVSBase):
-    """Inference methods for GtsfmData in densification using PatchmatchNet."""
+    """Inference methods for GtsfmData in densification using PatchmatchNet.
+    PyTorch DataLoader is used to load batched data for PatchmatchNet.
+    """
 
     def densify(
         self,
@@ -78,6 +80,7 @@ class MVSPatchmatchNet(MVSBase):
             3D coordinates (in the world frame) of the dense point cloud, (point number, 3)
         """
         dataset = PatchmatchNetData(images=images, sfm_result=sfm_result, max_num_views=max_num_views)
+
         loader = DataLoader(
             dataset=dataset,
             batch_size=BATCH_SIZE,
