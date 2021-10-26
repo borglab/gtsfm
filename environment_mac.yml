@@ -45,5 +45,6 @@ dependencies:
     - opencv-python>=4.5.4.58 # pypi has a more recent distribution than conda-forge
     - pydegensac
     - colour
+    - argoverse @ git+https://github.com/argoai/argoverse-api.git@master
 
 
