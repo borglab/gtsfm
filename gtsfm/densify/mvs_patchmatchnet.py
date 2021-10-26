@@ -31,7 +31,7 @@ NUM_VIEWS = 5
 
 # the reprojection error in pixel coordinates should be less than 1
 MAX_GEOMETRIC_PIXEL_THRESH = 1.0
-# the reprojection error in depth from camera should be less than 0.01
+# the reprojection error along the camera's z(depth) axis should be less than 0.01
 MAX_GEOMETRIC_DEPTH_THRESH = 0.01
 MIN_CONFIDENCE_THRESH = 0.8
 
