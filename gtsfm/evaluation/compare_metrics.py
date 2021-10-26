@@ -35,18 +35,42 @@ def compare_metrics(txt_metric_paths: Dict[str, str], json_path: str, GTSFM_MODU
                     image_id_num_measurements[image_id] = 1
                 else:
                     image_id_num_measurements[image_id] += 1
-        observations_per_image = list(image_id_num_measurements.values())
+        num_total_frontend_measurements = sum(image_id_num_measurements.values())
+
+        colmap2gtsfm = {
+            "number_cameras":
+                GtsfmMetric("number_cameras", num_cameras),
+            "3d_tracks_length":
+                GtsfmMetric(
+                    "3d_track_lengths",
+                    track_lengths,
+                    plot_type=GtsfmMetric.PlotType.HISTOGRAM,
+                ),
+            "num_total_frontend_measurements":
+                GtsfmMetric("num_total_frontend_measurements", num_total_frontend_measurements)
+        }
 
         #Create comparable result_metric json for COLMAP
         for filename in GTSFM_MODULE_METRICS_FNAMES:
             metrics = []
             metrics_group = GtsfmMetricsGroup.parse_from_json(os.path.join(json_path, filename))
             for metric in metrics_group.metrics:
-                metrics.append(GtsfmMetric(
-                    metric.name, "TODO"
-                ))
+                #Case 1: mapping from COLMAP to GTSfM is known
+                if metric.name in colmap2gtsfm.keys():
+                    metrics.append(colmap2gtsfm[metric.name])
+                # Case 2: mapping from COLMAP to GTSfM is known
+                else:
+                    if metric._dim == 1:
+                    # Case 2a: dict summary
+                        metrics.append(GtsfmMetric(
+                            metric.name, [0]
+                        ))
+                    else:
+                    # Case 2b: scalar metric
+                        metrics.append(GtsfmMetric(
+                            metric.name, "TODO"
+                        ))
             new_metrics_group = GtsfmMetricsGroup(metrics_group.name, metrics)
-
             os.makedirs(os.path.join(json_path, pipeline_name), exist_ok=True)
             new_metrics_group.save_to_json(
                 os.path.join(json_path, pipeline_name, os.path.basename(filename))
@@ -66,19 +90,6 @@ def compare_metrics(txt_metric_paths: Dict[str, str], json_path: str, GTSFM_MODU
     #     )
     #     gtsfm_metrics.append(
     #         GtsfmMetric(
-    #             "Number of Cameras " + pipeline_name,  num_cameras
-    #         )
-    #     )
-    #     gtsfm_metrics.append(
-    #         GtsfmMetric(
-    #             pipeline_name + "_track_lengths",
-    #             track_lengths,
-    #             store_full_data=False,
-    #             plot_type=GtsfmMetric.PlotType.HISTOGRAM,
-    #         )
-    #     )
-    #     gtsfm_metrics.append(
-    #         GtsfmMetric(
     #             "Mean Observations Per Image " + pipeline_name, np.mean(observations_per_image)
     #         )
     #     )
@@ -87,8 +98,3 @@ def compare_metrics(txt_metric_paths: Dict[str, str], json_path: str, GTSFM_MODU
     #             "Median Observations Per Image " + pipeline_name, np.median(observations_per_image)
     #         )
     #     )
-    #
-    # comparison_metrics = GtsfmMetricsGroup("GTSFM vs. Ground Truth", gtsfm_metrics)
-    # comparison_metrics.save_to_json(
-    #     os.path.join(json_path, "gt_comparison_metrics.json")
-    # )

@@ -166,11 +166,11 @@ def get_figures_for_metrics_and_compare(metrics_group: GtsfmMetricsGroup, metric
     """
     all_scalar_metrics = []
     all_metrics_groups = []
-    all_metrics_groups.append(metrics_group)
 
     colmap_metric_path = metric_path[:metric_path.rindex("/")] + "/colmap" + metric_path[metric_path.rindex("/"):]
     colmap_metrics_group = GtsfmMetricsGroup.parse_from_json(colmap_metric_path)
 
+    all_metrics_groups.append(metrics_group)
     all_metrics_groups.append(colmap_metrics_group)
 
     for metrics_group in all_metrics_groups:
@@ -189,8 +189,12 @@ def get_figures_for_metrics_and_compare(metrics_group: GtsfmMetricsGroup, metric
                 scalar_metrics[metric_name] = value
         all_scalar_metrics.append(scalar_metrics)
     table = create_table_for_scalar_metrics_and_compare(all_scalar_metrics)
-    # plots_fig = create_plots_for_distributions(metrics_dict)
-    plots_fig = None
+
+    #TODO Add plots for COLMAP, not just GTSfM
+    plots_fig = ""
+    for metrics_group in all_metrics_groups:
+        plots_fig += create_plots_for_distributions(metrics_group.get_metrics_as_dict()[metrics_group.name])
+    # plots_fig += create_plots_for_distributions(all_metrics_groups[0].get_metrics_as_dict()[metrics_group.name])
     return table, plots_fig
 
 
