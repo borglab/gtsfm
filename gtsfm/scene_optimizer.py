@@ -189,7 +189,7 @@ class SceneOptimizer:
                 dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
                     two_view_reports_pp_dict,
                     self._pose_angular_error_thresh,
-                    metric_group_name="image_pair_postprocessor_summary",
+                    metric_group_name="inlier_support_processor_summary",
                 )
             )
 
