@@ -22,20 +22,20 @@ class InlierSupportProcessor:
     """Reasons about the amount of support for a relative pose measurement between an image pair."""
     def __init__(
         self,
-        min_num_inliers_acceptance: int,
-        min_allowed_inlier_ratio_est_model: float,
+        min_num_inliers_est_model: int,
+        min_inlier_ratio_est_model: float,
     ) -> None:
         """Saves inlier thresholds to use for filtering.
 
         Args:
-            min_num_inliers_acceptance: minimum number of inliers that must agree w/ estimated model, to use
-                image pair.
-            min_allowed_inlier_ratio_est_model: minimum allowed inlier ratio w.r.t. the estimated model to accept
+            min_num_inliers_est_model: minimum number of inliers that must agree w/ estimated model, to accept
+                and use the image pair.
+            min_inlier_ratio_est_model: minimum allowed inlier ratio w.r.t. the estimated model to accept
                 the verification result and use the image pair, i.e. the lowest allowed ratio of
                 #final RANSAC inliers/ #putatives. A lower fraction indicates less agreement among the result.
         """
-        self._min_num_inliers_acceptance = min_num_inliers_acceptance
-        self._min_allowed_inlier_ratio_est_model = min_allowed_inlier_ratio_est_model
+        self._min_num_inliers_est_model = min_num_inliers_est_model
+        self._min_inlier_ratio_est_model = min_inlier_ratio_est_model
 
     def run(
         self,
@@ -60,17 +60,17 @@ class InlierSupportProcessor:
             v_corr_idxs: empty (0,2) array if insufficient support
             two_view_report: two-view estimation report, or None if insufficient support
         """
-        insufficient_inliers = two_view_report.num_inliers_est_model < self._min_num_inliers_acceptance
+        insufficient_inliers = two_view_report.num_inliers_est_model < self._min_num_inliers_est_model
 
         # TODO: technically this should almost always be non-zero, just need to move up to earlier
         valid_model = two_view_report.num_inliers_est_model > 0
 
         # no need to extract the relative pose if we have insufficient inliers.
-        if two_view_report.inlier_ratio_est_model < self._min_allowed_inlier_ratio_est_model:
+        if two_view_report.inlier_ratio_est_model < self._min_inlier_ratio_est_model:
             logger.info(
                 "Insufficient inlier ratio. %d vs. %d",
                 two_view_report.inlier_ratio_est_model,
-                self._min_allowed_inlier_ratio_est_model,
+                self._min_inlier_ratio_est_model,
             )
             i2Ri1 = None
             i2Ui1 = None
@@ -81,7 +81,7 @@ class InlierSupportProcessor:
             logger.info(
                 "Insufficient number of inliers. %d vs. %d",
                 two_view_report.num_inliers_est_model,
-                self._min_num_inliers_acceptance,
+                self._min_num_inliers_est_model,
             )
 
             i2Ri1 = None
