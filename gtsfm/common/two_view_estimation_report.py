@@ -1,4 +1,3 @@
-
 """Container for results about a image pair.
 
 Authors: John Lambert
@@ -13,12 +12,20 @@ from gtsam import Rot3, Unit3
 
 
 class TwoViewConfigurationType(str, Enum):
-    """"""
+    """Categorization of the configuration of two views.
+
+    Calibrated indicates that the two-view relation has sufficient parallax, and intrinsics are known and reliable.
+    Uncalibrated indicates that the two-view relation has sufficient parallax, but intrinsics are unknown / unreliable.
+    Planar / Panoramic indicates that the relation is a homography.
+    Degenerate indicates that there was insufficient support to accurately determine
+        the two-view relation.
+    """
+
     CALIBRATED: str = "CALIBRATED"
     UNCALIBRATED: str = "UNCALIBRATED"
     PLANAR_OR_PANORAMIC: str = "PLANAR_OR_PANORAMIC"
     DEGENERATE: str = "DEGENERATE"
-    
+
 
 @dataclass(frozen=False)
 class TwoViewEstimationReport:
@@ -32,11 +39,11 @@ class TwoViewEstimationReport:
 
     Args:
         v_corr_idxs: verified correspondence indices.
-        num_H_inliers: 
-        H_inlier_ratio: 
+        num_H_inliers: number of #correspondences consistent with estimated homography model.
+        H_inlier_ratio: fraction representating #correspondences consistent with homography / (# putatives matches).
         num_inliers_est_model: #correspondences consistent with estimated model (not necessarily "correct")
-        inlier_ratio_est_model: #matches consistent with est. model / # putative matches, i.e.
-           measures how consistent the model is with the putative matches.
+        inlier_ratio_est_model: Fraction representing (#matches consistent with est. model) / (# putative matches),
+            i.e. measures how consistent the model is with the putative matches.
         num_inliers_gt_model: measures how well the verification worked, w.r.t. GT, i.e. #correct correspondences.
         inlier_ratio_gt_model: #correct matches/#putative matches. Only defined if GT relative pose provided.
         v_corr_idxs_inlier_mask_gt: Mask of which verified correspondences are classified as correct under
@@ -45,7 +52,7 @@ class TwoViewEstimationReport:
         U_error_deg: relative translation error w.r.t. GT. Only defined if GT poses provided.
         i2Ri1: relative rotation.
         i2Ui1: relative translation direction.
-        configuration_type: 
+        configuration_type: classification of two-view relationship.
     """
 
     v_corr_idxs: np.ndarray
