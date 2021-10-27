@@ -48,7 +48,7 @@ class TwoViewEstimator:
         Args:
             matcher: matcher to use.
             verifier: verifier to use.
-            homography_verifier: 
+            homography_verifier:
             inlier_support_processor: post-processor that uses information about RANSAC support to filter out pairs.
             eval_threshold_px: distance threshold for marking a correspondence pair as inlier during evaluation
                 (not during estimation).
@@ -140,13 +140,11 @@ class TwoViewEstimator:
             v_corr_idxs_inlier_mask_gt = None
 
         # Note: homography estimation threshold must match the E / F thresholds for #inliers to be comparable
-        H_graph, H_inlier_idxs, num_H_inliers, H_inlier_ratio = dask.delayed(
-            self._homography_verifier.verify, nout=4
-        )(
+        H_graph, H_inlier_idxs, num_H_inliers, H_inlier_ratio = dask.delayed(self._homography_verifier.verify, nout=4)(
             keypoints_i1_graph,
             keypoints_i2_graph,
             match_indices=corr_idxs_graph,
-            estimation_threshold_px=self._verifier._estimation_threshold_px
+            estimation_threshold_px=self._verifier._estimation_threshold_px,
         )
 
         two_view_report_graph = dask.delayed(generate_two_view_report)(
@@ -167,9 +165,7 @@ class TwoViewEstimator:
             i2Ui1_pp_graph,
             v_corr_idxs_pp_graph,
             two_view_report_pp_graph,
-        ) = self.processor.create_computation_graph(
-            i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph
-        )
+        ) = self.processor.create_computation_graph(i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph)
         # We provide both, as we will create reports for both.
         return (i2Ri1_pp_graph, i2Ui1_pp_graph, v_corr_idxs_pp_graph, two_view_report_graph, two_view_report_pp_graph)
 
@@ -328,14 +324,16 @@ def aggregate_frontend_metrics(
     )
 
     calibrated_configuration_percent = configuration_counts[TwoViewConfigurationType.CALIBRATED] / num_image_pairs * 100
-    planar_or_panoramic_configuration_percent = configuration_counts[TwoViewConfigurationType.PLANAR_OR_PANORAMIC] / num_image_pairs * 100
+    planar_or_panoramic_configuration_percent = (
+        configuration_counts[TwoViewConfigurationType.PLANAR_OR_PANORAMIC] / num_image_pairs * 100
+    )
     degenerate_configuration_percent = configuration_counts[TwoViewConfigurationType.DEGENERATE] / num_image_pairs * 100
 
     logger.debug(
         "[Two view optimizer] [Summary] Calibrated %.1f%%, Planar/Panoramic %.1f%%, Degenerate: %.1f%%",
         calibrated_configuration_percent,
         planar_or_panoramic_configuration_percent,
-        degenerate_configuration_percent
+        degenerate_configuration_percent,
     )
 
     logger.debug(
@@ -383,7 +381,7 @@ def aggregate_frontend_metrics(
             GtsfmMetric("num_inliers_gt_model", num_inliers_gt_model_all_pairs),
             GtsfmMetric("degenerate_configuration_percent", degenerate_configuration_percent),
             GtsfmMetric("planar_or_panoramic_configuration_percent", planar_or_panoramic_configuration_percent),
-            GtsfmMetric("calibrated_configuration_percent", calibrated_configuration_percent)
+            GtsfmMetric("calibrated_configuration_percent", calibrated_configuration_percent),
         ],
     )
     return frontend_metrics
