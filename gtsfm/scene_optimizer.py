@@ -125,8 +125,10 @@ class SceneOptimizer:
         v_corr_idxs_graph_dict = {}
 
         two_view_reports_dict = {}
+        two_view_reports_pp_dict = {}
 
         for (i1, i2) in image_pair_indices:
+            # TODO(johnwlambert): decompose this method -- name it as "calling_the_plate()"
             if gt_cameras_graph is not None:
                 # compute GT relative pose
                 gt_i2Ti1 = dask.delayed(lambda x, y: x.pose().between(y.pose()))(
@@ -135,7 +137,14 @@ class SceneOptimizer:
             else:
                 gt_i2Ti1 = None
 
-            (i2Ri1, i2Ui1, v_corr_idxs, two_view_report,) = self.two_view_estimator.create_computation_graph(
+            # TODO(johnwlambert): decompose this so what happens in the loop is a separate method
+            (
+                i2Ri1,
+                i2Ui1,
+                v_corr_idxs,
+                two_view_report,
+                two_view_report_pp,
+            ) = self.two_view_estimator.create_computation_graph(
                 keypoints_graph_list[i1],
                 keypoints_graph_list[i2],
                 descriptors_graph_list[i1],
@@ -150,8 +159,8 @@ class SceneOptimizer:
             i2Ri1_graph_dict[(i1, i2)] = i2Ri1
             i2Ui1_graph_dict[(i1, i2)] = i2Ui1
             v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
-
             two_view_reports_dict[(i1, i2)] = two_view_report
+            two_view_reports_pp_dict[(i1, i2)] = two_view_report_pp
 
             if self._save_two_view_correspondences_viz:
                 auxiliary_graph_list.append(
@@ -168,12 +177,19 @@ class SceneOptimizer:
 
         # persist all front-end metrics and its summary
         auxiliary_graph_list.append(
-            dask.delayed(save_full_frontend_metrics)(two_view_reports_dict, image_graph, filename="frontend_full.json")
+            dask.delayed(save_full_frontend_metrics)(two_view_reports_dict, image_graph, filename="verifier_full.json")
         )
         if gt_cameras_graph is not None:
             metrics_graph_list.append(
                 dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
-                    two_view_reports_dict, self._pose_angular_error_thresh, metric_group_name="frontend_summary"
+                    two_view_reports_dict, self._pose_angular_error_thresh, metric_group_name="verifier_summary"
+                )
+            )
+            metrics_graph_list.append(
+                dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
+                    two_view_reports_pp_dict,
+                    self._pose_angular_error_thresh,
+                    metric_group_name="inlier_support_processor_summary",
                 )
             )
 
@@ -185,6 +201,8 @@ class SceneOptimizer:
         auxiliary_graph_list = []
 
         # ensure cycle consistency in triplets
+        # TODO: add a get_computational_graph() method to ViewGraphOptimizer
+        # TODO(johnwlambert): use a different name for variable, since this is something different
         i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict, rcc_metrics_graph = dask.delayed(
             cycle_consistency.filter_to_cycle_consistent_edges, nout=4
         )(
