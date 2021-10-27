@@ -32,9 +32,10 @@ REACT_METRICS_PATH = Path(__file__).resolve().parent.parent.parent / "rtf_vis_to
 logger = logger_utils.get_logger()
 
 
-def count_correct_correspondences(
+def compute_correspondence_metrics(
     keypoints_i1: Keypoints,
     keypoints_i2: Keypoints,
+    corr_idxs_i1i2: np.ndarray,
     intrinsics_i1: Cal3Bundler,
     intrinsics_i2: Cal3Bundler,
     dist_threshold: float,
@@ -61,20 +62,18 @@ def count_correct_correspondences(
         Boolean mask of which verified correspondences are classified as correct under Sampson error
             (using GT epipolar geometry).
     """
-    # TODO: add unit test, with mocking.
-    if len(keypoints_i1) != len(keypoints_i2):
-        raise ValueError("Keypoints must have same counts")
-
-    if len(keypoints_i1) == 0:
+    if corr_idxs_i1i2.size == 0:
         return None, None
 
     # Compute ground truth correspondences.
+    matched_keypoints_i1 = keypoints_i1.extract_indices(corr_idxs_i1i2[:, 0])
+    matched_keypoints_i2 = keypoints_i2.extract_indices(corr_idxs_i1i2[:, 1])
     if None not in [gt_scene_mesh, gt_wTi1, gt_wTi2]:
         gt_camera_i1 = PinholeCameraCal3Bundler(gt_wTi1, intrinsics_i1)
         gt_camera_i2 = PinholeCameraCal3Bundler(gt_wTi2, intrinsics_i2)
         is_inlier, reproj_error = mesh_inlier_correspondences(
-            keypoints_i1,
-            keypoints_i2,
+            matched_keypoints_i1,
+            matched_keypoints_i2,
             gt_camera_i1,
             gt_camera_i2,
             gt_scene_mesh,
@@ -83,8 +82,8 @@ def count_correct_correspondences(
     elif gt_wTi1 is not None and gt_wTi2 is not None:
         gt_i2Ti1 = gt_wTi2.between(gt_wTi1)
         is_inlier, reproj_error = epipolar_inlier_correspondences(
-            keypoints_i1,
-            keypoints_i2,
+            matched_keypoints_i1,
+            matched_keypoints_i2,
             intrinsics_i1,
             intrinsics_i2,
             gt_i2Ti1,
@@ -147,7 +146,8 @@ def mesh_inlier_correspondences(
         gt_camera_i1: ground truth camera for image i1, i.e., wTi1 and intrinsics.
         gt_camera_i1: ground truth camera for image i2, i.e., wTi2 and intrinsics.
         gt_scene_mesh: ground truth triangular surface mesh of the scene in the world frame.
-        dist_threshold: max acceptable distance for a correct correspondence.
+        dist_threshold: max acceptable distance (in pixels) between image coordinates of ground truth landmark and
+            keypoint.
 
     Returns:
         is_inlier: (N, ) mask of inlier correspondences.

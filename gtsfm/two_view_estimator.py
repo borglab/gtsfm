@@ -76,7 +76,7 @@ class TwoViewEstimator:
         gt_wTi1_graph: Optional[Delayed] = None,
         gt_wTi2_graph: Optional[Delayed] = None,
         gt_scene_mesh_graph: Optional[Delayed] = None,
-    ) -> Tuple[Delayed, Delayed, Delayed, Optional[Delayed], Optional[Delayed], Optional[Delayed]]:
+    ) -> Tuple[Delayed, Delayed, Delayed, Optional[Delayed], Optional[Delayed]]:
         """Create delayed tasks for matching and verification.
 
         Args:
@@ -119,21 +119,6 @@ class TwoViewEstimator:
             camera_intrinsics_i1_graph,
             camera_intrinsics_i2_graph,
         )
-        # gt_verifier_result = dask.delayed(ground_truth_verifier)(
-        #     keypoints_i1_graph,
-        #     keypoints_i2_graph,
-        #     corr_idxs_graph,
-        #     camera_intrinsics_i1_graph,
-        #     camera_intrinsics_i2_graph,
-        #     self._corr_metric_dist_threshold,
-        #     gt_wTi1_graph,
-        #     gt_wTi2_graph,
-        #     gt_scene_mesh_graph,
-        # )
-        # i2Ri1_graph = gt_verifier_result[0]
-        # i2Ui1_graph = gt_verifier_result[1]
-        # v_corr_idxs_graph = gt_verifier_result[2]
-        # inlier_ratio_est_model = gt_verifier_result[3]
 
         # if we have the expected GT data, evaluate the computed relative pose
         if gt_wTi1_graph is not None and gt_wTi2_graph is not None:
@@ -141,7 +126,9 @@ class TwoViewEstimator:
             R_error_deg, U_error_deg = dask.delayed(compute_relative_pose_metrics, nout=2)(
                 i2Ri1_graph, i2Ui1_graph, i2Ti1_expected_graph
             )
-            v_corr_idxs_inlier_mask_gt, reproj_error_gt_model = dask.delayed(compute_correspondence_metrics, nout=2)(
+            v_corr_idxs_inlier_mask_gt, reproj_error_gt_model = dask.delayed(
+                metric_utils.compute_correspondence_metrics, nout=2
+            )(
                 keypoints_i1_graph,
                 keypoints_i2_graph,
                 v_corr_idxs_graph,
@@ -174,57 +161,6 @@ class TwoViewEstimator:
         ) = self.processor.create_computation_graph(i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph)
         # We provide both, as we will create reports for both.
         return (i2Ri1_pp_graph, i2Ui1_pp_graph, v_corr_idxs_pp_graph, two_view_report_graph, two_view_report_pp_graph)
-
-
-def ground_truth_verifier(
-    keypoints_i1: Keypoints,
-    keypoints_i2: Keypoints,
-    matches_i1i2: np.ndarray,
-    intrinsics_i1: Cal3Bundler,
-    intrinsics_i2: Cal3Bundler,
-    dist_threshold: float,
-    gt_wTi1: Pose3,
-    gt_wTi2: Pose3,
-    gt_scene_mesh: trimesh.Trimesh,
-) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, float]:
-    """Verify correspondences and compute relative pose using ground truth data."""
-    logger.info("ground truth verifier")
-    # Compute ground truth correspondences.
-    gt_camera_i1 = PinholeCameraCal3Bundler(gt_wTi1, intrinsics_i1)
-    gt_camera_i2 = PinholeCameraCal3Bundler(gt_wTi2, intrinsics_i2)
-    inlier_mask, _ = metric_utils.mesh_inlier_correspondences(
-        keypoints_i1.extract_indices(matches_i1i2[:, 0]),
-        keypoints_i2.extract_indices(matches_i1i2[:, 1]),
-        gt_camera_i1,
-        gt_camera_i2,
-        gt_scene_mesh,
-        dist_threshold,
-    )
-    inlier_idxs = np.where(inlier_mask.ravel() == 1)[0]
-    v_corr_idxs = matches_i1i2[inlier_idxs]
-    logger.info("computed ground truth correspondences")
-
-    if v_corr_idxs.shape[0] < 15:
-        return None, None, np.array([], dtype=np.uint64), 0.0
-
-    # Compute essential matrix.
-    i2Ei1, _ = cv2.findEssentialMat(
-        keypoints_i1.extract_indices(v_corr_idxs[:, 0]).coordinates,
-        keypoints_i2.extract_indices(v_corr_idxs[:, 1]).coordinates,
-        intrinsics_i1.K(),
-        method=0,
-    )
-    logger.info("computed ground truth essential matrix")
-
-    (i2Ri1, i2Ui1) = verification_utils.recover_relative_pose_from_essential_matrix(
-        i2Ei1,
-        keypoints_i1.coordinates[v_corr_idxs[:, 0]],
-        keypoints_i2.coordinates[v_corr_idxs[:, 1]],
-        intrinsics_i1,
-        intrinsics_i2,
-    )
-
-    return i2Ri1, i2Ui1, v_corr_idxs, 1.0
 
 
 def generate_two_view_report(
@@ -267,50 +203,6 @@ def generate_two_view_report(
         outlier_avg_reproj_error_gt_model=outlier_avg_reproj_error_gt_model,
     )
     return two_view_report
-
-
-def compute_correspondence_metrics(
-    keypoints_i1: Keypoints,
-    keypoints_i2: Keypoints,
-    corr_idxs_i1i2: np.ndarray,
-    intrinsics_i1: Cal3Bundler,
-    intrinsics_i2: Cal3Bundler,
-    epipolar_distance_threshold: float,
-    wTi1: Optional[Pose3] = None,
-    wTi2: Optional[Pose3] = None,
-    gt_scene_mesh: Optional[trimesh.Trimesh] = None,
-) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
-    """Compute the metrics for the generated verified correspondence.
-
-    Args:
-        keypoints_i1: detected keypoints in image i1.
-        keypoints_i2: detected keypoints in image i2.
-        corr_idxs_i1i2: indices of correspondences.
-        intrinsics_i1: intrinsics for i1.
-        intrinsics_i2: intrinsics for i2.
-        i2Ti1: relative pose.
-        epipolar_distance_threshold: max epipolar distance to qualify as a correct match.
-
-    Returns:
-        Number of inlier correspondences to ground truth epipolar geometry, i.e. #correct correspondences.
-        Inlier Ratio, i.e. ratio of correspondences which are correct w.r.t. given relative pose.
-        Mask of which verified correspondences are classified as correct under Sampson error
-            (using GT epipolar geometry).
-    """
-    if corr_idxs_i1i2.size == 0:
-        return None, None
-
-    v_corr_idxs_inlier_mask_gt, reproj_error_gt_model = metric_utils.count_correct_correspondences(
-        keypoints_i1.extract_indices(corr_idxs_i1i2[:, 0]),
-        keypoints_i2.extract_indices(corr_idxs_i1i2[:, 1]),
-        intrinsics_i1,
-        intrinsics_i2,
-        epipolar_distance_threshold,
-        wTi1,
-        wTi2,
-        gt_scene_mesh,
-    )
-    return v_corr_idxs_inlier_mask_gt, reproj_error_gt_model
 
 
 def compute_relative_pose_metrics(
