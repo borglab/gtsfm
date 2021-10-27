@@ -27,6 +27,9 @@ SceneOptimizer:
       use_intrinsics_in_verification: True
       estimation_threshold_px: 4 # for H/E/F estimators
 
+    homography_verifier:
+      _target_: gtsfm.frontend.homography_verifier.ransac.RansacHomographyVerifier
+
     inlier_support_processor:
       _target_: gtsfm.two_view_estimator.InlierSupportProcessor
       min_num_inliers_est_model: 15

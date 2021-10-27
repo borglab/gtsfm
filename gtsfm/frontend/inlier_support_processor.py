@@ -11,10 +11,22 @@ from dask.delayed import Delayed
 from gtsam import Rot3, Unit3
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
+from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport, TwoViewConfigurationType
 
 
 logger = logger_utils.get_logger()
+
+EPSILON = 1e-6
+
+# In case an epipolar geometry can be verified, it is checked whether
+# the geometry describes a planar scene or panoramic view (pure rotation)
+# described by a homography. This is a degenerate case, since epipolar
+# geometry is only defined for a moving camera. If the inlier ratio of
+# a homography comes close to the inlier ratio of the epipolar geometry,
+# a planar or panoramic configuration is assumed.
+# Based on COLMAP's front-end logic here:
+#    https://github.com/colmap/colmap/blob/dev/src/estimators/two_view_geometry.cc#L230
+MAX_H_INLIER_RATIO = 0.8
 
 
 class InlierSupportProcessor:
@@ -75,7 +87,8 @@ class InlierSupportProcessor:
             i2Ri1 = None
             i2Ui1 = None
             v_corr_idxs = np.array([], dtype=np.uint64)
-            return i2Ri1, i2Ui1, v_corr_idxs, None
+            two_view_report.configuration_type = TwoViewConfigurationType.DEGENERATE
+            return i2Ri1, i2Ui1, v_corr_idxs, two_view_report
 
         if valid_model and insufficient_inliers:
             logger.debug(
@@ -83,14 +96,26 @@ class InlierSupportProcessor:
                 two_view_report.num_inliers_est_model,
                 self._min_num_inliers_est_model,
             )
-
             i2Ri1 = None
             i2Ui1 = None
             v_corr_idxs = np.array([], dtype=np.uint64)
-            return i2Ri1, i2Ui1, v_corr_idxs, None
+            two_view_report.configuration_type = TwoViewConfigurationType.DEGENERATE
+            return i2Ri1, i2Ui1, v_corr_idxs, two_view_report
+
+        H_EF_inlier_ratio = two_view_report.num_H_inliers / (two_view_report.num_inliers_est_model + EPSILON)
+        is_planar_or_panoramic = H_EF_inlier_ratio > MAX_H_INLIER_RATIO
+        logger.info("H_EF_inlier_ratio: %.2f", H_EF_inlier_ratio)
+        if is_planar_or_panoramic:
+            logger.info("Planar or panoramic; ignoring image pair (in future PR pose will be extracted from decomposed homography).")
+            i2Ri1 = None
+            i2Ui1 = None
+            v_corr_idxs = np.array([], dtype=np.uint64)
+            two_view_report.configuration_type = TwoViewConfigurationType.PLANAR_OR_PANORAMIC
+            return i2Ri1, i2Ui1, v_corr_idxs, two_view_report
 
         two_view_report.i2Ri1 = i2Ri1
         two_view_report.i2Ui1 = i2Ui1
+        two_view_report.configuration_type = TwoViewConfigurationType.CALIBRATED
 
         return i2Ri1, i2Ui1, v_corr_idxs, two_view_report
 

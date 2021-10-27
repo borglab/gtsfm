@@ -417,6 +417,9 @@ def save_full_frontend_metrics(
                 else None,
                 "inlier_ratio_est_model": round(report.inlier_ratio_est_model, PRINT_NUM_SIG_FIGS),
                 "num_inliers_est_model": report.num_inliers_est_model,
+                "num_H_inliers": int(report.num_H_inliers),
+                "H_inlier_ratio": round(report.H_inlier_ratio, PRINT_NUM_SIG_FIGS),
+                "two_view_configuration_type": report.configuration_type
             }
         )
 

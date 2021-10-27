@@ -5,11 +5,20 @@ Authors: John Lambert
 """
 
 from dataclasses import dataclass
+from enum import Enum
 from typing import Optional
 
 import numpy as np
 from gtsam import Rot3, Unit3
 
+
+class TwoViewConfigurationType(str, Enum):
+    """"""
+    CALIBRATED: str = "CALIBRATED"
+    UNCALIBRATED: str = "UNCALIBRATED"
+    PLANAR_OR_PANORAMIC: str = "PLANAR_OR_PANORAMIC"
+    DEGENERATE: str = "DEGENERATE"
+    
 
 @dataclass(frozen=False)
 class TwoViewEstimationReport:
@@ -23,6 +32,8 @@ class TwoViewEstimationReport:
 
     Args:
         v_corr_idxs: verified correspondence indices.
+        num_H_inliers: 
+        H_inlier_ratio: 
         num_inliers_est_model: #correspondences consistent with estimated model (not necessarily "correct")
         inlier_ratio_est_model: #matches consistent with est. model / # putative matches, i.e.
            measures how consistent the model is with the putative matches.
@@ -34,9 +45,12 @@ class TwoViewEstimationReport:
         U_error_deg: relative translation error w.r.t. GT. Only defined if GT poses provided.
         i2Ri1: relative rotation.
         i2Ui1: relative translation direction.
+        configuration_type: 
     """
 
     v_corr_idxs: np.ndarray
+    num_H_inliers: int
+    H_inlier_ratio: float
     num_inliers_est_model: float
     inlier_ratio_est_model: Optional[float] = None  # TODO: make not optional (pass from verifier)
     num_inliers_gt_model: Optional[float] = None
@@ -46,3 +60,4 @@ class TwoViewEstimationReport:
     U_error_deg: Optional[float] = None
     i2Ri1: Optional[Rot3] = None
     i2Ui1: Optional[Unit3] = None
+    configuration_type: Optional[TwoViewConfigurationType] = None
