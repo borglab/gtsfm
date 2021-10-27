@@ -126,15 +126,23 @@ class SceneOptimizer:
         i2Ui1_graph_dict = {}
         v_corr_idxs_graph_dict: Dict[Tuple[int, int], np.ndarray] = {}
         two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport] = {}
+        two_view_reports_pp_dict: Dict[Tuple[int, int], TwoViewEstimationReport] = {}
         for (i1, i2) in image_pair_indices:
             # Collect ground truth relative and absolute poses if available.
+            # TODO(johnwlambert): decompose this method -- name it as "calling_the_plate()"
             if gt_cameras_graph is not None:
                 gt_wTi1, gt_wTi2 = gt_cameras_graph[i1].pose(), gt_cameras_graph[i2].pose()
             else:
                 gt_wTi1, gt_wTi2 = None, None
 
-            # Compute relative rotation, (unit) translation, and verified correspondences.
-            (i2Ri1, i2Ui1, v_corr_idxs, two_view_report,) = self.two_view_estimator.create_computation_graph(
+            # TODO(johnwlambert): decompose this so what happens in the loop is a separate method
+            (
+                i2Ri1,
+                i2Ui1,
+                v_corr_idxs,
+                two_view_report,
+                two_view_report_pp,
+            ) = self.two_view_estimator.create_computation_graph(
                 keypoints_graph_list[i1],
                 keypoints_graph_list[i2],
                 descriptors_graph_list[i1],
@@ -153,6 +161,7 @@ class SceneOptimizer:
             i2Ui1_graph_dict[(i1, i2)] = i2Ui1
             v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
             two_view_reports_dict[(i1, i2)] = two_view_report
+            two_view_reports_pp_dict[(i1, i2)] = two_view_report_pp
 
             # Use ground truth relative poses.
             # from gtsam import Unit3
@@ -176,12 +185,19 @@ class SceneOptimizer:
 
         # Persist all front-end metrics and their summaries.
         auxiliary_graph_list.append(
-            dask.delayed(save_full_frontend_metrics)(two_view_reports_dict, image_graph, filename="frontend_full.json")
+            dask.delayed(save_full_frontend_metrics)(two_view_reports_dict, image_graph, filename="verifier_full.json")
         )
         if gt_cameras_graph is not None:
             metrics_graph_list.append(
                 dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
-                    two_view_reports_dict, self._pose_angular_error_thresh, metric_group_name="frontend_summary"
+                    two_view_reports_dict, self._pose_angular_error_thresh, metric_group_name="verifier_summary"
+                )
+            )
+            metrics_graph_list.append(
+                dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
+                    two_view_reports_pp_dict,
+                    self._pose_angular_error_thresh,
+                    metric_group_name="inlier_support_processor_summary",
                 )
             )
 
@@ -193,6 +209,8 @@ class SceneOptimizer:
         auxiliary_graph_list = []
 
         # ensure cycle consistency in triplets
+        # TODO: add a get_computational_graph() method to ViewGraphOptimizer
+        # TODO(johnwlambert): use a different name for variable, since this is something different
         i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict, rcc_metrics_graph = dask.delayed(
             cycle_consistency.filter_to_cycle_consistent_edges, nout=4
         )(
@@ -247,15 +265,16 @@ class SceneOptimizer:
         # Save metrics to JSON and generate HTML report.
         auxiliary_graph_list.extend(save_metrics_reports(metrics_graph_list))
 
-        # # Modify BA input and BA output to have point clouds and frustums aligned with x,y,z axes.
-        # ba_input_graph, ba_output_graph, gt_pose_graph = dask.delayed(align_estimated_gtsfm_data, nout=3)(
-        #     ba_input_graph, ba_output_graph, gt_pose_graph
-        # )
+        # Modify BA input, BA output, and GT poses to have point clouds and frustums aligned with x,y,z axes.
+        gt_poses_graph = (
+            [dask.delayed(lambda x: x.pose())(cam) for cam in gt_cameras_graph] if gt_cameras_graph else None
+        )
+
+        ba_input_graph, ba_output_graph, gt_poses_graph = dask.delayed(align_estimated_gtsfm_data, nout=3)(
+            ba_input_graph, ba_output_graph, gt_poses_graph
+        )
 
         if self._save_3d_viz:
-            gt_poses_graph = (
-                [dask.delayed(lambda x: x.pose())(cam) for cam in gt_cameras_graph] if gt_cameras_graph else None
-            )
             auxiliary_graph_list.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_poses_graph))
 
         if self._save_gtsfm_data:
@@ -287,10 +306,10 @@ def align_estimated_gtsfm_data(
         Updated gt_pose_graph with GT poses aligned to axes.
     """
     walignedTw = ellipsoid_utils.get_ortho_axis_alignment_transform(ba_output)
-    walignedTw = Similarity3(R=walignedTw.rotation(), t=walignedTw.translation(), s=1.0)
-    ba_input = ba_input.apply_Sim3(walignedTw)
-    ba_output = ba_output.apply_Sim3(walignedTw)
-    gt_pose_graph = [walignedTw.transformFrom(wTi) for wTi in gt_pose_graph]
+    walignedSw = Similarity3(R=walignedTw.rotation(), t=walignedTw.translation(), s=1.0)
+    ba_input = ba_input.apply_Sim3(walignedSw)
+    ba_output = ba_output.apply_Sim3(walignedSw)
+    gt_pose_graph = [walignedSw.transformFrom(wTi) for wTi in gt_pose_graph]
     return ba_input, ba_output, gt_pose_graph
 
 
