@@ -1,4 +1,3 @@
-
 """Post-processor that uses information about RANSAC support (for verified correspondences) to filter out image pairs.
 
 Authors: John Lambert
@@ -20,6 +19,7 @@ logger = logger_utils.get_logger()
 
 class InlierSupportProcessor:
     """Reasons about the amount of support for a relative pose measurement between an image pair."""
+
     def __init__(
         self,
         min_num_inliers_est_model: int,
@@ -44,7 +44,7 @@ class InlierSupportProcessor:
         v_corr_idxs: np.ndarray,
         two_view_report: TwoViewEstimationReport,
     ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, Optional[TwoViewEstimationReport]]:
-        """Check for insufficient support among correspondences to estimate this image pair.
+        """Check for sufficient support among correspondences to estimate a trustworthy relative pose for this image pair.
 
         We don't modify the report (to stay functional), but report InlierSupportProcessor metrics separately.
 
@@ -67,7 +67,7 @@ class InlierSupportProcessor:
 
         # no need to extract the relative pose if we have insufficient inliers.
         if two_view_report.inlier_ratio_est_model < self._min_inlier_ratio_est_model:
-            logger.info(
+            logger.debug(
                 "Insufficient inlier ratio. %d vs. %d",
                 two_view_report.inlier_ratio_est_model,
                 self._min_inlier_ratio_est_model,
@@ -78,7 +78,7 @@ class InlierSupportProcessor:
             return i2Ri1, i2Ui1, v_corr_idxs, None
 
         if valid_model and insufficient_inliers:
-            logger.info(
+            logger.debug(
                 "Insufficient number of inliers. %d vs. %d",
                 two_view_report.num_inliers_est_model,
                 self._min_num_inliers_est_model,
@@ -97,10 +97,23 @@ class InlierSupportProcessor:
     def create_computation_graph(
         self, i2Ri1_graph: Delayed, i2Ui1_graph: Delayed, v_corr_idxs_graph: Delayed, two_view_report_graph: Delayed
     ) -> Tuple[Delayed, Delayed, Delayed, Delayed]:
-        """Create the Dask computational graph for the InlierSupportProcessor."""
+        """Create the Dask computational graph for the InlierSupportProcessor.
 
-        # `pp` represents `post-processed`
-        i2Ri1_pp_graph, i2Ui1_pp_graph, v_corr_idxs_pp_graph, two_view_report_pp_graph = dask.delayed(self.run, nout=4)(
-            i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph
-        )
-        return i2Ri1_pp_graph, i2Ui1_pp_graph, v_corr_idxs_pp_graph, two_view_report_pp_graph
+        Args:
+            i2Ri1_graph: Relative rotation i2Ri1 for a single (i1,i2) image pair, wrapped up as Delayed.
+                When computed, will be of type Rot3, or may be None.
+            i2Ui1_graph: Relative translation direction i2Ui1 for a single (i1,i2) image pair, wrapped up as Delayed.
+                When computed, will be of type Unit3, and may be None.
+            v_corr_idxs_graph: Keypoint indices for verified correspondences, wrapped up as Delayed.
+               When computed, will be an array of shape (N,2).
+            two_view_report_graph: Report from verifier indicating the amount of "support" found for the estimated
+                relative pose.
+
+        Returns:
+            i2Ri1_pp_graph: Post-processed relative rotation (may now be None, if insufficient support).
+            i2Ui1_pp_graph: Post-processed relative translation direction (may now be None, if insufficient support).
+            v_corr_idxs_pp_graph: Post-processed keypoint indices for verified correspondences.
+                May now be an empty array, if insufficient support.
+            two_view_report_pp_graph: Post-processed two-view report (may now be None, if insufficient support).
+        """
+        return dask.delayed(self.run, nout=4)(i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph)
