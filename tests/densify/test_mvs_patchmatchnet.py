@@ -87,7 +87,7 @@ class TestMVSPatchmatchNet(unittest.TestCase):
                 u, v = sfm_result.get_camera(i).project(world_x)
 
                 # color the track point with (r, g, b) = (255, 255, 255)
-                self._img_dict[i].value_array[int(v + 0.5), int(u + 0.5), :] = 255
+                self._img_dict[i].value_array[np.round(v).astype(np.uint32), np.round(u).astype(np.uint32), :] = 255
 
                 track_to_add.add_measurement(idx=i, m=[u, v])
             sfm_result.add_track(track_to_add)
