@@ -106,7 +106,10 @@ class InlierSupportProcessor:
         is_planar_or_panoramic = H_EF_inlier_ratio > MAX_H_INLIER_RATIO
         logger.info("H_EF_inlier_ratio: %.2f", H_EF_inlier_ratio)
         if is_planar_or_panoramic:
-            logger.info("Planar or panoramic; ignoring image pair (in future PR pose will be extracted from decomposed homography).")
+            logger.info(
+                "Planar or panoramic; ignoring image pair "
+                + "(in future PR pose will be extracted from decomposed homography)."
+            )
             i2Ri1 = None
             i2Ui1 = None
             v_corr_idxs = np.array([], dtype=np.uint64)

@@ -1,4 +1,3 @@
-
 """
 Fit a homography matrix from correspondences.
 
@@ -27,29 +26,32 @@ DEFAULT_RANSAC_PROB = 0.999
 
 
 class RansacHomographyVerifier(HomographyVerifierBase):
-
     def verify(
-        self, keypoints_i1: Keypoints, keypoints_i2: Keypoints, match_indices: np.ndarray, estimation_threshold_px: float
+        self,
+        keypoints_i1: Keypoints,
+        keypoints_i2: Keypoints,
+        match_indices: np.ndarray,
+        estimation_threshold_px: float,
     ) -> Tuple[np.ndarray, float, int, np.ndarray]:
         """Verify that a set of correspondences belong to a homography configuration.
 
-        We fit a homography to the correspondences, and also estimate to what extent the correspondences agree
-        with the estimated homography.
+         We fit a homography to the correspondences, and also estimate to what extent the correspondences agree
+         with the estimated homography.
 
-        We provide statistics of the RANSAC result, like COLMAP does here for LORANSAC:
-        https://github.com/colmap/colmap/blob/dev/src/optim/loransac.h
+         We provide statistics of the RANSAC result, like COLMAP does here for LORANSAC:
+         https://github.com/colmap/colmap/blob/dev/src/optim/loransac.h
 
-        Args:
-            keypoints_i1: detected features in image #i1.
-            keypoints_i2: detected features in image #i2.
-            match_indices: matches as indices of features from both images, of shape (N3, 2), where N3 <= min(N1, N2).
-            estimation_threshold_px: threshold value (in pixels) to use for classifying inliers in RANSAC.
+         Args:
+             keypoints_i1: detected features in image #i1.
+             keypoints_i2: detected features in image #i2.
+             match_indices: matches as indices of features from both images, of shape (N3, 2), where N3 <= min(N1, N2).
+             estimation_threshold_px: threshold value (in pixels) to use for classifying inliers in RANSAC.
 
-       Returns:
-            H: array of shape (3,3) representing homography matrix.
-            inlier_idxs: indices of inliers from matches array.
-            inlier_ratio: i.e. ratio of correspondences which approximately agree with planar geometry.
-            num_inliers: number of correspondence consistent with estimated homography H.
+        Returns:
+             H: array of shape (3,3) representing homography matrix.
+             inlier_idxs: indices of inliers from matches array.
+             inlier_ratio: i.e. ratio of correspondences which approximately agree with planar geometry.
+             num_inliers: number of correspondence consistent with estimated homography H.
         """
         if match_indices.shape[0] < homography_verifier_base.MIN_PTS_HOMOGRAPHY:
             num_inliers = 0

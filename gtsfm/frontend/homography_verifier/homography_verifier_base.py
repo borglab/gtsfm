@@ -3,12 +3,11 @@
 Authors: Ayush Baid, John Lambert
 """
 import abc
-from typing import Optional, Tuple
+from typing import Tuple
 
 import dask
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import Cal3Bundler, Rot3, Unit3
 
 from gtsfm.common.keypoints import Keypoints
 
@@ -25,7 +24,11 @@ class HomographyVerifierBase(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def verify(
-        self, keypoints_i1: Keypoints, keypoints_i2: Keypoints, match_indices: np.ndarray, estimation_threshold_px: float
+        self,
+        keypoints_i1: Keypoints,
+        keypoints_i2: Keypoints,
+        match_indices: np.ndarray,
+        estimation_threshold_px: float,
     ) -> Tuple[np.ndarray, float, int, np.ndarray]:
         """Verify that a set of correspondences belong to a homography configuration.
 
