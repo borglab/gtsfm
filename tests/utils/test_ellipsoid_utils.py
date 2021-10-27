@@ -34,15 +34,15 @@ class TestEllipsoidUtils(unittest.TestCase):
            sample_data:              output_data:
 
                y                         y
-               |     c                   |
-           o   |                         o
+               |                         o
+               |                         |
+               |     o                   |
+           o   |                         c
              c | c                       |
           ------------- x   ==>  --o--c-----c--o-- x
              o | c                       |
-               |   o                     c
+               |   o                     o
                |                         |
-               |                         |
-               |                         c
 
         c = point at (xi,yi,0) with a camera frustum at (xi,yi,2)
         o = point at (xi,yi,0)
@@ -85,22 +85,22 @@ class TestEllipsoidUtils(unittest.TestCase):
         computed_3d_points = np.array([sample_data.get_track(i).point3() for i in range(sample_data.number_tracks())])
         expected_3d_points = np.array(
             [
-                [0, -np.sqrt(2), 0],
-                [np.sqrt(2), 0, 0],
-                [2 * np.sqrt(2), 0, 0],
                 [0, np.sqrt(2), 0],
                 [-np.sqrt(2), 0, 0],
                 [-2 * np.sqrt(2), 0, 0],
-                [0, -5 * np.sqrt(2), 0],
+                [0, -np.sqrt(2), 0],
+                [np.sqrt(2), 0, 0],
+                [2 * np.sqrt(2), 0, 0],
+                [0, 5 * np.sqrt(2), 0],
             ]
         )
         npt.assert_almost_equal(computed_3d_points, expected_3d_points, decimal=3)
 
         # Verify correct camera poses.
         expected_wTi_list = [
-            Pose3(walignedTw.rotation(), np.array([np.sqrt(2), 0, 2])),
-            Pose3(walignedTw.rotation(), np.array([0, -np.sqrt(2), 2])),
             Pose3(walignedTw.rotation(), np.array([-np.sqrt(2), 0, 2])),
+            Pose3(walignedTw.rotation(), np.array([0, np.sqrt(2), 2])),
+            Pose3(walignedTw.rotation(), np.array([np.sqrt(2), 0, 2])),
         ]
 
         computed_wTi_list = sample_data.get_camera_poses()
@@ -243,7 +243,7 @@ class TestEllipsoidUtils(unittest.TestCase):
 
         computed_rotation = ellipsoid_utils.get_alignment_rotation_matrix_from_svd(sample_points)
         num = np.sqrt(2) / 2
-        expected_rotation = np.array([[-num, num, 0], [-num, -num, 0], [0, 0, 1]])
+        expected_rotation = np.array([[num, -num, 0], [num, num, 0], [0, 0, 1]])
         npt.assert_almost_equal(computed_rotation, expected_rotation, decimal=3)
 
         # Apply the rotation transformation to sample_points
@@ -258,6 +258,36 @@ class TestEllipsoidUtils(unittest.TestCase):
 
         sample_points = np.array([[1, 1], [-1, 1], [-2, 2], [-1, -1], [1, -1], [2, -2]])
         self.assertRaises(TypeError, ellipsoid_utils.get_alignment_rotation_matrix_from_svd, sample_points)
+
+    def test_get_right_singular_vectors(self) -> None:
+        """Tests the get_right_singular_vectors() function by checking that it outputs the same V matrix as
+        np.linalg.svd()."""
+
+        # fmt: off
+        points = np.array(
+            [
+                [3,4,5],
+                [4,1,3],
+                [9,1,2],
+                [6,3,1]
+            ]
+        )
+        # fmt: on
+
+        V = ellipsoid_utils.get_right_singular_vectors(points)
+        computed_Vt = V.T
+
+        U, S, Vt = np.linalg.svd(points, full_matrices=False)
+        expected_Vt = Vt
+
+        computed_Vt = np.round(computed_Vt, 3)
+        expected_Vt = np.round(expected_Vt, 3)
+
+        # Check if each eigenvector of computed_Vt and expected_Vt has the same direction.
+        for rowIdx in range(computed_Vt.shape[0]):
+            assert np.all((computed_Vt[rowIdx, :] == expected_Vt[rowIdx, :])) or np.all(
+                (computed_Vt[rowIdx, :] == -1 * expected_Vt[rowIdx, :])
+            )
 
 
 if __name__ == "__main__":
