@@ -3,7 +3,6 @@
 Authors: Ayush Baid, John Lambert
 """
 import logging
-from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
 
 import dask
@@ -15,9 +14,12 @@ import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
+from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
+
 
 logger = logger_utils.get_logger()
 
@@ -30,43 +32,6 @@ pil_logger.setLevel(logging.INFO)
 EPSILON = 1e-6
 
 
-@dataclass(frozen=False)
-class TwoViewEstimationReport:
-    """Information about verifier result on an edge between two nodes (i1,i2).
-
-    In the spirit of COLMAP's Report class:
-    https://github.com/colmap/colmap/blob/dev/src/optim/ransac.h#L82
-
-    Inlier ratio is defined in Heinly12eccv: https://www.cs.unc.edu/~jheinly/publications/eccv2012-heinly.pdf
-    or in Slide 59: https://www.cc.gatech.edu/~afb/classes/CS4495-Fall2014/slides/CS4495-Ransac.pdf
-
-    Args:
-        v_corr_idxs: verified correspondence indices.
-        num_inliers_est_model: #correspondences consistent with estimated model (not necessarily "correct")
-        inlier_ratio_est_model: #matches consistent with est. model / # putative matches, i.e.
-           measures how consistent the model is with the putative matches.
-        num_inliers_gt_model: measures how well the verification worked, w.r.t. GT, i.e. #correct correspondences.
-        inlier_ratio_gt_model: #correct matches/#putative matches. Only defined if GT relative pose provided.
-        v_corr_idxs_inlier_mask_gt: Mask of which verified correspondences are classified as correct under
-            Sampson error (using GT epipolar geometry).
-        R_error_deg: relative pose error w.r.t. GT. Only defined if GT poses provided.
-        U_error_deg: relative translation error w.r.t. GT. Only defined if GT poses provided.
-        i2Ri1: relative rotation.
-        i2Ui1: relative translation direction.
-    """
-
-    v_corr_idxs: np.ndarray
-    num_inliers_est_model: float
-    inlier_ratio_est_model: Optional[float] = None  # TODO: make not optional (pass from verifier)
-    num_inliers_gt_model: Optional[float] = None
-    inlier_ratio_gt_model: Optional[float] = None
-    v_corr_idxs_inlier_mask_gt: Optional[np.ndarray] = None
-    R_error_deg: Optional[float] = None
-    U_error_deg: Optional[float] = None
-    i2Ri1: Optional[Rot3] = None
-    i2Ui1: Optional[Unit3] = None
-
-
 class TwoViewEstimator:
     """Wrapper for running two-view relative pose estimation on image pairs in the dataset."""
 
@@ -74,27 +39,22 @@ class TwoViewEstimator:
         self,
         matcher: MatcherBase,
         verifier: VerifierBase,
+        inlier_support_processor: InlierSupportProcessor,
         eval_threshold_px: float,
-        min_num_inliers_acceptance: int,
-        min_allowed_inlier_ratio_est_model: float,
     ) -> None:
         """Initializes the two-view estimator from matcher and verifier.
 
         Args:
             matcher: matcher to use.
             verifier: verifier to use.
+            inlier_support_processor: post-processor that uses information about RANSAC support to filter out pairs.
             eval_threshold_px: distance threshold for marking a correspondence pair as inlier during evaluation
                 (not during estimation).
-            min_num_inliers_acceptance: minimum number of inliers that must agree w/ estimated model, to use
-                image pair.
-            min_allowed_inlier_ratio_est_model: minimum allowed inlier ratio w.r.t. the estimated model to accept
-                the verification result and use the image pair, i.e. the lowest allowed ratio of
-                #final RANSAC inliers/ #putatives. A lower fraction indicates less agreement among the result.
         """
         self._matcher = matcher
         self._verifier = verifier
+        self.processor = inlier_support_processor
         self._corr_metric_dist_threshold = eval_threshold_px
-        self.processor = InlierSupportProcessor(min_num_inliers_acceptance, min_allowed_inlier_ratio_est_model)
 
     def get_corr_metric_dist_threshold(self) -> float:
         """Getter for the distance threshold used in the metric for correct correspondences."""
@@ -220,94 +180,6 @@ def generate_two_view_report(
         U_error_deg=U_error_deg,
     )
     return two_view_report
-
-
-class InlierSupportProcessor:
-    """Reasons about the amount of support for a relative pose measurement between an image pair."""
-    def __init__(
-        self,
-        min_num_inliers_acceptance: int,
-        min_allowed_inlier_ratio_est_model: float,
-    ) -> None:
-        """Saves inlier thresholds to use for filtering.
-
-        Args:
-            min_num_inliers_acceptance: minimum number of inliers that must agree w/ estimated model, to use
-                image pair.
-            min_allowed_inlier_ratio_est_model: minimum allowed inlier ratio w.r.t. the estimated model to accept
-                the verification result and use the image pair, i.e. the lowest allowed ratio of
-                #final RANSAC inliers/ #putatives. A lower fraction indicates less agreement among the result.
-        """
-        self._min_num_inliers_acceptance = min_num_inliers_acceptance
-        self._min_allowed_inlier_ratio_est_model = min_allowed_inlier_ratio_est_model
-
-    def run(
-        self,
-        i2Ri1: Optional[Rot3],
-        i2Ui1: Optional[Unit3],
-        v_corr_idxs: np.ndarray,
-        two_view_report: TwoViewEstimationReport,
-    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, Optional[TwoViewEstimationReport]]:
-        """Check for insufficient support among correspondences to estimate this image pair.
-
-        We don't modify the report (to stay functional), but report InlierSupportProcessor metrics separately.
-
-        Args:
-            i2Ri1: relative rotation measurement.
-            i2Ui1: relative translation direction measurement:
-            v_corr_idxs: verified correspondence indices as (N,2) array.
-            two_view_report: two-view estimation report.
-
-        Returns:
-            i2Ri1: relative rotation, or None if insufficient support
-            i2Ui1: relative translation direction, or None if insufficient support
-            v_corr_idxs: empty (0,2) array if insufficient support
-            two_view_report: two-view estimation report, or None if insufficient support
-        """
-        insufficient_inliers = two_view_report.num_inliers_est_model < self._min_num_inliers_acceptance
-
-        # TODO: technically this should almost always be non-zero, just need to move up to earlier
-        valid_model = two_view_report.num_inliers_est_model > 0
-
-        # no need to extract the relative pose if we have insufficient inliers.
-        if two_view_report.inlier_ratio_est_model < self._min_allowed_inlier_ratio_est_model:
-            logger.info(
-                "Insufficient inlier ratio. %d vs. %d",
-                two_view_report.inlier_ratio_est_model,
-                self._min_allowed_inlier_ratio_est_model,
-            )
-            i2Ri1 = None
-            i2Ui1 = None
-            v_corr_idxs = np.array([], dtype=np.uint64)
-            return i2Ri1, i2Ui1, v_corr_idxs, None
-
-        if valid_model and insufficient_inliers:
-            logger.info(
-                "Insufficient number of inliers. %d vs. %d",
-                two_view_report.num_inliers_est_model,
-                self._min_num_inliers_acceptance,
-            )
-
-            i2Ri1 = None
-            i2Ui1 = None
-            v_corr_idxs = np.array([], dtype=np.uint64)
-            return i2Ri1, i2Ui1, v_corr_idxs, None
-
-        two_view_report.i2Ri1 = i2Ri1
-        two_view_report.i2Ui1 = i2Ui1
-
-        return i2Ri1, i2Ui1, v_corr_idxs, two_view_report
-
-    def create_computation_graph(
-        self, i2Ri1_graph: Delayed, i2Ui1_graph: Delayed, v_corr_idxs_graph: Delayed, two_view_report_graph: Delayed
-    ) -> Tuple[Delayed, Delayed, Delayed, Delayed]:
-        """Create the Dask computational graph for the InlierSupportProcessor."""
-
-        # `pp` represents `post-processed`
-        i2Ri1_pp_graph, i2Ui1_pp_graph, v_corr_idxs_pp_graph, two_view_report_pp_graph = dask.delayed(self.run, nout=4)(
-            i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph
-        )
-        return i2Ri1_pp_graph, i2Ui1_pp_graph, v_corr_idxs_pp_graph, two_view_report_pp_graph
 
 
 def compute_correspondence_metrics(
