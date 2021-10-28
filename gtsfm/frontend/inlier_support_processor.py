@@ -26,6 +26,7 @@ EPSILON = 1e-6
 # a planar or panoramic configuration is assumed.
 # Based on COLMAP's front-end logic here:
 #    https://github.com/colmap/colmap/blob/dev/src/estimators/two_view_geometry.cc#L230
+#    https://github.com/colmap/colmap/blob/dev/src/estimators/two_view_geometry.h#L87
 MAX_H_INLIER_RATIO = 0.8
 
 
