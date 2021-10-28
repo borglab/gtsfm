@@ -140,7 +140,7 @@ class TwoViewEstimator:
             v_corr_idxs_inlier_mask_gt = None
 
         # Note: homography estimation threshold must match the E / F thresholds for #inliers to be comparable
-        H_graph, H_inlier_idxs, num_inliers_H, inlier_ratio_H = dask.delayed(self._homography_verifier.verify, nout=4)(
+        H_graph, H_inlier_idxs, inlier_ratio_H, num_inliers_H = dask.delayed(self._homography_verifier.verify, nout=4)(
             keypoints_i1_graph,
             keypoints_i2_graph,
             match_indices=corr_idxs_graph,

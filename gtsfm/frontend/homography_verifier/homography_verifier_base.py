@@ -3,7 +3,7 @@
 Authors: Ayush Baid, John Lambert
 """
 import abc
-from typing import Tuple
+from typing import Optional, Tuple
 
 import dask
 import numpy as np
@@ -29,7 +29,7 @@ class HomographyVerifierBase(metaclass=abc.ABCMeta):
         keypoints_i2: Keypoints,
         match_indices: np.ndarray,
         estimation_threshold_px: float,
-    ) -> Tuple[np.ndarray, np.ndarray, float, int]:
+    ) -> Tuple[Optional[np.ndarray], np.ndarray, float, int]:
         """Verify that a set of correspondences belong to a homography configuration.
 
         Args:
@@ -41,8 +41,9 @@ class HomographyVerifierBase(metaclass=abc.ABCMeta):
         Returns:
             H: array of shape (3,3) representing homography matrix.
             inlier_idxs: indices of inliers from matches array.
-            inlier_ratio: i.e. ratio of correspondences which approximately agree with planar geometry.
-            num_inliers: number of correspondence consistent with estimated homography H.
+            inlier_ratio: i.e. ratio of correspondences which approximately agree with homography geometry
+                (whether planar or panoramic).
+            num_inliers: number of correspondences consistent with estimated homography H.
         """
 
     def create_computation_graph(
@@ -68,7 +69,7 @@ class HomographyVerifierBase(metaclass=abc.ABCMeta):
             Delayed dask task for number of inliers w.r.t. the estimated homography model.
         """
         # we cannot immediately unpack the result tuple, per dask syntax
-        H_graph, H_inlier_idxs_graph, num_inliers_H_graph, inlier_ratio_H_graph = dask.delayed(self.verify, nout=4)(
+        H_graph, H_inlier_idxs_graph, inlier_ratio_H_graph, num_inliers_H_graph = dask.delayed(self.verify, nout=4)(
             keypoints_i1_graph, keypoints_i2_graph, matches_i1i2_graph, intrinsics_i1_graph, intrinsics_i2_graph
         )
-        return H_graph, H_inlier_idxs_graph, num_inliers_H_graph, inlier_ratio_H_graph
+        return H_graph, H_inlier_idxs_graph, inlier_ratio_H_graph, num_inliers_H_graph

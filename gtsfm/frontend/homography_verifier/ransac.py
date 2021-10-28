@@ -9,7 +9,7 @@ COLMAP also checks degeneracy of structure here:
 Authors: John Lambert
 """
 
-from typing import Tuple
+from typing import Optional, Tuple
 
 import cv2
 import numpy as np
@@ -32,32 +32,32 @@ class RansacHomographyVerifier(HomographyVerifierBase):
         keypoints_i2: Keypoints,
         match_indices: np.ndarray,
         estimation_threshold_px: float,
-    ) -> Tuple[np.ndarray, np.ndarray, float, int]:
+    ) -> Tuple[Optional[np.ndarray], np.ndarray, float, int]:
         """Verify that a set of correspondences belong to a homography configuration.
 
-         We fit a homography to the correspondences, and also estimate to what extent the correspondences agree
-         with the estimated homography.
+        We fit a homography to the correspondences, and also estimate to what extent the correspondences agree
+        with the estimated homography.
 
-         We provide statistics of the RANSAC result, like COLMAP does here for LORANSAC:
-         https://github.com/colmap/colmap/blob/dev/src/optim/loransac.h
+        We provide statistics of the RANSAC result, like COLMAP does here for LORANSAC:
+        https://github.com/colmap/colmap/blob/dev/src/optim/loransac.h
 
-         Args:
-             keypoints_i1: detected features in image #i1.
-             keypoints_i2: detected features in image #i2.
-             match_indices: matches as indices of features from both images, of shape (N3, 2), where N3 <= min(N1, N2).
-             estimation_threshold_px: threshold value (in pixels) to use for classifying inliers in RANSAC.
+        Args:
+            keypoints_i1: detected features in image #i1.
+            keypoints_i2: detected features in image #i2.
+            match_indices: matches as indices of features from both images, of shape (N3, 2), where N3 <= min(N1, N2).
+            estimation_threshold_px: threshold value (in pixels) to use for classifying inliers in RANSAC.
 
         Returns:
-             H: array of shape (3,3) representing homography matrix.
-             inlier_idxs: indices of inliers from matches array.
-             inlier_ratio: i.e. ratio of correspondences which approximately agree with homography geometry
-                 (whether planar or panoramic).
-             num_inliers: number of correspondence consistent with estimated homography H.
+            H: array of shape (3,3) representing homography matrix.
+            inlier_idxs: indices of inliers from matches array.
+            inlier_ratio: i.e. ratio of correspondences which approximately agree with homography geometry
+                (whether planar or panoramic).
+            num_inliers: number of correspondences consistent with estimated homography H.
         """
         if match_indices.shape[0] < homography_verifier_base.MIN_PTS_HOMOGRAPHY:
             num_inliers = 0
             inlier_ratio = 0.0
-            return num_inliers, inlier_ratio
+            return None, np.array([], dtype=np.uint32), num_inliers, inlier_ratio
 
         uv_i1 = keypoints_i1.coordinates
         uv_i2 = keypoints_i2.coordinates
@@ -76,4 +76,4 @@ class RansacHomographyVerifier(HomographyVerifierBase):
         inlier_ratio = inlier_mask.mean()
 
         num_inliers = inlier_mask.sum()
-        return H, inlier_idxs, num_inliers, inlier_ratio
+        return H, inlier_idxs, inlier_ratio, num_inliers
