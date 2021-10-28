@@ -74,6 +74,5 @@ class RansacHomographyVerifier(HomographyVerifierBase):
 
         inlier_idxs = np.where(inlier_mask.ravel() == 1)[0]
         inlier_ratio = inlier_mask.mean()
-
         num_inliers = inlier_mask.sum()
         return H, inlier_idxs, inlier_ratio, num_inliers

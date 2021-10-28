@@ -18,15 +18,17 @@ logger = logger_utils.get_logger()
 
 EPSILON = 1e-6
 
-# In case an epipolar geometry can be verified, it is checked whether
-# the geometry describes a planar scene or panoramic view (pure rotation)
-# described by a homography. This is a degenerate case, since epipolar
-# geometry is only defined for a moving camera. If the inlier ratio of
-# a homography comes close to the inlier ratio of the epipolar geometry,
-# a planar or panoramic configuration is assumed.
-# Based on COLMAP's front-end logic here:
-#    https://github.com/colmap/colmap/blob/dev/src/estimators/two_view_geometry.cc#L230
-#    https://github.com/colmap/colmap/blob/dev/src/estimators/two_view_geometry.h#L87
+"""
+In case an epipolar geometry can be verified, it is checked whether
+the geometry describes a planar scene or panoramic view (pure rotation)
+described by a homography. This is a degenerate case, since epipolar
+geometry is only defined for a moving camera. If the inlier ratio of
+a homography comes close to the inlier ratio of the epipolar geometry,
+a planar or panoramic configuration is assumed.
+Based on COLMAP's front-end logic here:
+   https://github.com/colmap/colmap/blob/dev/src/estimators/two_view_geometry.cc#L230
+   https://github.com/colmap/colmap/blob/dev/src/estimators/two_view_geometry.h#L87
+"""
 MAX_H_INLIER_RATIO = 0.8
 
 
@@ -105,7 +107,7 @@ class InlierSupportProcessor:
 
         H_EF_inlier_ratio = two_view_report.num_H_inliers / (two_view_report.num_inliers_est_model + EPSILON)
         is_planar_or_panoramic = H_EF_inlier_ratio > MAX_H_INLIER_RATIO
-        logger.info("H_EF_inlier_ratio: %.2f", H_EF_inlier_ratio)
+        logger.debug("H_EF_inlier_ratio: %.2f", H_EF_inlier_ratio)
         if is_planar_or_panoramic:
             logger.info(
                 "Planar or panoramic; ignoring image pair "
