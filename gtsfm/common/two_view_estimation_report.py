@@ -39,8 +39,8 @@ class TwoViewEstimationReport:
 
     Args:
         v_corr_idxs: verified correspondence indices.
-        num_H_inliers: number of #correspondences consistent with estimated homography model.
-        H_inlier_ratio: fraction representating #correspondences consistent with homography / (# putatives matches).
+        num_inliers_H: number of #correspondences consistent with estimated homography model.
+        inlier_ratio_H: fraction representating #correspondences consistent with homography / (# putatives matches).
         num_inliers_est_model: #correspondences consistent with estimated model (not necessarily "correct")
         inlier_ratio_est_model: Fraction representing (#matches consistent with est. model) / (# putative matches),
             i.e. measures how consistent the model is with the putative matches.
@@ -56,8 +56,8 @@ class TwoViewEstimationReport:
     """
 
     v_corr_idxs: np.ndarray
-    num_H_inliers: int
-    H_inlier_ratio: float
+    num_inliers_H: int
+    inlier_ratio_H: float
     num_inliers_est_model: float
     inlier_ratio_est_model: Optional[float] = None  # TODO: make not optional (pass from verifier)
     num_inliers_gt_model: Optional[float] = None
