@@ -83,10 +83,11 @@ class VerifierBase(metaclass=abc.ABCMeta):
         """Generates the computation graph to perform verification of putative correspondences.
 
         Args:
-            image_pair_indices: 2-tuple (i1,i2) specifying image pair indices
-            detection_graph: nodes with features for each image.
-            matcher_graph: nodes with matching results for pairs of images.
-            camera_intrinsics_graph: nodes with intrinsics for each image.
+            keypoints_i1_graph: keypoints for image #i1, wrapped in Delayed (evaluates to Keypoints).
+            keypoints_i2_graph: keypoints for image #i2, wrapped in Delayed (evaluates to Keypoints).
+            matches_i1i2_graph: indices of putative correspondences, wrapped in Delayed (evaluates to np.ndarray).
+            camera_intrinsics_i1_graph: intrinsics for camera i1, wrapped in Delayed (evaluates to Cal3Bundler).
+            camera_intrinsics_i2_graph: intrinsics for camera i2, wrapped in Delayed (evaluates to Cal3Bundler).
 
         Returns:
             Delayed dask task for rotation i2Ri1 for specific image pair.
@@ -95,12 +96,7 @@ class VerifierBase(metaclass=abc.ABCMeta):
             Delayed dask task for inlier ratio w.r.t. the estimated model, i.e. #final RANSAC inliers/ #putatives.
         """
         # we cannot immediately unpack the result tuple, per dask syntax
-        result = dask.delayed(self.verify)(
+        i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, inlier_ratio_est_model = dask.delayed(self.verify, nout=4)(
             keypoints_i1_graph, keypoints_i2_graph, matches_i1i2_graph, intrinsics_i1_graph, intrinsics_i2_graph
         )
-        i2Ri1_graph = result[0]
-        i2Ui1_graph = result[1]
-        v_corr_idxs_graph = result[2]
-        inlier_ratio_est_model = result[3]
-
         return i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, inlier_ratio_est_model
