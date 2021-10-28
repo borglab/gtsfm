@@ -32,7 +32,7 @@ class RansacHomographyVerifier(HomographyVerifierBase):
         keypoints_i2: Keypoints,
         match_indices: np.ndarray,
         estimation_threshold_px: float,
-    ) -> Tuple[np.ndarray, float, int, np.ndarray]:
+    ) -> Tuple[np.ndarray, np.ndarray, float, int]:
         """Verify that a set of correspondences belong to a homography configuration.
 
          We fit a homography to the correspondences, and also estimate to what extent the correspondences agree
@@ -50,7 +50,8 @@ class RansacHomographyVerifier(HomographyVerifierBase):
         Returns:
              H: array of shape (3,3) representing homography matrix.
              inlier_idxs: indices of inliers from matches array.
-             inlier_ratio: i.e. ratio of correspondences which approximately agree with planar geometry.
+             inlier_ratio: i.e. ratio of correspondences which approximately agree with homography geometry
+                 (whether planar or panoramic).
              num_inliers: number of correspondence consistent with estimated homography H.
         """
         if match_indices.shape[0] < homography_verifier_base.MIN_PTS_HOMOGRAPHY:
