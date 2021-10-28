@@ -79,6 +79,61 @@ def test_verify_homography_inliers_minimalset() -> None:
     assert num_inliers == 4
 
 
+# def test_estimate_homography_inliers_corrupted() -> None:
+#     """Fit homography on set of 6 correspondences, w/ 2 outliers."""
+
+#     # fmt: off
+#     uv_i1 = np.array(
+#       [
+#           [0,0],
+#           [1,0],
+#           [1,1],
+#           [0,1],
+#           [0,1000], # outlier
+#           [0,2000] # outlier
+#       ]
+#     )
+
+#     # # 2x multiplier on uv_i1
+#     # uv_i2 = np.array(
+#     #     [
+#     #         [0,0],
+#     #         [2,0],
+#     #         [2,2],
+#     #         [0,2],
+#     #         [500,0], # outlier
+#     #         [1000,0] # outlier
+#     #     ]
+#     # )
+
+#  #    # fmt: on
+#   # keypoints_i1 = Keypoints(coordinates=uv_i1)
+#   # keypoints_i2 = Keypoints(coordinates=uv_i2)
+#   # # fmt: off
+#   # match_indices = np.array(
+#   #   [
+#   #       [0,0],
+#   #       [1,1],
+#   #       [2,2],
+#   #       [3,3],
+#   #       [4,4],
+#   #       [5,5]
+#   #   ]
+#   # )
+
+#   # fmt: on
+#   estimator = RansacHomographyEstimator()
+#   num_inliers, inlier_ratio = estimator.estimate(
+#       keypoints_i1,
+#       keypoints_i2,
+#       match_indices
+#   )
+
+#   assert inlier_ratio == 4/6
+#   assert num_inliers == 4
+
+
+
 def test_verify_homography_planar_geometry() -> None:
     """Generate 400 points on a single 3d plane, project them to 2d, and fit a homography to them."""
     np.random.seed(0)
@@ -90,20 +145,25 @@ def test_verify_homography_planar_geometry() -> None:
     # match keypoints row by row
     match_indices = np.hstack([np.arange(n_pts).reshape(-1, 1), np.arange(n_pts).reshape(-1, 1)])
 
-    # import pdb; pdb.set_trace()
-
-    homography_estimator = RansacHomographyEstimator(estimation_threshold_px=4)
-    H, num_H_inliers, H_inlier_ratio, H_inlier_idxs = homography_estimator.estimate(
-        keypoints_i1, keypoints_i2, match_indices=match_indices
+    homography_estimator = RansacHomographyVerifier()
+    H, H_inlier_idxs, inlier_ratio, num_inliers = homography_estimator.verify(
+        keypoints_i1, keypoints_i2, match_indices=match_indices, estimation_threshold_px=4
     )
-    import pdb
 
-    pdb.set_trace()
+    assert isinstance(H, np.ndarray)
+    assert H.shape == (3,3)
+
+    expected_H_inlier_idxs = np.arange(n_pts)
+    assert np.allclose(H_inlier_idxs, expected_H_inlier_idxs)
+
+    assert inlier_ratio == 1.0
+    assert num_inliers == n_pts
 
 
 def simulate_planar_scene(N: int, intrinsics: Cal3Bundler) -> Tuple[Keypoints, Keypoints, Pose3]:
     """Generate a scene where 3D points are on one plane, and projects the points to the 2 cameras.
     There are N points on plane 1.
+
     Camera 1 is 1 meter above Camera 2 (in -y direction).
     Camera 2 is 0.4 meters behind Camera 1 (in -z direction).
        cam 1                        plane @ z=10
@@ -114,9 +174,11 @@ def simulate_planar_scene(N: int, intrinsics: Cal3Bundler) -> Tuple[Keypoints, K
     o -----
     |
     | cam 2
+
     Args:
         N: number of points on plane.
-        intrinsics: intrinsics for both cameras.
+        intrinsics: shared intrinsics for both cameras.
+
     Returns:
         keypoints for image i1, of length (N).
         keypoints for image i2, of length (N).
@@ -133,13 +195,6 @@ def simulate_planar_scene(N: int, intrinsics: Cal3Bundler) -> Tuple[Keypoints, K
     # sample the points from planes
     points_3d = sampling_utils.sample_points_on_plane(plane1_coeffs, range_x_coordinate, range_y_coordinate, N)
 
-    import visualization.open3d_vis_utils as open3d_vis_utils
-    colors = np.zeros_like(points_3d).astype(np.uint8)
-    colors[:, 0] = 255
-    spheres = open3d_vis_utils.create_colored_spheres_open3d(
-        point_cloud=points_3d, rgb=colors, sphere_radius=0.1
-    )
-
     # define the camera poses and compute the essential matrix
     wti1 = np.array([0, -1, -5])
     wti2 = np.array([2, 0, -5.4])
@@ -155,13 +210,6 @@ def simulate_planar_scene(N: int, intrinsics: Cal3Bundler) -> Tuple[Keypoints, K
     camera_i1 = PinholeCameraCal3Bundler(wTi1, intrinsics)
     camera_i2 = PinholeCameraCal3Bundler(wTi2, intrinsics)
 
-    # import visualization.open3d_vis_utils as open3d_vis_utils
-    coord_frame = open3d_vis_utils.draw_coordinate_frame(wTc=Pose3(), axis_length=1.0)
-    frustums = open3d_vis_utils.create_all_frustums_open3d([wTi1, wTi2], [intrinsics] * 2)
-    import open3d
-
-    open3d.visualization.draw_geometries(spheres + frustums + coord_frame)
-
     uv_im1 = []
     uv_im2 = []
     for point in points_3d:
@@ -171,76 +219,6 @@ def simulate_planar_scene(N: int, intrinsics: Cal3Bundler) -> Tuple[Keypoints, K
     uv_im1 = np.vstack(uv_im1)
     uv_im2 = np.vstack(uv_im2)
 
-    import matplotlib
-
-    matplotlib.use("TkAgg")
-    import matplotlib.pyplot as plt
-    import pdb
-
-    pdb.set_trace()
-    plt.scatter(uv_im1[:, 0], uv_im1[:, 1], 1, color="r", marker=".")
-    plt.title("im1 keypoints")
-    plt.show()
-
-    plt.scatter(uv_im2[:, 0], uv_im2[:, 1], 1, color="r", marker=".")
-    plt.title("im2 keypoints")
-    plt.show()
-
     # return the points as keypoints and the relative pose
     return Keypoints(coordinates=uv_im1), Keypoints(coordinates=uv_im2), i2Ti1
 
-
-# def test_estimate_homography_inliers_corrupted() -> None:
-#     """Fit homography on set of 6 correspondences, w/ 2 outliers."""
-
-#     # fmt: off
-#     uv_i1 = np.array(
-#     	[
-#     		[0,0],
-#     		[1,0],
-#     		[1,1],
-#     		[0,1],
-#     		[0,1000], # outlier
-#     		[0,2000] # outlier
-#     	]
-#     )
-
-#     # # 2x multiplier on uv_i1
-#     # uv_i2 = np.array(
-#     # 	[
-#     # 		[0,0],
-#     # 		[2,0],
-#     # 		[2,2],
-#     # 		[0,2],
-#     # 		[500,0], # outlier
-#     # 		[1000,0] # outlier
-#     # 	]
-#     # )
-
-#  #    # fmt: on
-# 	# keypoints_i1 = Keypoints(coordinates=uv_i1)
-# 	# keypoints_i2 = Keypoints(coordinates=uv_i2)
-# 	# # fmt: off
-# 	# match_indices = np.array(
-# 	# 	[
-# 	# 		[0,0],
-# 	# 		[1,1],
-# 	# 		[2,2],
-# 	# 		[3,3],
-# 	# 		[4,4],
-# 	# 		[5,5]
-# 	# 	]
-# 	# )
-
-# 	# fmt: on
-# 	estimator = RansacHomographyEstimator()
-# 	num_inliers, inlier_ratio = estimator.estimate(
-# 		keypoints_i1,
-# 		keypoints_i2,
-# 		match_indices
-# 	)
-
-# 	assert inlier_ratio == 4/6
-# 	assert num_inliers == 4
-
-#     # # TODO: add case from virtual plane, and real camera geometry
