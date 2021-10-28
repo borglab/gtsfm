@@ -68,7 +68,6 @@ class HomographyVerifierBase(metaclass=abc.ABCMeta):
                 i.e. (#final RANSAC inliers)/ (#putatives).
             Delayed dask task for number of inliers w.r.t. the estimated homography model.
         """
-        # we cannot immediately unpack the result tuple, per dask syntax
         H_graph, H_inlier_idxs_graph, inlier_ratio_H_graph, num_inliers_H_graph = dask.delayed(self.verify, nout=4)(
             keypoints_i1_graph, keypoints_i2_graph, matches_i1i2_graph, estimation_threshold_px_graph
         )
