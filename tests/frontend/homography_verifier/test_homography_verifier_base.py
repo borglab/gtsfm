@@ -79,59 +79,70 @@ def test_verify_homography_inliers_minimalset() -> None:
     assert num_inliers == 4
 
 
-# def test_estimate_homography_inliers_corrupted() -> None:
-#     """Fit homography on set of 6 correspondences, w/ 2 outliers."""
+def test_estimate_homography_inliers_corrupted() -> None:
+    """Fit homography on set of 6 correspondences, w/ 2 outliers.
 
-#     # fmt: off
-#     uv_i1 = np.array(
-#       [
-#           [0,0],
-#           [1,0],
-#           [1,1],
-#           [0,1],
-#           [0,1000], # outlier
-#           [0,2000] # outlier
-#       ]
-#     )
+    The two outliers are located at:
+        (0,1000) in Image 1 and (500,0) in Image 2
+        (0,2000) in Image 1 and (1000,0) in Image 2
+    These outlier correspondences above obviously cannot concur with the homography's 2x scaling in x and y.
 
-#     # # 2x multiplier on uv_i1
-#     # uv_i2 = np.array(
-#     #     [
-#     #         [0,0],
-#     #         [2,0],
-#     #         [2,2],
-#     #         [0,2],
-#     #         [500,0], # outlier
-#     #         [1000,0] # outlier
-#     #     ]
-#     # )
+    Image 1:       Image 2:
+                       X       X
+       |               |
+       o   o           |
+       |               |
+    ---o---o-      ----X-------X
+       |               |
+    """
 
-#  #    # fmt: on
-#   # keypoints_i1 = Keypoints(coordinates=uv_i1)
-#   # keypoints_i2 = Keypoints(coordinates=uv_i2)
-#   # # fmt: off
-#   # match_indices = np.array(
-#   #   [
-#   #       [0,0],
-#   #       [1,1],
-#   #       [2,2],
-#   #       [3,3],
-#   #       [4,4],
-#   #       [5,5]
-#   #   ]
-#   # )
+    # fmt: off
+    uv_i1 = np.array(
+        [
+            [0,0],
+            [1,0],
+            [1,1],
+            [0,1],
+            [0,1000], # outlier
+            [0,2000] # outlier
+        ]
+    )
+    # 2x multiplier on uv_i1
+    uv_i2 = np.array(
+        [
+            [0,0],
+            [2,0],
+            [2,2],
+            [0,2],
+            [500,0], # outlier
+            [1000,0] # outlier
+        ]
+    )
+    # fmt: on
+    keypoints_i1 = Keypoints(coordinates=uv_i1)
+    keypoints_i2 = Keypoints(coordinates=uv_i2)
+    # fmt: off
+    match_indices = np.array(
+        [
+            [0,0],
+            [1,1],
+            [2,2],
+            [3,3],
+            [4,4],
+            [5,5]
+        ]
+    )
+    # fmt: on
+    estimator = RansacHomographyVerifier()
+    H, H_inlier_idxs, inlier_ratio, num_inliers = estimator.verify(
+        keypoints_i1, keypoints_i2, match_indices, estimation_threshold_px=4
+    )
 
-#   # fmt: on
-#   estimator = RansacHomographyEstimator()
-#   num_inliers, inlier_ratio = estimator.estimate(
-#       keypoints_i1,
-#       keypoints_i2,
-#       match_indices
-#   )
+    expected_H_inlier_idxs = np.array([0, 1, 2, 3])
+    assert np.allclose(H_inlier_idxs, expected_H_inlier_idxs)
 
-#   assert inlier_ratio == 4/6
-#   assert num_inliers == 4
-
+    assert inlier_ratio == 4 / 6
+    assert num_inliers == 4
 
 
 def test_verify_homography_planar_geometry() -> None:
@@ -151,7 +162,7 @@ def test_verify_homography_planar_geometry() -> None:
     )
 
     assert isinstance(H, np.ndarray)
-    assert H.shape == (3,3)
+    assert H.shape == (3, 3)
 
     expected_H_inlier_idxs = np.arange(n_pts)
     assert np.allclose(H_inlier_idxs, expected_H_inlier_idxs)
@@ -221,4 +232,3 @@ def simulate_planar_scene(N: int, intrinsics: Cal3Bundler) -> Tuple[Keypoints, K
 
     # return the points as keypoints and the relative pose
     return Keypoints(coordinates=uv_im1), Keypoints(coordinates=uv_im2), i2Ti1
-
