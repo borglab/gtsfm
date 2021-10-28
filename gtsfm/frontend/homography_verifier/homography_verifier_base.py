@@ -29,7 +29,7 @@ class HomographyVerifierBase(metaclass=abc.ABCMeta):
         keypoints_i2: Keypoints,
         match_indices: np.ndarray,
         estimation_threshold_px: float,
-    ) -> Tuple[np.ndarray, float, int, np.ndarray]:
+    ) -> Tuple[np.ndarray, np.ndarray, float, int]:
         """Verify that a set of correspondences belong to a homography configuration.
 
         Args:
@@ -50,30 +50,25 @@ class HomographyVerifierBase(metaclass=abc.ABCMeta):
         keypoints_i1_graph: Delayed,
         keypoints_i2_graph: Delayed,
         matches_i1i2_graph: Delayed,
-        intrinsics_i1_graph: Delayed,
-        intrinsics_i2_graph: Delayed,
-    ) -> Tuple[Delayed, Delayed, Delayed]:
+        estimation_threshold_px_graph: Delayed,
+    ) -> Tuple[Delayed, Delayed, Delayed, Delayed]:
         """Generates the computation graph to perform verification of putative correspondences.
 
         Args:
-            image_pair_indices: 2-tuple (i1,i2) specifying image pair indices
-            detection_graph: nodes with features for each image.
-            matcher_graph: nodes with matching results for pairs of images.
-            camera_intrinsics_graph: nodes with intrinsics for each image.
+            keypoints_i1_graph: keypoints for image #i1, wrapped in Delayed (evaluates to Keypoints).
+            keypoints_i2_graph: keypoints for image #i2, wrapped in Delayed (evaluates to Keypoints).
+            matches_i1i2_graph: indices of putative correspondences, wrapped in Delayed (evaluates to np.ndarray).
+            estimation_threshold_px_graph: threshold value, wrapped in Delayed.
 
         Returns:
-            Delayed dask task for rotation i2Ri1 for specific image pair.
-            Delayed dask task for unit translation i2Ui1 for specific image pair.
-            Delayed dask task for indices of verified correspondence indices for the specific image pair.
-            Delayed dask task for inlier ratio w.r.t. the estimated model, i.e. #final RANSAC inliers/ #putatives.
+            Delayed dask task for homography i2Hi1 for specific image pair.
+            Delayed dask task for indices of verified homography correspondence indices for the specific image pair.
+            Delayed dask task for inlier ratio w.r.t. the estimated homography model,
+                i.e. (#final RANSAC inliers)/ (#putatives).
+            Delayed dask task for number of inliers w.r.t. the estimated homography model.
         """
         # we cannot immediately unpack the result tuple, per dask syntax
-        result = dask.delayed(self.verify)(
+        H_graph, H_inlier_idxs_graph, num_inliers_H_graph, inlier_ratio_H_graph = dask.delayed(self.verify, nout=4)(
             keypoints_i1_graph, keypoints_i2_graph, matches_i1i2_graph, intrinsics_i1_graph, intrinsics_i2_graph
         )
-        i2Ri1_graph = result[0]
-        i2Ui1_graph = result[1]
-        v_corr_idxs_graph = result[2]
-        inlier_ratio_est_model = result[3]
-
-        return i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, inlier_ratio_est_model
+        return H_graph, H_inlier_idxs_graph, num_inliers_H_graph, inlier_ratio_H_graph
