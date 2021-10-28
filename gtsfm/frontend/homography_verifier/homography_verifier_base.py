@@ -70,6 +70,6 @@ class HomographyVerifierBase(metaclass=abc.ABCMeta):
         """
         # we cannot immediately unpack the result tuple, per dask syntax
         H_graph, H_inlier_idxs_graph, inlier_ratio_H_graph, num_inliers_H_graph = dask.delayed(self.verify, nout=4)(
-            keypoints_i1_graph, keypoints_i2_graph, matches_i1i2_graph, intrinsics_i1_graph, intrinsics_i2_graph
+            keypoints_i1_graph, keypoints_i2_graph, matches_i1i2_graph, estimation_threshold_px_graph
         )
         return H_graph, H_inlier_idxs_graph, inlier_ratio_H_graph, num_inliers_H_graph

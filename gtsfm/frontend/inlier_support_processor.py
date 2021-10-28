@@ -105,7 +105,7 @@ class InlierSupportProcessor:
             two_view_report.configuration_type = TwoViewConfigurationType.DEGENERATE
             return i2Ri1, i2Ui1, v_corr_idxs, two_view_report
 
-        H_EF_inlier_ratio = two_view_report.num_H_inliers / (two_view_report.num_inliers_est_model + EPSILON)
+        H_EF_inlier_ratio = two_view_report.num_inliers_H / (two_view_report.num_inliers_est_model + EPSILON)
         is_planar_or_panoramic = H_EF_inlier_ratio > MAX_H_INLIER_RATIO
         logger.debug("H_EF_inlier_ratio: %.2f", H_EF_inlier_ratio)
         if is_planar_or_panoramic:
