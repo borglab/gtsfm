@@ -140,7 +140,7 @@ class TwoViewEstimator:
             v_corr_idxs_inlier_mask_gt = None
 
         # Note: homography estimation threshold must match the E / F thresholds for #inliers to be comparable
-        H_graph, H_inlier_idxs, num_H_inliers, H_inlier_ratio = dask.delayed(self._homography_verifier.verify, nout=4)(
+        H_graph, H_inlier_idxs, num_inliers_H, inlier_ratio_H = dask.delayed(self._homography_verifier.verify, nout=4)(
             keypoints_i1_graph,
             keypoints_i2_graph,
             match_indices=corr_idxs_graph,
@@ -149,8 +149,8 @@ class TwoViewEstimator:
 
         two_view_report_graph = dask.delayed(generate_two_view_report)(
             inlier_ratio_est_model,
-            num_H_inliers,
-            H_inlier_ratio,
+            num_inliers_H,
+            inlier_ratio_H,
             R_error_deg,
             U_error_deg,
             num_inliers_gt_model,
@@ -172,8 +172,8 @@ class TwoViewEstimator:
 
 def generate_two_view_report(
     inlier_ratio_est_model: float,
-    num_H_inliers: int,
-    H_inlier_ratio: float,
+    num_inliers_H: int,
+    inlier_ratio_H: float,
     R_error_deg: float,
     U_error_deg: float,
     num_inliers_gt_model: int,
@@ -184,8 +184,8 @@ def generate_two_view_report(
     """Wrapper around class constructor for Dask."""
     two_view_report = TwoViewEstimationReport(
         inlier_ratio_est_model=inlier_ratio_est_model,
-        num_H_inliers=num_H_inliers,
-        H_inlier_ratio=H_inlier_ratio,
+        num_inliers_H=num_inliers_H,
+        inlier_ratio_H=inlier_ratio_H,
         num_inliers_est_model=v_corr_idxs.shape[0],
         num_inliers_gt_model=num_inliers_gt_model,
         inlier_ratio_gt_model=inlier_ratio_gt_model,
