@@ -35,7 +35,6 @@ class Ransac(VerifierBase):
         self,
         use_intrinsics_in_verification: bool,
         estimation_threshold_px: float,
-        min_allowed_inlier_ratio_est_model: float,
     ) -> None:
         """Initializes the verifier.
 
@@ -45,13 +44,9 @@ class Ransac(VerifierBase):
                 to approximating them from exif data.
             estimation_threshold_px: maximum distance (in pixels) to consider a match an inlier, under squared
                 Sampson distance.
-            min_allowed_inlier_ratio_est_model: minimum allowed inlier ratio w.r.t. the estimated model to accept
-                the verification result and use the image pair, i.e. the lowest allowed ratio of
-                #final RANSAC inliers/ #putatives. A lower fraction indicates less agreement among the result.
         """
         self._use_intrinsics_in_verification = use_intrinsics_in_verification
         self._estimation_threshold_px = estimation_threshold_px
-        self._min_allowed_inlier_ratio_est_model = min_allowed_inlier_ratio_est_model
         self._min_matches = (
             NUM_MATCHES_REQ_E_MATRIX if self._use_intrinsics_in_verification else NUM_MATCHES_REQ_F_MATRIX
         )
@@ -122,18 +117,11 @@ class Ransac(VerifierBase):
 
         v_corr_idxs = match_indices[inlier_idxs]
         inlier_ratio_est_model = np.mean(inlier_mask)
-
-        if inlier_ratio_est_model < self._min_allowed_inlier_ratio_est_model:
-            i2Ri1 = None
-            i2Ui1 = None
-            v_corr_idxs = np.array([], dtype=np.uint64)
-        else:
-            (i2Ri1, i2Ui1) = verification_utils.recover_relative_pose_from_essential_matrix(
-                i2Ei1,
-                keypoints_i1.coordinates[match_indices[inlier_idxs, 0]],
-                keypoints_i2.coordinates[match_indices[inlier_idxs, 1]],
-                camera_intrinsics_i1,
-                camera_intrinsics_i2,
-            )
-
+        (i2Ri1, i2Ui1) = verification_utils.recover_relative_pose_from_essential_matrix(
+            i2Ei1,
+            keypoints_i1.coordinates[match_indices[inlier_idxs, 0]],
+            keypoints_i2.coordinates[match_indices[inlier_idxs, 1]],
+            camera_intrinsics_i1,
+            camera_intrinsics_i2,
+        )
         return i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio_est_model
