@@ -3,20 +3,16 @@
 Authors: Ayush Baid, John Lambert
 """
 import logging
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, List
 
 import dask
 import numpy as np
-import cv2
-import trimesh
 from dask.delayed import Delayed
-from gtsam import Cal3Bundler, Pose3, Rot3, Unit3, PinholeCameraCal3Bundler
+from gtsam import Pose3, Rot3, Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
-import gtsfm.utils.verification as verification_utils
-from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
@@ -248,8 +244,8 @@ def aggregate_frontend_metrics(
     num_image_pairs = len(two_view_reports_dict.keys())
 
     # all rotational errors in degrees
-    rot3_angular_errors = []
-    trans_angular_errors = []
+    rot3_angular_errors: List[float] = []
+    trans_angular_errors: List[float] = []
 
     inlier_ratio_gt_model_all_pairs = []
     inlier_ratio_est_model_all_pairs = []
@@ -259,8 +255,10 @@ def aggregate_frontend_metrics(
     for report in two_view_reports_dict.values():
         if report is None:
             continue
-        rot3_angular_errors.append(report.R_error_deg)
-        trans_angular_errors.append(report.U_error_deg)
+        if report.R_error_deg is not None:
+            rot3_angular_errors.append(report.R_error_deg)
+        if report.U_error_deg is not None:
+            trans_angular_errors.append(report.U_error_deg)
 
         inlier_ratio_gt_model_all_pairs.append(report.inlier_ratio_gt_model)
         inlier_ratio_est_model_all_pairs.append(report.inlier_ratio_est_model)

@@ -186,7 +186,7 @@ def mesh_inlier_correspondences(
 
 
 def compute_keypoint_intersections(
-    keypoints: Keypoints, gt_camera: PinholeCameraCal3Bundler, gt_scene_mesh: trimesh.Trimesh
+    keypoints: Keypoints, gt_camera: PinholeCameraCal3Bundler, gt_scene_mesh: trimesh.Trimesh, verbose: bool = False
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Computes intersections between ground truth surface mesh and rays originating from image keypoints.
 
@@ -204,7 +204,8 @@ def compute_keypoint_intersections(
     drc = np.asarray([gt_camera.backproject(keypoints.coordinates[i], depth=1.0) - src[i, :] for i in range(num_kpts)])
     start_time = timeit.default_timer()
     intersections, keypoint_ind, _ = gt_scene_mesh.ray.intersects_location(src, drc, multiple_hits=False)
-    logger.info(f"Case {num_kpts} rays in {timeit.default_timer() - start_time} seconds.")
+    if verbose:
+        logger.debug("Case %d rays in %.6f seconds.", num_kpts, timeit.default_timer() - start_time)
 
     return keypoint_ind, intersections
 
