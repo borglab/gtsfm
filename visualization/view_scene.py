@@ -110,7 +110,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--sphere_radius",
         type=float,
-        default=100,
+        default=0.1,
         help="if points are rendered as spheres, then spheres are rendered with this radius.",
     )
 
