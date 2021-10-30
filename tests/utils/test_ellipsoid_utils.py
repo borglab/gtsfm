@@ -176,7 +176,7 @@ class TestEllipsoidUtils(unittest.TestCase):
             (3,3,3) -> (1,1,1)
         """
         sample_points = np.array([[1, 1, 1], [2, 2, 2], [3, 3, 3]])
-        computed, mean = ellipsoid_utils.center_point_cloud(sample_points)
+        computed = ellipsoid_utils.center_point_cloud(sample_points)
         expected = np.array([[-1, -1, -1], [0, 0, 0], [1, 1, 1]])
         npt.assert_almost_equal(computed, expected, decimal=3)
 
@@ -201,7 +201,7 @@ class TestEllipsoidUtils(unittest.TestCase):
         )
         # fmt: on
 
-        computed = ellipsoid_utils.remove_outlier_points(sample_points)
+        computed, _ = ellipsoid_utils.remove_outlier_points(sample_points)
         expected = np.array([[0.5, 0.6, 0.8], [0.9, 1, 0.2], [0.2, 0.2, 0.2], [0.3, 0.3, 0.3]])
         npt.assert_almost_equal(computed, expected, decimal=3)
 

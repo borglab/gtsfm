@@ -30,13 +30,13 @@ def get_ortho_axis_alignment_transform(gtsfm_data: GtsfmData) -> Pose3:
     point_cloud = np.array(point_cloud)  # point_cloud has shape Nx3
 
     # Filter outlier points, Center point cloud, and obtain alignment rotation.
-    points_filtered = remove_outlier_points(point_cloud)
+    points_filtered, inlier_mask = remove_outlier_points(point_cloud)
     points_centered = center_point_cloud(points_filtered)
     wuprightRw = get_alignment_rotation_matrix_from_svd(points_centered)
 
-    # Calculate translation vector based off rotated point cloud.
-    point_cloud_rotated = (wuprightRw @ point_cloud.T).T
-    rotated_mean = np.mean(point_cloud_rotated, axis=0)
+    # Calculate translation vector based off rotated point cloud (excluding outliers).
+    point_cloud_rotated = point_cloud @ wuprightRw.T
+    rotated_mean = np.mean(point_cloud_rotated[inlier_mask], axis=0)
 
     # Obtain the Pose3 object needed to align camera frustums.
     walignedTw = Pose3(Rot3(wuprightRw), -1 * rotated_mean)
@@ -72,7 +72,8 @@ def remove_outlier_points(point_cloud: np.ndarray) -> np.ndarray:
         point_cloud: point cloud of shape N x 3.
 
     Returns:
-        The filtered point cloud of shape M x 3 (M = 0.95*N).
+        points_filtered: filtered point cloud of shape M x 3 (M = 0.95*N)
+        inlier_mask: Boolean array, shape (N,), representing which points in point cloud are inliers.
 
     Raises:
         TypeError: if centered point cloud is not of shape (N,3).
@@ -82,8 +83,9 @@ def remove_outlier_points(point_cloud: np.ndarray) -> np.ndarray:
 
     mags = np.linalg.norm(point_cloud, axis=1)
     cutoff_mag = np.percentile(mags, OUTLIER_DISTANCE_PERCENTILE)
+    inlier_mask = mags < cutoff_mag
     points_filtered = point_cloud[mags < cutoff_mag]
-    return points_filtered
+    return points_filtered, inlier_mask
 
 
 def get_alignment_rotation_matrix_from_svd(point_cloud: np.ndarray) -> np.ndarray:
