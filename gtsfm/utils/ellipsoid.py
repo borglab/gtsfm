@@ -113,7 +113,10 @@ def get_alignment_rotation_matrix_from_svd(point_cloud: np.ndarray) -> np.ndarra
 
 
 def get_right_singular_vectors(A: np.ndarray) -> np.ndarray:
-    """Extracts the right singular eigenvectors from the point cloud.
+    """Extracts the right singular eigenvectors from the point cloud. Some of the eigenvectors could be randomly
+    multiplied by -1. Despite this, the eigenvectors will still remain valid.
+
+    Ref: https://stackoverflow.com/questions/18152052/matlab-eig-returns-inverted-signs-sometimes
 
     Args:
         A: point cloud of shape (N,3)
@@ -127,8 +130,7 @@ def get_right_singular_vectors(A: np.ndarray) -> np.ndarray:
     if A.shape[1] != 3:
         raise TypeError("Point Cloud should be 3 dimesional")
 
-    ATA = A.T @ A
-    eigvals, eigvecs = np.linalg.eig(ATA)
+    eigvals, eigvecs = np.linalg.eig(A.T @ A)
 
     # Sort eigenvectors such that they correspond to eigenvalues sorted in descending order.
     sort_idx = np.argsort(-eigvals)
