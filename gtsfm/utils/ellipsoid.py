@@ -84,7 +84,7 @@ def remove_outlier_points(point_cloud: np.ndarray) -> np.ndarray:
     mags = np.linalg.norm(point_cloud, axis=1)
     cutoff_mag = np.percentile(mags, OUTLIER_DISTANCE_PERCENTILE)
     inlier_mask = mags < cutoff_mag
-    points_filtered = point_cloud[mags < cutoff_mag]
+    points_filtered = point_cloud[inlier_mask]
     return points_filtered, inlier_mask
 
 
