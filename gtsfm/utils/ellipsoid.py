@@ -44,7 +44,7 @@ def get_ortho_axis_alignment_transform(gtsfm_data: GtsfmData) -> Pose3:
     return walignedTw
 
 
-def center_point_cloud(point_cloud: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+def center_point_cloud(point_cloud: np.ndarray) -> np.ndarray:
     """Centers a point cloud using mean values of x, y, and z.
 
     Args:
@@ -52,7 +52,6 @@ def center_point_cloud(point_cloud: np.ndarray) -> Tuple[np.ndarray, np.ndarray]
 
     Returns:
         points_centered: array of shape (N,3) representing the centered point cloud
-        mean: array of shape (3.) representing the mean x,y,z coordinates of point cloud
 
     Raises:
         TypeError: if point_cloud is not of shape (N,3).
@@ -65,7 +64,7 @@ def center_point_cloud(point_cloud: np.ndarray) -> Tuple[np.ndarray, np.ndarray]
     return points_centered
 
 
-def remove_outlier_points(point_cloud: np.ndarray) -> np.ndarray:
+def remove_outlier_points(point_cloud: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """Removes the top 5% of points with greatest distance from origin.
 
     Args:
