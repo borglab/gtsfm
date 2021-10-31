@@ -151,7 +151,7 @@ class ArgoverseDatasetLoader(LoaderBase):
         return self._world_pose.between(Pose3(Rot3(city_SE3_camera.rotation), city_SE3_camera.translation))
 
     def is_valid_pair(self, idx1: int, idx2: int) -> bool:
-        """Checks if (idx1, idx2) is a valid pair.
+        """Checks if (idx1, idx2) is a valid pair. idx1 < idx2 is required.
 
         Args:
             idx1: first index of the pair.
@@ -160,4 +160,4 @@ class ArgoverseDatasetLoader(LoaderBase):
         Returns:
             validation result.
         """
-        return (idx1 < idx2) and (idx2 < idx1 + self._max_lookahead_for_img)
+        return super().is_valid_pair(idx1, idx2) and (idx2 < idx1 + self._max_lookahead_for_img)

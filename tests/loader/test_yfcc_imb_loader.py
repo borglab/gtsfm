@@ -4,6 +4,7 @@ Authors: Ayush Baid
 """
 import unittest
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 from gtsam import Pose3, Cal3Bundler
@@ -117,6 +118,19 @@ class TestYfccIMbLoader(unittest.TestCase):
         )
 
         self.assertTrue(expected.equals(fetched, 1e-2))
+
+    def test_all_internal_pairs_are_valid(self) -> None:
+        pairs = self.loader._image_pairs
+
+        for i1, i2 in pairs:
+            self.assertTrue(self.loader.is_valid_pair(i1, i2))
+
+    @patch("gtsfm.loader.loader_base.LoaderBase.is_valid_pair", return_value=True)
+    def test_is_valid_pair(self, base_is_valid_pair_mock: MagicMock) -> None:
+        i1 = 1
+        i2 = 10
+        self.loader.is_valid_pair(i1, i2)
+        base_is_valid_pair_mock.assert_called_once_with(i1, i2)
 
 
 if __name__ == "__main__":

@@ -29,10 +29,10 @@ def get_ortho_axis_alignment_transform(gtsfm_data: GtsfmData) -> Pose3:
     point_cloud = [gtsfm_data.get_track(j).point3() for j in range(num_pts)]
     point_cloud = np.array(point_cloud)  # point_cloud has shape Nx3
 
-    # Center point cloud, filter outlier points, and obtain alignment rotation.
-    points_centered, mean = center_point_cloud(point_cloud)
-    points_filtered = remove_outlier_points(points_centered)
-    wuprightRw = get_alignment_rotation_matrix_from_svd(points_filtered)
+    # Filter outlier points, Center point cloud, and obtain alignment rotation.
+    points_filtered = remove_outlier_points(point_cloud)
+    points_centered, mean = center_point_cloud(points_filtered)
+    wuprightRw = get_alignment_rotation_matrix_from_svd(points_centered)
 
     # Obtain the Pose3 object needed to align camera frustums.
     walignedTw = Pose3(Rot3(wuprightRw), -1 * mean)
@@ -102,5 +102,12 @@ def get_alignment_rotation_matrix_from_svd(point_cloud: np.ndarray) -> np.ndarra
     # S represents the scaling (lengths) of each of the three ellipsoid semi-axes
     # ref: https://en.wikipedia.org/wiki/Singular_value_decomposition#Rotation,_coordinate_scaling,_and_reflection
     U, S, Vt = np.linalg.svd(point_cloud, full_matrices=True)
-    wuprightRw = Vt
+
+    # If det(Vt) = -1, then Vt is a reflection matrix and not a valid SO(3) transformation. Thus, we must estimate the
+    # closest rotation matrix to the reflection.
+    if not np.isclose(np.linalg.det(Vt), 1):
+        wuprightRw = Rot3.ClosestTo(Vt).matrix()  # changes Vt's eigenvalue from -1 to +1 to convert to rotation matrix
+    else:
+        wuprightRw = Vt
+
     return wuprightRw

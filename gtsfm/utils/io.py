@@ -424,10 +424,17 @@ def save_track_visualizations(
 
 def read_from_bz2_file(file_path: Path) -> Optional[Any]:
     """Reads data using pickle from a compressed file, if it exists."""
-    if file_path.exists():
-        return pickle.load(BZ2File(file_path, "rb"))
+    if not file_path.exists():
+        return None
 
-    return None
+    try:
+        data = pickle.load(BZ2File(file_path, "rb"))
+    except Exception:
+        logger.exception("Cache file was corrupted, removing it...")
+        os.remove(file_path)
+        data = None
+
+    return data
 
 
 def write_to_bz2_file(data: Any, file_path: Path) -> None:

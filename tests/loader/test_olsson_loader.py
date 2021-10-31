@@ -4,6 +4,7 @@ Authors: John Lambert
 """
 import unittest
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import dask
 import numpy as np
@@ -28,7 +29,7 @@ class TestFolderLoader(unittest.TestCase):
         """Set up the loader for the test."""
         super().setUp()
 
-        self.loader = OlssonLoader(str(DEFAULT_FOLDER), image_extension="JPG")
+        self.loader = OlssonLoader(str(DEFAULT_FOLDER), image_extension="JPG", max_frame_lookahead=4)
 
     def test_len(self) -> None:
         """Test the number of entries in the loader."""
@@ -97,17 +98,13 @@ class TestFolderLoader(unittest.TestCase):
         expected_py = 932.382
 
         computed = self.loader.get_camera_intrinsics_full_res(5)
-        expected = Cal3Bundler(
-            fx=expected_fx, k1=0, k2=0, u0=expected_px, v0=expected_py
-        )
+        expected = Cal3Bundler(fx=expected_fx, k1=0, k2=0, u0=expected_px, v0=expected_py)
 
         self.assertTrue(expected.equals(computed, 1e-3))
 
     def test_get_camera_intrinsics_exif(self) -> None:
         """Tests getter for intrinsics when explicit numpy arrays are absent and we fall back on exif."""
-        loader = OlssonLoader(
-            EXIF_FOLDER, image_extension="JPG", use_gt_intrinsics=False
-        )
+        loader = OlssonLoader(EXIF_FOLDER, image_extension="JPG", use_gt_intrinsics=False)
         computed = loader.get_camera_intrinsics_full_res(5)
         expected = Cal3Bundler(fx=2378.983, k1=0, k2=0, u0=648.0, v0=968.0)
         self.assertTrue(expected.equals(computed, 1e-3))
@@ -127,12 +124,8 @@ class TestFolderLoader(unittest.TestCase):
         results = dask.compute(image_graph)[0]
 
         # randomly check image loads from a few indices
-        np.testing.assert_allclose(
-            results[5].value_array, self.loader.get_image(5).value_array
-        )
-        np.testing.assert_allclose(
-            results[7].value_array, self.loader.get_image(7).value_array
-        )
+        np.testing.assert_allclose(results[5].value_array, self.loader.get_image(5).value_array)
+        np.testing.assert_allclose(results[7].value_array, self.loader.get_image(7).value_array)
 
     def test_create_computation_graph_for_intrinsics(self) -> None:
         """Tests the graph for all intrinsics."""
@@ -147,6 +140,20 @@ class TestFolderLoader(unittest.TestCase):
         # randomly check intrinsics from a few indices
         self.assertTrue(self.loader.get_camera_intrinsics(5).equals(results[5], 1e-5))
         self.assertTrue(self.loader.get_camera_intrinsics(7).equals(results[7], 1e-5))
+
+    @patch("gtsfm.loader.loader_base.LoaderBase.is_valid_pair", return_value=True)
+    def test_is_valid_pair_within_lookahead(self, base_is_valid_pair_mock: MagicMock) -> None:
+        i1 = 1
+        i2 = 3
+        self.assertTrue(self.loader.is_valid_pair(i1, i2))
+        base_is_valid_pair_mock.assert_called_once_with(i1, i2)
+
+    @patch("gtsfm.loader.loader_base.LoaderBase.is_valid_pair", return_value=True)
+    def test_is_valid_pair_outside_lookahead(self, base_is_valid_pair_mock: MagicMock) -> None:
+        i1 = 1
+        i2 = 10
+        self.assertFalse(self.loader.is_valid_pair(i1, i2))
+        base_is_valid_pair_mock.assert_called_once_with(i1, i2)
 
 
 if __name__ == "__main__":
