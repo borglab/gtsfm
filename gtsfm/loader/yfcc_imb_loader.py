@@ -60,7 +60,12 @@ class YfccImbLoader(LoaderBase):
         # map image names to its position in the list
         self._name_to_idx_map = {name: i for i, name in enumerate(self._image_names)}
 
-        self._image_pairs = set([(self._name_to_idx_map[i1], self._name_to_idx_map[i2]) for i1, i2 in image_pairs])
+        self._image_pairs = set()
+        for i1, i2 in image_pairs:
+            if i1 < i2:
+                self._image_pairs.add((i1, i2))
+            else:
+                self._image_pairs.add((i2, i1))
 
         self._cameras = self.__read_calibrations()  # self.__read_colmap_model()
 
@@ -123,7 +128,7 @@ class YfccImbLoader(LoaderBase):
         return self._cameras[index].pose()
 
     def is_valid_pair(self, idx1: int, idx2: int) -> bool:
-        """Checks if (idx1, idx2) is a valid pair.
+        """Checks if (idx1, idx2) is a valid pair. idx1 < idx2 is required.
 
         Args:
             idx1: first index of the pair.
@@ -132,7 +137,7 @@ class YfccImbLoader(LoaderBase):
         Returns:
             validation result.
         """
-        return (idx1, idx2) in self._image_pairs
+        return super().is_valid_pair(idx1, idx2) and (idx1, idx2) in self._image_pairs
 
     def __read_calibrations(self) -> List[PinholeCameraCal3Bundler]:
         """Read camera params from the calibration stored as h5 files.
