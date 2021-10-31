@@ -26,6 +26,8 @@ import gtsfm.utils.tracks as track_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
+METRICS_GROUP = "bundle_adjustment_metrics"
+
 METRICS_PATH = Path(__file__).resolve().parent.parent.parent / "result_metrics"
 
 """In this file, we use the GTSAM's GeneralSFMFactor2 instead of GeneralSFMFactor because Factor2 enables decoupling
@@ -98,7 +100,7 @@ class BundleAdjustmentOptimizer:
             logger.error(
                 "Bundle adjustment aborting, optimization cannot be performed without any tracks or any cameras."
             )
-            return initial_data, GtsfmMetricsGroup()
+            return initial_data, GtsfmMetricsGroup(name=METRICS_GROUP, metrics=[])
 
         # noise model for measurements -- one pixel in u and v
         measurement_noise = gtsam.noiseModel.Isotropic.Sigma(IMG_MEASUREMENT_DIM, MEASUREMENT_NOISE_SIGMA)
@@ -180,7 +182,7 @@ class BundleAdjustmentOptimizer:
         except Exception:
             logger.exception("LM Optimization failed")
             # as we did not perform the bundle adjustment, we skip computing the total reprojection error
-            return GtsfmData(initial_data.number_images()), GtsfmMetricsGroup()
+            return GtsfmData(initial_data.number_images()), GtsfmMetricsGroup(name=METRICS_GROUP, metrics=[])
 
         final_error = graph.error(result_values)
 
@@ -207,7 +209,7 @@ class BundleAdjustmentOptimizer:
             return metrics
 
         ba_metrics = GtsfmMetricsGroup(
-            name="bundle_adjustment_metrics", metrics=get_metrics_from_sfm_data(optimized_data, suffix="_unfiltered")
+            name=METRICS_GROUP, metrics=get_metrics_from_sfm_data(optimized_data, suffix="_unfiltered")
         )
         logger.info("[Result] Number of tracks before filtering: %d", optimized_data.number_tracks())
 
