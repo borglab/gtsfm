@@ -133,7 +133,7 @@ def compute_translation_angle_metric(
     return GtsfmMetric("translation_angle_error_deg", np.array(angles, dtype=np.float))
 
 
-def compute_rotation_averaging_metrics(
+def compute_global_rotation_metrics(
     wRi_list: List[Optional[Rot3]],
     wti_list: List[Optional[Point3]],
     gt_wTi_list: List[Pose3],
@@ -172,8 +172,8 @@ def compute_rotation_averaging_metrics(
     # ground truth is the reference/target for alignment. discard 2nd return arg -- the estimated Similarity(3) object
     wTi_aligned_list, _ = comp_utils.align_poses_sim3_ignore_missing(gt_wTi_list, wTi_list)
 
-    wRi_aligned_list, wti_aligned_list = get_rotations_translations_from_poses(wTi_aligned_list)
-    gt_wRi_list, gt_wti_list = get_rotations_translations_from_poses(gt_wTi_list)
+    wRi_aligned_list, _ = get_rotations_translations_from_poses(wTi_aligned_list)
+    gt_wRi_list, _ = get_rotations_translations_from_poses(gt_wTi_list)
 
     metrics = []
     metrics.append(GtsfmMetric(name="num_rotations_computed", data=len([x for x in wRi_list if x is not None])))
