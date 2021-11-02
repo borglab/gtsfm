@@ -57,6 +57,13 @@ def create_table_for_scalar_metrics_and_compare(
     Returns:
         Table with scalar metrics and their values in HTML format.
     """
+    for metrics_dict in metrics_dicts:
+        for metric_key, metric_value in metrics_dict.items():
+            if isinstance(metric_value, float):
+                if metric_value.is_integer():
+                    metrics_dict[metric_key] = int(metric_value)
+                else:
+                    metrics_dict[metric_key] = round(metric_value, 3)
     table = {
         "Metric name": list(metrics_dicts[0].keys()),
         "GTSfM": list(metrics_dicts[0].values()),
@@ -161,7 +168,6 @@ def get_figures_for_metrics(metrics_group: GtsfmMetricsGroup) -> Tuple[str, str]
     """
     scalar_metrics = {}
     metrics_dict = metrics_group.get_metrics_as_dict()[metrics_group.name]
-
     # Separate the scalar metrics.
     for metric_name, value in metrics_dict.items():
         if isinstance(value, dict):
