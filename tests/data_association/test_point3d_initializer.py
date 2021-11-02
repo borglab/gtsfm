@@ -148,7 +148,7 @@ class TestPoint3dInitializer(unittest.TestCase):
 
     def testSimpleTriangulationWithOutlierMeasurements(self):
         sfm_track, _, _ = self.simple_triangulation_initializer.triangulate(SfmTrack2d(get_track_with_one_outlier()))
-        np.assertIsNone(sfm_track)
+        self.assertIsNone(sfm_track)
 
     def testSimpleTriangulationWithCheiralityException(self):
         self.assertTrue(self.__runWithCheiralityException(self.simple_triangulation_initializer))
