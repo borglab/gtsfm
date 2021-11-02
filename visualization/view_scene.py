@@ -113,12 +113,6 @@ if __name__ == "__main__":
         default=0.1,
         help="if points are rendered as spheres, then spheres are rendered with this radius.",
     )
-    parser.add_argument(
-        "--frustrum_ray_len",
-        type=float,
-        default=0.3,
-        help="Length to extend frustum rays away from optical center (increase for large-scale scenes).",
-    )
 
     args = parser.parse_args()
     if args.point_rendering_mode == "point" and args.rendering_library == "mayavi":
