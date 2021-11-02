@@ -42,19 +42,28 @@ def create_table_for_scalar_metrics(metrics_dict: Dict[str, Union[float, int]]) 
     Returns:
         Table with scalar metrics and their values in HTML format.
     """
-    table = {"Metric name": list(metrics_dict.keys()), "Value": list(metrics_dict.values())}
+    table = {
+        "Metric name": list(metrics_dict.keys()),
+        "Value": list(metrics_dict.values()),
+    }
     return tabulate(table, headers="keys", tablefmt="html")
 
-def create_table_for_scalar_metrics_and_compare(metrics_dicts: List[Dict[str, Union[float, int]]]) -> str:
+
+def create_table_for_scalar_metrics_and_compare(
+    metrics_dicts: List[Dict[str, Union[float, int]]]
+) -> str:
     """Creates a table in HTML format for scalar metrics.
 
     Returns:
         Table with scalar metrics and their values in HTML format.
     """
-    table = {"Metric name": list(metrics_dicts[0].keys()),
-             "GTSfM": list(metrics_dicts[0].values()),
-             "COLMAP": list(metrics_dicts[1].values())}
+    table = {
+        "Metric name": list(metrics_dicts[0].keys()),
+        "GTSfM": list(metrics_dicts[0].values()),
+        "COLMAP": list(metrics_dicts[1].values()),
+    }
     return tabulate(table, headers="keys", tablefmt="html")
+
 
 def create_plots_for_distributions(metrics_dict: Dict[str, Any]) -> str:
     """Creates plots for 1D distribution metrics using plotly, and converts them to HTML.
@@ -72,20 +81,27 @@ def create_plots_for_distributions(metrics_dict: Dict[str, Any]) -> str:
     # Separate all the 1D distribution metrics.
     for metric, value in metrics_dict.items():
         if isinstance(value, dict):
-            distribution_metrics.append(metric)
+            all_nan_summary = all(v != v for v in value[metrics.SUMMARY_KEY].values())
+            if not all_nan_summary:
+                distribution_metrics.append(metric)
     if len(distribution_metrics) == 0:
-        return None
+        return ""
 
     # Setup figure layout - number of rows and columns.
     num_rows = (len(distribution_metrics) + SUBPLOTS_PER_ROW - 1) // SUBPLOTS_PER_ROW
-    fig = psubplot.make_subplots(rows=num_rows, cols=SUBPLOTS_PER_ROW, subplot_titles=distribution_metrics)
+    fig = psubplot.make_subplots(
+        rows=num_rows, cols=SUBPLOTS_PER_ROW, subplot_titles=distribution_metrics
+    )
     fig.update_layout({"height": 512 * num_rows, "width": 1024, "showlegend": False})
     i = 0
 
     # Iterate over all metrics.
     for metric_name, metric_value in metrics_dict.items():
         # Check if this is a 1D distribution metric and has a summary.
-        if metric_name not in distribution_metrics or metrics.SUMMARY_KEY not in metric_value:
+        if (
+            metric_name not in distribution_metrics
+            or metrics.SUMMARY_KEY not in metric_value
+        ):
             continue
         row = i // SUBPLOTS_PER_ROW + 1
         col = i % SUBPLOTS_PER_ROW + 1
@@ -94,12 +110,22 @@ def create_plots_for_distributions(metrics_dict: Dict[str, Any]) -> str:
         if "histogram" in metric_value[metrics.SUMMARY_KEY]:
             histogram = metric_value[metrics.SUMMARY_KEY]["histogram"]
             fig.add_trace(
-                go.Bar(x=list(histogram.keys()), y=list(histogram.values()), name=metric_name), row=row, col=col
+                go.Bar(
+                    x=list(histogram.keys()),
+                    y=list(histogram.values()),
+                    name=metric_name,
+                ),
+                row=row,
+                col=col,
             )
         elif "quartiles" in metric_value[metrics.SUMMARY_KEY]:
             # If all values are available, use them to create box plot.
             if metrics.FULL_DATA_KEY in metric_value:
-                fig.add_trace(go.Box(y=metric_value[metrics.FULL_DATA_KEY], name=metric_name), row=row, col=col)
+                fig.add_trace(
+                    go.Box(y=metric_value[metrics.FULL_DATA_KEY], name=metric_name),
+                    row=row,
+                    col=col,
+                )
             # Else use summary to create box plot.
             else:
                 quartiles = metric_value[metrics.SUMMARY_KEY]["quartiles"]
@@ -144,14 +170,19 @@ def get_figures_for_metrics(metrics_group: GtsfmMetricsGroup) -> Tuple[str, str]
                 raise ValueError(f"Metric {metric_name} does not contain a summary.")
             # Add a scalar metric for mean of 1D distributions.
             scalar_metrics["mean_" + metric_name] = value[metrics.SUMMARY_KEY]["mean"]
-            scalar_metrics["median_" + metric_name] = value[metrics.SUMMARY_KEY]["median"]
+            scalar_metrics["median_" + metric_name] = value[metrics.SUMMARY_KEY][
+                "median"
+            ]
         else:
             scalar_metrics[metric_name] = value
     table = create_table_for_scalar_metrics(scalar_metrics)
     plots_fig = create_plots_for_distributions(metrics_dict)
     return table, plots_fig
 
-def get_figures_for_metrics_and_compare(metrics_group: GtsfmMetricsGroup, metric_path: str) -> Tuple[str, str]:
+
+def get_figures_for_metrics_and_compare(
+    metrics_group: GtsfmMetricsGroup, metric_path: str
+) -> Tuple[str, str]:
     """Gets the tables and plots for individual metrics in a metrics group.
 
     All scalar metrics are reported in the table.
@@ -167,7 +198,11 @@ def get_figures_for_metrics_and_compare(metrics_group: GtsfmMetricsGroup, metric
     all_scalar_metrics = []
     all_metrics_groups = []
 
-    colmap_metric_path = metric_path[:metric_path.rindex("/")] + "/colmap" + metric_path[metric_path.rindex("/"):]
+    colmap_metric_path = (
+        metric_path[: metric_path.rindex("/")]
+        + "/colmap"
+        + metric_path[metric_path.rindex("/") :]
+    )
     colmap_metrics_group = GtsfmMetricsGroup.parse_from_json(colmap_metric_path)
 
     all_metrics_groups.append(metrics_group)
@@ -181,19 +216,39 @@ def get_figures_for_metrics_and_compare(metrics_group: GtsfmMetricsGroup, metric
             if isinstance(value, dict):
                 # Metrics with a dict representation must contain a summary.
                 if metrics.SUMMARY_KEY not in value:
-                    raise ValueError(f"Metric {metric_name} does not contain a summary.")
+                    raise ValueError(
+                        f"Metric {metric_name} does not contain a summary."
+                    )
                 # Add a scalar metric for mean of 1D distributions.
-                scalar_metrics["mean_" + metric_name] = value[metrics.SUMMARY_KEY]["mean"]
-                scalar_metrics["median_" + metric_name] = value[metrics.SUMMARY_KEY]["median"]
+                mean_nan = (
+                    value[metrics.SUMMARY_KEY]["mean"]
+                    != value[metrics.SUMMARY_KEY]["mean"]
+                )
+                median_nan = (
+                    value[metrics.SUMMARY_KEY]["median"]
+                    != value[metrics.SUMMARY_KEY]["median"]
+                )
+                if mean_nan or median_nan:
+                    scalar_metrics["mean_" + metric_name] = ""
+                    scalar_metrics["median_" + metric_name] = ""
+                else:
+                    scalar_metrics["mean_" + metric_name] = value[metrics.SUMMARY_KEY][
+                        "mean"
+                    ]
+                    scalar_metrics["median_" + metric_name] = value[
+                        metrics.SUMMARY_KEY
+                    ]["median"]
             else:
                 scalar_metrics[metric_name] = value
         all_scalar_metrics.append(scalar_metrics)
     table = create_table_for_scalar_metrics_and_compare(all_scalar_metrics)
 
-    #TODO Add plots for COLMAP, not just GTSfM
+    # TODO Add plots for COLMAP, not just GTSfM
     plots_fig = ""
     for metrics_group in all_metrics_groups:
-        plots_fig += create_plots_for_distributions(metrics_group.get_metrics_as_dict()[metrics_group.name])
+        plots_fig += create_plots_for_distributions(
+            metrics_group.get_metrics_as_dict()[metrics_group.name]
+        )
     # plots_fig += create_plots_for_distributions(all_metrics_groups[0].get_metrics_as_dict()[metrics_group.name])
     return table, plots_fig
 
@@ -236,10 +291,12 @@ def get_html_header() -> str:
               </head>"""
 
 
-def generate_metrics_report_html(metrics_groups: List[GtsfmMetricsGroup],
-                                 html_path: str,
-                                 colmap_files_dirpath: str,
-                                 metric_paths: List[str]) -> None:
+def generate_metrics_report_html(
+    metrics_groups: List[GtsfmMetricsGroup],
+    html_path: str,
+    colmap_files_dirpath: str,
+    metric_paths: List[str],
+) -> None:
     """Generates a report for metrics groups with plots and tables and saves it to HTML.
 
     Args:
@@ -260,7 +317,9 @@ def generate_metrics_report_html(metrics_groups: List[GtsfmMetricsGroup],
             if colmap_files_dirpath == "":
                 table, plots_fig = get_figures_for_metrics(metrics_group)
             else:
-                table, plots_fig = get_figures_for_metrics_and_compare(metrics_group, metric_paths[i])
+                table, plots_fig = get_figures_for_metrics_and_compare(
+                    metrics_group, metric_paths[i]
+                )
             f.write(table)
             if plots_fig is not None:
                 f.write(plots_fig)
