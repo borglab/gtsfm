@@ -34,11 +34,12 @@ pil_logger.setLevel(logging.INFO)
 
 
 DATA_ASSOC_REPROJ_ERROR_THRESH = 3
+BA_OUTPUT_REPROJ_ERROR_THRESH = 100
 DATA_ASSOC_2VIEW = DataAssociation(
     reproj_error_thresh=DATA_ASSOC_REPROJ_ERROR_THRESH, min_track_len=2, mode=TriangulationParam.NO_RANSAC
 )
 BUNDLE_ADJUST_2VIEW = BundleAdjustmentOptimizer(
-    output_reproj_error_thresh=100, robust_measurement_noise=True
+    output_reproj_error_thresh=BA_OUTPUT_REPROJ_ERROR_THRESH, robust_measurement_noise=True
 )  # we dont care about output error threshold as we do not access the tracks of 2-view BA, which the threshold affects.
 
 
@@ -71,7 +72,7 @@ class TwoViewEstimator:
         cls,
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
-        verified_corr_idxes: np.ndarray,
+        verified_corr_idxs: np.ndarray,
         camera_intrinsics_i1: Cal3Bundler,
         camera_intrinsics_i2: Cal3Bundler,
         i2Ri1_initial: Optional[Rot3],
@@ -92,31 +93,27 @@ class TwoViewEstimator:
             Optimized relative rotation i2Ri1.
             Optimized unit translation i2Ui1.
         """
-
         if i2Ri1_initial is None or i2Ui1_initial is None:
             return None, None
 
-        # set the camera 2 pose as the global coordinate system
+        # Set the i2 camera pose as the global coordinate system.
         camera_i1 = PinholeCameraCal3Bundler(Pose3(i2Ri1_initial, i2Ui1_initial.point3()), camera_intrinsics_i1)
         camera_i2 = PinholeCameraCal3Bundler(Pose3(), camera_intrinsics_i2)
 
-        # perform data association to construct 2-view BA input
+        # Perform data association to construct 2-view BA input.
         ba_input, _ = DATA_ASSOC_2VIEW.run(
             num_images=2,
             cameras={0: camera_i1, 1: camera_i2},
-            corr_idxs_dict={(0, 1): verified_corr_idxes},
+            corr_idxs_dict={(0, 1): verified_corr_idxs},
             keypoints_list=[keypoints_i1, keypoints_i2],
         )
 
+        # Perform 2-view BA.
         ba_output, _ = BUNDLE_ADJUST_2VIEW.run(ba_input)
-
-        # extract the camera poses
-        wTi1, wTi2 = ba_output.get_camera_poses()
-
+        wTi1, wTi2 = ba_output.get_camera_poses()  # extract the camera poses
         if wTi1 is None or wTi2 is None:
             logger.warning("2-view BA failed")
             return i2Ri1_initial, i2Ui1_initial
-
         i2Ti1_optimized = wTi2.between(wTi1)
 
         return i2Ti1_optimized.rotation(), Unit3(i2Ti1_optimized.translation())
@@ -231,9 +228,7 @@ class TwoViewEstimator:
             i2Ui1_pp_graph,
             v_corr_idxs_pp_graph,
             two_view_report_pp_graph,
-        ) = self.processor.create_computation_graph(
-            i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph
-        )
+        ) = self.processor.create_computation_graph(i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph)
         # We provide both, as we will create reports for both.
         return (i2Ri1_pp_graph, i2Ui1_pp_graph, v_corr_idxs_pp_graph, two_view_report_graph, two_view_report_pp_graph)
 
