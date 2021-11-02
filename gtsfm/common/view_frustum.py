@@ -7,7 +7,7 @@ DEFAULT_FRUSTUM_RAY_LEN = 0.3  # meters, arbitrary
 
 
 class ViewFrustum:
-    """ Generates edges of a 5-face mesh for drawing pinhole camera in 3d"""
+    """Generates edges of a 5-face mesh for drawing pinhole camera in 3d"""
 
     def __init__(
         self,

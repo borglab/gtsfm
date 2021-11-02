@@ -96,7 +96,7 @@ def create_all_frustums_open3d(wTi_list: List[Pose3], calibrations: List[Cal3Bun
         py = K[1, 2]
         img_w = px * 2
         img_h = py * 2
-        frustum_obj = ViewFrustum(fx, img_w, img_h, frustum_ray_len=1000)
+        frustum_obj = ViewFrustum(fx, img_w, img_h)
 
         edges_worldfr = frustum_obj.get_mesh_edges_worldframe(wTi)
         for verts_worldfr in edges_worldfr:
