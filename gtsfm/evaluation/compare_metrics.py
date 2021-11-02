@@ -49,7 +49,7 @@ def compare_metrics(
         colmap2gtsfm = {
             "number_cameras": GtsfmMetric("number_cameras", num_cameras),
             "3d_tracks_length": GtsfmMetric(
-                "3d_track_lengths",
+                "3d_tracks_length",
                 track_lengths,
                 plot_type=GtsfmMetric.PlotType.HISTOGRAM,
             )
