@@ -30,6 +30,7 @@ class ArgoverseDatasetLoader(LoaderBase):
         max_num_imgs: int = 20,
         max_lookahead_sec: float = 2,
         camera_name: str = "ring_front_center",
+        max_resolution: int = 760,
     ) -> None:
         """Select the image paths and their corresponding timestamps for images to feed to GTSFM.
         Args:
@@ -37,7 +38,12 @@ class ArgoverseDatasetLoader(LoaderBase):
             log_id: unique ID of vehicle log
             stride: sampling rate, e.g. every 2 images, every 4 images, etc.
             max_num_imgs: number of images to load (starting from beginning of log sequence)
+            max_resolution: integer representing maximum length of image's short side, i.e.
+               the smaller of the height/width of the image. e.g. for 1080p (1920 x 1080),
+               max_resolution would be 1080. If the image resolution max(height, width) is
+               greater than the max_resolution, it will be downsampled to match the max_resolution.
         """
+        super().__init__(max_resolution)
         self._log_id = log_id
         self._dl = SimpleArgoverseTrackingDataLoader(data_dir=dataset_dir, labels_dir=dataset_dir)
         self.load_camera_calibration(log_id, camera_name)
@@ -91,8 +97,8 @@ class ArgoverseDatasetLoader(LoaderBase):
         """
         return len(self._image_paths)
 
-    def get_image(self, index: int) -> Image:
-        """Get the image at the given index.
+    def get_image_full_res(self, index: int) -> Image:
+        """Get the image at the given index, at full resolution.
 
         Args:
             index: the index to fetch.
@@ -109,8 +115,8 @@ class ArgoverseDatasetLoader(LoaderBase):
 
         return io_utils.load_image(self._image_paths[index])
 
-    def get_camera_intrinsics(self, index: int) -> Optional[Cal3Bundler]:
-        """Get the camera intrinsics at the given index.
+    def get_camera_intrinsics_full_res(self, index: int) -> Cal3Bundler:
+        """Get the camera intrinsics at the given index, valid for a full-resolution image.
 
         Args:
             the index to fetch.
@@ -145,7 +151,7 @@ class ArgoverseDatasetLoader(LoaderBase):
         return self._world_pose.between(Pose3(Rot3(city_SE3_camera.rotation), city_SE3_camera.translation))
 
     def is_valid_pair(self, idx1: int, idx2: int) -> bool:
-        """Checks if (idx1, idx2) is a valid pair.
+        """Checks if (idx1, idx2) is a valid pair. idx1 < idx2 is required.
 
         Args:
             idx1: first index of the pair.
@@ -154,4 +160,4 @@ class ArgoverseDatasetLoader(LoaderBase):
         Returns:
             validation result.
         """
-        return (idx1 < idx2) and (idx2 < idx1 + self._max_lookahead_for_img)
+        return super().is_valid_pair(idx1, idx2) and (idx2 < idx1 + self._max_lookahead_for_img)

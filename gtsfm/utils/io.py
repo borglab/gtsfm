@@ -2,13 +2,15 @@
 
 Authors: Ayush Baid, John Lambert
 """
+import json
 import os
+import pickle
+from bz2 import BZ2File
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import gtsam
 import h5py
-import json
 import numpy as np
 from gtsam import Cal3Bundler, Rot3, Pose3
 from PIL import Image as PILImage
@@ -28,8 +30,9 @@ logger = logger_utils.get_logger()
 def load_image(img_path: str) -> Image:
     """Load the image from disk.
 
-    Note: EXIF is read as a map from (tag_id, value) where tag_id is an integer.
+    Notes: EXIF is read as a map from (tag_id, value) where tag_id is an integer.
     In order to extract human-readable names, we use the lookup table TAGS or GPSTAGS.
+    Images will be converted to RGB if in a different format.
 
     Args:
         img_path (str): the path of image to load.
@@ -55,6 +58,7 @@ def load_image(img_path: str) -> Image:
         exif_data = parsed_data
 
     img_fname = Path(img_path).name
+    original_image = original_image.convert("RGB") if original_image.mode != "RGB" else original_image
     return Image(value_array=np.asarray(original_image), exif_data=exif_data, file_name=img_fname)
 
 
@@ -211,7 +215,9 @@ def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> 
     with open(file_path, "w") as f:
         f.write("# Camera list with one line of data per camera:\n")
         f.write("#   CAMERA_ID, MODEL, WIDTH, HEIGHT, PARAMS[]\n")
-        f.write(f"# Number of cameras: {gtsfm_data.number_images()}\n")
+        # note that we save the number of etimated cameras, not the number of input images,
+        # which would instead be gtsfm_data.number_images().
+        f.write(f"# Number of cameras: {len(gtsfm_data.get_valid_camera_indices())}\n")
 
         for i in gtsfm_data.get_valid_camera_indices():
             camera = gtsfm_data.get_camera(i)
@@ -414,3 +420,24 @@ def save_track_visualizations(
         stacked_image = image_utils.vstack_image_list(patches)
         save_fpath = os.path.join(save_dir, f"track_{i}.jpg")
         save_image(stacked_image, img_path=save_fpath)
+
+
+def read_from_bz2_file(file_path: Path) -> Optional[Any]:
+    """Reads data using pickle from a compressed file, if it exists."""
+    if not file_path.exists():
+        return None
+
+    try:
+        data = pickle.load(BZ2File(file_path, "rb"))
+    except Exception:
+        logger.exception("Cache file was corrupted, removing it...")
+        os.remove(file_path)
+        data = None
+
+    return data
+
+
+def write_to_bz2_file(data: Any, file_path: Path) -> None:
+    """Writes data using pickle to a compressed file."""
+    file_path.parent.mkdir(exist_ok=True, parents=True)
+    pickle.dump(data, BZ2File(file_path, "wb"))

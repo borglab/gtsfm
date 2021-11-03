@@ -2,7 +2,6 @@
 
 Authors: Ayush Baid
 """
-import copy
 import os
 from typing import List, Optional, Tuple
 
@@ -18,7 +17,7 @@ import gtsfm.utils.io as io_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
-
+from gtsfm.two_view_estimator import TwoViewEstimationReport
 
 COLOR_RED = (255, 0, 0)
 COLOR_GREEN = (0, 255, 0)
@@ -71,7 +70,13 @@ def draw_circle_cv2(image: Image, x: int, y: int, color: Tuple[int, int, int], c
 
 
 def draw_line_cv2(
-    image: Image, x1: int, y1: int, x2: int, y2: int, line_color: Tuple[int, int, int], line_thickness: int = 10,
+    image: Image,
+    x1: int,
+    y1: int,
+    x2: int,
+    y2: int,
+    line_color: Tuple[int, int, int],
+    line_thickness: int = 10,
 ) -> Image:
     """Draw a line on the image from coordinates (x1, y1) to (x2, y2).
 
@@ -236,6 +241,7 @@ def save_twoview_correspondences_viz(
     keypoints_i1: Keypoints,
     keypoints_i2: Keypoints,
     corr_idxs_i1i2: np.ndarray,
+    two_view_report: TwoViewEstimationReport,
     file_path: str,
 ) -> None:
     """Visualize correspondences between pairs of images.
@@ -246,9 +252,17 @@ def save_twoview_correspondences_viz(
         keypoints_i1: detected Keypoints for image #i1.
         keypoints_i2: detected Keypoints for image #i2.
         corr_idxs_i1i2: correspondence indices.
+        two_view_report: front-end metrics and inlier/outlier info for image pair.
         file_path: file path to save the visualization.
     """
-    plot_img = plot_twoview_correspondences(image_i1, image_i2, keypoints_i1, keypoints_i2, corr_idxs_i1i2)
+    plot_img = plot_twoview_correspondences(
+        image_i1,
+        image_i2,
+        keypoints_i1,
+        keypoints_i2,
+        corr_idxs_i1i2,
+        inlier_mask=two_view_report.v_corr_idxs_inlier_mask_gt,
+    )
 
     io_utils.save_image(plot_img, file_path)
 
@@ -301,13 +315,6 @@ def save_camera_poses_viz(
     ax = fig.add_subplot(projection="3d")
 
     if gt_pose_graph is not None:
-        # Select ground truth poses that correspond to pre-BA and post-BA estimated poses
-        # some may have been lost after pruning to largest connected component
-        corresponding_gt_poses = [gt_pose_graph[i] for i in pre_ba_sfm_data.get_valid_camera_indices()]
-
-        # ground truth is used as the reference
-        pre_ba_poses = comp_utils.align_poses_sim3(corresponding_gt_poses, copy.deepcopy(pre_ba_poses))
-        post_ba_poses = comp_utils.align_poses_sim3(corresponding_gt_poses, copy.deepcopy(post_ba_poses))
         plot_poses_3d(gt_pose_graph, ax, center_marker_color="m", label_name="GT")
 
     plot_poses_3d(pre_ba_poses, ax, center_marker_color="c", label_name="Pre-BA")

@@ -44,7 +44,7 @@ class TestSceneOptimizer(unittest.TestCase):
                 image_graph=self.loader.create_computation_graph_for_images(),
                 camera_intrinsics_graph=self.loader.create_computation_graph_for_intrinsics(),
                 image_shape_graph=self.loader.create_computation_graph_for_image_shapes(),
-                gt_pose_graph=self.loader.create_computation_graph_for_poses(),
+                gt_cameras_graph=self.loader.create_computation_graph_for_cameras(),
             )
             # create dask client
             cluster = LocalCluster(n_workers=1, threads_per_worker=4)
@@ -56,14 +56,14 @@ class TestSceneOptimizer(unittest.TestCase):
 
             # compare the camera poses
             computed_poses = sfm_result.get_camera_poses()
-            computed_rotations = [x.rotation() for x in computed_poses]
-            computed_translations = [x.translation() for x in computed_poses]
 
             # get active cameras from largest connected component, may be <len(self.loader)
             connected_camera_idxs = sfm_result.get_valid_camera_indices()
             expected_poses = [self.loader.get_camera_pose(i) for i in connected_camera_idxs]
 
-            self.assertTrue(comp_utils.compare_global_poses(expected_poses, expected_poses))
+            self.assertTrue(
+                comp_utils.compare_global_poses(computed_poses, expected_poses, trans_err_atol=1.0, trans_err_rtol=0.1)
+            )
 
 
 def generate_random_essential_matrix() -> EssentialMatrix:

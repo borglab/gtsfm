@@ -7,6 +7,7 @@ channels:
   # latest stable packages for numerous deep learning based methods. conda-forge
   # supplies higher versions of packages like opencv compared to the defaults
   # channel.
+  - open3d-admin
   - pytorch
   - conda-forge
 dependencies:
@@ -27,7 +28,7 @@ dependencies:
   - matplotlib==3.4.2
   - networkx
   - numpy
-  - nodejs==13.13.0 # will be updated to version 16.16.1 when numjs issue #81 is fixed
+  - nodejs
   - pandas
   - pillow>=8.0.1
   - scikit-learn
@@ -39,5 +40,10 @@ dependencies:
   - h5py
   - plotly=4.14.3
   - tabulate
+  # visualization
+  - open3d
+  - pip:
+    - pydegensac
+    - colour
 
 

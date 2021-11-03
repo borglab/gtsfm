@@ -10,14 +10,16 @@ References:
 Authors: Sushmita Warrier, Xiaolong Wu, John Lambert
 """
 import os
+from collections import Counter
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
 import dask
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import PinholeCameraCal3Bundler, SfmTrack
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, SfmTrack
 
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.tracks as track_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.sfm_track import SfmTrack2d
@@ -62,6 +64,7 @@ class DataAssociation(NamedTuple):
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
         images: Optional[List[Image]] = None,
+        cameras_gt: Optional[List[Cal3Bundler]] = None,
     ) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
         """Perform the data association.
 
@@ -71,7 +74,7 @@ class DataAssociation(NamedTuple):
             corr_idxs_dict: dictionary, with key as image pair (i1,i2) and value as matching keypoint indices.
             keypoints_list: keypoints for each image.
             images: a list of all images in scene (optional and only for track patch visualization)
-            viz_patch_sz: width and height of patches, if if dumping/visualizing a patch for each 2d track measurement
+            cameras_gt: list of GT cameras, to be used for benchmarking the tracks.
 
         Returns:
             A tuple of GtsfmData with cameras and tracks, and a GtsfmMetricsGroup with data association metrics
@@ -96,7 +99,6 @@ class DataAssociation(NamedTuple):
             self.num_ransac_hypotheses,
         )
 
-        num_tracks_w_cheirality_exceptions = 0
         per_accepted_track_avg_errors = []
         per_rejected_track_avg_errors = []
 
@@ -107,12 +109,17 @@ class DataAssociation(NamedTuple):
         for i, camera in cameras.items():
             triangulated_data.add_camera(i, camera)
 
+        exit_codes_wrt_gt: Optional[List[TriangulationExitCode]] = None
+        if cameras_gt is not None:
+            exit_codes_wrt_gt = track_utils.classify_tracks2d_with_gt_cameras(tracks=tracks_2d, cameras_gt=cameras_gt)
+
+        exit_codes_wrt_computed: List[TriangulationExitCode] = []
         # add valid tracks where triangulation is successful
         for track_2d in tracks_2d:
             # triangulate and filter based on reprojection error
             sfm_track, avg_track_reproj_error, triangulation_exit_code = point3d_initializer.triangulate(track_2d)
+            exit_codes_wrt_computed.append(triangulation_exit_code)
             if triangulation_exit_code == TriangulationExitCode.CHEIRALITY_FAILURE:
-                num_tracks_w_cheirality_exceptions += 1
                 continue
 
             if sfm_track is not None and self.__validate_track(sfm_track):
@@ -121,7 +128,18 @@ class DataAssociation(NamedTuple):
             else:
                 per_rejected_track_avg_errors.append(avg_track_reproj_error)
 
-        track_cheirality_failure_ratio = num_tracks_w_cheirality_exceptions / len(tracks_2d)
+        # aggregate the exit codes to get the distribution w.r.t each triangulation exit
+        # get the exit codes distribution w.r.t. the camera params computed by the upstream modules of GTSFM
+        exit_codes_wrt_computed_distribution = Counter(exit_codes_wrt_computed)
+        # compute the exit codes distribution w.r.t. a tuple of exit codes: the exit code when triangulated with the
+        # ground truth cameras and the exit code when triangulated with the computed cameras.
+        exit_codes_wrt_gt_and_computed_distribution = None
+        if exit_codes_wrt_gt is not None:
+            exit_codes_wrt_gt_and_computed_distribution = Counter(zip(exit_codes_wrt_gt, exit_codes_wrt_computed))
+
+        track_cheirality_failure_ratio = exit_codes_wrt_computed_distribution[
+            TriangulationExitCode.CHEIRALITY_FAILURE
+        ] / len(tracks_2d)
 
         # pick only the largest connected component
         connected_data = triangulated_data.select_largest_connected_component()
@@ -158,8 +176,21 @@ class DataAssociation(NamedTuple):
                     np.array(per_rejected_track_avg_errors).astype(np.float32),
                     store_full_data=False,
                 ),
+                GtsfmMetric(name="number_cameras", data=len(connected_data.get_valid_camera_indices())),
             ],
         )
+
+        if exit_codes_wrt_gt_and_computed_distribution is not None:
+            for (gt_exit_code, computed_exit_code), count in exit_codes_wrt_gt_and_computed_distribution.items():
+                # Each track has 2 associated exit codes: the triangulation exit codes w.r.t ground truth cameras
+                # and w.r.t cameras computed by upstream modules of GTSFM. We get the distribution of the number of
+                # tracks for each pair of (triangulation exit code w.r.t GT cams, triangulation exit code w.r.t
+                # computed cams)
+                metric_name = "#tracks triangulated with GT cams: {}, computed cams: {}".format(
+                    gt_exit_code.name, computed_exit_code.name
+                )
+
+                data_assoc_metrics.add_metric(GtsfmMetric(name=metric_name, data=count))
 
         return connected_data, data_assoc_metrics
 
@@ -170,6 +201,7 @@ class DataAssociation(NamedTuple):
         corr_idxs_graph: Dict[Tuple[int, int], Delayed],
         keypoints_graph: List[Delayed],
         images_graph: Optional[Delayed] = None,
+        gt_cameras_graph: Optional[List[Delayed]] = None,
     ) -> Tuple[Delayed, Delayed]:
         """Creates a computation graph for performing data association.
 
@@ -179,14 +211,16 @@ class DataAssociation(NamedTuple):
             corr_idxs_graph: dictionary of correspondence indices, each value wrapped up as Delayed.
             keypoints_graph: list of wrapped up keypoints for each image.
             images_graph: a list of all images in scene (optional and only for track patch visualization)
+            gt_cameras_graph: a list of cameras with ground truth params, if they exist, with each object
+                              wrapped up as Delayed.
 
         Returns:
             ba_input_graph: GtsfmData object wrapped up using dask.delayed
             data_assoc_metrics_graph: dictionary with different statistics about the data
                 association result
         """
-        data_assoc_graph = dask.delayed(self.run)(num_images, cameras, corr_idxs_graph, keypoints_graph, images_graph)
-        ba_input_graph = data_assoc_graph[0]
-        data_assoc_metrics_graph = data_assoc_graph[1]
+        ba_input_graph, data_assoc_metrics_graph = dask.delayed(self.run, nout=2)(
+            num_images, cameras, corr_idxs_graph, keypoints_graph, images_graph, gt_cameras_graph
+        )
 
         return ba_input_graph, data_assoc_metrics_graph
