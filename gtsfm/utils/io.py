@@ -369,8 +369,10 @@ def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
                 image_id_num_measurements[image_id] = 1
             else:
                 image_id_num_measurements[image_id] += 1
-    mean_obs_per_img = sum(image_id_num_measurements.values()) / len(
-        image_id_num_measurements
+    mean_obs_per_img = (
+        sum(image_id_num_measurements.values()) / len(image_id_num_measurements)
+        if len(image_id_num_measurements)
+        else 0
     )
 
     file_path = os.path.join(save_dir, "images.txt")
