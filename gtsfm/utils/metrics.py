@@ -137,8 +137,8 @@ def mesh_inlier_correspondences(
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Compute inlier correspondences using the ground truth triangular surface mesh of the scene. First, rays are
     back-projected at each keypoint in the images and intersections between these rays and the ground truth mesh are
-    recorded. Next, given a match, the the mesh intersections corresponding to each keypoint is forward-projected into
-    the other image and the reprojection error is computed to decide whether the match is an inlier.
+    recorded. Next, given a match, the mesh intersections corresponding to each keypoint are forward-projected into the
+    other image and the reprojection error is computed to decide whether the match is an inlier.
 
     Args:
         keypoints_i1: N keypoints in image i1.
@@ -146,8 +146,8 @@ def mesh_inlier_correspondences(
         gt_camera_i1: ground truth camera for image i1, i.e., wTi1 and intrinsics.
         gt_camera_i1: ground truth camera for image i2, i.e., wTi2 and intrinsics.
         gt_scene_mesh: ground truth triangular surface mesh of the scene in the world frame.
-        dist_threshold: max acceptable distance (in pixels) between image coordinates of ground truth landmark and
-            keypoint.
+        dist_threshold: max acceptable reprojection error (in pixels) between image coordinates of ground truth landmark
+            and keypoint.
 
     Returns:
         is_inlier: (N, ) mask of inlier correspondences.
@@ -174,8 +174,8 @@ def mesh_inlier_correspondences(
         uv_i2i1, success_flag_i1 = gt_camera_i1.projectSafe(intersections_i2[i2_idx[i]])
         uv_i1i2, success_flag_i2 = gt_camera_i2.projectSafe(intersections_i1[i1_idx[i]])
         if success_flag_i1 and success_flag_i2:
-            err_i2i1 = np.linalg.norm(uv_i1.flatten() - uv_i2i1.flatten())
-            err_i1i2 = np.linalg.norm(uv_i2.flatten() - uv_i1i2.flatten())
+            err_i2i1 = np.linalg.norm(uv_i1 - uv_i2i1)
+            err_i1i2 = np.linalg.norm(uv_i2 - uv_i1i2)
             is_inlier[keypoint_ind[i]] = max(err_i2i1, err_i1i2) < dist_threshold
             reproj_err[keypoint_ind[i]] = max(err_i2i1, err_i1i2)
         else:

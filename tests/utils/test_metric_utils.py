@@ -16,7 +16,7 @@ import gtsfm.utils.metrics as metric_utils
 class TestMetricUtils(unittest.TestCase):
     """Class containing all unit tests for metric utils."""
 
-    def test_mesh_inlier_correspondences(self):
+    def test_mesh_inlier_correspondences(self) -> None:
         """Tests `compute_keypoint_intersections()` function."""
         # Create cube mesh with side length one centered at origin.
         box = trimesh.primitives.Box()
@@ -36,7 +36,7 @@ class TestMetricUtils(unittest.TestCase):
         assert np.count_nonzero(is_inlier) == 1
         assert reproj_err[0] < 1e-4
 
-    def test_compute_keypoint_intersections(self):
+    def test_compute_keypoint_intersections(self) -> None:
         """Tests `compute_keypoint_intersections()` function."""
         # Create cube mesh with side length one centered at origin.
         box = trimesh.primitives.Box()
