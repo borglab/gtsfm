@@ -330,35 +330,35 @@ def aggregate_frontend_metrics(
     )
     degenerate_configuration_percent = configuration_counts[TwoViewConfigurationType.DEGENERATE] / num_image_pairs * 100
 
-    logger.debug(
+    logger.info(
         "[Two view optimizer] [Summary] Calibrated %.1f%%, Planar/Panoramic %.1f%%, Degenerate: %.1f%%",
         calibrated_configuration_percent,
         planar_or_panoramic_configuration_percent,
         degenerate_configuration_percent,
     )
 
-    logger.debug(
+    logger.info(
         "[Two view optimizer] [Summary] Rotation success: %d/%d/%d",
         success_count_rot3,
         num_valid_image_pairs,
         num_image_pairs,
     )
 
-    logger.debug(
+    logger.info(
         "[Two view optimizer] [Summary] Translation success: %d/%d/%d",
         success_count_unit3,
         num_valid_image_pairs,
         num_image_pairs,
     )
 
-    logger.debug(
+    logger.info(
         "[Two view optimizer] [Summary] Pose success: %d/%d/%d",
         success_count_pose,
         num_valid_image_pairs,
         num_image_pairs,
     )
 
-    logger.debug(
+    logger.info(
         "[Two view optimizer] [Summary] # Image pairs with 100%% inlier ratio:: %d/%d", all_correct, num_image_pairs
     )
 
