@@ -5,9 +5,9 @@ Authors: Travis Driver
 
 import os
 from pathlib import Path
-from typing import Optional, Dict, Tuple, List
+from typing import Optional
 
-from gtsam import Cal3Bundler, Pose3, Rot3, Point3, SfmTrack
+from gtsam import Cal3Bundler, Pose3, SfmTrack
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
@@ -15,9 +15,6 @@ from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
 
 import thirdparty.colmap.scripts.python.read_write_model as colmap_io
-from thirdparty.colmap.scripts.python.read_write_model import Camera as ColmapCamera
-from thirdparty.colmap.scripts.python.read_write_model import Image as ColmapImage
-from thirdparty.colmap.scripts.python.read_write_model import Point3D as ColmapPoint3D
 
 
 logger = logger_utils.get_logger()
@@ -74,7 +71,12 @@ class AstronetLoader(LoaderBase):
         if not Path(data_dir).exists():
             raise FileNotFoundError("No data found at %s." % data_dir)
         cameras, images, points3d = colmap_io.read_model(path=data_dir, ext=".bin")
-        self._calibrations, self._wTi_list, img_fnames, self._sfmtracks = io_utils.colmap2gtsfm(
+        (
+            self._calibrations,
+            self._wTi_list,
+            img_fnames,
+            self._sfmtracks,
+        ) = io_utils.colmap2gtsfm(
             cameras, images, points3d, load_sfmtracks=use_gt_sfmtracks
         )
 
@@ -99,7 +101,11 @@ class AstronetLoader(LoaderBase):
             self._image_paths.append(img_fpath)
 
         self._num_imgs = len(self._image_paths)
-        logger.info("AstroNet loader found and loaded %d images and %d tracks.", self._num_imgs, self.num_sfmtracks)
+        logger.info(
+            "AstroNet loader found and loaded %d images and %d tracks.",
+            self._num_imgs,
+            self.num_sfmtracks,
+        )
 
     def __len__(self) -> int:
         """The number of images in the dataset.
@@ -189,4 +195,7 @@ class AstronetLoader(LoaderBase):
         Returns:
             validation result.
         """
-        return super().is_valid_pair(idx1, idx2) and abs(idx1 - idx2) <= self._max_frame_lookahead
+        return (
+            super().is_valid_pair(idx1, idx2)
+            and abs(idx1 - idx2) <= self._max_frame_lookahead
+        )

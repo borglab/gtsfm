@@ -2,8 +2,6 @@
 
 Authors: Jon Womack
 """
-import json
-import numpy as np
 import os
 from typing import Dict, List
 
@@ -30,21 +28,17 @@ def compare_metrics(
         cameras, images, image_files, sfmtracks = io_utils.colmap2gtsfm(
             cameras, images, points3d, load_sfmtracks=True
         )
-        num_images = len(images)
         num_cameras = len(cameras)
-        num_tracks = len(sfmtracks)
-        # mean_observation_per_image =
         track_lengths = []
         image_id_num_measurements = {}
         for track in sfmtracks:
             track_lengths.append(track.number_measurements())
             for k in range(track.number_measurements()):
                 image_id, uv_measured = track.measurement(k)
-                if not image_id in image_id_num_measurements:
+                if image_id not in image_id_num_measurements:
                     image_id_num_measurements[image_id] = 1
                 else:
                     image_id_num_measurements[image_id] += 1
-        num_total_frontend_measurements = sum(image_id_num_measurements.values())
 
         colmap2gtsfm = {
             "number_cameras": GtsfmMetric("number_cameras", num_cameras),
@@ -52,10 +46,7 @@ def compare_metrics(
                 "3d_tracks_length",
                 track_lengths,
                 plot_type=GtsfmMetric.PlotType.HISTOGRAM,
-            )
-            #     ),
-            # "num_total_frontend_measurements":
-            #     GtsfmMetric("num_total_frontend_measurements", num_total_frontend_measurements)
+            ),
         }
 
         # Create comparable result_metric json for COLMAP
@@ -81,25 +72,3 @@ def compare_metrics(
             new_metrics_group.save_to_json(
                 os.path.join(json_path, pipeline_name, os.path.basename(filename))
             )
-
-    #
-    #     gtsfm_metrics.append(
-    #         GtsfmMetric(
-    #             "Number of 3D Points " + pipeline_name, num_tracks
-    #         )
-    #     )
-    #     gtsfm_metrics.append(
-    #         GtsfmMetric(
-    #             "Number of Images " + pipeline_name, num_images
-    #         )
-    #     )
-    #     gtsfm_metrics.append(
-    #         GtsfmMetric(
-    #             "Mean Observations Per Image " + pipeline_name, np.mean(observations_per_image)
-    #         )
-    #     )
-    #     gtsfm_metrics.append(
-    #         GtsfmMetric(
-    #             "Median Observations Per Image " + pipeline_name, np.median(observations_per_image)
-    #         )
-    #     )
