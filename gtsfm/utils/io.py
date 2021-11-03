@@ -2,13 +2,15 @@
 
 Authors: Ayush Baid, John Lambert
 """
+import json
 import os
+import pickle
+from bz2 import BZ2File
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import gtsam
 import h5py
-import json
 import numpy as np
 from gtsam import Cal3Bundler, Rot3, Pose3, Point3, SfmTrack
 from PIL import Image as PILImage
@@ -485,3 +487,24 @@ def save_track_visualizations(
         stacked_image = image_utils.vstack_image_list(patches)
         save_fpath = os.path.join(save_dir, f"track_{i}.jpg")
         save_image(stacked_image, img_path=save_fpath)
+
+
+def read_from_bz2_file(file_path: Path) -> Optional[Any]:
+    """Reads data using pickle from a compressed file, if it exists."""
+    if not file_path.exists():
+        return None
+
+    try:
+        data = pickle.load(BZ2File(file_path, "rb"))
+    except Exception:
+        logger.exception("Cache file was corrupted, removing it...")
+        os.remove(file_path)
+        data = None
+
+    return data
+
+
+def write_to_bz2_file(data: Any, file_path: Path) -> None:
+    """Writes data using pickle to a compressed file."""
+    file_path.parent.mkdir(exist_ok=True, parents=True)
+    pickle.dump(data, BZ2File(file_path, "wb"))

@@ -132,8 +132,10 @@ class SceneOptimizer:
         v_corr_idxs_graph_dict = {}
 
         two_view_reports_dict = {}
+        two_view_reports_pp_dict = {}
 
         for (i1, i2) in image_pair_indices:
+            # TODO(johnwlambert): decompose this method -- name it as "calling_the_plate()"
             if gt_cameras_graph is not None:
                 # compute GT relative pose
                 gt_i2Ti1 = dask.delayed(lambda x, y: x.pose().between(y.pose()))(
@@ -142,11 +144,13 @@ class SceneOptimizer:
             else:
                 gt_i2Ti1 = None
 
+            # TODO(johnwlambert): decompose this so what happens in the loop is a separate method
             (
                 i2Ri1,
                 i2Ui1,
                 v_corr_idxs,
                 two_view_report,
+                two_view_report_pp,
             ) = self.two_view_estimator.create_computation_graph(
                 keypoints_graph_list[i1],
                 keypoints_graph_list[i2],
@@ -162,8 +166,8 @@ class SceneOptimizer:
             i2Ri1_graph_dict[(i1, i2)] = i2Ri1
             i2Ui1_graph_dict[(i1, i2)] = i2Ui1
             v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
-
             two_view_reports_dict[(i1, i2)] = two_view_report
+            two_view_reports_pp_dict[(i1, i2)] = two_view_report_pp
 
             if self._save_two_view_correspondences_viz:
                 auxiliary_graph_list.append(
@@ -173,24 +177,26 @@ class SceneOptimizer:
                         keypoints_graph_list[i1],
                         keypoints_graph_list[i2],
                         v_corr_idxs,
-                        file_path=os.path.join(
-                            PLOT_CORRESPONDENCE_PATH, f"{i1}_{i2}.jpg"
-                        ),
+                        two_view_report=two_view_report,
+                        file_path=os.path.join(PLOT_CORRESPONDENCE_PATH, f"{i1}_{i2}.jpg"),
                     )
                 )
 
         # persist all front-end metrics and its summary
         auxiliary_graph_list.append(
-            dask.delayed(save_full_frontend_metrics)(
-                two_view_reports_dict, image_graph, filename="frontend_full.json"
-            )
+            dask.delayed(save_full_frontend_metrics)(two_view_reports_dict, image_graph, filename="verifier_full.json")
         )
         if gt_cameras_graph is not None:
             metrics_graph_list.append(
                 dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
-                    two_view_reports_dict,
+                    two_view_reports_dict, self._pose_angular_error_thresh, metric_group_name="verifier_summary"
+                )
+            )
+            metrics_graph_list.append(
+                dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
+                    two_view_reports_pp_dict,
                     self._pose_angular_error_thresh,
-                    metric_group_name="frontend_summary",
+                    metric_group_name="inlier_support_processor_summary",
                 )
             )
 
@@ -204,12 +210,11 @@ class SceneOptimizer:
         auxiliary_graph_list = []
 
         # ensure cycle consistency in triplets
-        (
-            i2Ri1_graph_dict,
-            i2Ui1_graph_dict,
-            v_corr_idxs_graph_dict,
-            rcc_metrics_graph,
-        ) = dask.delayed(cycle_consistency.filter_to_cycle_consistent_edges, nout=4)(
+        # TODO: add a get_computational_graph() method to ViewGraphOptimizer
+        # TODO(johnwlambert): use a different name for variable, since this is something different
+        i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict, rcc_metrics_graph = dask.delayed(
+            cycle_consistency.filter_to_cycle_consistent_edges, nout=4
+        )(
             i2Ri1_graph_dict,
             i2Ui1_graph_dict,
             v_corr_idxs_graph_dict,
@@ -267,20 +272,17 @@ class SceneOptimizer:
         # Save metrics to JSON and generate HTML report.
         auxiliary_graph_list.extend(save_metrics_reports(metrics_graph_list))
 
-        # # Modify BA input and BA output to have point clouds and frustums aligned with x,y,z axes.
-        # ba_input_graph, ba_output_graph, gt_pose_graph = dask.delayed(align_estimated_gtsfm_data, nout=3)(
-        #     ba_input_graph, ba_output_graph, gt_pose_graph
-        # )
+        # Modify BA input, BA output, and GT poses to have point clouds and frustums aligned with x,y,z axes.
+        gt_poses_graph = (
+            [dask.delayed(lambda x: x.pose())(cam) for cam in gt_cameras_graph] if gt_cameras_graph else None
+        )
+
+        ba_input_graph, ba_output_graph, gt_poses_graph = dask.delayed(align_estimated_gtsfm_data, nout=3)(
+            ba_input_graph, ba_output_graph, gt_poses_graph
+        )
 
         if self._save_3d_viz:
-            gt_poses_graph = (
-                [dask.delayed(lambda x: x.pose())(cam) for cam in gt_cameras_graph]
-                if gt_cameras_graph
-                else None
-            )
-            auxiliary_graph_list.extend(
-                save_visualizations(ba_input_graph, ba_output_graph, gt_poses_graph)
-            )
+            auxiliary_graph_list.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_poses_graph))
 
         if self._save_gtsfm_data:
             auxiliary_graph_list.extend(
@@ -315,10 +317,10 @@ def align_estimated_gtsfm_data(
         Updated gt_pose_graph with GT poses aligned to axes.
     """
     walignedTw = ellipsoid_utils.get_ortho_axis_alignment_transform(ba_output)
-    walignedTw = Similarity3(R=walignedTw.rotation(), t=walignedTw.translation(), s=1.0)
-    ba_input = ba_input.apply_Sim3(walignedTw)
-    ba_output = ba_output.apply_Sim3(walignedTw)
-    gt_pose_graph = [walignedTw.transformFrom(wTi) for wTi in gt_pose_graph]
+    walignedSw = Similarity3(R=walignedTw.rotation(), t=walignedTw.translation(), s=1.0)
+    ba_input = ba_input.apply_Sim3(walignedSw)
+    ba_output = ba_output.apply_Sim3(walignedSw)
+    gt_pose_graph = [walignedSw.transformFrom(wTi) for wTi in gt_pose_graph]
     return ba_input, ba_output, gt_pose_graph
 
 
