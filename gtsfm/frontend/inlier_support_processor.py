@@ -109,13 +109,12 @@ class InlierSupportProcessor:
         is_planar_or_panoramic = H_EF_inlier_ratio > MAX_H_INLIER_RATIO
         logger.debug("H_EF_inlier_ratio: %.2f", H_EF_inlier_ratio)
         if is_planar_or_panoramic:
-            logger.info(
-                "Planar or panoramic; ignoring image pair "
-                + "(in future PR pose will be extracted from decomposed homography)."
-            )
-            i2Ri1 = None
-            i2Ui1 = None
-            v_corr_idxs = np.array([], dtype=np.uint64)
+            logger.debug("Planar or panoramic image pair configuration detected")
+            # TODO(johnwlambert): we currently only enable homography detection. rejection will be implemented next.
+            # TODO(johnwlambert): in future PR pose will be extracted from decomposed homography.
+            # i2Ri1 = None
+            # i2Ui1 = None
+            # v_corr_idxs = np.array([], dtype=np.uint64)
             two_view_report.configuration_type = TwoViewConfigurationType.PLANAR_OR_PANORAMIC
             return i2Ri1, i2Ui1, v_corr_idxs, two_view_report
 
