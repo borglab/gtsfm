@@ -96,10 +96,10 @@ if __name__ == "__main__":
         help="if points are rendered as spheres, then spheres are rendered with this radius.",
     )
     parser.add_argument(
-        "--frustrum_ray_len",
+        "--frustum_ray_len",
         type=float,
         default=0.3,
-        help="Length extend frustum rays away from optical center "
+        help="Length to extend frustum rays away from optical center "
         + "(increase length for large-scale scenes to make frustums visible)",
     )
 
