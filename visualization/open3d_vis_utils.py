@@ -66,7 +66,9 @@ def create_colored_spheres_open3d(
     return spheres
 
 
-def create_all_frustums_open3d(wTi_list: List[Pose3], calibrations: List[Cal3Bundler]) -> List[open3d.geometry.LineSet]:
+def create_all_frustums_open3d(
+    wTi_list: List[Pose3], calibrations: List[Cal3Bundler], frustum_ray_len: float = 0.3
+) -> List[open3d.geometry.LineSet]:
     """Render camera frustums as collections of line segments, using Open3d.
 
     Frustums are colored red-to-green by image order (for ordered collections, this corresponds to trajectory order).
@@ -96,7 +98,7 @@ def create_all_frustums_open3d(wTi_list: List[Pose3], calibrations: List[Cal3Bun
         py = K[1, 2]
         img_w = px * 2
         img_h = py * 2
-        frustum_obj = ViewFrustum(fx, img_w, img_h)
+        frustum_obj = ViewFrustum(fx, img_w, img_h, frustum_ray_len=frustum_ray_len)
 
         edges_worldfr = frustum_obj.get_mesh_edges_worldframe(wTi)
         for verts_worldfr in edges_worldfr:
@@ -173,7 +175,7 @@ def draw_scene_open3d(
         calibrations: calibration object for each camera.
         args: rendering options.
     """
-    frustums = create_all_frustums_open3d(wTi_list, calibrations)
+    frustums = create_all_frustums_open3d(wTi_list, calibrations, args.frustum_ray_len)
     if args.point_rendering_mode == "point":
         pcd = create_colored_point_cloud_open3d(point_cloud, rgb)
         geometries = frustums + [pcd]
