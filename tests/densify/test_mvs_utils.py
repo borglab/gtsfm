@@ -45,6 +45,15 @@ class TestMVSUtils(unittest.TestCase):
 
         self.assertAlmostEqual(score, np.exp(-(5.0 ** 2) / (2 * 10.0 ** 2)))
 
+    def test_cart_to_homogenous(self) -> None:
+        """Test the cart_to_homogenous function correctly produces the homogenous coordinates"""
+
+        n = 100
+        uv = np.random.random([2, n])
+        uv_homo = mvs_utils.cart_to_homogenous(uv)
+
+        self.assertTrue(uv_homo.shape == (3, n))
+
 
 if __name__ == "__main__":
     unittest.main()
