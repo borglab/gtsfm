@@ -17,7 +17,14 @@ class TestMetricUtils(unittest.TestCase):
     """Class containing all unit tests for metric utils."""
 
     def test_mesh_inlier_correspondences(self) -> None:
-        """Tests `compute_keypoint_intersections()` function."""
+        """Tests `compute_keypoint_intersections()` function.
+
+        We arrange four cameras in the x-z plane around a cube centered at the origin with side length 1. These cameras
+        are placed at (2, 0, 0), (-2, 0, 0), (0, 0, 2) and (0, 0, -2). We project a single 3d point located at the
+        origin into each camera. Since the cube has unit length on each dimension, we expect a keypoint located at the
+        center of each image to be found at the boundary of the cube -- 0.5 meters from the origin for each side on the
+        z-x plane.
+        """
         # Create cube mesh with side length one centered at origin.
         box = trimesh.primitives.Box()
 
