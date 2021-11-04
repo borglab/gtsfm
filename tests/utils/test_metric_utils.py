@@ -5,12 +5,12 @@ Author: Travis Driver
 
 import unittest
 
-import trimesh
 import numpy as np
+import trimesh
 from gtsam import PinholeCameraCal3Bundler, Cal3Bundler
-from gtsfm.common.keypoints import Keypoints
 
 import gtsfm.utils.metrics as metric_utils
+from gtsfm.common.keypoints import Keypoints
 
 
 class TestMetricUtils(unittest.TestCase):
