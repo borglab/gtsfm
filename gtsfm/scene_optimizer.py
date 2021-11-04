@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import dask
 import matplotlib
 import numpy as np
-import trimesh
+from trimesh import Trimesh
 from gtsam import Pose3, Similarity3
 from dask.delayed import Delayed
 
@@ -104,7 +104,7 @@ class SceneOptimizer:
         camera_intrinsics_graph: List[Delayed],
         image_shape_graph: List[Delayed],
         gt_cameras_graph: Optional[List[Delayed]] = None,
-        gt_scene_mesh: Optional[trimesh.Trimesh] = None,
+        gt_scene_mesh: Optional[Trimesh] = None,
     ) -> Delayed:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
 
@@ -162,12 +162,6 @@ class SceneOptimizer:
             v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
             two_view_reports_dict[(i1, i2)] = two_view_report
             two_view_reports_pp_dict[(i1, i2)] = two_view_report_pp
-
-            # Use ground truth relative poses.
-            # from gtsam import Unit3
-            # gt_i2Ti1 = dask.delayed(lambda x, y: x.between(y))(gt_pose_i2, gt_pose_i1)
-            # i2Ri1_graph_dict[(i1, i2)] = gt_i2Ti1.rotation()
-            # i2Ui1_graph_dict[(i1, i2)] = dask.delayed(lambda x: Unit3(np.array([x.x(), x.y(), x.z()])))(gt_i2Ti1)
 
             # Visualize verified two-view correspondences.
             if self._save_two_view_correspondences_viz:

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
-import trimesh
+from trimesh import Trimesh
 from dask.delayed import Delayed
 from gtsam import PinholeCameraCal3Bundler, Cal3Bundler, EssentialMatrix, Point3, Pose3, Rot3, Unit3
 
@@ -41,7 +41,7 @@ def compute_correspondence_metrics(
     dist_threshold: float,
     gt_wTi1: Optional[Pose3] = None,
     gt_wTi2: Optional[Pose3] = None,
-    gt_scene_mesh: Optional[trimesh.Trimesh] = None,
+    gt_scene_mesh: Optional[Trimesh] = None,
 ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
     """Checks the correspondences for epipolar distances and counts ones which are below the threshold.
 
@@ -132,7 +132,7 @@ def mesh_inlier_correspondences(
     keypoints_i2: Keypoints,
     gt_camera_i1: PinholeCameraCal3Bundler,
     gt_camera_i2: PinholeCameraCal3Bundler,
-    gt_scene_mesh: trimesh.Trimesh,
+    gt_scene_mesh: Trimesh,
     dist_threshold: float,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Compute inlier correspondences using the ground truth triangular surface mesh of the scene. First, rays are
@@ -186,7 +186,7 @@ def mesh_inlier_correspondences(
 
 
 def compute_keypoint_intersections(
-    keypoints: Keypoints, gt_camera: PinholeCameraCal3Bundler, gt_scene_mesh: trimesh.Trimesh, verbose: bool = False
+    keypoints: Keypoints, gt_camera: PinholeCameraCal3Bundler, gt_scene_mesh: Trimesh, verbose: bool = False
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Computes intersections between ground truth surface mesh and rays originating from image keypoints.
 
