@@ -72,7 +72,7 @@ def compute_correspondence_metrics(
     # Compute ground truth correspondences.
     matched_keypoints_i1 = keypoints_i1.extract_indices(corr_idxs_i1i2[:, 0])
     matched_keypoints_i2 = keypoints_i2.extract_indices(corr_idxs_i1i2[:, 1])
-    # check to see if a GT mesh is provided.
+    # Check to see if a GT mesh is provided.
     if gt_scene_mesh is not None:
         gt_camera_i1 = PinholeCameraCal3Bundler(gt_wTi1, intrinsics_i1)
         gt_camera_i2 = PinholeCameraCal3Bundler(gt_wTi2, intrinsics_i2)
@@ -86,7 +86,7 @@ def compute_correspondence_metrics(
         )
         return is_inlier, reproj_error
         
-    # no mesh is provided, so we use squared Sampson error.
+    # If no mesh is provided, use squared Sampson error.
     gt_i2Ti1 = gt_wTi2.between(gt_wTi1)
     is_inlier, reproj_error = epipolar_inlier_correspondences(
         matched_keypoints_i1,
