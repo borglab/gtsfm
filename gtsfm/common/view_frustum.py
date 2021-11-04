@@ -14,7 +14,7 @@ class ViewFrustum:
         fx: float,
         img_w: int,
         img_h: int,
-        frustum_ray_len: int = DEFAULT_FRUSTUM_RAY_LEN,
+        frustum_ray_len: float = DEFAULT_FRUSTUM_RAY_LEN,
     ) -> None:
         """
         Args:

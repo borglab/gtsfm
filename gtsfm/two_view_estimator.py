@@ -3,7 +3,7 @@
 Authors: Ayush Baid, John Lambert
 """
 import logging
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, List
 
 import dask
 import numpy as np
@@ -132,8 +132,10 @@ class TwoViewEstimator:
         camera_intrinsics_i2_graph: Delayed,
         im_shape_i1_graph: Delayed,
         im_shape_i2_graph: Delayed,
-        i2Ti1_expected_graph: Optional[Delayed] = None,
-    ) -> Tuple[Delayed, Delayed, Delayed, Optional[Delayed], Optional[Delayed], Optional[Delayed]]:
+        gt_wTi1_graph: Optional[Delayed] = None,
+        gt_wTi2_graph: Optional[Delayed] = None,
+        gt_scene_mesh_graph: Optional[Delayed] = None,
+    ) -> Tuple[Delayed, Delayed, Delayed, Optional[Delayed], Optional[Delayed]]:
         """Create delayed tasks for matching and verification.
 
         Args:
@@ -192,34 +194,35 @@ class TwoViewEstimator:
         )
 
         # if we have the expected GT data, evaluate the computed relative pose
-        if i2Ti1_expected_graph is not None:
+        if gt_wTi1_graph is not None and gt_wTi2_graph is not None:
+            i2Ti1_expected_graph = gt_wTi2_graph.between(gt_wTi1_graph)
             R_error_deg, U_error_deg = dask.delayed(compute_relative_pose_metrics, nout=2)(
                 i2Ri1_graph, i2Ui1_graph, i2Ti1_expected_graph
             )
-            num_inliers_gt_model, inlier_ratio_gt_model, v_corr_idxs_inlier_mask_gt = dask.delayed(
-                compute_correspondence_metrics, nout=3
+            v_corr_idxs_inlier_mask_gt, reproj_error_gt_model = dask.delayed(
+                metric_utils.compute_correspondence_metrics, nout=2
             )(
                 keypoints_i1_graph,
                 keypoints_i2_graph,
                 v_corr_idxs_graph,
                 camera_intrinsics_i1_graph,
                 camera_intrinsics_i2_graph,
-                i2Ti1_expected_graph,
                 self._corr_metric_dist_threshold,
+                gt_wTi1_graph,
+                gt_wTi2_graph,
+                gt_scene_mesh_graph,
             )
         else:
             R_error_deg, U_error_deg = None, None
-            num_inliers_gt_model, inlier_ratio_gt_model = None, None
-            v_corr_idxs_inlier_mask_gt = None
+            v_corr_idxs_inlier_mask_gt, reproj_error_gt_model = None, None
 
         two_view_report_graph = dask.delayed(generate_two_view_report)(
             inlier_ratio_est_model,
-            R_error_deg,
-            U_error_deg,
-            num_inliers_gt_model,
-            inlier_ratio_gt_model,
-            v_corr_idxs_inlier_mask_gt,
             v_corr_idxs_graph,
+            R_error_deg=R_error_deg,
+            U_error_deg=U_error_deg,
+            v_corr_idxs_inlier_mask_gt=v_corr_idxs_inlier_mask_gt,
+            reproj_error_gt_model=reproj_error_gt_model,
         )
 
         # Note: We name the output as _pp, as it represents a post-processed quantity.
@@ -235,14 +238,30 @@ class TwoViewEstimator:
 
 def generate_two_view_report(
     inlier_ratio_est_model: float,
-    R_error_deg: float,
-    U_error_deg: float,
-    num_inliers_gt_model: int,
-    inlier_ratio_gt_model: float,
-    v_corr_idxs_inlier_mask_gt: np.ndarray,
     v_corr_idxs: np.ndarray,
+    R_error_deg: Optional[float] = None,
+    U_error_deg: Optional[float] = None,
+    v_corr_idxs_inlier_mask_gt: Optional[np.ndarray] = None,
+    reproj_error_gt_model: Optional[np.ndarray] = None,
 ) -> TwoViewEstimationReport:
     """Wrapper around class constructor for Dask."""
+    # Compute ground truth metrics.
+    if v_corr_idxs_inlier_mask_gt is not None and reproj_error_gt_model is not None:
+        num_inliers_gt_model = np.count_nonzero(v_corr_idxs_inlier_mask_gt)
+        inlier_ratio_gt_model = (
+            np.count_nonzero(v_corr_idxs_inlier_mask_gt) / v_corr_idxs.shape[0] if len(v_corr_idxs) > 0 else 0.0
+        )
+        inlier_avg_reproj_error_gt_model = np.mean(reproj_error_gt_model[v_corr_idxs_inlier_mask_gt])
+        outlier_avg_reproj_error_gt_model = np.nanmean(
+            reproj_error_gt_model[np.logical_not(v_corr_idxs_inlier_mask_gt)]
+        )
+    else:
+        num_inliers_gt_model = 0
+        inlier_ratio_gt_model = float("Nan")
+        inlier_avg_reproj_error_gt_model = float("Nan")
+        outlier_avg_reproj_error_gt_model = float("Nan")
+
+    # Generate report.
     two_view_report = TwoViewEstimationReport(
         inlier_ratio_est_model=inlier_ratio_est_model,
         num_inliers_est_model=v_corr_idxs.shape[0],
@@ -252,50 +271,11 @@ def generate_two_view_report(
         v_corr_idxs=v_corr_idxs,
         R_error_deg=R_error_deg,
         U_error_deg=U_error_deg,
+        reproj_error_gt_model=reproj_error_gt_model,
+        inlier_avg_reproj_error_gt_model=inlier_avg_reproj_error_gt_model,
+        outlier_avg_reproj_error_gt_model=outlier_avg_reproj_error_gt_model,
     )
     return two_view_report
-
-
-def compute_correspondence_metrics(
-    keypoints_i1: Keypoints,
-    keypoints_i2: Keypoints,
-    corr_idxs_i1i2: np.ndarray,
-    intrinsics_i1: Cal3Bundler,
-    intrinsics_i2: Cal3Bundler,
-    i2Ti1: Pose3,
-    epipolar_distance_threshold: float,
-) -> Tuple[int, float, Optional[np.ndarray]]:
-    """Compute the metrics for the generated verified correspondence.
-
-    Args:
-        keypoints_i1: detected keypoints in image i1.
-        keypoints_i2: detected keypoints in image i2.
-        corr_idxs_i1i2: indices of correspondences.
-        intrinsics_i1: intrinsics for i1.
-        intrinsics_i2: intrinsics for i2.
-        i2Ti1: relative pose.
-        epipolar_distance_threshold: max epipolar distance to qualify as a correct match.
-
-    Returns:
-        Number of inlier correspondences to ground truth epipolar geometry, i.e. #correct correspondences.
-        Inlier Ratio, i.e. ratio of correspondences which are correct w.r.t. given relative pose.
-        Mask of which verified correspondences are classified as correct under Sampson error
-            (using GT epipolar geometry).
-    """
-    if corr_idxs_i1i2.size == 0:
-        return 0, float("Nan"), None
-
-    v_corr_idxs_inlier_mask_gt = metric_utils.count_correct_correspondences(
-        keypoints_i1.extract_indices(corr_idxs_i1i2[:, 0]),
-        keypoints_i2.extract_indices(corr_idxs_i1i2[:, 1]),
-        intrinsics_i1,
-        intrinsics_i2,
-        i2Ti1,
-        epipolar_distance_threshold,
-    )
-    num_inliers_gt_model = np.count_nonzero(v_corr_idxs_inlier_mask_gt)
-    inlier_ratio_gt_model = num_inliers_gt_model / corr_idxs_i1i2.shape[0]
-    return num_inliers_gt_model, inlier_ratio_gt_model, v_corr_idxs_inlier_mask_gt
 
 
 def compute_relative_pose_metrics(
@@ -341,8 +321,8 @@ def aggregate_frontend_metrics(
     num_image_pairs = len(two_view_reports_dict.keys())
 
     # all rotational errors in degrees
-    rot3_angular_errors = []
-    trans_angular_errors = []
+    rot3_angular_errors: List[float] = []
+    trans_angular_errors: List[float] = []
 
     inlier_ratio_gt_model_all_pairs = []
     inlier_ratio_est_model_all_pairs = []
@@ -352,8 +332,10 @@ def aggregate_frontend_metrics(
     for report in two_view_reports_dict.values():
         if report is None:
             continue
-        rot3_angular_errors.append(report.R_error_deg)
-        trans_angular_errors.append(report.U_error_deg)
+        if report.R_error_deg is not None:
+            rot3_angular_errors.append(report.R_error_deg)
+        if report.U_error_deg is not None:
+            trans_angular_errors.append(report.U_error_deg)
 
         inlier_ratio_gt_model_all_pairs.append(report.inlier_ratio_gt_model)
         inlier_ratio_est_model_all_pairs.append(report.inlier_ratio_est_model)

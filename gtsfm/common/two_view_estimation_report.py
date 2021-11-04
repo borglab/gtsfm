@@ -1,4 +1,3 @@
-
 """Container for results about a image pair.
 
 Authors: John Lambert
@@ -34,6 +33,9 @@ class TwoViewEstimationReport:
         U_error_deg: relative translation error w.r.t. GT. Only defined if GT poses provided.
         i2Ri1: relative rotation.
         i2Ui1: relative translation direction.
+        reproj_error_gt_model: reprojection errors between correspondences w.r.t. GT.
+        inlier_avg_reproj_error_gt_model: average reprojection error of inliers.
+        outlier_avg_reproj_error_gt_model: average reprojection error of outliers.
     """
 
     v_corr_idxs: np.ndarray
@@ -46,3 +48,6 @@ class TwoViewEstimationReport:
     U_error_deg: Optional[float] = None
     i2Ri1: Optional[Rot3] = None
     i2Ui1: Optional[Unit3] = None
+    reproj_error_gt_model: Optional[np.ndarray] = None
+    inlier_avg_reproj_error_gt_model: Optional[float] = None
+    outlier_avg_reproj_error_gt_model: Optional[float] = None
