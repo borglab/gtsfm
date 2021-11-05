@@ -3,6 +3,7 @@
 Authors: Ayush Baid, John Lambert
 """
 import logging
+import timeit
 from typing import Dict, Optional, Tuple, List
 
 import dask
@@ -39,7 +40,7 @@ DATA_ASSOC_2VIEW = DataAssociation(
     reproj_error_thresh=DATA_ASSOC_REPROJ_ERROR_THRESH, min_track_len=2, mode=TriangulationParam.NO_RANSAC
 )
 BUNDLE_ADJUST_2VIEW = BundleAdjustmentOptimizer(
-    output_reproj_error_thresh=BA_OUTPUT_REPROJ_ERROR_THRESH, robust_measurement_noise=True
+    output_reproj_error_thresh=BA_OUTPUT_REPROJ_ERROR_THRESH, robust_measurement_noise=True, max_iterations=10
 )  # we dont care about output error threshold as we do not access the tracks of 2-view BA, which the threshold affects.
 
 
@@ -101,20 +102,24 @@ class TwoViewEstimator:
         camera_i2 = PinholeCameraCal3Bundler(Pose3(), camera_intrinsics_i2)
 
         # Perform data association to construct 2-view BA input.
+        start_time = timeit.default_timer()
         ba_input, _ = DATA_ASSOC_2VIEW.run(
             num_images=2,
             cameras={0: camera_i1, 1: camera_i2},
             corr_idxs_dict={(0, 1): verified_corr_idxs},
             keypoints_list=[keypoints_i1, keypoints_i2],
         )
+        logger.info(f"Performed DA in {timeit.default_timer() - start_time} seconds.")
 
         # Perform 2-view BA.
+        start_time = timeit.default_timer()
         ba_output, _ = BUNDLE_ADJUST_2VIEW.run(ba_input)
         wTi1, wTi2 = ba_output.get_camera_poses()  # extract the camera poses
         if wTi1 is None or wTi2 is None:
             logger.warning("2-view BA failed")
             return i2Ri1_initial, i2Ui1_initial
         i2Ti1_optimized = wTi2.between(wTi1)
+        logger.info(f"Performed BA in {timeit.default_timer() - start_time} seconds.")
 
         return i2Ti1_optimized.rotation(), Unit3(i2Ti1_optimized.translation())
 

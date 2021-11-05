@@ -59,7 +59,11 @@ class BundleAdjustmentOptimizer:
     tracks from triangulation."""
 
     def __init__(
-        self, output_reproj_error_thresh: float, robust_measurement_noise: bool = False, shared_calib: bool = False
+        self,
+        output_reproj_error_thresh: float,
+        robust_measurement_noise: bool = False,
+        shared_calib: bool = False,
+        max_iterations: Optional[int] = None,
     ):
         """Initializes the parameters for bundle adjustment module.
 
@@ -73,6 +77,7 @@ class BundleAdjustmentOptimizer:
         self._output_reproj_error_thresh = output_reproj_error_thresh
         self._robust_measurement_noise = robust_measurement_noise
         self._shared_calib = shared_calib
+        self._max_iterations = max_iterations
 
     def __map_to_calibration_variable(self, camera_idx: int) -> int:
         return 0 if self._shared_calib else camera_idx
@@ -173,11 +178,15 @@ class BundleAdjustmentOptimizer:
             track = initial_data.get_track(j)
             initial_values.insert(P(j), track.point3())
 
+        # Configure optimizer.
+        params = gtsam.LevenbergMarquardtParams()
+        if self._max_iterations:
+            params.setMaxIterations(self._max_iterations)
+        params.setVerbosityLM("ERROR")
+        lm = gtsam.LevenbergMarquardtOptimizer(graph, initial_values, params)
+
         # Optimize the graph and print results
         try:
-            params = gtsam.LevenbergMarquardtParams()
-            params.setVerbosityLM("ERROR")
-            lm = gtsam.LevenbergMarquardtOptimizer(graph, initial_values, params)
             result_values = lm.optimize()
         except Exception:
             logger.exception("LM Optimization failed")
