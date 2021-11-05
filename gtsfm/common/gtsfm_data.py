@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from gtsam import PinholeCameraCal3Bundler, Pose3, SfmTrack, Similarity3
+from trimesh import Trimesh
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
 import gtsfm.utils.graph as graph_utils
@@ -27,15 +28,22 @@ class GtsfmData:
     The situation of non-contiguous cameras can exists because of failures in front-end.
     """
 
-    def __init__(self, number_images: int) -> None:
+    def __init__(
+        self,
+        number_images: int,
+        cameras: Dict[int, PinholeCameraCal3Bundler] = {},
+        tracks: List[SfmTrack] = [],
+        scene_mesh: Optional[Trimesh] = None,
+    ) -> None:
         """Initializes the class.
 
         Args:
             number_images: number of images/cameras in the scene.
         """
-        self._cameras: Dict[int, PinholeCameraCal3Bundler] = {}
-        self._tracks: List[SfmTrack] = []
         self._number_images = number_images
+        self._cameras = cameras
+        self._tracks = tracks
+        self._scene_mesh = scene_mesh
 
     def __eq__(self, other: object) -> bool:
         """Checks equality with the other object."""
