@@ -5,25 +5,105 @@ on: [pull_request, workflow_dispatch]
 jobs:
   benchmark:
     name: Benchmark
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     strategy:
       # Prevents other configs from being canceled if one of them fails.
       fail-fast: false
       matrix:
-        config_dataset_info:
-          [
+        config_dataset_info: [
             # config          dataset    lookahead    img-extension  source  loader      max-res  share-intrinsics
-            [sift_front_end,  door-12,               12,  JPG,  test_data,  olsson-loader,  1296, true],
-            [deep_front_end,  door-12,               12,  JPG,  test_data,  olsson-loader,  1296, true],
-            [sift_front_end,  skydio-8,              8,   jpg,  gdrive ,    colmap-loader,  760, true],
-            [deep_front_end,  skydio-8,              8,   jpg,  gdrive,     colmap-loader,  760, true],
-            [sift_front_end,  skydio-32,             32,  jpg,  gdrive,     colmap-loader,  760, true],
-            [deep_front_end,  skydio-32,             32,  jpg,  gdrive,     colmap-loader,  760, true],
-            [deep_front_end,  skydio-501,            30,  jpg,  wget,       colmap-loader,  760, true],
-            [sift_front_end,  palace-fine-arts-281,  25,  jpg,  wget,       olsson-loader,  320, true],
-            [deep_front_end,  notre-dame-20,         20,  jpg,  gdrive,     colmap-loader,  760, false],
-            [sift_front_end,  2011205_rc3,           65,  png,  wget,       astronet,       1024, true],
-            [deep_front_end,  2011205_rc3,           20,  png,  wget,       astronet,       1024, true],
+            [
+              sift_front_end,
+              door-12,
+              12,
+              JPG,
+              test_data,
+              olsson-loader,
+              1296,
+              true,
+            ],
+            [
+              deep_front_end,
+              door-12,
+              12,
+              JPG,
+              test_data,
+              olsson-loader,
+              1296,
+              true,
+            ],
+            [
+              sift_front_end,
+              skydio-8,
+              8,
+              jpg,
+              gdrive,
+              colmap-loader,
+              760,
+              true,
+            ],
+            [
+              deep_front_end,
+              skydio-8,
+              8,
+              jpg,
+              gdrive,
+              colmap-loader,
+              760,
+              true,
+            ],
+            [
+              sift_front_end,
+              skydio-32,
+              32,
+              jpg,
+              gdrive,
+              colmap-loader,
+              760,
+              true,
+            ],
+            [
+              deep_front_end,
+              skydio-32,
+              32,
+              jpg,
+              gdrive,
+              colmap-loader,
+              760,
+              true,
+            ],
+            [
+              deep_front_end,
+              skydio-501,
+              30,
+              jpg,
+              wget,
+              colmap-loader,
+              760,
+              true,
+            ],
+            [
+              sift_front_end,
+              palace-fine-arts-281,
+              25,
+              jpg,
+              wget,
+              olsson-loader,
+              320,
+              true,
+            ],
+            [
+              deep_front_end,
+              notre-dame-20,
+              20,
+              jpg,
+              gdrive,
+              colmap-loader,
+              760,
+              false,
+            ],
+            [sift_front_end, 2011205_rc3, 65, png, wget, astronet, 1024, true],
+            [deep_front_end, 2011205_rc3, 20, png, wget, astronet, 1024, true],
           ]
     defaults:
       run:
@@ -54,7 +134,7 @@ jobs:
         with:
           miniconda-version: "latest"
           activate-environment: gtsfm-v1
-          environment-file: environment_linux_cpuonly.yml
+          environment-file: environment_mac.yml
           python-version: 3.8
           use-only-tar-bz2: true # IMPORTANT: This needs to be set for caching to work properly!
       - name: Environment setup
