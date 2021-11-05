@@ -86,7 +86,9 @@ class AstronetLoader(LoaderBase):
         if gt_scene_mesh_path is not None:
             if not Path(gt_scene_mesh_path).exists():
                 raise FileNotFoundError(f"No mesh found at {gt_scene_mesh_path}")
-            self.gt_scene_trimesh = trimesh.load(gt_scene_mesh_path, process=False, maintain_order=True)
+            self.gt_scene_trimesh = trimesh.load(
+                gt_scene_mesh_path, process=False, maintain_order=True, use_embree=False
+            )
             logger.info(
                 "AstroNet loader read in mesh with %d vertices and %d faces.",
                 self.gt_scene_trimesh.vertices.shape[0],
