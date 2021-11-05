@@ -41,6 +41,7 @@ dependencies:
   # visualization
   - open3d
   - pip:
-    - pydegensac
-    - colour
-    - pycolmap
+      - pydegensac
+      - colour
+      - pycolmap
+      - trimesh[easy]

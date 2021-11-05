@@ -25,6 +25,7 @@ class TwoViewConfigurationType(str, Enum):
     UNCALIBRATED: str = "UNCALIBRATED"
     PLANAR_OR_PANORAMIC: str = "PLANAR_OR_PANORAMIC"
     DEGENERATE: str = "DEGENERATE"
+    UNKNOWN: str = "UNKNOWN"
 
 
 @dataclass(frozen=False)
@@ -38,6 +39,7 @@ class TwoViewEstimationReport:
     or in Slide 59: https://www.cc.gatech.edu/~afb/classes/CS4495-Fall2014/slides/CS4495-Ransac.pdf
 
     Args:
+        configuration_type: classification of two-view relationship.
         v_corr_idxs: verified correspondence indices.
         num_inliers_H: number of #correspondences consistent with estimated homography model.
         inlier_ratio_H: fraction representating #correspondences consistent with homography / (# putatives matches).
@@ -50,11 +52,10 @@ class TwoViewEstimationReport:
             Sampson error (using GT epipolar geometry).
         R_error_deg: relative pose error w.r.t. GT. Only defined if GT poses provided.
         U_error_deg: relative translation error w.r.t. GT. Only defined if GT poses provided.
-        i2Ri1: relative rotation.
-        i2Ui1: relative translation direction.
-        configuration_type: classification of two-view relationship.
+        reproj_errors_gt_model: reprojection errors between correspondences w.r.t. GT.
     """
 
+    configuration_type: TwoViewConfigurationType
     v_corr_idxs: np.ndarray
     num_inliers_H: int
     inlier_ratio_H: float
@@ -65,6 +66,5 @@ class TwoViewEstimationReport:
     v_corr_idxs_inlier_mask_gt: Optional[np.ndarray] = None
     R_error_deg: Optional[float] = None
     U_error_deg: Optional[float] = None
-    i2Ri1: Optional[Rot3] = None
-    i2Ui1: Optional[Unit3] = None
-    configuration_type: Optional[TwoViewConfigurationType] = None
+    reproj_errors_gt_model: Optional[np.ndarray] = None
+    
