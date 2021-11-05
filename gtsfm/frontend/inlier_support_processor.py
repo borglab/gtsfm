@@ -89,9 +89,6 @@ class InlierSupportProcessor:
             v_corr_idxs = np.array([], dtype=np.uint64)
             return i2Ri1, i2Ui1, v_corr_idxs, None
 
-        two_view_report.i2Ri1 = i2Ri1
-        two_view_report.i2Ui1 = i2Ui1
-
         return i2Ri1, i2Ui1, v_corr_idxs, two_view_report
 
     def create_computation_graph(
