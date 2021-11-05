@@ -58,7 +58,7 @@ class GtsfmRunnerAstronetLoader(GtsfmRunnerBase):
 
         with Client(cluster) as client, performance_report(filename="dask-report.html"):
             # Scatter surface mesh across all nodes to preserve computation time and memory.
-            gt_scene_trimesh_future = client.scatter(self.loader.gt_scene_trimesh, broadcast=True)
+            gt_gtsfm_data_future = client.scatter(self.loader.gt_gtsfm_data, broadcast=True)
 
             # Prepare computation graph.
             start_time = time.time()
@@ -68,8 +68,7 @@ class GtsfmRunnerAstronetLoader(GtsfmRunnerBase):
                 image_graph=self.loader.create_computation_graph_for_images(),
                 camera_intrinsics_graph=self.loader.create_computation_graph_for_intrinsics(),
                 image_shape_graph=self.loader.create_computation_graph_for_image_shapes(),
-                gt_cameras_graph=self.loader.create_computation_graph_for_cameras(),
-                gt_scene_mesh=gt_scene_trimesh_future,
+                gt_gtsfm_data=self.loader.gt_gtsfm_data,
             )
 
             # Run SfM pipeline.

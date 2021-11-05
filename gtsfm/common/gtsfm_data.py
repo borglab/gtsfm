@@ -31,8 +31,8 @@ class GtsfmData:
     def __init__(
         self,
         number_images: int,
-        cameras: Dict[int, PinholeCameraCal3Bundler] = {},
-        tracks: List[SfmTrack] = [],
+        cameras: Optional[Dict[int, PinholeCameraCal3Bundler]] = None,
+        tracks: Optional[List[SfmTrack]] = None,
         scene_mesh: Optional[Trimesh] = None,
     ) -> None:
         """Initializes the class.
@@ -41,9 +41,17 @@ class GtsfmData:
             number_images: number of images/cameras in the scene.
         """
         self._number_images = number_images
-        self._cameras = cameras
-        self._tracks = tracks
-        self._scene_mesh = scene_mesh
+        self._cameras = cameras if cameras else {}
+        self._tracks = tracks if tracks else []
+        # self._cameras = cameras  # this caused an error for some reason??
+        # self._tracks = tracks
+        self.scene_mesh = scene_mesh
+
+    def get_two_view_data(self, i1: int, i2: int) -> "GtsfmData":
+        """Collects GtsfmData for a sinbgle image pair."""
+        # TODO (travisdriver): also collect tracks if available.
+        cameras_pair = {0: self.get_camera(i1), 1: self.get_camera(i2)}
+        return GtsfmData(2, cameras_pair, None, self.scene_mesh)
 
     def __eq__(self, other: object) -> bool:
         """Checks equality with the other object."""
