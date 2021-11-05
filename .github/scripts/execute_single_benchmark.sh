@@ -112,7 +112,7 @@ elif [ "$DATASET_NAME" == "skydio-501" ]; then
   tar -xvzf skydio-crane-mast-501-images1.tar.gz
   tar -xvzf skydio-crane-mast-501-images2.tar.gz
   tar -xvzf skydio-501-colmap-pseudo-gt.tar.gz
-  IMAGES_DIR="skydio-crane-mast-501-imagevesta_99846.plys"
+  IMAGES_DIR="skydio-crane-mast-501-images"
   mkdir $IMAGES_DIR
   mv skydio-crane-mast-501-images1/* $IMAGES_DIR
   mv skydio-crane-mast-501-images2/* $IMAGES_DIR
