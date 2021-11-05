@@ -68,6 +68,7 @@ elif [ "$DATASET_NAME" == "2011205_rc3" ]; then
   # Description: images captured during the Rotation Characterization 3 (RC3) phase of NASA's Dawn mission to Asteroid 4
   #   Vesta.
   WGET_URL1=https://www.dropbox.com/s/q02mgq1unbw068t/2011205_rc3.zip
+  WGET_URL2=https://www.dropbox.com/s/n0epyc8h11nqkyp/vesta_99846.ply
 fi
 
 # Download the data.
@@ -111,7 +112,7 @@ elif [ "$DATASET_NAME" == "skydio-501" ]; then
   tar -xvzf skydio-crane-mast-501-images1.tar.gz
   tar -xvzf skydio-crane-mast-501-images2.tar.gz
   tar -xvzf skydio-501-colmap-pseudo-gt.tar.gz
-  IMAGES_DIR="skydio-crane-mast-501-images"
+  IMAGES_DIR="skydio-crane-mast-501-imagevesta_99846.plys"
   mkdir $IMAGES_DIR
   mv skydio-crane-mast-501-images1/* $IMAGES_DIR
   mv skydio-crane-mast-501-images2/* $IMAGES_DIR
@@ -139,6 +140,7 @@ elif [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then \
 elif [ "$DATASET_NAME" == "2011205_rc3" ]; then 
   unzip -qq 2011205_rc3.zip
   DATASET_ROOT="2011205_rc3"
+  SCENE_MESH_PATH="vesta_99846.ply"
 fi
 
 
@@ -164,6 +166,7 @@ elif [ "$LOADER_NAME" == "colmap-loader" ]; then
 elif [ "$LOADER_NAME" == "astronet" ]; then
   python gtsfm/runner/run_scene_optimizer_astronet.py \
   --data_dir $DATASET_ROOT \
+  --scene_mesh_path $SCENE_MESH_PATH \
   --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
   --config_name ${CONFIG_NAME}.yaml \
   --max_resolution ${MAX_RESOLUTION} \
