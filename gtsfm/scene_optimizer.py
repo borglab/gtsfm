@@ -25,6 +25,7 @@ import gtsfm.utils.viz as viz_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.averaging.rotation.cycle_consistency import EdgeErrorAggregationCriterion
 from gtsfm.common.image import Image
+from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.feature_extractor import FeatureExtractor
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.two_view_estimator import TwoViewEstimator, TwoViewEstimationReport
@@ -67,6 +68,7 @@ class SceneOptimizer:
         feature_extractor: FeatureExtractor,
         two_view_estimator: TwoViewEstimator,
         multiview_optimizer: MultiViewOptimizer,
+        dense_multiview_optimizer: MVSBase,
         save_two_view_correspondences_viz: bool,
         save_3d_viz: bool,
         save_gtsfm_data: bool,
@@ -278,9 +280,19 @@ class SceneOptimizer:
         # dummy computation of concatenating viz tasks with the output graph,
         # forcing computation of viz tasks
         output_graph = dask.delayed(lambda x, y: (x, y))(ba_output_graph, auxiliary_graph_list)
-
+        ba_output_graph = output_graph[0]
+        
+        img_dict_graph = dask.delayed(get_image_dictionary)(image_graph)
+        dense_points_graph = self.dense_multiview_optimizer.create_computation_graph(img_dict_graph, ba_output_graph)
+        # TODO(johnwlambert or ren): save the dense points to PLY
         # return the entry with just the sfm result
-        return output_graph[0]
+        return ba_output_graph
+
+    
+def get_image_dictionary(image_list: List[Image]) -> Dict[int, Image]:
+    """Convert a list of images to the MVS input format."""
+    img_dict = {i: img for i, img in enumerate(image_list)}
+    return img_dict
 
 
 def align_estimated_gtsfm_data(
