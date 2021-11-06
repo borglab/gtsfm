@@ -453,6 +453,18 @@ def read_points_txt(fpath: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarr
     return point_cloud, rgb
 
 
+def read_scene(
+    images_fpath: str, cameras_fpath: str, points_fpath: str
+) -> Tuple[List[Pose3], List[str], List[Cal3Bundler], np.ndarray, np.ndarray]:
+    """Reads in full scene reconstruction model."""
+    wTi_list, img_fnames = read_images_txt(images_fpath)
+    calibrations = read_cameras_txt(cameras_fpath)
+    point_cloud, rgb = read_points_txt(points_fpath)
+    if any(x is None for x in [wTi_list, img_fnames, calibrations, point_cloud, rgb]):
+        raise RuntimeError("One or more of the requested model data products was not found.")
+    return wTi_list, img_fnames, calibrations, point_cloud, rgb
+
+
 def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
     """Writes the point cloud data file in the COLMAP format.
 
