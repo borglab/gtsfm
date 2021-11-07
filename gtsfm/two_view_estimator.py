@@ -33,6 +33,11 @@ mpl_logger.setLevel(logging.WARNING)
 pil_logger = logging.getLogger("PIL")
 pil_logger.setLevel(logging.INFO)
 
+PRE_BA_REPORT_TAG = "PRE_BA_2VIEW_REPORT"
+POST_BA_REPORT_TAG = "POST_BA_2VIEW_REPORT"
+POST_ISP_REPORT_TAG = "POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT"
+POST_CYCLE_CONSISTENT_REPORT_TAG = "POST_CYCLE_CONSISTENT_2VIEW_REPORT"
+
 
 DATA_ASSOC_REPROJ_ERROR_THRESH = 3
 BA_OUTPUT_REPROJ_ERROR_THRESH = 100
@@ -78,28 +83,30 @@ class TwoViewEstimator:
         camera_intrinsics_i2: Cal3Bundler,
         i2Ri1_initial: Optional[Rot3],
         i2Ui1_initial: Optional[Unit3],
-    ) -> Tuple[Optional[Rot3], Optional[Unit3]]:
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
         """Refine the relative pose using bundle adjustment on the 2-view scene.
 
         Args:
             keypoints_i1: keypoints from image i1.
             keypoints_i2: keypoints from image i2.
-            verified_corr_idxes: indices of verified correspondences between i1 and i2.
+            verified_corr_idxs: indices of verified correspondences between i1 and i2.
             camera_intrinsics_i1: intrinsics for i1.
             camera_intrinsics_i2: intrinsics for i2.
             i2Ri1_initial: the relative rotation to be used as initial rotation between cameras.
             i2Ui1_initial: the relative unit direction, to be used to initialize initial translation between cameras.
-
         Returns:
             Optimized relative rotation i2Ri1.
             Optimized unit translation i2Ui1.
+            Optimized verified_corr_idxs.
         """
         if i2Ri1_initial is None or i2Ui1_initial is None:
-            return None, None
+            return None, None, verified_corr_idxs
 
-        # Set the i2 camera pose as the global coordinate system.
-        camera_i1 = PinholeCameraCal3Bundler(Pose3(i2Ri1_initial, i2Ui1_initial.point3()), camera_intrinsics_i1)
-        camera_i2 = PinholeCameraCal3Bundler(Pose3(), camera_intrinsics_i2)
+        i2Ti1_initial = Pose3(i2Ri1_initial, i2Ui1_initial.point3())
+
+        # Set the i1 camera pose as the global coordinate system.
+        camera_i1 = PinholeCameraCal3Bundler(Pose3(), camera_intrinsics_i1)
+        camera_i2 = PinholeCameraCal3Bundler(i2Ti1_initial.inverse(), camera_intrinsics_i2)
 
         # Perform data association to construct 2-view BA input.
         start_time = timeit.default_timer()
@@ -109,7 +116,7 @@ class TwoViewEstimator:
             corr_idxs_dict={(0, 1): verified_corr_idxs},
             keypoints_list=[keypoints_i1, keypoints_i2],
         )
-        logger.info(f"Performed DA in {timeit.default_timer() - start_time} seconds.")
+        logger.info("Performed DA in %.6f seconds.", timeit.default_timer() - start_time)
 
         # Perform 2-view BA.
         start_time = timeit.default_timer()
@@ -117,11 +124,11 @@ class TwoViewEstimator:
         wTi1, wTi2 = ba_output.get_camera_poses()  # extract the camera poses
         if wTi1 is None or wTi2 is None:
             logger.warning("2-view BA failed")
-            return i2Ri1_initial, i2Ui1_initial
+            return i2Ri1_initial, i2Ui1_initial, verified_corr_idxs
         i2Ti1_optimized = wTi2.between(wTi1)
-        logger.info(f"Performed BA in {timeit.default_timer() - start_time} seconds.")
+        logger.info("Performed 2-view BA in %.6f seconds.", timeit.default_timer() - start_time)
 
-        return i2Ti1_optimized.rotation(), Unit3(i2Ti1_optimized.translation())
+        return i2Ti1_optimized.rotation(), Unit3(i2Ti1_optimized.translation()), verified_corr_idxs
 
     def get_corr_metric_dist_threshold(self) -> float:
         """Getter for the distance threshold used in the metric for correct correspondences."""
@@ -140,7 +147,7 @@ class TwoViewEstimator:
         gt_wTi1_graph: Optional[Delayed] = None,
         gt_wTi2_graph: Optional[Delayed] = None,
         gt_scene_mesh_graph: Optional[Delayed] = None,
-    ) -> Tuple[Delayed, Delayed, Delayed, Optional[Delayed], Optional[Delayed]]:
+    ) -> Tuple[Delayed, Delayed, Delayed, Dict[str, Optional[Delayed]]]:
         """Create delayed tasks for matching and verification.
 
         Args:
@@ -159,12 +166,11 @@ class TwoViewEstimator:
             Computed relative rotation wrapped as Delayed.
             Computed relative translation direction wrapped as Delayed.
             Indices of verified correspondences wrapped as Delayed.
-            Two view report w/ verifier metrics wrapped as Delayed.
-            Two view report w/ post-processor metrics wrapped as Delayed.
+            Two-view reports at different stages, as a dictionary.
         """
 
         # graph for matching to obtain putative correspondences
-        corr_idxs_graph = self._matcher.create_computation_graph(
+        putative_corr_idxs = self._matcher.create_computation_graph(
             keypoints_i1_graph,
             keypoints_i2_graph,
             descriptors_i1_graph,
@@ -176,40 +182,56 @@ class TwoViewEstimator:
         # verification on putative correspondences to obtain relative pose and verified correspondences\
         # TODO: name this verified_correspondence_idxs (add note: everything here is delayed)
         (
-            i2Ri1_pre_ba_graph,
-            i2Ui1_pre_ba_graph,
-            v_corr_idxs_graph,
-            inlier_ratio_est_model,
+            pre_ba_i2Ri1,
+            pre_ba_i2Ui1,
+            pre_ba_v_corr_idxs,
+            inlier_ratio_wrt_estimate,
         ) = self._verifier.create_computation_graph(
             keypoints_i1_graph,
             keypoints_i2_graph,
-            corr_idxs_graph,
+            putative_corr_idxs,
             camera_intrinsics_i1_graph,
             camera_intrinsics_i2_graph,
         )
 
-        i2Ri1_graph, i2Ui1_graph = dask.delayed(self.bundle_adjust, nout=2)(
+        post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs = dask.delayed(self.bundle_adjust, nout=3)(
             keypoints_i1_graph,
             keypoints_i2_graph,
-            v_corr_idxs_graph,
+            pre_ba_v_corr_idxs,
             camera_intrinsics_i1_graph,
             camera_intrinsics_i2_graph,
-            i2Ri1_pre_ba_graph,
-            i2Ui1_pre_ba_graph,
+            pre_ba_i2Ri1,
+            pre_ba_i2Ui1,
         )
 
         # if we have the expected GT data, evaluate the computed relative pose
         if gt_wTi1_graph is not None and gt_wTi2_graph is not None:
             i2Ti1_expected_graph = gt_wTi2_graph.between(gt_wTi1_graph)
-            R_error_deg, U_error_deg = dask.delayed(compute_relative_pose_metrics, nout=2)(
-                i2Ri1_graph, i2Ui1_graph, i2Ti1_expected_graph
+            pre_ba_R_error_deg, pre_ba_U_error_deg = dask.delayed(compute_relative_pose_metrics, nout=2)(
+                pre_ba_i2Ri1, pre_ba_i2Ui1, i2Ti1_expected_graph
             )
-            v_corr_idxs_inlier_mask_gt, reproj_error_gt_model = dask.delayed(
+            post_ba_R_error_deg, post_ba_U_error_deg = dask.delayed(compute_relative_pose_metrics, nout=2)(
+                post_ba_i2Ri1, post_ba_i2Ui1, i2Ti1_expected_graph
+            )
+            pre_ba_inlier_mask_wrt_gt, pre_ba_reproj_error_wrt_gt = dask.delayed(
                 metric_utils.compute_correspondence_metrics, nout=2
             )(
                 keypoints_i1_graph,
                 keypoints_i2_graph,
-                v_corr_idxs_graph,
+                pre_ba_v_corr_idxs,
+                camera_intrinsics_i1_graph,
+                camera_intrinsics_i2_graph,
+                self._corr_metric_dist_threshold,
+                gt_wTi1_graph,
+                gt_wTi2_graph,
+                gt_scene_mesh_graph,
+            )
+            post_ba_inlier_mask_wrt_gt, post_ba_reproj_error_wrt_gt = dask.delayed(
+                metric_utils.compute_correspondence_metrics, nout=2
+            )(
+                keypoints_i1_graph,
+                keypoints_i2_graph,
+                post_ba_v_corr_idxs,
                 camera_intrinsics_i1_graph,
                 camera_intrinsics_i2_graph,
                 self._corr_metric_dist_threshold,
@@ -218,27 +240,46 @@ class TwoViewEstimator:
                 gt_scene_mesh_graph,
             )
         else:
-            R_error_deg, U_error_deg = None, None
-            v_corr_idxs_inlier_mask_gt, reproj_error_gt_model = None, None
+            pre_ba_R_error_deg, pre_ba_U_error_deg = None, None
+            post_ba_R_error_deg, post_ba_U_error_deg = None, None
+            pre_ba_inlier_mask_wrt_gt, pre_ba_reproj_error_wrt_gt = None, None
+            post_ba_inlier_mask_wrt_gt, post_ba_reproj_error_wrt_gt = None, None
 
-        two_view_report_graph = dask.delayed(generate_two_view_report)(
-            inlier_ratio_est_model,
-            v_corr_idxs_graph,
-            R_error_deg=R_error_deg,
-            U_error_deg=U_error_deg,
-            v_corr_idxs_inlier_mask_gt=v_corr_idxs_inlier_mask_gt,
-            reproj_error_gt_model=reproj_error_gt_model,
+        pre_ba_report = dask.delayed(generate_two_view_report)(
+            inlier_ratio_wrt_estimate,
+            pre_ba_v_corr_idxs,
+            R_error_deg=pre_ba_R_error_deg,
+            U_error_deg=pre_ba_U_error_deg,
+            v_corr_idxs_inlier_mask_gt=pre_ba_inlier_mask_wrt_gt,
+            reproj_error_gt_model=pre_ba_reproj_error_wrt_gt,
         )
 
-        # Note: We name the output as _pp, as it represents a post-processed quantity.
+        post_ba_report = dask.delayed(generate_two_view_report)(
+            inlier_ratio_wrt_estimate,  # TODO: dont store ratios so that we can update them
+            post_ba_v_corr_idxs,
+            R_error_deg=post_ba_R_error_deg,
+            U_error_deg=post_ba_U_error_deg,
+            v_corr_idxs_inlier_mask_gt=post_ba_inlier_mask_wrt_gt,
+            reproj_error_gt_model=post_ba_reproj_error_wrt_gt,
+        )
+
         (
-            i2Ri1_pp_graph,
-            i2Ui1_pp_graph,
-            v_corr_idxs_pp_graph,
-            two_view_report_pp_graph,
-        ) = self.processor.create_computation_graph(i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph)
-        # We provide both, as we will create reports for both.
-        return (i2Ri1_pp_graph, i2Ui1_pp_graph, v_corr_idxs_pp_graph, two_view_report_graph, two_view_report_pp_graph)
+            post_isp_i2Ri1,
+            post_isp_i2Ui1,
+            post_isp_v_corr_idxs,
+            post_isp_report,
+        ) = self.processor.create_computation_graph(post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, post_ba_report)
+
+        return (
+            post_isp_i2Ri1,
+            post_isp_i2Ui1,
+            post_isp_v_corr_idxs,
+            {
+                PRE_BA_REPORT_TAG: pre_ba_report,
+                POST_BA_REPORT_TAG: post_ba_report,
+                POST_ISP_REPORT_TAG: post_isp_report,
+            },
+        )
 
 
 def generate_two_view_report(
