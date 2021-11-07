@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 import trimesh
-from gtsam import Cal3Bundler, Pose3, Rot3, Point3, SfmTrack
+from gtsam import Cal3Bundler, Pose3, SfmTrack
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
