@@ -277,15 +277,17 @@ class SceneOptimizer:
         if self._save_gtsfm_data:
             auxiliary_graph_list.extend(save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph))
 
+        img_dict_graph = dask.delayed(get_image_dictionary)(image_graph)
+        dense_points_graph = self.dense_multiview_optimizer.create_computation_graph(img_dict_graph, ba_output_graph)
+        mvs_ply_save_fpath = RESULTS_PATH / "mvs_output" / "dense_pointcloud.ply"
+        auxiliary_graph_list.append(dask.delayed(save_point_cloud_as_ply)(save_fpath=mvs_ply_save_fpath, points=dense_points_graph))
+
         # as visualization tasks are not to be provided to the user, we create a
         # dummy computation of concatenating viz tasks with the output graph,
         # forcing computation of viz tasks
         output_graph = dask.delayed(lambda x, y: (x, y))(ba_output_graph, auxiliary_graph_list)
         ba_output_graph = output_graph[0]
         
-        img_dict_graph = dask.delayed(get_image_dictionary)(image_graph)
-        dense_points_graph = self.dense_multiview_optimizer.create_computation_graph(img_dict_graph, ba_output_graph)
-        # TODO(johnwlambert or ren): save the dense points to PLY
         # return the entry with just the sfm result
         return ba_output_graph
 
