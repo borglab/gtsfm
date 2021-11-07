@@ -78,6 +78,7 @@ class SceneOptimizer:
         self.feature_extractor = feature_extractor
         self.two_view_estimator = two_view_estimator
         self.multiview_optimizer = multiview_optimizer
+        self.dense_multiview_optimizer = dense_multiview_optimizer
 
         self._save_two_view_correspondences_viz = save_two_view_correspondences_viz
         self._save_3d_viz = save_3d_viz
