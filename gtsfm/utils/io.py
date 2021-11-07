@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import gtsam
 import h5py
 import numpy as np
+import open3d
 from gtsam import Cal3Bundler, Rot3, Pose3
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
@@ -19,6 +20,7 @@ from PIL.ExifTags import GPSTAGS, TAGS
 import gtsfm.utils.images as image_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reproj_utils
+import visualization.open3d_vis_utils as open3d_vis_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.sfm_track import SfmTrack2d
@@ -453,3 +455,35 @@ def write_to_bz2_file(data: Any, file_path: Path) -> None:
     """Writes data using pickle to a compressed file."""
     file_path.parent.mkdir(exist_ok=True, parents=True)
     pickle.dump(data, BZ2File(file_path, "wb"))
+
+
+def save_point_cloud_as_ply(save_fpath: str, points: np.ndarray, rgb: np.ndarray):
+    """Save a point cloud as a .ply file.
+
+    Args:
+        save_fpath: absolute file path where PLY file should be saved.
+        points: float array of shape (N,3) representing a 3d point cloud.
+        rgb: uint8 array of shape (N,3) representing an RGB color per point.
+    """
+    pointcloud = open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
+
+    open3d.io.write_point_cloud(save_fpath, pointcloud, write_ascii=False, compressed=False, print_progress=False)
+
+
+def read_point_cloud_from_ply(ply_fpath: str) -> Tuple[np.ndarray, np.ndarray]:
+    """Read a point cloud from a .ply file.
+
+    Args:
+        ply_fpath: absolute file path where PLY file is located on disk.
+
+    Returns:
+        points: float array of shape (N,3) representing a 3d point cloud.
+        rgb: uint8 array of shape (N,3) representing an RGB color per point.
+    """
+    pointcloud = open3d.io.read_point_cloud(ply_fpath)
+    points = np.asarray(pointcloud.points)
+    rgb = np.asarray(pointcloud.colors)
+    # open3d stores the colors as [0,1] floats.
+    rgb = (rgb * 255).astype(np.uint8)
+    return points, rgb
+    
