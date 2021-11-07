@@ -131,21 +131,37 @@ def test_round_trip_images_txt() -> None:
 
     npt.assert_almost_equal(original_wTc.matrix(), recovered_wTc.matrix(), decimal=3)
 
-    
+
 def test_save_point_cloud_as_ply() -> None:
-    """Round trip test on .ply file read/write."""
+    """Round-trip test on .ply file read/write, with a point cloud colored as all red."""
     N = 10000
     # generate a cuboid of size 1 x 2 x 3 meters.
     points = np.random.uniform(low=[0, 0, 0], high=[1, 2, 3], size=(N, 3))
-    rgb = np.zeros((N, 3), dtype=np.uint8)
     # color uniformly as red.
+    rgb = np.zeros((N, 3), dtype=np.uint8)
     rgb[:, 0] = 255
 
     with tempfile.TemporaryDirectory() as tempdir:
         save_fpath = f"{tempdir}/pointcloud.ply"
-        io_utils.save_point_cloud_as_ply(save_fpath=save_fpath, points=points, rgb=rgb)
-        points_read, rgb_read = io_utils.read_point_cloud_from_ply(ply_fpath=save_fpath)
+        save_point_cloud_as_ply(save_fpath=save_fpath, points=points, rgb=rgb)
+        points_read, rgb_read = read_point_cloud_from_ply(ply_fpath=save_fpath)
 
+    assert np.allclose(points_read, points)
+    assert np.allclose(rgb_read, rgb)
+    assert rgb_read.dtype == np.uint8
+
+
+def test_save_point_cloud_as_ply_uncolored() -> None:
+    """Round-trip test on .ply file read/write, with an uncolored point cloud."""
+    N = 10000
+    points = np.random.uniform(low=[0, 0, 0], high=[1, 2, 3], size=(N, 3))
+
+    with tempfile.TemporaryDirectory() as tempdir:
+        save_fpath = f"{tempdir}/pointcloud.ply"
+        save_point_cloud_as_ply(save_fpath=save_fpath, points=points)
+        points_read, rgb_read = read_point_cloud_from_ply(ply_fpath=save_fpath)
+
+    rgb_expected = np.zeros((N, 3), dtype=np.uint8)
     assert np.allclose(points, points_read)
-    assert np.allclose(rgb, rgb_read)
-    assert rgb.dtype == np.uint8
+    assert np.allclose(rgb_read, rgb_expected)
+    assert rgb_read.dtype == np.uint8
