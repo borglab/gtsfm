@@ -147,7 +147,7 @@ class TwoViewEstimator:
         gt_wTi1_graph: Optional[Delayed] = None,
         gt_wTi2_graph: Optional[Delayed] = None,
         gt_scene_mesh_graph: Optional[Delayed] = None,
-    ) -> Tuple[Delayed, Delayed, Delayed, Dict[str, Optional[Delayed]]]:
+    ) -> Tuple[Delayed, Delayed, Delayed, Dict[str, Delayed]]:
         """Create delayed tasks for matching and verification.
 
         Args:

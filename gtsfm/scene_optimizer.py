@@ -388,6 +388,8 @@ def save_full_frontend_metrics(
     """
     metrics_list = []
 
+    round_and_save_fn = lambda x: round(x, PRINT_NUM_SIG_FIGS) if x else None
+
     for (i1, i2), report in two_view_report_dict.items():
 
         # Note: if GT is unknown, then R_error_deg, U_error_deg, and inlier_ratio_gt_model will be None
@@ -397,26 +399,21 @@ def save_full_frontend_metrics(
                 "i2": i2,
                 "i1_filename": images[i1].file_name,
                 "i2_filename": images[i2].file_name,
-                "rotation_angular_error": round(report.R_error_deg, PRINT_NUM_SIG_FIGS) if report.R_error_deg else None,
-                "translation_angular_error": round(report.U_error_deg, PRINT_NUM_SIG_FIGS)
-                if report.U_error_deg
-                else None,
-                "num_inliers_gt_model": report.num_inliers_gt_model if report.num_inliers_gt_model else None,
-                "inlier_ratio_gt_model": round(report.inlier_ratio_gt_model, PRINT_NUM_SIG_FIGS)
-                if report.inlier_ratio_gt_model
-                else None,
-                "inlier_avg_reproj_error_gt_model": round(
-                    np.nanmean(report.reproj_error_gt_model[report.v_corr_idxs_inlier_mask_gt]), PRINT_NUM_SIG_FIGS
+                "rotation_angular_error": round_and_save_fn(report.R_error_deg),
+                "translation_angular_error": round_and_save_fn(report.U_error_deg),
+                "num_inliers_gt_model": report.num_inliers_gt_model,
+                "inlier_ratio_gt_model": round_and_save_fn(report.inlier_ratio_gt_model),
+                "inlier_avg_reproj_error_gt_model": round_and_save_fn(
+                    np.nanmean(report.reproj_error_gt_model[report.v_corr_idxs_inlier_mask_gt])
                 )
                 if report.reproj_error_gt_model is not None and report.v_corr_idxs_inlier_mask_gt is not None
                 else None,
-                "outlier_avg_reproj_error_gt_model": round(
-                    np.nanmean(report.reproj_error_gt_model[np.logical_not(report.v_corr_idxs_inlier_mask_gt)]),
-                    PRINT_NUM_SIG_FIGS,
+                "outlier_avg_reproj_error_gt_model": round_and_save_fn(
+                    np.nanmean(report.reproj_error_gt_model[np.logical_not(report.v_corr_idxs_inlier_mask_gt)])
                 )
                 if report.reproj_error_gt_model is not None and report.v_corr_idxs_inlier_mask_gt is not None
                 else None,
-                "inlier_ratio_est_model": round(report.inlier_ratio_est_model, PRINT_NUM_SIG_FIGS),
+                "inlier_ratio_est_model": round_and_save_fn(report.inlier_ratio_est_model),
                 "num_inliers_est_model": report.num_inliers_est_model,
             }
         )
