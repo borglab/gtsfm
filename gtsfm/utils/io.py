@@ -457,7 +457,7 @@ def write_to_bz2_file(data: Any, file_path: Path) -> None:
     pickle.dump(data, BZ2File(file_path, "wb"))
 
 
-def save_point_cloud_as_ply(save_fpath: str, points: np.ndarray, rgb: Optional[np.ndarray] = None):
+def save_point_cloud_as_ply(save_fpath: str, points: np.ndarray, rgb: Optional[np.ndarray] = None) -> None:
     """Save a point cloud as a .ply file.
 
     Args:
@@ -471,6 +471,7 @@ def save_point_cloud_as_ply(save_fpath: str, points: np.ndarray, rgb: Optional[n
         rgb = np.zeros((N, 3), dtype=np.uint8)
     pointcloud = open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
 
+    os.makedirs(Path(save_fpath).parent, exist_ok=True)
     open3d.io.write_point_cloud(save_fpath, pointcloud, write_ascii=False, compressed=False, print_progress=False)
 
 
