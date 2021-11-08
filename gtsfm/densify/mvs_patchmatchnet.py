@@ -62,7 +62,7 @@ class MVSPatchmatchNet(MVSBase):
         max_geo_pixel_thresh: float = MAX_GEOMETRIC_PIXEL_THRESH,
         max_geo_depth_thresh: float = MAX_GEOMETRIC_DEPTH_THRESH,
         min_conf_thresh: float = MIN_CONFIDENCE_THRESH,
-        num_workers: int = 1,
+        num_workers: int = 0,
     ) -> np.ndarray:
         """Get dense point cloud using PatchmatchNet from GtsfmData. The method implements the densify method in MVSBase
         Ref: Wang et al. https://github.com/FangjinhuaWang/PatchmatchNet/blob/main/eval.py
@@ -85,6 +85,8 @@ class MVSPatchmatchNet(MVSBase):
         """
         dataset = PatchmatchNetData(images=images, sfm_result=sfm_result, max_num_views=max_num_views)
 
+        # TODO(johnwlambert): using Dask's LocalCluster with multiprocessing in Pytorch (i.e. num_workers>0)
+        # will give -> "AssertionError('daemonic processes are not allowed to have children')" -> fix needed
         loader = DataLoader(
             dataset=dataset,
             batch_size=BATCH_SIZE,
