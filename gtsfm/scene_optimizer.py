@@ -279,7 +279,7 @@ class SceneOptimizer:
 
         img_dict_graph = dask.delayed(get_image_dictionary)(image_graph)
         dense_points_graph = self.dense_multiview_optimizer.create_computation_graph(img_dict_graph, ba_output_graph)
-        mvs_ply_save_fpath = RESULTS_PATH / "mvs_output" / "dense_pointcloud.ply"
+        mvs_ply_save_fpath = str(RESULTS_PATH / "mvs_output" / "dense_pointcloud.ply")
         auxiliary_graph_list.append(dask.delayed(io_utils.save_point_cloud_as_ply)(save_fpath=mvs_ply_save_fpath, points=dense_points_graph))
 
         # as visualization tasks are not to be provided to the user, we create a
