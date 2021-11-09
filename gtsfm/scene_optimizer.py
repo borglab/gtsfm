@@ -41,7 +41,7 @@ RESULTS_PATH = Path(__file__).resolve().parent.parent / "results"
 PLOT_CORRESPONDENCE_PATH = PLOT_BASE_PATH / "correspondences"
 PLOT_BA_INPUT_PATH = PLOT_BASE_PATH / "ba_input"
 PLOT_RESULTS_PATH = PLOT_BASE_PATH / "results"
-
+MVS_PLY_SAVE_FPATH = RESULTS_PATH / "mvs_output" / "dense_pointcloud.ply"
 
 # Paths to Save Output in React Folders.
 REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
@@ -279,9 +279,9 @@ class SceneOptimizer:
 
         img_dict_graph = dask.delayed(get_image_dictionary)(image_graph)
         dense_points_graph = self.dense_multiview_optimizer.create_computation_graph(img_dict_graph, ba_output_graph)
-        mvs_ply_save_fpath = str(RESULTS_PATH / "mvs_output" / "dense_pointcloud.ply")
+        # Cast to string as Open3d cannot use PosixPath's for I/O -- only string file paths are accepted.
         auxiliary_graph_list.append(
-            dask.delayed(io_utils.save_point_cloud_as_ply)(save_fpath=mvs_ply_save_fpath, points=dense_points_graph)
+            dask.delayed(io_utils.save_point_cloud_as_ply)(save_fpath=str(MVS_PLY_SAVE_FPATH), points=dense_points_graph)
         )
 
         # as visualization tasks are not to be provided to the user, we create a
