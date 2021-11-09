@@ -143,7 +143,7 @@ def test_save_point_cloud_as_ply() -> None:
 
     with tempfile.TemporaryDirectory() as tempdir:
         save_fpath = f"{tempdir}/pointcloud.ply"
-        save_point_cloud_as_ply(save_fpath=save_fpath, points=points, rgb=rgb)
+        io_utils.save_point_cloud_as_ply(save_fpath=save_fpath, points=points, rgb=rgb)
         points_read, rgb_read = read_point_cloud_from_ply(ply_fpath=save_fpath)
 
     assert np.allclose(points_read, points)
@@ -158,7 +158,7 @@ def test_save_point_cloud_as_ply_uncolored() -> None:
 
     with tempfile.TemporaryDirectory() as tempdir:
         save_fpath = f"{tempdir}/pointcloud.ply"
-        save_point_cloud_as_ply(save_fpath=save_fpath, points=points)
+        io_utils.save_point_cloud_as_ply(save_fpath=save_fpath, points=points)
         points_read, rgb_read = read_point_cloud_from_ply(ply_fpath=save_fpath)
 
     rgb_expected = np.zeros((N, 3), dtype=np.uint8)
