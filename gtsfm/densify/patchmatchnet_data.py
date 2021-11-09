@@ -112,6 +112,10 @@ class PatchmatchNetData(Dataset):
                 # Check if i1 is a valid image with estimated camera pose, then get its id for patchmatchnet
                 pm_i1 = self._camera_idx_to_patchmatchnet_idx.get(i1, -1)
 
+                # Calculate the depth only if i1 is an image with estimated pose
+                if pm_i1 < 0:
+                    continue
+
                 # Calculate track j's depth in the camera i1 frame
                 z1 = self._sfm_result.get_camera(i1).pose().transformTo(wtj)[-1]
                 # Update image i1's depth list only when i1 in a valid camera
@@ -124,7 +128,7 @@ class PatchmatchNetData(Dataset):
                     pm_i2 = self._camera_idx_to_patchmatchnet_idx.get(i2, -1)
 
                     # Calculate the pairwise gaussian score only if i1 and i2 are both images with estimated poses
-                    if pm_i1 < 0 or pm_i2 < 0:
+                    if pm_i2 < 0:
                         continue
 
                     # If both cameras are valid, calculate the score of track j in view pair (pm_i1, pm_i2)
@@ -147,6 +151,11 @@ class PatchmatchNetData(Dataset):
         # Filter out depth outliers and calculate depth ranges
         depth_ranges = np.zeros((self._num_valid_cameras, 2))
         for i in range(self._num_valid_cameras):
+
+            # Verify that there should be at least 1 depth value for each image
+            if len(depths[i]) <= 1:
+                raise ValueError("At least 1 or more depth values for each image must be provided")
+
             depth_ranges[i, 0] = np.percentile(depths[i], MIN_DEPTH_PERCENTILE)
             depth_ranges[i, 1] = np.percentile(depths[i], MAX_DEPTH_PERCENTILE)
 

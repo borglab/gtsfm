@@ -45,8 +45,8 @@ NUM_SAMPLES = [8, 8, 16]
 PROPAGATE_NEIGHBORS = [0, 8, 16]
 EVALUATE_NEIGHBORS = [9, 9, 9]
 
-# a reconstructed point is consistent in geometry if it satisfies all gemetric thresholds in more than 3 source views
-MIN_NUM_CONSISTENT_VIEWS = 3
+# a reconstructed point is consistent in geometry if it satisfies all geometric thresholds in more than 1 source views
+MIN_NUM_CONSISTENT_VIEWS = 1
 
 
 class MVSPatchmatchNet(MVSBase):
@@ -62,6 +62,7 @@ class MVSPatchmatchNet(MVSBase):
         max_geo_pixel_thresh: float = MAX_GEOMETRIC_PIXEL_THRESH,
         max_geo_depth_thresh: float = MAX_GEOMETRIC_DEPTH_THRESH,
         min_conf_thresh: float = MIN_CONFIDENCE_THRESH,
+        min_num_consistent_views: float = MIN_NUM_CONSISTENT_VIEWS,
         num_workers: int = 0,
     ) -> np.ndarray:
         """Get dense point cloud using PatchmatchNet from GtsfmData. The method implements the densify method in MVSBase
@@ -77,6 +78,8 @@ class MVSPatchmatchNet(MVSBase):
                 small threshold means high accuracy and low completeness
             min_conf_thresh: minimum confidence required for a valid point,
                 large threshold means high accuracy and low completeness
+            min_num_consistent_views: a reconstructed point is consistent in geometry if it satisfies all geometric
+                thresholds in more than min_num_consistent_views source views
             num_workers: number of workers when loading data
 
         Returns:
@@ -165,6 +168,7 @@ class MVSPatchmatchNet(MVSBase):
             max_geo_pixel_thresh=max_geo_pixel_thresh,
             max_geo_depth_thresh=max_geo_depth_thresh,
             min_conf_thresh=min_conf_thresh,
+            min_num_consistent_views=min_num_consistent_views,
         )
 
         return dense_point_cloud
@@ -177,6 +181,7 @@ class MVSPatchmatchNet(MVSBase):
         max_geo_pixel_thresh: float,
         max_geo_depth_thresh: float,
         min_conf_thresh: float,
+        min_num_consistent_views: float,
     ) -> np.ndarray:
         """Create a dense point cloud by filtering depth maps based on estimated confidence maps and consistent geometry
 
@@ -199,6 +204,8 @@ class MVSPatchmatchNet(MVSBase):
             max_geo_pixel_thresh: maximum reprojection error in pixel coordinates
             max_geo_depth_thresh: maximum reprojection error in depth from camera
             min_conf_thresh: minimum confidence required for a valid point
+            min_num_consistent_views: a reconstructed point is consistent in geometry if it satisfies all geometric
+                thresholds in more than min_num_consistent_views source views
 
         Returns:
             3D coordinates (in the world frame) of the dense point cloud
