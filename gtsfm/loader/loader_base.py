@@ -13,6 +13,7 @@ from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3
 import gtsfm.utils.images as img_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
+from gtsfm.common.gtsfm_data import GtsfmData
 
 
 logger = logger_utils.get_logger()
@@ -33,6 +34,11 @@ class LoaderBase(metaclass=abc.ABCMeta):
         if not isinstance(max_resolution, int):
             raise ValueError("Maximum image resolution must be an integer argument.")
         self._max_resolution = max_resolution
+
+    @property
+    @abc.abstractmethod
+    def gt_gtsfm_data(self):
+        """Return ground truth `GtsfmData` object."""
 
     # ignored-abstractmethod
     @abc.abstractmethod

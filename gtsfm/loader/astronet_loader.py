@@ -97,7 +97,7 @@ class AstronetLoader(LoaderBase):
             self.gt_scene_trimesh = None
 
         # Create GtsfmData object to hold GT data.
-        self.gt_gtsfm_data = GtsfmData(len(img_fnames), cameras_gtsfm, self._sfmtracks, self.gt_scene_trimesh)
+        self._gt_gtsfm_data = GtsfmData(len(img_fnames), cameras_gtsfm, self._sfmtracks, self.gt_scene_trimesh)
 
         # Camera intrinsics are currently required due to absence of EXIF data and diffculty in approximating focal
         # length (usually 10000 to 100000 pixels).
@@ -121,6 +121,10 @@ class AstronetLoader(LoaderBase):
 
         self._num_imgs = len(self._image_paths)
         logger.info("AstroNet loader found and loaded %d images and %d tracks.", self._num_imgs, self.num_sfmtracks)
+
+    @property
+    def gt_gtsfm_data(self):
+        return self._gt_gtsfm_data
 
     @staticmethod
     def colmap2gtsfm(
