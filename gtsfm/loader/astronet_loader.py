@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional, Dict, Tuple, List
 
 import trimesh
-from gtsam import PinholeCameraCal3Bundler, Cal3Bundler, Pose3, Rot3, Point3, SfmTrack
+from gtsam import PinholeCameraCal3Bundler, Cal3Bundler, Pose3, Rot3, SfmTrack
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils

@@ -7,12 +7,13 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from gtsam import Cal3Bundler, Pose3
+from gtsam import Cal3Bundler, Pose3, PinholeCameraCal3Bundler
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
+from gtsfm.common.gtsfm_data import GtsfmData
 
 
 logger = logger_utils.get_logger()
@@ -70,10 +71,10 @@ class ColmapLoader(LoaderBase):
         self._use_gt_extrinsics = use_gt_extrinsics
         self._max_frame_lookahead = max_frame_lookahead
 
+        # TODO in future PR: if img_fnames is None, default to using everything inside image directory
         self._wTi_list, img_fnames = io_utils.read_images_txt(fpath=os.path.join(colmap_files_dirpath, "images.txt"))
         self._calibrations = io_utils.read_cameras_txt(fpath=os.path.join(colmap_files_dirpath, "cameras.txt"))
-
-        # TODO in future PR: if img_fnames is None, default to using everything inside image directory
+        assert img_fnames is not None
 
         if self._calibrations is None:
             self._use_gt_intrinsics = False
@@ -81,6 +82,16 @@ class ColmapLoader(LoaderBase):
         if self._calibrations is not None and len(self._calibrations) == 1:
             # shared calibration!
             self._calibrations = self._calibrations * len(img_fnames)
+
+        # Create GtsfmData object to hold GT data.
+        if self._wTi_list is None or self._calibrations is None:
+            self._gt_gtsfm_data = None
+        else:
+            cameras_gtsfm = {
+                i: PinholeCameraCal3Bundler(self._wTi_list[-1], self._calibrations[-1])
+                for i in range(len(self._wTi_list))
+            }
+            self._gt_gtsfm_data = GtsfmData(len(img_fnames), cameras_gtsfm, tracks=None, scene_mesh=None)
 
         # preserve COLMAP ordering of images
         self._image_paths = []
@@ -92,6 +103,10 @@ class ColmapLoader(LoaderBase):
 
         self._num_imgs = len(self._image_paths)
         logger.info("Colmap image loader found and loaded %d images", self._num_imgs)
+
+    @property
+    def gt_gtsfm_data(self):
+        return self._gt_gtsfm_data
 
     def __len__(self) -> int:
         """The number of images in the dataset.
