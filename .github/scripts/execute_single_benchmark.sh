@@ -98,12 +98,12 @@ if [ "$DATASET_NAME" == "door-12" ]; then
   DATASET_ROOT=tests/data/set1_lund_door
 
 elif [ "$DATASET_NAME" == "skydio-8" ]; then
-  unzip -qq skydio-8.zip
+  retry 5 unzip -qq skydio-8.zip
   IMAGES_DIR=skydio_crane_mast_8imgs_with_exif/images
   COLMAP_FILES_DIRPATH=skydio_crane_mast_8imgs_with_exif/crane_mast_8imgs_colmap_output
 
 elif [ "$DATASET_NAME" == "skydio-32" ]; then
-  unzip -qq skydio-32.zip -d skydio-32
+  retry 5 unzip -qq skydio-32.zip -d skydio-32
   COLMAP_FILES_DIRPATH=skydio-32/colmap_crane_mast_32imgs
   IMAGES_DIR=skydio-32/images
 
@@ -126,18 +126,18 @@ elif [ "$DATASET_NAME" == "skydio-501" ]; then
   cp skydio-501-cache/cache/matcher/* cache/matcher/
 
 elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
-  unzip -qq notre-dame-20.zip
+  retry 5 unzip -qq notre-dame-20.zip
   COLMAP_FILES_DIRPATH=notre-dame-20/notre-dame-20-colmap
   IMAGES_DIR=notre-dame-20/images
 
 elif [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then \
   mkdir palace-fine-arts-281
-  unzip -qq fine_arts_palace.zip -d palace-fine-arts-281/images
+  retry 5 unzip -qq fine_arts_palace.zip -d palace-fine-arts-281/images
   mv data.mat palace-fine-arts-281/
   DATASET_ROOT="palace-fine-arts-281"
 
 elif [ "$DATASET_NAME" == "2011205_rc3" ]; then 
-  unzip -qq 2011205_rc3.zip
+  retry 5 unzip -qq 2011205_rc3.zip
   DATASET_ROOT="2011205_rc3"
 fi
 
