@@ -58,7 +58,7 @@ class GtsfmRunnerAstronetLoader(GtsfmRunnerBase):
 
         with Client(cluster) as client, performance_report(filename="dask-report.html"):
             # Scatter surface mesh across all nodes to preserve computation time and memory.
-            gt_gtsfm_data_future = client.scatter(self.loader.gt_gtsfm_data, broadcast=True)
+            # gt_gtsfm_data_future = client.scatter(self.loader.gt_gtsfm_data, broadcast=True)
 
             # Prepare computation graph.
             start_time = time.time()

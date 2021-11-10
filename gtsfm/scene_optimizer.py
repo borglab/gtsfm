@@ -10,7 +10,6 @@ from typing import Any, Dict, List, Optional, Tuple
 import dask
 import matplotlib
 import numpy as np
-from trimesh import Trimesh
 from gtsam import Pose3, Similarity3
 from dask.delayed import Delayed
 

@@ -37,7 +37,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
 
     @property
     @abc.abstractmethod
-    def gt_gtsfm_data(self):
+    def gt_gtsfm_data(self) -> GtsfmData:
         """Return ground truth `GtsfmData` object."""
 
     # ignored-abstractmethod
