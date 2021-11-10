@@ -137,7 +137,7 @@ def test_save_point_cloud_as_ply() -> None:
     N = 10000
     # generate a cuboid of size 1 x 2 x 3 meters.
     points = np.random.uniform(low=[0, 0, 0], high=[1, 2, 3], size=(N, 3))
-    # color uniformly as red.
+    # Color uniformly as red.
     rgb = np.zeros((N, 3), dtype=np.uint8)
     rgb[:, 0] = 255
 
