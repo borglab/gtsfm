@@ -35,7 +35,6 @@ class LoRansac(VerifierBase):
         self,
         use_intrinsics_in_verification: bool,
         estimation_threshold_px: float,
-        min_allowed_inlier_ratio_est_model: float,
     ) -> None:
         """Initializes the verifier.
 
@@ -53,13 +52,9 @@ class LoRansac(VerifierBase):
                 to approximating them from exif data.
             estimation_threshold_px: maximum distance (in pixels) to consider a match an inlier, under squared
                 Sampson distance.
-            min_allowed_inlier_ratio_est_model: minimum allowed inlier ratio w.r.t. the estimated model to accept
-                the verification result and use the image pair, i.e. the lowest allowed ratio of
-                #final RANSAC inliers/ #putatives. A lower fraction indicates less agreement among the result.
         """
         self._use_intrinsics_in_verification = use_intrinsics_in_verification
         self._estimation_threshold_px = estimation_threshold_px
-        self._min_allowed_inlier_ratio_est_model = min_allowed_inlier_ratio_est_model
         self._min_matches = (
             verifier_base.NUM_MATCHES_REQ_E_MATRIX
             if self._use_intrinsics_in_verification
@@ -163,13 +158,6 @@ class LoRansac(VerifierBase):
 
         num_inliers = result_dict["num_inliers"]
         inlier_ratio_est_model = num_inliers / match_indices.shape[0]
-
-        # no need to extract the relative pose if we have insufficient inliers.
-        if inlier_ratio_est_model < self._min_allowed_inlier_ratio_est_model:
-            i2Ri1 = None
-            i2Ui1 = None
-            v_corr_idxs = np.array([])
-            return i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio_est_model
 
         inlier_mask = np.array(result_dict["inliers"])
         v_corr_idxs = match_indices[inlier_mask]

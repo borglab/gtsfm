@@ -40,8 +40,9 @@ dependencies:
   # visualization
   - open3d
   - pip:
-    - opencv-python>=4.5.4.58
-    - pydegensac
-    - colour
-    - pycolmap
-    - argoverse @ git+https://github.com/argoai/argoverse-api.git@master
+      - opencv-python>=4.5.4.58
+      - pydegensac
+      - colour
+      - pycolmap
+      - trimesh[easy]
+      - argoverse @ git+https://github.com/argoai/argoverse-api.git@master

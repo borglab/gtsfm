@@ -5,10 +5,7 @@
 from typing import Any, Callable, Union, Dict
 
 import numpy as np
-
-import torchvision.utils as vutils
 import torch
-import torch.utils.tensorboard as tb
 
 
 def print_args(args: Any) -> None:
@@ -95,55 +92,6 @@ def tocuda(vars: Any) -> Union[str, torch.Tensor]:
         return vars
     else:
         raise NotImplementedError("invalid input type {} for tocuda".format(type(vars)))
-
-
-def save_scalars(logger: tb.SummaryWriter, mode: str, scalar_dict: Dict[str, Any], global_step: int) -> None:
-    """Log values stored in the scalar dictionary
-
-    Args:
-        logger: tensorboard summary writer
-        mode: mode name used in writing summaries
-        scalar_dict: python dictionary stores the key and value pairs to be recorded
-        global_step: step index where the logger should write
-    """
-    scalar_dict = tensor2float(scalar_dict)
-    for key, value in scalar_dict.items():
-        if not isinstance(value, (list, tuple)):
-            name = "{}/{}".format(mode, key)
-            logger.add_scalar(name, value, global_step)
-        else:
-            for idx in range(len(value)):
-                name = "{}/{}_{}".format(mode, key, idx)
-                logger.add_scalar(name, value[idx], global_step)
-
-
-def save_images(logger: tb.SummaryWriter, mode: str, images_dict: Dict[str, Any], global_step: int) -> None:
-    """Log images stored in the image dictionary
-
-    Args:
-        logger: tensorboard summary writer
-        mode: mode name used in writing summaries
-        images_dict: python dictionary stores the key and image pairs to be recorded
-        global_step: step index where the logger should write
-    """
-    images_dict = tensor2numpy(images_dict)
-
-    def preprocess(name, img):
-        if not (len(img.shape) == 3 or len(img.shape) == 4):
-            raise NotImplementedError("invalid img shape {}:{} in save_images".format(name, img.shape))
-        if len(img.shape) == 3:
-            img = img[:, np.newaxis, :, :]
-        img = torch.from_numpy(img[:1])
-        return vutils.make_grid(img, padding=0, nrow=1, normalize=True, scale_each=True)
-
-    for key, value in images_dict.items():
-        if not isinstance(value, (list, tuple)):
-            name = "{}/{}".format(mode, key)
-            logger.add_image(name, preprocess(name, value), global_step)
-        else:
-            for idx in range(len(value)):
-                name = "{}/{}_{}".format(mode, key, idx)
-                logger.add_image(name, preprocess(name, value[idx]), global_step)
 
 
 class DictAverageMeter:
