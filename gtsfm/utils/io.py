@@ -466,7 +466,7 @@ def save_point_cloud_as_ply(save_fpath: str, points: np.ndarray, rgb: Optional[n
         rgb: uint8 array of shape (N,3) representing an RGB color per point.
     """
     if rgb is None:
-        # if no colors are provided, then color all points uniformly as black.
+        # If no colors are provided, then color all points uniformly as black.
         N = points.shape[0]
         rgb = np.zeros((N, 3), dtype=np.uint8)
     pointcloud = open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
