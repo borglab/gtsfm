@@ -122,6 +122,7 @@ class SceneOptimizer:
             descriptors_graph_list += [delayed_descs]
 
         # Estimate two-view geometry and get indices of verified correspondences.
+        matcher_reports_dict = {}
         i2Ri1_graph_dict = {}
         i2Ui1_graph_dict = {}
         v_corr_idxs_graph_dict: Dict[Tuple[int, int], np.ndarray] = {}
@@ -142,6 +143,7 @@ class SceneOptimizer:
                 v_corr_idxs,
                 two_view_report,
                 two_view_report_pp,
+                matcher_report,
             ) = self.two_view_estimator.create_computation_graph(
                 keypoints_graph_list[i1],
                 keypoints_graph_list[i2],
@@ -162,6 +164,7 @@ class SceneOptimizer:
             v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
             two_view_reports_dict[(i1, i2)] = two_view_report
             two_view_reports_pp_dict[(i1, i2)] = two_view_report_pp
+            matcher_reports_dict[(i1, i2)] = matcher_report
 
             # Visualize verified two-view correspondences.
             if self._save_two_view_correspondences_viz:
@@ -181,6 +184,7 @@ class SceneOptimizer:
         auxiliary_graph_list.append(
             dask.delayed(save_full_frontend_metrics)(two_view_reports_dict, image_graph, filename="verifier_full.json")
         )
+        metrics_graph_list.append(dask.delayed(two_view_estimator.aggregate_matcher_metrics)(matcher_reports_dict))
         if gt_cameras_graph is not None:
             metrics_graph_list.append(
                 dask.delayed(two_view_estimator.aggregate_frontend_metrics)(

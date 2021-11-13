@@ -15,7 +15,7 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
-from gtsfm.frontend.matcher.matcher_base import MatcherBase
+from gtsfm.frontend.matcher.matcher_base import MatcherBase, MatcherReport
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
@@ -96,13 +96,19 @@ class TwoViewEstimator:
         """
 
         # graph for matching to obtain putative correspondences
-        corr_idxs_graph = self._matcher.create_computation_graph(
+        corr_idxs_graph, matcher_report = self._matcher.create_computation_graph(
             keypoints_i1_graph,
             keypoints_i2_graph,
             descriptors_i1_graph,
             descriptors_i2_graph,
             im_shape_i1_graph,
             im_shape_i2_graph,
+            camera_intrinsics_i1_graph,
+            camera_intrinsics_i2_graph,
+            self._corr_metric_dist_threshold,
+            gt_wTi1_graph,
+            gt_wTi2_graph,
+            gt_scene_mesh_graph,
         )
 
         # verification on putative correspondences to obtain relative pose
@@ -156,7 +162,14 @@ class TwoViewEstimator:
             two_view_report_pp_graph,
         ) = self.processor.create_computation_graph(i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph)
         # We provide both, as we will create reports for both.
-        return (i2Ri1_pp_graph, i2Ui1_pp_graph, v_corr_idxs_pp_graph, two_view_report_graph, two_view_report_pp_graph)
+        return (
+            i2Ri1_pp_graph,
+            i2Ui1_pp_graph,
+            v_corr_idxs_pp_graph,
+            two_view_report_graph,
+            two_view_report_pp_graph,
+            matcher_report,
+        )
 
 
 def generate_two_view_report(
@@ -221,6 +234,27 @@ def compute_relative_pose_metrics(
     )
 
     return (R_error_deg, U_error_deg)
+
+
+def aggregate_matcher_metrics(matcher_reports_dict: Dict[Tuple[int, int], MatcherReport]):
+    """Aggregate the matcher metrics into a metrics group for the HTML report.
+
+    Args:
+        matcher_reports_dict: dictionary containing a matcher report for every image pair.
+    """
+    num_matches_all_pairs = []
+    inlier_ratio_gt_model_all_pairs = []
+    for report in matcher_reports_dict.values():
+        num_matches_all_pairs.append(report.num_matches)
+        inlier_ratio_gt_model_all_pairs.append(report.inlier_ratio_gt_model)
+
+    return GtsfmMetricsGroup(
+        "matcher_metrics",
+        metrics=[
+            GtsfmMetric("inlier_ratio_wrt_gt_model", inlier_ratio_gt_model_all_pairs),
+            GtsfmMetric("num_matches", num_matches_all_pairs),
+        ],
+    )
 
 
 def aggregate_frontend_metrics(
