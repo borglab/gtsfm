@@ -80,9 +80,7 @@ class AstronetLoader(LoaderBase):
             self._wTi_list,
             img_fnames,
             self._sfmtracks,
-        ) = io_utils.colmap2gtsfm(
-            cameras, images, points3d, load_sfmtracks=use_gt_sfmtracks
-        )
+        ) = io_utils.colmap2gtsfm(cameras, images, points3d, load_sfmtracks=use_gt_sfmtracks)
 
         # Read in scene mesh as Trimesh object
         if gt_scene_mesh_path is not None:
@@ -212,7 +210,4 @@ class AstronetLoader(LoaderBase):
         Returns:
             validation result.
         """
-        return (
-            super().is_valid_pair(idx1, idx2)
-            and abs(idx1 - idx2) <= self._max_frame_lookahead
-        )
+        return super().is_valid_pair(idx1, idx2) and abs(idx1 - idx2) <= self._max_frame_lookahead

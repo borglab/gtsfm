@@ -43,12 +43,8 @@ PLOT_RESULTS_PATH = PLOT_BASE_PATH / "results"
 
 
 # Paths to Save Output in React Folders.
-REACT_METRICS_PATH = (
-    Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
-)
-REACT_RESULTS_PATH = (
-    Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "public" / "results"
-)
+REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
+REACT_RESULTS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "public" / "results"
 
 logger = logger_utils.get_logger()
 
@@ -138,7 +134,10 @@ class SceneOptimizer:
             # Collect ground truth relative and absolute poses if available.
             # TODO(johnwlambert): decompose this method -- name it as "calling_the_plate()"
             if gt_cameras_graph is not None:
-                gt_wTi1, gt_wTi2 = gt_cameras_graph[i1].pose(), gt_cameras_graph[i2].pose()
+                gt_wTi1, gt_wTi2 = (
+                    gt_cameras_graph[i1].pose(),
+                    gt_cameras_graph[i2].pose(),
+                )
             else:
                 gt_wTi1, gt_wTi2 = None, None
 
@@ -191,7 +190,9 @@ class SceneOptimizer:
         if gt_cameras_graph is not None:
             metrics_graph_list.append(
                 dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
-                    two_view_reports_dict, self._pose_angular_error_thresh, metric_group_name="verifier_summary"
+                    two_view_reports_dict,
+                    self._pose_angular_error_thresh,
+                    metric_group_name="verifier_summary",
                 )
             )
             metrics_graph_list.append(
@@ -206,15 +207,13 @@ class SceneOptimizer:
         # dummy computation of concatenating viz tasks with the output graph,
         # forcing computation of viz tasks. Doing this here forces the
         # frontend's auxiliary tasks to be computed before the multi-view stage.
-        keypoints_graph_list = dask.delayed(lambda x, y: (x, y))(
-            keypoints_graph_list, auxiliary_graph_list
-        )[0]
+        keypoints_graph_list = dask.delayed(lambda x, y: (x, y))(keypoints_graph_list, auxiliary_graph_list)[0]
         auxiliary_graph_list = []
 
         # ensure cycle consistency in triplets
         # TODO: add a get_computational_graph() method to ViewGraphOptimizer
         # TODO(johnwlambert): use a different name for variable, since this is something different
-        i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict, rcc_metrics_graph = dask.delayed(
+        (i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict, rcc_metrics_graph,) = dask.delayed(
             cycle_consistency.filter_to_cycle_consistent_edges, nout=4
         )(
             i2Ri1_graph_dict,
@@ -225,9 +224,7 @@ class SceneOptimizer:
         )
         metrics_graph_list.append(rcc_metrics_graph)
 
-        def _filter_dict_keys(
-            dict: Dict[Any, Any], ref_dict: Dict[Any, Any]
-        ) -> Dict[Any, Any]:
+        def _filter_dict_keys(dict: Dict[Any, Any], ref_dict: Dict[Any, Any]) -> Dict[Any, Any]:
             """Return a subset of a dictionary based on keys present in the reference dictionary."""
             valid_keys = list(ref_dict.keys())
             return {k: v for k, v in dict.items() if k in valid_keys}
@@ -252,11 +249,7 @@ class SceneOptimizer:
             )
 
         # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
-        (
-            ba_input_graph,
-            ba_output_graph,
-            optimizer_metrics_graph,
-        ) = self.multiview_optimizer.create_computation_graph(
+        (ba_input_graph, ba_output_graph, optimizer_metrics_graph,) = self.multiview_optimizer.create_computation_graph(
             image_graph,
             num_images,
             keypoints_graph_list,
@@ -287,16 +280,12 @@ class SceneOptimizer:
             auxiliary_graph_list.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_poses_graph))
 
         if self._save_gtsfm_data:
-            auxiliary_graph_list.extend(
-                save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph)
-            )
+            auxiliary_graph_list.extend(save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph))
 
         # as visualization tasks are not to be provided to the user, we create a
         # dummy computation of concatenating viz tasks with the output graph,
         # forcing computation of viz tasks
-        output_graph = dask.delayed(lambda x, y: (x, y))(
-            ba_output_graph, auxiliary_graph_list
-        )
+        output_graph = dask.delayed(lambda x, y: (x, y))(ba_output_graph, auxiliary_graph_list)
 
         # return the entry with just the sfm result
         return output_graph[0]
@@ -345,23 +334,15 @@ def save_visualizations(
         A list of Delayed objects after saving the different visualizations.
     """
     viz_graph_list = []
+    viz_graph_list.append(dask.delayed(viz_utils.save_sfm_data_viz)(ba_input_graph, PLOT_BA_INPUT_PATH))
+    viz_graph_list.append(dask.delayed(viz_utils.save_sfm_data_viz)(ba_output_graph, PLOT_RESULTS_PATH))
     viz_graph_list.append(
-        dask.delayed(viz_utils.save_sfm_data_viz)(ba_input_graph, PLOT_BA_INPUT_PATH)
-    )
-    viz_graph_list.append(
-        dask.delayed(viz_utils.save_sfm_data_viz)(ba_output_graph, PLOT_RESULTS_PATH)
-    )
-    viz_graph_list.append(
-        dask.delayed(viz_utils.save_camera_poses_viz)(
-            ba_input_graph, ba_output_graph, gt_pose_graph, PLOT_RESULTS_PATH
-        )
+        dask.delayed(viz_utils.save_camera_poses_viz)(ba_input_graph, ba_output_graph, gt_pose_graph, PLOT_RESULTS_PATH)
     )
     return viz_graph_list
 
 
-def save_gtsfm_data(
-    image_graph: Delayed, ba_input_graph: Delayed, ba_output_graph: Delayed
-) -> List[Delayed]:
+def save_gtsfm_data(image_graph: Delayed, ba_input_graph: Delayed, ba_output_graph: Delayed) -> List[Delayed]:
     """Saves the Gtsfm data before and after bundle adjustment.
 
     Args:
@@ -409,15 +390,9 @@ def save_metrics_reports(metrics_graph_list: Delayed) -> List[Delayed]:
         return save_metrics_graph_list
 
     # Save metrics to JSON
+    save_metrics_graph_list.append(dask.delayed(metrics_utils.save_metrics_as_json)(metrics_graph_list, METRICS_PATH))
     save_metrics_graph_list.append(
-        dask.delayed(metrics_utils.save_metrics_as_json)(
-            metrics_graph_list, METRICS_PATH
-        )
-    )
-    save_metrics_graph_list.append(
-        dask.delayed(metrics_utils.save_metrics_as_json)(
-            metrics_graph_list, REACT_METRICS_PATH
-        )
+        dask.delayed(metrics_utils.save_metrics_as_json)(metrics_graph_list, REACT_METRICS_PATH)
     )
     save_metrics_graph_list.append(
         dask.delayed(metrics_report.generate_metrics_report_html)(
@@ -453,24 +428,17 @@ def save_full_frontend_metrics(
                 "i2": i2,
                 "i1_filename": images[i1].file_name,
                 "i2_filename": images[i2].file_name,
-                "rotation_angular_error": round(report.R_error_deg, PRINT_NUM_SIG_FIGS)
-                if report.R_error_deg
-                else None,
-                "translation_angular_error": round(
-                    report.U_error_deg, PRINT_NUM_SIG_FIGS
-                )
+                "rotation_angular_error": round(report.R_error_deg, PRINT_NUM_SIG_FIGS) if report.R_error_deg else None,
+                "translation_angular_error": round(report.U_error_deg, PRINT_NUM_SIG_FIGS)
                 if report.U_error_deg
                 else None,
-                "num_inliers_gt_model": report.num_inliers_gt_model
-                if report.num_inliers_gt_model
-                else None,
-                "inlier_ratio_gt_model": round(
-                    report.inlier_ratio_gt_model, PRINT_NUM_SIG_FIGS
-                )
+                "num_inliers_gt_model": report.num_inliers_gt_model if report.num_inliers_gt_model else None,
+                "inlier_ratio_gt_model": round(report.inlier_ratio_gt_model, PRINT_NUM_SIG_FIGS)
                 if report.inlier_ratio_gt_model
                 else None,
                 "inlier_avg_reproj_error_gt_model": round(
-                    np.nanmean(report.reproj_error_gt_model[report.v_corr_idxs_inlier_mask_gt]), PRINT_NUM_SIG_FIGS
+                    np.nanmean(report.reproj_error_gt_model[report.v_corr_idxs_inlier_mask_gt]),
+                    PRINT_NUM_SIG_FIGS,
                 )
                 if report.reproj_error_gt_model is not None and report.v_corr_idxs_inlier_mask_gt is not None
                 else None,

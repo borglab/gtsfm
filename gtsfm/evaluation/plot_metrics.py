@@ -30,7 +30,7 @@ def create_metrics_plots_html(json_path: str, colmap_files_dirpath: str, output_
         "rotation_cycle_consistency_metrics.json",
         "averaging_metrics.json",
         "data_association_metrics.json",
-        "bundle_adjustment_metrics.json"
+        "bundle_adjustment_metrics.json",
     ]
     if colmap_files_dirpath != "":
         txt_metric_paths = {
@@ -56,4 +56,4 @@ if __name__ == "__main__":
     parser.add_argument("--colmap_files_dirpath", default="", help="Directory containing COLMAP output.")
     parser.add_argument("--output_dir", default="", help="Directory to save plots to. Same as metrics_dir by default.")
     args = parser.parse_args()
-    create_metrics_plots_html(args.metrics_dir, args.colmap_files_dirpath,args.output_dir)
+    create_metrics_plots_html(args.metrics_dir, args.colmap_files_dirpath, args.output_dir)

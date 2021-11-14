@@ -22,12 +22,8 @@ def compare_metrics(
         txt_metric_paths: a list of paths to directories containing: cameras.txt, images.txt, and points3D.txt files
     """
     for pipeline_name in txt_metric_paths.keys():
-        cameras, images, points3d = colmap_io.read_model(
-            path=txt_metric_paths[pipeline_name], ext=".txt"
-        )
-        cameras, images, image_files, sfmtracks = io_utils.colmap2gtsfm(
-            cameras, images, points3d, load_sfmtracks=True
-        )
+        cameras, images, points3d = colmap_io.read_model(path=txt_metric_paths[pipeline_name], ext=".txt")
+        cameras, images, image_files, sfmtracks = io_utils.colmap2gtsfm(cameras, images, points3d, load_sfmtracks=True)
         num_cameras = len(cameras)
         track_lengths = []
         image_id_num_measurements = {}
@@ -52,9 +48,7 @@ def compare_metrics(
         # Create comparable result_metric json for COLMAP
         for filename in GTSFM_MODULE_METRICS_FNAMES:
             metrics = []
-            metrics_group = GtsfmMetricsGroup.parse_from_json(
-                os.path.join(json_path, filename)
-            )
+            metrics_group = GtsfmMetricsGroup.parse_from_json(os.path.join(json_path, filename))
             for metric in metrics_group.metrics:
                 # Case 1: mapping from COLMAP to GTSfM is known
                 if metric.name in colmap2gtsfm.keys():
@@ -69,6 +63,4 @@ def compare_metrics(
                         metrics.append(GtsfmMetric(metric.name, ""))
             new_metrics_group = GtsfmMetricsGroup(metrics_group.name, metrics)
             os.makedirs(os.path.join(json_path, pipeline_name), exist_ok=True)
-            new_metrics_group.save_to_json(
-                os.path.join(json_path, pipeline_name, os.path.basename(filename))
-            )
+            new_metrics_group.save_to_json(os.path.join(json_path, pipeline_name, os.path.basename(filename)))

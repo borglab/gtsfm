@@ -23,9 +23,11 @@ from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.sfm_track import SfmTrack2d
 
-from thirdparty.colmap.scripts.python.read_write_model import Camera as ColmapCamera
-from thirdparty.colmap.scripts.python.read_write_model import Image as ColmapImage
-from thirdparty.colmap.scripts.python.read_write_model import Point3D as ColmapPoint3D
+from thirdparty.colmap.scripts.python.read_write_model import (
+    Camera as ColmapCamera,
+    Image as ColmapImage,
+    Point3D as ColmapPoint3D,
+)
 
 
 logger = logger_utils.get_logger()
@@ -62,14 +64,8 @@ def load_image(img_path: str) -> Image:
         exif_data = parsed_data
 
     img_fname = Path(img_path).name
-    original_image = (
-        original_image.convert("RGB")
-        if original_image.mode != "RGB"
-        else original_image
-    )
-    return Image(
-        value_array=np.asarray(original_image), exif_data=exif_data, file_name=img_fname
-    )
+    original_image = original_image.convert("RGB") if original_image.mode != "RGB" else original_image
+    return Image(value_array=np.asarray(original_image), exif_data=exif_data, file_name=img_fname)
 
 
 def save_image(image: Image, img_path: str) -> None:
@@ -154,9 +150,7 @@ def read_bal(file_path: str) -> GtsfmData:
     return gtsfm_data
 
 
-def export_model_as_colmap_text(
-    gtsfm_data: GtsfmData, images: List[Image], save_dir: str
-) -> None:
+def export_model_as_colmap_text(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
     """Emulates the COLMAP option to `Export model as text`.
 
     Three text files will be save to disk: "points3D.txt", "images.txt", and "cameras.txt".
@@ -193,9 +187,7 @@ def colmap2gtsfm(
     if len(images) == 0 and len(cameras) == 0:
         raise RuntimeError("No Image or Camera data provided to loader.")
     cameras_gtsfm, images_gtsfm, img_fnames = [], [], []
-    image_id_to_idx = (
-        {}
-    )  # keeps track of discrepencies between `image_id` and List index.
+    image_id_to_idx = {}  # keeps track of discrepencies between `image_id` and List index.
     for idx, img in enumerate(images.values()):
         images_gtsfm.append(Pose3(Rot3(img.qvec2rotmat()), img.tvec).inverse())
         img_fnames.append(img.name)
@@ -211,9 +203,7 @@ def colmap2gtsfm(
         for point3D in points3D.values():
             sfmtrack = SfmTrack(point3D.xyz)
             for (image_id, point2d_idx) in zip(point3D.image_ids, point3D.point2D_idxs):
-                sfmtrack.add_measurement(
-                    image_id_to_idx[image_id], images[image_id].xys[point2d_idx]
-                )
+                sfmtrack.add_measurement(image_id_to_idx[image_id], images[image_id].xys[point2d_idx])
             sfmtracks_gtsfm.append(sfmtrack)
 
     return cameras_gtsfm, images_gtsfm, img_fnames, sfmtracks_gtsfm
@@ -298,9 +288,7 @@ def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> 
             image_height = images[i].height
             image_width = images[i].width
 
-            f.write(
-                f"{i} {camera_model} {image_width} {image_height} {fx} {u0} {v0} {k1} {k2}\n"
-            )
+            f.write(f"{i} {camera_model} {image_width} {image_height} {fx} {u0} {v0} {k1} {k2}\n")
 
 
 def read_images_txt(fpath: str) -> Tuple[Optional[List[Pose3]], Optional[List[str]]]:
@@ -380,9 +368,7 @@ def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
         f.write("# Image list with two lines of data per image:\n")
         f.write("#   IMAGE_ID, QW, QX, QY, QZ, TX, TY, TZ, CAMERA_ID, NAME\n")
         f.write("#   POINTS2D[] as (X, Y, POINT3D_ID)\n")
-        f.write(
-            f"# Number of images: {num_imgs}, mean observations per image: {mean_obs_per_img:.3f}\n"
-        )
+        f.write(f"# Number of images: {num_imgs}, mean observations per image: {mean_obs_per_img:.3f}\n")
 
         for i in gtsfm_data.get_valid_camera_indices():
             img_fname = images[i].file_name
@@ -483,12 +469,8 @@ def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
     file_path = os.path.join(save_dir, "points3D.txt")
     with open(file_path, "w") as f:
         f.write("# 3D point list with one line of data per point:\n")
-        f.write(
-            "#   POINT3D_ID, X, Y, Z, R, G, B, ERROR, TRACK[] as (IMAGE_ID, POINT2D_IDX)\n"
-        )
-        f.write(
-            f"# Number of points: {num_pts}, mean track length: {np.round(avg_track_length, 2)}\n"
-        )
+        f.write("#   POINT3D_ID, X, Y, Z, R, G, B, ERROR, TRACK[] as (IMAGE_ID, POINT2D_IDX)\n")
+        f.write(f"# Number of points: {num_pts}, mean track length: {np.round(avg_track_length, 2)}\n")
 
         # TODO: assign unique indices to all keypoints (2d points)
         point2d_idx = 0
@@ -497,13 +479,9 @@ def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
             track = gtsfm_data.get_track(j)
 
             r, g, b = image_utils.get_average_point_color(track, images)
-            _, avg_track_reproj_error = reproj_utils.compute_track_reprojection_errors(
-                gtsfm_data._cameras, track
-            )
+            _, avg_track_reproj_error = reproj_utils.compute_track_reprojection_errors(gtsfm_data._cameras, track)
             x, y, z = track.point3()
-            f.write(
-                f"{j} {x} {y} {z} {r} {g} {b} {np.round(avg_track_reproj_error, 2)} "
-            )
+            f.write(f"{j} {x} {y} {z} {r} {g} {b} {np.round(avg_track_reproj_error, 2)} ")
 
             for k in range(track.number_measurements()):
                 i, uv_measured = track.measurement(k)
@@ -527,11 +505,7 @@ def save_track_visualizations(
     for i, track in enumerate(tracks_2d):
         patches = []
         for m in track.measurements:
-            patches += [
-                images[m.i].extract_patch(
-                    center_x=m.uv[0], center_y=m.uv[1], patch_size=viz_patch_sz
-                )
-            ]
+            patches += [images[m.i].extract_patch(center_x=m.uv[0], center_y=m.uv[1], patch_size=viz_patch_sz)]
 
         stacked_image = image_utils.vstack_image_list(patches)
         save_fpath = os.path.join(save_dir, f"track_{i}.jpg")
