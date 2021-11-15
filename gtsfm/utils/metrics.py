@@ -65,7 +65,7 @@ def compute_correspondence_metrics(
     """
     if corr_idxs_i1i2.size == 0:
         return None, None
-    
+
     if gt_wTi1 is None or gt_wTi2 is None:
         return None, None
 
@@ -85,7 +85,7 @@ def compute_correspondence_metrics(
             dist_threshold,
         )
         return is_inlier, reproj_error
-        
+
     # If no mesh is provided, use squared Sampson error.
     gt_i2Ti1 = gt_wTi2.between(gt_wTi1)
     is_inlier, reproj_error = epipolar_inlier_correspondences(
@@ -422,3 +422,19 @@ def save_metrics_as_json(metrics_groups: Delayed, output_dir: str) -> None:
     """
     for metrics_group in metrics_groups:
         metrics_group.save_to_json(os.path.join(output_dir, metrics_group.name + ".json"))
+
+
+def get_stats_for_sfmdata(gtsfm_data: GtsfmData, suffix: str) -> List[GtsfmMetric]:
+    """Helper to get bundle adjustment metrics from a GtsfmData object with a suffix for metric names."""
+    metrics = []
+    metrics.append(GtsfmMetric(name="number_cameras", data=len(gtsfm_data.get_valid_camera_indices())))
+    metrics.append(GtsfmMetric("number_tracks" + suffix, gtsfm_data.number_tracks()))
+    metrics.append(
+        GtsfmMetric(
+            "3d_track_lengths" + suffix,
+            gtsfm_data.get_track_lengths(),
+            plot_type=GtsfmMetric.PlotType.HISTOGRAM,
+        )
+    )
+    metrics.append(GtsfmMetric(f"reprojection_errors{suffix}_px", gtsfm_data.get_scene_reprojection_errors()))
+    return metrics

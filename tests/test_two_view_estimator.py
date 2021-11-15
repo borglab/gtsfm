@@ -2,29 +2,19 @@
 
 Authors: Ayush Baid
 """
+from gtsfm.common.keypoints import Keypoints
 import unittest
-from unittest.mock import ANY, MagicMock, patch
 
 import gtsam
 import numpy as np
-from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3
-from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.evaluation.metrics import GtsfmMetricsGroup
+from gtsam import Cal3Bundler, EssentialMatrix, Pose3, Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.io as io_utils
-from gtsfm.common.keypoints import Keypoints
 from gtsfm.two_view_estimator import TwoViewEstimator
-
 
 GTSAM_EXAMPLE_FILE = "5pointExample1.txt"
 EXAMPLE_DATA = io_utils.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
-
-# dummy data used for mocks
-MOCK_DA_OUTPUT = MagicMock()
-MOCK_DA_METRICS = MagicMock()
-MOCK_BA_OUTPUT = MagicMock()
-MOCK_BA_METRICS = MagicMock()
 
 
 class TestTwoViewEstimator(unittest.TestCase):
@@ -34,45 +24,46 @@ class TestTwoViewEstimator(unittest.TestCase):
     details.
     """
 
-    @patch("gtsfm.data_association.data_assoc.DataAssociation.run", return_value=[MOCK_DA_OUTPUT, MOCK_DA_METRICS])
-    @patch(
-        "gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptimizer.run", return_value=[MOCK_BA_OUTPUT, MOCK_BA_METRICS]
-    )
-    def test_bundle_adjust(self, mock_ba_run: MagicMock, mock_da_run: MagicMock):
-        """Tests 2-view BA using mocked data to confirm calls to data-association and bundle-adjustment modules"""
+    def test_bundle_adjust(self):
+        """Tests the bundle adjustment for relative pose on a simulated scene."""
         # Extract example poses.
-        camera_i1 = PinholeCameraCal3Bundler()
-        camera_i2 = PinholeCameraCal3Bundler(Pose3(Rot3.RzRyRx(0, np.pi / 2, 0), np.array([1, 0, 0])), Cal3Bundler())
-        i2Ti1 = camera_i2.pose().between(camera_i1.pose())
+        i1Ri2 = EXAMPLE_DATA.get_camera(1).pose().rotation()
+        i1ti2 = EXAMPLE_DATA.get_camera(1).pose().translation()
+        i2Ti1 = Pose3(i1Ri2, i1ti2).inverse()
+        i2Ei1 = EssentialMatrix(i2Ti1.rotation(), Unit3(i2Ti1.translation()))
 
-        keypoints_i1 = MagicMock()
-        keypoints_i2 = MagicMock()
-        verified_corr_idxs = MagicMock()
-
-        ba_output_poses = MagicMock(return_value=[camera_i1.pose(), camera_i2.pose()])
-        MOCK_BA_OUTPUT.get_camera_poses = ba_output_poses
+        # Prepare tracks from the measurements.
+        num_points = 5
+        normalized_coordinates_i1 = []
+        normalized_coordinates_i2 = []
+        for i in range(num_points):
+            track = EXAMPLE_DATA.get_track(i)
+            normalized_coordinates_i1.append(track.measurement(0)[1])
+            normalized_coordinates_i2.append(track.measurement(1)[1])
+        normalized_coordinates_i1 = np.array(normalized_coordinates_i1)
+        normalized_coordinates_i2 = np.array(normalized_coordinates_i2)
 
         # Perform bundle adjustment.
-        _, _, _ = TwoViewEstimator.bundle_adjust(
-            keypoints_i1=keypoints_i1,
-            keypoints_i2=keypoints_i2,
-            verified_corr_idxs=verified_corr_idxs,
-            camera_intrinsics_i1=camera_i1.calibration(),
-            camera_intrinsics_i2=camera_i2.calibration(),
-            i2Ri1_initial=i2Ti1.rotation(),
-            i2Ui1_initial=Unit3(i2Ti1.translation()),
+        i2Ri1_optimized, i2Ui1_optimized, corr_idxs = TwoViewEstimator.bundle_adjust(
+            keypoints_i1=Keypoints(normalized_coordinates_i1),
+            keypoints_i2=Keypoints(normalized_coordinates_i2),
+            verified_corr_idxs=np.hstack([np.arange(normalized_coordinates_i1.shape[0]).reshape(-1, 1)] * 2),
+            camera_intrinsics_i1=Cal3Bundler(),
+            camera_intrinsics_i2=Cal3Bundler(),
+            i2Ri1_initial=i2Ei1.rotation(),
+            i2Ui1_initial=i2Ei1.direction(),
         )
 
-        mock_da_run.assert_called_once_with(
-            num_images=2,
-            cameras={
-                0: ANY,
-                1: ANY,
-            },  # cannot check exact camera values right now because the __eq__ function is broken
-            corr_idxs_dict={(0, 1): verified_corr_idxs},
-            keypoints_list=[keypoints_i1, keypoints_i2],
+        # Assert
+        rotation_angular_error = comp_utils.compute_relative_rotation_angle(i2Ri1_optimized, i2Ei1.rotation())
+        translation_angular_error = comp_utils.compute_relative_unit_translation_angle(
+            i2Ui1_optimized, i2Ei1.direction()
         )
-        mock_ba_run.assert_called_once_with(MOCK_DA_OUTPUT)
+        self.assertLessEqual(rotation_angular_error, 1)
+        self.assertLessEqual(translation_angular_error, 1)
+        np.testing.assert_allclose(
+            corr_idxs, np.hstack([np.arange(normalized_coordinates_i1.shape[0]).reshape(-1, 1)] * 2)
+        )
 
 
 if __name__ == "__main__":

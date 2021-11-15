@@ -7,17 +7,28 @@ import timeit
 from typing import Dict, Optional, Tuple, List
 
 import dask
+import gtsam
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import Cal3Bundler, Pose3, PinholeCameraCal3Bundler, Rot3, Unit3
+from gtsam import (
+    Cal3Bundler,
+    CameraSetCal3Bundler,
+    Point2Vector,
+    Pose3,
+    PinholeCameraCal3Bundler,
+    Rot3,
+    SfmTrack,
+    Unit3,
+)
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
-from gtsfm.data_association.point3d_initializer import TriangulationParam
+from gtsfm.data_association.point3d_initializer import SVD_DLT_RANK_TOL
 from gtsfm.data_association.data_assoc import DataAssociation
 from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
@@ -39,14 +50,7 @@ POST_ISP_REPORT_TAG = "POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT"
 POST_CYCLE_CONSISTENT_REPORT_TAG = "POST_CYCLE_CONSISTENT_2VIEW_REPORT"
 
 
-DATA_ASSOC_REPROJ_ERROR_THRESH = 3
-BA_OUTPUT_REPROJ_ERROR_THRESH = 100
-DATA_ASSOC_2VIEW = DataAssociation(
-    reproj_error_thresh=DATA_ASSOC_REPROJ_ERROR_THRESH, min_track_len=2, mode=TriangulationParam.NO_RANSAC
-)
-BUNDLE_ADJUST_2VIEW = BundleAdjustmentOptimizer(
-    output_reproj_error_thresh=BA_OUTPUT_REPROJ_ERROR_THRESH, robust_measurement_noise=True, max_iterations=10
-)  # we dont care about output error threshold as we do not access the tracks of 2-view BA, which the threshold affects.
+BUNDLE_ADJUST_2VIEW = BundleAdjustmentOptimizer(robust_measurement_noise=True, max_iterations=10)
 
 
 class TwoViewEstimator:
@@ -72,6 +76,51 @@ class TwoViewEstimator:
         self._verifier = verifier
         self.processor = inlier_support_processor
         self._corr_metric_dist_threshold = eval_threshold_px
+
+    @classmethod
+    def triangulate_two_view_correspondences(
+        cls,
+        camera_i1: PinholeCameraCal3Bundler,
+        camera_i2: PinholeCameraCal3Bundler,
+        keypoints_i1: Keypoints,
+        keypoints_i2: Keypoints,
+        corr_idxs: np.ndarray,
+    ):
+        """Triangulate 2-view correspondences to form 3d tracks.
+
+        Args:
+            camera_i1: camera for 1st view.
+            camera_i2: camera for 2nd view.
+            keypoints_i1: keypoints for 1st view.
+            keypoints_i2: keypoints for 2nd view.
+            corr_idxs: indices of corresponding keypoints.
+
+        Returns:
+            Triangulated 3D points.
+        """
+        camera_set = CameraSetCal3Bundler()
+        camera_set.append(camera_i1)
+        camera_set.append(camera_i2)
+
+        tracks_3d: List[SfmTrack] = []
+        for i in range(len(corr_idxs)):
+            track_2d = Point2Vector()
+            idx1, idx2 = corr_idxs[i, :]
+            track_2d.append(keypoints_i1.coordinates[idx1])
+            track_2d.append(keypoints_i2.coordinates[idx2])
+
+            try:
+                triangulated_pt = gtsam.triangulatePoint3(
+                    camera_set, track_2d, rank_tol=SVD_DLT_RANK_TOL, optimize=False
+                )
+                track_3d = SfmTrack(triangulated_pt)
+                track_3d.add_measurement(0, track_2d[0])
+                track_3d.add_measurement(1, track_2d[1])
+                tracks_3d.append(track_3d)
+            except:
+                pass
+
+        return tracks_3d
 
     @classmethod
     def bundle_adjust(
@@ -110,17 +159,23 @@ class TwoViewEstimator:
 
         # Perform data association to construct 2-view BA input.
         start_time = timeit.default_timer()
-        ba_input, _ = DATA_ASSOC_2VIEW.run(
-            num_images=2,
-            cameras={0: camera_i1, 1: camera_i2},
-            corr_idxs_dict={(0, 1): verified_corr_idxs},
-            keypoints_list=[keypoints_i1, keypoints_i2],
+        triangulated_tracks: List[SfmTrack] = cls.triangulate_two_view_correspondences(
+            camera_i1=camera_i1,
+            camera_i2=camera_i2,
+            keypoints_i1=keypoints_i1,
+            keypoints_i2=keypoints_i2,
+            corr_idxs=verified_corr_idxs,
         )
         logger.info("Performed DA in %.6f seconds.", timeit.default_timer() - start_time)
 
         # Perform 2-view BA.
         start_time = timeit.default_timer()
-        ba_output, _ = BUNDLE_ADJUST_2VIEW.run(ba_input)
+        ba_input = GtsfmData(number_images=2)
+        ba_input.add_camera(0, camera_i1)
+        ba_input.add_camera(1, camera_i2)
+        for track in triangulated_tracks:
+            ba_input.add_track(track)
+        _, ba_output = BUNDLE_ADJUST_2VIEW.run(ba_input)
         wTi1, wTi2 = ba_output.get_camera_poses()  # extract the camera poses
         if wTi1 is None or wTi2 is None:
             logger.warning("2-view BA failed")
