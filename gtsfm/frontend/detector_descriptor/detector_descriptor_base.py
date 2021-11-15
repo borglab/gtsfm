@@ -9,6 +9,7 @@ from typing import Tuple
 import dask
 import numpy as np
 from dask.delayed import Delayed
+from numpy.core.fromnumeric import sort
 
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
@@ -42,6 +43,23 @@ class DetectorDescriptorBase(metaclass=abc.ABCMeta):
             Detected keypoints, with length N <= max_keypoints.
             Corr. descriptors, of shape (N, D) where D is the dimension of each descriptor.
         """
+
+    def filter_by_response(self, keypoints: Keypoints, descriptors: np.ndarray) -> Tuple[Keypoints, np.ndarray]:
+        """Filter features according to their responses."""
+        if keypoints.responses is None:
+            return keypoints, descriptors
+
+        # Sort by responses.
+        sort_idxs = np.argsort(-keypoints.responses)
+        sort_idxs = sort_idxs[: self.max_keypoints]
+
+        return keypoints.extract_indices(sort_idxs), descriptors[sort_idxs]
+
+    def filter_by_mask(
+        self, image: Image, keypoints: Keypoints, descriptors: np.ndarray
+    ) -> Tuple[Keypoints, np.ndarray]:
+        """"""
+        pass
 
     def create_computation_graph(self, image_graph: Delayed) -> Tuple[Delayed, Delayed]:
         """

@@ -49,27 +49,22 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
         model.eval()
         # TODO: fix inference issue #110
 
+        # Compute features.
         image_tensor = torch.from_numpy(
             np.expand_dims(image_utils.rgb_to_gray_cv(image).value_array.astype(np.float32) / 255.0, (0, 1))
         ).to(device)
-
         with torch.no_grad():
             model_results = model({"image": image_tensor})
-
         torch.cuda.empty_cache()
 
-        feature_points = model_results["keypoints"][0].detach().cpu().numpy()
+        # Unpack results.
+        coordinates = model_results["keypoints"][0].detach().cpu().numpy()
         scores = model_results["scores"][0].detach().cpu().numpy()
         descriptors = model_results["descriptors"][0].detach().cpu().numpy().T
 
-        # sort by scores
-        sort_idxs = np.argsort(-scores)
-        # limit the number of keypoints
-        sort_idxs = sort_idxs[: self.max_keypoints]
-        feature_points = feature_points[sort_idxs]
-        scores = scores[sort_idxs]
-        descriptors = descriptors[sort_idxs]
-
-        keypoints = Keypoints(feature_points, responses=scores, scales=np.ones(scores.shape))
+        # Filter by scores.
+        keypoints, descriptors = self.filter_by_response(
+            Keypoints(coordinates, scales=np.ones(scores.shape), responses=scores), descriptors
+        )
 
         return keypoints, descriptors
