@@ -51,6 +51,9 @@ NUM_IMAGES = NUM_CAMERAS
 # build dummy image dictionary with dummy image shape
 DUMMY_IMAGE_DICT = {i: Image(value_array=np.zeros([IMAGE_H, IMAGE_W, IMAGE_C], dtype=int)) for i in range(NUM_IMAGES)}
 
+# a reconstructed point is consistent in geometry if it satisfies all geometric thresholds in more than 3 source views
+MIN_NUM_CONSISTENT_VIEWS = 3
+
 
 class TestMVSPatchmatchNet(unittest.TestCase):
     """Unit tests for PatchmatchNet method."""
@@ -69,7 +72,12 @@ class TestMVSPatchmatchNet(unittest.TestCase):
         self._sfm_result = self.get_dummy_gtsfm_data()
 
         # use patchmatchnet to recontruct dense point cloud
-        self._dense_points = MVSPatchmatchNet().densify(self._img_dict, self._sfm_result, max_num_views=NUM_IMAGES)
+        self._dense_points = MVSPatchmatchNet().densify(
+            images=self._img_dict,
+            sfm_result=self._sfm_result,
+            max_num_views=NUM_IMAGES,
+            min_num_consistent_views=MIN_NUM_CONSISTENT_VIEWS,
+        )["points"]
 
     def get_dummy_gtsfm_data(self) -> GtsfmData:
         """Create a new GtsfmData instance, add dummy cameras and tracks, and draw the track points on all images"""
