@@ -8,21 +8,21 @@ SceneOptimizer:
   feature_extractor:
     _target_: gtsfm.feature_extractor.FeatureExtractor
     detector_descriptor:
-      _target_: gtsfm.frontend.detector_descriptor.superpoint.SuperPointDetectorDescriptor
-      # _target_: gtsfm.frontend.cacher.detector_descriptor_cacher.DetectorDescriptorCacher
-      # detector_descriptor_obj:
-      #   _target_: gtsfm.frontend.detector_descriptor.superpoint.SuperPointDetectorDescriptor
+      # _target_: gtsfm.frontend.detector_descriptor.superpoint.SuperPointDetectorDescriptor
+      _target_: gtsfm.frontend.cacher.detector_descriptor_cacher.DetectorDescriptorCacher
+      detector_descriptor_obj:
+        _target_: gtsfm.frontend.detector_descriptor.superpoint.SuperPointDetectorDescriptor
 
   two_view_estimator:
     _target_: gtsfm.two_view_estimator.TwoViewEstimator
     eval_threshold_px: 4 # in px
 
     matcher:
-      _target_: gtsfm.frontend.matcher.superglue_matcher.SuperGlueMatcher
-      # _target_: gtsfm.frontend.cacher.matcher_cacher.MatcherCacher
-      # matcher_obj:
-      #   _target_: gtsfm.frontend.matcher.superglue_matcher.SuperGlueMatcher
-      #   use_outdoor_model: True
+      # _target_: gtsfm.frontend.matcher.superglue_matcher.SuperGlueMatcher
+      _target_: gtsfm.frontend.cacher.matcher_cacher.MatcherCacher
+      matcher_obj:
+        _target_: gtsfm.frontend.matcher.superglue_matcher.SuperGlueMatcher
+        use_outdoor_model: True
 
     verifier:
       _target_: gtsfm.frontend.verifier.ransac.Ransac
