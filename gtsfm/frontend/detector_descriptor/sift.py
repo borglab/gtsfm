@@ -51,7 +51,9 @@ class SIFTDetectorDescriptor(DetectorDescriptorBase):
         # Convert to GTSFM's keypoints.
         keypoints = feature_utils.cast_to_gtsfm_keypoints(cv_keypoints)
 
-        # Filter the features and descriptors by the score.
+        # Filter features.
+        if image.mask is not None:
+            keypoints, descriptors = self.filter_by_mask(image.mask, keypoints, descriptors)
         keypoints, descriptors = self.filter_by_response(keypoints, descriptors)
 
         return keypoints, descriptors
