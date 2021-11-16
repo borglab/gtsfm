@@ -5,6 +5,8 @@ Authors: Akshay Krishnan
 """
 import os
 import argparse
+from pathlib import Path
+
 
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 import gtsfm.evaluation.metrics_report as metrics_report
@@ -32,11 +34,14 @@ def create_metrics_plots_html(json_path: str, colmap_files_dirpath: str, output_
         "data_association_metrics.json",
         "bundle_adjustment_metrics.json",
     ]
-    if colmap_files_dirpath != "":
+
+    if Path(colmap_files_dirpath).exists():
         txt_metric_paths = {
             "colmap": colmap_files_dirpath,
         }
         compare_metrics.compare_metrics(txt_metric_paths, json_path, GTSFM_MODULE_METRICS_FNAMES)
+    else:
+        logger.info("%s does not exist", colmap_files_dirpath)
 
     metric_paths = []
     for filename in GTSFM_MODULE_METRICS_FNAMES:
@@ -53,7 +58,7 @@ def create_metrics_plots_html(json_path: str, colmap_files_dirpath: str, output_
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--metrics_dir", default="result_metrics", help="Directory containing the metrics json files.")
-    parser.add_argument("--colmap_files_dirpath", default="", help="Directory containing COLMAP output.")
+    parser.add_argument("--colmap_files_dirpath", default=None, type=str, help="Directory containing COLMAP output.")
     parser.add_argument("--output_dir", default="", help="Directory to save plots to. Same as metrics_dir by default.")
     args = parser.parse_args()
     create_metrics_plots_html(args.metrics_dir, args.colmap_files_dirpath, args.output_dir)

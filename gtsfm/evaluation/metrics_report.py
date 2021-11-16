@@ -9,6 +9,7 @@ Authors: Akshay Krishnan
 """
 from typing import Any, Dict, List, Tuple, Union
 
+import numpy as np
 import plotly.graph_objects as go
 import plotly.subplots as psubplot
 from tabulate import tabulate
@@ -86,7 +87,7 @@ def create_plots_for_distributions(metrics_dict: Dict[str, Any]) -> str:
     # Separate all the 1D distribution metrics.
     for metric, value in metrics_dict.items():
         if isinstance(value, dict):
-            all_nan_summary = all(v != v for v in value[metrics.SUMMARY_KEY].values())
+            all_nan_summary = all(np.isnan(v) for v in value[metrics.SUMMARY_KEY].values())
             if not all_nan_summary:
                 distribution_metrics.append(metric)
     if len(distribution_metrics) == 0:
@@ -168,7 +169,6 @@ def get_figures_for_metrics(metrics_group: GtsfmMetricsGroup) -> Tuple[str, str]
             if metrics.SUMMARY_KEY not in value:
                 raise ValueError(f"Metric {metric_name} does not contain a summary.")
             # Add a scalar metric for mean of 1D distributions.
-            scalar_metrics["mean_" + metric_name] = value[metrics.SUMMARY_KEY]["mean"]
             scalar_metrics["median_" + metric_name] = value[metrics.SUMMARY_KEY]["median"]
         else:
             scalar_metrics[metric_name] = value
@@ -226,7 +226,6 @@ def get_figures_for_metrics_and_compare(metrics_group: GtsfmMetricsGroup, metric
     plots_fig = ""
     for metrics_group in all_metrics_groups:
         plots_fig += create_plots_for_distributions(metrics_group.get_metrics_as_dict()[metrics_group.name])
-    # plots_fig += create_plots_for_distributions(all_metrics_groups[0].get_metrics_as_dict()[metrics_group.name])
     return table, plots_fig
 
 
@@ -291,7 +290,7 @@ def generate_metrics_report_html(
             f.write(get_html_metric_heading(metrics_group.name))
 
             # Write plots and tables.
-            if colmap_files_dirpath == "":
+            if colmap_files_dirpath is None:
                 table, plots_fig = get_figures_for_metrics(metrics_group)
             else:
                 table, plots_fig = get_figures_for_metrics_and_compare(metrics_group, metric_paths[i])

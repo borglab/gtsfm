@@ -6,6 +6,7 @@ import json
 import os
 import pickle
 from bz2 import BZ2File
+from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -346,17 +347,13 @@ def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
     os.makedirs(save_dir, exist_ok=True)
 
     num_imgs = gtsfm_data.number_images()
-    # TODO: compute this (from keypoint data? or from track data?)
 
-    image_id_num_measurements = {}
+    image_id_num_measurements = defaultdict(int)
     for j in range(gtsfm_data.number_tracks()):
         track = gtsfm_data.get_track(j)
         for k in range(track.number_measurements()):
             image_id, uv_measured = track.measurement(k)
-            if image_id not in image_id_num_measurements:
-                image_id_num_measurements[image_id] = 1
-            else:
-                image_id_num_measurements[image_id] += 1
+            image_id_num_measurements[image_id] += 1
     mean_obs_per_img = (
         sum(image_id_num_measurements.values()) / len(image_id_num_measurements)
         if len(image_id_num_measurements)
@@ -386,7 +383,7 @@ def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
             for j in range(gtsfm_data.number_tracks()):
                 track = gtsfm_data.get_track(j)
                 for k in range(track.number_measurements()):
-                    # process each measurement
+                    # write each measurement
                     image_id, uv_measured = track.measurement(k)
                     if image_id == i:
                         f.write(f" {uv_measured[0]:.3f} {uv_measured[1]:.3f} {j}")

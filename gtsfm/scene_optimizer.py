@@ -398,7 +398,7 @@ def save_metrics_reports(metrics_graph_list: Delayed) -> List[Delayed]:
         dask.delayed(metrics_report.generate_metrics_report_html)(
             metrics_graph_list,
             os.path.join(METRICS_PATH, "gtsfm_metrics_report.html"),
-            "",
+            None,
             [],
         )
     )
