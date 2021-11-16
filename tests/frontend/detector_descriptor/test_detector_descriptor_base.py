@@ -76,10 +76,11 @@ class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
 
     def test_filter_by_mask(self) -> None:
         """Test the `filter_by_mask` method."""
-        # Create a (10, 10) mask
+        # Create a (9, 9) mask with ones in a (5, 5) square in the center of the mask and zeros everywhere else.
         mask = np.zeros((9, 9)).astype(np.uint8)
         mask[2:7, 2:7] = 1
 
+        # Test coordinates near corners of square of ones and along the diagonal.
         coordinates = np.array(
             [
                 [1.4, 1.4],
@@ -91,10 +92,11 @@ class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
                 [8.0, 8.0],
             ]
         )
+
+        # Create keypoints from coordinates and dummy descriptors.
         keypoints = Keypoints(coordinates, scales=None, responses=None)
         descriptors = np.ones((coordinates.shape[0], 10))  # dummy descriptors
         filtered_keypoints, filtered_descriptors = self.detector_descriptor.filter_by_mask(mask, keypoints, descriptors)
-        print(filtered_keypoints.coordinates)
         assert len(filtered_keypoints) == filtered_descriptors.shape[0]
         assert len(filtered_keypoints) == 2
 
