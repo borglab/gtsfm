@@ -64,7 +64,7 @@ class MVSPatchmatchNet(MVSBase):
         min_conf_thresh: float = MIN_CONFIDENCE_THRESH,
         min_num_consistent_views: float = MIN_NUM_CONSISTENT_VIEWS,
         num_workers: int = 0,
-    ) -> np.ndarray:
+    ) -> Dict[str, np.ndarray]:
         """Get dense point cloud using PatchmatchNet from GtsfmData. The method implements the densify method in MVSBase
         Ref: Wang et al. https://github.com/FangjinhuaWang/PatchmatchNet/blob/main/eval.py
 
@@ -83,8 +83,11 @@ class MVSPatchmatchNet(MVSBase):
             num_workers: number of workers when loading data
 
         Returns:
-            3D coordinates (in the world frame) of the dense point cloud,
-                with shape (N, 3) where N is the number of points
+            Dictionary containing:
+                "points": 3D coordinates (in the world frame) of the dense point cloud
+                    with shape (N, 3) where N is the number of points
+                "rgb": rgb color of each point in the dense point cloud
+                    with shape (N, 3) where N is the number of points
         """
         dataset = PatchmatchNetData(images=images, sfm_result=sfm_result, max_num_views=max_num_views)
 
@@ -182,7 +185,7 @@ class MVSPatchmatchNet(MVSBase):
         max_geo_depth_thresh: float,
         min_conf_thresh: float,
         min_num_consistent_views: float,
-    ) -> np.ndarray:
+    ) -> Dict[str, np.ndarray]:
         """Create a dense point cloud by filtering depth maps based on estimated confidence maps and consistent geometry
 
         A 3D point is consistent in geometry between two views if:
@@ -208,8 +211,11 @@ class MVSPatchmatchNet(MVSBase):
                 thresholds in more than min_num_consistent_views source views
 
         Returns:
-            3D coordinates (in the world frame) of the dense point cloud
-                with shape (N, 3) where N is the number of points
+            Dictionary containing:
+                "points": 3D coordinates (in the world frame) of the dense point cloud
+                    with shape (N, 3) where N is the number of points
+                "rgb": rgb color of each point in the dense point cloud
+                    with shape (N, 3) where N is the number of points
         """
         # coordinates of the final point cloud
         vertices = []
@@ -266,7 +272,7 @@ class MVSPatchmatchNet(MVSBase):
 
             depth_est_averaged = (sum(all_srcview_depth_ests) + ref_depth_est) / (geo_mask_sum + 1)
             # Valid points requires at least 3 source views validated under geometric threshoulds
-            geo_mask = geo_mask_sum >= MIN_NUM_CONSISTENT_VIEWS
+            geo_mask = geo_mask_sum >= min_num_consistent_views
 
             # Combine geometric mask and confidence mask
             joint_mask = np.logical_and(confidence_mask, geo_mask)
@@ -302,4 +308,4 @@ class MVSPatchmatchNet(MVSBase):
                 joint_mask.mean(),
             )
 
-        return np.concatenate(vertices, axis=0)
+        return {"points": np.concatenate(vertices, axis=0), "rgb": np.concatenate(vertex_colors, axis=0)}

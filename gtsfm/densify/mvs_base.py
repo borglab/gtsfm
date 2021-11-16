@@ -21,7 +21,7 @@ class MVSBase(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def densify(self, images: Dict[int, Image], sfm_result: GtsfmData) -> np.ndarray:
+    def densify(self, images: Dict[int, Image], sfm_result: GtsfmData) -> Dict[str, np.ndarray]:
         """Densify a point cloud using multi-view stereo.
 
         Note: we do not return depth maps here per image, as they would need to be aligned to ground truth
@@ -34,7 +34,9 @@ class MVSBase(metaclass=abc.ABCMeta):
                 camera to any 3d point) for plane-sweeping stereo.
 
         Returns:
-            Dense point cloud, as an array of shape (N,3)
+            Dictionary containing:
+                "points": Dense point cloud, as an array of shape (N,3)
+                "rgb": rgb color of each point in the point cloud, as an array of shape (N,3)
         """
 
     def create_computation_graph(self, images_graph: Delayed, sfm_result_graph: Delayed) -> Delayed:

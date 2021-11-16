@@ -281,7 +281,9 @@ class SceneOptimizer:
         dense_points_graph = self.dense_multiview_optimizer.create_computation_graph(img_dict_graph, ba_output_graph)
         # Cast to string as Open3d cannot use PosixPath's for I/O -- only string file paths are accepted.
         auxiliary_graph_list.append(
-            dask.delayed(io_utils.save_point_cloud_as_ply)(save_fpath=str(MVS_PLY_SAVE_FPATH), points=dense_points_graph)
+            dask.delayed(io_utils.save_point_cloud_as_ply)(
+                save_fpath=str(MVS_PLY_SAVE_FPATH), points=dense_points_graph["points"], rgb=dense_points_graph["rgb"]
+            )
         )
 
         # as visualization tasks are not to be provided to the user, we create a
