@@ -43,10 +43,7 @@ def create_table_for_scalar_metrics(metrics_dict: Dict[str, Union[float, int]]) 
     Returns:
         Table with scalar metrics and their values in HTML format.
     """
-    table = {
-        "Metric name": list(metrics_dict.keys()),
-        "Value": list(metrics_dict.values()),
-    }
+    table = {"Metric name": list(metrics_dict.keys()), "Value": list(metrics_dict.values())}
     return tabulate(table, headers="keys", tablefmt="html")
 
 
@@ -111,22 +108,12 @@ def create_plots_for_distributions(metrics_dict: Dict[str, Any]) -> str:
         if "histogram" in metric_value[metrics.SUMMARY_KEY]:
             histogram = metric_value[metrics.SUMMARY_KEY]["histogram"]
             fig.add_trace(
-                go.Bar(
-                    x=list(histogram.keys()),
-                    y=list(histogram.values()),
-                    name=metric_name,
-                ),
-                row=row,
-                col=col,
+                go.Bar(x=list(histogram.keys()), y=list(histogram.values()), name=metric_name), row=row, col=col
             )
         elif "quartiles" in metric_value[metrics.SUMMARY_KEY]:
             # If all values are available, use them to create box plot.
             if metrics.FULL_DATA_KEY in metric_value:
-                fig.add_trace(
-                    go.Box(y=metric_value[metrics.FULL_DATA_KEY], name=metric_name),
-                    row=row,
-                    col=col,
-                )
+                fig.add_trace(go.Box(y=metric_value[metrics.FULL_DATA_KEY], name=metric_name), row=row, col=col)
             # Else use summary to create box plot.
             else:
                 quartiles = metric_value[metrics.SUMMARY_KEY]["quartiles"]

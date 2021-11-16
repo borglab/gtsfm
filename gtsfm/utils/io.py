@@ -244,6 +244,7 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
             float(u0),
             float(v0),
         )
+
         # TODO: determine convention for storing/reading radial distortion parameters
         k1 = 0
         k2 = 0

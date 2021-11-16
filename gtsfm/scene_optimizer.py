@@ -117,10 +117,7 @@ class SceneOptimizer:
         keypoints_graph_list = []
         descriptors_graph_list = []
         for delayed_image in image_graph:
-            (
-                delayed_dets,
-                delayed_descs,
-            ) = self.feature_extractor.create_computation_graph(delayed_image)
+            (delayed_dets, delayed_descs) = self.feature_extractor.create_computation_graph(delayed_image)
             keypoints_graph_list += [delayed_dets]
             descriptors_graph_list += [delayed_descs]
 

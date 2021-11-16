@@ -75,12 +75,9 @@ class AstronetLoader(LoaderBase):
         if not Path(data_dir).exists():
             raise FileNotFoundError("No data found at %s." % data_dir)
         cameras, images, points3d = colmap_io.read_model(path=data_dir, ext=".bin")
-        (
-            self._calibrations,
-            self._wTi_list,
-            img_fnames,
-            self._sfmtracks,
-        ) = io_utils.colmap2gtsfm(cameras, images, points3d, load_sfmtracks=use_gt_sfmtracks)
+        self._calibrations, self._wTi_list, img_fnames, self._sfmtracks = io_utils.colmap2gtsfm(
+            cameras, images, points3d, load_sfmtracks=use_gt_sfmtracks
+        )
 
         # Read in scene mesh as Trimesh object
         if gt_scene_mesh_path is not None:
@@ -116,11 +113,7 @@ class AstronetLoader(LoaderBase):
             self._image_paths.append(img_fpath)
 
         self._num_imgs = len(self._image_paths)
-        logger.info(
-            "AstroNet loader found and loaded %d images and %d tracks.",
-            self._num_imgs,
-            self.num_sfmtracks,
-        )
+        logger.info("AstroNet loader found and loaded %d images and %d tracks.", self._num_imgs, self.num_sfmtracks)
 
     def __len__(self) -> int:
         """The number of images in the dataset.
