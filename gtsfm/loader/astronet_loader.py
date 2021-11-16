@@ -199,7 +199,9 @@ class AstronetLoader(LoaderBase):
         _, binary_image = cv.threshold(gray_image.value_array, 5, 255, cv.THRESH_BINARY)
         mask = cv.erode(binary_image, np.ones((15, 15), np.uint8))
 
-        return Image(value_array=img.value_array, exif_data=img.exif_data, file_name=img.file_name, mask=mask)
+        return Image(
+            value_array=img.value_array, exif_data=img.exif_data, file_name=img.file_name, mask=mask.astype(bool)
+        )
 
     def get_camera_intrinsics_full_res(self, index: int) -> Cal3Bundler:
         """Get the camera intrinsics at the given index, valid for a full-resolution image.

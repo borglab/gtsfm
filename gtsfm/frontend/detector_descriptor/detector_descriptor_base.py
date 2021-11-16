@@ -54,21 +54,15 @@ class DetectorDescriptorBase(metaclass=abc.ABCMeta):
 
         return keypoints.extract_indices(sort_idxs), descriptors[sort_idxs]
 
-    def filter_by_mask(
-        self, mask: np.ndarray, keypoints: Keypoints, descriptors: np.ndarray
-    ) -> Tuple[Keypoints, np.ndarray]:
+    @staticmethod
+    def filter_by_mask(mask: np.ndarray, keypoints: Keypoints, descriptors: np.ndarray) -> Tuple[Keypoints, np.ndarray]:
         """Filter features with respect to a binary mask of the image."""
-        valid_idxs = []
-        for idx, (u, v) in enumerate(keypoints.coordinates):
-            i, j = round(v), round(u)
-            if mask[i, j] == 1:
-                valid_idxs.append(idx)
+        valid_idxs = np.flatnonzero([mask[round(v), round(u)] == 1 for (u, v) in keypoints.coordinates])
 
-        return keypoints.extract_indices(np.asarray(valid_idxs)), descriptors[valid_idxs]
+        return keypoints.extract_indices(valid_idxs), descriptors[valid_idxs]
 
     def create_computation_graph(self, image_graph: Delayed) -> Tuple[Delayed, Delayed]:
-        """
-        Generates the computation graph for detections and their descriptors.
+        """Generates the computation graph for detections and their descriptors.
 
         Args:
             image_graph: computation graph for a single image (from a loader).
@@ -77,10 +71,6 @@ class DetectorDescriptorBase(metaclass=abc.ABCMeta):
             Delayed tasks for detections.
             Delayed task for corr. descriptors.
         """
-        # get delayed object, cannot separate two arguments immediately
-        joint_graph = dask.delayed(self.detect_and_describe)(image_graph)
-
-        keypoints_graph = joint_graph[0]
-        descriptor_graph = joint_graph[1]
+        keypoints_graph, descriptor_graph = dask.delayed(self.detect_and_describe, nout=2)(image_graph)
 
         return keypoints_graph, descriptor_graph
