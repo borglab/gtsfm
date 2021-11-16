@@ -33,7 +33,7 @@ class TestAstroNetLoader(unittest.TestCase):
         super().setUp()
 
         data_dir = TEST_DATA_ROOT / "astronet" / "test_2011212_opnav_022"
-        # gt_scene_mesh_path = data_dir / "vesta_5002.ply"
+        gt_scene_mesh_path = data_dir / "vesta_5002.ply"
 
         # Read in COLMAP-formatted data for comparison.
         self.cameras, self.images, self.points3d = colmap_io.read_model(data_dir)
@@ -41,6 +41,7 @@ class TestAstroNetLoader(unittest.TestCase):
         # Initialize Loader.
         self.loader = AstronetLoader(
             data_dir,
+            gt_scene_mesh_path=gt_scene_mesh_path,
             use_gt_extrinsics=True,
             use_gt_sfmtracks=True,
             max_frame_lookahead=2,
@@ -48,8 +49,9 @@ class TestAstroNetLoader(unittest.TestCase):
 
     def test_constructor_set_properties(self) -> None:
         """Ensure that constructor sets class properties correctly."""
-        # assert self.loader._gt_scene_trimesh is not None
-        # assert self.loader._gt_scene_trimesh.vertices;shape[0] == 5002
+        assert self.loader.gt_scene_trimesh is not None
+        assert self.loader.gt_scene_trimesh.vertices.shape[0] == 5002
+        assert self.loader.gt_scene_trimesh.faces.shape[0] == 10000
         assert self.loader._use_gt_extrinsics
         assert self.loader._use_gt_sfmtracks
         assert self.loader._max_frame_lookahead == 2
