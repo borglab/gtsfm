@@ -66,8 +66,8 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
         descriptors = model_results["descriptors"][0].detach().cpu().numpy().T
 
         # Filter by image mask.
-        if image.mask is not None:
-            keypoints, descriptors = self.filter_by_mask(image.mask, keypoints, descriptors)
+        # if image.mask is not None:
+        #     keypoints, descriptors = self.filter_by_mask(image.mask, keypoints, descriptors)
 
         # Filter by scores.
         keypoints, descriptors = self.filter_by_response(keypoints, descriptors)

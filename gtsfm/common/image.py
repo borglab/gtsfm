@@ -19,18 +19,6 @@ class Image(NamedTuple):
     file_name: Optional[str] = None
     mask: Optional[np.ndarray] = None
 
-    # @property
-    # def value_array(self, value: np.ndarray) -> None:
-    #     """Setter for `value_array`."""
-    #     # Explicitly assert format of the array.
-    #     assert value.dtype == "uint8"
-    #     self._value_array = value
-
-    # @property
-    # def value_array(self) -> np.ndarray:
-    #     """Getter for `value_array`."""
-    #     return self._value_array
-
     @property
     def height(self) -> int:
         """
