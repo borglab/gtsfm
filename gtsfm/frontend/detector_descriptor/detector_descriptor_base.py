@@ -9,7 +9,6 @@ from typing import Tuple
 import dask
 import numpy as np
 from dask.delayed import Delayed
-from numpy.core.fromnumeric import sort
 
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints

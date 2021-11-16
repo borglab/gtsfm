@@ -8,10 +8,13 @@ from pathlib import Path
 from typing import Optional, Dict, Tuple, List
 
 import trimesh
+import cv2 as cv
+import numpy as np
 from gtsam import Cal3Bundler, Pose3, Rot3, Point3, SfmTrack
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.images as image_utils
 from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
 
@@ -187,8 +190,16 @@ class AstronetLoader(LoaderBase):
         if index < 0 or index >= len(self):
             raise IndexError(f"Image index {index} is invalid")
 
+        # Read in image.
         img = io_utils.load_image(self._image_paths[index])
-        return img
+
+        # Generate mask to separate background deep space from foreground target body
+        # based on image intensity values.
+        gray_image = image_utils.rgb_to_gray_cv(img)
+        _, binary_image = cv.threshold(gray_image.value_array, 5, 255, cv.THRESH_BINARY)
+        mask = cv.erode(binary_image, np.ones((15, 15), np.uint8))
+
+        return Image(value_array=img.value_array, exif_data=img.exif_data, file_name=img.file_name, mask=mask)
 
     def get_camera_intrinsics_full_res(self, index: int) -> Cal3Bundler:
         """Get the camera intrinsics at the given index, valid for a full-resolution image.

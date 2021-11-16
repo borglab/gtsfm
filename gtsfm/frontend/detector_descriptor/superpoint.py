@@ -16,11 +16,13 @@ import numpy as np
 import torch
 
 import gtsfm.utils.images as image_utils
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.detector_descriptor.detector_descriptor_base import DetectorDescriptorBase
 from thirdparty.SuperGluePretrainedNetwork.models.superpoint import SuperPoint
 
+logger = logger_utils.get_logger()
 ROOT_PATH = Path(__file__).resolve().parent.parent.parent.parent
 MODEL_WEIGHTS_PATH = (
     ROOT_PATH / "thirdparty" / "SuperGluePretrainedNetwork" / "models" / "weights" / "superpoint_v1.pth"
@@ -60,11 +62,18 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
         # Unpack results.
         coordinates = model_results["keypoints"][0].detach().cpu().numpy()
         scores = model_results["scores"][0].detach().cpu().numpy()
+        keypoints = Keypoints(coordinates, scales=None, responses=scores)
         descriptors = model_results["descriptors"][0].detach().cpu().numpy().T
 
+        # Filter by image mask.
+        logger.info("HERE")
+        logger.info(image.mask)
+        assert False
+        if image.mask is not None:
+            logger.debug("Filtering by mask.")
+            keypoints, descriptors = self.filter_by_mask(image.mask, keypoints, descriptors)
+
         # Filter by scores.
-        keypoints, descriptors = self.filter_by_response(
-            Keypoints(coordinates, scales=np.ones(scores.shape), responses=scores), descriptors
-        )
+        keypoints, descriptors = self.filter_by_response(keypoints, descriptors)
 
         return keypoints, descriptors
