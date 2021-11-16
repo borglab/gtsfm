@@ -56,10 +56,16 @@ class DetectorDescriptorBase(metaclass=abc.ABCMeta):
         return keypoints.extract_indices(sort_idxs), descriptors[sort_idxs]
 
     def filter_by_mask(
-        self, image: Image, keypoints: Keypoints, descriptors: np.ndarray
+        self, mask: np.ndarray, keypoints: Keypoints, descriptors: np.ndarray
     ) -> Tuple[Keypoints, np.ndarray]:
-        """"""
-        pass
+        """Filter features with respect to a binary mask of the image."""
+        valid_idxs = []
+        for idx, (u, v) in enumerate(keypoints.coordinates):
+            i, j = round(v), round(u)
+            if mask[i, j] == 1:
+                valid_idxs.append(idx)
+
+        return keypoints.extract_indices(np.asarray(valid_idxs)), descriptors[valid_idxs]
 
     def create_computation_graph(self, image_graph: Delayed) -> Tuple[Delayed, Delayed]:
         """
