@@ -29,7 +29,6 @@ from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.data_association.point3d_initializer import SVD_DLT_RANK_TOL
-from gtsfm.data_association.data_assoc import DataAssociation
 from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
@@ -117,7 +116,7 @@ class TwoViewEstimator:
                 track_3d.add_measurement(0, track_2d[0])
                 track_3d.add_measurement(1, track_2d[1])
                 tracks_3d.append(track_3d)
-            except:
+            except RuntimeError:
                 pass
 
         return tracks_3d
@@ -175,7 +174,7 @@ class TwoViewEstimator:
         ba_input.add_camera(1, camera_i2)
         for track in triangulated_tracks:
             ba_input.add_track(track)
-        _, ba_output = BUNDLE_ADJUST_2VIEW.run(ba_input)
+        ba_output, _ = BUNDLE_ADJUST_2VIEW.run(ba_input)
         wTi1, wTi2 = ba_output.get_camera_poses()  # extract the camera poses
         if wTi1 is None or wTi2 is None:
             logger.warning("2-view BA failed")
