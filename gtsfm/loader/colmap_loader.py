@@ -7,13 +7,12 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from gtsam import Cal3Bundler, Pose3, PinholeCameraCal3Bundler
+from gtsam import Cal3Bundler, Pose3
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
-from gtsfm.common.gtsfm_data import GtsfmData
 
 
 logger = logger_utils.get_logger()

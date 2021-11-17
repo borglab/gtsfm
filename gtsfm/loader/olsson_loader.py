@@ -9,13 +9,12 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
-from gtsam import Cal3Bundler, Pose3, Rot3, PinholeCameraCal3Bundler
+from gtsam import Cal3Bundler, Pose3, Rot3
 from scipy.io import loadmat
 
 import gtsfm.utils.io as io_utils
 from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
-from gtsfm.common.gtsfm_data import GtsfmData
 
 
 class OlssonLoader(LoaderBase):
