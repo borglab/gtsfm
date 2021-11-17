@@ -83,16 +83,6 @@ class ColmapLoader(LoaderBase):
             # shared calibration!
             self._calibrations = self._calibrations * len(img_fnames)
 
-        # Create GtsfmData object to hold GT data.
-        if self._wTi_list is None or self._calibrations is None:
-            self._gt_gtsfm_data = None
-        else:
-            cameras_gtsfm = {
-                i: PinholeCameraCal3Bundler(self._wTi_list[-1], self._calibrations[-1])
-                for i in range(len(self._wTi_list))
-            }
-            self._gt_gtsfm_data = GtsfmData(len(img_fnames), cameras_gtsfm, tracks=None, scene_mesh=None)
-
         # preserve COLMAP ordering of images
         self._image_paths = []
         for img_fname in img_fnames:
@@ -103,10 +93,6 @@ class ColmapLoader(LoaderBase):
 
         self._num_imgs = len(self._image_paths)
         logger.info("Colmap image loader found and loaded %d images", self._num_imgs)
-
-    @property
-    def gt_gtsfm_data(self):
-        return self._gt_gtsfm_data
 
     def __len__(self) -> int:
         """The number of images in the dataset.

@@ -9,12 +9,13 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
-from gtsam import Cal3Bundler, Pose3, Rot3
+from gtsam import Cal3Bundler, Pose3, Rot3, PinholeCameraCal3Bundler
 from scipy.io import loadmat
 
 import gtsfm.utils.io as io_utils
 from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
+from gtsfm.common.gtsfm_data import GtsfmData
 
 
 class OlssonLoader(LoaderBase):
@@ -57,7 +58,6 @@ class OlssonLoader(LoaderBase):
 
         # fetch all the file names in /images folder
         search_path = os.path.join(folder, "images", f"*.{image_extension}")
-
         self._image_paths = glob.glob(search_path)
 
         # sort the file names

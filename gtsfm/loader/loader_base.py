@@ -36,9 +36,10 @@ class LoaderBase(metaclass=abc.ABCMeta):
         self._max_resolution = max_resolution
 
     @property
-    @abc.abstractmethod
-    def gt_gtsfm_data(self) -> GtsfmData:
-        """Return ground truth `GtsfmData` object."""
+    def gt_gtsfm_data(self):
+        """Return ground truth data as `GtsfmData` object."""
+        cameras = {i: self.get_camera(i) for i in range(self.__len__())}
+        return GtsfmData(self.__len__(), cameras, tracks=None, scene_mesh=None)
 
     # ignored-abstractmethod
     @abc.abstractmethod
