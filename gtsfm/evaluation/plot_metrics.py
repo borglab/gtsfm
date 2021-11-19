@@ -22,7 +22,10 @@ def create_metrics_plots_html(json_path: str, colmap_files_dirpath: str, output_
     Reads the metrics from JSON files in a previous run.
 
     Args:
-        json_path: Path to folder that contains metrics json files.
+        json_path: Path to folder that contains metrics as json files.
+        colmap_files_dirpath: Optional; If a path to a directory containing a COLMAP reconstruction
+          (as cameras.txt, images.txt, and points3D.txt) is provided, the COLMAP metrics will also be
+          included in the report.
         output_dir: directory to save the report, uses json_path if empty.
     """
     metrics_groups = []
@@ -58,7 +61,7 @@ def create_metrics_plots_html(json_path: str, colmap_files_dirpath: str, output_
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--metrics_dir", default="result_metrics", help="Directory containing the metrics json files.")
-    parser.add_argument("--colmap_files_dirpath", default=None, type=str, help="Directory containing COLMAP output.")
+    parser.add_argument("--colmap_files_dirpath", default=None, type=str, help="Directory containing COLMAP output .")
     parser.add_argument("--output_dir", default="", help="Directory to save plots to. Same as metrics_dir by default.")
     args = parser.parse_args()
     create_metrics_plots_html(args.metrics_dir, args.colmap_files_dirpath, args.output_dir)

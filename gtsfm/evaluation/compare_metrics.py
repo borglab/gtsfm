@@ -1,4 +1,7 @@
-"""Script to log metrics for comparison across SfM pipelines (GTSfM, COLMAP, etc.) as a JSON.
+"""Function supporting metric comparisons across SfM pipelines (GTSfM, COLMAP, etc.)
+
+This function converts outputs from SfM pipelines into a format matching
+metrics from GTSfM.
 
 Authors: Jon Womack
 """
@@ -16,10 +19,17 @@ def compare_metrics(
     json_path: str,
     GTSFM_MODULE_METRICS_FNAMES: List[str],
 ) -> None:
-    """Produces json files containing data from other SfM pipelines formatted as common GTSfMMetricsGroups.
+    """Converts the outputs of other SfM pipelines to GTSfMMetricsGroups saved as json files.
+
+    Creates folders for each additional SfM pipeline that contain GTSfMMetricsGroups
+    containing the same metrics as GTSFM_MODULE_METRICS_FNAMES. If one of the GTSfM metrics
+    is not available from another SfM pipeline, then the metric is left blank for that pipeline.
 
     Args:
-        txt_metric_paths: a list of paths to directories containing: cameras.txt, images.txt, and points3D.txt files
+        txt_metric_paths: a list of paths to directories containing outputs of other SfM pipelines
+          in COLMAP format i.e. cameras.txt, images.txt, and points3D.txt files.
+        json_path: Path to folder that contains metrics as json files.
+        GTSFM_MODULE_METRICS_FNAMES: List of GTSfM metrics filenames.
     """
     for pipeline_name in txt_metric_paths.keys():
         cameras, images, points3d = colmap_io.read_model(path=txt_metric_paths[pipeline_name], ext=".txt")

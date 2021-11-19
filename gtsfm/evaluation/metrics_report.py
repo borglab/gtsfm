@@ -7,6 +7,7 @@ and grids of box or histogram plots generated using plotly.
 
 Authors: Akshay Krishnan
 """
+from collections import defaultdict
 from typing import Any, Dict, List, Tuple, Union
 
 import numpy as np
@@ -47,23 +48,23 @@ def create_table_for_scalar_metrics(metrics_dict: Dict[str, Union[float, int]]) 
     return tabulate(table, headers="keys", tablefmt="html")
 
 
-def create_table_for_scalar_metrics_and_compare(metrics_dicts: List[Dict[str, Union[float, int]]]) -> str:
-    """Creates a table in HTML format for scalar metrics.
+def create_table_for_scalar_metrics_and_compare(metrics_dict: Dict[str, List[Union[float, int]]]) -> str:
+    """Creates a table in HTML format for scalar metrics from multiple SfM pipelines (GTSfM, COLMAP).
 
     Returns:
         Table with scalar metrics and their values in HTML format.
     """
-    for metrics_dict in metrics_dicts:
-        for metric_key, metric_value in metrics_dict.items():
+    for metric_key, metric_values in metrics_dict.items():
+        for metric_indice, metric_value in enumerate(metric_values):
             if isinstance(metric_value, float):
                 if metric_value.is_integer():
-                    metrics_dict[metric_key] = int(metric_value)
+                    metric_values[metric_indice] = int(metric_value)
                 else:
-                    metrics_dict[metric_key] = round(metric_value, 3)
+                    metric_values[metric_indice] = round(metric_value, 3)
     table = {
-        "Metric name": list(metrics_dicts[0].keys()),
-        "GTSfM": list(metrics_dicts[0].values()),
-        "COLMAP": list(metrics_dicts[1].values()),
+        "Metric name": list(metrics_dict.keys()),
+        "GTSfM": list(item[0] for item in metrics_dict.values()),
+        "COLMAP": list(item[1] for item in metrics_dict.values()),
     }
     return tabulate(table, headers="keys", tablefmt="html")
 
@@ -168,16 +169,16 @@ def get_figures_for_metrics_and_compare(metrics_group: GtsfmMetricsGroup, metric
     """Gets the tables and plots for individual metrics in a metrics group.
 
     All scalar metrics are reported in the table.
-    Metrics of 1-D distributions have an entry in the table for the mean,
+    Metrics of 1-D distributions have an entry in the table for the median,
     and a histogram or box plot as per their property.
 
     Args:
         metrics_group: A GtsfmMetricsGroup for any gtsfm module.
+        metric_path: A path to the GTSfM generated metrics (default: gtsfm/result_metrics)
 
     Returns:
         A tuple of table and plotly figures as HTML code.
     """
-    all_scalar_metrics = []
     all_metrics_groups = []
 
     colmap_metric_path = metric_path[: metric_path.rindex("/")] + "/colmap" + metric_path[metric_path.rindex("/") :]
@@ -186,8 +187,8 @@ def get_figures_for_metrics_and_compare(metrics_group: GtsfmMetricsGroup, metric
     all_metrics_groups.append(metrics_group)
     all_metrics_groups.append(colmap_metrics_group)
 
+    scalar_metrics = defaultdict(list)
     for metrics_group in all_metrics_groups:
-        scalar_metrics = {}
         metrics_dict = metrics_group.get_metrics_as_dict()[metrics_group.name]
         # Separate the scalar metrics.
         for metric_name, value in metrics_dict.items():
@@ -196,20 +197,15 @@ def get_figures_for_metrics_and_compare(metrics_group: GtsfmMetricsGroup, metric
                 if metrics.SUMMARY_KEY not in value:
                     raise ValueError(f"Metric {metric_name} does not contain a summary.")
                 # Add a scalar metric for mean of 1D distributions.
-                mean_nan = value[metrics.SUMMARY_KEY]["mean"] != value[metrics.SUMMARY_KEY]["mean"]
                 median_nan = value[metrics.SUMMARY_KEY]["median"] != value[metrics.SUMMARY_KEY]["median"]
-                if mean_nan or median_nan:
-                    scalar_metrics["mean_" + metric_name] = ""
-                    scalar_metrics["median_" + metric_name] = ""
+                if median_nan:
+                    scalar_metrics["median_" + metric_name].append("")
                 else:
-                    scalar_metrics["mean_" + metric_name] = value[metrics.SUMMARY_KEY]["mean"]
-                    scalar_metrics["median_" + metric_name] = value[metrics.SUMMARY_KEY]["median"]
+                    scalar_metrics["median_" + metric_name].append(value[metrics.SUMMARY_KEY]["median"])
             else:
-                scalar_metrics[metric_name] = value
-        all_scalar_metrics.append(scalar_metrics)
-    table = create_table_for_scalar_metrics_and_compare(all_scalar_metrics)
+                scalar_metrics[metric_name].append(value)
+    table = create_table_for_scalar_metrics_and_compare(scalar_metrics)
 
-    # TODO Add plots for COLMAP, not just GTSfM
     plots_fig = ""
     for metrics_group in all_metrics_groups:
         plots_fig += create_plots_for_distributions(metrics_group.get_metrics_as_dict()[metrics_group.name])
@@ -264,6 +260,11 @@ def generate_metrics_report_html(
 
     Args:
         metrics_groups: List of metrics to be reported.
+        html_path: Path where this report is written to (default: output_dir/gtsfm_metrics_report.html).
+        colmap_files_dirpath: Optional; If a path to a directory containing a COLMAP reconstruction
+          (as cameras.txt, images.txt, and points3D.txt) is provided, the COLMAP metrics will also be
+          included in the report.
+        metric_paths: A list of paths to GTSfM metrics.
     """
     with open(html_path, mode="w") as f:
         # Write HTML headers.

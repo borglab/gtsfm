@@ -237,13 +237,7 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
         cam_params = line.split()
         # Note that u0 is px, and v0 is py
         cam_id, model, img_w, img_h, fx, u0, v0 = cam_params[:7]
-        img_w, img_h, fx, u0, v0 = (
-            int(img_w),
-            int(img_h),
-            float(fx),
-            float(u0),
-            float(v0),
-        )
+        img_w, img_h, fx, u0, v0 = int(img_w), int(img_h), float(fx), float(u0), float(v0)
 
         # TODO: determine convention for storing/reading radial distortion parameters
         k1 = 0
