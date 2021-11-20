@@ -186,6 +186,10 @@ class GtsfmData:
             raise ValueError("Camera cannot be None, should be a valid camera")
         self._cameras[index] = camera
 
+    def add_scene_mesh(self, scene_mesh: Trimesh) -> None:
+        """Adds a triangular mesh of the reconstructed scene."""
+        self.scene_mesh = scene_mesh
+
     def get_track_length_statistics(self) -> Tuple[float, float]:
         """Compute mean and median lengths of all the tracks.
 

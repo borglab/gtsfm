@@ -160,7 +160,6 @@ class AstronetLoader(LoaderBase):
             img_fnames.append(img.name)
             fx, _, cx, cy = cameras[img.camera_id].params[:4]
             calibrations_gtsfm.append(Cal3Bundler(fx, 0.0, 0.0, cx, cy))
-            cameras_gtsfm[idx] = PinholeCameraCal3Bundler(images_gtsfm[-1], calibrations_gtsfm[-1])
             image_id_to_idx[img.id] = idx
 
         if len(points3D) == 0 and load_sfmtracks:
