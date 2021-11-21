@@ -4,7 +4,7 @@ Estimating the ViewGraph can be done trivially by adding all the two-view estima
 The purpose of this class, however, is to define an API for more sophisticated methods for estimating a ViewGraph 
 that include filtering or optimizing the two-view estimates.
 
-Authors: Akshay Krishnan
+Authors: Akshay Krishnan, Ayush Baid
 """
 import abc
 from typing import Dict, Optional, List, Tuple
@@ -54,7 +54,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
     def compute_metrics(
         self, view_graph: ViewGraph, gt_cameras: Optional[List[PinholeCameraCal3Bundler]]
     ) -> GtsfmMetricsGroup:
-        """Compute the metrics for the view horny.
+        """Compute the metrics for the view graph estimation.
 
         Args:
             view_graph: view graph computed by the `run` method.

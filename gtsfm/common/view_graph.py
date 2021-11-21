@@ -26,6 +26,9 @@ class ViewGraph:
     corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray]
 
     def get_pair_indices(self) -> List[Tuple[int, int]]:
-        """Get the indices of the camera pairs, which are the edges of this graph."""
-        # TODO: assert the edges are the same in all three dicts.
+        """Get the indices of the camera pairs, which are the edges of this graph.
+        
+        Returns:
+            List of camera-pair index tuples.
+        """
         return list(self.i2Ri1.keys())

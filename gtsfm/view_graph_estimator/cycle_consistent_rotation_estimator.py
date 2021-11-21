@@ -40,8 +40,20 @@ class EdgeErrorAggregationCriterion(str, Enum):
 
 # TODO: override the evaluate method to port over the old cycle consistency metrics
 class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
+    """A ViewGraphEstimator that filters two-view edges with high rotation-cycle consistency error.
+
+    The rotation cycle consistency error is computed by composing two-view relative rotations along a triplet, i.e:
+        inv(i2Ri0) * i2Ri1 * i1Ri0, where i2Ri0, i2Ri1 and i1Ri0 are 3 two-view relative rotations.
+
+    For each edge, the cyclic rotation error is computed for all 3-edge cycles (triplets) that it is a part of, which 
+    are later aggregated using an EdgeErrorAggregationCriterion into a single value. The edge is added into the 
+    ViewGraph is the aggregated error is less than a threshold.
+    """
+
     def __init__(
-        self, edge_error_aggregation_criterion: EdgeErrorAggregationCriterion, error_threshold: float = ERROR_THRESHOLD
+        self,
+        edge_error_aggregation_criterion: EdgeErrorAggregationCriterion = EdgeErrorAggregationCriterion.MEDIAN_EDGE_ERROR,
+        error_threshold: float = ERROR_THRESHOLD,
     ) -> None:
         self._edge_error_aggregation_criterion = edge_error_aggregation_criterion
         self._error_threshold = error_threshold
@@ -54,6 +66,18 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
         keypoints: List[Keypoints],
     ) -> ViewGraph:
+    """Runs the rotation cycle consistency based ViewGraph estimation, and outputs a ViewGraph.
+
+    Args:
+        i2Ri1: Relative two-view rotations between camera pairs.
+        i2Ui1: Relative two-view translation directions between camera pairs.
+        calibrations: Intrinsic camera parameters.
+        corr_idxs_i1i2: Verified two-view feature correspondences.
+        keypoints: Detected feature locations in individual images.
+
+    Returns:
+        A ViewGraph of cameras with rotation cycle consistent edges.
+    """
         logger.info("Input number of edges: %d" % len(i2Ri1))
         input_edges: List[Tuple[int, int]] = self.__get_valid_input_edges(i2Ri1)
         triplets: List[Tuple[int, int, int]] = graph_utils.extract_cyclic_triplets_from_edges(input_edges)
@@ -62,7 +86,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
 
         per_edge_errors = defaultdict(list)
         cycle_errors: List[float] = []
-        # compute the cycle error for each triplet, and add it to its contributing edges for aggregation
+        # Compute the cycle error for each triplet, and add it to its edges for aggregation.
         for i0, i1, i2 in triplets:  # sort order guaranteed
             error = self.__compute_cycle_error(i1Ri0=i2Ri1[(i0, i1)], i2Ri1=i2Ri1[(i1, i2)], i2Ri0=i2Ri1[(i0, i2)])
             cycle_errors.append(error)
@@ -70,7 +94,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
             per_edge_errors[(i1, i2)].append(error)
             per_edge_errors[(i0, i2)].append(error)
 
-        # filter the edges based on the aggregate error
+        # Filter the edges based on the aggregate error.
         per_edge_aggregate_error = {
             pair_indices: self.__aggregate_errors_for_edge(errors) for pair_indices, errors in per_edge_errors.items()
         }
@@ -83,7 +107,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
             corr_idxs_i1i2={edge: corr_idxs_i1i2[edge] for edge in valid_edges},
         )
 
-        logger.info(" Input number of edges: %d" % len(view_graph.i2Ri1))
+        logger.info("Output number of edges: %d" % len(view_graph.i2Ri1))
 
         return view_graph
 
@@ -109,27 +133,33 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         return valid_edges
 
     def __compute_cycle_error(self, i1Ri0: Rot3, i2Ri1: Rot3, i2Ri0: Rot3) -> float:
-        """[summary]
+        """Computes the cycle error in degrees after composing the three input rotations.
+
+        The cycle error is given by the angle of inv(i2Ri0) * i2Ri1 * i1Ri0.
 
         Args:
-            i1Ri0 (Rot3): [description]
-            i2Ri1 (Rot3): [description]
-            i2Ri0 (Rot3): [description]
+            i1Ri0 (Rot3): Relative rotation of first edge.
+            i2Ri1 (Rot3): Relative rotation of second edge.
+            i2Ri0 (Rot3): Relative rotation of third edge.
 
         Returns:
-            float: [description]
+            float: Cyclic rotation error in degrees.
         """
         i0Ri0_from_cycle = i2Ri0.inverse().compose(i2Ri1).compose(i1Ri0)
         return comp_utils.compute_relative_rotation_angle(Rot3(), i0Ri0_from_cycle)
 
     def __aggregate_errors_for_edge(self, edge_errors: List[float]) -> float:
-        """[summary]
+        """Aggregates a list of errors from different triplets into a single scalar value.
+
+        The aggregation criterion is decided by `edge_error_aggregation_criterion`:
+        MIN_EDGE_ERROR: Returns the minimum value among the input values.
+        MEDIAN_EDGE_ERROR: Returns the median value among the input values.
 
         Args:
-            errors (List[float]): [description]
+            errors (List[float]): A list of errors for the edge in different triplets.
 
         Returns:
-            float: [description]
+            float: The aggregated error value.
         """
         if self._edge_error_aggregation_criterion == EdgeErrorAggregationCriterion.MIN_EDGE_ERROR:
             return np.amin(edge_errors)
