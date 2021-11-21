@@ -44,13 +44,13 @@ ZIP_FNAMES = [
 ]
 
 TABLE_NAMES = [
-    'Verifier Summary',
-    'Inlier Support Processor Summary',
-    'Rotation Cycle Consistency Metrics',
-    'Cycle Consistent Frontend Summary',
-    'Averaging Metrics',
-    'Data Association Metrics',
-    "Bundle Adjustment Metrics"
+    "Verifier Summary",
+    "Inlier Support Processor Summary",
+    "Rotation Cycle Consistency Metrics",
+    "Cycle Consistent Frontend Summary",
+    "Averaging Metrics",
+    "Data Association Metrics",
+    "Bundle Adjustment Metrics",
 ]
 
 RED_HEX = "#df0101"
@@ -125,7 +125,7 @@ def plot_colored_table(X: List[str], Y: List[str], Z: np.ndarray, table_name: st
         for j in range(num_cols):
             annotations.append(
                 go.Annotation(
-                    text=str(np.round(Z[i,j],1)) + "%",
+                    text=str(np.round(Z[i, j], 1)) + "%",
                     x=X[j],
                     y=Y[i],
                     xref="x1",
@@ -135,7 +135,6 @@ def plot_colored_table(X: List[str], Y: List[str], Z: np.ndarray, table_name: st
                 )
             )
     fig["layout"].update(annotations=annotations)
-    #fig.show()
     return fig.to_html(full_html=False, include_plotlyjs="cdn")
 
 
@@ -206,6 +205,7 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
         # Close HTML tags.
         f.write("</html>")
 
+
 def compute_percentage_change(x: float, y: float) -> float:
     """Return percentage in representing the regression or improvement of a value x, for new value y."""
     return (y - x) / (x + EPSILON) * 100
@@ -236,19 +236,15 @@ def test_compute_percentage_change_regression() -> None:
 
 
 if __name__ == "__main__":
-    # test_compute_percentage_change_improve()
-    # test_compute_percentage_change_static()
-    # test_compute_percentage_change_regression()
-
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--new_branch_dirpath",
-        default="/Users/johnlambert/Downloads/#358",
+        required=True,
         help="Path to directory containing benchmark artifacts for a new branch.",
     )
     parser.add_argument(
         "--curr_master_dirpath",
-        default="/Users/johnlambert/Downloads/current_master",
+        required=True,
         help="Path to directory containing benchmark artifacts for the master branch.",
     )
     args = parser.parse_args()
