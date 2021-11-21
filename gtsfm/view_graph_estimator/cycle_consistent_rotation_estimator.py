@@ -45,8 +45,8 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
     The rotation cycle consistency error is computed by composing two-view relative rotations along a triplet, i.e:
         inv(i2Ri0) * i2Ri1 * i1Ri0, where i2Ri0, i2Ri1 and i1Ri0 are 3 two-view relative rotations.
 
-    For each edge, the cyclic rotation error is computed for all 3-edge cycles (triplets) that it is a part of, which 
-    are later aggregated using an EdgeErrorAggregationCriterion into a single value. The edge is added into the 
+    For each edge, the cyclic rotation error is computed for all 3-edge cycles (triplets) that it is a part of, which
+    are later aggregated using an EdgeErrorAggregationCriterion into a single value. The edge is added into the
     ViewGraph is the aggregated error is less than a threshold.
     """
 
@@ -66,18 +66,18 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
         keypoints: List[Keypoints],
     ) -> ViewGraph:
-    """Runs the rotation cycle consistency based ViewGraph estimation, and outputs a ViewGraph.
+        """Runs the rotation cycle consistency based ViewGraph estimation, and outputs a ViewGraph.
 
-    Args:
-        i2Ri1: Relative two-view rotations between camera pairs.
-        i2Ui1: Relative two-view translation directions between camera pairs.
-        calibrations: Intrinsic camera parameters.
-        corr_idxs_i1i2: Verified two-view feature correspondences.
-        keypoints: Detected feature locations in individual images.
+        Args:
+            i2Ri1: Relative two-view rotations between camera pairs.
+            i2Ui1: Relative two-view translation directions between camera pairs.
+            calibrations: Intrinsic camera parameters.
+            corr_idxs_i1i2: Verified two-view feature correspondences.
+            keypoints: Detected feature locations in individual images.
 
-    Returns:
-        A ViewGraph of cameras with rotation cycle consistent edges.
-    """
+        Returns:
+            A ViewGraph of cameras with rotation cycle consistent edges.
+        """
         logger.info("Input number of edges: %d" % len(i2Ri1))
         input_edges: List[Tuple[int, int]] = self.__get_valid_input_edges(i2Ri1)
         triplets: List[Tuple[int, int, int]] = graph_utils.extract_cyclic_triplets_from_edges(input_edges)
