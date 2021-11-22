@@ -119,7 +119,6 @@ def plot_colored_table(X: List[str], Y: List[str], Z: np.ndarray) -> str:
     fig = go.Figure(data=go.Data([trace]), layout=layout)
 
     annotations = go.Annotations()
-    alist = list(Z)
 
     num_rows, num_cols = Z.shape
     for i in range(num_rows):
