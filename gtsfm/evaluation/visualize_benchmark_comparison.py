@@ -74,27 +74,28 @@ def colorscale_from_list(colorlist: List[str]) -> List[str]:
     return colorscale
 
 
-def plot_colored_table(X: List[str], Y: List[str], Z: np.ndarray) -> str:
+def plot_colored_table(row_labels: List[str], col_labels: List[str], tab_data: np.ndarray) -> str:
     """Create an annotated heatmap.
 
     Args:
-        X: labels for each column (column names).
-        Y: labels for each row (row names).
-        Z: 2d matrix, representing percentage changes from value for a metric on the master branch.
+        row_labels: labels for each column (column names) in the "x" direction.
+        col_labels: labels for each row (row names) in the "y" direction.
+        tab_data: 2d matrix, representing table data. Entries of the table represent percentage changes
+            from a value for a metric on the master branch. Values can be considered in the "z" direction.
 
     Returns:
-        string representing html for table.
+        string representing HTML code for the generated Plotly table.
     """
 
-    # Clip Z to -20% and +20%. The clipping is only for the color -- the text will still display the correct numbers.
-    Z_clipped = np.clip(Z, a_min=MIN_RENDERABLE_PERCENT_CHANGE, a_max=MAX_RENDERABLE_PERCENT_CHANGE)
+    # Clip "Z" to -20% and +20%. The clipping is only for the color -- the text will still display the correct numbers.
+    tab_data_clipped = np.clip(tab_data, a_min=MIN_RENDERABLE_PERCENT_CHANGE, a_max=MAX_RENDERABLE_PERCENT_CHANGE)
 
     redgreen = [RED_HEX, PALE_YELLOW_HEX, GREEN_HEX]
     colorscale = colorscale_from_list(redgreen)
     trace = go.Heatmap(
-        z=Z_clipped,
-        x=X,
-        y=Y,
+        z=tab_data_clipped,
+        x=row_labels,
+        y=col_labels,
         colorscale=colorscale,
         zmin=-MIN_RENDERABLE_PERCENT_CHANGE,
         zmax=MAX_RENDERABLE_PERCENT_CHANGE,
@@ -120,14 +121,14 @@ def plot_colored_table(X: List[str], Y: List[str], Z: np.ndarray) -> str:
 
     annotations = go.Annotations()
 
-    num_rows, num_cols = Z.shape
+    num_rows, num_cols = tab_data.shape
     for i in range(num_rows):
         for j in range(num_cols):
             annotations.append(
                 Annotation(
-                    text=str(np.round(Z[i, j], 1)) + "%",
-                    x=X[j],
-                    y=Y[i],
+                    text=str(np.round(tab_data[i, j], 1)) + "%",
+                    x=row_labels[j],
+                    y=col_labels[i],
                     xref="x1",
                     yref="y1",
                     font=dict(color="rgb(25,25,25)"),
@@ -155,7 +156,7 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
     f.write("<!DOCTYPE html>" "<html>")
     f.write(metrics_report.get_html_header())
 
-    # loop over each table in the HTML report.
+    # Loop over each table in the HTML report.
     for table_name in TABLE_NAMES:
 
         X = []
@@ -163,7 +164,7 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
 
         benchmark_table_vals = defaultdict(dict)
 
-        # loop over each benchmark result (columns of table)
+        # Loop over each benchmark result (columns of table).
         for zip_fname in ZIP_FNAMES:
             # use just the first 35 chars
             X.append(zip_fname[:MAX_NUM_CHARS_ARTIFACT_FNAME])
@@ -175,7 +176,7 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
             tables_dict2 = report_utils.extract_tables_from_report(report2_fpath)
             merged_tables_dict = report_utils.merge_tables(tables_dict1, tables_dict2)
 
-            # loop over each metric within this table (rows of table)
+            # Loop over each metric within this table (rows of table).
             for i, (metric_name, master_val, branch_val) in enumerate(merged_tables_dict[table_name]):
 
                 if branch_val is None:
@@ -198,7 +199,7 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
             Y.append(metric_name)
 
         Z = np.array(Z_rows)
-        table_html = plot_colored_table(X, Y, Z)
+        table_html = plot_colored_table(row_labels=X, col_labels=Y, tab_data=Z)
 
         # Write name of the metric group in human readable form.
         f.write(metrics_report.get_html_metric_heading(table_name))
