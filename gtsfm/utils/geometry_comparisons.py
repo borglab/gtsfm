@@ -347,6 +347,23 @@ def compute_points_distance_l2(wti1: Optional[Point3], wti2: Optional[Point3]) -
     return np.linalg.norm(wti1 - wti2)
 
 
+def compute_cyclic_rotation_error(i1Ri0: Rot3, i2Ri1: Rot3, i2Ri0: Rot3) -> float:
+    """Computes the cycle error in degrees after composing the three input rotations.
+
+    The cycle error is given by the angle of inv(i2Ri0) * i2Ri1 * i1Ri0.
+
+    Args:
+        i1Ri0: Relative rotation of first edge.
+        i2Ri1: Relative rotation of second edge.
+        i2Ri0: Relative rotation of third edge.
+
+    Returns:
+        Cyclic rotation error in degrees.
+    """
+    i0Ri0_from_cycle = i2Ri0.inverse().compose(i2Ri1).compose(i1Ri0)
+    return compute_relative_rotation_angle(Rot3(), i0Ri0_from_cycle)
+
+
 def get_points_within_radius_of_cameras(
     wTi_list: List[Pose3], points_3d: np.ndarray, radius: float = 50
 ) -> Optional[np.ndarray]:

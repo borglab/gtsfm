@@ -52,11 +52,23 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         """
 
     def compute_metrics(
-        self, view_graph: ViewGraph, gt_cameras: Optional[List[PinholeCameraCal3Bundler]]
+        self,
+        i2Ri1: Dict[Tuple[int, int], Rot3],
+        i2Ui1: Dict[Tuple[int, int], Unit3],
+        calibrations: List[Cal3Bundler],
+        corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
+        keypoints: List[Keypoints],
+        view_graph: ViewGraph,
+        gt_cameras: Optional[List[PinholeCameraCal3Bundler]],
     ) -> GtsfmMetricsGroup:
         """Compute the metrics for the view graph estimation.
 
         Args:
+            i2Ri1: Dict from (i1, i2) to relative rotation of i1 with respect to i2.
+            i2Ui1: Dict from (i1, i2) to relative translation direction of i1 with respect to i2.
+            calibrations: list of calibrations for each image.
+            corr_idxs_i1i2: Dict from (i1, i2) to indices of verified correspondences from i1 to i2.
+            keypoints: keypoints for each images.
             view_graph: view graph computed by the `run` method.
             gt_cameras: ground truth cameras to compute the metrics against.
 
@@ -104,6 +116,8 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         The input arguments and the outputs of the functions are the same as the `run` method, but wrapped in Delayed.
         """
         view_graph = dask.delayed(self.run, nout=2)(i2Ri1, i2Ui1, calibrations, corr_idxs_i1i2, keypoints)
-        metrics = dask.delayed(self.compute_metrics)(view_graph, i2Ti1_gt)
+        metrics = dask.delayed(self.compute_metrics)(
+            i2Ri1, i2Ui1, calibrations, corr_idxs_i1i2, keypoints, view_graph, i2Ti1_gt
+        )
 
         return view_graph, metrics

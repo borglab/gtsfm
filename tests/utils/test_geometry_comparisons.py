@@ -374,5 +374,25 @@ def test_get_points_within_radius_of_cameras_no_poses():
     assert nearby_points_3d is None, "At least one camera pose must be provided"
 
 
+def test_compute_cyclic_rotation_error() -> None:
+    """Ensure cycle error is computed correctly within a triplet.
+
+    Imagine 3 poses, all centered at the origin, at different orientations.
+
+    Ground truth poses:
+       Let i0 face along +x axis (0 degrees in yaw)
+       Let i2 have a 30 degree rotation from the +x axis.
+       Let i4 have a 90 degree rotation from the +x axis.
+
+    However, suppose one edge measurement is corrupted (from i0 -> i4) by 5 degrees.
+    """
+    i2Ri0 = Rot3.Ry(np.deg2rad(30))
+    i4Ri2 = Rot3.Ry(np.deg2rad(60))
+    i4Ri0 = Rot3.Ry(np.deg2rad(95))
+
+    cycle_error = geometry_comparisons.compute_cyclic_rotation_error(i2Ri0, i4Ri2, i4Ri0)
+    assert np.isclose(cycle_error, 5)
+
+
 if __name__ == "__main__":
     unittest.main()

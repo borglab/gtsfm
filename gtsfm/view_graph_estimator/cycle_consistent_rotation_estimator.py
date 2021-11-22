@@ -38,7 +38,6 @@ class EdgeErrorAggregationCriterion(str, Enum):
     MEDIAN_EDGE_ERROR = "MEDIAN_EDGE_ERROR"
 
 
-# TODO: override the evaluate method to port over the old cycle consistency metrics
 class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
     """A ViewGraphEstimator that filters two-view edges with high rotation-cycle consistency error.
 
@@ -88,7 +87,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         cycle_errors: List[float] = []
         # Compute the cycle error for each triplet, and add it to its edges for aggregation.
         for i0, i1, i2 in triplets:  # sort order guaranteed
-            error = self.__compute_cycle_error(i1Ri0=i2Ri1[(i0, i1)], i2Ri1=i2Ri1[(i1, i2)], i2Ri0=i2Ri1[(i0, i2)])
+            error = comp_utils.compute_cyclic_rotation_error(i1Ri0=i2Ri1[(i0, i1)], i2Ri1=i2Ri1[(i1, i2)], i2Ri0=i2Ri1[(i0, i2)])
             cycle_errors.append(error)
             per_edge_errors[(i0, i1)].append(error)
             per_edge_errors[(i1, i2)].append(error)
@@ -111,6 +110,87 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
 
         return view_graph
 
+    def compute_metrics(
+        i2Ri1: Dict[Tuple[int, int], Rot3],
+        i2Ui1: Dict[Tuple[int, int], Unit3],
+        calibrations: List[Cal3Bundler],
+        corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
+        keypoints: List[Keypoints],
+        view_graph: ViewGraph,
+        gt_cameras: Optional[List[PinholeCameraCal3Bundler]],        
+    ) -> GtsfmMetricsGroup:
+        """Computes the rotation cycle consistency metrics as a metrics group.
+        Args:
+            i2Ri1: Dict from (i1, i2) to relative rotation of i1 with respect to i2.
+            i2Ui1: Dict from (i1, i2) to relative translation direction of i1 with respect to i2.
+            calibrations: list of calibrations for each image.
+            corr_idxs_i1i2: Dict from (i1, i2) to indices of verified correspondences from i1 to i2.
+            keypoints: keypoints for each images.
+            view_graph: view graph computed by the `run` method.
+            gt_cameras: ground truth cameras to compute the metrics against.
+
+        Returns:
+            Rotation cycle consistency metrics as a metrics group. Includes the following metrics:
+            - Number of inlier, outlier and total measurements.
+            - Distribution of relative rotation angular errors for inlier measurements.
+            - Distribution of relative rotation angular errors for outlier measurements.
+            - Distribution of translation direction angular errors for inlier measurements.
+            - Distribution of translation direction angular errors for outlier measurements.
+        """
+        if gt_cameras is None:
+            return GtsfmMetricsGroup(name="rotation_cycle_consistency_metrics", metrics=[])
+
+        inlier_i1_i2 = view_graph.get_pair_indices()
+        outlier_i1_i2 = [i1_i2 for i1_i2 in i2Ri1.keys() if i1_i2 not in inlier_i1_i2]
+
+        inlier_R_angular_errors = []
+        outlier_R_angular_errors = []
+
+        inlier_U_angular_errors = []
+        outlier_U_angular_errors = []
+
+        for i1, i2 in i2Ri1.keys():
+            if i1 not in gt_cameras or i2 not in gt_cameras:
+                continue
+            i2Ti1_expected = gt_cameras[i2].pose().between(gt_cameras[i1].pose())
+
+            R_error_deg = comp_utils.compute_relative_rotation_angle(
+                i2Ri1[(i1, i2)], i2Ti1_expected.rotation()
+            )
+            U_error_deg = comp_utils.compute_relative_unit_translation_angle(
+                i2Ui1[(i1, i2)], Unit3(i2Ti1_expected.translation())
+            )
+            if (i1, i2) in inlier_i1_i2_pairs:
+                inlier_R_angular_errors.append(R_error_deg)
+                inlier_U_angular_errors.append(U_error_deg)
+            else:
+                outlier_R_angular_errors.append(R_error_deg)
+                outlier_U_angular_errors.append(U_error_deg)
+
+        R_precision, R_recall = metrics_utils.get_precision_recall_from_errors(
+            inlier_R_angular_errors, outlier_R_angular_errors, MAX_INLIER_MEASUREMENT_ERROR_DEG
+        )
+
+        U_precision, U_recall = metrics_utils.get_precision_recall_from_errors(
+            inlier_U_angular_errors, outlier_U_angular_errors, MAX_INLIER_MEASUREMENT_ERROR_DEG
+        )
+
+        rcc_metrics = [
+            GtsfmMetric("num_input_measurements", len(i2Ri1)),
+            GtsfmMetric("num_inlier_rcc_measurements", len(inlier_i1_i2)),
+            GtsfmMetric("num_outlier_rcc_measurements", len(outlier_i1_i2)),
+            GtsfmMetric("rot_cycle_consistency_R_precision", R_precision),
+            GtsfmMetric("rot_cycle_consistency_R_recall", R_recall),
+            GtsfmMetric("rot_cycle_consistency_U_precision", U_precision),
+            GtsfmMetric("rot_cycle_consistency_U_recall", U_recall),
+            GtsfmMetric("inlier_R_angular_errors_deg", inlier_R_angular_errors),
+            GtsfmMetric("outlier_R_angular_errors_deg", outlier_R_angular_errors),
+            GtsfmMetric("inlier_U_angular_errors_deg", inlier_U_angular_errors),
+            GtsfmMetric("outlier_U_angular_errors_deg", outlier_U_angular_errors),
+        ]
+        return GtsfmMetricsGroup("rotation_cycle_consistency_metrics", rcc_metrics)
+
+
     def __get_valid_input_edges(self, i2Ri1: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int, int]]:
         """Gets the input edges (i1, i2) with the relative rotation i2Ri1 where:
         1. i1 < i2
@@ -132,21 +212,6 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
 
         return valid_edges
 
-    def __compute_cycle_error(self, i1Ri0: Rot3, i2Ri1: Rot3, i2Ri0: Rot3) -> float:
-        """Computes the cycle error in degrees after composing the three input rotations.
-
-        The cycle error is given by the angle of inv(i2Ri0) * i2Ri1 * i1Ri0.
-
-        Args:
-            i1Ri0 (Rot3): Relative rotation of first edge.
-            i2Ri1 (Rot3): Relative rotation of second edge.
-            i2Ri0 (Rot3): Relative rotation of third edge.
-
-        Returns:
-            float: Cyclic rotation error in degrees.
-        """
-        i0Ri0_from_cycle = i2Ri0.inverse().compose(i2Ri1).compose(i1Ri0)
-        return comp_utils.compute_relative_rotation_angle(Rot3(), i0Ri0_from_cycle)
 
     def __aggregate_errors_for_edge(self, edge_errors: List[float]) -> float:
         """Aggregates a list of errors from different triplets into a single scalar value.
