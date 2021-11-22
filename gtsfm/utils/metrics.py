@@ -28,6 +28,7 @@ StatsDict = Dict[str, Union[Optional[float], List[Optional[float]]]]
 METRICS_PATH = Path(__file__).resolve().parent.parent.parent / "result_metrics"
 REACT_METRICS_PATH = Path(__file__).resolve().parent.parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
 
+EPSILON = 1e-12
 
 logger = logger_utils.get_logger()
 
@@ -422,3 +423,16 @@ def save_metrics_as_json(metrics_groups: Delayed, output_dir: str) -> None:
     """
     for metrics_group in metrics_groups:
         metrics_group.save_to_json(os.path.join(output_dir, metrics_group.name + ".json"))
+
+
+def compute_percentage_change(x: float, y: float) -> float:
+    """Return percentage in representing the regression or improvement of a value x, for new value y.
+
+    Args:
+        x: original value to compare against.
+        y: new value.
+
+    Returns:
+        percentage change.
+    """
+    return (y - x) / (x + EPSILON) * 100

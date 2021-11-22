@@ -1,34 +1,36 @@
 """
-Use Plotly to create a heatmap representing a 2d table, and add annotations to it.
+Use Plotly to create a dashboard that compares the metrics across all the benchmarks from the CI.
+
+The dashboard is a heatmap representing a 2d table, with text annotations added to it.
 
 Authors: John Lambert
 """
 
 import argparse
 from collections import defaultdict
+from pathlib import Path
 from typing import List
 
 import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import plotly
 import plotly.graph_objects as go
 from matplotlib import colors
 from matplotlib.colors import LinearSegmentedColormap
-from plotly.graph_objs.layout import Font, Margin, XAxis, YAxis
+from plotly.graph_objs.layout import Annotation, Font, Margin, XAxis, YAxis
 
 import gtsfm.evaluation.merge_reports as report_utils
 import gtsfm.evaluation.metrics_report as metrics_report
+import gtsfm.utils.metrics as metrics_utils
 
 
 HEATMAP_WIDTH = 1500
 HEATMAP_HEIGHT = 900
 NUM_COLORS_COLORMAP = 100
-EPSILON = 1e-12
 MAX_NUM_CHARS_ARTIFACT_FNAME = 35
 
 MIN_RENDERABLE_PERCENT_CHANGE = -20
 MAX_RENDERABLE_PERCENT_CHANGE = 20
+
+DASHBOARD_HTML_SAVE_FPATH = Path(__file__).parent.parent.parent / "visual_comparison_dashboard.html"
 
 ZIP_FNAMES = [
     "deep_front_end-2011205_rc3-20-png-wget-astronet-1024-true.zip",
@@ -58,43 +60,44 @@ PALE_YELLOW_HEX = "#f5f6ce"
 GREEN_HEX = "#31b404"
 
 
-def colormap_to_colorscale(cmap):
-    # function that transforms a matplotlib colormap to a Plotly colorscale
-    return [colors.rgb2hex(cmap(k * 1 / NUM_COLORS_COLORMAP)) for k in range(NUM_COLORS_COLORMAP + 1)]
+def colorscale_from_list(colorlist: List[str]) -> List[str]:
+    """Create hex colorscale to interpolate between requested colors.
+
+    Args:
+        colorlist: requested colors.
+
+    Returns:
+        colorscale: list of length (NUM_COLORS_COLORMAP+1) representing a list of colors.
+    """
+    cmap = LinearSegmentedColormap.from_list(name="dummy_name", colors=colorlist)
+    colorscale = [colors.rgb2hex(cmap(k * 1 / NUM_COLORS_COLORMAP)) for k in range(NUM_COLORS_COLORMAP + 1)]
+    return colorscale
 
 
-def colorscale_from_list(alist, name):
-    # Defines a colormap, and the corresponding Plotly colorscale from the list alist
-    # alist=the list of basic colors
-    # name is the name of the corresponding matplotlib colormap
-
-    cmap = LinearSegmentedColormap.from_list(name, alist)
-    colorscale = colormap_to_colorscale(cmap)
-    return cmap, colorscale
-
-
-def plot_colored_table(X: List[str], Y: List[str], Z: np.ndarray, table_name: str) -> None:
+def plot_colored_table(X: List[str], Y: List[str], Z: np.ndarray) -> str:
     """Create an annotated heatmap.
 
     Args:
         X: labels for each column (column names).
         Y: labels for each row (row names).
         Z: 2d matrix, representing percentage changes from value for a metric on the master branch.
+
+    Returns:
+        string representing html for table.
     """
 
-    # clip Z to -100% and +100%, and then scale result to a linear scale [0,100]
+    # Clip Z to -20% and +20%. The clipping is only for the color -- the text will still display the correct numbers.
     Z_clipped = np.clip(Z, a_min=MIN_RENDERABLE_PERCENT_CHANGE, a_max=MAX_RENDERABLE_PERCENT_CHANGE)
 
     redgreen = [RED_HEX, PALE_YELLOW_HEX, GREEN_HEX]
-    fin_cmap, fin_cs = colorscale_from_list(redgreen, "fin_cmap")
+    colorscale = colorscale_from_list(redgreen)
     trace = go.Heatmap(
         z=Z_clipped,
         x=X,
         y=Y,
-        colorscale=fin_cs,  # fin_asymm_cs,
+        colorscale=colorscale,
         zmin=-MIN_RENDERABLE_PERCENT_CHANGE,
-        zmax=MAX_RENDERABLE_PERCENT_CHANGE
-        # colorbar=dict(thickness=20, tickvals=[-20+k*5 for k in range(5)], ticklen=4)
+        zmax=MAX_RENDERABLE_PERCENT_CHANGE,
     )
 
     layout = go.Layout(
@@ -106,8 +109,6 @@ def plot_colored_table(X: List[str], Y: List[str], Z: np.ndarray, table_name: st
             title="",
             autorange="reversed",
             showgrid=True,
-            # autotick=False,
-            # dtick=1
         ),
         autosize=False,
         height=HEATMAP_HEIGHT,
@@ -124,7 +125,7 @@ def plot_colored_table(X: List[str], Y: List[str], Z: np.ndarray, table_name: st
     for i in range(num_rows):
         for j in range(num_cols):
             annotations.append(
-                go.Annotation(
+                Annotation(
                     text=str(np.round(Z[i, j], 1)) + "%",
                     x=X[j],
                     y=Y[i],
@@ -141,13 +142,15 @@ def plot_colored_table(X: List[str], Y: List[str], Z: np.ndarray, table_name: st
 def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> None:
     """Generate a dashboard showing a visual representation of the diff against master on all benchmarks.
 
+    This script expects to find the metrics in CI artifact files and saves to the main repo directory.
+    TODO(johnwlambert): read metrics from JSON, instead of from the HTML report.
+
     Args:
-        curr_master_dirpath
-        new_branch_dirpath
+        curr_master_dirpath: path to directory containing benchmark artifacts for the master branch.
+        new_branch_dirpath: path to directory containing benchmark artifacts for a new branch.
     """
 
-    html_path = "visual_comparison_dashboard.html"
-    f = open(html_path, mode="w")
+    f = open(DASHBOARD_HTML_SAVE_FPATH, mode="w")
 
     # Write HTML headers.
     f.write("<!DOCTYPE html>" "<html>")
@@ -179,7 +182,7 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
                 if branch_val is None:
                     percentage_change = np.nan
                 else:
-                    percentage_change = compute_percentage_change(float(master_val), float(branch_val))
+                    percentage_change = metrics_utils.compute_percentage_change(float(master_val), float(branch_val))
 
                 if "error" in metric_name and "outlier" not in metric_name:
                     # smaller is better, so this will flip the color to green for reduced values, instead of red
@@ -196,56 +199,27 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
             Y.append(metric_name)
 
         Z = np.array(Z_rows)
-        html = plot_colored_table(X, Y, Z, table_name=table_name)
+        table_html = plot_colored_table(X, Y, Z)
 
         # Write name of the metric group in human readable form.
         f.write(metrics_report.get_html_metric_heading(table_name))
-        f.write(html)
+        f.write(table_html)
 
         # Close HTML tags.
         f.write("</html>")
 
 
-def compute_percentage_change(x: float, y: float) -> float:
-    """Return percentage in representing the regression or improvement of a value x, for new value y."""
-    return (y - x) / (x + EPSILON) * 100
-
-
-def test_compute_percentage_change_improve() -> None:
-    """ """
-    x = 100
-    y = 150
-    change_percent = compute_percentage_change(x, y)
-    assert np.isclose(change_percent, 50)
-
-
-def test_compute_percentage_change_static() -> None:
-    """ """
-    x = 100
-    y = 100
-    change_percent = compute_percentage_change(x, y)
-    assert np.isclose(change_percent, 0)
-
-
-def test_compute_percentage_change_regression() -> None:
-    """ """
-    x = 100
-    y = 1
-    change_percent = compute_percentage_change(x, y)
-    assert np.isclose(change_percent, -99)
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--new_branch_dirpath",
-        required=True,
-        help="Path to directory containing benchmark artifacts for a new branch.",
-    )
     parser.add_argument(
         "--curr_master_dirpath",
         required=True,
         help="Path to directory containing benchmark artifacts for the master branch.",
+    )
+    parser.add_argument(
+        "--new_branch_dirpath",
+        required=True,
+        help="Path to directory containing benchmark artifacts for a new branch.",
     )
     args = parser.parse_args()
     generate_dashboard(

@@ -69,5 +69,29 @@ class TestMetricUtils(unittest.TestCase):
         np.testing.assert_allclose(expected_intersections, estimated_intersections)
 
 
+def test_compute_percentage_change_improve() -> None:
+    """Ensure that percentage change is computed correctly for a 50% improvement over 100."""
+    x = 100
+    y = 150
+    change_percent = compute_percentage_change(x, y)
+    assert np.isclose(change_percent, 50)
+
+
+def test_compute_percentage_change_static() -> None:
+    """Ensure that percentage change is computed correctly for no change in a value."""
+    x = 100
+    y = 100
+    change_percent = compute_percentage_change(x, y)
+    assert np.isclose(change_percent, 0)
+
+
+def test_compute_percentage_change_regression() -> None:
+    """Ensure that percentage change is computed correctly for a 99% regression against 100."""
+    x = 100
+    y = 1
+    change_percent = compute_percentage_change(x, y)
+    assert np.isclose(change_percent, -99)
+
+
 if __name__ == "__main__":
     unittest.main()
