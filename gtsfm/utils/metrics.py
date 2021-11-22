@@ -66,7 +66,7 @@ def compute_correspondence_metrics(
     """
     if corr_idxs_i1i2.size == 0:
         return None, None
-    
+
     if gt_wTi1 is None or gt_wTi2 is None:
         return None, None
 
@@ -86,7 +86,7 @@ def compute_correspondence_metrics(
             dist_threshold,
         )
         return is_inlier, reproj_error
-        
+
     # If no mesh is provided, use squared Sampson error.
     gt_i2Ti1 = gt_wTi2.between(gt_wTi1)
     is_inlier, reproj_error = epipolar_inlier_correspondences(
