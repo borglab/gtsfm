@@ -52,7 +52,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
 
     def __init__(
         self,
-        edge_error_aggregation_criterion: EdgeErrorAggregationCriterion = EdgeErrorAggregationCriterion.MEDIAN_EDGE_ERROR,
+        edge_error_aggregation_criterion: EdgeErrorAggregationCriterion,
         error_threshold: float = ERROR_THRESHOLD,
     ) -> None:
         self._edge_error_aggregation_criterion = edge_error_aggregation_criterion

@@ -85,7 +85,7 @@ def test_compute_cycle_error_unknown_GT() -> None:
     i4Ri2 = Rot3.Ry(np.deg2rad(60))
     i4Ri0 = Rot3.Ry(np.deg2rad(95))
 
-    rcc_estimator = CycleConsistentRotationViewGraphEstimator()
+    rcc_estimator = CycleConsistentRotationViewGraphEstimator(EdgeErrorAggregationCriterion.MEDIAN_EDGE_ERROR)
     cycle_error = rcc_estimator.__compute_cycle_error(i2Ri0, i4Ri2, i4Ri0)
 
     assert np.isclose(cycle_error, 5)
@@ -129,7 +129,7 @@ def test_filter_to_cycle_consistent_edges() -> None:
     corr_idxs_i1i2 = {}
     keypoints = {}
 
-    rcc_estimator = CycleConsistentRotationViewGraphEstimator()
+    rcc_estimator = CycleConsistentRotationViewGraphEstimator(EdgeErrorAggregationCriterion.MEDIAN_EDGE_ERROR)
     view_graph = rcc_estimator.run(i2Ri1_dict, i2Ui1_dict, calibrations, corr_idxs_i1i2, keypoints)
     assert isinstance(view_graph, ViewGraph)
 
