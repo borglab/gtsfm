@@ -12,9 +12,9 @@ import numpy as np
 from gtsam import Rot3, Pose3
 
 import gtsfm.utils.io as io_utils
-from visualization.open3d_vis_utils import draw_scene_open3d
+from gtsfm.visualization.open3d_vis_utils import draw_scene_open3d
 
-REPO_ROOT = Path(__file__).parent.parent.resolve()
+REPO_ROOT = Path(__file__).parent.parent.parent.resolve()
 
 
 def compute_point_cloud_center_robust(point_cloud: np.ndarray) -> np.ndarray:
