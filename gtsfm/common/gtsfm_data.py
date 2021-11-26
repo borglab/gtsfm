@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 from gtsam import PinholeCameraCal3Bundler, Pose3, SfmTrack, Similarity3
 from trimesh import Trimesh
+from dask.distributed import Client
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
 import gtsfm.utils.graph as graph_utils
@@ -38,13 +39,15 @@ class GtsfmData:
         """Initializes the class.
 
         Args:
-            number_images: number of images/cameras in the scene.
+            number_images: number of putative images/cameras in the scene; cameras may be pruned during the verification
+                process.
+            cameras: cameras used to reconstruct the scene.
+            tracks: tracks in reconstucted map of the scene.
+            scene_mesh: triangular surface mesh of reconstructed scene.
         """
         self._number_images = number_images
         self._cameras = cameras if cameras else {}
         self._tracks = tracks if tracks else []
-        # self._cameras = cameras  # this caused an error for some reason??
-        # self._tracks = tracks
         self.scene_mesh = scene_mesh
 
     def get_two_view_data(self, i1: int, i2: int) -> "GtsfmData":

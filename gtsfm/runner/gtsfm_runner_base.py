@@ -1,6 +1,7 @@
 import argparse
 import time
 from abc import abstractmethod
+from typing import Optional
 
 import hydra
 from dask.distributed import Client, LocalCluster, performance_report
@@ -69,9 +70,10 @@ class GtsfmRunnerBase:
 
     @abstractmethod
     def construct_loader(self) -> LoaderBase:
-        pass
+        """Initializes the relevant Loader."""
 
     def construct_scene_optimizer(self) -> SceneOptimizer:
+        """Initializes the SceneOptimizer from input configuratio file using Hydra."""
         with hydra.initialize_config_module(config_module="gtsfm.configs"):
             # config is relative to the gtsfm module
             cfg = hydra.compose(
@@ -86,27 +88,49 @@ class GtsfmRunnerBase:
 
         return scene_optimizer
 
-    def run(self) -> None:
-        start_time = time.time()
-        sfm_result_graph = self.scene_optimizer.create_computation_graph(
-            num_images=len(self.loader),
-            image_pair_indices=self.loader.get_valid_pairs(),
-            image_graph=self.loader.create_computation_graph_for_images(),
-            camera_intrinsics_graph=self.loader.create_computation_graph_for_intrinsics(),
-            image_shape_graph=self.loader.create_computation_graph_for_image_shapes(),
-            gt_gtsfm_data=self.loader.gt_gtsfm_data,
-        )
+    def scatter_scene_mesh(self, client: Client) -> Optional[GtsfmData]:
+        """Scatters ground truth scene mesh into distributed memory to preserve computation time and memory.
 
-        # create dask client
+        Ref: http://distributed.dask.org/en/stable/api.html#distributed.Client.scatter
+        """
+        # TODO(travisdriver): find a way to scatter mesh that doesn't require copying the GtsfmData object.
+        if self.loader.gt_gtsfm_data.scene_mesh is None:
+            return self.loader.gt_gtsfm_data
+        gt_gtsfm_data = GtsfmData(
+            self.loader.gt_gtsfm_data.number_images,
+            self.loader.gt_gtsfm_data._cameras,
+            self.loader.gt_gtsfm_data._tracks,
+        )
+        gt_gtsfm_data.add_scene_mesh(client.scatter(self.loader.gt_gtsfm_data.scene_mesh, broadcast=True))
+        logger.info("Scattered scene mesh.")
+
+        return gt_gtsfm_data
+
+    def run(self) -> None:
+        """Run Structure-from-Motion (SfM) pipeline."""
+        start_time = time.time()
+
+        # Create dask client.
         cluster = LocalCluster(
             n_workers=self.parsed_args.num_workers, threads_per_worker=self.parsed_args.threads_per_worker
         )
 
-        with Client(cluster), performance_report(filename="dask-report.html"):
+        with Client(cluster) as client, performance_report(filename="dask-report.html"):
+            # Scatter scene mesh across all nodes to preserve computation time and memory.
+            gt_gtsfm_data = self.scatter_scene_mesh(client)
+
+            # Prepare computation graph.
+            sfm_result_graph = self.scene_optimizer.create_computation_graph(
+                num_images=len(self.loader),
+                image_pair_indices=self.loader.get_valid_pairs(),
+                image_graph=self.loader.create_computation_graph_for_images(),
+                camera_intrinsics_graph=self.loader.create_computation_graph_for_intrinsics(),
+                image_shape_graph=self.loader.create_computation_graph_for_image_shapes(),
+                gt_gtsfm_data=gt_gtsfm_data,
+            )
+
+            # Run SfM pipeline.
             sfm_result = sfm_result_graph.compute()
 
         assert isinstance(sfm_result, GtsfmData)
-
-        end_time = time.time()
-        duration_sec = end_time - start_time
-        logger.info("GTSFM took %.2f minutes to compute sparse multi-view result.", duration_sec / 60)
+        logger.info("GTSFM took %.2f minutes to compute sparse multi-view result.", (time.time() - start_time) / 60)

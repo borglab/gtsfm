@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional, Dict, Tuple, List
 
 import trimesh
-from gtsam import PinholeCameraCal3Bundler, Cal3Bundler, Pose3, Rot3, SfmTrack
+from gtsam import Cal3Bundler, Pose3, Rot3, SfmTrack
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
@@ -79,7 +79,7 @@ class AstronetLoader(LoaderBase):
         if not Path(data_dir).exists():
             raise FileNotFoundError("No data found at %s." % data_dir)
         cameras, images, points3d = colmap_io.read_model(path=data_dir, ext=".bin")
-        self._calibrations, self._wTi_list, img_fnames, self._sfmtracks, cameras_gtsfm = self.colmap2gtsfm(
+        self._calibrations, self._wTi_list, img_fnames, self._sfmtracks = self.colmap2gtsfm(
             cameras, images, points3d, load_sfmtracks=use_gt_sfmtracks
         )
 
@@ -95,9 +95,6 @@ class AstronetLoader(LoaderBase):
             )
         else:
             self.gt_scene_trimesh = None
-
-        # Create GtsfmData object to hold GT data.
-        self._gt_gtsfm_data = GtsfmData(len(img_fnames), cameras_gtsfm, self._sfmtracks, self.gt_scene_trimesh)
 
         # Camera intrinsics are currently required due to absence of EXIF data and diffculty in approximating focal
         # length (usually 10000 to 100000 pixels).
@@ -124,7 +121,9 @@ class AstronetLoader(LoaderBase):
 
     @property
     def gt_gtsfm_data(self):
-        return self._gt_gtsfm_data
+        """Return ground truth data as `GtsfmData` object."""
+        cameras = {i: self.get_camera(i) for i in range(self.__len__())}
+        return GtsfmData(self.__len__(), cameras, tracks=None, scene_mesh=self.gt_scene_trimesh)
 
     @staticmethod
     def colmap2gtsfm(
@@ -132,9 +131,7 @@ class AstronetLoader(LoaderBase):
         images: Dict[int, ColmapImage],
         points3D: Dict[int, ColmapPoint3D],
         load_sfmtracks: bool = False,
-    ) -> Tuple[
-        List[Cal3Bundler], List[Pose3], List[str], Optional[List[SfmTrack]], Dict[int, PinholeCameraCal3Bundler]
-    ]:
+    ) -> Tuple[List[Cal3Bundler], List[Pose3], List[str], Optional[List[SfmTrack]]]:
         """Converts COLMAP-formatted variables to GTSfM format.
 
         Args:
@@ -153,7 +150,6 @@ class AstronetLoader(LoaderBase):
         if len(images) == 0 and len(cameras) == 0:
             raise RuntimeError("No Image or Camera data provided to loader.")
         calibrations_gtsfm, images_gtsfm, img_fnames = [], [], []
-        cameras_gtsfm = {}
         image_id_to_idx = {}  # keeps track of discrepencies between `image_id` and List index.
         for idx, img in enumerate(images.values()):
             images_gtsfm.append(Pose3(Rot3(img.qvec2rotmat()), img.tvec).inverse())
@@ -173,7 +169,7 @@ class AstronetLoader(LoaderBase):
                     sfmtrack.add_measurement(image_id_to_idx[image_id], images[image_id].xys[point2d_idx])
                 sfmtracks_gtsfm.append(sfmtrack)
 
-        return calibrations_gtsfm, images_gtsfm, img_fnames, sfmtracks_gtsfm, cameras_gtsfm
+        return calibrations_gtsfm, images_gtsfm, img_fnames, sfmtracks_gtsfm
 
     def __len__(self) -> int:
         """The number of images in the dataset.

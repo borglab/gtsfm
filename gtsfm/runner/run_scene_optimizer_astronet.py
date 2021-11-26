@@ -3,8 +3,12 @@
 Author: Travis Driver
 """
 import argparse
+import time
+
+from dask.distributed import Client, LocalCluster, performance_report
 
 import gtsfm.utils.logger as logger_utils
+from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.loader.astronet_loader import AstronetLoader
 from gtsfm.runner.gtsfm_runner_base import GtsfmRunnerBase
@@ -44,33 +48,6 @@ class GtsfmRunnerAstronetLoader(GtsfmRunnerBase):
         )
 
         return loader
-
-    # def run(self) -> None:
-    #     """Run Structure-from-Motion (SfM) pipeline."""
-    #     # Create dask client.
-    #     cluster = LocalCluster(
-    #         n_workers=self.parsed_args.num_workers, threads_per_worker=self.parsed_args.threads_per_worker
-    #     )
-
-    #     # with Client(cluster) as client, performance_report(filename="dask-report.html"):
-    #     #     # Scatter surface mesh across all nodes to preserve computation time and memory.
-    #     #     gt_gtsfm_data_future = client.scatter(self.loader.gt_gtsfm_data, broadcast=True)
-
-    #     # Prepare computation graph.
-    #     start_time = time.time()
-    #     sfm_result_graph = self.scene_optimizer.create_computation_graph(
-    #         num_images=len(self.loader),
-    #         image_pair_indices=self.loader.get_valid_pairs(),
-    #         image_graph=self.loader.create_computation_graph_for_images(),
-    #         camera_intrinsics_graph=self.loader.create_computation_graph_for_intrinsics(),
-    #         image_shape_graph=self.loader.create_computation_graph_for_image_shapes(),
-    #         gt_gtsfm_data=self.loader.gt_gtsfm_data,
-    #     )
-
-    #     # Run SfM pipeline.
-    #     sfm_result = sfm_result_graph.compute()
-    #     assert isinstance(sfm_result, GtsfmData)
-    #     logger.info("GTSFM took %.2f minutes to compute sparse multi-view result.", (time.time() - start_time) / 60)
 
 
 if __name__ == "__main__":
