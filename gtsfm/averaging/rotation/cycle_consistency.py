@@ -32,14 +32,8 @@ CYCLE_ERROR_THRESHOLD = 7.0
 MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
 
 
-<<<<<<< HEAD
-    Based off of Theia and OpenMVG's implementations:
-        https://github.com/sweeneychris/TheiaSfM/blob/master/src/theia/math/graph/triplet_extractor.h
-        https://github.com/openMVG/openMVG/blob/develop/src/openMVG/graph/triplet_finder.hpp
-=======
 class EdgeErrorAggregationCriterion(str, Enum):
     """Aggregate cycle errors over each edge by choosing one of the following summary statistics:
->>>>>>> 515ade2852a375c8f8621e5b414c7f8146b4332b
 
     MIN: Choose the mininum cycle error of all cyles this edge appears in. An edge that appears in ANY cycle
         with low error is accepted. High recall, but can have low precision, as false positives can enter
