@@ -4,7 +4,7 @@ Authors: Ren Liu
 """
 import time
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Tuple
 
 import numpy as np
 import torch
@@ -83,11 +83,10 @@ class MVSPatchmatchNet(MVSBase):
             num_workers: number of workers when loading data
 
         Returns:
-            Dictionary containing:
-                "points": 3D coordinates (in the world frame) of the dense point cloud
-                    with shape (N, 3) where N is the number of points
-                "rgb": rgb color of each point in the dense point cloud
-                    with shape (N, 3) where N is the number of points
+            dense_point_cloud: 3D coordinates (in the world frame) of the dense point cloud
+                with shape (N, 3) where N is the number of points
+            dense_point_colors: RGB color of each point in the dense point cloud
+                with shape (N, 3) where N is the number of points
         """
         dataset = PatchmatchNetData(images=images, sfm_result=sfm_result, max_num_views=max_num_views)
 
@@ -164,7 +163,7 @@ class MVSPatchmatchNet(MVSBase):
                 )
 
         # Filter inference result with thresholds
-        dense_point_cloud = self.filter_depth(
+        dense_point_cloud, dense_point_colors = self.filter_depth(
             dataset=dataset,
             depth_list=depth_est_list,
             confidence_list=confidence_est_list,
@@ -174,7 +173,7 @@ class MVSPatchmatchNet(MVSBase):
             min_num_consistent_views=min_num_consistent_views,
         )
 
-        return dense_point_cloud
+        return dense_point_cloud, dense_point_colors
 
     def filter_depth(
         self,
@@ -185,7 +184,7 @@ class MVSPatchmatchNet(MVSBase):
         max_geo_depth_thresh: float,
         min_conf_thresh: float,
         min_num_consistent_views: float,
-    ) -> Dict[str, np.ndarray]:
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """Create a dense point cloud by filtering depth maps based on estimated confidence maps and consistent geometry
 
         A 3D point is consistent in geometry between two views if:
@@ -211,11 +210,10 @@ class MVSPatchmatchNet(MVSBase):
                 thresholds in more than min_num_consistent_views source views
 
         Returns:
-            Dictionary containing:
-                "points": 3D coordinates (in the world frame) of the dense point cloud
-                    with shape (N, 3) where N is the number of points
-                "rgb": rgb color of each point in the dense point cloud
-                    with shape (N, 3) where N is the number of points
+            dense_points: 3D coordinates (in the world frame) of the dense point cloud
+                with shape (N, 3) where N is the number of points
+            dense_point_colors: RGB color of each point in the dense point cloud
+                with shape (N, 3) where N is the number of points
         """
         # coordinates of the final point cloud
         vertices = []
@@ -308,4 +306,6 @@ class MVSPatchmatchNet(MVSBase):
                 joint_mask.mean(),
             )
 
-        return {"points": np.concatenate(vertices, axis=0), "rgb": np.concatenate(vertex_colors, axis=0)}
+        dense_points = np.concatenate(vertices, axis=0)
+        dense_point_colors = np.concatenate(vertex_colors, axis=0)
+        return dense_points, dense_point_colors

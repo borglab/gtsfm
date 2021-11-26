@@ -71,13 +71,13 @@ class TestMVSPatchmatchNet(unittest.TestCase):
         # initialize sfm result
         self._sfm_result = self.get_dummy_gtsfm_data()
 
-        # use patchmatchnet to recontruct dense point cloud
-        self._dense_points = MVSPatchmatchNet().densify(
+        # Use patchmatchnet to recontruct dense point cloud. Discarding per-point colors.
+        self._dense_points, _ = MVSPatchmatchNet().densify(
             images=self._img_dict,
             sfm_result=self._sfm_result,
             max_num_views=NUM_IMAGES,
             min_num_consistent_views=MIN_NUM_CONSISTENT_VIEWS,
-        )["points"]
+        )
 
     def get_dummy_gtsfm_data(self) -> GtsfmData:
         """Create a new GtsfmData instance, add dummy cameras and tracks, and draw the track points on all images"""
