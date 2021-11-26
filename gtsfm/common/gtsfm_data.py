@@ -51,7 +51,7 @@ class GtsfmData:
         self.scene_mesh = scene_mesh
 
     def get_two_view_data(self, i1: int, i2: int) -> "GtsfmData":
-        """Collects GtsfmData for a sinbgle image pair."""
+        """Collects GtsfmData for a single image pair."""
         # TODO (travisdriver): also collect tracks if available.
         cameras_pair = {0: self.get_camera(i1), 1: self.get_camera(i2)}
         return GtsfmData(2, cameras_pair, None, self.scene_mesh)
