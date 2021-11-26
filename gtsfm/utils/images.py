@@ -115,7 +115,7 @@ def resize_image(image: Image, new_height: int, new_width: int) -> Image:
         interpolation=cv.INTER_CUBIC,
     )
 
-    # Resize the mask using nearest-neighbor inerpolation.
+    # Resize the mask using nearest-neighbor interpolation.
     if image.mask:
         resized_mask = cv.resize(
             image.mask,

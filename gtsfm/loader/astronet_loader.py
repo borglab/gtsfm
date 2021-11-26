@@ -7,9 +7,9 @@ import os
 from pathlib import Path
 from typing import Optional, Dict, Tuple, List
 
-import trimesh
 import cv2 as cv
 import numpy as np
+import trimesh
 from gtsam import Cal3Bundler, Pose3, Rot3, Point3, SfmTrack
 
 import gtsfm.utils.io as io_utils
@@ -195,13 +195,9 @@ class AstronetLoader(LoaderBase):
 
         # Generate mask to separate background deep space from foreground target body
         # based on image intensity values.
-        gray_image = image_utils.rgb_to_gray_cv(img)
-        _, binary_image = cv.threshold(gray_image.value_array, 5, 255, cv.THRESH_BINARY)
-        mask = cv.erode(binary_image, np.ones((15, 15), np.uint8))
+        mask = get_nonzero_intensity_mask(img)
 
-        return Image(
-            value_array=img.value_array, exif_data=img.exif_data, file_name=img.file_name, mask=mask.astype(bool)
-        )
+        return Image(value_array=img.value_array, exif_data=img.exif_data, file_name=img.file_name, mask=mask)
 
     def get_camera_intrinsics_full_res(self, index: int) -> Cal3Bundler:
         """Get the camera intrinsics at the given index, valid for a full-resolution image.
@@ -266,3 +262,21 @@ class AstronetLoader(LoaderBase):
             validation result.
         """
         return super().is_valid_pair(idx1, idx2) and abs(idx1 - idx2) <= self._max_frame_lookahead
+
+
+def get_nonzero_intensity_mask(img: Image, eps: int = 5, kernel: Tuple[int, int] = (15, 15)) -> np.ndarray:
+    """Generate mask of where image intensity values are non-zero.
+
+    Args:
+        img: input Image to be masked (values in range [0, 255]).
+        eps: minimum allowable intesnity value, i.e., values below this value withh be masked out.
+        kernel_size: size of erosion kernel.
+
+    Returns:
+        Boolean mask of Image where the intensity value is above `eps`.
+    """
+    gray_image = image_utils.rgb_to_gray_cv(img)
+    _, binary_image = cv.threshold(gray_image.value_array, eps, 255, cv.THRESH_BINARY)
+    mask = cv.erode(binary_image, np.ones(kernel, np.uint8)).astype(bool)
+
+    return mask

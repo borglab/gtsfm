@@ -16,13 +16,11 @@ import numpy as np
 import torch
 
 import gtsfm.utils.images as image_utils
-import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.detector_descriptor.detector_descriptor_base import DetectorDescriptorBase
 from thirdparty.SuperGluePretrainedNetwork.models.superpoint import SuperPoint
 
-logger = logger_utils.get_logger()
 ROOT_PATH = Path(__file__).resolve().parent.parent.parent.parent
 MODEL_WEIGHTS_PATH = (
     ROOT_PATH / "thirdparty" / "SuperGluePretrainedNetwork" / "models" / "weights" / "superpoint_v1.pth"
@@ -46,10 +44,10 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
 
     def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
         """Jointly generate keypoint detections and their associated descriptors from a single image."""
+        # TODO(ayushbaid): fix inference issue #110
         device = torch.device("cuda" if self._use_cuda else "cpu")
         model = SuperPoint(self._config).to(device)
         model.eval()
-        # TODO: fix inference issue #110
 
         # Compute features.
         image_tensor = torch.from_numpy(

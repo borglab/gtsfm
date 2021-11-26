@@ -10,8 +10,11 @@ import dask
 import numpy as np
 from dask.delayed import Delayed
 
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
+
+logger = logger_utils.get_logger()
 
 
 class DetectorDescriptorBase(metaclass=abc.ABCMeta):
@@ -57,8 +60,8 @@ class DetectorDescriptorBase(metaclass=abc.ABCMeta):
     @staticmethod
     def filter_by_mask(mask: np.ndarray, keypoints: Keypoints, descriptors: np.ndarray) -> Tuple[Keypoints, np.ndarray]:
         """Filter features with respect to a binary mask of the image."""
-        valid_idxs = np.flatnonzero([mask[round(v), round(u)] == 1 for (u, v) in keypoints.coordinates])
-
+        rounded_coordinates = np.round(keypoints.coordinates).astype(int)
+        valid_idxs = np.flatnonzero(mask[rounded_coordinates[:, 1], rounded_coordinates[:, 0]] == 1)
         return keypoints.extract_indices(valid_idxs), descriptors[valid_idxs]
 
     def create_computation_graph(self, image_graph: Delayed) -> Tuple[Delayed, Delayed]:

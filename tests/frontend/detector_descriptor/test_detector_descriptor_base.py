@@ -92,6 +92,7 @@ class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
                 [8.0, 8.0],
             ]
         )
+        valid_coordinates = coordinates[[3, 4]]
 
         # Create keypoints from coordinates and dummy descriptors.
         keypoints = Keypoints(coordinates, scales=None, responses=None)
@@ -99,6 +100,7 @@ class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
         filtered_keypoints, filtered_descriptors = self.detector_descriptor.filter_by_mask(mask, keypoints, descriptors)
         assert len(filtered_keypoints) == filtered_descriptors.shape[0]
         assert len(filtered_keypoints) == 2
+        np.testing.assert_equal(filtered_keypoints.coordinates, valid_coordinates)
 
 
 if __name__ == "__main__":
