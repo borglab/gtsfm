@@ -7,6 +7,7 @@ Authors: John Lambert
 """
 
 import argparse
+import yaml
 from collections import defaultdict
 from pathlib import Path
 from typing import List
@@ -31,19 +32,8 @@ MIN_RENDERABLE_PERCENT_CHANGE = -20
 MAX_RENDERABLE_PERCENT_CHANGE = 20
 
 DASHBOARD_HTML_SAVE_FPATH = Path(__file__).parent.parent.parent / "visual_comparison_dashboard.html"
+BENCHMARK_YAML_FPATH = Path(__file__).parent.parent.parent / ".github" / "workflows" / "benchmark.yml"
 
-ZIP_FNAMES = [
-    "deep_front_end-2011205_rc3-20-png-wget-astronet-1024-true.zip",
-    "deep_front_end-door-12-12-JPG-test_data-olsson-loader-1296-true.zip",
-    "deep_front_end-notre-dame-20-20-jpg-gdrive-colmap-loader-760-false.zip",
-    "deep_front_end-skydio-8-8-jpg-gdrive-colmap-loader-760-true.zip",
-    "deep_front_end-skydio-32-32-jpg-gdrive-colmap-loader-760-true.zip",
-    "sift_front_end-2011205_rc3-65-png-wget-astronet-1024-true.zip",
-    "sift_front_end-door-12-12-JPG-test_data-olsson-loader-1296-true.zip",
-    "sift_front_end-palace-fine-arts-281-25-jpg-wget-olsson-loader-320-true.zip",
-    "sift_front_end-skydio-8-8-jpg-gdrive-colmap-loader-760-true.zip",
-    "sift_front_end-skydio-32-32-jpg-gdrive-colmap-loader-760-true.zip",
-]
 
 TABLE_NAMES = [
     "Verifier Summary",
@@ -139,6 +129,31 @@ def plot_colored_table(row_labels: List[str], col_labels: List[str], tab_data: n
     return fig.to_html(full_html=False, include_plotlyjs="cdn")
 
 
+def generate_artifact_fnames_from_workflow(workflow_yaml_fpath: str) -> List[str]:
+    """Auto-generate the expected filenames of CI artifact based on `benchmark.yaml' entries.
+    
+    The zip artifact names are auto-generated during CI runs from the YAML file, and by auto-generating
+    them here, we can add additional benchmarks without needing to edit a hard-coded list. 
+
+    Returns:
+        artifact_fnames: file names of CI artifacts.
+    """
+    with open(workflow_yaml_fpath, "r") as stream:
+        try:
+            yaml_data = yaml.safe_load(stream)
+        except yaml.YAMLError as exc:
+            print(exc)
+            raise RuntimeError("YAML file could not be parsed safely.")
+
+    benchmark_entries = yaml_data["jobs"]["benchmark"]["strategy"]["matrix"]["config_dataset_info"]
+
+    # Note: CI converts "True" to "true", so we must force lower-case on the last string entry.
+    artifact_fnames = [
+        f"{e[0]}-{e[1]}-{e[2]}-{e[3]}-{e[4]}-{e[5]}-{e[6]}-{str(e[7]).lower()}.zip" for e in benchmark_entries
+    ]
+    return artifact_fnames
+
+
 def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> None:
     """Generate a dashboard showing a visual representation of the diff against master on all benchmarks.
 
@@ -149,6 +164,7 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
         curr_master_dirpath: path to directory containing benchmark artifacts for the master branch.
         new_branch_dirpath: path to directory containing benchmark artifacts for a new branch.
     """
+    zip_artifact_fnames = generate_artifact_fnames_from_workflow(workflow_yaml_fpath=BENCHMARK_YAML_FPATH)
 
     f = open(DASHBOARD_HTML_SAVE_FPATH, mode="w")
 
@@ -165,7 +181,7 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
         benchmark_table_vals = defaultdict(dict)
 
         # Loop over each benchmark result (columns of table).
-        for zip_fname in ZIP_FNAMES:
+        for zip_fname in zip_artifact_fnames:
             # use just the first 35 chars
             X.append(zip_fname[:MAX_NUM_CHARS_ARTIFACT_FNAME])
 
@@ -193,7 +209,7 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
         Z_rows = []
         for metric_name, benchmark_vals_dict in benchmark_table_vals.items():
             Z_row = []
-            for zip_fname in ZIP_FNAMES:
+            for zip_fname in zip_artifact_fnames:
                 Z_row.append(benchmark_vals_dict.get(zip_fname, np.nan))  # default was unchanged if missing
             Z_rows.append(Z_row)
             Y.append(metric_name)
@@ -210,6 +226,7 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
 
 
 if __name__ == "__main__":
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--curr_master_dirpath",
