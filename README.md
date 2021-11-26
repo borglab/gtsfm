@@ -1,7 +1,8 @@
 # Georgia Tech Structure from Motion (GTSFM) Library
 
-[![Ubuntu CI](https://github.com/borglab/gtsfm/workflows/Python%20CI/badge.svg)](https://github.com/borglab/gtsfm/actions?query=workflow%3APython+CI)
-
+| Platform     | Build Status  |
+|:------------:| :-------------:|
+| Ubuntu 20.04.3 |  ![Linux CI](https://github.com/borglab/gtsfm/workflows/Unit%20tests%20and%20python%20checks/badge.svg) |
 
 ### What is GTSFM?
 GTSFM is an end-to-end SFM pipeline based on [GTSAM](https://github.com/borglab/gtsam). GTSFM was designed from the ground-up to natively support parallel computation using [Dask](https://dask.org/).
@@ -12,7 +13,7 @@ GTSFM is an end-to-end SFM pipeline based on [GTSAM](https://github.com/borglab/
 
 <p align="left">
   <img src="https://user-images.githubusercontent.com/16724970/121294002-a4d7a400-c8ba-11eb-895e-a50305c049b6.gif" height="315" title="Olsson Lund Dataset: Door, 12 images">
-  <img src="https://user-images.githubusercontent.com/16724970/121293398-8cb35500-c8b9-11eb-8898-6162cb2372e1.gif" height="315">
+  <img src="https://user-images.githubusercontent.com/16724970/142500100-ed3bd07b-f839-488e-a01d-823a9fbeaba4.gif" height="315">
 </p>
 
 ## License
@@ -29,7 +30,7 @@ On Linux, with CUDA support:
 conda env create -f environment_linux.yml
 conda activate gtsfm-v1 # you may need "source activate gtsfm-v1" depending upon your bash and conda set-up
 ```
-The Python3.8 `gtsam` wheel for Linux is available [here](https://github.com/borglab/gtsam-manylinux-build/suites/3489546443/artifacts/83058971).
+The Python3.8 `gtsam` wheel for Linux is available [here](https://github.com/borglab/gtsam-manylinux-build/suites/4140410005/artifacts/106127967).
 
 **Mac**
 On Mac OSX, there is no CUDA support, so run:
@@ -37,7 +38,7 @@ On Mac OSX, there is no CUDA support, so run:
 conda env create -f environment_mac.yml
 conda activate gtsfm-v1
 ```
-Download the Python 3.8 gtsam wheel for Mac [here](https://github.com/borglab/gtsam-manylinux-build/suites/3489546443/artifacts/83058973), and install it as
+Download the Python 3.8 gtsam wheel for Mac [here](https://github.com/borglab/gtsam-manylinux-build/suites/4140410005/artifacts/106127969), and install it as
 ```bash
 pip install ~/Downloads/gtsam-4.1.1-py3-none-any.whl
 ```
@@ -50,14 +51,7 @@ pip install -e .
 ```
 Make sure that you can run `python -c "import gtsfm; import gtsam; print('hello world')"` in python, and you are good to go!
 
-## Compiling Additional Verifiers
-On Mac OSX, there is no `pydegensac` wheel in `pypi`, instead build pydegensac: 
-```bash
-git clone https://github.com/ducha-aiki/pydegensac.git
-cd pydegensac
-python setup.py bdist_wheel
-pip install dist/pydegensac-0.1.2-cp38-cp38-macosx_10_15_x86_64.whl
-```
+
 
 ## Usage Guide (Running 3d Reconstruction)
 
@@ -66,10 +60,27 @@ Before running reconstruction, if you intend to use modules with pre-trained wei
 ./download_model_weights.sh
 ```
 
-To run SfM with a dataset with only a image directory and EXIF, with image file names ending with "jpg", run:
-```python
-python gtsfm/runner/run_scene_optimizer.py --config_name {CONFIG_NAME} --dataset_root {DATASET_ROOT} --image_extension jpg --num_workers {NUM_WORKERS}
+To run SfM with a dataset with only an image directory and EXIF, with image file names ending with "jpg", please create the following file structure like
+
+```   
+└── {DATASET_NAME}
+       ├── images
+               ├── image1.jpg
+               ├── image2.jpg
+               ├── image3.jpg
 ```
+and run
+```python
+python gtsfm/runner/run_scene_optimizer_olssonloader.py --config_name {CONFIG_NAME} --dataset_root {DATASET_ROOT} --image_extension jpg --num_workers {NUM_WORKERS}
+```
+For example, if you had 4 cores available and wanted to use the Deep Front-End (recommended), you should run:
+```bash
+python gtsfm/runner/run_scene_optimizer_olssonloader.py --dataset_root /path/to/{DATASET_NAME} --image_extension jpg --config_name deep_front_end.yaml --num_workers 4
+```
+(or however many workers you desire).
+
+Currently we require EXIF data embedded into your images (or you can provide ground truth intrinsics in the expected format for an Olsson dataset, or COLMAP-exported text data, etc)
+
 
 If you would like to compare GTSFM output with COLMAP output, please run:
 ```python
@@ -77,6 +88,14 @@ python gtsfm/runner/run_scene_optimizer_colmap_loader.py --config_name {CONFIG_N
 ```
 where `COLMAP_FILES_DIRPATH` is a directory where .txt files such as `cameras.txt`, `images.txt`, etc have been saved.
 
+
+To visualize the result using Open3D, run:
+```bash
+python visualization/view_scene.py --rendering_library open3d --point_rendering_mode point
+```
+
+For users that are working with the same dataset repeatedly, we provide functionality to cache front-end results for 
+GTSFM for very fast inference afterwards. For more information, please refer to [`gtsfm/frontend/cacher/README.md`](https://github.com/borglab/gtsfm/tree/master/gtsfm/frontend/cacher).
 
 ## Repository Structure
 
@@ -95,6 +114,7 @@ GTSFM is designed in an extremely modular way. Each module can be swapped out wi
         - `descriptor`: feature descriptor implementations ([SIFT](https://www.cs.ubc.ca/~lowe/papers/ijcv04.pdf), [SuperPoint](https://arxiv.org/abs/1712.07629) etc)
         - `matcher`: descriptor matching implementations ([Superglue](https://arxiv.org/abs/1911.11763), etc)
         - `verifier`: 2d-correspondence verifier implementations ([Degensac](https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.466.2719&rep=rep1&type=pdf), OA-Net, etc)
+        - `cacher`: Cache implementations for different stages of the front-end.
     - `loader`: image data loaders
     - `utils`: utility functions such as serialization routines and pose comparisons, etc
 - `tests`: unit tests on every function and module
@@ -116,3 +136,7 @@ Open-source Python implementation:
 }
 ```
 Note: authors are listed in alphabetical order.
+
+
+## Compiling Additional Verifiers
+On Linux, we have made `pycolmap`'s LORANSAC available in [pypi](https://pypi.org/project/pycolmap/). However, on Mac, `pycolmap` must be built from scratch. See the instructions [here](https://github.com/borglab/gtsfm/blob/master/gtsfm/frontend/verifier/loransac.py#L10).
