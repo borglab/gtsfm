@@ -45,6 +45,8 @@ def test_compute_cycle_error_known_GT() -> None:
             num_inliers_est_model=10,  # dummy value
             R_error_deg=R_error_deg,
             U_error_deg=U_error_deg,
+            inlier_ratio_H=0.5,  # dummy value
+            num_inliers_H=100,  # dummy value
         )
 
     two_view_reports_dict = {}
@@ -89,7 +91,9 @@ def test_compute_cycle_error_unknown_GT() -> None:
         # rest of attributes will default to None
         return TwoViewEstimationReport(
             v_corr_idxs=np.array([]),  # dummy array
-            num_inliers_est_model=10,  # dummy value
+            num_inliers_est_model=10,  # dummy value,
+            inlier_ratio_H=0.5,  # dummy value
+            num_inliers_H=100,  # dummy value
         )
 
     two_view_reports_dict = {}
@@ -148,6 +152,8 @@ def test_filter_to_cycle_consistent_edges() -> None:
         two_view_reports_dict[(i1, i2)] = TwoViewEstimationReport(
             v_corr_idxs=np.array([]),  # dummy array
             num_inliers_est_model=10,  # dummy value
+            inlier_ratio_H=0.5,  # dummy value
+            num_inliers_H=100,  # dummy value
         )
         v_corr_idxs_dict[(i1, i2)] = None  # fill with dummy value
 
@@ -155,7 +161,7 @@ def test_filter_to_cycle_consistent_edges() -> None:
         i2Ri1_dict_consistent,
         i2Ui1_dict_consistent,
         v_corr_idxs_dict_consistent,
-        rcc_metrics_group
+        rcc_metrics_group,
     ) = cycle_utils.filter_to_cycle_consistent_edges(
         i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports_dict, visualize=True
     )

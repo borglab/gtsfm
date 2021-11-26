@@ -3,6 +3,7 @@
 Authors: Ayush Baid, John Lambert
 """
 import logging
+from collections import defaultdict
 from typing import Dict, Optional, Tuple, List
 
 import dask
@@ -13,11 +14,13 @@ from gtsam import Pose3, Rot3, Unit3
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
-from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
+from gtsfm.common.keypoints import Keypoints
+from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport, TwoViewConfigurationType
+from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
+from gtsfm.frontend.homography_verifier.homography_verifier_base import HomographyVerifierBase
 from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
-from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 
 logger = logger_utils.get_logger()
@@ -28,8 +31,6 @@ mpl_logger.setLevel(logging.WARNING)
 pil_logger = logging.getLogger("PIL")
 pil_logger.setLevel(logging.INFO)
 
-EPSILON = 1e-6
-
 
 class TwoViewEstimator:
     """Wrapper for running two-view relative pose estimation on image pairs in the dataset."""
@@ -38,6 +39,7 @@ class TwoViewEstimator:
         self,
         matcher: MatcherBase,
         verifier: VerifierBase,
+        homography_verifier: HomographyVerifierBase,
         inlier_support_processor: InlierSupportProcessor,
         eval_threshold_px: float,
     ) -> None:
@@ -46,12 +48,14 @@ class TwoViewEstimator:
         Args:
             matcher: matcher to use.
             verifier: verifier to use.
+            homography_verifier:
             inlier_support_processor: post-processor that uses information about RANSAC support to filter out pairs.
             eval_threshold_px: distance threshold for marking a correspondence pair as inlier during evaluation
                 (not during estimation).
         """
         self._matcher = matcher
         self._verifier = verifier
+        self._homography_verifier = homography_verifier
         self.processor = inlier_support_processor
         self._corr_metric_dist_threshold = eval_threshold_px
 
@@ -139,9 +143,24 @@ class TwoViewEstimator:
             R_error_deg, U_error_deg = None, None
             v_corr_idxs_inlier_mask_gt, reproj_error_gt_model = None, None
 
+        # Note: homography estimation threshold must match the E / F thresholds for #inliers to be comparable
+        # TODO(johnwlambert): H_graph is currently unused, but in a future PR pose from homography will be extracted.
+        H_graph, H_inlier_idxs, inlier_ratio_H, num_inliers_H = dask.delayed(self._homography_verifier.verify, nout=4)(
+            keypoints_i1_graph,
+            keypoints_i2_graph,
+            match_indices=corr_idxs_graph,
+            estimation_threshold_px=self._verifier._estimation_threshold_px,
+        )
+
         two_view_report_graph = dask.delayed(generate_two_view_report)(
-            inlier_ratio_est_model,
-            v_corr_idxs_graph,
+            inlier_ratio_est_model=inlier_ratio_est_model,
+            num_inliers_H=num_inliers_H,
+            inlier_ratio_H=inlier_ratio_H,
+            R_error_deg=R_error_deg,
+            U_error_deg=U_error_deg,
+            corr_idxs=corr_idxs_graph,
+            v_corr_idxs_inlier_mask_gt=v_corr_idxs_inlier_mask_gt,
+            v_corr_idxs=v_corr_idxs_graph,
             R_error_deg=R_error_deg,
             U_error_deg=U_error_deg,
             v_corr_idxs_inlier_mask_gt=v_corr_idxs_inlier_mask_gt,
@@ -161,6 +180,10 @@ class TwoViewEstimator:
 
 def generate_two_view_report(
     inlier_ratio_est_model: float,
+    num_inliers_H: int,
+    inlier_ratio_H: float,
+    inlier_ratio_gt_model: float,
+    corr_idxs: np.ndarray,
     v_corr_idxs: np.ndarray,
     R_error_deg: Optional[float] = None,
     U_error_deg: Optional[float] = None,
@@ -172,11 +195,7 @@ def generate_two_view_report(
     if v_corr_idxs_inlier_mask_gt is not None and reproj_error_gt_model is not None:
         num_inliers_gt_model = np.count_nonzero(v_corr_idxs_inlier_mask_gt)
         inlier_ratio_gt_model = (
-            np.count_nonzero(v_corr_idxs_inlier_mask_gt) / v_corr_idxs.shape[0] if len(v_corr_idxs) > 0 else 0.0
-        )
-        inlier_avg_reproj_error_gt_model = np.mean(reproj_error_gt_model[v_corr_idxs_inlier_mask_gt])
-        outlier_avg_reproj_error_gt_model = np.nanmean(
-            reproj_error_gt_model[np.logical_not(v_corr_idxs_inlier_mask_gt)]
+            np.count_nonzero(v_corr_idxs_inlier_mask_gt) / corr_idxs.shape[0] if len(corr_idxs) > 0 else 0.0
         )
     else:
         num_inliers_gt_model = 0
@@ -187,6 +206,8 @@ def generate_two_view_report(
     # Generate report.
     two_view_report = TwoViewEstimationReport(
         inlier_ratio_est_model=inlier_ratio_est_model,
+        num_inliers_H=num_inliers_H,
+        inlier_ratio_H=inlier_ratio_H,
         num_inliers_est_model=v_corr_idxs.shape[0],
         num_inliers_gt_model=num_inliers_gt_model,
         inlier_ratio_gt_model=inlier_ratio_gt_model,
@@ -194,9 +215,7 @@ def generate_two_view_report(
         v_corr_idxs=v_corr_idxs,
         R_error_deg=R_error_deg,
         U_error_deg=U_error_deg,
-        reproj_error_gt_model=reproj_error_gt_model,
-        inlier_avg_reproj_error_gt_model=inlier_avg_reproj_error_gt_model,
-        outlier_avg_reproj_error_gt_model=outlier_avg_reproj_error_gt_model,
+        reproj_errors_gt_model=reproj_errors_gt_model,
     )
     return two_view_report
 
@@ -251,6 +270,8 @@ def aggregate_frontend_metrics(
     inlier_ratio_est_model_all_pairs = []
     num_inliers_gt_model_all_pairs = []
     num_inliers_est_model_all_pairs = []
+    configuration_counts = defaultdict(int)
+
     # populate the distributions
     for report in two_view_reports_dict.values():
         if report is None:
@@ -264,6 +285,8 @@ def aggregate_frontend_metrics(
         inlier_ratio_est_model_all_pairs.append(report.inlier_ratio_est_model)
         num_inliers_gt_model_all_pairs.append(report.num_inliers_gt_model)
         num_inliers_est_model_all_pairs.append(report.num_inliers_est_model)
+
+        configuration_counts[report.configuration_type] += 1
 
     rot3_angular_errors = np.array(rot3_angular_errors, dtype=float)
     trans_angular_errors = np.array(trans_angular_errors, dtype=float)
@@ -283,28 +306,41 @@ def aggregate_frontend_metrics(
         [report.inlier_ratio_gt_model == 1.0 for report in two_view_reports_dict.values() if report is not None]
     )
 
-    logger.debug(
+    calibrated_configuration_percent = configuration_counts[TwoViewConfigurationType.CALIBRATED] / num_image_pairs * 100
+    planar_or_panoramic_configuration_percent = (
+        configuration_counts[TwoViewConfigurationType.PLANAR_OR_PANORAMIC] / num_image_pairs * 100
+    )
+    degenerate_configuration_percent = configuration_counts[TwoViewConfigurationType.DEGENERATE] / num_image_pairs * 100
+
+    logger.info(
+        "[Two view optimizer] [Summary] Calibrated %.1f%%, Planar/Panoramic %.1f%%, Degenerate: %.1f%%",
+        calibrated_configuration_percent,
+        planar_or_panoramic_configuration_percent,
+        degenerate_configuration_percent,
+    )
+
+    logger.info(
         "[Two view optimizer] [Summary] Rotation success: %d/%d/%d",
         success_count_rot3,
         num_valid_image_pairs,
         num_image_pairs,
     )
 
-    logger.debug(
+    logger.info(
         "[Two view optimizer] [Summary] Translation success: %d/%d/%d",
         success_count_unit3,
         num_valid_image_pairs,
         num_image_pairs,
     )
 
-    logger.debug(
+    logger.info(
         "[Two view optimizer] [Summary] Pose success: %d/%d/%d",
         success_count_pose,
         num_valid_image_pairs,
         num_image_pairs,
     )
 
-    logger.debug(
+    logger.info(
         "[Two view optimizer] [Summary] # Image pairs with 100%% inlier ratio:: %d/%d", all_correct, num_image_pairs
     )
 
@@ -326,6 +362,9 @@ def aggregate_frontend_metrics(
             GtsfmMetric("inlier_ratio_wrt_est_model", inlier_ratio_est_model_all_pairs),
             GtsfmMetric("num_inliers_est_model", num_inliers_est_model_all_pairs),
             GtsfmMetric("num_inliers_gt_model", num_inliers_gt_model_all_pairs),
+            GtsfmMetric("degenerate_configuration_percent", degenerate_configuration_percent),
+            GtsfmMetric("planar_or_panoramic_configuration_percent", planar_or_panoramic_configuration_percent),
+            GtsfmMetric("calibrated_configuration_percent", calibrated_configuration_percent),
         ],
     )
     return frontend_metrics
