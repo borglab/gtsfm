@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from typing import Optional, Dict, Tuple, List
 
+import trimesh
 from gtsam import Cal3Bundler, Pose3, Rot3, Point3, SfmTrack
 
 import gtsfm.utils.io as io_utils
@@ -33,6 +34,7 @@ class AstronetLoader(LoaderBase):
     def __init__(
         self,
         data_dir: str,
+        gt_scene_mesh_path: str = None,
         use_gt_extrinsics: bool = True,
         use_gt_sfmtracks: bool = False,
         max_frame_lookahead: int = 2,
@@ -49,6 +51,8 @@ class AstronetLoader(LoaderBase):
 
         Args:
             data_dir: path to directory containing the COLMAP-formatted data: cameras.bin, images.bin, and points3D.bin
+            gt_scene_mesh_path (optional): path to file of target small body surface mesh.
+                Note: vertex size mismath observed when reading in from OBJ format. Prefer PLY.
             use_gt_extrinsics (optional): whether to use ground truth extrinsics. Used only for comparison with
                 reconstructed values.
             use_gt_sfmtracks (optional): whether to use ground truth tracks. Used only for comparison with reconstructed
@@ -78,6 +82,19 @@ class AstronetLoader(LoaderBase):
             cameras, images, points3d, load_sfmtracks=use_gt_sfmtracks
         )
 
+        # Read in scene mesh as Trimesh object
+        if gt_scene_mesh_path is not None:
+            if not Path(gt_scene_mesh_path).exists():
+                raise FileNotFoundError(f"No mesh found at {gt_scene_mesh_path}")
+            self.gt_scene_trimesh = trimesh.load(gt_scene_mesh_path, process=False, maintain_order=True)
+            logger.info(
+                "AstroNet loader read in mesh with %d vertices and %d faces.",
+                self.gt_scene_trimesh.vertices.shape[0],
+                self.gt_scene_trimesh.faces.shape[0],
+            )
+        else:
+            self.gt_scene_trimesh = None
+
         # Camera intrinsics are currently required due to absence of EXIF data and diffculty in approximating focal
         # length (usually 10000 to 100000 pixels).
         if self._calibrations is None:
@@ -90,7 +107,7 @@ class AstronetLoader(LoaderBase):
             raise RuntimeError("Ground truth SfMTrack data requested but missing.")
         self.num_sfmtracks = len(self._sfmtracks) if self._sfmtracks is not None else 0
 
-        # Prepare image paths
+        # Prepare image paths.
         self._image_paths = []
         for img_fname in img_fnames:
             img_fpath = os.path.join(data_dir, "images", img_fname)
@@ -226,7 +243,7 @@ class AstronetLoader(LoaderBase):
         return sfmtrack
 
     def is_valid_pair(self, idx1: int, idx2: int) -> bool:
-        """Checks if (idx1, idx2) is a valid pair.
+        """Checks if (idx1, idx2) is a valid pair. idx1 < idx2 is required.
 
         Args:
             idx1: first index of the pair.
@@ -235,4 +252,4 @@ class AstronetLoader(LoaderBase):
         Returns:
             validation result.
         """
-        return idx1 < idx2 and abs(idx1 - idx2) <= self._max_frame_lookahead
+        return super().is_valid_pair(idx1, idx2) and abs(idx1 - idx2) <= self._max_frame_lookahead

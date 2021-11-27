@@ -4,12 +4,14 @@ Authors: Ayush Baid, Akshay Krishnan
 """
 import itertools
 import os
+import timeit
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
-from dask.delayed import Delayed
 import numpy as np
-from gtsam import Cal3Bundler, EssentialMatrix, Point3, Pose3, Rot3, Unit3
+from trimesh import Trimesh
+from dask.delayed import Delayed
+from gtsam import PinholeCameraCal3Bundler, Cal3Bundler, EssentialMatrix, Point3, Pose3, Rot3, Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
@@ -26,18 +28,22 @@ StatsDict = Dict[str, Union[Optional[float], List[Optional[float]]]]
 METRICS_PATH = Path(__file__).resolve().parent.parent.parent / "result_metrics"
 REACT_METRICS_PATH = Path(__file__).resolve().parent.parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
 
+EPSILON = 1e-12
 
 logger = logger_utils.get_logger()
 
 
-def count_correct_correspondences(
+def compute_correspondence_metrics(
     keypoints_i1: Keypoints,
     keypoints_i2: Keypoints,
+    corr_idxs_i1i2: np.ndarray,
     intrinsics_i1: Cal3Bundler,
     intrinsics_i2: Cal3Bundler,
-    i2Ti1: Pose3,
-    epipolar_dist_threshold: float,
-) -> int:
+    dist_threshold: float,
+    gt_wTi1: Optional[Pose3] = None,
+    gt_wTi2: Optional[Pose3] = None,
+    gt_scene_mesh: Optional[Trimesh] = None,
+) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
     """Checks the correspondences for epipolar distances and counts ones which are below the threshold.
 
     Args:
@@ -45,29 +51,168 @@ def count_correct_correspondences(
         keypoints_i2: corr. keypoints in image i2.
         intrinsics_i1: intrinsics for i1.
         intrinsics_i2: intrinsics for i2.
-        i2Ti1: relative pose
-        epipolar_dist_threshold: max acceptable distance for a correct correspondence.
+        dist_threshold: max acceptable distance for a correct correspondence.
+        gt_wTi1: ground truth pose of image i1.
+        gt_wTi2: ground truth pose of image i2.
+        gt_scene_mesh: ground truth triangular surface mesh of the scene in the world frame.
 
     Raises:
         ValueError: when the number of keypoints do not match.
 
     Returns:
-        Number of correspondences which are correct.
+        Boolean mask of which verified correspondences are classified as correct under Sampson error
+            (using GT epipolar geometry).
+        Reprojection error for every verified correspondence against GT geometry.
     """
-    # TODO: add unit test, with mocking.
-    if len(keypoints_i1) != len(keypoints_i2):
-        raise ValueError("Keypoints must have same counts")
+    if corr_idxs_i1i2.size == 0:
+        return None, None
 
-    if len(keypoints_i1) == 0:
-        return 0
+    if gt_wTi1 is None or gt_wTi2 is None:
+        return None, None
 
+    # Compute ground truth correspondences.
+    matched_keypoints_i1 = keypoints_i1.extract_indices(corr_idxs_i1i2[:, 0])
+    matched_keypoints_i2 = keypoints_i2.extract_indices(corr_idxs_i1i2[:, 1])
+    # Check to see if a GT mesh is provided.
+    if gt_scene_mesh is not None:
+        gt_camera_i1 = PinholeCameraCal3Bundler(gt_wTi1, intrinsics_i1)
+        gt_camera_i2 = PinholeCameraCal3Bundler(gt_wTi2, intrinsics_i2)
+        is_inlier, reproj_error = mesh_inlier_correspondences(
+            matched_keypoints_i1,
+            matched_keypoints_i2,
+            gt_camera_i1,
+            gt_camera_i2,
+            gt_scene_mesh,
+            dist_threshold,
+        )
+        return is_inlier, reproj_error
+
+    # If no mesh is provided, use squared Sampson error.
+    gt_i2Ti1 = gt_wTi2.between(gt_wTi1)
+    is_inlier, reproj_error = epipolar_inlier_correspondences(
+        matched_keypoints_i1,
+        matched_keypoints_i2,
+        intrinsics_i1,
+        intrinsics_i2,
+        gt_i2Ti1,
+        dist_threshold,
+    )
+    return is_inlier, reproj_error
+
+
+def epipolar_inlier_correspondences(
+    keypoints_i1: Keypoints,
+    keypoints_i2: Keypoints,
+    intrinsics_i1: Cal3Bundler,
+    intrinsics_i2: Cal3Bundler,
+    i2Ti1: Pose3,
+    dist_threshold: float,
+) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    """Compute inlier correspondences using epipolar geometry and the ground truth relative pose.
+
+    Args:
+        keypoints_i1: keypoints in image i1.
+        keypoints_i2: corr. keypoints in image i2.
+        intrinsics_i1: intrinsics for i1.
+        intrinsics_i2: intrinsics for i2.
+        i2Ti1: relative pose
+        dist_threshold: max acceptable distance for a correct correspondence.
+
+    Returns:
+        is_inlier: (N, ) mask of inlier correspondences.
+        distance_squared: squared sampson distance between corresponding keypoints.
+    """
     i2Ei1 = EssentialMatrix(i2Ti1.rotation(), Unit3(i2Ti1.translation()))
     i2Fi1 = verification_utils.essential_to_fundamental_matrix(i2Ei1, intrinsics_i1, intrinsics_i2)
-
     distance_squared = verification_utils.compute_epipolar_distances_sq_sampson(
         keypoints_i1.coordinates, keypoints_i2.coordinates, i2Fi1
     )
-    return np.count_nonzero(distance_squared < epipolar_dist_threshold ** 2)
+    is_inlier = distance_squared < dist_threshold ** 2 if distance_squared is not None else None
+
+    return is_inlier, distance_squared
+
+
+def mesh_inlier_correspondences(
+    keypoints_i1: Keypoints,
+    keypoints_i2: Keypoints,
+    gt_camera_i1: PinholeCameraCal3Bundler,
+    gt_camera_i2: PinholeCameraCal3Bundler,
+    gt_scene_mesh: Trimesh,
+    dist_threshold: float,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Compute inlier correspondences using the ground truth triangular surface mesh of the scene. First, rays are
+    back-projected at each keypoint in the images and intersections between these rays and the ground truth mesh are
+    recorded. Next, given a match, the mesh intersections corresponding to each keypoint are forward-projected into the
+    other image and the reprojection error is computed to decide whether the match is an inlier.
+
+    Args:
+        keypoints_i1: N keypoints in image i1.
+        keypoints_i2: N corresponding keypoints in image i2.
+        gt_camera_i1: ground truth camera for image i1, i.e., wTi1 and intrinsics.
+        gt_camera_i1: ground truth camera for image i2, i.e., wTi2 and intrinsics.
+        gt_scene_mesh: ground truth triangular surface mesh of the scene in the world frame.
+        dist_threshold: max acceptable reprojection error (in pixels) between image coordinates of ground truth landmark
+            and keypoint.
+
+    Returns:
+        is_inlier: (N, ) mask of inlier correspondences.
+        reproj_err: maximum error between forward-projected ground truth landmark and corresponding keypoints
+
+    Raises:
+        ValueError if the number of keypoints do not match.
+    """
+    if len(keypoints_i1) != len(keypoints_i2):
+        raise ValueError("Keypoints must have same counts")
+    n_corrs = len(keypoints_i1)
+    is_inlier = np.zeros(n_corrs, dtype=bool)
+
+    # Perform ray tracing to compute keypoint intersections.
+    keypoint_ind_i1, intersections_i1 = compute_keypoint_intersections(keypoints_i1, gt_camera_i1, gt_scene_mesh)
+    keypoint_ind_i2, intersections_i2 = compute_keypoint_intersections(keypoints_i2, gt_camera_i2, gt_scene_mesh)
+    keypoint_ind, i1_idx, i2_idx = np.intersect1d(keypoint_ind_i1, keypoint_ind_i2, return_indices=True)
+
+    # Forward project intersections into other image to compute error.
+    reproj_err = np.array([np.nan] * len(keypoints_i1))
+    for i in range(len(keypoint_ind)):
+        uv_i1 = keypoints_i1.coordinates[keypoint_ind[i]]
+        uv_i2 = keypoints_i2.coordinates[keypoint_ind[i]]
+        uv_i2i1, success_flag_i1 = gt_camera_i1.projectSafe(intersections_i2[i2_idx[i]])
+        uv_i1i2, success_flag_i2 = gt_camera_i2.projectSafe(intersections_i1[i1_idx[i]])
+        if success_flag_i1 and success_flag_i2:
+            err_i2i1 = np.linalg.norm(uv_i1 - uv_i2i1)
+            err_i1i2 = np.linalg.norm(uv_i2 - uv_i1i2)
+            is_inlier[keypoint_ind[i]] = max(err_i2i1, err_i1i2) < dist_threshold
+            reproj_err[keypoint_ind[i]] = max(err_i2i1, err_i1i2)
+        else:
+            is_inlier[keypoint_ind[i]] = False
+            reproj_err[keypoint_ind[i]] = np.nan
+
+    return is_inlier, reproj_err
+
+
+def compute_keypoint_intersections(
+    keypoints: Keypoints, gt_camera: PinholeCameraCal3Bundler, gt_scene_mesh: Trimesh, verbose: bool = False
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Computes intersections between ground truth surface mesh and rays originating from image keypoints.
+
+    Args:
+        keypoints: N keypoints computed in image.
+        gt_camera: ground truth camera.
+        gt_scene_mesh: ground truth triangular surface mesh.
+
+    Returns:
+        keypoint_ind: (M,) array of keypoint indices whose corresponding ray intersected the ground truth mesh.
+        intersections_locations: (M, 3), array of ray intersection locations.
+    """
+    num_kpts = len(keypoints)
+    src = np.repeat(gt_camera.pose().translation().reshape((-1, 3)), num_kpts, axis=0)  # At_i1A
+    drc = np.asarray([gt_camera.backproject(keypoints.coordinates[i], depth=1.0) - src[i, :] for i in range(num_kpts)])
+    start_time = timeit.default_timer()
+    intersections, keypoint_ind, _ = gt_scene_mesh.ray.intersects_location(src, drc, multiple_hits=False)
+    if verbose:
+        logger.debug("Case %d rays in %.6f seconds.", num_kpts, timeit.default_timer() - start_time)
+
+    return keypoint_ind, intersections
 
 
 def compute_rotation_angle_metric(wRi_list: List[Optional[Rot3]], gt_wRi_list: List[Optional[Pose3]]) -> GtsfmMetric:
@@ -278,3 +423,16 @@ def save_metrics_as_json(metrics_groups: Delayed, output_dir: str) -> None:
     """
     for metrics_group in metrics_groups:
         metrics_group.save_to_json(os.path.join(output_dir, metrics_group.name + ".json"))
+
+
+def compute_percentage_change(x: float, y: float) -> float:
+    """Return percentage in representing the regression or improvement of a value x, for new value y.
+
+    Args:
+        x: original value to compare against.
+        y: new value.
+
+    Returns:
+        percentage change (may be positive or negative).
+    """
+    return (y - x) / (x + EPSILON) * 100

@@ -2,13 +2,15 @@
 
 Authors: Ayush Baid, John Lambert
 """
+import json
 import os
+import pickle
+from bz2 import BZ2File
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import gtsam
 import h5py
-import json
 import numpy as np
 from gtsam import Cal3Bundler, Rot3, Pose3
 from PIL import Image as PILImage
@@ -359,6 +361,18 @@ def read_points_txt(fpath: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarr
     return point_cloud, rgb
 
 
+def read_scene(
+    images_fpath: str, cameras_fpath: str, points_fpath: str
+) -> Tuple[List[Pose3], List[str], List[Cal3Bundler], np.ndarray, np.ndarray]:
+    """Reads in full scene reconstruction model."""
+    wTi_list, img_fnames = read_images_txt(images_fpath)
+    calibrations = read_cameras_txt(cameras_fpath)
+    point_cloud, rgb = read_points_txt(points_fpath)
+    if any(x is None for x in [wTi_list, img_fnames, calibrations, point_cloud, rgb]):
+        raise RuntimeError("One or more of the requested model data products was not found.")
+    return wTi_list, img_fnames, calibrations, point_cloud, rgb
+
+
 def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
     """Writes the point cloud data file in the COLMAP format.
 
@@ -418,3 +432,24 @@ def save_track_visualizations(
         stacked_image = image_utils.vstack_image_list(patches)
         save_fpath = os.path.join(save_dir, f"track_{i}.jpg")
         save_image(stacked_image, img_path=save_fpath)
+
+
+def read_from_bz2_file(file_path: Path) -> Optional[Any]:
+    """Reads data using pickle from a compressed file, if it exists."""
+    if not file_path.exists():
+        return None
+
+    try:
+        data = pickle.load(BZ2File(file_path, "rb"))
+    except Exception:
+        logger.exception("Cache file was corrupted, removing it...")
+        os.remove(file_path)
+        data = None
+
+    return data
+
+
+def write_to_bz2_file(data: Any, file_path: Path) -> None:
+    """Writes data using pickle to a compressed file."""
+    file_path.parent.mkdir(exist_ok=True, parents=True)
+    pickle.dump(data, BZ2File(file_path, "wb"))

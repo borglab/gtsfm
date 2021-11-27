@@ -5,6 +5,7 @@ Authors: Travis Driver
 
 import unittest
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 from gtsam import Pose3, PinholeCameraCal3Bundler
@@ -32,7 +33,7 @@ class TestAstroNetLoader(unittest.TestCase):
         super().setUp()
 
         data_dir = TEST_DATA_ROOT / "astronet" / "test_2011212_opnav_022"
-        # gt_scene_mesh_path = data_dir / "vesta_5002.ply"
+        gt_scene_mesh_path = data_dir / "vesta_5002.ply"
 
         # Read in COLMAP-formatted data for comparison.
         self.cameras, self.images, self.points3d = colmap_io.read_model(data_dir)
@@ -40,6 +41,7 @@ class TestAstroNetLoader(unittest.TestCase):
         # Initialize Loader.
         self.loader = AstronetLoader(
             data_dir,
+            gt_scene_mesh_path=gt_scene_mesh_path,
             use_gt_extrinsics=True,
             use_gt_sfmtracks=True,
             max_frame_lookahead=2,
@@ -47,8 +49,9 @@ class TestAstroNetLoader(unittest.TestCase):
 
     def test_constructor_set_properties(self) -> None:
         """Ensure that constructor sets class properties correctly."""
-        # assert self.loader._gt_scene_trimesh is not None
-        # assert self.loader._gt_scene_trimesh.vertices;shape[0] == 5002
+        assert self.loader.gt_scene_trimesh is not None
+        assert self.loader.gt_scene_trimesh.vertices.shape[0] == 5002
+        assert self.loader.gt_scene_trimesh.faces.shape[0] == 10000
         assert self.loader._use_gt_extrinsics
         assert self.loader._use_gt_sfmtracks
         assert self.loader._max_frame_lookahead == 2
@@ -178,6 +181,20 @@ class TestAstroNetLoader(unittest.TestCase):
                 uvs_expected.append(uv_expected)
         # assert all to within 1 pixel absolute difference
         np.testing.assert_allclose(uvs_measured, uvs_expected, atol=1)
+
+    @patch("gtsfm.loader.loader_base.LoaderBase.is_valid_pair", return_value=True)
+    def test_is_valid_pair_within_lookahead(self, base_is_valid_pair_mock: MagicMock) -> None:
+        i1 = 5
+        i2 = 7
+        self.assertTrue(self.loader.is_valid_pair(i1, i2))
+        base_is_valid_pair_mock.assert_called_once_with(i1, i2)
+
+    @patch("gtsfm.loader.loader_base.LoaderBase.is_valid_pair", return_value=True)
+    def test_is_valid_pair_outside_lookahead(self, base_is_valid_pair_mock: MagicMock) -> None:
+        i1 = 5
+        i2 = 15
+        self.assertFalse(self.loader.is_valid_pair(i1, i2))
+        base_is_valid_pair_mock.assert_called_once_with(i1, i2)
 
 
 if __name__ == "__main__":

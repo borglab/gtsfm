@@ -114,9 +114,7 @@ class TestRansacVerifierArgoverse(unittest.TestCase):
 
         np.random.seed(RANDOM_SEED)
         random.seed(RANDOM_SEED)
-        self.verifier = Ransac(
-            use_intrinsics_in_verification=True, estimation_threshold_px=0.5, min_allowed_inlier_ratio_est_model=0.1
-        )
+        self.verifier = Ransac(use_intrinsics_in_verification=True, estimation_threshold_px=0.5)
 
         self.euler_angle_err_tol = 1.0
         self.translation_err_tol = 0.01
@@ -148,9 +146,7 @@ class TestDegensacVerifierArgoverse(unittest.TestCase):
 
         np.random.seed(RANDOM_SEED)
         random.seed(RANDOM_SEED)
-        self.verifier = Degensac(
-            use_intrinsics_in_verification=False, estimation_threshold_px=0.5, min_allowed_inlier_ratio_est_model=0.1
-        )
+        self.verifier = Degensac(use_intrinsics_in_verification=False, estimation_threshold_px=0.5)
 
         self.euler_angle_err_tol = 2.0
         self.translation_err_tol = 0.02

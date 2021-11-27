@@ -29,18 +29,22 @@ def get_ortho_axis_alignment_transform(gtsfm_data: GtsfmData) -> Pose3:
     point_cloud = [gtsfm_data.get_track(j).point3() for j in range(num_pts)]
     point_cloud = np.array(point_cloud)  # point_cloud has shape Nx3
 
-    # Center point cloud, filter outlier points, and obtain alignment rotation.
-    points_centered, mean = center_point_cloud(point_cloud)
-    points_filtered = remove_outlier_points(points_centered)
-    wuprightRw = get_alignment_rotation_matrix_from_svd(points_filtered)
+    # Filter outlier points, Center point cloud, and obtain alignment rotation.
+    points_filtered, inlier_mask = remove_outlier_points(point_cloud)
+    points_centered = center_point_cloud(points_filtered)
+    wuprightRw = get_alignment_rotation_matrix_from_svd(points_centered)
+
+    # Calculate translation vector based off rotated point cloud (excluding outliers).
+    point_cloud_rotated = point_cloud @ wuprightRw.T
+    rotated_mean = np.mean(point_cloud_rotated[inlier_mask], axis=0)
 
     # Obtain the Pose3 object needed to align camera frustums.
-    walignedTw = Pose3(Rot3(wuprightRw), -1 * mean)
+    walignedTw = Pose3(Rot3(wuprightRw), -1 * rotated_mean)
 
     return walignedTw
 
 
-def center_point_cloud(point_cloud: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+def center_point_cloud(point_cloud: np.ndarray) -> np.ndarray:
     """Centers a point cloud using mean values of x, y, and z.
 
     Args:
@@ -48,7 +52,6 @@ def center_point_cloud(point_cloud: np.ndarray) -> Tuple[np.ndarray, np.ndarray]
 
     Returns:
         points_centered: array of shape (N,3) representing the centered point cloud
-        mean: array of shape (3.) representing the mean x,y,z coordinates of point cloud
 
     Raises:
         TypeError: if point_cloud is not of shape (N,3).
@@ -58,17 +61,18 @@ def center_point_cloud(point_cloud: np.ndarray) -> Tuple[np.ndarray, np.ndarray]
 
     mean = np.mean(point_cloud, axis=0)
     points_centered = point_cloud - mean
-    return points_centered, mean
+    return points_centered
 
 
-def remove_outlier_points(point_cloud: np.ndarray) -> np.ndarray:
+def remove_outlier_points(point_cloud: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """Removes the top 5% of points with greatest distance from origin.
 
     Args:
         point_cloud: point cloud of shape N x 3.
 
     Returns:
-        The filtered point cloud of shape M x 3 (M = 0.95*N).
+        points_filtered: filtered point cloud of shape M x 3 (M = 0.95*N)
+        inlier_mask: Boolean array, shape (N,), representing which points in point cloud are inliers.
 
     Raises:
         TypeError: if centered point cloud is not of shape (N,3).
@@ -78,8 +82,9 @@ def remove_outlier_points(point_cloud: np.ndarray) -> np.ndarray:
 
     mags = np.linalg.norm(point_cloud, axis=1)
     cutoff_mag = np.percentile(mags, OUTLIER_DISTANCE_PERCENTILE)
-    points_filtered = point_cloud[mags < cutoff_mag]
-    return points_filtered
+    inlier_mask = mags < cutoff_mag
+    points_filtered = point_cloud[inlier_mask]
+    return points_filtered, inlier_mask
 
 
 def get_alignment_rotation_matrix_from_svd(point_cloud: np.ndarray) -> np.ndarray:
@@ -98,9 +103,42 @@ def get_alignment_rotation_matrix_from_svd(point_cloud: np.ndarray) -> np.ndarra
     if point_cloud.shape[1] != 3:
         raise TypeError("Point Cloud should be 3 dimensional")
 
-    # U is NxN, S has 3 values along the diagonal, and Vt is 3x3
-    # S represents the scaling (lengths) of each of the three ellipsoid semi-axes
-    # ref: https://en.wikipedia.org/wiki/Singular_value_decomposition#Rotation,_coordinate_scaling,_and_reflection
-    U, S, Vt = np.linalg.svd(point_cloud, full_matrices=True)
-    wuprightRw = Vt
+    # Obtain right singular vectors to determine rotation matrix of point cloud.
+    V = get_right_singular_vectors(point_cloud)
+    Vt = V.T
+
+    # If det(Vt) = -1, then Vt is a reflection matrix and not a valid SO(3) transformation. Thus, we must estimate the
+    # closest rotation matrix to the reflection.
+    if not np.isclose(np.linalg.det(Vt), 1):
+        wuprightRw = Rot3.ClosestTo(Vt).matrix()  # changes Vt's eigenvalue from -1 to +1 to convert to rotation matrix
+    else:
+        wuprightRw = Vt
+
     return wuprightRw
+
+
+def get_right_singular_vectors(A: np.ndarray) -> np.ndarray:
+    """Extracts the right singular eigenvectors from the point cloud. Some of the eigenvectors could be randomly
+    multiplied by -1. Despite this, the eigenvectors will still remain valid.
+
+    Ref: https://stackoverflow.com/questions/18152052/matlab-eig-returns-inverted-signs-sometimes
+
+    Args:
+        A: point cloud of shape (N,3)
+
+    Returns:
+        The right singular vectors of the point cloud, shape (3,3).
+
+    Raises:
+        TypeError: if point cloud is not of shape (N,3).
+    """
+    if A.shape[1] != 3:
+        raise TypeError("Point Cloud should be 3 dimesional")
+
+    eigvals, eigvecs = np.linalg.eig(A.T @ A)
+
+    # Sort eigenvectors such that they correspond to eigenvalues sorted in descending order.
+    sort_idx = np.argsort(-eigvals)
+    eigvecs = eigvecs[:, sort_idx]
+
+    return eigvecs
