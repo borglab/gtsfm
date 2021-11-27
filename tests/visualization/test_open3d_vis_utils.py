@@ -10,7 +10,7 @@ import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 
 
 def test_round_trip_open3d_numpy_pointcloud() -> None:
-    """ """
+    """Round trip test to ensure numpy->Open3d->numpy conversion yields identity operation."""
 
     point_cloud = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0], [10.0, 11.0, 12.0]])
     rgb = np.array([[255, 0, 0], [101, 1, 0], [3, 6, 255], [0, 1, 2]], dtype=np.uint8)
