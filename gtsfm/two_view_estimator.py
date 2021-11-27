@@ -60,6 +60,7 @@ class TwoViewEstimator:
         matcher: MatcherBase,
         verifier: VerifierBase,
         inlier_support_processor: InlierSupportProcessor,
+        bundle_adjust_2view: bool,
         eval_threshold_px: float,
     ) -> None:
         """Initializes the two-view estimator from matcher and verifier.
@@ -68,12 +69,14 @@ class TwoViewEstimator:
             matcher: matcher to use.
             verifier: verifier to use.
             inlier_support_processor: post-processor that uses information about RANSAC support to filter out pairs.
+            bundle_adjust_2view: boolean flag indicating if bundle adjustment is to be run on the 2-view data.
             eval_threshold_px: distance threshold for marking a correspondence pair as inlier during evaluation
                 (not during estimation).
         """
         self._matcher = matcher
         self._verifier = verifier
         self.processor = inlier_support_processor
+        self._bundle_adjust_2view = bundle_adjust_2view
         self._corr_metric_dist_threshold = eval_threshold_px
 
     @classmethod
@@ -165,7 +168,7 @@ class TwoViewEstimator:
             keypoints_i2=keypoints_i2,
             corr_idxs=verified_corr_idxs,
         )
-        logger.info("Performed DA in %.6f seconds.", timeit.default_timer() - start_time)
+        logger.debug("Performed DA in %.6f seconds.", timeit.default_timer() - start_time)
 
         # Perform 2-view BA.
         start_time = timeit.default_timer()
@@ -180,7 +183,7 @@ class TwoViewEstimator:
             logger.warning("2-view BA failed")
             return i2Ri1_initial, i2Ui1_initial, verified_corr_idxs
         i2Ti1_optimized = wTi2.between(wTi1)
-        logger.info("Performed 2-view BA in %.6f seconds.", timeit.default_timer() - start_time)
+        logger.debug("Performed 2-view BA in %.6f seconds.", timeit.default_timer() - start_time)
 
         return i2Ti1_optimized.rotation(), Unit3(i2Ti1_optimized.translation()), verified_corr_idxs
 
@@ -248,15 +251,20 @@ class TwoViewEstimator:
             camera_intrinsics_i2_graph,
         )
 
-        post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs = dask.delayed(self.bundle_adjust, nout=3)(
-            keypoints_i1_graph,
-            keypoints_i2_graph,
-            pre_ba_v_corr_idxs,
-            camera_intrinsics_i1_graph,
-            camera_intrinsics_i2_graph,
-            pre_ba_i2Ri1,
-            pre_ba_i2Ui1,
-        )
+        if self._bundle_adjust_2view:
+            post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs = dask.delayed(self.bundle_adjust, nout=3)(
+                keypoints_i1_graph,
+                keypoints_i2_graph,
+                pre_ba_v_corr_idxs,
+                camera_intrinsics_i1_graph,
+                camera_intrinsics_i2_graph,
+                pre_ba_i2Ri1,
+                pre_ba_i2Ui1,
+            )
+        else:
+            post_ba_i2Ri1 = pre_ba_i2Ri1
+            post_ba_i2Ui1 = pre_ba_i2Ui1
+            post_ba_v_corr_idxs = pre_ba_v_corr_idxs
 
         # if we have the expected GT data, evaluate the computed relative pose
         if gt_wTi1_graph is not None and gt_wTi2_graph is not None:

@@ -13,6 +13,7 @@ SceneOptimizer:
 
   two_view_estimator:
     _target_: gtsfm.two_view_estimator.TwoViewEstimator
+    bundle_adjust_2view: True
     eval_threshold_px: 0.5 # in px
 
     matcher:
