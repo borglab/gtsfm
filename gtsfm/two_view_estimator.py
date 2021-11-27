@@ -48,8 +48,7 @@ POST_BA_REPORT_TAG = "POST_BA_2VIEW_REPORT"
 POST_ISP_REPORT_TAG = "POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT"
 POST_CYCLE_CONSISTENT_REPORT_TAG = "POST_CYCLE_CONSISTENT_2VIEW_REPORT"
 
-
-BUNDLE_ADJUST_2VIEW = BundleAdjustmentOptimizer(robust_measurement_noise=True, max_iterations=10)
+BUNDLE_ADJUST_2VIEW = BundleAdjustmentOptimizer(robust_measurement_noise=True, max_iterations=None)
 
 
 class TwoViewEstimator:
