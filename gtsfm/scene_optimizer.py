@@ -311,11 +311,15 @@ def save_visualizations(
     Returns:
         A list of Delayed objects after saving the different visualizations.
     """
+    aligned_ba_input_graph = dask.delayed(lambda x, y: x.align_via_Sim3_to_poses(y))(ba_input_graph, gt_pose_graph)
+    aligned_ba_output_graph = dask.delayed(lambda x, y: x.align_via_Sim3_to_poses(y))(ba_output_graph, gt_pose_graph)
     viz_graph_list = []
-    viz_graph_list.append(dask.delayed(viz_utils.save_sfm_data_viz)(ba_input_graph, PLOT_BA_INPUT_PATH))
-    viz_graph_list.append(dask.delayed(viz_utils.save_sfm_data_viz)(ba_output_graph, PLOT_RESULTS_PATH))
+    viz_graph_list.append(dask.delayed(viz_utils.save_sfm_data_viz)(aligned_ba_input_graph, PLOT_BA_INPUT_PATH))
+    viz_graph_list.append(dask.delayed(viz_utils.save_sfm_data_viz)(aligned_ba_output_graph, PLOT_RESULTS_PATH))
     viz_graph_list.append(
-        dask.delayed(viz_utils.save_camera_poses_viz)(ba_input_graph, ba_output_graph, gt_pose_graph, PLOT_RESULTS_PATH)
+        dask.delayed(viz_utils.save_camera_poses_viz)(
+            aligned_ba_input_graph, aligned_ba_output_graph, gt_pose_graph, PLOT_RESULTS_PATH
+        )
     )
     return viz_graph_list
 
