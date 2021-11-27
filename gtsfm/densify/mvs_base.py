@@ -9,6 +9,7 @@ import dask
 import numpy as np
 from dask.delayed import Delayed
 
+import gtsfm.densify.mvs_utils as mvs_utils
 from gtsfm.common.image import Image
 from gtsfm.common.gtsfm_data import GtsfmData
 
@@ -50,4 +51,5 @@ class MVSBase(metaclass=abc.ABCMeta):
         Returns:
             Delayed task for MVS computation on the input images.
         """
-        return dask.delayed(self.densify, nout=2)(images_graph, sfm_result_graph)
+        points_graph, rgb_graph = dask.delayed(self.densify, nout=2)(images_graph, sfm_result_graph)
+        return dask.delayed(mvs_utils.downsample_point_cloud, nout=2)(points_graph, rgb_graph)

@@ -115,6 +115,7 @@ def downsample_point_cloud(
         rgb_downsampled: array of shape (M,3) where M <= N
     """
 
+    # TODO(codyly): estimate voxel size from eigenvalues/semi-axes of ellipsoid fit to point cloud
     pcd = open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
     pcd = pcd.voxel_down_sample(voxel_size=voxel_size)
 
