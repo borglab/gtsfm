@@ -47,7 +47,16 @@ class DetectorDescriptorBase(metaclass=abc.ABCMeta):
         """
 
     def filter_by_response(self, keypoints: Keypoints, descriptors: np.ndarray) -> Tuple[Keypoints, np.ndarray]:
-        """Filter features according to their responses."""
+        """Filter features according to their responses.
+
+        Args:
+            keypoints: detected keypoints with length M.
+            descriptors: (M, D) array of descriptors D is the dimension of each descriptor.
+
+        Returns:
+            The top N (<= `self.max_keypoints`) keypoints, and their corresponding desciptors as an (N, D) array, with
+                respect to their responses.
+        """
         if keypoints.responses is None:
             return keypoints, descriptors
 
@@ -59,9 +68,20 @@ class DetectorDescriptorBase(metaclass=abc.ABCMeta):
 
     @staticmethod
     def filter_by_mask(mask: np.ndarray, keypoints: Keypoints, descriptors: np.ndarray) -> Tuple[Keypoints, np.ndarray]:
-        """Filter features with respect to a binary mask of the image."""
+        """Filter features with respect to a binary mask of the image.
+
+        Args:
+            mask: (H, W) array of 0's and 1's corresponding to valid portions of the original image.
+            keypoints: detected keypoints with length M.
+            descriptors: (M, D) array of descriptors D is the dimension of each descriptor.
+
+        Returns:
+            N <= M keypoints, and their corresponding desciptors as an (N, D) array, such that their (rounded)
+                coordinates corresponded to a 1 in the input mask array.
+        """
         rounded_coordinates = np.round(keypoints.coordinates).astype(int)
         valid_idxs = np.flatnonzero(mask[rounded_coordinates[:, 1], rounded_coordinates[:, 0]] == 1)
+
         return keypoints.extract_indices(valid_idxs), descriptors[valid_idxs]
 
     def create_computation_graph(self, image_graph: Delayed) -> Tuple[Delayed, Delayed]:
