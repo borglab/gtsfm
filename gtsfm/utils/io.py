@@ -486,8 +486,4 @@ def read_point_cloud_from_ply(ply_fpath: str) -> Tuple[np.ndarray, np.ndarray]:
         rgb: uint8 array of shape (N,3) representing an RGB color per point.
     """
     pointcloud = open3d.io.read_point_cloud(ply_fpath)
-    points = np.asarray(pointcloud.points)
-    rgb = np.asarray(pointcloud.colors)
-    # open3d stores the colors as [0,1] floats.
-    rgb = (rgb * 255).astype(np.uint8)
-    return points, rgb
+    return open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud)

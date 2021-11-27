@@ -3,10 +3,12 @@
 Authors: Ren Liu, Ayush Baid
 """
 import math
+from typing import Tuple
 
 import numpy as np
 from gtsam import PinholeCameraCal3Bundler, Unit3
 
+import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 from gtsfm.utils import geometry_comparisons as geometry_utils
 
 
@@ -91,3 +93,30 @@ def cart_to_homogenous(
     n = non_homogenous_coordinates.shape[1]
 
     return np.vstack([non_homogenous_coordinates, np.ones((1, n))])
+
+
+def downsample_point_cloud(
+    points: np.ndarray, rgb: np.ndarray, voxel_size: float = 0.02
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Use voxel downsampling to create a uniformly downsampled point cloud from an input point cloud.
+
+    The algorithm uses a regular voxel grid and operates in two steps
+        1. Points are bucketed into voxels.
+        2. Each occupied voxel generates exactly one point by averaging all points inside.
+    See http://www.open3d.org/docs/release/tutorial/geometry/pointcloud.html#Voxel-downsampling
+
+    Args:
+        points: array of shape (N,3)
+        rgb: array of shape (N,3)
+        voxel_size: size of voxel.
+
+    Returns:
+        points_downsampled: array of shape (M,3) where M <= N
+        rgb_downsampled: array of shape (M,3) where M <= N
+    """
+
+    pcd = open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
+    pcd = pcd.voxel_down_sample(voxel_size=voxel_size)
+
+    points_downsampled, rgb_downsampled = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pcd)
+    return points_downsampled, rgb_downsampled

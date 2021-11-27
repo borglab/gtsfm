@@ -5,7 +5,7 @@ Authors: John Lambert
 """
 
 import argparse
-from typing import List
+from typing import List, Tuple
 
 import numpy as np
 import open3d
@@ -32,6 +32,23 @@ def create_colored_point_cloud_open3d(point_cloud: np.ndarray, rgb: np.ndarray) 
     pcd.colors = open3d.utility.Vector3dVector(colors)
 
     return pcd
+
+
+def convert_colored_open3d_point_cloud_to_numpy(pointcloud: open3d.geometry.PointCloud) -> Tuple[np.ndarray, np.ndarray]:
+    """
+
+    Args:
+        pointcloud
+
+    Returns:
+        points
+        rgb
+    """
+    points = np.asarray(pointcloud.points)
+    rgb = np.asarray(pointcloud.colors)
+    # open3d stores the colors as [0,1] floats.
+    rgb = (rgb * 255).astype(np.uint8)
+    return points, rgb
 
 
 def create_colored_spheres_open3d(
