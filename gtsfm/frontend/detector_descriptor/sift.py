@@ -46,14 +46,12 @@ class SIFTDetectorDescriptor(DetectorDescriptorBase):
         opencv_obj = cv.SIFT_create()
 
         # Run the OpenCV code.
-        cv_keypoints, descriptors = opencv_obj.detectAndCompute(gray_image.value_array, None)
+        cv_keypoints, descriptors = opencv_obj.detectAndCompute(gray_image.value_array, image.mask)
 
         # Convert to GTSFM's keypoints.
         keypoints = feature_utils.cast_to_gtsfm_keypoints(cv_keypoints)
 
         # Filter features.
-        if image.mask is not None:
-            keypoints, descriptors = self.filter_by_mask(image.mask, keypoints, descriptors)
         keypoints, descriptors = self.filter_by_response(keypoints, descriptors)
 
         return keypoints, descriptors

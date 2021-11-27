@@ -264,19 +264,22 @@ class AstronetLoader(LoaderBase):
         return super().is_valid_pair(idx1, idx2) and abs(idx1 - idx2) <= self._max_frame_lookahead
 
 
-def get_nonzero_intensity_mask(img: Image, eps: int = 5, kernel: Tuple[int, int] = (15, 15)) -> np.ndarray:
+def get_nonzero_intensity_mask(img: Image, eps: int = 5, kernel_size: Tuple[int, int] = (15, 15)) -> np.ndarray:
     """Generate mask of where image intensity values are non-zero.
+
+    After thresholding the image, we use an erosion kernel to add a buffer between the foreground and background.
 
     Args:
         img: input Image to be masked (values in range [0, 255]).
-        eps: minimum allowable intesnity value, i.e., values below this value withh be masked out.
+        eps: minimum allowable intensity value, i.e., values below this value will be masked out.
         kernel_size: size of erosion kernel.
 
     Returns:
-        Boolean mask of Image where the intensity value is above `eps`.
+        Mask (as an integer array) of Image where with a value of 1 where the intensity value is above `eps` and 0
+        otherwise.
     """
     gray_image = image_utils.rgb_to_gray_cv(img)
     _, binary_image = cv.threshold(gray_image.value_array, eps, 255, cv.THRESH_BINARY)
-    mask = cv.erode(binary_image, np.ones(kernel, np.uint8)).astype(bool)
+    mask = cv.erode(binary_image, np.ones(kernel_size, np.uint8)) // 255
 
     return mask
