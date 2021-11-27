@@ -45,5 +45,4 @@ dependencies:
   - pip:
     - pydegensac
     - colour
-
-
+    - trimesh[easy]
