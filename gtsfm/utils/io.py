@@ -20,7 +20,7 @@ from PIL.ExifTags import GPSTAGS, TAGS
 import gtsfm.utils.images as image_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reproj_utils
-import visualization.open3d_vis_utils as open3d_vis_utils
+import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.sfm_track import SfmTrack2d
