@@ -34,7 +34,9 @@ def create_colored_point_cloud_open3d(point_cloud: np.ndarray, rgb: np.ndarray) 
     return pcd
 
 
-def convert_colored_open3d_point_cloud_to_numpy(pointcloud: open3d.geometry.PointCloud) -> Tuple[np.ndarray, np.ndarray]:
+def convert_colored_open3d_point_cloud_to_numpy(
+    pointcloud: open3d.geometry.PointCloud,
+) -> Tuple[np.ndarray, np.ndarray]:
     """
 
     Args:
