@@ -101,7 +101,6 @@ class Point3dInitializer(NamedTuple):
         best_num_votes = 0
         best_error = MAX_TRACK_REPROJ_ERROR
         best_inliers = np.zeros(len(track_2d.measurements), dtype=bool)
-
         for sample_idxs in samples:
             k1, k2 = measurement_pairs[sample_idxs]
 
@@ -156,6 +155,10 @@ class Point3dInitializer(NamedTuple):
                     best_num_votes = num_votes
                     best_error = avg_error
                     best_inliers = is_inlier
+
+            num_support = np.count_nonzero(best_inliers)
+            if num_support < 3 and num_support < len(track_2d.measurements):
+                best_inliers = np.zeros(len(track_2d.measurements), dtype=bool)
 
         return best_inliers
 
