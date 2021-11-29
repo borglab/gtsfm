@@ -109,7 +109,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         calibrations: Delayed,
         corr_idxs_i1i2: Delayed,
         keypoints: Delayed,
-        i2Ti1_gt: Delayed,
+        gt_cameras: Delayed,
     ) -> Tuple[Delayed, Delayed]:
         """Create the computation graph for ViewGraph estimation and metric evaluation.
 
@@ -117,7 +117,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         """
         view_graph = dask.delayed(self.run, nout=2)(i2Ri1, i2Ui1, calibrations, corr_idxs_i1i2, keypoints)
         metrics = dask.delayed(self.compute_metrics)(
-            i2Ri1, i2Ui1, calibrations, corr_idxs_i1i2, keypoints, view_graph, i2Ti1_gt
+            i2Ri1, i2Ui1, calibrations, corr_idxs_i1i2, keypoints, view_graph, gt_cameras
         )
 
         return view_graph, metrics
