@@ -4,21 +4,25 @@ Authors: John Lambert, Ayush Baid
 """
 from collections import defaultdict
 from enum import Enum
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-from gtsam import Cal3Bundler, Rot3, Unit3
+from gtsam import Cal3Bundler, Rot3, Unit3, PinholeCameraCal3Bundler
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.metrics as metrics_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.view_graph import ViewGraph
+from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
 
 logger = logger_utils.get_logger()
 
 ERROR_THRESHOLD = 7.0
+
+MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
 
 
 class EdgeErrorAggregationCriterion(str, Enum):
@@ -87,7 +91,9 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         cycle_errors: List[float] = []
         # Compute the cycle error for each triplet, and add it to its edges for aggregation.
         for i0, i1, i2 in triplets:  # sort order guaranteed
-            error = comp_utils.compute_cyclic_rotation_error(i1Ri0=i2Ri1[(i0, i1)], i2Ri1=i2Ri1[(i1, i2)], i2Ri0=i2Ri1[(i0, i2)])
+            error = comp_utils.compute_cyclic_rotation_error(
+                i1Ri0=i2Ri1[(i0, i1)], i2Ri1=i2Ri1[(i1, i2)], i2Ri0=i2Ri1[(i0, i2)]
+            )
             cycle_errors.append(error)
             per_edge_errors[(i0, i1)].append(error)
             per_edge_errors[(i1, i2)].append(error)
@@ -117,7 +123,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
         keypoints: List[Keypoints],
         view_graph: ViewGraph,
-        gt_cameras: Optional[List[PinholeCameraCal3Bundler]],        
+        gt_cameras: Optional[List[PinholeCameraCal3Bundler]],
     ) -> GtsfmMetricsGroup:
         """Computes the rotation cycle consistency metrics as a metrics group.
         Args:
@@ -154,13 +160,11 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
                 continue
             i2Ti1_expected = gt_cameras[i2].pose().between(gt_cameras[i1].pose())
 
-            R_error_deg = comp_utils.compute_relative_rotation_angle(
-                i2Ri1[(i1, i2)], i2Ti1_expected.rotation()
-            )
+            R_error_deg = comp_utils.compute_relative_rotation_angle(i2Ri1[(i1, i2)], i2Ti1_expected.rotation())
             U_error_deg = comp_utils.compute_relative_unit_translation_angle(
                 i2Ui1[(i1, i2)], Unit3(i2Ti1_expected.translation())
             )
-            if (i1, i2) in inlier_i1_i2_pairs:
+            if (i1, i2) in inlier_i1_i2:
                 inlier_R_angular_errors.append(R_error_deg)
                 inlier_U_angular_errors.append(U_error_deg)
             else:
@@ -190,7 +194,6 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         ]
         return GtsfmMetricsGroup("rotation_cycle_consistency_metrics", rcc_metrics)
 
-
     def __get_valid_input_edges(self, i2Ri1: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int, int]]:
         """Gets the input edges (i1, i2) with the relative rotation i2Ri1 where:
         1. i1 < i2
@@ -211,7 +214,6 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
                 valid_edges.append((i1, i2))
 
         return valid_edges
-
 
     def __aggregate_errors_for_edge(self, edge_errors: List[float]) -> float:
         """Aggregates a list of errors from different triplets into a single scalar value.
