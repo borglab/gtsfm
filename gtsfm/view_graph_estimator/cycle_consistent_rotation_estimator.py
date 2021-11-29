@@ -117,6 +117,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         return view_graph
 
     def compute_metrics(
+        self,
         i2Ri1: Dict[Tuple[int, int], Rot3],
         i2Ui1: Dict[Tuple[int, int], Unit3],
         calibrations: List[Cal3Bundler],
