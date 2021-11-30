@@ -57,7 +57,7 @@ class TestMVSUtils(unittest.TestCase):
     def test_estimate_minimum_voxel_size(self) -> None:
         """Test the estimate_minimum_voxel_size function correctly produces the minimum voxel size"""
 
-        # ramdomly sample a normal-distributed point cloud with covariances along each axis are 4, 1, 100
+        # ramdomly sample a normal-distributed point cloud with variances along each axis are 4, 1, 100
         mean = [1, 2, 3]
         cov = [[4, 0, 0], [0, 1, 0], [0, 0, 100]]
         points = np.random.multivariate_normal(mean, cov, 5000)

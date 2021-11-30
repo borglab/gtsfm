@@ -96,28 +96,29 @@ def cart_to_homogenous(
     return np.vstack([non_homogenous_coordinates, np.ones((1, n))])
 
 
-def estimate_minimum_voxel_size(points: np.ndarray, scale: float = 0.01) -> float:
+def estimate_minimum_voxel_size(points: np.ndarray, scale: float = 0.02) -> float:
     """Estimate the minimum voxel size for point cloud simplification by downsampling
-        1. compute the minimum component of a centered point cloud by eigendecomposition,
-            See Computing PCA using the covariance method: https://en.wikipedia.org/wiki/Principal_component_analysis
+        1. compute the minimum semi-axis length of a centered point cloud by eigendecomposition,
+            See Ellipsoid from point cloud: https://forge.epn-campus.eu/svn/vtas/vTIU/doc/ellipsoide.pdf
         2. scale it to obtain the minimum voxel size for point cloud simplification by downsampling
 
     Args:
         points: array of shape (N,3)
-        scale: expected scale from the minimum component to the output voxel size. Defaults to 0.01.
+        scale: expected scale from the minimum semi-axis length to the output voxel size. Defaults to 0.02.
 
     Returns:
         the minimum voxel size for point cloud simplification by downsampling
     """
     N = points.shape[0]
+
     # center the point cloud
     centered_points = ellipsoid_utils.center_point_cloud(points)
-    # calculate the covariance matrix
-    cov = centered_points.T @ centered_points / (N - 1)
-    # get variances in all components of the centered point cloud
-    eigvals, _ = np.linalg.eig(cov)
-    # set the minimum voxel size as the scaled minimum standard deviation
-    return np.sqrt(eigvals.min()) * scale
+
+    # get squared semi-axis lengths in all axes of the centered point cloud
+    eigvals, _ = ellipsoid_utils.sorted_eigendecomposition(centered_points / np.sqrt(N - 1))
+
+    # set the minimum voxel size as the scaled minimum semi-axis length
+    return np.sqrt(eigvals[-1]) * scale
 
 
 def downsample_point_cloud(
@@ -139,8 +140,6 @@ def downsample_point_cloud(
         points_downsampled: array of shape (M,3) where M <= N
         rgb_downsampled: array of shape (M,3) where M <= N
     """
-
-    # TODO(codyly): estimate voxel size from eigenvalues/semi-axes of ellipsoid fit to point cloud
 
     pcd = open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
     pcd = pcd.voxel_down_sample(voxel_size=voxel_size)
