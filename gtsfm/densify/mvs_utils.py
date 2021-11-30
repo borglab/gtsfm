@@ -141,6 +141,10 @@ def downsample_point_cloud(
         rgb_downsampled: array of shape (M,3) where M <= N
     """
 
+    # if voxel_size is invalid, do not downsample the point cloud
+    if voxel_size <= 0:
+        return points, rgb
+
     pcd = open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
     pcd = pcd.voxel_down_sample(voxel_size=voxel_size)
 
