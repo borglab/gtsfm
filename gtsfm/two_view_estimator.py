@@ -48,8 +48,6 @@ POST_BA_REPORT_TAG = "POST_BA_2VIEW_REPORT"
 POST_ISP_REPORT_TAG = "POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT"
 POST_CYCLE_CONSISTENT_REPORT_TAG = "POST_CYCLE_CONSISTENT_2VIEW_REPORT"
 
-BUNDLE_ADJUST_2VIEW = BundleAdjustmentOptimizer(robust_measurement_noise=True, max_iterations=None)
-
 
 class TwoViewEstimator:
     """Wrapper for running two-view relative pose estimation on image pairs in the dataset."""
@@ -77,6 +75,7 @@ class TwoViewEstimator:
         self.processor = inlier_support_processor
         self._bundle_adjust_2view = bundle_adjust_2view
         self._corr_metric_dist_threshold = eval_threshold_px
+        self._ba_optimizer = BundleAdjustmentOptimizer(robust_measurement_noise=True, max_iterations=None)
 
     @classmethod
     def triangulate_two_view_correspondences(
@@ -123,9 +122,8 @@ class TwoViewEstimator:
 
         return tracks_3d
 
-    @classmethod
     def bundle_adjust(
-        cls,
+        self,
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
         verified_corr_idxs: np.ndarray,
@@ -160,7 +158,7 @@ class TwoViewEstimator:
 
         # Perform data association to construct 2-view BA input.
         start_time = timeit.default_timer()
-        triangulated_tracks: List[SfmTrack] = cls.triangulate_two_view_correspondences(
+        triangulated_tracks: List[SfmTrack] = self.triangulate_two_view_correspondences(
             camera_i1=camera_i1,
             camera_i2=camera_i2,
             keypoints_i1=keypoints_i1,
@@ -176,7 +174,7 @@ class TwoViewEstimator:
         ba_input.add_camera(1, camera_i2)
         for track in triangulated_tracks:
             ba_input.add_track(track)
-        ba_output, _ = BUNDLE_ADJUST_2VIEW.run(ba_input)
+        ba_output, _ = self._ba_optimizer.run(ba_input)
         wTi1, wTi2 = ba_output.get_camera_poses()  # extract the camera poses
         if wTi1 is None or wTi2 is None:
             logger.warning("2-view BA failed")
@@ -331,16 +329,13 @@ class TwoViewEstimator:
             post_isp_report,
         ) = self.processor.create_computation_graph(post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, post_ba_report)
 
-        return (
-            post_isp_i2Ri1,
-            post_isp_i2Ui1,
-            post_isp_v_corr_idxs,
-            {
-                PRE_BA_REPORT_TAG: pre_ba_report,
-                POST_BA_REPORT_TAG: post_ba_report,
-                POST_ISP_REPORT_TAG: post_isp_report,
-            },
-        )
+        two_view_reports = {
+            PRE_BA_REPORT_TAG: pre_ba_report,
+            POST_BA_REPORT_TAG: post_ba_report,
+            POST_ISP_REPORT_TAG: post_isp_report,
+        }
+
+        return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs, two_view_reports
 
 
 def generate_two_view_report(

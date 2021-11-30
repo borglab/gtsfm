@@ -73,8 +73,10 @@ class BundleAdjustmentOptimizer:
                                                    none, no filtering on output data is performed. Defaults to None.
             robust_measurement_noise (optional): Flag to enable use of robust noise model for measurement noise.
                                                  Defaults to False.
-            shared_calib (optional): Flag to enable shared calibration across
-                                     all cameras. Defaults to False.
+            shared_calib (optional): Flag to enable shared calibration across all cameras. Defaults to False.
+            max_iterations (optional): Max number of iterations when optimizing the factor graph. None means no cap.
+                                       Defaults to None.
+
         """
         self._output_reproj_error_thresh = output_reproj_error_thresh
         self._robust_measurement_noise = robust_measurement_noise
@@ -233,14 +235,14 @@ class BundleAdjustmentOptimizer:
             poses_gt = [cam.pose() for cam in cameras_gt]
 
             # align the sparse multi-view estimate after BA to the ground truth pose graph.
-            filtered_result = filtered_data.align_via_Sim3_to_poses(wTi_list_ref=poses_gt)
+            aligned_filtered_data = filtered_data.align_via_Sim3_to_poses(wTi_list_ref=poses_gt)
             ba_pose_error_metrics = metrics_utils.compute_ba_pose_metrics(
-                gt_wTi_list=poses_gt, ba_output=filtered_result
+                gt_wTi_list=poses_gt, ba_output=aligned_filtered_data
             )
             ba_metrics.extend(metrics_group=ba_pose_error_metrics)
 
             output_tracks_exit_codes = track_utils.classify_tracks3d_with_gt_cameras(
-                tracks=filtered_result.get_tracks(), cameras_gt=cameras_gt
+                tracks=aligned_filtered_data.get_tracks(), cameras_gt=cameras_gt
             )
             output_tracks_exit_codes_distribution = Counter(output_tracks_exit_codes)
 
@@ -248,12 +250,12 @@ class BundleAdjustmentOptimizer:
                 metric_name = "Filtered tracks triangulated with GT cams: {}".format(exit_code.name)
                 ba_metrics.add_metric(GtsfmMetric(name=metric_name, data=count))
 
-        ba_metrics.add_metrics(metrics_utils.get_stats_for_sfmdata(filtered_data, suffix="_filtered"))
+        ba_metrics.add_metrics(metrics_utils.get_stats_for_sfmdata(aligned_filtered_data, suffix="_filtered"))
         # ba_metrics.save_to_json(os.path.join(METRICS_PATH, "bundle_adjustment_metrics.json"))
 
-        logger.info("[Result] Mean track length %.3f", np.mean(filtered_result.get_track_lengths()))
-        logger.info("[Result] Median track length %.3f", np.median(filtered_result.get_track_lengths()))
-        filtered_result.log_scene_reprojection_error_stats()
+        logger.info("[Result] Mean track length %.3f", np.mean(aligned_filtered_data.get_track_lengths()))
+        logger.info("[Result] Median track length %.3f", np.median(aligned_filtered_data.get_track_lengths()))
+        aligned_filtered_data.log_scene_reprojection_error_stats()
 
         return ba_metrics
 

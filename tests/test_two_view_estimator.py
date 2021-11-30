@@ -2,7 +2,6 @@
 
 Authors: Ayush Baid
 """
-from gtsfm.common.keypoints import Keypoints
 import unittest
 
 import gtsam
@@ -12,6 +11,7 @@ from gtsam import Cal3Bundler, EssentialMatrix, Pose3, Unit3
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.io as io_utils
 from gtsfm.two_view_estimator import TwoViewEstimator
+from gtsfm.common.keypoints import Keypoints
 
 GTSAM_EXAMPLE_FILE = "5pointExample1.txt"
 EXAMPLE_DATA = io_utils.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
@@ -26,6 +26,10 @@ class TestTwoViewEstimator(unittest.TestCase):
 
     def test_bundle_adjust(self):
         """Tests the bundle adjustment for relative pose on a simulated scene."""
+        two_view_estimator = TwoViewEstimator(
+            matcher=None, verifier=None, inlier_support_processor=None, bundle_adjust_2view=True, eval_threshold_px=4
+        )
+
         # Extract example poses.
         i1Ri2 = EXAMPLE_DATA.get_camera(1).pose().rotation()
         i1ti2 = EXAMPLE_DATA.get_camera(1).pose().translation()
@@ -44,7 +48,7 @@ class TestTwoViewEstimator(unittest.TestCase):
         normalized_coordinates_i2 = np.array(normalized_coordinates_i2)
 
         # Perform bundle adjustment.
-        i2Ri1_optimized, i2Ui1_optimized, corr_idxs = TwoViewEstimator.bundle_adjust(
+        i2Ri1_optimized, i2Ui1_optimized, corr_idxs = two_view_estimator.bundle_adjust(
             keypoints_i1=Keypoints(normalized_coordinates_i1),
             keypoints_i2=Keypoints(normalized_coordinates_i2),
             verified_corr_idxs=np.hstack([np.arange(normalized_coordinates_i1.shape[0]).reshape(-1, 1)] * 2),
