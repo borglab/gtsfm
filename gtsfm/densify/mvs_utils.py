@@ -112,6 +112,10 @@ def estimate_minimum_voxel_size(points: np.ndarray, scale: float = 0.02) -> floa
     """
     N = points.shape[0]
 
+    # if the number of points is less than 2, then return 0
+    if N < 2:
+        return 0
+
     # center the point cloud
     centered_points = ellipsoid_utils.center_point_cloud(points)
 
