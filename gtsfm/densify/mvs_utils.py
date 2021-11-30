@@ -101,11 +101,11 @@ def estimate_minimum_voxel_size(points: np.ndarray, scale: float = 0.02) -> floa
         1. compute the minimum semi-axis length of a centered point cloud by eigendecomposition,
             See Ellipsoid from point cloud: https://forge.epn-campus.eu/svn/vtas/vTIU/doc/ellipsoide.pdf
         2. scale it to obtain the minimum voxel size for point cloud simplification by downsampling
-            a larger scale results in a larger voxel size, which means a more compressed scene
 
     Args:
         points: array of shape (N,3)
-        scale: expected scale from the minimum semi-axis length to the output voxel size. Defaults to 0.02.
+        scale: expected scale from the minimum semi-axis length to the output voxel size.
+            a larger scale results in a larger voxel size, which means a more compressed scene. Defaults to 0.02.
 
     Returns:
         the minimum voxel size for point cloud simplification by downsampling
