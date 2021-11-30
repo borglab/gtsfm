@@ -104,7 +104,7 @@ def estimate_minimum_voxel_size(points: np.ndarray, scale: float = 0.01) -> floa
 
     Args:
         points: array of shape (N,3)
-        scale: expected scale from the minimum component to the output voxel size. Defaults to 0.001.
+        scale: expected scale from the minimum component to the output voxel size. Defaults to 0.01.
 
     Returns:
         the minimum voxel size for point cloud simplification by downsampling
