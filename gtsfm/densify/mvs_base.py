@@ -52,4 +52,5 @@ class MVSBase(metaclass=abc.ABCMeta):
             Delayed task for MVS computation on the input images.
         """
         points_graph, rgb_graph = dask.delayed(self.densify, nout=2)(images_graph, sfm_result_graph)
-        return dask.delayed(mvs_utils.downsample_point_cloud, nout=2)(points_graph, rgb_graph)
+        voxel_size_graph = dask.delayed(mvs_utils.estimate_minimum_voxel_size, nout=1)(points_graph)
+        return dask.delayed(mvs_utils.downsample_point_cloud, nout=2)(points_graph, rgb_graph, voxel_size_graph)

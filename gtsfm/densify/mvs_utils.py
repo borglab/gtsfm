@@ -9,6 +9,7 @@ import numpy as np
 from gtsam import PinholeCameraCal3Bundler, Unit3
 
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
+from gtsfm.utils import ellipsoid as ellipsoid_utils
 from gtsfm.utils import geometry_comparisons as geometry_utils
 
 
@@ -95,6 +96,30 @@ def cart_to_homogenous(
     return np.vstack([non_homogenous_coordinates, np.ones((1, n))])
 
 
+def estimate_minimum_voxel_size(points: np.ndarray, scale: float = 0.01) -> float:
+    """Estimate the minimum voxel size for point cloud simplification by downsampling
+        1. compute the minimum component of a centered point cloud by eigendecomposition,
+            See Computing PCA using the covariance method: https://en.wikipedia.org/wiki/Principal_component_analysis
+        2. scale it to obtain the minimum voxel size for point cloud simplification by downsampling
+
+    Args:
+        points: array of shape (N,3)
+        scale: expected scale from the minimum component to the output voxel size. Defaults to 0.001.
+
+    Returns:
+        the minimum voxel size for point cloud simplification by downsampling
+    """
+    N = points.shape[0]
+    # center the point cloud
+    centered_points = ellipsoid_utils.center_point_cloud(points)
+    # calculate the covariance matrix
+    cov = centered_points.T @ centered_points / (N - 1)
+    # get variances in all components of the centered point cloud
+    eigvals, _ = np.linalg.eig(cov)
+    # set the minimum voxel size as the scaled minimum standard deviation
+    return np.sqrt(eigvals.min()) * scale
+
+
 def downsample_point_cloud(
     points: np.ndarray, rgb: np.ndarray, voxel_size: float = 0.02
 ) -> Tuple[np.ndarray, np.ndarray]:
@@ -116,6 +141,7 @@ def downsample_point_cloud(
     """
 
     # TODO(codyly): estimate voxel size from eigenvalues/semi-axes of ellipsoid fit to point cloud
+
     pcd = open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
     pcd = pcd.voxel_down_sample(voxel_size=voxel_size)
 
