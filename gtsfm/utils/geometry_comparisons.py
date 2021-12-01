@@ -65,7 +65,6 @@ def ransac_align_poses_sim3_ignore_missing(
             representing an aligned subset, this represents the entire aligned pose graph.
         best_aSb: Similarity(3) object that aligns the two pose graphs (best among all hypotheses).
     """
-    best_aligned_bTi_list_est = None
     best_aSb = None
     best_trans_error = float("inf")
     best_rot_error = float("inf")
@@ -74,7 +73,7 @@ def ransac_align_poses_sim3_ignore_missing(
     num_to_delete = math.ceil(delete_frac * len(valid_idxs))
     if len(valid_idxs) - num_to_delete < 2:
         # run without RANSAC! want at least 2 frame pairs for good alignment.
-        aligned_bTi_list_est, aSb = gtsfm_geometry_comparisons.align_poses_sim3_ignore_missing(
+        aligned_bTi_list_est, aSb = align_poses_sim3_ignore_missing(
             aTi_list_ref, bTi_list_est
         )
         return aligned_bTi_list_est, aSb
@@ -103,7 +102,6 @@ def ransac_align_poses_sim3_ignore_missing(
             if verbose:
                 print(f"\tFound better trans error {trans_error:.2f} < {best_trans_error:.2f}")
                 print(f"\tFound better rot error {rot_error:.2f} < {best_rot_error:.2f}")
-            best_aligned_bTi_list_est = aligned_bTi_list_est
             best_aSb = aSb
             best_trans_error = trans_error
             best_rot_error = rot_error
