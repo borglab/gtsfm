@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid
 """
+import copy
 import unittest
 from typing import List
 from unittest.mock import patch
@@ -358,7 +359,7 @@ def test_ransac_align_poses_sim3_ignore_missing_pureidentity() -> None:
 
     bTi_list = copy.deepcopy(aTi_list)
 
-    aligned_bTi_list_est, aSb = ransac_align_poses_sim3_ignore_missing(aTi_list, bTi_list)
+    aligned_bTi_list_est, aSb = geometry_comparisons.ransac_align_poses_sim3_ignore_missing(aTi_list, bTi_list)
 
     for aTi, aTi_ in zip(aTi_list, aligned_bTi_list_est):
         assert np.allclose(aTi.rotation().matrix(), aTi_.rotation().matrix(), atol=1e-3)
@@ -385,7 +386,7 @@ def test_ransac_align_poses_sim3_ignore_missing() -> None:
         None,
     ]
 
-    aligned_bTi_list_est, aSb = ransac_align_poses_sim3_ignore_missing(aTi_list, bTi_list)
+    aligned_bTi_list_est, aSb = geometry_comparisons.ransac_align_poses_sim3_ignore_missing(aTi_list, bTi_list)
     assert np.isclose(aSb.scale(), 1.0, atol=1e-2)
     assert np.allclose(aligned_bTi_list_est[1].translation(), np.array([50.0114, 0.0576299, 0]), atol=1e-3)
     assert np.allclose(aligned_bTi_list_est[2].translation(), np.array([-0.0113879, 9.94237, 0]), atol=1e-3)
