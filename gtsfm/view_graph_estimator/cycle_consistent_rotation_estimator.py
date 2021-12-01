@@ -147,8 +147,9 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         if gt_cameras is None:
             return GtsfmMetricsGroup(name="rotation_cycle_consistency_metrics", metrics=[])
 
+        input_edges = self.__get_valid_input_edges(i2Ri1)
         inlier_i1_i2 = view_graph.get_pair_indices()
-        outlier_i1_i2 = [i1_i2 for i1_i2 in i2Ri1.keys() if i1_i2 not in inlier_i1_i2]
+        outlier_i1_i2 = [i1_i2 for i1_i2 in input_edges if i1_i2 not in inlier_i1_i2]
 
         inlier_R_angular_errors = []
         outlier_R_angular_errors = []
@@ -156,19 +157,31 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         inlier_U_angular_errors = []
         outlier_U_angular_errors = []
 
-        for i1, i2 in i2Ri1.keys():
-            if i1 not in gt_cameras or i2 not in gt_cameras:
+        for i1, i2 in input_edges:
+            if max(i1, i2) >= len(gt_cameras):
+                logger.error("One or both cameras were not found in the ground truth")
                 continue
             i2Ti1_expected = gt_cameras[i2].pose().between(gt_cameras[i1].pose())
 
+            if i2Ri1[(i1, i2)] is None:
+                logger.info(f'i2Ri1 None for {i1}, {i2}')
+                continue
+            if i2Ui1[(i1, i2)] is None:
+                logger.info(f'i2Ui1 None for {i1}, {i2}')
+                continue
+            if i2Ti1_expected is None:
+                logger.info(f'i2Ti1 is None for {i1}, {i2}')
+                continue
             R_error_deg = comp_utils.compute_relative_rotation_angle(i2Ri1[(i1, i2)], i2Ti1_expected.rotation())
             U_error_deg = comp_utils.compute_relative_unit_translation_angle(
                 i2Ui1[(i1, i2)], Unit3(i2Ti1_expected.translation())
             )
             if (i1, i2) in inlier_i1_i2:
+                print("inlier edge found")
                 inlier_R_angular_errors.append(R_error_deg)
                 inlier_U_angular_errors.append(U_error_deg)
             else:
+                print("outlier edge found")
                 outlier_R_angular_errors.append(R_error_deg)
                 outlier_U_angular_errors.append(U_error_deg)
 
