@@ -90,7 +90,7 @@ def ransac_align_poses_sim3_ignore_missing(
         for del_idx in delete_idxs:
             bTi_list_est_subset[del_idx] = None
 
-        aligned_bTi_list_est, aSb = gtsfm_geometry_comparisons.align_poses_sim3_ignore_missing(
+        aligned_bTi_list_est, aSb = align_poses_sim3_ignore_missing(
             aTi_list_ref_subset, bTi_list_est_subset
         )
 
@@ -115,6 +115,50 @@ def ransac_align_poses_sim3_ignore_missing(
             continue
         best_aligned_bTi_list_est_full[i] = best_aSb.transformFrom(bTi_)
     return best_aligned_bTi_list_est_full, best_aSb
+
+
+def compute_pose_errors_3d(
+    aTi_list_gt: List[Pose3], aligned_bTi_list_est: List[Optional[Pose3]], verbose: bool = False
+) -> Tuple[float, float, np.ndarray, np.ndarray]:
+    """Compute average pose errors over all cameras (separately in rotation and translation).
+
+    Note: pose graphs must already be aligned.
+
+    Args:
+        aTi_list_gt: ground truth 3d pose graph.
+        aligned_bTi_list_est: estimated pose graph aligned to the ground truth's "a" frame.
+        verbose: whether to print out information about pose inputs/errors.
+
+    Returns:
+        mean_rot_err: average rotation error per camera, measured in degrees.
+        mean_trans_err: average translation error per camera.
+        rot_errors: array of (K,) rotation errors, measured in degrees.
+        trans_errors: array of (K,) translation errors.
+    """
+    if verbose:
+        print("aTi_list_gt: ", aTi_list_gt)
+        print("aligned_bTi_list_est", aligned_bTi_list_est)
+
+    rotation_errors = []
+    translation_errors = []
+    for (aTi, aTi_) in zip(aTi_list_gt, aligned_bTi_list_est):
+        if aTi is None or aTi_ is None:
+            continue
+        rot_err = compute_relative_rotation_angle(aTi.rotation(), aTi_.rotation())
+        trans_err = np.linalg.norm(aTi.translation() - aTi_.translation())
+
+        rotation_errors.append(rot_err)
+        translation_errors.append(trans_err)
+
+    rotation_errors = np.array(rotation_errors)
+    translation_errors = np.array(translation_errors)
+
+    if verbose:
+        print("Rotation Errors: ", np.round(rotation_errors, 1))
+        print("Translation Errors: ", np.round(translation_errors, 1))
+    mean_rot_err = np.mean(rotation_errors)
+    mean_trans_err = np.mean(translation_errors)
+    return mean_rot_err, mean_trans_err, rotation_errors, translation_errors
 
 
 def align_poses_sim3_ignore_missing(
