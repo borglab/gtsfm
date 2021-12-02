@@ -3,7 +3,7 @@
 Authors: Ayush Baid
 """
 import copy
-from typing import List, Optional
+from typing import List, Optional, Union, Tuple
 
 import cv2 as cv
 import numpy as np
@@ -86,7 +86,7 @@ class Keypoints:
         """Checks that the other object is not equal to the current object."""
         return not self == other
 
-    def get_top_k(self, k: int) -> "Keypoints":
+    def get_top_k(self, k: int) -> Union["Keypoints", Tuple["Keypoints"]]:
         """Returns the top keypoints by their response values (or just the values from the front in case of missing
         responses.)
 
