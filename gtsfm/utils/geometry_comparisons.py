@@ -48,7 +48,6 @@ def ransac_align_poses_sim3_ignore_missing(
     bTi_list_est: List[Optional[Pose3]],
     num_iters: int = 1000,
     delete_frac: float = DEFAULT_RANSAC_ALIGNMENT_DELETE_FRAC,
-    verbose: bool = False,
 ) -> Tuple[List[Optional[Pose3]], Similarity3]:
     """Align pose graphs by estimating a Similarity(3) transformation, while accounting for outliers in the pose graph.
 
@@ -57,7 +56,6 @@ def ransac_align_poses_sim3_ignore_missing(
         bTi_list_est: pose graph 2 (to be aligned).
         num_iters: number of RANSAC iterations to execture.
         delete_frac: what percent of data to remove when fitting a single hypothesis.
-        verbose: whether to print out information about each iteration.
 
     Returns:
         best_aligned_bTi_list_est_full: transformed input poses previously "bTi_list" but now which
@@ -95,13 +93,11 @@ def ransac_align_poses_sim3_ignore_missing(
 
         # evaluate inliers.
         rot_error, trans_error, _, _ = compute_pose_errors_3d(aTi_list_ref, aligned_bTi_list_est)
-        if verbose:
-            print("Deleted ", delete_idxs, f" -> trans_error {trans_error:.1f}, rot_error {rot_error:.1f}")
+        logger.debug("Deleted " + str(delete_idxs) + f" -> trans_error {trans_error:.1f}, rot_error {rot_error:.1f}")
 
         if trans_error <= best_trans_error and rot_error <= best_rot_error:
-            if verbose:
-                print(f"\tFound better trans error {trans_error:.2f} < {best_trans_error:.2f}")
-                print(f"\tFound better rot error {rot_error:.2f} < {best_rot_error:.2f}")
+            logger.debug(f"\tFound better trans error {trans_error:.2f} < {best_trans_error:.2f}")
+            logger.debug(f"\tFound better rot error {rot_error:.2f} < {best_rot_error:.2f}")
             best_aSb = aSb
             best_trans_error = trans_error
             best_rot_error = rot_error
@@ -116,7 +112,7 @@ def ransac_align_poses_sim3_ignore_missing(
 
 
 def compute_pose_errors_3d(
-    aTi_list_gt: List[Pose3], aligned_bTi_list_est: List[Optional[Pose3]], verbose: bool = False
+    aTi_list_gt: List[Pose3], aligned_bTi_list_est: List[Optional[Pose3]]
 ) -> Tuple[float, float, np.ndarray, np.ndarray]:
     """Compute average pose errors over all cameras (separately in rotation and translation).
 
@@ -125,7 +121,6 @@ def compute_pose_errors_3d(
     Args:
         aTi_list_gt: ground truth 3d pose graph.
         aligned_bTi_list_est: estimated pose graph aligned to the ground truth's "a" frame.
-        verbose: whether to print out information about pose inputs/errors.
 
     Returns:
         mean_rot_err: average rotation error per camera, measured in degrees.
@@ -133,9 +128,8 @@ def compute_pose_errors_3d(
         rot_errors: array of (K,) rotation errors, measured in degrees.
         trans_errors: array of (K,) translation errors.
     """
-    if verbose:
-        print("aTi_list_gt: ", aTi_list_gt)
-        print("aligned_bTi_list_est", aligned_bTi_list_est)
+    logger.debug("aTi_list_gt: " + str(aTi_list_gt))
+    logger.debug("aligned_bTi_list_est" + str(aligned_bTi_list_est))
 
     rotation_errors = []
     translation_errors = []
@@ -151,9 +145,8 @@ def compute_pose_errors_3d(
     rotation_errors = np.array(rotation_errors)
     translation_errors = np.array(translation_errors)
 
-    if verbose:
-        print("Rotation Errors: ", np.round(rotation_errors, 1))
-        print("Translation Errors: ", np.round(translation_errors, 1))
+    logger.debug("Rotation Errors: " + str(np.round(rotation_errors, 1)))
+    logger.debug("Translation Errors: " + str(np.round(translation_errors, 1)))
     mean_rot_err = np.mean(rotation_errors)
     mean_trans_err = np.mean(translation_errors)
     return mean_rot_err, mean_trans_err, rotation_errors, translation_errors
