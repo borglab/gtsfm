@@ -36,6 +36,7 @@ SceneOptimizer:
     _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
     rot_avg_module:
       _target_: gtsfm.averaging.rotation.shonan.ShonanRotationAveraging
+      robust_measurement_noise: True
 
     trans_avg_module:
       _target_: gtsfm.averaging.translation.averaging_1dsfm.TranslationAveraging1DSFM
