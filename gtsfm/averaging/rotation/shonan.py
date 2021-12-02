@@ -41,7 +41,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         Args:
             robust_measurement_noise: Whether to use a robust noise model for the measurements, defaults to true.
         """
-        self._robust_measurement_noise
+        self._robust_measurement_noise = robust_measurement_noise
         self._p_min = 5
         self._p_max = 30
         if robust_measurement_noise:
