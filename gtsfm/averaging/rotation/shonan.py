@@ -33,12 +33,18 @@ logger = logger_utils.get_logger()
 class ShonanRotationAveraging(RotationAveragingBase):
     """Performs Shonan rotation averaging."""
 
-    def __init__(self) -> None:
+    def __init__(self, use_huber: bool = True) -> None:
         """
         Note: `p_min` and `p_max` describe the minimum and maximum relaxation rank.
+
+        Args:
+            use_huber: whether to use Huber loss.
         """
-        self._p_min = 3
-        self._p_max = 3
+        self._p_min = 5
+        self._p_max = 30
+        self._use_huber = use_huber
+        if use_huber:
+            self._p_max = self._p_min
 
     def __run_with_consecutive_ordering(
         self, num_connected_nodes: int, i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]]
@@ -62,8 +68,8 @@ class ShonanRotationAveraging(RotationAveragingBase):
         """
         lm_params = LevenbergMarquardtParams.CeresDefaults()
         shonan_params = ShonanAveragingParameters3(lm_params)
-        shonan_params.setUseHuber(True)
-        shonan_params.setCertifyOptimality(False)
+        shonan_params.setUseHuber(self._use_huber)
+        shonan_params.setCertifyOptimality(not self._use_huber)
 
         noise_model = gtsam.noiseModel.Unit.Create(6)
 
