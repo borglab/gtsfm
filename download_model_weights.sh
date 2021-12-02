@@ -25,6 +25,6 @@ echo $PATCHMATCHNET_WEIGHTS_DIR
 echo "Creating $PATCHMATCHNET_WEIGHTS_DIR"
 mkdir -p $PATCHMATCHNET_WEIGHTS_DIR
 
-PATCHMATCHNET_URL="https://github.com/FangjinhuaWang/PatchmatchNet/blob/fa4ecae69b3a376ce238002db8d5283406128eac/checkpoints/model_000007.ckpt"
+PATCHMATCHNET_URL="https://github.com/FangjinhuaWang/PatchmatchNet/raw/fa4ecae69b3a376ce238002db8d5283406128eac/checkpoints/model_000007.ckpt"
 
 wget -c --no-check-certificate -O $PATCHMATCHNET_WEIGHTS_DIR/model_000007.ckpt $PATCHMATCHNET_URL
