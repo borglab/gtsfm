@@ -59,6 +59,7 @@ class TwoViewEstimator:
         inlier_support_processor: InlierSupportProcessor,
         bundle_adjust_2view: bool,
         eval_threshold_px: float,
+        bundle_adjust_2view_maxiters: int = 100,
     ) -> None:
         """Initializes the two-view estimator from matcher and verifier.
 
@@ -69,13 +70,16 @@ class TwoViewEstimator:
             bundle_adjust_2view: boolean flag indicating if bundle adjustment is to be run on the 2-view data.
             eval_threshold_px: distance threshold for marking a correspondence pair as inlier during evaluation
                 (not during estimation).
+            bundle_adjust_2view_maxiters (optional): max number of iterations for 2-view BA. Defaults to 100.
         """
         self._matcher = matcher
         self._verifier = verifier
         self.processor = inlier_support_processor
         self._bundle_adjust_2view = bundle_adjust_2view
         self._corr_metric_dist_threshold = eval_threshold_px
-        self._ba_optimizer = BundleAdjustmentOptimizer(robust_measurement_noise=True, max_iterations=None)
+        self._ba_optimizer = BundleAdjustmentOptimizer(
+            robust_measurement_noise=True, max_iterations=bundle_adjust_2view_maxiters
+        )
 
     @classmethod
     def triangulate_two_view_correspondences(
