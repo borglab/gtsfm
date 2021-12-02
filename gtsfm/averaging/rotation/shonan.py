@@ -37,8 +37,8 @@ class ShonanRotationAveraging(RotationAveragingBase):
         """
         Note: `p_min` and `p_max` describe the minimum and maximum relaxation rank.
         """
-        self._p_min = 5
-        self._p_max = 30
+        self._p_min = 3
+        self._p_max = 3
 
     def __run_with_consecutive_ordering(
         self, num_connected_nodes: int, i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]]
@@ -63,7 +63,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         lm_params = LevenbergMarquardtParams.CeresDefaults()
         shonan_params = ShonanAveragingParameters3(lm_params)
         shonan_params.setUseHuber(True)
-        shonan_params.setCertifyOptimality(True)
+        shonan_params.setCertifyOptimality(False)
 
         noise_model = gtsam.noiseModel.Unit.Create(6)
 
