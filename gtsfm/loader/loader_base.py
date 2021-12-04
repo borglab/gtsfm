@@ -13,6 +13,7 @@ from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3
 import gtsfm.utils.images as img_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
+from gtsfm.common.gtsfm_data import GtsfmData
 
 
 logger = logger_utils.get_logger()
@@ -33,6 +34,12 @@ class LoaderBase(metaclass=abc.ABCMeta):
         if not isinstance(max_resolution, int):
             raise ValueError("Maximum image resolution must be an integer argument.")
         self._max_resolution = max_resolution
+
+    @property
+    def gt_gtsfm_data(self):
+        """Return ground truth data as `GtsfmData` object."""
+        cameras = {i: self.get_camera(i) for i in range(self.__len__())}
+        return GtsfmData(self.__len__(), cameras, tracks=None, scene_mesh=None)
 
     # ignored-abstractmethod
     @abc.abstractmethod
@@ -131,9 +138,13 @@ class LoaderBase(metaclass=abc.ABCMeta):
                 allowed loader image resolution if the full-resolution images for a dataset
                 are too large.
         """
-        # no downsampling may be required, in which case target_h and target_w will be identical
+        # No downsampling may be required, in which case target_h and target_w will be identical
         # to the full res height & width.
         img_full_res = self.get_image_full_res(index)
+        if min(img_full_res.height, img_full_res.width) <= self._max_resolution:
+            return img_full_res
+
+        # Resize image.
         (
             _,
             _,

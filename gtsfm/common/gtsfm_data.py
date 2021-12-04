@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from gtsam import PinholeCameraCal3Bundler, Pose3, SfmTrack, Similarity3
+from trimesh import Trimesh
+from dask.distributed import Client
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
 import gtsfm.utils.graph as graph_utils
@@ -27,15 +29,32 @@ class GtsfmData:
     The situation of non-contiguous cameras can exists because of failures in front-end.
     """
 
-    def __init__(self, number_images: int) -> None:
+    def __init__(
+        self,
+        number_images: int,
+        cameras: Optional[Dict[int, PinholeCameraCal3Bundler]] = None,
+        tracks: Optional[List[SfmTrack]] = None,
+        scene_mesh: Optional[Trimesh] = None,
+    ) -> None:
         """Initializes the class.
 
         Args:
-            number_images: number of images/cameras in the scene.
+            number_images: number of putative images/cameras in the scene; cameras may be pruned during the verification
+                process.
+            cameras: cameras used to reconstruct the scene.
+            tracks: tracks in reconstucted map of the scene.
+            scene_mesh: triangular surface mesh of reconstructed scene.
         """
-        self._cameras: Dict[int, PinholeCameraCal3Bundler] = {}
-        self._tracks: List[SfmTrack] = []
         self._number_images = number_images
+        self._cameras = cameras if cameras else {}
+        self._tracks = tracks if tracks else []
+        self.scene_mesh = scene_mesh
+
+    def get_two_view_data(self, i1: int, i2: int) -> "GtsfmData":
+        """Collects GtsfmData for a single image pair."""
+        # TODO (travisdriver): also collect tracks if available.
+        cameras_pair = {0: self.get_camera(i1), 1: self.get_camera(i2)}
+        return GtsfmData(2, cameras_pair, None, self.scene_mesh)
 
     def __eq__(self, other: object) -> bool:
         """Checks equality with the other object."""
@@ -169,6 +188,10 @@ class GtsfmData:
         if camera is None:
             raise ValueError("Camera cannot be None, should be a valid camera")
         self._cameras[index] = camera
+
+    def add_scene_mesh(self, scene_mesh: Trimesh) -> None:
+        """Adds a triangular mesh of the reconstructed scene."""
+        self.scene_mesh = scene_mesh
 
     def get_track_length_statistics(self) -> Tuple[float, float]:
         """Compute mean and median lengths of all the tracks.

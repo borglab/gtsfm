@@ -10,7 +10,6 @@ from typing import Any, Dict, List, Optional, Tuple
 import dask
 import matplotlib
 import numpy as np
-from trimesh import Trimesh
 from gtsam import Pose3, Similarity3
 from dask.delayed import Delayed
 
@@ -103,10 +102,16 @@ class SceneOptimizer:
         image_graph: List[Delayed],
         camera_intrinsics_graph: List[Delayed],
         image_shape_graph: List[Delayed],
-        gt_cameras_graph: Optional[List[Delayed]] = None,
-        gt_scene_mesh: Optional[Trimesh] = None,
+        gt_gtsfm_data: Optional[GtsfmData] = None,
     ) -> Delayed:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
+        # Build cameras graph from GT GtsfmData.
+        # TODO (): remove later; this is just to conform to the required input of other functions.
+        gt_cameras_graph = (
+            [dask.delayed(gt_gtsfm_data.get_camera)(i) for i in gt_gtsfm_data._cameras.keys()]
+            if gt_gtsfm_data
+            else None
+        )
 
         # auxiliary graph elements for visualizations and saving intermediate
         # data for analysis, not returned to the user.
@@ -128,13 +133,6 @@ class SceneOptimizer:
         two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport] = {}
         two_view_reports_pp_dict: Dict[Tuple[int, int], TwoViewEstimationReport] = {}
         for (i1, i2) in image_pair_indices:
-            # Collect ground truth relative and absolute poses if available.
-            # TODO(johnwlambert): decompose this method -- name it as "calling_the_plate()"
-            if gt_cameras_graph is not None:
-                gt_wTi1, gt_wTi2 = gt_cameras_graph[i1].pose(), gt_cameras_graph[i2].pose()
-            else:
-                gt_wTi1, gt_wTi2 = None, None
-
             # TODO(johnwlambert): decompose this so what happens in the loop is a separate method
             (
                 i2Ri1,
@@ -151,9 +149,7 @@ class SceneOptimizer:
                 camera_intrinsics_graph[i2],
                 image_shape_graph[i1],
                 image_shape_graph[i2],
-                gt_wTi1,
-                gt_wTi2,
-                gt_scene_mesh,
+                gt_gtsfm_data.get_two_view_data(i1, i2),
             )
 
             # Store results.

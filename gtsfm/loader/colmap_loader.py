@@ -70,10 +70,10 @@ class ColmapLoader(LoaderBase):
         self._use_gt_extrinsics = use_gt_extrinsics
         self._max_frame_lookahead = max_frame_lookahead
 
+        # TODO in future PR: if img_fnames is None, default to using everything inside image directory
         self._wTi_list, img_fnames = io_utils.read_images_txt(fpath=os.path.join(colmap_files_dirpath, "images.txt"))
         self._calibrations = io_utils.read_cameras_txt(fpath=os.path.join(colmap_files_dirpath, "cameras.txt"))
-
-        # TODO in future PR: if img_fnames is None, default to using everything inside image directory
+        assert img_fnames is not None
 
         if self._calibrations is None:
             self._use_gt_intrinsics = False

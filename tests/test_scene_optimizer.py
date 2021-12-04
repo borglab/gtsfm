@@ -44,7 +44,7 @@ class TestSceneOptimizer(unittest.TestCase):
                 image_graph=self.loader.create_computation_graph_for_images(),
                 camera_intrinsics_graph=self.loader.create_computation_graph_for_intrinsics(),
                 image_shape_graph=self.loader.create_computation_graph_for_image_shapes(),
-                gt_cameras_graph=self.loader.create_computation_graph_for_cameras(),
+                gt_gtsfm_data=self.loader.gt_gtsfm_data,
             )
             # create dask client
             cluster = LocalCluster(n_workers=1, threads_per_worker=4)

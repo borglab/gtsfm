@@ -69,9 +69,7 @@ class TwoViewEstimator:
         camera_intrinsics_i2_graph: Delayed,
         im_shape_i1_graph: Delayed,
         im_shape_i2_graph: Delayed,
-        gt_wTi1_graph: Optional[Delayed] = None,
-        gt_wTi2_graph: Optional[Delayed] = None,
-        gt_scene_mesh_graph: Optional[Delayed] = None,
+        gt_gtsfm_data: Optional[Delayed] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, Optional[Delayed], Optional[Delayed]]:
         """Create delayed tasks for matching and verification.
 
@@ -94,6 +92,13 @@ class TwoViewEstimator:
             Two view report w/ verifier metrics wrapped as Delayed.
             Two view report w/ post-processor metrics wrapped as Delayed.
         """
+        # Unpack GT data.
+        if gt_gtsfm_data is not None:
+            gt_wTi1_graph = gt_gtsfm_data.get_camera(0).pose()
+            gt_wTi2_graph = gt_gtsfm_data.get_camera(1).pose()
+        else:
+            gt_wTi1_graph, gt_wTi2_graph = None, None
+        gt_scene_mesh_graph = gt_gtsfm_data.scene_mesh
 
         # graph for matching to obtain putative correspondences
         corr_idxs_graph = self._matcher.create_computation_graph(

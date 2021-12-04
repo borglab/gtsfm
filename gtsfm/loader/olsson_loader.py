@@ -57,7 +57,6 @@ class OlssonLoader(LoaderBase):
 
         # fetch all the file names in /images folder
         search_path = os.path.join(folder, "images", f"*.{image_extension}")
-
         self._image_paths = glob.glob(search_path)
 
         # sort the file names
