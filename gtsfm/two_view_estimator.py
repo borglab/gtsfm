@@ -224,7 +224,7 @@ class TwoViewEstimator:
             Computed relative rotation wrapped as Delayed.
             Computed relative translation direction wrapped as Delayed.
             Indices of verified correspondences wrapped as Delayed.
-            Two-view reports at different stages, as a dictionary.
+            Two-view reports at different stages (pre BA, post BA, and post inlier-support-processor), as a dictionary.
         """
 
         # graph for matching to obtain putative correspondences
