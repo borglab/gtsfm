@@ -17,7 +17,7 @@ import thirdparty.colmap.scripts.python.read_write_model as colmap_io
 def compare_metrics(
     txt_metric_paths: Dict[str, str],
     json_path: str,
-    GTSFM_MODULE_METRICS_FNAMES: List[str],
+    metric_filenames: List[str],
 ) -> None:
     """Converts the outputs of other SfM pipelines to GTSfMMetricsGroups saved as json files.
 
@@ -29,7 +29,7 @@ def compare_metrics(
         txt_metric_paths: a list of paths to directories containing outputs of other SfM pipelines
           in COLMAP format i.e. cameras.txt, images.txt, and points3D.txt files.
         json_path: Path to folder that contains metrics as json files.
-        GTSFM_MODULE_METRICS_FNAMES: List of GTSfM metrics filenames.
+        metric_filenames: List of GTSfM metrics filenames.
     """
     for pipeline_name in txt_metric_paths.keys():
         cameras, images, points3d = colmap_io.read_model(path=txt_metric_paths[pipeline_name], ext=".txt")
@@ -46,7 +46,7 @@ def compare_metrics(
                 else:
                     image_id_num_measurements[image_id] += 1
 
-        colmap2gtsfm = {
+        colmap_metrics = {
             "number_cameras": GtsfmMetric("number_cameras", num_cameras),
             "3d_tracks_length": GtsfmMetric(
                 "3d_tracks_length",
@@ -56,14 +56,14 @@ def compare_metrics(
         }
 
         # Create comparable result_metric json for COLMAP
-        for filename in GTSFM_MODULE_METRICS_FNAMES:
+        for filename in metric_filenames:
             metrics = []
             metrics_group = GtsfmMetricsGroup.parse_from_json(os.path.join(json_path, filename))
             for metric in metrics_group.metrics:
                 # Case 1: mapping from COLMAP to GTSfM is known
-                if metric.name in colmap2gtsfm.keys():
-                    metrics.append(colmap2gtsfm[metric.name])
-                # Case 2: mapping from COLMAP to GTSfM is known
+                if metric.name in colmap_metrics.keys():
+                    metrics.append(colmap_metrics[metric.name])
+                # Case 2: mapping from COLMAP to GTSfM is unknown
                 else:
                     if metric._dim == 1:
                         # Case 2a: dict summary

@@ -41,6 +41,10 @@ def get_readable_metric_name(metric_name: str) -> str:
 def create_table_for_scalar_metrics(metrics_dict: Dict[str, Union[float, int]]) -> str:
     """Creates a table in HTML format for scalar metrics.
 
+    Args:
+        metrics_dict: A dict, where keys are names of metrics and values are
+        the dictionary representation of the metric.
+
     Returns:
         Table with scalar metrics and their values in HTML format.
     """
@@ -51,16 +55,20 @@ def create_table_for_scalar_metrics(metrics_dict: Dict[str, Union[float, int]]) 
 def create_table_for_scalar_metrics_and_compare(metrics_dict: Dict[str, List[Union[float, int]]]) -> str:
     """Creates a table in HTML format for scalar metrics from multiple SfM pipelines (GTSfM, COLMAP).
 
+    Args:
+        metrics_dict: A dict, where keys are names of metrics and values are
+        the dictionary representation of the metric.
+
     Returns:
         Table with scalar metrics and their values in HTML format.
     """
     for metric_key, metric_values in metrics_dict.items():
-        for metric_indice, metric_value in enumerate(metric_values):
+        for metric_index, metric_value in enumerate(metric_values):
             if isinstance(metric_value, float):
                 if metric_value.is_integer():
-                    metric_values[metric_indice] = int(metric_value)
+                    metric_values[metric_index] = int(metric_value)
                 else:
-                    metric_values[metric_indice] = round(metric_value, 3)
+                    metric_values[metric_index] = round(metric_value, 3)
     table = {
         "Metric name": list(metrics_dict.keys()),
         "GTSfM": list(item[0] for item in metrics_dict.values()),
@@ -156,7 +164,7 @@ def get_figures_for_metrics(metrics_group: GtsfmMetricsGroup) -> Tuple[str, str]
             # Metrics with a dict representation must contain a summary.
             if metrics.SUMMARY_KEY not in value:
                 raise ValueError(f"Metric {metric_name} does not contain a summary.")
-            # Add a scalar metric for mean of 1D distributions.
+            # Add a scalar metric for median of 1D distributions.
             scalar_metrics["median_" + metric_name] = value[metrics.SUMMARY_KEY]["median"]
         else:
             scalar_metrics[metric_name] = value
@@ -165,7 +173,7 @@ def get_figures_for_metrics(metrics_group: GtsfmMetricsGroup) -> Tuple[str, str]
     return table, plots_fig
 
 
-def get_figures_for_metrics_and_compare(metrics_group: GtsfmMetricsGroup, metric_path: str) -> Tuple[str, str]:
+def get_figures_for_metrics_and_compare(metrics_group: GtsfmMetricsGroup, colmap_metrics_group: GtsfmMetricsGroup) -> Tuple[str, str]:
     """Gets the tables and plots for individual metrics in a metrics group.
 
     All scalar metrics are reported in the table.
@@ -174,21 +182,14 @@ def get_figures_for_metrics_and_compare(metrics_group: GtsfmMetricsGroup, metric
 
     Args:
         metrics_group: A GtsfmMetricsGroup for any gtsfm module.
-        metric_path: A path to the GTSfM generated metrics (default: gtsfm/result_metrics)
+        colmap_metrics_group: A GtsfmMetricsGroup for corresponding colmap modules.
 
     Returns:
         A tuple of table and plotly figures as HTML code.
     """
-    all_metrics_groups = []
-
-    colmap_metric_path = metric_path[: metric_path.rindex("/")] + "/colmap" + metric_path[metric_path.rindex("/") :]
-    colmap_metrics_group = GtsfmMetricsGroup.parse_from_json(colmap_metric_path)
-
-    all_metrics_groups.append(metrics_group)
-    all_metrics_groups.append(colmap_metrics_group)
-
+    metrics_groups = [metrics_group, colmap_metrics_group]
     scalar_metrics = defaultdict(list)
-    for metrics_group in all_metrics_groups:
+    for metrics_group in metrics_groups:
         metrics_dict = metrics_group.get_metrics_as_dict()[metrics_group.name]
         # Separate the scalar metrics.
         for metric_name, value in metrics_dict.items():
@@ -196,7 +197,7 @@ def get_figures_for_metrics_and_compare(metrics_group: GtsfmMetricsGroup, metric
                 # Metrics with a dict representation must contain a summary.
                 if metrics.SUMMARY_KEY not in value:
                     raise ValueError(f"Metric {metric_name} does not contain a summary.")
-                # Add a scalar metric for mean of 1D distributions.
+                # Add a scalar metric for median of 1D distributions.
                 median_nan = value[metrics.SUMMARY_KEY]["median"] != value[metrics.SUMMARY_KEY]["median"]
                 if median_nan:
                     scalar_metrics["median_" + metric_name].append("")
@@ -253,7 +254,7 @@ def get_html_header() -> str:
 def generate_metrics_report_html(
     metrics_groups: List[GtsfmMetricsGroup],
     html_path: str,
-    colmap_files_dirpath: str,
+    colmap_output_dir: str,
     metric_paths: List[str],
 ) -> None:
     """Generates a report for metrics groups with plots and tables and saves it to HTML.
@@ -261,7 +262,7 @@ def generate_metrics_report_html(
     Args:
         metrics_groups: List of metrics to be reported.
         html_path: Path where this report is written to (default: output_dir/gtsfm_metrics_report.html).
-        colmap_files_dirpath: Optional; If a path to a directory containing a COLMAP reconstruction
+        colmap_output_dir: Optional; If a path to a directory containing a COLMAP reconstruction
           (as cameras.txt, images.txt, and points3D.txt) is provided, the COLMAP metrics will also be
           included in the report.
         metric_paths: A list of paths to GTSfM metrics.
@@ -278,10 +279,14 @@ def generate_metrics_report_html(
             f.write(get_html_metric_heading(metrics_group.name))
 
             # Write plots and tables.
-            if colmap_files_dirpath is None:
+            if colmap_output_dir is None:
                 table, plots_fig = get_figures_for_metrics(metrics_group)
             else:
-                table, plots_fig = get_figures_for_metrics_and_compare(metrics_group, metric_paths[i])
+                metric_path = metric_paths[i]
+                colmap_metric_path = metric_path[: metric_path.rindex("/")] + "/colmap" + metric_path[
+                                                                                          metric_path.rindex("/"):]
+                colmap_metrics_group = GtsfmMetricsGroup.parse_from_json(colmap_metric_path)
+                table, plots_fig = get_figures_for_metrics_and_compare(metrics_group, colmap_metrics_group)
             f.write(table)
             if plots_fig is not None:
                 f.write(plots_fig)
