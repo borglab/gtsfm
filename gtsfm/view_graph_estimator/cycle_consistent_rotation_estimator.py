@@ -148,7 +148,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
             return GtsfmMetricsGroup(name="rotation_cycle_consistency_metrics", metrics=[])
 
         inlier_i1_i2 = view_graph.get_pair_indices()
-        outlier_i1_i2 = [i1_i2 for i1_i2 in i2Ri1.keys() if i1_i2 not in inlier_i1_i2]
+        outlier_i1_i2 = [i1_i2 for i1_i2 in i2Ri1.keys() if i1_i2 not in inlier_i1_i2 and i2Ri1[i1_i2]]
 
         inlier_R_angular_errors = []
         outlier_R_angular_errors = []

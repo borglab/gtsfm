@@ -203,7 +203,12 @@ class SceneOptimizer:
         # TODO: compute 2-view report post view graph optimization
 
         # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
-        (ba_input_graph, ba_output_graph, optimizer_metrics_graph) = self.multiview_optimizer.create_computation_graph(
+        (
+            view_graph,
+            ba_input_graph,
+            ba_output_graph,
+            optimizer_metrics_graph,
+        ) = self.multiview_optimizer.create_computation_graph(
             image_graph,
             num_images,
             keypoints_graph_list,

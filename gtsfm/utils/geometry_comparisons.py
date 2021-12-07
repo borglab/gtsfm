@@ -350,12 +350,13 @@ def compute_points_distance_l2(wti1: Optional[Point3], wti2: Optional[Point3]) -
 def compute_cyclic_rotation_error(i1Ri0: Rot3, i2Ri1: Rot3, i2Ri0: Rot3) -> float:
     """Computes the cycle error in degrees after composing the three input rotations.
 
-    The cycle error is given by the angle of inv(i2Ri0) * i2Ri1 * i1Ri0.
+    The cyclic error is the angle between identity and the rotation obtained by composing the three input relative 
+    rotations, i.e., (I - inv(i2Ri0) * i2Ri1 * i1Ri0).
 
     Args:
-        i1Ri0: Relative rotation of first edge.
-        i2Ri1: Relative rotation of second edge.
-        i2Ri0: Relative rotation of third edge.
+        i1Ri0: Relative rotation of camera i0 with respect to i1.
+        i2Ri1: Relative rotation of camera i1 with respect to i2.
+        i2Ri0: Relative rotation of camera i0 with respect to i2.
 
     Returns:
         Cyclic rotation error in degrees.

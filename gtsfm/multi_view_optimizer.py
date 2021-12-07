@@ -115,7 +115,7 @@ class MultiViewOptimizer:
         # align the sparse multi-view estimate before BA to the ground truth pose graph.
         ba_input_graph = dask.delayed(ba_input_graph.align_via_Sim3_to_poses)(gt_poses_graph)
 
-        return ba_input_graph, ba_result_graph, multiview_optimizer_metrics_graph
+        return view_graph, ba_input_graph, ba_result_graph, multiview_optimizer_metrics_graph
 
 
 def init_cameras(
