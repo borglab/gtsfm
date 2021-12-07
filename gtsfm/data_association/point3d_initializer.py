@@ -156,11 +156,6 @@ class Point3dInitializer(NamedTuple):
                     best_error = avg_error
                     best_inliers = is_inlier
 
-            # Reject the support if minimum population.
-            num_support = np.count_nonzero(best_inliers)
-            if num_support < 3 and num_support < len(track_2d.measurements):
-                best_inliers = np.zeros(len(track_2d.measurements), dtype=bool)
-
         return best_inliers
 
     def triangulate(self, track_2d: SfmTrack2d) -> Tuple[Optional[SfmTrack], Optional[float], TriangulationExitCode]:
