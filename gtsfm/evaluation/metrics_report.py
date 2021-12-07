@@ -173,7 +173,9 @@ def get_figures_for_metrics(metrics_group: GtsfmMetricsGroup) -> Tuple[str, str]
     return table, plots_fig
 
 
-def get_figures_for_metrics_and_compare(metrics_group: GtsfmMetricsGroup, colmap_metrics_group: GtsfmMetricsGroup) -> Tuple[str, str]:
+def get_figures_for_metrics_and_compare(
+    metrics_group: GtsfmMetricsGroup, colmap_metrics_group: GtsfmMetricsGroup
+) -> Tuple[str, str]:
     """Gets the tables and plots for individual metrics in a metrics group.
 
     All scalar metrics are reported in the table.
@@ -283,8 +285,9 @@ def generate_metrics_report_html(
                 table, plots_fig = get_figures_for_metrics(metrics_group)
             else:
                 metric_path = metric_paths[i]
-                colmap_metric_path = metric_path[: metric_path.rindex("/")] + "/colmap" + metric_path[
-                                                                                          metric_path.rindex("/"):]
+                colmap_metric_path = (
+                    metric_path[: metric_path.rindex("/")] + "/colmap" + metric_path[metric_path.rindex("/") :]
+                )
                 colmap_metrics_group = GtsfmMetricsGroup.parse_from_json(colmap_metric_path)
                 table, plots_fig = get_figures_for_metrics_and_compare(metrics_group, colmap_metrics_group)
             f.write(table)
