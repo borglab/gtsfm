@@ -6,7 +6,7 @@ Author: John Lambert
 import numpy as np
 import open3d
 
-import visualization.open3d_vis_utils as open3d_vis_utils
+import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 
 
 def test_create_colored_spheres_open3d() -> None:

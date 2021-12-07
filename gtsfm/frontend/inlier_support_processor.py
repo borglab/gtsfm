@@ -2,7 +2,7 @@
 
 Authors: John Lambert
 """
-
+import dataclasses
 from typing import Optional, Tuple
 
 import dask
@@ -60,6 +60,9 @@ class InlierSupportProcessor:
             v_corr_idxs: empty (0,2) array if insufficient support
             two_view_report: two-view estimation report, or None if insufficient support
         """
+        # make a copy of the report
+        two_view_report_post_isp = dataclasses.replace(two_view_report)
+
         insufficient_inliers = two_view_report.num_inliers_est_model < self._min_num_inliers_est_model
 
         # TODO: technically this should almost always be non-zero, just need to move up to earlier
@@ -75,7 +78,8 @@ class InlierSupportProcessor:
             i2Ri1 = None
             i2Ui1 = None
             v_corr_idxs = np.array([], dtype=np.uint64)
-            return i2Ri1, i2Ui1, v_corr_idxs, None
+
+            return i2Ri1, i2Ui1, v_corr_idxs, TwoViewEstimationReport(v_corr_idxs=v_corr_idxs, num_inliers_est_model=0)
 
         if valid_model and insufficient_inliers:
             logger.debug(
@@ -87,12 +91,9 @@ class InlierSupportProcessor:
             i2Ri1 = None
             i2Ui1 = None
             v_corr_idxs = np.array([], dtype=np.uint64)
-            return i2Ri1, i2Ui1, v_corr_idxs, None
+            return i2Ri1, i2Ui1, v_corr_idxs, TwoViewEstimationReport(v_corr_idxs=v_corr_idxs, num_inliers_est_model=0)
 
-        two_view_report.i2Ri1 = i2Ri1
-        two_view_report.i2Ui1 = i2Ui1
-
-        return i2Ri1, i2Ui1, v_corr_idxs, two_view_report
+        return i2Ri1, i2Ui1, v_corr_idxs, two_view_report_post_isp
 
     def create_computation_graph(
         self, i2Ri1_graph: Delayed, i2Ui1_graph: Delayed, v_corr_idxs_graph: Delayed, two_view_report_graph: Delayed
