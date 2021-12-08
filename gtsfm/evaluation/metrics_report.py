@@ -210,7 +210,7 @@ def get_figures_for_metrics_and_compare(
     table = create_table_for_scalar_metrics_and_compare(scalar_metrics)
 
     plots_fig = ""
-    for metrics_group in all_metrics_groups:
+    for metrics_group in metrics_groups:
         plots_fig += create_plots_for_distributions(metrics_group.get_metrics_as_dict()[metrics_group.name])
     return table, plots_fig
 
