@@ -5,12 +5,12 @@ Author: Travis Driver
 
 import unittest
 
-import trimesh
 import numpy as np
+import trimesh
 from gtsam import PinholeCameraCal3Bundler, Cal3Bundler
-from gtsfm.common.keypoints import Keypoints
 
 import gtsfm.utils.metrics as metric_utils
+from gtsfm.common.keypoints import Keypoints
 
 
 class TestMetricUtils(unittest.TestCase):
@@ -67,6 +67,30 @@ class TestMetricUtils(unittest.TestCase):
             _, intersection = metric_utils.compute_keypoint_intersections(kpt, cam, box, verbose=True)
             estimated_intersections.append(intersection.flatten().tolist())
         np.testing.assert_allclose(expected_intersections, estimated_intersections)
+
+
+def test_compute_percentage_change_improve() -> None:
+    """Ensure that percentage change is computed correctly for a 50% improvement over 100."""
+    x = 100
+    y = 150
+    change_percent = metric_utils.compute_percentage_change(x, y)
+    assert np.isclose(change_percent, 50)
+
+
+def test_compute_percentage_change_static() -> None:
+    """Ensure that percentage change is computed correctly for no change in a value."""
+    x = 100
+    y = 100
+    change_percent = metric_utils.compute_percentage_change(x, y)
+    assert np.isclose(change_percent, 0)
+
+
+def test_compute_percentage_change_regression() -> None:
+    """Ensure that percentage change is computed correctly for a 99% regression against 100."""
+    x = 100
+    y = 1
+    change_percent = metric_utils.compute_percentage_change(x, y)
+    assert np.isclose(change_percent, -99)
 
 
 if __name__ == "__main__":

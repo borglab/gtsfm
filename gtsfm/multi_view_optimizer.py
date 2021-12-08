@@ -42,6 +42,7 @@ class MultiViewOptimizer:
         i2Ui1_graph: Dict[Tuple[int, int], Delayed],
         v_corr_idxs_graph: Dict[Tuple[int, int], Delayed],
         intrinsics_graph: List[Delayed],
+        two_view_reports_dict: Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
         gt_cameras_graph: Optional[List[Delayed]] = None,
     ) -> Tuple[Delayed, Delayed, Delayed]:
         """Creates a computation graph for multi-view optimization.
@@ -53,35 +54,40 @@ class MultiViewOptimizer:
             i2Ui1_graph: relative unit-translations for image pairs, each value wrapped up as Delayed.
             v_corr_idxs_graph: indices of verified correspondences for image pairs, wrapped up as Delayed.
             intrinsics_graph: intrinsics for images, wrapped up as Delayed.
+            two_view_reports_dict: Dict of TwoViewEstimationReports after inlier support processor.
             gt_cameras_graph: list of GT cameras (if they exist), ordered by camera index, wrapped up as Delayed.
 
         Returns:
             The GtsfmData input to bundle adjustment, aligned to GT (if provided), wrapped up as Delayed.
             The final output GtsfmData, wrapped up as Delayed.
+            Dict of TwoViewEstimationReports after view graph estimation.
             List of GtsfmMetricGroups from different modules, wrapped up as Delayed.
         """
-        # prune the graph to a single connected component.
-        pruned_i2Ri1_graph, pruned_i2Ui1_graph = dask.delayed(graph_utils.prune_to_largest_connected_component, nout=2)(
-            i2Ri1_graph, i2Ui1_graph
-        )
-
         view_graph, view_graph_metrics = self.view_graph_estimator.create_computation_graph(
-            pruned_i2Ri1_graph,
-            pruned_i2Ui1_graph,
+            i2Ri1_graph,
+            i2Ui1_graph,
             intrinsics_graph,
             v_corr_idxs_graph,
             keypoints_graph,
             gt_cameras_graph,
         )
+        view_graph_two_view_report = dask.delayed(filter_dict_keys)(
+            two_view_reports_dict, dask.delayed(lambda x: x.i2Ri1)(view_graph)
+        )
+
+        # prune the graph to a single connected component.
+        pruned_i2Ri1_graph, pruned_i2Ui1_graph = dask.delayed(graph_utils.prune_to_largest_connected_component, nout=2)(
+            dask.delayed(lambda x: x.i2Ri1)(view_graph), dask.delayed(lambda x: x.i2Ui1)(view_graph)
+        )
 
         gt_poses_graph = (
             [dask.delayed(lambda x: x.pose())(cam) for cam in gt_cameras_graph] if gt_cameras_graph else None
         )
-        wRi_graph = self.rot_avg_module.create_computation_graph(
-            num_images, dask.delayed(lambda x: x.i2Ri1)(view_graph)
-        )
+
+        wRi_graph = self.rot_avg_module.create_computation_graph(num_images, pruned_i2Ri1_graph)
+
         wti_graph, ta_metrics = self.trans_avg_module.create_computation_graph(
-            num_images, dask.delayed(lambda x: x.i2Ui1)(view_graph), wRi_graph, gt_wTi_graph=gt_poses_graph
+            num_images, pruned_i2Ui1_graph, wRi_graph, gt_wTi_graph=gt_poses_graph
         )
         init_cameras_graph = dask.delayed(init_cameras)(wRi_graph, wti_graph, intrinsics_graph)
 
@@ -115,7 +121,7 @@ class MultiViewOptimizer:
         # align the sparse multi-view estimate before BA to the ground truth pose graph.
         ba_input_graph = dask.delayed(ba_input_graph.align_via_Sim3_to_poses)(gt_poses_graph)
 
-        return view_graph, ba_input_graph, ba_result_graph, multiview_optimizer_metrics_graph
+        return ba_input_graph, ba_result_graph, view_graph_two_view_report, multiview_optimizer_metrics_graph
 
 
 def init_cameras(
@@ -155,3 +161,17 @@ def get_averaging_metrics(
         An averaging metrics group with both rotation and translation averaging metrics.
     """
     return GtsfmMetricsGroup("averaging_metrics", rot_avg_metrics.metrics + trans_avg_metrics.metrics)
+
+
+def filter_dict_keys(dict: Dict[Any, Any], ref_dict: Dict[Any, Any]) -> Dict[Any, Any]:
+    """Return a subset of a dictionary based on keys present in the reference dictionary.
+
+    Args:
+        dict: Dictionary to be filtered.
+        ref_dict: Dictionary whose keys are to be retained.
+
+    Returns:
+        Subset of dict with keys from ref_dict.
+    """
+    valid_keys = list(ref_dict.keys())
+    return {k: v for k, v in dict.items() if k in valid_keys}
