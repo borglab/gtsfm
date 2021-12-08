@@ -3,7 +3,7 @@ Use Plotly to create a dashboard that compares the metrics across all the benchm
 
 The dashboard is a heatmap representing a 2d table, with text annotations added to it.
 
-Authors: John Lambert
+Authors: John Lambert, Neha Upadhyay
 """
 
 import argparse
@@ -64,7 +64,7 @@ def colorscale_from_list(colorlist: List[str]) -> List[str]:
     return colorscale
 
 
-def plot_colored_table(row_labels: List[str], col_labels: List[str], tab_data: np.ndarray) -> str:
+def plot_colored_table(new_values: np.ndarray, old_values: np.ndarray, row_labels: List[str], col_labels: List[str], tab_data: np.ndarray) -> str:
     """Create an annotated heatmap.
 
     Args:
@@ -76,9 +76,15 @@ def plot_colored_table(row_labels: List[str], col_labels: List[str], tab_data: n
     Returns:
         string representing HTML code for the generated Plotly table.
     """
-
+    if tab_data.size == 0:
+        return ''
     # Clip "Z" to -20% and +20%. The clipping is only for the color -- the text will still display the correct numbers.
     tab_data_clipped = np.clip(tab_data, a_min=MIN_RENDERABLE_PERCENT_CHANGE, a_max=MAX_RENDERABLE_PERCENT_CHANGE)
+    hovertext = list()
+    for yi, yy in enumerate(col_labels):
+        hovertext.append(list())
+        for xi, xx in enumerate(row_labels):
+            hovertext[-1].append('Master_val: {}<br />Branch_val: {}<br />Percentage: {}'.format(old_values[yi][xi],new_values[yi][xi], tab_data[yi][xi]))
 
     redgreen = [RED_HEX, PALE_YELLOW_HEX, GREEN_HEX]
     colorscale = colorscale_from_list(redgreen)
@@ -87,6 +93,8 @@ def plot_colored_table(row_labels: List[str], col_labels: List[str], tab_data: n
         x=row_labels,
         y=col_labels,
         colorscale=colorscale,
+        hoverinfo='text',
+        text=hovertext,
         zmin=-MIN_RENDERABLE_PERCENT_CHANGE,
         zmax=MAX_RENDERABLE_PERCENT_CHANGE,
     )
@@ -204,18 +212,33 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
                     # smaller is better, so this will flip the color to green for reduced values, instead of red
                     # exception are outlier errors, which we want to get larger.
                     percentage_change *= -1
-                benchmark_table_vals[metric_name][zip_fname] = percentage_change
+                benchmark_table_vals[metric_name][zip_fname] = (round(float(master_val), 4), round(float(branch_val), 4),round(percentage_change,4))
 
         Z_rows = []
+        new_values = []
+        old_values = []
         for metric_name, benchmark_vals_dict in benchmark_table_vals.items():
             Z_row = []
+            new_value = []
+            old_value = []
             for zip_fname in zip_artifact_fnames:
-                Z_row.append(benchmark_vals_dict.get(zip_fname, np.nan))  # default was unchanged if missing
+                if benchmark_vals_dict.get(zip_fname, np.nan) is not np.nan:
+                    Z_row.append(benchmark_vals_dict.get(zip_fname, np.nan)[2])
+                    new_value.append(benchmark_vals_dict.get(zip_fname, np.nan)[1])
+                    old_value.append(benchmark_vals_dict.get(zip_fname, np.nan)[0])
+                else:
+                    Z_row.append(benchmark_vals_dict.get(zip_fname, np.nan)) # default was unchanged if missing
+                    new_value.append(benchmark_vals_dict.get(zip_fname, np.nan))
+                    old_value.append(benchmark_vals_dict.get(zip_fname, np.nan))
             Z_rows.append(Z_row)
+            new_values.append(new_value)
+            old_values.append(old_value)
             Y.append(metric_name)
 
         Z = np.array(Z_rows)
-        table_html = plot_colored_table(row_labels=X, col_labels=Y, tab_data=Z)
+        new_values = np.array(new_values)
+        old_values = np.array(old_values)
+        table_html = plot_colored_table(new_values, old_values, row_labels=X, col_labels=Y, tab_data=Z)
 
         # Write name of the metric group in human readable form.
         f.write(metrics_report.get_html_metric_heading(table_name))
