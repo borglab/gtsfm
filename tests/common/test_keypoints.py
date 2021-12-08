@@ -106,13 +106,13 @@ class TestKeypoints(unittest.TestCase):
 
         # test with requested length > current length
         requested_length = len(input_keypoints) * 2
-        computed = input_keypoints.get_top_k(requested_length)
+        computed, _ = input_keypoints.get_top_k(requested_length)
 
         self.assertEqual(computed, input_keypoints)
 
         # test with requested length < current length
         requested_length = 2
-        computed = input_keypoints.get_top_k(requested_length)
+        computed, _ = input_keypoints.get_top_k(requested_length)
 
         expected = Keypoints(
             coordinates=np.array(
@@ -145,13 +145,13 @@ class TestKeypoints(unittest.TestCase):
 
         # test with requested length > current length
         requested_length = len(input_keypoints) * 2
-        computed = input_keypoints.get_top_k(requested_length)
+        computed, _ = input_keypoints.get_top_k(requested_length)
 
         self.assertEqual(computed, input_keypoints)
 
         # test with requested length < current length
         requested_length = 2
-        computed = input_keypoints.get_top_k(requested_length)
+        computed, _ = input_keypoints.get_top_k(requested_length)
 
         expected = Keypoints(coordinates=input_keypoints.coordinates[:requested_length])
 

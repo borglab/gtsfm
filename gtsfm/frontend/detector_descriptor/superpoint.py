@@ -65,7 +65,9 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
 
         # Filter features.
         if image.mask is not None:
-            keypoints, descriptors = self.filter_by_mask(image.mask, keypoints, descriptors)
-        keypoints, descriptors = self.filter_by_response(keypoints, descriptors)
+            keypoints, valid_idxs = keypoints.filter_by_mask(image.mask)
+            descriptors = descriptors[valid_idxs]
+        keypoints, selection_idxs = keypoints.get_top_k(self.max_keypoints)
+        descriptors = descriptors[selection_idxs]
 
         return keypoints, descriptors
