@@ -64,37 +64,49 @@ def colorscale_from_list(colorlist: List[str]) -> List[str]:
     return colorscale
 
 
-def plot_colored_table(new_values: np.ndarray, old_values: np.ndarray, row_labels: List[str], col_labels: List[str], tab_data: np.ndarray) -> str:
-    """Create an annotated heatmap.
+def plot_colored_table(
+    master_values: np.ndarray,
+    branch_values: np.ndarray,
+    row_labels: List[str],
+    col_labels: List[str],
+    tab_data: np.ndarray,
+) -> str:
+    """Create an annotated heatmap of shape (H,W), where there are H metrics, and W benchmark datasets.
 
     Args:
-        row_labels: labels for each column (column names) in the "x" direction.
-        col_labels: labels for each row (row names) in the "y" direction.
-        tab_data: 2d matrix, representing table data. Entries of the table represent percentage changes
+        master_values: array of shape (H,W), representing values in master
+        branch_values: array of shape (H,W), representing values in new branch
+        col_labels: list of length (W), representing labels for each column (column names) in the "x" direction.
+        row_labels: list of length (H), representing labels for each row (row names) in the "y" direction.
+        tab_data: (H,W) 2d matrix, representing table data. Entries of the table represent percentage changes
             from a value for a metric on the master branch. Values can be considered in the "z" direction.
 
     Returns:
         string representing HTML code for the generated Plotly table.
     """
     if tab_data.size == 0:
-        return ''
+        return ""
     # Clip "Z" to -20% and +20%. The clipping is only for the color -- the text will still display the correct numbers.
     tab_data_clipped = np.clip(tab_data, a_min=MIN_RENDERABLE_PERCENT_CHANGE, a_max=MAX_RENDERABLE_PERCENT_CHANGE)
-    hovertext = list()
-    for yi, yy in enumerate(col_labels):
-        hovertext.append(list())
-        for xi, xx in enumerate(row_labels):
-            hovertext[-1].append('Master_val: {}<br />Branch_val: {}<br />Percentage: {}'.format(old_values[yi][xi],new_values[yi][xi], tab_data[yi][xi]))
+
+    H, W = tab_data.shape
+    hovertext_table = np.empty((H, W), dtype=object)
+    for i in range(H):
+        for j in range(W):
+            cell_text = f"Master: {master_values[i,j]}<br />"
+            cell_text += f"Branch: {branch_values[i,j]} <br />"
+            cell_text += f"Percentage: {tab_data[i,j]}"
+            hovertext_table[i, j] = cell_text
 
     redgreen = [RED_HEX, PALE_YELLOW_HEX, GREEN_HEX]
     colorscale = colorscale_from_list(redgreen)
     trace = go.Heatmap(
         z=tab_data_clipped,
-        x=row_labels,
-        y=col_labels,
+        x=col_labels,
+        y=row_labels,
         colorscale=colorscale,
-        hoverinfo='text',
-        text=hovertext,
+        hoverinfo="text",
+        text=hovertext_table.tolist(),
         zmin=-MIN_RENDERABLE_PERCENT_CHANGE,
         zmax=MAX_RENDERABLE_PERCENT_CHANGE,
     )
@@ -125,8 +137,8 @@ def plot_colored_table(new_values: np.ndarray, old_values: np.ndarray, row_label
             annotations.append(
                 Annotation(
                     text=str(np.round(tab_data[i, j], 1)) + "%",
-                    x=row_labels[j],
-                    y=col_labels[i],
+                    x=col_labels[j],
+                    y=row_labels[i],
                     xref="x1",
                     yref="y1",
                     font=dict(color="rgb(25,25,25)"),
@@ -139,9 +151,9 @@ def plot_colored_table(new_values: np.ndarray, old_values: np.ndarray, row_label
 
 def generate_artifact_fnames_from_workflow(workflow_yaml_fpath: str) -> List[str]:
     """Auto-generate the expected filenames of CI artifact based on `benchmark.yaml' entries.
-    
+
     The zip artifact names are auto-generated during CI runs from the YAML file, and by auto-generating
-    them here, we can add additional benchmarks without needing to edit a hard-coded list. 
+    them here, we can add additional benchmarks without needing to edit a hard-coded list.
 
     Returns:
         artifact_fnames: file names of CI artifacts.
@@ -183,16 +195,14 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
     # Loop over each table in the HTML report.
     for table_name in TABLE_NAMES:
 
-        X = []
-        Y = []
+        # use just the first 35 chars of each.
+        X = [zip_fname[:MAX_NUM_CHARS_ARTIFACT_FNAME] for zip_fname in zip_artifact_fnames]
 
+        # mapping from (metric_name, benchmark_name) -> (master value, branch value, percentage change)
         benchmark_table_vals = defaultdict(dict)
 
         # Loop over each benchmark result (columns of table).
         for zip_fname in zip_artifact_fnames:
-            # use just the first 35 chars
-            X.append(zip_fname[:MAX_NUM_CHARS_ARTIFACT_FNAME])
-
             report1_fpath = f"{curr_master_dirpath}/results-{zip_fname}/result_metrics/gtsfm_metrics_report.html"
             tables_dict1 = report_utils.extract_tables_from_report(report1_fpath)
 
@@ -212,33 +222,31 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
                     # smaller is better, so this will flip the color to green for reduced values, instead of red
                     # exception are outlier errors, which we want to get larger.
                     percentage_change *= -1
-                benchmark_table_vals[metric_name][zip_fname] = (round(float(master_val), 4), round(float(branch_val), 4),round(percentage_change,4))
+                benchmark_table_vals[metric_name][zip_fname] = (
+                    round(float(master_val), 4),
+                    round(float(branch_val), 4),
+                    round(percentage_change, 4),
+                )
 
-        Z_rows = []
-        new_values = []
-        old_values = []
-        for metric_name, benchmark_vals_dict in benchmark_table_vals.items():
-            Z_row = []
-            new_value = []
-            old_value = []
-            for zip_fname in zip_artifact_fnames:
-                if benchmark_vals_dict.get(zip_fname, np.nan) is not np.nan:
-                    Z_row.append(benchmark_vals_dict.get(zip_fname, np.nan)[2])
-                    new_value.append(benchmark_vals_dict.get(zip_fname, np.nan)[1])
-                    old_value.append(benchmark_vals_dict.get(zip_fname, np.nan)[0])
+        N_metrics = len(benchmark_table_vals.keys())
+        M_benchmarks = len(zip_artifact_fnames)
+        Y = list(benchmark_table_vals.keys())
+        Z = np.zeros((N_metrics, M_benchmarks))
+        master_values = np.zeros((N_metrics, M_benchmarks))
+        branch_values = np.zeros((N_metrics, M_benchmarks))
+
+        for i, (metric_name, benchmark_vals_dict) in enumerate(benchmark_table_vals.items()):
+
+            for j, zip_fname in enumerate(zip_artifact_fnames):
+                if zip_fname in benchmark_vals_dict.keys():
+                    master_val, branch_val, percentage_change = benchmark_vals_dict.get(zip_fname)
                 else:
-                    Z_row.append(benchmark_vals_dict.get(zip_fname, np.nan)) # default was unchanged if missing
-                    new_value.append(benchmark_vals_dict.get(zip_fname, np.nan))
-                    old_value.append(benchmark_vals_dict.get(zip_fname, np.nan))
-            Z_rows.append(Z_row)
-            new_values.append(new_value)
-            old_values.append(old_value)
-            Y.append(metric_name)
+                    master_val, branch_val, percentage_change = np.nan, np.nan, np.nan
+                Z[i, j] = percentage_change
+                master_values[i, j] = master_val
+                branch_values[i, j] = branch_val
 
-        Z = np.array(Z_rows)
-        new_values = np.array(new_values)
-        old_values = np.array(old_values)
-        table_html = plot_colored_table(new_values, old_values, row_labels=X, col_labels=Y, tab_data=Z)
+        table_html = plot_colored_table(master_values, branch_values, row_labels=Y, col_labels=X, tab_data=Z)
 
         # Write name of the metric group in human readable form.
         f.write(metrics_report.get_html_metric_heading(table_name))
