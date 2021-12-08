@@ -74,34 +74,6 @@ class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
                 self.assertEqual(keypoints, expected_kps)
                 np.testing.assert_array_equal(descriptors, expected_descs)
 
-    def test_filter_by_mask(self) -> None:
-        """Test the `filter_by_mask` method."""
-        # Create a (9, 9) mask with ones in a (5, 5) square in the center of the mask and zeros everywhere else.
-        mask = np.zeros((9, 9)).astype(np.uint8)
-        mask[2:7, 2:7] = 1
-
-        # Test coordinates near corners of square of ones and along the diagonal.
-        coordinates = np.array(
-            [
-                [1.4, 1.4],
-                [1.4, 6.4],
-                [6.4, 1.4],
-                [6.4, 6.4],
-                [5.0, 5.0],
-                [0.0, 0.0],
-                [8.0, 8.0],
-            ]
-        )
-        valid_coordinates = coordinates[[3, 4]]
-
-        # Create keypoints from coordinates and dummy descriptors.
-        keypoints = Keypoints(coordinates, scales=None, responses=None)
-        descriptors = np.ones((coordinates.shape[0], 10))  # dummy descriptors
-        filtered_keypoints, filtered_descriptors = self.detector_descriptor.filter_by_mask(mask, keypoints, descriptors)
-        assert len(filtered_keypoints) == filtered_descriptors.shape[0]
-        assert len(filtered_keypoints) == 2
-        np.testing.assert_equal(filtered_keypoints.coordinates, valid_coordinates)
-
 
 if __name__ == "__main__":
     unittest.main()

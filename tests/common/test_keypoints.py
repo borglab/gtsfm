@@ -157,6 +157,32 @@ class TestKeypoints(unittest.TestCase):
 
         self.assertEqual(computed, expected)
 
+    def test_filter_by_mask(self) -> None:
+        """Test the `filter_by_mask` method."""
+        # Create a (9, 9) mask with ones in a (5, 5) square in the center of the mask and zeros everywhere else.
+        mask = np.zeros((9, 9)).astype(np.uint8)
+        mask[2:7, 2:7] = 1
+
+        # Test coordinates near corners of square of ones and along the diagonal.
+        coordinates = np.array(
+            [
+                [1.4, 1.4],
+                [1.4, 6.4],
+                [6.4, 1.4],
+                [6.4, 6.4],
+                [5.0, 5.0],
+                [0.0, 0.0],
+                [8.0, 8.0],
+            ]
+        )
+        input_keypoints = Keypoints(coordinates=coordinates)
+        expected_keypoints = Keypoints(coordinates=coordinates[[3, 4]])
+
+        # Create keypoints from coordinates and dummy descriptors.
+        filtered_keypoints, _ = input_keypoints.filter_by_mask(mask)
+        assert len(filtered_keypoints) == 2
+        self.assertEqual(filtered_keypoints, expected_keypoints)
+
     def test_cast_to_opencv_keypoints(self):
         """Tests conversion of GTSFM's keypoints to OpenCV's keypoints."""
 
