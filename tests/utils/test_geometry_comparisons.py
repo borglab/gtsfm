@@ -65,7 +65,7 @@ class TestGeometryComparisons(unittest.TestCase):
         self.addTypeEqualityFunc(Rot3, rot3_compare)
         self.addTypeEqualityFunc(Point3, point3_compare)
 
-    def test_align_rotations(self):
+    def test_align_rotations(self) -> None:
         """Tests the alignment of rotations."""
 
         # using rotation along just the Y-axis so that angles can be linearly added.
@@ -86,7 +86,7 @@ class TestGeometryComparisons(unittest.TestCase):
 
         self.__assert_equality_on_rot3s(computed, expected)
 
-    def test_align_poses_after_sim3_transform(self):
+    def test_align_poses_after_sim3_transform(self) -> None:
         """Test for alignment of poses after applying a SIM3 transformation."""
 
         translation_shift = np.array([5, 10, -5])
@@ -102,7 +102,7 @@ class TestGeometryComparisons(unittest.TestCase):
         assert isinstance(aSb, Similarity3)
         self.__assert_equality_on_pose3s(computed_poses, sample_poses.CIRCLE_TWO_EDGES_GLOBAL_POSES)
 
-    def test_align_poses_on_panorama_after_sim3_transform(self):
+    def test_align_poses_on_panorama_after_sim3_transform(self) -> None:
         """Test for alignment of poses after applying a forward motion transformation."""
 
         translation_shift = np.array([0, 5, 0])
@@ -257,7 +257,7 @@ class TestGeometryComparisons(unittest.TestCase):
             np.testing.assert_almost_equal(angle_deg, error_deg, decimal=1)
             print(angle_deg, error_deg)
 
-    def test_compute_relative_unit_translation_angle(self):
+    def test_compute_relative_unit_translation_angle(self) -> None:
         """Tests the relative angle between two unit-translations."""
 
         U_1 = Unit3(np.array([1, 0, 0]))
@@ -269,7 +269,7 @@ class TestGeometryComparisons(unittest.TestCase):
 
         self.assertAlmostEqual(computed_deg, expected_deg, places=3)
 
-    def test_compute_translation_to_direction_angle_is_zero(self):
+    def test_compute_translation_to_direction_angle_is_zero(self) -> None:
         i2Ui1_measured = Unit3(Point3(1, 0, 0))
         wTi2_estimated = Pose3(Rot3(), Point3(0, 0, 0))
         wTi1_estimated = Pose3(Rot3(), Point3(2, 0, 0))
@@ -278,7 +278,7 @@ class TestGeometryComparisons(unittest.TestCase):
             0.0,
         )
 
-    def test_compute_translation_to_direction_angle_is_nonzero(self):
+    def test_compute_translation_to_direction_angle_is_nonzero(self) -> None:
         rz = np.deg2rad(90)
         wRi2 = Rot3.RzRyRx(0, 0, rz)  # x-axis of i2 points along y in world frame
         wTi2_estimated = Pose3(wRi2, Point3(0, 0, 0))
@@ -291,20 +291,20 @@ class TestGeometryComparisons(unittest.TestCase):
             90.0,
         )
 
-    def test_compute_points_distance_l2_is_zero(self):
+    def test_compute_points_distance_l2_is_zero(self) -> None:
         self.assertEqual(
             geometry_comparisons.compute_points_distance_l2(wti1=Point3(1, -2, 3), wti2=Point3(1, -2, 3)), 0.0
         )
 
-    def test_compute_points_distance_l2_is_none(self):
+    def test_compute_points_distance_l2_is_none(self) -> None:
         self.assertEqual(geometry_comparisons.compute_points_distance_l2(wti1=Point3(0, 0, 0), wti2=None), None)
 
-    def test_compute_points_distance_l2_is_nonzero(self):
+    def test_compute_points_distance_l2_is_nonzero(self) -> None:
         wti1 = Point3(1, 1, 1)
         wti2 = Point3(1, 1, -1)
         self.assertEqual(geometry_comparisons.compute_points_distance_l2(wti1, wti2), 2)
 
-    def test_align_poses_sim3_ignore_missing(self):
+    def test_align_poses_sim3_ignore_missing(self) -> None:
         """Consider a simple cases with 4 poses in a line. Suppose SfM only recovers 2 of the 4 poses."""
         wT0 = Pose3(Rot3(np.eye(3)), np.zeros(3))
         wT1 = Pose3(Rot3(np.eye(3)), np.ones(3))
@@ -392,7 +392,7 @@ def test_ransac_align_poses_sim3_ignore_missing() -> None:
     assert np.allclose(aligned_bTi_list_est[2].translation(), np.array([-0.0113879, 9.94237, 0]), atol=1e-3)
 
 
-def test_get_points_within_radius_of_cameras():
+def test_get_points_within_radius_of_cameras() -> None:
     """Verify that points that fall outside of 10 meter radius of two camera poses.
 
     Cameras are placed at (0,0,0) and (10,0,0).
@@ -408,7 +408,7 @@ def test_get_points_within_radius_of_cameras():
     np.testing.assert_allclose(nearby_points_3d, expected_nearby_points_3d)
 
 
-def test_get_points_within_radius_of_cameras_negative_radius():
+def test_get_points_within_radius_of_cameras_negative_radius() -> None:
     """Catch degenerate input."""
     wTi0 = Pose3(Rot3(), np.zeros(3))
     wTi1 = Pose3(Rot3(), np.array([10.0, 0, 0]))
@@ -419,7 +419,7 @@ def test_get_points_within_radius_of_cameras_negative_radius():
     assert nearby_points_3d is None, "Non-positive radius is not allowed"
 
 
-def test_get_points_within_radius_of_cameras_no_points():
+def test_get_points_within_radius_of_cameras_no_points() -> None:
     """Catch degenerate input."""
 
     wTi0 = Pose3(Rot3(), np.zeros(3))
@@ -432,7 +432,7 @@ def test_get_points_within_radius_of_cameras_no_points():
     assert nearby_points_3d is None, "At least one 3d point must be provided"
 
 
-def test_get_points_within_radius_of_cameras_no_poses():
+def test_get_points_within_radius_of_cameras_no_poses() -> None:
     """Catch degenerate input."""
     wTi_list = []
     points_3d = np.array([[-15, 0, 0], [0, 15, 0], [-5, 0, 0], [15, 0, 0], [25, 0, 0]])
