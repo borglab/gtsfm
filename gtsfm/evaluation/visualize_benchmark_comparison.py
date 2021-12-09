@@ -223,8 +223,8 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
                     # exception are outlier errors, which we want to get larger.
                     percentage_change *= -1
                 benchmark_table_vals[metric_name][zip_fname] = (
-                    round(float(master_val), 4),
-                    round(float(branch_val), 4),
+                    round(float(master_val), 4) if master_val else np.nan,
+                    round(float(branch_val), 4) if branch_val else np.nan,
                     round(percentage_change, 4),
                 )
 
