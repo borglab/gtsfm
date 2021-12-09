@@ -223,7 +223,7 @@ class TestGeometryComparisons(unittest.TestCase):
 
         np.testing.assert_allclose(computed_deg, expected_deg, rtol=1e-3, atol=1e-3)
 
-    def test_compute_relative_rotation_angle(self) -> None:
+    def test_compute_relative_rotation_angle_stress_test(self) -> None:
         """Tests the relative angle between two rotations
 
         Currently compute_relative_rotation_angle() uses Scipy, so this test compares with GTSAM.
@@ -254,7 +254,7 @@ class TestGeometryComparisons(unittest.TestCase):
             axis, angle_rad = i2Ri1.axisAngle()
             angle_deg = np.rad2deg(angle_rad)
 
-            np.testing.assert_almost_equal(angle_deg, error_deg)
+            np.testing.assert_almost_equal(angle_deg, error_deg, decimal=1)
             print(angle_deg, error_deg)
 
     def test_compute_relative_unit_translation_angle(self):

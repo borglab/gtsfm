@@ -46,7 +46,7 @@ def align_rotations(aRi_list: List[Rot3], bRi_list: List[Rot3]) -> List[Rot3]:
 def ransac_align_poses_sim3_ignore_missing(
     aTi_list_ref: List[Optional[Pose3]],
     bTi_list_est: List[Optional[Pose3]],
-    num_iters: int = 1000,
+    num_iters: int = 100,
     delete_frac: float = DEFAULT_RANSAC_ALIGNMENT_DELETE_FRAC,
 ) -> Tuple[List[Optional[Pose3]], Similarity3]:
     """Align pose graphs by estimating a Similarity(3) transformation, while accounting for outliers in the pose graph.
