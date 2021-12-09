@@ -54,6 +54,19 @@ class TestMVSUtils(unittest.TestCase):
 
         self.assertTrue(uv_homo.shape == (3, n))
 
+    def test_estimate_minimum_voxel_size(self) -> None:
+        """Test the estimate_minimum_voxel_size function correctly produces the minimum voxel size"""
+
+        # ramdomly sample a normal-distributed point cloud with variances along each axis are 4, 1, 100
+        mean = [1, 2, 3]
+        cov = [[4, 0, 0], [0, 1, 0], [0, 0, 100]]
+        points = np.random.multivariate_normal(mean, cov, 5000)
+
+        scale = 0.01
+        min_voxel_size = mvs_utils.estimate_minimum_voxel_size(points=points, scale=scale)
+
+        self.assertAlmostEqual(min_voxel_size, 1 * scale, delta=0.1 * scale)
+
 
 if __name__ == "__main__":
     unittest.main()

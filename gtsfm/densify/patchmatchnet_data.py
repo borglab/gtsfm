@@ -148,16 +148,23 @@ class PatchmatchNetData(Dataset):
         #   as (num_views-1) source views for i-th reference view.
         src_views_dict = np.argsort(-pair_scores, axis=1)[:, : self._num_views - 1]
 
+        # Use all depth values to calculate default depth range for images with no depth value
+        all_depths = np.hstack(depths.values())
+        default_min_depth = np.percentile(all_depths, MIN_DEPTH_PERCENTILE)
+        default_max_depth = np.percentile(all_depths, MAX_DEPTH_PERCENTILE)
+
         # Filter out depth outliers and calculate depth ranges
         depth_ranges = np.zeros((self._num_valid_cameras, 2))
         for i in range(self._num_valid_cameras):
 
-            # Verify that there should be at least 1 depth value for each image
-            if len(depths[i]) <= 1:
-                raise ValueError("At least 1 or more depth values for each image must be provided")
-
-            depth_ranges[i, 0] = np.percentile(depths[i], MIN_DEPTH_PERCENTILE)
-            depth_ranges[i, 1] = np.percentile(depths[i], MAX_DEPTH_PERCENTILE)
+            # if image i has no depth value, use default depth range
+            if len(depths[i]) == 0:
+                depth_ranges[i, 0] = default_min_depth
+                depth_ranges[i, 1] = default_max_depth
+            # if image i has at least 1 depth value, calculate the proper depth range
+            else:
+                depth_ranges[i, 0] = np.percentile(depths[i], MIN_DEPTH_PERCENTILE)
+                depth_ranges[i, 1] = np.percentile(depths[i], MAX_DEPTH_PERCENTILE)
 
         return src_views_dict, depth_ranges
 
