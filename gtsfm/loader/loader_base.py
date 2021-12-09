@@ -100,9 +100,10 @@ class LoaderBase(metaclass=abc.ABCMeta):
 
         return PinholeCameraCal3Bundler(pose, intrinsics)
 
-    @abc.abstractmethod
     def is_valid_pair(self, idx1: int, idx2: int) -> bool:
-        """Checks if (idx1, idx2) is a valid pair.
+        """Checks if (idx1, idx2) is a valid pair. idx1 < idx2 is required.
+
+        Note: All inherited classes should call this super method to enforce this check.
 
         Args:
             idx1: first index of the pair.
@@ -111,6 +112,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
         Returns:
             validation result.
         """
+        return idx1 < idx2
 
     def get_image(self, index: int) -> Image:
         """Get the image at the given index, satisfying a maximum image resolution constraint.
@@ -129,9 +131,13 @@ class LoaderBase(metaclass=abc.ABCMeta):
                 allowed loader image resolution if the full-resolution images for a dataset
                 are too large.
         """
-        # no downsampling may be required, in which case target_h and target_w will be identical
+        # No downsampling may be required, in which case target_h and target_w will be identical
         # to the full res height & width.
         img_full_res = self.get_image_full_res(index)
+        if min(img_full_res.height, img_full_res.width) <= self._max_resolution:
+            return img_full_res
+
+        # Resize image.
         (
             _,
             _,

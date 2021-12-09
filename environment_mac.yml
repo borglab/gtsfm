@@ -46,5 +46,4 @@ dependencies:
     - pydegensac
     - colour
     - argoverse @ git+https://github.com/argoai/argoverse-api.git@master
-
-
+    - trimesh[easy]

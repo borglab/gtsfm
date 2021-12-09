@@ -10,13 +10,14 @@ Author: John Lambert
 import os
 from collections import defaultdict
 from enum import Enum
-from typing import DefaultDict, Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
 from gtsam import Rot3, Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
+import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
@@ -46,74 +47,6 @@ class EdgeErrorAggregationCriterion(str, Enum):
 
     MIN_EDGE_ERROR = "MIN_EDGE_ERROR"
     MEDIAN_EDGE_ERROR = "MEDIAN_EDGE_ERROR"
-
-
-def extract_triplets(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int, int, int]]:
-    """Discover triplets from a graph, without O(n^3) complexity, by using intersection within adjacency lists.
-
-    Based off of Theia's implementation:
-        https://github.com/sweeneychris/TheiaSfM/blob/master/src/theia/math/graph/triplet_extractor.h
-
-    If we have an edge a<->b, if we can find any node c such that a<->c and b<->c, then we have
-    discovered a triplet. In other words, we need only look at the intersection between the nodes
-    connected to `a` and the nodes connected to `b`.
-
-    Args:
-        i2Ri1_dict: mapping from image pair indices to relative rotation.
-
-    Returns:
-        triplets: 3-tuples of nodes that form a cycle. Nodes of each triplet are provided in sorted order.
-    """
-    adj_list = create_adjacency_list(i2Ri1_dict)
-
-    # only want to keep the unique ones
-    triplets = set()
-
-    # find intersections
-    for (i1, i2), i2Ri1 in i2Ri1_dict.items():
-        if i2Ri1 is None:
-            continue
-
-        if i1 >= i2:
-            raise RuntimeError("Graph edges (i1,i2) must be ordered with i1 < i2 in the image loader.")
-
-        nodes_from_i1 = adj_list[i1]
-        nodes_from_i2 = adj_list[i2]
-        node_intersection = (nodes_from_i1).intersection(nodes_from_i2)
-        for node in node_intersection:
-            cycle_nodes = tuple(sorted([i1, i2, node]))
-            if cycle_nodes not in triplets:
-                triplets.add(cycle_nodes)
-
-    return list(triplets)
-
-
-def create_adjacency_list(i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> DefaultDict[int, Set[int]]:
-    """Create an adjacency-list representation of a **rotation** graph G=(V,E) when provided its edges E.
-
-    Note: this is specific to the rotation averaging use case, where some edges may be unestimated
-    (i.e. their relative rotation is None), in which case they are not incorporated into the graph.
-
-    In an adjacency list, the neighbors of each vertex may be listed efficiently, in time proportional to the
-    degree of the vertex. In an adjacency matrix, this operation takes time proportional to the number of
-    vertices in the graph, which may be significantly higher than the degree.
-
-    Args:
-        i2Ri1_dict: mapping from image pair indices to relative rotation.
-
-    Returns:
-        adj_list: adjacency list representation of the graph, mapping an image index to its neighbors
-    """
-    adj_list = defaultdict(set)
-
-    for (i1, i2), i2Ri1 in i2Ri1_dict.items():
-        if i2Ri1 is None:
-            continue
-
-        adj_list[i1].add(i2)
-        adj_list[i2].add(i1)
-
-    return adj_list
 
 
 def compute_cycle_error(
@@ -248,7 +181,16 @@ def filter_to_cycle_consistent_edges(
 
     per_edge_errors = defaultdict(list)
 
-    triplets = extract_triplets(i2Ri1_dict)
+    # Extract edges that are ordered correctly and have a valid rotation.
+    valid_edges = []
+    for (i1, i2), i2Ri1 in i2Ri1_dict.items():
+        if i2Ri1 is None or i1 >= i2:
+            logger.error("Incorrectly ordered edge indices found in cycle consistency for ({i1}, {i2})")
+            continue
+        else:
+            valid_edges.append((i1, i2))
+
+    triplets = graph_utils.extract_cyclic_triplets_from_edges(valid_edges)
 
     for (i0, i1, i2) in triplets:
         cycle_error, max_rot_error, _ = compute_cycle_error(i2Ri1_dict, (i0, i1, i2), two_view_reports_dict)

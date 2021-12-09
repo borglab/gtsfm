@@ -12,11 +12,9 @@ import numpy as np
 from gtsam import Rot3, Pose3
 
 import gtsfm.utils.io as io_utils
+from gtsfm.visualization.open3d_vis_utils import draw_scene_open3d
 
-#from visualization.mayavi_vis_utils import draw_scene_mayavi
-from visualization.open3d_vis_utils import draw_scene_open3d
-
-REPO_ROOT = Path(__file__).parent.parent.resolve()
+REPO_ROOT = Path(__file__).parent.parent.parent.resolve()
 
 
 def compute_point_cloud_center_robust(point_cloud: np.ndarray) -> np.ndarray:
@@ -47,46 +45,30 @@ def view_scene(args: argparse.Namespace) -> None:
     images_fpath = f"{args.output_dir}/images.txt"
     cameras_fpath = f"{args.output_dir}/cameras.txt"
 
-    wTi_list, img_fnames = io_utils.read_images_txt(images_fpath)
-    calibrations = io_utils.read_cameras_txt(cameras_fpath)
-
+    # Read in data.
+    wTi_list, img_fnames, calibrations, point_cloud, rgb = io_utils.read_scene(
+        images_fpath, cameras_fpath, points_fpath
+    )
     if len(calibrations) == 1:
         calibrations = calibrations * len(img_fnames)
-
-    point_cloud, rgb = io_utils.read_points_txt(points_fpath)
-
     mean_pt = compute_point_cloud_center_robust(point_cloud)
 
-    # Zero-center the point cloud (about estimated center)
+    # Zero-center the point cloud (about estimated center).
     zcwTw = Pose3(Rot3(np.eye(3)), -mean_pt)
     # expression below is equivalent to applying zcwTw.transformFrom() to each world point
     point_cloud -= mean_pt
-
     is_nearby = np.linalg.norm(point_cloud, axis=1) < args.max_range
     point_cloud = point_cloud[is_nearby]
     rgb = rgb[is_nearby]
-
     for i in range(len(wTi_list)):
         wTi_list[i] = zcwTw.compose(wTi_list[i])
 
-    if args.rendering_library == "open3d":
-        draw_scene_open3d(point_cloud, rgb, wTi_list, calibrations, args)
-    # elif args.rendering_library == "mayavi":
-    #     draw_scene_mayavi(point_cloud, rgb, wTi_list, calibrations, args)
-    else:
-        raise RuntimeError("Unsupported rendering library")
+    draw_scene_open3d(point_cloud, rgb, wTi_list, calibrations, args)
 
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Visualize GTSFM result with Mayavi or Open3d.")
-    parser.add_argument(
-        "--rendering_library",
-        type=str,
-        default="open3d",
-        choices=["mayavi", "open3d"],
-        help="3d rendering library to use.",
-    )
     parser.add_argument(
         "--output_dir",
         type=str,
@@ -113,9 +95,13 @@ if __name__ == "__main__":
         default=0.1,
         help="if points are rendered as spheres, then spheres are rendered with this radius.",
     )
+    parser.add_argument(
+        "--frustum_ray_len",
+        type=float,
+        default=0.3,
+        help="Length to extend frustum rays away from optical center "
+        + "(increase length for large-scale scenes to make frustums visible)",
+    )
 
     args = parser.parse_args()
-    if args.point_rendering_mode == "point" and args.rendering_library == "mayavi":
-        raise RuntimeError("Mayavi only supports rendering points as spheres.")
-
     view_scene(args)

@@ -91,7 +91,7 @@ class GtsfmMetric:
         if data is not None:
             # Cast to a numpy array
             if not isinstance(data, np.ndarray):
-                data = np.array(data)
+                data = np.array(data, dtype=np.float32)
             if data.ndim > 1:
                 raise ValueError("Metrics must be scalars on 1D-distributions.")
 

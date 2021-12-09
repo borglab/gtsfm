@@ -7,10 +7,14 @@ import os
 from pathlib import Path
 from typing import Optional, Dict, Tuple, List
 
+import cv2 as cv
+import numpy as np
+import trimesh
 from gtsam import Cal3Bundler, Pose3, Rot3, Point3, SfmTrack
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.images as image_utils
 from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
 
@@ -33,6 +37,7 @@ class AstronetLoader(LoaderBase):
     def __init__(
         self,
         data_dir: str,
+        gt_scene_mesh_path: str = None,
         use_gt_extrinsics: bool = True,
         use_gt_sfmtracks: bool = False,
         max_frame_lookahead: int = 2,
@@ -49,6 +54,8 @@ class AstronetLoader(LoaderBase):
 
         Args:
             data_dir: path to directory containing the COLMAP-formatted data: cameras.bin, images.bin, and points3D.bin
+            gt_scene_mesh_path (optional): path to file of target small body surface mesh.
+                Note: vertex size mismath observed when reading in from OBJ format. Prefer PLY.
             use_gt_extrinsics (optional): whether to use ground truth extrinsics. Used only for comparison with
                 reconstructed values.
             use_gt_sfmtracks (optional): whether to use ground truth tracks. Used only for comparison with reconstructed
@@ -78,6 +85,19 @@ class AstronetLoader(LoaderBase):
             cameras, images, points3d, load_sfmtracks=use_gt_sfmtracks
         )
 
+        # Read in scene mesh as Trimesh object
+        if gt_scene_mesh_path is not None:
+            if not Path(gt_scene_mesh_path).exists():
+                raise FileNotFoundError(f"No mesh found at {gt_scene_mesh_path}")
+            self.gt_scene_trimesh = trimesh.load(gt_scene_mesh_path, process=False, maintain_order=True)
+            logger.info(
+                "AstroNet loader read in mesh with %d vertices and %d faces.",
+                self.gt_scene_trimesh.vertices.shape[0],
+                self.gt_scene_trimesh.faces.shape[0],
+            )
+        else:
+            self.gt_scene_trimesh = None
+
         # Camera intrinsics are currently required due to absence of EXIF data and diffculty in approximating focal
         # length (usually 10000 to 100000 pixels).
         if self._calibrations is None:
@@ -90,7 +110,7 @@ class AstronetLoader(LoaderBase):
             raise RuntimeError("Ground truth SfMTrack data requested but missing.")
         self.num_sfmtracks = len(self._sfmtracks) if self._sfmtracks is not None else 0
 
-        # Prepare image paths
+        # Prepare image paths.
         self._image_paths = []
         for img_fname in img_fnames:
             img_fpath = os.path.join(data_dir, "images", img_fname)
@@ -170,8 +190,14 @@ class AstronetLoader(LoaderBase):
         if index < 0 or index >= len(self):
             raise IndexError(f"Image index {index} is invalid")
 
+        # Read in image.
         img = io_utils.load_image(self._image_paths[index])
-        return img
+
+        # Generate mask to separate background deep space from foreground target body
+        # based on image intensity values.
+        mask = get_nonzero_intensity_mask(img)
+
+        return Image(value_array=img.value_array, exif_data=img.exif_data, file_name=img.file_name, mask=mask)
 
     def get_camera_intrinsics_full_res(self, index: int) -> Cal3Bundler:
         """Get the camera intrinsics at the given index, valid for a full-resolution image.
@@ -226,7 +252,7 @@ class AstronetLoader(LoaderBase):
         return sfmtrack
 
     def is_valid_pair(self, idx1: int, idx2: int) -> bool:
-        """Checks if (idx1, idx2) is a valid pair.
+        """Checks if (idx1, idx2) is a valid pair. idx1 < idx2 is required.
 
         Args:
             idx1: first index of the pair.
@@ -235,4 +261,25 @@ class AstronetLoader(LoaderBase):
         Returns:
             validation result.
         """
-        return idx1 < idx2 and abs(idx1 - idx2) <= self._max_frame_lookahead
+        return super().is_valid_pair(idx1, idx2) and abs(idx1 - idx2) <= self._max_frame_lookahead
+
+
+def get_nonzero_intensity_mask(img: Image, eps: int = 5, kernel_size: Tuple[int, int] = (15, 15)) -> np.ndarray:
+    """Generate mask of where image intensity values are non-zero.
+
+    After thresholding the image, we use an erosion kernel to add a buffer between the foreground and background.
+
+    Args:
+        img: input Image to be masked (values in range [0, 255]).
+        eps: minimum allowable intensity value, i.e., values below this value will be masked out.
+        kernel_size: size of erosion kernel.
+
+    Returns:
+        Mask (as an integer array) of Image where with a value of 1 where the intensity value is above `eps` and 0
+        otherwise.
+    """
+    gray_image = image_utils.rgb_to_gray_cv(img)
+    _, binary_image = cv.threshold(gray_image.value_array, eps, 255, cv.THRESH_BINARY)
+    mask = cv.erode(binary_image, np.ones(kernel_size, np.uint8)) // 255
+
+    return mask

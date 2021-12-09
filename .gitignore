@@ -153,6 +153,7 @@ data/
 plots/
 results/
 result_metrics/
+visual_comparison_dashboard.html
 
 #React Folders/Files to be Ignored
 #   node_modules and .eslintcache are auto generated when a user runs the 

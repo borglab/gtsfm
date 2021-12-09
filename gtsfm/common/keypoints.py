@@ -3,7 +3,7 @@
 Authors: Ayush Baid
 """
 import copy
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import cv2 as cv
 import numpy as np
@@ -86,7 +86,7 @@ class Keypoints:
         """Checks that the other object is not equal to the current object."""
         return not self == other
 
-    def get_top_k(self, k: int) -> "Keypoints":
+    def get_top_k(self, k: int) -> Tuple["Keypoints", np.ndarray]:
         """Returns the top keypoints by their response values (or just the values from the front in case of missing
         responses.)
 
@@ -99,18 +99,32 @@ class Keypoints:
             subset of current keypoints.
         """
         if k >= len(self):
-            return copy.deepcopy(self)
+            return copy.deepcopy(self), np.arange(self.__len__())
 
         if self.responses is None:
             selection_idxs = np.arange(k, dtype=np.uint32)
         else:
             # select the values with top response values
             selection_idxs = np.argpartition(-self.responses, k)[:k]
-        return Keypoints(
-            coordinates=self.coordinates[selection_idxs],
-            scales=self.scales[selection_idxs] if self.scales is not None else None,
-            responses=self.responses[selection_idxs] if self.responses is not None else None,
-        )
+
+        return self.extract_indices(selection_idxs), selection_idxs
+
+    def filter_by_mask(self, mask: np.ndarray) -> Tuple["Keypoints", np.ndarray]:
+        """Filter features with respect to a binary mask of the image.
+
+        Args:
+            mask: (H, W) array of 0's and 1's corresponding to valid portions of the original image.
+            keypoints: detected keypoints with length M.
+            descriptors: (M, D) array of descriptors D is the dimension of each descriptor.
+
+        Returns:
+            N <= M keypoints, and their corresponding desciptors as an (N, D) array, such that their (rounded)
+                coordinates corresponded to a 1 in the input mask array.
+        """
+        rounded_coordinates = np.round(self.coordinates).astype(int)
+        valid_idxs = np.flatnonzero(mask[rounded_coordinates[:, 1], rounded_coordinates[:, 0]] == 1)
+
+        return self.extract_indices(valid_idxs), valid_idxs
 
     def get_x_coordinates(self) -> np.ndarray:
         """Getter for the x coordinates.

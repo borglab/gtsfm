@@ -49,6 +49,12 @@ elif [ "$DATASET_NAME" == "skydio-32" ]; then
   # Description: TODO
   export GDRIVE_FILEID='1BQ6jp0DD3D9yhTnrDoEddzlMYT0RRH68'
 
+elif [ "$DATASET_NAME" == "skydio-501" ]; then
+  # 501-image Crane Mast collection released by Skydio via Sketchfab
+  WGET_URL1=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/skydio-crane-mast-501-images/skydio-crane-mast-501-images1.tar.gz
+  WGET_URL2=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/skydio-crane-mast-501-images/skydio-crane-mast-501-images2.tar.gz
+  WGET_URL3=https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/skydio-501-colmap-pseudo-gt/skydio-501-colmap-pseudo-gt.tar.gz
+
 elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
   # Description: TODO
   export GDRIVE_FILEID='1t_CptH7ZWdKQVW-yw56bpLS83TntNQiK'
@@ -79,6 +85,10 @@ elif [ "$DATASET_SRC" == "wget" ]; then
   if [ ! -z "$WGET_URL2" ]; then
     retry 10 wget $WGET_URL2
   fi
+  # Check if $WGET_URL3 has been set.
+  if [ ! -z "$WGET_URL3" ]; then
+    retry 10 wget $WGET_URL3
+  fi
   echo $WGET_URL1
   echo $WGET_URL2
 fi
@@ -96,6 +106,24 @@ elif [ "$DATASET_NAME" == "skydio-32" ]; then
   unzip -qq skydio-32.zip -d skydio-32
   COLMAP_FILES_DIRPATH=skydio-32/colmap_crane_mast_32imgs
   IMAGES_DIR=skydio-32/images
+
+elif [ "$DATASET_NAME" == "skydio-501" ]; then
+  tar -xvzf skydio-crane-mast-501-images1.tar.gz
+  tar -xvzf skydio-crane-mast-501-images2.tar.gz
+  tar -xvzf skydio-501-colmap-pseudo-gt.tar.gz
+  IMAGES_DIR="skydio-crane-mast-501-images"
+  mkdir $IMAGES_DIR
+  mv skydio-crane-mast-501-images1/* $IMAGES_DIR
+  mv skydio-crane-mast-501-images2/* $IMAGES_DIR
+  COLMAP_FILES_DIRPATH="skydio-501-colmap-pseudo-gt"
+
+  mkdir -p cache/detector_descriptor
+  mkdir -p cache/matcher
+  wget https://github.com/johnwlambert/gtsfm-cache/releases/download/skydio-501-lookahead50-deep-front-end-cache/skydio-501-lookahead50-deep-front-end-cache.tar.gz
+  mkdir skydio-501-cache
+  tar -xvzf skydio-501-lookahead50-deep-front-end-cache.tar.gz --directory skydio-501-cache
+  cp skydio-501-cache/cache/detector_descriptor/* cache/detector_descriptor/
+  cp skydio-501-cache/cache/matcher/* cache/matcher/
 
 elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
   unzip -qq notre-dame-20.zip
