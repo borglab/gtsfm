@@ -377,7 +377,7 @@ class GtsfmData:
         # align the poses which are valid (i.e. are not None)
         # some camera indices may have been lost after pruning to largest connected component, leading to None values
         # rSe aligns the estimate `e` frame to the reference `r` frame
-        _, rSe = geometry_comparisons.align_poses_sim3_ignore_missing(wTi_list_ref, wTi_list)
+        _, rSe = geometry_comparisons.ransac_align_poses_sim3_ignore_missing(wTi_list_ref, wTi_list)
         return self.apply_Sim3(aSb=rSe)
 
     def apply_Sim3(self, aSb: Similarity3) -> "GtsfmData":

@@ -313,7 +313,7 @@ def compute_rotation_averaging_metrics(
             wTi_list.append(Pose3(wRi, wti))
 
     # ground truth is the reference/target for alignment. discard 2nd return arg -- the estimated Similarity(3) object
-    wTi_aligned_list, _ = comp_utils.align_poses_sim3_ignore_missing(gt_wTi_list, wTi_list)
+    wTi_aligned_list, _ = comp_utils.ransac_align_poses_sim3_ignore_missing(gt_wTi_list, wTi_list)
 
     wRi_aligned_list, wti_aligned_list = get_rotations_translations_from_poses(wTi_aligned_list)
     gt_wRi_list, gt_wti_list = get_rotations_translations_from_poses(gt_wTi_list)
