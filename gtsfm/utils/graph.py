@@ -86,8 +86,9 @@ def create_adjacency_list(edges: List[Tuple[int, int]]) -> DefaultDict[int, Set[
 def extract_cyclic_triplets_from_edges(edges: List[Tuple[int, int]]) -> List[Tuple[int, int, int]]:
     """Extracts triplets from a graph's edges by using intersection within adjacency lists.
 
-    Based on Theia's implementation:
+    Based off of Theia and OpenMVG's implementations:
         https://github.com/sweeneychris/TheiaSfM/blob/master/src/theia/math/graph/triplet_extractor.h
+        https://github.com/openMVG/openMVG/blob/develop/src/openMVG/graph/triplet_finder.hpp
 
     If we have an edge a<->b, if we can find any node c such that a<->c and b<->c, then we have
     discovered a triplet. In other words, we need only look at the intersection between the nodes
