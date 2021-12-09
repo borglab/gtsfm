@@ -46,7 +46,8 @@ class TestDetectorBase(unittest.TestCase):
         """Tests that the scales are positive."""
         keypoints = self.detector.detect(self.loader.get_image(0))
 
-        np.testing.assert_array_equal(keypoints.scales >= 0, True)
+        if keypoints.scales is not None:
+            np.testing.assert_array_equal(keypoints.scales >= 0, True)
 
     def test_computation_graph(self):
         """Test the dask's computation graph formation using a single image."""
