@@ -45,7 +45,8 @@ jobs:
       - uses: mamba-org/provision-with-micromamba@main
         with:
           environment-file: environment_linux_cpuonly.yml
-          python-version: 3.8
+          extra-specs: |
+            python=3.8
       - name: Environment setup
         run: |
           bash .github/scripts/setup.sh
