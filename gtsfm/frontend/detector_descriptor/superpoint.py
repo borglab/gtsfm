@@ -30,7 +30,9 @@ MODEL_WEIGHTS_PATH = (
 class SuperPointDetectorDescriptor(DetectorDescriptorBase):
     """Superpoint Detector+Descriptor implementation."""
 
-    def __init__(self, use_cuda: bool = True, weights_path: Union[Path, str] = MODEL_WEIGHTS_PATH) -> None:
+    def __init__(
+        self, max_keypoints: int = 5000, use_cuda: bool = True, weights_path: Union[Path, str] = MODEL_WEIGHTS_PATH
+    ) -> None:
         """Configures the object.
 
         Args:
@@ -38,7 +40,7 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
             use_cuda (optional): flag controlling the use of GPUs via CUDA. Defaults to True.
             weights_path (optional): Path to the model weights. Defaults to MODEL_WEIGHT_PATH.
         """
-        super().__init__()
+        super().__init__(max_keypoints=max_keypoints)
         self._use_cuda = use_cuda and torch.cuda.is_available()
         self._config = {"weights_path": weights_path}
 
