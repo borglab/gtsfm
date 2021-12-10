@@ -5,8 +5,8 @@
 ##########################################################
 
 echo "Running .github/scripts/setup.sh..."
-conda init
-conda info --envs
+micromamba init
+micromamba list
 
 wget -O 2021_09_02_gtsam_python38_wheel.zip --no-check-certificate "https://drive.google.com/uc?export=download&id=1GSf3NxabSCsu2nPcBUuEhhVq_m1FvdY5"
 
