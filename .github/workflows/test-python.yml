@@ -23,10 +23,8 @@ jobs:
         with:
           path: ~/conda_pkgs_dir
           key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('environment_linux_cpuonly.yml') }}
-      - uses: conda-incubator/setup-miniconda@v2
+      - uses: mamba-org/provision-with-micromamba@main
         with:
-          miniconda-version: "latest"
-          activate-environment: gtsfm-v1
           environment-file: environment_linux_cpuonly.yml
           python-version: 3.8
       - name: Environment setup
