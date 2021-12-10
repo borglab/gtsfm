@@ -19,9 +19,11 @@ SceneOptimizer:
     bundle_adjust_2view_maxiters: 100
 
     matcher:
-      _target_: gtsfm.frontend.cacher.matcher_cacher.MatcherCacher
-      matcher_obj:
-        _target_: gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher
+      _target_: gtsfm.frontend.matcher.gms_matcher_decorator.GmsMatcher
+      underlying_matcher_obj:
+        _target_: gtsfm.frontend.cacher.matcher_cacher.MatcherCacher
+        matcher_obj:
+          _target_: gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher
 
     verifier:
       _target_: gtsfm.frontend.verifier.ransac.Ransac
