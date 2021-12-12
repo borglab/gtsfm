@@ -1,4 +1,4 @@
-"""
+"""Runner for the front-end only (when back-end results are not desired or required).
 
 Author: John Lambert
 """
