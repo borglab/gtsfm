@@ -3,11 +3,11 @@
 Author: John Lambert
 """
 
-from typing import Dict, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
-from gtsam import EssentialMatrix
+from gtsam import EssentialMatrix, Rot3, Unit3
 
 import gtsfm.runner.frontend_runner as frontend_runner
 import gtsfm.utils.features as feature_utils
@@ -19,8 +19,10 @@ from gtsfm.frontend.detector_descriptor.superpoint import SuperPointDetectorDesc
 from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
 from gtsfm.frontend.matcher.superglue_matcher import SuperGlueMatcher
 from gtsfm.frontend.verifier.ransac import Ransac
+from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.two_view_estimator import TwoViewEstimator
+
 
 from gtsfm.frontend.cacher.matcher_cacher import MatcherCacher
 from gtsfm.frontend.cacher.detector_descriptor_cacher import DetectorDescriptorCacher
@@ -33,7 +35,7 @@ def fmat_point_transfer(
     matched_keypoints_i2: np.ndarray,
     matched_keypoints_i3: np.ndarray,
 ) -> np.ndarray:
-    """Transfer points to a 3rd image, using intersection of epipolar lines (via Fundamental matrices).
+    """Transfer points to a 3rd image, using intersection of epipolar lines (via Fundamental matrices), and measure error.
 
     See Hartley Zisserman, p. 398
     http://www.r-5.org/files/books/computers/algo-list/image-processing/vision/Richard_Hartley_Andrew_Zisserman-Multiple_View_Geometry_in_Computer_Vision-EN.pdf
@@ -72,38 +74,34 @@ def fmat_point_transfer(
     return dists
 
 
-def test_fmat_point_transfer() -> None:
-    """ """
-    dataset_root = "/Users/johnlambert/Downloads/door-trifocal-example"
-    image_extension = "JPG"
+def filter_to_cycle_consistent_edges(
+    i2Ri1_dict: Dict[Tuple[int, int], Rot3],
+    i2Ui1_dict: Dict[Tuple[int, int], Unit3],
+    corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
+    keypoints_list: List[Keypoints],
+    loader: Optional[LoaderBase] = None,
+    visualize: bool = True
+) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3], Dict[Tuple[int, int], np.ndarray]]:
+    """Remove noisy edges in a graph ...
 
-    # dataset_root = "/Users/johnlambert/Downloads/skydio-8-trifocal-example"
-    # image_extension = "jpg"
+    Args:
+        i2Ri1_dict: mapping from image pair indices (i1,i2) to relative rotation i2Ri1.
+        i2Ui1_dict: mapping from image pair indices (i1,i2) to relative translation direction i2Ui1.
+            Should have same keys as i2Ri1_dict.
+        corr_idxs_dict: dictionary, with key as image pair (i1,i2) and value as matching keypoint indices.
+            (for verified correspondences)
+        keypoints_list: 
+        loader: 
+        visualize:
 
-    # dataset_root = "/Users/johnlambert/Downloads/skydio-501-trifocal-example"
-    # image_extension = "JPG"
+    Returns:
+        i2Ri1_dict_consistent: subset of i2Ri1_dict, i.e. only including edges that belonged to some triplet
+            and had cycle error below the predefined threshold.
+        i2Ui1_dict_consistent: subset of i2Ui1_dict, as above.
+        v_corr_idxs_dict_consistent: subset of v_corr_idxs_dict above.
+    """
+    cycle_consistent_edges = []
 
-    loader = OlssonLoader(dataset_root, image_extension=image_extension)
-
-    det_desc = SuperPointDetectorDescriptor()
-
-    feature_extractor =FeatureExtractor(
-        detector_descriptor=DetectorDescriptorCacher(detector_descriptor_obj=det_desc)
-    )
-    #feature_extractor = FeatureExtractor(det_desc)
-    two_view_estimator = TwoViewEstimator(
-        #matcher=SuperGlueMatcher(use_outdoor_model=True),
-        matcher=MatcherCacher(matcher_obj=SuperGlueMatcher(use_outdoor_model=True)),
-        verifier=Ransac(use_intrinsics_in_verification=True, estimation_threshold_px=4),
-        inlier_support_processor=InlierSupportProcessor(min_num_inliers_est_model=15, min_inlier_ratio_est_model=0.1),
-        bundle_adjust_2view=False,
-        eval_threshold_px=4,
-        bundle_adjust_2view_maxiters=0,
-    )
-
-    keypoints_list, i2Ri1_dict, i2Ui1_dict, corr_idxs_dict = frontend_runner.run_frontend(
-        loader, feature_extractor, two_view_estimator
-    )
     tracks_2d = SfmTrack2d.generate_tracks_from_pairwise_matches(corr_idxs_dict, keypoints_list)
 
     matched_keypoints_i1 = []
@@ -125,6 +123,8 @@ def test_fmat_point_transfer() -> None:
         matched_keypoints_i1.append(track.measurements[0].uv)
         matched_keypoints_i2.append(track.measurements[1].uv)
         matched_keypoints_i3.append(track.measurements[2].uv)
+
+    # TODO: discover all triplets.
 
     i1, i2, i3 = 0, 1, 2
     img_i1 = loader.get_image(i1)
@@ -149,43 +149,50 @@ def test_fmat_point_transfer() -> None:
 
     dists = fmat_point_transfer(i3Fi1, i3Fi2, matched_keypoints_i1, matched_keypoints_i2, matched_keypoints_i3)
 
-    plt.hist(dists, bins=10)
+    plt.hist(dists, bins=30)
 
     #mask = np.logical_and( 0 < dists, dists < 50)
     mask = dists > 150
+    
+    if visualize:
+        # why degenerate for Door, indices 468, 564 ?
+        draw_epipolar_lines_image_pair(
+            F=i3Fi1,
+            img_left=img_i1.value_array,
+            img_right=img_i3.value_array,
+            pts_left=matched_keypoints_i1[mask],
+            pts_right=matched_keypoints_i3[mask]
+        )
+        plt.show()
 
-    # why degenerate for Door, indices 468, 564 ?
+        draw_epipolar_lines_image_pair(
+            F=i3Fi2,
+            img_left=img_i2.value_array,
+            img_right=img_i3.value_array,
+            pts_left=matched_keypoints_i2[mask],
+            pts_right=matched_keypoints_i3[mask]
+        )
+        plt.show()
 
-    draw_epipolar_lines_image_pair(
-        F=i3Fi1,
-        img_left=img_i1.value_array,
-        img_right=img_i3.value_array,
-        pts_left=matched_keypoints_i1[mask],
-        pts_right=matched_keypoints_i3[mask]
-    )
-    plt.show()
+        draw_epipolar_lines_image_triplet(
+            img_i1.value_array,
+            img_i2.value_array,
+            img_i3.value_array,
+            matched_keypoints_i1[mask],
+            matched_keypoints_i2[mask],
+            matched_keypoints_i3[mask],
+            i3Fi1,
+            i3Fi2
+        )
 
-    draw_epipolar_lines_image_pair(
-        F=i3Fi2,
-        img_left=img_i2.value_array,
-        img_right=img_i3.value_array,
-        pts_left=matched_keypoints_i2[mask],
-        pts_right=matched_keypoints_i3[mask]
-    )
-    plt.show()
+        plt.show()
 
-    draw_epipolar_lines_image_triplet(
-        img_i1.value_array,
-        img_i2.value_array,
-        img_i3.value_array,
-        matched_keypoints_i1[mask],
-        matched_keypoints_i2[mask],
-        matched_keypoints_i3[mask],
-        i3Fi1,
-        i3Fi2
-    )
 
-    plt.show()
+    # find cycle consistent ones
+    i2Ri1_dict_cc = {}
+    i2Ui1_dict_cc = {}
+    v_corr_idxs_dict_cc = {}
+    return i2Ri1_dict_cc, i2Ui1_dict_cc, v_corr_idxs_dict_cc
 
 
 def convert_to_homogenous_coordinates(coords: np.ndarray) -> np.ndarray:
@@ -284,6 +291,44 @@ def draw_lines_in_single_image(ax, i2Fi1: np.ndarray, pts_i1: np.ndarray, pts_i2
         x = [p_l[0]/p_l[2], p_r[0]/p_r[2]]
         y = [p_l[1]/p_l[2], p_r[1]/p_r[2]]
         ax.plot(x, y, linewidth=1, c='blue')
+
+
+
+def test_fmat_point_transfer() -> None:
+    """ """
+    # dataset_root = "/Users/johnlambert/Downloads/door-trifocal-example"
+    # image_extension = "JPG"
+
+    # dataset_root = "/Users/johnlambert/Downloads/skydio-8-trifocal-example"
+    # image_extension = "jpg"
+
+    dataset_root = "/Users/johnlambert/Downloads/skydio-501-trifocal-example"
+    image_extension = "JPG"
+
+    loader = OlssonLoader(dataset_root, image_extension=image_extension)
+
+    det_desc = SuperPointDetectorDescriptor()
+
+    feature_extractor =FeatureExtractor(
+        detector_descriptor=DetectorDescriptorCacher(detector_descriptor_obj=det_desc)
+    )
+    #feature_extractor = FeatureExtractor(det_desc)
+    two_view_estimator = TwoViewEstimator(
+        #matcher=SuperGlueMatcher(use_outdoor_model=True),
+        matcher=MatcherCacher(matcher_obj=SuperGlueMatcher(use_outdoor_model=True)),
+        verifier=Ransac(use_intrinsics_in_verification=True, estimation_threshold_px=4),
+        inlier_support_processor=InlierSupportProcessor(min_num_inliers_est_model=15, min_inlier_ratio_est_model=0.1),
+        bundle_adjust_2view=False,
+        eval_threshold_px=4,
+        bundle_adjust_2view_maxiters=0,
+    )
+
+    keypoints_list, i2Ri1_dict, i2Ui1_dict, corr_idxs_dict = frontend_runner.run_frontend(
+        loader, feature_extractor, two_view_estimator
+    )
+
+    filter_to_cycle_consistent_edges(i2Ri1_dict, i2Ui1_dict, corr_idxs_dict, keypoints_list, loader)
+
 
 
 if __name__ == "__main__":
