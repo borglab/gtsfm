@@ -22,6 +22,9 @@ from gtsfm.frontend.verifier.ransac import Ransac
 from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.two_view_estimator import TwoViewEstimator
 
+from gtsfm.frontend.cacher.matcher_cacher import MatcherCacher
+from gtsfm.frontend.cacher.detector_descriptor_cacher import DetectorDescriptorCacher
+
 
 def fmat_point_transfer(
     i3Fi1: np.ndarray,
@@ -63,7 +66,7 @@ def fmat_point_transfer(
         p3_expected = np.cross(l, l_)
         p3_expected = p3_expected[:2] / p3_expected[2]
         error_2d = np.linalg.norm(p3[:2] - p3_expected)
-        print(f"Error: {error_2d:.2f}")
+        # print(f"Error: {error_2d:.2f}")
         dists[j] = error_2d
 
     return dists
@@ -71,12 +74,19 @@ def fmat_point_transfer(
 
 def test_fmat_point_transfer() -> None:
     """ """
-    loader = OlssonLoader("/Users/johnlambert/Downloads/door-trifocal-example", image_extension="JPG")
+    dataset_root = "/Users/johnlambert/Downloads/door-trifocal-example"
+    image_extension = "JPG"
+
+    # dataset_root = "/Users/johnlambert/Downloads/skydio-8-trifocal-example"
+    # image_extension = "jpg"
+
+    # dataset_root = "/Users/johnlambert/Downloads/skydio-501-trifocal-example"
+    # image_extension = "JPG"
+
+    loader = OlssonLoader(dataset_root, image_extension=image_extension)
 
     det_desc = SuperPointDetectorDescriptor()
 
-    from gtsfm.frontend.cacher.matcher_cacher import MatcherCacher
-    from gtsfm.frontend.cacher.detector_descriptor_cacher import DetectorDescriptorCacher
     feature_extractor =FeatureExtractor(
         detector_descriptor=DetectorDescriptorCacher(detector_descriptor_obj=det_desc)
     )
@@ -139,31 +149,38 @@ def test_fmat_point_transfer() -> None:
 
     dists = fmat_point_transfer(i3Fi1, i3Fi2, matched_keypoints_i1, matched_keypoints_i2, matched_keypoints_i3)
 
-    mask = dists > 5000
+    plt.hist(dists, bins=10)
 
-    # draw_epipolar_lines_image_pair(
-    #     F=i3Fi1,
-    #     img_left=img_i1.value_array,
-    #     img_right=img_i3.value_array,
-    #     pts_left=matched_keypoints_i1[mask],
-    #     pts_right=matched_keypoints_i3[mask]
-    # )
+    #mask = np.logical_and( 0 < dists, dists < 50)
+    mask = dists > 150
 
-    # draw_epipolar_lines_image_pair(
-    #     F=i3Fi2,
-    #     img_left=img_i2.value_array,
-    #     img_right=img_i3.value_array,
-    #     pts_left=matched_keypoints_i2[-2:],
-    #     pts_right=matched_keypoints_i3[-2:]
-    # )
+    # why degenerate for Door, indices 468, 564 ?
+
+    draw_epipolar_lines_image_pair(
+        F=i3Fi1,
+        img_left=img_i1.value_array,
+        img_right=img_i3.value_array,
+        pts_left=matched_keypoints_i1[mask],
+        pts_right=matched_keypoints_i3[mask]
+    )
+    plt.show()
+
+    draw_epipolar_lines_image_pair(
+        F=i3Fi2,
+        img_left=img_i2.value_array,
+        img_right=img_i3.value_array,
+        pts_left=matched_keypoints_i2[mask],
+        pts_right=matched_keypoints_i3[mask]
+    )
+    plt.show()
 
     draw_epipolar_lines_image_triplet(
         img_i1.value_array,
         img_i2.value_array,
         img_i3.value_array,
-        matched_keypoints_i1[-4:],
-        matched_keypoints_i2[-4:],
-        matched_keypoints_i3[-4:],
+        matched_keypoints_i1[mask],
+        matched_keypoints_i2[mask],
+        matched_keypoints_i3[mask],
         i3Fi1,
         i3Fi2
     )
