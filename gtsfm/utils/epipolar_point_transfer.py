@@ -131,6 +131,7 @@ def filter_to_cycle_consistent_edges(
     img_i2 = loader.get_image(i2)
     img_i3 = loader.get_image(i3)
 
+    # convert (R,t) to F matrices for each image pair.
     i3Ei1 = EssentialMatrix(i2Ri1_dict[(i1,i3)], i2Ui1_dict[(i1,i3)])
     i3Ei2 = EssentialMatrix(i2Ri1_dict[(i2,i3)], i2Ui1_dict[(i2,i3)])
 
@@ -144,8 +145,6 @@ def filter_to_cycle_consistent_edges(
     matched_keypoints_i1 = np.array(matched_keypoints_i1)
     matched_keypoints_i2 = np.array(matched_keypoints_i2)
     matched_keypoints_i3 = np.array(matched_keypoints_i3)
-
-    #import pdb; pdb.set_trace()
 
     dists = fmat_point_transfer(i3Fi1, i3Fi2, matched_keypoints_i1, matched_keypoints_i2, matched_keypoints_i3)
 
