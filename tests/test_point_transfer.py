@@ -141,21 +141,32 @@ def test_fmat_point_transfer() -> None:
 
     mask = dists > 5000
 
-    draw_epipolar_lines(
-        F=i3Fi1,
-        img_left=img_i1.value_array,
-        img_right=img_i3.value_array,
-        pts_left=matched_keypoints_i1[mask],
-        pts_right=matched_keypoints_i3[mask]
-    )
+    # draw_epipolar_lines_image_pair(
+    #     F=i3Fi1,
+    #     img_left=img_i1.value_array,
+    #     img_right=img_i3.value_array,
+    #     pts_left=matched_keypoints_i1[mask],
+    #     pts_right=matched_keypoints_i3[mask]
+    # )
 
-    # draw_epipolar_lines(
+    # draw_epipolar_lines_image_pair(
     #     F=i3Fi2,
     #     img_left=img_i2.value_array,
     #     img_right=img_i3.value_array,
     #     pts_left=matched_keypoints_i2[-2:],
     #     pts_right=matched_keypoints_i3[-2:]
     # )
+
+    draw_epipolar_lines_image_triplet(
+        img_i1.value_array,
+        img_i2.value_array,
+        img_i3.value_array,
+        matched_keypoints_i1[-4:],
+        matched_keypoints_i2[-4:],
+        matched_keypoints_i3[-4:],
+        i3Fi1,
+        i3Fi2
+    )
 
     plt.show()
 
@@ -166,13 +177,30 @@ def convert_to_homogenous_coordinates(coords: np.ndarray) -> np.ndarray:
     return np.hstack((coords, np.ones((N, 1))))
 
 
-def draw_epipolar_lines(
+def draw_epipolar_lines_image_triplet(
+    img_i1: np.ndarray,
+    img_i2: np.ndarray,
+    img_i3: np.ndarray,
+    pts_i1: np.ndarray,
+    pts_i2: np.ndarray,
+    pts_i3: np.ndarray,
+    i3Fi1: np.ndarray,
+    i3Fi2: np.ndarray,
+    figsize: Tuple[int,int] = (10, 8)
+) -> None:
+    """Draw the lines in image 3 that correspond to points in image 1, and to points in image 2."""
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=figsize)
+    draw_lines_in_single_image(ax=ax, i2Fi1=i3Fi1, pts_i1=pts_i1, pts_i2=pts_i3, img_i2=img_i3)
+    draw_lines_in_single_image(ax=ax, i2Fi1=i3Fi2, pts_i1=pts_i2, pts_i2=pts_i3, img_i2=img_i3)
+
+
+def draw_epipolar_lines_image_pair(
     F: np.ndarray,
     img_left: np.ndarray,
     img_right: np.ndarray,
     pts_left: np.ndarray,
     pts_right: np.ndarray,
-    figsize=(10, 8)
+    figsize: Tuple[int,int] = (10, 8)
 ) -> None:
     """Draw the epipolar lines given the fundamental matrix, left & right images and left & right datapoints.
 
@@ -193,7 +221,6 @@ def draw_epipolar_lines(
     # defn of epipolar line in the left image, corresponding to point p in the right image
     # l_e = F.T @ p_right
     draw_lines_in_single_image(ax=ax[0], i2Fi1=F.T, pts_i1=pts_right, pts_i2=pts_left, img_i2=img_left)
-
 
 
 def draw_lines_in_single_image(ax, i2Fi1: np.ndarray, pts_i1: np.ndarray, pts_i2: np.ndarray, img_i2: np.ndarray) -> None:
