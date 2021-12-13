@@ -146,12 +146,23 @@ def filter_to_cycle_consistent_edges(
     matched_keypoints_i2 = np.array(matched_keypoints_i2)
     matched_keypoints_i3 = np.array(matched_keypoints_i3)
 
-    dists = fmat_point_transfer(i3Fi1, i3Fi2, matched_keypoints_i1, matched_keypoints_i2, matched_keypoints_i3)
+    # print(matched_keypoints_i1[:20].T.tolist())
+    # print(matched_keypoints_i2[:20].T.tolist())
+    # print(matched_keypoints_i3[:20].T.tolist())
+
+    import gtsfm.frontend.trifocal as trifocal
+    correspondences = np.hstack([matched_keypoints_i1, matched_keypoints_i2, matched_keypoints_i3])
+    _, dists = trifocal.compute_trifocal_tensor_inliers(correspondences.T)
+
+    #dists = fmat_point_transfer(i3Fi1, i3Fi2, matched_keypoints_i1, matched_keypoints_i2, matched_keypoints_i3)
+
 
     plt.hist(dists, bins=30)
+    plt.show()
+    import pdb; pdb.set_trace()
 
     #mask = np.logical_and( 0 < dists, dists < 50)
-    mask = dists > 150
+    mask = dists > 0.01
     
     if visualize:
         # why degenerate for Door, indices 468, 564 ?
@@ -301,7 +312,10 @@ def test_fmat_point_transfer() -> None:
     # dataset_root = "/Users/johnlambert/Downloads/skydio-8-trifocal-example"
     # image_extension = "jpg"
 
-    dataset_root = "/Users/johnlambert/Downloads/skydio-501-trifocal-example"
+    # dataset_root = "/Users/johnlambert/Downloads/skydio-501-trifocal-example"
+    # image_extension = "JPG"
+
+    dataset_root = "/Users/johnlambert/Downloads/skydio-501-trifocal-example-no-covis"
     image_extension = "JPG"
 
     loader = OlssonLoader(dataset_root, image_extension=image_extension)
