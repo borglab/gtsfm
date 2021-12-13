@@ -152,10 +152,12 @@ def filter_to_cycle_consistent_edges(
 
     import gtsfm.frontend.trifocal as trifocal
     correspondences = np.hstack([matched_keypoints_i1, matched_keypoints_i2, matched_keypoints_i3])
-    _, dists = trifocal.compute_trifocal_tensor_inliers(correspondences.T)
+    _, dists = trifocal.compute_trifocal_tensor_inliers(correspondences)
 
     #dists = fmat_point_transfer(i3Fi1, i3Fi2, matched_keypoints_i1, matched_keypoints_i2, matched_keypoints_i3)
 
+    n_inliers = (np.absolute(dists) < 0.01).sum()
+    print(f"Found {n_inliers} inliers.")
 
     plt.hist(dists, bins=30)
     plt.show()
@@ -196,7 +198,6 @@ def filter_to_cycle_consistent_edges(
         )
 
         plt.show()
-
 
     # find cycle consistent ones
     i2Ri1_dict_cc = {}
@@ -312,11 +313,11 @@ def test_fmat_point_transfer() -> None:
     # dataset_root = "/Users/johnlambert/Downloads/skydio-8-trifocal-example"
     # image_extension = "jpg"
 
-    # dataset_root = "/Users/johnlambert/Downloads/skydio-501-trifocal-example"
-    # image_extension = "JPG"
-
-    dataset_root = "/Users/johnlambert/Downloads/skydio-501-trifocal-example-no-covis"
+    dataset_root = "/Users/johnlambert/Downloads/skydio-501-trifocal-example"
     image_extension = "JPG"
+
+    # dataset_root = "/Users/johnlambert/Downloads/skydio-501-trifocal-example-no-covis"
+    # image_extension = "JPG"
 
     loader = OlssonLoader(dataset_root, image_extension=image_extension)
 

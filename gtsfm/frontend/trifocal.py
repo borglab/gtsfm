@@ -1,4 +1,11 @@
-""" """
+"""
+Trifocal tensor estimation based on Julia17psivt
+
+Reference:
+https://github.com/LauraFJulia/TFT_vs_Fund/blob/master/TFT_methods/linearTFT.m
+
+Author: John Lambert
+"""
 
 from typing import Tuple
 
@@ -6,22 +13,23 @@ import numpy as np
 
 
 def create_trifocal_data_matrix(p1: np.ndarray, p2: np.ndarray, p3: np.ndarray) -> np.ndarray:
-    """
+    """Populate data matrix representing homogeneous system.
+
     Args:
-        p1:
-        p2:
-        p3:
+        p1: (N,2) array of keypoints in view 1
+        p2: (N,2) array of keypoints in view 2
+        p3: (N,2) array of keypoints in view 3
 
     Returns:
-        A:
+        A: (4*N, 27) array representing data matrix
     """
-    N = p1.shape[1]
+    N = p1.shape[0]
     A = np.zeros((4 * N, 27))  # matrix of the linear system on the parameters of the TFT
 
     for i in range(N):
-        x1, y1 = p1[:2, i]
-        x2, y2 = p2[:2, i]
-        x3, y3 = p3[:2, i]
+        x1, y1 = p1[i, :2]
+        x2, y2 = p2[i, :2]
+        x3, y3 = p3[i, :2]
 
         # fmt: off
         # A has 27 columns for Ax=b
@@ -65,19 +73,19 @@ def linearTFT(p1: np.ndarray, p2: np.ndarray, p3: np.ndarray) -> Tuple[np.ndarra
     https://hal-enpc.archives-ouvertes.fr/hal-01700686/document
 
     Args:
-        p1, p2, p3: 3 vectors 3xN or 2xN containing image points for image 1 2
-                    and 3 respectively in homogeneous or cartesian coordinates
+        p1, p2, p3: 3 vectors (N,3) or (N,2) containing image points for images 1, 2, and 3
+            respectively in homogeneous or cartesian coordinates.
 
     Returns:
         T: 3x3x3 array containing the trifocal tensor associated to
                     the triplets of corresponding points
         P1, P2, P3: three estimated projection matrices 3x4
     """
-    if p1.shape[0] == 3:
+    if p1.shape[1] == 3:
         # normalize via broadcasting
-        p1 = p1[:2, :] / p1[2, :].reshape(1, -1)
-        p2 = p2[:2, :] / p2[2, :].reshape(1, -1)
-        p3 = p3[:2, :] / p3[2, :].reshape(1, -1)
+        p1 = p1[:, :2] / p1[:, 2].reshape(-1, 1)
+        p2 = p2[:, :2] / p2[:, 2].reshape(-1, 1)
+        p3 = p3[:, :2] / p3[:, 2].reshape(-1, 1)
 
     A = create_trifocal_data_matrix(p1, p2, p3)
 
@@ -135,150 +143,79 @@ def test_linearTFT() -> None:
     """ """
     p1 = np.array(
         [
-            [
-                56.0,
-                507.0,
-                284.0,
-                415.0,
-                542.0,
-                237.0,
-                227.0,
-                139.0,
-                438.0,
-                553.0,
-                279.0,
-                647.0,
-                628.0,
-                389.0,
-                297.0,
-                476.0,
-                267.0,
-                653.0,
-                382.0,
-                182.0,
-            ],
-            [
-                499.0,
-                503.0,
-                685.0,
-                503.0,
-                1071.0,
-                484.0,
-                472.0,
-                312.0,
-                322.0,
-                859.0,
-                556.0,
-                518.0,
-                627.0,
-                814.0,
-                487.0,
-                87.0,
-                206.0,
-                981.0,
-                147.0,
-                142.0,
-            ],
+            [56.0, 499.0],
+            [507.0, 503.0],
+            [284.0, 685.0],
+            [415.0, 503.0],
+            [542.0, 1071.0],
+            [237.0, 484.0],
+            [227.0, 472.0],
+            [139.0, 312.0],
+            [438.0, 322.0],
+            [553.0, 859.0],
+            [279.0, 556.0],
+            [647.0, 518.0],
+            [628.0, 627.0],
+            [389.0, 814.0],
+            [297.0, 487.0],
+            [476.0, 87.0],
+            [267.0, 206.0],
+            [653.0, 981.0],
+            [382.0, 147.0],
+            [182.0, 142.0]
         ]
     )
     p2 = np.array(
         [
-            [
-                22.0,
-                467.0,
-                229.0,
-                358.0,
-                620.0,
-                191.0,
-                180.0,
-                119.0,
-                422.0,
-                527.0,
-                224.0,
-                688.0,
-                658.0,
-                313.0,
-                246.0,
-                511.0,
-                275.0,
-                701.0,
-                407.0,
-                174.0,
-            ],
-            [
-                463.0,
-                504.0,
-                683.0,
-                499.0,
-                1080.0,
-                465.0,
-                450.0,
-                265.0,
-                316.0,
-                867.0,
-                545.0,
-                533.0,
-                639.0,
-                822.0,
-                473.0,
-                85.0,
-                170.0,
-                985.0,
-                129.0,
-                85.0,
-            ],
+
+            [22.0, 463.0 ],
+            [467.0, 504.0 ],
+            [229.0, 683.0 ],
+            [358.0, 499.0 ],
+            [620.0, 1080.0 ],
+            [191.0, 465.0 ],
+            [180.0, 450.0 ],
+            [119.0, 265.0 ],
+            [422.0, 316.0 ],
+            [527.0, 867.0 ],
+            [224.0, 545.0 ],
+            [688.0, 533.0 ],
+            [658.0, 639.0 ],
+            [313.0, 822.0 ],
+            [246.0, 473.0 ],
+            [511.0, 85.0 ],
+            [275.0, 170.0 ],
+            [701.0, 985.0 ],
+            [407.0, 129.0 ],
+            [174.0, 85.0 ]
         ]
     )
     p3 = np.array(
         [
-            [
-                35.0,
-                417.0,
-                197.0,
-                308.0,
-                666.0,
-                172.0,
-                160.0,
-                139.0,
-                403.0,
-                492.0,
-                190.0,
-                683.0,
-                650.0,
-                253.0,
-                216.0,
-                522.0,
-                299.0,
-                707.0,
-                426.0,
-                196.0,
-            ],
-            [
-                453.0,
-                526.0,
-                702.0,
-                514.0,
-                1092.0,
-                467.0,
-                451.0,
-                246.0,
-                335.0,
-                891.0,
-                554.0,
-                566.0,
-                667.0,
-                848.0,
-                479.0,
-                118.0,
-                169.0,
-                996.0,
-                145.0,
-                64.0,
-            ],
+            [ 35.0,  453.0 ],
+            [ 417.0, 526.0 ],
+            [ 197.0, 702.0 ],
+            [ 308.0, 514.0 ],
+            [ 666.0, 1092.0 ],
+            [ 172.0, 467.0 ],
+            [ 160.0, 451.0 ],
+            [ 139.0, 246.0 ],
+            [ 403.0, 335.0 ],
+            [ 492.0, 891.0 ],
+            [ 190.0, 554.0 ],
+            [ 683.0, 566.0 ],
+            [ 650.0, 667.0 ],
+            [ 253.0, 848.0 ],
+            [ 216.0, 479.0 ],
+            [ 522.0, 118.0 ],
+            [ 299.0, 169.0 ],
+            [ 707.0, 996.0 ],
+            [ 426.0, 145.0 ],
+            [ 196.0, 64.0 ]
         ]
     )
 
-    T = linearTFT(p1, p2, p3)
+    T, P1, P2, P3 = linearTFT(p1, p2, p3)
 
     expected_T = np.zeros((3, 3, 3))
     # fmt: off
@@ -304,7 +241,7 @@ def test_linearTFT() -> None:
         ]
     )
     # fmt: on
-    assert np.allclose(T, -expected_T)
+    assert np.allclose(T, -expected_T, atol=1e-3)
 
 
 def crossM(v: np.ndarray) -> np.ndarray:
@@ -326,7 +263,8 @@ def convert_to_homogenous_coordinates(coords: np.ndarray) -> np.ndarray:
 
 
 def compute_trifocal_errors(T: np.ndarray, p1: np.ndarray, p2: np.ndarray, p3: np.ndarray) -> np.ndarray:
-    """
+    """Measure deviations from trifocal tensor contraint for each 3-view correspondence.
+
     Args:
         T: trifocal tensor for unnormalized image coordinates:
         p1: (N,2) points in view 1.
@@ -350,13 +288,12 @@ def compute_trifocal_errors(T: np.ndarray, p1: np.ndarray, p2: np.ndarray, p3: n
         errors.append(error.mean())
 
     T_flattened = np.reshape(a=T, newshape=(27, 1), order="F")
-    #import pdb; pdb.set_trace()
-    A = create_trifocal_data_matrix(p1.T, p2.T, p3.T)
+
+    A = create_trifocal_data_matrix(p1, p2, p3)
     #import pdb; pdb.set_trace()
     errors_ = A @ T_flattened
     errors_ = errors_.reshape(-1,4).mean(axis=1)
     return errors_
-
 
 
 def transform_TFT(T_old: np.ndarray, M1: np.ndarray, M2: np.ndarray, M3: np.ndarray, inverse: bool = False):
@@ -411,74 +348,49 @@ def Normalize2Ddata(points) -> Tuple[np.ndarray, np.ndarray]:
     T = np.asarray([[1.0 / std[0], 0, -mean[0] / std[0]], [0, 1.0 / std[1], -mean[1] / std[1]], [0, 0, 1]])
 
     Args:
-        points: 2xn-vector of n points of dimension 2
+        points: (n,2)-vector of n points of dimension 2
 
     Returns:
         N: isometric normalization 3x3-matrix
-        new_points: 3xn-vector of the n normalized points of dimension 2 in homogeneous coordinates.
+        new_points: (n,3)-vector of the n normalized points of dimension 2 in homogeneous coordinates.
     """
-    n = points.shape[1]
+    n = points.shape[0]
     
-    mean = np.mean(points, axis=1)
-    norm0 = np.linalg.norm(points - mean.reshape(2,1), axis=0).mean()
+    mean = np.mean(points, axis=0)
+    norm0 = np.linalg.norm(points - mean.reshape(1,2), axis=1).mean()
     # norm0 = mean(sqrt(sum((points-repmat(points0,1,n)).^2,1)))
     N_matrix = np.diag(np.array([np.sqrt(2)/norm0, np.sqrt(2)/norm0, 1]))
     N_matrix[:2,2] = -np.sqrt(2) * mean / norm0
 
-    new_points = N_matrix[:2,:] @ np.vstack([points, np.ones((1,n)) ])
+    new_points = N_matrix[:2,:] @ np.vstack([points.T, np.ones((1,n)) ])
 
-    return new_points, N_matrix
+    return new_points.T, N_matrix
 
 
 def test_normalize2Ddata() -> None:
     """ """
-
     p1 = np.array(
         [
-            [
-                56.0,
-                507.0,
-                284.0,
-                415.0,
-                542.0,
-                237.0,
-                227.0,
-                139.0,
-                438.0,
-                553.0,
-                279.0,
-                647.0,
-                628.0,
-                389.0,
-                297.0,
-                476.0,
-                267.0,
-                653.0,
-                382.0,
-                182.0,
-            ],
-            [
-                499.0,
-                503.0,
-                685.0,
-                503.0,
-                1071.0,
-                484.0,
-                472.0,
-                312.0,
-                322.0,
-                859.0,
-                556.0,
-                518.0,
-                627.0,
-                814.0,
-                487.0,
-                87.0,
-                206.0,
-                981.0,
-                147.0,
-                142.0,
-            ],
+            [56.0, 499.0],
+            [507.0, 503.0],
+            [284.0, 685.0],
+            [415.0, 503.0],
+            [542.0, 1071.0],
+            [237.0, 484.0],
+            [227.0, 472.0],
+            [139.0, 312.0],
+            [438.0, 322.0],
+            [553.0, 859.0],
+            [279.0, 556.0],
+            [647.0, 518.0],
+            [628.0, 627.0],
+            [389.0, 814.0],
+            [297.0, 487.0],
+            [476.0, 87.0],
+            [267.0, 206.0],
+            [653.0, 981.0],
+            [382.0, 147.0],
+            [182.0, 142.0]
         ]
     )
     x1, Normal1 = Normalize2Ddata(p1)
@@ -506,13 +418,13 @@ def test_normalize2Ddata() -> None:
             [ -0.9993,   -1.8771]
         ]
     )
-    assert np.allclose(expected_x1.T, x1, atol=1e-3)
+    assert np.allclose(expected_x1, x1, atol=1e-3)
 
 
 def compute_trifocal_tensor_inliers(Corresp: np.ndarray) -> None:
     """
     Args:
-        Corresp: (6,N) array
+        Corresp: (N,6) array
 
     Returns:
         T: trifocal tensor
@@ -521,9 +433,9 @@ def compute_trifocal_tensor_inliers(Corresp: np.ndarray) -> None:
     # TODO: add RANSAC loop
 
     # Normalization of the data
-    x1, Normal1 = Normalize2Ddata(Corresp[:2,:])
-    x2, Normal2 = Normalize2Ddata(Corresp[2:4,:])
-    x3, Normal3 = Normalize2Ddata(Corresp[4:,:])
+    x1, Normal1 = Normalize2Ddata(Corresp[:, :2])
+    x2, Normal2 = Normalize2Ddata(Corresp[:, 2:4])
+    x3, Normal3 = Normalize2Ddata(Corresp[:, 4:])
 
     # Model to estimate T: linear equations
     T, P1, P2, P3 = linearTFT(x1, x2, x3)
@@ -531,7 +443,7 @@ def compute_trifocal_tensor_inliers(Corresp: np.ndarray) -> None:
     # tensor denormalization
     T = transform_TFT(T, Normal1, Normal2, Normal3, inverse=True)
 
-    errors = compute_trifocal_errors(T, p1=Corresp[:2,:].T, p2=Corresp[2:4,:].T, p3=Corresp[4:,:].T)
+    errors = compute_trifocal_errors(T, p1=Corresp[:,:2], p2=Corresp[:, 2:4], p3=Corresp[:, 4:])
 
     return T, errors
 
@@ -541,151 +453,79 @@ def test_compute_trifocal_tensor_inliers() -> None:
 
     p1 = np.array(
         [
-            [
-                56.0,
-                507.0,
-                284.0,
-                415.0,
-                542.0,
-                237.0,
-                227.0,
-                139.0,
-                438.0,
-                553.0,
-                279.0,
-                647.0,
-                628.0,
-                389.0,
-                297.0,
-                476.0,
-                267.0,
-                653.0,
-                382.0,
-                182.0,
-            ],
-            [
-                499.0,
-                503.0,
-                685.0,
-                503.0,
-                1071.0,
-                484.0,
-                472.0,
-                312.0,
-                322.0,
-                859.0,
-                556.0,
-                518.0,
-                627.0,
-                814.0,
-                487.0,
-                87.0,
-                206.0,
-                981.0,
-                147.0,
-                142.0,
-            ],
+            [56.0, 499.0],
+            [507.0, 503.0],
+            [284.0, 685.0],
+            [415.0, 503.0],
+            [542.0, 1071.0],
+            [237.0, 484.0],
+            [227.0, 472.0],
+            [139.0, 312.0],
+            [438.0, 322.0],
+            [553.0, 859.0],
+            [279.0, 556.0],
+            [647.0, 518.0],
+            [628.0, 627.0],
+            [389.0, 814.0],
+            [297.0, 487.0],
+            [476.0, 87.0],
+            [267.0, 206.0],
+            [653.0, 981.0],
+            [382.0, 147.0],
+            [182.0, 142.0],
         ]
     )
     p2 = np.array(
         [
-            [
-                22.0,
-                467.0,
-                229.0,
-                358.0,
-                620.0,
-                191.0,
-                180.0,
-                119.0,
-                422.0,
-                527.0,
-                224.0,
-                688.0,
-                658.0,
-                313.0,
-                246.0,
-                511.0,
-                275.0,
-                701.0,
-                407.0,
-                174.0,
-            ],
-            [
-                463.0,
-                504.0,
-                683.0,
-                499.0,
-                1080.0,
-                465.0,
-                450.0,
-                265.0,
-                316.0,
-                867.0,
-                545.0,
-                533.0,
-                639.0,
-                822.0,
-                473.0,
-                85.0,
-                170.0,
-                985.0,
-                129.0,
-                85.0,
-            ],
+            [22.0, 463.0],
+            [467.0, 504.0],
+            [229.0, 683.0],
+            [358.0, 499.0],
+            [620.0, 1080.0],
+            [191.0, 465.0],
+            [180.0, 450.0],
+            [119.0, 265.0],
+            [422.0, 316.0],
+            [527.0, 867.0],
+            [224.0, 545.0],
+            [688.0, 533.0],
+            [658.0, 639.0],
+            [313.0, 822.0],
+            [246.0, 473.0],
+            [511.0, 85.0],
+            [275.0, 170.0],
+            [701.0, 985.0],
+            [407.0, 129.0],
+            [174.0, 85.0]
         ]
     )
     p3 = np.array(
         [
-            [
-                35.0,
-                417.0,
-                197.0,
-                308.0,
-                666.0,
-                172.0,
-                160.0,
-                139.0,
-                403.0,
-                492.0,
-                190.0,
-                683.0,
-                650.0,
-                253.0,
-                216.0,
-                522.0,
-                299.0,
-                707.0,
-                426.0,
-                196.0,
-            ],
-            [
-                453.0,
-                526.0,
-                702.0,
-                514.0,
-                1092.0,
-                467.0,
-                451.0,
-                246.0,
-                335.0,
-                891.0,
-                554.0,
-                566.0,
-                667.0,
-                848.0,
-                479.0,
-                118.0,
-                169.0,
-                996.0,
-                145.0,
-                64.0,
-            ],
+            [ 35.0, 453.0 ],
+            [ 417.0, 526.0 ],
+            [ 197.0, 702.0 ],
+            [ 308.0, 514.0 ],
+            [ 666.0, 1092.0 ],
+            [ 172.0, 467.0 ],
+            [ 160.0, 451.0 ],
+            [ 139.0, 246.0 ],
+            [ 403.0, 335.0 ],
+            [ 492.0, 891.0 ],
+            [ 190.0, 554.0 ],
+            [ 683.0, 566.0 ],
+            [ 650.0, 667.0 ],
+            [ 253.0, 848.0 ],
+            [ 216.0, 479.0 ],
+            [ 522.0, 118.0 ],
+            [ 299.0, 169.0 ],
+            [ 707.0, 996.0 ],
+            [ 426.0, 145.0 ],
+            [ 196.0, 64.0 ]
         ]
     )
 
-    correspondences = np.vstack([p1, p2, p3])
-    compute_trifocal_tensor_inliers(correspondences)
+    correspondences = np.hstack([p1, p2, p3])
+    errors = compute_trifocal_tensor_inliers(correspondences)
 
 
 def test_transform_TFT() -> None:
@@ -763,7 +603,7 @@ def test_transform_TFT() -> None:
 
 
 if __name__ == "__main__":
-    #test_linearTFT()
-    #test_normalize2Ddata()
-    #test_transform_TFT()
+    test_linearTFT()
+    test_normalize2Ddata()
+    test_transform_TFT()
     test_compute_trifocal_tensor_inliers()
