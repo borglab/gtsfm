@@ -4,18 +4,15 @@ Authors: John Lambert, Ayush Baid
 """
 from collections import defaultdict
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Set, Tuple
 
 import numpy as np
-from gtsam import Cal3Bundler, Rot3, Unit3, PinholeCameraCal3Bundler
+from gtsam import Cal3Bundler, Rot3, Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.logger as logger_utils
-import gtsfm.utils.metrics as metrics_utils
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.common.view_graph import ViewGraph
-from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
 
 logger = logger_utils.get_logger()
@@ -68,19 +65,9 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         calibrations: List[Cal3Bundler],
         corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
         keypoints: List[Keypoints],
-    ) -> ViewGraph:
-        """Runs the rotation cycle consistency based ViewGraph estimation, and outputs a ViewGraph.
+    ) -> Set[Tuple[int, int]]:
+        # pylint: disable=unused-argument
 
-        Args:
-            i2Ri1: Relative two-view rotations between camera pairs.
-            i2Ui1: Relative two-view translation directions between camera pairs.
-            calibrations: Intrinsic camera parameters.
-            corr_idxs_i1i2: Verified two-view feature correspondences.
-            keypoints: Detected feature locations in individual images.
-
-        Returns:
-            A ViewGraph of cameras with rotation cycle consistent edges.
-        """
         logger.info("Input number of edges: %d" % len(i2Ri1))
         input_edges: List[Tuple[int, int]] = self.__get_valid_input_edges(i2Ri1)
         triplets: List[Tuple[int, int, int]] = graph_utils.extract_cyclic_triplets_from_edges(input_edges)
@@ -103,99 +90,9 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         per_edge_aggregate_error = {
             pair_indices: self.__aggregate_errors_for_edge(errors) for pair_indices, errors in per_edge_errors.items()
         }
-        valid_edges = [edge for edge, error in per_edge_aggregate_error.items() if error < self._error_threshold]
+        valid_edges = {edge for edge, error in per_edge_aggregate_error.items() if error < self._error_threshold}
 
-        view_graph = ViewGraph(
-            i2Ri1={edge: i2Ri1[edge] for edge in valid_edges},
-            i2Ui1={edge: i2Ui1[edge] for edge in valid_edges},
-            calibrations=calibrations,
-            corr_idxs_i1i2={edge: corr_idxs_i1i2[edge] for edge in valid_edges},
-        )
-
-        logger.info("Output number of edges: %d" % len(view_graph.i2Ri1))
-
-        return view_graph
-
-    def compute_metrics(
-        self,
-        i2Ri1: Dict[Tuple[int, int], Rot3],
-        i2Ui1: Dict[Tuple[int, int], Unit3],
-        calibrations: List[Cal3Bundler],
-        corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
-        keypoints: List[Keypoints],
-        view_graph: ViewGraph,
-        gt_cameras: Optional[List[PinholeCameraCal3Bundler]],
-    ) -> GtsfmMetricsGroup:
-        """Computes the rotation cycle consistency metrics as a metrics group.
-        Args:
-            i2Ri1: Dict from (i1, i2) to relative rotation of i1 with respect to i2.
-            i2Ui1: Dict from (i1, i2) to relative translation direction of i1 with respect to i2.
-            calibrations: list of calibrations for each image.
-            corr_idxs_i1i2: Dict from (i1, i2) to indices of verified correspondences from i1 to i2.
-            keypoints: keypoints for each images.
-            view_graph: view graph computed by the `run` method.
-            gt_cameras: ground truth cameras to compute the metrics against.
-
-        Returns:
-            Rotation cycle consistency metrics as a metrics group. Includes the following metrics:
-            - Number of inlier, outlier and total measurements.
-            - Distribution of relative rotation angular errors for inlier measurements.
-            - Distribution of relative rotation angular errors for outlier measurements.
-            - Distribution of translation direction angular errors for inlier measurements.
-            - Distribution of translation direction angular errors for outlier measurements.
-        """
-        if gt_cameras is None:
-            return GtsfmMetricsGroup(name="rotation_cycle_consistency_metrics", metrics=[])
-
-        input_edges = self.__get_valid_input_edges(i2Ri1)
-        inlier_i1_i2 = view_graph.get_pair_indices()
-        outlier_i1_i2 = [i1_i2 for i1_i2 in input_edges if i1_i2 not in inlier_i1_i2]
-
-        inlier_R_angular_errors = []
-        outlier_R_angular_errors = []
-
-        inlier_U_angular_errors = []
-        outlier_U_angular_errors = []
-
-        for i1, i2 in input_edges:
-            if max(i1, i2) >= len(gt_cameras):
-                logger.error("One or both cameras were not found in the ground truth")
-                continue
-            i2Ti1_expected = gt_cameras[i2].pose().between(gt_cameras[i1].pose())
-
-            R_error_deg = comp_utils.compute_relative_rotation_angle(i2Ri1[(i1, i2)], i2Ti1_expected.rotation())
-            U_error_deg = comp_utils.compute_relative_unit_translation_angle(
-                i2Ui1[(i1, i2)], Unit3(i2Ti1_expected.translation())
-            )
-            if (i1, i2) in inlier_i1_i2:
-                inlier_R_angular_errors.append(R_error_deg)
-                inlier_U_angular_errors.append(U_error_deg)
-            else:
-                outlier_R_angular_errors.append(R_error_deg)
-                outlier_U_angular_errors.append(U_error_deg)
-
-        R_precision, R_recall = metrics_utils.get_precision_recall_from_errors(
-            inlier_R_angular_errors, outlier_R_angular_errors, MAX_INLIER_MEASUREMENT_ERROR_DEG
-        )
-
-        U_precision, U_recall = metrics_utils.get_precision_recall_from_errors(
-            inlier_U_angular_errors, outlier_U_angular_errors, MAX_INLIER_MEASUREMENT_ERROR_DEG
-        )
-
-        rcc_metrics = [
-            GtsfmMetric("num_input_measurements", len(i2Ri1)),
-            GtsfmMetric("num_inlier_rcc_measurements", len(inlier_i1_i2)),
-            GtsfmMetric("num_outlier_rcc_measurements", len(outlier_i1_i2)),
-            GtsfmMetric("rot_cycle_consistency_R_precision", R_precision),
-            GtsfmMetric("rot_cycle_consistency_R_recall", R_recall),
-            GtsfmMetric("rot_cycle_consistency_U_precision", U_precision),
-            GtsfmMetric("rot_cycle_consistency_U_recall", U_recall),
-            GtsfmMetric("inlier_R_angular_errors_deg", inlier_R_angular_errors),
-            GtsfmMetric("outlier_R_angular_errors_deg", outlier_R_angular_errors),
-            GtsfmMetric("inlier_U_angular_errors_deg", inlier_U_angular_errors),
-            GtsfmMetric("outlier_U_angular_errors_deg", outlier_U_angular_errors),
-        ]
-        return GtsfmMetricsGroup("rotation_cycle_consistency_metrics", rcc_metrics)
+        return valid_edges
 
     def __get_valid_input_edges(self, i2Ri1: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int, int]]:
         """Gets the input edges (i1, i2) with the relative rotation i2Ri1 where:

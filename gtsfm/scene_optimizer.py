@@ -31,7 +31,7 @@ from gtsfm.two_view_estimator import (
     PRE_BA_REPORT_TAG,
     POST_BA_REPORT_TAG,
     POST_ISP_REPORT_TAG,
-    POST_CYCLE_CONSISTENT_REPORT_TAG,
+    VIEWGRAPH_REPORT_TAG,
 )
 
 matplotlib.use("Agg")
@@ -190,7 +190,7 @@ class SceneOptimizer:
         (
             ba_input_graph,
             ba_output_graph,
-            view_graph_two_view_report, 
+            view_graph_two_view_report,
             optimizer_metrics_graph,
         ) = self.multiview_optimizer.create_computation_graph(
             image_graph,
@@ -204,7 +204,7 @@ class SceneOptimizer:
             gt_cameras_graph,
         )
         if view_graph_two_view_report is not None:
-            two_view_reports_dict[POST_CYCLE_CONSISTENT_REPORT_TAG] = view_graph_two_view_report
+            two_view_reports_dict[VIEWGRAPH_REPORT_TAG] = view_graph_two_view_report
 
         # Persist all front-end metrics and their summaries.
         # TODO(akshay-krishnan): this delays saving the frontend reports util MVO has completed, not ideal.

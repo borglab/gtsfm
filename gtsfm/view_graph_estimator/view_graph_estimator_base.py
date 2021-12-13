@@ -7,17 +7,15 @@ that include filtering or optimizing the two-view estimates.
 Authors: Akshay Krishnan, Ayush Baid
 """
 import abc
-from typing import Dict, Optional, List, Tuple
+from typing import Dict, List, Set, Tuple
 
 import dask
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Rot3, Unit3
+from gtsam import Cal3Bundler, Rot3, Unit3
 
-import gtsfm.utils.geometry_comparisons as comp_utils
-from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.common.view_graph import ViewGraph
+from gtsfm.two_view_estimator import TwoViewEstimationReport
 
 METRIC_GROUP = "view_graph"
 
@@ -37,7 +35,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         calibrations: List[Cal3Bundler],
         corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
         keypoints: List[Keypoints],
-    ) -> ViewGraph:
+    ) -> Set[Tuple[int, int]]:
         """Run the ViewGraph estimation.
 
         Args:
@@ -48,59 +46,50 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             keypoints: keypoints for each images.
 
         Returns:
-            ViewGraph object.
+            Edges of the view-graph, which are the subset of the image pairs in the input args.
         """
 
-    def compute_metrics(
+    def filter_with_edges(
         self,
         i2Ri1: Dict[Tuple[int, int], Rot3],
         i2Ui1: Dict[Tuple[int, int], Unit3],
-        calibrations: List[Cal3Bundler],
         corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
-        keypoints: List[Keypoints],
-        view_graph: ViewGraph,
-        gt_cameras: Optional[List[PinholeCameraCal3Bundler]],
-    ) -> GtsfmMetricsGroup:
-        """Compute the metrics for the view graph estimation.
-
+        edges_to_select: Set[Tuple[int, int]],
+    ) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3], Dict[Tuple[int, int], np.ndarray]]:
+        """Filter the dictionaries of 2-view results with the image-pair edges.
         Args:
             i2Ri1: Dict from (i1, i2) to relative rotation of i1 with respect to i2.
             i2Ui1: Dict from (i1, i2) to relative translation direction of i1 with respect to i2.
-            calibrations: list of calibrations for each image.
             corr_idxs_i1i2: Dict from (i1, i2) to indices of verified correspondences from i1 to i2.
-            keypoints: keypoints for each images.
-            view_graph: view graph computed by the `run` method.
-            gt_cameras: ground truth cameras to compute the metrics against.
+            edges_to_select: edges to select (tuple of image pair indices)
 
         Returns:
-            Metrics for the computed view graph.
+            Subset of i2Ri1.
+            Subset of i2Ui1.
+            Subset of corr_idxs_i1i2.
+
         """
-        if gt_cameras is None:
-            return GtsfmMetricsGroup(name=METRIC_GROUP, metrics=[])
 
-        rotation_errors_deg = []
-        translation_errors_deg = []
-
-        for i1, i2 in view_graph.get_pair_indices():
-            i2Ti1_expected = gt_cameras[i2].pose().between(gt_cameras[i1].pose())
-
-            R_error_deg = comp_utils.compute_relative_rotation_angle(
-                view_graph.i2Ri1[(i1, i2)], i2Ti1_expected.rotation()
-            )
-            U_error_deg = comp_utils.compute_relative_unit_translation_angle(
-                view_graph.i2Ui1[(i1, i2)], Unit3(i2Ti1_expected.translation())
-            )
-
-            rotation_errors_deg.append(R_error_deg)
-            translation_errors_deg.append(U_error_deg)
-
-        return GtsfmMetricsGroup(
-            name=METRIC_GROUP,
-            metrics=[
-                GtsfmMetric(name="relative_rotation_errors", data=rotation_errors_deg),
-                GtsfmMetric(name="relative_direction_errors", data=translation_errors_deg),
-            ],
+        return (
+            {edge: i2Ri1[edge] for edge in edges_to_select},
+            {edge: i2Ui1[edge] for edge in edges_to_select},
+            {edge: corr_idxs_i1i2[edge] for edge in edges_to_select},
         )
+
+    def compute_metrics(
+        self, two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport], view_graph_edges: Set[Tuple[int, int]]
+    ) -> Dict[Tuple[int, int], TwoViewEstimationReport]:
+        """Metric computation for the view optimizer by selecting a subset of two-view reports for the pairs which
+        are the edges of the view-graph.
+
+        Args:
+            two_view_reports: two-view reports between image pairs from the TwoViewEstimator.
+            view_graph_edges: edges of the view-graph.
+
+        Returns:
+            Subset of two_view_reports, only including the edges in view_graph_edges.
+        """
+        return {edge: two_view_reports[edge] for edge in view_graph_edges}
 
     def create_computation_graph(
         self,
@@ -109,15 +98,13 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         calibrations: Delayed,
         corr_idxs_i1i2: Delayed,
         keypoints: Delayed,
-        gt_cameras: Delayed,
+        two_view_reports: Dict[Tuple[int, int], Delayed],
     ) -> Tuple[Delayed, Delayed]:
-        """Create the computation graph for ViewGraph estimation and metric evaluation.
-
-        The input arguments and the outputs of the functions are the same as the `run` method, but wrapped in Delayed.
-        """
-        view_graph = dask.delayed(self.run, nout=2)(i2Ri1, i2Ui1, calibrations, corr_idxs_i1i2, keypoints)
-        metrics = dask.delayed(self.compute_metrics)(
-            i2Ri1, i2Ui1, calibrations, corr_idxs_i1i2, keypoints, view_graph, gt_cameras
+        """Create the computation graph for ViewGraph estimation and metric evaluation."""
+        view_graph_edges = dask.delayed(self.run, nout=2)(i2Ri1, i2Ui1, calibrations, corr_idxs_i1i2, keypoints)
+        i2Ri1_filtered, i2Ui1_filtered, corr_idxs_i1i2_filtered = dask.delayed(self.filter_with_edges, nout=3)(
+            i2Ri1, i2Ui1, corr_idxs_i1i2, view_graph_edges
         )
+        two_view_reports_filtered = dask.delayed(self.compute_metrics)(two_view_reports, view_graph_edges)
 
-        return view_graph, metrics
+        return i2Ri1_filtered, i2Ui1_filtered, corr_idxs_i1i2_filtered, two_view_reports_filtered
