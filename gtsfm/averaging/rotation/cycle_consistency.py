@@ -20,8 +20,8 @@ import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
+from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.two_view_estimator import TwoViewEstimationReport
 
 
 logger = logger_utils.get_logger()

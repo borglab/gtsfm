@@ -3,12 +3,16 @@
 Author: John Lambert
 """
 
+import itertools
+import os
+from collections import defaultdict
 from typing import Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
-from gtsam import EssentialMatrix, Rot3, Unit3
+from gtsam import Cal3Bundler, EssentialMatrix, Rot3, Unit3
 
+import gtsfm.averaging.rotation.cycle_consistency as cycle_consistency
 import gtsfm.runner.frontend_runner as frontend_runner
 import gtsfm.utils.features as feature_utils
 import gtsfm.utils.verification as verification_utils
@@ -22,18 +26,17 @@ from gtsfm.frontend.verifier.ransac import Ransac
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.two_view_estimator import TwoViewEstimator
-
+from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 
 from gtsfm.frontend.cacher.matcher_cacher import MatcherCacher
 from gtsfm.frontend.cacher.detector_descriptor_cacher import DetectorDescriptorCacher
+import gtsfm.averaging.rotation.cycle_consistency as cycle_consistency
 
 
 def fmat_point_transfer(
     i3Fi1: np.ndarray,
     i3Fi2: np.ndarray,
-    matched_keypoints_i1: np.ndarray,
-    matched_keypoints_i2: np.ndarray,
-    matched_keypoints_i3: np.ndarray,
+    correspondences: np.ndarray,
 ) -> np.ndarray:
     """Transfer points to a 3rd image, using intersection of epipolar lines (via Fundamental matrices), and measure error.
 
@@ -43,13 +46,15 @@ def fmat_point_transfer(
     or Sweeney15iccv: https://sites.cs.ucsb.edu/~holl/pubs/Sweeney-2015-ICCV.pdf, section 3.1
 
     Args:
-        match_keypoints_i1: (N,2) array representing measurements in view 1 for each of N tracks (in 3 views).
-        match_keypoints_i2: (N,2) array representing measurements in view 2 for each of N tracks (in 3 views).
-        match_keypoints_i3: (N,2) array representing measurements in view 3 for each of N tracks (in 3 views).
+        correspondences: (N,6) array representing measurements in view 1, view 2, view 3 for each of N tracks (in 3 views).
 
     Returns:
         errors, as distances in the image plane.
     """
+    matched_keypoints_i1 = correspondences[:,:2]
+    matched_keypoints_i2 = correspondences[:,2:4]
+    matched_keypoints_i3 = correspondences[:,4:]
+
     matched_h_keypoints_i1 = feature_utils.convert_to_homogenous_coordinates(matched_keypoints_i1)
     matched_h_keypoints_i2 = feature_utils.convert_to_homogenous_coordinates(matched_keypoints_i2)
     matched_h_keypoints_i3 = feature_utils.convert_to_homogenous_coordinates(matched_keypoints_i3)
@@ -74,11 +79,16 @@ def fmat_point_transfer(
     return dists
 
 
+MIN_N_REQUIRED_INLIERS = 80
+
+
 def filter_to_cycle_consistent_edges(
     i2Ri1_dict: Dict[Tuple[int, int], Rot3],
     i2Ui1_dict: Dict[Tuple[int, int], Unit3],
     corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
     keypoints_list: List[Keypoints],
+    camera_intrinsics_dict: Dict[int, Cal3Bundler],
+    two_view_reports_dict: Dict[Tuple[int,int], TwoViewEstimationReport] = None,
     loader: Optional[LoaderBase] = None,
     visualize: bool = True
 ) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3], Dict[Tuple[int, int], np.ndarray]]:
@@ -108,102 +118,194 @@ def filter_to_cycle_consistent_edges(
     matched_keypoints_i2 = []
     matched_keypoints_i3 = []
 
+    print("Num tracks: ", len(tracks_2d))
+
+    # each triplet should has its own array of matched keypoints.
+    triplet_tracks = defaultdict(list)
+
     for track in tracks_2d:
+
+        #print("Track length: ", len(track.measurements))
+
         if len(track.measurements) == 1:
             import pdb; pdb.set_trace()
 
-        if len(track.measurements) != 3:
+        if len(track.measurements) < 3:
             continue
 
-        # should be sorted?
-        assert track.measurements[0].i == 0
-        assert track.measurements[1].i == 1
-        assert track.measurements[2].i == 2
+        # derive all triplets from length-N track
+        measurement_idxs = range(len(track.measurements))
+        measurement_triplets = list(itertools.combinations(measurement_idxs, 3))
 
-        matched_keypoints_i1.append(track.measurements[0].uv)
-        matched_keypoints_i2.append(track.measurements[1].uv)
-        matched_keypoints_i3.append(track.measurements[2].uv)
+        #print("From ", track, " generate ", triplets)
 
-    # TODO: discover all triplets.
+        for (k1,k2,k3) in measurement_triplets:
+            # get triplet of image indices
+            triplet = np.array([track.measurements[k1].i, track.measurements[k2].i, track.measurements[k3].i])
+            sort_idxs = np.argsort(triplet)
+            i1, i2, i3 = triplet[sort_idxs]
+            
+            correspondence = np.array([track.measurements[k1].uv, track.measurements[k2].uv, track.measurements[k3].uv])
+            triplet_tracks[(i1,i2,i3)] += [correspondence[sort_idxs].flatten()]
 
-    i1, i2, i3 = 0, 1, 2
-    img_i1 = loader.get_image(i1)
-    img_i2 = loader.get_image(i2)
-    img_i3 = loader.get_image(i3)
+        # # should be sorted?
+        # assert i1 == 0
+        # assert i2 == 1
+        # assert i3 == 2
 
-    # convert (R,t) to F matrices for each image pair.
-    i3Ei1 = EssentialMatrix(i2Ri1_dict[(i1,i3)], i2Ui1_dict[(i1,i3)])
-    i3Ei2 = EssentialMatrix(i2Ri1_dict[(i2,i3)], i2Ui1_dict[(i2,i3)])
+    inlier_errors_trifocal = []
+    outlier_errors_trifocal = []
+    inlier_errors_wrt_gt = []
+    outlier_errors_wrt_gt = []
 
-    camera_intrinsics_i1 = loader.get_camera_intrinsics(i1)
-    camera_intrinsics_i2 = loader.get_camera_intrinsics(i2)
-    camera_intrinsics_i3 = loader.get_camera_intrinsics(i3)
-
-    i3Fi1 = verification_utils.essential_to_fundamental_matrix(i3Ei1, camera_intrinsics_i1, camera_intrinsics_i3)
-    i3Fi2 = verification_utils.essential_to_fundamental_matrix(i3Ei2, camera_intrinsics_i2, camera_intrinsics_i3)
-
-    matched_keypoints_i1 = np.array(matched_keypoints_i1)
-    matched_keypoints_i2 = np.array(matched_keypoints_i2)
-    matched_keypoints_i3 = np.array(matched_keypoints_i3)
-
-    # print(matched_keypoints_i1[:20].T.tolist())
-    # print(matched_keypoints_i2[:20].T.tolist())
-    # print(matched_keypoints_i3[:20].T.tolist())
+    print(f"Found {len(triplet_tracks)} triplets")
+    print(triplet_tracks.keys())
 
     import gtsfm.frontend.trifocal as trifocal
-    correspondences = np.hstack([matched_keypoints_i1, matched_keypoints_i2, matched_keypoints_i3])
-    _, dists = trifocal.compute_trifocal_tensor_inliers(correspondences)
+    # TODO: discover all triplets.
+    triplet_counter = 0
+    for (i1,i2,i3), correspondences in triplet_tracks.items():
 
-    #dists = fmat_point_transfer(i3Fi1, i3Fi2, matched_keypoints_i1, matched_keypoints_i2, matched_keypoints_i3)
+        triplet_edges = [(i1,i2), (i1,i3), (i2,i3)]
+        if any([i2Ri1_dict[e] is None for e in triplet_edges]):
+            continue
 
-    n_inliers = (np.absolute(dists) < 0.01).sum()
-    print(f"Found {n_inliers} inliers.")
+        if any([i2Ui1_dict[e] is None for e in triplet_edges]):
+            continue
 
-    plt.hist(dists, bins=30)
-    plt.show()
-    import pdb; pdb.set_trace()
+        print(f"On triplet {triplet_counter}/{len(triplet_tracks.keys())}")
+        triplet_counter += 1
 
-    #mask = np.logical_and( 0 < dists, dists < 50)
-    mask = dists > 0.01
-    
-    if visualize:
-        # why degenerate for Door, indices 468, 564 ?
-        draw_epipolar_lines_image_pair(
-            F=i3Fi1,
-            img_left=img_i1.value_array,
-            img_right=img_i3.value_array,
-            pts_left=matched_keypoints_i1[mask],
-            pts_right=matched_keypoints_i3[mask]
-        )
-        plt.show()
+        _, max_rot_error, _ = cycle_consistency.compute_cycle_error(i2Ri1_dict, (i1, i2, i3), two_view_reports_dict)
 
-        draw_epipolar_lines_image_pair(
-            F=i3Fi2,
-            img_left=img_i2.value_array,
-            img_right=img_i3.value_array,
-            pts_left=matched_keypoints_i2[mask],
-            pts_right=matched_keypoints_i3[mask]
-        )
-        plt.show()
+        correspondences = np.array(correspondences)
 
-        draw_epipolar_lines_image_triplet(
-            img_i1.value_array,
-            img_i2.value_array,
-            img_i3.value_array,
-            matched_keypoints_i1[mask],
-            matched_keypoints_i2[mask],
-            matched_keypoints_i3[mask],
-            i3Fi1,
-            i3Fi2
-        )
+        # convert (R,t) to F matrices for each image pair.
+        i3Ei1 = EssentialMatrix(i2Ri1_dict[(i1,i3)], i2Ui1_dict[(i1,i3)])
+        i3Ei2 = EssentialMatrix(i2Ri1_dict[(i2,i3)], i2Ui1_dict[(i2,i3)])
 
-        plt.show()
+        camera_intrinsics_i1 = camera_intrinsics_dict[i1]
+        camera_intrinsics_i2 = camera_intrinsics_dict[i2]
+        camera_intrinsics_i3 = camera_intrinsics_dict[i3]
+
+        i3Fi1 = verification_utils.essential_to_fundamental_matrix(i3Ei1, camera_intrinsics_i1, camera_intrinsics_i3)
+        i3Fi2 = verification_utils.essential_to_fundamental_matrix(i3Ei2, camera_intrinsics_i2, camera_intrinsics_i3)
+
+        # print(matched_keypoints_i1[:20].T.tolist())
+        # print(matched_keypoints_i2[:20].T.tolist())
+        # print(matched_keypoints_i3[:20].T.tolist())
+
+        print("Corr: ", correspondences.shape)
+        if correspondences.shape[0] < 7:
+            continue
+        _, dists = trifocal.compute_trifocal_tensor_inliers(correspondences)
+
+        #dists = fmat_point_transfer(i3Fi1, i3Fi2, correspondences)
+
+        n_inliers = (np.absolute(dists) < 0.01).sum()
+        print(f"Found {n_inliers} inliers.")
+        if n_inliers >= MIN_N_REQUIRED_INLIERS:
+            for e in triplet_edges:
+                cycle_consistent_edges.append(e)
+
+            inlier_errors_trifocal.append(n_inliers)
+            inlier_errors_wrt_gt.append(max_rot_error)
+        else:
+            outlier_errors_trifocal.append(n_inliers)
+            outlier_errors_wrt_gt.append(max_rot_error)
+
+
+        # plt.hist(dists, bins=30)
+        # plt.show()
+        continue
+        import pdb; pdb.set_trace()
+
+        #mask = np.logical_and( 0 < dists, dists < 50)
+        mask = dists > 0.01
+        
+        if visualize:
+
+            img_i1 = loader.get_image(i1)
+            img_i2 = loader.get_image(i2)
+            img_i3 = loader.get_image(i3)
+
+            # why degenerate for Door, indices 468, 564 ?
+            draw_epipolar_lines_image_pair(
+                F=i3Fi1,
+                img_left=img_i1.value_array,
+                img_right=img_i3.value_array,
+                pts_left=matched_keypoints_i1[mask],
+                pts_right=matched_keypoints_i3[mask]
+            )
+            plt.show()
+
+            draw_epipolar_lines_image_pair(
+                F=i3Fi2,
+                img_left=img_i2.value_array,
+                img_right=img_i3.value_array,
+                pts_left=matched_keypoints_i2[mask],
+                pts_right=matched_keypoints_i3[mask]
+            )
+            plt.show()
+
+            draw_epipolar_lines_image_triplet(
+                img_i1.value_array,
+                img_i2.value_array,
+                img_i3.value_array,
+                matched_keypoints_i1[mask],
+                matched_keypoints_i2[mask],
+                matched_keypoints_i3[mask],
+                i3Fi1,
+                i3Fi2
+            )
+
+            plt.show()
+
+    plot_(inlier_errors_trifocal, outlier_errors_trifocal, inlier_errors_wrt_gt, outlier_errors_wrt_gt)
 
     # find cycle consistent ones
     i2Ri1_dict_cc = {}
     i2Ui1_dict_cc = {}
-    v_corr_idxs_dict_cc = {}
-    return i2Ri1_dict_cc, i2Ui1_dict_cc, v_corr_idxs_dict_cc
+    corr_idxs_dict_cc = {}
+
+    for (i1, i2) in cycle_consistent_edges:
+        i2Ri1_dict_cc[(i1, i2)] = i2Ri1_dict[(i1, i2)]
+        i2Ui1_dict_cc[(i1, i2)] = i2Ui1_dict[(i1, i2)]
+        corr_idxs_dict_cc[(i1, i2)] = corr_idxs_dict[(i1, i2)]
+
+
+    return i2Ri1_dict_cc, i2Ui1_dict_cc, corr_idxs_dict_cc
+
+
+
+
+
+def plot_(inlier_errors_trifocal, outlier_errors_trifocal, inlier_errors_wrt_gt, outlier_errors_wrt_gt):
+    """
+    """
+
+    plt.scatter(
+        inlier_errors_trifocal,
+        inlier_errors_wrt_gt,
+        10,
+        color="g",
+        marker=".",
+        label=f"inliers @ ",
+    )
+    plt.scatter(
+        outlier_errors_trifocal,
+        outlier_errors_wrt_gt,
+        10,
+        color="r",
+        marker=".",
+        label=f"outliers @ ",
+    )
+    plt.xlabel(f"Num inliers (by Trifocal error)")
+    plt.ylabel("Rotation error w.r.t GT")
+    plt.axis("equal")
+    plt.legend(loc="lower right")
+    plt.savefig(os.path.join("plots", f"gt_err_vs_trifocal_error.jpg"), dpi=400)
+    plt.close("all")
 
 
 def convert_to_homogenous_coordinates(coords: np.ndarray) -> np.ndarray:
@@ -313,17 +415,20 @@ def test_fmat_point_transfer() -> None:
     # dataset_root = "/Users/johnlambert/Downloads/skydio-8-trifocal-example"
     # image_extension = "jpg"
 
-    dataset_root = "/Users/johnlambert/Downloads/skydio-501-trifocal-example"
-    image_extension = "JPG"
+    # dataset_root = "/Users/johnlambert/Downloads/skydio-501-trifocal-example"
+    # image_extension = "JPG"
 
     # dataset_root = "/Users/johnlambert/Downloads/skydio-501-trifocal-example-no-covis"
     # image_extension = "JPG"
+
+    dataset_root = "/Users/johnlambert/Downloads/skydio-32-trifocal-example"
+    image_extension = "JPG"
 
     loader = OlssonLoader(dataset_root, image_extension=image_extension)
 
     det_desc = SuperPointDetectorDescriptor()
 
-    feature_extractor =FeatureExtractor(
+    feature_extractor = FeatureExtractor(
         detector_descriptor=DetectorDescriptorCacher(detector_descriptor_obj=det_desc)
     )
     #feature_extractor = FeatureExtractor(det_desc)
@@ -337,11 +442,15 @@ def test_fmat_point_transfer() -> None:
         bundle_adjust_2view_maxiters=0,
     )
 
+    camera_intrinsics_dict = {i: loader.get_camera_intrinsics(i) for i in [0,1,2]}
+
     keypoints_list, i2Ri1_dict, i2Ui1_dict, corr_idxs_dict = frontend_runner.run_frontend(
         loader, feature_extractor, two_view_estimator
     )
 
-    filter_to_cycle_consistent_edges(i2Ri1_dict, i2Ui1_dict, corr_idxs_dict, keypoints_list, loader)
+    filter_to_cycle_consistent_edges(
+        i2Ri1_dict, i2Ui1_dict, corr_idxs_dict, keypoints_list, camera_intrinsics_dict=camera_intrinsics_dict, loader=loader
+    )
 
 
 
