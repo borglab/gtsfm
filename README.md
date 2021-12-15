@@ -133,14 +133,15 @@ Contributions are always welcome! Please be aware of our [contribution guideline
 Open-source Python implementation:
 ```
 @misc{GTSFM,
-    author = {Ayush Baid and Fan Jiang and Akshay Krishnan and John Lambert and Aditya Singh and
-       Aishwarya Venkataramanan and Sushmita Warrier and Jing Wu and Xiaolong Wu and Frank Dellaert},
+    author = {Ayush Baid and Travis Driver and Fan Jiang and Akshay Krishnan and John Lambert
+       and Ren Liu and Aditya Singh and Neha Upadhyay and Aishwarya Venkataramanan
+       and Sushmita Warrier and Jing Wu and Xiaolong Wu and Frank Dellaert},
     title = { {GTSFM}: Georgia Tech Structure from Motion},
     howpublished={\url{https://github.com/borglab/gtsfm}},
     year = {2021}
 }
 ```
-Note: authors are listed in alphabetical order.
+Note: authors are listed in alphabetical order (by last name).
 
 
 ## Compiling Additional Verifiers
