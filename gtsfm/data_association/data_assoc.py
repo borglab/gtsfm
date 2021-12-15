@@ -25,7 +25,7 @@ from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.data_association.point3d_initializer import (
     Point3dInitializer,
-    TriangulationParam,
+    TriangulationOptions,
     TriangulationExitCode,
 )
 from gtsfm.common.image import Image
@@ -47,15 +47,16 @@ class DataAssociation(NamedTuple):
         num_ransac_hypotheses (optional): number of hypothesis for RANSAC-based triangulation.
     """
 
-    reproj_error_thresh: float
-    min_track_len: int
-    mode: TriangulationParam
-    num_ransac_hypotheses: Optional[int] = None
+    # reproj_error_thresh: float
+    # min_track_len: int
+    # mode: TriangulationParam
+    # num_ransac_hypotheses: Optional[int] = None
+    triangulation_options: TriangulationOptions
     save_track_patches_viz: Optional[bool] = False
 
     def __validate_track(self, sfm_track: Optional[SfmTrack]) -> bool:
         """Validate the track by checking its length."""
-        return sfm_track is not None and sfm_track.number_measurements() >= self.min_track_len
+        return sfm_track is not None and sfm_track.number_measurements() >= self.triangulation_options.min_track_len
 
     def run(
         self,
@@ -91,13 +92,12 @@ class DataAssociation(NamedTuple):
         logger.debug("[Data association] input number of tracks: %s", len(tracks_2d))
         logger.debug("[Data association] input avg. track length: %s", np.mean(track_lengths_2d))
 
-        # initializer of 3D landmark for each track
-        point3d_initializer = Point3dInitializer(
-            cameras,
-            self.mode,
-            self.reproj_error_thresh,
-            self.num_ransac_hypotheses,
-        )
+        # Initialize 3D landmark for each track
+        point3d_initializer = Point3dInitializer(cameras, self.triangulation_options)
+        #     self.mode,
+        #     self.reproj_error_thresh,
+        #     self.num_ransac_hypotheses,
+        # )
 
         per_accepted_track_avg_errors = []
         per_rejected_track_avg_errors = []
