@@ -71,10 +71,19 @@ def fmat_point_transfer(
         l_ = i3Fi2 @ p2
 
         p3_expected = np.cross(l, l_)
+
+        # if effectively collinear, ignore this correspondence.
+        if np.isclose(p3_expected[2], 0, atol=1e-8):
+            dists[j] = 0.0
+            continue
+
         p3_expected = p3_expected[:2] / p3_expected[2]
         error_2d = np.linalg.norm(p3[:2] - p3_expected)
         # print(f"Error: {error_2d:.2f}")
         dists[j] = error_2d
+
+        # if error_2d > 100:
+        #     import pdb; pdb.set_trace()
 
     return dists
 
@@ -191,16 +200,20 @@ def filter_to_cycle_consistent_edges(
         i3Fi1 = verification_utils.essential_to_fundamental_matrix(i3Ei1, camera_intrinsics_i1, camera_intrinsics_i3)
         i3Fi2 = verification_utils.essential_to_fundamental_matrix(i3Ei2, camera_intrinsics_i2, camera_intrinsics_i3)
 
+        # matched_keypoints_i1 = correspondences[:,:2]
+        # matched_keypoints_i2 = correspondences[:,2:4]
+        # matched_keypoints_i3 = correspondences[:,4:]
+
         # print(matched_keypoints_i1[:20].T.tolist())
         # print(matched_keypoints_i2[:20].T.tolist())
         # print(matched_keypoints_i3[:20].T.tolist())
 
-        print("Corr: ", correspondences.shape)
-        if correspondences.shape[0] < 7:
+        # print("Corr: ", correspondences.shape)
+        if correspondences.shape[0] < 6:
             continue
         _, dists = trifocal.compute_trifocal_tensor_inliers(correspondences)
 
-        #dists = fmat_point_transfer(i3Fi1, i3Fi2, correspondences)
+        # dists = fmat_point_transfer(i3Fi1, i3Fi2, correspondences)
 
         n_inliers = (np.absolute(dists) < 0.01).sum()
         print(f"Found {n_inliers} inliers.")
@@ -214,14 +227,14 @@ def filter_to_cycle_consistent_edges(
             outlier_errors_trifocal.append(n_inliers)
             outlier_errors_wrt_gt.append(max_rot_error)
 
-
-        # plt.hist(dists, bins=30)
-        # plt.show()
         continue
-        import pdb; pdb.set_trace()
+        plt.hist(dists, bins=30)
+        plt.show()
+        # 
+        #import pdb; pdb.set_trace()
 
         #mask = np.logical_and( 0 < dists, dists < 50)
-        mask = dists > 0.01
+        mask = dists > 100
         
         if visualize:
 
@@ -415,14 +428,14 @@ def test_fmat_point_transfer() -> None:
     # dataset_root = "/Users/johnlambert/Downloads/skydio-8-trifocal-example"
     # image_extension = "jpg"
 
-    # dataset_root = "/Users/johnlambert/Downloads/skydio-501-trifocal-example"
-    # image_extension = "JPG"
+    dataset_root = "/Users/johnlambert/Downloads/skydio-501-trifocal-example"
+    image_extension = "JPG"
 
     # dataset_root = "/Users/johnlambert/Downloads/skydio-501-trifocal-example-no-covis"
     # image_extension = "JPG"
 
-    dataset_root = "/Users/johnlambert/Downloads/skydio-32-trifocal-example"
-    image_extension = "JPG"
+    # dataset_root = "/Users/johnlambert/Downloads/skydio-32-trifocal-example"
+    # image_extension = "JPG"
 
     loader = OlssonLoader(dataset_root, image_extension=image_extension)
 
