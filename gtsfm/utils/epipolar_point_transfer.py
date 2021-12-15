@@ -88,7 +88,7 @@ def fmat_point_transfer(
     return dists
 
 
-MIN_N_REQUIRED_INLIERS = 80
+MIN_N_REQUIRED_INLIERS = 50
 
 
 def filter_to_cycle_consistent_edges(
