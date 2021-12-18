@@ -92,6 +92,9 @@ class MVSPatchmatchNet(MVSBase):
 
         # TODO(johnwlambert): using Dask's LocalCluster with multiprocessing in Pytorch (i.e. num_workers>0)
         # will give -> "AssertionError('daemonic processes are not allowed to have children')" -> fix needed
+        if num_workers != 0:
+            raise ValueError("Using multiprocessing in Pytorch within Dask's LocalCluster is currently unsupported.")
+
         loader = DataLoader(
             dataset=dataset,
             batch_size=BATCH_SIZE,
