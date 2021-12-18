@@ -104,7 +104,7 @@ def get_alignment_rotation_matrix_from_svd(point_cloud: np.ndarray) -> np.ndarra
         raise TypeError("Point Cloud should be 3 dimensional")
 
     # Obtain right singular vectors to determine rotation matrix of point cloud.
-    V = get_right_singular_vectors(point_cloud)
+    V, _ = get_right_singular_vectors(point_cloud)
     Vt = V.T
 
     # If det(Vt) = -1, then Vt is a reflection matrix and not a valid SO(3) transformation. Thus, we must estimate the
@@ -117,31 +117,7 @@ def get_alignment_rotation_matrix_from_svd(point_cloud: np.ndarray) -> np.ndarra
     return wuprightRw
 
 
-def sorted_eigendecomposition(A: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    """Extracts the eigendecomposition results sorted by eigenvalues in descending order
-
-    Args:
-        A: point cloud of shape (N,3)
-
-    Returns:
-        eigvals: The sorted eigenvalues of the point cloud, shape (3,3).
-        eigvecs: The sorted eigenvectors of the point cloud, shape (3,3).
-
-    Raises:
-        TypeError: if point cloud is not of shape (N,3).
-    """
-    if A.shape[1] != 3:
-        raise TypeError("Point Cloud should be 3 dimesional")
-
-    eigvals, eigvecs = np.linalg.eig(A.T @ A)
-
-    # Sort eigenvectors such that they correspond to eigenvalues sorted in descending order.
-    sort_idx = np.argsort(-eigvals)
-
-    return eigvals[sort_idx], eigvecs[:, sort_idx]
-
-
-def get_right_singular_vectors(A: np.ndarray) -> np.ndarray:
+def get_right_singular_vectors(A: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """Extracts the right singular eigenvectors from the point cloud. Some of the eigenvectors could be randomly
     multiplied by -1. Despite this, the eigenvectors will still remain valid.
 
@@ -152,11 +128,19 @@ def get_right_singular_vectors(A: np.ndarray) -> np.ndarray:
 
     Returns:
         The right singular vectors of the point cloud, shape (3,3).
+        The singular values of the point cloud (sorted in descending order), with shape (3,)
 
     Raises:
         TypeError: if point cloud is not of shape (N,3).
     """
 
-    _, eigvecs = sorted_eigendecomposition(A)
+    if A.shape[1] != 3:
+        raise TypeError("Point Cloud should be 3 dimesional")
 
-    return eigvecs
+    # eigenvectors of A^T*A are singular vectors of A
+    eigvals, eigvecs = np.linalg.eig(A.T @ A)
+
+    # Sort eigenvectors such that they correspond to eigenvalues sorted in descending order.
+    sort_idxs = np.argsort(-eigvals)
+
+    return eigvecs[:, sort_idxs], np.sqrt(eigvals[sort_idxs])

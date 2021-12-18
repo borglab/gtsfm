@@ -120,10 +120,10 @@ def estimate_minimum_voxel_size(points: np.ndarray, scale: float = 0.02) -> floa
     centered_points = ellipsoid_utils.center_point_cloud(points)
 
     # get squared semi-axis lengths in all axes of the centered point cloud
-    eigvals, _ = ellipsoid_utils.sorted_eigendecomposition(centered_points / np.sqrt(N - 1))
+    _, singular_values = ellipsoid_utils.get_right_singular_vectors(centered_points)
 
     # set the minimum voxel size as the scaled minimum semi-axis length
-    return np.sqrt(eigvals[-1]) * scale
+    return singular_values[-1] * scale
 
 
 def downsample_point_cloud(
