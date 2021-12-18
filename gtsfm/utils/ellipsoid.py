@@ -133,12 +133,14 @@ def get_right_singular_vectors(A: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     Raises:
         TypeError: if point cloud is not of shape (N,3).
     """
-
-    if A.shape[1] != 3:
+    N, D = A.shape
+    if D != 3:
         raise TypeError("Point Cloud should be 3 dimesional")
 
     # eigenvectors of A^T*A are singular vectors of A
-    eigvals, eigvecs = np.linalg.eig(A.T @ A)
+    # we apply Bessel's correction when estimating the covariance matrix
+    # See https://en.wikipedia.org/wiki/Principal_component_analysis#Computing_PCA_using_the_covariance_method
+    eigvals, eigvecs = np.linalg.eig(A.T @ A / (N-1))
 
     # Sort eigenvectors such that they correspond to eigenvalues sorted in descending order.
     sort_idxs = np.argsort(-eigvals)
