@@ -68,7 +68,7 @@ def vstack_image_pair(image_i1: Image, image_i2: Image) -> Image:
     return Image(stacked_arr)
 
 
-def vstack_image_list(imgs: List[np.ndarray]) -> Image:
+def vstack_image_list(imgs: List[Image]) -> Image:
     """Concatenate images along a vertical axis and save them.
 
     Args:
@@ -77,7 +77,7 @@ def vstack_image_list(imgs: List[np.ndarray]) -> Image:
     Returns:
         vstack_img: new RGB image, containing vertically stacked images as tiles.
     """
-    img_h, img_w, ch = imgs[0].value_array.shape
+    _, img_w, ch = imgs[0].value_array.shape
     assert ch == 3
 
     # width and number of channels must match
@@ -88,7 +88,7 @@ def vstack_image_list(imgs: List[np.ndarray]) -> Image:
     vstack_img = np.zeros((sum(all_heights), img_w, 3), dtype=np.uint8)
 
     running_h = 0
-    for i, img in enumerate(imgs):
+    for img in imgs:
         h = img.height
         start = running_h
         end = start + h
@@ -115,7 +115,17 @@ def resize_image(image: Image, new_height: int, new_width: int) -> Image:
         interpolation=cv.INTER_CUBIC,
     )
 
-    return Image(value_array=resized_value_array, file_name=image.file_name)
+    # Resize the mask using nearest-neighbor interpolation.
+    if image.mask:
+        resized_mask = cv.resize(
+            image.mask,
+            (new_width, new_height),
+            interpolation=cv.INTER_NEAREST,
+        )
+    else:
+        resized_mask = None
+
+    return Image(value_array=resized_value_array, file_name=image.file_name, mask=resized_mask)
 
 
 def get_rescaling_factor_per_axis(img_h: int, img_w: int, max_resolution: int) -> Tuple[float, float, int, int]:

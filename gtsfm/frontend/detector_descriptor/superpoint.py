@@ -30,7 +30,9 @@ MODEL_WEIGHTS_PATH = (
 class SuperPointDetectorDescriptor(DetectorDescriptorBase):
     """Superpoint Detector+Descriptor implementation."""
 
-    def __init__(self, use_cuda: bool = True, weights_path: Union[Path, str] = MODEL_WEIGHTS_PATH) -> None:
+    def __init__(
+        self, max_keypoints: int = 5000, use_cuda: bool = True, weights_path: Union[Path, str] = MODEL_WEIGHTS_PATH
+    ) -> None:
         """Configures the object.
 
         Args:
@@ -38,38 +40,36 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
             use_cuda (optional): flag controlling the use of GPUs via CUDA. Defaults to True.
             weights_path (optional): Path to the model weights. Defaults to MODEL_WEIGHT_PATH.
         """
-        super().__init__()
+        super().__init__(max_keypoints=max_keypoints)
         self._use_cuda = use_cuda and torch.cuda.is_available()
         self._config = {"weights_path": weights_path}
 
     def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
         """Jointly generate keypoint detections and their associated descriptors from a single image."""
+        # TODO(ayushbaid): fix inference issue #110
         device = torch.device("cuda" if self._use_cuda else "cpu")
         model = SuperPoint(self._config).to(device)
         model.eval()
-        # TODO: fix inference issue #110
 
+        # Compute features.
         image_tensor = torch.from_numpy(
             np.expand_dims(image_utils.rgb_to_gray_cv(image).value_array.astype(np.float32) / 255.0, (0, 1))
         ).to(device)
-
         with torch.no_grad():
             model_results = model({"image": image_tensor})
-
         torch.cuda.empty_cache()
 
-        feature_points = model_results["keypoints"][0].detach().cpu().numpy()
+        # Unpack results.
+        coordinates = model_results["keypoints"][0].detach().cpu().numpy()
         scores = model_results["scores"][0].detach().cpu().numpy()
+        keypoints = Keypoints(coordinates, scales=None, responses=scores)
         descriptors = model_results["descriptors"][0].detach().cpu().numpy().T
 
-        # sort by scores
-        sort_idxs = np.argsort(-scores)
-        # limit the number of keypoints
-        sort_idxs = sort_idxs[: self.max_keypoints]
-        feature_points = feature_points[sort_idxs]
-        scores = scores[sort_idxs]
-        descriptors = descriptors[sort_idxs]
-
-        keypoints = Keypoints(feature_points, responses=scores, scales=np.ones(scores.shape))
+        # Filter features.
+        if image.mask is not None:
+            keypoints, valid_idxs = keypoints.filter_by_mask(image.mask)
+            descriptors = descriptors[valid_idxs]
+        keypoints, selection_idxs = keypoints.get_top_k(self.max_keypoints)
+        descriptors = descriptors[selection_idxs]
 
         return keypoints, descriptors
