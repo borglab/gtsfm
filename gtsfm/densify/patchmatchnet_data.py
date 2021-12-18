@@ -91,7 +91,7 @@ class PatchmatchNetData(Dataset):
             - For every image as the reference image, calculate the depth range.
 
         Returns:
-            pairs: 2d array of shape (num_images, num_views-1). Each row_id indicates the index of reference view
+            src_views_dict: 2d array of shape (num_images, num_views-1). Each row_id indicates the index of reference view
                 in self.keys, with (num_views-1) values indicating the indices of source views in self.keys
             depth_ranges: 2d array of shape (num_images, 2). Each row_id indicates the index of reference view
                 in self.keys, with 2 values indicating [min_depth, max_depth]
