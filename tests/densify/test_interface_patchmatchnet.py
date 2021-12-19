@@ -102,7 +102,7 @@ class TestPatchmatchNetData(unittest.TestCase):
             self._dataset_patchmatchnet.get_packed_pairs()
             == [
                 {"ref_id": 0, "src_ids": [7, 1, 6, 2]},
-                {"ref_id": 1, "src_ids": [0, 2, 3, 7]},
+                {"ref_id": 1, "src_ids": [0, 2, 7, 3]},
                 {"ref_id": 2, "src_ids": [3, 1, 4, 0]},
                 {"ref_id": 3, "src_ids": [4, 2, 5, 1]},
                 {"ref_id": 4, "src_ids": [5, 3, 6, 2]},
