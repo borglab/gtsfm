@@ -91,8 +91,9 @@ class PatchmatchNetData(Dataset):
             - For every image as the reference image, calculate the depth range.
 
         Returns:
-            src_views_dict: 2d array of shape (num_images, num_views-1). Each row_id indicates the index of reference view
-                in self.keys, with (num_views-1) values indicating the indices of source views in self.keys
+            src_views_dict: 2d array of shape (num_images, num_views-1). Each row_id indicates the index of
+                reference view in self.keys, with (num_views-1) values indicating the indices of source views
+                in self.keys
             depth_ranges: 2d array of shape (num_images, 2). Each row_id indicates the index of reference view
                 in self.keys, with 2 values indicating [min_depth, max_depth]
         """
@@ -151,9 +152,6 @@ class PatchmatchNetData(Dataset):
         #   as (num_views-1) source views for i-th reference view.
         src_views_dict = np.argsort(-pair_scores, axis=1)[:, : self._num_views - 1]
 
-        # Use all depth values to calculate default depth range for images with no depth value
-        # combine vectors of various sizes into one huge concatenated vector w/ all depths
-        all_depths = np.concatenate(list(depths.values()), axis=0)
         # Filter out depth outliers and calculate depth ranges
         depth_ranges = np.zeros((self._num_valid_cameras, 2))
         for i in range(self._num_valid_cameras):
