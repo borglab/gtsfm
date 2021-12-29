@@ -2,7 +2,7 @@
 
 Author: John Lambert
 """
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 
 import dask
 import numpy as np
