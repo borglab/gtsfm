@@ -50,7 +50,7 @@ def normalize_coordinates(coordinates: np.ndarray, intrinsics: Cal3Bundler) -> n
     return np.vstack([intrinsics.calibrate(x[:2].reshape(2, 1)) for x in coordinates])
 
 
-def convert_to_homogenous_coordinates(non_homogenous_coordinates: np.ndarray,) -> Optional[np.ndarray]:
+def convert_to_homogenous_coordinates(non_homogenous_coordinates: np.ndarray) -> Optional[np.ndarray]:
     """Convert coordinates to homogenous system (by appending a column of ones).
 
     Args:
