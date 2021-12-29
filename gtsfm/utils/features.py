@@ -68,12 +68,7 @@ def convert_to_homogenous_coordinates(non_homogenous_coordinates: np.ndarray) ->
     if non_homogenous_coordinates.shape[1] != 2:
         raise TypeError("Input should be 2D")
 
-    return np.hstack(
-        (
-            non_homogenous_coordinates,
-            np.ones((non_homogenous_coordinates.shape[0], 1)),
-        )
-    )
+    return np.hstack((non_homogenous_coordinates, np.ones((non_homogenous_coordinates.shape[0], 1))))
 
 
 def convert_to_epipolar_lines(coordinates_i1: np.ndarray, i2Fi1: np.ndarray) -> Optional[np.ndarray]:
