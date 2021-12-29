@@ -11,6 +11,7 @@ SceneOptimizer:
       _target_: gtsfm.frontend.cacher.detector_descriptor_cacher.DetectorDescriptorCacher
       detector_descriptor_obj:
         _target_: gtsfm.frontend.detector_descriptor.sift.SIFTDetectorDescriptor
+        max_keypoints: 5000
 
   two_view_estimator:
     _target_: gtsfm.two_view_estimator.TwoViewEstimator
@@ -57,3 +58,6 @@ SceneOptimizer:
       output_reproj_error_thresh: 3 # for post-optimization filtering
       robust_measurement_noise: True
       shared_calib: False
+
+  dense_multiview_optimizer:
+    _target_: gtsfm.densify.mvs_patchmatchnet.MVSPatchmatchNet

@@ -274,11 +274,13 @@ class TestEllipsoidUtils(unittest.TestCase):
         )
         # fmt: on
 
-        V = ellipsoid_utils.get_right_singular_vectors(points)
+        V, singular_values = ellipsoid_utils.get_right_singular_vectors(points)
         computed_Vt = V.T
 
         U, S, Vt = np.linalg.svd(points, full_matrices=False)
         expected_Vt = Vt
+
+        # assert np.allclose(singular_values, S)
 
         computed_Vt = np.round(computed_Vt, 3)
         expected_Vt = np.round(expected_Vt, 3)
