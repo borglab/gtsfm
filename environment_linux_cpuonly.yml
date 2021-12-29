@@ -45,3 +45,4 @@ dependencies:
       - colour
       - pycolmap
       - trimesh[easy]
+      - gtsam==4.1.1
