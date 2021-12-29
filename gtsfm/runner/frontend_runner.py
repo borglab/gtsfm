@@ -5,8 +5,11 @@ Author: John Lambert
 from typing import Dict, Tuple
 
 import dask
+import numpy as np
 from dask.delayed import Delayed
+from gtsam import Rot3, Unit3
 
+from gtsfm.common.keypoints import Keypoints
 from gtsfm.feature_extractor import FeatureExtractor
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.two_view_estimator import TwoViewEstimator
@@ -14,7 +17,7 @@ from gtsfm.two_view_estimator import TwoViewEstimator
 
 def run_frontend(
     loader: LoaderBase, feature_extractor: FeatureExtractor, two_view_estimator: TwoViewEstimator
-) -> Tuple[Delayed, Delayed]:
+) -> Tuple[List[Keypoints], Dict[Tuple[int,int], Rot3], Dict[Tuple[int,int], Unit3], Dict[Tuple[int,int], np.ndarray]]:
     """Creates the front-end computation graph, and then runs it.
 
     Note: Copied from SceneOptimizer class, without back-end code.
