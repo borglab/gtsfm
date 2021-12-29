@@ -2,7 +2,7 @@
 
 Author: John Lambert
 """
-from typing import Tuple
+from typing import Dict, Tuple
 
 import dask
 from dask.delayed import Delayed
