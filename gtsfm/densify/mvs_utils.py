@@ -3,10 +3,13 @@
 Authors: Ren Liu, Ayush Baid
 """
 import math
+from typing import Tuple
 
 import numpy as np
 from gtsam import PinholeCameraCal3Bundler, Unit3
 
+import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
+from gtsfm.utils import ellipsoid as ellipsoid_utils
 from gtsfm.utils import geometry_comparisons as geometry_utils
 
 
@@ -91,3 +94,64 @@ def cart_to_homogenous(
     n = non_homogenous_coordinates.shape[1]
 
     return np.vstack([non_homogenous_coordinates, np.ones((1, n))])
+
+
+def estimate_minimum_voxel_size(points: np.ndarray, scale: float = 0.02) -> float:
+    """Estimate the minimum voxel size for point cloud simplification by downsampling
+        1. compute the minimum semi-axis length of a centered point cloud by eigendecomposition,
+            See Ellipsoid from point cloud: https://forge.epn-campus.eu/svn/vtas/vTIU/doc/ellipsoide.pdf
+        2. scale it to obtain the minimum voxel size for point cloud simplification by downsampling
+
+    Args:
+        points: array of shape (N,3)
+        scale: expected scale from the minimum semi-axis length to the output voxel size.
+            a larger scale results in a larger voxel size, which means a more compressed scene. Defaults to 0.02.
+
+    Returns:
+        the minimum voxel size for point cloud simplification by downsampling
+    """
+    N = points.shape[0]
+
+    # if the number of points is less than 2, then return 0
+    if N < 2:
+        return 0
+
+    # center the point cloud
+    centered_points = ellipsoid_utils.center_point_cloud(points)
+
+    # get squared semi-axis lengths in all axes of the centered point cloud
+    _, singular_values = ellipsoid_utils.get_right_singular_vectors(centered_points)
+
+    # set the minimum voxel size as the scaled minimum semi-axis length
+    return singular_values[-1] * scale
+
+
+def downsample_point_cloud(
+    points: np.ndarray, rgb: np.ndarray, voxel_size: float = 0.02
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Use voxel downsampling to create a uniformly downsampled point cloud from an input point cloud.
+
+    The algorithm uses a regular voxel grid and operates in two steps
+        1. Points are bucketed into voxels.
+        2. Each occupied voxel generates exactly one point by averaging all points inside.
+    See http://www.open3d.org/docs/release/tutorial/geometry/pointcloud.html#Voxel-downsampling
+
+    Args:
+        points: array of shape (N,3)
+        rgb: array of shape (N,3)
+        voxel_size: size of voxel.
+
+    Returns:
+        points_downsampled: array of shape (M,3) where M <= N
+        rgb_downsampled: array of shape (M,3) where M <= N
+    """
+
+    # if voxel_size is invalid, do not downsample the point cloud
+    if voxel_size <= 0:
+        return points, rgb
+
+    pcd = open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
+    pcd = pcd.voxel_down_sample(voxel_size=voxel_size)
+
+    points_downsampled, rgb_downsampled = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pcd)
+    return points_downsampled, rgb_downsampled

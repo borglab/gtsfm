@@ -12,9 +12,9 @@ import numpy as np
 from gtsam import Rot3, Pose3
 
 import gtsfm.utils.io as io_utils
-from visualization.open3d_vis_utils import draw_scene_open3d
+from gtsfm.visualization.open3d_vis_utils import draw_scene_open3d
 
-REPO_ROOT = Path(__file__).parent.parent.resolve()
+REPO_ROOT = Path(__file__).parent.parent.parent.resolve()
 
 
 def compute_point_cloud_center_robust(point_cloud: np.ndarray) -> np.ndarray:
@@ -49,6 +49,10 @@ def view_scene(args: argparse.Namespace) -> None:
     wTi_list, img_fnames, calibrations, point_cloud, rgb = io_utils.read_scene(
         images_fpath, cameras_fpath, points_fpath
     )
+    if args.show_mvs_result:
+        point_cloud, rgb = io_utils.read_point_cloud_from_ply(args.ply_fpath)
+
+
     if len(calibrations) == 1:
         calibrations = calibrations * len(img_fnames)
     mean_pt = compute_point_cloud_center_robust(point_cloud)
@@ -101,6 +105,17 @@ if __name__ == "__main__":
         default=0.3,
         help="Length to extend frustum rays away from optical center "
         + "(increase length for large-scale scenes to make frustums visible)",
+    )
+    parser.add_argument(
+        "--show_mvs_result",
+        action="store_true",
+        help="defaults to false.",
+    )
+    parser.add_argument(
+        "--ply_fpath",
+        type=str,
+        default=os.path.join(REPO_ROOT, "results", "mvs_output", "dense_pointcloud.ply"),
+        help="Path to MVS output (.ply file).",
     )
 
     args = parser.parse_args()

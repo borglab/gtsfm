@@ -34,7 +34,7 @@ Code in GTSFM adheres to a strict set of conventions about how rigid body transf
 - `wTi_list`: pose of the i'th camera in the world frame, for n cameras
 - `w_i2Ui1`: a ray from camera i2 to camera i1, inside the world coordinate system. Mathematically, `w_i2Ui1 = wRi_list[i2].rotate(i2Ui1)`. Since `i2Ui1` is the unit-normalized translational component of the pose of camera i1 inside i2's frame, then intuitively this is the ray from i2 to i1.
 
-We ask that contributors prefer GTSAM types wherever possible unless it's not already wrapped and is a lot of work to do so, or there are good advantages to using other types (like np arrays).
+We ask that contributors prefer [GTSAM types](https://github.com/borglab/gtsam/blob/develop/gtsam/geometry/geometry.i) wherever possible unless it's not already wrapped and is a lot of work to do so, or there are good advantages to using other types (like np arrays).
 
 ## Python Style
 - **Auto-Formatting**:We format code with `black` and a maximum line length of 120 characters.

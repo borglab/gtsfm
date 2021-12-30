@@ -13,7 +13,12 @@ GTSFM is an end-to-end SFM pipeline based on [GTSAM](https://github.com/borglab/
 
 <p align="left">
   <img src="https://user-images.githubusercontent.com/16724970/121294002-a4d7a400-c8ba-11eb-895e-a50305c049b6.gif" height="315" title="Olsson Lund Dataset: Door, 12 images">
-  <img src="https://user-images.githubusercontent.com/16724970/121293398-8cb35500-c8b9-11eb-8898-6162cb2372e1.gif" height="315">
+  <img src="https://user-images.githubusercontent.com/16724970/142500100-ed3bd07b-f839-488e-a01d-823a9fbeaba4.gif" height="315">
+</p>
+
+<p align="left">
+  <img src="https://user-images.githubusercontent.com/25347892/146043166-c5a172d7-17e0-4779-8333-8cd5f088ea2e.gif" height="345" title="2011212_opnav_022">
+  <img src="https://user-images.githubusercontent.com/25347892/146043553-5299e9d3-44c5-40a6-8ba8-ff43d2a28c8f.gif" height="345">
 </p>
 
 ## License
@@ -30,7 +35,7 @@ On Linux, with CUDA support:
 conda env create -f environment_linux.yml
 conda activate gtsfm-v1 # you may need "source activate gtsfm-v1" depending upon your bash and conda set-up
 ```
-The Python3.8 `gtsam` wheel for Linux is available [here](https://github.com/borglab/gtsam-manylinux-build/suites/3489546443/artifacts/83058971).
+The Python3.8 `gtsam` wheel for Linux is available [here](https://github.com/borglab/gtsam-manylinux-build/suites/4140410005/artifacts/106127967).
 
 **Mac**
 On Mac OSX, there is no CUDA support, so run:
@@ -38,7 +43,7 @@ On Mac OSX, there is no CUDA support, so run:
 conda env create -f environment_mac.yml
 conda activate gtsfm-v1
 ```
-Download the Python 3.8 gtsam wheel for Mac [here](https://github.com/borglab/gtsam-manylinux-build/suites/3489546443/artifacts/83058973), and install it as
+Download the Python 3.8 gtsam wheel for Mac [here](https://github.com/borglab/gtsam-manylinux-build/suites/4140410005/artifacts/106127969), and install it as
 ```bash
 pip install ~/Downloads/gtsam-4.1.1-py3-none-any.whl
 ```
@@ -91,7 +96,7 @@ where `COLMAP_FILES_DIRPATH` is a directory where .txt files such as `cameras.tx
 
 To visualize the result using Open3D, run:
 ```bash
-python visualization/view_scene.py --rendering_library open3d --point_rendering_mode point
+python gtsfm/visualization/view_scene.py --rendering_library open3d --point_rendering_mode point
 ```
 
 For users that are working with the same dataset repeatedly, we provide functionality to cache front-end results for 
@@ -128,14 +133,15 @@ Contributions are always welcome! Please be aware of our [contribution guideline
 Open-source Python implementation:
 ```
 @misc{GTSFM,
-    author = {Ayush Baid and Fan Jiang and Akshay Krishnan and John Lambert and Aditya Singh and
-       Aishwarya Venkataramanan and Sushmita Warrier and Jing Wu and Xiaolong Wu and Frank Dellaert},
+    author = {Ayush Baid and Travis Driver and Fan Jiang and Akshay Krishnan and John Lambert
+       and Ren Liu and Aditya Singh and Neha Upadhyay and Aishwarya Venkataramanan
+       and Sushmita Warrier and Jing Wu and Xiaolong Wu and Frank Dellaert},
     title = { {GTSFM}: Georgia Tech Structure from Motion},
     howpublished={\url{https://github.com/borglab/gtsfm}},
     year = {2021}
 }
 ```
-Note: authors are listed in alphabetical order.
+Note: authors are listed in alphabetical order (by last name).
 
 
 ## Compiling Additional Verifiers
