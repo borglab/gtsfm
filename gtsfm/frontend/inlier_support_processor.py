@@ -91,11 +91,9 @@ class InlierSupportProcessor:
             i2Ri1 = None
             i2Ui1 = None
             v_corr_idxs = np.array([], dtype=np.uint64)
-
             return i2Ri1, i2Ui1, v_corr_idxs, TwoViewEstimationReport(v_corr_idxs=v_corr_idxs, num_inliers_est_model=0)
 
         return i2Ri1, i2Ui1, v_corr_idxs, two_view_report_post_isp
-
 
     def create_computation_graph(
         self, i2Ri1_graph: Delayed, i2Ui1_graph: Delayed, v_corr_idxs_graph: Delayed, two_view_report_graph: Delayed
