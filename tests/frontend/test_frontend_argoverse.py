@@ -45,7 +45,7 @@ class TestFrontend(unittest.TestCase):
         )
         assert len(self.loader)
 
-    # def test_sift_twoway_ransac(self):
+    # def test_sift_twoway_ransac(self) -> None:
     #     """Check DoG + SIFT + 2-way Matcher + RANSAC-5pt frontend."""
     #     det_desc = SIFTDetectorDescriptor()
     #     feature_extractor = FeatureExtractor(det_desc)
@@ -80,7 +80,7 @@ class TestFrontend(unittest.TestCase):
             feature_extractor, two_view_estimator, euler_angle_err_tol=1.4, translation_err_tol=0.026
         )
 
-    # def test_superpoint_superglue_twoway_loransac(self):
+    # def test_superpoint_superglue_twoway_loransac_essential(self) -> None:
     #     """Check SuperPoint + SuperGlue + LORANSAC-5pt frontend (Essential matrix estimation)."""
     #     det_desc = SuperPointDetectorDescriptor()
     #     feature_extractor = FeatureExtractor(det_desc)
@@ -99,7 +99,7 @@ class TestFrontend(unittest.TestCase):
     #         feature_extractor, two_view_estimator, euler_angle_err_tol=1.4, translation_err_tol=0.026
     #     )
 
-    # def test_superpoint_superglue_twoway_loransac(self):
+    # def test_superpoint_superglue_twoway_loransac_fundamental(self) -> None:
     #     """Check SuperPoint + SuperGlue + LORANSAC-8pt frontend (Fundamental matrix estimation)."""
     #     det_desc = SuperPointDetectorDescriptor()
     #     feature_extractor = FeatureExtractor(det_desc)
@@ -118,7 +118,7 @@ class TestFrontend(unittest.TestCase):
     #         feature_extractor, two_view_estimator, euler_angle_err_tol=1.4, translation_err_tol=0.026
     #     )
 
-    # def test_sift_twoway_degensac(self):
+    # def test_sift_twoway_degensac(self) -> None:
     #     """Check DoG + SIFT + 2-way Matcher + DEGENSAC-8pt frontend."""
     #     det_desc = SIFTDetectorDescriptor()
     #     feature_extractor = FeatureExtractor(det_desc)
