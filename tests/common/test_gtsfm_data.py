@@ -868,6 +868,7 @@ class TestGtsfmData(unittest.TestCase):
                 calib,
             ),
         }
+
         t0 = SfmTrack(pt=[-0.89190672,  1.21298076, -1.05838554])
         t0.add_measurement(2, [184.08586121, 441.31314087])
         t0.add_measurement(4, [ 18.98637581, 453.21853638])
@@ -897,26 +898,22 @@ class TestGtsfmData(unittest.TestCase):
         t6.add_measurement(3, [ 18.78449249, 557.05041504])
 
         unaligned_tracks = [t0, t1, t2, t3, t4, t5, t6]
-        import gtsfm.utils.viz as viz_utils
-
-        gt_data = GtsfmData.from_cameras_and_tracks(
-            cameras={i:PinholeCameraCal3Bundler(wTi, calib) for i, wTi in enumerate(poses_gt)}, tracks=[SfmTrack(np.array([0,0,0]))], number_images=32
-        )
-        viz_utils.save_sfm_data_viz(sfm_data=gt_data, folder_name="gt")
 
         unaligned_filtered_data = GtsfmData.from_cameras_and_tracks(
             cameras=unaligned_cameras, tracks=unaligned_tracks, number_images=32
         )
-        viz_utils.save_sfm_data_viz(sfm_data=unaligned_filtered_data, folder_name="before")
-
         unaligned_metrics = metrics_utils.get_stats_for_sfmdata(unaligned_filtered_data, suffix="_filtered")
-
-        # Reprojection error should be unaffected by Sim(3) alignment.
         aligned_filtered_data = unaligned_filtered_data.align_via_Sim3_to_poses(wTi_list_ref=poses_gt)
 
         aligned_metrics = metrics_utils.get_stats_for_sfmdata(aligned_filtered_data, suffix="_filtered")
-        viz_utils.save_sfm_data_viz(sfm_data=aligned_filtered_data, folder_name="after")
-        import pdb; pdb.set_trace()
+
+        assert unaligned_metrics[3].name == 'reprojection_errors_filtered_px'
+        assert aligned_metrics[3].name == 'reprojection_errors_filtered_px'
+
+        # Reprojection error should be unaffected by Sim(3) alignment.
+        for key in ["min", "max", "median", "mean", "stddev"]:
+            assert np.isclose(unaligned_metrics[3].summary[key], aligned_metrics[3].summary[key])
+
 
 if __name__ == "__main__":
     unittest.main()
