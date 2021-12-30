@@ -7,7 +7,7 @@ import unittest
 
 import numpy as np
 import trimesh
-from gtsam import PinholeCameraCal3Bundler, Cal3Bundler
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point3, Pose3, Rot3
 
 import gtsfm.utils.metrics as metric_utils
 from gtsfm.common.keypoints import Keypoints
