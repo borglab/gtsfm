@@ -21,15 +21,19 @@ class YfccImbLoader(LoaderBase):
     Code ref: https://github.com/vcg-uvic/image-matching-benchmark/blob/master/compute_stereo.py
     """
 
-    def __init__(self, folder: str, coviz_thresh: float = 0.1):
+    def __init__(self, folder: str, coviz_thresh: float = 0.1, max_resolution: int = 760) -> None:
         """Initializes the loader.
 
         Args:
             folder: the base folder of the dataset.
             coviz_thresh (optional): threshold for covisibility between two images to be considered a valid pair.
                                      Defaults to 0.1.
+            max_resolution: integer representing maximum length of image's short side, i.e.
+               the smaller of the height/width of the image. e.g. for 1080p (1920 x 1080),
+               max_resolution would be 1080. If the image resolution max(height, width) is
+               greater than the max_resolution, it will be downsampled to match the max_resolution.
         """
-
+        super().__init__(max_resolution)
         self._folder = folder
 
         # load all the image pairs according to the covisibility threshold used
@@ -56,7 +60,12 @@ class YfccImbLoader(LoaderBase):
         # map image names to its position in the list
         self._name_to_idx_map = {name: i for i, name in enumerate(self._image_names)}
 
-        self._image_pairs = set([(self._name_to_idx_map[i1], self._name_to_idx_map[i2]) for i1, i2 in image_pairs])
+        self._image_pairs = set()
+        for i1, i2 in image_pairs:
+            if i1 < i2:
+                self._image_pairs.add((i1, i2))
+            else:
+                self._image_pairs.add((i2, i1))
 
         self._cameras = self.__read_calibrations()  # self.__read_colmap_model()
 
@@ -69,9 +78,8 @@ class YfccImbLoader(LoaderBase):
         """
         return len(self._image_names)
 
-    def get_image(self, index: int) -> Image:
-        """
-        Get the image at the given index.
+    def get_image_full_res(self, index: int) -> Image:
+        """Get the image at the given index, at full resolution.
 
         Args:
             index: the index to fetch.
@@ -91,8 +99,8 @@ class YfccImbLoader(LoaderBase):
 
         return io_utils.load_image(file_name)
 
-    def get_camera_intrinsics(self, index: int) -> Optional[Cal3Bundler]:
-        """Get the camera intrinsics at the given index.
+    def get_camera_intrinsics_full_res(self, index: int) -> Cal3Bundler:
+        """Get the camera intrinsics at the given index, valid for a full-resolution image.
 
         Args:
             the index to fetch.
@@ -120,7 +128,7 @@ class YfccImbLoader(LoaderBase):
         return self._cameras[index].pose()
 
     def is_valid_pair(self, idx1: int, idx2: int) -> bool:
-        """Checks if (idx1, idx2) is a valid pair.
+        """Checks if (idx1, idx2) is a valid pair. idx1 < idx2 is required.
 
         Args:
             idx1: first index of the pair.
@@ -129,7 +137,7 @@ class YfccImbLoader(LoaderBase):
         Returns:
             validation result.
         """
-        return (idx1, idx2) in self._image_pairs
+        return super().is_valid_pair(idx1, idx2) and (idx1, idx2) in self._image_pairs
 
     def __read_calibrations(self) -> List[PinholeCameraCal3Bundler]:
         """Read camera params from the calibration stored as h5 files.

@@ -2,14 +2,17 @@
 
 Authors: Ayush Baid, John Lambert
 """
+import json
 import os
+import pickle
+from bz2 import BZ2File
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import gtsam
 import h5py
-import json
 import numpy as np
+import open3d
 from gtsam import Cal3Bundler, Rot3, Pose3
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
@@ -17,6 +20,7 @@ from PIL.ExifTags import GPSTAGS, TAGS
 import gtsfm.utils.images as image_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reproj_utils
+import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.sfm_track import SfmTrack2d
@@ -28,8 +32,9 @@ logger = logger_utils.get_logger()
 def load_image(img_path: str) -> Image:
     """Load the image from disk.
 
-    Note: EXIF is read as a map from (tag_id, value) where tag_id is an integer.
+    Notes: EXIF is read as a map from (tag_id, value) where tag_id is an integer.
     In order to extract human-readable names, we use the lookup table TAGS or GPSTAGS.
+    Images will be converted to RGB if in a different format.
 
     Args:
         img_path (str): the path of image to load.
@@ -55,6 +60,7 @@ def load_image(img_path: str) -> Image:
         exif_data = parsed_data
 
     img_fname = Path(img_path).name
+    original_image = original_image.convert("RGB") if original_image.mode != "RGB" else original_image
     return Image(value_array=np.asarray(original_image), exif_data=exif_data, file_name=img_fname)
 
 
@@ -357,6 +363,18 @@ def read_points_txt(fpath: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarr
     return point_cloud, rgb
 
 
+def read_scene(
+    images_fpath: str, cameras_fpath: str, points_fpath: str
+) -> Tuple[List[Pose3], List[str], List[Cal3Bundler], np.ndarray, np.ndarray]:
+    """Reads in full scene reconstruction model."""
+    wTi_list, img_fnames = read_images_txt(images_fpath)
+    calibrations = read_cameras_txt(cameras_fpath)
+    point_cloud, rgb = read_points_txt(points_fpath)
+    if any(x is None for x in [wTi_list, img_fnames, calibrations, point_cloud, rgb]):
+        raise RuntimeError("One or more of the requested model data products was not found.")
+    return wTi_list, img_fnames, calibrations, point_cloud, rgb
+
+
 def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
     """Writes the point cloud data file in the COLMAP format.
 
@@ -416,3 +434,56 @@ def save_track_visualizations(
         stacked_image = image_utils.vstack_image_list(patches)
         save_fpath = os.path.join(save_dir, f"track_{i}.jpg")
         save_image(stacked_image, img_path=save_fpath)
+
+
+def read_from_bz2_file(file_path: Path) -> Optional[Any]:
+    """Reads data using pickle from a compressed file, if it exists."""
+    if not file_path.exists():
+        return None
+
+    try:
+        data = pickle.load(BZ2File(file_path, "rb"))
+    except Exception:
+        logger.exception("Cache file was corrupted, removing it...")
+        os.remove(file_path)
+        data = None
+
+    return data
+
+
+def write_to_bz2_file(data: Any, file_path: Path) -> None:
+    """Writes data using pickle to a compressed file."""
+    file_path.parent.mkdir(exist_ok=True, parents=True)
+    pickle.dump(data, BZ2File(file_path, "wb"))
+
+
+def save_point_cloud_as_ply(save_fpath: str, points: np.ndarray, rgb: Optional[np.ndarray] = None) -> None:
+    """Save a point cloud as a .ply file.
+
+    Args:
+        save_fpath: absolute file path where PLY file should be saved.
+        points: float array of shape (N,3) representing a 3d point cloud.
+        rgb: uint8 array of shape (N,3) representing an RGB color per point.
+    """
+    if rgb is None:
+        # If no colors are provided, then color all points uniformly as black.
+        N = points.shape[0]
+        rgb = np.zeros((N, 3), dtype=np.uint8)
+    pointcloud = open3d_vis_utils.create_colored_point_cloud_open3d(point_cloud=points, rgb=rgb)
+
+    os.makedirs(Path(save_fpath).parent, exist_ok=True)
+    open3d.io.write_point_cloud(save_fpath, pointcloud, write_ascii=False, compressed=False, print_progress=False)
+
+
+def read_point_cloud_from_ply(ply_fpath: str) -> Tuple[np.ndarray, np.ndarray]:
+    """Read a point cloud from a .ply file.
+
+    Args:
+        ply_fpath: absolute file path where PLY file is located on disk.
+
+    Returns:
+        points: float array of shape (N,3) representing a 3d point cloud.
+        rgb: uint8 array of shape (N,3) representing an RGB color per point.
+    """
+    pointcloud = open3d.io.read_point_cloud(ply_fpath)
+    return open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud)
