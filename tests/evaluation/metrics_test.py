@@ -81,7 +81,6 @@ class TestGtsfmMetric(unittest.TestCase):
         metric = GtsfmMetric("empty_metric", data)
         self.assertEqual(metric.name, "empty_metric")
         np.testing.assert_equal(metric.data, data)
-        print(metric.summary.values)
         np.testing.assert_equal(list(metric.summary.values()), [np.NaN for _ in range(5)])
         self.assertEqual(metric.plot_type, GtsfmMetric.PlotType.BOX)
 
@@ -91,7 +90,6 @@ class TestGtsfmMetric(unittest.TestCase):
         metric = GtsfmMetric("nan_metric", data)
         self.assertEqual(metric.name, "nan_metric")
         np.testing.assert_equal(metric.data, data)
-        print(metric.summary.values)
         np.testing.assert_equal(list(metric.summary.values()), [np.NaN for _ in range(5)])
         self.assertEqual(metric.plot_type, GtsfmMetric.PlotType.BOX)
 
