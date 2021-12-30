@@ -138,7 +138,7 @@ class TestFrontend(unittest.TestCase):
 
         i1, i2 = 0, 1
         i2Ri1 = i2Ri1_dict[(i1, i2)]
-        i2Ui1 = i2ti1_dict[(i1, i2)]
+        i2Ui1 = i2Ui1_dict[(i1, i2)]
 
         # Ground truth is provided in inverse format, so invert SE(3) object
         i2Ti1 = Pose3(i2Ri1, i2Ui1.point3())
