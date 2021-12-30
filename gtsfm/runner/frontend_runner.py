@@ -2,11 +2,14 @@
 
 Author: John Lambert
 """
-from typing import Tuple
+from typing import Dict, List, Tuple
 
 import dask
+import numpy as np
 from dask.delayed import Delayed
+from gtsam import Rot3, Unit3
 
+from gtsfm.common.keypoints import Keypoints
 from gtsfm.feature_extractor import FeatureExtractor
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.two_view_estimator import TwoViewEstimator
@@ -14,21 +17,21 @@ from gtsfm.two_view_estimator import TwoViewEstimator
 
 def run_frontend(
     loader: LoaderBase, feature_extractor: FeatureExtractor, two_view_estimator: TwoViewEstimator
-) -> Tuple[Delayed, Delayed]:
+) -> Tuple[List[Keypoints], Dict[Tuple[int,int], Rot3], Dict[Tuple[int,int], Unit3], Dict[Tuple[int,int], np.ndarray]]:
     """Creates the front-end computation graph, and then runs it.
 
     Note: Copied from SceneOptimizer class, without back-end code.
 
     Args:
-        loader:
-        feature_extractor:
-        two_view_estimator:
+        loader: image loader.
+        feature_extractor: feature extractor module to use.
+        two_view_estimator: two-view estimator module to use.
 
     Returns:
-        keypoints_list_results:
-        i2Ri1_results:
-        i2ti1_results:
-        corr_idxs_dict:
+        keypoints_list: detected keypoints for each image.
+        i2Ri1_dict: dictionary of relative rotations for each image pair.
+        i2Ui1_dict: dictionary of relative unit translation directions for each image pair.
+        v_corr_idxs_dict: verified correspondence indices for each image pair.
     """
     image_pair_indices = loader.get_valid_pairs()
     image_graph = loader.create_computation_graph_for_images()
@@ -63,8 +66,8 @@ def run_frontend(
         v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
 
     with dask.config.set(scheduler="single-threaded"):
-        keypoints_list_results, i2Ri1_results, i2ti1_results, corr_idxs_dict = dask.compute(
+        keypoints_list, i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict = dask.compute(
             keypoints_graph_list, i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict
         )
 
-    return keypoints_list_results, i2Ri1_results, i2ti1_results, corr_idxs_dict
+    return keypoints_list, i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict
