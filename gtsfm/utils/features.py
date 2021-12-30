@@ -50,7 +50,7 @@ def normalize_coordinates(coordinates: np.ndarray, intrinsics: Cal3Bundler) -> n
     return np.vstack([intrinsics.calibrate(x[:2].reshape(2, 1)) for x in coordinates])
 
 
-def convert_to_homogenous_coordinates(non_homogenous_coordinates: np.ndarray,) -> Optional[np.ndarray]:
+def convert_to_homogenous_coordinates(non_homogenous_coordinates: np.ndarray) -> Optional[np.ndarray]:
     """Convert coordinates to homogenous system (by appending a column of ones).
 
     Args:
@@ -68,7 +68,7 @@ def convert_to_homogenous_coordinates(non_homogenous_coordinates: np.ndarray,) -
     if non_homogenous_coordinates.shape[1] != 2:
         raise TypeError("Input should be 2D")
 
-    return np.hstack((non_homogenous_coordinates, np.ones((non_homogenous_coordinates.shape[0], 1)),))
+    return np.hstack((non_homogenous_coordinates, np.ones((non_homogenous_coordinates.shape[0], 1))))
 
 
 def convert_to_epipolar_lines(coordinates_i1: np.ndarray, i2Fi1: np.ndarray) -> Optional[np.ndarray]:
@@ -121,6 +121,4 @@ def generate_random_keypoints(num_keypoints: int, image_shape: Tuple[int, int]) 
         return Keypoints(coordinates=np.array([]))
 
     H, W = image_shape
-    return Keypoints(
-        coordinates=np.random.randint([0, 0], high=(W,H), size=(num_keypoints, 2)).astype(np.float32)
-    )
+    return Keypoints(coordinates=np.random.randint([0, 0], high=(W, H), size=(num_keypoints, 2)).astype(np.float32))
