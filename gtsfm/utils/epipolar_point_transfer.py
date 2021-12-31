@@ -51,9 +51,9 @@ def fmat_point_transfer(
     Returns:
         errors, as distances in the image plane.
     """
-    matched_keypoints_i1 = correspondences[:,:2]
-    matched_keypoints_i2 = correspondences[:,2:4]
-    matched_keypoints_i3 = correspondences[:,4:]
+    matched_keypoints_i1 = correspondences[:, :2]
+    matched_keypoints_i2 = correspondences[:, 2:4]
+    matched_keypoints_i3 = correspondences[:, 4:]
 
     matched_h_keypoints_i1 = feature_utils.convert_to_homogenous_coordinates(matched_keypoints_i1)
     matched_h_keypoints_i2 = feature_utils.convert_to_homogenous_coordinates(matched_keypoints_i2)
@@ -97,9 +97,9 @@ def filter_to_cycle_consistent_edges(
     corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
     keypoints_list: List[Keypoints],
     camera_intrinsics_dict: Dict[int, Cal3Bundler],
-    two_view_reports_dict: Dict[Tuple[int,int], TwoViewEstimationReport] = None,
+    two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport] = None,
     loader: Optional[LoaderBase] = None,
-    visualize: bool = True
+    visualize: bool = True,
 ) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3], Dict[Tuple[int, int], np.ndarray]]:
     """Remove noisy edges in a graph ...
 
@@ -109,8 +109,8 @@ def filter_to_cycle_consistent_edges(
             Should have same keys as i2Ri1_dict.
         corr_idxs_dict: dictionary, with key as image pair (i1,i2) and value as matching keypoint indices.
             (for verified correspondences)
-        keypoints_list: 
-        loader: 
+        keypoints_list:
+        loader:
         visualize:
 
     Returns:
@@ -134,10 +134,12 @@ def filter_to_cycle_consistent_edges(
 
     for track in tracks_2d:
 
-        #print("Track length: ", len(track.measurements))
+        # print("Track length: ", len(track.measurements))
 
         if len(track.measurements) == 1:
-            import pdb; pdb.set_trace()
+            import pdb
+
+            pdb.set_trace()
 
         if len(track.measurements) < 3:
             continue
@@ -146,16 +148,16 @@ def filter_to_cycle_consistent_edges(
         measurement_idxs = range(len(track.measurements))
         measurement_triplets = list(itertools.combinations(measurement_idxs, 3))
 
-        #print("From ", track, " generate ", triplets)
+        # print("From ", track, " generate ", triplets)
 
-        for (k1,k2,k3) in measurement_triplets:
+        for (k1, k2, k3) in measurement_triplets:
             # get triplet of image indices
             triplet = np.array([track.measurements[k1].i, track.measurements[k2].i, track.measurements[k3].i])
             sort_idxs = np.argsort(triplet)
             i1, i2, i3 = triplet[sort_idxs]
-            
+
             correspondence = np.array([track.measurements[k1].uv, track.measurements[k2].uv, track.measurements[k3].uv])
-            triplet_tracks[(i1,i2,i3)] += [correspondence[sort_idxs].flatten()]
+            triplet_tracks[(i1, i2, i3)] += [correspondence[sort_idxs].flatten()]
 
         # # should be sorted?
         # assert i1 == 0
@@ -171,11 +173,12 @@ def filter_to_cycle_consistent_edges(
     print(triplet_tracks.keys())
 
     import gtsfm.frontend.trifocal as trifocal
+
     # TODO: discover all triplets.
     triplet_counter = 0
-    for (i1,i2,i3), correspondences in triplet_tracks.items():
+    for (i1, i2, i3), correspondences in triplet_tracks.items():
 
-        triplet_edges = [(i1,i2), (i1,i3), (i2,i3)]
+        triplet_edges = [(i1, i2), (i1, i3), (i2, i3)]
         if any([i2Ri1_dict[e] is None for e in triplet_edges]):
             continue
 
@@ -190,8 +193,8 @@ def filter_to_cycle_consistent_edges(
         correspondences = np.array(correspondences)
 
         # convert (R,t) to F matrices for each image pair.
-        i3Ei1 = EssentialMatrix(i2Ri1_dict[(i1,i3)], i2Ui1_dict[(i1,i3)])
-        i3Ei2 = EssentialMatrix(i2Ri1_dict[(i2,i3)], i2Ui1_dict[(i2,i3)])
+        i3Ei1 = EssentialMatrix(i2Ri1_dict[(i1, i3)], i2Ui1_dict[(i1, i3)])
+        i3Ei2 = EssentialMatrix(i2Ri1_dict[(i2, i3)], i2Ui1_dict[(i2, i3)])
 
         camera_intrinsics_i1 = camera_intrinsics_dict[i1]
         camera_intrinsics_i2 = camera_intrinsics_dict[i2]
@@ -230,12 +233,12 @@ def filter_to_cycle_consistent_edges(
         continue
         plt.hist(dists, bins=30)
         plt.show()
-        # 
-        #import pdb; pdb.set_trace()
+        #
+        # import pdb; pdb.set_trace()
 
-        #mask = np.logical_and( 0 < dists, dists < 50)
+        # mask = np.logical_and( 0 < dists, dists < 50)
         mask = dists > 100
-        
+
         if visualize:
 
             img_i1 = loader.get_image(i1)
@@ -248,7 +251,7 @@ def filter_to_cycle_consistent_edges(
                 img_left=img_i1.value_array,
                 img_right=img_i3.value_array,
                 pts_left=matched_keypoints_i1[mask],
-                pts_right=matched_keypoints_i3[mask]
+                pts_right=matched_keypoints_i3[mask],
             )
             plt.show()
 
@@ -257,7 +260,7 @@ def filter_to_cycle_consistent_edges(
                 img_left=img_i2.value_array,
                 img_right=img_i3.value_array,
                 pts_left=matched_keypoints_i2[mask],
-                pts_right=matched_keypoints_i3[mask]
+                pts_right=matched_keypoints_i3[mask],
             )
             plt.show()
 
@@ -269,7 +272,7 @@ def filter_to_cycle_consistent_edges(
                 matched_keypoints_i2[mask],
                 matched_keypoints_i3[mask],
                 i3Fi1,
-                i3Fi2
+                i3Fi2,
             )
 
             plt.show()
@@ -286,16 +289,11 @@ def filter_to_cycle_consistent_edges(
         i2Ui1_dict_cc[(i1, i2)] = i2Ui1_dict[(i1, i2)]
         corr_idxs_dict_cc[(i1, i2)] = corr_idxs_dict[(i1, i2)]
 
-
     return i2Ri1_dict_cc, i2Ui1_dict_cc, corr_idxs_dict_cc
 
 
-
-
-
 def plot_(inlier_errors_trifocal, outlier_errors_trifocal, inlier_errors_wrt_gt, outlier_errors_wrt_gt):
-    """
-    """
+    """ """
 
     plt.scatter(
         inlier_errors_trifocal,
@@ -313,11 +311,11 @@ def plot_(inlier_errors_trifocal, outlier_errors_trifocal, inlier_errors_wrt_gt,
         marker=".",
         label=f"outliers @ ",
     )
-    plt.xlabel(f"Num inliers (by Trifocal error)")
+    plt.xlabel("Num inliers (by Trifocal error)")
     plt.ylabel("Rotation error w.r.t GT")
     plt.axis("equal")
     plt.legend(loc="lower right")
-    plt.savefig(os.path.join("plots", f"gt_err_vs_trifocal_error.jpg"), dpi=400)
+    plt.savefig(os.path.join("plots", "gt_err_vs_trifocal_error.jpg"), dpi=400)
     plt.close("all")
 
 
@@ -336,7 +334,7 @@ def draw_epipolar_lines_image_triplet(
     pts_i3: np.ndarray,
     i3Fi1: np.ndarray,
     i3Fi2: np.ndarray,
-    figsize: Tuple[int,int] = (10, 8)
+    figsize: Tuple[int, int] = (10, 8),
 ) -> None:
     """Draw the lines in image 3 that correspond to points in image 1, and to points in image 2."""
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=figsize)
@@ -350,7 +348,7 @@ def draw_epipolar_lines_image_pair(
     img_right: np.ndarray,
     pts_left: np.ndarray,
     pts_right: np.ndarray,
-    figsize: Tuple[int,int] = (10, 8)
+    figsize: Tuple[int, int] = (10, 8),
 ) -> None:
     """Draw the epipolar lines given the fundamental matrix, left & right images and left & right datapoints.
 
@@ -367,13 +365,15 @@ def draw_epipolar_lines_image_pair(
     # defn of epipolar line in the right image, corresponding to left point p
     # l_e = F @ p_left
     draw_lines_in_single_image(ax=ax[1], i2Fi1=F, pts_i1=pts_left, pts_i2=pts_right, img_i2=img_right)
-    
+
     # defn of epipolar line in the left image, corresponding to point p in the right image
     # l_e = F.T @ p_right
     draw_lines_in_single_image(ax=ax[0], i2Fi1=F.T, pts_i1=pts_right, pts_i2=pts_left, img_i2=img_left)
 
 
-def draw_lines_in_single_image(ax, i2Fi1: np.ndarray, pts_i1: np.ndarray, pts_i2: np.ndarray, img_i2: np.ndarray) -> None:
+def draw_lines_in_single_image(
+    ax, i2Fi1: np.ndarray, pts_i1: np.ndarray, pts_i2: np.ndarray, img_i2: np.ndarray
+) -> None:
     """Draw epipolar lines in image 2, where each epipolar line corresponds to a point from image 1.
 
     Args:
@@ -404,8 +404,8 @@ def draw_lines_in_single_image(ax, i2Fi1: np.ndarray, pts_i1: np.ndarray, pts_i2
 
     ax.imshow(img_i2)
     ax.autoscale(False)
-    ax.scatter(pts_i2[:, 0], pts_i2[:, 1], marker='o', s=20, c='yellow', edgecolors='red')
-    
+    ax.scatter(pts_i2[:, 0], pts_i2[:, 1], marker="o", s=20, c="yellow", edgecolors="red")
+
     for p_i1 in pts_i1:
         # get defn of epipolar line in  image, corresponding to left point p
         l_e = np.dot(i2Fi1, p_i1).squeeze()
@@ -414,10 +414,9 @@ def draw_lines_in_single_image(ax, i2Fi1: np.ndarray, pts_i1: np.ndarray, pts_i2
         p_r = np.cross(l_e, l_r)
         # convert back from homogeneous to cartesian by dividing by 3rd entry
         # draw line between point on left border, and on the right border
-        x = [p_l[0]/p_l[2], p_r[0]/p_r[2]]
-        y = [p_l[1]/p_l[2], p_r[1]/p_r[2]]
-        ax.plot(x, y, linewidth=1, c='blue')
-
+        x = [p_l[0] / p_l[2], p_r[0] / p_r[2]]
+        y = [p_l[1] / p_l[2], p_r[1] / p_r[2]]
+        ax.plot(x, y, linewidth=1, c="blue")
 
 
 def test_fmat_point_transfer() -> None:
@@ -441,12 +440,10 @@ def test_fmat_point_transfer() -> None:
 
     det_desc = SuperPointDetectorDescriptor()
 
-    feature_extractor = FeatureExtractor(
-        detector_descriptor=DetectorDescriptorCacher(detector_descriptor_obj=det_desc)
-    )
-    #feature_extractor = FeatureExtractor(det_desc)
+    feature_extractor = FeatureExtractor(detector_descriptor=DetectorDescriptorCacher(detector_descriptor_obj=det_desc))
+    # feature_extractor = FeatureExtractor(det_desc)
     two_view_estimator = TwoViewEstimator(
-        #matcher=SuperGlueMatcher(use_outdoor_model=True),
+        # matcher=SuperGlueMatcher(use_outdoor_model=True),
         matcher=MatcherCacher(matcher_obj=SuperGlueMatcher(use_outdoor_model=True)),
         verifier=Ransac(use_intrinsics_in_verification=True, estimation_threshold_px=4),
         inlier_support_processor=InlierSupportProcessor(min_num_inliers_est_model=15, min_inlier_ratio_est_model=0.1),
@@ -455,16 +452,20 @@ def test_fmat_point_transfer() -> None:
         bundle_adjust_2view_maxiters=0,
     )
 
-    camera_intrinsics_dict = {i: loader.get_camera_intrinsics(i) for i in [0,1,2]}
+    camera_intrinsics_dict = {i: loader.get_camera_intrinsics(i) for i in [0, 1, 2]}
 
     keypoints_list, i2Ri1_dict, i2Ui1_dict, corr_idxs_dict = frontend_runner.run_frontend(
         loader, feature_extractor, two_view_estimator
     )
 
     filter_to_cycle_consistent_edges(
-        i2Ri1_dict, i2Ui1_dict, corr_idxs_dict, keypoints_list, camera_intrinsics_dict=camera_intrinsics_dict, loader=loader
+        i2Ri1_dict,
+        i2Ui1_dict,
+        corr_idxs_dict,
+        keypoints_list,
+        camera_intrinsics_dict=camera_intrinsics_dict,
+        loader=loader,
     )
-
 
 
 if __name__ == "__main__":
