@@ -80,43 +80,43 @@ class TestFrontend(unittest.TestCase):
             feature_extractor, two_view_estimator, euler_angle_err_tol=1.4, translation_err_tol=0.026
         )
 
-    # def test_superpoint_superglue_twoway_loransac_essential(self) -> None:
-    #     """Check SuperPoint + SuperGlue + LORANSAC-5pt frontend (Essential matrix estimation)."""
-    #     det_desc = SuperPointDetectorDescriptor()
-    #     feature_extractor = FeatureExtractor(det_desc)
-    #     two_view_estimator = TwoViewEstimator(
-    #         matcher=SuperGlueMatcher(use_outdoor_model=True),
-    #         verifier=LoRansac(
-    #             use_intrinsics_in_verification=True, estimation_threshold_px=4
-    #         ),
-    #         eval_threshold_px=4,
-    #         bundle_adjust_2view=False,
-    #         inlier_support_processor=InlierSupportProcessor(
-    #             min_num_inliers_est_model=15, min_inlier_ratio_est_model=0.1
-    #         )
-    #     )
-    #     self.__compare_frontend_result_error(
-    #         feature_extractor, two_view_estimator, euler_angle_err_tol=1.4, translation_err_tol=0.026
-    #     )
+    def test_superpoint_superglue_twoway_loransac_essential(self) -> None:
+        """Check SuperPoint + SuperGlue + LORANSAC-5pt frontend (Essential matrix estimation)."""
+        det_desc = SuperPointDetectorDescriptor()
+        feature_extractor = FeatureExtractor(det_desc)
+        two_view_estimator = TwoViewEstimator(
+            matcher=SuperGlueMatcher(use_outdoor_model=True),
+            verifier=LoRansac(
+                use_intrinsics_in_verification=True, estimation_threshold_px=4
+            ),
+            eval_threshold_px=4,
+            bundle_adjust_2view=False,
+            inlier_support_processor=InlierSupportProcessor(
+                min_num_inliers_est_model=15, min_inlier_ratio_est_model=0.1
+            )
+        )
+        self.__compare_frontend_result_error(
+            feature_extractor, two_view_estimator, euler_angle_err_tol=1.4, translation_err_tol=0.026
+        )
 
-    # def test_superpoint_superglue_twoway_loransac_fundamental(self) -> None:
-    #     """Check SuperPoint + SuperGlue + LORANSAC-8pt frontend (Fundamental matrix estimation)."""
-    #     det_desc = SuperPointDetectorDescriptor()
-    #     feature_extractor = FeatureExtractor(det_desc)
-    #     two_view_estimator = TwoViewEstimator(
-    #         matcher=SuperGlueMatcher(use_outdoor_model=True),
-    #         verifier=LoRansac(
-    #             use_intrinsics_in_verification=False, estimation_threshold_px=4
-    #         ),
-    #         eval_threshold_px=4,
-    #         bundle_adjust_2view=False,
-    #         inlier_support_processor=InlierSupportProcessor(
-    #             min_num_inliers_est_model=15, min_inlier_ratio_est_model=0.1
-    #         )
-    #     )
-    #     self.__compare_frontend_result_error(
-    #         feature_extractor, two_view_estimator, euler_angle_err_tol=1.4, translation_err_tol=0.026
-    #     )
+    def test_superpoint_superglue_twoway_loransac_fundamental(self) -> None:
+        """Check SuperPoint + SuperGlue + LORANSAC-8pt frontend (Fundamental matrix estimation)."""
+        det_desc = SuperPointDetectorDescriptor()
+        feature_extractor = FeatureExtractor(det_desc)
+        two_view_estimator = TwoViewEstimator(
+            matcher=SuperGlueMatcher(use_outdoor_model=True),
+            verifier=LoRansac(
+                use_intrinsics_in_verification=False, estimation_threshold_px=4
+            ),
+            eval_threshold_px=4,
+            bundle_adjust_2view=False,
+            inlier_support_processor=InlierSupportProcessor(
+                min_num_inliers_est_model=15, min_inlier_ratio_est_model=0.1
+            )
+        )
+        self.__compare_frontend_result_error(
+            feature_extractor, two_view_estimator, euler_angle_err_tol=1.4, translation_err_tol=0.026
+        )
 
     # def test_sift_twoway_degensac(self) -> None:
     #     """Check DoG + SIFT + 2-way Matcher + DEGENSAC-8pt frontend."""
