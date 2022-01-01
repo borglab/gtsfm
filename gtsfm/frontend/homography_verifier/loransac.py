@@ -1,5 +1,5 @@
 """
-Fit a homography matrix from correspondences using OpenCV's RANSAC.
+Fit a homography matrix from correspondences using LORANSAC.
 
 Useful for determining whether the scene is planar or the camera motion is a pure rotation.
 
@@ -11,8 +11,8 @@ Authors: John Lambert
 
 from typing import Optional, Tuple
 
-import cv2
 import numpy as np
+import pycolmap
 
 import gtsfm.utils.logger as logger_utils
 import gtsfm.frontend.homography_verifier.homography_verifier_base as homography_verifier_base
@@ -25,7 +25,7 @@ logger = logger_utils.get_logger()
 DEFAULT_RANSAC_PROB = 0.999
 
 
-class RansacHomographyVerifier(HomographyVerifierBase):
+class LoransacHomographyVerifier(HomographyVerifierBase):
     def verify(
         self,
         keypoints_i1: Keypoints,
@@ -62,15 +62,20 @@ class RansacHomographyVerifier(HomographyVerifierBase):
         uv_i1 = keypoints_i1.coordinates
         uv_i2 = keypoints_i2.coordinates
 
-        # TODO(johnwlambert): cast as np.float32?
-        H, inlier_mask = cv2.findHomography(
-            srcPoints=uv_i1[match_indices[:, 0]],
-            dstPoints=uv_i2[match_indices[:, 1]],
-            method=cv2.RANSAC,
-            ransacReprojThreshold=estimation_threshold_px,
-            # maxIters=10000,
-            confidence=DEFAULT_RANSAC_PROB,
+        result_dict = pycolmap.homography_matrix_estimation(
+	        points2D1=uv_i1[match_indices[:, 0]],
+	        points2D2=uv_i2[match_indices[:, 1]],
+	        max_error_px=estimation_threshold_px,
+	        min_inlier_ratio=0.01,
+	        min_num_trials=1000,
+	        max_num_trials=100000,
+	        confidence=DEFAULT_RANSAC_PROB
         )
+        inlier_mask = np.array(result_dict["inliers"])
+        H = result_dict["H"]
+
+        # normalize H
+        H /= H[2,2]
 
         inlier_idxs = np.where(inlier_mask.ravel() == 1)[0]
         inlier_ratio = inlier_mask.mean()
