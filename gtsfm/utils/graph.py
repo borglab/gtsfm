@@ -1,8 +1,9 @@
 """Utilities for performing graph operations.
 
-Authors: Ayush Baid
+Authors: Ayush Baid, John Lambert, Akshay Krishnan
 """
-from typing import Dict, List, Optional, Tuple
+from collections import defaultdict
+from typing import DefaultDict, Dict, List, Optional, Set, Tuple
 
 import networkx as nx
 from gtsam import Rot3, Unit3
@@ -58,3 +59,63 @@ def prune_to_largest_connected_component(
         {k: rotations[k] for k in selected_edges},
         {k: unit_translations[k] for k in selected_edges},
     )
+
+
+def create_adjacency_list(edges: List[Tuple[int, int]]) -> DefaultDict[int, Set[int]]:
+    """Create an adjacency-list representation of a graph G=(V,E) when provided its edges E.
+
+    In an adjacency list, the neighbors of each vertex may be listed efficiently, in time proportional to the
+    degree of the vertex. In an adjacency matrix, this operation takes time proportional to the number of
+    vertices in the graph, which may be significantly higher than the degree.
+
+    Args:
+        edges: indices of edges in the graph as a list of tuples.
+
+    Returns:
+        adj_list: adjacency list representation of the graph, mapping an image index to its neighbors
+    """
+    adj_list = defaultdict(set)
+
+    for (a, b) in edges:
+        adj_list[a].add(b)
+        adj_list[b].add(a)
+
+    return adj_list
+
+
+def extract_cyclic_triplets_from_edges(edges: List[Tuple[int, int]]) -> List[Tuple[int, int, int]]:
+    """Extracts triplets from a graph's edges by using intersection within adjacency lists.
+
+    Based off of Theia and OpenMVG's implementations:
+        https://github.com/sweeneychris/TheiaSfM/blob/master/src/theia/math/graph/triplet_extractor.h
+        https://github.com/openMVG/openMVG/blob/develop/src/openMVG/graph/triplet_finder.hpp
+
+    If we have an edge a<->b, if we can find any node c such that a<->c and b<->c, then we have
+    discovered a triplet. In other words, we need only look at the intersection between the nodes
+    connected to `a` and the nodes connected to `b`.
+
+    Args:
+        edges: indices of edges in the graph as a list of tuples.
+
+    Returns:
+        triplets: 3-tuples of nodes that form a cycle. Nodes of each triplet are provided in sorted order.
+    """
+    adj_list = create_adjacency_list(edges)
+
+    # only want to keep the unique ones
+    triplets = set()
+
+    # find intersections
+    for (a, b) in edges:
+        if a > b:
+            a, b = b, a
+
+        nodes_from_a = adj_list[a]
+        nodes_from_b = adj_list[b]
+        node_intersection = (nodes_from_a).intersection(nodes_from_b)
+        for node in node_intersection:
+            cycle_nodes = tuple(sorted([a, b, node]))
+            if cycle_nodes not in triplets:
+                triplets.add(cycle_nodes)
+
+    return list(triplets)

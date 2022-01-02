@@ -3,12 +3,13 @@
 Authors: John Lambert, Ren Liu
 """
 import abc
-from typing import Dict
+from typing import Dict, Tuple
 
 import dask
 import numpy as np
 from dask.delayed import Delayed
 
+import gtsfm.densify.mvs_utils as mvs_utils
 from gtsfm.common.image import Image
 from gtsfm.common.gtsfm_data import GtsfmData
 
@@ -17,11 +18,11 @@ class MVSBase(metaclass=abc.ABCMeta):
     """Base class for all multi-view stereo implementations."""
 
     def __init__(self) -> None:
-        """Initialize the MVS module """
+        """Initialize the MVS module"""
         pass
 
     @abc.abstractmethod
-    def densify(self, images: Dict[int, Image], sfm_result: GtsfmData) -> np.ndarray:
+    def densify(self, images: Dict[int, Image], sfm_result: GtsfmData) -> Tuple[np.ndarray, np.ndarray]:
         """Densify a point cloud using multi-view stereo.
 
         Note: we do not return depth maps here per image, as they would need to be aligned to ground truth
@@ -34,10 +35,13 @@ class MVSBase(metaclass=abc.ABCMeta):
                 camera to any 3d point) for plane-sweeping stereo.
 
         Returns:
-            Dense point cloud, as an array of shape (N,3)
+            dense_points: 3D coordinates (in the world frame) of the dense point cloud
+                with shape (N, 3) where N is the number of points
+            dense_point_colors: RGB color of each point in the dense point cloud
+                with shape (N, 3) where N is the number of points
         """
 
-    def create_computation_graph(self, images_graph: Delayed, sfm_result_graph: Delayed) -> Delayed:
+    def create_computation_graph(self, images_graph: Delayed, sfm_result_graph: Delayed) -> Tuple[Delayed, Delayed]:
         """Generates the computation graph for performing multi-view stereo.
 
         Args:
@@ -47,4 +51,6 @@ class MVSBase(metaclass=abc.ABCMeta):
         Returns:
             Delayed task for MVS computation on the input images.
         """
-        return dask.delayed(self.densify)(images_graph, sfm_result_graph)
+        points_graph, rgb_graph = dask.delayed(self.densify, nout=2)(images_graph, sfm_result_graph)
+        voxel_size_graph = dask.delayed(mvs_utils.estimate_minimum_voxel_size, nout=1)(points_graph)
+        return dask.delayed(mvs_utils.downsample_point_cloud, nout=2)(points_graph, rgb_graph, voxel_size_graph)

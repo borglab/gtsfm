@@ -4,7 +4,6 @@ on: [pull_request, workflow_dispatch]
 
 jobs:
   run-unit-tests:
-
     name: Run all unit tests in code base
     runs-on: ubuntu-latest
     defaults:
@@ -15,37 +14,36 @@ jobs:
       PYTHON_VERSION: 3.8
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Cache conda env
-      uses: actions/cache@v2
-      env:
-        # Increase this value to reset cache if environment_linux.yml has not changed
-        CACHE_NUMBER: 0
-      with:
-        path: ~/conda_pkgs_dir
-        key:
-          ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('environment_linux.yml') }}
-    - uses: conda-incubator/setup-miniconda@v2
-      with:
-        miniconda-version: "latest"
-        activate-environment: gtsfm-v1
-        environment-file: environment_linux.yml
-        python-version: 3.8
-    - name: Environment setup
-      run: |
-        bash .github/scripts/setup.sh
-        pip install pytest-cov
-        pip install flake8
-        conda info
-    - name: Flake check
-      run: |
-        flake8 --max-line-length 120 --ignore E201,E202,E203,E231,W291,W293,E303,W391,E402,W503,E731 gtsfm
-    - name: Unit tests
-      run: |
-        pytest tests --cov gtsfm \
-          --ignore tests/frontend/test_frontend_argoverse.py \
-          --ignore tests/loader/test_argoverse_dataset_loader.py
-        coverage report
-    - name: React-Three-Fiber app tests
-      run: |
-        cd rtf_vis_tool && npm install && npm test a
+      - uses: actions/checkout@v2
+      - name: Cache conda env
+        uses: actions/cache@v2
+        env:
+          # Increase this value to reset cache if environment_linux_cpuonly.yml has not changed
+          CACHE_NUMBER: 0
+        with:
+          path: ~/conda_pkgs_dir
+          key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('environment_linux_cpuonly.yml') }}
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          miniconda-version: "latest"
+          activate-environment: gtsfm-v1
+          environment-file: environment_linux_cpuonly.yml
+          python-version: 3.8
+      - name: Environment setup
+        run: |
+          bash .github/scripts/setup.sh
+          pip install pytest-cov
+          pip install flake8
+          conda info
+      - name: Flake check
+        run: |
+          flake8 --max-line-length 120 --ignore E201,E202,E203,E231,W291,W293,E303,W391,E402,W503,E731 gtsfm
+      - name: Unit tests
+        run: |
+          pytest tests --cov gtsfm \
+            --ignore tests/frontend/test_frontend_argoverse.py \
+            --ignore tests/loader/test_argoverse_dataset_loader.py
+          coverage report
+      - name: React-Three-Fiber app tests
+        run: |
+          cd rtf_vis_tool && npm install && npm test a

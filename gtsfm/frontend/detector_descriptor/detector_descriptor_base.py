@@ -10,8 +10,11 @@ import dask
 import numpy as np
 from dask.delayed import Delayed
 
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
+
+logger = logger_utils.get_logger()
 
 
 class DetectorDescriptorBase(metaclass=abc.ABCMeta):
@@ -44,8 +47,7 @@ class DetectorDescriptorBase(metaclass=abc.ABCMeta):
         """
 
     def create_computation_graph(self, image_graph: Delayed) -> Tuple[Delayed, Delayed]:
-        """
-        Generates the computation graph for detections and their descriptors.
+        """Generates the computation graph for detections and their descriptors.
 
         Args:
             image_graph: computation graph for a single image (from a loader).
@@ -54,10 +56,6 @@ class DetectorDescriptorBase(metaclass=abc.ABCMeta):
             Delayed tasks for detections.
             Delayed task for corr. descriptors.
         """
-        # get delayed object, cannot separate two arguments immediately
-        joint_graph = dask.delayed(self.detect_and_describe)(image_graph)
-
-        keypoints_graph = joint_graph[0]
-        descriptor_graph = joint_graph[1]
+        keypoints_graph, descriptor_graph = dask.delayed(self.detect_and_describe, nout=2)(image_graph)
 
         return keypoints_graph, descriptor_graph

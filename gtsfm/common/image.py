@@ -17,6 +17,7 @@ class Image(NamedTuple):
     exif_data: Optional[Dict[str, Any]] = None
     sensor_width_db = SensorWidthDatabase()
     file_name: Optional[str] = None
+    mask: Optional[np.ndarray] = None
 
     @property
     def height(self) -> int:

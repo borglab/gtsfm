@@ -136,6 +136,7 @@ dmypy.json
 
 # Dask workspace
 dask-worker-space/
+dask-report.html
 
 # Third party model code
 thirdparty/models/
@@ -152,6 +153,7 @@ data/
 plots/
 results/
 result_metrics/
+visual_comparison_dashboard.html
 
 #React Folders/Files to be Ignored
 #   node_modules and .eslintcache are auto generated when a user runs the 
@@ -173,3 +175,9 @@ result_metrics/
 *npm-debug.log*
 *yarn-debug.log*
 *yarn-error.log*
+
+# Folder created by hydra
+output/
+
+# Cache dir
+cache/

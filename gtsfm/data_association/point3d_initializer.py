@@ -60,6 +60,8 @@ class Point3dInitializer(NamedTuple):
     """Class to initialize landmark points via triangulation w/ or w/o RANSAC inlier/outlier selection.
 
     Note: We currently limit the size of each sample to 2 camera views in our RANSAC scheme.
+    Comparable to OpenSfM's `TrackTriangulator` class:
+        https://github.com/mapillary/OpenSfM/blob/master/opensfm/reconstruction.py#L755
 
     Args:
         track_cameras: Dict of cameras and their indices.
@@ -212,10 +214,8 @@ class Point3dInitializer(NamedTuple):
             self.track_camera_dict, triangulated_pt, inlier_track.measurements
         )
 
-        # Filter measurements by the reprojection error.
-        valid_reproj_err_ind = np.where(reproj_errors.flatten() < self.reproj_error_thresh)[0]
-        inlier_track = inlier_track.select_subset(valid_reproj_err_ind)
-        if inlier_track.number_measurements() < 2:
+        # Check that all measurements are within reprojection error threshold.
+        if not np.all(reproj_errors.flatten() < self.reproj_error_thresh):
             return None, avg_track_reproj_error, TriangulationExitCode.EXCEEDS_REPROJ_THRESH
 
         # Check that track satisifies the minimum track length threshold.
