@@ -9,10 +9,6 @@ ftp://cmp.felk.cvut.cz/pub/cmp/articles/matas/chum-dagm03.pdf
 On Linux, a python wheel is available:
 https://pypi.org/project/pycolmap/#files
 
-On Mac, no wheel is available, so system-wide installation of COLMAP is required using this module.
-   Follow the instructions first here: https://colmap.github.io/install.html
-   and then here: https://github.com/mihaidusmanu/pycolmap#getting-started
-
 Authors: John Lambert
 """
 
