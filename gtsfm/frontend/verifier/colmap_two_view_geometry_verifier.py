@@ -1,12 +1,11 @@
-
-
 """
-Wrapper about COLMAP's LORANSAC Essential matrix estimation, using pycolmap's pybind API.
+Wrapper about COLMAP's GRIC estimators, using pycolmap's pybind API.
+Uses LORANSAC for Essential, Fundamental, and Homography matrix estimation.
 
 LORANSAC paper:
 ftp://cmp.felk.cvut.cz/pub/cmp/articles/matas/chum-dagm03.pdf
 
-On Linux, a python wheel is available:
+On Linux and Mac, a python wheel is available:
 https://pypi.org/project/pycolmap/#files
 
 Authors: John Lambert

@@ -4,7 +4,7 @@ Wrapper about COLMAP's LORANSAC Essential matrix estimation, using pycolmap's py
 LORANSAC paper:
 ftp://cmp.felk.cvut.cz/pub/cmp/articles/matas/chum-dagm03.pdf
 
-On Linux, a python wheel is available:
+On Linux and Mac, a python wheel is available:
 https://pypi.org/project/pycolmap/#files
 
 Authors: John Lambert

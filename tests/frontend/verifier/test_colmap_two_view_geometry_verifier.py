@@ -1,5 +1,4 @@
-
-"""
+"""Unit tests on GRIC-based estimator for pycolmap.
 
 Authors: John Lambert
 """
