@@ -134,12 +134,9 @@ class TestDataAssociation(GtsamTestCase):
         matches_dict = {(0, 1): np.array([[0, 0]])}
 
         triangulation_options = TriangulationOptions(
-            reproj_error_threshold=5,  # 5 px
-            min_track_len=3,  # at least 3 measurements required
-            mode=triangulation_mode,
-            min_num_hypotheses=20,
+            reproj_error_threshold=5, mode=triangulation_mode, min_num_hypotheses=20
         )
-        da = DataAssociation(triangulation_options=triangulation_options)
+        da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
         triangulated_landmark_map, _ = da.run(len(cameras), cameras, matches_dict, keypoints_list)
         # assert that we cannot obtain even 1 length-3 track if we have only 2 camera poses
         # result should be empty, since nb_measurements < min track length
@@ -169,12 +166,8 @@ class TestDataAssociation(GtsamTestCase):
         # since there is only one measurement in each image, both assigned feature index 0
         matches_dict = {(0, 1): np.array([[0, 0]])}
 
-        triangulation_options = TriangulationOptions(
-            reproj_error_threshold=5,  # 5 px
-            min_track_len=2,  # at least 2 measurements required
-            mode=TriangulationParam.NO_RANSAC,
-        )
-        da = DataAssociation(triangulation_options=triangulation_options)
+        triangulation_options = TriangulationOptions(reproj_error_threshold=5, mode=TriangulationParam.NO_RANSAC)
+        da = DataAssociation(min_track_len=2, triangulation_options=triangulation_options)
 
         sfm_data, _ = da.run(len(cameras), cameras, matches_dict, keypoints_list)
         estimated_landmark = sfm_data.get_track(0).point3()
@@ -221,12 +214,9 @@ class TestDataAssociation(GtsamTestCase):
         matches_dict = {(0, 1): np.array([[0, 0]]), (1, 2): np.array([[0, 0]])}
 
         triangulation_options = TriangulationOptions(
-            reproj_error_threshold=5,  # 5 px
-            min_track_len=3,  # at least 3 measurements required
-            mode=triangulation_mode,
-            min_num_hypotheses=20,
+            reproj_error_threshold=5, mode=triangulation_mode, min_num_hypotheses=20
         )
-        da = DataAssociation(triangulation_options=triangulation_options)
+        da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
         sfm_data, _ = da.run(len(cameras), cameras, matches_dict, keypoints_list)
 
         estimated_landmark = sfm_data.get_track(0).point3()
@@ -243,12 +233,9 @@ class TestDataAssociation(GtsamTestCase):
         """Tests the data association with input tracks which use a camera index for which the camera doesn't exist."""
 
         triangulation_options = TriangulationOptions(
-            reproj_error_threshold=5,  # 5 px
-            min_track_len=3,  # at least 3 measurements required
-            mode=TriangulationParam.NO_RANSAC,
-            min_num_hypotheses=20,
+            reproj_error_threshold=5, mode=TriangulationParam.NO_RANSAC, min_num_hypotheses=20
         )
-        da = DataAssociation(triangulation_options=triangulation_options)
+        da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
 
         # add cameras 0 and 2
         cameras = {
@@ -285,12 +272,9 @@ class TestDataAssociation(GtsamTestCase):
 
         # Run without computation graph
         triangulation_options = TriangulationOptions(
-            reproj_error_threshold=5,  # 5 px
-            min_track_len=3,  # at least 3 measurements required
-            mode=TriangulationParam.RANSAC_TOPK_BASELINES,
-            min_num_hypotheses=20,
+            reproj_error_threshold=5, mode=TriangulationParam.RANSAC_TOPK_BASELINES, min_num_hypotheses=20
         )
-        da = DataAssociation(triangulation_options=triangulation_options)
+        da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
         expected_sfm_data, expected_metrics = da.run(len(cameras), cameras, matches_dict, keypoints_list)
 
         # Run with computation graph

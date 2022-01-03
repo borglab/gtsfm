@@ -46,10 +46,10 @@ SceneOptimizer:
 
     data_association_module:
       _target_: gtsfm.data_association.data_assoc.DataAssociation
+      min_track_len: 2
       triangulation_options:
         _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
         reproj_error_threshold: 100
-        min_track_len: 2
         mode:
           _target_: gtsfm.data_association.point3d_initializer.TriangulationParam
           value: 1 # 0 corresponds to NO_RANSAC

@@ -57,10 +57,9 @@ class TriangulationParam(Enum):
 
 
 class TriangulationOptions(NamedTuple):
-    """Options for triangulation RANSAC solver."""
+    """Options for triangulation solver."""
 
     reproj_error_threshold: float
-    min_track_len: int
     mode: TriangulationParam
 
     # RANSAC parameters
@@ -107,9 +106,6 @@ class Point3dInitializer(NamedTuple):
 
     track_camera_dict: Dict[int, PinholeCameraCal3Bundler]
     options: TriangulationOptions
-    # mode: TriangulationParam
-    # reproj_error_thresh: float
-    # num_ransac_hypotheses: Optional[int] = None
 
     def execute_ransac_variant(self, track_2d: SfmTrack2d) -> np.ndarray:
         """Execute RANSAC algorithm to find best subset 2d measurements for a 3d point.
@@ -122,8 +118,6 @@ class Point3dInitializer(NamedTuple):
             best_inliers: boolean array of length N. Indices of measurements
                are set to true if they correspond to the best RANSAC hypothesis
         """
-        # if self.num_ransac_hypotheses is None:
-        #     raise ValueError("RANSAC triangulation requested but number of hypothesis is None.")
 
         # Generate all possible matches
         measurement_pairs = generate_measurement_pairs(track_2d)

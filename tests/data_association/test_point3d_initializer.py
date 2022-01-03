@@ -14,7 +14,7 @@ import numpy as np
 from gtsam import Cal3_S2, Cal3Bundler, PinholeCameraCal3Bundler, Point2, Point3, Pose3, Rot3
 from gtsam.examples import SFMdata
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
-from gtsfm.data_association.point3d_initializer import Point3dInitializer, TriangulationParam
+from gtsfm.data_association.point3d_initializer import Point3dInitializer, TriangulationParam, TriangulationOptions
 from gtsfm.loader.olsson_loader import OlssonLoader
 
 # path for data used in this test
@@ -67,11 +67,14 @@ class TestPoint3dInitializer(unittest.TestCase):
         super().setUp()
 
         self.simple_triangulation_initializer = Point3dInitializer(
-            CAMERAS, TriangulationParam.NO_RANSAC, reproj_error_thresh=5
+            CAMERAS, TriangulationOptions(reproj_error_threshold=5, mode=TriangulationParam.NO_RANSAC)
         )
 
         self.ransac_uniform_sampling_initializer = Point3dInitializer(
-            CAMERAS, TriangulationParam.RANSAC_SAMPLE_UNIFORM, reproj_error_thresh=5, num_ransac_hypotheses=100
+            CAMERAS,
+            TriangulationOptions(
+                reproj_error_threshold=5, mode=TriangulationParam.RANSAC_SAMPLE_UNIFORM, min_num_hypotheses=100
+            ),
         )
 
     def __runWithCorrectMeasurements(self, obj: Point3dInitializer) -> bool:
@@ -120,9 +123,7 @@ class TestPoint3dInitializer(unittest.TestCase):
             for i, cam in cameras.items()
         }
 
-        obj_with_flipped_cameras = Point3dInitializer(
-            flipped_cameras, obj.mode, obj.reproj_error_thresh, obj.num_ransac_hypotheses
-        )
+        obj_with_flipped_cameras = Point3dInitializer(flipped_cameras, obj.options)
 
         sfm_track, _, _ = obj_with_flipped_cameras.triangulate(SfmTrack2d(MEASUREMENTS))
 
@@ -190,7 +191,9 @@ class TestPoint3dInitializer(unittest.TestCase):
             for i in range(len(loader))
         }
 
-        initializer = Point3dInitializer(camera_dict, TriangulationParam.NO_RANSAC, reproj_error_thresh=1e5)
+        initializer = Point3dInitializer(
+            camera_dict, TriangulationOptions(mode=TriangulationParam.NO_RANSAC, reproj_error_threshold=1e5)
+        )
 
         # tracks which have expected failures
         # (both tracks have incorrect measurements)
@@ -253,7 +256,9 @@ class TestPoint3dInitializerUnestimatedCameras(unittest.TestCase):
         # cannot succeed later if only 2 views are provided and one of them is from camera 0.
         cameras = {1: PinholeCameraCal3Bundler(wTi1, calibration), 2: PinholeCameraCal3Bundler(wTi2, calibration)}
 
-        self.triangulator = Point3dInitializer(cameras, TriangulationParam.NO_RANSAC, reproj_error_thresh=5)
+        self.triangulator = Point3dInitializer(
+            cameras, TriangulationOptions(mode=TriangulationParam.NO_RANSAC, reproj_error_threshold=5)
+        )
 
     def test_extract_measurements_unestimated_camera(self) -> None:
         """Ensure triangulation args are None for length-2 tracks where one or more measurements come from
