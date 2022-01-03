@@ -45,6 +45,7 @@ class TestFrontend(unittest.TestCase):
         )
         assert len(self.loader)
 
+    # TODO(johnwlambert): make SIFT-based unit test below non-flaky (should be deterministic).
     # def test_sift_twoway_ransac(self) -> None:
     #     """Check DoG + SIFT + 2-way Matcher + RANSAC-5pt frontend."""
     #     det_desc = SIFTDetectorDescriptor()
