@@ -15,7 +15,8 @@ from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point2Vector, Point3, P
 from gtsam.utils.test_case import GtsamTestCase
 
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.data_association.data_assoc import DataAssociation, TriangulationParam
+from gtsfm.data_association.data_assoc import DataAssociation
+from gtsfm.data_association.point3d_initializer import TriangulationOptions, TriangulationParam
 
 
 def get_pose3_vector(num_poses: int) -> Pose3Vector:
@@ -132,12 +133,13 @@ class TestDataAssociation(GtsamTestCase):
         # since there is only one measurement in each image, both assigned feature index 0
         matches_dict = {(0, 1): np.array([[0, 0]])}
 
-        da = DataAssociation(
-            reproj_error_thresh=5,  # 5 px
+        triangulation_options = TriangulationOptions(
+            reproj_error_threshold=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
             mode=triangulation_mode,
-            num_ransac_hypotheses=20,
+            min_num_hypotheses=20,
         )
+        da = DataAssociation(triangulation_options=triangulation_options)
         triangulated_landmark_map, _ = da.run(len(cameras), cameras, matches_dict, keypoints_list)
         # assert that we cannot obtain even 1 length-3 track if we have only 2 camera poses
         # result should be empty, since nb_measurements < min track length
@@ -167,11 +169,13 @@ class TestDataAssociation(GtsamTestCase):
         # since there is only one measurement in each image, both assigned feature index 0
         matches_dict = {(0, 1): np.array([[0, 0]])}
 
-        da = DataAssociation(
-            reproj_error_thresh=5,  # 5 px
+        triangulation_options = TriangulationOptions(
+            reproj_error_threshold=5,  # 5 px
             min_track_len=2,  # at least 2 measurements required
             mode=TriangulationParam.NO_RANSAC,
         )
+        da = DataAssociation(triangulation_options=triangulation_options)
+
         sfm_data, _ = da.run(len(cameras), cameras, matches_dict, keypoints_list)
         estimated_landmark = sfm_data.get_track(0).point3()
         self.gtsamAssertEquals(estimated_landmark, self.expected_landmark, 1e-2)
@@ -216,12 +220,13 @@ class TestDataAssociation(GtsamTestCase):
         # since there is only one measurement in each image, both assigned feature index 0
         matches_dict = {(0, 1): np.array([[0, 0]]), (1, 2): np.array([[0, 0]])}
 
-        da = DataAssociation(
-            reproj_error_thresh=5,  # 5 px
+        triangulation_options = TriangulationOptions(
+            reproj_error_threshold=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
             mode=triangulation_mode,
-            num_ransac_hypotheses=20,
+            min_num_hypotheses=20,
         )
+        da = DataAssociation(triangulation_options=triangulation_options)
         sfm_data, _ = da.run(len(cameras), cameras, matches_dict, keypoints_list)
 
         estimated_landmark = sfm_data.get_track(0).point3()
@@ -237,12 +242,13 @@ class TestDataAssociation(GtsamTestCase):
     def test_data_association_with_missing_camera(self):
         """Tests the data association with input tracks which use a camera index for which the camera doesn't exist."""
 
-        da = DataAssociation(
-            reproj_error_thresh=5,  # 5 px
+        triangulation_options = TriangulationOptions(
+            reproj_error_threshold=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
             mode=TriangulationParam.NO_RANSAC,
-            num_ransac_hypotheses=20,
+            min_num_hypotheses=20,
         )
+        da = DataAssociation(triangulation_options=triangulation_options)
 
         # add cameras 0 and 2
         cameras = {
@@ -278,12 +284,13 @@ class TestDataAssociation(GtsamTestCase):
         matches_dict = {(0, 1): np.array([[0, 0]]), (1, 2): np.array([[0, 0]])}
 
         # Run without computation graph
-        da = DataAssociation(
-            reproj_error_thresh=5,  # 5 px
+        triangulation_options = TriangulationOptions(
+            reproj_error_threshold=5,  # 5 px
             min_track_len=3,  # at least 3 measurements required
             mode=TriangulationParam.RANSAC_TOPK_BASELINES,
-            num_ransac_hypotheses=20,
+            min_num_hypotheses=20,
         )
+        da = DataAssociation(triangulation_options=triangulation_options)
         expected_sfm_data, expected_metrics = da.run(len(cameras), cameras, matches_dict, keypoints_list)
 
         # Run with computation graph

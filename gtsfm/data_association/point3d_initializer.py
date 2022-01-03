@@ -67,6 +67,7 @@ class TriangulationOptions(NamedTuple):
     min_inlier_ratio: float = 0.5
     confidence: float = 0.9999
     dyn_num_hypotheses_multiplier: float = 3.0
+    min_num_hypotheses: int = 0
     max_num_hypotheses: int = sys.maxsize
 
     def __check_ransac_params(self) -> None:
@@ -75,7 +76,7 @@ class TriangulationOptions(NamedTuple):
         assert 0 < self.min_inlier_ratio < 1
         assert 0 < self.confidence < 1
         assert self.dyn_num_hypotheses_multiplier > 0
-        assert self.max_num_hypotheses > 0
+        assert 0 <= self.min_num_hypotheses < self.max_num_hypotheses
 
     def num_ransac_hypotheses(self) -> int:
         """Compute maximum number of hypotheses."""
@@ -85,8 +86,9 @@ class TriangulationOptions(NamedTuple):
             / np.log(1 - (1 - self.min_inlier_ratio) ** NUM_SAMPLES_PER_RANSAC_HYPOTHESIS)
             * self.dyn_num_hypotheses_multiplier
         )
-        return min(self.max_num_hypotheses, dyn_num_hypotheses)
-        # return self.max_num_hypotheses
+        num_hypotheses = min(self.max_num_hypotheses, dyn_num_hypotheses)
+        num_hypotheses = num_hypotheses if num_hypotheses > self.min_num_hypotheses else self.min_num_hypotheses
+        return num_hypotheses
 
 
 class Point3dInitializer(NamedTuple):

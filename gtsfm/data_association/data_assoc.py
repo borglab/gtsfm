@@ -47,10 +47,6 @@ class DataAssociation(NamedTuple):
         num_ransac_hypotheses (optional): number of hypothesis for RANSAC-based triangulation.
     """
 
-    # reproj_error_thresh: float
-    # min_track_len: int
-    # mode: TriangulationParam
-    # num_ransac_hypotheses: Optional[int] = None
     triangulation_options: TriangulationOptions
     save_track_patches_viz: Optional[bool] = False
 
