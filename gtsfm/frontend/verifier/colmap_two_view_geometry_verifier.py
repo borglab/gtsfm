@@ -174,6 +174,7 @@ class ColmapTwoViewGeometryVerifier(VerifierBase):
         result_dict = self.__estimate_two_view_geometry(uv_i1, uv_i2, camera_intrinsics_i1, camera_intrinsics_i2)
 
         success = result_dict["success"]
+        print("Configuration: ", result_dict["configuration_type"])
         logger.info("Two view configuration: " + str(ConfigurationType(result_dict["configuration_type"])))
         if not success:
             logger.info(f"[LORANSAC] matrix estimation unsuccessful.")
