@@ -40,11 +40,10 @@ class DataAssociation(NamedTuple):
     """Class to form feature tracks; for each track, call LandmarkInitializer.
 
     Args:
-        reproj_error_thresh: the maximum reprojection error allowed.
         min_track_len: min length required for valid feature track / min nb of supporting views required for a landmark
                        to be valid.
-        mode: triangulation mode, which dictates whether or not to use robust estimation.
-        num_ransac_hypotheses (optional): number of hypothesis for RANSAC-based triangulation.
+        triangulation_options: options for triangulating points.
+        save_track_patches_viz: whether to save a mosaic of individual patches associated with each track.
     """
 
     min_track_len: int

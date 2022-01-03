@@ -1,3 +1,5 @@
+# Relaxes triangulation RANSAC threshold to 100 (10x threshold of deep_front_end.yaml)
+
 SceneOptimizer:
   _target_: gtsfm.scene_optimizer.SceneOptimizer
   save_gtsfm_data: True
@@ -52,7 +54,7 @@ SceneOptimizer:
         reproj_error_threshold: 100
         mode:
           _target_: gtsfm.data_association.point3d_initializer.TriangulationParam
-          value: 1 # 0 corresponds to NO_RANSAC
+          value: 1 # 1 corresponds to RANSAC_SAMPLE_UNIFORM
         max_num_hypotheses: 100
       save_track_patches_viz: False
 

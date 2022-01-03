@@ -60,6 +60,34 @@ def get_track_with_duplicate_measurements() -> List[SfmMeasurement]:
     return new_measurements
 
 
+class TestTriangulationOptions(unittest.TestCase):
+    """Unit tests for TriangulationOptions"""
+
+    def test_options_ransac(self) -> None:
+        """Asserts values of default RANSAC options."""
+        triangulation_options = TriangulationOptions(
+            reproj_error_threshold=5, mode=TriangulationParam.RANSAC_SAMPLE_UNIFORM
+        )
+        assert triangulation_options.num_ransac_hypotheses() == 2749
+
+    def test_options_ransac_min_hypotheses(self) -> None:
+        """Assert that number of hypotheses is overwritten if less than minimum."""
+        triangulation_options = TriangulationOptions(
+            reproj_error_threshold=5, mode=TriangulationParam.RANSAC_SAMPLE_UNIFORM, min_num_hypotheses=10000
+        )
+        assert triangulation_options.num_ransac_hypotheses() == 10000
+
+    def test_options_ransac_max_hypotheses(self) -> None:
+        """Assert that number of hypotheses is overwritten if greater than maximum."""
+        triangulation_options = TriangulationOptions(
+            reproj_error_threshold=5,
+            mode=TriangulationParam.RANSAC_SAMPLE_UNIFORM,
+            min_inlier_ratio=1e-4,
+            max_num_hypotheses=1000,
+        )
+        assert triangulation_options.num_ransac_hypotheses() == 1000
+
+
 class TestPoint3dInitializer(unittest.TestCase):
     """Unit tests for Point3dInitializer."""
 

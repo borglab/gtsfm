@@ -57,13 +57,27 @@ class TriangulationParam(Enum):
 
 
 class TriangulationOptions(NamedTuple):
-    """Options for triangulation solver."""
+    """Options for triangulation solver.
+
+    Refs:
+      - https://github.com/colmap/colmap/blob/dev/src/optim/ransac.h
+      - http://www.cse.psu.edu/~rtc12/CSE486/lecture15.pdf
+
+    Args:
+        reproj_error_threshold: the maximum reprojection error allowed.
+        mode: triangulation mode, which dictates whether or not to use robust estimation.
+        min_inlier_ratio: a priori assumed minimum probability that a point is an inlier.
+        confidence: desired confidence that at least one hypothesis is outlier free.
+        dyn_num_hypotheses_multiplier: multiplication factor for dynamically computed hyptheses based on confidence.
+        min_num_hypotheses: minimum number of hypotheses.
+        mas_num_hypotheses: masimum number of hypotheses.
+    """
 
     reproj_error_threshold: float
     mode: TriangulationParam
 
     # RANSAC parameters
-    min_inlier_ratio: float = 0.5
+    min_inlier_ratio: float = 0.1
     confidence: float = 0.9999
     dyn_num_hypotheses_multiplier: float = 3.0
     min_num_hypotheses: int = 0
@@ -82,7 +96,7 @@ class TriangulationOptions(NamedTuple):
         self.__check_ransac_params()
         dyn_num_hypotheses = int(
             np.log(1 - self.confidence)
-            / np.log(1 - (1 - self.min_inlier_ratio) ** NUM_SAMPLES_PER_RANSAC_HYPOTHESIS)
+            / np.log(1 - self.min_inlier_ratio ** NUM_SAMPLES_PER_RANSAC_HYPOTHESIS)
             * self.dyn_num_hypotheses_multiplier
         )
         num_hypotheses = min(self.max_num_hypotheses, dyn_num_hypotheses)
@@ -124,7 +138,6 @@ class Point3dInitializer(NamedTuple):
 
         # limit the number of samples to the number of available pairs
         num_hypotheses = min(self.options.num_ransac_hypotheses(), len(measurement_pairs))
-        logger.debug(num_hypotheses)
 
         # Sampling
         samples = self.sample_ransac_hypotheses(track_2d, measurement_pairs, num_hypotheses)
