@@ -33,9 +33,7 @@ def classify_tracks2d_with_gt_cameras(
     cameras_dict: Dict[int, Cal3Bundler] = {i: cam for i, cam in enumerate(cameras_gt)}
     point3d_initializer = Point3dInitializer(
         track_camera_dict=cameras_dict,
-        options=TriangulationOptions(
-            min_track_len=2, reproj_error_threshold=reproj_error_thresh_px, mode=TriangulationParam.NO_RANSAC
-        ),
+        options=TriangulationOptions(reproj_error_threshold=reproj_error_thresh_px, mode=TriangulationParam.NO_RANSAC),
     )
 
     exit_codes: List[TriangulationExitCode] = []

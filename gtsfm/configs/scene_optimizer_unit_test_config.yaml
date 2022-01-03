@@ -10,7 +10,6 @@ SceneOptimizer:
     detector_descriptor:
       _target_: gtsfm.frontend.detector_descriptor.sift.SIFTDetectorDescriptor
 
-
   two_view_estimator:
     _target_: gtsfm.two_view_estimator.TwoViewEstimator
     bundle_adjust_2view: True
@@ -40,12 +39,14 @@ SceneOptimizer:
 
     data_association_module:
       _target_: gtsfm.data_association.data_assoc.DataAssociation
-      reproj_error_thresh: 100
       min_track_len: 2
-      mode:
-        _target_: gtsfm.data_association.data_assoc.TriangulationParam
-        value: 0 # 0 corresponds to NO_RANSAC
-      num_ransac_hypotheses: 20
+      triangulation_options:
+        _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
+        reproj_error_threshold: 10
+        mode:
+          _target_: gtsfm.data_association.point3d_initializer.TriangulationParam
+          value: 0 # 0 corresponds to NO_RANSAC
+        max_num_hypotheses: 20
       save_track_patches_viz: False
 
     bundle_adjustment_module:
