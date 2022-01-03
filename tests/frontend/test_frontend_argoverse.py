@@ -118,6 +118,7 @@ class TestFrontend(unittest.TestCase):
             feature_extractor, two_view_estimator, euler_angle_err_tol=1.4, translation_err_tol=0.026
         )
 
+    # TODO(johnwlambert): make SIFT-based unit test below non-flaky (should be deterministic).
     # def test_sift_twoway_degensac(self) -> None:
     #     """Check DoG + SIFT + 2-way Matcher + DEGENSAC-8pt frontend."""
     #     det_desc = SIFTDetectorDescriptor()
