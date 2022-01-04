@@ -265,16 +265,16 @@ class SceneOptimizer:
         if self._save_gtsfm_data:
             auxiliary_graph_list.extend(save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph))
 
-        img_dict_graph = dask.delayed(get_image_dictionary)(image_graph)
-        dense_points_graph, dense_point_colors_graph = self.dense_multiview_optimizer.create_computation_graph(
-            img_dict_graph, ba_output_graph
-        )
-        # Cast to string as Open3d cannot use PosixPath's for I/O -- only string file paths are accepted.
-        auxiliary_graph_list.append(
-            dask.delayed(io_utils.save_point_cloud_as_ply)(
-                save_fpath=str(MVS_PLY_SAVE_FPATH), points=dense_points_graph, rgb=dense_point_colors_graph
-            )
-        )
+        # img_dict_graph = dask.delayed(get_image_dictionary)(image_graph)
+        # dense_points_graph, dense_point_colors_graph = self.dense_multiview_optimizer.create_computation_graph(
+        #     img_dict_graph, ba_output_graph
+        # )
+        # # Cast to string as Open3d cannot use PosixPath's for I/O -- only string file paths are accepted.
+        # auxiliary_graph_list.append(
+        #     dask.delayed(io_utils.save_point_cloud_as_ply)(
+        #         save_fpath=str(MVS_PLY_SAVE_FPATH), points=dense_points_graph, rgb=dense_point_colors_graph
+        #     )
+        # )
 
         # as visualization tasks are not to be provided to the user, we create a
         # dummy computation of concatenating viz tasks with the output graph,
