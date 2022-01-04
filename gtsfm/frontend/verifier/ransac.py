@@ -93,7 +93,9 @@ class Ransac(VerifierBase):
             fx = max(camera_intrinsics_i1.K()[0, 0], camera_intrinsics_i2.K()[0, 0])
             if np.amax(match_indices[:,1]) >= uv_norm_i2.shape[0]:
                 print("Out of bounds access w/ keypoints", keypoints_i2.coordinates[:10])
-            
+            if np.amax(match_indices[:,0]) >= uv_norm_i1.shape[0]:
+                print("Out of bounds access w/ keypoints", keypoints_i1.coordinates[:10])
+                
             i2Ei1, inlier_mask = cv2.findEssentialMat(
                 uv_norm_i1[match_indices[:, 0]],
                 uv_norm_i2[match_indices[:, 1]],
