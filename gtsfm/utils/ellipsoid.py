@@ -104,7 +104,7 @@ def get_alignment_rotation_matrix_from_svd(point_cloud: np.ndarray) -> np.ndarra
         raise TypeError("Point Cloud should be 3 dimensional")
 
     # Obtain right singular vectors to determine rotation matrix of point cloud.
-    V = get_right_singular_vectors(point_cloud)
+    V, _ = get_right_singular_vectors(point_cloud)
     Vt = V.T
 
     # If det(Vt) = -1, then Vt is a reflection matrix and not a valid SO(3) transformation. Thus, we must estimate the
@@ -117,7 +117,7 @@ def get_alignment_rotation_matrix_from_svd(point_cloud: np.ndarray) -> np.ndarra
     return wuprightRw
 
 
-def get_right_singular_vectors(A: np.ndarray) -> np.ndarray:
+def get_right_singular_vectors(A: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """Extracts the right singular eigenvectors from the point cloud. Some of the eigenvectors could be randomly
     multiplied by -1. Despite this, the eigenvectors will still remain valid.
 
@@ -128,17 +128,21 @@ def get_right_singular_vectors(A: np.ndarray) -> np.ndarray:
 
     Returns:
         The right singular vectors of the point cloud, shape (3,3).
+        The singular values of the point cloud (sorted in descending order), with shape (3,)
 
     Raises:
         TypeError: if point cloud is not of shape (N,3).
     """
-    if A.shape[1] != 3:
+    N, D = A.shape
+    if D != 3:
         raise TypeError("Point Cloud should be 3 dimesional")
 
-    eigvals, eigvecs = np.linalg.eig(A.T @ A)
+    # eigenvectors of A^T*A are singular vectors of A
+    # we apply Bessel's correction when estimating the covariance matrix
+    # See https://en.wikipedia.org/wiki/Principal_component_analysis#Computing_PCA_using_the_covariance_method
+    eigvals, eigvecs = np.linalg.eig(A.T @ A / (N - 1))
 
     # Sort eigenvectors such that they correspond to eigenvalues sorted in descending order.
-    sort_idx = np.argsort(-eigvals)
-    eigvecs = eigvecs[:, sort_idx]
+    sort_idxs = np.argsort(-eigvals)
 
-    return eigvecs
+    return eigvecs[:, sort_idxs], np.sqrt(eigvals[sort_idxs])

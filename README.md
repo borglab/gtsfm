@@ -16,6 +16,11 @@ GTSFM is an end-to-end SFM pipeline based on [GTSAM](https://github.com/borglab/
   <img src="https://user-images.githubusercontent.com/16724970/142500100-ed3bd07b-f839-488e-a01d-823a9fbeaba4.gif" height="315">
 </p>
 
+<p align="left">
+  <img src="https://user-images.githubusercontent.com/25347892/146043166-c5a172d7-17e0-4779-8333-8cd5f088ea2e.gif" height="345" title="2011212_opnav_022">
+  <img src="https://user-images.githubusercontent.com/25347892/146043553-5299e9d3-44c5-40a6-8ba8-ff43d2a28c8f.gif" height="345">
+</p>
+
 ## License
 The majority of our code is governed by a MIT license and is suitable for commercial use. However, certain implementations featured in our repo (SuperPoint, SuperGlue) are governed by a non-commercial license and may not be used commercially.
 
@@ -128,14 +133,15 @@ Contributions are always welcome! Please be aware of our [contribution guideline
 Open-source Python implementation:
 ```
 @misc{GTSFM,
-    author = {Ayush Baid and Fan Jiang and Akshay Krishnan and John Lambert and Aditya Singh and
-       Aishwarya Venkataramanan and Sushmita Warrier and Jing Wu and Xiaolong Wu and Frank Dellaert},
+    author = {Ayush Baid and Travis Driver and Fan Jiang and Akshay Krishnan and John Lambert
+       and Ren Liu and Aditya Singh and Neha Upadhyay and Aishwarya Venkataramanan
+       and Sushmita Warrier and Jing Wu and Xiaolong Wu and Frank Dellaert},
     title = { {GTSFM}: Georgia Tech Structure from Motion},
     howpublished={\url{https://github.com/borglab/gtsfm}},
     year = {2021}
 }
 ```
-Note: authors are listed in alphabetical order.
+Note: authors are listed in alphabetical order (by last name).
 
 
 ## Compiling Additional Verifiers
