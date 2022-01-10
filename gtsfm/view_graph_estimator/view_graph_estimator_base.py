@@ -8,7 +8,7 @@ Authors: Akshay Krishnan, Ayush Baid
 """
 import abc
 from logging import Logger
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 import dask
 import numpy as np
@@ -41,6 +41,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         calibrations: List[Cal3Bundler],
         corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
         keypoints: List[Keypoints],
+        two_view_reports: Optional[Dict[Tuple[int, int]: TwoViewEstimationReport]],
     ) -> Set[Tuple[int, int]]:
         """Estimates the view graph, needs to be implemented by the derived class. 
 
@@ -50,6 +51,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             calibrations: list of calibrations for each image.
             corr_idxs_i1i2: Dict from (i1, i2) to indices of verified correspondences from i1 to i2.
             keypoints: keypoints for each images.
+            two_view_reports: two-view reports between image pairs from the TwoViewEstimator.
 
         Returns:
             Edges of the view-graph, which are the subset of the image pairs in the input args.
@@ -203,7 +205,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             - Dict of two_view_reports in the view graph
             - GtsfmMetricsGroup with the view graph estimation metrics
         """
-        view_graph_edges = dask.delayed(self.run)(i2Ri1, i2Ui1, calibrations, corr_idxs_i1i2, keypoints)
+        view_graph_edges = dask.delayed(self.run)(i2Ri1, i2Ui1, calibrations, corr_idxs_i1i2, keypoints, two_view_reports)
         i2Ri1_filtered, i2Ui1_filtered, corr_idxs_i1i2_filtered, two_view_reports_filtered = dask.delayed(self.__filter_with_edges, nout=3)(
             i2Ri1, i2Ui1, corr_idxs_i1i2, view_graph_edges, two_view_reports
         )
