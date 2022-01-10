@@ -69,6 +69,7 @@ class MultiViewOptimizer:
             viewgraph_i2Ui1_graph,
             viewgraph_v_corr_idxs_graph,
             viewgraph_two_view_reports_graph,
+            viewgraph_estimation_metrics,
         ) = self.view_graph_estimator.create_computation_graph(
             i2Ri1_graph, i2Ui1_graph, intrinsics_graph, v_corr_idxs_graph, keypoints_graph, two_view_reports_dict
         )
@@ -110,6 +111,7 @@ class MultiViewOptimizer:
         averaging_metrics = dask.delayed(get_averaging_metrics)(rot_avg_metrics, ta_metrics)
 
         multiview_optimizer_metrics_graph = [
+            viewgraph_estimation_metrics,
             averaging_metrics,
             data_assoc_metrics_graph,
             ba_metrics_graph,

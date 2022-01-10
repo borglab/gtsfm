@@ -4,9 +4,8 @@ Author: John Lambert, Akshay Krishnan
 """
 import numpy as np
 import pytest
-from gtsam import Rot3, PinholeCameraCal3Bundler, Unit3
+from gtsam import Rot3, Cal3Bundler, Unit3
 
-from gtsfm.common.view_graph import ViewGraph
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator import (
     CycleConsistentRotationViewGraphEstimator,
@@ -49,14 +48,14 @@ def test_filter_to_cycle_consistent_edges() -> None:
         (2, 4): Unit3(np.array([1, 0, 0])),
     }
     # The ViewGraphEstimator assumes these dicts contain the keys corresponding to the the rotation edges.
-    calibrations = {k: PinholeCameraCal3Bundler() for k in range(0, 5)}
-    corr_idxs_i1i2 = {camera_pair: np.array([]) for camera_pair in i2Ri1_dict.keys()}
+    calibrations = {k: Cal3Bundler() for k in range(0, 5)}
+    corr_idxs_i1i2 = {i1i2: np.array([]) for i1i2 in i2Ri1_dict.keys()}
     keypoints = {k: np.array([]) for k in range(0, 5)}
+    two_view_reports = None
 
     rcc_estimator = CycleConsistentRotationViewGraphEstimator(EdgeErrorAggregationCriterion.MEDIAN_EDGE_ERROR)
-    view_graph = rcc_estimator.run(i2Ri1_dict, i2Ui1_dict, calibrations, corr_idxs_i1i2, keypoints)
-    assert isinstance(view_graph, ViewGraph)
+    viewgraph_edges = rcc_estimator.run(i2Ri1_dict, i2Ui1_dict, calibrations, corr_idxs_i1i2, keypoints, two_view_reports)
 
     # non-self-consistent triplet should have been removed
-    expected_keys = {(0, 1), (1, 2), (0, 2)}
-    assert set(view_graph.get_pair_indices()) == expected_keys
+    expected_edges = {(0, 1), (1, 2), (0, 2)}
+    assert set(viewgraph_edges) == expected_edges
