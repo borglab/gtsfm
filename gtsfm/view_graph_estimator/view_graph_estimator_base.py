@@ -41,7 +41,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         calibrations: List[Cal3Bundler],
         corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
         keypoints: List[Keypoints],
-        two_view_reports: Optional[Dict[Tuple[int, int]: TwoViewEstimationReport]],
+        two_view_reports: Dict[Tuple[int, int]: TwoViewEstimationReport],
     ) -> Set[Tuple[int, int]]:
         """Estimates the view graph, needs to be implemented by the derived class. 
 
@@ -154,30 +154,6 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         ]
         return GtsfmMetricsGroup("view_graph_estimation_metrics", view_graph_metrics)
 
-    def add_metrics(
-        self,
-        i2Ri1: Dict[Tuple[int, int], Rot3],
-        i2Ui1: Dict[Tuple[int, int], Unit3],
-        calibrations: List[Cal3Bundler],
-        two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
-        view_graph_edges: Tuple[int, int],
-    ) -> GtsfmMetricsGroup:
-        """A method that can be overrided by derived classes to add more metrics to the metrics defined by the base class.
-        Does not add any metrics if not overrided.
-
-        Args:
-            i2Ri1: Dict from (i1, i2) to relative rotation of i1 with respect to i2.
-            i2Ui1: Dict from (i1, i2) to relative translation direction of i1 with respect to i2.
-            calibrations: list of calibrations for each image.
-            two_view_reports: two-view reports between image pairs from the TwoViewEstimator.
-            view_graph_edges: edges of the view-graph.
-
-        Returns:
-            Metrics for the view graph estimation, as a GtsfmMetricsGroup.
-        """
-        # pylint: disable=unused-argument
-        return GtsfmMetricsGroup("view_graph_estimator_metrics", [])
-
     def create_computation_graph(
         self,
         i2Ri1: Delayed,
@@ -185,7 +161,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         calibrations: Delayed,
         corr_idxs_i1i2: Delayed,
         keypoints: Delayed,
-        two_view_reports: Dict[Tuple[int, int], Delayed],
+        two_view_reports: Delayed,
     ) -> Tuple[Delayed, Delayed, Delayed, Delayed, Delayed]:
         """Create the computation graph for ViewGraph estimation and metric evaluation.
         
@@ -206,8 +182,8 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             - GtsfmMetricsGroup with the view graph estimation metrics
         """
         view_graph_edges = dask.delayed(self.run)(i2Ri1, i2Ui1, calibrations, corr_idxs_i1i2, keypoints, two_view_reports)
-        i2Ri1_filtered, i2Ui1_filtered, corr_idxs_i1i2_filtered, two_view_reports_filtered = dask.delayed(self.__filter_with_edges, nout=3)(
-            i2Ri1, i2Ui1, corr_idxs_i1i2, view_graph_edges, two_view_reports
+        i2Ri1_filtered, i2Ui1_filtered, corr_idxs_i1i2_filtered, two_view_reports_filtered = dask.delayed(self.__filter_with_edges, nout=4)(
+            i2Ri1, i2Ui1, corr_idxs_i1i2, two_view_reports, view_graph_edges
         )
-        view_graph_estimation_metrics = dask.delayed(self.compute_metrics)(two_view_reports, view_graph_edges)
+        view_graph_estimation_metrics = dask.delayed(self.compute_metrics)(i2Ri1, i2Ui1, calibrations, two_view_reports, view_graph_edges)
         return i2Ri1_filtered, i2Ui1_filtered, corr_idxs_i1i2_filtered, two_view_reports_filtered, view_graph_estimation_metrics
