@@ -79,7 +79,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         calibrations: List[Cal3Bundler],
         corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
         keypoints: List[Keypoints],
-        two_view_reports: Dict[Tuple[int, int]: TwoViewEstimationReport],
+        two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
     ) -> Set[Tuple[int, int]]:
         """Estimates the view graph using the rotation consistency constraint in a cycle of 3 edges.
 
@@ -138,7 +138,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         cycle_errors: List[float],
         max_gt_error_in_cycle: List[float],
         per_edge_aggregate_error: Dict[Tuple[int, int], float],
-        two_view_reports_dict: Dict[Tuple[int, int]: TwoViewEstimationReport],
+        two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
     ) -> None:
         """Saves plots of aggregate error vs GT error for each edge, and cyclic error vs max GT error for each cycle.
 

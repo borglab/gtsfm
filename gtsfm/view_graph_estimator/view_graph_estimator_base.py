@@ -41,7 +41,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         calibrations: List[Cal3Bundler],
         corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
         keypoints: List[Keypoints],
-        two_view_reports: Dict[Tuple[int, int]: TwoViewEstimationReport],
+        two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
     ) -> Set[Tuple[int, int]]:
         """Estimates the view graph, needs to be implemented by the derived class. 
 
