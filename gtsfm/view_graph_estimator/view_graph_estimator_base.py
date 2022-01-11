@@ -57,7 +57,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             Edges of the view-graph, which are the subset of the image pairs in the input args.
         """
 
-    def __filter_with_edges(
+    def _filter_with_edges(
         self,
         i2Ri1: Dict[Tuple[int, int], Rot3],
         i2Ui1: Dict[Tuple[int, int], Unit3],
@@ -182,7 +182,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             - GtsfmMetricsGroup with the view graph estimation metrics
         """
         view_graph_edges = dask.delayed(self.run)(i2Ri1, i2Ui1, calibrations, corr_idxs_i1i2, keypoints, two_view_reports)
-        i2Ri1_filtered, i2Ui1_filtered, corr_idxs_i1i2_filtered, two_view_reports_filtered = dask.delayed(self.__filter_with_edges, nout=4)(
+        i2Ri1_filtered, i2Ui1_filtered, corr_idxs_i1i2_filtered, two_view_reports_filtered = dask.delayed(self._filter_with_edges, nout=4)(
             i2Ri1, i2Ui1, corr_idxs_i1i2, two_view_reports, view_graph_edges
         )
         view_graph_estimation_metrics = dask.delayed(self.compute_metrics)(i2Ri1, i2Ui1, calibrations, two_view_reports, view_graph_edges)
