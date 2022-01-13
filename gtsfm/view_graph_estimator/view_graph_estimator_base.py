@@ -119,23 +119,30 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
 
         inlier_R_angular_errors = []
         outlier_R_angular_errors = []
-
         inlier_U_angular_errors = []
         outlier_U_angular_errors = []
 
         for (i1, i2), report in two_view_reports.items():
             if report is None:
                 logger.error('TwoViewEstimationReport is None for ({}, {})'.format(i1, i2))
-            if (i1, i2) in inlier_i1_i2:
-                inlier_R_angular_errors.append(report.R_error_deg)
-                inlier_U_angular_errors.append(report.U_error_deg)
-            else:
-                outlier_R_angular_errors.append(report.R_error_deg)
-                outlier_U_angular_errors.append(report.U_error_deg)
+            if report.R_error_deg is not None:
+                if (i1, i2) in inlier_i1_i2:
+                    inlier_R_angular_errors.append(report.R_error_deg)
+                else:
+                    outlier_R_angular_errors.append(report.R_error_deg)
+            if report.U_error_deg is not None:
+                if (i1, i2) in inlier_i1_i2:
+                    inlier_U_angular_errors.append(report.U_error_deg)
+                else:
+                    outlier_U_angular_errors.append(report.U_error_deg)
 
+        logger.info("Calling PR computation for R errors")
+        print("inlier errors ", inlier_R_angular_errors)
+        print("outlier errors", outlier_R_angular_errors)
         R_precision, R_recall = metrics_utils.get_precision_recall_from_errors(
             inlier_R_angular_errors, outlier_R_angular_errors, MAX_INLIER_MEASUREMENT_ERROR_DEG
         )
+
         U_precision, U_recall = metrics_utils.get_precision_recall_from_errors(
             inlier_U_angular_errors, outlier_U_angular_errors, MAX_INLIER_MEASUREMENT_ERROR_DEG
         )
