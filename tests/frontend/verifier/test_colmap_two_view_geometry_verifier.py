@@ -51,6 +51,7 @@ def test_pose_from_homography_matrix_notre_dame() -> None:
     # # images_dir = "/Users/jlambert/Downloads/gtsfm/tests/data/set1_lund_door/images"
     # colmap_files_dirpath = "/Users/jlambert/Downloads/gtsfm/tests/data/set1_lund_door/colmap_ground_truth"
 
+    # GRIC (1.92, 0.71) vs. RASNAC (5.23, 4.0)
     images_dir = "/Users/jlambert/Downloads/skydio8/images"
     colmap_files_dirpath = "/Users/jlambert/Downloads/skydio8/colmap-skydio-8"
 
