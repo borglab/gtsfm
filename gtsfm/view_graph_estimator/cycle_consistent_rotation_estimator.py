@@ -5,7 +5,7 @@ Authors: John Lambert, Ayush Baid, Akshay Krishnan
 import os
 from collections import defaultdict
 from enum import Enum
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Set, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,7 +15,6 @@ import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.two_view_estimator import TwoViewEstimationReport
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
 
