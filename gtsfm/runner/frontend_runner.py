@@ -17,7 +17,9 @@ from gtsfm.two_view_estimator import TwoViewEstimator
 
 def run_frontend(
     loader: LoaderBase, feature_extractor: FeatureExtractor, two_view_estimator: TwoViewEstimator
-) -> Tuple[List[Keypoints], Dict[Tuple[int,int], Rot3], Dict[Tuple[int,int], Unit3], Dict[Tuple[int,int], np.ndarray]]:
+) -> Tuple[
+    List[Keypoints], Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3], Dict[Tuple[int, int], np.ndarray]
+]:
     """Creates the front-end computation graph, and then runs it.
 
     Note: Copied from SceneOptimizer class, without back-end code.

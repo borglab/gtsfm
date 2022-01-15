@@ -18,6 +18,7 @@ import gtsfm.averaging.rotation.cycle_consistency as cycle_consistency
 import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.two_view_estimator as two_view_estimator
 import gtsfm.utils.ellipsoid as ellipsoid_utils
+import gtsfm.utils.epipolar_point_transfer as point_transfer_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
@@ -194,16 +195,26 @@ class SceneOptimizer:
         # ensure cycle consistency in triplets
         # TODO: add a get_computational_graph() method to ViewGraphOptimizer
         # TODO(johnwlambert): use a different name for variable, since this is something different
-        i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict, rcc_metrics_graph = dask.delayed(
-            cycle_consistency.filter_to_cycle_consistent_edges, nout=4
-        )(
+        # i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict, rcc_metrics_graph = dask.delayed(
+        #     cycle_consistency.filter_to_cycle_consistent_edges, nout=4
+        # )(
+        #     i2Ri1_graph_dict,
+        #     i2Ui1_graph_dict,
+        #     v_corr_idxs_graph_dict,
+        #     two_view_reports_dict[POST_ISP_REPORT_TAG],
+        #     EdgeErrorAggregationCriterion.MEDIAN_EDGE_ERROR,
+        # )
+        # metrics_graph_list.append(rcc_metrics_graph)
+
+        i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict = dask.delayed(
+            point_transfer_utils.filter_to_cycle_consistent_edges, nout=3)(
             i2Ri1_graph_dict,
             i2Ui1_graph_dict,
             v_corr_idxs_graph_dict,
-            two_view_reports_dict[POST_ISP_REPORT_TAG],
-            EdgeErrorAggregationCriterion.MEDIAN_EDGE_ERROR,
+            keypoints_graph_list,
+            camera_intrinsics_dict=camera_intrinsics_graph,
+            two_view_reports_dict=two_view_reports_dict[POST_ISP_REPORT_TAG],
         )
-        metrics_graph_list.append(rcc_metrics_graph)
 
         def _filter_dict_keys(dict: Dict[Any, Any], ref_dict: Dict[Any, Any]) -> Dict[Any, Any]:
             """Return a subset of a dictionary based on keys present in the reference dictionary."""
