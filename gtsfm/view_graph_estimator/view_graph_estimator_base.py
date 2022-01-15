@@ -7,8 +7,7 @@ that include filtering or optimizing the two-view estimates.
 Authors: Akshay Krishnan, Ayush Baid
 """
 import abc
-from logging import Logger
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Set, Tuple
 
 import dask
 import numpy as np
@@ -25,6 +24,7 @@ MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
 METRIC_GROUP = "view_graph"
 
 logger = logger_utils.get_logger()
+
 
 class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
     """Base class for ViewGraph estimation.
@@ -43,7 +43,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         keypoints: List[Keypoints],
         two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
     ) -> Set[Tuple[int, int]]:
-        """Estimates the view graph, needs to be implemented by the derived class. 
+        """Estimates the view graph, needs to be implemented by the derived class.
 
         Args:
             i2Ri1: Dict from (i1, i2) to relative rotation of i1 with respect to i2.
@@ -64,7 +64,12 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
         two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
         edges_to_select: Set[Tuple[int, int]],
-    ) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3], Dict[Tuple[int, int], np.ndarray], Dict[Tuple[int, int], TwoViewEstimationReport]]:
+    ) -> Tuple[
+        Dict[Tuple[int, int], Rot3],
+        Dict[Tuple[int, int], Unit3],
+        Dict[Tuple[int, int], np.ndarray],
+        Dict[Tuple[int, int], TwoViewEstimationReport],
+    ]:
         """Filter the dictionaries of 2-view results with the image-pair edges.
         Args:
             i2Ri1: Dict from (i1, i2) to relative rotation of i1 with respect to i2.
@@ -83,7 +88,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             {edge: i2Ri1[edge] for edge in edges_to_select},
             {edge: i2Ui1[edge] for edge in edges_to_select},
             {edge: corr_idxs_i1i2[edge] for edge in edges_to_select},
-            {edge: two_view_reports[edge] for edge in edges_to_select}
+            {edge: two_view_reports[edge] for edge in edges_to_select},
         )
 
     def compute_metrics(
@@ -124,7 +129,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
 
         for (i1, i2), report in two_view_reports.items():
             if report is None:
-                logger.error('TwoViewEstimationReport is None for ({}, {})'.format(i1, i2))
+                logger.error("TwoViewEstimationReport is None for ({}, {})".format(i1, i2))
             if report.R_error_deg is not None:
                 if (i1, i2) in inlier_i1_i2:
                     inlier_R_angular_errors.append(report.R_error_deg)
@@ -171,26 +176,37 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         two_view_reports: Delayed,
     ) -> Tuple[Delayed, Delayed, Delayed, Delayed, Delayed]:
         """Create the computation graph for ViewGraph estimation and metric evaluation.
-        
+
         Args:
             i2Ri1: Dict from (i1, i2) to relative rotation of i1 with respect to i2, wrapped as Delayed.
             i2Ui1: Dict from (i1, i2) to relative translation direction of i1 with respect to i2, wrapped as Delayed.
             calibrations: list of calibrations for each image, wrapped as Delayed.
-            corr_idxs_i1i2: Dict from (i1, i2) to indices of verified correspondences from i1 to i2, wrapped as Delayed.
+            corr_idxs_i1i2: Dict from (i1, i2) to indices of verified correspondences from i1 to i2,
+                wrapped as Delayed.
             keypoints: keypoints for each images, wrapped as Delayed.
             two_view_reports: Dict from (i1, i2) to TwoViewEstimationReport that contains metrics, wrapped as Delayed.
 
         Returns:
             Tuple of the following 5 elements, all wrapped as Delayed:
-            - Dict of i2Ri1 in the view graph 
+            - Dict of i2Ri1 in the view graph
             - Dict of i2Ui1 in the view graph
             - Dict of corr_idxs_i1i2 in the view graph
             - Dict of two_view_reports in the view graph
             - GtsfmMetricsGroup with the view graph estimation metrics
         """
-        view_graph_edges = dask.delayed(self.run)(i2Ri1, i2Ui1, calibrations, corr_idxs_i1i2, keypoints, two_view_reports)
-        i2Ri1_filtered, i2Ui1_filtered, corr_idxs_i1i2_filtered, two_view_reports_filtered = dask.delayed(self._filter_with_edges, nout=4)(
-            i2Ri1, i2Ui1, corr_idxs_i1i2, two_view_reports, view_graph_edges
+        view_graph_edges = dask.delayed(self.run)(
+            i2Ri1, i2Ui1, calibrations, corr_idxs_i1i2, keypoints, two_view_reports
         )
-        view_graph_estimation_metrics = dask.delayed(self.compute_metrics)(i2Ri1, i2Ui1, calibrations, two_view_reports, view_graph_edges)
-        return i2Ri1_filtered, i2Ui1_filtered, corr_idxs_i1i2_filtered, two_view_reports_filtered, view_graph_estimation_metrics
+        i2Ri1_filtered, i2Ui1_filtered, corr_idxs_i1i2_filtered, two_view_reports_filtered = dask.delayed(
+            self._filter_with_edges, nout=4
+        )(i2Ri1, i2Ui1, corr_idxs_i1i2, two_view_reports, view_graph_edges)
+        view_graph_estimation_metrics = dask.delayed(self.compute_metrics)(
+            i2Ri1, i2Ui1, calibrations, two_view_reports, view_graph_edges
+        )
+        return (
+            i2Ri1_filtered,
+            i2Ui1_filtered,
+            corr_idxs_i1i2_filtered,
+            two_view_reports_filtered,
+            view_graph_estimation_metrics,
+        )
