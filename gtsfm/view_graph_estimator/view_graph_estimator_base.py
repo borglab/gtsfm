@@ -184,7 +184,8 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
 
         Args:
             i2Ri1_dict: Dict from (i1, i2) to relative rotation of i1 with respect to i2, wrapped as Delayed.
-            i2Ui1_dict: Dict from (i1, i2) to relative translation direction of i1 with respect to i2, wrapped as Delayed.
+            i2Ui1_dict: Dict from (i1, i2) to relative translation direction of i1 with respect to i2,
+                wrapped as Delayed.
             calibrations: list of calibrations for each image, wrapped as Delayed.
             corr_idxs_i1i2: Dict from (i1, i2) to indices of verified correspondences from i1 to i2,
                 wrapped as Delayed.
