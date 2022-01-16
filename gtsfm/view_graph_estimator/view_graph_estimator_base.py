@@ -102,7 +102,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         i2Ui1_dict: Dict[Tuple[int, int], Unit3],
         calibrations: List[Cal3Bundler],
         two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
-        view_graph_edges: Tuple[int, int],
+        view_graph_edges: List[Tuple[int, int]],
     ) -> GtsfmMetricsGroup:
         """Metric computation for the view optimizer by selecting a subset of two-view reports for the pairs which
         are the edges of the view-graph. This can be overrided by implementations to define custom metrics.
@@ -200,14 +200,32 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             - GtsfmMetricsGroup with the view graph estimation metrics
         """
         view_graph_edges = dask.delayed(self.run)(
-            i2Ri1_dict, i2Ui1_dict, calibrations, corr_idxs_i1i2, keypoints, two_view_reports
+            i2Ri1_dict=i2Ri1_dict,
+            i2Ui1_dict=i2Ui1_dict,
+            calibrations=calibrations,
+            corr_idxs_i1i2=corr_idxs_i1i2,
+            keypoints=keypoints,
+            two_view_reports=two_view_reports,
         )
+
         i2Ri1_filtered, i2Ui1_filtered, corr_idxs_i1i2_filtered, two_view_reports_filtered = dask.delayed(
             self._filter_with_edges, nout=4
-        )(i2Ri1, i2Ui1, corr_idxs_i1i2, two_view_reports, view_graph_edges)
-        view_graph_estimation_metrics = dask.delayed(self.compute_metrics)(
-            i2Ri1, i2Ui1, calibrations, two_view_reports, view_graph_edges
+        )(
+            i2Ri1_dict=i2Ri1_dict,
+            i2Ui1_dict=i2Ui1_dict,
+            corr_idxs_i1i2=corr_idxs_i1i2,
+            two_view_reports=two_view_reports,
+            edges_to_select=view_graph_edges,
         )
+
+        view_graph_estimation_metrics = dask.delayed(self.compute_metrics)(
+            i2Ri1_dict=i2Ri1_dict,
+            i2Ui1_dict=i2Ui1_dict,
+            calibrations=calibrations,
+            two_view_reports=two_view_reports,
+            view_graph_edges=view_graph_edges,
+        )
+
         return (
             i2Ri1_filtered,
             i2Ui1_filtered,
