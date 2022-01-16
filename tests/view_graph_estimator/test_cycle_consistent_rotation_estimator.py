@@ -51,7 +51,14 @@ def test_filter_to_cycle_consistent_edges() -> None:
     calibrations = {k: Cal3Bundler() for k in range(0, 5)}
     corr_idxs_i1i2 = {i1i2: np.array([]) for i1i2 in i2Ri1_dict.keys()}
     keypoints = {k: np.array([]) for k in range(0, 5)}
-    two_view_reports = None
+    
+    # populate dummy 2-view reports
+    two_view_reports = {}
+    for (i1, i2) in i2Ri1_dict.keys():
+        two_view_reports[(i1, i2)] = TwoViewEstimationReport(
+            v_corr_idxs=np.array([]),  # dummy array
+            num_inliers_est_model=10,  # dummy value
+        )
 
     rcc_estimator = CycleConsistentRotationViewGraphEstimator(EdgeErrorAggregationCriterion.MEDIAN_EDGE_ERROR)
     viewgraph_edges = rcc_estimator.run(

@@ -70,17 +70,21 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         Dict[Tuple[int, int], np.ndarray],
         Dict[Tuple[int, int], TwoViewEstimationReport],
     ]:
-        """Filter the dictionaries of 2-view results with the image-pair edges.
+        """Filters the dictionaries of 2-view results with the image-pair edges.
+        
+        Note: (key,value) pairs are preserved only if the key (i1,i2) corresponds to an edge
+        that was deemed to be accurate with high probability by the ViewGraphEstimator.
+
         Args:
             i2Ri1_dict: Dict from (i1, i2) to relative rotation of i1 with respect to i2.
             i2Ui1_dict: Dict from (i1, i2) to relative translation direction of i1 with respect to i2.
             corr_idxs_i1i2: Dict from (i1, i2) to indices of verified correspondences from i1 to i2.
             two_view_reports: two-view reports between image pairs from the TwoViewEstimator.
-            edges_to_select: edges to select (tuple of image pair indices)
+            edges_to_select: edges to select (tuple of image pair indices).
 
         Returns:
-            Subset of i2Ri1.
-            Subset of i2Ui1.
+            Subset of i2Ri1_dict.
+            Subset of i2Ui1_dict
             Subset of corr_idxs_i1i2.
             Subset of two_view_reports.
         """

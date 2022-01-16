@@ -1,4 +1,4 @@
-"""A ViewGraphEstimator implementation which ensures relative rotations are consistent in the cycles of the graph.
+"""A ViewGraphEstimator implementation which ensures relative rotations are consistent in the 3-cycles of the graph.
 
 Authors: John Lambert, Ayush Baid, Akshay Krishnan
 """

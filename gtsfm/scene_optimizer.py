@@ -193,7 +193,7 @@ class SceneOptimizer:
         (
             ba_input_graph,
             ba_output_graph,
-            view_graph_two_view_report,
+            view_graph_two_view_reports,
             optimizer_metrics_graph,
         ) = self.multiview_optimizer.create_computation_graph(
             image_graph,
@@ -206,11 +206,11 @@ class SceneOptimizer:
             two_view_reports_dict[POST_ISP_REPORT_TAG],
             gt_cameras_graph,
         )
-        if view_graph_two_view_report is not None:
-            two_view_reports_dict[VIEWGRAPH_REPORT_TAG] = view_graph_two_view_report
+        if view_graph_two_view_reports is not None:
+            two_view_reports_dict[VIEWGRAPH_REPORT_TAG] = view_graph_two_view_reports
 
         # Persist all front-end metrics and their summaries.
-        # TODO(akshay-krishnan): this delays saving the frontend reports util MVO has completed, not ideal.
+        # TODO(akshay-krishnan): this delays saving the frontend reports until MVO has completed, not ideal.
         for tag, report_dict in two_view_reports_dict.items():
             auxiliary_graph_list.append(
                 dask.delayed(save_full_frontend_metrics)(
