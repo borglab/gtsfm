@@ -54,7 +54,14 @@ def test_filter_to_cycle_consistent_edges() -> None:
     two_view_reports = None
 
     rcc_estimator = CycleConsistentRotationViewGraphEstimator(EdgeErrorAggregationCriterion.MEDIAN_EDGE_ERROR)
-    viewgraph_edges = rcc_estimator.run(i2Ri1_dict, i2Ui1_dict, calibrations, corr_idxs_i1i2, keypoints, two_view_reports)
+    viewgraph_edges = rcc_estimator.run(
+        i2Ri1_dict=i2Ri1_dict,
+        i2Ui1_dict=i2Ui1_dict,
+        calibrations=calibrations,
+        corr_idxs_i1i2=corr_idxs_i1i2,
+        keypoints=keypoints,
+        two_view_reports=two_view_reports
+    )
 
     # non-self-consistent triplet should have been removed
     expected_edges = {(0, 1), (1, 2), (0, 2)}

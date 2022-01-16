@@ -36,8 +36,8 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def run(
         self,
-        i2Ri1: Dict[Tuple[int, int], Rot3],
-        i2Ui1: Dict[Tuple[int, int], Unit3],
+        i2Ri1_dict: Dict[Tuple[int, int], Rot3],
+        i2Ui1_dict: Dict[Tuple[int, int], Unit3],
         calibrations: List[Cal3Bundler],
         corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
         keypoints: List[Keypoints],
@@ -46,8 +46,8 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         """Estimates the view graph, needs to be implemented by the derived class.
 
         Args:
-            i2Ri1: Dict from (i1, i2) to relative rotation of i1 with respect to i2.
-            i2Ui1: Dict from (i1, i2) to relative translation direction of i1 with respect to i2.
+            i2Ri1_dict: Dict from (i1, i2) to relative rotation of i1 with respect to i2.
+            i2Ui1_dict: Dict from (i1, i2) to relative translation direction of i1 with respect to i2.
             calibrations: list of calibrations for each image.
             corr_idxs_i1i2: Dict from (i1, i2) to indices of verified correspondences from i1 to i2.
             keypoints: keypoints for each images.
@@ -59,8 +59,8 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
 
     def _filter_with_edges(
         self,
-        i2Ri1: Dict[Tuple[int, int], Rot3],
-        i2Ui1: Dict[Tuple[int, int], Unit3],
+        i2Ri1_dict: Dict[Tuple[int, int], Rot3],
+        i2Ui1_dict: Dict[Tuple[int, int], Unit3],
         corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
         two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
         edges_to_select: Set[Tuple[int, int]],
@@ -72,8 +72,8 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
     ]:
         """Filter the dictionaries of 2-view results with the image-pair edges.
         Args:
-            i2Ri1: Dict from (i1, i2) to relative rotation of i1 with respect to i2.
-            i2Ui1: Dict from (i1, i2) to relative translation direction of i1 with respect to i2.
+            i2Ri1_dict: Dict from (i1, i2) to relative rotation of i1 with respect to i2.
+            i2Ui1_dict: Dict from (i1, i2) to relative translation direction of i1 with respect to i2.
             corr_idxs_i1i2: Dict from (i1, i2) to indices of verified correspondences from i1 to i2.
             two_view_reports: two-view reports between image pairs from the TwoViewEstimator.
             edges_to_select: edges to select (tuple of image pair indices)
@@ -85,16 +85,16 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             Subset of two_view_reports.
         """
         return (
-            {edge: i2Ri1[edge] for edge in edges_to_select},
-            {edge: i2Ui1[edge] for edge in edges_to_select},
+            {edge: i2Ri1_dict[edge] for edge in edges_to_select},
+            {edge: i2Ui1_dict[edge] for edge in edges_to_select},
             {edge: corr_idxs_i1i2[edge] for edge in edges_to_select},
             {edge: two_view_reports[edge] for edge in edges_to_select},
         )
 
     def compute_metrics(
         self,
-        i2Ri1: Dict[Tuple[int, int], Rot3],
-        i2Ui1: Dict[Tuple[int, int], Unit3],
+        i2Ri1_dict: Dict[Tuple[int, int], Rot3],
+        i2Ui1_dict: Dict[Tuple[int, int], Unit3],
         calibrations: List[Cal3Bundler],
         two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
         view_graph_edges: Tuple[int, int],
@@ -103,8 +103,8 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         are the edges of the view-graph. This can be overrided by implementations to define custom metrics.
 
         Args:
-            i2Ri1: Dict from (i1, i2) to relative rotation of i1 with respect to i2.
-            i2Ui1: Dict from (i1, i2) to relative translation direction of i1 with respect to i2.
+            i2Ri1_dict: Dict from (i1, i2) to relative rotation of i1 with respect to i2.
+            i2Ui1_dict: Dict from (i1, i2) to relative translation direction of i1 with respect to i2.
             calibrations: list of calibrations for each image.
             two_view_reports: two-view reports between image pairs from the TwoViewEstimator.
             view_graph_edges: edges of the view-graph.
@@ -168,8 +168,8 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
 
     def create_computation_graph(
         self,
-        i2Ri1: Delayed,
-        i2Ui1: Delayed,
+        i2Ri1_dict: Delayed,
+        i2Ui1_dict: Delayed,
         calibrations: Delayed,
         corr_idxs_i1i2: Delayed,
         keypoints: Delayed,
@@ -178,8 +178,8 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         """Create the computation graph for ViewGraph estimation and metric evaluation.
 
         Args:
-            i2Ri1: Dict from (i1, i2) to relative rotation of i1 with respect to i2, wrapped as Delayed.
-            i2Ui1: Dict from (i1, i2) to relative translation direction of i1 with respect to i2, wrapped as Delayed.
+            i2Ri1_dict: Dict from (i1, i2) to relative rotation of i1 with respect to i2, wrapped as Delayed.
+            i2Ui1_dict: Dict from (i1, i2) to relative translation direction of i1 with respect to i2, wrapped as Delayed.
             calibrations: list of calibrations for each image, wrapped as Delayed.
             corr_idxs_i1i2: Dict from (i1, i2) to indices of verified correspondences from i1 to i2,
                 wrapped as Delayed.
@@ -195,7 +195,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             - GtsfmMetricsGroup with the view graph estimation metrics
         """
         view_graph_edges = dask.delayed(self.run)(
-            i2Ri1, i2Ui1, calibrations, corr_idxs_i1i2, keypoints, two_view_reports
+            i2Ri1_dict, i2Ui1_dict, calibrations, corr_idxs_i1i2, keypoints, two_view_reports
         )
         i2Ri1_filtered, i2Ui1_filtered, corr_idxs_i1i2_filtered, two_view_reports_filtered = dask.delayed(
             self._filter_with_edges, nout=4

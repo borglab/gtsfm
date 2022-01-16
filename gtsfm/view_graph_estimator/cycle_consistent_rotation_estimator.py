@@ -73,8 +73,8 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
 
     def run(
         self,
-        i2Ri1: Dict[Tuple[int, int], Rot3],
-        i2Ui1: Dict[Tuple[int, int], Unit3],
+        i2Ri1_dict: Dict[Tuple[int, int], Rot3],
+        i2Ui1_dict: Dict[Tuple[int, int], Unit3],
         calibrations: List[Cal3Bundler],
         corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
         keypoints: List[Keypoints],
@@ -83,8 +83,8 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         """Estimates the view graph using the rotation consistency constraint in a cycle of 3 edges.
 
         Args:
-            i2Ri1: Dict from (i1, i2) to relative rotation of i1 with respect to i2.
-            i2Ui1: Dict from (i1, i2) to relative translation direction of i1 with respect to i2 (unused).
+            i2Ri1_dict: Dict from (i1, i2) to relative rotation of i1 with respect to i2.
+            i2Ui1_dict: Dict from (i1, i2) to relative translation direction of i1 with respect to i2 (unused).
             calibrations: list of calibrations for each image (unused).
             corr_idxs_i1i2: Dict from (i1, i2) to indices of verified correspondences from i1 to i2 (unused).
             keypoints: keypoints for each images (unused).
@@ -95,8 +95,8 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         """
         # pylint: disable=unused-argument
 
-        logger.info("Input number of edges: %d" % len(i2Ri1))
-        input_edges: List[Tuple[int, int]] = self.__get_valid_input_edges(i2Ri1)
+        logger.info("Input number of edges: %d" % len(i2Ri1_dict))
+        input_edges: List[Tuple[int, int]] = self.__get_valid_input_edges(i2Ri1_dict)
         triplets: List[Tuple[int, int, int]] = graph_utils.extract_cyclic_triplets_from_edges(input_edges)
 
         logger.info("Number of triplets: %d" % len(triplets))
@@ -108,7 +108,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         # Compute the cycle error for each triplet, and add it to its edges for aggregation.
         for i0, i1, i2 in triplets:  # sort order guaranteed
             error = comp_utils.compute_cyclic_rotation_error(
-                i1Ri0=i2Ri1[(i0, i1)], i2Ri1=i2Ri1[(i1, i2)], i2Ri0=i2Ri1[(i0, i2)]
+                i1Ri0=i2Ri1_dict[(i0, i1)], i2Ri1=i2Ri1_dict[(i1, i2)], i2Ri0=i2Ri1_dict[(i0, i2)]
             )
             cycle_errors.append(error)
             per_edge_errors[(i0, i1)].append(error)
@@ -191,19 +191,19 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         plt.savefig(os.path.join("plots", "cycle_error_vs_GT_rot_error.jpg"), dpi=400)
         plt.close("all")
 
-    def __get_valid_input_edges(self, i2Ri1: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int, int]]:
+    def __get_valid_input_edges(self, i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int, int]]:
         """Gets the input edges (i1, i2) with the relative rotation i2Ri1 where:
         1. i1 < i2
         2. i2Ri1 is not None
 
         Args:
-            i2Ri1: input dictionary of relative rotations.
+            i2Ri1_dict: input dictionary of relative rotations.
 
         Returns:
             List of valid edges.
         """
         valid_edges = []
-        for (i1, i2), i2Ri1 in i2Ri1.items():
+        for (i1, i2), i2Ri1 in i2Ri1_dict.items():
             if i2Ri1 is None or i1 >= i2:
                 logger.error("Incorrectly ordered edge indices found in cycle consistency for ({i1}, {i2})")
                 continue
