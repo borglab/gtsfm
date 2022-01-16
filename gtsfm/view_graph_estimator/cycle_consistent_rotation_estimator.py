@@ -20,8 +20,10 @@ from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstima
 
 logger = logger_utils.get_logger()
 
+# threshold for cycle consistency inference
 ERROR_THRESHOLD = 7.0
 
+# threshold for evaluation w.r.t. GT
 MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
 
 
@@ -114,11 +116,14 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
             per_edge_errors[(i0, i1)].append(error)
             per_edge_errors[(i1, i2)].append(error)
             per_edge_errors[(i0, i2)].append(error)
-            if two_view_reports is not None:
-                gt_error1 = two_view_reports[(i0, i1)].R_error_deg
-                gt_error2 = two_view_reports[(i1, i2)].R_error_deg
-                gt_error3 = two_view_reports[(i0, i2)].R_error_deg
-                max_gt_error_in_cycle.append(max(gt_error1, gt_error2, gt_error3))
+            
+            # form 3 edges e_i, e_j, e_k between fully connected subgraph (nodes i0,i1,i2)
+            edges = [(i0, i1), (i1, i2), (i0, i2)]
+            rot_errors = [two_view_reports[e].R_error_deg for e in edges]
+            gt_known = all([err is not None for err in rot_errors])
+            # if ground truth unknown, cannot estimate error w.r.t. GT
+            max_rot_error = float(np.max(rot_errors)) if gt_known else None
+            max_gt_error_in_cycle.append(max_rot_error)
 
         # Filter the edges based on the aggregate error.
         per_edge_aggregate_error = {

@@ -20,6 +20,7 @@ from gtsfm.common.keypoints import Keypoints
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.two_view_estimator import TwoViewEstimationReport
 
+# threshold for evaluation w.r.t. GT
 MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
 METRIC_GROUP = "view_graph"
 
@@ -71,7 +72,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         Dict[Tuple[int, int], TwoViewEstimationReport],
     ]:
         """Filters the dictionaries of 2-view results with the image-pair edges.
-        
+
         Note: (key,value) pairs are preserved only if the key (i1,i2) corresponds to an edge
         that was deemed to be accurate with high probability by the ViewGraphEstimator.
 
