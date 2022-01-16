@@ -116,7 +116,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
             per_edge_errors[(i0, i1)].append(error)
             per_edge_errors[(i1, i2)].append(error)
             per_edge_errors[(i0, i2)].append(error)
-            
+
             # form 3 edges e_i, e_j, e_k between fully connected subgraph (nodes i0,i1,i2)
             edges = [(i0, i1), (i1, i2), (i0, i2)]
             rot_errors = [two_view_reports[e].R_error_deg for e in edges]
@@ -209,11 +209,12 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         """
         valid_edges = []
         for (i1, i2), i2Ri1 in i2Ri1_dict.items():
-            if i2Ri1 is None or i1 >= i2:
-                logger.error("Incorrectly ordered edge indices found in cycle consistency for ({i1}, {i2})")
+            if i2Ri1 is None:
+                continue  # edge was previously discarded for insufficient support
+            if i1 >= i2:
+                logger.error("Incorrectly ordered edge indices found in cycle consistency for (%d, %d)", i1, i2)
                 continue
-            else:
-                valid_edges.append((i1, i2))
+            valid_edges.append((i1, i2))
 
         return valid_edges
 
