@@ -61,7 +61,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             Edges of the view-graph, which are the subset of the image pairs in the input args.
         """
 
-    def __get_valid_input_edges(
+    def _get_valid_input_edges(
         self, 
         i2Ri1_dict: Dict[Tuple[int, int], Rot3],
         i2Ui1_dict: Dict[Tuple[int, int], Unit3]
@@ -236,7 +236,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             - GtsfmMetricsGroup with the view graph estimation metrics
         """
         # Remove all invalid edges in the input dicts.
-        valid_edges = dask.delayed(self.__get_valid_input_edges)(
+        valid_edges = dask.delayed(self._get_valid_input_edges)(
             i2Ri1_dict=i2Ri1_dict,
             i2Ui1_dict=i2Ui1_dict,
         )
