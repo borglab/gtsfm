@@ -5,7 +5,7 @@ Authors: Ayush Baid, John Lambert
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import dask
 import matplotlib
@@ -14,7 +14,6 @@ from trimesh import Trimesh
 from gtsam import Pose3, Similarity3
 from dask.delayed import Delayed
 
-import gtsfm.averaging.rotation.cycle_consistency as cycle_consistency
 import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.two_view_estimator as two_view_estimator
 import gtsfm.utils.ellipsoid as ellipsoid_utils
@@ -23,7 +22,6 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.viz as viz_utils
 from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.averaging.rotation.cycle_consistency import EdgeErrorAggregationCriterion
 from gtsfm.common.image import Image
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.feature_extractor import FeatureExtractor
@@ -34,7 +32,7 @@ from gtsfm.two_view_estimator import (
     PRE_BA_REPORT_TAG,
     POST_BA_REPORT_TAG,
     POST_ISP_REPORT_TAG,
-    POST_CYCLE_CONSISTENT_REPORT_TAG,
+    VIEWGRAPH_REPORT_TAG,
 )
 
 matplotlib.use("Agg")
@@ -191,31 +189,28 @@ class SceneOptimizer:
         keypoints_graph_list = dask.delayed(lambda x, y: (x, y))(keypoints_graph_list, auxiliary_graph_list)[0]
         auxiliary_graph_list = []
 
-        # ensure cycle consistency in triplets
-        # TODO: add a get_computational_graph() method to ViewGraphOptimizer
-        # TODO(johnwlambert): use a different name for variable, since this is something different
-        i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict, rcc_metrics_graph = dask.delayed(
-            cycle_consistency.filter_to_cycle_consistent_edges, nout=4
-        )(
+        # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
+        (
+            ba_input_graph,
+            ba_output_graph,
+            view_graph_two_view_reports,
+            optimizer_metrics_graph,
+        ) = self.multiview_optimizer.create_computation_graph(
+            image_graph,
+            num_images,
+            keypoints_graph_list,
             i2Ri1_graph_dict,
             i2Ui1_graph_dict,
             v_corr_idxs_graph_dict,
+            camera_intrinsics_graph,
             two_view_reports_dict[POST_ISP_REPORT_TAG],
-            EdgeErrorAggregationCriterion.MEDIAN_EDGE_ERROR,
+            gt_cameras_graph,
         )
-        metrics_graph_list.append(rcc_metrics_graph)
-
-        def _filter_dict_keys(dict: Dict[Any, Any], ref_dict: Dict[Any, Any]) -> Dict[Any, Any]:
-            """Return a subset of a dictionary based on keys present in the reference dictionary."""
-            valid_keys = list(ref_dict.keys())
-            return {k: v for k, v in dict.items() if k in valid_keys}
-
-        if gt_cameras_graph is not None:
-            two_view_reports_dict[POST_CYCLE_CONSISTENT_REPORT_TAG] = dask.delayed(_filter_dict_keys)(
-                dict=two_view_reports_dict[POST_ISP_REPORT_TAG], ref_dict=i2Ri1_graph_dict
-            )
+        if view_graph_two_view_reports is not None:
+            two_view_reports_dict[VIEWGRAPH_REPORT_TAG] = view_graph_two_view_reports
 
         # Persist all front-end metrics and their summaries.
+        # TODO(akshay-krishnan): this delays saving the frontend reports until MVO has completed, not ideal.
         for tag, report_dict in two_view_reports_dict.items():
             auxiliary_graph_list.append(
                 dask.delayed(save_full_frontend_metrics)(
@@ -230,18 +225,6 @@ class SceneOptimizer:
                         metric_group_name="verifier_summary_{}".format(tag),
                     )
                 )
-
-        # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
-        (ba_input_graph, ba_output_graph, optimizer_metrics_graph) = self.multiview_optimizer.create_computation_graph(
-            image_graph,
-            num_images,
-            keypoints_graph_list,
-            i2Ri1_graph_dict,
-            i2Ui1_graph_dict,
-            v_corr_idxs_graph_dict,
-            camera_intrinsics_graph,
-            gt_cameras_graph,
-        )
 
         # aggregate metrics for multiview optimizer
         if optimizer_metrics_graph is not None:
