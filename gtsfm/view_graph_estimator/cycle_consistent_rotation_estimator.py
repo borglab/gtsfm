@@ -98,7 +98,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         # pylint: disable=unused-argument
 
         logger.info("Input number of edges: %d" % len(i2Ri1_dict))
-        input_edges: List[Tuple[int, int]] = self.__get_valid_input_edges(i2Ri1_dict)
+        input_edges: List[Tuple[int, int]] = i2Ri1_dict.keys()
         triplets: List[Tuple[int, int, int]] = graph_utils.extract_cyclic_triplets_from_edges(input_edges)
 
         logger.info("Number of triplets: %d" % len(triplets))

@@ -46,6 +46,9 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
     ) -> Set[Tuple[int, int]]:
         """Estimates the view graph, needs to be implemented by the derived class.
 
+        The input rotation and unit translation dicts are guaranteed to be valid, i.e., i1 < i2 and 
+        neither i2Ri1 nor i2Ui1 are None.
+
         Args:
             i2Ri1_dict: Dict from (i1, i2) to relative rotation of i1 with respect to i2.
             i2Ui1_dict: Dict from (i1, i2) to relative translation direction of i1 with respect to i2.
@@ -58,23 +61,33 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             Edges of the view-graph, which are the subset of the image pairs in the input args.
         """
 
-    def __get_valid_input_edges(self, i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int, int]]:
-        """Gets the input edges (i1, i2) with the relative rotation i2Ri1 where:
+    def __get_valid_input_edges(
+        self, 
+        i2Ri1_dict: Dict[Tuple[int, int], Rot3],
+        i2Ui1_dict: Dict[Tuple[int, int], Unit3]
+    ) -> List[Tuple[int, int]]:
+        """Gets the input edges (i1, i2):
         1. i1 < i2
-        2. i2Ri1 is not None
+        2. i2Ri1 and i2Ui1 are both not None.
 
         Args:
-            i2Ri1_dict: input dictionary of relative rotations.
+            i2Ri1_dict: Dict from (i1, i2) to relative rotation of i1 with respect to i2.
+            i2Ui1_dict: Dict from (i1, i2) to unit translation of i1 with respect to i2.
 
         Returns:
-            List of valid edges.
+            List of valid edge indices.
         """
         valid_edges = []
         for (i1, i2), i2Ri1 in i2Ri1_dict.items():
-            if i2Ri1 is None:
-                continue  # edge was previously discarded for insufficient support
             if i1 >= i2:
                 logger.error("Incorrectly ordered edge indices found in cycle consistency for (%d, %d)", i1, i2)
+                continue
+            if i2Ri1 is None:
+                continue  # edge was previously discarded for insufficient support
+            if (i1, i2) not in i2Ui1_dict:
+                logger.error("Found edge (%d, %d) in rotations dict but not in unit translations", i1, i2)
+                continue
+            if i2Ui1_dict[(i1, i2)] is None:
                 continue
             valid_edges.append((i1, i2))
 
@@ -145,9 +158,9 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         if len(two_view_reports) == 0:
             return GtsfmMetricsGroup(name="rotation_cycle_consistency_metrics", metrics=[])
 
-        valid_edges = self.__get_valid_input_edges(i2Ri1_dict)
+        input_i1_i2 = i2Ri1_dict.keys()
         inlier_i1_i2 = view_graph_edges
-        outlier_i1_i2 = list(set(valid_edges) - set(inlier_i1_i2))
+        outlier_i1_i2 = list(set(input_i1_i2) - set(inlier_i1_i2))
 
         inlier_R_angular_errors = []
         outlier_R_angular_errors = []
@@ -179,7 +192,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             inlier_U_angular_errors, outlier_U_angular_errors, MAX_INLIER_MEASUREMENT_ERROR_DEG
         )
         view_graph_metrics = [
-            GtsfmMetric("num_input_measurements", len(valid_edges)),
+            GtsfmMetric("num_input_measurements", len(input_i1_i2)),
             GtsfmMetric("num_inlier_measurements", len(inlier_i1_i2)),
             GtsfmMetric("num_outlier_measurements", len(outlier_i1_i2)),
             GtsfmMetric("R_precision", R_precision),
@@ -211,7 +224,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             calibrations: list of calibrations for each image, wrapped as Delayed.
             corr_idxs_i1i2: Dict from (i1, i2) to indices of verified correspondences from i1 to i2,
                 wrapped as Delayed.
-            keypoints: keypoints for each images, wrapped as Delayed.
+            keypoints: keypoints for each image, wrapped as Delayed.
             two_view_reports: Dict from (i1, i2) to TwoViewEstimationReport that contains metrics, wrapped as Delayed.
 
         Returns:
@@ -222,30 +235,47 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             - Dict of two_view_reports in the view graph
             - GtsfmMetricsGroup with the view graph estimation metrics
         """
-        view_graph_edges = dask.delayed(self.run)(
+        # Remove all invalid edges in the input dicts.
+        valid_edges = dask.delayed(self.__get_valid_input_edges)(
             i2Ri1_dict=i2Ri1_dict,
             i2Ui1_dict=i2Ui1_dict,
-            calibrations=calibrations,
-            corr_idxs_i1i2=corr_idxs_i1i2,
-            keypoints=keypoints,
-            two_view_reports=two_view_reports,
         )
-
-        i2Ri1_filtered, i2Ui1_filtered, corr_idxs_i1i2_filtered, two_view_reports_filtered = dask.delayed(
+        i2Ri1_valid_dict, i2Ui1_valid_dict, corr_idxs_i1i2_valid, two_view_reports_valid = dask.delayed(
             self._filter_with_edges, nout=4
         )(
             i2Ri1_dict=i2Ri1_dict,
             i2Ui1_dict=i2Ui1_dict,
             corr_idxs_i1i2=corr_idxs_i1i2,
             two_view_reports=two_view_reports,
+            edges_to_select=valid_edges,            
+        )
+
+        # Run view graph estimation.
+        view_graph_edges = dask.delayed(self.run)(
+            i2Ri1_dict=i2Ri1_valid_dict,
+            i2Ui1_dict=i2Ui1_valid_dict,
+            calibrations=calibrations,
+            corr_idxs_i1i2=corr_idxs_i1i2_valid,
+            keypoints=keypoints,
+            two_view_reports=two_view_reports_valid,
+        )
+
+        # Remove all edges that are not in the view graph.
+        i2Ri1_filtered, i2Ui1_filtered, corr_idxs_i1i2_filtered, two_view_reports_filtered = dask.delayed(
+            self._filter_with_edges, nout=4
+        )(
+            i2Ri1_dict=i2Ri1_valid_dict,
+            i2Ui1_dict=i2Ui1_valid_dict,
+            corr_idxs_i1i2=corr_idxs_i1i2_valid,
+            two_view_reports=two_view_reports_valid,
             edges_to_select=view_graph_edges,
         )
 
         view_graph_estimation_metrics = dask.delayed(self.compute_metrics)(
-            i2Ri1_dict=i2Ri1_dict,
-            i2Ui1_dict=i2Ui1_dict,
+            i2Ri1_dict=i2Ri1_valid_dict,
+            i2Ui1_dict=i2Ui1_valid_dict,
             calibrations=calibrations,
-            two_view_reports=two_view_reports,
+            two_view_reports=two_view_reports_valid,
             view_graph_edges=view_graph_edges,
         )
 
