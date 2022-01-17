@@ -158,7 +158,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             inlier_U_angular_errors, outlier_U_angular_errors, MAX_INLIER_MEASUREMENT_ERROR_DEG
         )
         view_graph_metrics = [
-            GtsfmMetric("num_input_measurements", len(valid_edges),
+            GtsfmMetric("num_input_measurements", len(valid_edges)),
             GtsfmMetric("num_inlier_measurements", len(inlier_i1_i2)),
             GtsfmMetric("num_outlier_measurements", len(outlier_i1_i2)),
             GtsfmMetric("R_precision", R_precision),
