@@ -1,5 +1,6 @@
 """
-In the spirit of "Growing Consensus" (Son16eccv)
+In the spirit of "Growing Consensus" (Son16cvpr)
+https://www.cv-foundation.org/openaccess/content_cvpr_2016/papers/Son_Solving_Small-Piece_Jigsaw_CVPR_2016_paper.pdf
 
 Authors: John Lambert
 """

@@ -50,7 +50,7 @@ class TestReprojectionErrorViewGraphEstimator(unittest.TestCase):
         )
 
     def test_optimize_three_views_averaging_door(self) -> None:
-        """ """
+        """Simple test to ensure that 3-view averaging and BA achieves close to zero error w.r.t. GT."""
         dataset_root = TEST_DATA_ROOT / "set1_lund_door"
         image_extension = "JPG"
 
@@ -133,7 +133,7 @@ def test_view_graph_estimator_run_door() -> None:
     image_extension = "JPG"
     loader = OlssonLoader(dataset_root, image_extension=image_extension)
     num_images = 12
-    
+
     camera_intrinsics = [loader.get_camera_intrinsics(i) for i in range(num_images)]
 
     keypoints_list, i2Ri1_dict, i2Ui1_dict, corr_idxs_dict = frontend_runner.run_frontend(
