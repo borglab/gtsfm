@@ -124,8 +124,9 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             return GtsfmMetricsGroup(name="rotation_cycle_consistency_metrics", metrics=[])
 
         input_edges = two_view_reports.keys()
+        valid_edges = self.__get_valid_input_edges(i2Ri1_dict)
         inlier_i1_i2 = view_graph_edges
-        outlier_i1_i2 = [i1_i2 for i1_i2 in input_edges if i1_i2 not in inlier_i1_i2]
+        outlier_i1_i2 = list(set(valid_edges) - set(inlier_i1_i2))
 
         inlier_R_angular_errors = []
         outlier_R_angular_errors = []
@@ -157,7 +158,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             inlier_U_angular_errors, outlier_U_angular_errors, MAX_INLIER_MEASUREMENT_ERROR_DEG
         )
         view_graph_metrics = [
-            GtsfmMetric("num_input_measurements", len(two_view_reports)),
+            GtsfmMetric("num_input_measurements", len(valid_edges),
             GtsfmMetric("num_inlier_measurements", len(inlier_i1_i2)),
             GtsfmMetric("num_outlier_measurements", len(outlier_i1_i2)),
             GtsfmMetric("R_precision", R_precision),
