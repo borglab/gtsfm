@@ -187,7 +187,7 @@ class BundleAdjustmentOptimizer:
 
         Results:
             Optimized camera poses, 3D point w/ tracks, and error metrics, aligned to GT (if provided).
-            Metrics group containing metrics for both filtered and unfiltered BA results.
+            Optimized camera poses after filtering landmarks (and cameras with no remaining landmarks).
         """
         logger.info(
             f"Input: {initial_data.number_tracks()} tracks on {len(initial_data.get_valid_camera_indices())} cameras\n"
@@ -227,6 +227,15 @@ class BundleAdjustmentOptimizer:
     def evaluate(
         self, unfiltered_data: GtsfmData, filtered_data: GtsfmData, cameras_gt: List[PinholeCameraCal3Bundler] = None
     ) -> GtsfmMetricsGroup:
+        """
+        Args:
+            unfiltered_data: optimized BA result, before filtering landmarks by reprojection error.
+            filtered_data: optimized BA result, after filtering landmarks and cameras.
+            cameras_gt: cameras with GT intrinsics and GT extrinsics.
+
+        Returns:
+            Metrics group containing metrics for both filtered and unfiltered BA results.
+        """
         ba_metrics = GtsfmMetricsGroup(
             name=METRICS_GROUP, metrics=metrics_utils.get_stats_for_sfmdata(unfiltered_data, suffix="_unfiltered")
         )
@@ -250,12 +259,12 @@ class BundleAdjustmentOptimizer:
                 metric_name = "Filtered tracks triangulated with GT cams: {}".format(exit_code.name)
                 ba_metrics.add_metric(GtsfmMetric(name=metric_name, data=count))
 
-        ba_metrics.add_metrics(metrics_utils.get_stats_for_sfmdata(aligned_filtered_data, suffix="_filtered"))
-        # ba_metrics.save_to_json(os.path.join(METRICS_PATH, "bundle_adjustment_metrics.json"))
+            ba_metrics.add_metrics(metrics_utils.get_stats_for_sfmdata(aligned_filtered_data, suffix="_filtered"))
+            # ba_metrics.save_to_json(os.path.join(METRICS_PATH, "bundle_adjustment_metrics.json"))
 
-        logger.info("[Result] Mean track length %.3f", np.mean(aligned_filtered_data.get_track_lengths()))
-        logger.info("[Result] Median track length %.3f", np.median(aligned_filtered_data.get_track_lengths()))
-        aligned_filtered_data.log_scene_reprojection_error_stats()
+            logger.info("[Result] Mean track length %.3f", np.mean(aligned_filtered_data.get_track_lengths()))
+            logger.info("[Result] Median track length %.3f", np.median(aligned_filtered_data.get_track_lengths()))
+            aligned_filtered_data.log_scene_reprojection_error_stats()
 
         return ba_metrics
 

@@ -58,6 +58,28 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             Edges of the view-graph, which are the subset of the image pairs in the input args.
         """
 
+    def _get_valid_input_edges(self, i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int, int]]:
+        """Gets the input edges (i1, i2) with the relative rotation i2Ri1 where:
+        1. i1 < i2
+        2. i2Ri1 is not None
+
+        Args:
+            i2Ri1_dict: input dictionary of relative rotations.
+
+        Returns:
+            List of valid edges.
+        """
+        valid_edges = []
+        for (i1, i2), i2Ri1 in i2Ri1_dict.items():
+            if i2Ri1 is None:
+                continue  # edge was previously discarded for insufficient support
+            if i1 >= i2:
+                logger.error("Incorrectly ordered edge indices found in cycle consistency for (%d, %d)", i1, i2)
+                continue
+            valid_edges.append((i1, i2))
+
+        return valid_edges
+
     def _filter_with_edges(
         self,
         i2Ri1_dict: Dict[Tuple[int, int], Rot3],

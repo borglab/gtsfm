@@ -104,7 +104,7 @@ class MultiViewOptimizer:
         if gt_cameras_graph is None:
             return ba_input_graph, ba_result_graph, None
 
-        # TODO: move to rotation averaging
+        # TODO (akshaykrishnan): move rot avg metrics to rotation averaging module
         rot_avg_metrics = dask.delayed(metrics_utils.compute_global_rotation_metrics)(
             wRi_graph, wti_graph, gt_poses_graph
         )

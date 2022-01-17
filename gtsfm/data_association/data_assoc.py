@@ -64,7 +64,7 @@ class DataAssociation(NamedTuple):
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
         images: Optional[List[Image]] = None,
-        cameras_gt: Optional[List[Cal3Bundler]] = None,
+        cameras_gt: Optional[List[PinholeCameraCal3Bundler]] = None,
     ) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
         """Perform the data association.
 
