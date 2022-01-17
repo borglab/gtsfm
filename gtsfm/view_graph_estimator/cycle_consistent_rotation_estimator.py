@@ -226,7 +226,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         MEDIAN_EDGE_ERROR: Returns the median value among the input values.
 
         Args:
-            errors (List[float]): A list of errors for the edge in different triplets.
+            edge_errors: A list of errors for the edge in different triplets.
 
         Returns:
             float: The aggregated error value.
