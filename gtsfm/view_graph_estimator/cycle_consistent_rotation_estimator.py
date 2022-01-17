@@ -122,7 +122,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
             rot_errors = [two_view_reports[e].R_error_deg for e in edges]
             gt_known = all([err is not None for err in rot_errors])
             # if ground truth unknown, cannot estimate error w.r.t. GT
-            max_rot_error = float(np.max(rot_errors)) if gt_known else None
+            max_rot_error = max(rot_errors) if gt_known else None
             max_gt_error_in_cycle.append(max_rot_error)
 
         # Filter the edges based on the aggregate error.
