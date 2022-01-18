@@ -57,8 +57,8 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
 
         # TODO: could limit to length 3 tracks.
         self._data_association_module = DataAssociation(
-            reproj_error_thresh=100,
-            min_track_len=2,
+            reproj_error_thresh=50000,
+            min_track_len=3,
             mode=TriangulationParam.NO_RANSAC,
             num_ransac_hypotheses=20,
             save_track_patches_viz=False,
@@ -125,6 +125,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
                     calibrations=calibrations,
                     corr_idxs_i1_i2=corr_idxs_i1_i2_subscene,
                     keypoints_list=keypoints,
+                    two_view_reports=two_view_reports,
                     cameras_gt=cameras_gt,
                 )
                 logger.setLevel(logging.INFO)
@@ -151,6 +152,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
             max_rot_error = max(rot_errors) if gt_known else None
             max_trans_error = max(trans_errors) if gt_known else None
 
+            min_tri_angle_per_triplet.append(min_tri_angle)
             support_per_triplet.append(support)
             reproj_error_per_triplet.append(np.nanmedian(reproj_errors))
             max_gt_rot_error_in_cycle.append(max_rot_error)
@@ -182,6 +184,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
         self.__save_plots(
             support_per_triplet,
             reproj_error_per_triplet,
+            min_tri_angle_per_triplet,
             max_gt_rot_error_in_cycle,
             max_gt_trans_error_in_cycle,
         )
@@ -191,53 +194,37 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
         self,
         support_per_triplet: List[float],
         reproj_error_per_triplet: List[float],
+        min_tri_angle_per_triplet: List[float],
         max_gt_rot_error_in_cycle: List[float],
         max_gt_trans_error_in_cycle: List[float],
     ) -> None:
         """Save information about proxy error metric vs. GT error metric."""
 
-        plt.scatter(
-            support_per_triplet,
-            max_gt_rot_error_in_cycle,
-            10,
-            color="g",
-            marker=".",
-            label="max rotation error in cycle",
-        )
-        plt.scatter(
-            support_per_triplet,
-            max_gt_trans_error_in_cycle,
-            10,
-            color="r",
-            marker=".",
-            label="max translation error in cycle",
-        )
-        plt.xlabel("Support (#Inliers)")
-        plt.ylabel("GT Angular Error")
-        plt.legend(loc="upper right")
-        plt.savefig(os.path.join("plots", "gt_error_vs_support.jpg"), dpi=500)
-        plt.close("all")
-
-        plt.scatter(
-            reproj_error_per_triplet,
-            max_gt_rot_error_in_cycle,
-            10,
-            color="g",
-            marker=".",
-            label="max rotation error in cycle",
-        )
-        plt.scatter(
-            reproj_error_per_triplet,
-            max_gt_trans_error_in_cycle,
-            10,
-            color="r",
-            marker=".",
-            label="max translation error in cycle",
-        )
-        plt.xlabel("Reprojection Error")
-        plt.ylabel("GT Angular Error")
-        plt.legend(loc="upper right")
-        plt.savefig(os.path.join("plots", "gt_error_vs_reproj_error.jpg"), dpi=500)
+        xlabels = ["Support (#Inliers)", "Reprojection Error", "Min Tri. Angle"]
+        fnames = ["gt_error_vs_support.jpg", "gt_error_vs_reproj_error.jpg", "gt_error_vs_mintriangle.jpg"]
+        proxy_metrics = [support_per_triplet, reproj_error_per_triplet, min_tri_angle_per_triplet]
+        for xlabel, fname, proxy_metric in zip(xlabels, fnames, proxy_metrics):
+            plt.scatter(
+                proxy_metric,
+                max_gt_rot_error_in_cycle,
+                10,
+                color="g",
+                marker=".",
+                label="max rotation error in cycle",
+            )
+            plt.scatter(
+                proxy_metric,
+                max_gt_trans_error_in_cycle,
+                10,
+                color="r",
+                marker=".",
+                label="max translation error in cycle",
+            )
+            plt.xlabel(xlabel)
+            plt.ylabel("GT Angular Error")
+            plt.legend(loc="upper right")
+            plt.savefig(os.path.join("plots", fname), dpi=500)
+            plt.close("all")
 
     def optimize_three_views_averaging(
         self,
@@ -246,6 +233,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
         calibrations: List[Cal3Bundler],
         corr_idxs_i1_i2: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
+        two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
         cameras_gt: Optional[List[PinholeCameraCal3Bundler]] = None,
     ) -> Tuple[List[Optional[Pose3]], np.ndarray, Optional[GtsfmMetricsGroup], GtsfmMetricsGroup, GtsfmMetricsGroup]:
         """Use 3-view averaging to estimate global camera poses, and then compute per-point reprojection errors.
@@ -309,9 +297,13 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
             )
             repr_percentile = np.percentile(tri_angles, 75)
             tri_angle_percentiles += [repr_percentile]
+            R_error_deg = two_view_reports[(i1,i2)].R_error_deg
+            U_error_deg = two_view_reports[(i1,i2)].U_error_deg
             os.makedirs(os.path.join("plots", "tri_angle_histograms"), exist_ok=True)
             plt.hist(tri_angles, bins=np.arange(100))
-            plt.title(f"Percentile: {repr_percentile:.1f}")
+            plt.title(
+                f"75 Percentile: {repr_percentile:.1f}. R error: {R_error_deg:.1f} U error {U_error_deg:.1f}"
+            )
             plt.savefig(os.path.join("plots", "tri_angle_histograms", f"{i1}_{i2}.jpg"), dpi=500)
             plt.close("all")
 
