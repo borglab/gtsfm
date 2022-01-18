@@ -181,9 +181,6 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
                 else:
                     outlier_U_angular_errors.append(report.U_error_deg)
 
-        logger.info("Calling PR computation for R errors")
-        print("inlier errors ", inlier_R_angular_errors)
-        print("outlier errors", outlier_R_angular_errors)
         R_precision, R_recall = metrics_utils.get_precision_recall_from_errors(
             inlier_R_angular_errors, outlier_R_angular_errors, MAX_INLIER_MEASUREMENT_ERROR_DEG
         )
