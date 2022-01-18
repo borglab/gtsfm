@@ -72,6 +72,10 @@ def align_poses_sim3_ignore_missing(
             valid_bTi_list.append(bTi)
             corresponding_aTi_list.append(aTi_list[i])
 
+    if len(valid_bTi_list) < 2:
+        # return identity transformation as default
+        return bTi_list, Similarity3()
+
     valid_aTi_list_, aSb = align_poses_sim3(aTi_list=corresponding_aTi_list, bTi_list=valid_bTi_list)
 
     num_cameras = len(aTi_list)
@@ -101,7 +105,8 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Tuple[List
     """
     n_to_align = len(aTi_list)
     assert len(aTi_list) == len(bTi_list)
-    assert n_to_align >= 2, "SIM(3) alignment uses at least 2 frames"
+    if n_to_align < 2:
+        raise RuntimeError("SIM(3) alignment uses at least 2 frames")
 
     ab_pairs = Pose3Pairs(list(zip(aTi_list, bTi_list)))
 
@@ -350,7 +355,7 @@ def compute_points_distance_l2(wti1: Optional[Point3], wti2: Optional[Point3]) -
 def compute_cyclic_rotation_error(i1Ri0: Rot3, i2Ri1: Rot3, i2Ri0: Rot3) -> float:
     """Computes the cycle error in degrees after composing the three input rotations.
 
-    The cyclic error is the angle between identity and the rotation obtained by composing the three input relative 
+    The cyclic error is the angle between identity and the rotation obtained by composing the three input relative
     rotations, i.e., (I - inv(i2Ri0) * i2Ri1 * i1Ri0).
 
     Args:

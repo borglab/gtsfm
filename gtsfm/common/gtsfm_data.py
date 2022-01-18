@@ -198,6 +198,18 @@ class GtsfmData:
         track_lengths = [self.get_track(j).number_measurements() for j in range(self.number_tracks())]
         return np.array(track_lengths, dtype=np.uint32)
 
+    def get_point_cloud(self) -> np.ndarray:
+        """Return a (N,3) array representing the sparse 3d point cloud. However, NaN points are removed."""
+
+        N = self.number_tracks()
+        points = np.zeros((N, 3))
+        for j in range(N):
+            points[j] = self.get_track(j).point3()
+
+        sums = np.sum(points, axis=1)
+        valid = ~np.isnan(sums)
+        return points[valid]
+
     def select_largest_connected_component(self) -> "GtsfmData":
         """Selects the subset of data belonging to the largest connected component of the graph where the edges are
         between cameras which feature in the same track.

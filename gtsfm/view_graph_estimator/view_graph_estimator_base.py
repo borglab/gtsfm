@@ -7,12 +7,12 @@ that include filtering or optimizing the two-view estimates.
 Authors: Akshay Krishnan, Ayush Baid
 """
 import abc
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 import dask
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import Cal3Bundler, Rot3, Unit3
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Rot3, Unit3
 
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.logger as logger_utils
@@ -43,6 +43,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
         keypoints: List[Keypoints],
         two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
+        cameras_gt: Optional[List[PinholeCameraCal3Bundler]] = None,
     ) -> Set[Tuple[int, int]]:
         """Estimates the view graph, needs to be implemented by the derived class.
 
@@ -53,6 +54,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             corr_idxs_i1i2: Dict from (i1, i2) to indices of verified correspondences from i1 to i2.
             keypoints: keypoints for each images.
             two_view_reports: two-view reports between image pairs from the TwoViewEstimator.
+            cameras_gt:
 
         Returns:
             Edges of the view-graph, which are the subset of the image pairs in the input args.
@@ -201,6 +203,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         corr_idxs_i1i2: Delayed,
         keypoints: Delayed,
         two_view_reports: Delayed,
+        cameras_gt: Delayed,
     ) -> Tuple[Delayed, Delayed, Delayed, Delayed, Delayed]:
         """Create the computation graph for ViewGraph estimation and metric evaluation.
 
@@ -213,6 +216,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
                 wrapped as Delayed.
             keypoints: keypoints for each images, wrapped as Delayed.
             two_view_reports: Dict from (i1, i2) to TwoViewEstimationReport that contains metrics, wrapped as Delayed.
+            cameras_gt:
 
         Returns:
             Tuple of the following 5 elements, all wrapped as Delayed:
@@ -229,6 +233,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             corr_idxs_i1i2=corr_idxs_i1i2,
             keypoints=keypoints,
             two_view_reports=two_view_reports,
+            cameras_gt=cameras_gt,
         )
 
         i2Ri1_filtered, i2Ui1_filtered, corr_idxs_i1i2_filtered, two_view_reports_filtered = dask.delayed(

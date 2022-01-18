@@ -71,7 +71,13 @@ class MultiViewOptimizer:
             viewgraph_two_view_reports_graph,
             viewgraph_estimation_metrics,
         ) = self.view_graph_estimator.create_computation_graph(
-            i2Ri1_graph, i2Ui1_graph, intrinsics_graph, v_corr_idxs_graph, keypoints_graph, two_view_reports_dict
+            i2Ri1_graph,
+            i2Ui1_graph,
+            intrinsics_graph,
+            v_corr_idxs_graph,
+            keypoints_graph,
+            two_view_reports_dict,
+            gt_cameras_graph
         )
 
         # prune the graph to a single connected component.

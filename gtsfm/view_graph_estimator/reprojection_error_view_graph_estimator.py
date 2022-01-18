@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3
 
+import gtsfm.densify.mvs_utils as mvs_utils
 import gtsfm.multi_view_optimizer as multi_view_optimizer
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.logger as logger_utils
@@ -77,6 +78,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
         corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
         keypoints: List[Keypoints],
         two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
+        cameras_gt: Optional[List[PinholeCameraCal3Bundler]] = None
     ) -> Set[Tuple[int, int]]:
         """Estimates the view graph using the rotation consistency constraint in a cycle of 3 edges.
 
@@ -102,10 +104,12 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
         reproj_error_per_triplet = []
         max_gt_rot_error_in_cycle = []
         max_gt_trans_error_in_cycle = []
+        min_tri_angle_per_triplet = []
+
+        f = open("view_graph_results.txt", "w")
 
         logger.info("Number of triplets: %d" % len(triplets))
         for i0, i1, i2 in triplets:  # sort order guaranteed
-            logger.info("On triplet (%d,%d,%d)", i0, i1, i2)
             i2Ri1_dict_subscene, i2Ui1_dict_subscene, corr_idxs_i1_i2_subscene, _ = self._filter_with_edges(
                 i2Ri1_dict=i2Ri1_dict,
                 i2Ui1_dict=i2Ui1_dict,
@@ -115,8 +119,13 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
             )
             if self._registration_method == ThreeViewRegistrationMethod.AVERAGING:
                 logger.setLevel(logging.WARNING)
-                wTi_list, reproj_errors, _, _, _ = self.optimize_three_views_averaging(
-                    i2Ri1_dict_subscene, i2Ui1_dict_subscene, calibrations, corr_idxs_i1_i2_subscene, keypoints
+                wTi_list, reproj_errors, min_tri_angle, _, _, ba_metrics = self.optimize_three_views_averaging(
+                    i2Ri1_dict=i2Ri1_dict_subscene,
+                    i2Ui1_dict=i2Ui1_dict_subscene,
+                    calibrations=calibrations,
+                    corr_idxs_i1_i2=corr_idxs_i1_i2_subscene,
+                    keypoints_list=keypoints,
+                    cameras_gt=cameras_gt
                 )
                 logger.setLevel(logging.INFO)
 
@@ -127,7 +136,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
             MAX_ALLOWED_REPROJ_ERROR = 5
             support = (reproj_errors < MAX_ALLOWED_REPROJ_ERROR).sum()
             MIN_REQUIRED_SUPPORT = 500
-            logger.info("Triplet had %d inliers according to reproj. error.", support)
+            
             if support > MIN_REQUIRED_SUPPORT:
                 valid_edges.add((i0, i1))
                 valid_edges.add((i1, i2))
@@ -146,6 +155,27 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
             reproj_error_per_triplet.append(np.nanmedian(reproj_errors))
             max_gt_rot_error_in_cycle.append(max_rot_error)
             max_gt_trans_error_in_cycle.append(max_trans_error)
+
+            ba_trans_error_dist = np.nanmean(ba_metrics._metrics[5].data)
+            logger.info(
+                "Triplet (%d,%d,%d): %d inliers, reproj error: med=%.2f, avg=%.2f | U error=%.1f | BA dist err %.1f",
+                i0,
+                i1,
+                i2,
+                support, 
+                np.nanmedian(reproj_errors),
+                np.nanmean(reproj_errors),
+                max_trans_error,
+                ba_trans_error_dist
+            )
+
+            summary_str = f"Triplet ({i0},{i1},{i2}): {support} inliers," + \
+            f" reproj error: med={np.nanmedian(reproj_errors):.2f}, avg={np.nanmean(reproj_errors):.2f}" + \
+            f" | U error={max_trans_error:.1f} | ba wTi error={ba_trans_error_dist:.1f}"
+
+            f.write(summary_str + "\n")
+
+        f.close()
 
         self.__save_plots(
             support_per_triplet,
@@ -235,13 +265,13 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
         """
         if cameras_gt is not None:
             gt_wTi_list = [cam.pose() for cam in cameras_gt]
+            num_images = len(cameras_gt)
         else:
             gt_wTi_list = None
+            # num_images is arbitrary, as long as it is larger than the largest key
+            num_images = max([max(i1, i2) for (i1, i2) in i2Ri1_dict.keys()]) + 1
 
-        # num_images is arbitrary, as long as it is larger than the largest key
-        num_images = max([max(i1, i2) for (i1, i2) in i2Ri1_dict.keys()]) + 1
         wRi_list = self._rot_avg_module.run(num_images, i2Ri1_dict)
-
         wti_list, ta_metrics = self._trans_avg_module.run(num_images, i2Ui1_dict, wRi_list, gt_wTi_list=gt_wTi_list)
 
         if gt_wTi_list:
@@ -258,13 +288,28 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
             images=None,
             cameras_gt=cameras_gt,
         )
-
         unfiltered_data, filtered_data = self._bundle_adjustment_module.run(ba_input_data)
         reproj_errors = unfiltered_data.get_scene_reprojection_errors()
         wTi_list = unfiltered_data.get_camera_poses()
 
+        tri_angle_percentiles = []
+        assert len(i2Ri1_dict.keys()) == 3
+        for (i1,i2) in i2Ri1_dict.keys():
+            # TODO: try w/ filtered and unfiltered points.
+            # Ref: https://github.com/colmap/colmap/blob/dev/src/sfm/incremental_mapper.cc#L1065
+            tri_angles = mvs_utils.calculate_triangulation_angles_in_degrees(
+                camera_1=unfiltered_data.get_camera(i1),
+                camera_2=unfiltered_data.get_camera(i2),
+                points_3d=unfiltered_data.get_point_cloud()
+            )
+            tri_angle_percentiles += [np.percentile(tri_angles, 75)]
+            plt.hist(tri_angles, bins=20)
+            plt.savefig("{i1}_{i2}.jpg", dpi=500)
+            plt.close("all")
+        min_tri_angle = min(tri_angle_percentiles)
+
         ba_metrics = self._bundle_adjustment_module.evaluate(unfiltered_data, filtered_data, cameras_gt)
-        return wTi_list, reproj_errors, ra_metrics, ta_metrics, ba_metrics
+        return wTi_list, reproj_errors, min_tri_angle, ra_metrics, ta_metrics, ba_metrics
 
     def optimize_three_views_incremental(self) -> None:
         """

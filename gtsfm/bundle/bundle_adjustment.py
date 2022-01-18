@@ -65,7 +65,7 @@ class BundleAdjustmentOptimizer:
         robust_measurement_noise: bool = False,
         shared_calib: bool = False,
         max_iterations: Optional[int] = None,
-    ):
+    ) -> None:
         """Initializes the parameters for bundle adjustment module.
 
         Args:
@@ -76,7 +76,6 @@ class BundleAdjustmentOptimizer:
             shared_calib (optional): Flag to enable shared calibration across all cameras. Defaults to False.
             max_iterations (optional): Max number of iterations when optimizing the factor graph. None means no cap.
                                        Defaults to None.
-
         """
         self._output_reproj_error_thresh = output_reproj_error_thresh
         self._robust_measurement_noise = robust_measurement_noise
@@ -197,7 +196,7 @@ class BundleAdjustmentOptimizer:
             logger.error(
                 "Bundle adjustment aborting, optimization cannot be performed without any tracks or any cameras."
             )
-            return initial_data, GtsfmMetricsGroup(name=METRICS_GROUP, metrics=[])
+            return initial_data, initial_data
 
         graph = self.__construct_factor_graph(initial_data=initial_data)
         initial_values = self.__construct_initial_values(initial_data=initial_data)
