@@ -12,7 +12,7 @@ Authors: Jing Wu, Ayush Baid, Akshay Krishnan
 """
 import random
 from collections import defaultdict
-from enum import Enum
+from enum import auto, Enum
 from typing import Dict, List, Optional, Tuple
 
 import gtsam
@@ -46,9 +46,9 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
     class ProjectionSamplingMethod(Enum):
         """Used to select how the projection directions in 1DSfM are sampled."""
-        SAMPLE_INPUT_MEASUREMENTS = 1   # Randomly choose projection directions from input measurements.
-        SAMPLE_WITH_INPUT_DENSITY = 2   # Fit a Gaussian density to input measurements and sample from it.
-        SAMPLE_WITH_UNIFORM_DENSITY = 3 # Uniformly sample 3D directions at random.
+        SAMPLE_INPUT_MEASUREMENTS = auto()   # Randomly choose projection directions from input measurements.
+        SAMPLE_WITH_INPUT_DENSITY = auto()   # Fit a Gaussian density to input measurements and sample from it.
+        SAMPLE_WITH_UNIFORM_DENSITY = auto() # Uniformly sample 3D directions at random.
 
     def __init__(self, robust_measurement_noise: bool = True) -> None:
         """Initializes the 1DSFM averaging instance.
@@ -82,7 +82,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             sampled_indices = np.random.choice(w_i2Ui1_measurements, num_samples, replace=False)
             return [w_i2Ui1_measurements[idx].measured() for idx in sampled_indices]
 
-        elif projection_sampling_method == self.ProjectionSamplingMethod.SAMPLE_WITH_INPUT_DENSITY:\
+        elif projection_sampling_method == self.ProjectionSamplingMethod.SAMPLE_WITH_INPUT_DENSITY:
             return _sample_kde_directions(w_i2Ui1_measurements, num_samples=self._max_1dsfm_projection_directions)
 
         elif projection_sampling_method == self.ProjectionSamplingMethod.SAMPLE_WITH_UNIFORM_DENSITY:
@@ -108,6 +108,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             wRi_list: global rotations for each camera pose in the world coordinates.
             scale_factor: non-negative global scaling factor.
             gt_wTi_list: ground truth poses for computing metrics.
+            projection_sampling_method: ProjectionSamplingMethod to be used for directions to run 1DSfM.
 
         Returns:
             Global translation wti for each camera pose. The number of entries in the list is `num_images`. The list
@@ -115,7 +116,6 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 or ill-constrained system).
             A GtsfmMetricsGroup of 1DSfM metrics.
         """
-        logger.info("Running translation averaging")
         noise_model = gtsam.noiseModel.Isotropic.Sigma(NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
         if self._robust_measurement_noise:
             huber_loss = gtsam.noiseModel.mEstimator.Huber.Create(HUBER_LOSS_K)
@@ -148,6 +148,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         # compute average outlier weight
         avg_outlier_weights = defaultdict(float)
         for outlier_weight_dict in outlier_weights:
+            # TODO(akshay-krishnan): use keys from outlier weight dict once we can iterate over it (gtsam fix).
             for index_pair in valid_i2_i1:
                 avg_outlier_weights[index_pair] += outlier_weight_dict[index_pair]
 
@@ -200,7 +201,8 @@ def _sample_kde_directions(w_i2Ui1_measurements: BinaryMeasurementsUnit3, num_sa
      """
     w_i2Ui1_list = [w_i2Ui1.measured() for w_i2Ui1 in w_i2Ui1_measurements]
     if len(w_i2Ui1_list) > MAX_KDE_SAMPLES:
-        w_i2Ui1_list = [w_i2Ui1_list[i] for i in random.sample(range(len(w_i2Ui1_list)), MAX_KDE_SAMPLES)]
+        w_i2Ui1_subset_indices = np.random.choice(range(len(w_i2Ui1_list)), MAX_KDE_SAMPLES, replace=False).tolist()
+        w_i2Ui1_list = [w_i2Ui1_list[i] for i in w_i2Ui1_subset_indices]
 
     w_i2Ui1_spherical = conversion_utils.cartesian_to_spherical_directions(w_i2Ui1_list)
 
