@@ -26,6 +26,7 @@ def calculate_triangulation_angle_in_degrees(
     C1      C2
     References:
     - https://github.com/colmap/colmap/blob/dev/src/base/triangulation.cc#L122
+    
     Args:
         camera_1: the first camera.
         camera_2: the second camera.
@@ -42,6 +43,49 @@ def calculate_triangulation_angle_in_degrees(
     ray_2 = point_3d - camera_center_2
 
     return geometry_utils.compute_relative_unit_translation_angle(Unit3(ray_1), Unit3(ray_2))
+
+
+def calculate_triangulation_angles_in_degrees(
+    camera_1: PinholeCameraCal3Bundler, camera_2: PinholeCameraCal3Bundler, points_3d: np.ndarray
+) -> np.ndarray:
+    """Vectorized. calculuation of the angles formed at 3D points by the rays backprojected from 2 cameras.
+    In the setup with X (point_3d) and two cameras C1 and C2, the triangulation angle is the angle between rays C1-X
+    and C2-X, i.e. the angle subtendted at the 3d point.
+        X
+       / \
+      /   \
+     /     \
+    C1      C2
+    References:
+    - https://github.com/colmap/colmap/blob/dev/src/base/triangulation.cc#L122
+    
+    Args:
+        camera_1: the first camera.
+        camera_2: the second camera.
+        points_3d: (N,3) 3d points which are imaged by the two camera centers, and where the angle between the
+                  light rays associated with the measurements are computed.
+    Returns:
+        the angles formed at the 3d points, in degrees.
+
+    https://github.com/colmap/colmap/blob/dev/src/base/triangulation.cc#L147
+    """
+    camera_center_1: np.ndarray = camera_1.pose().translation()
+    camera_center_2: np.ndarray = camera_2.pose().translation()
+
+    N = points_3d.shape[0]
+    # ensure broadcasting is in the correct direction
+    rays1 = points_3d - camera_center_1.reshape(1, 3)
+    rays2 = points_3d - camera_center_2.reshape(1, 3)
+
+    # normalize rays to unit length
+    rays1 /= np.linalg.norm(rays1, axis=1).reshape(N, 1)
+    rays2 /= np.linalg.norm(rays2, axis=1).reshape(N, 1)
+
+    dot_products = np.multiply(rays1, rays2).sum(axis=1)
+    dot_products = np.clip(dot_products, -1, 1)
+    angles_rad = np.arccos(dot_products)
+    angles_deg = np.rad2deg(angles_rad)
+    return angles_deg
 
 
 def piecewise_gaussian(theta: float, theta_0: float = 5, sigma_1: float = 1, sigma_2: float = 10) -> float:
