@@ -40,14 +40,16 @@ MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
 
 logger = logger_utils.get_logger()
 
+
 class TranslationAveraging1DSFM(TranslationAveragingBase):
     """1D-SFM translation averaging with outlier rejection."""
 
     class ProjectionSamplingMethod(Enum):
         """Used to select how the projection directions in 1DSfM are sampled."""
-        SAMPLE_INPUT_MEASUREMENTS = auto()   # Randomly choose projection directions from input measurements.
-        SAMPLE_WITH_INPUT_DENSITY = auto()   # Fit a Gaussian density to input measurements and sample from it.
-        SAMPLE_WITH_UNIFORM_DENSITY = auto() # Uniformly sample 3D directions at random.
+
+        SAMPLE_INPUT_MEASUREMENTS = auto()  # Randomly choose projection directions from input measurements.
+        SAMPLE_WITH_INPUT_DENSITY = auto()  # Fit a Gaussian density to input measurements and sample from it.
+        SAMPLE_WITH_UNIFORM_DENSITY = auto()  # Uniformly sample 3D directions at random.
 
     def __init__(self, robust_measurement_noise: bool = True) -> None:
         """Initializes the 1DSFM averaging instance.
@@ -61,17 +63,15 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         self._outlier_weight_threshold = OUTLIER_WEIGHT_THRESHOLD
 
     def __sample_projection_directions(
-        self, 
-        w_i2Ui1_measurements: BinaryMeasurementsUnit3,
-        projection_sampling_method: ProjectionSamplingMethod
+        self, w_i2Ui1_measurements: BinaryMeasurementsUnit3, projection_sampling_method: ProjectionSamplingMethod
     ) -> List[Unit3]:
-        """Samples projection directions for 1DSfM based on the provided sampling method. 
-        
+        """Samples projection directions for 1DSfM based on the provided sampling method.
+
         Args:
             w_i2Ui1_measurements: Unit translation measurements which are input to 1DSfM.
-            projection_sampling_method: ProjectionSamplingMethod to be used for sampling directions. 
+            projection_sampling_method: ProjectionSamplingMethod to be used for sampling directions.
 
-        Returns: 
+        Returns:
             List of sampled Unit3 projection directions.
         """
         num_measurements = len(w_i2Ui1_measurements)
@@ -86,7 +86,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         elif projection_sampling_method == self.ProjectionSamplingMethod.SAMPLE_WITH_UNIFORM_DENSITY:
             return _sample_random_directions(num_samples=self._max_1dsfm_projection_directions)
-        
+
         else:
             raise ValueError("Unsupported sampling method!")
 
@@ -197,7 +197,7 @@ def _sample_kde_directions(w_i2Ui1_measurements: BinaryMeasurementsUnit3, num_sa
 
     Returns:
         List of sampled Unit3 directions.
-     """
+    """
     w_i2Ui1_list = [w_i2Ui1.measured() for w_i2Ui1 in w_i2Ui1_measurements]
     if len(w_i2Ui1_list) > MAX_KDE_SAMPLES:
         w_i2Ui1_subset_indices = np.random.choice(range(len(w_i2Ui1_list)), MAX_KDE_SAMPLES, replace=False).tolist()
