@@ -45,9 +45,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
     """1D-SFM translation averaging with outlier rejection."""
 
     class ProjectionSamplingMethod(Enum):
-        """Used to select how the metric is to be plotted. Also decides the format of the summary.
-        Example: Summaries of box plots store quartiles, and histogram plotted metrics store a histogram.
-        """
+        """Used to select how the projection directions in 1DSfM are sampled."""
         SAMPLE_INPUT_MEASUREMENTS = 1   # Randomly choose projection directions from input measurements.
         SAMPLE_WITH_INPUT_DENSITY = 2   # Fit a Gaussian density to input measurements and sample from it.
         SAMPLE_WITH_UNIFORM_DENSITY = 3 # Uniformly sample 3D directions at random.
