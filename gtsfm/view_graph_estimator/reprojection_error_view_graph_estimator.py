@@ -78,7 +78,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
         corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
         keypoints: List[Keypoints],
         two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
-        cameras_gt: Optional[List[PinholeCameraCal3Bundler]] = None
+        cameras_gt: Optional[List[PinholeCameraCal3Bundler]] = None,
     ) -> Set[Tuple[int, int]]:
         """Estimates the view graph using the rotation consistency constraint in a cycle of 3 edges.
 
@@ -125,7 +125,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
                     calibrations=calibrations,
                     corr_idxs_i1_i2=corr_idxs_i1_i2_subscene,
                     keypoints_list=keypoints,
-                    cameras_gt=cameras_gt
+                    cameras_gt=cameras_gt,
                 )
                 logger.setLevel(logging.INFO)
 
@@ -136,8 +136,8 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
             MAX_ALLOWED_REPROJ_ERROR = 5
             support = (reproj_errors < MAX_ALLOWED_REPROJ_ERROR).sum()
             MIN_REQUIRED_SUPPORT = 500
-            
-            if support > MIN_REQUIRED_SUPPORT:
+
+            if support > MIN_REQUIRED_SUPPORT and min_tri_angle > 20:
                 valid_edges.add((i0, i1))
                 valid_edges.add((i1, i2))
                 valid_edges.add((i0, i2))
@@ -150,7 +150,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
             # if ground truth unknown, cannot estimate error w.r.t. GT
             max_rot_error = max(rot_errors) if gt_known else None
             max_trans_error = max(trans_errors) if gt_known else None
-            
+
             support_per_triplet.append(support)
             reproj_error_per_triplet.append(np.nanmedian(reproj_errors))
             max_gt_rot_error_in_cycle.append(max_rot_error)
@@ -162,16 +162,18 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
                 i0,
                 i1,
                 i2,
-                support, 
+                support,
                 np.nanmedian(reproj_errors),
                 np.nanmean(reproj_errors),
                 max_trans_error,
-                ba_trans_error_dist
+                ba_trans_error_dist,
             )
 
-            summary_str = f"Triplet ({i0},{i1},{i2}): {support} inliers," + \
-            f" reproj error: med={np.nanmedian(reproj_errors):.2f}, avg={np.nanmean(reproj_errors):.2f}" + \
-            f" | U error={max_trans_error:.1f} | ba wTi error={ba_trans_error_dist:.1f}"
+            summary_str = (
+                f"Triplet ({i0},{i1},{i2}): {support} inliers,"
+                + f" reproj error: med={np.nanmedian(reproj_errors):.2f}, avg={np.nanmean(reproj_errors):.2f}"
+                + f" | U error={max_trans_error:.1f} | ba wTi error={ba_trans_error_dist:.1f}"
+            )
 
             f.write(summary_str + "\n")
 
@@ -200,7 +202,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
             10,
             color="g",
             marker=".",
-            label="max rotation error in cycle"
+            label="max rotation error in cycle",
         )
         plt.scatter(
             support_per_triplet,
@@ -208,7 +210,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
             10,
             color="r",
             marker=".",
-            label="max translation error in cycle"
+            label="max translation error in cycle",
         )
         plt.xlabel("Support (#Inliers)")
         plt.ylabel("GT Angular Error")
@@ -222,7 +224,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
             10,
             color="g",
             marker=".",
-            label="max rotation error in cycle"
+            label="max rotation error in cycle",
         )
         plt.scatter(
             reproj_error_per_triplet,
@@ -230,7 +232,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
             10,
             color="r",
             marker=".",
-            label="max translation error in cycle"
+            label="max translation error in cycle",
         )
         plt.xlabel("Reprojection Error")
         plt.ylabel("GT Angular Error")
@@ -294,18 +296,26 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
 
         tri_angle_percentiles = []
         assert len(i2Ri1_dict.keys()) == 3
-        for (i1,i2) in i2Ri1_dict.keys():
+        for (i1, i2) in i2Ri1_dict.keys():
+            if unfiltered_data.get_camera(i1) is None or unfiltered_data.get_camera(i2) is None:
+                tri_angle_percentiles.append(0)
+                continue
             # TODO: try w/ filtered and unfiltered points.
             # Ref: https://github.com/colmap/colmap/blob/dev/src/sfm/incremental_mapper.cc#L1065
             tri_angles = mvs_utils.calculate_triangulation_angles_in_degrees(
                 camera_1=unfiltered_data.get_camera(i1),
                 camera_2=unfiltered_data.get_camera(i2),
-                points_3d=unfiltered_data.get_point_cloud()
+                points_3d=unfiltered_data.get_point_cloud(),
             )
-            tri_angle_percentiles += [np.percentile(tri_angles, 75)]
-            plt.hist(tri_angles, bins=20)
-            plt.savefig("{i1}_{i2}.jpg", dpi=500)
+            repr_percentile = np.percentile(tri_angles, 75)
+            tri_angle_percentiles += [repr_percentile]
+            os.makedirs(os.path.join("plots", "tri_angle_histograms"), exist_ok=True)
+            plt.hist(tri_angles, bins=np.arange(100))
+            plt.title(f"Percentile: {repr_percentile:.1f}")
+            plt.savefig(os.path.join("plots", "tri_angle_histograms", f"{i1}_{i2}.jpg"), dpi=500)
             plt.close("all")
+
+        # also check entropy of these histograms above
         min_tri_angle = min(tri_angle_percentiles)
 
         ba_metrics = self._bundle_adjustment_module.evaluate(unfiltered_data, filtered_data, cameras_gt)
