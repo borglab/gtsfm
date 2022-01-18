@@ -136,7 +136,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
             # require at least 500 points with reproj error under 5 px?
             MAX_ALLOWED_REPROJ_ERROR = 5
             support = (reproj_errors < MAX_ALLOWED_REPROJ_ERROR).sum()
-            MIN_REQUIRED_SUPPORT = 500
+            MIN_REQUIRED_SUPPORT = 1000
 
             if support > MIN_REQUIRED_SUPPORT and min_tri_angle > 20:
                 valid_edges.add((i0, i1))
