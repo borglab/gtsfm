@@ -178,7 +178,7 @@ class BundleAdjustmentOptimizer:
     def run(
         self,
         initial_data: GtsfmData,
-        verbose = True,
+        verbose: bool = True,
     ) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
 
