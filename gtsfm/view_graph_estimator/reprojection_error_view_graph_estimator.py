@@ -58,7 +58,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
         # TODO: could limit to length 3 tracks.
         self._data_association_module = DataAssociation(
             reproj_error_thresh=50000,
-            min_track_len=3,
+            min_track_len=2,
             mode=TriangulationParam.NO_RANSAC,
             num_ransac_hypotheses=20,
             save_track_patches_viz=False,
@@ -160,7 +160,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
 
             ba_trans_error_dist = np.nanmean(ba_metrics._metrics[5].data)
             logger.info(
-                "Triplet (%d,%d,%d): %d inliers, reproj error: med=%.2f, avg=%.2f | U error=%.1f | BA dist err %.1f",
+                "Triplet (%d,%d,%d): %d inliers, reproj error: med=%.2f, avg=%.2f | U error=%.1f | BA dist err %.1f | Min Tri Angle %.1f",
                 i0,
                 i1,
                 i2,
@@ -169,12 +169,13 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
                 np.nanmean(reproj_errors),
                 max_trans_error,
                 ba_trans_error_dist,
+                min_tri_angle,
             )
 
             summary_str = (
                 f"Triplet ({i0},{i1},{i2}): {support} inliers,"
                 + f" reproj error: med={np.nanmedian(reproj_errors):.2f}, avg={np.nanmean(reproj_errors):.2f}"
-                + f" | U error={max_trans_error:.1f} | ba wTi error={ba_trans_error_dist:.1f}"
+                + f" | U error={max_trans_error:.1f} | ba wTi error={ba_trans_error_dist:.1f} | min_tri_angle={min_tri_angle:.1f}"
             )
 
             f.write(summary_str + "\n")
@@ -200,25 +201,30 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
     ) -> None:
         """Save information about proxy error metric vs. GT error metric."""
 
-        xlabels = ["Support (#Inliers)", "Reprojection Error", "Min Tri. Angle"]
-        fnames = ["gt_error_vs_support.jpg", "gt_error_vs_reproj_error.jpg", "gt_error_vs_mintriangle.jpg"]
-        proxy_metrics = [support_per_triplet, reproj_error_per_triplet, min_tri_angle_per_triplet]
+        pose_errors = np.maximum(np.array(max_gt_rot_error_in_cycle), np.array(max_gt_trans_error_in_cycle))
+
+        xlabels = ["Support (#Inliers)"]  # , "Reprojection Error", "Min Tri. Angle"]
+        fnames = ["gt_error_vs_support.jpg"]  # , "gt_error_vs_reproj_error.jpg", "gt_error_vs_mintriangle.jpg"]
+        proxy_metrics = [np.array(support_per_triplet)]  # , reproj_error_per_triplet, min_tri_angle_per_triplet]
+
+        inliers = np.array(min_tri_angle_per_triplet) > 20
+
         for xlabel, fname, proxy_metric in zip(xlabels, fnames, proxy_metrics):
             plt.scatter(
-                proxy_metric,
-                max_gt_rot_error_in_cycle,
+                proxy_metric[inliers],
+                pose_errors[inliers],
                 10,
                 color="g",
                 marker=".",
-                label="max rotation error in cycle",
+                label="inlier by tri angle",
             )
             plt.scatter(
-                proxy_metric,
-                max_gt_trans_error_in_cycle,
+                proxy_metric[~inliers],
+                pose_errors[~inliers],
                 10,
                 color="r",
                 marker=".",
-                label="max translation error in cycle",
+                label="outlier by tri angle",
             )
             plt.xlabel(xlabel)
             plt.ylabel("GT Angular Error")
@@ -296,14 +302,12 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
                 points_3d=unfiltered_data.get_point_cloud(),
             )
             repr_percentile = np.percentile(tri_angles, 75)
-            tri_angle_percentiles += [repr_percentile]
-            R_error_deg = two_view_reports[(i1,i2)].R_error_deg
-            U_error_deg = two_view_reports[(i1,i2)].U_error_deg
+            tri_angle_percentiles.append(repr_percentile)
+            R_error_deg = two_view_reports[(i1, i2)].R_error_deg
+            U_error_deg = two_view_reports[(i1, i2)].U_error_deg
             os.makedirs(os.path.join("plots", "tri_angle_histograms"), exist_ok=True)
             plt.hist(tri_angles, bins=np.arange(100))
-            plt.title(
-                f"75 Percentile: {repr_percentile:.1f}. R error: {R_error_deg:.1f} U error {U_error_deg:.1f}"
-            )
+            plt.title(f"75 Percentile: {repr_percentile:.1f}. R error: {R_error_deg:.1f} U error {U_error_deg:.1f}")
             plt.savefig(os.path.join("plots", "tri_angle_histograms", f"{i1}_{i2}.jpg"), dpi=500)
             plt.close("all")
 
