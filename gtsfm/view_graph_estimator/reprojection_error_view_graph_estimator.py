@@ -7,7 +7,6 @@ Authors: John Lambert
 
 import logging
 import os
-from collections import defaultdict
 from enum import Enum
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -16,7 +15,6 @@ import numpy as np
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3
 
 import gtsfm.multi_view_optimizer as multi_view_optimizer
-import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
@@ -100,6 +98,11 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
         input_edges: List[Tuple[int, int]] = self._get_valid_input_edges(i2Ri1_dict)
         triplets: List[Tuple[int, int, int]] = graph_utils.extract_cyclic_triplets_from_edges(input_edges)
 
+        support_per_triplet = []
+        reproj_error_per_triplet = []
+        max_gt_rot_error_in_cycle = []
+        max_gt_trans_error_in_cycle = []
+
         logger.info("Number of triplets: %d" % len(triplets))
         for i0, i1, i2 in triplets:  # sort order guaranteed
             logger.info("On triplet (%d,%d,%d)", i0, i1, i2)
@@ -130,7 +133,79 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
                 valid_edges.add((i1, i2))
                 valid_edges.add((i0, i2))
 
+            # form 3 edges e_i, e_j, e_k between fully connected subgraph (nodes i0,i1,i2)
+            edges = [(i0, i1), (i1, i2), (i0, i2)]
+            rot_errors = [two_view_reports[e].R_error_deg for e in edges]
+            trans_errors = [two_view_reports[e].U_error_deg for e in edges]
+            gt_known = all([err is not None for err in rot_errors])
+            # if ground truth unknown, cannot estimate error w.r.t. GT
+            max_rot_error = max(rot_errors) if gt_known else None
+            max_trans_error = max(trans_errors) if gt_known else None
+            
+            support_per_triplet.append(support)
+            reproj_error_per_triplet.append(np.nanmedian(reproj_errors))
+            max_gt_rot_error_in_cycle.append(max_rot_error)
+            max_gt_trans_error_in_cycle.append(max_trans_error)
+
+        self.__save_plots(
+            support_per_triplet,
+            reproj_error_per_triplet,
+            max_gt_rot_error_in_cycle,
+            max_gt_trans_error_in_cycle,
+        )
         return valid_edges
+
+    def __save_plots(
+        self,
+        support_per_triplet: List[float],
+        reproj_error_per_triplet: List[float],
+        max_gt_rot_error_in_cycle: List[float],
+        max_gt_trans_error_in_cycle: List[float],
+    ) -> None:
+        """Save information about proxy error metric vs. GT error metric."""
+
+        plt.scatter(
+            support_per_triplet,
+            max_gt_rot_error_in_cycle,
+            10,
+            color="g",
+            marker=".",
+            label="max rotation error in cycle"
+        )
+        plt.scatter(
+            support_per_triplet,
+            max_gt_trans_error_in_cycle,
+            10,
+            color="r",
+            marker=".",
+            label="max translation error in cycle"
+        )
+        plt.xlabel("Support (#Inliers)")
+        plt.ylabel("GT Angular Error")
+        plt.legend(loc="upper right")
+        plt.savefig(os.path.join("plots", "gt_error_vs_support.jpg"), dpi=500)
+        plt.close("all")
+
+        plt.scatter(
+            reproj_error_per_triplet,
+            max_gt_rot_error_in_cycle,
+            10,
+            color="g",
+            marker=".",
+            label="max rotation error in cycle"
+        )
+        plt.scatter(
+            reproj_error_per_triplet,
+            max_gt_trans_error_in_cycle,
+            10,
+            color="r",
+            marker=".",
+            label="max translation error in cycle"
+        )
+        plt.xlabel("Reprojection Error")
+        plt.ylabel("GT Angular Error")
+        plt.legend(loc="upper right")
+        plt.savefig(os.path.join("plots", "gt_error_vs_reproj_error.jpg"), dpi=500)
 
     def optimize_three_views_averaging(
         self,
@@ -188,7 +263,6 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
         reproj_errors = unfiltered_data.get_scene_reprojection_errors()
         wTi_list = unfiltered_data.get_camera_poses()
 
-        # import pdb; pdb.set_trace()
         ba_metrics = self._bundle_adjustment_module.evaluate(unfiltered_data, filtered_data, cameras_gt)
         return wTi_list, reproj_errors, ra_metrics, ta_metrics, ba_metrics
 

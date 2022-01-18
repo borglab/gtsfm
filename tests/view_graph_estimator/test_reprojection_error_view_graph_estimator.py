@@ -143,7 +143,7 @@ def test_view_graph_estimator_run_door() -> None:
     two_view_reports = {k: None for k in i2Ri1_dict.keys()}
 
     vge = ReprojectionErrorViewGraphEstimator()
-    result = vge.run(
+    view_graph_inlier_edges = vge.run(
         i2Ri1_dict=i2Ri1_dict,
         i2Ui1_dict=i2Ui1_dict,
         calibrations=camera_intrinsics,
