@@ -10,7 +10,6 @@ References:
 
 Authors: Jing Wu, Ayush Baid, Akshay Krishnan
 """
-import random
 from collections import defaultdict
 from enum import auto, Enum
 from typing import Dict, List, Optional, Tuple
