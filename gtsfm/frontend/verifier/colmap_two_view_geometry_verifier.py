@@ -178,8 +178,7 @@ class ColmapTwoViewGeometryVerifier(VerifierBase):
             logger.info(f"[LORANSAC] matrix estimation unsuccessful.")
             return self._failure_result
         
-        print("Configuration: ", result_dict["configuration_type"])
-        logger.info("Two view configuration: " + str(ConfigurationType(result_dict["configuration_type"])))
+        logger.info("Two view configuration: {ConfigurationType(result_dict['configuration_type']}")
 
         num_inliers = result_dict["num_inliers"]
         inlier_ratio_est_model = num_inliers / match_indices.shape[0]
