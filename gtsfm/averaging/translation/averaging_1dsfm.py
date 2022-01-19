@@ -97,7 +97,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         wRi_list: List[Optional[Rot3]],
         scale_factor: float = 1.0,
         gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
-        projection_sampling_method: ProjectionSamplingMethod = ProjectionSamplingMethod.SAMPLE_WITH_UNIFORM_DENSITY,
+        projection_sampling_method: ProjectionSamplingMethod = ProjectionSamplingMethod.SAMPLE_WITH_INPUT_DENSITY,
     ) -> Tuple[List[Optional[Point3]], Optional[GtsfmMetricsGroup]]:
         """Run the translation averaging.
 
