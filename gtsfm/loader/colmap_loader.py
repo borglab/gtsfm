@@ -88,6 +88,8 @@ class ColmapLoader(LoaderBase):
         self._image_paths = []
         self._wTi_list = []
         
+        # If one of the images is not found on disk, the assigned image indices will be re-ordered on disk
+        # to skip the missing image.
         for img_fname, wTi in zip(img_fnames, wTi_list):
             img_fpath = os.path.join(images_dir, img_fname)
             if not Path(img_fpath).exists():
@@ -100,11 +102,11 @@ class ColmapLoader(LoaderBase):
         logger.info("Colmap image loader found and loaded %d images", self._num_imgs)
 
     def get_image_fname(self, idx: int) -> str:
-        """ """
+        """Given an image index, provide the corresponding image filename."""
         return Path(self._image_paths[idx]).name
 
     def get_image_index_from_filename(self, fname: str) -> int:
-        """ """
+        """Given an image filename, provide the corresponding image index."""
         return self._img_fnames.index(fname)
 
     def __len__(self) -> int:
