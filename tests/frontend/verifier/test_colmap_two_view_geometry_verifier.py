@@ -25,28 +25,6 @@ from gtsfm.two_view_estimator import TwoViewEstimator
 TEST_DATA_ROOT = Path(__file__).parent.parent.parent.resolve() / "data"
 
 
-class TestColmapTwoViewGeometryVerifierForEssentialMatrix(test_verifier_base.TestVerifierBase):
-    """Unit tests for the LoRANSAC verifier w/ intrinsics in verification.
-
-    All unit test functions defined in TestVerifierBase are run automatically.
-    """
-
-    def setUp(self):
-        super().setUp()
-        self.verifier = ColmapTwoViewGeometryVerifier(use_intrinsics_in_verification=True, estimation_threshold_px=0.5)
-
-
-class TestColmapTwoViewGeometryVerifierForFundamentalMatrix(test_verifier_base.TestVerifierBase):
-    """Unit tests for the LoRANSAC verifier w/o intrinsics in verification.
-
-    All unit test functions defined in TestVerifierBase are run automatically.
-    """
-
-    def setUp(self):
-        super().setUp()
-        self.verifier = ColmapTwoViewGeometryVerifier(use_intrinsics_in_verification=False, estimation_threshold_px=0.5)
-
-
 # def test_pose_from_homography_matrix_notre_dame() -> None:
 #     """Purely planar scene.
 #     Check SuperPoint + SuperGlue + OpenCV RANSAC-5pt frontend (Essential matrix estimation).

@@ -28,6 +28,12 @@ from gtsfm.frontend.verifier.verifier_base import VerifierBase
 logger = logger_utils.get_logger()
 
 
+MIN_INLIER_RATIO = 0.01
+MIN_NUM_TRIALS = 100000
+MAX_NUM_TRIALS = 1000000
+CONFIDENCE = 0.999999
+
+
 class ConfigurationType(Enum):
     UNDEFINED = 0
     # Degenerate configuration (e.g., no overlap or not enough inliers).
@@ -56,12 +62,6 @@ class ColmapTwoViewGeometryVerifier(VerifierBase):
         estimation_threshold_px: float,
     ) -> None:
         """Initializes the verifier.
-
-        Note: LoRANSAC is hard-coded in pycolmap to use the following hyperparameters:
-            min_inlier_ratio = 0.01
-            min_num_trials = 1000
-            max_num_trials = 100000
-            confidence = 0.9999
 
         (See https://github.com/mihaidusmanu/pycolmap/blob/master/essential_matrix.cc#L98)
 
@@ -102,7 +102,7 @@ class ColmapTwoViewGeometryVerifier(VerifierBase):
             dictionary containing result status code, estimated relative pose (R,t), and inlier mask.
         """
 
-        def get_pycolmap_camera_dict(camera_intrinsics: Cal3Bundler) -> Dict[str, Any]:
+        def get_pycolmap_camera_dict(camera_intrinsics: Cal3Bundler) -> pycolmap.Camera:
             """Convert Cal3Bundler intrinsics to a pycolmap-compatible format (a dictionary).
 
             See https://colmap.github.io/cameras.html#camera-models for info about the COLMAP camera models.
@@ -111,32 +111,32 @@ class ColmapTwoViewGeometryVerifier(VerifierBase):
             focal_length = camera_intrinsics.fx()
             cx, cy = camera_intrinsics.px(), camera_intrinsics.py()
 
-            # TODO: use more accurate proxy?
+            # TODO (johnwlambert): use more accurate proxy?
             width = int(cx * 2)
             height = int(cy * 2)
             logger.info("Estimated height and width: %d,%d", height, width)
 
-            camera_dict = {
-                "model": "SIMPLE_PINHOLE",
-                "width": width,
-                "height": height,
-                "params": [focal_length, cx, cy],
-            }
+            camera_dict = pycolmap.Camera(
+                model="SIMPLE_PINHOLE",
+                width=width,
+                height=height,
+                params=[focal_length, cx, cy],
+            )
             return camera_dict
 
         camera_dict1 = get_pycolmap_camera_dict(camera_intrinsics_i1)
         camera_dict2 = get_pycolmap_camera_dict(camera_intrinsics_i2)
 
         result_dict = pycolmap.two_view_geometry_estimation(
-            points2D1=uv_i1, 
+            points2D1=uv_i1,
             points2D2=uv_i2,
-            camera_dict1=camera_dict1,
-            camera_dict2=camera_dict2,
+            camera1=camera_dict1,
+            camera2=camera_dict2,
             max_error_px=self._estimation_threshold_px,
-            min_inlier_ratio=0.01,
-            min_num_trials=100000,
-            max_num_trials=1000000,
-            confidence=0.999999,
+            min_inlier_ratio=MIN_INLIER_RATIO,
+            min_num_trials=MIN_NUM_TRIALS,
+            max_num_trials=MAX_NUM_TRIALS,
+            confidence=CONFIDENCE,
         )
         return result_dict
 
@@ -165,7 +165,7 @@ class ColmapTwoViewGeometryVerifier(VerifierBase):
             Inlier ratio of w.r.t. the estimated model, i.e. the #final RANSAC inliers/ #putatives.
         """
         if match_indices.shape[0] < self._min_matches:
-            logger.info("[LORANSAC] Not enough correspondences for verification.")
+            logger.info("[GRIC] Not enough correspondences for verification.")
             return self._failure_result
 
         uv_i1 = keypoints_i1.coordinates[match_indices[:, 0]]
@@ -175,9 +175,9 @@ class ColmapTwoViewGeometryVerifier(VerifierBase):
 
         success = result_dict["success"]
         if not success:
-            logger.info(f"[LORANSAC] matrix estimation unsuccessful.")
+            logger.info(f"[GRIC] matrix estimation unsuccessful.")
             return self._failure_result
-        
+
         logger.info("Two view configuration: {ConfigurationType(result_dict['configuration_type']}")
 
         num_inliers = result_dict["num_inliers"]
@@ -185,7 +185,7 @@ class ColmapTwoViewGeometryVerifier(VerifierBase):
 
         inlier_mask = np.array(result_dict["inliers"])
         v_corr_idxs = match_indices[inlier_mask]
-        
+
         # See https://github.com/colmap/colmap/blob/dev/src/base/pose.h#L72 for quaternion coefficient ordering
         qw, qx, qy, qz = result_dict["qvec"]
         i2Ui1 = result_dict["tvec"]

@@ -26,6 +26,12 @@ from gtsfm.frontend.verifier.verifier_base import VerifierBase
 logger = logger_utils.get_logger()
 
 
+MIN_INLIER_RATIO = 0.01
+MIN_NUM_TRIALS = 100000
+MAX_NUM_TRIALS = 1000000
+CONFIDENCE = 0.999999
+
+
 class LoRansac(VerifierBase):
     def __init__(
         self,
@@ -33,12 +39,6 @@ class LoRansac(VerifierBase):
         estimation_threshold_px: float,
     ) -> None:
         """Initializes the verifier.
-
-        Note: LoRANSAC is hard-coded in pycolmap to use the following hyperparameters:
-            min_inlier_ratio = 0.01
-            min_num_trials = 1000
-            max_num_trials = 100000
-            confidence = 0.9999
 
         (See https://github.com/mihaidusmanu/pycolmap/blob/master/essential_matrix.cc#L98)
 
@@ -143,7 +143,13 @@ class LoRansac(VerifierBase):
             result_dict = self.__estimate_essential_matrix(uv_i1, uv_i2, camera_intrinsics_i1, camera_intrinsics_i2)
         else:
             result_dict = pycolmap.fundamental_matrix_estimation(
-                uv_i1, uv_i2, max_error_px=self._estimation_threshold_px
+                uv_i1,
+                uv_i2,
+                max_error_px=self._estimation_threshold_px,
+                min_inlier_ratio=MIN_INLIER_RATIO,
+                min_num_trials=MIN_NUM_TRIALS,
+                max_num_trials=MAX_NUM_TRIALS,
+                confidence=CONFIDENCE,
             )
 
         success = result_dict["success"]
