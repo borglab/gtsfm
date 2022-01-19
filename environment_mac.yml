@@ -40,9 +40,8 @@ dependencies:
   - h5py
   - plotly=4.14.3
   - tabulate
-  # visualization
-  - open3d
   - pip:
+    - open3d # conda-forge version does not support M1 Macs. 
     - pydegensac
     - colour
     - trimesh[easy]
