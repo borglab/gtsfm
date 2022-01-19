@@ -13,10 +13,6 @@ wget -O 2021_09_02_gtsam_python38_wheel.zip --no-check-certificate "https://driv
 unzip 2021_09_02_gtsam_python38_wheel.zip
 pip install gtsam-4.1.0-cp38-cp38-manylinux2014_x86_64.whl
 
-wget https://github.com/johnwlambert/tbv-staging/files/7803248/pycolmap-cp38-cp38-manylinux2014_x86_64.zip
-unzip pycolmap-cp38-cp38-manylinux2014_x86_64.zip
-pip install pycolmap-0.0.2-cp38-cp38-manylinux2014_x86_64.whl
-
 ##########################################################
 # Install GTSFM as a module
 ##########################################################
