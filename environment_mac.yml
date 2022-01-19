@@ -46,3 +46,4 @@ dependencies:
     - pydegensac
     - colour
     - trimesh[easy]
+    - pycolmap>=0.1.0
