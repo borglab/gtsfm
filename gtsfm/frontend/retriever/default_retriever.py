@@ -31,9 +31,14 @@ class DefaultRetriever(RetrieverBase):
         """
         super().__init__(image_pair_indices)
 
-    def retrieve_potential_matches(self, i1, i2, image_graph) -> Tuple[Delayed, Delayed, Delayed, Optional[Delayed]]:
-        # Load Vocabulary
+    def retrieve_potential_matches(self, i1, i2, image_graph) -> Delayed:
+        """
 
+        :param i1:
+        :param i2:
+        :param image_graph:
+        :return: Value between 0 and 1, with 1 representing a high likelyhood of match and 0 low likelyhood of match.
+        """
 
         # Use Image Retriever to retrieve a subset of image pairs
         image1 = image_graph[i1]
