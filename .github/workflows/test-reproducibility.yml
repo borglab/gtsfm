@@ -1,10 +1,10 @@
-name: Unit tests and python checks
+name: Reproducibility tests
 
 on: [pull_request, workflow_dispatch]
 
 jobs:
-  run-unit-tests:
-    name: Run all unit tests in code base
+  run-repro-tests:
+    name: Run reproducibility tests for different algorithms
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -35,16 +35,6 @@ jobs:
           pip install pytest-cov
           pip install flake8
           conda info
-      - name: Flake check
+      - name: Reproducibility tests
         run: |
-          flake8 --max-line-length 120 --ignore E201,E202,E203,E231,W291,W293,E303,W391,E402,W503,E731 gtsfm
-      - name: Unit tests
-        run: |
-          pytest tests --cov gtsfm \
-            --ignore tests/repro_tests
-            --ignore tests/frontend/test_frontend_argoverse.py \
-            --ignore tests/loader/test_argoverse_dataset_loader.py
-          coverage report
-      - name: React-Three-Fiber app tests
-        run: |
-          cd rtf_vis_tool && npm install && npm test a
+          pytest tests/repro_tests
