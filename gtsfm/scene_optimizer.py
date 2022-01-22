@@ -133,9 +133,7 @@ class SceneOptimizer:
 
         # Image Retrieval
         retriever = RetrieverBase(image_pair_indices)
-        retrieved_image_pair_indices = retriever.create_computation_graph(image_graph)
-
-
+        retriever_dict = retriever.create_computation_graph(image_graph)
 
 
 
@@ -152,8 +150,9 @@ class SceneOptimizer:
             POST_ISP_REPORT_TAG: {},
         }
 
-        logger.info(retrieved_image_pair_indices)
-        for (i1, i2) in retrieved_image_pair_indices:
+        # logger.info(retrieved_image_pair_indices)
+        for (i1, i2) in retriever_dict.items():
+        # for (i1, i2) in retrieved_image_pair_indices:
         # for (i1, i2) in image_pair_indices:
             # Collect ground truth relative and absolute poses if available.
             # TODO(johnwlambert): decompose this method -- name it as "calling_the_plate()"
