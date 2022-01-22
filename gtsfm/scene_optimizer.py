@@ -26,7 +26,7 @@ from gtsfm.common.image import Image
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.feature_extractor import FeatureExtractor
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
-from gtsfm.frontend.retriever.retriever_base import RetrieverBase
+from gtsfm.frontend.retriever.default_retriever import DefaultRetriever
 from gtsfm.two_view_estimator import (
     TwoViewEstimator,
     TwoViewEstimationReport,
@@ -132,13 +132,8 @@ class SceneOptimizer:
 
 
         # Image Retrieval
-        retriever = RetrieverBase(image_pair_indices)
+        retriever = DefaultRetriever(image_pair_indices)
         retriever_dict = retriever.create_computation_graph(image_graph)
-
-
-
-
-
 
         # Estimate two-view geometry and get indices of verified correspondences.
         i2Ri1_graph_dict = {}
@@ -151,9 +146,7 @@ class SceneOptimizer:
         }
 
         # logger.info(retrieved_image_pair_indices)
-        for (i1, i2) in retriever_dict.items():
-        # for (i1, i2) in retrieved_image_pair_indices:
-        # for (i1, i2) in image_pair_indices:
+        for (i1, i2) in retriever_dict.keys():
             # Collect ground truth relative and absolute poses if available.
             # TODO(johnwlambert): decompose this method -- name it as "calling_the_plate()"
             if gt_cameras_graph is not None:

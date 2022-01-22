@@ -20,15 +20,15 @@ from gtsfm.common.keypoints import Keypoints
 logger = logger_utils.get_logger()
 
 
-# class RetrieverBase(metaclass=abc.ABCMeta):
-class RetrieverBase:
+class RetrieverBase(metaclass=abc.ABCMeta):
     """Base class for image retrieval.
     The Retriever proposes image pairs to conduct local feature matching.
     """
 
     def __init__(self, image_pair_indices):
-        """Initialize the Retriever.
-        Args:
+        """Initialize the Retriever
+
+        :param image_pair_indices: Set of possible image pairs based on Dataloader
         """
         self.image_pair_indices = image_pair_indices
         orb_descriptor = cbir.descriptors.Orb()
@@ -39,33 +39,17 @@ class RetrieverBase:
         self.voc.graph = nx.read_gpickle(vocabulary_folder + "graph.pickle")
         with open(vocabulary_folder + 'nodes.pickle', 'rb') as f:
             self.voc.nodes = pickle.load(f)
-    # def _is_valid_pair(self, idx1: int, idx2: int) -> bool:
-    #     """Checks if (idx1, idx2) is a valid pair.
-    #     Default is exhaustive, i.e., all pairs are valid.
-    #     Args:
-    #         idx1: first index of the pair.
-    #         idx2: second index of the pair.
-    #     Returns:
-    #         validation result.
-    #     """
 
+    # ignored-abstractmethod
+    @abc.abstractmethod
     def retrieve_potential_matches(self, i1, i2, image_graph) -> Tuple[Delayed, Delayed, Delayed, Optional[Delayed]]:
-        # Load Vocabulary
+        """
 
-
-        # Use Image Retriever to retrieve a subset of image pairs
-        logger.info("HERE")
-        image1 = image_graph[i1]
-        embedding1 = dask.delayed(self.voc.embedding(image1))
-
-        image2 = image_graph[i2]
-
-        logger.info(image1)
-        logger.info(image2)
-        embedding2 = dask.delayed(self.voc.embedding(image2))
-        if np.dot(embedding1, embedding2) > .5:
-             return 1
-        return 0
+        :param i1:
+        :param i2:
+        :param image_graph:
+        :return:
+        """
 
     def create_computation_graph(self, image_graph: Delayed) -> Dict[Tuple[int, int], Delayed]:
         """Given an image, create detection and descriptor generation tasks
