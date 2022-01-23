@@ -43,11 +43,16 @@ logger = logger_utils.get_logger()
 class TranslationAveraging1DSFM(TranslationAveragingBase):
     """1D-SFM translation averaging with outlier rejection."""
 
-    class ProjectionSamplingMethod(Enum):
+    class ProjectionSamplingMethod(str, Enum):
         """Used to select how the projection directions in 1DSfM are sampled."""
-        SAMPLE_INPUT_MEASUREMENTS = auto()   # Randomly choose projection directions from input measurements.
-        SAMPLE_WITH_INPUT_DENSITY = auto()   # Fit a Gaussian density to input measurements and sample from it.
-        SAMPLE_WITH_UNIFORM_DENSITY = auto() # Uniformly sample 3D directions at random.
+        # The string values for enums enable using them in the config.
+
+        # Randomly choose projection directions from input measurements.
+        SAMPLE_INPUT_MEASUREMENTS = "SAMPLE_INPUT_MEASUREMENTS"
+        # Fit a Gaussian density to input measurements and sample from it.
+        SAMPLE_WITH_INPUT_DENSITY = "SAMPLE_WITH_INPUT_DENSITY"
+        # Uniformly sample 3D directions at random. 
+        SAMPLE_WITH_UNIFORM_DENSITY = "SAMPLE_WITH_UNIFORM_DENSITY"
 
     def __init__(
         self, 
