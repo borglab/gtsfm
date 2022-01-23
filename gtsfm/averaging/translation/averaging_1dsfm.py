@@ -11,7 +11,7 @@ References:
 Authors: Jing Wu, Ayush Baid, Akshay Krishnan
 """
 from collections import defaultdict
-from enum import auto, Enum
+from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
 import gtsam
