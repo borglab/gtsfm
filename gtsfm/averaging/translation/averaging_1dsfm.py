@@ -46,19 +46,20 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
     class ProjectionSamplingMethod(str, Enum):
         """Used to select how the projection directions in 1DSfM are sampled."""
+
         # The string values for enums enable using them in the config.
 
         # Randomly choose projection directions from input measurements.
         SAMPLE_INPUT_MEASUREMENTS = "SAMPLE_INPUT_MEASUREMENTS"
         # Fit a Gaussian density to input measurements and sample from it.
         SAMPLE_WITH_INPUT_DENSITY = "SAMPLE_WITH_INPUT_DENSITY"
-        # Uniformly sample 3D directions at random. 
+        # Uniformly sample 3D directions at random.
         SAMPLE_WITH_UNIFORM_DENSITY = "SAMPLE_WITH_UNIFORM_DENSITY"
 
     def __init__(
-        self, 
+        self,
         robust_measurement_noise: bool = True,
-        projection_sampling_method: ProjectionSamplingMethod = ProjectionSamplingMethod.SAMPLE_WITH_UNIFORM_DENSITY
+        projection_sampling_method: ProjectionSamplingMethod = ProjectionSamplingMethod.SAMPLE_WITH_UNIFORM_DENSITY,
     ) -> None:
         """Initializes the 1DSFM averaging instance.
 
@@ -73,7 +74,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         self._projection_sampling_method = projection_sampling_method
 
     def __sample_projection_directions(
-        self, 
+        self,
         w_i2Ui1_measurements: BinaryMeasurementsUnit3,
     ) -> List[Unit3]:
         """Samples projection directions for 1DSfM based on the provided sampling method.
@@ -93,8 +94,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             projections = [w_i2Ui1_measurements[idx].measured() for idx in sampled_indices]
         elif self._projection_sampling_method == self.ProjectionSamplingMethod.SAMPLE_WITH_INPUT_DENSITY:
             projections = _sample_kde_directions(
-                w_i2Ui1_measurements,
-                num_samples=self._max_1dsfm_projection_directions
+                w_i2Ui1_measurements, num_samples=self._max_1dsfm_projection_directions
             )
         elif self._projection_sampling_method == self.ProjectionSamplingMethod.SAMPLE_WITH_UNIFORM_DENSITY:
             projections = _sample_random_directions(num_samples=self._max_1dsfm_projection_directions)
