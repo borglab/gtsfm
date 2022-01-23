@@ -49,46 +49,52 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         SAMPLE_WITH_INPUT_DENSITY = auto()   # Fit a Gaussian density to input measurements and sample from it.
         SAMPLE_WITH_UNIFORM_DENSITY = auto() # Uniformly sample 3D directions at random.
 
-    def __init__(self, robust_measurement_noise: bool = True) -> None:
+    def __init__(
+        self, 
+        robust_measurement_noise: bool = True,
+        projection_sampling_method: ProjectionSamplingMethod = ProjectionSamplingMethod.SAMPLE_WITH_UNIFORM_DENSITY
+    ) -> None:
         """Initializes the 1DSFM averaging instance.
 
         Args:
             robust_measurement_noise: Whether to use a robust noise model for the measurements, defaults to true.
+            projection_sampling_method: ProjectionSamplingMethod to be used for directions to run 1DSfM.
         """
         super().__init__(robust_measurement_noise)
 
         self._max_1dsfm_projection_directions = MAX_PROJECTION_DIRECTIONS
         self._outlier_weight_threshold = OUTLIER_WEIGHT_THRESHOLD
+        self._projection_sampling_method = projection_sampling_method
 
     def __sample_projection_directions(
         self, 
         w_i2Ui1_measurements: BinaryMeasurementsUnit3,
-        projection_sampling_method: ProjectionSamplingMethod
     ) -> List[Unit3]:
         """Samples projection directions for 1DSfM based on the provided sampling method. 
         
         Args:
             w_i2Ui1_measurements: Unit translation measurements which are input to 1DSfM.
-            projection_sampling_method: ProjectionSamplingMethod to be used for sampling directions. 
 
         Returns: 
             List of sampled Unit3 projection directions.
         """
         num_measurements = len(w_i2Ui1_measurements)
 
-        if projection_sampling_method == self.ProjectionSamplingMethod.SAMPLE_INPUT_MEASUREMENTS:
+        if self._projection_sampling_method == self.ProjectionSamplingMethod.SAMPLE_INPUT_MEASUREMENTS:
             num_samples = min(num_measurements, self._max_1dsfm_projection_directions)
             sampled_indices = np.random.choice(w_i2Ui1_measurements, num_samples, replace=False)
-            return [w_i2Ui1_measurements[idx].measured() for idx in sampled_indices]
-
-        elif projection_sampling_method == self.ProjectionSamplingMethod.SAMPLE_WITH_INPUT_DENSITY:
-            return _sample_kde_directions(w_i2Ui1_measurements, num_samples=self._max_1dsfm_projection_directions)
-
-        elif projection_sampling_method == self.ProjectionSamplingMethod.SAMPLE_WITH_UNIFORM_DENSITY:
-            return _sample_random_directions(num_samples=self._max_1dsfm_projection_directions)
-        
+            projections = [w_i2Ui1_measurements[idx].measured() for idx in sampled_indices]
+        elif self._projection_sampling_method == self.ProjectionSamplingMethod.SAMPLE_WITH_INPUT_DENSITY:
+            projections = _sample_kde_directions(
+                w_i2Ui1_measurements,
+                num_samples=self._max_1dsfm_projection_directions
+            )
+        elif self._projection_sampling_method == self.ProjectionSamplingMethod.SAMPLE_WITH_UNIFORM_DENSITY:
+            projections = _sample_random_directions(num_samples=self._max_1dsfm_projection_directions)
         else:
             raise ValueError("Unsupported sampling method!")
+
+        return projections
 
     def run(
         self,
@@ -97,7 +103,6 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         wRi_list: List[Optional[Rot3]],
         scale_factor: float = 1.0,
         gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
-        projection_sampling_method: ProjectionSamplingMethod = ProjectionSamplingMethod.SAMPLE_WITH_UNIFORM_DENSITY,
     ) -> Tuple[List[Optional[Point3]], Optional[GtsfmMetricsGroup]]:
         """Run the translation averaging.
 
@@ -107,7 +112,6 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             wRi_list: global rotations for each camera pose in the world coordinates.
             scale_factor: non-negative global scaling factor.
             gt_wTi_list: ground truth poses for computing metrics.
-            projection_sampling_method: ProjectionSamplingMethod to be used for directions to run 1DSfM.
 
         Returns:
             Global translation wti for each camera pose. The number of entries in the list is `num_images`. The list
@@ -134,7 +138,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 )
 
         # sample projection directions
-        projection_directions = self.__sample_projection_directions(w_i2Ui1_measurements, projection_sampling_method)
+        projection_directions = self.__sample_projection_directions(w_i2Ui1_measurements)
 
         # compute outlier weights using MFAS
         outlier_weights = []
