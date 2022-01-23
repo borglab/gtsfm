@@ -30,7 +30,7 @@ function retry {
   return 0
 }
 
-function download_dataset_files {
+function download_and_unzip_dataset_files {
   # Prepare the download URLs.
   if [ "$DATASET_NAME" == "skydio-8" ]; then
     # Description: TODO
@@ -147,7 +147,7 @@ fi
 echo "Share intrinsics CLI argument: ${SHARE_INTRINSICS_ARG}"
 
 # Retry in case of corrupted file ("End-of-central-directory signature not found")
-retry 5 download_dataset_files
+retry 5 download_and_unzip_dataset_files
 
 # Run GTSFM on the dataset.
 if [ "$LOADER_NAME" == "olsson-loader" ]; then
