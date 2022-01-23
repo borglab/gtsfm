@@ -40,6 +40,7 @@ MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
 
 logger = logger_utils.get_logger()
 
+
 class TranslationAveraging1DSFM(TranslationAveragingBase):
     """1D-SFM translation averaging with outlier rejection."""
 
@@ -75,12 +76,13 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         self, 
         w_i2Ui1_measurements: BinaryMeasurementsUnit3,
     ) -> List[Unit3]:
-        """Samples projection directions for 1DSfM based on the provided sampling method. 
-        
+        """Samples projection directions for 1DSfM based on the provided sampling method.
+
         Args:
             w_i2Ui1_measurements: Unit translation measurements which are input to 1DSfM.
+            projection_sampling_method: ProjectionSamplingMethod to be used for sampling directions.
 
-        Returns: 
+        Returns:
             List of sampled Unit3 projection directions.
         """
         num_measurements = len(w_i2Ui1_measurements)
@@ -206,7 +208,7 @@ def _sample_kde_directions(w_i2Ui1_measurements: BinaryMeasurementsUnit3, num_sa
 
     Returns:
         List of sampled Unit3 directions.
-     """
+    """
     w_i2Ui1_list = [w_i2Ui1.measured() for w_i2Ui1 in w_i2Ui1_measurements]
     if len(w_i2Ui1_list) > MAX_KDE_SAMPLES:
         w_i2Ui1_subset_indices = np.random.choice(range(len(w_i2Ui1_list)), MAX_KDE_SAMPLES, replace=False).tolist()
