@@ -55,7 +55,7 @@ class ConfigurationType(Enum):
     MULTIPLE = 8
 
 
-class ColmapTwoViewGeometryVerifier(VerifierBase):
+class GricVerifier(VerifierBase):
     def __init__(
         self,
         use_intrinsics_in_verification: bool,
