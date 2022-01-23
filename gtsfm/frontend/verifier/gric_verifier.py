@@ -20,7 +20,6 @@ from gtsam import Cal3Bundler, Rot3, Unit3
 
 import gtsfm.frontend.verifier.verifier_base as verifier_base
 import gtsfm.utils.logger as logger_utils
-import gtsfm.utils.verification as verification_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
@@ -173,10 +172,10 @@ class GricVerifier(VerifierBase):
         result_dict = self.__estimate_two_view_geometry(uv_i1, uv_i2, camera_intrinsics_i1, camera_intrinsics_i2)
 
         if not result_dict["success"]:
-            logger.info(f"[GRIC] matrix estimation unsuccessful.")
+            logger.info("[GRIC] matrix estimation unsuccessful.")
             return self._failure_result
 
-        logger.info("Two view configuration: {ConfigurationType(result_dict['configuration_type']}")
+        logger.info("Two view configuration: %s", ConfigurationType(result_dict["configuration_type"]))
 
         inlier_ratio_est_model = result_dict["num_inliers"] / match_indices.shape[0]
 
