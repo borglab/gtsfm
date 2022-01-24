@@ -132,11 +132,11 @@ class SceneOptimizer:
             descriptors_graph_list += [delayed_descs]
 
         # Image Retrieval
-        # retriever = VocabTreeRetriever(image_pair_indices)
-        # retrieved_image_pair_indices = retriever.create_computation_graph(image_graph).compute()
+        retriever = VocabTreeRetriever(image_pair_indices)
+        retrieved_image_pair_indices = retriever.create_computation_graph(image_graph).compute()
 
-        retriever = SequentialRetriever(image_pair_indices)
-        retrieved_image_pair_indices = retriever.create_computation_graph().compute()
+        # retriever = SequentialRetriever(image_pair_indices)
+        # retrieved_image_pair_indices = retriever.create_computation_graph().compute()
 
         logger.info("Number of Retrieved Image Pairs: " + str(len(retrieved_image_pair_indices)))
 
