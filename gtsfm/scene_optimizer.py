@@ -26,7 +26,8 @@ from gtsfm.common.image import Image
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.feature_extractor import FeatureExtractor
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
-from gtsfm.frontend.retriever.default_retriever import DefaultRetriever
+from gtsfm.frontend.retriever.vocab_retriever import VocabTreeRetriever
+from gtsfm.frontend.retriever.sequential_retriever import SequentialRetriever
 from gtsfm.two_view_estimator import (
     TwoViewEstimator,
     TwoViewEstimationReport,
@@ -95,7 +96,7 @@ class SceneOptimizer:
         # make directories for persisting data
         os.makedirs(PLOT_BASE_PATH, exist_ok=True)
         os.makedirs(METRICS_PATH, exist_ok=True)
-        os.makedirs(RESULTS_PATH , exist_ok=True)
+        os.makedirs(RESULTS_PATH, exist_ok=True)
 
         os.makedirs(PLOT_CORRESPONDENCE_PATH, exist_ok=True)
         os.makedirs(PLOT_BA_INPUT_PATH, exist_ok=True)
@@ -130,10 +131,14 @@ class SceneOptimizer:
             keypoints_graph_list += [delayed_dets]
             descriptors_graph_list += [delayed_descs]
 
-
         # Image Retrieval
-        retriever = DefaultRetriever(image_pair_indices)
-        retriever_dict = retriever.create_computation_graph(image_graph)
+        # retriever = VocabTreeRetriever(image_pair_indices)
+        # retrieved_image_pair_indices = retriever.create_computation_graph(image_graph).compute()
+
+        retriever = SequentialRetriever(image_pair_indices)
+        retrieved_image_pair_indices = retriever.create_computation_graph().compute()
+
+        logger.info("Number of Retrieved Image Pairs: " + str(len(retrieved_image_pair_indices)))
 
         # Estimate two-view geometry and get indices of verified correspondences.
         i2Ri1_graph_dict = {}
@@ -145,8 +150,7 @@ class SceneOptimizer:
             POST_ISP_REPORT_TAG: {},
         }
 
-        # logger.info(retrieved_image_pair_indices)
-        for (i1, i2) in retriever_dict.keys():
+        for (i1, i2) in retrieved_image_pair_indices:
             # Collect ground truth relative and absolute poses if available.
             # TODO(johnwlambert): decompose this method -- name it as "calling_the_plate()"
             if gt_cameras_graph is not None:
