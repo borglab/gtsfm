@@ -127,7 +127,7 @@ function download_and_unzip_dataset_files {
     rm -f notre-dame-20.zip
     unzip -qq notre-dame-20.zip
 
-  elif [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then \
+  elif [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then
     DATASET_ROOT="palace-fine-arts-281"
     mkdir palace-fine-arts-281
     # delete if exists (would be truncated version from earlier retry)
@@ -159,9 +159,9 @@ echo "Share intrinsics CLI argument: ${SHARE_INTRINSICS_ARG}"
 retry 5 download_and_unzip_dataset_files
 
 # Set up directories
-
-elif [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then \
+if [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then
     mv data.mat palace-fine-arts-281/
+fi
 
 # Run GTSFM on the dataset.
 if [ "$LOADER_NAME" == "olsson-loader" ]; then
