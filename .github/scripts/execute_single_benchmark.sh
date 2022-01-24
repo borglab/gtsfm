@@ -36,7 +36,7 @@ function download_and_unzip_dataset_files {
   if [ "$DATASET_NAME" == "skydio-8" ]; then
     # Description: TODO
     export GDRIVE_FILEID='1mmM1p_NpL7-pnf3iHWeWVKpsm1pcBoD5'
-    ZIP_FNAME=
+    ZIP_FNAME=skydio-8.zip
 
   elif [ "$DATASET_NAME" == "skydio-32" ]; then
     # Description: TODO
