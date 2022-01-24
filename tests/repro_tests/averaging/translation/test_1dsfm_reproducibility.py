@@ -38,6 +38,6 @@ class Test1DSFMReproducibility(ReproducibilityTestBase, unittest.TestCase):
         )[0]
 
     def assert_results(self, results_a: List[Optional[Point3]], results_b: List[Optional[Point3]]) -> None:
-        poses_a = [Pose3(r, t) for r, t in zip(self._global_rotations_input, results_a) if t is not None]
-        poses_b = [Pose3(r, t) for r, t in zip(self._global_rotations_input, results_b) if t is not None]
+        poses_a = [Pose3(r, t) if t is not None else None for r, t in zip(self._global_rotations_input, results_a)]
+        poses_b = [Pose3(r, t) if t is not None else None for r, t in zip(self._global_rotations_input, results_b)]
         self.assertTrue(geometry_comparisons.compare_global_poses(poses_a, poses_b))
