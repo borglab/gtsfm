@@ -36,10 +36,12 @@ function download_and_unzip_dataset_files {
   if [ "$DATASET_NAME" == "skydio-8" ]; then
     # Description: TODO
     export GDRIVE_FILEID='1mmM1p_NpL7-pnf3iHWeWVKpsm1pcBoD5'
+    ZIP_FNAME=
 
   elif [ "$DATASET_NAME" == "skydio-32" ]; then
     # Description: TODO
     export GDRIVE_FILEID='1BQ6jp0DD3D9yhTnrDoEddzlMYT0RRH68'
+    ZIP_FNAME=skydio-32.zip
 
   elif [ "$DATASET_NAME" == "skydio-501" ]; then
     # 501-image Crane Mast collection released by Skydio via Sketchfab
@@ -50,21 +52,28 @@ function download_and_unzip_dataset_files {
   elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
     # Description: TODO
     export GDRIVE_FILEID='1t_CptH7ZWdKQVW-yw56bpLS83TntNQiK'
+    ZIP_FNAME=notre-dame-20.zip
 
   elif [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then
     # Description: TODO
     WGET_URL1=http://vision.maths.lth.se/calledataset/fine_arts_palace/fine_arts_palace.zip
     WGET_URL2=http://vision.maths.lth.se/calledataset/fine_arts_palace/data.mat
+    ZIP_FNAME=fine_arts_palace.zip
 
   elif [ "$DATASET_NAME" == "2011205_rc3" ]; then
     # Description: images captured during the Rotation Characterization 3 (RC3) phase of NASA's Dawn mission to Asteroid 4
     #   Vesta.
     WGET_URL1=https://www.dropbox.com/s/q02mgq1unbw068t/2011205_rc3.zip
+    ZIP_FNAME=2011205_rc3.zip
   fi
 
   # Download the data.
   if [ "$DATASET_SRC" == "gdrive" ]; then
     echo "Downloading ${DATASET_NAME} from GDRIVE"
+    
+    # delete if exists (would be truncated version from earlier retry)
+    rm -f $ZIP_FNAME
+    
     export GDRIVE_URL='https://docs.google.com/uc?export=download&id='$GDRIVE_FILEID
     retry 10 wget --save-cookies cookies.txt $GDRIVE_URL -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1/p' > confirm.txt
     retry 10 wget --load-cookies cookies.txt -O ${DATASET_NAME}.zip $GDRIVE_URL'&confirm='$(<confirm.txt)
@@ -92,14 +101,11 @@ function download_and_unzip_dataset_files {
   elif [ "$DATASET_NAME" == "skydio-8" ]; then
     IMAGES_DIR=skydio_crane_mast_8imgs_with_exif/images
     COLMAP_FILES_DIRPATH=skydio_crane_mast_8imgs_with_exif/crane_mast_8imgs_colmap_output
-    # delete if exists (would be truncated version from earlier retry)
     unzip -qq skydio-8.zip
     
   elif [ "$DATASET_NAME" == "skydio-32" ]; then
     COLMAP_FILES_DIRPATH=skydio-32/colmap_crane_mast_32imgs
     IMAGES_DIR=skydio-32/images
-    # delete if exists (would be truncated version from earlier retry)
-    rm -f skydio-32.zip
     unzip -qq skydio-32.zip -d skydio-32
 
   elif [ "$DATASET_NAME" == "skydio-501" ]; then
@@ -123,21 +129,15 @@ function download_and_unzip_dataset_files {
   elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
     COLMAP_FILES_DIRPATH=notre-dame-20/notre-dame-20-colmap
     IMAGES_DIR=notre-dame-20/images
-    # delete if exists (would be truncated version from earlier retry)
-    rm -f notre-dame-20.zip
     unzip -qq notre-dame-20.zip
 
   elif [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then
     DATASET_ROOT="palace-fine-arts-281"
-    mkdir palace-fine-arts-281
-    # delete if exists (would be truncated version from earlier retry)
-    rm -f fine_arts_palace.zip
+    mkdir -p palace-fine-arts-281
     unzip -qq fine_arts_palace.zip -d palace-fine-arts-281/images
 
   elif [ "$DATASET_NAME" == "2011205_rc3" ]; then 
     DATASET_ROOT="2011205_rc3"
-    # delete if exists (would be truncated version from earlier retry)
-    rm -f 2011205_rc3.zip
     unzip -qq 2011205_rc3.zip
   fi
 }
