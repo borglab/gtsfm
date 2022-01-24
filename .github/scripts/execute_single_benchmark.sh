@@ -30,6 +30,7 @@ function retry {
   return 0
 }
 
+# The last command executed in this function is `unzip`, which will return a non-zero exit code upon failure
 function download_and_unzip_dataset_files {
   # Prepare the download URLs.
   if [ "$DATASET_NAME" == "skydio-8" ]; then
@@ -89,14 +90,17 @@ function download_and_unzip_dataset_files {
     DATASET_ROOT=tests/data/set1_lund_door
 
   elif [ "$DATASET_NAME" == "skydio-8" ]; then
-    unzip -qq skydio-8.zip
     IMAGES_DIR=skydio_crane_mast_8imgs_with_exif/images
     COLMAP_FILES_DIRPATH=skydio_crane_mast_8imgs_with_exif/crane_mast_8imgs_colmap_output
-
+    # delete if exists (would be truncated version from earlier retry)
+    unzip -qq skydio-8.zip
+    
   elif [ "$DATASET_NAME" == "skydio-32" ]; then
-    unzip -qq skydio-32.zip -d skydio-32
     COLMAP_FILES_DIRPATH=skydio-32/colmap_crane_mast_32imgs
     IMAGES_DIR=skydio-32/images
+    # delete if exists (would be truncated version from earlier retry)
+    rm -f skydio-32.zip
+    unzip -qq skydio-32.zip -d skydio-32
 
   elif [ "$DATASET_NAME" == "skydio-501" ]; then
     tar -xvzf skydio-crane-mast-501-images1.tar.gz
@@ -117,19 +121,24 @@ function download_and_unzip_dataset_files {
     cp skydio-501-cache/cache/matcher/* cache/matcher/
 
   elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
-    unzip -qq notre-dame-20.zip
     COLMAP_FILES_DIRPATH=notre-dame-20/notre-dame-20-colmap
     IMAGES_DIR=notre-dame-20/images
+    # delete if exists (would be truncated version from earlier retry)
+    rm -f notre-dame-20.zip
+    unzip -qq notre-dame-20.zip
 
   elif [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then \
-    mkdir palace-fine-arts-281
-    unzip -qq fine_arts_palace.zip -d palace-fine-arts-281/images
-    mv data.mat palace-fine-arts-281/
     DATASET_ROOT="palace-fine-arts-281"
+    mkdir palace-fine-arts-281
+    # delete if exists (would be truncated version from earlier retry)
+    rm -f fine_arts_palace.zip
+    unzip -qq fine_arts_palace.zip -d palace-fine-arts-281/images
 
   elif [ "$DATASET_NAME" == "2011205_rc3" ]; then 
-    unzip -qq 2011205_rc3.zip
     DATASET_ROOT="2011205_rc3"
+    # delete if exists (would be truncated version from earlier retry)
+    rm -f 2011205_rc3.zip
+    unzip -qq 2011205_rc3.zip
   fi
 }
 
@@ -138,7 +147,7 @@ echo "Max. Frame Lookahead: ${MAX_FRAME_LOOKAHEAD}, Image Extension: ${IMAGE_EXT
 echo "Share intrinsics for all images? ${SHARE_INTRINSICS}"
 
 # Setup the command line arg if intrinsics are to be shared
-if [ "$SHARE_INTRINSICS" ]; then
+if [ "$SHARE_INTRINSICS" == "true" ]; then
   export SHARE_INTRINSICS_ARG="--share_intrinsics"
 else
   export SHARE_INTRINSICS_ARG=""
@@ -148,6 +157,11 @@ echo "Share intrinsics CLI argument: ${SHARE_INTRINSICS_ARG}"
 
 # Retry in case of corrupted file ("End-of-central-directory signature not found")
 retry 5 download_and_unzip_dataset_files
+
+# Set up directories
+
+elif [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then \
+    mv data.mat palace-fine-arts-281/
 
 # Run GTSFM on the dataset.
 if [ "$LOADER_NAME" == "olsson-loader" ]; then
