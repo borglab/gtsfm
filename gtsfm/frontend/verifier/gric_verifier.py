@@ -7,6 +7,7 @@ ftp://cmp.felk.cvut.cz/pub/cmp/articles/matas/chum-dagm03.pdf
 
 On Linux and Mac, a python wheel is available:
 https://pypi.org/project/pycolmap/#files
+No python wheel is available on Windows.
 
 Authors: John Lambert
 """
@@ -60,7 +61,7 @@ class GricVerifier(VerifierBase):
         use_intrinsics_in_verification: bool,
         estimation_threshold_px: float,
     ) -> None:
-        """Initializes the verifier.
+        """Initializes the verifier. GRIC automatically checks E vs. F vs. H inliers.
 
         (See https://github.com/mihaidusmanu/pycolmap/blob/master/essential_matrix.cc#L98)
 
@@ -112,7 +113,7 @@ class GricVerifier(VerifierBase):
             # TODO (johnwlambert): use more accurate proxy?
             width = int(cx * 2)
             height = int(cy * 2)
-            logger.info("Estimated height and width: %d,%d", height, width)
+            logger.debug("Estimated height and width: %d,%d", height, width)
 
             camera_dict = pycolmap.Camera(
                 model="SIMPLE_PINHOLE",
@@ -122,14 +123,11 @@ class GricVerifier(VerifierBase):
             )
             return camera_dict
 
-        camera_dict1 = get_pycolmap_camera(camera_intrinsics_i1)
-        camera_dict2 = get_pycolmap_camera(camera_intrinsics_i2)
-
         result_dict = pycolmap.two_view_geometry_estimation(
             points2D1=uv_i1,
             points2D2=uv_i2,
-            camera1=camera_dict1,
-            camera2=camera_dict2,
+            camera1=get_pycolmap_camera(camera_intrinsics_i1),
+            camera2=get_pycolmap_camera(camera_intrinsics_i2),
             max_error_px=self._estimation_threshold_px,
             min_inlier_ratio=MIN_INLIER_RATIO,
             min_num_trials=MIN_NUM_TRIALS,
