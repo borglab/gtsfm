@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid, Akshay Krishnan
 """
+from ast import Gt
 import itertools
 import os
 import timeit
@@ -9,9 +10,11 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
+from scipy.spatial import KDTree
 from trimesh import Trimesh
 from gtsam import PinholeCameraCal3Bundler, Cal3Bundler, EssentialMatrix, Point3, Pose3, Rot3, Unit3
 
+import gtsfm.densify.mvs_utils as mvs_utils
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.verification as verification_utils
@@ -423,7 +426,7 @@ def save_metrics_as_json(metrics_groups: List[GtsfmMetricsGroup], output_dir: st
     for metrics_group in metrics_groups:
         metrics_group.save_to_json(os.path.join(output_dir, metrics_group.name + ".json"))
 
-        
+
 def get_stats_for_sfmdata(gtsfm_data: GtsfmData, suffix: str) -> List[GtsfmMetric]:
     """Helper to get bundle adjustment metrics from a GtsfmData object with a suffix for metric names."""
     metrics = []
@@ -439,7 +442,7 @@ def get_stats_for_sfmdata(gtsfm_data: GtsfmData, suffix: str) -> List[GtsfmMetri
     metrics.append(GtsfmMetric(f"reprojection_errors{suffix}_px", gtsfm_data.get_scene_reprojection_errors()))
     return metrics
 
- 
+
 def compute_percentage_change(x: float, y: float) -> float:
     """Return percentage in representing the regression or improvement of a value x, for new value y.
 
@@ -451,3 +454,70 @@ def compute_percentage_change(x: float, y: float) -> float:
         percentage change (may be positive or negative).
     """
     return (y - x) / (x + EPSILON) * 100
+
+
+def compute_psnr_after_downsampling(
+    original_point_cloud: np.ndarray, downsampled_point_cloud: np.ndarray
+) -> GtsfmMetric:
+    """Compute PSNR between original point cloud and downsampled point cloud
+    A larger PSNR shows that the downsampled point cloud consists better with the original point cloud
+
+    Args:
+        original_point_cloud: original dense point cloud before downsampling
+        downsampled_point_cloud: dense point cloud after downsampling
+
+    Returns:
+        GtsfmMetric: PSNR between original point cloud and downsampled point cloud
+    """
+    diagnose_voxel_scale = np.linalg.norm(mvs_utils.estimate_voxel_scales(original_point_cloud))
+    original_tree = KDTree(data=original_point_cloud)
+    downsampled_tree = KDTree(data=downsampled_point_cloud)
+
+    d_downsampled_to_original, _ = original_tree.query(downsampled_point_cloud)
+    d_original_to_downsampled, _ = downsampled_tree.query(original_point_cloud)
+
+    def RMS(data: np.ndarray) -> float:
+        """Utility function to calculate the root mean square of the given data
+
+        Args:
+            data: input data for evaluation
+
+        Returns:
+            the root mean square of the given data
+        """
+        return np.sqrt(np.square(data).mean())
+
+    psnr = 20.0 * np.log10(diagnose_voxel_scale / max(RMS(d_downsampled_to_original), RMS(d_original_to_downsampled)))
+
+    return GtsfmMetric(name="downsampling PSNR", data=psnr)
+
+
+def get_voxel_downsampling_metrics(
+    min_voxel_size: float, original_point_cloud: np.ndarray, downsampled_point_cloud: np.ndarray
+) -> GtsfmMetricsGroup:
+    """Collect and compute metrics for voxel downsampling
+    Args:
+        min_voxel_size: minimum voxel size for voxel downsampling
+        original_point_cloud: original dense point cloud before downsampling
+        downsampled_point_cloud: dense point cloud after downsampling
+
+    Returns:
+        GtsfmMetricsGroup: voxel downsamping metrics group
+    """
+    downsampling_metrics = []
+    downsampling_metrics.append(GtsfmMetric(name="voxel size for downsampling", data=min_voxel_size))
+    downsampling_metrics.append(
+        GtsfmMetric(name="point cloud size before downsampling", data=original_point_cloud.shape[0])
+    )
+    downsampling_metrics.append(
+        GtsfmMetric(name="point cloud size after downsampling", data=downsampled_point_cloud.shape[0])
+    )
+    downsampling_metrics.append(
+        GtsfmMetric(name="compression ratio", data=original_point_cloud.shape[0] / downsampled_point_cloud.shape[0])
+    )
+    downsampling_metrics.append(
+        compute_psnr_after_downsampling(
+            original_point_cloud=original_point_cloud, downsampled_point_cloud=downsampled_point_cloud
+        )
+    )
+    return GtsfmMetricsGroup(name="voxel downsampling metrics", metrics=downsampling_metrics)

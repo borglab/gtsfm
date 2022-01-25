@@ -140,10 +140,28 @@ def cart_to_homogenous(
     return np.vstack([non_homogenous_coordinates, np.ones((1, n))])
 
 
+def estimate_voxel_scales(points: np.ndarray) -> np.ndarray:
+    """Estimate the voxel scales along 3 orthogonal axes through computing semi-axis lengths of a centered point cloud
+    by eigendecomposition, see Ellipsoid from point cloud: https://forge.epn-campus.eu/svn/vtas/vTIU/doc/ellipsoide.pdf
+
+    Args:
+        points: array of shape (N,3)
+
+    Returns:
+        voxel scales along 3 orthogonal axes in the descent order
+    """
+    # center the point cloud
+    centered_points = ellipsoid_utils.center_point_cloud(points)
+
+    # get squared semi-axis lengths in all axes of the centered point cloud
+    _, singular_values = ellipsoid_utils.get_right_singular_vectors(centered_points)
+
+    return singular_values
+
+
 def estimate_minimum_voxel_size(points: np.ndarray, scale: float = 0.02) -> float:
     """Estimate the minimum voxel size for point cloud simplification by downsampling
-        1. compute the minimum semi-axis length of a centered point cloud by eigendecomposition,
-            See Ellipsoid from point cloud: https://forge.epn-campus.eu/svn/vtas/vTIU/doc/ellipsoide.pdf
+        1. compute the minimum semi-axis length of a centered point cloud by eigendecomposition
         2. scale it to obtain the minimum voxel size for point cloud simplification by downsampling
 
     Args:
@@ -160,14 +178,11 @@ def estimate_minimum_voxel_size(points: np.ndarray, scale: float = 0.02) -> floa
     if N < 2:
         return 0
 
-    # center the point cloud
-    centered_points = ellipsoid_utils.center_point_cloud(points)
-
-    # get squared semi-axis lengths in all axes of the centered point cloud
-    _, singular_values = ellipsoid_utils.get_right_singular_vectors(centered_points)
+    # get semi-axis lengths along 3 orthogonal axes in desent order
+    voxel_scales = estimate_voxel_scales(points=points)
 
     # set the minimum voxel size as the scaled minimum semi-axis length
-    return singular_values[-1] * scale
+    return voxel_scales[-1] * scale
 
 
 def downsample_point_cloud(
