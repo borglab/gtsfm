@@ -59,9 +59,10 @@ class TriangulationParam(Enum):
 class TriangulationOptions(NamedTuple):
     """Options for triangulation solver.
 
-    Refs:
-      - https://github.com/colmap/colmap/blob/dev/src/optim/ransac.h
-      - http://www.cse.psu.edu/~rtc12/CSE486/lecture15.pdf
+    Based upon COLMAP's RANSAC class:
+    Reference: https://github.com/colmap/colmap/blob/dev/src/optim/ransac.h
+
+    See the following slides for a derivation of the #req'd samples: http://www.cse.psu.edu/~rtc12/CSE486/lecture15.pdf
 
     Args:
         reproj_error_threshold: the maximum reprojection error allowed.
@@ -70,7 +71,7 @@ class TriangulationOptions(NamedTuple):
         confidence: desired confidence that at least one hypothesis is outlier free.
         dyn_num_hypotheses_multiplier: multiplication factor for dynamically computed hyptheses based on confidence.
         min_num_hypotheses: minimum number of hypotheses.
-        mas_num_hypotheses: masimum number of hypotheses.
+        max_num_hypotheses: maximum number of hypotheses.
     """
 
     reproj_error_threshold: float
@@ -95,12 +96,10 @@ class TriangulationOptions(NamedTuple):
         """Compute maximum number of hypotheses."""
         self.__check_ransac_params()
         dyn_num_hypotheses = int(
-            np.log(1 - self.confidence)
-            / np.log(1 - self.min_inlier_ratio ** NUM_SAMPLES_PER_RANSAC_HYPOTHESIS)
+            (np.log(1 - self.confidence) / np.log(1 - self.min_inlier_ratio ** NUM_SAMPLES_PER_RANSAC_HYPOTHESIS))
             * self.dyn_num_hypotheses_multiplier
         )
-        num_hypotheses = min(self.max_num_hypotheses, dyn_num_hypotheses)
-        num_hypotheses = num_hypotheses if num_hypotheses > self.min_num_hypotheses else self.min_num_hypotheses
+        num_hypotheses = max(min(self.max_num_hypotheses, dyn_num_hypotheses), self.min_num_hypotheses)
         return num_hypotheses
 
 
