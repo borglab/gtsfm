@@ -16,7 +16,7 @@ from gtsam.utils.test_case import GtsamTestCase
 
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.data_association.data_assoc import DataAssociation
-from gtsfm.data_association.point3d_initializer import TriangulationOptions, TriangulationParam
+from gtsfm.data_association.point3d_initializer import TriangulationOptions, TriangulationSamplingMode
 
 
 def get_pose3_vector(num_poses: int) -> Pose3Vector:
@@ -96,25 +96,25 @@ class TestDataAssociation(GtsamTestCase):
 
     def test_ransac_sample_biased_baseline_sharedCal_2poses(self):
         """ """
-        mode = TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE
+        mode = TriangulationSamplingMode.RANSAC_SAMPLE_BIASED_BASELINE
         self.verify_triangulation_sharedCal_2poses(mode)
 
     def test_ransac_topk_baselines_sharedCal_2poses(self):
         """ """
-        mode = TriangulationParam.RANSAC_TOPK_BASELINES
+        mode = TriangulationSamplingMode.RANSAC_TOPK_BASELINES
         self.verify_triangulation_sharedCal_2poses(mode)
 
     def test_ransac_sample_uniform_sharedCal_2poses(self):
         """ """
-        mode = TriangulationParam.RANSAC_SAMPLE_UNIFORM
+        mode = TriangulationSamplingMode.RANSAC_SAMPLE_UNIFORM
         self.verify_triangulation_sharedCal_2poses(mode)
 
     def test_no_ransac_sharedCal_2poses(self):
         """ """
-        mode = TriangulationParam.NO_RANSAC
+        mode = TriangulationSamplingMode.NO_RANSAC
         self.verify_triangulation_sharedCal_2poses(mode)
 
-    def verify_triangulation_sharedCal_2poses(self, triangulation_mode: TriangulationParam):
+    def verify_triangulation_sharedCal_2poses(self, triangulation_mode: TriangulationSamplingMode):
         """Tests that the triangulation is accurate for shared calibration with a specified triangulation mode.
 
         Checks whether the triangulated landmark map formed from 2 measurements is valid, if min track length = 3
@@ -166,7 +166,7 @@ class TestDataAssociation(GtsamTestCase):
         # since there is only one measurement in each image, both assigned feature index 0
         matches_dict = {(0, 1): np.array([[0, 0]])}
 
-        triangulation_options = TriangulationOptions(reproj_error_threshold=5, mode=TriangulationParam.NO_RANSAC)
+        triangulation_options = TriangulationOptions(reproj_error_threshold=5, mode=TriangulationSamplingMode.NO_RANSAC)
         da = DataAssociation(min_track_len=2, triangulation_options=triangulation_options)
 
         sfm_data, _ = da.run(len(cameras), cameras, matches_dict, keypoints_list)
@@ -178,25 +178,25 @@ class TestDataAssociation(GtsamTestCase):
 
     def test_ransac_sample_biased_baseline_sharedCal_3poses(self):
         """ """
-        mode = TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE
+        mode = TriangulationSamplingMode.RANSAC_SAMPLE_BIASED_BASELINE
         self.verify_triangulation_sharedCal_3poses(mode)
 
     def test_ransac_topk_baselines_sharedCal_3poses(self):
         """ """
-        mode = TriangulationParam.RANSAC_TOPK_BASELINES
+        mode = TriangulationSamplingMode.RANSAC_TOPK_BASELINES
         self.verify_triangulation_sharedCal_3poses(mode)
 
     def test_ransac_sample_uniform_sharedCal_3poses(self):
         """ """
-        mode = TriangulationParam.RANSAC_SAMPLE_UNIFORM
+        mode = TriangulationSamplingMode.RANSAC_SAMPLE_UNIFORM
         self.verify_triangulation_sharedCal_3poses(mode)
 
     def test_no_ransac_sharedCal_3poses(self):
         """ """
-        mode = TriangulationParam.NO_RANSAC
+        mode = TriangulationSamplingMode.NO_RANSAC
         self.verify_triangulation_sharedCal_3poses(mode)
 
-    def verify_triangulation_sharedCal_3poses(self, triangulation_mode: TriangulationParam):
+    def verify_triangulation_sharedCal_3poses(self, triangulation_mode: TriangulationSamplingMode):
         """Tests that the triangulation is accurate for shared calibration with a specified triangulation mode.
 
         Checks whether the sfm data formed from 3 measurements is valid. The noise vectors represent the amount of
@@ -233,7 +233,7 @@ class TestDataAssociation(GtsamTestCase):
         """Tests the data association with input tracks which use a camera index for which the camera doesn't exist."""
 
         triangulation_options = TriangulationOptions(
-            reproj_error_threshold=5, mode=TriangulationParam.NO_RANSAC, min_num_hypotheses=20
+            reproj_error_threshold=5, mode=TriangulationSamplingMode.NO_RANSAC, min_num_hypotheses=20
         )
         da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
 
@@ -272,7 +272,7 @@ class TestDataAssociation(GtsamTestCase):
 
         # Run without computation graph
         triangulation_options = TriangulationOptions(
-            reproj_error_threshold=5, mode=TriangulationParam.RANSAC_TOPK_BASELINES, min_num_hypotheses=20
+            reproj_error_threshold=5, mode=TriangulationSamplingMode.RANSAC_TOPK_BASELINES, min_num_hypotheses=20
         )
         da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
         expected_sfm_data, expected_metrics = da.run(len(cameras), cameras, matches_dict, keypoints_list)

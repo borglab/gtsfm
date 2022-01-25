@@ -14,7 +14,11 @@ import numpy as np
 from gtsam import Cal3_S2, Cal3Bundler, PinholeCameraCal3Bundler, Point2, Point3, Pose3, Rot3
 from gtsam.examples import SFMdata
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
-from gtsfm.data_association.point3d_initializer import Point3dInitializer, TriangulationParam, TriangulationOptions
+from gtsfm.data_association.point3d_initializer import (
+    Point3dInitializer,
+    TriangulationSamplingMode,
+    TriangulationOptions,
+)
 from gtsfm.loader.olsson_loader import OlssonLoader
 
 # path for data used in this test
@@ -66,14 +70,14 @@ class TestTriangulationOptions(unittest.TestCase):
     def test_options_ransac(self) -> None:
         """Asserts values of default RANSAC options."""
         triangulation_options = TriangulationOptions(
-            reproj_error_threshold=5, mode=TriangulationParam.RANSAC_SAMPLE_UNIFORM
+            reproj_error_threshold=5, mode=TriangulationSamplingMode.RANSAC_SAMPLE_UNIFORM
         )
         assert triangulation_options.num_ransac_hypotheses() == 2749
 
     def test_options_ransac_min_hypotheses(self) -> None:
         """Assert that number of hypotheses is overwritten if less than minimum."""
         triangulation_options = TriangulationOptions(
-            reproj_error_threshold=5, mode=TriangulationParam.RANSAC_SAMPLE_UNIFORM, min_num_hypotheses=10000
+            reproj_error_threshold=5, mode=TriangulationSamplingMode.RANSAC_SAMPLE_UNIFORM, min_num_hypotheses=10000
         )
         assert triangulation_options.num_ransac_hypotheses() == 10000
 
@@ -81,7 +85,7 @@ class TestTriangulationOptions(unittest.TestCase):
         """Assert that number of hypotheses is overwritten if greater than maximum."""
         triangulation_options = TriangulationOptions(
             reproj_error_threshold=5,
-            mode=TriangulationParam.RANSAC_SAMPLE_UNIFORM,
+            mode=TriangulationSamplingMode.RANSAC_SAMPLE_UNIFORM,
             min_inlier_ratio=1e-4,
             max_num_hypotheses=1000,
         )
@@ -95,13 +99,13 @@ class TestPoint3dInitializer(unittest.TestCase):
         super().setUp()
 
         self.simple_triangulation_initializer = Point3dInitializer(
-            CAMERAS, TriangulationOptions(reproj_error_threshold=5, mode=TriangulationParam.NO_RANSAC)
+            CAMERAS, TriangulationOptions(reproj_error_threshold=5, mode=TriangulationSamplingMode.NO_RANSAC)
         )
 
         self.ransac_uniform_sampling_initializer = Point3dInitializer(
             CAMERAS,
             TriangulationOptions(
-                reproj_error_threshold=5, mode=TriangulationParam.RANSAC_SAMPLE_UNIFORM, min_num_hypotheses=100
+                reproj_error_threshold=5, mode=TriangulationSamplingMode.RANSAC_SAMPLE_UNIFORM, min_num_hypotheses=100
             ),
         )
 
@@ -220,7 +224,7 @@ class TestPoint3dInitializer(unittest.TestCase):
         }
 
         initializer = Point3dInitializer(
-            camera_dict, TriangulationOptions(mode=TriangulationParam.NO_RANSAC, reproj_error_threshold=1e5)
+            camera_dict, TriangulationOptions(mode=TriangulationSamplingMode.NO_RANSAC, reproj_error_threshold=1e5)
         )
 
         # tracks which have expected failures
@@ -285,7 +289,7 @@ class TestPoint3dInitializerUnestimatedCameras(unittest.TestCase):
         cameras = {1: PinholeCameraCal3Bundler(wTi1, calibration), 2: PinholeCameraCal3Bundler(wTi2, calibration)}
 
         self.triangulator = Point3dInitializer(
-            cameras, TriangulationOptions(mode=TriangulationParam.NO_RANSAC, reproj_error_threshold=5)
+            cameras, TriangulationOptions(mode=TriangulationSamplingMode.NO_RANSAC, reproj_error_threshold=5)
         )
 
     def test_extract_measurements_unestimated_camera(self) -> None:
