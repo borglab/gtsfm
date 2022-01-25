@@ -10,7 +10,7 @@ References:
 
 Authors: Jing Wu, Ayush Baid, Akshay Krishnan
 """
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 import gtsam
 import numpy as np
@@ -47,6 +47,38 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         self._max_1dsfm_projection_directions = MAX_PROJECTION_DIRECTIONS
         self._outlier_weight_threshold = OUTLIER_WEIGHT_THRESHOLD
+
+    def get_inlier_mask_for_direction_measurements(
+        self,
+        w_i2Ui1_measurements: BinaryMeasurementsUnit3,
+    ) -> Set[Tuple[int, int]]:
+        projection_directions = _sample_random_directions(self._max_1dsfm_projection_directions)
+
+        # compute outlier weights fort each direction using MFAS
+        outlier_weights = []
+        # TODO(ayush): parallelize this step.
+        for direction in projection_directions:
+            algorithm = MFAS(w_i2Ui1_measurements, direction)
+            outlier_weights.append(algorithm.computeOutlierWeights())
+
+        # compute average outlier weight
+        avg_outlier_weights = {}
+        for outlier_weight_dict in outlier_weights:
+            for index_pair, weight in outlier_weight_dict.items():
+                if index_pair in avg_outlier_weights:
+                    avg_outlier_weights[index_pair] += weight / len(outlier_weights)
+                else:
+                    avg_outlier_weights[index_pair] = weight / len(outlier_weights)
+
+        inlier_idxs = set()
+        for w_i2Ui1 in w_i2Ui1_measurements:
+            # key1 is i2 and key2 is i1 above.
+            i1 = w_i2Ui1.key2()
+            i2 = w_i2Ui1.key1()
+            if avg_outlier_weights[(i2, i1)] < self._outlier_weight_threshold:
+                inlier_idxs.add((i1, i2))
+
+        return inlier_idxs
 
     def run(
         self,
@@ -87,39 +119,14 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                     BinaryMeasurementUnit3(i2, i1, Unit3(wRi_list[i2].rotate(i2Ui1.point3())), noise_model)
                 )
 
-        # sample projection directions
-        projection_directions = _sample_random_directions(self._max_1dsfm_projection_directions)
-
-        # compute outlier weights using MFAS
-        outlier_weights = []
-
-        # TODO(ayush): parallelize this step.
-        for direction in projection_directions:
-            algorithm = MFAS(w_i2Ui1_measurements, direction)
-            outlier_weights.append(algorithm.computeOutlierWeights())
-
-        # compute average outlier weight
-        avg_outlier_weights = {}
-        for outlier_weight_dict in outlier_weights:
-            for index_pair, weight in outlier_weight_dict.items():
-                if index_pair in avg_outlier_weights:
-                    avg_outlier_weights[index_pair] += weight / len(outlier_weights)
-                else:
-                    avg_outlier_weights[index_pair] = weight / len(outlier_weights)
-
-        # filter out outlier measurements
+        inlier_idxs: Set[Tuple[int, int]] = self.get_inlier_mask_for_direction_measurements(w_i2Ui1_measurements)
         w_i2Ui1_inlier_measurements = BinaryMeasurementsUnit3()
-        inliers = []
-        outliers = []
         for w_i2Ui1 in w_i2Ui1_measurements:
             # key1 is i2 and key2 is i1 above.
             i1 = w_i2Ui1.key2()
             i2 = w_i2Ui1.key1()
-            if avg_outlier_weights[(i2, i1)] < self._outlier_weight_threshold:
+            if (i1, i2) in inlier_idxs:
                 w_i2Ui1_inlier_measurements.append(w_i2Ui1)
-                inliers.append((i1, i2))
-            else:
-                outliers.append((i1, i2))
 
         # Run the optimizer
         wti_values = TranslationRecovery(w_i2Ui1_inlier_measurements).run(scale_factor)
@@ -132,7 +139,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         # Compute the metrics.
         if gt_wTi_list is not None:
-            ta_metrics = _compute_metrics(inliers, outliers, i2Ui1_dict, wRi_list, wti_list, gt_wTi_list)
+            ta_metrics = _compute_metrics(inlier_idxs, i2Ui1_dict, wRi_list, wti_list, gt_wTi_list)
         else:
             ta_metrics = None
 
@@ -185,8 +192,7 @@ def _get_measurement_angle_errors(
 
 
 def _compute_metrics(
-    inlier_i1_i2_pairs: List[Tuple[int, int]],
-    outlier_i1_i2_pairs: List[Tuple[int, int]],
+    inlier_i1_i2_pairs: Set[Tuple[int, int]],
     i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
     wRi_list: List[Optional[Rot3]],
     wti_list: List[Optional[Point3]],
@@ -195,7 +201,6 @@ def _compute_metrics(
     """Computes the translation averaging metrics as a metrics group.
     Args:
         inlier_i1_i2_pairs: List of inlier camera pair indices.
-        outlier_i1_i2_pairs: List of outlier camera pair indices.
         i2Ui1_dict: Translation directions between camera pairs (inputs to translation averaging).
         wRi_list: Estimated camera rotations from rotation averaging.
         wti_list: Estimated camera translations from translation averaging.
@@ -208,6 +213,9 @@ def _compute_metrics(
     """
     # Get ground truth translation directions for the measurements.
     gt_i2Ui1_dict = metrics_utils.get_twoview_translation_directions(gt_wTi_list)
+    outlier_i1_i2_pairs = (
+        set([pair_idx for pair_idx, val in i2Ui1_dict.items() if val is not None]) - inlier_i1_i2_pairs
+    )
 
     # Angle between i2Ui1 measurement and GT i2Ui1 measurement for inliers and outliers.
     inlier_angular_errors = _get_measurement_angle_errors(inlier_i1_i2_pairs, i2Ui1_dict, gt_i2Ui1_dict)
@@ -217,7 +225,7 @@ def _compute_metrics(
     )
 
     measured_gt_i2Ui1_dict = {}
-    for (i1, i2) in inlier_i1_i2_pairs + outlier_i1_i2_pairs:
+    for (i1, i2) in set.union(inlier_i1_i2_pairs, outlier_i1_i2_pairs):
         measured_gt_i2Ui1_dict[(i1, i2)] = gt_i2Ui1_dict[(i1, i2)]
 
     # Compute estimated poses after the averaging step and align them to ground truth.
