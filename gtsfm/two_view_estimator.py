@@ -46,7 +46,7 @@ pil_logger.setLevel(logging.INFO)
 PRE_BA_REPORT_TAG = "PRE_BA_2VIEW_REPORT"
 POST_BA_REPORT_TAG = "POST_BA_2VIEW_REPORT"
 POST_ISP_REPORT_TAG = "POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT"
-POST_CYCLE_CONSISTENT_REPORT_TAG = "POST_CYCLE_CONSISTENT_2VIEW_REPORT"
+VIEWGRAPH_REPORT_TAG = "VIEWGRAPH_2VIEW_REPORT"
 
 
 class TwoViewEstimator:
@@ -178,7 +178,7 @@ class TwoViewEstimator:
         ba_input.add_camera(1, camera_i2)
         for track in triangulated_tracks:
             ba_input.add_track(track)
-        ba_output, _ = self._ba_optimizer.run(ba_input)
+        ba_output, _ = self._ba_optimizer.run(ba_input, verbose=False)
         wTi1, wTi2 = ba_output.get_camera_poses()  # extract the camera poses
         if wTi1 is None or wTi2 is None:
             logger.warning("2-view BA failed")
