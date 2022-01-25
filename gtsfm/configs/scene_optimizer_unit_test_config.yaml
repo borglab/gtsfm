@@ -49,7 +49,7 @@ SceneOptimizer:
         reproj_error_threshold: 10
         mode:
           _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
-          value: 0 # 0 corresponds to NO_RANSAC
+          value: NO_RANSAC
         max_num_hypotheses: 20
       save_track_patches_viz: False
 

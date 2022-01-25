@@ -47,13 +47,19 @@ class TriangulationExitCode(Enum):
     EXCEEDS_REPROJ_THRESH = 4  # estimated 3d point exceeds reprojection threshold
 
 
-class TriangulationSamplingMode(Enum):
-    """Triangulation modes."""
+class TriangulationSamplingMode(str, Enum):
+    """Triangulation modes.
 
-    NO_RANSAC = 0  # do not use filtering
-    RANSAC_SAMPLE_UNIFORM = 1  # sample a pair of cameras uniformly at random
-    RANSAC_SAMPLE_BIASED_BASELINE = 2  # sample pair of cameras based on largest estimated baseline
-    RANSAC_TOPK_BASELINES = 3  # deterministically choose hypotheses with largest estimate baseline
+    NO_RANSAC: do not use filtering.
+    RANSAC_SAMPLE_UNIFORM: sample a pair of cameras uniformly at random.
+    RANSAC_SAMPLE_BIASED_BASELINE: sample pair of cameras based by largest estimated baseline.
+    RANSAC_TOPK_BASELINES: deterministically choose hypotheses with largest estimate baseline.
+    """
+
+    NO_RANSAC = "NO_RANSAC"
+    RANSAC_SAMPLE_UNIFORM = "RANSAC_SAMPLE_UNIFORM"
+    RANSAC_SAMPLE_BIASED_BASELINE = "RANSAC_SAMPLE_BIASED_BASELINE"
+    RANSAC_TOPK_BASELINES = "RANSAC_TOPK_BASELINES"
 
 
 class TriangulationOptions(NamedTuple):
