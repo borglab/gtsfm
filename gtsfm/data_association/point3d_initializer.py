@@ -47,7 +47,7 @@ class TriangulationExitCode(Enum):
     EXCEEDS_REPROJ_THRESH = 4  # estimated 3d point exceeds reprojection threshold
 
 
-class TriangulationParam(Enum):
+class TriangulationSamplingMode(Enum):
     """Triangulation modes."""
 
     NO_RANSAC = 0  # do not use filtering
@@ -75,7 +75,7 @@ class TriangulationOptions(NamedTuple):
     """
 
     reproj_error_threshold: float
-    mode: TriangulationParam
+    mode: TriangulationSamplingMode
 
     # RANSAC parameters
     min_inlier_ratio: float = 0.1
@@ -218,12 +218,12 @@ class Point3dInitializer(NamedTuple):
         """
         # Check if we will run RANSAC, or not.
         if self.options.mode in [
-            TriangulationParam.RANSAC_SAMPLE_UNIFORM,
-            TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
-            TriangulationParam.RANSAC_TOPK_BASELINES,
+            TriangulationSamplingMode.RANSAC_SAMPLE_UNIFORM,
+            TriangulationSamplingMode.RANSAC_SAMPLE_BIASED_BASELINE,
+            TriangulationSamplingMode.RANSAC_TOPK_BASELINES,
         ]:
             best_inliers = self.execute_ransac_variant(track_2d)
-        elif self.options.mode == TriangulationParam.NO_RANSAC:
+        elif self.options.mode == TriangulationSamplingMode.NO_RANSAC:
             best_inliers = np.ones(len(track_2d.measurements), dtype=bool)  # all marked as inliers
 
         # Verify we have at least 2 inliers.
@@ -285,8 +285,8 @@ class Point3dInitializer(NamedTuple):
         scores = np.ones(len(measurement_pairs), dtype=float)
 
         if self.options.mode in [
-            TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
-            TriangulationParam.RANSAC_TOPK_BASELINES,
+            TriangulationSamplingMode.RANSAC_SAMPLE_BIASED_BASELINE,
+            TriangulationSamplingMode.RANSAC_TOPK_BASELINES,
         ]:
             for k, (k1, k2) in enumerate(measurement_pairs):
                 i1, _ = track.measurements[k1]
@@ -303,8 +303,8 @@ class Point3dInitializer(NamedTuple):
             raise Exception("Sum of scores cannot be zero (or smaller than zero)! It must a bug somewhere")
 
         if self.options.mode in [
-            TriangulationParam.RANSAC_SAMPLE_UNIFORM,
-            TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
+            TriangulationSamplingMode.RANSAC_SAMPLE_UNIFORM,
+            TriangulationSamplingMode.RANSAC_SAMPLE_BIASED_BASELINE,
         ]:
             sample_indices = np.random.choice(
                 len(scores),
@@ -313,7 +313,7 @@ class Point3dInitializer(NamedTuple):
                 p=scores / scores.sum(),
             )
 
-        if self.options.mode == TriangulationParam.RANSAC_TOPK_BASELINES:
+        if self.options.mode == TriangulationSamplingMode.RANSAC_TOPK_BASELINES:
             sample_indices = np.argsort(scores)[-num_hypotheses:]
 
         return sample_indices.tolist()

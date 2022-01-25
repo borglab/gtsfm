@@ -9,7 +9,7 @@ from gtsam import Cal3Bundler, SfmTrack
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
 from gtsfm.data_association.point3d_initializer import (
     Point3dInitializer,
-    TriangulationParam,
+    TriangulationSamplingMode,
     TriangulationOptions,
     TriangulationExitCode,
 )
@@ -33,7 +33,9 @@ def classify_tracks2d_with_gt_cameras(
     cameras_dict: Dict[int, Cal3Bundler] = {i: cam for i, cam in enumerate(cameras_gt)}
     point3d_initializer = Point3dInitializer(
         track_camera_dict=cameras_dict,
-        options=TriangulationOptions(reproj_error_threshold=reproj_error_thresh_px, mode=TriangulationParam.NO_RANSAC),
+        options=TriangulationOptions(
+            reproj_error_threshold=reproj_error_thresh_px, mode=TriangulationSamplingMode.NO_RANSAC
+        ),
     )
 
     exit_codes: List[TriangulationExitCode] = []
