@@ -10,15 +10,19 @@ References:
 
 Authors: Jing Wu, Ayush Baid, Akshay Krishnan
 """
+from collections import defaultdict
+from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
 import gtsam
 import numpy as np
 from gtsam import MFAS, BinaryMeasurementsUnit3, BinaryMeasurementUnit3, Point3, Pose3, Rot3, TranslationRecovery, Unit3
+from scipy import stats
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.coordinate_conversions as conversion_utils
+import gtsfm.utils.logger as logger_utils
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
@@ -26,6 +30,7 @@ from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 # maximum number of times 1dsfm will project the Unit3's to a 1d subspace for outlier rejection
 MAX_PROJECTION_DIRECTIONS = 200
 OUTLIER_WEIGHT_THRESHOLD = 0.1
+MAX_KDE_SAMPLES = 2000
 
 NOISE_MODEL_DIMENSION = 3  # chordal distances on Unit3
 NOISE_MODEL_SIGMA = 0.01
@@ -33,20 +38,70 @@ HUBER_LOSS_K = 1.345  # default value from GTSAM
 
 MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
 
+logger = logger_utils.get_logger()
+
 
 class TranslationAveraging1DSFM(TranslationAveragingBase):
     """1D-SFM translation averaging with outlier rejection."""
 
-    def __init__(self, robust_measurement_noise: bool = True) -> None:
+    class ProjectionSamplingMethod(str, Enum):
+        """Used to select how the projection directions in 1DSfM are sampled."""
+
+        # The string values for enums enable using them in the config.
+
+        # Randomly choose projection directions from input measurements.
+        SAMPLE_INPUT_MEASUREMENTS = "SAMPLE_INPUT_MEASUREMENTS"
+        # Fit a Gaussian density to input measurements and sample from it.
+        SAMPLE_WITH_INPUT_DENSITY = "SAMPLE_WITH_INPUT_DENSITY"
+        # Uniformly sample 3D directions at random.
+        SAMPLE_WITH_UNIFORM_DENSITY = "SAMPLE_WITH_UNIFORM_DENSITY"
+
+    def __init__(
+        self,
+        robust_measurement_noise: bool = True,
+        projection_sampling_method: ProjectionSamplingMethod = ProjectionSamplingMethod.SAMPLE_WITH_UNIFORM_DENSITY,
+    ) -> None:
         """Initializes the 1DSFM averaging instance.
 
         Args:
             robust_measurement_noise: Whether to use a robust noise model for the measurements, defaults to true.
+            projection_sampling_method: ProjectionSamplingMethod to be used for directions to run 1DSfM.
         """
         super().__init__(robust_measurement_noise)
 
         self._max_1dsfm_projection_directions = MAX_PROJECTION_DIRECTIONS
         self._outlier_weight_threshold = OUTLIER_WEIGHT_THRESHOLD
+        self._projection_sampling_method = projection_sampling_method
+
+    def __sample_projection_directions(
+        self,
+        w_i2Ui1_measurements: BinaryMeasurementsUnit3,
+    ) -> List[Unit3]:
+        """Samples projection directions for 1DSfM based on the provided sampling method.
+
+        Args:
+            w_i2Ui1_measurements: Unit translation measurements which are input to 1DSfM.
+            projection_sampling_method: ProjectionSamplingMethod to be used for sampling directions.
+
+        Returns:
+            List of sampled Unit3 projection directions.
+        """
+        num_measurements = len(w_i2Ui1_measurements)
+
+        if self._projection_sampling_method == self.ProjectionSamplingMethod.SAMPLE_INPUT_MEASUREMENTS:
+            num_samples = min(num_measurements, self._max_1dsfm_projection_directions)
+            sampled_indices = np.random.choice(w_i2Ui1_measurements, num_samples, replace=False)
+            projections = [w_i2Ui1_measurements[idx].measured() for idx in sampled_indices]
+        elif self._projection_sampling_method == self.ProjectionSamplingMethod.SAMPLE_WITH_INPUT_DENSITY:
+            projections = _sample_kde_directions(
+                w_i2Ui1_measurements, num_samples=self._max_1dsfm_projection_directions
+            )
+        elif self._projection_sampling_method == self.ProjectionSamplingMethod.SAMPLE_WITH_UNIFORM_DENSITY:
+            projections = _sample_random_directions(num_samples=self._max_1dsfm_projection_directions)
+        else:
+            raise ValueError("Unsupported sampling method!")
+
+        return projections
 
     def run(
         self,
@@ -81,14 +136,16 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         # convert translation direction in global frame using rotations.
         w_i2Ui1_measurements = BinaryMeasurementsUnit3()
+        valid_i2_i1 = []
         for (i1, i2), i2Ui1 in i2Ui1_dict.items():
             if i2Ui1 is not None and wRi_list[i2] is not None:
+                valid_i2_i1.append((i2, i1))
                 w_i2Ui1_measurements.append(
                     BinaryMeasurementUnit3(i2, i1, Unit3(wRi_list[i2].rotate(i2Ui1.point3())), noise_model)
                 )
 
         # sample projection directions
-        projection_directions = _sample_random_directions(self._max_1dsfm_projection_directions)
+        projection_directions = self.__sample_projection_directions(w_i2Ui1_measurements)
 
         # compute outlier weights using MFAS
         outlier_weights = []
@@ -99,20 +156,23 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             outlier_weights.append(algorithm.computeOutlierWeights())
 
         # compute average outlier weight
-        avg_outlier_weights = {}
+        avg_outlier_weights = defaultdict(float)
         for outlier_weight_dict in outlier_weights:
-            for index_pair, weight in outlier_weight_dict.items():
-                if index_pair in avg_outlier_weights:
-                    avg_outlier_weights[index_pair] += weight / len(outlier_weights)
-                else:
-                    avg_outlier_weights[index_pair] = weight / len(outlier_weights)
+            # TODO(akshay-krishnan): use keys from outlier weight dict once we can iterate over it (gtsam fix).
+            for index_pair in valid_i2_i1:
+                avg_outlier_weights[index_pair] += outlier_weight_dict[index_pair]
+
+        for index_pair in avg_outlier_weights:
+            avg_outlier_weights[index_pair] /= len(projection_directions)
 
         # filter out outlier measurements
         w_i2Ui1_inlier_measurements = BinaryMeasurementsUnit3()
         inliers = []
         outliers = []
-        for w_i2Ui1 in w_i2Ui1_measurements:
+        # TODO(akshay-krishnan): use range based for loops once bug fixed for gtsam on M1.
+        for idx in range(len(w_i2Ui1_measurements)):
             # key1 is i2 and key2 is i1 above.
+            w_i2Ui1 = w_i2Ui1_measurements[idx]
             i1 = w_i2Ui1.key2()
             i2 = w_i2Ui1.key1()
             if avg_outlier_weights[(i2, i1)] < self._outlier_weight_threshold:
@@ -137,6 +197,29 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             ta_metrics = None
 
         return wti_list, ta_metrics
+
+
+def _sample_kde_directions(w_i2Ui1_measurements: BinaryMeasurementsUnit3, num_samples: int) -> List[Unit3]:
+    """Fits a Gaussian density kernel to the provided measurements, and then samples num_samples from this kernel.
+
+    Args:
+        w_i2Ui1_measurements: List of BinaryMeasurementUnit3 direction measurements.
+        num_samples: Number of samples to be sampled from the kernel.
+
+    Returns:
+        List of sampled Unit3 directions.
+    """
+    w_i2Ui1_list = [w_i2Ui1.measured() for w_i2Ui1 in w_i2Ui1_measurements]
+    if len(w_i2Ui1_list) > MAX_KDE_SAMPLES:
+        w_i2Ui1_subset_indices = np.random.choice(range(len(w_i2Ui1_list)), MAX_KDE_SAMPLES, replace=False).tolist()
+        w_i2Ui1_list = [w_i2Ui1_list[i] for i in w_i2Ui1_subset_indices]
+
+    w_i2Ui1_spherical = conversion_utils.cartesian_to_spherical_directions(w_i2Ui1_list)
+
+    # gaussian_kde expects each sample to be a column, hence transpose.
+    kde = stats.gaussian_kde(w_i2Ui1_spherical.T)
+    sampled_directions_spherical = kde.resample(size=num_samples).T
+    return conversion_utils.spherical_to_cartesian_directions(sampled_directions_spherical)
 
 
 def _sample_random_directions(num_samples: int) -> List[Unit3]:

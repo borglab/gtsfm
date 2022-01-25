@@ -168,7 +168,10 @@ class GtsfmData:
         """
         if camera is None:
             raise ValueError("Camera cannot be None, should be a valid camera")
-        self._cameras[index] = camera
+
+        # if camera with the given index has not been added, add this new camera
+        if index not in self._cameras:
+            self._cameras[index] = camera
 
     def get_track_length_statistics(self) -> Tuple[float, float]:
         """Compute mean and median lengths of all the tracks.
@@ -351,14 +354,14 @@ class GtsfmData:
         # TODO: move this function to utils or GTSAM
         filtered_data = GtsfmData(self.number_images())
 
-        # add all the cameras
-        for i in self.get_valid_camera_indices():
-            filtered_data.add_camera(i, self.get_camera(i))
-
         for j in range(self.number_tracks()):
             track = self.get_track(j)
 
             if self.__validate_track(track, reproj_err_thresh):
+                # check if all cameras with measurement in this track have already been added
+                for k in range(track.number_measurements()):
+                    i, _ = track.measurement(k)
+                    filtered_data.add_camera(i, self.get_camera(i))
                 filtered_data.add_track(track)
 
         return filtered_data

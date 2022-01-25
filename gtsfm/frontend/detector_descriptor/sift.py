@@ -39,28 +39,20 @@ class SIFTDetectorDescriptor(DetectorDescriptorBase):
             Corr. descriptors, of shape (N, D) where D is the dimension of each descriptor.
         """
 
-        # conert to grayscale
+        # Convert to grayscale.
         gray_image = image_utils.rgb_to_gray_cv(image)
 
-        # Creating OpenCV object
+        # Create OpenCV object.
         opencv_obj = cv.SIFT_create()
 
-        # Run the opencv code
-        cv_keypoints, descriptors = opencv_obj.detectAndCompute(gray_image.value_array, None)
+        # Run the OpenCV code.
+        cv_keypoints, descriptors = opencv_obj.detectAndCompute(gray_image.value_array, image.mask)
 
-        # convert to GTSFM's keypoints
+        # Convert to GTSFM's keypoints.
         keypoints = feature_utils.cast_to_gtsfm_keypoints(cv_keypoints)
 
-        # sort the features and descriptors by the score
-        # (need to sort here as we need the sorting order for descriptors)
-        sort_idx = np.argsort(-keypoints.responses)[: self.max_keypoints]
-
-        keypoints = Keypoints(
-            coordinates=keypoints.coordinates[sort_idx],
-            scales=keypoints.scales[sort_idx],
-            responses=keypoints.responses[sort_idx],
-        )
-
-        descriptors = descriptors[sort_idx]
+        # Filter features.
+        keypoints, selection_idxs = keypoints.get_top_k(self.max_keypoints)
+        descriptors = descriptors[selection_idxs]
 
         return keypoints, descriptors

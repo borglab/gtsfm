@@ -4,7 +4,7 @@ Authors: Ren Liu
 """
 import time
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Tuple
 
 import numpy as np
 import torch
@@ -45,8 +45,8 @@ NUM_SAMPLES = [8, 8, 16]
 PROPAGATE_NEIGHBORS = [0, 8, 16]
 EVALUATE_NEIGHBORS = [9, 9, 9]
 
-# a reconstructed point is consistent in geometry if it satisfies all gemetric thresholds in more than 3 source views
-MIN_NUM_CONSISTENT_VIEWS = 3
+# a reconstructed point is consistent in geometry if it satisfies all geometric thresholds in more than 1 source views
+MIN_NUM_CONSISTENT_VIEWS = 1
 
 
 class MVSPatchmatchNet(MVSBase):
@@ -62,8 +62,9 @@ class MVSPatchmatchNet(MVSBase):
         max_geo_pixel_thresh: float = MAX_GEOMETRIC_PIXEL_THRESH,
         max_geo_depth_thresh: float = MAX_GEOMETRIC_DEPTH_THRESH,
         min_conf_thresh: float = MIN_CONFIDENCE_THRESH,
-        num_workers: int = 1,
-    ) -> np.ndarray:
+        min_num_consistent_views: float = MIN_NUM_CONSISTENT_VIEWS,
+        num_workers: int = 0,
+    ) -> Dict[str, np.ndarray]:
         """Get dense point cloud using PatchmatchNet from GtsfmData. The method implements the densify method in MVSBase
         Ref: Wang et al. https://github.com/FangjinhuaWang/PatchmatchNet/blob/main/eval.py
 
@@ -77,13 +78,22 @@ class MVSPatchmatchNet(MVSBase):
                 small threshold means high accuracy and low completeness
             min_conf_thresh: minimum confidence required for a valid point,
                 large threshold means high accuracy and low completeness
+            min_num_consistent_views: a reconstructed point is consistent in geometry if it satisfies all geometric
+                thresholds in more than min_num_consistent_views source views
             num_workers: number of workers when loading data
 
         Returns:
-            3D coordinates (in the world frame) of the dense point cloud,
+            dense_point_cloud: 3D coordinates (in the world frame) of the dense point cloud
+                with shape (N, 3) where N is the number of points
+            dense_point_colors: RGB color of each point in the dense point cloud
                 with shape (N, 3) where N is the number of points
         """
         dataset = PatchmatchNetData(images=images, sfm_result=sfm_result, max_num_views=max_num_views)
+
+        # TODO(johnwlambert): using Dask's LocalCluster with multiprocessing in Pytorch (i.e. num_workers>0)
+        # will give -> "AssertionError('daemonic processes are not allowed to have children')" -> fix needed
+        if num_workers != 0:
+            raise ValueError("Using multiprocessing in Pytorch within Dask's LocalCluster is currently unsupported.")
 
         loader = DataLoader(
             dataset=dataset,
@@ -156,16 +166,17 @@ class MVSPatchmatchNet(MVSBase):
                 )
 
         # Filter inference result with thresholds
-        dense_point_cloud = self.filter_depth(
+        dense_point_cloud, dense_point_colors = self.filter_depth(
             dataset=dataset,
             depth_list=depth_est_list,
             confidence_list=confidence_est_list,
             max_geo_pixel_thresh=max_geo_pixel_thresh,
             max_geo_depth_thresh=max_geo_depth_thresh,
             min_conf_thresh=min_conf_thresh,
+            min_num_consistent_views=min_num_consistent_views,
         )
 
-        return dense_point_cloud
+        return dense_point_cloud, dense_point_colors
 
     def filter_depth(
         self,
@@ -175,7 +186,8 @@ class MVSPatchmatchNet(MVSBase):
         max_geo_pixel_thresh: float,
         max_geo_depth_thresh: float,
         min_conf_thresh: float,
-    ) -> np.ndarray:
+        min_num_consistent_views: float,
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """Create a dense point cloud by filtering depth maps based on estimated confidence maps and consistent geometry
 
         A 3D point is consistent in geometry between two views if:
@@ -197,9 +209,13 @@ class MVSPatchmatchNet(MVSBase):
             max_geo_pixel_thresh: maximum reprojection error in pixel coordinates
             max_geo_depth_thresh: maximum reprojection error in depth from camera
             min_conf_thresh: minimum confidence required for a valid point
+            min_num_consistent_views: a reconstructed point is consistent in geometry if it satisfies all geometric
+                thresholds in more than min_num_consistent_views source views
 
         Returns:
-            3D coordinates (in the world frame) of the dense point cloud
+            dense_points: 3D coordinates (in the world frame) of the dense point cloud
+                with shape (N, 3) where N is the number of points
+            dense_point_colors: RGB color of each point in the dense point cloud
                 with shape (N, 3) where N is the number of points
         """
         # coordinates of the final point cloud
@@ -257,7 +273,7 @@ class MVSPatchmatchNet(MVSBase):
 
             depth_est_averaged = (sum(all_srcview_depth_ests) + ref_depth_est) / (geo_mask_sum + 1)
             # Valid points requires at least 3 source views validated under geometric threshoulds
-            geo_mask = geo_mask_sum >= MIN_NUM_CONSISTENT_VIEWS
+            geo_mask = geo_mask_sum >= min_num_consistent_views
 
             # Combine geometric mask and confidence mask
             joint_mask = np.logical_and(confidence_mask, geo_mask)
@@ -293,4 +309,6 @@ class MVSPatchmatchNet(MVSBase):
                 joint_mask.mean(),
             )
 
-        return np.concatenate(vertices, axis=0)
+        dense_points = np.concatenate(vertices, axis=0)
+        dense_point_colors = np.concatenate(vertex_colors, axis=0)
+        return dense_points, dense_point_colors

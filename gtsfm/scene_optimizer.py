@@ -5,7 +5,7 @@ Authors: Ayush Baid, John Lambert
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import dask
 import matplotlib
@@ -14,7 +14,6 @@ from trimesh import Trimesh
 from gtsam import Pose3, Similarity3
 from dask.delayed import Delayed
 
-import gtsfm.averaging.rotation.cycle_consistency as cycle_consistency
 import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.two_view_estimator as two_view_estimator
 import gtsfm.utils.ellipsoid as ellipsoid_utils
@@ -23,8 +22,8 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.viz as viz_utils
 from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.averaging.rotation.cycle_consistency import EdgeErrorAggregationCriterion
 from gtsfm.common.image import Image
+from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.feature_extractor import FeatureExtractor
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.two_view_estimator import (
@@ -33,7 +32,7 @@ from gtsfm.two_view_estimator import (
     PRE_BA_REPORT_TAG,
     POST_BA_REPORT_TAG,
     POST_ISP_REPORT_TAG,
-    POST_CYCLE_CONSISTENT_REPORT_TAG,
+    VIEWGRAPH_REPORT_TAG,
 )
 
 matplotlib.use("Agg")
@@ -47,7 +46,7 @@ RESULTS_PATH = Path(__file__).resolve().parent.parent / "results"
 PLOT_CORRESPONDENCE_PATH = PLOT_BASE_PATH / "correspondences"
 PLOT_BA_INPUT_PATH = PLOT_BASE_PATH / "ba_input"
 PLOT_RESULTS_PATH = PLOT_BASE_PATH / "results"
-
+MVS_PLY_SAVE_FPATH = RESULTS_PATH / "mvs_output" / "dense_pointcloud.ply"
 
 # Paths to Save Output in React Folders.
 REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
@@ -74,6 +73,7 @@ class SceneOptimizer:
         feature_extractor: FeatureExtractor,
         two_view_estimator: TwoViewEstimator,
         multiview_optimizer: MultiViewOptimizer,
+        dense_multiview_optimizer: MVSBase,
         save_two_view_correspondences_viz: bool,
         save_3d_viz: bool,
         save_gtsfm_data: bool,
@@ -83,6 +83,7 @@ class SceneOptimizer:
         self.feature_extractor = feature_extractor
         self.two_view_estimator = two_view_estimator
         self.multiview_optimizer = multiview_optimizer
+        self.dense_multiview_optimizer = dense_multiview_optimizer
 
         self._save_two_view_correspondences_viz = save_two_view_correspondences_viz
         self._save_3d_viz = save_3d_viz
@@ -188,31 +189,28 @@ class SceneOptimizer:
         keypoints_graph_list = dask.delayed(lambda x, y: (x, y))(keypoints_graph_list, auxiliary_graph_list)[0]
         auxiliary_graph_list = []
 
-        # ensure cycle consistency in triplets
-        # TODO: add a get_computational_graph() method to ViewGraphOptimizer
-        # TODO(johnwlambert): use a different name for variable, since this is something different
-        i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict, rcc_metrics_graph = dask.delayed(
-            cycle_consistency.filter_to_cycle_consistent_edges, nout=4
-        )(
+        # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
+        (
+            ba_input_graph,
+            ba_output_graph,
+            view_graph_two_view_reports,
+            optimizer_metrics_graph,
+        ) = self.multiview_optimizer.create_computation_graph(
+            image_graph,
+            num_images,
+            keypoints_graph_list,
             i2Ri1_graph_dict,
             i2Ui1_graph_dict,
             v_corr_idxs_graph_dict,
+            camera_intrinsics_graph,
             two_view_reports_dict[POST_ISP_REPORT_TAG],
-            EdgeErrorAggregationCriterion.MEDIAN_EDGE_ERROR,
+            gt_cameras_graph,
         )
-        metrics_graph_list.append(rcc_metrics_graph)
-
-        def _filter_dict_keys(dict: Dict[Any, Any], ref_dict: Dict[Any, Any]) -> Dict[Any, Any]:
-            """Return a subset of a dictionary based on keys present in the reference dictionary."""
-            valid_keys = list(ref_dict.keys())
-            return {k: v for k, v in dict.items() if k in valid_keys}
-
-        if gt_cameras_graph is not None:
-            two_view_reports_dict[POST_CYCLE_CONSISTENT_REPORT_TAG] = dask.delayed(_filter_dict_keys)(
-                dict=two_view_reports_dict[POST_ISP_REPORT_TAG], ref_dict=i2Ri1_graph_dict
-            )
+        if view_graph_two_view_reports is not None:
+            two_view_reports_dict[VIEWGRAPH_REPORT_TAG] = view_graph_two_view_reports
 
         # Persist all front-end metrics and their summaries.
+        # TODO(akshay-krishnan): this delays saving the frontend reports until MVO has completed, not ideal.
         for tag, report_dict in two_view_reports_dict.items():
             auxiliary_graph_list.append(
                 dask.delayed(save_full_frontend_metrics)(
@@ -227,18 +225,6 @@ class SceneOptimizer:
                         metric_group_name="verifier_summary_{}".format(tag),
                     )
                 )
-
-        # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
-        (ba_input_graph, ba_output_graph, optimizer_metrics_graph) = self.multiview_optimizer.create_computation_graph(
-            image_graph,
-            num_images,
-            keypoints_graph_list,
-            i2Ri1_graph_dict,
-            i2Ui1_graph_dict,
-            v_corr_idxs_graph_dict,
-            camera_intrinsics_graph,
-            gt_cameras_graph,
-        )
 
         # aggregate metrics for multiview optimizer
         if optimizer_metrics_graph is not None:
@@ -262,13 +248,31 @@ class SceneOptimizer:
         if self._save_gtsfm_data:
             auxiliary_graph_list.extend(save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph))
 
+        img_dict_graph = dask.delayed(get_image_dictionary)(image_graph)
+        dense_points_graph, dense_point_colors_graph = self.dense_multiview_optimizer.create_computation_graph(
+            img_dict_graph, ba_output_graph
+        )
+        # Cast to string as Open3d cannot use PosixPath's for I/O -- only string file paths are accepted.
+        auxiliary_graph_list.append(
+            dask.delayed(io_utils.save_point_cloud_as_ply)(
+                save_fpath=str(MVS_PLY_SAVE_FPATH), points=dense_points_graph, rgb=dense_point_colors_graph
+            )
+        )
+
         # as visualization tasks are not to be provided to the user, we create a
         # dummy computation of concatenating viz tasks with the output graph,
         # forcing computation of viz tasks
         output_graph = dask.delayed(lambda x, y: (x, y))(ba_output_graph, auxiliary_graph_list)
+        ba_output_graph = output_graph[0]
 
         # return the entry with just the sfm result
-        return output_graph[0]
+        return ba_output_graph
+
+
+def get_image_dictionary(image_list: List[Image]) -> Dict[int, Image]:
+    """Convert a list of images to the MVS input format."""
+    img_dict = {i: img for i, img in enumerate(image_list)}
+    return img_dict
 
 
 def align_estimated_gtsfm_data(
