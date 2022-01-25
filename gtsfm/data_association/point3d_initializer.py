@@ -93,7 +93,11 @@ class TriangulationOptions(NamedTuple):
         assert 0 <= self.min_num_hypotheses < self.max_num_hypotheses
 
     def num_ransac_hypotheses(self) -> int:
-        """Compute maximum number of hypotheses."""
+        """Compute maximum number of hypotheses.
+
+        The RANSAC module defaults to 2749 iterations, computed as:
+            np.log(1-0.9999) / np.log( 1 - 0.1 **2) * 3 = 2749.3
+        """
         self.__check_ransac_params()
         dyn_num_hypotheses = int(
             (np.log(1 - self.confidence) / np.log(1 - self.min_inlier_ratio ** NUM_SAMPLES_PER_RANSAC_HYPOTHESIS))
