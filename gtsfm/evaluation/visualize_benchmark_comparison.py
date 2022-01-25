@@ -36,11 +36,11 @@ BENCHMARK_YAML_FPATH = Path(__file__).parent.parent.parent / ".github" / "workfl
 
 
 TABLE_NAMES = [
-    "Rotation Cycle Consistency Metrics",
     "Verifier Summary Pre Ba 2view Report",
     "Verifier Summary Post Ba 2view Report",
     "Verifier Summary Post Inlier Support Processor 2view Report",
-    "Verifier Summary Post Cycle Consistent 2view Report",
+    "View Graph Estimation Metrics",
+    "Verifier Summary Viewgraph 2view Report",
     "Averaging Metrics",
     "Data Association Metrics",
     "Bundle Adjustment Metrics",
