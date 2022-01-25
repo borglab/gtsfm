@@ -212,10 +212,10 @@ class BundleAdjustmentOptimizer:
             logger.info(f"final error: {final_error:.2f}")
 
         # construct the results
-        if verbose:
-            optimized_data = values_to_gtsfm_data(result_values, initial_data, self._shared_calib)
+        optimized_data = values_to_gtsfm_data(result_values, initial_data, self._shared_calib)
 
-        logger.info("[Result] Number of tracks before filtering: %d", optimized_data.number_tracks())
+        if verbose:
+            logger.info("[Result] Number of tracks before filtering: %d", optimized_data.number_tracks())
 
         # filter the largest errors
         if self._output_reproj_error_thresh:
