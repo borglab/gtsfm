@@ -177,12 +177,14 @@ class BundleAdjustmentOptimizer:
     def run(
         self,
         initial_data: GtsfmData,
+        verbose: bool = True,
     ) -> Tuple[GtsfmData, GtsfmData]:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
 
         Args:
             initial_data: initialized cameras, tracks w/ their 3d landmark from triangulation.
             cameras_gt: list of GT cameras, ordered by camera index.
+            verbose: Boolean flag to print out additional info for debugging.
 
         Results:
             Optimized camera poses, 3D point w/ tracks, and error metrics, aligned to GT (if provided).
@@ -205,11 +207,13 @@ class BundleAdjustmentOptimizer:
         final_error = graph.error(result_values)
 
         # Error drops from ~2764.22 to ~0.046
-        logger.info(f"initial error: {graph.error(initial_values):.2f}")
-        logger.info(f"final error: {final_error:.2f}")
+        if verbose:
+            logger.info(f"initial error: {graph.error(initial_values):.2f}")
+            logger.info(f"final error: {final_error:.2f}")
 
         # construct the results
-        optimized_data = values_to_gtsfm_data(result_values, initial_data, self._shared_calib)
+        if verbose:
+            optimized_data = values_to_gtsfm_data(result_values, initial_data, self._shared_calib)
 
         logger.info("[Result] Number of tracks before filtering: %d", optimized_data.number_tracks())
 
