@@ -209,7 +209,7 @@ def _sample_kde_directions(w_i2Ui1_measurements: BinaryMeasurementsUnit3, num_sa
     Returns:
         List of sampled Unit3 directions.
     """
-    w_i2Ui1_list = [w_i2Ui1.measured() for w_i2Ui1 in w_i2Ui1_measurements]
+    w_i2Ui1_list = [w_i2Ui1_measurements[i].measured() for i in range(len(w_i2Ui1_measurements))]
     if len(w_i2Ui1_list) > MAX_KDE_SAMPLES:
         w_i2Ui1_subset_indices = np.random.choice(range(len(w_i2Ui1_list)), MAX_KDE_SAMPLES, replace=False).tolist()
         w_i2Ui1_list = [w_i2Ui1_list[i] for i in w_i2Ui1_subset_indices]
