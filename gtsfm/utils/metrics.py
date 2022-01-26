@@ -2,7 +2,6 @@
 
 Authors: Ayush Baid, Akshay Krishnan
 """
-from ast import Gt
 import itertools
 import os
 import timeit
