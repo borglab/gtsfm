@@ -7,11 +7,14 @@ import os
 from pathlib import Path
 from typing import Optional
 
+import cv2 as cv
+import numpy as np
 import trimesh
 from gtsam import Cal3Bundler, Pose3, SfmTrack
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.images as image_utils
 from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
 
@@ -138,8 +141,14 @@ class AstronetLoader(LoaderBase):
         if index < 0 or index >= len(self):
             raise IndexError(f"Image index {index} is invalid")
 
+        # Read in image.
         img = io_utils.load_image(self._image_paths[index])
-        return img
+
+        # Generate mask to separate background deep space from foreground target body
+        # based on image intensity values.
+        mask = get_nonzero_intensity_mask(img)
+
+        return Image(value_array=img.value_array, exif_data=img.exif_data, file_name=img.file_name, mask=mask)
 
     def get_camera_intrinsics_full_res(self, index: int) -> Cal3Bundler:
         """Get the camera intrinsics at the given index, valid for a full-resolution image.
@@ -204,3 +213,24 @@ class AstronetLoader(LoaderBase):
             validation result.
         """
         return super().is_valid_pair(idx1, idx2) and abs(idx1 - idx2) <= self._max_frame_lookahead
+
+
+def get_nonzero_intensity_mask(img: Image, eps: int = 5, kernel_size: Tuple[int, int] = (15, 15)) -> np.ndarray:
+    """Generate mask of where image intensity values are non-zero.
+
+    After thresholding the image, we use an erosion kernel to add a buffer between the foreground and background.
+
+    Args:
+        img: input Image to be masked (values in range [0, 255]).
+        eps: minimum allowable intensity value, i.e., values below this value will be masked out.
+        kernel_size: size of erosion kernel.
+
+    Returns:
+        Mask (as an integer array) of Image where with a value of 1 where the intensity value is above `eps` and 0
+        otherwise.
+    """
+    gray_image = image_utils.rgb_to_gray_cv(img)
+    _, binary_image = cv.threshold(gray_image.value_array, eps, 255, cv.THRESH_BINARY)
+    mask = cv.erode(binary_image, np.ones(kernel_size, np.uint8)) // 255
+
+    return mask

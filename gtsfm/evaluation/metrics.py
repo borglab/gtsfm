@@ -166,11 +166,11 @@ class GtsfmMetric:
         Returns:
             summary as a dict that can be serialized to JSON for storage.
         """
+        data = np.asarray(list(filter(None, data)))
         if data.ndim != 1:
             raise ValueError("Metric must be a 1D distribution to get summary.")
-        if data.size == 0:
+        if data.size == 0 or np.isnan(data).all():
             return {"min": np.NaN, "max": np.NaN, "median": np.NaN, "mean": np.NaN, "stddev": np.NaN}
-
         summary = {
             "min": np.nanmin(data).tolist(),
             "max": np.nanmax(data).tolist(),

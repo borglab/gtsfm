@@ -5,6 +5,7 @@ Authors: John Lambert
 
 import argparse
 from collections import defaultdict
+from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 from tabulate import tabulate
@@ -25,6 +26,9 @@ def extract_tables_from_report(report_fpath: str) -> SINGLE_REPORT_TABLES:
         table_dict: Dictionary mapping the names of GTSFM modules to their associated table information.
             Each table is represented as a map from metric names to their associated values.
     """
+    if not Path(report_fpath).exists():
+        raise FileNotFoundError(f"HTML report missing. File path '{report_fpath}' does not exist.")
+
     with open(report_fpath, "r") as f:
         lines = f.readlines()
 

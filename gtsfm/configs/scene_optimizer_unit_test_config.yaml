@@ -10,7 +10,6 @@ SceneOptimizer:
     detector_descriptor:
       _target_: gtsfm.frontend.detector_descriptor.sift.SIFTDetectorDescriptor
 
-
   two_view_estimator:
     _target_: gtsfm.two_view_estimator.TwoViewEstimator
     bundle_adjust_2view: True
@@ -32,6 +31,10 @@ SceneOptimizer:
 
   multiview_optimizer:
     _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
+    view_graph_estimator:
+      _target_: gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator.CycleConsistentRotationViewGraphEstimator
+      edge_error_aggregation_criterion: MEDIAN_EDGE_ERROR
+      
     rot_avg_module:
       _target_: gtsfm.averaging.rotation.shonan.ShonanRotationAveraging
 
@@ -40,12 +43,14 @@ SceneOptimizer:
 
     data_association_module:
       _target_: gtsfm.data_association.data_assoc.DataAssociation
-      reproj_error_thresh: 100
       min_track_len: 2
-      mode:
-        _target_: gtsfm.data_association.data_assoc.TriangulationParam
-        value: 0 # 0 corresponds to NO_RANSAC
-      num_ransac_hypotheses: 20
+      triangulation_options:
+        _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
+        reproj_error_threshold: 10
+        mode:
+          _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
+          value: NO_RANSAC
+        max_num_hypotheses: 20
       save_track_patches_viz: False
 
     bundle_adjustment_module:
@@ -53,3 +58,6 @@ SceneOptimizer:
       output_reproj_error_thresh: 3 # for post-optimization filtering
       robust_measurement_noise: True
       shared_calib: True
+
+  dense_multiview_optimizer:
+    _target_: gtsfm.densify.mvs_patchmatchnet.MVSPatchmatchNet
