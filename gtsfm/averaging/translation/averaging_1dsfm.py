@@ -90,7 +90,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         if self._projection_sampling_method == self.ProjectionSamplingMethod.SAMPLE_INPUT_MEASUREMENTS:
             num_samples = min(num_measurements, self._max_1dsfm_projection_directions)
-            sampled_indices = np.random.choice(w_i2Ui1_measurements, num_samples, replace=False)
+            sampled_indices = np.random.choice(num_measurements, num_samples, replace=False)
             projections = [w_i2Ui1_measurements[idx].measured() for idx in sampled_indices]
         elif self._projection_sampling_method == self.ProjectionSamplingMethod.SAMPLE_WITH_INPUT_DENSITY:
             projections = _sample_kde_directions(
