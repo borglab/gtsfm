@@ -178,7 +178,7 @@ class TwoViewEstimator:
         ba_input.add_camera(1, camera_i2)
         for track in triangulated_tracks:
             ba_input.add_track(track)
-        ba_output, _ = self._ba_optimizer.run(ba_input)
+        ba_output, _ = self._ba_optimizer.run(ba_input, verbose=False)
         wTi1, wTi2 = ba_output.get_camera_poses()  # extract the camera poses
         if wTi1 is None or wTi2 is None:
             logger.warning("2-view BA failed")
