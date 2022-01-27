@@ -14,7 +14,6 @@ from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBa
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.data_association.data_assoc import DataAssociation
-from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.two_view_estimator import TwoViewEstimationReport
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
 
