@@ -34,6 +34,11 @@ logger = logger_utils.get_logger()
 in a track are used w/o ransac. If one of the three sampling modes for robust triangulation is selected, a pair of
 cameras will be sampled."""
 
+ROBUST_NOISE_MODEL_TRIANGULATION = gtsam.noiseModel.Robust.Create(
+    gtsam.noiseModel.mEstimator.Huber.Create(1.345),
+    gtsam.noiseModel.Unit.Create(2)
+)
+
 
 class TriangulationExitCode(Enum):
     """Exit codes for triangulation computation."""
@@ -198,16 +203,12 @@ class Point3dInitializer(NamedTuple):
 
         # Triangulate and check for cheirality failure from GTSAM.
         try:
-            model = gtsam.noiseModel.Robust.Create(
-                gtsam.noiseModel.mEstimator.Huber.Create(1.345),
-                gtsam.noiseModel.Unit.Create(2)
-            )
             triangulated_pt = gtsam.triangulatePoint3(
                 track_cameras,
                 track_measurements,
                 rank_tol=SVD_DLT_RANK_TOL,
                 optimize=True,
-                model=model
+                model=ROBUST_NOISE_MODEL_TRIANGULATION
             )
         except RuntimeError:
             return None, None, TriangulationExitCode.CHEIRALITY_FAILURE
