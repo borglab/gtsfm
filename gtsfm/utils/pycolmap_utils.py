@@ -3,8 +3,6 @@
 Authors: John Lambert
 """
 
-from typing import Any, Dict
-
 import pycolmap
 from gtsam import Cal3Bundler
 
