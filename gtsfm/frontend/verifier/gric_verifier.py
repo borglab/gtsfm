@@ -100,34 +100,11 @@ class GricVerifier(VerifierBase):
         Returns:
             dictionary containing result status code, estimated relative pose (R,t), and inlier mask.
         """
-
-        def get_pycolmap_camera(camera_intrinsics: Cal3Bundler) -> pycolmap.Camera:
-            """Convert Cal3Bundler intrinsics to a pycolmap-compatible format (a dictionary).
-
-            See https://colmap.github.io/cameras.html#camera-models for info about the COLMAP camera models.
-            Both SIMPLE_PINHOLE and SIMPLE_RADIAL use 1 focal length.
-            """
-            focal_length = camera_intrinsics.fx()
-            cx, cy = camera_intrinsics.px(), camera_intrinsics.py()
-
-            # TODO (johnwlambert): use more accurate proxy?
-            width = int(cx * 2)
-            height = int(cy * 2)
-            logger.debug("Estimated height and width: %d,%d", height, width)
-
-            camera_dict = pycolmap.Camera(
-                model="SIMPLE_PINHOLE",
-                width=width,
-                height=height,
-                params=[focal_length, cx, cy],
-            )
-            return camera_dict
-
         result_dict = pycolmap.two_view_geometry_estimation(
             points2D1=uv_i1,
             points2D2=uv_i2,
-            camera1=get_pycolmap_camera(camera_intrinsics_i1),
-            camera2=get_pycolmap_camera(camera_intrinsics_i2),
+            camera1=pycolmap_utils.get_pycolmap_camera(camera_intrinsics_i1),
+            camera2=pycolmap_utils.get_pycolmap_camera(camera_intrinsics_i2),
             max_error_px=self._estimation_threshold_px,
             min_inlier_ratio=MIN_INLIER_RATIO,
             min_num_trials=MIN_NUM_TRIALS,

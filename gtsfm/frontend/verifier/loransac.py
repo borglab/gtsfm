@@ -18,6 +18,7 @@ from gtsam import Cal3Bundler, Rot3, Unit3
 
 import gtsfm.frontend.verifier.verifier_base as verifier_base
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.pycolmap_utils as pycolmap_utils
 import gtsfm.utils.verification as verification_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
@@ -78,30 +79,8 @@ class LoRansac(VerifierBase):
         Returns:
             dictionary containing result status code, estimated relative pose (R,t), and inlier mask.
         """
-
-        def get_pycolmap_camera_dict(camera_intrinsics: Cal3Bundler) -> Dict[str, Any]:
-            """Convert Cal3Bundler intrinsics to a pycolmap-compatible format (a dictionary).
-
-            See https://colmap.github.io/cameras.html#camera-models for info about the COLMAP camera models.
-            Both SIMPLE_PINHOLE and SIMPLE_RADIAL use 1 focal length.
-            """
-            focal_length = camera_intrinsics.fx()
-            cx, cy = camera_intrinsics.px(), camera_intrinsics.py()
-
-            # TODO: use more accurate proxy?
-            width = int(cx * 2)
-            height = int(cy * 2)
-
-            camera_dict = {
-                "model": "SIMPLE_PINHOLE",
-                "width": width,
-                "height": height,
-                "params": [focal_length, cx, cy],
-            }
-            return camera_dict
-
-        camera_dict1 = get_pycolmap_camera_dict(camera_intrinsics_i1)
-        camera_dict2 = get_pycolmap_camera_dict(camera_intrinsics_i2)
+        camera_dict1 = pycolmap_utils.get_pycolmap_camera(camera_intrinsics_i1)
+        camera_dict2 = pycolmap_utils.get_pycolmap_camera(camera_intrinsics_i2)
 
         result_dict = pycolmap.essential_matrix_estimation(
             uv_i1, uv_i2, camera_dict1, camera_dict2, max_error_px=self._estimation_threshold_px
