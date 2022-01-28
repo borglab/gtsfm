@@ -21,6 +21,7 @@ from gtsam import Cal3Bundler, Rot3, Unit3
 
 import gtsfm.frontend.verifier.verifier_base as verifier_base
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.pycolmap_utils as pycolmap_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
