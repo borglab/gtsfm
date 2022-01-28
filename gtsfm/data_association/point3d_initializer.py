@@ -7,6 +7,7 @@ References:
 Authors: Sushmita Warrier, Xiaolong Wu, John Lambert, Travis Driver
 """
 
+import sys
 import itertools
 from enum import Enum
 from typing import Dict, List, NamedTuple, Optional, Tuple
@@ -51,13 +52,70 @@ class TriangulationExitCode(Enum):
     EXCEEDS_REPROJ_THRESH = 4  # estimated 3d point exceeds reprojection threshold
 
 
-class TriangulationParam(Enum):
-    """Triangulation modes."""
+class TriangulationSamplingMode(str, Enum):
+    """Triangulation modes.
 
-    NO_RANSAC = 0  # do not use filtering
-    RANSAC_SAMPLE_UNIFORM = 1  # sample a pair of cameras uniformly at random
-    RANSAC_SAMPLE_BIASED_BASELINE = 2  # sample pair of cameras based on largest estimated baseline
-    RANSAC_TOPK_BASELINES = 3  # deterministically choose hypotheses with largest estimate baseline
+    NO_RANSAC: do not use filtering.
+    RANSAC_SAMPLE_UNIFORM: sample a pair of cameras uniformly at random.
+    RANSAC_SAMPLE_BIASED_BASELINE: sample pair of cameras based by largest estimated baseline.
+    RANSAC_TOPK_BASELINES: deterministically choose hypotheses with largest estimate baseline.
+    """
+
+    NO_RANSAC = "NO_RANSAC"
+    RANSAC_SAMPLE_UNIFORM = "RANSAC_SAMPLE_UNIFORM"
+    RANSAC_SAMPLE_BIASED_BASELINE = "RANSAC_SAMPLE_BIASED_BASELINE"
+    RANSAC_TOPK_BASELINES = "RANSAC_TOPK_BASELINES"
+
+
+class TriangulationOptions(NamedTuple):
+    """Options for triangulation solver.
+
+    Based upon COLMAP's RANSAC class:
+    Reference: https://github.com/colmap/colmap/blob/dev/src/optim/ransac.h
+
+    See the following slides for a derivation of the #req'd samples: http://www.cse.psu.edu/~rtc12/CSE486/lecture15.pdf
+
+    Args:
+        reproj_error_threshold: the maximum reprojection error allowed.
+        mode: triangulation mode, which dictates whether or not to use robust estimation.
+        min_inlier_ratio: a priori assumed minimum probability that a point is an inlier.
+        confidence: desired confidence that at least one hypothesis is outlier free.
+        dyn_num_hypotheses_multiplier: multiplication factor for dynamically computed hyptheses based on confidence.
+        min_num_hypotheses: minimum number of hypotheses.
+        max_num_hypotheses: maximum number of hypotheses.
+    """
+
+    reproj_error_threshold: float
+    mode: TriangulationSamplingMode
+
+    # RANSAC parameters
+    min_inlier_ratio: float = 0.1
+    confidence: float = 0.9999
+    dyn_num_hypotheses_multiplier: float = 3.0
+    min_num_hypotheses: int = 0
+    max_num_hypotheses: int = sys.maxsize
+
+    def __check_ransac_params(self) -> None:
+        """Check that input value are valid"""
+        assert self.reproj_error_threshold > 0
+        assert 0 < self.min_inlier_ratio < 1
+        assert 0 < self.confidence < 1
+        assert self.dyn_num_hypotheses_multiplier > 0
+        assert 0 <= self.min_num_hypotheses < self.max_num_hypotheses
+
+    def num_ransac_hypotheses(self) -> int:
+        """Compute maximum number of hypotheses.
+
+        The RANSAC module defaults to 2749 iterations, computed as:
+            np.log(1-0.9999) / np.log( 1 - 0.1 **2) * 3 = 2749.3
+        """
+        self.__check_ransac_params()
+        dyn_num_hypotheses = int(
+            (np.log(1 - self.confidence) / np.log(1 - self.min_inlier_ratio ** NUM_SAMPLES_PER_RANSAC_HYPOTHESIS))
+            * self.dyn_num_hypotheses_multiplier
+        )
+        num_hypotheses = max(min(self.max_num_hypotheses, dyn_num_hypotheses), self.min_num_hypotheses)
+        return num_hypotheses
 
 
 class Point3dInitializer(NamedTuple):
@@ -75,9 +133,7 @@ class Point3dInitializer(NamedTuple):
     """
 
     track_camera_dict: Dict[int, PinholeCameraCal3Bundler]
-    mode: TriangulationParam
-    reproj_error_thresh: float
-    num_ransac_hypotheses: Optional[int] = None
+    options: TriangulationOptions
 
     def execute_ransac_variant(self, track_2d: SfmTrack2d) -> np.ndarray:
         """Execute RANSAC algorithm to find best subset 2d measurements for a 3d point.
@@ -90,14 +146,12 @@ class Point3dInitializer(NamedTuple):
             best_inliers: boolean array of length N. Indices of measurements
                are set to true if they correspond to the best RANSAC hypothesis
         """
-        if self.num_ransac_hypotheses is None:
-            raise ValueError("RANSAC triangulation requested but number of hypothesis is None.")
 
         # Generate all possible matches
         measurement_pairs = generate_measurement_pairs(track_2d)
 
         # limit the number of samples to the number of available pairs
-        num_hypotheses = min(self.num_ransac_hypotheses, len(measurement_pairs))
+        num_hypotheses = min(self.options.num_ransac_hypotheses(), len(measurement_pairs))
 
         # Sampling
         samples = self.sample_ransac_hypotheses(track_2d, measurement_pairs, num_hypotheses)
@@ -106,7 +160,6 @@ class Point3dInitializer(NamedTuple):
         best_num_votes = 0
         best_error = MAX_TRACK_REPROJ_ERROR
         best_inliers = np.zeros(len(track_2d.measurements), dtype=bool)
-
         for sample_idxs in samples:
             k1, k2 = measurement_pairs[sample_idxs]
 
@@ -147,7 +200,7 @@ class Point3dInitializer(NamedTuple):
 
             # The best solution should correspond to the one with most inliers
             # If the inlier number are the same, check the average error of inliers
-            is_inlier = errors < self.reproj_error_thresh
+            is_inlier = errors < self.options.reproj_error_threshold
 
             # tally the number of votes
             inlier_errors = errors[is_inlier]
@@ -179,13 +232,13 @@ class Point3dInitializer(NamedTuple):
                 to a cheirality exception upon triangulation
         """
         # Check if we will run RANSAC, or not.
-        if self.mode in [
-            TriangulationParam.RANSAC_SAMPLE_UNIFORM,
-            TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
-            TriangulationParam.RANSAC_TOPK_BASELINES,
+        if self.options.mode in [
+            TriangulationSamplingMode.RANSAC_SAMPLE_UNIFORM,
+            TriangulationSamplingMode.RANSAC_SAMPLE_BIASED_BASELINE,
+            TriangulationSamplingMode.RANSAC_TOPK_BASELINES,
         ]:
             best_inliers = self.execute_ransac_variant(track_2d)
-        elif self.mode == TriangulationParam.NO_RANSAC:
+        elif self.options.mode == TriangulationSamplingMode.NO_RANSAC:
             best_inliers = np.ones(len(track_2d.measurements), dtype=bool)  # all marked as inliers
 
         # Verify we have at least 2 inliers.
@@ -219,7 +272,7 @@ class Point3dInitializer(NamedTuple):
         )
 
         # Check that all measurements are within reprojection error threshold.
-        if not np.all(reproj_errors.flatten() < self.reproj_error_thresh):
+        if not np.all(reproj_errors.flatten() < self.options.reproj_error_threshold):
             return None, avg_track_reproj_error, TriangulationExitCode.EXCEEDS_REPROJ_THRESH
 
         # Create a gtsam.SfmTrack with the triangulated 3d point and associated 2d measurements.
@@ -247,9 +300,9 @@ class Point3dInitializer(NamedTuple):
         # Initialize scores as uniform distribution
         scores = np.ones(len(measurement_pairs), dtype=float)
 
-        if self.mode in [
-            TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
-            TriangulationParam.RANSAC_TOPK_BASELINES,
+        if self.options.mode in [
+            TriangulationSamplingMode.RANSAC_SAMPLE_BIASED_BASELINE,
+            TriangulationSamplingMode.RANSAC_TOPK_BASELINES,
         ]:
             for k, (k1, k2) in enumerate(measurement_pairs):
                 i1, _ = track.measurements[k1]
@@ -265,9 +318,9 @@ class Point3dInitializer(NamedTuple):
         if sum(scores) <= 0.0:
             raise Exception("Sum of scores cannot be zero (or smaller than zero)! It must a bug somewhere")
 
-        if self.mode in [
-            TriangulationParam.RANSAC_SAMPLE_UNIFORM,
-            TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE,
+        if self.options.mode in [
+            TriangulationSamplingMode.RANSAC_SAMPLE_UNIFORM,
+            TriangulationSamplingMode.RANSAC_SAMPLE_BIASED_BASELINE,
         ]:
             sample_indices = np.random.choice(
                 len(scores),
@@ -276,7 +329,7 @@ class Point3dInitializer(NamedTuple):
                 p=scores / scores.sum(),
             )
 
-        if self.mode == TriangulationParam.RANSAC_TOPK_BASELINES:
+        if self.options.mode == TriangulationSamplingMode.RANSAC_TOPK_BASELINES:
             sample_indices = np.argsort(scores)[-num_hypotheses:]
 
         return sample_indices.tolist()
