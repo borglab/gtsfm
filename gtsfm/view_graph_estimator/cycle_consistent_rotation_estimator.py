@@ -98,7 +98,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         # pylint: disable=unused-argument
 
         logger.info("Input number of edges: %d" % len(i2Ri1_dict))
-        input_edges: List[Tuple[int, int]] = self.__get_valid_input_edges(i2Ri1_dict)
+        input_edges: List[Tuple[int, int]] = i2Ri1_dict.keys()
         triplets: List[Tuple[int, int, int]] = graph_utils.extract_cyclic_triplets_from_edges(input_edges)
 
         logger.info("Number of triplets: %d" % len(triplets))
@@ -122,7 +122,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
             rot_errors = [two_view_reports[e].R_error_deg for e in edges]
             gt_known = all([err is not None for err in rot_errors])
             # if ground truth unknown, cannot estimate error w.r.t. GT
-            max_rot_error = float(np.max(rot_errors)) if gt_known else None
+            max_rot_error = max(rot_errors) if gt_known else None
             max_gt_error_in_cycle.append(max_rot_error)
 
         # Filter the edges based on the aggregate error.
@@ -204,7 +204,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         MEDIAN_EDGE_ERROR: Returns the median value among the input values.
 
         Args:
-            errors (List[float]): A list of errors for the edge in different triplets.
+            edge_errors: A list of errors for the edge in different triplets.
 
         Returns:
             float: The aggregated error value.

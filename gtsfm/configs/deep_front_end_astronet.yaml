@@ -1,3 +1,5 @@
+# Relaxes triangulation RANSAC threshold to 100 (10x threshold of deep_front_end.yaml)
+
 SceneOptimizer:
   _target_: gtsfm.scene_optimizer.SceneOptimizer
   save_gtsfm_data: True
@@ -38,22 +40,22 @@ SceneOptimizer:
   multiview_optimizer:
     _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
     view_graph_estimator:
-      _target_: gtsfm.view_graph_estimator.reprojection_error_view_graph_estimator.ReprojectionErrorViewGraphEstimator
-      
+      _target_: gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator.CycleConsistentRotationViewGraphEstimator
+      edge_error_aggregation_criterion: MEDIAN_EDGE_ERROR
+
     rot_avg_module:
       _target_: gtsfm.averaging.rotation.shonan.ShonanRotationAveraging
 
     trans_avg_module:
       _target_: gtsfm.averaging.translation.averaging_1dsfm.TranslationAveraging1DSFM
       robust_measurement_noise: True
-      projection_sampling_method: SAMPLE_WITH_UNIFORM_DENSITY
 
     data_association_module:
       _target_: gtsfm.data_association.data_assoc.DataAssociation
       min_track_len: 2
       triangulation_options:
         _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
-        reproj_error_threshold: 10
+        reproj_error_threshold: 100
         mode:
           _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
           value: RANSAC_SAMPLE_UNIFORM

@@ -10,7 +10,6 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from trimesh import Trimesh
-from dask.delayed import Delayed
 from gtsam import PinholeCameraCal3Bundler, Cal3Bundler, EssentialMatrix, Point3, Pose3, Rot3, Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
@@ -414,7 +413,7 @@ def get_rotations_translations_from_poses(
     return rotations, translations
 
 
-def save_metrics_as_json(metrics_groups: Delayed, output_dir: str) -> None:
+def save_metrics_as_json(metrics_groups: List[GtsfmMetricsGroup], output_dir: str) -> None:
     """Saves the input metrics groups as JSON files using the name of the group.
 
     Args:
