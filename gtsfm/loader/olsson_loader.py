@@ -52,7 +52,9 @@ class OlssonLoader(LoaderBase):
                greater than the max_resolution, it will be downsampled to match the max_resolution.
         """
         super().__init__(max_resolution)
-        import pdb; pdb.set_trace()
+        import pdb
+
+        pdb.set_trace()
         self._use_gt_intrinsics = use_gt_intrinsics
         self._use_gt_extrinsics = use_gt_extrinsics
         self._max_frame_lookahead = max_frame_lookahead
@@ -78,7 +80,7 @@ class OlssonLoader(LoaderBase):
 
         # stores camera poses (extrinsics) and intrinsics as 3x4 projection matrices
         # 'P' array will have shape (1,num_imgs), and each element will be a (3,4) matrix
-        data =scipy.io.loadmat(cam_matrices_fpath)
+        data = scipy.io.loadmat(cam_matrices_fpath)
 
         if len(data["P"][0]) != self._num_imgs:
             raise RuntimeError("Found more or less images than ground truth provides.")
@@ -96,20 +98,7 @@ class OlssonLoader(LoaderBase):
             self._wTi_list.append(wTc)
 
         # GT 3d structure (point cloud)
-        self._point_cloud = data["U"].T[:,:3]
-
-        # import pdb; pdb.set_trace()
-        # import gtsfm.utils.viz as viz_utils
-        # import matplotlib.pyplot as plt
-        # fig = plt.figure()
-        # ax = fig.add_subplot(projection="3d")
-
-        # for landmark in points:
-        #     ax.plot(landmark[0], landmark[1], landmark[2], "g.", markersize=1)
-
-        # viz_utils.plot_poses_3d(self._wTi_list, ax)
-        # viz_utils.set_axes_equal(ax)
-        # plt.show()
+        self._point_cloud = data["U"].T[:, :3]
 
     def __len__(self) -> int:
         """The number of images in the dataset.
