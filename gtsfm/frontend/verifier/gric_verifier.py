@@ -7,6 +7,7 @@ ftp://cmp.felk.cvut.cz/pub/cmp/articles/matas/chum-dagm03.pdf
 
 On Linux and Mac, a python wheel is available:
 https://pypi.org/project/pycolmap/#files
+No python wheel is available on Windows.
 
 Authors: John Lambert
 """
@@ -20,7 +21,7 @@ from gtsam import Cal3Bundler, Rot3, Unit3
 
 import gtsfm.frontend.verifier.verifier_base as verifier_base
 import gtsfm.utils.logger as logger_utils
-import gtsfm.utils.verification as verification_utils
+import gtsfm.utils.pycolmap_utils as pycolmap_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
@@ -55,20 +56,19 @@ class ConfigurationType(Enum):
     MULTIPLE = 8
 
 
-class ColmapTwoViewGeometryVerifier(VerifierBase):
+class GricVerifier(VerifierBase):
     def __init__(
         self,
         use_intrinsics_in_verification: bool,
         estimation_threshold_px: float,
     ) -> None:
-        """Initializes the verifier.
+        """Initializes the verifier. GRIC automatically checks E vs. F vs. H inliers.
 
         (See https://github.com/mihaidusmanu/pycolmap/blob/master/essential_matrix.cc#L98)
 
         Args:
             use_intrinsics_in_verification: Flag to perform keypoint normalization and compute the essential matrix
-                instead of fundamental matrix. This should be preferred when the exact intrinsics are known as opposed
-                to approximating them from exif data.
+                instead of fundamental matrix. This should be preferred when the exact intrinsics are known.
             estimation_threshold_px: maximum distance (in pixels) to consider a match an inlier, under squared
                 Sampson distance.
         """
@@ -95,43 +95,17 @@ class ColmapTwoViewGeometryVerifier(VerifierBase):
         Args:
             uv_i1: array of shape (N3,2) representing coordinates of 2d points in image 1.
             uv_i2: array of shape (N3,2) representing corresponding coordinates of 2d points in image 2.
-            camera_intrinsics_i1: intrinsics for image #i1.
-            camera_intrinsics_i2: intrinsics for image #i2.
+            camera_intrinsics_i1: intrinsics for image i1.
+            camera_intrinsics_i2: intrinsics for image i2.
 
         Returns:
             dictionary containing result status code, estimated relative pose (R,t), and inlier mask.
         """
-
-        def get_pycolmap_camera_dict(camera_intrinsics: Cal3Bundler) -> pycolmap.Camera:
-            """Convert Cal3Bundler intrinsics to a pycolmap-compatible format (a dictionary).
-
-            See https://colmap.github.io/cameras.html#camera-models for info about the COLMAP camera models.
-            Both SIMPLE_PINHOLE and SIMPLE_RADIAL use 1 focal length.
-            """
-            focal_length = camera_intrinsics.fx()
-            cx, cy = camera_intrinsics.px(), camera_intrinsics.py()
-
-            # TODO (johnwlambert): use more accurate proxy?
-            width = int(cx * 2)
-            height = int(cy * 2)
-            logger.info("Estimated height and width: %d,%d", height, width)
-
-            camera_dict = pycolmap.Camera(
-                model="SIMPLE_PINHOLE",
-                width=width,
-                height=height,
-                params=[focal_length, cx, cy],
-            )
-            return camera_dict
-
-        camera_dict1 = get_pycolmap_camera_dict(camera_intrinsics_i1)
-        camera_dict2 = get_pycolmap_camera_dict(camera_intrinsics_i2)
-
         result_dict = pycolmap.two_view_geometry_estimation(
             points2D1=uv_i1,
             points2D2=uv_i2,
-            camera1=camera_dict1,
-            camera2=camera_dict2,
+            camera1=pycolmap_utils.get_pycolmap_camera(camera_intrinsics_i1),
+            camera2=pycolmap_utils.get_pycolmap_camera(camera_intrinsics_i2),
             max_error_px=self._estimation_threshold_px,
             min_inlier_ratio=MIN_INLIER_RATIO,
             min_num_trials=MIN_NUM_TRIALS,
@@ -173,15 +147,13 @@ class ColmapTwoViewGeometryVerifier(VerifierBase):
 
         result_dict = self.__estimate_two_view_geometry(uv_i1, uv_i2, camera_intrinsics_i1, camera_intrinsics_i2)
 
-        success = result_dict["success"]
-        if not success:
-            logger.info(f"[GRIC] matrix estimation unsuccessful.")
+        if not result_dict["success"]:
+            logger.info("[GRIC] matrix estimation unsuccessful.")
             return self._failure_result
 
-        logger.info("Two view configuration: {ConfigurationType(result_dict['configuration_type']}")
+        logger.info("Two view configuration: %s", ConfigurationType(result_dict["configuration_type"]))
 
-        num_inliers = result_dict["num_inliers"]
-        inlier_ratio_est_model = num_inliers / match_indices.shape[0]
+        inlier_ratio_est_model = result_dict["num_inliers"] / match_indices.shape[0]
 
         inlier_mask = np.array(result_dict["inliers"])
         v_corr_idxs = match_indices[inlier_mask]
