@@ -9,10 +9,11 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
+import scipy.io
 from gtsam import Cal3Bundler, Pose3, Rot3
-from scipy.io import loadmat
 
 import gtsfm.utils.io as io_utils
+import gtsfm.utils.verification as verification_utils
 from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
 
@@ -51,6 +52,7 @@ class OlssonLoader(LoaderBase):
                greater than the max_resolution, it will be downsampled to match the max_resolution.
         """
         super().__init__(max_resolution)
+        import pdb; pdb.set_trace()
         self._use_gt_intrinsics = use_gt_intrinsics
         self._use_gt_extrinsics = use_gt_extrinsics
         self._max_frame_lookahead = max_frame_lookahead
@@ -76,20 +78,38 @@ class OlssonLoader(LoaderBase):
 
         # stores camera poses (extrinsics) and intrinsics as 3x4 projection matrices
         # 'P' array will have shape (1,num_imgs), and each element will be a (3,4) matrix
-        data = loadmat(cam_matrices_fpath)
+        data =scipy.io.loadmat(cam_matrices_fpath)
+
+        if len(data["P"][0]) != self._num_imgs:
+            raise RuntimeError("Found more or less images than ground truth provides.")
 
         # M = K [R | t]
         # in GTSAM notation, M = K @ cTw
         M_list = [data["P"][0][i] for i in range(self._num_imgs)]
 
-        # first pose is identity, so K is immediate given
-        self._K = M_list[0][:3, :3]
-        Kinv = np.linalg.inv(self._K)
+        self._K, _ = verification_utils.decompose_camera_projection_matrix(M_list[0])
 
-        # decode camera poses as:
-        #    K^{-1} @ M = cTw
-        iTw_list = [Kinv @ M_list[i] for i in range(self._num_imgs)]
-        self._wTi_list = [Pose3(Rot3(iTw[:3, :3]), iTw[:, 3]).inverse() for iTw in iTw_list]
+        self._wTi_list = []
+        # first pose is not necessarily identity (in Door it is, but not in Palace of Fine Arts)
+        for M in M_list:
+            K, wTc = verification_utils.decompose_camera_projection_matrix(M)
+            self._wTi_list.append(wTc)
+
+        # GT 3d structure (point cloud)
+        self._point_cloud = data["U"].T[:,:3]
+
+        # import pdb; pdb.set_trace()
+        # import gtsfm.utils.viz as viz_utils
+        # import matplotlib.pyplot as plt
+        # fig = plt.figure()
+        # ax = fig.add_subplot(projection="3d")
+
+        # for landmark in points:
+        #     ax.plot(landmark[0], landmark[1], landmark[2], "g.", markersize=1)
+
+        # viz_utils.plot_poses_3d(self._wTi_list, ax)
+        # viz_utils.set_axes_equal(ax)
+        # plt.show()
 
     def __len__(self) -> int:
         """The number of images in the dataset.
