@@ -183,6 +183,13 @@ class LoaderBase(metaclass=abc.ABCMeta):
             u0=intrinsics_full_res.px() * scale_u,
             v0=intrinsics_full_res.py() * scale_v,
         )
+
+        if rescaled_intrinsics.fx() <= 0:
+            raise RuntimeError("Focal length must be positive.")
+
+        if rescaled_intrinsics.px() <= 0 or rescaled_intrinsics.py() <= 0:
+            raise RuntimeError("Principal point must have positive coordinates.")
+
         return rescaled_intrinsics
 
     def get_image_shape(self, idx: int) -> Tuple[int, int]:

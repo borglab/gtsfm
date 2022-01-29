@@ -22,6 +22,11 @@ class OlssonLoader(LoaderBase):
     """Simple loader class that reads any of Carl Olsson's datasets from a folder on disk.
 
     Ref: http://www.maths.lth.se/matematiklth/personal/calle/dataset/dataset.html
+    The mat-file contains Olsson's reconstruction. The variable P{i} contains camera i
+    and the imnames(i).name contains the name of the corresponding image.
+    "U"" are the reconstructed 3D points and "u_uncalib" contains the feature points for each image.
+    "u_uncalib" contains two cells; u_uncalib.points{i} contains imagepoints and u_uncalib.index{i}
+    contains the indices of the 3D points corresponding to u_uncalib.points{i}.
 
     Folder layout structure:
     - RGB Images: images/
