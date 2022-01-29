@@ -1,4 +1,4 @@
-""""Reproducibility tests for descriptors.
+""""Reproducibility tests for descriptors, using 1 image and keypoints from DoG detector as input.
 
 Authors: Ayush Baid
 """
@@ -16,7 +16,7 @@ from gtsfm.frontend.detector.detector_base import DetectorBase
 from gtsfm.frontend.detector.dog import DoG
 from tests.repro_tests.test_repro_base import ReproducibilityTestBase
 
-# defining the path for test data
+# path for one image which is to be used as test data
 TEST_DATA_ROOT_PATH = Path(__file__).resolve().parent.parent.parent.parent / "data"
 IMG_PATH = TEST_DATA_ROOT_PATH / "set1_lund_door" / "images" / "DSC_0001.JPG"
 

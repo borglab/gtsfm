@@ -1,11 +1,11 @@
-"""Reproducibility tests for Shonan rotation averaging.
+"""Reproducibility tests for Shonan rotation averaging, using input data from sift-front-end on skydio-32 dataset.
 
 Authors: Ayush Baid
 """
 import pickle
 import unittest
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from gtsam import Rot3
 
@@ -14,6 +14,8 @@ from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBa
 from gtsfm.averaging.rotation.shonan import ShonanRotationAveraging
 from tests.repro_tests.test_repro_base import ReproducibilityTestBase
 
+NUM_IMAGES_IN_INPUT = 32
+# Path for relative pairwise rotations from SIFT front-end on Skydio-32
 TEST_DATA_ROOT_PATH = Path(__file__).resolve().parent.parent.parent.parent / "data"
 RELATIVE_ROTATIONS_PATH = TEST_DATA_ROOT_PATH / "reproducibility" / "inputs" / "relative_rotations_skydio32.pkl"
 
@@ -24,11 +26,11 @@ class TestShonanAveragingReproducibility(ReproducibilityTestBase, unittest.TestC
     def setUp(self) -> None:
         super().setUp()
         with open(str(RELATIVE_ROTATIONS_PATH), "rb") as f:
-            self._input = pickle.load(f)
+            self._input: Dict[Tuple[int, int], Rot3] = pickle.load(f)
         self._shonan_obj: RotationAveragingBase = ShonanRotationAveraging()
 
     def run_once(self) -> List[Optional[Rot3]]:
-        return self._shonan_obj.run(num_images=32, i2Ri1_dict=self._input)
+        return self._shonan_obj.run(num_images=NUM_IMAGES_IN_INPUT, i2Ri1_dict=self._input)
 
     def assert_results(self, results_a: List[Optional[Rot3]], results_b: List[Optional[Rot3]]) -> None:
         self.assertTrue(geometry_comparisons.compare_rotations(results_a, results_b, ROT3_DIFF_ANGLE_THRESHOLD_DEG))
