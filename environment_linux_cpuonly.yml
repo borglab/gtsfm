@@ -43,6 +43,6 @@ dependencies:
     - opencv-python>=4.5.4.58
     - pydegensac
     - colour
-    - pycolmap
+    - pycolmap>=0.1.0
     - argoverse @ git+https://github.com/argoai/argoverse-api.git@master
     - trimesh[easy]

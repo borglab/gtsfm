@@ -70,7 +70,7 @@ class ColmapLoader(LoaderBase):
         self._use_gt_extrinsics = use_gt_extrinsics
         self._max_frame_lookahead = max_frame_lookahead
 
-        self._wTi_list, img_fnames = io_utils.read_images_txt(fpath=os.path.join(colmap_files_dirpath, "images.txt"))
+        wTi_list, img_fnames = io_utils.read_images_txt(fpath=os.path.join(colmap_files_dirpath, "images.txt"))
         self._calibrations = io_utils.read_cameras_txt(fpath=os.path.join(colmap_files_dirpath, "cameras.txt"))
 
         # TODO in future PR: if img_fnames is None, default to using everything inside image directory
@@ -83,15 +83,31 @@ class ColmapLoader(LoaderBase):
             self._calibrations = self._calibrations * len(img_fnames)
 
         # preserve COLMAP ordering of images
+
+        self._img_fnames = []
         self._image_paths = []
-        for img_fname in img_fnames:
+        self._wTi_list = []
+
+        # If one of the images is not found on disk, the assigned image indices will be re-ordered on disk
+        # to skip the missing image.
+        for img_fname, wTi in zip(img_fnames, wTi_list):
             img_fpath = os.path.join(images_dir, img_fname)
             if not Path(img_fpath).exists():
                 continue
+            self._img_fnames.append(img_fname)
             self._image_paths.append(img_fpath)
+            self._wTi_list.append(wTi)
 
         self._num_imgs = len(self._image_paths)
         logger.info("Colmap image loader found and loaded %d images", self._num_imgs)
+
+    def get_image_fname(self, idx: int) -> str:
+        """Given an image index, provide the corresponding image filename."""
+        return Path(self._image_paths[idx]).name
+
+    def get_image_index_from_filename(self, fname: str) -> int:
+        """Given an image filename, provide the corresponding image index."""
+        return self._img_fnames.index(fname)
 
     def __len__(self) -> int:
         """The number of images in the dataset.

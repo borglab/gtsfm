@@ -4,18 +4,19 @@ Authors: Ayush Baid
 """
 from typing import Dict, List
 
-from gtsam import Cal3Bundler, SfmTrack
+from gtsam import PinholeCameraCal3Bundler, SfmTrack
 
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
 from gtsfm.data_association.point3d_initializer import (
     Point3dInitializer,
-    TriangulationParam,
+    TriangulationSamplingMode,
+    TriangulationOptions,
     TriangulationExitCode,
 )
 
 
 def classify_tracks2d_with_gt_cameras(
-    tracks: List[SfmTrack2d], cameras_gt: List[Cal3Bundler], reproj_error_thresh_px: float = 3
+    tracks: List[SfmTrack2d], cameras_gt: List[PinholeCameraCal3Bundler], reproj_error_thresh_px: float = 3
 ) -> List[TriangulationExitCode]:
     """Classifies the 2D tracks w.r.t ground truth cameras by performing triangulation and collecting exit codes.
 
@@ -29,9 +30,12 @@ def classify_tracks2d_with_gt_cameras(
         The triangulation exit code for each input track, as list of the same length as of tracks.
     """
     # do a simple triangulation with the GT cameras
-    cameras_dict: Dict[int, Cal3Bundler] = {i: cam for i, cam in enumerate(cameras_gt)}
+    cameras_dict: Dict[int, PinholeCameraCal3Bundler] = {i: cam for i, cam in enumerate(cameras_gt)}
     point3d_initializer = Point3dInitializer(
-        track_camera_dict=cameras_dict, mode=TriangulationParam.NO_RANSAC, reproj_error_thresh=reproj_error_thresh_px
+        track_camera_dict=cameras_dict,
+        options=TriangulationOptions(
+            reproj_error_threshold=reproj_error_thresh_px, mode=TriangulationSamplingMode.NO_RANSAC
+        ),
     )
 
     exit_codes: List[TriangulationExitCode] = []
@@ -43,7 +47,7 @@ def classify_tracks2d_with_gt_cameras(
 
 
 def classify_tracks3d_with_gt_cameras(
-    tracks: List[SfmTrack], cameras_gt: List[Cal3Bundler], reproj_error_thresh_px: float = 3
+    tracks: List[SfmTrack], cameras_gt: List[PinholeCameraCal3Bundler], reproj_error_thresh_px: float = 3
 ) -> List[TriangulationExitCode]:
     """Classifies the 3D tracks w.r.t ground truth cameras by performing triangulation and collecting exit codes.
 

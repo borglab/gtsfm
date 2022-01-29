@@ -25,7 +25,7 @@ from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.data_association.point3d_initializer import (
     Point3dInitializer,
-    TriangulationParam,
+    TriangulationOptions,
     TriangulationExitCode,
 )
 from gtsfm.common.image import Image
@@ -40,17 +40,14 @@ class DataAssociation(NamedTuple):
     """Class to form feature tracks; for each track, call LandmarkInitializer.
 
     Args:
-        reproj_error_thresh: the maximum reprojection error allowed.
         min_track_len: min length required for valid feature track / min nb of supporting views required for a landmark
                        to be valid.
-        mode: triangulation mode, which dictates whether or not to use robust estimation.
-        num_ransac_hypotheses (optional): number of hypothesis for RANSAC-based triangulation.
+        triangulation_options: options for triangulating points.
+        save_track_patches_viz: whether to save a mosaic of individual patches associated with each track.
     """
 
-    reproj_error_thresh: float
     min_track_len: int
-    mode: TriangulationParam
-    num_ransac_hypotheses: Optional[int] = None
+    triangulation_options: TriangulationOptions
     save_track_patches_viz: Optional[bool] = False
 
     def __validate_track(self, sfm_track: Optional[SfmTrack]) -> bool:
@@ -91,16 +88,8 @@ class DataAssociation(NamedTuple):
         logger.debug("[Data association] input number of tracks: %s", len(tracks_2d))
         logger.debug("[Data association] input avg. track length: %s", np.mean(track_lengths_2d))
 
-        # initializer of 3D landmark for each track
-        point3d_initializer = Point3dInitializer(
-            cameras,
-            self.mode,
-            self.reproj_error_thresh,
-            self.num_ransac_hypotheses,
-        )
-
-        per_accepted_track_avg_errors = []
-        per_rejected_track_avg_errors = []
+        # Initialize 3D landmark for each track
+        point3d_initializer = Point3dInitializer(cameras, self.triangulation_options)
 
         # form GtsfmData object after triangulation
         triangulated_data = GtsfmData(num_images)
@@ -113,8 +102,10 @@ class DataAssociation(NamedTuple):
         if cameras_gt is not None:
             exit_codes_wrt_gt = track_utils.classify_tracks2d_with_gt_cameras(tracks=tracks_2d, cameras_gt=cameras_gt)
 
-        exit_codes_wrt_computed: List[TriangulationExitCode] = []
         # add valid tracks where triangulation is successful
+        exit_codes_wrt_computed: List[TriangulationExitCode] = []
+        per_accepted_track_avg_errors = []
+        per_rejected_track_avg_errors = []
         for track_2d in tracks_2d:
             # triangulate and filter based on reprojection error
             sfm_track, avg_track_reproj_error, triangulation_exit_code = point3d_initializer.triangulate(track_2d)
