@@ -65,7 +65,7 @@ class BundleAdjustmentOptimizer:
         robust_measurement_noise: bool = False,
         shared_calib: bool = False,
         max_iterations: Optional[int] = None,
-    ):
+    ) -> None:
         """Initializes the parameters for bundle adjustment module.
 
         Args:
@@ -76,7 +76,6 @@ class BundleAdjustmentOptimizer:
             shared_calib (optional): Flag to enable shared calibration across all cameras. Defaults to False.
             max_iterations (optional): Max number of iterations when optimizing the factor graph. None means no cap.
                                        Defaults to None.
-
         """
         self._output_reproj_error_thresh = output_reproj_error_thresh
         self._robust_measurement_noise = robust_measurement_noise
@@ -179,7 +178,7 @@ class BundleAdjustmentOptimizer:
         self,
         initial_data: GtsfmData,
         verbose: bool = True,
-    ) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
+    ) -> Tuple[GtsfmData, GtsfmData]:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
 
         Args:
@@ -189,7 +188,7 @@ class BundleAdjustmentOptimizer:
 
         Results:
             Optimized camera poses, 3D point w/ tracks, and error metrics, aligned to GT (if provided).
-            Metrics group containing metrics for both filtered and unfiltered BA results.
+            Optimized camera poses after filtering landmarks (and cameras with no remaining landmarks).
         """
         logger.info(
             f"Input: {initial_data.number_tracks()} tracks on {len(initial_data.get_valid_camera_indices())} cameras\n"
@@ -199,7 +198,7 @@ class BundleAdjustmentOptimizer:
             logger.error(
                 "Bundle adjustment aborting, optimization cannot be performed without any tracks or any cameras."
             )
-            return initial_data, GtsfmMetricsGroup(name=METRICS_GROUP, metrics=[])
+            return initial_data, initial_data
 
         graph = self.__construct_factor_graph(initial_data=initial_data)
         initial_values = self.__construct_initial_values(initial_data=initial_data)
@@ -231,6 +230,15 @@ class BundleAdjustmentOptimizer:
     def evaluate(
         self, unfiltered_data: GtsfmData, filtered_data: GtsfmData, cameras_gt: List[PinholeCameraCal3Bundler] = None
     ) -> GtsfmMetricsGroup:
+        """
+        Args:
+            unfiltered_data: optimized BA result, before filtering landmarks by reprojection error.
+            filtered_data: optimized BA result, after filtering landmarks and cameras.
+            cameras_gt: cameras with GT intrinsics and GT extrinsics.
+
+        Returns:
+            Metrics group containing metrics for both filtered and unfiltered BA results.
+        """
         ba_metrics = GtsfmMetricsGroup(
             name=METRICS_GROUP, metrics=metrics_utils.get_stats_for_sfmdata(unfiltered_data, suffix="_unfiltered")
         )
@@ -254,12 +262,12 @@ class BundleAdjustmentOptimizer:
                 metric_name = "Filtered tracks triangulated with GT cams: {}".format(exit_code.name)
                 ba_metrics.add_metric(GtsfmMetric(name=metric_name, data=count))
 
-        ba_metrics.add_metrics(metrics_utils.get_stats_for_sfmdata(aligned_filtered_data, suffix="_filtered"))
-        # ba_metrics.save_to_json(os.path.join(METRICS_PATH, "bundle_adjustment_metrics.json"))
+            ba_metrics.add_metrics(metrics_utils.get_stats_for_sfmdata(aligned_filtered_data, suffix="_filtered"))
+            # ba_metrics.save_to_json(os.path.join(METRICS_PATH, "bundle_adjustment_metrics.json"))
 
-        logger.info("[Result] Mean track length %.3f", np.mean(aligned_filtered_data.get_track_lengths()))
-        logger.info("[Result] Median track length %.3f", np.median(aligned_filtered_data.get_track_lengths()))
-        aligned_filtered_data.log_scene_reprojection_error_stats()
+            logger.info("[Result] Mean track length %.3f", np.mean(aligned_filtered_data.get_track_lengths()))
+            logger.info("[Result] Median track length %.3f", np.median(aligned_filtered_data.get_track_lengths()))
+            aligned_filtered_data.log_scene_reprojection_error_stats()
 
         return ba_metrics
 
