@@ -37,12 +37,13 @@ def decompose_camera_projection_matrix(M: np.ndarray) -> Pose3:
 
     K, cRw = scipy.linalg.rq(Q)
 
-    sign_mat = np.diag(np.sign(np.diag(K)))
-    # multiply columns by -1 if (i,i) entry on diagonal is negative.
-    # optionally, could also scale rows of cRw by `sign_mat`.
-    K = K @ sign_mat
+    # multiply columns of K by -1 if K(i,i) entry on diagonal is negative.
+    # T is a matrix that scales by -1 or 1
+    T = np.diag(np.sign(np.diag(K)))
+    K = K @ T
 
-    wRc = Rot3(cRw).inverse()
+    # scale rows of cRw by T, to keep a valid decomposition. T is its own inverse.
+    wRc = Rot3(T @ cRw).inverse()
     wTc = Pose3(wRc, wtc)
 
     return K, wTc
