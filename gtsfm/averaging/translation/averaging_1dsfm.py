@@ -90,7 +90,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         if self._projection_sampling_method == self.ProjectionSamplingMethod.SAMPLE_INPUT_MEASUREMENTS:
             num_samples = min(num_measurements, self._max_1dsfm_projection_directions)
-            sampled_indices = np.random.choice(w_i2Ui1_measurements, num_samples, replace=False)
+            sampled_indices = np.random.choice(num_measurements, num_samples, replace=False)
             projections = [w_i2Ui1_measurements[idx].measured() for idx in sampled_indices]
         elif self._projection_sampling_method == self.ProjectionSamplingMethod.SAMPLE_WITH_INPUT_DENSITY:
             projections = _sample_kde_directions(
@@ -119,24 +119,17 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             outlier_weights.append(algorithm.computeOutlierWeights())
 
         # compute average outlier weight
-        avg_outlier_weights = defaultdict(float)
+        outlier_weights_sum = defaultdict(float)
+        inlier_idxs = set()
         for outlier_weight_dict in outlier_weights:
             # TODO(akshay-krishnan): use keys from outlier weight dict once we can iterate over it (gtsam fix).
             for idx in range(len(w_i2Ui1_measurements)):
                 w_i2Ui1 = w_i2Ui1_measurements[idx]
                 i2, i1 = w_i2Ui1.key1(), w_i2Ui1.key2()
-                avg_outlier_weights[(i2, i1)] += outlier_weight_dict[(i2, i1)]
+                outlier_weights_sum[(i2, i1)] += outlier_weight_dict[(i2, i1)]
 
-        for index_pair in avg_outlier_weights:
-            avg_outlier_weights[index_pair] /= len(projection_directions)
-
-        inlier_idxs = set()
-        for idx in range(len(w_i2Ui1_measurements)):
-            w_i2Ui1 = w_i2Ui1_measurements[idx]  # TODO(akshay-krishnan): make range-based for loop
-            # key1 is i2 and key2 is i1 above.
-            i1 = w_i2Ui1.key2()
-            i2 = w_i2Ui1.key1()
-            if avg_outlier_weights[(i2, i1)] < self._outlier_weight_threshold:
+        for (i2, i1) in outlier_weights_sum:
+            if outlier_weights_sum[(i2, i1)] / len(projection_directions) < OUTLIER_WEIGHT_THRESHOLD:
                 inlier_idxs.add((i1, i2))
 
         return inlier_idxs
@@ -221,7 +214,7 @@ def _sample_kde_directions(w_i2Ui1_measurements: BinaryMeasurementsUnit3, num_sa
     Returns:
         List of sampled Unit3 directions.
     """
-    w_i2Ui1_list = [w_i2Ui1.measured() for w_i2Ui1 in w_i2Ui1_measurements]
+    w_i2Ui1_list = [w_i2Ui1_measurements[idx].measured() for idx in range(len(w_i2Ui1_measurements))]
     if len(w_i2Ui1_list) > MAX_KDE_SAMPLES:
         w_i2Ui1_subset_indices = np.random.choice(range(len(w_i2Ui1_list)), MAX_KDE_SAMPLES, replace=False).tolist()
         w_i2Ui1_list = [w_i2Ui1_list[i] for i in w_i2Ui1_subset_indices]
