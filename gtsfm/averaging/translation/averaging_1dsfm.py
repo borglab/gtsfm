@@ -103,20 +103,26 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         return projections
 
-    def get_inlier_mask_for_direction_measurements(
+    def compute_inlier_mask(
         self,
         w_i2Ui1_measurements: BinaryMeasurementsUnit3,
     ) -> Set[Tuple[int, int]]:
-        # sample projection directions
+        """Perform inlier detection for the relative direction measurements.
+
+        Args:
+            w_i2Ui1_measurements: relative directions in the common world coordinate frame.
+
+        Returns:
+            Set of indices (i1, i2) which are inliers.
+        """
         projection_directions = self.__sample_projection_directions(w_i2Ui1_measurements)
 
         # compute outlier weights using MFAS
         outlier_weights = []
-
         # TODO(ayush): parallelize this step.
         for direction in projection_directions:
-            algorithm = MFAS(w_i2Ui1_measurements, direction)
-            outlier_weights.append(algorithm.computeOutlierWeights())
+            mfas_instance = MFAS(w_i2Ui1_measurements, direction)
+            outlier_weights.append(mfas_instance.computeOutlierWeights())
 
         # compute average outlier weight
         outlier_weights_sum = defaultdict(float)
@@ -133,7 +139,6 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 inlier_idxs.add((i1, i2))
 
         return inlier_idxs
-
 
     def run(
         self,
@@ -163,20 +168,12 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             huber_loss = gtsam.noiseModel.mEstimator.Huber.Create(HUBER_LOSS_K)
             noise_model = gtsam.noiseModel.Robust.Create(huber_loss, noise_model)
 
-        # Note: all measurements are relative translation directions in the
-        # world frame.
+        w_i2Ui1_measurements = cast_to_measurements_variable_in_global_coordinate_frame(
+            i2Ui1_dict, wRi_list, noise_model
+        )
 
-        # convert translation direction in global frame using rotations.
-        w_i2Ui1_measurements = BinaryMeasurementsUnit3()
-        valid_i2_i1 = []
-        for (i1, i2), i2Ui1 in i2Ui1_dict.items():
-            if i2Ui1 is not None and wRi_list[i2] is not None:
-                valid_i2_i1.append((i2, i1))
-                w_i2Ui1_measurements.append(
-                    BinaryMeasurementUnit3(i2, i1, Unit3(wRi_list[i2].rotate(i2Ui1.point3())), noise_model)
-                )
+        inlier_idxs: Set[Tuple[int, int]] = self.compute_inlier_mask(w_i2Ui1_measurements)
 
-        inlier_idxs: Set[Tuple[int, int]] = self.get_inlier_mask_for_direction_measurements(w_i2Ui1_measurements)
         w_i2Ui1_inlier_measurements = BinaryMeasurementsUnit3()
         for idx in range(len(w_i2Ui1_measurements)):
             # key1 is i2 and key2 is i1 above.
@@ -190,7 +187,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         wti_values = TranslationRecovery(w_i2Ui1_inlier_measurements).run(scale_factor)
 
         # transforming the result to the list of Point3
-        wti_list = [None] * num_images
+        wti_list: List[Optional[Point3]] = [None] * num_images
         for i in range(num_images):
             if wRi_list[i] is not None and wti_values.exists(i):
                 wti_list[i] = wti_values.atPoint3(i)
@@ -336,3 +333,18 @@ def _compute_metrics(
     ]
 
     return GtsfmMetricsGroup("translation_averaging_metrics", ta_metrics)
+
+
+def cast_to_measurements_variable_in_global_coordinate_frame(
+    i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]], wRi_list: List[Optional[Rot3]], noise_model: gtsam.noiseModel
+) -> BinaryMeasurementsUnit3:
+
+    w_i2Ui1_measurements = BinaryMeasurementsUnit3()
+    for (i1, i2), i2Ui1 in i2Ui1_dict.items():
+        if i2Ui1 is not None and wRi_list[i2] is not None:
+            # TODO: what if wRi2 is None, but wRi1 is not. Is there a way we can transform the direction in the global frame
+            w_i2Ui1_measurements.append(
+                BinaryMeasurementUnit3(i2, i1, Unit3(wRi_list[i2].rotate(i2Ui1.point3())), noise_model)
+            )
+
+    return w_i2Ui1_measurements

@@ -27,7 +27,8 @@ def create_metrics_plots_html(json_path: str, output_dir: str) -> None:
     GTSFM_MODULE_METRICS_FNAMES = [
         "frontend_summary.json",
         "rotation_cycle_consistency_metrics.json",
-        "averaging_metrics.json",
+        "rotation_averaging_metrics.json",
+        "translation_averaging_metrics.json",
         "data_association_metrics.json",
         "bundle_adjustment_metrics.json"
     ]

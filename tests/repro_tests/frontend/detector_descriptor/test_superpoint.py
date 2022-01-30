@@ -2,12 +2,10 @@
 
 Authors: Ayush Baid
 """
-import tests.repro_tests.frontend.detector_descriptor.test_detector_descriptor_reproducibility_base as test_detector_descriptor_reproducibility_base
+import tests.repro_tests.frontend.detector_descriptor.test_detector_descriptor_reproducibility_base as base_test
 from gtsfm.frontend.detector_descriptor.superpoint import SuperPointDetectorDescriptor
 
 
-class TestSuperPointReproducibility(
-    test_detector_descriptor_reproducibility_base.DetectorDescriptorReproducibilityTestBase
-):
+class TestSuperPointReproducibility(base_test.DetectorDescriptorReproducibilityTestBase):
     def setUp(self) -> None:
         super().setUp(detector_descriptor=SuperPointDetectorDescriptor())

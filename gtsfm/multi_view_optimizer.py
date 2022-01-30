@@ -14,7 +14,6 @@ from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBa
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.data_association.data_assoc import DataAssociation
-from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.two_view_estimator import TwoViewEstimationReport
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
 
@@ -108,11 +107,11 @@ class MultiViewOptimizer:
         rot_avg_metrics = dask.delayed(metrics_utils.compute_global_rotation_metrics)(
             wRi_graph, wti_graph, gt_poses_graph
         )
-        averaging_metrics = dask.delayed(get_averaging_metrics)(rot_avg_metrics, ta_metrics)
 
         multiview_optimizer_metrics_graph = [
             viewgraph_estimation_metrics,
-            averaging_metrics,
+            rot_avg_metrics,
+            ta_metrics,
             data_assoc_metrics_graph,
             ba_metrics_graph,
         ]
@@ -145,18 +144,3 @@ def init_cameras(
             cameras[idx] = PinholeCameraCal3Bundler(Pose3(wRi, wti), intrinsics_list[idx])
 
     return cameras
-
-
-def get_averaging_metrics(
-    rot_avg_metrics: GtsfmMetricsGroup, trans_avg_metrics: GtsfmMetricsGroup
-) -> GtsfmMetricsGroup:
-    """Helper to combine rotation and translation averaging metrics groups into a single averaging metrics group.
-
-    Args:
-        rot_avg_metrics: Rotation averaging metrics group.
-        trans_avg_metrics: Translation averaging metrics group.
-
-    Returns:
-        An averaging metrics group with both rotation and translation averaging metrics.
-    """
-    return GtsfmMetricsGroup("averaging_metrics", rot_avg_metrics.metrics + trans_avg_metrics.metrics)

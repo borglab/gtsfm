@@ -15,11 +15,11 @@ from gtsfm.frontend.detector_descriptor.detector_descriptor_base import Detector
 from gtsfm.frontend.detector_descriptor.sift import SIFTDetectorDescriptor
 from tests.repro_tests.test_repro_base import ReproducibilityTestBase
 
-# defining the path for test data
+# path for test data, which is one image
 TEST_DATA_ROOT_PATH = Path(__file__).resolve().parent.parent.parent.parent / "data"
 IMG_PATH = TEST_DATA_ROOT_PATH / "set1_lund_door" / "images" / "DSC_0001.JPG"
 
-RESULT_TYPE = Tuple[Keypoints, np.ndarray]
+DET_DESC_RESULT_TYPE = Tuple[Keypoints, np.ndarray]
 
 
 class DetectorDescriptorReproducibilityTestBase(ReproducibilityTestBase, unittest.TestCase):
@@ -28,9 +28,9 @@ class DetectorDescriptorReproducibilityTestBase(ReproducibilityTestBase, unittes
         self._input: Image = io_utils.load_image(str(IMG_PATH))
         self._detector_descriptor: DetectorDescriptorBase = detector_descriptor
 
-    def run_once(self) -> RESULT_TYPE:
+    def run_once(self) -> DET_DESC_RESULT_TYPE:
         return self._detector_descriptor.detect_and_describe(self._input)
 
-    def assert_results(self, results_a: RESULT_TYPE, results_b: RESULT_TYPE) -> None:
+    def assert_results(self, results_a: DET_DESC_RESULT_TYPE, results_b: DET_DESC_RESULT_TYPE) -> None:
         self.assertEqual(results_a[0], results_b[0])
         np.testing.assert_allclose(results_a[1], results_b[1])
