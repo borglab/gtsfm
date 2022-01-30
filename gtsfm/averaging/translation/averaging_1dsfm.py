@@ -175,17 +175,12 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             huber_loss = gtsam.noiseModel.mEstimator.Huber.Create(HUBER_LOSS_K)
             noise_model = gtsam.noiseModel.Robust.Create(huber_loss, noise_model)
 
-        # convert translation direction in global frame using rotations.
-        w_i2Ui1_measurements = BinaryMeasurementsUnit3()
-        valid_i2_i1 = []
-        for (i1, i2), i2Ui1 in i2Ui1_dict.items():
-            if i2Ui1 is not None and wRi_list[i2] is not None:
-                valid_i2_i1.append((i2, i1))
-                w_i2Ui1_measurements.append(
-                    BinaryMeasurementUnit3(i2, i1, Unit3(wRi_list[i2].rotate(i2Ui1.point3())), noise_model)
-                )
+        w_i2Ui1_measurements = cast_to_measurements_variable_in_global_coordinate_frame(
+            i2Ui1_dict, wRi_list, noise_model
+        )
 
         inlier_idxs: Set[Tuple[int, int]] = self.compute_inlier_mask(w_i2Ui1_measurements)
+
         w_i2Ui1_inlier_measurements = BinaryMeasurementsUnit3()
         for idx in range(len(w_i2Ui1_measurements)):
             # key1 is i2 and key2 is i1 above.
@@ -345,3 +340,18 @@ def _compute_metrics(
     ]
 
     return GtsfmMetricsGroup("translation_averaging_metrics", ta_metrics)
+
+
+def cast_to_measurements_variable_in_global_coordinate_frame(
+    i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]], wRi_list: List[Optional[Rot3]], noise_model: gtsam.noiseModel
+) -> BinaryMeasurementsUnit3:
+
+    w_i2Ui1_measurements = BinaryMeasurementsUnit3()
+    for (i1, i2), i2Ui1 in i2Ui1_dict.items():
+        if i2Ui1 is not None and wRi_list[i2] is not None:
+            # TODO: what if wRi2 is None, but wRi1 is not. Is there a way we can transform the direction in the global frame
+            w_i2Ui1_measurements.append(
+                BinaryMeasurementUnit3(i2, i1, Unit3(wRi_list[i2].rotate(i2Ui1.point3())), noise_model)
+            )
+
+    return w_i2Ui1_measurements
