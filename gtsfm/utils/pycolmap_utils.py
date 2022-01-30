@@ -15,8 +15,8 @@ def get_pycolmap_camera(camera_intrinsics: Cal3Bundler) -> pycolmap.Camera:
     
     Note: the image width and image height values approximated below are dummy placeholder values.
     For some datasets we have intrinsics (including principal point) where image height, image width
-    would not necessarily be 2 * cy, 2 * cx. However, image width and image height aren't used anywhere
-    in the F / E / H estimation; rather cx and cy are used in the essential matrix estimation:
+    would not necessarily be 2 * cy, 2 * cx. However, image dimensions aren't used anywhere
+    in the F / E / H estimation; rather cx and cy are used in the Essential matrix estimation:
     https://github.com/colmap/colmap/blob/9f3a75ae9c72188244f2403eb085e51ecf4397a8/src/base/camera_models.h#L629)
     
     Args:
