@@ -41,7 +41,8 @@ TABLE_NAMES = [
     "Verifier Summary Post Inlier Support Processor 2view Report",
     "View Graph Estimation Metrics",
     "Verifier Summary Viewgraph 2view Report",
-    "Averaging Metrics",
+    "Rotation Averaging Metrics",
+    "Translation Averaging Metrics",
     "Data Association Metrics",
     "Bundle Adjustment Metrics",
 ]
