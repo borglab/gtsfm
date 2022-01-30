@@ -39,6 +39,7 @@ def decompose_camera_projection_matrix(M: np.ndarray) -> Pose3:
 
     sign_mat = np.diag(np.sign(np.diag(K)))
     # multiply columns by -1 if (i,i) entry on diagonal is negative.
+    # optionally, could also scale rows of cRw by `sign_mat`.
     K = K @ sign_mat
 
     wRc = Rot3(cRw).inverse()

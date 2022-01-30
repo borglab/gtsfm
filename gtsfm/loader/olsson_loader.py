@@ -8,9 +8,8 @@ import os
 from pathlib import Path
 from typing import Optional
 
-import numpy as np
 import scipy.io
-from gtsam import Cal3Bundler, Pose3, Rot3
+from gtsam import Cal3Bundler, Pose3
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.verification as verification_utils

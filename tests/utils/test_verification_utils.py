@@ -184,12 +184,13 @@ class TestVerificationUtils(unittest.TestCase):
         )
         # fmt: on
         assert np.allclose(K0, K_expected, atol=1.0)
+        # GT intrinsics should match between view 0 and view 1
         assert np.allclose(K0, K1, atol=1e-7)
-
 
         # first pose is the origin for the world frame.
         assert Pose3().equals(wT0, tol=1e-12)
         assert not Pose3().equals(wT1, tol=0.01)
+
 
 if __name__ == "__main__":
     unittest.main()
