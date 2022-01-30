@@ -84,7 +84,7 @@ class OlssonLoader(LoaderBase):
         data = scipy.io.loadmat(cam_matrices_fpath)
 
         if len(data["P"][0]) != self._num_imgs:
-            raise RuntimeError("Found more or less images than ground truth provides.")
+            raise RuntimeError("Number of images found on disk not equal to number of ground truth images.")
 
         # M = K [R | t]
         # in GTSAM notation, M = K @ cTw
