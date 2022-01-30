@@ -5,7 +5,7 @@ Authors: Travis Driver
 
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 import cv2 as cv
 import numpy as np
