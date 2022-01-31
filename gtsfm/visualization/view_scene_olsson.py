@@ -17,6 +17,9 @@ from gtsfm.loader.olsson_loader import OlssonLoader
 
 TEST_DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "tests" / "data"
 
+# The Olsson loader requires we set a value for the frame lookahead, but it will not affect the visualization.
+DUMMY_MAX_FRAME_LOOKAHEAD = 1
+
 
 def view_scene(args: argparse.Namespace) -> None:
     """Read Olsson Dataset ground truth from a data.mat file and render the scene to the GUI.
@@ -27,7 +30,7 @@ def view_scene(args: argparse.Namespace) -> None:
     loader = OlssonLoader(
         args.dataset_root,
         image_extension=args.image_extension,
-        max_frame_lookahead=args.max_frame_lookahead,
+        max_frame_lookahead=DUMMY_MAX_FRAME_LOOKAHEAD,
         max_resolution=args.max_resolution,
     )
     open3d_vis_utils.draw_scene_open3d(
@@ -70,12 +73,6 @@ if __name__ == "__main__":
         default=760,
         help="integer representing maximum length of image's short side"
         " e.g. for 1080p (1920 x 1080), max_resolution would be 1080",
-    )
-    parser.add_argument(
-        "--max_frame_lookahead",
-        type=int,
-        default=20,
-        help="maximum number of consecutive frames to consider for matching/co-visibility",
     )
     args = parser.parse_args()
     view_scene(args)
