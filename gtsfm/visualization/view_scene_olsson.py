@@ -1,5 +1,5 @@
 """
-Script to render a GTSFM scene using Open3d.
+Script to render Olsson dataset ground truth camera poses and structure, and render the scene to the GUI.
 
 Results must be stored in Carl Olsson's `data.mat` file format.
 

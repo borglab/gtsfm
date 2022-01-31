@@ -86,15 +86,16 @@ class OlssonLoader(LoaderBase):
         if len(data["P"][0]) != self._num_imgs:
             raise RuntimeError("Number of images found on disk not equal to number of ground truth images.")
 
+        # each projection matrix is "M"
         # M = K [R | t]
         # in GTSAM notation, M = K @ cTw
-        M_list = [data["P"][0][i] for i in range(self._num_imgs)]
+        projection_matrices = [data["P"][0][i] for i in range(self._num_imgs)]
 
-        self._K, _ = verification_utils.decompose_camera_projection_matrix(M_list[0])
+        self._K, _ = verification_utils.decompose_camera_projection_matrix(projection_matrices[0])
 
         self._wTi_list = []
         # first pose is not necessarily identity (in Door it is, but not in Palace of Fine Arts)
-        for M in M_list:
+        for M in projection_matrices:
             K, wTc = verification_utils.decompose_camera_projection_matrix(M)
             self._wTi_list.append(wTc)
 
