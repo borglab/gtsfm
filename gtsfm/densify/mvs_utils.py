@@ -7,8 +7,10 @@ from typing import Tuple
 
 import numpy as np
 from gtsam import PinholeCameraCal3Bundler, Unit3
+from scipy.spatial import KDTree
 
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
+from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.utils import ellipsoid as ellipsoid_utils
 from gtsfm.utils import geometry_comparisons as geometry_utils
 
@@ -214,3 +216,73 @@ def downsample_point_cloud(
 
     points_downsampled, rgb_downsampled = open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pcd)
     return points_downsampled, rgb_downsampled
+
+
+def compute_downsampling_psnr(original_point_cloud: np.ndarray, downsampled_point_cloud: np.ndarray) -> float:
+    """Compute PSNR between original point cloud and downsampled point cloud
+    A larger PSNR shows smaller distances between:
+        1. the nearest neighbors of a point in the original point cloud found in the downsampled point cloud
+        1. the nearest neighbors of a point in the downsampled point cloud found in the original point cloud
+
+    Ref: Schnabel, R., & Klein, R. (2006, July). Octree-based Point-Cloud Compression. In PBG@SIGGRAPH (pp. 111-120).
+
+    Args:
+        original_point_cloud: original dense point cloud before downsampling
+        downsampled_point_cloud: dense point cloud after downsampling
+
+    Returns:
+        float: PSNR between original point cloud and downsampled point cloud
+    """
+    diagnose_voxel_scale = np.linalg.norm(mvs_utils.estimate_voxel_scales(original_point_cloud))
+    original_tree = KDTree(data=original_point_cloud)
+    downsampled_tree = KDTree(data=downsampled_point_cloud)
+
+    d_downsampled_to_original, _ = original_tree.query(downsampled_point_cloud)
+    d_original_to_downsampled, _ = downsampled_tree.query(original_point_cloud)
+
+    def RMS(data: np.ndarray) -> float:
+        """Utility function to calculate the root mean square of the given data
+
+        Args:
+            data: 1D input data for evaluation, the length is the number of nodes in the KDTree
+
+        Returns:
+            the root mean square of the given data
+        """
+        return np.sqrt(np.square(data).mean())
+
+    psnr = 20.0 * np.log10(diagnose_voxel_scale / max(RMS(d_downsampled_to_original), RMS(d_original_to_downsampled)))
+
+    return psnr
+
+
+def get_voxel_downsampling_metrics(
+    min_voxel_size: float, original_point_cloud: np.ndarray, downsampled_point_cloud: np.ndarray
+) -> GtsfmMetricsGroup:
+    """Collect and compute metrics for voxel downsampling
+    Args:
+        min_voxel_size: minimum voxel size for voxel downsampling
+        original_point_cloud: original dense point cloud before downsampling
+        downsampled_point_cloud: dense point cloud after downsampling
+
+    Returns:
+        GtsfmMetricsGroup: voxel downsamping metrics group
+    """
+    psnr = compute_downsampling_psnr(
+        original_point_cloud=original_point_cloud, downsampled_point_cloud=downsampled_point_cloud
+    )
+
+    downsampling_metrics = []
+    downsampling_metrics.append(GtsfmMetric(name="voxel size for downsampling", data=min_voxel_size))
+    downsampling_metrics.append(
+        GtsfmMetric(name="point cloud size before downsampling", data=original_point_cloud.shape[0])
+    )
+    downsampling_metrics.append(
+        GtsfmMetric(name="point cloud size after downsampling", data=downsampled_point_cloud.shape[0])
+    )
+    downsampling_metrics.append(
+        GtsfmMetric(name="compression ratio", data=original_point_cloud.shape[0] / downsampled_point_cloud.shape[0])
+    )
+    downsampling_metrics.append(GtsfmMetric(name="downsampling PSNR", data=psnr))
+
+    return GtsfmMetricsGroup(name="voxel downsampling metrics", metrics=downsampling_metrics)

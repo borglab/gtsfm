@@ -56,7 +56,11 @@ class MVSBase(metaclass=abc.ABCMeta):
             sfm_result_graph: computation graph for SFM output
 
         Returns:
-            Delayed task for MVS computation on the input images.
+            Delayed task for MVS computation on the input images, including:
+                1. downsampled dense point cloud
+                2. rgb colors for each point in the point cloud
+                3. mvs densify metrics group
+                4. voxel downsampling metrics group
         """
         # get initial dense reconstruction result
         points_graph, rgb_graph, densify_metrics_graph = dask.delayed(self.densify, nout=3)(

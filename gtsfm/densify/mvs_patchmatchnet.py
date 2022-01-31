@@ -4,7 +4,7 @@ Authors: Ren Liu
 """
 import time
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
@@ -22,7 +22,7 @@ from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.utils import logger as logger_utils
 from thirdparty.patchmatchnet.models.net import PatchmatchNet
 
-METRICS_GROUP = "densify_patchmatchnet"
+METRICS_GROUP = "multi_view_stereo"
 
 logger = logger_utils.get_logger()
 
@@ -189,8 +189,8 @@ class MVSPatchmatchNet(MVSBase):
         densify_metrics = GtsfmMetricsGroup(
             name=METRICS_GROUP,
             metrics=[
-                GtsfmMetric(name="num_batches/num_valid_views", data=len(loader)),
-                GtsfmMetric(name="elapsed_time_per_batch(sec)", data=batch_times),
+                GtsfmMetric(name="num_valid_reference_views", data=len(loader)),
+                GtsfmMetric(name="elapsed_time_per_ref_img(sec)", data=batch_times),
             ],
         )
         # merge filter matrics to densify metrics
@@ -306,33 +306,17 @@ class MVSPatchmatchNet(MVSBase):
             # Combine geometric mask and confidence mask
             joint_mask = np.logical_and(confidence_mask, geo_mask)
 
-            # Compute reprojection error after filtering by joint mask
-            height, width = ref_depth_est.shape[:2]
-            # 1. generate reference coordinates for each pixel
-            u_ref, v_ref = np.meshgrid(np.arange(0, width), np.arange(0, height))
-            # 2. compute reprojection errors from each reference-source view pair
-            for src_view in src_views:
-                # camera parameters of the source view
-                src_intrinsics, src_extrinsics = dataset.get_camera_params(src_view)
-
-                # the estimated depth of the source view
-                src_depth_est = depth_list[src_view][0]
-
-                # compute reprojected coordinates
-                _, u_reprojected, v_reprojected, _, _, = patchmatchnet_eval.reproject_with_depth(
-                    ref_depth_est,
-                    ref_intrinsics,
-                    ref_extrinsics,
-                    src_depth_est,
-                    src_intrinsics,
-                    src_extrinsics,
+            # Compute and record the reprojection errors
+            reprojection_errors.extend(
+                self.compute_filtered_reprojection_error(
+                    dataset=dataset,
+                    ref_view=ref_view,
+                    src_views=src_views,
+                    depth_list=depth_list,
+                    max_reprojection_err=max_geo_pixel_thresh,
+                    joint_mask=joint_mask,
                 )
-
-                # compute reprojection error
-                reproj_err = np.sqrt((u_reprojected - u_ref) ** 2 + (v_reprojected - v_ref) ** 2)[joint_mask]
-                # record reprojection errors
-                reprojection_errors.extend(reproj_err[reproj_err < max_geo_pixel_thresh].tolist())
-
+            )
             # Set the depths of invalid positions to 0
             depth_est_averaged[np.logical_not(joint_mask)] = 0
             # Append the depth map to the depth map list
@@ -374,9 +358,79 @@ class MVSPatchmatchNet(MVSBase):
 
         # compute and collect metrics during filtering points from depth maps
         filter_metrics = []
+        # compute the proportion of valid pixels in the geometric masks among all reference views
         filter_metrics.append(GtsfmMetric(name="geometric_mask_valid_ratios", data=geo_mask_ratios))
+        # compute the proportion of valid pixels in the confidence masks among all reference views
         filter_metrics.append(GtsfmMetric(name="confidence_mask_valid_ratios", data=conf_mask_ratios))
+        # compute the proportion of valid pixels in the joint masks among all reference views
         filter_metrics.append(GtsfmMetric(name="joint_mask_valid_ratios", data=joint_mask_ratios))
         filter_metrics.append(GtsfmMetric(name="reprojection_errors", data=reprojection_errors, store_full_data=False))
 
         return dense_points, dense_point_colors, GtsfmMetricsGroup(name="filter metrics", metrics=filter_metrics)
+
+    def compute_filtered_reprojection_error(
+        self,
+        dataset: PatchmatchNetData,
+        ref_view: int,
+        src_views: List[int],
+        depth_list: Dict[int, np.ndarray],
+        max_reprojection_err: float,
+        joint_mask: np.ndarray,
+    ) -> List[float]:
+        """Compute reprojection errors of reference view pixels among all source views, filtered by joint mask
+        Detailed steps include:
+            1. Compute coordinates of each pixel in reference depth map at reference camera frame by ref_intrinsics.
+            2. Project these points to a source view by ref_extrinsics, src_extrinsics and src intrinsics.
+            3. Use the source depth map to calculate the depths of reprojected pixel by interpolation.
+            4. Compute coordinates of each reprojected pixel at source camera frame by src_intrinsics.
+            5. Reproject these points to the reference view by src_extrinsics, ref_extrinsics, and ref intrinsics.
+            6. Compute the reprojection errors by Euclidean distance and filter the errors by the joint mask.
+
+
+        Args:
+            dataset: an instance of PatchmatchData as the inference dataset
+            ref_view: reference view pm_i
+            src_views: list of source view pm_i
+            depth_list: list of 2D depth map (H, W) from each view
+            max_reprojection_err: maximum reprojection error in pixel coordinates
+            joint_mask: the union set of geometric mask and confidence mask
+
+        Returns:
+            list of filtered reprojection errors among all source views in the reference view
+        """
+        # initialize reprojection err list
+        reproj_errs = []
+
+        # get reference view estimated depth map
+        ref_depth_est = depth_list[ref_view][0]
+        # get the resolution of reference view depth map
+        height, width = ref_depth_est.shape[:2]
+        # get camera parameters of the reference view
+        ref_intrinsics, ref_extrinsics = dataset.get_camera_params(ref_view)
+
+        # Compute reprojection error after filtering by joint mask
+        # 1. generate reference coordinates for each pixel
+        u_ref, v_ref = np.meshgrid(np.arange(0, width), np.arange(0, height))
+        # 2. compute reprojection errors from each reference-source view pair
+        for src_view in src_views:
+            # camera parameters of the source view
+            src_intrinsics, src_extrinsics = dataset.get_camera_params(src_view)
+
+            # the estimated depth of the source view
+            src_depth_est = depth_list[src_view][0]
+
+            # compute reprojected coordinates
+            _, u_reprojected, v_reprojected, _, _, = patchmatchnet_eval.reproject_with_depth(
+                ref_depth_est,
+                ref_intrinsics,
+                ref_extrinsics,
+                src_depth_est,
+                src_intrinsics,
+                src_extrinsics,
+            )
+
+            # compute reprojection error
+            reproj_err = np.sqrt((u_reprojected - u_ref) ** 2 + (v_reprojected - v_ref) ** 2)[joint_mask]
+            # record reprojection errors
+            reproj_errs.extend(reproj_err[reproj_err < max_reprojection_err].tolist())
+        return reproj_errs
