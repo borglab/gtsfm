@@ -33,7 +33,6 @@ dependencies:
   - hydra-core
   # 3rd party algorithms for different modules
   - cudatoolkit=10.2
-  - opencv=4.5.0 # preferring conda-forge's distribution as it provides the latest distribution
   - pytorch
   # io
   - h5py
@@ -42,7 +41,9 @@ dependencies:
   # visualization
   - open3d
   - pip:
-      - pydegensac
-      - colour
-      - pycolmap>=0.1.0
-      - trimesh[easy]
+    - opencv-python>=4.5.4.58
+    - pydegensac
+    - colour
+    - pycolmap>=0.1.0
+    - trimesh[easy]
+    - argoverse @ git+https://github.com/argoai/argoverse-api.git@master

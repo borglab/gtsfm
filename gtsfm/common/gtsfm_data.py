@@ -228,6 +228,16 @@ class GtsfmData:
         return GtsfmData.from_selected_cameras(self, cameras_in_largest_cc)
 
     @classmethod
+    def from_cameras_and_tracks(
+        cls, cameras: Dict[int, PinholeCameraCal3Bundler], tracks: List[SfmTrack], number_images: int
+    ) -> "GtsfmData":
+        """Creates a GtsfmData object from a pre-existing set of cameras and tracks."""
+        new_data = cls(number_images=number_images)
+        new_data._cameras = cameras
+        new_data._tracks = tracks
+        return new_data
+
+    @classmethod
     def from_selected_cameras(cls, gtsfm_data: "GtsfmData", camera_indices: List[int]) -> "GtsfmData":
         """Selects the cameras in the input list and the tracks associated with those cameras.
 
@@ -311,7 +321,7 @@ class GtsfmData:
             Average of reprojection errors for every 3d point to its 2d measurements
         """
         scene_reproj_errors = self.get_scene_reprojection_errors()
-        scene_avg_reproj_error = np.nanmean(scene_reproj_errors)
+        scene_avg_reproj_error = np.nan if np.isnan(scene_reproj_errors).all() else np.nanmean(scene_reproj_errors)
         return scene_avg_reproj_error
 
     def log_scene_reprojection_error_stats(self) -> None:
