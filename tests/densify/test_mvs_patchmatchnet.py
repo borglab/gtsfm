@@ -17,7 +17,7 @@ from gtsam.examples import SFMdata
 
 from gtsfm.common.image import Image
 from gtsfm.common.gtsfm_data import GtsfmData, SfmTrack
-from gtsfm.densify.mvs_patchmatchnet import MVSPatchmatchNet
+from gtsfm.densify.mvs_patchmatchnet import MVSPatchmatchNet, compute_filtered_reprojection_error
 from gtsfm.densify.patchmatchnet_data import PatchmatchNetData
 
 
@@ -160,7 +160,7 @@ class TestMVSPatchmatchNet(unittest.TestCase):
         dummy_joint_mask[height // 2, width // 2] = True
 
         # calculate reprojection error
-        reproject_errors = MVSPatchmatchNet().compute_filtered_reprojection_error(
+        reproject_errors = compute_filtered_reprojection_error(
             dataset=dataset,
             ref_view=dummy_ref_view,
             src_views=[dummy_src_view],

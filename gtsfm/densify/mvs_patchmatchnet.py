@@ -308,7 +308,7 @@ class MVSPatchmatchNet(MVSBase):
 
             # Compute and record the reprojection errors
             reprojection_errors.extend(
-                self.compute_filtered_reprojection_error(
+                compute_filtered_reprojection_error(
                     dataset=dataset,
                     ref_view=ref_view,
                     src_views=src_views,
@@ -357,80 +357,81 @@ class MVSPatchmatchNet(MVSBase):
         dense_point_colors = np.concatenate(vertex_colors, axis=0)
 
         # compute and collect metrics during filtering points from depth maps
-        filter_metrics = []
+        filtering_metrics = []
         # compute the proportion of valid pixels in the geometric masks among all reference views
-        filter_metrics.append(GtsfmMetric(name="geometric_mask_valid_ratios", data=geo_mask_ratios))
+        filtering_metrics.append(GtsfmMetric(name="geometric_mask_valid_ratios", data=geo_mask_ratios))
         # compute the proportion of valid pixels in the confidence masks among all reference views
-        filter_metrics.append(GtsfmMetric(name="confidence_mask_valid_ratios", data=conf_mask_ratios))
+        filtering_metrics.append(GtsfmMetric(name="confidence_mask_valid_ratios", data=conf_mask_ratios))
         # compute the proportion of valid pixels in the joint masks among all reference views
-        filter_metrics.append(GtsfmMetric(name="joint_mask_valid_ratios", data=joint_mask_ratios))
-        filter_metrics.append(GtsfmMetric(name="reprojection_errors", data=reprojection_errors, store_full_data=False))
+        filtering_metrics.append(GtsfmMetric(name="joint_mask_valid_ratios", data=joint_mask_ratios))
+        filtering_metrics.append(
+            GtsfmMetric(name="reprojection_errors", data=reprojection_errors, store_full_data=False)
+        )
 
-        return dense_points, dense_point_colors, GtsfmMetricsGroup(name="filter metrics", metrics=filter_metrics)
-
-    def compute_filtered_reprojection_error(
-        self,
-        dataset: PatchmatchNetData,
-        ref_view: int,
-        src_views: List[int],
-        depth_list: Dict[int, np.ndarray],
-        max_reprojection_err: float,
-        joint_mask: np.ndarray,
-    ) -> List[float]:
-        """Compute reprojection errors of reference view pixels among all source views, filtered by joint mask
-        Detailed steps include:
-            1. Compute coordinates of each pixel in reference depth map at reference camera frame by ref_intrinsics.
-            2. Project these points to a source view by ref_extrinsics, src_extrinsics and src intrinsics.
-            3. Use the source depth map to calculate the depths of reprojected pixel by interpolation.
-            4. Compute coordinates of each reprojected pixel at source camera frame by src_intrinsics.
-            5. Reproject these points to the reference view by src_extrinsics, ref_extrinsics, and ref intrinsics.
-            6. Compute the reprojection errors by Euclidean distance and filter the errors by the joint mask.
+        return dense_points, dense_point_colors, GtsfmMetricsGroup(name="filtering metrics", metrics=filtering_metrics)
 
 
-        Args:
-            dataset: an instance of PatchmatchData as the inference dataset
-            ref_view: reference view pm_i
-            src_views: list of source view pm_i
-            depth_list: list of 2D depth map (H, W) from each view
-            max_reprojection_err: maximum reprojection error in pixel coordinates
-            joint_mask: the union set of geometric mask and confidence mask
+def compute_filtered_reprojection_error(
+    dataset: PatchmatchNetData,
+    ref_view: int,
+    src_views: List[int],
+    depth_list: Dict[int, np.ndarray],
+    max_reprojection_err: float,
+    joint_mask: np.ndarray,
+) -> List[float]:
+    """Compute reprojection errors of reference view pixels among all source views, filtered by joint mask
+    Detailed steps include:
+        1. Compute coordinates of each pixel in reference depth map at reference camera frame by ref_intrinsics.
+        2. Project these points to a source view by ref_extrinsics, src_extrinsics and src intrinsics.
+        3. Use the source depth map to calculate the depths of reprojected pixel by interpolation.
+        4. Compute coordinates of each reprojected pixel at source camera frame by src_intrinsics.
+        5. Reproject these points to the reference view by src_extrinsics, ref_extrinsics, and ref intrinsics.
+        6. Compute the reprojection errors by Euclidean distance and filter the errors by the joint mask.
 
-        Returns:
-            list of filtered reprojection errors among all source views in the reference view
-        """
-        # initialize reprojection err list
-        reproj_errs = []
+    Args:
+        dataset: an instance of PatchmatchData as the inference dataset
+        ref_view: reference view pm_i
+        src_views: list of source view pm_i
+        depth_list: list of 2D depth maps (H, W) from each reference view
+        max_reprojection_err: maximum reprojection error in pixels
+        joint_mask: the union set of geometric mask and confidence mask, in shape of (H, W)
 
-        # get reference view estimated depth map
-        ref_depth_est = depth_list[ref_view][0]
-        # get the resolution of reference view depth map
-        height, width = ref_depth_est.shape[:2]
-        # get camera parameters of the reference view
-        ref_intrinsics, ref_extrinsics = dataset.get_camera_params(ref_view)
+    Returns:
+        list of filtered reprojection errors among all source views in the reference view
+    """
+    # initialize reprojection err list
+    reproj_errs = []
 
-        # Compute reprojection error after filtering by joint mask
-        # 1. generate reference coordinates for each pixel
-        u_ref, v_ref = np.meshgrid(np.arange(0, width), np.arange(0, height))
-        # 2. compute reprojection errors from each reference-source view pair
-        for src_view in src_views:
-            # camera parameters of the source view
-            src_intrinsics, src_extrinsics = dataset.get_camera_params(src_view)
+    # get reference view estimated depth map
+    ref_depth_est = depth_list[ref_view][0]
+    # get the resolution of reference view depth map
+    height, width = ref_depth_est.shape[:2]
+    # get camera parameters of the reference view
+    ref_intrinsics, ref_extrinsics = dataset.get_camera_params(ref_view)
 
-            # the estimated depth of the source view
-            src_depth_est = depth_list[src_view][0]
+    # Compute reprojection error after filtering by joint mask
+    # 1. generate reference coordinates for each pixel
+    u_ref, v_ref = np.meshgrid(np.arange(0, width), np.arange(0, height))
+    # 2. compute reprojection errors from each reference-source view pair
+    for src_view in src_views:
+        # camera parameters of the source view
+        src_intrinsics, src_extrinsics = dataset.get_camera_params(src_view)
 
-            # compute reprojected coordinates
-            _, u_reprojected, v_reprojected, _, _, = patchmatchnet_eval.reproject_with_depth(
-                ref_depth_est,
-                ref_intrinsics,
-                ref_extrinsics,
-                src_depth_est,
-                src_intrinsics,
-                src_extrinsics,
-            )
+        # the estimated depth of the source view
+        src_depth_est = depth_list[src_view][0]
 
-            # compute reprojection error
-            reproj_err = np.hypot((u_reprojected - u_ref), (v_reprojected - v_ref))[joint_mask]
-            # record reprojection errors
-            reproj_errs.extend(reproj_err[reproj_err < max_reprojection_err].tolist())
-        return reproj_errs
+        # compute reprojected coordinates
+        _, u_reprojected, v_reprojected, _, _, = patchmatchnet_eval.reproject_with_depth(
+            ref_depth_est,
+            ref_intrinsics,
+            ref_extrinsics,
+            src_depth_est,
+            src_intrinsics,
+            src_extrinsics,
+        )
+
+        # compute reprojection error
+        reproj_err = np.hypot((u_reprojected - u_ref), (v_reprojected - v_ref))[joint_mask]
+        # record reprojection errors
+        reproj_errs.extend(reproj_err[reproj_err < max_reprojection_err].tolist())
+    return reproj_errs

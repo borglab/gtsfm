@@ -232,9 +232,9 @@ def compute_downsampling_psnr(original_point_cloud: np.ndarray, downsampled_poin
         downsampled_point_cloud: dense point cloud after downsampling, in shape of (N', 3), where N' <= N
 
     Returns:
-        float: PSNR between original point cloud and downsampled point cloud
+        float representing PSNR between original point cloud and downsampled point cloud
     """
-    diagnose_voxel_scale = 2.0 * np.linalg.norm(estimate_voxel_scales(original_point_cloud))
+    est_voxel_scale = 2.0 * np.linalg.norm(estimate_voxel_scales(original_point_cloud))
     original_tree = KDTree(data=original_point_cloud)
     downsampled_tree = KDTree(data=downsampled_point_cloud)
 
@@ -243,7 +243,7 @@ def compute_downsampling_psnr(original_point_cloud: np.ndarray, downsampled_poin
 
     RMS = lambda data: np.sqrt(np.square(data).mean())
 
-    psnr = 20.0 * np.log10(diagnose_voxel_scale / max(RMS(d_downsampled_to_original), RMS(d_original_to_downsampled)))
+    psnr = 20.0 * np.log10(est_voxel_scale / max(RMS(d_downsampled_to_original), RMS(d_original_to_downsampled)))
 
     return psnr
 
