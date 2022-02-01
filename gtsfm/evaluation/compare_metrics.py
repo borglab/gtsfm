@@ -14,63 +14,67 @@ from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 import thirdparty.colmap.scripts.python.read_write_model as colmap_io
 
 
-def compare_metrics(
+
+def compute_metrics_from_txt(cameras, images, points3d):
+    """Calculate metrics from pipeline outputs parsed from COLMAP txt format.
+    Args:
+        cameras: dictionary of COLMAP-formatted Cameras
+        images: dictionary of COLMAP-formatted Images
+        points3D: dictionary of COLMAP-formatted Point3Ds
+    Returns:
+        other_pipeline_metrics: A dictionary of metrics from another pipeline that are comparable with GTSfM
+    """
+    cameras, images, image_files, sfmtracks = io_utils.colmap2gtsfm(cameras, images, points3d, load_sfmtracks=True)
+    num_cameras = len(cameras)
+    track_lengths = []
+    image_id_num_measurements = {}
+    for track in sfmtracks:
+        track_lengths.append(track.number_measurements())
+        for k in range(track.number_measurements()):
+            image_id, uv_measured = track.measurement(k)
+            if image_id not in image_id_num_measurements:
+                image_id_num_measurements[image_id] = 1
+            else:
+                image_id_num_measurements[image_id] += 1
+
+    other_pipeline_metrics = {
+        "number_cameras": GtsfmMetric("number_cameras", num_cameras),
+        "3d_tracks_length": GtsfmMetric(
+            "3d_tracks_length",
+            track_lengths,
+            plot_type=GtsfmMetric.PlotType.HISTOGRAM,
+        ),
+    }
+    return other_pipeline_metrics
+
+def save_other_pipelines_metrics(
     txt_metric_paths: Dict[str, str],
     json_path: str,
     metric_filenames: List[str],
 ) -> None:
     """Converts the outputs of other SfM pipelines to GTSfMMetricsGroups saved as json files.
 
-    Creates folders for each additional SfM pipeline that contain GTSfMMetricsGroups
+    Creates folders for each additional SfM pipeline that contain GTSfMMetricsGroups (stored as json files)
     containing the same metrics as GTSFM_MODULE_METRICS_FNAMES. If one of the GTSfM metrics
     is not available from another SfM pipeline, then the metric is left blank for that pipeline.
 
     Args:
-        txt_metric_paths: a list of paths to directories containing outputs of other SfM pipelines
+        txt_metric_paths: a Dict of paths to directories containing outputs of other SfM pipelines
           in COLMAP format i.e. cameras.txt, images.txt, and points3D.txt files.
         json_path: Path to folder that contains metrics as json files.
-        metric_filenames: List of GTSfM metrics filenames.
+        metric_filenames: List of filenames of metrics that are produced by GTSfM.
     """
-    for pipeline_name in txt_metric_paths.keys():
-        cameras, images, points3d = colmap_io.read_model(path=txt_metric_paths[pipeline_name], ext=".txt")
-        cameras, images, image_files, sfmtracks = io_utils.colmap2gtsfm(cameras, images, points3d, load_sfmtracks=True)
-        num_cameras = len(cameras)
-        track_lengths = []
-        image_id_num_measurements = {}
-        for track in sfmtracks:
-            track_lengths.append(track.number_measurements())
-            for k in range(track.number_measurements()):
-                image_id, uv_measured = track.measurement(k)
-                if image_id not in image_id_num_measurements:
-                    image_id_num_measurements[image_id] = 1
-                else:
-                    image_id_num_measurements[image_id] += 1
+    for other_pipeline_name in txt_metric_paths.keys():
+        cameras, images, points3d = colmap_io.read_model(path=txt_metric_paths[other_pipeline_name], ext=".txt")
+        other_pipeline_metrics = compute_metrics_from_txt(cameras, images, points3d)
 
-        colmap_metrics = {
-            "number_cameras": GtsfmMetric("number_cameras", num_cameras),
-            "3d_tracks_length": GtsfmMetric(
-                "3d_tracks_length",
-                track_lengths,
-                plot_type=GtsfmMetric.PlotType.HISTOGRAM,
-            ),
-        }
-
-        # Create comparable result_metric json for COLMAP
+        # Create json files of GTSfM Metrics for other pipelines that are comparable to GTSfM's result_metric directory
         for filename in metric_filenames:
-            metrics = []
-            metrics_group = GtsfmMetricsGroup.parse_from_json(os.path.join(json_path, filename))
-            for metric in metrics_group.metrics:
-                # Case 1: mapping from COLMAP to GTSfM is known
-                if metric.name in colmap_metrics.keys():
-                    metrics.append(colmap_metrics[metric.name])
-                # Case 2: mapping from COLMAP to GTSfM is unknown
-                else:
-                    if metric._dim == 1:
-                        # Case 2a: dict summary
-                        metrics.append(GtsfmMetric(metric.name, []))
-                    else:
-                        # Case 2b: scalar metric
-                        metrics.append(GtsfmMetric(metric.name, ""))
-            new_metrics_group = GtsfmMetricsGroup(metrics_group.name, metrics)
-            os.makedirs(os.path.join(json_path, pipeline_name), exist_ok=True)
-            new_metrics_group.save_to_json(os.path.join(json_path, pipeline_name, os.path.basename(filename)))
+            other_pipeline_group_metrics = []
+            gtsfm_metrics_group = GtsfmMetricsGroup.parse_from_json(os.path.join(json_path, filename))
+            for gtsfm_metric in gtsfm_metrics_group.metrics:
+                if gtsfm_metric.name in other_pipeline_metrics.keys():
+                    other_pipeline_group_metrics.append(other_pipeline_metrics[gtsfm_metric.name])
+            other_pipeline_new_metrics_group = GtsfmMetricsGroup(gtsfm_metrics_group.name, other_pipeline_group_metrics)
+            os.makedirs(os.path.join(json_path, other_pipeline_name), exist_ok=True)
+            other_pipeline_new_metrics_group.save_to_json(os.path.join(json_path, other_pipeline_name, os.path.basename(filename)))

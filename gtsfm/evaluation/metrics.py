@@ -92,7 +92,7 @@ class GtsfmMetric:
             # Cast to a numpy array, unless data is an empty string,
             # which enables blank values in metrics report.
             if not isinstance(data, np.ndarray):
-                data = np.array(data)
+                data = np.array(data, dtype=np.float32)
             if data.ndim > 1:
                 raise ValueError("Metrics must be scalars on 1D-distributions.")
 

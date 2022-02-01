@@ -15,17 +15,17 @@ import gtsfm.utils.logger as logger_utils
 
 logger = logger_utils.get_logger()
 
+# def save_colmap_metrics(colmap_files_dirpath, colmap_json_path):
 
-def create_metrics_plots_html(json_path: str, colmap_files_dirpath: str, output_dir: str) -> None:
+
+def create_metrics_plots_html(json_path: str, colmap_files_dirpath, output_dir: str) -> None:
     """Creates a HTML report of metrics from frontend, averaging, data association and bundle adjustment.
 
     Reads the metrics from JSON files in a previous run.
 
     Args:
         json_path: Path to folder that contains metrics as json files.
-        colmap_files_dirpath: Optional; If a path to a directory containing a COLMAP reconstruction
-          (as cameras.txt, images.txt, and points3D.txt) is provided, the COLMAP metrics will also be
-          included in the report.
+        colmap_metrics_groups: TODO
         output_dir: directory to save the report, uses json_path if empty.
     """
     metrics_groups = []
@@ -43,7 +43,7 @@ def create_metrics_plots_html(json_path: str, colmap_files_dirpath: str, output_
         txt_metric_paths = {
             "colmap": colmap_files_dirpath,
         }
-        compare_metrics.compare_metrics(txt_metric_paths, json_path, GTSFM_MODULE_METRICS_FNAMES)
+        compare_metrics.save_other_pipelines_metrics(txt_metric_paths, json_path, GTSFM_MODULE_METRICS_FNAMES)
     else:
         logger.info("%s does not exist", colmap_files_dirpath)
 
@@ -56,7 +56,16 @@ def create_metrics_plots_html(json_path: str, colmap_files_dirpath: str, output_
     if len(output_dir) == 0:
         output_dir = json_path
     output_file = os.path.join(output_dir, "gtsfm_metrics_report.html")
-    metrics_report.generate_metrics_report_html(metrics_groups, output_file, colmap_files_dirpath, metric_paths)
+
+    colmap_metrics_groups = []
+    for i, metrics_group in enumerate(metrics_groups):
+        metric_path = metric_paths[i]
+        colmap_metric_path = (
+                metric_path[: metric_path.rindex("/")] + "/colmap" + metric_path[metric_path.rindex("/"):]
+        )
+        colmap_metrics_groups.append(GtsfmMetricsGroup.parse_from_json(colmap_metric_path))
+
+    metrics_report.generate_metrics_report_html(metrics_groups, output_file, colmap_metrics_groups, metric_paths)
 
 
 if __name__ == "__main__":
@@ -65,4 +74,10 @@ if __name__ == "__main__":
     parser.add_argument("--colmap_files_dirpath", default=None, type=str, help="Directory containing COLMAP output .")
     parser.add_argument("--output_dir", default="", help="Directory to save plots to. Same as metrics_dir by default.")
     args = parser.parse_args()
+    # if args.colmap_files_dirpath is not None:
+        # save_colmap_metrics(args.colmap_files_dirpath, colmap_json_path)  # saves metrics to the json path
+
     create_metrics_plots_html(args.metrics_dir, args.colmap_files_dirpath, args.output_dir)
+
+
+    # create_metrics_plots_html(args.metrics_dir, args.colmap_files_dirpath, args.output_dir)
