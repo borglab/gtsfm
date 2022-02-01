@@ -244,7 +244,7 @@ class TwoViewEstimator:
             pre_ba_i2Ui1,
             pre_ba_v_corr_idxs,
             inlier_ratio_wrt_estimate,
-            configuration_type
+            configuration_type,
         ) = self._verifier.create_computation_graph(
             keypoints_i1_graph,
             keypoints_i2_graph,
@@ -384,7 +384,7 @@ def generate_two_view_report(
         reproj_error_gt_model=reproj_error_gt_model,
         inlier_avg_reproj_error_gt_model=inlier_avg_reproj_error_gt_model,
         outlier_avg_reproj_error_gt_model=outlier_avg_reproj_error_gt_model,
-        configuration_type=configuration_type
+        configuration_type=configuration_type,
     )
     return two_view_report
 
@@ -400,13 +400,21 @@ def compute_relative_pose_metrics(
         i2Ti1_expected: expected relative pose.
 
     Returns:
-        Rotation error, in degrees
-        Unit translation error, in degrees
+        Rotation error, in degrees.
+        Unit translation error, in degrees. For a panoramic image pair configuration,
+            the angular error is defined (NaN).
     """
     R_error_deg = comp_utils.compute_relative_rotation_angle(i2Ri1_computed, i2Ti1_expected.rotation())
-    U_error_deg = comp_utils.compute_relative_unit_translation_angle(
-        i2Ui1_computed, Unit3(i2Ti1_expected.translation())
-    )
+
+    # Same check as in GTSAM: https://github.com/borglab/gtsam/blob/develop/gtsam/sfm/TranslationRecovery.cpp#L52
+    # and in COLMAP: https://github.com/colmap/colmap/blob/dev/src/estimators/two_view_geometry.cc#L221
+    if np.allclose(i2Ui1_computed.point3(), np.zeros(3)):
+        # panoramic case, there is no direction, so we cannot measure directional error (undefined!)
+        U_error_deg = np.nan
+    else:
+        U_error_deg = comp_utils.compute_relative_unit_translation_angle(
+            i2Ui1_computed, Unit3(i2Ti1_expected.translation())
+        )
 
     return (R_error_deg, U_error_deg)
 
@@ -441,6 +449,7 @@ def aggregate_frontend_metrics(
     num_inliers_est_model_all_pairs = []
 
     from collections import defaultdict
+
     configuration_type_counts = defaultdict(int)
     # populate the distributions
     for report in two_view_reports_dict.values():
@@ -518,16 +527,12 @@ def aggregate_frontend_metrics(
         GtsfmMetric("num_inliers_gt_model", num_inliers_gt_model_all_pairs),
     ]
 
-    #for config_type in gric_verifier.ConfigurationType:
+    # for config_type in gric_verifier.ConfigurationType:
     logger.info("Configuration Type counts: " + str(configuration_type_counts))
 
     for config_type in ConfigurationType:
         metrics_list.append(GtsfmMetric(f"#{config_type} pairs", configuration_type_counts[config_type]))
 
-
     # TODO(akshay-krishnan): Move angular_err_threshold_deg and num_total_image_pairs to metadata.
-    frontend_metrics = GtsfmMetricsGroup(
-        metric_group_name,
-        metrics_list
-    )
+    frontend_metrics = GtsfmMetricsGroup(metric_group_name, metrics_list)
     return frontend_metrics

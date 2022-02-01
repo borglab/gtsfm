@@ -62,6 +62,13 @@ class GricVerifier(VerifierBase):
 
         # for failure, i2Ri1 = None, and i2Ui1 = None, and no verified correspondences, and inlier_ratio_est_model = 0
         self._failure_result = (None, None, np.array([], dtype=np.uint64), 0.0, ConfigurationType.UNDEFINED)
+        self._failure_uncalibrated_result = (
+            None,
+            None,
+            np.array([], dtype=np.uint64),
+            0.0,
+            ConfigurationType.UNCALIBRATED,
+        )
 
     def __estimate_two_view_geometry(
         self,
@@ -135,7 +142,7 @@ class GricVerifier(VerifierBase):
         logger.info("Two view configuration: %s", configuration_type)
 
         if configuration_type == ConfigurationType.UNCALIBRATED:
-            return self._failure_result
+            return self._failure_uncalibrated_result
 
         inlier_ratio_est_model = result_dict["num_inliers"] / match_indices.shape[0]
 
