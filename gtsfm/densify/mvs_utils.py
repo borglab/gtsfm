@@ -225,10 +225,11 @@ def compute_downsampling_psnr(original_point_cloud: np.ndarray, downsampled_poin
         1. the nearest neighbors of a point in the downsampled point cloud found in the original point cloud
 
     Ref: Schnabel, R., & Klein, R. (2006, July). Octree-based Point-Cloud Compression. In PBG@SIGGRAPH (pp. 111-120).
+        https://diglib.eg.org/xmlui/bitstream/handle/10.2312/SPBG.SPBG06.111-120/111-120.pdf?sequence=1
 
     Args:
-        original_point_cloud: original dense point cloud before downsampling
-        downsampled_point_cloud: dense point cloud after downsampling
+        original_point_cloud: original dense point cloud before downsampling, in shape of (N, 3)
+        downsampled_point_cloud: dense point cloud after downsampling, in shape of (N', 3), where N' <= N
 
     Returns:
         float: PSNR between original point cloud and downsampled point cloud
@@ -240,16 +241,7 @@ def compute_downsampling_psnr(original_point_cloud: np.ndarray, downsampled_poin
     d_downsampled_to_original, _ = original_tree.query(downsampled_point_cloud)
     d_original_to_downsampled, _ = downsampled_tree.query(original_point_cloud)
 
-    def RMS(data: np.ndarray) -> float:
-        """Utility function to calculate the root mean square of the given data
-
-        Args:
-            data: 1D input data for evaluation, the length is the number of nodes in the KDTree
-
-        Returns:
-            the root mean square of the given data
-        """
-        return np.sqrt(np.square(data).mean())
+    RMS = lambda data: np.sqrt(np.square(data).mean())
 
     psnr = 20.0 * np.log10(diagnose_voxel_scale / max(RMS(d_downsampled_to_original), RMS(d_original_to_downsampled)))
 

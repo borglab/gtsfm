@@ -430,7 +430,7 @@ class MVSPatchmatchNet(MVSBase):
             )
 
             # compute reprojection error
-            reproj_err = np.sqrt((u_reprojected - u_ref) ** 2 + (v_reprojected - v_ref) ** 2)[joint_mask]
+            reproj_err = np.hypot((u_reprojected - u_ref), (v_reprojected - v_ref))[joint_mask]
             # record reprojection errors
             reproj_errs.extend(reproj_err[reproj_err < max_reprojection_err].tolist())
         return reproj_errs

@@ -8,7 +8,6 @@ The input sparse point cloud includes 30 toy points uniformly located at the sam
 
 Authors: Ren Liu
 """
-from curses import noecho
 import unittest
 
 import numpy as np
