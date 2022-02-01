@@ -283,6 +283,7 @@ def _compute_metrics(
         wRi_list: Estimated camera rotations from rotation averaging.
         wti_list: Estimated camera translations from translation averaging.
         gt_wTi_list: List of ground truth camera poses.
+    
     Returns:
         Translation averaging metrics as a metrics group. Includes the following metrics:
         - Number of inlier, outlier and total measurements.

@@ -48,6 +48,8 @@ POST_BA_REPORT_TAG = "POST_BA_2VIEW_REPORT"
 POST_ISP_REPORT_TAG = "POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT"
 VIEWGRAPH_REPORT_TAG = "VIEWGRAPH_2VIEW_REPORT"
 
+PANORAMIC_TRANSLATION_DIRECTION = np.zeros(3)
+
 
 class TwoViewEstimator:
     """Wrapper for running two-view relative pose estimation on image pairs in the dataset."""
@@ -408,7 +410,7 @@ def compute_relative_pose_metrics(
 
     # Same check as in GTSAM: https://github.com/borglab/gtsam/blob/develop/gtsam/sfm/TranslationRecovery.cpp#L52
     # and in COLMAP: https://github.com/colmap/colmap/blob/dev/src/estimators/two_view_geometry.cc#L221
-    if np.allclose(i2Ui1_computed.point3(), np.zeros(3)):
+    if i2Ui1_computed is not None and np.allclose(i2Ui1_computed.point3(), PANORAMIC_TRANSLATION_DIRECTION):
         # panoramic case, there is no direction, so we cannot measure directional error (undefined!)
         U_error_deg = np.nan
     else:

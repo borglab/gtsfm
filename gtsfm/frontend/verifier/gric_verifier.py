@@ -69,6 +69,13 @@ class GricVerifier(VerifierBase):
             0.0,
             ConfigurationType.UNCALIBRATED,
         )
+        self._failure_planar_result = (
+            None,
+            None,
+            np.array([], dtype=np.uint64),
+            0.0,
+            ConfigurationType.PLANAR,
+        )
 
     def __estimate_two_view_geometry(
         self,
@@ -143,6 +150,9 @@ class GricVerifier(VerifierBase):
 
         if configuration_type == ConfigurationType.UNCALIBRATED:
             return self._failure_uncalibrated_result
+
+        if configuration_type == ConfigurationType.PLANAR:
+            return self._failure_planar_result
 
         inlier_ratio_est_model = result_dict["num_inliers"] / match_indices.shape[0]
 
