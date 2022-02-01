@@ -131,15 +131,22 @@ class TestMVSPatchmatchNet(unittest.TestCase):
 
     def test_compute_filtered_reprojection_error(self) -> None:
         """Test whether the compute_filtered_reprojection_error produces correct reprojection errors
-        In this test, we assume there is an object O at (0, 0, 0), where all cameras look at.
-        Then we select camera 0 as dummy reference view, while camera 1 as dummy source view.
+        In this test,
+            1. We assume there is an object O at (0, 0, 0), where all cameras look at.
+            2. We select camera 0 (40, 0, 10) as dummy reference view, while camera 2 (0, 40, 10)
+                as dummy source view, so object O will appear at the center (H/2, W/2) of both images.
+            3. We assume depth estimation for pixel (H/2, W/2) for reference camera 0 is sqrt(40**2 + 10**2),
+                so the estimated object coordinates O_0 by camera 0 is (0, 0, 0).
+            4. Then we assume depth estimation for pixel (H/2, W/2) for source camera 2 is sqrt(40**2 + 10**2) * 1.01,
+                so the estimated object coordinates O_2 by camera 2 is (0, -0.4, -0.1).
+            5. we assume pixel (H/2, W/2) is the only valid pixel in the joint mask.
         """
         # prepare PatchmatchNet dataset
         dataset = PatchmatchNetData(images=self._img_dict, sfm_result=self._sfm_result, max_num_views=NUM_IMAGES)
 
         # set dummy reference and source view pair
         dummy_ref_view = 0
-        dummy_src_view = 1
+        dummy_src_view = 2
 
         # fetch depthmap resolution
         height, width = self._img_dict[dummy_ref_view].value_array.shape[:2]
@@ -150,13 +157,13 @@ class TestMVSPatchmatchNet(unittest.TestCase):
 
         dummy_src_depthmap = np.zeros([1, height, width])
         # add some error when estimating the depthmap of source view
-        dummy_src_depthmap[0, height // 2, width // 2] = np.linalg.norm([CAMERA_CIRCLE_RADIUS, CAMERA_HEIGHT]) + 0.5
+        dummy_src_depthmap[0, height // 2, width // 2] = np.linalg.norm([CAMERA_CIRCLE_RADIUS, CAMERA_HEIGHT]) * 1.01
 
         # build depthmap list
         depth_list = {dummy_ref_view: dummy_ref_depthmap, dummy_src_view: dummy_src_depthmap}
 
         # set dummy joint mask to only include the image center, where object O is located
-        dummy_joint_mask = np.zeros([height, width], dtype=np.bool)
+        dummy_joint_mask = np.zeros([height, width], dtype=bool)
         dummy_joint_mask[height // 2, width // 2] = True
 
         # calculate reprojection error
@@ -169,7 +176,15 @@ class TestMVSPatchmatchNet(unittest.TestCase):
             joint_mask=dummy_joint_mask,
         )
 
-        self.assertAlmostEqual(reproject_errors[0], 0.828, 2)
+        # project O_2(0, -0.4, -0.1) to reference camera 0, the uv coordinate is calculated by:
+        #           K_0               [        R_0        | t_0]
+        # --------------------------------------------------------------------------------------------
+        #  [ 100,   0, W/2, 0 ]       [0,  0.2425, -0.9701,  40]
+        #  [   0, 100, H/2, 0 ]  @  [ [1,       0,       0,   0] ] ^ (-1)  @  [0, -0.4, -0.1, 1].T = [199.03, 150.23, 1]
+        #  [   0,   0,   1, 0 ]       [0, -0.9701, -0.2425,  10]
+        #                             [0,       0,       0,   1]
+        # Therefore the uv coordinate is (199.03, 150.23), the reprojection error is ||(200-199.03, 150 - 150.23)||
+        self.assertAlmostEqual(reproject_errors[0], 0.998, 3)
 
 
 if __name__ == "__main__":

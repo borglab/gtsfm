@@ -234,7 +234,10 @@ def compute_downsampling_psnr(original_point_cloud: np.ndarray, downsampled_poin
     Returns:
         float representing PSNR between original point cloud and downsampled point cloud
     """
+    # calculate the bounding box diagonal as estimated voxel scale
+    #   this diagonal is estimated as the diagonal of the ellipsoid's circumscribed rectangular parallelepiped
     est_voxel_scale = 2.0 * np.linalg.norm(estimate_voxel_scales(original_point_cloud))
+
     original_tree = KDTree(data=original_point_cloud)
     downsampled_tree = KDTree(data=downsampled_point_cloud)
 

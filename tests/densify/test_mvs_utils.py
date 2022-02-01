@@ -135,6 +135,16 @@ class TestMVSUtils(unittest.TestCase):
             o-- --o                      (0, 1/2, 1/2)
         (0,0,0)
         original point cloud              downsampled point cloud
+
+        The fitting ellipsoid's semi-axis lengths of the original point cloud is [0.5345, 0.5345, 0.5345]. Then estimate
+        the diagonal of the point cloud's bounding box (dB) as the diagonal of the circumscribed rectangular
+        parallelepiped of the ellipsoid, which is 1.852.
+
+        For each point in the original point, the distances to the nearest neighbors in the downsampled point cloud
+        (D_od) are all 0.5 * sqrt(2). And for each point in the downsampled point, the distances to the nearest n
+        eighbors in the original point cloud (D_do) are all 0.5 * sqrt(2) as well.
+
+        Then according to the formula: psnr = 20 log_10 (dB / max(RMS(D_od), RMS(D_do))), the psnr is approximately 8.36
         """
 
         original_point_cloud = np.array(
