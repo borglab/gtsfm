@@ -184,9 +184,9 @@ class Point3dInitializer(NamedTuple):
                 )
             except RuntimeError:
                 # TODO: handle cheirality exception properly?
-                logger.info(
-                    "Cheirality exception from GTSAM's triangulatePoint3() likely due to outlier, skipping track"
-                )
+                # logger.debug(
+                #     "Cheirality exception from GTSAM's triangulatePoint3() likely due to outlier, skipping track"
+                # )
                 continue
 
             errors, _ = reproj_utils.compute_point_reprojection_errors(

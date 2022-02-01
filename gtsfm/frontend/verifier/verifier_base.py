@@ -11,6 +11,7 @@ from dask.delayed import Delayed
 from gtsam import Cal3Bundler, Rot3, Unit3
 
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.common.two_view_estimation_report import ConfigurationType
 
 
 NUM_MATCHES_REQ_E_MATRIX = 5
@@ -44,7 +45,7 @@ class VerifierBase(metaclass=abc.ABCMeta):
             NUM_MATCHES_REQ_E_MATRIX if self._use_intrinsics_in_verification else NUM_MATCHES_REQ_F_MATRIX
         )
         # represents i2Ri1=None, i2Ui1=None, v_corr_idxs is an empty array, and inlier_ratio_est_model is 0.0
-        self._failure_result = (None, None, np.array([], dtype=np.uint64), 0.0)
+        self._failure_result = (None, None, np.array([], dtype=np.uint64), 0.0, ConfigurationType.UNDEFINED)
 
     @abc.abstractmethod
     def verify(
@@ -95,12 +96,9 @@ class VerifierBase(metaclass=abc.ABCMeta):
             Delayed dask task for inlier ratio w.r.t. the estimated model, i.e. #final RANSAC inliers/ #putatives.
         """
         # we cannot immediately unpack the result tuple, per dask syntax
-        result = dask.delayed(self.verify)(
+        i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, inlier_ratio_est_model, configuration_type = dask.delayed(
+            self.verify, nout=5
+        )(
             keypoints_i1_graph, keypoints_i2_graph, matches_i1i2_graph, intrinsics_i1_graph, intrinsics_i2_graph
         )
-        i2Ri1_graph = result[0]
-        i2Ui1_graph = result[1]
-        v_corr_idxs_graph = result[2]
-        inlier_ratio_est_model = result[3]
-
-        return i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, inlier_ratio_est_model
+        return i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, inlier_ratio_est_model, configuration_type

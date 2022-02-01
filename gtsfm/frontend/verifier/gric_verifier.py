@@ -24,36 +24,16 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.pycolmap_utils as pycolmap_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
+from gtsfm.common.two_view_estimation_report import ConfigurationType
 
 
 logger = logger_utils.get_logger()
 
 
 MIN_INLIER_RATIO = 0.01
-MIN_NUM_TRIALS = 100000
-MAX_NUM_TRIALS = 1000000
-CONFIDENCE = 0.999999
-
-
-class ConfigurationType(Enum):
-    UNDEFINED = 0
-    # Degenerate configuration (e.g., no overlap or not enough inliers).
-    DEGENERATE = 1
-    # Essential matrix.
-    CALIBRATED = 2
-    # Fundamental matrix.
-    UNCALIBRATED = 3
-    # Homography, planar scene with baseline.
-    PLANAR = 4
-    # Homography, pure rotation without baseline.
-    PANORAMIC = 5
-    # Homography, planar or panoramic.
-    PLANAR_OR_PANORAMIC = 6
-    # Watermark, pure 2D translation in image borders.
-    WATERMARK = 7
-    # Multi-model configuration, i.e. the inlier matches result from multiple
-    # individual, non-degenerate configurations.
-    MULTIPLE = 8
+MIN_NUM_TRIALS = 10000
+MAX_NUM_TRIALS = 100000
+CONFIDENCE = 0.99999
 
 
 class GricVerifier(VerifierBase):
@@ -81,7 +61,7 @@ class GricVerifier(VerifierBase):
         )
 
         # for failure, i2Ri1 = None, and i2Ui1 = None, and no verified correspondences, and inlier_ratio_est_model = 0
-        self._failure_result = (None, None, np.array([], dtype=np.uint64), 0.0)
+        self._failure_result = (None, None, np.array([], dtype=np.uint64), 0.0, ConfigurationType.UNDEFINED)
 
     def __estimate_two_view_geometry(
         self,
@@ -151,7 +131,11 @@ class GricVerifier(VerifierBase):
             logger.info("[GRIC] matrix estimation unsuccessful.")
             return self._failure_result
 
-        logger.info("Two view configuration: %s", ConfigurationType(result_dict["configuration_type"]))
+        configuration_type = ConfigurationType(result_dict["configuration_type"])
+        logger.info("Two view configuration: %s", configuration_type)
+
+        if configuration_type == ConfigurationType.UNCALIBRATED:
+            return self._failure_result
 
         inlier_ratio_est_model = result_dict["num_inliers"] / match_indices.shape[0]
 
@@ -164,4 +148,4 @@ class GricVerifier(VerifierBase):
         i2Ri1 = Rot3(qw, qx, qy, qz)
         i2Ui1 = Unit3(i2Ui1)
 
-        return i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio_est_model
+        return i2Ri1, i2Ui1, v_corr_idxs, inlier_ratio_est_model, configuration_type

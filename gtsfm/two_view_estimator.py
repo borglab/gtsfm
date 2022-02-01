@@ -27,7 +27,7 @@ import gtsfm.utils.metrics as metric_utils
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
+from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport, ConfigurationType
 from gtsfm.data_association.point3d_initializer import SVD_DLT_RANK_TOL
 from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
@@ -244,6 +244,7 @@ class TwoViewEstimator:
             pre_ba_i2Ui1,
             pre_ba_v_corr_idxs,
             inlier_ratio_wrt_estimate,
+            configuration_type
         ) = self._verifier.create_computation_graph(
             keypoints_i1_graph,
             keypoints_i2_graph,
@@ -309,8 +310,9 @@ class TwoViewEstimator:
             post_ba_inlier_mask_wrt_gt, post_ba_reproj_error_wrt_gt = None, None
 
         pre_ba_report = dask.delayed(generate_two_view_report)(
-            inlier_ratio_wrt_estimate,
-            pre_ba_v_corr_idxs,
+            configuration_type=configuration_type,
+            inlier_ratio_est_model=inlier_ratio_wrt_estimate,
+            v_corr_idxs=pre_ba_v_corr_idxs,
             R_error_deg=pre_ba_R_error_deg,
             U_error_deg=pre_ba_U_error_deg,
             v_corr_idxs_inlier_mask_gt=pre_ba_inlier_mask_wrt_gt,
@@ -318,8 +320,9 @@ class TwoViewEstimator:
         )
 
         post_ba_report = dask.delayed(generate_two_view_report)(
-            inlier_ratio_wrt_estimate,  # TODO: dont store ratios so that we can update them
-            post_ba_v_corr_idxs,
+            configuration_type=configuration_type,
+            inlier_ratio_est_model=inlier_ratio_wrt_estimate,  # TODO: dont store ratios so that we can update them
+            v_corr_idxs=post_ba_v_corr_idxs,
             R_error_deg=post_ba_R_error_deg,
             U_error_deg=post_ba_U_error_deg,
             v_corr_idxs_inlier_mask_gt=post_ba_inlier_mask_wrt_gt,
@@ -343,6 +346,7 @@ class TwoViewEstimator:
 
 
 def generate_two_view_report(
+    configuration_type: ConfigurationType,
     inlier_ratio_est_model: float,
     v_corr_idxs: np.ndarray,
     R_error_deg: Optional[float] = None,
@@ -380,6 +384,7 @@ def generate_two_view_report(
         reproj_error_gt_model=reproj_error_gt_model,
         inlier_avg_reproj_error_gt_model=inlier_avg_reproj_error_gt_model,
         outlier_avg_reproj_error_gt_model=outlier_avg_reproj_error_gt_model,
+        configuration_type=configuration_type
     )
     return two_view_report
 
@@ -434,6 +439,9 @@ def aggregate_frontend_metrics(
     inlier_ratio_est_model_all_pairs = []
     num_inliers_gt_model_all_pairs = []
     num_inliers_est_model_all_pairs = []
+
+    from collections import defaultdict
+    configuration_type_counts = defaultdict(int)
     # populate the distributions
     for report in two_view_reports_dict.values():
         if report is None:
@@ -447,6 +455,8 @@ def aggregate_frontend_metrics(
         inlier_ratio_est_model_all_pairs.append(report.inlier_ratio_est_model)
         num_inliers_gt_model_all_pairs.append(report.num_inliers_gt_model)
         num_inliers_est_model_all_pairs.append(report.num_inliers_est_model)
+
+        configuration_type_counts[report.configuration_type] += 1
 
     rot3_angular_errors = np.array(rot3_angular_errors, dtype=float)
     trans_angular_errors = np.array(trans_angular_errors, dtype=float)
@@ -491,24 +501,33 @@ def aggregate_frontend_metrics(
         "[Two view optimizer] [Summary] # Image pairs with 100%% inlier ratio:: %d/%d", all_correct, num_image_pairs
     )
 
+    metrics_list = [
+        GtsfmMetric("angular_err_threshold_deg", angular_err_threshold_deg),
+        GtsfmMetric("num_total_image_pairs", int(num_image_pairs)),
+        GtsfmMetric("num_valid_image_pairs", int(num_valid_image_pairs)),
+        GtsfmMetric("rotation_success_count", int(success_count_rot3)),
+        GtsfmMetric("translation_success_count", int(success_count_unit3)),
+        GtsfmMetric("pose_success_count", int(success_count_pose)),
+        GtsfmMetric("num_all_inlier_correspondences_wrt_gt_model", int(all_correct)),
+        GtsfmMetric("rot3_angular_errors_deg", rot3_angular_errors),
+        GtsfmMetric("trans_angular_errors_deg", trans_angular_errors),
+        GtsfmMetric("pose_errors_deg", pose_errors),
+        GtsfmMetric("inlier_ratio_wrt_gt_model", inlier_ratio_gt_model_all_pairs),
+        GtsfmMetric("inlier_ratio_wrt_est_model", inlier_ratio_est_model_all_pairs),
+        GtsfmMetric("num_inliers_est_model", num_inliers_est_model_all_pairs),
+        GtsfmMetric("num_inliers_gt_model", num_inliers_gt_model_all_pairs),
+    ]
+
+    #for config_type in gric_verifier.ConfigurationType:
+    logger.info("Configuration Type counts: " + str(configuration_type_counts))
+
+    for config_type in ConfigurationType:
+        metrics_list.append(GtsfmMetric(f"#{config_type} pairs", configuration_type_counts[config_type]))
+
+
     # TODO(akshay-krishnan): Move angular_err_threshold_deg and num_total_image_pairs to metadata.
     frontend_metrics = GtsfmMetricsGroup(
         metric_group_name,
-        [
-            GtsfmMetric("angular_err_threshold_deg", angular_err_threshold_deg),
-            GtsfmMetric("num_total_image_pairs", int(num_image_pairs)),
-            GtsfmMetric("num_valid_image_pairs", int(num_valid_image_pairs)),
-            GtsfmMetric("rotation_success_count", int(success_count_rot3)),
-            GtsfmMetric("translation_success_count", int(success_count_unit3)),
-            GtsfmMetric("pose_success_count", int(success_count_pose)),
-            GtsfmMetric("num_all_inlier_correspondences_wrt_gt_model", int(all_correct)),
-            GtsfmMetric("rot3_angular_errors_deg", rot3_angular_errors),
-            GtsfmMetric("trans_angular_errors_deg", trans_angular_errors),
-            GtsfmMetric("pose_errors_deg", pose_errors),
-            GtsfmMetric("inlier_ratio_wrt_gt_model", inlier_ratio_gt_model_all_pairs),
-            GtsfmMetric("inlier_ratio_wrt_est_model", inlier_ratio_est_model_all_pairs),
-            GtsfmMetric("num_inliers_est_model", num_inliers_est_model_all_pairs),
-            GtsfmMetric("num_inliers_gt_model", num_inliers_gt_model_all_pairs),
-        ],
+        metrics_list
     )
     return frontend_metrics
