@@ -175,7 +175,7 @@ class MVSPatchmatchNet(MVSBase):
                 )
 
         # Filter inference result with thresholds
-        dense_point_cloud, dense_point_colors, filter_metrics = self.filter_depth(
+        dense_point_cloud, dense_point_colors, filtering_metrics = self.filter_depth(
             dataset=dataset,
             depth_list=depth_est_list,
             confidence_list=confidence_est_list,
@@ -193,8 +193,8 @@ class MVSPatchmatchNet(MVSBase):
                 GtsfmMetric(name="elapsed_time_per_ref_img(sec)", data=batch_times),
             ],
         )
-        # merge filter matrics to densify metrics
-        densify_metrics.extend(filter_metrics)
+        # merge filtering metrics to densify metrics
+        densify_metrics.extend(filtering_metrics)
 
         return dense_point_cloud, dense_point_colors, densify_metrics
 
