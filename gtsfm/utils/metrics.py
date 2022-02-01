@@ -12,7 +12,6 @@ import numpy as np
 from trimesh import Trimesh
 from gtsam import PinholeCameraCal3Bundler, Cal3Bundler, EssentialMatrix, Point3, Pose3, Rot3, Unit3
 
-import gtsfm.densify.mvs_utils as mvs_utils
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.verification as verification_utils
