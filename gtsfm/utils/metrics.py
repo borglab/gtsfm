@@ -452,4 +452,3 @@ def compute_percentage_change(x: float, y: float) -> float:
         percentage change (may be positive or negative).
     """
     return (y - x) / (x + EPSILON) * 100
-

@@ -10,7 +10,6 @@ import numpy as np
 from dask.delayed import Delayed
 
 import gtsfm.densify.mvs_utils as mvs_utils
-import gtsfm.utils.metrics as metrics_utils
 from gtsfm.common.image import Image
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
@@ -76,7 +75,7 @@ class MVSBase(metaclass=abc.ABCMeta):
         )
 
         # calculate downsampling metrics
-        downsampling_metrics_graph = dask.delayed(metrics_utils.get_voxel_downsampling_metrics, nout=1)(
+        downsampling_metrics_graph = dask.delayed(mvs_utils.get_voxel_downsampling_metrics, nout=1)(
             voxel_size_graph, points_graph, sampled_points_graph
         )
         return sampled_points_graph, sampled_rgb_graph, densify_metrics_graph, downsampling_metrics_graph

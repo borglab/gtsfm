@@ -8,6 +8,7 @@ The input sparse point cloud includes 30 toy points uniformly located at the sam
 
 Authors: Ren Liu
 """
+from curses import noecho
 import unittest
 
 import numpy as np
@@ -18,6 +19,7 @@ from gtsam.examples import SFMdata
 from gtsfm.common.image import Image
 from gtsfm.common.gtsfm_data import GtsfmData, SfmTrack
 from gtsfm.densify.mvs_patchmatchnet import MVSPatchmatchNet
+from gtsfm.densify.patchmatchnet_data import PatchmatchNetData
 
 
 # set dummy random seed
@@ -32,6 +34,9 @@ IMAGE_C = 3
 NUM_TRACKS = 30
 DUMMY_TRACK_PTS_WORLD = [Point3(0, 0.5 * float(i), float(i)) for i in range(NUM_TRACKS)]
 
+# dummy cameras are around a circle of radius 40.0
+CAMERA_CIRCLE_RADIUS = 40.0
+CAMERA_HEIGHT = 10.0
 # set dummy camera intrinsics
 CAMERA_INTRINSICS = Cal3_S2(
     fx=100.0,
@@ -53,6 +58,8 @@ DUMMY_IMAGE_DICT = {i: Image(value_array=np.zeros([IMAGE_H, IMAGE_W, IMAGE_C], d
 
 # a reconstructed point is consistent in geometry if it satisfies all geometric thresholds in more than 3 source views
 MIN_NUM_CONSISTENT_VIEWS = 3
+# the reprojection error in pixel coordinates should be less than 1
+MAX_GEOMETRIC_PIXEL_THRESH = 1
 
 
 class TestMVSPatchmatchNet(unittest.TestCase):
@@ -122,6 +129,48 @@ class TestMVSPatchmatchNet(unittest.TestCase):
         x_error = np.abs(x).mean()
 
         self.assertTrue(mean_k_yz_error < 0.2 and x_error < 0.5)
+
+    def test_compute_filtered_reprojection_error(self) -> None:
+        """Test whether the compute_filtered_reprojection_error produces correct reprojection errors
+        In this test, we assume there is an object O at (0, 0, 0), where all cameras look at.
+        Then we select camera 0 as dummy reference view, while camera 1 as dummy source view.
+        """
+        # prepare PatchmatchNet dataset
+        dataset = PatchmatchNetData(images=self._img_dict, sfm_result=self._sfm_result, max_num_views=NUM_IMAGES)
+
+        # set dummy reference and source view pair
+        dummy_ref_view = 0
+        dummy_src_view = 1
+
+        # fetch depthmap resolution
+        height, width = self._img_dict[dummy_ref_view].value_array.shape[:2]
+
+        # set dummy estimated depthmap for reference and source view
+        dummy_ref_depthmap = np.zeros([1, height, width])
+        dummy_ref_depthmap[0, height // 2, width // 2] = np.linalg.norm([CAMERA_CIRCLE_RADIUS, CAMERA_HEIGHT])
+
+        dummy_src_depthmap = np.zeros([1, height, width])
+        # add some error when estimating the depthmap of source view
+        dummy_src_depthmap[0, height // 2, width // 2] = np.linalg.norm([CAMERA_CIRCLE_RADIUS, CAMERA_HEIGHT]) + 0.5
+
+        # build depthmap list
+        depth_list = {dummy_ref_view: dummy_ref_depthmap, dummy_src_view: dummy_src_depthmap}
+
+        # set dummy joint mask to only include the image center, where object O is located
+        dummy_joint_mask = np.zeros([height, width], dtype=np.bool)
+        dummy_joint_mask[height // 2, width // 2] = True
+
+        # calculate reprojection error
+        reproject_errors = MVSPatchmatchNet().compute_filtered_reprojection_error(
+            dataset=dataset,
+            ref_view=dummy_ref_view,
+            src_views=[dummy_src_view],
+            depth_list=depth_list,
+            max_reprojection_err=MAX_GEOMETRIC_PIXEL_THRESH,
+            joint_mask=dummy_joint_mask,
+        )
+
+        self.assertAlmostEqual(reproject_errors[0], 0.828, 2)
 
 
 if __name__ == "__main__":
