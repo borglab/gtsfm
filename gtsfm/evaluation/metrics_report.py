@@ -5,7 +5,7 @@ if called with a list of GtsfmMetricsGroup.
 The HTML report has headers, section headings, tables generated using tabulate
 and grids of box or histogram plots generated using plotly.
 
-Authors: Akshay Krishnan
+Authors: Akshay Krishnan, Jon Womack
 """
 from collections import defaultdict
 from typing import Any, Dict, List, Tuple, Union
@@ -174,13 +174,18 @@ def get_figures_for_metrics(metrics_group: GtsfmMetricsGroup) -> Tuple[str, str]
 
 
 def add_summary(metric_name, metric_value, scalar_metrics):
+    """
+
+    :param metric_name:
+    :param metric_value:
+    :param scalar_metrics:
+    :return:
+    """
     # Metrics with a dict representation must contain a summary.
     if metrics.SUMMARY_KEY not in metric_value:
         raise ValueError(f"Metric {metric_name} does not contain a summary.")
     # Add a scalar metric for median of 1D distributions.
-    median_nan = metric_value[metrics.SUMMARY_KEY]["median"] != metric_value[metrics.SUMMARY_KEY][
-        "median"]
-    if median_nan:
+    if np.isnan(metric_value[metrics.SUMMARY_KEY]["median"]):
         scalar_metrics["median_" + metric_name].append("")
     else:
         scalar_metrics["median_" + metric_name].append(metric_value[metrics.SUMMARY_KEY]["median"])
@@ -194,25 +199,27 @@ def add_metric(gtsfm_metric_name, gtsfm_metric_value, scalar_metrics, other_pipe
         other_pipelines_metric_dicts: Dictionaries of metric name, metric value key-value pairs for each other pipeline
 
     """
-    other_pipelines_metric_values = []
+    other_pipelines_metrics = defaultdict(list)
     for other_pipeline_metric_dict in other_pipelines_metric_dicts:
         if gtsfm_metric_name in other_pipeline_metric_dict:
-            other_pipelines_metric_values.append(other_pipeline_metric_dict[gtsfm_metric_name])
+            other_pipeline_metric_value = other_pipeline_metric_dict[gtsfm_metric_name]
+            other_pipelines_metrics[gtsfm_metric_name].append(other_pipeline_metric_value)
         else:
-            other_pipelines_metric_values.append("")
-
+            other_pipelines_metrics[gtsfm_metric_name].append("")
     if isinstance(gtsfm_metric_value, dict):
         add_summary(gtsfm_metric_name, gtsfm_metric_value, scalar_metrics)
-        for other_pipeline_metric_value in other_pipelines_metric_values:
-            if isinstance(other_pipeline_metric_value, dict):
-                add_summary(gtsfm_metric_name, other_pipeline_metric_value, scalar_metrics)
-            else:
-                other_pipeline_metric_value = {'summary': {'median': ""}}
-                add_summary(gtsfm_metric_name, other_pipeline_metric_value, scalar_metrics)
+        for other_pipeline_metric_name, other_pipelines_metric_values in other_pipelines_metrics.items():
+            for other_pipeline_metric_value in other_pipelines_metric_values:
+                if isinstance(other_pipeline_metric_value, dict):
+                    add_summary(gtsfm_metric_name, other_pipeline_metric_value, scalar_metrics)
+                else:
+                    other_pipeline_metric_value = {'summary': {'median': np.nan}}
+                    add_summary(gtsfm_metric_name, other_pipeline_metric_value, scalar_metrics)
     else:
         scalar_metrics[gtsfm_metric_name].append(gtsfm_metric_value)
-        for other_pipeline_metric_value in other_pipelines_metric_values:
-            scalar_metrics[gtsfm_metric_name].append(other_pipeline_metric_value)
+        for other_pipeline_metric_name, other_pipeline_metric_values in other_pipelines_metrics.items():
+            for other_pipeline_metric_value in other_pipeline_metric_values:
+                scalar_metrics[gtsfm_metric_name].append(other_pipeline_metric_value)
 
 def get_figures_for_metrics_and_compare(
     metrics_group: GtsfmMetricsGroup, colmap_metrics_group: GtsfmMetricsGroup
@@ -293,17 +300,14 @@ def generate_metrics_report_html(
     metrics_groups: List[GtsfmMetricsGroup],
     html_path: str,
     colmap_metrics_groups,
-    metric_paths: List[str],
 ) -> None:
     """Generates a report for metrics groups with plots and tables and saves it to HTML.
 
     Args:
         metrics_groups: List of metrics to be reported.
-        html_path: Path where this report is written to (default: output_dir/gtsfm_metrics_report.html).
-        colmap_output_dir: Optional; If a path to a directory containing a COLMAP reconstruction
-          (as cameras.txt, images.txt, and points3D.txt) is provided, the COLMAP metrics will also be
+        html_path: Path where this report is written to.
+        colmap_metrics_groups: Optional; a list of GTSfM Metrics Groups produced from COLMAP output
           included in the report.
-        metric_paths: A list of paths to GTSfM metrics.
     """
     with open(html_path, mode="w") as f:
         # Write HTML headers.
@@ -317,7 +321,7 @@ def generate_metrics_report_html(
             f.write(get_html_metric_heading(metrics_group.name))
 
             # Write plots and tables.
-            if colmap_metrics_groups is None:
+            if len(colmap_metrics_groups) == 0:
                 table, plots_fig = get_figures_for_metrics(metrics_group)
             else:
                 table, plots_fig = get_figures_for_metrics_and_compare(metrics_group, colmap_metrics_groups[i])

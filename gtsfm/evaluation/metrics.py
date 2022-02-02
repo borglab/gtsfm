@@ -89,8 +89,7 @@ class GtsfmMetric:
 
         self._name = name
         if data is not None:
-            # Cast to a numpy array, unless data is an empty string,
-            # which enables blank values in metrics report.
+            # Cast to a numpy array
             if not isinstance(data, np.ndarray):
                 data = np.array(data, dtype=np.float32)
             if data.ndim > 1:
@@ -166,7 +165,6 @@ class GtsfmMetric:
         Returns:
             summary as a dict that can be serialized to JSON for storage.
         """
-        data = np.asarray(list(filter(None, data)))
         if data.ndim != 1:
             raise ValueError("Metric must be a 1D distribution to get summary.")
         if data.size == 0 or np.isnan(data).all():

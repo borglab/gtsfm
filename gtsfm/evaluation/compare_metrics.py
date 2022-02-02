@@ -48,9 +48,9 @@ def compute_metrics_from_txt(cameras, images, points3d):
     return other_pipeline_metrics
 
 def save_other_pipelines_metrics(
-    txt_metric_paths: Dict[str, str],
+    colmap_format_outputs: Dict[str, str],
     json_path: str,
-    metric_filenames: List[str],
+    gtsfm_metric_filenames: List[str],
 ) -> None:
     """Converts the outputs of other SfM pipelines to GTSfMMetricsGroups saved as json files.
 
@@ -59,17 +59,17 @@ def save_other_pipelines_metrics(
     is not available from another SfM pipeline, then the metric is left blank for that pipeline.
 
     Args:
-        txt_metric_paths: a Dict of paths to directories containing outputs of other SfM pipelines
+        colmap_format_outputs: a Dict of paths to directories containing outputs of other SfM pipelines
           in COLMAP format i.e. cameras.txt, images.txt, and points3D.txt files.
         json_path: Path to folder that contains metrics as json files.
-        metric_filenames: List of filenames of metrics that are produced by GTSfM.
+        gtsfm_metric_filenames: List of filenames of metrics that are produced by GTSfM.
     """
-    for other_pipeline_name in txt_metric_paths.keys():
-        cameras, images, points3d = colmap_io.read_model(path=txt_metric_paths[other_pipeline_name], ext=".txt")
+    for other_pipeline_name in colmap_format_outputs.keys():
+        cameras, images, points3d = colmap_io.read_model(path=colmap_format_outputs[other_pipeline_name], ext=".txt")
         other_pipeline_metrics = compute_metrics_from_txt(cameras, images, points3d)
 
         # Create json files of GTSfM Metrics for other pipelines that are comparable to GTSfM's result_metric directory
-        for filename in metric_filenames:
+        for filename in gtsfm_metric_filenames:
             other_pipeline_group_metrics = []
             gtsfm_metrics_group = GtsfmMetricsGroup.parse_from_json(os.path.join(json_path, filename))
             for gtsfm_metric in gtsfm_metrics_group.metrics:

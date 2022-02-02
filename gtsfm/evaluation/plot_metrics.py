@@ -15,37 +15,46 @@ import gtsfm.utils.logger as logger_utils
 
 logger = logger_utils.get_logger()
 
-# def save_colmap_metrics(colmap_files_dirpath, colmap_json_path):
+GTSFM_MODULE_METRICS_FNAMES = [
+    "frontend_summary.json",
+    "rotation_cycle_consistency_metrics.json",
+    "rotation_averaging_metrics.json",
+    "translation_averaging_metrics.json",
+    "data_association_metrics.json",
+    "bundle_adjustment_metrics.json",
+]
+
+def save_colmap_metrics(colmap_files_dirpath: str, colmap_json_path: str):
+    """Saves colmap metrics as GTSfM Metrics Groups in json files.
+
+    Args:
+        colmap_files_dirpath: The path to a directory containing colmap output as txt files.
+        colmap_json_path: The path to the directory where colmap output will be saved in json files.
+
+    """
+    if Path(colmap_files_dirpath).exists():
+        txt_metric_paths = {
+            "colmap": colmap_files_dirpath,
+        }
+        json_path = os.path.dirname(colmap_json_path)
+        compare_metrics.save_other_pipelines_metrics(txt_metric_paths, json_path, GTSFM_MODULE_METRICS_FNAMES)
+    else:
+        logger.info("%s does not exist", colmap_files_dirpath)
 
 
-def create_metrics_plots_html(json_path: str, colmap_files_dirpath, output_dir: str) -> None:
+def create_metrics_plots_html(json_path: str, colmap_json_path: str, output_dir: str) -> None:
     """Creates a HTML report of metrics from frontend, averaging, data association and bundle adjustment.
 
     Reads the metrics from JSON files in a previous run.
 
     Args:
-        json_path: Path to folder that contains metrics as json files.
-        colmap_metrics_groups: TODO
+        json_path: Path to folder that contains GTSfM metrics as json files.
+        colmap_json_path: The path to the directory of colmap outputs in json files.
         output_dir: directory to save the report, uses json_path if empty.
     """
     metrics_groups = []
     # The provided JSON path must contain these files which contain metrics from the respective modules.
-    GTSFM_MODULE_METRICS_FNAMES = [
-        "frontend_summary.json",
-        "rotation_cycle_consistency_metrics.json",
-        "rotation_averaging_metrics.json",
-        "translation_averaging_metrics.json",
-        "data_association_metrics.json",
-        "bundle_adjustment_metrics.json",
-    ]
 
-    if Path(colmap_files_dirpath).exists():
-        txt_metric_paths = {
-            "colmap": colmap_files_dirpath,
-        }
-        compare_metrics.save_other_pipelines_metrics(txt_metric_paths, json_path, GTSFM_MODULE_METRICS_FNAMES)
-    else:
-        logger.info("%s does not exist", colmap_files_dirpath)
 
     metric_paths = []
     for filename in GTSFM_MODULE_METRICS_FNAMES:
@@ -58,14 +67,13 @@ def create_metrics_plots_html(json_path: str, colmap_files_dirpath, output_dir: 
     output_file = os.path.join(output_dir, "gtsfm_metrics_report.html")
 
     colmap_metrics_groups = []
-    for i, metrics_group in enumerate(metrics_groups):
-        metric_path = metric_paths[i]
-        colmap_metric_path = (
-                metric_path[: metric_path.rindex("/")] + "/colmap" + metric_path[metric_path.rindex("/"):]
-        )
-        colmap_metrics_groups.append(GtsfmMetricsGroup.parse_from_json(colmap_metric_path))
+    if colmap_json_path is not None:
+        for i, metrics_group in enumerate(metrics_groups):
+            metric_path = metric_paths[i]
+            colmap_metric_path = os.path.join(colmap_json_path, os.path.basename(metric_path))
+            colmap_metrics_groups.append(GtsfmMetricsGroup.parse_from_json(colmap_metric_path))
 
-    metrics_report.generate_metrics_report_html(metrics_groups, output_file, colmap_metrics_groups, metric_paths)
+    metrics_report.generate_metrics_report_html(metrics_groups, output_file, colmap_metrics_groups)
 
 
 if __name__ == "__main__":
@@ -74,10 +82,9 @@ if __name__ == "__main__":
     parser.add_argument("--colmap_files_dirpath", default=None, type=str, help="Directory containing COLMAP output .")
     parser.add_argument("--output_dir", default="", help="Directory to save plots to. Same as metrics_dir by default.")
     args = parser.parse_args()
-    # if args.colmap_files_dirpath is not None:
-        # save_colmap_metrics(args.colmap_files_dirpath, colmap_json_path)  # saves metrics to the json path
-
-    create_metrics_plots_html(args.metrics_dir, args.colmap_files_dirpath, args.output_dir)
-
-
-    # create_metrics_plots_html(args.metrics_dir, args.colmap_files_dirpath, args.output_dir)
+    if args.colmap_files_dirpath is not None:
+        colmap_json_path = os.path.join(args.metrics_dir, "colmap")
+        save_colmap_metrics(args.colmap_files_dirpath, colmap_json_path)  # saves metrics to the json path
+    else:
+        colmap_json_path = None
+    create_metrics_plots_html(args.metrics_dir, colmap_json_path, args.output_dir)
