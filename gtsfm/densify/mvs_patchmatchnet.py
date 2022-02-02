@@ -224,8 +224,8 @@ class MVSPatchmatchNet(MVSBase):
 
         Args:
             dataset: an instance of PatchmatchData as the inference dataset
-            depth_list: list of 2D depth map (H, W) from each view
-            confidence_list: list of 2D confidence map (H, W) from each view
+            depth_list: list of batched 2D depth maps (1, H, W) from each view
+            confidence_list: list of 2D confidence maps (H, W) from each view
             max_geo_pixel_thresh: maximum reprojection error in pixel coordinates
             max_geo_depth_thresh: maximum reprojection error in depth from camera
             min_conf_thresh: minimum confidence required for a valid point
@@ -392,7 +392,7 @@ def compute_filtered_reprojection_error(
         dataset: an instance of PatchmatchData as the inference dataset
         ref_view: reference view pm_i
         src_views: list of source view pm_i
-        depth_list: list of 2D depth maps (H, W) from each reference view
+        depth_list: list of batched 2D depth maps (1, H, W) from each reference view
         max_reprojection_err: maximum reprojection error in pixels
         joint_mask: the union set of geometric mask and confidence mask, in shape of (H, W)
 
