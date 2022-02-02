@@ -171,6 +171,12 @@ class LoaderBase(metaclass=abc.ABCMeta):
         if intrinsics_full_res is None:
             raise ValueError(f"No intrinsics found for index {index}.")
 
+        if intrinsics_full_res.fx() <= 0:
+            raise RuntimeError("Focal length must be positive.")
+
+        if intrinsics_full_res.px() <= 0 or intrinsics_full_res.py() <= 0:
+            raise RuntimeError("Principal point must have positive coordinates.")
+
         img_full_res = self.get_image_full_res(index)
         # no downsampling may be required, in which case scale_u and scale_v will be 1.0
         scale_u, scale_v, _, _ = img_utils.get_downsampling_factor_per_axis(
