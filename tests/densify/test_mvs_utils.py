@@ -124,6 +124,37 @@ class TestMVSUtils(unittest.TestCase):
         min_voxel_size = mvs_utils.estimate_minimum_voxel_size(points=points, scale=scale)
         self.assertAlmostEqual(min_voxel_size, 1 * scale, delta=0.1 * scale)
 
+    def test_compute_downsampling_psnr(self) -> None:
+        """Test the compute_downsampling_psnr function correctly produce the PSNR between two point clouds
+        We use the dummy original and downsampled point clouds as following:
+               o----o (1,1,1)
+             / |   /|
+            o--|--o |
+            | o --|-o                                 (1, 1/2, 1/2)
+            |/    |/                              o----o
+            o-- --o                      (0, 1/2, 1/2)
+        (0,0,0)
+        original point cloud              downsampled point cloud
+
+        The fitting ellipsoid's semi-axis lengths of the original point cloud is [0.5345, 0.5345, 0.5345]. Then estimate
+        the diagonal of the point cloud's bounding box (dB) as the diagonal of the circumscribed rectangular
+        parallelepiped of the ellipsoid, which is 1.852.
+
+        For each point in the original point, the distances to the nearest neighbors in the downsampled point cloud
+        (D_od) are all 0.5 * sqrt(2). And for each point in the downsampled point, the distances to the nearest n
+        eighbors in the original point cloud (D_do) are all 0.5 * sqrt(2) as well.
+
+        Then according to the formula: psnr = 20 log_10 (dB / max(RMS(D_od), RMS(D_do))), the psnr is approximately 8.36
+        """
+
+        original_point_cloud = np.array(
+            [[0, 0, 0], [0, 0, 1], [0, 1, 0], [1, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 0], [1, 1, 1]]
+        )
+        downsampled_point_cloud = np.array([[0, 0.5, 0.5], [1, 0.5, 0.5]])
+        psnr = mvs_utils.compute_downsampling_psnr(original_point_cloud, downsampled_point_cloud)
+
+        self.assertAlmostEqual(psnr, 8.36, 2)
+
 
 if __name__ == "__main__":
     unittest.main()
