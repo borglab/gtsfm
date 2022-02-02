@@ -21,7 +21,7 @@ TEST_DATA_ROOT_PATH = Path(__file__).resolve().parent.parent.parent.parent / "da
 IMG1_PATH = TEST_DATA_ROOT_PATH / "crane_mast_8imgs_colmap_output" / "images" / "crane_mast_1.jpg"
 IMG2_PATH = TEST_DATA_ROOT_PATH / "crane_mast_8imgs_colmap_output" / "images" / "crane_mast_2.jpg"
 
-RESULT_TYPE = Tuple[Rot3, Unit3]
+VERIFIER_RESULT_TYPE = Tuple[Rot3, Unit3]
 
 ROT3_DIFF_ANGLE_THRESHOLD_DEG = 0.001
 UNIT3_DIFF_ANGLE_THRESHOLD_DEG = 0.001
@@ -48,7 +48,7 @@ class VerifierReproducibilityBase(ReproducibilityTestBase, unittest.TestCase):
             (self._image_i2.height, self._image_i2.width),
         )
 
-    def run_once(self) -> RESULT_TYPE:
+    def run_once(self) -> VERIFIER_RESULT_TYPE:
         return self._verifier.verify(
             keypoints_i1=self._keypoints_i1,
             keypoints_i2=self._keypoints_i2,
@@ -57,7 +57,7 @@ class VerifierReproducibilityBase(ReproducibilityTestBase, unittest.TestCase):
             camera_intrinsics_i2=self._image_i2.get_intrinsics_from_exif(),
         )[:2]
 
-    def assert_results(self, results_a: RESULT_TYPE, results_b: RESULT_TYPE) -> None:
+    def assert_results(self, results_a: VERIFIER_RESULT_TYPE, results_b: VERIFIER_RESULT_TYPE) -> None:
         print(results_a[0])
         print(results_b[0])
         self.assertLessEqual(
