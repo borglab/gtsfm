@@ -22,7 +22,8 @@ from thirdparty.SuperGluePretrainedNetwork.models.superglue import SuperGlue
 
 SUPERGLUE_DESC_DIM = 256
 # hyperparameter below set per the author's default demo recommendations
-DEFAULT_NUM_SINKHORN_ITERATIONS = 20
+# See https://github.com/cvg/Hierarchical-Localization/blob/master/hloc/match_features.py#L28
+DEFAULT_NUM_SINKHORN_ITERATIONS = 50
 
 
 class SuperGlueMatcher(MatcherBase):
