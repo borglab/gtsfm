@@ -118,7 +118,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         projection_directions = self.__sample_projection_directions(w_i2Ui1_measurements)
 
         # compute outlier weights using MFAS
-        outlier_weights = []
+        outlier_weights: List[Dict[Tuple[int, int], float]] = []
         # TODO(ayush): parallelize this step.
         for direction in projection_directions:
             mfas_instance = MFAS(w_i2Ui1_measurements, direction)
@@ -211,7 +211,7 @@ def _sample_kde_directions(w_i2Ui1_measurements: BinaryMeasurementsUnit3, num_sa
     Returns:
         List of sampled Unit3 directions.
     """
-    w_i2Ui1_list = [w_i2Ui1_measurements[idx].measured() for idx in range(len(w_i2Ui1_measurements))]
+    w_i2Ui1_list = [w_i2Ui1.measured() for w_i2Ui1 in w_i2Ui1_measurements]
     if len(w_i2Ui1_list) > MAX_KDE_SAMPLES:
         w_i2Ui1_subset_indices = np.random.choice(range(len(w_i2Ui1_list)), MAX_KDE_SAMPLES, replace=False).tolist()
         w_i2Ui1_list = [w_i2Ui1_list[i] for i in w_i2Ui1_subset_indices]
@@ -342,7 +342,7 @@ def cast_to_measurements_variable_in_global_coordinate_frame(
     w_i2Ui1_measurements = BinaryMeasurementsUnit3()
     for (i1, i2), i2Ui1 in i2Ui1_dict.items():
         if i2Ui1 is not None and wRi_list[i2] is not None:
-            # TODO: what if wRi2 is None, but wRi1 is not. Is there a way we can transform the direction in the global frame
+            # TODO: what if wRi2 is None, but wRi1 is not? Can we still transform.
             w_i2Ui1_measurements.append(
                 BinaryMeasurementUnit3(i2, i1, Unit3(wRi_list[i2].rotate(i2Ui1.point3())), noise_model)
             )
