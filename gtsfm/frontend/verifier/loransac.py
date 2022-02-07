@@ -27,9 +27,9 @@ from gtsfm.frontend.verifier.verifier_base import VerifierBase
 logger = logger_utils.get_logger()
 
 
-MIN_INLIER_RATIO = 0.01
-MIN_NUM_TRIALS = 100000
-MAX_NUM_TRIALS = 1000000
+MIN_INLIER_RATIO = 0.001
+MIN_NUM_TRIALS = 1000000
+MAX_NUM_TRIALS = 10000000
 CONFIDENCE = 0.999999
 
 
