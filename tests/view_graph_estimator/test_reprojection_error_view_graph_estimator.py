@@ -146,25 +146,25 @@ def test_view_graph_estimator_run_door() -> None:
     # dataset_root = "/Users/johnlambert/Downloads/skydio-32-trifocal-example"
     # image_extension = "JPG"
 
-    from gtsfm.loader.colmap_loader import ColmapLoader
+    # from gtsfm.loader.colmap_loader import ColmapLoader
 
-    colmap_files_dirpath = "/Users/jlambert/Downloads/skydio-501-colmap-pseudo-gt"
-    # images_dir = "/Users/jlambert/Downloads/skydio_501_images4_tiara_FPs_trap"
-    # images_dir = "/Users/jlambert/Downloads/skydio-501-trifocal-example-no-covis"
-    images_dir = "/Users/jlambert/Downloads/skydio_501_images_trifocal_plane"
+    # colmap_files_dirpath = "/Users/jlambert/Downloads/skydio-501-colmap-pseudo-gt"
+    # # images_dir = "/Users/jlambert/Downloads/skydio_501_images4_tiara_FPs_trap"
+    # # images_dir = "/Users/jlambert/Downloads/skydio-501-trifocal-example-no-covis"
+    # images_dir = "/Users/jlambert/Downloads/skydio_501_images_trifocal_plane"
 
-    loader = ColmapLoader(
-        colmap_files_dirpath=colmap_files_dirpath,
-        images_dir=images_dir,
-        max_frame_lookahead=3,
-        max_resolution=760
-    )
-    num_images = 3
+    # loader = ColmapLoader(
+    #     colmap_files_dirpath=colmap_files_dirpath,
+    #     images_dir=images_dir,
+    #     max_frame_lookahead=3,
+    #     max_resolution=760
+    # )
+    # num_images = 3
 
-    # dataset_root = TEST_DATA_ROOT / "set1_lund_door"
-    # image_extension = "JPG"
-    # loader = OlssonLoader(dataset_root, image_extension=image_extension)
-    # num_images = 12
+    dataset_root = TEST_DATA_ROOT / "set1_lund_door"
+    image_extension = "JPG"
+    loader = OlssonLoader(dataset_root, image_extension=image_extension)
+    num_images = 12
 
     images = [loader.get_image(i) for i in range(num_images)]
 

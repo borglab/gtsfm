@@ -76,11 +76,15 @@ class ShonanRotationAveraging(RotationAveragingBase):
                 between_factors.append(BetweenFactorPose3(i2, i1, i2Ti1, noise_model))
 
         obj = ShonanAveraging3(between_factors, shonan_params)
+        wRi_list_consecutive = [None] * num_connected_nodes
 
         initial = obj.initializeRandomly()
-        result_values, _ = obj.run(initial, self._p_min, self._p_max)
+        try:
+            result_values, _ = obj.run(initial, self._p_min, self._p_max)
+        except:
+            logger.exception("Shonan could not converge.")
+            return wRi_list_consecutive
 
-        wRi_list_consecutive = [None] * num_connected_nodes
         for i in range(num_connected_nodes):
             if result_values.exists(i):
                 wRi_list_consecutive[i] = result_values.atRot3(i)

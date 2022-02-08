@@ -7,15 +7,19 @@ Authors: John Lambert
 
 import logging
 import os
+import time
 from enum import Enum
+from types import SimpleNamespace
 from typing import Dict, List, Optional, Set, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3
 
+
 import gtsfm.densify.mvs_utils as mvs_utils
 import gtsfm.multi_view_optimizer as multi_view_optimizer
+import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
@@ -69,7 +73,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
                 mode=TriangulationSamplingMode.NO_RANSAC,
                 max_num_hypotheses=100,
             ),
-            save_track_patches_viz=True
+            save_track_patches_viz=False,
         )
 
         self._bundle_adjustment_module = BundleAdjustmentOptimizer(
@@ -77,6 +81,15 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
             robust_measurement_noise=True,
             shared_calib=False,
         )
+        
+        wTi_list = None
+        is_success = False
+        min_tri_angle = np.nan
+        support = np.nan
+        max_rot_discrepancy = np.nan
+        max_trans_discrepancy = np.nan
+        self._triplet_failure_result = wTi_list, is_success, min_tri_angle, support, max_rot_discrepancy, max_trans_discrepancy
+
 
     def run(
         self,
@@ -117,10 +130,24 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
         max_gt_rot_error_in_cycle = []
         max_gt_trans_error_in_cycle = []
         min_tri_angle_per_triplet = []
+        max_rot_discrepancy_per_triplet = []
+        max_trans_discrepancy_per_triplet = []
+        is_success_per_triplet = []
 
-        f = open("view_graph_results.txt", "w")
+        # f = open("view_graph_results.txt", "w")
 
-        for (i0, i1, i2) in triplets:  # sort order guaranteed
+        # TODO: parallelize all of this.
+
+        for triplet_idx, (i0, i1, i2) in enumerate(triplets):  # sort order guaranteed
+
+            # immediately reject bad cycles
+            cycle_error = comp_utils.compute_cyclic_rotation_error(
+                i1Ri0=i2Ri1_dict[(i0, i1)], i2Ri1=i2Ri1_dict[(i1, i2)], i2Ri0=i2Ri1_dict[(i0, i2)]
+            )
+            if cycle_error > 5:
+                print(f"Triplet {triplet_idx}/{len(triplets)} Immediately rejected for cycle error {cycle_error:.1f} deg.")
+                continue
+
             i2Ri1_dict_subscene, i2Ui1_dict_subscene, corr_idxs_i1_i2_subscene, _ = self._filter_with_edges(
                 i2Ri1_dict=i2Ri1_dict,
                 i2Ui1_dict=i2Ui1_dict,
@@ -130,7 +157,8 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
             )
             if self._registration_method == ThreeViewRegistrationMethod.AVERAGING_NO_BA:
                 logger.setLevel(logging.WARNING)
-                wTi_list, reproj_errors, min_tri_angle, ra_metrics, ta_metrics, ba_metrics = self.optimize_three_views_averaging(
+                start = time.time()
+                wTi_list, is_success, min_tri_angle, support, max_rot_discrepancy, max_trans_discrepancy = self.optimize_three_views_averaging(
                     i2Ri1_dict=i2Ri1_dict_subscene,
                     i2Ui1_dict=i2Ui1_dict_subscene,
                     calibrations=calibrations,
@@ -140,21 +168,15 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
                     cameras_gt=cameras_gt,
                     images=images
                 )
+                end = time.time()
+                duration = end - start
+                print(f"Took {duration:.1f} sec to optimize triplet {triplet_idx}/{len(triplets)}: ({i0},{i1},{i2})")
                 logger.setLevel(logging.INFO)
 
             elif self._registration_method == ThreeViewRegistrationMethod.PNP:
                 self.optimize_three_views_incremental()
 
-            plt.hist(reproj_errors, bins=20)
-            plt.show()
-            # import pdb; pdb.set_trace()
-            continue
-            # # require at least 500 points with reproj error under 5 px?
-            MAX_ALLOWED_REPROJ_ERROR = 5
-            support = (reproj_errors < MAX_ALLOWED_REPROJ_ERROR).sum()
-            # MIN_REQUIRED_SUPPORT = 1000
-
-            if support > MIN_REQUIRED_SUPPORT and min_tri_angle > 20:
+            if is_success:
                 valid_edges.add((i0, i1))
                 valid_edges.add((i1, i2))
                 valid_edges.add((i0, i2))
@@ -168,39 +190,44 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
             max_rot_error = max(rot_errors) if gt_known else None
             max_trans_error = max(trans_errors) if gt_known else None
 
-            # min_tri_angle_per_triplet.append(min_tri_angle)
+            min_tri_angle_per_triplet.append(min_tri_angle)
             support_per_triplet.append(support)
-            reproj_error_per_triplet.append(np.nanmedian(reproj_errors))
+            max_rot_discrepancy_per_triplet.append(max_rot_discrepancy)
+            max_trans_discrepancy_per_triplet.append(max_trans_discrepancy)
+            is_success_per_triplet.append(is_success)
+            
             max_gt_rot_error_in_cycle.append(max_rot_error)
             max_gt_trans_error_in_cycle.append(max_trans_error)
 
-            ba_trans_error_dist = np.nanmean(ba_metrics._metrics[5].data)
-            logger.info(
-                "Triplet (%d,%d,%d): %d inliers, reproj error: med=%.2f, avg=%.2f | U error=%.1f | BA dist err %.1f | Min Tri Angle %.1f",
-                i0,
-                i1,
-                i2,
-                support,
-                np.nanmedian(reproj_errors),
-                np.nanmean(reproj_errors),
-                max_trans_error,
-                ba_trans_error_dist,
-                min_tri_angle,
-            )
+            # ba_trans_error_dist = np.nanmean(ba_metrics._metrics[5].data)
+            # logger.info(
+            #     "Triplet (%d,%d,%d): %d inliers, reproj error: med=%.2f, avg=%.2f | U error=%.1f | BA dist err %.1f | Min Tri Angle %.1f",
+            #     i0,
+            #     i1,
+            #     i2,
+            #     support,
+            #     np.nanmedian(reproj_errors),
+            #     np.nanmean(reproj_errors),
+            #     max_trans_error,
+            #     ba_trans_error_dist,
+            #     min_tri_angle,
+            # )
 
-            summary_str = (
-                f"Triplet ({i0},{i1},{i2}): {support} inliers,"
-                + f" reproj error: med={np.nanmedian(reproj_errors):.2f}, avg={np.nanmean(reproj_errors):.2f}"
-                + f" | U error={max_trans_error:.1f} | ba wTi error={ba_trans_error_dist:.1f} | min_tri_angle={min_tri_angle:.1f}"
-            )
+        #     summary_str = (
+        #         f"Triplet ({i0},{i1},{i2}): {support} inliers,"
+        #         + f" reproj error: med={np.nanmedian(reproj_errors):.2f}, avg={np.nanmean(reproj_errors):.2f}"
+        #         + f" | U error={max_trans_error:.1f} | ba wTi error={ba_trans_error_dist:.1f} | min_tri_angle={min_tri_angle:.1f}"
+        #     )
 
-            f.write(summary_str + "\n")
+        #     f.write(summary_str + "\n")
 
-        f.close()
+        # f.close()
 
         self.__save_plots(
             support_per_triplet,
-            reproj_error_per_triplet,
+            max_rot_discrepancy_per_triplet,
+            max_trans_discrepancy_per_triplet,
+            is_success_per_triplet,
             min_tri_angle_per_triplet,
             max_gt_rot_error_in_cycle,
             max_gt_trans_error_in_cycle,
@@ -210,7 +237,9 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
     def __save_plots(
         self,
         support_per_triplet: List[float],
-        reproj_error_per_triplet: List[float],
+        max_rot_discrepancy_per_triplet: List[float],
+        max_trans_discrepancy_per_triplet: List[float],
+        is_success_per_triplet: List[float],
         min_tri_angle_per_triplet: List[float],
         max_gt_rot_error_in_cycle: List[float],
         max_gt_trans_error_in_cycle: List[float],
@@ -219,11 +248,16 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
 
         pose_errors = np.maximum(np.array(max_gt_rot_error_in_cycle), np.array(max_gt_trans_error_in_cycle))
 
-        xlabels = ["Support (#Inliers)"]  # , "Reprojection Error", "Min Tri. Angle"]
-        fnames = ["gt_error_vs_support.jpg"]  # , "gt_error_vs_reproj_error.jpg", "gt_error_vs_mintriangle.jpg"]
-        proxy_metrics = [np.array(support_per_triplet)]  # , reproj_error_per_triplet, min_tri_angle_per_triplet]
+        xlabels = ["Support (#Inliers)", "Max Rot Discrepancy (deg)", "Max Trans Discrepancy (deg)" "Min Tri. Angle"]
+        fnames = ["gt_error_vs_support.jpg", "gt_error_vs_max_rot_discrep.jpg", "gt_error_vs_max_trans_discrep.jpg", "gt_error_vs_mintriangle.jpg"]
+        proxy_metrics = [
+            np.array(support_per_triplet),
+            np.array(max_rot_discrepancy_per_triplet),
+            np.array(max_trans_discrepancy_per_triplet),
+            np.array(min_tri_angle_per_triplet),
+        ]
 
-        inliers = np.array(min_tri_angle_per_triplet) > 20
+        inliers = np.array(is_success_per_triplet)
 
         for xlabel, fname, proxy_metric in zip(xlabels, fnames, proxy_metrics):
             plt.scatter(
@@ -232,7 +266,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
                 10,
                 color="g",
                 marker=".",
-                label="inlier by tri angle",
+                label="inlier by success criteria",
             )
             plt.scatter(
                 proxy_metric[~inliers],
@@ -240,10 +274,10 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
                 10,
                 color="r",
                 marker=".",
-                label="outlier by tri angle",
+                label="outlier by success criteria",
             )
             plt.xlabel(xlabel)
-            plt.ylabel("GT Angular Error")
+            plt.ylabel("GT Pose Angular Error (deg.)")
             plt.legend(loc="upper right")
             plt.savefig(os.path.join("plots", fname), dpi=500)
             plt.close("all")
@@ -285,6 +319,12 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
             num_images = max([max(i1, i2) for (i1, i2) in i2Ri1_dict.keys()]) + 1
 
         wRi_list = self._rot_avg_module.run(num_images, i2Ri1_dict)
+
+        for (i1,i2) in i2Ri1_dict.keys():
+            if wRi_list[i1] is None or wRi_list[i2] is None:
+                print("Shonan missing an optimized pose!")
+                return self._triplet_failure_result
+
         wti_list, ta_metrics = self._trans_avg_module.run(num_images, i2Ui1_dict, wRi_list, gt_wTi_list=gt_wTi_list)
 
         if gt_wTi_list:
@@ -313,56 +353,58 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
             final_data = unfiltered_data
 
         if final_data is None:
-            import pdb; pdb.set_trace()
+            return self._triplet_failure_result
 
         reproj_errors = final_data.get_scene_reprojection_errors()
         wTi_list = final_data.get_camera_poses()
 
-        if any([wTi is None for wTi in wTi_list]):
-            print("Missing pose!")
-            print(wTi_list)
-            import pdb; pdb.set_trace()
+        # if any([wTi is None for wTi in wTi_list]):
+        #     print("Missing pose!")
+        #     print(wTi_list)
+        #     import pdb; pdb.set_trace()
 
-        point_cloud = final_data.get_point_cloud()
-        rgb = np.zeros_like(point_cloud).astype(np.uint8)
-        from types import SimpleNamespace
-        args = SimpleNamespace(**{"point_rendering_mode": "point", "frustum_ray_len": 0.1, "sphere_radius": 0.1})
+        for (i1,i2) in i2Ri1_dict.keys():
+            if wTi_list[i1] is None or wTi_list[i2] is None:
+                print("Missing an optimized pose!")
+                return self._triplet_failure_result
+
+        # point_cloud = final_data.get_point_cloud()
+        # rgb = np.zeros_like(point_cloud).astype(np.uint8)
+        # args = SimpleNamespace(**{"point_rendering_mode": "point", "frustum_ray_len": 0.1, "sphere_radius": 0.1})
         # import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
         # open3d_vis_utils.draw_scene_open3d(point_cloud, rgb, wTi_list, calibrations, args)
 
-
-
-        import gtsfm.utils.metrics as metric_utils
-        ta_change_metrics = metric_utils.compute_translation_angle_metric(i2Ui1_dict, wTi_list)
+        ta_change_metrics = metrics_utils.compute_translation_angle_metric(i2Ui1_dict, wTi_list)
         relative_rot_discrepancies = compute_relative_rotation_metric(i2Ri1_dict, wTi_list)
 
-        rotation_changes = [np.linalg.norm(i2Ri1_dict[(i1,i2)].xyz()) for (i1,i2) in i2Ri1_dict.keys()]
+        #rotation_changes = [np.linalg.norm(i2Ri1_dict[(i1,i2)].xyz()) for (i1,i2) in i2Ri1_dict.keys()]
         
-        plt.hist(reproj_errors, bins=20)
-        plt.show()
+        # plt.hist(reproj_errors, bins=20)
+        # plt.show()
 
-        for (i1,i2) in i2Ri1_dict.keys():
-            import gtsfm.utils.viz as viz_utils
-            two_view_report = SimpleNamespace(**{"v_corr_idxs_inlier_mask_gt": None})
-            viz_utils.save_twoview_correspondences_viz(
-                images[i1],
-                images[i2],
-                keypoints_list[i1],
-                keypoints_list[i2],
-                corr_idxs_i1_i2[(i1,i2)],
-                two_view_report=two_view_report,
-                file_path=os.path.join("trifocal_correspondences", f"{i1}_{i2}.jpg"),
-            )
+        if images is not None:
+            for (i1,i2) in i2Ri1_dict.keys():
+                import gtsfm.utils.viz as viz_utils
+                two_view_report = SimpleNamespace(**{"v_corr_idxs_inlier_mask_gt": None})
+                viz_utils.save_twoview_correspondences_viz(
+                    images[i1],
+                    images[i2],
+                    keypoints_list[i1],
+                    keypoints_list[i2],
+                    corr_idxs_i1_i2[(i1,i2)],
+                    two_view_report=two_view_report,
+                    file_path=os.path.join("trifocal_correspondences", f"{i1}_{i2}.jpg"),
+                )
 
         support = (reproj_errors < 20).sum()
         relative_trans_discrepancies = np.round(ta_change_metrics._data)
         print("Support: ", support)
-        print("Rotation errors: ", relative_rot_discrepancies)
+        print("Rotation discrepancies: ", np.round(relative_rot_discrepancies))
         print("TA Change metrics: ", relative_trans_discrepancies)
-        print("Rotation euler angle norms: ", np.round(rotation_changes))
+        #print("Rotation euler angle norms: ", np.round(rotation_changes))
 
-        print("RA Errors: ", ra_metrics._metrics[1].name, np.round(ra_metrics._metrics[1].data))
-        print("TA Errors: ", ta_metrics._metrics[8].name, np.round(ta_metrics._metrics[8].data))
+        print("RA Errors w.r.t. GT: ", ra_metrics._metrics[1].name, np.round(ra_metrics._metrics[1].data))
+        print("TA Errors wr.r.t GT: ", ta_metrics._metrics[8].name, np.round(ta_metrics._metrics[8].data))
 
         # check how much each pose, in terms of translation directon and rotation angle
 
@@ -391,18 +433,22 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
 
         # also check entropy of these histograms above
         min_tri_angle = min(tri_angle_percentiles)
+        max_rot_discrepancy = max(relative_rot_discrepancies)
+        max_trans_discrepancy = max(relative_trans_discrepancies)
 
         print("Min Tri Angle: ", min_tri_angle)
 
-        if min_tri_angle < 2 or support < 200 or max(relative_rot_discrepancies) > 5 or max(relative_trans_discrepancies) > 5:
+        is_failure = min_tri_angle < 2 or support < 200 or max_rot_discrepancy > 5 or max_trans_discrepancy > 5
+        is_success = not is_failure
+        if is_failure:
             print("REJECT!")
         else:
             print("ACCEPT!")
 
-        import pdb; pdb.set_trace()
+        #import pdb; pdb.set_trace()
 
         # ba_metrics = self._bundle_adjustment_module.evaluate(unfiltered_data, filtered_data, cameras_gt)
-        return wTi_list, reproj_errors, min_tri_angle, ra_metrics, ta_metrics, ba_metrics
+        return wTi_list, is_success, min_tri_angle, support, max_rot_discrepancy, max_trans_discrepancy
 
     def optimize_three_views_incremental(self) -> None:
         """

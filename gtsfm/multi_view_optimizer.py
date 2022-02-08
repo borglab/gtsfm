@@ -77,7 +77,8 @@ class MultiViewOptimizer:
             v_corr_idxs_graph,
             keypoints_graph,
             two_view_reports_dict,
-            gt_cameras_graph
+            gt_cameras_graph,
+            images=None
         )
 
         # prune the graph to a single connected component.
@@ -103,7 +104,6 @@ class MultiViewOptimizer:
             keypoints_graph,
             images_graph,
             gt_cameras_graph,
-            images
         )
 
         ba_result_graph, ba_metrics_graph = self.ba_optimizer.create_computation_graph(ba_input_graph, gt_cameras_graph)
