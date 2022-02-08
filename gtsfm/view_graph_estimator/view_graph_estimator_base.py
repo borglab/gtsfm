@@ -44,6 +44,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         keypoints: List[Keypoints],
         two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
         cameras_gt: Optional[List[PinholeCameraCal3Bundler]] = None,
+        images  = None,
     ) -> Set[Tuple[int, int]]:
         """Estimates the view graph, needs to be implemented by the derived class.
 
@@ -213,6 +214,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         keypoints: Delayed,
         two_view_reports: Delayed,
         cameras_gt: Delayed,
+        images,
     ) -> Tuple[Delayed, Delayed, Delayed, Delayed, Delayed]:
         """Create the computation graph for ViewGraph estimation and metric evaluation.
 
@@ -257,7 +259,8 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             corr_idxs_i1i2=corr_idxs_i1i2_valid,
             keypoints=keypoints,
             two_view_reports=two_view_reports_valid,
-            cameras_gt=cameras_gt
+            cameras_gt=cameras_gt,
+            images=images
         )
 
         # Remove all edges that are not in the view graph.

@@ -44,6 +44,7 @@ class MultiViewOptimizer:
         intrinsics_graph: List[Delayed],
         two_view_reports_dict: Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
         gt_cameras_graph: Optional[List[Delayed]] = None,
+        images = None,
     ) -> Tuple[Delayed, Delayed, Delayed]:
         """Creates a computation graph for multi-view optimization.
 
@@ -102,6 +103,7 @@ class MultiViewOptimizer:
             keypoints_graph,
             images_graph,
             gt_cameras_graph,
+            images
         )
 
         ba_result_graph, ba_metrics_graph = self.ba_optimizer.create_computation_graph(ba_input_graph, gt_cameras_graph)

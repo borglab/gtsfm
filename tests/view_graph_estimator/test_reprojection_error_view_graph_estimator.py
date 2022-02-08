@@ -129,10 +129,46 @@ def test_view_graph_estimator_run_door() -> None:
         bundle_adjust_2view_maxiters=0,
     )
 
-    dataset_root = TEST_DATA_ROOT / "set1_lund_door"
-    image_extension = "JPG"
-    loader = OlssonLoader(dataset_root, image_extension=image_extension)
-    num_images = 12
+
+
+    # dataset_root = "/Users/johnlambert/Downloads/door-trifocal-example"
+    # image_extension = "JPG"
+
+    # dataset_root = "/Users/johnlambert/Downloads/skydio-8-trifocal-example"
+    # image_extension = "jpg"
+
+    # dataset_root = "/Users/johnlambert/Downloads/skydio-501-trifocal-example"
+    # image_extension = "JPG"
+
+    # dataset_root = 
+    # image_extension = "JPG"
+
+    # dataset_root = "/Users/johnlambert/Downloads/skydio-32-trifocal-example"
+    # image_extension = "JPG"
+
+    from gtsfm.loader.colmap_loader import ColmapLoader
+
+    colmap_files_dirpath = "/Users/jlambert/Downloads/skydio-501-colmap-pseudo-gt"
+    # images_dir = "/Users/jlambert/Downloads/skydio_501_images4_tiara_FPs_trap"
+    # images_dir = "/Users/jlambert/Downloads/skydio-501-trifocal-example-no-covis"
+    images_dir = "/Users/jlambert/Downloads/skydio_501_images_trifocal_plane"
+
+    loader = ColmapLoader(
+        colmap_files_dirpath=colmap_files_dirpath,
+        images_dir=images_dir,
+        max_frame_lookahead=3,
+        max_resolution=760
+    )
+    num_images = 3
+
+    # dataset_root = TEST_DATA_ROOT / "set1_lund_door"
+    # image_extension = "JPG"
+    # loader = OlssonLoader(dataset_root, image_extension=image_extension)
+    # num_images = 12
+
+    images = [loader.get_image(i) for i in range(num_images)]
+
+    cameras_gt = [loader.get_camera(i) for i in range(num_images)]
 
     camera_intrinsics = [loader.get_camera_intrinsics(i) for i in range(num_images)]
 
@@ -150,6 +186,8 @@ def test_view_graph_estimator_run_door() -> None:
         corr_idxs_i1i2=corr_idxs_dict,
         two_view_reports=two_view_reports,
         keypoints=keypoints_list,
+        cameras_gt=cameras_gt,
+        images=images
     )
     # import pdb; pdb.set_trace()
 

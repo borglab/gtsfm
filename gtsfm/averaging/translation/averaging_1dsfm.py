@@ -60,6 +60,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         self,
         robust_measurement_noise: bool = True,
         projection_sampling_method: ProjectionSamplingMethod = ProjectionSamplingMethod.SAMPLE_WITH_UNIFORM_DENSITY,
+        perform_outlier_rejection: bool = True
     ) -> None:
         """Initializes the 1DSFM averaging instance.
 
@@ -72,6 +73,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         self._max_1dsfm_projection_directions = MAX_PROJECTION_DIRECTIONS
         self._outlier_weight_threshold = OUTLIER_WEIGHT_THRESHOLD
         self._projection_sampling_method = projection_sampling_method
+        self._perform_outlier_rejection = perform_outlier_rejection
 
     def __sample_projection_directions(
         self,
@@ -172,7 +174,11 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             i2Ui1_dict, wRi_list, noise_model
         )
 
-        inlier_idxs: Set[Tuple[int, int]] = self.compute_inlier_mask(w_i2Ui1_measurements)
+        if self._perform_outlier_rejection:
+            inlier_idxs: Set[Tuple[int, int]] = self.compute_inlier_mask(w_i2Ui1_measurements)
+        else:
+            # treat all as inliers
+            inlier_idxs = set(list(i2Ui1_dict.keys()))
 
         w_i2Ui1_inlier_measurements = BinaryMeasurementsUnit3()
         for idx in range(len(w_i2Ui1_measurements)):
