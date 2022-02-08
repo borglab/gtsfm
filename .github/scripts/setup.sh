@@ -8,6 +8,7 @@ echo "Running .github/scripts/setup.sh..."
 conda init
 conda info --envs
 
+# TODO: update new gtsam wheels 
 wget -O 2021_09_02_gtsam_python38_wheel.zip --no-check-certificate "https://drive.google.com/uc?export=download&id=1GSf3NxabSCsu2nPcBUuEhhVq_m1FvdY5"
 
 unzip 2021_09_02_gtsam_python38_wheel.zip

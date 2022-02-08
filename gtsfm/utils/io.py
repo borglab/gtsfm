@@ -407,7 +407,7 @@ def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
             x, y, z = track.point3()
             f.write(f"{j} {x} {y} {z} {r} {g} {b} {np.round(avg_track_reproj_error, 2)} ")
 
-            for k in range(track.number_measurements()):
+            for k in range(track.numberMeasurements()):
                 i, uv_measured = track.measurement(k)
                 f.write(f"{i} {point2d_idx} ")
             f.write("\n")
