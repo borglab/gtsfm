@@ -23,10 +23,12 @@ from gtsfm.averaging.rotation.shonan import ShonanRotationAveraging
 from gtsfm.averaging.translation.averaging_1dsfm import TranslationAveraging1DSFM
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.data_association.data_assoc import DataAssociation, TriangulationParam
+from gtsfm.data_association.data_assoc import DataAssociation
+from gtsfm.data_association.point3d_initializer import TriangulationOptions, TriangulationSamplingMode
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.two_view_estimator import TwoViewEstimationReport
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
+
 
 logger = logger_utils.get_logger()
 
@@ -35,10 +37,14 @@ class ThreeViewRegistrationMethod(str, Enum):
     """Two supported modes for 3-view registration:
     1. PNP (a la incremental SfM) or
     2. Global rotation averaging + translation averaging.
+         w/ no BA, and immediately check reprojection errors.
+      OR w/ BA, and compare pose differences
+
     """
 
     PNP: str = "PNP"
-    AVERAGING: str = "AVERAGING"
+    AVERAGING_NO_BA: str = "AVERAGING_NO_BA"
+    AVERAGING_WITH_BA: str = "AVERAGING_WITH_BA"
 
 
 class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
@@ -57,10 +63,12 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
 
         # TODO: could limit to length 3 tracks.
         self._data_association_module = DataAssociation(
-            reproj_error_thresh=50000,
             min_track_len=2,
-            mode=TriangulationParam.NO_RANSAC,
-            num_ransac_hypotheses=20,
+            triangulation_options=TriangulationOptions(
+                reproj_error_threshold=50000,
+                mode=TriangulationSamplingMode.NO_RANSAC,
+                max_num_hypotheses=100,
+            ),
             save_track_patches_viz=False,
         )
 
