@@ -3,7 +3,6 @@
 Authors: Ayush Baid
 """
 import abc
-import unittest
 from typing import Any
 
 NUM_REPETITIONS = 10

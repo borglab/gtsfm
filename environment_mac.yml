@@ -32,9 +32,9 @@ dependencies:
   - pandas
   - pillow>=8.0.1
   - scikit-learn
+  - scipy
   - hydra-core
   # 3rd party algorithms for different modules
-  - opencv=4.5.0 # preferring conda-forge's distribution as it provides the latest distribution
   - pytorch
   # io
   - h5py
@@ -42,6 +42,9 @@ dependencies:
   - tabulate
   - pip:
     - open3d # conda-forge version does not support M1 Macs. 
+    - opencv-python>=4.5.4.58 # pypi has a more recent distribution than conda-forge
     - pydegensac
     - colour
+    - argoverse @ git+https://github.com/argoai/argoverse-api.git@master
     - trimesh[easy]
+    - pycolmap>=0.1.0

@@ -83,11 +83,11 @@ class ColmapLoader(LoaderBase):
             self._calibrations = self._calibrations * len(img_fnames)
 
         # preserve COLMAP ordering of images
-        
+
         self._img_fnames = []
         self._image_paths = []
         self._wTi_list = []
-        
+
         # If one of the images is not found on disk, the assigned image indices will be re-ordered on disk
         # to skip the missing image.
         for img_fname, wTi in zip(img_fnames, wTi_list):

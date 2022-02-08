@@ -423,7 +423,7 @@ def save_metrics_as_json(metrics_groups: List[GtsfmMetricsGroup], output_dir: st
     for metrics_group in metrics_groups:
         metrics_group.save_to_json(os.path.join(output_dir, metrics_group.name + ".json"))
 
-        
+
 def get_stats_for_sfmdata(gtsfm_data: GtsfmData, suffix: str) -> List[GtsfmMetric]:
     """Helper to get bundle adjustment metrics from a GtsfmData object with a suffix for metric names."""
     metrics = []
@@ -439,7 +439,7 @@ def get_stats_for_sfmdata(gtsfm_data: GtsfmData, suffix: str) -> List[GtsfmMetri
     metrics.append(GtsfmMetric(f"reprojection_errors{suffix}_px", gtsfm_data.get_scene_reprojection_errors()))
     return metrics
 
- 
+
 def compute_percentage_change(x: float, y: float) -> float:
     """Return percentage in representing the regression or improvement of a value x, for new value y.
 

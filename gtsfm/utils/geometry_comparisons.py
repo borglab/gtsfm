@@ -128,6 +128,11 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Tuple[List
         # construct the final SIM3 transform
         aSb = Similarity3(aSb.rotation(), aTi_centroid - aTi_rot_aligned_centroid, 1.0)
 
+    # TODO(johnwlambert): fix bug in GTSAM, where scale can flip to a small negative number
+    # a negative scale destroys cheirality when applied.
+    # See GTSAM issue here: https://github.com/borglab/gtsam/issues/995
+    aSb = Similarity3(R=aSb.rotation(), t=aSb.translation(), s=np.absolute(aSb.scale()))
+
     # provide a summary of the estimated alignment transform
     aRb = aSb.rotation().matrix()
     atb = aSb.translation()
