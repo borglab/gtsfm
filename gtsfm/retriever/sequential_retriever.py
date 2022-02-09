@@ -6,17 +6,20 @@ Authors: John Lambert
 """
 from typing import List, Tuple
 
+import gtsfm.utils.logger as logger_utils
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.retriever.retriever_base import RetrieverBase
 
+logger = logger_utils.get_logger()
+
 
 class SequentialRetriever(RetrieverBase):
-    def run(self, loader: LoaderBase, num_matched: int = 2) -> List[Tuple[int, int]]:
-        """
+    def run(self, loader: LoaderBase) -> List[Tuple[int, int]]:
+        """Compute potential image pairs.
+
         Args:
-            loader: image loader.
-            num_images: total number of images for exhaustive global descriptor matching.
-            num_matched: number of K potential matches to provide per query. These are the top "K" matches per query.
+            loader: image loader. The length of this loader will provide the total number of images
+                for exhaustive global descriptor matching.
 
         Return:
             pair_indices: (i1,i2) image pairs.
@@ -28,8 +31,9 @@ class SequentialRetriever(RetrieverBase):
             for i2 in range(num_images):
                 if i1 >= i2:
                     continue
-                if (i2 - i1) > num_matched:
+                if (i2 - i1) > self._num_matched:
                     continue
                 pairs.append((i1, i2))
 
+        logger.info("Found %d pairs from the SequentialRetriever", len(pairs))
         return pairs

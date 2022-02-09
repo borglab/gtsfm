@@ -5,7 +5,7 @@ Authors: John Lambert
 
 import os
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from gtsam import Cal3Bundler, Pose3
 
@@ -100,6 +100,10 @@ class ColmapLoader(LoaderBase):
 
         self._num_imgs = len(self._image_paths)
         logger.info("Colmap image loader found and loaded %d images", self._num_imgs)
+
+    def image_filenames(self) -> List[str]:
+        """Return the file names corresponding to each image index."""
+        return self._img_fnames
 
     def get_image_fname(self, idx: int) -> str:
         """Given an image index, provide the corresponding image filename."""

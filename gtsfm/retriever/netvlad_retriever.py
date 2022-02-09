@@ -30,22 +30,24 @@ MAX_NUM_IMAGES = 10000
 
 
 class NetVLADRetriever(RetrieverBase):
-    def __init__(self, blocksize: int = 10) -> None:
+    def __init__(self, num_matched: int, blocksize: int = 10) -> None:
         """
         Args:
+            num_matched: number of K potential matches to provide per query. These are the top "K" matches per query.
             blocksize: size of matching sub-blocks when creating similarity matrix.
         """
+        self._num_matched = num_matched
         self._global_descriptor_model = GlobalDescriptorCacher(global_descriptor_obj=NetVLADGlobalDescriptor())
         self._blocksize = blocksize
 
     def run(
-        self, loader: LoaderBase, num_matched: int = 2, visualize: bool = True
+        self, loader: LoaderBase, visualize: bool = True
     ) -> List[Tuple[int, int]]:
-        """
+        """Compute potential image pairs.
+
         Args:
-            loader: image loader.
-            num_images: total number of images for exhaustive global descriptor matching.
-            num_matched: number of K potential matches to provide per query. These are the top "K" matches per query.
+            loader: image loader. The length of this loader will provide the total number of images
+                for exhaustive global descriptor matching.
 
         Return:
             pair_indices: (i1,i2) image pairs.
@@ -54,10 +56,11 @@ class NetVLADRetriever(RetrieverBase):
 
         sim = self.compute_similarity_matrix(loader, num_images)
 
-        query_names = loader._img_fnames
-        # Avoid self-matching
-        self = np.array(query_names)[:, None] == np.array(query_names)[None]
-        pairs = pairs_from_score_matrix(sim, invalid=self, num_select=num_matched, min_score=0)
+        query_names = loader.image_filenames()
+        # Avoid self-matching and disallow lower triangular portion
+        is_invalid_mat = ~np.triu(np.ones((num_images, num_images), dtype=bool))
+        np.fill_diagonal(a=is_invalid_mat, val=True)
+        pairs = pairs_from_score_matrix(sim, invalid=is_invalid_mat, num_select=self._num_matched, min_score=0)
 
         if visualize:
             plt.imshow(np.triu(sim.detach().cpu().numpy()))
@@ -66,7 +69,7 @@ class NetVLADRetriever(RetrieverBase):
             plt.savefig(os.path.join(PLOT_SAVE_DIR, "netvlad_similarity_matrix.jpg"), dpi=500)
 
         named_pairs = [(query_names[i], query_names[j]) for i, j in pairs]
-        logger.info(f"Found {len(pairs)} pairs.")
+        logger.info(f"Found %d pairs from the NetVLAD Retriever.", len(pairs))
         logger.info("Image Name Pairs:" + str(named_pairs))
         return pairs
 
@@ -143,6 +146,10 @@ def pairs_from_score_matrix(
     Returns:
         pairs: tuples representing pairs (i1,i2) of images.
     """
+    N, _ = scores.shape
+    # if there are only N images to choose from, selecting more than N is not allowed
+    num_select = min(num_select, N)
+
     assert scores.shape == invalid.shape
     invalid = torch.from_numpy(invalid).to(scores.device)
     if min_score is not None:

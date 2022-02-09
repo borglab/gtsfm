@@ -12,6 +12,7 @@ from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.scene_optimizer import SceneOptimizer
 
+from gtsfm.retriever.joint_netvlad_sequential_retriever import JointNetVLADSequentialRetriever
 from gtsfm.retriever.netvlad_retriever import NetVLADRetriever
 from gtsfm.retriever.sequential_retriever import SequentialRetriever
 
@@ -70,7 +71,13 @@ class GtsfmRunnerBase:
             type=str,
             choices=["exhaustive", "retrieval", "sequential", "sequential_with_retrieval"],
             default="sequential",
-            help="Choose mode for matching." "",
+            help="Choose mode for matching.",
+        )
+        parser.add_argument(
+            "--num_matched",
+            type=int,
+            default=5,
+            help="Number of matches to provide per retrieval query.",
         )
         parser.add_argument(
             "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras"
@@ -99,23 +106,24 @@ class GtsfmRunnerBase:
         return scene_optimizer
 
     def run(self) -> None:
+        """Run the SceneOptimizer."""
         start_time = time.time()
 
         if self.parsed_args.matching_regime == "exhaustive":
             retriever = SequentialRetriever(num_matched=MAX_POSSIBLE_FRAME_LOOKAHEAD)
 
         elif self.parsed_args.matching_regime == "retrieval":
-            retriever = NetVLADRetriever()
+            retriever = NetVLADRetriever(num_matched=self.parsed_args.num_matched)
 
         elif self.parsed_args.matching_regime == "sequential":
             retriever = SequentialRetriever(num_matched=self.parsed_args.max_frame_lookahead)
 
         elif self.parsed_args.matching_regime == "sequential_with_retrieval":
-            retriever = JointNetVLADSequentialRetriever(num_matched=max_frame_lookahead)
+            retriever = JointNetVLADSequentialRetriever(num_matched=self.parsed_args.max_frame_lookahead)
 
         sfm_result_graph = self.scene_optimizer.create_computation_graph(
             num_images=len(self.loader),
-            image_pair_indices=self.retriever.run(),
+            image_pair_indices=retriever.run(self.loader),
             image_graph=self.loader.create_computation_graph_for_images(),
             camera_intrinsics_graph=self.loader.create_computation_graph_for_intrinsics(),
             image_shape_graph=self.loader.create_computation_graph_for_image_shapes(),
