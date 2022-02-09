@@ -1,6 +1,8 @@
-""" Based off of HLOC"""
+"""Source: Adapted from "Hierarchical-Localization" toolbox.
+https://github.com/cvg/Hierarchical-Localization/blob/master/hloc/extractors/netvlad.py
 
-# netvlad
+Author: Paul-Edouard Sarlin
+"""
 
 import subprocess
 import logging
