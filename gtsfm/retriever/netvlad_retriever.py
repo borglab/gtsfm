@@ -39,7 +39,7 @@ class NetVLADRetriever(RetrieverBase):
         self._blocksize = blocksize
 
     def run(
-        self, loader: LoaderBase, num_images: int, num_matched: int = 2, visualize: bool = True
+        self, loader: LoaderBase, num_matched: int = 2, visualize: bool = True
     ) -> List[Tuple[int, int]]:
         """
         Args:
@@ -50,6 +50,8 @@ class NetVLADRetriever(RetrieverBase):
         Return:
             pair_indices: (i1,i2) image pairs.
         """
+        num_images = len(loader)
+
         sim = self.compute_similarity_matrix(loader, num_images)
 
         query_names = loader._img_fnames

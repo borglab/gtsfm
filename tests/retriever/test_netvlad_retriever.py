@@ -22,7 +22,7 @@ def test_netvlad_retriever() -> None:
     num_images = 2
 
     retriever = NetVLADRetriever()
-    retriever.run(loader=loader, num_images=num_images)
+    retriever.run(loader=loader, num_matched=2)
 
 
 if __name__ == "__main__":
