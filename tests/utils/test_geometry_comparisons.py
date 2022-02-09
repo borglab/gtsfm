@@ -247,14 +247,13 @@ class TestGeometryComparisons(unittest.TestCase):
             wR1 = random_rotation()
             wR2 = random_rotation()
 
-            error_deg = geometry_comparisons.compute_relative_rotation_angle(wR1, wR2)
+            computed_deg = geometry_comparisons.compute_relative_rotation_angle(wR1, wR2)
 
             i2Ri1 = wR2.between(wR1)
-            axis, angle_rad = i2Ri1.axisAngle()
-            angle_deg = np.rad2deg(angle_rad)
+            _, expected_rad = i2Ri1.axisAngle()
+            expected_deg = np.rad2deg(expected_rad)
 
-            np.testing.assert_almost_equal(angle_deg, error_deg)
-            print(angle_deg, error_deg)
+        np.testing.assert_allclose(computed_deg, expected_deg, rtol=1e-3, atol=1e-3)
 
     def test_compute_relative_unit_translation_angle(self):
         """Tests the relative angle between two unit-translations."""
