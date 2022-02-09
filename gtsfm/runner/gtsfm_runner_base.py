@@ -12,8 +12,14 @@ from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.scene_optimizer import SceneOptimizer
 
+from gtsfm.retriever.netvlad_retriever import NetVLADRetriever
+from gtsfm.retriever.sequential_retriever import SequentialRetriever
+
 
 logger = logger_utils.get_logger()
+
+# For exhaustive matching, we limit the lookahead to 10,000 images.
+MAX_POSSIBLE_FRAME_LOOKAHEAD = 10000
 
 
 class GtsfmRunnerBase:
@@ -53,14 +59,19 @@ class GtsfmRunnerBase:
             help="integer representing maximum length of image's short side"
             " e.g. for 1080p (1920 x 1080), max_resolution would be 1080",
         )
-
         parser.add_argument(
             "--max_frame_lookahead",
             type=int,
             default=20,
             help="maximum number of consecutive frames to consider for matching/co-visibility",
         )
-
+        parser.add_argument(
+            "--matching_regime",
+            type=str,
+            choices=["exhaustive", "retrieval", "sequential", "sequential_with_retrieval"],
+            default="sequential",
+            help="Choose mode for matching." "",
+        )
         parser.add_argument(
             "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras"
         )
@@ -72,6 +83,7 @@ class GtsfmRunnerBase:
         pass
 
     def construct_scene_optimizer(self) -> SceneOptimizer:
+        """ """
         with hydra.initialize_config_module(config_module="gtsfm.configs"):
             # config is relative to the gtsfm module
             cfg = hydra.compose(
@@ -88,9 +100,22 @@ class GtsfmRunnerBase:
 
     def run(self) -> None:
         start_time = time.time()
+
+        if self.parsed_args.matching_regime == "exhaustive":
+            retriever = SequentialRetriever(num_matched=MAX_POSSIBLE_FRAME_LOOKAHEAD)
+
+        elif self.parsed_args.matching_regime == "retrieval":
+            retriever = NetVLADRetriever()
+
+        elif self.parsed_args.matching_regime == "sequential":
+            retriever = SequentialRetriever(num_matched=self.parsed_args.max_frame_lookahead)
+
+        elif self.parsed_args.matching_regime == "sequential_with_retrieval":
+            retriever = JointNetVLADSequentialRetriever(num_matched=max_frame_lookahead)
+
         sfm_result_graph = self.scene_optimizer.create_computation_graph(
             num_images=len(self.loader),
-            image_pair_indices=self.loader.get_valid_pairs(),
+            image_pair_indices=self.retriever.run(),
             image_graph=self.loader.create_computation_graph_for_images(),
             camera_intrinsics_graph=self.loader.create_computation_graph_for_intrinsics(),
             image_shape_graph=self.loader.create_computation_graph_for_image_shapes(),
