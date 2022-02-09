@@ -433,6 +433,7 @@ def save_full_frontend_metrics(
                 else None,
                 "inlier_ratio_est_model": round_fn(report.inlier_ratio_est_model),
                 "num_inliers_est_model": report.num_inliers_est_model,
+                "configuration_type": str(report.configuration_type),
             }
         )
 

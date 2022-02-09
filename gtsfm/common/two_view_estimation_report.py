@@ -4,10 +4,33 @@ Authors: John Lambert
 """
 
 from dataclasses import dataclass
+from enum import Enum
 from typing import Optional
 
 import numpy as np
 from gtsam import Rot3, Unit3
+
+
+class ConfigurationType(Enum):
+    UNDEFINED = 0
+    # Degenerate configuration (e.g., no overlap or not enough inliers).
+    DEGENERATE = 1
+    # Essential matrix.
+    CALIBRATED = 2
+    # Fundamental matrix.
+    UNCALIBRATED = 3
+    # Homography, planar scene with baseline.
+    PLANAR = 4
+    # Homography, pure rotation without baseline.
+    PANORAMIC = 5
+    # Homography, planar or panoramic.
+    PLANAR_OR_PANORAMIC = 6
+    # Watermark, pure 2D translation in image borders.
+    WATERMARK = 7
+    # Multi-model configuration, i.e. the inlier matches result from multiple
+    # individual, non-degenerate configurations.
+    MULTIPLE = 8
+
 
 
 @dataclass(frozen=False)
@@ -38,6 +61,7 @@ class TwoViewEstimationReport:
         outlier_avg_reproj_error_gt_model: average reprojection error of outliers.
     """
 
+    configuration_type: ConfigurationType
     v_corr_idxs: np.ndarray
     num_inliers_est_model: float
     inlier_ratio_est_model: Optional[float] = None  # TODO: make not optional (pass from verifier)

@@ -79,7 +79,16 @@ class InlierSupportProcessor:
             i2Ui1 = None
             v_corr_idxs = np.array([], dtype=np.uint64)
 
-            return i2Ri1, i2Ui1, v_corr_idxs, TwoViewEstimationReport(v_corr_idxs=v_corr_idxs, num_inliers_est_model=0)
+            return (
+                i2Ri1,
+                i2Ui1,
+                v_corr_idxs,
+                TwoViewEstimationReport(
+                    configuration_type=two_view_report.configuration_type,
+                    v_corr_idxs=v_corr_idxs,
+                    num_inliers_est_model=0,
+                ),
+            )
 
         if valid_model and insufficient_inliers:
             logger.debug(
@@ -91,7 +100,16 @@ class InlierSupportProcessor:
             i2Ri1 = None
             i2Ui1 = None
             v_corr_idxs = np.array([], dtype=np.uint64)
-            return i2Ri1, i2Ui1, v_corr_idxs, TwoViewEstimationReport(v_corr_idxs=v_corr_idxs, num_inliers_est_model=0)
+            return (
+                i2Ri1,
+                i2Ui1,
+                v_corr_idxs,
+                TwoViewEstimationReport(
+                    configuration_type=two_view_report.configuration_type,
+                    v_corr_idxs=v_corr_idxs,
+                    num_inliers_est_model=0,
+                ),
+            )
 
         return i2Ri1, i2Ui1, v_corr_idxs, two_view_report_post_isp
 
