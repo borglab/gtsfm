@@ -10,18 +10,16 @@ from gtsfm.retriever.netvlad_retriever import NetVLADRetriever
 
 SKYDIO_DATA_ROOT = Path(__file__).resolve().parent.parent / "data" / "crane_mast_8imgs_colmap_output"
 
+
 def test_netvlad_retriever() -> None:
     """ """
-    # colmap_files_dirpath = SKYDIO_DATA_ROOT
-    # images_dir = SKYDIO_DATA_ROOT / "images"
-
-	colmap_files_dirpath = "/Users/jlambert/Downloads/skydio-501-colmap-pseudo-gt"
-	images_dir = "/Users/jlambert/Downloads/skydio-501-images/skydio-crane-mast-501-images1"
+    colmap_files_dirpath = SKYDIO_DATA_ROOT
+    images_dir = SKYDIO_DATA_ROOT / "images"
 
     loader = ColmapLoader(
         colmap_files_dirpath=colmap_files_dirpath, images_dir=images_dir, max_frame_lookahead=100, max_resolution=760
     )
-    num_images = 250
+    num_images = 2
 
     retriever = NetVLADRetriever()
     retriever.run(loader=loader, num_images=num_images)

@@ -130,7 +130,7 @@ class ColmapLoader(LoaderBase):
             Image: the image at the query index.
         """
         if index < 0 or index >= len(self):
-            raise IndexError("Image index is invalid")
+            raise IndexError(f"Image index {index} is invalid")
 
         img = io_utils.load_image(self._image_paths[index])
         return img

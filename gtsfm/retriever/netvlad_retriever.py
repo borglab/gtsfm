@@ -7,8 +7,11 @@ Authors: John Lambert
 """
 
 import math
+import os
+from pathlib import Path
 from typing import List, Optional, Tuple
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
@@ -20,6 +23,8 @@ from gtsfm.frontend.global_descriptor.netvlad_global_descriptor import NetVLADGl
 
 
 logger = logger_utils.get_logger()
+
+PLOT_SAVE_DIR = Path(__file__).parent.parent.parent / "plots"
 
 MAX_NUM_IMAGES = 10000
 
@@ -33,7 +38,9 @@ class NetVLADRetriever(RetrieverBase):
         self._global_descriptor_model = GlobalDescriptorCacher(global_descriptor_obj=NetVLADGlobalDescriptor())
         self._blocksize = blocksize
 
-    def run(self, loader: LoaderBase, num_images: int, num_matched: int = 2) -> List[Tuple[int, int]]:
+    def run(
+        self, loader: LoaderBase, num_images: int, num_matched: int = 2, visualize: bool = True
+    ) -> List[Tuple[int, int]]:
         """
         Args:
             loader: image loader.
@@ -43,31 +50,35 @@ class NetVLADRetriever(RetrieverBase):
         Return:
             pair_indices: (i1,i2) image pairs.
         """
-
         sim = self.compute_similarity_matrix(loader, num_images)
 
         query_names = loader._img_fnames
         # Avoid self-matching
         self = np.array(query_names)[:, None] == np.array(query_names)[None]
         pairs = pairs_from_score_matrix(sim, invalid=self, num_select=num_matched, min_score=0)
+
+        if visualize:
+            plt.imshow(np.triu(sim.detach().cpu().numpy()))
+            os.makedirs(PLOT_SAVE_DIR, exist_ok=True)
+            plt.title("Image Similarity Matrix")
+            plt.savefig(os.path.join(PLOT_SAVE_DIR, "netvlad_similarity_matrix.jpg"), dpi=500)
+
         named_pairs = [(query_names[i], query_names[j]) for i, j in pairs]
-
-        print("Pairs:", named_pairs)
-
         logger.info(f"Found {len(pairs)} pairs.")
+        logger.info("Image Name Pairs:" + str(named_pairs))
         return pairs
 
     def compute_similarity_matrix(self, loader: LoaderBase, num_images: int) -> torch.Tensor:
         """Compute a similarity matrix between all pairs of images.
 
         We use block matching, to avoid excessive memory usage.
-        We cannot fit more than 50x50 sized block into memory, generally.
+        We cannot fit more than 50x50 sized block into memory, on a 16 GB RAM machine.
 
         A similar blocked exhaustive matching implementation can be found in COLMAP:
         https://github.com/colmap/colmap/blob/dev/src/feature/matching.cc#L899
 
         Returns:
-            sim: tensor of shape (num_images, num_images)
+            sim: tensor of shape (num_images, num_images) representing similarity matrix.
         """
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -79,11 +90,10 @@ class NetVLADRetriever(RetrieverBase):
 
         for block_i in range(num_blocks):
             for block_j in range(num_blocks):
-
                 # only compute the upper triangular portion of the similarity matrix.
                 if block_i > block_j:
                     continue
-                logger.info("Computing matching block (%d/%d,%d/%d)", block_i, num_blocks, block_j, num_blocks)
+                logger.info("Computing matching block (%d/%d,%d/%d)", block_i, num_blocks - 1, block_j, num_blocks - 1)
                 block_i_query_descs = []
                 block_j_query_descs = []
 
