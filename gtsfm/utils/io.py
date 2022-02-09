@@ -134,7 +134,7 @@ def read_bal(file_path: str) -> GtsfmData:
     """
     sfm_data = gtsam.readBal(file_path)
 
-    num_images = sfm_data.number_cameras()
+    num_images = sfm_data.numberCameras()
 
     gtsfm_data = GtsfmData(num_images)
     for i in range(num_images):
