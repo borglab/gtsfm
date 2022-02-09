@@ -8,6 +8,7 @@ from typing import List, Tuple
 
 from gtsfm.loader.loader_base import LoaderBase
 
+
 class RetrieverBase:
     def __init__(self) -> None:
         """ """

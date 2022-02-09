@@ -6,22 +6,18 @@ Reference: https://github.com/cvg/Hierarchical-Localization/blob/master/hloc/pai
 Authors: John Lambert
 """
 
-import abc
 import math
-from pathlib import Path
 from typing import List, Optional, Tuple
 
 import numpy as np
 import torch
-import collections.abc as collections
 
 import gtsfm.utils.logger as logger_utils
-
-
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.retriever.retriever_base import RetrieverBase
 from gtsfm.frontend.cacher.global_descriptor_cacher import GlobalDescriptorCacher
 from gtsfm.frontend.global_descriptor.netvlad_global_descriptor import NetVLADGlobalDescriptor
+
 
 logger = logger_utils.get_logger()
 
@@ -29,7 +25,6 @@ MAX_NUM_IMAGES = 10000
 
 
 class NetVLADRetriever(RetrieverBase):
-
     def __init__(self, blocksize: int = 10) -> None:
         """
         Args:
@@ -51,22 +46,16 @@ class NetVLADRetriever(RetrieverBase):
 
         sim = self.compute_similarity_matrix(loader, num_images)
 
-        query_names = loader._img_fnames[:max_num_imgs]
+        query_names = loader._img_fnames
         # Avoid self-matching
         self = np.array(query_names)[:, None] == np.array(query_names)[None]
         pairs = pairs_from_score_matrix(sim, invalid=self, num_select=num_matched, min_score=0)
         named_pairs = [(query_names[i], query_names[j]) for i, j in pairs]
 
-        np.savetxt(fname="vlad.txt", X=sim.detach().cpu().numpy(), fmt="%.1f", delimiter=",")
-
-        plt.imshow(np.triu(sim.detach().cpu().numpy()))
-        plt.show()
-
         print("Pairs:", named_pairs)
 
         logger.info(f"Found {len(pairs)} pairs.")
         return pairs
-
 
     def compute_similarity_matrix(self, loader: LoaderBase, num_images: int) -> torch.Tensor:
         """Compute a similarity matrix between all pairs of images.
@@ -87,7 +76,7 @@ class NetVLADRetriever(RetrieverBase):
 
         sim = torch.zeros((num_images, num_images))
         num_blocks = math.ceil(num_images / self._blocksize)
-        
+
         for block_i in range(num_blocks):
             for block_j in range(num_blocks):
 
@@ -122,19 +111,15 @@ class NetVLADRetriever(RetrieverBase):
                 block_j_query_descs = torch.from_numpy(np.array(block_j_query_descs))
 
                 # Einsum equivalent to (img_descs @ img_descs.T)
-                sim_block = torch.einsum(
-                    "id,jd->ij",
-                    block_i_query_descs.to(device),
-                    block_j_query_descs.to(device)
-                )
-                sim[i_start:i_end, j_start: j_end] = sim_block
+                sim_block = torch.einsum("id,jd->ij", block_i_query_descs.to(device), block_j_query_descs.to(device))
+                sim[i_start:i_end, j_start:j_end] = sim_block
 
         return sim
 
 
 def pairs_from_score_matrix(
     scores: torch.Tensor, invalid: np.array, num_select: int, min_score: Optional[float] = None
-) -> List[Tuple[int,int]]:
+) -> List[Tuple[int, int]]:
     """Identify image pairs from a score matrix.
 
     Args:
