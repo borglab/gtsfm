@@ -8,11 +8,11 @@ import os
 from pathlib import Path
 from typing import Optional
 
-import numpy as np
-from gtsam import Cal3Bundler, Pose3, Rot3
-from scipy.io import loadmat
+import scipy.io
+from gtsam import Cal3Bundler, Pose3
 
 import gtsfm.utils.io as io_utils
+import gtsfm.utils.verification as verification_utils
 from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
 
@@ -21,6 +21,11 @@ class OlssonLoader(LoaderBase):
     """Simple loader class that reads any of Carl Olsson's datasets from a folder on disk.
 
     Ref: http://www.maths.lth.se/matematiklth/personal/calle/dataset/dataset.html
+    The mat-file contains Olsson's reconstruction. The variable P{i} contains camera i
+    and the imnames(i).name contains the name of the corresponding image.
+    "U"" are the reconstructed 3D points and "u_uncalib" contains the feature points for each image.
+    "u_uncalib" contains two cells; u_uncalib.points{i} contains imagepoints and u_uncalib.index{i}
+    contains the indices of the 3D points corresponding to u_uncalib.points{i}.
 
     Folder layout structure:
     - RGB Images: images/
@@ -76,20 +81,26 @@ class OlssonLoader(LoaderBase):
 
         # stores camera poses (extrinsics) and intrinsics as 3x4 projection matrices
         # 'P' array will have shape (1,num_imgs), and each element will be a (3,4) matrix
-        data = loadmat(cam_matrices_fpath)
+        data = scipy.io.loadmat(cam_matrices_fpath)
 
+        if len(data["P"][0]) != self._num_imgs:
+            raise RuntimeError("Number of images found on disk not equal to number of ground truth images.")
+
+        # each projection matrix is "M"
         # M = K [R | t]
         # in GTSAM notation, M = K @ cTw
-        M_list = [data["P"][0][i] for i in range(self._num_imgs)]
+        projection_matrices = [data["P"][0][i] for i in range(self._num_imgs)]
 
-        # first pose is identity, so K is immediate given
-        self._K = M_list[0][:3, :3]
-        Kinv = np.linalg.inv(self._K)
+        self._K, _ = verification_utils.decompose_camera_projection_matrix(projection_matrices[0])
 
-        # decode camera poses as:
-        #    K^{-1} @ M = cTw
-        iTw_list = [Kinv @ M_list[i] for i in range(self._num_imgs)]
-        self._wTi_list = [Pose3(Rot3(iTw[:3, :3]), iTw[:, 3]).inverse() for iTw in iTw_list]
+        self._wTi_list = []
+        # first pose is not necessarily identity (in Door it is, but not in Palace of Fine Arts)
+        for M in projection_matrices:
+            K, wTc = verification_utils.decompose_camera_projection_matrix(M)
+            self._wTi_list.append(wTc)
+
+        # GT 3d structure (point cloud)
+        self._point_cloud = data["U"].T[:, :3]
 
     def __len__(self) -> int:
         """The number of images in the dataset.

@@ -233,9 +233,6 @@ class SceneOptimizer:
         if optimizer_metrics_graph is not None:
             metrics_graph_list.extend(optimizer_metrics_graph)
 
-        # Save metrics to JSON and generate HTML report.
-        auxiliary_graph_list.extend(save_metrics_reports(metrics_graph_list))
-
         # Modify BA input, BA output, and GT poses to have point clouds and frustums aligned with x,y,z axes.
         gt_poses_graph = (
             [dask.delayed(lambda x: x.pose())(cam) for cam in gt_cameras_graph] if gt_cameras_graph else None
@@ -252,15 +249,28 @@ class SceneOptimizer:
             auxiliary_graph_list.extend(save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph))
 
         img_dict_graph = dask.delayed(get_image_dictionary)(image_graph)
-        dense_points_graph, dense_point_colors_graph = self.dense_multiview_optimizer.create_computation_graph(
-            img_dict_graph, ba_output_graph
-        )
+        (
+            dense_points_graph,
+            dense_point_colors_graph,
+            densify_metrics_graph,
+            downsampling_metrics_graph,
+        ) = self.dense_multiview_optimizer.create_computation_graph(img_dict_graph, ba_output_graph)
+
         # Cast to string as Open3d cannot use PosixPath's for I/O -- only string file paths are accepted.
         auxiliary_graph_list.append(
             dask.delayed(io_utils.save_point_cloud_as_ply)(
                 save_fpath=str(MVS_PLY_SAVE_FPATH), points=dense_points_graph, rgb=dense_point_colors_graph
             )
         )
+
+        # Add metrics for dense reconstruction and voxel downsampling
+        if densify_metrics_graph is not None:
+            metrics_graph_list.append(densify_metrics_graph)
+        if downsampling_metrics_graph is not None:
+            metrics_graph_list.append(downsampling_metrics_graph)
+
+        # Save metrics to JSON and generate HTML report.
+        auxiliary_graph_list.extend(save_metrics_reports(metrics_graph_list))
 
         # as visualization tasks are not to be provided to the user, we create a
         # dummy computation of concatenating viz tasks with the output graph,

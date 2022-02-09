@@ -1,6 +1,8 @@
 """
 Script to render a GTSFM scene using either Open3d or Mayavi mlab.
 
+Results must be stored in the COLMAP .txt file format.
+
 Authors: John Lambert
 """
 
