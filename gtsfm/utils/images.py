@@ -250,7 +250,7 @@ def get_average_point_color(track: SfmTrack, images: List[Image]) -> Tuple[int, 
         b: blue color intensity, in range [0,255]
     """
     rgb_measurements = []
-    for k in range(track.number_measurements()):
+    for k in range(track.numberMeasurements()):
 
         # process each measurement
         i, uv_measured = track.measurement(k)

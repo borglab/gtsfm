@@ -39,9 +39,9 @@ def test_compute_track_reprojection_errors():
     track_3d = SfmTrack(triangulated_pt)
 
     # in camera 0
-    track_3d.add_measurement(idx=0, m=np.array([13, 24]))
+    track_3d.addMeasurement(idx=0, m=np.array([13, 24]))
     # in camera 1
-    track_3d.add_measurement(idx=1, m=np.array([-8, 43]))  # should be (-7,44), 1 px error in each dim
+    track_3d.addMeasurement(idx=1, m=np.array([-8, 43]))  # should be (-7,44), 1 px error in each dim
 
     errors, avg_track_reproj_error = reproj_utils.compute_track_reprojection_errors(track_camera_dict, track_3d)
 

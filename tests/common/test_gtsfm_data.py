@@ -90,8 +90,8 @@ class TestGtsfmData(unittest.TestCase):
     def test_get_track(self) -> None:
         """Testing getter for track."""
         expected_track = SfmTrack(np.array([6.41689062, 0.38897032, -23.58628273]))
-        expected_track.add_measurement(0, np.array([383.88000488, 15.2999897]))
-        expected_track.add_measurement(1, np.array([559.75, 106.15000153]))
+        expected_track.addMeasurement(0, np.array([383.88000488, 15.2999897]))
+        expected_track.addMeasurement(1, np.array([559.75, 106.15000153]))
 
         computed = EXAMPLE_DATA.get_track(1)
 
@@ -105,8 +105,8 @@ class TestGtsfmData(unittest.TestCase):
 
         # add a track on camera #0 and #1, which exists in the data
         track_to_add = SfmTrack(np.array([0, -2.0, 5.0]))
-        track_to_add.add_measurement(idx=0, m=np.array([20.0, 5.0]))
-        track_to_add.add_measurement(idx=1, m=np.array([60.0, 50.0]))
+        track_to_add.addMeasurement(idx=0, m=np.array([20.0, 5.0]))
+        track_to_add.addMeasurement(idx=1, m=np.array([60.0, 50.0]))
 
         self.assertTrue(gtsfm_data.add_track(track_to_add))
 
@@ -116,8 +116,8 @@ class TestGtsfmData(unittest.TestCase):
 
         # add a track on camera #0 and #1, which exists in the data
         track_to_add = SfmTrack(np.array([0, -2.0, 5.0]))
-        track_to_add.add_measurement(idx=0, m=np.array([20.0, 5.0]))
-        track_to_add.add_measurement(idx=3, m=np.array([60.0, 50.0]))  # this camera does not exist
+        track_to_add.addMeasurement(idx=0, m=np.array([20.0, 5.0]))
+        track_to_add.addMeasurement(idx=3, m=np.array([60.0, 50.0]))  # this camera does not exist
 
         self.assertFalse(gtsfm_data.add_track(track_to_add))
 
@@ -139,8 +139,8 @@ class TestGtsfmData(unittest.TestCase):
         obj = copy.deepcopy(EXAMPLE_DATA)
         # add a new track with just camera 0 and 2
         track_to_add = SfmTrack(np.array([0, -2.0, 5.0]))
-        track_to_add.add_measurement(idx=0, m=np.array([20.0, 5.0]))
-        track_to_add.add_measurement(idx=2, m=np.array([60.0, 50.0]))
+        track_to_add.addMeasurement(idx=0, m=np.array([20.0, 5.0]))
+        track_to_add.addMeasurement(idx=2, m=np.array([60.0, 50.0]))
         obj.add_track(track_to_add)
 
         # pick the cameras at index 0 and 2, and hence dropping camera at index 1.
@@ -174,13 +174,13 @@ class TestGtsfmData(unittest.TestCase):
 
         # add two tracks to create two connected components
         track_1 = SfmTrack(np.random.randn(3))  # track with 2 cameras, which will be dropped
-        track_1.add_measurement(idx=0, m=np.random.randn(2))
-        track_1.add_measurement(idx=3, m=np.random.randn(2))
+        track_1.addMeasurement(idx=0, m=np.random.randn(2))
+        track_1.addMeasurement(idx=3, m=np.random.randn(2))
 
         track_2 = SfmTrack(np.random.randn(3))  # track with 3 cameras, which will be retained
-        track_2.add_measurement(idx=1, m=np.random.randn(2))
-        track_2.add_measurement(idx=2, m=np.random.randn(2))
-        track_2.add_measurement(idx=4, m=np.random.randn(2))
+        track_2.addMeasurement(idx=1, m=np.random.randn(2))
+        track_2.addMeasurement(idx=2, m=np.random.randn(2))
+        track_2.addMeasurement(idx=4, m=np.random.randn(2))
 
         gtsfm_data.add_track(track_1)
         gtsfm_data.add_track(track_2)
@@ -287,9 +287,9 @@ class TestGtsfmData(unittest.TestCase):
 
         def add_dummy_measurements_to_track(track: SfmTrack) -> SfmTrack:
             """Add some dummy 2d measurements in three views in cameras 0,1,3."""
-            track.add_measurement(0, np.array([100, 200]))
-            track.add_measurement(1, np.array([300, 400]))
-            track.add_measurement(3, np.array([500, 600]))
+            track.addMeasurement(0, np.array([100, 200]))
+            track.addMeasurement(1, np.array([300, 400]))
+            track.addMeasurement(3, np.array([500, 600]))
             return track
 
         sfm_result = GtsfmData(number_images=4)
@@ -870,32 +870,32 @@ class TestGtsfmData(unittest.TestCase):
         }
 
         t0 = SfmTrack(pt=[-0.89190672,  1.21298076, -1.05838554])
-        t0.add_measurement(2, [184.08586121, 441.31314087])
-        t0.add_measurement(4, [ 18.98637581, 453.21853638])
+        t0.addMeasurement(2, [184.08586121, 441.31314087])
+        t0.addMeasurement(4, [ 18.98637581, 453.21853638])
 
         t1 = SfmTrack(pt=[-0.76287111,  1.26476165, -1.22710579])
-        t1.add_measurement(2, [213.51266479, 288.06637573])
-        t1.add_measurement(4, [ 50.23059464, 229.30541992])
+        t1.addMeasurement(2, [213.51266479, 288.06637573])
+        t1.addMeasurement(4, [ 50.23059464, 229.30541992])
 
         t2 = SfmTrack(pt=[-1.45773622,  0.86221933, -1.47515461])
-        t2.add_measurement(2, [227.52420044, 695.15087891])
-        t2.add_measurement(3, [996.67608643, 705.03125   ])
+        t2.addMeasurement(2, [227.52420044, 695.15087891])
+        t2.addMeasurement(3, [996.67608643, 705.03125   ])
 
         t3 = SfmTrack(pt=[-1.40486691,  0.93824916, -1.35192298])
-        t3.add_measurement(2, [251.37863159, 702.97064209])
-        t3.add_measurement(3, [537.9753418,  732.26025391])
+        t3.addMeasurement(2, [251.37863159, 702.97064209])
+        t3.addMeasurement(3, [537.9753418,  732.26025391])
 
         t4 = SfmTrack(pt=[55.48969812, 52.24862241, 58.84578119])
-        t4.add_measurement(2, [253.17749023, 490.47991943])
-        t4.add_measurement(3, [ 13.17782784, 507.57717896])
+        t4.addMeasurement(2, [253.17749023, 490.47991943])
+        t4.addMeasurement(3, [ 13.17782784, 507.57717896])
 
         t5 = SfmTrack(pt=[230.43166291, 206.44760657, 234.25904211])
-        t5.add_measurement(2, [253.52301025, 478.41384888])
-        t5.add_measurement(3, [ 10.92995739, 493.31018066])
+        t5.addMeasurement(2, [253.52301025, 478.41384888])
+        t5.addMeasurement(3, [ 10.92995739, 493.31018066])
 
         t6 = SfmTrack(pt=[11.62742671, 13.43484624, 14.50306349])
-        t6.add_measurement(2, [254.64611816, 533.04730225])
-        t6.add_measurement(3, [ 18.78449249, 557.05041504])
+        t6.addMeasurement(2, [254.64611816, 533.04730225])
+        t6.addMeasurement(3, [ 18.78449249, 557.05041504])
 
         unaligned_tracks = [t0, t1, t2, t3, t4, t5, t6]
 

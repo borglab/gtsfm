@@ -99,7 +99,7 @@ class BundleAdjustmentOptimizer:
         for j in range(initial_data.number_tracks()):
             track = initial_data.get_track(j)  # SfmTrack
             # retrieve the SfmMeasurement objects
-            for m_idx in range(track.number_measurements()):
+            for m_idx in range(track.numberMeasurements()):
                 # i represents the camera index, and uv is the 2d measurement
                 i, uv = track.measurement(m_idx)
                 # note use of shorthand symbols C and P
@@ -322,9 +322,9 @@ def values_to_gtsfm_data(values: Values, initial_data: GtsfmData, shared_calib: 
         # populate the result with optimized 3D point
         result_track = SfmTrack(values.atPoint3(P(j)))
 
-        for measurement_idx in range(input_track.number_measurements()):
+        for measurement_idx in range(input_track.numberMeasurements()):
             i, uv = input_track.measurement(measurement_idx)
-            result_track.add_measurement(i, uv)
+            result_track.addMeasurement(i, uv)
 
         result.add_track(result_track)
 

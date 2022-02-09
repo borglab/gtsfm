@@ -63,7 +63,7 @@ def classify_tracks3d_with_gt_cameras(
     # convert the 3D tracks to 2D tracks
     tracks_2d: List[SfmTrack2d] = []
     for track_3d in tracks:
-        num_measurements = track_3d.number_measurements()
+        num_measurements = track_3d.numberMeasurements()
 
         measurements: List[SfmMeasurement] = []
         for k in range(num_measurements):
