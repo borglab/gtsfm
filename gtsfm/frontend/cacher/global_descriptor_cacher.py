@@ -1,10 +1,10 @@
-"""Cacher for any retriever network, which caches the output on disk in the top level folder `cache`.
+"""Cacher for any global descriptor, which caches the output on disk in the top level folder `cache`.
 
-This class provides the caching functionality to a GTSFM retriever network. To use this cacher, initialize it with
-the retriever network you want to apply the cache on.
+This class provides the caching functionality to a GTSFM global descriptor. To use this cacher, initialize it with
+the global descriptor you want to apply the cache on.
 
-Example: To cache output of `SiftDetectorDescriptor`, use 
-`DetectorDescriptorCacher(detector_descriptor_obj=NetVLADDescriptor())`.
+Example: To cache output of `NetVLADGlobalDescriptor`, use 
+`GlobalDescriptorCacher(global_descriptor_obj=NetVLADGlobalDescriptor())`.
 
 Authors: John Lambert
 """
