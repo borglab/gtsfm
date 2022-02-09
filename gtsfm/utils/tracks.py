@@ -60,17 +60,25 @@ def classify_tracks3d_with_gt_cameras(
     Returns:
         The triangulation exit code for each input track, as list of length J (same as input).
     """
-    # convert the 3D tracks to 2D tracks
-    tracks_2d: List[SfmTrack2d] = []
-    for track_3d in tracks:
-        num_measurements = track_3d.number_measurements()
-
-        measurements: List[SfmMeasurement] = []
-        for k in range(num_measurements):
-            i, uv = track_3d.measurement(k)
-
-            measurements.append(SfmMeasurement(i, uv))
-
-        tracks_2d.append(SfmTrack2d(measurements))
-
+    tracks_2d: List[SfmTrack2d] = [cast_3dtrack_to_2dtrack(track_3d) for track_3d in tracks]
     return classify_tracks2d_with_gt_cameras(tracks_2d, cameras_gt, reproj_error_thresh_px)
+
+
+def cast_3dtrack_to_2dtrack(track_3d: SfmTrack) -> "SfmTrack2d":
+    """Construct a GTSFM's 2d track from GTSAM's 3D track.
+
+    Args:
+        track_3d: a GTSAM 3D track (i.e. with 2d measurements and triangulated points.)
+
+    Returns:
+        A 2d track with measurements from track_3d.
+    """
+    num_measurements = track_3d.number_measurements()
+
+    measurements: List[SfmMeasurement] = []
+    for k in range(num_measurements):
+        i, uv = track_3d.measurement(k)
+
+        measurements.append(SfmMeasurement(i, uv))
+
+    return SfmTrack2d(measurements)

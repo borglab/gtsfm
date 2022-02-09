@@ -223,8 +223,7 @@ class Point3dInitializer(NamedTuple):
             avg_track_reproj_error: reprojection error of 3d triangulated point to each image plane
                 Note: this may be "None" if the 3d point could not be triangulated successfully
                 due to a cheirality exception or insufficient number of RANSAC inlier measurements
-            is_cheirality_failure: boolean representing whether the selected 2d measurements lead
-                to a cheirality exception upon triangulation
+            the triangulation exit code
         """
         # Check if we will run RANSAC, or not.
         if self.options.mode in [
