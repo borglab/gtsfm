@@ -12,9 +12,9 @@ def test_get_average_point_color():
     track_3d = SfmTrack(triangulated_pt)
 
     # in camera 0
-    track_3d.add_measurement(idx=0, m=np.array([130, 80]))
+    track_3d.addMeasurement(idx=0, m=np.array([130, 80]))
     # in camera 1
-    track_3d.add_measurement(idx=1, m=np.array([10, 60]))
+    track_3d.addMeasurement(idx=1, m=np.array([10, 60]))
 
     img0 = np.zeros((100, 200, 3), dtype=np.uint8)
     img0[80, 130] = np.array([40, 50, 60])

@@ -140,7 +140,7 @@ def read_bal(file_path: str) -> GtsfmData:
     for i in range(num_images):
         camera = sfm_data.camera(i)
         gtsfm_data.add_camera(i, camera)
-    for j in range(sfm_data.number_tracks()):
+    for j in range(sfm_data.numberTracks()):
         gtsfm_data.add_track(sfm_data.track(j))
 
     return gtsfm_data

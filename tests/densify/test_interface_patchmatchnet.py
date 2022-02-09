@@ -86,7 +86,7 @@ class TestPatchmatchNetData(unittest.TestCase):
 
             for i in range(DEFAULT_NUM_CAMERAS):
                 uv = sfm_result.get_camera(i).project(world_x)
-                track_to_add.add_measurement(idx=i, m=uv)
+                track_to_add.addMeasurement(idx=i, m=uv)
             sfm_result.add_track(track_to_add)
 
         return sfm_result
