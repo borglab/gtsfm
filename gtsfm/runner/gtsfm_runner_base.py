@@ -119,7 +119,9 @@ class GtsfmRunnerBase:
             retriever = SequentialRetriever(num_matched=self.parsed_args.max_frame_lookahead)
 
         elif self.parsed_args.matching_regime == "sequential_with_retrieval":
-            retriever = JointNetVLADSequentialRetriever(num_matched=self.parsed_args.max_frame_lookahead)
+            retriever = JointNetVLADSequentialRetriever(
+                num_matched=self.parsed_args.num_matched, max_frame_lookahead=self.parsed_args.max_frame_lookahead
+            )
 
         sfm_result_graph = self.scene_optimizer.create_computation_graph(
             num_images=len(self.loader),
