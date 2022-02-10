@@ -70,7 +70,7 @@ class NetVLADRetriever(RetrieverBase):
             plt.savefig(os.path.join(PLOT_SAVE_DIR, "netvlad_similarity_matrix.jpg"), dpi=500)
 
         named_pairs = [(query_names[i], query_names[j]) for i, j in pairs]
-        logger.info(f"Found %d pairs from the NetVLAD Retriever.", len(pairs))
+        logger.info("Found %d pairs from the NetVLAD Retriever.", len(pairs))
         logger.info("Image Name Pairs:" + str(named_pairs))
         return pairs
 

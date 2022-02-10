@@ -38,5 +38,5 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
         seq_pairs = self._seq_retriever.run(loader)
 
         pairs = list(set(sim_pairs).union(seq_pairs))
-        logger.info(f"Found %d pairs from the NetVLAD + Sequential Retriever.", len(pairs))
+        logger.info("Found %d pairs from the NetVLAD + Sequential Retriever.", len(pairs))
         return pairs
