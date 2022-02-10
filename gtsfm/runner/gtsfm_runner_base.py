@@ -30,6 +30,7 @@ class GtsfmRunnerBase:
         self.parsed_args: argparse.Namespace = argparser.parse_args()
 
         self.loader: LoaderBase = self.construct_loader()
+        self.retriever = self.construct_retriever()
         self.scene_optimizer: SceneOptimizer = self.construct_scene_optimizer()
 
     def construct_argparser(self) -> argparse.ArgumentParser:
@@ -105,10 +106,8 @@ class GtsfmRunnerBase:
 
         return scene_optimizer
 
-    def run(self) -> None:
-        """Run the SceneOptimizer."""
-        start_time = time.time()
-
+    def construct_retriever(self):
+        """Set up retriever module."""
         if self.parsed_args.matching_regime == "exhaustive":
             retriever = SequentialRetriever(max_frame_lookahead=MAX_POSSIBLE_FRAME_LOOKAHEAD)
 
@@ -122,10 +121,15 @@ class GtsfmRunnerBase:
             retriever = JointNetVLADSequentialRetriever(
                 num_matched=self.parsed_args.num_matched, max_frame_lookahead=self.parsed_args.max_frame_lookahead
             )
+        return retriever
+
+    def run(self) -> None:
+        """Run the SceneOptimizer."""
+        start_time = time.time()
 
         sfm_result_graph = self.scene_optimizer.create_computation_graph(
             num_images=len(self.loader),
-            image_pair_indices=retriever.run(self.loader),
+            image_pair_indices=self.retriever.run(self.loader),
             image_graph=self.loader.create_computation_graph_for_images(),
             camera_intrinsics_graph=self.loader.create_computation_graph_for_intrinsics(),
             image_shape_graph=self.loader.create_computation_graph_for_image_shapes(),
