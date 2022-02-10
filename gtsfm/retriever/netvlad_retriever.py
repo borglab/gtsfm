@@ -40,6 +40,7 @@ class NetVLADRetriever(RetrieverBase):
         self._num_matched = num_matched
         self._global_descriptor_model = GlobalDescriptorCacher(global_descriptor_obj=NetVLADGlobalDescriptor())
         self._blocksize = blocksize
+        self._min_score = 0.5
 
     def run(self, loader: LoaderBase, visualize: bool = True) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
@@ -59,7 +60,9 @@ class NetVLADRetriever(RetrieverBase):
         # Avoid self-matching and disallow lower triangular portion
         is_invalid_mat = ~np.triu(np.ones((num_images, num_images), dtype=bool))
         np.fill_diagonal(a=is_invalid_mat, val=True)
-        pairs = pairs_from_score_matrix(sim, invalid=is_invalid_mat, num_select=self._num_matched, min_score=0)
+        pairs = pairs_from_score_matrix(
+            sim, invalid=is_invalid_mat, num_select=self._num_matched, min_score=self._min_score
+        )
 
         if visualize:
             plt.imshow(np.triu(sim.detach().cpu().numpy()))
