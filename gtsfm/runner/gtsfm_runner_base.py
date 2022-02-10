@@ -110,7 +110,7 @@ class GtsfmRunnerBase:
         start_time = time.time()
 
         if self.parsed_args.matching_regime == "exhaustive":
-            retriever = SequentialRetriever(num_matched=MAX_POSSIBLE_FRAME_LOOKAHEAD)
+            retriever = SequentialRetriever(max_frame_lookahead=MAX_POSSIBLE_FRAME_LOOKAHEAD)
 
         elif self.parsed_args.matching_regime == "retrieval":
             retriever = NetVLADRetriever(num_matched=self.parsed_args.num_matched)
