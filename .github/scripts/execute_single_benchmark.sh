@@ -120,11 +120,16 @@ function download_and_unzip_dataset_files {
 
     mkdir -p cache/detector_descriptor
     mkdir -p cache/matcher
+    mkdir -p cache/global_descriptor
     wget https://github.com/johnwlambert/gtsfm-cache/releases/download/skydio-501-lookahead50-deep-front-end-cache/skydio-501-lookahead50-deep-front-end-cache.tar.gz
     mkdir skydio-501-cache
     tar -xvzf skydio-501-lookahead50-deep-front-end-cache.tar.gz --directory skydio-501-cache
     cp skydio-501-cache/cache/detector_descriptor/* cache/detector_descriptor/
     cp skydio-501-cache/cache/matcher/* cache/matcher/
+
+    wget https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/skydio-500-global-descriptor/global_descriptor_skydio_500.zip
+    unzip -qq global_descriptor_skydio_500.zip
+    mv global_descriptor_skydio_500/* cache/global_descriptor/
 
   elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
     COLMAP_FILES_DIRPATH=notre-dame-20/notre-dame-20-colmap
@@ -180,6 +185,7 @@ elif [ "$LOADER_NAME" == "colmap-loader" ]; then
   --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
   --config_name ${CONFIG_NAME}.yaml \
   --max_resolution ${MAX_RESOLUTION} \
+  --matching_regime sequential_with_retrieval \
   ${SHARE_INTRINSICS_ARG}
 
 elif [ "$LOADER_NAME" == "astronet" ]; then
@@ -188,5 +194,6 @@ elif [ "$LOADER_NAME" == "astronet" ]; then
   --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
   --config_name ${CONFIG_NAME}.yaml \
   --max_resolution ${MAX_RESOLUTION} \
+  --matching_regime sequential_with_retrieval \
   ${SHARE_INTRINSICS_ARG}
 fi
