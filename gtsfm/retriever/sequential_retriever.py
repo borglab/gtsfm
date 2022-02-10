@@ -14,6 +14,13 @@ logger = logger_utils.get_logger()
 
 
 class SequentialRetriever(RetrieverBase):
+    def __init__(self, max_frame_lookahead: int) -> None:
+        """
+        Args:
+            max_frame_lookahead: 
+        """
+        self._max_frame_lookahead = max_frame_lookahead
+
     def run(self, loader: LoaderBase) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 
@@ -31,7 +38,7 @@ class SequentialRetriever(RetrieverBase):
             for i2 in range(num_images):
                 if i1 >= i2:
                     continue
-                if (i2 - i1) > self._num_matched:
+                if (i2 - i1) > self._max_frame_lookahead:
                     continue
                 pairs.append((i1, i2))
 

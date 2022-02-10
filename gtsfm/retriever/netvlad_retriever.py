@@ -41,9 +41,7 @@ class NetVLADRetriever(RetrieverBase):
         self._global_descriptor_model = GlobalDescriptorCacher(global_descriptor_obj=NetVLADGlobalDescriptor())
         self._blocksize = blocksize
 
-    def run(
-        self, loader: LoaderBase, visualize: bool = True
-    ) -> List[Tuple[int, int]]:
+    def run(self, loader: LoaderBase, visualize: bool = True) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 
         Args:
@@ -67,6 +65,12 @@ class NetVLADRetriever(RetrieverBase):
             plt.imshow(np.triu(sim.detach().cpu().numpy()))
             os.makedirs(PLOT_SAVE_DIR, exist_ok=True)
             plt.title("Image Similarity Matrix")
+            np.savetxt(
+                fname=os.path.join(PLOT_SAVE_DIR, "netvlad_similarity_matrix.txt"),
+                X=sim.detach().cpu().numpy(),
+                fmt="%.2f",
+                delimiter=",",
+            )
             plt.savefig(os.path.join(PLOT_SAVE_DIR, "netvlad_similarity_matrix.jpg"), dpi=500)
 
         named_pairs = [(query_names[i], query_names[j]) for i, j in pairs]

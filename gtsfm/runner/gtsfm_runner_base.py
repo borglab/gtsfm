@@ -116,7 +116,7 @@ class GtsfmRunnerBase:
             retriever = NetVLADRetriever(num_matched=self.parsed_args.num_matched)
 
         elif self.parsed_args.matching_regime == "sequential":
-            retriever = SequentialRetriever(num_matched=self.parsed_args.max_frame_lookahead)
+            retriever = SequentialRetriever(max_frame_lookahead=self.parsed_args.max_frame_lookahead)
 
         elif self.parsed_args.matching_regime == "sequential_with_retrieval":
             retriever = JointNetVLADSequentialRetriever(
