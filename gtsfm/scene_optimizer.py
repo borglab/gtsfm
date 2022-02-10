@@ -419,7 +419,9 @@ def save_full_frontend_metrics(
                 "i2_filename": images[i2].file_name,
                 "rotation_angular_error": round_fn(report.R_error_deg),
                 "translation_angular_error": round_fn(report.U_error_deg),
-                "num_inliers_gt_model": int(report.num_inliers_gt_model),
+                "num_inliers_gt_model": int(report.num_inliers_gt_model)
+                if report.num_inliers_gt_model is not None
+                else None,
                 "inlier_ratio_gt_model": round_fn(report.inlier_ratio_gt_model),
                 "inlier_avg_reproj_error_gt_model": round_fn(
                     np.nanmean(report.reproj_error_gt_model[report.v_corr_idxs_inlier_mask_gt])
@@ -432,7 +434,9 @@ def save_full_frontend_metrics(
                 if report.reproj_error_gt_model is not None and report.v_corr_idxs_inlier_mask_gt is not None
                 else None,
                 "inlier_ratio_est_model": round_fn(report.inlier_ratio_est_model),
-                "num_inliers_est_model": int(report.num_inliers_est_model),
+                "num_inliers_est_model": int(report.num_inliers_est_model)
+                if report.num_inliers_est_model is not None
+                else None,
             }
         )
 
