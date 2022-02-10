@@ -2,6 +2,7 @@
 
 Note: Similarity computation based off of Paul-Edouard Sarlin's HLOC:
 Reference: https://github.com/cvg/Hierarchical-Localization/blob/master/hloc/pairs_from_retrieval.py
+https://openaccess.thecvf.com/content_cvpr_2016/papers/Arandjelovic_NetVLAD_CNN_Architecture_CVPR_2016_paper.pdf
 
 Authors: John Lambert
 """
