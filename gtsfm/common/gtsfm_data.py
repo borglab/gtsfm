@@ -55,10 +55,10 @@ class GtsfmData:
             track = self.get_track(j)
             other_track = other.get_track(j)
 
-            if track.number_measurements() != other_track.number_measurements():
+            if track.numberMeasurements() != other_track.numberMeasurements():
                 return False
 
-            for k in range(track.number_measurements()):
+            for k in range(track.numberMeasurements()):
                 i, uv = track.measurement(k)
                 other_i, other_uv = other_track.measurement(k)
 
@@ -139,7 +139,7 @@ class GtsfmData:
             Flag indicating the success of adding operation.
         """
         # check if all cameras are already added
-        for j in range(track.number_measurements()):
+        for j in range(track.numberMeasurements()):
             i, _ = track.measurement(j)
 
             if i not in self._cameras:
@@ -195,7 +195,7 @@ class GtsfmData:
         if self.number_tracks() == 0:
             return np.array([], dtype=np.uint32)
 
-        track_lengths = [self.get_track(j).number_measurements() for j in range(self.number_tracks())]
+        track_lengths = [self.get_track(j).numberMeasurements() for j in range(self.number_tracks())]
         return np.array(track_lengths, dtype=np.uint32)
 
     def get_point_cloud(self) -> np.ndarray:
@@ -220,7 +220,7 @@ class GtsfmData:
         camera_edges = []
         for sfm_track in self._tracks:
             cameras_in_use = []
-            for m_idx in range(sfm_track.number_measurements()):
+            for m_idx in range(sfm_track.numberMeasurements()):
                 i, _ = sfm_track.measurement(m_idx)
                 cameras_in_use.append(i)
 
@@ -272,7 +272,7 @@ class GtsfmData:
         for j in range(gtsfm_data.number_tracks()):
             track = gtsfm_data.get_track(j)
             is_valid = True
-            for k in range(track.number_measurements()):
+            for k in range(track.numberMeasurements()):
                 i, _ = track.measurement(k)
                 if i not in new_camera_indices:
                     is_valid = False
@@ -381,7 +381,7 @@ class GtsfmData:
 
             if self.__validate_track(track, reproj_err_thresh):
                 # check if all cameras with measurement in this track have already been added
-                for k in range(track.number_measurements()):
+                for k in range(track.numberMeasurements()):
                     i, _ = track.measurement(k)
                     filtered_data.add_camera(i, self.get_camera(i))
                 filtered_data.add_track(track)
@@ -429,9 +429,9 @@ class GtsfmData:
             pt_a = aSb.transformFrom(track_b.point3())
             track_a = SfmTrack(pt_a)
             # Copy over the 2d measurements directly into the new track.
-            for k in range(track_b.number_measurements()):
+            for k in range(track_b.numberMeasurements()):
                 i, uv = track_b.measurement(k)
-                track_a.add_measurement(i, uv)
+                track_a.addMeasurement(i, uv)
             aligned_data.add_track(track_a)
 
         return aligned_data

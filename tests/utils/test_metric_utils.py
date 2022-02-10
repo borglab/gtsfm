@@ -137,32 +137,32 @@ class TestMetricUtils(unittest.TestCase):
         }
 
         t0 = SfmTrack(pt=[-0.7627727, -0.26624048, -0.11879795])
-        t0.add_measurement(2, [184.08586121, 441.31314087])
-        t0.add_measurement(4, [18.98637581, 453.21853638])
+        t0.addMeasurement(2, [184.08586121, 441.31314087])
+        t0.addMeasurement(4, [18.98637581, 453.21853638])
 
         t1 = SfmTrack(pt=[-0.76277714, -0.26603358, -0.11884205])
-        t1.add_measurement(2, [213.51266479, 288.06637573])
-        t1.add_measurement(4, [50.23059464, 229.30541992])
+        t1.addMeasurement(2, [213.51266479, 288.06637573])
+        t1.addMeasurement(4, [50.23059464, 229.30541992])
 
         t2 = SfmTrack(pt=[-0.7633115, -0.2662322, -0.11826181])
-        t2.add_measurement(2, [227.52420044, 695.15087891])
-        t2.add_measurement(3, [996.67608643, 705.03125])
+        t2.addMeasurement(2, [227.52420044, 695.15087891])
+        t2.addMeasurement(3, [996.67608643, 705.03125])
 
         t3 = SfmTrack(pt=[-0.76323087, -0.26629859, -0.11836833])
-        t3.add_measurement(2, [251.37863159, 702.97064209])
-        t3.add_measurement(3, [537.9753418, 732.26025391])
+        t3.addMeasurement(2, [251.37863159, 702.97064209])
+        t3.addMeasurement(3, [537.9753418, 732.26025391])
 
         t4 = SfmTrack(pt=[-0.70450081, -0.28115719, -0.19063382])
-        t4.add_measurement(2, [253.17749023, 490.47991943])
-        t4.add_measurement(3, [13.17782784, 507.57717896])
+        t4.addMeasurement(2, [253.17749023, 490.47991943])
+        t4.addMeasurement(3, [13.17782784, 507.57717896])
 
         t5 = SfmTrack(pt=[-0.52781989, -0.31926005, -0.40763909])
-        t5.add_measurement(2, [253.52301025, 478.41384888])
-        t5.add_measurement(3, [10.92995739, 493.31018066])
+        t5.addMeasurement(2, [253.52301025, 478.41384888])
+        t5.addMeasurement(3, [10.92995739, 493.31018066])
 
         t6 = SfmTrack(pt=[-0.74893948, -0.27132075, -0.1360136])
-        t6.add_measurement(2, [254.64611816, 533.04730225])
-        t6.add_measurement(3, [18.78449249, 557.05041504])
+        t6.addMeasurement(2, [254.64611816, 533.04730225])
+        t6.addMeasurement(3, [18.78449249, 557.05041504])
 
         aligned_tracks = [t0, t1, t2, t3, t4, t5, t6]
         aligned_filtered_data = GtsfmData.from_cameras_and_tracks(

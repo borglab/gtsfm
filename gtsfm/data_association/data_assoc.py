@@ -52,7 +52,7 @@ class DataAssociation(NamedTuple):
 
     def __validate_track(self, sfm_track: Optional[SfmTrack]) -> bool:
         """Validate the track by checking its length."""
-        return sfm_track is not None and sfm_track.number_measurements() >= self.min_track_len
+        return sfm_track is not None and sfm_track.numberMeasurements() >= self.min_track_len
 
     def run(
         self,
