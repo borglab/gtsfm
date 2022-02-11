@@ -27,6 +27,8 @@ GROUND_TRUTH_DATA: GtsfmData = io_utils.read_bal(gtsam.findExampleDataFile(GTSAM
 
 MEASUREMENTS_NOISE_STANDARD_DEVIATION = 1  # in pixels
 
+TRIANGULATION_REPROJ_ERROR_THRESHOLD = 10  # using a high value to account for random noise in input measurements
+
 TRIANGULATION_RESULT_TYPE = Tuple[Optional[SfmTrack], Optional[float], TriangulationExitCode]
 
 
@@ -36,7 +38,7 @@ class TestPoint3dInitializerNoRansac(ReproducibilityTestBase, unittest.TestCase)
     def setUp(
         self,
         triangulation_options: TriangulationOptions = TriangulationOptions(
-            reproj_error_threshold=3, mode=TriangulationSamplingMode.NO_RANSAC
+            reproj_error_threshold=TRIANGULATION_REPROJ_ERROR_THRESHOLD, mode=TriangulationSamplingMode.NO_RANSAC
         ),
     ) -> None:
         camera_dict: Dict[int, PinholeCameraCal3Bundler] = {
@@ -82,7 +84,8 @@ class TestPoint3dInitializerRansacSampleUniform(TestPoint3dInitializerNoRansac):
     def setUp(
         self,
         triangulation_options: TriangulationOptions = TriangulationOptions(
-            reproj_error_threshold=3, mode=TriangulationSamplingMode.RANSAC_SAMPLE_UNIFORM
+            reproj_error_threshold=TRIANGULATION_REPROJ_ERROR_THRESHOLD,
+            mode=TriangulationSamplingMode.RANSAC_SAMPLE_UNIFORM,
         ),
     ) -> None:
         super().setUp(triangulation_options)
@@ -99,7 +102,8 @@ class TestPoint3dInitializerRansacTopKBaselines(TestPoint3dInitializerRansacSamp
     def setUp(self) -> None:
         super().setUp(
             triangulation_options=TriangulationOptions(
-                reproj_error_threshold=3, mode=TriangulationSamplingMode.RANSAC_TOPK_BASELINES
+                reproj_error_threshold=TRIANGULATION_REPROJ_ERROR_THRESHOLD,
+                mode=TriangulationSamplingMode.RANSAC_TOPK_BASELINES,
             )
         )
 
@@ -110,6 +114,7 @@ class TestPoint3dInitializerRansacSampleBiasedBaseline(TestPoint3dInitializerRan
     def setUp(self) -> None:
         super().setUp(
             triangulation_options=TriangulationOptions(
-                reproj_error_threshold=3, mode=TriangulationSamplingMode.RANSAC_SAMPLE_BIASED_BASELINE
+                reproj_error_threshold=TRIANGULATION_REPROJ_ERROR_THRESHOLD,
+                mode=TriangulationSamplingMode.RANSAC_SAMPLE_BIASED_BASELINE,
             )
         )
