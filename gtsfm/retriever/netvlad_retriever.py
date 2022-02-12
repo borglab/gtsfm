@@ -54,6 +54,18 @@ class NetVLADRetriever(RetrieverBase):
         self._blocksize = blocksize
         self._min_score = 0.1
 
+    def create_computation_graph(self, loader: LoaderBase) -> Delayed:
+        """Compute potential image pairs.
+        
+        Args:
+            loader: image loader. The length of this loader will provide the total number of images
+                for exhaustive global descriptor matching.
+
+        Return:
+            Delayed task that evaluates to a list of (i1,i2) image pairs.
+        """
+        return self.run(loader=loader)
+
     def run(self, loader: LoaderBase, visualize: bool = True) -> Delayed:
         """Compute potential image pairs.
 
@@ -69,45 +81,6 @@ class NetVLADRetriever(RetrieverBase):
         sim = self.compute_similarity_matrix(loader, num_images)
         return dask.delayed(self.compute_pairs_from_similarity_matrix)(sim=sim, loader=loader, visualize=visualize)
 
-    def compute_pairs_from_similarity_matrix(
-        self, sim: torch.Tensor, loader: LoaderBase, visualize: bool = True
-    ) -> List[Tuple[int, int]]:
-        """
-        Args:
-            sim: tensor of shape (num_images, num_images) representing similarity matrix.
-            loader: image loader. The length of this loader will provide the total number of images
-                for exhaustive global descriptor matching.
-            visualize:
-
-        Returns:
-            pair_indices: (i1,i2) image pairs.
-        """
-        num_images = len(loader)
-        query_names = loader.image_filenames()
-        # Avoid self-matching and disallow lower triangular portion
-        is_invalid_mat = ~np.triu(np.ones((num_images, num_images), dtype=bool))
-        np.fill_diagonal(a=is_invalid_mat, val=True)
-        pairs = pairs_from_score_matrix(
-            sim, invalid=is_invalid_mat, num_select=self._num_matched, min_score=self._min_score
-        )
-
-        if visualize:
-            plt.imshow(np.triu(sim.detach().cpu().numpy()))
-            os.makedirs(PLOT_SAVE_DIR, exist_ok=True)
-            plt.title("Image Similarity Matrix")
-            np.savetxt(
-                fname=os.path.join(PLOT_SAVE_DIR, "netvlad_similarity_matrix.txt"),
-                X=sim.detach().cpu().numpy(),
-                fmt="%.2f",
-                delimiter=",",
-            )
-            plt.savefig(os.path.join(PLOT_SAVE_DIR, "netvlad_similarity_matrix.jpg"), dpi=500)
-
-        named_pairs = [(query_names[i], query_names[j]) for i, j in pairs]
-        logger.info("Found %d pairs from the NetVLAD Retriever.", len(pairs))
-        logger.info("Image Name Pairs:" + str(named_pairs))
-        return pairs
-
     def compute_similarity_matrix(self, loader: LoaderBase, num_images: int) -> Delayed:
         """Compute a similarity matrix between all pairs of images.
 
@@ -116,6 +89,11 @@ class NetVLADRetriever(RetrieverBase):
 
         A similar blocked exhaustive matching implementation can be found in COLMAP:
         https://github.com/colmap/colmap/blob/dev/src/feature/matching.cc#L899
+
+        Args:
+            loader: image loader. The length of this loader will provide the total number of images
+                for exhaustive global descriptor matching.
+            num_images: number of images to compare for matching.
 
         Returns:
             Delayed task which evaluates to a tensor of shape (num_images, num_images) representing
@@ -135,31 +113,18 @@ class NetVLADRetriever(RetrieverBase):
                     )
                 )
 
-        sim = dask.delayed(self._aggregate_subblocks)(subblock_results, num_images)
-        return sim
-
-    def _aggregate_subblocks(self, subblock_results: List[SubBlockSimilarityResult], num_images: int) -> torch.Tensor:
-        """
-        Args:
-            subblock_results:
-            num_images:
-
-        Returns:
-            sim: tensor of shape (num_images, num_images) representing similarity matrix.
-        """
-        sim = torch.zeros((num_images, num_images))
-
-        for sr in subblock_results:
-            sim[sr.i_start : sr.i_end, sr.j_start : sr.j_end] = sr.subblock
+        sim = dask.delayed(self._aggregate_subblocks)(subblock_results=subblock_results, num_images=num_images)
         return sim
 
     def _compute_similarity_subblock(self, num_images: int, loader: LoaderBase, block_i: int, block_j: int):
-        """
+        """Compute a sub-block of an image similarity matrix.
+
         Args:
-            num_images
-            loader
-            block_i
-            block_j:
+            num_images: number of images to compare for matching.
+            loader: image loader. The length of this loader will provide the total number of images
+                for exhaustive global descriptor matching.
+            block_i: row index of sub-block.
+            block_j: column index of sub-block.
 
         Returns:
             sub-block similarity result.
@@ -201,6 +166,60 @@ class NetVLADRetriever(RetrieverBase):
 
         return SubBlockSimilarityResult(i_start=i_start, i_end=i_end, j_start=j_start, j_end=j_end, subblock=sim_block)
 
+    def _aggregate_subblocks(self, subblock_results: List[SubBlockSimilarityResult], num_images: int) -> torch.Tensor:
+        """Aggregate results from many independently computed sub-blocks of the similarity matrix into a single matrix.
+
+        Args:
+            subblock_results: metadata and results of similarity matrix sub-block computation.
+            num_images: number of images to compare for matching.
+
+        Returns:
+            sim: tensor of shape (num_images, num_images) representing similarity matrix.
+        """
+        sim = torch.zeros((num_images, num_images))
+
+        for sr in subblock_results:
+            sim[sr.i_start : sr.i_end, sr.j_start : sr.j_end] = sr.subblock
+        return sim
+
+    def compute_pairs_from_similarity_matrix(
+        self, sim: torch.Tensor, loader: LoaderBase, visualize: bool = True
+    ) -> List[Tuple[int, int]]:
+        """
+        Args:
+            sim: tensor of shape (num_images, num_images) representing similarity matrix.
+            loader: image loader. The length of this loader will provide the total number of images
+                for exhaustive global descriptor matching.
+            visualize: whether to save a visual plot of the computed image similarity matrix.
+
+        Returns:
+            pair_indices: (i1,i2) image pairs.
+        """
+        num_images = len(loader)
+        query_names = loader.image_filenames()
+        # Avoid self-matching and disallow lower triangular portion
+        is_invalid_mat = ~np.triu(np.ones((num_images, num_images), dtype=bool))
+        np.fill_diagonal(a=is_invalid_mat, val=True)
+        pairs = pairs_from_score_matrix(
+            sim, invalid=is_invalid_mat, num_select=self._num_matched, min_score=self._min_score
+        )
+
+        if visualize:
+            plt.imshow(np.triu(sim.detach().cpu().numpy()))
+            os.makedirs(PLOT_SAVE_DIR, exist_ok=True)
+            plt.title("Image Similarity Matrix")
+            np.savetxt(
+                fname=os.path.join(PLOT_SAVE_DIR, "netvlad_similarity_matrix.txt"),
+                X=sim.detach().cpu().numpy(),
+                fmt="%.2f",
+                delimiter=",",
+            )
+            plt.savefig(os.path.join(PLOT_SAVE_DIR, "netvlad_similarity_matrix.jpg"), dpi=500)
+
+        named_pairs = [(query_names[i], query_names[j]) for i, j in pairs]
+        logger.info("Found %d pairs from the NetVLAD Retriever.", len(pairs))
+        logger.info("Image Name Pairs:" + str(named_pairs))
+        return pairs
 
 def pairs_from_score_matrix(
     scores: torch.Tensor, invalid: np.array, num_select: int, min_score: Optional[float] = None

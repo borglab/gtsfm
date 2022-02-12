@@ -6,6 +6,9 @@ Authors: John Lambert
 import abc
 from typing import List, Tuple
 
+import dask
+from dask.delayed import Delayed
+
 from gtsfm.loader.loader_base import LoaderBase
 
 
@@ -28,3 +31,16 @@ class RetrieverBase:
         Return:
             pair_indices: (i1,i2) image pairs.
         """
+
+    def create_computation_graph(self, loader: LoaderBase) -> Delayed:
+        """Compute potential image pairs.
+        
+        Args:
+            loader: image loader. The length of this loader will provide the total number of images
+                for exhaustive global descriptor matching.
+
+        Return:
+            Delayed task that evaluates to a list of (i1,i2) image pairs.
+        """
+        return dask.delayed(self.run)(loader=loader)
+

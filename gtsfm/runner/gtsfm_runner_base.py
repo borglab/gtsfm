@@ -132,7 +132,7 @@ class GtsfmRunnerBase:
             n_workers=self.parsed_args.num_workers, threads_per_worker=self.parsed_args.threads_per_worker
         )
 
-        pairs_graph = self.retriever.run(self.loader)
+        pairs_graph = self.retriever.create_computation_graph(self.loader)
         with Client(cluster), performance_report(filename="dask-report.html"):
             image_pair_indices = pairs_graph.compute()
 
