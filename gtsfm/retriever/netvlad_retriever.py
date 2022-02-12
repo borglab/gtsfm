@@ -40,7 +40,7 @@ class NetVLADRetriever(RetrieverBase):
         self._num_matched = num_matched
         self._global_descriptor_model = GlobalDescriptorCacher(global_descriptor_obj=NetVLADGlobalDescriptor())
         self._blocksize = blocksize
-        self._min_score = 0.5
+        self._min_score = 0.1
 
     def run(self, loader: LoaderBase, visualize: bool = True) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
@@ -144,6 +144,9 @@ def pairs_from_score_matrix(
     scores: torch.Tensor, invalid: np.array, num_select: int, min_score: Optional[float] = None
 ) -> List[Tuple[int, int]]:
     """Identify image pairs from a score matrix.
+
+    Note: Similarity computation here is based off of Paul-Edouard Sarlin's HLOC:
+    Reference: https://github.com/cvg/Hierarchical-Localization/blob/master/hloc/pairs_from_retrieval.py
 
     Args:
         scores: (K1,K2) for matching K1 images against K2 images.

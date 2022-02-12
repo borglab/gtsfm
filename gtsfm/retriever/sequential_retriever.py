@@ -35,11 +35,8 @@ class SequentialRetriever(RetrieverBase):
 
         pairs = []
         for i1 in range(num_images):
-            for i2 in range(num_images):
-                if i1 >= i2:
-                    continue
-                if (i2 - i1) > self._max_frame_lookahead:
-                    continue
+            max_i2 = min(i1 + self._max_frame_lookahead + 1, num_images)
+            for i2 in range(i1 + 1, max_i2):
                 pairs.append((i1, i2))
 
         logger.info("Found %d pairs from the SequentialRetriever", len(pairs))
