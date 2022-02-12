@@ -130,6 +130,8 @@ function download_and_unzip_dataset_files {
     wget https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/skydio-500-global-descriptor/global_descriptor_skydio_500.zip
     unzip -qq global_descriptor_skydio_500.zip
     mv global_descriptor_skydio_500/* cache/global_descriptor/
+    ls -ltrh cache/global_descriptor/ | wc -l
+    ls -ltrh cache/global_descriptor/
 
   elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
     COLMAP_FILES_DIRPATH=notre-dame-20/notre-dame-20-colmap
