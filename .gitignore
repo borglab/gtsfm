@@ -142,7 +142,7 @@ dask-report.html
 thirdparty/models/
 thirdparty/patchmatchnet/checkpoints/
 thirdparty/SuperGluePretrainedNetwork/models/weights/
-thirdparty/netvlad/weights/VGG16-NetVLAD-Pitts30K.mat
+thirdparty/hloc/weights/VGG16-NetVLAD-Pitts30K.mat
 
 # Data folder
 data/
