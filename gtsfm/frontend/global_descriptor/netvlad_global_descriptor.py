@@ -19,13 +19,13 @@ from torch import nn
 
 from gtsfm.common.image import Image
 from gtsfm.frontend.global_descriptor.global_descriptor_base import GlobalDescriptorBase
-from thirdparty.netvlad.netvlad import NetVLAD
+from thirdparty.hloc.netvlad import NetVLAD
 
 
 class NetVLADGlobalDescriptor(GlobalDescriptorBase):
     def __init__(self) -> None:
         """ """
-        self._model: nn.Module = NetVLAD()
+        pass
 
     def describe(self, image: Image) -> np.ndarray:
         """
@@ -35,8 +35,10 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
         Returns:
             img_desc: array of shape (D,) representing global image descriptor.
         """
+        model: nn.Module = NetVLAD()
+
         img_tensor = torch.from_numpy(image.value_array).permute(2,0,1).unsqueeze(0).type(torch.float32) / 255
-        img_desc = self._model({"image": img_tensor})
+        img_desc = model({"image": img_tensor})
         
         return img_desc["global_descriptor"].detach().squeeze().cpu().numpy()
 
