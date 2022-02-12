@@ -127,18 +127,22 @@ class GtsfmRunnerBase:
         """Run the SceneOptimizer."""
         start_time = time.time()
 
+        # create dask client
+        cluster = LocalCluster(
+            n_workers=self.parsed_args.num_workers, threads_per_worker=self.parsed_args.threads_per_worker
+        )
+
+        pairs_graph = self.retriever.run(self.loader)
+        with Client(cluster), performance_report(filename="dask-report.html"):
+            image_pair_indices = pairs_graph.compute()
+
         sfm_result_graph = self.scene_optimizer.create_computation_graph(
             num_images=len(self.loader),
-            image_pair_indices=self.retriever.run(self.loader),
+            image_pair_indices=image_pair_indices,
             image_graph=self.loader.create_computation_graph_for_images(),
             camera_intrinsics_graph=self.loader.create_computation_graph_for_intrinsics(),
             image_shape_graph=self.loader.create_computation_graph_for_image_shapes(),
             gt_cameras_graph=self.loader.create_computation_graph_for_cameras(),
-        )
-
-        # create dask client
-        cluster = LocalCluster(
-            n_workers=self.parsed_args.num_workers, threads_per_worker=self.parsed_args.threads_per_worker
         )
 
         with Client(cluster), performance_report(filename="dask-report.html"):

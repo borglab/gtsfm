@@ -9,12 +9,15 @@ Authors: John Lambert
 
 import math
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+import dask
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from dask.delayed import Delayed
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.loader.loader_base import LoaderBase
@@ -30,6 +33,15 @@ PLOT_SAVE_DIR = Path(__file__).parent.parent.parent / "plots"
 MAX_NUM_IMAGES = 10000
 
 
+@dataclass
+class SubBlockSimilarityResult:
+    i_start: int
+    i_end: int
+    j_start: int
+    j_end: int
+    subblock: torch.Tensor
+
+
 class NetVLADRetriever(RetrieverBase):
     def __init__(self, num_matched: int, blocksize: int = 10) -> None:
         """
@@ -42,20 +54,35 @@ class NetVLADRetriever(RetrieverBase):
         self._blocksize = blocksize
         self._min_score = 0.1
 
-    def run(self, loader: LoaderBase, visualize: bool = True) -> List[Tuple[int, int]]:
+    def run(self, loader: LoaderBase, visualize: bool = True) -> Delayed:
         """Compute potential image pairs.
 
         Args:
             loader: image loader. The length of this loader will provide the total number of images
                 for exhaustive global descriptor matching.
+            visualize:
 
         Return:
+            Delayed task which evaluates to a list of (i1,i2) image pairs.
+        """
+        num_images = len(loader)
+        sim = self.compute_similarity_matrix(loader, num_images)
+        return dask.delayed(self.compute_pairs_from_similarity_matrix)(sim=sim, loader=loader, visualize=visualize)
+
+    def compute_pairs_from_similarity_matrix(
+        self, sim: torch.Tensor, loader: LoaderBase, visualize: bool = True
+    ) -> List[Tuple[int, int]]:
+        """
+        Args:
+            sim: tensor of shape (num_images, num_images) representing similarity matrix.
+            loader: image loader. The length of this loader will provide the total number of images
+                for exhaustive global descriptor matching.
+            visualize:
+
+        Returns:
             pair_indices: (i1,i2) image pairs.
         """
         num_images = len(loader)
-
-        sim = self.compute_similarity_matrix(loader, num_images)
-
         query_names = loader.image_filenames()
         # Avoid self-matching and disallow lower triangular portion
         is_invalid_mat = ~np.triu(np.ones((num_images, num_images), dtype=bool))
@@ -81,7 +108,7 @@ class NetVLADRetriever(RetrieverBase):
         logger.info("Image Name Pairs:" + str(named_pairs))
         return pairs
 
-    def compute_similarity_matrix(self, loader: LoaderBase, num_images: int) -> torch.Tensor:
+    def compute_similarity_matrix(self, loader: LoaderBase, num_images: int) -> Delayed:
         """Compute a similarity matrix between all pairs of images.
 
         We use block matching, to avoid excessive memory usage.
@@ -91,53 +118,88 @@ class NetVLADRetriever(RetrieverBase):
         https://github.com/colmap/colmap/blob/dev/src/feature/matching.cc#L899
 
         Returns:
-            sim: tensor of shape (num_images, num_images) representing similarity matrix.
+            Delayed task which evaluates to a tensor of shape (num_images, num_images) representing
+                the similarity matrix.
         """
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-
         if num_images > MAX_NUM_IMAGES:
             raise RuntimeError("Cannot construct similarity matrix of this size.")
 
-        sim = torch.zeros((num_images, num_images))
+        subblock_results: List[Delayed] = []
         num_blocks = math.ceil(num_images / self._blocksize)
 
         for block_i in range(num_blocks):
-            for block_j in range(num_blocks):
-                # only compute the upper triangular portion of the similarity matrix.
-                if block_i > block_j:
-                    continue
-                logger.info("Computing matching block (%d/%d,%d/%d)", block_i, num_blocks - 1, block_j, num_blocks - 1)
-                block_i_query_descs = []
-                block_j_query_descs = []
+            for block_j in range(block_i + 1, num_blocks):
+                subblock_results.append(
+                    dask.delayed(self._compute_similarity_subblock)(
+                        num_images=num_images, loader=loader, block_i=block_i, block_j=block_j
+                    )
+                )
 
-                i_start = block_i * self._blocksize
-                i_end = (block_i + 1) * self._blocksize
-                i_end = min(i_end, num_images)
-
-                j_start = block_j * self._blocksize
-                j_end = (block_j + 1) * self._blocksize
-                j_end = min(j_end, num_images)
-
-                block_i_idxs = np.arange(i_start, i_end)
-                block_j_idxs = np.arange(j_start, j_end)
-
-                for i in block_i_idxs:
-                    image = loader.get_image(i)
-                    block_i_query_descs.append(self._global_descriptor_model.describe(image))
-
-                for j in block_j_idxs:
-                    image = loader.get_image(j)
-                    block_j_query_descs.append(self._global_descriptor_model.describe(image))
-
-                # Form (K,D) for K images.
-                block_i_query_descs = torch.from_numpy(np.array(block_i_query_descs))
-                block_j_query_descs = torch.from_numpy(np.array(block_j_query_descs))
-
-                # Einsum equivalent to (img_descs @ img_descs.T)
-                sim_block = torch.einsum("id,jd->ij", block_i_query_descs.to(device), block_j_query_descs.to(device))
-                sim[i_start:i_end, j_start:j_end] = sim_block
-
+        sim = dask.delayed(self._aggregate_subblocks)(subblock_results, num_images)
         return sim
+
+    def _aggregate_subblocks(self, subblock_results: List[SubBlockSimilarityResult], num_images: int) -> torch.Tensor:
+        """
+        Args:
+            subblock_results:
+            num_images:
+
+        Returns:
+            sim: tensor of shape (num_images, num_images) representing similarity matrix.
+        """
+        sim = torch.zeros((num_images, num_images))
+
+        for sr in subblock_results:
+            sim[sr.i_start : sr.i_end, sr.j_start : sr.j_end] = sr.subblock
+        return sim
+
+    def _compute_similarity_subblock(self, num_images: int, loader: LoaderBase, block_i: int, block_j: int):
+        """
+        Args:
+            num_images
+            loader
+            block_i
+            block_j:
+
+        Returns:
+            sub-block similarity result.
+        """
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        num_blocks = math.ceil(num_images / self._blocksize)
+        # only compute the upper triangular portion of the similarity matrix.
+        logger.info("Computing matching block (%d/%d,%d/%d)", block_i, num_blocks - 1, block_j, num_blocks - 1)
+        block_i_query_descs = []
+        block_j_query_descs = []
+
+        i_start = block_i * self._blocksize
+        i_end = (block_i + 1) * self._blocksize
+        i_end = min(i_end, num_images)
+
+        j_start = block_j * self._blocksize
+        j_end = (block_j + 1) * self._blocksize
+        j_end = min(j_end, num_images)
+
+        block_i_idxs = np.arange(i_start, i_end)
+        block_j_idxs = np.arange(j_start, j_end)
+
+        for i in block_i_idxs:
+            image = loader.get_image(i)
+            block_i_query_descs.append(self._global_descriptor_model.describe(image))
+
+        for j in block_j_idxs:
+            image = loader.get_image(j)
+            block_j_query_descs.append(self._global_descriptor_model.describe(image))
+
+        # Form (K,D) for K images.
+        block_i_query_descs = torch.from_numpy(np.array(block_i_query_descs))
+        block_j_query_descs = torch.from_numpy(np.array(block_j_query_descs))
+
+        # Einsum equivalent to (img_descs @ img_descs.T)
+        sim_block = torch.einsum("id,jd->ij", block_i_query_descs.to(device), block_j_query_descs.to(device))
+        # sim[i_start:i_end, j_start:j_end] = sim_block
+
+        return SubBlockSimilarityResult(i_start=i_start, i_end=i_end, j_start=j_start, j_end=j_end, subblock=sim_block)
 
 
 def pairs_from_score_matrix(
