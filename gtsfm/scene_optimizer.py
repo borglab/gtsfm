@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Tuple
 
 import dask
 import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
 from trimesh import Trimesh
 from gtsam import Pose3, Similarity3
@@ -26,6 +27,7 @@ from gtsfm.common.image import Image
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.feature_extractor import FeatureExtractor
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
+from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.two_view_estimator import (
     TwoViewEstimator,
     TwoViewEstimationReport,
@@ -113,6 +115,7 @@ class SceneOptimizer:
         image_shape_graph: List[Delayed],
         gt_cameras_graph: Optional[List[Delayed]] = None,
         gt_scene_mesh: Optional[Trimesh] = None,
+        matching_regime: ImageMatchingRegime = ImageMatchingRegime.SEQUENTIAL,
     ) -> Delayed:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
 
@@ -274,6 +277,9 @@ class SceneOptimizer:
         # forcing computation of viz tasks
         output_graph = dask.delayed(lambda x, y: (x, y))(ba_output_graph, auxiliary_graph_list)
         ba_output_graph = output_graph[0]
+
+        if matching_regime in [ImageMatchingRegime.RETRIEVAL, ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL]:
+            _save_retrieval_metrics()
 
         # return the entry with just the sfm result
         return ba_output_graph
@@ -444,3 +450,42 @@ def save_full_frontend_metrics(
 
     # Save duplicate copy of 'frontend_full.json' within React Folder.
     io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, filename), metrics_list)
+
+def _save_retrieval_metrics() -> None:
+    """Compare 2-view similarity scores with their 2-view pose errors after viewgraph estimation."""
+    sim_fpath = os.path.join(PLOT_BASE_PATH, "netvlad_similarity_matrix.txt")
+    sim = np.loadtxt(sim_fpath, delimiter=",")
+
+    json_fpath = os.path.join(METRICS_PATH, "two_view_report_VIEWGRAPH_2VIEW_REPORT.json")
+    json_data = io_utils.read_json_file(json_fpath)
+
+    sim_scores = []
+    R_errors = []
+    U_errors = []
+
+    for entry in json_data:
+        i1 = entry["i1"]
+        i2 = entry["i2"]
+        R_error = entry["rotation_angular_error"]
+        U_error = entry["translation_angular_error"]
+        sim_score = sim[i1, i2]
+
+        sim_scores.append(sim_score)
+        R_errors.append(R_error)
+        U_errors.append(U_error)
+
+    plt.scatter(sim_scores, R_errors, 10, color="r", marker=".")
+    plt.xlabel("Similarity score")
+    plt.ylabel("Rotation error w.r.t. GT (deg.)")
+    plt.savefig(os.path.join(PLOT_BASE_PATH, "gt_rot_error_vs_similarity_score.jpg"), dpi=500)
+
+    plt.scatter(sim_scores, U_errors, 10, color="r", marker=".")
+    plt.xlabel("Similarity score")
+    plt.ylabel("Translation direction error w.r.t. GT (deg.)")
+    plt.savefig(os.path.join(PLOT_BASE_PATH, "gt_trans_error_vs_similarity_score.jpg"), dpi=500)
+
+    pose_errors = np.maximum(np.array(R_errors), np.array(U_errors))
+    plt.scatter(sim_scores, pose_errors, 10, color="r", marker=".")
+    plt.xlabel("Similarity score")
+    plt.ylabel("Pose error w.r.t. GT (deg.)")
+    plt.savefig(os.path.join(PLOT_BASE_PATH, "gt_pose_error_vs_similarity_score.jpg"), dpi=500)
