@@ -217,7 +217,10 @@ class SceneOptimizer:
         for tag, report_dict in two_view_reports_dict.items():
             auxiliary_graph_list.append(
                 dask.delayed(save_full_frontend_metrics)(
-                    report_dict, image_graph, filename="two_view_report_{}.json".format(tag)
+                    report_dict,
+                    image_graph,
+                    filename="two_view_report_{}.json".format(tag),
+                    matching_regime=matching_regime,
                 )
             )
             if gt_cameras_graph is not None:
@@ -277,9 +280,6 @@ class SceneOptimizer:
         # forcing computation of viz tasks
         output_graph = dask.delayed(lambda x, y: (x, y))(ba_output_graph, auxiliary_graph_list)
         ba_output_graph = output_graph[0]
-
-        if matching_regime in [ImageMatchingRegime.RETRIEVAL, ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL]:
-            _save_retrieval_metrics()
 
         # return the entry with just the sfm result
         return ba_output_graph
@@ -401,7 +401,10 @@ def save_metrics_reports(metrics_graph_list: Delayed) -> List[Delayed]:
 
 
 def save_full_frontend_metrics(
-    two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport], images: List[Image], filename: str
+    two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
+    images: List[Image],
+    filename: str,
+    matching_regime: ImageMatchingRegime,
 ) -> None:
     """Converts the TwoViewEstimationReports for all image pairs to a Dict and saves it as JSON.
 
@@ -451,7 +454,14 @@ def save_full_frontend_metrics(
     # Save duplicate copy of 'frontend_full.json' within React Folder.
     io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, filename), metrics_list)
 
-def _save_retrieval_metrics() -> None:
+    if matching_regime not in [ImageMatchingRegime.RETRIEVAL, ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL]:
+        return
+    if "VIEWGRAPH_2VIEW_REPORT" in filename:
+        # must come after two-view report file is written to disk in the Dask dependency graph.
+        _save_retrieval_two_view_metrics()
+
+
+def _save_retrieval_two_view_metrics() -> None:
     """Compare 2-view similarity scores with their 2-view pose errors after viewgraph estimation."""
     sim_fpath = os.path.join(PLOT_BASE_PATH, "netvlad_similarity_matrix.txt")
     sim = np.loadtxt(sim_fpath, delimiter=",")
