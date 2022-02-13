@@ -488,14 +488,17 @@ def _save_retrieval_two_view_metrics() -> None:
     plt.xlabel("Similarity score")
     plt.ylabel("Rotation error w.r.t. GT (deg.)")
     plt.savefig(os.path.join(PLOT_BASE_PATH, "gt_rot_error_vs_similarity_score.jpg"), dpi=500)
+    plt.close("all")
 
     plt.scatter(sim_scores, U_errors, 10, color="r", marker=".")
     plt.xlabel("Similarity score")
     plt.ylabel("Translation direction error w.r.t. GT (deg.)")
     plt.savefig(os.path.join(PLOT_BASE_PATH, "gt_trans_error_vs_similarity_score.jpg"), dpi=500)
+    plt.close("all")
 
     pose_errors = np.maximum(np.array(R_errors), np.array(U_errors))
     plt.scatter(sim_scores, pose_errors, 10, color="r", marker=".")
     plt.xlabel("Similarity score")
     plt.ylabel("Pose error w.r.t. GT (deg.)")
     plt.savefig(os.path.join(PLOT_BASE_PATH, "gt_pose_error_vs_similarity_score.jpg"), dpi=500)
+    plt.close("all")
