@@ -19,6 +19,7 @@ class ImageMatchingRegime(str, Enum):
     EXHAUSTIVE: str = "exhaustive"
     SEQUENTIAL_WITH_RETRIEVAL: str = "sequential_with_retrieval"
 
+
 class RetrieverBase:
     def __init__(self, num_matched: int = 2) -> None:
         """
@@ -30,7 +31,7 @@ class RetrieverBase:
     @abc.abstractmethod
     def run(loader: LoaderBase) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
-        
+
         Args:
             loader: image loader. The length of this loader will provide the total number of images
                 for exhaustive global descriptor matching.
@@ -41,7 +42,7 @@ class RetrieverBase:
 
     def create_computation_graph(self, loader: LoaderBase) -> Delayed:
         """Compute potential image pairs.
-        
+
         Args:
             loader: image loader. The length of this loader will provide the total number of images
                 for exhaustive global descriptor matching.
@@ -50,4 +51,3 @@ class RetrieverBase:
             Delayed task that evaluates to a list of (i1,i2) image pairs.
         """
         return dask.delayed(self.run)(loader=loader)
-

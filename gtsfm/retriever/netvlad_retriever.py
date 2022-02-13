@@ -56,7 +56,7 @@ class NetVLADRetriever(RetrieverBase):
 
     def create_computation_graph(self, loader: LoaderBase) -> Delayed:
         """Compute potential image pairs.
-        
+
         Args:
             loader: image loader. The length of this loader will provide the total number of images
                 for exhaustive global descriptor matching.
@@ -221,6 +221,7 @@ class NetVLADRetriever(RetrieverBase):
         logger.info("Found %d pairs from the NetVLAD Retriever.", len(pairs))
         logger.info("Image Name Pairs:" + str(named_pairs))
         return pairs
+
 
 def pairs_from_score_matrix(
     scores: torch.Tensor, invalid: np.array, num_select: int, min_score: Optional[float] = None
