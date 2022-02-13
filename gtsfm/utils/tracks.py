@@ -73,7 +73,7 @@ def cast_3dtrack_to_2dtrack(track_3d: SfmTrack) -> "SfmTrack2d":
     Returns:
         A 2d track with measurements from track_3d.
     """
-    num_measurements = track_3d.number_measurements()
+    num_measurements = track_3d.numberMeasurements()
 
     measurements: List[SfmMeasurement] = []
     for k in range(num_measurements):

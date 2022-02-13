@@ -108,7 +108,7 @@ class PatchmatchNetData(Dataset):
 
         for j in range(num_tracks):
             track = self._sfm_result.get_track(j)
-            num_measurements = track.number_measurements()
+            num_measurements = track.numberMeasurements()
             measurements = [track.measurement(k) for k in range(num_measurements)]
             wtj = track.point3()
             for k1 in range(num_measurements):

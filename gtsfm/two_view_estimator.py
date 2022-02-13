@@ -118,8 +118,8 @@ class TwoViewEstimator:
                     camera_set, track_2d, rank_tol=SVD_DLT_RANK_TOL, optimize=False
                 )
                 track_3d = SfmTrack(triangulated_pt)
-                track_3d.add_measurement(0, track_2d[0])
-                track_3d.add_measurement(1, track_2d[1])
+                track_3d.addMeasurement(0, track_2d[0])
+                track_3d.addMeasurement(1, track_2d[1])
                 tracks_3d.append(track_3d)
             except RuntimeError:
                 pass

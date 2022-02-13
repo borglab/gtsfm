@@ -154,7 +154,7 @@ class TestAstroNetLoader(unittest.TestCase):
         for idx in range(len(TEST_SFMTRACKS_INDICES)):
             sfmtrack = self.loader.get_sfmtrack(TEST_SFMTRACKS_INDICES[idx])
             sfmtrack_measurements = [
-                sfmtrack.measurement(image_idx)[1].flatten() for image_idx in range(sfmtrack.number_measurements())
+                sfmtrack.measurement(image_idx)[1].flatten() for image_idx in range(sfmtrack.numberMeasurements())
             ]
             point3d = self.points3d[TEST_POINT3D_IDS[idx]]
             astronet_measurements = [
@@ -171,7 +171,7 @@ class TestAstroNetLoader(unittest.TestCase):
         uvs_measured, uvs_expected = [], []
         for idx_sfmtrack in TEST_SFMTRACKS_INDICES:
             sfmtrack = self.loader.get_sfmtrack(idx_sfmtrack)
-            for idx_meas in range(sfmtrack.number_measurements()):
+            for idx_meas in range(sfmtrack.numberMeasurements()):
                 image_id, uv_measured = sfmtrack.measurement(idx_meas)
                 cal3 = self.loader.get_camera_intrinsics(image_id)
                 wTi = self.loader.get_camera_pose(image_id)

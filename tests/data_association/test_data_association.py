@@ -293,7 +293,7 @@ class TestDataAssociation(GtsamTestCase):
 
         for k in range(expected_sfm_data.number_tracks()):
             assert (
-                expected_sfm_data.get_track(k).number_measurements() == dask_sfm_data.get_track(k).number_measurements()
+                expected_sfm_data.get_track(k).numberMeasurements() == dask_sfm_data.get_track(k).numberMeasurements()
             ), "Dask tracks incorrect"
             # Test if the measurement in both are equal
             np.testing.assert_array_almost_equal(
