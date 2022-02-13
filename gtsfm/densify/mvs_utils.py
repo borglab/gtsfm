@@ -14,6 +14,9 @@ from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.utils import ellipsoid as ellipsoid_utils
 from gtsfm.utils import geometry_comparisons as geometry_utils
 
+# epsilon, added to denominator to prevent division by zero.
+EPS = 1e-12
+
 
 def calculate_triangulation_angle_in_degrees(
     camera_1: PinholeCameraCal3Bundler, camera_2: PinholeCameraCal3Bundler, point_3d: np.ndarray
@@ -276,7 +279,9 @@ def get_voxel_downsampling_metrics(
         GtsfmMetric(name="point cloud size after downsampling", data=downsampled_point_cloud.shape[0])
     )
     downsampling_metrics.append(
-        GtsfmMetric(name="compression ratio", data=original_point_cloud.shape[0] / downsampled_point_cloud.shape[0])
+        GtsfmMetric(
+            name="compression ratio", data=original_point_cloud.shape[0] / (downsampled_point_cloud.shape[0] + EPS)
+        )
     )
     downsampling_metrics.append(GtsfmMetric(name="downsampling PSNR", data=psnr))
 
