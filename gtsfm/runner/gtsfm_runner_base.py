@@ -12,6 +12,7 @@ from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.scene_optimizer import SceneOptimizer
 
+from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.retriever.joint_netvlad_sequential_retriever import JointNetVLADSequentialRetriever
 from gtsfm.retriever.netvlad_retriever import NetVLADRetriever
 from gtsfm.retriever.sequential_retriever import SequentialRetriever
@@ -108,16 +109,18 @@ class GtsfmRunnerBase:
 
     def construct_retriever(self):
         """Set up retriever module."""
-        if self.parsed_args.matching_regime == "exhaustive":
+        matching_regime = ImageMatchingRegime(self.parsed_args.matching_regime)
+
+        if matching_regime == ImageMatchingRegime.EXHAUSTIVE:
             retriever = SequentialRetriever(max_frame_lookahead=MAX_POSSIBLE_FRAME_LOOKAHEAD)
 
-        elif self.parsed_args.matching_regime == "retrieval":
+        elif matching_regime == ImageMatchingRegime.RETRIEVAL:
             retriever = NetVLADRetriever(num_matched=self.parsed_args.num_matched)
 
-        elif self.parsed_args.matching_regime == "sequential":
+        elif matching_regime == ImageMatchingRegime.SEQUENTIAL:
             retriever = SequentialRetriever(max_frame_lookahead=self.parsed_args.max_frame_lookahead)
 
-        elif self.parsed_args.matching_regime == "sequential_with_retrieval":
+        elif matching_regime == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL:
             retriever = JointNetVLADSequentialRetriever(
                 num_matched=self.parsed_args.num_matched, max_frame_lookahead=self.parsed_args.max_frame_lookahead
             )
@@ -143,6 +146,7 @@ class GtsfmRunnerBase:
             camera_intrinsics_graph=self.loader.create_computation_graph_for_intrinsics(),
             image_shape_graph=self.loader.create_computation_graph_for_image_shapes(),
             gt_cameras_graph=self.loader.create_computation_graph_for_cameras(),
+            matching_regime=ImageMatchingRegime(self.parsed_args.matching_regime),
         )
 
         with Client(cluster), performance_report(filename="dask-report.html"):

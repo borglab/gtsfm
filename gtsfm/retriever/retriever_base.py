@@ -4,6 +4,7 @@ Authors: John Lambert
 """
 
 import abc
+from enum import Enum
 from typing import List, Tuple
 
 import dask
@@ -11,6 +12,12 @@ from dask.delayed import Delayed
 
 from gtsfm.loader.loader_base import LoaderBase
 
+
+class ImageMatchingRegime(str, Enum):
+    SEQUENTIAL: str = "sequential"
+    RETRIEVAL: str = "retrieval"
+    EXHAUSTIVE: str = "exhaustive"
+    SEQUENTIAL_WITH_RETRIEVAL: str = "sequential_with_retrieval"
 
 class RetrieverBase:
     def __init__(self, num_matched: int = 2) -> None:

@@ -106,7 +106,7 @@ class NetVLADRetriever(RetrieverBase):
         num_blocks = math.ceil(num_images / self._blocksize)
 
         for block_i in range(num_blocks):
-            for block_j in range(block_i + 1, num_blocks):
+            for block_j in range(block_i, num_blocks):
                 subblock_results.append(
                     dask.delayed(self._compute_similarity_subblock)(
                         num_images=num_images, loader=loader, block_i=block_i, block_j=block_j

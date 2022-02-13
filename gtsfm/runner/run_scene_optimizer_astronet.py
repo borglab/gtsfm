@@ -58,13 +58,16 @@ class GtsfmRunnerAstronetLoader(GtsfmRunnerBase):
         )
 
         with Client(cluster) as client, performance_report(filename="dask-report.html"):
+            pairs_graph = self.retriever.create_computation_graph(self.loader)
+            image_pair_indices = pairs_graph.compute()
+
             # Scatter surface mesh across all nodes to preserve computation time and memory.
             gt_scene_trimesh_future = client.scatter(self.loader.gt_scene_trimesh, broadcast=True)
 
             # Prepare computation graph.
             sfm_result_graph = self.scene_optimizer.create_computation_graph(
                 num_images=len(self.loader),
-                image_pair_indices=self.retriever.run(self.loader),
+                image_pair_indices=image_pair_indices,
                 image_graph=self.loader.create_computation_graph_for_images(),
                 camera_intrinsics_graph=self.loader.create_computation_graph_for_intrinsics(),
                 image_shape_graph=self.loader.create_computation_graph_for_image_shapes(),
