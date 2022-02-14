@@ -70,8 +70,8 @@ class TestPoint3dInitializerNoRansac(ReproducibilityTestBase, unittest.TestCase)
         self.assertIsNotNone(track3d_a)
         self.assertIsNotNone(track3d_b)
         np.testing.assert_allclose(track3d_a.point3(), track3d_b.point3())
-        self.assertEqual(track3d_a.number_measurements(), track3d_b.number_measurements())
-        for measurement_idx in range(track3d_a.number_measurements()):
+        self.assertEqual(track3d_a.numberMeasurements(), track3d_b.numberMeasurements())
+        for measurement_idx in range(track3d_a.numberMeasurements()):
             measurement_a: Tuple[int, np.ndarray] = track3d_a.measurement(measurement_idx)
             measurement_b: Tuple[int, np.ndarray] = track3d_b.measurement(measurement_idx)
             self.assertEqual(measurement_a[0], measurement_b[0])
