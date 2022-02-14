@@ -202,10 +202,7 @@ class GtsfmData:
         """Return a (N,3) array representing the sparse 3d point cloud. However, NaN points are removed."""
 
         N = self.number_tracks()
-        points = np.zeros((N, 3))
-        for j in range(N):
-            points[j] = self.get_track(j).point3()
-
+        points = np.array([self.get_track(j).point3() for j in range(N)])
         sums = np.sum(points, axis=1)
         valid = ~np.isnan(sums)
         return points[valid]

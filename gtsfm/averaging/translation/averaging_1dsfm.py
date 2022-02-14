@@ -60,20 +60,23 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         self,
         robust_measurement_noise: bool = True,
         projection_sampling_method: ProjectionSamplingMethod = ProjectionSamplingMethod.SAMPLE_WITH_UNIFORM_DENSITY,
-        perform_outlier_rejection: bool = True
+        reject_outliers: bool = True
     ) -> None:
         """Initializes the 1DSFM averaging instance.
 
         Args:
             robust_measurement_noise: Whether to use a robust noise model for the measurements, defaults to true.
             projection_sampling_method: ProjectionSamplingMethod to be used for directions to run 1DSfM.
+            reject_outliers: whether to perform outlier rejection. In general, outlier rejection is a good idea,
+                except when we are running translation averaging only to compare global estimates vs. local
+                measurements (e.g. in a 3-view case).
         """
         super().__init__(robust_measurement_noise)
 
         self._max_1dsfm_projection_directions = MAX_PROJECTION_DIRECTIONS
         self._outlier_weight_threshold = OUTLIER_WEIGHT_THRESHOLD
         self._projection_sampling_method = projection_sampling_method
-        self._perform_outlier_rejection = perform_outlier_rejection
+        self._reject_outliers = reject_outliers
 
     def __sample_projection_directions(
         self,
@@ -174,7 +177,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             i2Ui1_dict, wRi_list, noise_model
         )
 
-        if self._perform_outlier_rejection:
+        if self._reject_outliers:
             inlier_idxs: Set[Tuple[int, int]] = self.compute_inlier_mask(w_i2Ui1_measurements)
         else:
             # treat all as inliers

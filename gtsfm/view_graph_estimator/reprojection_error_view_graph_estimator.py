@@ -100,7 +100,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
         """ """
         self._registration_method = registration_method
         self._rot_avg_module = ShonanRotationAveraging()
-        self._trans_avg_module = TranslationAveraging1DSFM(robust_measurement_noise=True, perform_outlier_rejection=False)
+        self._trans_avg_module = TranslationAveraging1DSFM(robust_measurement_noise=True, reject_outliers=False)
 
         # TODO: could limit to length 3 tracks.
         self._data_association_module = DataAssociation(
@@ -354,7 +354,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
 
         for (i1,i2) in i2Ri1_dict.keys():
             if wRi_list[i1] is None or wRi_list[i2] is None:
-                print("Shonan missing an optimized pose!")
+                logger.info("Shonan missing an optimized pose!")
                 return self._triplet_failure_result
 
         wti_list, ta_metrics = self._trans_avg_module.run(num_images, i2Ui1_dict, wRi_list, gt_wTi_list=gt_wTi_list)
@@ -383,7 +383,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
 
         for (i1,i2) in i2Ri1_dict.keys():
             if wTi_list[i1] is None or wTi_list[i2] is None:
-                print("Missing an optimized pose!")
+                logger.info("Missing an optimized pose after RA and TA!")
                 return TripletOptimizationReport(triplet=triplet)
 
         if visualize:
@@ -437,10 +437,10 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
         max_rot_discrepancy = max(relative_rot_discrepancies)
         max_trans_discrepancy = max(relative_trans_discrepancies)
 
-        is_failure = min_tri_angle < MIN_ALLOWED_TRI_ANGLE_DEG \
-                     or support < MIN_ALLOWED_SUPPORT \
+        is_failure = support < MIN_ALLOWED_SUPPORT \
                      or max_rot_discrepancy > MAX_ALLOWED_ROT_DISCREPANCY_DEG \
                      or max_trans_discrepancy > MAX_ALLOWED_TRANS_DISCREPANCY_DEG
+                     # min_tri_angle < MIN_ALLOWED_TRI_ANGLE_DEG \
         is_success = not is_failure
         if is_failure:
             print("REJECT!")
