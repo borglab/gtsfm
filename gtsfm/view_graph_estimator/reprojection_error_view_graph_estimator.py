@@ -13,7 +13,6 @@ from enum import Enum
 from types import SimpleNamespace
 from typing import Dict, List, Optional, Set, Tuple
 
-import dask
 import matplotlib.pyplot as plt
 import numpy as np
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3
@@ -27,7 +26,6 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 from gtsfm.averaging.rotation.shonan import ShonanRotationAveraging
 from gtsfm.averaging.translation.averaging_1dsfm import TranslationAveraging1DSFM
-from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.data_association.data_assoc import DataAssociation
 from gtsfm.data_association.point3d_initializer import TriangulationOptions, TriangulationSamplingMode
@@ -51,9 +49,9 @@ SUPPORT_CUTOFF_REPROJ_THRESHOLD_PX = 20
 
 @dataclass
 class TripletOptimizationReport:
-    """
-    """
-    triplet: Tuple[int,int,int]
+    """ """
+
+    triplet: Tuple[int, int, int]
     is_success: bool = False
     min_tri_angle: float = np.nan
     support: int = np.nan
@@ -64,15 +62,15 @@ class TripletOptimizationReport:
 
     @property
     def i0(self) -> int:
-        return triplet[0]
+        return self.triplet[0]
 
     @property
     def i1(self) -> int:
-        return triplet[1]
+        return self.triplet[1]
 
     @property
     def i2(self) -> int:
-        return triplet[2]
+        return self.triplet[2]
 
 
 class ThreeViewRegistrationMethod(str, Enum):
@@ -122,7 +120,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
         keypoints: List[Keypoints],
         two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
         cameras_gt: Optional[List[PinholeCameraCal3Bundler]] = None,
-        images = None,
+        images=None,
     ) -> Set[Tuple[int, int]]:
         """Estimates the view graph using the rotation consistency constraint in a cycle of 3 edges.
 
@@ -138,13 +136,13 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
         Returns:
             Edges of the view-graph, which are the subset of the image pairs in the input args.
         """
-        
+
         triplets_graph = self.estimate_triplets(i2Ri1_dict=i2Ri1_dict)
 
         # TODO: cannot loop over triplets to parallelize this, because we do not know its size (single Delayed object).
         triplet_reports_dict = {}
         for triplet_idx, triplet in enumerate(triplets_graph):  # sort order guaranteed
-            print(f"On Triplet {triplet_idx}/{len(triplets_graph)}") 
+            print(f"On Triplet {triplet_idx}/{len(triplets_graph)}")
             triplet_reports_dict[triplet] = self.process_triplet(
                 triplet=triplet,
                 i2Ri1_dict=i2Ri1_dict,
@@ -154,15 +152,14 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
                 keypoints=keypoints,
                 two_view_reports=two_view_reports,
                 cameras_gt=cameras_gt,
-                images=images
+                images=images,
             )
 
         self.__save_plots(triplet_reports_dict)
         valid_edges = self.aggregate_valid_edges(triplet_reports_dict)
         return valid_edges
 
-
-    def estimate_triplets(self, i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int,int,int]]:
+    def estimate_triplets(self, i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int, int, int]]:
         """ """
         logger.info("Input number of edges: %d" % len(i2Ri1_dict))
         input_edges: List[Tuple[int, int]] = i2Ri1_dict.keys()
@@ -173,12 +170,10 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
 
         return triplets
 
-
-    def aggregate_valid_edges(self, triplet_reports_dict: Dict[Tuple[int,int,int], TripletOptimizationReport]):
-        """
-        """
+    def aggregate_valid_edges(self, triplet_reports_dict: Dict[Tuple[int, int, int], TripletOptimizationReport]):
+        """ """
         valid_edges = set()
-        for (i0,i1,i2), report in triplet_reports_dict.items():
+        for (i0, i1, i2), report in triplet_reports_dict.items():
             if not report.is_success:
                 continue
             valid_edges.add((i0, i1))
@@ -187,10 +182,9 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
 
         return valid_edges
 
-
     def process_triplet(
         self,
-        triplet: Tuple[int,int,int],
+        triplet: Tuple[int, int, int],
         i2Ri1_dict: Dict[Tuple[int, int], Rot3],
         i2Ui1_dict: Dict[Tuple[int, int], Unit3],
         calibrations: List[Cal3Bundler],
@@ -198,7 +192,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
         keypoints: List[Keypoints],
         two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
         cameras_gt: Optional[List[PinholeCameraCal3Bundler]] = None,
-        images = None,
+        images=None,
     ) -> TripletOptimizationReport:
         """ """
         if triplet is None:
@@ -232,7 +226,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
                 keypoints_list=keypoints,
                 two_view_reports=two_view_reports,
                 cameras_gt=cameras_gt,
-                images=images
+                images=images,
             )
             end = time.time()
             duration = end - start
@@ -253,8 +247,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
 
         return triplet_report
 
-
-    def __save_plots(self, triplet_reports_dict: Dict[Tuple[int,int,int], TripletOptimizationReport]) -> None:
+    def __save_plots(self, triplet_reports_dict: Dict[Tuple[int, int, int], TripletOptimizationReport]) -> None:
         """Save information about proxy error metric vs. GT error metric."""
 
         support_per_triplet = []
@@ -272,14 +265,19 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
             max_rot_discrepancy_per_triplet.append(triplet_report.max_rot_discrepancy_deg)
             max_trans_discrepancy_per_triplet.append(triplet_report.max_trans_discrepancy_deg)
             is_success_per_triplet.append(triplet_report.is_success)
-            
+
             max_gt_rot_error_in_cycle.append(triplet_report.max_rot_error)
             max_gt_trans_error_in_cycle.append(triplet_report.max_trans_error)
 
         pose_errors = np.maximum(np.array(max_gt_rot_error_in_cycle), np.array(max_gt_trans_error_in_cycle))
 
         xlabels = ["Support (#Inliers)", "Max Rot Discrepancy (deg)", "Max Trans Discrepancy (deg)", "Min Tri. Angle"]
-        fnames = ["gt_error_vs_support.jpg", "gt_error_vs_max_rot_discrep.jpg", "gt_error_vs_max_trans_discrep.jpg", "gt_error_vs_mintriangle.jpg"]
+        fnames = [
+            "gt_error_vs_support.jpg",
+            "gt_error_vs_max_rot_discrep.jpg",
+            "gt_error_vs_max_trans_discrep.jpg",
+            "gt_error_vs_mintriangle.jpg",
+        ]
         proxy_metrics = [
             np.array(support_per_triplet),
             np.array(max_rot_discrepancy_per_triplet),
@@ -314,7 +312,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
 
     def optimize_three_views_averaging(
         self,
-        triplet: Tuple[int,int,int],
+        triplet: Tuple[int, int, int],
         i2Ri1_dict: Dict[Tuple[int, int], Rot3],
         i2Ui1_dict: Dict[Tuple[int, int], Unit3],
         calibrations: List[Cal3Bundler],
@@ -322,8 +320,8 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
         keypoints_list: List[Keypoints],
         two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
         cameras_gt: Optional[List[PinholeCameraCal3Bundler]] = None,
-        images = None,
-        visualize: bool = False
+        images=None,
+        visualize: bool = False,
     ) -> Tuple[List[Optional[Pose3]], np.ndarray, Optional[GtsfmMetricsGroup], GtsfmMetricsGroup, GtsfmMetricsGroup]:
         """Use 3-view averaging to estimate global camera poses, and then compute per-point reprojection errors.
 
@@ -352,7 +350,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
 
         wRi_list = self._rot_avg_module.run(num_images, i2Ri1_dict)
 
-        for (i1,i2) in i2Ri1_dict.keys():
+        for (i1, i2) in i2Ri1_dict.keys():
             if wRi_list[i1] is None or wRi_list[i2] is None:
                 logger.info("Shonan missing an optimized pose!")
                 return self._triplet_failure_result
@@ -381,7 +379,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
         reproj_errors = final_data.get_scene_reprojection_errors()
         wTi_list = final_data.get_camera_poses()
 
-        for (i1,i2) in i2Ri1_dict.keys():
+        for (i1, i2) in i2Ri1_dict.keys():
             if wTi_list[i1] is None or wTi_list[i2] is None:
                 logger.info("Missing an optimized pose after RA and TA!")
                 return TripletOptimizationReport(triplet=triplet)
@@ -391,28 +389,29 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
             rgb = np.zeros_like(point_cloud).astype(np.uint8)
             args = SimpleNamespace(**{"point_rendering_mode": "point", "frustum_ray_len": 0.1, "sphere_radius": 0.1})
             import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
+
             open3d_vis_utils.draw_scene_open3d(point_cloud, rgb, wTi_list, calibrations, args)
 
         ta_change_metrics = metrics_utils.compute_translation_angle_metric(i2Ui1_dict, wTi_list)
         relative_rot_discrepancies = compute_relative_rotation_metric(i2Ri1_dict, wTi_list)
 
         if images is not None and visualize:
-            for (i1,i2) in i2Ri1_dict.keys():
+            for (i1, i2) in i2Ri1_dict.keys():
                 import gtsfm.utils.viz as viz_utils
+
                 two_view_report = SimpleNamespace(**{"v_corr_idxs_inlier_mask_gt": None})
                 viz_utils.save_twoview_correspondences_viz(
                     images[i1],
                     images[i2],
                     keypoints_list[i1],
                     keypoints_list[i2],
-                    corr_idxs_i1_i2[(i1,i2)],
+                    corr_idxs_i1_i2[(i1, i2)],
                     two_view_report=two_view_report,
                     file_path=os.path.join("trifocal_correspondences", f"{i1}_{i2}.jpg"),
                 )
 
         support = (reproj_errors < SUPPORT_CUTOFF_REPROJ_THRESHOLD_PX).sum()
         relative_trans_discrepancies = np.round(ta_change_metrics._data)
-
 
         # check how much each pose, in terms of translation directon and rotation angle
 
@@ -437,10 +436,12 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
         max_rot_discrepancy = max(relative_rot_discrepancies)
         max_trans_discrepancy = max(relative_trans_discrepancies)
 
-        is_failure = support < MIN_ALLOWED_SUPPORT \
-                     or max_rot_discrepancy > MAX_ALLOWED_ROT_DISCREPANCY_DEG \
-                     or max_trans_discrepancy > MAX_ALLOWED_TRANS_DISCREPANCY_DEG
-                     # min_tri_angle < MIN_ALLOWED_TRI_ANGLE_DEG \
+        is_failure = (
+            support < MIN_ALLOWED_SUPPORT
+            or max_rot_discrepancy > MAX_ALLOWED_ROT_DISCREPANCY_DEG
+            or max_trans_discrepancy > MAX_ALLOWED_TRANS_DISCREPANCY_DEG
+        )
+        # min_tri_angle < MIN_ALLOWED_TRI_ANGLE_DEG \
         is_success = not is_failure
         if is_failure:
             print("REJECT!")
@@ -450,7 +451,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
         print("\tSupport: ", support)
         print("\tRotation discrepancies: ", np.round(relative_rot_discrepancies))
         print("\tTA Change metrics: ", relative_trans_discrepancies)
-        #print("Rotation euler angle norms: ", np.round(rotation_changes))
+        # print("Rotation euler angle norms: ", np.round(rotation_changes))
 
         print("\tRA Errors w.r.t. GT: ", ra_metrics._metrics[1].name, np.round(ra_metrics._metrics[1].data))
         print("\tTA Errors wr.r.t GT: ", ta_metrics._metrics[8].name, np.round(ta_metrics._metrics[8].data))
@@ -462,7 +463,7 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
             min_tri_angle=min_tri_angle,
             support=support,
             max_rot_discrepancy_deg=max_rot_discrepancy,
-            max_trans_discrepancy_deg=max_trans_discrepancy
+            max_trans_discrepancy_deg=max_trans_discrepancy,
         )
         return triplet_opt_report
 
@@ -481,13 +482,9 @@ def compute_relative_rotation_metric(i2Ri1_dict: Dict[Tuple[int, int], Rot3], wT
     """ """
     errors = []
     import gtsfm.utils.geometry_comparisons as comp_utils
-    for (i1,i2), i2Ri1 in i2Ri1_dict.items():
+
+    for (i1, i2), i2Ri1 in i2Ri1_dict.items():
         i2Ri1_simulated = wTi_list[i2].between(wTi_list[i1]).rotation()
         error_deg = comp_utils.compute_relative_rotation_angle(i2Ri1, i2Ri1_simulated)
         errors.append(error_deg)
     return errors
-
-
-
-
-

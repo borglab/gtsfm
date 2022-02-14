@@ -16,7 +16,7 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 import dask
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, SfmTrack
+from gtsam import PinholeCameraCal3Bundler, SfmTrack
 
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.tracks as track_utils

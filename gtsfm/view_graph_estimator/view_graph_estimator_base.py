@@ -44,11 +44,11 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         keypoints: List[Keypoints],
         two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
         cameras_gt: Optional[List[PinholeCameraCal3Bundler]] = None,
-        images  = None,
+        images=None,
     ) -> Set[Tuple[int, int]]:
         """Estimates the view graph, needs to be implemented by the derived class.
 
-        The input rotation and unit translation dicts are guaranteed to be valid, i.e., i1 < i2 and 
+        The input rotation and unit translation dicts are guaranteed to be valid, i.e., i1 < i2 and
         neither i2Ri1 nor i2Ui1 are None.
 
         Args:
@@ -64,9 +64,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         """
 
     def _get_valid_input_edges(
-        self, 
-        i2Ri1_dict: Dict[Tuple[int, int], Rot3],
-        i2Ui1_dict: Dict[Tuple[int, int], Unit3]
+        self, i2Ri1_dict: Dict[Tuple[int, int], Rot3], i2Ui1_dict: Dict[Tuple[int, int], Unit3]
     ) -> List[Tuple[int, int]]:
         """Gets the input edges (i1, i2):
         1. i1 < i2
@@ -248,7 +246,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             i2Ui1_dict=i2Ui1_dict,
             corr_idxs_i1i2=corr_idxs_i1i2,
             two_view_reports=two_view_reports,
-            edges_to_select=valid_edges,            
+            edges_to_select=valid_edges,
         )
 
         # Run view graph estimation.
@@ -260,7 +258,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             keypoints=keypoints,
             two_view_reports=two_view_reports_valid,
             cameras_gt=cameras_gt,
-            images=images
+            images=images,
         )
 
         # Remove all edges that are not in the view graph.
