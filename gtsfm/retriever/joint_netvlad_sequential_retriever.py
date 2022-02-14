@@ -47,7 +47,8 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
     def aggregate_pairs(
         self, sim_pairs: List[Tuple[int, int]], seq_pairs: List[Tuple[int, int]]
     ) -> List[Tuple[int, int]]:
-        """
+        """Aggregate all image pair indices from both similarity-based and sequential retrieval.
+
         Args:
             sim_pairs: image pairs (i1,i2) from similarity-based retrieval.
             seq_pairs: image pairs (i1,i2) from sequential retrieval.

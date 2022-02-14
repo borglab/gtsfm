@@ -28,13 +28,15 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
         pass
 
     def describe(self, image: Image) -> np.ndarray:
-        """
+        """Compute the NetVLAD global descriptor for a single image query.
+
         Args:
             image: input image.
 
         Returns:
             img_desc: array of shape (D,) representing global image descriptor.
         """
+        # initializing in the constructor leads to OOM.
         model: nn.Module = NetVLAD()
 
         img_tensor = torch.from_numpy(image.value_array).permute(2,0,1).unsqueeze(0).type(torch.float32) / 255

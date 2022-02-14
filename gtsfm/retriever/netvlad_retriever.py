@@ -43,7 +43,7 @@ class SubBlockSimilarityResult:
 
 
 class NetVLADRetriever(RetrieverBase):
-    def __init__(self, num_matched: int, blocksize: int = 10) -> None:
+    def __init__(self, num_matched: int, blocksize: int = 50) -> None:
         """
         Args:
             num_matched: number of K potential matches to provide per query. These are the top "K" matches per query.
@@ -148,6 +148,7 @@ class NetVLADRetriever(RetrieverBase):
         block_i_idxs = np.arange(i_start, i_end)
         block_j_idxs = np.arange(j_start, j_end)
 
+        # TODO(johnwlambert): load images only O(N) times, intead of O(N^2) times, and record cache keys.
         for i in block_i_idxs:
             image = loader.get_image(i)
             block_i_query_descs.append(self._global_descriptor_model.describe(image))
@@ -240,7 +241,7 @@ def pairs_from_score_matrix(
     Returns:
         pairs: tuples representing pairs (i1,i2) of images.
     """
-    N, _ = scores.shape
+    N = scores.shape[0]
     # if there are only N images to choose from, selecting more than N is not allowed
     num_select = min(num_select, N)
 
