@@ -100,13 +100,12 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
         self._rot_avg_module = ShonanRotationAveraging()
         self._trans_avg_module = TranslationAveraging1DSFM(robust_measurement_noise=True, reject_outliers=False)
 
-        # TODO: could limit to length 3 tracks.
+        # We limit to length 3 tracks.
         self._data_association_module = DataAssociation(
             min_track_len=3,
             triangulation_options=TriangulationOptions(
                 reproj_error_threshold=50000,
                 mode=TriangulationSamplingMode.NO_RANSAC,
-                max_num_hypotheses=100,
             ),
             save_track_patches_viz=False,
         )
@@ -362,15 +361,17 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
         else:
             ra_metrics = None
 
+        # TODO (johnwlambert): remove data association step entirely, and rely entirely on length-N loops
         init_cameras_dict = multi_view_optimizer.init_cameras(wRi_list, wti_list, calibrations)
         # `final_data` is the RA+TA+DA output.
+        # we do not provide cameras_gt, to avoid expensive computation, e.g. classification of tracks w/ GT cameras.
         final_data, _ = self._data_association_module.run(
             num_images=num_images,
             cameras=init_cameras_dict,
             corr_idxs_dict=corr_idxs_i1_i2,
             keypoints_list=keypoints_list,
             images=images,
-            cameras_gt=cameras_gt,
+            cameras_gt=None,
         )
 
         if final_data is None:
