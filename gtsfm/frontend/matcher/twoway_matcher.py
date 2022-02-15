@@ -2,7 +2,7 @@
 
 Authors: Ayush Baid
 """
-from typing import Tuple
+from typing import Optional, Tuple
 
 import cv2 as cv
 import numpy as np
@@ -22,9 +22,20 @@ class MatchingDistanceType(Enum):
 class TwoWayMatcher(MatcherBase):
     """Two way (mutual nearest neighbor) matcher using OpenCV."""
 
-    def __init__(self, distance_type: MatchingDistanceType = MatchingDistanceType.EUCLIDEAN):
+    def __init__(
+        self,
+        distance_type: MatchingDistanceType = MatchingDistanceType.EUCLIDEAN,
+        ratio_test_threshold: Optional[float] = None,
+    ):
+        """Initialize the matcher.
+
+        Args:
+            distance_type: distance type for matching.
+            ratio_test_threshold: ratio test threshold. Defaults to None.
+        """
         super().__init__()
         self._distance_type = distance_type
+        self._ratio_test_threshold: Optional[float] = ratio_test_threshold
 
     def match(
         self,
@@ -73,7 +84,12 @@ class TwoWayMatcher(MatcherBase):
 
         # run OpenCV's matcher
         bf = cv.BFMatcher(normType=distance_metric, crossCheck=True)
-        matches = bf.match(descriptors_1, descriptors_2)
+        if self._ratio_test_threshold is None:
+            matches = bf.match(descriptors_1, descriptors_2)
+        else:
+            all_matches = bf.knnMatches(descriptors_1, descriptors_2, k=2)
+            matches = [m1 for m1, m2 in all_matches if m1.distance <= self._ratio_test_threshold * m2.distance]
+
         matches = sorted(matches, key=lambda r: r.distance)
 
         match_indices = np.array([[m.queryIdx, m.trainIdx] for m in matches]).astype(np.int32)
