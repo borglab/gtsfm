@@ -10,6 +10,7 @@ import os
 import time
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -35,6 +36,9 @@ from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstima
 
 
 logger = logger_utils.get_logger()
+
+
+PLOT_BASE_PATH = Path(__file__).resolve().parent.parent.parent / "plots"
 
 
 MIN_ALLOWED_TRI_ANGLE_DEG = 2
@@ -135,6 +139,23 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
         Returns:
             Edges of the view-graph, which are the subset of the image pairs in the input args.
         """
+        cycles = graph_utils.extract_cyclic_quadruplets_from_edges(edges=list(i2Ri1_dict.keys()))
+        print("Quadruplets: ", cycles)
+
+        graph_utils.draw_graph_topology(
+            edges=list(i2Ri1_dict.keys()),
+            two_view_reports=two_view_reports,
+            title="ViewGraphEstimator input",
+            save_fpath= PLOT_BASE_PATH / "view_graph_estimator_input_topology_gt_locations.jpg",
+            cameras_gt=cameras_gt
+        )
+        graph_utils.draw_graph_topology(
+            edges=list(i2Ri1_dict.keys()),
+            two_view_reports=two_view_reports,
+            title="ViewGraphEstimator input",
+            save_fpath= PLOT_BASE_PATH / "view_graph_estimator_input_topology.jpg",
+            cameras_gt=None
+        )
 
         triplets_graph = self.estimate_triplets(i2Ri1_dict=i2Ri1_dict)
 
@@ -156,6 +177,21 @@ class ReprojectionErrorViewGraphEstimator(ViewGraphEstimatorBase):
 
         self.__save_plots(triplet_reports_dict)
         valid_edges = self.aggregate_valid_edges(triplet_reports_dict)
+        
+        graph_utils.draw_graph_topology(
+            edges=list(valid_edges),
+            two_view_reports=two_view_reports,
+            title="ViewGraphEstimator output",
+            save_fpath= PLOT_BASE_PATH / "view_graph_estimator_output_topology_gt_locations.jpg",
+            cameras_gt=cameras_gt
+        )
+        graph_utils.draw_graph_topology(
+            edges=list(valid_edges),
+            two_view_reports=two_view_reports,
+            title="ViewGraphEstimator output",
+            save_fpath= PLOT_BASE_PATH / "view_graph_estimator_output_topology.jpg",
+            cameras_gt=None
+        )
         return valid_edges
 
     def estimate_triplets(self, i2Ri1_dict: Dict[Tuple[int, int], Rot3]) -> List[Tuple[int, int, int]]:

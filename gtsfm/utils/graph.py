@@ -181,39 +181,44 @@ def draw_graph_topology(
     plt.close("all")
 
 
-def find_graph_cycles(edges: List[Tuple[int, int]]):
-    """Find all cycles within a graph.
+def extract_cyclic_quadruplets_from_edges(edges: List[Tuple[int, int]]) -> List[Tuple[int, int, int]]:
+    """Extracts quadruplets from a graph's edges by using intersection within adjacency lists.
 
-    Note: using nx.find_cycle() will only find a single cycle from a source.
+    If we have an edge B <-> C, if we can find any node A such that A <-> B and B <-> C <-> D <-> A,
+    then we have discovered a triplet. In other words, we need only look at the intersection between
+    the nodes connected to B and the nodes connected to C.
+
+    For example, a quadruplet could be found in the following edge list: 0 <-> 1 <-> 2 <-> 3 <-> 0.
 
     Args:
-        edges: List of (i1,i2) pairs.
+        edges: indices of edges in the graph as a list of tuples.
 
     Returns:
-        valid_cycles: specification of each cycle (as a tuple of edges). Edges are returned
-            s.t. i1 < i2, and each cycle must be of length 3 or greater.
+        triplets: 4-tuples of nodes that form a cycle. Nodes of each quadruplet are provided in sorted order.
     """
-    # compute reverse edges, for directed graph to have equivalent connectivity to undirected version.
-    rev_edges = [e[::-1] for e in edges]
+    adj_list = create_adjacency_list(edges)
 
-    G = nx.DiGraph(edges + rev_edges)
-    cycles = list(nx.simple_cycles(G))
+    # only want to keep the unique ones
+    quadruplets = set()
 
-    valid_cycles = [tuple(sorted(c)) for c in cycles if len(c) >= 3]
-    valid_cycles = list(set(valid_cycles))
+    # find intersections
+    for (b, c) in edges:
+        if b > c:
+            b, c = c, b
 
-    print("Cycles: ", valid_cycles)
-    return valid_cycles
+        nodes_from_b = adj_list[b]
+        nodes_from_c = adj_list[c]
 
-    # G = nx.Graph()
-    # G.add_edges_from(edges)
+        for d in nodes_from_c:
+            nodes_from_d = adj_list[d]
 
-    # cycles = []
+            node_intersection = (nodes_from_b).intersection(nodes_from_d)
+            for node in node_intersection:
+                cycle_nodes = tuple(sorted([node, b, c, d]))
 
-    # for i in G.nodes:
-    #     cycle = nx.find_cycle(G, source=i)
-    #     print("Cycle", cycle)
-    #     cycles.append(cycle)
+                # each node in the quadruplet must be unique.
+                if len(set(cycle_nodes)) == 4 and cycle_nodes not in quadruplets:
+                    quadruplets.add(cycle_nodes)
 
-    # return cycles
+    return list(quadruplets)
 
