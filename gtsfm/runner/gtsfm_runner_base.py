@@ -12,6 +12,7 @@ from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.scene_optimizer import SceneOptimizer
 
+from gtsfm.retriever.exhaustive_retriever import ExhaustiveRetriever
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.retriever.joint_netvlad_sequential_retriever import JointNetVLADSequentialRetriever
 from gtsfm.retriever.netvlad_retriever import NetVLADRetriever
@@ -19,9 +20,6 @@ from gtsfm.retriever.sequential_retriever import SequentialRetriever
 
 
 logger = logger_utils.get_logger()
-
-# For exhaustive matching, we limit the lookahead to 10,000 images.
-MAX_POSSIBLE_FRAME_LOOKAHEAD = 10000
 
 
 class GtsfmRunnerBase:
@@ -112,7 +110,7 @@ class GtsfmRunnerBase:
         matching_regime = ImageMatchingRegime(self.parsed_args.matching_regime)
 
         if matching_regime == ImageMatchingRegime.EXHAUSTIVE:
-            retriever = SequentialRetriever(max_frame_lookahead=MAX_POSSIBLE_FRAME_LOOKAHEAD)
+            retriever = ExhaustiveRetriever()
 
         elif matching_regime == ImageMatchingRegime.RETRIEVAL:
             retriever = NetVLADRetriever(num_matched=self.parsed_args.num_matched)

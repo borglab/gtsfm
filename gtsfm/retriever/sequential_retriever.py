@@ -17,7 +17,7 @@ class SequentialRetriever(RetrieverBase):
     def __init__(self, max_frame_lookahead: int) -> None:
         """
         Args:
-            max_frame_lookahead: 
+            max_frame_lookahead: maximum number of consecutive frames to consider for matching/co-visibility.
         """
         self._max_frame_lookahead = max_frame_lookahead
 

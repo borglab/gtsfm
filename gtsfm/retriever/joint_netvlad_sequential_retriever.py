@@ -23,7 +23,7 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
         """
         Args:
             num_matched: number of K potential matches to provide per query. These are the top "K" matches per query.
-            max_frame_lookahead:
+            max_frame_lookahead: maximum number of consecutive frames to consider for matching/co-visibility.
         """
         self._similarity_retriever = NetVLADRetriever(num_matched=num_matched)
         self._seq_retriever = SequentialRetriever(max_frame_lookahead=max_frame_lookahead)
