@@ -135,8 +135,11 @@ def draw_graph_topology(
     save_fpath: str,
     cameras_gt: Optional[List[PinholeCameraCal3Bundler]] = None,
 ) -> None:
-    """Draw the topology of an undirected graph, with vertices placed in their ground truth locations.
-    False positive edges are colored red, and true positive edges are colored green.
+    """Draw the topology of an undirected graph, with edges colored by error.
+
+    Note: False positive edges are colored red, and true positive edges are colored green.
+    If ground truth camera parameters are provided, vertices are placed in their ground truth locations.
+    Otherwise, we allow networkx to choose the vertex locations (placed at arbitrary locations).
 
     Args:
         edges: List of (i1,i2) pairs.
