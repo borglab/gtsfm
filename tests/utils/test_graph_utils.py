@@ -4,6 +4,7 @@ Authors: Ayush Baid, John Lambert, Akshay Krishnan
 """
 import unittest
 from collections import defaultdict
+from types import SimpleNamespace
 from typing import List, Tuple
 from unittest import mock
 
@@ -228,6 +229,27 @@ class TestGraphUtils(unittest.TestCase):
 
         assert len(adj_list.keys()) == 0
         assert isinstance(adj_list, defaultdict)
+
+    def test_draw_graph_topology(self) -> None:
+        """Make sure we can draw a simple plot taxonomy"""
+        edges = [(0, 1), (1, 2), (2, 3), (0, 3)]
+        two_view_reports_w_gt_errors = {
+            (0, 1): SimpleNamespace(**{"R_error_deg": 1, "U_error_deg": 1}),
+            (1, 2): SimpleNamespace(**{"R_error_deg": 1, "U_error_deg": 1}),
+            (2, 3): SimpleNamespace(**{"R_error_deg": 1, "U_error_deg": 1}),
+            (0, 3): SimpleNamespace(**{"R_error_deg": 10, "U_error_deg": 0}),
+        }
+        title = "dummy_4_image_cycle"
+        save_fpath = "plot.jpg"
+        graph_utils.draw_graph_topology(edges, two_view_reports_w_gt_errors, title, save_fpath)
+
+        two_view_reports = {
+            (0, 1): SimpleNamespace(**{"R_error_deg": None, "U_error_deg": None}),
+            (1, 2): SimpleNamespace(**{"R_error_deg": None, "U_error_deg": None}),
+            (2, 3): SimpleNamespace(**{"R_error_deg": None, "U_error_deg": None}),
+            (0, 3): SimpleNamespace(**{"R_error_deg": None, "U_error_deg": None}),
+        }
+        graph_utils.draw_graph_topology(edges, two_view_reports, title, save_fpath)
 
 
 def extract_triplets_brute_force(edges: List[Tuple[int, int]]) -> List[Tuple[int, int, int]]:

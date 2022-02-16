@@ -5,8 +5,15 @@ Authors: Ayush Baid, John Lambert, Akshay Krishnan
 from collections import defaultdict
 from typing import DefaultDict, Dict, List, Optional, Set, Tuple
 
+import matplotlib.pyplot as plt
 import networkx as nx
-from gtsam import Rot3, Unit3
+import numpy as np
+from gtsam import PinholeCameraCal3Bundler, Rot3, Unit3
+
+from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
+
+GREEN = [0, 1, 0]
+RED = [1, 0, 0]
 
 
 def get_nodes_in_largest_connected_component(edges: List[Tuple[int, int]]) -> List[int]:
@@ -119,3 +126,57 @@ def extract_cyclic_triplets_from_edges(edges: List[Tuple[int, int]]) -> List[Tup
                 triplets.add(cycle_nodes)
 
     return list(triplets)
+
+
+def draw_graph_topology(
+    edges: List[Tuple[int, int]],
+    two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
+    title: str,
+    save_fpath: str,
+    cameras_gt: Optional[List[PinholeCameraCal3Bundler]] = None,
+) -> None:
+    """Draw the topology of an undirected graph, with vertices placed in their ground truth locations.
+    False positive edges are colored red, and true positive edges are colored green.
+
+    Args:
+        edges: List of (i1,i2) pairs.
+        two_view_reports: two-view estimation report per edge.
+        title: desired title of figure.
+        save_fpath: file path where plot should be saved to disk.
+        cameras_gt: ground truth camera parameters (including their poses).
+    """
+    M = len(edges)
+
+    plt.figure(figsize=(16, 10))
+    G = nx.Graph()
+    G.add_edges_from(edges)
+    nodes = list(G.nodes)
+
+    R_errors = np.array([two_view_reports[edge].R_error_deg for edge in edges]).astype(np.float32)
+    U_errors = np.array([two_view_reports[edge].U_error_deg for edge in edges]).astype(np.float32)
+
+    if np.isnan(R_errors).any() or np.isnan(U_errors).any():
+        # cannot color by error, as GT is not available.
+        edge_colors = [GREEN] * M
+    else:
+        pose_errors = np.maximum(R_errors, U_errors)
+        edge_colors = [GREEN if pose_error < 5 else RED for pose_error in pose_errors]
+
+    if cameras_gt is not None:
+        node_positions = {i: cameras_gt[i].pose().translation()[:2] for i in nodes}
+    else:
+        node_positions = None
+
+    nx.drawing.nx_pylab.draw_networkx(
+        G,
+        edgelist=edges,
+        edge_color=edge_colors,
+        pos=node_positions,
+        arrows=True,
+        with_labels=True,
+    )
+    plt.axis("equal")
+    plt.title(title)
+
+    plt.savefig(save_fpath, dpi=500)
+    plt.close("all")
