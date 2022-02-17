@@ -21,6 +21,7 @@ class ImageMatchingRegime(str, Enum):
 
 
 class RetrieverBase:
+    """Base class for image retriever implementations."""
     def __init__(self, num_matched: int = 2) -> None:
         """
         Args:
@@ -41,7 +42,7 @@ class RetrieverBase:
         """
 
     def create_computation_graph(self, loader: LoaderBase) -> Delayed:
-        """Compute potential image pairs.
+        """Create Dask graph for image retriever.
 
         Args:
             loader: image loader. The length of this loader will provide the total number of images

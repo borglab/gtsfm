@@ -26,13 +26,18 @@ EPS = 1e-6
 
 
 class NetVLADLayer(nn.Module):
+    """Computes the 'Vector of Locally Aggregated Descriptors' in a differentiable fashion.
+
+    Whereas bag-of-visual-words aggregation keeps counts of visual words, VLAD stores the sum of residuals
+    (difference vector between the descriptor and its corresponding cluster centre) for each visual word.
+    """
     def __init__(self, input_dim: int = 512, K: int = 64, score_bias: bool = False, intranorm: bool = True) -> None:
         """
         Args:
             input_dim: output feature map from fully-convolutional backbone has shape (input_dim,H2,W2) 
             K: number of cluster centers.
-            score_bias:
-            intranorm:
+            score_bias: whether to use bias term in 1x1 conv (projection operation).
+            intranorm: whether to normalize descriptors immediately after computing sum of residuals.
         """
         super().__init__()
         self.score_proj = nn.Conv1d(input_dim, K, kernel_size=1, bias=score_bias)
