@@ -68,6 +68,7 @@ class YfccImbLoader(LoaderBase):
                 self._image_pairs.add((i2, i1))
 
         self._cameras = self.__read_calibrations()  # self.__read_colmap_model()
+        self._build_image_shapes_cache()
 
     def __len__(self) -> int:
         """

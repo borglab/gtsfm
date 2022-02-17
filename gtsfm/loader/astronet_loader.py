@@ -120,6 +120,7 @@ class AstronetLoader(LoaderBase):
 
         self._num_imgs = len(self._image_paths)
         logger.info("AstroNet loader found and loaded %d images and %d tracks.", self._num_imgs, self.num_sfmtracks)
+        self._build_image_shapes_cache()
 
     @staticmethod
     def colmap2gtsfm(

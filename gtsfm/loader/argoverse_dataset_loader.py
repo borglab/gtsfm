@@ -74,6 +74,7 @@ class ArgoverseDatasetLoader(LoaderBase):
         # set the first pose as origin
         self._world_pose = Pose3(Rot3(), np.zeros((3, 1)))
         self._world_pose = self.get_camera_pose(0)
+        self._build_image_shapes_cache()
 
     def load_camera_calibration(self, log_id: str, camera_name: str) -> None:
         """Load extrinsics and intrinsics from disk."""
