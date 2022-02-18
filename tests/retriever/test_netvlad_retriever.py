@@ -84,6 +84,5 @@ def test_netvlad_retriever_door() -> None:
 
 
 if __name__ == "__main__":
-    """ """
     test_netvlad_retriever_crane_mast()
     test_netvlad_retriever_door()
