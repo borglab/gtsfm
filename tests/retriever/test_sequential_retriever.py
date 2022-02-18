@@ -14,9 +14,10 @@ DEFAULT_FOLDER = DATA_ROOT_PATH / "set1_lund_door"
 
 def test_sequential_retriever() -> None:
     """Assert that we get 30 total matches with a lookahead of 3 frames on the Door Dataset."""
-    loader = OlssonLoader(str(DEFAULT_FOLDER), image_extension="JPG", max_frame_lookahead=12)
-    
-    retriever = SequentialRetriever(max_frame_lookahead=3)
+
+    max_frame_lookahead = 3
+    loader = OlssonLoader(str(DEFAULT_FOLDER), image_extension="JPG", max_frame_lookahead=max_frame_lookahead)
+    retriever = SequentialRetriever(max_frame_lookahead=max_frame_lookahead)
     pairs = retriever.run(loader=loader)
 
     expected_pairs = [
