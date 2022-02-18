@@ -2,7 +2,7 @@
 
 Authors: Ayush Baid
 """
-from typing import Optional, Tuple
+from typing import Tuple
 
 import cv2 as cv
 import numpy as np
@@ -25,7 +25,6 @@ class TwoWayMatcher(MatcherBase):
     def __init__(
         self,
         distance_type: MatchingDistanceType = MatchingDistanceType.EUCLIDEAN,
-        ratio_test_threshold: Optional[float] = None,
     ):
         """Initialize the matcher.
 
@@ -35,7 +34,6 @@ class TwoWayMatcher(MatcherBase):
         """
         super().__init__()
         self._distance_type = distance_type
-        self._ratio_test_threshold: Optional[float] = ratio_test_threshold
 
     def match(
         self,
@@ -65,12 +63,6 @@ class TwoWayMatcher(MatcherBase):
         Returns:
             Match indices (sorted by confidence), as matrix of shape (N, 2), where N < min(N1, N2).
         """
-        if self._distance_type is MatchingDistanceType.EUCLIDEAN:
-            distance_metric = cv.NORM_L2
-        elif self._distance_type is MatchingDistanceType.HAMMING:
-            distance_metric = cv.NORM_HAMMING
-        else:
-            raise NotImplementedError("The distance type is not in MatchingDistanceType")
 
         if descriptors_i1.size == 0 or descriptors_i2.size == 0:
             return np.array([])
@@ -79,20 +71,7 @@ class TwoWayMatcher(MatcherBase):
         valid_idx_i1 = np.nonzero(~(np.isnan(descriptors_i1).any(axis=1)))[0]
         valid_idx_i2 = np.nonzero(~(np.isnan(descriptors_i2).any(axis=1)))[0]
 
-        descriptors_1 = descriptors_i1[valid_idx_i1]
-        descriptors_2 = descriptors_i2[valid_idx_i2]
-
-        # run OpenCV's matcher
-        bf = cv.BFMatcher(normType=distance_metric, crossCheck=True)
-        if self._ratio_test_threshold is None:
-            matches = bf.match(descriptors_1, descriptors_2)
-        else:
-            all_matches = bf.knnMatches(descriptors_1, descriptors_2, k=2)
-            matches = [m1 for m1, m2 in all_matches if m1.distance <= self._ratio_test_threshold * m2.distance]
-
-        matches = sorted(matches, key=lambda r: r.distance)
-
-        match_indices = np.array([[m.queryIdx, m.trainIdx] for m in matches]).astype(np.int32)
+        match_indices = self._perform_matching(descriptors_i1[valid_idx_i1], descriptors_i2[valid_idx_i2])
 
         if match_indices.size == 0:
             return np.array([])
@@ -100,5 +79,39 @@ class TwoWayMatcher(MatcherBase):
         # remap them back
         match_indices[:, 0] = valid_idx_i1[match_indices[:, 0]]
         match_indices[:, 1] = valid_idx_i2[match_indices[:, 1]]
+
+        return match_indices
+
+    def _init_opencv_matcher(self) -> cv.DescriptorMatcher:
+        """Initialize the OpenCV matcher.
+
+        Returns:
+            Matcher object.
+        """
+        if self._distance_type is MatchingDistanceType.EUCLIDEAN:
+            distance_metric = cv.NORM_L2
+        elif self._distance_type is MatchingDistanceType.HAMMING:
+            distance_metric = cv.NORM_HAMMING
+        else:
+            raise NotImplementedError("The distance type is not in MatchingDistanceType")
+
+        return cv.BFMatcher(normType=distance_metric, crossCheck=True)
+
+    def _perform_matching(self, descriptors_1: np.ndarray, descriptors_2: np.ndarray) -> np.ndarray:
+        """Run the core logic for matching.
+
+        Args:
+            descriptors_1: descriptors for the 1st image.
+            descriptors_2: descriptors for the 2nd image.
+
+        Returns:
+            indices of the match between two images.
+        """
+        opencv_matcher = self._init_opencv_matcher()
+
+        matches = opencv_matcher.match(descriptors_1, descriptors_2)
+        matches = sorted(matches, key=lambda r: r.distance)
+
+        match_indices = np.array([[m.queryIdx, m.trainIdx] for m in matches]).astype(np.uint32)
 
         return match_indices
