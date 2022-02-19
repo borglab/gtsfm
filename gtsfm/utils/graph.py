@@ -128,7 +128,7 @@ def extract_cyclic_triplets_from_edges(edges: List[Tuple[int, int]]) -> List[Tup
     return list(triplets)
 
 
-def draw_graph_topology(
+def draw_view_graph_topology(
     edges: List[Tuple[int, int]],
     two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
     title: str,

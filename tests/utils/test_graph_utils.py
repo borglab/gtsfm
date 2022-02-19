@@ -230,7 +230,7 @@ class TestGraphUtils(unittest.TestCase):
         assert len(adj_list.keys()) == 0
         assert isinstance(adj_list, defaultdict)
 
-    def test_draw_graph_topology(self) -> None:
+    def test_draw_view_graph_topology(self) -> None:
         """Make sure we can draw a simple graph topology using networkx."""
         edges = [(0, 1), (1, 2), (2, 3), (0, 3)]
         two_view_reports_w_gt_errors = {
@@ -241,7 +241,7 @@ class TestGraphUtils(unittest.TestCase):
         }
         title = "dummy_4_image_cycle"
         save_fpath = "plot.jpg"
-        graph_utils.draw_graph_topology(
+        graph_utils.draw_view_graph_topology(
             edges=edges,
             two_view_reports=two_view_reports_w_gt_errors,
             title=title,
@@ -255,7 +255,7 @@ class TestGraphUtils(unittest.TestCase):
             (2, 3): SimpleNamespace(**{"R_error_deg": None, "U_error_deg": None}),
             (0, 3): SimpleNamespace(**{"R_error_deg": None, "U_error_deg": None}),
         }
-        graph_utils.draw_graph_topology(
+        graph_utils.draw_view_graph_topology(
             edges=edges, two_view_reports=two_view_reports, title=title, save_fpath=save_fpath, cameras_gt=None
         )
 
