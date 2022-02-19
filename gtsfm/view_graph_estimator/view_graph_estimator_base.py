@@ -175,7 +175,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         )
         graph_utils.draw_view_graph_topology(
             edges=view_graph_edges,
-            two_view_reports=inlier_i1_i2,
+            two_view_reports=two_view_reports,
             title="ViewGraphEstimator output",
             save_fpath= PLOT_BASE_PATH / "view_graph_estimator_output_topology.jpg",
             cameras_gt=None
