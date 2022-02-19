@@ -50,7 +50,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
     ) -> Set[Tuple[int, int]]:
         """Estimates the view graph, needs to be implemented by the derived class.
 
-        The input rotation and unit translation dicts are guaranteed to be valid, i.e., i1 < i2 and 
+        The input rotation and unit translation dicts are guaranteed to be valid, i.e., i1 < i2 and
         neither i2Ri1 nor i2Ui1 are None.
 
         Args:
@@ -66,9 +66,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         """
 
     def _get_valid_input_edges(
-        self, 
-        i2Ri1_dict: Dict[Tuple[int, int], Rot3],
-        i2Ui1_dict: Dict[Tuple[int, int], Unit3]
+        self, i2Ri1_dict: Dict[Tuple[int, int], Rot3], i2Ui1_dict: Dict[Tuple[int, int], Unit3]
     ) -> List[Tuple[int, int]]:
         """Gets the input edges (i1, i2):
         1. i1 < i2
@@ -170,15 +168,15 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             edges=list(input_i1_i2),
             two_view_reports=two_view_reports,
             title="ViewGraphEstimator input",
-            save_fpath= PLOT_BASE_PATH / "view_graph_estimator_input_topology.jpg",
-            cameras_gt=None
+            save_fpath=PLOT_BASE_PATH / "view_graph_estimator_input_topology.jpg",
+            cameras_gt=None,
         )
         graph_utils.draw_view_graph_topology(
             edges=view_graph_edges,
             two_view_reports=two_view_reports,
             title="ViewGraphEstimator output",
-            save_fpath= PLOT_BASE_PATH / "view_graph_estimator_output_topology.jpg",
-            cameras_gt=None
+            save_fpath=PLOT_BASE_PATH / "view_graph_estimator_output_topology.jpg",
+            cameras_gt=None,
         )
 
         inlier_R_angular_errors = []
@@ -263,7 +261,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             i2Ui1_dict=i2Ui1_dict,
             corr_idxs_i1i2=corr_idxs_i1i2,
             two_view_reports=two_view_reports,
-            edges_to_select=valid_edges,            
+            edges_to_select=valid_edges,
         )
 
         # Run view graph estimation.
