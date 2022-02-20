@@ -230,33 +230,42 @@ class TestGraphUtils(unittest.TestCase):
         assert len(adj_list.keys()) == 0
         assert isinstance(adj_list, defaultdict)
 
-    def test_draw_graph_topology(self) -> None:
-        """Make sure we can draw a simple plot taxonomy"""
-        edges = [(0,1),(1,2),(2,3),(0,3)]
+    def test_draw_view_graph_topology(self) -> None:
+        """Make sure we can draw a simple graph topology using networkx."""
+        edges = [(0, 1), (1, 2), (2, 3), (0, 3)]
         two_view_reports_w_gt_errors = {
-            (0,1): SimpleNamespace(**{"R_error_deg": 1, "U_error_deg": 1}),
-            (1,2): SimpleNamespace(**{"R_error_deg": 1, "U_error_deg": 1}),
-            (2,3): SimpleNamespace(**{"R_error_deg": 1, "U_error_deg": 1}),
-            (0,3): SimpleNamespace(**{"R_error_deg": 10, "U_error_deg": 0})
+            (0, 1): SimpleNamespace(**{"R_error_deg": 1, "U_error_deg": 1}),
+            (1, 2): SimpleNamespace(**{"R_error_deg": 1, "U_error_deg": 1}),
+            (2, 3): SimpleNamespace(**{"R_error_deg": 1, "U_error_deg": 1}),
+            (0, 3): SimpleNamespace(**{"R_error_deg": 10, "U_error_deg": 0}),
         }
         title = "dummy_4_image_cycle"
         save_fpath = "plot.jpg"
-        graph_utils.draw_graph_topology(edges, two_view_reports_w_gt_errors, title, save_fpath)
+        graph_utils.draw_view_graph_topology(
+            edges=edges,
+            two_view_reports=two_view_reports_w_gt_errors,
+            title=title,
+            save_fpath=save_fpath,
+            cameras_gt=None,
+        )
 
         two_view_reports = {
-            (0,1): SimpleNamespace(**{"R_error_deg": None, "U_error_deg": None}),
-            (1,2): SimpleNamespace(**{"R_error_deg": None, "U_error_deg": None}),
-            (2,3): SimpleNamespace(**{"R_error_deg": None, "U_error_deg": None}),
-            (0,3): SimpleNamespace(**{"R_error_deg": None, "U_error_deg": None})
+            (0, 1): SimpleNamespace(**{"R_error_deg": None, "U_error_deg": None}),
+            (1, 2): SimpleNamespace(**{"R_error_deg": None, "U_error_deg": None}),
+            (2, 3): SimpleNamespace(**{"R_error_deg": None, "U_error_deg": None}),
+            (0, 3): SimpleNamespace(**{"R_error_deg": None, "U_error_deg": None}),
         }
-        graph_utils.draw_graph_topology(edges, two_view_reports, title, save_fpath)
+        graph_utils.draw_view_graph_topology(
+            edges=edges, two_view_reports=two_view_reports, title=title, save_fpath=save_fpath, cameras_gt=None
+        )
 
     def test_extract_cyclic_quadruplets_from_edges(self) -> None:
         """ """
-        edges = [(0,1),(1,2),(2,3),(0,3)]
+        edges = [(0, 1), (1, 2), (2, 3), (0, 3)]
         quadruplets = graph_utils.extract_cyclic_quadruplets_from_edges(edges=edges)
         expected_quadruplets = [(0, 1, 2, 3)]
         assert quadruplets == expected_quadruplets
+
 
 def extract_triplets_brute_force(edges: List[Tuple[int, int]]) -> List[Tuple[int, int, int]]:
     """Use triple for-loop to find triplets from a graph G=(V,E) in O(n^3) time.
