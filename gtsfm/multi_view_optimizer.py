@@ -44,6 +44,7 @@ class MultiViewOptimizer:
         intrinsics_graph: List[Delayed],
         two_view_reports_dict: Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
         gt_cameras_graph: Optional[List[Delayed]] = None,
+        images = None,
     ) -> Tuple[Delayed, Delayed, Delayed]:
         """Creates a computation graph for multi-view optimization.
 
@@ -70,7 +71,14 @@ class MultiViewOptimizer:
             viewgraph_two_view_reports_graph,
             viewgraph_estimation_metrics,
         ) = self.view_graph_estimator.create_computation_graph(
-            i2Ri1_graph, i2Ui1_graph, intrinsics_graph, v_corr_idxs_graph, keypoints_graph, two_view_reports_dict
+            i2Ri1_graph,
+            i2Ui1_graph,
+            intrinsics_graph,
+            v_corr_idxs_graph,
+            keypoints_graph,
+            two_view_reports_dict,
+            gt_cameras_graph,
+            images=None
         )
 
         # prune the graph to a single connected component.
@@ -103,7 +111,7 @@ class MultiViewOptimizer:
         if gt_cameras_graph is None:
             return ba_input_graph, ba_result_graph, None
 
-        # TODO: move to rotation averaging
+        # TODO (akshaykrishnan): move rot avg metrics to rotation averaging module
         rot_avg_metrics = dask.delayed(metrics_utils.compute_global_rotation_metrics)(
             wRi_graph, wti_graph, gt_poses_graph
         )

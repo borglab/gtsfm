@@ -259,6 +259,13 @@ class TestGraphUtils(unittest.TestCase):
             edges=edges, two_view_reports=two_view_reports, title=title, save_fpath=save_fpath, cameras_gt=None
         )
 
+    def test_extract_cyclic_quadruplets_from_edges(self) -> None:
+        """ """
+        edges = [(0, 1), (1, 2), (2, 3), (0, 3)]
+        quadruplets = graph_utils.extract_cyclic_quadruplets_from_edges(edges=edges)
+        expected_quadruplets = [(0, 1, 2, 3)]
+        assert quadruplets == expected_quadruplets
+
 
 def extract_triplets_brute_force(edges: List[Tuple[int, int]]) -> List[Tuple[int, int, int]]:
     """Use triple for-loop to find triplets from a graph G=(V,E) in O(n^3) time.

@@ -127,7 +127,6 @@ def extract_cyclic_triplets_from_edges(edges: List[Tuple[int, int]]) -> List[Tup
 
     return list(triplets)
 
-
 def draw_view_graph_topology(
     edges: List[Tuple[int, int]],
     two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
@@ -183,3 +182,46 @@ def draw_view_graph_topology(
 
     plt.savefig(save_fpath, dpi=500)
     plt.close("all")
+
+
+def extract_cyclic_quadruplets_from_edges(edges: List[Tuple[int, int]]) -> List[Tuple[int, int, int]]:
+    """Extracts quadruplets from a graph's edges by using intersection within adjacency lists.
+
+    If we have an edge B <-> C, if we can find any node A such that A <-> B and B <-> C <-> D <-> A,
+    then we have discovered a triplet. In other words, we need only look at the intersection between
+    the nodes connected to B and the nodes connected to C.
+
+    For example, a quadruplet could be found in the following edge list: 0 <-> 1 <-> 2 <-> 3 <-> 0.
+
+    Args:
+        edges: indices of edges in the graph as a list of tuples.
+
+    Returns:
+        triplets: 4-tuples of nodes that form a cycle. Nodes of each quadruplet are provided in sorted order.
+    """
+    adj_list = create_adjacency_list(edges)
+
+    # only want to keep the unique ones
+    quadruplets = set()
+
+    # find intersections
+    for (b, c) in edges:
+        if b > c:
+            b, c = c, b
+
+        nodes_from_b = adj_list[b]
+        nodes_from_c = adj_list[c]
+
+        for d in nodes_from_c:
+            nodes_from_d = adj_list[d]
+
+            node_intersection = (nodes_from_b).intersection(nodes_from_d)
+            for node in node_intersection:
+                cycle_nodes = tuple(sorted([node, b, c, d]))
+
+                # each node in the quadruplet must be unique.
+                if len(set(cycle_nodes)) == 4 and cycle_nodes not in quadruplets:
+                    quadruplets.add(cycle_nodes)
+
+    return list(quadruplets)
+

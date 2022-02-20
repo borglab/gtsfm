@@ -915,5 +915,46 @@ class TestGtsfmData(unittest.TestCase):
             assert np.isclose(unaligned_metrics[3].summary[key], aligned_metrics[3].summary[key])
 
 
+    def test_get_point_cloud(self) -> None:
+        """Ensure that we can fetch non-NaN 3d points from the point tracks."""
+        gtsfm_data = GtsfmData(number_images=3)
+
+        gtsfm_data.add_camera(index=0, camera=PinholeCameraCal3Bundler())
+        gtsfm_data.add_camera(index=1, camera=PinholeCameraCal3Bundler())
+        gtsfm_data.add_camera(index=2, camera=PinholeCameraCal3Bundler())
+
+        # add a track on camera #0 and #1
+        track1 = SfmTrack(np.array([0, -2.0, 5.0]))
+        track1.add_measurement(idx=0, m=np.array([20.0, 5.0]))
+        track1.add_measurement(idx=1, m=np.array([60.0, 50.0]))
+
+        # add a track on camera #1 and #2
+        track2 = SfmTrack(np.array([np.nan, -2.0, 5.0]))
+        track2.add_measurement(idx=1, m=np.array([20.0, 5.0]))
+        track2.add_measurement(idx=2, m=np.array([60.0, 50.0]))
+
+        # add a track on camera #0 and #1
+        track3 = SfmTrack(np.array([np.nan, np.nan, np.nan]))
+        track3.add_measurement(idx=0, m=np.array([20.0, 5.0]))
+        track3.add_measurement(idx=1, m=np.array([60.0, 50.0]))
+
+        # add a track on camera #1 and #2
+        track4 = SfmTrack(np.array([1.0, 2.0, 3.0]))
+        track4.add_measurement(idx=1, m=np.array([20.0, 5.0]))
+        track4.add_measurement(idx=2, m=np.array([60.0, 50.0]))
+
+        gtsfm_data.add_track(track1)
+        gtsfm_data.add_track(track2)
+        gtsfm_data.add_track(track3)
+        gtsfm_data.add_track(track4)
+
+        points = gtsfm_data.get_point_cloud()
+        
+        expected_points = np.array([
+            [ 0., -2.,  5.],
+            [ 1.,  2.,  3.]])
+        self.assertTrue(np.allclose(points, expected_points))
+
+
 if __name__ == "__main__":
     unittest.main()

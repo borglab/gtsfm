@@ -272,7 +272,7 @@ def compute_translation_angle_metric(
     for (i1, i2) in i2Ui1_dict:
         i2Ui1 = i2Ui1_dict[(i1, i2)]
         angles.append(comp_utils.compute_translation_to_direction_angle(i2Ui1, wTi_list[i2], wTi_list[i1]))
-    return GtsfmMetric("translation_angle_error_deg", np.array(angles, dtype=np.float))
+    return GtsfmMetric("translation_angle_error_deg", np.array(angles, dtype=np.float64))
 
 
 def compute_global_rotation_metrics(
