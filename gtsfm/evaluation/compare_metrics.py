@@ -35,8 +35,8 @@ def compute_metrics_from_txt(cameras, images, points3d):
     track_lengths = []
     image_id_num_measurements = {}
     for track in sfmtracks:
-        track_lengths.append(int(track.number_measurements()))
-        for k in range(track.number_measurements()):
+        track_lengths.append(int(track.numberMeasurements()))
+        for k in range(track.numberMeasurements()):
             image_id, uv_measured = track.measurement(k)
             if image_id not in image_id_num_measurements:
                 image_id_num_measurements[image_id] = 1
@@ -72,7 +72,7 @@ def compute_metrics_from_txt(cameras, images, points3d):
         point3d_measurements = []
         for track in point3d_tracks:
             gtsfm_data.add_track(track)
-            for i in range(track.number_measurements()):
+            for i in range(track.numberMeasurements()):
                 point3d_measurements.append(track.measurement(i))
         xyz = point3d.xyz
         point3d = Point3(xyz[0], xyz[1], xyz[2])

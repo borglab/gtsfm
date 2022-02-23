@@ -206,7 +206,7 @@ def colmap2gtsfm(
         for point3D in points3D.values():
             sfmtrack = SfmTrack(point3D.xyz)
             for (image_id, point2d_idx) in zip(point3D.image_ids, point3D.point2D_idxs):
-                sfmtrack.add_measurement(image_id_to_idx[image_id], images[image_id].xys[point2d_idx])
+                sfmtrack.addMeasurement(image_id_to_idx[image_id], images[image_id].xys[point2d_idx])
             sfmtracks_gtsfm.append(sfmtrack)
 
     return cameras_gtsfm, images_gtsfm, img_fnames, sfmtracks_gtsfm
