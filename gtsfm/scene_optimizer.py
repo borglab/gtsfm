@@ -400,7 +400,6 @@ def save_metrics_reports(metrics_graph_list: Delayed) -> List[Delayed]:
             metrics_graph_list,
             os.path.join(METRICS_PATH, "gtsfm_metrics_report.html"),
             None,
-            [],
         )
     )
     return save_metrics_graph_list

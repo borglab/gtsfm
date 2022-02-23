@@ -142,7 +142,7 @@ def create_plots_for_distributions(metrics_dict: Dict[str, Any]) -> str:
     # Return the figure converted to HTML.
     return fig.to_html(full_html=False, include_plotlyjs="cdn")
 
-def create_plots_for_distributions_and_compare(metrics_dict: Dict[str, Any], other_pipeline_metric_groups: List[Dict]) -> str:
+def create_plots_for_distributions_and_compare(metrics_dict: Dict[str, Any], other_pipeline_metrics_dicts: List[Dict]) -> str:
     """Creates plots for 1D distribution metrics using plotly, and converts them to HTML.
 
     The plots are arranged in a grid, with each row having SUBPLOTS_PER_ROW (3) columns.
@@ -179,12 +179,8 @@ def create_plots_for_distributions_and_compare(metrics_dict: Dict[str, Any], oth
         # Check if this is a 1D distribution metric and has a summary.
         if metric_name not in distribution_metrics or metrics.SUMMARY_KEY not in metric_value:
             continue
-        # row = i + 1
         row = 1
-        i = 1
-        # col = j + 1
         col = 1
-        j = 1
         # Histogram metrics are plotted directly from summary.
         if "histogram" in metric_value[metrics.SUMMARY_KEY]:
             histogram = metric_value[metrics.SUMMARY_KEY]["histogram"]
@@ -210,13 +206,12 @@ def create_plots_for_distributions_and_compare(metrics_dict: Dict[str, Any], oth
                     row=row,
                     col=col,
                 )
-        for other_metrics_dict in other_pipeline_metric_groups:
-            # col = j + 1
-            # j += 1
+        for other_metrics_dict in other_pipeline_metrics_dicts:
             if metric_name in other_metrics_dict:
                 other_metric_value = other_metrics_dict[metric_name]
                 if "histogram" in other_metric_value[metrics.SUMMARY_KEY]:
                     histogram = other_metric_value[metrics.SUMMARY_KEY]["histogram"]
+                    #TODO: pass other_pipeline_name to replace "colmap"
                     fig.add_trace(
                         go.Bar(x=list(histogram.keys()), y=list(histogram.values()), name="colmap"), row=row, col=col
                     )
@@ -274,54 +269,6 @@ def get_figures_for_metrics(metrics_group: GtsfmMetricsGroup) -> Tuple[str, str]
     return table, plots_fig
 
 
-def add_summary(metric_name, metric_value, scalar_metrics):
-    """
-
-    :param metric_name:
-    :param metric_value:
-    :param scalar_metrics:
-    :return:
-    """
-    # Metrics with a dict representation must contain a summary.
-    if metrics.SUMMARY_KEY not in metric_value:
-        raise ValueError(f"Metric {metric_name} does not contain a summary.")
-    # Add a scalar metric for median of 1D distributions.
-    if np.isnan(metric_value[metrics.SUMMARY_KEY]["median"]):
-        scalar_metrics["median_" + metric_name].append("")
-    else:
-        scalar_metrics["median_" + metric_name].append(metric_value[metrics.SUMMARY_KEY]["median"])
-
-def add_metric(gtsfm_metric_name, gtsfm_metric_value, scalar_metrics, other_pipelines_metric_dicts):
-    """
-    Args:
-        gtsfm_metric_name: Use GTSfM metric name for adding metrics (other pipelines share metric names)
-        gtsfm_metric_value: GTSfM metric value
-        scalar_metrics: Dictionary with metric names as keys and a list of metric values for each pipeline
-        other_pipelines_metric_dicts: Dictionaries of metric name, metric value key-value pairs for each other pipeline
-
-    """
-    other_pipelines_metrics = defaultdict(list)
-    for other_pipeline_metric_dict in other_pipelines_metric_dicts:
-        if gtsfm_metric_name in other_pipeline_metric_dict:
-            other_pipeline_metric_value = other_pipeline_metric_dict[gtsfm_metric_name]
-            other_pipelines_metrics[gtsfm_metric_name].append(other_pipeline_metric_value)
-        else:
-            other_pipelines_metrics[gtsfm_metric_name].append("")
-    if isinstance(gtsfm_metric_value, dict):
-        add_summary(gtsfm_metric_name, gtsfm_metric_value, scalar_metrics)
-        for other_pipeline_metric_name, other_pipelines_metric_values in other_pipelines_metrics.items():
-            for other_pipeline_metric_value in other_pipelines_metric_values:
-                if isinstance(other_pipeline_metric_value, dict):
-                    add_summary(gtsfm_metric_name, other_pipeline_metric_value, scalar_metrics)
-                else:
-                    other_pipeline_metric_value = {'summary': {'median': np.nan}}
-                    add_summary(gtsfm_metric_name, other_pipeline_metric_value, scalar_metrics)
-    else:
-        scalar_metrics[gtsfm_metric_name].append(gtsfm_metric_value)
-        for other_pipeline_metric_name, other_pipeline_metric_values in other_pipelines_metrics.items():
-            for other_pipeline_metric_value in other_pipeline_metric_values:
-                scalar_metrics[gtsfm_metric_name].append(other_pipeline_metric_value)
-
 def get_figures_for_metrics_and_compare(
     metrics_group: GtsfmMetricsGroup, colmap_metrics_group: GtsfmMetricsGroup
 ) -> Tuple[str, str]:
@@ -348,18 +295,61 @@ def get_figures_for_metrics_and_compare(
         other_pipelines_metric_dicts.append(other_pipeline_dict)
 
     for gtsfm_metric_name, gtsfm_metric_value in gtsfm_metric_dict.items():
-        add_metric(gtsfm_metric_name, gtsfm_metric_value, scalar_metrics, other_pipelines_metric_dicts)
+        other_pipelines_metrics = defaultdict(list)
+        for other_pipeline_metric_dict in other_pipelines_metric_dicts:
+            if gtsfm_metric_name in other_pipeline_metric_dict:
+                other_pipeline_metric_value = other_pipeline_metric_dict[gtsfm_metric_name]
+                other_pipelines_metrics[gtsfm_metric_name].append(other_pipeline_metric_value)
+            else:
+                other_pipelines_metrics[gtsfm_metric_name].append("")
+        if isinstance(gtsfm_metric_value, dict):
+            # Metrics with a dict representation must contain a summary.
+            if metrics.SUMMARY_KEY not in gtsfm_metric_value:
+                raise ValueError(f"Metric {gtsfm_metric_name} does not contain a summary.")
+            # Add a scalar metric for median of 1D distributions.
+            if np.isnan(gtsfm_metric_value[metrics.SUMMARY_KEY]["median"]):
+                scalar_metrics["median_" + gtsfm_metric_name].append("")
+            else:
+                scalar_metrics["median_" + gtsfm_metric_name].append(gtsfm_metric_value[metrics.SUMMARY_KEY]["median"])
+            for other_pipeline_metric_name, other_pipelines_metric_values in other_pipelines_metrics.items():
+                for other_pipeline_metric_value in other_pipelines_metric_values:
+                    if isinstance(other_pipeline_metric_value, dict):
+                        # Metrics with a dict representation must contain a summary.
+                        if metrics.SUMMARY_KEY not in other_pipeline_metric_value:
+                            raise ValueError(f"Metric {gtsfm_metric_name} does not contain a summary.")
+                        # Add a scalar metric for median of 1D distributions.
+                        if np.isnan(other_pipeline_metric_value[metrics.SUMMARY_KEY]["median"]):
+                            scalar_metrics["median_" + gtsfm_metric_name].append("")
+                        else:
+                            scalar_metrics["median_" + gtsfm_metric_name].append(
+                                other_pipeline_metric_value[metrics.SUMMARY_KEY]["median"])
+                    else:
+                        other_pipeline_metric_value = {'summary': {'median': np.nan}}
+                        # Metrics with a dict representation must contain a summary.
+                        if metrics.SUMMARY_KEY not in other_pipeline_metric_value:
+                            raise ValueError(f"Metric {gtsfm_metric_name} does not contain a summary.")
+                        # Add a scalar metric for median of 1D distributions.
+                        if np.isnan(other_pipeline_metric_value[metrics.SUMMARY_KEY]["median"]):
+                            scalar_metrics["median_" + gtsfm_metric_name].append("")
+                        else:
+                            scalar_metrics["median_" + gtsfm_metric_name].append(
+                                other_pipeline_metric_value[metrics.SUMMARY_KEY]["median"])
+        else:
+            scalar_metrics[gtsfm_metric_name].append(gtsfm_metric_value)
+            for other_pipeline_metric_name, other_pipeline_metric_values in other_pipelines_metrics.items():
+                for other_pipeline_metric_value in other_pipeline_metric_values:
+                    scalar_metrics[gtsfm_metric_name].append(other_pipeline_metric_value)
 
     table = create_table_for_scalar_metrics_and_compare(scalar_metrics)
 
     plots_fig = ""
-    gtsfm_metric_group = metrics_group.get_metrics_as_dict()[metrics_group.name]
-    other_pipeline_metrics_groups_dict = []
+    gtsfm_metric_group_dict = metrics_group.get_metrics_as_dict()[metrics_group.name]
+    other_pipeline_metrics_groups_dicts = []
     for other_pipeline_metric_group in other_pipeline_metrics_groups:
         if metrics_group.name in other_pipeline_metric_group.get_metrics_as_dict():
             other_pipeline_metric_group = other_pipeline_metric_group.get_metrics_as_dict()[metrics_group.name]
-            other_pipeline_metrics_groups_dict.append(other_pipeline_metric_group)
-    plots_fig += create_plots_for_distributions_and_compare(gtsfm_metric_group, other_pipeline_metrics_groups_dict)
+            other_pipeline_metrics_groups_dicts.append(other_pipeline_metric_group)
+    plots_fig += create_plots_for_distributions_and_compare(gtsfm_metric_group_dict, other_pipeline_metrics_groups_dicts)
 
     return table, plots_fig
 
@@ -427,7 +417,7 @@ def generate_metrics_report_html(
             f.write(get_html_metric_heading(metrics_group.name))
 
             # Write plots and tables.
-            if len(colmap_metrics_groups) == 0:
+            if colmap_metrics_groups is None or len(colmap_metrics_groups) == 0:
                 table, plots_fig = get_figures_for_metrics(metrics_group)
             else:
                 table, plots_fig = get_figures_for_metrics_and_compare(metrics_group, colmap_metrics_groups[i])
