@@ -24,7 +24,7 @@ def compute_track_reprojection_errors(
         avg_track_reproj_error: average reprojection error of all meausurements in track.
     """
     errors = []
-    for k in range(track.number_measurements()):
+    for k in range(track.numberMeasurements()):
 
         # process each measurement
         i, uv_measured = track.measurement(k)

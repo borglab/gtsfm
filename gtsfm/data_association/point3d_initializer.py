@@ -272,7 +272,7 @@ class Point3dInitializer(NamedTuple):
         # Create a gtsam.SfmTrack with the triangulated 3d point and associated 2d measurements.
         track_3d = SfmTrack(triangulated_pt)
         for i, uv in inlier_track.measurements:
-            track_3d.add_measurement(i, uv)
+            track_3d.addMeasurement(i, uv)
 
         return track_3d, avg_track_reproj_error, TriangulationExitCode.SUCCESS
 

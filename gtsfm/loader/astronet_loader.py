@@ -118,6 +118,52 @@ class AstronetLoader(LoaderBase):
         self._num_imgs = len(self._image_paths)
         logger.info("AstroNet loader found and loaded %d images and %d tracks.", self._num_imgs, self.num_sfmtracks)
 
+    @staticmethod
+    def colmap2gtsfm(
+        cameras: Dict[int, ColmapCamera],
+        images: Dict[int, ColmapImage],
+        points3D: Dict[int, ColmapPoint3D],
+        load_sfmtracks: bool = False,
+    ) -> Tuple[List[Cal3Bundler], List[Pose3], List[str], Optional[List[Point3]]]:
+        """Converts COLMAP-formatted variables to GTSfM format.
+
+        Args:
+            cameras: dictionary of COLMAP-formatted Cameras
+            images: dictionary of COLMAP-formatted Images
+            points3D: dictionary of COLMAP-formatted Point3Ds
+            return_tracks (optional): whether or not to return tracks
+
+        Returns:
+            cameras_gtsfm: list of N camera calibrations corresponding to the N images in images_gtsfm
+            images_gtsfm: list of N camera poses when each image was taken
+            img_fnames: file names of images in images_gtsfm
+            sfmtracks_gtsfm: tracks of points in points3D
+        """
+        # Note: Assumes input cameras use `PINHOLE` model
+        if len(images) == 0 and len(cameras) == 0:
+            raise RuntimeError("No Image or Camera data provided to loader.")
+        cameras_gtsfm, images_gtsfm, img_fnames = [], [], []
+        image_id_to_idx = {}  # keeps track of discrepencies between `image_id` and List index.
+        for idx, img in enumerate(images.values()):
+            images_gtsfm.append(Pose3(Rot3(img.qvec2rotmat()), img.tvec).inverse())
+            img_fnames.append(img.name)
+            fx, _, cx, cy = cameras[img.camera_id].params[:4]
+            cameras_gtsfm.append(Cal3Bundler(fx, 0.0, 0.0, cx, cy))
+            image_id_to_idx[img.id] = idx
+
+        if len(points3D) == 0 and load_sfmtracks:
+            raise RuntimeError("No SfMTrack data provided to loader.")
+        sfmtracks_gtsfm = None
+        if len(points3D) > 0 and load_sfmtracks:
+            sfmtracks_gtsfm = []
+            for point3D in points3D.values():
+                sfmtrack = SfmTrack(point3D.xyz)
+                for (image_id, point2d_idx) in zip(point3D.image_ids, point3D.point2D_idxs):
+                    sfmtrack.addMeasurement(image_id_to_idx[image_id], images[image_id].xys[point2d_idx])
+                sfmtracks_gtsfm.append(sfmtrack)
+
+        return cameras_gtsfm, images_gtsfm, img_fnames, sfmtracks_gtsfm
+
     def __len__(self) -> int:
         """The number of images in the dataset.
 

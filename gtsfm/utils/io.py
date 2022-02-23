@@ -141,13 +141,13 @@ def read_bal(file_path: str) -> GtsfmData:
     """
     sfm_data = gtsam.readBal(file_path)
 
-    num_images = sfm_data.number_cameras()
+    num_images = sfm_data.numberCameras()
 
     gtsfm_data = GtsfmData(num_images)
     for i in range(num_images):
         camera = sfm_data.camera(i)
         gtsfm_data.add_camera(i, camera)
-    for j in range(sfm_data.number_tracks()):
+    for j in range(sfm_data.numberTracks()):
         gtsfm_data.add_track(sfm_data.track(j))
 
     return gtsfm_data
@@ -477,7 +477,7 @@ def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
             x, y, z = track.point3()
             f.write(f"{j} {x} {y} {z} {r} {g} {b} {np.round(avg_track_reproj_error, 2)} ")
 
-            for k in range(track.number_measurements()):
+            for k in range(track.numberMeasurements()):
                 i, uv_measured = track.measurement(k)
                 f.write(f"{i} {point2d_idx} ")
             f.write("\n")

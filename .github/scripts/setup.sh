@@ -8,10 +8,11 @@ echo "Running .github/scripts/setup.sh..."
 conda init
 conda info --envs
 
-wget -O 2021_09_02_gtsam_python38_wheel.zip --no-check-certificate "https://drive.google.com/uc?export=download&id=1GSf3NxabSCsu2nPcBUuEhhVq_m1FvdY5"
+export GTSAM_WHEEL=gtsam-4.2a5-cp38-cp38-manylinux2014_x86_64.whl
+wget https://github.com/johnwlambert/gtsfm-datasets-mirror/releases/download/v4.2a5/${GTSAM_WHEEL}.zip
 
-unzip 2021_09_02_gtsam_python38_wheel.zip
-pip install gtsam-4.1.0-cp38-cp38-manylinux2014_x86_64.whl
+unzip ${GTSAM_WHEEL}.zip
+pip install $GTSAM_WHEEL
 
 ##########################################################
 # Install GTSFM as a module
