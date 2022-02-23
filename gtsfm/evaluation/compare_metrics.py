@@ -8,8 +8,14 @@ Authors: Jon Womack
 import os
 from typing import Dict, List
 
+import numpy as np
+from gtsam import Point3, PinholeCameraCal3Bundler
+
+
 import gtsfm.utils.io as io_utils
+import gtsfm.utils.reprojection as reproj_utils
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
+from gtsfm.common.gtsfm_data import GtsfmData
 
 import thirdparty.colmap.scripts.python.read_write_model as colmap_io
 
@@ -29,7 +35,7 @@ def compute_metrics_from_txt(cameras, images, points3d):
     track_lengths = []
     image_id_num_measurements = {}
     for track in sfmtracks:
-        track_lengths.append(track.number_measurements())
+        track_lengths.append(int(track.number_measurements()))
         for k in range(track.number_measurements()):
             image_id, uv_measured = track.measurement(k)
             if image_id not in image_id_num_measurements:
@@ -37,13 +43,76 @@ def compute_metrics_from_txt(cameras, images, points3d):
             else:
                 image_id_num_measurements[image_id] += 1
 
+    # Note: IDs begin at 1, so id-1 for indexing list
+    unfiltered_reproj_errors = []
+    filtered_reproj_errors = []
+    filtered_track_lengths = []
+    for point3d_id, point3d in points3d.items():
+        reproj_error = point3d.error
+        unfiltered_reproj_errors.append(reproj_error)
+        if reproj_error < 3:
+            filtered_reproj_errors.append(reproj_error)
+            filtered_track_lengths.append(len(point3d.image_ids))
+    num_filtered_tracks = len(filtered_track_lengths)
+
+
+
+    all_errors = np.array([])
+    for point3d_id, point3d in points3d.items():
+        gtsfm_data = GtsfmData(len(images))
+        point3d_camera_dict = {}
+        for image_id in point3d.image_ids:
+            camera_intrinsics = cameras[image_id-1]
+            camera_pose = images[image_id-1]
+            point3d_camera_dict[image_id - 1] = PinholeCameraCal3Bundler(camera_pose, camera_intrinsics)
+            gtsfm_data.add_camera(image_id - 1, point3d_camera_dict[image_id - 1])
+        point3d_tracks = []
+        for point2d_idx in point3d.point2D_idxs:
+            point3d_tracks.append(sfmtracks[point2d_idx-1])
+        point3d_measurements = []
+        for track in point3d_tracks:
+            gtsfm_data.add_track(track)
+            for i in range(track.number_measurements()):
+                point3d_measurements.append(track.measurement(i))
+        xyz = point3d.xyz
+        point3d = Point3(xyz[0], xyz[1], xyz[2])
+        errors, _ = reproj_utils.compute_point_reprojection_errors(
+            point3d_camera_dict, point3d, point3d_measurements
+        )
+        all_errors = np.append(all_errors, errors)
+        # print(compute_track_reprojection_errors(
+        #     point3d_camera_dict: Dict[int, PinholeCameraCal3Bundler], track: SfmTrack
+        # ))
+        # print(gtsfm_data.filter_landmarks(.5))
+    # print(errors < 100)
+    print(len(sfmtracks))
+
+    all_errors = all_errors[~np.isnan(np.asarray(all_errors))]
+
     other_pipeline_metrics = {
         "number_cameras": GtsfmMetric("number_cameras", num_cameras),
-        "3d_tracks_length": GtsfmMetric(
-            "3d_tracks_length",
-            track_lengths,
+        "3d_track_lengths_unfiltered": GtsfmMetric(
+            "3d_track_lengths_unfiltered",
+            np.asarray(track_lengths),
             plot_type=GtsfmMetric.PlotType.HISTOGRAM,
         ),
+        "number_tracks_unfiltered": GtsfmMetric("number_tracks_unfiltered", len(sfmtracks)),
+        "reprojection_errors_unfiltered_px": GtsfmMetric(
+            "reprojection_errors_unfiltered_px",
+            unfiltered_reproj_errors,
+            plot_type=GtsfmMetric.PlotType.BOX,
+        ),
+        "3d_track_lengths_filtered": GtsfmMetric(
+            "3d_track_lengths_filtered",
+            np.asarray(filtered_track_lengths),
+            plot_type=GtsfmMetric.PlotType.HISTOGRAM,
+        ),
+        "number_tracks_filtered": GtsfmMetric("number_tracks_filtered", num_filtered_tracks),
+        "reprojection_errors_filtered_px": GtsfmMetric(
+            "reprojection_errors_filtered_px",
+            filtered_reproj_errors,
+            plot_type=GtsfmMetric.PlotType.BOX,
+        )
     }
     return other_pipeline_metrics
 

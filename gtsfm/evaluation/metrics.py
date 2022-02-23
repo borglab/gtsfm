@@ -91,7 +91,8 @@ class GtsfmMetric:
         if data is not None:
             # Cast to a numpy array
             if not isinstance(data, np.ndarray):
-                data = np.array(data, dtype=np.float32)
+                # data = np.array(data, dtype=np.float32)
+                data = np.array(data)
             if data.ndim > 1:
                 raise ValueError("Metrics must be scalars on 1D-distributions.")
 
@@ -330,6 +331,7 @@ class GtsfmMetricsGroup:
         gtsfm_metrics_list = []
         for metric_name, metric_value in metrics_dict.items():
             gtsfm_metrics_list.append(GtsfmMetric.parse_from_dict({metric_name: metric_value}))
+
         return GtsfmMetricsGroup(metrics_group_name, gtsfm_metrics_list)
 
     @classmethod

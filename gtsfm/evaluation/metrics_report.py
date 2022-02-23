@@ -155,9 +155,6 @@ def create_plots_for_distributions_and_compare(metrics_dict: Dict[str, Any], oth
         Plots in a grid converted to HTML as a string.
     """
     distribution_metrics = []
-    print("here1")
-    print(len(other_pipeline_metric_groups))
-    subplots_per_row = len(other_pipeline_metric_groups) + 1
     # Separate all the 1D distribution metrics.
     for metric, value in metrics_dict.items():
         if isinstance(value, dict):
@@ -167,31 +164,37 @@ def create_plots_for_distributions_and_compare(metrics_dict: Dict[str, Any], oth
     if len(distribution_metrics) == 0:
         return ""
 
+
+    fig_html = ""
     # Setup figure layout - number of rows and columns.
     num_rows = len(distribution_metrics)
-    fig = psubplot.make_subplots(rows=num_rows, cols=subplots_per_row, subplot_titles=distribution_metrics)
-    fig.update_layout({"height": 512 * num_rows, "width": 1024, "showlegend": False})
+    num_rows = 1
+    subplots_per_row = 1
     i = 0
     # Iterate over all metrics.
     for metric_name, metric_value in metrics_dict.items():
-        j = 0
+        fig = psubplot.make_subplots(rows=num_rows, cols=subplots_per_row, subplot_titles=(metric_name,)) # without trailing comma in subplot_titles, title is lost.
+        fig.update_layout({"height": 512 * num_rows, "width": 1024, "showlegend": True})
+        # j = 0
         # Check if this is a 1D distribution metric and has a summary.
         if metric_name not in distribution_metrics or metrics.SUMMARY_KEY not in metric_value:
             continue
-        row = i + 1
-        i += 1
-        col = j + 1
-        j += 1
+        # row = i + 1
+        row = 1
+        i = 1
+        # col = j + 1
+        col = 1
+        j = 1
         # Histogram metrics are plotted directly from summary.
         if "histogram" in metric_value[metrics.SUMMARY_KEY]:
             histogram = metric_value[metrics.SUMMARY_KEY]["histogram"]
             fig.add_trace(
-                go.Bar(x=list(histogram.keys()), y=list(histogram.values()), name=metric_name), row=row, col=col
+                go.Bar(x=list(histogram.keys()), y=list(histogram.values()), name="gtsfm"), row=row, col=col
             )
         elif "quartiles" in metric_value[metrics.SUMMARY_KEY]:
             # If all values are available, use them to create box plot.
             if metrics.FULL_DATA_KEY in metric_value:
-                fig.add_trace(go.Box(y=metric_value[metrics.FULL_DATA_KEY], name=metric_name), row=row, col=col)
+                fig.add_trace(go.Box(y=metric_value[metrics.FULL_DATA_KEY], name="gtsfm"), row=row, col=col)
             # Else use summary to create box plot.
             else:
                 quartiles = metric_value[metrics.SUMMARY_KEY]["quartiles"]
@@ -202,29 +205,25 @@ def create_plots_for_distributions_and_compare(metrics_dict: Dict[str, Any], oth
                         q3=[quartiles["q3"]],
                         lowerfence=[quartiles["q0"]],
                         upperfence=[quartiles["q4"]],
-                        name=metric_name,
+                        name="gtsfm",
                     ),
                     row=row,
                     col=col,
                 )
-
         for other_metrics_dict in other_pipeline_metric_groups:
-            col = j + 1
-            j += 1
-            print(len(other_metrics_dict))
+            # col = j + 1
+            # j += 1
             if metric_name in other_metrics_dict:
-                print("here3")
-                print(metric_name)
                 other_metric_value = other_metrics_dict[metric_name]
                 if "histogram" in other_metric_value[metrics.SUMMARY_KEY]:
                     histogram = other_metric_value[metrics.SUMMARY_KEY]["histogram"]
                     fig.add_trace(
-                        go.Bar(x=list(histogram.keys()), y=list(histogram.values()), name="TEST"), row=row, col=col
+                        go.Bar(x=list(histogram.keys()), y=list(histogram.values()), name="colmap"), row=row, col=col
                     )
                 elif "quartiles" in other_metric_value[metrics.SUMMARY_KEY]:
                     # If all values are available, use them to create box plot.
                     if metrics.FULL_DATA_KEY in other_metric_value:
-                        fig.add_trace(go.Box(y=other_metric_value[metrics.FULL_DATA_KEY], name=metric_name), row=row, col=col)
+                        fig.add_trace(go.Box(y=other_metric_value[metrics.FULL_DATA_KEY], name="colmap"), row=row, col=col)
                     # Else use summary to create box plot.
                     else:
                         quartiles = other_metric_value[metrics.SUMMARY_KEY]["quartiles"]
@@ -240,13 +239,9 @@ def create_plots_for_distributions_and_compare(metrics_dict: Dict[str, Any], oth
                             row=row,
                             col=col,
                         )
-            else:
-                fig.add_trace(
-                    go.Bar(x=[], y=[], name="TESTT"), row=row, col=col
-                )
-
+        fig_html += fig.to_html(full_html=False, include_plotlyjs="cdn")
     # Return the figure converted to HTML.
-    return fig.to_html(full_html=False, include_plotlyjs="cdn")
+    return fig_html
 
 
 def get_figures_for_metrics(metrics_group: GtsfmMetricsGroup) -> Tuple[str, str]:
@@ -358,27 +353,13 @@ def get_figures_for_metrics_and_compare(
     table = create_table_for_scalar_metrics_and_compare(scalar_metrics)
 
     plots_fig = ""
-    # all_metrics_groups = [metrics_group] + other_pipeline_metrics_groups
-    # for metrics_group in all_metrics_groups:
-    #     plots_fig += create_plots_for_distributions_and_compare(metrics_group.get_metrics_as_dict()[metrics_group.name])
-    print("here")
-    print(metrics_group.name)
     gtsfm_metric_group = metrics_group.get_metrics_as_dict()[metrics_group.name]
     other_pipeline_metrics_groups_dict = []
     for other_pipeline_metric_group in other_pipeline_metrics_groups:
         if metrics_group.name in other_pipeline_metric_group.get_metrics_as_dict():
-            print("here2")
             other_pipeline_metric_group = other_pipeline_metric_group.get_metrics_as_dict()[metrics_group.name]
-            print(len(other_pipeline_metric_group))
             other_pipeline_metrics_groups_dict.append(other_pipeline_metric_group)
     plots_fig += create_plots_for_distributions_and_compare(gtsfm_metric_group, other_pipeline_metrics_groups_dict)
-
-    # for metric in metrics_group.get_metrics_as_dict():
-    #     print(metric)
-    # for metrics_group in other_pipeline_metrics_groups:
-    #     for metric in metrics_group.get_metrics_as_dict():
-    #         print(metric)
-    # plots_fig +=
 
     return table, plots_fig
 
