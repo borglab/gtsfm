@@ -7,11 +7,11 @@ import numpy as np
 
 import tests.frontend.matcher.test_matcher_base as test_matcher_base
 import gtsfm.utils.features as feature_utils
-from gtsfm.frontend.matcher.twoway_withratiotest_matcher import TwoWayWithRatioTestMatcher
+from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
 
 
 class TestTwoWayWithRatioTestMatcher(test_matcher_base.TestMatcherBase):
-    """Unit tests for the TwoWayMatcher.
+    """Unit tests for the TwoWayMatcher configured to use the ratio-test.
 
     All unit test functions defined in TestMatcherBase are run automatically.
     """
@@ -19,7 +19,7 @@ class TestTwoWayWithRatioTestMatcher(test_matcher_base.TestMatcherBase):
     def setUp(self):
         super().setUp()
 
-        self.matcher = TwoWayWithRatioTestMatcher(ratio_test_threshold=0.8)
+        self.matcher = TwoWayMatcher(ratio_test_threshold=0.8)
 
     def test_on_dummy_data(self):
         """Test using dummy 1D descriptors to verify correctness."""

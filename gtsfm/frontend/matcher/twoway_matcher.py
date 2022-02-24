@@ -1,8 +1,10 @@
 """Two way (mutual nearest neighbor) matcher.
 
+Ref: https://github.com/colmap/colmap/blob/2b7230679957e4dccd590ab467931d6cfffb9ede/src/feature/sift.cc
+
 Authors: Ayush Baid
 """
-from typing import Tuple
+from typing import Dict, Optional, Tuple
 
 import cv2 as cv
 import numpy as np
@@ -20,20 +22,22 @@ class MatchingDistanceType(Enum):
 
 
 class TwoWayMatcher(MatcherBase):
-    """Two way (mutual nearest neighbor) matcher using OpenCV."""
+    """Two way (mutual nearest neighbor) matcher using OpenCV, with optional ratio test"""
 
     def __init__(
         self,
         distance_type: MatchingDistanceType = MatchingDistanceType.EUCLIDEAN,
+        ratio_test_threshold: Optional[float] = None,
     ):
         """Initialize the matcher.
 
         Args:
             distance_type: distance type for matching.
-            ratio_test_threshold: ratio test threshold. Defaults to None.
+            ratio_test_threshold: ratio test threshold (optional). Defaults to None (no ratio test applied).
         """
         super().__init__()
         self._distance_type = distance_type
+        self._ratio_test_threshold: Optional[float] = ratio_test_threshold
 
     def match(
         self,
@@ -71,7 +75,7 @@ class TwoWayMatcher(MatcherBase):
         valid_idx_i1 = np.nonzero(~(np.isnan(descriptors_i1).any(axis=1)))[0]
         valid_idx_i2 = np.nonzero(~(np.isnan(descriptors_i2).any(axis=1)))[0]
 
-        match_indices = self._perform_matching(descriptors_i1[valid_idx_i1], descriptors_i2[valid_idx_i2])
+        match_indices = self.__perform_matching(descriptors_i1[valid_idx_i1], descriptors_i2[valid_idx_i2])
 
         if match_indices.size == 0:
             return np.array([])
@@ -82,7 +86,7 @@ class TwoWayMatcher(MatcherBase):
 
         return match_indices
 
-    def _init_opencv_matcher(self) -> cv.DescriptorMatcher:
+    def __init_opencv_matcher(self) -> cv.DescriptorMatcher:
         """Initialize the OpenCV matcher.
 
         Returns:
@@ -95,9 +99,9 @@ class TwoWayMatcher(MatcherBase):
         else:
             raise NotImplementedError("The distance type is not in MatchingDistanceType")
 
-        return cv.BFMatcher(normType=distance_metric, crossCheck=True)
+        return cv.BFMatcher(normType=distance_metric, crossCheck=False)
 
-    def _perform_matching(self, descriptors_1: np.ndarray, descriptors_2: np.ndarray) -> np.ndarray:
+    def __perform_matching(self, descriptors_1: np.ndarray, descriptors_2: np.ndarray) -> np.ndarray:
         """Run the core logic for matching.
 
         Args:
@@ -107,11 +111,29 @@ class TwoWayMatcher(MatcherBase):
         Returns:
             indices of the match between two images.
         """
-        opencv_matcher = self._init_opencv_matcher()
+        match_indices_1to2: Dict[int, int] = self.__perform_oneway_matching(descriptors_1, descriptors_2)
+        match_indices_2to1: Dict[int, int] = self.__perform_oneway_matching(descriptors_2, descriptors_1)
 
-        matches = opencv_matcher.match(descriptors_1, descriptors_2)
+        match_indices_1to2to1 = {
+            idx1: match_indices_2to1[idx2] for idx1, idx2 in match_indices_1to2.items() if idx2 in match_indices_2to1
+        }
+
+        twoway_match_indices = np.array(
+            [[idx1, idx2] for idx1, idx2 in match_indices_1to2.items() if match_indices_1to2to1.get(idx1) == idx1],
+            dtype=np.uint32,
+        )
+        return twoway_match_indices
+
+    def __perform_oneway_matching(self, descriptors_1: np.ndarray, descriptors_2: np.ndarray) -> Dict[int, int]:
+        opencv_matcher = self.__init_opencv_matcher()
+
+        if self._ratio_test_threshold is not None:
+            all_matches = opencv_matcher.knnMatch(descriptors_1, descriptors_2, k=2)
+            matches = [m1 for m1, m2 in all_matches if m1.distance <= self._ratio_test_threshold * m2.distance]
+        else:
+            matches = opencv_matcher.match(descriptors_1, descriptors_2)
+
         matches = sorted(matches, key=lambda r: r.distance)
-
-        match_indices = np.array([[m.queryIdx, m.trainIdx] for m in matches]).astype(np.uint32)
+        match_indices = {m.queryIdx: m.trainIdx for m in matches}
 
         return match_indices

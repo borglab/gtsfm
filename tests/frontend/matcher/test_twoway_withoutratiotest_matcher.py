@@ -10,8 +10,8 @@ import gtsfm.utils.features as feature_utils
 from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
 
 
-class TestTwoWayMatcher(test_matcher_base.TestMatcherBase):
-    """Unit tests for the TwoWayMatcher.
+class TestTwoWayWithoutRatioTestMatcher(test_matcher_base.TestMatcherBase):
+    """Unit tests for the TwoWayMatcher configured to not use the ratio-test.
 
     All unit test functions defined in TestMatcherBase are run automatically.
     """
@@ -19,22 +19,49 @@ class TestTwoWayMatcher(test_matcher_base.TestMatcherBase):
     def setUp(self):
         super().setUp()
 
-        self.matcher = TwoWayMatcher()
+        self.matcher = TwoWayMatcher(ratio_test_threshold=None)
 
     def test_on_dummy_data(self):
         """Test using dummy 1D descriptors to verify correctness."""
 
-        image_shape_i1 = (300, 100) # as (H,W)
+        image_shape_i1 = (300, 100)  # as (H,W)
         descriptors_i1 = (
-            np.array([0.4865, 0.3752, 0.3077, 0.9188, 0.7837, 0.1083, 0.6822, 0.3764, 0.2288, 0.8018, 1.1,])
+            np.array(
+                [
+                    0.4865,
+                    0.3752,
+                    0.3077,
+                    0.9188,
+                    0.7837,
+                    0.1083,
+                    0.6822,
+                    0.3764,
+                    0.2288,
+                    0.8018,
+                    1.1,
+                ]
+            )
             .reshape(-1, 1)
             .astype(np.float32)
         )
         keypoints_i1 = feature_utils.generate_random_keypoints(descriptors_i1.shape[0], image_shape_i1)
 
-        image_shape_i2 = (300, 100) # as (H,W)
+        image_shape_i2 = (300, 100)  # as (H,W)
         descriptors_i2 = (
-            np.array([0.9995, 0.3376, 0.9005, 0.5382, 0.3162, 0.7974, 0.1785, 0.3491, 0.8658, 0.2912,])
+            np.array(
+                [
+                    0.9995,
+                    0.3376,
+                    0.9005,
+                    0.5382,
+                    0.3162,
+                    0.7974,
+                    0.1785,
+                    0.3491,
+                    0.8658,
+                    0.2912,
+                ]
+            )
             .reshape(-1, 1)
             .astype(np.float32)
         )
