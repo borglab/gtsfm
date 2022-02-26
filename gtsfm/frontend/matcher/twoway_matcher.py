@@ -114,17 +114,22 @@ class TwoWayMatcher(MatcherBase):
         match_indices_1to2: Dict[int, int] = self.__perform_oneway_matching(descriptors_1, descriptors_2)
         match_indices_2to1: Dict[int, int] = self.__perform_oneway_matching(descriptors_2, descriptors_1)
 
-        match_indices_1to2to1 = {
-            idx1: match_indices_2to1[idx2] for idx1, idx2 in match_indices_1to2.items() if idx2 in match_indices_2to1
-        }
-
         twoway_match_indices = np.array(
-            [[idx1, idx2] for idx1, idx2 in match_indices_1to2.items() if match_indices_1to2to1.get(idx1) == idx1],
+            [(idx1, idx2) for idx1, idx2 in match_indices_1to2.items() if match_indices_2to1.get(idx2) == idx1],
             dtype=np.uint32,
         )
         return twoway_match_indices
 
     def __perform_oneway_matching(self, descriptors_1: np.ndarray, descriptors_2: np.ndarray) -> Dict[int, int]:
+        """Perform 1-way matching.
+
+        Args:
+            descriptors_1: descriptors for the 1st image.
+            descriptors_2: descriptors for the 2nd image.
+
+        Returns:
+            indices of the match between two images as a dictionary.
+        """
         opencv_matcher = self.__init_opencv_matcher()
 
         if self._ratio_test_threshold is not None:
