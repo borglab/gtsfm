@@ -90,8 +90,8 @@ class GtsfmMetric:
         self._name = name
         if data is not None:
             # Cast to a numpy array
-            # if isinstance(data, list) and all(isinstance(x, int) for x in data):
-            #     data = np.array(data, dtype=np.int_)
+            if isinstance(data, list) and all(isinstance(x, int) for x in data):
+                data = np.array(data, dtype=np.int_)
             if not isinstance(data, np.ndarray):
                 data = np.array(data, dtype=np.float32)
             if data.ndim > 1:
@@ -204,7 +204,6 @@ class GtsfmMetric:
         """
         if self._dim == 0:
             return {self._name: self._data.tolist()}
-
         metric_dict = {SUMMARY_KEY: self.summary}
         if self._data is not None:
             metric_dict[FULL_DATA_KEY] = self._data.tolist()
@@ -235,7 +234,6 @@ class GtsfmMetric:
 
         metric_name = list(metric_dict.keys())[0]
         metric_value = metric_dict[metric_name]
-
         # 1D distribution metrics
         if isinstance(metric_value, dict):
             data = None
@@ -245,7 +243,6 @@ class GtsfmMetric:
             if SUMMARY_KEY in metric_value:
                 summary = metric_value[SUMMARY_KEY]
             return cls(metric_name, data=data, summary=summary)
-
         # Scalar metrics
         return cls(metric_name, metric_value)
 
@@ -332,7 +329,6 @@ class GtsfmMetricsGroup:
         gtsfm_metrics_list = []
         for metric_name, metric_value in metrics_dict.items():
             gtsfm_metrics_list.append(GtsfmMetric.parse_from_dict({metric_name: metric_value}))
-
         return GtsfmMetricsGroup(metrics_group_name, gtsfm_metrics_list)
 
     @classmethod

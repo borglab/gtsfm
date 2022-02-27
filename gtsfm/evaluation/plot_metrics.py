@@ -83,7 +83,6 @@ def create_metrics_plots_html(json_path: str, output_dir: str, colmap_json_path:
             openmvg_metric_path = os.path.join(openmvg_json_path, os.path.basename(metric_path))
             openmvg_metrics_groups.append(GtsfmMetricsGroup.parse_from_json(openmvg_metric_path))
         other_pipeline_metrics_groups["openmvg"] = openmvg_metrics_groups
-
     metrics_report.generate_metrics_report_html(metrics_groups, output_file, other_pipeline_metrics_groups)
 
 

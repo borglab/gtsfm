@@ -209,8 +209,6 @@ def create_plots_for_distributions_and_compare(metrics_dict: Dict[str, Any], oth
         for index, other_metrics_dict in enumerate(other_pipeline_metrics_dicts):
             if metric_name in other_metrics_dict:
                 other_metric_value = other_metrics_dict[metric_name]
-                if metric_name == "3d_track_lengths_filtered":
-                    print(other_metric_value[metrics.SUMMARY_KEY]["histogram"])
                 if "histogram" in other_metric_value[metrics.SUMMARY_KEY]:
                     histogram = other_metric_value[metrics.SUMMARY_KEY]["histogram"]
                     fig.add_trace(
@@ -294,8 +292,6 @@ def get_figures_for_metrics_and_compare(
         other_pipelines_metric_dicts.append(other_pipeline_dict)
 
     for gtsfm_metric_name, gtsfm_metric_value in gtsfm_metric_dict.items():
-        if gtsfm_metric_name == "3d_track_lengths_unfiltered":
-            print(gtsfm_metric_value)
         other_pipelines_metrics = defaultdict(list)
         for other_pipeline_metric_dict in other_pipelines_metric_dicts:
             if gtsfm_metric_name in other_pipeline_metric_dict:
@@ -411,11 +407,11 @@ def generate_metrics_report_html(
         f.write("<!DOCTYPE html>" "<html>")
         f.write(get_html_header())
 
-        pipeline_names = list(other_pipelines_metrics_groups.keys())
-        pipeline_names.insert(0, "gtsfm")
+        pipeline_names = ["gtsfm"]
+        if other_pipelines_metrics_groups is not None:
+            pipeline_names += list(other_pipelines_metrics_groups.keys())
         # Iterate over all metrics groups
         for i, metrics_group in enumerate(metrics_groups):
-
             # Write name of the metric group in human readable form.
             f.write(get_html_metric_heading(metrics_group.name))
 
