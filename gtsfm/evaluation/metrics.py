@@ -90,9 +90,10 @@ class GtsfmMetric:
         self._name = name
         if data is not None:
             # Cast to a numpy array
+            # if isinstance(data, list) and all(isinstance(x, int) for x in data):
+            #     data = np.array(data, dtype=np.int_)
             if not isinstance(data, np.ndarray):
-                # data = np.array(data, dtype=np.float32)
-                data = np.array(data)
+                data = np.array(data, dtype=np.float32)
             if data.ndim > 1:
                 raise ValueError("Metrics must be scalars on 1D-distributions.")
 
@@ -168,7 +169,7 @@ class GtsfmMetric:
         """
         if data.ndim != 1:
             raise ValueError("Metric must be a 1D distribution to get summary.")
-        if data.size == 0 or np.isnan(data).all():
+        if data.size == 0: #or np.isnan(data).all():
             return {"min": np.NaN, "max": np.NaN, "median": np.NaN, "mean": np.NaN, "stddev": np.NaN}
         summary = {
             "min": np.nanmin(data).tolist(),

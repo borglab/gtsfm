@@ -47,17 +47,16 @@ def compute_metrics_from_txt(cameras, images, points3d):
     for point3d_id, point3d in points3d.items():
         reproj_error = point3d.error
         unfiltered_reproj_errors.append(reproj_error)
-        #TODO: make reproj_error_threshold an argument to this method
+        #TODO (Jon): make reproj_error_threshold an argument to this method
         if reproj_error < 3:
             filtered_reproj_errors.append(reproj_error)
             filtered_track_lengths.append(len(point3d.image_ids))
     num_filtered_tracks = len(filtered_track_lengths)
-
     other_pipeline_metrics = {
         "number_cameras": GtsfmMetric("number_cameras", num_cameras),
         "3d_track_lengths_unfiltered": GtsfmMetric(
             "3d_track_lengths_unfiltered",
-            np.asarray(unfiltered_track_lengths),
+            np.asarray(unfiltered_track_lengths,),
             plot_type=GtsfmMetric.PlotType.HISTOGRAM,
         ),
         "number_tracks_unfiltered": GtsfmMetric("number_tracks_unfiltered", len(sfmtracks)),

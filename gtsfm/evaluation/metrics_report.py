@@ -52,7 +52,7 @@ def create_table_for_scalar_metrics(metrics_dict: Dict[str, Union[float, int]]) 
     return tabulate(table, headers="keys", tablefmt="html")
 
 
-def create_table_for_scalar_metrics_and_compare(metrics_dict: Dict[str, List[Union[float, int]]]) -> str:
+def create_table_for_scalar_metrics_and_compare(metrics_dict: Dict[str, List[Union[float, int]]], pipeline_names: List[str]) -> str:
     """Creates a table in HTML format with an additional column for scalar metrics from COLMAP.
 
     Args:
@@ -71,9 +71,9 @@ def create_table_for_scalar_metrics_and_compare(metrics_dict: Dict[str, List[Uni
                     metric_values[metric_index] = round(metric_value, 3)
     table = {
         "Metric name": list(metrics_dict.keys()),
-        "GTSfM": list(item[0] for item in metrics_dict.values()),
-        "COLMAP": list(item[1] for item in metrics_dict.values()),
     }
+    for index, pipeline_name in enumerate(pipeline_names):
+        table[pipeline_name] = list(item[index] for item in metrics_dict.values())
     return tabulate(table, headers="keys", tablefmt="html")
 
 
@@ -142,7 +142,7 @@ def create_plots_for_distributions(metrics_dict: Dict[str, Any]) -> str:
     # Return the figure converted to HTML.
     return fig.to_html(full_html=False, include_plotlyjs="cdn")
 
-def create_plots_for_distributions_and_compare(metrics_dict: Dict[str, Any], other_pipeline_metrics_dicts: List[Dict]) -> str:
+def create_plots_for_distributions_and_compare(metrics_dict: Dict[str, Any], other_pipeline_metrics_dicts: List[Dict], pipeline_names: List[str]) -> str:
     """Creates plots for 1D distribution metrics using plotly, and converts them to HTML.
 
     The plots are arranged in a grid, with each row having SUBPLOTS_PER_ROW (3) columns.
@@ -185,12 +185,12 @@ def create_plots_for_distributions_and_compare(metrics_dict: Dict[str, Any], oth
         if "histogram" in metric_value[metrics.SUMMARY_KEY]:
             histogram = metric_value[metrics.SUMMARY_KEY]["histogram"]
             fig.add_trace(
-                go.Bar(x=list(histogram.keys()), y=list(histogram.values()), name="gtsfm"), row=row, col=col
+                go.Bar(x=list(histogram.keys()), y=list(histogram.values()), name=pipeline_names[0]), row=row, col=col
             )
         elif "quartiles" in metric_value[metrics.SUMMARY_KEY]:
             # If all values are available, use them to create box plot.
             if metrics.FULL_DATA_KEY in metric_value:
-                fig.add_trace(go.Box(y=metric_value[metrics.FULL_DATA_KEY], name="gtsfm"), row=row, col=col)
+                fig.add_trace(go.Box(y=metric_value[metrics.FULL_DATA_KEY], name=pipeline_names[0]), row=row, col=col)
             # Else use summary to create box plot.
             else:
                 quartiles = metric_value[metrics.SUMMARY_KEY]["quartiles"]
@@ -201,24 +201,25 @@ def create_plots_for_distributions_and_compare(metrics_dict: Dict[str, Any], oth
                         q3=[quartiles["q3"]],
                         lowerfence=[quartiles["q0"]],
                         upperfence=[quartiles["q4"]],
-                        name="gtsfm",
+                        name=pipeline_names[0],
                     ),
                     row=row,
                     col=col,
                 )
-        for other_metrics_dict in other_pipeline_metrics_dicts:
+        for index, other_metrics_dict in enumerate(other_pipeline_metrics_dicts):
             if metric_name in other_metrics_dict:
                 other_metric_value = other_metrics_dict[metric_name]
+                if metric_name == "3d_track_lengths_filtered":
+                    print(other_metric_value[metrics.SUMMARY_KEY]["histogram"])
                 if "histogram" in other_metric_value[metrics.SUMMARY_KEY]:
                     histogram = other_metric_value[metrics.SUMMARY_KEY]["histogram"]
-                    #TODO: pass other_pipeline_name to replace "colmap"
                     fig.add_trace(
-                        go.Bar(x=list(histogram.keys()), y=list(histogram.values()), name="colmap"), row=row, col=col
+                        go.Bar(x=list(histogram.keys()), y=list(histogram.values()), name=pipeline_names[index+1]), row=row, col=col
                     )
                 elif "quartiles" in other_metric_value[metrics.SUMMARY_KEY]:
                     # If all values are available, use them to create box plot.
                     if metrics.FULL_DATA_KEY in other_metric_value:
-                        fig.add_trace(go.Box(y=other_metric_value[metrics.FULL_DATA_KEY], name="colmap"), row=row, col=col)
+                        fig.add_trace(go.Box(y=other_metric_value[metrics.FULL_DATA_KEY], name=pipeline_names[index+1]), row=row, col=col)
                     # Else use summary to create box plot.
                     else:
                         quartiles = other_metric_value[metrics.SUMMARY_KEY]["quartiles"]
@@ -270,8 +271,7 @@ def get_figures_for_metrics(metrics_group: GtsfmMetricsGroup) -> Tuple[str, str]
 
 
 def get_figures_for_metrics_and_compare(
-    metrics_group: GtsfmMetricsGroup, colmap_metrics_group: GtsfmMetricsGroup
-) -> Tuple[str, str]:
+    metrics_group: GtsfmMetricsGroup, other_metrics_group: List[GtsfmMetricsGroup], pipeline_names: List[str]) -> Tuple[str, str]:
     """Gets the tables and plots for individual metrics in a metrics group.
 
     All scalar metrics are reported in the table.
@@ -285,16 +285,17 @@ def get_figures_for_metrics_and_compare(
     Returns:
         A tuple of table and plotly figures as HTML code.
     """
-    other_pipeline_metrics_groups = [colmap_metrics_group]
     scalar_metrics = defaultdict(list)
 
     gtsfm_metric_dict = metrics_group.get_metrics_as_dict()[metrics_group.name]
     other_pipelines_metric_dicts = []
-    for other_pipeline_metrics_group in other_pipeline_metrics_groups:
+    for other_pipeline_metrics_group in other_metrics_group:
         other_pipeline_dict = other_pipeline_metrics_group.get_metrics_as_dict()[other_pipeline_metrics_group.name]
         other_pipelines_metric_dicts.append(other_pipeline_dict)
 
     for gtsfm_metric_name, gtsfm_metric_value in gtsfm_metric_dict.items():
+        if gtsfm_metric_name == "3d_track_lengths_unfiltered":
+            print(gtsfm_metric_value)
         other_pipelines_metrics = defaultdict(list)
         for other_pipeline_metric_dict in other_pipelines_metric_dicts:
             if gtsfm_metric_name in other_pipeline_metric_dict:
@@ -340,16 +341,16 @@ def get_figures_for_metrics_and_compare(
                 for other_pipeline_metric_value in other_pipeline_metric_values:
                     scalar_metrics[gtsfm_metric_name].append(other_pipeline_metric_value)
 
-    table = create_table_for_scalar_metrics_and_compare(scalar_metrics)
+    table = create_table_for_scalar_metrics_and_compare(scalar_metrics, pipeline_names)
 
     plots_fig = ""
     gtsfm_metric_group_dict = metrics_group.get_metrics_as_dict()[metrics_group.name]
     other_pipeline_metrics_groups_dicts = []
-    for other_pipeline_metric_group in other_pipeline_metrics_groups:
+    for other_pipeline_metric_group in other_metrics_group:
         if metrics_group.name in other_pipeline_metric_group.get_metrics_as_dict():
             other_pipeline_metric_group = other_pipeline_metric_group.get_metrics_as_dict()[metrics_group.name]
             other_pipeline_metrics_groups_dicts.append(other_pipeline_metric_group)
-    plots_fig += create_plots_for_distributions_and_compare(gtsfm_metric_group_dict, other_pipeline_metrics_groups_dicts)
+    plots_fig += create_plots_for_distributions_and_compare(gtsfm_metric_group_dict, other_pipeline_metrics_groups_dicts, pipeline_names)
 
     return table, plots_fig
 
@@ -395,14 +396,14 @@ def get_html_header() -> str:
 def generate_metrics_report_html(
     metrics_groups: List[GtsfmMetricsGroup],
     html_path: str,
-    colmap_metrics_groups,
+    other_pipelines_metrics_groups: Dict[str, List],
 ) -> None:
     """Generates a report for metrics groups with plots and tables and saves it to HTML.
 
     Args:
         metrics_groups: List of metrics to be reported.
         html_path: Path where this report is written to.
-        colmap_metrics_groups: Optional; a list of GTSfM Metrics Groups produced from COLMAP output
+        other_pipelines_metrics_groups: Optional; a dict of GTSfM Metrics Groups produced from other pipelines output
           included in the report.
     """
     with open(html_path, mode="w") as f:
@@ -410,6 +411,8 @@ def generate_metrics_report_html(
         f.write("<!DOCTYPE html>" "<html>")
         f.write(get_html_header())
 
+        pipeline_names = list(other_pipelines_metrics_groups.keys())
+        pipeline_names.insert(0, "gtsfm")
         # Iterate over all metrics groups
         for i, metrics_group in enumerate(metrics_groups):
 
@@ -417,10 +420,13 @@ def generate_metrics_report_html(
             f.write(get_html_metric_heading(metrics_group.name))
 
             # Write plots and tables.
-            if colmap_metrics_groups is None or len(colmap_metrics_groups) == 0:
+            if other_pipelines_metrics_groups is None or len(other_pipelines_metrics_groups) == 0:
                 table, plots_fig = get_figures_for_metrics(metrics_group)
             else:
-                table, plots_fig = get_figures_for_metrics_and_compare(metrics_group, colmap_metrics_groups[i])
+                other_pipelines_metrics_group = []
+                for pipeline_name, other_pipeline_metrics_groups in other_pipelines_metrics_groups.items():
+                    other_pipelines_metrics_group.append(other_pipeline_metrics_groups[i])
+                table, plots_fig = get_figures_for_metrics_and_compare(metrics_group, other_pipelines_metrics_group, pipeline_names)
             f.write(table)
             if plots_fig is not None:
                 f.write(plots_fig)
