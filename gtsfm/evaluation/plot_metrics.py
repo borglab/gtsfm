@@ -24,12 +24,14 @@ GTSFM_MODULE_METRICS_FNAMES = [
     "bundle_adjustment_metrics.json",
 ]
 
+
 def save_other_metrics(other_pipeline_files_dirpath: str, other_pipeline_json_path: str):
     """Saves other metrics as GTSfM Metrics Groups in json files.
 
     Args:
-        colmap_files_dirpath: The path to a directory containing colmap output as txt files.
-        colmap_json_path: The path to the directory where colmap output will be saved in json files.
+        other_pipeline_files_dirpath: The path to a directory containing another SfM pipeline's as txt files.
+        other_pipeline_json_path: The path to the directory where another SfM pipeline's
+          output will be saved in json files.
 
     """
     if Path(other_pipeline_files_dirpath).exists():
@@ -43,15 +45,16 @@ def save_other_metrics(other_pipeline_files_dirpath: str, other_pipeline_json_pa
 
 
 def create_metrics_plots_html(json_path: str, output_dir: str, colmap_json_path: str, openmvg_json_path: str) -> None:
-    #TODO (Jon): Make varargs for other pipelines
+    # TODO (Jon): Make varargs for other pipelines
     """Creates a HTML report of metrics from frontend, averaging, data association and bundle adjustment.
 
     Reads the metrics from JSON files in a previous run.
 
     Args:
         json_path: Path to folder that contains GTSfM metrics as json files.
-        colmap_json_path: The path to the directory of colmap outputs in json files.
         output_dir: directory to save the report, uses json_path if empty.
+        colmap_json_path: The path to the directory of colmap outputs in json files.
+        openmvg_json_path: The path to the directory of openmvg outputs in json files.
     """
     metrics_groups = []
     # The provided JSON path must contain these files which contain metrics from the respective modules.

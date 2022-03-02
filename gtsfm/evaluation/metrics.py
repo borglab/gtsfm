@@ -169,7 +169,7 @@ class GtsfmMetric:
         """
         if data.ndim != 1:
             raise ValueError("Metric must be a 1D distribution to get summary.")
-        if data.size == 0: #or np.isnan(data).all():
+        if data.size == 0:  # or np.isnan(data).all():
             return {"min": np.NaN, "max": np.NaN, "median": np.NaN, "mean": np.NaN, "stddev": np.NaN}
         summary = {
             "min": np.nanmin(data).tolist(),

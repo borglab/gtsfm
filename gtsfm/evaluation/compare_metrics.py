@@ -17,7 +17,6 @@ from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 import thirdparty.colmap.scripts.python.read_write_model as colmap_io
 
 
-
 def compute_metrics_from_txt(cameras, images, points3d):
     """Calculate metrics from pipeline outputs parsed from COLMAP txt format.
     Args:
@@ -47,7 +46,7 @@ def compute_metrics_from_txt(cameras, images, points3d):
     for point3d_id, point3d in points3d.items():
         reproj_error = point3d.error
         unfiltered_reproj_errors.append(reproj_error)
-        #TODO (Jon): make reproj_error_threshold an argument to this method
+        # TODO (Jon): make reproj_error_threshold an argument to this method
         if reproj_error < 3:
             filtered_reproj_errors.append(reproj_error)
             filtered_track_lengths.append(len(point3d.image_ids))
@@ -56,7 +55,9 @@ def compute_metrics_from_txt(cameras, images, points3d):
         "number_cameras": GtsfmMetric("number_cameras", num_cameras),
         "3d_track_lengths_unfiltered": GtsfmMetric(
             "3d_track_lengths_unfiltered",
-            np.asarray(unfiltered_track_lengths,),
+            np.asarray(
+                unfiltered_track_lengths,
+            ),
             plot_type=GtsfmMetric.PlotType.HISTOGRAM,
         ),
         "number_tracks_unfiltered": GtsfmMetric("number_tracks_unfiltered", len(sfmtracks)),
@@ -75,9 +76,10 @@ def compute_metrics_from_txt(cameras, images, points3d):
             "reprojection_errors_filtered_px",
             filtered_reproj_errors,
             plot_type=GtsfmMetric.PlotType.BOX,
-        )
+        ),
     }
     return other_pipeline_metrics
+
 
 def save_other_pipelines_metrics(
     colmap_format_outputs: Dict[str, str],
@@ -109,4 +111,6 @@ def save_other_pipelines_metrics(
                     other_pipeline_group_metrics.append(other_pipeline_metrics[gtsfm_metric.name])
             other_pipeline_new_metrics_group = GtsfmMetricsGroup(gtsfm_metrics_group.name, other_pipeline_group_metrics)
             os.makedirs(os.path.join(json_path, other_pipeline_name), exist_ok=True)
-            other_pipeline_new_metrics_group.save_to_json(os.path.join(json_path, other_pipeline_name, os.path.basename(filename)))
+            other_pipeline_new_metrics_group.save_to_json(
+                os.path.join(json_path, other_pipeline_name, os.path.basename(filename))
+            )
