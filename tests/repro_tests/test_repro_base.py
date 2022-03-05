@@ -13,7 +13,7 @@ class ReproducibilityTestBase(metaclass=abc.ABCMeta):
     
     The class provides two ways to test reproducibility:
         - assert_results(): To compare the result at each iteration to a reference.
-        - assert_all_results() (Optional): To check statistics on all results together.
+        - assert_results_statistics() (Optional): To check statistics on all results together.
     """
 
     @abc.abstractmethod
@@ -36,7 +36,7 @@ class ReproducibilityTestBase(metaclass=abc.ABCMeta):
         
         self.assert_all_results(all_results)
 
-    def assert_all_results(self, all_results: List[Any]) -> None:
+    def assert_results_statistics(self, all_results: List[Any]) -> None:
         """Check for any statistics across all_results.
         
         This default implementation does not check anything, but can be overrided by derived classes."""
