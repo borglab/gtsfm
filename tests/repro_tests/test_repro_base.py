@@ -34,7 +34,7 @@ class ReproducibilityTestBase(metaclass=abc.ABCMeta):
             all_results.append(current_result)
             self.assert_results(current_result, reference_result)
         
-        self.assert_all_results(all_results)
+        self.assert_results_statistics(all_results)
 
     def assert_results_statistics(self, all_results: List[Any]) -> None:
         """Check for any statistics across all_results.
