@@ -5,8 +5,8 @@ Authors: Ayush Baid
 import unittest
 import numpy as np
 
-import tests.frontend.matcher.test_matcher_base as test_matcher_base
 import gtsfm.utils.features as feature_utils
+import tests.frontend.matcher.test_matcher_base as test_matcher_base
 from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
 
 
@@ -26,21 +26,7 @@ class TestTwoWayWithRatioTestMatcher(test_matcher_base.TestMatcherBase):
 
         image_shape_i1 = (300, 100)  # as (H,W)
         descriptors_i1 = (
-            np.array(
-                [
-                    0.4865,
-                    0.3752,
-                    0.3077,
-                    0.9188,
-                    0.7837,
-                    0.1083,
-                    0.6822,
-                    0.3764,
-                    0.2288,
-                    0.8018,
-                    1.1,
-                ]
-            )
+            np.array([0.4865, 0.3752, 0.3077, 0.9188, 0.7837, 0.1083, 0.6822, 0.3764, 0.2288, 0.8018, 1.1])
             .reshape(-1, 1)
             .astype(np.float32)
         )
@@ -48,20 +34,7 @@ class TestTwoWayWithRatioTestMatcher(test_matcher_base.TestMatcherBase):
 
         image_shape_i2 = (300, 100)  # as (H,W)
         descriptors_i2 = (
-            np.array(
-                [
-                    0.9995,
-                    0.3376,
-                    0.9005,
-                    0.5382,
-                    0.3162,
-                    0.7974,
-                    0.1785,
-                    0.3491,
-                    0.8658,
-                    0.2912,
-                ]
-            )
+            np.array([0.9995, 0.3376, 0.9005, 0.5382, 0.3162, 0.7974, 0.1785, 0.3491, 0.8658, 0.2912])
             .reshape(-1, 1)
             .astype(np.float32)
         )

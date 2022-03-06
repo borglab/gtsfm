@@ -138,7 +138,7 @@ class TwoWayMatcher(MatcherBase):
         else:
             matches = opencv_matcher.match(descriptors_1, descriptors_2)
 
-        matches = sorted(matches, key=lambda r: r.distance)
+        matches = sorted(matches, key=lambda match: match.distance)
         match_indices = {m.queryIdx: m.trainIdx for m in matches}
 
         return match_indices
