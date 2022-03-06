@@ -52,7 +52,7 @@ class SIFTDetectorDescriptor(DetectorDescriptorBase):
         keypoints = feature_utils.cast_to_gtsfm_keypoints(cv_keypoints)
 
         # Filter features.
-        keypoints, selection_idxs = keypoints.get_top_k(self.max_keypoints)
+        keypoints, selection_idxs = keypoints.get_top_k_by_scale(self.max_keypoints)
         descriptors = descriptors[selection_idxs]
 
         return keypoints, descriptors
