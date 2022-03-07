@@ -28,7 +28,7 @@ SceneOptimizer:
     verifier:
       _target_: gtsfm.frontend.verifier.ransac.Ransac
       use_intrinsics_in_verification: True
-      estimation_threshold_px: 4 # for H/E/F estimators
+      estimation_threshold_px: 1 # for H/E/F estimators
 
     inlier_support_processor:
       _target_: gtsfm.two_view_estimator.InlierSupportProcessor
@@ -40,7 +40,7 @@ SceneOptimizer:
     view_graph_estimator:
       _target_: gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator.CycleConsistentRotationViewGraphEstimator
       edge_error_aggregation_criterion: MEDIAN_EDGE_ERROR
-      
+
     rot_avg_module:
       _target_: gtsfm.averaging.rotation.shonan.ShonanRotationAveraging
 
