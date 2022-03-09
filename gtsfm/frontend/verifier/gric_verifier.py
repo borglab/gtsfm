@@ -30,9 +30,9 @@ logger = logger_utils.get_logger()
 
 
 MIN_INLIER_RATIO = 0.01
-MIN_NUM_TRIALS = 100000
-MAX_NUM_TRIALS = 1000000
-CONFIDENCE = 0.999999
+MIN_NUM_TRIALS = 10000
+MAX_NUM_TRIALS = 100000
+CONFIDENCE = 0.99999
 
 
 class ConfigurationType(Enum):
