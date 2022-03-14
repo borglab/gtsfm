@@ -1,7 +1,8 @@
 """RootSIFT  Detector-Descriptor implementation.
 
 The detector was proposed in 'Distinctive Image Features from Scale-Invariant Keypoints' and is implemented by wrapping
-over OpenCV's API. The descriptor was proposed in 'Three things everyone should know to improve object retrieval' and is built upon OpenCV's API.
+over OpenCV's API. The descriptor was proposed in 'Three things everyone should know to improve object retrieval' and is
+built upon OpenCV's API.
 
 References:
 - https://www.cs.ubc.ca/~lowe/papers/ijcv04.pdf
