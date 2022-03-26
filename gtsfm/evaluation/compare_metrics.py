@@ -9,20 +9,24 @@ import os
 from typing import Dict, List
 
 import numpy as np
-
-
 import gtsfm.utils.io as io_utils
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 import thirdparty.colmap.scripts.python.read_write_model as colmap_io
 
 
-def compute_metrics_from_txt(cameras, images, points3d):
+def compute_metrics_from_txt(
+    cameras: Dict[colmap_io.Camera, int],
+    images: Dict[colmap_io.Image, int],
+    points3d: Dict[colmap_io.Point3D, int],
+    reproj_error_threshold: int,
+):
     """Calculate metrics from pipeline outputs parsed from COLMAP txt format.
     Args:
         cameras: dictionary of COLMAP-formatted Cameras
         images: dictionary of COLMAP-formatted Images
         points3D: dictionary of COLMAP-formatted Point3Ds
+        reproj_error_threshold: Reprojection error threshold for filtering tracks.
     Returns:
         other_pipeline_metrics: A dictionary of metrics from another pipeline that are comparable with GTSfM
     """
@@ -31,7 +35,7 @@ def compute_metrics_from_txt(cameras, images, points3d):
     unfiltered_track_lengths = []
     image_id_num_measurements = {}
     for track in sfmtracks:
-        unfiltered_track_lengths.append(int(track.numberMeasurements()))
+        unfiltered_track_lengths.append(track.numberMeasurements())
         for k in range(track.numberMeasurements()):
             image_id, uv_measured = track.measurement(k)
             if image_id not in image_id_num_measurements:
@@ -46,8 +50,7 @@ def compute_metrics_from_txt(cameras, images, points3d):
     for point3d_id, point3d in points3d.items():
         reproj_error = point3d.error
         unfiltered_reproj_errors.append(reproj_error)
-        # TODO (Jon): make reproj_error_threshold an argument to this method
-        if reproj_error < 3:
+        if reproj_error < reproj_error_threshold:
             filtered_reproj_errors.append(reproj_error)
             filtered_track_lengths.append(len(point3d.image_ids))
     num_filtered_tracks = len(filtered_track_lengths)
@@ -85,22 +88,25 @@ def save_other_pipelines_metrics(
     colmap_format_outputs: Dict[str, str],
     json_path: str,
     gtsfm_metric_filenames: List[str],
+    reproj_error_threshold: int,
 ) -> None:
     """Converts the outputs of other SfM pipelines to GTSfMMetricsGroups saved as json files.
 
     Creates folders for each additional SfM pipeline that contain GTSfMMetricsGroups (stored as json files)
-    containing the same metrics as GTSFM_MODULE_METRICS_FNAMES. If one of the GTSfM metrics
-    is not available from another SfM pipeline, then the metric is left blank for that pipeline.
+    containing the same metrics as GTSFM_MODULE_METRICS_FNAMES (as defined in plot_metrics.py).
+    If one of the GTSfM metrics is not available from another SfM pipeline, then
+    the metric is left blank for that pipeline.
 
     Args:
         colmap_format_outputs: a Dict of paths to directories containing outputs of other SfM pipelines
           in COLMAP format i.e. cameras.txt, images.txt, and points3D.txt files.
         json_path: Path to folder that contains metrics as json files.
         gtsfm_metric_filenames: List of filenames of metrics that are produced by GTSfM.
+        reproj_error_threshold: Reprojection error threshold for filtering tracks.
     """
     for other_pipeline_name in colmap_format_outputs.keys():
         cameras, images, points3d = colmap_io.read_model(path=colmap_format_outputs[other_pipeline_name], ext=".txt")
-        other_pipeline_metrics = compute_metrics_from_txt(cameras, images, points3d)
+        other_pipeline_metrics = compute_metrics_from_txt(cameras, images, points3d, reproj_error_threshold)
 
         # Create json files of GTSfM Metrics for other pipelines that are comparable to GTSfM's result_metric directory
         for filename in gtsfm_metric_filenames:

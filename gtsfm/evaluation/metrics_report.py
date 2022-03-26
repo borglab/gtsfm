@@ -60,7 +60,7 @@ def create_table_for_scalar_metrics_and_compare(
     Args:
         metrics_dict: A dict, where keys are names of metrics and values are
         a list of metric values from each pipeline.
-        pipeline_names: A list of other SfM pipeline names
+        pipeline_names: A list of other SfM pipeline names.
 
     Returns:
         Table with scalar metrics and their values in HTML format.
@@ -78,6 +78,41 @@ def create_table_for_scalar_metrics_and_compare(
     for index, pipeline_name in enumerate(pipeline_names):
         table[pipeline_name] = list(item[index] for item in metrics_dict.values())
     return tabulate(table, headers="keys", tablefmt="html")
+
+
+def add_plot(fig, metric_value: Dict, metric_name: str, row: int, col: int):
+    """Function for adding a plot to a figure
+
+    Args:
+        fig: The figure that the plot will be added to.
+        metric_value: A dictionary representation of the metric.
+        metric_name: The name of the metric being plotted.
+        row: The row number of the plot in the figure.
+        col: The column number of the plot in the figure.
+
+    """
+    if "histogram" in metric_value[metrics.SUMMARY_KEY]:
+        histogram = metric_value[metrics.SUMMARY_KEY]["histogram"]
+        fig.add_trace(go.Bar(x=list(histogram.keys()), y=list(histogram.values()), name=metric_name), row=row, col=col)
+    elif "quartiles" in metric_value[metrics.SUMMARY_KEY]:
+        # If all values are available, use them to create box plot.
+        if metrics.FULL_DATA_KEY in metric_value:
+            fig.add_trace(go.Box(y=metric_value[metrics.FULL_DATA_KEY], name=metric_name), row=row, col=col)
+        # Else use summary to create box plot.
+        else:
+            quartiles = metric_value[metrics.SUMMARY_KEY]["quartiles"]
+            fig.add_trace(
+                go.Box(
+                    q1=[quartiles["q1"]],
+                    median=[quartiles["q2"]],
+                    q3=[quartiles["q3"]],
+                    lowerfence=[quartiles["q0"]],
+                    upperfence=[quartiles["q4"]],
+                    name=metric_name,
+                ),
+                row=row,
+                col=col,
+            )
 
 
 def create_plots_for_distributions(metrics_dict: Dict[str, Any]) -> str:
@@ -116,32 +151,7 @@ def create_plots_for_distributions(metrics_dict: Dict[str, Any]) -> str:
         row = i // SUBPLOTS_PER_ROW + 1
         col = i % SUBPLOTS_PER_ROW + 1
         i += 1
-        # Histogram metrics are plotted directly from summary.
-        if "histogram" in metric_value[metrics.SUMMARY_KEY]:
-            histogram = metric_value[metrics.SUMMARY_KEY]["histogram"]
-            fig.add_trace(
-                go.Bar(x=list(histogram.keys()), y=list(histogram.values()), name=metric_name), row=row, col=col
-            )
-        elif "quartiles" in metric_value[metrics.SUMMARY_KEY]:
-            # If all values are available, use them to create box plot.
-            if metrics.FULL_DATA_KEY in metric_value:
-                fig.add_trace(go.Box(y=metric_value[metrics.FULL_DATA_KEY], name=metric_name), row=row, col=col)
-            # Else use summary to create box plot.
-            else:
-                quartiles = metric_value[metrics.SUMMARY_KEY]["quartiles"]
-                fig.add_trace(
-                    go.Box(
-                        q1=[quartiles["q1"]],
-                        median=[quartiles["q2"]],
-                        q3=[quartiles["q3"]],
-                        lowerfence=[quartiles["q0"]],
-                        upperfence=[quartiles["q4"]],
-                        name=metric_name,
-                    ),
-                    row=row,
-                    col=col,
-                )
-
+        add_plot(fig, metric_value, metric_name, row, col)
     # Return the figure converted to HTML.
     return fig.to_html(full_html=False, include_plotlyjs="cdn")
 
@@ -187,64 +197,11 @@ def create_plots_for_distributions_and_compare(
             continue
         row = 1
         col = 1
-        # Histogram metrics are plotted directly from summary.
-        if "histogram" in metric_value[metrics.SUMMARY_KEY]:
-            histogram = metric_value[metrics.SUMMARY_KEY]["histogram"]
-            fig.add_trace(
-                go.Bar(x=list(histogram.keys()), y=list(histogram.values()), name=pipeline_names[0]), row=row, col=col
-            )
-        elif "quartiles" in metric_value[metrics.SUMMARY_KEY]:
-            # If all values are available, use them to create box plot.
-            if metrics.FULL_DATA_KEY in metric_value:
-                fig.add_trace(go.Box(y=metric_value[metrics.FULL_DATA_KEY], name=pipeline_names[0]), row=row, col=col)
-            # Else use summary to create box plot.
-            else:
-                quartiles = metric_value[metrics.SUMMARY_KEY]["quartiles"]
-                fig.add_trace(
-                    go.Box(
-                        q1=[quartiles["q1"]],
-                        median=[quartiles["q2"]],
-                        q3=[quartiles["q3"]],
-                        lowerfence=[quartiles["q0"]],
-                        upperfence=[quartiles["q4"]],
-                        name=pipeline_names[0],
-                    ),
-                    row=row,
-                    col=col,
-                )
+        add_plot(fig, metric_value, pipeline_names[0], row, col)
         for index, other_metrics_dict in enumerate(other_pipeline_metrics_dicts):
             if metric_name in other_metrics_dict:
                 other_metric_value = other_metrics_dict[metric_name]
-                if "histogram" in other_metric_value[metrics.SUMMARY_KEY]:
-                    histogram = other_metric_value[metrics.SUMMARY_KEY]["histogram"]
-                    fig.add_trace(
-                        go.Bar(x=list(histogram.keys()), y=list(histogram.values()), name=pipeline_names[index + 1]),
-                        row=row,
-                        col=col,
-                    )
-                elif "quartiles" in other_metric_value[metrics.SUMMARY_KEY]:
-                    # If all values are available, use them to create box plot.
-                    if metrics.FULL_DATA_KEY in other_metric_value:
-                        fig.add_trace(
-                            go.Box(y=other_metric_value[metrics.FULL_DATA_KEY], name=pipeline_names[index + 1]),
-                            row=row,
-                            col=col,
-                        )
-                    # Else use summary to create box plot.
-                    else:
-                        quartiles = other_metric_value[metrics.SUMMARY_KEY]["quartiles"]
-                        fig.add_trace(
-                            go.Box(
-                                q1=[quartiles["q1"]],
-                                median=[quartiles["q2"]],
-                                q3=[quartiles["q3"]],
-                                lowerfence=[quartiles["q0"]],
-                                upperfence=[quartiles["q4"]],
-                                name=metric_name,
-                            ),
-                            row=row,
-                            col=col,
-                        )
+                add_plot(fig, other_metric_value, pipeline_names[index + 1], row, col)
         fig_html += fig.to_html(full_html=False, include_plotlyjs="cdn")
     # Return the figure converted to HTML.
     return fig_html
@@ -278,6 +235,26 @@ def get_figures_for_metrics(metrics_group: GtsfmMetricsGroup) -> Tuple[str, str]
     table = create_table_for_scalar_metrics(scalar_metrics)
     plots_fig = create_plots_for_distributions(metrics_dict)
     return table, plots_fig
+
+
+def add_scalar_metric(scalar_metrics: Dict[str, List], metric_name: str, metric_value: Dict):
+    """Adds a scalar metric (median) to correspond to a 1D distribution.
+
+    Args:
+        scalar_metrics: A Dict of with each key being a metric name and each value being
+            a list of metric values (one for each pipeline)
+        metric_name: The name of the metric for which a scalar value is being added.
+        metric_value: A dictionary containing the 1D distribution as a summary (min, max, median, etc.) and
+            the full data.
+    """
+    # Metrics with a dict representation must contain a summary.
+    if metrics.SUMMARY_KEY not in metric_value:
+        raise ValueError(f"Metric {metric_name} does not contain a summary.")
+    # Add a scalar metric for median of 1D distributions.
+    if np.isnan(metric_value[metrics.SUMMARY_KEY]["median"]):
+        scalar_metrics["median_" + metric_name].append("")
+    else:
+        scalar_metrics["median_" + metric_name].append(metric_value[metrics.SUMMARY_KEY]["median"])
 
 
 def get_figures_for_metrics_and_compare(
@@ -314,39 +291,14 @@ def get_figures_for_metrics_and_compare(
             else:
                 other_pipelines_metrics[gtsfm_metric_name].append("")
         if isinstance(gtsfm_metric_value, dict):
-            # Metrics with a dict representation must contain a summary.
-            if metrics.SUMMARY_KEY not in gtsfm_metric_value:
-                raise ValueError(f"Metric {gtsfm_metric_name} does not contain a summary.")
-            # Add a scalar metric for median of 1D distributions.
-            if np.isnan(gtsfm_metric_value[metrics.SUMMARY_KEY]["median"]):
-                scalar_metrics["median_" + gtsfm_metric_name].append("")
-            else:
-                scalar_metrics["median_" + gtsfm_metric_name].append(gtsfm_metric_value[metrics.SUMMARY_KEY]["median"])
+            add_scalar_metric(scalar_metrics, gtsfm_metric_name, gtsfm_metric_value)
             for other_pipeline_metric_name, other_pipelines_metric_values in other_pipelines_metrics.items():
                 for other_pipeline_metric_value in other_pipelines_metric_values:
                     if isinstance(other_pipeline_metric_value, dict):
-                        # Metrics with a dict representation must contain a summary.
-                        if metrics.SUMMARY_KEY not in other_pipeline_metric_value:
-                            raise ValueError(f"Metric {gtsfm_metric_name} does not contain a summary.")
-                        # Add a scalar metric for median of 1D distributions.
-                        if np.isnan(other_pipeline_metric_value[metrics.SUMMARY_KEY]["median"]):
-                            scalar_metrics["median_" + gtsfm_metric_name].append("")
-                        else:
-                            scalar_metrics["median_" + gtsfm_metric_name].append(
-                                other_pipeline_metric_value[metrics.SUMMARY_KEY]["median"]
-                            )
+                        add_scalar_metric(scalar_metrics, gtsfm_metric_name, other_pipeline_metric_value)
                     else:
                         other_pipeline_metric_value = {"summary": {"median": np.nan}}
-                        # Metrics with a dict representation must contain a summary.
-                        if metrics.SUMMARY_KEY not in other_pipeline_metric_value:
-                            raise ValueError(f"Metric {gtsfm_metric_name} does not contain a summary.")
-                        # Add a scalar metric for median of 1D distributions.
-                        if np.isnan(other_pipeline_metric_value[metrics.SUMMARY_KEY]["median"]):
-                            scalar_metrics["median_" + gtsfm_metric_name].append("")
-                        else:
-                            scalar_metrics["median_" + gtsfm_metric_name].append(
-                                other_pipeline_metric_value[metrics.SUMMARY_KEY]["median"]
-                            )
+                        add_scalar_metric(scalar_metrics, gtsfm_metric_name, other_pipeline_metric_value)
         else:
             scalar_metrics[gtsfm_metric_name].append(gtsfm_metric_value)
             for other_pipeline_metric_name, other_pipeline_metric_values in other_pipelines_metrics.items():

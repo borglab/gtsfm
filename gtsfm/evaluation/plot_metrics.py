@@ -25,13 +25,14 @@ GTSFM_MODULE_METRICS_FNAMES = [
 ]
 
 
-def save_other_metrics(other_pipeline_files_dirpath: str, other_pipeline_json_path: str):
+def save_other_metrics(other_pipeline_files_dirpath: str, other_pipeline_json_path: str, reproj_error_threshold: int):
     """Saves other metrics as GTSfM Metrics Groups in json files.
 
     Args:
         other_pipeline_files_dirpath: The path to a directory containing another SfM pipeline's as txt files.
         other_pipeline_json_path: The path to the directory where another SfM pipeline's
           output will be saved in json files.
+        reproj_error_threshold: reprojection error threshold for filtering tracks.
 
     """
     if Path(other_pipeline_files_dirpath).exists():
@@ -39,7 +40,9 @@ def save_other_metrics(other_pipeline_files_dirpath: str, other_pipeline_json_pa
             os.path.basename(other_pipeline_json_path): other_pipeline_files_dirpath,
         }
         json_path = os.path.dirname(other_pipeline_json_path)
-        compare_metrics.save_other_pipelines_metrics(txt_metric_paths, json_path, GTSFM_MODULE_METRICS_FNAMES)
+        compare_metrics.save_other_pipelines_metrics(
+            txt_metric_paths, json_path, GTSFM_MODULE_METRICS_FNAMES, reproj_error_threshold
+        )
     else:
         logger.info("%s does not exist", other_pipeline_files_dirpath)
 
@@ -58,7 +61,6 @@ def create_metrics_plots_html(json_path: str, output_dir: str, colmap_json_path:
     """
     metrics_groups = []
     # The provided JSON path must contain these files which contain metrics from the respective modules.
-
 
     metric_paths = []
     for filename in GTSFM_MODULE_METRICS_FNAMES:
@@ -95,17 +97,23 @@ if __name__ == "__main__":
     parser.add_argument("--colmap_files_dirpath", default=None, type=str, help="Directory containing COLMAP output .")
     parser.add_argument("--openmvg_files_dirpath", default=None, type=str, help="Directory containing OpenMVG output .")
     parser.add_argument("--output_dir", default="", help="Directory to save plots to. Same as metrics_dir by default.")
+    parser.add_argument(
+        "--reproj_error_threshold", default=3, help="Reprojection error threshold for filtering tracks."
+    )
     args = parser.parse_args()
     if args.colmap_files_dirpath is not None:
         colmap_json_path = os.path.join(args.metrics_dir, "colmap")
-        save_other_metrics(args.colmap_files_dirpath, colmap_json_path)  # saves metrics to the json path
+        save_other_metrics(
+            args.colmap_files_dirpath, colmap_json_path, args.reproj_error_threshold
+        )  # saves metrics to the json path
     else:
         colmap_json_path = None
     if args.openmvg_files_dirpath is not None:
         openmvg_json_path = os.path.join(args.metrics_dir, "openmvg")
-        save_other_metrics(args.openmvg_files_dirpath, openmvg_json_path)  # saves metrics to the json path
+        save_other_metrics(
+            args.openmvg_files_dirpath, openmvg_json_path, args.reproj_error_threshold
+        )  # saves metrics to the json path
     else:
         openmvg_json_path = None
-
 
     create_metrics_plots_html(args.metrics_dir, args.output_dir, colmap_json_path, openmvg_json_path)
