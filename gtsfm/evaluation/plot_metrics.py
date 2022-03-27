@@ -48,7 +48,6 @@ def save_other_metrics(other_pipeline_files_dirpath: str, other_pipeline_json_pa
 
 
 def create_metrics_plots_html(json_path: str, output_dir: str, colmap_json_path: str, openmvg_json_path: str) -> None:
-    # TODO (Jon): Make varargs for other pipelines
     """Creates a HTML report of metrics from frontend, averaging, data association and bundle adjustment.
 
     Reads the metrics from JSON files in a previous run.

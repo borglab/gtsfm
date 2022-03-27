@@ -169,6 +169,7 @@ def create_plots_for_distributions_and_compare(
         the dictionary representation of the metric.
         other_pipeline_metrics_dicts: metrics_dicts for other SfM pipelines
         pipeline_names: A list of other SfM pipeline names
+
     Returns:
         Plots in a grid converted to HTML as a string.
     """

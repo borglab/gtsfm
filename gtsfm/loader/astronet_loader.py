@@ -78,7 +78,7 @@ class AstronetLoader(LoaderBase):
         if not Path(data_dir).exists():
             raise FileNotFoundError("No data found at %s." % data_dir)
         cameras, images, points3d = colmap_io.read_model(path=data_dir, ext=".bin")
-        self._calibrations, self._wTi_list, img_fnames, self._sfmtracks = io_utils.colmap2gtsfm(
+        img_fnames, self._wTi_list, self._calibrations, self._sfmtracks = io_utils.colmap2gtsfm(
             cameras, images, points3d, load_sfmtracks=use_gt_sfmtracks
         )
 

@@ -181,9 +181,9 @@ def colmap2gtsfm(
         points3D: dictionary of COLMAP-formatted Point3Ds
         return_tracks (optional): whether or not to return tracks
     Returns:
-        cameras_gtsfm: list of N camera calibrations corresponding to the N images in images_gtsfm
-        images_gtsfm: list of N camera poses when each image was taken
         img_fnames: file names of images in images_gtsfm
+        images_gtsfm: list of N camera poses when each image was taken
+        cameras_gtsfm: list of N camera calibrations corresponding to the N images in images_gtsfm
         sfmtracks_gtsfm: tracks of points in points3D
     """
     # Note: Assumes input cameras use `PINHOLE` model
@@ -209,7 +209,7 @@ def colmap2gtsfm(
                 sfmtrack.addMeasurement(image_id_to_idx[image_id], images[image_id].xys[point2d_idx])
             sfmtracks_gtsfm.append(sfmtrack)
 
-    return cameras_gtsfm, images_gtsfm, img_fnames, sfmtracks_gtsfm
+    return img_fnames, images_gtsfm, cameras_gtsfm, sfmtracks_gtsfm
 
 
 def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:

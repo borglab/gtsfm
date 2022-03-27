@@ -22,15 +22,17 @@ def compute_metrics_from_txt(
     reproj_error_threshold: int,
 ):
     """Calculate metrics from pipeline outputs parsed from COLMAP txt format.
+
     Args:
         cameras: dictionary of COLMAP-formatted Cameras
         images: dictionary of COLMAP-formatted Images
         points3D: dictionary of COLMAP-formatted Point3Ds
         reproj_error_threshold: Reprojection error threshold for filtering tracks.
+
     Returns:
         other_pipeline_metrics: A dictionary of metrics from another pipeline that are comparable with GTSfM
     """
-    cameras, images, image_files, sfmtracks = io_utils.colmap2gtsfm(cameras, images, points3d, load_sfmtracks=True)
+    image_files, images, cameras, sfmtracks = io_utils.colmap2gtsfm(cameras, images, points3d, load_sfmtracks=True)
     num_cameras = len(cameras)
     unfiltered_track_lengths = []
     image_id_num_measurements = {}

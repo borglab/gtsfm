@@ -72,6 +72,7 @@ class GtsfmMetric:
         plot_type: PlotType = None,
     ) -> GtsfmMetric:
         """Creates a GtsfmMetric.
+
         Args:
              name: name of the metric
              data: All values of the metric, optional for 1D distributions, uses summary if not provided.
@@ -337,6 +338,7 @@ class GtsfmMetricsGroup:
 
         Args:
             json_filename: Path to the JSON file.
+
         Returns:
             A new GtsfmMetricsGroup parsed from the JSON.
         """
