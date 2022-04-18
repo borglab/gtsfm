@@ -16,8 +16,9 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 import dask
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, SfmTrack
+from gtsam import SfmTrack
 
+import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.tracks as track_utils
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -57,11 +58,11 @@ class DataAssociation(NamedTuple):
     def run(
         self,
         num_images: int,
-        cameras: Dict[int, PinholeCameraCal3Bundler],
+        cameras: Dict[int, gtsfm_types.CAMERA_TYPE],
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
         images: Optional[List[Image]] = None,
-        cameras_gt: Optional[List[Cal3Bundler]] = None,
+        cameras_gt: Optional[List[gtsfm_types.CALIBRATION_TYPE]] = None,
     ) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
         """Perform the data association.
 

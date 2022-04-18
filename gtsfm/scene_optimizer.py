@@ -77,6 +77,7 @@ class SceneOptimizer:
         save_two_view_correspondences_viz: bool,
         save_3d_viz: bool,
         save_gtsfm_data: bool,
+        run_dense_optimizer: bool,
         pose_angular_error_thresh: float,
     ) -> None:
         """pose_angular_error_thresh is given in degrees"""
@@ -87,6 +88,7 @@ class SceneOptimizer:
 
         self._save_two_view_correspondences_viz = save_two_view_correspondences_viz
         self._save_3d_viz = save_3d_viz
+        self._run_dense_optimizer = run_dense_optimizer
 
         self._save_gtsfm_data = save_gtsfm_data
         self._pose_angular_error_thresh = pose_angular_error_thresh
@@ -245,26 +247,27 @@ class SceneOptimizer:
         if self._save_gtsfm_data:
             auxiliary_graph_list.extend(save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph))
 
-        img_dict_graph = dask.delayed(get_image_dictionary)(image_graph)
-        (
-            dense_points_graph,
-            dense_point_colors_graph,
-            densify_metrics_graph,
-            downsampling_metrics_graph,
-        ) = self.dense_multiview_optimizer.create_computation_graph(img_dict_graph, ba_output_graph)
+        if self._run_dense_optimizer:
+            img_dict_graph = dask.delayed(get_image_dictionary)(image_graph)
+            (
+                dense_points_graph,
+                dense_point_colors_graph,
+                densify_metrics_graph,
+                downsampling_metrics_graph,
+            ) = self.dense_multiview_optimizer.create_computation_graph(img_dict_graph, ba_output_graph)
 
-        # Cast to string as Open3d cannot use PosixPath's for I/O -- only string file paths are accepted.
-        auxiliary_graph_list.append(
-            dask.delayed(io_utils.save_point_cloud_as_ply)(
-                save_fpath=str(MVS_PLY_SAVE_FPATH), points=dense_points_graph, rgb=dense_point_colors_graph
+            # Cast to string as Open3d cannot use PosixPath's for I/O -- only string file paths are accepted.
+            auxiliary_graph_list.append(
+                dask.delayed(io_utils.save_point_cloud_as_ply)(
+                    save_fpath=str(MVS_PLY_SAVE_FPATH), points=dense_points_graph, rgb=dense_point_colors_graph
+                )
             )
-        )
 
-        # Add metrics for dense reconstruction and voxel downsampling
-        if densify_metrics_graph is not None:
-            metrics_graph_list.append(densify_metrics_graph)
-        if downsampling_metrics_graph is not None:
-            metrics_graph_list.append(downsampling_metrics_graph)
+            # Add metrics for dense reconstruction and voxel downsampling
+            if densify_metrics_graph is not None:
+                metrics_graph_list.append(densify_metrics_graph)
+            if downsampling_metrics_graph is not None:
+                metrics_graph_list.append(downsampling_metrics_graph)
 
         # Save metrics to JSON and generate HTML report.
         auxiliary_graph_list.extend(save_metrics_reports(metrics_graph_list))
@@ -286,7 +289,7 @@ def get_image_dictionary(image_list: List[Image]) -> Dict[int, Image]:
 
 
 def align_estimated_gtsfm_data(
-    ba_input: GtsfmData, ba_output: GtsfmData, gt_pose_graph: List[Pose3]
+    ba_input: GtsfmData, ba_output: GtsfmData, gt_pose_graph: Optional[List[Pose3]]
 ) -> Tuple[GtsfmData, GtsfmData, List[Pose3]]:
     """Creates modified GtsfmData objects that emulate ba_input and ba_output but with point cloud and camera
     frustums aligned to the x,y,z axes. Also transforms GT camera poses to be aligned to axes.
@@ -301,6 +304,8 @@ def align_estimated_gtsfm_data(
         Updated ba_output GtsfmData object aligned to axes.
         Updated gt_pose_graph with GT poses aligned to axes.
     """
+    if gt_pose_graph is None:
+        return ba_input, ba_output, gt_pose_graph
     walignedTw = ellipsoid_utils.get_ortho_axis_alignment_transform(ba_output)
     walignedSw = Similarity3(R=walignedTw.rotation(), t=walignedTw.translation(), s=1.0)
     ba_input = ba_input.apply_Sim3(walignedSw)

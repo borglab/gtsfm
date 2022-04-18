@@ -6,8 +6,9 @@ from typing import List, Optional, Tuple
 
 import cv2 as cv
 import numpy as np
-from gtsam import Cal3Bundler
+from gtsam import EssentialMatrix
 
+import gtsfm.common.types as gtsfm_types
 from gtsfm.common.keypoints import Keypoints
 
 EPS = 1e-8
@@ -37,12 +38,12 @@ def cast_to_gtsfm_keypoints(keypoints: List[cv.KeyPoint]) -> Keypoints:
     )
 
 
-def normalize_coordinates(coordinates: np.ndarray, intrinsics: Cal3Bundler) -> np.ndarray:
+def normalize_coordinates(coordinates: np.ndarray, intrinsics: gtsfm_types.CALIBRATION_TYPE) -> np.ndarray:
     """Normalize 2D coordinates using camera intrinsics.
 
     Args:
         coordinates: 2d coordinates, of shape Nx2.
-        intrinsics. camera intrinsics.
+        intrinsics: camera intrinsics.
 
     Returns:
         normalized coordinates, of shape Nx2.
@@ -71,7 +72,9 @@ def convert_to_homogenous_coordinates(non_homogenous_coordinates: np.ndarray) ->
     return np.hstack((non_homogenous_coordinates, np.ones((non_homogenous_coordinates.shape[0], 1))))
 
 
-def convert_to_epipolar_lines(coordinates_i1: np.ndarray, i2Fi1: np.ndarray) -> Optional[np.ndarray]:
+def convert_to_epipolar_lines_undistorted(
+    real_coordinates_i1: np.ndarray, i2Ei1: EssentialMatrix
+) -> Optional[np.ndarray]:
     """Convert coordinates to epipolar lines in image i2.
 
     The epipolar line in image i2 is given by i2Fi1 @ x_i1. A point x_i2 is on this line if x_i2^T @ i2Fi1 @ x_i1 = 0.
@@ -83,10 +86,10 @@ def convert_to_epipolar_lines(coordinates_i1: np.ndarray, i2Fi1: np.ndarray) -> 
     Returns:
         Corr. epipolar lines in i2, of shape Nx3.
     """
-    if coordinates_i1 is None or coordinates_i1.size == 0:
+    if real_coordinates_i1.size == 0:
         return None
 
-    epipolar_lines = convert_to_homogenous_coordinates(coordinates_i1) @ i2Fi1.T
+    epipolar_lines = convert_to_homogenous_coordinates(real_coordinates_i1) @ i2Ei1.matrix().T
     return epipolar_lines
 
 

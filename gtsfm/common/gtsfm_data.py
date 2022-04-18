@@ -7,8 +7,9 @@ import itertools
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-from gtsam import PinholeCameraCal3Bundler, Pose3, SfmTrack, Similarity3
+from gtsam import Pose3, SfmTrack, Similarity3
 
+import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.logger as logger_utils
@@ -33,7 +34,7 @@ class GtsfmData:
         Args:
             number_images: number of images/cameras in the scene.
         """
-        self._cameras: Dict[int, PinholeCameraCal3Bundler] = {}
+        self._cameras: Dict[int, gtsfm_types.CAMERA_TYPE] = {}
         self._tracks: List[SfmTrack] = []
         self._number_images = number_images
 
@@ -93,7 +94,7 @@ class GtsfmData:
         """
         return list(self._cameras.keys())
 
-    def get_camera(self, index: int) -> Optional[PinholeCameraCal3Bundler]:
+    def get_camera(self, index: int) -> Optional[gtsfm_types.CAMERA_TYPE]:
         """Getter for camera.
 
         Args:
@@ -156,7 +157,7 @@ class GtsfmData:
         """
         return self._tracks
 
-    def add_camera(self, index: int, camera: PinholeCameraCal3Bundler) -> None:
+    def add_camera(self, index: int, camera: gtsfm_types.CAMERA_TYPE) -> None:
         """Adds a camera.
 
         Args:
@@ -229,7 +230,7 @@ class GtsfmData:
 
     @classmethod
     def from_cameras_and_tracks(
-        cls, cameras: Dict[int, PinholeCameraCal3Bundler], tracks: List[SfmTrack], number_images: int
+        cls, cameras: Dict[int, gtsfm_types.CAMERA_TYPE], tracks: List[SfmTrack], number_images: int
     ) -> "GtsfmData":
         """Creates a GtsfmData object from a pre-existing set of cameras and tracks."""
         new_data = cls(number_images=number_images)
@@ -376,7 +377,7 @@ class GtsfmData:
 
         return filtered_data
 
-    def align_via_Sim3_to_poses(self, wTi_list_ref: List[Optional[Pose3]]) -> "GtsfmData":
+    def align_via_Sim3_to_poses(self, wTi_list_ref: Optional[List[Pose3]]) -> "GtsfmData":
         """Align estimated, sparse multiview result (self) to a set of reference poses.
 
         Args:
@@ -385,6 +386,9 @@ class GtsfmData:
         Returns:
             aligned_data: sparse multiview result that is aligned to the poses above.
         """
+        if wTi_list_ref is None:
+            return self
+
         # these are the estimated poses (source, to be aligned)
         wTi_list = self.get_camera_poses()
         # align the poses which are valid (i.e. are not None)
@@ -408,7 +412,8 @@ class GtsfmData:
             if aTi is None:
                 continue
             calibration = self.get_camera(i).calibration()
-            aligned_data.add_camera(i, PinholeCameraCal3Bundler(aTi, calibration))
+            camera_type = gtsfm_types.get_camera_class_for_calibration(calibration)
+            aligned_data.add_camera(i, camera_type(aTi, calibration))
         # Align estimated tracks to ground truth.
         for j in range(self.number_tracks()):
             # Align each 3d point

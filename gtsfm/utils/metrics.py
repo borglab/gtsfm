@@ -10,8 +10,9 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from trimesh import Trimesh
-from gtsam import PinholeCameraCal3Bundler, Cal3Bundler, EssentialMatrix, Point3, Pose3, Rot3, Unit3
+from gtsam import EssentialMatrix, Point3, Pose3, Rot3, Unit3
 
+import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.verification as verification_utils
@@ -36,8 +37,8 @@ def compute_correspondence_metrics(
     keypoints_i1: Keypoints,
     keypoints_i2: Keypoints,
     corr_idxs_i1i2: np.ndarray,
-    intrinsics_i1: Cal3Bundler,
-    intrinsics_i2: Cal3Bundler,
+    intrinsics_i1: gtsfm_types.CALIBRATION_TYPE,
+    intrinsics_i2: gtsfm_types.CALIBRATION_TYPE,
     dist_threshold: float,
     gt_wTi1: Optional[Pose3] = None,
     gt_wTi2: Optional[Pose3] = None,
@@ -73,9 +74,10 @@ def compute_correspondence_metrics(
     matched_keypoints_i1 = keypoints_i1.extract_indices(corr_idxs_i1i2[:, 0])
     matched_keypoints_i2 = keypoints_i2.extract_indices(corr_idxs_i1i2[:, 1])
     # Check to see if a GT mesh is provided.
+    camera_class = gtsfm_types.get_camera_class_for_calibration(intrinsics_i1)
     if gt_scene_mesh is not None:
-        gt_camera_i1 = PinholeCameraCal3Bundler(gt_wTi1, intrinsics_i1)
-        gt_camera_i2 = PinholeCameraCal3Bundler(gt_wTi2, intrinsics_i2)
+        gt_camera_i1: gtsfm_types.CAMERA_TYPE = camera_class(gt_wTi1, intrinsics_i1)
+        gt_camera_i2: gtsfm_types.CAMERA_TYPE = camera_class(gt_wTi2, intrinsics_i2)
         is_inlier, reproj_error = mesh_inlier_correspondences(
             matched_keypoints_i1,
             matched_keypoints_i2,
@@ -102,8 +104,8 @@ def compute_correspondence_metrics(
 def epipolar_inlier_correspondences(
     keypoints_i1: Keypoints,
     keypoints_i2: Keypoints,
-    intrinsics_i1: Cal3Bundler,
-    intrinsics_i2: Cal3Bundler,
+    intrinsics_i1: gtsfm_types.CALIBRATION_TYPE,
+    intrinsics_i2: gtsfm_types.CALIBRATION_TYPE,
     i2Ti1: Pose3,
     dist_threshold: float,
 ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
@@ -122,11 +124,10 @@ def epipolar_inlier_correspondences(
         distance_squared: squared sampson distance between corresponding keypoints.
     """
     i2Ei1 = EssentialMatrix(i2Ti1.rotation(), Unit3(i2Ti1.translation()))
-    i2Fi1 = verification_utils.essential_to_fundamental_matrix(i2Ei1, intrinsics_i1, intrinsics_i2)
     distance_squared = verification_utils.compute_epipolar_distances_sq_sampson(
-        keypoints_i1.coordinates, keypoints_i2.coordinates, i2Fi1
+        keypoints_i1, keypoints_i2, intrinsics_i1, intrinsics_i2, i2Ei1
     )
-    is_inlier = distance_squared < dist_threshold ** 2 if distance_squared is not None else None
+    is_inlier = distance_squared < dist_threshold**2 if distance_squared is not None else None
 
     return is_inlier, distance_squared
 
@@ -134,8 +135,8 @@ def epipolar_inlier_correspondences(
 def mesh_inlier_correspondences(
     keypoints_i1: Keypoints,
     keypoints_i2: Keypoints,
-    gt_camera_i1: PinholeCameraCal3Bundler,
-    gt_camera_i2: PinholeCameraCal3Bundler,
+    gt_camera_i1: gtsfm_types.CAMERA_TYPE,
+    gt_camera_i2: gtsfm_types.CAMERA_TYPE,
     gt_scene_mesh: Trimesh,
     dist_threshold: float,
 ) -> Tuple[np.ndarray, np.ndarray]:
@@ -190,7 +191,7 @@ def mesh_inlier_correspondences(
 
 
 def compute_keypoint_intersections(
-    keypoints: Keypoints, gt_camera: PinholeCameraCal3Bundler, gt_scene_mesh: Trimesh, verbose: bool = False
+    keypoints: Keypoints, gt_camera: gtsfm_types.CAMERA_TYPE, gt_scene_mesh: Trimesh, verbose: bool = False
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Computes intersections between ground truth surface mesh and rays originating from image keypoints.
 
@@ -300,6 +301,9 @@ def compute_global_rotation_metrics(
     Raises:
         ValueError if lengths of wRi_list, wti_list and gt_wTi_list are not all same.
     """
+    if gt_wTi_list is None:
+        return GtsfmMetricsGroup(name="rotation_averaging_metrics", metrics=[])
+
     if len(wRi_list) != len(wti_list) or len(wRi_list) != len(gt_wTi_list):
         raise ValueError("Lengths of wRi_list, wti_list and gt_wTi_list should be the same.")
 
@@ -421,6 +425,8 @@ def save_metrics_as_json(metrics_groups: List[GtsfmMetricsGroup], output_dir: st
         output_dir: Directory to save metrics to.
     """
     for metrics_group in metrics_groups:
+        if metrics_group is None:
+            continue
         metrics_group.save_to_json(os.path.join(output_dir, metrics_group.name + ".json"))
 
 

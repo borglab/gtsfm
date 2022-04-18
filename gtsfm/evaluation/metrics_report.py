@@ -192,6 +192,8 @@ def generate_metrics_report_html(metrics_groups: List[GtsfmMetricsGroup], html_p
 
         # Iterate over all metrics groups
         for metrics_group in metrics_groups:
+            if metrics_group is None:
+                continue
 
             # Write name of the metric group in human readable form.
             f.write(get_html_metric_heading(metrics_group.name))

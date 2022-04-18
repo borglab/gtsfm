@@ -11,12 +11,13 @@ References:
 Authors: John Lambert
 """
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 import cv2
 import numpy as np
-from gtsam import Cal3Bundler, Rot3, Unit3
+from gtsam import Rot3, Unit3
 
+import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.features as feature_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.verification as verification_utils
@@ -59,8 +60,8 @@ class Ransac(VerifierBase):
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
         match_indices: np.ndarray,
-        camera_intrinsics_i1: Cal3Bundler,
-        camera_intrinsics_i2: Cal3Bundler,
+        camera_intrinsics_i1: gtsfm_types.CALIBRATION_TYPE,
+        camera_intrinsics_i2: gtsfm_types.CALIBRATION_TYPE,
     ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, float]:
         """Performs verification of correspondences between two images to recover the relative pose and indices of
         verified correspondences.
@@ -91,11 +92,11 @@ class Ransac(VerifierBase):
 
             # use stricter threshold, among the two choices
             fx = max(camera_intrinsics_i1.K()[0, 0], camera_intrinsics_i2.K()[0, 0])
-            if np.amax(match_indices[:,1]) >= uv_norm_i2.shape[0]:
+            if np.amax(match_indices[:, 1]) >= uv_norm_i2.shape[0]:
                 print("Out of bounds access w/ keypoints", keypoints_i2.coordinates[:10])
-            if np.amax(match_indices[:,0]) >= uv_norm_i1.shape[0]:
+            if np.amax(match_indices[:, 0]) >= uv_norm_i1.shape[0]:
                 print("Out of bounds access w/ keypoints", keypoints_i1.coordinates[:10])
-                
+
             i2Ei1, inlier_mask = cv2.findEssentialMat(
                 uv_norm_i1[match_indices[:, 0]],
                 uv_norm_i2[match_indices[:, 1]],

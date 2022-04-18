@@ -4,8 +4,9 @@ Authors: Ayush Baid
 """
 from typing import Dict, List
 
-from gtsam import PinholeCameraCal3Bundler, SfmTrack
+from gtsam import SfmTrack
 
+import gtsfm.common.types as gtsfm_types
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
 from gtsfm.data_association.point3d_initializer import (
     Point3dInitializer,
@@ -16,7 +17,7 @@ from gtsfm.data_association.point3d_initializer import (
 
 
 def classify_tracks2d_with_gt_cameras(
-    tracks: List[SfmTrack2d], cameras_gt: List[PinholeCameraCal3Bundler], reproj_error_thresh_px: float = 3
+    tracks: List[SfmTrack2d], cameras_gt: List[gtsfm_types.CAMERA_TYPE], reproj_error_thresh_px: float = 3
 ) -> List[TriangulationExitCode]:
     """Classifies the 2D tracks w.r.t ground truth cameras by performing triangulation and collecting exit codes.
 
@@ -30,7 +31,7 @@ def classify_tracks2d_with_gt_cameras(
         The triangulation exit code for each input track, as list of the same length as of tracks.
     """
     # do a simple triangulation with the GT cameras
-    cameras_dict: Dict[int, PinholeCameraCal3Bundler] = {i: cam for i, cam in enumerate(cameras_gt)}
+    cameras_dict: Dict[int, gtsfm_types.CAMERA_TYPE] = {i: cam for i, cam in enumerate(cameras_gt)}
     point3d_initializer = Point3dInitializer(
         track_camera_dict=cameras_dict,
         options=TriangulationOptions(
@@ -47,7 +48,7 @@ def classify_tracks2d_with_gt_cameras(
 
 
 def classify_tracks3d_with_gt_cameras(
-    tracks: List[SfmTrack], cameras_gt: List[PinholeCameraCal3Bundler], reproj_error_thresh_px: float = 3
+    tracks: List[SfmTrack], cameras_gt: List[gtsfm_types.CAMERA_TYPE], reproj_error_thresh_px: float = 3
 ) -> List[TriangulationExitCode]:
     """Classifies the 3D tracks w.r.t ground truth cameras by performing triangulation and collecting exit codes.
 

@@ -12,15 +12,19 @@ import numpy as np
 from dask.delayed import Delayed
 from gtsam import (
     GeneralSFMFactor2Cal3Bundler,
+    GeneralSFMFactor2Cal3Fisheye,
     NonlinearFactorGraph,
     PinholeCameraCal3Bundler,
+    PinholeCameraCal3Fisheye,
     PriorFactorCal3Bundler,
+    PriorFactorCal3Fisheye,
     PriorFactorPose3,
     SfmTrack,
     Values,
     symbol_shorthand,
 )
 
+import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.tracks as track_utils
@@ -41,13 +45,14 @@ K = symbol_shorthand.K  # calibration
 
 CAM_POSE3_DOF = 6  # 6 dof for pose of camera
 CAM_CAL3BUNDLER_DOF = 3  # 3 dof for f, k1, k2 for intrinsics of camera
+CAM_CAL3FISHEYE_DOF = 9
 IMG_MEASUREMENT_DIM = 2  # 2d measurements (u,v) have 2 dof
 POINT3_DOF = 3  # 3d points have 3 dof
 
 
 # noise model params
 CAM_POSE3_PRIOR_NOISE_SIGMA = 0.1
-CAM_CAL3BUNDLER_PRIOR_NOISE_SIGMA = 1e-5  # essentially fixed
+CAM_CAL3_PRIOR_NOISE_SIGMA = 1e-5  # essentially fixed
 MEASUREMENT_NOISE_SIGMA = 1.0  # in pixels
 
 logger = logger_utils.get_logger()
@@ -93,9 +98,12 @@ class BundleAdjustmentOptimizer:
         if self._robust_measurement_noise:
             measurement_noise = gtsam.noiseModel.Robust(gtsam.noiseModel.mEstimator.Huber(1.345), measurement_noise)
 
+        is_fisheye_calibration = isinstance(initial_data.get_camera(0), PinholeCameraCal3Fisheye)
+
         # Create a factor graph
 
         # Add measurements to the factor graph
+        sfm_factor_class = GeneralSFMFactor2Cal3Fisheye if is_fisheye_calibration else GeneralSFMFactor2Cal3Bundler
         for j in range(initial_data.number_tracks()):
             track = initial_data.get_track(j)  # SfmTrack
             # retrieve the SfmMeasurement objects
@@ -104,7 +112,7 @@ class BundleAdjustmentOptimizer:
                 i, uv = track.measurement(m_idx)
                 # note use of shorthand symbols C and P
                 graph.add(
-                    GeneralSFMFactor2Cal3Bundler(
+                    sfm_factor_class(
                         uv,
                         measurement_noise,
                         X(i),
@@ -126,12 +134,14 @@ class BundleAdjustmentOptimizer:
         )
 
         # add prior on all calibrations
+        calibration_prior_factor_class = PriorFactorCal3Fisheye if is_fisheye_calibration else PriorFactorCal3Bundler
+        calibration_prior_factor_dof = CAM_CAL3FISHEYE_DOF if is_fisheye_calibration else CAM_CAL3BUNDLER_DOF
         for i in valid_camera_indices[: 1 if self._shared_calib else len(valid_camera_indices)]:
             graph.push_back(
-                PriorFactorCal3Bundler(
+                calibration_prior_factor_class(
                     K(self.__map_to_calibration_variable(i)),
                     initial_data.get_camera(i).calibration(),
-                    gtsam.noiseModel.Isotropic.Sigma(CAM_CAL3BUNDLER_DOF, CAM_CAL3BUNDLER_PRIOR_NOISE_SIGMA),
+                    gtsam.noiseModel.Isotropic.Sigma(calibration_prior_factor_dof, CAM_CAL3_PRIOR_NOISE_SIGMA),
                 )
             )
 
@@ -228,7 +238,7 @@ class BundleAdjustmentOptimizer:
         return optimized_data, filtered_result
 
     def evaluate(
-        self, unfiltered_data: GtsfmData, filtered_data: GtsfmData, cameras_gt: List[PinholeCameraCal3Bundler] = None
+        self, unfiltered_data: GtsfmData, filtered_data: GtsfmData, cameras_gt: Optional[List[gtsfm_types.CAMERA_TYPE]]
     ) -> GtsfmMetricsGroup:
         """
         Args:
@@ -305,14 +315,18 @@ def values_to_gtsfm_data(values: Values, initial_data: GtsfmData, shared_calib: 
     """
     result = GtsfmData(initial_data.number_images())
 
+    is_fisheye_calibration = isinstance(initial_data.get_camera(0), PinholeCameraCal3Fisheye)
+    if is_fisheye_calibration:
+        cal3_value_extraction_lambda = lambda i: values.atCal3Fisheye(K(0 if shared_calib else i))
+    else:
+        cal3_value_extraction_lambda = lambda i: values.atCal3Bundler(K(0 if shared_calib else i))
+    camera_class = PinholeCameraCal3Fisheye if is_fisheye_calibration else PinholeCameraCal3Bundler
+
     # add cameras
     for i in initial_data.get_valid_camera_indices():
         result.add_camera(
             i,
-            PinholeCameraCal3Bundler(
-                values.atPose3(X(i)),
-                values.atCal3Bundler(K(0 if shared_calib else i)),
-            ),
+            camera_class(values.atPose3(X(i)), cal3_value_extraction_lambda(i)),
         )
 
     # add tracks

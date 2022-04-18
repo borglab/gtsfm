@@ -7,8 +7,10 @@ from typing import Optional, Tuple
 import cv2 as cv
 import numpy as np
 import scipy
-from gtsam import Cal3Bundler, EssentialMatrix, Pose3, Rot3, Unit3
+from gtsam import Cal3Fisheye, EssentialMatrix, Pose3, Rot3, Unit3
+from gtsfm.common.keypoints import Keypoints
 
+import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.features as feature_utils
 import gtsfm.utils.logger as logger_utils
 
@@ -53,8 +55,8 @@ def recover_relative_pose_from_essential_matrix(
     i2Ei1: Optional[np.ndarray],
     verified_coordinates_i1: np.ndarray,
     verified_coordinates_i2: np.ndarray,
-    camera_intrinsics_i1: Cal3Bundler,
-    camera_intrinsics_i2: Cal3Bundler,
+    camera_intrinsics_i1: gtsfm_types.CALIBRATION_TYPE,
+    camera_intrinsics_i2: gtsfm_types.CALIBRATION_TYPE,
 ) -> Tuple[Optional[Rot3], Optional[Unit3]]:
     """Recovers the relative rotation and translation direction from essential matrix and verified correspondences
     using opencv's API.
@@ -93,7 +95,9 @@ def recover_relative_pose_from_essential_matrix(
 
 
 def fundamental_to_essential_matrix(
-    i2Fi1: np.ndarray, camera_intrinsics_i1: Cal3Bundler, camera_intrinsics_i2: Cal3Bundler
+    i2Fi1: np.ndarray,
+    camera_intrinsics_i1: gtsfm_types.CALIBRATION_TYPE,
+    camera_intrinsics_i2: gtsfm_types.CALIBRATION_TYPE,
 ) -> np.ndarray:
     """Converts the fundamental matrix to essential matrix using camera intrinsics.
 
@@ -105,11 +109,15 @@ def fundamental_to_essential_matrix(
     Returns:
         Estimated essential matrix i2Ei1 as numpy array of shape (3x3).
     """
+    if isinstance(camera_intrinsics_i1, Cal3Fisheye):
+        raise NotImplementedError("Need to incorporate distortion here")
     return camera_intrinsics_i2.K().T @ i2Fi1 @ camera_intrinsics_i1.K()
 
 
 def essential_to_fundamental_matrix(
-    i2Ei1: EssentialMatrix, camera_intrinsics_i1: Cal3Bundler, camera_intrinsics_i2: Cal3Bundler
+    i2Ei1: EssentialMatrix,
+    camera_intrinsics_i1: gtsfm_types.CALIBRATION_TYPE,
+    camera_intrinsics_i2: gtsfm_types.CALIBRATION_TYPE,
 ) -> np.ndarray:
     """Converts the essential matrix to fundamental matrix using camera intrinsics.
 
@@ -121,11 +129,17 @@ def essential_to_fundamental_matrix(
     Returns:
         Fundamental matrix i2Fi1 as numpy array of shape (3x3).
     """
+    if isinstance(camera_intrinsics_i1, Cal3Fisheye):
+        raise NotImplementedError("Need to incorporate distortion here")
     return np.linalg.inv(camera_intrinsics_i2.K().T) @ i2Ei1.matrix() @ np.linalg.inv(camera_intrinsics_i1.K())
 
 
 def compute_epipolar_distances_sq_sed(
-    coordinates_i1: np.ndarray, coordinates_i2: np.ndarray, i2Fi1: np.ndarray
+    keypoints_i1: Keypoints,
+    keypoints_i2: Keypoints,
+    camera_intrinsics_i1: gtsfm_types.CALIBRATION_TYPE,
+    camera_intrinsics_i2: gtsfm_types.CALIBRATION_TYPE,
+    i2Ei1: EssentialMatrix,
 ) -> Optional[np.ndarray]:
     """Compute symmetric point-line epipolar squared distance between corresponding coordinates in two images. The
     squared SED is the geometric point-line distance and is an over-estimate of the gold-standard reprojection error.
@@ -151,13 +165,18 @@ def compute_epipolar_distances_sq_sed(
         Symmetric epipolar point-line distances for each row of the input, of shape N.
     """
 
-    if coordinates_i1 is None or coordinates_i1.size == 0 or coordinates_i2 is None or coordinates_i2.size == 0:
+    if len(keypoints_i1) == 0 or len(keypoints_i2) == 0:
         return None
 
-    epipolar_lines_i2 = feature_utils.convert_to_epipolar_lines(coordinates_i1, i2Fi1)  # Ex1
-    epipolar_lines_i1 = feature_utils.convert_to_epipolar_lines(coordinates_i2, i2Fi1.T)  # Etx2
+    xy_i1 = feature_utils.normalize_coordinates(keypoints_i1.coordinates, camera_intrinsics_i1)
+    xy_i2 = feature_utils.normalize_coordinates(keypoints_i2.coordinates, camera_intrinsics_i2)
 
-    numerator = np.square(feature_utils.point_line_dotproduct(coordinates_i1, epipolar_lines_i1))
+    epipolar_lines_i2 = feature_utils.convert_to_epipolar_lines_undistorted(xy_i1, i2Ei1)  # Ex1
+    epipolar_lines_i1 = feature_utils.convert_to_epipolar_lines_undistorted(
+        xy_i2, transpose_essential_matrix(i2Ei1)
+    )  # Etx2
+
+    numerator = np.square(feature_utils.point_line_dotproduct(xy_i1, epipolar_lines_i1))
 
     line_sq_norms_i1 = np.sum(np.square(epipolar_lines_i1[:, :2]), axis=1)
     line_sq_norms_i2 = np.sum(np.square(epipolar_lines_i2[:, :2]), axis=1)
@@ -166,7 +185,11 @@ def compute_epipolar_distances_sq_sed(
 
 
 def compute_epipolar_distances_sq_sampson(
-    coordinates_i1: np.ndarray, coordinates_i2: np.ndarray, i2Fi1: np.ndarray
+    keypoints_i1: Keypoints,
+    keypoints_i2: Keypoints,
+    camera_intrinsics_i1: gtsfm_types.CALIBRATION_TYPE,
+    camera_intrinsics_i2: gtsfm_types.CALIBRATION_TYPE,
+    i2Ei1: EssentialMatrix,
 ) -> Optional[np.ndarray]:
     """Compute the sampson distance between corresponding coordinates in two images. Sampson distance is the first
     order approximation of the reprojection error, and well-estimates the gold standard reprojection error at low
@@ -198,15 +221,30 @@ def compute_epipolar_distances_sq_sampson(
         Sampson distance for each row of the input, of shape N.
     """
 
-    if coordinates_i1 is None or coordinates_i1.size == 0 or coordinates_i2 is None or coordinates_i2.size == 0:
+    if len(keypoints_i1) == 0 or len(keypoints_i2) == 0:
         return None
 
-    epipolar_lines_i2 = feature_utils.convert_to_epipolar_lines(coordinates_i1, i2Fi1)  # Ex1
-    epipolar_lines_i1 = feature_utils.convert_to_epipolar_lines(coordinates_i2, i2Fi1.T)  # Etx2
+    xy_i1 = feature_utils.normalize_coordinates(keypoints_i1.coordinates, camera_intrinsics_i1)
+    xy_i2 = feature_utils.normalize_coordinates(keypoints_i2.coordinates, camera_intrinsics_i2)
+
+    epipolar_lines_i2 = feature_utils.convert_to_epipolar_lines_undistorted(xy_i1, i2Ei1)  # Ex1
+    epipolar_lines_i1 = feature_utils.convert_to_epipolar_lines_undistorted(
+        xy_i2, transpose_essential_matrix(i2Ei1)
+    )  # Etx2
     line_sq_norms_i1 = np.sum(np.square(epipolar_lines_i1[:, :2]), axis=1)
     line_sq_norms_i2 = np.sum(np.square(epipolar_lines_i2[:, :2]), axis=1)
 
-    numerator = np.square(feature_utils.point_line_dotproduct(coordinates_i1, epipolar_lines_i1))
+    numerator = np.square(feature_utils.point_line_dotproduct(xy_i1, epipolar_lines_i1))
     denominator = line_sq_norms_i1 + line_sq_norms_i2
 
     return numerator / denominator
+
+
+def transpose_essential_matrix(i2Ei1: EssentialMatrix) -> EssentialMatrix:
+    i2Ri1 = i2Ei1.rotation()
+    i2Ui1 = i2Ei1.direction()
+
+    i2Ti1 = Pose3(i2Ri1, i2Ui1.point3())
+    i1Ti2 = i2Ti1.inverse()
+
+    return EssentialMatrix(i1Ti2.rotation(), Unit3(i1Ti2.translation()))
