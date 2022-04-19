@@ -11,16 +11,17 @@ import gtsam
 import numpy as np
 from dask.delayed import Delayed
 from gtsam import (
-    Cal3Bundler,
     CameraSetCal3Bundler,
+    CameraSetCal3Fisheye,
+    PinholeCameraCal3Bundler,
     Point2Vector,
     Pose3,
-    PinholeCameraCal3Bundler,
     Rot3,
     SfmTrack,
     Unit3,
 )
 
+import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
@@ -84,8 +85,8 @@ class TwoViewEstimator:
     @classmethod
     def triangulate_two_view_correspondences(
         cls,
-        camera_i1: PinholeCameraCal3Bundler,
-        camera_i2: PinholeCameraCal3Bundler,
+        camera_i1: gtsfm_types.CAMERA_TYPE,
+        camera_i2: gtsfm_types.CAMERA_TYPE,
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
         corr_idxs: np.ndarray,
@@ -102,7 +103,9 @@ class TwoViewEstimator:
         Returns:
             Triangulated 3D points.
         """
-        camera_set = CameraSetCal3Bundler()
+        camera_set = (
+            CameraSetCal3Bundler() if isinstance(camera_i1, PinholeCameraCal3Bundler) else CameraSetCal3Fisheye()
+        )
         camera_set.append(camera_i1)
         camera_set.append(camera_i2)
 
@@ -131,8 +134,8 @@ class TwoViewEstimator:
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
         verified_corr_idxs: np.ndarray,
-        camera_intrinsics_i1: Cal3Bundler,
-        camera_intrinsics_i2: Cal3Bundler,
+        camera_intrinsics_i1: gtsfm_types.CALIBRATION_TYPE,
+        camera_intrinsics_i2: gtsfm_types.CALIBRATION_TYPE,
         i2Ri1_initial: Optional[Rot3],
         i2Ui1_initial: Optional[Unit3],
     ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:

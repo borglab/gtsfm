@@ -6,8 +6,9 @@ from typing import Dict, List, Optional, Tuple
 
 import dask
 from dask.delayed import Delayed
-from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point3, Pose3, Rot3
+from gtsam import Point3, Pose3, Rot3
 
+import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.metrics as metrics_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
@@ -100,8 +101,8 @@ class MultiViewOptimizer:
 
         ba_result_graph, ba_metrics_graph = self.ba_optimizer.create_computation_graph(ba_input_graph, gt_cameras_graph)
 
-        if gt_cameras_graph is None:
-            return ba_input_graph, ba_result_graph, None
+        # if gt_cameras_graph is None:
+        # return ba_input_graph, ba_result_graph, None,
 
         # TODO: move to rotation averaging
         rot_avg_metrics = dask.delayed(metrics_utils.compute_global_rotation_metrics)(
@@ -125,8 +126,8 @@ class MultiViewOptimizer:
 def init_cameras(
     wRi_list: List[Optional[Rot3]],
     wti_list: List[Optional[Point3]],
-    intrinsics_list: List[Cal3Bundler],
-) -> Dict[int, PinholeCameraCal3Bundler]:
+    intrinsics_list: List[gtsfm_types.CALIBRATION_TYPE],
+) -> Dict[int, gtsfm_types.CAMERA_TYPE]:
     """Generate camera from valid rotations and unit-translations.
 
     Args:
@@ -139,8 +140,9 @@ def init_cameras(
     """
     cameras = {}
 
+    camera_class = gtsfm_types.get_camera_class_for_calibration(intrinsics_list[0])
     for idx, (wRi, wti) in enumerate(zip(wRi_list, wti_list)):
         if wRi is not None and wti is not None:
-            cameras[idx] = PinholeCameraCal3Bundler(Pose3(wRi, wti), intrinsics_list[idx])
+            cameras[idx] = camera_class(Pose3(wRi, wti), intrinsics_list[idx])
 
     return cameras
