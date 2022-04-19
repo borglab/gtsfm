@@ -113,6 +113,8 @@ class SceneOptimizer:
         image_graph: List[Delayed],
         camera_intrinsics_graph: List[Delayed],
         image_shape_graph: List[Delayed],
+        relative_pose_priors: Dict[Tuple[int, int], Delayed],
+        absolute_pose_priors: List[Delayed],
         gt_cameras_graph: Optional[List[Delayed]] = None,
         gt_scene_mesh: Optional[Trimesh] = None,
     ) -> Delayed:

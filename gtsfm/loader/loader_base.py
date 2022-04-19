@@ -4,7 +4,7 @@ Authors: Frank Dellaert and Ayush Baid
 """
 
 import abc
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import dask
 from dask.delayed import Delayed
@@ -13,6 +13,7 @@ from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3
 import gtsfm.utils.images as img_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
+from gtsfm.common.pose_prior import PosePrior
 
 
 logger = logger_utils.get_logger()
@@ -196,6 +197,29 @@ class LoaderBase(metaclass=abc.ABCMeta):
         image = self.get_image(idx)
         return (image.height, image.width)
 
+    def get_relative_pose_prior(self, i1: int, i2: int) -> Optional[PosePrior]:
+        """Get the prior on the relative pose i2Ti1
+
+        Args:
+            i1 (int): _description_
+            i2 (int): _description_
+
+        Returns:
+            Pose prior, if there is one.
+        """
+        return None
+
+    def get_absolute_pose_prior(self, idx: int) -> Optional[PosePrior]:
+        """Get the prior on the pose of camera at idx in the world coordinates.
+
+        Args:
+            idx (int): index of the camera
+
+        Returns:
+            pose prior, if there is one.
+        """
+        return None
+
     def create_computation_graph_for_images(self) -> List[Delayed]:
         """Creates the computation graph for image fetches.
 
@@ -251,6 +275,14 @@ class LoaderBase(metaclass=abc.ABCMeta):
         """
         N = len(self)
         return [dask.delayed(self.get_image_shape)(x) for x in range(N)]
+
+    def create_computation_graph_for_absolute_pose_priors(self) -> List[Delayed]:
+        N = len(self)
+        return [dask.delayed(self.get_absolute_pose_prior)(i) for i in range(N)]
+
+    def create_computation_graph_for_relative_pose_priors(self) -> Dict[Tuple[int, int], Delayed]:
+        pairs = self.get_valid_pairs()
+        return {(i1, i2): dask.delayed(self.get_relative_pose_prior)(i1, i2) for i1, i2 in pairs}
 
     def get_valid_pairs(self) -> List[Tuple[int, int]]:
         """Get the valid pairs of images for this loader.
