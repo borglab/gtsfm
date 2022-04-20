@@ -28,12 +28,15 @@ import gtsfm.utils.metrics as metric_utils
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.common.pose_prior import PosePrior, PosePriorType
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.data_association.point3d_initializer import SVD_DLT_RANK_TOL
 from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
+
+BA_2VIEW_REPROJ_ERROR_THRESHOLD_PX = 5
 
 
 logger = logger_utils.get_logger()
@@ -79,7 +82,10 @@ class TwoViewEstimator:
         self._bundle_adjust_2view = bundle_adjust_2view
         self._corr_metric_dist_threshold = eval_threshold_px
         self._ba_optimizer = BundleAdjustmentOptimizer(
-            robust_measurement_noise=True, max_iterations=bundle_adjust_2view_maxiters
+            output_reproj_error_thresh=None,
+            robust_measurement_noise=True,
+            max_iterations=bundle_adjust_2view_maxiters,
+            shared_calib=True,  # TODO: accept it as input
         )
 
     @classmethod
@@ -90,7 +96,7 @@ class TwoViewEstimator:
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
         corr_idxs: np.ndarray,
-    ):
+    ) -> Tuple[List[SfmTrack], Dict[int, int]]:
         """Triangulate 2-view correspondences to form 3d tracks.
 
         Args:
@@ -102,6 +108,7 @@ class TwoViewEstimator:
 
         Returns:
             Triangulated 3D points.
+            Map from the track index to index in corr_idxs.
         """
         camera_set = (
             CameraSetCal3Bundler() if isinstance(camera_i1, PinholeCameraCal3Bundler) else CameraSetCal3Fisheye()
@@ -109,7 +116,10 @@ class TwoViewEstimator:
         camera_set.append(camera_i1)
         camera_set.append(camera_i2)
 
+        idx_mapping: Dict[int, int] = {}
+
         tracks_3d: List[SfmTrack] = []
+        track_idx = 0
         for i in range(len(corr_idxs)):
             track_2d = Point2Vector()
             idx1, idx2 = corr_idxs[i, :]
@@ -124,20 +134,24 @@ class TwoViewEstimator:
                 track_3d.addMeasurement(0, track_2d[0])
                 track_3d.addMeasurement(1, track_2d[1])
                 tracks_3d.append(track_3d)
+                idx_mapping[track_idx] = i
+                track_idx += 1
             except RuntimeError:
                 pass
 
-        return tracks_3d
+        return tracks_3d, idx_mapping
 
     def bundle_adjust(
         self,
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
         verified_corr_idxs: np.ndarray,
+        putative_corr_idxs: np.ndarray,
         camera_intrinsics_i1: gtsfm_types.CALIBRATION_TYPE,
         camera_intrinsics_i2: gtsfm_types.CALIBRATION_TYPE,
         i2Ri1_initial: Optional[Rot3],
         i2Ui1_initial: Optional[Unit3],
+        i2Ti1_prior: Optional[PosePrior],
     ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
         """Refine the relative pose using bundle adjustment on the 2-view scene.
 
@@ -145,34 +159,45 @@ class TwoViewEstimator:
             keypoints_i1: keypoints from image i1.
             keypoints_i2: keypoints from image i2.
             verified_corr_idxs: indices of verified correspondences between i1 and i2.
+            putative_corr_idxs:
             camera_intrinsics_i1: intrinsics for i1.
             camera_intrinsics_i2: intrinsics for i2.
             i2Ri1_initial: the relative rotation to be used as initial rotation between cameras.
             i2Ui1_initial: the relative unit direction, to be used to initialize initial translation between cameras.
+            i2Ti1_prior
         Returns:
             Optimized relative rotation i2Ri1.
             Optimized unit translation i2Ui1.
             Optimized verified_corr_idxs.
         """
-        if i2Ri1_initial is None or i2Ui1_initial is None:
+        i2Ti1_from_verifier: Optional[Pose3] = (
+            Pose3(i2Ri1_initial, i2Ui1_initial.point3()) if i2Ri1_initial is not None else None
+        )
+        i2Ti1_initial: Optional[Pose3] = self.__generate_initial_pose_for_bundle_adjustment(
+            i2Ti1_from_verifier, i2Ti1_prior
+        )
+
+        if i2Ti1_initial is None:
             return None, None, verified_corr_idxs
 
-        i2Ti1_initial = Pose3(i2Ri1_initial, i2Ui1_initial.point3())
-
         # Set the i1 camera pose as the global coordinate system.
-        camera_i1 = PinholeCameraCal3Bundler(Pose3(), camera_intrinsics_i1)
-        camera_i2 = PinholeCameraCal3Bundler(i2Ti1_initial.inverse(), camera_intrinsics_i2)
+        camera_class = gtsfm_types.get_camera_class_for_calibration(camera_intrinsics_i1)
+        camera_i1 = camera_class(Pose3(), camera_intrinsics_i1)
+        camera_i2 = camera_class(i2Ti1_initial.inverse(), camera_intrinsics_i2)
 
         # Perform data association to construct 2-view BA input.
         start_time = timeit.default_timer()
-        triangulated_tracks: List[SfmTrack] = self.triangulate_two_view_correspondences(
+        triangulated_tracks, track_idx_to_corr_row_idx = self.triangulate_two_view_correspondences(
             camera_i1=camera_i1,
             camera_i2=camera_i2,
             keypoints_i1=keypoints_i1,
             keypoints_i2=keypoints_i2,
-            corr_idxs=verified_corr_idxs,
+            corr_idxs=putative_corr_idxs,
         )
         logger.debug("Performed DA in %.6f seconds.", timeit.default_timer() - start_time)
+
+        if len(triangulated_tracks) == 0:
+            return i2Ti1_initial.rotation(), Unit3(i2Ti1_initial.translation()), np.array([], dtype=np.uint32)
 
         # Perform 2-view BA.
         start_time = timeit.default_timer()
@@ -181,7 +206,15 @@ class TwoViewEstimator:
         ba_input.add_camera(1, camera_i2)
         for track in triangulated_tracks:
             ba_input.add_track(track)
-        ba_output, _ = self._ba_optimizer.run(ba_input, verbose=False)
+
+        pose_priors_for_ba: List[Optional[PosePrior]] = [None, None]
+        if i2Ti1_prior is not None and i2Ti1_prior.type == PosePriorType.HARD_CONSTRAINT:
+            pose_priors_for_ba = [
+                PosePrior(value=Pose3(), covariance=None, type=PosePriorType.HARD_CONSTRAINT),
+                PosePrior(value=i2Ti1_prior.value.inverse(), covariance=None, type=PosePriorType.HARD_CONSTRAINT),
+            ]
+
+        ba_output, _ = self._ba_optimizer.run(ba_input, pose_priors=pose_priors_for_ba, verbose=False)
         wTi1, wTi2 = ba_output.get_camera_poses()  # extract the camera poses
         if wTi1 is None or wTi2 is None:
             logger.warning("2-view BA failed")
@@ -189,7 +222,41 @@ class TwoViewEstimator:
         i2Ti1_optimized = wTi2.between(wTi1)
         logger.debug("Performed 2-view BA in %.6f seconds.", timeit.default_timer() - start_time)
 
-        return i2Ti1_optimized.rotation(), Unit3(i2Ti1_optimized.translation()), verified_corr_idxs
+        # map the filtered tracks back to keypoint indices
+        valid_track_idxs: List[int] = ba_output.filter_landmarks(reproj_err_thresh=BA_2VIEW_REPROJ_ERROR_THRESHOLD_PX)[
+            1
+        ]
+        valid_input_corr_idxs_rows = [track_idx_to_corr_row_idx[x] for x in valid_track_idxs]
+        filtered_corr_idxs = putative_corr_idxs[valid_input_corr_idxs_rows]
+
+        logger.info(
+            "Putative: %d, verified: %d, post BA: %d",
+            putative_corr_idxs.shape[0],
+            verified_corr_idxs.shape[0],
+            filtered_corr_idxs.shape[0],
+        )
+
+        return (
+            i2Ti1_optimized.rotation(),
+            Unit3(i2Ti1_optimized.translation()),
+            filtered_corr_idxs,
+        )
+
+    def __generate_initial_pose_for_bundle_adjustment(
+        self, i2Ti1_from_verifier: Optional[Pose3], i2Ti1_prior: Optional[PosePrior]
+    ) -> Optional[Pose3]:
+        if i2Ti1_prior is None and i2Ti1_from_verifier is None:
+            return None
+        elif i2Ti1_from_verifier is None:
+            logger.info("Using hard pose prior because verifier output failed")
+            return i2Ti1_prior.value
+        elif i2Ti1_prior is None:
+            return i2Ti1_from_verifier
+        elif i2Ti1_prior.type == PosePriorType.HARD_CONSTRAINT:
+            logger.info("Using hard pose prior and overriding verified output")
+            return i2Ti1_prior.value
+        else:
+            return i2Ti1_from_verifier
 
     def get_corr_metric_dist_threshold(self) -> float:
         """Getter for the distance threshold used in the metric for correct correspondences."""
@@ -205,6 +272,7 @@ class TwoViewEstimator:
         camera_intrinsics_i2_graph: Delayed,
         im_shape_i1_graph: Delayed,
         im_shape_i2_graph: Delayed,
+        i2Ti1_prior: Delayed,
         gt_wTi1_graph: Optional[Delayed] = None,
         gt_wTi2_graph: Optional[Delayed] = None,
         gt_scene_mesh_graph: Optional[Delayed] = None,
@@ -218,8 +286,10 @@ class TwoViewEstimator:
             descriptors_i2_graph: corr. descriptors for image i2.
             camera_intrinsics_i1_graph: intrinsics for camera i1.
             camera_intrinsics_i2_graph: intrinsics for camera i2.
+            i2Ti1_prior:
             im_shape_i1_graph: image shape for image i1.
             im_shape_i2_graph: image shape for image i2.
+            relative_pose_prior: the prior on relative pose i2Ti1.
             i2Ti1_expected_graph (optional): ground truth relative pose, used for evaluation if available. Defaults to
                                              None.
 
@@ -260,10 +330,12 @@ class TwoViewEstimator:
                 keypoints_i1_graph,
                 keypoints_i2_graph,
                 pre_ba_v_corr_idxs,
+                putative_corr_idxs,
                 camera_intrinsics_i1_graph,
                 camera_intrinsics_i2_graph,
                 pre_ba_i2Ri1,
                 pre_ba_i2Ui1,
+                i2Ti1_prior,
             )
         else:
             post_ba_i2Ri1 = pre_ba_i2Ri1

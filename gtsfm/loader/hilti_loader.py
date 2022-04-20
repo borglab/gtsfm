@@ -8,16 +8,17 @@ Kalibr format for intrinsics: https://github.com/ethz-asl/kalibr/wiki/yaml-forma
 Authors: Ayush Baid
 """
 import glob
-from regex import P
 import yaml
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 from pathlib import Path
 
+import numpy as np
 from gtsam import Cal3Fisheye, Pose3
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
+from gtsfm.common.pose_prior import PosePrior, PosePriorType
 from gtsfm.loader.loader_base import LoaderBase
 
 logger = logger_utils.get_logger()
@@ -50,14 +51,30 @@ class HiltiLoader(LoaderBase):
         self._max_frame_lookahead: int = max_frame_lookahead
         self._step_size: int = step_size
         self._max_length = max_length
-        self._calibrations: Dict[int, Cal3Fisheye] = {
-            cam_idx: self.__load_calibration(cam_idx) for cam_idx in self._cams_to_use
-        }
+        self._intrinsics: Dict[int, Cal3Fisheye] = {}
+        self._cam_T_imu_poses: Dict[int, Pose3] = {}
+        for cam_idx in self._cams_to_use:
+            calibration = self.__load_calibration(cam_idx)
+            self._intrinsics[cam_idx] = calibration[0]
+            self._cam_T_imu_poses[cam_idx] = calibration[1]
+
         self._number_of_timestamps_available: int = self.__get_number_of_timestamps_available()
         if self._max_length is not None:
             self._number_of_timestamps_available = min(self._number_of_timestamps_available, self._max_length)
 
-        logger.info("Loading %d timestamps", self._number_of_timestamps_available)
+        # import matplotlib.pyplot as plt
+        # import gtsfm.utils.viz as viz_utils
+
+        # fig = plt.figure()
+        # ax = fig.add_subplot(projection="3d")
+
+        # poses = [self._cam_T_imu_poses[i] for i in self._cams_to_use]
+        # pose_0 = poses[0].inverse()
+        # poses = [pose_0.between(x.inverse()) for x in poses]
+        # viz_utils.plot_poses_3d(poses, ax, center_marker_color="m", label_name="rig")
+        # plt.show()
+
+        # logger.info("Loading %d timestamps", self._number_of_timestamps_available)
 
     def __get_folder_for_images(self, cam_idx: int) -> Path:
         return self._base_folder / f"cam{cam_idx}"
@@ -75,9 +92,9 @@ class HiltiLoader(LoaderBase):
 
         max_num_images = max(num_images_for_cam.values())
 
-        return max_num_images // self._step_size
+        return ((max_num_images - 1) // self._step_size) + 1
 
-    def __load_calibration(self, cam_idx: int) -> Cal3Fisheye:
+    def __load_calibration(self, cam_idx: int) -> Tuple[Cal3Fisheye, Pose3]:
         kalibr_file_path = self._base_folder / "calibration" / CAM_IDX_TO_KALIBR_FILE_MAP[cam_idx]
 
         with open(kalibr_file_path, "r") as file:
@@ -91,14 +108,19 @@ class HiltiLoader(LoaderBase):
             assert calibration_data["distortion_model"] == "equidistant"
 
             intrinsics: Cal3Fisheye = self.__load_intrinsics(calibration_data)
+            cam_T_imu: Pose3 = self.__load_pose_relative_to_imu(calibration_data)
 
-        return intrinsics
+        return intrinsics, cam_T_imu
 
     def __load_intrinsics(self, calibration_data: Dict[Any, Any]) -> Cal3Fisheye:
         fx, fy, px, py = calibration_data["intrinsics"]
         k1, k2, k3, k4 = calibration_data["distortion_coeffs"]
 
         return Cal3Fisheye(fx=fx, fy=fy, s=0, u0=px, v0=py, k1=k1, k2=k2, k3=k3, k4=k4)
+
+    def __load_pose_relative_to_imu(self, calibration_data: Dict[Any, Any]) -> Pose3:
+        transformation_matrix: np.ndarray = calibration_data["T_cam_imu"]
+        return Pose3(transformation_matrix)
 
     def __len__(self) -> int:
         """
@@ -123,12 +145,12 @@ class HiltiLoader(LoaderBase):
         """
         cam_for_index = self.__map_index_to_camera(index)
         # TODO: move this logic to a function. Also, select better names
-        image_index_for_cam = index // len(self._cams_to_use) * self._step_size
+        rig_idx_for_cam = self.__map_image_idx_to_rig(index)
 
-        logger.debug("Mapping %d index to image %d of camera %d", index, image_index_for_cam, cam_for_index)
+        logger.debug("Mapping %d index to image %d of camera %d", index, rig_idx_for_cam, cam_for_index)
 
         camera_folder: Path = self.__get_folder_for_images(cam_for_index)
-        image_path: Path = camera_folder / f"left{image_index_for_cam:04}.jpg"
+        image_path: Path = camera_folder / f"left{rig_idx_for_cam:04}.jpg"
 
         return io_utils.load_image(str(image_path))
 
@@ -141,7 +163,7 @@ class HiltiLoader(LoaderBase):
         Returns:
             intrinsics for the given camera.
         """
-        return self._calibrations[self.__map_index_to_camera(index)]
+        return self._intrinsics[self.__map_index_to_camera(index)]
 
     def get_camera_pose(self, index: int) -> Optional[Pose3]:
         """Get the camera pose (in world coordinates) at the given index.
@@ -153,6 +175,23 @@ class HiltiLoader(LoaderBase):
             the camera pose w_P_index.
         """
         return None
+
+    def get_relative_pose_prior(self, i1: int, i2: int) -> Optional[PosePrior]:
+        rig_idx_for_i1: int = self.__map_image_idx_to_rig(i1)
+        rig_idx_for_i2: int = self.__map_image_idx_to_rig(i2)
+
+        if rig_idx_for_i1 == rig_idx_for_i2:
+            cam_idx_for_i1: int = self.__map_index_to_camera(i1)
+            cam_idx_for_i2: int = self.__map_index_to_camera(i2)
+
+            i1_T_imu: Pose3 = self._cam_T_imu_poses[cam_idx_for_i1]
+            i2_T_imu: Pose3 = self._cam_T_imu_poses[cam_idx_for_i2]
+
+            i2Ti1 = i2_T_imu.inverse().between(i1_T_imu.inverse())
+
+            return PosePrior(value=i2Ti1, covariance=None, type=PosePriorType.HARD_CONSTRAINT)
+        else:
+            return None
 
     def is_valid_pair(self, idx1: int, idx2: int) -> bool:
         """Checks if (idx1, idx2) is a valid pair. idx1 < idx2 is required.
@@ -169,11 +208,34 @@ class HiltiLoader(LoaderBase):
     def __map_index_to_camera(self, index: int) -> int:
         return self._cams_to_use[index % len(self._cams_to_use)]
 
+    def __map_image_idx_to_rig(self, index: int) -> int:
+        return index // len(self._cams_to_use) * self._step_size
+
 
 if __name__ == "__main__":
     root = "/media/ayush/cross_os1/dataset/hilti"
 
-    loader = HiltiLoader(root, {1, 3, 4})
+    loader = HiltiLoader(root, {0, 1, 2, 3, 4})
 
-    for i in range(100):
-        loader.get_image(i)
+    T_cn_cnm1 = np.array(
+        [
+            [0.9999761426988956, 0.004698109260098521, -0.005063773535634404, 0.10817339479208792],
+            [-0.004705552944957792, -0.9999878643586437, -0.0014590774217762541, -0.0005128409082424196],
+            [0.005056857178348414, 0.0014828704666000705, 0.9999861145489266, 0.0006919599620310546],
+            [0, 0, 0, 1],
+        ]
+    )
+
+    c1Tc0 = Pose3(T_cn_cnm1)
+    print(c1Tc0.rotation().xyz())
+    print(c1Tc0.translation())
+
+    pairs = [(0, 1), (0, 2), (0, 3), (0, 4), (3, 4)]
+    for i1, i2 in pairs:
+        pose = loader.get_relative_pose_prior(i1, i2).value
+        print(i1, i2)
+        print(pose.rotation().xyz())
+        print(pose.translation())
+
+    # for i in range(100):
+    #     loader.get_image(i)

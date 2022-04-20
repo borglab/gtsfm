@@ -160,6 +160,7 @@ class SceneOptimizer:
                 camera_intrinsics_graph[i2],
                 image_shape_graph[i1],
                 image_shape_graph[i2],
+                relative_pose_priors[(i1, i2)],
                 gt_wTi1,
                 gt_wTi2,
                 gt_scene_mesh,
@@ -207,6 +208,7 @@ class SceneOptimizer:
             i2Ui1_graph_dict,
             v_corr_idxs_graph_dict,
             camera_intrinsics_graph,
+            absolute_pose_priors,
             two_view_reports_dict[POST_ISP_REPORT_TAG],
             gt_cameras_graph,
         )
@@ -221,14 +223,14 @@ class SceneOptimizer:
                     report_dict, image_graph, filename="two_view_report_{}.json".format(tag)
                 )
             )
-            if gt_cameras_graph is not None:
-                metrics_graph_list.append(
-                    dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
-                        report_dict,
-                        self._pose_angular_error_thresh,
-                        metric_group_name="verifier_summary_{}".format(tag),
-                    )
+            # if gt_cameras_graph is not None:
+            metrics_graph_list.append(
+                dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
+                    report_dict,
+                    self._pose_angular_error_thresh,
+                    metric_group_name="verifier_summary_{}".format(tag),
                 )
+            )
 
         # aggregate metrics for multiview optimizer
         if optimizer_metrics_graph is not None:

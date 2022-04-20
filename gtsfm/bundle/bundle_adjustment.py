@@ -4,7 +4,7 @@ Authors: Xiaolong Wu, John Lambert, Ayush Baid
 """
 from collections import Counter
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional, Set, Tuple
 
 import dask
 import gtsam
@@ -29,6 +29,7 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.tracks as track_utils
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common.pose_prior import PosePrior, PosePriorType
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 METRICS_GROUP = "bundle_adjustment_metrics"
@@ -54,6 +55,7 @@ POINT3_DOF = 3  # 3d points have 3 dof
 CAM_POSE3_PRIOR_NOISE_SIGMA = 0.1
 CAM_CAL3_PRIOR_NOISE_SIGMA = 1e-5  # essentially fixed
 MEASUREMENT_NOISE_SIGMA = 1.0  # in pixels
+HARD_POSE_PRIOR_SIGMA = 1e-5  # essentially fixed
 
 logger = logger_utils.get_logger()
 
@@ -90,7 +92,9 @@ class BundleAdjustmentOptimizer:
     def __map_to_calibration_variable(self, camera_idx: int) -> int:
         return 0 if self._shared_calib else camera_idx
 
-    def __construct_factor_graph(self, initial_data: GtsfmData) -> NonlinearFactorGraph:
+    def __construct_factor_graph(
+        self, initial_data: GtsfmData, pose_priors: List[Optional[PosePrior]]
+    ) -> NonlinearFactorGraph:
         graph = NonlinearFactorGraph()
 
         # noise model for measurements -- one pixel in u and v
@@ -122,16 +126,41 @@ class BundleAdjustmentOptimizer:
                 )
 
         # get all the valid camera indices, which need to be added to the graph.
-        valid_camera_indices = initial_data.get_valid_camera_indices()
+        valid_camera_indices: List[int] = initial_data.get_valid_camera_indices()
+        valid_camera_set: Set[int] = set(valid_camera_indices)
 
-        # Add a prior on first pose. This indirectly specifies where the origin is.
-        graph.push_back(
-            PriorFactorPose3(
-                X(valid_camera_indices[0]),
-                initial_data.get_camera(valid_camera_indices[0]).pose(),
-                gtsam.noiseModel.Isotropic.Sigma(CAM_POSE3_DOF, CAM_POSE3_PRIOR_NOISE_SIGMA),
+        cameras_with_hard_pose_prior: Set[int] = set()
+        for pose_idx, pose_prior in enumerate(pose_priors):
+            if pose_prior is None or pose_idx not in valid_camera_set:
+                continue
+
+            if pose_prior.type == PosePriorType.HARD_CONSTRAINT:
+                graph.push_back(
+                    PriorFactorPose3(
+                        X(pose_idx),
+                        pose_prior.value,
+                        gtsam.noiseModel.Isotropic.Sigma(CAM_POSE3_DOF, HARD_POSE_PRIOR_SIGMA),
+                    )
+                )
+                cameras_with_hard_pose_prior.add(pose_idx)
+
+        if len(cameras_with_hard_pose_prior) < 2:
+            # TODO: handle 1 hard pose prior gracefully.
+            # Add a prior on first pose. This indirectly specifies where the origin is.
+            graph.push_back(
+                PriorFactorPose3(
+                    X(valid_camera_indices[0]),
+                    initial_data.get_camera(valid_camera_indices[0]).pose(),
+                    gtsam.noiseModel.Isotropic.Sigma(CAM_POSE3_DOF, CAM_POSE3_PRIOR_NOISE_SIGMA),
+                )
             )
-        )
+
+            # Also add a prior on the position of the first landmark to fix the scale
+            graph.push_back(
+                gtsam.PriorFactorPoint3(
+                    P(0), initial_data.get_track(0).point3(), gtsam.noiseModel.Isotropic.Sigma(POINT3_DOF, 0.1)
+                )
+            )
 
         # add prior on all calibrations
         calibration_prior_factor_class = PriorFactorCal3Fisheye if is_fisheye_calibration else PriorFactorCal3Bundler
@@ -144,13 +173,6 @@ class BundleAdjustmentOptimizer:
                     gtsam.noiseModel.Isotropic.Sigma(calibration_prior_factor_dof, CAM_CAL3_PRIOR_NOISE_SIGMA),
                 )
             )
-
-        # Also add a prior on the position of the first landmark to fix the scale
-        graph.push_back(
-            gtsam.PriorFactorPoint3(
-                P(0), initial_data.get_track(0).point3(), gtsam.noiseModel.Isotropic.Sigma(POINT3_DOF, 0.1)
-            )
-        )
 
         return graph
 
@@ -187,13 +209,14 @@ class BundleAdjustmentOptimizer:
     def run(
         self,
         initial_data: GtsfmData,
+        pose_priors: List[Optional[PosePrior]],
         verbose: bool = True,
     ) -> Tuple[GtsfmData, GtsfmData]:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
 
         Args:
             initial_data: initialized cameras, tracks w/ their 3d landmark from triangulation.
-            cameras_gt: list of GT cameras, ordered by camera index.
+            pose_priors: priors to be used on pose.
             verbose: Boolean flag to print out additional info for debugging.
 
         Results:
@@ -210,7 +233,7 @@ class BundleAdjustmentOptimizer:
             )
             return initial_data, initial_data
 
-        graph = self.__construct_factor_graph(initial_data=initial_data)
+        graph = self.__construct_factor_graph(initial_data=initial_data, pose_priors=pose_priors)
         initial_values = self.__construct_initial_values(initial_data=initial_data)
         result_values = self.__optimize_factor_graph(graph, initial_values)
 
@@ -229,7 +252,7 @@ class BundleAdjustmentOptimizer:
 
         # filter the largest errors
         if self._output_reproj_error_thresh:
-            filtered_result = optimized_data.filter_landmarks(self._output_reproj_error_thresh)
+            filtered_result = optimized_data.filter_landmarks(self._output_reproj_error_thresh)[0]
         else:
             filtered_result = optimized_data
 
@@ -284,6 +307,7 @@ class BundleAdjustmentOptimizer:
     def create_computation_graph(
         self,
         sfm_data_graph: Delayed,
+        pose_prior_graph: List[Delayed],
         gt_cameras_graph: Optional[List[Delayed]] = None,
     ) -> Tuple[Delayed, Delayed]:
         """Create the computation graph for performing bundle adjustment.
@@ -296,7 +320,7 @@ class BundleAdjustmentOptimizer:
             GtsfmData aligned to GT (if provided), wrapped up using dask.delayed
             Metrics group for BA results, wrapped up using dask.delayed
         """
-        optimized_sfm_data, filtered_sfm_data = dask.delayed(self.run, nout=2)(sfm_data_graph)
+        optimized_sfm_data, filtered_sfm_data = dask.delayed(self.run, nout=2)(sfm_data_graph, pose_prior_graph)
         metrics_graph = dask.delayed(self.evaluate)(optimized_sfm_data, filtered_sfm_data, gt_cameras_graph)
         return filtered_sfm_data, metrics_graph
 

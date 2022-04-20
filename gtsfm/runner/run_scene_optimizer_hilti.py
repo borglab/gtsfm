@@ -31,7 +31,7 @@ class GtsfmRunnerHiltiLoader(GtsfmRunnerBase):
     def construct_loader(self) -> LoaderBase:
         loader = HiltiLoader(
             base_folder=self.parsed_args.dataset_dirpath,
-            cams_to_use={1, 3},
+            cams_to_use={0, 1, 2, 3, 4},
             max_frame_lookahead=self.parsed_args.max_frame_lookahead,
             max_resolution=self.parsed_args.max_resolution,
             step_size=self.parsed_args.step_size,

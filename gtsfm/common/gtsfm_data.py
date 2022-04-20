@@ -356,15 +356,20 @@ class GtsfmData:
         cheirality_success = np.all(~np.isnan(errors))
         return np.all(errors < reproj_err_thresh) and cheirality_success
 
-    def filter_landmarks(self, reproj_err_thresh: float = 5) -> "GtsfmData":
+    def filter_landmarks(self, reproj_err_thresh: float = 5) -> Tuple["GtsfmData", List[int]]:
         """Filters out landmarks with high reprojection error
 
         Args:
             reproj_err_thresh: reprojection err threshold for each measurement.
+        Returns:
+            GtSfmData with just the filtered tracks
+            List of track indices which pass the filtering.
         """
         # TODO: move this function to utils or GTSAM
         filtered_data = GtsfmData(self.number_images())
 
+
+        valid_track_idxs: List[int] = []
         for j in range(self.number_tracks()):
             track = self.get_track(j)
 
@@ -374,8 +379,9 @@ class GtsfmData:
                     i, _ = track.measurement(k)
                     filtered_data.add_camera(i, self.get_camera(i))
                 filtered_data.add_track(track)
+                valid_track_idxs.append(j)
 
-        return filtered_data
+        return filtered_data, valid_track_idxs
 
     def align_via_Sim3_to_poses(self, wTi_list_ref: Optional[List[Pose3]]) -> "GtsfmData":
         """Align estimated, sparse multiview result (self) to a set of reference poses.
