@@ -80,12 +80,12 @@ def create_table_for_scalar_metrics_and_compare(
     return tabulate(table, headers="keys", tablefmt="html")
 
 
-def add_plot(fig, metric_value: Dict, metric_name: str, row: int, col: int):
+def add_plot(fig, metric_value: Dict[str, Union[List, Dict]], metric_name: str, row: int, col: int):
     """Function for adding a plot to a figure
 
     Args:
         fig: The figure that the plot will be added to.
-        metric_value: A dictionary representation of the metric.
+        metric_value: A dictionary representation of the metric. Values are of type dict or list.
         metric_name: The name of the metric being plotted.
         row: The row number of the plot in the figure.
         col: The column number of the plot in the figure.

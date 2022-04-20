@@ -88,7 +88,7 @@ def compute_metrics_from_txt(
 
 def save_other_pipelines_metrics(
     colmap_format_outputs: Dict[str, str],
-    json_path: str,
+    gtsfm_json_dirpath: str,
     gtsfm_metric_filenames: List[str],
     reproj_error_threshold: int,
 ) -> None:
@@ -102,23 +102,23 @@ def save_other_pipelines_metrics(
     Args:
         colmap_format_outputs: a Dict of paths to directories containing outputs of other SfM pipelines
           in COLMAP format i.e. cameras.txt, images.txt, and points3D.txt files.
-        json_path: Path to folder that contains metrics as json files.
+        gtsfm_json_dirpath: Path to folder that contains metrics as json files.
         gtsfm_metric_filenames: List of filenames of metrics that are produced by GTSfM.
         reproj_error_threshold: Reprojection error threshold for filtering tracks.
     """
-    for other_pipeline_name in colmap_format_outputs.keys():
-        cameras, images, points3d = colmap_io.read_model(path=colmap_format_outputs[other_pipeline_name], ext=".txt")
+    for other_pipeline_name, colmap_format_output_dirpath in colmap_format_outputs.items():
+        cameras, images, points3d = colmap_io.read_model(path=colmap_format_output_dirpath, ext=".txt")
         other_pipeline_metrics = compute_metrics_from_txt(cameras, images, points3d, reproj_error_threshold)
 
         # Create json files of GTSfM Metrics for other pipelines that are comparable to GTSfM's result_metric directory
         for filename in gtsfm_metric_filenames:
             other_pipeline_group_metrics = []
-            gtsfm_metrics_group = GtsfmMetricsGroup.parse_from_json(os.path.join(json_path, filename))
+            gtsfm_metrics_group = GtsfmMetricsGroup.parse_from_json(os.path.join(gtsfm_json_dirpath, filename))
             for gtsfm_metric in gtsfm_metrics_group.metrics:
                 if gtsfm_metric.name in other_pipeline_metrics.keys():
                     other_pipeline_group_metrics.append(other_pipeline_metrics[gtsfm_metric.name])
             other_pipeline_new_metrics_group = GtsfmMetricsGroup(gtsfm_metrics_group.name, other_pipeline_group_metrics)
-            os.makedirs(os.path.join(json_path, other_pipeline_name), exist_ok=True)
+            os.makedirs(os.path.join(gtsfm_json_dirpath, other_pipeline_name), exist_ok=True)
             other_pipeline_new_metrics_group.save_to_json(
-                os.path.join(json_path, other_pipeline_name, os.path.basename(filename))
+                os.path.join(gtsfm_json_dirpath, other_pipeline_name, os.path.basename(filename))
             )
