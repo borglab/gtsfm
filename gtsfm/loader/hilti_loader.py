@@ -7,13 +7,16 @@ Kalibr format for intrinsics: https://github.com/ethz-asl/kalibr/wiki/yaml-forma
 
 Authors: Ayush Baid
 """
+import os
 import glob
 import yaml
 from typing import Any, Dict, List, Optional, Set, Tuple
 from pathlib import Path
 
 import numpy as np
-from gtsam import Cal3Fisheye, Pose3
+from gtsam import Cal3Fisheye, Pose3, Rot3
+from scipy.spatial.transform import Rotation as scipyR
+
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
@@ -47,6 +50,7 @@ class HiltiLoader(LoaderBase):
         super().__init__(max_resolution=max_resolution)
         self.__check_cams_to_use(cams_to_use)
         self._base_folder: Path = Path(base_folder)
+        self._fastlio_output_path: Path = Path(self._base_folder, "fastlio2_odom.txt")
         self._cams_to_use: List[int] = list(cams_to_use)
         self._max_frame_lookahead: int = max_frame_lookahead
         self._step_size: int = step_size
@@ -59,8 +63,12 @@ class HiltiLoader(LoaderBase):
             self._cam_T_imu_poses[cam_idx] = calibration[1]
 
         self._number_of_timestamps_available: int = self.__get_number_of_timestamps_available()
+        # self._timestamp_to_absolute_pose = self.
         if self._max_length is not None:
             self._number_of_timestamps_available = min(self._number_of_timestamps_available, self._max_length)
+
+        self.timestamp_to_pose = self.store_fastlio_output()
+
 
         # import matplotlib.pyplot as plt
         # import gtsfm.utils.viz as viz_utils
@@ -93,6 +101,9 @@ class HiltiLoader(LoaderBase):
         max_num_images = max(num_images_for_cam.values())
 
         return ((max_num_images - 1) // self._step_size) + 1
+
+    # def __get_timestamps(self):
+
 
     def __load_calibration(self, cam_idx: int) -> Tuple[Cal3Fisheye, Pose3]:
         kalibr_file_path = self._base_folder / "calibration" / CAM_IDX_TO_KALIBR_FILE_MAP[cam_idx]
@@ -176,22 +187,38 @@ class HiltiLoader(LoaderBase):
         """
         return None
 
+    def get_imu_pose_prior(self, index: int):
+        return
+
+
     def get_relative_pose_prior(self, i1: int, i2: int) -> Optional[PosePrior]:
         rig_idx_for_i1: int = self.__map_image_idx_to_rig(i1)
         rig_idx_for_i2: int = self.__map_image_idx_to_rig(i2)
 
+        cam_idx_for_i1: int = self.__map_index_to_camera(i1)
+        cam_idx_for_i2: int = self.__map_index_to_camera(i2)
+
+        i1_T_imu: Pose3 = self._cam_T_imu_poses[cam_idx_for_i1]
+        i2_T_imu: Pose3 = self._cam_T_imu_poses[cam_idx_for_i2]
+
         if rig_idx_for_i1 == rig_idx_for_i2:
-            cam_idx_for_i1: int = self.__map_index_to_camera(i1)
-            cam_idx_for_i2: int = self.__map_index_to_camera(i2)
-
-            i1_T_imu: Pose3 = self._cam_T_imu_poses[cam_idx_for_i1]
-            i2_T_imu: Pose3 = self._cam_T_imu_poses[cam_idx_for_i2]
-
             i2Ti1 = i2_T_imu.inverse().between(i1_T_imu.inverse())
-
             return PosePrior(value=i2Ti1, covariance=None, type=PosePriorType.HARD_CONSTRAINT)
         else:
+            #TODO: Jon add relative PosePrior for images from different timestamps i.e. different rig_idx
+            #caluculate pose from one imu to another
+            imu1 = self.get_absolute_pose(i1).value
+            imu2 = self.get_absolute_pose(i2).value
+
             return None
+
+    #TODO: Jon
+    def get_absolute_pose(self, i1: int): -> Optional[Pose3]:
+        timestamp = self.__map_image_idx_to_timestamp(i1)
+        pose1 = self.timestamp_to_pose[timestamp]
+        return pose1
+
+
 
     def is_valid_pair(self, idx1: int, idx2: int) -> bool:
         """Checks if (idx1, idx2) is a valid pair. idx1 < idx2 is required.
@@ -205,6 +232,23 @@ class HiltiLoader(LoaderBase):
         """
         return super().is_valid_pair(idx1, idx2) and abs(idx1 - idx2) <= self._max_frame_lookahead
 
+    def store_fastlio_output(self):
+        with open(self._fastlio_output_path) as file:
+            lines = file.readlines()
+            timestamp_to_pose = {}
+            for line in lines:
+                line = line.split()
+                timestamp = line[0]
+                t = np.asarray(line[1:4])
+                quat = np.asarray(line[4:8])
+                R = Rot3(np.asarray(scipyR.from_quat(quat).as_matrix()))
+                timestamp_to_pose[timestamp] = Pose3(R, t)
+        return timestamp_to_pose
+
+    #TODO: Jon
+    def __map_image_idx_to_timestamp(self, index: int):
+        return None
+
     def __map_index_to_camera(self, index: int) -> int:
         return self._cams_to_use[index % len(self._cams_to_use)]
 
@@ -213,29 +257,30 @@ class HiltiLoader(LoaderBase):
 
 
 if __name__ == "__main__":
-    root = "/media/ayush/cross_os1/dataset/hilti"
+    root = "/Users/jonwomack/Documents/projects/swarmgt/experiments/hilti/"
+    print(root)
 
     loader = HiltiLoader(root, {0, 1, 2, 3, 4})
 
-    T_cn_cnm1 = np.array(
-        [
-            [0.9999761426988956, 0.004698109260098521, -0.005063773535634404, 0.10817339479208792],
-            [-0.004705552944957792, -0.9999878643586437, -0.0014590774217762541, -0.0005128409082424196],
-            [0.005056857178348414, 0.0014828704666000705, 0.9999861145489266, 0.0006919599620310546],
-            [0, 0, 0, 1],
-        ]
-    )
-
-    c1Tc0 = Pose3(T_cn_cnm1)
-    print(c1Tc0.rotation().xyz())
-    print(c1Tc0.translation())
-
-    pairs = [(0, 1), (0, 2), (0, 3), (0, 4), (3, 4)]
-    for i1, i2 in pairs:
-        pose = loader.get_relative_pose_prior(i1, i2).value
-        print(i1, i2)
-        print(pose.rotation().xyz())
-        print(pose.translation())
-
-    # for i in range(100):
-    #     loader.get_image(i)
+    # T_cn_cnm1 = np.array(
+    #     [
+    #         [0.9999761426988956, 0.004698109260098521, -0.005063773535634404, 0.10817339479208792],
+    #         [-0.004705552944957792, -0.9999878643586437, -0.0014590774217762541, -0.0005128409082424196],
+    #         [0.005056857178348414, 0.0014828704666000705, 0.9999861145489266, 0.0006919599620310546],
+    #         [0, 0, 0, 1],
+    #     ]
+    # )
+    #
+    # c1Tc0 = Pose3(T_cn_cnm1)
+    # print(c1Tc0.rotation().xyz())
+    # print(c1Tc0.translation())
+    #
+    # pairs = [(0, 1), (0, 2), (0, 3), (0, 4), (3, 4)]
+    # for i1, i2 in pairs:
+    #     pose = loader.get_relative_pose_prior(i1, i2).value
+    #     print(i1, i2)
+    #     print(pose.rotation().xyz())
+    #     print(pose.translation())
+    #
+    # # for i in range(100):
+    # #     loader.get_image(i)
