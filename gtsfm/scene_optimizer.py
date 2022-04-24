@@ -209,6 +209,7 @@ class SceneOptimizer:
             v_corr_idxs_graph_dict,
             camera_intrinsics_graph,
             absolute_pose_priors,
+            relative_pose_priors,
             two_view_reports_dict[POST_ISP_REPORT_TAG],
             gt_cameras_graph,
         )

@@ -4,6 +4,7 @@ SceneOptimizer:
   save_two_view_correspondences_viz: False
   save_3d_viz: True
   pose_angular_error_thresh: 5 # degrees
+  run_dense_optimizer: False
 
   feature_extractor:
     _target_: gtsfm.feature_extractor.FeatureExtractor
@@ -33,10 +34,12 @@ SceneOptimizer:
     inlier_support_processor:
       _target_: gtsfm.two_view_estimator.InlierSupportProcessor
       min_num_inliers_est_model: 15
-      min_inlier_ratio_est_model: 0.1
+      min_inlier_ratio_est_model: 0.1 # TODO: fix this bug where ISP gets old inlier ratio
 
   multiview_optimizer:
     _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
+    run_view_graph_estimator: False
+
     view_graph_estimator:
       _target_: gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator.CycleConsistentRotationViewGraphEstimator
       edge_error_aggregation_criterion: MEDIAN_EDGE_ERROR

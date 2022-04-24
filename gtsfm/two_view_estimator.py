@@ -85,7 +85,7 @@ class TwoViewEstimator:
             output_reproj_error_thresh=None,
             robust_measurement_noise=True,
             max_iterations=bundle_adjust_2view_maxiters,
-            shared_calib=True,  # TODO: accept it as input
+            shared_calib=False,  # TODO: accept it as input
         )
 
     @classmethod
@@ -136,8 +136,9 @@ class TwoViewEstimator:
                 tracks_3d.append(track_3d)
                 idx_mapping[track_idx] = i
                 track_idx += 1
-            except RuntimeError:
+            except RuntimeError as e:
                 pass
+                # logger.error(e)
 
         return tracks_3d, idx_mapping
 
@@ -214,7 +215,9 @@ class TwoViewEstimator:
                 PosePrior(value=i2Ti1_prior.value.inverse(), covariance=None, type=PosePriorType.HARD_CONSTRAINT),
             ]
 
-        ba_output, _ = self._ba_optimizer.run(ba_input, pose_priors=pose_priors_for_ba, verbose=False)
+        ba_output, _ = self._ba_optimizer.run(
+            ba_input, absolute_pose_priors=pose_priors_for_ba, relative_pose_priors={}, verbose=False
+        )
         wTi1, wTi2 = ba_output.get_camera_poses()  # extract the camera poses
         if wTi1 is None or wTi2 is None:
             logger.warning("2-view BA failed")
@@ -230,17 +233,29 @@ class TwoViewEstimator:
         filtered_corr_idxs = putative_corr_idxs[valid_input_corr_idxs_rows]
 
         logger.info(
-            "Putative: %d, verified: %d, post BA: %d",
+            "Putative: %d, verified: %d, num_tracks: %d, post BA: %d",
             putative_corr_idxs.shape[0],
             verified_corr_idxs.shape[0],
+            ba_input.number_tracks(),
             filtered_corr_idxs.shape[0],
         )
 
-        return (
-            i2Ti1_optimized.rotation(),
-            Unit3(i2Ti1_optimized.translation()),
-            filtered_corr_idxs,
-        )
+        i2Ri1_optimized = i2Ti1_optimized.rotation()
+        i2Ui1_optimized = Unit3(i2Ti1_optimized.translation())
+
+        # import gtsfm.utils.geometry_comparisons as comp_utils
+
+        # logger.info(
+        #     "2viewBA Rotation diff: %f",
+        #     comp_utils.compute_relative_rotation_angle(i2Ti1_initial.rotation(), i2Ri1_optimized),
+        # )
+
+        # logger.info(
+        #     "2viewBA translation diff: %f",
+        #     comp_utils.compute_relative_unit_translation_angle(Unit3(i2Ti1_initial.translation()), i2Ui1_optimized),
+        # )
+
+        return (i2Ri1_optimized, i2Ui1_optimized, filtered_corr_idxs)
 
     def __generate_initial_pose_for_bundle_adjustment(
         self, i2Ti1_from_verifier: Optional[Pose3], i2Ti1_prior: Optional[PosePrior]
@@ -253,8 +268,32 @@ class TwoViewEstimator:
         elif i2Ti1_prior is None:
             return i2Ti1_from_verifier
         elif i2Ti1_prior.type == PosePriorType.HARD_CONSTRAINT:
-            logger.info("Using hard pose prior and overriding verified output")
+
+            # import gtsfm.utils.geometry_comparisons as comp_utils
+
+            # logger.info(
+            #     "Prior_verifier Rotation error: %f",
+            #     comp_utils.compute_relative_rotation_angle(
+            #         i2Ti1_prior.value.rotation(), i2Ti1_from_verifier.rotation()
+            #     ),
+            # )
+
+            # logger.info(
+            #     "Prior_verifier translation error: %f",
+            #     comp_utils.compute_relative_unit_translation_angle(
+            #         Unit3(i2Ti1_prior.value.translation()), Unit3(i2Ti1_from_verifier.translation())
+            #     ),
+            # )
+            # logger.info(
+            #     "Prior_u: %r, verifier_u: %r",
+            #     Unit3(i2Ti1_prior.value.translation()),
+            #     Unit3(i2Ti1_from_verifier.translation()),
+            # )
+            # logger.info("Using hard pose prior and overriding verified output")
             return i2Ti1_prior.value
+            # TODO: revert
+            # scale_factor = np.linalg.norm(i2Ti1_prior.value.translation())
+            # return Pose3(i2Ti1_from_verifier.rotation(), i2Ti1_from_verifier.translation() * scale_factor)
         else:
             return i2Ti1_from_verifier
 

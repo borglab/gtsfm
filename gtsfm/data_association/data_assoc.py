@@ -24,11 +24,7 @@ import gtsfm.utils.tracks as track_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.sfm_track import SfmTrack2d
-from gtsfm.data_association.point3d_initializer import (
-    Point3dInitializer,
-    TriangulationOptions,
-    TriangulationExitCode,
-)
+from gtsfm.data_association.point3d_initializer import Point3dInitializer, TriangulationOptions, TriangulationExitCode
 from gtsfm.common.image import Image
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
@@ -84,7 +80,7 @@ class DataAssociation(NamedTuple):
             io_utils.save_track_visualizations(tracks_2d, images, save_dir=os.path.join("plots", "tracks_2d"))
 
         # track lengths w/o triangulation check
-        track_lengths_2d = list(map(lambda x: x.number_measurements(), tracks_2d))
+        track_lengths_2d = list(map(lambda x: int(x.number_measurements()), tracks_2d))
 
         logger.debug("[Data association] input number of tracks: %s", len(tracks_2d))
         logger.debug("[Data association] input avg. track length: %s", np.mean(track_lengths_2d))
@@ -134,7 +130,9 @@ class DataAssociation(NamedTuple):
         ] / len(tracks_2d)
 
         # pick only the largest connected component
-        connected_data = triangulated_data.select_largest_connected_component()
+        # TODO: we dont need this for hilti, right?
+        # connected_data = triangulated_data.select_largest_connected_component()
+        connected_data = triangulated_data
         num_accepted_tracks = connected_data.number_tracks()
         accepted_tracks_ratio = num_accepted_tracks / len(tracks_2d)
 

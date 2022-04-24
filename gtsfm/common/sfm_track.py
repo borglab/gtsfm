@@ -144,6 +144,9 @@ class SfmTrack2d(NamedTuple):
 
         key_set = dsf.sets()
 
+        if len(key_set) == 0:
+            return track_2d_list
+
         erroneous_track_count = 0
         # create a landmark map: a list of tracks
         # Each track is represented as a list of (camera_idx, measurements)

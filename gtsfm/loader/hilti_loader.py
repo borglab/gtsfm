@@ -4,6 +4,7 @@ The dataset should be preprocessed to extract images from each camera into its r
 
 Dataset ref: https://rpg.ifi.uzh.ch/docs/Arxiv21_HILTI.pdf
 Kalibr format for intrinsics: https://github.com/ethz-asl/kalibr/wiki/yaml-formats
+Data extracted from rosbag using section 0.1 of http://wiki.ros.org/rosbag/Tutorials/Exporting%20image%20and%20video%20data
 
 Authors: Ayush Baid
 """
@@ -12,7 +13,10 @@ import yaml
 from typing import Any, Dict, List, Optional, Set, Tuple
 from pathlib import Path
 
+import cv2
+import dask
 import numpy as np
+from dask.delayed import Delayed
 from gtsam import Cal3Fisheye, Pose3
 
 import gtsfm.utils.io as io_utils
@@ -33,6 +37,9 @@ CAM_IDX_TO_KALIBR_FILE_MAP = {
     4: "calib_3_cam4-camchain-imucam.yaml",
 }
 
+INTRA_RIG_VALID_PAIRS = {(0, 1), (0, 3), (1, 4)}
+INTER_RIG_VALID_PAIRS = {(0, 0), (0, 1), (0, 3), (1, 0), (1, 1), (1, 4), (2, 2), (3, 0), (3, 3), (4, 1), (4, 4)}
+
 
 class HiltiLoader(LoaderBase):
     def __init__(
@@ -41,10 +48,12 @@ class HiltiLoader(LoaderBase):
         cams_to_use: Set[int],
         max_resolution: int = 1000,
         max_frame_lookahead: int = 10,
-        step_size: int = 10,
+        step_size: int = 8,
         max_length: Optional[int] = None,
     ) -> None:
         super().__init__(max_resolution=max_resolution)
+        if step_size % 4 != 0:
+            raise ValueError("Step size must be multiple of 4 to match lidar frequency")
         self.__check_cams_to_use(cams_to_use)
         self._base_folder: Path = Path(base_folder)
         self._cams_to_use: List[int] = list(cams_to_use)
@@ -74,7 +83,7 @@ class HiltiLoader(LoaderBase):
         # viz_utils.plot_poses_3d(poses, ax, center_marker_color="m", label_name="rig")
         # plt.show()
 
-        # logger.info("Loading %d timestamps", self._number_of_timestamps_available)
+        logger.info("Loading %d timestamps", self._number_of_timestamps_available)
 
     def __get_folder_for_images(self, cam_idx: int) -> Path:
         return self._base_folder / f"cam{cam_idx}"
@@ -131,6 +140,28 @@ class HiltiLoader(LoaderBase):
         """
         return self._number_of_timestamps_available * len(self._cams_to_use)
 
+    def get_image(self, index: int) -> Image:
+        return self.get_image_full_res(index)
+
+    def get_image_undistorted(self, index: int) -> Image:
+        distorted_image: Image = self.get_image(index)
+        calibration: Cal3Fisheye = self.get_camera_intrinsics(index)
+
+        new_image_size = (1500, 1500)
+        Knew = calibration.K()
+        Knew[0, 2] = 750
+        Knew[1, 2] = 750
+
+        undistorted_image_array: np.ndarray = cv2.fisheye.undistortImage(
+            distorted_image.value_array,
+            calibration.K(),
+            np.array([calibration.k1(), calibration.k2(), calibration.k3(), calibration.k4()]),
+            Knew=Knew,
+            new_size=new_image_size,
+        )
+
+        return Image(value_array=undistorted_image_array, exif_data={})
+
     def get_image_full_res(self, index: int) -> Image:
         """Get the image at the given index, at full resolution.
 
@@ -143,16 +174,18 @@ class HiltiLoader(LoaderBase):
         Returns:
             Image: the image at the query index.
         """
-        cam_for_index = self.__map_index_to_camera(index)
-        # TODO: move this logic to a function. Also, select better names
-        rig_idx_for_cam = self.__map_image_idx_to_rig(index)
+        cam_idx = self.__map_index_to_camera(index)
+        rig_idx = self.__map_image_idx_to_rig(index)
 
-        logger.debug("Mapping %d index to image %d of camera %d", index, rig_idx_for_cam, cam_for_index)
+        logger.debug("Mapping %d index to rig %d,  camera %d", index, rig_idx, cam_idx)
 
-        camera_folder: Path = self.__get_folder_for_images(cam_for_index)
-        image_path: Path = camera_folder / f"left{rig_idx_for_cam:04}.jpg"
+        camera_folder: Path = self.__get_folder_for_images(cam_idx)
+        image_path: Path = camera_folder / f"left{rig_idx:04}.jpg"
 
         return io_utils.load_image(str(image_path))
+
+    def get_camera_intrinsics(self, index: int) -> Optional[Cal3Fisheye]:
+        return self.get_camera_intrinsics_full_res(index)
 
     def get_camera_intrinsics_full_res(self, index: int) -> Optional[Cal3Fisheye]:
         """Get the camera intrinsics at the given index, valid for a full-resolution image.
@@ -191,6 +224,7 @@ class HiltiLoader(LoaderBase):
 
             return PosePrior(value=i2Ti1, covariance=None, type=PosePriorType.HARD_CONSTRAINT)
         else:
+            # TODO(jon): read from lidar
             return None
 
     def is_valid_pair(self, idx1: int, idx2: int) -> bool:
@@ -203,7 +237,18 @@ class HiltiLoader(LoaderBase):
         Returns:
             validation result.
         """
-        return super().is_valid_pair(idx1, idx2) and abs(idx1 - idx2) <= self._max_frame_lookahead
+        if not super().is_valid_pair(idx1, idx2):
+            return False
+
+        rig_idx_i1 = self.__map_image_idx_to_rig(idx1)
+        rig_idx_i2 = self.__map_image_idx_to_rig(idx2)
+
+        cam_idx_i1 = self.__map_index_to_camera(idx1)
+        cam_idx_i2 = self.__map_index_to_camera(idx2)
+        if rig_idx_i1 == rig_idx_i2:
+            return (cam_idx_i1, cam_idx_i2) in INTRA_RIG_VALID_PAIRS
+        elif rig_idx_i1 < rig_idx_i2 and rig_idx_i2 - rig_idx_i1 <= self._max_frame_lookahead * self._step_size:
+            return (cam_idx_i1, cam_idx_i2) in INTER_RIG_VALID_PAIRS
 
     def __map_index_to_camera(self, index: int) -> int:
         return self._cams_to_use[index % len(self._cams_to_use)]
@@ -211,31 +256,48 @@ class HiltiLoader(LoaderBase):
     def __map_image_idx_to_rig(self, index: int) -> int:
         return index // len(self._cams_to_use) * self._step_size
 
+    def create_computation_graph_for_relative_pose_priors(self) -> Dict[Tuple[int, int], Delayed]:
+        pairs = set(self.get_valid_pairs())
+        # just add all possible pairs which belong to the same rig (as it will have hard relative prior)
+        for i in range(len(self)):
+            for j in range(i + 1, i + len(self._cams_to_use) - 1):
+                if self.__map_image_idx_to_rig(i) == self.__map_image_idx_to_rig(j):
+                    pairs.add((i, j))
+
+        return {(i1, i2): dask.delayed(self.get_relative_pose_prior)(i1, i2) for i1, i2 in pairs}
+
 
 if __name__ == "__main__":
     root = "/media/ayush/cross_os1/dataset/hilti"
 
     loader = HiltiLoader(root, {0, 1, 2, 3, 4})
 
-    T_cn_cnm1 = np.array(
-        [
-            [0.9999761426988956, 0.004698109260098521, -0.005063773535634404, 0.10817339479208792],
-            [-0.004705552944957792, -0.9999878643586437, -0.0014590774217762541, -0.0005128409082424196],
-            [0.005056857178348414, 0.0014828704666000705, 0.9999861145489266, 0.0006919599620310546],
-            [0, 0, 0, 1],
-        ]
-    )
+    # T_cn_cnm1 = np.array(
+    #     [
+    #         [0.9999761426988956, 0.004698109260098521, -0.005063773535634404, 0.10817339479208792],
+    #         [-0.004705552944957792, -0.9999878643586437, -0.0014590774217762541, -0.0005128409082424196],
+    #         [0.005056857178348414, 0.0014828704666000705, 0.9999861145489266, 0.0006919599620310546],
+    #         [0, 0, 0, 1],
+    #     ]
+    # )
 
-    c1Tc0 = Pose3(T_cn_cnm1)
-    print(c1Tc0.rotation().xyz())
-    print(c1Tc0.translation())
+    # c1Tc0 = Pose3(T_cn_cnm1)
+    # print(c1Tc0.rotation().xyz())
+    # print(c1Tc0.translation())
 
-    pairs = [(0, 1), (0, 2), (0, 3), (0, 4), (3, 4)]
-    for i1, i2 in pairs:
-        pose = loader.get_relative_pose_prior(i1, i2).value
-        print(i1, i2)
-        print(pose.rotation().xyz())
-        print(pose.translation())
+    # pairs = [(0, 1), (0, 2), (0, 3), (0, 4), (3, 4)]
+    # for i1, i2 in pairs:
+    #     pose = loader.get_relative_pose_prior(i1, i2).value
+    #     print(i1, i2)
+    #     print(pose.rotation().xyz())
+    #     print(pose.translation())
 
     # for i in range(100):
-    #     loader.get_image(i)
+    # import gtsfm.utils.io as io_utils
+
+    for i in range(5):
+        distorted_image = loader.get_image(i)
+        undistorted_image = loader.get_image_undistorted(i)
+
+        io_utils.save_image(distorted_image, f"/home/ayush/hilti_updates/{i}_distorted.jpg")
+        io_utils.save_image(undistorted_image, f"/home/ayush/hilti_updates/{i}_undistorted.jpg")

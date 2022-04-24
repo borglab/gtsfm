@@ -4,12 +4,11 @@ channels:
   # latest stable packages for numerous deep learning based methods. conda-forge
   # supplies higher versions of packages like opencv compared to the defaults
   # channel.
-  - open3d-admin
   - pytorch
   - conda-forge
 dependencies:
   # python essentials
-  - python=3.8
+  - python>=3.8
   - pip
   # formatting and dev environment
   - black
@@ -38,12 +37,12 @@ dependencies:
   - h5py
   - plotly=4.14.3
   - tabulate
-  # visualization
-  - open3d
   - pip:
     - opencv-python>=4.5.4.58
     - pydegensac
     - colour
     - pycolmap>=0.1.0
     - argoverse @ git+https://github.com/argoai/argoverse-api.git@master
+    # visualization
+    - open3d
     - trimesh[easy]

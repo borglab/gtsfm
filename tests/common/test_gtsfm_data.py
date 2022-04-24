@@ -220,7 +220,8 @@ class TestGtsfmData(unittest.TestCase):
             expected_data.add_track(EXAMPLE_DATA.get_track(j))
 
         # run the fn under test
-        filtered_sfm_data = EXAMPLE_DATA.filter_landmarks(max_reproj_error)
+        filtered_sfm_data, filtered_track_idxs = EXAMPLE_DATA.filter_landmarks(max_reproj_error)
+        self.assertListEqual(filtered_track_idxs, VALID_TRACK_INDICES)
 
         # compare the SfmData objects
         self.assertEqual(filtered_sfm_data, expected_data)

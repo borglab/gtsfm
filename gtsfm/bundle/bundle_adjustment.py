@@ -4,13 +4,14 @@ Authors: Xiaolong Wu, John Lambert, Ayush Baid
 """
 from collections import Counter
 from pathlib import Path
-from typing import List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 import dask
 import gtsam
 import numpy as np
 from dask.delayed import Delayed
 from gtsam import (
+    BetweenFactorPose3,
     GeneralSFMFactor2Cal3Bundler,
     GeneralSFMFactor2Cal3Fisheye,
     NonlinearFactorGraph,
@@ -55,7 +56,7 @@ POINT3_DOF = 3  # 3d points have 3 dof
 CAM_POSE3_PRIOR_NOISE_SIGMA = 0.1
 CAM_CAL3_PRIOR_NOISE_SIGMA = 1e-5  # essentially fixed
 MEASUREMENT_NOISE_SIGMA = 1.0  # in pixels
-HARD_POSE_PRIOR_SIGMA = 1e-5  # essentially fixed
+HARD_POSE_PRIOR_SIGMA = 1e-2  # 1e-5 did not work as well
 
 logger = logger_utils.get_logger()
 
@@ -93,7 +94,10 @@ class BundleAdjustmentOptimizer:
         return 0 if self._shared_calib else camera_idx
 
     def __construct_factor_graph(
-        self, initial_data: GtsfmData, pose_priors: List[Optional[PosePrior]]
+        self,
+        initial_data: GtsfmData,
+        absolute_pose_priors: List[Optional[PosePrior]],
+        relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]],
     ) -> NonlinearFactorGraph:
         graph = NonlinearFactorGraph()
 
@@ -130,7 +134,7 @@ class BundleAdjustmentOptimizer:
         valid_camera_set: Set[int] = set(valid_camera_indices)
 
         cameras_with_hard_pose_prior: Set[int] = set()
-        for pose_idx, pose_prior in enumerate(pose_priors):
+        for pose_idx, pose_prior in enumerate(absolute_pose_priors):
             if pose_prior is None or pose_idx not in valid_camera_set:
                 continue
 
@@ -143,6 +147,21 @@ class BundleAdjustmentOptimizer:
                     )
                 )
                 cameras_with_hard_pose_prior.add(pose_idx)
+
+        for i1i2, pose_prior_i2Ti1 in relative_pose_priors.items():
+            i1, i2 = i1i2
+            if pose_prior_i2Ti1 is None or i1 not in valid_camera_set or i2 not in valid_camera_set:
+                continue
+
+            if pose_prior_i2Ti1.type == PosePriorType.HARD_CONSTRAINT:
+                graph.push_back(
+                    BetweenFactorPose3(
+                        X(i1),
+                        X(i2),
+                        pose_prior_i2Ti1.value.inverse(),
+                        gtsam.noiseModel.Isotropic.Sigma(CAM_POSE3_DOF, HARD_POSE_PRIOR_SIGMA),
+                    )
+                )
 
         if len(cameras_with_hard_pose_prior) < 2:
             # TODO: handle 1 hard pose prior gracefully.
@@ -209,14 +228,16 @@ class BundleAdjustmentOptimizer:
     def run(
         self,
         initial_data: GtsfmData,
-        pose_priors: List[Optional[PosePrior]],
+        absolute_pose_priors: List[Optional[PosePrior]],
+        relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]],
         verbose: bool = True,
     ) -> Tuple[GtsfmData, GtsfmData]:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
 
         Args:
             initial_data: initialized cameras, tracks w/ their 3d landmark from triangulation.
-            pose_priors: priors to be used on pose.
+            absolute_pose_priors: priors to be used on absolute pose.
+            relative_pose_priors: priors to be used on relative pose.
             verbose: Boolean flag to print out additional info for debugging.
 
         Results:
@@ -233,7 +254,11 @@ class BundleAdjustmentOptimizer:
             )
             return initial_data, initial_data
 
-        graph = self.__construct_factor_graph(initial_data=initial_data, pose_priors=pose_priors)
+        graph = self.__construct_factor_graph(
+            initial_data=initial_data,
+            absolute_pose_priors=absolute_pose_priors,
+            relative_pose_priors=relative_pose_priors,
+        )
         initial_values = self.__construct_initial_values(initial_data=initial_data)
         result_values = self.__optimize_factor_graph(graph, initial_values)
 
@@ -307,7 +332,8 @@ class BundleAdjustmentOptimizer:
     def create_computation_graph(
         self,
         sfm_data_graph: Delayed,
-        pose_prior_graph: List[Delayed],
+        absolute_pose_priors: List[Delayed],
+        relative_pose_priors: Dict[Tuple[int, int], Delayed],
         gt_cameras_graph: Optional[List[Delayed]] = None,
     ) -> Tuple[Delayed, Delayed]:
         """Create the computation graph for performing bundle adjustment.
@@ -320,7 +346,9 @@ class BundleAdjustmentOptimizer:
             GtsfmData aligned to GT (if provided), wrapped up using dask.delayed
             Metrics group for BA results, wrapped up using dask.delayed
         """
-        optimized_sfm_data, filtered_sfm_data = dask.delayed(self.run, nout=2)(sfm_data_graph, pose_prior_graph)
+        optimized_sfm_data, filtered_sfm_data = dask.delayed(self.run, nout=2)(
+            sfm_data_graph, absolute_pose_priors, relative_pose_priors
+        )
         metrics_graph = dask.delayed(self.evaluate)(optimized_sfm_data, filtered_sfm_data, gt_cameras_graph)
         return filtered_sfm_data, metrics_graph
 

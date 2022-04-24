@@ -25,9 +25,12 @@ from gtsam import (
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
+from gtsfm.common.pose_prior import PosePrior, PosePriorType
 
 
 logger = logger_utils.get_logger()
+
+HARD_POSE_PRIOR_SIGMA = 1e-2
 
 
 class ShonanRotationAveraging(RotationAveragingBase):
@@ -38,10 +41,13 @@ class ShonanRotationAveraging(RotationAveragingBase):
         Note: `p_min` and `p_max` describe the minimum and maximum relaxation rank.
         """
         self._p_min = 5
-        self._p_max = 30
+        self._p_max = 5
 
     def __run_with_consecutive_ordering(
-        self, num_connected_nodes: int, i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]]
+        self,
+        num_connected_nodes: int,
+        i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
+        i2Ti1_priors: Dict[Tuple[int, int], PosePrior],
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging on a connected graph w/ N keys ordered consecutively [0,...,N-1].
 
@@ -62,10 +68,8 @@ class ShonanRotationAveraging(RotationAveragingBase):
         """
         lm_params = LevenbergMarquardtParams.CeresDefaults()
         shonan_params = ShonanAveragingParameters3(lm_params)
-        shonan_params.setUseHuber(False)
-        shonan_params.setCertifyOptimality(True)
-
-        noise_model = gtsam.noiseModel.Unit.Create(6)
+        shonan_params.setUseHuber(True)
+        shonan_params.setCertifyOptimality(False)
 
         between_factors = gtsam.BetweenFactorPose3s()
 
@@ -73,7 +77,15 @@ class ShonanRotationAveraging(RotationAveragingBase):
             if i2Ri1 is not None:
                 # ignore translation during rotation averaging
                 i2Ti1 = Pose3(i2Ri1, np.zeros(3))
-                between_factors.append(BetweenFactorPose3(i2, i1, i2Ti1, noise_model))
+                between_factors.append(BetweenFactorPose3(i2, i1, i2Ti1, gtsam.noiseModel.Unit.Create(6)))
+
+        for (i1, i2), i2Ti1_prior in i2Ti1_priors.items():
+            if i2Ti1_prior.type == PosePriorType.HARD_CONSTRAINT:
+                between_factors.append(
+                    BetweenFactorPose3(
+                        i2, i1, i2Ti1_prior.value, gtsam.noiseModel.Isotropic.Sigma(6, HARD_POSE_PRIOR_SIGMA)
+                    ),
+                )
 
         obj = ShonanAveraging3(between_factors, shonan_params)
 
@@ -87,7 +99,12 @@ class ShonanRotationAveraging(RotationAveragingBase):
 
         return wRi_list_consecutive
 
-    def run(self, num_images: int, i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]]) -> List[Optional[Rot3]]:
+    def run(
+        self,
+        num_images: int,
+        i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
+        i2Ti1_priors: Dict[Tuple[int, int], Optional[PosePrior]],
+    ) -> List[Optional[Rot3]]:
         """Run the rotation averaging on a connected graph with arbitrary keys, where each key is a image/pose index.
 
         Note: run() functions as a wrapper that re-orders keys to prepare a graph w/ N keys ordered [0,...,N-1].
@@ -114,6 +131,11 @@ class ShonanRotationAveraging(RotationAveragingBase):
             connected_nodes.add(i1)
             connected_nodes.add(i2)
 
+        for (i1, i2), i2Ti1_prior in i2Ti1_priors.items():
+            if i2Ti1_prior is not None:
+                connected_nodes.add(i1)
+                connected_nodes.add(i2)
+
         connected_nodes = sorted(list(connected_nodes))
 
         # given original index, this map gives back a new temporary index, starting at 0
@@ -128,8 +150,18 @@ class ShonanRotationAveraging(RotationAveragingBase):
             i2_ = reordered_idx_map[i2]
             i2Ri1_dict_reordered[(i1_, i2_)] = i2Ri1
 
+        i2Ti1_priors_reordered: Dict[Tuple[int, int], PosePrior] = {}
+        for (i1, i2), i2Ti1_prior in i2Ti1_priors.items():
+            if i2Ti1_prior is None:
+                continue
+            i1_ = reordered_idx_map[i1]
+            i2_ = reordered_idx_map[i2]
+            i2Ti1_priors_reordered[(i1_, i2_)] = i2Ti1_prior
+
         wRi_list_subset = self.__run_with_consecutive_ordering(
-            num_connected_nodes=len(connected_nodes), i2Ri1_dict=i2Ri1_dict_reordered
+            num_connected_nodes=len(connected_nodes),
+            i2Ri1_dict=i2Ri1_dict_reordered,
+            i2Ti1_priors=i2Ti1_priors_reordered,
         )
 
         wRi_list = [None] * num_images
