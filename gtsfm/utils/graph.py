@@ -10,6 +10,7 @@ import networkx as nx
 import numpy as np
 from gtsam import PinholeCameraCal3Bundler, Rot3, Unit3
 
+from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 
 GREEN = [0, 1, 0]
@@ -41,6 +42,7 @@ def get_nodes_in_largest_connected_component(edges: List[Tuple[int, int]]) -> Li
 def prune_to_largest_connected_component(
     rotations: Dict[Tuple[int, int], Optional[Rot3]],
     unit_translations: Dict[Tuple[int, int], Optional[Unit3]],
+    pose_priors: Dict[Tuple[int, int], Optional[PosePrior]],
 ) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3]]:
     """Process the graph of image indices with Rot3s/Unit3s defining edges, and select the largest connected component.
 
@@ -53,6 +55,7 @@ def prune_to_largest_connected_component(
         Subset of unit_translations which are in the largest connected components.
     """
     input_edges = [k for (k, v) in rotations.items() if v is not None]
+    input_edges += [k for (k, v) in pose_priors.items() if v is not None]
     nodes_in_pruned_graph = get_nodes_in_largest_connected_component(input_edges)
 
     # select the edges with nodes in the pruned graph

@@ -358,7 +358,7 @@ class Point3dInitializer:
         for i, uv in track.measurements:
 
             # check for unestimated cameras
-            if self.track_camera_dict.get(i) is not None:
+            if i in self.track_camera_dict and self.track_camera_dict.get(i) is not None:
                 track_cameras.append(self.track_camera_dict.get(i))
                 track_measurements.append(uv)
             else:

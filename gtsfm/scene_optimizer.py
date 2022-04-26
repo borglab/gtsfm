@@ -115,7 +115,8 @@ class SceneOptimizer:
         image_shape_graph: List[Delayed],
         relative_pose_priors: Dict[Tuple[int, int], Delayed],
         absolute_pose_priors: List[Delayed],
-        gt_cameras_graph: Optional[List[Delayed]] = None,
+        gt_cameras_graph: List[Delayed],
+        gt_poses_graph: List[Optional[Delayed]],
         gt_scene_mesh: Optional[Trimesh] = None,
     ) -> Delayed:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
@@ -145,10 +146,6 @@ class SceneOptimizer:
         for (i1, i2) in image_pair_indices:
             # Collect ground truth relative and absolute poses if available.
             # TODO(johnwlambert): decompose this method -- name it as "calling_the_plate()"
-            if gt_cameras_graph is not None:
-                gt_wTi1, gt_wTi2 = gt_cameras_graph[i1].pose(), gt_cameras_graph[i2].pose()
-            else:
-                gt_wTi1, gt_wTi2 = None, None
 
             # TODO(johnwlambert): decompose this so what happens in the loop is a separate method
             i2Ri1, i2Ui1, v_corr_idxs, two_view_reports = self.two_view_estimator.create_computation_graph(
@@ -161,8 +158,8 @@ class SceneOptimizer:
                 image_shape_graph[i1],
                 image_shape_graph[i2],
                 relative_pose_priors[(i1, i2)],
-                gt_wTi1,
-                gt_wTi2,
+                gt_poses_graph[i1],
+                gt_poses_graph[i2],
                 gt_scene_mesh,
             )
 
@@ -212,6 +209,7 @@ class SceneOptimizer:
             relative_pose_priors,
             two_view_reports_dict[POST_ISP_REPORT_TAG],
             gt_cameras_graph,
+            gt_poses_graph,
         )
         if view_graph_two_view_reports is not None:
             two_view_reports_dict[VIEWGRAPH_REPORT_TAG] = view_graph_two_view_reports
@@ -238,10 +236,6 @@ class SceneOptimizer:
             metrics_graph_list.extend(optimizer_metrics_graph)
 
         # Modify BA input, BA output, and GT poses to have point clouds and frustums aligned with x,y,z axes.
-        gt_poses_graph = (
-            [dask.delayed(lambda x: x.pose())(cam) for cam in gt_cameras_graph] if gt_cameras_graph else None
-        )
-
         ba_input_graph, ba_output_graph, gt_poses_graph = dask.delayed(align_estimated_gtsfm_data, nout=3)(
             ba_input_graph, ba_output_graph, gt_poses_graph
         )
@@ -294,8 +288,8 @@ def get_image_dictionary(image_list: List[Image]) -> Dict[int, Image]:
 
 
 def align_estimated_gtsfm_data(
-    ba_input: GtsfmData, ba_output: GtsfmData, gt_pose_graph: Optional[List[Pose3]]
-) -> Tuple[GtsfmData, GtsfmData, List[Pose3]]:
+    ba_input: GtsfmData, ba_output: GtsfmData, gt_pose_graph: List[Optional[Pose3]]
+) -> Tuple[GtsfmData, GtsfmData, List[Optional[Pose3]]]:
     """Creates modified GtsfmData objects that emulate ba_input and ba_output but with point cloud and camera
     frustums aligned to the x,y,z axes. Also transforms GT camera poses to be aligned to axes.
 
@@ -315,12 +309,12 @@ def align_estimated_gtsfm_data(
     walignedSw = Similarity3(R=walignedTw.rotation(), t=walignedTw.translation(), s=1.0)
     ba_input = ba_input.apply_Sim3(walignedSw)
     ba_output = ba_output.apply_Sim3(walignedSw)
-    gt_pose_graph = [walignedSw.transformFrom(wTi) for wTi in gt_pose_graph]
+    gt_pose_graph = [walignedSw.transformFrom(wTi) if wTi is not None else None for wTi in gt_pose_graph]
     return ba_input, ba_output, gt_pose_graph
 
 
 def save_visualizations(
-    ba_input_graph: Delayed, ba_output_graph: Delayed, gt_pose_graph: Optional[List[Delayed]]
+    ba_input_graph: Delayed, ba_output_graph: Delayed, gt_pose_graph: List[Optional[Delayed]]
 ) -> List[Delayed]:
     """Save SfmData before and after bundle adjustment and camera poses for visualization.
 

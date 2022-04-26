@@ -263,7 +263,7 @@ class TwoViewEstimator:
         if i2Ti1_prior is None and i2Ti1_from_verifier is None:
             return None
         elif i2Ti1_from_verifier is None:
-            logger.info("Using hard pose prior because verifier output failed")
+            logger.info("Using pose prior because verifier output failed")
             return i2Ti1_prior.value
         elif i2Ti1_prior is None:
             return i2Ti1_from_verifier

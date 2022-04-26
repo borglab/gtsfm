@@ -49,7 +49,8 @@ class MultiViewOptimizer:
         absolute_pose_priors: List[Delayed],
         relative_pose_priors: Dict[Tuple[int, int], Delayed],
         two_view_reports_dict: Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
-        gt_cameras_graph: Optional[List[Delayed]] = None,
+        gt_cameras_graph: List[Delayed],
+        gt_poses_graph: List[Delayed],
     ) -> Tuple[Delayed, Delayed, Delayed]:
         """Creates a computation graph for multi-view optimization.
 
@@ -61,7 +62,7 @@ class MultiViewOptimizer:
             v_corr_idxs_graph: indices of verified correspondences for image pairs, wrapped up as Delayed.
             intrinsics_graph: intrinsics for images, wrapped up as Delayed.
             two_view_reports_dict: Dict of TwoViewEstimationReports after inlier support processor.
-            gt_cameras_graph: list of GT cameras (if they exist), ordered by camera index, wrapped up as Delayed.
+            gt_cameras_graph: list of GT cameras, ordered by camera index, wrapped up as Delayed.
 
         Returns:
             The GtsfmData input to bundle adjustment, aligned to GT (if provided), wrapped up as Delayed.
@@ -92,10 +93,6 @@ class MultiViewOptimizer:
             viewgraph_i2Ri1_graph, viewgraph_i2Ui1_graph, relative_pose_priors
         )
 
-        gt_poses_graph = (
-            [dask.delayed(lambda x: x.pose())(cam) for cam in gt_cameras_graph] if gt_cameras_graph else None
-        )
-
         wRi_graph = self.rot_avg_module.create_computation_graph(num_images, pruned_i2Ri1_graph, relative_pose_priors)
 
         wti_graph, ta_metrics = self.trans_avg_module.create_computation_graph(
@@ -108,8 +105,8 @@ class MultiViewOptimizer:
             init_cameras_graph,
             viewgraph_v_corr_idxs_graph,
             keypoints_graph,
-            images_graph,
             gt_cameras_graph,
+            images_graph,
         )
 
         ba_result_graph, ba_metrics_graph = self.ba_optimizer.create_computation_graph(

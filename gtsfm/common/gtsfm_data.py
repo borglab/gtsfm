@@ -368,7 +368,6 @@ class GtsfmData:
         # TODO: move this function to utils or GTSAM
         filtered_data = GtsfmData(self.number_images())
 
-
         valid_track_idxs: List[int] = []
         for j in range(self.number_tracks()):
             track = self.get_track(j)
@@ -383,7 +382,7 @@ class GtsfmData:
 
         return filtered_data, valid_track_idxs
 
-    def align_via_Sim3_to_poses(self, wTi_list_ref: Optional[List[Pose3]]) -> "GtsfmData":
+    def align_via_Sim3_to_poses(self, wTi_list_ref: List[Optional[Pose3]]) -> "GtsfmData":
         """Align estimated, sparse multiview result (self) to a set of reference poses.
 
         Args:

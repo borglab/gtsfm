@@ -4,7 +4,7 @@ The dataset should be preprocessed to extract images from each camera into its r
 
 Dataset ref: https://rpg.ifi.uzh.ch/docs/Arxiv21_HILTI.pdf
 Kalibr format for intrinsics: https://github.com/ethz-asl/kalibr/wiki/yaml-formats
-Data extracted from rosbag using section 0.1 of http://wiki.ros.org/rosbag/Tutorials/Exporting%20image%20and%20video%20data
+Data extracted from rosbag using http://wiki.ros.org/image_view's image_saver
 
 Authors: Ayush Baid
 """
@@ -17,6 +17,7 @@ import cv2
 import dask
 import numpy as np
 from dask.delayed import Delayed
+import gtsam
 from gtsam import Cal3Fisheye, Pose3
 
 import gtsfm.utils.io as io_utils
@@ -36,6 +37,8 @@ CAM_IDX_TO_KALIBR_FILE_MAP = {
     3: "calib_3_cam3-camchain-imucam.yaml",
     4: "calib_3_cam4-camchain-imucam.yaml",
 }
+
+LIDAR_POSE_RELATIVE_PATH = "fastlio2.g2o"
 
 INTRA_RIG_VALID_PAIRS = {(0, 1), (0, 3), (1, 4)}
 INTER_RIG_VALID_PAIRS = {(0, 0), (0, 1), (0, 3), (1, 0), (1, 1), (1, 4), (2, 2), (3, 0), (3, 3), (4, 1), (4, 4)}
@@ -71,19 +74,10 @@ class HiltiLoader(LoaderBase):
         if self._max_length is not None:
             self._number_of_timestamps_available = min(self._number_of_timestamps_available, self._max_length)
 
-        # import matplotlib.pyplot as plt
-        # import gtsfm.utils.viz as viz_utils
-
-        # fig = plt.figure()
-        # ax = fig.add_subplot(projection="3d")
-
-        # poses = [self._cam_T_imu_poses[i] for i in self._cams_to_use]
-        # pose_0 = poses[0].inverse()
-        # poses = [pose_0.between(x.inverse()) for x in poses]
-        # viz_utils.plot_poses_3d(poses, ax, center_marker_color="m", label_name="rig")
-        # plt.show()
+        self._w_T_imu: Dict[int, Pose3] = self.__read_lidar_pose_priors()  # poses for the IMU for rig indices
 
         logger.info("Loading %d timestamps", self._number_of_timestamps_available)
+        logger.info("Lidar camera available for %d timestamps", len(self._w_T_imu))
 
     def __get_folder_for_images(self, cam_idx: int) -> Path:
         return self._base_folder / f"cam{cam_idx}"
@@ -91,6 +85,28 @@ class HiltiLoader(LoaderBase):
     def __check_cams_to_use(self, cams_to_use: Set[int]) -> None:
         for cam_idx in cams_to_use:
             assert cam_idx in AVAILABLE_CAM_IDXS
+
+    def __read_lidar_pose_priors(self) -> Dict[int, Pose3]:
+        filepath = str(self._base_folder / LIDAR_POSE_RELATIVE_PATH)
+        _, values = gtsam.readG2o(filepath, is3D=True)
+
+        lidar_keys = values.keys()
+
+        w_T_imu: Dict[int, Pose3] = {}
+
+        for lidar_key in lidar_keys:
+            # lidar data is at 10Hz, compared to 40Hz image data frequency.
+            timestamp_key: int = lidar_key * 4
+
+            if timestamp_key % self._step_size == 0:
+                rig_idx = timestamp_key // self._step_size
+
+                if self._number_of_timestamps_available < rig_idx:
+                    break
+
+                w_T_imu[rig_idx] = values.atPose3(lidar_key)
+
+        return w_T_imu
 
     def __get_number_of_timestamps_available(self) -> int:
         num_images_for_cam = {}
@@ -201,31 +217,51 @@ class HiltiLoader(LoaderBase):
     def get_camera_pose(self, index: int) -> Optional[Pose3]:
         """Get the camera pose (in world coordinates) at the given index.
 
+        Note: temporarily using the lidar poses as ground truth
+
         Args:
             index: the index to fetch.
 
         Returns:
             the camera pose w_P_index.
         """
+        rig_idx: int = self.__map_image_idx_to_rig(index)
+        cam_idx: int = self.__map_index_to_camera(index)
+
+        if rig_idx in self._w_T_imu:
+            return self._w_T_imu[rig_idx] * self._cam_T_imu_poses[cam_idx].inverse()
+
         return None
 
     def get_relative_pose_prior(self, i1: int, i2: int) -> Optional[PosePrior]:
         rig_idx_for_i1: int = self.__map_image_idx_to_rig(i1)
         rig_idx_for_i2: int = self.__map_image_idx_to_rig(i2)
+        cam_idx_for_i1: int = self.__map_index_to_camera(i1)
+        cam_idx_for_i2: int = self.__map_index_to_camera(i2)
 
         if rig_idx_for_i1 == rig_idx_for_i2:
-            cam_idx_for_i1: int = self.__map_index_to_camera(i1)
-            cam_idx_for_i2: int = self.__map_index_to_camera(i2)
-
             i1_T_imu: Pose3 = self._cam_T_imu_poses[cam_idx_for_i1]
             i2_T_imu: Pose3 = self._cam_T_imu_poses[cam_idx_for_i2]
-
             i2Ti1 = i2_T_imu.inverse().between(i1_T_imu.inverse())
-
             return PosePrior(value=i2Ti1, covariance=None, type=PosePriorType.HARD_CONSTRAINT)
-        else:
-            # TODO(jon): read from lidar
-            return None
+        elif rig_idx_for_i1 in self._w_T_imu and rig_idx_for_i2 in self._w_T_imu:
+            # TODO(jon): add covariance
+            w_T_i1 = self._w_T_imu[rig_idx_for_i1] * self._cam_T_imu_poses[cam_idx_for_i1].inverse()
+            w_T_i2 = self._w_T_imu[rig_idx_for_i2] * self._cam_T_imu_poses[cam_idx_for_i2].inverse()
+            i2Ti1 = w_T_i2.between(w_T_i1)
+            return PosePrior(value=i2Ti1, covariance=None, type=PosePriorType.SOFT_CONSTRAINT)
+
+        return None
+
+    def get_absolute_pose_prior(self, idx: int) -> Optional[PosePrior]:
+        rig_idx: int = self.__map_image_idx_to_rig(idx)
+        cam_idx: int = self.__map_index_to_camera(idx)
+
+        if rig_idx in self._w_T_imu:
+            w_T_cam = self._w_T_imu[rig_idx] * self._cam_T_imu_poses[cam_idx].inverse()
+            return PosePrior(value=w_T_cam, covariance=None, type=PosePriorType.SOFT_CONSTRAINT)
+
+        return None
 
     def is_valid_pair(self, idx1: int, idx2: int) -> bool:
         """Checks if (idx1, idx2) is a valid pair. idx1 < idx2 is required.
@@ -263,8 +299,21 @@ class HiltiLoader(LoaderBase):
             for j in range(i + 1, i + len(self._cams_to_use) - 1):
                 if self.__map_image_idx_to_rig(i) == self.__map_image_idx_to_rig(j):
                     pairs.add((i, j))
+                else:
+                    break
 
         return {(i1, i2): dask.delayed(self.get_relative_pose_prior)(i1, i2) for i1, i2 in pairs}
+
+    def create_computation_graph_for_poses(self) -> List[Delayed]:
+        N = len(self)
+
+        poses: List[Optional[Delayed]] = [None] * N
+        for i in range(N):
+            wTi = self.get_camera_pose(i)
+            if wTi is not None:
+                poses[i] = dask.delayed(wTi)
+
+        return poses
 
 
 if __name__ == "__main__":

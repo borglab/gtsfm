@@ -279,7 +279,7 @@ def compute_translation_angle_metric(
 def compute_global_rotation_metrics(
     wRi_list: List[Optional[Rot3]],
     wti_list: List[Optional[Point3]],
-    gt_wTi_list: List[Pose3],
+    gt_wTi_list: List[Optional[Pose3]],
 ) -> GtsfmMetricsGroup:
     """Computes statistics of multiple metrics for the averaging modules.
 
@@ -355,7 +355,7 @@ def compute_ba_pose_metrics(
     return GtsfmMetricsGroup(name="ba_pose_error_metrics", metrics=metrics)
 
 
-def get_twoview_translation_directions(wTi_list: List[Pose3]) -> Dict[Tuple[int, int], Unit3]:
+def get_twoview_translation_directions(wTi_list: List[Optional[Pose3]]) -> Dict[Tuple[int, int], Unit3]:
     """Generate synthetic measurements of the 2-view translation directions between image pairs.
 
     Args:
@@ -371,8 +371,9 @@ def get_twoview_translation_directions(wTi_list: List[Pose3]) -> Dict[Tuple[int,
     possible_img_pair_idxs = list(itertools.combinations(range(number_images), 2))
     for (i1, i2) in possible_img_pair_idxs:
         # compute the exact relative pose
-        i2Ti1 = wTi_list[i2].between(wTi_list[i1])
-        i2Ui1_dict[(i1, i2)] = Unit3(i2Ti1.translation())
+        if wTi_list[i2] is not None and wTi_list[i1] is not None:
+            i2Ti1 = wTi_list[i2].between(wTi_list[i1])
+            i2Ui1_dict[(i1, i2)] = Unit3(i2Ti1.translation())
 
     return i2Ui1_dict
 

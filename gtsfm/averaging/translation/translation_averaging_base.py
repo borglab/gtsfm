@@ -33,8 +33,8 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
         num_images: int,
         i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
         wRi_list: List[Optional[Rot3]],
+        gt_wTi_list: List[Optional[Pose3]],
         scale_factor: float = 1.0,
-        gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
     ) -> Tuple[List[Optional[Point3]], Optional[GtsfmMetricsGroup]]:
         """Run the translation averaging.
 
@@ -56,8 +56,8 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
         num_images: int,
         i2Ui1_graph: Delayed,
         wRi_graph: Delayed,
+        gt_wTi_graph: List[Delayed],
         scale_factor: float = 1.0,
-        gt_wTi_graph: Optional[Delayed] = None,
     ) -> Delayed:
         """Create the computation graph for performing translation averaging.
 
@@ -72,4 +72,4 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
             Global unit translations wrapped as Delayed.
             A GtsfmMetricsGroup with translation averaging metrics wrapped as Delayed.
         """
-        return dask.delayed(self.run, nout=2)(num_images, i2Ui1_graph, wRi_graph, scale_factor, gt_wTi_graph)
+        return dask.delayed(self.run, nout=2)(num_images, i2Ui1_graph, wRi_graph, gt_wTi_graph, scale_factor)

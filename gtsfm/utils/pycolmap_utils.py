@@ -28,6 +28,8 @@ def get_pycolmap_camera(camera_intrinsics: Cal3Bundler) -> pycolmap.Camera:
     width = int(cx * 2)
     height = int(cy * 2)
 
+    # TODO: fix for cal3bundler and add fisheye
+
     camera_dict = pycolmap.Camera(
         model="SIMPLE_PINHOLE",
         width=width,

@@ -179,7 +179,7 @@ def plot_sfm_data_3d(sfm_data: GtsfmData, ax: Axes, max_plot_radius: float = 50)
 
 
 def plot_poses_3d(
-    wTi_list: List[Pose3], ax: Axes, center_marker_color: str = "k", label_name: Optional[str] = None
+    wTi_list: List[Optional[Pose3]], ax: Axes, center_marker_color: str = "k", label_name: Optional[str] = None
 ) -> None:
     """Plot poses in 3D as dots for centers and lines denoting the orthonormal
     coordinate system for each camera.
@@ -195,6 +195,8 @@ def plot_poses_3d(
     spec = "{}.".format(center_marker_color)
 
     for i, wTi in enumerate(wTi_list):
+        if wTi is None:
+            continue
         x, y, z = wTi.translation().squeeze()
 
         if i > 0:
@@ -292,7 +294,7 @@ def save_sfm_data_viz(sfm_data: GtsfmData, folder_name: str) -> None:
 
 
 def save_camera_poses_viz(
-    pre_ba_sfm_data: GtsfmData, post_ba_sfm_data: GtsfmData, gt_pose_graph: Optional[List[Pose3]], folder_name: str
+    pre_ba_sfm_data: GtsfmData, post_ba_sfm_data: GtsfmData, gt_pose_graph: List[Optional[Pose3]], folder_name: str
 ) -> None:
     """Visualize the camera pose and save to disk.
 

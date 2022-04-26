@@ -54,9 +54,10 @@ POINT3_DOF = 3  # 3d points have 3 dof
 
 # noise model params
 CAM_POSE3_PRIOR_NOISE_SIGMA = 0.1
-CAM_CAL3_PRIOR_NOISE_SIGMA = 1e-5  # essentially fixed
+CAM_CAL3_PRIOR_NOISE_SIGMA = 1e-4  # essentially fixed
 MEASUREMENT_NOISE_SIGMA = 1.0  # in pixels
-HARD_POSE_PRIOR_SIGMA = 1e-2  # 1e-5 did not work as well
+HARD_POSE_PRIOR_SIGMA = 1e-3  # 1e-5 did not work as well
+SOFT_POSE_PRIOR_SIGMA = 3e-2  # 1e-5 did not work as well
 
 logger = logger_utils.get_logger()
 
@@ -133,11 +134,12 @@ class BundleAdjustmentOptimizer:
         valid_camera_indices: List[int] = initial_data.get_valid_camera_indices()
         valid_camera_set: Set[int] = set(valid_camera_indices)
 
-        cameras_with_hard_pose_prior: Set[int] = set()
+        cameras_with_absolute_pose_prior: Set[int] = set()
         for pose_idx, pose_prior in enumerate(absolute_pose_priors):
             if pose_prior is None or pose_idx not in valid_camera_set:
                 continue
 
+            cameras_with_absolute_pose_prior.add(pose_idx)
             if pose_prior.type == PosePriorType.HARD_CONSTRAINT:
                 graph.push_back(
                     PriorFactorPose3(
@@ -146,7 +148,14 @@ class BundleAdjustmentOptimizer:
                         gtsam.noiseModel.Isotropic.Sigma(CAM_POSE3_DOF, HARD_POSE_PRIOR_SIGMA),
                     )
                 )
-                cameras_with_hard_pose_prior.add(pose_idx)
+            else:
+                graph.push_back(
+                    PriorFactorPose3(
+                        X(pose_idx),
+                        pose_prior.value,
+                        gtsam.noiseModel.Isotropic.Sigma(CAM_POSE3_DOF, SOFT_POSE_PRIOR_SIGMA),
+                    )
+                )
 
         for i1i2, pose_prior_i2Ti1 in relative_pose_priors.items():
             i1, i2 = i1i2
@@ -162,8 +171,9 @@ class BundleAdjustmentOptimizer:
                         gtsam.noiseModel.Isotropic.Sigma(CAM_POSE3_DOF, HARD_POSE_PRIOR_SIGMA),
                     )
                 )
+            # TODO: not doing soft relative pose prior right now because they should be handled by absolute pose prior?
 
-        if len(cameras_with_hard_pose_prior) < 2:
+        if len(cameras_with_absolute_pose_prior) < 2:
             # TODO: handle 1 hard pose prior gracefully.
             # Add a prior on first pose. This indirectly specifies where the origin is.
             graph.push_back(
@@ -286,7 +296,7 @@ class BundleAdjustmentOptimizer:
         return optimized_data, filtered_result
 
     def evaluate(
-        self, unfiltered_data: GtsfmData, filtered_data: GtsfmData, cameras_gt: Optional[List[gtsfm_types.CAMERA_TYPE]]
+        self, unfiltered_data: GtsfmData, filtered_data: GtsfmData, cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]]
     ) -> GtsfmMetricsGroup:
         """
         Args:
@@ -301,31 +311,35 @@ class BundleAdjustmentOptimizer:
             name=METRICS_GROUP, metrics=metrics_utils.get_stats_for_sfmdata(unfiltered_data, suffix="_unfiltered")
         )
 
-        if cameras_gt is not None:
-            poses_gt = [cam.pose() for cam in cameras_gt]
+        poses_gt = [cam.pose() if cam is not None else None for cam in cameras_gt]
 
-            # align the sparse multi-view estimate after BA to the ground truth pose graph.
-            aligned_filtered_data = filtered_data.align_via_Sim3_to_poses(wTi_list_ref=poses_gt)
-            ba_pose_error_metrics = metrics_utils.compute_ba_pose_metrics(
-                gt_wTi_list=poses_gt, ba_output=aligned_filtered_data
-            )
-            ba_metrics.extend(metrics_group=ba_pose_error_metrics)
+        non_none_poses_count = len(poses_gt) - poses_gt.count(None)
 
-            output_tracks_exit_codes = track_utils.classify_tracks3d_with_gt_cameras(
-                tracks=aligned_filtered_data.get_tracks(), cameras_gt=cameras_gt
-            )
-            output_tracks_exit_codes_distribution = Counter(output_tracks_exit_codes)
+        if non_none_poses_count == 0:
+            return ba_metrics
 
-            for exit_code, count in output_tracks_exit_codes_distribution.items():
-                metric_name = "Filtered tracks triangulated with GT cams: {}".format(exit_code.name)
-                ba_metrics.add_metric(GtsfmMetric(name=metric_name, data=count))
+        # align the sparse multi-view estimate after BA to the ground truth pose graph.
+        aligned_filtered_data = filtered_data.align_via_Sim3_to_poses(wTi_list_ref=poses_gt)
+        ba_pose_error_metrics = metrics_utils.compute_ba_pose_metrics(
+            gt_wTi_list=poses_gt, ba_output=aligned_filtered_data
+        )
+        ba_metrics.extend(metrics_group=ba_pose_error_metrics)
 
-            ba_metrics.add_metrics(metrics_utils.get_stats_for_sfmdata(aligned_filtered_data, suffix="_filtered"))
-            # ba_metrics.save_to_json(os.path.join(METRICS_PATH, "bundle_adjustment_metrics.json"))
+        output_tracks_exit_codes = track_utils.classify_tracks3d_with_gt_cameras(
+            tracks=aligned_filtered_data.get_tracks(), cameras_gt=cameras_gt
+        )
+        output_tracks_exit_codes_distribution = Counter(output_tracks_exit_codes)
 
-            logger.info("[Result] Mean track length %.3f", np.mean(aligned_filtered_data.get_track_lengths()))
-            logger.info("[Result] Median track length %.3f", np.median(aligned_filtered_data.get_track_lengths()))
-            aligned_filtered_data.log_scene_reprojection_error_stats()
+        for exit_code, count in output_tracks_exit_codes_distribution.items():
+            metric_name = "Filtered tracks triangulated with GT cams: {}".format(exit_code.name)
+            ba_metrics.add_metric(GtsfmMetric(name=metric_name, data=count))
+
+        ba_metrics.add_metrics(metrics_utils.get_stats_for_sfmdata(aligned_filtered_data, suffix="_filtered"))
+        # ba_metrics.save_to_json(os.path.join(METRICS_PATH, "bundle_adjustment_metrics.json"))
+
+        logger.info("[Result] Mean track length %.3f", np.mean(aligned_filtered_data.get_track_lengths()))
+        logger.info("[Result] Median track length %.3f", np.median(aligned_filtered_data.get_track_lengths()))
+        aligned_filtered_data.log_scene_reprojection_error_stats()
 
         return ba_metrics
 

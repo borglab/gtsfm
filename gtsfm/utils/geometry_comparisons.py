@@ -63,16 +63,14 @@ def align_poses_sim3_ignore_missing(
     assert len(aTi_list) == len(bTi_list)
 
     # only choose target poses for which there is a corresponding estimated pose
-    corresponding_aTi_list = []
     valid_camera_idxs = []
-    valid_bTi_list = []
     for i, bTi in enumerate(bTi_list):
         if bTi is not None:
             valid_camera_idxs.append(i)
-            valid_bTi_list.append(bTi)
-            corresponding_aTi_list.append(aTi_list[i])
-
-    valid_aTi_list_, aSb = align_poses_sim3(aTi_list=corresponding_aTi_list, bTi_list=valid_bTi_list)
+    try:
+        valid_aTi_list_, aSb = align_poses_sim3(aTi_list=aTi_list, bTi_list=bTi_list)
+    except RuntimeError:
+        return bTi_list, Similarity3(Rot3(), np.zeros((3,)), 1.0)
 
     num_cameras = len(aTi_list)
     # now at valid indices
@@ -99,11 +97,17 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Tuple[List
             have the same origin and scale as reference (now living in "a" frame)
         aSb: Similarity(3) object that aligns the two pose graphs.
     """
-    n_to_align = len(aTi_list)
     assert len(aTi_list) == len(bTi_list)
+
+    valid_pose_tuples = [
+        pose_tuple
+        for pose_tuple in list(zip(aTi_list, bTi_list))
+        if pose_tuple[0] is not None and pose_tuple[1] is not None
+    ]
+    n_to_align = len(aTi_list)
     assert n_to_align >= 2, "SIM(3) alignment uses at least 2 frames"
 
-    ab_pairs = Pose3Pairs(list(zip(aTi_list, bTi_list)))
+    ab_pairs = Pose3Pairs(valid_pose_tuples)
 
     aSb = Similarity3.Align(ab_pairs)
 
@@ -114,7 +118,7 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Tuple[List
 
         # align the rotations first, so that we can find the translation between the two panoramas
         aSb = Similarity3(aSb.rotation(), np.zeros((3,)), 1.0)
-        aTi_list_rot_aligned = [aSb.transformFrom(bTi) for bTi in bTi_list]
+        aTi_list_rot_aligned = [aSb.transformFrom(bTi) if bTi is not None else None for bTi in bTi_list]
 
         # fit a single translation motion to the centroid
         aTi_centroid = np.array([aTi.translation() for aTi in aTi_list]).mean(axis=0)
@@ -139,8 +143,10 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Tuple[List
     aTi_list_ = []
     for i in range(n_to_align):
         bTi = bTi_list[i]
-
-        aTi_list_.append(aSb.transformFrom(bTi))
+        if bTi is None:
+            aTi_list_.append(None)
+        else:
+            aTi_list_.append(aSb.transformFrom(bTi))
 
     logger.info("Pose graph Sim(3) alignment complete.")
 
@@ -355,7 +361,7 @@ def compute_points_distance_l2(wti1: Optional[Point3], wti2: Optional[Point3]) -
 def compute_cyclic_rotation_error(i1Ri0: Rot3, i2Ri1: Rot3, i2Ri0: Rot3) -> float:
     """Computes the cycle error in degrees after composing the three input rotations.
 
-    The cyclic error is the angle between identity and the rotation obtained by composing the three input relative 
+    The cyclic error is the angle between identity and the rotation obtained by composing the three input relative
     rotations, i.e., (I - inv(i2Ri0) * i2Ri1 * i1Ri0).
 
     Args:

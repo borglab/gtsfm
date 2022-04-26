@@ -31,6 +31,7 @@ from gtsfm.common.pose_prior import PosePrior, PosePriorType
 logger = logger_utils.get_logger()
 
 HARD_POSE_PRIOR_SIGMA = 1e-2
+SOFT_POSE_PRIOR_SIGMA = 3e-1
 
 
 class ShonanRotationAveraging(RotationAveragingBase):
@@ -84,6 +85,13 @@ class ShonanRotationAveraging(RotationAveragingBase):
                 between_factors.append(
                     BetweenFactorPose3(
                         i2, i1, i2Ti1_prior.value, gtsam.noiseModel.Isotropic.Sigma(6, HARD_POSE_PRIOR_SIGMA)
+                    ),
+                )
+            else:
+                # TODO: is handling soft relative priors the best way to input this information. Soft priors are essentially derived from absolute priors and won't it make sense to directly provide prior factors?
+                between_factors.append(
+                    BetweenFactorPose3(
+                        i2, i1, i2Ti1_prior.value, gtsam.noiseModel.Isotropic.Sigma(6, SOFT_POSE_PRIOR_SIGMA)
                     ),
                 )
 

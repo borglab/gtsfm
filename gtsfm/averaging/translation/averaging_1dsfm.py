@@ -145,8 +145,8 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         num_images: int,
         i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
         wRi_list: List[Optional[Rot3]],
+        gt_wTi_list: List[Optional[Pose3]],
         scale_factor: float = 1.0,
-        gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
     ) -> Tuple[List[Optional[Point3]], Optional[GtsfmMetricsGroup]]:
         """Run the translation averaging.
 
@@ -304,7 +304,8 @@ def _compute_metrics(
 
     measured_gt_i2Ui1_dict = {}
     for (i1, i2) in set.union(inlier_i1_i2_pairs, outlier_i1_i2_pairs):
-        measured_gt_i2Ui1_dict[(i1, i2)] = gt_i2Ui1_dict[(i1, i2)]
+        if (i1, i2) in gt_i2Ui1_dict:
+            measured_gt_i2Ui1_dict[(i1, i2)] = gt_i2Ui1_dict[(i1, i2)]
 
     # Compute estimated poses after the averaging step and align them to ground truth.
     wTi_list = []

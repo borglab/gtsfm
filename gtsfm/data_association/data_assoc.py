@@ -57,8 +57,8 @@ class DataAssociation(NamedTuple):
         cameras: Dict[int, gtsfm_types.CAMERA_TYPE],
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
+        cameras_gt: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         images: Optional[List[Image]] = None,
-        cameras_gt: Optional[List[gtsfm_types.CALIBRATION_TYPE]] = None,
     ) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
         """Perform the data association.
 
@@ -95,9 +95,7 @@ class DataAssociation(NamedTuple):
         for i, camera in cameras.items():
             triangulated_data.add_camera(i, camera)
 
-        exit_codes_wrt_gt: Optional[List[TriangulationExitCode]] = None
-        if cameras_gt is not None:
-            exit_codes_wrt_gt = track_utils.classify_tracks2d_with_gt_cameras(tracks=tracks_2d, cameras_gt=cameras_gt)
+        exit_codes_wrt_gt = track_utils.classify_tracks2d_with_gt_cameras(tracks=tracks_2d, cameras_gt=cameras_gt)
 
         # add valid tracks where triangulation is successful
         exit_codes_wrt_computed: List[TriangulationExitCode] = []
@@ -190,8 +188,8 @@ class DataAssociation(NamedTuple):
         cameras: Delayed,
         corr_idxs_graph: Dict[Tuple[int, int], Delayed],
         keypoints_graph: List[Delayed],
+        gt_cameras_graph: List[Optional[Delayed]],
         images_graph: Optional[Delayed] = None,
-        gt_cameras_graph: Optional[List[Delayed]] = None,
     ) -> Tuple[Delayed, Delayed]:
         """Creates a computation graph for performing data association.
 
@@ -210,7 +208,7 @@ class DataAssociation(NamedTuple):
                 association result
         """
         ba_input_graph, data_assoc_metrics_graph = dask.delayed(self.run, nout=2)(
-            num_images, cameras, corr_idxs_graph, keypoints_graph, images_graph, gt_cameras_graph
+            num_images, cameras, corr_idxs_graph, keypoints_graph, gt_cameras_graph, images_graph
         )
 
         return ba_input_graph, data_assoc_metrics_graph
