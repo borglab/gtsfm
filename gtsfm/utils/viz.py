@@ -194,16 +194,18 @@ def plot_poses_3d(
     """
     spec = "{}.".format(center_marker_color)
 
-    for i, wTi in enumerate(wTi_list):
+    is_label_added = False
+    for wTi in wTi_list:
         if wTi is None:
             continue
-        x, y, z = wTi.translation().squeeze()
 
-        if i > 0:
-            # for the first loop iteration, add the label to the plot
+        if is_label_added:
             # for the rest of iterations, set label to None (otherwise would be duplicated in legend)
             label_name = None
+
+        x, y, z = wTi.translation().squeeze()
         ax.plot(x, y, z, spec, markersize=10, label=label_name)
+        is_label_added = True
 
         R = wTi.rotation().matrix()
 
@@ -316,8 +318,9 @@ def save_camera_poses_viz(
     fig = plt.figure()
     ax = fig.add_subplot(projection="3d")
 
-    if gt_pose_graph is not None:
-        plot_poses_3d(gt_pose_graph, ax, center_marker_color="m", label_name="GT")
+    print(f"GT pose graph has {len(gt_pose_graph)}")
+
+    plot_poses_3d(gt_pose_graph, ax, center_marker_color="m", label_name="GT")
 
     plot_poses_3d(pre_ba_poses, ax, center_marker_color="c", label_name="Pre-BA")
     plot_poses_3d(post_ba_poses, ax, center_marker_color="k", label_name="Post-BA")

@@ -312,8 +312,8 @@ class TwoViewEstimator:
         im_shape_i1_graph: Delayed,
         im_shape_i2_graph: Delayed,
         i2Ti1_prior: Delayed,
-        gt_wTi1_graph: Optional[Delayed] = None,
-        gt_wTi2_graph: Optional[Delayed] = None,
+        gt_wTi1_graph: Delayed,
+        gt_wTi2_graph: Delayed,
         gt_scene_mesh_graph: Optional[Delayed] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, Dict[str, Delayed]]:
         """Create delayed tasks for matching and verification.
@@ -382,45 +382,39 @@ class TwoViewEstimator:
             post_ba_v_corr_idxs = pre_ba_v_corr_idxs
 
         # if we have the expected GT data, evaluate the computed relative pose
-        if gt_wTi1_graph is not None and gt_wTi2_graph is not None:
-            i2Ti1_expected_graph = gt_wTi2_graph.between(gt_wTi1_graph)
-            pre_ba_R_error_deg, pre_ba_U_error_deg = dask.delayed(compute_relative_pose_metrics, nout=2)(
-                pre_ba_i2Ri1, pre_ba_i2Ui1, i2Ti1_expected_graph
-            )
-            post_ba_R_error_deg, post_ba_U_error_deg = dask.delayed(compute_relative_pose_metrics, nout=2)(
-                post_ba_i2Ri1, post_ba_i2Ui1, i2Ti1_expected_graph
-            )
-            pre_ba_inlier_mask_wrt_gt, pre_ba_reproj_error_wrt_gt = dask.delayed(
-                metric_utils.compute_correspondence_metrics, nout=2
-            )(
-                keypoints_i1_graph,
-                keypoints_i2_graph,
-                pre_ba_v_corr_idxs,
-                camera_intrinsics_i1_graph,
-                camera_intrinsics_i2_graph,
-                self._corr_metric_dist_threshold,
-                gt_wTi1_graph,
-                gt_wTi2_graph,
-                gt_scene_mesh_graph,
-            )
-            post_ba_inlier_mask_wrt_gt, post_ba_reproj_error_wrt_gt = dask.delayed(
-                metric_utils.compute_correspondence_metrics, nout=2
-            )(
-                keypoints_i1_graph,
-                keypoints_i2_graph,
-                post_ba_v_corr_idxs,
-                camera_intrinsics_i1_graph,
-                camera_intrinsics_i2_graph,
-                self._corr_metric_dist_threshold,
-                gt_wTi1_graph,
-                gt_wTi2_graph,
-                gt_scene_mesh_graph,
-            )
-        else:
-            pre_ba_R_error_deg, pre_ba_U_error_deg = None, None
-            post_ba_R_error_deg, post_ba_U_error_deg = None, None
-            pre_ba_inlier_mask_wrt_gt, pre_ba_reproj_error_wrt_gt = None, None
-            post_ba_inlier_mask_wrt_gt, post_ba_reproj_error_wrt_gt = None, None
+
+        pre_ba_R_error_deg, pre_ba_U_error_deg = dask.delayed(compute_relative_pose_metrics, nout=2)(
+            pre_ba_i2Ri1, pre_ba_i2Ui1, gt_wTi1_graph, gt_wTi2_graph
+        )
+        post_ba_R_error_deg, post_ba_U_error_deg = dask.delayed(compute_relative_pose_metrics, nout=2)(
+            post_ba_i2Ri1, post_ba_i2Ui1, gt_wTi1_graph, gt_wTi2_graph
+        )
+        pre_ba_inlier_mask_wrt_gt, pre_ba_reproj_error_wrt_gt = dask.delayed(
+            metric_utils.compute_correspondence_metrics, nout=2
+        )(
+            keypoints_i1_graph,
+            keypoints_i2_graph,
+            pre_ba_v_corr_idxs,
+            camera_intrinsics_i1_graph,
+            camera_intrinsics_i2_graph,
+            self._corr_metric_dist_threshold,
+            gt_wTi1_graph,
+            gt_wTi2_graph,
+            gt_scene_mesh_graph,
+        )
+        post_ba_inlier_mask_wrt_gt, post_ba_reproj_error_wrt_gt = dask.delayed(
+            metric_utils.compute_correspondence_metrics, nout=2
+        )(
+            keypoints_i1_graph,
+            keypoints_i2_graph,
+            post_ba_v_corr_idxs,
+            camera_intrinsics_i1_graph,
+            camera_intrinsics_i2_graph,
+            self._corr_metric_dist_threshold,
+            gt_wTi1_graph,
+            gt_wTi2_graph,
+            gt_scene_mesh_graph,
+        )
 
         pre_ba_report = dask.delayed(generate_two_view_report)(
             inlier_ratio_wrt_estimate,
@@ -499,7 +493,10 @@ def generate_two_view_report(
 
 
 def compute_relative_pose_metrics(
-    i2Ri1_computed: Optional[Rot3], i2Ui1_computed: Optional[Unit3], i2Ti1_expected: Pose3
+    i2Ri1_computed: Optional[Rot3],
+    i2Ui1_computed: Optional[Unit3],
+    wTi1_expected: Optional[Pose3],
+    wTi2_expected: Optional[Pose3],
 ) -> Tuple[Optional[float], Optional[float]]:
     """Compute the metrics on relative camera pose.
 
@@ -512,10 +509,14 @@ def compute_relative_pose_metrics(
         Rotation error, in degrees
         Unit translation error, in degrees
     """
-    R_error_deg = comp_utils.compute_relative_rotation_angle(i2Ri1_computed, i2Ti1_expected.rotation())
-    U_error_deg = comp_utils.compute_relative_unit_translation_angle(
-        i2Ui1_computed, Unit3(i2Ti1_expected.translation())
-    )
+    if wTi1_expected is not None and wTi2_expected is not None:
+        i2Ti1_expected = wTi2_expected.between(wTi1_expected)
+        R_error_deg = comp_utils.compute_relative_rotation_angle(i2Ri1_computed, i2Ti1_expected.rotation())
+        U_error_deg = comp_utils.compute_relative_unit_translation_angle(
+            i2Ui1_computed, Unit3(i2Ti1_expected.translation())
+        )
+    else:
+        return (None, None)
 
     return (R_error_deg, U_error_deg)
 

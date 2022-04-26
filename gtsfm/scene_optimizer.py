@@ -116,7 +116,7 @@ class SceneOptimizer:
         relative_pose_priors: Dict[Tuple[int, int], Delayed],
         absolute_pose_priors: List[Delayed],
         gt_cameras_graph: List[Delayed],
-        gt_poses_graph: List[Optional[Delayed]],
+        gt_poses_graph: List[Delayed],
         gt_scene_mesh: Optional[Trimesh] = None,
     ) -> Delayed:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""

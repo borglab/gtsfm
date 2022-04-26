@@ -38,7 +38,7 @@ CAM_IDX_TO_KALIBR_FILE_MAP = {
     4: "calib_3_cam4-camchain-imucam.yaml",
 }
 
-LIDAR_POSE_RELATIVE_PATH = "fastlio2.g2o"
+LIDAR_POSE_RELATIVE_PATH = "lidar/fastlio2.g2o"
 
 INTRA_RIG_VALID_PAIRS = {(0, 1), (0, 3), (1, 4)}
 INTER_RIG_VALID_PAIRS = {(0, 0), (0, 1), (0, 3), (1, 0), (1, 1), (1, 4), (2, 2), (3, 0), (3, 3), (4, 1), (4, 4)}
@@ -303,17 +303,6 @@ class HiltiLoader(LoaderBase):
                     break
 
         return {(i1, i2): dask.delayed(self.get_relative_pose_prior)(i1, i2) for i1, i2 in pairs}
-
-    def create_computation_graph_for_poses(self) -> List[Delayed]:
-        N = len(self)
-
-        poses: List[Optional[Delayed]] = [None] * N
-        for i in range(N):
-            wTi = self.get_camera_pose(i)
-            if wTi is not None:
-                poses[i] = dask.delayed(wTi)
-
-        return poses
 
 
 if __name__ == "__main__":

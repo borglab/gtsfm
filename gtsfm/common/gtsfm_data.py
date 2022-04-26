@@ -391,9 +391,6 @@ class GtsfmData:
         Returns:
             aligned_data: sparse multiview result that is aligned to the poses above.
         """
-        if wTi_list_ref is None:
-            return self
-
         # these are the estimated poses (source, to be aligned)
         wTi_list = self.get_camera_poses()
         # align the poses which are valid (i.e. are not None)
