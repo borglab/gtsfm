@@ -145,7 +145,10 @@ class SceneOptimizer:
             # Collect ground truth relative and absolute poses if available.
             # TODO(johnwlambert): decompose this method -- name it as "calling_the_plate()"
             if gt_cameras_graph is not None:
-                gt_wTi1, gt_wTi2 = gt_cameras_graph[i1].pose(), gt_cameras_graph[i2].pose()
+                gt_wTi1, gt_wTi2 = (
+                    gt_cameras_graph[i1].pose(),
+                    gt_cameras_graph[i2].pose(),
+                )
             else:
                 gt_wTi1, gt_wTi2 = None, None
 
@@ -316,7 +319,9 @@ def align_estimated_gtsfm_data(
 
 
 def save_visualizations(
-    ba_input_graph: Delayed, ba_output_graph: Delayed, gt_pose_graph: Optional[List[Delayed]]
+    ba_input_graph: Delayed,
+    ba_output_graph: Delayed,
+    gt_pose_graph: Optional[List[Delayed]],
 ) -> List[Delayed]:
     """Save SfmData before and after bundle adjustment and camera poses for visualization.
 
@@ -361,13 +366,17 @@ def save_gtsfm_data(image_graph: Delayed, ba_input_graph: Delayed, ba_output_gra
         # Save the input to Bundle Adjustment (from data association).
         saving_graph_list.append(
             dask.delayed(io_utils.export_model_as_colmap_text)(
-                ba_input_graph, image_graph, save_dir=os.path.join(output_dir, "ba_input")
+                ba_input_graph,
+                image_graph,
+                save_dir=os.path.join(output_dir, "ba_input"),
             )
         )
         # Save the output of Bundle Adjustment.
         saving_graph_list.append(
             dask.delayed(io_utils.export_model_as_colmap_text)(
-                ba_output_graph, image_graph, save_dir=os.path.join(output_dir, "ba_output")
+                ba_output_graph,
+                image_graph,
+                save_dir=os.path.join(output_dir, "ba_output"),
             )
         )
     return saving_graph_list
@@ -394,7 +403,9 @@ def save_metrics_reports(metrics_graph_list: Delayed) -> List[Delayed]:
     )
     save_metrics_graph_list.append(
         dask.delayed(metrics_report.generate_metrics_report_html)(
-            metrics_graph_list, os.path.join(METRICS_PATH, "gtsfm_metrics_report.html")
+            metrics_graph_list,
+            os.path.join(METRICS_PATH, "gtsfm_metrics_report.html"),
+            None,
         )
     )
     return save_metrics_graph_list

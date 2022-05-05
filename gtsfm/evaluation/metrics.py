@@ -72,6 +72,7 @@ class GtsfmMetric:
         plot_type: PlotType = None,
     ) -> GtsfmMetric:
         """Creates a GtsfmMetric.
+
         Args:
              name: name of the metric
              data: All values of the metric, optional for 1D distributions, uses summary if not provided.
@@ -90,6 +91,8 @@ class GtsfmMetric:
         self._name = name
         if data is not None:
             # Cast to a numpy array
+            if isinstance(data, list) and all(isinstance(x, int) for x in data):
+                data = np.array(data, dtype=np.int_)
             if not isinstance(data, np.ndarray):
                 data = np.array(data, dtype=np.float32)
             if data.ndim > 1:
@@ -169,7 +172,6 @@ class GtsfmMetric:
             raise ValueError("Metric must be a 1D distribution to get summary.")
         if data.size == 0 or np.isnan(data).all():
             return {"min": np.NaN, "max": np.NaN, "median": np.NaN, "mean": np.NaN, "stddev": np.NaN}
-
         summary = {
             "min": np.nanmin(data).tolist(),
             "max": np.nanmax(data).tolist(),
@@ -203,7 +205,6 @@ class GtsfmMetric:
         """
         if self._dim == 0:
             return {self._name: self._data.tolist()}
-
         metric_dict = {SUMMARY_KEY: self.summary}
         if self._data is not None:
             metric_dict[FULL_DATA_KEY] = self._data.tolist()
@@ -234,7 +235,6 @@ class GtsfmMetric:
 
         metric_name = list(metric_dict.keys())[0]
         metric_value = metric_dict[metric_name]
-
         # 1D distribution metrics
         if isinstance(metric_value, dict):
             data = None
@@ -244,7 +244,6 @@ class GtsfmMetric:
             if SUMMARY_KEY in metric_value:
                 summary = metric_value[SUMMARY_KEY]
             return cls(metric_name, data=data, summary=summary)
-
         # Scalar metrics
         return cls(metric_name, metric_value)
 
@@ -339,6 +338,7 @@ class GtsfmMetricsGroup:
 
         Args:
             json_filename: Path to the JSON file.
+
         Returns:
             A new GtsfmMetricsGroup parsed from the JSON.
         """

@@ -4,9 +4,10 @@ Estimating the ViewGraph can be done trivially by adding all the two-view estima
 The purpose of this class, however, is to define an API for more sophisticated methods for estimating a ViewGraph 
 that include filtering or optimizing the two-view estimates.
 
-Authors: Akshay Krishnan, Ayush Baid
+Authors: Akshay Krishnan, Ayush Baid, John Lambert
 """
 import abc
+from pathlib import Path
 from typing import Dict, List, Set, Tuple
 
 import dask
@@ -14,11 +15,14 @@ import numpy as np
 from dask.delayed import Delayed
 from gtsam import Cal3Bundler, Rot3, Unit3
 
+import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.two_view_estimator import TwoViewEstimationReport
+
+PLOT_BASE_PATH = Path(__file__).resolve().parent.parent.parent / "plots"
 
 # threshold for evaluation w.r.t. GT
 MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
@@ -46,7 +50,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
     ) -> Set[Tuple[int, int]]:
         """Estimates the view graph, needs to be implemented by the derived class.
 
-        The input rotation and unit translation dicts are guaranteed to be valid, i.e., i1 < i2 and 
+        The input rotation and unit translation dicts are guaranteed to be valid, i.e., i1 < i2 and
         neither i2Ri1 nor i2Ui1 are None.
 
         Args:
@@ -62,9 +66,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         """
 
     def _get_valid_input_edges(
-        self, 
-        i2Ri1_dict: Dict[Tuple[int, int], Rot3],
-        i2Ui1_dict: Dict[Tuple[int, int], Unit3]
+        self, i2Ri1_dict: Dict[Tuple[int, int], Rot3], i2Ui1_dict: Dict[Tuple[int, int], Unit3]
     ) -> List[Tuple[int, int]]:
         """Gets the input edges (i1, i2):
         1. i1 < i2
@@ -162,6 +164,21 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         inlier_i1_i2 = view_graph_edges
         outlier_i1_i2 = list(set(input_i1_i2) - set(inlier_i1_i2))
 
+        graph_utils.draw_view_graph_topology(
+            edges=list(input_i1_i2),
+            two_view_reports=two_view_reports,
+            title="ViewGraphEstimator input",
+            save_fpath=PLOT_BASE_PATH / "view_graph_estimator_input_topology.jpg",
+            cameras_gt=None,
+        )
+        graph_utils.draw_view_graph_topology(
+            edges=view_graph_edges,
+            two_view_reports=two_view_reports,
+            title="ViewGraphEstimator output",
+            save_fpath=PLOT_BASE_PATH / "view_graph_estimator_output_topology.jpg",
+            cameras_gt=None,
+        )
+
         inlier_R_angular_errors = []
         outlier_R_angular_errors = []
         inlier_U_angular_errors = []
@@ -244,7 +261,7 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
             i2Ui1_dict=i2Ui1_dict,
             corr_idxs_i1i2=corr_idxs_i1i2,
             two_view_reports=two_view_reports,
-            edges_to_select=valid_edges,            
+            edges_to_select=valid_edges,
         )
 
         # Run view graph estimation.
