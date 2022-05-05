@@ -100,6 +100,7 @@ class ColmapLoader(LoaderBase):
 
         self._num_imgs = len(self._image_paths)
         logger.info("Colmap image loader found and loaded %d images", self._num_imgs)
+        self._build_image_shapes_cache()
 
     def get_image_fname(self, idx: int) -> str:
         """Given an image index, provide the corresponding image filename."""

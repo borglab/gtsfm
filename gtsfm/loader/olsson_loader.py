@@ -101,6 +101,7 @@ class OlssonLoader(LoaderBase):
 
         # GT 3d structure (point cloud)
         self._point_cloud = data["U"].T[:, :3]
+        self._build_image_shapes_cache()
 
     def __len__(self) -> int:
         """The number of images in the dataset.

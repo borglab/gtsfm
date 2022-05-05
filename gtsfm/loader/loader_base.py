@@ -34,6 +34,21 @@ class LoaderBase(metaclass=abc.ABCMeta):
             raise ValueError("Maximum image resolution must be an integer argument.")
         self._max_resolution = max_resolution
 
+    def _build_image_shapes_cache(self) -> None:
+        """Build a cache of the dimensions of each image in the dataset.
+
+        We store the full-resolution dimensions, and the shape after resizing to a maximum allowed resolution.
+        """
+        self._image_shape_dict = {}
+        self._image_shape_full_res_dict = {}
+        for index in range(len(self)):
+            img_full_res = self.get_image_full_res(index)
+            self._image_shape_full_res_dict[index] = (img_full_res.height, img_full_res.width)
+            (_, _, target_h, target_w,) = img_utils.get_downsampling_factor_per_axis(
+                img_full_res.height, img_full_res.width, self._max_resolution
+            )
+            self._image_shape_dict[index] = (target_h, target_w)
+
     # ignored-abstractmethod
     @abc.abstractmethod
     def __len__(self) -> int:
@@ -138,12 +153,8 @@ class LoaderBase(metaclass=abc.ABCMeta):
             return img_full_res
 
         # Resize image.
-        (
-            _,
-            _,
-            target_h,
-            target_w,
-        ) = img_utils.get_downsampling_factor_per_axis(img_full_res.height, img_full_res.width, self._max_resolution)
+        target_h, target_w = self._image_shape_dict[index]
+
         logger.info(
             "Image %d resized from (H,W)=(%d,%d) -> (%d,%d)",
             index,
@@ -177,10 +188,10 @@ class LoaderBase(metaclass=abc.ABCMeta):
         if intrinsics_full_res.px() <= 0 or intrinsics_full_res.py() <= 0:
             raise RuntimeError("Principal point must have positive coordinates.")
 
-        img_full_res = self.get_image_full_res(index)
+        img_full_res_height, img_full_res_width = self.get_image_shape_full_res(index)
         # no downsampling may be required, in which case scale_u and scale_v will be 1.0
         scale_u, scale_v, _, _ = img_utils.get_downsampling_factor_per_axis(
-            img_full_res.height, img_full_res.width, self._max_resolution
+            img_full_res_height, img_full_res_width, self._max_resolution
         )
         rescaled_intrinsics = Cal3Bundler(
             fx=intrinsics_full_res.fx() * scale_u,
@@ -191,10 +202,14 @@ class LoaderBase(metaclass=abc.ABCMeta):
         )
         return rescaled_intrinsics
 
+    def get_image_shape_full_res(self, index: int) -> Tuple[int, int]:
+        """Return the (H,W) tuple representing height, width of full-resolution image."""
+        return self._image_shape_full_res_dict[index]
+
     def get_image_shape(self, idx: int) -> Tuple[int, int]:
         """Return a (H,W) tuple for each image"""
-        image = self.get_image(idx)
-        return (image.height, image.width)
+        image_height, image_width = self._image_shape_dict[idx]
+        return (image_height, image_width)
 
     def create_computation_graph_for_images(self) -> List[Delayed]:
         """Creates the computation graph for image fetches.
