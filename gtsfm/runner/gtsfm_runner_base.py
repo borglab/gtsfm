@@ -90,7 +90,7 @@ class GtsfmRunnerBase:
         pass
 
     def construct_scene_optimizer(self) -> SceneOptimizer:
-        """ """
+        """Construct scene optimizer."""
         with hydra.initialize_config_module(config_module="gtsfm.configs"):
             # config is relative to the gtsfm module
             cfg = hydra.compose(

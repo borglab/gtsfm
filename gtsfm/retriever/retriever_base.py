@@ -22,12 +22,6 @@ class ImageMatchingRegime(str, Enum):
 
 class RetrieverBase:
     """Base class for image retriever implementations."""
-    def __init__(self, num_matched: int = 2) -> None:
-        """
-        Args:
-            num_matched: number of K potential matches to provide per query. These are the top "K" matches per query.
-        """
-        self._num_matched = num_matched
 
     @abc.abstractmethod
     def run(loader: LoaderBase) -> List[Tuple[int, int]]:
