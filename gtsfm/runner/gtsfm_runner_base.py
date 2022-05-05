@@ -12,6 +12,10 @@ from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.scene_optimizer import SceneOptimizer
 
+from gtsfm.retriever.exhaustive_retriever import ExhaustiveRetriever
+from gtsfm.retriever.retriever_base import ImageMatchingRegime
+from gtsfm.retriever.sequential_retriever import SequentialRetriever
+
 
 logger = logger_utils.get_logger()
 
@@ -23,6 +27,7 @@ class GtsfmRunnerBase:
         self.parsed_args: argparse.Namespace = argparser.parse_args()
 
         self.loader: LoaderBase = self.construct_loader()
+        self.retriever = self.construct_retriever()
         self.scene_optimizer: SceneOptimizer = self.construct_scene_optimizer()
 
     def construct_argparser(self) -> argparse.ArgumentParser:
@@ -53,14 +58,19 @@ class GtsfmRunnerBase:
             help="integer representing maximum length of image's short side"
             " e.g. for 1080p (1920 x 1080), max_resolution would be 1080",
         )
-
         parser.add_argument(
             "--max_frame_lookahead",
             type=int,
             default=20,
             help="maximum number of consecutive frames to consider for matching/co-visibility",
         )
-
+        parser.add_argument(
+            "--matching_regime",
+            type=str,
+            choices=["exhaustive", "sequential"],
+            default="sequential",
+            help="Choose mode for matching.",
+        )
         parser.add_argument(
             "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras"
         )
@@ -86,20 +96,39 @@ class GtsfmRunnerBase:
 
         return scene_optimizer
 
+    def construct_retriever(self):
+        """Set up retriever module."""
+        matching_regime = ImageMatchingRegime(self.parsed_args.matching_regime)
+
+        if matching_regime == ImageMatchingRegime.EXHAUSTIVE:
+            retriever = ExhaustiveRetriever()
+
+        elif matching_regime == ImageMatchingRegime.SEQUENTIAL:
+            retriever = SequentialRetriever(max_frame_lookahead=self.parsed_args.max_frame_lookahead)
+
+        return retriever
+
     def run(self) -> None:
+        """Run the SceneOptimizer."""
         start_time = time.time()
-        sfm_result_graph = self.scene_optimizer.create_computation_graph(
-            num_images=len(self.loader),
-            image_pair_indices=self.loader.get_valid_pairs(),
-            image_graph=self.loader.create_computation_graph_for_images(),
-            camera_intrinsics_graph=self.loader.create_computation_graph_for_intrinsics(),
-            image_shape_graph=self.loader.create_computation_graph_for_image_shapes(),
-            gt_cameras_graph=self.loader.create_computation_graph_for_cameras(),
-        )
 
         # create dask client
         cluster = LocalCluster(
             n_workers=self.parsed_args.num_workers, threads_per_worker=self.parsed_args.threads_per_worker
+        )
+
+        pairs_graph = self.retriever.create_computation_graph(self.loader)
+        with Client(cluster), performance_report(filename="dask-report.html"):
+            image_pair_indices = pairs_graph.compute()
+
+        sfm_result_graph = self.scene_optimizer.create_computation_graph(
+            num_images=len(self.loader),
+            image_pair_indices=image_pair_indices,
+            image_graph=self.loader.create_computation_graph_for_images(),
+            camera_intrinsics_graph=self.loader.create_computation_graph_for_intrinsics(),
+            image_shape_graph=self.loader.create_computation_graph_for_image_shapes(),
+            gt_cameras_graph=self.loader.create_computation_graph_for_cameras(),
+            matching_regime=ImageMatchingRegime(self.parsed_args.matching_regime),
         )
 
         with Client(cluster), performance_report(filename="dask-report.html"):

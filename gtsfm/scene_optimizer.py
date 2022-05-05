@@ -26,6 +26,7 @@ from gtsfm.common.image import Image
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.feature_extractor import FeatureExtractor
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
+from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.two_view_estimator import (
     TwoViewEstimator,
     TwoViewEstimationReport,
@@ -113,6 +114,7 @@ class SceneOptimizer:
         image_shape_graph: List[Delayed],
         gt_cameras_graph: Optional[List[Delayed]] = None,
         gt_scene_mesh: Optional[Trimesh] = None,
+        matching_regime: ImageMatchingRegime = ImageMatchingRegime.SEQUENTIAL,
     ) -> Delayed:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
 
@@ -217,7 +219,10 @@ class SceneOptimizer:
         for tag, report_dict in two_view_reports_dict.items():
             auxiliary_graph_list.append(
                 dask.delayed(save_full_frontend_metrics)(
-                    report_dict, image_graph, filename="two_view_report_{}.json".format(tag)
+                    report_dict,
+                    image_graph,
+                    filename="two_view_report_{}.json".format(tag),
+                    matching_regime=matching_regime,
                 )
             )
             if gt_cameras_graph is not None:
@@ -409,6 +414,7 @@ def save_full_frontend_metrics(
     two_view_report_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
     images: List[Image],
     filename: str,
+    matching_regime: ImageMatchingRegime,
 ) -> None:
     """Converts the TwoViewEstimationReports for all image pairs to a Dict and saves it as JSON.
 
@@ -426,13 +432,15 @@ def save_full_frontend_metrics(
         # Note: if GT is unknown, then R_error_deg, U_error_deg, and inlier_ratio_gt_model will be None
         metrics_list.append(
             {
-                "i1": i1,
-                "i2": i2,
+                "i1": int(i1),
+                "i2": int(i2),
                 "i1_filename": images[i1].file_name,
                 "i2_filename": images[i2].file_name,
                 "rotation_angular_error": round_fn(report.R_error_deg),
                 "translation_angular_error": round_fn(report.U_error_deg),
-                "num_inliers_gt_model": report.num_inliers_gt_model,
+                "num_inliers_gt_model": int(report.num_inliers_gt_model)
+                if report.num_inliers_gt_model is not None
+                else None,
                 "inlier_ratio_gt_model": round_fn(report.inlier_ratio_gt_model),
                 "inlier_avg_reproj_error_gt_model": round_fn(
                     np.nanmean(report.reproj_error_gt_model[report.v_corr_idxs_inlier_mask_gt])
@@ -445,7 +453,9 @@ def save_full_frontend_metrics(
                 if report.reproj_error_gt_model is not None and report.v_corr_idxs_inlier_mask_gt is not None
                 else None,
                 "inlier_ratio_est_model": round_fn(report.inlier_ratio_est_model),
-                "num_inliers_est_model": report.num_inliers_est_model,
+                "num_inliers_est_model": int(report.num_inliers_est_model)
+                if report.num_inliers_est_model is not None
+                else None,
             }
         )
 
