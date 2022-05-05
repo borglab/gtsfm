@@ -24,7 +24,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
     The loader provides APIs to get an image, either directly or as a dask delayed task
     """
 
-    def __init__(self, max_resolution: int) -> None:
+    def __init__(self, max_resolution: int = 1080) -> None:
         """
         Args:
             max_resolution: integer representing maximum length of image's short side
