@@ -49,12 +49,11 @@ class HiltiLoader(LoaderBase):
         self,
         base_folder: str,
         cams_to_use: Set[int],
-        max_resolution: int = 1000,
         max_frame_lookahead: int = 10,
         step_size: int = 8,
         max_length: Optional[int] = None,
     ) -> None:
-        super().__init__(max_resolution=max_resolution)
+        super().__init__(max_resolution=1000)
         if step_size % 4 != 0:
             raise ValueError("Step size must be multiple of 4 to match lidar frequency")
         self.__check_cams_to_use(cams_to_use)
@@ -70,13 +69,13 @@ class HiltiLoader(LoaderBase):
             self._intrinsics[cam_idx] = calibration[0]
             self._cam_T_imu_poses[cam_idx] = calibration[1]
 
-        self._number_of_timestamps_available: int = self.__get_number_of_timestamps_available()
+        self._max_rig_idx: int = self.__get_max_rig_idx()
         if self._max_length is not None:
-            self._number_of_timestamps_available = min(self._number_of_timestamps_available, self._max_length)
+            self._max_rig_idx = min(self._max_rig_idx, self._max_length)
 
         self._w_T_imu: Dict[int, Pose3] = self.__read_lidar_pose_priors()  # poses for the IMU for rig indices
 
-        logger.info("Loading %d timestamps", self._number_of_timestamps_available)
+        logger.info("Loading %d timestamps", self._max_rig_idx)
         logger.info("Lidar camera available for %d timestamps", len(self._w_T_imu))
 
     def __get_folder_for_images(self, cam_idx: int) -> Path:
@@ -91,33 +90,31 @@ class HiltiLoader(LoaderBase):
         _, values = gtsam.readG2o(filepath, is3D=True)
 
         lidar_keys = values.keys()
+        logger.info("Number of keys in g2o file: %d", len(lidar_keys))
 
         w_T_imu: Dict[int, Pose3] = {}
 
-        for lidar_key in lidar_keys:
-            # lidar data is at 10Hz, compared to 40Hz image data frequency.
-            timestamp_key: int = lidar_key * 4
+        for rig_idx in range(self._max_rig_idx):
+            timestamp_idx: int = rig_idx * self._step_size
+            if timestamp_idx % 4 != 0:
+                continue
 
-            if timestamp_key % self._step_size == 0:
-                rig_idx = timestamp_key // self._step_size
-
-                if self._number_of_timestamps_available < rig_idx:
-                    break
-
-                w_T_imu[rig_idx] = values.atPose3(lidar_key)
+            lidar_idx: int = timestamp_idx // 4
+            if lidar_idx in lidar_keys:
+                w_T_imu[rig_idx] = values.atPose3(lidar_idx)
 
         return w_T_imu
 
-    def __get_number_of_timestamps_available(self) -> int:
+    def __get_max_rig_idx(self) -> int:
         num_images_for_cam = {}
         for cam_idx in self._cams_to_use:
             search_path: str = str(self._base_folder / f"cam{cam_idx}" / "*.jpg")
             image_files = glob.glob(search_path)
             num_images_for_cam[cam_idx] = len(image_files)
 
-        max_num_images = max(num_images_for_cam.values())
+        min_num_images = min(num_images_for_cam.values())
 
-        return ((max_num_images - 1) // self._step_size) + 1
+        return ((min_num_images - 1) // self._step_size) + 1
 
     def __load_calibration(self, cam_idx: int) -> Tuple[Cal3Fisheye, Pose3]:
         kalibr_file_path = self._base_folder / "calibration" / CAM_IDX_TO_KALIBR_FILE_MAP[cam_idx]
@@ -154,7 +151,7 @@ class HiltiLoader(LoaderBase):
         Returns:
             the number of images.
         """
-        return self._number_of_timestamps_available * len(self._cams_to_use)
+        return self._max_rig_idx * len(self._cams_to_use)
 
     def get_image(self, index: int) -> Image:
         return self.get_image_full_res(index)
@@ -190,10 +187,11 @@ class HiltiLoader(LoaderBase):
         Returns:
             Image: the image at the query index.
         """
-        cam_idx = self.__map_index_to_camera(index)
-        rig_idx = self.__map_image_idx_to_rig(index)
+        cam_idx = self.map_index_to_camera(index)
+        rig_idx = self.map_image_idx_to_rig(index)
+        timestamp_idx: int = rig_idx * self._step_size
 
-        logger.debug("Mapping %d index to rig %d,  camera %d", index, rig_idx, cam_idx)
+        logger.debug("Mapping %d index to rig %d,  camera %d, timestamp %d", index, rig_idx, cam_idx, timestamp_idx)
 
         camera_folder: Path = self.__get_folder_for_images(cam_idx)
         image_path: Path = camera_folder / f"left{rig_idx:04}.jpg"
@@ -212,7 +210,7 @@ class HiltiLoader(LoaderBase):
         Returns:
             intrinsics for the given camera.
         """
-        return self._intrinsics[self.__map_index_to_camera(index)]
+        return self._intrinsics[self.map_index_to_camera(index)]
 
     def get_camera_pose(self, index: int) -> Optional[Pose3]:
         """Get the camera pose (in world coordinates) at the given index.
@@ -225,8 +223,8 @@ class HiltiLoader(LoaderBase):
         Returns:
             the camera pose w_P_index.
         """
-        rig_idx: int = self.__map_image_idx_to_rig(index)
-        cam_idx: int = self.__map_index_to_camera(index)
+        rig_idx: int = self.map_image_idx_to_rig(index)
+        cam_idx: int = self.map_index_to_camera(index)
 
         if rig_idx in self._w_T_imu:
             return self._w_T_imu[rig_idx] * self._cam_T_imu_poses[cam_idx].inverse()
@@ -234,10 +232,10 @@ class HiltiLoader(LoaderBase):
         return None
 
     def get_relative_pose_prior(self, i1: int, i2: int) -> Optional[PosePrior]:
-        rig_idx_for_i1: int = self.__map_image_idx_to_rig(i1)
-        rig_idx_for_i2: int = self.__map_image_idx_to_rig(i2)
-        cam_idx_for_i1: int = self.__map_index_to_camera(i1)
-        cam_idx_for_i2: int = self.__map_index_to_camera(i2)
+        rig_idx_for_i1: int = self.map_image_idx_to_rig(i1)
+        rig_idx_for_i2: int = self.map_image_idx_to_rig(i2)
+        cam_idx_for_i1: int = self.map_index_to_camera(i1)
+        cam_idx_for_i2: int = self.map_index_to_camera(i2)
 
         if rig_idx_for_i1 == rig_idx_for_i2:
             i1_T_imu: Pose3 = self._cam_T_imu_poses[cam_idx_for_i1]
@@ -254,8 +252,8 @@ class HiltiLoader(LoaderBase):
         return None
 
     def get_absolute_pose_prior(self, idx: int) -> Optional[PosePrior]:
-        rig_idx: int = self.__map_image_idx_to_rig(idx)
-        cam_idx: int = self.__map_index_to_camera(idx)
+        rig_idx: int = self.map_image_idx_to_rig(idx)
+        cam_idx: int = self.map_index_to_camera(idx)
 
         if rig_idx in self._w_T_imu:
             w_T_cam = self._w_T_imu[rig_idx] * self._cam_T_imu_poses[cam_idx].inverse()
@@ -276,66 +274,45 @@ class HiltiLoader(LoaderBase):
         if not super().is_valid_pair(idx1, idx2):
             return False
 
-        rig_idx_i1 = self.__map_image_idx_to_rig(idx1)
-        rig_idx_i2 = self.__map_image_idx_to_rig(idx2)
+        rig_idx_i1 = self.map_image_idx_to_rig(idx1)
+        rig_idx_i2 = self.map_image_idx_to_rig(idx2)
 
-        cam_idx_i1 = self.__map_index_to_camera(idx1)
-        cam_idx_i2 = self.__map_index_to_camera(idx2)
+        cam_idx_i1 = self.map_index_to_camera(idx1)
+        cam_idx_i2 = self.map_index_to_camera(idx2)
         if rig_idx_i1 == rig_idx_i2:
             return (cam_idx_i1, cam_idx_i2) in INTRA_RIG_VALID_PAIRS
-        elif rig_idx_i1 < rig_idx_i2 and rig_idx_i2 - rig_idx_i1 <= self._max_frame_lookahead * self._step_size:
+        elif rig_idx_i1 < rig_idx_i2 and rig_idx_i2 - rig_idx_i1 <= self._max_frame_lookahead:
             return (cam_idx_i1, cam_idx_i2) in INTER_RIG_VALID_PAIRS
 
-    def __map_index_to_camera(self, index: int) -> int:
+    def map_index_to_camera(self, index: int) -> int:
         return self._cams_to_use[index % len(self._cams_to_use)]
 
-    def __map_image_idx_to_rig(self, index: int) -> int:
-        return index // len(self._cams_to_use) * self._step_size
+    def map_image_idx_to_rig(self, index: int) -> int:
+        return index // len(self._cams_to_use)
 
     def create_computation_graph_for_relative_pose_priors(self) -> Dict[Tuple[int, int], Delayed]:
         pairs = set(self.get_valid_pairs())
         # just add all possible pairs which belong to the same rig (as it will have hard relative prior)
         for i in range(len(self)):
             for j in range(i + 1, i + len(self._cams_to_use) - 1):
-                if self.__map_image_idx_to_rig(i) == self.__map_image_idx_to_rig(j):
+                if self.map_image_idx_to_rig(i) == self.map_image_idx_to_rig(j):
                     pairs.add((i, j))
                 else:
                     break
 
         return {(i1, i2): dask.delayed(self.get_relative_pose_prior)(i1, i2) for i1, i2 in pairs}
 
+    def get_all_relative_pose_priors(self) -> Dict[Tuple[int, int], Optional[PosePrior]]:
+        pairs = set(self.get_valid_pairs())
+        # just add all possible pairs which belong to the same rig (as it will have hard relative prior)
+        for i in range(len(self)):
+            for j in range(i + 1, i + len(self._cams_to_use) - 1):
+                if self.map_image_idx_to_rig(i) == self.map_image_idx_to_rig(j):
+                    pairs.add((i, j))
+                else:
+                    break
 
-if __name__ == "__main__":
-    root = "/media/ayush/cross_os1/dataset/hilti"
+        priors = {(i1, i2): self.get_relative_pose_prior(i1, i2) for i1, i2 in pairs}
+        priors = {(i1, i2): prior for (i1, i2), prior in priors.items() if prior is not None}
 
-    loader = HiltiLoader(root, {0, 1, 2, 3, 4})
-
-    # T_cn_cnm1 = np.array(
-    #     [
-    #         [0.9999761426988956, 0.004698109260098521, -0.005063773535634404, 0.10817339479208792],
-    #         [-0.004705552944957792, -0.9999878643586437, -0.0014590774217762541, -0.0005128409082424196],
-    #         [0.005056857178348414, 0.0014828704666000705, 0.9999861145489266, 0.0006919599620310546],
-    #         [0, 0, 0, 1],
-    #     ]
-    # )
-
-    # c1Tc0 = Pose3(T_cn_cnm1)
-    # print(c1Tc0.rotation().xyz())
-    # print(c1Tc0.translation())
-
-    # pairs = [(0, 1), (0, 2), (0, 3), (0, 4), (3, 4)]
-    # for i1, i2 in pairs:
-    #     pose = loader.get_relative_pose_prior(i1, i2).value
-    #     print(i1, i2)
-    #     print(pose.rotation().xyz())
-    #     print(pose.translation())
-
-    # for i in range(100):
-    # import gtsfm.utils.io as io_utils
-
-    for i in range(5):
-        distorted_image = loader.get_image(i)
-        undistorted_image = loader.get_image_undistorted(i)
-
-        io_utils.save_image(distorted_image, f"/home/ayush/hilti_updates/{i}_distorted.jpg")
-        io_utils.save_image(undistorted_image, f"/home/ayush/hilti_updates/{i}_undistorted.jpg")
+        return priors
