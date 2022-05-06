@@ -9,7 +9,6 @@ from typing import List, Tuple
 
 import gtsam
 import numpy as np
-from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.retriever.retriever_base import RetrieverBase
 
@@ -37,9 +36,9 @@ class Constraint:
         """Construct from a matrix row."""
         a = int(row[0])
         b = int(row[1])
-        aTb_matrix = np.vstack((row[2 : 2 + 12].reshape(3, 4), [0, 0, 0, 1]))
+        aTb_matrix = np.vstack((row[2:14].reshape(3, 4), [0, 0, 0, 1]))
         aTb = gtsam.Pose3(np.round(aTb_matrix, 15))
-        cov = row[14 : 14 + 36].reshape(6, 6)
+        cov = row[14:50].reshape(6, 6)
         counts = row[50:].reshape(5, 5).astype(int)
         return Constraint(a, b, aTb, cov, counts)
 
