@@ -8,6 +8,7 @@ import unittest
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple
+from cv2 import threshold
 
 import gtsam
 import numpy as np
@@ -46,9 +47,8 @@ class Constraint:
         """Construct from a matrix row."""
         a = int(row[0])
         b = int(row[1])
-        aTb_mat = np.vstack((row[2 : 2 + 12].reshape(3, 4), [0, 0, 0, 1]))
-        aTb_mat = np.round(aTb_mat, 15)
-        aTb = gtsam.Pose3(aTb_mat)
+        aTb_matrix = np.vstack((row[2 : 2 + 12].reshape(3, 4), [0, 0, 0, 1]))
+        aTb = gtsam.Pose3(np.round(aTb_matrix, 15))
         cov = row[14 : 14 + 36].reshape(6, 6)
         counts = row[50:].reshape(5, 5).astype(int)
         return Constraint(a, b, aTb, cov, counts)
@@ -76,6 +76,15 @@ class Constraint:
         """Read constraints from text file."""
         constraint_matrix = np.loadtxt(fname)
         return [Constraint.from_row(row) for row in constraint_matrix]
+
+    def edges(self, threshold=30):
+        """Return pairs of cameras with over `threshold` count."""
+        return [
+            (self.a * 5 + camera_index_in_a, self.b * 5 + camera_index_in_b)
+            for camera_index_in_a in range(5)
+            for camera_index_in_b in range(5)
+            if self.counts[camera_index_in_a, camera_index_in_b] >= threshold
+        ]
 
 
 class HiltiLoader(LoaderBase):
@@ -136,13 +145,19 @@ class TestConstraint(GtsamTestCase):
             self.gtsamAssertEquals(actual[0], constraints[0], 1e-9)
             self.gtsamAssertEquals(actual[1], constraints[1], 1e-9)
 
+    def test_edges(self):
+        """Test creating edges between cameras."""
+        self.assertEqual(self.a_constraint_b.edges(threshold=30), [(5, 10)])
+        self.assertEqual(self.a_constraint_c.edges(threshold=30), [(5 + 1, 15 + 2)])
+
 
 class RigRetriever(RetrieverBase):
     """Retriever for camera rigs inspired by the Hilti challenge."""
 
-    def __init__(self, constraints_path: Path):
+    def __init__(self, constraints_path: Path, threshold: int = 100):
         """Initialize with path to a constraints file."""
         self._constraints_path = constraints_path
+        self._threshold = threshold
 
     def run(self, loader: LoaderBase) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
@@ -154,7 +169,8 @@ class RigRetriever(RetrieverBase):
             pair_indices: (i1,i2) image pairs.
         """
         constraints = Constraint.read(str(self._constraints_path))
-        return [(c.a,c.b) for c in constraints]
+
+        return sum([c.edges(self._threshold) for c in constraints], [])
 
 
 class TestRigRetriever(unittest.TestCase):
@@ -162,15 +178,22 @@ class TestRigRetriever(unittest.TestCase):
         """Assert that we can parse a constraints file from the Hilti SLAM team and get constraints."""
 
         loader = HiltiLoader(DEFAULT_FOLDER)
-        retriever = RigRetriever(DEFAULT_FOLDER / "constraints.txt")
+        constraints_path = DEFAULT_FOLDER / "constraints.txt"
+        retriever = RigRetriever(constraints_path, threshold=150)
 
         pairs = retriever.run(loader=loader)
-        self.assertEqual(len(pairs), 9)
+        self.assertEqual(len(pairs), 318)  # regression
 
-        expected_pairs = [
-            (0, 1),
-        ]
-        self.assertEqual(pairs, expected_pairs)
+        # regression on pairs
+        expected = [(2502, 2497), (2504, 2498), (2500, 2507), (2502, 2506), (2502, 2508)]
+        self.assertEqual(pairs[:5], expected)
+
+        # That first pair above does correspond to first constraint
+        constraints = Constraint.read(str(constraints_path))
+        c_500_499 = constraints[0]
+        self.assertEqual(c_500_499.a, 2502 // 5)
+        self.assertEqual(c_500_499.b, 2497 // 5)
+        self.assertTrue(c_500_499.counts[2502 % 5, 2497 % 5] >= 150)
 
 
 if __name__ == "__main__":
