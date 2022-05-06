@@ -89,22 +89,15 @@ class TestRigRetriever(unittest.TestCase):
         """Assert that we can parse a constraints file from the Hilti SLAM team and get constraints."""
 
         loader = HiltiLoader(DEFAULT_FOLDER)
-        constraints_path = DEFAULT_FOLDER / "constraints.txt"
-        retriever = RigRetriever(constraints_path, threshold=150)
+        constraints_path = DEFAULT_FOLDER / "test_constraints.txt"
+        retriever = RigRetriever(constraints_path, threshold=30)
 
         pairs = retriever.run(loader=loader)
-        self.assertEqual(len(pairs), 318)  # regression
 
-        # regression on pairs
-        expected = [(2502, 2497), (2504, 2498), (2500, 2507), (2502, 2506), (2502, 2508)]
+        # We know these to be the right values from setUp() method.
+        self.assertEqual(len(pairs), 2)
+        expected = [(5, 10), (6, 17)]
         self.assertEqual(pairs[:5], expected)
-
-        # That first pair above does correspond to first constraint
-        constraints = Constraint.read(str(constraints_path))
-        c_500_499 = constraints[0]
-        self.assertEqual(c_500_499.a, 2502 // 5)
-        self.assertEqual(c_500_499.b, 2497 // 5)
-        self.assertTrue(c_500_499.counts[2502 % 5, 2497 % 5] >= 150)
 
 
 if __name__ == "__main__":
