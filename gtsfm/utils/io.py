@@ -11,27 +11,25 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import gtsam
-import h5py
-import numpy as np
-import open3d
-from gtsam import Cal3Bundler, Rot3, Point3, Pose3, SfmTrack
-from PIL import Image as PILImage
-from PIL.ExifTags import GPSTAGS, TAGS
-
 import gtsfm.utils.images as image_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reproj_utils
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
+import h5py
+import numpy as np
+import open3d
+from gtsam import Cal3Bundler, Point3, Pose3, Rot3, SfmTrack
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.sfm_track import SfmTrack2d
-
-from thirdparty.colmap.scripts.python.read_write_model import (
-    Camera as ColmapCamera,
-    Image as ColmapImage,
-    Point3D as ColmapPoint3D,
-)
-
+from PIL import Image as PILImage
+from PIL.ExifTags import GPSTAGS, TAGS
+from thirdparty.colmap.scripts.python.read_write_model import \
+    Camera as ColmapCamera
+from thirdparty.colmap.scripts.python.read_write_model import \
+    Image as ColmapImage
+from thirdparty.colmap.scripts.python.read_write_model import \
+    Point3D as ColmapPoint3D
 
 logger = logger_utils.get_logger()
 
@@ -140,17 +138,20 @@ def read_bal(file_path: str) -> GtsfmData:
         The data as an GtsfmData object.
     """
     sfm_data = gtsam.readBal(file_path)
+    return GtsfmData.from_sfm_data(sfm_data)
 
-    num_images = sfm_data.numberCameras()
 
-    gtsfm_data = GtsfmData(num_images)
-    for i in range(num_images):
-        camera = sfm_data.camera(i)
-        gtsfm_data.add_camera(i, camera)
-    for j in range(sfm_data.numberTracks()):
-        gtsfm_data.add_track(sfm_data.track(j))
+def read_bundler(file_path: str) -> GtsfmData:
+    """Read a Bundler file.
 
-    return gtsfm_data
+    Args:
+        file_name: file path of the Bundler file.
+
+    Returns:
+        The data as an GtsfmData object.
+    """
+    sfm_data = gtsam.SfmData.FromBundlerFile(file_path)
+    return GtsfmData.from_sfm_data(sfm_data)
 
 
 def export_model_as_colmap_text(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
