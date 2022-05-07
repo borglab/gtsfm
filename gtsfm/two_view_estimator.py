@@ -170,6 +170,7 @@ class TwoViewEstimator:
             corr_idxs=verified_corr_idxs,
         )
         logger.debug("Performed DA in %.6f seconds.", timeit.default_timer() - start_time)
+        logger.debug("Triangulation succeeded on %d correspondences.", len(triangulated_tracks))
 
         # Perform 2-view BA.
         start_time = timeit.default_timer()
