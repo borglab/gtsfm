@@ -15,8 +15,14 @@ from gtsfm.retriever.retriever_base import RetrieverBase
 
 @dataclass
 class Constraint:
-    a: int = 0
-    b: int = 1
+    """A pose constraint between two poses.
+    a and b are the pose indices.
+    aTb and cov are the relative pose and 6x6 covariance on tangent space.
+    counts[i1,i2] is predicted number of visual correspondences for cameras i1 on rig 1, i2 on rig b.
+    """
+
+    a: int
+    b: int
     aTb: gtsam.Pose3 = gtsam.Pose3()
     cov: np.ndarray = np.eye(6)
     counts: np.ndarray = np.zeros((5, 5))
