@@ -186,7 +186,7 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
         curr_master_dirpath: path to directory containing benchmark artifacts for the master branch.
         new_branch_dirpath: path to directory containing benchmark artifacts for a new branch.
     """
-    zip_artifact_fnames = generate_artifact_fnames_from_workflow(workflow_yaml_fpath=BENCHMARK_YAML_FPATH)
+    zip_artifacts = generate_artifact_fnames_from_workflow(workflow_yaml_fpath=BENCHMARK_YAML_FPATH)
 
     f = open(DASHBOARD_HTML_SAVE_FPATH, mode="w")
 
@@ -198,18 +198,21 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
     for table_name in TABLE_NAMES:
 
         # use just the first 35 chars of each.
-        X = [zip_fname[:MAX_NUM_CHARS_ARTIFACT_FNAME] for zip_fname in zip_artifact_fnames]
+        X = [zip_artifact[:MAX_NUM_CHARS_ARTIFACT_FNAME] for zip_artifact in zip_artifacts]
 
         # mapping from (metric_name, benchmark_name) -> (master value, branch value, percentage change)
         benchmark_table_vals = defaultdict(dict)
 
         # Loop over each benchmark result (columns of table).
-        for zip_fname in zip_artifact_fnames:
-            report1_fpath = f"{curr_master_dirpath}/results-{zip_fname}/result_metrics/gtsfm_metrics_report.html"
-            tables_dict1 = report_utils.extract_tables_from_report(report1_fpath)
-
-            report2_fpath = f"{new_branch_dirpath}/results-{zip_fname}/result_metrics/gtsfm_metrics_report.html"
-            tables_dict2 = report_utils.extract_tables_from_report(report2_fpath)
+        for zip_artifact in zip_artifacts:
+            # TODO(dellaert): use pathlib
+            report1_fpath = f"{curr_master_dirpath}/results-{zip_artifact}/result_metrics/gtsfm_metrics_report.html"
+            report2_fpath = f"{new_branch_dirpath}/results-{zip_artifact}/result_metrics/gtsfm_metrics_report.html"
+            try:
+                tables_dict1 = report_utils.extract_tables_from_report(report1_fpath)
+                tables_dict2 = report_utils.extract_tables_from_report(report2_fpath)
+            except:
+                print(f"WARNING: skipping {zip_artifacts}")
             merged_tables_dict = report_utils.merge_tables(tables_dict1, tables_dict2)
 
             # Loop over each metric within this table (rows of table).
@@ -224,14 +227,14 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
                     # smaller is better, so this will flip the color to green for reduced values, instead of red
                     # exception are outlier errors, which we want to get larger.
                     percentage_change *= -1
-                benchmark_table_vals[metric_name][zip_fname] = (
+                benchmark_table_vals[metric_name][zip_artifact] = (
                     round(float(master_val), 4) if master_val else np.nan,
                     round(float(branch_val), 4) if branch_val else np.nan,
                     round(percentage_change, 4),
                 )
 
         N_metrics = len(benchmark_table_vals.keys())
-        M_benchmarks = len(zip_artifact_fnames)
+        M_benchmarks = len(zip_artifacts)
         Y = list(benchmark_table_vals.keys())
         Z = np.zeros((N_metrics, M_benchmarks))
         master_values = np.zeros((N_metrics, M_benchmarks))
@@ -239,9 +242,9 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
 
         for i, (metric_name, benchmark_vals_dict) in enumerate(benchmark_table_vals.items()):
 
-            for j, zip_fname in enumerate(zip_artifact_fnames):
-                if zip_fname in benchmark_vals_dict.keys():
-                    master_val, branch_val, percentage_change = benchmark_vals_dict.get(zip_fname)
+            for j, zip_artifact in enumerate(zip_artifacts):
+                if zip_artifact in benchmark_vals_dict.keys():
+                    master_val, branch_val, percentage_change = benchmark_vals_dict.get(zip_artifact)
                 else:
                     master_val, branch_val, percentage_change = np.nan, np.nan, np.nan
                 Z[i, j] = percentage_change
