@@ -277,7 +277,7 @@ class HiltiLoader(LoaderBase):
         pairs = set(self.get_valid_pairs())
         # just add all possible pairs which belong to the same rig (as it will have hard relative prior)
         for i in range(len(self)):
-            for j in range(i + 1, i + len(self._cams_to_use) - 1):
+            for j in range(i + 1, i + NUM_CAMS - 1):
                 if self.map_image_idx_to_rig(i) == self.map_image_idx_to_rig(j):
                     pairs.add((i, j))
                 else:
@@ -289,7 +289,7 @@ class HiltiLoader(LoaderBase):
         pairs = set(self.get_valid_pairs())
         # just add all possible pairs which belong to the same rig (as it will have hard relative prior)
         for i in range(len(self)):
-            for j in range(i + 1, i + len(self._cams_to_use) - 1):
+            for j in range(i + 1, i + NUM_CAMS - 1):
                 if self.map_image_idx_to_rig(i) == self.map_image_idx_to_rig(j):
                     pairs.add((i, j))
                 else:
