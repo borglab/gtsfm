@@ -129,10 +129,9 @@ def plot_colored_table(
         margin=Margin(l=135, r=40, b=85, t=170),
     )
 
-    fig = go.Figure(data=go.Data([trace]), layout=layout)
+    fig = go.Figure(data=[trace], layout=layout)
 
-    annotations = go.Annotations()
-
+    annotations = []
     num_rows, num_cols = tab_data.shape
     for i in range(num_rows):
         for j in range(num_cols):
@@ -211,8 +210,8 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
             try:
                 tables_dict1 = report_utils.extract_tables_from_report(report1_fpath)
                 tables_dict2 = report_utils.extract_tables_from_report(report2_fpath)
-            except:
-                print(f"WARNING: skipping {zip_artifacts}")
+            except FileNotFoundError:
+                print(f"WARNING: skipping {zip_artifact}")
             merged_tables_dict = report_utils.merge_tables(tables_dict1, tables_dict2)
 
             # Loop over each metric within this table (rows of table).
