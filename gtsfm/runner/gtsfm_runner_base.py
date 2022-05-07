@@ -14,6 +14,7 @@ from gtsfm.scene_optimizer import SceneOptimizer
 
 from gtsfm.retriever.exhaustive_retriever import ExhaustiveRetriever
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
+from gtsfm.retriever.sequential_hilti_retriever import SequentialHiltiRetriever
 from gtsfm.retriever.sequential_retriever import SequentialRetriever
 
 
@@ -67,7 +68,7 @@ class GtsfmRunnerBase:
         parser.add_argument(
             "--matching_regime",
             type=str,
-            choices=["exhaustive", "sequential"],
+            choices=["exhaustive", "sequential", "sequential_hilti"],
             default="sequential",
             help="Choose mode for matching.",
         )
@@ -105,6 +106,8 @@ class GtsfmRunnerBase:
 
         elif matching_regime == ImageMatchingRegime.SEQUENTIAL:
             retriever = SequentialRetriever(max_frame_lookahead=self.parsed_args.max_frame_lookahead)
+        elif matching_regime == ImageMatchingRegime.SEQUENTIAL_HILTI:
+            retriever = SequentialHiltiRetriever(max_frame_lookahead=self.parsed_args.max_frame_lookahead)
 
         return retriever
 
@@ -127,7 +130,7 @@ class GtsfmRunnerBase:
             image_graph=self.loader.create_computation_graph_for_images(),
             camera_intrinsics_graph=self.loader.create_computation_graph_for_intrinsics(),
             image_shape_graph=self.loader.create_computation_graph_for_image_shapes(),
-            relative_pose_priors=self.loader.create_computation_graph_for_relative_pose_priors(),
+            relative_pose_priors=self.loader.create_computation_graph_for_relative_pose_priors(image_pair_indices),
             absolute_pose_priors=self.loader.create_computation_graph_for_absolute_pose_priors(),
             gt_cameras_graph=self.loader.create_computation_graph_for_cameras(),
             gt_poses_graph=self.loader.create_computation_graph_for_poses(),

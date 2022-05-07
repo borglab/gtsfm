@@ -15,7 +15,7 @@ Authors: Ayush Baid
 """
 import glob
 import yaml
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from pathlib import Path
 
 import dask
@@ -273,15 +273,18 @@ class HiltiLoader(LoaderBase):
     def map_image_idx_to_rig(self, index: int) -> int:
         return index // NUM_CAMS
 
-    def create_computation_graph_for_relative_pose_priors(self) -> Dict[Tuple[int, int], Delayed]:
-        pairs = set(self.get_valid_pairs())
-        # just add all possible pairs which belong to the same rig (as it will have hard relative prior)
-        for i in range(len(self)):
-            for j in range(i + 1, i + NUM_CAMS - 1):
-                if self.map_image_idx_to_rig(i) == self.map_image_idx_to_rig(j):
-                    pairs.add((i, j))
-                else:
-                    break
+    def create_computation_graph_for_relative_pose_priors(
+        self, pairs: Optional[List[Tuple[int, int]]] = None
+    ) -> Dict[Tuple[int, int], Delayed]:
+        if pairs is None:
+            pairs = set(self.get_valid_pairs())
+            # just add all possible pairs which belong to the same rig (as it will have hard relative prior)
+            for i in range(len(self)):
+                for j in range(i + 1, i + NUM_CAMS - 1):
+                    if self.map_image_idx_to_rig(i) == self.map_image_idx_to_rig(j):
+                        pairs.add((i, j))
+                    else:
+                        break
 
         return {(i1, i2): dask.delayed(self.get_relative_pose_prior)(i1, i2) for i1, i2 in pairs}
 
