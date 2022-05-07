@@ -22,14 +22,14 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         super().setUp()
 
         output_reproj_error_thresh = 100
-        self.obj = BundleAdjustmentOptimizer(output_reproj_error_thresh)
+        self.ba = BundleAdjustmentOptimizer(output_reproj_error_thresh)
 
         self.test_data = EXAMPLE_DATA
 
     # def test_simple_scene(self):
     #     """Test the simple scene using the `run` API."""
 
-    #     computed_result = self.obj.run(self.test_data)
+    #     computed_result = self.ba.run(self.test_data)
 
     #     expected_error = 0.046137573704557046
 
@@ -39,9 +39,9 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         """Test the simple scene as dask computation graph."""
         sfm_data_graph = dask.delayed(self.test_data)
 
-        expected_result, _ = self.obj.run(self.test_data)
+        expected_result, _, _ = self.ba.run(self.test_data)
 
-        computed_result, _ = self.obj.create_computation_graph(dask.delayed(sfm_data_graph))
+        computed_result, _ = self.ba.create_computation_graph(dask.delayed(sfm_data_graph))
 
         with dask.config.set(scheduler="single-threaded"):
             result = dask.compute(computed_result)[0]

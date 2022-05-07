@@ -60,6 +60,7 @@ class TwoViewEstimator:
         bundle_adjust_2view: bool,
         eval_threshold_px: float,
         bundle_adjust_2view_maxiters: int = 100,
+        ba_reproj_error_thresh: float = 0.5,
     ) -> None:
         """Initializes the two-view estimator from matcher and verifier.
 
@@ -78,7 +79,9 @@ class TwoViewEstimator:
         self._bundle_adjust_2view = bundle_adjust_2view
         self._corr_metric_dist_threshold = eval_threshold_px
         self._ba_optimizer = BundleAdjustmentOptimizer(
-            robust_measurement_noise=True, max_iterations=bundle_adjust_2view_maxiters
+            output_reproj_error_thresh=ba_reproj_error_thresh,
+            robust_measurement_noise=True,
+            max_iterations=bundle_adjust_2view_maxiters,
         )
 
     @classmethod
@@ -107,9 +110,8 @@ class TwoViewEstimator:
         camera_set.append(camera_i2)
 
         tracks_3d: List[SfmTrack] = []
-        for i in range(len(corr_idxs)):
+        for idx1, idx2 in corr_idxs:
             track_2d = Point2Vector()
-            idx1, idx2 = corr_idxs[i, :]
             track_2d.append(keypoints_i1.coordinates[idx1])
             track_2d.append(keypoints_i2.coordinates[idx2])
 
@@ -179,15 +181,16 @@ class TwoViewEstimator:
         ba_input.add_camera(1, camera_i2)
         for track in triangulated_tracks:
             ba_input.add_track(track)
-        ba_output, _ = self._ba_optimizer.run(ba_input, verbose=False)
+        _, ba_output, valid_mask = self._ba_optimizer.run(ba_input, verbose=False)
+        valid_corr_idxs = verified_corr_idxs[valid_mask]
         wTi1, wTi2 = ba_output.get_camera_poses()  # extract the camera poses
         if wTi1 is None or wTi2 is None:
             logger.warning("2-view BA failed")
-            return i2Ri1_initial, i2Ui1_initial, verified_corr_idxs
+            return i2Ri1_initial, i2Ui1_initial, valid_corr_idxs
         i2Ti1_optimized = wTi2.between(wTi1)
         logger.debug("Performed 2-view BA in %.6f seconds.", timeit.default_timer() - start_time)
 
-        return i2Ti1_optimized.rotation(), Unit3(i2Ti1_optimized.translation()), verified_corr_idxs
+        return i2Ti1_optimized.rotation(), Unit3(i2Ti1_optimized.translation()), valid_corr_idxs
 
     def get_corr_metric_dist_threshold(self) -> float:
         """Getter for the distance threshold used in the metric for correct correspondences."""

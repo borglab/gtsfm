@@ -178,7 +178,7 @@ class BundleAdjustmentOptimizer:
         self,
         initial_data: GtsfmData,
         verbose: bool = True,
-    ) -> Tuple[GtsfmData, GtsfmData]:
+    ) -> Tuple[GtsfmData, GtsfmData, List[bool]]:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
 
         Args:
@@ -219,13 +219,14 @@ class BundleAdjustmentOptimizer:
 
         # filter the largest errors
         if self._output_reproj_error_thresh:
-            filtered_result = optimized_data.filter_landmarks(self._output_reproj_error_thresh)
+            filtered_result, valid_mask = optimized_data.filter_landmarks(self._output_reproj_error_thresh)
         else:
+            valid_mask = [True] * optimized_data.number_tracks
             filtered_result = optimized_data
 
         logger.info("[Result] Number of tracks after filtering: %d", filtered_result.number_tracks())
 
-        return optimized_data, filtered_result
+        return optimized_data, filtered_result, valid_mask
 
     def evaluate(
         self, unfiltered_data: GtsfmData, filtered_data: GtsfmData, cameras_gt: List[PinholeCameraCal3Bundler] = None
@@ -286,7 +287,7 @@ class BundleAdjustmentOptimizer:
             GtsfmData aligned to GT (if provided), wrapped up using dask.delayed
             Metrics group for BA results, wrapped up using dask.delayed
         """
-        optimized_sfm_data, filtered_sfm_data = dask.delayed(self.run, nout=2)(sfm_data_graph)
+        optimized_sfm_data, filtered_sfm_data, _ = dask.delayed(self.run, nout=3)(sfm_data_graph)
         metrics_graph = dask.delayed(self.evaluate)(optimized_sfm_data, filtered_sfm_data, gt_cameras_graph)
         return filtered_sfm_data, metrics_graph
 
