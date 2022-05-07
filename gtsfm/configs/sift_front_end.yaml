@@ -3,6 +3,7 @@ SceneOptimizer:
   save_gtsfm_data: True
   save_two_view_correspondences_viz: False
   save_3d_viz: True
+  run_dense_optimizer: False
   pose_angular_error_thresh: 5 # degrees
 
   feature_extractor:
@@ -37,6 +38,8 @@ SceneOptimizer:
 
   multiview_optimizer:
     _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
+    run_view_graph_estimator: False
+
     view_graph_estimator:
       _target_: gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator.CycleConsistentRotationViewGraphEstimator
       edge_error_aggregation_criterion: MEDIAN_EDGE_ERROR
