@@ -46,10 +46,11 @@ class TestTwoViewEstimator(unittest.TestCase):
         i2Ti1 = Pose3(i1Ri2, i1ti2)
         camera_i1 = PinholeCameraCal3Bundler(Pose3(), Cal3Bundler())
         camera_i2 = PinholeCameraCal3Bundler(i2Ti1, Cal3Bundler())
-        tracks_3d = TwoViewEstimator.triangulate_two_view_correspondences(
+        tracks_3d, valid_indices = TwoViewEstimator.triangulate_two_view_correspondences(
             camera_i1, camera_i2, self.keypoints_i1, self.keypoints_i2, self.corr_idxs
         )
         self.assertEqual(len(tracks_3d), 5)
+        self.assertEqual(len(valid_indices), 5)
 
     def test_bundle_adjust(self):
         """Tests the bundle adjustment for relative pose on a simulated scene."""

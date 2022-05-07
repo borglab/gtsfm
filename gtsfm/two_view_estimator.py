@@ -110,7 +110,8 @@ class TwoViewEstimator:
         camera_set.append(camera_i2)
 
         tracks_3d: List[SfmTrack] = []
-        for idx1, idx2 in corr_idxs:
+        valid_indices: List[int] = []
+        for j, (idx1, idx2) in enumerate(corr_idxs):
             track_2d = Point2Vector()
             track_2d.append(keypoints_i1.coordinates[idx1])
             track_2d.append(keypoints_i2.coordinates[idx2])
@@ -123,10 +124,11 @@ class TwoViewEstimator:
                 track_3d.addMeasurement(0, track_2d[0])
                 track_3d.addMeasurement(1, track_2d[1])
                 tracks_3d.append(track_3d)
+                valid_indices.append(j)
             except RuntimeError:
                 pass
 
-        return tracks_3d
+        return tracks_3d, valid_indices
 
     def bundle_adjust(
         self,
@@ -164,7 +166,7 @@ class TwoViewEstimator:
 
         # Perform data association to construct 2-view BA input.
         start_time = timeit.default_timer()
-        triangulated_tracks: List[SfmTrack] = self.triangulate_two_view_correspondences(
+        triangulated_tracks, triangulated_indices = self.triangulate_two_view_correspondences(
             camera_i1=camera_i1,
             camera_i2=camera_i2,
             keypoints_i1=keypoints_i1,
@@ -172,7 +174,7 @@ class TwoViewEstimator:
             corr_idxs=verified_corr_idxs,
         )
         logger.debug("Performed DA in %.6f seconds.", timeit.default_timer() - start_time)
-        logger.debug("Triangulation succeeded on %d correspondences.", len(triangulated_tracks))
+        logger.debug("Triangulated %d correspondences out of %d.", len(triangulated_tracks), len(verified_corr_idxs))
 
         # Perform 2-view BA.
         start_time = timeit.default_timer()
@@ -182,7 +184,7 @@ class TwoViewEstimator:
         for track in triangulated_tracks:
             ba_input.add_track(track)
         _, ba_output, valid_mask = self._ba_optimizer.run(ba_input, verbose=False)
-        valid_corr_idxs = verified_corr_idxs[valid_mask]
+        valid_corr_idxs = verified_corr_idxs[triangulated_indices][valid_mask]
         wTi1, wTi2 = ba_output.get_camera_poses()  # extract the camera poses
         if wTi1 is None or wTi2 is None:
             logger.warning("2-view BA failed")
