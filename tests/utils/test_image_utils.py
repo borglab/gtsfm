@@ -4,6 +4,7 @@ import gtsfm.utils.images as image_utils
 import numpy as np
 from gtsam import SfmTrack
 from gtsfm.common.image import Image
+from gtsfm.utils.sensor_width_database import SensorWidthDatabase
 
 
 class TestImageUtils(unittest.TestCase):
@@ -130,6 +131,16 @@ class TestImageUtils(unittest.TestCase):
         np.testing.assert_allclose(scale_u, 0.8573, atol=4)
         self.assertEqual(new_h, 1286)
         self.assertEqual(new_w, 600)
+
+    def test_exif_lookup(self):
+        """Make sure EXIF lookup behaves gracefully under pressure."""
+        db = SensorWidthDatabase()
+        # Check database lookup
+        sensor_width = db.lookup(make="Canon", model="Canon EOS 5D Mark II")
+        self.assertEqual(sensor_width, 36)
+        # Catch lookup failure
+        with self.assertRaises(LookupError):
+            db.lookup(make="Canon", model="Canon EOS REBEL T1i")
 
 
 if __name__ == "__main__":

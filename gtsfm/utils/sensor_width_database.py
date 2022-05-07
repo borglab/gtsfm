@@ -36,9 +36,12 @@ class SensorWidthDatabase:
         """
 
         # preprocess query strings
-        make = make.split()[0].lower()
-        model = model.lower()
+        lower_make = make.split()[0].lower()
+        lower_model = model.lower()
 
-        selection_condition = (self.df["CameraMaker"] == make) & (self.df["CameraModel"] == model)
+        selection_condition = (self.df["CameraMaker"] == lower_make) & (self.df["CameraModel"] == lower_model)
+        selected = self.df.loc[selection_condition, "SensorWidth(mm)"]
+        if len(selected) != 1:
+            raise LookupError(f"make='{make}' and model='{model}' not found in sensor database")
 
         return self.df.loc[selection_condition, "SensorWidth(mm)"].values[0]
