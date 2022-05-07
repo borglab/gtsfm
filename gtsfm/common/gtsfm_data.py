@@ -390,12 +390,13 @@ class GtsfmData:
         valid_mask = [self.__validate_track(track, reproj_err_thresh) for track in self._tracks]
 
         for track, valid in zip(self._tracks, valid_mask):
-            if valid:
-                # check if all cameras with measurement in this track have already been added
-                for k in range(track.numberMeasurements()):
-                    i, _ = track.measurement(k)
-                    filtered_data.add_camera(i, self.get_camera(i))
-                filtered_data.add_track(track)
+            if not valid:
+                continue
+            # check if all cameras with measurement in this track have already been added
+            for k in range(track.numberMeasurements()):
+                i, _ = track.measurement(k)
+                filtered_data.add_camera(i, self.get_camera(i))
+            filtered_data.add_track(track)
 
         return filtered_data, valid_mask
 
