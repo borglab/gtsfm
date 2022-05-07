@@ -3,7 +3,8 @@
 The dataset should be preprocessed to extract images in sync with the lidar information.
 
 Folder structure:
-- images/*.jpg: contains images from the 5 cameras with the following naming convention: 0-4 from the 0th lidar timestamp, 5-9 from the 1st, and so on.
+- images/*.jpg: contains images from the 5 cameras with the following naming convention: 0-4 from the 0th lidar
+    timestamp, 5-9 from the 1st, and so on.
 - calibration/: contains the calibration data downloaded from Hilti's official website
 - lidar/ contains files fastlio2.g2o and fastlio2_odom.txt from the SLAM.
 
@@ -14,10 +15,9 @@ Authors: Ayush Baid
 """
 import glob
 import yaml
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, Optional, Tuple
 from pathlib import Path
 
-import cv2
 import dask
 import numpy as np
 from dask.delayed import Delayed
