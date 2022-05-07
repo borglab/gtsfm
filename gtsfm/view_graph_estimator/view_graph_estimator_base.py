@@ -164,20 +164,23 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         inlier_i1_i2 = view_graph_edges
         outlier_i1_i2 = list(set(input_i1_i2) - set(inlier_i1_i2))
 
-        graph_utils.draw_view_graph_topology(
-            edges=list(input_i1_i2),
-            two_view_reports=two_view_reports,
-            title="ViewGraphEstimator input",
-            save_fpath=PLOT_BASE_PATH / "view_graph_estimator_input_topology.jpg",
-            cameras_gt=None,
-        )
-        graph_utils.draw_view_graph_topology(
-            edges=view_graph_edges,
-            two_view_reports=two_view_reports,
-            title="ViewGraphEstimator output",
-            save_fpath=PLOT_BASE_PATH / "view_graph_estimator_output_topology.jpg",
-            cameras_gt=None,
-        )
+        try:
+            graph_utils.draw_view_graph_topology(
+                edges=list(input_i1_i2),
+                two_view_reports=two_view_reports,
+                title="ViewGraphEstimator input",
+                save_fpath=PLOT_BASE_PATH / "view_graph_estimator_input_topology.jpg",
+                cameras_gt=None,
+            )
+            graph_utils.draw_view_graph_topology(
+                edges=view_graph_edges,
+                two_view_reports=two_view_reports,
+                title="ViewGraphEstimator output",
+                save_fpath=PLOT_BASE_PATH / "view_graph_estimator_output_topology.jpg",
+                cameras_gt=None,
+            )
+        except Exception as e:
+            logger.error(e)
 
         inlier_R_angular_errors = []
         outlier_R_angular_errors = []

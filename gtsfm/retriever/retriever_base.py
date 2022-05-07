@@ -16,13 +16,14 @@ from gtsfm.loader.loader_base import LoaderBase
 class ImageMatchingRegime(str, Enum):
     SEQUENTIAL: str = "sequential"
     EXHAUSTIVE: str = "exhaustive"
+    SEQUENTIAL_HILTI: str = "sequential_hilti"
 
 
 class RetrieverBase:
     """Base class for image retriever implementations."""
 
     @abc.abstractmethod
-    def run(loader: LoaderBase) -> List[Tuple[int, int]]:
+    def run(self, loader: LoaderBase) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 
         Args:
