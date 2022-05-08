@@ -46,7 +46,7 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
             self.test_data, absolute_pose_priors=absolute_pose_priors, relative_pose_priors=relative_pose_priors
         )
 
-        computed_result, _, _ = self.ba.create_computation_graph(
+        computed_result, _ = self.ba.create_computation_graph(
             dask.delayed(sfm_data_graph), dask.delayed(absolute_pose_priors), dask.delayed(relative_pose_priors)
         )
 
