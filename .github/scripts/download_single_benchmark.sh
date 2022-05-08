@@ -91,11 +91,9 @@ function download_and_unzip_dataset_files {
 
   # Extract the data, configure arguments for runner.
   if [ "$DATASET_NAME" == "skydio-8" ]; then
-    COLMAP_FILES_DIRPATH=skydio_crane_mast_8imgs_with_exif/crane_mast_8imgs_colmap_output
     unzip -qq skydio-8.zip
 
   elif [ "$DATASET_NAME" == "skydio-32" ]; then
-    COLMAP_FILES_DIRPATH=skydio-32/colmap_crane_mast_32imgs
     unzip -qq skydio-32.zip -d skydio-32
 
   elif [ "$DATASET_NAME" == "skydio-501" ]; then
@@ -106,7 +104,6 @@ function download_and_unzip_dataset_files {
     mkdir $IMAGES_DIR
     mv skydio-crane-mast-501-images1/* $IMAGES_DIR
     mv skydio-crane-mast-501-images2/* $IMAGES_DIR
-    COLMAP_FILES_DIRPATH="skydio-501-colmap-pseudo-gt"
 
     mkdir -p cache/detector_descriptor
     mkdir -p cache/matcher
@@ -117,7 +114,6 @@ function download_and_unzip_dataset_files {
     cp skydio-501-cache/cache/matcher/* cache/matcher/
 
   elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
-    COLMAP_FILES_DIRPATH=notre-dame-20/notre-dame-20-colmap
     unzip -qq notre-dame-20.zip
 
   elif [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then

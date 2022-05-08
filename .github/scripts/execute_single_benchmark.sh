@@ -17,12 +17,16 @@ elif [ "$DATASET_NAME" == "2011205_rc3" ]; then
   DATASET_ROOT="2011205_rc3"
 elif [ "$DATASET_NAME" == "skydio-8" ]; then
   IMAGES_DIR=skydio_crane_mast_8imgs_with_exif/images
+  COLMAP_FILES_DIRPATH=skydio_crane_mast_8imgs_with_exif/crane_mast_8imgs_colmap_output
 elif [ "$DATASET_NAME" == "skydio-32" ]; then
   IMAGES_DIR=skydio-32/images
+  COLMAP_FILES_DIRPATH=skydio-32/colmap_crane_mast_32imgs
 elif [ "$DATASET_NAME" == "skydio-501" ]; then
   IMAGES_DIR="skydio-crane-mast-501-images"
+  COLMAP_FILES_DIRPATH="skydio-501-colmap-pseudo-gt"
 elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
   IMAGES_DIR=notre-dame-20/images
+  COLMAP_FILES_DIRPATH=notre-dame-20/notre-dame-20-colmap
 fi
 
 echo "Config: ${CONFIG_NAME}, Loader: ${LOADER_NAME}"
@@ -42,9 +46,9 @@ echo "Share intrinsics CLI argument: ${SHARE_INTRINSICS_ARG}"
 if [ "$LOADER_NAME" == "olsson-loader" ]; then
   python gtsfm/runner/run_scene_optimizer_olssonloader.py \
     --dataset_root $DATASET_ROOT \
-    --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
-    --config_name ${CONFIG_NAME}.yaml \
     --image_extension $IMAGE_EXTENSION \
+    --config_name ${CONFIG_NAME}.yaml \
+    --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
     ${SHARE_INTRINSICS_ARG}
 
@@ -52,16 +56,16 @@ elif [ "$LOADER_NAME" == "colmap-loader" ]; then
   python gtsfm/runner/run_scene_optimizer_colmaploader.py \
     --images_dir ${IMAGES_DIR} \
     --colmap_files_dirpath $COLMAP_FILES_DIRPATH \
-    --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --config_name ${CONFIG_NAME}.yaml \
+    --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
     ${SHARE_INTRINSICS_ARG}
 
 elif [ "$LOADER_NAME" == "astronet" ]; then
   python gtsfm/runner/run_scene_optimizer_astronet.py \
     --data_dir $DATASET_ROOT \
-    --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --config_name ${CONFIG_NAME}.yaml \
+    --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
     ${SHARE_INTRINSICS_ARG}
 fi
