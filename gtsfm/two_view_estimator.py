@@ -199,7 +199,6 @@ class TwoViewEstimator:
             ba_input.add_track(track)
 
         relative_pose_prior_for_ba = {}
-        # TODO: should we model soft pose prior differently?
         if i2Ti1_prior is not None:
             relative_pose_prior_for_ba = {(0, 1): i2Ti1_prior}
 

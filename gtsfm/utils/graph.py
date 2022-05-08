@@ -55,7 +55,7 @@ def prune_to_largest_connected_component(
         Subset of unit_translations which are in the largest connected components.
     """
     input_edges = [k for (k, v) in rotations.items() if v is not None]
-    # TODO: start using pose priors by uncommenting the following line
+    # TODO(Ayush): start using pose priors by uncommenting the following line
     # input_edges += [k for (k, v) in pose_priors.items() if v is not None]
     nodes_in_pruned_graph = get_nodes_in_largest_connected_component(input_edges)
 

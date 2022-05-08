@@ -274,17 +274,16 @@ class HiltiLoader(LoaderBase):
         return index // NUM_CAMS
 
     def create_computation_graph_for_relative_pose_priors(
-        self, pairs: Optional[List[Tuple[int, int]]] = None
+        self, pairs: List[Tuple[int, int]]
     ) -> Dict[Tuple[int, int], Delayed]:
-        if pairs is None:
-            pairs = set(self.get_valid_pairs())
-            # just add all possible pairs which belong to the same rig (as it will have hard relative prior)
-            for i in range(len(self)):
-                for j in range(i + 1, i + NUM_CAMS - 1):
-                    if self.map_image_idx_to_rig(i) == self.map_image_idx_to_rig(j):
-                        pairs.add((i, j))
-                    else:
-                        break
+        # Hack: just add all possible pairs which belong to the same rig (as it will have hard relative prior)
+        pairs = set(pairs)
+        for i in range(len(self)):
+            for j in range(i + 1, i + NUM_CAMS - 1):
+                if self.map_image_idx_to_rig(i) == self.map_image_idx_to_rig(j):
+                    pairs.add((i, j))
+                else:
+                    break
 
         return {(i1, i2): dask.delayed(self.get_relative_pose_prior)(i1, i2) for i1, i2 in pairs}
 

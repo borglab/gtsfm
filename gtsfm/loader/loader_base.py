@@ -277,11 +277,8 @@ class LoaderBase(metaclass=abc.ABCMeta):
         return [dask.delayed(self.get_absolute_pose_prior)(i) for i in range(N)]
 
     def create_computation_graph_for_relative_pose_priors(
-        self, pairs: Optional[List[Tuple[int, int]]] = None
+        self, pairs: List[Tuple[int, int]]
     ) -> Dict[Tuple[int, int], Delayed]:
-        # TODO: deprecate this logic.
-        if pairs is None:
-            pairs = self.get_valid_pairs()
         return {(i1, i2): dask.delayed(self.get_relative_pose_prior)(i1, i2) for i1, i2 in pairs}
 
     def get_valid_pairs(self) -> List[Tuple[int, int]]:
