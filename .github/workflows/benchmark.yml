@@ -61,23 +61,27 @@ jobs:
         run: |
           bash .github/scripts/setup.sh
           conda info
-      - name: Parse args and prepare dataset, Execute dataset
+      - name: Prepare dataset
         run: |
-          CONFIG_NAME=${{ matrix.config_dataset_info[0] }}
           DATASET_NAME=${{ matrix.config_dataset_info[1] }}
+          DATASET_SRC=${{ matrix.config_dataset_info[4] }}
+          bash .github/scripts/download_single_benchmark.sh \
+            $DATASET_NAME \
+            $DATASET_SRC \
+      - name: Run GTSFM
+        run: |
+          DATASET_NAME=${{ matrix.config_dataset_info[1] }}
+          CONFIG_NAME=${{ matrix.config_dataset_info[0] }}
           MAX_FRAME_LOOKAHEAD=${{ matrix.config_dataset_info[2] }}
           IMAGE_EXTENSION=${{ matrix.config_dataset_info[3] }}
-          DATASET_SRC=${{ matrix.config_dataset_info[4] }}
           LOADER_NAME=${{ matrix.config_dataset_info[5] }}
           MAX_RESOLUTION=${{ matrix.config_dataset_info[6] }}
           SHARE_INTRINSICS=${{ matrix.config_dataset_info[7] }}
-
           bash .github/scripts/execute_single_benchmark.sh \
-            $CONFIG_NAME \
             $DATASET_NAME \
+            $CONFIG_NAME \
             $MAX_FRAME_LOOKAHEAD \
             $IMAGE_EXTENSION \
-            $DATASET_SRC \
             $LOADER_NAME \
             $MAX_RESOLUTION \
             $SHARE_INTRINSICS
