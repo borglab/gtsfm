@@ -32,7 +32,7 @@ def extract_tables_from_report(report_fpath: str) -> SINGLE_REPORT_TABLES:
     with open(report_fpath, "r") as f:
         lines = f.readlines()
 
-    start_token_tab_name = '<h2>'
+    start_token_tab_name = "<h2>"
     end_token_tab_name = "</h2>"
 
     old_start_token_tab_name = 'font-size:25px;font-family:Arial">'

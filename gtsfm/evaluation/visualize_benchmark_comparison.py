@@ -228,7 +228,8 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
                 else:
                     percentage_change = metrics_utils.compute_percentage_change(float(master_val), float(branch_val))
 
-                # For some metrics, smaller is better, so this will flip the color to green for reduced values, instead of red:
+                # For some metrics, smaller is better.
+                # Hence, below we flip the color to green for reduced values, instead of red:
                 # exception are outlier errors, which we want to get larger.
                 if "error" in metric_name and "outlier" not in metric_name:
                     percentage_change *= -1
