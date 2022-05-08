@@ -17,13 +17,13 @@ jobs:
             [deep_front_end,           door-12,               12,  JPG,  test_data,  olsson-loader,  1296, true],
             [sift_front_end,           skydio-8,              8,   jpg,  gdrive ,    colmap-loader,  760, true],
             [deep_front_end,           skydio-8,              8,   jpg,  gdrive,     colmap-loader,  760, true],
-            [sift_front_end,           skydio-32,             32,  jpg,  gdrive,     colmap-loader,  760, true],
-            [deep_front_end,           skydio-32,             32,  jpg,  gdrive,     colmap-loader,  760, true],
+            # [sift_front_end,           skydio-32,             32,  jpg,  gdrive,     colmap-loader,  760, true],
+            # [deep_front_end,           skydio-32,             32,  jpg,  gdrive,     colmap-loader,  760, true],
             # [deep_front_end,           skydio-501,            15,  jpg,  wget,       colmap-loader,  760, true],
-            [sift_front_end,           palace-fine-arts-281,  25,  jpg,  wget,       olsson-loader,  320, true],
-            [deep_front_end,           notre-dame-20,         20,  jpg,  gdrive,     colmap-loader,  760, false],
-            [sift_front_end_astronet,  2011205_rc3,           65,  png,  wget,       astronet,       1024, true],
-            [deep_front_end_astronet,  2011205_rc3,           20,  png,  wget,       astronet,       1024, true],
+            # [sift_front_end,           palace-fine-arts-281,  25,  jpg,  wget,       olsson-loader,  320, true],
+            # [deep_front_end,           notre-dame-20,         20,  jpg,  gdrive,     colmap-loader,  760, false],
+            # [sift_front_end_astronet,  2011205_rc3,           65,  png,  wget,       astronet,       1024, true],
+            # [deep_front_end_astronet,  2011205_rc3,           20,  png,  wget,       astronet,       1024, true],
           ]
     defaults:
       run:
@@ -61,8 +61,6 @@ jobs:
         run: |
           bash .github/scripts/setup.sh
           conda info
-      - name: Parse args and prepare dataset, Execute dataset
-        run: |
           CONFIG_NAME=${{ matrix.config_dataset_info[0] }}
           DATASET_NAME=${{ matrix.config_dataset_info[1] }}
           MAX_FRAME_LOOKAHEAD=${{ matrix.config_dataset_info[2] }}
@@ -71,13 +69,18 @@ jobs:
           LOADER_NAME=${{ matrix.config_dataset_info[5] }}
           MAX_RESOLUTION=${{ matrix.config_dataset_info[6] }}
           SHARE_INTRINSICS=${{ matrix.config_dataset_info[7] }}
-
+      - name: Prepare dataset
+        run: |
           bash .github/scripts/execute_single_benchmark.sh \
-            $CONFIG_NAME \
             $DATASET_NAME \
+            $DATASET_SRC \
+      - name: run gtsfm
+        run: |
+          bash .github/scripts/execute_single_benchmark.sh \
+            $DATASET_NAME \
+            $CONFIG_NAME \
             $MAX_FRAME_LOOKAHEAD \
             $IMAGE_EXTENSION \
-            $DATASET_SRC \
             $LOADER_NAME \
             $MAX_RESOLUTION \
             $SHARE_INTRINSICS
