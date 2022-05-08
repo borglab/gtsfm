@@ -95,9 +95,7 @@ class BundleAdjustmentOptimizer:
     def __map_to_calibration_variable(self, camera_idx: int) -> int:
         return 0 if self._shared_calib else camera_idx
 
-    def __construct_reprojection_factors(
-        self, initial_data: GtsfmData, is_fisheye_calibration: bool
-    ) -> NonlinearFactorGraph:
+    def __reprojection_factors(self, initial_data: GtsfmData, is_fisheye_calibration: bool) -> NonlinearFactorGraph:
         graph = NonlinearFactorGraph()
 
         # noise model for measurements -- one pixel in u and v
@@ -125,13 +123,13 @@ class BundleAdjustmentOptimizer:
 
         return graph
 
-    def __construct_between_factors(
-        self, relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]]
+    def _between_factors(
+        self, relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]], cameras_to_model: List[int]
     ) -> NonlinearFactorGraph:
         graph = NonlinearFactorGraph()
 
         for (i1, i2), i2Ti1_prior in relative_pose_priors.items():
-            if i2Ti1_prior is None:
+            if i2Ti1_prior is None or i1 not in cameras_to_model or i2 not in cameras_to_model:
                 continue
 
             # Temporary hack: hardcoding sigmas according the prior type.
@@ -150,7 +148,7 @@ class BundleAdjustmentOptimizer:
 
         return graph
 
-    def __construct_prior_factors_on_poses(
+    def _pose_priors(
         self,
         absolute_pose_priors: List[Optional[PosePrior]],
         initial_data: GtsfmData,
@@ -173,7 +171,7 @@ class BundleAdjustmentOptimizer:
 
         return graph
 
-    def __construction_prior_factors_on_calibration(
+    def __calibration_priors(
         self, initial_data: GtsfmData, cameras_to_model: List[int], is_fisheye_calibration: bool
     ) -> NonlinearFactorGraph:
         graph = NonlinearFactorGraph()
@@ -216,21 +214,19 @@ class BundleAdjustmentOptimizer:
 
         # Create a factor graph
         graph.push_back(
-            self.__construct_reprojection_factors(
-                initial_data=initial_data, is_fisheye_calibration=is_fisheye_calibration
-            )
+            self.__reprojection_factors(initial_data=initial_data, is_fisheye_calibration=is_fisheye_calibration)
         )
-        graph.push_back(self.__construct_between_factors(relative_pose_priors=relative_pose_priors))
         graph.push_back(
-            self.__construct_prior_factors_on_poses(
+            self._between_factors(relative_pose_priors=relative_pose_priors, cameras_to_model=cameras_to_model)
+        )
+        graph.push_back(
+            self._pose_priors(
                 absolute_pose_priors=absolute_pose_priors,
                 initial_data=initial_data,
                 camera_for_origin=cameras_to_model[0],
             )
         )
-        graph.push_back(
-            self.__construction_prior_factors_on_calibration(initial_data, cameras_to_model, is_fisheye_calibration)
-        )
+        graph.push_back(self.__calibration_priors(initial_data, cameras_to_model, is_fisheye_calibration))
 
         # Also add a prior on the position of the first landmark to fix the scale
         graph.push_back(
@@ -241,7 +237,7 @@ class BundleAdjustmentOptimizer:
 
         return graph
 
-    def __construct_initial_values(self, initial_data: GtsfmData) -> Values:
+    def _initial_values(self, initial_data: GtsfmData) -> Values:
         # Create initial estimate
         initial_values = gtsam.Values()
 
@@ -271,7 +267,7 @@ class BundleAdjustmentOptimizer:
         result_values = lm.optimize()
         return result_values
 
-    def __get_cameras_to_model(
+    def __cameras_to_model(
         self,
         initial_data: GtsfmData,
         absolute_pose_priors: List[Optional[PosePrior]],
@@ -312,7 +308,7 @@ class BundleAdjustmentOptimizer:
             )
             return initial_data, initial_data
 
-        cameras_to_model = self.__get_cameras_to_model(initial_data, absolute_pose_priors, relative_pose_priors)
+        cameras_to_model = self.__cameras_to_model(initial_data, absolute_pose_priors, relative_pose_priors)
 
         graph = self.__construct_factor_graph(
             cameras_to_model=cameras_to_model,
@@ -320,7 +316,7 @@ class BundleAdjustmentOptimizer:
             absolute_pose_priors=absolute_pose_priors,
             relative_pose_priors=relative_pose_priors,
         )
-        initial_values = self.__construct_initial_values(initial_data=initial_data)
+        initial_values = self._initial_values(initial_data=initial_data)
         result_values = self.__optimize_factor_graph(graph, initial_values)
 
         final_error = graph.error(result_values)

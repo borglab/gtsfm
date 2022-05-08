@@ -78,6 +78,9 @@ class HiltiLoader(LoaderBase):
         logger.info("Loading %d timestamps", self._max_rig_idx)
         logger.info("Lidar camera available for %d timestamps", len(self._w_T_imu))
 
+    def get_camTimu(self) -> Dict[int, Pose3]:
+        return self._cam_T_imu_poses
+
     def __read_lidar_pose_priors(self) -> Dict[int, Pose3]:
         filepath = str(self._base_folder / LIDAR_POSE_RELATIVE_PATH)
         _, values = gtsam.readG2o(filepath, is3D=True)
