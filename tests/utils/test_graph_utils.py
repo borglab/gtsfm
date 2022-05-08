@@ -48,6 +48,8 @@ class TestGraphUtils(unittest.TestCase):
             (6, 7): generate_random_essential_matrix(),
         }
 
+        relative_pose_priors = {pair_indices: None for pair_indices in input_essential_matrices.keys()}
+
         # generate Rot3 and Unit3 inputs
         input_relative_rotations = dict()
         input_relative_unit_translations = dict()
@@ -62,7 +64,9 @@ class TestGraphUtils(unittest.TestCase):
         (
             computed_relative_rotations,
             computed_relative_unit_translations,
-        ) = graph_utils.prune_to_largest_connected_component(input_relative_rotations, input_relative_unit_translations)
+        ) = graph_utils.prune_to_largest_connected_component(
+            input_relative_rotations, input_relative_unit_translations, pose_priors=relative_pose_priors
+        )
 
         # check the graph util function called with the edges defined by tracks
         graph_largest_cc_mock.assert_called_once_with([(0, 1), (3, 1), (3, 2), (4, 6), (6, 7)])
@@ -130,8 +134,8 @@ class TestGraphUtils(unittest.TestCase):
         triplets = graph_utils.extract_cyclic_triplets_from_edges(edges)
         assert isinstance(triplets, list)
         assert len(triplets) == 2
-        assert triplets[0] == (1, 2, 3)
-        assert triplets[1] == (1, 3, 5)
+        self.assertIn((1, 2, 3), triplets)
+        self.assertIn((1, 3, 5), triplets)
 
     def test_extract_triplets_3(self) -> None:
         """Ensure triplets are recovered accurately via intersection of adjacency lists.

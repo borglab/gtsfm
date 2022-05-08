@@ -179,7 +179,7 @@ def plot_sfm_data_3d(sfm_data: GtsfmData, ax: Axes, max_plot_radius: float = 50)
 
 
 def plot_poses_3d(
-    wTi_list: List[Pose3], ax: Axes, center_marker_color: str = "k", label_name: Optional[str] = None
+    wTi_list: List[Optional[Pose3]], ax: Axes, center_marker_color: str = "k", label_name: Optional[str] = None
 ) -> None:
     """Plot poses in 3D as dots for centers and lines denoting the orthonormal
     coordinate system for each camera.
@@ -194,14 +194,18 @@ def plot_poses_3d(
     """
     spec = "{}.".format(center_marker_color)
 
-    for i, wTi in enumerate(wTi_list):
-        x, y, z = wTi.translation().squeeze()
+    is_label_added = False
+    for wTi in wTi_list:
+        if wTi is None:
+            continue
 
-        if i > 0:
-            # for the first loop iteration, add the label to the plot
+        if is_label_added:
             # for the rest of iterations, set label to None (otherwise would be duplicated in legend)
             label_name = None
+
+        x, y, z = wTi.translation().squeeze()
         ax.plot(x, y, z, spec, markersize=10, label=label_name)
+        is_label_added = True
 
         R = wTi.rotation().matrix()
 
@@ -292,7 +296,7 @@ def save_sfm_data_viz(sfm_data: GtsfmData, folder_name: str) -> None:
 
 
 def save_camera_poses_viz(
-    pre_ba_sfm_data: GtsfmData, post_ba_sfm_data: GtsfmData, gt_pose_graph: Optional[List[Pose3]], folder_name: str
+    pre_ba_sfm_data: GtsfmData, post_ba_sfm_data: GtsfmData, gt_pose_graph: List[Optional[Pose3]], folder_name: str
 ) -> None:
     """Visualize the camera pose and save to disk.
 
@@ -314,9 +318,7 @@ def save_camera_poses_viz(
     fig = plt.figure()
     ax = fig.add_subplot(projection="3d")
 
-    if gt_pose_graph is not None:
-        plot_poses_3d(gt_pose_graph, ax, center_marker_color="m", label_name="GT")
-
+    plot_poses_3d(gt_pose_graph, ax, center_marker_color="m", label_name="GT")
     plot_poses_3d(pre_ba_poses, ax, center_marker_color="c", label_name="Pre-BA")
     plot_poses_3d(post_ba_poses, ax, center_marker_color="k", label_name="Post-BA")
 

@@ -4,10 +4,11 @@ import unittest
 from pathlib import Path
 
 import gtsam
-import gtsfm.utils.io as io_utils
 import numpy as np
 import numpy.testing as npt
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3
+
+import gtsfm.utils.io as io_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 

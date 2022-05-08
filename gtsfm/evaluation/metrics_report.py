@@ -331,7 +331,7 @@ def get_html_metric_heading(metric_name: str) -> str:
         HTML for heading as a string.
     """
     metric_name = get_readable_metric_name(metric_name)
-    metric_html = f'<p style="font-size:25px;font-family:Arial">{metric_name}</p>'
+    metric_html = f'<h2>{metric_name}</h2>'
     return metric_html
 
 
@@ -343,6 +343,10 @@ def get_html_header() -> str:
     """
     return """<head>
                 <style>
+                  h2 {
+                    font-family: Arial;
+                    font-size:25px;
+                  }
                   table {
                     font-family: arial, sans-serif;
                     border-collapse: collapse;
@@ -355,6 +359,11 @@ def get_html_header() -> str:
                   }
                   tr:nth-child(even) {
                     background-color: #dddddd;
+                  }
+                  @media print {
+                    h2 {
+                        page-break-before: always;
+                    }
                   }
                 </style>
               </head>"""

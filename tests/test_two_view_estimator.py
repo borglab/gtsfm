@@ -5,12 +5,13 @@ Authors: Ayush Baid
 import unittest
 
 import gtsam
-import gtsfm.utils.geometry_comparisons as comp_utils
-import gtsfm.utils.io as io_utils
 import numpy as np
 from gtsam import Cal3Bundler, EssentialMatrix, PinholeCameraCal3Bundler, Pose3, Unit3
-from gtsfm.common.keypoints import Keypoints
+
+import gtsfm.utils.geometry_comparisons as comp_utils
+import gtsfm.utils.io as io_utils
 from gtsfm.two_view_estimator import TwoViewEstimator
+from gtsfm.common.keypoints import Keypoints
 
 GTSAM_EXAMPLE_FILE = "5pointExample1.txt"
 EXAMPLE_DATA = io_utils.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
@@ -69,10 +70,12 @@ class TestTwoViewEstimator(unittest.TestCase):
             keypoints_i1=self.keypoints_i1,
             keypoints_i2=self.keypoints_i2,
             verified_corr_idxs=self.corr_idxs,
+            putative_corr_idxs=self.corr_idxs,
             camera_intrinsics_i1=Cal3Bundler(),
             camera_intrinsics_i2=Cal3Bundler(),
             i2Ri1_initial=i2Ei1.rotation(),
             i2Ui1_initial=i2Ei1.direction(),
+            i2Ti1_prior=None,
         )
 
         # Assert
