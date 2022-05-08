@@ -218,6 +218,20 @@ class TwoViewEstimator:
     def __generate_initial_pose_for_bundle_adjustment(
         self, i2Ti1_from_verifier: Optional[Pose3], i2Ti1_prior: Optional[PosePrior]
     ) -> Optional[Pose3]:
+        """Use the combination of pose recovered from the verifier and the prior information to get the pose
+        initialization for 2-view BA.
+
+        Logic:
+        1. If the prior value exists, use the prior as the initial value.
+        2. Otherwise, use the verifier output as initial value.
+
+        Args:
+            i2Ti1_from_verifier: relative pose recovered from verifier.
+            i2Ti1_prior: relative pose prior.
+
+        Returns:
+            Pose to be used for initialization.
+        """
         if i2Ti1_prior is None and i2Ti1_from_verifier is None:
             return None
         elif i2Ti1_prior is not None:
