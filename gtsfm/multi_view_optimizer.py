@@ -108,6 +108,7 @@ class MultiViewOptimizer:
             viewgraph_v_corr_idxs_graph,
             keypoints_graph,
             gt_cameras_graph,
+            relative_pose_priors,
             images_graph,
         )
 
