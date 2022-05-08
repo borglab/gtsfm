@@ -11,12 +11,18 @@ SHARE_INTRINSICS=$7
 # Extract the data, configure arguments for runner.
 if [ "$DATASET_NAME" == "door-12" ]; then
   DATASET_ROOT=tests/data/set1_lund_door
-
 elif [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then
   DATASET_ROOT="palace-fine-arts-281"
-
 elif [ "$DATASET_NAME" == "2011205_rc3" ]; then
   DATASET_ROOT="2011205_rc3"
+elif [ "$DATASET_NAME" == "skydio-8" ]; then
+  IMAGES_DIR=skydio_crane_mast_8imgs_with_exif/images
+elif [ "$DATASET_NAME" == "skydio-32" ]; then
+  IMAGES_DIR=skydio-32/images
+elif [ "$DATASET_NAME" == "skydio-501" ]; then
+  IMAGES_DIR="skydio-crane-mast-501-images"
+elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
+  IMAGES_DIR=notre-dame-20/images
 fi
 
 echo "Config: ${CONFIG_NAME}, Loader: ${LOADER_NAME}"
