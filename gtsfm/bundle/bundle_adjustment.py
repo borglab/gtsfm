@@ -11,6 +11,7 @@ import gtsam
 import numpy as np
 from dask.delayed import Delayed
 from gtsam import (
+    BetweenFactorPose3,
     GeneralSFMFactor2Cal3Bundler,
     GeneralSFMFactor2Cal3Fisheye,
     NonlinearFactorGraph,
@@ -29,7 +30,7 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.tracks as track_utils
 from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.common.pose_prior import PosePrior
+from gtsfm.common.pose_prior import PosePrior, PosePriorType
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 METRICS_GROUP = "bundle_adjustment_metrics"
@@ -56,6 +57,8 @@ CAM_POSE3_PRIOR_NOISE_SIGMA = 0.1
 CAM_CAL3BUNDLER_PRIOR_NOISE_SIGMA = 1e-5  # essentially fixed
 CAM_CAL3FISHEYE_PRIOR_NOISE_SIGMA = 1e-5  # essentially fixed
 MEASUREMENT_NOISE_SIGMA = 1.0  # in pixels
+HARD_POSE_PRIOR_SIGMA = 1e-3  # 1e-5 did not work as well
+SOFT_POSE_PRIOR_SIGMA = 3e-2  # 1e-5 did not work as well
 
 logger = logger_utils.get_logger()
 
@@ -130,6 +133,25 @@ class BundleAdjustmentOptimizer:
 
         # get all the valid camera indices, which need to be added to the graph.
         valid_camera_indices: List[int] = initial_data.get_valid_camera_indices()
+        for (i1, i2), i2Ti1_prior in relative_pose_priors.items():
+            if i2Ti1_prior is None:
+                continue
+            if i1 not in valid_camera_indices or i2 not in valid_camera_indices:
+                continue
+
+            # Temporary hack: harcoding sigmas according the prior type.
+            if i2Ti1_prior.type == PosePriorType.HARD_CONSTRAINT:
+                noise_model_sigma = HARD_POSE_PRIOR_SIGMA
+            else:
+                noise_model_sigma = SOFT_POSE_PRIOR_SIGMA
+            graph.push_back(
+                BetweenFactorPose3(
+                    X(i1),
+                    X(i2),
+                    i2Ti1_prior.value.inverse(),
+                    gtsam.noiseModel.Isotropic.Sigma(CAM_POSE3_DOF, noise_model_sigma),
+                )
+            )
 
         # TODO: add pose priors to the graph
         # Add a prior on first pose. This indirectly specifies where the origin is.

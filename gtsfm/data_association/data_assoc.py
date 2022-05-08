@@ -128,8 +128,9 @@ class DataAssociation(NamedTuple):
         ] / len(tracks_2d)
 
         # pick only the largest connected component
-        # TODO: remove this for hilti as disconnected components not an issue?
-        connected_data = triangulated_data.select_largest_connected_component()
+        # TODO(Ayush): remove this for hilti as disconnected components not an issue?
+        # connected_data = triangulated_data.select_largest_connected_component()
+        connected_data = triangulated_data
         num_accepted_tracks = connected_data.number_tracks()
         accepted_tracks_ratio = num_accepted_tracks / len(tracks_2d)
 
