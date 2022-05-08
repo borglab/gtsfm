@@ -6,6 +6,7 @@ Authors: Ayush Baid, John Lambert, Xiaolong Wu
 import itertools
 from typing import Any, Dict, List, Optional, Tuple
 
+import gtsam
 import numpy as np
 from gtsam import PinholeCameraCal3Bundler, Pose3, SfmTrack, Similarity3
 
@@ -36,6 +37,26 @@ class GtsfmData:
         self._cameras: Dict[int, PinholeCameraCal3Bundler] = {}
         self._tracks: List[SfmTrack] = []
         self._number_images = number_images
+
+    @classmethod
+    def from_sfm_data(cls, sfm_data: gtsam.SfmData) -> "GtsfmData":
+        """Initialize from gtsam.SfmData instance.
+
+        Args:
+            sfm_data: camera parameters and point tracks.
+
+        Returns:
+            A new GtsfmData instancee.
+        """
+        num_images = sfm_data.numberCameras()
+        gtsfm_data = cls(num_images)
+        for i in range(num_images):
+            camera = sfm_data.camera(i)
+            gtsfm_data.add_camera(i, camera)
+        for j in range(sfm_data.numberTracks()):
+            gtsfm_data.add_track(sfm_data.track(j))
+
+        return gtsfm_data
 
     def __eq__(self, other: object) -> bool:
         """Checks equality with the other object."""
