@@ -65,12 +65,12 @@ function download_and_unzip_dataset_files {
   # Download the data.
   if [ "$DATASET_SRC" == "gdrive" ]; then
     echo "Downloading ${DATASET_NAME} from GDRIVE"
-    
+
     # delete if exists (would be truncated version from earlier retry)
     rm -f $ZIP_FNAME
-    
+
     export GDRIVE_URL='https://docs.google.com/uc?export=download&id='$GDRIVE_FILEID
-    retry 10 wget --save-cookies cookies.txt $GDRIVE_URL -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1/p' > confirm.txt
+    retry 10 wget --save-cookies cookies.txt $GDRIVE_URL -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1/p' >confirm.txt
     retry 10 wget --load-cookies cookies.txt -O ${DATASET_NAME}.zip $GDRIVE_URL'&confirm='$(<confirm.txt)
 
   elif [ "$DATASET_SRC" == "wget" ]; then
@@ -94,7 +94,7 @@ function download_and_unzip_dataset_files {
     IMAGES_DIR=skydio_crane_mast_8imgs_with_exif/images
     COLMAP_FILES_DIRPATH=skydio_crane_mast_8imgs_with_exif/crane_mast_8imgs_colmap_output
     unzip -qq skydio-8.zip
-    
+
   elif [ "$DATASET_NAME" == "skydio-32" ]; then
     COLMAP_FILES_DIRPATH=skydio-32/colmap_crane_mast_32imgs
     IMAGES_DIR=skydio-32/images
@@ -127,7 +127,7 @@ function download_and_unzip_dataset_files {
     mkdir -p palace-fine-arts-281
     unzip -qq fine_arts_palace.zip -d palace-fine-arts-281/images
 
-  elif [ "$DATASET_NAME" == "2011205_rc3" ]; then 
+  elif [ "$DATASET_NAME" == "2011205_rc3" ]; then
     unzip -qq 2011205_rc3.zip
   fi
 }
@@ -137,5 +137,5 @@ retry 5 download_and_unzip_dataset_files
 
 # Set up directories
 if [ "$DATASET_NAME" == "palace-fine-arts-281" ]; then
-    mv data.mat palace-fine-arts-281/
+  mv data.mat palace-fine-arts-281/
 fi

@@ -71,10 +71,10 @@ jobs:
           SHARE_INTRINSICS=${{ matrix.config_dataset_info[7] }}
       - name: Prepare dataset
         run: |
-          bash .github/scripts/execute_single_benchmark.sh \
+          bash .github/scripts/download_single_benchmark.sh \
             $DATASET_NAME \
             $DATASET_SRC \
-      - name: run gtsfm
+      - name: Run GTSFM
         run: |
           bash .github/scripts/execute_single_benchmark.sh \
             $DATASET_NAME \
