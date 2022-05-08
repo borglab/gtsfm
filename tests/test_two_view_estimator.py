@@ -52,10 +52,12 @@ class TestTwoViewEstimator(unittest.TestCase):
             keypoints_i1=Keypoints(normalized_coordinates_i1),
             keypoints_i2=Keypoints(normalized_coordinates_i2),
             verified_corr_idxs=np.hstack([np.arange(normalized_coordinates_i1.shape[0]).reshape(-1, 1)] * 2),
+            putative_corr_idxs=np.hstack([np.arange(normalized_coordinates_i1.shape[0]).reshape(-1, 1)] * 2),
             camera_intrinsics_i1=Cal3Bundler(),
             camera_intrinsics_i2=Cal3Bundler(),
             i2Ri1_initial=i2Ei1.rotation(),
             i2Ui1_initial=i2Ei1.direction(),
+            i2Ti1_prior=None,
         )
 
         # Assert

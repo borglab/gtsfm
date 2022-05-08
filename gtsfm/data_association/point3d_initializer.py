@@ -10,17 +10,19 @@ Authors: Sushmita Warrier, Xiaolong Wu, John Lambert, Travis Driver
 import sys
 import itertools
 from enum import Enum
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Tuple, Union
 
 import gtsam
 import numpy as np
 from gtsam import (
     CameraSetCal3Bundler,
+    CameraSetCal3Fisheye,
     PinholeCameraCal3Bundler,
     Point2Vector,
     SfmTrack,
 )
 
+import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.sfm_track import SfmTrack2d
 import gtsfm.utils.reprojection as reproj_utils
@@ -106,14 +108,14 @@ class TriangulationOptions(NamedTuple):
         """
         self.__check_ransac_params()
         dyn_num_hypotheses = int(
-            (np.log(1 - self.confidence) / np.log(1 - self.min_inlier_ratio ** NUM_SAMPLES_PER_RANSAC_HYPOTHESIS))
+            (np.log(1 - self.confidence) / np.log(1 - self.min_inlier_ratio**NUM_SAMPLES_PER_RANSAC_HYPOTHESIS))
             * self.dyn_num_hypotheses_multiplier
         )
         num_hypotheses = max(min(self.max_num_hypotheses, dyn_num_hypotheses), self.min_num_hypotheses)
         return num_hypotheses
 
 
-class Point3dInitializer(NamedTuple):
+class Point3dInitializer:
     """Class to initialize landmark points via triangulation w/ or w/o RANSAC inlier/outlier selection.
 
     Note: We currently limit the size of each sample to 2 camera views in our RANSAC scheme.
@@ -127,8 +129,15 @@ class Point3dInitializer(NamedTuple):
         num_ransac_hypotheses (optional): desired number of RANSAC hypotheses.
     """
 
-    track_camera_dict: Dict[int, PinholeCameraCal3Bundler]
-    options: TriangulationOptions
+    def __init__(self, track_camera_dict: Dict[int, gtsfm_types.CAMERA_TYPE], options: TriangulationOptions) -> None:
+        self.track_camera_dict = track_camera_dict
+        self.options = options
+
+        sample_camera = list(self.track_camera_dict.values())[0]
+
+        self._camera_set_class = (
+            CameraSetCal3Bundler if isinstance(sample_camera, PinholeCameraCal3Bundler) else CameraSetCal3Fisheye
+        )
 
     def execute_ransac_variant(self, track_2d: SfmTrack2d) -> np.ndarray:
         """Execute RANSAC algorithm to find best subset 2d measurements for a 3d point.
@@ -166,7 +175,7 @@ class Point3dInitializer(NamedTuple):
                 logger.warning("Unestimated cameras found at indices %d or %d. Skipping them.", i1, i2)
                 continue
 
-            camera_estimates = CameraSetCal3Bundler()
+            camera_estimates = self._camera_set_class()
             camera_estimates.append(self.track_camera_dict.get(i1))
             camera_estimates.append(self.track_camera_dict.get(i2))
 
@@ -184,7 +193,7 @@ class Point3dInitializer(NamedTuple):
                 )
             except RuntimeError:
                 # TODO: handle cheirality exception properly?
-                logger.info(
+                logger.debug(
                     "Cheirality exception from GTSAM's triangulatePoint3() likely due to outlier, skipping track"
                 )
                 continue
@@ -328,7 +337,9 @@ class Point3dInitializer(NamedTuple):
 
         return sample_indices.tolist()
 
-    def extract_measurements(self, track: SfmTrack2d) -> Tuple[CameraSetCal3Bundler, Point2Vector]:
+    def extract_measurements(
+        self, track: SfmTrack2d
+    ) -> Tuple[Union[CameraSetCal3Bundler, CameraSetCal3Fisheye], Point2Vector]:
         """Convert measurements in a track into GTSAM primitive types for triangulation arguments.
 
         Returns None, None if less than 2 measurements were found with estimated camera poses after averaging.
@@ -340,14 +351,14 @@ class Point3dInitializer(NamedTuple):
             Vector of individual camera calibrations pertaining to track
             Vector of 2d points pertaining to track measurements
         """
-        track_cameras = CameraSetCal3Bundler()
+        track_cameras = self._camera_set_class()
         track_measurements = Point2Vector()  # vector of 2d points
 
         # Compile valid measurements.
         for i, uv in track.measurements:
 
             # check for unestimated cameras
-            if self.track_camera_dict.get(i) is not None:
+            if i in self.track_camera_dict and self.track_camera_dict.get(i) is not None:
                 track_cameras.append(self.track_camera_dict.get(i))
                 track_measurements.append(uv)
             else:
