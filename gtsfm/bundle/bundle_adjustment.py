@@ -198,7 +198,7 @@ class BundleAdjustmentOptimizer:
             logger.error(
                 "Bundle adjustment aborting, optimization cannot be performed without any tracks or any cameras."
             )
-            return initial_data, initial_data
+            return initial_data, initial_data, [False] * initial_data.number_tracks()
 
         graph = self.__construct_factor_graph(initial_data=initial_data)
         initial_values = self.__construct_initial_values(initial_data=initial_data)
@@ -221,7 +221,7 @@ class BundleAdjustmentOptimizer:
         if self._output_reproj_error_thresh:
             filtered_result, valid_mask = optimized_data.filter_landmarks(self._output_reproj_error_thresh)
         else:
-            valid_mask = [True] * optimized_data.number_tracks
+            valid_mask = [True] * optimized_data.number_tracks()
             filtered_result = optimized_data
 
         logger.info("[Result] Number of tracks after filtering: %d", filtered_result.number_tracks())
