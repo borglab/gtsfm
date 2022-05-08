@@ -23,19 +23,18 @@ from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstima
 class MultiViewOptimizer:
     def __init__(
         self,
-        view_graph_estimator: ViewGraphEstimatorBase,
         rot_avg_module: RotationAveragingBase,
         trans_avg_module: TranslationAveragingBase,
         data_association_module: DataAssociation,
         bundle_adjustment_module: BundleAdjustmentOptimizer,
-        run_view_graph_estimator: bool = True,
+        view_graph_estimator: Optional[ViewGraphEstimatorBase] = None,
     ) -> None:
         self.view_graph_estimator = view_graph_estimator
         self.rot_avg_module = rot_avg_module
         self.trans_avg_module = trans_avg_module
         self.data_association_module = data_association_module
         self.ba_optimizer = bundle_adjustment_module
-        self._run_view_graph_estimator: bool = run_view_graph_estimator
+        self._run_view_graph_estimator: bool = self.view_graph_estimator is not None
 
     def create_computation_graph(
         self,

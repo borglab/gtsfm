@@ -1,3 +1,7 @@
+"""Runner for the hilti dataset.
+
+Authors: Ayush Baid
+"""
 import argparse
 
 import gtsfm.utils.logger as logger_utils
@@ -8,6 +12,7 @@ from gtsfm.runner.gtsfm_runner_base import GtsfmRunnerBase
 logger = logger_utils.get_logger()
 
 # Note: max_frame_lookahead pertains to rig indices and not image indices.
+
 
 class GtsfmRunnerHiltiLoader(GtsfmRunnerBase):
     def __init__(self):

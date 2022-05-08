@@ -273,9 +273,8 @@ class BundleAdjustmentOptimizer:
 
         poses_gt = [cam.pose() if cam is not None else None for cam in cameras_gt]
 
-        non_none_poses_count = len(poses_gt) - poses_gt.count(None)
-
-        if non_none_poses_count == 0:
+        valid_poses_gt_count = len(poses_gt) - poses_gt.count(None)
+        if valid_poses_gt_count == 0:
             return ba_metrics
 
         # align the sparse multi-view estimate after BA to the ground truth pose graph.

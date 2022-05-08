@@ -39,9 +39,16 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         """Test the simple scene as dask computation graph."""
         sfm_data_graph = dask.delayed(self.test_data)
 
-        expected_result, _ = self.obj.run(self.test_data)
+        absolute_pose_priors = [None] * EXAMPLE_DATA.number_images()
+        relative_pose_priors = {}
 
-        computed_result, _ = self.obj.create_computation_graph(dask.delayed(sfm_data_graph))
+        expected_result, _ = self.obj.run(
+            self.test_data, absolute_pose_priors=absolute_pose_priors, relative_pose_priors=relative_pose_priors
+        )
+
+        computed_result, _ = self.obj.create_computation_graph(
+            dask.delayed(sfm_data_graph), dask.delayed(absolute_pose_priors), dask.delayed(relative_pose_priors)
+        )
 
         with dask.config.set(scheduler="single-threaded"):
             result = dask.compute(computed_result)[0]

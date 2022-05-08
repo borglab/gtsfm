@@ -74,12 +74,11 @@ class SceneOptimizer:
         feature_extractor: FeatureExtractor,
         two_view_estimator: TwoViewEstimator,
         multiview_optimizer: MultiViewOptimizer,
-        dense_multiview_optimizer: MVSBase,
-        save_two_view_correspondences_viz: bool,
-        save_3d_viz: bool,
-        save_gtsfm_data: bool,
-        run_dense_optimizer: bool,
-        pose_angular_error_thresh: float,
+        dense_multiview_optimizer: Optional[MVSBase] = None,
+        save_two_view_correspondences_viz: bool = False,
+        save_3d_viz: bool = True,
+        save_gtsfm_data: bool = True,
+        pose_angular_error_thresh: float = 3,
     ) -> None:
         """pose_angular_error_thresh is given in degrees"""
         self.feature_extractor = feature_extractor
@@ -89,7 +88,7 @@ class SceneOptimizer:
 
         self._save_two_view_correspondences_viz = save_two_view_correspondences_viz
         self._save_3d_viz = save_3d_viz
-        self._run_dense_optimizer = run_dense_optimizer
+        self._run_dense_optimizer = self.dense_multiview_optimizer is not None
 
         self._save_gtsfm_data = save_gtsfm_data
         self._pose_angular_error_thresh = pose_angular_error_thresh

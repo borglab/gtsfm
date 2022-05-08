@@ -1,8 +1,6 @@
-"""Sequential retriever, that uses a sliding window/fixed lookahead to propose image pairs.
+"""Sequential retriever, that uses a sliding window/fixed lookahead and hardcoded rig structure to propose image pairs.
 
-Only useful for temporally ordered data.
-
-Authors: John Lambert
+Authors: Ayush Baid.
 """
 from typing import List, Tuple
 

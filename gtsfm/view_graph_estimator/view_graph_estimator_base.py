@@ -180,7 +180,8 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
                 cameras_gt=None,
             )
         except Exception as e:
-            logger.error(e)
+            # drawing the topology can fail in case of too many cameras
+            logger.info(e)
 
         inlier_R_angular_errors = []
         outlier_R_angular_errors = []
