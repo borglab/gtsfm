@@ -7,12 +7,13 @@ import itertools
 from typing import Any, Dict, List, Optional, Tuple
 
 import gtsam
+import numpy as np
+from gtsam import PinholeCameraCal3Bundler, Pose3, SfmTrack, Similarity3
+
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reproj_utils
-import numpy as np
-from gtsam import PinholeCameraCal3Bundler, Pose3, SfmTrack, Similarity3
 
 logger = logger_utils.get_logger()
 
@@ -42,7 +43,7 @@ class GtsfmData:
         """Initialize from gtsam.SfmData instance.
 
         Args:
-            sfm_data: gtsam.SfmData instance.
+            sfm_data: camera parameters and point tracks.
 
         Returns:
             A new GtsfmData instancee.
