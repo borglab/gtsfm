@@ -195,6 +195,7 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
 
     # Loop over each table in the HTML report.
     for table_name in TABLE_NAMES:
+        print(f"\nCreating {table_name}")
 
         # use just the first 35 chars of each.
         col_labels = []
@@ -214,6 +215,7 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
                 print(f"WARNING: skipping {zip_artifact}")
                 continue
 
+            print(f"Comparing {zip_artifact}")
             label = zip_artifact[:MAX_NUM_CHARS_ARTIFACT_FNAME]
             col_labels.append(label)
             merged_tables_dict = report_utils.merge_tables(tables_dict1, tables_dict2)
@@ -226,9 +228,17 @@ def generate_dashboard(curr_master_dirpath: str, new_branch_dirpath: str) -> Non
                 else:
                     percentage_change = metrics_utils.compute_percentage_change(float(master_val), float(branch_val))
 
+                # For some metrics, smaller is better, so this will flip the color to green for reduced values, instead of red:
+                # exception are outlier errors, which we want to get larger.
                 if "error" in metric_name and "outlier" not in metric_name:
-                    # smaller is better, so this will flip the color to green for reduced values, instead of red
-                    # exception are outlier errors, which we want to get larger.
+                    percentage_change *= -1
+                elif "outlier" in metric_name and "error" not in metric_name:
+                    percentage_change *= -1
+                elif "EXCEEDS" in metric_name:
+                    percentage_change *= -1
+                elif "failure_ratio" in metric_name:
+                    percentage_change *= -1
+                elif "CHEIRALITY_FAILURE" in metric_name:
                     percentage_change *= -1
                 benchmark_table_vals[metric_name][label] = (
                     round(float(master_val), 4) if master_val else np.nan,
