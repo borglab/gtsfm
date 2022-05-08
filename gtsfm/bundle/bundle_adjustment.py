@@ -4,7 +4,7 @@ Authors: Xiaolong Wu, John Lambert, Ayush Baid
 """
 from collections import Counter
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 import dask
 import gtsam
@@ -95,11 +95,8 @@ class BundleAdjustmentOptimizer:
     def __map_to_calibration_variable(self, camera_idx: int) -> int:
         return 0 if self._shared_calib else camera_idx
 
-    def __construct_factor_graph(
-        self,
-        initial_data: GtsfmData,
-        absolute_pose_priors: List[Optional[PosePrior]],
-        relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]],
+    def __construct_reprojection_factors(
+        self, initial_data: GtsfmData, is_fisheye_calibration: bool
     ) -> NonlinearFactorGraph:
         graph = NonlinearFactorGraph()
 
@@ -108,11 +105,6 @@ class BundleAdjustmentOptimizer:
         if self._robust_measurement_noise:
             measurement_noise = gtsam.noiseModel.Robust(gtsam.noiseModel.mEstimator.Huber(1.345), measurement_noise)
 
-        is_fisheye_calibration = isinstance(initial_data.get_camera(0), PinholeCameraCal3Fisheye)
-
-        # Create a factor graph
-
-        # Add measurements to the factor graph
         sfm_factor_class = GeneralSFMFactor2Cal3Fisheye if is_fisheye_calibration else GeneralSFMFactor2Cal3Bundler
         for j in range(initial_data.number_tracks()):
             track = initial_data.get_track(j)  # SfmTrack
@@ -121,7 +113,7 @@ class BundleAdjustmentOptimizer:
                 # i represents the camera index, and uv is the 2d measurement
                 i, uv = track.measurement(m_idx)
                 # note use of shorthand symbols C and P
-                graph.add(
+                graph.push_back(
                     sfm_factor_class(
                         uv,
                         measurement_noise,
@@ -131,15 +123,18 @@ class BundleAdjustmentOptimizer:
                     )
                 )
 
-        # get all the valid camera indices, which need to be added to the graph.
-        valid_camera_indices: List[int] = initial_data.get_valid_camera_indices()
+        return graph
+
+    def __construct_between_factors(
+        self, relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]]
+    ) -> NonlinearFactorGraph:
+        graph = NonlinearFactorGraph()
+
         for (i1, i2), i2Ti1_prior in relative_pose_priors.items():
             if i2Ti1_prior is None:
                 continue
-            if i1 not in valid_camera_indices or i2 not in valid_camera_indices:
-                continue
 
-            # Temporary hack: harcoding sigmas according the prior type.
+            # Temporary hack: hardcoding sigmas according the prior type.
             if i2Ti1_prior.type == PosePriorType.HARD_CONSTRAINT:
                 noise_model_sigma = HARD_POSE_PRIOR_SIGMA
             else:
@@ -153,30 +148,89 @@ class BundleAdjustmentOptimizer:
                 )
             )
 
-        # TODO: add pose priors to the graph
-        # Add a prior on first pose. This indirectly specifies where the origin is.
-        graph.push_back(
-            PriorFactorPose3(
-                X(valid_camera_indices[0]),
-                initial_data.get_camera(valid_camera_indices[0]).pose(),
-                gtsam.noiseModel.Isotropic.Sigma(CAM_POSE3_DOF, CAM_POSE3_PRIOR_NOISE_SIGMA),
-            )
-        )
+        return graph
 
-        # add prior on all calibrations
+    def __construct_prior_factors_on_poses(
+        self,
+        absolute_pose_priors: List[Optional[PosePrior]],
+        initial_data: GtsfmData,
+        camera_for_origin: gtsfm_types.CAMERA_TYPE,
+    ) -> NonlinearFactorGraph:
+        graph = NonlinearFactorGraph()
+
+        # TODO(Ayush): start using absolute prior factors.
+        num_priors_added = 0
+
+        if num_priors_added == 0:
+            # Adding a prior to fix origin as no absolute prior exists.
+            graph.push_back(
+                PriorFactorPose3(
+                    X(camera_for_origin),
+                    initial_data.get_camera(camera_for_origin).pose(),
+                    gtsam.noiseModel.Isotropic.Sigma(CAM_POSE3_DOF, CAM_POSE3_PRIOR_NOISE_SIGMA),
+                )
+            )
+
+        return graph
+
+    def __construction_prior_factors_on_calibration(
+        self, initial_data: GtsfmData, cameras_to_model: List[int], is_fisheye_calibration: bool
+    ) -> NonlinearFactorGraph:
+        graph = NonlinearFactorGraph()
+
         calibration_prior_factor_class = PriorFactorCal3Fisheye if is_fisheye_calibration else PriorFactorCal3Bundler
         calibration_prior_factor_dof = CAM_CAL3FISHEYE_DOF if is_fisheye_calibration else CAM_CAL3BUNDLER_DOF
         calibration_prior_noise_sigma = (
             CAM_CAL3FISHEYE_PRIOR_NOISE_SIGMA if is_fisheye_calibration else CAM_CAL3BUNDLER_PRIOR_NOISE_SIGMA
         )
-        for i in valid_camera_indices[: 1 if self._shared_calib else len(valid_camera_indices)]:
+        if self._shared_calib:
             graph.push_back(
                 calibration_prior_factor_class(
-                    K(self.__map_to_calibration_variable(i)),
-                    initial_data.get_camera(i).calibration(),
+                    K(self.__map_to_calibration_variable(cameras_to_model[0])),
+                    initial_data.get_camera(cameras_to_model[0]).calibration(),
                     gtsam.noiseModel.Isotropic.Sigma(calibration_prior_factor_dof, calibration_prior_noise_sigma),
                 )
             )
+        else:
+            for i in cameras_to_model:
+                graph.push_back(
+                    calibration_prior_factor_class(
+                        K(self.__map_to_calibration_variable(i)),
+                        initial_data.get_camera(i).calibration(),
+                        gtsam.noiseModel.Isotropic.Sigma(calibration_prior_factor_dof, calibration_prior_noise_sigma),
+                    )
+                )
+
+        return graph
+
+    def __construct_factor_graph(
+        self,
+        cameras_to_model: List[int],
+        initial_data: GtsfmData,
+        absolute_pose_priors: List[Optional[PosePrior]],
+        relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]],
+    ) -> NonlinearFactorGraph:
+        is_fisheye_calibration = isinstance(initial_data.get_camera(cameras_to_model[0]), PinholeCameraCal3Fisheye)
+
+        graph = NonlinearFactorGraph()
+
+        # Create a factor graph
+        graph.push_back(
+            self.__construct_reprojection_factors(
+                initial_data=initial_data, is_fisheye_calibration=is_fisheye_calibration
+            )
+        )
+        graph.push_back(self.__construct_between_factors(relative_pose_priors=relative_pose_priors))
+        graph.push_back(
+            self.__construct_prior_factors_on_poses(
+                absolute_pose_priors=absolute_pose_priors,
+                initial_data=initial_data,
+                camera_for_origin=cameras_to_model[0],
+            )
+        )
+        graph.push_back(
+            self.__construction_prior_factors_on_calibration(initial_data, cameras_to_model, is_fisheye_calibration)
+        )
 
         # Also add a prior on the position of the first landmark to fix the scale
         graph.push_back(
@@ -217,6 +271,18 @@ class BundleAdjustmentOptimizer:
         result_values = lm.optimize()
         return result_values
 
+    def __get_cameras_to_model(
+        self,
+        initial_data: GtsfmData,
+        absolute_pose_priors: List[Optional[PosePrior]],
+        relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]],
+    ) -> List[int]:
+        """Get the cameras which are to be modelled in the factor graph. We are using ability to add initial values as
+        proxy for this function."""
+        cameras: Set[int] = set(initial_data.get_valid_camera_indices())
+
+        return sorted(list(cameras))
+
     def run(
         self,
         initial_data: GtsfmData,
@@ -246,7 +312,10 @@ class BundleAdjustmentOptimizer:
             )
             return initial_data, initial_data
 
+        cameras_to_model = self.__get_cameras_to_model(initial_data, absolute_pose_priors, relative_pose_priors)
+
         graph = self.__construct_factor_graph(
+            cameras_to_model=cameras_to_model,
             initial_data=initial_data,
             absolute_pose_priors=absolute_pose_priors,
             relative_pose_priors=relative_pose_priors,
