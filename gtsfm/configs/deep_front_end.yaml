@@ -4,7 +4,6 @@ SceneOptimizer:
   save_two_view_correspondences_viz: False
   save_3d_viz: True
   pose_angular_error_thresh: 5 # degrees
-  run_dense_optimizer: False
 
   feature_extractor:
     _target_: gtsfm.feature_extractor.FeatureExtractor
