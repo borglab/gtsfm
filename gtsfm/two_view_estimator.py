@@ -62,6 +62,7 @@ class TwoViewEstimator:
         bundle_adjust_2view: bool,
         eval_threshold_px: float,
         bundle_adjust_2view_maxiters: int = 100,
+        ba_reproj_error_thresh: float = 0.5,
     ) -> None:
         """Initializes the two-view estimator from matcher and verifier.
 
@@ -80,7 +81,9 @@ class TwoViewEstimator:
         self._bundle_adjust_2view = bundle_adjust_2view
         self._corr_metric_dist_threshold = eval_threshold_px
         self._ba_optimizer = BundleAdjustmentOptimizer(
-            robust_measurement_noise=True, max_iterations=bundle_adjust_2view_maxiters
+            output_reproj_error_thresh=ba_reproj_error_thresh,
+            robust_measurement_noise=True,
+            max_iterations=bundle_adjust_2view_maxiters,
         )
 
     @classmethod
@@ -111,9 +114,9 @@ class TwoViewEstimator:
         camera_set.append(camera_i2)
 
         tracks_3d: List[SfmTrack] = []
-        for i in range(len(corr_idxs)):
+        valid_indices: List[int] = []
+        for j, (idx1, idx2) in enumerate(corr_idxs):
             track_2d = Point2Vector()
-            idx1, idx2 = corr_idxs[i, :]
             track_2d.append(keypoints_i1.coordinates[idx1])
             track_2d.append(keypoints_i2.coordinates[idx2])
 
@@ -125,11 +128,12 @@ class TwoViewEstimator:
                 track_3d.addMeasurement(0, track_2d[0])
                 track_3d.addMeasurement(1, track_2d[1])
                 tracks_3d.append(track_3d)
+                valid_indices.append(j)
             except RuntimeError:
                 pass
                 # logger.error(e)
 
-        return tracks_3d
+        return tracks_3d, valid_indices
 
     def bundle_adjust(
         self,
@@ -178,7 +182,7 @@ class TwoViewEstimator:
         # Perform data association to construct 2-view BA input.
         start_time = timeit.default_timer()
         # TODO: add flag to switch between verified and putative correspondences.
-        triangulated_tracks = self.triangulate_two_view_correspondences(
+        triangulated_tracks, triangulated_indices = self.triangulate_two_view_correspondences(
             camera_i1=camera_i1,
             camera_i2=camera_i2,
             keypoints_i1=keypoints_i1,
@@ -186,7 +190,7 @@ class TwoViewEstimator:
             corr_idxs=verified_corr_idxs,
         )
         logger.debug("Performed DA in %.6f seconds.", timeit.default_timer() - start_time)
-        logger.debug("Triangulation succeeded on %d correspondences.", len(triangulated_tracks))
+        logger.debug("Triangulated %d correspondences out of %d.", len(triangulated_tracks), len(verified_corr_idxs))
 
         if len(triangulated_tracks) == 0:
             return i2Ti1_initial.rotation(), Unit3(i2Ti1_initial.translation()), np.array([], dtype=np.uint32)
@@ -203,17 +207,18 @@ class TwoViewEstimator:
         if i2Ti1_prior is not None:
             relative_pose_prior_for_ba = {(0, 1): i2Ti1_prior}
 
-        ba_output, _ = self._ba_optimizer.run(
+        _, ba_output, valid_mask = self._ba_optimizer.run(
             ba_input, absolute_pose_priors=[], relative_pose_priors=relative_pose_prior_for_ba, verbose=False
         )
+        valid_corr_idxs = verified_corr_idxs[triangulated_indices][valid_mask]
         wTi1, wTi2 = ba_output.get_camera_poses()  # extract the camera poses
         if wTi1 is None or wTi2 is None:
             logger.warning("2-view BA failed")
-            return i2Ri1_initial, i2Ui1_initial, verified_corr_idxs
+            return i2Ri1_initial, i2Ui1_initial, valid_corr_idxs
         i2Ti1_optimized = wTi2.between(wTi1)
         logger.debug("Performed 2-view BA in %.6f seconds.", timeit.default_timer() - start_time)
 
-        return i2Ti1_optimized.rotation(), Unit3(i2Ti1_optimized.translation()), verified_corr_idxs
+        return i2Ti1_optimized.rotation(), Unit3(i2Ti1_optimized.translation()), valid_corr_idxs
 
     def __generate_initial_pose_for_bundle_adjustment(
         self, i2Ti1_from_verifier: Optional[Pose3], i2Ti1_prior: Optional[PosePrior]
