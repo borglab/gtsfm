@@ -30,7 +30,7 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.tracks as track_utils
 from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.common.pose_prior import PosePrior, PosePriorType
+from gtsfm.common.pose_prior import PosePrior
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 METRICS_GROUP = "bundle_adjustment_metrics"
@@ -57,8 +57,6 @@ CAM_POSE3_PRIOR_NOISE_SIGMA = 0.1
 CAM_CAL3BUNDLER_PRIOR_NOISE_SIGMA = 1e-5  # essentially fixed
 CAM_CAL3FISHEYE_PRIOR_NOISE_SIGMA = 1e-5  # essentially fixed
 MEASUREMENT_NOISE_SIGMA = 1.0  # in pixels
-HARD_POSE_PRIOR_SIGMA = 1e-3  # 1e-5 did not work as well
-SOFT_POSE_PRIOR_SIGMA = 3e-2  # 1e-5 did not work as well
 
 logger = logger_utils.get_logger()
 
@@ -132,17 +130,12 @@ class BundleAdjustmentOptimizer:
             if i2Ti1_prior is None or i1 not in cameras_to_model or i2 not in cameras_to_model:
                 continue
 
-            # Temporary hack: hardcoding sigmas according the prior type.
-            if i2Ti1_prior.type == PosePriorType.HARD_CONSTRAINT:
-                noise_model_sigma = HARD_POSE_PRIOR_SIGMA
-            else:
-                noise_model_sigma = SOFT_POSE_PRIOR_SIGMA
             graph.push_back(
                 BetweenFactorPose3(
                     X(i1),
                     X(i2),
                     i2Ti1_prior.value.inverse(),
-                    gtsam.noiseModel.Isotropic.Sigma(CAM_POSE3_DOF, noise_model_sigma),
+                    gtsam.noiseModel.Diagonal.Sigmas(i2Ti1_prior.covariance),
                 )
             )
 

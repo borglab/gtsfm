@@ -50,8 +50,7 @@ CAM_POSE3_PRIOR_NOISE_SIGMA = 0.1
 CAM_CAL3BUNDLER_PRIOR_NOISE_SIGMA = 1e-5  # essentially fixed
 CAM_CAL3FISHEYE_PRIOR_NOISE_SIGMA = 1e-5  # essentially fixed
 MEASUREMENT_NOISE_SIGMA = 1.0  # in pixels
-HARD_POSE_PRIOR_SIGMA = 1e-3  # 1e-5 did not work as well
-SOFT_POSE_PRIOR_SIGMA = 3e-2  # 1e-5 did not work as well
+CAM_IMU_POSE_PRIOR_SIGMA = 1e-3
 
 logger = logger_utils.get_logger()
 
@@ -61,6 +60,9 @@ class BundleAdjustmentHiltiOptimizer(BundleAdjustmentOptimizer):
 
     This class refines global pose estimates and intrinsics of cameras, and also refines 3D point cloud structure given
     tracks from triangulation."""
+
+    # TODO(Ayush): share calibrations between same cams?
+    # TODO(Ayush): use a diagonal model for calibration prior as distortion should have much lower sigmas?
 
     def __init__(
         self,
@@ -100,19 +102,14 @@ class BundleAdjustmentHiltiOptimizer(BundleAdjustmentOptimizer):
                     X(i),
                     B(rig_idx),
                     self._cam_T_imu[camera_type],
-                    gtsam.noiseModel.Isotropic.Sigma(CAM_POSE3_DOF, HARD_POSE_PRIOR_SIGMA),
+                    gtsam.noiseModel.Isotropic.Sigma(CAM_POSE3_DOF, CAM_IMU_POSE_PRIOR_SIGMA),
                 )
             )
 
         # translate the relative pose priors between cams to IMUs, and add if not already present
         imu_relative_pose_priors: Dict[Tuple[int, int], BetweenFactorPose3] = {}
         for (i1, i2), i2Ti1_prior in relative_pose_priors.items():
-            if (
-                i2Ti1_prior is None
-                or i1 not in cameras_to_model
-                or i2 not in cameras_to_model
-                or i2Ti1_prior.type == PosePriorType.HARD_CONSTRAINT
-            ):
+            if i2Ti1_prior is None or i1 not in cameras_to_model or i2 not in cameras_to_model:
                 continue
 
             b1: int = self.__get_rig_idx(i1)
@@ -125,6 +122,9 @@ class BundleAdjustmentHiltiOptimizer(BundleAdjustmentOptimizer):
             if (b1, b2) in imu_relative_pose_priors:
                 continue
 
+            if i2Ti1_prior.type == PosePriorType.HARD_CONSTRAINT:
+                raise ValueError("Encountered hard pose constraint in inter-rig camera pairs")
+
             i2Ti1 = i2Ti1_prior.value
             i1Tb1 = self._cam_T_imu[self.__get_camera_type(i1)]
             i2Tb2 = self._cam_T_imu[self.__get_camera_type(i2)]
@@ -134,7 +134,7 @@ class BundleAdjustmentHiltiOptimizer(BundleAdjustmentOptimizer):
                 B(b2),
                 B(b1),
                 b2Tb1,
-                gtsam.noiseModel.Isotropic.Sigma(CAM_POSE3_DOF, SOFT_POSE_PRIOR_SIGMA),
+                gtsam.noiseModel.Diagonal.Sigmas(i2Ti1_prior.covariance),
             )
 
         logger.info("Adding %d between factors for IMUs", len(imu_relative_pose_priors))
