@@ -192,7 +192,6 @@ def compare_rotations(
         compute_relative_rotation_angle(aRi, aRi_) < angular_error_threshold_degrees
         for (aRi, aRi_) in zip(aRi_list, aRi_list_)
     ]
-    print(error)
     return all(error)
 
 
