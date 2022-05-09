@@ -36,7 +36,8 @@ class TestShonanRotationAveraging(unittest.TestCase):
             i2Ri1_input: relative rotations, which are input to the algorithm.
             wRi_expected: expected global rotations.
         """
-        wRi_computed = self.obj.run(len(wRi_expected), i2Ri1_input)
+        i2Ri1_priors = {edge: None for edge in i2Ri1_input.keys()}
+        wRi_computed = self.obj.run(len(wRi_expected), i2Ri1_input, i2Ri1_priors)
         self.assertTrue(
             geometry_comparisons.compare_rotations(wRi_computed, wRi_expected, ROTATION_ANGLE_ERROR_THRESHOLD_DEG)
         )
@@ -98,10 +99,12 @@ class TestShonanRotationAveraging(unittest.TestCase):
         i2Ri1_graph = dask.delayed(i2Ri1_dict)
 
         # use the GTSAM API directly (without dask) for rotation averaging
-        expected_wRi_list = self.obj.run(num_poses, i2Ri1_dict)
+        i2Ri1_priors = {edge: None for edge in i2Ri1_dict.keys()}
+        expected_wRi_list = self.obj.run(num_poses, i2Ri1_dict, i2Ri1_priors)
 
         # use dask's computation graph
-        computation_graph = self.obj.create_computation_graph(num_poses, i2Ri1_graph)
+        gt_wTi_list = [None] * len(expected_wRi_list)
+        computation_graph = self.obj.create_computation_graph(num_poses, i2Ri1_graph, i2Ri1_priors, gt_wTi_list)
 
         with dask.config.set(scheduler="single-threaded"):
             wRi_list = dask.compute(computation_graph)[0]
@@ -140,8 +143,9 @@ class TestShonanRotationAveraging(unittest.TestCase):
             (2, 3): wTi3.between(wTi2).rotation(),
             (1, 3): wTi3.between(wTi1).rotation(),
         }
-        
-        wRi_computed = self.obj.run(num_images, i2Ri1_input)
+
+        i2Ri1_priors = {edge: None for edge in i2Ri1_input.keys()}
+        wRi_computed = self.obj.run(num_images, i2Ri1_input, i2Ri1_priors)
         wRi_expected = [None, wTi1.rotation(), wTi2.rotation(), wTi3.rotation()]
         self.assertTrue(
             geometry_comparisons.compare_rotations(wRi_computed, wRi_expected, angular_error_threshold_degrees=0.1)
