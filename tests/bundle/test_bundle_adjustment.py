@@ -22,14 +22,14 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         super().setUp()
 
         output_reproj_error_thresh = 100
-        self.obj = BundleAdjustmentOptimizer(output_reproj_error_thresh)
+        self.ba = BundleAdjustmentOptimizer(output_reproj_error_thresh)
 
         self.test_data = EXAMPLE_DATA
 
     # def test_simple_scene(self):
     #     """Test the simple scene using the `run` API."""
 
-    #     computed_result = self.obj.run(self.test_data)
+    #     computed_result = self.ba.run(self.test_data)
 
     #     expected_error = 0.046137573704557046
 
@@ -42,11 +42,11 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         absolute_pose_priors = [None] * EXAMPLE_DATA.number_images()
         relative_pose_priors = {}
 
-        expected_result, _ = self.obj.run(
+        expected_result, _, _ = self.ba.run(
             self.test_data, absolute_pose_priors=absolute_pose_priors, relative_pose_priors=relative_pose_priors
         )
 
-        computed_result, _ = self.obj.create_computation_graph(
+        computed_result, _ = self.ba.create_computation_graph(
             dask.delayed(sfm_data_graph), dask.delayed(absolute_pose_priors), dask.delayed(relative_pose_priors)
         )
 
