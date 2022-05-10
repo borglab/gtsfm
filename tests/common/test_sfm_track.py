@@ -51,10 +51,20 @@ def get_dummy_keypoints_list() -> List[Keypoints]:
             [10, 10],
         ]
     )
+    img4_kp_coords = np.array(
+        [
+            [1, 1],
+            [2, 2],
+            [3, 3],
+            [4, 4],
+            [5, 5],
+        ]
+    )
     keypoints_list = [
         Keypoints(coordinates=img1_kp_coords, scales=img1_kp_scale),
         Keypoints(coordinates=img2_kp_coords),
         Keypoints(coordinates=img3_kp_coords),
+        Keypoints(coordinates=img4_kp_coords),
     ]
     return keypoints_list
 
@@ -69,6 +79,26 @@ def get_dummy_matches() -> Dict[Tuple[int, int], np.ndarray]:
         (0, 2): np.array([[1, 8]]),
     }
     return dummy_matches_dict
+
+
+def get_nontransitive_matches() -> Dict[Tuple[int, int], np.ndarray]:
+    """Set up correspondences for each (i1,i2) pair that violates transitivity.
+    
+    (i=0, k=0)
+         |    \
+         |     \
+    (i=1, k=2)--(i=2,k=3)--(i=3, k=4)--(i=1, k=1)
+
+    Transitivity is violated due to the match between frames 0 and 3. 
+    """
+    nontransitive_matches_dict = {
+        (0, 1): np.array([[0, 2]]),
+        (1, 2): np.array([[2, 3]]),
+        (0, 2): np.array([[0, 3]]),
+        (0, 3): np.array([[1, 4]]),
+        (2, 3): np.array([[3, 4]]),
+    }
+    return nontransitive_matches_dict
 
 
 class TestSfmTrack2d(GtsamTestCase):
@@ -137,3 +167,15 @@ class TestSfmTrack2d(GtsamTestCase):
         # check that the length of the observation list corresponding to each key
         # is the same. Only good tracks will remain
         self.assertEqual(len(tracks), 4, "Tracks not filtered correctly")
+
+    def test_generate_tracks_from_pairwise_matches_nontransitive(
+        self,
+    ) -> None:
+        """Tests DSF for non-transitive matches.
+
+        Test will result in no tracks since nontransitive tracks are naively discarded by DSF.
+        """
+        dummy_keypoints_list = get_dummy_keypoints_list()
+        nontransitive_matches_dict = get_nontransitive_matches()  # contains one non-transitive track
+        tracks = SfmTrack2d.generate_tracks_from_pairwise_matches(nontransitive_matches_dict, dummy_keypoints_list)
+        self.assertEqual(len(tracks), 0, "Tracks not filtered correctly")
