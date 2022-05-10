@@ -13,6 +13,7 @@ import numpy as np
 from trimesh import Trimesh
 from gtsam import Pose3, Similarity3
 from dask.delayed import Delayed
+from gtsfm.common.pose_prior import PosePrior
 
 import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.two_view_estimator as two_view_estimator
@@ -113,7 +114,7 @@ class SceneOptimizer:
         image_graph: List[Delayed],
         camera_intrinsics_graph: List[Delayed],
         image_shape_graph: List[Delayed],
-        relative_pose_priors: Dict[Tuple[int, int], Delayed],
+        relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]],
         absolute_pose_priors: List[Delayed],
         gt_cameras_graph: List[Delayed],
         gt_poses_graph: List[Delayed],

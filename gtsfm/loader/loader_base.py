@@ -204,13 +204,25 @@ class LoaderBase(metaclass=abc.ABCMeta):
         """Get the prior on the relative pose i2Ti1
 
         Args:
-            i1 (int): _description_
-            i2 (int): _description_
+            i1 (int): index of first image
+            i2 (int): index of second image
 
         Returns:
             Pose prior, if there is one.
         """
         return None
+
+    def get_relative_pose_priors(self, pairs: List[Tuple[int, int]]) -> Dict[Tuple[int, int], Optional[PosePrior]]:
+        """Get *all* relative pose priors for i2Ti1
+
+        Args:
+            pairs: all (i1,i2) pairs of image pairs
+
+        Returns:
+            A dictionary of PosePriors (or None) for all pairs.
+        """
+
+        return {pair: self.get_relative_pose_prior(*pair) for pair in pairs}
 
     def get_absolute_pose_prior(self, idx: int) -> Optional[PosePrior]:
         """Get the prior on the pose of camera at idx in the world coordinates.
