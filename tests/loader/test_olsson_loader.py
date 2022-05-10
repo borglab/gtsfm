@@ -113,7 +113,7 @@ class TestFolderLoader(unittest.TestCase):
         """Tests getter for intrinsics when explicit numpy arrays are absent, exif is missing, and we raise an error."""
         loader = OlssonLoader(NO_EXIF_FOLDER, image_extension="JPG")
         with pytest.raises(ValueError):
-            computed = loader.get_camera_intrinsics(5)
+            _ = loader.get_camera_intrinsics(5)
 
     def test_create_computation_graph_for_images(self) -> None:
         """Tests the graph for loading all the images."""

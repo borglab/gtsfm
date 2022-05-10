@@ -6,7 +6,6 @@ import unittest
 from pathlib import Path
 
 import numpy as np
-from gtsam import Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 from gtsfm.loader.hilti_loader import HiltiLoader

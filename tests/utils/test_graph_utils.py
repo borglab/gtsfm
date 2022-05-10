@@ -215,14 +215,14 @@ class TestGraphUtils(unittest.TestCase):
         adj_list = graph_utils.create_adjacency_list(edges)
 
         # fmt: off
-        expected_adj_list = {
-            0: {1},
-            1: {0, 2, 3},
-            2: {1, 3},
-            3: {1, 2, 4, 5},
-            4: {3, 5},
-            5: {3, 4}
-        }
+        # expected_adj_list = {
+        #     0: {1},
+        #     1: {0, 2, 3},
+        #     2: {1, 3},
+        #     3: {1, 2, 4, 5},
+        #     4: {3, 5},
+        #     5: {3, 4}
+        # }
         # fmt: on
         assert isinstance(adj_list, defaultdict)
 
