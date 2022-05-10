@@ -95,7 +95,7 @@ class MultiViewOptimizer:
         )
 
         wRi_graph, rot_avg_metrics = self.rot_avg_module.create_computation_graph(
-            num_images, pruned_i2Ri1_graph, i2Ri1_priors=relative_pose_priors, gt_wTi_list=gt_poses_graph
+            num_images, pruned_i2Ri1_graph, i2Ti1_priors=relative_pose_priors, gt_wTi_list=gt_poses_graph
         )
 
         wti_graph, ta_metrics = self.trans_avg_module.create_computation_graph(

@@ -92,7 +92,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         self,
         num_images: int,
         i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
-        i2Ri1_priors: Dict[Tuple[int, int], Optional[PosePrior]],
+        i2Ti1_priors: Dict[Tuple[int, int], Optional[PosePrior]],
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging on a connected graph with arbitrary keys, where each key is a image/pose index.
 
@@ -103,6 +103,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         Args:
             num_images: number of images. Since we have one pose per image, it is also the number of poses.
             i2Ri1_dict: relative rotations for each image pair-edge as dictionary (i1, i2): i2Ri1.
+            i2Ti1_priors: priors on relative poses.
 
         Returns:
             Global rotations for each camera pose, i.e. wRi, as a list. The number of entries in the list is
@@ -110,7 +111,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
                 underconstrained system or ill-constrained system), or where the camera pose had no valid observation
                 in the input to run().
         """
-        # TODO(Ayush): use the pose priors atleast between disconnected components.
+        # TODO(Ayush): use the priors atleast between disconnected components.
         if len(i2Ri1_dict) == 0:
             logger.warning("Shonan cannot proceed: No cycle-consistent triplets found after filtering.")
             wRi_list = [None] * num_images

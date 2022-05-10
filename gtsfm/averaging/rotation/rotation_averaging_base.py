@@ -28,14 +28,14 @@ class RotationAveragingBase(metaclass=abc.ABCMeta):
         self,
         num_images: int,
         i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
-        i2Ri1_priors: Dict[Tuple[int, int], Optional[PosePrior]],
+        i2Ti1_priors: Dict[Tuple[int, int], Optional[PosePrior]],
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging.
 
         Args:
             num_images: number of poses.
             i2Ri1_dict: relative rotations as dictionary (i1, i2): i2Ri1.
-            i2Ri1_priors: priors on relative rotations.
+            i2Ti1_priors: priors on relative poses.
 
         Returns:
             Global rotations for each camera pose, i.e. wRi, as a list. The number of entries in the list is
@@ -43,31 +43,18 @@ class RotationAveragingBase(metaclass=abc.ABCMeta):
                 underconstrained system or ill-constrained system).
         """
 
-    def create_computation_graph(
-        self,
-        num_images: int,
-        i2Ri1_graph: Delayed,
-        i2Ri1_priors: Dict[Tuple[int, int], Delayed],
-        gt_wTi_list: List[Optional[Pose3]],
-    ) -> Tuple[Delayed, Delayed]:
-        """Create the computation graph for performing rotation averaging.
+    def evaluate(self, wRi_computed: List[Optional[Rot3]], wTi_gt: List[Optional[Pose3]]) -> GtsfmMetricsGroup:
+        """Evaluate the global rotations computed by the rotation averaging implementation.
 
         Args:
-            num_images: number of poses.
-            i2Ri1_graph: dictionary of relative rotations as a delayed task.
-            i2Ri1_priors: priors on relative rotations
-            gt_wTi_list: ground truth poses, to be used for evaluation.
+            wRi_computed: list of global rotations computed.
+            wTi_gt: ground truth global rotations to compare against.
+        Raises:
+            ValueError: if the length of the computed and GT list differ.
 
         Returns:
-            global rotations wrapped using dask.delayed.
+            Metrics on global rotations.
         """
-
-        wRis = dask.delayed(self.run)(num_images, i2Ri1_graph, i2Ri1_priors)
-        metrics = dask.delayed(self.evaluate)(wRis, gt_wTi_list)
-
-        return wRis, metrics
-
-    def evaluate(self, wRi_computed: List[Optional[Rot3]], wTi_gt: List[Optional[Pose3]]) -> GtsfmMetricsGroup:
         wRi_gt = [wTi.rotation() if wTi is not None else None for wTi in wTi_gt]
 
         if len(wRi_computed) != len(wRi_gt):
@@ -79,3 +66,27 @@ class RotationAveragingBase(metaclass=abc.ABCMeta):
         metrics.append(GtsfmMetric(name="num_rotations_computed", data=len([x for x in wRi_computed if x is not None])))
         metrics.append(metric_utils.compute_rotation_angle_metric(wRi_aligned, wRi_gt))
         return GtsfmMetricsGroup(name="rotation_averaging_metrics", metrics=metrics)
+
+    def create_computation_graph(
+        self,
+        num_images: int,
+        i2Ri1_graph: Delayed,
+        i2Ti1_priors: Dict[Tuple[int, int], Delayed],
+        gt_wTi_list: List[Optional[Pose3]],
+    ) -> Tuple[Delayed, Delayed]:
+        """Create the computation graph for performing rotation averaging.
+
+        Args:
+            num_images: number of poses.
+            i2Ri1_graph: dictionary of relative rotations as a delayed task.
+            i2Ti1_priors: priors on relative poses.
+            gt_wTi_list: ground truth poses, to be used for evaluation.
+
+        Returns:
+            global rotations wrapped using dask.delayed.
+        """
+
+        wRis = dask.delayed(self.run)(num_images, i2Ri1_graph, i2Ti1_priors)
+        metrics = dask.delayed(self.evaluate)(wRis, gt_wTi_list)
+
+        return wRis, metrics

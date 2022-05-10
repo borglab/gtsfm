@@ -226,6 +226,9 @@ class GtsfmData:
         """Selects the subset of data belonging to the largest connected component of the graph where the edges are
         between cameras which feature in the same track.
 
+        Args:
+            extra_camera_edges (optional): edges which are to be considered as part of the graph when computing
+                                           connected components.
         Returns:
             New GtSfmData object with the subset of tracks and cameras.
         """

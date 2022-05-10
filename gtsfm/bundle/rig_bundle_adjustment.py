@@ -1,19 +1,15 @@
-"""Factor-graph based formulation of Bundle adjustment and optimization.
+"""Special Bundle adjustment optimizer to handle rigs: devices with multiple sensors.
 
-Authors: Xiaolong Wu, John Lambert, Ayush Baid
+Right now, this class is specific to the rig in the Hilti 2022 challenge, and needs generalization.
+TODO(Ayush): generalize.
+
+Authors: Ayush Baid.
 """
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import gtsam
-from gtsam import (
-    BetweenFactorPose3,
-    NonlinearFactorGraph,
-    Pose3,
-    PriorFactorPose3,
-    Values,
-    symbol_shorthand,
-)
+from gtsam import BetweenFactorPose3, NonlinearFactorGraph, Pose3, PriorFactorPose3, symbol_shorthand, Values
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.logger as logger_utils
@@ -32,34 +28,20 @@ HILTI_TEST_DATA_PATH: Path = TEST_DATA_ROOT / "hilti_exp4_small"
 """In this file, we use the GTSAM's GeneralSFMFactor2 instead of GeneralSFMFactor because Factor2 enables decoupling
 of the camera pose and the camera intrinsics, and hence gives an option to share the intrinsics between cameras.
 """
-
-P = symbol_shorthand.P  # 3d point
 X = symbol_shorthand.X  # camera pose
-K = symbol_shorthand.K  # calibration
 B = symbol_shorthand.B  # body frame (IMU) pose
 
 CAM_POSE3_DOF = 6  # 6 dof for pose of camera
-CAM_CAL3BUNDLER_DOF = 3  # 3 dof for f, k1, k2 for intrinsics of camera
-CAM_CAL3FISHEYE_DOF = 9
-IMG_MEASUREMENT_DIM = 2  # 2d measurements (u,v) have 2 dof
-POINT3_DOF = 3  # 3d points have 3 dof
-
 
 # noise model params
 CAM_POSE3_PRIOR_NOISE_SIGMA = 0.1
-CAM_CAL3BUNDLER_PRIOR_NOISE_SIGMA = 1e-5  # essentially fixed
-CAM_CAL3FISHEYE_PRIOR_NOISE_SIGMA = 1e-5  # essentially fixed
-MEASUREMENT_NOISE_SIGMA = 1.0  # in pixels
 CAM_IMU_POSE_PRIOR_SIGMA = 1e-3
 
 logger = logger_utils.get_logger()
 
 
-class BundleAdjustmentHiltiOptimizer(BundleAdjustmentOptimizer):
-    """Bundle adjustment using factor-graphs in GTSAM.
-
-    This class refines global pose estimates and intrinsics of cameras, and also refines 3D point cloud structure given
-    tracks from triangulation."""
+class RigBundleAdjustmentOptimizer(BundleAdjustmentOptimizer):
+    """Bundle adjustment for special rig multi-sensory devices."""
 
     # TODO(Ayush): share calibrations between same cams?
     # TODO(Ayush): use a diagonal model for calibration prior as distortion should have much lower sigmas?
@@ -91,6 +73,11 @@ class BundleAdjustmentHiltiOptimizer(BundleAdjustmentOptimizer):
     def _between_factors(
         self, relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]], cameras_to_model: List[int]
     ) -> NonlinearFactorGraph:
+        """Add between factors on poses between cameras and IMUs.
+
+        1. For the same timestamp, each camera has a BetweenFactor to the IMU at the same timestamp.
+        2. For different timestamps, the between factors are between IMUs.
+        """
         graph = NonlinearFactorGraph()
 
         # add a between factor for each camera with its IMU
@@ -137,7 +124,7 @@ class BundleAdjustmentHiltiOptimizer(BundleAdjustmentOptimizer):
                 gtsam.noiseModel.Diagonal.Sigmas(i2Ti1_prior.covariance),
             )
 
-        logger.info("Adding %d between factors for IMUs", len(imu_relative_pose_priors))
+        logger.info("Added %d between factors for IMUs", len(imu_relative_pose_priors))
 
         for factor in imu_relative_pose_priors.values():
             graph.push_back(factor)
@@ -150,6 +137,10 @@ class BundleAdjustmentHiltiOptimizer(BundleAdjustmentOptimizer):
         initial_data: GtsfmData,
         camera_for_origin: gtsfm_types.CAMERA_TYPE,
     ) -> NonlinearFactorGraph:
+        """Add priors on the cam/IMU poses.
+
+        Right now, the function just adds a prior on 1 IMU frame to anchor the scene to origin.
+        """
         graph = NonlinearFactorGraph()
 
         # TODO(Ayush): start using absolute prior factors.
@@ -171,6 +162,12 @@ class BundleAdjustmentHiltiOptimizer(BundleAdjustmentOptimizer):
         return graph
 
     def _initial_values(self, initial_data: GtsfmData) -> Values:
+        """Initialize camera poses, IMU poses, calibration, and ;andmarks.
+
+        For IMU pose initialization, we use one of the cameras at the same timestamp as the IMU and transform the pose
+        using rig geometry information.
+        """
+        # Initialize everything except the IMU pose.
         initial_values: Values = super()._initial_values(initial_data)
 
         # add initial values for IMU poses

@@ -94,6 +94,7 @@ class BundleAdjustmentOptimizer:
         return 0 if self._shared_calib else camera_idx
 
     def __reprojection_factors(self, initial_data: GtsfmData, is_fisheye_calibration: bool) -> NonlinearFactorGraph:
+        """Generate reprojection factors using the tracks."""
         graph = NonlinearFactorGraph()
 
         # noise model for measurements -- one pixel in u and v
@@ -124,6 +125,7 @@ class BundleAdjustmentOptimizer:
     def _between_factors(
         self, relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]], cameras_to_model: List[int]
     ) -> NonlinearFactorGraph:
+        """Generate BetweenFactors on relative poses for pose variables."""
         graph = NonlinearFactorGraph()
 
         for (i1, i2), i2Ti1_prior in relative_pose_priors.items():
@@ -147,6 +149,7 @@ class BundleAdjustmentOptimizer:
         initial_data: GtsfmData,
         camera_for_origin: gtsfm_types.CAMERA_TYPE,
     ) -> NonlinearFactorGraph:
+        """Generate prior factors (in the world frame) on pose variables."""
         graph = NonlinearFactorGraph()
 
         # TODO(Ayush): start using absolute prior factors.
@@ -167,6 +170,7 @@ class BundleAdjustmentOptimizer:
     def __calibration_priors(
         self, initial_data: GtsfmData, cameras_to_model: List[int], is_fisheye_calibration: bool
     ) -> NonlinearFactorGraph:
+        """Generate prior factors on calibration parameters of the cameras."""
         graph = NonlinearFactorGraph()
 
         calibration_prior_factor_class = PriorFactorCal3Fisheye if is_fisheye_calibration else PriorFactorCal3Bundler
@@ -201,6 +205,7 @@ class BundleAdjustmentOptimizer:
         absolute_pose_priors: List[Optional[PosePrior]],
         relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]],
     ) -> NonlinearFactorGraph:
+        """Construct the factor graph with reprojection factors, BetweenFactors, and prior factors."""
         is_fisheye_calibration = isinstance(initial_data.get_camera(cameras_to_model[0]), PinholeCameraCal3Fisheye)
 
         graph = NonlinearFactorGraph()
@@ -231,7 +236,7 @@ class BundleAdjustmentOptimizer:
         return graph
 
     def _initial_values(self, initial_data: GtsfmData) -> Values:
-        # Create initial estimate
+        """Initialize all the variables in the factor graph."""
         initial_values = gtsam.Values()
 
         # add each camera
@@ -250,7 +255,7 @@ class BundleAdjustmentOptimizer:
         return initial_values
 
     def __optimize_factor_graph(self, graph: NonlinearFactorGraph, initial_values: Values) -> Values:
-        # Configure optimizer.
+        """Optimize the factor graph."""
         params = gtsam.LevenbergMarquardtParams()
         params.setVerbosityLM("ERROR")
         if self._max_iterations:
@@ -266,7 +271,7 @@ class BundleAdjustmentOptimizer:
         absolute_pose_priors: List[Optional[PosePrior]],
         relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]],
     ) -> List[int]:
-        """Get the cameras which are to be modelled in the factor graph. We are using ability to add initial values as
+        """Get the cameras which are to be modeled in the factor graph. We are using ability to add initial values as
         proxy for this function."""
         cameras: Set[int] = set(initial_data.get_valid_camera_indices())
 
@@ -290,7 +295,8 @@ class BundleAdjustmentOptimizer:
         Results:
             Optimized camera poses, 3D point w/ tracks, and error metrics, aligned to GT (if provided).
             Optimized camera poses after filtering landmarks (and cameras with no remaining landmarks).
-            Valid mask as a list of booleans, indicating for each input track whether it was below the re-projection threshold.
+            Valid mask as a list of booleans, indicating for each input track whether it was below the re-projection
+                threshold.
         """
         logger.info(
             f"Input: {initial_data.number_tracks()} tracks on {len(initial_data.get_valid_camera_indices())} cameras\n"
