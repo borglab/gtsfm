@@ -235,6 +235,15 @@ class LoaderBase(metaclass=abc.ABCMeta):
         """
         return None
 
+    def get_absolute_pose_priors(self) -> List[Optional[PosePrior]]:
+        """Get *all* absolute pose priors
+
+        Returns:
+            A list of (optional) pose priors.
+        """
+        N = len(self)
+        return [self.get_absolute_pose_prior(i) for i in range(N)]
+
     def create_computation_graph_for_images(self) -> List[Delayed]:
         """Creates the computation graph for image fetches.
 
@@ -242,8 +251,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
             list of delayed tasks for images.
         """
         N = len(self)
-
-        return [dask.delayed(self.get_image)(x) for x in range(N)]
+        return [dask.delayed(self.get_image)(i) for i in range(N)]
 
     def create_computation_graph_for_intrinsics(self) -> List[Delayed]:
         """Creates the computation graph for camera intrinsics.
@@ -252,8 +260,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
             list of delayed tasks for camera intrinsics.
         """
         N = len(self)
-
-        return [dask.delayed(self.get_camera_intrinsics)(x) for x in range(N)]
+        return [dask.delayed(self.get_camera_intrinsics)(i) for i in range(N)]
 
     def create_computation_graph_for_poses(self) -> List[Delayed]:
         """Creates the computation graph for camera poses.
@@ -262,8 +269,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
             list of delayed tasks for camera poses.
         """
         N = len(self)
-
-        return [dask.delayed(self.get_camera_pose)(x) for x in range(N)]
+        return [dask.delayed(self.get_camera_pose)(i) for i in range(N)]
 
     def create_computation_graph_for_cameras(self) -> List[Delayed]:
         """Creates the computation graph for cameras.
@@ -272,7 +278,6 @@ class LoaderBase(metaclass=abc.ABCMeta):
             OList of delayed tasks for cameras.
         """
         N = len(self)
-
         return [dask.delayed(self.get_camera)(i) for i in range(N)]
 
     def create_computation_graph_for_image_shapes(self) -> List[Delayed]:
@@ -282,16 +287,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
             list of delayed tasks for image shapes.
         """
         N = len(self)
-        return [dask.delayed(self.get_image_shape)(x) for x in range(N)]
-
-    def create_computation_graph_for_absolute_pose_priors(self) -> List[Delayed]:
-        N = len(self)
-        return [dask.delayed(self.get_absolute_pose_prior)(i) for i in range(N)]
-
-    def create_computation_graph_for_relative_pose_priors(
-        self, pairs: List[Tuple[int, int]]
-    ) -> Dict[Tuple[int, int], Delayed]:
-        return {(i1, i2): dask.delayed(self.get_relative_pose_prior)(i1, i2) for i1, i2 in pairs}
+        return [dask.delayed(self.get_image_shape)(i) for i in range(N)]
 
     def get_valid_pairs(self) -> List[Tuple[int, int]]:
         """Get the valid pairs of images for this loader.
