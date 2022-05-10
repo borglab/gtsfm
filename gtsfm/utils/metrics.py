@@ -126,7 +126,7 @@ def epipolar_inlier_correspondences(
     distance_squared = verification_utils.compute_epipolar_distances_sq_sampson(
         keypoints_i1.coordinates, keypoints_i2.coordinates, i2Fi1
     )
-    is_inlier = distance_squared < dist_threshold ** 2 if distance_squared is not None else None
+    is_inlier = distance_squared < dist_threshold**2 if distance_squared is not None else None
 
     return is_inlier, distance_squared
 
@@ -351,7 +351,7 @@ def compute_ba_pose_metrics(
     return GtsfmMetricsGroup(name="ba_pose_error_metrics", metrics=metrics)
 
 
-def get_twoview_translation_directions(wTi_list: List[Pose3]) -> Dict[Tuple[int, int], Unit3]:
+def get_twoview_translation_directions(wTi_list: List[Optional[Pose3]]) -> Dict[Tuple[int, int], Optional[Unit3]]:
     """Generate synthetic measurements of the 2-view translation directions between image pairs.
 
     Args:
@@ -367,9 +367,12 @@ def get_twoview_translation_directions(wTi_list: List[Pose3]) -> Dict[Tuple[int,
     possible_img_pair_idxs = list(itertools.combinations(range(number_images), 2))
     for (i1, i2) in possible_img_pair_idxs:
         # compute the exact relative pose
-        i2Ti1 = wTi_list[i2].between(wTi_list[i1])
-        i2Ui1_dict[(i1, i2)] = Unit3(i2Ti1.translation())
-
+        if wTi_list[i1] is None or wTi_list[i2] is None:
+            i2Ui1 = None
+        else:
+            i2Ti1 = wTi_list[i2].between(wTi_list[i1])
+            i2Ui1 = Unit3(i2Ti1.translation())
+        i2Ui1_dict[(i1, i2)] = i2Ui1
     return i2Ui1_dict
 
 
@@ -387,9 +390,9 @@ def get_precision_recall_from_errors(
     Returns:
         Tuple of precision, recall.
     """
-    tp = np.sum(np.array(positive_errors) <= max_positive_error)
-    fp = np.sum(np.array(positive_errors) > max_positive_error)
-    fn = np.sum(np.array(negative_errors) <= max_positive_error)
+    tp = np.sum(np.array(positive_errors, dtype=np.float32) <= max_positive_error)
+    fp = np.sum(np.array(positive_errors, dtype=np.float32) > max_positive_error)
+    fn = np.sum(np.array(negative_errors, dtype=np.float32) <= max_positive_error)
 
     eps = 1e-12  # prevent division by zero
     precision = tp * 1.0 / (tp + fp + eps)

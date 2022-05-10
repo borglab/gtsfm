@@ -1,0 +1,7 @@
+target_type: 'aprilgrid' #gridtype
+tagCols: 12               #number of apriltags
+tagRows: 7               #number of apriltags
+tagSize: 0.15           #size of apriltag, edge to edge [m]
+tagSpacing: 0.25          #ratio of space between tags to tagSize                     
+
+#./kalibr_create_target_pdf april_grid_2500x1500_7x12_15cm --type apriltag --nx 12 --ny 7 --tsize 0.15 --tspace 0.25
