@@ -82,9 +82,9 @@ class HiltiLoader(LoaderBase):
             self._cam_T_imu_poses[cam_idx] = calibration[1]
 
         # Check how many images are on disk.
-        self._max_rig_idx: int = self.__get_max_rig_idx()
+        self.max_rig_index: int = self.__get_max_rig_idx()
         if self._max_length is not None:
-            self._max_rig_idx = min(self._max_rig_idx, self._max_length)
+            self.max_rig_index = min(self.max_rig_index, self._max_length)
 
         # Read the constraints from the lidar/constraints file
         constraints_path = self._base_folder / "lidar" / "constraints.txt"
@@ -93,7 +93,7 @@ class HiltiLoader(LoaderBase):
         # Read the poses for the IMU for rig indices from g2o file.
         self._w_T_imu: Dict[int, Pose3] = self.__read_lidar_pose_priors()
 
-        logger.info("Loading %d timestamps", self._max_rig_idx)
+        logger.info("Loading %d timestamps", self.max_rig_index)
         logger.info("Lidar camera available for %d timestamps", len(self._w_T_imu))
 
     def __read_lidar_pose_priors(self) -> Dict[int, Pose3]:
@@ -106,7 +106,7 @@ class HiltiLoader(LoaderBase):
 
         w_T_imu: Dict[int, Pose3] = {}
 
-        for rig_idx in range(self._max_rig_idx):
+        for rig_idx in range(self.max_rig_index):
             if rig_idx in lidar_keys:
                 w_T_imu[rig_idx] = values.atPose3(rig_idx)
 
@@ -157,7 +157,7 @@ class HiltiLoader(LoaderBase):
         Returns:
             the number of images.
         """
-        return self._max_rig_idx * NUM_CAMS
+        return self.max_rig_index * NUM_CAMS
 
     def get_image(self, index: int) -> Image:
         return self.get_image_full_res(index)
@@ -193,8 +193,8 @@ class HiltiLoader(LoaderBase):
         Returns:
             Image: the image at the query index.
         """
-        cam_idx = self.map_index_to_camera(index)
-        rig_idx = self.map_image_idx_to_rig(index)
+        cam_idx = self.camera_from_image(index)
+        rig_idx = self.rig_from_image(index)
 
         logger.debug("Mapping %d index to rig %d, camera %d", index, rig_idx, cam_idx)
 
@@ -214,7 +214,7 @@ class HiltiLoader(LoaderBase):
         Returns:
             intrinsics for the given camera.
         """
-        return self._intrinsics[self.map_index_to_camera(index)]
+        return self._intrinsics[self.camera_from_image(index)]
 
     def get_camera_pose(self, index: int) -> Optional[Pose3]:
         """Get the camera pose (in world coordinates) at the given index.
@@ -227,8 +227,8 @@ class HiltiLoader(LoaderBase):
         Returns:
             the camera pose w_P_index.
         """
-        rig_idx: int = self.map_image_idx_to_rig(index)
-        cam_idx: int = self.map_index_to_camera(index)
+        rig_idx: int = self.rig_from_image(index)
+        cam_idx: int = self.camera_from_image(index)
 
         if rig_idx in self._w_T_imu:
             return self._w_T_imu[rig_idx] * self._cam_T_imu_poses[cam_idx].inverse()
@@ -236,10 +236,10 @@ class HiltiLoader(LoaderBase):
         return None
 
     def get_relative_pose_prior(self, i1: int, i2: int) -> Optional[PosePrior]:
-        rig_idx_for_i1: int = self.map_image_idx_to_rig(i1)
-        rig_idx_for_i2: int = self.map_image_idx_to_rig(i2)
-        cam_idx_for_i1: int = self.map_index_to_camera(i1)
-        cam_idx_for_i2: int = self.map_index_to_camera(i2)
+        rig_idx_for_i1: int = self.rig_from_image(i1)
+        rig_idx_for_i2: int = self.rig_from_image(i2)
+        cam_idx_for_i1: int = self.camera_from_image(i1)
+        cam_idx_for_i2: int = self.camera_from_image(i2)
 
         if rig_idx_for_i1 == rig_idx_for_i2:
             i1_T_imu: Pose3 = self._cam_T_imu_poses[cam_idx_for_i1]
@@ -257,8 +257,8 @@ class HiltiLoader(LoaderBase):
         return None
 
     def get_absolute_pose_prior(self, idx: int) -> Optional[PosePrior]:
-        rig_idx: int = self.map_image_idx_to_rig(idx)
-        cam_idx: int = self.map_index_to_camera(idx)
+        rig_idx: int = self.rig_from_image(idx)
+        cam_idx: int = self.camera_from_image(idx)
 
         if rig_idx in self._w_T_imu:
             w_T_cam = self._w_T_imu[rig_idx] * self._cam_T_imu_poses[cam_idx].inverse()
@@ -279,28 +279,34 @@ class HiltiLoader(LoaderBase):
         if not super().is_valid_pair(idx1, idx2):
             return False
 
-        rig_idx_i1 = self.map_image_idx_to_rig(idx1)
-        rig_idx_i2 = self.map_image_idx_to_rig(idx2)
+        rig_idx_i1 = self.rig_from_image(idx1)
+        rig_idx_i2 = self.rig_from_image(idx2)
 
-        cam_idx_i1 = self.map_index_to_camera(idx1)
-        cam_idx_i2 = self.map_index_to_camera(idx2)
+        cam_idx_i1 = self.camera_from_image(idx1)
+        cam_idx_i2 = self.camera_from_image(idx2)
         if rig_idx_i1 == rig_idx_i2:
             return (cam_idx_i1, cam_idx_i2) in INTRA_RIG_VALID_PAIRS
         elif rig_idx_i1 < rig_idx_i2 and rig_idx_i2 - rig_idx_i1 <= self._max_frame_lookahead:
             return (cam_idx_i1, cam_idx_i2) in INTER_RIG_VALID_PAIRS
 
-    def map_index_to_camera(self, index: int) -> int:
+    def camera_from_image(self, index: int) -> int:
+        """Map image index to camera-on-rig index."""
         return index % NUM_CAMS
 
-    def map_image_idx_to_rig(self, index: int) -> int:
+    def rig_from_image(self, index: int) -> int:
+        """Map image index to rig index."""
         return index // NUM_CAMS
+
+    def image_from_rig_and_camera(self, rig_index: int, camera_idx: int) -> int:
+        """Map image index to rig index."""
+        return rig_index * NUM_CAMS + camera_idx
 
     def get_relative_pose_priors(self, pairs: List[Tuple[int, int]]) -> Dict[Tuple[int, int], PosePrior]:
         pairs = set(pairs)
         # just add all possible pairs which belong to the same rig (as it will have hard relative prior)
         for i in range(len(self)):
             for j in range(i + 1, i + NUM_CAMS - 1):
-                if self.map_image_idx_to_rig(i) == self.map_image_idx_to_rig(j):
+                if self.rig_from_image(i) == self.rig_from_image(j):
                     pairs.add((i, j))
                 else:
                     break

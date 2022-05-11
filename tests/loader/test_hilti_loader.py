@@ -30,17 +30,17 @@ class TestHiltiLoader(unittest.TestCase):
 
     def test_map_to_rig_idx(self) -> None:
         for i in range(0, 5, 1):
-            self.assertEqual(self.loader.map_image_idx_to_rig(i), 0)
+            self.assertEqual(self.loader.rig_from_image(i), 0)
 
         for i in range(10, 15, 1):
-            self.assertEqual(self.loader.map_image_idx_to_rig(i), 2)
+            self.assertEqual(self.loader.rig_from_image(i), 2)
 
     def test_map_to_camera_idx(self) -> None:
         for i in {0, 5, 25}:
-            self.assertEqual(self.loader.map_index_to_camera(i), 0)
+            self.assertEqual(self.loader.camera_from_image(i), 0)
 
         for i in {2, 12, 32}:
-            self.assertEqual(self.loader.map_index_to_camera(i), 2)
+            self.assertEqual(self.loader.camera_from_image(i), 2)
 
     def test_is_valid_pair(self) -> None:
         # cameras in the same timestamp
