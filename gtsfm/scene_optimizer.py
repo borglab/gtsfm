@@ -159,7 +159,7 @@ class SceneOptimizer:
                 camera_intrinsics_graph[i2],
                 image_shape_graph[i1],
                 image_shape_graph[i2],
-                relative_pose_priors.get((i1, i2), default=None),
+                relative_pose_priors.get((i1, i2), None),
                 gt_poses_graph[i1],
                 gt_poses_graph[i2],
                 gt_scene_mesh,
