@@ -4,7 +4,6 @@ Authors: Sushmita Warrier, Xiaolong Wu, John Lambert, Travis Driver
 """
 
 import copy
-import unittest
 from typing import Dict, List, Tuple
 
 import numpy as np

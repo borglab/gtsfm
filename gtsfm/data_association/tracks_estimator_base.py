@@ -7,8 +7,6 @@ import abc
 from typing import List, Dict, Tuple
 
 import numpy as np
-import dask
-from dask.delayed import Delayed
 
 from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.common.keypoints import Keypoints
