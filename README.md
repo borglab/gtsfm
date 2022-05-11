@@ -78,11 +78,13 @@ and run
 ```python
 python gtsfm/runner/run_scene_optimizer_olssonloader.py --config_name {CONFIG_NAME} --dataset_root {DATASET_ROOT} --image_extension jpg --num_workers {NUM_WORKERS}
 ```
-For example, if you had 4 cores available and wanted to use the Deep Front-End (recommended), you should run:
+For example, if you had 4 cores available and wanted to use the Deep Front-End (recommended) on the "door" dataset, you should run:
 ```bash
-python gtsfm/runner/run_scene_optimizer_olssonloader.py --dataset_root /path/to/{DATASET_NAME} --image_extension jpg --config_name deep_front_end.yaml --num_workers 4
+python gtsfm/runner/run_scene_optimizer_olssonloader.py --dataset_root tests/data/set1_lund_door --image_extension JPG --config_name deep_front_end.yaml --num_workers 4
 ```
 (or however many workers you desire).
+
+You can view/monitor the distributed computation using the [Dask dashboard](http://localhost:8787/status).
 
 Currently we require EXIF data embedded into your images (or you can provide ground truth intrinsics in the expected format for an Olsson dataset, or COLMAP-exported text data, etc)
 

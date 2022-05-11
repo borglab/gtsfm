@@ -35,17 +35,17 @@ class TestSceneOptimizer(unittest.TestCase):
 
             # config is relative to the gtsfm module
             cfg = hydra.compose(config_name="scene_optimizer_unit_test_config.yaml")
-            obj: SceneOptimizer = instantiate(cfg.SceneOptimizer)
+            scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
             # generate the dask computation graph
-            sfm_result_graph = obj.create_computation_graph(
+            sfm_result_graph = scene_optimizer.create_computation_graph(
                 num_images=len(self.loader),
                 image_pair_indices=self.loader.get_valid_pairs(),
                 image_graph=self.loader.create_computation_graph_for_images(),
                 camera_intrinsics_graph=self.loader.create_computation_graph_for_intrinsics(),
                 image_shape_graph=self.loader.create_computation_graph_for_image_shapes(),
-                absolute_pose_priors=self.loader.create_computation_graph_for_absolute_pose_priors(),
-                relative_pose_priors=self.loader.create_computation_graph_for_relative_pose_priors(
+                absolute_pose_priors=self.loader.get_absolute_pose_priors(),
+                relative_pose_priors=self.loader.get_relative_pose_priors(
                     self.loader.get_valid_pairs()
                 ),
                 gt_cameras_graph=self.loader.create_computation_graph_for_cameras(),

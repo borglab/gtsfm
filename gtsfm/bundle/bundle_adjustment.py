@@ -96,7 +96,7 @@ class BundleAdjustmentOptimizer:
         self,
         initial_data: GtsfmData,
         absolute_pose_priors: List[Optional[PosePrior]],
-        relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
     ) -> NonlinearFactorGraph:
         graph = NonlinearFactorGraph()
 
@@ -199,7 +199,7 @@ class BundleAdjustmentOptimizer:
         self,
         initial_data: GtsfmData,
         absolute_pose_priors: List[Optional[PosePrior]],
-        relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         verbose: bool = True,
     ) -> Tuple[GtsfmData, GtsfmData, List[bool]]:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
@@ -306,16 +306,16 @@ class BundleAdjustmentOptimizer:
     def create_computation_graph(
         self,
         sfm_data_graph: Delayed,
-        absolute_pose_priors: List[Delayed],
-        relative_pose_priors: Dict[Tuple[int, int], Delayed],
+        absolute_pose_priors: List[Optional[PosePrior]],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         gt_cameras_graph: Optional[List[Delayed]] = None,
     ) -> Tuple[Delayed, Delayed]:
         """Create the computation graph for performing bundle adjustment.
 
         Args:
             sfm_data_graph: an GtsfmData object wrapped up using dask.delayed
-            absolute_pose_priors: priors on the poses of the cameras.
-            relative_pose_priors: priors on poses between cameras.
+            absolute_pose_priors: priors on the poses of the cameras (not delayed).
+            relative_pose_priors: priors on poses between cameras (not delayed).
 
         Returns:
             GtsfmData aligned to GT (if provided), wrapped up using dask.delayed

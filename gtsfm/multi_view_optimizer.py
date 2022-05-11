@@ -14,6 +14,7 @@ import gtsfm.utils.metrics as metrics_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
+from gtsfm.common.pose_prior import PosePrior
 from gtsfm.data_association.data_assoc import DataAssociation
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.two_view_estimator import TwoViewEstimationReport
@@ -45,8 +46,8 @@ class MultiViewOptimizer:
         i2Ui1_graph: Dict[Tuple[int, int], Delayed],
         v_corr_idxs_graph: Dict[Tuple[int, int], Delayed],
         intrinsics_graph: List[Delayed],
-        absolute_pose_priors: List[Delayed],
-        relative_pose_priors: Dict[Tuple[int, int], Delayed],
+        absolute_pose_priors: List[Optional[PosePrior]],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         two_view_reports_dict: Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
         gt_cameras_graph: List[Delayed],
         gt_poses_graph: List[Delayed],
@@ -60,8 +61,8 @@ class MultiViewOptimizer:
             i2Ui1_graph: relative unit-translations for image pairs, each value wrapped up as Delayed.
             v_corr_idxs_graph: indices of verified correspondences for image pairs, wrapped up as Delayed.
             intrinsics_graph: intrinsics for images, wrapped up as Delayed.
-            absolute_pose_priors: priors on the camera poses.
-            relative_pose_priors: priors on the pose between camera pairs.
+            absolute_pose_priors: priors on the camera poses (not delayed).
+            relative_pose_priors: priors on the pose between camera pairs (not delayed)
             two_view_reports_dict: Dict of TwoViewEstimationReports after inlier support processor.
             gt_cameras_graph: list of GT cameras (if they exist), ordered by camera index, wrapped up as Delayed.
             gt_poses_graph: list of GT poses of the camera.
