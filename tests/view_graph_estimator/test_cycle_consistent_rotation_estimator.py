@@ -3,11 +3,9 @@
 Author: John Lambert, Akshay Krishnan
 """
 import numpy as np
-import pytest
 from gtsam import Rot3, Cal3Bundler, Unit3
 
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
-from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator import (
     CycleConsistentRotationViewGraphEstimator,
     EdgeErrorAggregationCriterion,

@@ -36,8 +36,8 @@ class TestColmapLoader(unittest.TestCase):
 
     def test_constructor_set_properties(self) -> None:
         """Ensure that constructor sets class properties correctly."""
-        assert self.loader._use_gt_intrinsics == True
-        assert self.loader._use_gt_extrinsics == True
+        assert self.loader._use_gt_intrinsics
+        assert self.loader._use_gt_extrinsics
         assert self.loader._max_frame_lookahead == 3
         assert self.loader._max_resolution == 500
 
