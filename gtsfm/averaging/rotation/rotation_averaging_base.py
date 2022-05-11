@@ -28,7 +28,7 @@ class RotationAveragingBase(metaclass=abc.ABCMeta):
         self,
         num_images: int,
         i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
-        i2Ti1_priors: Dict[Tuple[int, int], Optional[PosePrior]],
+        i2Ti1_priors: Dict[Tuple[int, int], PosePrior],
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging.
 
@@ -71,7 +71,7 @@ class RotationAveragingBase(metaclass=abc.ABCMeta):
         self,
         num_images: int,
         i2Ri1_graph: Delayed,
-        i2Ti1_priors: Dict[Tuple[int, int], Delayed],
+        i2Ti1_priors: Dict[Tuple[int, int], PosePrior],
         gt_wTi_list: List[Optional[Pose3]],
     ) -> Tuple[Delayed, Delayed]:
         """Create the computation graph for performing rotation averaging.

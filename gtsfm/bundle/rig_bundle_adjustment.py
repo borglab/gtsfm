@@ -7,7 +7,7 @@ TODO(Ayush): generalize.
 
 Authors: Ayush Baid.
 """
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import gtsam
 from gtsam import BetweenFactorPose3, NonlinearFactorGraph
@@ -15,6 +15,8 @@ from gtsam import BetweenFactorPose3, NonlinearFactorGraph
 import gtsfm.utils.logger as logger_utils
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer, X
 from gtsfm.common.pose_prior import PosePrior
+
+UPWARD_FACING_CAM_TYPE = 2
 
 
 logger = logger_utils.get_logger()
@@ -35,7 +37,7 @@ class RigBundleAdjustmentOptimizer(BundleAdjustmentOptimizer):
         return camera_idx % 5
 
     def _between_factors(
-        self, relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]], cameras_to_model: List[int]
+        self, relative_pose_priors: Dict[Tuple[int, int], PosePrior], cameras_to_model: List[int]
     ) -> NonlinearFactorGraph:
         """Add between factors on poses between cameras and IMUs.
 
@@ -47,7 +49,7 @@ class RigBundleAdjustmentOptimizer(BundleAdjustmentOptimizer):
         # translate the relative pose priors between cams to IMUs, and add if not already present
         between_factors: Dict[Tuple[int, int], BetweenFactorPose3] = {}
         for (i1, i2), i2Ti1_prior in relative_pose_priors.items():
-            if i2Ti1_prior is None or i1 not in cameras_to_model or i2 not in cameras_to_model:
+            if i1 not in cameras_to_model or i2 not in cameras_to_model:
                 continue
 
             b1: int = self.__get_rig_idx(i1)
@@ -55,7 +57,9 @@ class RigBundleAdjustmentOptimizer(BundleAdjustmentOptimizer):
             cam_type_i1: int = self.__get_camera_type(i1)
             cam_type_i2: int = self.__get_camera_type(i2)
 
-            if (b1 == b2 and (cam_type_i1 == 2 or cam_type_i2 == 2)) or (cam_type_i1 == 2 and cam_type_i2 == 2):
+            if (b1 == b2 and (cam_type_i1 == UPWARD_FACING_CAM_TYPE or cam_type_i2 == UPWARD_FACING_CAM_TYPE)) or (
+                cam_type_i1 == UPWARD_FACING_CAM_TYPE and cam_type_i2 == UPWARD_FACING_CAM_TYPE
+            ):
                 between_factors[(i1, i2)] = BetweenFactorPose3(
                     X(i2), X(i1), i2Ti1_prior.value, gtsam.noiseModel.Diagonal.Sigmas(i2Ti1_prior.covariance)
                 )

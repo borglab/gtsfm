@@ -220,7 +220,9 @@ class HiltiLoader(LoaderBase):
     def get_relative_pose_prior(self, i1: int, i2: int) -> Optional[PosePrior]:
         """Creates prior on relative pose i2Ti1.
 
-        If the images are on the same rig, then creates a hard pose prior between the two images, to be used by the two-view estimator. If they are not, we create a soft pose prior derived from the absolute poses (w_T_imu) passed in the constructor.
+        If the images are on the same rig, then creates a hard pose prior between the two images, to be used by the
+        two-view estimator. If they are not, we create a soft pose prior derived from the absolute poses (w_T_imu)
+        passed in the constructor.
 
         Args:
             i1: index of first image.

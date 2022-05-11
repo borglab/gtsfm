@@ -92,7 +92,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         self,
         num_images: int,
         i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
-        i2Ti1_priors: Dict[Tuple[int, int], Optional[PosePrior]],
+        i2Ti1_priors: Dict[Tuple[int, int], PosePrior],
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging on a connected graph with arbitrary keys, where each key is a image/pose index.
 
