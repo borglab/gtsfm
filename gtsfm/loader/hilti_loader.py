@@ -54,12 +54,25 @@ class HiltiLoader(LoaderBase):
         max_frame_lookahead: int = 10,
         step_size: int = 8,
         max_length: Optional[int] = None,
+        max_resolution: int = 1080,
     ) -> None:
-        super().__init__(max_resolution=1000)
+        """Initializes, loads calibration and pose priors from g2o.
+
+        Args:
+            base_folder (str): top-level folder, expects calibration, images and lidar subfolders.
+            max_frame_lookahead (int, optional): creates relative pos priors up to this lookahead. Defaults to 10.
+            step_size (int, optional): Not used?. Defaults to 8.
+            max_length (Optional[int]): limit poses to read. Defaults to None.
+            max_resolution: integer representing maximum length of image's short side
+               e.g. for 1080p (1920 x 1080), max_resolution would be 1080
+        """
+        super().__init__(max_resolution)
         self._base_folder: Path = Path(base_folder)
         self._max_frame_lookahead: int = max_frame_lookahead
         self._step_size: int = step_size
         self._max_length = max_length
+
+        # Load calibration.
         self._intrinsics: Dict[int, Cal3Fisheye] = {}
         self._cam_T_imu_poses: Dict[int, Pose3] = {}
         for cam_idx in range(NUM_CAMS):
@@ -67,16 +80,19 @@ class HiltiLoader(LoaderBase):
             self._intrinsics[cam_idx] = calibration[0]
             self._cam_T_imu_poses[cam_idx] = calibration[1]
 
+        # Check how many images are on disk.
         self._max_rig_idx: int = self.__get_max_rig_idx()
         if self._max_length is not None:
             self._max_rig_idx = min(self._max_rig_idx, self._max_length)
 
-        self._w_T_imu: Dict[int, Pose3] = self.__read_lidar_pose_priors()  # poses for the IMU for rig indices
+        # Read the poses for the IMU for rig indices
+        self._w_T_imu: Dict[int, Pose3] = self.__read_lidar_pose_priors()
 
         logger.info("Loading %d timestamps", self._max_rig_idx)
         logger.info("Lidar camera available for %d timestamps", len(self._w_T_imu))
 
     def __read_lidar_pose_priors(self) -> Dict[int, Pose3]:
+        """Read the poses for the IMU for rig indices."""
         filepath = str(self._base_folder / LIDAR_POSE_RELATIVE_PATH)
         _, values = gtsam.readG2o(filepath, is3D=True)
 
@@ -92,13 +108,14 @@ class HiltiLoader(LoaderBase):
         return w_T_imu
 
     def __get_max_rig_idx(self) -> int:
+        """Check how many images we have on disk and deduce number of rig poses."""
         search_path: str = str(self._base_folder / IMAGES_FOLDER / "*.jpg")
         image_files = glob.glob(search_path)
         total_num_images = len(image_files)
-
         return total_num_images // NUM_CAMS
 
     def __load_calibration(self, cam_idx: int) -> Tuple[Cal3Fisheye, Pose3]:
+        """Load calibration from kalibr files in calibration sub-folder."""
         kalibr_file_path = self._base_folder / "calibration" / CAM_IDX_TO_KALIBR_FILE_MAP[cam_idx]
 
         with open(kalibr_file_path, "r") as file:
@@ -117,12 +134,14 @@ class HiltiLoader(LoaderBase):
         return intrinsics, cam_T_imu
 
     def __load_intrinsics(self, calibration_data: Dict[Any, Any]) -> Cal3Fisheye:
+        """Create gtsam.Cal3Fisheye object from calibration data."""
         fx, fy, px, py = calibration_data["intrinsics"]
         k1, k2, k3, k4 = calibration_data["distortion_coeffs"]
 
         return Cal3Fisheye(fx=fx, fy=fy, s=0, u0=px, v0=py, k1=k1, k2=k2, k3=k3, k4=k4)
 
     def __load_pose_relative_to_imu(self, calibration_data: Dict[Any, Any]) -> Pose3:
+        """Create gtsam.Pose3 object from calibration data"""
         transformation_matrix: np.ndarray = calibration_data["T_cam_imu"]
         return Pose3(transformation_matrix)
 
