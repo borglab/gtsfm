@@ -6,7 +6,6 @@ Author: Frank Dellaert
 import tempfile
 import unittest
 from pathlib import Path
-from typing import Optional
 
 import gtsam
 import numpy as np

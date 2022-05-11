@@ -3,7 +3,6 @@
 Author: Frank Dellaert
 """
 
-from pathlib import Path
 from typing import List, Tuple
 from gtsfm.loader.hilti_loader import HiltiLoader
 
@@ -20,7 +19,7 @@ class RigRetriever(RetrieverBase):
         """Create RigRetriever
 
         Args:
-            threshold (int, optional): amount of "proxy" correspondences that will trigger an image-pair. Defaults to 100.
+            threshold (int, optional): amount of "proxy" correspondences that will trigger an image-pair. Default 100.
         """
         self._threshold = threshold
 
