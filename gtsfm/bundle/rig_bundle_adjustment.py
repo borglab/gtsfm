@@ -1,6 +1,8 @@
 """Special Bundle adjustment optimizer to handle rigs: devices with multiple sensors.
 
-Right now, this class is specific to the rig in the Hilti 2022 challenge, and needs generalization.
+Right now, this class is specific to the rig in the Hilti 2022 challenge, and needs generalization. The hilti dataset
+has 5 cameras which are fired in sync. Among the 5 cameras, camera #2 is the one facing up and is used to add intra-rig
+and inter-rig between factors.
 TODO(Ayush): generalize.
 
 Authors: Ayush Baid.
@@ -25,9 +27,11 @@ class RigBundleAdjustmentOptimizer(BundleAdjustmentOptimizer):
     # TODO(Ayush): use a diagonal model for calibration prior as distortion should have much lower sigmas?
 
     def __get_rig_idx(self, camera_idx: int) -> int:
+        """Get the rig index pertaining to the camera, as there are 5 cameras in sync per timestamp."""
         return camera_idx // 5
 
     def __get_camera_type(self, camera_idx: int) -> int:
+        """Get the type of the camera, i.e. the indexing of the camera according to its physical location in the rig."""
         return camera_idx % 5
 
     def _between_factors(
