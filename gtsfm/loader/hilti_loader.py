@@ -14,9 +14,9 @@ Kalibr format for intrinsics: https://github.com/ethz-asl/kalibr/wiki/yaml-forma
 Authors: Ayush Baid
 """
 import glob
-import yaml
-from typing import Any, Dict, List, Optional, Tuple
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+import yaml
 
 import numpy as np
 import gtsam
@@ -24,6 +24,7 @@ from gtsam import Cal3Fisheye, Pose3
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
+from gtsfm.common.constraint import Constraint
 from gtsfm.common.image import Image
 from gtsfm.common.pose_prior import PosePrior, PosePriorType
 from gtsfm.loader.loader_base import LoaderBase
@@ -56,7 +57,7 @@ class HiltiLoader(LoaderBase):
         max_length: Optional[int] = None,
         max_resolution: int = 1080,
     ) -> None:
-        """Initializes, loads calibration and pose priors from g2o.
+        """Initializes, loads calibration, constraints, and pose priors.
 
         Args:
             base_folder (str): top-level folder, expects calibration, images and lidar subfolders.
@@ -85,7 +86,11 @@ class HiltiLoader(LoaderBase):
         if self._max_length is not None:
             self._max_rig_idx = min(self._max_rig_idx, self._max_length)
 
-        # Read the poses for the IMU for rig indices
+        # Read the constraints from the lidar/constraints file
+        constraints_path = self._base_folder / "lidar" / "constraints.txt"
+        self.constraints = Constraint.read(str(constraints_path))
+
+        # Read the poses for the IMU for rig indices from g2o file.
         self._w_T_imu: Dict[int, Pose3] = self.__read_lidar_pose_priors()
 
         logger.info("Loading %d timestamps", self._max_rig_idx)

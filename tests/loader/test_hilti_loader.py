@@ -116,3 +116,47 @@ class TestHiltiLoader(unittest.TestCase):
                     self.assertTrue(self.loader.is_valid_pair(i2, i1))
             else:
                 self.assertFalse(self.loader.is_valid_pair(i1, i2))
+
+    def test_number_of_relative_pose_priors(self) -> None:
+        """Check that 3 relative constraints translate into many relative pose priors."""
+        # The pairs we get from the rig_retriever are these:
+        pairs = [
+            (5, 10),
+            (5, 11),
+            (5, 13),
+            (5, 14),
+            (6, 10),
+            (6, 11),
+            (6, 14),
+            (8, 10),
+            (8, 13),
+            (9, 10),
+            (9, 11),
+            (9, 14),
+            (0, 10),
+            (0, 11),
+            (0, 14),
+            (1, 10),
+            (1, 11),
+            (1, 14),
+            (3, 13),
+            (4, 10),
+            (4, 11),
+            (4, 14),
+            (0, 5),
+            (0, 6),
+            (0, 9),
+            (1, 5),
+            (1, 6),
+            (1, 9),
+            (3, 8),
+            (4, 5),
+            (4, 6),
+            (4, 9),
+        ]
+        relative_pose_priors = self.loader.get_relative_pose_priors(pairs)
+        self.assertEqual(len(relative_pose_priors), len(pairs))
+
+
+if __name__ == "__main__":
+    unittest.main()
