@@ -42,10 +42,8 @@ CAM_IDX_TO_KALIBR_FILE_MAP = {
 }
 
 LIDAR_POSE_RELATIVE_PATH = "lidar/fastlio2.g2o"
+LIDAR_CONSTRAINTS_RELATIVE_PATH = "lidar/constraints.txt"
 IMAGES_FOLDER = "images"
-
-INTRA_RIG_VALID_PAIRS = {(0, 1), (0, 3), (1, 4)}
-INTER_RIG_VALID_PAIRS = {(0, 0), (0, 1), (0, 3), (1, 0), (1, 1), (1, 4), (2, 2), (3, 0), (3, 3), (4, 1), (4, 4)}
 
 
 class HiltiLoader(LoaderBase):
@@ -87,7 +85,7 @@ class HiltiLoader(LoaderBase):
             self.max_rig_index = min(self.max_rig_index, self._max_length)
 
         # Read the constraints from the lidar/constraints file
-        constraints_path = self._base_folder / "lidar" / "constraints.txt"
+        constraints_path = self._base_folder / LIDAR_CONSTRAINTS_RELATIVE_PATH
         self.constraints = Constraint.read(str(constraints_path))
 
         # Read the poses for the IMU for rig indices from g2o file.
@@ -266,29 +264,6 @@ class HiltiLoader(LoaderBase):
 
         return None
 
-    def is_valid_pair(self, idx1: int, idx2: int) -> bool:
-        """Checks if (idx1, idx2) is a valid pair. idx1 < idx2 is required.
-
-        Args:
-            idx1: first index of the pair.
-            idx2: second index of the pair.
-
-        Returns:
-            validation result.
-        """
-        if not super().is_valid_pair(idx1, idx2):
-            return False
-
-        rig_idx_i1 = self.rig_from_image(idx1)
-        rig_idx_i2 = self.rig_from_image(idx2)
-
-        cam_idx_i1 = self.camera_from_image(idx1)
-        cam_idx_i2 = self.camera_from_image(idx2)
-        if rig_idx_i1 == rig_idx_i2:
-            return (cam_idx_i1, cam_idx_i2) in INTRA_RIG_VALID_PAIRS
-        elif rig_idx_i1 < rig_idx_i2 and rig_idx_i2 - rig_idx_i1 <= self._max_frame_lookahead:
-            return (cam_idx_i1, cam_idx_i2) in INTER_RIG_VALID_PAIRS
-
     def camera_from_image(self, index: int) -> int:
         """Map image index to camera-on-rig index."""
         return index % NUM_CAMS
@@ -303,13 +278,11 @@ class HiltiLoader(LoaderBase):
 
     def get_relative_pose_priors(self, pairs: List[Tuple[int, int]]) -> Dict[Tuple[int, int], PosePrior]:
         pairs = set(pairs)
-        # just add all possible pairs which belong to the same rig (as it will have hard relative prior)
-        for i in range(len(self)):
-            for j in range(i + 1, i + NUM_CAMS - 1):
-                if self.rig_from_image(i) == self.rig_from_image(j):
-                    pairs.add((i, j))
-                else:
-                    break
+        # For every rig index, add a "star" from camera 2 to 0,1,3,4:
+        for rig_index in range(self.max_rig_index):
+            camera_2 = self.image_from_rig_and_camera(rig_index, 2)
+            for cam_idx in [0, 1, 3, 4]:
+                pairs.add((camera_2, self.image_from_rig_and_camera(rig_index, cam_idx)))
 
         priors = {pair: self.get_relative_pose_prior(*pair) for pair in pairs}
         priors = {pair: prior for pair, prior in priors.items() if prior is not None}
