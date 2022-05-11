@@ -16,6 +16,7 @@ import gtsam
 import numpy as np
 from gtsam import (
     BetweenFactorPose3,
+    BetweenFactorPose3s,
     LevenbergMarquardtParams,
     Rot3,
     Pose3,
@@ -41,8 +42,51 @@ class ShonanRotationAveraging(RotationAveragingBase):
         self._p_min = 5
         self._p_max = 30
 
+    def __get_shonan_params(self) -> ShonanAveragingParameters3:
+        lm_params = LevenbergMarquardtParams.CeresDefaults()
+        shonan_params = ShonanAveragingParameters3(lm_params)
+        shonan_params.setUseHuber(False)
+        shonan_params.setCertifyOptimality(True)
+        return shonan_params
+
+    def __between_factors_from_2view_relative_rotations(
+        self, i2Ri1_dict: Dict[Tuple[int, int], Rot3], old_to_new_idxs: Dict[int, int]
+    ) -> BetweenFactorPose3s:
+        """Create between factors from relative rotations computed by the 2-view estimator."""
+        # TODO: how to weight the noise model on relative rotations compared to priors?
+        noise_model = gtsam.noiseModel.Unit.Create(6)
+
+        between_factors = BetweenFactorPose3s()
+
+        for (i1, i2), i2Ri1 in i2Ri1_dict.items():
+            if i2Ri1 is not None:
+                # ignore translation during rotation averaging
+                i2Ti1 = Pose3(i2Ri1, np.zeros(3))
+                i2_ = old_to_new_idxs[i2]
+                i1_ = old_to_new_idxs[i1]
+                between_factors.append(BetweenFactorPose3(i2_, i1_, i2Ti1, noise_model))
+
+        return between_factors
+
+    def __between_factors_from_pose_priors(
+        self, i2Ti1_priors: Dict[Tuple[int, int], PosePrior], old_to_new_idxs: Dict[int, int]
+    ) -> BetweenFactorPose3s:
+        """Create between factors from the priors on relative poses."""
+        between_factors = BetweenFactorPose3s()
+
+        for (i1, i2), i2Ti1_prior in i2Ti1_priors.items():
+            i2_ = old_to_new_idxs[i2]
+            i1_ = old_to_new_idxs[i1]
+            between_factors.append(
+                BetweenFactorPose3(
+                    i2_, i1_, i2Ti1_prior.value, gtsam.noiseModel.Diagonal.Sigmas(i2Ti1_prior.covariance)
+                )
+            )
+
+        return between_factors
+
     def _run_with_consecutive_ordering(
-        self, num_connected_nodes: int, i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]]
+        self, num_connected_nodes: int, between_factors: BetweenFactorPose3s
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging on a connected graph w/ N keys ordered consecutively [0,...,N-1].
 
@@ -53,30 +97,15 @@ class ShonanRotationAveraging(RotationAveragingBase):
         Args:
             num_connected_nodes: number of unique connected nodes (i.e. images) in the graph
                 (<= the number of images in the dataset)
-            i2Ri1_dict: relative rotations for each edge between nodes as dictionary (i1, i2): i2Ri1.
-                Note: i1 < num_connected_nodes, and also i2 < num_connected_nodes.
+            between_factors: BetweenFactorPose3s created from relative rotations from 2-view estimator and the priors.
 
         Returns:
             Global rotations for each **CONNECTED** camera pose, i.e. wRi, as a list. The number of entries in
                 the list is `num_connected_nodes`. The list may contain `None` where the global rotation could
                 not be computed (either underconstrained system or ill-constrained system).
         """
-        lm_params = LevenbergMarquardtParams.CeresDefaults()
-        shonan_params = ShonanAveragingParameters3(lm_params)
-        shonan_params.setUseHuber(False)
-        shonan_params.setCertifyOptimality(True)
 
-        noise_model = gtsam.noiseModel.Unit.Create(6)
-
-        between_factors = gtsam.BetweenFactorPose3s()
-
-        for (i1, i2), i2Ri1 in i2Ri1_dict.items():
-            if i2Ri1 is not None:
-                # ignore translation during rotation averaging
-                i2Ti1 = Pose3(i2Ri1, np.zeros(3))
-                between_factors.append(BetweenFactorPose3(i2, i1, i2Ti1, noise_model))
-
-        obj = ShonanAveraging3(between_factors, shonan_params)
+        obj = ShonanAveraging3(between_factors, self.__get_shonan_params())
 
         initial = obj.initializeRandomly()
         result_values, _ = obj.run(initial, self._p_min, self._p_max)
@@ -92,7 +121,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         self,
         num_images: int,
         i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
-        i2Ti1_priors: Dict[Tuple[int, int], Optional[PosePrior]],
+        i2Ti1_priors: Dict[Tuple[int, int], PosePrior],
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging on a connected graph with arbitrary keys, where each key is a image/pose index.
 
@@ -123,21 +152,15 @@ class ShonanRotationAveraging(RotationAveragingBase):
             nodes_with_edges.add(i2)
 
         nodes_with_edges = sorted(list(nodes_with_edges))
+        old_to_new_idxes = {new_idx: i for i, new_idx in enumerate(nodes_with_edges)}
 
-        # given original index, this map gives back a new temporary index, starting at 0
-        reordered_idx_map = {}
-        for (new_idx, i) in enumerate(nodes_with_edges):
-            reordered_idx_map[i] = new_idx
-
-        # now, map the original indices to reordered indices
-        i2Ri1_dict_reordered = {}
-        for (i1, i2), i2Ri1 in i2Ri1_dict.items():
-            i1_ = reordered_idx_map[i1]
-            i2_ = reordered_idx_map[i2]
-            i2Ri1_dict_reordered[(i1_, i2_)] = i2Ri1
+        between_factors: BetweenFactorPose3s = self.__between_factors_from_2view_relative_rotations(
+            i2Ri1_dict, old_to_new_idxes
+        )
+        between_factors.extend(self.__between_factors_from_pose_priors(i2Ti1_priors, old_to_new_idxes))
 
         wRi_list_subset = self._run_with_consecutive_ordering(
-            num_connected_nodes=len(nodes_with_edges), i2Ri1_dict=i2Ri1_dict_reordered
+            num_connected_nodes=len(nodes_with_edges), between_factors=between_factors
         )
 
         wRi_list = [None] * num_images
