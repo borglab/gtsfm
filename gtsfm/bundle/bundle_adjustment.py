@@ -143,7 +143,7 @@ class BundleAdjustmentOptimizer:
 
         return graph
 
-    def _pose_priors(
+    def __pose_priors(
         self,
         absolute_pose_priors: List[Optional[PosePrior]],
         initial_data: GtsfmData,
@@ -218,7 +218,7 @@ class BundleAdjustmentOptimizer:
             self._between_factors(relative_pose_priors=relative_pose_priors, cameras_to_model=cameras_to_model)
         )
         graph.push_back(
-            self._pose_priors(
+            self.__pose_priors(
                 absolute_pose_priors=absolute_pose_priors,
                 initial_data=initial_data,
                 camera_for_origin=cameras_to_model[0],
@@ -235,7 +235,7 @@ class BundleAdjustmentOptimizer:
 
         return graph
 
-    def _initial_values(self, initial_data: GtsfmData) -> Values:
+    def __initial_values(self, initial_data: GtsfmData) -> Values:
         """Initialize all the variables in the factor graph."""
         initial_values = gtsam.Values()
 
@@ -316,7 +316,7 @@ class BundleAdjustmentOptimizer:
             absolute_pose_priors=absolute_pose_priors,
             relative_pose_priors=relative_pose_priors,
         )
-        initial_values = self._initial_values(initial_data=initial_data)
+        initial_values = self.__initial_values(initial_data=initial_data)
         result_values = self.__optimize_factor_graph(graph, initial_values)
 
         final_error = graph.error(result_values)
