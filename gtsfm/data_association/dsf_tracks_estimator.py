@@ -23,10 +23,7 @@ logger = logger_utils.get_logger()
 
 
 class DsfTracksEstimator(TracksEstimatorBase):
-    """ """
-
-    def __init__(self) -> None:
-        """ """
+    """Estimates tracks using a disjoint-set forest (DSF)."""
 
     def run(self, matches_dict: Dict[Tuple[int, int], np.ndarray], keypoints_list: List[Keypoints]) -> List[SfmTrack2d]:
         """Estimate tracks from feature correspondences.
@@ -79,8 +76,8 @@ class DsfTracksEstimator(TracksEstimatorBase):
 
             track_2d = SfmTrack2d(track_measurements)
 
-            # Skip erroneous track that had repeated measurements within the same image
-            # This is an expected result from an incorrect correspondence slipping through
+            # Skip erroneous track that had repeated measurements within the same image (i.e., violates transitivity).
+            # This is an expected result from an incorrect correspondence slipping through.
             if track_2d.validate_unique_cameras():
                 track_2d_list += [track_2d]
             else:

@@ -58,6 +58,7 @@ class TestDsfTracksEstimator(GtsamTestCase):
         dummy_keypoints_list = get_dummy_keypoints_list()
         nontransitive_matches_dict = get_nontransitive_matches()  # contains one non-transitive track
         tracks = self.estimator.run(nontransitive_matches_dict, dummy_keypoints_list)
+        print(tracks)
         self.assertEqual(len(tracks), 0, "Tracks not filtered correctly")
 
 
