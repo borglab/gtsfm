@@ -18,9 +18,7 @@ import yaml
 from typing import Any, Dict, List, Optional, Tuple
 from pathlib import Path
 
-import dask
 import numpy as np
-from dask.delayed import Delayed
 import gtsam
 from gtsam import Cal3Fisheye, Pose3
 
@@ -292,22 +290,8 @@ class HiltiLoader(LoaderBase):
     def map_image_idx_to_rig(self, index: int) -> int:
         return index // NUM_CAMS
 
-    def create_computation_graph_for_relative_pose_priors(
-        self, pairs: List[Tuple[int, int]]
-    ) -> Dict[Tuple[int, int], Delayed]:
-        # Hack: just add all possible pairs which belong to the same rig (as it will have hard relative prior)
+    def get_relative_pose_priors(self, pairs: List[Tuple[int, int]]) -> Dict[Tuple[int, int], PosePrior]:
         pairs = set(pairs)
-        for i in range(len(self)):
-            for j in range(i + 1, i + NUM_CAMS - 1):
-                if self.map_image_idx_to_rig(i) == self.map_image_idx_to_rig(j):
-                    pairs.add((i, j))
-                else:
-                    break
-
-        return {(i1, i2): dask.delayed(self.get_relative_pose_prior)(i1, i2) for i1, i2 in pairs}
-
-    def get_all_relative_pose_priors(self) -> Dict[Tuple[int, int], Optional[PosePrior]]:
-        pairs = set(self.get_valid_pairs())
         # just add all possible pairs which belong to the same rig (as it will have hard relative prior)
         for i in range(len(self)):
             for j in range(i + 1, i + NUM_CAMS - 1):
@@ -316,7 +300,7 @@ class HiltiLoader(LoaderBase):
                 else:
                     break
 
-        priors = {(i1, i2): self.get_relative_pose_prior(i1, i2) for i1, i2 in pairs}
-        priors = {(i1, i2): prior for (i1, i2), prior in priors.items() if prior is not None}
+        priors = {pair: self.get_relative_pose_prior(*pair) for pair in pairs}
+        priors = {pair: prior for pair, prior in priors.items() if prior is not None}
 
         return priors

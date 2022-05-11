@@ -123,13 +123,13 @@ class BundleAdjustmentOptimizer:
         return graph
 
     def _between_factors(
-        self, relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]], cameras_to_model: List[int]
+        self, relative_pose_priors: Dict[Tuple[int, int], PosePrior], cameras_to_model: List[int]
     ) -> NonlinearFactorGraph:
         """Generate BetweenFactors on relative poses for pose variables."""
         graph = NonlinearFactorGraph()
 
         for (i1, i2), i2Ti1_prior in relative_pose_priors.items():
-            if i2Ti1_prior is None or i1 not in cameras_to_model or i2 not in cameras_to_model:
+            if i1 not in cameras_to_model or i2 not in cameras_to_model:
                 continue
 
             graph.push_back(
@@ -203,7 +203,7 @@ class BundleAdjustmentOptimizer:
         cameras_to_model: List[int],
         initial_data: GtsfmData,
         absolute_pose_priors: List[Optional[PosePrior]],
-        relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
     ) -> NonlinearFactorGraph:
         """Construct the factor graph with reprojection factors, BetweenFactors, and prior factors."""
         is_fisheye_calibration = isinstance(initial_data.get_camera(cameras_to_model[0]), PinholeCameraCal3Fisheye)
@@ -269,7 +269,7 @@ class BundleAdjustmentOptimizer:
         self,
         initial_data: GtsfmData,
         absolute_pose_priors: List[Optional[PosePrior]],
-        relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
     ) -> List[int]:
         """Get the cameras which are to be modeled in the factor graph. We are using ability to add initial values as
         proxy for this function."""
@@ -281,7 +281,7 @@ class BundleAdjustmentOptimizer:
         self,
         initial_data: GtsfmData,
         absolute_pose_priors: List[Optional[PosePrior]],
-        relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         verbose: bool = True,
     ) -> Tuple[GtsfmData, GtsfmData, List[bool]]:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
@@ -393,16 +393,16 @@ class BundleAdjustmentOptimizer:
     def create_computation_graph(
         self,
         sfm_data_graph: Delayed,
-        absolute_pose_priors: List[Delayed],
-        relative_pose_priors: Dict[Tuple[int, int], Delayed],
+        absolute_pose_priors: List[Optional[PosePrior]],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         gt_cameras_graph: Optional[List[Delayed]] = None,
     ) -> Tuple[Delayed, Delayed]:
         """Create the computation graph for performing bundle adjustment.
 
         Args:
             sfm_data_graph: an GtsfmData object wrapped up using dask.delayed
-            absolute_pose_priors: priors on the poses of the cameras.
-            relative_pose_priors: priors on poses between cameras.
+            absolute_pose_priors: priors on the poses of the cameras (not delayed).
+            relative_pose_priors: priors on poses between cameras (not delayed).
 
         Returns:
             GtsfmData aligned to GT (if provided), wrapped up using dask.delayed
