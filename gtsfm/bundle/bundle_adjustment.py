@@ -96,7 +96,7 @@ class BundleAdjustmentOptimizer:
         self,
         initial_data: GtsfmData,
         absolute_pose_priors: List[Optional[PosePrior]],
-        relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
     ) -> NonlinearFactorGraph:
         graph = NonlinearFactorGraph()
 
@@ -199,7 +199,7 @@ class BundleAdjustmentOptimizer:
         self,
         initial_data: GtsfmData,
         absolute_pose_priors: List[Optional[PosePrior]],
-        relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         verbose: bool = True,
     ) -> Tuple[GtsfmData, GtsfmData, List[bool]]:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
@@ -307,7 +307,7 @@ class BundleAdjustmentOptimizer:
         self,
         sfm_data_graph: Delayed,
         absolute_pose_priors: List[Optional[PosePrior]],
-        relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         gt_cameras_graph: Optional[List[Delayed]] = None,
     ) -> Tuple[Delayed, Delayed]:
         """Create the computation graph for performing bundle adjustment.

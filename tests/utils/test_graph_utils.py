@@ -65,7 +65,7 @@ class TestGraphUtils(unittest.TestCase):
             computed_relative_rotations,
             computed_relative_unit_translations,
         ) = graph_utils.prune_to_largest_connected_component(
-            input_relative_rotations, input_relative_unit_translations, pose_priors=relative_pose_priors
+            input_relative_rotations, input_relative_unit_translations, relative_pose_priors=relative_pose_priors
         )
 
         # check the graph util function called with the edges defined by tracks

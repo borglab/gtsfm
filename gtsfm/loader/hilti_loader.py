@@ -271,8 +271,8 @@ class HiltiLoader(LoaderBase):
     def map_image_idx_to_rig(self, index: int) -> int:
         return index // NUM_CAMS
 
-    def get_relative_pose_priors(self, pairs: List[Tuple[int, int]]) -> Dict[Tuple[int, int], Optional[PosePrior]]:
-        pairs = set(self.get_valid_pairs())  # overwites argument !
+    def get_relative_pose_priors(self, pairs: List[Tuple[int, int]]) -> Dict[Tuple[int, int], PosePrior]:
+        pairs = set(pairs)
         # just add all possible pairs which belong to the same rig (as it will have hard relative prior)
         for i in range(len(self)):
             for j in range(i + 1, i + NUM_CAMS - 1):

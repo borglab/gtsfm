@@ -47,7 +47,7 @@ class MultiViewOptimizer:
         v_corr_idxs_graph: Dict[Tuple[int, int], Delayed],
         intrinsics_graph: List[Delayed],
         absolute_pose_priors: List[Optional[PosePrior]],
-        relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         two_view_reports_dict: Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
         gt_cameras_graph: List[Delayed],
         gt_poses_graph: List[Delayed],
