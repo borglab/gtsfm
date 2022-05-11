@@ -1,8 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from gtsam import Rot3, Point3, Pose3
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib.axes._axes import Axes
+from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
+from matplotlib.axes._axes import Axes  # noqa: F401
 from scipy.spatial.transform import Rotation
 
 from gtsfm.common.view_frustum import (
@@ -30,7 +30,7 @@ def test_compute_pixel_ray_directions_vectorized():
 
 
 def test_get_mesh_edges_camframe():
-    """ Verify we can plot the 8 edges of the frustum """
+    """Verify we can plot the 8 edges of the frustum"""
     fx = 1392.1069298937407
     img_w = 1920
     img_h = 1200
@@ -38,7 +38,7 @@ def test_get_mesh_edges_camframe():
     edges_camfr = frustum_obj.get_mesh_edges_camframe()
 
     fig = plt.figure()
-    ax = fig.add_subplot(projection='3d')
+    ax = fig.add_subplot(projection="3d")
 
     for edge_camfr in edges_camfr:
 
@@ -80,7 +80,7 @@ def test_get_mesh_edges_worldframe():
     edges_worldfr = frustum_obj.get_mesh_edges_worldframe(wTc)
 
     fig = plt.figure()
-    ax = fig.add_subplot(projection='3d')
+    ax = fig.add_subplot(projection="3d")
 
     for edge_worldfr in edges_worldfr:
 
