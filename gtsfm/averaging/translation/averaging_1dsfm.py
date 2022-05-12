@@ -202,7 +202,9 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 c1 = r1 * NUM_CAMERAS_IN_RIG + BODY_FRAME_CAMERA
                 c2 = r2 * NUM_CAMERAS_IN_RIG + BODY_FRAME_CAMERA
                 if (c1, c2) not in priors_added:
-                    noise_model = gtsam.noiseModel.Gaussian.Covariance(i2Ti1_prior.covariance)
+                    # TODO(akshay-krishnan): Use the translation covariance, transform to world frame.
+                    # noise_model = gtsam.noiseModel.Gaussian.Covariance(i2Ti1_prior.covariance)
+                    noise_model = gtsam.noiseModel.Isotropic.Sigma(3, 1e-2)
                     w_i2ti1_priors.append(
                         gtsam.BinaryMeasurementPoint3(
                             i2,
