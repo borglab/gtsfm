@@ -196,8 +196,6 @@ class HiltiLoader(LoaderBase):
         cam_idx = self.camera_from_image(index)
         rig_idx = self.rig_from_image(index)
 
-        logger.debug("Mapping %d index to rig %d, camera %d", index, rig_idx, cam_idx)
-
         image_path: Path = self._base_folder / IMAGES_FOLDER / f"{index}.jpg"
 
         return io_utils.load_image(str(image_path))
