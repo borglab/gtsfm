@@ -8,13 +8,14 @@ Authors: Akshay Krishnan, Ayush Baid, John Lambert
 """
 import abc
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Set, Tuple, Optional
 
 import dask
 import numpy as np
 from dask.delayed import Delayed
 from gtsam import Cal3Bundler, Rot3, Unit3
 
+import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.logger as logger_utils
@@ -226,12 +227,12 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
 
     def create_computation_graph(
         self,
-        i2Ri1_dict: Delayed,
-        i2Ui1_dict: Delayed,
-        calibrations: Delayed,
-        corr_idxs_i1i2: Delayed,
-        keypoints: Delayed,
-        two_view_reports: Delayed,
+        i2Ri1_dict: Dict[Tuple[int, int], Delayed],
+        i2Ui1_dict: Dict[Tuple[int, int], Delayed],
+        calibrations: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
+        corr_idxs_i1i2: Dict[Tuple[int, int], Delayed],
+        keypoints: List[Delayed],
+        two_view_reports: Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
     ) -> Tuple[Delayed, Delayed, Delayed, Delayed, Delayed]:
         """Create the computation graph for ViewGraph estimation and metric evaluation.
 

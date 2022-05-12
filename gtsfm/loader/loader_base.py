@@ -254,41 +254,41 @@ class LoaderBase(metaclass=abc.ABCMeta):
         N = len(self)
         return [dask.delayed(self.get_image)(i) for i in range(N)]
 
-    def create_computation_graph_for_intrinsics(self) -> List[Delayed]:
-        """Creates the computation graph for camera intrinsics.
+    def get_all_intrinsics(self) -> List[Optional[gtsfm_types.CALIBRATION_TYPE]]:
+        """Return all the camera intrinsics.
 
         Returns:
-            list of delayed tasks for camera intrinsics.
+            list of camera intrinsics.
         """
         N = len(self)
-        return [dask.delayed(self.get_camera_intrinsics)(i) for i in range(N)]
+        return [self.get_camera_intrinsics(i) for i in range(N)]
 
-    def create_computation_graph_for_poses(self) -> List[Delayed]:
-        """Creates the computation graph for camera poses.
+    def get_gt_poses(self) -> List[Optional[Pose3]]:
+        """Return all the camera poses.
 
         Returns:
-            list of delayed tasks for camera poses.
+            list of ground truth camera poses, if available.
         """
         N = len(self)
-        return [dask.delayed(self.get_camera_pose)(i) for i in range(N)]
+        return [self.get_camera_pose(i) for i in range(N)]
 
-    def create_computation_graph_for_cameras(self) -> List[Delayed]:
-        """Creates the computation graph for cameras.
+    def get_gt_cameras(self) -> List[Optional[gtsfm_types.CAMERA_TYPE]]:
+        """Return all the cameras.
 
         Returns:
-            OList of delayed tasks for cameras.
+            List of ground truth cameras, if available.
         """
         N = len(self)
-        return [dask.delayed(self.get_camera)(i) for i in range(N)]
+        return [self.get_camera(i) for i in range(N)]
 
-    def create_computation_graph_for_image_shapes(self) -> List[Delayed]:
-        """Creates the computation graph for image shapes.
+    def get_image_shapes(self) -> List[Tuple[int,int]]:
+        """Return all the image shapes.
 
         Returns:
             list of delayed tasks for image shapes.
         """
         N = len(self)
-        return [dask.delayed(self.get_image_shape)(i) for i in range(N)]
+        return [self.get_image_shape(i) for i in range(N)]
 
     def get_valid_pairs(self) -> List[Tuple[int, int]]:
         """Get the valid pairs of images for this loader.

@@ -86,7 +86,7 @@ class VerifierBase(metaclass=abc.ABCMeta):
             image_pair_indices: 2-tuple (i1,i2) specifying image pair indices
             detection_graph: nodes with features for each image.
             matcher_graph: nodes with matching results for pairs of images.
-            camera_intrinsics_graph: nodes with intrinsics for each image.
+            all_intrinsics: nodes with intrinsics for each image.
 
         Returns:
             Delayed dask task for rotation i2Ri1 for specific image pair.
