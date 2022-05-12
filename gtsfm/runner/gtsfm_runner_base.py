@@ -129,12 +129,12 @@ class GtsfmRunnerBase:
             num_images=len(self.loader),
             image_pair_indices=image_pair_indices,
             image_graph=self.loader.create_computation_graph_for_images(),
-            camera_intrinsics_graph=self.loader.create_computation_graph_for_intrinsics(),
-            image_shape_graph=self.loader.create_computation_graph_for_image_shapes(),
+            all_intrinsics=self.loader.get_all_intrinsics(),
+            image_shape_graph=self.loader.get_image_shapes(),
             relative_pose_priors=self.loader.get_relative_pose_priors(image_pair_indices),
             absolute_pose_priors=self.loader.get_absolute_pose_priors(),
-            gt_cameras_graph=self.loader.create_computation_graph_for_cameras(),
-            gt_poses_graph=self.loader.create_computation_graph_for_poses(),
+            gt_cameras=self.loader.get_gt_cameras(),
+            gt_poses=self.loader.get_gt_poses(),
             matching_regime=ImageMatchingRegime(self.parsed_args.matching_regime),
         )
 

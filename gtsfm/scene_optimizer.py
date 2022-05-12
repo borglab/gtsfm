@@ -15,6 +15,7 @@ from gtsam import Pose3, Similarity3
 from dask.delayed import Delayed
 from gtsfm.common.pose_prior import PosePrior
 
+import gtsfm.common.types as gtsfm_types
 import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.two_view_estimator as two_view_estimator
 import gtsfm.utils.ellipsoid as ellipsoid_utils
@@ -112,12 +113,12 @@ class SceneOptimizer:
         num_images: int,
         image_pair_indices: List[Tuple[int, int]],
         image_graph: List[Delayed],
-        camera_intrinsics_graph: List[Delayed],
+        all_intrinsics: List[Delayed],
         image_shape_graph: List[Delayed],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         absolute_pose_priors: List[Optional[PosePrior]],
-        gt_cameras_graph: List[Delayed],
-        gt_poses_graph: List[Delayed],
+        gt_cameras: List[Optional[gtsfm_types.CAMERA_TYPE]],
+        gt_poses: List[Optional[Pose3]],
         gt_scene_mesh: Optional[Trimesh] = None,
         matching_regime: ImageMatchingRegime = ImageMatchingRegime.SEQUENTIAL,
     ) -> Delayed:
@@ -155,13 +156,13 @@ class SceneOptimizer:
                 keypoints_graph_list[i2],
                 descriptors_graph_list[i1],
                 descriptors_graph_list[i2],
-                camera_intrinsics_graph[i1],
-                camera_intrinsics_graph[i2],
+                all_intrinsics[i1],
+                all_intrinsics[i2],
                 image_shape_graph[i1],
                 image_shape_graph[i2],
                 relative_pose_priors.get((i1, i2), None),
-                gt_poses_graph[i1],
-                gt_poses_graph[i2],
+                gt_poses[i1],
+                gt_poses[i2],
                 gt_scene_mesh,
             )
 
@@ -206,12 +207,12 @@ class SceneOptimizer:
             i2Ri1_graph_dict,
             i2Ui1_graph_dict,
             v_corr_idxs_graph_dict,
-            camera_intrinsics_graph,
+            all_intrinsics,
             absolute_pose_priors,
             relative_pose_priors,
             two_view_reports_dict[POST_ISP_REPORT_TAG],
-            gt_cameras_graph,
-            gt_poses_graph,
+            gt_cameras,
+            gt_poses,
         )
         if view_graph_two_view_reports is not None:
             two_view_reports_dict[VIEWGRAPH_REPORT_TAG] = view_graph_two_view_reports
@@ -240,12 +241,12 @@ class SceneOptimizer:
             metrics_graph_list.extend(optimizer_metrics_graph)
 
         # Modify BA input, BA output, and GT poses to have point clouds and frustums aligned with x,y,z axes.
-        ba_input_graph, ba_output_graph, gt_poses_graph = dask.delayed(align_estimated_gtsfm_data, nout=3)(
-            ba_input_graph, ba_output_graph, gt_poses_graph
+        ba_input_graph, ba_output_graph, gt_poses = dask.delayed(align_estimated_gtsfm_data, nout=3)(
+            ba_input_graph, ba_output_graph, gt_poses
         )
 
         if self._save_3d_viz:
-            auxiliary_graph_list.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_poses_graph))
+            auxiliary_graph_list.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_poses))
 
         if self._save_gtsfm_data:
             auxiliary_graph_list.extend(save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph))
