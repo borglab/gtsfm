@@ -54,8 +54,6 @@ class HiltiLoader(LoaderBase):
     def __init__(
         self,
         base_folder: str,
-        max_frame_lookahead: int = 10,
-        step_size: int = 8,
         max_length: Optional[int] = None,
         max_resolution: int = 1080,
     ) -> None:
@@ -63,15 +61,12 @@ class HiltiLoader(LoaderBase):
 
         Args:
             base_folder (str): top-level folder, expects calibration, images and lidar subfolders.
-            max_frame_lookahead (int, optional): creates relative pos priors up to this lookahead. Defaults to 10.
-            step_size (int, optional): Not used?. Defaults to 8.
             max_length (Optional[int]): limit poses to read. Defaults to None.
             max_resolution: integer representing maximum length of image's short side
                e.g. for 1080p (1920 x 1080), max_resolution would be 1080
         """
         super().__init__(max_resolution)
         self._base_folder: Path = Path(base_folder)
-        self._max_frame_lookahead: int = max_frame_lookahead
         self._max_length = max_length
 
         # Load calibration.

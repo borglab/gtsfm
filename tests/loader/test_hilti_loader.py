@@ -20,7 +20,6 @@ class TestHiltiLoader(unittest.TestCase):
 
         self.loader = HiltiLoader(
             base_folder=str(TEST_DATASET_DIR_PATH),
-            max_frame_lookahead=1,
             max_length=None,
         )
 
