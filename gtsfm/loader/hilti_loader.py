@@ -83,8 +83,7 @@ class HiltiLoader(LoaderBase):
             self.num_rig_poses = min(self.num_rig_poses, self._max_length)
 
         # Read the constraints from the lidar/constraints file
-        constraints_path = self._base_folder / LIDAR_CONSTRAINTS_RELATIVE_PATH
-        self.constraints = Constraint.read(str(constraints_path))
+        self.constraints = self.__load_constraints()
         logger.info("Number of constraints: %d", len(self.constraints))
 
         # Read the poses for the IMU for rig indices from g2o file.
@@ -92,6 +91,15 @@ class HiltiLoader(LoaderBase):
 
         logger.info("Loading %d timestamps", self.num_rig_poses)
         logger.info("Lidar camera available for %d timestamps", len(self._w_T_imu))
+
+    def __load_constraints(self) -> List[Constraint]:
+        constraints_path = self._base_folder / LIDAR_CONSTRAINTS_RELATIVE_PATH
+        constraints = Constraint.read(str(constraints_path))
+
+        # filter them according to max length
+        constraints = list(filter(lambda c: c.a < self.num_rig_poses and c.b < self.num_rig_poses, constraints))
+
+        return constraints
 
     def get_camTimu(self) -> Dict[int, Pose3]:
         return self._cam_T_imu_poses

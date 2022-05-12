@@ -73,7 +73,10 @@ class Constraint:
         """Return pairs of cameras with over `threshold` count."""
         pairs = []
         for camera_index_in_a in range(5):
-            for camera_index_in_b in range(camera_index_in_a + 1, 5):
+            for camera_index_in_b in range(5):
                 if self.counts[camera_index_in_a, camera_index_in_b] >= threshold:
-                    pairs.append((self.a * 5 + camera_index_in_a, self.b * 5 + camera_index_in_b))
+                    i1 = self.a * 5 + camera_index_in_a
+                    i2 = self.b * 5 + camera_index_in_b
+                    assert i1 < i2
+                    pairs.append((i1, i2))
         return pairs
