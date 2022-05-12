@@ -85,6 +85,7 @@ class HiltiLoader(LoaderBase):
         # Read the constraints from the lidar/constraints file
         constraints_path = self._base_folder / LIDAR_CONSTRAINTS_RELATIVE_PATH
         self.constraints = Constraint.read(str(constraints_path))
+        logger.info("Number of constraints: %d", len(self.constraints))
 
         # Read the poses for the IMU for rig indices from g2o file.
         self._w_T_imu: Dict[int, Pose3] = self.__read_lidar_pose_priors()

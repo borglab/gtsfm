@@ -14,6 +14,7 @@ from gtsfm.scene_optimizer import SceneOptimizer
 
 from gtsfm.retriever.exhaustive_retriever import ExhaustiveRetriever
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
+from gtsfm.retriever.rig_retriever import RigRetriever
 from gtsfm.retriever.sequential_hilti_retriever import SequentialHiltiRetriever
 from gtsfm.retriever.sequential_retriever import SequentialRetriever
 
@@ -68,7 +69,7 @@ class GtsfmRunnerBase:
         parser.add_argument(
             "--matching_regime",
             type=str,
-            choices=["exhaustive", "sequential", "sequential_hilti"],
+            choices=["exhaustive", "sequential", "sequential_hilti", "rig_hilti"],
             default="sequential",
             help="Choose mode for matching.",
         )
@@ -109,6 +110,9 @@ class GtsfmRunnerBase:
 
         elif matching_regime == ImageMatchingRegime.SEQUENTIAL_HILTI:
             retriever = SequentialHiltiRetriever(max_frame_lookahead=self.parsed_args.max_frame_lookahead)
+
+        elif matching_regime == ImageMatchingRegime.RIG_HILTI:
+            retriever = RigRetriever(threshold=self.parsed_args.proxy_threshold)
 
         return retriever
 

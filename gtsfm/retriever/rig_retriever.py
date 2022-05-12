@@ -6,8 +6,11 @@ Author: Frank Dellaert
 from typing import List, Tuple
 from gtsfm.loader.hilti_loader import HiltiLoader
 
+import gtsfm.utils.logger as logger_utils
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.retriever.retriever_base import RetrieverBase
+
+logger = logger_utils.get_logger()
 
 INTRA_RIG_VALID_PAIRS = {(0, 1), (0, 3), (1, 4)}
 
@@ -48,4 +51,5 @@ class RigRetriever(RetrieverBase):
 
         pairs = list(pairs)
         pairs.sort()
+        logger.info("Found %d pairs from the RigRetriever", len(pairs))
         return pairs
