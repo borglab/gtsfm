@@ -80,7 +80,7 @@ class Constraint:
                     if i1 < i2:
                         pairs.append((i1, i2))
                     elif i2 < i1:
-                        pairs.append((i1, i2))
+                        pairs.append((i2, i1))
                     else:
                         raise ValueError("Trying to add en edge from an image to itself")
         return pairs

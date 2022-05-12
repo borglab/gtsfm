@@ -63,5 +63,11 @@ class RigRetriever(RetrieverBase):
 
         pairs = list(pairs)
         pairs.sort()
+
+        # check on pairs
+        for i1, i2 in pairs:
+            if i1 > i2:
+                raise ValueError("Ordering not imposed on i1, i2")
+
         logger.info("Found %d pairs from the RigRetriever", len(pairs))
         return pairs
