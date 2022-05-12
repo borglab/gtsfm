@@ -42,7 +42,7 @@ class RigShonanRotationAveraging(ShonanRotationAveraging):
         between_factors = BetweenFactorPose3s()
 
         for (i1, i2), i2Ti1_prior in i2Ti1_priors.items():
-            if self.__get_rig_idx(i1) == self.__get_rig_idx(i2) and (
+            if (
                 self.__get_camera_type(i1) == UPWARD_FACING_CAM_TYPE
                 or self.__get_camera_type(i2) == UPWARD_FACING_CAM_TYPE
             ):
