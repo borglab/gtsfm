@@ -6,7 +6,7 @@ Author: Adi Singh
 import React, {useEffect, useState} from "react";
 
 // Third-Party Package Imports.
-import {Canvas} from "react-three-fiber"; // Used to render canvas containing 3D elements
+import {Canvas} from "@react-three/fiber"; // Used to render canvas containing 3D elements
 
 // Local Imports.
 import AllFrustums from './AllFrustums';

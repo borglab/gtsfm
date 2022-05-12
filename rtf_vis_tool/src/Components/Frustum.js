@@ -5,7 +5,7 @@ Author: Adi Singh
 import React from "react";
 
 // Third-Party Package Imports.
-import {Line} from "drei";
+import {Line} from "@react-three/drei";
 
 function Frustum (props) {
     /*

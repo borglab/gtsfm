@@ -5,7 +5,7 @@ Author: Adi Singh
 import React, {useRef} from "react";
 
 // Third-Party Package Imports.
-import {useThree} from "react-three-fiber"; // Used to define a three.js camera object.
+import {useThree} from "@react-three/fiber"; // Used to define a three.js camera object.
 
 function OrbitControlsComponent() {
     /*
