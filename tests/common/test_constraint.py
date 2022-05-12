@@ -55,8 +55,8 @@ class TestConstraint(GtsamTestCase):
 
     def test_edges(self):
         """Test creating edges between cameras."""
-        self.assertEqual(self.a_constraint_b.edges(threshold=30), [(5, 10)])
-        self.assertEqual(self.a_constraint_c.edges(threshold=30), [(5 + 1, 15 + 2)])
+        self.assertEqual(self.a_constraint_b.predicted_pairs(threshold=30), [(5, 10)])
+        self.assertEqual(self.a_constraint_c.predicted_pairs(threshold=30), [(5 + 1, 15 + 2)])
 
 
 if __name__ == "__main__":
