@@ -9,6 +9,7 @@ import dask
 from dask.delayed import Delayed
 from gtsam import Point3, Pose3, Rot3, Unit3
 
+from gtsfm.common.pose_prior import PosePrior, PosePriorType
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 
 
@@ -33,6 +34,8 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
         num_images: int,
         i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
         wRi_list: List[Optional[Rot3]],
+        i2Ti1_priors: Optional[Dict[Tuple[int, int], PosePrior]] = None,
+        wTi_initial: Optional[Dict[int, PosePrior]] = None,
         scale_factor: float = 1.0,
         gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
     ) -> Tuple[List[Optional[Point3]], Optional[GtsfmMetricsGroup]]:
@@ -56,6 +59,8 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
         num_images: int,
         i2Ui1_graph: Delayed,
         wRi_graph: Delayed,
+        i2Ti1_priors: Dict[Tuple[int, int], Delayed] = None,
+        wTi_initial: Dict[Tuple[int], Delayed] = None,
         scale_factor: float = 1.0,
         gt_wTi_graph: Optional[Delayed] = None,
     ) -> Delayed:
@@ -72,4 +77,4 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
             Global unit translations wrapped as Delayed.
             A GtsfmMetricsGroup with translation averaging metrics wrapped as Delayed.
         """
-        return dask.delayed(self.run, nout=2)(num_images, i2Ui1_graph, wRi_graph, scale_factor, gt_wTi_graph)
+        return dask.delayed(self.run, nout=2)(num_images, i2Ui1_graph, wRi_graph, i2Ti1_priors, wTi_initial, scale_factor, gt_wTi_graph)
