@@ -9,7 +9,6 @@ from unittest.mock import patch
 import numpy as np
 from gtsam import Cal3_S2, Point3, Pose3, Rot3, Similarity3, Unit3
 from gtsam.examples import SFMdata
-from scipy.spatial.transform import Rotation
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
 import tests.data.sample_poses as sample_poses
@@ -222,7 +221,7 @@ class TestGeometryComparisons(unittest.TestCase):
 
         np.testing.assert_allclose(computed_deg, expected_deg, rtol=1e-3, atol=1e-3)
 
-    def test_compute_relative_rotation_angle(self) -> None:
+    def test_compute_relative_rotation_angle2(self) -> None:
         """Tests the relative angle between two rotations
 
         Currently compute_relative_rotation_angle() uses Scipy, so this test compares with GTSAM.

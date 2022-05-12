@@ -260,7 +260,7 @@ class TwoViewEstimator:
         camera_intrinsics_i2_graph: Delayed,
         im_shape_i1_graph: Delayed,
         im_shape_i2_graph: Delayed,
-        i2Ti1_prior: Delayed,
+        i2Ti1_prior: Optional[PosePrior],
         gt_wTi1_graph: Delayed,
         gt_wTi2_graph: Delayed,
         gt_scene_mesh_graph: Optional[Delayed] = None,
