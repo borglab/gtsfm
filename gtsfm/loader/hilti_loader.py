@@ -193,9 +193,6 @@ class HiltiLoader(LoaderBase):
         Returns:
             Image: the image at the query index.
         """
-        cam_idx = self.camera_from_image(index)
-        rig_idx = self.rig_from_image(index)
-
         image_path: Path = self._base_folder / IMAGES_FOLDER / f"{index}.jpg"
 
         return io_utils.load_image(str(image_path))
