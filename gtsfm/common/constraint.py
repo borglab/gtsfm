@@ -73,10 +73,14 @@ class Constraint:
         """Return pairs of cameras with over `threshold` count."""
         pairs = []
         for camera_index_in_a in range(5):
-            for camera_index_in_b in range(5):
+            for camera_index_in_b in range(0 if self.b != self.a else camera_index_in_a + 1, 5):
                 if self.counts[camera_index_in_a, camera_index_in_b] >= threshold:
                     i1 = self.a * 5 + camera_index_in_a
                     i2 = self.b * 5 + camera_index_in_b
-                    assert i1 < i2
-                    pairs.append((i1, i2))
+                    if i1 < i2:
+                        pairs.append((i1, i2))
+                    elif i2 < i1:
+                        pairs.append((i1, i2))
+                    else:
+                        raise ValueError("Trying to add en edge from an image to itself")
         return pairs

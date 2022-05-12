@@ -257,6 +257,8 @@ class HiltiLoader(LoaderBase):
         cam_idx_for_i1: int = self.camera_from_image(i1)
         cam_idx_for_i2: int = self.camera_from_image(i2)
 
+        # TODO(Frank): this should come from constraints?
+
         if rig_idx_for_i1 == rig_idx_for_i2:
             i1_T_imu: Pose3 = self._cam_T_imu_poses[cam_idx_for_i1]
             i2_T_imu: Pose3 = self._cam_T_imu_poses[cam_idx_for_i2]
