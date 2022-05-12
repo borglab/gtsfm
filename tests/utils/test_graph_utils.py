@@ -48,8 +48,6 @@ class TestGraphUtils(unittest.TestCase):
             (6, 7): generate_random_essential_matrix(),
         }
 
-        relative_pose_priors = {pair_indices: None for pair_indices in input_essential_matrices.keys()}
-
         # generate Rot3 and Unit3 inputs
         input_relative_rotations = dict()
         input_relative_unit_translations = dict()
@@ -65,7 +63,7 @@ class TestGraphUtils(unittest.TestCase):
             computed_relative_rotations,
             computed_relative_unit_translations,
         ) = graph_utils.prune_to_largest_connected_component(
-            input_relative_rotations, input_relative_unit_translations, relative_pose_priors=relative_pose_priors
+            input_relative_rotations, input_relative_unit_translations, relative_pose_priors={}
         )
 
         # check the graph util function called with the edges defined by tracks

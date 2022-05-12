@@ -10,7 +10,6 @@ from gtsam import Point3, Pose3, Rot3
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.graph as graph_utils
-import gtsfm.utils.metrics as metrics_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
@@ -96,7 +95,9 @@ class MultiViewOptimizer:
             viewgraph_i2Ri1_graph, viewgraph_i2Ui1_graph, relative_pose_priors
         )
 
-        wRi_graph = self.rot_avg_module.create_computation_graph(num_images, pruned_i2Ri1_graph)
+        wRi_graph, rot_avg_metrics = self.rot_avg_module.create_computation_graph(
+            num_images, pruned_i2Ri1_graph, i2Ti1_priors=relative_pose_priors, gt_wTi_list=gt_poses_graph
+        )
 
         wti_graph, ta_metrics = self.trans_avg_module.create_computation_graph(
             num_images, pruned_i2Ui1_graph, wRi_graph, gt_wTi_graph=gt_poses_graph
@@ -109,15 +110,12 @@ class MultiViewOptimizer:
             viewgraph_v_corr_idxs_graph,
             keypoints_graph,
             gt_cameras_graph,
+            relative_pose_priors,
             images_graph,
         )
 
         ba_result_graph, ba_metrics_graph = self.ba_optimizer.create_computation_graph(
             ba_input_graph, absolute_pose_priors, relative_pose_priors, gt_cameras_graph
-        )
-        # TODO: move to rotation averaging
-        rot_avg_metrics = dask.delayed(metrics_utils.compute_global_rotation_metrics)(
-            wRi_graph, wti_graph, gt_poses_graph
         )
 
         multiview_optimizer_metrics_graph = [

@@ -45,6 +45,10 @@ LIDAR_POSE_RELATIVE_PATH = "lidar/fastlio2.g2o"
 LIDAR_CONSTRAINTS_RELATIVE_PATH = "lidar/constraints.txt"
 IMAGES_FOLDER = "images"
 
+HARD_RELATIVE_POSE_PRIOR_SIGMA = np.ones((6,)) * 1e-3  # CAM_IMU_POSE_PRIOR_SIGMA in BA should have similar value
+SOFT_RELATIVE_POSE_PRIOR_SIGMA = np.ones((6,)) * 3e-2
+SOFT_ABSOLUTE_POSE_PRIOR_SIGMA = np.ones((6,)) * 3e-2
+
 
 class HiltiLoader(LoaderBase):
     def __init__(
@@ -68,7 +72,6 @@ class HiltiLoader(LoaderBase):
         super().__init__(max_resolution)
         self._base_folder: Path = Path(base_folder)
         self._max_frame_lookahead: int = max_frame_lookahead
-        self._step_size: int = step_size
         self._max_length = max_length
 
         # Load calibration.
@@ -93,6 +96,9 @@ class HiltiLoader(LoaderBase):
 
         logger.info("Loading %d timestamps", self.max_rig_index)
         logger.info("Lidar camera available for %d timestamps", len(self._w_T_imu))
+
+    def get_camTimu(self) -> Dict[int, Pose3]:
+        return self._cam_T_imu_poses
 
     def __read_lidar_pose_priors(self) -> Dict[int, Pose3]:
         """Read the poses for the IMU for rig indices."""
@@ -234,6 +240,19 @@ class HiltiLoader(LoaderBase):
         return None
 
     def get_relative_pose_prior(self, i1: int, i2: int) -> Optional[PosePrior]:
+        """Creates prior on relative pose i2Ti1.
+
+        If the images are on the same rig, then creates a hard pose prior between the two images, to be used by the
+        two-view estimator. If they are not, we create a soft pose prior derived from the absolute poses (w_T_imu)
+        passed in the constructor.
+
+        Args:
+            i1: index of first image.
+            i2: index of second image.
+
+        Returns:
+            Pose prior, if it exists.
+        """
         rig_idx_for_i1: int = self.rig_from_image(i1)
         rig_idx_for_i2: int = self.rig_from_image(i2)
         cam_idx_for_i1: int = self.camera_from_image(i1)
@@ -244,13 +263,13 @@ class HiltiLoader(LoaderBase):
             i2_T_imu: Pose3 = self._cam_T_imu_poses[cam_idx_for_i2]
             i2Ti1 = i2_T_imu.inverse().between(i1_T_imu.inverse())
             # TODO: add covariance
-            return PosePrior(value=i2Ti1, covariance=None, type=PosePriorType.HARD_CONSTRAINT)
+            return PosePrior(value=i2Ti1, covariance=HARD_RELATIVE_POSE_PRIOR_SIGMA, type=PosePriorType.HARD_CONSTRAINT)
         elif rig_idx_for_i1 in self._w_T_imu and rig_idx_for_i2 in self._w_T_imu:
             w_T_i1 = self._w_T_imu[rig_idx_for_i1] * self._cam_T_imu_poses[cam_idx_for_i1].inverse()
             w_T_i2 = self._w_T_imu[rig_idx_for_i2] * self._cam_T_imu_poses[cam_idx_for_i2].inverse()
             i2Ti1 = w_T_i2.between(w_T_i1)
             # TODO: add covariance
-            return PosePrior(value=i2Ti1, covariance=None, type=PosePriorType.SOFT_CONSTRAINT)
+            return PosePrior(value=i2Ti1, covariance=SOFT_RELATIVE_POSE_PRIOR_SIGMA, type=PosePriorType.SOFT_CONSTRAINT)
 
         return None
 
@@ -260,7 +279,9 @@ class HiltiLoader(LoaderBase):
 
         if rig_idx in self._w_T_imu:
             w_T_cam = self._w_T_imu[rig_idx] * self._cam_T_imu_poses[cam_idx].inverse()
-            return PosePrior(value=w_T_cam, covariance=None, type=PosePriorType.SOFT_CONSTRAINT)
+            return PosePrior(
+                value=w_T_cam, covariance=SOFT_ABSOLUTE_POSE_PRIOR_SIGMA, type=PosePriorType.SOFT_CONSTRAINT
+            )
 
         return None
 

@@ -4,8 +4,9 @@ Authors: Ayush Baid, John Lambert
 """
 from typing import List, Optional, Tuple
 
+import gtsam
 import numpy as np
-from gtsam import Point3, Pose3, Pose3Pairs, Rot3, Similarity3, Unit3
+from gtsam import Point3, Pose3, Pose3Pairs, Rot3, Rot3Vector, Similarity3, Unit3
 from scipy.spatial.transform import Rotation
 
 from gtsfm.utils.logger import get_logger
@@ -15,10 +16,8 @@ EPSILON = np.finfo(float).eps
 logger = get_logger()
 
 
-def align_rotations(aRi_list: List[Rot3], bRi_list: List[Rot3]) -> List[Rot3]:
-    """Aligns the list of rotations to the reference list by shifting origin.
-
-    TODO (John): replace later with Karcher mean to account for noisy estimates
+def align_rotations(aRi_list: List[Optional[Rot3]], bRi_list: List[Optional[Rot3]]) -> List[Rot3]:
+    """Aligns the list of rotations to the reference list by using Karcher mean.
 
     Args:
         aRi_list: reference rotations in frame "a" which are the targets for alignment
@@ -28,16 +27,16 @@ def align_rotations(aRi_list: List[Rot3], bRi_list: List[Rot3]) -> List[Rot3]:
         aRi_list_: transformed input rotations previously "bRi_list" but now which
             have the same origin as reference (now living in "a" frame)
     """
-    aRi0 = aRi_list[0]
-
-    bRi0 = bRi_list[0]
-    i0Rb = bRi0.inverse()
-
-    # origin_transform -- map the origin of the input list to the reference list
-    aRb = aRi0.compose(i0Rb)
+    aRb_list = [
+        aRi.compose(bRi.inverse()) for aRi, bRi in zip(aRi_list, bRi_list) if aRi is not None and bRi is not None
+    ]
+    if len(aRb_list) > 0:
+        aRb = gtsam.FindKarcherMean(Rot3Vector(aRb_list))
+    else:
+        aRb = Rot3()
 
     # apply the coordinate shift to all entries in input
-    return [aRb.compose(bRi) for bRi in bRi_list]
+    return [aRb.compose(bRi) if bRi is not None else None for bRi in bRi_list]
 
 
 def align_poses_sim3_ignore_missing(
@@ -189,13 +188,10 @@ def compare_rotations(
 
     # frame 'a' is the target/reference, and bRi_list will be transformed
     aRi_list_ = align_rotations(aRi_list, bRi_list)
-
-    return all(
-        [
-            compute_relative_rotation_angle(aRi, aRi_) < angular_error_threshold_degrees
-            for (aRi, aRi_) in zip(aRi_list, aRi_list_)
-        ]
+    relative_rotations_angles = np.array(
+        [compute_relative_rotation_angle(aRi, aRi_) for (aRi, aRi_) in zip(aRi_list, aRi_list_)], dtype=np.float32
     )
+    return np.all(relative_rotations_angles < angular_error_threshold_degrees)
 
 
 def compare_global_poses(
