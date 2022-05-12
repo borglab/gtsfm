@@ -69,11 +69,11 @@ class Constraint:
         constraint_matrix = np.loadtxt(fname)
         return [Constraint.from_row(row) for row in constraint_matrix]
 
-    def edges(self, threshold=30):
+    def predicted_pairs(self, threshold=30):
         """Return pairs of cameras with over `threshold` count."""
-        return [
-            (self.a * 5 + camera_index_in_a, self.b * 5 + camera_index_in_b)
-            for camera_index_in_a in range(5)
-            for camera_index_in_b in range(5)
-            if self.counts[camera_index_in_a, camera_index_in_b] >= threshold
-        ]
+        pairs = []
+        for camera_index_in_a in range(5):
+            for camera_index_in_b in range(camera_index_in_a + 1, 5):
+                if self.counts[camera_index_in_a, camera_index_in_b] >= threshold:
+                    pairs.append((self.a * 5 + camera_index_in_a, self.b * 5 + camera_index_in_b))
+        return pairs

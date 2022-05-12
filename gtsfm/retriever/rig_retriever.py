@@ -36,8 +36,8 @@ class RigRetriever(RetrieverBase):
         assert isinstance(loader, HiltiLoader)
         constraints = loader.constraints
 
-        # Get edges from those constraints.
-        pairs = set(sum([c.edges(self._threshold) for c in constraints], []))
+        # Get pairs from those constraints.
+        pairs = set(sum([c.predicted_pairs(self._threshold) for c in constraints], []))
 
         # Add all intra-rig pairs even if no LIDAR signal.
         for rig_index in range(loader.max_rig_index):
