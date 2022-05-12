@@ -96,7 +96,7 @@ class TwoViewEstimator:
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
         corr_idxs: np.ndarray,
-    ) -> List[SfmTrack]:
+    ) -> Tuple[List[SfmTrack], List[int]]:
         """Triangulate 2-view correspondences to form 3d tracks.
 
         Args:
