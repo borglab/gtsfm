@@ -107,6 +107,55 @@ class SceneOptimizer:
         os.makedirs(REACT_RESULTS_PATH, exist_ok=True)
         os.makedirs(REACT_METRICS_PATH, exist_ok=True)
 
+    def create_computation_graph_for_frontend(
+        self,
+        image_pair_indices: List[Tuple[int, int]],
+        image_graph: List[Delayed],
+        camera_intrinsics_graph: List[Delayed],
+        image_shape_graph: List[Delayed],
+        relative_pose_priors: Dict[Tuple[int, int], Delayed],
+        gt_poses_graph: List[Delayed],
+        gt_scene_mesh: Optional[Trimesh] = None,
+    ) -> Delayed:
+        """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
+
+        # detection and description graph
+        keypoints_graph_list = []
+        descriptors_graph_list = []
+        for delayed_image in image_graph:
+            (delayed_dets, delayed_descs) = self.feature_extractor.create_computation_graph(delayed_image)
+            keypoints_graph_list += [delayed_dets]
+            descriptors_graph_list += [delayed_descs]
+
+        # Estimate two-view geometry and get indices of verified correspondences.
+        i2Ri1_graph_dict = {}
+        i2Ui1_graph_dict = {}
+        for (i1, i2) in image_pair_indices:
+            # Collect ground truth relative and absolute poses if available.
+            # TODO(johnwlambert): decompose this method -- name it as "calling_the_plate()"
+
+            # TODO(johnwlambert): decompose this so what happens in the loop is a separate method
+            i2Ri1, i2Ui1, v_corr_idxs, _ = self.two_view_estimator.create_computation_graph(
+                keypoints_graph_list[i1],
+                keypoints_graph_list[i2],
+                descriptors_graph_list[i1],
+                descriptors_graph_list[i2],
+                camera_intrinsics_graph[i1],
+                camera_intrinsics_graph[i2],
+                image_shape_graph[i1],
+                image_shape_graph[i2],
+                relative_pose_priors[(i1, i2)],
+                gt_poses_graph[i1],
+                gt_poses_graph[i2],
+                gt_scene_mesh,
+            )
+
+            # Store results.
+            i2Ri1_graph_dict[(i1, i2)] = i2Ri1
+            i2Ui1_graph_dict[(i1, i2)] = i2Ui1
+
+        return i2Ri1_graph_dict, i2Ui1_graph_dict
+
     def create_computation_graph(
         self,
         num_images: int,
