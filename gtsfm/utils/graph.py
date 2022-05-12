@@ -46,17 +46,20 @@ def prune_to_largest_connected_component(
 ) -> Tuple[Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3]]:
     """Process the graph of image indices with Rot3s/Unit3s defining edges, and select the largest connected component.
 
+    As edges in the rotations and unit_translations are the same, a combination of edges from rotations and pose_priors
+    dict are considered.
+
     Args:
         rotations: dictionary of relative rotations for pairs.
         unit_translations: dictionary of relative unit-translations for pairs.
+        pose_priors: dictionary of priors on relative pose.
 
     Returns:
         Subset of rotations which are in the largest connected components.
         Subset of unit_translations which are in the largest connected components.
     """
     input_edges = [k for (k, v) in rotations.items() if v is not None]
-    # TODO(Ayush): start using pose priors by uncommenting the following line
-    # input_edges += relative_pose_priors.keys()
+    input_edges += relative_pose_priors.keys()
     nodes_in_pruned_graph = get_nodes_in_largest_connected_component(input_edges)
 
     # select the edges with nodes in the pruned graph

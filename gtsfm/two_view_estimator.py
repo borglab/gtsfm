@@ -74,6 +74,8 @@ class TwoViewEstimator:
             eval_threshold_px: distance threshold for marking a correspondence pair as inlier during evaluation
                 (not during estimation).
             bundle_adjust_2view_maxiters (optional): max number of iterations for 2-view BA. Defaults to 100.
+            ba_reproj_error_thresh (optional): reprojection threshold used to filter features after 2-view BA.
+                                               Defaults to 0.5.
         """
         self._matcher = matcher
         self._verifier = verifier
