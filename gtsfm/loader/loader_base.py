@@ -296,11 +296,11 @@ class LoaderBase(metaclass=abc.ABCMeta):
         Returns:
             list of valid index pairs.
         """
-        indices = []
+        pairs = []
 
         for idx1 in range(self.__len__()):
             for idx2 in range(self.__len__()):
                 if self.is_valid_pair(idx1, idx2):
-                    indices.append((idx1, idx2))
+                    pairs.append((idx1, idx2))
 
-        return indices
+        return pairs
