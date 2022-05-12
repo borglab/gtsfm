@@ -2,12 +2,12 @@
 
 Authors: Ayush Baid
 """
-import unittest
+# import unittest
 
-import tests.frontend.detector_descriptor.test_detector_descriptor_base as test_detector_descriptor_base
-from gtsfm.frontend.detector.detector_from_joint_detector_descriptor import (
-    DetectorFromDetectorDescriptor,
-)
+# import tests.frontend.detector_descriptor.test_detector_descriptor_base as test_detector_descriptor_base
+# from gtsfm.frontend.detector.detector_from_joint_detector_descriptor import (
+#     DetectorFromDetectorDescriptor,
+# )
 
 # from gtsfm.frontend.detector_descriptor.colmap_sift import ColmapSIFTDetectorDescriptor
 
