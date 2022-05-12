@@ -44,13 +44,13 @@ class MultiViewOptimizer:
         i2Ri1_graph: Dict[Tuple[int, int], Delayed],
         i2Ui1_graph: Dict[Tuple[int, int], Delayed],
         v_corr_idxs_graph: Dict[Tuple[int, int], Delayed],
-        all_intrinsics: List[Delayed],
+        all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         absolute_pose_priors: List[Optional[PosePrior]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         two_view_reports_dict: Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
-        gt_cameras: List[Optional[gtsfm_types.CAMERA_TYPE]],
+        cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         gt_poses: List[Optional[Pose3]],
-    ) -> Tuple[Delayed, Delayed, Delayed]:
+    ) -> Tuple[Delayed, Delayed, Delayed, list]:
         """Creates a computation graph for multi-view optimization.
 
         Args:
@@ -63,7 +63,7 @@ class MultiViewOptimizer:
             absolute_pose_priors: priors on the camera poses (not delayed).
             relative_pose_priors: priors on the pose between camera pairs (not delayed)
             two_view_reports_dict: Dict of TwoViewEstimationReports after inlier support processor.
-            gt_cameras: list of GT cameras (if they exist), ordered by camera index.
+            cameras_gt: list of GT cameras (if they exist), ordered by camera index.
             gt_poses: list of GT poses of the camera.
 
         Returns:
@@ -109,13 +109,13 @@ class MultiViewOptimizer:
             init_cameras_graph,
             viewgraph_v_corr_idxs_graph,
             keypoints_graph,
-            gt_cameras,
+            cameras_gt,
             relative_pose_priors,
             images_graph,
         )
 
         ba_result_graph, ba_metrics_graph = self.ba_optimizer.create_computation_graph(
-            ba_input_graph, absolute_pose_priors, relative_pose_priors, gt_cameras
+            ba_input_graph, absolute_pose_priors, relative_pose_priors, cameras_gt
         )
 
         multiview_optimizer_metrics_graph = [

@@ -261,8 +261,8 @@ class TwoViewEstimator:
         im_shape_i1: Tuple[int, int],
         im_shape_i2: Tuple[int, int],
         i2Ti1_prior: Optional[PosePrior],
-        gt_wTi1_graph: Delayed,
-        gt_wTi2_graph: Delayed,
+        gt_wTi1_graph: Optional[Pose3],
+        gt_wTi2_graph: Optional[Pose3],
         gt_scene_mesh_graph: Optional[Delayed] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, Dict[str, Delayed]]:
         """Create delayed tasks for matching and verification.

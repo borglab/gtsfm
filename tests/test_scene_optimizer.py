@@ -43,12 +43,12 @@ class TestSceneOptimizer(unittest.TestCase):
                 image_pair_indices=self.loader.get_valid_pairs(),
                 image_graph=self.loader.create_computation_graph_for_images(),
                 all_intrinsics=self.loader.get_all_intrinsics(),
-                image_shape_graph=self.loader.get_image_shapes(),
+                image_shapes=self.loader.get_image_shapes(),
                 absolute_pose_priors=self.loader.get_absolute_pose_priors(),
                 relative_pose_priors=self.loader.get_relative_pose_priors(
                     self.loader.get_valid_pairs()
                 ),
-                gt_cameras=self.loader.get_gt_cameras(),
+                cameras_gt=self.loader.get_gt_cameras(),
                 gt_poses=self.loader.get_gt_poses(),
             )
             # create dask client

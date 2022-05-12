@@ -395,7 +395,7 @@ class BundleAdjustmentOptimizer:
         sfm_data_graph: Delayed,
         absolute_pose_priors: List[Optional[PosePrior]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        gt_cameras: Optional[List[Delayed]] = None,
+        cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
     ) -> Tuple[Delayed, Delayed]:
         """Create the computation graph for performing bundle adjustment.
 
@@ -411,7 +411,7 @@ class BundleAdjustmentOptimizer:
         optimized_sfm_data, filtered_sfm_data, _ = dask.delayed(self.run, nout=3)(
             sfm_data_graph, absolute_pose_priors, relative_pose_priors
         )
-        metrics_graph = dask.delayed(self.evaluate)(optimized_sfm_data, filtered_sfm_data, gt_cameras)
+        metrics_graph = dask.delayed(self.evaluate)(optimized_sfm_data, filtered_sfm_data, cameras_gt)
         return filtered_sfm_data, metrics_graph
 
 

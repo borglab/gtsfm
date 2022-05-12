@@ -190,7 +190,7 @@ class DataAssociation(NamedTuple):
         cameras: Delayed,
         corr_idxs_graph: Dict[Tuple[int, int], Delayed],
         keypoints_graph: List[Delayed],
-        gt_cameras: List[Optional[gtsfm_types.CAMERA_TYPE]],
+        cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         images_graph: Optional[Delayed] = None,
     ) -> Tuple[Delayed, Delayed]:
@@ -201,7 +201,7 @@ class DataAssociation(NamedTuple):
             cameras: list of cameras wrapped up as Delayed.
             corr_idxs_graph: dictionary of correspondence indices, each value wrapped up as Delayed.
             keypoints_graph: list of wrapped up keypoints for each image.
-            gt_cameras: a list of cameras with ground truth params, if they exist.
+            cameras_gt: a list of cameras with ground truth params, if they exist.
             relative_pose_priors: pose priors on the relative pose between camera poses.
             images_graph: a list of all images in scene (optional and only for track patch visualization)
 
@@ -211,7 +211,7 @@ class DataAssociation(NamedTuple):
                 association result
         """
         ba_input_graph, data_assoc_metrics_graph = dask.delayed(self.run, nout=2)(
-            num_images, cameras, corr_idxs_graph, keypoints_graph, gt_cameras, relative_pose_priors, images_graph
+            num_images, cameras, corr_idxs_graph, keypoints_graph, cameras_gt, relative_pose_priors, images_graph
         )
 
         return ba_input_graph, data_assoc_metrics_graph

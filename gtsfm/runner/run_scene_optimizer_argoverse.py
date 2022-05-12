@@ -35,8 +35,8 @@ def run_scene_optimizer(args: argparse.Namespace) -> None:
             image_pair_indices=loader.get_valid_pairs(),
             image_graph=loader.create_computation_graph_for_images(),
             all_intrinsics=loader.get_all_intrinsics(),
-            image_shape_graph=loader.get_image_shapes(),
-            gt_cameras=loader.get_gt_cameras(),
+            image_shapes=loader.get_image_shapes(),
+            cameras_gt=loader.get_gt_cameras(),
         )
 
         # create dask client
