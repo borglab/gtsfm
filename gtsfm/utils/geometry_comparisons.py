@@ -188,11 +188,10 @@ def compare_rotations(
 
     # frame 'a' is the target/reference, and bRi_list will be transformed
     aRi_list_ = align_rotations(aRi_list, bRi_list)
-    error = [
-        compute_relative_rotation_angle(aRi, aRi_) < angular_error_threshold_degrees
-        for (aRi, aRi_) in zip(aRi_list, aRi_list_)
-    ]
-    return all(error)
+    relative_rotations_angles = np.array(
+        [compute_relative_rotation_angle(aRi, aRi_) for (aRi, aRi_) in zip(aRi_list, aRi_list_)], dtype=np.float32
+    )
+    return np.all(relative_rotations_angles < angular_error_threshold_degrees)
 
 
 def compare_global_poses(

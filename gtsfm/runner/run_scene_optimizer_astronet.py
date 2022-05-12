@@ -76,8 +76,8 @@ class GtsfmRunnerAstronetLoader(GtsfmRunnerBase):
                 gt_cameras_graph=self.loader.create_computation_graph_for_cameras(),
                 gt_poses_graph=self.loader.create_computation_graph_for_poses(),
                 matching_regime=ImageMatchingRegime(self.parsed_args.matching_regime),
-                absolute_pose_priors=self.loader.create_computation_graph_for_absolute_pose_priors(),
-                relative_pose_priors=self.loader.create_computation_graph_for_relative_pose_priors(image_pair_indices),
+                absolute_pose_priors=self.loader.get_absolute_pose_priors(),
+                relative_pose_priors=self.loader.get_relative_pose_priors(image_pair_indices),
             )
 
             # Run SfM pipeline.

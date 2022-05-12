@@ -263,15 +263,15 @@ class TestGtsfmData(unittest.TestCase):
 
         # fmt: off
         wTi_list_gt = [
-            Pose3(Rot3(), np.array([3, 0, 0])),  # wTi0
-            Pose3(Rot3(), np.array([0, 0, 0])),  # wTi1
-            Pose3(Rot3(), np.array([0, -3, 0])), # wTi2
-            Pose3(Rot3(), np.array([0, 3, 0])),  # wTi3
+            Pose3(Rot3(), np.array([3, 0, 0])),   # wTi0
+            Pose3(Rot3(), np.array([0, 0, 0])),   # wTi1
+            Pose3(Rot3(), np.array([0, -3, 0])),  # wTi2
+            Pose3(Rot3(), np.array([0, 3, 0])),   # wTi3
         ]
-        points_gt = [
-            np.array([1, 1, 0]),
-            np.array([3, 3, 0])
-        ]
+        # points_gt = [
+        #     np.array([1, 1, 0]),
+        #     np.array([3, 3, 0])
+        # ]
 
         # pose graph is scaled by a factor of 2, and shifted also.
         wTi_list_est = [
