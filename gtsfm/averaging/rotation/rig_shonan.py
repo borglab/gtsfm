@@ -17,13 +17,20 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.averaging.rotation.shonan import ShonanRotationAveraging
 from gtsfm.common.pose_prior import PosePrior
 
+CAM2_PRIOR_SIGMA = 0.1
+
 UPWARD_FACING_CAM_TYPE = 2
+POSE3_DOF = 6
 
 logger = logger_utils.get_logger()
 
 
 class RigShonanRotationAveraging(ShonanRotationAveraging):
     """Performs Shonan rotation averaging."""
+
+    def __get_rig_idx(self, camera_idx: int) -> int:
+        """Get the rig index pertaining to the camera, as there are 5 cameras in sync per timestamp."""
+        return camera_idx // 5
 
     def __get_camera_type(self, camera_idx: int) -> int:
         """Get the type of the camera, i.e. the indexing of the camera according to its physical location in the rig."""
@@ -35,7 +42,7 @@ class RigShonanRotationAveraging(ShonanRotationAveraging):
         between_factors = BetweenFactorPose3s()
 
         for (i1, i2), i2Ti1_prior in i2Ti1_priors.items():
-            if (
+            if self.__get_rig_idx(i1) == self.__get_rig_idx(i2) and (
                 self.__get_camera_type(i1) == UPWARD_FACING_CAM_TYPE
                 or self.__get_camera_type(i2) == UPWARD_FACING_CAM_TYPE
             ):
@@ -43,7 +50,7 @@ class RigShonanRotationAveraging(ShonanRotationAveraging):
                 i1_ = old_to_new_idxs[i1]
                 between_factors.append(
                     BetweenFactorPose3(
-                        i2_, i1_, i2Ti1_prior.value, gtsam.noiseModel.Diagonal.Sigmas(i2Ti1_prior.covariance)
+                        i2_, i1_, i2Ti1_prior.value, gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, CAM2_PRIOR_SIGMA)
                     )
                 )
 

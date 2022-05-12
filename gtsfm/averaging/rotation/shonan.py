@@ -28,6 +28,8 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.common.pose_prior import PosePrior
 
+TWOVIEW_ROTATION_SIGMA = 1
+POSE3_DOF = 6
 
 logger = logger_utils.get_logger()
 
@@ -54,7 +56,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
     ) -> BetweenFactorPose3s:
         """Create between factors from relative rotations computed by the 2-view estimator."""
         # TODO: how to weight the noise model on relative rotations compared to priors?
-        noise_model = gtsam.noiseModel.Unit.Create(6)
+        noise_model = gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, TWOVIEW_ROTATION_SIGMA)
 
         between_factors = BetweenFactorPose3s()
 
@@ -68,20 +70,13 @@ class ShonanRotationAveraging(RotationAveragingBase):
 
         return between_factors
 
-    def __between_factors_from_pose_priors(
+    def _between_factors_from_pose_priors(
         self, i2Ti1_priors: Dict[Tuple[int, int], PosePrior], old_to_new_idxs: Dict[int, int]
     ) -> BetweenFactorPose3s:
         """Create between factors from the priors on relative poses."""
         between_factors = BetweenFactorPose3s()
 
-        for (i1, i2), i2Ti1_prior in i2Ti1_priors.items():
-            i2_ = old_to_new_idxs[i2]
-            i1_ = old_to_new_idxs[i1]
-            between_factors.append(
-                BetweenFactorPose3(
-                    i2_, i1_, i2Ti1_prior.value, gtsam.noiseModel.Diagonal.Sigmas(i2Ti1_prior.covariance)
-                )
-            )
+        # TODO(Ayush): use the priors, atleast between disconnected components.
 
         return between_factors
 
@@ -140,7 +135,6 @@ class ShonanRotationAveraging(RotationAveragingBase):
                 underconstrained system or ill-constrained system), or where the camera pose had no valid observation
                 in the input to run().
         """
-        # TODO(Ayush): use the priors atleast between disconnected components.
         if len(i2Ri1_dict) == 0:
             logger.warning("Shonan cannot proceed: No cycle-consistent triplets found after filtering.")
             wRi_list = [None] * num_images
@@ -157,7 +151,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         between_factors: BetweenFactorPose3s = self.__between_factors_from_2view_relative_rotations(
             i2Ri1_dict, old_to_new_idxes
         )
-        between_factors.extend(self.__between_factors_from_pose_priors(i2Ti1_priors, old_to_new_idxes))
+        between_factors.extend(self._between_factors_from_pose_priors(i2Ti1_priors, old_to_new_idxes))
 
         wRi_list_subset = self._run_with_consecutive_ordering(
             num_connected_nodes=len(nodes_with_edges), between_factors=between_factors
