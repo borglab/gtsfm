@@ -78,9 +78,9 @@ class HiltiLoader(LoaderBase):
             self._cam_T_imu_poses[cam_idx] = calibration[1]
 
         # Check how many images are on disk.
-        self.max_rig_index: int = self.__get_max_rig_idx()
+        self.num_rig_poses: int = self.__get_num_rig_poses()
         if self._max_length is not None:
-            self.max_rig_index = min(self.max_rig_index, self._max_length)
+            self.num_rig_poses = min(self.num_rig_poses, self._max_length)
 
         # Read the constraints from the lidar/constraints file
         constraints_path = self._base_folder / LIDAR_CONSTRAINTS_RELATIVE_PATH
@@ -90,7 +90,7 @@ class HiltiLoader(LoaderBase):
         # Read the poses for the IMU for rig indices from g2o file.
         self._w_T_imu: Dict[int, Pose3] = self.__read_lidar_pose_priors()
 
-        logger.info("Loading %d timestamps", self.max_rig_index)
+        logger.info("Loading %d timestamps", self.num_rig_poses)
         logger.info("Lidar camera available for %d timestamps", len(self._w_T_imu))
 
     def get_camTimu(self) -> Dict[int, Pose3]:
@@ -106,13 +106,13 @@ class HiltiLoader(LoaderBase):
 
         w_T_imu: Dict[int, Pose3] = {}
 
-        for rig_idx in range(self.max_rig_index):
+        for rig_idx in range(self.num_rig_poses):
             if rig_idx in lidar_keys:
                 w_T_imu[rig_idx] = values.atPose3(rig_idx)
 
         return w_T_imu
 
-    def __get_max_rig_idx(self) -> int:
+    def __get_num_rig_poses(self) -> int:
         """Check how many images we have on disk and deduce number of rig poses."""
         search_path: str = str(self._base_folder / IMAGES_FOLDER / "*.jpg")
         image_files = glob.glob(search_path)
@@ -157,7 +157,7 @@ class HiltiLoader(LoaderBase):
         Returns:
             the number of images.
         """
-        return self.max_rig_index * NUM_CAMS
+        return self.num_rig_poses * NUM_CAMS
 
     def get_image(self, index: int) -> Image:
         return self.get_image_full_res(index)
@@ -291,7 +291,7 @@ class HiltiLoader(LoaderBase):
     def get_relative_pose_priors(self, pairs: List[Tuple[int, int]]) -> Dict[Tuple[int, int], PosePrior]:
         pairs = set(pairs)
         # For every rig index, add a "star" from camera 2 to 0,1,3,4:
-        for rig_index in range(self.max_rig_index):
+        for rig_index in range(self.num_rig_poses):
             camera_2 = self.image_from_rig_and_camera(rig_index, 2)
             for cam_idx in [0, 1, 3, 4]:
                 pairs.add((camera_2, self.image_from_rig_and_camera(rig_index, cam_idx)))
