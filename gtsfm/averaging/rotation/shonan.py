@@ -140,12 +140,12 @@ class ShonanRotationAveraging(RotationAveragingBase):
             wRi_list = [None] * num_images
             return wRi_list
 
-        nodes_with_edges = set()
+        unique_nodes_with_edges = set()
         for (i1, i2) in i2Ri1_dict.keys():
-            nodes_with_edges.add(i1)
-            nodes_with_edges.add(i2)
+            unique_nodes_with_edges.add(i1)
+            unique_nodes_with_edges.add(i2)
 
-        nodes_with_edges = sorted(list(nodes_with_edges))
+        nodes_with_edges = sorted(list(unique_nodes_with_edges))
         old_to_new_idxes = {new_idx: i for i, new_idx in enumerate(nodes_with_edges)}
 
         between_factors: BetweenFactorPose3s = self.__between_factors_from_2view_relative_rotations(
