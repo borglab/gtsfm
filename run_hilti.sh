@@ -1,0 +1,1 @@
+python gtsfm/runner/run_scene_optimizer_hilti.py --dataset_dirpath data/hilti --config deep_front_end_hilti --matching_regime rig_hilti --threads_per_worker 2 --num_workers 6
