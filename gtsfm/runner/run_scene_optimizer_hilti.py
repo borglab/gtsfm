@@ -33,7 +33,7 @@ class GtsfmRunnerHiltiLoader(GtsfmRunnerBase):
             help="amount of 'proxy' correspondences that will trigger an image-pair. Default 100.",
         )
 
-        parser.add_argument("--max_length", type=int, default=50, help="Max number of timestamps to process")
+        parser.add_argument("--max_length", type=int, default=None, help="Max number of timestamps to process")
 
         return parser
 
