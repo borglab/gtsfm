@@ -150,18 +150,12 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         return inlier_idxs
 
-    def __get_priors_hilti_rig(
+    def _get_prior_measurements_in_world_frame(
         self,
-        i2Ti1_priors: Optional[Dict[Tuple[int, int], PosePrior]],
+        i2Ti1_priors: Dict[Tuple[int, int], PosePrior],
         wRi_list: List[Optional[Rot3]],
     ) -> gtsam.BinaryMeasurementsPoint3:
         """Converts the priors from relative Pose3 priors to relative Point3 priors in world frame.
-        
-        If the priors are hard constraints (in the same rig), a hard-coded noise model is used. 
-        If the priors are soft constraints, the covariance from the PosePrior is used.
-
-        Soft constraints are only added between the 3rd rig cameras. 
-        Hard constraints are only added between the 3rd camera and other cameras in same rig.
 
         Args: 
             i2Ti1_priors: Relative pose priors between cameras, could be a hard or soft prior.
@@ -173,48 +167,25 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         if i2Ti1_priors is None:
             return gtsam.BinaryMeasurementsPoint3()
 
-        NUM_CAMERAS_IN_RIG = 5
-        BODY_FRAME_CAMERA = 2
-
         def get_prior_in_world_frame(i2, i2Ti1_prior):
             return wRi_list[i2].rotate(i2Ti1_prior.value.translation())
 
         HARD_CONSTRAINT_NOISE_MODEL = gtsam.noiseModel.Constrained.All(3)
-        VALID_HARD_CONSTRAINT_EDGES = [(0, 2), (1, 2), (2, 3), (2, 4)]
 
         w_i2ti1_priors = gtsam.BinaryMeasurementsPoint3()
-        priors_added = set()
+
         for (i1, i2), i2Ti1_prior in i2Ti1_priors.items():
-            if i2Ti1_prior.type == PosePriorType.HARD_CONSTRAINT:
-                c1 = i1 % NUM_CAMERAS_IN_RIG
-                c2 = i2 % NUM_CAMERAS_IN_RIG
-                if (c1, c2) in VALID_HARD_CONSTRAINT_EDGES:
-                    w_i2ti1_priors.append(
-                        gtsam.BinaryMeasurementPoint3(
-                            i2,
-                            i1,
-                            get_prior_in_world_frame(i2, i2Ti1_prior),
-                            HARD_CONSTRAINT_NOISE_MODEL,
-                        )
-                    )
-                    priors_added.add((i2, i1))
-            else:
-                r1 = i1 // NUM_CAMERAS_IN_RIG
-                r2 = i2 // NUM_CAMERAS_IN_RIG
-                c1 = r1 * NUM_CAMERAS_IN_RIG + BODY_FRAME_CAMERA
-                c2 = r2 * NUM_CAMERAS_IN_RIG + BODY_FRAME_CAMERA
-                if (c1, c2) not in priors_added:
-                    # TODO(akshay-krishnan): Use the translation covariance, transform to world frame.
-                    # noise_model = gtsam.noiseModel.Gaussian.Covariance(i2Ti1_prior.covariance)
-                    noise_model = gtsam.noiseModel.Isotropic.Sigma(3, 1e-2)
-                    w_i2ti1_priors.append(
-                        gtsam.BinaryMeasurementPoint3(
-                            i2,
-                            i1,
-                            get_prior_in_world_frame(i2, i2Ti1_prior),
-                            noise_model,
-                        )
-                    )
+            # TODO(akshay-krishnan): Use the translation covariance, transform to world frame.
+            # noise_model = gtsam.noiseModel.Gaussian.Covariance(i2Ti1_prior.covariance)
+            noise_model = gtsam.noiseModel.Isotropic.Sigma(3, 1e-2)
+            w_i2ti1_priors.append(
+                gtsam.BinaryMeasurementPoint3(
+                    i2,
+                    i1,
+                    get_prior_in_world_frame(i2, i2Ti1_prior),
+                    noise_model,
+                )
+            )
         return w_i2ti1_priors
 
     def __get_initial_values(self, wTi_initial: List[Optional[PosePrior]]):
@@ -237,7 +208,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         num_images: int,
         i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
         wRi_list: List[Optional[Rot3]],
-        i2Ti1_priors: Optional[Dict[Tuple[int, int], PosePrior]] = None,
+        i2Ti1_priors: Dict[Tuple[int, int], PosePrior] = None,
         wTi_initial: List[Optional[PosePrior]] = None,
         scale_factor: float = 1.0,
         gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
@@ -282,7 +253,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         # TODO(akshay-krishnan): remove once latest gtsam pip wheels updated.
         try:
             algorithm = TranslationRecovery()
-            w_i2ti1_priors = self.__get_priors_hilti_rig(i2Ti1_priors, wRi_list)
+            w_i2ti1_priors = self._get_prior_measurements_in_world_frame(i2Ti1_priors, wRi_list)
             wti_initial = self.__get_initial_values(wTi_initial)
             if len(w_i2ti1_priors) > 0:
                 # scale is ignored here.
