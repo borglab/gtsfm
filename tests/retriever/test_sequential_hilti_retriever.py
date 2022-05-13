@@ -1,37 +1,36 @@
-"""Unit tests for the RigRetriever.
+"""Unit tests for the SequentialHiltiRetriever.
 
-Author: Frank Dellaert
+Author: John Lambert
 """
 
 import unittest
 from pathlib import Path
 
 from gtsfm.loader.hilti_loader import HiltiLoader
-from gtsfm.retriever.rig_retriever import RigRetriever
+from gtsfm.retriever.sequential_hilti_retriever import SequentialHiltiRetriever
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
 TEST_DATASET_DIR_PATH = DATA_ROOT_PATH / "hilti_exp4_small"
 
 
-class TestRigRetriever(unittest.TestCase):
-    def test_rig_retriever(self) -> None:
-        """Assert that we can parse a constraints file from the Hilti SLAM team and get constraints."""
+class TestSequentialHiltiRetriever(unittest.TestCase):
+    def test_sequential_retriever(self) -> None:
+        """Assert that we get 30 total matches with a lookahead of 3 frames on the Door Dataset."""
 
         loader = HiltiLoader(TEST_DATASET_DIR_PATH)
-        retriever = RigRetriever(threshold=30)
-
+        max_frame_lookahead = 3
+        retriever = SequentialHiltiRetriever(max_frame_lookahead=max_frame_lookahead)
         pairs = retriever.run(loader=loader)
-        # We know these to be the right values from setUp() method.
-        self.assertEqual(len(pairs), 44)
-        expected = [
+        self.assertEqual(len(pairs), 42)  # regression, did not check carefully
+        expected_pairs = [
             (0, 1),
             (0, 3),
             (0, 5),
             (0, 6),
-            (0, 9),
+            (0, 8),
             (0, 10),
             (0, 11),
-            (0, 14),
+            (0, 13),
             (1, 4),
             (1, 5),
             (1, 6),
@@ -41,12 +40,12 @@ class TestRigRetriever(unittest.TestCase):
             (1, 14),
             (2, 7),
             (2, 12),
+            (3, 5),
             (3, 8),
+            (3, 10),
             (3, 13),
-            (4, 5),
             (4, 6),
             (4, 9),
-            (4, 10),
             (4, 11),
             (4, 14),
             (5, 6),
@@ -54,7 +53,6 @@ class TestRigRetriever(unittest.TestCase):
             (5, 10),
             (5, 11),
             (5, 13),
-            (5, 14),
             (6, 9),
             (6, 10),
             (6, 11),
@@ -62,14 +60,13 @@ class TestRigRetriever(unittest.TestCase):
             (7, 12),
             (8, 10),
             (8, 13),
-            (9, 10),
             (9, 11),
             (9, 14),
             (10, 11),
             (10, 13),
             (11, 14),
         ]  # regression
-        self.assertEqual(pairs, expected)
+        self.assertEqual(pairs, expected_pairs)
 
 
 if __name__ == "__main__":

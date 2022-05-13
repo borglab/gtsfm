@@ -277,14 +277,20 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 w_i2Ui1_inlier_measurements.append(w_i2Ui1)
 
         # Run the optimizer
-        algorithm = TranslationRecovery()
-        w_i2ti1_priors = self.__get_priors_hilti_rig(i2Ti1_priors, wRi_list)
-        wti_initial = self.__get_initial_values(wTi_initial)
-        if len(w_i2ti1_priors) > 0:
-            # scale is ignored here.
-            wti_values = algorithm.run(w_i2Ui1_inlier_measurements, 0.0, w_i2ti1_priors, wti_initial)
-        else:
-            wti_values = algorithm.run(w_i2Ui1_inlier_measurements, scale_factor)
+        # TODO(akshay-krishnan): remove once latest gtsam pip wheels updated.
+        try:
+            algorithm = TranslationRecovery()
+            w_i2ti1_priors = self.__get_priors_hilti_rig(i2Ti1_priors, wRi_list)
+            wti_initial = self.__get_initial_values(wTi_initial)
+            if len(w_i2ti1_priors) > 0:
+                # scale is ignored here.
+                wti_values = algorithm.run(w_i2Ui1_inlier_measurements, 0.0, w_i2ti1_priors, wti_initial)
+            else:
+                wti_values = algorithm.run(w_i2Ui1_inlier_measurements, scale_factor)
+        except TypeError:
+            params = gtsam.LevenbergMarquardtParams()
+            recovery = TranslationRecovery(params)
+            wti_values = recovery.run(w_i2Ui1_inlier_measurements, scale_factor)
 
         # transforming the result to the list of Point3
         wti_list: List[Optional[Point3]] = [None] * num_images

@@ -96,7 +96,7 @@ class TwoViewEstimator:
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
         corr_idxs: np.ndarray,
-    ) -> List[SfmTrack]:
+    ) -> Tuple[List[SfmTrack], List[int]]:
         """Triangulate 2-view correspondences to form 3d tracks.
 
         Args:
@@ -256,13 +256,13 @@ class TwoViewEstimator:
         keypoints_i2_graph: Delayed,
         descriptors_i1_graph: Delayed,
         descriptors_i2_graph: Delayed,
-        camera_intrinsics_i1_graph: Delayed,
-        camera_intrinsics_i2_graph: Delayed,
-        im_shape_i1_graph: Delayed,
-        im_shape_i2_graph: Delayed,
+        camera_intrinsics_i1: Optional[gtsfm_types.CALIBRATION_TYPE],
+        camera_intrinsics_i2: Optional[gtsfm_types.CALIBRATION_TYPE],
+        im_shape_i1: Tuple[int, int],
+        im_shape_i2: Tuple[int, int],
         i2Ti1_prior: Optional[PosePrior],
-        gt_wTi1_graph: Delayed,
-        gt_wTi2_graph: Delayed,
+        gt_wTi1_graph: Optional[Pose3],
+        gt_wTi2_graph: Optional[Pose3],
         gt_scene_mesh_graph: Optional[Delayed] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, Dict[str, Delayed]]:
         """Create delayed tasks for matching and verification.
@@ -272,13 +272,12 @@ class TwoViewEstimator:
             keypoints_i2_graph: keypoints for image i2.
             descriptors_i1_graph: corr. descriptors for image i1.
             descriptors_i2_graph: corr. descriptors for image i2.
-            camera_intrinsics_i1_graph: intrinsics for camera i1.
-            camera_intrinsics_i2_graph: intrinsics for camera i2.
-            im_shape_i1_graph: image shape for image i1.
-            im_shape_i2_graph: image shape for image i2.
+            camera_intrinsics_i1: intrinsics for camera i1.
+            camera_intrinsics_i2: intrinsics for camera i2.
+            im_shape_i1: image shape for image i1.
+            im_shape_i2: image shape for image i2.
             i2Ti1_prior: the prior on relative pose i2Ti1.
-            i2Ti1_expected_graph (optional): ground truth relative pose, used for evaluation if available. Defaults to
-                                             None.
+            i2Ti1_expected_graph (optional): ground truth relative pose, used for evaluation if available.
 
         Returns:
             Computed relative rotation wrapped as Delayed.
@@ -293,8 +292,8 @@ class TwoViewEstimator:
             keypoints_i2_graph,
             descriptors_i1_graph,
             descriptors_i2_graph,
-            im_shape_i1_graph,
-            im_shape_i2_graph,
+            im_shape_i1,
+            im_shape_i2,
         )
 
         # verification on putative correspondences to obtain relative pose and verified correspondences\
@@ -308,8 +307,8 @@ class TwoViewEstimator:
             keypoints_i1_graph,
             keypoints_i2_graph,
             putative_corr_idxs,
-            camera_intrinsics_i1_graph,
-            camera_intrinsics_i2_graph,
+            camera_intrinsics_i1,
+            camera_intrinsics_i2,
         )
 
         if self._bundle_adjust_2view:
@@ -318,8 +317,8 @@ class TwoViewEstimator:
                 keypoints_i2_graph,
                 pre_ba_v_corr_idxs,
                 putative_corr_idxs,
-                camera_intrinsics_i1_graph,
-                camera_intrinsics_i2_graph,
+                camera_intrinsics_i1,
+                camera_intrinsics_i2,
                 pre_ba_i2Ri1,
                 pre_ba_i2Ui1,
                 i2Ti1_prior,
@@ -343,8 +342,8 @@ class TwoViewEstimator:
             keypoints_i1_graph,
             keypoints_i2_graph,
             pre_ba_v_corr_idxs,
-            camera_intrinsics_i1_graph,
-            camera_intrinsics_i2_graph,
+            camera_intrinsics_i1,
+            camera_intrinsics_i2,
             self._corr_metric_dist_threshold,
             gt_wTi1_graph,
             gt_wTi2_graph,
@@ -356,8 +355,8 @@ class TwoViewEstimator:
             keypoints_i1_graph,
             keypoints_i2_graph,
             post_ba_v_corr_idxs,
-            camera_intrinsics_i1_graph,
-            camera_intrinsics_i2_graph,
+            camera_intrinsics_i1,
+            camera_intrinsics_i2,
             self._corr_metric_dist_threshold,
             gt_wTi1_graph,
             gt_wTi2_graph,

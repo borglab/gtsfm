@@ -14,6 +14,7 @@ from gtsfm.scene_optimizer import SceneOptimizer
 
 from gtsfm.retriever.exhaustive_retriever import ExhaustiveRetriever
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
+from gtsfm.retriever.rig_retriever import RigRetriever
 from gtsfm.retriever.sequential_hilti_retriever import SequentialHiltiRetriever
 from gtsfm.retriever.sequential_retriever import SequentialRetriever
 
@@ -68,7 +69,7 @@ class GtsfmRunnerBase:
         parser.add_argument(
             "--matching_regime",
             type=str,
-            choices=["exhaustive", "sequential", "sequential_hilti"],
+            choices=["exhaustive", "sequential", "sequential_hilti", "rig_hilti"],
             default="sequential",
             help="Choose mode for matching.",
         )
@@ -110,6 +111,9 @@ class GtsfmRunnerBase:
         elif matching_regime == ImageMatchingRegime.SEQUENTIAL_HILTI:
             retriever = SequentialHiltiRetriever(max_frame_lookahead=self.parsed_args.max_frame_lookahead)
 
+        elif matching_regime == ImageMatchingRegime.RIG_HILTI:
+            retriever = RigRetriever(threshold=self.parsed_args.proxy_threshold)
+
         return retriever
 
     def run(self) -> None:
@@ -129,12 +133,12 @@ class GtsfmRunnerBase:
             num_images=len(self.loader),
             image_pair_indices=image_pair_indices,
             image_graph=self.loader.create_computation_graph_for_images(),
-            camera_intrinsics_graph=self.loader.create_computation_graph_for_intrinsics(),
-            image_shape_graph=self.loader.create_computation_graph_for_image_shapes(),
+            all_intrinsics=self.loader.get_all_intrinsics(),
+            image_shapes=self.loader.get_image_shapes(),
             relative_pose_priors=self.loader.get_relative_pose_priors(image_pair_indices),
             absolute_pose_priors=self.loader.get_absolute_pose_priors(),
-            gt_cameras_graph=self.loader.create_computation_graph_for_cameras(),
-            gt_poses_graph=self.loader.create_computation_graph_for_poses(),
+            cameras_gt=self.loader.get_gt_cameras(),
+            gt_poses=self.loader.get_gt_poses(),
             matching_regime=ImageMatchingRegime(self.parsed_args.matching_regime),
         )
 
