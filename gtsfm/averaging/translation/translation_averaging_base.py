@@ -35,7 +35,7 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
         i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
         wRi_list: List[Optional[Rot3]],
         i2Ti1_priors: Optional[Dict[Tuple[int, int], PosePrior]] = None,
-        wTi_initial: Optional[Dict[int, PosePrior]] = None,
+        wTi_initial: List[Optional[PosePrior]] = None,
         scale_factor: float = 1.0,
         gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
     ) -> Tuple[List[Optional[Point3]], Optional[GtsfmMetricsGroup]]:
@@ -60,7 +60,7 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
         i2Ui1_graph: Delayed,
         wRi_graph: Delayed,
         i2Ti1_priors: Dict[Tuple[int, int], Delayed] = None,
-        wTi_initial: Dict[Tuple[int], Delayed] = None,
+        wTi_initial: List[Delayed] = None,
         scale_factor: float = 1.0,
         gt_wTi_graph: Optional[Delayed] = None,
     ) -> Delayed:

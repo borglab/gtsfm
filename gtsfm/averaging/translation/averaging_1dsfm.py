@@ -177,16 +177,18 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         BODY_FRAME_CAMERA = 2
 
         def get_prior_in_world_frame(i2, i2Ti1_prior):
-            return wRi_list[i2].rotate(i2Ti1_prior.value).translation()
+            return wRi_list[i2].rotate(i2Ti1_prior.value.translation())
 
-        HARD_CONSTRAINT_NOISE_MODEL = gtsam.noiseModel.Constrained.All(1e4)
+        HARD_CONSTRAINT_NOISE_MODEL = gtsam.noiseModel.Constrained.All(3)
         VALID_HARD_CONSTRAINT_EDGES = [(0, 2), (1, 2), (2, 3), (2, 4)]
 
         w_i2ti1_priors = gtsam.BinaryMeasurementsPoint3()
         priors_added = set()
         for (i1, i2), i2Ti1_prior in i2Ti1_priors.items():
             if i2Ti1_prior.type == PosePriorType.HARD_CONSTRAINT:
-                if (i1, i2) in VALID_HARD_CONSTRAINT_EDGES:
+                c1 = i1 % NUM_CAMERAS_IN_RIG
+                c2 = i2 % NUM_CAMERAS_IN_RIG
+                if (c1, c2) in VALID_HARD_CONSTRAINT_EDGES:
                     w_i2ti1_priors.append(
                         gtsam.BinaryMeasurementPoint3(
                             i2,
@@ -226,7 +228,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             return initial
         for i, wTi in enumerate(wTi_initial):
             if wTi is not None:
-                initial.insertPoint3(i, wTi.translation())
+                initial.insertPoint3(i, wTi.value.translation())
         return initial
 
     # TODO(ayushbaid): Change wTi_initial to Pose3.
@@ -236,7 +238,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
         wRi_list: List[Optional[Rot3]],
         i2Ti1_priors: Optional[Dict[Tuple[int, int], PosePrior]] = None,
-        wTi_initial: Optional[Dict[Tuple[int], PosePrior]] = None,
+        wTi_initial: List[Optional[PosePrior]] = None,
         scale_factor: float = 1.0,
         gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
     ) -> Tuple[List[Optional[Point3]], Optional[GtsfmMetricsGroup]]:
@@ -287,10 +289,10 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 wti_values = algorithm.run(w_i2Ui1_inlier_measurements, 0.0, w_i2ti1_priors, wti_initial)
             else:
                 wti_values = algorithm.run(w_i2Ui1_inlier_measurements, scale_factor)
-        except TypeError:
-            params = gtsam.LevenbergMarquardtParams()
-            recovery = TranslationRecovery(params)
-            wti_values = recovery.run(w_i2Ui1_inlier_measurements, scale_factor)
+        except TypeError as e:
+            logger.error("TypeError: {}".format(str(e)))
+            recovery = TranslationRecovery(w_i2Ui1_inlier_measurements)
+            wti_values = recovery.run(scale_factor)
 
         # transforming the result to the list of Point3
         wti_list: List[Optional[Point3]] = [None] * num_images
