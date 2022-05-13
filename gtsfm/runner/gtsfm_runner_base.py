@@ -2,6 +2,7 @@ import argparse
 import time
 from abc import abstractmethod
 
+import dask
 import hydra
 from dask.distributed import Client, LocalCluster, performance_report
 from hydra.utils import instantiate
@@ -129,7 +130,7 @@ class GtsfmRunnerBase:
         with Client(cluster), performance_report(filename="dask-report.html"):
             image_pair_indices = pairs_graph.compute()
 
-        sfm_result_graph = self.scene_optimizer.create_computation_graph(
+        delayed_sfm_result, delayed_io = self.scene_optimizer.create_computation_graph(
             num_images=len(self.loader),
             image_pair_indices=image_pair_indices,
             image_graph=self.loader.create_computation_graph_for_images(),
@@ -143,7 +144,7 @@ class GtsfmRunnerBase:
         )
 
         with Client(cluster), performance_report(filename="dask-report.html"):
-            sfm_result = sfm_result_graph.compute()
+            sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io)
 
         assert isinstance(sfm_result, GtsfmData)
 

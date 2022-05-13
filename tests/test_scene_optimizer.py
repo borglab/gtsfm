@@ -38,7 +38,7 @@ class TestSceneOptimizer(unittest.TestCase):
             scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
             # generate the dask computation graph
-            sfm_result_graph = scene_optimizer.create_computation_graph(
+            delayed_sfm_result, delayed_io = scene_optimizer.create_computation_graph(
                 num_images=len(self.loader),
                 image_pair_indices=self.loader.get_valid_pairs(),
                 image_graph=self.loader.create_computation_graph_for_images(),
@@ -55,7 +55,7 @@ class TestSceneOptimizer(unittest.TestCase):
             cluster = LocalCluster(n_workers=1, threads_per_worker=4)
 
             with Client(cluster):
-                sfm_result = dask.compute(sfm_result_graph)[0]
+                sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io)
 
             self.assertIsInstance(sfm_result, GtsfmData)
 
