@@ -217,8 +217,8 @@ class SceneOptimizer:
             i2Ri1_graph_dict[(i1, i2)] = i2Ri1
             i2Ui1_graph_dict[(i1, i2)] = i2Ui1
             v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
-            for token, report in two_view_reports.items():
-                two_view_reports_dict[token][(i1, i2)] = report
+            for token in (PRE_BA_REPORT_TAG, POST_BA_REPORT_TAG, POST_ISP_REPORT_TAG):
+                two_view_reports_dict[token][(i1, i2)] = two_view_reports[token]
 
             # Visualize verified two-view correspondences.
             if self._save_two_view_correspondences_viz:
