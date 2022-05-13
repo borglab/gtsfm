@@ -57,8 +57,12 @@ def view_scene(args: argparse.Namespace) -> None:
 
     if len(calibrations) == 1:
         calibrations = calibrations * len(img_fnames)
-    mean_pt = compute_point_cloud_center_robust(point_cloud)
 
+    if False:
+        mean_pt = compute_point_cloud_center_robust(point_cloud)
+    else:
+        mean_pt = compute_point_cloud_center_robust(np.array([T.translation() for T in wTi_list]))
+    
     # Zero-center the point cloud (about estimated center).
     zcwTw = Pose3(Rot3(np.eye(3)), -mean_pt)
     # expression below is equivalent to applying zcwTw.transformFrom() to each world point
