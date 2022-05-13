@@ -62,9 +62,6 @@ def run_frontend(
             camera_intrinsics_i2=camera_intrinsics[i2],
             im_shape_i1=image_shapes[i1],
             im_shape_i2=image_shapes[i2],
-            i2Ti1_prior=dask.delayed(None),
-            gt_wTi1_graph=dask.delayed(None),
-            gt_wTi2_graph=dask.delayed(None),
         )
         i2Ri1_graph_dict[(i1, i2)] = i2Ri1
         i2Ui1_graph_dict[(i1, i2)] = i2Ui1

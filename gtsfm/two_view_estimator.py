@@ -374,9 +374,9 @@ class TwoViewEstimator:
         camera_intrinsics_i2: Optional[gtsfm_types.CALIBRATION_TYPE],
         im_shape_i1: Tuple[int, int],
         im_shape_i2: Tuple[int, int],
-        i2Ti1_prior: Optional[PosePrior],
-        gt_wTi1: Optional[Pose3],
-        gt_wTi2: Optional[Pose3],
+        i2Ti1_prior: Optional[PosePrior] = None,
+        gt_wTi1: Optional[Pose3] = None,
+        gt_wTi2: Optional[Pose3] = None,
         gt_scene_mesh_graph: Optional[Delayed] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, Delayed]:
         """Create delayed tasks for matching and verification.
