@@ -122,7 +122,7 @@ class HiltiLoader(LoaderBase):
 
     def __get_num_rig_poses(self) -> int:
         """Check how many images we have on disk and deduce number of rig poses."""
-        search_path: str = str(self._base_folder / IMAGES_FOLDER / "*.jpg")
+        search_path: str = str(self._base_folder / IMAGES_FOLDER / "*.png")
         image_files = glob.glob(search_path)
         total_num_images = len(image_files)
         return total_num_images // NUM_CAMS
@@ -201,7 +201,9 @@ class HiltiLoader(LoaderBase):
         Returns:
             Image: the image at the query index.
         """
-        image_path: Path = self._base_folder / IMAGES_FOLDER / f"{index}.jpg"
+        image_path: Path = (
+            self._base_folder / IMAGES_FOLDER / f"{self.rig_from_image(index)}_{self.camera_from_image(index)}.png"
+        )
 
         return io_utils.load_image(str(image_path))
 
