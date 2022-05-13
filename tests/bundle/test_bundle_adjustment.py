@@ -47,7 +47,10 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         )
 
         computed_result, _ = self.ba.create_computation_graph(
-            dask.delayed(sfm_data_graph), dask.delayed(absolute_pose_priors), dask.delayed(relative_pose_priors)
+            sfm_data_graph,
+            absolute_pose_priors,
+            relative_pose_priors,
+            cameras_gt=[None] * self.test_data.number_images(),
         )
 
         with dask.config.set(scheduler="single-threaded"):
