@@ -252,10 +252,10 @@ class TwoViewEstimator:
 
     def run(
         self,
-        keypoints_i1: Delayed,
-        keypoints_i2: Delayed,
-        descriptors_i1: Delayed,
-        descriptors_i2: Delayed,
+        keypoints_i1: Keypoints,
+        keypoints_i2: Keypoints,
+        descriptors_i1: np.ndarray,
+        descriptors_i2: np.ndarray,
         camera_intrinsics_i1: Optional[gtsfm_types.CALIBRATION_TYPE],
         camera_intrinsics_i2: Optional[gtsfm_types.CALIBRATION_TYPE],
         im_shape_i1: Tuple[int, int],
