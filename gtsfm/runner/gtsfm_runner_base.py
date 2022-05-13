@@ -121,13 +121,6 @@ class GtsfmRunnerBase:
         """Run the SceneOptimizer."""
         start_time = time.time()
 
-        # create dask client
-        cluster = LocalCluster(
-            n_workers=self.parsed_args.num_workers,
-            threads_per_worker=self.parsed_args.threads_per_worker,
-            memory_limit="8GB",
-        )
-
         image_pair_indices = self.retriever.run(self.loader)
 
         keypoints_list = []
