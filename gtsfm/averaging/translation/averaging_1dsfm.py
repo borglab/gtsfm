@@ -222,6 +222,8 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             wTi_initial: List of 
         """
         initial = gtsam.Values()
+        if wTi_initial is None:
+            return initial
         for i, wTi in enumerate(wTi_initial):
             if wTi is not None:
                 initial.insertPoint3(i, wTi.translation())
