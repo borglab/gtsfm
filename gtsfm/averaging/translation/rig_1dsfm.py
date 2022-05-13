@@ -1,3 +1,15 @@
+"""Translation averaging using 1DSFM for a camera rig.
+
+This file creates a class that extends the 1DSfM module to work with camera rigs (currently Hilti).
+
+References:
+- https://research.cs.cornell.edu/1dsfm/
+- https://github.com/borglab/gtsam/blob/develop/gtsam/sfm/MFAS.h
+- https://github.com/borglab/gtsam/blob/develop/gtsam/sfm/TranslationRecovery.h
+- https://github.com/borglab/gtsam/blob/develop/python/gtsam/examples/TranslationAveragingExample.py
+
+Authors: Akshay Krishnan
+"""
 from typing import Dict, List, Optional, Tuple
 
 import gtsam
