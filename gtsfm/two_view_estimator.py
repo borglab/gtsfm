@@ -142,7 +142,6 @@ class TwoViewEstimator:
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
         verified_corr_idxs: np.ndarray,
-        putative_corr_idxs: np.ndarray,
         camera_intrinsics_i1: gtsfm_types.CALIBRATION_TYPE,
         camera_intrinsics_i2: gtsfm_types.CALIBRATION_TYPE,
         i2Ri1_initial: Optional[Rot3],
@@ -155,7 +154,6 @@ class TwoViewEstimator:
             keypoints_i1: keypoints from image i1.
             keypoints_i2: keypoints from image i2.
             verified_corr_idxs: indices of verified correspondences between i1 and i2.
-            putative_corr_idxs: putative correspondences between i1 and i2.
             camera_intrinsics_i1: intrinsics for i1.
             camera_intrinsics_i2: intrinsics for i2.
             i2Ri1_initial: the relative rotation to be used as initial rotation between cameras.
@@ -252,10 +250,10 @@ class TwoViewEstimator:
 
     def run(
         self,
-        keypoints_i1: Delayed,
-        keypoints_i2: Delayed,
-        descriptors_i1: Delayed,
-        descriptors_i2: Delayed,
+        keypoints_i1: Keypoints,
+        keypoints_i2: Keypoints,
+        descriptors_i1: np.ndarray,
+        descriptors_i2: np.ndarray,
         camera_intrinsics_i1: Optional[gtsfm_types.CALIBRATION_TYPE],
         camera_intrinsics_i2: Optional[gtsfm_types.CALIBRATION_TYPE],
         im_shape_i1: Tuple[int, int],
@@ -264,7 +262,7 @@ class TwoViewEstimator:
         gt_wTi1: Optional[Pose3],
         gt_wTi2: Optional[Pose3],
         gt_scene_mesh: Optional[Any] = None,
-    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, Dict[str, TwoViewEstimationReport]]:
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, Dict[str, Optional[TwoViewEstimationReport]]]:
         # graph for matching to obtain putative correspondences
         putative_corr_idxs = self._matcher.match(
             keypoints_i1,
@@ -276,8 +274,7 @@ class TwoViewEstimator:
         )
 
         # verification on putative correspondences to obtain relative pose and verified correspondences\
-        # TODO: name this verified_correspondence_idxs (add note: everything here is delayed)
-        (pre_ba_i2Ri1, pre_ba_i2Ui1, pre_ba_v_corr_idxs, inlier_ratio_wrt_estimate,) = self._verifier.verify(
+        (pre_ba_i2Ri1, pre_ba_i2Ui1, verified_corr_idxs, inlier_ratio_wrt_estimate,) = self._verifier.verify(
             keypoints_i1,
             keypoints_i2,
             putative_corr_idxs,
@@ -285,12 +282,36 @@ class TwoViewEstimator:
             camera_intrinsics_i2,
         )
 
+        # if we have the expected GT data, evaluate the computed relative pose
+        pre_ba_R_error_deg, pre_ba_U_error_deg = compute_relative_pose_metrics(
+            pre_ba_i2Ri1, pre_ba_i2Ui1, gt_wTi1, gt_wTi2
+        )
+        pre_ba_inlier_mask_wrt_gt, pre_ba_reproj_error_wrt_gt = metric_utils.compute_correspondence_metrics(
+            keypoints_i1,
+            keypoints_i2,
+            verified_corr_idxs,
+            camera_intrinsics_i1,
+            camera_intrinsics_i2,
+            self._corr_metric_dist_threshold,
+            gt_wTi1,
+            gt_wTi2,
+            gt_scene_mesh,
+        )
+        pre_ba_report = generate_two_view_report(
+            inlier_ratio_wrt_estimate,
+            verified_corr_idxs,
+            R_error_deg=pre_ba_R_error_deg,
+            U_error_deg=pre_ba_U_error_deg,
+            v_corr_idxs_inlier_mask_gt=pre_ba_inlier_mask_wrt_gt,
+            reproj_error_gt_model=pre_ba_reproj_error_wrt_gt,
+        )
+
+        # Optionally, do two-view bundle adjustment
         if self._bundle_adjust_2view:
             post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs = self.bundle_adjust(
                 keypoints_i1,
                 keypoints_i2,
-                pre_ba_v_corr_idxs,
-                putative_corr_idxs,
+                verified_corr_idxs,
                 camera_intrinsics_i1,
                 camera_intrinsics_i2,
                 pre_ba_i2Ri1,
@@ -300,26 +321,12 @@ class TwoViewEstimator:
         else:
             post_ba_i2Ri1 = pre_ba_i2Ri1
             post_ba_i2Ui1 = pre_ba_i2Ui1
-            post_ba_v_corr_idxs = pre_ba_v_corr_idxs
+            post_ba_v_corr_idxs = verified_corr_idxs
 
-        # if we have the expected GT data, evaluate the computed relative pose
-
-        pre_ba_R_error_deg, pre_ba_U_error_deg = compute_relative_pose_metrics(
-            pre_ba_i2Ri1, pre_ba_i2Ui1, gt_wTi1, gt_wTi2
-        )
+        # if we have the expected GT data, evaluate the computed relative pose, post BA
+        # TODO(frank): why do all this in the case we do *not* do 2-view BA?
         post_ba_R_error_deg, post_ba_U_error_deg = compute_relative_pose_metrics(
             post_ba_i2Ri1, post_ba_i2Ui1, gt_wTi1, gt_wTi2
-        )
-        pre_ba_inlier_mask_wrt_gt, pre_ba_reproj_error_wrt_gt = metric_utils.compute_correspondence_metrics(
-            keypoints_i1,
-            keypoints_i2,
-            pre_ba_v_corr_idxs,
-            camera_intrinsics_i1,
-            camera_intrinsics_i2,
-            self._corr_metric_dist_threshold,
-            gt_wTi1,
-            gt_wTi2,
-            gt_scene_mesh,
         )
         post_ba_inlier_mask_wrt_gt, post_ba_reproj_error_wrt_gt = metric_utils.compute_correspondence_metrics(
             keypoints_i1,
@@ -331,15 +338,6 @@ class TwoViewEstimator:
             gt_wTi1,
             gt_wTi2,
             gt_scene_mesh,
-        )
-
-        pre_ba_report = generate_two_view_report(
-            inlier_ratio_wrt_estimate,
-            pre_ba_v_corr_idxs,
-            R_error_deg=pre_ba_R_error_deg,
-            U_error_deg=pre_ba_U_error_deg,
-            v_corr_idxs_inlier_mask_gt=pre_ba_inlier_mask_wrt_gt,
-            reproj_error_gt_model=pre_ba_reproj_error_wrt_gt,
         )
 
         post_ba_report = generate_two_view_report(
@@ -377,10 +375,10 @@ class TwoViewEstimator:
         im_shape_i1: Tuple[int, int],
         im_shape_i2: Tuple[int, int],
         i2Ti1_prior: Optional[PosePrior],
-        gt_wTi1_graph: Optional[Pose3],
-        gt_wTi2_graph: Optional[Pose3],
+        gt_wTi1: Optional[Pose3],
+        gt_wTi2: Optional[Pose3],
         gt_scene_mesh_graph: Optional[Delayed] = None,
-    ) -> Tuple[Delayed, Delayed, Delayed, Dict[str, Delayed]]:
+    ) -> Tuple[Delayed, Delayed, Delayed, Delayed]:
         """Create delayed tasks for matching and verification.
 
         Args:
@@ -411,8 +409,8 @@ class TwoViewEstimator:
             im_shape_i1=im_shape_i1,
             im_shape_i2=im_shape_i2,
             i2Ti1_prior=i2Ti1_prior,
-            gt_wTi1=gt_wTi1_graph,
-            gt_wTi2=gt_wTi2_graph,
+            gt_wTi1=gt_wTi1,
+            gt_wTi2=gt_wTi2,
             gt_scene_mesh=gt_scene_mesh_graph,
         )
 
@@ -509,8 +507,8 @@ def aggregate_frontend_metrics(
     num_image_pairs = len(two_view_reports_dict.keys())
 
     # all rotational errors in degrees
-    rot3_angular_errors: List[float] = []
-    trans_angular_errors: List[float] = []
+    rot3_angular_errors_list: List[float] = []
+    trans_angular_errors_list: List[float] = []
 
     inlier_ratio_gt_model_all_pairs = []
     inlier_ratio_est_model_all_pairs = []
@@ -521,17 +519,17 @@ def aggregate_frontend_metrics(
         if report is None:
             continue
         if report.R_error_deg is not None:
-            rot3_angular_errors.append(report.R_error_deg)
+            rot3_angular_errors_list.append(report.R_error_deg)
         if report.U_error_deg is not None:
-            trans_angular_errors.append(report.U_error_deg)
+            trans_angular_errors_list.append(report.U_error_deg)
 
         inlier_ratio_gt_model_all_pairs.append(report.inlier_ratio_gt_model)
         inlier_ratio_est_model_all_pairs.append(report.inlier_ratio_est_model)
         num_inliers_gt_model_all_pairs.append(report.num_inliers_gt_model)
         num_inliers_est_model_all_pairs.append(report.num_inliers_est_model)
 
-    rot3_angular_errors = np.array(rot3_angular_errors, dtype=float)
-    trans_angular_errors = np.array(trans_angular_errors, dtype=float)
+    rot3_angular_errors = np.array(rot3_angular_errors_list, dtype=float)
+    trans_angular_errors = np.array(trans_angular_errors_list, dtype=float)
     # count number of rot3 errors which are not None. Should be same in rot3/unit3
     num_valid_image_pairs = np.count_nonzero(~np.isnan(rot3_angular_errors))
 
