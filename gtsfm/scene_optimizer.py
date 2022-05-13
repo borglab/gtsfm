@@ -113,20 +113,20 @@ class SceneOptimizer:
         image_pair_indices: List[Tuple[int, int]],
         image_graph: List[Delayed],
         all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
-        image_shapes: List[Tuple[int,int]],
+        image_shapes: List[Tuple[int, int]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         gt_poses_graph: List[Optional[Pose3]],
         gt_scene_mesh: Optional[Trimesh] = None,
-    ) -> Delayed:
+    ) -> Tuple[Dict[Tuple[int, int], Delayed], Dict[Tuple[int, int], Delayed]]:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
 
         # detection and description graph
-        keypoints_graph_list = []
-        descriptors_graph_list = []
+        delayed_keypoints = []
+        delayed_descriptors = []
         for delayed_image in image_graph:
             (delayed_dets, delayed_descs) = self.feature_extractor.create_computation_graph(delayed_image)
-            keypoints_graph_list += [delayed_dets]
-            descriptors_graph_list += [delayed_descs]
+            delayed_keypoints += [delayed_dets]
+            delayed_descriptors += [delayed_descs]
 
         # Estimate two-view geometry and get indices of verified correspondences.
         i2Ri1_graph_dict = {}
@@ -137,10 +137,10 @@ class SceneOptimizer:
 
             # TODO(johnwlambert): decompose this so what happens in the loop is a separate method
             i2Ri1, i2Ui1, v_corr_idxs, _ = self.two_view_estimator.create_computation_graph(
-                keypoints_graph_list[i1],
-                keypoints_graph_list[i2],
-                descriptors_graph_list[i1],
-                descriptors_graph_list[i2],
+                delayed_keypoints[i1],
+                delayed_keypoints[i2],
+                delayed_descriptors[i1],
+                delayed_descriptors[i2],
                 all_intrinsics[i1],
                 all_intrinsics[i2],
                 image_shapes[i1],
@@ -170,21 +170,19 @@ class SceneOptimizer:
         gt_poses: List[Optional[Pose3]],
         gt_scene_mesh: Optional[Trimesh] = None,
         matching_regime: ImageMatchingRegime = ImageMatchingRegime.SEQUENTIAL,
-    ) -> Delayed:
+    ) -> Tuple[Delayed, List[Delayed]]:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
 
-        # auxiliary graph elements for visualizations and saving intermediate
-        # data for analysis, not returned to the user.
-        auxiliary_graph_list = []
-        metrics_graph_list = []
+        # auxiliary graph elements for visualizations and saving intermediate data for analysis.
+        delayed_results = []
 
         # detection and description graph
-        keypoints_graph_list = []
-        descriptors_graph_list = []
+        delayed_keypoints = []
+        delayed_descriptors = []
         for delayed_image in image_graph:
             (delayed_dets, delayed_descs) = self.feature_extractor.create_computation_graph(delayed_image)
-            keypoints_graph_list += [delayed_dets]
-            descriptors_graph_list += [delayed_descs]
+            delayed_keypoints += [delayed_dets]
+            delayed_descriptors += [delayed_descs]
 
         # Estimate two-view geometry and get indices of verified correspondences.
         i2Ri1_graph_dict = {}
@@ -201,10 +199,10 @@ class SceneOptimizer:
 
             # TODO(johnwlambert): decompose this so what happens in the loop is a separate method
             i2Ri1, i2Ui1, v_corr_idxs, two_view_reports = self.two_view_estimator.create_computation_graph(
-                keypoints_graph_list[i1],
-                keypoints_graph_list[i2],
-                descriptors_graph_list[i1],
-                descriptors_graph_list[i2],
+                delayed_keypoints[i1],
+                delayed_keypoints[i2],
+                delayed_descriptors[i1],
+                delayed_descriptors[i2],
                 all_intrinsics[i1],
                 all_intrinsics[i2],
                 image_shapes[i1],
@@ -219,29 +217,22 @@ class SceneOptimizer:
             i2Ri1_graph_dict[(i1, i2)] = i2Ri1
             i2Ui1_graph_dict[(i1, i2)] = i2Ui1
             v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
-            for token, report in two_view_reports.items():
-                two_view_reports_dict[token][(i1, i2)] = report
+            for token in (PRE_BA_REPORT_TAG, POST_BA_REPORT_TAG, POST_ISP_REPORT_TAG):
+                two_view_reports_dict[token][(i1, i2)] = two_view_reports[token]
 
             # Visualize verified two-view correspondences.
             if self._save_two_view_correspondences_viz:
-                auxiliary_graph_list.append(
+                delayed_results.append(
                     dask.delayed(viz_utils.save_twoview_correspondences_viz)(
                         image_graph[i1],
                         image_graph[i2],
-                        keypoints_graph_list[i1],
-                        keypoints_graph_list[i2],
+                        delayed_keypoints[i1],
+                        delayed_keypoints[i2],
                         v_corr_idxs,
                         two_view_report=two_view_reports[PRE_BA_REPORT_TAG],
                         file_path=os.path.join(PLOT_CORRESPONDENCE_PATH, f"{i1}_{i2}.jpg"),
                     )
                 )
-
-        # As visualization tasks are not to be provided to the user, we create a
-        # dummy computation of concatenating viz tasks with the output graph,
-        # forcing computation of viz tasks. Doing this here forces the
-        # frontend's auxiliary tasks to be computed before the multi-view stage.
-        keypoints_graph_list = dask.delayed(lambda x, y: (x, y))(keypoints_graph_list, auxiliary_graph_list)[0]
-        auxiliary_graph_list = []
 
         # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
         (
@@ -252,7 +243,7 @@ class SceneOptimizer:
         ) = self.multiview_optimizer.create_computation_graph(
             image_graph,
             num_images,
-            keypoints_graph_list,
+            delayed_keypoints,
             i2Ri1_graph_dict,
             i2Ui1_graph_dict,
             v_corr_idxs_graph_dict,
@@ -268,8 +259,9 @@ class SceneOptimizer:
 
         # Persist all front-end metrics and their summaries.
         # TODO(akshay-krishnan): this delays saving the frontend reports until MVO has completed, not ideal.
+        metrics_graph_list = []
         for tag, report_dict in two_view_reports_dict.items():
-            auxiliary_graph_list.append(
+            delayed_results.append(
                 dask.delayed(save_full_frontend_metrics)(
                     report_dict,
                     image_graph,
@@ -295,10 +287,10 @@ class SceneOptimizer:
         )
 
         if self._save_3d_viz:
-            auxiliary_graph_list.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_poses))
+            delayed_results.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_poses))
 
         if self._save_gtsfm_data:
-            auxiliary_graph_list.extend(save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph))
+            delayed_results.extend(save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph))
 
         if self._run_dense_optimizer:
             img_dict_graph = dask.delayed(get_image_dictionary)(image_graph)
@@ -310,7 +302,7 @@ class SceneOptimizer:
             ) = self.dense_multiview_optimizer.create_computation_graph(img_dict_graph, ba_output_graph)
 
             # Cast to string as Open3d cannot use PosixPath's for I/O -- only string file paths are accepted.
-            auxiliary_graph_list.append(
+            delayed_results.append(
                 dask.delayed(io_utils.save_point_cloud_as_ply)(
                     save_fpath=str(MVS_PLY_SAVE_FPATH), points=dense_points_graph, rgb=dense_point_colors_graph
                 )
@@ -323,16 +315,10 @@ class SceneOptimizer:
                 metrics_graph_list.append(downsampling_metrics_graph)
 
         # Save metrics to JSON and generate HTML report.
-        auxiliary_graph_list.extend(save_metrics_reports(metrics_graph_list))
-
-        # as visualization tasks are not to be provided to the user, we create a
-        # dummy computation of concatenating viz tasks with the output graph,
-        # forcing computation of viz tasks
-        output_graph = dask.delayed(lambda x, y: (x, y))(ba_output_graph, auxiliary_graph_list)
-        ba_output_graph = output_graph[0]
+        delayed_results.extend(save_metrics_reports(metrics_graph_list))
 
         # return the entry with just the sfm result
-        return ba_output_graph
+        return ba_output_graph, delayed_results
 
 
 def get_image_dictionary(image_list: List[Image]) -> Dict[int, Image]:
