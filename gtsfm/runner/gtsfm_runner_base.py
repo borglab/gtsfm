@@ -128,28 +128,71 @@ class GtsfmRunnerBase:
             memory_limit="8GB",
         )
 
-        pairs_graph = self.retriever.create_computation_graph(self.loader)
-        with Client(cluster), performance_report(filename="dask-report.html"):
-            image_pair_indices = pairs_graph.compute()
+        image_pair_indices = self.retriever.run(self.loader)
 
-        delayed_sfm_result, delayed_io = self.scene_optimizer.create_computation_graph(
-            num_images=len(self.loader),
-            image_pair_indices=image_pair_indices,
-            image_graph=self.loader.create_computation_graph_for_images(),
-            all_intrinsics=self.loader.get_all_intrinsics(),
-            image_shapes=self.loader.get_image_shapes(),
-            relative_pose_priors=self.loader.get_relative_pose_priors(image_pair_indices),
-            absolute_pose_priors=self.loader.get_absolute_pose_priors(),
-            cameras_gt=self.loader.get_gt_cameras(),
-            gt_poses=self.loader.get_gt_poses(),
-            matching_regime=ImageMatchingRegime(self.parsed_args.matching_regime),
-        )
+        keypoints_list = []
+        descriptors_list = []
+        for i in range(len(self.loader)):
+            keypoints, descriptors = self.scene_optimizer.feature_extractor.detector_descriptor.detect_and_describe(
+                self.loader.get_image(i)
+            )
+            keypoints_list.append(keypoints)
+            descriptors_list.append(descriptors)
 
-        with Client(cluster), performance_report(filename="dask-report.html"):
-            sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io)
-
-        assert isinstance(sfm_result, GtsfmData)
+        for i1, i2 in image_pair_indices:
+            # run the two view plate to cache
+            self.scene_optimizer.two_view_estimator.run(
+                keypoints_i1=keypoints_list[i1],
+                keypoints_i2=keypoints_list[i2],
+                descriptors_i1=descriptors_list[i1],
+                descriptors_i2=descriptors_list[i2],
+                camera_intrinsics_i1=self.loader.get_camera_intrinsics(i1),
+                camera_intrinsics_i2=self.loader.get_camera_intrinsics(i2),
+                im_shape_i1=self.loader.get_image_shape(i1),
+                im_shape_i2=self.loader.get_image_shape(i2),
+                i2Ti1_prior=self.loader.get_relative_pose_prior(i1, i2),
+                gt_wTi1=self.loader.get_camera_pose(i1),
+                gt_wTi2=self.loader.get_camera_pose(i2),
+                gt_scene_mesh=None,
+            )
 
         end_time = time.time()
         duration_sec = end_time - start_time
-        logger.info("GTSFM took %.2f minutes to compute sparse multi-view result.", duration_sec / 60)
+        logger.info("GTSFM took %.2f minutes to run frontend", duration_sec / 60)
+
+    # def run(self) -> None:
+    #     """Run the SceneOptimizer."""
+    #     start_time = time.time()
+
+    #     # create dask client
+    #     cluster = LocalCluster(
+    #         n_workers=self.parsed_args.num_workers,
+    #         threads_per_worker=self.parsed_args.threads_per_worker,
+    #         memory_limit="8GB",
+    #     )
+
+    #     pairs_graph = self.retriever.create_computation_graph(self.loader)
+    #     with Client(cluster), performance_report(filename="dask-report.html"):
+    #         image_pair_indices = pairs_graph.compute()
+
+    #     delayed_sfm_result, delayed_io = self.scene_optimizer.create_computation_graph(
+    #         num_images=len(self.loader),
+    #         image_pair_indices=image_pair_indices,
+    #         image_graph=self.loader.create_computation_graph_for_images(),
+    #         all_intrinsics=self.loader.get_all_intrinsics(),
+    #         image_shapes=self.loader.get_image_shapes(),
+    #         relative_pose_priors=self.loader.get_relative_pose_priors(image_pair_indices),
+    #         absolute_pose_priors=self.loader.get_absolute_pose_priors(),
+    #         cameras_gt=self.loader.get_gt_cameras(),
+    #         gt_poses=self.loader.get_gt_poses(),
+    #         matching_regime=ImageMatchingRegime(self.parsed_args.matching_regime),
+    #     )
+
+    #     with Client(cluster), performance_report(filename="dask-report.html"):
+    #         sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io)
+
+    #     assert isinstance(sfm_result, GtsfmData)
+
+    #     end_time = time.time()
+    #     duration_sec = end_time - start_time
+    #     logger.info("GTSFM took %.2f minutes to compute sparse multi-view result.", duration_sec / 60)
