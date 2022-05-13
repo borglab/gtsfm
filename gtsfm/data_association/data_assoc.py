@@ -188,11 +188,11 @@ class DataAssociation(NamedTuple):
         self,
         num_images: int,
         cameras: Delayed,
-        corr_idxs_graph: Dict[Tuple[int, int], Delayed],
+        corr_idxs_graph: Delayed,
         keypoints_graph: List[Delayed],
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        images_graph: Optional[Delayed] = None,
+        images_graph: Optional[List[Delayed]],
     ) -> Tuple[Delayed, Delayed]:
         """Creates a computation graph for performing data association.
 

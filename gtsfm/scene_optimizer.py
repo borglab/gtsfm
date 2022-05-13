@@ -164,10 +164,10 @@ class SceneOptimizer:
         image_graph: List[Delayed],
         all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         image_shapes: List[Tuple[int, int]],
-        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         absolute_pose_priors: List[Optional[PosePrior]],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
-        gt_poses: List[Optional[Pose3]],
+        gt_wTi_list: List[Optional[Pose3]],
         gt_scene_mesh: Optional[Trimesh] = None,
         matching_regime: ImageMatchingRegime = ImageMatchingRegime.SEQUENTIAL,
     ) -> Tuple[Delayed, List[Delayed]]:
@@ -208,8 +208,8 @@ class SceneOptimizer:
                 image_shapes[i1],
                 image_shapes[i2],
                 relative_pose_priors.get((i1, i2), None),
-                gt_poses[i1],
-                gt_poses[i2],
+                gt_wTi_list[i1],
+                gt_wTi_list[i2],
                 gt_scene_mesh,
             )
 
@@ -252,14 +252,14 @@ class SceneOptimizer:
             relative_pose_priors,
             two_view_reports_dict[POST_ISP_REPORT_TAG],
             cameras_gt,
-            gt_poses,
+            gt_wTi_list,
         )
         if view_graph_two_view_reports is not None:
             two_view_reports_dict[VIEWGRAPH_REPORT_TAG] = view_graph_two_view_reports
 
         # Persist all front-end metrics and their summaries.
         # TODO(akshay-krishnan): this delays saving the frontend reports until MVO has completed, not ideal.
-        metrics_graph_list = []
+        metrics_graph_list: List[Delayed] = []
         for tag, report_dict in two_view_reports_dict.items():
             delayed_results.append(
                 dask.delayed(save_full_frontend_metrics)(
@@ -282,12 +282,12 @@ class SceneOptimizer:
             metrics_graph_list.extend(optimizer_metrics_graph)
 
         # Modify BA input, BA output, and GT poses to have point clouds and frustums aligned with x,y,z axes.
-        ba_input_graph, ba_output_graph, gt_poses = dask.delayed(align_estimated_gtsfm_data, nout=3)(
-            ba_input_graph, ba_output_graph, gt_poses
+        ba_input_graph, ba_output_graph, gt_wTi_list = dask.delayed(align_estimated_gtsfm_data, nout=3)(
+            ba_input_graph, ba_output_graph, gt_wTi_list
         )
 
         if self._save_3d_viz:
-            delayed_results.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_poses))
+            delayed_results.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_wTi_list))
 
         if self._save_gtsfm_data:
             delayed_results.extend(save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph))
@@ -380,7 +380,7 @@ def save_visualizations(
     return viz_graph_list
 
 
-def save_gtsfm_data(image_graph: Delayed, ba_input_graph: Delayed, ba_output_graph: Delayed) -> List[Delayed]:
+def save_gtsfm_data(image_graph: List[Delayed], ba_input_graph: Delayed, ba_output_graph: Delayed) -> List[Delayed]:
     """Saves the Gtsfm data before and after bundle adjustment.
 
     Args:
@@ -413,7 +413,7 @@ def save_gtsfm_data(image_graph: Delayed, ba_input_graph: Delayed, ba_output_gra
     return saving_graph_list
 
 
-def save_metrics_reports(metrics_graph_list: Delayed) -> List[Delayed]:
+def save_metrics_reports(metrics_graph_list: List[Delayed]) -> List[Delayed]:
     """Saves metrics to JSON and HTML report.
 
     Args:
@@ -422,7 +422,7 @@ def save_metrics_reports(metrics_graph_list: Delayed) -> List[Delayed]:
     Returns:
         List of delayed objects after saving metrics.
     """
-    save_metrics_graph_list = []
+    save_metrics_graph_list: List[Delayed] = []
 
     if len(metrics_graph_list) == 0:
         return save_metrics_graph_list

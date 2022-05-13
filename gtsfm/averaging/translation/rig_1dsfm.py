@@ -21,30 +21,31 @@ from gtsfm.common.pose_prior import PosePrior, PosePriorType
 
 logger = logger_utils.get_logger()
 
+
 class RigTranslationAveraging1DSFM(TranslationAveraging1DSFM):
     """A special case of the 1DSFM implementation that pre-processes the relative prior for the Hilti rig."""
 
     def _get_prior_measurements_in_world_frame(
         self,
-        i2Ti1_priors: Dict[Tuple[int, int], PosePrior],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         wRi_list: List[Optional[Rot3]],
     ) -> gtsam.BinaryMeasurementsPoint3:
         """Converts the priors from relative Pose3 priors to relative Point3 priors in world frame.
-        
-        If the priors are hard constraints (in the same rig), a hard-coded noise model is used. 
+
+        If the priors are hard constraints (in the same rig), a hard-coded noise model is used.
         If the priors are soft constraints, the covariance from the PosePrior is used.
 
-        Soft constraints are only added between the 3rd rig cameras. 
+        Soft constraints are only added between the 3rd rig cameras.
         Hard constraints are only added between the 3rd camera and other cameras in same rig.
 
-        Args: 
-            i2Ti1_priors: Relative pose priors between cameras, could be a hard or soft prior.
+        Args:
+            relative_pose_priors: Relative pose priors between cameras, could be a hard or soft prior.
             wRi_list: Absolute rotation estimates from Shonan averaging.
-        
+
         Returns:
             gtsam.BinaryMeasurementsPoint3 containing Point3 priors in world frame.
         """
-        if i2Ti1_priors is None:
+        if len(relative_pose_priors) == 0:
             return gtsam.BinaryMeasurementsPoint3()
 
         NUM_CAMERAS_IN_RIG = 5
@@ -58,7 +59,7 @@ class RigTranslationAveraging1DSFM(TranslationAveraging1DSFM):
 
         w_i2ti1_priors = gtsam.BinaryMeasurementsPoint3()
         priors_added = set()
-        for (i1, i2), i2Ti1_prior in i2Ti1_priors.items():
+        for (i1, i2), i2Ti1_prior in relative_pose_priors.items():
             if i2Ti1_prior.type == PosePriorType.HARD_CONSTRAINT:
                 c1 = i1 % NUM_CAMERAS_IN_RIG
                 c2 = i2 % NUM_CAMERAS_IN_RIG

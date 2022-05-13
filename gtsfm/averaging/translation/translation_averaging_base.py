@@ -9,7 +9,7 @@ import dask
 from dask.delayed import Delayed
 from gtsam import Point3, Pose3, Rot3, Unit3
 
-from gtsfm.common.pose_prior import PosePrior, PosePriorType
+from gtsfm.common.pose_prior import PosePrior
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 
 
@@ -34,8 +34,8 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
         num_images: int,
         i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
         wRi_list: List[Optional[Rot3]],
-        i2Ti1_priors: Dict[Tuple[int, int], PosePrior],
-        wTi_initial: List[Optional[PosePrior]] = None,
+        absolute_pose_priors: List[Optional[PosePrior]] = [],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
         gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
     ) -> Tuple[List[Optional[Point3]], Optional[GtsfmMetricsGroup]]:
@@ -45,6 +45,8 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
             num_images: number of camera poses.
             i2Ui1_dict: relative unit-trans as dictionary (i1, i2): i2Ui1.
             wRi_list: global rotations for each camera pose in the world coordinates.
+            absolute_pose_priors: priors on the camera poses (not delayed).
+            relative_pose_priors: priors on the pose between camera pairs (not delayed)
             scale_factor: non-negative global scaling factor.
             gt_wTi_list: List of ground truth poses (wTi) for computing metrics.
 
@@ -59,10 +61,10 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
         num_images: int,
         i2Ui1_graph: Delayed,
         wRi_graph: Delayed,
-        i2Ti1_priors: Dict[Tuple[int, int], Delayed],
-        wTi_initial: List[Delayed] = None,
+        absolute_pose_priors: List[Optional[PosePrior]] = [],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
-        gt_wTi_graph: Optional[Delayed] = None,
+        gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
     ) -> Delayed:
         """Create the computation graph for performing translation averaging.
 
@@ -70,11 +72,15 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
             num_images: number of camera poses.
             i2Ui1_graph: dictionary of relative unit translations as a delayed task.
             wRi_graph: list of global rotations wrapped up in Delayed.
+            absolute_pose_priors: priors on the camera poses (not delayed).
+            relative_pose_priors: priors on the pose between camera pairs (not delayed)
             scale_factor: non-negative global scaling factor.
-            gt_wTi_graph: List of ground truth poses (wTi) wrapped as Delayed for computing metrics.
+            gt_wTi_list: List of ground truth poses (wTi) for computing metrics.
 
         Returns:
             Global unit translations wrapped as Delayed.
             A GtsfmMetricsGroup with translation averaging metrics wrapped as Delayed.
         """
-        return dask.delayed(self.run, nout=2)(num_images, i2Ui1_graph, wRi_graph, i2Ti1_priors, wTi_initial, scale_factor, gt_wTi_graph)
+        return dask.delayed(self.run, nout=2)(
+            num_images, i2Ui1_graph, wRi_graph, absolute_pose_priors, relative_pose_priors, scale_factor, gt_wTi_list
+        )
