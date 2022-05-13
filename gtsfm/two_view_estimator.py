@@ -4,7 +4,7 @@ Authors: Ayush Baid, John Lambert
 """
 import logging
 import timeit
-from typing import Dict, Optional, Tuple, List
+from typing import Any, Dict, Optional, Tuple, List
 
 import dask
 import gtsam
@@ -250,6 +250,122 @@ class TwoViewEstimator:
         """Getter for the distance threshold used in the metric for correct correspondences."""
         return self._corr_metric_dist_threshold
 
+    def run(
+        self,
+        keypoints_i1: Delayed,
+        keypoints_i2: Delayed,
+        descriptors_i1: Delayed,
+        descriptors_i2: Delayed,
+        camera_intrinsics_i1: Optional[gtsfm_types.CALIBRATION_TYPE],
+        camera_intrinsics_i2: Optional[gtsfm_types.CALIBRATION_TYPE],
+        im_shape_i1: Tuple[int, int],
+        im_shape_i2: Tuple[int, int],
+        i2Ti1_prior: Optional[PosePrior],
+        gt_wTi1: Optional[Pose3],
+        gt_wTi2: Optional[Pose3],
+        gt_scene_mesh: Optional[Any] = None,
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, Dict[str, TwoViewEstimationReport]]:
+        # graph for matching to obtain putative correspondences
+        putative_corr_idxs = self._matcher.match(
+            keypoints_i1,
+            keypoints_i2,
+            descriptors_i1,
+            descriptors_i2,
+            im_shape_i1,
+            im_shape_i2,
+        )
+
+        # verification on putative correspondences to obtain relative pose and verified correspondences\
+        # TODO: name this verified_correspondence_idxs (add note: everything here is delayed)
+        (pre_ba_i2Ri1, pre_ba_i2Ui1, pre_ba_v_corr_idxs, inlier_ratio_wrt_estimate,) = self._verifier.verify(
+            keypoints_i1,
+            keypoints_i2,
+            putative_corr_idxs,
+            camera_intrinsics_i1,
+            camera_intrinsics_i2,
+        )
+
+        if self._bundle_adjust_2view:
+            post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs = self.bundle_adjust(
+                keypoints_i1,
+                keypoints_i2,
+                pre_ba_v_corr_idxs,
+                putative_corr_idxs,
+                camera_intrinsics_i1,
+                camera_intrinsics_i2,
+                pre_ba_i2Ri1,
+                pre_ba_i2Ui1,
+                i2Ti1_prior,
+            )
+        else:
+            post_ba_i2Ri1 = pre_ba_i2Ri1
+            post_ba_i2Ui1 = pre_ba_i2Ui1
+            post_ba_v_corr_idxs = pre_ba_v_corr_idxs
+
+        # if we have the expected GT data, evaluate the computed relative pose
+
+        pre_ba_R_error_deg, pre_ba_U_error_deg = compute_relative_pose_metrics(
+            pre_ba_i2Ri1, pre_ba_i2Ui1, gt_wTi1, gt_wTi2
+        )
+        post_ba_R_error_deg, post_ba_U_error_deg = compute_relative_pose_metrics(
+            post_ba_i2Ri1, post_ba_i2Ui1, gt_wTi1, gt_wTi2
+        )
+        pre_ba_inlier_mask_wrt_gt, pre_ba_reproj_error_wrt_gt = metric_utils.compute_correspondence_metrics(
+            keypoints_i1,
+            keypoints_i2,
+            pre_ba_v_corr_idxs,
+            camera_intrinsics_i1,
+            camera_intrinsics_i2,
+            self._corr_metric_dist_threshold,
+            gt_wTi1,
+            gt_wTi2,
+            gt_scene_mesh,
+        )
+        post_ba_inlier_mask_wrt_gt, post_ba_reproj_error_wrt_gt = metric_utils.compute_correspondence_metrics(
+            keypoints_i1,
+            keypoints_i2,
+            post_ba_v_corr_idxs,
+            camera_intrinsics_i1,
+            camera_intrinsics_i2,
+            self._corr_metric_dist_threshold,
+            gt_wTi1,
+            gt_wTi2,
+            gt_scene_mesh,
+        )
+
+        pre_ba_report = generate_two_view_report(
+            inlier_ratio_wrt_estimate,
+            pre_ba_v_corr_idxs,
+            R_error_deg=pre_ba_R_error_deg,
+            U_error_deg=pre_ba_U_error_deg,
+            v_corr_idxs_inlier_mask_gt=pre_ba_inlier_mask_wrt_gt,
+            reproj_error_gt_model=pre_ba_reproj_error_wrt_gt,
+        )
+
+        post_ba_report = generate_two_view_report(
+            inlier_ratio_wrt_estimate,  # TODO: dont store ratios so that we can update them
+            post_ba_v_corr_idxs,
+            R_error_deg=post_ba_R_error_deg,
+            U_error_deg=post_ba_U_error_deg,
+            v_corr_idxs_inlier_mask_gt=post_ba_inlier_mask_wrt_gt,
+            reproj_error_gt_model=post_ba_reproj_error_wrt_gt,
+        )
+
+        (
+            post_isp_i2Ri1,
+            post_isp_i2Ui1,
+            post_isp_v_corr_idxs,
+            post_isp_report,
+        ) = self.processor.run(post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, post_ba_report)
+
+        two_view_reports = {
+            PRE_BA_REPORT_TAG: pre_ba_report,
+            POST_BA_REPORT_TAG: post_ba_report,
+            POST_ISP_REPORT_TAG: post_isp_report,
+        }
+
+        return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs, two_view_reports
+
     def create_computation_graph(
         self,
         keypoints_i1_graph: Delayed,
@@ -285,116 +401,20 @@ class TwoViewEstimator:
             Indices of verified correspondences wrapped as Delayed.
             Two-view reports at different stages (pre BA, post BA, and post inlier-support-processor), as a dictionary.
         """
-
-        # graph for matching to obtain putative correspondences
-        putative_corr_idxs = self._matcher.create_computation_graph(
-            keypoints_i1_graph,
-            keypoints_i2_graph,
-            descriptors_i1_graph,
-            descriptors_i2_graph,
-            im_shape_i1,
-            im_shape_i2,
+        return dask.delayed(self.run, nout=4)(
+            keypoints_i1=keypoints_i1_graph,
+            keypoints_i2=keypoints_i2_graph,
+            descriptors_i1=descriptors_i1_graph,
+            descriptors_i2=descriptors_i2_graph,
+            camera_intrinsics_i1=camera_intrinsics_i1,
+            camera_intrinsics_i2=camera_intrinsics_i2,
+            im_shape_i1=im_shape_i1,
+            im_shape_i2=im_shape_i2,
+            i2Ti1_prior=i2Ti1_prior,
+            gt_wTi1=gt_wTi1_graph,
+            gt_wTi2=gt_wTi2_graph,
+            gt_scene_mesh=gt_scene_mesh_graph,
         )
-
-        # verification on putative correspondences to obtain relative pose and verified correspondences\
-        # TODO: name this verified_correspondence_idxs (add note: everything here is delayed)
-        (
-            pre_ba_i2Ri1,
-            pre_ba_i2Ui1,
-            pre_ba_v_corr_idxs,
-            inlier_ratio_wrt_estimate,
-        ) = self._verifier.create_computation_graph(
-            keypoints_i1_graph,
-            keypoints_i2_graph,
-            putative_corr_idxs,
-            camera_intrinsics_i1,
-            camera_intrinsics_i2,
-        )
-
-        if self._bundle_adjust_2view:
-            post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs = dask.delayed(self.bundle_adjust, nout=3)(
-                keypoints_i1_graph,
-                keypoints_i2_graph,
-                pre_ba_v_corr_idxs,
-                putative_corr_idxs,
-                camera_intrinsics_i1,
-                camera_intrinsics_i2,
-                pre_ba_i2Ri1,
-                pre_ba_i2Ui1,
-                i2Ti1_prior,
-            )
-        else:
-            post_ba_i2Ri1 = pre_ba_i2Ri1
-            post_ba_i2Ui1 = pre_ba_i2Ui1
-            post_ba_v_corr_idxs = pre_ba_v_corr_idxs
-
-        # if we have the expected GT data, evaluate the computed relative pose
-
-        pre_ba_R_error_deg, pre_ba_U_error_deg = dask.delayed(compute_relative_pose_metrics, nout=2)(
-            pre_ba_i2Ri1, pre_ba_i2Ui1, gt_wTi1_graph, gt_wTi2_graph
-        )
-        post_ba_R_error_deg, post_ba_U_error_deg = dask.delayed(compute_relative_pose_metrics, nout=2)(
-            post_ba_i2Ri1, post_ba_i2Ui1, gt_wTi1_graph, gt_wTi2_graph
-        )
-        pre_ba_inlier_mask_wrt_gt, pre_ba_reproj_error_wrt_gt = dask.delayed(
-            metric_utils.compute_correspondence_metrics, nout=2
-        )(
-            keypoints_i1_graph,
-            keypoints_i2_graph,
-            pre_ba_v_corr_idxs,
-            camera_intrinsics_i1,
-            camera_intrinsics_i2,
-            self._corr_metric_dist_threshold,
-            gt_wTi1_graph,
-            gt_wTi2_graph,
-            gt_scene_mesh_graph,
-        )
-        post_ba_inlier_mask_wrt_gt, post_ba_reproj_error_wrt_gt = dask.delayed(
-            metric_utils.compute_correspondence_metrics, nout=2
-        )(
-            keypoints_i1_graph,
-            keypoints_i2_graph,
-            post_ba_v_corr_idxs,
-            camera_intrinsics_i1,
-            camera_intrinsics_i2,
-            self._corr_metric_dist_threshold,
-            gt_wTi1_graph,
-            gt_wTi2_graph,
-            gt_scene_mesh_graph,
-        )
-
-        pre_ba_report = dask.delayed(generate_two_view_report)(
-            inlier_ratio_wrt_estimate,
-            pre_ba_v_corr_idxs,
-            R_error_deg=pre_ba_R_error_deg,
-            U_error_deg=pre_ba_U_error_deg,
-            v_corr_idxs_inlier_mask_gt=pre_ba_inlier_mask_wrt_gt,
-            reproj_error_gt_model=pre_ba_reproj_error_wrt_gt,
-        )
-
-        post_ba_report = dask.delayed(generate_two_view_report)(
-            inlier_ratio_wrt_estimate,  # TODO: dont store ratios so that we can update them
-            post_ba_v_corr_idxs,
-            R_error_deg=post_ba_R_error_deg,
-            U_error_deg=post_ba_U_error_deg,
-            v_corr_idxs_inlier_mask_gt=post_ba_inlier_mask_wrt_gt,
-            reproj_error_gt_model=post_ba_reproj_error_wrt_gt,
-        )
-
-        (
-            post_isp_i2Ri1,
-            post_isp_i2Ui1,
-            post_isp_v_corr_idxs,
-            post_isp_report,
-        ) = self.processor.create_computation_graph(post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, post_ba_report)
-
-        two_view_reports = {
-            PRE_BA_REPORT_TAG: pre_ba_report,
-            POST_BA_REPORT_TAG: post_ba_report,
-            POST_ISP_REPORT_TAG: post_isp_report,
-        }
-
-        return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs, two_view_reports
 
 
 def generate_two_view_report(
