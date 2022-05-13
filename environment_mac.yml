@@ -48,4 +48,4 @@ dependencies:
     - argoverse @ git+https://github.com/argoai/argoverse-api.git@master
     - trimesh[easy]
     - pycolmap>=0.1.0
-    - gtsam=4.2a7
+    - gtsam==4.2a7
