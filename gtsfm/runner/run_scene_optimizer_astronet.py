@@ -5,6 +5,7 @@ Author: Travis Driver
 import argparse
 import time
 
+import dask
 from dask.distributed import Client, LocalCluster, performance_report
 
 import gtsfm.utils.logger as logger_utils
@@ -66,7 +67,7 @@ class GtsfmRunnerAstronetLoader(GtsfmRunnerBase):
             gt_scene_trimesh_future = client.scatter(self.loader.gt_scene_trimesh, broadcast=True)
 
             # Prepare computation graph.
-            sfm_result_graph = self.scene_optimizer.create_computation_graph(
+            delayed_sfm_result, delayed_io = self.scene_optimizer.create_computation_graph(
                 num_images=len(self.loader),
                 image_pair_indices=image_pair_indices,
                 image_graph=self.loader.create_computation_graph_for_images(),
@@ -81,7 +82,8 @@ class GtsfmRunnerAstronetLoader(GtsfmRunnerBase):
             )
 
             # Run SfM pipeline.
-            sfm_result = sfm_result_graph.compute()
+            sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io)
+
         assert isinstance(sfm_result, GtsfmData)
         logger.info("GTSFM took %.2f minutes to compute sparse multi-view result.", (time.time() - start_time) / 60)
 
