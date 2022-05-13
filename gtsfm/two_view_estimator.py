@@ -264,7 +264,7 @@ class TwoViewEstimator:
         gt_wTi1: Optional[Pose3],
         gt_wTi2: Optional[Pose3],
         gt_scene_mesh: Optional[Any] = None,
-    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, Dict[str, TwoViewEstimationReport]]:
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
         # graph for matching to obtain putative correspondences
         putative_corr_idxs = self._matcher.match(
             keypoints_i1,
@@ -333,15 +333,6 @@ class TwoViewEstimator:
             gt_scene_mesh,
         )
 
-        pre_ba_report = generate_two_view_report(
-            inlier_ratio_wrt_estimate,
-            pre_ba_v_corr_idxs,
-            R_error_deg=pre_ba_R_error_deg,
-            U_error_deg=pre_ba_U_error_deg,
-            v_corr_idxs_inlier_mask_gt=pre_ba_inlier_mask_wrt_gt,
-            reproj_error_gt_model=pre_ba_reproj_error_wrt_gt,
-        )
-
         post_ba_report = generate_two_view_report(
             inlier_ratio_wrt_estimate,  # TODO: dont store ratios so that we can update them
             post_ba_v_corr_idxs,
@@ -355,16 +346,10 @@ class TwoViewEstimator:
             post_isp_i2Ri1,
             post_isp_i2Ui1,
             post_isp_v_corr_idxs,
-            post_isp_report,
+            _,
         ) = self.processor.run(post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, post_ba_report)
 
-        two_view_reports = {
-            PRE_BA_REPORT_TAG: pre_ba_report,
-            POST_BA_REPORT_TAG: post_ba_report,
-            POST_ISP_REPORT_TAG: post_isp_report,
-        }
-
-        return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs, two_view_reports
+        return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs
 
     def create_computation_graph(
         self,
@@ -380,7 +365,7 @@ class TwoViewEstimator:
         gt_wTi1_graph: Optional[Pose3],
         gt_wTi2_graph: Optional[Pose3],
         gt_scene_mesh_graph: Optional[Delayed] = None,
-    ) -> Tuple[Delayed, Delayed, Delayed, Dict[str, Delayed]]:
+    ) -> Tuple[Delayed, Delayed, Delayed]:
         """Create delayed tasks for matching and verification.
 
         Args:
@@ -399,9 +384,8 @@ class TwoViewEstimator:
             Computed relative rotation wrapped as Delayed.
             Computed relative translation direction wrapped as Delayed.
             Indices of verified correspondences wrapped as Delayed.
-            Two-view reports at different stages (pre BA, post BA, and post inlier-support-processor), as a dictionary.
         """
-        return dask.delayed(self.run, nout=4)(
+        return dask.delayed(self.run, nout=3)(
             keypoints_i1=keypoints_i1_graph,
             keypoints_i2=keypoints_i2_graph,
             descriptors_i1=descriptors_i1_graph,

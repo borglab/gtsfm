@@ -53,7 +53,7 @@ def run_frontend(
     i2Ui1_graph_dict = {}
     v_corr_idxs_graph_dict: Dict[Tuple[int, int], Delayed] = {}
     for (i1, i2) in image_pair_indices:
-        (i2Ri1, i2Ui1, v_corr_idxs, two_view_report) = two_view_estimator.create_computation_graph(
+        (i2Ri1, i2Ui1, v_corr_idxs) = two_view_estimator.create_computation_graph(
             keypoints_i1_graph=keypoints_graph_list[i1],
             keypoints_i2_graph=keypoints_graph_list[i2],
             descriptors_i1_graph=descriptors_graph_list[i1],
@@ -62,9 +62,9 @@ def run_frontend(
             camera_intrinsics_i2=camera_intrinsics[i2],
             im_shape_i1=image_shapes[i1],
             im_shape_i2=image_shapes[i2],
-            i2Ti1_prior=dask.delayed(None),
-            gt_wTi1_graph=dask.delayed(None),
-            gt_wTi2_graph=dask.delayed(None),
+            i2Ti1_prior=None,
+            gt_wTi1_graph=loader.get_camera_pose(i1),
+            gt_wTi2_graph=loader.get_camera_pose(i2),
         )
         i2Ri1_graph_dict[(i1, i2)] = i2Ri1
         i2Ui1_graph_dict[(i1, i2)] = i2Ui1
