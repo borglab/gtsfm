@@ -62,6 +62,8 @@ class RigRetriever(RetrieverBase):
 
         # Translate all rig level constraints to CAM2-CAM2 constraints
         for constraint in constraints:
+            if not self.__accept_constraint(constraint):
+                continue
             a = constraint.a
             b = constraint.b
 
