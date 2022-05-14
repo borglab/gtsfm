@@ -277,16 +277,12 @@ class HiltiLoader(LoaderBase):
         if rig_idx_for_i1 == rig_idx_for_i2:
             i1_T_imu: Pose3 = self._cam_T_imu_poses[cam_idx_for_i1]
             i2_T_imu: Pose3 = self._cam_T_imu_poses[cam_idx_for_i2]
-            i2Ti1 = i2_T_imu.inverse().between(i1_T_imu.inverse())
+            i1Ti2 = i1_T_imu * i2_T_imu.inverse()
             # TODO: add covariance
-            return PosePrior(value=i2Ti1, covariance=HARD_RELATIVE_POSE_PRIOR_SIGMA, type=PosePriorType.HARD_CONSTRAINT)
-        elif (rig_idx_for_i1, rig_idx_for_i2) in self._constraints:
-            aTb = self._constraints[(rig_idx_for_i1, rig_idx_for_i2)].aTb
-            i1Ta = self._cam_T_imu_poses[cam_idx_for_i1]
-            i2Tb = self._cam_T_imu_poses[cam_idx_for_i2]
-            i2Ti1 = i2Tb * aTb.inverse() * i1Ta.inverse()
-            # TODO: add covariance
-            return PosePrior(value=i2Ti1, covariance=SOFT_RELATIVE_POSE_PRIOR_SIGMA, type=PosePriorType.SOFT_CONSTRAINT)
+            return PosePrior(value=i1Ti2, covariance=HARD_RELATIVE_POSE_PRIOR_SIGMA, type=PosePriorType.HARD_CONSTRAINT)
+        elif cam_idx_for_i1 == 2 and cam_idx_for_i2 == 2:
+            constraint = self._constraints[(rig_idx_for_i1, rig_idx_for_i2)]
+            return PosePrior(value=constraint.aTb, covariance=constraint.cov, type=PosePriorType.SOFT_CONSTRAINT)
 
         return None
 

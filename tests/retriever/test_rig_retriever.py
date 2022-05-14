@@ -73,13 +73,30 @@ class TestRigRetriever(unittest.TestCase):
     def test_rig_retriever_with_subsample(self) -> None:
         """Assert that we can parse a constraints file from the Hilti SLAM team and get constraints."""
 
-        loader = HiltiLoader(TEST_DATASET_DIR_PATH, subsample=3, old_style=True)
-        retriever = RigRetriever(threshold=30, subsample=3)
+        loader = HiltiLoader(TEST_DATASET_DIR_PATH, subsample=2, old_style=True)
+        retriever = RigRetriever(threshold=30, subsample=2)
 
         pairs = retriever.run(loader=loader)
         # We know these to be the right values from setUp() method.
-        self.assertEqual(len(pairs), 6)
-        expected = [(0, 1), (0, 3), (1, 4), (2, 7), (2, 12), (7, 12)]  # regression
+        expected = [
+            (0, 1),
+            (0, 3),
+            (0, 10),
+            (0, 11),
+            (0, 14),
+            (1, 4),
+            (1, 10),
+            (1, 11),
+            (1, 14),
+            (2, 12),
+            (3, 13),
+            (4, 10),
+            (4, 11),
+            (4, 14),
+            (10, 11),
+            (10, 13),
+            (11, 14),
+        ]  # regression
         self.assertEqual(pairs, expected)
 
 

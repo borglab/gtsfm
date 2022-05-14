@@ -44,10 +44,7 @@ class Constraint:
         cov = row[14:50].reshape(6, 6)
         counts = row[50:].reshape(5, 5).astype(int)
 
-        if a <= b:
-            return Constraint(a, b, aTb, cov, counts)
-        else:
-            return Constraint(b, a, aTb.inverse(), cov.T, counts.T)
+        return Constraint(a, b, aTb, cov, counts)
 
     def to_row(self) -> np.ndarray:
         """Serialize into a single row."""

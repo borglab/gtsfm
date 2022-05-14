@@ -46,10 +46,10 @@ SceneOptimizer:
     #   edge_error_aggregation_criterion: MEDIAN_EDGE_ERROR
       
     rot_avg_module:
-      _target_: gtsfm.averaging.rotation.rig_shonan.RigShonanRotationAveraging
+      _target_: gtsfm.averaging.rotation.shonan.ShonanRotationAveraging
 
     trans_avg_module:
-      _target_: gtsfm.averaging.translation.rig_1dsfm.RigTranslationAveraging1DSFM
+      _target_: gtsfm.averaging.translation.averaging_1dsfm.TranslationAveraging1DSFM
       robust_measurement_noise: True
       projection_sampling_method: SAMPLE_INPUT_MEASUREMENTS
       MFAS_outlier_rejection: False

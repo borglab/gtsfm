@@ -71,12 +71,19 @@ class ShonanRotationAveraging(RotationAveragingBase):
         return between_factors
 
     def _between_factors_from_pose_priors(
-        self, i2Ti1_priors: Dict[Tuple[int, int], PosePrior], old_to_new_idxs: Dict[int, int]
+        self, relative_pose_priors: Dict[Tuple[int, int], PosePrior], old_to_new_idxs: Dict[int, int]
     ) -> BetweenFactorPose3s:
         """Create between factors from the priors on relative poses."""
         between_factors = BetweenFactorPose3s()
 
-        # TODO(Ayush): use the priors, atleast between disconnected components.
+        for (i1, i2), i1Ti2_prior in relative_pose_priors.items():
+            i1_ = old_to_new_idxs[i1]
+            i2_ = old_to_new_idxs[i2]
+            between_factors.append(
+                BetweenFactorPose3(
+                    i1_, i2_, i1Ti2_prior.value, gtsam.noiseModel.Gaussian.Covariance(POSE3_DOF, i1Ti2_prior.covariance)
+                )
+            )
 
         return between_factors
 
@@ -116,7 +123,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         return wRi_list_consecutive
 
     def _valid_nodes(
-        self, i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]], i2Ti1_priors: Dict[Tuple[int, int], PosePrior]
+        self, i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]], relative_pose_priors: Dict[Tuple[int, int], PosePrior]
     ) -> Set[int]:
         """Gets the nodes with edges which are to be modelled as between factors."""
 
@@ -131,7 +138,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         self,
         num_images: int,
         i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
-        i2Ti1_priors: Dict[Tuple[int, int], PosePrior],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging on a connected graph with arbitrary keys, where each key is a image/pose index.
 
@@ -142,7 +149,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         Args:
             num_images: number of images. Since we have one pose per image, it is also the number of poses.
             i2Ri1_dict: relative rotations for each image pair-edge as dictionary (i1, i2): i2Ri1.
-            i2Ti1_priors: priors on relative poses.
+            relative_pose_priors: priors on relative poses.
 
         Returns:
             Global rotations for each camera pose, i.e. wRi, as a list. The number of entries in the list is
@@ -155,13 +162,13 @@ class ShonanRotationAveraging(RotationAveragingBase):
             wRi_list = [None] * num_images
             return wRi_list
 
-        nodes_with_edges = sorted(list(self._valid_nodes(i2Ri1_dict, i2Ti1_priors)))
+        nodes_with_edges = sorted(list(self._valid_nodes(i2Ri1_dict, relative_pose_priors)))
         old_to_new_idxes = {old_idx: i for i, old_idx in enumerate(nodes_with_edges)}
 
         between_factors: BetweenFactorPose3s = self.__between_factors_from_2view_relative_rotations(
             i2Ri1_dict, old_to_new_idxes
         )
-        between_factors.extend(self._between_factors_from_pose_priors(i2Ti1_priors, old_to_new_idxes))
+        between_factors.extend(self._between_factors_from_pose_priors(relative_pose_priors, old_to_new_idxes))
 
         wRi_list_subset = self._run_with_consecutive_ordering(
             num_connected_nodes=len(nodes_with_edges), between_factors=between_factors

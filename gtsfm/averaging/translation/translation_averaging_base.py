@@ -46,7 +46,7 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
             i2Ui1_dict: relative unit-trans as dictionary (i1, i2): i2Ui1.
             wRi_list: global rotations for each camera pose in the world coordinates.
             absolute_pose_priors: priors on the camera poses (not delayed).
-            relative_pose_priors: priors on the pose between camera pairs (not delayed)
+            relative_pose_priors: priors on the pose between camera pairs as (i1, i2): i1Ti2.
             scale_factor: non-negative global scaling factor.
             gt_wTi_list: List of ground truth poses (wTi) for computing metrics.
 
@@ -73,7 +73,7 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
             i2Ui1_graph: dictionary of relative unit translations as a delayed task.
             wRi_graph: list of global rotations wrapped up in Delayed.
             absolute_pose_priors: priors on the camera poses (not delayed).
-            relative_pose_priors: priors on the pose between camera pairs (not delayed)
+            relative_pose_priors: priors on the pose between camera pairs (not delayed).
             scale_factor: non-negative global scaling factor.
             gt_wTi_list: List of ground truth poses (wTi) for computing metrics.
 
