@@ -277,7 +277,7 @@ class BundleAdjustmentOptimizer:
 
         return sorted(list(cameras))
 
-    def run(
+    def run_ba(
         self,
         initial_data: GtsfmData,
         absolute_pose_priors: List[Optional[PosePrior]],
@@ -408,7 +408,7 @@ class BundleAdjustmentOptimizer:
             GtsfmData aligned to GT (if provided), wrapped up using dask.delayed
             Metrics group for BA results, wrapped up using dask.delayed
         """
-        optimized_sfm_data, filtered_sfm_data, _ = dask.delayed(self.run, nout=3)(
+        optimized_sfm_data, filtered_sfm_data, _ = dask.delayed(self.run_ba, nout=3)(
             sfm_data_graph, absolute_pose_priors, relative_pose_priors
         )
         metrics_graph = dask.delayed(self.evaluate)(optimized_sfm_data, filtered_sfm_data, cameras_gt)

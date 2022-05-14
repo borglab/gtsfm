@@ -207,7 +207,7 @@ class TwoViewEstimator:
         if i2Ti1_prior is not None:
             relative_pose_prior_for_ba = {(0, 1): i2Ti1_prior}
 
-        _, ba_output, valid_mask = self._ba_optimizer.run(
+        _, ba_output, valid_mask = self._ba_optimizer.run_ba(
             ba_input, absolute_pose_priors=[], relative_pose_priors=relative_pose_prior_for_ba, verbose=False
         )
         valid_corr_idxs = verified_corr_idxs[triangulated_indices][valid_mask]
