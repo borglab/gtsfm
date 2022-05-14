@@ -38,7 +38,7 @@ class RigRetriever(RetrieverBase):
         return constraint.a % self._subsample == 0 and constraint.b % self._subsample == 0
 
     def run(self, loader: LoaderBase) -> List[Tuple[int, int]]:
-        """Compute potential image pairs.
+        """Compute potential image pairs for *visual matching*.
 
         Args:
             loader: image loader.
@@ -60,17 +60,18 @@ class RigRetriever(RetrieverBase):
         logger.info(f"Found {len(unique_pairs)} pairs in the constraints file")
         logger.info(f"Found {len(num_cam2_pairs)} pairs with cam2 in the constraints file")
 
+        # Translate all rig level constraints to CAM2-CAM2 constraints
+        for constraint in constraints:
+            a = constraint.a
+            b = constraint.b
+
+            unique_pairs.add((loader.image_from_rig_and_camera(a, 2), loader.image_from_rig_and_camera(b, 2)))
+
         # Add all intra-rig pairs even if no LIDAR signal.
         for rig_index in range(0, loader.num_rig_poses, self._subsample if self._subsample else 1):
             for c1, c2 in INTRA_RIG_VALID_PAIRS:
                 unique_pairs.add(
                     (loader.image_from_rig_and_camera(rig_index, c1), loader.image_from_rig_and_camera(rig_index, c2))
-                )
-        # Add all inter frames CAM2 pairs
-        for rig_index in range(0, loader.num_rig_poses, 1):
-            for next_rig_idx in range(rig_index + 1, min(rig_index + 1 + CAM2_FRAME_LOOKAHEAD, loader.num_rig_poses)):
-                unique_pairs.add(
-                    (loader.image_from_rig_and_camera(rig_index, 2), loader.image_from_rig_and_camera(next_rig_idx, 2))
                 )
 
         pairs = list(unique_pairs)
