@@ -44,13 +44,13 @@ class MultiViewOptimizer:
         i2Ri1_graph: Dict[Tuple[int, int], Delayed],
         i2Ui1_graph: Dict[Tuple[int, int], Delayed],
         v_corr_idxs_graph: Dict[Tuple[int, int], Delayed],
-        intrinsics_graph: List[Delayed],
+        all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         absolute_pose_priors: List[Optional[PosePrior]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         two_view_reports_dict: Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
-        gt_cameras_graph: List[Delayed],
-        gt_poses_graph: List[Delayed],
-    ) -> Tuple[Delayed, Delayed, Delayed]:
+        cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
+        gt_wTi_list: List[Optional[Pose3]],
+    ) -> Tuple[Delayed, Delayed, Delayed, list]:
         """Creates a computation graph for multi-view optimization.
 
         Args:
@@ -59,12 +59,12 @@ class MultiViewOptimizer:
             i2Ri1_graph: relative rotations for image pairs, each value wrapped up as Delayed.
             i2Ui1_graph: relative unit-translations for image pairs, each value wrapped up as Delayed.
             v_corr_idxs_graph: indices of verified correspondences for image pairs, wrapped up as Delayed.
-            intrinsics_graph: intrinsics for images, wrapped up as Delayed.
+            all_intrinsics: intrinsics for images.
             absolute_pose_priors: priors on the camera poses (not delayed).
             relative_pose_priors: priors on the pose between camera pairs (not delayed)
             two_view_reports_dict: Dict of TwoViewEstimationReports after inlier support processor.
-            gt_cameras_graph: list of GT cameras (if they exist), ordered by camera index, wrapped up as Delayed.
-            gt_poses_graph: list of GT poses of the camera.
+            cameras_gt: list of GT cameras (if they exist), ordered by camera index.
+            gt_wTi_list: list of GT poses of the camera.
 
         Returns:
             The GtsfmData input to bundle adjustment, aligned to GT (if provided), wrapped up as Delayed.
@@ -73,7 +73,7 @@ class MultiViewOptimizer:
             List of GtsfmMetricGroups from different modules, wrapped up as Delayed.
         """
 
-        if self._run_view_graph_estimator:
+        if self._run_view_graph_estimator and self.view_graph_estimator is not None:
             (
                 viewgraph_i2Ri1_graph,
                 viewgraph_i2Ui1_graph,
@@ -81,7 +81,7 @@ class MultiViewOptimizer:
                 viewgraph_two_view_reports_graph,
                 viewgraph_estimation_metrics,
             ) = self.view_graph_estimator.create_computation_graph(
-                i2Ri1_graph, i2Ui1_graph, intrinsics_graph, v_corr_idxs_graph, keypoints_graph, two_view_reports_dict
+                i2Ri1_graph, i2Ui1_graph, all_intrinsics, v_corr_idxs_graph, keypoints_graph, two_view_reports_dict
             )
         else:
             viewgraph_i2Ri1_graph = dask.delayed(i2Ri1_graph)
@@ -95,27 +95,32 @@ class MultiViewOptimizer:
             viewgraph_i2Ri1_graph, viewgraph_i2Ui1_graph, relative_pose_priors
         )
 
-        wRi_graph, rot_avg_metrics = self.rot_avg_module.create_computation_graph(
-            num_images, pruned_i2Ri1_graph, i2Ti1_priors=relative_pose_priors, gt_wTi_list=gt_poses_graph
+        delayed_wRi, rot_avg_metrics = self.rot_avg_module.create_computation_graph(
+            num_images, pruned_i2Ri1_graph, i2Ti1_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
         )
 
         wti_graph, ta_metrics = self.trans_avg_module.create_computation_graph(
-            num_images, pruned_i2Ui1_graph, wRi_graph, gt_wTi_graph=gt_poses_graph
+            num_images,
+            pruned_i2Ui1_graph,
+            delayed_wRi,
+            absolute_pose_priors,
+            relative_pose_priors,
+            gt_wTi_list=gt_wTi_list,
         )
-        init_cameras_graph = dask.delayed(init_cameras)(wRi_graph, wti_graph, intrinsics_graph)
+        init_cameras_graph = dask.delayed(init_cameras)(delayed_wRi, wti_graph, all_intrinsics)
 
         ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
             num_images,
             init_cameras_graph,
             viewgraph_v_corr_idxs_graph,
             keypoints_graph,
-            gt_cameras_graph,
+            cameras_gt,
             relative_pose_priors,
             images_graph,
         )
 
         ba_result_graph, ba_metrics_graph = self.ba_optimizer.create_computation_graph(
-            ba_input_graph, absolute_pose_priors, relative_pose_priors, gt_cameras_graph
+            ba_input_graph, absolute_pose_priors, relative_pose_priors, cameras_gt
         )
 
         multiview_optimizer_metrics_graph = [
@@ -127,7 +132,7 @@ class MultiViewOptimizer:
         ]
 
         # align the sparse multi-view estimate before BA to the ground truth pose graph.
-        ba_input_graph = dask.delayed(ba_input_graph.align_via_Sim3_to_poses)(gt_poses_graph)
+        ba_input_graph = dask.delayed(ba_input_graph.align_via_Sim3_to_poses)(gt_wTi_list)
 
         return ba_input_graph, ba_result_graph, viewgraph_two_view_reports_graph, multiview_optimizer_metrics_graph
 

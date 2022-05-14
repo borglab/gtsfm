@@ -291,7 +291,7 @@ class TestDataAssociation(GtsamTestCase):
 
         # create matches
         # since there is only one measurement in each image, both assigned feature index 0
-        matches_dict = {(0, 1): np.array([[0, 0]]), (1, 2): np.array([[0, 0]])}
+        corr_idxs_graph = {(0, 1): np.array([[0, 0]]), (1, 2): np.array([[0, 0]])}
 
         # Run without computation graph
         triangulation_options = TriangulationOptions(
@@ -299,16 +299,16 @@ class TestDataAssociation(GtsamTestCase):
         )
         da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
         expected_sfm_data, expected_metrics = da.run(
-            len(cameras), cameras, matches_dict, keypoints_list, cameras_gt=cameras_gt, relative_pose_priors={}
+            len(cameras), cameras, corr_idxs_graph, keypoints_list, cameras_gt=cameras_gt, relative_pose_priors={}
         )
 
         # Run with computation graph
         delayed_sfm_data, delayed_metrics = da.create_computation_graph(
             len(cameras),
             cameras,
-            matches_dict,
+            corr_idxs_graph,
             keypoints_list,
-            dask.delayed(cameras_gt),
+            cameras_gt,
             relative_pose_priors=dask.delayed({}),
         )
 

@@ -76,7 +76,7 @@ def compute_correspondence_metrics(
     if gt_scene_mesh is not None:
         gt_camera_i1 = PinholeCameraCal3Bundler(gt_wTi1, intrinsics_i1)
         gt_camera_i2 = PinholeCameraCal3Bundler(gt_wTi2, intrinsics_i2)
-        is_inlier, reproj_error = mesh_inlier_correspondences(
+        return mesh_inlier_correspondences(
             matched_keypoints_i1,
             matched_keypoints_i2,
             gt_camera_i1,
@@ -84,11 +84,10 @@ def compute_correspondence_metrics(
             gt_scene_mesh,
             dist_threshold,
         )
-        return is_inlier, reproj_error
 
     # If no mesh is provided, use squared Sampson error.
     gt_i2Ti1 = gt_wTi2.between(gt_wTi1)
-    is_inlier, reproj_error = epipolar_inlier_correspondences(
+    return epipolar_inlier_correspondences(
         matched_keypoints_i1,
         matched_keypoints_i2,
         intrinsics_i1,
@@ -96,7 +95,6 @@ def compute_correspondence_metrics(
         gt_i2Ti1,
         dist_threshold,
     )
-    return is_inlier, reproj_error
 
 
 def epipolar_inlier_correspondences(
@@ -268,7 +266,7 @@ def compute_translation_angle_metric(
     Returns:
         A GtsfmMetric for the translation angle errors, in degrees.
     """
-    angles = []
+    angles: List[Optional[float]] = []
     for (i1, i2) in i2Ui1_dict:
         i2Ui1 = i2Ui1_dict[(i1, i2)]
         angles.append(comp_utils.compute_translation_to_direction_angle(i2Ui1, wTi_list[i2], wTi_list[i1]))
@@ -329,7 +327,7 @@ def get_twoview_translation_directions(wTi_list: List[Optional[Pose3]]) -> Dict[
 
 
 def get_precision_recall_from_errors(
-    positive_errors: List[float], negative_errors: List[float], max_positive_error: float
+    positive_errors: List[Optional[float]], negative_errors: List[Optional[float]], max_positive_error: float
 ) -> Tuple[float, float]:
     """Computes the precision and recall from a list of errors for positive and negative classes.
     True positives are those for which the error is less than max_positive_error.

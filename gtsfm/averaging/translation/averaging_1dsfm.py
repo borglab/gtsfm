@@ -12,7 +12,7 @@ Authors: Jing Wu, Ayush Baid, Akshay Krishnan
 """
 from collections import defaultdict
 from enum import Enum
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple, DefaultDict
 
 import gtsam
 import numpy as np
@@ -33,7 +33,7 @@ import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.coordinate_conversions as conversion_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
-from gtsfm.common.pose_prior import PosePrior, PosePriorType
+from gtsfm.common.pose_prior import PosePrior
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 # Hyperparameters for 1D-SFM
@@ -135,7 +135,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             outlier_weights.append(mfas_instance.computeOutlierWeights())
 
         # compute average outlier weight
-        outlier_weights_sum = defaultdict(float)
+        outlier_weights_sum: DefaultDict[Tuple[int, int], float] = defaultdict(float)
         inlier_idxs = set()
         for outlier_weight_dict in outlier_weights:
             # TODO(akshay-krishnan): use keys from outlier weight dict once we can iterate over it (gtsam fix).
@@ -150,81 +150,52 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         return inlier_idxs
 
-    def __get_priors_hilti_rig(
+    def _get_prior_measurements_in_world_frame(
         self,
-        i2Ti1_priors: Optional[Dict[Tuple[int, int], PosePrior]],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         wRi_list: List[Optional[Rot3]],
     ) -> gtsam.BinaryMeasurementsPoint3:
         """Converts the priors from relative Pose3 priors to relative Point3 priors in world frame.
-        
-        If the priors are hard constraints (in the same rig), a hard-coded noise model is used. 
-        If the priors are soft constraints, the covariance from the PosePrior is used.
 
-        Soft constraints are only added between the 3rd rig cameras. 
-        Hard constraints are only added between the 3rd camera and other cameras in same rig.
+        Args:
+            relative_pose_priors: Relative pose priors between cameras, could be a hard or soft prior.
+            wRi_list: Absolute rotation estimates from rotation averaging.
 
-        Args: 
-            i2Ti1_priors: Relative pose priors between cameras, could be a hard or soft prior.
-            wRi_list: Absolute rotation estimates from Shonan averaging.
-        
         Returns:
             gtsam.BinaryMeasurementsPoint3 containing Point3 priors in world frame.
         """
-        if i2Ti1_priors is None:
+        if len(relative_pose_priors) == 0:
             return gtsam.BinaryMeasurementsPoint3()
 
-        NUM_CAMERAS_IN_RIG = 5
-        BODY_FRAME_CAMERA = 2
-
         def get_prior_in_world_frame(i2, i2Ti1_prior):
-            return wRi_list[i2].rotate(i2Ti1_prior.value).translation()
-
-        HARD_CONSTRAINT_NOISE_MODEL = gtsam.noiseModel.Constrained.All(1e4)
-        VALID_HARD_CONSTRAINT_EDGES = [(0, 2), (1, 2), (2, 3), (2, 4)]
+            return wRi_list[i2].rotate(i2Ti1_prior.value.translation())
 
         w_i2ti1_priors = gtsam.BinaryMeasurementsPoint3()
-        priors_added = set()
-        for (i1, i2), i2Ti1_prior in i2Ti1_priors.items():
-            if i2Ti1_prior.type == PosePriorType.HARD_CONSTRAINT:
-                if (i1, i2) in VALID_HARD_CONSTRAINT_EDGES:
-                    w_i2ti1_priors.append(
-                        gtsam.BinaryMeasurementPoint3(
-                            i2,
-                            i1,
-                            get_prior_in_world_frame(i2, i2Ti1_prior),
-                            HARD_CONSTRAINT_NOISE_MODEL,
-                        )
-                    )
-                    priors_added.add((i2, i1))
-            else:
-                r1 = i1 // NUM_CAMERAS_IN_RIG
-                r2 = i2 // NUM_CAMERAS_IN_RIG
-                c1 = r1 * NUM_CAMERAS_IN_RIG + BODY_FRAME_CAMERA
-                c2 = r2 * NUM_CAMERAS_IN_RIG + BODY_FRAME_CAMERA
-                if (c1, c2) not in priors_added:
-                    # TODO(akshay-krishnan): Use the translation covariance, transform to world frame.
-                    # noise_model = gtsam.noiseModel.Gaussian.Covariance(i2Ti1_prior.covariance)
-                    noise_model = gtsam.noiseModel.Isotropic.Sigma(3, 1e-2)
-                    w_i2ti1_priors.append(
-                        gtsam.BinaryMeasurementPoint3(
-                            i2,
-                            i1,
-                            get_prior_in_world_frame(i2, i2Ti1_prior),
-                            noise_model,
-                        )
-                    )
+
+        for (i1, i2), i2Ti1_prior in relative_pose_priors.items():
+            # TODO(akshay-krishnan): Use the translation covariance, transform to world frame.
+            # noise_model = gtsam.noiseModel.Gaussian.Covariance(i2Ti1_prior.covariance)
+            noise_model = gtsam.noiseModel.Isotropic.Sigma(3, 1e-2)
+            w_i2ti1_priors.append(
+                gtsam.BinaryMeasurementPoint3(
+                    i2,
+                    i1,
+                    get_prior_in_world_frame(i2, i2Ti1_prior),
+                    noise_model,
+                )
+            )
         return w_i2ti1_priors
 
     def __get_initial_values(self, wTi_initial: List[Optional[PosePrior]]):
         """Converts translations from a list of absolute poses to gtsam.Values for initialization.
-        
+
         Args:
-            wTi_initial: List of 
+            wTi_initial: List of
         """
         initial = gtsam.Values()
         for i, wTi in enumerate(wTi_initial):
             if wTi is not None:
-                initial.insertPoint3(i, wTi.translation())
+                initial.insertPoint3(i, wTi.value.translation())
         return initial
 
     # TODO(ayushbaid): Change wTi_initial to Pose3.
@@ -233,8 +204,8 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         num_images: int,
         i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
         wRi_list: List[Optional[Rot3]],
-        i2Ti1_priors: Optional[Dict[Tuple[int, int], PosePrior]] = None,
-        wTi_initial: Optional[Dict[Tuple[int], PosePrior]] = None,
+        absolute_pose_priors: List[Optional[PosePrior]] = [],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
         gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
     ) -> Tuple[List[Optional[Point3]], Optional[GtsfmMetricsGroup]]:
@@ -244,6 +215,8 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             num_images: number of camera poses.
             i2Ui1_dict: relative unit-translation as dictionary (i1, i2): i2Ui1
             wRi_list: global rotations for each camera pose in the world coordinates.
+            absolute_pose_priors: priors on the camera poses (not delayed).
+            relative_pose_priors: priors on the pose between camera pairs (not delayed)
             scale_factor: non-negative global scaling factor.
             gt_wTi_list: ground truth poses for computing metrics.
 
@@ -275,14 +248,20 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 w_i2Ui1_inlier_measurements.append(w_i2Ui1)
 
         # Run the optimizer
-        algorithm = TranslationRecovery()
-        w_i2ti1_priors = self.__get_priors_hilti_rig(i2Ti1_priors, wRi_list)
-        wti_initial = self.__get_initial_values(wTi_initial)
-        if len(w_i2ti1_priors) > 0:
-            # scale is ignored here.
-            wti_values = algorithm.run(w_i2Ui1_inlier_measurements, 0.0, w_i2ti1_priors, wti_initial)
-        else:
-            wti_values = algorithm.run(w_i2Ui1_inlier_measurements, scale_factor)
+        # TODO(akshay-krishnan): remove once latest gtsam pip wheels updated.
+        try:
+            algorithm = TranslationRecovery()
+            w_i2ti1_priors = self._get_prior_measurements_in_world_frame(relative_pose_priors, wRi_list)
+            wti_initial = self.__get_initial_values(absolute_pose_priors)
+            if len(w_i2ti1_priors) > 0:
+                # scale is ignored here.
+                wti_values = algorithm.run(w_i2Ui1_inlier_measurements, 0.0, w_i2ti1_priors, wti_initial)
+            else:
+                wti_values = algorithm.run(w_i2Ui1_inlier_measurements, scale_factor)
+        except TypeError as e:
+            logger.error("TypeError: {}".format(str(e)))
+            recovery = TranslationRecovery(w_i2Ui1_inlier_measurements)
+            wti_values = recovery.run(scale_factor)
 
         # transforming the result to the list of Point3
         wti_list: List[Optional[Point3]] = [None] * num_images
@@ -345,10 +324,10 @@ def _sample_random_directions(num_samples: int) -> List[Unit3]:
 
 
 def _get_measurement_angle_errors(
-    i1_i2_pairs: Tuple[int, int],
+    i1_i2_pairs: Set[Tuple[int, int]],
     i2Ui1_measurements: Dict[Tuple[int, int], Unit3],
     gt_i2Ui1_measurements: Dict[Tuple[int, int], Unit3],
-) -> List[float]:
+) -> List[Optional[float]]:
     """Returns a list of the angle between i2Ui1_measurements and gt_i2Ui1_measurements for every
     (i1, i2) in i1_i2_pairs.
 
@@ -360,7 +339,7 @@ def _get_measurement_angle_errors(
     Returns:
         List of angles between the measured and ground truth translation directions.
     """
-    errors = []
+    errors: List[Optional[float]] = []
     for (i1, i2) in i1_i2_pairs:
         if (i1, i2) in i2Ui1_measurements and (i1, i2) in gt_i2Ui1_measurements:
             errors.append(
@@ -409,7 +388,7 @@ def _compute_metrics(
         measured_gt_i2Ui1_dict[(i1, i2)] = gt_i2Ui1_dict[(i1, i2)]
 
     # Compute estimated poses after the averaging step and align them to ground truth.
-    wTi_list = []
+    wTi_list: List[Optional[Pose3]] = []
     for (wRi, wti) in zip(wRi_list, wti_list):
         if wRi is None or wti is None:
             wTi_list.append(None)
@@ -443,10 +422,9 @@ def cast_to_measurements_variable_in_global_coordinate_frame(
 
     w_i2Ui1_measurements = BinaryMeasurementsUnit3()
     for (i1, i2), i2Ui1 in i2Ui1_dict.items():
-        if i2Ui1 is not None and wRi_list[i2] is not None:
+        wRi2 = wRi_list[i2]
+        if i2Ui1 is not None and wRi2 is not None:
             # TODO: what if wRi2 is None, but wRi1 is not? Can we still transform.
-            w_i2Ui1_measurements.append(
-                BinaryMeasurementUnit3(i2, i1, Unit3(wRi_list[i2].rotate(i2Ui1.point3())), noise_model)
-            )
+            w_i2Ui1_measurements.append(BinaryMeasurementUnit3(i2, i1, Unit3(wRi2.rotate(i2Ui1.point3())), noise_model))
 
     return w_i2Ui1_measurements
