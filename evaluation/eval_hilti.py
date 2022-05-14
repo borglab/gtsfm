@@ -27,6 +27,10 @@ import copy
 from scipy.spatial.transform import Rotation as R
 from evo.core.trajectory import PoseTrajectory3D
 
+import gtsfm.utils.io as io_utils
+from gtsam import Pose3
+import yaml
+import argparse
 
 def traj_custom(ax: plt.Axes, plot_mode: PlotMode, traj: trajectory.PosePath3D,
                 style: str = '-', color: str = 'black', label: str = "",
@@ -199,27 +203,89 @@ def evaluate_trajectory(est_file, ref_file, prefix):
                           linestyle='dotted')
     plt.savefig(prefix+"_APE_error.png")
 
+def read_timestamps_from_tum_file(file_path):
+    """Reads the timestamp information from a tum file."""
+    data = np.genfromtxt(file_path, delimiter=' ', skip_header=False)
+    return data[:, 0]
+
+
+def write_poses_to_tum_file(poses, file_path, timestamps):
+    """Writes GTSfM pose estimates to a TUM file. 
+    Assumes that the index of poses corresponds to index of timestamps.
+    """
+    REFERENCE_CAMERA_IDX = 2
+    NUM_CAMERAS_IN_RIG = 5
+    with open(file_path, 'w') as f:
+        for i, pose in enumerate(poses):
+            if pose is None:
+                continue
+            if i % NUM_CAMERAS_IN_RIG != REFERENCE_CAMERA_IDX:
+                continue
+            qw, qx, qy, qz = pose.rotation().quaternion()
+            tx, ty, tz = pose.translation()
+            ts = timestamps[i]
+            f.write(f"{ts} {tx} {ty} {tz} {qx} {qy} {qz} {qw}\n")
+
+
+def get_body_poses(world_T_camera_poses, camera_T_body):
+    """Converts pose estimates of cam0 to that of the body frame (IMU)."""
+    world_T_body_poses = []
+    for world_T_camera in world_T_camera_poses:
+        if world_T_camera is None:
+            world_T_body_poses.append(None)
+            continue
+        world_T_body_poses.append(world_T_camera * camera_T_body)
+    return world_T_body_poses
+
 
 if __name__ == "__main__":
 
     # check if files where provided in the command line argument
-    if len(sys.argv) >= 3:
-        est_file = sys.argv[1]
-        ref_file = sys.argv[2]
-        if len(sys.argv) == 4:
-            fastlio_est_file = sys.argv[3]
-        else:
-            fastlio_est_file = None
-    else:
-        # uncomment if hardcoded filepaths should be used
-        # ref_file = 'path'
-        # est_file = 'path'
+    parser = argparse.ArgumentParser(description="Evaluation arguments")
 
-        # comment if hardcoded filepaths should be used
-        print('use: ./evaluation.py gtsfm_tum_est_file tum_ref_file (optional)fastlio_tum_file')
-        exit()
+    parser.add_argument(
+        "--fastlio_tum",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to fastlio_odom.txt poses",
+    )
+    parser.add_argument(
+        "--gtsfm_images_txt",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to gtsfm images.txt pose-BA output",
+    )
+    parser.add_argument(
+        "--cam2_calib_yaml",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to Hilti's camera-2 calibration YAML.",
+    )
+    parser.add_argument(
+        "--gt_tum",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to GT tum file from Hilti"
+    )
+    args = parser.parse_args()
     
-    evaluate_trajectory(est_file, ref_file, "gtsfm")
-    if fastlio_est_file is not None:
-        evaluate_trajectory(fastlio_est_file, ref_file, "fastlio")
+    GTSFM_TUM_PATH = "gtsfm_imu_poses.txt"
+    gtsfm_poses, _ = io_utils.read_images_txt(args.gtsfm_images_txt)
+    with open(args.cam2_calib_yaml, "r") as file:
+        calibration_data = yaml.safe_load(file)
+
+    cam_T_imu = Pose3(calibration_data["cam0"]["T_cam_imu"])
+    body_poses = get_body_poses(gtsfm_poses, cam_T_imu)
+    timestamps = read_timestamps_from_tum_file(args.fastlio_tum)
+
+    write_poses_to_tum_file(body_poses, GTSFM_TUM_PATH, timestamps)
+
+    print("FASTLIO poses evaluation results:")
+    evaluate_trajectory(args.fastlio_tum, args.gt_tum, "fastlio")
+    print("\n\nGTSfM poses evaluation results:")
+    evaluate_trajectory(GTSFM_TUM_PATH, args.gt_tum, "gtsfm")
 
