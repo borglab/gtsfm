@@ -22,14 +22,14 @@ CAM2_FRAME_LOOKAHEAD = 2  # number of frames to look ahead for cam2
 class RigRetriever(RetrieverBase):
     """Retriever for camera rigs inspired by the Hilti challenge."""
 
-    def __init__(self, threshold: int = 100, subsample: bool = False):
+    def __init__(self, subsample: int, threshold: int = 100):
         """Create RigRetriever
 
         Args:
             threshold (int, optional): amount of "proxy" correspondences that will trigger an image-pair. Default 100.
         """
-        self._threshold = threshold
         self._subsample = subsample
+        self._threshold = threshold
 
     def __accept_constraint(self, constraint: Constraint) -> bool:
         if not self._subsample:

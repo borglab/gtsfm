@@ -17,7 +17,7 @@ class TestRigRetriever(unittest.TestCase):
     def test_rig_retriever(self) -> None:
         """Assert that we can parse a constraints file from the Hilti SLAM team and get constraints."""
         loader = HiltiLoader(TEST_DATASET_DIR_PATH, old_style=True)
-        retriever = RigRetriever(threshold=30)
+        retriever = RigRetriever(subsample=1, threshold=30)
 
         pairs = retriever.run(loader=loader)
         # We know these to be the right values from setUp() method.
