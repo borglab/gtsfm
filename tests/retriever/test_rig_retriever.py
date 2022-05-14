@@ -71,6 +71,18 @@ class TestRigRetriever(unittest.TestCase):
         ]  # regression
         self.assertEqual(pairs, expected)
 
+    def test_rig_retriever_with_subsample(self) -> None:
+        """Assert that we can parse a constraints file from the Hilti SLAM team and get constraints."""
+
+        loader = HiltiLoader(TEST_DATASET_DIR_PATH, subsample=True)
+        retriever = RigRetriever(threshold=30, subsample=True)
+
+        pairs = retriever.run(loader=loader)
+        # We know these to be the right values from setUp() method.
+        self.assertEqual(len(pairs), 6)
+        expected = [(0, 1), (0, 3), (1, 4), (2, 7), (2, 12), (7, 12)]  # regression
+        self.assertEqual(pairs, expected)
+
 
 if __name__ == "__main__":
     unittest.main()

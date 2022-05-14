@@ -113,7 +113,9 @@ class GtsfmRunnerBase:
             retriever = SequentialHiltiRetriever(max_frame_lookahead=self.parsed_args.max_frame_lookahead)
 
         elif matching_regime == ImageMatchingRegime.RIG_HILTI:
-            retriever = RigRetriever(threshold=self.parsed_args.proxy_threshold)
+            retriever = RigRetriever(
+                threshold=self.parsed_args.proxy_threshold, subsample=self.parsed_args.subsample is True
+            )
 
         return retriever
 
