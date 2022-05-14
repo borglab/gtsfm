@@ -8,4 +8,4 @@ tar -C data/hilti_exp06/ -xvf ../fastlio_result/exp06/exp06_image_pcd.tar image/
 mv data/hilti_exp06/image data/hilti_exp06/images
 
 
-python gtsfm/runner/run_scene_optimizer_hilti.py --dataset_dirpath data/hilti_exp06 --config deep_front_end_hilti --matching_regime rig_hilti --threads_per_worker 2 --num_workers 4
+python gtsfm/runner/run_scene_optimizer_hilti.py --dataset_dirpath data/hilti_exp06 --config deep_front_end_hilti --matching_regime rig_hilti --threads_per_worker 1 --num_workers 3 --subsample --max_length 100
