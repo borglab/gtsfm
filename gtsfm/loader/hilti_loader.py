@@ -49,13 +49,12 @@ HARD_RELATIVE_POSE_PRIOR_SIGMA = np.ones((6,)) * 1e-3  # CAM_IMU_POSE_PRIOR_SIGM
 SOFT_RELATIVE_POSE_PRIOR_SIGMA = np.ones((6,)) * 3e-2
 SOFT_ABSOLUTE_POSE_PRIOR_SIGMA = np.ones((6,)) * 3e-2
 
+SUBSAMPLE_FACTOR: int = 3
+
 
 class HiltiLoader(LoaderBase):
     def __init__(
-        self,
-        base_folder: str,
-        max_length: Optional[int] = None,
-        max_resolution: int = 1080,
+        self, base_folder: str, max_length: Optional[int] = None, max_resolution: int = 1080, subsample: bool = False
     ) -> None:
         """Initializes, loads calibration, constraints, and pose priors.
 
@@ -64,10 +63,13 @@ class HiltiLoader(LoaderBase):
             max_length (Optional[int]): limit poses to read. Defaults to None.
             max_resolution: integer representing maximum length of image's short side
                e.g. for 1080p (1920 x 1080), max_resolution would be 1080
+            subsample (Optional[bool]): subsample along the time axis (except cam2) by not proposing edges and priors.
+                                        Defaults to False.
         """
         super().__init__(max_resolution)
         self._base_folder: Path = Path(base_folder)
         self._max_length = max_length
+        self._subsample = subsample
 
         # Load calibration.
         self._intrinsics: Dict[int, Cal3Fisheye] = {}
@@ -83,8 +85,8 @@ class HiltiLoader(LoaderBase):
             self.num_rig_poses = min(self.num_rig_poses, self._max_length)
 
         # Read the constraints from the lidar/constraints file
-        self.constraints = self.__load_constraints()
-        logger.info("Number of constraints: %d", len(self.constraints))
+        self._constraints = self.__load_constraints()
+        logger.info("Number of constraints: %d", len(self._constraints))
 
         # Read the poses for the IMU for rig indices from g2o file.
         self._w_T_imu: Dict[int, Pose3] = self.__read_lidar_pose_priors()
@@ -92,14 +94,18 @@ class HiltiLoader(LoaderBase):
         logger.info("Loading %d timestamps", self.num_rig_poses)
         logger.info("Lidar camera available for %d timestamps", len(self._w_T_imu))
 
-    def __load_constraints(self) -> List[Constraint]:
+    def __load_constraints(self) -> Dict[Tuple[int, int], Constraint]:
         constraints_path = self._base_folder / LIDAR_CONSTRAINTS_RELATIVE_PATH
         constraints = Constraint.read(str(constraints_path))
 
         # filter them according to max length
         constraints = list(filter(lambda c: c.a < self.num_rig_poses and c.b < self.num_rig_poses, constraints))
 
-        return constraints
+        # cast them to dictionary
+        return {(constraint.a, constraint.b): constraint for constraint in constraints}
+
+    def get_all_constraints(self) -> List[Constraint]:
+        return list(self._constraints.values())
 
     def get_camTimu(self) -> Dict[int, Pose3]:
         return self._cam_T_imu_poses
@@ -267,10 +273,11 @@ class HiltiLoader(LoaderBase):
             i2Ti1 = i2_T_imu.inverse().between(i1_T_imu.inverse())
             # TODO: add covariance
             return PosePrior(value=i2Ti1, covariance=HARD_RELATIVE_POSE_PRIOR_SIGMA, type=PosePriorType.HARD_CONSTRAINT)
-        elif rig_idx_for_i1 in self._w_T_imu and rig_idx_for_i2 in self._w_T_imu:
-            w_T_i1 = self._w_T_imu[rig_idx_for_i1] * self._cam_T_imu_poses[cam_idx_for_i1].inverse()
-            w_T_i2 = self._w_T_imu[rig_idx_for_i2] * self._cam_T_imu_poses[cam_idx_for_i2].inverse()
-            i2Ti1 = w_T_i2.between(w_T_i1)
+        elif (rig_idx_for_i1, rig_idx_for_i2) in self._constraints:
+            aTb = self._constraints[(rig_idx_for_i1, rig_idx_for_i2)].aTb
+            i1Ta = self._cam_T_imu_poses[cam_idx_for_i1]
+            i2Tb = self._cam_T_imu_poses[cam_idx_for_i2]
+            i2Ti1 = i2Tb * aTb.inverse() * i1Ta.inverse()
             # TODO: add covariance
             return PosePrior(value=i2Ti1, covariance=SOFT_RELATIVE_POSE_PRIOR_SIGMA, type=PosePriorType.SOFT_CONSTRAINT)
 
@@ -303,7 +310,7 @@ class HiltiLoader(LoaderBase):
     def get_relative_pose_priors(self, pairs: List[Tuple[int, int]]) -> Dict[Tuple[int, int], PosePrior]:
         pairs = set(pairs)
         # For every rig index, add a "star" from camera 2 to 0,1,3,4:
-        for rig_index in range(self.num_rig_poses):
+        for rig_index in range(0, self.num_rig_poses, SUBSAMPLE_FACTOR if self._subsample else 1):
             camera_2 = self.image_from_rig_and_camera(rig_index, 2)
             for cam_idx in [0, 1, 3, 4]:
                 pairs.add((camera_2, self.image_from_rig_and_camera(rig_index, cam_idx)))

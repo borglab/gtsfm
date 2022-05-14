@@ -49,7 +49,7 @@ class TestSceneOptimizer(unittest.TestCase):
                     self.loader.get_valid_pairs()
                 ),
                 cameras_gt=self.loader.get_gt_cameras(),
-                gt_poses=self.loader.get_gt_poses(),
+                gt_wTi_list=self.loader.get_gt_poses(),
             )
             # create dask client
             cluster = LocalCluster(n_workers=1, threads_per_worker=4)

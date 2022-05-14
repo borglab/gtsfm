@@ -10,7 +10,7 @@ References:
 
 Authors: Jing Wu, Ayush Baid, John Lambert
 """
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 import gtsam
 import numpy as np
@@ -112,6 +112,18 @@ class ShonanRotationAveraging(RotationAveragingBase):
 
         return wRi_list_consecutive
 
+    def _valid_nodes(
+        self, i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]], i2Ti1_priors: Dict[Tuple[int, int], PosePrior]
+    ) -> Set[int]:
+        """Gets the nodes with edges which are to be modelled as between factors."""
+
+        unique_nodes_with_edges = set()
+        for (i1, i2) in i2Ri1_dict.keys():
+            unique_nodes_with_edges.add(i1)
+            unique_nodes_with_edges.add(i2)
+
+        return unique_nodes_with_edges
+
     def run(
         self,
         num_images: int,
@@ -140,13 +152,8 @@ class ShonanRotationAveraging(RotationAveragingBase):
             wRi_list = [None] * num_images
             return wRi_list
 
-        nodes_with_edges = set()
-        for (i1, i2) in i2Ri1_dict.keys():
-            nodes_with_edges.add(i1)
-            nodes_with_edges.add(i2)
-
-        nodes_with_edges = sorted(list(nodes_with_edges))
-        old_to_new_idxes = {new_idx: i for i, new_idx in enumerate(nodes_with_edges)}
+        nodes_with_edges = sorted(list(self._valid_nodes(i2Ri1_dict, i2Ti1_priors)))
+        old_to_new_idxes = {old_idx: i for i, old_idx in enumerate(nodes_with_edges)}
 
         between_factors: BetweenFactorPose3s = self.__between_factors_from_2view_relative_rotations(
             i2Ri1_dict, old_to_new_idxes

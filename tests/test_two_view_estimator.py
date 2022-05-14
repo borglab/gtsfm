@@ -70,7 +70,6 @@ class TestTwoViewEstimator(unittest.TestCase):
             keypoints_i1=self.keypoints_i1,
             keypoints_i2=self.keypoints_i2,
             verified_corr_idxs=self.corr_idxs,
-            putative_corr_idxs=self.corr_idxs,
             camera_intrinsics_i1=Cal3Bundler(),
             camera_intrinsics_i2=Cal3Bundler(),
             i2Ri1_initial=i2Ei1.rotation(),

@@ -75,7 +75,7 @@ class GtsfmRunnerAstronetLoader(GtsfmRunnerBase):
                 image_shapes=self.loader.get_image_shapes(),
                 gt_scene_mesh=gt_scene_trimesh_future,
                 cameras_gt=self.loader.get_gt_cameras(),
-                gt_poses=self.loader.get_gt_poses(),
+                gt_wTi_list=self.loader.get_gt_poses(),
                 matching_regime=ImageMatchingRegime(self.parsed_args.matching_regime),
                 absolute_pose_priors=self.loader.get_absolute_pose_priors(),
                 relative_pose_priors=self.loader.get_relative_pose_priors(image_pair_indices),

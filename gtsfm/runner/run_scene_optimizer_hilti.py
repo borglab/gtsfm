@@ -12,7 +12,6 @@ from gtsfm.runner.gtsfm_runner_base import GtsfmRunnerBase
 logger = logger_utils.get_logger()
 
 
-
 class GtsfmRunnerHiltiLoader(GtsfmRunnerBase):
     def __init__(self):
         super(GtsfmRunnerHiltiLoader, self).__init__(tag="GTSFM for the hilti loader")
@@ -34,6 +33,9 @@ class GtsfmRunnerHiltiLoader(GtsfmRunnerBase):
         )
 
         parser.add_argument("--max_length", type=int, default=None, help="Max number of timestamps to process")
+        parser.add_argument(
+            "--subsample", action="store_true", help="Subsample the timestamps by 5 (pick every 5th rig for visual SfM"
+        )
 
         return parser
 
@@ -41,6 +43,7 @@ class GtsfmRunnerHiltiLoader(GtsfmRunnerBase):
         loader = HiltiLoader(
             base_folder=self.parsed_args.dataset_dirpath,
             max_length=self.parsed_args.max_length,
+            subsample=self.parsed_args.subsample is True,
         )
 
         return loader
