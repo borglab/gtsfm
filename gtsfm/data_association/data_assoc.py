@@ -84,8 +84,8 @@ class DataAssociation(NamedTuple):
         # track lengths w/o triangulation check
         track_lengths_2d = np.array(list(map(lambda x: int(x.number_measurements()), tracks_2d)), dtype=np.uint32)
 
-        logger.debug("[Data association] input number of tracks: %s", len(tracks_2d))
-        logger.debug("[Data association] input avg. track length: %s", np.mean(track_lengths_2d))
+        logger.debug(f"[Data association] input number of tracks: {len(tracks_2d)}")
+        logger.debug(f"[Data association] input avg. track length: {np.mean(track_lengths_2d)}")
 
         # Initialize 3D landmark for each track
         point3d_initializer = Point3dInitializer(cameras, self.triangulation_options)
@@ -98,6 +98,7 @@ class DataAssociation(NamedTuple):
             triangulated_data.add_camera(i, camera)
 
         exit_codes_wrt_gt = track_utils.classify_tracks2d_with_gt_cameras(tracks=tracks_2d, cameras_gt=cameras_gt)
+        logger.debug(f"[Data association] classified {len(exit_codes_wrt_gt)} tracks.")
 
         # add valid tracks where triangulation is successful
         exit_codes_wrt_computed: List[TriangulationExitCode] = []
@@ -115,6 +116,7 @@ class DataAssociation(NamedTuple):
                 per_accepted_track_avg_errors.append(avg_track_reproj_error)
             else:
                 per_rejected_track_avg_errors.append(avg_track_reproj_error)
+        logger.debug(f"[Data association] Added {triangulated_data.number_tracks()} tracks.")
 
         # aggregate the exit codes to get the distribution w.r.t each triangulation exit
         # get the exit codes distribution w.r.t. the camera params computed by the upstream modules of GTSFM
@@ -128,6 +130,7 @@ class DataAssociation(NamedTuple):
         track_cheirality_failure_ratio = exit_codes_wrt_computed_distribution[
             TriangulationExitCode.CHEIRALITY_FAILURE
         ] / len(tracks_2d)
+        logger.debug(f"[Data association] Computed track_cheirality_failure_ratio = {track_cheirality_failure_ratio}.")
 
         # pick only the largest connected component
         # TODO(Ayush): remove this for hilti as disconnected components not an issue?
@@ -135,12 +138,13 @@ class DataAssociation(NamedTuple):
         connected_data = triangulated_data.select_largest_connected_component(extra_camera_edges=cam_edges_from_prior)
         num_accepted_tracks = connected_data.number_tracks()
         accepted_tracks_ratio = num_accepted_tracks / len(tracks_2d)
+        logger.debug(f"[Data association] Selected largest connected component with {num_accepted_tracks} tracks.")
 
         mean_3d_track_length, median_3d_track_length = connected_data.get_track_length_statistics()
         track_lengths_3d = connected_data.get_track_lengths()
 
-        logger.debug("[Data association] output number of tracks: %s", num_accepted_tracks)
-        logger.debug("[Data association] output avg. track length: %.2f", mean_3d_track_length)
+        logger.debug(f"[Data association] output number of tracks: {num_accepted_tracks}")
+        logger.debug(f"[Data association] output avg. track length: {mean_3d_track_length:.2f}")
 
         data_assoc_metrics = GtsfmMetricsGroup(
             "data_association_metrics",
