@@ -7,8 +7,12 @@
 # If you already have matplotlib, scipy and numpy, this will need an additional 
 # pip install evo==1.13.5
 
-# Instructions to run
-# ./eval_hilti.py <path_to_tum1> <path_to_reference_tum> <optional_path_to_tum2>
+# Example usage:
+# python evaluation/eval_hilti.py \
+#  --gtsfm_images_txt=results/ba_output/images.txt \
+#  --fastlio_tum=fastlio2_odom.txt \
+#  --gt_tum=exp_04_construction_upper_level_imu.txt \
+#  --cam2_calib_yaml=hilti_exp4_medium/calibration/calib_3_cam2-camchain-imucam.yaml
 
 from evo.core import metrics
 from evo.core import lie_algebra as lie
