@@ -49,12 +49,15 @@ HARD_RELATIVE_POSE_PRIOR_SIGMA = np.ones((6,)) * 1e-3  # CAM_IMU_POSE_PRIOR_SIGM
 SOFT_RELATIVE_POSE_PRIOR_SIGMA = np.ones((6,)) * 3e-2
 SOFT_ABSOLUTE_POSE_PRIOR_SIGMA = np.ones((6,)) * 3e-2
 
-SUBSAMPLE_FACTOR: int = 3
-
 
 class HiltiLoader(LoaderBase):
     def __init__(
-        self, base_folder: str, max_length: Optional[int] = None, max_resolution: int = 1080, subsample: bool = False
+        self,
+        base_folder: str,
+        max_length: Optional[int] = None,
+        max_resolution: int = 1080,
+        subsample: int = 1,
+        old_style: bool = False,
     ) -> None:
         """Initializes, loads calibration, constraints, and pose priors.
 
@@ -63,13 +66,14 @@ class HiltiLoader(LoaderBase):
             max_length (Optional[int]): limit poses to read. Defaults to None.
             max_resolution: integer representing maximum length of image's short side
                e.g. for 1080p (1920 x 1080), max_resolution would be 1080
-            subsample (Optional[bool]): subsample along the time axis (except cam2) by not proposing edges and priors.
-                                        Defaults to False.
+            subsample (Optional[int]): subsample along the time axis (except cam2), default 1 (none).
+            old_style (Optional[bool]): Use old-style sequential image numbering.
         """
         super().__init__(max_resolution)
         self._base_folder: Path = Path(base_folder)
         self._max_length = max_length
         self._subsample = subsample
+        self._old_style = old_style
 
         # Load calibration.
         self._intrinsics: Dict[int, Cal3Fisheye] = {}
@@ -128,7 +132,8 @@ class HiltiLoader(LoaderBase):
 
     def __get_num_rig_poses(self) -> int:
         """Check how many images we have on disk and deduce number of rig poses."""
-        search_path: str = str(self._base_folder / IMAGES_FOLDER / "*.png")
+        pattern = "*.jpg" if self._old_style else "*.png"
+        search_path: str = str(self._base_folder / IMAGES_FOLDER / pattern)
         image_files = glob.glob(search_path)
         total_num_images = len(image_files)
         return total_num_images // NUM_CAMS
@@ -207,10 +212,12 @@ class HiltiLoader(LoaderBase):
         Returns:
             Image: the image at the query index.
         """
-        image_path: Path = (
-            self._base_folder / IMAGES_FOLDER / f"{self.rig_from_image(index)}_{self.camera_from_image(index)}.png"
-        )
+        if self._old_style:
+            filename = f"{index}.jpg"
+        else:
+            filename = f"{self.rig_from_image(index)}_{self.camera_from_image(index)}.png"
 
+        image_path: Path = self._base_folder / IMAGES_FOLDER / filename
         return io_utils.load_image(str(image_path))
 
     def get_camera_intrinsics(self, index: int) -> Optional[Cal3Fisheye]:
@@ -308,14 +315,14 @@ class HiltiLoader(LoaderBase):
         return rig_index * NUM_CAMS + camera_idx
 
     def get_relative_pose_priors(self, pairs: List[Tuple[int, int]]) -> Dict[Tuple[int, int], PosePrior]:
-        pairs = set(pairs)
+        unique_pairs = set(pairs)
         # For every rig index, add a "star" from camera 2 to 0,1,3,4:
-        for rig_index in range(0, self.num_rig_poses, SUBSAMPLE_FACTOR if self._subsample else 1):
+        for rig_index in range(0, self.num_rig_poses, self._subsample):
             camera_2 = self.image_from_rig_and_camera(rig_index, 2)
             for cam_idx in [0, 1, 3, 4]:
-                pairs.add((camera_2, self.image_from_rig_and_camera(rig_index, cam_idx)))
+                unique_pairs.add((camera_2, self.image_from_rig_and_camera(rig_index, cam_idx)))
 
-        priors = {pair: self.get_relative_pose_prior(*pair) for pair in pairs}
-        priors = {pair: prior for pair, prior in priors.items() if prior is not None}
+        optional_priors = {pair: self.get_relative_pose_prior(*pair) for pair in unique_pairs}
+        priors = {pair: prior for pair, prior in optional_priors.items() if prior is not None}
 
         return priors
