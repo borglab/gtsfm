@@ -265,7 +265,7 @@ class BundleAdjustmentOptimizer:
         result_values = lm.optimize()
         return result_values
 
-    def __cameras_to_model(
+    def _cameras_to_model(
         self,
         initial_data: GtsfmData,
         absolute_pose_priors: List[Optional[PosePrior]],
@@ -274,6 +274,17 @@ class BundleAdjustmentOptimizer:
         """Get the cameras which are to be modeled in the factor graph. We are using ability to add initial values as
         proxy for this function."""
         cameras: Set[int] = set(initial_data.get_valid_camera_indices())
+
+        # Add all relative pose priors have atleast one node in the GTSFM's data valid cameras.
+        for i1, i2 in relative_pose_priors.keys():
+            if i1 in cameras or i2 in cameras:
+                cameras.add(i1)
+                cameras.add(i2)
+
+        # Hilti specific hack to add the backbone of CAM2-CAM2
+        # TODO(Ayush): remove this
+        for i in range(2, initial_data.number_images(), 5):
+            cameras.add(i)
 
         return sorted(list(cameras))
 
@@ -308,7 +319,7 @@ class BundleAdjustmentOptimizer:
             )
             return initial_data, initial_data, [False] * initial_data.number_tracks()
 
-        cameras_to_model = self.__cameras_to_model(initial_data, absolute_pose_priors, relative_pose_priors)
+        cameras_to_model = self._cameras_to_model(initial_data, absolute_pose_priors, relative_pose_priors)
 
         graph = self.__construct_factor_graph(
             cameras_to_model=cameras_to_model,
