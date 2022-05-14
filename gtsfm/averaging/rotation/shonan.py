@@ -29,6 +29,7 @@ from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBa
 from gtsfm.common.pose_prior import PosePrior
 
 TWOVIEW_ROTATION_SIGMA = 1
+PRIOR_SIGMA = 0.1
 POSE3_DOF = 6
 
 logger = logger_utils.get_logger()
@@ -75,15 +76,13 @@ class ShonanRotationAveraging(RotationAveragingBase):
     ) -> BetweenFactorPose3s:
         """Create between factors from the priors on relative poses."""
         between_factors = BetweenFactorPose3s()
+        noise_model = gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, PRIOR_SIGMA)
+        # temporary fix
 
         for (i1, i2), i1Ti2_prior in relative_pose_priors.items():
             i1_ = old_to_new_idxs[i1]
             i2_ = old_to_new_idxs[i2]
-            between_factors.append(
-                BetweenFactorPose3(
-                    i1_, i2_, i1Ti2_prior.value, gtsam.noiseModel.Gaussian.Covariance(POSE3_DOF, i1Ti2_prior.covariance)
-                )
-            )
+            between_factors.append(BetweenFactorPose3(i1_, i2_, i1Ti2_prior.value, noise_model))
 
         return between_factors
 
@@ -129,6 +128,9 @@ class ShonanRotationAveraging(RotationAveragingBase):
 
         unique_nodes_with_edges = set()
         for (i1, i2) in i2Ri1_dict.keys():
+            unique_nodes_with_edges.add(i1)
+            unique_nodes_with_edges.add(i2)
+        for (i1, i2) in relative_pose_priors.keys():
             unique_nodes_with_edges.add(i1)
             unique_nodes_with_edges.add(i2)
 
