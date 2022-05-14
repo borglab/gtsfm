@@ -11,7 +11,7 @@ from gtsam import Cal3_S2, Point3, Pose3, Rot3, Similarity3, Unit3
 from gtsam.examples import SFMdata
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
-import tests.data.sample_poses as sample_poses
+import gtsfm.utils.sample_poses as sample_poses
 
 POSE_LIST = SFMdata.createPoses(Cal3_S2())
 

@@ -49,29 +49,9 @@ class TestHiltiLoader(unittest.TestCase):
         for i in range(len(self.loader)):
             if self.loader.get_absolute_pose_prior(i) is not None:
                 num_valid_priors += 1
-            else:
-                print(f"not found for i={i}")
 
-        # assert all poses have absolute pose priors
-        self.assertEqual(num_valid_priors, len(self.loader))
-
-    def test_get_absolute_pose_priors(self) -> None:
-        # starting frames have no camera movement
-        t0_cam0_prior = self.loader.get_absolute_pose_prior(0)
-        t1_cam0_prior = self.loader.get_absolute_pose_prior(5)
-        self.assertIsNotNone(t0_cam0_prior)
-        if t0_cam0_prior is not None and t1_cam0_prior is not None:
-            self.assertLessEqual(
-                comp_utils.compute_relative_rotation_angle(
-                    t0_cam0_prior.value.rotation(), t1_cam0_prior.value.rotation()
-                ),
-                2,
-            )
-
-            self.assertIsNotNone(t1_cam0_prior)
-            self.assertLessEqual(
-                np.linalg.norm(t0_cam0_prior.value.translation() - t1_cam0_prior.value.translation()), 0.01
-            )
+        # assert no index should have pose prior
+        self.assertEqual(num_valid_priors, 0)
 
     def test_number_of_relative_pose_priors_without_subsampling(self) -> None:
         """Check that 3 relative constraints translate into many relative pose priors."""

@@ -14,7 +14,7 @@ from gtsam.examples import SFMdata
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
 
-import tests.data.sample_poses as sample_poses
+import gtsfm.utils.sample_poses as sample_poses
 from gtsfm.averaging.translation.averaging_1dsfm import TranslationAveraging1DSFM
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.loader.olsson_loader import OlssonLoader
@@ -39,7 +39,7 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
     ) -> None:
         """Helper function to run the averagaing and assert w/ expected."""
 
-        wti_computed, _ = self.obj.run(len(wRi_input), i2Ui1_input, wRi_input)
+        wti_computed, _ = self.obj.run_translation_averaging(len(wRi_input), i2Ui1_input, wRi_input)
 
         wTi_computed = [Pose3(wRi, wti) for wRi, wti in zip(wRi_input, wti_computed)]
         wTi_expected = [Pose3(wRi, wti) for wRi, wti in zip(wRi_input, wti_expected)]
@@ -130,7 +130,7 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
                 i2Ui1_dict[(i1, i2)] = Unit3(expected_wTi_list[i2].between(expected_wTi_list[i1]).translation())
 
         # use the `run` API to get expected results, ignore the metrics
-        wti_expected, _ = self.obj.run(len(wRi_list), i2Ui1_dict, wRi_list)
+        wti_expected, _ = self.obj.run_translation_averaging(len(wRi_list), i2Ui1_dict, wRi_list)
 
         # form computation graph and execute
         i2Ui1_graph = dask.delayed(i2Ui1_dict)
@@ -163,10 +163,10 @@ class Test1dsfmAllOutliers(unittest.TestCase):
 
     def test_outlier_case_missing_value(self) -> None:
         """Ensure that a missing `Value` in the 1dsfm result is represented by `None` in the returned entries.
-        
+
         The scenario below will lead to an outlier configuration -- all edges to the node 4 will be rejected
         as outliers, so that Value cannot be cast to Point3 -- it is returned as None.
-        
+
         This test ensures that 1dsfm checks if each Value exists in 1dsfm result, before casting it to a Point3.
         """
         # fmt: off
@@ -218,7 +218,7 @@ class Test1dsfmAllOutliers(unittest.TestCase):
             (3, 4): np.array([0.994791, -0.033332, -0.0963361]),
         }
         i2Ui1_input = {(i, j): Unit3(t) for (i, j), t in i2Ui1_input.items()}
-        wti_computed, _ = self.obj.run(len(wRi_input), i2Ui1_input, wRi_input)
+        wti_computed, _ = self.obj.run_translation_averaging(len(wRi_input), i2Ui1_input, wRi_input)
 
         assert len(wti_computed) == 5
         assert wti_computed[-1] is None

@@ -11,7 +11,7 @@ import numpy as np
 from gtsam import Rot3, Pose3
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
-import tests.data.sample_poses as sample_poses
+import gtsfm.utils.sample_poses as sample_poses
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.averaging.rotation.shonan import ShonanRotationAveraging
 
@@ -36,7 +36,7 @@ class TestShonanRotationAveraging(unittest.TestCase):
             i2Ri1_input: relative rotations, which are input to the algorithm.
             wRi_expected: expected global rotations.
         """
-        i2Ri1_priors = {edge: None for edge in i2Ri1_input.keys()}
+        i2Ri1_priors = {}
         wRi_computed = self.obj.run_rotation_averaging(len(wRi_expected), i2Ri1_input, i2Ri1_priors)
         self.assertTrue(
             geometry_comparisons.compare_rotations(wRi_computed, wRi_expected, ROTATION_ANGLE_ERROR_THRESHOLD_DEG)
@@ -99,13 +99,13 @@ class TestShonanRotationAveraging(unittest.TestCase):
         i2Ri1_graph = dask.delayed(i2Ri1_dict)
 
         # use the GTSAM API directly (without dask) for rotation averaging
-        i2Ri1_priors = {edge: None for edge in i2Ri1_dict.keys()}
-        expected_wRi_list = self.obj.run_rotation_averaging(num_poses, i2Ri1_dict, i2Ri1_priors)
+        relative_pose_priors = {}
+        expected_wRi_list = self.obj.run_rotation_averaging(num_poses, i2Ri1_dict, relative_pose_priors)
 
         # use dask's computation graph
         gt_wTi_list = [None] * len(expected_wRi_list)
         rotations_graph, _ = self.obj.create_computation_graph(
-            num_poses, i2Ri1_graph, dask.delayed(i2Ri1_priors), gt_wTi_list
+            num_poses, i2Ri1_graph, relative_pose_priors, gt_wTi_list
         )
 
         with dask.config.set(scheduler="single-threaded"):
@@ -146,7 +146,7 @@ class TestShonanRotationAveraging(unittest.TestCase):
             (1, 3): wTi3.between(wTi1).rotation(),
         }
 
-        i2Ri1_priors = {edge: None for edge in i2Ri1_input.keys()}
+        i2Ri1_priors = {}
         wRi_computed = self.obj.run_rotation_averaging(num_images, i2Ri1_input, i2Ri1_priors)
         wRi_expected = [None, wTi1.rotation(), wTi2.rotation(), wTi3.rotation()]
         self.assertTrue(

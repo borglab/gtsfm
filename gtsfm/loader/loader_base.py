@@ -212,13 +212,13 @@ class LoaderBase(metaclass=abc.ABCMeta):
         """
         return None
 
-    @abc.abstractmethod
     def get_relative_pose_priors(self) -> Dict[Tuple[int, int], PosePrior]:
         """Get *all* relative pose priors for i2Ti1
 
         Returns:
             A dictionary of PosePriors (or None) for all pairs.
         """
+        return {}
 
     def get_absolute_pose_prior(self, idx: int) -> Optional[PosePrior]:
         """Get the prior on the pose of camera at idx in the world coordinates.
