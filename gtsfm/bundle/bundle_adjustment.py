@@ -128,7 +128,7 @@ class BundleAdjustmentOptimizer:
         """Generate BetweenFactors on relative poses for pose variables."""
         graph = NonlinearFactorGraph()
 
-        for (i1, i2), i2Ti1_prior in relative_pose_priors.items():
+        for (i1, i2), i1Ti2_prior in relative_pose_priors.items():
             if i1 not in cameras_to_model or i2 not in cameras_to_model:
                 continue
 
@@ -136,8 +136,8 @@ class BundleAdjustmentOptimizer:
                 BetweenFactorPose3(
                     X(i1),
                     X(i2),
-                    i2Ti1_prior.value.inverse(),
-                    gtsam.noiseModel.Diagonal.Sigmas(i2Ti1_prior.covariance),
+                    i1Ti2_prior.value,
+                    gtsam.noiseModel.Diagonal.Sigmas(i1Ti2_prior.covariance),
                 )
             )
 
