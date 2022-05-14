@@ -100,13 +100,13 @@ class ShonanRotationAveraging(RotationAveragingBase):
                 not be computed (either underconstrained system or ill-constrained system).
         """
 
-        logger.info(f"Running Shonan with {len(between_factors)} constraints on {num_connected_nodes} nodes")
+        logger.info(f"[Shonan] Running Shonan with {len(between_factors)} constraints on {num_connected_nodes} nodes")
         shonan = ShonanAveraging3(between_factors, self.__get_shonan_params())
 
         initial = shonan.initializeRandomly()
-        logger.info(f"Initial cost: {shonan.cost(initial)}")
+        logger.info(f"[Shonan] Initial cost: {shonan.cost(initial)}")
         result, _ = shonan.run(initial, self._p_min, self._p_max)
-        logger.info(f"Final cost: {shonan.cost(result)}")
+        logger.info(f"[Shonan] Final cost: {shonan.cost(result)}")
 
         wRi_list_consecutive = [None] * num_connected_nodes
         for i in range(num_connected_nodes):

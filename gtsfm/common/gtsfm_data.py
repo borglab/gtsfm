@@ -355,20 +355,24 @@ class GtsfmData:
         scene_avg_reproj_error = np.nan if np.isnan(scene_reproj_errors).all() else np.nanmean(scene_reproj_errors)
         return scene_avg_reproj_error
 
-    def log_scene_reprojection_error_stats(self) -> None:
+    def log_scene_reprojection_error_stats(self, module: str = "") -> None:
         """Logs reprojection error stats for all 3d points in the entire scene."""
         scene_reproj_errors = self.get_scene_reprojection_errors()
         logger.info(
-            "Min scene reproj error: %.3f", np.nanmin(scene_reproj_errors) if len(scene_reproj_errors) else np.NaN
+            f"[{module}] Min scene reproj error: %.3f",
+            np.nanmin(scene_reproj_errors) if len(scene_reproj_errors) else np.NaN,
         )
         logger.info(
-            "Avg scene reproj error: %.3f", np.nanmean(scene_reproj_errors) if len(scene_reproj_errors) else np.NaN
+            f"[{module}] Avg scene reproj error: %.3f",
+            np.nanmean(scene_reproj_errors) if len(scene_reproj_errors) else np.NaN,
         )
         logger.info(
-            "Median scene reproj error: %.3f", np.nanmedian(scene_reproj_errors) if len(scene_reproj_errors) else np.NaN
+            f"[{module}] Median scene reproj error: %.3f",
+            np.nanmedian(scene_reproj_errors) if len(scene_reproj_errors) else np.NaN,
         )
         logger.info(
-            "Max scene reproj error: %.3f", np.nanmax(scene_reproj_errors) if len(scene_reproj_errors) else np.NaN
+            f"[{module}] Max scene reproj error: %.3f",
+            np.nanmax(scene_reproj_errors) if len(scene_reproj_errors) else np.NaN,
         )
 
     def __validate_track(self, track: SfmTrack, reproj_err_thresh: float) -> bool:

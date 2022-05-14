@@ -71,7 +71,7 @@ class InlierSupportProcessor:
         # no need to extract the relative pose if we have insufficient inliers.
         if two_view_report.inlier_ratio_est_model < self._min_inlier_ratio_est_model:
             logger.debug(
-                "Insufficient inlier ratio. %d vs. %d",
+                "[inlier_support] Insufficient inlier ratio. %d vs. %d",
                 two_view_report.inlier_ratio_est_model,
                 self._min_inlier_ratio_est_model,
             )
@@ -83,7 +83,7 @@ class InlierSupportProcessor:
 
         if valid_model and insufficient_inliers:
             logger.debug(
-                "Insufficient number of inliers. %d vs. %d",
+                "[inlier_support] Insufficient number of inliers. %d vs. %d",
                 two_view_report.num_inliers_est_model,
                 self._min_num_inliers_est_model,
             )

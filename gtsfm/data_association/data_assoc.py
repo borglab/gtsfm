@@ -52,7 +52,7 @@ class DataAssociation(NamedTuple):
         """Validate the track by checking its length."""
         return sfm_track is not None and sfm_track.numberMeasurements() >= self.min_track_len
 
-    def run(
+    def run_da(
         self,
         num_images: int,
         cameras: Dict[int, gtsfm_types.CAMERA_TYPE],
@@ -210,7 +210,7 @@ class DataAssociation(NamedTuple):
             data_assoc_metrics_graph: dictionary with different statistics about the data
                 association result
         """
-        ba_input_graph, data_assoc_metrics_graph = dask.delayed(self.run, nout=2)(
+        ba_input_graph, data_assoc_metrics_graph = dask.delayed(self.run_da, nout=2)(
             num_images, cameras, corr_idxs_graph, keypoints_graph, cameras_gt, relative_pose_priors, images_graph
         )
 

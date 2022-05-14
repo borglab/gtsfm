@@ -189,8 +189,8 @@ class TwoViewEstimator:
             keypoints_i2=keypoints_i2,
             corr_idxs=verified_corr_idxs,
         )
-        logger.debug("Performed DA in %.6f seconds.", timeit.default_timer() - start_time)
-        logger.debug("Triangulated %d correspondences out of %d.", len(triangulated_tracks), len(verified_corr_idxs))
+        logger.debug("[Two view optimizer] Performed DA in %.6f seconds.", timeit.default_timer() - start_time)
+        logger.debug("[Two view optimizer] Triangulated %d correspondences out of %d.", len(triangulated_tracks), len(verified_corr_idxs))
 
         if len(triangulated_tracks) == 0:
             return i2Ti1_initial.rotation(), Unit3(i2Ti1_initial.translation()), np.array([], dtype=np.uint32)
@@ -216,7 +216,7 @@ class TwoViewEstimator:
             logger.warning("2-view BA failed")
             return i2Ri1_initial, i2Ui1_initial, valid_corr_idxs
         i2Ti1_optimized = wTi2.between(wTi1)
-        logger.debug("Performed 2-view BA in %.6f seconds.", timeit.default_timer() - start_time)
+        logger.debug("[Two view optimizer] Performed 2-view BA in %.6f seconds.", timeit.default_timer() - start_time)
 
         return i2Ti1_optimized.rotation(), Unit3(i2Ti1_optimized.translation()), valid_corr_idxs
 
