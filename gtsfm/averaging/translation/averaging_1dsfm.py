@@ -199,7 +199,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         return initial
 
     # TODO(ayushbaid): Change wTi_initial to Pose3.
-    def run(
+    def run_translation_averaging(
         self,
         num_images: int,
         i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
@@ -226,7 +226,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 or ill-constrained system).
             A GtsfmMetricsGroup of 1DSfM metrics.
         """
-        logger.info("Running translation averaging on {} unit translations".format(len(i2Ui1_dict)))
+        logger.info(f"Running translation averaging on {len(i2Ui1_dict)} unit translations")
         noise_model = gtsam.noiseModel.Isotropic.Sigma(NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
         if self._robust_measurement_noise:
             huber_loss = gtsam.noiseModel.mEstimator.Huber.Create(HUBER_LOSS_K)
@@ -237,6 +237,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         )
 
         inlier_idxs: Set[Tuple[int, int]] = self.compute_inlier_mask(w_i2Ui1_measurements)
+        logger.debug("Computed inlier mask")
 
         w_i2Ui1_inlier_measurements = BinaryMeasurementsUnit3()
         for idx in range(len(w_i2Ui1_measurements)):
@@ -246,22 +247,30 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             i2 = w_i2Ui1.key1()
             if (i1, i2) in inlier_idxs:
                 w_i2Ui1_inlier_measurements.append(w_i2Ui1)
+        logger.debug("Created measurements")
 
         # Run the optimizer
         # TODO(akshay-krishnan): remove once latest gtsam pip wheels updated.
         try:
             algorithm = TranslationRecovery()
+            logger.debug("Constructed NEW TranslationRecovery, about to run.")
             w_i2ti1_priors = self._get_prior_measurements_in_world_frame(relative_pose_priors, wRi_list)
             wti_initial = self.__get_initial_values(absolute_pose_priors)
+            logger.debug("Computed priors and initial values.")
             if len(w_i2ti1_priors) > 0:
                 # scale is ignored here.
-                wti_values = algorithm.run(w_i2Ui1_inlier_measurements, 0.0, w_i2ti1_priors, wti_initial)
+                wti_values = algorithm.run_translation_averaging(
+                    w_i2Ui1_inlier_measurements, 0.0, w_i2ti1_priors, wti_initial
+                )
+                logger.debug("Finished with priors.")
             else:
-                wti_values = algorithm.run(w_i2Ui1_inlier_measurements, scale_factor)
-        except TypeError as e:
-            logger.error("TypeError: {}".format(str(e)))
+                wti_values = algorithm.run_translation_averaging(w_i2Ui1_inlier_measurements, scale_factor)
+                logger.debug("Finished without priors.")
+        except TypeError:
             recovery = TranslationRecovery(w_i2Ui1_inlier_measurements)
-            wti_values = recovery.run(scale_factor)
+            logger.debug("Constructed OLD TranslationRecovery, about to run_translation_averaging.")
+            wti_values = recovery.run_translation_averaging(scale_factor)
+            logger.debug("Finished.")
 
         # transforming the result to the list of Point3
         wti_list: List[Optional[Point3]] = [None] * num_images

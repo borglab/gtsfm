@@ -29,7 +29,7 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
 
     # ignored-abstractmethod
     @abc.abstractmethod
-    def run(
+    def run_translation_averaging(
         self,
         num_images: int,
         i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
@@ -81,6 +81,6 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
             Global unit translations wrapped as Delayed.
             A GtsfmMetricsGroup with translation averaging metrics wrapped as Delayed.
         """
-        return dask.delayed(self.run, nout=2)(
+        return dask.delayed(self.run_translation_averaging, nout=2)(
             num_images, i2Ui1_graph, wRi_graph, absolute_pose_priors, relative_pose_priors, scale_factor, gt_wTi_list
         )

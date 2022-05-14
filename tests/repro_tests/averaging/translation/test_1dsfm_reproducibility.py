@@ -37,7 +37,7 @@ class Test1DSFMReproducibility(ReproducibilityTestBase, unittest.TestCase):
             self._global_rotations_input: List[Optional[Rot3]] = pickle.load(f)
 
     def run_once(self) -> List[Optional[Point3]]:
-        return self._1dsfm_obj.run(
+        return self._1dsfm_obj.run_translation_averaging(
             num_images=NUM_IMAGES_IN_INPUT,
             i2Ui1_dict=self._relative_unit_translations_input,
             wRi_list=self._global_rotations_input,

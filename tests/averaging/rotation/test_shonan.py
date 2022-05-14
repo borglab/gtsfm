@@ -37,7 +37,7 @@ class TestShonanRotationAveraging(unittest.TestCase):
             wRi_expected: expected global rotations.
         """
         i2Ri1_priors = {edge: None for edge in i2Ri1_input.keys()}
-        wRi_computed = self.obj.run(len(wRi_expected), i2Ri1_input, i2Ri1_priors)
+        wRi_computed = self.obj.run_rotation_averaging(len(wRi_expected), i2Ri1_input, i2Ri1_priors)
         self.assertTrue(
             geometry_comparisons.compare_rotations(wRi_computed, wRi_expected, ROTATION_ANGLE_ERROR_THRESHOLD_DEG)
         )
@@ -100,7 +100,7 @@ class TestShonanRotationAveraging(unittest.TestCase):
 
         # use the GTSAM API directly (without dask) for rotation averaging
         i2Ri1_priors = {edge: None for edge in i2Ri1_dict.keys()}
-        expected_wRi_list = self.obj.run(num_poses, i2Ri1_dict, i2Ri1_priors)
+        expected_wRi_list = self.obj.run_rotation_averaging(num_poses, i2Ri1_dict, i2Ri1_priors)
 
         # use dask's computation graph
         gt_wTi_list = [None] * len(expected_wRi_list)
@@ -147,7 +147,7 @@ class TestShonanRotationAveraging(unittest.TestCase):
         }
 
         i2Ri1_priors = {edge: None for edge in i2Ri1_input.keys()}
-        wRi_computed = self.obj.run(num_images, i2Ri1_input, i2Ri1_priors)
+        wRi_computed = self.obj.run_rotation_averaging(num_images, i2Ri1_input, i2Ri1_priors)
         wRi_expected = [None, wTi1.rotation(), wTi2.rotation(), wTi3.rotation()]
         self.assertTrue(
             geometry_comparisons.compare_rotations(wRi_computed, wRi_expected, angular_error_threshold_degrees=0.1)
