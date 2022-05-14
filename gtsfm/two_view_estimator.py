@@ -248,7 +248,7 @@ class TwoViewEstimator:
         """Getter for the distance threshold used in the metric for correct correspondences."""
         return self._corr_metric_dist_threshold
 
-    def run(
+    def run_2view(
         self,
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
@@ -354,7 +354,7 @@ class TwoViewEstimator:
             post_isp_i2Ui1,
             post_isp_v_corr_idxs,
             _,
-        ) = self.processor.run(post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, post_ba_report)
+        ) = self.processor.run_inlier_support(post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, post_ba_report)
 
         return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs
 
@@ -392,7 +392,7 @@ class TwoViewEstimator:
             Computed relative translation direction wrapped as Delayed.
             Indices of verified correspondences wrapped as Delayed.
         """
-        return dask.delayed(self.run, nout=3)(
+        return dask.delayed(self.run_2view, nout=3)(
             keypoints_i1=keypoints_i1_graph,
             keypoints_i2=keypoints_i2_graph,
             descriptors_i1=descriptors_i1_graph,
