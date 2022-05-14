@@ -291,15 +291,6 @@ class HiltiLoader(LoaderBase):
         return None
 
     def get_absolute_pose_prior(self, idx: int) -> Optional[PosePrior]:
-        rig_idx: int = self.rig_from_image(idx)
-        cam_idx: int = self.camera_from_image(idx)
-
-        if rig_idx in self._w_T_imu:
-            w_T_cam = self._w_T_imu[rig_idx] * self._cam_T_imu_poses[cam_idx].inverse()
-            return PosePrior(
-                value=w_T_cam, covariance=SOFT_ABSOLUTE_POSE_PRIOR_SIGMA, type=PosePriorType.SOFT_CONSTRAINT
-            )
-
         return None
 
     def camera_from_image(self, index: int) -> int:
