@@ -137,7 +137,7 @@ class BundleAdjustmentOptimizer:
                     X(i1),
                     X(i2),
                     i1Ti2_prior.value,
-                    gtsam.noiseModel.Diagonal.Sigmas(i1Ti2_prior.covariance),
+                    gtsam.noiseModel.Gaussian.Covariance(i1Ti2_prior.covariance),
                 )
             )
 
