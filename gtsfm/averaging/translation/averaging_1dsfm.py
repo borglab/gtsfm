@@ -125,30 +125,36 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         Returns:
             Set of indices (i1, i2) which are inliers.
         """
+        # Sample projection directions for 1DSfM.
         projection_directions = self.__sample_projection_directions(w_i2Ui1_measurements)
+        logger.debug("Sampled projection directions for 1DSfM.")
 
-        # compute outlier weights using MFAS
+        # Compute outlier weights using MFAS.
         outlier_weights: List[Dict[Tuple[int, int], float]] = []
         # TODO(ayush): parallelize this step.
         for direction in projection_directions:
             mfas_instance = MFAS(w_i2Ui1_measurements, direction)
             outlier_weights.append(mfas_instance.computeOutlierWeights())
+        logger.debug("Computed outlier weights using MFAS.")
 
-        # compute average outlier weight
+        # Compute average outlier weight.
         outlier_weights_sum: DefaultDict[Tuple[int, int], float] = defaultdict(float)
-        inlier_idxs = set()
+        inliers = set()
         for outlier_weight_dict in outlier_weights:
             # TODO(akshay-krishnan): use keys from outlier weight dict once we can iterate over it (gtsam fix).
             for idx in range(len(w_i2Ui1_measurements)):
                 w_i2Ui1 = w_i2Ui1_measurements[idx]
                 i2, i1 = w_i2Ui1.key1(), w_i2Ui1.key2()
                 outlier_weights_sum[(i2, i1)] += outlier_weight_dict[(i2, i1)]
+        logger.debug("Computed average outlier weight.")
 
+        # Find inliers.
         for (i2, i1) in outlier_weights_sum:
             if outlier_weights_sum[(i2, i1)] / len(projection_directions) < OUTLIER_WEIGHT_THRESHOLD:
-                inlier_idxs.add((i1, i2))
+                inliers.add((i1, i2))
+        logger.debug("found inliers.")
 
-        return inlier_idxs
+        return inliers
 
     def _get_prior_measurements_in_world_frame(
         self,
@@ -226,7 +232,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 or ill-constrained system).
             A GtsfmMetricsGroup of 1DSfM metrics.
         """
-        logger.info(f"Running translation averaging on {len(i2Ui1_dict)} unit translations")
+        logger.info(f"Running translation averaging on {len(i2Ui1_dict)} unit translations.")
         noise_model = gtsam.noiseModel.Isotropic.Sigma(NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
         if self._robust_measurement_noise:
             huber_loss = gtsam.noiseModel.mEstimator.Huber.Create(HUBER_LOSS_K)
@@ -235,9 +241,10 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         w_i2Ui1_measurements = cast_to_measurements_variable_in_global_coordinate_frame(
             i2Ui1_dict, wRi_list, noise_model
         )
+        logger.debug("Created measurements in global frame.")
 
-        inlier_idxs: Set[Tuple[int, int]] = self.compute_inlier_mask(w_i2Ui1_measurements)
-        logger.debug("Computed inlier mask")
+        inliers: Set[Tuple[int, int]] = self.compute_inlier_mask(w_i2Ui1_measurements)
+        logger.debug("Computed inlier mask.")
 
         w_i2Ui1_inlier_measurements = BinaryMeasurementsUnit3()
         for idx in range(len(w_i2Ui1_measurements)):
@@ -245,9 +252,9 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             w_i2Ui1 = w_i2Ui1_measurements[idx]
             i1 = w_i2Ui1.key2()
             i2 = w_i2Ui1.key1()
-            if (i1, i2) in inlier_idxs:
+            if (i1, i2) in inliers:
                 w_i2Ui1_inlier_measurements.append(w_i2Ui1)
-        logger.debug("Created measurements")
+        logger.debug("Created measurements.")
 
         # Run the optimizer
         # TODO(akshay-krishnan): remove once latest gtsam pip wheels updated.
@@ -280,7 +287,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         # Compute the metrics.
         if gt_wTi_list is not None:
-            ta_metrics = _compute_metrics(inlier_idxs, i2Ui1_dict, wRi_list, wti_list, gt_wTi_list)
+            ta_metrics = _compute_metrics(inliers, i2Ui1_dict, wRi_list, wti_list, gt_wTi_list)
         else:
             ta_metrics = None
         num_translations = 0
