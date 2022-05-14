@@ -64,7 +64,7 @@ class RigBundleAdjustmentOptimizer(BundleAdjustmentOptimizer):
                     X(i2), X(i1), i2Ti1_prior.value, gtsam.noiseModel.Diagonal.Sigmas(i2Ti1_prior.covariance)
                 )
 
-        logger.info("Added %d between factors for BA", len(between_factors))
+        logger.info("[BA] Added %d between factors for BA", len(between_factors))
 
         for factor in between_factors.values():
             graph.push_back(factor)

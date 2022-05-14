@@ -100,15 +100,18 @@ class ShonanRotationAveraging(RotationAveragingBase):
                 not be computed (either underconstrained system or ill-constrained system).
         """
 
-        obj = ShonanAveraging3(between_factors, self.__get_shonan_params())
+        logger.info(f"[Shonan] Running Shonan with {len(between_factors)} constraints on {num_connected_nodes} nodes")
+        shonan = ShonanAveraging3(between_factors, self.__get_shonan_params())
 
-        initial = obj.initializeRandomly()
-        result_values, _ = obj.run(initial, self._p_min, self._p_max)
+        initial = shonan.initializeRandomly()
+        logger.info(f"[Shonan] Initial cost: {shonan.cost(initial)}")
+        result, _ = shonan.run(initial, self._p_min, self._p_max)
+        logger.info(f"[Shonan] Final cost: {shonan.cost(result)}")
 
         wRi_list_consecutive = [None] * num_connected_nodes
         for i in range(num_connected_nodes):
-            if result_values.exists(i):
-                wRi_list_consecutive[i] = result_values.atRot3(i)
+            if result.exists(i):
+                wRi_list_consecutive[i] = result.atRot3(i)
 
         return wRi_list_consecutive
 
@@ -124,7 +127,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
 
         return unique_nodes_with_edges
 
-    def run(
+    def run_rotation_averaging(
         self,
         num_images: int,
         i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
@@ -132,7 +135,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging on a connected graph with arbitrary keys, where each key is a image/pose index.
 
-        Note: run() functions as a wrapper that re-orders keys to prepare a graph w/ N keys ordered [0,...,N-1].
+        Note: functions as a wrapper that re-orders keys to prepare a graph w/ N keys ordered [0,...,N-1].
         All input nodes must belong to a single connected component, in order to obtain an absolute pose for each
         camera in a single, global coordinate frame.
 
@@ -145,7 +148,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
             Global rotations for each camera pose, i.e. wRi, as a list. The number of entries in the list is
                 `num_images`. The list may contain `None` where the global rotation could not be computed (either
                 underconstrained system or ill-constrained system), or where the camera pose had no valid observation
-                in the input to run().
+                in the input to run_rotation_averaging().
         """
         if len(i2Ri1_dict) == 0:
             logger.warning("Shonan cannot proceed: No cycle-consistent triplets found after filtering.")

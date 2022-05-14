@@ -277,7 +277,7 @@ class BundleAdjustmentOptimizer:
 
         return sorted(list(cameras))
 
-    def run(
+    def run_ba(
         self,
         initial_data: GtsfmData,
         absolute_pose_priors: List[Optional[PosePrior]],
@@ -299,7 +299,7 @@ class BundleAdjustmentOptimizer:
                 threshold.
         """
         logger.info(
-            f"Input: {initial_data.number_tracks()} tracks on {len(initial_data.get_valid_camera_indices())} cameras\n"
+            f"[BA] Input: {initial_data.number_tracks()} tracks on {len(initial_data.get_valid_camera_indices())} cameras\n"
         )
         if initial_data.number_tracks() == 0 or len(initial_data.get_valid_camera_indices()) == 0:
             # no cameras or tracks to optimize, so bundle adjustment is not possible
@@ -323,14 +323,14 @@ class BundleAdjustmentOptimizer:
 
         # Error drops from ~2764.22 to ~0.046
         if verbose:
-            logger.info(f"initial error: {graph.error(initial_values):.2f}")
-            logger.info(f"final error: {final_error:.2f}")
+            logger.info(f"[BA] initial error: {graph.error(initial_values):.2f}")
+            logger.info(f"[BA] final error: {final_error:.2f}")
 
         # construct the results
         optimized_data = values_to_gtsfm_data(result_values, initial_data, self._shared_calib)
 
         if verbose:
-            logger.info("[Result] Number of tracks before filtering: %d", optimized_data.number_tracks())
+            logger.info("[BA] Number of tracks before filtering: %d", optimized_data.number_tracks())
 
         # filter the largest errors
         if self._output_reproj_error_thresh:
@@ -339,7 +339,7 @@ class BundleAdjustmentOptimizer:
             valid_mask = [True] * optimized_data.number_tracks()
             filtered_result = optimized_data
 
-        logger.info("[Result] Number of tracks after filtering: %d", filtered_result.number_tracks())
+        logger.info("[BA] Number of tracks after filtering: %d", filtered_result.number_tracks())
 
         return optimized_data, filtered_result, valid_mask
 
@@ -384,9 +384,9 @@ class BundleAdjustmentOptimizer:
         ba_metrics.add_metrics(metrics_utils.get_stats_for_sfmdata(aligned_filtered_data, suffix="_filtered"))
         # ba_metrics.save_to_json(os.path.join(METRICS_PATH, "bundle_adjustment_metrics.json"))
 
-        logger.info("[Result] Mean track length %.3f", np.mean(aligned_filtered_data.get_track_lengths()))
-        logger.info("[Result] Median track length %.3f", np.median(aligned_filtered_data.get_track_lengths()))
-        aligned_filtered_data.log_scene_reprojection_error_stats()
+        logger.info("[BA] Mean track length %.3f", np.mean(aligned_filtered_data.get_track_lengths()))
+        logger.info("[BA] Median track length %.3f", np.median(aligned_filtered_data.get_track_lengths()))
+        aligned_filtered_data.log_scene_reprojection_error_stats("BA")
 
         return ba_metrics
 
@@ -408,7 +408,7 @@ class BundleAdjustmentOptimizer:
             GtsfmData aligned to GT (if provided), wrapped up using dask.delayed
             Metrics group for BA results, wrapped up using dask.delayed
         """
-        optimized_sfm_data, filtered_sfm_data, _ = dask.delayed(self.run, nout=3)(
+        optimized_sfm_data, filtered_sfm_data, _ = dask.delayed(self.run_ba, nout=3)(
             sfm_data_graph, absolute_pose_priors, relative_pose_priors
         )
         metrics_graph = dask.delayed(self.evaluate)(optimized_sfm_data, filtered_sfm_data, cameras_gt)

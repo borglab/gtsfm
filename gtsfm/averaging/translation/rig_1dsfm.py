@@ -90,5 +90,5 @@ class RigTranslationAveraging1DSFM(TranslationAveraging1DSFM):
                             noise_model,
                         )
                     )
-        logger.info("Added {} priors in rig translation averaging".format(len(w_i2ti1_priors)))
+        logger.info("[1dfsm] Added {} priors in rig translation averaging".format(len(w_i2ti1_priors)))
         return w_i2ti1_priors

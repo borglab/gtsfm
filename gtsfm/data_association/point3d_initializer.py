@@ -194,7 +194,7 @@ class Point3dInitializer:
             except RuntimeError:
                 # TODO: handle cheirality exception properly?
                 logger.debug(
-                    "Cheirality exception from GTSAM's triangulatePoint3() likely due to outlier, skipping track"
+                    "[initializer] Cheirality exception from GTSAM's triangulatePoint3() likely due to outlier, skipping track"
                 )
                 continue
 

@@ -37,7 +37,7 @@ class InlierSupportProcessor:
         self._min_num_inliers_est_model = min_num_inliers_est_model
         self._min_inlier_ratio_est_model = min_inlier_ratio_est_model
 
-    def run(
+    def run_inlier_support(
         self,
         i2Ri1: Optional[Rot3],
         i2Ui1: Optional[Unit3],
@@ -71,7 +71,7 @@ class InlierSupportProcessor:
         # no need to extract the relative pose if we have insufficient inliers.
         if two_view_report.inlier_ratio_est_model < self._min_inlier_ratio_est_model:
             logger.debug(
-                "Insufficient inlier ratio. %d vs. %d",
+                "[inlier_support] Insufficient inlier ratio. %d vs. %d",
                 two_view_report.inlier_ratio_est_model,
                 self._min_inlier_ratio_est_model,
             )
@@ -83,7 +83,7 @@ class InlierSupportProcessor:
 
         if valid_model and insufficient_inliers:
             logger.debug(
-                "Insufficient number of inliers. %d vs. %d",
+                "[inlier_support] Insufficient number of inliers. %d vs. %d",
                 two_view_report.num_inliers_est_model,
                 self._min_num_inliers_est_model,
             )
@@ -117,4 +117,6 @@ class InlierSupportProcessor:
                 May now be an empty array, if insufficient support.
             two_view_report_pp_graph: Post-processed two-view report (may now be None, if insufficient support).
         """
-        return dask.delayed(self.run, nout=4)(i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph)
+        return dask.delayed(self.run_inlier_support, nout=4)(
+            i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph
+        )

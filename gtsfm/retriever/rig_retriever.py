@@ -5,7 +5,7 @@ Author: Frank Dellaert
 
 from typing import List, Tuple
 
-from gtsfm.loader.hilti_loader import HiltiLoader, SUBSAMPLE_FACTOR
+from gtsfm.loader.hilti_loader import HiltiLoader
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.constraint import Constraint
@@ -35,7 +35,7 @@ class RigRetriever(RetrieverBase):
         if not self._subsample:
             return True
 
-        return constraint.a % SUBSAMPLE_FACTOR == 0 and constraint.b % SUBSAMPLE_FACTOR == 0
+        return constraint.a % self._subsample == 0 and constraint.b % self._subsample == 0
 
     def run(self, loader: LoaderBase) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
@@ -51,27 +51,29 @@ class RigRetriever(RetrieverBase):
         constraints: List[Constraint] = loader.get_all_constraints()
 
         # Get pairs from those constraints.
-        pairs = set(sum([c.predicted_pairs(self._threshold) for c in constraints if self.__accept_constraint(c)], []))
+        unique_pairs = set(
+            sum([c.predicted_pairs(self._threshold) for c in constraints if self.__accept_constraint(c)], [])
+        )
 
-        num_cam2_pairs = list(filter(lambda edge: edge[0] % 5 == 2 or edge[1] % 5 == 2, pairs))
+        num_cam2_pairs = list(filter(lambda edge: edge[0] % 5 == 2 or edge[1] % 5 == 2, unique_pairs))
 
-        logger.info("Found %d pairs from the constraints file", len(pairs))
-        logger.info("Found %d pairs with cam2 from the constraints file", len(num_cam2_pairs))
+        logger.info(f"Found {len(unique_pairs)} pairs in the constraints file")
+        logger.info(f"Found {len(num_cam2_pairs)} pairs with cam2 in the constraints file")
 
         # Add all intra-rig pairs even if no LIDAR signal.
-        for rig_index in range(0, loader.num_rig_poses, SUBSAMPLE_FACTOR if self._subsample else 1):
+        for rig_index in range(0, loader.num_rig_poses, self._subsample if self._subsample else 1):
             for c1, c2 in INTRA_RIG_VALID_PAIRS:
-                pairs.add(
+                unique_pairs.add(
                     (loader.image_from_rig_and_camera(rig_index, c1), loader.image_from_rig_and_camera(rig_index, c2))
                 )
         # Add all inter frames CAM2 pairs
         for rig_index in range(0, loader.num_rig_poses, 1):
             for next_rig_idx in range(rig_index + 1, min(rig_index + 1 + CAM2_FRAME_LOOKAHEAD, loader.num_rig_poses)):
-                pairs.add(
+                unique_pairs.add(
                     (loader.image_from_rig_and_camera(rig_index, 2), loader.image_from_rig_and_camera(next_rig_idx, 2))
                 )
 
-        pairs = list(pairs)
+        pairs = list(unique_pairs)
         pairs.sort()
 
         # check on pairs
@@ -79,5 +81,5 @@ class RigRetriever(RetrieverBase):
             if i1 > i2:
                 raise ValueError("Ordering not imposed on i1, i2")
 
-        logger.info("Found %d pairs from the RigRetriever", len(pairs))
+        logger.info(f"RigRetriever finally created {len(pairs)} pairs.")
         return pairs

@@ -121,7 +121,7 @@ class TwoViewCacher(TwoViewEstimator):
         )
         io_utils.write_to_bz2_file(data, cache_path)
 
-    def run(
+    def run_2view(
         self,
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
@@ -149,7 +149,7 @@ class TwoViewCacher(TwoViewEstimator):
         if cached_data is not None:
             return cached_data[ROT_KEY], cached_data[DIRECTION_KEY], cached_data[CORR_IDXES_KEY]
 
-        i2Ri1, i2Ui1, v_corr_idxs = self._two_view_estimator.run(
+        i2Ri1, i2Ui1, v_corr_idxs = self._two_view_estimator.run_2view(
             keypoints_i1,
             keypoints_i2,
             descriptors_i1,

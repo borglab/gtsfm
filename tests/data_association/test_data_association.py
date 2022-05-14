@@ -137,7 +137,7 @@ class TestDataAssociation(GtsamTestCase):
             reproj_error_threshold=5, mode=triangulation_mode, min_num_hypotheses=20
         )
         da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
-        triangulated_landmark_map, _ = da.run(
+        triangulated_landmark_map, _ = da.run_da(
             len(cameras),
             cameras,
             matches_dict,
@@ -176,7 +176,7 @@ class TestDataAssociation(GtsamTestCase):
         triangulation_options = TriangulationOptions(reproj_error_threshold=5, mode=TriangulationSamplingMode.NO_RANSAC)
         da = DataAssociation(min_track_len=2, triangulation_options=triangulation_options)
 
-        sfm_data, _ = da.run(
+        sfm_data, _ = da.run_da(
             len(cameras), cameras, matches_dict, keypoints_list, [None] * len(cameras), relative_pose_priors={}
         )
         estimated_landmark = sfm_data.get_track(0).point3()
@@ -226,7 +226,7 @@ class TestDataAssociation(GtsamTestCase):
             reproj_error_threshold=5, mode=triangulation_mode, min_num_hypotheses=20
         )
         da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
-        sfm_data, _ = da.run(
+        sfm_data, _ = da.run_da(
             len(cameras),
             cameras,
             matches_dict,
@@ -265,7 +265,7 @@ class TestDataAssociation(GtsamTestCase):
 
         # will lead to a cheirality exception because keypoints are identical in two cameras
         # no track will be formed, and thus connected component will be empty
-        sfm_data, _ = da.run(
+        sfm_data, _ = da.run_da(
             num_images=3,
             cameras=cameras,
             corr_idxs_dict=corr_idxs_dict,
@@ -298,7 +298,7 @@ class TestDataAssociation(GtsamTestCase):
             reproj_error_threshold=5, mode=TriangulationSamplingMode.RANSAC_TOPK_BASELINES, min_num_hypotheses=20
         )
         da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
-        expected_sfm_data, expected_metrics = da.run(
+        expected_sfm_data, expected_metrics = da.run_da(
             len(cameras), cameras, corr_idxs_graph, keypoints_list, cameras_gt=cameras_gt, relative_pose_priors={}
         )
 

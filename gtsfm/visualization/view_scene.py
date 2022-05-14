@@ -54,10 +54,13 @@ def view_scene(args: argparse.Namespace) -> None:
     if args.show_mvs_result:
         point_cloud, rgb = io_utils.read_point_cloud_from_ply(args.ply_fpath)
 
-
     if len(calibrations) == 1:
         calibrations = calibrations * len(img_fnames)
-    mean_pt = compute_point_cloud_center_robust(point_cloud)
+
+    if args.center_trajectory:
+        mean_pt = compute_point_cloud_center_robust(np.array([T.translation() for T in wTi_list]))
+    else:
+        mean_pt = compute_point_cloud_center_robust(point_cloud)
 
     # Zero-center the point cloud (about estimated center).
     zcwTw = Pose3(Rot3(np.eye(3)), -mean_pt)
@@ -111,7 +114,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--show_mvs_result",
         action="store_true",
-        help="defaults to false.",
+        help="Show MVS result, defaults to false.",
+    )
+    parser.add_argument(
+        "--center_trajectory",
+        action="store_true",
+        help="Center point cloud on trajectory, defaults to false.",
     )
     parser.add_argument(
         "--ply_fpath",

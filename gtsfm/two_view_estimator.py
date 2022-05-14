@@ -189,8 +189,8 @@ class TwoViewEstimator:
             keypoints_i2=keypoints_i2,
             corr_idxs=verified_corr_idxs,
         )
-        logger.debug("Performed DA in %.6f seconds.", timeit.default_timer() - start_time)
-        logger.debug("Triangulated %d correspondences out of %d.", len(triangulated_tracks), len(verified_corr_idxs))
+        logger.debug("[Two view optimizer] Performed DA in %.6f seconds.", timeit.default_timer() - start_time)
+        logger.debug("[Two view optimizer] Triangulated %d correspondences out of %d.", len(triangulated_tracks), len(verified_corr_idxs))
 
         if len(triangulated_tracks) == 0:
             return i2Ti1_initial.rotation(), Unit3(i2Ti1_initial.translation()), np.array([], dtype=np.uint32)
@@ -207,7 +207,7 @@ class TwoViewEstimator:
         if i2Ti1_prior is not None:
             relative_pose_prior_for_ba = {(0, 1): i2Ti1_prior}
 
-        _, ba_output, valid_mask = self._ba_optimizer.run(
+        _, ba_output, valid_mask = self._ba_optimizer.run_ba(
             ba_input, absolute_pose_priors=[], relative_pose_priors=relative_pose_prior_for_ba, verbose=False
         )
         valid_corr_idxs = verified_corr_idxs[triangulated_indices][valid_mask]
@@ -216,7 +216,7 @@ class TwoViewEstimator:
             logger.warning("2-view BA failed")
             return i2Ri1_initial, i2Ui1_initial, valid_corr_idxs
         i2Ti1_optimized = wTi2.between(wTi1)
-        logger.debug("Performed 2-view BA in %.6f seconds.", timeit.default_timer() - start_time)
+        logger.debug("[Two view optimizer] Performed 2-view BA in %.6f seconds.", timeit.default_timer() - start_time)
 
         return i2Ti1_optimized.rotation(), Unit3(i2Ti1_optimized.translation()), valid_corr_idxs
 
@@ -248,7 +248,7 @@ class TwoViewEstimator:
         """Getter for the distance threshold used in the metric for correct correspondences."""
         return self._corr_metric_dist_threshold
 
-    def run(
+    def run_2view(
         self,
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
@@ -297,14 +297,14 @@ class TwoViewEstimator:
             gt_wTi2,
             gt_scene_mesh,
         )
-        pre_ba_report = generate_two_view_report(
-            inlier_ratio_wrt_estimate,
-            verified_corr_idxs,
-            R_error_deg=pre_ba_R_error_deg,
-            U_error_deg=pre_ba_U_error_deg,
-            v_corr_idxs_inlier_mask_gt=pre_ba_inlier_mask_wrt_gt,
-            reproj_error_gt_model=pre_ba_reproj_error_wrt_gt,
-        )
+        # pre_ba_report = generate_two_view_report(
+        #     inlier_ratio_wrt_estimate,
+        #     verified_corr_idxs,
+        #     R_error_deg=pre_ba_R_error_deg,
+        #     U_error_deg=pre_ba_U_error_deg,
+        #     v_corr_idxs_inlier_mask_gt=pre_ba_inlier_mask_wrt_gt,
+        #     reproj_error_gt_model=pre_ba_reproj_error_wrt_gt,
+        # )
 
         # Optionally, do two-view bundle adjustment
         if self._bundle_adjust_2view:
@@ -354,7 +354,7 @@ class TwoViewEstimator:
             post_isp_i2Ui1,
             post_isp_v_corr_idxs,
             _,
-        ) = self.processor.run(post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, post_ba_report)
+        ) = self.processor.run_inlier_support(post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, post_ba_report)
 
         return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs
 
@@ -392,7 +392,7 @@ class TwoViewEstimator:
             Computed relative translation direction wrapped as Delayed.
             Indices of verified correspondences wrapped as Delayed.
         """
-        return dask.delayed(self.run, nout=3)(
+        return dask.delayed(self.run_2view, nout=3)(
             keypoints_i1=keypoints_i1_graph,
             keypoints_i2=keypoints_i2_graph,
             descriptors_i1=descriptors_i1_graph,

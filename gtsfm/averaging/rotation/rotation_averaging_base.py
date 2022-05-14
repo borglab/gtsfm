@@ -24,7 +24,7 @@ class RotationAveragingBase(metaclass=abc.ABCMeta):
 
     # ignored-abstractmethod
     @abc.abstractmethod
-    def run(
+    def run_rotation_averaging(
         self,
         num_images: int,
         i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
@@ -86,7 +86,7 @@ class RotationAveragingBase(metaclass=abc.ABCMeta):
             global rotations wrapped using dask.delayed.
         """
 
-        wRis = dask.delayed(self.run)(num_images, i2Ri1_graph, i2Ti1_priors)
+        wRis = dask.delayed(self.run_rotation_averaging)(num_images, i2Ri1_graph, i2Ti1_priors)
         metrics = dask.delayed(self.evaluate)(wRis, gt_wTi_list)
 
         return wRis, metrics

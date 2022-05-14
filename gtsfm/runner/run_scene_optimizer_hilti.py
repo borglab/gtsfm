@@ -34,8 +34,12 @@ class GtsfmRunnerHiltiLoader(GtsfmRunnerBase):
 
         parser.add_argument("--max_length", type=int, default=None, help="Max number of timestamps to process")
         parser.add_argument(
-            "--subsample", action="store_true", help="Subsample the timestamps by 5 (pick every 5th rig for visual SfM"
+            "--subsample",
+            type=int,
+            default=1,
+            help="Subsample the timestamps by given value n (pick every nth rig for visual SfM)",
         )
+        parser.add_argument("--old_style", action="store_true", help="Use sequentially numbered images")
 
         return parser
 
@@ -43,7 +47,8 @@ class GtsfmRunnerHiltiLoader(GtsfmRunnerBase):
         loader = HiltiLoader(
             base_folder=self.parsed_args.dataset_dirpath,
             max_length=self.parsed_args.max_length,
-            subsample=self.parsed_args.subsample is True,
+            subsample=self.parsed_args.subsample,
+            old_style=self.parsed_args.old_style,
         )
 
         return loader

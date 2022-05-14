@@ -70,18 +70,21 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         self,
         robust_measurement_noise: bool = True,
         projection_sampling_method: ProjectionSamplingMethod = ProjectionSamplingMethod.SAMPLE_WITH_UNIFORM_DENSITY,
+        MFAS_outlier_rejection: bool = True,
     ) -> None:
         """Initializes the 1DSFM averaging instance.
 
         Args:
             robust_measurement_noise: Whether to use a robust noise model for the measurements, defaults to true.
             projection_sampling_method: ProjectionSamplingMethod to be used for directions to run 1DSfM.
+            MFAS_outlier_rejection: whether to perform outlier rejection with MFAS algorithm (default True).
         """
         super().__init__(robust_measurement_noise)
 
         self._max_1dsfm_projection_directions = MAX_PROJECTION_DIRECTIONS
         self._outlier_weight_threshold = OUTLIER_WEIGHT_THRESHOLD
         self._projection_sampling_method = projection_sampling_method
+        self._MFAS_outlier_rejection = MFAS_outlier_rejection
 
     def __sample_projection_directions(
         self,
@@ -125,30 +128,36 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         Returns:
             Set of indices (i1, i2) which are inliers.
         """
+        # Sample projection directions for 1DSfM.
         projection_directions = self.__sample_projection_directions(w_i2Ui1_measurements)
+        logger.debug("[1dsfm] Sampled projection directions for 1DSfM.")
 
-        # compute outlier weights using MFAS
+        # Compute outlier weights using MFAS.
         outlier_weights: List[Dict[Tuple[int, int], float]] = []
         # TODO(ayush): parallelize this step.
         for direction in projection_directions:
             mfas_instance = MFAS(w_i2Ui1_measurements, direction)
             outlier_weights.append(mfas_instance.computeOutlierWeights())
+        logger.debug("[1dsfm] Computed outlier weights using MFAS.")
 
-        # compute average outlier weight
+        # Compute average outlier weight.
         outlier_weights_sum: DefaultDict[Tuple[int, int], float] = defaultdict(float)
-        inlier_idxs = set()
+        inliers = set()
         for outlier_weight_dict in outlier_weights:
             # TODO(akshay-krishnan): use keys from outlier weight dict once we can iterate over it (gtsam fix).
             for idx in range(len(w_i2Ui1_measurements)):
                 w_i2Ui1 = w_i2Ui1_measurements[idx]
                 i2, i1 = w_i2Ui1.key1(), w_i2Ui1.key2()
                 outlier_weights_sum[(i2, i1)] += outlier_weight_dict[(i2, i1)]
+        logger.debug("[1dsfm] Computed average outlier weight.")
 
+        # Find inliers.
         for (i2, i1) in outlier_weights_sum:
             if outlier_weights_sum[(i2, i1)] / len(projection_directions) < OUTLIER_WEIGHT_THRESHOLD:
-                inlier_idxs.add((i1, i2))
+                inliers.add((i1, i2))
+        logger.debug("[1dsfm] found inliers.")
 
-        return inlier_idxs
+        return inliers
 
     def _get_prior_measurements_in_world_frame(
         self,
@@ -199,7 +208,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         return initial
 
     # TODO(ayushbaid): Change wTi_initial to Pose3.
-    def run(
+    def run_translation_averaging(
         self,
         num_images: int,
         i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
@@ -226,7 +235,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 or ill-constrained system).
             A GtsfmMetricsGroup of 1DSfM metrics.
         """
-        logger.info("Running translation averaging on {} unit translations".format(len(i2Ui1_dict)))
+        logger.info(f"[1dsfm] Running translation averaging on {len(i2Ui1_dict)} unit translations.")
         noise_model = gtsam.noiseModel.Isotropic.Sigma(NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
         if self._robust_measurement_noise:
             huber_loss = gtsam.noiseModel.mEstimator.Huber.Create(HUBER_LOSS_K)
@@ -235,33 +244,46 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         w_i2Ui1_measurements = cast_to_measurements_variable_in_global_coordinate_frame(
             i2Ui1_dict, wRi_list, noise_model
         )
+        logger.debug("[1dsfm] Created measurements in global frame.")
 
-        inlier_idxs: Set[Tuple[int, int]] = self.compute_inlier_mask(w_i2Ui1_measurements)
+        # Possibly perform (slow!) outlier rejection with Minimum Feedback Arc Set algorithm.
+        if self._MFAS_outlier_rejection:
+            inliers: Set[Tuple[int, int]] = self.compute_inlier_mask(w_i2Ui1_measurements)
+            logger.debug("[1dsfm] Computed inlier mask with MFAS.")
 
-        w_i2Ui1_inlier_measurements = BinaryMeasurementsUnit3()
-        for idx in range(len(w_i2Ui1_measurements)):
-            # key1 is i2 and key2 is i1 above.
-            w_i2Ui1 = w_i2Ui1_measurements[idx]
-            i1 = w_i2Ui1.key2()
-            i2 = w_i2Ui1.key1()
-            if (i1, i2) in inlier_idxs:
-                w_i2Ui1_inlier_measurements.append(w_i2Ui1)
+            w_i2Ui1_inlier_measurements = BinaryMeasurementsUnit3()
+            for idx in range(len(w_i2Ui1_measurements)):
+                # key1 is i2 and key2 is i1 above.
+                w_i2Ui1 = w_i2Ui1_measurements[idx]
+                i1 = w_i2Ui1.key2()
+                i2 = w_i2Ui1.key1()
+                if (i1, i2) in inliers:
+                    w_i2Ui1_inlier_measurements.append(w_i2Ui1)
+            logger.debug("[1dsfm] Created inlier measurements.")
+            w_i2Ui1_measurements = w_i2Ui1_inlier_measurements
+        else:
+            inliers = set(i2Ui1_dict.keys())
 
         # Run the optimizer
         # TODO(akshay-krishnan): remove once latest gtsam pip wheels updated.
         try:
             algorithm = TranslationRecovery()
+            logger.debug("[1dsfm] Constructed NEW TranslationRecovery, about to run.")
             w_i2ti1_priors = self._get_prior_measurements_in_world_frame(relative_pose_priors, wRi_list)
             wti_initial = self.__get_initial_values(absolute_pose_priors)
+            logger.debug("[1dsfm] Computed priors and initial values.")
             if len(w_i2ti1_priors) > 0:
                 # scale is ignored here.
-                wti_values = algorithm.run(w_i2Ui1_inlier_measurements, 0.0, w_i2ti1_priors, wti_initial)
+                wti_values = algorithm.run(w_i2Ui1_measurements, 0.0, w_i2ti1_priors, wti_initial)
+                logger.debug("[1dsfm] Finished with priors.")
             else:
-                wti_values = algorithm.run(w_i2Ui1_inlier_measurements, scale_factor)
-        except TypeError as e:
-            logger.error("TypeError: {}".format(str(e)))
-            recovery = TranslationRecovery(w_i2Ui1_inlier_measurements)
+                wti_values = algorithm.run(w_i2Ui1_measurements, scale_factor)
+                logger.debug("[1dsfm] Finished without priors.")
+        except TypeError:
+            recovery = TranslationRecovery(w_i2Ui1_measurements)
+            logger.debug("[1dsfm] Constructed OLD TranslationRecovery, about to run.")
             wti_values = recovery.run(scale_factor)
+            logger.debug("[1dsfm] Finished.")
 
         # transforming the result to the list of Point3
         wti_list: List[Optional[Point3]] = [None] * num_images
@@ -271,7 +293,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         # Compute the metrics.
         if gt_wTi_list is not None:
-            ta_metrics = _compute_metrics(inlier_idxs, i2Ui1_dict, wRi_list, wti_list, gt_wTi_list)
+            ta_metrics = _compute_metrics(inliers, i2Ui1_dict, wRi_list, wti_list, gt_wTi_list)
         else:
             ta_metrics = None
         num_translations = 0
