@@ -407,56 +407,6 @@ class TwoViewEstimator:
             gt_scene_mesh=gt_scene_mesh_graph,
         )
 
-    def create_computation_graph(
-        self,
-        keypoints_i1_graph: Delayed,
-        keypoints_i2_graph: Delayed,
-        descriptors_i1_graph: Delayed,
-        descriptors_i2_graph: Delayed,
-        camera_intrinsics_i1: Optional[gtsfm_types.CALIBRATION_TYPE],
-        camera_intrinsics_i2: Optional[gtsfm_types.CALIBRATION_TYPE],
-        im_shape_i1: Tuple[int, int],
-        im_shape_i2: Tuple[int, int],
-        i2Ti1_prior: Optional[PosePrior] = None,
-        gt_wTi1: Optional[Pose3] = None,
-        gt_wTi2: Optional[Pose3] = None,
-        gt_scene_mesh_graph: Optional[Delayed] = None,
-    ) -> Tuple[Delayed, Delayed, Delayed, Delayed]:
-        """Create delayed tasks for matching and verification.
-
-        Args:
-            keypoints_i1_graph: keypoints for image i1.
-            keypoints_i2_graph: keypoints for image i2.
-            descriptors_i1_graph: corr. descriptors for image i1.
-            descriptors_i2_graph: corr. descriptors for image i2.
-            camera_intrinsics_i1: intrinsics for camera i1.
-            camera_intrinsics_i2: intrinsics for camera i2.
-            im_shape_i1: image shape for image i1.
-            im_shape_i2: image shape for image i2.
-            i2Ti1_prior: the prior on relative pose i2Ti1.
-            i2Ti1_expected_graph (optional): ground truth relative pose, used for evaluation if available.
-
-        Returns:
-            Computed relative rotation wrapped as Delayed.
-            Computed relative translation direction wrapped as Delayed.
-            Indices of verified correspondences wrapped as Delayed.
-            Two-view reports at different stages (pre BA, post BA, and post inlier-support-processor), as a dictionary.
-        """
-        return dask.delayed(self.run, nout=4)(
-            keypoints_i1=keypoints_i1_graph,
-            keypoints_i2=keypoints_i2_graph,
-            descriptors_i1=descriptors_i1_graph,
-            descriptors_i2=descriptors_i2_graph,
-            camera_intrinsics_i1=camera_intrinsics_i1,
-            camera_intrinsics_i2=camera_intrinsics_i2,
-            im_shape_i1=im_shape_i1,
-            im_shape_i2=im_shape_i2,
-            i2Ti1_prior=i2Ti1_prior,
-            gt_wTi1=gt_wTi1,
-            gt_wTi2=gt_wTi2,
-            gt_scene_mesh=gt_scene_mesh_graph,
-        )
-
 
 def generate_two_view_report(
     inlier_ratio_est_model: float,
