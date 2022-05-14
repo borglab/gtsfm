@@ -78,7 +78,7 @@ class GtsfmRunnerAstronetLoader(GtsfmRunnerBase):
                 gt_wTi_list=self.loader.get_gt_poses(),
                 matching_regime=ImageMatchingRegime(self.parsed_args.matching_regime),
                 absolute_pose_priors=self.loader.get_absolute_pose_priors(),
-                relative_pose_priors=self.loader.get_relative_pose_priors(image_pair_indices),
+                relative_pose_priors=self.loader.get_relative_pose_priors(),
             )
 
             # Run SfM pipeline.

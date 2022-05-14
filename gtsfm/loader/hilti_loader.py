@@ -89,7 +89,7 @@ class HiltiLoader(LoaderBase):
             self.num_rig_poses = min(self.num_rig_poses, self._max_length)
 
         # Read the constraints from the lidar/constraints file
-        self._constraints = self.__load_constraints()
+        self._constraints: Dict[Tuple[int, int], Constraint] = self.__load_constraints()
         logger.info("Number of constraints: %d", len(self._constraints))
 
         # Read the poses for the IMU for rig indices from g2o file.
@@ -314,13 +314,19 @@ class HiltiLoader(LoaderBase):
         """Map image index to rig index."""
         return rig_index * NUM_CAMS + camera_idx
 
-    def get_relative_pose_priors(self, pairs: List[Tuple[int, int]]) -> Dict[Tuple[int, int], PosePrior]:
-        unique_pairs = set(pairs)
+    def get_relative_pose_priors(self) -> Dict[Tuple[int, int], PosePrior]:
+        unique_pairs = set()
         # For every rig index, add a "star" from camera 2 to 0,1,3,4:
         for rig_index in range(0, self.num_rig_poses, self._subsample):
             camera_2 = self.image_from_rig_and_camera(rig_index, 2)
-            for cam_idx in [0, 1, 3, 4]:
+            for cam_idx in [0, 1]:
+                unique_pairs.add((self.image_from_rig_and_camera(rig_index, cam_idx), camera_2))
+            for cam_idx in [3, 4]:
                 unique_pairs.add((camera_2, self.image_from_rig_and_camera(rig_index, cam_idx)))
+
+        # Translate all rig level constraints to CAM2-CAM2 constraints
+        for a, b in self._constraints.keys():
+            unique_pairs.add((self.image_from_rig_and_camera(a, 2), self.image_from_rig_and_camera(b, 2)))
 
         optional_priors = {pair: self.get_relative_pose_prior(*pair) for pair in unique_pairs}
         priors = {pair: prior for pair, prior in optional_priors.items() if prior is not None}

@@ -140,7 +140,7 @@ class GtsfmRunnerBase:
             image_graph=self.loader.create_computation_graph_for_images(),
             all_intrinsics=self.loader.get_all_intrinsics(),
             image_shapes=self.loader.get_image_shapes(),
-            relative_pose_priors=self.loader.get_relative_pose_priors(image_pair_indices),
+            relative_pose_priors=self.loader.get_relative_pose_priors(),
             absolute_pose_priors=self.loader.get_absolute_pose_priors(),
             cameras_gt=self.loader.get_gt_cameras(),
             gt_wTi_list=self.loader.get_gt_poses(),

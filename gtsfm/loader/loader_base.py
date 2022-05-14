@@ -212,18 +212,13 @@ class LoaderBase(metaclass=abc.ABCMeta):
         """
         return None
 
-    def get_relative_pose_priors(self, pairs: List[Tuple[int, int]]) -> Dict[Tuple[int, int], PosePrior]:
+    @abc.abstractmethod
+    def get_relative_pose_priors(self) -> Dict[Tuple[int, int], PosePrior]:
         """Get *all* relative pose priors for i2Ti1
-
-        Args:
-            pairs: all (i1,i2) pairs of image pairs
 
         Returns:
             A dictionary of PosePriors (or None) for all pairs.
         """
-
-        pairs = {pair: self.get_relative_pose_prior(*pair) for pair in pairs}
-        return {pair: prior for pair, prior in pairs.items() if prior is not None}
 
     def get_absolute_pose_prior(self, idx: int) -> Optional[PosePrior]:
         """Get the prior on the pose of camera at idx in the world coordinates.
@@ -281,7 +276,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
         N = len(self)
         return [self.get_camera(i) for i in range(N)]
 
-    def get_image_shapes(self) -> List[Tuple[int,int]]:
+    def get_image_shapes(self) -> List[Tuple[int, int]]:
         """Return all the image shapes.
 
         Returns:
