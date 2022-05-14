@@ -51,7 +51,9 @@ class RigRetriever(RetrieverBase):
         constraints: List[Constraint] = loader.get_all_constraints()
 
         # Get pairs from those constraints.
-        unique_pairs = set(sum([c.predicted_pairs(self._threshold) for c in constraints if self.__accept_constraint(c)], []))
+        unique_pairs = set(
+            sum([c.predicted_pairs(self._threshold) for c in constraints if self.__accept_constraint(c)], [])
+        )
 
         num_cam2_pairs = list(filter(lambda edge: edge[0] % 5 == 2 or edge[1] % 5 == 2, unique_pairs))
 

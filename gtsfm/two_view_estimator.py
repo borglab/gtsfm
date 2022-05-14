@@ -297,14 +297,14 @@ class TwoViewEstimator:
             gt_wTi2,
             gt_scene_mesh,
         )
-        pre_ba_report = generate_two_view_report(
-            inlier_ratio_wrt_estimate,
-            verified_corr_idxs,
-            R_error_deg=pre_ba_R_error_deg,
-            U_error_deg=pre_ba_U_error_deg,
-            v_corr_idxs_inlier_mask_gt=pre_ba_inlier_mask_wrt_gt,
-            reproj_error_gt_model=pre_ba_reproj_error_wrt_gt,
-        )
+        # pre_ba_report = generate_two_view_report(
+        #     inlier_ratio_wrt_estimate,
+        #     verified_corr_idxs,
+        #     R_error_deg=pre_ba_R_error_deg,
+        #     U_error_deg=pre_ba_U_error_deg,
+        #     v_corr_idxs_inlier_mask_gt=pre_ba_inlier_mask_wrt_gt,
+        #     reproj_error_gt_model=pre_ba_reproj_error_wrt_gt,
+        # )
 
         # Optionally, do two-view bundle adjustment
         if self._bundle_adjust_2view:
