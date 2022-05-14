@@ -434,11 +434,10 @@ def _compute_metrics(
         - Distribution of translation direction angles for inlier measurements.
         - Distribution of translation direction angle for outlier measurements.
     """
+    non_none_input_edges = [edge for edge, val in i2Ui1_dict.items() if val is not None]
     # Get ground truth translation directions for the measurements.
-    gt_i2Ui1_dict = metrics_utils.get_twoview_translation_directions(gt_wTi_list)
-    outlier_i1_i2_pairs = (
-        set([pair_idx for pair_idx, val in i2Ui1_dict.items() if val is not None]) - inlier_i1_i2_pairs
-    )
+    gt_i2Ui1_dict = metrics_utils.get_twoview_translation_directions(gt_wTi_list, non_none_input_edges)
+    outlier_i1_i2_pairs = set(non_none_input_edges) - inlier_i1_i2_pairs
 
     # Angle between i2Ui1 measurement and GT i2Ui1 measurement for inliers and outliers.
     inlier_angular_errors = _get_measurement_angle_errors(inlier_i1_i2_pairs, i2Ui1_dict, gt_i2Ui1_dict)
@@ -446,10 +445,6 @@ def _compute_metrics(
     precision, recall = metrics_utils.get_precision_recall_from_errors(
         inlier_angular_errors, outlier_angular_errors, MAX_INLIER_MEASUREMENT_ERROR_DEG
     )
-
-    measured_gt_i2Ui1_dict = {}
-    for (i1, i2) in set.union(inlier_i1_i2_pairs, outlier_i1_i2_pairs):
-        measured_gt_i2Ui1_dict[(i1, i2)] = gt_i2Ui1_dict[(i1, i2)]
 
     # Compute estimated poses after the averaging step and align them to ground truth.
     wTi_list: List[Optional[Pose3]] = []
@@ -473,7 +468,7 @@ def _compute_metrics(
         GtsfmMetric("num_translations_estimated", len([wti for wti in wti_list if wti is not None])),
         GtsfmMetric("1dsfm_inlier_angular_errors_deg", inlier_angular_errors),
         GtsfmMetric("1dsfm_outlier_angular_errors_deg", outlier_angular_errors),
-        metrics_utils.compute_translation_angle_metric(measured_gt_i2Ui1_dict, wTi_aligned_list),
+        metrics_utils.compute_translation_angle_metric(gt_i2Ui1_dict, wTi_aligned_list),
         metrics_utils.compute_translation_distance_metric(wti_aligned_list, gt_wti_list),
     ]
 
