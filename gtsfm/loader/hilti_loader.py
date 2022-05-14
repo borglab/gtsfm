@@ -62,12 +62,12 @@ class HiltiLoader(LoaderBase):
         """Initializes, loads calibration, constraints, and pose priors.
 
         Args:
-            base_folder (str): top-level folder, expects calibration, images and lidar subfolders.
-            max_length (Optional[int]): limit poses to read. Defaults to None.
+            base_folder: top-level folder, expects calibration, images and lidar subfolders.
+            max_length: limit poses to read. Defaults to None.
             max_resolution: integer representing maximum length of image's short side
                e.g. for 1080p (1920 x 1080), max_resolution would be 1080
-            subsample (Optional[int]): subsample along the time axis (except cam2), default 1 (none).
-            old_style (Optional[bool]): Use old-style sequential image numbering.
+            subsample: subsample along the time axis (except cam2), default 1 (none).
+            old_style: Use old-style sequential image numbering.
         """
         super().__init__(max_resolution)
         self._base_folder: Path = Path(base_folder)

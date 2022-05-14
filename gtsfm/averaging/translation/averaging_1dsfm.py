@@ -70,7 +70,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         self,
         robust_measurement_noise: bool = True,
         projection_sampling_method: ProjectionSamplingMethod = ProjectionSamplingMethod.SAMPLE_WITH_UNIFORM_DENSITY,
-        MFAS_outlier_rejection=True,
+        MFAS_outlier_rejection: bool = True,
     ) -> None:
         """Initializes the 1DSFM averaging instance.
 
