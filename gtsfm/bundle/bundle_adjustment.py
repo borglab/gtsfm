@@ -282,7 +282,7 @@ class BundleAdjustmentOptimizer:
                 cameras.add(i2)
 
         # Hilti specific hack to add the backbone of CAM2-CAM2
-        # TODO(Ayush): remove this
+        # TODO(Ayush): move this to a hilti specific branch
         for i in range(2, initial_data.number_images(), 5):
             cameras.add(i)
 
@@ -338,7 +338,7 @@ class BundleAdjustmentOptimizer:
             logger.info(f"[BA] final error: {final_error:.2f}")
 
         # construct the results
-        optimized_data = values_to_gtsfm_data(result_values, initial_data, self._shared_calib)
+        optimized_data = values_to_gtsfm_data(result_values, initial_data, cameras_to_model, self._shared_calib)
 
         if verbose:
             logger.info("[BA] Number of tracks before filtering: %d", optimized_data.number_tracks())
@@ -426,13 +426,16 @@ class BundleAdjustmentOptimizer:
         return filtered_sfm_data, metrics_graph
 
 
-def values_to_gtsfm_data(values: Values, initial_data: GtsfmData, shared_calib: bool) -> GtsfmData:
+def values_to_gtsfm_data(
+    values: Values, initial_data: GtsfmData, cameras_modeled: List[int], shared_calib: bool
+) -> GtsfmData:
     """Cast results from the optimization to GtsfmData object.
 
     Args:
         values: results of factor graph optimization.
         initial_data: data used to generate the factor graph; used to extract information about poses and 3d points in
                       the graph.
+        cameras_modeled: the cameras modeled in the factor graph.
         shared_calib: flag indicating if calibrations were shared between the cameras.
 
     Returns:
@@ -448,7 +451,7 @@ def values_to_gtsfm_data(values: Values, initial_data: GtsfmData, shared_calib: 
     camera_class = PinholeCameraCal3Fisheye if is_fisheye_calibration else PinholeCameraCal3Bundler
 
     # add cameras
-    for i in initial_data.get_valid_camera_indices():
+    for i in cameras_modeled:
         result.add_camera(
             i,
             camera_class(values.atPose3(X(i)), cal3_value_extraction_lambda(i)),
