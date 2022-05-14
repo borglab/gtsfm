@@ -70,18 +70,21 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         self,
         robust_measurement_noise: bool = True,
         projection_sampling_method: ProjectionSamplingMethod = ProjectionSamplingMethod.SAMPLE_WITH_UNIFORM_DENSITY,
+        MFAS_outlier_rejection=True,
     ) -> None:
         """Initializes the 1DSFM averaging instance.
 
         Args:
             robust_measurement_noise: Whether to use a robust noise model for the measurements, defaults to true.
             projection_sampling_method: ProjectionSamplingMethod to be used for directions to run 1DSfM.
+            MFAS_outlier_rejection: whether to perform outlier rejection with MFAS algorithm (default True).
         """
         super().__init__(robust_measurement_noise)
 
         self._max_1dsfm_projection_directions = MAX_PROJECTION_DIRECTIONS
         self._outlier_weight_threshold = OUTLIER_WEIGHT_THRESHOLD
         self._projection_sampling_method = projection_sampling_method
+        self._MFAS_outlier_rejection = MFAS_outlier_rejection
 
     def __sample_projection_directions(
         self,
@@ -243,18 +246,23 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         )
         logger.debug("Created measurements in global frame.")
 
-        inliers: Set[Tuple[int, int]] = self.compute_inlier_mask(w_i2Ui1_measurements)
-        logger.debug("Computed inlier mask.")
+        # Possibly perform (slow!) outlier rejection with Minimum Feedback Arc Set algorithm.
+        if self._MFAS_outlier_rejection:
+            inliers: Set[Tuple[int, int]] = self.compute_inlier_mask(w_i2Ui1_measurements)
+            logger.debug("Computed inlier mask with MFAS.")
 
-        w_i2Ui1_inlier_measurements = BinaryMeasurementsUnit3()
-        for idx in range(len(w_i2Ui1_measurements)):
-            # key1 is i2 and key2 is i1 above.
-            w_i2Ui1 = w_i2Ui1_measurements[idx]
-            i1 = w_i2Ui1.key2()
-            i2 = w_i2Ui1.key1()
-            if (i1, i2) in inliers:
-                w_i2Ui1_inlier_measurements.append(w_i2Ui1)
-        logger.debug("Created measurements.")
+            w_i2Ui1_inlier_measurements = BinaryMeasurementsUnit3()
+            for idx in range(len(w_i2Ui1_measurements)):
+                # key1 is i2 and key2 is i1 above.
+                w_i2Ui1 = w_i2Ui1_measurements[idx]
+                i1 = w_i2Ui1.key2()
+                i2 = w_i2Ui1.key1()
+                if (i1, i2) in inliers:
+                    w_i2Ui1_inlier_measurements.append(w_i2Ui1)
+            logger.debug("Created inlier measurements.")
+            w_i2Ui1_measurements = w_i2Ui1_inlier_measurements
+        else:
+            inliers = set(i2Ui1_dict.keys())
 
         # Run the optimizer
         # TODO(akshay-krishnan): remove once latest gtsam pip wheels updated.
@@ -266,17 +274,15 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             logger.debug("Computed priors and initial values.")
             if len(w_i2ti1_priors) > 0:
                 # scale is ignored here.
-                wti_values = algorithm.run_translation_averaging(
-                    w_i2Ui1_inlier_measurements, 0.0, w_i2ti1_priors, wti_initial
-                )
+                wti_values = algorithm.run(w_i2Ui1_measurements, 0.0, w_i2ti1_priors, wti_initial)
                 logger.debug("Finished with priors.")
             else:
-                wti_values = algorithm.run_translation_averaging(w_i2Ui1_inlier_measurements, scale_factor)
+                wti_values = algorithm.run(w_i2Ui1_measurements, scale_factor)
                 logger.debug("Finished without priors.")
         except TypeError:
-            recovery = TranslationRecovery(w_i2Ui1_inlier_measurements)
-            logger.debug("Constructed OLD TranslationRecovery, about to run_translation_averaging.")
-            wti_values = recovery.run_translation_averaging(scale_factor)
+            recovery = TranslationRecovery(w_i2Ui1_measurements)
+            logger.debug("Constructed OLD TranslationRecovery, about to run.")
+            wti_values = recovery.run(scale_factor)
             logger.debug("Finished.")
 
         # transforming the result to the list of Point3
