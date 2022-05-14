@@ -61,7 +61,7 @@ class RigBundleAdjustmentOptimizer(BundleAdjustmentOptimizer):
                 cam_type_i1 == UPWARD_FACING_CAM_TYPE and cam_type_i2 == UPWARD_FACING_CAM_TYPE
             ):
                 between_factors[(i1, i2)] = BetweenFactorPose3(
-                    X(i2), X(i1), i2Ti1_prior.value, gtsam.noiseModel.Diagonal.Sigmas(i2Ti1_prior.covariance)
+                    X(i2), X(i1), i2Ti1_prior.value, gtsam.noiseModel.Gaussian.Covariance(i2Ti1_prior.covariance)
                 )
 
         logger.info("[BA] Added %d between factors for BA", len(between_factors))

@@ -57,6 +57,7 @@ class RigRetriever(RetrieverBase):
 
         num_cam2_pairs = list(filter(lambda edge: edge[0] % 5 == 2 or edge[1] % 5 == 2, unique_pairs))
 
+        logger.info(f"Received {len(constraints)} constraints from loader")
         logger.info(f"Found {len(unique_pairs)} pairs in the constraints file")
         logger.info(f"Found {len(num_cam2_pairs)} pairs with cam2 in the constraints file")
 
@@ -79,10 +80,13 @@ class RigRetriever(RetrieverBase):
         pairs = list(unique_pairs)
         pairs.sort()
 
-        # check on pairs
+        # check on pairs to assert the order
+        result: List[Tuple[int, int]] = []
         for i1, i2 in pairs:
             if i1 > i2:
-                raise ValueError("Ordering not imposed on i1, i2")
+                result.append((i2, i1))
+            else:
+                result.append((i1, i2))
 
-        logger.info(f"RigRetriever finally created {len(pairs)} pairs.")
-        return pairs
+        logger.info(f"RigRetriever finally created {len(result)} pairs.")
+        return result

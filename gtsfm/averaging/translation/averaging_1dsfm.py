@@ -182,7 +182,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         def get_prior_in_world_frame(i1, i1Ti2_prior) -> Tuple[Point3, gtsam.noiseModel.Gaussian]:
             wRi1 = wRi_list[i1].matrix()
             w_i1ti2 = wRi1 @ i1Ti2_prior.value.translation()
-            w_cov = wRi1 @ i1Ti2_prior.covariance @ wRi1.T
+            w_cov = wRi1 @ i1Ti2_prior.covariance[3:, 3:] @ wRi1.T
             noise_model = gtsam.noiseModel.Gaussian.Covariance(w_cov)
             return w_i1ti2, noise_model
 
@@ -218,7 +218,9 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         w_relative_pose_priors: BinaryMeasurementsPoint3,
         noise_model: gtsam.noiseModel,
     ) -> BinaryMeasurementsUnit3:
-        augmented_measurements = deepcopy(w_i2Ui1_measurements)
+        # TODO: use deecopy when BinaryMeasurementsUnit3 can be pickled
+        # augmented_measurements = deepcopy(w_i2Ui1_measurements)
+        augmented_measurements = w_i2Ui1_measurements
 
         nodes_with_measurements = set()
         for idx in range(len(w_i2Ui1_measurements)):
@@ -239,6 +241,8 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             i1Ui2 = Unit3(i1ti2_from_prior)
 
             augmented_measurements.append(BinaryMeasurementUnit3(i1, i2, i1Ui2, noise_model))
+
+        return augmented_measurements
 
     # TODO(ayushbaid): Change wTi_initial to Pose3.
     def run_translation_averaging(
@@ -299,30 +303,29 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         # Run the optimizer
         # TODO(akshay-krishnan): remove once latest gtsam pip wheels updated.
-        try:
-            algorithm = TranslationRecovery()
-            logger.debug("[1dsfm] Constructed NEW TranslationRecovery, about to run.")
-            w_relative_pose_priors = self._get_prior_measurements_in_world_frame(relative_pose_priors, wRi_list)
-            wti_initial = self.__get_initial_values(absolute_pose_priors)
-            logger.debug("[1dsfm] Computed priors and initial values.")
-            if len(w_relative_pose_priors) > 0:
-                # scale is ignored here.
-                noise_model_for_augmentation = gtsam.noiseModel.Isotropic.Sigma(
-                    NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA
-                )
-                augmented_w_i2Ui1_measurements = self.__augment(
-                    w_i2Ui1_measurements, w_relative_pose_priors, noise_model_for_augmentation
-                )
-                wti_values = algorithm.run(augmented_w_i2Ui1_measurements, 0.0, w_relative_pose_priors, wti_initial)
-                logger.debug("[1dsfm] Finished with priors.")
-            else:
-                wti_values = algorithm.run(w_i2Ui1_measurements, scale_factor)
-                logger.debug("[1dsfm] Finished without priors.")
-        except TypeError:
-            recovery = TranslationRecovery(w_i2Ui1_measurements)
-            logger.debug("[1dsfm] Constructed OLD TranslationRecovery, about to run.")
-            wti_values = recovery.run(scale_factor)
-            logger.debug("[1dsfm] Finished.")
+        # try:
+        algorithm = TranslationRecovery()
+        logger.debug("[1dsfm] Constructed NEW TranslationRecovery, about to run.")
+        w_relative_pose_priors = self._get_prior_measurements_in_world_frame(relative_pose_priors, wRi_list)
+        wti_initial = self.__get_initial_values(absolute_pose_priors)
+        logger.debug("[1dsfm] Computed priors and initial values.")
+        if len(w_relative_pose_priors) > 0:
+            # scale is ignored here.
+            noise_model_for_augmentation = gtsam.noiseModel.Isotropic.Sigma(NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
+            augmented_w_i2Ui1_measurements = self.augment(
+                w_i2Ui1_measurements, w_relative_pose_priors, noise_model_for_augmentation
+            )
+            wti_values = algorithm.run(augmented_w_i2Ui1_measurements, 0.0, w_relative_pose_priors, wti_initial)
+            logger.debug("[1dsfm] Finished with priors.")
+        else:
+            wti_values = algorithm.run(w_i2Ui1_measurements, scale_factor)
+            logger.debug("[1dsfm] Finished without priors.")
+        # except TypeError as te:
+        #     logger.error(te)
+        #     recovery = TranslationRecovery(w_i2Ui1_measurements)
+        #     logger.debug("[1dsfm] Constructed OLD TranslationRecovery, about to run.")
+        #     wti_values = recovery.run(scale_factor)
+        #     logger.debug("[1dsfm] Finished.")
 
         # transforming the result to the list of Point3
         wti_list: List[Optional[Point3]] = [None] * num_images

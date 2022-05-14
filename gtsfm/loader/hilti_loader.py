@@ -45,9 +45,9 @@ LIDAR_POSE_RELATIVE_PATH = "lidar/fastlio2.g2o"
 LIDAR_CONSTRAINTS_RELATIVE_PATH = "lidar/constraints.txt"
 IMAGES_FOLDER = "images"
 
-HARD_RELATIVE_POSE_PRIOR_SIGMA = np.ones((6,)) * 1e-3  # CAM_IMU_POSE_PRIOR_SIGMA in BA should have similar value
-SOFT_RELATIVE_POSE_PRIOR_SIGMA = np.ones((6,)) * 3e-2
-SOFT_ABSOLUTE_POSE_PRIOR_SIGMA = np.ones((6,)) * 3e-2
+HARD_RELATIVE_POSE_PRIOR_SIGMA = np.eye(6) * 1e-3  # CAM_IMU_POSE_PRIOR_SIGMA in BA should have similar value
+SOFT_RELATIVE_POSE_PRIOR_SIGMA = np.eye(6) * 3e-2
+SOFT_ABSOLUTE_POSE_PRIOR_SIGMA = np.eye(6) * 3e-2
 
 
 class HiltiLoader(LoaderBase):
