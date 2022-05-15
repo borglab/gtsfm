@@ -5,7 +5,7 @@ Authors: Ayush Baid, John Lambert
 import logging
 import os
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import dask
 import matplotlib
@@ -25,6 +25,7 @@ import gtsfm.utils.viz as viz_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.densify.mvs_base import MVSBase
+from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.feature_extractor import FeatureExtractor
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
@@ -268,11 +269,11 @@ class SceneOptimizer:
         )
 
         if self._save_3d_viz:
-            delayed_results.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_wTi_list))
+            delayed_results.extend(dask.delayed(save_visualizations)(ba_input_graph, ba_output_graph, gt_wTi_list))
 
         if self._save_gtsfm_data:
             delayed_results.extend(
-                save_gtsfm_data(image_graph, image_shapes, image_fnames, ba_input_graph, ba_output_graph)
+                dask.delayed(save_gtsfm_data)(image_graph, image_shapes, image_fnames, ba_input_graph, ba_output_graph)
             )
 
         if self._run_dense_optimizer:
@@ -298,7 +299,7 @@ class SceneOptimizer:
                 metrics_graph_list.append(downsampling_metrics_graph)
 
         # Save metrics to JSON and generate HTML report.
-        delayed_results.extend(save_metrics_reports(metrics_graph_list))
+        delayed_results.extend(dask.delayed(save_metrics_reports)(metrics_graph_list))
 
         # return the entry with just the sfm result
         return ba_output_graph, delayed_results
@@ -334,9 +335,7 @@ def align_estimated_gtsfm_data(
     return ba_input, ba_output, gt_pose_graph
 
 
-def save_visualizations(
-    ba_input_graph: Delayed, ba_output_graph: Delayed, gt_pose_graph: List[Optional[Delayed]]
-) -> List[Delayed]:
+def save_visualizations(ba_input: GtsfmData, ba_output: GtsfmData, gt_poses: List[Optional[Pose3]]) -> None:
     """Save SfmData before and after bundle adjustment and camera poses for visualization.
 
     Accepts delayed GtsfmData before and after bundle adjustment, along with GT poses,
@@ -350,89 +349,63 @@ def save_visualizations(
     Returns:
         A list of Delayed objects after saving the different visualizations.
     """
-    aligned_ba_input_graph = dask.delayed(lambda x, y: x.align_via_Sim3_to_poses(y))(ba_input_graph, gt_pose_graph)
-    aligned_ba_output_graph = dask.delayed(lambda x, y: x.align_via_Sim3_to_poses(y))(ba_output_graph, gt_pose_graph)
-    viz_graph_list = []
-    viz_graph_list.append(dask.delayed(viz_utils.save_sfm_data_viz)(aligned_ba_input_graph, PLOT_BA_INPUT_PATH))
-    viz_graph_list.append(dask.delayed(viz_utils.save_sfm_data_viz)(aligned_ba_output_graph, PLOT_RESULTS_PATH))
-    viz_graph_list.append(
-        dask.delayed(viz_utils.save_camera_poses_viz)(
-            aligned_ba_input_graph, aligned_ba_output_graph, gt_pose_graph, PLOT_RESULTS_PATH
-        )
-    )
-    return viz_graph_list
+    aligned_ba_input = ba_input.align_via_Sim3_to_poses(gt_poses)
+    aligned_ba_output = ba_output.align_via_Sim3_to_poses(gt_poses)
+    viz_utils.save_sfm_data_viz(aligned_ba_input, str(PLOT_BA_INPUT_PATH))
+    viz_utils.save_sfm_data_viz(aligned_ba_output, str(PLOT_BA_INPUT_PATH))
+    viz_utils.save_camera_poses_viz(aligned_ba_input, aligned_ba_output, gt_poses, str(PLOT_RESULTS_PATH))
 
 
 def save_gtsfm_data(
-    image_graph: Optional[List[Delayed]],
+    images: Optional[List[Image]],
     image_shapes: List[Tuple[int, int]],
     image_fnames: List[str],
-    ba_input_graph: Delayed,
-    ba_output_graph: Delayed,
-) -> List[Delayed]:
-    """Saves the Gtsfm data before and after bundle adjustment.
+    ba_input: GtsfmData,
+    ba_output: GtsfmData,
+) -> None:
+    """Saves the Gtsfm data before and after bundle adjustment at RESULTS_PATH and a copy at REACT_RESULTS_PATH
 
     Args:
-        image_graph: input image wrapped as Delayed objects.
-        ba_input_graph: GtsfmData input to bundle adjustment wrapped as Delayed.
-        ba_output_graph: GtsfmData output to bundle adjustment wrapped as Delayed.
-
-    Returns:
-        A list of delayed objects after saving the input and outputs to bundle adjustment.
+        images: list of images (optional).
+        image_shapes: shapes for the images.
+        image_fnames: file names of the images.
+        ba_input: input to bundle adjustment module.
+        ba_output: output to bundle adjustment module.
     """
-    saving_graph_list = []
-    # Save a duplicate in REACT_RESULTS_PATH.
+
     for output_dir in [RESULTS_PATH, REACT_RESULTS_PATH]:
-        # Save the input to Bundle Adjustment (from data association).
-        saving_graph_list.append(
-            dask.delayed(io_utils.export_model_as_colmap_text)(
-                ba_input_graph,
-                image_shapes,
-                image_fnames,
-                image_graph,
-                save_dir=os.path.join(output_dir, "ba_input"),
-            )
+        io_utils.export_model_as_colmap_text(
+            ba_input,
+            image_shapes,
+            image_fnames,
+            images,
+            save_dir=str(output_dir / "ba_input"),
         )
-        # Save the output of Bundle Adjustment.
-        saving_graph_list.append(
-            dask.delayed(io_utils.export_model_as_colmap_text)(
-                ba_output_graph,
-                image_shapes,
-                image_fnames,
-                image_graph,
-                save_dir=os.path.join(output_dir, "ba_output"),
-            )
+        io_utils.export_model_as_colmap_text(
+            ba_output,
+            image_shapes,
+            image_fnames,
+            images,
+            save_dir=str(output_dir / "ba_output"),
         )
-    return saving_graph_list
 
 
-def save_metrics_reports(metrics_graph_list: List[Delayed]) -> List[Delayed]:
+def save_metrics_reports(metrics_graph_list: List[GtsfmMetricsGroup]) -> None:
     """Saves metrics to JSON and HTML report.
 
     Args:
         metrics_graph: List of GtsfmMetricsGroup from different modules wrapped as Delayed.
-
-    Returns:
-        List of delayed objects after saving metrics.
     """
-    save_metrics_graph_list: List[Delayed] = []
 
     if len(metrics_graph_list) == 0:
-        return save_metrics_graph_list
+        return None
 
     # Save metrics to JSON
-    save_metrics_graph_list.append(dask.delayed(metrics_utils.save_metrics_as_json)(metrics_graph_list, METRICS_PATH))
-    save_metrics_graph_list.append(
-        dask.delayed(metrics_utils.save_metrics_as_json)(metrics_graph_list, REACT_METRICS_PATH)
+    metrics_utils.save_metrics_as_json(metrics_graph_list, str(METRICS_PATH))
+    metrics_utils.save_metrics_as_json(metrics_graph_list, str(REACT_METRICS_PATH))
+    metrics_report.generate_metrics_report_html(
+        metrics_graph_list, str(METRICS_PATH / "gtsfm_metrics_report.html"), None
     )
-    save_metrics_graph_list.append(
-        dask.delayed(metrics_report.generate_metrics_report_html)(
-            metrics_graph_list,
-            os.path.join(METRICS_PATH, "gtsfm_metrics_report.html"),
-            None,
-        )
-    )
-    return save_metrics_graph_list
 
 
 def save_full_frontend_metrics(
