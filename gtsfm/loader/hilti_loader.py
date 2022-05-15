@@ -229,7 +229,8 @@ class HiltiLoader(LoaderBase):
         try:
             image_path: Path = self._base_folder / IMAGES_FOLDER / filename
             return io_utils.load_image(str(image_path))
-        except:
+        except Exception as e:
+            print(e)
             return None
 
     def get_camera_intrinsics(self, index: int) -> Optional[Cal3Fisheye]:
