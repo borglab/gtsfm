@@ -289,7 +289,9 @@ def compute_ba_pose_metrics(
         A group of metrics that describe errors associated with a bundle adjustment result (w.r.t. GT).
     """
     wTi_aligned_list = ba_output.get_camera_poses()
-    i2Ui1_dict_gt = get_twoview_translation_directions(gt_wTi_list)
+    possible_img_pair_idxs = list(itertools.combinations(range(len(wTi_aligned_list)), 2))
+
+    i2Ui1_dict_gt = get_twoview_translation_directions(gt_wTi_list, possible_img_pair_idxs)
 
     wRi_aligned_list, wti_aligned_list = get_rotations_translations_from_poses(wTi_aligned_list)
     gt_wRi_list, gt_wti_list = get_rotations_translations_from_poses(gt_wTi_list)
@@ -301,21 +303,20 @@ def compute_ba_pose_metrics(
     return GtsfmMetricsGroup(name="ba_pose_error_metrics", metrics=metrics)
 
 
-def get_twoview_translation_directions(wTi_list: List[Optional[Pose3]]) -> Dict[Tuple[int, int], Optional[Unit3]]:
-    """Generate synthetic measurements of the 2-view translation directions between image pairs.
+def get_twoview_translation_directions(
+    wTi_list: List[Optional[Pose3]], edges: List[Tuple[int, int]]
+) -> Dict[Tuple[int, int], Optional[Unit3]]:
+    """Generate synthetic measurements of the 2-view translation directions for the edges.
 
     Args:
         wTi_list: List of poses (e.g. could be ground truth).
+        edges: edges to get the directions for.
 
     Returns:
         i2Ui1_dict: Dict from (i1, i2) to unit translation direction i2Ui1.
     """
-    number_images = len(wTi_list)  # vs. using ba_output.number_images()
-
-    # check against all possible image pairs -- compute unit translation directions
     i2Ui1_dict = {}
-    possible_img_pair_idxs = list(itertools.combinations(range(number_images), 2))
-    for (i1, i2) in possible_img_pair_idxs:
+    for (i1, i2) in edges:
         # compute the exact relative pose
         if wTi_list[i1] is None or wTi_list[i2] is None:
             i2Ui1 = None

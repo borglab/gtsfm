@@ -49,61 +49,71 @@ class TestHiltiLoader(unittest.TestCase):
         for i in range(len(self.loader)):
             if self.loader.get_absolute_pose_prior(i) is not None:
                 num_valid_priors += 1
-            else:
-                print(f"not found for i={i}")
 
-        # assert all poses have absolute pose priors
-        self.assertEqual(num_valid_priors, len(self.loader))
+        # assert no index should have pose prior
+        self.assertEqual(num_valid_priors, 0)
 
-    def test_get_absolute_pose_priors(self) -> None:
-        # starting frames have no camera movement
-        t0_cam0_prior = self.loader.get_absolute_pose_prior(0)
-        t1_cam0_prior = self.loader.get_absolute_pose_prior(5)
-        self.assertIsNotNone(t0_cam0_prior)
-        if t0_cam0_prior is not None and t1_cam0_prior is not None:
-            self.assertLessEqual(
-                comp_utils.compute_relative_rotation_angle(
-                    t0_cam0_prior.value.rotation(), t1_cam0_prior.value.rotation()
-                ),
-                2,
-            )
-
-            self.assertIsNotNone(t1_cam0_prior)
-            self.assertLessEqual(
-                np.linalg.norm(t0_cam0_prior.value.translation() - t1_cam0_prior.value.translation()), 0.01
-            )
-
-    def test_number_of_relative_pose_priors(self) -> None:
+    def test_number_of_relative_pose_priors_without_subsampling(self) -> None:
         """Check that 3 relative constraints translate into many relative pose priors."""
-        # Just give 3 pairs
-        pairs = [
-            (0, 1),
-            (0, 3),
-            (0, 5),
-        ]
         expected = [
-            (0, 1),
-            (0, 3),
-            (0, 5),
-            (2, 0),
-            (2, 1),
+            # rig 0
+            (0, 2),
+            (1, 2),
             (2, 3),
             (2, 4),
-            (7, 5),
-            (7, 6),
+            (2, 7),
+            (2, 12),
+            # rig 1
+            (5, 7),
+            (6, 7),
             (7, 8),
             (7, 9),
-            (12, 10),
-            (12, 11),
+            (7, 12),
+            # rig 2
+            (10, 12),
+            (11, 12),
             (12, 13),
             (12, 14),
         ]
         expected.sort()
         # Check that "stars" have been added
-        relative_pose_priors = self.loader.get_relative_pose_priors(pairs)
+        relative_pose_priors = self.loader.get_relative_pose_priors()
         actual = list(relative_pose_priors.keys())
         actual.sort()
-        self.assertEqual(len(actual), len(pairs) + 3 * 4)
+        self.assertEqual(len(actual), len(expected))
+        self.assertEqual(actual, expected)
+
+    def test_number_of_relative_pose_priors_with_subsampling(self) -> None:
+        """Check that 3 relative constraints translate into many relative pose priors."""
+        loader = HiltiLoader(
+            base_folder=str(TEST_DATASET_DIR_PATH),
+            max_length=None,
+            subsample=2,
+            old_style=True,
+        )
+
+        expected = [
+            # rig 0
+            (0, 2),
+            (1, 2),
+            (2, 3),
+            (2, 4),
+            (2, 7),
+            (2, 12),
+            # rig 1
+            (7, 12),
+            # rig 2
+            (10, 12),
+            (11, 12),
+            (12, 13),
+            (12, 14),
+        ]
+        expected.sort()
+        # Check that "stars" have been added
+        relative_pose_priors = loader.get_relative_pose_priors()
+        actual = list(relative_pose_priors.keys())
+        actual.sort()
+        self.assertEqual(len(actual), len(expected))
         self.assertEqual(actual, expected)
 
 

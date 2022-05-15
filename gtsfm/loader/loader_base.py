@@ -48,7 +48,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
 
     # ignored-abstractmethod
     @abc.abstractmethod
-    def get_image_full_res(self, index: int) -> Image:
+    def get_image_full_res(self, index: int) -> Optional[Image]:
         """Get the image at the given index, at full resolution.
 
         Args:
@@ -118,7 +118,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
         """
         return idx1 < idx2
 
-    def get_image(self, index: int) -> Image:
+    def get_image(self, index: int) -> Optional[Image]:
         """Get the image at the given index, satisfying a maximum image resolution constraint.
 
         Determine how the camera intrinsics and images should be jointly rescaled based on desired img. resolution.
@@ -138,6 +138,8 @@ class LoaderBase(metaclass=abc.ABCMeta):
         # No downsampling may be required, in which case target_h and target_w will be identical
         # to the full res height & width.
         img_full_res = self.get_image_full_res(index)
+        if img_full_res is None:
+            return None
         if min(img_full_res.height, img_full_res.width) <= self._max_resolution:
             return img_full_res
 
@@ -198,7 +200,10 @@ class LoaderBase(metaclass=abc.ABCMeta):
     def get_image_shape(self, idx: int) -> Tuple[int, int]:
         """Return a (H,W) tuple for each image"""
         image = self.get_image(idx)
-        return (image.height, image.width)
+        if image is not None:
+            return (image.height, image.width)
+        else:
+            return (0, 0)
 
     def get_relative_pose_prior(self, i1: int, i2: int) -> Optional[PosePrior]:
         """Get the prior on the relative pose i2Ti1
@@ -212,18 +217,13 @@ class LoaderBase(metaclass=abc.ABCMeta):
         """
         return None
 
-    def get_relative_pose_priors(self, pairs: List[Tuple[int, int]]) -> Dict[Tuple[int, int], PosePrior]:
+    def get_relative_pose_priors(self) -> Dict[Tuple[int, int], PosePrior]:
         """Get *all* relative pose priors for i2Ti1
-
-        Args:
-            pairs: all (i1,i2) pairs of image pairs
 
         Returns:
             A dictionary of PosePriors (or None) for all pairs.
         """
-
-        pairs = {pair: self.get_relative_pose_prior(*pair) for pair in pairs}
-        return {pair: prior for pair, prior in pairs.items() if prior is not None}
+        return {}
 
     def get_absolute_pose_prior(self, idx: int) -> Optional[PosePrior]:
         """Get the prior on the pose of camera at idx in the world coordinates.
@@ -281,7 +281,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
         N = len(self)
         return [self.get_camera(i) for i in range(N)]
 
-    def get_image_shapes(self) -> List[Tuple[int,int]]:
+    def get_image_shapes(self) -> List[Tuple[int, int]]:
         """Return all the image shapes.
 
         Returns:
@@ -289,6 +289,11 @@ class LoaderBase(metaclass=abc.ABCMeta):
         """
         N = len(self)
         return [self.get_image_shape(i) for i in range(N)]
+
+    def get_image_fnames(self) -> List[str]:
+        """Returns the name of all images."""
+
+        return [self.get_image(i).file_name for i in range(len(self))]
 
     def get_valid_pairs(self) -> List[Tuple[int, int]]:
         """Get the valid pairs of images for this loader.

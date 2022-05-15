@@ -31,7 +31,11 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
     """Superpoint Detector+Descriptor implementation."""
 
     def __init__(
-        self, max_keypoints: int = 5000, use_cuda: bool = True, weights_path: Union[Path, str] = MODEL_WEIGHTS_PATH
+        self,
+        max_keypoints: int = 5000,
+        use_cuda: bool = True,
+        weights_path: Union[Path, str] = MODEL_WEIGHTS_PATH,
+        init_model_in_constructor: bool = False,
     ) -> None:
         """Configures the object.
 
@@ -39,22 +43,33 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
             max_keypoints: max keypoints to detect in an image.
             use_cuda (optional): flag controlling the use of GPUs via CUDA. Defaults to True.
             weights_path (optional): Path to the model weights. Defaults to MODEL_WEIGHT_PATH.
+            init_model_in_constructor: flag to control initialization of weights.
         """
         super().__init__(max_keypoints=max_keypoints)
         self._use_cuda = use_cuda and torch.cuda.is_available()
         self._config = {"weights_path": weights_path}
 
+        # TODO: do not merge to master. Models should not be initialized in constructors for dask.
+        self.device = torch.device("cuda" if self._use_cuda else "cpu")
+        if init_model_in_constructor:
+            self.model = SuperPoint(self._config).to(self.device)
+            self.model.eval()
+        else:
+            self.model = None
+
     def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
         """Jointly generate keypoint detections and their associated descriptors from a single image."""
         # TODO(ayushbaid): fix inference issue #110
-        device = torch.device("cuda" if self._use_cuda else "cpu")
-        model = SuperPoint(self._config).to(device)
-        model.eval()
+        if self.model is not None:
+            model = self.model
+        else:
+            model = SuperPoint(self._config).to(self.device)
+            model.eval()
 
         # Compute features.
         image_tensor = torch.from_numpy(
             np.expand_dims(image_utils.rgb_to_gray_cv(image).value_array.astype(np.float32) / 255.0, (0, 1))
-        ).to(device)
+        ).to(self.device)
         with torch.no_grad():
             model_results = model({"image": image_tensor})
         torch.cuda.empty_cache()

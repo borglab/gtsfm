@@ -413,6 +413,10 @@ class GtsfmData:
                 filtered_data.add_camera(i, self.get_camera(i))
             filtered_data.add_track(track)
 
+        # TODO(Ayush): remove this
+        # hack for hilti -> to get all CAM2s))
+        filtered_data._cameras = self._cameras
+
         return filtered_data, valid_mask
 
     def align_via_Sim3_to_poses(self, wTi_list_ref: List[Optional[Pose3]]) -> "GtsfmData":

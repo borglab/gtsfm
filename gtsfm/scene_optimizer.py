@@ -5,13 +5,13 @@ Authors: Ayush Baid, John Lambert
 import logging
 import os
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import dask
 import matplotlib
 import numpy as np
 from trimesh import Trimesh
-from gtsam import Pose3, Similarity3
+from gtsam import Pose3, Rot3, Similarity3, Unit3
 from dask.delayed import Delayed
 from gtsfm.common.pose_prior import PosePrior
 
@@ -160,13 +160,11 @@ class SceneOptimizer:
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         gt_wTi_list: List[Optional[Pose3]],
+        image_fnames: List[str],
         gt_scene_mesh: Optional[Trimesh] = None,
         matching_regime: ImageMatchingRegime = ImageMatchingRegime.SEQUENTIAL,
     ) -> Tuple[Delayed, List[Delayed]]:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
-
-        # auxiliary graph elements for visualizations and saving intermediate data for analysis.
-        delayed_results = []
 
         # detection and description graph
         delayed_keypoints = []
@@ -205,19 +203,55 @@ class SceneOptimizer:
             i2Ui1_graph_dict[(i1, i2)] = i2Ui1
             v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
 
+        return self.create_computation_graph_for_backend(
+            num_images=num_images,
+            delayed_keypoints=delayed_keypoints,
+            i2Ri1_dict=i2Ri1_graph_dict,
+            i2Ui1_dict=i2Ui1_graph_dict,
+            v_corr_idxs_dict=v_corr_idxs_graph_dict,
+            image_graph=image_graph,
+            all_intrinsics=all_intrinsics,
+            absolute_pose_priors=absolute_pose_priors,
+            relative_pose_priors=relative_pose_priors,
+            cameras_gt=cameras_gt,
+            gt_wTi_list=gt_wTi_list,
+            image_shapes=image_shapes,
+            image_fnames=image_fnames,
+        )
+
+    def create_computation_graph_for_backend(
+        self,
+        num_images: int,
+        delayed_keypoints: List[Delayed],
+        i2Ri1_dict: Dict[Tuple[int, int], Union[Delayed, Optional[Rot3]]],
+        i2Ui1_dict: Dict[Tuple[int, int], Union[Delayed, Optional[Unit3]]],
+        v_corr_idxs_dict: Dict[Tuple[int, int], Union[Delayed, Optional[np.ndarray]]],
+        image_graph: List[Delayed],
+        all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
+        absolute_pose_priors: List[Optional[PosePrior]],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+        cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
+        gt_wTi_list: List[Optional[Pose3]],
+        image_shapes: List[Tuple[int, int]],
+        image_fnames: List[str],
+    ) -> Tuple[Delayed, List[Delayed]]:
+
+        # auxiliary graph elements for visualizations and saving intermediate data for analysis.
+        delayed_results = []
+
         # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
         (ba_input_graph, ba_output_graph, optimizer_metrics_graph) = self.multiview_optimizer.create_computation_graph(
-            image_graph,
             num_images,
             delayed_keypoints,
-            i2Ri1_graph_dict,
-            i2Ui1_graph_dict,
-            v_corr_idxs_graph_dict,
+            i2Ri1_dict,
+            i2Ui1_dict,
+            v_corr_idxs_dict,
             all_intrinsics,
             absolute_pose_priors,
             relative_pose_priors,
             cameras_gt,
             gt_wTi_list,
+            image_graph,
         )
 
         # Persist all front-end metrics and their summaries.
@@ -237,7 +271,9 @@ class SceneOptimizer:
             delayed_results.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_wTi_list))
 
         if self._save_gtsfm_data:
-            delayed_results.extend(save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph))
+            delayed_results.extend(
+                save_gtsfm_data(image_graph, image_shapes, image_fnames, ba_input_graph, ba_output_graph)
+            )
 
         if self._run_dense_optimizer:
             img_dict_graph = dask.delayed(get_image_dictionary)(image_graph)
@@ -327,7 +363,13 @@ def save_visualizations(
     return viz_graph_list
 
 
-def save_gtsfm_data(image_graph: List[Delayed], ba_input_graph: Delayed, ba_output_graph: Delayed) -> List[Delayed]:
+def save_gtsfm_data(
+    image_graph: Optional[List[Delayed]],
+    image_shapes: List[Tuple[int, int]],
+    image_fnames: List[str],
+    ba_input_graph: Delayed,
+    ba_output_graph: Delayed,
+) -> List[Delayed]:
     """Saves the Gtsfm data before and after bundle adjustment.
 
     Args:
@@ -345,6 +387,8 @@ def save_gtsfm_data(image_graph: List[Delayed], ba_input_graph: Delayed, ba_outp
         saving_graph_list.append(
             dask.delayed(io_utils.export_model_as_colmap_text)(
                 ba_input_graph,
+                image_shapes,
+                image_fnames,
                 image_graph,
                 save_dir=os.path.join(output_dir, "ba_input"),
             )
@@ -353,6 +397,8 @@ def save_gtsfm_data(image_graph: List[Delayed], ba_input_graph: Delayed, ba_outp
         saving_graph_list.append(
             dask.delayed(io_utils.export_model_as_colmap_text)(
                 ba_output_graph,
+                image_shapes,
+                image_fnames,
                 image_graph,
                 save_dir=os.path.join(output_dir, "ba_output"),
             )

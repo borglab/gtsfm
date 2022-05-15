@@ -22,10 +22,8 @@ SceneOptimizer:
       bundle_adjust_2view_maxiters: 5
 
       matcher:
-        _target_: gtsfm.frontend.cacher.matcher_cacher.MatcherCacher
-        matcher_obj:
-          _target_: gtsfm.frontend.matcher.superglue_matcher.SuperGlueMatcher
-          use_outdoor_model: True
+        _target_: gtsfm.frontend.matcher.superglue_matcher.SuperGlueMatcher
+        use_outdoor_model: True
 
       verifier:
         _target_: gtsfm.frontend.verifier.ransac.Ransac
@@ -46,10 +44,10 @@ SceneOptimizer:
     #   edge_error_aggregation_criterion: MEDIAN_EDGE_ERROR
       
     rot_avg_module:
-      _target_: gtsfm.averaging.rotation.rig_shonan.RigShonanRotationAveraging
+      _target_: gtsfm.averaging.rotation.shonan.ShonanRotationAveraging
 
     trans_avg_module:
-      _target_: gtsfm.averaging.translation.rig_1dsfm.RigTranslationAveraging1DSFM
+      _target_: gtsfm.averaging.translation.averaging_1dsfm.TranslationAveraging1DSFM
       robust_measurement_noise: True
       projection_sampling_method: SAMPLE_INPUT_MEASUREMENTS
       MFAS_outlier_rejection: False
@@ -67,7 +65,7 @@ SceneOptimizer:
       save_track_patches_viz: False
 
     bundle_adjustment_module:
-      _target_: gtsfm.bundle.rig_bundle_adjustment.RigBundleAdjustmentOptimizer
+      _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptimizer
       output_reproj_error_thresh: 3 # for post-optimization filtering
       robust_measurement_noise: True
       shared_calib: False

@@ -113,9 +113,7 @@ class GtsfmRunnerBase:
             retriever = SequentialHiltiRetriever(max_frame_lookahead=self.parsed_args.max_frame_lookahead)
 
         elif matching_regime == ImageMatchingRegime.RIG_HILTI:
-            retriever = RigRetriever(
-                threshold=self.parsed_args.proxy_threshold, subsample=self.parsed_args.subsample is True
-            )
+            retriever = RigRetriever(threshold=self.parsed_args.proxy_threshold, subsample=self.parsed_args.subsample)
 
         return retriever
 
@@ -140,10 +138,11 @@ class GtsfmRunnerBase:
             image_graph=self.loader.create_computation_graph_for_images(),
             all_intrinsics=self.loader.get_all_intrinsics(),
             image_shapes=self.loader.get_image_shapes(),
-            relative_pose_priors=self.loader.get_relative_pose_priors(image_pair_indices),
+            relative_pose_priors=self.loader.get_relative_pose_priors(),
             absolute_pose_priors=self.loader.get_absolute_pose_priors(),
             cameras_gt=self.loader.get_gt_cameras(),
             gt_wTi_list=self.loader.get_gt_poses(),
+            image_fnames=self.loader.get_image_fnames(),
             matching_regime=ImageMatchingRegime(self.parsed_args.matching_regime),
         )
 

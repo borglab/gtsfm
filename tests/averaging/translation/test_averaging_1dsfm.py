@@ -8,13 +8,15 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 import dask
+import gtsam
 import numpy as np
 from gtsam import Cal3_S2, Point3, Pose3, Rot3, Unit3
 from gtsam.examples import SFMdata
+from gtsfm.common.pose_prior import PosePrior, PosePriorType
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
 
-import tests.data.sample_poses as sample_poses
+import gtsfm.utils.sample_poses as sample_poses
 from gtsfm.averaging.translation.averaging_1dsfm import TranslationAveraging1DSFM
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.loader.olsson_loader import OlssonLoader
@@ -32,14 +34,69 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
     def setUp(self):
         super().setUp()
 
-        self.obj: TranslationAveragingBase = TranslationAveraging1DSFM()
+        self.obj: TranslationAveraging1DSFM = TranslationAveraging1DSFM()
+
+    def test_augmentation(self):
+        """Tests that measurements for betweenTranslations are augmented to input measurements."""
+        input_measurements = gtsam.BinaryMeasurementsUnit3()
+        INPUT_NOISE_MODEL = gtsam.noiseModel.Isotropic.Sigma(2, 1e-2)
+        input_measurements.append(gtsam.BinaryMeasurementUnit3(0, 1, Unit3(Point3(1, 0, 0)), INPUT_NOISE_MODEL))
+        input_measurements.append(gtsam.BinaryMeasurementUnit3(0, 2, Unit3(Point3(0, 1, 0)), INPUT_NOISE_MODEL))
+        input_measurements.append(gtsam.BinaryMeasurementUnit3(1, 2, Unit3(Point3(0, 0, 1)), INPUT_NOISE_MODEL))
+
+        priors = gtsam.BinaryMeasurementsPoint3()
+        PRIOR_NOISE_MODEL = gtsam.noiseModel.Isotropic.Sigma(3, 1e-2)
+        priors.append(gtsam.BinaryMeasurementPoint3(0, 2, Point3(1, 1, 0), PRIOR_NOISE_MODEL))
+        priors.append(gtsam.BinaryMeasurementPoint3(2, 3, Point3(1, 0, 1), PRIOR_NOISE_MODEL))
+
+        augmented_measurements = self.obj.augment(input_measurements, priors, INPUT_NOISE_MODEL)
+        self.assertEqual(len(augmented_measurements), 4)
+        augmented_measurements_dict = {}
+        for idx in range(len(augmented_measurements)):
+            measurement = augmented_measurements[idx]
+            augmented_measurements_dict[(measurement.key1(), measurement.key2())] = measurement.measured()
+        self.assertSetEqual(set(augmented_measurements_dict.keys()), set([(0, 1), (0, 2), (1, 2), (2, 3)]))
+        np.testing.assert_array_equal(augmented_measurements_dict[2, 3].point3(), Unit3(Point3(1, 0, 1)).point3())
+
+    def test_convert_prior_to_world_frame(self):
+        """Test the helper method for transforming betweenTranslations to world frame."""
+        # Rotate i1 by 90 degrees in Z, and translate by (1, 1, 1)
+        wRi1 = Rot3.Rz(np.deg2rad(90))
+        i1Ti2 = Pose3(Rot3(), Point3(2, 0, 1))  # Identity rotation, X axis.
+
+        prior_covariance = np.zeros((6, 6))
+        for i in range(6):
+            prior_covariance[i, i] = 1.0 if i != 3 else 2.0
+        i1Ti2_prior = PosePrior(value=i1Ti2, covariance=prior_covariance, type=PosePriorType.SOFT_CONSTRAINT)
+
+        wRi_list = [Rot3(), wRi1, Rot3()]   # identity for 0 and 2, wRi1 for 1
+        w_i1ti2_priors = self.obj._get_prior_measurements_in_world_frame({(1, 2): i1Ti2_prior}, wRi_list)
+        # Check length
+        self.assertEqual(len(w_i1ti2_priors), 1)
+
+        # Check keys
+        actual_i1 = w_i1ti2_priors[0].key1()
+        actual_i2 = w_i1ti2_priors[0].key2()
+        self.assertEqual(actual_i1, 1)
+        self.assertEqual(actual_i2, 2)
+
+        # Check value
+        actual_w_i1ti2 = w_i1ti2_priors[0].measured()
+        np.testing.assert_array_almost_equal(actual_w_i1ti2, Point3(0, 2, 1))
+
+        # Check covariance
+        actual_covariance = w_i1ti2_priors[0].noiseModel().covariance()
+        expected_covariance = np.eye(3)
+        expected_covariance[1, 1] = 2.0
+        np.testing.assert_array_almost_equal(actual_covariance, expected_covariance)
+        
 
     def __execute_test(
         self, i2Ui1_input: Dict[Tuple[int, int], Unit3], wRi_input: List[Rot3], wti_expected: List[Point3]
     ) -> None:
         """Helper function to run the averagaing and assert w/ expected."""
 
-        wti_computed, _ = self.obj.run(len(wRi_input), i2Ui1_input, wRi_input)
+        wti_computed, _ = self.obj.run_translation_averaging(len(wRi_input), i2Ui1_input, wRi_input)
 
         wTi_computed = [Pose3(wRi, wti) for wRi, wti in zip(wRi_input, wti_computed)]
         wTi_expected = [Pose3(wRi, wti) for wRi, wti in zip(wRi_input, wti_expected)]
@@ -130,7 +187,7 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
                 i2Ui1_dict[(i1, i2)] = Unit3(expected_wTi_list[i2].between(expected_wTi_list[i1]).translation())
 
         # use the `run` API to get expected results, ignore the metrics
-        wti_expected, _ = self.obj.run(len(wRi_list), i2Ui1_dict, wRi_list)
+        wti_expected, _ = self.obj.run_translation_averaging(len(wRi_list), i2Ui1_dict, wRi_list)
 
         # form computation graph and execute
         i2Ui1_graph = dask.delayed(i2Ui1_dict)
@@ -163,10 +220,10 @@ class Test1dsfmAllOutliers(unittest.TestCase):
 
     def test_outlier_case_missing_value(self) -> None:
         """Ensure that a missing `Value` in the 1dsfm result is represented by `None` in the returned entries.
-        
+
         The scenario below will lead to an outlier configuration -- all edges to the node 4 will be rejected
         as outliers, so that Value cannot be cast to Point3 -- it is returned as None.
-        
+
         This test ensures that 1dsfm checks if each Value exists in 1dsfm result, before casting it to a Point3.
         """
         # fmt: off
@@ -218,7 +275,7 @@ class Test1dsfmAllOutliers(unittest.TestCase):
             (3, 4): np.array([0.994791, -0.033332, -0.0963361]),
         }
         i2Ui1_input = {(i, j): Unit3(t) for (i, j), t in i2Ui1_input.items()}
-        wti_computed, _ = self.obj.run(len(wRi_input), i2Ui1_input, wRi_input)
+        wti_computed, _ = self.obj.run_translation_averaging(len(wRi_input), i2Ui1_input, wRi_input)
 
         assert len(wti_computed) == 5
         assert wti_computed[-1] is None

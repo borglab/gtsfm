@@ -28,7 +28,7 @@ DEFAULT_NUM_SINKHORN_ITERATIONS = 20
 class SuperGlueMatcher(MatcherBase):
     """Implements the SuperGlue matcher -- a pretrained graph neural network using attention."""
 
-    def __init__(self, use_cuda: bool = True, use_outdoor_model: bool = True):
+    def __init__(self, use_cuda: bool = True, use_outdoor_model: bool = True, init_model_in_constructor: bool = False):
         """Initialize the configuration and the parameters."""
         super().__init__()
 
@@ -38,6 +38,13 @@ class SuperGlueMatcher(MatcherBase):
             "sinkhorn_iterations": DEFAULT_NUM_SINKHORN_ITERATIONS,
         }
         self._use_cuda = use_cuda and torch.cuda.is_available()
+
+        # TODO: do not merge to master. Models should not be initialized in constructors for dask.
+        self.device = torch.device("cuda" if self._use_cuda else "cpu")
+        if init_model_in_constructor:
+            self.model = SuperGlue(self._config).to(self.device).eval()
+        else:
+            self.model = None
 
     def match(
         self,
@@ -73,9 +80,6 @@ class SuperGlueMatcher(MatcherBase):
         if descriptors_i1.shape[1] != SUPERGLUE_DESC_DIM or descriptors_i2.shape[1] != SUPERGLUE_DESC_DIM:
             raise Exception("Superglue pretrained network only works on 256 dimensional descriptors")
 
-        device = torch.device("cuda" if self._use_cuda else "cpu")
-        model = SuperGlue(self._config).to(device).eval()
-
         # batch size and number of channels
         B, C = 1, 1
 
@@ -86,15 +90,20 @@ class SuperGlueMatcher(MatcherBase):
         empty_image_i2 = torch.empty((B, C, H2, W2))
 
         input_data = {
-            "keypoints0": torch.from_numpy(keypoints_i1.coordinates).unsqueeze(0).float().to(device),
-            "keypoints1": torch.from_numpy(keypoints_i2.coordinates).unsqueeze(0).float().to(device),
-            "descriptors0": torch.from_numpy(descriptors_i1).T.unsqueeze(0).float().to(device),
-            "descriptors1": torch.from_numpy(descriptors_i2).T.unsqueeze(0).float().to(device),
-            "scores0": torch.from_numpy(keypoints_i1.responses).unsqueeze(0).float().to(device),
-            "scores1": torch.from_numpy(keypoints_i2.responses).unsqueeze(0).float().to(device),
+            "keypoints0": torch.from_numpy(keypoints_i1.coordinates).unsqueeze(0).float().to(self.device),
+            "keypoints1": torch.from_numpy(keypoints_i2.coordinates).unsqueeze(0).float().to(self.device),
+            "descriptors0": torch.from_numpy(descriptors_i1).T.unsqueeze(0).float().to(self.device),
+            "descriptors1": torch.from_numpy(descriptors_i2).T.unsqueeze(0).float().to(self.device),
+            "scores0": torch.from_numpy(keypoints_i1.responses).unsqueeze(0).float().to(self.device),
+            "scores1": torch.from_numpy(keypoints_i2.responses).unsqueeze(0).float().to(self.device),
             "image0": empty_image_i1,
             "image1": empty_image_i2,
         }
+
+        if self.model is not None:
+            model = self.model
+        else:
+            model = SuperGlue(self._config).to(self.device).eval()
 
         with torch.no_grad():
             pred = model(input_data)

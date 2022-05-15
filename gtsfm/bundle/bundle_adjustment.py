@@ -128,7 +128,7 @@ class BundleAdjustmentOptimizer:
         """Generate BetweenFactors on relative poses for pose variables."""
         graph = NonlinearFactorGraph()
 
-        for (i1, i2), i2Ti1_prior in relative_pose_priors.items():
+        for (i1, i2), i1Ti2_prior in relative_pose_priors.items():
             if i1 not in cameras_to_model or i2 not in cameras_to_model:
                 continue
 
@@ -136,8 +136,8 @@ class BundleAdjustmentOptimizer:
                 BetweenFactorPose3(
                     X(i1),
                     X(i2),
-                    i2Ti1_prior.value.inverse(),
-                    gtsam.noiseModel.Diagonal.Sigmas(i2Ti1_prior.covariance),
+                    i1Ti2_prior.value,
+                    gtsam.noiseModel.Gaussian.Covariance(i1Ti2_prior.covariance),
                 )
             )
 
@@ -265,7 +265,7 @@ class BundleAdjustmentOptimizer:
         result_values = lm.optimize()
         return result_values
 
-    def __cameras_to_model(
+    def _cameras_to_model(
         self,
         initial_data: GtsfmData,
         absolute_pose_priors: List[Optional[PosePrior]],
@@ -274,6 +274,17 @@ class BundleAdjustmentOptimizer:
         """Get the cameras which are to be modeled in the factor graph. We are using ability to add initial values as
         proxy for this function."""
         cameras: Set[int] = set(initial_data.get_valid_camera_indices())
+
+        # Add all relative pose priors have atleast one node in the GTSFM's data valid cameras.
+        for i1, i2 in relative_pose_priors.keys():
+            if i1 in cameras or i2 in cameras:
+                cameras.add(i1)
+                cameras.add(i2)
+
+        # Hilti specific hack to add the backbone of CAM2-CAM2
+        # TODO(Ayush): move this to a hilti specific branch
+        for i in range(2, initial_data.number_images(), 5):
+            cameras.add(i)
 
         return sorted(list(cameras))
 
@@ -308,7 +319,7 @@ class BundleAdjustmentOptimizer:
             )
             return initial_data, initial_data, [False] * initial_data.number_tracks()
 
-        cameras_to_model = self.__cameras_to_model(initial_data, absolute_pose_priors, relative_pose_priors)
+        cameras_to_model = self._cameras_to_model(initial_data, absolute_pose_priors, relative_pose_priors)
 
         graph = self.__construct_factor_graph(
             cameras_to_model=cameras_to_model,
@@ -327,7 +338,7 @@ class BundleAdjustmentOptimizer:
             logger.info(f"[BA] final error: {final_error:.2f}")
 
         # construct the results
-        optimized_data = values_to_gtsfm_data(result_values, initial_data, self._shared_calib)
+        optimized_data = values_to_gtsfm_data(result_values, initial_data, cameras_to_model, self._shared_calib)
 
         if verbose:
             logger.info("[BA] Number of tracks before filtering: %d", optimized_data.number_tracks())
@@ -415,13 +426,16 @@ class BundleAdjustmentOptimizer:
         return filtered_sfm_data, metrics_graph
 
 
-def values_to_gtsfm_data(values: Values, initial_data: GtsfmData, shared_calib: bool) -> GtsfmData:
+def values_to_gtsfm_data(
+    values: Values, initial_data: GtsfmData, cameras_modeled: List[int], shared_calib: bool
+) -> GtsfmData:
     """Cast results from the optimization to GtsfmData object.
 
     Args:
         values: results of factor graph optimization.
         initial_data: data used to generate the factor graph; used to extract information about poses and 3d points in
                       the graph.
+        cameras_modeled: the cameras modeled in the factor graph.
         shared_calib: flag indicating if calibrations were shared between the cameras.
 
     Returns:
@@ -437,7 +451,7 @@ def values_to_gtsfm_data(values: Values, initial_data: GtsfmData, shared_calib: 
     camera_class = PinholeCameraCal3Fisheye if is_fisheye_calibration else PinholeCameraCal3Bundler
 
     # add cameras
-    for i in initial_data.get_valid_camera_indices():
+    for i in cameras_modeled:
         result.add_camera(
             i,
             camera_class(values.atPose3(X(i)), cal3_value_extraction_lambda(i)),
