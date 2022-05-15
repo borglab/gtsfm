@@ -42,7 +42,7 @@ def run_frontend(
 
     # detection and description graph
     delayed_features = {
-        i: feature_extractor.create_computation_graph(delayed_image) for i, delayed_image in images_graph.items()
+        i: feature_extractor.create_computation_graph(image_graph) for i, image_graph in images_graph.items()
     }
 
     # estimate two-view geometry and get indices of verified correspondences.

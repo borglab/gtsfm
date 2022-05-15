@@ -114,8 +114,8 @@ class SceneOptimizer:
 
         # detection and description graph
         delayed_features = {
-            i: self.feature_extractor.create_computation_graph(delayed_image)
-            for i, delayed_image in images_graph.items()
+            i: self.feature_extractor.create_computation_graph(image_graph)
+            for i, image_graph in images_graph.items()
         }
 
         # Estimate two-view geometry and get indices of verified correspondences.
@@ -166,8 +166,8 @@ class SceneOptimizer:
 
         # detection and description graph
         delayed_features: Dict[int, Tuple[Delayed, Delayed]] = {
-            i: self.feature_extractor.create_computation_graph(delayed_image)
-            for i, delayed_image in images_graph.items()
+            i: self.feature_extractor.create_computation_graph(image_graph)
+            for i, image_graph in images_graph.items()
         }
 
         # Estimate two-view geometry and get indices of verified correspondences.
