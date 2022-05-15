@@ -11,7 +11,7 @@ Authors: Sushmita Warrier, Xiaolong Wu, John Lambert
 """
 import os
 from collections import Counter
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Tuple, Union
 
 import dask
 import numpy as np
@@ -192,7 +192,7 @@ class DataAssociation(NamedTuple):
         self,
         num_images: int,
         cameras: Delayed,
-        corr_idxs_graph: Dict[Tuple[int, int], Delayed],
+        corr_idxs_graph: Dict[Tuple[int, int], Union[Delayed, Optional[np.ndarray]]],
         delayed_features: Dict[int, Tuple[Delayed, Delayed]],
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
@@ -204,10 +204,10 @@ class DataAssociation(NamedTuple):
             num_images: number of images in the scene.
             cameras: list of cameras wrapped up as Delayed.
             corr_idxs_graph: dictionary of correspondence indices, each value wrapped up as Delayed.
-            delayed_features: list of wrapped up keypoints/descriptors for each image.
+            delayed_features: dict of wrapped up keypoints/descriptors for each image.
             cameras_gt: a list of cameras with ground truth params, if they exist.
             relative_pose_priors: pose priors on the relative pose between camera poses.
-            images_graph: a list of all images in scene (optional and only for track patch visualization)
+            images_graph: a dict of all images in scene (optional and only for track patch visualization)
 
         Returns:
             ba_input_graph: GtsfmData object wrapped up using dask.delayed
