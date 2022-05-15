@@ -184,7 +184,7 @@ class HiltiLoader(LoaderBase):
         """
         return self.num_rig_poses * NUM_CAMS
 
-    def get_image(self, index: int) -> Image:
+    def get_image(self, index: int) -> Optional[Image]:
         return self.get_image_full_res(index)
 
     # def get_image_undistorted(self, index: int) -> Image:
@@ -206,7 +206,7 @@ class HiltiLoader(LoaderBase):
 
     #     return Image(value_array=undistorted_image_array, exif_data={})
 
-    def get_image_full_res(self, index: int) -> Image:
+    def get_image_full_res(self, index: int) -> Optional[Image]:
         """Get the image at the given index, at full resolution.
 
         Args:
@@ -223,8 +223,11 @@ class HiltiLoader(LoaderBase):
         else:
             filename = f"{self.rig_from_image(index)}_{self.camera_from_image(index)}.png"
 
-        image_path: Path = self._base_folder / IMAGES_FOLDER / filename
-        return io_utils.load_image(str(image_path))
+        try:
+            image_path: Path = self._base_folder / IMAGES_FOLDER / filename
+            return io_utils.load_image(str(image_path))
+        except:
+            return None
 
     def get_camera_intrinsics(self, index: int) -> Optional[Cal3Fisheye]:
         return self.get_camera_intrinsics_full_res(index)
