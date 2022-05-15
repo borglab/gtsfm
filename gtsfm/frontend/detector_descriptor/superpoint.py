@@ -44,19 +44,21 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
         self._use_cuda = use_cuda and torch.cuda.is_available()
         self._config = {"weights_path": weights_path}
 
+        # TODO: remove this before running the whole hilti
+        self.device = torch.device("cuda" if self._use_cuda else "cpu")
+        self.model = SuperPoint(self._config).to(self.device)
+        self.model.eval()
+
     def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
         """Jointly generate keypoint detections and their associated descriptors from a single image."""
         # TODO(ayushbaid): fix inference issue #110
-        device = torch.device("cuda" if self._use_cuda else "cpu")
-        model = SuperPoint(self._config).to(device)
-        model.eval()
 
         # Compute features.
         image_tensor = torch.from_numpy(
             np.expand_dims(image_utils.rgb_to_gray_cv(image).value_array.astype(np.float32) / 255.0, (0, 1))
-        ).to(device)
+        ).to(self.device)
         with torch.no_grad():
-            model_results = model({"image": image_tensor})
+            model_results = self.model({"image": image_tensor})
         torch.cuda.empty_cache()
 
         # Unpack results.
