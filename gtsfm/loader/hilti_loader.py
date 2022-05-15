@@ -112,7 +112,7 @@ class HiltiLoader(LoaderBase):
         # cast them to dictionary
         return {(constraint.a, constraint.b): constraint for constraint in constraints}
 
-    def _filter_outlier_constraints(self, constraints) ->  Dict[Tuple[int, int], Constraint]:
+    def _filter_outlier_constraints(self, constraints: Dict[Tuple[int, int], Constraint]) ->  Dict[Tuple[int, int], Constraint]:
         """Removes 1-step constraints for which the translation magnitude is greater than 2 or 3-step constraints."""
         constraint_magnitudes = {}
         for (a, b), constraint in constraints.items():
