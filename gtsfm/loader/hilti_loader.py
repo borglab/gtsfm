@@ -84,7 +84,7 @@ class HiltiLoader(LoaderBase):
             self._cam_T_imu_poses[cam_idx] = calibration[1]
 
         # Jacobian for transforming covariance
-        self._cam2_J_imu_relative: np.array = self._cam_T_imu_poses[2].AdjointMap()
+        self._cam2_J_imu_relative: np.ndarray = self._cam_T_imu_poses[2].AdjointMap()
 
         # Check how many images are on disk.
         self.num_rig_poses: int = self.__get_num_rig_poses()
@@ -349,4 +349,3 @@ class HiltiLoader(LoaderBase):
             image_fnames.append(filename)
 
         return image_fnames
-        

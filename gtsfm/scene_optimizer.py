@@ -165,15 +165,15 @@ class SceneOptimizer:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
 
         # detection and description graph
-        delayed_features = {
+        delayed_features: Dict[int, Tuple[Delayed, Delayed]] = {
             i: self.feature_extractor.create_computation_graph(delayed_image)
             for i, delayed_image in delayed_images.items()
         }
 
         # Estimate two-view geometry and get indices of verified correspondences.
-        i2Ri1_dict = {}
-        i2Ui1_dict = {}
-        v_corr_idxs_graph_dict: Dict[Tuple[int, int], Delayed] = {}
+        i2Ri1_dict: Dict[Tuple[int, int], Union[Delayed, Optional[Rot3]]] = {}
+        i2Ui1_dict: Dict[Tuple[int, int], Union[Delayed, Optional[Unit3]]] = {}
+        v_corr_idxs_dict: Dict[Tuple[int, int], Union[Delayed, Optional[np.ndarray]]] = {}
         for (i1, i2) in image_pair_indices:
             # Collect ground truth relative and absolute poses if available.
             # TODO(johnwlambert): decompose this method -- name it as "calling_the_plate()"
@@ -197,14 +197,14 @@ class SceneOptimizer:
             # Store results.
             i2Ri1_dict[(i1, i2)] = i2Ri1
             i2Ui1_dict[(i1, i2)] = i2Ui1
-            v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
+            v_corr_idxs_dict[(i1, i2)] = v_corr_idxs
 
         return self.create_computation_graph_for_backend(
             num_images=num_images,
             delayed_features=delayed_features,
             i2Ri1_dict=i2Ri1_dict,
             i2Ui1_dict=i2Ui1_dict,
-            v_corr_idxs_dict=v_corr_idxs_graph_dict,
+            v_corr_idxs_dict=v_corr_idxs_dict,
             delayed_images=delayed_images,
             all_intrinsics=all_intrinsics,
             absolute_pose_priors=absolute_pose_priors,
@@ -218,7 +218,7 @@ class SceneOptimizer:
     def create_computation_graph_for_backend(
         self,
         num_images: int,
-        delayed_features: Dict[int, Delayed],
+        delayed_features: Dict[int, Tuple[Delayed, Delayed]],
         i2Ri1_dict: Dict[Tuple[int, int], Union[Delayed, Optional[Rot3]]],
         i2Ui1_dict: Dict[Tuple[int, int], Union[Delayed, Optional[Unit3]]],
         v_corr_idxs_dict: Dict[Tuple[int, int], Union[Delayed, Optional[np.ndarray]]],
@@ -233,7 +233,7 @@ class SceneOptimizer:
     ) -> Tuple[Delayed, List[Delayed]]:
 
         # auxiliary graph elements for visualizations and saving intermediate data for analysis.
-        delayed_results = []
+        delayed_results: List[Delayed] = []
 
         # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
         (ba_input_graph, ba_output_graph, optimizer_metrics_graph) = self.multiview_optimizer.create_computation_graph(
@@ -247,7 +247,7 @@ class SceneOptimizer:
             relative_pose_priors,
             cameras_gt,
             gt_wTi_list,
-            image_graph,
+            delayed_images,
         )
 
         # Persist all front-end metrics and their summaries.
@@ -270,9 +270,11 @@ class SceneOptimizer:
             delayed_results.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_wTi_list))
 
         if self._save_gtsfm_data:
-            delayed_results.extend(save_gtsfm_data(delayed_images, ba_input_graph, ba_output_graph))
+            delayed_results.extend(
+                save_gtsfm_data(delayed_images, image_shapes, image_fnames, ba_input_graph, ba_output_graph)
+            )
 
-        if self._run_dense_optimizer:
+        if self._run_dense_optimizer and self.dense_multiview_optimizer is not None:
             (
                 dense_points_graph,
                 dense_point_colors_graph,
@@ -354,7 +356,7 @@ def save_visualizations(
 
 
 def save_gtsfm_data(
-    image_graph: Optional[List[Delayed]],
+    delayed_images: Optional[Dict[int, Delayed]],
     image_shapes: List[Tuple[int, int]],
     image_fnames: List[str],
     ba_input_graph: Delayed,
@@ -379,7 +381,7 @@ def save_gtsfm_data(
                 ba_input_graph,
                 image_shapes,
                 image_fnames,
-                image_graph,
+                delayed_images,
                 save_dir=os.path.join(output_dir, "ba_input"),
             )
         )
@@ -389,7 +391,7 @@ def save_gtsfm_data(
                 ba_output_graph,
                 image_shapes,
                 image_fnames,
-                image_graph,
+                delayed_images,
                 save_dir=os.path.join(output_dir, "ba_output"),
             )
         )

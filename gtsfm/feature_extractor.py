@@ -2,7 +2,7 @@
 
 Authors: Ayush Baid, John Lambert
 """
-from typing import Dict, Tuple
+from typing import Tuple
 
 from dask.delayed import Delayed
 
@@ -20,7 +20,7 @@ class FeatureExtractor:
         """
         self.detector_descriptor = detector_descriptor
 
-    def create_computation_graph(self, delayed_images: Dict[int, Delayed]) -> Tuple[Delayed, Delayed]:
+    def create_computation_graph(self, delayed_image: Delayed) -> Tuple[Delayed, Delayed]:
         """Given an image, create detection and descriptor generation tasks
 
         Args:
@@ -30,4 +30,4 @@ class FeatureExtractor:
             Delayed object for detected keypoints.
             Delayed object for corr. descriptors.
         """
-        return self.detector_descriptor.create_computation_graph(delayed_images)
+        return self.detector_descriptor.create_computation_graph(delayed_image)

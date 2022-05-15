@@ -2,11 +2,12 @@
 
 Authors: Ayush Baid, John Lambert
 """
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
+import numpy as np
 
 import dask
 from dask.delayed import Delayed
-from gtsam import Point3, Pose3, Rot3
+from gtsam import Point3, Pose3, Rot3, Unit3
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.graph as graph_utils
@@ -33,31 +34,31 @@ class MultiViewOptimizer:
     def create_computation_graph(
         self,
         num_images: int,
-        delayed_features: Dict[int, Delayed],
-        i2Ri1_graph: Dict[Tuple[int, int], Delayed],
-        i2Ui1_graph: Dict[Tuple[int, int], Delayed],
-        v_corr_idxs_graph: Dict[Tuple[int, int], Delayed],
+        delayed_features: Dict[int, Tuple[Delayed, Delayed]],
+        i2Ri1_dict: Dict[Tuple[int, int], Union[Delayed, Optional[Rot3]]],
+        i2Ui1_dict: Dict[Tuple[int, int], Union[Delayed, Optional[Unit3]]],
+        v_corr_idxs_dict: Dict[Tuple[int, int], Union[Delayed, Optional[np.ndarray]]],
         all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         absolute_pose_priors: List[Optional[PosePrior]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         gt_wTi_list: List[Optional[Pose3]],
-        images_graph: Optional[List[Delayed]] = None,
+        delayed_images: Optional[Dict[int, Delayed]] = None,
     ) -> Tuple[Delayed, Delayed, list]:
         """Creates a computation graph for multi-view optimization.
 
         Args:
             num_images: number of images in the scene.
             delayed_features: keypoints/descriptors for images, each wrapped up as Delayed.
-            i2Ri1_graph: relative rotations for image pairs, each value wrapped up as Delayed.
-            i2Ui1_graph: relative unit-translations for image pairs, each value wrapped up as Delayed.
-            v_corr_idxs_graph: indices of verified correspondences for image pairs, wrapped up as Delayed.
+            i2Ri1_dict: relative rotations for image pairs, each value wrapped up as Delayed.
+            i2Ui1_dict: relative unit-translations for image pairs, each value wrapped up as Delayed.
+            v_corr_idxs_dict: indices of verified correspondences for image pairs, wrapped up as Delayed.
             all_intrinsics: intrinsics for images.
             absolute_pose_priors: priors on the camera poses (not delayed).
             relative_pose_priors: priors on the pose between camera pairs (not delayed)
             cameras_gt: list of GT cameras (if they exist), ordered by camera index.
             gt_wTi_list: list of GT poses of the camera.
-            images_graph (optional): list of images. Defaults to None.
+            delayed_images (optional): list of images. Defaults to None.
 
         Returns:
             The GtsfmData input to bundle adjustment, aligned to GT (if provided), wrapped up as Delayed.
@@ -65,17 +66,17 @@ class MultiViewOptimizer:
             List of GtsfmMetricGroups from different modules, wrapped up as Delayed.
         """
         # prune the graph to a single connected component.
-        pruned_i2Ri1_graph, pruned_i2Ui1_graph = dask.delayed(graph_utils.prune_to_largest_connected_component, nout=2)(
-            i2Ri1_graph, i2Ui1_graph, relative_pose_priors
+        pruned_i2Ri1_dict, pruned_i2Ui1_dict = dask.delayed(graph_utils.prune_to_largest_connected_component, nout=2)(
+            i2Ri1_dict, i2Ui1_dict, relative_pose_priors
         )
 
         delayed_wRi, rot_avg_metrics = self.rot_avg_module.create_computation_graph(
-            num_images, pruned_i2Ri1_graph, relative_pose_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
+            num_images, pruned_i2Ri1_dict, relative_pose_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
         )
 
         wti_graph, ta_metrics = self.trans_avg_module.create_computation_graph(
             num_images,
-            pruned_i2Ui1_graph,
+            pruned_i2Ui1_dict,
             delayed_wRi,
             absolute_pose_priors,
             relative_pose_priors,
@@ -86,7 +87,7 @@ class MultiViewOptimizer:
         ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
             num_images,
             init_cameras_graph,
-            v_corr_idxs_graph,
+            v_corr_idxs_dict,
             delayed_features,
             cameras_gt,
             relative_pose_priors,
