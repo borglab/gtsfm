@@ -32,7 +32,6 @@ class MultiViewOptimizer:
 
     def create_computation_graph(
         self,
-        delayed_images: Dict[int, Delayed],
         num_images: int,
         delayed_features: Dict[int, Delayed],
         i2Ri1_graph: Dict[Tuple[int, int], Delayed],
@@ -43,6 +42,7 @@ class MultiViewOptimizer:
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         gt_wTi_list: List[Optional[Pose3]],
+        images_graph: Optional[List[Delayed]] = None,
     ) -> Tuple[Delayed, Delayed, list]:
         """Creates a computation graph for multi-view optimization.
 
@@ -57,6 +57,7 @@ class MultiViewOptimizer:
             relative_pose_priors: priors on the pose between camera pairs (not delayed)
             cameras_gt: list of GT cameras (if they exist), ordered by camera index.
             gt_wTi_list: list of GT poses of the camera.
+            images_graph (optional): list of images. Defaults to None.
 
         Returns:
             The GtsfmData input to bundle adjustment, aligned to GT (if provided), wrapped up as Delayed.

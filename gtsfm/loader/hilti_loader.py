@@ -336,3 +336,17 @@ class HiltiLoader(LoaderBase):
         priors = {pair: prior for pair, prior in optional_priors.items() if prior is not None}
 
         return priors
+
+    def get_image_fnames(self) -> List[str]:
+        """Get image name for all the images."""
+        image_fnames = []
+        for i in range(len(self)):
+            if self._old_style:
+                filename = f"{i}.jpg"
+            else:
+                filename = f"{self.rig_from_image(i)}_{self.camera_from_image(i)}.png"
+
+            image_fnames.append(filename)
+
+        return image_fnames
+        

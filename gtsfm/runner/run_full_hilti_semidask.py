@@ -95,17 +95,23 @@ class HiltiRunner:
         Dict[Tuple[int, int], Optional[Rot3]],
         Dict[Tuple[int, int], Optional[Unit3]],
         Dict[Tuple[int, int], np.ndarray],
+        Dict[int, Tuple[int, int]],
     ]:
         start_time = time.time()
 
         pairs_for_frontend = self.retriever.run(self.loader)
 
-        image_indices_for_feature_extraction = list(sum(pairs_for_frontend, ()))
+        image_indices_for_feature_extraction = set(sum(pairs_for_frontend, ()))
         keypoints_dict = {}
         descriptors_dict = {}
         image_shapes = {}
 
+        counter = 0
         for i in image_indices_for_feature_extraction:
+            counter += 1
+            if counter % 20 == 0:
+                logger.info("%d/%d images", counter, len(image_indices_for_feature_extraction))
+
             image = self.loader.get_image(i)
             if image is not None:
                 keypoints, descriptors = self.scene_optimizer.feature_extractor.detector_descriptor.detect_and_describe(
@@ -118,6 +124,7 @@ class HiltiRunner:
         i2Ri1_dict = {}
         i2Ui1_dict = {}
         v_corr_idxs_dict = {}
+
         counter = 0
         for i1, i2 in pairs_for_frontend:
             counter += 1
@@ -147,14 +154,15 @@ class HiltiRunner:
         duration_sec = end_time - start_time
         logger.info("GTSFM took %.2f minutes to compute frontend.", duration_sec / 60)
 
-        return keypoints_dict, i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict
+        return keypoints_dict, i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, image_shapes
 
     def run_full(self):
         start_time = time.time()
-        keypoints_dict, i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict = self.run_frontend()
+        keypoints_dict, i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, image_shapes = self.run_frontend()
 
         num_images = len(self.loader)
         keypoints_list = [keypoints_dict.get(i, Keypoints(np.array([[]]))) for i in range(num_images)]
+        image_shapes_list = [image_shapes.get(i, (100, 100)) for i in range(num_images)]
 
         delayed_sfm_result, delayed_io = self.scene_optimizer.create_computation_graph_for_backend(
             num_images=len(self.loader),
@@ -162,12 +170,14 @@ class HiltiRunner:
             i2Ri1_dict=i2Ri1_dict,
             i2Ui1_dict=i2Ui1_dict,
             v_corr_idxs_dict=v_corr_idxs_dict,
-            image_graph=self.loader.create_computation_graph_for_images(),
+            image_graph=None,
             all_intrinsics=self.loader.get_all_intrinsics(),
             relative_pose_priors=self.loader.get_relative_pose_priors(),
             absolute_pose_priors=self.loader.get_absolute_pose_priors(),
             cameras_gt=self.loader.get_gt_cameras(),
             gt_wTi_list=self.loader.get_gt_poses(),
+            image_shapes=image_shapes_list,
+            image_fnames=self.loader.get_image_fnames(),
         )
 
         with Client(self.dask_cluster):

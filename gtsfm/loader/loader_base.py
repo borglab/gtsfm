@@ -290,6 +290,11 @@ class LoaderBase(metaclass=abc.ABCMeta):
         N = len(self)
         return [self.get_image_shape(i) for i in range(N)]
 
+    def get_image_fnames(self) -> List[str]:
+        """Returns the name of all images."""
+
+        return [self.get_image(i).file_name for i in range(len(self))]
+
     def get_valid_pairs(self) -> List[Tuple[int, int]]:
         """Get the valid pairs of images for this loader.
 
