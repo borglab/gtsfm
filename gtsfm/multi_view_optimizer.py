@@ -34,7 +34,7 @@ class MultiViewOptimizer:
         self,
         delayed_images: Dict[int, Delayed],
         num_images: int,
-        delayed_dmv: Dict[int, Delayed],
+        delayed_features: Dict[int, Delayed],
         i2Ri1_graph: Dict[Tuple[int, int], Delayed],
         i2Ui1_graph: Dict[Tuple[int, int], Delayed],
         v_corr_idxs_graph: Dict[Tuple[int, int], Delayed],
@@ -48,7 +48,7 @@ class MultiViewOptimizer:
 
         Args:
             num_images: number of images in the scene.
-            delayed_dmv: keypoints/descriptors for images, each wrapped up as Delayed.
+            delayed_features: keypoints/descriptors for images, each wrapped up as Delayed.
             i2Ri1_graph: relative rotations for image pairs, each value wrapped up as Delayed.
             i2Ui1_graph: relative unit-translations for image pairs, each value wrapped up as Delayed.
             v_corr_idxs_graph: indices of verified correspondences for image pairs, wrapped up as Delayed.
@@ -65,7 +65,7 @@ class MultiViewOptimizer:
         """
         # prune the graph to a single connected component.
         pruned_i2Ri1_graph, pruned_i2Ui1_graph = dask.delayed(graph_utils.prune_to_largest_connected_component, nout=2)(
-            dask.delayed(i2Ri1_graph), dask.delayed(i2Ui1_graph), relative_pose_priors
+            i2Ri1_graph, i2Ui1_graph, relative_pose_priors
         )
 
         delayed_wRi, rot_avg_metrics = self.rot_avg_module.create_computation_graph(
@@ -86,7 +86,7 @@ class MultiViewOptimizer:
             num_images,
             init_cameras_graph,
             v_corr_idxs_graph,
-            delayed_dmv,
+            delayed_features,
             cameras_gt,
             relative_pose_priors,
             delayed_images,

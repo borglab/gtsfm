@@ -41,7 +41,7 @@ def run_frontend(
     image_shapes = loader.get_image_shapes()
 
     # detection and description graph
-    delayed_dmv = {
+    delayed_features = {
         i: feature_extractor.create_computation_graph(delayed_image) for i, delayed_image in delayed_images.items()
     }
 
@@ -51,10 +51,10 @@ def run_frontend(
     v_corr_idxs_graph_dict: Dict[Tuple[int, int], Delayed] = {}
     for (i1, i2) in image_pair_indices:
         (i2Ri1, i2Ui1, v_corr_idxs) = two_view_estimator.create_computation_graph(
-            delayed_dmv[i1][0],
-            delayed_dmv[i2][0],
-            delayed_dmv[i1][1],
-            delayed_dmv[i2][1],
+            delayed_features[i1][0],
+            delayed_features[i2][0],
+            delayed_features[i1][1],
+            delayed_features[i2][1],
             camera_intrinsics_i1=camera_intrinsics[i1],
             camera_intrinsics_i2=camera_intrinsics[i2],
             im_shape_i1=image_shapes[i1],
@@ -69,7 +69,7 @@ def run_frontend(
 
     with dask.config.set(scheduler="single-threaded"):
         keypoints_list, i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict = dask.compute(
-            keypoints_graph_list, i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict
+            delayed_features, i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict
         )
 
     return keypoints_list, i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict

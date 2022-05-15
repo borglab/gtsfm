@@ -113,7 +113,7 @@ class SceneOptimizer:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
 
         # detection and description graph
-        delayed_dmv = {
+        delayed_features = {
             i: self.feature_extractor.create_computation_graph(delayed_image)
             for i, delayed_image in delayed_images.items()
         }
@@ -127,10 +127,10 @@ class SceneOptimizer:
 
             # TODO(johnwlambert): decompose this so what happens in the loop is a separate method
             i2Ri1, i2Ui1, _ = self.two_view_estimator.create_computation_graph(
-                delayed_dmv[i1][0],
-                delayed_dmv[i2][0],
-                delayed_dmv[i1][1],
-                delayed_dmv[i2][1],
+                delayed_features[i1][0],
+                delayed_features[i2][0],
+                delayed_features[i1][1],
+                delayed_features[i2][1],
                 all_intrinsics[i1],
                 all_intrinsics[i2],
                 image_shapes[i1],
@@ -164,7 +164,7 @@ class SceneOptimizer:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
 
         # detection and description graph
-        delayed_dmv = {
+        delayed_features = {
             i: self.feature_extractor.create_computation_graph(delayed_image)
             for i, delayed_image in delayed_images.items()
         }
@@ -179,10 +179,10 @@ class SceneOptimizer:
 
             # TODO(johnwlambert): decompose this so what happens in the loop is a separate method
             i2Ri1, i2Ui1, v_corr_idxs = self.two_view_estimator.create_computation_graph(
-                delayed_dmv[i1][0],
-                delayed_dmv[i2][0],
-                delayed_dmv[i1][1],
-                delayed_dmv[i2][1],
+                delayed_features[i1][0],
+                delayed_features[i2][0],
+                delayed_features[i1][1],
+                delayed_features[i2][1],
                 all_intrinsics[i1],
                 all_intrinsics[i2],
                 image_shapes[i1],
@@ -200,7 +200,7 @@ class SceneOptimizer:
 
         return self.create_computation_graph_for_backend(
             num_images=num_images,
-            delayed_dmv=delayed_dmv,
+            delayed_features=delayed_features,
             i2Ri1_dict=i2Ri1_dict,
             i2Ui1_dict=i2Ui1_dict,
             v_corr_idxs_dict=v_corr_idxs_graph_dict,
@@ -215,7 +215,7 @@ class SceneOptimizer:
     def create_computation_graph_for_backend(
         self,
         num_images: int,
-        delayed_dmv: Dict[int, Delayed],
+        delayed_features: Dict[int, Delayed],
         i2Ri1_dict: Dict[Tuple[int, int], Union[Delayed, Optional[Rot3]]],
         i2Ui1_dict: Dict[Tuple[int, int], Union[Delayed, Optional[Unit3]]],
         v_corr_idxs_dict: Dict[Tuple[int, int], Union[Delayed, Optional[np.ndarray]]],
@@ -234,7 +234,7 @@ class SceneOptimizer:
         (ba_input_graph, ba_output_graph, optimizer_metrics_graph) = self.multiview_optimizer.create_computation_graph(
             delayed_images,
             num_images,
-            delayed_dmv,
+            delayed_features,
             i2Ri1_dict,
             i2Ui1_dict,
             v_corr_idxs_dict,
