@@ -6,8 +6,10 @@ import unittest
 from pathlib import Path
 
 import numpy as np
+from gtsam import Point3, Pose3, Rot3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
+from gtsfm.common.constraint import Constraint
 from gtsfm.loader.hilti_loader import HiltiLoader
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
@@ -116,6 +118,44 @@ class TestHiltiLoader(unittest.TestCase):
         self.assertEqual(len(actual), len(expected))
         self.assertEqual(actual, expected)
 
+    def test_filters_constraints(self) -> None:
+        constraints = {
+            (0, 1): Constraint(0, 1, Pose3(Rot3(), Point3(5, 0, 0))), # outlier, has both 2 & 3 step
+            (2, 1): Constraint(2, 1, Pose3(Rot3(), Point3(-1, 0, 0))),
+            (2, 3): Constraint(2, 3, Pose3(Rot3(), Point3(4, 0, 0))), # outlier, only 3 step
+            (3, 4): Constraint(3, 4, Pose3(Rot3(), Point3(3, 0, 0))), # outlier, only 2 step
+            (4, 5): Constraint(4, 5, Pose3(Rot3(), Point3(1, 0, 0))),
+
+            (2, 0): Constraint(2, 0, Pose3(Rot3(), Point3(-2, 0, 0))),
+            (1, 3): Constraint(1, 3, Pose3(Rot3(), Point3(2, 0, 0))), 
+            (3, 5): Constraint(3, 5, Pose3(Rot3(), Point3(2, 0, 0))),
+
+            (0, 3): Constraint(0, 3, Pose3(Rot3(), Point3(3, 0, 0))),
+            (1, 4): Constraint(1, 4, Pose3(Rot3(), Point3(3, 0, 0))),
+            (2, 5): Constraint(2, 5, Pose3(Rot3(), Point3(3, 0, 0))),
+        }
+
+        expected_inliers = [
+            (2, 1),
+            (4, 5),
+
+            (2, 0),
+            (1, 3),
+            (3, 5),
+
+            (0, 3),
+            (1, 4),
+            (2, 5),
+        ]
+        loader = HiltiLoader(
+            base_folder=str(TEST_DATASET_DIR_PATH),
+            max_length=None,
+            subsample=2,
+            old_style=True,
+        )
+
+        inliers = loader._filter_outlier_constraints(constraints)
+        self.assertSetEqual(set(expected_inliers), set(inliers.keys()))
 
 if __name__ == "__main__":
     unittest.main()
