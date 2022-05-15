@@ -282,7 +282,11 @@ class HiltiLoader(LoaderBase):
             return PosePrior(value=i1Ti2, covariance=HARD_RELATIVE_POSE_PRIOR_SIGMA, type=PosePriorType.HARD_CONSTRAINT)
         elif cam_idx_for_i1 == 2 and cam_idx_for_i2 == 2:
             constraint = self._constraints[(rig_idx_for_i1, rig_idx_for_i2)]
-            return PosePrior(value=constraint.aTb, covariance=constraint.cov, type=PosePriorType.SOFT_CONSTRAINT)
+            imui1_T_imui2 = constraint.aTb
+            i1Ti2 = self._cam_T_imu_poses[2] * imui1_T_imui2 * self._cam_T_imu_poses[2].inverse()
+
+            # TODO: transform the covariances too
+            return PosePrior(value=i1Ti2, covariance=constraint.cov, type=PosePriorType.SOFT_CONSTRAINT)
 
         return None
 
