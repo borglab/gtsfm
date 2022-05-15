@@ -134,9 +134,15 @@ class HiltiLoader(LoaderBase):
         """Check how many images we have on disk and deduce number of rig poses."""
         pattern = "*.jpg" if self._old_style else "*.png"
         search_path: str = str(self._base_folder / IMAGES_FOLDER / pattern)
-        image_files = glob.glob(search_path)
-        total_num_images = len(image_files)
-        return total_num_images // NUM_CAMS
+
+        if self._old_style:
+            image_files = glob.glob(search_path)
+            total_num_images = len(image_files)
+            return total_num_images // NUM_CAMS
+        else:
+            image_fnames = [Path(f).stem for f in glob.glob(search_path)]
+            rig_indices = [int(fname.split("_")[0]) for fname in image_fnames]
+            return max(rig_indices) + 1
 
     def __load_calibration(self, cam_idx: int) -> Tuple[Cal3Fisheye, Pose3]:
         """Load calibration from kalibr files in calibration sub-folder."""
