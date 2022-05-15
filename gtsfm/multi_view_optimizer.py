@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Tuple
 
 import dask
 from dask.delayed import Delayed
-from gtsam import Point3, Pose3, Rot3
+from gtsam import Pose3
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.graph as graph_utils
@@ -120,8 +120,7 @@ class MultiViewOptimizer:
 
 
 def init_cameras(
-    wRi_list: List[Optional[Rot3]],
-    wti_list: List[Optional[Point3]],
+    wTi_list: List[Optional[Pose3]],
     intrinsics_list: List[gtsfm_types.CALIBRATION_TYPE],
 ) -> Dict[int, gtsfm_types.CAMERA_TYPE]:
     """Generate camera from valid rotations and unit-translations.
@@ -134,11 +133,5 @@ def init_cameras(
     Returns:
         Valid cameras.
     """
-    cameras = {}
-
     camera_class = gtsfm_types.get_camera_class_for_calibration(intrinsics_list[0])
-    for idx, (wRi, wti) in enumerate(zip(wRi_list, wti_list)):
-        if wRi is not None and wti is not None:
-            cameras[idx] = camera_class(Pose3(wRi, wti), intrinsics_list[idx])
-
-    return cameras
+    return {idx: camera_class(wTi, intrinsics_list[idx]) for idx, wTi in enumerate(wTi_list) if wTi is not None}
