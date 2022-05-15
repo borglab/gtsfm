@@ -168,7 +168,7 @@ class HiltiRunner:
             i2Ri1_dict=i2Ri1_dict,
             i2Ui1_dict=i2Ui1_dict,
             v_corr_idxs_dict=v_corr_idxs_dict,
-            image_graph=self.loader.create_computation_graph_for_images(),
+            image_graph=None,
             all_intrinsics=self.loader.get_all_intrinsics(),
             relative_pose_priors=self.loader.get_relative_pose_priors(),
             absolute_pose_priors=self.loader.get_absolute_pose_priors(),
