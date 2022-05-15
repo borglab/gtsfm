@@ -83,6 +83,9 @@ class HiltiLoader(LoaderBase):
             self._intrinsics[cam_idx] = calibration[0]
             self._cam_T_imu_poses[cam_idx] = calibration[1]
 
+        # Jacobian for transforming covariance
+        self._cam2_J_imu_relative: np.array = self._cam_T_imu_poses[2].AdjointMap()
+
         # Check how many images are on disk.
         self.num_rig_poses: int = self.__get_num_rig_poses()
         if self._max_length is not None:
@@ -285,8 +288,8 @@ class HiltiLoader(LoaderBase):
             imui1_T_imui2 = constraint.aTb
             i1Ti2 = self._cam_T_imu_poses[2] * imui1_T_imui2 * self._cam_T_imu_poses[2].inverse()
 
-            # TODO: transform the covariances too
-            return PosePrior(value=i1Ti2, covariance=constraint.cov, type=PosePriorType.SOFT_CONSTRAINT)
+            cov_i1Ti2 = self._cam2_J_imu_relative @ constraint.cov @ self._cam2_J_imu_relative.T
+            return PosePrior(value=i1Ti2, covariance=cov_i1Ti2, type=PosePriorType.SOFT_CONSTRAINT)
 
         return None
 
