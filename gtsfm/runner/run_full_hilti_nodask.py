@@ -165,7 +165,7 @@ class HiltiRunner:
             wRi_computed=wRi, wTi_gt=gt_wTi_list
         )
 
-        wti, ta_metrics = self.scene_optimizer.multiview_optimizer.trans_avg_module.run_translation_averaging(
+        wTi_list, ta_metrics = self.scene_optimizer.multiview_optimizer.trans_avg_module.run_translation_averaging(
             num_images=num_images,
             i2Ui1_dict=pruned_i2Ui1_dict,
             wRi_list=wRi,
@@ -174,7 +174,7 @@ class HiltiRunner:
             gt_wTi_list=gt_wTi_list,
         )
 
-        initialized_cameras = init_cameras(wRi_list=wRi, wti_list=wti, intrinsics_list=all_intrinsics)
+        initialized_cameras = init_cameras(wTi_list=wTi_list, intrinsics_list=all_intrinsics)
 
         ba_input, da_metrics = self.scene_optimizer.multiview_optimizer.data_association_module.run_da(
             num_images=num_images,
