@@ -36,17 +36,14 @@ def run_frontend(
         v_corr_idxs_dict: verified correspondence indices for each image pair.
     """
     image_pair_indices = loader.get_valid_pairs()
-    image_graph = loader.create_computation_graph_for_images()
+    images_graph = dict(enumerate(loader.create_computation_graph_for_images()))
     camera_intrinsics = loader.get_all_intrinsics()
     image_shapes = loader.get_image_shapes()
 
     # detection and description graph
-    keypoints_graph_list = []
-    descriptors_graph_list = []
-    for delayed_image in image_graph:
-        delayed_dets, delayed_descs = feature_extractor.create_computation_graph(delayed_image)
-        keypoints_graph_list += [delayed_dets]
-        descriptors_graph_list += [delayed_descs]
+    delayed_features = {
+        i: feature_extractor.create_computation_graph(image_graph) for i, image_graph in images_graph.items()
+    }
 
     # estimate two-view geometry and get indices of verified correspondences.
     i2Ri1_graph_dict = {}
@@ -54,10 +51,10 @@ def run_frontend(
     v_corr_idxs_graph_dict: Dict[Tuple[int, int], Delayed] = {}
     for (i1, i2) in image_pair_indices:
         (i2Ri1, i2Ui1, v_corr_idxs) = two_view_estimator.create_computation_graph(
-            keypoints_i1_graph=keypoints_graph_list[i1],
-            keypoints_i2_graph=keypoints_graph_list[i2],
-            descriptors_i1_graph=descriptors_graph_list[i1],
-            descriptors_i2_graph=descriptors_graph_list[i2],
+            delayed_features[i1][0],
+            delayed_features[i2][0],
+            delayed_features[i1][1],
+            delayed_features[i2][1],
             camera_intrinsics_i1=camera_intrinsics[i1],
             camera_intrinsics_i2=camera_intrinsics[i2],
             im_shape_i1=image_shapes[i1],
@@ -72,7 +69,7 @@ def run_frontend(
 
     with dask.config.set(scheduler="single-threaded"):
         keypoints_list, i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict = dask.compute(
-            keypoints_graph_list, i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict
+            delayed_features, i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict
         )
 
     return keypoints_list, i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict

@@ -51,12 +51,12 @@ class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
     def test_computation_graph(self):
         """Test the dask's computation graph formation."""
 
-        image_graph = self.loader.create_computation_graph_for_images()
-        for i, delayed_image in enumerate(image_graph):
+        images_graph = self.loader.create_computation_graph_for_images()
+        for i, image_graph in enumerate(images_graph):
             (
                 kp_graph,
                 desc_graph,
-            ) = self.detector_descriptor.create_computation_graph(delayed_image)
+            ) = self.detector_descriptor.create_computation_graph(image_graph)
             with dask.config.set(scheduler="single-threaded"):
                 # TODO(ayush): check how many times detection is performed
                 keypoints = dask.compute(kp_graph)[0]

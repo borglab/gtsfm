@@ -190,7 +190,11 @@ class TwoViewEstimator:
             corr_idxs=verified_corr_idxs,
         )
         logger.debug("[Two view optimizer] Performed DA in %.6f seconds.", timeit.default_timer() - start_time)
-        logger.debug("[Two view optimizer] Triangulated %d correspondences out of %d.", len(triangulated_tracks), len(verified_corr_idxs))
+        logger.debug(
+            "[Two view optimizer] Triangulated %d correspondences out of %d.",
+            len(triangulated_tracks),
+            len(verified_corr_idxs),
+        )
 
         if len(triangulated_tracks) == 0:
             return i2Ti1_initial.rotation(), Unit3(i2Ti1_initial.translation()), np.array([], dtype=np.uint32)

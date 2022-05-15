@@ -309,15 +309,15 @@ class BundleAdjustmentOptimizer:
             Valid mask as a list of booleans, indicating for each input track whether it was below the re-projection
                 threshold.
         """
-        logger.info(
-            f"[BA] Input: {initial_data.number_tracks()} tracks on {len(initial_data.get_valid_camera_indices())} cameras\n"
-        )
-        if initial_data.number_tracks() == 0 or len(initial_data.get_valid_camera_indices()) == 0:
+        num_tracks = initial_data.number_tracks()
+        num_valid = len(initial_data.get_valid_camera_indices())
+        logger.info(f"[BA] Input: {num_tracks} tracks on {num_valid} cameras\n")
+        if num_tracks == 0 or num_valid == 0:
             # no cameras or tracks to optimize, so bundle adjustment is not possible
             logger.error(
                 "Bundle adjustment aborting, optimization cannot be performed without any tracks or any cameras."
             )
-            return initial_data, initial_data, [False] * initial_data.number_tracks()
+            return initial_data, initial_data, [False] * num_tracks
 
         cameras_to_model = self._cameras_to_model(initial_data, absolute_pose_priors, relative_pose_priors)
 

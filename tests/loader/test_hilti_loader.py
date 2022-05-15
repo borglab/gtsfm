@@ -5,9 +5,6 @@ Note: currently running on the whole dataset.
 import unittest
 from pathlib import Path
 
-import numpy as np
-
-import gtsfm.utils.geometry_comparisons as comp_utils
 from gtsfm.loader.hilti_loader import HiltiLoader
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"

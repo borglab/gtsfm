@@ -46,7 +46,7 @@ class MVSBase(metaclass=abc.ABCMeta):
         """
 
     def create_computation_graph(
-        self, images_graph: Delayed, sfm_result_graph: Delayed
+        self, images_graph: Dict[int, Delayed], sfm_result_graph: Delayed
     ) -> Tuple[Delayed, Delayed, Delayed, Delayed]:
         """Generates the computation graph for performing multi-view stereo.
 

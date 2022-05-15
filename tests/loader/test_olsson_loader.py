@@ -117,11 +117,11 @@ class TestFolderLoader(unittest.TestCase):
 
     def test_create_computation_graph_for_images(self) -> None:
         """Tests the graph for loading all the images."""
-        image_graph = self.loader.create_computation_graph_for_images()
+        images_graph = self.loader.create_computation_graph_for_images()
 
         # check the length of the graph
-        self.assertEqual(12, len(image_graph))
-        results = dask.compute(image_graph)[0]
+        self.assertEqual(12, len(images_graph))
+        results = dask.compute(images_graph)[0]
 
         # randomly check image loads from a few indices
         np.testing.assert_allclose(results[5].value_array, self.loader.get_image(5).value_array)

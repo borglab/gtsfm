@@ -84,7 +84,7 @@ class HiltiLoader(LoaderBase):
             self._cam_T_imu_poses[cam_idx] = calibration[1]
 
         # Jacobian for transforming covariance
-        self._cam2_J_imu_relative: np.array = self._cam_T_imu_poses[2].AdjointMap()
+        self._cam2_J_imu_relative: np.ndarray = self._cam_T_imu_poses[2].AdjointMap()
 
         # Check how many images are on disk.
         self.num_rig_poses: int = self.__get_num_rig_poses()
@@ -229,7 +229,8 @@ class HiltiLoader(LoaderBase):
         try:
             image_path: Path = self._base_folder / IMAGES_FOLDER / filename
             return io_utils.load_image(str(image_path))
-        except:
+        except Exception as e:
+            print(e)
             return None
 
     def get_camera_intrinsics(self, index: int) -> Optional[Cal3Fisheye]:
@@ -348,4 +349,3 @@ class HiltiLoader(LoaderBase):
             image_fnames.append(filename)
 
         return image_fnames
-        

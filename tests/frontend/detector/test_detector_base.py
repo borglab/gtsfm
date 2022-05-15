@@ -52,13 +52,11 @@ class TestDetectorBase(unittest.TestCase):
     def test_computation_graph(self):
         """Test the dask's computation graph formation using a single image."""
 
-        idx_under_test = 0
-
-        image_graph = self.loader.create_computation_graph_for_images()[idx_under_test]
-        keypoints_graph = self.detector.create_computation_graph(image_graph)
+        image_graph = self.loader.create_computation_graph_for_images()[0]
+        delayed_keypoints = self.detector.create_computation_graph(image_graph)
 
         with dask.config.set(scheduler="single-threaded"):
-            keypoints = dask.compute(keypoints_graph)[0]
+            keypoints = dask.compute(delayed_keypoints)[0]
 
         # check the results via normal workflow and dask workflow for an image
         expected_keypoints = self.detector.detect(self.loader.get_image(0))

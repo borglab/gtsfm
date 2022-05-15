@@ -70,7 +70,7 @@ class GtsfmRunnerAstronetLoader(GtsfmRunnerBase):
             delayed_sfm_result, delayed_io = self.scene_optimizer.create_computation_graph(
                 num_images=len(self.loader),
                 image_pair_indices=image_pair_indices,
-                image_graph=self.loader.create_computation_graph_for_images(),
+                images_graph=dict(enumerate(self.loader.create_computation_graph_for_images())),
                 all_intrinsics=self.loader.get_all_intrinsics(),
                 image_shapes=self.loader.get_image_shapes(),
                 gt_scene_mesh=gt_scene_trimesh_future,
