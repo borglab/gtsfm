@@ -15,6 +15,7 @@ from gtsfm.averaging.translation.translation_averaging_base import TranslationAv
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.data_association.data_assoc import DataAssociation
+from gtsfm.pose_slam.pose_slam import PoseSlam
 
 
 class MultiViewOptimizer:
@@ -24,11 +25,14 @@ class MultiViewOptimizer:
         trans_avg_module: TranslationAveragingBase,
         data_association_module: DataAssociation,
         bundle_adjustment_module: BundleAdjustmentOptimizer,
+        use_pose_slam_intitialization: bool = False,
     ) -> None:
+        self.pose_slam_module = PoseSlam()
         self.rot_avg_module = rot_avg_module
         self.trans_avg_module = trans_avg_module
         self.data_association_module = data_association_module
         self.ba_optimizer = bundle_adjustment_module
+        self._use_pose_slam_intitialization = use_pose_slam_intitialization
 
     def create_computation_graph(
         self,
@@ -69,8 +73,8 @@ class MultiViewOptimizer:
             dask.delayed(i2Ri1_graph), dask.delayed(i2Ui1_graph), relative_pose_priors
         )
 
-        if self._use_poseslam_initialization:
-            delayed_poses = self.pose_slam_module.create_computation_graph(
+        if self._use_pose_slam_intitialization:
+            delayed_poses, delayed_pose_graph_metrics = self.pose_slam_module.create_computation_graph(
                 num_images, relative_pose_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
             )
         else:

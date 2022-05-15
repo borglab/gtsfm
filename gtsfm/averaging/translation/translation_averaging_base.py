@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Tuple
 
 import dask
 from dask.delayed import Delayed
-from gtsam import Point3, Pose3, Rot3, Unit3
+from gtsam import Pose3, Rot3, Unit3
 
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
@@ -38,7 +38,7 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
         relative_pose_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
         gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
-    ) -> Tuple[List[Optional[Point3]], Optional[GtsfmMetricsGroup]]:
+    ) -> Tuple[List[Optional[Pose3]], Optional[GtsfmMetricsGroup]]:
         """Run the translation averaging.
 
         Args:
@@ -51,7 +51,7 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
             gt_wTi_list: List of ground truth poses (wTi) for computing metrics.
 
         Returns:
-            Global translation wti for each camera pose. The number of entries in the list is `num_images`. The list
+            Global poses wTi for each camera pose. The number of entries in the list is `num_images`. The list
                 may contain `None` where the global translations could not be computed (either underconstrained system
                 or ill-constrained system).
         """
@@ -65,7 +65,7 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
         relative_pose_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
         gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
-    ) -> Delayed:
+    ) -> Tuple[Delayed, Delayed]:
         """Create the computation graph for performing translation averaging.
 
         Args:
@@ -78,7 +78,7 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
             gt_wTi_list: List of ground truth poses (wTi) for computing metrics.
 
         Returns:
-            Global unit translations wrapped as Delayed.
+            Global poses wrapped as Delayed.
             A GtsfmMetricsGroup with translation averaging metrics wrapped as Delayed.
         """
         return dask.delayed(self.run_translation_averaging, nout=2)(
