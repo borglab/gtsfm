@@ -83,6 +83,9 @@ class HiltiLoader(LoaderBase):
             self._intrinsics[cam_idx] = calibration[0]
             self._cam_T_imu_poses[cam_idx] = calibration[1]
 
+        # Jacobian for transforming covariance
+        self._cam2_J_imu_relative: np.array = self._cam_T_imu_poses[2].AdjointMap()
+
         # Check how many images are on disk.
         self.num_rig_poses: int = self.__get_num_rig_poses()
         if self._max_length is not None:
@@ -134,9 +137,15 @@ class HiltiLoader(LoaderBase):
         """Check how many images we have on disk and deduce number of rig poses."""
         pattern = "*.jpg" if self._old_style else "*.png"
         search_path: str = str(self._base_folder / IMAGES_FOLDER / pattern)
-        image_files = glob.glob(search_path)
-        total_num_images = len(image_files)
-        return total_num_images // NUM_CAMS
+
+        if self._old_style:
+            image_files = glob.glob(search_path)
+            total_num_images = len(image_files)
+            return total_num_images // NUM_CAMS
+        else:
+            image_fnames = [Path(f).stem for f in glob.glob(search_path)]
+            rig_indices = [int(fname.split("_")[0]) for fname in image_fnames]
+            return max(rig_indices) + 1
 
     def __load_calibration(self, cam_idx: int) -> Tuple[Cal3Fisheye, Pose3]:
         """Load calibration from kalibr files in calibration sub-folder."""
@@ -178,7 +187,7 @@ class HiltiLoader(LoaderBase):
         """
         return self.num_rig_poses * NUM_CAMS
 
-    def get_image(self, index: int) -> Image:
+    def get_image(self, index: int) -> Optional[Image]:
         return self.get_image_full_res(index)
 
     # def get_image_undistorted(self, index: int) -> Image:
@@ -200,7 +209,7 @@ class HiltiLoader(LoaderBase):
 
     #     return Image(value_array=undistorted_image_array, exif_data={})
 
-    def get_image_full_res(self, index: int) -> Image:
+    def get_image_full_res(self, index: int) -> Optional[Image]:
         """Get the image at the given index, at full resolution.
 
         Args:
@@ -217,8 +226,11 @@ class HiltiLoader(LoaderBase):
         else:
             filename = f"{self.rig_from_image(index)}_{self.camera_from_image(index)}.png"
 
-        image_path: Path = self._base_folder / IMAGES_FOLDER / filename
-        return io_utils.load_image(str(image_path))
+        try:
+            image_path: Path = self._base_folder / IMAGES_FOLDER / filename
+            return io_utils.load_image(str(image_path))
+        except:
+            return None
 
     def get_camera_intrinsics(self, index: int) -> Optional[Cal3Fisheye]:
         return self.get_camera_intrinsics_full_res(index)
@@ -285,8 +297,8 @@ class HiltiLoader(LoaderBase):
             imui1_T_imui2 = constraint.aTb
             i1Ti2 = self._cam_T_imu_poses[2] * imui1_T_imui2 * self._cam_T_imu_poses[2].inverse()
 
-            # TODO: transform the covariances too
-            return PosePrior(value=i1Ti2, covariance=constraint.cov, type=PosePriorType.SOFT_CONSTRAINT)
+            cov_i1Ti2 = self._cam2_J_imu_relative @ constraint.cov @ self._cam2_J_imu_relative.T
+            return PosePrior(value=i1Ti2, covariance=cov_i1Ti2, type=PosePriorType.SOFT_CONSTRAINT)
 
         return None
 

@@ -5,13 +5,13 @@ Authors: Ayush Baid, John Lambert
 import logging
 import os
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import dask
 import matplotlib
 import numpy as np
 from trimesh import Trimesh
-from gtsam import Pose3, Similarity3
+from gtsam import Pose3, Rot3, Similarity3, Unit3
 from dask.delayed import Delayed
 from gtsfm.common.pose_prior import PosePrior
 
@@ -119,8 +119,8 @@ class SceneOptimizer:
         }
 
         # Estimate two-view geometry and get indices of verified correspondences.
-        i2Ri1_graph_dict = {}
-        i2Ui1_graph_dict = {}
+        i2Ri1_dict = {}
+        i2Ui1_dict = {}
         for (i1, i2) in image_pair_indices:
             # Collect ground truth relative and absolute poses if available.
             # TODO(johnwlambert): decompose this method -- name it as "calling_the_plate()"
@@ -142,10 +142,10 @@ class SceneOptimizer:
             )
 
             # Store results.
-            i2Ri1_graph_dict[(i1, i2)] = i2Ri1
-            i2Ui1_graph_dict[(i1, i2)] = i2Ui1
+            i2Ri1_dict[(i1, i2)] = i2Ri1
+            i2Ui1_dict[(i1, i2)] = i2Ui1
 
-        return i2Ri1_graph_dict, i2Ui1_graph_dict
+        return i2Ri1_dict, i2Ui1_dict
 
     def create_computation_graph(
         self,
@@ -170,8 +170,8 @@ class SceneOptimizer:
         }
 
         # Estimate two-view geometry and get indices of verified correspondences.
-        i2Ri1_graph_dict = {}
-        i2Ui1_graph_dict = {}
+        i2Ri1_dict = {}
+        i2Ui1_dict = {}
         v_corr_idxs_graph_dict: Dict[Tuple[int, int], Delayed] = {}
         for (i1, i2) in image_pair_indices:
             # Collect ground truth relative and absolute poses if available.
@@ -194,18 +194,50 @@ class SceneOptimizer:
             )
 
             # Store results.
-            i2Ri1_graph_dict[(i1, i2)] = i2Ri1
-            i2Ui1_graph_dict[(i1, i2)] = i2Ui1
+            i2Ri1_dict[(i1, i2)] = i2Ri1
+            i2Ui1_dict[(i1, i2)] = i2Ui1
             v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
+
+        return self.create_computation_graph_for_backend(
+            num_images=num_images,
+            delayed_dmv=delayed_dmv,
+            i2Ri1_dict=i2Ri1_dict,
+            i2Ui1_dict=i2Ui1_dict,
+            v_corr_idxs_dict=v_corr_idxs_graph_dict,
+            delayed_images=delayed_images,
+            all_intrinsics=all_intrinsics,
+            absolute_pose_priors=absolute_pose_priors,
+            relative_pose_priors=relative_pose_priors,
+            cameras_gt=cameras_gt,
+            gt_wTi_list=gt_wTi_list,
+        )
+
+    def create_computation_graph_for_backend(
+        self,
+        num_images: int,
+        delayed_dmv: Dict[int, Delayed],
+        i2Ri1_dict: Dict[Tuple[int, int], Union[Delayed, Optional[Rot3]]],
+        i2Ui1_dict: Dict[Tuple[int, int], Union[Delayed, Optional[Unit3]]],
+        v_corr_idxs_dict: Dict[Tuple[int, int], Union[Delayed, Optional[np.ndarray]]],
+        delayed_images: Dict[int, Delayed],
+        all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
+        absolute_pose_priors: List[Optional[PosePrior]],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+        cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
+        gt_wTi_list: List[Optional[Pose3]],
+    ) -> Tuple[Delayed, List[Delayed]]:
+
+        # auxiliary graph elements for visualizations and saving intermediate data for analysis.
+        delayed_results = []
 
         # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
         (ba_input_graph, ba_output_graph, optimizer_metrics_graph) = self.multiview_optimizer.create_computation_graph(
             delayed_images,
             num_images,
             delayed_dmv,
-            i2Ri1_graph_dict,
-            i2Ui1_graph_dict,
-            v_corr_idxs_graph_dict,
+            i2Ri1_dict,
+            i2Ui1_dict,
+            v_corr_idxs_dict,
             all_intrinsics,
             absolute_pose_priors,
             relative_pose_priors,
