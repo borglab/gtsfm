@@ -254,7 +254,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         relative_pose_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
         gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
-    ) -> Tuple[List[Optional[Point3]], Optional[GtsfmMetricsGroup]]:
+    ) -> Tuple[List[Optional[Pose3]], Optional[GtsfmMetricsGroup]]:
         """Run the translation averaging.
 
         Args:
@@ -328,22 +328,23 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         #     logger.debug("[1dsfm] Finished.")
 
         # transforming the result to the list of Point3
-        wti_list: List[Optional[Point3]] = [None] * num_images
-        for i in range(num_images):
-            if wRi_list[i] is not None and wti_values.exists(i):
-                wti_list[i] = wti_values.atPoint3(i)
+        wti_list = [
+            wti_values.atPoint3(i) if wRi_list[i] is not None and wti_values.exists(i) else None
+            for i in range(num_images)
+        ]
+        wTi_list = [
+            Pose3(wRi, wti) if wRi is not None and wti is not None else None for wRi, wti in zip(wRi_list, wti_list)
+        ]
 
         # Compute the metrics.
         if gt_wTi_list is not None:
             ta_metrics = _compute_metrics(inliers, i2Ui1_dict, wRi_list, wti_list, gt_wTi_list)
         else:
             ta_metrics = None
-        num_translations = 0
-        for wti in wti_list:
-            if wti is not None:
-                num_translations += 1
+
+        num_translations = sum([1 for wti in wti_list if wti is not None])
         logger.info("Estimated {} translations out of {} images ".format(num_translations, num_images))
-        return wti_list, ta_metrics
+        return wTi_list, ta_metrics
 
 
 def _sample_kde_directions(w_i2Ui1_measurements: BinaryMeasurementsUnit3, num_samples: int) -> List[Unit3]:
