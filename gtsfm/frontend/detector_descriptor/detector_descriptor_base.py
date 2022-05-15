@@ -46,16 +46,16 @@ class DetectorDescriptorBase(metaclass=abc.ABCMeta):
             Corr. descriptors, of shape (N, D) where D is the dimension of each descriptor.
         """
 
-    def create_computation_graph(self, image_graph: Delayed) -> Tuple[Delayed, Delayed]:
+    def create_computation_graph(self, delayed_image: Delayed) -> Tuple[Delayed, Delayed]:
         """Generates the computation graph for detections and their descriptors.
 
         Args:
-            image_graph: computation graph for a single image (from a loader).
+            delayed_image: computation graph for a single image (from a loader).
 
         Returns:
             Delayed tasks for detections.
             Delayed task for corr. descriptors.
         """
-        keypoints_graph, descriptor_graph = dask.delayed(self.detect_and_describe, nout=2)(image_graph)
+        keypoints_graph, descriptor_graph = dask.delayed(self.detect_and_describe, nout=2)(delayed_image)
 
         return keypoints_graph, descriptor_graph

@@ -31,15 +31,15 @@ class DescriptorBase(metaclass=abc.ABCMeta):
             Descriptors for the input features, of shape (N, D) where D is the dimension of each descriptor.
         """
 
-    def create_computation_graph(self, image_graph: Delayed, keypoints_graph: Delayed) -> Delayed:
+    def create_computation_graph(self, delayed_image: Delayed, keypoints_graph: Delayed) -> Delayed:
         """Generates the computation graph to perform description.
 
         Args:
-            image_graph: computation graph for an image.
+            delayed_image: computation graph for an image.
             keypoints_graph: computation graph for keypoints for the image.
 
         Returns:
             Delayed tasks for performing description.
         """
 
-        return dask.delayed(self.describe)(image_graph, keypoints_graph)
+        return dask.delayed(self.describe)(delayed_image, keypoints_graph)

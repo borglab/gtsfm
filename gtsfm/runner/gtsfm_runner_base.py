@@ -134,12 +134,12 @@ class GtsfmRunnerBase:
 
         # Compute which images are actually involved in visual matching.
         images_involved = set()
-        for i1,i2 in image_pair_indices:
+        for i1, i2 in image_pair_indices:
             images_involved.add(i1)
             images_involved.add(i2)
         logger.info(f"[runner] There are {len(images_involved)} images involved.")
         all_delayed_images = self.loader.create_computation_graph_for_images()
-        delayed_images={i:all_delayed_images[i] for i in images_involved}
+        delayed_images = {i: all_delayed_images[i] for i in images_involved}
 
         delayed_sfm_result, delayed_io = self.scene_optimizer.create_computation_graph(
             num_images=len(self.loader),

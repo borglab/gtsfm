@@ -103,7 +103,7 @@ class SceneOptimizer:
     def create_computation_graph_for_frontend(
         self,
         image_pair_indices: List[Tuple[int, int]],
-        image_graph: List[Delayed],
+        delayed_images: Dict[int, Delayed],
         all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         image_shapes: List[Tuple[int, int]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
@@ -113,12 +113,10 @@ class SceneOptimizer:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
 
         # detection and description graph
-        delayed_keypoints = []
-        delayed_descriptors = []
-        for delayed_image in image_graph:
-            (delayed_dets, delayed_descs) = self.feature_extractor.create_computation_graph(delayed_image)
-            delayed_keypoints += [delayed_dets]
-            delayed_descriptors += [delayed_descs]
+        delayed_dmv = {
+            i: self.feature_extractor.create_computation_graph(delayed_image)
+            for i, delayed_image in delayed_images.items()
+        }
 
         # Estimate two-view geometry and get indices of verified correspondences.
         i2Ri1_graph_dict = {}
@@ -129,10 +127,10 @@ class SceneOptimizer:
 
             # TODO(johnwlambert): decompose this so what happens in the loop is a separate method
             i2Ri1, i2Ui1, _ = self.two_view_estimator.create_computation_graph(
-                delayed_keypoints[i1],
-                delayed_keypoints[i2],
-                delayed_descriptors[i1],
-                delayed_descriptors[i2],
+                delayed_dmv[i1][0],
+                delayed_dmv[i2][0],
+                delayed_dmv[i1][1],
+                delayed_dmv[i2][1],
                 all_intrinsics[i1],
                 all_intrinsics[i2],
                 image_shapes[i1],
@@ -164,9 +162,6 @@ class SceneOptimizer:
         matching_regime: ImageMatchingRegime = ImageMatchingRegime.SEQUENTIAL,
     ) -> Tuple[Delayed, List[Delayed]]:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
-
-        # auxiliary graph elements for visualizations and saving intermediate data for analysis.
-        delayed_results = []
 
         # detection and description graph
         delayed_dmv = {
@@ -231,6 +226,9 @@ class SceneOptimizer:
             ba_input_graph, ba_output_graph, gt_wTi_list
         )
 
+        # auxiliary graph elements for visualizations and saving intermediate data for analysis.
+        delayed_results = []
+
         if self._save_3d_viz:
             delayed_results.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_wTi_list))
 
@@ -238,13 +236,12 @@ class SceneOptimizer:
             delayed_results.extend(save_gtsfm_data(delayed_images, ba_input_graph, ba_output_graph))
 
         if self._run_dense_optimizer:
-            img_dict_graph = dask.delayed(get_image_dictionary)(delayed_images)
             (
                 dense_points_graph,
                 dense_point_colors_graph,
                 densify_metrics_graph,
                 downsampling_metrics_graph,
-            ) = self.dense_multiview_optimizer.create_computation_graph(img_dict_graph, ba_output_graph)
+            ) = self.dense_multiview_optimizer.create_computation_graph(delayed_images, ba_output_graph)
 
             # Cast to string as Open3d cannot use PosixPath's for I/O -- only string file paths are accepted.
             delayed_results.append(
@@ -264,12 +261,6 @@ class SceneOptimizer:
 
         # return the entry with just the sfm result
         return ba_output_graph, delayed_results
-
-
-def get_image_dictionary(image_list: List[Image]) -> Dict[int, Image]:
-    """Convert a list of images to the MVS input format."""
-    img_dict = {i: img for i, img in enumerate(image_list)}
-    return img_dict
 
 
 def align_estimated_gtsfm_data(
@@ -325,11 +316,13 @@ def save_visualizations(
     return viz_graph_list
 
 
-def save_gtsfm_data(image_graph: List[Delayed], ba_input_graph: Delayed, ba_output_graph: Delayed) -> List[Delayed]:
+def save_gtsfm_data(
+    delayed_images: Dict[int, Delayed], ba_input_graph: Delayed, ba_output_graph: Delayed
+) -> List[Delayed]:
     """Saves the Gtsfm data before and after bundle adjustment.
 
     Args:
-        image_graph: input image wrapped as Delayed objects.
+        delayed_images: input image wrapped as Delayed objects.
         ba_input_graph: GtsfmData input to bundle adjustment wrapped as Delayed.
         ba_output_graph: GtsfmData output to bundle adjustment wrapped as Delayed.
 
@@ -343,7 +336,7 @@ def save_gtsfm_data(image_graph: List[Delayed], ba_input_graph: Delayed, ba_outp
         saving_graph_list.append(
             dask.delayed(io_utils.export_model_as_colmap_text)(
                 ba_input_graph,
-                image_graph,
+                delayed_images,
                 save_dir=os.path.join(output_dir, "ba_input"),
             )
         )
@@ -351,7 +344,7 @@ def save_gtsfm_data(image_graph: List[Delayed], ba_input_graph: Delayed, ba_outp
         saving_graph_list.append(
             dask.delayed(io_utils.export_model_as_colmap_text)(
                 ba_output_graph,
-                image_graph,
+                delayed_images,
                 save_dir=os.path.join(output_dir, "ba_output"),
             )
         )

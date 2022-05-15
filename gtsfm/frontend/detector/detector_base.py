@@ -34,13 +34,13 @@ class DetectorBase(metaclass=abc.ABCMeta):
             detected keypoints, with maximum length of max_keypoints.
         """
 
-    def create_computation_graph(self, image_graph: Delayed) -> Delayed:
+    def create_computation_graph(self, delayed_image: Delayed) -> Delayed:
         """Generates the computation graph for performing detection.
 
         Args:
-            image_graph: computation graph for an image.
+            delayed_image: computation graph for an image.
 
         Returns:
             Delayed task for detection on the input image.
         """
-        return dask.delayed(self.detect)(image_graph)
+        return dask.delayed(self.detect)(delayed_image)

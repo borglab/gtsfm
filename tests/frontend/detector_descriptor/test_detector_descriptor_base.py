@@ -51,8 +51,8 @@ class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
     def test_computation_graph(self):
         """Test the dask's computation graph formation."""
 
-        image_graph = self.loader.create_computation_graph_for_images()
-        for i, delayed_image in enumerate(image_graph):
+        delayed_images = self.loader.create_computation_graph_for_images()
+        for i, delayed_image in enumerate(delayed_images):
             (
                 kp_graph,
                 desc_graph,
