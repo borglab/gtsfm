@@ -100,12 +100,17 @@ class HiltiRunner:
 
         pairs_for_frontend = self.retriever.run(self.loader)
 
-        image_indices_for_feature_extraction = list(sum(pairs_for_frontend, ()))
+        image_indices_for_feature_extraction = set(sum(pairs_for_frontend, ()))
         keypoints_dict = {}
         descriptors_dict = {}
         image_shapes = {}
 
+        counter = 0
         for i in image_indices_for_feature_extraction:
+            counter += 1
+            if counter % 20 == 0:
+                logger.info("%d/%d images", counter, len(image_indices_for_feature_extraction))
+
             image = self.loader.get_image(i)
             if image is not None:
                 keypoints, descriptors = self.scene_optimizer.feature_extractor.detector_descriptor.detect_and_describe(
@@ -118,6 +123,7 @@ class HiltiRunner:
         i2Ri1_dict = {}
         i2Ui1_dict = {}
         v_corr_idxs_dict = {}
+
         counter = 0
         for i1, i2 in pairs_for_frontend:
             counter += 1
