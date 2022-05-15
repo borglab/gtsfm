@@ -3,7 +3,6 @@
 Authors: Ayush Baid
 """
 import pickle
-from statistics import covariance
 import unittest
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -13,7 +12,7 @@ import gtsam
 import numpy as np
 from gtsam import Cal3_S2, Point3, Pose3, Rot3, Unit3
 from gtsam.examples import SFMdata
-from gtsfm.common.pose_prior import PosePrior
+from gtsfm.common.pose_prior import PosePrior, PosePriorType
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
 
@@ -40,13 +39,13 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
     def test_augmentation(self):
         """Tests that measurements for betweenTranslations are augmented to input measurements."""
         input_measurements = gtsam.BinaryMeasurementsUnit3()
-        INPUT_NOISE_MODEL = gtsam.noiseModel.Isotropic(2, 1e-2)
-        input_measurements.append(gtsam.BinaryMeasurementUnit3(0, 1, Unit3(Point3(1, 0, 0), INPUT_NOISE_MODEL)))
-        input_measurements.append(gtsam.BinaryMeasurementUnit3(0, 2, Unit3(Point3(0, 1, 0), INPUT_NOISE_MODEL)))
-        input_measurements.append(gtsam.BinaryMeasurementUnit3(1, 2, Unit3(Point3(0, 0, 1), INPUT_NOISE_MODEL)))
+        INPUT_NOISE_MODEL = gtsam.noiseModel.Isotropic.Sigma(2, 1e-2)
+        input_measurements.append(gtsam.BinaryMeasurementUnit3(0, 1, Unit3(Point3(1, 0, 0)), INPUT_NOISE_MODEL))
+        input_measurements.append(gtsam.BinaryMeasurementUnit3(0, 2, Unit3(Point3(0, 1, 0)), INPUT_NOISE_MODEL))
+        input_measurements.append(gtsam.BinaryMeasurementUnit3(1, 2, Unit3(Point3(0, 0, 1)), INPUT_NOISE_MODEL))
 
         priors = gtsam.BinaryMeasurementsPoint3()
-        PRIOR_NOISE_MODEL = gtsam.noiseModel.Isotropic(3, 1e-2)
+        PRIOR_NOISE_MODEL = gtsam.noiseModel.Isotropic.Sigma(3, 1e-2)
         priors.append(gtsam.BinaryMeasurementPoint3(0, 2, Point3(1, 1, 0), PRIOR_NOISE_MODEL))
         priors.append(gtsam.BinaryMeasurementPoint3(2, 3, Point3(1, 0, 1), PRIOR_NOISE_MODEL))
 
@@ -57,18 +56,18 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
             measurement = augmented_measurements[idx]
             augmented_measurements_dict[(measurement.key1(), measurement.key2())] = measurement.measured()
         self.assertSetEqual(set(augmented_measurements_dict.keys()), set([(0, 1), (0, 2), (1, 2), (2, 3)]))
-        self.assertEqual(augmented_measurements_dict[2, 3], Unit3(Point3(1, 0, 1)))
+        np.testing.assert_array_equal(augmented_measurements_dict[2, 3].point3(), Unit3(Point3(1, 0, 1)).point3())
 
     def test_convert_prior_to_world_frame(self):
         """Test the helper method for transforming betweenTranslations to world frame."""
         # Rotate i1 by 90 degrees in Z, and translate by (1, 1, 1)
-        wRi1 = Rot3.Rz(90)
-        i1Ti2 = Pose3(Rot3(), Point3(2, 0, 0))  # Identity rotation, X axis.
+        wRi1 = Rot3.Rz(np.deg2rad(90))
+        i1Ti2 = Pose3(Rot3(), Point3(2, 0, 1))  # Identity rotation, X axis.
 
-        covariance = np.zeros((6, 6))
+        prior_covariance = np.zeros((6, 6))
         for i in range(6):
-            covariance[i, i] = 1.0 if i is not 3 else 2.0
-        i1Ti2_prior = PosePrior(value=i1Ti2, covariance=covariance)
+            prior_covariance[i, i] = 1.0 if i != 3 else 2.0
+        i1Ti2_prior = PosePrior(value=i1Ti2, covariance=prior_covariance, type=PosePriorType.SOFT_CONSTRAINT)
 
         wRi_list = [Rot3(), wRi1, Rot3()]   # identity for 0 and 2, wRi1 for 1
         w_i1ti2_priors = self.obj._get_prior_measurements_in_world_frame({(1, 2): i1Ti2_prior}, wRi_list)
@@ -83,13 +82,13 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
 
         # Check value
         actual_w_i1ti2 = w_i1ti2_priors[0].measured()
-        self.assertEqual(actual_w_i1ti2, Point3(0, 2, 0))
+        np.testing.assert_array_almost_equal(actual_w_i1ti2, Point3(0, 2, 1))
 
         # Check covariance
-        actual_covariance = w_i1ti2_priors[0].noise_model().covariance()
+        actual_covariance = w_i1ti2_priors[0].noiseModel().covariance()
         expected_covariance = np.eye(3)
         expected_covariance[1, 1] = 2.0
-        self.assertEqual(actual_covariance, expected_covariance)
+        np.testing.assert_array_almost_equal(actual_covariance, expected_covariance)
         
 
     def __execute_test(
