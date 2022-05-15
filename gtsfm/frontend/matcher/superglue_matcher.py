@@ -28,7 +28,7 @@ DEFAULT_NUM_SINKHORN_ITERATIONS = 20
 class SuperGlueMatcher(MatcherBase):
     """Implements the SuperGlue matcher -- a pretrained graph neural network using attention."""
 
-    def __init__(self, use_cuda: bool = True, use_outdoor_model: bool = True):
+    def __init__(self, use_cuda: bool = True, use_outdoor_model: bool = True, init_model_in_constructor: bool = False):
         """Initialize the configuration and the parameters."""
         super().__init__()
 
@@ -41,7 +41,10 @@ class SuperGlueMatcher(MatcherBase):
 
         # TODO: do not merge to master. Models should not be initialized in constructors for dask.
         self.device = torch.device("cuda" if self._use_cuda else "cpu")
-        self.model = SuperGlue(self._config).to(self.device).eval()
+        if init_model_in_constructor:
+            self.model = SuperGlue(self._config).to(self.device).eval()
+        else:
+            self.model = None
 
     def match(
         self,
@@ -97,8 +100,13 @@ class SuperGlueMatcher(MatcherBase):
             "image1": empty_image_i2,
         }
 
+        if self.model is not None:
+            model = self.model
+        else:
+            model = SuperGlue(self._config).to(self.device).eval()
+
         with torch.no_grad():
-            pred = self.model(input_data)
+            pred = model(input_data)
             matches = pred["matches0"][0].detach().cpu().numpy()
 
             num_kps_i1 = len(keypoints_i1)
