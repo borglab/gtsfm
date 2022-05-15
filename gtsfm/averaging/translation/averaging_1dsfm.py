@@ -11,7 +11,6 @@ References:
 Authors: Jing Wu, Ayush Baid, Akshay Krishnan
 """
 from collections import defaultdict
-from copy import deepcopy
 from enum import Enum
 from typing import Dict, List, Optional, Set, Tuple, DefaultDict
 

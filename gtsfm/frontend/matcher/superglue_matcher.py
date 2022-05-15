@@ -39,7 +39,7 @@ class SuperGlueMatcher(MatcherBase):
         }
         self._use_cuda = use_cuda and torch.cuda.is_available()
 
-        # TODO: move back to match function when using dask
+        # TODO: do not merge to master. Models should not be initialized in constructors for dask.
         self.device = torch.device("cuda" if self._use_cuda else "cpu")
         self.model = SuperGlue(self._config).to(self.device).eval()
 

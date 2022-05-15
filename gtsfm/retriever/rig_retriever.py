@@ -80,13 +80,5 @@ class RigRetriever(RetrieverBase):
         pairs = list(unique_pairs)
         pairs.sort()
 
-        # # check on pairs to assert the order
-        # result: List[Tuple[int, int]] = []
-        # for i1, i2 in pairs:
-        #     if i1 > i2:
-        #         result.append((i2, i1))
-        #     else:
-        #         result.append((i1, i2))
-
         logger.info(f"RigRetriever finally created {len(pairs)} pairs.")
         return pairs
