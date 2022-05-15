@@ -12,7 +12,7 @@ Note: cannot consolidate the two functions below, since SfmTrack has no measurem
 
 def compute_track_reprojection_errors(
     track_camera_dict: Dict[int, PinholeCameraCal3Bundler], track: SfmTrack
-) -> Tuple[np.ndarray, float]:
+) -> np.ndarray:
     """Compute reprojection errors for measurements in the tracks.
 
     Args:
@@ -40,9 +40,7 @@ def compute_track_reprojection_errors(
             # failure in projection
             errors.append(np.nan)
 
-    errors = np.array(errors)
-    average_reprojection_error = np.nan if np.isnan(errors).all() else np.nanmean(errors)
-    return errors, average_reprojection_error
+    return np.array(errors)
 
 
 def compute_point_reprojection_errors(

@@ -165,7 +165,9 @@ class TwoViewEstimator:
             Optimized verified_corr_idxs.
         """
         i2Ti1_from_verifier: Optional[Pose3] = (
-            Pose3(i2Ri1_initial, i2Ui1_initial.point3()) if i2Ri1_initial is not None else None
+            Pose3(i2Ri1_initial, i2Ui1_initial.point3())
+            if i2Ri1_initial is not None and i2Ui1_initial is not None
+            else None
         )
         i2Ti1_initial: Optional[Pose3] = self.__generate_initial_pose_for_bundle_adjustment(
             i2Ti1_from_verifier, i2Ti1_prior

@@ -476,7 +476,8 @@ def write_points(gtsfm_data: GtsfmData, save_dir: str, images: Optional[List[Ima
             track = gtsfm_data.get_track(j)
 
             r, g, b = image_utils.get_average_point_color(track, images)
-            _, avg_track_reproj_error = reproj_utils.compute_track_reprojection_errors(gtsfm_data._cameras, track)
+            errors = reproj_utils.compute_track_reprojection_errors(gtsfm_data._cameras, track)
+            avg_track_reproj_error = np.nan if np.isnan(errors).all() else np.nanmean(errors)
             x, y, z = track.point3()
             f.write(f"{j} {x} {y} {z} {r} {g} {b} {np.round(avg_track_reproj_error, 2)} ")
 

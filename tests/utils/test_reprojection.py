@@ -44,7 +44,8 @@ class TestReprojection(unittest.TestCase):
         # in camera 1
         track_3d.addMeasurement(idx=1, m=np.array([-8, 43]))  # should be (-7,44), 1 px error in each dim
 
-        errors, avg_track_reproj_error = reproj_utils.compute_track_reprojection_errors(track_camera_dict, track_3d)
+        errors = reproj_utils.compute_track_reprojection_errors(track_camera_dict, track_3d)
+        avg_track_reproj_error = np.nan if np.isnan(errors).all() else np.nanmean(errors)
 
         expected_errors = np.array([0, np.sqrt(2)])
         np.testing.assert_allclose(errors, expected_errors)

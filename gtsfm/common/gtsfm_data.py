@@ -385,7 +385,7 @@ class GtsfmData:
         Returns:
             validity of the track.
         """
-        errors, avg_reproj_error = reproj_utils.compute_track_reprojection_errors(self._cameras, track)
+        errors, _ = reproj_utils.compute_track_reprojection_errors(self._cameras, track)
         # track is valid as all measurements have error below the threshold
         cheirality_success = np.all(~np.isnan(errors))
         return np.all(errors < reproj_err_thresh) and cheirality_success
