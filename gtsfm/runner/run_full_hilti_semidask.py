@@ -95,6 +95,7 @@ class HiltiRunner:
         Dict[Tuple[int, int], Optional[Rot3]],
         Dict[Tuple[int, int], Optional[Unit3]],
         Dict[Tuple[int, int], np.ndarray],
+        Dict[int, Tuple[int, int]],
     ]:
         start_time = time.time()
 
@@ -153,14 +154,15 @@ class HiltiRunner:
         duration_sec = end_time - start_time
         logger.info("GTSFM took %.2f minutes to compute frontend.", duration_sec / 60)
 
-        return keypoints_dict, i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict
+        return keypoints_dict, i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, image_shapes
 
     def run_full(self):
         start_time = time.time()
-        keypoints_dict, i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict = self.run_frontend()
+        keypoints_dict, i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, image_shapes = self.run_frontend()
 
         num_images = len(self.loader)
         keypoints_list = [keypoints_dict.get(i, Keypoints(np.array([[]]))) for i in range(num_images)]
+        image_shapes_list = [image_shapes.get(i, (100, 100)) for i in range(num_images)]
 
         delayed_sfm_result, delayed_io = self.scene_optimizer.create_computation_graph_for_backend(
             num_images=len(self.loader),
@@ -174,7 +176,7 @@ class HiltiRunner:
             absolute_pose_priors=self.loader.get_absolute_pose_priors(),
             cameras_gt=self.loader.get_gt_cameras(),
             gt_wTi_list=self.loader.get_gt_poses(),
-            image_shapes=self.loader.get_image_shapes(),
+            image_shapes=image_shapes_list,
             image_fnames=self.loader.get_image_fnames(),
         )
 
