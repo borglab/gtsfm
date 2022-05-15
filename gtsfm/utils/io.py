@@ -17,12 +17,9 @@ import open3d
 from gtsam import Cal3Bundler, Point3, Pose3, Rot3, SfmTrack
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
-from thirdparty.colmap.scripts.python.read_write_model import \
-    Camera as ColmapCamera
-from thirdparty.colmap.scripts.python.read_write_model import \
-    Image as ColmapImage
-from thirdparty.colmap.scripts.python.read_write_model import \
-    Point3D as ColmapPoint3D
+from thirdparty.colmap.scripts.python.read_write_model import Camera as ColmapCamera
+from thirdparty.colmap.scripts.python.read_write_model import Image as ColmapImage
+from thirdparty.colmap.scripts.python.read_write_model import Point3D as ColmapPoint3D
 
 import gtsfm.utils.images as image_utils
 import gtsfm.utils.logger as logger_utils
@@ -155,7 +152,13 @@ def read_bundler(file_path: str) -> GtsfmData:
     return GtsfmData.from_sfm_data(sfm_data)
 
 
-def export_model_as_colmap_text(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
+def export_model_as_colmap_text(
+    gtsfm_data: GtsfmData,
+    image_shapes: List[Tuple[int, int]],
+    image_fnames: List[str],
+    images: Optional[List[Image]],
+    save_dir: str,
+) -> None:
     """Emulates the COLMAP option to `Export model as text`.
 
     Three text files will be save to disk: "points3D.txt", "images.txt", and "cameras.txt".
@@ -165,9 +168,9 @@ def export_model_as_colmap_text(gtsfm_data: GtsfmData, images: List[Image], save
         images: list of all images for this scene, in order of image index.
         save_dir: folder where text files will be saved.
     """
-    write_cameras(gtsfm_data, images, save_dir)
-    write_images(gtsfm_data, images, save_dir)
-    write_points(gtsfm_data, images, save_dir)
+    write_cameras(gtsfm_data, image_shapes, save_dir)
+    write_images(gtsfm_data, image_fnames, save_dir)
+    write_points(gtsfm_data, save_dir, images)
 
 
 def colmap2gtsfm(
@@ -252,7 +255,7 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
     return calibrations
 
 
-def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
+def write_cameras(gtsfm_data: GtsfmData, image_shapes: List[Tuple[int, int]], save_dir: str) -> None:
     """Writes the camera data file in the COLMAP format.
 
     Reference: https://colmap.github.io/format.html#cameras-txt
@@ -285,8 +288,7 @@ def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> 
             k1 = calibration.k1()
             k2 = calibration.k2()
 
-            image_height = images[i].height
-            image_width = images[i].width
+            image_height, image_width = image_shapes[i]
 
             f.write(f"{i} {camera_model} {image_width} {image_height} {fx} {u0} {v0} {k1} {k2}\n")
 
@@ -330,7 +332,7 @@ def read_images_txt(fpath: str) -> Tuple[Optional[List[Pose3]], Optional[List[st
     return wTi_list, img_fnames
 
 
-def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
+def write_images(gtsfm_data: GtsfmData, images_fnames: List[str], save_dir: str) -> None:
     """Writes the image data file in the COLMAP format.
 
     Reference: https://colmap.github.io/format.html#images-txt
@@ -367,7 +369,6 @@ def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
         f.write(f"# Number of images: {num_imgs}, mean observations per image: {mean_obs_per_img:.3f}\n")
 
         for i in gtsfm_data.get_valid_camera_indices():
-            img_fname = images[i].file_name
             camera = gtsfm_data.get_camera(i)
             # COLMAP exports camera extrinsics (cTw), not the poses (wTc), so must invert
             iTw = camera.pose().inverse()
@@ -376,7 +377,7 @@ def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
             tx, ty, tz = itw
             qw, qx, qy, qz = iRw_quaternion
 
-            f.write(f"{i} {qw} {qx} {qy} {qz} {tx} {ty} {tz} {i} {img_fname}\n")
+            f.write(f"{i} {qw} {qx} {qy} {qz} {tx} {ty} {tz} {i} {images_fnames[i]}\n")
 
             # write out points2d
             for j in range(gtsfm_data.number_tracks()):
@@ -447,7 +448,7 @@ def read_scene(
     return wTi_list, img_fnames, calibrations, point_cloud, rgb
 
 
-def write_points(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> None:
+def write_points(gtsfm_data: GtsfmData, save_dir: str, images: Optional[List[Image]]) -> None:
     """Writes the point cloud data file in the COLMAP format.
 
     Reference: https://colmap.github.io/format.html#points3d-txt

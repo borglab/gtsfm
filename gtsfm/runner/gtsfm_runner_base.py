@@ -142,6 +142,7 @@ class GtsfmRunnerBase:
             absolute_pose_priors=self.loader.get_absolute_pose_priors(),
             cameras_gt=self.loader.get_gt_cameras(),
             gt_wTi_list=self.loader.get_gt_poses(),
+            image_fnames=self.loader.get_image_fnames(),
             matching_regime=ImageMatchingRegime(self.parsed_args.matching_regime),
         )
 

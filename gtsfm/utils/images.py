@@ -2,7 +2,7 @@
 
 Authors: Ayush Baid
 """
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import cv2 as cv
 import numpy as np
@@ -238,7 +238,7 @@ def match_image_widths(
     return scaled_image_i1, scaled_image_i2, scale_factor_i1, scale_factor_i2
 
 
-def get_average_point_color(track: SfmTrack, images: List[Image]) -> Tuple[int, int, int]:
+def get_average_point_color(track: SfmTrack, images: Optional[List[Image]]) -> Tuple[int, int, int]:
     """
     Args:
         track: 3d point/landmark and its corresponding 2d measurements in various cameras
@@ -249,6 +249,9 @@ def get_average_point_color(track: SfmTrack, images: List[Image]) -> Tuple[int, 
         g: green color intensity, in range [0,255]
         b: blue color intensity, in range [0,255]
     """
+    if images is None:
+        return 255, 255, 255
+
     rgb_measurements = []
     for k in range(track.numberMeasurements()):
 
