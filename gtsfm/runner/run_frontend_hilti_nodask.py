@@ -90,24 +90,25 @@ class HiltiFrontendRunner:
             counter += 1
             if counter % 100 == 0:
                 logger.info("%d/%d pairs", counter, len(pairs_for_frontend))
-            self.scene_optimizer.two_view_estimator.run_2view(
-                keypoints_i1=keypoints_dict[i1],
-                keypoints_i2=keypoints_dict[i2],
-                descriptors_i1=descriptors_dict[i1],
-                descriptors_i2=descriptors_dict[i2],
-                camera_intrinsics_i1=self.loader.get_camera_intrinsics(i1),
-                camera_intrinsics_i2=self.loader.get_camera_intrinsics(i2),
-                im_shape_i1=image_shapes[i1],
-                im_shape_i2=image_shapes[i2],
-                i2Ti1_prior=None,
-                gt_wTi1=None,
-                gt_wTi2=None,
-                gt_scene_mesh=None,
-            )
+            if i1 in keypoints_dict and i2 in keypoints_dict:
+                self.scene_optimizer.two_view_estimator.run_2view(
+                    keypoints_i1=keypoints_dict[i1],
+                    keypoints_i2=keypoints_dict[i2],
+                    descriptors_i1=descriptors_dict[i1],
+                    descriptors_i2=descriptors_dict[i2],
+                    camera_intrinsics_i1=self.loader.get_camera_intrinsics(i1),
+                    camera_intrinsics_i2=self.loader.get_camera_intrinsics(i2),
+                    im_shape_i1=image_shapes[i1],
+                    im_shape_i2=image_shapes[i2],
+                    i2Ti1_prior=None,
+                    gt_wTi1=None,
+                    gt_wTi2=None,
+                    gt_scene_mesh=None,
+                )
 
         end_time = time.time()
         duration_sec = end_time - start_time
-        logger.info("GTSFM took %.2f minutes to compute frontend.", duration_sec/60)
+        logger.info("GTSFM took %.2f minutes to compute frontend.", duration_sec / 60)
 
 
 if __name__ == "__main__":
