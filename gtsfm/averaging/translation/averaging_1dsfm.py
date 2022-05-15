@@ -301,8 +301,6 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             inliers = set(i2Ui1_dict.keys())
 
         # Run the optimizer
-        # TODO(akshay-krishnan): remove once latest gtsam pip wheels updated.
-        # try:
         algorithm = TranslationRecovery()
         logger.debug("[1dsfm] Constructed NEW TranslationRecovery, about to run.")
         w_relative_pose_priors = self._get_prior_measurements_in_world_frame(relative_pose_priors, wRi_list)
@@ -319,12 +317,6 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         else:
             wti_values = algorithm.run(w_i2Ui1_measurements, scale_factor)
             logger.debug("[1dsfm] Finished without priors.")
-        # except TypeError as te:
-        #     logger.error(te)
-        #     recovery = TranslationRecovery(w_i2Ui1_measurements)
-        #     logger.debug("[1dsfm] Constructed OLD TranslationRecovery, about to run.")
-        #     wti_values = recovery.run(scale_factor)
-        #     logger.debug("[1dsfm] Finished.")
 
         # transforming the result to the list of Point3
         wti_list: List[Optional[Point3]] = [None] * num_images

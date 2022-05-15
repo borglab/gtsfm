@@ -77,7 +77,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         """Create between factors from the priors on relative poses."""
         between_factors = BetweenFactorPose3s()
         noise_model = gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, PRIOR_SIGMA)
-        # temporary fix
+        # TODO: take average covariance instead
 
         for (i1, i2), i1Ti2_prior in relative_pose_priors.items():
             i1_ = old_to_new_idxs[i1]
