@@ -174,7 +174,7 @@ class HiltiRunner:
             absolute_pose_priors=self.loader.get_absolute_pose_priors(),
             cameras_gt=self.loader.get_gt_cameras(),
             gt_wTi_list=self.loader.get_gt_poses(),
-            image_shapes=None,  # self.loader.get_image_shapes(),
+            image_shapes=self.loader.get_image_shapes(),
             image_fnames=self.loader.get_image_fnames(),
         )
 
