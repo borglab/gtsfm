@@ -48,7 +48,7 @@ class MultiViewOptimizer:
 
         Args:
             num_images: number of images in the scene.
-            delayed_dmv: keypoints for images, each wrapped up as Delayed.
+            delayed_dmv: keypoints/descriptors for images, each wrapped up as Delayed.
             i2Ri1_graph: relative rotations for image pairs, each value wrapped up as Delayed.
             i2Ui1_graph: relative unit-translations for image pairs, each value wrapped up as Delayed.
             v_corr_idxs_graph: indices of verified correspondences for image pairs, wrapped up as Delayed.

@@ -57,7 +57,7 @@ class DataAssociation(NamedTuple):
         num_images: int,
         cameras: Dict[int, gtsfm_types.CAMERA_TYPE],
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
-        keypoints_list: List[Keypoints],
+        dmv_dict: Dict[int, Tuple],
         cameras_gt: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]],
         images: Optional[List[Image]] = None,
@@ -68,7 +68,7 @@ class DataAssociation(NamedTuple):
             num_images: Number of images in the scene.
             cameras: dictionary, with image index -> camera mapping.
             corr_idxs_dict: dictionary, with key as image pair (i1,i2) and value as matching keypoint indices.
-            keypoints_list: keypoints for each image.
+            dmv_dict: keypoints/descriptors for each image.
             cameras_gt: list of GT cameras, to be used for benchmarking the tracks.
             images: a list of all images in scene (optional and only for track patch visualization)
 
@@ -76,7 +76,7 @@ class DataAssociation(NamedTuple):
             A tuple of GtsfmData with cameras and tracks, and a GtsfmMetricsGroup with data association metrics
         """
         # generate tracks for 3D points using pairwise correspondences
-        tracks_2d = SfmTrack2d.generate_tracks_from_pairwise_matches(corr_idxs_dict, keypoints_list)
+        tracks_2d = SfmTrack2d.generate_tracks_from_pairwise_matches(corr_idxs_dict, dmv_dict)
 
         if self.save_track_patches_viz and images is not None:
             io_utils.save_track_visualizations(tracks_2d, images, save_dir=os.path.join("plots", "tracks_2d"))
@@ -196,7 +196,7 @@ class DataAssociation(NamedTuple):
         delayed_dmv: Dict[int, Delayed],
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        images_graph: Optional[Dict[int, Delayed]] = None,
+        delayed_images: Optional[Dict[int, Delayed]] = None,
     ) -> Tuple[Delayed, Delayed]:
         """Creates a computation graph for performing data association.
 
@@ -204,10 +204,10 @@ class DataAssociation(NamedTuple):
             num_images: number of images in the scene.
             cameras: list of cameras wrapped up as Delayed.
             corr_idxs_graph: dictionary of correspondence indices, each value wrapped up as Delayed.
-            delayed_dmv: list of wrapped up keypoints for each image.
+            delayed_dmv: list of wrapped up keypoints/descriptors for each image.
             cameras_gt: a list of cameras with ground truth params, if they exist.
             relative_pose_priors: pose priors on the relative pose between camera poses.
-            images_graph: a list of all images in scene (optional and only for track patch visualization)
+            delayed_images: a list of all images in scene (optional and only for track patch visualization)
 
         Returns:
             ba_input_graph: GtsfmData object wrapped up using dask.delayed
@@ -215,7 +215,7 @@ class DataAssociation(NamedTuple):
                 association result
         """
         ba_input_graph, data_assoc_metrics_graph = dask.delayed(self.run_da, nout=2)(
-            num_images, cameras, corr_idxs_graph, delayed_dmv, cameras_gt, relative_pose_priors, images_graph
+            num_images, cameras, corr_idxs_graph, delayed_dmv, cameras_gt, relative_pose_priors, delayed_images
         )
 
         return ba_input_graph, data_assoc_metrics_graph
