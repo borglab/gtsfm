@@ -191,7 +191,7 @@ class HiltiRunner:
             absolute_pose_priors=absolute_pose_priors,
             relative_pose_priors=relative_pose_priors,
             verbose=True,
-            intrinsincs=all_intrinsics,
+            intrinsics=all_intrinsics,
         )
         ba_metrics = self.scene_optimizer.multiview_optimizer.ba_optimizer.evaluate(
             ba_unfiltered, ba_output, gt_cameras
