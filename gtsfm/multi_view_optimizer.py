@@ -32,9 +32,9 @@ class MultiViewOptimizer:
 
     def create_computation_graph(
         self,
-        images_graph: List[Delayed],
+        delayed_images: Dict[int, Delayed],
         num_images: int,
-        keypoints_graph: List[Delayed],
+        delayed_dmv: Dict[int, Delayed],
         i2Ri1_graph: Dict[Tuple[int, int], Delayed],
         i2Ui1_graph: Dict[Tuple[int, int], Delayed],
         v_corr_idxs_graph: Dict[Tuple[int, int], Delayed],
@@ -48,7 +48,7 @@ class MultiViewOptimizer:
 
         Args:
             num_images: number of images in the scene.
-            keypoints_graph: keypoints for images, each wrapped up as Delayed.
+            delayed_dmv: keypoints for images, each wrapped up as Delayed.
             i2Ri1_graph: relative rotations for image pairs, each value wrapped up as Delayed.
             i2Ui1_graph: relative unit-translations for image pairs, each value wrapped up as Delayed.
             v_corr_idxs_graph: indices of verified correspondences for image pairs, wrapped up as Delayed.
@@ -86,10 +86,10 @@ class MultiViewOptimizer:
             num_images,
             init_cameras_graph,
             v_corr_idxs_graph,
-            keypoints_graph,
+            delayed_dmv,
             cameras_gt,
             relative_pose_priors,
-            images_graph,
+            delayed_images,
         )
 
         ba_result_graph, ba_metrics_graph = self.ba_optimizer.create_computation_graph(

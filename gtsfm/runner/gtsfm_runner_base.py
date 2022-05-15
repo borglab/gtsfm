@@ -93,7 +93,7 @@ class GtsfmRunnerBase:
                 if self.parsed_args.share_intrinsics
                 else [],
             )
-            logger.info("Using config: ")
+            logger.info("[runner] Using config: ")
             logger.info(OmegaConf.to_yaml(cfg))
             scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
@@ -132,10 +132,19 @@ class GtsfmRunnerBase:
         with Client(cluster), performance_report(filename="dask-report.html"):
             image_pair_indices = pairs_graph.compute()
 
+        # Compute which images are actually involved in visual matching.
+        images_involved = set()
+        for i1,i2 in image_pair_indices:
+            images_involved.add(i1)
+            images_involved.add(i2)
+        logger.info(f"[runner] There are {len(images_involved)} images involved.")
+        all_delayed_images = self.loader.create_computation_graph_for_images()
+        delayed_images={i:all_delayed_images[i] for i in images_involved}
+
         delayed_sfm_result, delayed_io = self.scene_optimizer.create_computation_graph(
             num_images=len(self.loader),
             image_pair_indices=image_pair_indices,
-            image_graph=self.loader.create_computation_graph_for_images(),
+            delayed_images=delayed_images,
             all_intrinsics=self.loader.get_all_intrinsics(),
             image_shapes=self.loader.get_image_shapes(),
             relative_pose_priors=self.loader.get_relative_pose_priors(),
@@ -152,4 +161,4 @@ class GtsfmRunnerBase:
 
         end_time = time.time()
         duration_sec = end_time - start_time
-        logger.info("GTSFM took %.2f minutes to compute sparse multi-view result.", duration_sec / 60)
+        logger.info("[runner] GTSFM took %.2f minutes to compute sparse multi-view result.", duration_sec / 60)

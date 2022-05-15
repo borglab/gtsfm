@@ -41,7 +41,7 @@ class TestSceneOptimizer(unittest.TestCase):
             delayed_sfm_result, delayed_io = scene_optimizer.create_computation_graph(
                 num_images=len(self.loader),
                 image_pair_indices=self.loader.get_valid_pairs(),
-                image_graph=self.loader.create_computation_graph_for_images(),
+                delayed_images=self.loader.create_computation_graph_for_images(),
                 all_intrinsics=self.loader.get_all_intrinsics(),
                 image_shapes=self.loader.get_image_shapes(),
                 absolute_pose_priors=self.loader.get_absolute_pose_priors(),

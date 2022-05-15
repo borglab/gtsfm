@@ -153,7 +153,7 @@ class SceneOptimizer:
         self,
         num_images: int,
         image_pair_indices: List[Tuple[int, int]],
-        image_graph: List[Delayed],
+        delayed_images: Dict[int, Delayed],
         all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         image_shapes: List[Tuple[int, int]],
         absolute_pose_priors: List[Optional[PosePrior]],
@@ -169,12 +169,10 @@ class SceneOptimizer:
         delayed_results = []
 
         # detection and description graph
-        delayed_keypoints = []
-        delayed_descriptors = []
-        for delayed_image in image_graph:
-            (delayed_dets, delayed_descs) = self.feature_extractor.create_computation_graph(delayed_image)
-            delayed_keypoints += [delayed_dets]
-            delayed_descriptors += [delayed_descs]
+        delayed_dmv = {
+            i: self.feature_extractor.create_computation_graph(delayed_image)
+            for i, delayed_image in delayed_images.items()
+        }
 
         # Estimate two-view geometry and get indices of verified correspondences.
         i2Ri1_graph_dict = {}
@@ -186,10 +184,10 @@ class SceneOptimizer:
 
             # TODO(johnwlambert): decompose this so what happens in the loop is a separate method
             i2Ri1, i2Ui1, v_corr_idxs = self.two_view_estimator.create_computation_graph(
-                delayed_keypoints[i1],
-                delayed_keypoints[i2],
-                delayed_descriptors[i1],
-                delayed_descriptors[i2],
+                delayed_dmv[i1][0],
+                delayed_dmv[i2][0],
+                delayed_dmv[i1][1],
+                delayed_dmv[i2][1],
                 all_intrinsics[i1],
                 all_intrinsics[i2],
                 image_shapes[i1],
@@ -207,9 +205,9 @@ class SceneOptimizer:
 
         # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
         (ba_input_graph, ba_output_graph, optimizer_metrics_graph) = self.multiview_optimizer.create_computation_graph(
-            image_graph,
+            delayed_images,
             num_images,
-            delayed_keypoints,
+            delayed_dmv,
             i2Ri1_graph_dict,
             i2Ui1_graph_dict,
             v_corr_idxs_graph_dict,
@@ -237,10 +235,10 @@ class SceneOptimizer:
             delayed_results.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_wTi_list))
 
         if self._save_gtsfm_data:
-            delayed_results.extend(save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph))
+            delayed_results.extend(save_gtsfm_data(delayed_images, ba_input_graph, ba_output_graph))
 
         if self._run_dense_optimizer:
-            img_dict_graph = dask.delayed(get_image_dictionary)(image_graph)
+            img_dict_graph = dask.delayed(get_image_dictionary)(delayed_images)
             (
                 dense_points_graph,
                 dense_point_colors_graph,

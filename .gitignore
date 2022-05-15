@@ -167,7 +167,6 @@ visual_comparison_dashboard.html
 # production
 */build
 # misc
-*.DS_Store
 *.env.local
 *.env.development.local
 *.env.test.local
@@ -181,3 +180,6 @@ output/
 
 # Cache dir
 cache/
+/coiled-token.txt
+/hilti_lio_results
+/notebooks/wrangle_hilti_data.ipynb
