@@ -46,12 +46,12 @@ class MVSBase(metaclass=abc.ABCMeta):
         """
 
     def create_computation_graph(
-        self, delayed_images: Dict[int, Delayed], sfm_result_graph: Delayed
+        self, images_graph: Dict[int, Delayed], sfm_result_graph: Delayed
     ) -> Tuple[Delayed, Delayed, Delayed, Delayed]:
         """Generates the computation graph for performing multi-view stereo.
 
         Args:
-            delayed_images: computation graph for images.
+            images_graph: computation graph for images.
             sfm_result_graph: computation graph for SFM output
 
         Returns:
@@ -63,7 +63,7 @@ class MVSBase(metaclass=abc.ABCMeta):
         """
         # get initial dense reconstruction result
         points_graph, rgb_graph, densify_metrics_graph = dask.delayed(self.densify, nout=3)(
-            delayed_images, sfm_result_graph
+            images_graph, sfm_result_graph
         )
 
         # calculate the scale of target occupied volume, then compute the minimum voxel size for downsampling

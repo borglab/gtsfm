@@ -24,7 +24,7 @@ class FeatureExtractor:
         """Given an image, create detection and descriptor generation tasks
 
         Args:
-            delayed_images: image wrapped up in Delayed
+            images_graph: image wrapped up in Delayed
 
         Returns:
             Delayed object for detected keypoints.

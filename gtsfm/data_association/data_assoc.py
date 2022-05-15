@@ -196,7 +196,7 @@ class DataAssociation(NamedTuple):
         delayed_features: Dict[int, Tuple[Delayed, Delayed]],
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        delayed_images: Optional[Dict[int, Delayed]] = None,
+        images_graph: Optional[Dict[int, Delayed]] = None,
     ) -> Tuple[Delayed, Delayed]:
         """Creates a computation graph for performing data association.
 
@@ -207,7 +207,7 @@ class DataAssociation(NamedTuple):
             delayed_features: list of wrapped up keypoints/descriptors for each image.
             cameras_gt: a list of cameras with ground truth params, if they exist.
             relative_pose_priors: pose priors on the relative pose between camera poses.
-            delayed_images: a list of all images in scene (optional and only for track patch visualization)
+            images_graph: a list of all images in scene (optional and only for track patch visualization)
 
         Returns:
             ba_input_graph: GtsfmData object wrapped up using dask.delayed
@@ -215,7 +215,7 @@ class DataAssociation(NamedTuple):
                 association result
         """
         ba_input_graph, data_assoc_metrics_graph = dask.delayed(self.run_da, nout=2)(
-            num_images, cameras, corr_idxs_graph, delayed_features, cameras_gt, relative_pose_priors, delayed_images
+            num_images, cameras, corr_idxs_graph, delayed_features, cameras_gt, relative_pose_priors, images_graph
         )
 
         return ba_input_graph, data_assoc_metrics_graph

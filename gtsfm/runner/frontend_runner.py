@@ -36,13 +36,13 @@ def run_frontend(
         v_corr_idxs_dict: verified correspondence indices for each image pair.
     """
     image_pair_indices = loader.get_valid_pairs()
-    delayed_images = dict(enumerate(loader.create_computation_graph_for_images()))
+    images_graph = dict(enumerate(loader.create_computation_graph_for_images()))
     camera_intrinsics = loader.get_all_intrinsics()
     image_shapes = loader.get_image_shapes()
 
     # detection and description graph
     delayed_features = {
-        i: feature_extractor.create_computation_graph(delayed_image) for i, delayed_image in delayed_images.items()
+        i: feature_extractor.create_computation_graph(delayed_image) for i, delayed_image in images_graph.items()
     }
 
     # estimate two-view geometry and get indices of verified correspondences.

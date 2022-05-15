@@ -138,13 +138,13 @@ class GtsfmRunnerBase:
             images_involved.add(i1)
             images_involved.add(i2)
         logger.info(f"[runner] There are {len(images_involved)} images involved.")
-        all_delayed_images = self.loader.create_computation_graph_for_images()
-        delayed_images = {i: all_delayed_images[i] for i in images_involved}
+        all_images_graph = self.loader.create_computation_graph_for_images()
+        images_graph = {i: all_images_graph[i] for i in images_involved}
 
         delayed_sfm_result, delayed_io = self.scene_optimizer.create_computation_graph(
             num_images=len(self.loader),
             image_pair_indices=image_pair_indices,
-            delayed_images=delayed_images,
+            images_graph=images_graph,
             all_intrinsics=self.loader.get_all_intrinsics(),
             image_shapes=self.loader.get_image_shapes(),
             relative_pose_priors=self.loader.get_relative_pose_priors(),
