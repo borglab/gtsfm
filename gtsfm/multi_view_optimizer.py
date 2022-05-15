@@ -69,19 +69,24 @@ class MultiViewOptimizer:
             dask.delayed(i2Ri1_graph), dask.delayed(i2Ui1_graph), relative_pose_priors
         )
 
-        delayed_wRi, rot_avg_metrics = self.rot_avg_module.create_computation_graph(
-            num_images, pruned_i2Ri1_graph, relative_pose_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
-        )
+        if self._use_poseslam_initialization:
+            delayed_poses = self.pose_slam_module.create_computation_graph(
+                num_images, relative_pose_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
+            )
+        else:
+            delayed_wRi, rot_avg_metrics = self.rot_avg_module.create_computation_graph(
+                num_images, pruned_i2Ri1_graph, relative_pose_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
+            )
 
-        wti_graph, ta_metrics = self.trans_avg_module.create_computation_graph(
-            num_images,
-            pruned_i2Ui1_graph,
-            delayed_wRi,
-            absolute_pose_priors,
-            relative_pose_priors,
-            gt_wTi_list=gt_wTi_list,
-        )
-        init_cameras_graph = dask.delayed(init_cameras)(delayed_wRi, wti_graph, all_intrinsics)
+            delayed_poses, ta_metrics = self.trans_avg_module.create_computation_graph(
+                num_images,
+                pruned_i2Ui1_graph,
+                delayed_wRi,
+                absolute_pose_priors,
+                relative_pose_priors,
+                gt_wTi_list=gt_wTi_list,
+            )
+        init_cameras_graph = dask.delayed(init_cameras)(delayed_poses, all_intrinsics)
 
         ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
             num_images,
