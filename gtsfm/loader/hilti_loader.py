@@ -92,7 +92,8 @@ class HiltiLoader(LoaderBase):
             self.num_rig_poses = min(self.num_rig_poses, self._max_length)
 
         # Read the constraints from the lidar/constraints file
-        self._constraints: Dict[Tuple[int, int], Constraint] = self.__load_constraints()
+        all_constraints: Dict[Tuple[int, int], Constraint] = self.__load_constraints()
+        self._constraints: Dict[Tuple[int, int], Constraint] = self._filter_outlier_constraints(all_constraints)
         logger.info("Number of constraints: %d", len(self._constraints))
 
         # Read the poses for the IMU for rig indices from g2o file.
@@ -110,6 +111,33 @@ class HiltiLoader(LoaderBase):
 
         # cast them to dictionary
         return {(constraint.a, constraint.b): constraint for constraint in constraints}
+
+    def _filter_outlier_constraints(self, constraints) ->  Dict[Tuple[int, int], Constraint]:
+        """Removes 1-step constraints for which the translation magnitude is greater than 2 or 3-step constraints."""
+        constraint_magnitudes = {}
+        for (a, b), constraint in constraints.items():
+            c, d = min(a, b), max(a, b)
+            # no need to invert, norm will be the same.
+            constraint_magnitudes[(c, d)] = np.linalg.norm(constraint.aTb.translation())
+
+        def is_higher_step_magnitude_greater(a, b, all_magnitudes, step_size):
+            ERROR_MARGIN = 0.1 #meters
+            c, d = min(a, b), max(a, b)
+            this_magnitude = all_magnitudes[(c, d)]
+            step_magnitude = all_magnitudes[(c, d+step_size)] if (c, d+step_size) in all_magnitudes else None
+            return step_magnitude is not None and this_magnitude - step_magnitude > ERROR_MARGIN
+
+        filtered_constraints = {}
+        for (a, b), constraint in constraints.items():
+            # Accept all constraint with step > 1
+            if abs(a - b) != 1:
+                filtered_constraints[(a, b)] = constraint
+                continue
+            # Do not include if a higher-step magnitude is greater (for steps of size 2 and 3)
+            if is_higher_step_magnitude_greater(a, b, constraint_magnitudes, 1) or is_higher_step_magnitude_greater(a, b, constraint_magnitudes, 2):
+                continue
+            filtered_constraints[(a, b)] = constraint
+        return filtered_constraints
 
     def get_all_constraints(self) -> List[Constraint]:
         return list(self._constraints.values())
