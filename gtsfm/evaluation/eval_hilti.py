@@ -14,7 +14,7 @@
 #  --gt_tum=exp_04_construction_upper_level_imu.txt \
 #  --cam2_calib_yaml=hilti_exp4_medium/calibration/calib_3_cam2-camchain-imucam.yaml
 import copy
-from typing import Dict, List
+from typing import Dict, List, Sequence, Union
 import yaml
 from pathlib import Path
 
@@ -25,7 +25,6 @@ from evo.core import metrics
 from evo.core import sync
 from evo.core.trajectory import PoseTrajectory3D
 from evo.tools import plot
-from evo.tools.plot import *
 from evo.tools.settings import SETTINGS
 from evo.tools import file_interface
 from gtsam import Pose3
@@ -39,8 +38,8 @@ import gtsfm.utils.io as io_utils
 
 def traj_custom(
     ax: plt.Axes,
-    plot_mode: PlotMode,
-    traj: trajectory.PosePath3D,
+    plot_mode: plot.PlotMode,
+    traj: plot.trajectory.PosePath3D,
     style: str = "-",
     color: str = "black",
     label: str = "",
@@ -50,21 +49,21 @@ def traj_custom(
     """
     plot a path/trajectory based on xyz coordinates into an axis
     :param ax: the matplotlib axis
-    :param plot_mode: PlotMode
+    :param plot_mode: plot.PlotMode
     :param traj: trajectory.PosePath3D or trajectory.PoseTrajectory3D object
     :param style: matplotlib line style
     :param color: matplotlib color
     :param label: label (for legend)
     :param alpha: alpha value for transparency
     """
-    x_idx, y_idx, z_idx = plot_mode_to_idx(plot_mode)
+    x_idx, y_idx, z_idx = plot.plot_mode_to_idx(plot_mode)
     x = traj.positions_xyz[:, x_idx]
     y = traj.positions_xyz[:, y_idx]
-    if plot_mode == PlotMode.xyz:
+    if plot_mode == plot.PlotMode.xyz:
         z = traj.positions_xyz[:, z_idx]
         ax.plot(x, y, z, linestyle=style, color=color, label=label, alpha=alpha, marker=markers)
         if SETTINGS.plot_xyz_realistic:
-            set_aspect_equal_3d(ax)
+            plot.set_aspect_equal_3d(ax)
     else:
         ax.plot(x, y, linestyle=style, color=color, label=label, alpha=alpha, marker=markers)
     if label:
@@ -73,10 +72,10 @@ def traj_custom(
 
 def trajectories_custom(
     fig: plt.Figure,
-    trajectories: typing.Union[
-        trajectory.PosePath3D, typing.Sequence[trajectory.PosePath3D], typing.Dict[str, trajectory.PosePath3D]
+    trajectories: Union[
+        plot.trajectory.PosePath3D, Sequence[plot.trajectory.PosePath3D], Dict[str, plot.trajectory.PosePath3D]
     ],
-    plot_mode=PlotMode.xy,
+    plot_mode=plot.PlotMode.xy,
     title: str = "",
     subplot_arg: int = 111,
 ) -> None:
@@ -89,10 +88,10 @@ def trajectories_custom(
     :param title: optional plot title
     :param subplot_arg: optional matplotlib subplot ID if used as subplot
     """
-    ax = prepare_axis(fig, plot_mode, subplot_arg)
+    ax = plot.prepare_axis(fig, plot_mode, subplot_arg)
     cmap_colors = None
-    if SETTINGS.plot_multi_cmap.lower() != "none" and isinstance(trajectories, collections.Iterable):
-        cmap = getattr(cm, SETTINGS.plot_multi_cmap)
+    if SETTINGS.plot_multi_cmap.lower() != "none" and isinstance(trajectories, plot.collections.Iterable):
+        cmap = getattr(plot.cm, SETTINGS.plot_multi_cmap)
         cmap_colors = iter(cmap(np.linspace(0, 1, len(trajectories))))
 
     # helper function
@@ -108,7 +107,7 @@ def trajectories_custom(
         else:
             traj_custom(ax, plot_mode, t, "dotted", color, name, markers="o")
 
-    if isinstance(trajectories, trajectory.PosePath3D):
+    if isinstance(trajectories, plot.trajectory.PosePath3D):
         draw(trajectories)
     elif isinstance(trajectories, dict):
         for name, t in trajectories.items():
@@ -123,7 +122,7 @@ def evaluate_trajectory(est_file, ref_file, prefix):
 
     apply_pole_tip_calibration = True
     # apply poletip calibration
-    if apply_pole_tip_calibration == True:
+    if apply_pole_tip_calibration:
         calibration_type = ref_file.split("_")[-1].lower()
         if calibration_type == "pole.txt":
             T_imu_ref = np.array(
@@ -196,7 +195,7 @@ def evaluate_trajectory(est_file, ref_file, prefix):
     fig = plt.figure()
     if dense_trajectory:
         traj_by_label = {"estimate": traj_est_aligned, "reference": traj_ref_sync}
-        trajectories(fig, traj_by_label, plot.PlotMode.xyz)
+        plot.trajectories(fig, traj_by_label, plot.PlotMode.xyz)
 
     else:
         traj_by_label = {
