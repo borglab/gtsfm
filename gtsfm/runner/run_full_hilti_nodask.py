@@ -6,18 +6,19 @@ import time
 from argparse import ArgumentParser, Namespace
 from typing import Dict, Optional, Tuple
 
-import dask
 import hydra
 import numpy as np
-from dask.distributed import LocalCluster, Client
 from hydra.utils import instantiate
 from gtsam import Rot3, Unit3
 
+import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.loader.hilti_loader import HiltiLoader
 from gtsfm.retriever.rig_retriever import RigRetriever
-from gtsfm.scene_optimizer import SceneOptimizer
+from gtsfm.scene_optimizer import SceneOptimizer, save_gtsfm_data, save_metrics_reports, save_visualizations
+from gtsfm.multi_view_optimizer import init_cameras
+
 
 logger = logger_utils.get_logger()
 
@@ -32,11 +33,6 @@ class HiltiRunner:
         )
 
         self.retriever = RigRetriever(subsample=parsed_args.subsample, threshold=parsed_args.proxy_threshold)
-
-        self.dask_cluster = LocalCluster(
-            n_workers=parsed_args.num_workers,
-            threads_per_worker=parsed_args.threads_per_worker,
-        )
 
         with hydra.initialize_config_module(config_module="gtsfm.configs"):
             # config is relative to the gtsfm module
@@ -72,18 +68,6 @@ class HiltiRunner:
             type=int,
             default=6,
             help="Subsample the timestamps by given value n (pick every nth rig for visual SfM)",
-        )
-        parser.add_argument(
-            "--num_workers",
-            type=int,
-            default=1,
-            help="Number of workers to start (processes, by default)",
-        )
-        parser.add_argument(
-            "--threads_per_worker",
-            type=int,
-            default=1,
-            help="Number of threads per each worker",
         )
 
         return parser
@@ -164,24 +148,62 @@ class HiltiRunner:
         keypoints_list = [keypoints_dict.get(i, Keypoints(np.array([[]]))) for i in range(num_images)]
         image_shapes_list = [image_shapes.get(i, (100, 100)) for i in range(num_images)]
 
-        delayed_sfm_result, delayed_io = self.scene_optimizer.create_computation_graph_for_backend(
-            num_images=len(self.loader),
-            delayed_keypoints=keypoints_list,
-            i2Ri1_dict=i2Ri1_dict,
-            i2Ui1_dict=i2Ui1_dict,
-            v_corr_idxs_dict=v_corr_idxs_dict,
-            image_graph=None,
-            all_intrinsics=self.loader.get_all_intrinsics(),
-            relative_pose_priors=self.loader.get_relative_pose_priors(),
-            absolute_pose_priors=self.loader.get_absolute_pose_priors(),
-            cameras_gt=self.loader.get_gt_cameras(),
-            gt_wTi_list=self.loader.get_gt_poses(),
-            image_shapes=image_shapes_list,
-            image_fnames=self.loader.get_image_fnames(),
+        relative_pose_priors = self.loader.get_relative_pose_priors()
+        absolute_pose_priors = self.loader.get_absolute_pose_priors()
+        all_intrinsics = self.loader.get_all_intrinsics()
+        gt_wTi_list = self.loader.get_gt_poses()
+        gt_cameras = self.loader.get_gt_cameras()
+
+        pruned_i2Ri1_dict, pruned_i2Ui1_dict = graph_utils.prune_to_largest_connected_component(
+            i2Ri1_dict, i2Ui1_dict, relative_pose_priors
         )
 
-        with Client(self.dask_cluster):
-            sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io)
+        wRi = self.scene_optimizer.multiview_optimizer.rot_avg_module.run_rotation_averaging(
+            num_images, pruned_i2Ri1_dict, relative_pose_priors
+        )
+        rot_avg_metrics = self.scene_optimizer.multiview_optimizer.rot_avg_module.evaluate(
+            wRi_computed=wRi, wTi_gt=gt_wTi_list
+        )
+
+        wti, ta_metrics = self.scene_optimizer.multiview_optimizer.trans_avg_module.run_translation_averaging(
+            num_images=num_images,
+            i2Ui1_dict=pruned_i2Ui1_dict,
+            wRi_list=wRi,
+            absolute_pose_priors=absolute_pose_priors,
+            scale_factor=1,
+            gt_wTi_list=gt_wTi_list,
+        )
+
+        initialized_cameras = init_cameras(wRi_list=wRi, wti_list=wti, intrinsics_list=all_intrinsics)
+
+        ba_input, da_metrics = self.scene_optimizer.multiview_optimizer.data_association_module.run_da(
+            num_images=num_images,
+            cameras=initialized_cameras,
+            corr_idxs_dict=v_corr_idxs_dict,
+            keypoints_list=keypoints_list,
+            cameras_gt=gt_cameras,
+            relative_pose_priors=relative_pose_priors,
+            images=None,
+        )
+
+        ba_unfiltered, ba_output, _ = self.scene_optimizer.multiview_optimizer.ba_optimizer.run_ba(
+            initial_data=ba_input,
+            absolute_pose_priors=absolute_pose_priors,
+            relative_pose_priors=relative_pose_priors,
+            verbose=True,
+            intrinsincs=all_intrinsics,
+        )
+        ba_metrics = self.scene_optimizer.multiview_optimizer.ba_optimizer.evaluate(
+            ba_unfiltered, ba_output, gt_cameras
+        )
+
+        ba_input_aligned = ba_input.align_via_Sim3_to_poses(wTi_list_ref=gt_wTi_list)
+        ba_output_aligned = ba_output.align_via_Sim3_to_poses(wTi_list_ref=gt_wTi_list)
+
+        save_visualizations(ba_input_aligned, ba_output_aligned, gt_wTi_list)
+        save_gtsfm_data(None, image_shapes_list, self.loader.get_image_fnames(), ba_input, ba_output)
+
+        save_metrics_reports([rot_avg_metrics, ta_metrics, da_metrics, ba_metrics])
 
         end_time = time.time()
         duration_sec = end_time - start_time
