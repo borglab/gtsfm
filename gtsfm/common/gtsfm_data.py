@@ -309,7 +309,7 @@ class GtsfmData:
         """
         scene_reproj_errors: List[float] = []
         for track in self._tracks:
-            track_errors, _ = reproj_utils.compute_track_reprojection_errors(self._cameras, track)
+            track_errors = reproj_utils.compute_track_reprojection_errors(self._cameras, track)
             # passing an array argument to .extend() will convert the array to a list, and append its elements
             scene_reproj_errors.extend(track_errors)
 
@@ -385,7 +385,7 @@ class GtsfmData:
         Returns:
             validity of the track.
         """
-        errors, _ = reproj_utils.compute_track_reprojection_errors(self._cameras, track)
+        errors = reproj_utils.compute_track_reprojection_errors(self._cameras, track)
         # track is valid as all measurements have error below the threshold
         cheirality_success = np.all(~np.isnan(errors))
         return np.all(errors < reproj_err_thresh) and cheirality_success

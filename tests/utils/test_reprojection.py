@@ -34,7 +34,7 @@ class TestReprojection(unittest.TestCase):
         K0 = Cal3Bundler(f, k1, k2, u0, v0)
         K1 = Cal3Bundler(f, k1, k2, u0, v0)
 
-        track_camera_dict = {0: PinholeCameraCal3Bundler(wTi0, K0), 1: PinholeCameraCal3Bundler(wTi1, K1)}
+        track_cameras = {0: PinholeCameraCal3Bundler(wTi0, K0), 1: PinholeCameraCal3Bundler(wTi1, K1)}
 
         triangulated_pt = np.array([1, 2, 1])
         track_3d = SfmTrack(triangulated_pt)
@@ -44,12 +44,10 @@ class TestReprojection(unittest.TestCase):
         # in camera 1
         track_3d.addMeasurement(idx=1, m=np.array([-8, 43]))  # should be (-7,44), 1 px error in each dim
 
-        errors = reproj_utils.compute_track_reprojection_errors(track_camera_dict, track_3d)
-        avg_track_reproj_error = np.nan if np.isnan(errors).all() else np.nanmean(errors)
+        errors = reproj_utils.compute_track_reprojection_errors(track_cameras, track_3d)
 
         expected_errors = np.array([0, np.sqrt(2)])
         np.testing.assert_allclose(errors, expected_errors)
-        assert avg_track_reproj_error == np.sqrt(2) / 2
 
     def test_compute_point_reprojection_errors(self):
         """Ensure a hypothesized 3d point is projected correctly and compared w/ 2 measurements.
@@ -77,20 +75,17 @@ class TestReprojection(unittest.TestCase):
         K0 = Cal3Bundler(f, k1, k2, u0, v0)
         K1 = Cal3Bundler(f, k1, k2, u0, v0)
 
-        track_camera_dict = {0: PinholeCameraCal3Bundler(wTi0, K0), 1: PinholeCameraCal3Bundler(wTi1, K1)}
+        track_cameras = {0: PinholeCameraCal3Bundler(wTi0, K0), 1: PinholeCameraCal3Bundler(wTi1, K1)}
         point3d = np.array([1, 2, 1])
         measurements = [
             SfmMeasurement(i=1, uv=np.array([-8, 43])),
-            SfmMeasurement(i=2, uv=np.array([0, 0])),  # not in track_camera_dict!
+            SfmMeasurement(i=2, uv=np.array([0, 0])),  # not in track_cameras!
             SfmMeasurement(i=0, uv=np.array([13, 24])),
         ]
 
-        errors, avg_track_reproj_error = reproj_utils.compute_point_reprojection_errors(
-            track_camera_dict, point3d, measurements
-        )
+        errors = reproj_utils.compute_point_reprojection_errors(track_cameras, point3d, measurements)
         expected_errors = np.array([np.sqrt(2), np.nan, 0])
         np.testing.assert_allclose(errors, expected_errors)
-        assert avg_track_reproj_error == np.sqrt(2) / 2
 
 
 if __name__ == "__main__":
