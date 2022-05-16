@@ -98,36 +98,10 @@ def create_initial_estimate(poses):
     return initial_estimate
 
 
-def generate_pose_graph(constraints, poses, initial_estimate, add_backbone=True):
-    """Generate pose graph
-    To create the actual factor for the factor graph and optimize the result.
-    This process includes:
-        1. Initialize the factor graph
-        2. Create the pose nodes
-        3. Create the between factors
-        4. Optimize the graph
-        5. Save the result
-    Args:
-        A list of factors
-    """
-    # Initialize the factor graph
-    graph = NonlinearFactorGraph()
+def filtered_pose_priors(constraints, poses, initial_estimate, add_backbone=True):
+    """Generate relative pose priors from constraints and initial_estimate by filtering heavily. Optionally add back bone."""
 
-    # Add the prior factor to the initial pose.
-    prior_pose_factor = PriorFactorPose3(0, pose_of_vector(poses[0]), noiseModel.Isotropic.Sigma(6, 5e-2))
-    graph.add(prior_pose_factor)
-
-    # Create loose odometry factors
-    if add_backbone:
-        backbone_noise = noiseModel.Diagonal.Sigmas(
-            np.array([1, 1, 1, np.deg2rad(30.0), np.deg2rad(30.0), np.deg2rad(30.0)])
-        )
-        for i in range(len(poses) - 1):
-            a, b = i, i + 1
-            a_vec, b_vec = poses[a], poses[b]
-            bTa = get_relative_transform(a_vec, b_vec)
-            factor_aTb = BetweenFactorPose3(i, i + 1, bTa.inverse(), backbone_noise)
-            graph.add(factor_aTb)
+    relative_pose_priors: Dict[Tuple[int, int], PosePrior] = {}
 
     # Create pose constraints using Bayesian ICP
     for constraint in constraints:
@@ -152,11 +126,37 @@ def generate_pose_graph(constraints, poses, initial_estimate, add_backbone=True)
                 if error > 1000:
                     continue
                 else:
-                    graph.add(factor_aTb)
+                    relative_pose_priors[(a, b)] = PosePrior(aTb, cov, PosePriorType.SOFT_CONSTRAINT)
         except np.linalg.LinAlgError:
             continue
 
+    # Create loose odometry factors for backbone.
+    if add_backbone:
+        backbone_cov = np.diag(np.array([1, 1, 1, np.deg2rad(30.0), np.deg2rad(30.0), np.deg2rad(30.0)]))
+        for i in range(len(poses) - 1):
+            a, b = i, i + 1
+            if (a, b) not in relative_pose_priors:
+                aTb = get_relative_transform(poses[b], poses[a])
+                relative_pose_priors[(a, b)] = PosePrior(aTb, backbone_cov, PosePriorType.SOFT_CONSTRAINT)
+
     # Output the resulting poses and pose constraints
+    return relative_pose_priors
+
+
+def generate_pose_graph(poses, relative_pose_priors):
+    """Generate pose graph."""
+    graph = NonlinearFactorGraph()
+
+    # Add the prior factor to the initial pose.
+    prior_pose_factor = PriorFactorPose3(0, pose_of_vector(poses[0]), noiseModel.Isotropic.Sigma(6, 5e-2))
+    graph.add(prior_pose_factor)
+
+    # Add pose priors
+    for (a, b), pose_prior in relative_pose_priors.items():
+        measurement_noise = noiseModel.Gaussian.Covariance(pose_prior.covariance)
+        factor_aTb = BetweenFactorPose3(a, b, pose_prior.value, measurement_noise)
+        graph.add(factor_aTb)
+
     return graph
 
 
@@ -207,17 +207,18 @@ class TestPoseSlam(GtsamTestCase):
         self.assertEqual(len(poses), 1319)
         self.assertEqual(len(constraints), 10328)
 
-        # graph, initial_estimate = self.slam.generate_pose_graph(constraints, poses)
         initial_estimate = create_initial_estimate(poses)
-        graph = generate_pose_graph(constraints, poses, initial_estimate)
-        self.assertEqual(graph.size(), 10983)
+        # graph, initial_estimate = self.slam.generate_pose_graph(constraints, poses)
+        relative_pose_priors = filtered_pose_priors(constraints, poses, initial_estimate)
+        graph = generate_pose_graph(poses, relative_pose_priors)
+        self.assertEqual(graph.size(), 10062)
         self.assertAlmostEqual(graph.error(initial_estimate), 35111.87458699957)
 
         params = LevenbergMarquardtParams()
         optimizer = LevenbergMarquardtOptimizer(graph, initial_estimate, params)
         result = optimizer.optimize()
         final_error = graph.error(result)
-        self.assertAlmostEqual(final_error, 10288.499767263707)
+        self.assertAlmostEqual(final_error, 10288.082865432772)
 
 
 if __name__ == "__main__":
