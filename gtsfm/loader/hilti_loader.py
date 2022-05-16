@@ -20,7 +20,7 @@ import yaml
 
 import numpy as np
 import gtsam
-from gtsam import Cal3Fisheye, Pose3
+from gtsam import Cal3Fisheye, Pose3, Rot3
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
@@ -93,7 +93,9 @@ class HiltiLoader(LoaderBase):
 
         # Read the constraints from the lidar/constraints file
         all_constraints: Dict[Tuple[int, int], Constraint] = self.__load_constraints()
-        self._constraints: Dict[Tuple[int, int], Constraint] = self._filter_outlier_constraints(all_constraints)
+        filtered_constraints: Dict[Tuple[int, int], Constraint] = self._filter_outlier_constraints(all_constraints)
+        self._constraints: Dict[Tuple[int, int], Constraint] = self._update_stationary_constraints(filtered_constraints)
+        
         logger.info("Number of constraints: %d", len(self._constraints))
 
         # Read the poses for the IMU for rig indices from g2o file.
@@ -111,6 +113,20 @@ class HiltiLoader(LoaderBase):
 
         # cast them to dictionary
         return {(constraint.a, constraint.b): constraint for constraint in constraints}
+
+    def _update_stationary_constraints(self, constraints: Dict[Tuple[int, int], Constraint]) -> Dict[Tuple[int, int], Constraint]:
+        updated_constraints = {}
+        TRANSLATION_THRESHOLD = 0.02
+        ROTATION_THRESHOLD = np.deg2rad(0.5)
+        for (a, b), constraint in constraints.items():
+            if np.linalg.norm(Rot3.Logmap(constraint.aTb.rotation())) < ROTATION_THRESHOLD or np.linalg.norm(constraint.aTb.translation()) < TRANSLATION_THRESHOLD:
+                updated_constraints[(a, b)] = constraint
+                continue
+            
+            updated_constraint = Constraint(constraint.a, constraint.b, Pose3(), np.eye(6) * 1e-8, constraint.counts)
+            updated_constraints[(a, b)] = updated_constraint
+        return updated_constraints
+
 
     def _filter_outlier_constraints(self, constraints: Dict[Tuple[int, int], Constraint]) ->  Dict[Tuple[int, int], Constraint]:
         """Removes 1-step constraints for which the translation magnitude is greater than 2 or 3-step constraints."""
@@ -324,8 +340,12 @@ class HiltiLoader(LoaderBase):
             constraint = self._constraints[(rig_idx_for_i1, rig_idx_for_i2)]
             imui1_T_imui2 = constraint.aTb
             i1Ti2 = self._cam_T_imu_poses[2] * imui1_T_imui2 * self._cam_T_imu_poses[2].inverse()
-
             cov_i1Ti2 = self._cam2_J_imu_relative @ constraint.cov @ self._cam2_J_imu_relative.T
+
+            # Rig is stationary, add a hard constraint.
+            if i1Ti2.equals(Pose3()):
+                return PosePrior(value=i1Ti2, covariance=cov_i1Ti2, type=PosePriorType.HARD_CONSTRAINT)
+
             return PosePrior(value=i1Ti2, covariance=cov_i1Ti2, type=PosePriorType.SOFT_CONSTRAINT)
 
         return None
