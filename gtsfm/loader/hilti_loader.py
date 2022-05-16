@@ -20,7 +20,8 @@ import yaml
 
 import numpy as np
 import gtsam
-from gtsam import Cal3Fisheye, Pose3, Rot3
+from gtsam import Cal3Fisheye, Pose3, Rot3, Point3
+from gtsfm.pose_slam.pose_slam import PoseSlam
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
@@ -28,6 +29,7 @@ from gtsfm.common.constraint import Constraint
 from gtsfm.common.image import Image
 from gtsfm.common.pose_prior import PosePrior, PosePriorType
 from gtsfm.loader.loader_base import LoaderBase
+
 
 logger = logger_utils.get_logger()
 
@@ -41,6 +43,7 @@ CAM_IDX_TO_KALIBR_FILE_MAP = {
     4: "calib_3_cam4-camchain-imucam.yaml",
 }
 
+GT_POSE_RELATIVE_PATH = "lidar/fastlio_odom.txt"
 LIDAR_POSE_RELATIVE_PATH = "lidar/fastlio2.g2o"
 LIDAR_CONSTRAINTS_RELATIVE_PATH = "lidar/constraints.txt"
 IMAGES_FOLDER = "images"
@@ -90,22 +93,26 @@ class HiltiLoader(LoaderBase):
         if self._max_length is not None:
             self.num_rig_poses = min(self.num_rig_poses, self._max_length)
 
+        # Read GT poses from odom file:
+        self._fastlio_poses = self.__read_fastlio_poses()
+
         # Read the constraints from the lidar/constraints file
         all_constraints: Dict[Tuple[int, int], Constraint] = self.__load_constraints()
         filtered_constraints: Dict[Tuple[int, int], Constraint] = self._filter_outlier_constraints(all_constraints)
         self._constraints: Dict[Tuple[int, int], Constraint] = self._update_stationary_constraints(filtered_constraints)
 
-        logger.info("Number of constraints: %d", len(self._constraints))
+        logger.info("[hilti_loader] Number of constraints: %d", len(self._constraints))
 
         # Read the poses for the IMU for rig indices from g2o file.
-        self._w_T_imu: Dict[int, Pose3] = self.__read_lidar_pose_priors()
+        self._w_T_imu: Dict[int, Pose3] = dict(enumerate(self._fastlio_poses)) # Quick hack! self.__read_lidar_pose_priors()
 
-        logger.info("Loading %d timestamps", self.num_rig_poses)
-        logger.info("Lidar camera available for %d timestamps", len(self._w_T_imu))
+        logger.info("[hilti_loader] Loading %d timestamps", self.num_rig_poses)
+        logger.info("[hilti_loader] Lidar camera available for %d timestamps", len(self._w_T_imu))
 
     def __load_constraints(self) -> Dict[Tuple[int, int], Constraint]:
         constraints_path = self._base_folder / LIDAR_CONSTRAINTS_RELATIVE_PATH
-        constraints = Constraint.read(str(constraints_path))
+        all_constraints = Constraint.read(str(constraints_path))
+        constraints = PoseSlam.filter_constraints(all_constraints, self._fastlio_poses)
 
         # filter them according to max length
         constraints = list(filter(lambda c: c.a < self.num_rig_poses and c.b < self.num_rig_poses, constraints))
@@ -186,7 +193,7 @@ class HiltiLoader(LoaderBase):
         _, values = gtsam.readG2o(filepath, is3D=True)
 
         lidar_keys = values.keys()
-        logger.info("Number of keys in g2o file: %d", len(lidar_keys))
+        logger.info("[hilti_loader] Number of keys in g2o file: %d", len(lidar_keys))
 
         w_T_imu: Dict[int, Pose3] = {}
 
@@ -195,6 +202,20 @@ class HiltiLoader(LoaderBase):
                 w_T_imu[rig_idx] = values.atPose3(rig_idx)
 
         return w_T_imu
+
+    def __read_fastlio_poses(self) -> List[Pose3]:
+        """Read the poses for the IMU for rig indices."""
+        filepath = str(self._base_folder / GT_POSE_RELATIVE_PATH)
+
+        def pose_of_vector(pose_vector):
+            """Convert from vector to Pose3"""
+            pose_rotation = Rot3(pose_vector[-1], pose_vector[3], pose_vector[4], pose_vector[5])
+            pose_translation = Point3(pose_vector[:3])
+            return Pose3(pose_rotation, pose_translation)
+
+        poses = np.loadtxt(filepath)[:, 1:]
+        logger.info("[hilti_loader] Read %d poses from %s", poses.shape[0], filepath)
+        return [pose_of_vector(pose) for pose in poses]
 
     def __get_num_rig_poses(self) -> int:
         """Check how many images we have on disk and deduce number of rig poses."""

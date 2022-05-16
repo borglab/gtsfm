@@ -160,7 +160,7 @@ class HiltiRunner:
 
         metrics = []
 
-        if self.scene_optimizer.multiview_optimizer._use_pose_slam_intitialization:
+        if self.scene_optimizer.multiview_optimizer._use_pose_slam_initialization:
             wTi_list, pose_slam_metrics = self.scene_optimizer.multiview_optimizer.pose_slam_module.run_pose_slam(
                 num_images=num_images, relative_pose_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
             )
