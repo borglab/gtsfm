@@ -38,7 +38,8 @@ SceneOptimizer:
 
   multiview_optimizer:
     _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
-
+    use_pose_slam_initialization: True
+    
     # comment out to not run
     # view_graph_estimator:
     #   _target_: gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator.CycleConsistentRotationViewGraphEstimator

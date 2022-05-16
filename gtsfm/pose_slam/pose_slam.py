@@ -68,7 +68,7 @@ class PoseSlam:
     def create_computation_graph(
         self,
         num_images: int,
-        relative_pose_priors: Dict[Tuple[int, int], PosePrior] = {},
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
     ) -> Tuple[Delayed, Delayed]:
         """Create the computation graph for performing translation averaging.
