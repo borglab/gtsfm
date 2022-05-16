@@ -42,6 +42,10 @@ SceneOptimizer:
     # view_graph_estimator:
     #   _target_: gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator.CycleConsistentRotationViewGraphEstimator
     #   edge_error_aggregation_criterion: MEDIAN_EDGE_ERROR
+
+    pose_slam_module:
+      _target_: gtsfm.pose_slam.pose_slam.PoseSlam
+      use_gt_for_initialization: False
       
     rot_avg_module:
       _target_: gtsfm.averaging.rotation.shonan.ShonanRotationAveraging

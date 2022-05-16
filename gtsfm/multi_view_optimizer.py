@@ -25,13 +25,14 @@ class MultiViewOptimizer:
         trans_avg_module: TranslationAveragingBase,
         data_association_module: DataAssociation,
         bundle_adjustment_module: BundleAdjustmentOptimizer,
+        pose_slam_module: PoseSlam,
         use_pose_slam_intitialization: bool = False,
     ) -> None:
-        self.pose_slam_module = PoseSlam()
         self.rot_avg_module = rot_avg_module
         self.trans_avg_module = trans_avg_module
         self.data_association_module = data_association_module
         self.ba_optimizer = bundle_adjustment_module
+        self.pose_slam_module = pose_slam_module
         self._use_pose_slam_intitialization = use_pose_slam_intitialization
 
     def create_computation_graph(
@@ -77,9 +78,7 @@ class MultiViewOptimizer:
             delayed_poses, pose_slam_metrics = self.pose_slam_module.create_computation_graph(
                 num_images, relative_pose_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
             )
-            multiview_optimizer_metrics_graph = [
-                pose_slam_metrics
-            ]
+            multiview_optimizer_metrics_graph = [pose_slam_metrics]
         else:
             delayed_wRi, rot_avg_metrics = self.rot_avg_module.create_computation_graph(
                 num_images, pruned_i2Ri1_graph, relative_pose_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list

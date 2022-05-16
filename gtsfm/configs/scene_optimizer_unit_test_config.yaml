@@ -31,6 +31,10 @@ SceneOptimizer:
 
   multiview_optimizer:
     _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
+
+    pose_slam_module:
+      _target_: gtsfm.pose_slam.pose_slam.PoseSlam
+      use_gt_for_initialization: False
       
     rot_avg_module:
       _target_: gtsfm.averaging.rotation.shonan.ShonanRotationAveraging

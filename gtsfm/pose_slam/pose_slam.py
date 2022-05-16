@@ -20,6 +20,27 @@ logger = logger_utils.get_logger()
 
 
 class PoseSlam:
+    def __init__(self, use_gt_for_initialization: bool = False) -> None:
+        self._use_gt_for_initialization = use_gt_for_initialization
+
+    def __initialize_poses(
+        self,
+        pose_init_graph: gtsam.NonlinearFactorGraph,
+        gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
+    ) -> gtsam.Values:
+        initial_values = gtsam.Values()
+        if self._use_gt_for_initialization and gt_wTi_list is not None:
+            logger.info("Using GT for initialization")
+            for i, wTi in enumerate(gt_wTi_list):
+                if wTi is None:
+                    continue
+
+                initial_values.insert(i, wTi)
+
+        initial_values = gtsam.InitializePose3.initialize(pose_init_graph, initial_values, useGradient=False)
+
+        return initial_values
+
     def run_pose_slam(
         self,
         num_images: int,
@@ -50,8 +71,7 @@ class PoseSlam:
                 )
             )
         pose_init_graph.push_back(gtsam.PriorFactorPose3(0, Pose3(), POSE_PRIOR_NOISE))
-
-        initial_values = gtsam.InitializePose3.initialize(pose_init_graph)
+        initial_values = self.__initialize_poses(pose_init_graph, gt_wTi_list)
         initial_error = pose_init_graph.error(initial_values)
         logger.info(f"[pose slam] Pose SLAM initialization complete with error: {initial_error}")
         optimizer = gtsam.LevenbergMarquardtOptimizer(pose_init_graph, initial_values)
