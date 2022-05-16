@@ -29,7 +29,14 @@ DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
 EXP07_PATH = DATA_ROOT_PATH / "exp07"
 
 
-def read_fastlio_result(poses_txt_path: str) -> Tuple[np.ndarray, np.ndarray]:
+def pose_of_vector(pose_vector):
+    """Convert from vector to Pose3"""
+    pose_rotation = Rot3(pose_vector[-1], pose_vector[3], pose_vector[4], pose_vector[5])
+    pose_translation = Point3(pose_vector[:3])
+    return Pose3(pose_rotation, pose_translation)
+
+
+def read_fastlio_result(poses_txt_path: str) -> Tuple[List[Pose3], np.ndarray]:
     """
     Read FastLIO result
     Args:
@@ -41,27 +48,15 @@ def read_fastlio_result(poses_txt_path: str) -> Tuple[np.ndarray, np.ndarray]:
     # remove timestamp column from txt
     poses = np.loadtxt(poses_txt_path)[:, 1:]
     timestamps = np.loadtxt(poses_txt_path)[:, 0]
-    return poses, timestamps
+    return [pose_of_vector(pose) for pose in poses], timestamps
 
 
-def pose_of_vector(pose_vector):
-    """Convert from vector to Pose3"""
-    pose_rotation = Rot3(pose_vector[-1], pose_vector[3], pose_vector[4], pose_vector[5])
-    pose_translation = Point3(pose_vector[:3])
-    return Pose3(pose_rotation, pose_translation)
-
-
-def get_relative_transform(pose1_vec, pose2_vec):
+def get_relative_transform(pose1, pose2):
     """
-    Computes the relative transform given two pose vectors read from the fastlio txt file.
-    Args:
-        pose1_vec: [x,y,z,q1,q2,q3,q4(w)]
-        pose2_vec: [x,y,z,q1,q2,q3,q4(w)]
+    Computes the relative transform given two poses.
     Returns:
         T2_1: relative transform from pose1 to pose2
     """
-    pose1 = pose_of_vector(pose1_vec)
-    pose2 = pose_of_vector(pose2_vec)
     return pose2.between(pose1)
 
 
@@ -90,15 +85,17 @@ def difference(P1, P2):
     return distance, angle_
 
 
-def create_initial_estimate(poses):
+def create_initial_estimate(poses: List[Pose3]):
     """Create initial estimate"""
     initial_estimate = Values()
     for i, pose_vector in enumerate(poses):
-        initial_estimate.insert(i, pose_of_vector(pose_vector))
+        initial_estimate.insert(i, pose_vector)
     return initial_estimate
 
 
-def filtered_pose_priors(constraints, poses, initial_estimate, add_backbone=True):
+def filtered_pose_priors(
+    constraints: List[Constraint], poses: List[Pose3], initial_estimate, add_backbone=True
+) -> Dict[Tuple[int, int], PosePrior]:
     """Generate relative pose priors from constraints and initial_estimate by filtering heavily. Optionally add back bone."""
 
     relative_pose_priors: Dict[Tuple[int, int], PosePrior] = {}
@@ -143,12 +140,12 @@ def filtered_pose_priors(constraints, poses, initial_estimate, add_backbone=True
     return relative_pose_priors
 
 
-def generate_pose_graph(poses, relative_pose_priors):
+def generate_pose_graph(poses: List[Pose3], relative_pose_priors: Dict[Tuple[int, int], PosePrior]):
     """Generate pose graph."""
     graph = NonlinearFactorGraph()
 
     # Add the prior factor to the initial pose.
-    prior_pose_factor = PriorFactorPose3(0, pose_of_vector(poses[0]), noiseModel.Isotropic.Sigma(6, 5e-2))
+    prior_pose_factor = PriorFactorPose3(0, poses[0], noiseModel.Isotropic.Sigma(6, 5e-2))
     graph.add(prior_pose_factor)
 
     # Add pose priors
