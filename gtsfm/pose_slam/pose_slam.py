@@ -26,17 +26,18 @@ class PoseSlam:
     def __initialize_poses(
         self,
         pose_init_graph: gtsam.NonlinearFactorGraph,
+        indices_in_graph: set,
         gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
     ) -> gtsam.Values:
         if self._use_gt_for_initialization and gt_wTi_list is not None:
             logger.info("Using GT for initialization")
             initial_values = gtsam.Values()
-            for i, wTi in enumerate(gt_wTi_list):
-                if wTi is None:
+            for i in indices_in_graph:
+                if gt_wTi_list[i] is None:
                     logger.error("None GT camera encountered at idx %d", i)
                     raise ValueError("Need all GTs to work")
 
-                initial_values.insert(i, wTi)
+                initial_values.insert(i, gt_wTi_list[i])
 
             return initial_values
 
@@ -65,11 +66,10 @@ class PoseSlam:
         logger.info("[pose slam] Running pose SLAM intilialization")
         pose_init_graph = gtsam.NonlinearFactorGraph()
 
-        assert len(gt_wTi_list) == num_images
-
+        indices_in_graph = set()
         for (i1, i2), i1Ti2_prior in relative_pose_priors.items():
-            assert i1 < num_images
-            assert i2 < num_images
+            indices_in_graph.add(i1)
+            indices_in_graph.add(i2)
             pose_init_graph.push_back(
                 gtsam.BetweenFactorPose3(
                     i1,
@@ -78,8 +78,11 @@ class PoseSlam:
                     gtsam.noiseModel.Gaussian.Covariance(i1Ti2_prior.covariance),
                 )
             )
-        pose_init_graph.push_back(gtsam.PriorFactorPose3(0, Pose3(), POSE_PRIOR_NOISE))
-        initial_values = self.__initialize_poses(pose_init_graph, gt_wTi_list)
+
+        wT0_gt = gt_wTi_list[0] if gt_wTi_list is not None else None
+        wT0_gt = Pose3() if wT0_gt is None else wT0_gt
+        pose_init_graph.push_back(gtsam.PriorFactorPose3(0, wT0_gt, POSE_PRIOR_NOISE))
+        initial_values = self.__initialize_poses(pose_init_graph, indices_in_graph, gt_wTi_list)
         initial_error = pose_init_graph.error(initial_values)
         logger.info(f"[pose slam] Pose SLAM initialization complete with error: {initial_error}")
         optimizer = gtsam.LevenbergMarquardtOptimizer(pose_init_graph, initial_values)
