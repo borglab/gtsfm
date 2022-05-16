@@ -121,13 +121,16 @@ class HiltiLoader(LoaderBase):
             constraint_magnitudes[(c, d)] = np.linalg.norm(constraint.aTb.translation())
 
         def is_higher_step_magnitude_greater(a, b, all_magnitudes, step_size):
-            ERROR_MARGIN = 0.1 #meters
+            ERROR_MARGIN = 0.1  # meters
             c, d = min(a, b), max(a, b)
             this_magnitude = all_magnitudes[(c, d)]
-            step_magnitude = all_magnitudes[(c, d+step_size)] if (c, d+step_size) in all_magnitudes else None
+            step_magnitude = all_magnitudes[(c, d + step_size)] if (c, d + step_size) in all_magnitudes else None
             return step_magnitude is not None and this_magnitude - step_magnitude > ERROR_MARGIN
 
         filtered_constraints = {}
+        rot_sigma = np.deg2rad(60)
+        trans_sigma = 50 # meters
+        FILTERED_COVARIANCE = np.diag([rot_sigma, rot_sigma, rot_sigma, trans_sigma, trans_sigma, trans_sigma])
         for (a, b), constraint in constraints.items():
             # Accept all constraint with step > 1
             if abs(a - b) != 1:
@@ -135,6 +138,7 @@ class HiltiLoader(LoaderBase):
                 continue
             # Do not include if a higher-step magnitude is greater (for steps of size 2 and 3)
             if is_higher_step_magnitude_greater(a, b, constraint_magnitudes, 1) or is_higher_step_magnitude_greater(a, b, constraint_magnitudes, 2):
+                filtered_constraints[(a, b)] = Constraint(constraint.a, constraint.b, constraint.aTb, FILTERED_COVARIANCE, constraint.counts)
                 continue
             filtered_constraints[(a, b)] = constraint
         return filtered_constraints
