@@ -10,8 +10,8 @@ import numpy as np
 from dask.delayed import Delayed
 from gtsam import (
     BetweenFactorPose3,
+    InitializePose3,
     LevenbergMarquardtOptimizer,
-    LevenbergMarquardtParams,
     NonlinearFactorGraph,
     Point3,
     Pose3,
@@ -21,6 +21,7 @@ from gtsam import (
     noiseModel,
 )
 from gtsam.utils.test_case import GtsamTestCase
+
 from gtsfm.common.constraint import Constraint
 from gtsfm.common.pose_prior import PosePrior, PosePriorType
 from gtsfm.pose_slam.pose_slam import PoseSlam
@@ -115,6 +116,7 @@ class TestPoseSlam(GtsamTestCase):
 
     def test_filter_constraints(self) -> None:
         """Check that filtering and then doing pose slam on exp07 works as in notebook."""
+        # Read constraints and poses from file.
         ws = Path(EXP07_PATH)
         poses_txt_path = ws / "fastlio_odom.txt"
         constraint_txt_path = ws / "constraints.txt"
@@ -123,17 +125,24 @@ class TestPoseSlam(GtsamTestCase):
         self.assertEqual(len(poses), 1319)
         self.assertEqual(len(constraints), 10328)
 
-        initial_estimate = create_initial_estimate(poses)
+        # Create graph.
         relative_pose_priors = self.slam.filtered_pose_priors(constraints, poses)
         graph = generate_pose_graph(poses, relative_pose_priors)
         self.assertEqual(graph.size(), 10062)
+
+        # Check initial error.
+        initial_estimate = create_initial_estimate(poses)
         self.assertAlmostEqual(graph.error(initial_estimate), 35111.87458699957)
 
-        params = LevenbergMarquardtParams()
-        optimizer = LevenbergMarquardtOptimizer(graph, initial_estimate, params)
+        # Check that we can initialize with Pose3Initialize
+        initial_estimate = InitializePose3.initialize(graph)
+        self.assertAlmostEqual(graph.error(initial_estimate), 267965.28657262615)
+
+        # Optimize and Check final error.
+        optimizer = LevenbergMarquardtOptimizer(graph, initial_estimate)
         result = optimizer.optimize()
         final_error = graph.error(result)
-        self.assertAlmostEqual(final_error, 10288.082865432772)
+        self.assertAlmostEqual(final_error, 10288.082955348931)
 
 
 if __name__ == "__main__":
