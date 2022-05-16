@@ -14,6 +14,7 @@ from gtsam import (
     BetweenFactorPose3,
     GeneralSFMFactor2Cal3Bundler,
     GeneralSFMFactor2Cal3Fisheye,
+    InitializePose3,
     NonlinearFactorGraph,
     PinholeCameraCal3Bundler,
     PinholeCameraCal3Fisheye,
@@ -168,7 +169,11 @@ class BundleAdjustmentOptimizer:
         return graph
 
     def __calibration_priors(
-        self, initial_data: GtsfmData, cameras_to_model: List[int], is_fisheye_calibration: bool
+        self,
+        initial_data: GtsfmData,
+        cameras_to_model: List[int],
+        is_fisheye_calibration: bool,
+        intrinsics: Optional[List[gtsfm_types.CALIBRATION_TYPE]] = None,
     ) -> NonlinearFactorGraph:
         """Generate prior factors on calibration parameters of the cameras."""
         graph = NonlinearFactorGraph()
@@ -178,23 +183,29 @@ class BundleAdjustmentOptimizer:
         calibration_prior_noise_sigma = (
             CAM_CAL3FISHEYE_PRIOR_NOISE_SIGMA if is_fisheye_calibration else CAM_CAL3BUNDLER_PRIOR_NOISE_SIGMA
         )
-        if self._shared_calib:
+
+        for i in cameras_to_model:
+            camera = initial_data.get_camera(i)
+
+            calibration = None
+            if camera is not None:
+                calibration = camera.calibration()
+            elif intrinsics is not None:
+                calibration = intrinsics[i]
+
+            if calibration is None:
+                continue
+
             graph.push_back(
                 calibration_prior_factor_class(
-                    K(self.__map_to_calibration_variable(cameras_to_model[0])),
-                    initial_data.get_camera(cameras_to_model[0]).calibration(),
+                    K(self.__map_to_calibration_variable(i)),
+                    calibration,
                     gtsam.noiseModel.Isotropic.Sigma(calibration_prior_factor_dof, calibration_prior_noise_sigma),
                 )
             )
-        else:
-            for i in cameras_to_model:
-                graph.push_back(
-                    calibration_prior_factor_class(
-                        K(self.__map_to_calibration_variable(i)),
-                        initial_data.get_camera(i).calibration(),
-                        gtsam.noiseModel.Isotropic.Sigma(calibration_prior_factor_dof, calibration_prior_noise_sigma),
-                    )
-                )
+
+            if self._shared_calib and graph.size() > 0:
+                break
 
         return graph
 
@@ -204,6 +215,7 @@ class BundleAdjustmentOptimizer:
         initial_data: GtsfmData,
         absolute_pose_priors: List[Optional[PosePrior]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+        intrinsics: Optional[List[gtsfm_types.CALIBRATION_TYPE]] = None,
     ) -> NonlinearFactorGraph:
         """Construct the factor graph with reprojection factors, BetweenFactors, and prior factors."""
         is_fisheye_calibration = isinstance(initial_data.get_camera(cameras_to_model[0]), PinholeCameraCal3Fisheye)
@@ -224,7 +236,7 @@ class BundleAdjustmentOptimizer:
                 camera_for_origin=cameras_to_model[0],
             )
         )
-        graph.push_back(self.__calibration_priors(initial_data, cameras_to_model, is_fisheye_calibration))
+        graph.push_back(self.__calibration_priors(initial_data, cameras_to_model, is_fisheye_calibration, intrinsics))
 
         # Also add a prior on the position of the first landmark to fix the scale
         graph.push_back(
@@ -235,17 +247,83 @@ class BundleAdjustmentOptimizer:
 
         return graph
 
-    def __initial_values(self, initial_data: GtsfmData) -> Values:
-        """Initialize all the variables in the factor graph."""
-        initial_values = gtsam.Values()
+    def __initial_pose_values(
+        self,
+        initial_data: GtsfmData,
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+        cameras_to_model: List[int],
+    ) -> Values:
+        """Initialize pose3 variables in the factor graph."""
 
-        # add each camera
-        for loop_idx, i in enumerate(initial_data.get_valid_camera_indices()):
-            camera = initial_data.get_camera(i)
-            initial_values.insert(X(i), camera.pose())
-            if not self._shared_calib or loop_idx == 0:
+        initial_values = Values()
+        for i in initial_data.get_valid_camera_indices():
+            initial_values.insert(X(i), initial_data.get_camera(i).pose())
+
+        if len(relative_pose_priors) == 0:
+            return initial_values
+
+        pose_init_graph = NonlinearFactorGraph()
+
+        for i in initial_data.get_valid_camera_indices():
+            pose_init_graph.push_back(
+                PriorFactorPose3(
+                    X(i),
+                    initial_data.get_camera(i).pose(),
+                    gtsam.noiseModel.Isotropic.Sigma(CAM_POSE3_DOF, CAM_POSE3_PRIOR_NOISE_SIGMA),
+                )
+            )
+
+        # add the pose priors as between factors
+        # pose_init_graph.push_back(self._between_factors(relative_pose_priors, cameras_to_model))
+
+        for (i1, i2), i1Ti2_prior in relative_pose_priors.items():
+            if i1 not in cameras_to_model or i2 not in cameras_to_model:
+                continue
+
+            # TODO: Investigate why this does not work when we use pose prior's sigmas.
+            pose_init_graph.push_back(
+                BetweenFactorPose3(
+                    X(i1),
+                    X(i2),
+                    i1Ti2_prior.value,
+                    gtsam.noiseModel.Isotropic.Sigma(CAM_POSE3_DOF, CAM_POSE3_PRIOR_NOISE_SIGMA * 3),
+                )
+            )
+
+        return InitializePose3.initialize(pose_init_graph, initial_values, useGradient=False)
+
+    def __initial_calibration_values(
+        self,
+        initial_data: GtsfmData,
+        cameras_to_model: List[int],
+        intrinsics: Optional[List[gtsfm_types.CALIBRATION_TYPE]] = None,
+    ) -> Values:
+        """Initialize calibration variables in the factor graph."""
+        initial_values = Values()
+
+        is_calibration_added = False
+        for i in cameras_to_model:
+            if not is_calibration_added or not self._shared_calib:
                 # add only one value if calibrations are shared
-                initial_values.insert(K(self.__map_to_calibration_variable(i)), camera.calibration())
+
+                camera = initial_data.get_camera(i)
+                calibration = None
+                if camera is not None:
+                    calibration = camera.calibration()
+                elif intrinsics is not None:
+                    calibration = intrinsics[i]
+
+                if calibration is None:
+                    continue
+
+                initial_values.insert(K(self.__map_to_calibration_variable(i)), calibration)
+
+                is_calibration_added = True
+
+        return initial_values
+
+    def __initial_landmark_values(self, initial_data: GtsfmData) -> Values:
+        initial_values = Values()
 
         # add each SfmTrack
         for j in range(initial_data.number_tracks()):
@@ -294,6 +372,7 @@ class BundleAdjustmentOptimizer:
         absolute_pose_priors: List[Optional[PosePrior]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         verbose: bool = True,
+        intrinsics: Optional[List[gtsfm_types.CALIBRATION_TYPE]] = None,
     ) -> Tuple[GtsfmData, GtsfmData, List[bool]]:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
 
@@ -302,6 +381,7 @@ class BundleAdjustmentOptimizer:
             absolute_pose_priors: priors to be used on cameras.
             relative_pose_priors: priors on the pose between two cameras.
             verbose: Boolean flag to print out additional info for debugging.
+            intrinsics: intrinsics for all the cameras.
 
         Results:
             Optimized camera poses, 3D point w/ tracks, and error metrics, aligned to GT (if provided).
@@ -326,8 +406,18 @@ class BundleAdjustmentOptimizer:
             initial_data=initial_data,
             absolute_pose_priors=absolute_pose_priors,
             relative_pose_priors=relative_pose_priors,
+            intrinsics=intrinsics,
         )
-        initial_values = self.__initial_values(initial_data=initial_data)
+        initial_values = self.__initial_pose_values(
+            initial_data=initial_data, relative_pose_priors=relative_pose_priors, cameras_to_model=cameras_to_model
+        )
+        initial_values.insert(
+            self.__initial_calibration_values(
+                initial_data=initial_data, cameras_to_model=cameras_to_model, intrinsics=intrinsics
+            )
+        )
+        initial_values.insert(self.__initial_landmark_values(initial_data=initial_data))
+
         result_values = self.__optimize_factor_graph(graph, initial_values)
 
         final_error = graph.error(result_values)
