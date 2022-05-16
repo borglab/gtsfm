@@ -28,15 +28,18 @@ class PoseSlam:
         pose_init_graph: gtsam.NonlinearFactorGraph,
         gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
     ) -> gtsam.Values:
-        initial_values = gtsam.Values()
         if self._use_gt_for_initialization and gt_wTi_list is not None:
             logger.info("Using GT for initialization")
+            initial_values = gtsam.Values()
             for i, wTi in enumerate(gt_wTi_list):
                 if wTi is None:
                     continue
 
                 initial_values.insert(i, wTi)
 
+            return initial_values
+
+        # TODO: handle case of partial GT information.
         initial_values = gtsam.InitializePose3.initialize(pose_init_graph, initial_values, useGradient=False)
 
         return initial_values
