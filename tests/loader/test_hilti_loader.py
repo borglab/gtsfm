@@ -120,19 +120,19 @@ class TestHiltiLoader(unittest.TestCase):
 
     def test_filters_constraints(self) -> None:
         constraints = {
-            (0, 1): Constraint(0, 1, Pose3(Rot3(), Point3(5, 0, 0))), # outlier, has both 2 & 3 step
-            (2, 1): Constraint(2, 1, Pose3(Rot3(), Point3(-1, 0, 0))),
-            (2, 3): Constraint(2, 3, Pose3(Rot3(), Point3(4, 0, 0))), # outlier, only 3 step
-            (3, 4): Constraint(3, 4, Pose3(Rot3(), Point3(3, 0, 0))), # outlier, only 2 step
-            (4, 5): Constraint(4, 5, Pose3(Rot3(), Point3(1, 0, 0))),
-
-            (2, 0): Constraint(2, 0, Pose3(Rot3(), Point3(-2, 0, 0))),
-            (1, 3): Constraint(1, 3, Pose3(Rot3(), Point3(2, 0, 0))), 
-            (3, 5): Constraint(3, 5, Pose3(Rot3(), Point3(2, 0, 0))),
-
-            (0, 3): Constraint(0, 3, Pose3(Rot3(), Point3(3, 0, 0))),
-            (1, 4): Constraint(1, 4, Pose3(Rot3(), Point3(3, 0, 0))),
-            (2, 5): Constraint(2, 5, Pose3(Rot3(), Point3(3, 0, 0))),
+            (0, 1): Constraint(
+                0, 1, Pose3(Rot3(), Point3(5, 0, 0)), cov=np.zeros((6, 6))
+            ),  # outlier, has both 2 & 3 step
+            (2, 1): Constraint(2, 1, Pose3(Rot3(), Point3(-1, 0, 0)), cov=np.zeros((6, 6))),
+            (2, 3): Constraint(2, 3, Pose3(Rot3(), Point3(4, 0, 0)), cov=np.zeros((6, 6))),  # outlier, only 3 step
+            (3, 4): Constraint(3, 4, Pose3(Rot3(), Point3(3, 0, 0)), cov=np.zeros((6, 6))),  # outlier, only 2 step
+            (4, 5): Constraint(4, 5, Pose3(Rot3(), Point3(1, 0, 0)), cov=np.zeros((6, 6))),
+            (2, 0): Constraint(2, 0, Pose3(Rot3(), Point3(-2, 0, 0)), cov=np.zeros((6, 6))),
+            (1, 3): Constraint(1, 3, Pose3(Rot3(), Point3(2, 0, 0)), cov=np.zeros((6, 6))),
+            (3, 5): Constraint(3, 5, Pose3(Rot3(), Point3(2, 0, 0)), cov=np.zeros((6, 6))),
+            (0, 3): Constraint(0, 3, Pose3(Rot3(), Point3(3, 0, 0)), cov=np.zeros((6, 6))),
+            (1, 4): Constraint(1, 4, Pose3(Rot3(), Point3(3, 0, 0)), cov=np.zeros((6, 6))),
+            (2, 5): Constraint(2, 5, Pose3(Rot3(), Point3(3, 0, 0)), cov=np.zeros((6, 6))),
         }
 
         expected_outliers = [(0, 1), (2, 3), (3, 4)]
@@ -152,8 +152,8 @@ class TestHiltiLoader(unittest.TestCase):
     def test_updates_stationary_constraints(self) -> None:
         constraints = {
             (0, 1): Constraint(0, 1, Pose3(Rot3(), Point3(5, 0, 0))),
-            (2, 1): Constraint(2, 1, Pose3(Rot3(), Point3(0.01, 0, 0))), # stationary
-            (2, 3): Constraint(2, 3, Pose3(Rot3(), Point3(0, 0.01, 0))), # stationary
+            (2, 1): Constraint(2, 1, Pose3(Rot3(), Point3(0.01, 0, 0))),  # stationary
+            (2, 3): Constraint(2, 3, Pose3(Rot3(), Point3(0, 0.01, 0))),  # stationary
             (3, 4): Constraint(3, 4, Pose3(Rot3(), Point3(3, 0, 0))),
             (4, 5): Constraint(4, 5, Pose3(Rot3.Rz(np.deg2rad(20)), Point3(0, 0, 0))),
         }
@@ -162,10 +162,11 @@ class TestHiltiLoader(unittest.TestCase):
             max_length=None,
             subsample=2,
             old_style=True,
-        )        
+        )
         updated_constraints = loader._update_stationary_constraints(constraints)
         zero_keys = [key for key, value in updated_constraints.items() if value.aTb.equals(Pose3(), 1e-4)]
         self.assertSetEqual(set([(2, 1), (2, 3)]), set(zero_keys))
+
 
 if __name__ == "__main__":
     unittest.main()
