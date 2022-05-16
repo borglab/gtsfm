@@ -94,7 +94,7 @@ def create_initial_estimate(poses: List[Pose3]):
 
 
 def filtered_pose_priors(
-    constraints: List[Constraint], poses: List[Pose3], initial_estimate, add_backbone=True
+    constraints: List[Constraint], poses: List[Pose3], add_backbone=True
 ) -> Dict[Tuple[int, int], PosePrior]:
     """Generate relative pose priors from constraints and initial_estimate by filtering heavily. Optionally add back bone."""
 
@@ -115,15 +115,7 @@ def filtered_pose_priors(
             if np.isnan(info).any():
                 continue
             else:
-                measurement_noise = noiseModel.Gaussian.Information(info)
-                factor_aTb = BetweenFactorPose3(a, b, aTb, measurement_noise)
-                error = factor_aTb.error(initial_estimate)
-                if np.isnan(error):
-                    continue
-                if error > 1000:
-                    continue
-                else:
-                    relative_pose_priors[(a, b)] = PosePrior(aTb, cov, PosePriorType.SOFT_CONSTRAINT)
+                relative_pose_priors[(a, b)] = PosePrior(aTb, cov, PosePriorType.SOFT_CONSTRAINT)
         except np.linalg.LinAlgError:
             continue
 
