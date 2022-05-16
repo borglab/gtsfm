@@ -112,7 +112,9 @@ class HiltiLoader(LoaderBase):
         # cast them to dictionary
         return {(constraint.a, constraint.b): constraint for constraint in constraints}
 
-    def _filter_outlier_constraints(self, constraints: Dict[Tuple[int, int], Constraint]) ->  Dict[Tuple[int, int], Constraint]:
+    def _filter_outlier_constraints(
+        self, constraints: Dict[Tuple[int, int], Constraint]
+    ) -> Dict[Tuple[int, int], Constraint]:
         """Removes 1-step constraints for which the translation magnitude is greater than 2 or 3-step constraints."""
         constraint_magnitudes = {}
         for (a, b), constraint in constraints.items():
@@ -129,7 +131,7 @@ class HiltiLoader(LoaderBase):
 
         filtered_constraints = {}
         rot_sigma = np.deg2rad(60)
-        trans_sigma = 10 # meters
+        trans_sigma = 10  # meters
         FILTERED_COVARIANCE = np.diag([rot_sigma, rot_sigma, rot_sigma, trans_sigma, trans_sigma, trans_sigma])
         for (a, b), constraint in constraints.items():
             # Accept all constraint with step > 1
@@ -137,8 +139,12 @@ class HiltiLoader(LoaderBase):
                 filtered_constraints[(a, b)] = constraint
                 continue
             # Do not include if a higher-step magnitude is greater (for steps of size 2 and 3)
-            if is_higher_step_magnitude_greater(a, b, constraint_magnitudes, 1) or is_higher_step_magnitude_greater(a, b, constraint_magnitudes, 2):
-                filtered_constraints[(a, b)] = Constraint(constraint.a, constraint.b, constraint.aTb, FILTERED_COVARIANCE, constraint.counts)
+            if is_higher_step_magnitude_greater(a, b, constraint_magnitudes, 1) or is_higher_step_magnitude_greater(
+                a, b, constraint_magnitudes, 2
+            ):
+                filtered_constraints[(a, b)] = Constraint(
+                    constraint.a, constraint.b, constraint.aTb, FILTERED_COVARIANCE, constraint.counts
+                )
                 continue
             filtered_constraints[(a, b)] = constraint
         return filtered_constraints
@@ -311,6 +317,9 @@ class HiltiLoader(LoaderBase):
         Returns:
             Pose prior, if it exists.
         """
+
+        assert i1 < len(self) and i2 < len(self)
+
         rig_idx_for_i1: int = self.rig_from_image(i1)
         rig_idx_for_i2: int = self.rig_from_image(i2)
         cam_idx_for_i1: int = self.camera_from_image(i1)
@@ -380,4 +389,3 @@ class HiltiLoader(LoaderBase):
             image_fnames.append(filename)
 
         return image_fnames
-        
