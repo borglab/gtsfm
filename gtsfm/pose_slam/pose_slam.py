@@ -34,7 +34,7 @@ class PoseSlam:
             for i, wTi in enumerate(gt_wTi_list):
                 if wTi is None:
                     logger.error("None GT camera encountered at idx %d", i)
-                    continue
+                    raise ValueError("Need all GTs to work")
 
                 initial_values.insert(i, wTi)
 
@@ -65,7 +65,11 @@ class PoseSlam:
         logger.info("[pose slam] Running pose SLAM intilialization")
         pose_init_graph = gtsam.NonlinearFactorGraph()
 
+        assert len(gt_wTi_list) == num_images
+
         for (i1, i2), i1Ti2_prior in relative_pose_priors.items():
+            assert i1 < num_images
+            assert i2 < num_images
             pose_init_graph.push_back(
                 gtsam.BetweenFactorPose3(
                     i1,
