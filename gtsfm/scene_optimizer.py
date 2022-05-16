@@ -33,7 +33,9 @@ from gtsfm.two_view_estimator import TwoViewEstimator, TwoViewEstimationReport
 
 matplotlib.use("Agg")
 
-BASE_PATH = Path(__file__).resolve().parent.parent
+BASE_PATH_ENV_KEY = "GTSFM_BASE_PATH"
+BASE_PATH = os.environ.get(BASE_PATH_ENV_KEY)
+BASE_PATH = Path(BASE_PATH) if BASE_PATH is not None else Path(__file__).resolve().parent.parent
 
 # base paths for storage
 PLOT_BASE_PATH = BASE_PATH / "plots"
