@@ -145,8 +145,9 @@ def evaluate_trajectory(est_file, ref_file, prefix):
         elif calibration_type == "imu.txt":
             T_imu_ref = np.identity(4)
         else:
-            print("reference file has non supported calibration type. Please don't change the reference file names.")
-            exit()
+            T_imu_ref = np.identity(4)
+            # print("reference file has non supported calibration type. Please don't change the reference file names.")
+            # exit()
         data = np.genfromtxt(est_file, delimiter=" ", skip_header=False)
 
         for i in range(data.shape[0]):
@@ -323,6 +324,8 @@ if __name__ == "__main__":
     timestamps = read_timestamps_from_tum_file(args.fastlio_tum)
 
     write_poses_to_tum_file(cam2_poses, GTSFM_TUM_PATH, timestamps)
+
+    evaluate_trajectory(GTSFM_TUM_PATH, args.fastlio_tum, "gtsfm_v_fastlio")
 
     if args.gt is not None:
         print("FASTLIO poses evaluation results:")
