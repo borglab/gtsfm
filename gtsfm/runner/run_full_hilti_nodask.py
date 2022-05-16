@@ -158,21 +158,35 @@ class HiltiRunner:
             i2Ri1_dict, i2Ui1_dict, relative_pose_priors
         )
 
-        wRi = self.scene_optimizer.multiview_optimizer.rot_avg_module.run_rotation_averaging(
-            num_images, pruned_i2Ri1_dict, relative_pose_priors
-        )
-        rot_avg_metrics = self.scene_optimizer.multiview_optimizer.rot_avg_module.evaluate(
-            wRi_computed=wRi, wTi_gt=gt_wTi_list
-        )
+        metrics = []
 
-        wTi_list, ta_metrics = self.scene_optimizer.multiview_optimizer.trans_avg_module.run_translation_averaging(
-            num_images=num_images,
-            i2Ui1_dict=pruned_i2Ui1_dict,
-            wRi_list=wRi,
-            absolute_pose_priors=absolute_pose_priors,
-            scale_factor=1,
-            gt_wTi_list=gt_wTi_list,
-        )
+        if self.scene_optimizer.multiview_optimizer._use_pose_slam_intitialization:
+            wTi_list, pose_slam_metrics = self.scene_optimizer.multiview_optimizer.pose_slam_module.run_pose_slam(
+                num_images=num_images, relative_pose_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
+            )
+
+            metrics.append(pose_slam_metrics)
+        else:
+
+            wRi = self.scene_optimizer.multiview_optimizer.rot_avg_module.run_rotation_averaging(
+                num_images, pruned_i2Ri1_dict, relative_pose_priors
+            )
+            rot_avg_metrics = self.scene_optimizer.multiview_optimizer.rot_avg_module.evaluate(
+                wRi_computed=wRi, wTi_gt=gt_wTi_list
+            )
+
+            metrics.append(rot_avg_metrics)
+
+            wTi_list, ta_metrics = self.scene_optimizer.multiview_optimizer.trans_avg_module.run_translation_averaging(
+                num_images=num_images,
+                i2Ui1_dict=pruned_i2Ui1_dict,
+                wRi_list=wRi,
+                absolute_pose_priors=absolute_pose_priors,
+                scale_factor=1,
+                gt_wTi_list=gt_wTi_list,
+            )
+
+            metrics.append(ta_metrics)
 
         initialized_cameras = init_cameras(wTi_list=wTi_list, intrinsics_list=all_intrinsics)
 
@@ -185,6 +199,7 @@ class HiltiRunner:
             relative_pose_priors=relative_pose_priors,
             images=None,
         )
+        metrics.append(da_metrics)
 
         ba_unfiltered, ba_output, _ = self.scene_optimizer.multiview_optimizer.ba_optimizer.run_ba(
             initial_data=ba_input,
@@ -196,6 +211,7 @@ class HiltiRunner:
         ba_metrics = self.scene_optimizer.multiview_optimizer.ba_optimizer.evaluate(
             ba_unfiltered, ba_output, gt_cameras
         )
+        metrics.append(ba_metrics)
 
         ba_input_aligned = ba_input.align_via_Sim3_to_poses(wTi_list_ref=gt_wTi_list)
         ba_output_aligned = ba_output.align_via_Sim3_to_poses(wTi_list_ref=gt_wTi_list)
@@ -203,7 +219,7 @@ class HiltiRunner:
         save_visualizations(ba_input_aligned, ba_output_aligned, gt_wTi_list)
         save_gtsfm_data(None, image_shapes_list, self.loader.get_image_fnames(), ba_input, ba_output)
 
-        save_metrics_reports([rot_avg_metrics, ta_metrics, da_metrics, ba_metrics])
+        save_metrics_reports(metrics)
 
         end_time = time.time()
         duration_sec = end_time - start_time
