@@ -218,9 +218,8 @@ class HiltiRunner:
         ba_input_aligned = ba_input.align_via_Sim3_to_poses(wTi_list_ref=gt_wTi_list)
         ba_output_aligned = ba_output.align_via_Sim3_to_poses(wTi_list_ref=gt_wTi_list)
 
-        save_visualizations(ba_input_aligned, ba_output_aligned, gt_wTi_list)
-
         save_metrics_reports(metrics)
+        save_visualizations(ba_input_aligned, ba_output_aligned, gt_wTi_list)
 
         end_time = time.time()
         duration_sec = end_time - start_time
