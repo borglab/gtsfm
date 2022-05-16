@@ -29,7 +29,7 @@ DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
 EXP07_PATH = DATA_ROOT_PATH / "exp07"
 
 
-def read_fastlio_result(poses_txt_path):
+def read_fastlio_result(poses_txt_path: str) -> Tuple[np.ndarray, np.ndarray]:
     """
     Read FastLIO result
     Args:
@@ -41,27 +41,14 @@ def read_fastlio_result(poses_txt_path):
     # remove timestamp column from txt
     poses = np.loadtxt(poses_txt_path)[:, 1:]
     timestamps = np.loadtxt(poses_txt_path)[:, 0]
-    return (poses, timestamps)
+    return poses, timestamps
 
 
-def convert_result(result, timestamps, filename):
-    """Convert result into evaluation formation.
-    Args:
-        result: A Values() result from optimization.
-        timestamps: Timestamps from the FastLIO result.
-        filename: The name of the outputted file.
-    """
-    with open(filename, "w") as f:
-        i = 0
-        while result.exists(i):
-            pose_i = result.atPose3(i)
-            quat = pose_i.rotation().quaternion()
-            pose_string = (
-                f"{timestamps[i]} {pose_i.x()} {pose_i.y()} {pose_i.z()} {quat[1]} {quat[2]} {quat[3]} {quat[0]}\n"
-            )
-            f.write(pose_string)
-            i += 1
-        print("Total number of result: {}".format(i))
+def pose_of_vector(pose_vector):
+    """Convert from vector to Pose3"""
+    pose_rotation = Rot3(pose_vector[-1], pose_vector[3], pose_vector[4], pose_vector[5])
+    pose_translation = Point3(pose_vector[:3])
+    return Pose3(pose_rotation, pose_translation)
 
 
 def get_relative_transform(pose1_vec, pose2_vec):
@@ -73,26 +60,14 @@ def get_relative_transform(pose1_vec, pose2_vec):
     Returns:
         T2_1: relative transform from pose1 to pose2
     """
-    # Parse the vector to obtain the rotation and translation of the poses.
-    pose1_rotation = Rot3(pose1_vec[-1], pose1_vec[3], pose1_vec[4], pose1_vec[5])
-    pose1_translation = Point3(pose1_vec[:3])
-    pose2_rotation = Rot3(pose2_vec[-1], pose2_vec[3], pose2_vec[4], pose2_vec[5])
-    pose2_translation = Point3(pose2_vec[:3])
-    # Convert into Pose3
-    pose1 = Pose3(pose1_rotation, pose1_translation)
-    pose2 = Pose3(pose2_rotation, pose2_translation)
-    # Calculate the relative transform from pose2 to pose1
-    # aTb = inv(wTa) * wTb,
-    # we hope to get 2T1, so pose2 is a and pose1 is b
-    T2_1 = pose2.transformPoseTo(pose1)
-    return T2_1
+    pose1 = pose_of_vector(pose1_vec)
+    pose2 = pose_of_vector(pose2_vec)
+    return pose2.between(pose1)
 
 
 def angle(R1, R2):
-    """Calculate angle of two given rotations, in degrees.
-    R1, R2: Rot3
-    """
-    return np.degrees(np.linalg.norm(Rot3.Logmap(R1.compose(R2.inverse()))))
+    """Calculate angle between two rotations, in degrees."""
+    return np.degrees(np.linalg.norm(R1.logmap(R2)))
 
 
 def difference(P1, P2):
@@ -102,6 +77,7 @@ def difference(P1, P2):
         distance: translation difference
         angle: angular difference
     """
+    # TODO(frank): clean this up
     t1 = P1.translation()
     t2 = P2.translation()
     R1 = P1.rotation()
@@ -114,7 +90,15 @@ def difference(P1, P2):
     return distance, angle_
 
 
-def generate_pose_graph(pose_constraints, fastlio_poses, add_backbone=True):
+def create_initial_estimate(poses):
+    """Create initial estimate"""
+    initial_estimate = Values()
+    for i, pose_vector in enumerate(poses):
+        initial_estimate.insert(i, pose_of_vector(pose_vector))
+    return initial_estimate
+
+
+def generate_pose_graph(constraints, poses, initial_estimate, add_backbone=True):
     """Generate pose graph
     To create the actual factor for the factor graph and optimize the result.
     This process includes:
@@ -124,39 +108,32 @@ def generate_pose_graph(pose_constraints, fastlio_poses, add_backbone=True):
         4. Optimize the graph
         5. Save the result
     Args:
-        pose_constraints: A list of pose_constraints
+        A list of factors
     """
-    # refer https://github.com/borglab/gtsam/blob/develop/python/gtsam/tests/test_Pose3SLAMExample.py
-    # Pose constraints input
     # Initialize the factor graph
     graph = NonlinearFactorGraph()
-    initial_estimate = Values()
-    # Create initial estimate
-    for i, pose_vector in enumerate(fastlio_poses):
-        pose_rotation = Rot3(pose_vector[-1], pose_vector[3], pose_vector[4], pose_vector[5])
-        pose_translation = Point3(pose_vector[:3])
-        pose = Pose3(pose_rotation, pose_translation)
-        if i == 0:
-            # Add the prior factor to the initial pose.
-            prior_pose_factor = PriorFactorPose3(i, pose, noiseModel.Isotropic.Sigma(6, 5e-2))
-            graph.add(prior_pose_factor)
-        initial_estimate.insert(i, pose)
-    # Create odometry factor
+
+    # Add the prior factor to the initial pose.
+    prior_pose_factor = PriorFactorPose3(0, pose_of_vector(poses[0]), noiseModel.Isotropic.Sigma(6, 5e-2))
+    graph.add(prior_pose_factor)
+
+    # Create loose odometry factors
     if add_backbone:
         backbone_noise = noiseModel.Diagonal.Sigmas(
             np.array([1, 1, 1, np.deg2rad(30.0), np.deg2rad(30.0), np.deg2rad(30.0)])
         )
-        for i in range(len(fastlio_poses) - 1):
+        for i in range(len(poses) - 1):
             a, b = i, i + 1
-            a_vec, b_vec = fastlio_poses[a], fastlio_poses[b]
+            a_vec, b_vec = poses[a], poses[b]
             bTa = get_relative_transform(a_vec, b_vec)
             factor_aTb = BetweenFactorPose3(i, i + 1, bTa.inverse(), backbone_noise)
             graph.add(factor_aTb)
+
     # Create pose constraints using Bayesian ICP
-    for constraint in pose_constraints:
+    for constraint in constraints:
         a, b = constraint.a, constraint.b
         aTb, cov = constraint.aTb, constraint.cov
-        a_vec, b_vec = fastlio_poses[a], fastlio_poses[b]
+        a_vec, b_vec = poses[a], poses[b]
         bTa = get_relative_transform(a_vec, b_vec)  # fastlio
         trans_diff, rot_diff = difference(aTb, bTa.inverse())
         inlier = (trans_diff <= 0.04) and (rot_diff <= 5)
@@ -176,11 +153,11 @@ def generate_pose_graph(pose_constraints, fastlio_poses, add_backbone=True):
                     continue
                 else:
                     graph.add(factor_aTb)
-        except np.linalg.LinAlgError as e:
+        except np.linalg.LinAlgError:
             continue
 
     # Output the resulting poses and pose constraints
-    return graph, initial_estimate
+    return graph
 
 
 class TestPoseSlam(GtsamTestCase):
@@ -202,7 +179,7 @@ class TestPoseSlam(GtsamTestCase):
         }
 
         gt_wTi_list = [None, None, None]
-        poses, metrics = self.slam.run_pose_slam(3, relative_pose_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list)
+        poses, _ = self.slam.run_pose_slam(3, relative_pose_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list)
         self.assertEqual(len(poses), 3)
         for pose in poses:
             self.assertIsInstance(pose, Pose3)
@@ -225,12 +202,14 @@ class TestPoseSlam(GtsamTestCase):
         ws = Path(EXP07_PATH)
         poses_txt_path = ws / "fastlio_odom.txt"
         constraint_txt_path = ws / "constraints.txt"
-        poses, _ = read_fastlio_result(poses_txt_path)
+        poses, _ = read_fastlio_result(str(poses_txt_path))
         constraints = Constraint.read(str(constraint_txt_path))
         self.assertEqual(len(poses), 1319)
         self.assertEqual(len(constraints), 10328)
 
-        graph, initial_estimate = generate_pose_graph(constraints, poses)
+        # graph, initial_estimate = self.slam.generate_pose_graph(constraints, poses)
+        initial_estimate = create_initial_estimate(poses)
+        graph = generate_pose_graph(constraints, poses, initial_estimate)
         self.assertEqual(graph.size(), 10983)
         self.assertAlmostEqual(graph.error(initial_estimate), 35111.87458699957)
 
