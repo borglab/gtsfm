@@ -250,7 +250,7 @@ def get_average_point_color(track: SfmTrack, images: Optional[List[Image]]) -> T
         b: blue color intensity, in range [0,255]
     """
     if images is None:
-        return 255, 255, 255
+        return 0, 0, 0
 
     rgb_measurements = []
     for k in range(track.numberMeasurements()):
