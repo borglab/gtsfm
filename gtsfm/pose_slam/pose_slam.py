@@ -33,6 +33,7 @@ class PoseSlam:
             initial_values = gtsam.Values()
             for i, wTi in enumerate(gt_wTi_list):
                 if wTi is None:
+                    logger.error("None GT camera encountered at idx %d", i)
                     continue
 
                 initial_values.insert(i, wTi)
