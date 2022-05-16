@@ -129,11 +129,11 @@ class Point3dInitializer:
         num_ransac_hypotheses (optional): desired number of RANSAC hypotheses.
     """
 
-    def __init__(self, track_camera_dict: Dict[int, gtsfm_types.CAMERA_TYPE], options: TriangulationOptions) -> None:
-        self.track_camera_dict = track_camera_dict
+    def __init__(self, track_cameras: Dict[int, gtsfm_types.CAMERA_TYPE], options: TriangulationOptions) -> None:
+        self.track_cameras = track_cameras
         self.options = options
 
-        sample_camera = list(self.track_camera_dict.values())[0]
+        sample_camera = list(self.track_cameras.values())[0]
 
         self._camera_set_class = (
             CameraSetCal3Bundler if isinstance(sample_camera, PinholeCameraCal3Bundler) else CameraSetCal3Fisheye
@@ -171,13 +171,13 @@ class Point3dInitializer:
             i2, uv2 = track_2d.measurements[k2]
 
             # check for unestimated cameras
-            if self.track_camera_dict.get(i1) is None or self.track_camera_dict.get(i2) is None:
+            if self.track_cameras.get(i1) is None or self.track_cameras.get(i2) is None:
                 # logger.warning("Unestimated cameras found at indices %d or %d. Skipping them.", i1, i2)
                 continue
 
             camera_estimates = self._camera_set_class()
-            camera_estimates.append(self.track_camera_dict.get(i1))
-            camera_estimates.append(self.track_camera_dict.get(i2))
+            camera_estimates.append(self.track_cameras.get(i1))
+            camera_estimates.append(self.track_cameras.get(i2))
 
             img_measurements = Point2Vector()
             img_measurements.append(uv1)
@@ -199,8 +199,8 @@ class Point3dInitializer:
                 )
                 continue
 
-            errors, _ = reproj_utils.compute_point_reprojection_errors(
-                self.track_camera_dict, triangulated_pt, track_2d.measurements
+            errors = reproj_utils.compute_point_reprojection_errors(
+                self.track_cameras, triangulated_pt, track_2d.measurements
             )
 
             # The best solution should correspond to the one with most inliers
@@ -271,9 +271,10 @@ class Point3dInitializer:
             return None, None, TriangulationExitCode.CHEIRALITY_FAILURE
 
         # Compute reprojection errors for each measurement.
-        reproj_errors, avg_track_reproj_error = reproj_utils.compute_point_reprojection_errors(
-            self.track_camera_dict, triangulated_pt, inlier_track.measurements
+        reproj_errors = reproj_utils.compute_point_reprojection_errors(
+            self.track_cameras, triangulated_pt, inlier_track.measurements
         )
+        avg_track_reproj_error = np.nan if np.isnan(reproj_errors).all() else np.nanmean(reproj_errors)
 
         # Check that all measurements are within reprojection error threshold.
         if not np.all(reproj_errors.flatten() < self.options.reproj_error_threshold):
@@ -312,8 +313,8 @@ class Point3dInitializer:
                 i1, _ = track.measurements[k1]
                 i2, _ = track.measurements[k2]
 
-                wTc1 = self.track_camera_dict[i1].pose()
-                wTc2 = self.track_camera_dict[i2].pose()
+                wTc1 = self.track_cameras[i1].pose()
+                wTc2 = self.track_cameras[i2].pose()
 
                 # rough approximation approximation of baseline between the 2 cameras
                 scores[k] = np.linalg.norm(wTc1.inverse().compose(wTc2).translation())
@@ -359,8 +360,8 @@ class Point3dInitializer:
         for i, uv in track.measurements:
 
             # check for unestimated cameras
-            if i in self.track_camera_dict and self.track_camera_dict.get(i) is not None:
-                track_cameras.append(self.track_camera_dict.get(i))
+            if i in self.track_cameras and self.track_cameras.get(i) is not None:
+                track_cameras.append(self.track_cameras.get(i))
                 track_measurements.append(uv)
             # else:
             #     logger.warning("Unestimated cameras found at index %d. Skipping them.", i)

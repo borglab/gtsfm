@@ -243,8 +243,8 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
 
         cam_params = line.split()
         # Note that u0 is px, and v0 is py
-        cam_id, model, img_w, img_h, fx, u0, v0 = cam_params[:7]
-        img_w, img_h, fx, u0, v0 = int(img_w), int(img_h), float(fx), float(u0), float(v0)
+        _, _, _, _, _fx, _u0, _v0 = cam_params[:7]
+        fx, u0, v0 = float(_fx), float(_u0), float(_v0)
 
         # TODO: determine convention for storing/reading radial distortion parameters
         k1 = 0
@@ -280,6 +280,7 @@ def write_cameras(gtsfm_data: GtsfmData, image_shapes: List[Tuple[int, int]], sa
 
         for i in gtsfm_data.get_valid_camera_indices():
             camera = gtsfm_data.get_camera(i)
+            assert camera is not None
             calibration = camera.calibration()
 
             fx = calibration.fx()
@@ -409,8 +410,8 @@ def read_points_txt(fpath: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarr
     with open(fpath, "r") as f:
         data = f.readlines()
 
-    rgb = []
-    point_cloud = []
+    colors = []
+    points = []
     # first 3 lines are information about the file format
     # line at index 2 will be of the form
     # "# Number of points: 2122, mean track length: 2.8449575871819039"
@@ -425,11 +426,11 @@ def read_points_txt(fpath: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarr
         x, y, z, r, g, b = entries[1:7]
 
         point = [float(x), float(y), float(z)]
-        point_cloud += [point]
-        rgb += [(int(r), int(g), int(b))]
+        points += [point]
+        colors += [(int(r), int(g), int(b))]
 
-    point_cloud = np.array(point_cloud)
-    rgb = np.array(rgb).astype(np.uint8)
+    point_cloud = np.array(points)
+    rgb = np.array(colors).astype(np.uint8)
 
     assert point_cloud.shape[0] == expected_num_pts
     assert rgb.shape[0] == expected_num_pts
@@ -438,7 +439,7 @@ def read_points_txt(fpath: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarr
 
 def read_scene(
     images_fpath: str, cameras_fpath: str, points_fpath: str
-) -> Tuple[List[Pose3], List[str], List[Cal3Bundler], np.ndarray, np.ndarray]:
+) -> Tuple[Optional[List[Pose3]], Optional[List[str]], List[Cal3Bundler], Optional[np.ndarray], Optional[np.ndarray]]:
     """Reads in full scene reconstruction model."""
     wTi_list, img_fnames = read_images_txt(images_fpath)
     calibrations = read_cameras_txt(cameras_fpath)
@@ -476,7 +477,8 @@ def write_points(gtsfm_data: GtsfmData, save_dir: str, images: Optional[List[Ima
             track = gtsfm_data.get_track(j)
 
             r, g, b = image_utils.get_average_point_color(track, images)
-            _, avg_track_reproj_error = reproj_utils.compute_track_reprojection_errors(gtsfm_data._cameras, track)
+            errors: np.ndarray = reproj_utils.compute_track_reprojection_errors(gtsfm_data._cameras, track)
+            avg_track_reproj_error = np.nan if np.isnan(errors).all() else np.nanmean(errors)
             x, y, z = track.point3()
             f.write(f"{j} {x} {y} {z} {r} {g} {b} {np.round(avg_track_reproj_error, 2)} ")
 

@@ -145,7 +145,7 @@ class TestPoint3dInitializer(unittest.TestCase):
     def __runWithCheiralityException(self, obj: Point3dInitializer) -> bool:
         """Run the initialization in a a-cheiral setup, and check that the result is a None track."""
 
-        cameras = obj.track_camera_dict
+        cameras = obj.track_cameras
 
         # flip the cameras first
         yaw = np.pi

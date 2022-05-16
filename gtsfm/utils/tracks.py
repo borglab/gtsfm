@@ -32,7 +32,7 @@ def classify_tracks2d_with_gt_cameras(
     # do a simple triangulation with the GT cameras
     cameras_dict: Dict[int, PinholeCameraCal3Bundler] = {i: cam for i, cam in enumerate(cameras_gt)}
     point3d_initializer = Point3dInitializer(
-        track_camera_dict=cameras_dict,
+        track_cameras=cameras_dict,
         options=TriangulationOptions(
             reproj_error_threshold=reproj_error_thresh_px, mode=TriangulationSamplingMode.NO_RANSAC
         ),
