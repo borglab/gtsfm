@@ -8,13 +8,25 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import (BetweenFactorPose3, LevenbergMarquardtOptimizer,
-                   LevenbergMarquardtParams, NonlinearFactorGraph, Point3,
-                   Pose3, PriorFactorPose3, Rot3, Values, noiseModel)
+from gtsam import (
+    BetweenFactorPose3,
+    LevenbergMarquardtOptimizer,
+    LevenbergMarquardtParams,
+    NonlinearFactorGraph,
+    Point3,
+    Pose3,
+    PriorFactorPose3,
+    Rot3,
+    Values,
+    noiseModel,
+)
 from gtsam.utils.test_case import GtsamTestCase
 from gtsfm.common.constraint import Constraint
 from gtsfm.common.pose_prior import PosePrior, PosePriorType
 from gtsfm.pose_slam.pose_slam import PoseSlam
+
+DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
+EXP07_PATH = DATA_ROOT_PATH / "exp07"
 
 
 def read_fastlio_result(poses_txt_path):
@@ -116,11 +128,9 @@ def generate_pose_graph(pose_constraints, fastlio_poses, add_backbone=True):
     """
     # refer https://github.com/borglab/gtsam/blob/develop/python/gtsam/tests/test_Pose3SLAMExample.py
     # Pose constraints input
-    print("Poses: {}".format(len(fastlio_poses)))
-    print("Constraints: {}".format(len(pose_constraints)))
     # Initialize the factor graph
     graph = NonlinearFactorGraph()
-    initial_estimates = Values()
+    initial_estimate = Values()
     # Create initial estimate
     for i, pose_vector in enumerate(fastlio_poses):
         pose_rotation = Rot3(pose_vector[-1], pose_vector[3], pose_vector[4], pose_vector[5])
@@ -130,7 +140,7 @@ def generate_pose_graph(pose_constraints, fastlio_poses, add_backbone=True):
             # Add the prior factor to the initial pose.
             prior_pose_factor = PriorFactorPose3(i, pose, noiseModel.Isotropic.Sigma(6, 5e-2))
             graph.add(prior_pose_factor)
-        initial_estimates.insert(i, pose)
+        initial_estimate.insert(i, pose)
     # Create odometry factor
     if add_backbone:
         backbone_noise = noiseModel.Diagonal.Sigmas(
@@ -159,7 +169,7 @@ def generate_pose_graph(pose_constraints, fastlio_poses, add_backbone=True):
             else:
                 measurement_noise = noiseModel.Gaussian.Information(info)
                 factor_aTb = BetweenFactorPose3(a, b, aTb, measurement_noise)
-                error = factor_aTb.error(initial_estimates)
+                error = factor_aTb.error(initial_estimate)
                 if np.isnan(error):
                     continue
                 if error > 1000:
@@ -170,7 +180,7 @@ def generate_pose_graph(pose_constraints, fastlio_poses, add_backbone=True):
             continue
 
     # Output the resulting poses and pose constraints
-    return graph, initial_estimates
+    return graph, initial_estimate
 
 
 class TestPoseSlam(GtsamTestCase):
@@ -211,36 +221,24 @@ class TestPoseSlam(GtsamTestCase):
         self.assertIsInstance(metrics, Delayed)
 
     def test_filter_constraints(self) -> None:
-        """Check that filtering and then doing pose slam on exp01 works as expected."""
-        i = 21
-        sequence = f"exp{i:02d}"
-        print(f"\n\nRUNNING SEQUENCE {sequence}\n")
-        ws = Path(f"/Volumes/Seagate4T/hilti_lio_results/exp{i:02d}_image_pcd/lidar")
+        """Check that filtering and then doing pose slam on exp07 works as in notebook."""
+        ws = Path(EXP07_PATH)
         poses_txt_path = ws / "fastlio_odom.txt"
         constraint_txt_path = ws / "constraints.txt"
-        print(poses_txt_path)
-        print(constraint_txt_path)
-
-        poses, timestamps = read_fastlio_result(poses_txt_path)
+        poses, _ = read_fastlio_result(poses_txt_path)
         constraints = Constraint.read(str(constraint_txt_path))
-        graph, initial_estimates = generate_pose_graph(constraints, poses)
-        num_valid_constraints = graph.size()
-        print(f"{num_valid_constraints=}")
-        initial_error = graph.error(initial_estimates)
-        print(f"{initial_error=}, per constraint = {initial_error/num_valid_constraints}")
-        if np.isnan(graph.error(initial_estimates)):
-            for i in range(graph.size()):
-                factor = graph.at(i)
-                error_i = factor.error(initial_estimates)
-                if np.isnan(error_i):  # or error_i>1:
-                    print(f"{i=} {error_i=} on {factor.keys()}")
-        else:
-            params = LevenbergMarquardtParams()
-            # params.setVerbosityLM("SUMMARY")
-            optimizer = LevenbergMarquardtOptimizer(graph, initial_estimates, params)
-            result = optimizer.optimize()
-            final_error = graph.error(result)
-            print(f"{final_error=}, per constraint = {final_error/num_valid_constraints}")
+        self.assertEqual(len(poses), 1319)
+        self.assertEqual(len(constraints), 10328)
+
+        graph, initial_estimate = generate_pose_graph(constraints, poses)
+        self.assertEqual(graph.size(), 10983)
+        self.assertAlmostEqual(graph.error(initial_estimate), 35111.87458699957)
+
+        params = LevenbergMarquardtParams()
+        optimizer = LevenbergMarquardtOptimizer(graph, initial_estimate, params)
+        result = optimizer.optimize()
+        final_error = graph.error(result)
+        self.assertAlmostEqual(final_error, 10288.499767263707)
 
 
 if __name__ == "__main__":
