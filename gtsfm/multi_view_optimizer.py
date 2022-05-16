@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Tuple
 
 import dask
 from dask.delayed import Delayed
-from gtsam import Point3, Pose3, Rot3
+from gtsam import Pose3
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.graph as graph_utils
@@ -15,6 +15,7 @@ from gtsfm.averaging.translation.translation_averaging_base import TranslationAv
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.data_association.data_assoc import DataAssociation
+from gtsfm.pose_slam.pose_slam import PoseSlam
 
 
 class MultiViewOptimizer:
@@ -24,11 +25,14 @@ class MultiViewOptimizer:
         trans_avg_module: TranslationAveragingBase,
         data_association_module: DataAssociation,
         bundle_adjustment_module: BundleAdjustmentOptimizer,
+        use_pose_slam_intitialization: bool = False,
     ) -> None:
+        self.pose_slam_module = PoseSlam()
         self.rot_avg_module = rot_avg_module
         self.trans_avg_module = trans_avg_module
         self.data_association_module = data_association_module
         self.ba_optimizer = bundle_adjustment_module
+        self._use_pose_slam_intitialization = use_pose_slam_intitialization
 
     def create_computation_graph(
         self,
@@ -69,19 +73,31 @@ class MultiViewOptimizer:
             dask.delayed(i2Ri1_graph), dask.delayed(i2Ui1_graph), relative_pose_priors
         )
 
-        delayed_wRi, rot_avg_metrics = self.rot_avg_module.create_computation_graph(
-            num_images, pruned_i2Ri1_graph, relative_pose_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
-        )
+        if self._use_pose_slam_intitialization:
+            delayed_poses, pose_slam_metrics = self.pose_slam_module.create_computation_graph(
+                num_images, relative_pose_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
+            )
+            multiview_optimizer_metrics_graph = [
+                pose_slam_metrics
+            ]
+        else:
+            delayed_wRi, rot_avg_metrics = self.rot_avg_module.create_computation_graph(
+                num_images, pruned_i2Ri1_graph, relative_pose_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
+            )
 
-        wti_graph, ta_metrics = self.trans_avg_module.create_computation_graph(
-            num_images,
-            pruned_i2Ui1_graph,
-            delayed_wRi,
-            absolute_pose_priors,
-            relative_pose_priors,
-            gt_wTi_list=gt_wTi_list,
-        )
-        init_cameras_graph = dask.delayed(init_cameras)(delayed_wRi, wti_graph, all_intrinsics)
+            delayed_poses, ta_metrics = self.trans_avg_module.create_computation_graph(
+                num_images,
+                pruned_i2Ui1_graph,
+                delayed_wRi,
+                absolute_pose_priors,
+                relative_pose_priors,
+                gt_wTi_list=gt_wTi_list,
+            )
+            multiview_optimizer_metrics_graph = [
+                rot_avg_metrics,
+                ta_metrics,
+            ]
+        init_cameras_graph = dask.delayed(init_cameras)(delayed_poses, all_intrinsics)
 
         ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
             num_images,
@@ -97,9 +113,7 @@ class MultiViewOptimizer:
             ba_input_graph, absolute_pose_priors, relative_pose_priors, cameras_gt
         )
 
-        multiview_optimizer_metrics_graph = [
-            rot_avg_metrics,
-            ta_metrics,
+        multiview_optimizer_metrics_graph += [
             data_assoc_metrics_graph,
             ba_metrics_graph,
         ]
@@ -111,8 +125,7 @@ class MultiViewOptimizer:
 
 
 def init_cameras(
-    wRi_list: List[Optional[Rot3]],
-    wti_list: List[Optional[Point3]],
+    wTi_list: List[Optional[Pose3]],
     intrinsics_list: List[gtsfm_types.CALIBRATION_TYPE],
 ) -> Dict[int, gtsfm_types.CAMERA_TYPE]:
     """Generate camera from valid rotations and unit-translations.
@@ -125,11 +138,5 @@ def init_cameras(
     Returns:
         Valid cameras.
     """
-    cameras = {}
-
     camera_class = gtsfm_types.get_camera_class_for_calibration(intrinsics_list[0])
-    for idx, (wRi, wti) in enumerate(zip(wRi_list, wti_list)):
-        if wRi is not None and wti is not None:
-            cameras[idx] = camera_class(Pose3(wRi, wti), intrinsics_list[idx])
-
-    return cameras
+    return {idx: camera_class(wTi, intrinsics_list[idx]) for idx, wTi in enumerate(wTi_list) if wTi is not None}
