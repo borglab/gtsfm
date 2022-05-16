@@ -51,6 +51,20 @@ class PoseSlam:
         return distance, angle_
 
     @staticmethod
+    def check_covariance(cov: np.ndarray) -> bool:
+        """Return false if covariance is bad."""
+        if np.isnan(cov).any():
+            return False
+        try:
+            info = np.linalg.inv(cov)
+            if np.isnan(info).any():
+                return False
+            else:
+                return True
+        except np.linalg.LinAlgError:
+            return False
+
+    @staticmethod
     def filter_constraints(constraints: List[Constraint], poses: List[Pose3]) -> List[Constraint]:
         """Filter constraints according to notebook criteria.
 
@@ -71,16 +85,8 @@ class PoseSlam:
             predicted_aTb = poses[a].between(poses[b])
             trans_diff, rot_diff = PoseSlam.difference(aTb, predicted_aTb)
             inlier = (trans_diff <= 0.04) and (rot_diff <= 5)
-            if not inlier:
-                continue
-            try:
-                info = np.linalg.inv(cov)
-                if np.isnan(info).any():
-                    continue
-                else:
-                    filtered_constraints.append(constraint)
-            except np.linalg.LinAlgError:
-                continue
+            if inlier and PoseSlam.check_covariance(cov):
+                filtered_constraints.append(constraint)
 
         return filtered_constraints
 
@@ -138,14 +144,18 @@ class PoseSlam:
         pose_init_graph = gtsam.NonlinearFactorGraph()
 
         for (i1, i2), i1Ti2_prior in relative_pose_priors.items():
-            pose_init_graph.push_back(
-                gtsam.BetweenFactorPose3(
-                    i1,
-                    i2,
-                    i1Ti2_prior.value,
-                    gtsam.noiseModel.Gaussian.Covariance(i1Ti2_prior.covariance),
+            if self.check_covariance(i1Ti2_prior.covariance):
+                pose_init_graph.push_back(
+                    gtsam.BetweenFactorPose3(
+                        i1,
+                        i2,
+                        i1Ti2_prior.value,
+                        gtsam.noiseModel.Gaussian.Covariance(i1Ti2_prior.covariance),
+                    )
                 )
-            )
+            else:
+                logger.info(f"[pose slam] bad covariance between {i1} and {i2}")
+
         pose_init_graph.push_back(gtsam.PriorFactorPose3(0, Pose3(), POSE_PRIOR_NOISE))
 
         initial_values = gtsam.InitializePose3.initialize(pose_init_graph)

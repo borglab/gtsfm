@@ -98,13 +98,16 @@ class HiltiLoader(LoaderBase):
 
         # Read the constraints from the lidar/constraints file
         all_constraints: Dict[Tuple[int, int], Constraint] = self.__load_constraints()
+        logger.info("[hilti_loader] Number of filtered constraints: %d", len(all_constraints))
         filtered_constraints: Dict[Tuple[int, int], Constraint] = self._filter_outlier_constraints(all_constraints)
         self._constraints: Dict[Tuple[int, int], Constraint] = self._update_stationary_constraints(filtered_constraints)
 
         logger.info("[hilti_loader] Number of constraints: %d", len(self._constraints))
 
         # Read the poses for the IMU for rig indices from g2o file.
-        self._w_T_imu: Dict[int, Pose3] = dict(enumerate(self._fastlio_poses)) # Quick hack! self.__read_lidar_pose_priors()
+        self._w_T_imu: Dict[int, Pose3] = dict(
+            enumerate(self._fastlio_poses)
+        )  # Quick hack! self.__read_lidar_pose_priors()
 
         logger.info("[hilti_loader] Loading %d timestamps", self.num_rig_poses)
         logger.info("[hilti_loader] Lidar camera available for %d timestamps", len(self._w_T_imu))
