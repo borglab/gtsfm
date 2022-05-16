@@ -119,7 +119,7 @@ class HiltiLoader(LoaderBase):
         TRANSLATION_THRESHOLD = 0.02
         ROTATION_THRESHOLD = np.deg2rad(0.5)
         for (a, b), constraint in constraints.items():
-            if np.linalg.norm(Rot3.Logmap(constraint.aTb.rotation())) < ROTATION_THRESHOLD or np.linalg.norm(constraint.aTb.translation()) < TRANSLATION_THRESHOLD:
+            if np.linalg.norm(Rot3.Logmap(constraint.aTb.rotation())) > ROTATION_THRESHOLD or np.linalg.norm(constraint.aTb.translation()) > TRANSLATION_THRESHOLD:
                 updated_constraints[(a, b)] = constraint
                 continue
             
@@ -136,7 +136,7 @@ class HiltiLoader(LoaderBase):
             # no need to invert, norm will be the same.
             constraint_magnitudes[(c, d)] = np.linalg.norm(constraint.aTb.translation())
 
-        def is_higher_step_magnitude_greater(a, b, all_magnitudes, step_size):
+        def is_higher_step_magnitude_lesser(a, b, all_magnitudes, step_size):
             ERROR_MARGIN = 0.1 #meters
             c, d = min(a, b), max(a, b)
             this_magnitude = all_magnitudes[(c, d)]
@@ -149,8 +149,8 @@ class HiltiLoader(LoaderBase):
             if abs(a - b) != 1:
                 filtered_constraints[(a, b)] = constraint
                 continue
-            # Do not include if a higher-step magnitude is greater (for steps of size 2 and 3)
-            if is_higher_step_magnitude_greater(a, b, constraint_magnitudes, 1) or is_higher_step_magnitude_greater(a, b, constraint_magnitudes, 2):
+            # Do not include if a higher-step magnitude is lesser (for steps of size 2 and 3)
+            if is_higher_step_magnitude_lesser(a, b, constraint_magnitudes, 1) or is_higher_step_magnitude_lesser(a, b, constraint_magnitudes, 2):
                 continue
             filtered_constraints[(a, b)] = constraint
         return filtered_constraints
@@ -343,7 +343,7 @@ class HiltiLoader(LoaderBase):
             cov_i1Ti2 = self._cam2_J_imu_relative @ constraint.cov @ self._cam2_J_imu_relative.T
 
             # Rig is stationary, add a hard constraint.
-            if i1Ti2.equals(Pose3()):
+            if i1Ti2.equals(Pose3(), 1e-6):
                 return PosePrior(value=i1Ti2, covariance=cov_i1Ti2, type=PosePriorType.HARD_CONSTRAINT)
 
             return PosePrior(value=i1Ti2, covariance=cov_i1Ti2, type=PosePriorType.SOFT_CONSTRAINT)

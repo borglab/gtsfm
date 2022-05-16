@@ -135,18 +135,7 @@ class TestHiltiLoader(unittest.TestCase):
             (2, 5): Constraint(2, 5, Pose3(Rot3(), Point3(3, 0, 0))),
         }
 
-        expected_inliers = [
-            (2, 1),
-            (4, 5),
-
-            (2, 0),
-            (1, 3),
-            (3, 5),
-
-            (0, 3),
-            (1, 4),
-            (2, 5),
-        ]
+        expected_outliers = [(0, 1), (2, 3), (3, 4)]
         loader = HiltiLoader(
             base_folder=str(TEST_DATASET_DIR_PATH),
             max_length=None,
@@ -154,8 +143,29 @@ class TestHiltiLoader(unittest.TestCase):
             old_style=True,
         )
 
-        inliers = loader._filter_outlier_constraints(constraints)
-        self.assertSetEqual(set(expected_inliers), set(inliers.keys()))
+        filtered = loader._filter_outlier_constraints(constraints)
+        for key, value in filtered.items():
+            print(value.cov[0, 0])
+        outlier_keys = [key for key, value in filtered.items() if value.cov[0, 0] > np.deg2rad(10)]
+        self.assertSetEqual(set(outlier_keys), set(expected_outliers))
+
+    def test_updates_stationary_constraints(self) -> None:
+        constraints = {
+            (0, 1): Constraint(0, 1, Pose3(Rot3(), Point3(5, 0, 0))),
+            (2, 1): Constraint(2, 1, Pose3(Rot3(), Point3(0.01, 0, 0))), # stationary
+            (2, 3): Constraint(2, 3, Pose3(Rot3(), Point3(0, 0.01, 0))), # stationary
+            (3, 4): Constraint(3, 4, Pose3(Rot3(), Point3(3, 0, 0))),
+            (4, 5): Constraint(4, 5, Pose3(Rot3.Rz(np.deg2rad(20)), Point3(0, 0, 0))),
+        }
+        loader = HiltiLoader(
+            base_folder=str(TEST_DATASET_DIR_PATH),
+            max_length=None,
+            subsample=2,
+            old_style=True,
+        )        
+        updated_constraints = loader._update_stationary_constraints(constraints)
+        zero_keys = [key for key, value in updated_constraints.items() if value.aTb.equals(Pose3(), 1e-4)]
+        self.assertSetEqual(set([(2, 1), (2, 3)]), set(zero_keys))
 
 if __name__ == "__main__":
     unittest.main()
