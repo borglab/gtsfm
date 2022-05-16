@@ -45,9 +45,8 @@ LIDAR_POSE_RELATIVE_PATH = "lidar/fastlio2.g2o"
 LIDAR_CONSTRAINTS_RELATIVE_PATH = "lidar/constraints.txt"
 IMAGES_FOLDER = "images"
 
-HARD_RELATIVE_POSE_PRIOR_SIGMA = np.eye(6) * 1e-3  # CAM_IMU_POSE_PRIOR_SIGMA in BA should have similar value
-SOFT_RELATIVE_POSE_PRIOR_SIGMA = np.eye(6) * 3e-2
-SOFT_ABSOLUTE_POSE_PRIOR_SIGMA = np.eye(6) * 3e-2
+HARD_POSE_PRIOR_COVARIANCE = np.eye(6) * 1e-8
+STATIONARY_POSE_PRIOR_COVARIANCE = np.eye(6) * 1e-7
 
 
 class HiltiLoader(LoaderBase):
@@ -95,7 +94,7 @@ class HiltiLoader(LoaderBase):
         all_constraints: Dict[Tuple[int, int], Constraint] = self.__load_constraints()
         filtered_constraints: Dict[Tuple[int, int], Constraint] = self._filter_outlier_constraints(all_constraints)
         self._constraints: Dict[Tuple[int, int], Constraint] = self._update_stationary_constraints(filtered_constraints)
-        
+
         logger.info("Number of constraints: %d", len(self._constraints))
 
         # Read the poses for the IMU for rig indices from g2o file.
@@ -114,21 +113,33 @@ class HiltiLoader(LoaderBase):
         # cast them to dictionary
         return {(constraint.a, constraint.b): constraint for constraint in constraints}
 
-    def _update_stationary_constraints(self, constraints: Dict[Tuple[int, int], Constraint]) -> Dict[Tuple[int, int], Constraint]:
+    def _update_stationary_constraints(
+        self, constraints: Dict[Tuple[int, int], Constraint]
+    ) -> Dict[Tuple[int, int], Constraint]:
         updated_constraints = {}
         TRANSLATION_THRESHOLD = 0.02
         ROTATION_THRESHOLD = np.deg2rad(0.5)
+        num_stationary_constraints = 0
         for (a, b), constraint in constraints.items():
-            if np.linalg.norm(Rot3.Logmap(constraint.aTb.rotation())) > ROTATION_THRESHOLD or np.linalg.norm(constraint.aTb.translation()) > TRANSLATION_THRESHOLD:
+            # Not stationary if either rotation or translation is high enough.
+            if (
+                np.linalg.norm(Rot3.Logmap(constraint.aTb.rotation())) > ROTATION_THRESHOLD
+                or np.linalg.norm(constraint.aTb.translation()) > TRANSLATION_THRESHOLD
+            ):
                 updated_constraints[(a, b)] = constraint
                 continue
-            
-            updated_constraint = Constraint(constraint.a, constraint.b, Pose3(), np.eye(6) * 1e-8, constraint.counts)
+
+            updated_constraint = Constraint(
+                constraint.a, constraint.b, Pose3(), STATIONARY_POSE_PRIOR_COVARIANCE, constraint.counts
+            )
             updated_constraints[(a, b)] = updated_constraint
+            num_stationary_constraints += 1
+        logger.info(f"[hilti loader] Found {num_stationary_constraints} stationary constraints")
         return updated_constraints
 
-
-    def _filter_outlier_constraints(self, constraints: Dict[Tuple[int, int], Constraint]) ->  Dict[Tuple[int, int], Constraint]:
+    def _filter_outlier_constraints(
+        self, constraints: Dict[Tuple[int, int], Constraint]
+    ) -> Dict[Tuple[int, int], Constraint]:
         """Removes 1-step constraints for which the translation magnitude is greater than 2 or 3-step constraints."""
         constraint_magnitudes = {}
         for (a, b), constraint in constraints.items():
@@ -145,7 +156,7 @@ class HiltiLoader(LoaderBase):
 
         filtered_constraints = {}
         rot_sigma = np.deg2rad(60)
-        trans_sigma = 10 # meters
+        trans_sigma = 10  # meters
         FILTERED_COVARIANCE = np.diag([rot_sigma, rot_sigma, rot_sigma, trans_sigma, trans_sigma, trans_sigma])
         for (a, b), constraint in constraints.items():
             # Accept all constraint with step > 1
@@ -153,8 +164,12 @@ class HiltiLoader(LoaderBase):
                 filtered_constraints[(a, b)] = constraint
                 continue
             # Do not include if a higher-step magnitude is lesser (for steps of size 2 and 3)
-            if is_higher_step_magnitude_lesser(a, b, constraint_magnitudes, 1) or is_higher_step_magnitude_lesser(a, b, constraint_magnitudes, 2):
-                filtered_constraints[(a, b)] = Constraint(constraint.a, constraint.b, constraint.aTb, FILTERED_COVARIANCE, constraint.counts)
+            if is_higher_step_magnitude_lesser(a, b, constraint_magnitudes, 1) or is_higher_step_magnitude_lesser(
+                a, b, constraint_magnitudes, 2
+            ):
+                filtered_constraints[(a, b)] = Constraint(
+                    constraint.a, constraint.b, constraint.aTb, FILTERED_COVARIANCE, constraint.counts
+                )
                 continue
             filtered_constraints[(a, b)] = constraint
         return filtered_constraints
@@ -339,7 +354,7 @@ class HiltiLoader(LoaderBase):
             i2_T_imu: Pose3 = self._cam_T_imu_poses[cam_idx_for_i2]
             i1Ti2 = i1_T_imu * i2_T_imu.inverse()
             # TODO: add covariance
-            return PosePrior(value=i1Ti2, covariance=HARD_RELATIVE_POSE_PRIOR_SIGMA, type=PosePriorType.HARD_CONSTRAINT)
+            return PosePrior(value=i1Ti2, covariance=HARD_POSE_PRIOR_COVARIANCE, type=PosePriorType.HARD_CONSTRAINT)
         elif cam_idx_for_i1 == 2 and cam_idx_for_i2 == 2:
             constraint = self._constraints[(rig_idx_for_i1, rig_idx_for_i2)]
             imui1_T_imui2 = constraint.aTb
@@ -400,4 +415,3 @@ class HiltiLoader(LoaderBase):
             image_fnames.append(filename)
 
         return image_fnames
-        
