@@ -37,6 +37,7 @@ SceneOptimizer:
 
   multiview_optimizer:
     _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
+    use_pose_slam_intitialization: True
 
     # comment out to not run
     # view_graph_estimator:
@@ -70,7 +71,6 @@ SceneOptimizer:
       robust_measurement_noise: True
       shared_calib: False
     
-    use_pose_slam_intitialization: True
 
   # comment out to not run
   # dense_multiview_optimizer:
