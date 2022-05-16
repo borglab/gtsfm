@@ -2,15 +2,18 @@
 
 Authors: Akshay Krishnan, Frank Dellaert
 """
+
 from typing import Dict, List, Optional, Tuple
 
 import dask
 import gtsam
+import numpy as np
 from dask.delayed import Delayed
 from gtsam import Pose3
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.common.pose_prior import PosePrior
+from gtsfm.common.constraint import Constraint
+from gtsfm.common.pose_prior import PosePrior, PosePriorType
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 PRIOR_NOISE_SIGMAS = [0.001, 0.001, 0.001, 0.1, 0.1, 0.1]
@@ -20,6 +23,80 @@ logger = logger_utils.get_logger()
 
 
 class PoseSlam:
+    """Initializes using PoseSLAM given relative pose priors."""
+
+    @staticmethod
+    def angle(R1, R2):
+        """Calculate angle between two rotations, in degrees."""
+        return np.degrees(np.linalg.norm(R1.logmap(R2)))
+
+    @staticmethod
+    def difference(P1, P2):
+        """Calculate the translation and angle differences of two poses.
+        P1, P2: Pose3
+        Return:
+            distance: translation difference
+            angle: angular difference
+        """
+        # TODO(frank): clean this up
+        t1 = P1.translation()
+        t2 = P2.translation()
+        R1 = P1.rotation()
+        R2 = P2.rotation()
+        R1_2 = R1.compose(R2.inverse())
+        t1_ = R1_2.rotate(t2)
+        # t1_2 = t1 - R1_2*t2
+        distance = np.linalg.norm(t1 - t1_)
+        angle_ = PoseSlam.angle(R1, R2)
+        return distance, angle_
+
+    @staticmethod
+    def filtered_pose_priors(
+        constraints: List[Constraint], poses: List[Pose3], add_backbone=True
+    ) -> Dict[Tuple[int, int], PosePrior]:
+        """Generate relative pose priors from constraints and initial_estimate by filtering heavily.
+
+        Args:
+            constraints (List[Constraint]): relative constraints from file
+            poses (List[Pose3]): estimated initial values
+            add_backbone (bool, optional): Add soft backbone constraints. Defaults to True.
+
+        Returns:
+            Dict[Tuple[int, int], PosePrior]: dictionary of relative pose priors.
+        """
+
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior] = {}
+
+        # Create pose constraints using Bayesian ICP
+        for constraint in constraints:
+            a, b = constraint.a, constraint.b
+            aTb, cov = constraint.aTb, constraint.cov
+            predicted_aTb = poses[a].between(poses[b])
+            trans_diff, rot_diff = PoseSlam.difference(aTb, predicted_aTb)
+            inlier = (trans_diff <= 0.04) and (rot_diff <= 5)
+            if not inlier:
+                continue
+            try:
+                info = np.linalg.inv(cov)
+                if np.isnan(info).any():
+                    continue
+                else:
+                    relative_pose_priors[(a, b)] = PosePrior(aTb, cov, PosePriorType.SOFT_CONSTRAINT)
+            except np.linalg.LinAlgError:
+                continue
+
+        # Create loose odometry factors for backbone.
+        if add_backbone:
+            backbone_cov = np.diag(np.array([1, 1, 1, np.deg2rad(30.0), np.deg2rad(30.0), np.deg2rad(30.0)]))
+            for i in range(len(poses) - 1):
+                a, b = i, i + 1
+                if (a, b) not in relative_pose_priors:
+                    aTb = poses[a].between(poses[b])
+                    relative_pose_priors[(a, b)] = PosePrior(aTb, backbone_cov, PosePriorType.SOFT_CONSTRAINT)
+
+        # Output the resulting poses and pose constraints
+        return relative_pose_priors
+
     def run_pose_slam(
         self,
         num_images: int,
