@@ -33,10 +33,12 @@ from gtsfm.two_view_estimator import TwoViewEstimator, TwoViewEstimationReport
 
 matplotlib.use("Agg")
 
+BASE_PATH = Path(__file__).resolve().parent.parent
+
 # base paths for storage
-PLOT_BASE_PATH = Path(__file__).resolve().parent.parent / "plots"
-METRICS_PATH = Path(__file__).resolve().parent.parent / "result_metrics"
-RESULTS_PATH = Path(__file__).resolve().parent.parent / "results"
+PLOT_BASE_PATH = BASE_PATH / "plots"
+METRICS_PATH = BASE_PATH / "result_metrics"
+RESULTS_PATH = BASE_PATH / "results"
 
 # plot paths
 PLOT_CORRESPONDENCE_PATH = PLOT_BASE_PATH / "correspondences"
@@ -45,8 +47,8 @@ PLOT_RESULTS_PATH = PLOT_BASE_PATH / "results"
 MVS_PLY_SAVE_FPATH = RESULTS_PATH / "mvs_output" / "dense_pointcloud.ply"
 
 # Paths to Save Output in React Folders.
-REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
-REACT_RESULTS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "public" / "results"
+REACT_METRICS_PATH = BASE_PATH / "rtf_vis_tool" / "src" / "result_metrics"
+REACT_RESULTS_PATH = BASE_PATH / "rtf_vis_tool" / "public" / "results"
 
 logger = logger_utils.get_logger()
 
