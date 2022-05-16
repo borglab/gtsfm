@@ -129,7 +129,7 @@ class HiltiLoader(LoaderBase):
 
         filtered_constraints = {}
         rot_sigma = np.deg2rad(60)
-        trans_sigma = 50 # meters
+        trans_sigma = 10 # meters
         FILTERED_COVARIANCE = np.diag([rot_sigma, rot_sigma, rot_sigma, trans_sigma, trans_sigma, trans_sigma])
         for (a, b), constraint in constraints.items():
             # Accept all constraint with step > 1
