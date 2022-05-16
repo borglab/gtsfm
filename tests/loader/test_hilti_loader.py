@@ -118,6 +118,7 @@ class TestHiltiLoader(unittest.TestCase):
         self.assertEqual(len(actual), len(expected))
         self.assertEqual(actual, expected)
 
+    # TODO (akshay-krishnan): update this test, values are not removed, covariance is reduced.
     def test_filters_constraints(self) -> None:
         constraints = {
             (0, 1): Constraint(0, 1, Pose3(Rot3(), Point3(5, 0, 0))), # outlier, has both 2 & 3 step
