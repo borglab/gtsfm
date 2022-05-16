@@ -306,7 +306,7 @@ if __name__ == "__main__":
         required=True,
         help="Path to Hilti's camera-2 calibration YAML.",
     )
-    parser.add_argument("--gt_tum", type=str, default=None, required=True, help="Path to GT tum file from Hilti")
+    parser.add_argument("--gt_tum", type=str, default=None, required=False, help="Path to GT tum file from Hilti")
     args = parser.parse_args()
 
     GTSFM_TUM_PATH = "gtsfm_imu_poses.txt"
@@ -324,7 +324,8 @@ if __name__ == "__main__":
 
     write_poses_to_tum_file(cam2_poses, GTSFM_TUM_PATH, timestamps)
 
-    print("FASTLIO poses evaluation results:")
-    evaluate_trajectory(args.fastlio_tum, args.gt_tum, "fastlio")
-    print("\n\nGTSfM poses evaluation results:")
-    evaluate_trajectory(GTSFM_TUM_PATH, args.gt_tum, "gtsfm")
+    if args.gt is not None:
+        print("FASTLIO poses evaluation results:")
+        evaluate_trajectory(args.fastlio_tum, args.gt_tum, "fastlio")
+        print("\n\nGTSfM poses evaluation results:")
+        evaluate_trajectory(GTSFM_TUM_PATH, args.gt_tum, "gtsfm")
