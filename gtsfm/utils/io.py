@@ -270,27 +270,31 @@ def write_cameras(gtsfm_data: GtsfmData, image_shapes: List[Tuple[int, int]], sa
     # TODO: handle shared intrinsics
     camera_model = "SIMPLE_RADIAL"
 
+    output_str = ""
+
+    output_str += "# Camera list with one line of data per camera:\n"
+    output_str += "#   CAMERA_ID, MODEL, WIDTH, HEIGHT, PARAMS[]\n"
+    # note that we save the number of etimated cameras, not the number of input images,
+    # which would instead be gtsfm_data.number_images().
+    output_str += f"# Number of cameras: {len(gtsfm_data.get_valid_camera_indices())}\n"
+
+    for i in gtsfm_data.get_valid_camera_indices():
+        camera = gtsfm_data.get_camera(i)
+        calibration = camera.calibration()
+
+        fx = calibration.fx()
+        u0 = calibration.px()
+        v0 = calibration.py()
+        k1 = calibration.k1()
+        k2 = calibration.k2()
+
+        image_height, image_width = image_shapes[i]
+
+        output_str += f"{i} {camera_model} {image_width} {image_height} {fx} {u0} {v0} {k1} {k2}\n"
+
     file_path = os.path.join(save_dir, "cameras.txt")
     with open(file_path, "w") as f:
-        f.write("# Camera list with one line of data per camera:\n")
-        f.write("#   CAMERA_ID, MODEL, WIDTH, HEIGHT, PARAMS[]\n")
-        # note that we save the number of etimated cameras, not the number of input images,
-        # which would instead be gtsfm_data.number_images().
-        f.write(f"# Number of cameras: {len(gtsfm_data.get_valid_camera_indices())}\n")
-
-        for i in gtsfm_data.get_valid_camera_indices():
-            camera = gtsfm_data.get_camera(i)
-            calibration = camera.calibration()
-
-            fx = calibration.fx()
-            u0 = calibration.px()
-            v0 = calibration.py()
-            k1 = calibration.k1()
-            k2 = calibration.k2()
-
-            image_height, image_width = image_shapes[i]
-
-            f.write(f"{i} {camera_model} {image_width} {image_height} {fx} {u0} {v0} {k1} {k2}\n")
+        f.write(output_str)
 
 
 def read_images_txt(fpath: str) -> Tuple[Optional[List[Pose3]], Optional[List[str]]]:
@@ -361,33 +365,37 @@ def write_images(gtsfm_data: GtsfmData, images_fnames: List[str], save_dir: str)
         else 0
     )
 
+    output_str = ""
+
+    output_str += "# Image list with two lines of data per image:\n"
+    output_str += "#   IMAGE_ID, QW, QX, QY, QZ, TX, TY, TZ, CAMERA_ID, NAME\n"
+    output_str += "#   POINTS2D[] as (X, Y, POINT3D_ID)\n"
+    output_str += f"# Number of images: {num_imgs}, mean observations per image: {mean_obs_per_img:.3f}\n"
+
+    for i in gtsfm_data.get_valid_camera_indices():
+        camera = gtsfm_data.get_camera(i)
+        # COLMAP exports camera extrinsics (cTw), not the poses (wTc), so must invert
+        iTw = camera.pose().inverse()
+        iRw_quaternion = iTw.rotation().quaternion()
+        itw = iTw.translation()
+        tx, ty, tz = itw
+        qw, qx, qy, qz = iRw_quaternion
+
+        output_str += f"{i} {qw} {qx} {qy} {qz} {tx} {ty} {tz} {i} {images_fnames[i]}\n"
+
+        # write out points2d
+        for j in range(gtsfm_data.number_tracks()):
+            track = gtsfm_data.get_track(j)
+            for k in range(track.numberMeasurements()):
+                # write each measurement
+                image_id, uv_measured = track.measurement(k)
+                if image_id == i:
+                    output_str += f" {uv_measured[0]:.3f} {uv_measured[1]:.3f} {j}"
+        output_str += "\n"
+
     file_path = os.path.join(save_dir, "images.txt")
     with open(file_path, "w") as f:
-        f.write("# Image list with two lines of data per image:\n")
-        f.write("#   IMAGE_ID, QW, QX, QY, QZ, TX, TY, TZ, CAMERA_ID, NAME\n")
-        f.write("#   POINTS2D[] as (X, Y, POINT3D_ID)\n")
-        f.write(f"# Number of images: {num_imgs}, mean observations per image: {mean_obs_per_img:.3f}\n")
-
-        for i in gtsfm_data.get_valid_camera_indices():
-            camera = gtsfm_data.get_camera(i)
-            # COLMAP exports camera extrinsics (cTw), not the poses (wTc), so must invert
-            iTw = camera.pose().inverse()
-            iRw_quaternion = iTw.rotation().quaternion()
-            itw = iTw.translation()
-            tx, ty, tz = itw
-            qw, qx, qy, qz = iRw_quaternion
-
-            f.write(f"{i} {qw} {qx} {qy} {qz} {tx} {ty} {tz} {i} {images_fnames[i]}\n")
-
-            # write out points2d
-            for j in range(gtsfm_data.number_tracks()):
-                track = gtsfm_data.get_track(j)
-                for k in range(track.numberMeasurements()):
-                    # write each measurement
-                    image_id, uv_measured = track.measurement(k)
-                    if image_id == i:
-                        f.write(f" {uv_measured[0]:.3f} {uv_measured[1]:.3f} {j}")
-            f.write("\n")
+        f.write(output_str)
 
 
 def read_points_txt(fpath: str) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
@@ -463,27 +471,31 @@ def write_points(gtsfm_data: GtsfmData, save_dir: str, images: Optional[List[Ima
     num_pts = gtsfm_data.number_tracks()
     avg_track_length, _ = gtsfm_data.get_track_length_statistics()
 
+    output_str = ""
+
+    output_str += "# 3D point list with one line of data per point:\n"
+    output_str += "#   POINT3D_ID, X, Y, Z, R, G, B, ERROR, TRACK[] as (IMAGE_ID, POINT2D_IDX)\n"
+    output_str += f"# Number of points: {num_pts}, mean track length: {np.round(avg_track_length, 2)}\n"
+
+    # TODO: assign unique indices to all keypoints (2d points)
+    point2d_idx = 0
+
+    for j in range(num_pts):
+        track = gtsfm_data.get_track(j)
+
+        r, g, b = image_utils.get_average_point_color(track, images)
+        _, avg_track_reproj_error = reproj_utils.compute_track_reprojection_errors(gtsfm_data._cameras, track)
+        x, y, z = track.point3()
+        output_str += f"{j} {x} {y} {z} {r} {g} {b} {np.round(avg_track_reproj_error, 2)} "
+
+        for k in range(track.numberMeasurements()):
+            i, uv_measured = track.measurement(k)
+            output_str += f"{i} {point2d_idx} "
+        output_str += "\n"
+
     file_path = os.path.join(save_dir, "points3D.txt")
     with open(file_path, "w") as f:
-        f.write("# 3D point list with one line of data per point:\n")
-        f.write("#   POINT3D_ID, X, Y, Z, R, G, B, ERROR, TRACK[] as (IMAGE_ID, POINT2D_IDX)\n")
-        f.write(f"# Number of points: {num_pts}, mean track length: {np.round(avg_track_length, 2)}\n")
-
-        # TODO: assign unique indices to all keypoints (2d points)
-        point2d_idx = 0
-
-        for j in range(num_pts):
-            track = gtsfm_data.get_track(j)
-
-            r, g, b = image_utils.get_average_point_color(track, images)
-            _, avg_track_reproj_error = reproj_utils.compute_track_reprojection_errors(gtsfm_data._cameras, track)
-            x, y, z = track.point3()
-            f.write(f"{j} {x} {y} {z} {r} {g} {b} {np.round(avg_track_reproj_error, 2)} ")
-
-            for k in range(track.numberMeasurements()):
-                i, uv_measured = track.measurement(k)
-                f.write(f"{i} {point2d_idx} ")
-            f.write("\n")
+        f.write(output_str)
 
 
 def save_track_visualizations(
