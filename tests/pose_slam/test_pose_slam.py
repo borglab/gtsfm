@@ -51,15 +51,6 @@ def read_fastlio_result(poses_txt_path: str) -> Tuple[List[Pose3], np.ndarray]:
     return [pose_of_vector(pose) for pose in poses], timestamps
 
 
-def get_relative_transform(pose1, pose2):
-    """
-    Computes the relative transform given two poses.
-    Returns:
-        T2_1: relative transform from pose1 to pose2
-    """
-    return pose2.between(pose1)
-
-
 def angle(R1, R2):
     """Calculate angle between two rotations, in degrees."""
     return np.degrees(np.linalg.norm(R1.logmap(R2)))
@@ -104,9 +95,8 @@ def filtered_pose_priors(
     for constraint in constraints:
         a, b = constraint.a, constraint.b
         aTb, cov = constraint.aTb, constraint.cov
-        a_vec, b_vec = poses[a], poses[b]
-        bTa = get_relative_transform(a_vec, b_vec)  # fastlio
-        trans_diff, rot_diff = difference(aTb, bTa.inverse())
+        predicted_aTb = poses[a].between(poses[b])
+        trans_diff, rot_diff = difference(aTb, predicted_aTb)
         inlier = (trans_diff <= 0.04) and (rot_diff <= 5)
         if not inlier:
             continue
@@ -125,7 +115,7 @@ def filtered_pose_priors(
         for i in range(len(poses) - 1):
             a, b = i, i + 1
             if (a, b) not in relative_pose_priors:
-                aTb = get_relative_transform(poses[b], poses[a])
+                aTb = poses[a].between(poses[b])
                 relative_pose_priors[(a, b)] = PosePrior(aTb, backbone_cov, PosePriorType.SOFT_CONSTRAINT)
 
     # Output the resulting poses and pose constraints
@@ -198,7 +188,7 @@ class TestPoseSlam(GtsamTestCase):
 
         initial_estimate = create_initial_estimate(poses)
         # graph, initial_estimate = self.slam.generate_pose_graph(constraints, poses)
-        relative_pose_priors = filtered_pose_priors(constraints, poses, initial_estimate)
+        relative_pose_priors = filtered_pose_priors(constraints, poses)
         graph = generate_pose_graph(poses, relative_pose_priors)
         self.assertEqual(graph.size(), 10062)
         self.assertAlmostEqual(graph.error(initial_estimate), 35111.87458699957)
