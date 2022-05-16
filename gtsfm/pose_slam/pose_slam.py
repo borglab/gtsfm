@@ -51,6 +51,40 @@ class PoseSlam:
         return distance, angle_
 
     @staticmethod
+    def filter_constraints(constraints: List[Constraint], poses: List[Pose3]) -> List[Constraint]:
+        """Filter constraints according to notebook criteria.
+
+        Args:
+            constraints (List[Constraint]): relative constraints from file
+            poses (List[Pose3]): estimated initial values
+
+        Returns:
+            Filtered constraints.
+        """
+
+        filtered_constraints: List[Constraint] = []
+
+        # Filter on covariance and error
+        for constraint in constraints:
+            a, b = constraint.a, constraint.b
+            aTb, cov = constraint.aTb, constraint.cov
+            predicted_aTb = poses[a].between(poses[b])
+            trans_diff, rot_diff = PoseSlam.difference(aTb, predicted_aTb)
+            inlier = (trans_diff <= 0.04) and (rot_diff <= 5)
+            if not inlier:
+                continue
+            try:
+                info = np.linalg.inv(cov)
+                if np.isnan(info).any():
+                    continue
+                else:
+                    filtered_constraints.append(constraint)
+            except np.linalg.LinAlgError:
+                continue
+
+        return filtered_constraints
+
+    @staticmethod
     def filtered_pose_priors(
         constraints: List[Constraint], poses: List[Pose3], add_backbone=True
     ) -> Dict[Tuple[int, int], PosePrior]:
@@ -66,24 +100,10 @@ class PoseSlam:
         """
 
         relative_pose_priors: Dict[Tuple[int, int], PosePrior] = {}
-
-        # Create pose constraints using Bayesian ICP
-        for constraint in constraints:
+        for constraint in PoseSlam.filter_constraints(constraints, poses):
             a, b = constraint.a, constraint.b
             aTb, cov = constraint.aTb, constraint.cov
-            predicted_aTb = poses[a].between(poses[b])
-            trans_diff, rot_diff = PoseSlam.difference(aTb, predicted_aTb)
-            inlier = (trans_diff <= 0.04) and (rot_diff <= 5)
-            if not inlier:
-                continue
-            try:
-                info = np.linalg.inv(cov)
-                if np.isnan(info).any():
-                    continue
-                else:
-                    relative_pose_priors[(a, b)] = PosePrior(aTb, cov, PosePriorType.SOFT_CONSTRAINT)
-            except np.linalg.LinAlgError:
-                continue
+            relative_pose_priors[(a, b)] = PosePrior(aTb, cov, PosePriorType.SOFT_CONSTRAINT)
 
         # Create loose odometry factors for backbone.
         if add_backbone:
