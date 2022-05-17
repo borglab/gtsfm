@@ -119,7 +119,8 @@ class MultiViewOptimizer:
         ]
 
         # align the sparse multi-view estimate before BA to the ground truth pose graph.
-        ba_input_graph = dask.delayed(ba_input_graph.align_via_Sim3_to_poses)(gt_wTi_list)
+        # TODO(Frank): Why would we do this here? But maybe we should simply fix align_via_Sim3_to_poses
+        # ba_input_graph = dask.delayed(ba_input_graph.align_via_Sim3_to_poses)(gt_wTi_list)
 
         return ba_input_graph, ba_result_graph, multiview_optimizer_metrics_graph
 

@@ -145,32 +145,33 @@ class HiltiRunner:
 
     def run_full(self):
         start_time = time.time()
+
+        metrics = []
+        num_images = len(self.loader)
+        gt_wTi_list = self.loader.get_gt_poses()
+        relative_pose_priors = self.loader.get_relative_pose_priors()
+
+        # If using Pose-SLAM, try running that immediately. No point in continuing if fails.
+        if self.scene_optimizer.multiview_optimizer._use_pose_slam_initialization:
+            wTi_list, pose_slam_metrics = self.scene_optimizer.multiview_optimizer.pose_slam_module.run_pose_slam(
+                num_images=num_images, relative_pose_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
+            )
+            if self._save_metrics:
+                metrics.append(pose_slam_metrics)
+
         keypoints_dict, i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, image_shapes = self.run_frontend()
 
-        num_images = len(self.loader)
         keypoints_list = [keypoints_dict.get(i, Keypoints(np.array([[]]))) for i in range(num_images)]
         image_shapes_list = [image_shapes.get(i, (100, 100)) for i in range(num_images)]
-
-        relative_pose_priors = self.loader.get_relative_pose_priors()
-        absolute_pose_priors = self.loader.get_absolute_pose_priors()
-        all_intrinsics = self.loader.get_all_intrinsics()
-        gt_wTi_list = self.loader.get_gt_poses()
-        gt_cameras = self.loader.get_gt_cameras()
 
         pruned_i2Ri1_dict, pruned_i2Ui1_dict = graph_utils.prune_to_largest_connected_component(
             i2Ri1_dict, i2Ui1_dict, relative_pose_priors
         )
 
-        metrics = []
-
-        if self.scene_optimizer.multiview_optimizer._use_pose_slam_initialization:
-            wTi_list, pose_slam_metrics = self.scene_optimizer.multiview_optimizer.pose_slam_module.run_pose_slam(
-                num_images=num_images, relative_pose_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
-            )
-
-            if self._save_metrics:
-                metrics.append(pose_slam_metrics)
-        else:
+        absolute_pose_priors = self.loader.get_absolute_pose_priors()
+        
+        # If not using Pose-SLAM, we need to run with constraints from front-end.
+        if not self.scene_optimizer.multiview_optimizer._use_pose_slam_initialization:
 
             wRi = self.scene_optimizer.multiview_optimizer.rot_avg_module.run_rotation_averaging(
                 num_images, pruned_i2Ri1_dict, relative_pose_priors
@@ -194,6 +195,8 @@ class HiltiRunner:
             if self._save_metrics:
                 metrics.append(ta_metrics)
 
+        gt_cameras = self.loader.get_gt_cameras()
+        all_intrinsics = self.loader.get_all_intrinsics()
         initialized_cameras = init_cameras(wTi_list=wTi_list, intrinsics_list=all_intrinsics)
 
         ba_input, da_metrics = self.scene_optimizer.multiview_optimizer.data_association_module.run_da(
