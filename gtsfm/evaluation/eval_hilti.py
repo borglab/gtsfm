@@ -310,9 +310,24 @@ if __name__ == "__main__":
     parser.add_argument("--gt_tum", type=str, default=None, required=False, help="Path to GT tum file from Hilti")
     args = parser.parse_args()
 
-    GTSFM_TUM_PATH = "gtsfm_imu_poses.txt"
+    experiment = str(Path.cwd().name)[:5]
+    filenames = {
+        "exp01": "exp01_construction_ground_level.txt",
+        "exp02": "exp02_construction_multilevel.txt",
+        "exp03": "exp03_construction_stairs.txt",
+        "exp04": "exp04_construction_upper_level.txt",
+        "exp05": "exp05_construction_upper_level_2.txt",
+        "exp06": "exp06_construction_upper_level_3.txt",
+        "exp07": "exp07_long_corridor.txt",
+        "exp09": "exp09_cupola.txt",
+        "exp11": "exp11_lower_gallery.txt",
+        "exp15": "exp15_attic_to_upper_gallery.txt",
+        "exp21": "exp21_outside_building.txt",
+    }
+    gtsfm_tum_path = filenames[experiment]
     gtsfm_poses, image_fnames = io_utils.read_images_txt(args.gtsfm_images_txt)
-    cam2_poses = extract_cam2_poses(gtsfm_poses, image_fnames)
+    if gtsfm_poses is not None and image_fnames is not None:
+        cam2_poses = extract_cam2_poses(gtsfm_poses, image_fnames)
 
     print(f"Loaded {len(cam2_poses)} from GTSFM result")
 
@@ -323,12 +338,12 @@ if __name__ == "__main__":
     # body_poses = get_body_poses(cam2_poses, cam2_T_imu)
     timestamps = read_timestamps_from_tum_file(args.fastlio_tum)
 
-    write_poses_to_tum_file(cam2_poses, GTSFM_TUM_PATH, timestamps)
+    write_poses_to_tum_file(cam2_poses, gtsfm_tum_path, timestamps)
 
-    evaluate_trajectory(GTSFM_TUM_PATH, args.fastlio_tum, "gtsfm_v_fastlio")
+    evaluate_trajectory(gtsfm_tum_path, args.fastlio_tum, "gtsfm_v_fastlio")
 
-    if args.gt is not None:
+    if args.gt_tum is not None:
         print("FASTLIO poses evaluation results:")
         evaluate_trajectory(args.fastlio_tum, args.gt_tum, "fastlio")
         print("\n\nGTSfM poses evaluation results:")
-        evaluate_trajectory(GTSFM_TUM_PATH, args.gt_tum, "gtsfm")
+        evaluate_trajectory(gtsfm_tum_path, args.gt_tum, "gtsfm")
