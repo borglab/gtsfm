@@ -68,17 +68,10 @@ class GtsfmRunnerAstronetLoader(GtsfmRunnerBase):
 
             # Prepare computation graph.
             delayed_sfm_result, delayed_io = self.scene_optimizer.create_computation_graph(
-                num_images=len(self.loader),
+                self.loader,
+                self.loader.create_computation_graph_for_images(),
                 image_pair_indices=image_pair_indices,
-                image_graph=self.loader.create_computation_graph_for_images(),
-                all_intrinsics=self.loader.get_all_intrinsics(),
-                image_shapes=self.loader.get_image_shapes(),
                 gt_scene_mesh=gt_scene_trimesh_future,
-                cameras_gt=self.loader.get_gt_cameras(),
-                gt_wTi_list=self.loader.get_gt_poses(),
-                matching_regime=ImageMatchingRegime(self.parsed_args.matching_regime),
-                absolute_pose_priors=self.loader.get_absolute_pose_priors(),
-                relative_pose_priors=self.loader.get_relative_pose_priors(),
             )
 
             # Run SfM pipeline.

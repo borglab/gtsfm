@@ -2,11 +2,12 @@
 
 Authors: Ayush Baid, John Lambert
 """
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Mapping, Union
 
 import dask
+import numpy as np
 from dask.delayed import Delayed
-from gtsam import Pose3
+from gtsam import Pose3, Rot3, Unit3
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.graph as graph_utils
@@ -38,9 +39,9 @@ class MultiViewOptimizer:
         self,
         num_images: int,
         keypoints_graph: List[Delayed],
-        i2Ri1_graph: Dict[Tuple[int, int], Delayed],
-        i2Ui1_graph: Dict[Tuple[int, int], Delayed],
-        v_corr_idxs_graph: Dict[Tuple[int, int], Delayed],
+        i2Ri1_graph: Mapping[Tuple[int, int], Union[Delayed, Optional[Rot3]]],
+        i2Ui1_graph: Mapping[Tuple[int, int], Union[Delayed, Optional[Unit3]]],
+        v_corr_idxs_graph: Mapping[Tuple[int, int], Union[Delayed, Optional[np.ndarray]]],
         all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         absolute_pose_priors: List[Optional[PosePrior]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],

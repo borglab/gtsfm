@@ -32,16 +32,9 @@ def run_scene_optimizer(args: argparse.Namespace) -> None:
         )
 
         delayed_sfm_result, delayed_io = scene_optimizer.create_computation_graph(
-            num_images=len(loader),
+            loader,
+            loader.create_computation_graph_for_images(),
             image_pair_indices=loader.get_valid_pairs(),
-            image_graph=loader.create_computation_graph_for_images(),
-            all_intrinsics=loader.get_all_intrinsics(),
-            image_shapes=loader.get_image_shapes(),
-            relative_pose_priors=loader.get_relative_pose_priors(),
-            absolute_pose_priors=loader.get_absolute_pose_priors(),
-            cameras_gt=loader.get_gt_cameras(),
-            gt_wTi_list=loader.get_gt_poses(),
-            image_fnames=loader.get_image_fnames(),
         )
 
         # create dask client
