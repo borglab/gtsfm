@@ -63,7 +63,7 @@ class TestFolderLoader(unittest.TestCase):
         index_to_test = 5
         file_path = DEFAULT_FOLDER / "images" / "DSC_0006.JPG"
         loader_image = self.loader.get_image_full_res(index_to_test)
-        expected_image = io_utils.load_image(file_path)
+        expected_image = io_utils.load_image(str(file_path))
         np.testing.assert_allclose(expected_image.value_array, loader_image.value_array)
 
     def test_get_camera_pose_exists(self) -> None:
@@ -104,14 +104,14 @@ class TestFolderLoader(unittest.TestCase):
 
     def test_get_camera_intrinsics_exif(self) -> None:
         """Tests getter for intrinsics when explicit numpy arrays are absent and we fall back on exif."""
-        loader = OlssonLoader(EXIF_FOLDER, image_extension="JPG", use_gt_intrinsics=False)
+        loader = OlssonLoader(str(EXIF_FOLDER), image_extension="JPG", use_gt_intrinsics=False)
         computed = loader.get_camera_intrinsics_full_res(5)
         expected = Cal3Bundler(fx=2378.983, k1=0, k2=0, u0=648.0, v0=968.0)
         self.assertTrue(expected.equals(computed, 1e-3))
 
     def test_get_camera_intrinsics_missing(self) -> None:
         """Tests getter for intrinsics when explicit numpy arrays are absent, exif is missing, and we raise an error."""
-        loader = OlssonLoader(NO_EXIF_FOLDER, image_extension="JPG")
+        loader = OlssonLoader(str(NO_EXIF_FOLDER), image_extension="JPG")
         with pytest.raises(ValueError):
             _ = loader.get_camera_intrinsics(5)
 

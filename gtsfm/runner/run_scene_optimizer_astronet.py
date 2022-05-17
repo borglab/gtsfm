@@ -82,7 +82,7 @@ class GtsfmRunnerAstronetLoader(GtsfmRunnerBase):
             )
 
             # Run SfM pipeline.
-            sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io)
+            sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io.values())
 
         assert isinstance(sfm_result, GtsfmData)
         logger.info("GTSFM took %.2f minutes to compute sparse multi-view result.", (time.time() - start_time) / 60)

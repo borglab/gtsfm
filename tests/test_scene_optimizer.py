@@ -48,12 +48,13 @@ class TestSceneOptimizer(unittest.TestCase):
                 relative_pose_priors=self.loader.get_relative_pose_priors(),
                 cameras_gt=self.loader.get_gt_cameras(),
                 gt_wTi_list=self.loader.get_gt_poses(),
+                image_fnames=self.loader.get_image_fnames(),
             )
             # create dask client
             cluster = LocalCluster(n_workers=1, threads_per_worker=4)
 
             with Client(cluster):
-                sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io)
+                sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io.values())
 
             self.assertIsInstance(sfm_result, GtsfmData)
 

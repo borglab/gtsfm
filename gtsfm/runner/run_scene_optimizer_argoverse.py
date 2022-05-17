@@ -37,14 +37,18 @@ def run_scene_optimizer(args: argparse.Namespace) -> None:
             image_graph=loader.create_computation_graph_for_images(),
             all_intrinsics=loader.get_all_intrinsics(),
             image_shapes=loader.get_image_shapes(),
+            relative_pose_priors=loader.get_relative_pose_priors(),
+            absolute_pose_priors=loader.get_absolute_pose_priors(),
             cameras_gt=loader.get_gt_cameras(),
+            gt_wTi_list=loader.get_gt_poses(),
+            image_fnames=loader.get_image_fnames(),
         )
 
         # create dask client
         cluster = LocalCluster(n_workers=args.num_workers, threads_per_worker=args.threads_per_worker)
 
         with Client(cluster), performance_report(filename="dask-report.html"):
-            sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io)
+            sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io.values())
 
         assert isinstance(sfm_result, GtsfmData)
         scene_avg_reproj_error = sfm_result.get_avg_scene_reprojection_error()

@@ -147,7 +147,7 @@ class GtsfmRunnerBase:
         )
 
         with Client(cluster), performance_report(filename="dask-report.html"):
-            sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io)
+            sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io.values())
 
         assert isinstance(sfm_result, GtsfmData)
 

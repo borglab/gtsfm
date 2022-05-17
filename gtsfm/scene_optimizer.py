@@ -168,7 +168,7 @@ class SceneOptimizer:
         image_fnames: List[str],
         gt_scene_mesh: Optional[Trimesh] = None,
         matching_regime: ImageMatchingRegime = ImageMatchingRegime.SEQUENTIAL,
-    ) -> Tuple[Delayed, List[Delayed]]:
+    ) -> Tuple[Delayed, Dict[str, Delayed]]:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
 
         # detection and description graph
@@ -239,10 +239,10 @@ class SceneOptimizer:
         gt_wTi_list: List[Optional[Pose3]],
         image_shapes: List[Tuple[int, int]],
         image_fnames: List[str],
-    ) -> Tuple[Delayed, List[Delayed]]:
+    ) -> Tuple[Delayed, Dict[str, Delayed]]:
 
         # auxiliary graph elements for visualizations and saving intermediate data for analysis.
-        delayed_results = []
+        delayed_io: Dict[str, Delayed] = {}
 
         # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
         (ba_input_graph, ba_output_graph, optimizer_metrics_graph) = self.multiview_optimizer.create_computation_graph(
@@ -273,11 +273,13 @@ class SceneOptimizer:
         )
 
         if self._save_3d_viz:
-            delayed_results.extend(dask.delayed(save_visualizations)(ba_input_graph, ba_output_graph, gt_wTi_list))
+            delayed_io["save_visualizations"] = dask.delayed(save_visualizations)(
+                ba_input_graph, ba_output_graph, gt_wTi_list
+            )
 
         if self._save_gtsfm_data:
-            delayed_results.extend(
-                dask.delayed(save_gtsfm_data)(image_graph, image_shapes, image_fnames, ba_input_graph, ba_output_graph)
+            delayed_io["save_gtsfm_data"] = dask.delayed(save_gtsfm_data)(
+                image_graph, image_shapes, image_fnames, ba_input_graph, ba_output_graph
             )
 
         if self._run_dense_optimizer:
@@ -290,10 +292,8 @@ class SceneOptimizer:
             ) = self.dense_multiview_optimizer.create_computation_graph(img_dict_graph, ba_output_graph)
 
             # Cast to string as Open3d cannot use PosixPath's for I/O -- only string file paths are accepted.
-            delayed_results.append(
-                dask.delayed(io_utils.save_point_cloud_as_ply)(
-                    save_fpath=str(MVS_PLY_SAVE_FPATH), points=dense_points_graph, rgb=dense_point_colors_graph
-                )
+            delayed_io["save_point_cloud_as_ply"] = dask.delayed(io_utils.save_point_cloud_as_ply)(
+                save_fpath=str(MVS_PLY_SAVE_FPATH), points=dense_points_graph, rgb=dense_point_colors_graph
             )
 
             # Add metrics for dense reconstruction and voxel downsampling
@@ -303,10 +303,10 @@ class SceneOptimizer:
                 metrics_graph_list.append(downsampling_metrics_graph)
 
         # Save metrics to JSON and generate HTML report.
-        delayed_results.extend(dask.delayed(save_metrics_reports)(metrics_graph_list))
+        delayed_io["save_metrics_reports"] = dask.delayed(save_metrics_reports)(metrics_graph_list)
 
         # return the entry with just the sfm result
-        return ba_output_graph, delayed_results
+        return ba_output_graph, delayed_io
 
 
 def get_image_dictionary(image_list: List[Image]) -> Dict[int, Image]:
