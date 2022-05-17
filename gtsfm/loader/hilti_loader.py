@@ -50,6 +50,7 @@ IMAGES_FOLDER = "images"
 
 HARD_POSE_PRIOR_COVARIANCE = np.eye(6) * 1e-8
 STATIONARY_POSE_PRIOR_COVARIANCE = np.eye(6) * 1e-7
+CAM2_BACKBONE_POSE_PRIOR_COVARIANCE = np.diag(np.array([np.deg2rad(30.0), np.deg2rad(30.0), np.deg2rad(30.0), 1, 1, 1]))
 
 
 class HiltiLoader(LoaderBase):
@@ -60,6 +61,7 @@ class HiltiLoader(LoaderBase):
         max_resolution: int = 1080,
         subsample: int = 1,
         old_style: bool = False,
+        add_backbone: bool = True,
     ) -> None:
         """Initializes, loads calibration, constraints, and pose priors.
 
@@ -68,14 +70,16 @@ class HiltiLoader(LoaderBase):
             max_length: limit poses to read. Defaults to None.
             max_resolution: integer representing maximum length of image's short side
                e.g. for 1080p (1920 x 1080), max_resolution would be 1080
-            subsample: subsample along the time axis (except cam2), default 1 (none).
+            subsample: subsample along the time axis, default 1 (none).
             old_style: Use old-style sequential image numbering.
+            add_backbone: add a backbone of soft constraints for CAM2-CAM2 pairs.
         """
         super().__init__(max_resolution)
         self._base_folder: Path = Path(base_folder)
         self._max_length = max_length
         self._subsample = subsample
         self._old_style = old_style
+        self._add_backbone = add_backbone
 
         # Load calibration.
         self._intrinsics: Dict[int, Cal3Fisheye] = {}
@@ -371,15 +375,12 @@ class HiltiLoader(LoaderBase):
         cam_idx_for_i1: int = self.camera_from_image(i1)
         cam_idx_for_i2: int = self.camera_from_image(i2)
 
-        # TODO(Frank): this should come from constraints?
-
         if rig_idx_for_i1 == rig_idx_for_i2:
             i1_T_imu: Pose3 = self._cam_T_imu_poses[cam_idx_for_i1]
             i2_T_imu: Pose3 = self._cam_T_imu_poses[cam_idx_for_i2]
             i1Ti2 = i1_T_imu * i2_T_imu.inverse()
-            # TODO: add covariance
             return PosePrior(value=i1Ti2, covariance=HARD_POSE_PRIOR_COVARIANCE, type=PosePriorType.HARD_CONSTRAINT)
-        elif cam_idx_for_i1 == 2 and cam_idx_for_i2 == 2:
+        elif cam_idx_for_i1 == 2 and cam_idx_for_i2 == 2 and (rig_idx_for_i1, rig_idx_for_i2) in self._constraints:
             constraint = self._constraints[(rig_idx_for_i1, rig_idx_for_i2)]
             imui1_T_imui2 = constraint.aTb
             i1Ti2 = self._cam_T_imu_poses[2] * imui1_T_imui2 * self._cam_T_imu_poses[2].inverse()
@@ -390,6 +391,16 @@ class HiltiLoader(LoaderBase):
                 return PosePrior(value=i1Ti2, covariance=cov_i1Ti2, type=PosePriorType.HARD_CONSTRAINT)
 
             return PosePrior(value=i1Ti2, covariance=cov_i1Ti2, type=PosePriorType.SOFT_CONSTRAINT)
+        elif cam_idx_for_i1 == 2 and cam_idx_for_i2 == 2:
+            # CAM2-CAM2 backbone as soft prior
+            w_T_imui1 = self._fastlio_poses[rig_idx_for_i1]
+            w_T_imui2 = self._fastlio_poses[rig_idx_for_i2]
+            imui1_T_imui2 = w_T_imui1.between(w_T_imui2)
+            i1Ti2 = self._cam_T_imu_poses[2] * imui1_T_imui2 * self._cam_T_imu_poses[2].inverse()
+
+            return PosePrior(
+                value=i1Ti2, covariance=CAM2_BACKBONE_POSE_PRIOR_COVARIANCE, type=PosePriorType.SOFT_CONSTRAINT
+            )
 
         return None
 
@@ -421,6 +432,19 @@ class HiltiLoader(LoaderBase):
         # Translate all rig level constraints to CAM2-CAM2 constraints
         for a, b in self._constraints.keys():
             unique_pairs.add((self.image_from_rig_and_camera(a, 2), self.image_from_rig_and_camera(b, 2)))
+
+        logger.info("Pairs for relative pose before adding backbone: %d", len(unique_pairs))
+        if self._add_backbone:
+            # add the full backbone of CAM2-CAM2 pairs
+            for a in range(self.num_rig_poses - 1):
+                b = a + 1
+                unique_pairs.add((self.image_from_rig_and_camera(a, 2), self.image_from_rig_and_camera(b, 2)))
+
+        logger.info("Pairs for relative pose after adding backbone: %d", len(unique_pairs))
+
+        import pdb
+
+        pdb.set_trace()
 
         optional_priors = {pair: self.get_relative_pose_prior(*pair) for pair in unique_pairs}
         priors = {pair: prior for pair, prior in optional_priors.items() if prior is not None}
