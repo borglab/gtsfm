@@ -442,10 +442,6 @@ class HiltiLoader(LoaderBase):
 
         logger.info("Pairs for relative pose after adding backbone: %d", len(unique_pairs))
 
-        import pdb
-
-        pdb.set_trace()
-
         optional_priors = {pair: self.get_relative_pose_prior(*pair) for pair in unique_pairs}
         priors = {pair: prior for pair, prior in optional_priors.items() if prior is not None}
 

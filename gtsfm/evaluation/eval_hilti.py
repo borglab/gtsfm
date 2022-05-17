@@ -8,7 +8,7 @@
 # pip install evo==1.13.5
 
 # Example usage:
-# python evaluation/eval_hilti.py \
+# python gtsfm/evaluation/eval_hilti.py \
 #  --gtsfm_images_txt=results/ba_output/images.txt \
 #  --fastlio_tum=fastlio2_odom.txt \
 #  --gt_tum=exp_04_construction_upper_level_imu.txt \
