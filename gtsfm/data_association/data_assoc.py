@@ -24,8 +24,8 @@ import gtsfm.utils.tracks as track_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
-from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.data_association.point3d_initializer import Point3dInitializer, TriangulationOptions, TriangulationExitCode
+from gtsfm.data_association.dsf_tracks_estimator import DsfTracksEstimator
 from gtsfm.common.image import Image
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
@@ -76,7 +76,8 @@ class DataAssociation(NamedTuple):
             A tuple of GtsfmData with cameras and tracks, and a GtsfmMetricsGroup with data association metrics
         """
         # generate tracks for 3D points using pairwise correspondences
-        tracks_2d = SfmTrack2d.generate_tracks_from_pairwise_matches(corr_idxs_dict, keypoints_list)
+        tracks_estimator = DsfTracksEstimator()
+        tracks_2d = tracks_estimator.run(corr_idxs_dict, keypoints_list)
 
         if self.save_track_patches_viz and images is not None:
             io_utils.save_track_visualizations(tracks_2d, images, save_dir=os.path.join("plots", "tracks_2d"))
