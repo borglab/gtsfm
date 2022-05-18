@@ -14,9 +14,9 @@ Kalibr format for intrinsics: https://github.com/ethz-asl/kalibr/wiki/yaml-forma
 Authors: Ayush Baid
 """
 import glob
-import yaml
-from typing import Any, Dict, List, Optional, Tuple
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+import yaml
 
 import numpy as np
 import gtsam
@@ -24,6 +24,7 @@ from gtsam import Cal3Fisheye, Pose3
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
+from gtsfm.common.constraint import Constraint
 from gtsfm.common.image import Image
 from gtsfm.common.pose_prior import PosePrior, PosePriorType
 from gtsfm.loader.loader_base import LoaderBase
@@ -41,25 +42,34 @@ CAM_IDX_TO_KALIBR_FILE_MAP = {
 }
 
 LIDAR_POSE_RELATIVE_PATH = "lidar/fastlio2.g2o"
+LIDAR_CONSTRAINTS_RELATIVE_PATH = "lidar/constraints.txt"
 IMAGES_FOLDER = "images"
 
-INTRA_RIG_VALID_PAIRS = {(0, 1), (0, 3), (1, 4)}
-INTER_RIG_VALID_PAIRS = {(0, 0), (0, 1), (0, 3), (1, 0), (1, 1), (1, 4), (2, 2), (3, 0), (3, 3), (4, 1), (4, 4)}
+HARD_RELATIVE_POSE_PRIOR_SIGMA = np.ones((6,)) * 1e-3  # CAM_IMU_POSE_PRIOR_SIGMA in BA should have similar value
+SOFT_RELATIVE_POSE_PRIOR_SIGMA = np.ones((6,)) * 3e-2
+SOFT_ABSOLUTE_POSE_PRIOR_SIGMA = np.ones((6,)) * 3e-2
 
 
 class HiltiLoader(LoaderBase):
     def __init__(
         self,
         base_folder: str,
-        max_frame_lookahead: int = 10,
-        step_size: int = 8,
         max_length: Optional[int] = None,
+        max_resolution: int = 1080,
     ) -> None:
-        super().__init__(max_resolution=1000)
+        """Initializes, loads calibration, constraints, and pose priors.
+
+        Args:
+            base_folder (str): top-level folder, expects calibration, images and lidar subfolders.
+            max_length (Optional[int]): limit poses to read. Defaults to None.
+            max_resolution: integer representing maximum length of image's short side
+               e.g. for 1080p (1920 x 1080), max_resolution would be 1080
+        """
+        super().__init__(max_resolution)
         self._base_folder: Path = Path(base_folder)
-        self._max_frame_lookahead: int = max_frame_lookahead
-        self._step_size: int = step_size
         self._max_length = max_length
+
+        # Load calibration.
         self._intrinsics: Dict[int, Cal3Fisheye] = {}
         self._cam_T_imu_poses: Dict[int, Pose3] = {}
         for cam_idx in range(NUM_CAMS):
@@ -67,16 +77,35 @@ class HiltiLoader(LoaderBase):
             self._intrinsics[cam_idx] = calibration[0]
             self._cam_T_imu_poses[cam_idx] = calibration[1]
 
-        self._max_rig_idx: int = self.__get_max_rig_idx()
+        # Check how many images are on disk.
+        self.num_rig_poses: int = self.__get_num_rig_poses()
         if self._max_length is not None:
-            self._max_rig_idx = min(self._max_rig_idx, self._max_length)
+            self.num_rig_poses = min(self.num_rig_poses, self._max_length)
 
-        self._w_T_imu: Dict[int, Pose3] = self.__read_lidar_pose_priors()  # poses for the IMU for rig indices
+        # Read the constraints from the lidar/constraints file
+        self.constraints = self.__load_constraints()
+        logger.info("Number of constraints: %d", len(self.constraints))
 
-        logger.info("Loading %d timestamps", self._max_rig_idx)
+        # Read the poses for the IMU for rig indices from g2o file.
+        self._w_T_imu: Dict[int, Pose3] = self.__read_lidar_pose_priors()
+
+        logger.info("Loading %d timestamps", self.num_rig_poses)
         logger.info("Lidar camera available for %d timestamps", len(self._w_T_imu))
 
+    def __load_constraints(self) -> List[Constraint]:
+        constraints_path = self._base_folder / LIDAR_CONSTRAINTS_RELATIVE_PATH
+        constraints = Constraint.read(str(constraints_path))
+
+        # filter them according to max length
+        constraints = list(filter(lambda c: c.a < self.num_rig_poses and c.b < self.num_rig_poses, constraints))
+
+        return constraints
+
+    def get_camTimu(self) -> Dict[int, Pose3]:
+        return self._cam_T_imu_poses
+
     def __read_lidar_pose_priors(self) -> Dict[int, Pose3]:
+        """Read the poses for the IMU for rig indices."""
         filepath = str(self._base_folder / LIDAR_POSE_RELATIVE_PATH)
         _, values = gtsam.readG2o(filepath, is3D=True)
 
@@ -85,20 +114,21 @@ class HiltiLoader(LoaderBase):
 
         w_T_imu: Dict[int, Pose3] = {}
 
-        for rig_idx in range(self._max_rig_idx):
+        for rig_idx in range(self.num_rig_poses):
             if rig_idx in lidar_keys:
                 w_T_imu[rig_idx] = values.atPose3(rig_idx)
 
         return w_T_imu
 
-    def __get_max_rig_idx(self) -> int:
+    def __get_num_rig_poses(self) -> int:
+        """Check how many images we have on disk and deduce number of rig poses."""
         search_path: str = str(self._base_folder / IMAGES_FOLDER / "*.jpg")
         image_files = glob.glob(search_path)
         total_num_images = len(image_files)
-
         return total_num_images // NUM_CAMS
 
     def __load_calibration(self, cam_idx: int) -> Tuple[Cal3Fisheye, Pose3]:
+        """Load calibration from kalibr files in calibration sub-folder."""
         kalibr_file_path = self._base_folder / "calibration" / CAM_IDX_TO_KALIBR_FILE_MAP[cam_idx]
 
         with open(kalibr_file_path, "r") as file:
@@ -117,12 +147,14 @@ class HiltiLoader(LoaderBase):
         return intrinsics, cam_T_imu
 
     def __load_intrinsics(self, calibration_data: Dict[Any, Any]) -> Cal3Fisheye:
+        """Create gtsam.Cal3Fisheye object from calibration data."""
         fx, fy, px, py = calibration_data["intrinsics"]
         k1, k2, k3, k4 = calibration_data["distortion_coeffs"]
 
         return Cal3Fisheye(fx=fx, fy=fy, s=0, u0=px, v0=py, k1=k1, k2=k2, k3=k3, k4=k4)
 
     def __load_pose_relative_to_imu(self, calibration_data: Dict[Any, Any]) -> Pose3:
+        """Create gtsam.Pose3 object from calibration data"""
         transformation_matrix: np.ndarray = calibration_data["T_cam_imu"]
         return Pose3(transformation_matrix)
 
@@ -133,7 +165,7 @@ class HiltiLoader(LoaderBase):
         Returns:
             the number of images.
         """
-        return self._max_rig_idx * NUM_CAMS
+        return self.num_rig_poses * NUM_CAMS
 
     def get_image(self, index: int) -> Image:
         return self.get_image_full_res(index)
@@ -169,11 +201,6 @@ class HiltiLoader(LoaderBase):
         Returns:
             Image: the image at the query index.
         """
-        cam_idx = self.map_index_to_camera(index)
-        rig_idx = self.map_image_idx_to_rig(index)
-
-        logger.debug("Mapping %d index to rig %d, camera %d", index, rig_idx, cam_idx)
-
         image_path: Path = self._base_folder / IMAGES_FOLDER / f"{index}.jpg"
 
         return io_utils.load_image(str(image_path))
@@ -190,7 +217,7 @@ class HiltiLoader(LoaderBase):
         Returns:
             intrinsics for the given camera.
         """
-        return self._intrinsics[self.map_index_to_camera(index)]
+        return self._intrinsics[self.camera_from_image(index)]
 
     def get_camera_pose(self, index: int) -> Optional[Pose3]:
         """Get the camera pose (in world coordinates) at the given index.
@@ -203,8 +230,8 @@ class HiltiLoader(LoaderBase):
         Returns:
             the camera pose w_P_index.
         """
-        rig_idx: int = self.map_image_idx_to_rig(index)
-        cam_idx: int = self.map_index_to_camera(index)
+        rig_idx: int = self.rig_from_image(index)
+        cam_idx: int = self.camera_from_image(index)
 
         if rig_idx in self._w_T_imu:
             return self._w_T_imu[rig_idx] * self._cam_T_imu_poses[cam_idx].inverse()
@@ -212,74 +239,72 @@ class HiltiLoader(LoaderBase):
         return None
 
     def get_relative_pose_prior(self, i1: int, i2: int) -> Optional[PosePrior]:
-        rig_idx_for_i1: int = self.map_image_idx_to_rig(i1)
-        rig_idx_for_i2: int = self.map_image_idx_to_rig(i2)
-        cam_idx_for_i1: int = self.map_index_to_camera(i1)
-        cam_idx_for_i2: int = self.map_index_to_camera(i2)
+        """Creates prior on relative pose i2Ti1.
+
+        If the images are on the same rig, then creates a hard pose prior between the two images, to be used by the
+        two-view estimator. If they are not, we create a soft pose prior derived from the absolute poses (w_T_imu)
+        passed in the constructor.
+
+        Args:
+            i1: index of first image.
+            i2: index of second image.
+
+        Returns:
+            Pose prior, if it exists.
+        """
+        rig_idx_for_i1: int = self.rig_from_image(i1)
+        rig_idx_for_i2: int = self.rig_from_image(i2)
+        cam_idx_for_i1: int = self.camera_from_image(i1)
+        cam_idx_for_i2: int = self.camera_from_image(i2)
+
+        # TODO(Frank): this should come from constraints?
 
         if rig_idx_for_i1 == rig_idx_for_i2:
             i1_T_imu: Pose3 = self._cam_T_imu_poses[cam_idx_for_i1]
             i2_T_imu: Pose3 = self._cam_T_imu_poses[cam_idx_for_i2]
             i2Ti1 = i2_T_imu.inverse().between(i1_T_imu.inverse())
             # TODO: add covariance
-            return PosePrior(value=i2Ti1, covariance=None, type=PosePriorType.HARD_CONSTRAINT)
+            return PosePrior(value=i2Ti1, covariance=HARD_RELATIVE_POSE_PRIOR_SIGMA, type=PosePriorType.HARD_CONSTRAINT)
         elif rig_idx_for_i1 in self._w_T_imu and rig_idx_for_i2 in self._w_T_imu:
             w_T_i1 = self._w_T_imu[rig_idx_for_i1] * self._cam_T_imu_poses[cam_idx_for_i1].inverse()
             w_T_i2 = self._w_T_imu[rig_idx_for_i2] * self._cam_T_imu_poses[cam_idx_for_i2].inverse()
             i2Ti1 = w_T_i2.between(w_T_i1)
             # TODO: add covariance
-            return PosePrior(value=i2Ti1, covariance=None, type=PosePriorType.SOFT_CONSTRAINT)
+            return PosePrior(value=i2Ti1, covariance=SOFT_RELATIVE_POSE_PRIOR_SIGMA, type=PosePriorType.SOFT_CONSTRAINT)
 
         return None
 
     def get_absolute_pose_prior(self, idx: int) -> Optional[PosePrior]:
-        rig_idx: int = self.map_image_idx_to_rig(idx)
-        cam_idx: int = self.map_index_to_camera(idx)
+        rig_idx: int = self.rig_from_image(idx)
+        cam_idx: int = self.camera_from_image(idx)
 
         if rig_idx in self._w_T_imu:
             w_T_cam = self._w_T_imu[rig_idx] * self._cam_T_imu_poses[cam_idx].inverse()
-            return PosePrior(value=w_T_cam, covariance=None, type=PosePriorType.SOFT_CONSTRAINT)
+            return PosePrior(
+                value=w_T_cam, covariance=SOFT_ABSOLUTE_POSE_PRIOR_SIGMA, type=PosePriorType.SOFT_CONSTRAINT
+            )
 
         return None
 
-    def is_valid_pair(self, idx1: int, idx2: int) -> bool:
-        """Checks if (idx1, idx2) is a valid pair. idx1 < idx2 is required.
-
-        Args:
-            idx1: first index of the pair.
-            idx2: second index of the pair.
-
-        Returns:
-            validation result.
-        """
-        if not super().is_valid_pair(idx1, idx2):
-            return False
-
-        rig_idx_i1 = self.map_image_idx_to_rig(idx1)
-        rig_idx_i2 = self.map_image_idx_to_rig(idx2)
-
-        cam_idx_i1 = self.map_index_to_camera(idx1)
-        cam_idx_i2 = self.map_index_to_camera(idx2)
-        if rig_idx_i1 == rig_idx_i2:
-            return (cam_idx_i1, cam_idx_i2) in INTRA_RIG_VALID_PAIRS
-        elif rig_idx_i1 < rig_idx_i2 and rig_idx_i2 - rig_idx_i1 <= self._max_frame_lookahead:
-            return (cam_idx_i1, cam_idx_i2) in INTER_RIG_VALID_PAIRS
-
-    def map_index_to_camera(self, index: int) -> int:
+    def camera_from_image(self, index: int) -> int:
+        """Map image index to camera-on-rig index."""
         return index % NUM_CAMS
 
-    def map_image_idx_to_rig(self, index: int) -> int:
+    def rig_from_image(self, index: int) -> int:
+        """Map image index to rig index."""
         return index // NUM_CAMS
+
+    def image_from_rig_and_camera(self, rig_index: int, camera_idx: int) -> int:
+        """Map image index to rig index."""
+        return rig_index * NUM_CAMS + camera_idx
 
     def get_relative_pose_priors(self, pairs: List[Tuple[int, int]]) -> Dict[Tuple[int, int], PosePrior]:
         pairs = set(pairs)
-        # just add all possible pairs which belong to the same rig (as it will have hard relative prior)
-        for i in range(len(self)):
-            for j in range(i + 1, i + NUM_CAMS - 1):
-                if self.map_image_idx_to_rig(i) == self.map_image_idx_to_rig(j):
-                    pairs.add((i, j))
-                else:
-                    break
+        # For every rig index, add a "star" from camera 2 to 0,1,3,4:
+        for rig_index in range(self.num_rig_poses):
+            camera_2 = self.image_from_rig_and_camera(rig_index, 2)
+            for cam_idx in [0, 1, 3, 4]:
+                pairs.add((camera_2, self.image_from_rig_and_camera(rig_index, cam_idx)))
 
         priors = {pair: self.get_relative_pose_prior(*pair) for pair in pairs}
         priors = {pair: prior for pair, prior in priors.items() if prior is not None}

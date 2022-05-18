@@ -138,7 +138,12 @@ class TestDataAssociation(GtsamTestCase):
         )
         da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
         triangulated_landmark_map, _ = da.run(
-            len(cameras), cameras, matches_dict, keypoints_list, cameras_gt=[None] * len(cameras)
+            len(cameras),
+            cameras,
+            matches_dict,
+            keypoints_list,
+            cameras_gt=[None] * len(cameras),
+            relative_pose_priors={},
         )
         # assert that we cannot obtain even 1 length-3 track if we have only 2 camera poses
         # result should be empty, since nb_measurements < min track length
@@ -171,7 +176,9 @@ class TestDataAssociation(GtsamTestCase):
         triangulation_options = TriangulationOptions(reproj_error_threshold=5, mode=TriangulationSamplingMode.NO_RANSAC)
         da = DataAssociation(min_track_len=2, triangulation_options=triangulation_options)
 
-        sfm_data, _ = da.run(len(cameras), cameras, matches_dict, keypoints_list, [None] * len(cameras))
+        sfm_data, _ = da.run(
+            len(cameras), cameras, matches_dict, keypoints_list, [None] * len(cameras), relative_pose_priors={}
+        )
         estimated_landmark = sfm_data.get_track(0).point3()
         self.gtsamAssertEquals(estimated_landmark, self.expected_landmark, 1e-2)
 
@@ -219,7 +226,14 @@ class TestDataAssociation(GtsamTestCase):
             reproj_error_threshold=5, mode=triangulation_mode, min_num_hypotheses=20
         )
         da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
-        sfm_data, _ = da.run(len(cameras), cameras, matches_dict, keypoints_list, cameras_gt=[None] * len(cameras))
+        sfm_data, _ = da.run(
+            len(cameras),
+            cameras,
+            matches_dict,
+            keypoints_list,
+            cameras_gt=[None] * len(cameras),
+            relative_pose_priors={},
+        )
 
         estimated_landmark = sfm_data.get_track(0).point3()
         # checks if computed 3D point is as expected
@@ -257,6 +271,7 @@ class TestDataAssociation(GtsamTestCase):
             corr_idxs_dict=corr_idxs_dict,
             keypoints_list=[keypoints_shared] * 3,
             cameras_gt=[None] * 3,
+            relative_pose_priors={},
         )
 
         self.assertEqual(len(sfm_data.get_valid_camera_indices()), 0)
@@ -276,7 +291,7 @@ class TestDataAssociation(GtsamTestCase):
 
         # create matches
         # since there is only one measurement in each image, both assigned feature index 0
-        matches_dict = {(0, 1): np.array([[0, 0]]), (1, 2): np.array([[0, 0]])}
+        corr_idxs_graph = {(0, 1): np.array([[0, 0]]), (1, 2): np.array([[0, 0]])}
 
         # Run without computation graph
         triangulation_options = TriangulationOptions(
@@ -284,12 +299,17 @@ class TestDataAssociation(GtsamTestCase):
         )
         da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
         expected_sfm_data, expected_metrics = da.run(
-            len(cameras), cameras, matches_dict, keypoints_list, cameras_gt=cameras_gt
+            len(cameras), cameras, corr_idxs_graph, keypoints_list, cameras_gt=cameras_gt, relative_pose_priors={}
         )
 
         # Run with computation graph
         delayed_sfm_data, delayed_metrics = da.create_computation_graph(
-            len(cameras), cameras, matches_dict, keypoints_list, dask.delayed(cameras_gt)
+            len(cameras),
+            cameras,
+            corr_idxs_graph,
+            keypoints_list,
+            cameras_gt,
+            relative_pose_priors=dask.delayed({}),
         )
 
         with dask.config.set(scheduler="single-threaded"):

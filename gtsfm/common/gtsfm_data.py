@@ -220,10 +220,15 @@ class GtsfmData:
         track_lengths = [self.get_track(j).numberMeasurements() for j in range(self.number_tracks())]
         return np.array(track_lengths, dtype=np.uint32)
 
-    def select_largest_connected_component(self) -> "GtsfmData":
+    def select_largest_connected_component(
+        self, extra_camera_edges: Optional[List[Tuple[int, int]]] = None
+    ) -> "GtsfmData":
         """Selects the subset of data belonging to the largest connected component of the graph where the edges are
         between cameras which feature in the same track.
 
+        Args:
+            extra_camera_edges (optional): edges which are to be considered as part of the graph when computing
+                                           connected components.
         Returns:
             New GtSfmData object with the subset of tracks and cameras.
         """
@@ -237,6 +242,10 @@ class GtsfmData:
             # Recreate track connectivity from track information
             # For example: a track has cameras [0, 2, 5]. In that case we will add pairs (0, 2), (0, 5), (2, 5)
             camera_edges += list(itertools.combinations(cameras_in_use, 2))
+
+        # TODO(Ayush): add unit tests for extra camera edges
+        if extra_camera_edges is not None:
+            camera_edges += extra_camera_edges
 
         if len(camera_edges) == 0:
             return GtsfmData(self._number_images)

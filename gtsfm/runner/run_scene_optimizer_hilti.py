@@ -11,7 +11,6 @@ from gtsfm.runner.gtsfm_runner_base import GtsfmRunnerBase
 
 logger = logger_utils.get_logger()
 
-# Note: max_frame_lookahead pertains to rig indices and not image indices.
 
 
 class GtsfmRunnerHiltiLoader(GtsfmRunnerBase):
@@ -27,15 +26,20 @@ class GtsfmRunnerHiltiLoader(GtsfmRunnerBase):
             required=True,
             help="path to directory containing the calibration files and the images",
         )
+        parser.add_argument(
+            "--proxy_threshold",
+            type=int,
+            default=100,
+            help="amount of 'proxy' correspondences that will trigger an image-pair. Default 100.",
+        )
 
-        parser.add_argument("--max_length", type=int, default=50, help="Max number of timestamps to process")
+        parser.add_argument("--max_length", type=int, default=None, help="Max number of timestamps to process")
 
         return parser
 
     def construct_loader(self) -> LoaderBase:
         loader = HiltiLoader(
             base_folder=self.parsed_args.dataset_dirpath,
-            max_frame_lookahead=self.parsed_args.max_frame_lookahead,
             max_length=self.parsed_args.max_length,
         )
 

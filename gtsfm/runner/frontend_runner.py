@@ -37,8 +37,8 @@ def run_frontend(
     """
     image_pair_indices = loader.get_valid_pairs()
     image_graph = loader.create_computation_graph_for_images()
-    camera_intrinsics_graph = loader.create_computation_graph_for_intrinsics()
-    image_shape_graph = loader.create_computation_graph_for_image_shapes()
+    camera_intrinsics = loader.get_all_intrinsics()
+    image_shapes = loader.get_image_shapes()
 
     # detection and description graph
     keypoints_graph_list = []
@@ -58,13 +58,10 @@ def run_frontend(
             keypoints_i2_graph=keypoints_graph_list[i2],
             descriptors_i1_graph=descriptors_graph_list[i1],
             descriptors_i2_graph=descriptors_graph_list[i2],
-            camera_intrinsics_i1_graph=camera_intrinsics_graph[i1],
-            camera_intrinsics_i2_graph=camera_intrinsics_graph[i2],
-            im_shape_i1_graph=image_shape_graph[i1],
-            im_shape_i2_graph=image_shape_graph[i2],
-            i2Ti1_prior=dask.delayed(None),
-            gt_wTi1_graph=dask.delayed(None),
-            gt_wTi2_graph=dask.delayed(None),
+            camera_intrinsics_i1=camera_intrinsics[i1],
+            camera_intrinsics_i2=camera_intrinsics[i2],
+            im_shape_i1=image_shapes[i1],
+            im_shape_i2=image_shapes[i2],
         )
         i2Ri1_graph_dict[(i1, i2)] = i2Ri1
         i2Ui1_graph_dict[(i1, i2)] = i2Ui1

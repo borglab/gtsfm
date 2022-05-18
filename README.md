@@ -35,7 +35,6 @@ On Linux, with CUDA support:
 conda env create -f environment_linux.yml
 conda activate gtsfm-v1 # you may need "source activate gtsfm-v1" depending upon your bash and conda set-up
 ```
-The Python3.8 `gtsam` wheel for Linux is available [here](https://github.com/borglab/gtsam-manylinux-build/suites/4140410005/artifacts/106127967).
 
 **Mac**
 On Mac OSX, there is no CUDA support, so run:
@@ -43,11 +42,6 @@ On Mac OSX, there is no CUDA support, so run:
 conda env create -f environment_mac.yml
 conda activate gtsfm-v1
 ```
-Download the Python 3.8 gtsam wheel for Mac [here](https://github.com/borglab/gtsam-manylinux-build/suites/4140410005/artifacts/106127969), and install it as
-```bash
-pip install ~/Downloads/gtsam-4.1.1-py3-none-any.whl
-```
-
 ## Completing Installation
 
 Now, install `gtsfm` as a module:

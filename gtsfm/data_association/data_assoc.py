@@ -23,6 +23,7 @@ import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.tracks as track_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.common.pose_prior import PosePrior
 from gtsfm.data_association.point3d_initializer import Point3dInitializer, TriangulationOptions, TriangulationExitCode
 from gtsfm.data_association.dsf_tracks_estimator import DsfTracksEstimator
 from gtsfm.common.image import Image
@@ -58,6 +59,7 @@ class DataAssociation(NamedTuple):
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
         cameras_gt: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
+        relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]],
         images: Optional[List[Image]] = None,
     ) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
         """Perform the data association.
@@ -129,8 +131,9 @@ class DataAssociation(NamedTuple):
         ] / len(tracks_2d)
 
         # pick only the largest connected component
-        # TODO: remove this for hilti as disconnected components not an issue?
-        connected_data = triangulated_data.select_largest_connected_component()
+        # TODO(Ayush): remove this for hilti as disconnected components not an issue?
+        cam_edges_from_prior = [k for k, v in relative_pose_priors.items() if v is not None]
+        connected_data = triangulated_data.select_largest_connected_component(extra_camera_edges=cam_edges_from_prior)
         num_accepted_tracks = connected_data.number_tracks()
         accepted_tracks_ratio = num_accepted_tracks / len(tracks_2d)
 
@@ -186,10 +189,11 @@ class DataAssociation(NamedTuple):
         self,
         num_images: int,
         cameras: Delayed,
-        corr_idxs_graph: Dict[Tuple[int, int], Delayed],
+        corr_idxs_graph: Delayed,
         keypoints_graph: List[Delayed],
-        gt_cameras_graph: List[Optional[Delayed]],
-        images_graph: Optional[Delayed] = None,
+        cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+        images_graph: Optional[List[Delayed]] = None,
     ) -> Tuple[Delayed, Delayed]:
         """Creates a computation graph for performing data association.
 
@@ -198,8 +202,8 @@ class DataAssociation(NamedTuple):
             cameras: list of cameras wrapped up as Delayed.
             corr_idxs_graph: dictionary of correspondence indices, each value wrapped up as Delayed.
             keypoints_graph: list of wrapped up keypoints for each image.
-            gt_cameras_graph: a list of cameras with ground truth params, if they exist, with each object
-                              wrapped up as Delayed.
+            cameras_gt: a list of cameras with ground truth params, if they exist.
+            relative_pose_priors: pose priors on the relative pose between camera poses.
             images_graph: a list of all images in scene (optional and only for track patch visualization)
 
         Returns:
@@ -208,7 +212,7 @@ class DataAssociation(NamedTuple):
                 association result
         """
         ba_input_graph, data_assoc_metrics_graph = dask.delayed(self.run, nout=2)(
-            num_images, cameras, corr_idxs_graph, keypoints_graph, gt_cameras_graph, images_graph
+            num_images, cameras, corr_idxs_graph, keypoints_graph, cameras_gt, relative_pose_priors, images_graph
         )
 
         return ba_input_graph, data_assoc_metrics_graph

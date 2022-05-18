@@ -20,7 +20,6 @@ class TestHiltiLoader(unittest.TestCase):
 
         self.loader = HiltiLoader(
             base_folder=str(TEST_DATASET_DIR_PATH),
-            max_frame_lookahead=1,
             max_length=None,
         )
 
@@ -30,32 +29,17 @@ class TestHiltiLoader(unittest.TestCase):
 
     def test_map_to_rig_idx(self) -> None:
         for i in range(0, 5, 1):
-            self.assertEqual(self.loader.map_image_idx_to_rig(i), 0)
+            self.assertEqual(self.loader.rig_from_image(i), 0)
 
         for i in range(10, 15, 1):
-            self.assertEqual(self.loader.map_image_idx_to_rig(i), 2)
+            self.assertEqual(self.loader.rig_from_image(i), 2)
 
     def test_map_to_camera_idx(self) -> None:
         for i in {0, 5, 25}:
-            self.assertEqual(self.loader.map_index_to_camera(i), 0)
+            self.assertEqual(self.loader.camera_from_image(i), 0)
 
         for i in {2, 12, 32}:
-            self.assertEqual(self.loader.map_index_to_camera(i), 2)
-
-    def test_is_valid_pair(self) -> None:
-        # cameras in the same timestamp
-        self.assertTrue(self.loader.is_valid_pair(0, 3))
-        self.assertFalse(self.loader.is_valid_pair(0, 2))
-
-        # same camera in the next timestamp
-        for i in range(5):
-            self.assertTrue(self.loader.is_valid_pair(i, i + 5))
-
-        # cam0 at t=0 and cam1 at t=0
-        self.assertTrue(self.loader.is_valid_pair(0, 1))
-
-        # cam2 at t=0 and cam2 at t=2
-        self.assertFalse(self.loader.is_valid_pair(2, 12))
+            self.assertEqual(self.loader.camera_from_image(i), 2)
 
     def test_number_of_absolute_pose_priors(self) -> None:
         rig_idxs = list(self.loader._w_T_imu.keys())
@@ -91,28 +75,39 @@ class TestHiltiLoader(unittest.TestCase):
         #     2,
         # )
 
-    def test_get_valid_pairs(self) -> None:
-        i1: int = 5  # cam 0 rig 1
+    def test_number_of_relative_pose_priors(self) -> None:
+        """Check that 3 relative constraints translate into many relative pose priors."""
+        # Just give 3 pairs
+        pairs = [
+            (0, 1),
+            (0, 3),
+            (0, 5),
+        ]
+        expected = [
+            (0, 1),
+            (0, 3),
+            (0, 5),
+            (2, 0),
+            (2, 1),
+            (2, 3),
+            (2, 4),
+            (7, 5),
+            (7, 6),
+            (7, 8),
+            (7, 9),
+            (12, 10),
+            (12, 11),
+            (12, 13),
+            (12, 14),
+        ]
+        expected.sort()
+        # Check that "stars" have been added
+        relative_pose_priors = self.loader.get_relative_pose_priors(pairs)
+        actual = list(relative_pose_priors.keys())
+        actual.sort()
+        self.assertEqual(len(actual), len(pairs) + 3 * 4)
+        self.assertEqual(actual, expected)
 
-        # 0, 1, 3 from other rigs
-        # 1, 3 from the same rig
-        expected_i2s = {
-            0,  # cam 0 rig 0
-            1,  # cam 1 rig 0
-            3,  # cam 3 rig 0
-            6,  # cam 1 rig 1
-            8,  # cam 3 rig 1
-            10,  # cam 0 rig 2
-            11,  # cam 1 rig 2
-            13,  # cam 3 rig 2
-        }
 
-        for i2 in range(len(self.loader)):
-            print(i1, i2)
-            if i2 in expected_i2s:
-                if i1 < i2:
-                    self.assertTrue(self.loader.is_valid_pair(i1, i2))
-                else:
-                    self.assertTrue(self.loader.is_valid_pair(i2, i1))
-            else:
-                self.assertFalse(self.loader.is_valid_pair(i1, i2))
+if __name__ == "__main__":
+    unittest.main()
