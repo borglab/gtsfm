@@ -113,7 +113,7 @@ class PoseSlam:
 
         # Create loose odometry factors for backbone.
         if add_backbone:
-            backbone_cov = np.diag(np.array([np.deg2rad(30.0), np.deg2rad(30.0), np.deg2rad(30.0), 1, 1, 1]))
+            backbone_cov = np.diag(np.array([np.deg2rad(30.0)] * 3 + [1] * 3))
             for i in range(len(poses) - 1):
                 a, b = i, i + 1
                 if (a, b) not in relative_pose_priors:

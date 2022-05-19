@@ -136,13 +136,13 @@ class TestPoseSlam(GtsamTestCase):
 
         # Check that we can initialize with Pose3Initialize
         initial_estimate = InitializePose3.initialize(graph)
-        self.assertAlmostEqual(graph.error(initial_estimate), 267965.28657262615)
+        self.assertAlmostEqual(graph.error(initial_estimate), 261174.85041990175)
 
         # Optimize and Check final error.
         optimizer = LevenbergMarquardtOptimizer(graph, initial_estimate)
         result = optimizer.optimize()
         final_error = graph.error(result)
-        self.assertAlmostEqual(final_error, 10288.082955348931)
+        self.assertAlmostEqual(final_error, 10288.003448505344)
 
 
 if __name__ == "__main__":
