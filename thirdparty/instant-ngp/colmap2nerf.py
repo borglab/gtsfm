@@ -2,7 +2,7 @@
 
 Ref: https://github.com/NVlabs/instant-ngp/blob/master/scripts/colmap2nerf.py
 
-This is a truncated version editted by Ren Liu. 
+This is a truncated version edited by Ren Liu. 
 """
 
 import argparse
