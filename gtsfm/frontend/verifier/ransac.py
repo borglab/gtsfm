@@ -108,7 +108,7 @@ class Ransac(VerifierBase):
             i2Fi1, inlier_mask = cv2.findFundamentalMat(
                 keypoints_i1.extract_indices(match_indices[:, 0]).coordinates,
                 keypoints_i2.extract_indices(match_indices[:, 1]).coordinates,
-                method=cv2.FM_RANSAC,
+                method=cv2.USAC_MAGSAC,
                 ransacReprojThreshold=self._estimation_threshold_px,
                 confidence=RANSAC_SUCCESS_PROB,
                 maxIters=RANSAC_MAX_ITERS,
