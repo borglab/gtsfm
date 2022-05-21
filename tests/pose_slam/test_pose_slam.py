@@ -8,73 +8,11 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import (
-    BetweenFactorPose3,
-    InitializePose3,
-    LevenbergMarquardtOptimizer,
-    NonlinearFactorGraph,
-    Point3,
-    Pose3,
-    PriorFactorPose3,
-    Rot3,
-    Values,
-    noiseModel,
-)
+from gtsam import Point3, Pose3, Rot3
 from gtsam.utils.test_case import GtsamTestCase
 
-from gtsfm.common.constraint import Constraint
 from gtsfm.common.pose_prior import PosePrior, PosePriorType
 from gtsfm.pose_slam.pose_slam import PoseSlam
-
-DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
-EXP07_PATH = DATA_ROOT_PATH / "exp07"
-
-
-def pose_of_vector(pose_vector):
-    """Convert from vector to Pose3"""
-    pose_rotation = Rot3(pose_vector[-1], pose_vector[3], pose_vector[4], pose_vector[5])
-    pose_translation = Point3(pose_vector[:3])
-    return Pose3(pose_rotation, pose_translation)
-
-
-def read_fastlio_result(poses_txt_path: str) -> Tuple[List[Pose3], np.ndarray]:
-    """
-    Read FastLIO result
-    Args:
-        1. The poses txt file path
-        2. The covariance txt file path
-    Returns:
-        1. (poses, covariances)
-    """
-    # remove timestamp column from txt
-    poses = np.loadtxt(poses_txt_path)[:, 1:]
-    timestamps = np.loadtxt(poses_txt_path)[:, 0]
-    return [pose_of_vector(pose) for pose in poses], timestamps
-
-
-def create_initial_estimate(poses: List[Pose3]):
-    """Create initial estimate"""
-    initial_estimate = Values()
-    for i, pose_vector in enumerate(poses):
-        initial_estimate.insert(i, pose_vector)
-    return initial_estimate
-
-
-def generate_pose_graph(poses: List[Pose3], relative_pose_priors: Dict[Tuple[int, int], PosePrior]):
-    """Generate pose graph."""
-    graph = NonlinearFactorGraph()
-
-    # Add the prior factor to the initial pose.
-    prior_pose_factor = PriorFactorPose3(0, poses[0], noiseModel.Isotropic.Sigma(6, 5e-2))
-    graph.add(prior_pose_factor)
-
-    # Add pose priors
-    for (a, b), pose_prior in relative_pose_priors.items():
-        measurement_noise = noiseModel.Gaussian.Covariance(pose_prior.covariance)
-        factor_aTb = BetweenFactorPose3(a, b, pose_prior.value, measurement_noise)
-        graph.add(factor_aTb)
-
-    return graph
 
 
 class TestPoseSlam(GtsamTestCase):
@@ -113,36 +51,6 @@ class TestPoseSlam(GtsamTestCase):
         )
         self.assertIsInstance(delayed_poses, Delayed)
         self.assertIsInstance(metrics, Delayed)
-
-    def test_filter_constraints(self) -> None:
-        """Check that filtering and then doing pose slam on exp07 works as in notebook."""
-        # Read constraints and poses from file.
-        ws = Path(EXP07_PATH)
-        poses_txt_path = ws / "fastlio_odom.txt"
-        constraint_txt_path = ws / "constraints.txt"
-        poses, _ = read_fastlio_result(str(poses_txt_path))
-        constraints = Constraint.read(str(constraint_txt_path))
-        self.assertEqual(len(poses), 1319)
-        self.assertEqual(len(constraints), 10328)
-
-        # Create graph.
-        relative_pose_priors = self.slam.filtered_pose_priors(constraints, poses)
-        graph = generate_pose_graph(poses, relative_pose_priors)
-        self.assertEqual(graph.size(), 10062)
-
-        # Check initial error.
-        initial_estimate = create_initial_estimate(poses)
-        self.assertAlmostEqual(graph.error(initial_estimate), 35111.87458699957)
-
-        # Check that we can initialize with Pose3Initialize
-        initial_estimate = InitializePose3.initialize(graph)
-        self.assertAlmostEqual(graph.error(initial_estimate), 261174.85041990175)
-
-        # Optimize and Check final error.
-        optimizer = LevenbergMarquardtOptimizer(graph, initial_estimate)
-        result = optimizer.optimize()
-        final_error = graph.error(result)
-        self.assertAlmostEqual(final_error, 10288.003448505344)
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ Authors: Ayush Baid
 """
 import glob
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 import yaml
 
 import numpy as np
@@ -101,91 +101,117 @@ class HiltiLoader(LoaderBase):
         self._fastlio_poses = self.__read_fastlio_poses()
 
         # Read the constraints from the lidar/constraints file
-        all_constraints: Dict[Tuple[int, int], Constraint] = self.__load_constraints()
-        logger.info("[hilti_loader] Number of filtered constraints: %d", len(all_constraints))
-        filtered_constraints: Dict[Tuple[int, int], Constraint] = self._filter_outlier_constraints(all_constraints)
-        self._constraints: Dict[Tuple[int, int], Constraint] = self._update_stationary_constraints(filtered_constraints)
+        all_constraints = self._load_constraints()
+        filtered_constraints = list(self._covariance_filtered_constraints(all_constraints))
+        # TODO(Frank): below does *not* give same result if iterable above not converted to list!
+        filtered_constraints = self._filter_outlier_constraints(filtered_constraints)
+        logger.info("[hilti_loader] Number of outlier-filtered constraints: %d", len(filtered_constraints))
+        filtered_constraints = self._update_stationary_constraints(filtered_constraints)
+        self._constraints = {(c.a, c.b): c for c in filtered_constraints}  # convert to dictionary
 
         logger.info("[hilti_loader] Number of constraints: %d", len(self._constraints))
 
         # Read the poses for the IMU for rig indices from g2o file.
-        self._w_T_imu: Dict[int, Pose3] = dict(
-            enumerate(self._fastlio_poses)
-        )  # Quick hack! self.__read_lidar_pose_priors()
+        self._w_T_imu: Dict[int, Pose3] = self.__read_lidar_pose_priors()
 
         logger.info("[hilti_loader] Loading %d timestamps", self.num_rig_poses)
         logger.info("[hilti_loader] Lidar camera available for %d timestamps", len(self._w_T_imu))
 
-    def __load_constraints(self) -> Dict[Tuple[int, int], Constraint]:
+    def _load_constraints(self) -> List[Constraint]:
+        """Read all constraints but discard any out of the requested max length."""
+        # read constraints
         constraints_path = self._base_folder / LIDAR_CONSTRAINTS_RELATIVE_PATH
-        all_constraints = Constraint.read(str(constraints_path))
-        constraints = PoseSlam.filter_constraints(all_constraints, self._fastlio_poses)
-
+        constraints = Constraint.read(str(constraints_path))
         # filter them according to max length
-        constraints = list(filter(lambda c: c.a < self.num_rig_poses and c.b < self.num_rig_poses, constraints))
+        return [c for c in constraints if c.a < self.num_rig_poses and c.b < self.num_rig_poses]
 
-        # cast them to dictionary
-        return {(constraint.a, constraint.b): constraint for constraint in constraints}
+    @staticmethod
+    def _check_covariance(constraint: Constraint, overconfidence_threshold=1e-6) -> bool:
+        """Return false if covariance is bad."""
+        cov = constraint.cov
+        if np.isnan(cov).any() or np.min(np.diag(cov)) < overconfidence_threshold:
+            return False
+        try:
+            info = np.linalg.inv(cov)
+            if np.isnan(info).any():
+                return False
+            else:
+                return True
+        except np.linalg.LinAlgError:
+            return False
 
-    def _update_stationary_constraints(
-        self, constraints: Dict[Tuple[int, int], Constraint]
-    ) -> Dict[Tuple[int, int], Constraint]:
-        updated_constraints = {}
+    @classmethod
+    def _covariance_filtered_constraints(cls, constraints: List[Constraint]) -> Iterable[Constraint]:
+        """Filter constraints to remove those with invalid covariances."""
+        return filter(cls._check_covariance, constraints)
+
+    @classmethod
+    def _error_filtered_constraints(
+        cls, constraints: Iterable[Constraint], poses: List[Pose3], error_threshold=1e8
+    ) -> Iterable[Constraint]:
+        """Filter constraints to remove those with high errors (not used for now)."""
+
+        def acceptable_error(constraint):
+            a, b = constraint.a, constraint.b
+            predicted_aTb = poses[a].between(poses[b])
+            error = np.linalg.norm(constraint.aTb.logmap(predicted_aTb))
+            return error <= error_threshold
+
+        return filter(acceptable_error, constraints)
+
+    @staticmethod
+    def _update_stationary_constraints(constraints: List[Constraint]) -> List[Constraint]:
+        """Detect stationary periods and replace constraints there with 'hard' identity constraints."""
         TRANSLATION_THRESHOLD = 0.02
         ROTATION_THRESHOLD = np.deg2rad(0.5)
-        num_stationary_constraints = 0
-        for (a, b), constraint in constraints.items():
-            # Not stationary if either rotation or translation is high enough.
-            if (
-                np.linalg.norm(Rot3.Logmap(constraint.aTb.rotation())) > ROTATION_THRESHOLD
-                or np.linalg.norm(constraint.aTb.translation()) > TRANSLATION_THRESHOLD
-            ):
-                updated_constraints[(a, b)] = constraint
-                continue
 
-            updated_constraint = Constraint(
-                constraint.a, constraint.b, Pose3(), STATIONARY_POSE_PRIOR_COVARIANCE, constraint.counts
+        def stationary(c):
+            # Not stationary if either rotation or translation is high enough.
+            return (
+                np.linalg.norm(Rot3.Logmap(c.aTb.rotation())) <= ROTATION_THRESHOLD
+                and np.linalg.norm(c.aTb.translation()) <= TRANSLATION_THRESHOLD
             )
-            updated_constraints[(a, b)] = updated_constraint
-            num_stationary_constraints += 1
-        logger.info(f"[hilti loader] Found {num_stationary_constraints} stationary constraints")
+
+        def update(c):
+            return Constraint(c.a, c.b, Pose3(), STATIONARY_POSE_PRIOR_COVARIANCE, c.counts) if stationary(c) else c
+
+        updated_constraints = [update(constraint) for constraint in constraints]
         return updated_constraints
 
-    def _filter_outlier_constraints(
-        self, constraints: Dict[Tuple[int, int], Constraint]
-    ) -> Dict[Tuple[int, int], Constraint]:
+    @staticmethod
+    def _filter_outlier_constraints(constraints: Iterable[Constraint]) -> List[Constraint]:
         """Removes 1-step constraints for which the translation magnitude is greater than 2 or 3-step constraints."""
+        ERROR_MARGIN = 0.1  # meters
+        ROT_SIGMA = np.deg2rad(60)
+        TRANS_SIGMA = 10  # meters
+        FILTERED_COVARIANCE = np.diag([ROT_SIGMA] * 3 + [TRANS_SIGMA] * 3)
+
         constraint_magnitudes = {}
-        for (a, b), constraint in constraints.items():
-            c, d = min(a, b), max(a, b)
+        for constraint in constraints:
+            c, d = min(constraint.a, constraint.b), max(constraint.a, constraint.b)
             # no need to invert, norm will be the same.
             constraint_magnitudes[(c, d)] = np.linalg.norm(constraint.aTb.translation())
 
         def is_higher_step_magnitude_lesser(a, b, all_magnitudes, step_size):
-            ERROR_MARGIN = 0.1  # meters
             c, d = min(a, b), max(a, b)
             this_magnitude = all_magnitudes[(c, d)]
             step_magnitude = all_magnitudes[(c, d + step_size)] if (c, d + step_size) in all_magnitudes else None
             return step_magnitude is not None and this_magnitude - step_magnitude > ERROR_MARGIN
 
-        filtered_constraints = {}
-        rot_sigma = np.deg2rad(60)
-        trans_sigma = 10  # meters
-        FILTERED_COVARIANCE = np.diag([rot_sigma, rot_sigma, rot_sigma, trans_sigma, trans_sigma, trans_sigma])
-        for (a, b), constraint in constraints.items():
+        filtered_constraints = []
+        for constraint in constraints:
+            a, b = constraint.a, constraint.b
             # Accept all constraint with step > 1
             if abs(a - b) != 1:
-                filtered_constraints[(a, b)] = constraint
+                filtered_constraints.append(constraint)
                 continue
             # Do not include if a higher-step magnitude is lesser (for steps of size 2 and 3)
             if is_higher_step_magnitude_lesser(a, b, constraint_magnitudes, 1) or is_higher_step_magnitude_lesser(
                 a, b, constraint_magnitudes, 2
             ):
-                filtered_constraints[(a, b)] = Constraint(
-                    constraint.a, constraint.b, constraint.aTb, FILTERED_COVARIANCE, constraint.counts
-                )
+                filtered_constraints.append(Constraint(a, b, constraint.aTb, FILTERED_COVARIANCE, constraint.counts))
                 continue
-            filtered_constraints[(a, b)] = constraint
+            filtered_constraints.append(constraint)
         return filtered_constraints
 
     def get_all_constraints(self) -> List[Constraint]:

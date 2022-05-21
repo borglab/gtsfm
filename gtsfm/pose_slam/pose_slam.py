@@ -25,104 +25,6 @@ logger = logger_utils.get_logger()
 class PoseSlam:
     """Initializes using PoseSLAM given relative pose priors."""
 
-    @staticmethod
-    def angle(R1, R2):
-        """Calculate angle between two rotations, in degrees."""
-        return np.degrees(np.linalg.norm(R1.logmap(R2)))
-
-    @staticmethod
-    def difference(P1, P2):
-        """Calculate the translation and angle differences of two poses.
-        P1, P2: Pose3
-        Return:
-            distance: translation difference
-            angle: angular difference
-        """
-        # TODO(frank): clean this up
-        t1 = P1.translation()
-        t2 = P2.translation()
-        R1 = P1.rotation()
-        R2 = P2.rotation()
-        R1_2 = R1.compose(R2.inverse())
-        t1_ = R1_2.rotate(t2)
-        # t1_2 = t1 - R1_2*t2
-        distance = np.linalg.norm(t1 - t1_)
-        angle_ = PoseSlam.angle(R1, R2)
-        return distance, angle_
-
-    @staticmethod
-    def check_covariance(cov: np.ndarray) -> bool:
-        """Return false if covariance is bad."""
-        if np.isnan(cov).any():
-            return False
-        try:
-            info = np.linalg.inv(cov)
-            if np.isnan(info).any():
-                return False
-            else:
-                return True
-        except np.linalg.LinAlgError:
-            return False
-
-    @staticmethod
-    def filter_constraints(constraints: List[Constraint], poses: List[Pose3]) -> List[Constraint]:
-        """Filter constraints according to notebook criteria.
-
-        Args:
-            constraints (List[Constraint]): relative constraints from file
-            poses (List[Pose3]): estimated initial values
-
-        Returns:
-            Filtered constraints.
-        """
-
-        filtered_constraints: List[Constraint] = []
-
-        # Filter on covariance and error
-        for constraint in constraints:
-            a, b = constraint.a, constraint.b
-            aTb, cov = constraint.aTb, constraint.cov
-            predicted_aTb = poses[a].between(poses[b])
-            trans_diff, rot_diff = PoseSlam.difference(aTb, predicted_aTb)
-            inlier = (trans_diff <= 0.04) and (rot_diff <= 5)
-            if inlier and PoseSlam.check_covariance(cov):
-                filtered_constraints.append(constraint)
-
-        return filtered_constraints
-
-    @staticmethod
-    def filtered_pose_priors(
-        constraints: List[Constraint], poses: List[Pose3], add_backbone=True
-    ) -> Dict[Tuple[int, int], PosePrior]:
-        """Generate relative pose priors from constraints and initial_estimate by filtering heavily.
-
-        Args:
-            constraints (List[Constraint]): relative constraints from file
-            poses (List[Pose3]): estimated initial values
-            add_backbone (bool, optional): Add soft backbone constraints. Defaults to True.
-
-        Returns:
-            Dict[Tuple[int, int], PosePrior]: dictionary of relative pose priors.
-        """
-
-        relative_pose_priors: Dict[Tuple[int, int], PosePrior] = {}
-        for constraint in PoseSlam.filter_constraints(constraints, poses):
-            a, b = constraint.a, constraint.b
-            aTb, cov = constraint.aTb, constraint.cov
-            relative_pose_priors[(a, b)] = PosePrior(aTb, cov, PosePriorType.SOFT_CONSTRAINT)
-
-        # Create loose odometry factors for backbone.
-        if add_backbone:
-            backbone_cov = np.diag(np.array([np.deg2rad(30.0)] * 3 + [1] * 3))
-            for i in range(len(poses) - 1):
-                a, b = i, i + 1
-                if (a, b) not in relative_pose_priors:
-                    aTb = poses[a].between(poses[b])
-                    relative_pose_priors[(a, b)] = PosePrior(aTb, backbone_cov, PosePriorType.SOFT_CONSTRAINT)
-
-        # Output the resulting poses and pose constraints
-        return relative_pose_priors
-
     def run_pose_slam(
         self,
         num_images: int,
@@ -144,17 +46,14 @@ class PoseSlam:
         pose_init_graph = gtsam.NonlinearFactorGraph()
 
         for (i1, i2), i1Ti2_prior in relative_pose_priors.items():
-            if self.check_covariance(i1Ti2_prior.covariance):
-                pose_init_graph.push_back(
-                    gtsam.BetweenFactorPose3(
-                        i1,
-                        i2,
-                        i1Ti2_prior.value,
-                        gtsam.noiseModel.Gaussian.Covariance(i1Ti2_prior.covariance),
-                    )
+            pose_init_graph.push_back(
+                gtsam.BetweenFactorPose3(
+                    i1,
+                    i2,
+                    i1Ti2_prior.value,
+                    gtsam.noiseModel.Gaussian.Covariance(i1Ti2_prior.covariance),
                 )
-            else:
-                logger.info(f"[pose slam] bad covariance between {i1} and {i2}")
+            )
 
         pose_init_graph.push_back(gtsam.PriorFactorPose3(0, Pose3(), POSE_PRIOR_NOISE))
 
