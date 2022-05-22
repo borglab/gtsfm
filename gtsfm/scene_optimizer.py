@@ -364,8 +364,9 @@ def save_gtsfm_data(
     images: Optional[List[Image]],
     image_shapes: List[Tuple[int, int]],
     image_fnames: List[str],
-    ba_input: GtsfmData,
-    ba_output: GtsfmData,
+    ba_input: Optional[GtsfmData],
+    ba_output: Optional[GtsfmData],
+    save_for_react=True,
 ) -> None:
     """Saves the Gtsfm data before and after bundle adjustment at RESULTS_PATH and a copy at REACT_RESULTS_PATH
 
@@ -377,21 +378,26 @@ def save_gtsfm_data(
         ba_output: output to bundle adjustment module.
     """
 
-    for output_dir in [RESULTS_PATH, REACT_RESULTS_PATH]:
-        io_utils.export_model_as_colmap_text(
-            ba_input,
-            image_shapes,
-            image_fnames,
-            images,
-            save_dir=str(output_dir / "ba_input"),
-        )
-        io_utils.export_model_as_colmap_text(
-            ba_output,
-            image_shapes,
-            image_fnames,
-            images,
-            save_dir=str(output_dir / "ba_output"),
-        )
+    paths = [RESULTS_PATH]
+    if save_for_react:
+        paths += [REACT_RESULTS_PATH]
+    for output_dir in paths:
+        if ba_input is not None:
+            io_utils.export_model_as_colmap_text(
+                ba_input,
+                image_shapes,
+                image_fnames,
+                images,
+                save_dir=str(output_dir / "ba_input"),
+            )
+        if ba_output is not None:
+            io_utils.export_model_as_colmap_text(
+                ba_output,
+                image_shapes,
+                image_fnames,
+                images,
+                save_dir=str(output_dir / "ba_output"),
+            )
 
 
 def save_metrics_reports(metrics_graph_list: List[GtsfmMetricsGroup]) -> None:

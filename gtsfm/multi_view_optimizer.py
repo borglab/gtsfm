@@ -25,14 +25,14 @@ class MultiViewOptimizer:
         trans_avg_module: TranslationAveragingBase,
         data_association_module: DataAssociation,
         bundle_adjustment_module: BundleAdjustmentOptimizer,
-        use_pose_slam_intitialization: bool = False,
+        use_pose_slam_initialization: bool = False,
     ) -> None:
         self.pose_slam_module = PoseSlam()
         self.rot_avg_module = rot_avg_module
         self.trans_avg_module = trans_avg_module
         self.data_association_module = data_association_module
         self.ba_optimizer = bundle_adjustment_module
-        self._use_pose_slam_intitialization = use_pose_slam_intitialization
+        self._use_pose_slam_initialization = use_pose_slam_initialization
 
     def create_computation_graph(
         self,
@@ -73,7 +73,7 @@ class MultiViewOptimizer:
             dask.delayed(i2Ri1_graph), dask.delayed(i2Ui1_graph), relative_pose_priors
         )
 
-        if self._use_pose_slam_intitialization:
+        if self._use_pose_slam_initialization:
             delayed_poses, pose_slam_metrics = self.pose_slam_module.create_computation_graph(
                 num_images, relative_pose_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
             )
@@ -119,7 +119,8 @@ class MultiViewOptimizer:
         ]
 
         # align the sparse multi-view estimate before BA to the ground truth pose graph.
-        ba_input_graph = dask.delayed(ba_input_graph.align_via_Sim3_to_poses)(gt_wTi_list)
+        # TODO(Frank): Why would we do this here? But maybe we should simply fix align_via_Sim3_to_poses
+        # ba_input_graph = dask.delayed(ba_input_graph.align_via_Sim3_to_poses)(gt_wTi_list)
 
         return ba_input_graph, ba_result_graph, multiview_optimizer_metrics_graph
 

@@ -2,15 +2,18 @@
 
 Authors: Akshay Krishnan, Frank Dellaert
 """
+
 from typing import Dict, List, Optional, Tuple
 
 import dask
 import gtsam
+import numpy as np
 from dask.delayed import Delayed
 from gtsam import Pose3
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.common.pose_prior import PosePrior
+from gtsfm.common.constraint import Constraint
+from gtsfm.common.pose_prior import PosePrior, PosePriorType
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 PRIOR_NOISE_SIGMAS = [0.001, 0.001, 0.001, 0.1, 0.1, 0.1]
@@ -20,6 +23,8 @@ logger = logger_utils.get_logger()
 
 
 class PoseSlam:
+    """Initializes using PoseSLAM given relative pose priors."""
+
     def run_pose_slam(
         self,
         num_images: int,
@@ -49,6 +54,7 @@ class PoseSlam:
                     gtsam.noiseModel.Gaussian.Covariance(i1Ti2_prior.covariance),
                 )
             )
+
         pose_init_graph.push_back(gtsam.PriorFactorPose3(0, Pose3(), POSE_PRIOR_NOISE))
 
         initial_values = gtsam.InitializePose3.initialize(pose_init_graph)

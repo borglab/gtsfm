@@ -12,6 +12,7 @@ SceneOptimizer:
       detector_descriptor_obj:
         _target_: gtsfm.frontend.detector_descriptor.superpoint.SuperPointDetectorDescriptor
         max_keypoints: 5000
+        init_model_in_constructor: True
 
   two_view_estimator:
     _target_: gtsfm.frontend.cacher.two_view_cacher.TwoViewCacher
@@ -24,6 +25,7 @@ SceneOptimizer:
       matcher:
         _target_: gtsfm.frontend.matcher.superglue_matcher.SuperGlueMatcher
         use_outdoor_model: True
+        init_model_in_constructor: True
 
       verifier:
         _target_: gtsfm.frontend.verifier.ransac.Ransac
@@ -37,7 +39,7 @@ SceneOptimizer:
 
   multiview_optimizer:
     _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
-    use_pose_slam_intitialization: True
+    use_pose_slam_initialization: True
 
     # comment out to not run
     # view_graph_estimator:

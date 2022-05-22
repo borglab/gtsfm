@@ -1,5 +1,10 @@
-"""Tests for the PoseSlam module."""
+"""Tests for the PoseSlam module.
+
+Authors: Akshay Krishnan, Frank Dellaert
+"""
 import unittest
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from dask.delayed import Delayed
@@ -29,20 +34,18 @@ class TestPoseSlam(GtsamTestCase):
         }
 
         gt_wTi_list = [None, None, None]
-        poses, metrics = self.slam.run_pose_slam(
-            3, relative_pose_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
-        )
+        poses, _ = self.slam.run_pose_slam(3, relative_pose_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list)
         self.assertEqual(len(poses), 3)
         for pose in poses:
             self.assertIsInstance(pose, Pose3)
         self.gtsamAssertEquals(poses[0], Pose3())
         self.gtsamAssertEquals(poses[1], Pose3(Rot3(), Point3(1, 0, 0)))
         self.gtsamAssertEquals(poses[2], Pose3(Rot3(), Point3(2, 0, 0)))
-        
+
     def test_create_computation_graph(self) -> None:
         """Check that the interface works."""
-        relative_pose_priors = {}
-        gt_wTi_list = [None, None, None]
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior] = {}
+        gt_wTi_list: Optional[List[Optional[Pose3]]] = [None, None, None]
         delayed_poses, metrics = self.slam.create_computation_graph(
             3, relative_pose_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
         )

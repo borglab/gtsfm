@@ -27,6 +27,9 @@ class HiltiRunner:
     def __init__(self) -> None:
         argparser: ArgumentParser = self.construct_argparser()
         parsed_args: Namespace = argparser.parse_args()
+        self._save_metrics = parsed_args.save_metrics
+        if not self._save_metrics:
+            logger.info("Will not save metrics")
 
         self.loader = HiltiLoader(
             base_folder=parsed_args.dataset_dirpath, max_length=parsed_args.max_length, subsample=parsed_args.subsample
@@ -69,7 +72,7 @@ class HiltiRunner:
             default=6,
             help="Subsample the timestamps by given value n (pick every nth rig for visual SfM)",
         )
-
+        parser.add_argument("--save_metrics", action="store_true", help="Calculates metrics")
         return parser
 
     def run_frontend(
@@ -142,31 +145,33 @@ class HiltiRunner:
 
     def run_full(self):
         start_time = time.time()
+
+        metrics = []
+        num_images = len(self.loader)
+        gt_wTi_list = self.loader.get_gt_poses()
+        relative_pose_priors = self.loader.get_relative_pose_priors()
+
+        # If using Pose-SLAM, try running that immediately. No point in continuing if fails.
+        if self.scene_optimizer.multiview_optimizer._use_pose_slam_initialization:
+            wTi_list, pose_slam_metrics = self.scene_optimizer.multiview_optimizer.pose_slam_module.run_pose_slam(
+                num_images=num_images, relative_pose_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
+            )
+            if self._save_metrics:
+                metrics.append(pose_slam_metrics)
+
         keypoints_dict, i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, image_shapes = self.run_frontend()
 
-        num_images = len(self.loader)
         keypoints_list = [keypoints_dict.get(i, Keypoints(np.array([[]]))) for i in range(num_images)]
         image_shapes_list = [image_shapes.get(i, (100, 100)) for i in range(num_images)]
-
-        relative_pose_priors = self.loader.get_relative_pose_priors()
-        absolute_pose_priors = self.loader.get_absolute_pose_priors()
-        all_intrinsics = self.loader.get_all_intrinsics()
-        gt_wTi_list = self.loader.get_gt_poses()
-        gt_cameras = self.loader.get_gt_cameras()
 
         pruned_i2Ri1_dict, pruned_i2Ui1_dict = graph_utils.prune_to_largest_connected_component(
             i2Ri1_dict, i2Ui1_dict, relative_pose_priors
         )
 
-        metrics = []
-
-        if self.scene_optimizer.multiview_optimizer._use_pose_slam_intitialization:
-            wTi_list, pose_slam_metrics = self.scene_optimizer.multiview_optimizer.pose_slam_module.run_pose_slam(
-                num_images=num_images, relative_pose_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
-            )
-
-            metrics.append(pose_slam_metrics)
-        else:
+        absolute_pose_priors = self.loader.get_absolute_pose_priors()
+        
+        # If not using Pose-SLAM, we need to run with constraints from front-end.
+        if not self.scene_optimizer.multiview_optimizer._use_pose_slam_initialization:
 
             wRi = self.scene_optimizer.multiview_optimizer.rot_avg_module.run_rotation_averaging(
                 num_images, pruned_i2Ri1_dict, relative_pose_priors
@@ -175,7 +180,8 @@ class HiltiRunner:
                 wRi_computed=wRi, wTi_gt=gt_wTi_list
             )
 
-            metrics.append(rot_avg_metrics)
+            if self._save_metrics:
+                metrics.append(rot_avg_metrics)
 
             wTi_list, ta_metrics = self.scene_optimizer.multiview_optimizer.trans_avg_module.run_translation_averaging(
                 num_images=num_images,
@@ -186,8 +192,11 @@ class HiltiRunner:
                 gt_wTi_list=gt_wTi_list,
             )
 
-            metrics.append(ta_metrics)
+            if self._save_metrics:
+                metrics.append(ta_metrics)
 
+        gt_cameras = self.loader.get_gt_cameras()
+        all_intrinsics = self.loader.get_all_intrinsics()
         initialized_cameras = init_cameras(wTi_list=wTi_list, intrinsics_list=all_intrinsics)
 
         ba_input, da_metrics = self.scene_optimizer.multiview_optimizer.data_association_module.run_da(
@@ -199,7 +208,8 @@ class HiltiRunner:
             relative_pose_priors=relative_pose_priors,
             images=None,
         )
-        metrics.append(da_metrics)
+        if self._save_metrics:
+            metrics.append(da_metrics)
 
         ba_unfiltered, ba_output, _ = self.scene_optimizer.multiview_optimizer.ba_optimizer.run_ba(
             initial_data=ba_input,
@@ -208,18 +218,19 @@ class HiltiRunner:
             verbose=True,
             intrinsics=all_intrinsics,
         )
-        save_gtsfm_data(None, image_shapes_list, self.loader.get_image_fnames(), ba_input, ba_output)
+        save_gtsfm_data(None, image_shapes_list, self.loader.get_image_fnames(), None, ba_output, save_for_react=False)
 
         ba_metrics = self.scene_optimizer.multiview_optimizer.ba_optimizer.evaluate(
             ba_unfiltered, ba_output, gt_cameras
         )
-        metrics.append(ba_metrics)
+        if self._save_metrics:
+            metrics.append(ba_metrics)
 
-        ba_input_aligned = ba_input.align_via_Sim3_to_poses(wTi_list_ref=gt_wTi_list)
-        ba_output_aligned = ba_output.align_via_Sim3_to_poses(wTi_list_ref=gt_wTi_list)
-
-        save_metrics_reports(metrics)
-        save_visualizations(ba_input_aligned, ba_output_aligned, gt_wTi_list)
+        if self._save_metrics:
+            ba_input_aligned = ba_input.align_via_Sim3_to_poses(wTi_list_ref=gt_wTi_list)
+            ba_output_aligned = ba_output.align_via_Sim3_to_poses(wTi_list_ref=gt_wTi_list)
+            save_metrics_reports(metrics)
+            save_visualizations(ba_input_aligned, ba_output_aligned, gt_wTi_list)
 
         end_time = time.time()
         duration_sec = end_time - start_time
