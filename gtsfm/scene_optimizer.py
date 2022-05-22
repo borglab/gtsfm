@@ -5,7 +5,7 @@ Authors: Ayush Baid, John Lambert
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Mapping, Dict, List, Optional, Tuple, Union
 
 import dask
 import matplotlib
@@ -17,6 +17,7 @@ from gtsfm.common.pose_prior import PosePrior
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.evaluation.metrics_report as metrics_report
+from gtsfm.loader.loader_base import LoaderBase
 import gtsfm.utils.ellipsoid as ellipsoid_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
@@ -34,8 +35,8 @@ from gtsfm.two_view_estimator import TwoViewEstimator, TwoViewEstimationReport
 matplotlib.use("Agg")
 
 BASE_PATH_ENV_KEY = "GTSFM_BASE_PATH"
-BASE_PATH = os.environ.get(BASE_PATH_ENV_KEY)
-BASE_PATH = Path(BASE_PATH) if BASE_PATH is not None else Path(__file__).resolve().parent.parent
+BASE_PATH_STR = os.environ.get(BASE_PATH_ENV_KEY)
+BASE_PATH = Path(BASE_PATH_STR) if BASE_PATH_STR is not None else Path(__file__).resolve().parent.parent
 
 # base paths for storage
 PLOT_BASE_PATH = BASE_PATH / "plots"
@@ -107,12 +108,9 @@ class SceneOptimizer:
 
     def create_computation_graph_for_frontend(
         self,
-        image_pair_indices: List[Tuple[int, int]],
+        loader: LoaderBase,
         image_graph: List[Delayed],
-        all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
-        image_shapes: List[Tuple[int, int]],
-        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        gt_poses_graph: List[Optional[Pose3]],
+        image_pair_indices: List[Tuple[int, int]],
         gt_scene_mesh: Optional[Trimesh] = None,
     ) -> Tuple[Dict[Tuple[int, int], Delayed], Dict[Tuple[int, int], Delayed]]:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
@@ -128,6 +126,10 @@ class SceneOptimizer:
         # Estimate two-view geometry and get indices of verified correspondences.
         i2Ri1_graph_dict = {}
         i2Ui1_graph_dict = {}
+        all_intrinsics = loader.get_all_intrinsics()
+        image_shapes = loader.get_image_shapes()
+        gt_wTi_list = loader.get_gt_poses()
+        relative_pose_priors = loader.get_relative_pose_priors()
         for (i1, i2) in image_pair_indices:
             # Collect ground truth relative and absolute poses if available.
             # TODO(johnwlambert): decompose this method -- name it as "calling_the_plate()"
@@ -143,8 +145,8 @@ class SceneOptimizer:
                 image_shapes[i1],
                 image_shapes[i2],
                 relative_pose_priors[(i1, i2)],
-                gt_poses_graph[i1],
-                gt_poses_graph[i2],
+                gt_wTi_list[i1],
+                gt_wTi_list[i2],
                 gt_scene_mesh,
             )
 
@@ -156,24 +158,18 @@ class SceneOptimizer:
 
     def create_computation_graph(
         self,
-        num_images: int,
-        image_pair_indices: List[Tuple[int, int]],
+        loader: LoaderBase,
         image_graph: List[Delayed],
-        all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
-        image_shapes: List[Tuple[int, int]],
-        absolute_pose_priors: List[Optional[PosePrior]],
-        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
-        gt_wTi_list: List[Optional[Pose3]],
-        image_fnames: List[str],
+        image_pair_indices: List[Tuple[int, int]],
         gt_scene_mesh: Optional[Trimesh] = None,
         matching_regime: ImageMatchingRegime = ImageMatchingRegime.SEQUENTIAL,
-    ) -> Tuple[Delayed, List[Delayed]]:
+    ) -> Tuple[Delayed, Dict[str, Delayed]]:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
 
         # detection and description graph
         delayed_keypoints = []
         delayed_descriptors = []
+        image_graph = loader.create_computation_graph_for_images()
         for delayed_image in image_graph:
             (delayed_dets, delayed_descs) = self.feature_extractor.create_computation_graph(delayed_image)
             delayed_keypoints += [delayed_dets]
@@ -183,6 +179,10 @@ class SceneOptimizer:
         i2Ri1_graph_dict = {}
         i2Ui1_graph_dict = {}
         v_corr_idxs_graph_dict: Dict[Tuple[int, int], Delayed] = {}
+        all_intrinsics = loader.get_all_intrinsics()
+        image_shapes = loader.get_image_shapes()
+        gt_wTi_list = loader.get_gt_poses()
+        relative_pose_priors = loader.get_relative_pose_priors()
         for (i1, i2) in image_pair_indices:
             # Collect ground truth relative and absolute poses if available.
             # TODO(johnwlambert): decompose this method -- name it as "calling_the_plate()"
@@ -208,6 +208,10 @@ class SceneOptimizer:
             i2Ui1_graph_dict[(i1, i2)] = i2Ui1
             v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
 
+        num_images = len(loader)
+        absolute_pose_priors = loader.get_absolute_pose_priors()
+        cameras_gt = loader.get_gt_cameras()
+        image_fnames = loader.get_image_fnames()
         return self.create_computation_graph_for_backend(
             num_images=num_images,
             delayed_keypoints=delayed_keypoints,
@@ -228,9 +232,9 @@ class SceneOptimizer:
         self,
         num_images: int,
         delayed_keypoints: List[Delayed],
-        i2Ri1_dict: Dict[Tuple[int, int], Union[Delayed, Optional[Rot3]]],
-        i2Ui1_dict: Dict[Tuple[int, int], Union[Delayed, Optional[Unit3]]],
-        v_corr_idxs_dict: Dict[Tuple[int, int], Union[Delayed, Optional[np.ndarray]]],
+        i2Ri1_dict: Mapping[Tuple[int, int], Union[Delayed, Optional[Rot3]]],
+        i2Ui1_dict: Mapping[Tuple[int, int], Union[Delayed, Optional[Unit3]]],
+        v_corr_idxs_dict: Mapping[Tuple[int, int], Union[Delayed, Optional[np.ndarray]]],
         image_graph: List[Delayed],
         all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         absolute_pose_priors: List[Optional[PosePrior]],
@@ -239,10 +243,10 @@ class SceneOptimizer:
         gt_wTi_list: List[Optional[Pose3]],
         image_shapes: List[Tuple[int, int]],
         image_fnames: List[str],
-    ) -> Tuple[Delayed, List[Delayed]]:
+    ) -> Tuple[Delayed, Dict[str, Delayed]]:
 
         # auxiliary graph elements for visualizations and saving intermediate data for analysis.
-        delayed_results = []
+        delayed_io: Dict[str, Delayed] = {}
 
         # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
         (ba_input_graph, ba_output_graph, optimizer_metrics_graph) = self.multiview_optimizer.create_computation_graph(
@@ -273,11 +277,13 @@ class SceneOptimizer:
         )
 
         if self._save_3d_viz:
-            delayed_results.extend(dask.delayed(save_visualizations)(ba_input_graph, ba_output_graph, gt_wTi_list))
+            delayed_io["save_visualizations"] = dask.delayed(save_visualizations)(
+                ba_input_graph, ba_output_graph, gt_wTi_list
+            )
 
         if self._save_gtsfm_data:
-            delayed_results.extend(
-                dask.delayed(save_gtsfm_data)(image_graph, image_shapes, image_fnames, ba_input_graph, ba_output_graph)
+            delayed_io["save_gtsfm_data"] = dask.delayed(save_gtsfm_data)(
+                image_graph, image_shapes, image_fnames, ba_input_graph, ba_output_graph
             )
 
         if self._run_dense_optimizer:
@@ -290,10 +296,8 @@ class SceneOptimizer:
             ) = self.dense_multiview_optimizer.create_computation_graph(img_dict_graph, ba_output_graph)
 
             # Cast to string as Open3d cannot use PosixPath's for I/O -- only string file paths are accepted.
-            delayed_results.append(
-                dask.delayed(io_utils.save_point_cloud_as_ply)(
-                    save_fpath=str(MVS_PLY_SAVE_FPATH), points=dense_points_graph, rgb=dense_point_colors_graph
-                )
+            delayed_io["save_point_cloud_as_ply"] = dask.delayed(io_utils.save_point_cloud_as_ply)(
+                save_fpath=str(MVS_PLY_SAVE_FPATH), points=dense_points_graph, rgb=dense_point_colors_graph
             )
 
             # Add metrics for dense reconstruction and voxel downsampling
@@ -303,10 +307,10 @@ class SceneOptimizer:
                 metrics_graph_list.append(downsampling_metrics_graph)
 
         # Save metrics to JSON and generate HTML report.
-        delayed_results.extend(dask.delayed(save_metrics_reports)(metrics_graph_list))
+        delayed_io["save_metrics_reports"] = dask.delayed(save_metrics_reports)(metrics_graph_list)
 
         # return the entry with just the sfm result
-        return ba_output_graph, delayed_results
+        return ba_output_graph, delayed_io
 
 
 def get_image_dictionary(image_list: List[Image]) -> Dict[int, Image]:

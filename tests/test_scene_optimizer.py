@@ -39,21 +39,15 @@ class TestSceneOptimizer(unittest.TestCase):
 
             # generate the dask computation graph
             delayed_sfm_result, delayed_io = scene_optimizer.create_computation_graph(
-                num_images=len(self.loader),
+                self.loader,
+                self.loader.create_computation_graph_for_images(),
                 image_pair_indices=self.loader.get_valid_pairs(),
-                image_graph=self.loader.create_computation_graph_for_images(),
-                all_intrinsics=self.loader.get_all_intrinsics(),
-                image_shapes=self.loader.get_image_shapes(),
-                absolute_pose_priors=self.loader.get_absolute_pose_priors(),
-                relative_pose_priors=self.loader.get_relative_pose_priors(),
-                cameras_gt=self.loader.get_gt_cameras(),
-                gt_wTi_list=self.loader.get_gt_poses(),
             )
             # create dask client
             cluster = LocalCluster(n_workers=1, threads_per_worker=4)
 
             with Client(cluster):
-                sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io)
+                sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io.values())
 
             self.assertIsInstance(sfm_result, GtsfmData)
 
