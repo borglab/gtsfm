@@ -6,7 +6,7 @@ import unittest
 
 import gtsam
 import numpy as np
-from gtsam import Cal3Bundler, EssentialMatrix, Pose3, Unit3
+from gtsam import Cal3Bundler, EssentialMatrix, PinholeCameraCal3Bundler, Pose3, Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.io as io_utils
@@ -24,6 +24,35 @@ class TestTwoViewEstimator(unittest.TestCase):
     details.
     """
 
+    def setUp(self):
+        """Create keypoints."""
+        num_points = 5
+        normalized_coordinates_i1 = []
+        normalized_coordinates_i2 = []
+        for i in range(num_points):
+            track = EXAMPLE_DATA.get_track(i)
+            normalized_coordinates_i1.append(track.measurement(0)[1])
+            normalized_coordinates_i2.append(track.measurement(1)[1])
+        normalized_coordinates_i1 = np.array(normalized_coordinates_i1)
+        normalized_coordinates_i2 = np.array(normalized_coordinates_i2)
+        self.keypoints_i1 = Keypoints(normalized_coordinates_i1)
+        self.keypoints_i2 = Keypoints(normalized_coordinates_i2)
+        self.corr_idxs = np.hstack([np.arange(5).reshape(-1, 1)] * 2)
+
+    def test_two_view_correspondences(self):
+        """Tests the bundle adjustment for relative pose on a simulated scene."""
+
+        i1Ri2 = EXAMPLE_DATA.get_camera(1).pose().rotation()
+        i1ti2 = EXAMPLE_DATA.get_camera(1).pose().translation()
+        i2Ti1 = Pose3(i1Ri2, i1ti2)
+        camera_i1 = PinholeCameraCal3Bundler(Pose3(), Cal3Bundler())
+        camera_i2 = PinholeCameraCal3Bundler(i2Ti1, Cal3Bundler())
+        tracks_3d, valid_indices = TwoViewEstimator.triangulate_two_view_correspondences(
+            camera_i1, camera_i2, self.keypoints_i1, self.keypoints_i2, self.corr_idxs
+        )
+        self.assertEqual(len(tracks_3d), 5)
+        self.assertEqual(len(valid_indices), 5)
+
     def test_bundle_adjust(self):
         """Tests the bundle adjustment for relative pose on a simulated scene."""
         two_view_estimator = TwoViewEstimator(
@@ -36,26 +65,16 @@ class TestTwoViewEstimator(unittest.TestCase):
         i2Ti1 = Pose3(i1Ri2, i1ti2).inverse()
         i2Ei1 = EssentialMatrix(i2Ti1.rotation(), Unit3(i2Ti1.translation()))
 
-        # Prepare tracks from the measurements.
-        num_points = 5
-        normalized_coordinates_i1 = []
-        normalized_coordinates_i2 = []
-        for i in range(num_points):
-            track = EXAMPLE_DATA.get_track(i)
-            normalized_coordinates_i1.append(track.measurement(0)[1])
-            normalized_coordinates_i2.append(track.measurement(1)[1])
-        normalized_coordinates_i1 = np.array(normalized_coordinates_i1)
-        normalized_coordinates_i2 = np.array(normalized_coordinates_i2)
-
         # Perform bundle adjustment.
         i2Ri1_optimized, i2Ui1_optimized, corr_idxs = two_view_estimator.bundle_adjust(
-            keypoints_i1=Keypoints(normalized_coordinates_i1),
-            keypoints_i2=Keypoints(normalized_coordinates_i2),
-            verified_corr_idxs=np.hstack([np.arange(normalized_coordinates_i1.shape[0]).reshape(-1, 1)] * 2),
+            keypoints_i1=self.keypoints_i1,
+            keypoints_i2=self.keypoints_i2,
+            verified_corr_idxs=self.corr_idxs,
             camera_intrinsics_i1=Cal3Bundler(),
             camera_intrinsics_i2=Cal3Bundler(),
             i2Ri1_initial=i2Ei1.rotation(),
             i2Ui1_initial=i2Ei1.direction(),
+            i2Ti1_prior=None,
         )
 
         # Assert
@@ -65,9 +84,7 @@ class TestTwoViewEstimator(unittest.TestCase):
         )
         self.assertLessEqual(rotation_angular_error, 1)
         self.assertLessEqual(translation_angular_error, 1)
-        np.testing.assert_allclose(
-            corr_idxs, np.hstack([np.arange(normalized_coordinates_i1.shape[0]).reshape(-1, 1)] * 2)
-        )
+        np.testing.assert_allclose(corr_idxs, self.corr_idxs)
 
 
 if __name__ == "__main__":

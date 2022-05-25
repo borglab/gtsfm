@@ -1,5 +1,6 @@
 import argparse
 
+import dask
 import hydra
 from dask.distributed import Client, LocalCluster, performance_report
 from hydra.utils import instantiate
@@ -30,20 +31,20 @@ def run_scene_optimizer(args: argparse.Namespace) -> None:
             max_resolution=args.max_resolution,
         )
 
-        sfm_result_graph = scene_optimizer.create_computation_graph(
+        delayed_sfm_result, delayed_io = scene_optimizer.create_computation_graph(
             num_images=len(loader),
             image_pair_indices=loader.get_valid_pairs(),
             image_graph=loader.create_computation_graph_for_images(),
-            camera_intrinsics_graph=loader.create_computation_graph_for_intrinsics(),
-            image_shape_graph=loader.create_computation_graph_for_image_shapes(),
-            gt_cameras_graph=loader.create_computation_graph_for_cameras(),
+            all_intrinsics=loader.get_all_intrinsics(),
+            image_shapes=loader.get_image_shapes(),
+            cameras_gt=loader.get_gt_cameras(),
         )
 
         # create dask client
         cluster = LocalCluster(n_workers=args.num_workers, threads_per_worker=args.threads_per_worker)
 
         with Client(cluster), performance_report(filename="dask-report.html"):
-            sfm_result = sfm_result_graph.compute()
+            sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io)
 
         assert isinstance(sfm_result, GtsfmData)
         scene_avg_reproj_error = sfm_result.get_avg_scene_reprojection_error()

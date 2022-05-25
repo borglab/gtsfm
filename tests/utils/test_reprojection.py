@@ -1,7 +1,6 @@
 import numpy as np
 from gtsam import Cal3Bundler, Rot3, PinholeCameraCal3Bundler, Pose3, SfmTrack
 
-from gtsfm.common.image import Image
 from gtsfm.common.sfm_track import SfmMeasurement
 import gtsfm.utils.reprojection as reproj_utils
 

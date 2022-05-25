@@ -128,7 +128,7 @@ class TestPoint3dInitializer(unittest.TestCase):
         return np.allclose(point3d, LANDMARK_POINT)
 
     def __runWithOneMeasurement(self, obj: Point3dInitializer) -> bool:
-        """Run the initialization with a track with all correct measurements, and checks for a None track as a result."""
+        """Run initialization with a track with all correct measurements, and checks for a None track as a result."""
         sfm_track, _, _ = obj.triangulate(SfmTrack2d(MEASUREMENTS[:1]))
 
         return sfm_track is None

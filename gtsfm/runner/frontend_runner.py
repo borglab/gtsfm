@@ -17,7 +17,9 @@ from gtsfm.two_view_estimator import TwoViewEstimator
 
 def run_frontend(
     loader: LoaderBase, feature_extractor: FeatureExtractor, two_view_estimator: TwoViewEstimator
-) -> Tuple[List[Keypoints], Dict[Tuple[int,int], Rot3], Dict[Tuple[int,int], Unit3], Dict[Tuple[int,int], np.ndarray]]:
+) -> Tuple[
+    List[Keypoints], Dict[Tuple[int, int], Rot3], Dict[Tuple[int, int], Unit3], Dict[Tuple[int, int], np.ndarray]
+]:
     """Creates the front-end computation graph, and then runs it.
 
     Note: Copied from SceneOptimizer class, without back-end code.
@@ -35,8 +37,8 @@ def run_frontend(
     """
     image_pair_indices = loader.get_valid_pairs()
     image_graph = loader.create_computation_graph_for_images()
-    camera_intrinsics_graph = loader.create_computation_graph_for_intrinsics()
-    image_shape_graph = loader.create_computation_graph_for_image_shapes()
+    camera_intrinsics = loader.get_all_intrinsics()
+    image_shapes = loader.get_image_shapes()
 
     # detection and description graph
     keypoints_graph_list = []
@@ -52,14 +54,14 @@ def run_frontend(
     v_corr_idxs_graph_dict: Dict[Tuple[int, int], Delayed] = {}
     for (i1, i2) in image_pair_indices:
         (i2Ri1, i2Ui1, v_corr_idxs, two_view_report) = two_view_estimator.create_computation_graph(
-            keypoints_graph_list[i1],
-            keypoints_graph_list[i2],
-            descriptors_graph_list[i1],
-            descriptors_graph_list[i2],
-            camera_intrinsics_graph[i1],
-            camera_intrinsics_graph[i2],
-            image_shape_graph[i1],
-            image_shape_graph[i2],
+            keypoints_i1_graph=keypoints_graph_list[i1],
+            keypoints_i2_graph=keypoints_graph_list[i2],
+            descriptors_i1_graph=descriptors_graph_list[i1],
+            descriptors_i2_graph=descriptors_graph_list[i2],
+            camera_intrinsics_i1=camera_intrinsics[i1],
+            camera_intrinsics_i2=camera_intrinsics[i2],
+            im_shape_i1=image_shapes[i1],
+            im_shape_i2=image_shapes[i2],
         )
         i2Ri1_graph_dict[(i1, i2)] = i2Ri1
         i2Ui1_graph_dict[(i1, i2)] = i2Ui1

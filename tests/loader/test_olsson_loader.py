@@ -113,7 +113,7 @@ class TestFolderLoader(unittest.TestCase):
         """Tests getter for intrinsics when explicit numpy arrays are absent, exif is missing, and we raise an error."""
         loader = OlssonLoader(NO_EXIF_FOLDER, image_extension="JPG")
         with pytest.raises(ValueError):
-            computed = loader.get_camera_intrinsics(5)
+            _ = loader.get_camera_intrinsics(5)
 
     def test_create_computation_graph_for_images(self) -> None:
         """Tests the graph for loading all the images."""
@@ -127,19 +127,17 @@ class TestFolderLoader(unittest.TestCase):
         np.testing.assert_allclose(results[5].value_array, self.loader.get_image(5).value_array)
         np.testing.assert_allclose(results[7].value_array, self.loader.get_image(7).value_array)
 
-    def test_create_computation_graph_for_intrinsics(self) -> None:
+    def test_get_all_intrinsics(self) -> None:
         """Tests the graph for all intrinsics."""
 
-        intrinsics_graph = self.loader.create_computation_graph_for_intrinsics()
+        all_intrinsics = self.loader.get_all_intrinsics()
 
         # check the length of the graph
-        self.assertEqual(12, len(intrinsics_graph))
-
-        results = dask.compute(intrinsics_graph)[0]
+        self.assertEqual(12, len(all_intrinsics))
 
         # randomly check intrinsics from a few indices
-        self.assertTrue(self.loader.get_camera_intrinsics(5).equals(results[5], 1e-5))
-        self.assertTrue(self.loader.get_camera_intrinsics(7).equals(results[7], 1e-5))
+        self.assertTrue(self.loader.get_camera_intrinsics(5).equals(all_intrinsics[5], 1e-5))
+        self.assertTrue(self.loader.get_camera_intrinsics(7).equals(all_intrinsics[7], 1e-5))
 
     @patch("gtsfm.loader.loader_base.LoaderBase.is_valid_pair", return_value=True)
     def test_is_valid_pair_within_lookahead(self, base_is_valid_pair_mock: MagicMock) -> None:

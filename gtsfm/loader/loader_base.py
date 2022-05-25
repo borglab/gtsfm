@@ -4,15 +4,17 @@ Authors: Frank Dellaert and Ayush Baid
 """
 
 import abc
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import dask
 from dask.delayed import Delayed
-from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3
+from gtsam import Cal3Bundler, Pose3
 
+import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.images as img_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
+from gtsfm.common.pose_prior import PosePrior
 
 
 logger = logger_utils.get_logger()
@@ -24,7 +26,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
     The loader provides APIs to get an image, either directly or as a dask delayed task
     """
 
-    def __init__(self, max_resolution: int) -> None:
+    def __init__(self, max_resolution: int = 1080) -> None:
         """
         Args:
             max_resolution: integer representing maximum length of image's short side
@@ -61,7 +63,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
 
     # ignored-abstractmethod
     @abc.abstractmethod
-    def get_camera_intrinsics_full_res(self, index: int) -> Optional[Cal3Bundler]:
+    def get_camera_intrinsics_full_res(self, index: int) -> Optional[gtsfm_types.CALIBRATION_TYPE]:
         """Get the camera intrinsics at the given index, valid for a full-resolution image.
 
         Args:
@@ -83,7 +85,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
             the camera pose w_P_index.
         """
 
-    def get_camera(self, index: int) -> Optional[PinholeCameraCal3Bundler]:
+    def get_camera(self, index: int) -> Optional[gtsfm_types.CAMERA_TYPE]:
         """Gets the camera at the given index.
 
         Args:
@@ -98,7 +100,9 @@ class LoaderBase(metaclass=abc.ABCMeta):
         if pose is None or intrinsics is None:
             return None
 
-        return PinholeCameraCal3Bundler(pose, intrinsics)
+        camera_type = gtsfm_types.get_camera_class_for_calibration(intrinsics)
+
+        return camera_type(pose, intrinsics)
 
     def is_valid_pair(self, idx1: int, idx2: int) -> bool:
         """Checks if (idx1, idx2) is a valid pair. idx1 < idx2 is required.
@@ -155,7 +159,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
         resized_img = img_utils.resize_image(img_full_res, new_height=target_h, new_width=target_w)
         return resized_img
 
-    def get_camera_intrinsics(self, index: int) -> Cal3Bundler:
+    def get_camera_intrinsics(self, index: int) -> Optional[gtsfm_types.CALIBRATION_TYPE]:
         """Get the camera intrinsics at the given index, for a possibly resized image.
 
         Determine how the camera intrinsics and images should be jointly rescaled based on desired img. resolution.
@@ -196,6 +200,51 @@ class LoaderBase(metaclass=abc.ABCMeta):
         image = self.get_image(idx)
         return (image.height, image.width)
 
+    def get_relative_pose_prior(self, i1: int, i2: int) -> Optional[PosePrior]:
+        """Get the prior on the relative pose i2Ti1
+
+        Args:
+            i1 (int): index of first image
+            i2 (int): index of second image
+
+        Returns:
+            Pose prior, if there is one.
+        """
+        return None
+
+    def get_relative_pose_priors(self, pairs: List[Tuple[int, int]]) -> Dict[Tuple[int, int], PosePrior]:
+        """Get *all* relative pose priors for i2Ti1
+
+        Args:
+            pairs: all (i1,i2) pairs of image pairs
+
+        Returns:
+            A dictionary of PosePriors (or None) for all pairs.
+        """
+
+        pairs = {pair: self.get_relative_pose_prior(*pair) for pair in pairs}
+        return {pair: prior for pair, prior in pairs.items() if prior is not None}
+
+    def get_absolute_pose_prior(self, idx: int) -> Optional[PosePrior]:
+        """Get the prior on the pose of camera at idx in the world coordinates.
+
+        Args:
+            idx (int): index of the camera
+
+        Returns:
+            pose prior, if there is one.
+        """
+        return None
+
+    def get_absolute_pose_priors(self) -> List[Optional[PosePrior]]:
+        """Get *all* absolute pose priors
+
+        Returns:
+            A list of (optional) pose priors.
+        """
+        N = len(self)
+        return [self.get_absolute_pose_prior(i) for i in range(N)]
+
     def create_computation_graph_for_images(self) -> List[Delayed]:
         """Creates the computation graph for image fetches.
 
@@ -203,54 +252,43 @@ class LoaderBase(metaclass=abc.ABCMeta):
             list of delayed tasks for images.
         """
         N = len(self)
+        return [dask.delayed(self.get_image)(i) for i in range(N)]
 
-        return [dask.delayed(self.get_image)(x) for x in range(N)]
-
-    def create_computation_graph_for_intrinsics(self) -> List[Delayed]:
-        """Creates the computation graph for camera intrinsics.
-
-        Returns:
-            list of delayed tasks for camera intrinsics.
-        """
-        N = len(self)
-
-        return [dask.delayed(self.get_camera_intrinsics)(x) for x in range(N)]
-
-    def create_computation_graph_for_poses(self) -> Optional[List[Delayed]]:
-        """Creates the computation graph for camera poses.
+    def get_all_intrinsics(self) -> List[Optional[gtsfm_types.CALIBRATION_TYPE]]:
+        """Return all the camera intrinsics.
 
         Returns:
-            list of delayed tasks for camera poses.
+            list of camera intrinsics.
         """
         N = len(self)
+        return [self.get_camera_intrinsics(i) for i in range(N)]
 
-        if self.get_camera_pose(0) is None:
-            # if the 0^th pose is None, we assume none of the pose are available
-            return None
-
-        return [dask.delayed(self.get_camera_pose)(x) for x in range(N)]
-
-    def create_computation_graph_for_cameras(self) -> Optional[List[Delayed]]:
-        """Creates the computation graph for cameras.
+    def get_gt_poses(self) -> List[Optional[Pose3]]:
+        """Return all the camera poses.
 
         Returns:
-            OList of delayed tasks for cameras.
+            list of ground truth camera poses, if available.
         """
         N = len(self)
+        return [self.get_camera_pose(i) for i in range(N)]
 
-        if self.get_camera(0) is None:
-            return None
+    def get_gt_cameras(self) -> List[Optional[gtsfm_types.CAMERA_TYPE]]:
+        """Return all the cameras.
 
-        return [dask.delayed(self.get_camera)(i) for i in range(N)]
+        Returns:
+            List of ground truth cameras, if available.
+        """
+        N = len(self)
+        return [self.get_camera(i) for i in range(N)]
 
-    def create_computation_graph_for_image_shapes(self) -> List[Delayed]:
-        """Creates the computation graph for image shapes.
+    def get_image_shapes(self) -> List[Tuple[int,int]]:
+        """Return all the image shapes.
 
         Returns:
             list of delayed tasks for image shapes.
         """
         N = len(self)
-        return [dask.delayed(self.get_image_shape)(x) for x in range(N)]
+        return [self.get_image_shape(i) for i in range(N)]
 
     def get_valid_pairs(self) -> List[Tuple[int, int]]:
         """Get the valid pairs of images for this loader.
@@ -258,11 +296,11 @@ class LoaderBase(metaclass=abc.ABCMeta):
         Returns:
             list of valid index pairs.
         """
-        indices = []
+        pairs = []
 
         for idx1 in range(self.__len__()):
             for idx2 in range(self.__len__()):
                 if self.is_valid_pair(idx1, idx2):
-                    indices.append((idx1, idx2))
+                    pairs.append((idx1, idx2))
 
-        return indices
+        return pairs

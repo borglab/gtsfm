@@ -27,10 +27,11 @@ class TestShonanAveragingReproducibility(ReproducibilityTestBase, unittest.TestC
         super().setUp()
         with open(str(RELATIVE_ROTATIONS_PATH), "rb") as f:
             self._input: Dict[Tuple[int, int], Rot3] = pickle.load(f)
+        self._priors = {edge: None for edge in self._input.keys()}
         self._shonan_obj: RotationAveragingBase = ShonanRotationAveraging()
 
     def run_once(self) -> List[Optional[Rot3]]:
-        return self._shonan_obj.run(num_images=NUM_IMAGES_IN_INPUT, i2Ri1_dict=self._input)
+        return self._shonan_obj.run(num_images=NUM_IMAGES_IN_INPUT, i2Ri1_dict=self._input, i2Ri1_priors=self._priors)
 
     def assert_results(self, results_a: List[Optional[Rot3]], results_b: List[Optional[Rot3]]) -> None:
         self.assertTrue(geometry_comparisons.compare_rotations(results_a, results_b, ROT3_DIFF_ANGLE_THRESHOLD_DEG))

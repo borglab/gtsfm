@@ -10,7 +10,7 @@ from typing import Optional, Tuple
 
 import dask
 import numpy as np
-from gtsam import Cal3Bundler, EssentialMatrix, PinholeCameraCal3Bundler, Point3, Pose3, Rot3, Unit3
+from gtsam import Cal3Bundler, EssentialMatrix, PinholeCameraCal3Bundler, Pose3, Rot3, Unit3
 
 import gtsfm.utils.features as feature_utils
 import gtsfm.utils.geometry_comparisons as geom_comp_utils
@@ -20,7 +20,7 @@ from gtsfm.frontend.verifier.ransac import Ransac
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
 RANDOM_SEED = 15
-UINT32_MAX = 2 ** 32  # MAX VALUE OF UINT32 type
+UINT32_MAX = 2**32  # MAX VALUE OF UINT32 type
 
 ROTATION_ANGULAR_ERROR_DEG_THRESHOLD = 2
 DIRECTION_ANGULAR_ERROR_DEG_THRESHOLD = 2

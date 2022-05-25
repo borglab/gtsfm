@@ -41,10 +41,11 @@ dependencies:
   - plotly=4.14.3
   - tabulate
   - pip:
-    - open3d # conda-forge version does not support M1 Macs. 
+    - open3d
     - opencv-python>=4.5.4.58 # pypi has a more recent distribution than conda-forge
     - pydegensac
     - colour
     - argoverse @ git+https://github.com/argoai/argoverse-api.git@master
     - trimesh[easy]
     - pycolmap>=0.1.0
+    - gtsam==4.2a7

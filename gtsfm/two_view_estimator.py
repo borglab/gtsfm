@@ -4,29 +4,31 @@ Authors: Ayush Baid, John Lambert
 """
 import logging
 import timeit
-from typing import Dict, Optional, Tuple, List
+from typing import Any, Dict, Optional, Tuple, List
 
 import dask
 import gtsam
 import numpy as np
 from dask.delayed import Delayed
 from gtsam import (
-    Cal3Bundler,
     CameraSetCal3Bundler,
+    CameraSetCal3Fisheye,
+    PinholeCameraCal3Bundler,
     Point2Vector,
     Pose3,
-    PinholeCameraCal3Bundler,
     Rot3,
     SfmTrack,
     Unit3,
 )
 
+import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.data_association.point3d_initializer import SVD_DLT_RANK_TOL
 from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
@@ -60,6 +62,7 @@ class TwoViewEstimator:
         bundle_adjust_2view: bool,
         eval_threshold_px: float,
         bundle_adjust_2view_maxiters: int = 100,
+        ba_reproj_error_thresh: float = 0.5,
     ) -> None:
         """Initializes the two-view estimator from matcher and verifier.
 
@@ -71,6 +74,8 @@ class TwoViewEstimator:
             eval_threshold_px: distance threshold for marking a correspondence pair as inlier during evaluation
                 (not during estimation).
             bundle_adjust_2view_maxiters (optional): max number of iterations for 2-view BA. Defaults to 100.
+            ba_reproj_error_thresh (optional): reprojection threshold used to filter features after 2-view BA.
+                                               Defaults to 0.5.
         """
         self._matcher = matcher
         self._verifier = verifier
@@ -78,18 +83,20 @@ class TwoViewEstimator:
         self._bundle_adjust_2view = bundle_adjust_2view
         self._corr_metric_dist_threshold = eval_threshold_px
         self._ba_optimizer = BundleAdjustmentOptimizer(
-            robust_measurement_noise=True, max_iterations=bundle_adjust_2view_maxiters
+            output_reproj_error_thresh=ba_reproj_error_thresh,
+            robust_measurement_noise=True,
+            max_iterations=bundle_adjust_2view_maxiters,
         )
 
     @classmethod
     def triangulate_two_view_correspondences(
         cls,
-        camera_i1: PinholeCameraCal3Bundler,
-        camera_i2: PinholeCameraCal3Bundler,
+        camera_i1: gtsfm_types.CAMERA_TYPE,
+        camera_i2: gtsfm_types.CAMERA_TYPE,
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
         corr_idxs: np.ndarray,
-    ):
+    ) -> Tuple[List[SfmTrack], List[int]]:
         """Triangulate 2-view correspondences to form 3d tracks.
 
         Args:
@@ -100,16 +107,18 @@ class TwoViewEstimator:
             corr_idxs: indices of corresponding keypoints.
 
         Returns:
-            Triangulated 3D points.
+            Triangulated 3D points as tracks.
         """
-        camera_set = CameraSetCal3Bundler()
+        camera_set = (
+            CameraSetCal3Bundler() if isinstance(camera_i1, PinholeCameraCal3Bundler) else CameraSetCal3Fisheye()
+        )
         camera_set.append(camera_i1)
         camera_set.append(camera_i2)
 
         tracks_3d: List[SfmTrack] = []
-        for i in range(len(corr_idxs)):
+        valid_indices: List[int] = []
+        for j, (idx1, idx2) in enumerate(corr_idxs):
             track_2d = Point2Vector()
-            idx1, idx2 = corr_idxs[i, :]
             track_2d.append(keypoints_i1.coordinates[idx1])
             track_2d.append(keypoints_i2.coordinates[idx2])
 
@@ -121,20 +130,23 @@ class TwoViewEstimator:
                 track_3d.addMeasurement(0, track_2d[0])
                 track_3d.addMeasurement(1, track_2d[1])
                 tracks_3d.append(track_3d)
+                valid_indices.append(j)
             except RuntimeError:
                 pass
+                # logger.error(e)
 
-        return tracks_3d
+        return tracks_3d, valid_indices
 
     def bundle_adjust(
         self,
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
         verified_corr_idxs: np.ndarray,
-        camera_intrinsics_i1: Cal3Bundler,
-        camera_intrinsics_i2: Cal3Bundler,
+        camera_intrinsics_i1: gtsfm_types.CALIBRATION_TYPE,
+        camera_intrinsics_i2: gtsfm_types.CALIBRATION_TYPE,
         i2Ri1_initial: Optional[Rot3],
         i2Ui1_initial: Optional[Unit3],
+        i2Ti1_prior: Optional[PosePrior],
     ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
         """Refine the relative pose using bundle adjustment on the 2-view scene.
 
@@ -146,23 +158,31 @@ class TwoViewEstimator:
             camera_intrinsics_i2: intrinsics for i2.
             i2Ri1_initial: the relative rotation to be used as initial rotation between cameras.
             i2Ui1_initial: the relative unit direction, to be used to initialize initial translation between cameras.
+            i2Ti1_prior: prior on the relative pose for cameras (i1, i2).
         Returns:
             Optimized relative rotation i2Ri1.
             Optimized unit translation i2Ui1.
             Optimized verified_corr_idxs.
         """
-        if i2Ri1_initial is None or i2Ui1_initial is None:
+        i2Ti1_from_verifier: Optional[Pose3] = (
+            Pose3(i2Ri1_initial, i2Ui1_initial.point3()) if i2Ri1_initial is not None else None
+        )
+        i2Ti1_initial: Optional[Pose3] = self.__generate_initial_pose_for_bundle_adjustment(
+            i2Ti1_from_verifier, i2Ti1_prior
+        )
+
+        if i2Ti1_initial is None:
             return None, None, verified_corr_idxs
 
-        i2Ti1_initial = Pose3(i2Ri1_initial, i2Ui1_initial.point3())
-
         # Set the i1 camera pose as the global coordinate system.
-        camera_i1 = PinholeCameraCal3Bundler(Pose3(), camera_intrinsics_i1)
-        camera_i2 = PinholeCameraCal3Bundler(i2Ti1_initial.inverse(), camera_intrinsics_i2)
+        camera_class = gtsfm_types.get_camera_class_for_calibration(camera_intrinsics_i1)
+        camera_i1 = camera_class(Pose3(), camera_intrinsics_i1)
+        camera_i2 = camera_class(i2Ti1_initial.inverse(), camera_intrinsics_i2)
 
         # Perform data association to construct 2-view BA input.
         start_time = timeit.default_timer()
-        triangulated_tracks: List[SfmTrack] = self.triangulate_two_view_correspondences(
+        # TODO: add flag to switch between verified and putative correspondences.
+        triangulated_tracks, triangulated_indices = self.triangulate_two_view_correspondences(
             camera_i1=camera_i1,
             camera_i2=camera_i2,
             keypoints_i1=keypoints_i1,
@@ -170,6 +190,10 @@ class TwoViewEstimator:
             corr_idxs=verified_corr_idxs,
         )
         logger.debug("Performed DA in %.6f seconds.", timeit.default_timer() - start_time)
+        logger.debug("Triangulated %d correspondences out of %d.", len(triangulated_tracks), len(verified_corr_idxs))
+
+        if len(triangulated_tracks) == 0:
+            return i2Ti1_initial.rotation(), Unit3(i2Ti1_initial.translation()), np.array([], dtype=np.uint32)
 
         # Perform 2-view BA.
         start_time = timeit.default_timer()
@@ -178,146 +202,145 @@ class TwoViewEstimator:
         ba_input.add_camera(1, camera_i2)
         for track in triangulated_tracks:
             ba_input.add_track(track)
-        ba_output, _ = self._ba_optimizer.run(ba_input, verbose=False)
+
+        relative_pose_prior_for_ba = {}
+        if i2Ti1_prior is not None:
+            relative_pose_prior_for_ba = {(0, 1): i2Ti1_prior}
+
+        _, ba_output, valid_mask = self._ba_optimizer.run(
+            ba_input, absolute_pose_priors=[], relative_pose_priors=relative_pose_prior_for_ba, verbose=False
+        )
+        valid_corr_idxs = verified_corr_idxs[triangulated_indices][valid_mask]
         wTi1, wTi2 = ba_output.get_camera_poses()  # extract the camera poses
         if wTi1 is None or wTi2 is None:
             logger.warning("2-view BA failed")
-            return i2Ri1_initial, i2Ui1_initial, verified_corr_idxs
+            return i2Ri1_initial, i2Ui1_initial, valid_corr_idxs
         i2Ti1_optimized = wTi2.between(wTi1)
         logger.debug("Performed 2-view BA in %.6f seconds.", timeit.default_timer() - start_time)
 
-        return i2Ti1_optimized.rotation(), Unit3(i2Ti1_optimized.translation()), verified_corr_idxs
+        return i2Ti1_optimized.rotation(), Unit3(i2Ti1_optimized.translation()), valid_corr_idxs
+
+    def __generate_initial_pose_for_bundle_adjustment(
+        self, i2Ti1_from_verifier: Optional[Pose3], i2Ti1_prior: Optional[PosePrior]
+    ) -> Optional[Pose3]:
+        """Use the combination of pose recovered from the verifier and the prior information to get the pose
+        initialization for 2-view BA.
+
+        Logic:
+        1. If the prior value exists, use the prior as the initial value.
+        2. Otherwise, use the verifier output as initial value.
+
+        Args:
+            i2Ti1_from_verifier: relative pose recovered from verifier.
+            i2Ti1_prior: relative pose prior.
+
+        Returns:
+            Pose to be used for initialization.
+        """
+        if i2Ti1_prior is None and i2Ti1_from_verifier is None:
+            return None
+        elif i2Ti1_prior is not None:
+            return i2Ti1_prior.value
+        else:
+            return i2Ti1_from_verifier
 
     def get_corr_metric_dist_threshold(self) -> float:
         """Getter for the distance threshold used in the metric for correct correspondences."""
         return self._corr_metric_dist_threshold
 
-    def create_computation_graph(
+    def run(
         self,
-        keypoints_i1_graph: Delayed,
-        keypoints_i2_graph: Delayed,
-        descriptors_i1_graph: Delayed,
-        descriptors_i2_graph: Delayed,
-        camera_intrinsics_i1_graph: Delayed,
-        camera_intrinsics_i2_graph: Delayed,
-        im_shape_i1_graph: Delayed,
-        im_shape_i2_graph: Delayed,
-        gt_wTi1_graph: Optional[Delayed] = None,
-        gt_wTi2_graph: Optional[Delayed] = None,
-        gt_scene_mesh_graph: Optional[Delayed] = None,
-    ) -> Tuple[Delayed, Delayed, Delayed, Dict[str, Delayed]]:
-        """Create delayed tasks for matching and verification.
-
-        Args:
-            keypoints_i1_graph: keypoints for image i1.
-            keypoints_i2_graph: keypoints for image i2.
-            descriptors_i1_graph: corr. descriptors for image i1.
-            descriptors_i2_graph: corr. descriptors for image i2.
-            camera_intrinsics_i1_graph: intrinsics for camera i1.
-            camera_intrinsics_i2_graph: intrinsics for camera i2.
-            im_shape_i1_graph: image shape for image i1.
-            im_shape_i2_graph: image shape for image i2.
-            i2Ti1_expected_graph (optional): ground truth relative pose, used for evaluation if available. Defaults to
-                                             None.
-
-        Returns:
-            Computed relative rotation wrapped as Delayed.
-            Computed relative translation direction wrapped as Delayed.
-            Indices of verified correspondences wrapped as Delayed.
-            Two-view reports at different stages (pre BA, post BA, and post inlier-support-processor), as a dictionary.
-        """
-
+        keypoints_i1: Keypoints,
+        keypoints_i2: Keypoints,
+        descriptors_i1: np.ndarray,
+        descriptors_i2: np.ndarray,
+        camera_intrinsics_i1: Optional[gtsfm_types.CALIBRATION_TYPE],
+        camera_intrinsics_i2: Optional[gtsfm_types.CALIBRATION_TYPE],
+        im_shape_i1: Tuple[int, int],
+        im_shape_i2: Tuple[int, int],
+        i2Ti1_prior: Optional[PosePrior],
+        gt_wTi1: Optional[Pose3],
+        gt_wTi2: Optional[Pose3],
+        gt_scene_mesh: Optional[Any] = None,
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, Dict[str, Optional[TwoViewEstimationReport]]]:
         # graph for matching to obtain putative correspondences
-        putative_corr_idxs = self._matcher.create_computation_graph(
-            keypoints_i1_graph,
-            keypoints_i2_graph,
-            descriptors_i1_graph,
-            descriptors_i2_graph,
-            im_shape_i1_graph,
-            im_shape_i2_graph,
+        putative_corr_idxs = self._matcher.match(
+            keypoints_i1,
+            keypoints_i2,
+            descriptors_i1,
+            descriptors_i2,
+            im_shape_i1,
+            im_shape_i2,
         )
 
         # verification on putative correspondences to obtain relative pose and verified correspondences\
-        # TODO: name this verified_correspondence_idxs (add note: everything here is delayed)
-        (
-            pre_ba_i2Ri1,
-            pre_ba_i2Ui1,
-            pre_ba_v_corr_idxs,
-            inlier_ratio_wrt_estimate,
-        ) = self._verifier.create_computation_graph(
-            keypoints_i1_graph,
-            keypoints_i2_graph,
+        (pre_ba_i2Ri1, pre_ba_i2Ui1, verified_corr_idxs, inlier_ratio_wrt_estimate,) = self._verifier.verify(
+            keypoints_i1,
+            keypoints_i2,
             putative_corr_idxs,
-            camera_intrinsics_i1_graph,
-            camera_intrinsics_i2_graph,
+            camera_intrinsics_i1,
+            camera_intrinsics_i2,
         )
 
-        if self._bundle_adjust_2view:
-            post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs = dask.delayed(self.bundle_adjust, nout=3)(
-                keypoints_i1_graph,
-                keypoints_i2_graph,
-                pre_ba_v_corr_idxs,
-                camera_intrinsics_i1_graph,
-                camera_intrinsics_i2_graph,
-                pre_ba_i2Ri1,
-                pre_ba_i2Ui1,
-            )
-        else:
-            post_ba_i2Ri1 = pre_ba_i2Ri1
-            post_ba_i2Ui1 = pre_ba_i2Ui1
-            post_ba_v_corr_idxs = pre_ba_v_corr_idxs
-
         # if we have the expected GT data, evaluate the computed relative pose
-        if gt_wTi1_graph is not None and gt_wTi2_graph is not None:
-            i2Ti1_expected_graph = gt_wTi2_graph.between(gt_wTi1_graph)
-            pre_ba_R_error_deg, pre_ba_U_error_deg = dask.delayed(compute_relative_pose_metrics, nout=2)(
-                pre_ba_i2Ri1, pre_ba_i2Ui1, i2Ti1_expected_graph
-            )
-            post_ba_R_error_deg, post_ba_U_error_deg = dask.delayed(compute_relative_pose_metrics, nout=2)(
-                post_ba_i2Ri1, post_ba_i2Ui1, i2Ti1_expected_graph
-            )
-            pre_ba_inlier_mask_wrt_gt, pre_ba_reproj_error_wrt_gt = dask.delayed(
-                metric_utils.compute_correspondence_metrics, nout=2
-            )(
-                keypoints_i1_graph,
-                keypoints_i2_graph,
-                pre_ba_v_corr_idxs,
-                camera_intrinsics_i1_graph,
-                camera_intrinsics_i2_graph,
-                self._corr_metric_dist_threshold,
-                gt_wTi1_graph,
-                gt_wTi2_graph,
-                gt_scene_mesh_graph,
-            )
-            post_ba_inlier_mask_wrt_gt, post_ba_reproj_error_wrt_gt = dask.delayed(
-                metric_utils.compute_correspondence_metrics, nout=2
-            )(
-                keypoints_i1_graph,
-                keypoints_i2_graph,
-                post_ba_v_corr_idxs,
-                camera_intrinsics_i1_graph,
-                camera_intrinsics_i2_graph,
-                self._corr_metric_dist_threshold,
-                gt_wTi1_graph,
-                gt_wTi2_graph,
-                gt_scene_mesh_graph,
-            )
-        else:
-            pre_ba_R_error_deg, pre_ba_U_error_deg = None, None
-            post_ba_R_error_deg, post_ba_U_error_deg = None, None
-            pre_ba_inlier_mask_wrt_gt, pre_ba_reproj_error_wrt_gt = None, None
-            post_ba_inlier_mask_wrt_gt, post_ba_reproj_error_wrt_gt = None, None
-
-        pre_ba_report = dask.delayed(generate_two_view_report)(
+        pre_ba_R_error_deg, pre_ba_U_error_deg = compute_relative_pose_metrics(
+            pre_ba_i2Ri1, pre_ba_i2Ui1, gt_wTi1, gt_wTi2
+        )
+        pre_ba_inlier_mask_wrt_gt, pre_ba_reproj_error_wrt_gt = metric_utils.compute_correspondence_metrics(
+            keypoints_i1,
+            keypoints_i2,
+            verified_corr_idxs,
+            camera_intrinsics_i1,
+            camera_intrinsics_i2,
+            self._corr_metric_dist_threshold,
+            gt_wTi1,
+            gt_wTi2,
+            gt_scene_mesh,
+        )
+        pre_ba_report = generate_two_view_report(
             inlier_ratio_wrt_estimate,
-            pre_ba_v_corr_idxs,
+            verified_corr_idxs,
             R_error_deg=pre_ba_R_error_deg,
             U_error_deg=pre_ba_U_error_deg,
             v_corr_idxs_inlier_mask_gt=pre_ba_inlier_mask_wrt_gt,
             reproj_error_gt_model=pre_ba_reproj_error_wrt_gt,
         )
 
-        post_ba_report = dask.delayed(generate_two_view_report)(
+        # Optionally, do two-view bundle adjustment
+        if self._bundle_adjust_2view:
+            post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs = self.bundle_adjust(
+                keypoints_i1,
+                keypoints_i2,
+                verified_corr_idxs,
+                camera_intrinsics_i1,
+                camera_intrinsics_i2,
+                pre_ba_i2Ri1,
+                pre_ba_i2Ui1,
+                i2Ti1_prior,
+            )
+        else:
+            post_ba_i2Ri1 = pre_ba_i2Ri1
+            post_ba_i2Ui1 = pre_ba_i2Ui1
+            post_ba_v_corr_idxs = verified_corr_idxs
+
+        # if we have the expected GT data, evaluate the computed relative pose, post BA
+        # TODO(frank): why do all this in the case we do *not* do 2-view BA?
+        post_ba_R_error_deg, post_ba_U_error_deg = compute_relative_pose_metrics(
+            post_ba_i2Ri1, post_ba_i2Ui1, gt_wTi1, gt_wTi2
+        )
+        post_ba_inlier_mask_wrt_gt, post_ba_reproj_error_wrt_gt = metric_utils.compute_correspondence_metrics(
+            keypoints_i1,
+            keypoints_i2,
+            post_ba_v_corr_idxs,
+            camera_intrinsics_i1,
+            camera_intrinsics_i2,
+            self._corr_metric_dist_threshold,
+            gt_wTi1,
+            gt_wTi2,
+            gt_scene_mesh,
+        )
+
+        post_ba_report = generate_two_view_report(
             inlier_ratio_wrt_estimate,  # TODO: dont store ratios so that we can update them
             post_ba_v_corr_idxs,
             R_error_deg=post_ba_R_error_deg,
@@ -331,7 +354,7 @@ class TwoViewEstimator:
             post_isp_i2Ui1,
             post_isp_v_corr_idxs,
             post_isp_report,
-        ) = self.processor.create_computation_graph(post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, post_ba_report)
+        ) = self.processor.run(post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, post_ba_report)
 
         two_view_reports = {
             PRE_BA_REPORT_TAG: pre_ba_report,
@@ -340,6 +363,56 @@ class TwoViewEstimator:
         }
 
         return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs, two_view_reports
+
+    def create_computation_graph(
+        self,
+        keypoints_i1_graph: Delayed,
+        keypoints_i2_graph: Delayed,
+        descriptors_i1_graph: Delayed,
+        descriptors_i2_graph: Delayed,
+        camera_intrinsics_i1: Optional[gtsfm_types.CALIBRATION_TYPE],
+        camera_intrinsics_i2: Optional[gtsfm_types.CALIBRATION_TYPE],
+        im_shape_i1: Tuple[int, int],
+        im_shape_i2: Tuple[int, int],
+        i2Ti1_prior: Optional[PosePrior] = None,
+        gt_wTi1: Optional[Pose3] = None,
+        gt_wTi2: Optional[Pose3] = None,
+        gt_scene_mesh_graph: Optional[Delayed] = None,
+    ) -> Tuple[Delayed, Delayed, Delayed, Delayed]:
+        """Create delayed tasks for matching and verification.
+
+        Args:
+            keypoints_i1_graph: keypoints for image i1.
+            keypoints_i2_graph: keypoints for image i2.
+            descriptors_i1_graph: corr. descriptors for image i1.
+            descriptors_i2_graph: corr. descriptors for image i2.
+            camera_intrinsics_i1: intrinsics for camera i1.
+            camera_intrinsics_i2: intrinsics for camera i2.
+            im_shape_i1: image shape for image i1.
+            im_shape_i2: image shape for image i2.
+            i2Ti1_prior: the prior on relative pose i2Ti1.
+            i2Ti1_expected_graph (optional): ground truth relative pose, used for evaluation if available.
+
+        Returns:
+            Computed relative rotation wrapped as Delayed.
+            Computed relative translation direction wrapped as Delayed.
+            Indices of verified correspondences wrapped as Delayed.
+            Two-view reports at different stages (pre BA, post BA, and post inlier-support-processor), as a dictionary.
+        """
+        return dask.delayed(self.run, nout=4)(
+            keypoints_i1=keypoints_i1_graph,
+            keypoints_i2=keypoints_i2_graph,
+            descriptors_i1=descriptors_i1_graph,
+            descriptors_i2=descriptors_i2_graph,
+            camera_intrinsics_i1=camera_intrinsics_i1,
+            camera_intrinsics_i2=camera_intrinsics_i2,
+            im_shape_i1=im_shape_i1,
+            im_shape_i2=im_shape_i2,
+            i2Ti1_prior=i2Ti1_prior,
+            gt_wTi1=gt_wTi1,
+            gt_wTi2=gt_wTi2,
+            gt_scene_mesh=gt_scene_mesh_graph,
+        )
 
 
 def generate_two_view_report(
@@ -385,7 +458,10 @@ def generate_two_view_report(
 
 
 def compute_relative_pose_metrics(
-    i2Ri1_computed: Optional[Rot3], i2Ui1_computed: Optional[Unit3], i2Ti1_expected: Pose3
+    i2Ri1_computed: Optional[Rot3],
+    i2Ui1_computed: Optional[Unit3],
+    wTi1_expected: Optional[Pose3],
+    wTi2_expected: Optional[Pose3],
 ) -> Tuple[Optional[float], Optional[float]]:
     """Compute the metrics on relative camera pose.
 
@@ -398,10 +474,14 @@ def compute_relative_pose_metrics(
         Rotation error, in degrees
         Unit translation error, in degrees
     """
-    R_error_deg = comp_utils.compute_relative_rotation_angle(i2Ri1_computed, i2Ti1_expected.rotation())
-    U_error_deg = comp_utils.compute_relative_unit_translation_angle(
-        i2Ui1_computed, Unit3(i2Ti1_expected.translation())
-    )
+    if wTi1_expected is not None and wTi2_expected is not None:
+        i2Ti1_expected = wTi2_expected.between(wTi1_expected)
+        R_error_deg = comp_utils.compute_relative_rotation_angle(i2Ri1_computed, i2Ti1_expected.rotation())
+        U_error_deg = comp_utils.compute_relative_unit_translation_angle(
+            i2Ui1_computed, Unit3(i2Ti1_expected.translation())
+        )
+    else:
+        return (None, None)
 
     return (R_error_deg, U_error_deg)
 
@@ -427,8 +507,8 @@ def aggregate_frontend_metrics(
     num_image_pairs = len(two_view_reports_dict.keys())
 
     # all rotational errors in degrees
-    rot3_angular_errors: List[float] = []
-    trans_angular_errors: List[float] = []
+    rot3_angular_errors_list: List[float] = []
+    trans_angular_errors_list: List[float] = []
 
     inlier_ratio_gt_model_all_pairs = []
     inlier_ratio_est_model_all_pairs = []
@@ -439,17 +519,17 @@ def aggregate_frontend_metrics(
         if report is None:
             continue
         if report.R_error_deg is not None:
-            rot3_angular_errors.append(report.R_error_deg)
+            rot3_angular_errors_list.append(report.R_error_deg)
         if report.U_error_deg is not None:
-            trans_angular_errors.append(report.U_error_deg)
+            trans_angular_errors_list.append(report.U_error_deg)
 
         inlier_ratio_gt_model_all_pairs.append(report.inlier_ratio_gt_model)
         inlier_ratio_est_model_all_pairs.append(report.inlier_ratio_est_model)
         num_inliers_gt_model_all_pairs.append(report.num_inliers_gt_model)
         num_inliers_est_model_all_pairs.append(report.num_inliers_est_model)
 
-    rot3_angular_errors = np.array(rot3_angular_errors, dtype=float)
-    trans_angular_errors = np.array(trans_angular_errors, dtype=float)
+    rot3_angular_errors = np.array(rot3_angular_errors_list, dtype=float)
+    trans_angular_errors = np.array(trans_angular_errors_list, dtype=float)
     # count number of rot3 errors which are not None. Should be same in rot3/unit3
     num_valid_image_pairs = np.count_nonzero(~np.isnan(rot3_angular_errors))
 
