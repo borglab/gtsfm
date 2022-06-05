@@ -61,10 +61,10 @@ function download_and_unzip_dataset_files {
     WGET_URL1=https://www.dropbox.com/s/q02mgq1unbw068t/2011205_rc3.zip
     ZIP_FNAME=2011205_rc3.zip
 
-  elif [ "$DATASET_NAME" == "lettuce" ]; then
+  elif [ "$DATASET_NAME" == "lettuce-18" ]; then
     # Description: images captured from BORG lab hydroponics experiments
-    export GDRIVE_FILEID='1W-O8C5ONWs2GDSD07BpEVWAGzIfx0LnM'
-    ZIP_FNAME=lettuce.zip
+    export GDRIVE_FILEID='12HW6a7moTXP9H66HiGZCsdRKdEWl8gWC'
+    ZIP_FNAME=lettuce-18.zip
   fi
 
   # Download the data.
@@ -128,8 +128,8 @@ function download_and_unzip_dataset_files {
   elif [ "$DATASET_NAME" == "2011205_rc3" ]; then
     unzip -qq 2011205_rc3.zip
 
-  elif [ "$DATASET_NAME" == "lettuce" ]; then
-    unzip -qq lettuce.zip
+  elif [ "$DATASET_NAME" == "lettuce-18" ]; then
+    unzip -qq lettuce-18.zip
   fi
 }
 
