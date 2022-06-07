@@ -20,14 +20,14 @@ class FeatureExtractor:
         """
         self.detector_descriptor = detector_descriptor
 
-    def create_computation_graph(self, image_graph: Delayed) -> Tuple[Delayed, Delayed]:
+    def create_computation_graph(self, image: Delayed) -> Tuple[Delayed, Delayed]:
         """Given an image, create detection and descriptor generation tasks
 
         Args:
-            image_graph: image wrapped up in Delayed
+            image: image wrapped up in Delayed
 
         Returns:
             Delayed object for detected keypoints.
             Delayed object for corr. descriptors.
         """
-        return self.detector_descriptor.create_computation_graph(image_graph)
+        return self.detector_descriptor.create_computation_graph(image)

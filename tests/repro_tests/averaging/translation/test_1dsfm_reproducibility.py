@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
 import gtsam
-from gtsam import BinaryMeasurementsUnit3, Point3, Pose3, Rot3, Unit3
+from gtsam import BinaryMeasurementsUnit3, Pose3, Rot3, Unit3
 
 import gtsfm.averaging.translation.averaging_1dsfm as averaging_1dsfm
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
@@ -36,17 +36,15 @@ class Test1DSFMReproducibility(ReproducibilityTestBase, unittest.TestCase):
         with open(str(GLOBAL_ROTATIONS_PATH), "rb") as f:
             self._global_rotations_input: List[Optional[Rot3]] = pickle.load(f)
 
-    def run_once(self) -> List[Optional[Point3]]:
+    def run_once(self) -> List[Optional[Pose3]]:
         return self._1dsfm_obj.run_translation_averaging(
             num_images=NUM_IMAGES_IN_INPUT,
             i2Ui1_dict=self._relative_unit_translations_input,
             wRi_list=self._global_rotations_input,
         )[0]
 
-    def assert_results(self, results_a: List[Optional[Point3]], results_b: List[Optional[Point3]]) -> None:
-        poses_a = [Pose3(R, t) if t is not None else None for R, t in zip(self._global_rotations_input, results_a)]
-        poses_b = [Pose3(R, t) if t is not None else None for R, t in zip(self._global_rotations_input, results_b)]
-        self.assertTrue(geometry_comparisons.compare_global_poses(poses_a, poses_b))
+    def assert_results(self, results_a: List[Optional[Pose3]], results_b: List[Optional[Pose3]]) -> None:
+        self.assertTrue(geometry_comparisons.compare_global_poses(results_a, results_b))
 
 
 class Test1DSFMInlierMaskReproducibility(ReproducibilityTestBase, unittest.TestCase):

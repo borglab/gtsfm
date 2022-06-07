@@ -12,7 +12,6 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.loader.astronet_loader import AstronetLoader
-from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.runner.gtsfm_runner_base import GtsfmRunnerBase
 
 logger = logger_utils.get_logger()

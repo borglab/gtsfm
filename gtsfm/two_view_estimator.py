@@ -34,7 +34,6 @@ from gtsfm.data_association.point3d_initializer import SVD_DLT_RANK_TOL
 from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
-from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 
 logger = logger_utils.get_logger()
@@ -189,8 +188,8 @@ class TwoViewEstimator:
             keypoints_i2=keypoints_i2,
             corr_idxs=verified_corr_idxs,
         )
-        logger.debug("[Two view optimizer] Performed DA in %.6f seconds.", timeit.default_timer() - start_time)
-        logger.debug("[Two view optimizer] Triangulated %d correspondences out of %d.", len(triangulated_tracks), len(verified_corr_idxs))
+        logger.debug("Performed DA in %.6f seconds.", timeit.default_timer() - start_time)
+        logger.debug("Triangulated %d correspondences out of %d.", len(triangulated_tracks), len(verified_corr_idxs))
 
         if len(triangulated_tracks) == 0:
             return i2Ti1_initial.rotation(), Unit3(i2Ti1_initial.translation()), np.array([], dtype=np.uint32)
@@ -216,7 +215,7 @@ class TwoViewEstimator:
             logger.warning("2-view BA failed")
             return i2Ri1_initial, i2Ui1_initial, valid_corr_idxs
         i2Ti1_optimized = wTi2.between(wTi1)
-        logger.debug("[Two view optimizer] Performed 2-view BA in %.6f seconds.", timeit.default_timer() - start_time)
+        logger.debug("Performed 2-view BA in %.6f seconds.", timeit.default_timer() - start_time)
 
         return i2Ti1_optimized.rotation(), Unit3(i2Ti1_optimized.translation()), valid_corr_idxs
 
@@ -262,7 +261,7 @@ class TwoViewEstimator:
         gt_wTi1: Optional[Pose3],
         gt_wTi2: Optional[Pose3],
         gt_scene_mesh: Optional[Any] = None,
-    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, Dict[str, Optional[TwoViewEstimationReport]]]:
         # graph for matching to obtain putative correspondences
         putative_corr_idxs = self._matcher.match(
             keypoints_i1,
@@ -297,14 +296,14 @@ class TwoViewEstimator:
             gt_wTi2,
             gt_scene_mesh,
         )
-        # pre_ba_report = generate_two_view_report(
-        #     inlier_ratio_wrt_estimate,
-        #     verified_corr_idxs,
-        #     R_error_deg=pre_ba_R_error_deg,
-        #     U_error_deg=pre_ba_U_error_deg,
-        #     v_corr_idxs_inlier_mask_gt=pre_ba_inlier_mask_wrt_gt,
-        #     reproj_error_gt_model=pre_ba_reproj_error_wrt_gt,
-        # )
+        pre_ba_report = generate_two_view_report(
+            inlier_ratio_wrt_estimate,
+            verified_corr_idxs,
+            R_error_deg=pre_ba_R_error_deg,
+            U_error_deg=pre_ba_U_error_deg,
+            v_corr_idxs_inlier_mask_gt=pre_ba_inlier_mask_wrt_gt,
+            reproj_error_gt_model=pre_ba_reproj_error_wrt_gt,
+        )
 
         # Optionally, do two-view bundle adjustment
         if self._bundle_adjust_2view:
@@ -353,57 +352,66 @@ class TwoViewEstimator:
             post_isp_i2Ri1,
             post_isp_i2Ui1,
             post_isp_v_corr_idxs,
-            _,
+            post_isp_report,
         ) = self.processor.run_inlier_support(post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, post_ba_report)
 
-        return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs
+        two_view_reports = {
+            PRE_BA_REPORT_TAG: pre_ba_report,
+            POST_BA_REPORT_TAG: post_ba_report,
+            POST_ISP_REPORT_TAG: post_isp_report,
+        }
+
+        return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs, two_view_reports
 
     def create_computation_graph(
         self,
-        keypoints_i1_graph: Delayed,
-        keypoints_i2_graph: Delayed,
-        descriptors_i1_graph: Delayed,
-        descriptors_i2_graph: Delayed,
+        keypoints_i1: Delayed,
+        keypoints_i2: Delayed,
+        descriptors_i1: Delayed,
+        descriptors_i2: Delayed,
         camera_intrinsics_i1: Optional[gtsfm_types.CALIBRATION_TYPE],
         camera_intrinsics_i2: Optional[gtsfm_types.CALIBRATION_TYPE],
         im_shape_i1: Tuple[int, int],
         im_shape_i2: Tuple[int, int],
         i2Ti1_prior: Optional[PosePrior],
-        gt_wTi1_graph: Optional[Pose3],
-        gt_wTi2_graph: Optional[Pose3],
-        gt_scene_mesh_graph: Optional[Delayed] = None,
-    ) -> Tuple[Delayed, Delayed, Delayed]:
+        gt_wTi1: Optional[Pose3],
+        gt_wTi2: Optional[Pose3],
+        gt_scene_mesh_graph: Optional[Any] = None,
+    ) -> Tuple[Delayed, Delayed, Delayed, Delayed]:
         """Create delayed tasks for matching and verification.
 
         Args:
-            keypoints_i1_graph: keypoints for image i1.
-            keypoints_i2_graph: keypoints for image i2.
-            descriptors_i1_graph: corr. descriptors for image i1.
-            descriptors_i2_graph: corr. descriptors for image i2.
+            keypoints_i1: keypoints for image i1.
+            keypoints_i2: keypoints for image i2.
+            descriptors_i1: corr. descriptors for image i1.
+            descriptors_i2: corr. descriptors for image i2.
             camera_intrinsics_i1: intrinsics for camera i1.
             camera_intrinsics_i2: intrinsics for camera i2.
             im_shape_i1: image shape for image i1.
             im_shape_i2: image shape for image i2.
-            i2Ti1_prior: the prior on relative pose i2Ti1.
-            i2Ti1_expected_graph (optional): ground truth relative pose, used for evaluation if available.
+            i2Ti1_prior (optional): the prior on relative pose i2Ti1.
+            gt_wTi1: ground truth camera pose for i1, to be used for metrics.
+            gt_wTi2: ground truth camera pose for i2, to be used for metrics.
+            gt_scene_mesh_graph: ground truth scene mesh, to be used for metrics.
 
         Returns:
             Computed relative rotation wrapped as Delayed.
             Computed relative translation direction wrapped as Delayed.
             Indices of verified correspondences wrapped as Delayed.
+            Two-view reports at different stages (pre BA, post BA, and post inlier-support-processor), as a dictionary.
         """
-        return dask.delayed(self.run_2view, nout=3)(
-            keypoints_i1=keypoints_i1_graph,
-            keypoints_i2=keypoints_i2_graph,
-            descriptors_i1=descriptors_i1_graph,
-            descriptors_i2=descriptors_i2_graph,
+        return dask.delayed(self.run_2view, nout=4)(
+            keypoints_i1=keypoints_i1,
+            keypoints_i2=keypoints_i2,
+            descriptors_i1=descriptors_i1,
+            descriptors_i2=descriptors_i2,
             camera_intrinsics_i1=camera_intrinsics_i1,
             camera_intrinsics_i2=camera_intrinsics_i2,
             im_shape_i1=im_shape_i1,
             im_shape_i2=im_shape_i2,
             i2Ti1_prior=i2Ti1_prior,
-            gt_wTi1=gt_wTi1_graph,
-            gt_wTi2=gt_wTi2_graph,
+            gt_wTi1=gt_wTi1,
+            gt_wTi2=gt_wTi2,
             gt_scene_mesh=gt_scene_mesh_graph,
         )
 
@@ -477,111 +485,3 @@ def compute_relative_pose_metrics(
         return (None, None)
 
     return (R_error_deg, U_error_deg)
-
-
-def aggregate_frontend_metrics(
-    two_view_reports_dict: Dict[Tuple[int, int], Optional[TwoViewEstimationReport]],
-    angular_err_threshold_deg: float,
-    metric_group_name: str,
-) -> None:
-    """Aggregate the front-end metrics to log summary statistics.
-
-    We define "pose error" as the maximum of the angular errors in rotation and translation, per:
-        SuperGlue, CVPR 2020: https://arxiv.org/pdf/1911.11763.pdf
-        Learning to find good correspondences. CVPR 2018:
-        OA-Net, ICCV 2019:
-        NG-RANSAC, ICCV 2019:
-
-    Args:
-        two_view_report_dict: report containing front-end metrics for each image pair.
-        angular_err_threshold_deg: threshold for classifying angular error metrics as success.
-        metric_group_name: name we will assign to the GtsfmMetricGroup returned by this fn.
-    """
-    num_image_pairs = len(two_view_reports_dict.keys())
-
-    # all rotational errors in degrees
-    rot3_angular_errors_list: List[float] = []
-    trans_angular_errors_list: List[float] = []
-
-    inlier_ratio_gt_model_all_pairs = []
-    inlier_ratio_est_model_all_pairs = []
-    num_inliers_gt_model_all_pairs = []
-    num_inliers_est_model_all_pairs = []
-    # populate the distributions
-    for report in two_view_reports_dict.values():
-        if report is None:
-            continue
-        if report.R_error_deg is not None:
-            rot3_angular_errors_list.append(report.R_error_deg)
-        if report.U_error_deg is not None:
-            trans_angular_errors_list.append(report.U_error_deg)
-
-        inlier_ratio_gt_model_all_pairs.append(report.inlier_ratio_gt_model)
-        inlier_ratio_est_model_all_pairs.append(report.inlier_ratio_est_model)
-        num_inliers_gt_model_all_pairs.append(report.num_inliers_gt_model)
-        num_inliers_est_model_all_pairs.append(report.num_inliers_est_model)
-
-    rot3_angular_errors = np.array(rot3_angular_errors_list, dtype=float)
-    trans_angular_errors = np.array(trans_angular_errors_list, dtype=float)
-    # count number of rot3 errors which are not None. Should be same in rot3/unit3
-    num_valid_image_pairs = np.count_nonzero(~np.isnan(rot3_angular_errors))
-
-    # compute pose errors by picking the max error from rot3 and unit3 errors
-    pose_errors = np.maximum(rot3_angular_errors, trans_angular_errors)
-
-    # check errors against the threshold
-    success_count_rot3 = np.sum(rot3_angular_errors < angular_err_threshold_deg)
-    success_count_unit3 = np.sum(trans_angular_errors < angular_err_threshold_deg)
-    success_count_pose = np.sum(pose_errors < angular_err_threshold_deg)
-
-    # count image pair entries where inlier ratio w.r.t. GT model == 1.
-    all_correct = np.count_nonzero(
-        [report.inlier_ratio_gt_model == 1.0 for report in two_view_reports_dict.values() if report is not None]
-    )
-
-    logger.debug(
-        "[Two view optimizer] [Summary] Rotation success: %d/%d/%d",
-        success_count_rot3,
-        num_valid_image_pairs,
-        num_image_pairs,
-    )
-
-    logger.debug(
-        "[Two view optimizer] [Summary] Translation success: %d/%d/%d",
-        success_count_unit3,
-        num_valid_image_pairs,
-        num_image_pairs,
-    )
-
-    logger.debug(
-        "[Two view optimizer] [Summary] Pose success: %d/%d/%d",
-        success_count_pose,
-        num_valid_image_pairs,
-        num_image_pairs,
-    )
-
-    logger.debug(
-        "[Two view optimizer] [Summary] # Image pairs with 100%% inlier ratio:: %d/%d", all_correct, num_image_pairs
-    )
-
-    # TODO(akshay-krishnan): Move angular_err_threshold_deg and num_total_image_pairs to metadata.
-    frontend_metrics = GtsfmMetricsGroup(
-        metric_group_name,
-        [
-            GtsfmMetric("angular_err_threshold_deg", angular_err_threshold_deg),
-            GtsfmMetric("num_total_image_pairs", int(num_image_pairs)),
-            GtsfmMetric("num_valid_image_pairs", int(num_valid_image_pairs)),
-            GtsfmMetric("rotation_success_count", int(success_count_rot3)),
-            GtsfmMetric("translation_success_count", int(success_count_unit3)),
-            GtsfmMetric("pose_success_count", int(success_count_pose)),
-            GtsfmMetric("num_all_inlier_correspondences_wrt_gt_model", int(all_correct)),
-            GtsfmMetric("rot3_angular_errors_deg", rot3_angular_errors),
-            GtsfmMetric("trans_angular_errors_deg", trans_angular_errors),
-            GtsfmMetric("pose_errors_deg", pose_errors),
-            GtsfmMetric("inlier_ratio_wrt_gt_model", inlier_ratio_gt_model_all_pairs),
-            GtsfmMetric("inlier_ratio_wrt_est_model", inlier_ratio_est_model_all_pairs),
-            GtsfmMetric("num_inliers_est_model", num_inliers_est_model_all_pairs),
-            GtsfmMetric("num_inliers_gt_model", num_inliers_gt_model_all_pairs),
-        ],
-    )
-    return frontend_metrics

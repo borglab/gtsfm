@@ -7,13 +7,11 @@ from typing import Dict, List, Optional, Tuple
 
 import dask
 import gtsam
-import numpy as np
 from dask.delayed import Delayed
 from gtsam import Pose3
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.common.constraint import Constraint
-from gtsfm.common.pose_prior import PosePrior, PosePriorType
+from gtsfm.common.pose_prior import PosePrior
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 PRIOR_NOISE_SIGMAS = [0.001, 0.001, 0.001, 0.1, 0.1, 0.1]

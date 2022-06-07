@@ -329,7 +329,7 @@ class GtsfmData:
 
         convert_to_rounded_float = lambda x: float(np.round(x, 3))
 
-        stats_dict = {}
+        stats_dict: Dict[str, Any] = {}
         stats_dict["number_tracks"] = self.number_tracks()
         stats_dict["3d_track_lengths"] = {
             "min": convert_to_rounded_float(track_lengths_3d.min()),

@@ -21,7 +21,6 @@ import yaml
 import numpy as np
 import gtsam
 from gtsam import Cal3Fisheye, Pose3, Rot3, Point3
-from gtsfm.pose_slam.pose_slam import PoseSlam
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
@@ -43,7 +42,7 @@ CAM_IDX_TO_KALIBR_FILE_MAP = {
     4: "calib_3_cam4-camchain-imucam.yaml",
 }
 
-GT_POSE_RELATIVE_PATH = "lidar/fastlio_odom.txt"
+GT_POSE_RELATIVE_PATH = "lidar/fastlio2_odom.txt"
 LIDAR_POSE_RELATIVE_PATH = "lidar/fastlio2.g2o"
 LIDAR_CONSTRAINTS_RELATIVE_PATH = "lidar/constraints.txt"
 IMAGES_FOLDER = "images"
@@ -346,7 +345,7 @@ class HiltiLoader(LoaderBase):
         try:
             image_path: Path = self._base_folder / IMAGES_FOLDER / filename
             return io_utils.load_image(str(image_path))
-        except:
+        except Exception:
             return None
 
     def get_camera_intrinsics(self, index: int) -> Optional[Cal3Fisheye]:

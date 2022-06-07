@@ -41,7 +41,9 @@ class TestSceneOptimizer(unittest.TestCase):
             delayed_sfm_result, delayed_io = scene_optimizer.create_computation_graph(
                 self.loader,
                 self.loader.create_computation_graph_for_images(),
-                image_pair_indices=self.loader.get_valid_pairs(),
+                image_pair_indices=self.loader.get_valid_pairs(),  # TODO: replace with retriever
+                absolute_pose_priors=self.loader.get_absolute_pose_priors(),
+                relative_pose_priors=self.loader.get_relative_pose_priors(),
             )
             # create dask client
             cluster = LocalCluster(n_workers=1, threads_per_worker=4)

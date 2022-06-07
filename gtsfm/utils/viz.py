@@ -17,7 +17,7 @@ import gtsfm.utils.io as io_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.two_view_estimator import TwoViewEstimationReport
+from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 
 COLOR_RED = (255, 0, 0)
 COLOR_GREEN = (0, 255, 0)

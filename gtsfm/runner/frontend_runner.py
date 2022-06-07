@@ -41,38 +41,38 @@ def run_frontend(
     image_shapes = loader.get_image_shapes()
 
     # detection and description graph
-    keypoints_graph_list = []
-    descriptors_graph_list = []
+    keypoints_list = []
+    descriptors_list = []
     for delayed_image in image_graph:
         delayed_dets, delayed_descs = feature_extractor.create_computation_graph(delayed_image)
-        keypoints_graph_list += [delayed_dets]
-        descriptors_graph_list += [delayed_descs]
+        keypoints_list += [delayed_dets]
+        descriptors_list += [delayed_descs]
 
     # estimate two-view geometry and get indices of verified correspondences.
-    i2Ri1_graph_dict = {}
-    i2Ui1_graph_dict = {}
-    v_corr_idxs_graph_dict: Dict[Tuple[int, int], Delayed] = {}
-    for (i1, i2) in image_pair_indices:
-        (i2Ri1, i2Ui1, v_corr_idxs) = two_view_estimator.create_computation_graph(
-            keypoints_i1_graph=keypoints_graph_list[i1],
-            keypoints_i2_graph=keypoints_graph_list[i2],
-            descriptors_i1_graph=descriptors_graph_list[i1],
-            descriptors_i2_graph=descriptors_graph_list[i2],
+    i2Ri1_dict = {}
+    i2Ui1_dict = {}
+    v_corr_idxs_dict: Dict[Tuple[int, int], Delayed] = {}
+    for i1, i2 in image_pair_indices:
+        i2Ri1, i2Ui1, v_corr_idxs, _ = two_view_estimator.create_computation_graph(
+            keypoints_i1=keypoints_list[i1],
+            keypoints_i2=keypoints_list[i2],
+            descriptors_i1=descriptors_list[i1],
+            descriptors_i2=descriptors_list[i2],
             camera_intrinsics_i1=camera_intrinsics[i1],
             camera_intrinsics_i2=camera_intrinsics[i2],
             im_shape_i1=image_shapes[i1],
             im_shape_i2=image_shapes[i2],
             i2Ti1_prior=None,
-            gt_wTi1_graph=loader.get_camera_pose(i1),
-            gt_wTi2_graph=loader.get_camera_pose(i2),
+            gt_wTi1=loader.get_camera_pose(i1),
+            gt_wTi2=loader.get_camera_pose(i2),
         )
-        i2Ri1_graph_dict[(i1, i2)] = i2Ri1
-        i2Ui1_graph_dict[(i1, i2)] = i2Ui1
-        v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
+        i2Ri1_dict[(i1, i2)] = i2Ri1
+        i2Ui1_dict[(i1, i2)] = i2Ui1
+        v_corr_idxs_dict[(i1, i2)] = v_corr_idxs
 
     with dask.config.set(scheduler="single-threaded"):
         keypoints_list, i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict = dask.compute(
-            keypoints_graph_list, i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict
+            keypoints_list, i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict
         )
 
     return keypoints_list, i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict

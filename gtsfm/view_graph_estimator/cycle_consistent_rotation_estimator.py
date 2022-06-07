@@ -15,7 +15,7 @@ import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.two_view_estimator import TwoViewEstimationReport
+from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
 
 logger = logger_utils.get_logger()

@@ -4,7 +4,7 @@ Note: currently running on the whole dataset.
 """
 import unittest
 from pathlib import Path
-from typing import Dict, Iterable, List, Tuple
+from typing import Iterable, List, Tuple
 
 import numpy as np
 from gtsam import (
@@ -249,13 +249,13 @@ class TestHiltiLoader(unittest.TestCase):
         # Check that we can initialize with Pose3Initialize
         # TODO(Frank): this is still high, and an outlier is certainly present
         initial_estimate2 = InitializePose3.initialize(graph)
-        self.assertAlmostEqual(graph.error(initial_estimate2), 3390522.412178782)
+        self.assertAlmostEqual(graph.error(initial_estimate2), 3390522.412178782, places=1)
 
         # Optimize and Check final error.
         optimizer = LevenbergMarquardtOptimizer(graph, initial_estimate2)
         result = optimizer.optimize()
         final_error = graph.error(result)
-        self.assertAlmostEqual(final_error, 27083.849612680227)
+        self.assertAlmostEqual(final_error, 27083.849612680227, places=1)
 
 
 if __name__ == "__main__":

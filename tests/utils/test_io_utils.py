@@ -15,7 +15,7 @@ from gtsfm.common.image import Image
 TEST_DATA_ROOT = Path(__file__).resolve().parent.parent / "data"
 
 
-class TestUoUtils(unittest.TestCase):
+class TestIoUtils(unittest.TestCase):
     def test_load_image(self) -> None:
         """Ensure focal length can be read from EXIF, for an image w/ known EXIF."""
         img_fpath = TEST_DATA_ROOT / "set2_lund_door_nointrinsics/images/DSC_0001.JPG"
@@ -121,7 +121,7 @@ class TestUoUtils(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tempdir:
             images_fpath = os.path.join(tempdir, "images.txt")
 
-            io_utils.write_images(gtsfm_data, images, tempdir)
+            io_utils.write_images(gtsfm_data, [image.file_name for image in images], tempdir)
             wTi_list, _ = io_utils.read_images_txt(images_fpath)
             recovered_wTc = wTi_list[0]
 

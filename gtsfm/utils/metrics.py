@@ -18,6 +18,7 @@ import gtsfm.utils.verification as verification_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
+from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
@@ -270,7 +271,7 @@ def compute_translation_angle_metric(
     for (i1, i2) in i2Ui1_dict:
         i2Ui1 = i2Ui1_dict[(i1, i2)]
         angles.append(comp_utils.compute_translation_to_direction_angle(i2Ui1, wTi_list[i2], wTi_list[i1]))
-    return GtsfmMetric("translation_angle_error_deg", np.array(angles, dtype=np.float))
+    return GtsfmMetric("translation_angle_error_deg", np.array(angles, dtype=np.float32))
 
 
 def compute_ba_pose_metrics(
@@ -405,3 +406,111 @@ def compute_percentage_change(x: float, y: float) -> float:
         percentage change (may be positive or negative).
     """
     return (y - x) / (x + EPSILON) * 100
+
+
+def aggregate_frontend_metrics(
+    two_view_reports_dict: Dict[Tuple[int, int], Optional[TwoViewEstimationReport]],
+    angular_err_threshold_deg: float,
+    metric_group_name: str,
+) -> None:
+    """Aggregate the front-end metrics to log summary statistics.
+
+    We define "pose error" as the maximum of the angular errors in rotation and translation, per:
+        SuperGlue, CVPR 2020: https://arxiv.org/pdf/1911.11763.pdf
+        Learning to find good correspondences. CVPR 2018:
+        OA-Net, ICCV 2019:
+        NG-RANSAC, ICCV 2019:
+
+    Args:
+        two_view_report_dict: report containing front-end metrics for each image pair.
+        angular_err_threshold_deg: threshold for classifying angular error metrics as success.
+        metric_group_name: name we will assign to the GtsfmMetricGroup returned by this fn.
+    """
+    num_image_pairs = len(two_view_reports_dict.keys())
+
+    # all rotational errors in degrees
+    rot3_angular_errors_list: List[float] = []
+    trans_angular_errors_list: List[float] = []
+
+    inlier_ratio_gt_model_all_pairs = []
+    inlier_ratio_est_model_all_pairs = []
+    num_inliers_gt_model_all_pairs = []
+    num_inliers_est_model_all_pairs = []
+    # populate the distributions
+    for report in two_view_reports_dict.values():
+        if report is None:
+            continue
+        if report.R_error_deg is not None:
+            rot3_angular_errors_list.append(report.R_error_deg)
+        if report.U_error_deg is not None:
+            trans_angular_errors_list.append(report.U_error_deg)
+
+        inlier_ratio_gt_model_all_pairs.append(report.inlier_ratio_gt_model)
+        inlier_ratio_est_model_all_pairs.append(report.inlier_ratio_est_model)
+        num_inliers_gt_model_all_pairs.append(report.num_inliers_gt_model)
+        num_inliers_est_model_all_pairs.append(report.num_inliers_est_model)
+
+    rot3_angular_errors = np.array(rot3_angular_errors_list, dtype=float)
+    trans_angular_errors = np.array(trans_angular_errors_list, dtype=float)
+    # count number of rot3 errors which are not None. Should be same in rot3/unit3
+    num_valid_image_pairs = np.count_nonzero(~np.isnan(rot3_angular_errors))
+
+    # compute pose errors by picking the max error from rot3 and unit3 errors
+    pose_errors = np.maximum(rot3_angular_errors, trans_angular_errors)
+
+    # check errors against the threshold
+    success_count_rot3 = np.sum(rot3_angular_errors < angular_err_threshold_deg)
+    success_count_unit3 = np.sum(trans_angular_errors < angular_err_threshold_deg)
+    success_count_pose = np.sum(pose_errors < angular_err_threshold_deg)
+
+    # count image pair entries where inlier ratio w.r.t. GT model == 1.
+    all_correct = np.count_nonzero(
+        [report.inlier_ratio_gt_model == 1.0 for report in two_view_reports_dict.values() if report is not None]
+    )
+
+    logger.debug(
+        "[Two view optimizer] [Summary] Rotation success: %d/%d/%d",
+        success_count_rot3,
+        num_valid_image_pairs,
+        num_image_pairs,
+    )
+
+    logger.debug(
+        "[Two view optimizer] [Summary] Translation success: %d/%d/%d",
+        success_count_unit3,
+        num_valid_image_pairs,
+        num_image_pairs,
+    )
+
+    logger.debug(
+        "[Two view optimizer] [Summary] Pose success: %d/%d/%d",
+        success_count_pose,
+        num_valid_image_pairs,
+        num_image_pairs,
+    )
+
+    logger.debug(
+        "[Two view optimizer] [Summary] # Image pairs with 100%% inlier ratio:: %d/%d", all_correct, num_image_pairs
+    )
+
+    # TODO(akshay-krishnan): Move angular_err_threshold_deg and num_total_image_pairs to metadata.
+    frontend_metrics = GtsfmMetricsGroup(
+        metric_group_name,
+        [
+            GtsfmMetric("angular_err_threshold_deg", angular_err_threshold_deg),
+            GtsfmMetric("num_total_image_pairs", int(num_image_pairs)),
+            GtsfmMetric("num_valid_image_pairs", int(num_valid_image_pairs)),
+            GtsfmMetric("rotation_success_count", int(success_count_rot3)),
+            GtsfmMetric("translation_success_count", int(success_count_unit3)),
+            GtsfmMetric("pose_success_count", int(success_count_pose)),
+            GtsfmMetric("num_all_inlier_correspondences_wrt_gt_model", int(all_correct)),
+            GtsfmMetric("rot3_angular_errors_deg", rot3_angular_errors),
+            GtsfmMetric("trans_angular_errors_deg", trans_angular_errors),
+            GtsfmMetric("pose_errors_deg", pose_errors),
+            GtsfmMetric("inlier_ratio_wrt_gt_model", inlier_ratio_gt_model_all_pairs),
+            GtsfmMetric("inlier_ratio_wrt_est_model", inlier_ratio_est_model_all_pairs),
+            GtsfmMetric("num_inliers_est_model", num_inliers_est_model_all_pairs),
+            GtsfmMetric("num_inliers_gt_model", num_inliers_gt_model_all_pairs),
+        ],
+    )
+    return frontend_metrics
