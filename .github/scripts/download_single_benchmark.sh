@@ -59,7 +59,13 @@ function download_and_unzip_dataset_files {
     # Description: images captured during the Rotation Characterization 3 (RC3) phase of NASA's Dawn mission to Asteroid 4
     #   Vesta.
     WGET_URL1=https://www.dropbox.com/s/q02mgq1unbw068t/2011205_rc3.zip
+    WGET_URL2=https://github.com/johnwlambert/gtsfm-cache/releases/download/2011205_rc3_deep_front_end_cache/cache_rc3_deep.tar.gz
     ZIP_FNAME=2011205_rc3.zip
+
+  elif [ "$DATASET_NAME" == "lettuce" ]; then
+    # Description: images captured from BORG lab hydroponics experiments
+    export GDRIVE_FILEID='1W-O8C5ONWs2GDSD07BpEVWAGzIfx0LnM'
+    ZIP_FNAME=lettuce.zip
   fi
 
   # Download the data.
@@ -122,6 +128,10 @@ function download_and_unzip_dataset_files {
 
   elif [ "$DATASET_NAME" == "2011205_rc3" ]; then
     unzip -qq 2011205_rc3.zip
+    tar -xvf cache_rc3_deep.tar.gz
+
+  elif [ "$DATASET_NAME" == "lettuce" ]; then
+    unzip -qq lettuce.zip
   fi
 }
 
