@@ -158,7 +158,7 @@ def estimate_voxel_scales(points: np.ndarray) -> np.ndarray:
     # center the point cloud
     centered_points = ellipsoid_utils.center_point_cloud(points)
 
-    # get squared semi-axis lengths in all axes of the centered point cloud
+    # get semi-axis lengths in all axes of the centered point cloud
     _, singular_values = ellipsoid_utils.get_right_singular_vectors(centered_points)
 
     return singular_values

@@ -1,5 +1,4 @@
 """Unit test for common feature utils."""
-import math
 import unittest
 
 import cv2 as cv

@@ -109,7 +109,7 @@ class TestPatchmatchNetData(unittest.TestCase):
             {"ref_id": 6, "src_ids": [5, 7, 4, 0]},
             {"ref_id": 7, "src_ids": [6, 0, 5, 1]},
         ]
-        # self.assertTrue(pairs, expected_pairs)
+        self.assertTrue(pairs, expected_pairs)
 
     def test_depth_ranges(self) -> None:
         """Test whether the depth ranges for each camera are calculated correctly and whether the depth outliers

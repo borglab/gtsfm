@@ -220,7 +220,8 @@ class TestGtsfmData(unittest.TestCase):
             expected_data.add_track(EXAMPLE_DATA.get_track(j))
 
         # run the fn under test
-        filtered_sfm_data = EXAMPLE_DATA.filter_landmarks(max_reproj_error)
+        filtered_sfm_data, valid_mask = EXAMPLE_DATA.filter_landmarks(max_reproj_error)
+        self.assertEqual(sum(valid_mask), 3)
 
         # compare the SfmData objects
         self.assertEqual(filtered_sfm_data, expected_data)
@@ -262,15 +263,15 @@ class TestGtsfmData(unittest.TestCase):
 
         # fmt: off
         wTi_list_gt = [
-            Pose3(Rot3(), np.array([3, 0, 0])),  # wTi0
-            Pose3(Rot3(), np.array([0, 0, 0])),  # wTi1
-            Pose3(Rot3(), np.array([0, -3, 0])), # wTi2
-            Pose3(Rot3(), np.array([0, 3, 0])),  # wTi3
+            Pose3(Rot3(), np.array([3, 0, 0])),   # wTi0
+            Pose3(Rot3(), np.array([0, 0, 0])),   # wTi1
+            Pose3(Rot3(), np.array([0, -3, 0])),  # wTi2
+            Pose3(Rot3(), np.array([0, 3, 0])),   # wTi3
         ]
-        points_gt = [
-            np.array([1, 1, 0]),
-            np.array([3, 3, 0])
-        ]
+        # points_gt = [
+        #     np.array([1, 1, 0]),
+        #     np.array([3, 3, 0])
+        # ]
 
         # pose graph is scaled by a factor of 2, and shifted also.
         wTi_list_est = [
@@ -869,33 +870,33 @@ class TestGtsfmData(unittest.TestCase):
             ),
         }
 
-        t0 = SfmTrack(pt=[-0.89190672,  1.21298076, -1.05838554])
+        t0 = SfmTrack(pt=[-0.89190672, 1.21298076, -1.05838554])
         t0.addMeasurement(2, [184.08586121, 441.31314087])
-        t0.addMeasurement(4, [ 18.98637581, 453.21853638])
+        t0.addMeasurement(4, [18.98637581, 453.21853638])
 
-        t1 = SfmTrack(pt=[-0.76287111,  1.26476165, -1.22710579])
+        t1 = SfmTrack(pt=[-0.76287111, 1.26476165, -1.22710579])
         t1.addMeasurement(2, [213.51266479, 288.06637573])
-        t1.addMeasurement(4, [ 50.23059464, 229.30541992])
+        t1.addMeasurement(4, [50.23059464, 229.30541992])
 
-        t2 = SfmTrack(pt=[-1.45773622,  0.86221933, -1.47515461])
+        t2 = SfmTrack(pt=[-1.45773622, 0.86221933, -1.47515461])
         t2.addMeasurement(2, [227.52420044, 695.15087891])
-        t2.addMeasurement(3, [996.67608643, 705.03125   ])
+        t2.addMeasurement(3, [996.67608643, 705.03125])
 
-        t3 = SfmTrack(pt=[-1.40486691,  0.93824916, -1.35192298])
+        t3 = SfmTrack(pt=[-1.40486691, 0.93824916, -1.35192298])
         t3.addMeasurement(2, [251.37863159, 702.97064209])
-        t3.addMeasurement(3, [537.9753418,  732.26025391])
+        t3.addMeasurement(3, [537.9753418, 732.26025391])
 
         t4 = SfmTrack(pt=[55.48969812, 52.24862241, 58.84578119])
         t4.addMeasurement(2, [253.17749023, 490.47991943])
-        t4.addMeasurement(3, [ 13.17782784, 507.57717896])
+        t4.addMeasurement(3, [13.17782784, 507.57717896])
 
         t5 = SfmTrack(pt=[230.43166291, 206.44760657, 234.25904211])
         t5.addMeasurement(2, [253.52301025, 478.41384888])
-        t5.addMeasurement(3, [ 10.92995739, 493.31018066])
+        t5.addMeasurement(3, [10.92995739, 493.31018066])
 
         t6 = SfmTrack(pt=[11.62742671, 13.43484624, 14.50306349])
         t6.addMeasurement(2, [254.64611816, 533.04730225])
-        t6.addMeasurement(3, [ 18.78449249, 557.05041504])
+        t6.addMeasurement(3, [18.78449249, 557.05041504])
 
         unaligned_tracks = [t0, t1, t2, t3, t4, t5, t6]
 
@@ -907,8 +908,8 @@ class TestGtsfmData(unittest.TestCase):
 
         aligned_metrics = metrics_utils.get_stats_for_sfmdata(aligned_filtered_data, suffix="_filtered")
 
-        assert unaligned_metrics[3].name == 'reprojection_errors_filtered_px'
-        assert aligned_metrics[3].name == 'reprojection_errors_filtered_px'
+        assert unaligned_metrics[3].name == "reprojection_errors_filtered_px"
+        assert aligned_metrics[3].name == "reprojection_errors_filtered_px"
 
         # Reprojection error should be unaffected by Sim(3) alignment.
         for key in ["min", "max", "median", "mean", "stddev"]:

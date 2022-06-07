@@ -18,13 +18,15 @@ class ImageMatchingRegime(str, Enum):
     RETRIEVAL: str = "retrieval"
     EXHAUSTIVE: str = "exhaustive"
     SEQUENTIAL_WITH_RETRIEVAL: str = "sequential_with_retrieval"
+    RIG_HILTI: str = "rig_hilti"
+    SEQUENTIAL_HILTI: str = "sequential_hilti"
 
 
 class RetrieverBase:
     """Base class for image retriever implementations."""
 
     @abc.abstractmethod
-    def run(loader: LoaderBase) -> List[Tuple[int, int]]:
+    def run(self, loader: LoaderBase) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 
         Args:

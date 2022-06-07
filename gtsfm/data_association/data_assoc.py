@@ -16,18 +16,16 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 import dask
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, SfmTrack
+from gtsam import SfmTrack
 
+import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.tracks as track_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.common.sfm_track import SfmTrack2d
-from gtsfm.data_association.point3d_initializer import (
-    Point3dInitializer,
-    TriangulationOptions,
-    TriangulationExitCode,
-)
+from gtsfm.common.pose_prior import PosePrior
+from gtsfm.data_association.point3d_initializer import Point3dInitializer, TriangulationOptions, TriangulationExitCode
+from gtsfm.data_association.dsf_tracks_estimator import DsfTracksEstimator
 from gtsfm.common.image import Image
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
@@ -57,11 +55,12 @@ class DataAssociation(NamedTuple):
     def run(
         self,
         num_images: int,
-        cameras: Dict[int, PinholeCameraCal3Bundler],
+        cameras: Dict[int, gtsfm_types.CAMERA_TYPE],
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
+        cameras_gt: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
+        relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]],
         images: Optional[List[Image]] = None,
-        cameras_gt: Optional[List[Cal3Bundler]] = None,
     ) -> Tuple[GtsfmData, GtsfmMetricsGroup]:
         """Perform the data association.
 
@@ -70,20 +69,21 @@ class DataAssociation(NamedTuple):
             cameras: dictionary, with image index -> camera mapping.
             corr_idxs_dict: dictionary, with key as image pair (i1,i2) and value as matching keypoint indices.
             keypoints_list: keypoints for each image.
-            images: a list of all images in scene (optional and only for track patch visualization)
             cameras_gt: list of GT cameras, to be used for benchmarking the tracks.
+            images: a list of all images in scene (optional and only for track patch visualization)
 
         Returns:
             A tuple of GtsfmData with cameras and tracks, and a GtsfmMetricsGroup with data association metrics
         """
         # generate tracks for 3D points using pairwise correspondences
-        tracks_2d = SfmTrack2d.generate_tracks_from_pairwise_matches(corr_idxs_dict, keypoints_list)
+        tracks_estimator = DsfTracksEstimator()
+        tracks_2d = tracks_estimator.run(corr_idxs_dict, keypoints_list)
 
         if self.save_track_patches_viz and images is not None:
             io_utils.save_track_visualizations(tracks_2d, images, save_dir=os.path.join("plots", "tracks_2d"))
 
         # track lengths w/o triangulation check
-        track_lengths_2d = list(map(lambda x: x.number_measurements(), tracks_2d))
+        track_lengths_2d = np.array(list(map(lambda x: int(x.number_measurements()), tracks_2d)), dtype=np.uint32)
 
         logger.debug("[Data association] input number of tracks: %s", len(tracks_2d))
         logger.debug("[Data association] input avg. track length: %s", np.mean(track_lengths_2d))
@@ -98,9 +98,7 @@ class DataAssociation(NamedTuple):
         for i, camera in cameras.items():
             triangulated_data.add_camera(i, camera)
 
-        exit_codes_wrt_gt: Optional[List[TriangulationExitCode]] = None
-        if cameras_gt is not None:
-            exit_codes_wrt_gt = track_utils.classify_tracks2d_with_gt_cameras(tracks=tracks_2d, cameras_gt=cameras_gt)
+        exit_codes_wrt_gt = track_utils.classify_tracks2d_with_gt_cameras(tracks=tracks_2d, cameras_gt=cameras_gt)
 
         # add valid tracks where triangulation is successful
         exit_codes_wrt_computed: List[TriangulationExitCode] = []
@@ -133,7 +131,9 @@ class DataAssociation(NamedTuple):
         ] / len(tracks_2d)
 
         # pick only the largest connected component
-        connected_data = triangulated_data.select_largest_connected_component()
+        # TODO(Ayush): remove this for hilti as disconnected components not an issue?
+        cam_edges_from_prior = [k for k, v in relative_pose_priors.items() if v is not None]
+        connected_data = triangulated_data.select_largest_connected_component(extra_camera_edges=cam_edges_from_prior)
         num_accepted_tracks = connected_data.number_tracks()
         accepted_tracks_ratio = num_accepted_tracks / len(tracks_2d)
 
@@ -189,10 +189,11 @@ class DataAssociation(NamedTuple):
         self,
         num_images: int,
         cameras: Delayed,
-        corr_idxs_graph: Dict[Tuple[int, int], Delayed],
+        corr_idxs_graph: Delayed,
         keypoints_graph: List[Delayed],
-        images_graph: Optional[Delayed] = None,
-        gt_cameras_graph: Optional[List[Delayed]] = None,
+        cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+        images_graph: Optional[List[Delayed]] = None,
     ) -> Tuple[Delayed, Delayed]:
         """Creates a computation graph for performing data association.
 
@@ -201,9 +202,9 @@ class DataAssociation(NamedTuple):
             cameras: list of cameras wrapped up as Delayed.
             corr_idxs_graph: dictionary of correspondence indices, each value wrapped up as Delayed.
             keypoints_graph: list of wrapped up keypoints for each image.
+            cameras_gt: a list of cameras with ground truth params, if they exist.
+            relative_pose_priors: pose priors on the relative pose between camera poses.
             images_graph: a list of all images in scene (optional and only for track patch visualization)
-            gt_cameras_graph: a list of cameras with ground truth params, if they exist, with each object
-                              wrapped up as Delayed.
 
         Returns:
             ba_input_graph: GtsfmData object wrapped up using dask.delayed
@@ -211,7 +212,7 @@ class DataAssociation(NamedTuple):
                 association result
         """
         ba_input_graph, data_assoc_metrics_graph = dask.delayed(self.run, nout=2)(
-            num_images, cameras, corr_idxs_graph, keypoints_graph, images_graph, gt_cameras_graph
+            num_images, cameras, corr_idxs_graph, keypoints_graph, cameras_gt, relative_pose_priors, images_graph
         )
 
         return ba_input_graph, data_assoc_metrics_graph

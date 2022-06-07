@@ -14,7 +14,9 @@ import numpy as np
 from trimesh import Trimesh
 from gtsam import Pose3, Similarity3
 from dask.delayed import Delayed
+from gtsfm.common.pose_prior import PosePrior
 
+import gtsfm.common.types as gtsfm_types
 import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.two_view_estimator as two_view_estimator
 import gtsfm.utils.ellipsoid as ellipsoid_utils
@@ -75,11 +77,11 @@ class SceneOptimizer:
         feature_extractor: FeatureExtractor,
         two_view_estimator: TwoViewEstimator,
         multiview_optimizer: MultiViewOptimizer,
-        dense_multiview_optimizer: MVSBase,
-        save_two_view_correspondences_viz: bool,
-        save_3d_viz: bool,
-        save_gtsfm_data: bool,
-        pose_angular_error_thresh: float,
+        dense_multiview_optimizer: Optional[MVSBase] = None,
+        save_two_view_correspondences_viz: bool = False,
+        save_3d_viz: bool = True,
+        save_gtsfm_data: bool = True,
+        pose_angular_error_thresh: float = 3,
     ) -> None:
         """pose_angular_error_thresh is given in degrees"""
         self.feature_extractor = feature_extractor
@@ -89,6 +91,7 @@ class SceneOptimizer:
 
         self._save_two_view_correspondences_viz = save_two_view_correspondences_viz
         self._save_3d_viz = save_3d_viz
+        self._run_dense_optimizer = self.dense_multiview_optimizer is not None
 
         self._save_gtsfm_data = save_gtsfm_data
         self._pose_angular_error_thresh = pose_angular_error_thresh
@@ -106,31 +109,81 @@ class SceneOptimizer:
         os.makedirs(REACT_RESULTS_PATH, exist_ok=True)
         os.makedirs(REACT_METRICS_PATH, exist_ok=True)
 
+    def create_computation_graph_for_frontend(
+        self,
+        image_pair_indices: List[Tuple[int, int]],
+        image_graph: List[Delayed],
+        all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
+        image_shapes: List[Tuple[int, int]],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+        gt_poses_graph: List[Optional[Pose3]],
+        gt_scene_mesh: Optional[Trimesh] = None,
+    ) -> Tuple[Dict[Tuple[int, int], Delayed], Dict[Tuple[int, int], Delayed]]:
+        """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
+
+        # detection and description graph
+        delayed_keypoints = []
+        delayed_descriptors = []
+        for delayed_image in image_graph:
+            (delayed_dets, delayed_descs) = self.feature_extractor.create_computation_graph(delayed_image)
+            delayed_keypoints += [delayed_dets]
+            delayed_descriptors += [delayed_descs]
+
+        # Estimate two-view geometry and get indices of verified correspondences.
+        i2Ri1_graph_dict = {}
+        i2Ui1_graph_dict = {}
+        for (i1, i2) in image_pair_indices:
+            # Collect ground truth relative and absolute poses if available.
+            # TODO(johnwlambert): decompose this method -- name it as "calling_the_plate()"
+
+            # TODO(johnwlambert): decompose this so what happens in the loop is a separate method
+            i2Ri1, i2Ui1, v_corr_idxs, _ = self.two_view_estimator.create_computation_graph(
+                delayed_keypoints[i1],
+                delayed_keypoints[i2],
+                delayed_descriptors[i1],
+                delayed_descriptors[i2],
+                all_intrinsics[i1],
+                all_intrinsics[i2],
+                image_shapes[i1],
+                image_shapes[i2],
+                relative_pose_priors[(i1, i2)],
+                gt_poses_graph[i1],
+                gt_poses_graph[i2],
+                gt_scene_mesh,
+            )
+
+            # Store results.
+            i2Ri1_graph_dict[(i1, i2)] = i2Ri1
+            i2Ui1_graph_dict[(i1, i2)] = i2Ui1
+
+        return i2Ri1_graph_dict, i2Ui1_graph_dict
+
     def create_computation_graph(
         self,
         num_images: int,
         image_pair_indices: List[Tuple[int, int]],
         image_graph: List[Delayed],
-        camera_intrinsics_graph: List[Delayed],
-        image_shape_graph: List[Delayed],
-        gt_cameras_graph: Optional[List[Delayed]] = None,
+        all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
+        image_shapes: List[Tuple[int, int]],
+        absolute_pose_priors: List[Optional[PosePrior]],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+        cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
+        gt_wTi_list: List[Optional[Pose3]],
         gt_scene_mesh: Optional[Trimesh] = None,
         matching_regime: ImageMatchingRegime = ImageMatchingRegime.SEQUENTIAL,
-    ) -> Delayed:
+    ) -> Tuple[Delayed, List[Delayed]]:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
 
-        # auxiliary graph elements for visualizations and saving intermediate
-        # data for analysis, not returned to the user.
-        auxiliary_graph_list = []
-        metrics_graph_list = []
+        # auxiliary graph elements for visualizations and saving intermediate data for analysis.
+        delayed_results = []
 
         # detection and description graph
-        keypoints_graph_list = []
-        descriptors_graph_list = []
+        delayed_keypoints = []
+        delayed_descriptors = []
         for delayed_image in image_graph:
             (delayed_dets, delayed_descs) = self.feature_extractor.create_computation_graph(delayed_image)
-            keypoints_graph_list += [delayed_dets]
-            descriptors_graph_list += [delayed_descs]
+            delayed_keypoints += [delayed_dets]
+            delayed_descriptors += [delayed_descs]
 
         # Estimate two-view geometry and get indices of verified correspondences.
         i2Ri1_graph_dict = {}
@@ -144,26 +197,20 @@ class SceneOptimizer:
         for (i1, i2) in image_pair_indices:
             # Collect ground truth relative and absolute poses if available.
             # TODO(johnwlambert): decompose this method -- name it as "calling_the_plate()"
-            if gt_cameras_graph is not None:
-                gt_wTi1, gt_wTi2 = (
-                    gt_cameras_graph[i1].pose(),
-                    gt_cameras_graph[i2].pose(),
-                )
-            else:
-                gt_wTi1, gt_wTi2 = None, None
 
             # TODO(johnwlambert): decompose this so what happens in the loop is a separate method
             i2Ri1, i2Ui1, v_corr_idxs, two_view_reports = self.two_view_estimator.create_computation_graph(
-                keypoints_graph_list[i1],
-                keypoints_graph_list[i2],
-                descriptors_graph_list[i1],
-                descriptors_graph_list[i2],
-                camera_intrinsics_graph[i1],
-                camera_intrinsics_graph[i2],
-                image_shape_graph[i1],
-                image_shape_graph[i2],
-                gt_wTi1,
-                gt_wTi2,
+                delayed_keypoints[i1],
+                delayed_keypoints[i2],
+                delayed_descriptors[i1],
+                delayed_descriptors[i2],
+                all_intrinsics[i1],
+                all_intrinsics[i2],
+                image_shapes[i1],
+                image_shapes[i2],
+                relative_pose_priors.get((i1, i2), None),
+                gt_wTi_list[i1],
+                gt_wTi_list[i2],
                 gt_scene_mesh,
             )
 
@@ -171,29 +218,22 @@ class SceneOptimizer:
             i2Ri1_graph_dict[(i1, i2)] = i2Ri1
             i2Ui1_graph_dict[(i1, i2)] = i2Ui1
             v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
-            for token, report in two_view_reports.items():
-                two_view_reports_dict[token][(i1, i2)] = report
+            for token in (PRE_BA_REPORT_TAG, POST_BA_REPORT_TAG, POST_ISP_REPORT_TAG):
+                two_view_reports_dict[token][(i1, i2)] = two_view_reports[token]
 
             # Visualize verified two-view correspondences.
             if self._save_two_view_correspondences_viz:
-                auxiliary_graph_list.append(
+                delayed_results.append(
                     dask.delayed(viz_utils.save_twoview_correspondences_viz)(
                         image_graph[i1],
                         image_graph[i2],
-                        keypoints_graph_list[i1],
-                        keypoints_graph_list[i2],
+                        delayed_keypoints[i1],
+                        delayed_keypoints[i2],
                         v_corr_idxs,
                         two_view_report=two_view_reports[PRE_BA_REPORT_TAG],
                         file_path=os.path.join(PLOT_CORRESPONDENCE_PATH, f"{i1}_{i2}.jpg"),
                     )
                 )
-
-        # As visualization tasks are not to be provided to the user, we create a
-        # dummy computation of concatenating viz tasks with the output graph,
-        # forcing computation of viz tasks. Doing this here forces the
-        # frontend's auxiliary tasks to be computed before the multi-view stage.
-        keypoints_graph_list = dask.delayed(lambda x, y: (x, y))(keypoints_graph_list, auxiliary_graph_list)[0]
-        auxiliary_graph_list = []
 
         # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
         (
@@ -204,21 +244,25 @@ class SceneOptimizer:
         ) = self.multiview_optimizer.create_computation_graph(
             image_graph,
             num_images,
-            keypoints_graph_list,
+            delayed_keypoints,
             i2Ri1_graph_dict,
             i2Ui1_graph_dict,
             v_corr_idxs_graph_dict,
-            camera_intrinsics_graph,
+            all_intrinsics,
+            absolute_pose_priors,
+            relative_pose_priors,
             two_view_reports_dict[POST_ISP_REPORT_TAG],
-            gt_cameras_graph,
+            cameras_gt,
+            gt_wTi_list,
         )
         if view_graph_two_view_reports is not None:
             two_view_reports_dict[VIEWGRAPH_REPORT_TAG] = view_graph_two_view_reports
 
         # Persist all front-end metrics and their summaries.
         # TODO(akshay-krishnan): this delays saving the frontend reports until MVO has completed, not ideal.
+        metrics_graph_list: List[Delayed] = []
         for tag, report_dict in two_view_reports_dict.items():
-            auxiliary_graph_list.append(
+            delayed_results.append(
                 dask.delayed(save_full_frontend_metrics)(
                     report_dict,
                     image_graph,
@@ -226,66 +270,56 @@ class SceneOptimizer:
                     matching_regime=matching_regime,
                 )
             )
-            if gt_cameras_graph is not None:
-                metrics_graph_list.append(
-                    dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
-                        report_dict,
-                        self._pose_angular_error_thresh,
-                        metric_group_name="verifier_summary_{}".format(tag),
-                    )
+            metrics_graph_list.append(
+                dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
+                    report_dict,
+                    self._pose_angular_error_thresh,
+                    metric_group_name="verifier_summary_{}".format(tag),
                 )
+            )
 
         # aggregate metrics for multiview optimizer
         if optimizer_metrics_graph is not None:
             metrics_graph_list.extend(optimizer_metrics_graph)
 
         # Modify BA input, BA output, and GT poses to have point clouds and frustums aligned with x,y,z axes.
-        gt_poses_graph = (
-            [dask.delayed(lambda x: x.pose())(cam) for cam in gt_cameras_graph] if gt_cameras_graph else None
-        )
-
-        ba_input_graph, ba_output_graph, gt_poses_graph = dask.delayed(align_estimated_gtsfm_data, nout=3)(
-            ba_input_graph, ba_output_graph, gt_poses_graph
+        ba_input_graph, ba_output_graph, gt_wTi_list = dask.delayed(align_estimated_gtsfm_data, nout=3)(
+            ba_input_graph, ba_output_graph, gt_wTi_list
         )
 
         if self._save_3d_viz:
-            auxiliary_graph_list.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_poses_graph))
+            delayed_results.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_wTi_list))
 
         if self._save_gtsfm_data:
-            auxiliary_graph_list.extend(save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph))
+            delayed_results.extend(save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph))
 
-        img_dict_graph = dask.delayed(get_image_dictionary)(image_graph)
-        (
-            dense_points_graph,
-            dense_point_colors_graph,
-            densify_metrics_graph,
-            downsampling_metrics_graph,
-        ) = self.dense_multiview_optimizer.create_computation_graph(img_dict_graph, ba_output_graph)
+        if self._run_dense_optimizer:
+            img_dict_graph = dask.delayed(get_image_dictionary)(image_graph)
+            (
+                dense_points_graph,
+                dense_point_colors_graph,
+                densify_metrics_graph,
+                downsampling_metrics_graph,
+            ) = self.dense_multiview_optimizer.create_computation_graph(img_dict_graph, ba_output_graph)
 
-        # Cast to string as Open3d cannot use PosixPath's for I/O -- only string file paths are accepted.
-        auxiliary_graph_list.append(
-            dask.delayed(io_utils.save_point_cloud_as_ply)(
-                save_fpath=str(MVS_PLY_SAVE_FPATH), points=dense_points_graph, rgb=dense_point_colors_graph
+            # Cast to string as Open3d cannot use PosixPath's for I/O -- only string file paths are accepted.
+            delayed_results.append(
+                dask.delayed(io_utils.save_point_cloud_as_ply)(
+                    save_fpath=str(MVS_PLY_SAVE_FPATH), points=dense_points_graph, rgb=dense_point_colors_graph
+                )
             )
-        )
 
-        # Add metrics for dense reconstruction and voxel downsampling
-        if densify_metrics_graph is not None:
-            metrics_graph_list.append(densify_metrics_graph)
-        if downsampling_metrics_graph is not None:
-            metrics_graph_list.append(downsampling_metrics_graph)
+            # Add metrics for dense reconstruction and voxel downsampling
+            if densify_metrics_graph is not None:
+                metrics_graph_list.append(densify_metrics_graph)
+            if downsampling_metrics_graph is not None:
+                metrics_graph_list.append(downsampling_metrics_graph)
 
         # Save metrics to JSON and generate HTML report.
-        auxiliary_graph_list.extend(save_metrics_reports(metrics_graph_list))
-
-        # as visualization tasks are not to be provided to the user, we create a
-        # dummy computation of concatenating viz tasks with the output graph,
-        # forcing computation of viz tasks
-        output_graph = dask.delayed(lambda x, y: (x, y))(ba_output_graph, auxiliary_graph_list)
-        ba_output_graph = output_graph[0]
+        delayed_results.extend(save_metrics_reports(metrics_graph_list))
 
         # return the entry with just the sfm result
-        return ba_output_graph
+        return ba_output_graph, delayed_results
 
 
 def get_image_dictionary(image_list: List[Image]) -> Dict[int, Image]:
@@ -295,8 +329,8 @@ def get_image_dictionary(image_list: List[Image]) -> Dict[int, Image]:
 
 
 def align_estimated_gtsfm_data(
-    ba_input: GtsfmData, ba_output: GtsfmData, gt_pose_graph: List[Pose3]
-) -> Tuple[GtsfmData, GtsfmData, List[Pose3]]:
+    ba_input: GtsfmData, ba_output: GtsfmData, gt_pose_graph: List[Optional[Pose3]]
+) -> Tuple[GtsfmData, GtsfmData, List[Optional[Pose3]]]:
     """Creates modified GtsfmData objects that emulate ba_input and ba_output but with point cloud and camera
     frustums aligned to the x,y,z axes. Also transforms GT camera poses to be aligned to axes.
 
@@ -314,14 +348,12 @@ def align_estimated_gtsfm_data(
     walignedSw = Similarity3(R=walignedTw.rotation(), t=walignedTw.translation(), s=1.0)
     ba_input = ba_input.apply_Sim3(walignedSw)
     ba_output = ba_output.apply_Sim3(walignedSw)
-    gt_pose_graph = [walignedSw.transformFrom(wTi) for wTi in gt_pose_graph]
+    gt_pose_graph = [walignedSw.transformFrom(wTi) if wTi is not None else None for wTi in gt_pose_graph]
     return ba_input, ba_output, gt_pose_graph
 
 
 def save_visualizations(
-    ba_input_graph: Delayed,
-    ba_output_graph: Delayed,
-    gt_pose_graph: Optional[List[Delayed]],
+    ba_input_graph: Delayed, ba_output_graph: Delayed, gt_pose_graph: List[Optional[Delayed]]
 ) -> List[Delayed]:
     """Save SfmData before and after bundle adjustment and camera poses for visualization.
 
@@ -349,7 +381,7 @@ def save_visualizations(
     return viz_graph_list
 
 
-def save_gtsfm_data(image_graph: Delayed, ba_input_graph: Delayed, ba_output_graph: Delayed) -> List[Delayed]:
+def save_gtsfm_data(image_graph: List[Delayed], ba_input_graph: Delayed, ba_output_graph: Delayed) -> List[Delayed]:
     """Saves the Gtsfm data before and after bundle adjustment.
 
     Args:
@@ -382,7 +414,7 @@ def save_gtsfm_data(image_graph: Delayed, ba_input_graph: Delayed, ba_output_gra
     return saving_graph_list
 
 
-def save_metrics_reports(metrics_graph_list: Delayed) -> List[Delayed]:
+def save_metrics_reports(metrics_graph_list: List[Delayed]) -> List[Delayed]:
     """Saves metrics to JSON and HTML report.
 
     Args:
@@ -391,7 +423,7 @@ def save_metrics_reports(metrics_graph_list: Delayed) -> List[Delayed]:
     Returns:
         List of delayed objects after saving metrics.
     """
-    save_metrics_graph_list = []
+    save_metrics_graph_list: List[Delayed] = []
 
     if len(metrics_graph_list) == 0:
         return save_metrics_graph_list

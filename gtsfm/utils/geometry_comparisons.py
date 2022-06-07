@@ -4,8 +4,9 @@ Authors: Ayush Baid, John Lambert
 """
 from typing import List, Optional, Tuple
 
+import gtsam
 import numpy as np
-from gtsam import Point3, Pose3, Pose3Pairs, Rot3, Similarity3, Unit3
+from gtsam import Point3, Pose3, Pose3Pairs, Rot3, Rot3Vector, Similarity3, Unit3
 from scipy.spatial.transform import Rotation
 
 from gtsfm.utils.logger import get_logger
@@ -15,10 +16,8 @@ EPSILON = np.finfo(float).eps
 logger = get_logger()
 
 
-def align_rotations(aRi_list: List[Rot3], bRi_list: List[Rot3]) -> List[Rot3]:
-    """Aligns the list of rotations to the reference list by shifting origin.
-
-    TODO (John): replace later with Karcher mean to account for noisy estimates
+def align_rotations(aRi_list: List[Optional[Rot3]], bRi_list: List[Optional[Rot3]]) -> List[Rot3]:
+    """Aligns the list of rotations to the reference list by using Karcher mean.
 
     Args:
         aRi_list: reference rotations in frame "a" which are the targets for alignment
@@ -28,16 +27,16 @@ def align_rotations(aRi_list: List[Rot3], bRi_list: List[Rot3]) -> List[Rot3]:
         aRi_list_: transformed input rotations previously "bRi_list" but now which
             have the same origin as reference (now living in "a" frame)
     """
-    aRi0 = aRi_list[0]
-
-    bRi0 = bRi_list[0]
-    i0Rb = bRi0.inverse()
-
-    # origin_transform -- map the origin of the input list to the reference list
-    aRb = aRi0.compose(i0Rb)
+    aRb_list = [
+        aRi.compose(bRi.inverse()) for aRi, bRi in zip(aRi_list, bRi_list) if aRi is not None and bRi is not None
+    ]
+    if len(aRb_list) > 0:
+        aRb = gtsam.FindKarcherMean(Rot3Vector(aRb_list))
+    else:
+        aRb = Rot3()
 
     # apply the coordinate shift to all entries in input
-    return [aRb.compose(bRi) for bRi in bRi_list]
+    return [aRb.compose(bRi) if bRi is not None else None for bRi in bRi_list]
 
 
 def align_poses_sim3_ignore_missing(
@@ -99,11 +98,19 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Tuple[List
             have the same origin and scale as reference (now living in "a" frame)
         aSb: Similarity(3) object that aligns the two pose graphs.
     """
-    n_to_align = len(aTi_list)
     assert len(aTi_list) == len(bTi_list)
-    assert n_to_align >= 2, "SIM(3) alignment uses at least 2 frames"
 
-    ab_pairs = Pose3Pairs(list(zip(aTi_list, bTi_list)))
+    valid_pose_tuples = [
+        pose_tuple
+        for pose_tuple in list(zip(aTi_list, bTi_list))
+        if pose_tuple[0] is not None and pose_tuple[1] is not None
+    ]
+    n_to_align = len(valid_pose_tuples)
+    if n_to_align < 2:
+        logger.error("SIM(3) alignment uses at least 2 frames; Skipping")
+        return bTi_list, Similarity3(Rot3(), np.zeros((3,)), 1.0)
+
+    ab_pairs = Pose3Pairs(valid_pose_tuples)
 
     aSb = Similarity3.Align(ab_pairs)
 
@@ -114,10 +121,10 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Tuple[List
 
         # align the rotations first, so that we can find the translation between the two panoramas
         aSb = Similarity3(aSb.rotation(), np.zeros((3,)), 1.0)
-        aTi_list_rot_aligned = [aSb.transformFrom(bTi) for bTi in bTi_list]
+        aTi_list_rot_aligned = [aSb.transformFrom(bTi) for _, bTi in valid_pose_tuples]
 
         # fit a single translation motion to the centroid
-        aTi_centroid = np.array([aTi.translation() for aTi in aTi_list]).mean(axis=0)
+        aTi_centroid = np.array([aTi.translation() for aTi, _ in valid_pose_tuples]).mean(axis=0)
         aTi_rot_aligned_centroid = np.array([aTi.translation() for aTi in aTi_list_rot_aligned]).mean(axis=0)
 
         # construct the final SIM3 transform
@@ -137,10 +144,11 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Tuple[List
     logger.info("Sim(3) Scale `asb`: %.2f", float(aSb.scale()))
 
     aTi_list_ = []
-    for i in range(n_to_align):
-        bTi = bTi_list[i]
-
-        aTi_list_.append(aSb.transformFrom(bTi))
+    for bTi in bTi_list:
+        if bTi is None:
+            aTi_list_.append(None)
+        else:
+            aTi_list_.append(aSb.transformFrom(bTi))
 
     logger.info("Pose graph Sim(3) alignment complete.")
 
@@ -180,13 +188,10 @@ def compare_rotations(
 
     # frame 'a' is the target/reference, and bRi_list will be transformed
     aRi_list_ = align_rotations(aRi_list, bRi_list)
-
-    return all(
-        [
-            compute_relative_rotation_angle(aRi, aRi_) < angular_error_threshold_degrees
-            for (aRi, aRi_) in zip(aRi_list, aRi_list_)
-        ]
+    relative_rotations_angles = np.array(
+        [compute_relative_rotation_angle(aRi, aRi_) for (aRi, aRi_) in zip(aRi_list, aRi_list_)], dtype=np.float32
     )
+    return np.all(relative_rotations_angles < angular_error_threshold_degrees)
 
 
 def compare_global_poses(
@@ -355,7 +360,7 @@ def compute_points_distance_l2(wti1: Optional[Point3], wti2: Optional[Point3]) -
 def compute_cyclic_rotation_error(i1Ri0: Rot3, i2Ri1: Rot3, i2Ri0: Rot3) -> float:
     """Computes the cycle error in degrees after composing the three input rotations.
 
-    The cyclic error is the angle between identity and the rotation obtained by composing the three input relative 
+    The cyclic error is the angle between identity and the rotation obtained by composing the three input relative
     rotations, i.e., (I - inv(i2Ri0) * i2Ri1 * i1Ri0).
 
     Args:

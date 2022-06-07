@@ -2,6 +2,7 @@ import argparse
 import time
 from abc import abstractmethod
 
+import dask
 import hydra
 from dask.distributed import Client, LocalCluster, performance_report
 from hydra.utils import instantiate
@@ -16,6 +17,8 @@ from gtsfm.retriever.exhaustive_retriever import ExhaustiveRetriever
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.retriever.joint_netvlad_sequential_retriever import JointNetVLADSequentialRetriever
 from gtsfm.retriever.netvlad_retriever import NetVLADRetriever
+from gtsfm.retriever.rig_retriever import RigRetriever
+from gtsfm.retriever.sequential_hilti_retriever import SequentialHiltiRetriever
 from gtsfm.retriever.sequential_retriever import SequentialRetriever
 
 
@@ -69,7 +72,14 @@ class GtsfmRunnerBase:
         parser.add_argument(
             "--matching_regime",
             type=str,
-            choices=["exhaustive", "retrieval", "sequential", "sequential_with_retrieval"],
+            choices=[
+                "exhaustive",
+                "sequential",
+                "sequential_hilti",
+                "rig_hilti",
+                "retrieval",
+                "sequential_with_retrieval",
+            ],
             default="sequential",
             help="Choose mode for matching.",
         )
@@ -122,6 +132,13 @@ class GtsfmRunnerBase:
             retriever = JointNetVLADSequentialRetriever(
                 num_matched=self.parsed_args.num_matched, max_frame_lookahead=self.parsed_args.max_frame_lookahead
             )
+
+        elif matching_regime == ImageMatchingRegime.SEQUENTIAL_HILTI:
+            retriever = SequentialHiltiRetriever(max_frame_lookahead=self.parsed_args.max_frame_lookahead)
+
+        elif matching_regime == ImageMatchingRegime.RIG_HILTI:
+            retriever = RigRetriever(threshold=self.parsed_args.proxy_threshold)
+
         return retriever
 
     def run(self) -> None:
@@ -137,18 +154,21 @@ class GtsfmRunnerBase:
         with Client(cluster), performance_report(filename="dask-report.html"):
             image_pair_indices = pairs_graph.compute()
 
-        sfm_result_graph = self.scene_optimizer.create_computation_graph(
+        delayed_sfm_result, delayed_io = self.scene_optimizer.create_computation_graph(
             num_images=len(self.loader),
             image_pair_indices=image_pair_indices,
             image_graph=self.loader.create_computation_graph_for_images(),
-            camera_intrinsics_graph=self.loader.create_computation_graph_for_intrinsics(),
-            image_shape_graph=self.loader.create_computation_graph_for_image_shapes(),
-            gt_cameras_graph=self.loader.create_computation_graph_for_cameras(),
+            all_intrinsics=self.loader.get_all_intrinsics(),
+            image_shapes=self.loader.get_image_shapes(),
+            relative_pose_priors=self.loader.get_relative_pose_priors(image_pair_indices),
+            absolute_pose_priors=self.loader.get_absolute_pose_priors(),
+            cameras_gt=self.loader.get_gt_cameras(),
+            gt_wTi_list=self.loader.get_gt_poses(),
             matching_regime=ImageMatchingRegime(self.parsed_args.matching_regime),
         )
 
         with Client(cluster), performance_report(filename="dask-report.html"):
-            sfm_result = sfm_result_graph.compute()
+            sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io)
 
         assert isinstance(sfm_result, GtsfmData)
 

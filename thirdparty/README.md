@@ -8,3 +8,4 @@ In this directory (`./thirdparty/`), we maintain third party modules
 | SuperGlue     | CVPR 2020        | [Arxiv](https://arxiv.org/abs/1911.11763)           |   [Github](https://github.com/magicleap/SuperGluePretrainedNetwork)         |    non-commercial        |
 | PatchmatchNet | CVPR 2021        | [Arxiv](https://arxiv.org/abs/2012.01411)            |    [Github](https://github.com/FangjinhuaWang/PatchmatchNet)         |    MIT         |
 | OA-Net       |  ICCV 2019      |   [Arxiv](https://arxiv.org/abs/1908.04964)          |           [Github](https://github.com/zjhthu/OANet) | |
+| Instant-NGP  | SIGGRAPH 2022   | [Arxiv](https://arxiv.org/abs/2201.05989) | [Github](https://github.com/NVlabs/instant-ngp) | non-commercial |

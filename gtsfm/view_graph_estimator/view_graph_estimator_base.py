@@ -8,13 +8,14 @@ Authors: Akshay Krishnan, Ayush Baid, John Lambert
 """
 import abc
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Set, Tuple, Optional
 
 import dask
 import numpy as np
 from dask.delayed import Delayed
 from gtsam import Cal3Bundler, Rot3, Unit3
 
+import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.logger as logger_utils
@@ -164,20 +165,24 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
         inlier_i1_i2 = view_graph_edges
         outlier_i1_i2 = list(set(input_i1_i2) - set(inlier_i1_i2))
 
-        graph_utils.draw_view_graph_topology(
-            edges=list(input_i1_i2),
-            two_view_reports=two_view_reports,
-            title="ViewGraphEstimator input",
-            save_fpath=PLOT_BASE_PATH / "view_graph_estimator_input_topology.jpg",
-            cameras_gt=None,
-        )
-        graph_utils.draw_view_graph_topology(
-            edges=view_graph_edges,
-            two_view_reports=two_view_reports,
-            title="ViewGraphEstimator output",
-            save_fpath=PLOT_BASE_PATH / "view_graph_estimator_output_topology.jpg",
-            cameras_gt=None,
-        )
+        try:
+            graph_utils.draw_view_graph_topology(
+                edges=list(input_i1_i2),
+                two_view_reports=two_view_reports,
+                title="ViewGraphEstimator input",
+                save_fpath=PLOT_BASE_PATH / "view_graph_estimator_input_topology.jpg",
+                cameras_gt=None,
+            )
+            graph_utils.draw_view_graph_topology(
+                edges=view_graph_edges,
+                two_view_reports=two_view_reports,
+                title="ViewGraphEstimator output",
+                save_fpath=PLOT_BASE_PATH / "view_graph_estimator_output_topology.jpg",
+                cameras_gt=None,
+            )
+        except Exception as e:
+            # drawing the topology can fail in case of too many cameras
+            logger.info(e)
 
         inlier_R_angular_errors = []
         outlier_R_angular_errors = []
@@ -222,12 +227,12 @@ class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
 
     def create_computation_graph(
         self,
-        i2Ri1_dict: Delayed,
-        i2Ui1_dict: Delayed,
-        calibrations: Delayed,
-        corr_idxs_i1i2: Delayed,
-        keypoints: Delayed,
-        two_view_reports: Delayed,
+        i2Ri1_dict: Dict[Tuple[int, int], Delayed],
+        i2Ui1_dict: Dict[Tuple[int, int], Delayed],
+        calibrations: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
+        corr_idxs_i1i2: Dict[Tuple[int, int], Delayed],
+        keypoints: List[Delayed],
+        two_view_reports: Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
     ) -> Tuple[Delayed, Delayed, Delayed, Delayed, Delayed]:
         """Create the computation graph for ViewGraph estimation and metric evaluation.
 

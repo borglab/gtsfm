@@ -6,9 +6,11 @@ Authors: Ayush Baid, John Lambert, Xiaolong Wu
 import itertools
 from typing import Any, Dict, List, Optional, Tuple
 
+import gtsam
 import numpy as np
-from gtsam import PinholeCameraCal3Bundler, Pose3, SfmTrack, Similarity3
+from gtsam import Pose3, SfmTrack, Similarity3
 
+import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.logger as logger_utils
@@ -33,9 +35,29 @@ class GtsfmData:
         Args:
             number_images: number of images/cameras in the scene.
         """
-        self._cameras: Dict[int, PinholeCameraCal3Bundler] = {}
+        self._cameras: Dict[int, gtsfm_types.CAMERA_TYPE] = {}
         self._tracks: List[SfmTrack] = []
         self._number_images = number_images
+
+    @classmethod
+    def from_sfm_data(cls, sfm_data: gtsam.SfmData) -> "GtsfmData":
+        """Initialize from gtsam.SfmData instance.
+
+        Args:
+            sfm_data: camera parameters and point tracks.
+
+        Returns:
+            A new GtsfmData instancee.
+        """
+        num_images = sfm_data.numberCameras()
+        gtsfm_data = cls(num_images)
+        for i in range(num_images):
+            camera = sfm_data.camera(i)
+            gtsfm_data.add_camera(i, camera)
+        for j in range(sfm_data.numberTracks()):
+            gtsfm_data.add_track(sfm_data.track(j))
+
+        return gtsfm_data
 
     def __eq__(self, other: object) -> bool:
         """Checks equality with the other object."""
@@ -93,7 +115,7 @@ class GtsfmData:
         """
         return list(self._cameras.keys())
 
-    def get_camera(self, index: int) -> Optional[PinholeCameraCal3Bundler]:
+    def get_camera(self, index: int) -> Optional[gtsfm_types.CAMERA_TYPE]:
         """Getter for camera.
 
         Args:
@@ -156,7 +178,7 @@ class GtsfmData:
         """
         return self._tracks
 
-    def add_camera(self, index: int, camera: PinholeCameraCal3Bundler) -> None:
+    def add_camera(self, index: int, camera: gtsfm_types.CAMERA_TYPE) -> None:
         """Adds a camera.
 
         Args:
@@ -198,10 +220,15 @@ class GtsfmData:
         track_lengths = [self.get_track(j).numberMeasurements() for j in range(self.number_tracks())]
         return np.array(track_lengths, dtype=np.uint32)
 
-    def select_largest_connected_component(self) -> "GtsfmData":
+    def select_largest_connected_component(
+        self, extra_camera_edges: Optional[List[Tuple[int, int]]] = None
+    ) -> "GtsfmData":
         """Selects the subset of data belonging to the largest connected component of the graph where the edges are
         between cameras which feature in the same track.
 
+        Args:
+            extra_camera_edges (optional): edges which are to be considered as part of the graph when computing
+                                           connected components.
         Returns:
             New GtSfmData object with the subset of tracks and cameras.
         """
@@ -216,6 +243,10 @@ class GtsfmData:
             # For example: a track has cameras [0, 2, 5]. In that case we will add pairs (0, 2), (0, 5), (2, 5)
             camera_edges += list(itertools.combinations(cameras_in_use, 2))
 
+        # TODO(Ayush): add unit tests for extra camera edges
+        if extra_camera_edges is not None:
+            camera_edges += extra_camera_edges
+
         if len(camera_edges) == 0:
             return GtsfmData(self._number_images)
 
@@ -229,7 +260,7 @@ class GtsfmData:
 
     @classmethod
     def from_cameras_and_tracks(
-        cls, cameras: Dict[int, PinholeCameraCal3Bundler], tracks: List[SfmTrack], number_images: int
+        cls, cameras: Dict[int, gtsfm_types.CAMERA_TYPE], tracks: List[SfmTrack], number_images: int
     ) -> "GtsfmData":
         """Creates a GtsfmData object from a pre-existing set of cameras and tracks."""
         new_data = cls(number_images=number_images)
@@ -355,26 +386,30 @@ class GtsfmData:
         cheirality_success = np.all(~np.isnan(errors))
         return np.all(errors < reproj_err_thresh) and cheirality_success
 
-    def filter_landmarks(self, reproj_err_thresh: float = 5) -> "GtsfmData":
+    def filter_landmarks(self, reproj_err_thresh: float = 5) -> Tuple["GtsfmData", List[bool]]:
         """Filters out landmarks with high reprojection error
 
         Args:
             reproj_err_thresh: reprojection err threshold for each measurement.
+
+        Returns:
+            New instance, and list of valid flags, one for each track.
         """
         # TODO: move this function to utils or GTSAM
         filtered_data = GtsfmData(self.number_images())
 
-        for j in range(self.number_tracks()):
-            track = self.get_track(j)
+        valid_mask = [self.__validate_track(track, reproj_err_thresh) for track in self._tracks]
 
-            if self.__validate_track(track, reproj_err_thresh):
-                # check if all cameras with measurement in this track have already been added
-                for k in range(track.numberMeasurements()):
-                    i, _ = track.measurement(k)
-                    filtered_data.add_camera(i, self.get_camera(i))
-                filtered_data.add_track(track)
+        for track, valid in zip(self._tracks, valid_mask):
+            if not valid:
+                continue
+            # check if all cameras with measurement in this track have already been added
+            for k in range(track.numberMeasurements()):
+                i, _ = track.measurement(k)
+                filtered_data.add_camera(i, self.get_camera(i))
+            filtered_data.add_track(track)
 
-        return filtered_data
+        return filtered_data, valid_mask
 
     def align_via_Sim3_to_poses(self, wTi_list_ref: List[Optional[Pose3]]) -> "GtsfmData":
         """Align estimated, sparse multiview result (self) to a set of reference poses.
@@ -408,7 +443,8 @@ class GtsfmData:
             if aTi is None:
                 continue
             calibration = self.get_camera(i).calibration()
-            aligned_data.add_camera(i, PinholeCameraCal3Bundler(aTi, calibration))
+            camera_type = gtsfm_types.get_camera_class_for_calibration(calibration)
+            aligned_data.add_camera(i, camera_type(aTi, calibration))
         # Align estimated tracks to ground truth.
         for j in range(self.number_tracks()):
             # Align each 3d point

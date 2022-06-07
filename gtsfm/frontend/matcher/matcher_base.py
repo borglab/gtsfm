@@ -60,8 +60,8 @@ class MatcherBase(metaclass=abc.ABCMeta):
         keypoints_i2_graph: Delayed,
         descriptors_i1_graph: Delayed,
         descriptors_i2_graph: Delayed,
-        im_shape_i1_graph: Delayed,
-        im_shape_i2_graph: Delayed,
+        im_shape_i1: Tuple[int,int],
+        im_shape_i2: Tuple[int,int],
     ) -> Delayed:
         """
         Generates computation graph for matched features using description graphs.
@@ -71,8 +71,8 @@ class MatcherBase(metaclass=abc.ABCMeta):
             keypoints_i2_graph: keypoints for image #i2, wrapped in Delayed.
             descriptors_i1_graph: descriptors corr. to keypoints_i1.
             descriptors_i2_graph: descriptors corr. to keypoints_i2.
-            im_shape_i1_graph: Delayed with the (H,W) shape of image #i1.
-            im_shape_i2_graph: Delayed with the (H,W) shape of image #i2.
+            im_shape_i1: (H,W) shape of image #i1.
+            im_shape_i2: (H,W) shape of image #i2.
 
         Returns:
             Delayed dask tasks for matching for input camera pairs.
@@ -82,6 +82,6 @@ class MatcherBase(metaclass=abc.ABCMeta):
             keypoints_i2_graph,
             descriptors_i1_graph,
             descriptors_i2_graph,
-            im_shape_i1_graph,
-            im_shape_i2_graph,
+            im_shape_i1,
+            im_shape_i2,
         )
