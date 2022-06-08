@@ -28,7 +28,6 @@ class TestNetVLADRetriever(unittest.TestCase):
             max_frame_lookahead=100,
             max_resolution=760,
         )
-        num_images = 2
 
         retriever = NetVLADRetriever(num_matched=2)
 
