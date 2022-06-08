@@ -37,18 +37,26 @@ logger = logger_utils.get_logger()
 class ShonanRotationAveraging(RotationAveragingBase):
     """Performs Shonan rotation averaging."""
 
-    def __init__(self) -> None:
-        """
+    def __init__(self, robust_measurement_noise: bool = False) -> None:
+        """Initializes Shonan rotation averaging.
+
         Note: `p_min` and `p_max` describe the minimum and maximum relaxation rank.
+
+        Args:
+            robust_measurement_noise: Whether to use a robust noise model for the measurements, defaults to true.
         """
+        self._robust_measurement_noise = robust_measurement_noise
         self._p_min = 5
         self._p_max = 30
+        if robust_measurement_noise:
+            self._p_min = self._p_max
 
     def __get_shonan_params(self) -> ShonanAveragingParameters3:
         lm_params = LevenbergMarquardtParams.CeresDefaults()
         shonan_params = ShonanAveragingParameters3(lm_params)
-        shonan_params.setUseHuber(False)
-        shonan_params.setCertifyOptimality(True)
+        shonan_params.setUseHuber(self._robust_measurement_noise)
+        shonan_params.setCertifyOptimality(not self._robust_measurement_noise)
+
         return shonan_params
 
     def __between_factors_from_2view_relative_rotations(
@@ -99,7 +107,6 @@ class ShonanRotationAveraging(RotationAveragingBase):
                 the list is `num_connected_nodes`. The list may contain `None` where the global rotation could
                 not be computed (either underconstrained system or ill-constrained system).
         """
-
         obj = ShonanAveraging3(between_factors, self.__get_shonan_params())
 
         initial = obj.initializeRandomly()

@@ -22,6 +22,14 @@ class RotationAveragingBase(metaclass=abc.ABCMeta):
     rotations.
     """
 
+    def __init__(self, robust_measurement_noise: bool = True) -> None:
+        """Initializes the rotation averaging.
+
+        Args:
+            robust_measurement_noise: Whether to use a robust noise model for the measurements, defaults to true.
+        """
+        self._robust_measurement_noise = robust_measurement_noise
+
     # ignored-abstractmethod
     @abc.abstractmethod
     def run(

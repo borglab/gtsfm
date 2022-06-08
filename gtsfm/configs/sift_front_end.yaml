@@ -45,6 +45,7 @@ SceneOptimizer:
 
     rot_avg_module:
       _target_: gtsfm.averaging.rotation.shonan.ShonanRotationAveraging
+      robust_measurement_noise: False
 
     trans_avg_module:
       _target_: gtsfm.averaging.translation.averaging_1dsfm.TranslationAveraging1DSFM
