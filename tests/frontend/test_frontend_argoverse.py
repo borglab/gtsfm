@@ -5,23 +5,20 @@ Authors: John Lambert
 
 import unittest
 from pathlib import Path
-from typing import Tuple
 
-import dask
 import numpy as np
-from dask.delayed import Delayed
 from gtsam import Pose3
 from scipy.spatial.transform import Rotation
 
+import gtsfm.runner.frontend_runner as frontend_runner
+from gtsfm.feature_extractor import FeatureExtractor
 from gtsfm.frontend.detector_descriptor.superpoint import SuperPointDetectorDescriptor
-from gtsfm.frontend.detector_descriptor.sift import SIFTDetectorDescriptor
+from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
 from gtsfm.frontend.matcher.superglue_matcher import SuperGlueMatcher
-from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
-from gtsfm.frontend.verifier.degensac import Degensac
-from gtsfm.frontend.verifier.ransac import Ransac
 from gtsfm.frontend.verifier.loransac import LoRansac
+from gtsfm.frontend.verifier.ransac import Ransac
 from gtsfm.loader.argoverse_dataset_loader import ArgoverseDatasetLoader
-from gtsfm.scene_optimizer import FeatureExtractor, TwoViewEstimator
+from gtsfm.two_view_estimator import TwoViewEstimator
 
 
 TEST_DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
@@ -42,57 +39,23 @@ class TestFrontend(unittest.TestCase):
         )
         assert len(self.loader)
 
-    def __get_frontend_computation_graph(
-        self, feature_extractor: FeatureExtractor, two_view_estimator: TwoViewEstimator
-    ) -> Tuple[Delayed, Delayed]:
-        """Copied from SceneOptimizer class, without back-end code"""
-        image_pair_indices = self.loader.get_valid_pairs()
-        image_graph = self.loader.create_computation_graph_for_images()
-        camera_intrinsics_graph = self.loader.create_computation_graph_for_intrinsics()
-        image_shape_graph = self.loader.create_computation_graph_for_image_shapes()
-
-        # detection and description graph
-        keypoints_graph_list = []
-        descriptors_graph_list = []
-        for delayed_image in image_graph:
-            delayed_dets, delayed_descs = feature_extractor.create_computation_graph(delayed_image)
-            keypoints_graph_list += [delayed_dets]
-            descriptors_graph_list += [delayed_descs]
-
-        # estimate two-view geometry and get indices of verified correspondences.
-        i2Ri1_graph_dict = {}
-        i2Ui1_graph_dict = {}
-        for (i1, i2) in image_pair_indices:
-            (i2Ri1, i2Ui1, v_corr_idxs, two_view_report) = two_view_estimator.create_computation_graph(
-                keypoints_graph_list[i1],
-                keypoints_graph_list[i2],
-                descriptors_graph_list[i1],
-                descriptors_graph_list[i2],
-                camera_intrinsics_graph[i1],
-                camera_intrinsics_graph[i2],
-                image_shape_graph[i1],
-                image_shape_graph[i2],
-            )
-            i2Ri1_graph_dict[(i1, i2)] = i2Ri1
-            i2Ui1_graph_dict[(i1, i2)] = i2Ui1
-
-        return i2Ri1_graph_dict, i2Ui1_graph_dict
-
-    def test_sift_twoway_ransac(self):
-        """Check DoG + SIFT + 2-way Matcher + RANSAC-5pt frontend."""
-        det_desc = SIFTDetectorDescriptor()
-        feature_extractor = FeatureExtractor(det_desc)
-        two_view_estimator = TwoViewEstimator(
-            matcher=TwoWayMatcher(),
-            verifier=Ransac(
-                use_intrinsics_in_verification=True, estimation_threshold_px=4, min_allowed_inlier_ratio_est_model=0.1
-            ),
-            eval_threshold_px=4,
-            min_num_inliers_acceptance=15,
-        )
-        self.__compare_frontend_result_error(
-            feature_extractor, two_view_estimator, euler_angle_err_tol=1.4, translation_err_tol=0.026
-        )
+    # TODO(johnwlambert): make SIFT-based unit test below non-flaky (should be deterministic).
+    # def test_sift_twoway_ransac(self) -> None:
+    #     """Check DoG + SIFT + 2-way Matcher + RANSAC-5pt frontend."""
+    #     det_desc = SIFTDetectorDescriptor()
+    #     feature_extractor = FeatureExtractor(det_desc)
+    #     two_view_estimator = TwoViewEstimator(
+    #         matcher=TwoWayMatcher(),
+    #         verifier=Ransac(use_intrinsics_in_verification=True, estimation_threshold_px=4),
+    #         eval_threshold_px=4,
+    #         bundle_adjust_2view=False,
+    #         inlier_support_processor=InlierSupportProcessor(
+    #             min_num_inliers_est_model=15, min_inlier_ratio_est_model=0.1
+    #         ),
+    #     )
+    #     self.__compare_frontend_result_error(
+    #         feature_extractor, two_view_estimator, euler_angle_err_tol=1.4, translation_err_tol=0.026
+    #     )
 
     def test_superpoint_superglue_twoway_ransac(self):
         """Check SuperPoint + SuperGlue + OpenCV RANSAC-5pt frontend (Essential matrix estimation)."""
@@ -100,49 +63,53 @@ class TestFrontend(unittest.TestCase):
         feature_extractor = FeatureExtractor(det_desc)
         two_view_estimator = TwoViewEstimator(
             matcher=SuperGlueMatcher(use_outdoor_model=True),
-            verifier=Ransac(
-                use_intrinsics_in_verification=True, estimation_threshold_px=4, min_allowed_inlier_ratio_est_model=0.1
-            ),
+            verifier=Ransac(use_intrinsics_in_verification=True, estimation_threshold_px=4),
             eval_threshold_px=4,
-            min_num_inliers_acceptance=15,
+            bundle_adjust_2view=False,
+            inlier_support_processor=InlierSupportProcessor(
+                min_num_inliers_est_model=15, min_inlier_ratio_est_model=0.1
+            ),
         )
         self.__compare_frontend_result_error(
             feature_extractor, two_view_estimator, euler_angle_err_tol=1.4, translation_err_tol=0.026
         )
 
-    def test_superpoint_superglue_twoway_loransac(self):
+    def test_superpoint_superglue_twoway_loransac_essential(self) -> None:
         """Check SuperPoint + SuperGlue + LORANSAC-5pt frontend (Essential matrix estimation)."""
         det_desc = SuperPointDetectorDescriptor()
         feature_extractor = FeatureExtractor(det_desc)
         two_view_estimator = TwoViewEstimator(
             matcher=SuperGlueMatcher(use_outdoor_model=True),
-            verifier=LoRansac(
-                use_intrinsics_in_verification=True, estimation_threshold_px=4, min_allowed_inlier_ratio_est_model=0.1
-            ),
+            verifier=LoRansac(use_intrinsics_in_verification=True, estimation_threshold_px=4),
             eval_threshold_px=4,
-            min_num_inliers_acceptance=15,
+            bundle_adjust_2view=False,
+            inlier_support_processor=InlierSupportProcessor(
+                min_num_inliers_est_model=15, min_inlier_ratio_est_model=0.1
+            ),
         )
         self.__compare_frontend_result_error(
             feature_extractor, two_view_estimator, euler_angle_err_tol=1.4, translation_err_tol=0.026
         )
 
-    def test_superpoint_superglue_twoway_loransac(self):
+    def test_superpoint_superglue_twoway_loransac_fundamental(self) -> None:
         """Check SuperPoint + SuperGlue + LORANSAC-8pt frontend (Fundamental matrix estimation)."""
         det_desc = SuperPointDetectorDescriptor()
         feature_extractor = FeatureExtractor(det_desc)
         two_view_estimator = TwoViewEstimator(
             matcher=SuperGlueMatcher(use_outdoor_model=True),
-            verifier=LoRansac(
-                use_intrinsics_in_verification=False, estimation_threshold_px=4, min_allowed_inlier_ratio_est_model=0.1
-            ),
+            verifier=LoRansac(use_intrinsics_in_verification=False, estimation_threshold_px=4),
             eval_threshold_px=4,
-            min_num_inliers_acceptance=15,
+            bundle_adjust_2view=False,
+            inlier_support_processor=InlierSupportProcessor(
+                min_num_inliers_est_model=15, min_inlier_ratio_est_model=0.1
+            ),
         )
         self.__compare_frontend_result_error(
             feature_extractor, two_view_estimator, euler_angle_err_tol=1.4, translation_err_tol=0.026
         )
 
-    # def test_sift_twoway_degensac(self):
+    # TODO(johnwlambert): make SIFT-based unit test below non-flaky (should be deterministic).
+    # def test_sift_twoway_degensac(self) -> None:
     #     """Check DoG + SIFT + 2-way Matcher + DEGENSAC-8pt frontend."""
     #     det_desc = SIFTDetectorDescriptor()
     #     feature_extractor = FeatureExtractor(det_desc)
@@ -151,10 +118,12 @@ class TestFrontend(unittest.TestCase):
     #         verifier=Degensac(
     #             use_intrinsics_in_verification=False,
     #             estimation_threshold_px=0.5,
-    #             min_allowed_inlier_ratio_est_model=0.05
     #         ),
     #         eval_threshold_px=4,
-    #         min_num_inliers_acceptance=15
+    #         bundle_adjust_2view=False,
+    #         inlier_support_processor=InlierSupportProcessor(
+    #             min_num_inliers_est_model=15, min_inlier_ratio_est_model=0.05
+    #         )
     #     )
     #     self.__compare_frontend_result_error(
     #         feature_extractor, two_view_estimator, euler_angle_err_tol=0.95, translation_err_tol=0.03,
@@ -168,16 +137,11 @@ class TestFrontend(unittest.TestCase):
         translation_err_tol: float,
     ) -> None:
         """Compare recovered relative rotation and translation with ground truth."""
-        i2Ri1_graph_dict, i2Ui1_graph_dict = self.__get_frontend_computation_graph(
-            feature_extractor, two_view_estimator
-        )
-
-        with dask.config.set(scheduler="single-threaded"):
-            i2Ri1_results, i2ti1_results = dask.compute(i2Ri1_graph_dict, i2Ui1_graph_dict)
+        _, i2Ri1_dict, i2Ui1_dict, _ = frontend_runner.run_frontend(self.loader, feature_extractor, two_view_estimator)
 
         i1, i2 = 0, 1
-        i2Ri1 = i2Ri1_results[(i1, i2)]
-        i2Ui1 = i2ti1_results[(i1, i2)]
+        i2Ri1 = i2Ri1_dict[(i1, i2)]
+        i2Ui1 = i2Ui1_dict[(i1, i2)]
 
         # Ground truth is provided in inverse format, so invert SE(3) object
         i2Ti1 = Pose3(i2Ri1, i2Ui1.point3())

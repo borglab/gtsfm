@@ -10,7 +10,6 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from trimesh import Trimesh
-from dask.delayed import Delayed
 from gtsam import PinholeCameraCal3Bundler, Cal3Bundler, EssentialMatrix, Point3, Pose3, Rot3, Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
@@ -77,7 +76,7 @@ def compute_correspondence_metrics(
     if gt_scene_mesh is not None:
         gt_camera_i1 = PinholeCameraCal3Bundler(gt_wTi1, intrinsics_i1)
         gt_camera_i2 = PinholeCameraCal3Bundler(gt_wTi2, intrinsics_i2)
-        is_inlier, reproj_error = mesh_inlier_correspondences(
+        return mesh_inlier_correspondences(
             matched_keypoints_i1,
             matched_keypoints_i2,
             gt_camera_i1,
@@ -85,11 +84,10 @@ def compute_correspondence_metrics(
             gt_scene_mesh,
             dist_threshold,
         )
-        return is_inlier, reproj_error
 
     # If no mesh is provided, use squared Sampson error.
     gt_i2Ti1 = gt_wTi2.between(gt_wTi1)
-    is_inlier, reproj_error = epipolar_inlier_correspondences(
+    return epipolar_inlier_correspondences(
         matched_keypoints_i1,
         matched_keypoints_i2,
         intrinsics_i1,
@@ -97,7 +95,6 @@ def compute_correspondence_metrics(
         gt_i2Ti1,
         dist_threshold,
     )
-    return is_inlier, reproj_error
 
 
 def epipolar_inlier_correspondences(
@@ -127,7 +124,7 @@ def epipolar_inlier_correspondences(
     distance_squared = verification_utils.compute_epipolar_distances_sq_sampson(
         keypoints_i1.coordinates, keypoints_i2.coordinates, i2Fi1
     )
-    is_inlier = distance_squared < dist_threshold ** 2 if distance_squared is not None else None
+    is_inlier = distance_squared < dist_threshold**2 if distance_squared is not None else None
 
     return is_inlier, distance_squared
 
@@ -269,59 +266,11 @@ def compute_translation_angle_metric(
     Returns:
         A GtsfmMetric for the translation angle errors, in degrees.
     """
-    angles = []
+    angles: List[Optional[float]] = []
     for (i1, i2) in i2Ui1_dict:
         i2Ui1 = i2Ui1_dict[(i1, i2)]
         angles.append(comp_utils.compute_translation_to_direction_angle(i2Ui1, wTi_list[i2], wTi_list[i1]))
     return GtsfmMetric("translation_angle_error_deg", np.array(angles, dtype=np.float))
-
-
-def compute_rotation_averaging_metrics(
-    wRi_list: List[Optional[Rot3]],
-    wti_list: List[Optional[Point3]],
-    gt_wTi_list: List[Pose3],
-) -> GtsfmMetricsGroup:
-    """Computes statistics of multiple metrics for the averaging modules.
-
-    Specifically, computes statistics of:
-        - Rotation angle errors before BA,
-        - Translation distances before BA,
-        - Translation angle to direction measurements,
-
-    Estimated poses and ground truth poses are first aligned before computing metrics.
-
-    Args:
-        wRi_list: List of estimated rotations.
-        wti_list: List of estimated translations.
-        gt_wTi_list: List of ground truth poses.
-
-    Returns:
-        A group of metrics that describe errors associated with an averaging result (w.r.t. GT).
-
-    Raises:
-        ValueError if lengths of wRi_list, wti_list and gt_wTi_list are not all same.
-    """
-    if len(wRi_list) != len(wti_list) or len(wRi_list) != len(gt_wTi_list):
-        raise ValueError("Lengths of wRi_list, wti_list and gt_wTi_list should be the same.")
-
-    wTi_list = []
-    for (wRi, wti) in zip(wRi_list, wti_list):
-        # if translation estimation failed in translation averaging, some wti_list values will be None
-        if wRi is None or wti is None:
-            wTi_list.append(None)
-        else:
-            wTi_list.append(Pose3(wRi, wti))
-
-    # ground truth is the reference/target for alignment. discard 2nd return arg -- the estimated Similarity(3) object
-    wTi_aligned_list, _ = comp_utils.align_poses_sim3_ignore_missing(gt_wTi_list, wTi_list)
-
-    wRi_aligned_list, wti_aligned_list = get_rotations_translations_from_poses(wTi_aligned_list)
-    gt_wRi_list, gt_wti_list = get_rotations_translations_from_poses(gt_wTi_list)
-
-    metrics = []
-    metrics.append(GtsfmMetric(name="num_rotations_computed", data=len([x for x in wRi_list if x is not None])))
-    metrics.append(compute_rotation_angle_metric(wRi_aligned_list, gt_wRi_list))
-    return GtsfmMetricsGroup(name="rotation_averaging_metrics", metrics=metrics)
 
 
 def compute_ba_pose_metrics(
@@ -352,7 +301,7 @@ def compute_ba_pose_metrics(
     return GtsfmMetricsGroup(name="ba_pose_error_metrics", metrics=metrics)
 
 
-def get_twoview_translation_directions(wTi_list: List[Pose3]) -> Dict[Tuple[int, int], Unit3]:
+def get_twoview_translation_directions(wTi_list: List[Optional[Pose3]]) -> Dict[Tuple[int, int], Optional[Unit3]]:
     """Generate synthetic measurements of the 2-view translation directions between image pairs.
 
     Args:
@@ -368,14 +317,17 @@ def get_twoview_translation_directions(wTi_list: List[Pose3]) -> Dict[Tuple[int,
     possible_img_pair_idxs = list(itertools.combinations(range(number_images), 2))
     for (i1, i2) in possible_img_pair_idxs:
         # compute the exact relative pose
-        i2Ti1 = wTi_list[i2].between(wTi_list[i1])
-        i2Ui1_dict[(i1, i2)] = Unit3(i2Ti1.translation())
-
+        if wTi_list[i1] is None or wTi_list[i2] is None:
+            i2Ui1 = None
+        else:
+            i2Ti1 = wTi_list[i2].between(wTi_list[i1])
+            i2Ui1 = Unit3(i2Ti1.translation())
+        i2Ui1_dict[(i1, i2)] = i2Ui1
     return i2Ui1_dict
 
 
 def get_precision_recall_from_errors(
-    positive_errors: List[float], negative_errors: List[float], max_positive_error: float
+    positive_errors: List[Optional[float]], negative_errors: List[Optional[float]], max_positive_error: float
 ) -> Tuple[float, float]:
     """Computes the precision and recall from a list of errors for positive and negative classes.
     True positives are those for which the error is less than max_positive_error.
@@ -388,9 +340,9 @@ def get_precision_recall_from_errors(
     Returns:
         Tuple of precision, recall.
     """
-    tp = np.sum(np.array(positive_errors) <= max_positive_error)
-    fp = np.sum(np.array(positive_errors) > max_positive_error)
-    fn = np.sum(np.array(negative_errors) <= max_positive_error)
+    tp = np.sum(np.array(positive_errors, dtype=np.float32) <= max_positive_error)
+    fp = np.sum(np.array(positive_errors, dtype=np.float32) > max_positive_error)
+    fn = np.sum(np.array(negative_errors, dtype=np.float32) <= max_positive_error)
 
     eps = 1e-12  # prevent division by zero
     precision = tp * 1.0 / (tp + fp + eps)
@@ -414,7 +366,7 @@ def get_rotations_translations_from_poses(
     return rotations, translations
 
 
-def save_metrics_as_json(metrics_groups: Delayed, output_dir: str) -> None:
+def save_metrics_as_json(metrics_groups: List[GtsfmMetricsGroup], output_dir: str) -> None:
     """Saves the input metrics groups as JSON files using the name of the group.
 
     Args:
@@ -423,6 +375,22 @@ def save_metrics_as_json(metrics_groups: Delayed, output_dir: str) -> None:
     """
     for metrics_group in metrics_groups:
         metrics_group.save_to_json(os.path.join(output_dir, metrics_group.name + ".json"))
+
+
+def get_stats_for_sfmdata(gtsfm_data: GtsfmData, suffix: str) -> List[GtsfmMetric]:
+    """Helper to get bundle adjustment metrics from a GtsfmData object with a suffix for metric names."""
+    metrics = []
+    metrics.append(GtsfmMetric(name="number_cameras", data=len(gtsfm_data.get_valid_camera_indices())))
+    metrics.append(GtsfmMetric("number_tracks" + suffix, gtsfm_data.number_tracks()))
+    metrics.append(
+        GtsfmMetric(
+            "3d_track_lengths" + suffix,
+            gtsfm_data.get_track_lengths(),
+            plot_type=GtsfmMetric.PlotType.HISTOGRAM,
+        )
+    )
+    metrics.append(GtsfmMetric(f"reprojection_errors{suffix}_px", gtsfm_data.get_scene_reprojection_errors()))
+    return metrics
 
 
 def compute_percentage_change(x: float, y: float) -> float:

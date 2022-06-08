@@ -1,9 +1,9 @@
-"""Interface class from GtsfmData to PatchmatchNetData
+"""Class that implements an interface from GtsfmData to PatchmatchNetData.
 
 For terminology, we will estimate a depth map for each reference view, by warping features from the source views to 
 frontoparallel planes of the reference view.
 
-Authors: Ren Liu
+Authors: Ren Liu, John Lambert
 """
 from collections import defaultdict
 from typing import Any, Dict, List, Tuple
@@ -13,8 +13,11 @@ import numpy as np
 from torch.utils.data import Dataset
 
 import gtsfm.densify.mvs_utils as mvs_utils
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
+
+logger = logger_utils.get_logger()
 
 NUM_PATCHMATCHNET_STAGES = 4
 
@@ -88,8 +91,9 @@ class PatchmatchNetData(Dataset):
             - For every image as the reference image, calculate the depth range.
 
         Returns:
-            pairs: 2d array of shape (num_images, num_views-1). Each row_id indicates the index of reference view
-                in self.keys, with (num_views-1) values indicating the indices of source views in self.keys
+            src_views_dict: 2d array of shape (num_images, num_views-1). Each row_id indicates the index of
+                reference view in self.keys, with (num_views-1) values indicating the indices of source views
+                in self.keys
             depth_ranges: 2d array of shape (num_images, 2). Each row_id indicates the index of reference view
                 in self.keys, with 2 values indicating [min_depth, max_depth]
         """
@@ -104,13 +108,17 @@ class PatchmatchNetData(Dataset):
 
         for j in range(num_tracks):
             track = self._sfm_result.get_track(j)
-            num_measurements = track.number_measurements()
+            num_measurements = track.numberMeasurements()
             measurements = [track.measurement(k) for k in range(num_measurements)]
             wtj = track.point3()
             for k1 in range(num_measurements):
                 i1, _ = measurements[k1]
                 # Check if i1 is a valid image with estimated camera pose, then get its id for patchmatchnet
-                pm_i1 = self._camera_idx_to_patchmatchnet_idx.get(i1, -1)
+                if i1 not in self._camera_idx_to_patchmatchnet_idx:
+                    # Calculate the depth only if i1 is an image with estimated pose
+                    logger.info("Camera %d had no estimated pose, so skipping during MVS.", i1)
+                    continue
+                pm_i1 = self._camera_idx_to_patchmatchnet_idx[i1]
 
                 # Calculate track j's depth in the camera i1 frame
                 z1 = self._sfm_result.get_camera(i1).pose().transformTo(wtj)[-1]
@@ -121,11 +129,11 @@ class PatchmatchNetData(Dataset):
                     i2, _ = measurements[k2]
 
                     # Check if i2 is a valid image with estimated camera pose, then get its id for patchmatchnet
-                    pm_i2 = self._camera_idx_to_patchmatchnet_idx.get(i2, -1)
-
-                    # Calculate the pairwise gaussian score only if i1 and i2 are both images with estimated poses
-                    if pm_i1 < 0 or pm_i2 < 0:
+                    if i2 not in self._camera_idx_to_patchmatchnet_idx:
+                        # Calculate the pairwise gaussian score only if i1 and i2 are both images with estimated poses
+                        logger.info("Camera %d had no estimated pose, so skipping during MVS.", i2)
                         continue
+                    pm_i2 = self._camera_idx_to_patchmatchnet_idx[i2]
 
                     # If both cameras are valid, calculate the score of track j in view pair (pm_i1, pm_i2)
                     #   1. calculate the baseline angle of track j
@@ -147,6 +155,7 @@ class PatchmatchNetData(Dataset):
         # Filter out depth outliers and calculate depth ranges
         depth_ranges = np.zeros((self._num_valid_cameras, 2))
         for i in range(self._num_valid_cameras):
+            # image i must have at least 1 depth value, calculate the proper depth range
             depth_ranges[i, 0] = np.percentile(depths[i], MIN_DEPTH_PERCENTILE)
             depth_ranges[i, 1] = np.percentile(depths[i], MAX_DEPTH_PERCENTILE)
 

@@ -15,7 +15,8 @@ from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point2Vector, Point3, P
 from gtsam.utils.test_case import GtsamTestCase
 
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.data_association.data_assoc import DataAssociation, TriangulationParam
+from gtsfm.data_association.data_assoc import DataAssociation
+from gtsfm.data_association.point3d_initializer import TriangulationOptions, TriangulationSamplingMode
 
 
 def get_pose3_vector(num_poses: int) -> Pose3Vector:
@@ -95,25 +96,25 @@ class TestDataAssociation(GtsamTestCase):
 
     def test_ransac_sample_biased_baseline_sharedCal_2poses(self):
         """ """
-        mode = TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE
+        mode = TriangulationSamplingMode.RANSAC_SAMPLE_BIASED_BASELINE
         self.verify_triangulation_sharedCal_2poses(mode)
 
     def test_ransac_topk_baselines_sharedCal_2poses(self):
         """ """
-        mode = TriangulationParam.RANSAC_TOPK_BASELINES
+        mode = TriangulationSamplingMode.RANSAC_TOPK_BASELINES
         self.verify_triangulation_sharedCal_2poses(mode)
 
     def test_ransac_sample_uniform_sharedCal_2poses(self):
         """ """
-        mode = TriangulationParam.RANSAC_SAMPLE_UNIFORM
+        mode = TriangulationSamplingMode.RANSAC_SAMPLE_UNIFORM
         self.verify_triangulation_sharedCal_2poses(mode)
 
     def test_no_ransac_sharedCal_2poses(self):
         """ """
-        mode = TriangulationParam.NO_RANSAC
+        mode = TriangulationSamplingMode.NO_RANSAC
         self.verify_triangulation_sharedCal_2poses(mode)
 
-    def verify_triangulation_sharedCal_2poses(self, triangulation_mode: TriangulationParam):
+    def verify_triangulation_sharedCal_2poses(self, triangulation_mode: TriangulationSamplingMode):
         """Tests that the triangulation is accurate for shared calibration with a specified triangulation mode.
 
         Checks whether the triangulated landmark map formed from 2 measurements is valid, if min track length = 3
@@ -132,13 +133,18 @@ class TestDataAssociation(GtsamTestCase):
         # since there is only one measurement in each image, both assigned feature index 0
         matches_dict = {(0, 1): np.array([[0, 0]])}
 
-        da = DataAssociation(
-            reproj_error_thresh=5,  # 5 px
-            min_track_len=3,  # at least 3 measurements required
-            mode=triangulation_mode,
-            num_ransac_hypotheses=20,
+        triangulation_options = TriangulationOptions(
+            reproj_error_threshold=5, mode=triangulation_mode, min_num_hypotheses=20
         )
-        triangulated_landmark_map, _ = da.run(len(cameras), cameras, matches_dict, keypoints_list)
+        da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
+        triangulated_landmark_map, _ = da.run(
+            len(cameras),
+            cameras,
+            matches_dict,
+            keypoints_list,
+            cameras_gt=[None] * len(cameras),
+            relative_pose_priors={},
+        )
         # assert that we cannot obtain even 1 length-3 track if we have only 2 camera poses
         # result should be empty, since nb_measurements < min track length
         assert (
@@ -167,12 +173,12 @@ class TestDataAssociation(GtsamTestCase):
         # since there is only one measurement in each image, both assigned feature index 0
         matches_dict = {(0, 1): np.array([[0, 0]])}
 
-        da = DataAssociation(
-            reproj_error_thresh=5,  # 5 px
-            min_track_len=2,  # at least 2 measurements required
-            mode=TriangulationParam.NO_RANSAC,
+        triangulation_options = TriangulationOptions(reproj_error_threshold=5, mode=TriangulationSamplingMode.NO_RANSAC)
+        da = DataAssociation(min_track_len=2, triangulation_options=triangulation_options)
+
+        sfm_data, _ = da.run(
+            len(cameras), cameras, matches_dict, keypoints_list, [None] * len(cameras), relative_pose_priors={}
         )
-        sfm_data, _ = da.run(len(cameras), cameras, matches_dict, keypoints_list)
         estimated_landmark = sfm_data.get_track(0).point3()
         self.gtsamAssertEquals(estimated_landmark, self.expected_landmark, 1e-2)
 
@@ -181,25 +187,25 @@ class TestDataAssociation(GtsamTestCase):
 
     def test_ransac_sample_biased_baseline_sharedCal_3poses(self):
         """ """
-        mode = TriangulationParam.RANSAC_SAMPLE_BIASED_BASELINE
+        mode = TriangulationSamplingMode.RANSAC_SAMPLE_BIASED_BASELINE
         self.verify_triangulation_sharedCal_3poses(mode)
 
     def test_ransac_topk_baselines_sharedCal_3poses(self):
         """ """
-        mode = TriangulationParam.RANSAC_TOPK_BASELINES
+        mode = TriangulationSamplingMode.RANSAC_TOPK_BASELINES
         self.verify_triangulation_sharedCal_3poses(mode)
 
     def test_ransac_sample_uniform_sharedCal_3poses(self):
         """ """
-        mode = TriangulationParam.RANSAC_SAMPLE_UNIFORM
+        mode = TriangulationSamplingMode.RANSAC_SAMPLE_UNIFORM
         self.verify_triangulation_sharedCal_3poses(mode)
 
     def test_no_ransac_sharedCal_3poses(self):
         """ """
-        mode = TriangulationParam.NO_RANSAC
+        mode = TriangulationSamplingMode.NO_RANSAC
         self.verify_triangulation_sharedCal_3poses(mode)
 
-    def verify_triangulation_sharedCal_3poses(self, triangulation_mode: TriangulationParam):
+    def verify_triangulation_sharedCal_3poses(self, triangulation_mode: TriangulationSamplingMode):
         """Tests that the triangulation is accurate for shared calibration with a specified triangulation mode.
 
         Checks whether the sfm data formed from 3 measurements is valid. The noise vectors represent the amount of
@@ -216,13 +222,18 @@ class TestDataAssociation(GtsamTestCase):
         # since there is only one measurement in each image, both assigned feature index 0
         matches_dict = {(0, 1): np.array([[0, 0]]), (1, 2): np.array([[0, 0]])}
 
-        da = DataAssociation(
-            reproj_error_thresh=5,  # 5 px
-            min_track_len=3,  # at least 3 measurements required
-            mode=triangulation_mode,
-            num_ransac_hypotheses=20,
+        triangulation_options = TriangulationOptions(
+            reproj_error_threshold=5, mode=triangulation_mode, min_num_hypotheses=20
         )
-        sfm_data, _ = da.run(len(cameras), cameras, matches_dict, keypoints_list)
+        da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
+        sfm_data, _ = da.run(
+            len(cameras),
+            cameras,
+            matches_dict,
+            keypoints_list,
+            cameras_gt=[None] * len(cameras),
+            relative_pose_priors={},
+        )
 
         estimated_landmark = sfm_data.get_track(0).point3()
         # checks if computed 3D point is as expected
@@ -237,12 +248,10 @@ class TestDataAssociation(GtsamTestCase):
     def test_data_association_with_missing_camera(self):
         """Tests the data association with input tracks which use a camera index for which the camera doesn't exist."""
 
-        da = DataAssociation(
-            reproj_error_thresh=5,  # 5 px
-            min_track_len=3,  # at least 3 measurements required
-            mode=TriangulationParam.NO_RANSAC,
-            num_ransac_hypotheses=20,
+        triangulation_options = TriangulationOptions(
+            reproj_error_threshold=5, mode=TriangulationSamplingMode.NO_RANSAC, min_num_hypotheses=20
         )
+        da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
 
         # add cameras 0 and 2
         cameras = {
@@ -257,7 +266,12 @@ class TestDataAssociation(GtsamTestCase):
         # will lead to a cheirality exception because keypoints are identical in two cameras
         # no track will be formed, and thus connected component will be empty
         sfm_data, _ = da.run(
-            num_images=3, cameras=cameras, corr_idxs_dict=corr_idxs_dict, keypoints_list=[keypoints_shared] * 3
+            num_images=3,
+            cameras=cameras,
+            corr_idxs_dict=corr_idxs_dict,
+            keypoints_list=[keypoints_shared] * 3,
+            cameras_gt=[None] * 3,
+            relative_pose_priors={},
         )
 
         self.assertEqual(len(sfm_data.get_valid_camera_indices()), 0)
@@ -273,25 +287,29 @@ class TestDataAssociation(GtsamTestCase):
             poses=get_pose3_vector(num_poses=3),
         )
 
+        cameras_gt = [None] * len(cameras)
+
         # create matches
         # since there is only one measurement in each image, both assigned feature index 0
-        matches_dict = {(0, 1): np.array([[0, 0]]), (1, 2): np.array([[0, 0]])}
+        corr_idxs_graph = {(0, 1): np.array([[0, 0]]), (1, 2): np.array([[0, 0]])}
 
         # Run without computation graph
-        da = DataAssociation(
-            reproj_error_thresh=5,  # 5 px
-            min_track_len=3,  # at least 3 measurements required
-            mode=TriangulationParam.RANSAC_TOPK_BASELINES,
-            num_ransac_hypotheses=20,
+        triangulation_options = TriangulationOptions(
+            reproj_error_threshold=5, mode=TriangulationSamplingMode.RANSAC_TOPK_BASELINES, min_num_hypotheses=20
         )
-        expected_sfm_data, expected_metrics = da.run(len(cameras), cameras, matches_dict, keypoints_list)
+        da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
+        expected_sfm_data, expected_metrics = da.run(
+            len(cameras), cameras, corr_idxs_graph, keypoints_list, cameras_gt=cameras_gt, relative_pose_priors={}
+        )
 
         # Run with computation graph
         delayed_sfm_data, delayed_metrics = da.create_computation_graph(
             len(cameras),
             cameras,
-            matches_dict,
+            corr_idxs_graph,
             keypoints_list,
+            cameras_gt,
+            relative_pose_priors=dask.delayed({}),
         )
 
         with dask.config.set(scheduler="single-threaded"):
@@ -302,7 +320,7 @@ class TestDataAssociation(GtsamTestCase):
 
         for k in range(expected_sfm_data.number_tracks()):
             assert (
-                expected_sfm_data.get_track(k).number_measurements() == dask_sfm_data.get_track(k).number_measurements()
+                expected_sfm_data.get_track(k).numberMeasurements() == dask_sfm_data.get_track(k).numberMeasurements()
             ), "Dask tracks incorrect"
             # Test if the measurement in both are equal
             np.testing.assert_array_almost_equal(

@@ -9,7 +9,6 @@ from unittest.mock import patch
 import numpy as np
 from gtsam import Cal3_S2, Point3, Pose3, Rot3, Similarity3, Unit3
 from gtsam.examples import SFMdata
-from scipy.spatial.transform import Rotation
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
 import tests.data.sample_poses as sample_poses
@@ -222,7 +221,7 @@ class TestGeometryComparisons(unittest.TestCase):
 
         np.testing.assert_allclose(computed_deg, expected_deg, rtol=1e-3, atol=1e-3)
 
-    def test_compute_relative_rotation_angle(self) -> None:
+    def test_compute_relative_rotation_angle2(self) -> None:
         """Tests the relative angle between two rotations
 
         Currently compute_relative_rotation_angle() uses Scipy, so this test compares with GTSAM.
@@ -247,14 +246,13 @@ class TestGeometryComparisons(unittest.TestCase):
             wR1 = random_rotation()
             wR2 = random_rotation()
 
-            error_deg = geometry_comparisons.compute_relative_rotation_angle(wR1, wR2)
+            computed_deg = geometry_comparisons.compute_relative_rotation_angle(wR1, wR2)
 
             i2Ri1 = wR2.between(wR1)
-            axis, angle_rad = i2Ri1.axisAngle()
-            angle_deg = np.rad2deg(angle_rad)
+            _, expected_rad = i2Ri1.axisAngle()
+            expected_deg = np.rad2deg(expected_rad)
 
-            np.testing.assert_almost_equal(angle_deg, error_deg)
-            print(angle_deg, error_deg)
+        np.testing.assert_allclose(computed_deg, expected_deg, rtol=1e-3, atol=1e-3)
 
     def test_compute_relative_unit_translation_angle(self):
         """Tests the relative angle between two unit-translations."""
@@ -372,6 +370,26 @@ def test_get_points_within_radius_of_cameras_no_poses():
 
     nearby_points_3d = geometry_comparisons.get_points_within_radius_of_cameras(wTi_list, points_3d, radius)
     assert nearby_points_3d is None, "At least one camera pose must be provided"
+
+
+def test_compute_cyclic_rotation_error() -> None:
+    """Ensure cycle error is computed correctly within a triplet.
+
+    Imagine 3 poses, all centered at the origin, at different orientations.
+
+    Ground truth poses:
+       Let i0 face along +x axis (0 degrees in yaw)
+       Let i2 have a 30 degree rotation from the +x axis.
+       Let i4 have a 90 degree rotation from the +x axis.
+
+    However, suppose one edge measurement is corrupted (from i0 -> i4) by 5 degrees.
+    """
+    i2Ri0 = Rot3.Ry(np.deg2rad(30))
+    i4Ri2 = Rot3.Ry(np.deg2rad(60))
+    i4Ri0 = Rot3.Ry(np.deg2rad(95))
+
+    cycle_error = geometry_comparisons.compute_cyclic_rotation_error(i2Ri0, i4Ri2, i4Ri0)
+    assert np.isclose(cycle_error, 5)
 
 
 if __name__ == "__main__":

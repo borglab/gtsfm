@@ -5,20 +5,20 @@ Authors: Travis Driver
 
 import os
 from pathlib import Path
-from typing import Optional, Dict, Tuple, List
+from typing import Optional, Tuple
 
+import cv2 as cv
+import numpy as np
 import trimesh
-from gtsam import Cal3Bundler, Pose3, Rot3, Point3, SfmTrack
+from gtsam import Cal3Bundler, Pose3, SfmTrack
 
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.images as image_utils
 from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
 
 import thirdparty.colmap.scripts.python.read_write_model as colmap_io
-from thirdparty.colmap.scripts.python.read_write_model import Camera as ColmapCamera
-from thirdparty.colmap.scripts.python.read_write_model import Image as ColmapImage
-from thirdparty.colmap.scripts.python.read_write_model import Point3D as ColmapPoint3D
 
 
 logger = logger_utils.get_logger()
@@ -78,7 +78,7 @@ class AstronetLoader(LoaderBase):
         if not Path(data_dir).exists():
             raise FileNotFoundError("No data found at %s." % data_dir)
         cameras, images, points3d = colmap_io.read_model(path=data_dir, ext=".bin")
-        self._calibrations, self._wTi_list, img_fnames, self._sfmtracks = self.colmap2gtsfm(
+        img_fnames, self._wTi_list, self._calibrations, self._sfmtracks = io_utils.colmap2gtsfm(
             cameras, images, points3d, load_sfmtracks=use_gt_sfmtracks
         )
 
@@ -118,52 +118,6 @@ class AstronetLoader(LoaderBase):
         self._num_imgs = len(self._image_paths)
         logger.info("AstroNet loader found and loaded %d images and %d tracks.", self._num_imgs, self.num_sfmtracks)
 
-    @staticmethod
-    def colmap2gtsfm(
-        cameras: Dict[int, ColmapCamera],
-        images: Dict[int, ColmapImage],
-        points3D: Dict[int, ColmapPoint3D],
-        load_sfmtracks: bool = False,
-    ) -> Tuple[List[Cal3Bundler], List[Pose3], List[str], Optional[List[Point3]]]:
-        """Converts COLMAP-formatted variables to GTSfM format.
-
-        Args:
-            cameras: dictionary of COLMAP-formatted Cameras
-            images: dictionary of COLMAP-formatted Images
-            points3D: dictionary of COLMAP-formatted Point3Ds
-            return_tracks (optional): whether or not to return tracks
-
-        Returns:
-            cameras_gtsfm: list of N camera calibrations corresponding to the N images in images_gtsfm
-            images_gtsfm: list of N camera poses when each image was taken
-            img_fnames: file names of images in images_gtsfm
-            sfmtracks_gtsfm: tracks of points in points3D
-        """
-        # Note: Assumes input cameras use `PINHOLE` model
-        if len(images) == 0 and len(cameras) == 0:
-            raise RuntimeError("No Image or Camera data provided to loader.")
-        cameras_gtsfm, images_gtsfm, img_fnames = [], [], []
-        image_id_to_idx = {}  # keeps track of discrepencies between `image_id` and List index.
-        for idx, img in enumerate(images.values()):
-            images_gtsfm.append(Pose3(Rot3(img.qvec2rotmat()), img.tvec).inverse())
-            img_fnames.append(img.name)
-            fx, _, cx, cy = cameras[img.camera_id].params[:4]
-            cameras_gtsfm.append(Cal3Bundler(fx, 0.0, 0.0, cx, cy))
-            image_id_to_idx[img.id] = idx
-
-        if len(points3D) == 0 and load_sfmtracks:
-            raise RuntimeError("No SfMTrack data provided to loader.")
-        sfmtracks_gtsfm = None
-        if len(points3D) > 0 and load_sfmtracks:
-            sfmtracks_gtsfm = []
-            for point3D in points3D.values():
-                sfmtrack = SfmTrack(point3D.xyz)
-                for (image_id, point2d_idx) in zip(point3D.image_ids, point3D.point2D_idxs):
-                    sfmtrack.add_measurement(image_id_to_idx[image_id], images[image_id].xys[point2d_idx])
-                sfmtracks_gtsfm.append(sfmtrack)
-
-        return cameras_gtsfm, images_gtsfm, img_fnames, sfmtracks_gtsfm
-
     def __len__(self) -> int:
         """The number of images in the dataset.
 
@@ -187,8 +141,14 @@ class AstronetLoader(LoaderBase):
         if index < 0 or index >= len(self):
             raise IndexError(f"Image index {index} is invalid")
 
+        # Read in image.
         img = io_utils.load_image(self._image_paths[index])
-        return img
+
+        # Generate mask to separate background deep space from foreground target body
+        # based on image intensity values.
+        mask = get_nonzero_intensity_mask(img)
+
+        return Image(value_array=img.value_array, exif_data=img.exif_data, file_name=img.file_name, mask=mask)
 
     def get_camera_intrinsics_full_res(self, index: int) -> Cal3Bundler:
         """Get the camera intrinsics at the given index, valid for a full-resolution image.
@@ -253,3 +213,24 @@ class AstronetLoader(LoaderBase):
             validation result.
         """
         return super().is_valid_pair(idx1, idx2) and abs(idx1 - idx2) <= self._max_frame_lookahead
+
+
+def get_nonzero_intensity_mask(img: Image, eps: int = 5, kernel_size: Tuple[int, int] = (15, 15)) -> np.ndarray:
+    """Generate mask of where image intensity values are non-zero.
+
+    After thresholding the image, we use an erosion kernel to add a buffer between the foreground and background.
+
+    Args:
+        img: input Image to be masked (values in range [0, 255]).
+        eps: minimum allowable intensity value, i.e., values below this value will be masked out.
+        kernel_size: size of erosion kernel.
+
+    Returns:
+        Mask (as an integer array) of Image where with a value of 1 where the intensity value is above `eps` and 0
+        otherwise.
+    """
+    gray_image = image_utils.rgb_to_gray_cv(img)
+    _, binary_image = cv.threshold(gray_image.value_array, eps, 255, cv.THRESH_BINARY)
+    mask = cv.erode(binary_image, np.ones(kernel_size, np.uint8)) // 255
+
+    return mask

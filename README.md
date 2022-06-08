@@ -16,6 +16,11 @@ GTSFM is an end-to-end SFM pipeline based on [GTSAM](https://github.com/borglab/
   <img src="https://user-images.githubusercontent.com/16724970/142500100-ed3bd07b-f839-488e-a01d-823a9fbeaba4.gif" height="315">
 </p>
 
+<p align="left">
+  <img src="https://user-images.githubusercontent.com/25347892/146043166-c5a172d7-17e0-4779-8333-8cd5f088ea2e.gif" height="345" title="2011212_opnav_022">
+  <img src="https://user-images.githubusercontent.com/25347892/146043553-5299e9d3-44c5-40a6-8ba8-ff43d2a28c8f.gif" height="345">
+</p>
+
 ## License
 The majority of our code is governed by a MIT license and is suitable for commercial use. However, certain implementations featured in our repo (SuperPoint, SuperGlue) are governed by a non-commercial license and may not be used commercially.
 
@@ -30,7 +35,6 @@ On Linux, with CUDA support:
 conda env create -f environment_linux.yml
 conda activate gtsfm-v1 # you may need "source activate gtsfm-v1" depending upon your bash and conda set-up
 ```
-The Python3.8 `gtsam` wheel for Linux is available [here](https://github.com/borglab/gtsam-manylinux-build/suites/4140410005/artifacts/106127967).
 
 **Mac**
 On Mac OSX, there is no CUDA support, so run:
@@ -38,11 +42,6 @@ On Mac OSX, there is no CUDA support, so run:
 conda env create -f environment_mac.yml
 conda activate gtsfm-v1
 ```
-Download the Python 3.8 gtsam wheel for Mac [here](https://github.com/borglab/gtsam-manylinux-build/suites/4140410005/artifacts/106127969), and install it as
-```bash
-pip install ~/Downloads/gtsam-4.1.1-py3-none-any.whl
-```
-
 ## Completing Installation
 
 Now, install `gtsfm` as a module:
@@ -73,11 +72,13 @@ and run
 ```python
 python gtsfm/runner/run_scene_optimizer_olssonloader.py --config_name {CONFIG_NAME} --dataset_root {DATASET_ROOT} --image_extension jpg --num_workers {NUM_WORKERS}
 ```
-For example, if you had 4 cores available and wanted to use the Deep Front-End (recommended), you should run:
+For example, if you had 4 cores available and wanted to use the Deep Front-End (recommended) on the "door" dataset, you should run:
 ```bash
-python gtsfm/runner/run_scene_optimizer_olssonloader.py --dataset_root /path/to/{DATASET_NAME} --image_extension jpg --config_name deep_front_end.yaml --num_workers 4
+python gtsfm/runner/run_scene_optimizer_olssonloader.py --dataset_root tests/data/set1_lund_door --image_extension JPG --config_name deep_front_end.yaml --num_workers 4
 ```
 (or however many workers you desire).
+
+You can view/monitor the distributed computation using the [Dask dashboard](http://localhost:8787/status).
 
 Currently we require EXIF data embedded into your images (or you can provide ground truth intrinsics in the expected format for an Olsson dataset, or COLMAP-exported text data, etc)
 
@@ -128,14 +129,15 @@ Contributions are always welcome! Please be aware of our [contribution guideline
 Open-source Python implementation:
 ```
 @misc{GTSFM,
-    author = {Ayush Baid and Fan Jiang and Akshay Krishnan and John Lambert and Aditya Singh and
-       Aishwarya Venkataramanan and Sushmita Warrier and Jing Wu and Xiaolong Wu and Frank Dellaert},
+    author = {Ayush Baid and Travis Driver and Fan Jiang and Akshay Krishnan and John Lambert
+       and Ren Liu and Aditya Singh and Neha Upadhyay and Aishwarya Venkataramanan
+       and Sushmita Warrier and Jing Wu and Xiaolong Wu and Frank Dellaert},
     title = { {GTSFM}: Georgia Tech Structure from Motion},
     howpublished={\url{https://github.com/borglab/gtsfm}},
     year = {2021}
 }
 ```
-Note: authors are listed in alphabetical order.
+Note: authors are listed in alphabetical order (by last name).
 
 
 ## Compiling Additional Verifiers
