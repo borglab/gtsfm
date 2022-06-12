@@ -172,7 +172,7 @@ class Point3dInitializer:
 
             # check for unestimated cameras
             if self.track_camera_dict.get(i1) is None or self.track_camera_dict.get(i2) is None:
-                # logger.warning("Unestimated cameras found at indices %d or %d. Skipping them.", i1, i2)
+                logger.warning("Unestimated cameras found at indices %d or %d. Skipping them.", i1, i2)
                 continue
 
             camera_estimates = self._camera_set_class()

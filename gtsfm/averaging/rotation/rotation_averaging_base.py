@@ -35,7 +35,7 @@ class RotationAveragingBase(metaclass=abc.ABCMeta):
         Args:
             num_images: number of poses.
             i2Ri1_dict: relative rotations as dictionary (i1, i2): i2Ri1.
-            relative_pose_priors: priors on relative poses as dictionary(i1, i2): i1Ti2.
+            relative_pose_priors: priors on relative poses as dictionary(i1, i2): PosePrior on i1Ti2.
 
         Returns:
             Global rotations for each camera pose, i.e. wRi, as a list. The number of entries in the list is
@@ -79,7 +79,7 @@ class RotationAveragingBase(metaclass=abc.ABCMeta):
         Args:
             num_images: number of poses.
             i2Ri1_graph: dictionary of relative rotations as a delayed task.
-            relative_pose_priors: priors on relative poses as (i1, i2): i1Ti2.
+            relative_pose_priors: priors on relative poses as (i1, i2): PosePrior on i1Ti2.
             gt_wTi_list: ground truth poses, to be used for evaluation.
 
         Returns:

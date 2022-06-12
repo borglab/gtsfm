@@ -101,6 +101,7 @@ class HiltiLoader(LoaderBase):
 
         # Read the constraints from the lidar/constraints file
         all_constraints = self._load_constraints()
+        logger.info("Number of constraints loaded form disk: %d", len(all_constraints))
         filtered_constraints = list(self._covariance_filtered_constraints(all_constraints))
         # TODO(Frank): below does *not* give same result if iterable above not converted to list!
         filtered_constraints = self._filter_outlier_constraints(filtered_constraints)
@@ -144,27 +145,13 @@ class HiltiLoader(LoaderBase):
         """Filter constraints to remove those with invalid covariances."""
         return filter(cls._check_covariance, constraints)
 
-    @classmethod
-    def _error_filtered_constraints(
-        cls, constraints: Iterable[Constraint], poses: List[Pose3], error_threshold=1e8
-    ) -> Iterable[Constraint]:
-        """Filter constraints to remove those with high errors (not used for now)."""
-
-        def acceptable_error(constraint):
-            a, b = constraint.a, constraint.b
-            predicted_aTb = poses[a].between(poses[b])
-            error = np.linalg.norm(constraint.aTb.logmap(predicted_aTb))
-            return error <= error_threshold
-
-        return filter(acceptable_error, constraints)
-
     @staticmethod
     def _update_stationary_constraints(constraints: List[Constraint]) -> List[Constraint]:
         """Detect stationary periods and replace constraints there with 'hard' identity constraints."""
         TRANSLATION_THRESHOLD = 0.02
         ROTATION_THRESHOLD = np.deg2rad(0.5)
 
-        def stationary(c):
+        def is_stationary(c: Constraint) -> bool:
             # Not stationary if either rotation or translation is high enough.
             return (
                 np.linalg.norm(Rot3.Logmap(c.aTb.rotation())) <= ROTATION_THRESHOLD
@@ -172,7 +159,7 @@ class HiltiLoader(LoaderBase):
             )
 
         def update(c):
-            return Constraint(c.a, c.b, Pose3(), STATIONARY_POSE_PRIOR_COVARIANCE, c.counts) if stationary(c) else c
+            return Constraint(c.a, c.b, Pose3(), STATIONARY_POSE_PRIOR_COVARIANCE, c.counts) if is_stationary(c) else c
 
         updated_constraints = [update(constraint) for constraint in constraints]
         return updated_constraints
@@ -241,7 +228,7 @@ class HiltiLoader(LoaderBase):
 
         def pose_of_vector(pose_vector):
             """Convert from vector to Pose3"""
-            pose_rotation = Rot3(pose_vector[-1], pose_vector[3], pose_vector[4], pose_vector[5])
+            pose_rotation = Rot3(pose_vector[-1], pose_vector[3], pose_vector[4], pose_vector[5])  # from quaternion
             pose_translation = Point3(pose_vector[:3])
             return Pose3(pose_rotation, pose_translation)
 

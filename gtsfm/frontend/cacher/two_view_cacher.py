@@ -27,7 +27,11 @@ CORR_IDXES_KEY = "idxes"
 
 
 class TwoViewCacher(TwoViewEstimator):
-    """Cacher for TwoViewEstimator's output on disk, keyed on the input."""
+    """Cacher for TwoViewEstimator's output on disk, keyed on the input.
+
+    The cached data is the relative rotation, unit translation, and the keypoint indices for verified correspondences.
+    The key for the cache is the keypoints, descriptors, and image shape of the 2 images.
+    """
 
     def __init__(self, two_view_estimator: TwoViewEstimator) -> None:
         self._two_view_estimator = two_view_estimator

@@ -40,7 +40,7 @@ class PoseSlam:
             List of Optional[Pose3],
             GtsfmMetricsGroup of 1DSfM metrics.
         """
-        logger.info("[pose slam] Running pose SLAM intilialization")
+        logger.info("Running Pose SLAM intilialization")
         pose_init_graph = gtsam.NonlinearFactorGraph()
 
         for (i1, i2), i1Ti2_prior in relative_pose_priors.items():
@@ -57,14 +57,15 @@ class PoseSlam:
 
         initial_values = gtsam.InitializePose3.initialize(pose_init_graph)
         initial_error = pose_init_graph.error(initial_values)
-        logger.info(f"[pose slam] Pose SLAM initialization complete with error: {initial_error}")
+        logger.info(f"Initialization complete with error: {initial_error}")
         optimizer = gtsam.LevenbergMarquardtOptimizer(pose_init_graph, initial_values)
         result = optimizer.optimizeSafely()
 
         poses = [result.atPose3(i) if result.exists(i) else None for i in range(num_images)]
         final_error = pose_init_graph.error(result)
-        logger.info(f"[pose slam] Pose SLAM optimization complete with error: {final_error}")
+        logger.info(f"Optimization complete with error: {final_error}")
 
+        # TODO: add metrics which are on par with the averaging metrics
         return poses, GtsfmMetricsGroup(
             "pose_slam_metrics", [GtsfmMetric("intial_error", initial_error), GtsfmMetric("final_error", final_error)]
         )

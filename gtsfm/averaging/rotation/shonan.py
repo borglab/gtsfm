@@ -119,6 +119,8 @@ class ShonanRotationAveraging(RotationAveragingBase):
             if result.exists(i):
                 wRi_list_consecutive[i] = result.atRot3(i)
 
+        num_computed = sum(wRi is not None for wRi in wRi_list_consecutive)
+        logger.info("Computed %d global rotations", num_computed)
         return wRi_list_consecutive
 
     def _valid_nodes(

@@ -203,7 +203,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
         if image is not None:
             return (image.height, image.width)
         else:
-            return (0, 0)
+            raise IndexError(f"Index {idx} does not have an image")
 
     def get_relative_pose_prior(self, i1: int, i2: int) -> Optional[PosePrior]:
         """Get the prior on the relative pose i2Ti1

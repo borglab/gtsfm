@@ -53,7 +53,7 @@ class TranslationAveragingBase(metaclass=abc.ABCMeta):
         Returns:
             Global poses wTi for each camera pose. The number of entries in the list is `num_images`. The list
                 may contain `None` where the global translations could not be computed (either underconstrained system
-                or ill-constrained system).
+                or ill-constrained system) or where the global rotations are not available.
         """
 
     def create_computation_graph(

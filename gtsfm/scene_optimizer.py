@@ -115,7 +115,7 @@ class SceneOptimizer:
     def create_computation_graph_for_frontend(
         self,
         loader: LoaderBase,
-        image: List[Delayed],
+        images: List[Delayed],
         image_pair_indices: List[Tuple[int, int]],
         gt_scene_mesh: Optional[Trimesh] = None,
     ) -> Tuple[Dict[Tuple[int, int], Delayed], Dict[Tuple[int, int], Delayed]]:
@@ -124,7 +124,7 @@ class SceneOptimizer:
         # detection and description graph
         delayed_keypoints = []
         delayed_descriptors = []
-        for delayed_image in image:
+        for delayed_image in images:
             (delayed_dets, delayed_descs) = self.feature_extractor.create_computation_graph(delayed_image)
             delayed_keypoints += [delayed_dets]
             delayed_descriptors += [delayed_descs]
@@ -360,22 +360,14 @@ def align_estimated_gtsfm_data(
 def save_visualizations(ba_input: GtsfmData, ba_output: GtsfmData, gt_poses: List[Optional[Pose3]]) -> None:
     """Save SfmData before and after bundle adjustment and camera poses for visualization.
 
-    Accepts delayed GtsfmData before and after bundle adjustment, along with GT poses,
-    saves them and returns a delayed object.
-
     Args:
         ba_input_graph: Delayed GtsfmData input to bundle adjustment.
         ba_output_graph: Delayed GtsfmData output from bundle adjustment.
         gt_pose_graph: Delayed ground truth poses.
-
-    Returns:
-        A list of Delayed objects after saving the different visualizations.
     """
-    aligned_ba_input = ba_input.align_via_Sim3_to_poses(gt_poses)
-    aligned_ba_output = ba_output.align_via_Sim3_to_poses(gt_poses)
-    viz_utils.save_sfm_data_viz(aligned_ba_input, str(PLOT_BA_INPUT_PATH))
-    viz_utils.save_sfm_data_viz(aligned_ba_output, str(PLOT_BA_INPUT_PATH))
-    viz_utils.save_camera_poses_viz(aligned_ba_input, aligned_ba_output, gt_poses, str(PLOT_RESULTS_PATH))
+    viz_utils.save_sfm_data_viz(ba_input, str(PLOT_BA_INPUT_PATH))
+    viz_utils.save_sfm_data_viz(ba_output, str(PLOT_BA_INPUT_PATH))
+    viz_utils.save_camera_poses_viz(ba_input, ba_output, gt_poses, str(PLOT_RESULTS_PATH))
 
 
 def save_gtsfm_data(

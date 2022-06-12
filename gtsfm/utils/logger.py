@@ -12,6 +12,7 @@ def get_logger() -> Logger:
     logger_name = "main-logger"
     logger = logging.getLogger(logger_name)
     logger.setLevel(logging.DEBUG)
+    logger.propagate = False
     if not logger.handlers:
         handler = logging.StreamHandler(sys.stdout)
         fmt = "[%(asctime)s %(levelname)s %(filename)s line %(lineno)d %(process)d] %(message)s"

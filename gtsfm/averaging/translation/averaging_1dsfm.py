@@ -96,7 +96,6 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         Args:
             w_i2Ui1_measurements: Unit translation measurements which are input to 1DSfM.
-            projection_sampling_method: ProjectionSamplingMethod to be used for sampling directions.
 
         Returns:
             List of sampled Unit3 projection directions.
@@ -118,7 +117,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         return projections
 
-    def compute_inlier_mask(
+    def __compute_inlier_mask(
         self,
         w_i2Ui1_measurements: BinaryMeasurementsUnit3,
     ) -> Set[Tuple[int, int]]:
@@ -179,17 +178,18 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             return BinaryMeasurementsPoint3()
 
         def get_prior_in_world_frame(i1, i1Ti2_prior) -> Tuple[Point3, gtsam.noiseModel.Gaussian]:
+            """Transforms a direction prior from i1 coordinate frame to world coordinates using wRi1."""
             wRi1 = wRi_list[i1].matrix()
             w_i1ti2 = wRi1 @ i1Ti2_prior.value.translation()
             w_cov = wRi1 @ i1Ti2_prior.covariance[3:, 3:] @ wRi1.T
             noise_model = gtsam.noiseModel.Gaussian.Covariance(w_cov)
             return w_i1ti2, noise_model
 
-        w_relative_pose_priors = BinaryMeasurementsPoint3()
+        w_relative_translation_priors = BinaryMeasurementsPoint3()
 
         for (i1, i2), i1Ti2_prior in relative_pose_priors.items():
             w_i1ti2, noise_model = get_prior_in_world_frame(i1, i1Ti2_prior)
-            w_relative_pose_priors.append(
+            w_relative_translation_priors.append(
                 BinaryMeasurementPoint3(
                     i1,
                     i2,
@@ -197,7 +197,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                     noise_model,
                 )
             )
-        return w_relative_pose_priors
+        return w_relative_translation_priors
 
     def __get_initial_values(self, wTi_initial: List[Optional[PosePrior]]):
         """Converts translations from a list of absolute poses to gtsam.Values for initialization.
@@ -214,9 +214,20 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
     def augment(
         self,
         w_i2Ui1_measurements: BinaryMeasurementsUnit3,
-        w_relative_pose_priors: BinaryMeasurementsPoint3,
+        w_relative_translation_priors: BinaryMeasurementsPoint3,
         noise_model: gtsam.noiseModel,
     ) -> BinaryMeasurementsUnit3:
+        """Augment the measurements with priors. If there is a pair (i1, i2) where the measurement is missing but the
+        prior is present, we will add the prior as the measurement.
+
+        Args:
+            w_i2Ui1_measurements: relative unit translation measurements in the world frame.
+            w_relative_translation_priors: relative translations in the world frame.
+            noise_model: noise model to be used for newly added measurements.
+
+        Returns:
+            Augmented measurements, which are a superset of w_i2Ui1_measurements.
+        """
         # TODO: use deecopy when BinaryMeasurementsUnit3 can be pickled
         # augmented_measurements = deepcopy(w_i2Ui1_measurements)
         augmented_measurements = w_i2Ui1_measurements
@@ -227,8 +238,8 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             nodes_with_measurements.add(measurement.key1())
             nodes_with_measurements.add(measurement.key2())
 
-        for idx in range(len(w_relative_pose_priors)):
-            prior: BinaryMeasurementPoint3 = w_relative_pose_priors[idx]
+        for idx in range(len(w_relative_translation_priors)):
+            prior: BinaryMeasurementPoint3 = w_relative_translation_priors[idx]
             i1 = prior.key1()
             i2 = prior.key2()
 
@@ -271,7 +282,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 or ill-constrained system).
             A GtsfmMetricsGroup of 1DSfM metrics.
         """
-        logger.info(f"[1dsfm] Running translation averaging on {len(i2Ui1_dict)} unit translations.")
+        logger.info(f"Running translation averaging on {len(i2Ui1_dict)} unit translations.")
         noise_model = gtsam.noiseModel.Isotropic.Sigma(NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
         if self._robust_measurement_noise:
             huber_loss = gtsam.noiseModel.mEstimator.Huber.Create(HUBER_LOSS_K)
@@ -280,11 +291,11 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         w_i2Ui1_measurements = cast_to_measurements_variable_in_global_coordinate_frame(
             i2Ui1_dict, wRi_list, noise_model
         )
-        logger.debug("[1dsfm] Created measurements in global frame.")
+        logger.debug("Created measurements in global frame.")
 
         # Possibly perform (slow!) outlier rejection with Minimum Feedback Arc Set algorithm.
         if self._MFAS_outlier_rejection:
-            inliers: Set[Tuple[int, int]] = self.compute_inlier_mask(w_i2Ui1_measurements)
+            inliers: Set[Tuple[int, int]] = self.__compute_inlier_mask(w_i2Ui1_measurements)
             logger.debug("[1dsfm] Computed inlier mask with MFAS.")
 
             w_i2Ui1_inlier_measurements = BinaryMeasurementsUnit3()
@@ -302,21 +313,23 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         # Run the optimizer
         algorithm = TranslationRecovery()
-        logger.debug("[1dsfm] Constructed NEW TranslationRecovery, about to run.")
         w_relative_pose_priors = self._get_prior_measurements_in_world_frame(relative_pose_priors, wRi_list)
         wti_initial = self.__get_initial_values(absolute_pose_priors)
-        logger.debug("[1dsfm] Computed priors and initial values.")
+        logger.debug("Computed priors and initial values.")
+
+        logger.debug("Constructed TranslationRecovery, about to run.")
         if len(w_relative_pose_priors) > 0:
             # scale is ignored here.
             noise_model_for_augmentation = gtsam.noiseModel.Isotropic.Sigma(NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
             augmented_w_i2Ui1_measurements = self.augment(
                 w_i2Ui1_measurements, w_relative_pose_priors, noise_model_for_augmentation
             )
+            logger.debug("Running TranslactionRecovery with priors")
             wti_values = algorithm.run(augmented_w_i2Ui1_measurements, 0.0, w_relative_pose_priors, wti_initial)
-            logger.debug("[1dsfm] Finished with priors.")
+
         else:
+            logger.debug("Running translation recovery without priors")
             wti_values = algorithm.run(w_i2Ui1_measurements, scale_factor)
-            logger.debug("[1dsfm] Finished without priors.")
 
         # transforming the result to the list of Point3
         wti_list = [

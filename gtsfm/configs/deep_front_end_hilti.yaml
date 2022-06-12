@@ -41,10 +41,9 @@ SceneOptimizer:
     _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
     use_pose_slam_initialization: True
 
-    # comment out to not run
-    # view_graph_estimator:
-    #   _target_: gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator.CycleConsistentRotationViewGraphEstimator
-    #   edge_error_aggregation_criterion: MEDIAN_EDGE_ERROR
+    view_graph_estimator: # optional 
+      _target_: gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator.CycleConsistentRotationViewGraphEstimator
+      edge_error_aggregation_criterion: MEDIAN_EDGE_ERROR
       
     rot_avg_module:
       _target_: gtsfm.averaging.rotation.shonan.ShonanRotationAveraging
@@ -74,6 +73,5 @@ SceneOptimizer:
       shared_calib: False
     
 
-  # comment out to not run
-  # dense_multiview_optimizer:
-  #   _target_: gtsfm.densify.mvs_patchmatchnet.MVSPatchmatchNet
+  # dense_multiview_optimizer: # optional
+    # _target_: gtsfm.densify.mvs_patchmatchnet.MVSPatchmatchNet

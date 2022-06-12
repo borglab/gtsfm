@@ -184,6 +184,7 @@ class BundleAdjustmentOptimizer:
             CAM_CAL3FISHEYE_PRIOR_NOISE_SIGMA if is_fisheye_calibration else CAM_CAL3BUNDLER_PRIOR_NOISE_SIGMA
         )
 
+        # add calibration from either the cameras in initial_data or from the intrinsics passed as input argument.
         for i in cameras_to_model:
             camera = initial_data.get_camera(i)
 
@@ -192,8 +193,7 @@ class BundleAdjustmentOptimizer:
                 calibration = camera.calibration()
             elif intrinsics is not None:
                 calibration = intrinsics[i]
-
-            if calibration is None:
+            else:
                 continue
 
             graph.push_back(
@@ -273,9 +273,6 @@ class BundleAdjustmentOptimizer:
                 )
             )
 
-        # add the pose priors as between factors
-        # pose_init_graph.push_back(self._between_factors(relative_pose_priors, cameras_to_model))
-
         for (i1, i2), i1Ti2_prior in relative_pose_priors.items():
             if i1 not in cameras_to_model or i2 not in cameras_to_model:
                 continue
@@ -286,7 +283,7 @@ class BundleAdjustmentOptimizer:
                     X(i1),
                     X(i2),
                     i1Ti2_prior.value,
-                    gtsam.noiseModel.Isotropic.Sigma(CAM_POSE3_DOF, CAM_POSE3_PRIOR_NOISE_SIGMA * 3),
+                    gtsam.noiseModel.Isotropic.Sigma(CAM_POSE3_DOF, CAM_POSE3_PRIOR_NOISE_SIGMA),
                 )
             )
 
@@ -312,8 +309,7 @@ class BundleAdjustmentOptimizer:
                     calibration = camera.calibration()
                 elif intrinsics is not None:
                     calibration = intrinsics[i]
-
-                if calibration is None:
+                else:
                     continue
 
                 initial_values.insert(K(self.__map_to_calibration_variable(i)), calibration)
@@ -358,11 +354,6 @@ class BundleAdjustmentOptimizer:
             if i1 in cameras or i2 in cameras:
                 cameras.add(i1)
                 cameras.add(i2)
-
-        # Hilti specific hack to add the backbone of CAM2-CAM2
-        # TODO(Ayush): move this to a hilti specific branch
-        for i in range(2, initial_data.number_images(), 5):
-            cameras.add(i)
 
         return sorted(list(cameras))
 
@@ -424,14 +415,14 @@ class BundleAdjustmentOptimizer:
 
         # Error drops from ~2764.22 to ~0.046
         if verbose:
-            logger.info(f"[BA] initial error: {graph.error(initial_values):.2f}")
-            logger.info(f"[BA] final error: {final_error:.2f}")
+            logger.info(f"Initial error: {graph.error(initial_values):.2f}")
+            logger.info(f"Final error: {final_error:.2f}")
 
         # construct the results
         optimized_data = values_to_gtsfm_data(result_values, initial_data, cameras_to_model, self._shared_calib)
 
         if verbose:
-            logger.info("[BA] Number of tracks before filtering: %d", optimized_data.number_tracks())
+            logger.info("Number of tracks before filtering: %d", optimized_data.number_tracks())
 
         # filter the largest errors
         if self._output_reproj_error_thresh:
@@ -440,7 +431,7 @@ class BundleAdjustmentOptimizer:
             valid_mask = [True] * optimized_data.number_tracks()
             filtered_result = optimized_data
 
-        logger.info("[BA] Number of tracks after filtering: %d", filtered_result.number_tracks())
+        logger.info("Number of tracks after filtering: %d", filtered_result.number_tracks())
 
         return optimized_data, filtered_result, valid_mask
 
@@ -485,8 +476,8 @@ class BundleAdjustmentOptimizer:
         ba_metrics.add_metrics(metrics_utils.get_stats_for_sfmdata(aligned_filtered_data, suffix="_filtered"))
         # ba_metrics.save_to_json(os.path.join(METRICS_PATH, "bundle_adjustment_metrics.json"))
 
-        logger.info("[BA] Mean track length %.3f", np.mean(aligned_filtered_data.get_track_lengths()))
-        logger.info("[BA] Median track length %.3f", np.median(aligned_filtered_data.get_track_lengths()))
+        logger.info("Mean track length %.3f", np.mean(aligned_filtered_data.get_track_lengths()))
+        logger.info("Median track length %.3f", np.median(aligned_filtered_data.get_track_lengths()))
         aligned_filtered_data.log_scene_reprojection_error_stats("BA")
 
         return ba_metrics
