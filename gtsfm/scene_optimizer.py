@@ -365,9 +365,11 @@ def save_visualizations(ba_input: GtsfmData, ba_output: GtsfmData, gt_poses: Lis
         ba_output_graph: Delayed GtsfmData output from bundle adjustment.
         gt_pose_graph: Delayed ground truth poses.
     """
-    viz_utils.save_sfm_data_viz(ba_input, str(PLOT_BA_INPUT_PATH))
-    viz_utils.save_sfm_data_viz(ba_output, str(PLOT_BA_INPUT_PATH))
-    viz_utils.save_camera_poses_viz(ba_input, ba_output, gt_poses, str(PLOT_RESULTS_PATH))
+    aligned_ba_input = ba_input.align_via_Sim3_to_poses(gt_poses)
+    aligned_ba_output = ba_output.align_via_Sim3_to_poses(gt_poses)
+    viz_utils.save_sfm_data_viz(aligned_ba_input, str(PLOT_BA_INPUT_PATH))
+    viz_utils.save_sfm_data_viz(aligned_ba_output, str(PLOT_BA_INPUT_PATH))
+    viz_utils.save_camera_poses_viz(aligned_ba_input, aligned_ba_output, gt_poses, str(PLOT_RESULTS_PATH))
 
 
 def save_gtsfm_data(
