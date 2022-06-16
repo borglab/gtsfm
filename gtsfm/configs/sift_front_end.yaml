@@ -64,7 +64,7 @@ SceneOptimizer:
       save_track_patches_viz: False
 
     bundle_adjustment_module:
-      _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptimizer
+      _target_: gtsfm.bundle.two_step_ba.TwoStepBA
       output_reproj_error_thresh: 3 # for post-optimization filtering
       robust_measurement_noise: True
       shared_calib: False
