@@ -82,7 +82,6 @@ class TestHiltiLoader(unittest.TestCase):
         self.loader = HiltiLoader(
             base_folder=str(TEST_DATASET_DIR_PATH),
             max_length=None,
-            old_style=True,
         )
 
     def test_length(self) -> None:
@@ -150,7 +149,6 @@ class TestHiltiLoader(unittest.TestCase):
             base_folder=str(TEST_DATASET_DIR_PATH),
             max_length=None,
             subsample=2,
-            old_style=True,
         )
         all_constraints = loader._load_constraints()
 
@@ -166,7 +164,6 @@ class TestHiltiLoader(unittest.TestCase):
             base_folder=str(TEST_DATASET_DIR_PATH),
             max_length=None,
             subsample=2,
-            old_style=True,
         )
 
         expected = [

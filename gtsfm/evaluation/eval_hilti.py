@@ -334,8 +334,6 @@ if __name__ == "__main__":
     with open(args.cam2_calib_yaml, "r") as file:
         calibration_data = yaml.safe_load(file)
 
-    # cam2_T_imu = Pose3(calibration_data["cam0"]["T_cam_imu"])
-    # body_poses = get_body_poses(cam2_poses, cam2_T_imu)
     timestamps = read_timestamps_from_tum_file(args.fastlio_tum)
 
     write_poses_to_tum_file(cam2_poses, gtsfm_tum_path, timestamps)

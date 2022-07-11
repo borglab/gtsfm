@@ -168,6 +168,24 @@ class BundleAdjustmentOptimizer:
 
         return graph
 
+    def __get_calibration(
+        self,
+        i: int,
+        initial_data: GtsfmData,
+        intrinsics: Optional[List[gtsfm_types.CALIBRATION_TYPE]] = None,
+    ) -> Optional[gtsfm_types.CALIBRATION_TYPE]:
+        """Get the calibration for a camera index from the initial data, with the explicitly supplied intrinsics as a
+        fallback.
+        """
+
+        camera = initial_data.get_camera(i)
+        if camera is not None:
+            return camera.calibration()
+        elif intrinsics is not None:
+            return intrinsics[i]
+
+        return None
+
     def __calibration_priors(
         self,
         initial_data: GtsfmData,
@@ -186,14 +204,9 @@ class BundleAdjustmentOptimizer:
 
         # add calibration from either the cameras in initial_data or from the intrinsics passed as input argument.
         for i in cameras_to_model:
-            camera = initial_data.get_camera(i)
 
-            calibration = None
-            if camera is not None:
-                calibration = camera.calibration()
-            elif intrinsics is not None:
-                calibration = intrinsics[i]
-            else:
+            calibration = self.__get_calibration(i, initial_data, intrinsics)
+            if calibration is None:
                 continue
 
             graph.push_back(
@@ -301,15 +314,8 @@ class BundleAdjustmentOptimizer:
         is_calibration_added = False
         for i in cameras_to_model:
             if not is_calibration_added or not self._shared_calib:
-                # add only one value if calibrations are shared
-
-                camera = initial_data.get_camera(i)
-                calibration = None
-                if camera is not None:
-                    calibration = camera.calibration()
-                elif intrinsics is not None:
-                    calibration = intrinsics[i]
-                else:
+                calibration = self.__get_calibration(i, initial_data, intrinsics)
+                if calibration is None:
                     continue
 
                 initial_values.insert(K(self.__map_to_calibration_variable(i)), calibration)
@@ -375,7 +381,7 @@ class BundleAdjustmentOptimizer:
             intrinsics: intrinsics for all the cameras.
 
         Results:
-            Optimized camera poses, 3D point w/ tracks, and error metrics, aligned to GT (if provided).
+            Optimized camera poses, 3D point w/ tracks, and error metrics.
             Optimized camera poses after filtering landmarks (and cameras with no remaining landmarks).
             Valid mask as a list of booleans, indicating for each input track whether it was below the re-projection
                 threshold.
@@ -458,6 +464,7 @@ class BundleAdjustmentOptimizer:
             return ba_metrics
 
         # align the sparse multi-view estimate after BA to the ground truth pose graph.
+        # Note: this aligned data is not returned anywhere.
         aligned_filtered_data = filtered_data.align_via_Sim3_to_poses(wTi_list_ref=poses_gt)
         ba_pose_error_metrics = metrics_utils.compute_ba_pose_metrics(
             gt_wTi_list=poses_gt, ba_output=aligned_filtered_data

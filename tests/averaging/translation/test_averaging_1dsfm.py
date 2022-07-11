@@ -49,7 +49,7 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
         priors.append(gtsam.BinaryMeasurementPoint3(0, 2, Point3(1, 1, 0), PRIOR_NOISE_MODEL))
         priors.append(gtsam.BinaryMeasurementPoint3(2, 3, Point3(1, 0, 1), PRIOR_NOISE_MODEL))
 
-        augmented_measurements = self.obj.augment(input_measurements, priors, INPUT_NOISE_MODEL)
+        augmented_measurements = self.obj.augment_measurement_with_priors(input_measurements, priors, INPUT_NOISE_MODEL)
         self.assertEqual(len(augmented_measurements), 4)
         augmented_measurements_dict = {}
         for idx in range(len(augmented_measurements)):

@@ -15,7 +15,7 @@ Authors: Ayush Baid
 """
 import glob
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 import yaml
 
 import numpy as np
@@ -47,6 +47,7 @@ LIDAR_POSE_RELATIVE_PATH = "lidar/fastlio2.g2o"
 LIDAR_CONSTRAINTS_RELATIVE_PATH = "lidar/constraints.txt"
 IMAGES_FOLDER = "images"
 
+# TODO: tune the priors, particularly the translation component of the CAM2_BACKBONE prior.
 HARD_POSE_PRIOR_COVARIANCE = np.eye(6) * 1e-8
 STATIONARY_POSE_PRIOR_COVARIANCE = np.eye(6) * 1e-7
 CAM2_BACKBONE_POSE_PRIOR_COVARIANCE = np.diag(np.array([np.deg2rad(30.0), np.deg2rad(30.0), np.deg2rad(30.0), 1, 1, 1]))
@@ -59,7 +60,6 @@ class HiltiLoader(LoaderBase):
         max_length: Optional[int] = None,
         max_resolution: int = 1080,
         subsample: int = 1,
-        old_style: bool = False,
         add_backbone: bool = True,
     ) -> None:
         """Initializes, loads calibration, constraints, and pose priors.
@@ -70,14 +70,12 @@ class HiltiLoader(LoaderBase):
             max_resolution: integer representing maximum length of image's short side
                e.g. for 1080p (1920 x 1080), max_resolution would be 1080
             subsample: subsample along the time axis, default 1 (none).
-            old_style: Use old-style sequential image numbering.
             add_backbone: add a backbone of soft constraints for CAM2-CAM2 pairs.
         """
         super().__init__(max_resolution)
         self._base_folder: Path = Path(base_folder)
         self._max_length = max_length
         self._subsample = subsample
-        self._old_style = old_style
         self._add_backbone = add_backbone
 
         # Load calibration.
@@ -102,8 +100,7 @@ class HiltiLoader(LoaderBase):
         # Read the constraints from the lidar/constraints file
         all_constraints = self._load_constraints()
         logger.info("Number of constraints loaded form disk: %d", len(all_constraints))
-        filtered_constraints = list(self._covariance_filtered_constraints(all_constraints))
-        # TODO(Frank): below does *not* give same result if iterable above not converted to list!
+        filtered_constraints = self._covariance_filtered_constraints(all_constraints)
         filtered_constraints = self._filter_outlier_constraints(filtered_constraints)
         logger.info("[hilti_loader] Number of outlier-filtered constraints: %d", len(filtered_constraints))
         filtered_constraints = self._update_stationary_constraints(filtered_constraints)
@@ -141,9 +138,9 @@ class HiltiLoader(LoaderBase):
             return False
 
     @classmethod
-    def _covariance_filtered_constraints(cls, constraints: List[Constraint]) -> Iterable[Constraint]:
+    def _covariance_filtered_constraints(cls, constraints: List[Constraint]) -> List[Constraint]:
         """Filter constraints to remove those with invalid covariances."""
-        return filter(cls._check_covariance, constraints)
+        return list(filter(cls._check_covariance, constraints))
 
     @staticmethod
     def _update_stationary_constraints(constraints: List[Constraint]) -> List[Constraint]:
@@ -165,7 +162,7 @@ class HiltiLoader(LoaderBase):
         return updated_constraints
 
     @staticmethod
-    def _filter_outlier_constraints(constraints: Iterable[Constraint]) -> List[Constraint]:
+    def _filter_outlier_constraints(constraints: List[Constraint]) -> List[Constraint]:
         """Removes 1-step constraints for which the translation magnitude is greater than 2 or 3-step constraints."""
         ERROR_MARGIN = 0.1  # meters
         ROT_SIGMA = np.deg2rad(60)
@@ -238,17 +235,12 @@ class HiltiLoader(LoaderBase):
 
     def __get_num_rig_poses(self) -> int:
         """Check how many images we have on disk and deduce number of rig poses."""
-        pattern = "*.jpg" if self._old_style else "*.png"
+        pattern = "*.png"
         search_path: str = str(self._base_folder / IMAGES_FOLDER / pattern)
 
-        if self._old_style:
-            image_files = glob.glob(search_path)
-            total_num_images = len(image_files)
-            return total_num_images // NUM_CAMS
-        else:
-            image_fnames = [Path(f).stem for f in glob.glob(search_path)]
-            rig_indices = [int(fname.split("_")[0]) for fname in image_fnames]
-            return max(rig_indices) + 1
+        image_fnames = [Path(f).stem for f in glob.glob(search_path)]
+        rig_indices = [int(fname.split("_")[0]) for fname in image_fnames]
+        return max(rig_indices) + 1
 
     def __load_calibration(self, cam_idx: int) -> Tuple[Cal3Fisheye, Pose3]:
         """Load calibration from kalibr files in calibration sub-folder."""
@@ -324,10 +316,8 @@ class HiltiLoader(LoaderBase):
         Returns:
             Image: the image at the query index.
         """
-        if self._old_style:
-            filename = f"{index}.jpg"
-        else:
-            filename = f"{self.rig_from_image(index)}_{self.camera_from_image(index)}.png"
+
+        filename = f"{self.rig_from_image(index)}_{self.camera_from_image(index)}.png"
 
         try:
             image_path: Path = self._base_folder / IMAGES_FOLDER / filename

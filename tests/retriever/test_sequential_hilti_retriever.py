@@ -17,7 +17,7 @@ class TestSequentialHiltiRetriever(unittest.TestCase):
     def test_sequential_retriever(self) -> None:
         """Assert that we get 30 total matches with a lookahead of 3 frames on the Door Dataset."""
 
-        loader = HiltiLoader(base_folder=str(TEST_DATASET_DIR_PATH), old_style=True)
+        loader = HiltiLoader(base_folder=str(TEST_DATASET_DIR_PATH))
         max_frame_lookahead = 3
         retriever = SequentialHiltiRetriever(max_frame_lookahead=max_frame_lookahead)
         pairs = retriever.run(loader=loader)

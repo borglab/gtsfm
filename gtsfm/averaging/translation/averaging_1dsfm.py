@@ -211,7 +211,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 initial.insertPoint3(i, wTi.value.translation())
         return initial
 
-    def augment(
+    def augment_measurement_with_priors(
         self,
         w_i2Ui1_measurements: BinaryMeasurementsUnit3,
         w_relative_translation_priors: BinaryMeasurementsPoint3,
@@ -317,11 +317,10 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         wti_initial = self.__get_initial_values(absolute_pose_priors)
         logger.debug("Computed priors and initial values.")
 
-        logger.debug("Constructed TranslationRecovery, about to run.")
         if len(w_relative_pose_priors) > 0:
             # scale is ignored here.
             noise_model_for_augmentation = gtsam.noiseModel.Isotropic.Sigma(NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
-            augmented_w_i2Ui1_measurements = self.augment(
+            augmented_w_i2Ui1_measurements = self.augment_measurement_with_priors(
                 w_i2Ui1_measurements, w_relative_pose_priors, noise_model_for_augmentation
             )
             logger.debug("Running TranslactionRecovery with priors")

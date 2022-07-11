@@ -85,8 +85,8 @@ class DataAssociation(NamedTuple):
         # track lengths w/o triangulation check
         track_lengths_2d = np.array(list(map(lambda x: int(x.number_measurements()), tracks_2d)), dtype=np.uint32)
 
-        logger.debug(f"[Data association] input number of tracks: {len(tracks_2d)}")
-        logger.debug(f"[Data association] input avg. track length: {np.mean(track_lengths_2d)}")
+        logger.debug(f"Input number of tracks: {len(tracks_2d)}")
+        logger.debug(f"Input avg. track length: {np.mean(track_lengths_2d)}")
 
         # Initialize 3D landmark for each track
         point3d_initializer = Point3dInitializer(cameras, self.triangulation_options)

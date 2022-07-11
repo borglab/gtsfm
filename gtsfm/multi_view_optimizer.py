@@ -71,7 +71,7 @@ class MultiViewOptimizer:
             images_graph (optional): list of images. Defaults to None.
 
         Returns:
-            The GtsfmData input to bundle adjustment, aligned to GT (if provided), wrapped up as Delayed.
+            The GtsfmData input to bundle adjustment, wrapped up as Delayed.
             The final output GtsfmData, wrapped up as Delayed.
             List of GtsfmMetricGroups from different modules, wrapped up as Delayed.
         """
@@ -143,10 +143,6 @@ class MultiViewOptimizer:
             da_metrics,
             ba_metrics,
         ]
-
-        # align the sparse multi-view estimate before BA to the ground truth pose graph.
-        # TODO(Frank): Why would we do this here? But maybe we should simply fix align_via_Sim3_to_poses
-        # ba_input_graph = dask.delayed(ba_input_graph.align_via_Sim3_to_poses)(gt_wTi_list)
 
         return ba_input, ba_output, viewgraph_twoview_reports, metrics
 

@@ -49,7 +49,6 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
         self._use_cuda = use_cuda and torch.cuda.is_available()
         self._config = {"weights_path": weights_path}
 
-        # TODO: do not merge to master. Models should not be initialized in constructors for dask.
         self.device = torch.device("cuda" if self._use_cuda else "cpu")
         if init_model_in_constructor:
             self.model = SuperPoint(self._config).to(self.device)

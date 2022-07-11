@@ -76,12 +76,19 @@ class ShonanRotationAveraging(RotationAveragingBase):
     ) -> BetweenFactorPose3s:
         """Create between factors from the priors on relative poses."""
         between_factors = BetweenFactorPose3s()
-        noise_model = gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, PRIOR_SIGMA)
-        # TODO: take average covariance instead
+
+        def get_isotropic_noise_model_sigma(covariance: np.ndarray) -> float:
+            """Get the sigma to be used for the isotropic noise model. 
+            We compute the average of the diagonal entries of the covariance matrix.
+            """
+            avg_cov = np.average(np.diag(covariance), axis=None)
+            return np.sqrt(avg_cov)
 
         for (i1, i2), i1Ti2_prior in relative_pose_priors.items():
             i1_ = old_to_new_idxs[i1]
             i2_ = old_to_new_idxs[i2]
+            noise_model_sigma = get_isotropic_noise_model_sigma(i1Ti2_prior.covariance)
+            noise_model = gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, noise_model_sigma)
             between_factors.append(BetweenFactorPose3(i1_, i2_, i1Ti2_prior.value, noise_model))
 
         return between_factors
@@ -123,7 +130,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         logger.info("Computed %d global rotations", num_computed)
         return wRi_list_consecutive
 
-    def _valid_nodes(
+    def _nodes_with_edges(
         self, i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]], relative_pose_priors: Dict[Tuple[int, int], PosePrior]
     ) -> Set[int]:
         """Gets the nodes with edges which are to be modelled as between factors."""
@@ -166,7 +173,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
             wRi_list = [None] * num_images
             return wRi_list
 
-        nodes_with_edges = sorted(list(self._valid_nodes(i2Ri1_dict, relative_pose_priors)))
+        nodes_with_edges = sorted(list(self._nodes_with_edges(i2Ri1_dict, relative_pose_priors)))
         old_to_new_idxes = {old_idx: i for i, old_idx in enumerate(nodes_with_edges)}
 
         between_factors: BetweenFactorPose3s = self.__between_factors_from_2view_relative_rotations(
