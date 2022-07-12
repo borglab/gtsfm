@@ -8,7 +8,7 @@ This React application was created for viewing metrics related to the various pr
 2. Inside the React directory, install all the Node dependencies specified within `package.json`:
 ```bash
 cd rtf_vis_tool
-npm install
+npm install --legacy-peer-deps
 ```
 3. Now, run the web application:
 ```bash
