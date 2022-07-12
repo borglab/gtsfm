@@ -293,7 +293,7 @@ class BundleAdjustmentOptimizer:
             verbose: Boolean flag to print out additional info for debugging.
 
         Results:
-            Optimized camera poses, 3D point w/ tracks, and error metrics, aligned to GT (if provided).
+            Optimized camera poses, 3D point w/ tracks, and error metrics.
             Optimized camera poses after filtering landmarks (and cameras with no remaining landmarks).
             Valid mask as a list of booleans, indicating for each input track whether it was below the re-projection
                 threshold.
