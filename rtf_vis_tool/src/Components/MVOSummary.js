@@ -1,7 +1,7 @@
 /* Component to render Multiview Optimizer Metrics. Specifically rotation averaging and
-translation averaging metrics.
+translation averaging metrics. Only seen when "Sparse Multiview Optimizer" plate is clicked.
 
-Author: Adi Singh
+Authors: Adi Singh, Kevin Fu
 */
 import React from "react";
 

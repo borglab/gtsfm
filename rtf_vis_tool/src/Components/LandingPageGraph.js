@@ -1,6 +1,6 @@
 /* Landing Page Component to display GTSFM graph (what user first sees).
 
-Author: Adi Singh
+Authors: Adi Singh, Kevin Fu
 */
 import React, {useEffect, useState} from "react";
 
@@ -140,7 +140,7 @@ function LandingPageGraph() {
             {/* show the frontend summary post 2-view-estimator via:
               * result_metrics/verifier_summary_POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT.json
               */}
-            {showFS && <FrontendSummary json={frontend_summary_json} toggleFS={toggleFrontEndSummaryDisplay}/>}
+            {showFS && <FrontendSummary frontend_summary={frontend_summary_json} toggleFS={toggleFrontEndSummaryDisplay}/>}
 
             {/* show averaging metrics for sparse multiview optimizer via: 
               * result_metrics/rotation_averaging_metrics
