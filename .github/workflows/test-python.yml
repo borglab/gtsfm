@@ -45,4 +45,4 @@ jobs:
           coverage report
       - name: React-Three-Fiber app tests
         run: |
-          cd rtf_vis_tool && npm install && npm test a
+          cd rtf_vis_tool && npm install --legacy-peer-deps && npm test a
