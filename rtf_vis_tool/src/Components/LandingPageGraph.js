@@ -11,15 +11,18 @@ import Xarrow from "react-xarrows";  // Used to render directed edges.
 import BlueNode from './BlueNode.js';
 import BlueNodes from './gtsfm_graph/blue_nodes.js';
 import EdgeList from './gtsfm_graph/edge_list.js';
-import frontend_summary_json from '../result_metrics/frontend_summary.json';
 import FrontendSummary from './FrontendSummary';
 import GrayNode from './GrayNode';
 import GrayNodes from './gtsfm_graph/gray_nodes.js';
 import GtsfmNode from './GtsfmNode';
-import averaging_metrics_json from '../result_metrics/averaging_metrics.json';
 import MVOSummary from './MVOSummary';
 import PCViewer from './PCViewer.js';
 import '../stylesheets/LandingPageGraph.css'
+
+// JSON result_metrics data
+import raw_frontend_summary_json from '../result_metrics/verifier_summary_POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT.json';
+import raw_rot_avg_json from '../result_metrics/rotation_averaging_metrics.json';
+import raw_trans_avg_json from '../result_metrics/translation_averaging_metrics.json';
 
 function LandingPageGraph() {
     /*
@@ -40,8 +43,9 @@ function LandingPageGraph() {
     const [showBA_PC, setShowBA_PC] = useState(false);
     
     // Variables storing JSON information from result_metrics directory.
-    const [fs_json, setFS_JSON] = useState(null);
-    const [averaging_json, setAveragingJSON] = useState(null);
+    const [frontend_summary_json, setFSJSON] = useState(null);
+    const [rotation_averaging_json, setRotAvgJSON] = useState(null);
+    const [translation_averaging_json, setTransAvgJSON] = useState(null);
 
     useEffect(() => {
         var rawEdges = EdgeList
@@ -78,8 +82,9 @@ function LandingPageGraph() {
         setBlueNodesList(blueNodes_formatted);
 
         // Save all the json resulting metrics in separate React variables.
-        setFS_JSON(frontend_summary_json);
-        setAveragingJSON(averaging_metrics_json);
+        setFSJSON(raw_frontend_summary_json.verifier_summary_POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT);
+        setRotAvgJSON(raw_rot_avg_json.rotation_averaging_metrics);
+        setTransAvgJSON(raw_trans_avg_json.translation_averaging_metrics);
     }, [])
 
     function toggleFrontEndSummaryDisplay(showDisplay) {
@@ -131,8 +136,17 @@ function LandingPageGraph() {
             {showBA_PC && <PCViewer title={'Bundle Adjustment Point Cloud'}
                                     togglePC={toggleBA_PointCloud}
                                     pointCloudType={'ba_output'}/>}
-            {showFS && <FrontendSummary json={fs_json} toggleFS={toggleFrontEndSummaryDisplay}/>}
-            {showAveragingMetrics && <MVOSummary json={averaging_json} toggleMVO={toggleAveragingMetrics}/>}
+      
+            {/* show the frontend summary post 2-view-estimator via:
+              * result_metrics/verifier_summary_POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT.json
+              */}
+            {showFS && <FrontendSummary json={frontend_summary_json} toggleFS={toggleFrontEndSummaryDisplay}/>}
+
+            {/* show averaging metrics for sparse multiview optimizer via: 
+              * result_metrics/rotation_averaging_metrics
+              * result_metrics/translation_averaging_metrics
+              */}
+            {showAveragingMetrics && <MVOSummary rotation_averaging_metrics={rotation_averaging_json} translation_averaging_metrics={translation_averaging_json} toggleMVO={toggleAveragingMetrics}/>}
 
             <div className="gtsfm_graph">
 
@@ -170,14 +184,14 @@ function LandingPageGraph() {
                     <p className="plate_title">Feature Extractor Images</p>
                 </div>
                 <div className="two_view_estimator_plate" 
-                     onClick={(fs_json) ? (() => toggleFrontEndSummaryDisplay(true)) : (null)}>
+                     onClick={(frontend_summary_json) ? (() => toggleFrontEndSummaryDisplay(true)) : (null)}>
                     <p className="plate_title">TwoViewEstimator</p>
                 </div>
                 <div className="averaging_plate">
                     <p className="plate_title">Averaging</p>
                 </div>
                 <div className="sparse_multiview_optimizer_plate" 
-                     onClick={(averaging_json) ? (() => toggleAveragingMetrics(true)) : (null)}>
+                     onClick={(rotation_averaging_json, translation_averaging_json) ? (() => toggleAveragingMetrics(true)) : (null)}>
                     <p className="plate_title">Sparse Multiview Optimizer</p>
                 </div>
                 <div className="dense_multiview_optimizer_plate">
