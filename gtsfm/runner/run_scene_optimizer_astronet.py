@@ -70,6 +70,8 @@ class GtsfmRunnerAstronetLoader(GtsfmRunnerBase):
                 self.loader,
                 self.loader.create_computation_graph_for_images(),
                 image_pair_indices=image_pair_indices,
+                absolute_pose_priors=self.loader.get_absolute_pose_priors(),
+                relative_pose_priors=self.loader.get_relative_pose_priors(),
                 gt_scene_mesh=gt_scene_trimesh_future,
             )
 
