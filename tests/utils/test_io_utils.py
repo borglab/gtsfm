@@ -146,19 +146,18 @@ class TestIoUtils(unittest.TestCase):
             camera = PinholeCameraCal3Bundler(Pose3(), original_calibrations[i])
             gtsfm_data.add_camera(i, camera)
 
-        # TODO: Create dummy image dimensions instead of actually reading it.
-        # image = Image(value_array=None, file_name="dummy_image.jpg")
-        img_fpath = TEST_DATA_ROOT / "crane_mast_8imgs_colmap_output/images/crane_mast_1.jpg"
-        image = io_utils.load_image(img_fpath)
+        # Generate dummy images
+        image = Image(value_array=np.zeros((240, 320)), file_name="dummy_image.jpg")
         images = [image for i in range(len(original_calibrations))]
 
+        # Round trip
         with tempfile.TemporaryDirectory() as tempdir:
-            images_fpath = os.path.join(tempdir, "cameras.txt")
+            cameras_fpath = os.path.join(tempdir, "cameras.txt")
 
             io_utils.write_cameras(gtsfm_data, images, tempdir)
-            recovered_calibrations = io_utils.read_cameras_txt(images_fpath)
+            recovered_calibrations = io_utils.read_cameras_txt(cameras_fpath)
 
-        self.assertEqual(len(recovered_calibrations), 3)
+        self.assertEqual(len(original_calibrations), len(recovered_calibrations))
 
         for i in range(len(recovered_calibrations)):
             K_ori = original_calibrations[i]
