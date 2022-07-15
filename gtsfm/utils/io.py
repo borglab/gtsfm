@@ -167,6 +167,10 @@ def export_model_as_colmap_text(gtsfm_data: GtsfmData, images: List[Image], save
     write_points(gtsfm_data, images, save_dir)
 
 
+def import_model_from_colmap_text(dir: str, load_images: bool = True) -> Tuple[GtsfmData, List[Image]]:
+    return GtsfmData(3), []
+
+
 def colmap2gtsfm(
     cameras: Dict[int, ColmapCamera],
     images: Dict[int, ColmapImage],

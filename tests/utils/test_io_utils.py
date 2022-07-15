@@ -1,4 +1,5 @@
 import os
+import filecmp
 import tempfile
 import unittest
 from pathlib import Path
@@ -168,6 +169,73 @@ class TestIoUtils(unittest.TestCase):
             self.assertEqual(K_ori.py(), K_rec.py())
             self.assertEqual(K_ori.k1(), K_rec.k1())
             self.assertEqual(K_ori.k2(), K_rec.k2())
+
+    def test_round_trip_points_txt(self) -> None:
+        """Does a round trip test for reading/writing the points.txt colmap file (roughly equiv. to SfmTracks ?)."""
+        colmap_folder = TEST_DATA_ROOT / "crane_mast_8imgs_colmap_output"
+        with tempfile.TemporaryDirectory() as tempdir:
+            point_cloud, rgb = io_utils.read_points_txt(colmap_folder / "points3D.txt")
+            # TODO(gerry): what's the relationship between read_points_txt output and write_points input?
+            data, images = io_utils.import_model_from_colmap_text(colmap_folder)
+            io_utils.write_points(data, images, tempdir)
+
+            compare_results = filecmp.cmp(tempdir + "/points3D.txt", colmap_folder / "points3D.txt")
+            self.assertTrue(compare_results, "points3D.txt files are not the same")
+
+    def test_round_trip_gtsfmData_colmap(self) -> None:
+        """Does a round trip test for reading/writing the entire GtsfmData object to/from a COLMAP output directory."""
+
+        counter = 1.0
+
+        def r():
+            """Generate a "random" number"""
+            nonlocal counter
+            counter += 1
+            return counter
+
+        def create_arbitrary_camera():
+            pose = Pose3(Rot3.Expmap(np.array([r(), r(), r()])), np.array([r(), r(), r()]))
+            calibration = Cal3Bundler(r(), r(), r(), r(), r())
+            return PinholeCameraCal3Bundler(pose, calibration)
+
+        def create_arbitrary_track(camera_indices):
+            track = gtsam.SfmTrack(np.array([r(), r(), r()]))
+            track.r, track.g, track.b = r(), r(), r()
+            for id in camera_indices:
+                track.addMeasurement(id, np.array([r(), r()]))
+            return track
+
+        def create_arbitary_image():
+            return Image(value_array=np.zeros((240, 320, 3)) + r(), file_name="dummy_image_{:}.jpg".format(r()))
+
+        # GtsfmData -> COLMAP -> GtsfmData
+        expected = GtsfmData(number_images=3)
+        expected.add_camera(0, create_arbitrary_camera())
+        expected.add_camera(1, create_arbitrary_camera())
+        expected.add_camera(2, create_arbitrary_camera())
+        expected.add_track(create_arbitrary_track([0, 1]))
+        expected.add_track(create_arbitrary_track([0, 1, 2]))
+        expected.add_track(create_arbitrary_track([1, 2]))
+        expected.add_track(create_arbitrary_track([2, 0]))
+        images = [create_arbitary_image() for i in range(4)]
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            io_utils.export_model_as_colmap_text(expected, images, tempdir)
+            actual = io_utils.import_model_from_colmap_text(tempdir)
+
+        self.assertEqual(expected, actual)
+
+    def test_round_trip_colmap_gtsfm(self):
+        """Does a round trip test for reading/writing the entire GtsfmData object from/to a COLMAP output directory."""
+        # COLMAP -> GtsfmData -> COLMAP
+        with tempfile.TemporaryDirectory() as tempdir:
+            data, images = io_utils.import_model_from_colmap_text(TEST_DATA_ROOT / "crane_mast_8imgs_colmap_output")
+            io_utils.export_model_as_colmap_text(data, images, tempdir)
+            compare_results = filecmp.dircmp(tempdir, TEST_DATA_ROOT / "crane_mast_8imgs_colmap_output")
+            self.assertFalse(compare_results.left_only, "Too many folders or files exported")
+            self.assertFalse(compare_results.right_only, "Some folders or files were not exported")
+            self.assertFalse(compare_results.diff_files, "Some files differed")
+            self.assertFalse(compare_results.funny_files, "Some files couldn't be compared")
 
     def test_save_point_cloud_as_ply(self) -> None:
         """Round-trip test on .ply file read/write, with a point cloud colored as all red."""
