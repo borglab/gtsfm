@@ -382,10 +382,10 @@ def write_images(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> N
             camera = gtsfm_data.get_camera(i)
             # COLMAP exports camera extrinsics (cTw), not the poses (wTc), so must invert
             iTw = camera.pose().inverse()
-            iRw_quaternion = iTw.rotation().quaternion()
+            iRw_quaternion = iTw.rotation().toQuaternion()
             itw = iTw.translation()
             tx, ty, tz = itw
-            qw, qx, qy, qz = iRw_quaternion
+            qw, qx, qy, qz = iRw_quaternion.w(), iRw_quaternion.x(), iRw_quaternion.y(), iRw_quaternion.z()
 
             f.write(f"{i} {qw} {qx} {qy} {qz} {tx} {ty} {tz} {i} {img_fname}\n")
 
