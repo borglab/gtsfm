@@ -11,11 +11,11 @@ import '../stylesheets/MVOSummary.css'
 function MVOSummary(props) {
     /*
     Args:
-        props.rotation_averaging_metrics.rotation_error_angle_deg.summary.median (float): Median error of rotation 
+        props.rotation_averaging_metrics.rotation_angle_error_deg.summary.median (float): Median error of rotation 
                                                         averaging.
-        props.rotation_averaging_metrics.rotation_error_angle_deg.summary.min (float): Min angular error on global
+        props.rotation_averaging_metrics.rotation_angle_error_deg.summary.min (float): Min angular error on global
                                                         rotation for any frame after rotation averaging (pre-BA).
-        props.rotation_averaging_metrics.rotation_error_angle_deg.summary.max (float): Max angular error on global 
+        props.rotation_averaging_metrics.rotation_angle_error_deg.summary.max (float): Max angular error on global 
                                                         rotation for any frame after rotation averaging (pre-BA).
         props.translation_averaging_metrics.translation_error_distance.summary.median (float): Median Euclidean error of 
                                                         translation averaging.
@@ -42,15 +42,15 @@ function MVOSummary(props) {
                     <p className="mvo_header">Rotation Averaging Angle Metrics</p>
 
                     <p className="mvo_text">
-                        Median Error: {props.rotation_averaging_metrics.rotation_error_angle_deg.summary.median.toFixed(5)}
+                        Median Error: {props.rotation_averaging_metrics.rotation_angle_error_deg.summary.median.toFixed(5)}
                     </p>
 
                     <p className="mvo_text">
-                        Min Error: {props.rotation_averaging_metrics.rotation_error_angle_deg.summary.min.toFixed(5)}
+                        Min Error: {props.rotation_averaging_metrics.rotation_angle_error_deg.summary.min.toFixed(5)}
                     </p>
 
                     <p className="mvo_text">
-                        Max Error: {props.rotation_averaging_metrics.rotation_error_angle_deg.summary.max.toFixed(5)}
+                        Max Error: {props.rotation_averaging_metrics.rotation_angle_error_deg.summary.max.toFixed(5)}
                     </p>
                 </div>
 

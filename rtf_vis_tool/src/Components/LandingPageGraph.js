@@ -44,8 +44,8 @@ function LandingPageGraph() {
     
     // Variables storing JSON information from result_metrics directory.
     const [frontend_summary_json, setFSJSON] = useState(null);
-    const [rotation_averaging_json, setRotAvgJSON] = useState(null);
-    const [translation_averaging_json, setTransAvgJSON] = useState(null);
+    const [rotation_averaging_json, setRotationAveragingJSON] = useState(null);
+    const [translation_averaging_json, setTranslationAveragingJSON] = useState(null);
 
     useEffect(() => {
         var rawEdges = EdgeList
@@ -83,8 +83,8 @@ function LandingPageGraph() {
 
         // Save all the json resulting metrics in separate React variables.
         setFSJSON(raw_frontend_summary_json.verifier_summary_POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT);
-        setRotAvgJSON(raw_rot_avg_json.rotation_averaging_metrics);
-        setTransAvgJSON(raw_trans_avg_json.translation_averaging_metrics);
+        setRotationAveragingJSON(raw_rot_avg_json.rotation_averaging_metrics);
+        setTranslationAveragingJSON(raw_trans_avg_json.translation_averaging_metrics);
     }, [])
 
     function toggleFrontEndSummaryDisplay(showDisplay) {
