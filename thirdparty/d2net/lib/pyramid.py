@@ -1,4 +1,7 @@
-"""Source: https://github.com/mihaidusmanu/d2-net/blob/master/lib/pyramid.py"""
+"""
+Source: https://github.com/mihaidusmanu/d2-net/blob/master/lib/pyramid.py
+License: BSD-Clear-Clause, https://github.com/mihaidusmanu/d2-net/blob/master/LICENSE
+"""
 
 from typing import List
 
@@ -11,16 +14,17 @@ from thirdparty.d2net.lib.utils import interpolate_dense_features, upscale_posit
 
 
 def process_multiscale(image: Tensor, model: nn.Module, scales: List[float] = [.5, 1, 2]):
-    """
+    """Generate features and descriptors at all requested scales, and concatenate the results.
+
     Args:
         image: Tensor of shape (1,3,H,W) representing normalized RGB image.
         model:
         scales: For single-scale, scales should be set to [1.0]
 
     Returns:
-        keypoints:
-        scores:
-        descriptors:
+        keypoints: (K,3) tensor representing (y,x,1) tuples.
+        scores: (K,) tensor representing keypoint scores.
+        descriptors: (K,512) tensor representing keypoint descriptors.
     """
     b, _, h_init, w_init = image.size()
     device = image.device
