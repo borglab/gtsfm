@@ -1,5 +1,7 @@
-
-"""Source: https://github.com/mihaidusmanu/d2-net/blob/master/lib/model_test.py """
+"""
+Source: https://github.com/mihaidusmanu/d2-net/blob/master/lib/model_test.py
+License: BSD-Clear-Clause, https://github.com/mihaidusmanu/d2-net/blob/master/LICENSE
+"""
 
 import torch
 import torch.nn as nn
