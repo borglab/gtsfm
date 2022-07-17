@@ -27,6 +27,7 @@ MAX_SUM_EDGES_PX = 2800
 USE_MULTISCALE = False
 USE_RELU = True
 PREPROCESSING_METHOD = "torch"
+PYRAMID_SCALES = [0.5, 1, 2]
 
 MODEL_PATH = Path(__file__).resolve().parent.parent.parent.parent / "thirdparty" / "d2net" / "weights" / "d2_tf.pth"
 
@@ -60,31 +61,31 @@ class D2NetDetDesc(DetectorDescriptorBase):
 
         resized_image, fact_i, fact_j = resize_image(image.value_array)
         input_image = preprocess_image(resized_image, preprocessing=PREPROCESSING_METHOD)
+
+        if USE_MULTISCALE:
+            scale = PYRAMID_SCALES
+        else:
+            scales = [1]
+
         with torch.no_grad():
-            if USE_MULTISCALE:
-                keypoints, scores, descriptors = d2net_pyramid.process_multiscale(
-                    torch.tensor(input_image[np.newaxis, :, :, :].astype(np.float32), device=self.device), model
-                )
-            else:
-                keypoints, scores, descriptors = d2net_pyramid.process_multiscale(
-                    torch.tensor(input_image[np.newaxis, :, :, :].astype(np.float32), device=self.device),
-                    model,
-                    scales=[1],
-                )
+            keypoints, scores, descriptors = d2net_pyramid.process_multiscale(
+                image=torch.tensor(input_image[np.newaxis, :, :, :].astype(np.float32), device=self.device),
+                model=model,
+                scales=scales,
+            )
 
-        # choose the top K keypoints.
+        # Choose the top K keypoints and descriptors.
         ordered_idxs = np.argsort(-scores)[: self.max_keypoints]
-
         keypoints = keypoints[ordered_idxs, :]
-        keypoints[:, 0] *= fact_i
-        keypoints[:, 1] *= fact_j
-        # i, j -> u, v
-        keypoints = keypoints[:, [1, 0, 2]]
-        keypoints = keypoints[:, :2]
         descriptors = descriptors[ordered_idxs, :]
 
-        keypoints = Keypoints(coordinates=keypoints)
-        return keypoints, descriptors
+        # Rescale keypoint coordinates from resized image scale, back to provided input image resolution.
+        keypoints[:, 0] *= fact_i
+        keypoints[:, 1] *= fact_j
+
+        # Convert (y,x) tuples that represented (i, j) indices of image matrix, into (u, v) coordinates.
+        keypoints = keypoints[:, [1, 0]]
+        return Keypoints(coordinates=keypoints), descriptors
 
 
 def resize_image(image: np.ndarray) -> Tuple[np.ndarray, float, float]:
@@ -95,16 +96,16 @@ def resize_image(image: np.ndarray) -> Tuple[np.ndarray, float, float]:
 
     Returns:
         resized_image: resized image.
-        fact_i: vertical scaling factor.
-        fact_j: horizontal scaling factor.
+        fact_i: vertical re-scaling factor for keypoint x-coordinates (inverse of downsampling factor).
+        fact_j: horizontal re-scaling factor for keypoint y-coordinates.
     """
     if len(image.shape) == 2:
-        # if grayscale, repeat grayscale channel 3 times.
+        # If grayscale, repeat grayscale channel 3 times.
         image = image[:, :, np.newaxis]
         image = np.repeat(image, 3, -1)
 
-    # TODO(johnwlambert): Move it to a common utility
     resized_image = image
+    # Downsample if maximum edge length or sum of edges exceeds specified thresholds.
     if max(resized_image.shape) > MAX_EDGE_PX:
         resized_image = scipy.misc.imresize(resized_image, MAX_EDGE_PX / max(resized_image.shape)).astype("float")
     if sum(resized_image.shape[:2]) > MAX_SUM_EDGES_PX:
