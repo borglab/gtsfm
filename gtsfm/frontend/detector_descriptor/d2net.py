@@ -12,8 +12,6 @@ from typing import Tuple
 import numpy as np
 import scipy
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
 
 import thirdparty.d2net.lib.pyramid as d2net_pyramid
 from gtsfm.common.image import Image
@@ -59,11 +57,12 @@ class D2NetDetDesc(DetectorDescriptorBase):
         model = D2Net(model_file=self.model_path, use_relu=USE_RELU, use_cuda=self.use_cuda)
         model.eval()
 
+        # Resize image, and obtain re-scaling factors to postprocess keypoint coordinates.
         resized_image, fact_i, fact_j = resize_image(image.value_array)
         input_image = preprocess_image(resized_image, preprocessing=PREPROCESSING_METHOD)
 
         if USE_MULTISCALE:
-            scale = PYRAMID_SCALES
+            scales = PYRAMID_SCALES
         else:
             scales = [1]
 
