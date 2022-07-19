@@ -85,8 +85,8 @@ class TestIoUtils(unittest.TestCase):
         self.assertEqual(K.px(), 2028)
         self.assertEqual(K.py(), 1520)
         self.assertEqual(K.k1(), 0.00400066)
-        # COLMAP SIMPLE_RADIAL model has only 1 radial distorion coefficient.
-        # A second radial distorition coefficient equal to zero is expected when it is converted to GTSAM's Cal3Bundler
+        # COLMAP SIMPLE_RADIAL model has only 1 radial distortion coefficient.
+        # A second radial distortion coefficient equal to zero is expected when it is converted to GTSAM's Cal3Bundler.
         self.assertEqual(K.k2(), 0)
 
     def test_read_cameras_txt_nonexistent_file(self) -> None:
