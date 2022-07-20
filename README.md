@@ -92,7 +92,7 @@ where `COLMAP_FILES_DIRPATH` is a directory where .txt files such as `cameras.tx
 
 To visualize the result using Open3D, run:
 ```bash
-python gtsfm/visualization/view_scene.py --rendering_library open3d --point_rendering_mode point
+python gtsfm/visualization/view_scene.py --point_rendering_mode point
 ```
 
 For users that are working with the same dataset repeatedly, we provide functionality to cache front-end results for 
@@ -131,7 +131,7 @@ Open-source Python implementation:
 @misc{GTSFM,
     author = {Ayush Baid and Travis Driver and Fan Jiang and Akshay Krishnan and John Lambert
        and Ren Liu and Aditya Singh and Neha Upadhyay and Aishwarya Venkataramanan
-       and Sushmita Warrier and Jing Wu and Xiaolong Wu and Frank Dellaert},
+       and Sushmita Warrier and Jon Womack and Jing Wu and Xiaolong Wu and Frank Dellaert},
     title = { {GTSFM}: Georgia Tech Structure from Motion},
     howpublished={\url{https://github.com/borglab/gtsfm}},
     year = {2021}

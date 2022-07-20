@@ -84,6 +84,10 @@ class TestIoUtils(unittest.TestCase):
         self.assertEqual(K.fx(), 2332.47)
         self.assertEqual(K.px(), 2028)
         self.assertEqual(K.py(), 1520)
+        self.assertEqual(K.k1(), 0.00400066)
+        # COLMAP SIMPLE_RADIAL model has only 1 radial distortion coefficient.
+        # A second radial distortion coefficient equal to zero is expected when it is converted to GTSAM's Cal3Bundler.
+        self.assertEqual(K.k2(), 0)
 
     def test_read_cameras_txt_nonexistent_file(self) -> None:
         """Ensure that providing a path to a nonexistent file returns None for calibrations return arg."""
@@ -126,6 +130,46 @@ class TestIoUtils(unittest.TestCase):
             recovered_wTc = wTi_list[0]
 
         npt.assert_almost_equal(original_wTc.matrix(), recovered_wTc.matrix(), decimal=3)
+
+    def test_round_trip_cameras_txt(self) -> None:
+        """Creates a two cameras and writes to cameras.txt (in a temporary directory). Then reads cameras.txt to recover
+        the information. Checks if the original and recovered cameras match up."""
+
+        # Create multiple calibration data
+        k1 = Cal3Bundler(fx=100, k1=0, k2=0, u0=0, v0=0)
+        k2 = Cal3Bundler(fx=200, k1=0.001, k2=0, u0=1000, v0=2000)
+        k3 = Cal3Bundler(fx=300, k1=0.004, k2=0.001, u0=1001, v0=2002)
+        original_calibrations = [k1, k2, k3]
+
+        gtsfm_data = GtsfmData(number_images=len(original_calibrations))
+
+        # Populate gtsfm_data with the generated vales
+        for i in range(len(original_calibrations)):
+            camera = PinholeCameraCal3Bundler(Pose3(), original_calibrations[i])
+            gtsfm_data.add_camera(i, camera)
+
+        # Generate dummy images
+        image = Image(value_array=np.zeros((240, 320)), file_name="dummy_image.jpg")
+        images = [image for i in range(len(original_calibrations))]
+
+        # Round trip
+        with tempfile.TemporaryDirectory() as tempdir:
+            cameras_fpath = os.path.join(tempdir, "cameras.txt")
+
+            io_utils.write_cameras(gtsfm_data, images, tempdir)
+            recovered_calibrations = io_utils.read_cameras_txt(cameras_fpath)
+
+        self.assertEqual(len(original_calibrations), len(recovered_calibrations))
+
+        for i in range(len(recovered_calibrations)):
+            K_ori = original_calibrations[i]
+            K_rec = recovered_calibrations[i]
+
+            self.assertEqual(K_ori.fx(), K_rec.fx())
+            self.assertEqual(K_ori.px(), K_rec.px())
+            self.assertEqual(K_ori.py(), K_rec.py())
+            self.assertEqual(K_ori.k1(), K_rec.k1())
+            self.assertEqual(K_ori.k2(), K_rec.k2())
 
     def test_save_point_cloud_as_ply(self) -> None:
         """Round-trip test on .ply file read/write, with a point cloud colored as all red."""

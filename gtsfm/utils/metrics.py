@@ -224,13 +224,13 @@ def compute_rotation_angle_metric(wRi_list: List[Optional[Rot3]], gt_wRi_list: L
         gt_wRi_list: List of ground truth camera rotations.
 
     Returns:
-        A statistics dict of the metrics errors in degrees.
+        A GtsfmMetric for the rotation angle errors, in degrees.
     """
     errors = []
     for (wRi, gt_wRi) in zip(wRi_list, gt_wRi_list):
         if wRi is not None and gt_wRi is not None:
             errors.append(comp_utils.compute_relative_rotation_angle(wRi, gt_wRi))
-    return GtsfmMetric("rotation_error_angle_deg", errors)
+    return GtsfmMetric("rotation_angle_error_deg", errors)
 
 
 def compute_translation_distance_metric(

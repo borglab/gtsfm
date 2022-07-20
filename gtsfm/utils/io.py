@@ -243,13 +243,28 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
 
         cam_params = line.split()
         # Note that u0 is px, and v0 is py
-        cam_id, model, img_w, img_h, fx, u0, v0 = cam_params[:7]
-        img_w, img_h, fx, u0, v0 = int(img_w), int(img_h), float(fx), float(u0), float(v0)
-
-        # TODO: determine convention for storing/reading radial distortion parameters
-        k1 = 0
-        k2 = 0
-        calibrations.append(Cal3Bundler(fx, k1, k2, u0, v0))
+        model = cam_params[1]
+        # Currently only handles SIMPLE RADIAL and RADIAL camera models
+        assert model in ["SIMPLE_RADIAL", "RADIAL"]
+        if model == "SIMPLE_RADIAL":
+            _, _, img_w, img_h, fx, u0, v0, k1 = cam_params[:8]
+            img_w, img_h, fx, u0, v0, k1 = int(img_w), int(img_h), float(fx), float(u0), float(v0), float(k1)
+            # Convert COLMAP's SIMPLE_RADIAL to GTSAM's Cal3Bundler:
+            # Add second radial distortion coefficient of value zero.
+            k2 = 0
+            calibrations.append(Cal3Bundler(fx, k1, k2, u0, v0))
+        elif model == "RADIAL":
+            _, _, img_w, img_h, fx, u0, v0, k1, k2 = cam_params[:9]
+            img_w, img_h, fx, u0, v0, k1, k2 = (
+                int(img_w),
+                int(img_h),
+                float(fx),
+                float(u0),
+                float(v0),
+                float(k1),
+                float(k2),
+            )
+            calibrations.append(Cal3Bundler(fx, k1, k2, u0, v0))
 
     assert len(calibrations) == num_cams
     return calibrations
@@ -268,7 +283,8 @@ def write_cameras(gtsfm_data: GtsfmData, image_shapes: List[Tuple[int, int]], sa
     os.makedirs(save_dir, exist_ok=True)
 
     # TODO: handle shared intrinsics
-    camera_model = "SIMPLE_RADIAL"
+    # Assumes all camera models have five intrinsic parameters
+    camera_model = "RADIAL"
 
     output_str = ""
 
