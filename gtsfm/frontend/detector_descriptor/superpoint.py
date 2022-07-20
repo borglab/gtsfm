@@ -43,7 +43,9 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
             max_keypoints: max keypoints to detect in an image.
             use_cuda (optional): flag controlling the use of GPUs via CUDA. Defaults to True.
             weights_path (optional): Path to the model weights. Defaults to MODEL_WEIGHT_PATH.
-            init_model_in_constructor: flag to control initialization of weights.
+            init_model_in_constructor (optional): Initialize the model with weights in the constructor instead of the
+                                                  `detect_and_describe` function. This setting is recommended when we
+                                                  are not using dask. Defaults to False.
         """
         super().__init__(max_keypoints=max_keypoints)
         self._use_cuda = use_cuda and torch.cuda.is_available()

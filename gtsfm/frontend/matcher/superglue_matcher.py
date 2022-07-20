@@ -29,7 +29,15 @@ class SuperGlueMatcher(MatcherBase):
     """Implements the SuperGlue matcher -- a pretrained graph neural network using attention."""
 
     def __init__(self, use_cuda: bool = True, use_outdoor_model: bool = True, init_model_in_constructor: bool = False):
-        """Initialize the configuration and the parameters."""
+        """Initialize the class.
+
+        Args:
+            use_cuda (optional): Use CUDA (GPU) for inference. Defaults to True.
+            use_outdoor_model (optional): Use the outdoor weights for SuperGlue network. Defaults to True.
+            init_model_in_constructor (optional): Initialize the model with weights in the constructor instead of the
+                                                  `match` function. This setting is recommended when we are not using
+                                                  dask. Defaults to False.
+        """
         super().__init__()
 
         self._config = {
