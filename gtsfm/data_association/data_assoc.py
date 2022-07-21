@@ -139,13 +139,13 @@ class DataAssociation(NamedTuple):
         connected_data = triangulated_data.select_largest_connected_component(extra_camera_edges=cam_edges_from_prior)
         num_accepted_tracks = connected_data.number_tracks()
         accepted_tracks_ratio = num_accepted_tracks / len(tracks_2d)
-        logger.debug(f"Selected largest connected component with %d tracks.", num_accepted_tracks)
+        logger.debug("Selected largest connected component with %d tracks.", num_accepted_tracks)
 
         mean_3d_track_length, median_3d_track_length = connected_data.get_track_length_statistics()
         track_lengths_3d = connected_data.get_track_lengths()
 
-        logger.debug("[Data association] output number of tracks: %s", num_accepted_tracks)
-        logger.debug("[Data association] output avg. track length: %.2f", mean_3d_track_length)
+        logger.debug("Output number of tracks: %s", num_accepted_tracks)
+        logger.debug("Output avg. track length: %.2f", mean_3d_track_length)
 
         data_assoc_metrics = GtsfmMetricsGroup(
             "data_association_metrics",
