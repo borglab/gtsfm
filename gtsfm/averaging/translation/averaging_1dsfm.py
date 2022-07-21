@@ -131,7 +131,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         """
         # Sample projection directions for 1DSfM.
         projection_directions = self.__sample_projection_directions(w_i2Ui1_measurements)
-        logger.debug("[1dsfm] Sampled projection directions for 1DSfM.")
+        logger.debug("Sampled projection directions for 1DSfM.")
 
         # Compute outlier weights using MFAS.
         outlier_weights: List[Dict[Tuple[int, int], float]] = []
@@ -139,7 +139,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         for direction in projection_directions:
             mfas_instance = MFAS(w_i2Ui1_measurements, direction)
             outlier_weights.append(mfas_instance.computeOutlierWeights())
-        logger.debug("[1dsfm] Computed outlier weights using MFAS.")
+        logger.debug("Computed outlier weights using MFAS.")
 
         # Compute average outlier weight.
         outlier_weights_sum: DefaultDict[Tuple[int, int], float] = defaultdict(float)
@@ -150,13 +150,12 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 w_i2Ui1 = w_i2Ui1_measurements[idx]
                 i2, i1 = w_i2Ui1.key1(), w_i2Ui1.key2()
                 outlier_weights_sum[(i2, i1)] += outlier_weight_dict[(i2, i1)]
-        logger.debug("[1dsfm] Computed average outlier weight.")
+        logger.debug("Computed average outlier weight.")
 
         # Find inliers.
         for (i2, i1) in outlier_weights_sum:
             if outlier_weights_sum[(i2, i1)] / len(projection_directions) < OUTLIER_WEIGHT_THRESHOLD:
                 inliers.add((i1, i2))
-        logger.debug("[1dsfm] found inliers.")
 
         return inliers
 
@@ -296,7 +295,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         # Possibly perform (slow!) outlier rejection with Minimum Feedback Arc Set algorithm.
         if self._MFAS_outlier_rejection:
             inliers: Set[Tuple[int, int]] = self.__compute_inlier_mask(w_i2Ui1_measurements)
-            logger.debug("[1dsfm] Computed inlier mask with MFAS.")
+            logger.debug("Computed inlier mask with MFAS.")
 
             w_i2Ui1_inlier_measurements = BinaryMeasurementsUnit3()
             for idx in range(len(w_i2Ui1_measurements)):
@@ -306,7 +305,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 i2 = w_i2Ui1.key1()
                 if (i1, i2) in inliers:
                     w_i2Ui1_inlier_measurements.append(w_i2Ui1)
-            logger.debug("[1dsfm] Created inlier measurements.")
+            logger.debug("Created inlier measurements.")
             w_i2Ui1_measurements = w_i2Ui1_inlier_measurements
         else:
             inliers = set(i2Ui1_dict.keys())

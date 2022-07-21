@@ -29,7 +29,6 @@ from gtsfm.common.image import Image
 from gtsfm.common.pose_prior import PosePrior, PosePriorType
 from gtsfm.loader.loader_base import LoaderBase
 
-
 logger = logger_utils.get_logger()
 
 NUM_CAMS = 5
@@ -304,7 +303,7 @@ class HiltiLoader(LoaderBase):
 
     #     return Image(value_array=undistorted_image_array, exif_data={})
 
-    def get_image_full_res(self, index: int) -> Optional[Image]:
+    def get_image_full_res(self, index: int) -> Image:
         """Get the image at the given index, at full resolution.
 
         Args:
@@ -316,14 +315,9 @@ class HiltiLoader(LoaderBase):
         Returns:
             Image: the image at the query index.
         """
-
         filename = f"{self.rig_from_image(index)}_{self.camera_from_image(index)}.png"
-
-        try:
-            image_path: Path = self._base_folder / IMAGES_FOLDER / filename
-            return io_utils.load_image(str(image_path))
-        except Exception:
-            return None
+        image_path: Path = self._base_folder / IMAGES_FOLDER / filename
+        return io_utils.load_image(str(image_path))
 
     def get_camera_intrinsics(self, index: int) -> Optional[Cal3Fisheye]:
         return self.get_camera_intrinsics_full_res(index)

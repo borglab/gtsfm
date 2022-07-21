@@ -57,9 +57,9 @@ class RigRetriever(RetrieverBase):
 
         num_cam2_pairs = list(filter(lambda edge: edge[0] % 5 == 2 or edge[1] % 5 == 2, unique_pairs))
 
-        logger.info(f"Received {len(constraints)} constraints from loader")
-        logger.info(f"Found {len(unique_pairs)} pairs in the constraints file")
-        logger.info(f"Found {len(num_cam2_pairs)} pairs with cam2 in the constraints file")
+        logger.info("Received %d constraints from loader", len(constraints))
+        logger.info("Found %d pairs in the constraints file", len(unique_pairs))
+        logger.info("Found %d pairs with cam2 in the constraints file", len(num_cam2_pairs))
 
         # Translate all rig level constraints to CAM2-CAM2 constraints
         for constraint in constraints:
@@ -80,5 +80,5 @@ class RigRetriever(RetrieverBase):
         pairs = list(unique_pairs)
         pairs.sort()
 
-        logger.info(f"RigRetriever finally created {len(pairs)} pairs.")
+        logger.info("RigRetriever finally created %d pairs.", len(pairs))
         return pairs

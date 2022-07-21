@@ -170,7 +170,7 @@ def export_model_as_colmap_text(
     """
     write_cameras(gtsfm_data, image_shapes, save_dir)
     write_images(gtsfm_data, image_fnames, save_dir)
-    write_points(gtsfm_data, save_dir, images)
+    write_points(gtsfm_data, images, save_dir)
 
 
 def colmap2gtsfm(
@@ -290,7 +290,7 @@ def write_cameras(gtsfm_data: GtsfmData, image_shapes: List[Tuple[int, int]], sa
 
     output_str += "# Camera list with one line of data per camera:\n"
     output_str += "#   CAMERA_ID, MODEL, WIDTH, HEIGHT, PARAMS[]\n"
-    # note that we save the number of etimated cameras, not the number of input images,
+    # note that we save the number of estimated cameras, not the number of input images,
     # which would instead be gtsfm_data.number_images().
     output_str += f"# Number of cameras: {len(gtsfm_data.get_valid_camera_indices())}\n"
 
@@ -472,7 +472,7 @@ def read_scene(
     return wTi_list, img_fnames, calibrations, point_cloud, rgb
 
 
-def write_points(gtsfm_data: GtsfmData, save_dir: str, images: Optional[List[Image]]) -> None:
+def write_points(gtsfm_data: GtsfmData, images: Optional[List[Image]], save_dir: str) -> None:
     """Writes the point cloud data file in the COLMAP format.
 
     Reference: https://colmap.github.io/format.html#points3d-txt

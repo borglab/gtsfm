@@ -43,7 +43,6 @@ class Constraint:
         aTb = gtsam.Pose3(np.round(aTb_matrix, 15))
         cov = row[14:50].reshape(6, 6)
         counts = row[50:].reshape(5, 5).astype(int)
-
         return Constraint(a, b, aTb, cov, counts)
 
     def to_row(self) -> np.ndarray:

@@ -421,8 +421,8 @@ class BundleAdjustmentOptimizer:
 
         # Error drops from ~2764.22 to ~0.046
         if verbose:
-            logger.info(f"Initial error: {graph.error(initial_values):.2f}")
-            logger.info(f"Final error: {final_error:.2f}")
+            logger.info("Initial error: %.2f", graph.error(initial_values))
+            logger.info("Final error: %.2f", final_error)
 
         # construct the results
         optimized_data = values_to_gtsfm_data(result_values, initial_data, cameras_to_model, self._shared_calib)
@@ -485,7 +485,7 @@ class BundleAdjustmentOptimizer:
 
         logger.info("Mean track length %.3f", np.mean(aligned_filtered_data.get_track_lengths()))
         logger.info("Median track length %.3f", np.median(aligned_filtered_data.get_track_lengths()))
-        aligned_filtered_data.log_scene_reprojection_error_stats("BA")
+        aligned_filtered_data.log_scene_reprojection_error_stats()
 
         return ba_metrics
 

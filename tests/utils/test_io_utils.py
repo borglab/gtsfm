@@ -156,7 +156,7 @@ class TestIoUtils(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tempdir:
             cameras_fpath = os.path.join(tempdir, "cameras.txt")
 
-            io_utils.write_cameras(gtsfm_data, images, tempdir)
+            io_utils.write_cameras(gtsfm_data, [(image.height, image.width) for image in images], tempdir)
             recovered_calibrations = io_utils.read_cameras_txt(cameras_fpath)
 
         self.assertEqual(len(original_calibrations), len(recovered_calibrations))

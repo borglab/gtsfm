@@ -118,7 +118,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
         """
         return idx1 < idx2
 
-    def get_image(self, index: int) -> Optional[Image]:
+    def get_image(self, index: int) -> Image:
         """Get the image at the given index, satisfying a maximum image resolution constraint.
 
         Determine how the camera intrinsics and images should be jointly rescaled based on desired img. resolution.
@@ -138,8 +138,6 @@ class LoaderBase(metaclass=abc.ABCMeta):
         # No downsampling may be required, in which case target_h and target_w will be identical
         # to the full res height & width.
         img_full_res = self.get_image_full_res(index)
-        if img_full_res is None:
-            return None
         if min(img_full_res.height, img_full_res.width) <= self._max_resolution:
             return img_full_res
 
@@ -200,10 +198,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
     def get_image_shape(self, idx: int) -> Tuple[int, int]:
         """Return a (H,W) tuple for each image"""
         image = self.get_image(idx)
-        if image is not None:
-            return (image.height, image.width)
-        else:
-            raise IndexError(f"Index {idx} does not have an image")
+        return (image.height, image.width)
 
     def get_relative_pose_prior(self, i1: int, i2: int) -> Optional[PosePrior]:
         """Get the prior on the relative pose i2Ti1

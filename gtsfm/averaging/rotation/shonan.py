@@ -29,7 +29,6 @@ from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBa
 from gtsfm.common.pose_prior import PosePrior
 
 TWOVIEW_ROTATION_SIGMA = 1
-PRIOR_SIGMA = 0.1
 POSE3_DOF = 6
 
 logger = logger_utils.get_logger()
@@ -78,7 +77,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         between_factors = BetweenFactorPose3s()
 
         def get_isotropic_noise_model_sigma(covariance: np.ndarray) -> float:
-            """Get the sigma to be used for the isotropic noise model. 
+            """Get the sigma to be used for the isotropic noise model.
             We compute the average of the diagonal entries of the covariance matrix.
             """
             avg_cov = np.average(np.diag(covariance), axis=None)
@@ -113,13 +112,17 @@ class ShonanRotationAveraging(RotationAveragingBase):
                 not be computed (either underconstrained system or ill-constrained system).
         """
 
-        logger.info(f"[Shonan] Running Shonan with {len(between_factors)} constraints on {num_connected_nodes} nodes")
+        logger.info(
+            "Running Shonan with %d constraints on %d nodes",
+            len(between_factors),
+            num_connected_nodes,
+        )
         shonan = ShonanAveraging3(between_factors, self.__get_shonan_params())
 
         initial = shonan.initializeRandomly()
-        logger.info(f"[Shonan] Initial cost: {shonan.cost(initial)}")
+        logger.info("Initial cost: %.5f", shonan.cost(initial))
         result, _ = shonan.run(initial, self._p_min, self._p_max)
-        logger.info(f"[Shonan] Final cost: {shonan.cost(result)}")
+        logger.info("Final cost: %.5f", shonan.cost(result))
 
         wRi_list_consecutive = [None] * num_connected_nodes
         for i in range(num_connected_nodes):

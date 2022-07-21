@@ -39,7 +39,6 @@ class GtsfmRunnerHiltiLoader(GtsfmRunnerBase):
             default=1,
             help="Subsample the timestamps by given value n (pick every nth rig for visual SfM)",
         )
-        parser.add_argument("--old_style", action="store_true", help="Use sequentially numbered images")
 
         return parser
 
@@ -48,7 +47,6 @@ class GtsfmRunnerHiltiLoader(GtsfmRunnerBase):
             base_folder=self.parsed_args.dataset_dirpath,
             max_length=self.parsed_args.max_length,
             subsample=self.parsed_args.subsample,
-            old_style=self.parsed_args.old_style,
         )
 
         return loader

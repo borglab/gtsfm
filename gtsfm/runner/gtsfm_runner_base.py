@@ -123,9 +123,7 @@ class GtsfmRunnerBase:
 
         # create dask client
         cluster = LocalCluster(
-            n_workers=self.parsed_args.num_workers,
-            threads_per_worker=self.parsed_args.threads_per_worker,
-            memory_limit="8GB",
+            n_workers=self.parsed_args.num_workers, threads_per_worker=self.parsed_args.threads_per_worker
         )
 
         pairs_graph = self.retriever.create_computation_graph(self.loader)
