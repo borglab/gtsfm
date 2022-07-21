@@ -32,6 +32,17 @@ OANET_MODEL_FPATH = (
     / "model_best.pth"
 )
 
+DEFAULT_CONFIG_DICT = {}
+DEFAULT_CONFIG_DICT["net_channels"] = 128
+DEFAULT_CONFIG_DICT["net_depth"] = 12
+DEFAULT_CONFIG_DICT["clusters"] = 500
+# Note: using ratio test and mutual matching side info is not possible w/ current GTSFM front-end API.
+DEFAULT_CONFIG_DICT["use_ratio"] = 0
+DEFAULT_CONFIG_DICT["use_mutual"] = 0
+DEFAULT_CONFIG_DICT["iter_num"] = 1
+DEFAULT_CONFIG_DICT["inlier_threshold"] = 1
+DEFAULT_CONFIG = SimpleNamespace(DEFAULT_CONFIG_DICT)
+
 
 class OANetVerifier(VerifierBase):
     def __init__(
@@ -62,27 +73,16 @@ class OANetVerifier(VerifierBase):
         # for failure, i2Ri1 = None, and i2Ui1 = None, and no verified correspondences, and inlier_ratio_est_model = 0
         self._failure_result = (None, None, np.array([], dtype=np.uint64), 0.0)
 
-        self.is_cuda = torch.cuda.is_available()
-        self.device = torch.device("cuda" if self.is_cuda else "cpu")
+        self._use_cuda = torch.cuda.is_available()
+        self.device = torch.device("cuda" if self._use_cuda else "cpu")
 
         self.model_path = OANET_MODEL_FPATH
-
-        self.default_config = {}
-        self.default_config["net_channels"] = 128
-        self.default_config["net_depth"] = 12
-        self.default_config["clusters"] = 500
-        self.default_config["use_ratio"] = 0
-        self.default_config["use_mutual"] = 0  # TODO: add option to use ratio and mutual as side info.
-        self.default_config["iter_num"] = 1
-        self.default_config["inlier_threshold"] = 1
-        self.default_config_ = SimpleNamespace(**self.default_config)
-
-        self.model = OANet(self.default_config_, self.device)
+        self.model = OANet(DEFAULT_CONFIG, self.device)
 
         checkpoint = torch.load(self.model_path, map_location=self.device)
         self.model.load_state_dict(checkpoint["state_dict"])
 
-        if self.is_cuda:
+        if self._use_cuda:
             self.model = self.model.cuda()
 
         self.model.eval()
