@@ -63,3 +63,9 @@ package-lock.json
 TwoViewEstimator Plate: displays frontend summary metrics  
 MultiViewEstimor Plate: displays multiview optimizer metrics  
 'SfMData' Node: displays the point cloud after data association
+
+Note: information displayed is based on state of `result_metrics` as of
+07/22/22. The relevant JSON files are imported at the top of the
+`LandingPageGraph` component, and then passed to the `FrontendSummary` and
+`MVOSummary` components. These components are all defined in their respective
+`.js` files in `src/Components`.
