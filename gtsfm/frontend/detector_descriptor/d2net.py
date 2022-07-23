@@ -34,7 +34,11 @@ class D2NetDetDesc(DetectorDescriptorBase):
     """D2-Net detector descriptor."""
 
     def __init__(self, max_keypoints: int = 5000, model_path: Path = MODEL_PATH, use_cuda: bool = True) -> None:
-        """ """
+        """Instantiate parameters and hardware settings for D2-Net detector-descriptor.
+
+        We set the maximum number of keypoints, set the path to pre-trained weights, and determine whether
+        CUDA enabled devices can be utilized for inference.
+        """
         super().__init__()
         self.max_keypoints = max_keypoints
         self.model_path = model_path
