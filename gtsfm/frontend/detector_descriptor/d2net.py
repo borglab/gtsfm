@@ -87,11 +87,15 @@ class D2NetDetDesc(DetectorDescriptorBase):
         return Keypoints(coordinates=keypoints), descriptors
 
 
-def resize_image(image: np.ndarray) -> Tuple[np.ndarray, float, float]:
+def resize_image(
+    image: np.ndarray, max_edge_px: int = MAX_EDGE_PX, max_sum_edges_px: int = MAX_SUM_EDGES_PX
+) -> Tuple[np.ndarray, float, float]:
     """Resize image to limit to a maximum edge length and maximum summed length of both edges.
 
     Args:
         image: array of shape (H,W,3) representing an RGB image.
+        max_edge_px: maximum allowed edge length (in pixels).
+        max_sum_edges_px: maximum allowed summed length of both edges (in pixels).
 
     Returns:
         resized_image: resized image.
@@ -105,10 +109,10 @@ def resize_image(image: np.ndarray) -> Tuple[np.ndarray, float, float]:
 
     resized_image = image
     # Downsample if maximum edge length or sum of edges exceeds specified thresholds.
-    if max(resized_image.shape) > MAX_EDGE_PX:
-        resized_image = scipy.misc.imresize(resized_image, MAX_EDGE_PX / max(resized_image.shape)).astype("float")
-    if sum(resized_image.shape[:2]) > MAX_SUM_EDGES_PX:
-        resized_image = scipy.misc.imresize(resized_image, MAX_SUM_EDGES_PX / sum(resized_image.shape[:2])).astype(
+    if max(resized_image.shape) > max_edge_px:
+        resized_image = scipy.misc.imresize(resized_image, max_edge_px / max(resized_image.shape)).astype("float")
+    if sum(resized_image.shape[:2]) > max_sum_edges_px:
+        resized_image = scipy.misc.imresize(resized_image, max_sum_edges_px / sum(resized_image.shape[:2])).astype(
             "float"
         )
 
