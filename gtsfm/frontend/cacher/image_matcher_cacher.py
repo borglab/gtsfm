@@ -8,9 +8,6 @@ Authors: John Lambert
 from pathlib import Path
 from typing import Optional, Tuple
 
-import dask
-from dask.delayed import Delayed
-
 import gtsfm.utils.cache as cache_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
