@@ -1,4 +1,7 @@
-"""Source: https://github.com/mihaidusmanu/d2-net/blob/master/lib/utils.py"""
+"""
+Source: https://github.com/mihaidusmanu/d2-net/blob/master/lib/utils.py
+License: BSD-Clear-Clause, https://github.com/mihaidusmanu/d2-net/blob/master/LICENSE
+"""
 
 from typing import Optional
 
