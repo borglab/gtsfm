@@ -1,5 +1,4 @@
-"""
-Base-class for OpenCV verifier implementations.
+"""Base-class for OpenCV verifier implementations.
 
 Authors: John Lambert
 """
@@ -78,13 +77,13 @@ class OpencvVerifierBase(VerifierBase):
             if match_indices.shape[0] < 6:
                 return self._failure_result
 
-            # use stricter threshold, among the two choices
-            fx = max(camera_intrinsics_i1.K()[0, 0], camera_intrinsics_i2.K()[0, 0])
             if np.amax(match_indices[:, 1]) >= uv_norm_i2.shape[0]:
                 print("Out of bounds access w/ keypoints", keypoints_i2.coordinates[:10])
             if np.amax(match_indices[:, 0]) >= uv_norm_i1.shape[0]:
                 print("Out of bounds access w/ keypoints", keypoints_i1.coordinates[:10])
 
+            # Use larger focal length, among the two choices.
+            fx = max(camera_intrinsics_i1.K()[0, 0], camera_intrinsics_i2.K()[0, 0])
             i2Ei1, inlier_mask = self.estimate_E(
                 uv_norm_i1=uv_norm_i1, uv_norm_i2=uv_norm_i2, match_indices=match_indices, fx=fx
             )
@@ -102,8 +101,8 @@ class OpencvVerifierBase(VerifierBase):
         inlier_ratio_est_model = np.mean(inlier_mask)
         (i2Ri1, i2Ui1) = verification_utils.recover_relative_pose_from_essential_matrix(
             i2Ei1,
-            keypoints_i1.coordinates[match_indices[inlier_idxs, 0]],
-            keypoints_i2.coordinates[match_indices[inlier_idxs, 1]],
+            keypoints_i1.coordinates[v_corr_idxs[:, 0]],
+            keypoints_i2.coordinates[v_corr_idxs[:, 1]],
             camera_intrinsics_i1,
             camera_intrinsics_i2,
         )
