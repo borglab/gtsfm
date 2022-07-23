@@ -13,9 +13,9 @@ from gtsfm.common.keypoints import Keypoints
 
 
 class ImageMatcherBase(metaclass=abc.ABCMeta):
-    """Base class for all matchers.
+    """Base class for matchers that accept an image pair, and immediately generate keypoint matches.
 
-    Matchers work on a pair of descriptors and match them by their distance.
+    Note: these matchers do NOT use descriptors as input.
     """
 
     @abc.abstractmethod
