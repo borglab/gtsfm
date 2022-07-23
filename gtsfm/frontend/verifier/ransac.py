@@ -1,5 +1,4 @@
-"""
-RANSAC verifier implementation.
+"""OpenCV RANSAC-based verifier implementation.
 
 The verifier is the 5-Pt/8-pt Algorithm with RANSAC and is implemented by wrapping over 3rd party implementation.
 
@@ -10,7 +9,7 @@ References:
 
 Authors: John Lambert
 """
-
+from enum import Enum, unique
 from typing import Tuple
 
 import cv2
@@ -26,23 +25,38 @@ RANSAC_MAX_ITERS = 1000000
 
 logger = logger_utils.get_logger()
 
-"""Alternative options:
 
-  cv2.RANSAC
-  cv2.RHO
-  cv2.USAC_DEFAULT
-  cv2.USAC_PARALLEL
-  cv2.USAC_FM_8PTS
-  cv2.USAC_FAST
-  cv2.USAC_ACCURATE
-  cv2.USAC_PROSAC
-  cv2.USAC_MAGSAC
-"""
+@unique
+class RobustEstimationType(str, Enum):
+    """Robust estimation algorithm types for OpenCV.
+
+    See https://docs.opencv.org/4.x/d1/df1/md__build_master-contrib_docs-lin64_opencv_doc_tutorials_calib3d_usac.html
+    for more detailed information. Note: USAC_FAST uses the RANSAC score to maximize number of inliers and terminate
+    earlier.
+    """
+
+    FM_7POINT: str = "FM_7POINT"
+    FM_8POINT: str = "FM_8POINT"
+    FM_RANSAC: str = "FM_RANSAC"  # RANSAC algorithm. It needs at least 15 points. 7-point algorithm is used.
+    RANSAC: str = "RANSAC"
+    RHO: str = "RHO"
+    USAC_DEFAULT: str = "USAC_DEFAULT"  # standard LO-RANSAC.
+    USAC_PARALLEL: str = "USAC_PARALLEL"  # LO-RANSAC and RANSACs run in parallel.
+    USAC_FM_8PTS: str = "USAC_FM_8PTS"  # LO-RANSAC. Only valid for Fundamental matrix with 8-points solver.
+    USAC_FAST: str = "USAC_FAST"  # LO-RANSAC with smaller number iterations in local optimization step.
+    USAC_ACCURATE: str = "USAC_ACCURATE"  # GC-RANSAC.
+    USAC_PROSAC: str = "USAC_PROSAC"  # PROSAC sampling. Note, points must be sorted.
+    USAC_MAGSAC: str = "USAC_MAGSAC"  # MAGSAC++.
 
 
 class Ransac(OpencvVerifierBase):
     def estimate_E(
-        self, uv_norm_i1: np.ndarray, uv_norm_i2: np.ndarray, match_indices: np.ndarray, fx: float
+        self,
+        uv_norm_i1: np.ndarray,
+        uv_norm_i2: np.ndarray,
+        match_indices: np.ndarray,
+        fx: float,
+        robust_estimation_type: RobustEstimationType = RobustEstimationType.USAC_ACCURATE,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Estimate the Essential matrix from correspondences.
 
@@ -62,14 +76,18 @@ class Ransac(OpencvVerifierBase):
             uv_norm_i1[match_indices[:, 0]],
             uv_norm_i2[match_indices[:, 1]],
             K,
-            method=cv2.USAC_ACCURATE,
+            method=getattr(cv2, robust_estimation_type.value),
             threshold=self._estimation_threshold_px / fx,
             prob=RANSAC_SUCCESS_PROB,
         )
         return i2Ei1, inlier_mask
 
     def estimate_F(
-        self, keypoints_i1: Keypoints, keypoints_i2: Keypoints, match_indices: np.ndarray
+        self,
+        keypoints_i1: Keypoints,
+        keypoints_i2: Keypoints,
+        match_indices: np.ndarray,
+        robust_estimation_type: RobustEstimationType = RobustEstimationType.FM_RANSAC,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Estimate the Fundamental matrix from correspondences.
 
@@ -86,7 +104,7 @@ class Ransac(OpencvVerifierBase):
         i2Fi1, inlier_mask = cv2.findFundamentalMat(
             keypoints_i1.extract_indices(match_indices[:, 0]).coordinates,
             keypoints_i2.extract_indices(match_indices[:, 1]).coordinates,
-            method=cv2.FM_RANSAC,
+            method=getattr(cv2, robust_estimation_type.value),
             ransacReprojThreshold=self._estimation_threshold_px,
             confidence=RANSAC_SUCCESS_PROB,
             maxIters=RANSAC_MAX_ITERS,
