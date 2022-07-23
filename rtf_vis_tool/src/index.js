@@ -5,7 +5,7 @@ Author: Adi Singh
 import React from 'react';
 
 // Third-Party Package Imports.
-import {extend} from "react-three-fiber";
+import {extend} from "@react-three/fiber";
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls';
 import ReactDOM from 'react-dom';
 

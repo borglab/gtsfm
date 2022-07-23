@@ -6,7 +6,7 @@ Author: Adi Singh
 import React from "react";
 
 // Third-Party Package Imports.
-import {Line, Html} from "drei";  // Used to render axes lines and text.
+import {Line, Html} from "@react-three/drei";  // Used to render axes lines and text.
 
 function getGridLines(lowerGridBound = -10, upperGridBound = 10) {
     /*Creates grid lines along the xy plane. These grid lines are meant to help establish the 
