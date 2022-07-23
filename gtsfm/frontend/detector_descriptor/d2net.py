@@ -65,10 +65,7 @@ class D2NetDetDesc(DetectorDescriptorBase):
         resized_image, fact_i, fact_j = resize_image(image.value_array)
         input_image = preprocess_image(resized_image, preprocessing=PREPROCESSING_METHOD)
 
-        if USE_MULTISCALE:
-            scales = PYRAMID_SCALES
-        else:
-            scales = [1]
+        scales = PYRAMID_SCALES if USE_MULTISCALE else [1]
 
         with torch.no_grad():
             keypoints, scores, descriptors = d2net_pyramid.process_multiscale(
@@ -81,6 +78,7 @@ class D2NetDetDesc(DetectorDescriptorBase):
         ordered_idxs = np.argsort(-scores)[: self.max_keypoints]
         keypoints = keypoints[ordered_idxs, :]
         descriptors = descriptors[ordered_idxs, :]
+        scores = scores[ordered_idxs]
 
         # Rescale keypoint coordinates from resized image scale, back to provided input image resolution.
         keypoints[:, 0] *= fact_i
@@ -88,7 +86,7 @@ class D2NetDetDesc(DetectorDescriptorBase):
 
         # Convert (y,x) tuples that represented (i, j) indices of image matrix, into (u, v) coordinates.
         keypoints = keypoints[:, [1, 0]]
-        return Keypoints(coordinates=keypoints), descriptors
+        return Keypoints(coordinates=keypoints, responses=scores), descriptors
 
 
 def resize_image(
@@ -97,12 +95,12 @@ def resize_image(
     """Resize image to limit to a maximum edge length and maximum summed length of both edges.
 
     Args:
-        image: array of shape (H,W,3) representing an RGB image.
+        image: array of shape (H,W,3) or (H,W) representing an RGB or grayscale image.
         max_edge_px: maximum allowed edge length (in pixels).
         max_sum_edges_px: maximum allowed summed length of both edges (in pixels).
 
     Returns:
-        resized_image: resized image.
+        resized_image: resized image array of shape (H1,W1,3).
         fact_i: vertical re-scaling factor for keypoint x-coordinates (inverse of downsampling factor).
         fact_j: horizontal re-scaling factor for keypoint y-coordinates.
     """
