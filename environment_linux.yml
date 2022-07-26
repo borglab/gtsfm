@@ -38,6 +38,7 @@ dependencies:
   - h5py
   - plotly=4.14.3
   - tabulate
+  - simplejson
   # visualization
   - pip:
     - open3d

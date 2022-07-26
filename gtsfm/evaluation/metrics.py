@@ -9,7 +9,6 @@ Authors: Akshay Krishnan
 
 from __future__ import annotations
 
-import json
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
@@ -342,8 +341,7 @@ class GtsfmMetricsGroup:
         Returns:
             A new GtsfmMetricsGroup parsed from the JSON.
         """
-        with open(json_filename) as f:
-            metric_group_dict = json.load(f)
+        metric_group_dict = io.read_json_file(json_filename)
         return cls.parse_from_dict(metric_group_dict)
 
 
