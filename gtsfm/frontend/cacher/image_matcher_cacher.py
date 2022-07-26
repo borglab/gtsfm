@@ -18,7 +18,6 @@ from gtsfm.frontend.matcher.image_matcher_base import ImageMatcherBase
 logger = logger_utils.get_logger()
 
 CACHE_ROOT_PATH = Path(__file__).resolve().parent.parent.parent.parent / "cache"
-NUM_KEYPOINTS_TO_SAMPLE_FOR_HASH = 10
 
 
 class ImageMatcherCacher(ImageMatcherBase):
@@ -74,8 +73,8 @@ class ImageMatcherCacher(ImageMatcherBase):
             image_i2: second input image of pair.
 
         Returns:
-            Keypoints object with N keypoints.
-            Keypoints object with N corresponding keypoints (representing matches).
+            Keypoints from image 1 (N keypoints will exist).
+            Corresponding keypoints from image 2 (there will also be N keypoints). These represent feature matches.
         """
         cached_data = self._load_result_from_cache(
             image_i1=image_i1,
@@ -93,5 +92,4 @@ class ImageMatcherCacher(ImageMatcherBase):
         self._save_result_to_cache(
             image_i1=image_i1, image_i2=image_i2, keypoints_i1=keypoints_i1, keypoints_i2=keypoints_i2
         )
-
         return keypoints_i1, keypoints_i2
