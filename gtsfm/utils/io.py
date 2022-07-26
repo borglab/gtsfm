@@ -2,7 +2,7 @@
 
 Authors: Ayush Baid, John Lambert
 """
-import json
+import simplejson as json
 import os
 import pickle
 from bz2 import BZ2File
@@ -107,7 +107,11 @@ def save_json_file(
     """
     os.makedirs(os.path.dirname(json_fpath), exist_ok=True)
     with open(json_fpath, "w") as f:
-        json.dump(data, f, indent=4)
+        # ignore_nan=False replaces any NaN with null so that RTF frontend can
+        # parse it
+        json.dump(data, f, indent=4, ignore_nan=True)
+
+
 
 
 def read_json_file(fpath: Union[str, Path]) -> Any:
