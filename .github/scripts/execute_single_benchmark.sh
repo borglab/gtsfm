@@ -61,7 +61,6 @@ elif [ "$LOADER_NAME" == "colmap-loader" ]; then
     --config_name ${CONFIG_NAME}.yaml \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \
     --max_resolution ${MAX_RESOLUTION} \
-    --matching_regime sequential_with_retrieval \
     ${SHARE_INTRINSICS_ARG}
 
 elif [ "$LOADER_NAME" == "astronet" ]; then
