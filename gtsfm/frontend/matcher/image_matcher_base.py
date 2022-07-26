@@ -13,7 +13,7 @@ from gtsfm.common.keypoints import Keypoints
 
 
 class ImageMatcherBase(metaclass=abc.ABCMeta):
-    """Base class for matchers that accept an image pair, and immediately generate keypoint matches.
+    """Base class for matchers that accept an image pair, and directly generate keypoint matches.
 
     Note: these matchers do NOT use descriptors as input.
     """
@@ -34,8 +34,8 @@ class ImageMatcherBase(metaclass=abc.ABCMeta):
             image_i2: second input image of pair.
 
         Returns:
-            Keypoints object with N keypoints.
-            Keypoints object with N corresponding keypoints (representing matches).
+            Keypoints from image 1 (N keypoints will exist).
+            Corresponding keypoints from image 2 (there will also be N keypoints). These represent feature matches.
         """
 
     def create_computation_graph(
@@ -50,6 +50,7 @@ class ImageMatcherBase(metaclass=abc.ABCMeta):
             image_i2: second input image of pair.
 
         Returns:
-            Delayed dask tasks for matching for input camera pairs, a tuple of Keypoints.
+            Delayed dask task for N keypoints from image 1.
+            Delayed dask task for N keypoints from image 2.
         """
         return dask.delayed(self.match, nout=2)(image_i1=image_i1, image_i2=image_i2)
