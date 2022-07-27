@@ -20,5 +20,6 @@ updates:
       - "npm dependencies"
     reviewers:
       - "kfu02"
+      - "ayushbaid"
 
   # TODO: pip dependencies?
