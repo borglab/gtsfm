@@ -85,7 +85,7 @@ Currently we require EXIF data embedded into your images (or you can provide gro
 
 If you would like to compare GTSFM output with COLMAP output, please run:
 ```python
-python gtsfm/runner/run_scene_optimizer_colmap_loader.py --config_name {CONFIG_NAME} --images_dir {IMAGES_DIR} --colmap_files_dirpath {COLMAP_FILES_DIRPATH} --image_extension jpg --num_workers {NUM_WORKERS} --max_frame_lookahead {MAX_FRAME_LOOKAHEAD}
+python gtsfm/runner/run_scene_optimizer_colmaploader.py --config_name {CONFIG_NAME} --images_dir {IMAGES_DIR} --colmap_files_dirpath {COLMAP_FILES_DIRPATH} --image_extension jpg --num_workers {NUM_WORKERS} --max_frame_lookahead {MAX_FRAME_LOOKAHEAD}
 ```
 where `COLMAP_FILES_DIRPATH` is a directory where .txt files such as `cameras.txt`, `images.txt`, etc have been saved.
 
@@ -131,7 +131,7 @@ Open-source Python implementation:
 @misc{GTSFM,
     author = {Ayush Baid and Travis Driver and Fan Jiang and Akshay Krishnan and John Lambert
        and Ren Liu and Aditya Singh and Neha Upadhyay and Aishwarya Venkataramanan
-       and Sushmita Warrier and Jing Wu and Xiaolong Wu and Frank Dellaert},
+       and Sushmita Warrier and Jon Womack and Jing Wu and Xiaolong Wu and Frank Dellaert},
     title = { {GTSFM}: Georgia Tech Structure from Motion},
     howpublished={\url{https://github.com/borglab/gtsfm}},
     year = {2021}

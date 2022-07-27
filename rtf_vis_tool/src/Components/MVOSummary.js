@@ -1,7 +1,7 @@
 /* Component to render Multiview Optimizer Metrics. Specifically rotation averaging and
-translation averaging metrics.
+translation averaging metrics. Only seen when "Sparse Multiview Optimizer" plate is clicked.
 
-Author: Adi Singh
+Authors: Adi Singh, Kevin Fu
 */
 import React from "react";
 
@@ -11,23 +11,23 @@ import '../stylesheets/MVOSummary.css'
 function MVOSummary(props) {
     /*
     Args:
-        props.json.averaging_metrics.rotation_averaging_angle_deg.summary.median (float): Median error of rotation 
+        props.rotation_averaging_metrics.rotation_angle_error_deg.summary.median (float): Median error of rotation 
                                                         averaging.
-        props.json.averaging_metrics.rotation_averaging_angle_deg.summary.min (float): Min angular error on global
+        props.rotation_averaging_metrics.rotation_angle_error_deg.summary.min (float): Min angular error on global
                                                         rotation for any frame after rotation averaging (pre-BA).
-        props.json.averaging_metrics.rotation_averaging_angle_deg.summary.max (float): Max angular error on global 
+        props.rotation_averaging_metrics.rotation_angle_error_deg.summary.max (float): Max angular error on global 
                                                         rotation for any frame after rotation averaging (pre-BA).
-        props.json.averaging_metrics.translation_averaging_distance.summary.median (float): Median Euclidean error of 
+        props.translation_averaging_metrics.translation_error_distance.summary.median (float): Median Euclidean error of 
                                                         translation averaging.
-        props.json.averaging_metrics.translation_averaging_distance.summary.min (float): Min Euclidean error on global
+        props.translation_averaging_metrics.translation_error_distance.summary.min (float): Min Euclidean error on global
                                                         translation for any frame after translation averaging (pre-BA).
-        props.json.averaging_metrics.translation_averaging_distance.summary.max (float): Max Euclidean error on global
+        props.translation_averaging_metrics.translation_error_distance.summary.max (float): Max Euclidean error on global
                                                         translation for any frame after translation averaging (pre-BA).
-        props.json.averaging_metrics.translation_angle_deg.summary.median (float): Median error of 
+        props.translation_averaging_metrics.translation_angle_error_deg.summary.median (float): Median error of 
                                                         translation to direction.
-        props.json.averaging_metrics.translation_angle_deg.summary.min (float): Min error of translation 
+        props.translation_averaging_metrics.translation_angle_error_deg.summary.min (float): Min error of translation 
                                                         to direction.
-        props.json.averaging_metrics.translation_angle_deg.summary.max (float): Max error of tranlation to
+        props.translation_averaging_metrics.translation_angle_error_deg.summary.max (float): Max error of tranlation to
                                                         direction.
 
     Returns:
@@ -42,15 +42,15 @@ function MVOSummary(props) {
                     <p className="mvo_header">Rotation Averaging Angle Metrics</p>
 
                     <p className="mvo_text">
-                        Median Error: {props.json.averaging_metrics.rotation_averaging_angle_deg.summary.median.toFixed(5)}
+                        Median Error: {props.rotation_averaging_metrics.rotation_angle_error_deg.summary.median.toFixed(5)}
                     </p>
 
                     <p className="mvo_text">
-                        Min Error: {props.json.averaging_metrics.rotation_averaging_angle_deg.summary.min.toFixed(5)}
+                        Min Error: {props.rotation_averaging_metrics.rotation_angle_error_deg.summary.min.toFixed(5)}
                     </p>
 
                     <p className="mvo_text">
-                        Max Error: {props.json.averaging_metrics.rotation_averaging_angle_deg.summary.max.toFixed(5)}
+                        Max Error: {props.rotation_averaging_metrics.rotation_angle_error_deg.summary.max.toFixed(5)}
                     </p>
                 </div>
 
@@ -58,15 +58,15 @@ function MVOSummary(props) {
                     <p className="mvo_header">Translation Averaging Metrics</p>
 
                     <p className="mvo_text">
-                        Median Error: {props.json.averaging_metrics.translation_averaging_distance.summary.median.toFixed(5)}
+                        Median Error: {props.translation_averaging_metrics.translation_error_distance.summary.median.toFixed(5)}
                     </p>
 
                     <p className="mvo_text">
-                        Min Error: {props.json.averaging_metrics.translation_averaging_distance.summary.min.toFixed(5)}
+                        Min Error: {props.translation_averaging_metrics.translation_error_distance.summary.min.toFixed(5)}
                     </p>
 
                     <p className="mvo_text">
-                        Max Error: {props.json.averaging_metrics.translation_averaging_distance.summary.max.toFixed(5)}
+                        Max Error: {props.translation_averaging_metrics.translation_error_distance.summary.max.toFixed(5)}
                     </p>
                 </div>
 
@@ -74,15 +74,15 @@ function MVOSummary(props) {
                     <p className="mvo_header">Translation to Direction Angle Metrics</p>
 
                     <p className="mvo_text">
-                        Median Error: {props.json.averaging_metrics.translation_angle_deg.summary.median.toFixed(5)}
+                        Median Error: {props.translation_averaging_metrics.translation_angle_error_deg.summary.median.toFixed(5)}
                     </p>
 
                     <p className="mvo_text">
-                        Min Error: {props.json.averaging_metrics.translation_angle_deg.summary.min.toFixed(5)}
+                        Min Error: {props.translation_averaging_metrics.translation_angle_error_deg.summary.min.toFixed(5)}
                     </p>
 
                     <p className="mvo_text">
-                        Max Error: {props.json.averaging_metrics.translation_angle_deg.summary.max.toFixed(5)}
+                        Max Error: {props.translation_averaging_metrics.translation_angle_error_deg.summary.max.toFixed(5)}
                     </p>
                 </div>
 
