@@ -92,7 +92,7 @@ where `COLMAP_FILES_DIRPATH` is a directory where .txt files such as `cameras.tx
 
 To visualize the result using Open3D, run:
 ```bash
-python gtsfm/visualization/view_scene.py --point_rendering_mode point
+python gtsfm/visualization/view_scene.py --rendering_library open3d --rendering_style point
 ```
 
 For users that are working with the same dataset repeatedly, we provide functionality to cache front-end results for 

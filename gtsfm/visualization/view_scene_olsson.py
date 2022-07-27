@@ -48,7 +48,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset_root", type=str, default=os.path.join(TEST_DATA_ROOT, "set1_lund_door"), help="")
     parser.add_argument("--image_extension", type=str, default="JPG", help="")
     parser.add_argument(
-        "--point_rendering_mode",
+        "--rendering_style",
         type=str,
         default="point",
         choices=["point", "sphere"],

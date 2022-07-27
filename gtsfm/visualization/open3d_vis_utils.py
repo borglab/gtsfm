@@ -195,10 +195,10 @@ def draw_scene_open3d(
         args: rendering options.
     """
     frustums = create_all_frustums_open3d(wTi_list, calibrations, args.frustum_ray_len)
-    if args.point_rendering_mode == "point":
+    if args.rendering_style == "point":
         pcd = create_colored_point_cloud_open3d(point_cloud, rgb)
         geometries = frustums + [pcd]
-    elif args.point_rendering_mode == "sphere":
+    elif args.rendering_style == "sphere":
         spheres = create_colored_spheres_open3d(point_cloud, rgb, args.sphere_radius)
         geometries = frustums + spheres
 
