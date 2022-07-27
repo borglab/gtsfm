@@ -26,9 +26,6 @@ class ImageMatcherBase(metaclass=abc.ABCMeta):
     ) -> Tuple[Keypoints, Keypoints]:
         """Identify feature matches across two images.
 
-        If the results are in the cache, they are fetched and returned. Otherwise, the `match()` of the
-        underlying object's API is called and the results are cached.
-
         Args:
             image_i1: first input image of pair.
             image_i2: second input image of pair.
