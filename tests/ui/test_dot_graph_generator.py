@@ -13,7 +13,7 @@ from tests.ui.test_registry import FakeImageLoader, FakeOutputGTSFM, FakeOutputC
 
 class TestDotGraphGenerator(unittest.TestCase):
 
-    def test_basic_save_graph_as_png(self):
+    def test_save_graph(self):
         """Ensure DotGraphGenerator saves graph as png/svg files without crashing."""
 
         dot_graph_generator = DotGraphGenerator(test_mode=True)

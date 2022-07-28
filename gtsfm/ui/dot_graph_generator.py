@@ -68,16 +68,14 @@ class DotGraphGenerator:
             for output_gray_node_name in blue_node.output_gray_nodes:
                 self._graph.add_edge(pydot.Edge(blue_node_name, output_gray_node_name, color=self._style["arrow_color"]))
 
-    def save_graph(self, filepath):
+    def save_graph(self, filepath=os.path.join(REPO_ROOT, "ui", "output", "dot_graph_output.svg")):
         """Save graph to the path `gtsfm/ui/filename`."""
 
         # graph must be built first
         self._build_graph()
 
-        if not filepath:
-            filepath = os.path.join(REPO_ROOT, "ui", "output", "output.png")
-
         if filepath.endswith(".png"):
             self._graph.write_png(filepath)
         elif filepath.endswith(".svg"):
             self._graph.write_svg(filepath)
+
