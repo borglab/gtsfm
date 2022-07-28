@@ -1,0 +1,76 @@
+"""
+Unit tests for DotGraphGenerator.
+
+Author: Kevin Fu
+"""
+
+import os
+import tempfile
+import unittest
+
+from gtsfm.ui.dot_graph_generator import DotGraphGenerator
+from tests.ui.test_registry import FakeImageLoader, FakeOutputGTSFM, FakeOutputCOLMAP
+
+class TestDotGraphGenerator(unittest.TestCase):
+
+    def test_basic_save_graph_as_png(self):
+        """Ensure DotGraphGenerator saves graph as png/svg files without crashing."""
+
+        dot_graph_generator = DotGraphGenerator(test_mode=True)
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            png_path = os.path.join(tempdir, "output.png")
+            svg_path = os.path.join(tempdir, "output.svg")
+
+            dot_graph_generator.save_graph(png_path)
+            dot_graph_generator.save_graph(svg_path)
+
+            # check that files were saved, not their correctness
+            self.assertTrue(os.path.exists(png_path))
+            self.assertTrue(os.path.exists(svg_path))
+
+    def test_no_fake_nodes(self):
+        """
+        Ensure that no test nodes from test_registry.py are in the final
+        graph.
+        """
+
+        dot_graph_generator = DotGraphGenerator()
+        dot_graph_generator._build_graph()
+
+        output_raw_dot = dot_graph_generator._graph.to_string()
+
+        self.assertTrue("BlueNode" not in output_raw_dot)
+        self.assertTrue("Fake" not in output_raw_dot)
+
+    def test_build_graph(self):
+        """
+        Check that the test nodes are in the graph and connected correctly.
+        Does not check for style elements.
+        """
+
+        dot_graph_generator = DotGraphGenerator(test_mode=True)
+        dot_graph_generator._build_graph()
+
+        output_raw_dot = dot_graph_generator._graph.to_string()
+
+        # can't assert the full graph directly because the REGISTRY will have other classes
+        self.assertTrue('FakeImageLoader [' in output_raw_dot)
+        self.assertTrue('"Raw Images" [' in output_raw_dot)
+        self.assertTrue('"Internal Data" [' in output_raw_dot)
+        self.assertTrue('"Raw Images" -> FakeImageLoader  [' in output_raw_dot)
+        self.assertTrue('FakeImageLoader -> "Internal Data"  [' in output_raw_dot)
+        self.assertTrue('FakeOutputGTSFM [' in output_raw_dot)
+        self.assertTrue('"Internal Data" [' in output_raw_dot)
+        self.assertTrue('"GTSFM Output" [' in output_raw_dot)
+        self.assertTrue('"Internal Data" -> FakeOutputGTSFM  [' in output_raw_dot)
+        self.assertTrue('FakeOutputGTSFM -> "GTSFM Output"  [' in output_raw_dot)
+        self.assertTrue('FakeOutputCOLMAP [' in output_raw_dot)
+        self.assertTrue('"Internal Data" [' in output_raw_dot)
+        self.assertTrue('"COLMAP Output" [' in output_raw_dot)
+        self.assertTrue('"Internal Data" -> FakeOutputCOLMAP  [' in output_raw_dot)
+        self.assertTrue('FakeOutputCOLMAP -> "COLMAP Output"  [' in output_raw_dot)
+
+
+if __name__ == "__main__":
+    unittest.main()
