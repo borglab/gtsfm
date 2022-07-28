@@ -5,16 +5,16 @@ Authors: Travis Driver
 
 import os
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, List, Tuple
 
 import cv2 as cv
 import numpy as np
 import trimesh
 from gtsam import Cal3Bundler, Pose3, SfmTrack
 
+import gtsfm.utils.images as image_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
-import gtsfm.utils.images as image_utils
 from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
 
@@ -117,6 +117,10 @@ class AstronetLoader(LoaderBase):
 
         self._num_imgs = len(self._image_paths)
         logger.info("AstroNet loader found and loaded %d images and %d tracks.", self._num_imgs, self.num_sfmtracks)
+
+    def image_filenames(self) -> List[str]:
+        """Return the file names corresponding to each image index."""
+        return [Path(fpath) for fpath in self._image_paths]
 
     def __len__(self) -> int:
         """The number of images in the dataset.
