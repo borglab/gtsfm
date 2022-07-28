@@ -14,6 +14,7 @@ class FakeImageLoader(BlueNode):
     def __init__(self, *args, **kwargs):
         super().__init__()
 
+    def _set_gray_nodes(self):
         self._input_gray_nodes = ["Raw Images"]
         self._output_gray_nodes = ["Internal Data"]
         self._parent_plate = ""
@@ -24,6 +25,7 @@ class FakeOutputGTSFM(BlueNode):
     def __init__(self, *args, **kwargs):
         super().__init__()
 
+    def _set_gray_nodes(self):
         self._input_gray_nodes = ["Internal Data"]
         self._output_gray_nodes = ["GTSFM Output"]
         self._parent_plate = "Processor"
@@ -34,6 +36,7 @@ class FakeOutputCOLMAP(BlueNode):
     def __init__(self, *args, **kwargs):
         super().__init__()
 
+    def _set_gray_nodes(self):
         self._input_gray_nodes = ["Internal Data"]
         self._output_gray_nodes = ["COLMAP Output"]
         self._parent_plate = "Processor"

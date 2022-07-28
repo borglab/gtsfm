@@ -7,6 +7,7 @@ https://charlesreid1.github.io/python-patterns-the-registry.html
 
 Author: Kevin Fu
 """
+import abc
 
 class RegistryHolder(type):
     """
@@ -34,7 +35,11 @@ class RegistryHolder(type):
         """Return current REGISTRY."""
         return dict(cls.REGISTRY)
 
-class BlueNode(metaclass=RegistryHolder):
+class AbstractableRegistryHolder(abc.ABCMeta, RegistryHolder):
+    """Extra class to ensure BlueNode can use both ABCMeta and RegistryHolder metaclasses."""
+    pass
+
+class BlueNode(metaclass=AbstractableRegistryHolder):
     """Base type that all classes the REGISTRY can see must inherit from."""
 
     def __init__(self):
@@ -42,8 +47,15 @@ class BlueNode(metaclass=RegistryHolder):
         self._output_gray_nodes = []
         self._parent_plate = None
 
-        # TODO: how do I ensure that these are populated, without also
-        # incorrectly forcing this superclass to have gray nodes?
+        self._set_gray_nodes()
+
+    @abc.abstractmethod
+    def _set_gray_nodes(self):
+        """
+        Abstract method to force GTSFM developers to populate
+        self._*gray_nodes (or willfully ignore if needed).
+        """
+        raise NotImplementedError
 
     @property
     def input_gray_nodes(self):
