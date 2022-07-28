@@ -49,7 +49,7 @@ class TestRegistryUtils(unittest.TestCase):
         than just these test classes.)
         """
 
-        registry = RegistryHolder.REGISTRY
+        registry = RegistryHolder.get_registry()
 
         expected_result = {
             "FakeImageLoader": FakeImageLoader,

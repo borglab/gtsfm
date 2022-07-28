@@ -45,7 +45,11 @@ class DotGraphGenerator:
         REGISTRY.
         """
 
-        for blue_node_name, blue_node_cls in RegistryHolder.REGISTRY.items():
+        # TODO: remove this
+        print("!\n"*100)
+        print(RegistryHolder.get_registry())
+
+        for blue_node_name, blue_node_cls in RegistryHolder.get_registry().items():
             # don't add the base class to the graph
             if blue_node_name == "BlueNode":
                 continue

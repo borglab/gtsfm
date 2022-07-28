@@ -42,6 +42,8 @@ class AbstractableRegistryHolder(abc.ABCMeta, RegistryHolder):
 class BlueNode(metaclass=AbstractableRegistryHolder):
     """Base type that all classes the REGISTRY can see must inherit from."""
 
+    # TODO: consider a design without __init__() and referencing these private
+    # vars directly when called from DotGraphGenerator
     def __init__(self):
         self._input_gray_nodes = []
         self._output_gray_nodes = []
@@ -53,7 +55,9 @@ class BlueNode(metaclass=AbstractableRegistryHolder):
     def _set_gray_nodes(self):
         """
         Abstract method to force GTSFM developers to populate
-        self._*gray_nodes (or willfully ignore if needed).
+        self._*gray_nodes.
+
+        See tests/ui/test_registry.py for example usage.
         """
         raise NotImplementedError
 
