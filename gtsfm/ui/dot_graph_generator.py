@@ -78,6 +78,10 @@ class DotGraphGenerator:
         # graph must be built first
         self._build_graph()
 
+        # make output directory if one does not exist
+        save_dir = os.path.dirname(filepath)
+        Path(save_dir).mkdir(parents=True, exist_ok=True)
+
         if filepath.endswith(".png"):
             self._graph.write_png(filepath)
         elif filepath.endswith(".svg"):

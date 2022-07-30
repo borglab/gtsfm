@@ -21,13 +21,16 @@ class TestDotGraphGenerator(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tempdir:
             png_path = os.path.join(tempdir, "output.png")
             svg_path = os.path.join(tempdir, "output.svg")
+            extra_dir_path = os.path.join(tempdir, "output", "output.png")
 
             dot_graph_generator.save_graph(png_path)
             dot_graph_generator.save_graph(svg_path)
+            dot_graph_generator.save_graph(extra_dir_path)
 
             # check that files were saved, not their correctness
             self.assertTrue(os.path.exists(png_path))
             self.assertTrue(os.path.exists(svg_path))
+            self.assertTrue(os.path.exists(extra_dir_path))
 
     def test_no_fake_nodes(self):
         """
