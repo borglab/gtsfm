@@ -10,7 +10,6 @@ from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
 
-DEFAULT_INTERMEDIATE_REPROJ_ERROR_THRESH = 10
 FIRST_BA_NUM_ITERATIONS = 5
 
 
@@ -20,7 +19,6 @@ class TwoStepBA(BundleAdjustmentOptimizer):
 
     def __init__(
         self,
-        intermediate_reproj_error_thresh: float = DEFAULT_INTERMEDIATE_REPROJ_ERROR_THRESH,
         output_reproj_error_thresh: Optional[float] = None,
         robust_measurement_noise: bool = False,
         shared_calib: bool = False,
@@ -29,9 +27,6 @@ class TwoStepBA(BundleAdjustmentOptimizer):
         """Initialize the optimizer.
 
         Args:
-            intermediate_reproj_error_thresh (optional): The reprojection error threshold used to filter out tracks
-                                                         after the 1st round of BA. Defaults to
-                                                         DEFAULT_INTERMEDIATE_REPROJ_ERROR_THRESH.
             output_reproj_error_thresh (optional): Reprojection error threshold for the final result. Defaults to None.
             robust_measurement_noise (optional): Flag to enable use of robust noise model for measurement noise.
                                                  Defaults to False.
@@ -40,7 +35,7 @@ class TwoStepBA(BundleAdjustmentOptimizer):
                                        Defaults to None.
         """
         self._ba1 = BundleAdjustmentOptimizer(
-            output_reproj_error_thresh=intermediate_reproj_error_thresh,
+            output_reproj_error_thresh=output_reproj_error_thresh,
             robust_measurement_noise=robust_measurement_noise,
             shared_calib=shared_calib,
             max_iterations=FIRST_BA_NUM_ITERATIONS,
