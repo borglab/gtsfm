@@ -15,7 +15,9 @@ from gtsfm.loader.loader_base import LoaderBase
 
 class ImageMatchingRegime(str, Enum):
     SEQUENTIAL: str = "sequential"
+    RETRIEVAL: str = "retrieval"
     EXHAUSTIVE: str = "exhaustive"
+    SEQUENTIAL_WITH_RETRIEVAL: str = "sequential_with_retrieval"
     RIG_HILTI: str = "rig_hilti"
     SEQUENTIAL_HILTI: str = "sequential_hilti"
 

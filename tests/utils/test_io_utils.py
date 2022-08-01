@@ -218,6 +218,18 @@ class TestIoUtils(unittest.TestCase):
         self.assertEqual(data.number_images(), 5)
         self.assertEqual(data.number_tracks(), 544)
 
+    def test_json_roundtrip(self) -> None:
+        """Test that basic read/write to JSON works as intended."""
+        data = {"data": [np.NaN, -2.0, 999.0, 0.0]}
+        with tempfile.TemporaryDirectory() as tempdir:
+            json_fpath = f"{tempdir}/list_with_nan.json"
+            io_utils.save_json_file(json_fpath=json_fpath, data=data)
+            data_from_json = io_utils.read_json_file(fpath=json_fpath)
+
+            # np.NaN is output as null, then read in as None
+            self.assertEqual(data_from_json["data"][0], None)
+            np.testing.assert_allclose(data["data"][1:], data_from_json["data"][1:])
+
 
 if __name__ == "__main__":
     unittest.main()

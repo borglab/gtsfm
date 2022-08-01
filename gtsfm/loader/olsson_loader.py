@@ -6,7 +6,7 @@ Authors: John Lambert
 import glob
 import os
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import scipy.io
 from gtsam import Cal3Bundler, Pose3
@@ -101,6 +101,10 @@ class OlssonLoader(LoaderBase):
 
         # GT 3d structure (point cloud)
         self._point_cloud = data["U"].T[:, :3]
+
+    def image_filenames(self) -> List[str]:
+        """Return the file names corresponding to each image index."""
+        return [Path(fpath).name for fpath in self._image_paths]
 
     def __len__(self) -> int:
         """The number of images in the dataset.

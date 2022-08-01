@@ -85,14 +85,14 @@ Currently we require EXIF data embedded into your images (or you can provide gro
 
 If you would like to compare GTSFM output with COLMAP output, please run:
 ```python
-python gtsfm/runner/run_scene_optimizer_colmap_loader.py --config_name {CONFIG_NAME} --images_dir {IMAGES_DIR} --colmap_files_dirpath {COLMAP_FILES_DIRPATH} --image_extension jpg --num_workers {NUM_WORKERS} --max_frame_lookahead {MAX_FRAME_LOOKAHEAD}
+python gtsfm/runner/run_scene_optimizer_colmaploader.py --config_name {CONFIG_NAME} --images_dir {IMAGES_DIR} --colmap_files_dirpath {COLMAP_FILES_DIRPATH} --image_extension jpg --num_workers {NUM_WORKERS} --max_frame_lookahead {MAX_FRAME_LOOKAHEAD}
 ```
 where `COLMAP_FILES_DIRPATH` is a directory where .txt files such as `cameras.txt`, `images.txt`, etc have been saved.
 
 
 To visualize the result using Open3D, run:
 ```bash
-python gtsfm/visualization/view_scene.py --point_rendering_mode point
+python gtsfm/visualization/view_scene.py --rendering_library open3d --rendering_style point
 ```
 
 For users that are working with the same dataset repeatedly, we provide functionality to cache front-end results for 

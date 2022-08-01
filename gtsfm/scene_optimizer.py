@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Tuple
 
 import dask
 import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
 from trimesh import Trimesh
 from gtsam import Pose3, Similarity3
@@ -495,3 +496,52 @@ def save_full_frontend_metrics(
 
     # Save duplicate copy of 'frontend_full.json' within React Folder.
     io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, filename), metrics_list)
+
+    if matching_regime not in [ImageMatchingRegime.RETRIEVAL, ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL]:
+        return
+    if "VIEWGRAPH_2VIEW_REPORT" in filename:
+        # must come after two-view report file is written to disk in the Dask dependency graph.
+        _save_retrieval_two_view_metrics()
+
+
+def _save_retrieval_two_view_metrics() -> None:
+    """Compare 2-view similarity scores with their 2-view pose errors after viewgraph estimation."""
+    sim_fpath = os.path.join(PLOT_BASE_PATH, "netvlad_similarity_matrix.txt")
+    sim = np.loadtxt(sim_fpath, delimiter=",")
+
+    json_fpath = os.path.join(METRICS_PATH, "two_view_report_VIEWGRAPH_2VIEW_REPORT.json")
+    json_data = io_utils.read_json_file(json_fpath)
+
+    sim_scores = []
+    R_errors = []
+    U_errors = []
+
+    for entry in json_data:
+        i1 = entry["i1"]
+        i2 = entry["i2"]
+        R_error = entry["rotation_angular_error"]
+        U_error = entry["translation_angular_error"]
+        sim_score = sim[i1, i2]
+
+        sim_scores.append(sim_score)
+        R_errors.append(R_error)
+        U_errors.append(U_error)
+
+    plt.scatter(sim_scores, R_errors, 10, color="r", marker=".")
+    plt.xlabel("Similarity score")
+    plt.ylabel("Rotation error w.r.t. GT (deg.)")
+    plt.savefig(os.path.join(PLOT_BASE_PATH, "gt_rot_error_vs_similarity_score.jpg"), dpi=500)
+    plt.close("all")
+
+    plt.scatter(sim_scores, U_errors, 10, color="r", marker=".")
+    plt.xlabel("Similarity score")
+    plt.ylabel("Translation direction error w.r.t. GT (deg.)")
+    plt.savefig(os.path.join(PLOT_BASE_PATH, "gt_trans_error_vs_similarity_score.jpg"), dpi=500)
+    plt.close("all")
+
+    pose_errors = np.maximum(np.array(R_errors), np.array(U_errors))
+    plt.scatter(sim_scores, pose_errors, 10, color="r", marker=".")
+    plt.xlabel("Similarity score")
+    plt.ylabel("Pose error w.r.t. GT (deg.)")
+    plt.savefig(os.path.join(PLOT_BASE_PATH, "gt_pose_error_vs_similarity_score.jpg"), dpi=500)
+    plt.close("all")

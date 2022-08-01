@@ -83,7 +83,7 @@ if __name__ == "__main__":
         "This directory should contain 3 files: cameras.txt, images.txt, and points3D.txt",
     )
     parser.add_argument(
-        "--point_rendering_mode",
+        "--rendering_style",
         type=str,
         default="point",
         choices=["point", "sphere"],

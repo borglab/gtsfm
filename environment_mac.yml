@@ -38,10 +38,12 @@ dependencies:
   - pytorch
   # for M1 only:
   # - mkl < 2022
+  - torchvision
   # io
   - h5py
   - plotly=4.14.3
   - tabulate
+  - simplejson
   - pip:
     - open3d
     - opencv-python>=4.5.4.58 # pypi has a more recent distribution than conda-forge

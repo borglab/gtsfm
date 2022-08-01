@@ -15,6 +15,8 @@ from gtsfm.scene_optimizer import SceneOptimizer
 
 from gtsfm.retriever.exhaustive_retriever import ExhaustiveRetriever
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
+from gtsfm.retriever.joint_netvlad_sequential_retriever import JointNetVLADSequentialRetriever
+from gtsfm.retriever.netvlad_retriever import NetVLADRetriever
 from gtsfm.retriever.rig_retriever import RigRetriever
 from gtsfm.retriever.sequential_hilti_retriever import SequentialHiltiRetriever
 from gtsfm.retriever.sequential_retriever import SequentialRetriever
@@ -72,9 +74,22 @@ class GtsfmRunnerBase:
         parser.add_argument(
             "--matching_regime",
             type=str,
-            choices=["exhaustive", "sequential", "sequential_hilti", "rig_hilti"],
+            choices=[
+                "exhaustive",
+                "sequential",
+                "sequential_hilti",
+                "rig_hilti",
+                "retrieval",
+                "sequential_with_retrieval",
+            ],
             default="sequential",
             help="Choose mode for matching.",
+        )
+        parser.add_argument(
+            "--num_matched",
+            type=int,
+            default=5,
+            help="Number of matches to provide per retrieval query.",
         )
         parser.add_argument(
             "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras"
@@ -87,6 +102,7 @@ class GtsfmRunnerBase:
         pass
 
     def construct_scene_optimizer(self) -> SceneOptimizer:
+        """Construct scene optimizer."""
         with hydra.initialize_config_module(config_module="gtsfm.configs"):
             # config is relative to the gtsfm module
             cfg = hydra.compose(
@@ -108,8 +124,16 @@ class GtsfmRunnerBase:
         if matching_regime == ImageMatchingRegime.EXHAUSTIVE:
             retriever = ExhaustiveRetriever()
 
+        elif matching_regime == ImageMatchingRegime.RETRIEVAL:
+            retriever = NetVLADRetriever(num_matched=self.parsed_args.num_matched)
+
         elif matching_regime == ImageMatchingRegime.SEQUENTIAL:
             retriever = SequentialRetriever(max_frame_lookahead=self.parsed_args.max_frame_lookahead)
+
+        elif matching_regime == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL:
+            retriever = JointNetVLADSequentialRetriever(
+                num_matched=self.parsed_args.num_matched, max_frame_lookahead=self.parsed_args.max_frame_lookahead
+            )
 
         elif matching_regime == ImageMatchingRegime.SEQUENTIAL_HILTI:
             retriever = SequentialHiltiRetriever(max_frame_lookahead=self.parsed_args.max_frame_lookahead)

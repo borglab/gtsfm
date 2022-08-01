@@ -33,10 +33,12 @@ dependencies:
   # 3rd party algorithms for different modules
   - cpuonly # replacement of cudatoolkit for cpu only machines
   - pytorch
+  - torchvision
   # io
   - h5py
   - plotly=4.14.3
   - tabulate
+  - simplejson
   # visualization
   - pip:
     - open3d
