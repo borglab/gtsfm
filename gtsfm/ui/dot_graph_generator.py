@@ -12,7 +12,7 @@ import os
 import pydot
 from collections import namedtuple
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+JS_ROOT = os.path.join(Path(__file__).resolve().parent.parent.parent, "rtf_vis_tool")
 
 
 class DotGraphGenerator:
@@ -90,8 +90,8 @@ class DotGraphGenerator:
             for output_gray_node_name in output_gray_nodes:
                 self._graph.add_edge(pydot.Edge(display_name, output_gray_node_name, color=style.arrow_color))
 
-    def save_graph(self, filepath=os.path.join(REPO_ROOT, "ui", "output", "dot_graph_output.svg")):
-        """Save graph to the path `gtsfm/ui/filename`."""
+    def save_graph(self, filepath=os.path.join(JS_ROOT, "src", "ui", "dot_graph_output.svg")):
+        """Save graph to the given filepath."""
 
         # graph must be built first
         self._build_graph()

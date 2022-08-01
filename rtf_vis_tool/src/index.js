@@ -2,6 +2,7 @@
 
 Author: Adi Singh
 */
+/*
 import React from 'react';
 
 // Third-Party Package Imports.
@@ -23,3 +24,18 @@ ReactDOM.render(
 
   document.getElementById('root')
 );
+*/
+
+import React from 'react';
+import ReactDOM from 'react-dom';
+
+import { ReactComponent as Graph } from './ui/dot_graph_output.svg';
+
+ReactDOM.render(
+  <React.StrictMode>
+    <Graph/>
+  </React.StrictMode>,
+
+  document.getElementById('root')
+);
+
