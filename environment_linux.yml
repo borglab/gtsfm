@@ -40,7 +40,8 @@ dependencies:
   - plotly=4.14.3
   - tabulate
   - simplejson
-  # visualization
+  # testing
+  - parameterized
   - pip:
     - open3d
     - opencv-python>=4.5.4.58
