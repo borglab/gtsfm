@@ -19,6 +19,8 @@ from gtsfm.retriever.rig_retriever import RigRetriever
 from gtsfm.retriever.sequential_hilti_retriever import SequentialHiltiRetriever
 from gtsfm.retriever.sequential_retriever import SequentialRetriever
 
+from gtsfm.ui.dot_graph_generator import DotGraphGenerator
+
 
 logger = logger_utils.get_logger()
 
@@ -126,6 +128,10 @@ class GtsfmRunnerBase:
             n_workers=self.parsed_args.num_workers, threads_per_worker=self.parsed_args.threads_per_worker
         )
 
+        # create blue/gray node graph
+        dot_graph_generator = DotGraphGenerator()
+        dot_graph_generator.save_graph()
+
         pairs_graph = self.retriever.create_computation_graph(self.loader)
         with Client(cluster), performance_report(filename="dask-report.html"):
             image_pair_indices = pairs_graph.compute()
@@ -151,3 +157,4 @@ class GtsfmRunnerBase:
         end_time = time.time()
         duration_sec = end_time - start_time
         logger.info("GTSFM took %.2f minutes to compute sparse multi-view result.", duration_sec / 60)
+

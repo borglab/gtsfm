@@ -23,6 +23,31 @@ from gtsfm.common.keypoints import Keypoints
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.two_view_estimator import TwoViewEstimationReport
 
+from gtsfm.ui.registry import BlueNode
+
+
+class ViewGraphEstimatorNode(BlueNode):
+    def __init__(self):
+        super().__init__()
+
+    def _set_ui_metadata(self):
+        self._display_name: str = "View Graph Estimator"
+        self._input_gray_nodes: List[str] = [
+            "Relative Rs",
+            "Relative Ts",
+            "Verified Correspondence Indices",
+            "Keypoints",
+            "Intrinsics",
+        ]
+        self._output_gray_nodes: List[str] = [
+            "Relative Rs",
+            "Relative Ts",
+            "Verified Correspondence Indices",
+            "Keypoints",
+        ]
+        # self._parent_plate: str = ""
+
+
 PLOT_BASE_PATH = Path(__file__).resolve().parent.parent.parent / "plots"
 
 # threshold for evaluation w.r.t. GT

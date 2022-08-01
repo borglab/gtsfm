@@ -31,6 +31,20 @@ from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 import gtsfm.utils.io as io_utils
 
+from gtsfm.ui.registry import BlueNode
+
+
+class DataAssociationNode(BlueNode):
+    def __init__(self):
+        super().__init__()
+
+    def _set_ui_metadata(self):
+        self._display_name: str = "Data Association"
+        self._input_gray_nodes: List[str] = ["Keypoints", "Bundler Pinhole Cams", "Verified Correspondence Indices"]
+        self._output_gray_nodes: List[str] = ["GtsfmData"]
+        # self._parent_plate: str = ""
+
+
 logger = logger_utils.get_logger()
 
 

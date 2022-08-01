@@ -1,0 +1,107 @@
+translated from here: https://docs.google.com/presentation/d/1P-U91z21yq_GOG9OQ3IedIYCBJIHA4avsNlu8bf59kM/edit#slide=id.gfd68d6d8f1_0_0
+
+Key:
+? = can't find file with BlueNode definition
+! = found file, but not loaded into Registry
+> filename.py = BlueNode placed in filename.py
+
+<example>
+BlueNode
+InputGrayNode
+OutputGrayNode
+
+-------------------------------------------------------
+
+?
+Scene Looper
+Scene Image Directories
+Scene Directory
+
+> loader_base.py
+Data Loader
+DigiCamDB, Scene Directory
+Images, Intrinsics, Image i, Image Pair Indices
+
+?
+File Writer
+Output Directory, SFMResult
+SFMResult as Files
+
+> mvs_patchmatchnet.py
+MVSNet
+SFMResult, Images
+Dense Point Cloud
+
+?
+Triangulation
+Dense Point Cloud
+Dense Mesh Reconstruction
+
+?
+Aggregate
+Dense Mesh Reconstruction
+Zipped Results
+
+! should be detector_base.py but unused currently
+Detector
+Image i
+Keypoints
+
+Keypoint Describer
+Image i, Keypoints
+Descriptors
+
+> matcher_base.py
+Putative Matcher
+Descriptors, Image Pair Indices
+Putative Correspondence Indices
+
+> verifier_base.py
+Verifier
+Putative Correspondence Indices, Keypoints, Intrinsics
+E matrix, Verified Correspondence Indices
+
+?
+Post-Processor
+E matrix
+Relative Rs, Relative Ts
+
+> view_graph_estimator_base.py
+View Graph Estimator
+Relative Rs, Relative Ts, Verified Correspondence Indices, Keypoints, Intrinsics
+Relative Rs, Relative Ts, Verified Correspondence Indices, Keypoints
+# note repeats here are annoying
+
+?
+LargestConnected Component Extractor
+Relative Rs, Relative Ts
+Pruned Relative Rs, Pruned Relative Ts
+
+> shonan.py
+Shonan
+Pruned Relative Rs
+Absolute Rs
+
+> averaging_1dsfm.py
+SfM_1D
+Pruned Relative Ts, Absolute Rs
+Absolute Ts
+
+?
+Bundler Calibrator
+Intrinsics, Absolute Ts, Absolute Rs
+Bundler Pinhole Cams
+
+> data_assoc.py
+Data Association w/ Track Filtering
+Keypoints, Bundler Pinhole Cams, Verified Correspondence Indices
+GtsfmData
+
+?
+Optimizer
+GtsfmData, Bundler Pinhole Cams
+SFMResult
+
+
+
+

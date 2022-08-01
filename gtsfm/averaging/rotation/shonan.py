@@ -28,6 +28,20 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.common.pose_prior import PosePrior
 
+from gtsfm.ui.registry import BlueNode
+
+
+class ShonanNode(BlueNode):
+    def __init__(self):
+        super().__init__()
+
+    def _set_ui_metadata(self):
+        self._display_name: str = "Shonan Rotation Averaging"
+        self._input_gray_nodes: List[str] = ["Pruned Relative Rs"]
+        self._output_gray_nodes: List[str] = ["Absolute Rs"]
+        # self._parent_plate: str = ""
+
+
 TWOVIEW_ROTATION_SIGMA = 1
 POSE3_DOF = 6
 

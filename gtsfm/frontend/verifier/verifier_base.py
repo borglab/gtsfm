@@ -12,6 +12,19 @@ from gtsam import Cal3Bundler, Rot3, Unit3
 
 from gtsfm.common.keypoints import Keypoints
 
+from gtsfm.ui.registry import BlueNode
+
+
+class VerifierNode(BlueNode):
+    def __init__(self):
+        super().__init__()
+
+    def _set_ui_metadata(self):
+        self._display_name: str = "Verifier"
+        self._input_gray_nodes: List[str] = ["Putative Correspondence Indices", "Keypoints", "Intrinsics"]
+        self._output_gray_nodes: List[str] = ["E matrix", "Verified Correspondence Indices"]
+        # self._parent_plate: str = ""
+
 
 NUM_MATCHES_REQ_E_MATRIX = 5
 NUM_MATCHES_REQ_F_MATRIX = 8

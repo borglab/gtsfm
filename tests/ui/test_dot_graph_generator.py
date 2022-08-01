@@ -11,8 +11,8 @@ import unittest
 from gtsfm.ui.dot_graph_generator import DotGraphGenerator
 from tests.ui.test_registry import FakeImageLoader, FakeOutputGTSFM, FakeOutputCOLMAP
 
-class TestDotGraphGenerator(unittest.TestCase):
 
+class TestDotGraphGenerator(unittest.TestCase):
     def test_save_graph(self):
         """Ensure DotGraphGenerator saves graph as png/svg files without crashing."""
 
@@ -58,17 +58,17 @@ class TestDotGraphGenerator(unittest.TestCase):
         output_raw_dot = dot_graph_generator._graph.to_string()
 
         # can't assert the full graph directly because the REGISTRY will have other classes
-        self.assertTrue('FakeImageLoader [' in output_raw_dot)
+        self.assertTrue("FakeImageLoader [" in output_raw_dot)
         self.assertTrue('"Raw Images" [' in output_raw_dot)
         self.assertTrue('"Internal Data" [' in output_raw_dot)
         self.assertTrue('"Raw Images" -> FakeImageLoader  [' in output_raw_dot)
         self.assertTrue('FakeImageLoader -> "Internal Data"  [' in output_raw_dot)
-        self.assertTrue('FakeOutputGTSFM [' in output_raw_dot)
+        self.assertTrue('"FakeOutputGTSFM!!" [' in output_raw_dot)
         self.assertTrue('"Internal Data" [' in output_raw_dot)
         self.assertTrue('"GTSFM Output" [' in output_raw_dot)
-        self.assertTrue('"Internal Data" -> FakeOutputGTSFM  [' in output_raw_dot)
-        self.assertTrue('FakeOutputGTSFM -> "GTSFM Output"  [' in output_raw_dot)
-        self.assertTrue('FakeOutputCOLMAP [' in output_raw_dot)
+        self.assertTrue('"Internal Data" -> "FakeOutputGTSFM!!"  [' in output_raw_dot)
+        self.assertTrue('"FakeOutputGTSFM!!" -> "GTSFM Output"  [' in output_raw_dot)
+        self.assertTrue("FakeOutputCOLMAP [" in output_raw_dot)
         self.assertTrue('"Internal Data" [' in output_raw_dot)
         self.assertTrue('"COLMAP Output" [' in output_raw_dot)
         self.assertTrue('"Internal Data" -> FakeOutputCOLMAP  [' in output_raw_dot)

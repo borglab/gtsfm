@@ -10,8 +10,10 @@ from pathlib import Path
 import os
 
 import pydot
+from collections import namedtuple
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
 
 class DotGraphGenerator:
     """Generates and saves a graph of all the blue nodes and gray nodes in REGISTRY."""
@@ -24,18 +26,21 @@ class DotGraphGenerator:
         """
 
         # create empty directed graph
-        self._graph = pydot.Dot("my_graph", graph_type="digraph", bgcolor="white") 
+        self._graph = pydot.Dot("my_graph", graph_type="digraph", bgcolor="white")
         # TODO: fontname seems broken?
 
-        # style constants
-        # see http://www.graphviz.org/documentation/
-        self._style = {
+        # style constants, see http://www.graphviz.org/documentation/
+        style_consts = {
             "blue_fillcolor": "lightskyblue",
             "gray_fillcolor": "gainsboro",
             "node_style": '"rounded, filled, solid"',
             "node_shape": "box",
             "arrow_color": "gray75",
         }
+        # namedtuple here is faster than default Dict and allows use of dot
+        # operator
+        StyleTuple = namedtuple("StyleTuple", style_consts)
+        self._style = StyleTuple(**style_consts)
 
         self._test_mode = test_mode
 
@@ -46,31 +51,44 @@ class DotGraphGenerator:
         """
 
         # TODO: remove this
-        print("!\n"*100)
+        print("!\n" * 100)
         print(RegistryHolder.get_registry())
 
-        for blue_node_name, blue_node_cls in RegistryHolder.get_registry().items():
+        for blue_node_cls_name, blue_node_cls in RegistryHolder.get_registry().items():
             # don't add the base class to the graph
-            if blue_node_name == "BlueNode":
+            if blue_node_cls_name == "BlueNode":
                 continue
 
             # don't add any test classes to the graph, unless in testing mode
-            if not self._test_mode and blue_node_name.startswith("Fake"):
+            if not self._test_mode and blue_node_cls_name.startswith("Fake"):
                 continue
 
             # create a new instance of a blue node so we can access its gray nodes
             blue_node = blue_node_cls()
 
+            # get shorthand var names
+            display_name = blue_node.display_name
+            input_gray_nodes = blue_node.input_gray_nodes
+            output_gray_nodes = blue_node.output_gray_nodes
+            parent_plate = blue_node.parent_plate
+            style = self._style
+
             # add blue node, all gray nodes to graph as Nodes
-            self._graph.add_node(pydot.Node(blue_node_name, shape=self._style["node_shape"], style=self._style["node_style"], fillcolor=self._style["blue_fillcolor"]))
-            for gray_node_name in (blue_node.input_gray_nodes + blue_node.output_gray_nodes):
-                self._graph.add_node(pydot.Node(gray_node_name, shape=self._style["node_shape"], style=self._style["node_style"], fillcolor=self._style["gray_fillcolor"]))
+            self._graph.add_node(
+                pydot.Node(display_name, shape=style.node_shape, style=style.node_style, fillcolor=style.blue_fillcolor)
+            )
+            for gray_node_name in input_gray_nodes + output_gray_nodes:
+                self._graph.add_node(
+                    pydot.Node(
+                        gray_node_name, shape=style.node_shape, style=style.node_style, fillcolor=style.gray_fillcolor
+                    )
+                )
 
             # add Edges for all input_gray_nodes -> blue node -> all output_gray_nodes
-            for input_gray_node_name in blue_node.input_gray_nodes:
-                self._graph.add_edge(pydot.Edge(input_gray_node_name, blue_node_name, color=self._style["arrow_color"]))
-            for output_gray_node_name in blue_node.output_gray_nodes:
-                self._graph.add_edge(pydot.Edge(blue_node_name, output_gray_node_name, color=self._style["arrow_color"]))
+            for input_gray_node_name in input_gray_nodes:
+                self._graph.add_edge(pydot.Edge(input_gray_node_name, display_name, color=style.arrow_color))
+            for output_gray_node_name in output_gray_nodes:
+                self._graph.add_edge(pydot.Edge(display_name, output_gray_node_name, color=style.arrow_color))
 
     def save_graph(self, filepath=os.path.join(REPO_ROOT, "ui", "output", "dot_graph_output.svg")):
         """Save graph to the path `gtsfm/ui/filename`."""
@@ -86,4 +104,3 @@ class DotGraphGenerator:
             self._graph.write_png(filepath)
         elif filepath.endswith(".svg"):
             self._graph.write_svg(filepath)
-

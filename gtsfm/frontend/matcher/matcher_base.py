@@ -11,6 +11,19 @@ from dask.delayed import Delayed
 
 from gtsfm.common.keypoints import Keypoints
 
+from gtsfm.ui.registry import BlueNode
+
+
+class MatcherNode(BlueNode):
+    def __init__(self):
+        super().__init__()
+
+    def _set_ui_metadata(self):
+        self._display_name: str = "Matcher"
+        self._input_gray_nodes: List[str] = ["Descriptors", "Image Pair Indices"]
+        self._output_gray_nodes: List[str] = ["Putative Correspondence Indices"]
+        # self._parent_plate: str = ""
+
 
 class MatcherBase(metaclass=abc.ABCMeta):
     """Base class for all matchers.
@@ -60,8 +73,8 @@ class MatcherBase(metaclass=abc.ABCMeta):
         keypoints_i2_graph: Delayed,
         descriptors_i1_graph: Delayed,
         descriptors_i2_graph: Delayed,
-        im_shape_i1: Tuple[int,int],
-        im_shape_i2: Tuple[int,int],
+        im_shape_i1: Tuple[int, int],
+        im_shape_i2: Tuple[int, int],
     ) -> Delayed:
         """
         Generates computation graph for matched features using description graphs.

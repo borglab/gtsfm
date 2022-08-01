@@ -36,6 +36,8 @@ dependencies:
   - hydra-core
   # 3rd party algorithms for different modules
   - pytorch
+  # for M1 only:
+  # - mkl < 2022
   # io
   - h5py
   - plotly=4.14.3
