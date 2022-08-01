@@ -70,7 +70,7 @@ class DotGraphGenerator:
             display_name = blue_node.display_name
             input_gray_nodes = blue_node.input_gray_nodes
             output_gray_nodes = blue_node.output_gray_nodes
-            parent_plate = blue_node.parent_plate
+            # parent_plate = blue_node.parent_plate
             style = self._style
 
             # add blue node, all gray nodes to graph as Nodes

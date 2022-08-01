@@ -73,14 +73,20 @@ class TestRegistryUtils(unittest.TestCase):
     def test_blue_node_disp_name(self):
         """Verify BlueNode fills in UI metadata properly."""
 
-        expected_repr = "FakeOutputGTSFM!!:\n\t input_gray_nodes: ['Internal Data'],\n\t output_gray_nodes: ['GTSFM Output'],\n\t parent_plate: Processor\n"
+        expected_repr = (
+            "FakeOutputGTSFM!!:\n\t input_gray_nodes: ['Internal Data'],\n\t output_gray_nodes: ['GTSFM Output'],\n\t"
+            " parent_plate: Processor\n"
+        )
 
         self.assertEqual(repr(FakeOutputGTSFM()), expected_repr)
 
     def test_blue_node_no_disp_name(self):
         """Verify that BlueNode fills in display_name if none given."""
 
-        expected_repr = "FakeImageLoader:\n\t input_gray_nodes: ['Raw Images'],\n\t output_gray_nodes: ['Internal Data'],\n\t parent_plate: \n"
+        expected_repr = (
+            "FakeImageLoader:\n\t input_gray_nodes: ['Raw Images'],\n\t output_gray_nodes: ['Internal Data'],\n\t"
+            " parent_plate: \n"
+        )
 
         self.assertEqual(repr(FakeImageLoader()), expected_repr)
 

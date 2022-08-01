@@ -3,7 +3,7 @@
 Authors: Ayush Baid, John Lambert
 """
 import abc
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 import dask
 import numpy as np

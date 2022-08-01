@@ -91,4 +91,7 @@ class BlueNode(metaclass=AbstractableRegistryHolder):
         return self._parent_plate
 
     def __repr__(self):
-        return f"{self.display_name}:\n\t input_gray_nodes: {self.input_gray_nodes},\n\t output_gray_nodes: {self.output_gray_nodes},\n\t parent_plate: {self.parent_plate}\n"
+        return (
+            f"{self.display_name}:\n\t input_gray_nodes: {self.input_gray_nodes},\n\t output_gray_nodes:"
+            f" {self.output_gray_nodes},\n\t parent_plate: {self.parent_plate}\n"
+        )
