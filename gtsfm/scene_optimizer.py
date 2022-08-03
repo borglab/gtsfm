@@ -41,16 +41,7 @@ from gtsfm.two_view_estimator import (
 
 matplotlib.use("Agg")
 
-# base paths for storage
-PLOT_BASE_PATH = Path(__file__).resolve().parent.parent / "plots"
-METRICS_PATH = Path(__file__).resolve().parent.parent / "result_metrics"
-RESULTS_PATH = Path(__file__).resolve().parent.parent / "results"
-
-# plot paths
-PLOT_CORRESPONDENCE_PATH = PLOT_BASE_PATH / "correspondences"
-PLOT_BA_INPUT_PATH = PLOT_BASE_PATH / "ba_input"
-PLOT_RESULTS_PATH = PLOT_BASE_PATH / "results"
-MVS_PLY_SAVE_FPATH = RESULTS_PATH / "mvs_output" / "dense_pointcloud.ply"
+DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent.parent
 
 # Paths to Save Output in React Folders.
 REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
@@ -82,6 +73,7 @@ class SceneOptimizer:
         save_3d_viz: bool = True,
         save_gtsfm_data: bool = True,
         pose_angular_error_thresh: float = 3,
+        output_root: str = DEFAULT_OUTPUT_ROOT,
     ) -> None:
         """pose_angular_error_thresh is given in degrees"""
         self.feature_extractor = feature_extractor
@@ -95,15 +87,30 @@ class SceneOptimizer:
 
         self._save_gtsfm_data = save_gtsfm_data
         self._pose_angular_error_thresh = pose_angular_error_thresh
+        self.output_root = Path(output_root)
+        self._create_output_directories()
+
+    def _create_output_directories(self) -> None:
+        """Create various output directories for GTSFM results, metrics, and plots."""
+        # base paths for storage
+        self.plot_base_path = self.output_root / "plots"
+        self.metrics_path = self.output_root / "result_metrics"
+        self.results_path = self.output_root / "results"
+
+        # plot paths
+        self.plot_correspondence_path = self.plot_base_path / "correspondences"
+        self.plot_ba_input_path = self.plot_base_path / "ba_input"
+        self.plot_results_path = self.plot_base_path / "results"
+        self.mvs_ply_save_fpath = self.results_path / "mvs_output" / "dense_pointcloud.ply"
 
         # make directories for persisting data
-        os.makedirs(PLOT_BASE_PATH, exist_ok=True)
-        os.makedirs(METRICS_PATH, exist_ok=True)
-        os.makedirs(RESULTS_PATH, exist_ok=True)
+        os.makedirs(self.plot_base_path, exist_ok=True)
+        os.makedirs(self.metrics_path, exist_ok=True)
+        os.makedirs(self.results_path, exist_ok=True)
 
-        os.makedirs(PLOT_CORRESPONDENCE_PATH, exist_ok=True)
-        os.makedirs(PLOT_BA_INPUT_PATH, exist_ok=True)
-        os.makedirs(PLOT_RESULTS_PATH, exist_ok=True)
+        os.makedirs(self.plot_correspondence_path, exist_ok=True)
+        os.makedirs(self.plot_ba_input_path, exist_ok=True)
+        os.makedirs(self.plot_results_path, exist_ok=True)
 
         # Save duplicate directories within React folders.
         os.makedirs(REACT_RESULTS_PATH, exist_ok=True)
@@ -268,6 +275,8 @@ class SceneOptimizer:
                     image_graph,
                     filename="two_view_report_{}.json".format(tag),
                     matching_regime=matching_regime,
+                    metrics_path=self.metrics_path,
+                    plot_base_path=self.plot_base_path
                 )
             )
             metrics_graph_list.append(
@@ -448,6 +457,8 @@ def save_full_frontend_metrics(
     images: List[Image],
     filename: str,
     matching_regime: ImageMatchingRegime,
+    metrics_path: Path,
+    plot_base_path: Path
 ) -> None:
     """Converts the TwoViewEstimationReports for all image pairs to a Dict and saves it as JSON.
 
@@ -455,6 +466,9 @@ def save_full_frontend_metrics(
         two_view_report_dict: front-end metrics for pairs of images.
         images: list of all images for this scene, in order of image/frame index.
         filename: file name to use when saving report to JSON.
+        matching_regime: regime used for image pair selection in retriever.
+        metrics_path: path to directory where metrics will be saved.
+        plot_base_path: path to directory where plots will be saved.
     """
     metrics_list = []
 
@@ -492,7 +506,7 @@ def save_full_frontend_metrics(
             }
         )
 
-    io_utils.save_json_file(os.path.join(METRICS_PATH, filename), metrics_list)
+    io_utils.save_json_file(os.path.join(metrics_path, filename), metrics_list)
 
     # Save duplicate copy of 'frontend_full.json' within React Folder.
     io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, filename), metrics_list)
@@ -501,15 +515,15 @@ def save_full_frontend_metrics(
         return
     if "VIEWGRAPH_2VIEW_REPORT" in filename:
         # must come after two-view report file is written to disk in the Dask dependency graph.
-        _save_retrieval_two_view_metrics()
+        _save_retrieval_two_view_metrics(metrics_path, plot_base_path)
 
 
-def _save_retrieval_two_view_metrics() -> None:
+def _save_retrieval_two_view_metrics(metrics_path: Path, plot_base_path: Path) -> None:
     """Compare 2-view similarity scores with their 2-view pose errors after viewgraph estimation."""
-    sim_fpath = os.path.join(PLOT_BASE_PATH, "netvlad_similarity_matrix.txt")
+    sim_fpath = os.path.join(plot_base_path, "netvlad_similarity_matrix.txt")
     sim = np.loadtxt(sim_fpath, delimiter=",")
 
-    json_fpath = os.path.join(METRICS_PATH, "two_view_report_VIEWGRAPH_2VIEW_REPORT.json")
+    json_fpath = os.path.join(metrics_path, "two_view_report_VIEWGRAPH_2VIEW_REPORT.json")
     json_data = io_utils.read_json_file(json_fpath)
 
     sim_scores = []
@@ -530,18 +544,18 @@ def _save_retrieval_two_view_metrics() -> None:
     plt.scatter(sim_scores, R_errors, 10, color="r", marker=".")
     plt.xlabel("Similarity score")
     plt.ylabel("Rotation error w.r.t. GT (deg.)")
-    plt.savefig(os.path.join(PLOT_BASE_PATH, "gt_rot_error_vs_similarity_score.jpg"), dpi=500)
+    plt.savefig(os.path.join(plot_base_path, "gt_rot_error_vs_similarity_score.jpg"), dpi=500)
     plt.close("all")
 
     plt.scatter(sim_scores, U_errors, 10, color="r", marker=".")
     plt.xlabel("Similarity score")
     plt.ylabel("Translation direction error w.r.t. GT (deg.)")
-    plt.savefig(os.path.join(PLOT_BASE_PATH, "gt_trans_error_vs_similarity_score.jpg"), dpi=500)
+    plt.savefig(os.path.join(plot_base_path, "gt_trans_error_vs_similarity_score.jpg"), dpi=500)
     plt.close("all")
 
     pose_errors = np.maximum(np.array(R_errors), np.array(U_errors))
     plt.scatter(sim_scores, pose_errors, 10, color="r", marker=".")
     plt.xlabel("Similarity score")
     plt.ylabel("Pose error w.r.t. GT (deg.)")
-    plt.savefig(os.path.join(PLOT_BASE_PATH, "gt_pose_error_vs_similarity_score.jpg"), dpi=500)
+    plt.savefig(os.path.join(plot_base_path, "gt_pose_error_vs_similarity_score.jpg"), dpi=500)
     plt.close("all")
