@@ -238,7 +238,7 @@ class SceneOptimizer:
                         delayed_keypoints[i2],
                         v_corr_idxs,
                         two_view_report=two_view_reports[PRE_BA_REPORT_TAG],
-                        file_path=os.path.join(PLOT_CORRESPONDENCE_PATH, f"{i1}_{i2}.jpg"),
+                        file_path=os.path.join(self.plot_correspondence_path, f"{i1}_{i2}.jpg"),
                     )
                 )
 
@@ -308,7 +308,9 @@ class SceneOptimizer:
             )
 
         if self._save_gtsfm_data:
-            delayed_results.extend(save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph))
+            delayed_results.extend(
+                save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph, results_path=self.results_path)
+            )
 
         if self._run_dense_optimizer:
             img_dict_graph = dask.delayed(get_image_dictionary)(image_graph)
@@ -322,7 +324,8 @@ class SceneOptimizer:
             # Cast to string as Open3d cannot use PosixPath's for I/O -- only string file paths are accepted.
             delayed_results.append(
                 dask.delayed(io_utils.save_point_cloud_as_ply)(
-                    save_fpath=str(MVS_PLY_SAVE_FPATH), points=dense_points_graph, rgb=dense_point_colors_graph
+                    save_fpath=str(self.mvs_ply_save_fpath), points=dense_points_graph, rgb=dense_point_colors_graph
+
                 )
             )
 
@@ -333,7 +336,7 @@ class SceneOptimizer:
                 metrics_graph_list.append(downsampling_metrics_graph)
 
         # Save metrics to JSON and generate HTML report.
-        delayed_results.extend(save_metrics_reports(metrics_graph_list))
+        delayed_results.extend(save_metrics_reports(metrics_graph_list, metrics_path=self.metrics_path))
 
         # return the entry with just the sfm result
         return ba_output_graph, delayed_results
@@ -404,20 +407,23 @@ def save_visualizations(
     return viz_graph_list
 
 
-def save_gtsfm_data(image_graph: List[Delayed], ba_input_graph: Delayed, ba_output_graph: Delayed) -> List[Delayed]:
+def save_gtsfm_data(
+    image_graph: List[Delayed], ba_input_graph: Delayed, ba_output_graph: Delayed, results_path: Path
+) -> List[Delayed]:
     """Saves the Gtsfm data before and after bundle adjustment.
 
     Args:
         image_graph: input image wrapped as Delayed objects.
         ba_input_graph: GtsfmData input to bundle adjustment wrapped as Delayed.
         ba_output_graph: GtsfmData output to bundle adjustment wrapped as Delayed.
+        results_path: path to directory where GTSFM results will be saved.
 
     Returns:
         A list of delayed objects after saving the input and outputs to bundle adjustment.
     """
     saving_graph_list = []
     # Save a duplicate in REACT_RESULTS_PATH.
-    for output_dir in [RESULTS_PATH, REACT_RESULTS_PATH]:
+    for output_dir in [results_path, REACT_RESULTS_PATH]:
         # Save the input to Bundle Adjustment (from data association).
         saving_graph_list.append(
             dask.delayed(io_utils.export_model_as_colmap_text)(
@@ -437,12 +443,13 @@ def save_gtsfm_data(image_graph: List[Delayed], ba_input_graph: Delayed, ba_outp
     return saving_graph_list
 
 
-def save_metrics_reports(metrics_graph_list: List[Delayed]) -> List[Delayed]:
+def save_metrics_reports(metrics_graph_list: List[Delayed], metrics_path: Path) -> List[Delayed]:
     """Saves metrics to JSON and HTML report.
 
     Args:
         metrics_graph: List of GtsfmMetricsGroup from different modules wrapped as Delayed.
-
+        metrics_path: path to directory where computed metrics will be saved.
+        
     Returns:
         List of delayed objects after saving metrics.
     """
@@ -452,14 +459,14 @@ def save_metrics_reports(metrics_graph_list: List[Delayed]) -> List[Delayed]:
         return save_metrics_graph_list
 
     # Save metrics to JSON
-    save_metrics_graph_list.append(dask.delayed(metrics_utils.save_metrics_as_json)(metrics_graph_list, METRICS_PATH))
+    save_metrics_graph_list.append(dask.delayed(metrics_utils.save_metrics_as_json)(metrics_graph_list, metrics_path))
     save_metrics_graph_list.append(
         dask.delayed(metrics_utils.save_metrics_as_json)(metrics_graph_list, REACT_METRICS_PATH)
     )
     save_metrics_graph_list.append(
         dask.delayed(metrics_report.generate_metrics_report_html)(
             metrics_graph_list,
-            os.path.join(METRICS_PATH, "gtsfm_metrics_report.html"),
+            os.path.join(metrics_path, "gtsfm_metrics_report.html"),
             None,
         )
     )
