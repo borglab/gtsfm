@@ -24,6 +24,8 @@ from gtsfm.retriever.sequential_retriever import SequentialRetriever
 
 logger = logger_utils.get_logger()
 
+DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent.parent.parent
+
 
 class GtsfmRunnerBase:
     def __init__(self, tag: str):
@@ -92,7 +94,12 @@ class GtsfmRunnerBase:
         parser.add_argument(
             "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras"
         )
-
+        parser.add_argument(
+            "--output_root",
+            type=str,
+            default=DEFAULT_OUTPUT_ROOT,
+            help="Root directory. Results, plots and metrics will be stored in subdirectories, e.g. {output_root}/results",
+        )
         return parser
 
     @abstractmethod
@@ -102,12 +109,14 @@ class GtsfmRunnerBase:
     def construct_scene_optimizer(self) -> SceneOptimizer:
         """Construct scene optimizer."""
         with hydra.initialize_config_module(config_module="gtsfm.configs"):
+            overrides = ["+SceneOptimizer.output_root=" + str(self.parsed_args.output_root)]
+            if self.parsed_args.share_intrinsics:
+                overrides.append("SceneOptimizer.multiview_optimizer.bundle_adjustment_module.shared_calib=True")
+            
             # config is relative to the gtsfm module
             cfg = hydra.compose(
                 config_name=self.parsed_args.config_name,
-                overrides=["SceneOptimizer.multiview_optimizer.bundle_adjustment_module.shared_calib=True"]
-                if self.parsed_args.share_intrinsics
-                else [],
+                overrides=overrides,
             )
             logger.info("Using config: ")
             logger.info(OmegaConf.to_yaml(cfg))
