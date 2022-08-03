@@ -297,7 +297,15 @@ class SceneOptimizer:
         )
 
         if self._save_3d_viz:
-            delayed_results.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_wTi_list))
+            delayed_results.extend(
+                save_visualizations(
+                    ba_input_graph,
+                    ba_output_graph,
+                    gt_wTi_list,
+                    plot_ba_input_path=self.plot_ba_input_path,
+                    plot_results_path=self.plot_results_path,
+                )
+            )
 
         if self._save_gtsfm_data:
             delayed_results.extend(save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph))
@@ -362,7 +370,11 @@ def align_estimated_gtsfm_data(
 
 
 def save_visualizations(
-    ba_input_graph: Delayed, ba_output_graph: Delayed, gt_pose_graph: List[Optional[Delayed]]
+    ba_input_graph: Delayed,
+    ba_output_graph: Delayed,
+    gt_pose_graph: List[Optional[Delayed]],
+    plot_ba_input_path: Path,
+    plot_results_path: Path,
 ) -> List[Delayed]:
     """Save SfmData before and after bundle adjustment and camera poses for visualization.
 
@@ -373,6 +385,8 @@ def save_visualizations(
         ba_input_graph: Delayed GtsfmData input to bundle adjustment.
         ba_output_graph: Delayed GtsfmData output from bundle adjustment.
         gt_pose_graph: Delayed ground truth poses.
+        plot_ba_input_path: path to directory where visualizations of bundle adjustment input data will be saved.
+        plot_results_path: path to directory where visualizations of bundle adjustment output data will be saved.
 
     Returns:
         A list of Delayed objects after saving the different visualizations.
@@ -380,11 +394,11 @@ def save_visualizations(
     aligned_ba_input_graph = dask.delayed(lambda x, y: x.align_via_Sim3_to_poses(y))(ba_input_graph, gt_pose_graph)
     aligned_ba_output_graph = dask.delayed(lambda x, y: x.align_via_Sim3_to_poses(y))(ba_output_graph, gt_pose_graph)
     viz_graph_list = []
-    viz_graph_list.append(dask.delayed(viz_utils.save_sfm_data_viz)(aligned_ba_input_graph, PLOT_BA_INPUT_PATH))
-    viz_graph_list.append(dask.delayed(viz_utils.save_sfm_data_viz)(aligned_ba_output_graph, PLOT_RESULTS_PATH))
+    viz_graph_list.append(dask.delayed(viz_utils.save_sfm_data_viz)(aligned_ba_input_graph, plot_ba_input_path))
+    viz_graph_list.append(dask.delayed(viz_utils.save_sfm_data_viz)(aligned_ba_output_graph, plot_results_path))
     viz_graph_list.append(
         dask.delayed(viz_utils.save_camera_poses_viz)(
-            aligned_ba_input_graph, aligned_ba_output_graph, gt_pose_graph, PLOT_RESULTS_PATH
+            aligned_ba_input_graph, aligned_ba_output_graph, gt_pose_graph, plot_results_path
         )
     )
     return viz_graph_list
