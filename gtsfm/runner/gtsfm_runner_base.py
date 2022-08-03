@@ -1,6 +1,9 @@
+"""Base class for runner that executes SfM."""
+
 import argparse
 import time
 from abc import abstractmethod
+from pathlib import Path
 
 import dask
 import hydra
@@ -98,7 +101,8 @@ class GtsfmRunnerBase:
             "--output_root",
             type=str,
             default=DEFAULT_OUTPUT_ROOT,
-            help="Root directory. Results, plots and metrics will be stored in subdirectories, e.g. {output_root}/results",
+            help="Root directory. Results, plots and metrics will be stored in subdirectories,"
+            "e.g. {output_root}/results",
         )
         return parser
 
