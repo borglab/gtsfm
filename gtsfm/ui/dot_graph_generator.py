@@ -1,5 +1,5 @@
 """
-Creates a DOT graph based on the BlueNodes in RegistryHolder.REGISTRY.
+Creates a DOT graph based on the contents of RegistryHolder.REGISTRY.
 
 Author: Kevin Fu
 """
@@ -11,12 +11,13 @@ import os
 
 import pydot
 from collections import namedtuple
+from inspect import isabstract
 
 JS_ROOT = os.path.join(Path(__file__).resolve().parent.parent.parent, "rtf_vis_tool")
 
 
 class DotGraphGenerator:
-    """Generates and saves a graph of all the blue nodes and gray nodes in REGISTRY."""
+    """Generates and saves a graph of all the components in REGISTRY."""
 
     def __init__(self, test_mode=False):
         """Create DotGraphGenerator.
@@ -45,50 +46,51 @@ class DotGraphGenerator:
         self._test_mode = test_mode
 
     def _build_graph(self):
-        """
-        Build graph of blue nodes and gray nodes based on RegistryHolder's
-        REGISTRY.
-        """
+        """Build graph based on RegistryHolder's REGISTRY."""
 
         # TODO: remove this
-        print("!\n" * 100)
-        print(RegistryHolder.get_registry())
+        # print("!\n" * 100)
+        # print(RegistryHolder.get_registry())
 
-        for blue_node_cls_name, blue_node_cls in RegistryHolder.get_registry().items():
+        for str_cls_name, cls_name in RegistryHolder.get_registry().items():
             # don't add the base class to the graph
-            if blue_node_cls_name == "BlueNode":
+            if str_cls_name == "GTSFMProcess":
                 continue
 
             # don't add any test classes to the graph, unless in testing mode
-            if not self._test_mode and blue_node_cls_name.startswith("Fake"):
+            if not self._test_mode and str_cls_name.startswith("Fake"):
                 continue
 
-            # create a new instance of a blue node so we can access its gray nodes
-            blue_node = blue_node_cls()
+            # skip abstract base classes
+            if isabstract(cls_name):
+                continue
+
+            # create a new instance so we can access its UI metadata
+            process = cls_name()
 
             # get shorthand var names
-            display_name = blue_node.display_name
-            input_gray_nodes = blue_node.input_gray_nodes
-            output_gray_nodes = blue_node.output_gray_nodes
-            # parent_plate = blue_node.parent_plate
+            display_name = process.display_name
+            input_products = process.input_products
+            output_products = process.output_products
+            # parent_plate = process.parent_plate  # currently unused
             style = self._style
 
-            # add blue node, all gray nodes to graph as Nodes
+            # add process, all products to graph as Nodes
             self._graph.add_node(
                 pydot.Node(display_name, shape=style.node_shape, style=style.node_style, fillcolor=style.blue_fillcolor)
             )
-            for gray_node_name in input_gray_nodes + output_gray_nodes:
+            for product_name in input_products + output_products:
                 self._graph.add_node(
                     pydot.Node(
-                        gray_node_name, shape=style.node_shape, style=style.node_style, fillcolor=style.gray_fillcolor
+                        product_name, shape=style.node_shape, style=style.node_style, fillcolor=style.gray_fillcolor
                     )
                 )
 
-            # add Edges for all input_gray_nodes -> blue node -> all output_gray_nodes
-            for input_gray_node_name in input_gray_nodes:
-                self._graph.add_edge(pydot.Edge(input_gray_node_name, display_name, color=style.arrow_color))
-            for output_gray_node_name in output_gray_nodes:
-                self._graph.add_edge(pydot.Edge(display_name, output_gray_node_name, color=style.arrow_color))
+            # add Edges for all input_products -> blue node -> all output_products
+            for input_product_name in input_products:
+                self._graph.add_edge(pydot.Edge(input_product_name, display_name, color=style.arrow_color))
+            for output_product_name in output_products:
+                self._graph.add_edge(pydot.Edge(display_name, output_product_name, color=style.arrow_color))
 
     def save_graph(self, filepath=os.path.join(JS_ROOT, "src", "ui", "dot_graph_output.svg")):
         """Save graph to the given filepath."""

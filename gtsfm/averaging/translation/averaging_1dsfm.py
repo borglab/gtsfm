@@ -36,20 +36,6 @@ from gtsfm.averaging.translation.translation_averaging_base import TranslationAv
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
-from gtsfm.ui.registry import BlueNode
-
-
-class SfM_1DNode(BlueNode):
-    def __init__(self):
-        super().__init__()
-
-    def _set_ui_metadata(self):
-        self._display_name: str = "Averaging 1D SfM"
-        self._input_gray_nodes: List[str] = ["Pruned Relative Ts", "Absolute Rs"]
-        self._output_gray_nodes: List[str] = ["Absolute Ts"]
-        # self._parent_plate: str = ""
-
-
 # Hyperparameters for 1D-SFM
 # maximum number of times 1dsfm will project the Unit3's to a 1d subspace for outlier rejection
 MAX_PROJECTION_DIRECTIONS = 2000

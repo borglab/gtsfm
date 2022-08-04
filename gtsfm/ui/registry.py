@@ -1,6 +1,6 @@
 """
 Setup for registry design pattern, which will save all classes that subclass
-BlueNode for UI to display.
+GTSFMProcess for UI to display.
 
 Heavy inspiration from:
 https://charlesreid1.github.io/python-patterns-the-registry.html
@@ -41,16 +41,16 @@ class RegistryHolder(type):
 
 
 class AbstractableRegistryHolder(abc.ABCMeta, RegistryHolder):
-    """Extra class to ensure BlueNode can use both ABCMeta and RegistryHolder metaclasses."""
+    """Extra class to ensure GTSFMProcess can use both ABCMeta and RegistryHolder metaclasses."""
 
     pass
 
 
 @dataclass
-class BlueNode(metaclass=AbstractableRegistryHolder):
+class GTSFMProcess(metaclass=AbstractableRegistryHolder):
     """Base type that all classes the REGISTRY can see must inherit from."""
 
     display_name: str
-    input_gray_nodes: List[str]
-    output_gray_nodes: List[str]
+    input_products: List[str]
+    output_products: List[str]
     parent_plate: str

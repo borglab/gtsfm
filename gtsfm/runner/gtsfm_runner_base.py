@@ -152,7 +152,7 @@ class GtsfmRunnerBase:
             n_workers=self.parsed_args.num_workers, threads_per_worker=self.parsed_args.threads_per_worker
         )
 
-        # create blue/gray node graph
+        # create process graph
         dot_graph_generator = DotGraphGenerator()
         dot_graph_generator.save_graph()
 
@@ -181,4 +181,3 @@ class GtsfmRunnerBase:
         end_time = time.time()
         duration_sec = end_time - start_time
         logger.info("GTSFM took %.2f minutes to compute sparse multi-view result.", duration_sec / 60)
-

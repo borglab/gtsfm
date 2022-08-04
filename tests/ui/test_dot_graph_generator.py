@@ -11,7 +11,7 @@ import unittest
 from gtsfm.ui.dot_graph_generator import DotGraphGenerator
 
 # needed to test registry properly
-from tests.ui.test_registry import FakeImageLoader, FakeOutputGTSFM, FakeOutputCOLMAP  # noqa: F401
+from tests.ui.test_registry import FakeImageLoader, FakeOutputGTSFM  # noqa: F401
 
 
 class TestDotGraphGenerator(unittest.TestCase):
@@ -45,7 +45,7 @@ class TestDotGraphGenerator(unittest.TestCase):
 
         output_raw_dot = dot_graph_generator._graph.to_string()
 
-        self.assertTrue("BlueNode" not in output_raw_dot)
+        self.assertTrue("GTSFMProcess" not in output_raw_dot)
         self.assertTrue("Fake" not in output_raw_dot)
 
     def test_build_graph(self):
@@ -65,16 +65,11 @@ class TestDotGraphGenerator(unittest.TestCase):
         self.assertTrue('"Internal Data" [' in output_raw_dot)
         self.assertTrue('"Raw Images" -> FakeImageLoader  [' in output_raw_dot)
         self.assertTrue('FakeImageLoader -> "Internal Data"  [' in output_raw_dot)
-        self.assertTrue('"FakeOutputGTSFM!!" [' in output_raw_dot)
+        self.assertTrue("FakeOutput [" in output_raw_dot)
         self.assertTrue('"Internal Data" [' in output_raw_dot)
         self.assertTrue('"GTSFM Output" [' in output_raw_dot)
-        self.assertTrue('"Internal Data" -> "FakeOutputGTSFM!!"  [' in output_raw_dot)
-        self.assertTrue('"FakeOutputGTSFM!!" -> "GTSFM Output"  [' in output_raw_dot)
-        self.assertTrue("FakeOutputCOLMAP [" in output_raw_dot)
-        self.assertTrue('"Internal Data" [' in output_raw_dot)
-        self.assertTrue('"COLMAP Output" [' in output_raw_dot)
-        self.assertTrue('"Internal Data" -> FakeOutputCOLMAP  [' in output_raw_dot)
-        self.assertTrue('FakeOutputCOLMAP -> "COLMAP Output"  [' in output_raw_dot)
+        self.assertTrue('"Internal Data" -> FakeOutput  [' in output_raw_dot)
+        self.assertTrue('FakeOutput -> "GTSFM Output"  [' in output_raw_dot)
 
 
 if __name__ == "__main__":
