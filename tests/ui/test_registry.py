@@ -7,46 +7,42 @@ Author: Kevin Fu
 import unittest
 
 from gtsfm.ui.registry import RegistryHolder, BlueNode
+import abc
 
 
 class FakeImageLoader(BlueNode):
     """Test class."""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__()
+    def __init__(self, fake_image_dir):
+        super().__init__("FakeImageLoader", ["Raw Images"], ["Internal Data"], "")
 
-    def _set_ui_metadata(self):
-        # self._display_name = "FakeImageLoader"
-        # defaults to cls name if none given
-        self._input_gray_nodes = ["Raw Images"]
-        self._output_gray_nodes = ["Internal Data"]
-        self._parent_plate = ""
+        self._fake_image_dir = fake_image_dir
+
+    @property
+    def fake_image_dir(self):
+        return self._fake_image_dir
 
 
-class FakeOutputGTSFM(BlueNode):
+class FakeOutputBase(BlueNode):
     """Test class."""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__()
+    def __init__(self):
+        self._dummy_var = 0
+        super().__init__("FakeOutputBase", ["Internal Data"], ["GTSFM Output"], "Processor")
 
-    def _set_ui_metadata(self):
-        self._display_name = "FakeOutputGTSFM!!"
-        self._input_gray_nodes = ["Internal Data"]
-        self._output_gray_nodes = ["GTSFM Output"]
-        self._parent_plate = "Processor"
+    @abc.abstractmethod
+    def base_method(self):
+        ...
 
 
-class FakeOutputCOLMAP(BlueNode):
+class FakeOutputGTSFM(FakeOutputBase):
     """Test class."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self):
         super().__init__()
 
-    def _set_ui_metadata(self):
-        self._display_name = "FakeOutputCOLMAP"
-        self._input_gray_nodes = ["Internal Data"]
-        self._output_gray_nodes = ["COLMAP Output"]
-        self._parent_plate = "Processor"
+    def base_method(self):
+        return True
 
 
 class TestRegistryUtils(unittest.TestCase):
@@ -62,7 +58,6 @@ class TestRegistryUtils(unittest.TestCase):
         expected_result = {
             "FakeImageLoader": FakeImageLoader,
             "FakeOutputGTSFM": FakeOutputGTSFM,
-            "FakeOutputCOLMAP": FakeOutputCOLMAP,
             "BlueNode": BlueNode,
         }
 
@@ -70,25 +65,31 @@ class TestRegistryUtils(unittest.TestCase):
             self.assertTrue(cls_name in registry)
             self.assertEqual(registry[cls_name], cls_type)
 
-    def test_blue_node_disp_name(self):
+    def test_blue_node(self):
         """Verify BlueNode fills in UI metadata properly."""
 
-        expected_repr = (
-            "FakeOutputGTSFM!!:\n\t input_gray_nodes: ['Internal Data'],\n\t output_gray_nodes: ['GTSFM Output'],\n\t"
-            " parent_plate: Processor\n"
-        )
+        fake_image_dir = "/dev/null"
+        fake_image_loader = FakeImageLoader(fake_image_dir)
 
-        self.assertEqual(repr(FakeOutputGTSFM()), expected_repr)
+        self.assertEqual(fake_image_loader.fake_image_dir, fake_image_dir)
+        self.assertEqual(fake_image_loader.display_name, "FakeImageLoader")
+        self.assertEqual(fake_image_loader.input_gray_nodes, ["Raw Images"])
+        self.assertEqual(fake_image_loader.output_gray_nodes, ["Internal Data"])
+        self.assertEqual(fake_image_loader.parent_plate, "")
 
-    def test_blue_node_no_disp_name(self):
-        """Verify that BlueNode fills in display_name if none given."""
+    def test_abs_base(self):
+        """Test that putting BlueNode inside an abstract base class allows both BlueNode and the base class to work properly.
+        """
 
-        expected_repr = (
-            "FakeImageLoader:\n\t input_gray_nodes: ['Raw Images'],\n\t output_gray_nodes: ['Internal Data'],\n\t"
-            " parent_plate: \n"
-        )
+        fake_output_gtsfm = FakeOutputGTSFM()
 
-        self.assertEqual(repr(FakeImageLoader()), expected_repr)
+        self.assertTrue(fake_output_gtsfm.base_method)
+        self.assertEqual(fake_output_gtsfm._dummy_var, 0)
+
+        self.assertEqual(fake_output_gtsfm.display_name, "FakeOutputBase")
+        self.assertEqual(fake_output_gtsfm.input_gray_nodes, ["Internal Data"])
+        self.assertEqual(fake_output_gtsfm.output_gray_nodes, ["GTSFM Output"])
+        self.assertEqual(fake_output_gtsfm.parent_plate, "Processor")
 
 
 if __name__ == "__main__":

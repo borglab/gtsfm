@@ -8,7 +8,9 @@ https://charlesreid1.github.io/python-patterns-the-registry.html
 Author: Kevin Fu
 """
 import abc
-from typing import List
+from typing import List, Optional
+
+from dataclasses import dataclass
 
 
 class RegistryHolder(type):
@@ -44,54 +46,11 @@ class AbstractableRegistryHolder(abc.ABCMeta, RegistryHolder):
     pass
 
 
+@dataclass
 class BlueNode(metaclass=AbstractableRegistryHolder):
     """Base type that all classes the REGISTRY can see must inherit from."""
 
-    # TODO: consider a design without __init__() and referencing these private
-    # vars directly when called from DotGraphGenerator
-    #
-    # issue: how do you set different metadata in that case?
-    def __init__(self):
-        self._display_name: str = self.__class__.__name__  # defaults to cls name if none given
-        self._input_gray_nodes: List[str] = []
-        self._output_gray_nodes: List[str] = []
-        self._parent_plate: str = None
-
-        self._set_ui_metadata()
-
-    @abc.abstractmethod
-    def _set_ui_metadata(self):
-        """
-        Abstract method to force GTSFM developers to populate
-        useful UI metadata.
-
-        Copy-paste the following when implementing:
-
-        self._display_name: str = <display name>  # defaults to cls name if none given
-        self._input_gray_nodes: List[str] = [<gray in 1>, ...]
-        self._output_gray_nodes: List[str] = [<gray out 1>, ...]
-        self._parent_plate: str = <parent plate>
-        """
-        raise NotImplementedError
-
-    @property
-    def display_name(self):
-        return self._display_name
-
-    @property
-    def input_gray_nodes(self):
-        return self._input_gray_nodes
-
-    @property
-    def output_gray_nodes(self):
-        return self._output_gray_nodes
-
-    @property
-    def parent_plate(self):
-        return self._parent_plate
-
-    def __repr__(self):
-        return (
-            f"{self.display_name}:\n\t input_gray_nodes: {self.input_gray_nodes},\n\t output_gray_nodes:"
-            f" {self.output_gray_nodes},\n\t parent_plate: {self.parent_plate}\n"
-        )
+    display_name: str
+    input_gray_nodes: List[str]
+    output_gray_nodes: List[str]
+    parent_plate: str

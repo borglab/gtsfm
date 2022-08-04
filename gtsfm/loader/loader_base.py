@@ -20,20 +20,6 @@ from gtsfm.common.pose_prior import PosePrior
 logger = logger_utils.get_logger()
 
 
-from gtsfm.ui.registry import BlueNode
-
-
-class DataLoaderNode(BlueNode):
-    def __init__(self):
-        super().__init__()
-
-    def _set_ui_metadata(self):
-        self._display_name: str = "Data Loader"
-        self._input_gray_nodes: List[str] = ["DigiCamDB", "Scene Directory"]
-        self._output_gray_nodes: List[str] = ["Images", "Intrinsics", "Image i", "Image Pair Indices"]
-        # self._parent_plate: str = ""
-
-
 class LoaderBase(metaclass=abc.ABCMeta):
     """Base class for Loaders.
 

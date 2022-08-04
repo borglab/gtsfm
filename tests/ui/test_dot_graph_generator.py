@@ -9,6 +9,7 @@ import tempfile
 import unittest
 
 from gtsfm.ui.dot_graph_generator import DotGraphGenerator
+
 # needed to test registry properly
 from tests.ui.test_registry import FakeImageLoader, FakeOutputGTSFM, FakeOutputCOLMAP  # noqa: F401
 

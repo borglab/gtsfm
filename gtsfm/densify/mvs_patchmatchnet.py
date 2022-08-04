@@ -22,19 +22,6 @@ from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.utils import logger as logger_utils
 from thirdparty.patchmatchnet.models.net import PatchmatchNet
 
-from gtsfm.ui.registry import BlueNode
-
-
-class MVSNetNode(BlueNode):
-    def __init__(self):
-        super().__init__()
-
-    def _set_ui_metadata(self):
-        self._display_name: str = "Multiview Stereo\nPatchmatch Net"
-        self._input_gray_nodes: List[str] = ["SFMResult", "Images"]
-        self._output_gray_nodes: List[str] = ["Dense Point Cloud"]
-        # self._parent_plate: str = ""
-
 
 METRICS_GROUP = "multi_view_stereo"
 

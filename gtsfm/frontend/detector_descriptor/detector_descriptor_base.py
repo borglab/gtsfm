@@ -16,19 +16,6 @@ from gtsfm.common.keypoints import Keypoints
 
 logger = logger_utils.get_logger()
 
-from gtsfm.ui.registry import BlueNode
-
-
-class KeypointsDetectorDescriptorNode(BlueNode):
-    def __init__(self):
-        super().__init__()
-
-    def _set_ui_metadata(self):
-        self._display_name: str = "Keypoints Detector Descriptor"
-        self._input_gray_nodes: List[str] = ["Image i", "Keypoints"]
-        self._output_gray_nodes: List[str] = ["Descriptors"]
-        self._parent_plate: str = "FeatureExtractor"
-
 
 class DetectorDescriptorBase(metaclass=abc.ABCMeta):
     """Base class for all methods which provide a joint detector-descriptor to work on an image.
