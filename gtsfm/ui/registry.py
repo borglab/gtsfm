@@ -16,14 +16,14 @@ from dataclasses import dataclass
 class RegistryHolder(type):
     """
     Class that defines central registry and automatically registers classes
-    that extend BaseRegisteredClass.
+    that extend GTSFMProcess.
     """
 
     REGISTRY = {}
 
     def __new__(cls, name, bases, attrs):
         """
-        Every time a new class that extends BaseRegisteredClass is **defined**,
+        Every time a new class that extends GTSFMProcess is **defined**,
         the REGISTRY here in RegistryHolder will be updated. This is thanks to
         the behavior of Python's built-in __new__().
         """
@@ -47,10 +47,26 @@ class AbstractableRegistryHolder(abc.ABCMeta, RegistryHolder):
 
 
 @dataclass
-class GTSFMProcess(metaclass=AbstractableRegistryHolder):
-    """Base type that all classes the REGISTRY can see must inherit from."""
+class UiMetadata:
+    """
+    Dataclass to hold UI metadata of a GTSFMProcess.
+    """
 
     display_name: str
     input_products: List[str]
     output_products: List[str]
     parent_plate: str
+
+
+class GTSFMProcess(metaclass=AbstractableRegistryHolder):
+    """
+    Base type that all classes the REGISTRY can see must inherit from.
+
+    Built as a Mixin. For example usage see `tests/ui/test_registry.py`.
+    """
+
+    @staticmethod
+    @abc.abstractmethod
+    def get_ui_metadata() -> UiMetadata:
+        """Return a new UiMetadata dataclass."""
+        ...

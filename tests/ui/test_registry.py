@@ -6,18 +6,18 @@ Author: Kevin Fu
 
 import unittest
 
-from gtsfm.ui.registry import RegistryHolder, GTSFMProcess
+from gtsfm.ui.registry import RegistryHolder, GTSFMProcess, UiMetadata
 import abc
 
 
 class FakeImageLoader(GTSFMProcess):
     """Test class."""
 
-    def __init__(self, fake_image_dir=None):
-        super().__init__("FakeImageLoader", ["Raw Images"], ["Internal Data"], "")
+    def __init__(self, fake_image_dir):
+        self._fake_image_dir = fake_image_dir
 
-        if fake_image_dir is not None:
-            self._fake_image_dir = fake_image_dir
+    def get_ui_metadata():
+        return UiMetadata("FakeImageLoader", ["Raw Images"], ["Internal Data"], "")
 
     @property
     def fake_image_dir(self):
@@ -28,13 +28,14 @@ class FakeOutputBase(GTSFMProcess):
     """Test class."""
 
     def __init__(self):
-        super().__init__("FakeOutput", ["Internal Data"], ["GTSFM Output"], "Processor")
-
         self._dummy_var = 0
 
     @abc.abstractmethod
     def base_method(self):
         ...
+
+    def get_ui_metadata():
+        return UiMetadata("FakeOutput", ["Internal Data"], ["GTSFM Output"], "Processor")
 
 
 class FakeOutputGTSFM(FakeOutputBase):
@@ -49,6 +50,8 @@ class FakeOutputGTSFM(FakeOutputBase):
 
 
 class TestRegistryUtils(unittest.TestCase):
+    """Test cases for registry and concrete registerable classes."""
+
     def test_registry_holder(self):
         """
         Ensure registry holder has at least the test case classes above. (Since
@@ -69,29 +72,30 @@ class TestRegistryUtils(unittest.TestCase):
             self.assertEqual(registry[cls_name], cls_type)
 
     def test_basic(self):
-        """Verify GTSFMProcess fills in UI metadata properly."""
+        """Test basic storing of UI metadata."""
 
-        fake_image_dir = "/dev/null"
-        fake_image_loader = FakeImageLoader(fake_image_dir)
+        metadata = FakeImageLoader.get_ui_metadata()
 
-        self.assertEqual(fake_image_loader.fake_image_dir, fake_image_dir)
-        self.assertEqual(fake_image_loader.display_name, "FakeImageLoader")
-        self.assertEqual(fake_image_loader.input_products, ["Raw Images"])
-        self.assertEqual(fake_image_loader.output_products, ["Internal Data"])
-        self.assertEqual(fake_image_loader.parent_plate, "")
+        self.assertEqual(metadata.display_name, "FakeImageLoader")
+        self.assertEqual(metadata.input_products, ["Raw Images"])
+        self.assertEqual(metadata.output_products, ["Internal Data"])
+        self.assertEqual(metadata.parent_plate, "")
 
     def test_abs_base(self):
-        """Test that putting GTSFMProcess inside an abstract base class allows both GTSFMProcess and the base class to work properly."""
+        """Test that abstract base classes can have UI metadata."""
 
-        fake_output_gtsfm = FakeOutputGTSFM()
+        # test that metadata can be accessed without init
+        metadata = FakeOutputBase.get_ui_metadata()
 
-        self.assertTrue(fake_output_gtsfm.base_method)
-        self.assertEqual(fake_output_gtsfm._dummy_var, 0)
+        self.assertEqual(metadata.display_name, "FakeOutput")
+        self.assertEqual(metadata.input_products, ["Internal Data"])
+        self.assertEqual(metadata.output_products, ["GTSFM Output"])
+        self.assertEqual(metadata.parent_plate, "Processor")
 
-        self.assertEqual(fake_output_gtsfm.display_name, "FakeOutput")
-        self.assertEqual(fake_output_gtsfm.input_products, ["Internal Data"])
-        self.assertEqual(fake_output_gtsfm.output_products, ["GTSFM Output"])
-        self.assertEqual(fake_output_gtsfm.parent_plate, "Processor")
+        # test that concrete objects work as intended
+        concrete_obj = FakeOutputGTSFM()
+        self.assertTrue(concrete_obj.base_method)
+        self.assertEqual(concrete_obj._dummy_var, 0)
 
 
 if __name__ == "__main__":

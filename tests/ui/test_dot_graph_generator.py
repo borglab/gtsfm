@@ -37,7 +37,7 @@ class TestDotGraphGenerator(unittest.TestCase):
     def test_no_fake_nodes(self):
         """
         Ensure that no test nodes from test_registry.py are in the final
-        graph.
+        graph when test mode is off.
         """
 
         dot_graph_generator = DotGraphGenerator()

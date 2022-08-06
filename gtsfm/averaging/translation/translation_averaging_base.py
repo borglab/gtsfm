@@ -12,12 +12,28 @@ from gtsam import Point3, Pose3, Rot3, Unit3
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 
+from gtsfm.ui.registry import GTSFMProcess, UiMetadata
 
-class TranslationAveragingBase(metaclass=abc.ABCMeta):
+
+class TranslationAveragingBase(GTSFMProcess):
     """Base class for translation averaging.
 
     This class generates global unit translation estimates from pairwise relative unit translation and global rotations.
     """
+
+    def get_ui_metadata():
+        return UiMetadata(
+            "Translation Averaging",
+            [
+                "Relative Pose Translations \n(i2Ui1)",
+                "Global Rotations \n(wRi)",
+                "Absolute Pose Priors",
+                "Relative Pose Priors",
+                "Ground Truth Poses \n(wTi)",
+            ],
+            ["Global Translations \n(wTi)"],
+            "",
+        )
 
     def __init__(self, robust_measurement_noise: bool = True) -> None:
         """Initializes the translation averaging.

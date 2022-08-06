@@ -49,30 +49,30 @@ class DotGraphGenerator:
         """Build graph based on RegistryHolder's REGISTRY."""
 
         # TODO: remove this
-        # print("!\n" * 100)
-        # print(RegistryHolder.get_registry())
+        print("!\n" * 100)
+        print(RegistryHolder.get_registry())
 
-        for str_cls_name, cls_name in RegistryHolder.get_registry().items():
+        for cls_name, cls_type in RegistryHolder.get_registry().items():
             # don't add the base class to the graph
-            if str_cls_name == "GTSFMProcess":
+            if cls_name == "GTSFMProcess":
                 continue
 
             # don't add any test classes to the graph, unless in testing mode
-            if not self._test_mode and str_cls_name.startswith("Fake"):
+            if not self._test_mode and cls_name.startswith("Fake"):
                 continue
 
-            # skip abstract base classes
-            if isabstract(cls_name):
+            # don't add abstract base classes to graph
+            # (this will create duplicates when concrete classes are added too)
+            if isabstract(cls_type):
                 continue
 
-            # create a new instance so we can access its UI metadata
-            process = cls_name()
+            # get UI metadata of class
+            metadata = cls_type.get_ui_metadata()
 
-            # get shorthand var names
-            display_name = process.display_name
-            input_products = process.input_products
-            output_products = process.output_products
-            # parent_plate = process.parent_plate  # currently unused
+            display_name = metadata.display_name
+            input_products = metadata.input_products
+            output_products = metadata.output_products
+            # parent_plate = metadata.parent_plate  # currently unused
             style = self._style
 
             # add process, all products to graph as Nodes
