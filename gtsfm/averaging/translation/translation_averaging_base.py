@@ -21,17 +21,17 @@ class TranslationAveragingBase(GTSFMProcess):
     This class generates global unit translation estimates from pairwise relative unit translation and global rotations.
     """
 
-    def get_ui_metadata():
+    def get_ui_metadata() -> UiMetadata:
         return UiMetadata(
             "Translation Averaging",
-            [
-                "Relative Pose Translations \n(i2Ui1)",
-                "Global Rotations \n(wRi)",
+            (
+                "Relative Translations",
+                "Global Rotations",
                 "Absolute Pose Priors",
                 "Relative Pose Priors",
-                "Ground Truth Poses \n(wTi)",
-            ],
-            ["Global Translations \n(wTi)"],
+                "Ground Truth Poses",
+            ),
+            ("Global Translations"),
             "",
         )
 

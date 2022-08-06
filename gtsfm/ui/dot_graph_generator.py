@@ -52,6 +52,7 @@ class DotGraphGenerator:
         print("!\n" * 100)
         print(RegistryHolder.get_registry())
 
+        seen_metadata = set()
         for cls_name, cls_type in RegistryHolder.get_registry().items():
             # don't add the base class to the graph
             if cls_name == "GTSFMProcess":
@@ -61,17 +62,31 @@ class DotGraphGenerator:
             if not self._test_mode and cls_name.startswith("Fake"):
                 continue
 
-            # don't add abstract base classes to graph
-            # (this will create duplicates when concrete classes are added too)
-            if isabstract(cls_type):
-                continue
-
             # get UI metadata of class
             metadata = cls_type.get_ui_metadata()
 
+            # skip duplicates
+            # happens when concrete classes implement an abstract class without overwriting get_ui_metadata()
+            if metadata in seen_metadata:
+                continue
+
+            seen_metadata.add(metadata)
+
             display_name = metadata.display_name
+
+            # autocast strings to one-element tuples
+            #
+            # a common error is to define a one-element tuple like so:
+            # >>> ("Input Product")
+            # but Python auto-casts this to a raw str
             input_products = metadata.input_products
+            if type(input_products) == str:
+                input_products = (input_products,)
+
             output_products = metadata.output_products
+            if type(output_products) == str:
+                output_products = (output_products,)
+
             # parent_plate = metadata.parent_plate  # currently unused
             style = self._style
 

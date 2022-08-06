@@ -14,9 +14,14 @@ from gtsfm.common.image import Image
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 
+from gtsfm.ui.registry import GTSFMProcess, UiMetadata
 
-class MVSBase(metaclass=abc.ABCMeta):
+
+class MVSBase(GTSFMProcess):
     """Base class for all multi-view stereo implementations."""
+
+    def get_ui_metadata() -> UiMetadata:
+        return UiMetadata("Multi-view Stereo", ("Images", "SFM Result"), ("Dense Points"), "")
 
     def __init__(self) -> None:
         """Initialize the MVS module"""

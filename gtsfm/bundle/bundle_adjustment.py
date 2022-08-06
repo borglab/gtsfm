@@ -60,12 +60,22 @@ MEASUREMENT_NOISE_SIGMA = 1.0  # in pixels
 
 logger = logger_utils.get_logger()
 
+from gtsfm.ui.registry import GTSFMProcess, UiMetadata
 
-class BundleAdjustmentOptimizer:
+
+class BundleAdjustmentOptimizer(GTSFMProcess):
     """Bundle adjustment using factor-graphs in GTSAM.
 
     This class refines global pose estimates and intrinsics of cameras, and also refines 3D point cloud structure given
     tracks from triangulation."""
+
+    def get_ui_metadata() -> UiMetadata:
+        return UiMetadata(
+            "Bundle Adjustment",
+            ("Initialized Cameras", "Absolute Pose Priors", "Relative Pose Priors"),
+            ("Optimized Camera Poses", "Filtered Optimized Camera Poses"),
+            "",
+        )
 
     def __init__(
         self,

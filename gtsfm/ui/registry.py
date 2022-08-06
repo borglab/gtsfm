@@ -2,13 +2,25 @@
 Setup for registry design pattern, which will save all classes that subclass
 GTSFMProcess for UI to display.
 
+Usage for developers:
+
+# 1 - import GTSFMProcess, UiMetadata
+from gtsfm.ui.registry import GTSFMProcess, UiMetadata
+
+# 2 - subclass GTSFMProcess (which inherits from ABCMeta)
+class ClassName(GTSFMProcess):
+
+    # 3 - implement get_ui_metadata by returning a new UiMetadata object
+    def get_ui_metadata() -> UiMetadata:
+        return UiMetadata(...)
+
 Heavy inspiration from:
 https://charlesreid1.github.io/python-patterns-the-registry.html
 
 Author: Kevin Fu
 """
 import abc
-from typing import List, Optional
+from typing import Tuple
 
 from dataclasses import dataclass
 
@@ -46,15 +58,17 @@ class AbstractableRegistryHolder(abc.ABCMeta, RegistryHolder):
     pass
 
 
-@dataclass
+@dataclass(frozen=True)
 class UiMetadata:
     """
     Dataclass to hold UI metadata of a GTSFMProcess.
+
+    frozen=True makes this dataclass immutable and hashable.
     """
 
     display_name: str
-    input_products: List[str]
-    output_products: List[str]
+    input_products: Tuple[str]
+    output_products: Tuple[str]
     parent_plate: str
 
 

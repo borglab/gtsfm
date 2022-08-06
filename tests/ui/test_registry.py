@@ -16,7 +16,7 @@ class FakeImageLoader(GTSFMProcess):
     def __init__(self, fake_image_dir):
         self._fake_image_dir = fake_image_dir
 
-    def get_ui_metadata():
+    def get_ui_metadata() -> UiMetadata:
         return UiMetadata("FakeImageLoader", ["Raw Images"], ["Internal Data"], "")
 
     @property
@@ -34,7 +34,7 @@ class FakeOutputBase(GTSFMProcess):
     def base_method(self):
         ...
 
-    def get_ui_metadata():
+    def get_ui_metadata() -> UiMetadata:
         return UiMetadata("FakeOutput", ["Internal Data"], ["GTSFM Output"], "Processor")
 
 

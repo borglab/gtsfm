@@ -3,7 +3,7 @@
 Authors: Ayush Baid, John Lambert
 """
 import abc
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple
 
 import dask
 import numpy as np
@@ -11,18 +11,27 @@ from dask.delayed import Delayed
 from gtsam import Cal3Bundler, Rot3, Unit3
 
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.ui.registry import GTSFMProcess, UiMetadata
 
 
 NUM_MATCHES_REQ_E_MATRIX = 5
 NUM_MATCHES_REQ_F_MATRIX = 8
 
 
-class VerifierBase(metaclass=abc.ABCMeta):
+class VerifierBase(GTSFMProcess):
     """Base class for all verifiers.
 
     Verifiers take the coordinates of the matches as inputs and returns the estimated essential matrix as well as
     geometrically verified points.
     """
+
+    def get_ui_metadata() -> UiMetadata:
+        return UiMetadata(
+            "Verifier",
+            ("Keypoints", "Camera Intrinsics", "Matches"),
+            ("Relative Rotations", "Relative Translations", "Correspondences", "Inlier Ratio"),
+            "",
+        )
 
     def __init__(
         self,

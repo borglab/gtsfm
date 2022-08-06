@@ -4,7 +4,7 @@ Authors: Ayush Baid
 """
 
 import abc
-from typing import Tuple, List
+from typing import Tuple
 
 import dask
 import numpy as np
@@ -13,15 +13,19 @@ from dask.delayed import Delayed
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.ui.registry import GTSFMProcess, UiMetadata
 
 logger = logger_utils.get_logger()
 
 
-class DetectorDescriptorBase(metaclass=abc.ABCMeta):
+class DetectorDescriptorBase(GTSFMProcess):
     """Base class for all methods which provide a joint detector-descriptor to work on an image.
 
     This class serves as a combination of individual detector and descriptor.
     """
+
+    def get_ui_metadata() -> UiMetadata:
+        return UiMetadata("DetectorDescriptor", ("Images"), ("Keypoints", "Correspondences"), "")
 
     def __init__(self, max_keypoints: int = 5000):
         """Initialize the detector-descriptor.

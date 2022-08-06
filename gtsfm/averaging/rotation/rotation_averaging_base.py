@@ -24,11 +24,11 @@ class RotationAveragingBase(GTSFMProcess):
     rotations.
     """
 
-    def get_ui_metadata():
+    def get_ui_metadata() -> UiMetadata:
         return UiMetadata(
             "Rotation Averaging",
-            ["Relative Pose Rotations \n(i2Ri1)", "Relative Pose Priors"],
-            ["Global Rotations \n(wRi)"],
+            ("Relative Rotations", "Relative Pose Priors"),
+            ("Global Rotations"),
             "",
         )
 
