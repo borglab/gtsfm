@@ -17,7 +17,7 @@ class FakeImageLoader(GTSFMProcess):
         self._fake_image_dir = fake_image_dir
 
     def get_ui_metadata() -> UiMetadata:
-        return UiMetadata("FakeImageLoader", ["Raw Images"], ["Internal Data"], "")
+        return UiMetadata("FakeImageLoader", ("Raw Images"), ("Internal Data"), "")
 
     @property
     def fake_image_dir(self):
@@ -35,7 +35,7 @@ class FakeOutputBase(GTSFMProcess):
         ...
 
     def get_ui_metadata() -> UiMetadata:
-        return UiMetadata("FakeOutput", ["Internal Data"], ["GTSFM Output"], "Processor")
+        return UiMetadata("FakeOutput", ("Internal Data"), ("GTSFM Output"), "Processor")
 
 
 class FakeOutputGTSFM(FakeOutputBase):
@@ -77,8 +77,8 @@ class TestRegistryUtils(unittest.TestCase):
         metadata = FakeImageLoader.get_ui_metadata()
 
         self.assertEqual(metadata.display_name, "FakeImageLoader")
-        self.assertEqual(metadata.input_products, ["Raw Images"])
-        self.assertEqual(metadata.output_products, ["Internal Data"])
+        self.assertEqual(metadata.input_products, ("Raw Images"))
+        self.assertEqual(metadata.output_products, ("Internal Data"))
         self.assertEqual(metadata.parent_plate, "")
 
     def test_abs_base(self):
@@ -88,8 +88,8 @@ class TestRegistryUtils(unittest.TestCase):
         metadata = FakeOutputBase.get_ui_metadata()
 
         self.assertEqual(metadata.display_name, "FakeOutput")
-        self.assertEqual(metadata.input_products, ["Internal Data"])
-        self.assertEqual(metadata.output_products, ["GTSFM Output"])
+        self.assertEqual(metadata.input_products, ("Internal Data"))
+        self.assertEqual(metadata.output_products, ("GTSFM Output"))
         self.assertEqual(metadata.parent_plate, "Processor")
 
         # test that concrete objects work as intended

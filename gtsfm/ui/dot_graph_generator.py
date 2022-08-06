@@ -11,7 +11,9 @@ import os
 
 import pydot
 from collections import namedtuple
-from inspect import isabstract
+
+from typing import Tuple
+from gtsfm.ui.registry import UiMetadata
 
 JS_ROOT = os.path.join(Path(__file__).resolve().parent.parent.parent, "rtf_vis_tool")
 
@@ -72,40 +74,52 @@ class DotGraphGenerator:
 
             seen_metadata.add(metadata)
 
-            display_name = metadata.display_name
+            self._add_metadata_to_graph(metadata)
 
-            # autocast strings to one-element tuples
-            #
-            # a common error is to define a one-element tuple like so:
-            # >>> ("Input Product")
-            # but Python auto-casts this to a raw str
-            input_products = metadata.input_products
-            if type(input_products) == str:
-                input_products = (input_products,)
+    def _add_metadata_to_graph(self, metadata: UiMetadata):
+        """Given the UiMetadata from a GTSFMProcess, clean it up, then add to graph."""
 
-            output_products = metadata.output_products
-            if type(output_products) == str:
-                output_products = (output_products,)
+        display_name = metadata.display_name
 
-            # parent_plate = metadata.parent_plate  # currently unused
-            style = self._style
+        # autocast strings to one-element tuples
+        #
+        # a common error is to define a one-element tuple like so:
+        # >>> ("Input Product")
+        # but Python auto-casts this to a raw str
+        input_products = metadata.input_products
+        if type(input_products) == str:
+            input_products = (input_products,)
 
-            # add process, all products to graph as Nodes
+        output_products = metadata.output_products
+        if type(output_products) == str:
+            output_products = (output_products,)
+
+        parent_plate = metadata.parent_plate
+
+        # add cleaned-up metadata to graph
+        self._add_nodes_and_edges(display_name, input_products, output_products, parent_plate)
+
+    def _add_nodes_and_edges(
+        self, display_name: str, input_products: Tuple[str], output_products: Tuple[str], parent_plate: str
+    ):
+        """Given clean UI metadata, add blue/gray nodes to the graph."""
+
+        style = self._style
+
+        # add process, all products to graph as Nodes
+        self._graph.add_node(
+            pydot.Node(display_name, shape=style.node_shape, style=style.node_style, fillcolor=style.blue_fillcolor)
+        )
+        for product_name in input_products + output_products:
             self._graph.add_node(
-                pydot.Node(display_name, shape=style.node_shape, style=style.node_style, fillcolor=style.blue_fillcolor)
+                pydot.Node(product_name, shape=style.node_shape, style=style.node_style, fillcolor=style.gray_fillcolor)
             )
-            for product_name in input_products + output_products:
-                self._graph.add_node(
-                    pydot.Node(
-                        product_name, shape=style.node_shape, style=style.node_style, fillcolor=style.gray_fillcolor
-                    )
-                )
 
-            # add Edges for all input_products -> blue node -> all output_products
-            for input_product_name in input_products:
-                self._graph.add_edge(pydot.Edge(input_product_name, display_name, color=style.arrow_color))
-            for output_product_name in output_products:
-                self._graph.add_edge(pydot.Edge(display_name, output_product_name, color=style.arrow_color))
+        # add Edges for all input_products -> blue node -> all output_products
+        for input_product_name in input_products:
+            self._graph.add_edge(pydot.Edge(input_product_name, display_name, color=style.arrow_color))
+        for output_product_name in output_products:
+            self._graph.add_edge(pydot.Edge(display_name, output_product_name, color=style.arrow_color))
 
     def save_graph(self, filepath=os.path.join(JS_ROOT, "src", "ui", "dot_graph_output.svg")):
         """Save graph to the given filepath."""

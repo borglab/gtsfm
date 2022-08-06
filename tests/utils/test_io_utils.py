@@ -96,8 +96,11 @@ class TestIoUtils(unittest.TestCase):
         self.assertIsNone(calibrations)
 
     def test_round_trip_images_txt(self) -> None:
-        """Starts with a pose. Writes the pose to images.txt (in a temporary directory). Then reads images.txt to recover
-        that same pose. Checks if the original wTc and recovered wTc match up."""
+        """
+        Starts with a pose. Writes the pose to images.txt (in a temporary directory).
+        Then reads images.txt to recover that same pose.
+        Checks if the original wTc and recovered wTc match up.
+        """
 
         # fmt: off
         # Rotation 45 degrees about the z-axis.
