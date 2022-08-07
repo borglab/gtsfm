@@ -93,24 +93,24 @@ class SceneOptimizer:
     def _create_output_directories(self) -> None:
         """Create various output directories for GTSFM results, metrics, and plots."""
         # base paths for storage
-        self.plot_base_path = self.output_root / "plots"
-        self.metrics_path = self.output_root / "result_metrics"
-        self.results_path = self.output_root / "results"
+        self._plot_base_path = self.output_root / "plots"
+        self._metrics_path = self.output_root / "result_metrics"
+        self._results_path = self.output_root / "results"
 
         # plot paths
-        self.plot_correspondence_path = self.plot_base_path / "correspondences"
-        self.plot_ba_input_path = self.plot_base_path / "ba_input"
-        self.plot_results_path = self.plot_base_path / "results"
-        self.mvs_ply_save_fpath = self.results_path / "mvs_output" / "dense_pointcloud.ply"
+        self._plot_correspondence_path = self._plot_base_path / "correspondences"
+        self._plot_ba_input_path = self._plot_base_path / "ba_input"
+        self._plot_results_path = self._plot_base_path / "results"
+        self._mvs_ply_save_fpath = self._results_path / "mvs_output" / "dense_pointcloud.ply"
 
         # make directories for persisting data
-        os.makedirs(self.plot_base_path, exist_ok=True)
-        os.makedirs(self.metrics_path, exist_ok=True)
-        os.makedirs(self.results_path, exist_ok=True)
+        os.makedirs(self._plot_base_path, exist_ok=True)
+        os.makedirs(self._metrics_path, exist_ok=True)
+        os.makedirs(self._results_path, exist_ok=True)
 
-        os.makedirs(self.plot_correspondence_path, exist_ok=True)
-        os.makedirs(self.plot_ba_input_path, exist_ok=True)
-        os.makedirs(self.plot_results_path, exist_ok=True)
+        os.makedirs(self._plot_correspondence_path, exist_ok=True)
+        os.makedirs(self._plot_ba_input_path, exist_ok=True)
+        os.makedirs(self._plot_results_path, exist_ok=True)
 
         # Save duplicate directories within React folders.
         os.makedirs(REACT_RESULTS_PATH, exist_ok=True)
@@ -238,7 +238,7 @@ class SceneOptimizer:
                         delayed_keypoints[i2],
                         v_corr_idxs,
                         two_view_report=two_view_reports[PRE_BA_REPORT_TAG],
-                        file_path=os.path.join(self.plot_correspondence_path, f"{i1}_{i2}.jpg"),
+                        file_path=os.path.join(self._plot_correspondence_path, f"{i1}_{i2}.jpg"),
                     )
                 )
 
@@ -275,8 +275,8 @@ class SceneOptimizer:
                     image_graph,
                     filename="two_view_report_{}.json".format(tag),
                     matching_regime=matching_regime,
-                    metrics_path=self.metrics_path,
-                    plot_base_path=self.plot_base_path
+                    metrics_path=self._metrics_path,
+                    plot_base_path=self._plot_base_path,
                 )
             )
             metrics_graph_list.append(
@@ -302,14 +302,14 @@ class SceneOptimizer:
                     ba_input_graph,
                     ba_output_graph,
                     gt_wTi_list,
-                    plot_ba_input_path=self.plot_ba_input_path,
-                    plot_results_path=self.plot_results_path,
+                    plot_ba_input_path=self._plot_ba_input_path,
+                    plot_results_path=self._plot_results_path,
                 )
             )
 
         if self._save_gtsfm_data:
             delayed_results.extend(
-                save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph, results_path=self.results_path)
+                save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph, results_path=self._results_path)
             )
 
         if self._run_dense_optimizer:
@@ -324,8 +324,7 @@ class SceneOptimizer:
             # Cast to string as Open3d cannot use PosixPath's for I/O -- only string file paths are accepted.
             delayed_results.append(
                 dask.delayed(io_utils.save_point_cloud_as_ply)(
-                    save_fpath=str(self.mvs_ply_save_fpath), points=dense_points_graph, rgb=dense_point_colors_graph
-
+                    save_fpath=str(self._mvs_ply_save_fpath), points=dense_points_graph, rgb=dense_point_colors_graph
                 )
             )
 
@@ -336,7 +335,7 @@ class SceneOptimizer:
                 metrics_graph_list.append(downsampling_metrics_graph)
 
         # Save metrics to JSON and generate HTML report.
-        delayed_results.extend(save_metrics_reports(metrics_graph_list, metrics_path=self.metrics_path))
+        delayed_results.extend(save_metrics_reports(metrics_graph_list, metrics_path=self._metrics_path))
 
         # return the entry with just the sfm result
         return ba_output_graph, delayed_results
@@ -449,7 +448,7 @@ def save_metrics_reports(metrics_graph_list: List[Delayed], metrics_path: Path) 
     Args:
         metrics_graph: List of GtsfmMetricsGroup from different modules wrapped as Delayed.
         metrics_path: path to directory where computed metrics will be saved.
-        
+
     Returns:
         List of delayed objects after saving metrics.
     """
@@ -479,7 +478,7 @@ def save_full_frontend_metrics(
     filename: str,
     matching_regime: ImageMatchingRegime,
     metrics_path: Path,
-    plot_base_path: Path
+    plot_base_path: Path,
 ) -> None:
     """Converts the TwoViewEstimationReports for all image pairs to a Dict and saves it as JSON.
 
