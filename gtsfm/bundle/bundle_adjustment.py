@@ -33,6 +33,8 @@ from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
+from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
+
 METRICS_GROUP = "bundle_adjustment_metrics"
 
 METRICS_PATH = Path(__file__).resolve().parent.parent.parent / "result_metrics"
@@ -60,8 +62,6 @@ MEASUREMENT_NOISE_SIGMA = 1.0  # in pixels
 
 logger = logger_utils.get_logger()
 
-from gtsfm.ui.registry import GTSFMProcess, UiMetadata
-
 
 class BundleAdjustmentOptimizer(GTSFMProcess):
     """Bundle adjustment using factor-graphs in GTSAM.
@@ -70,7 +70,7 @@ class BundleAdjustmentOptimizer(GTSFMProcess):
     tracks from triangulation."""
 
     def get_ui_metadata() -> UiMetadata:
-        """Returns data needed to display this process in the process graph. See gtsfm/ui/registry.py for more info."""
+        """Returns data needed to display this process in the process graph."""
 
         return UiMetadata(
             "Bundle Adjustment",

@@ -20,7 +20,7 @@ import pydot
 from collections import namedtuple
 
 from typing import Tuple
-from gtsfm.ui.registry import UiMetadata
+from gtsfm.ui.gtsfm_process import UiMetadata
 
 JS_ROOT = os.path.join(Path(__file__).resolve().parent.parent.parent, "rtf_vis_tool")
 DEFAULT_GRAPH_VIZ_OUTPUT_PATH = os.path.join(JS_ROOT, "src", "ui", "dot_graph_output.svg")

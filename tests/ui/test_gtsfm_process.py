@@ -6,7 +6,8 @@ Author: Kevin Fu
 
 import unittest
 
-from gtsfm.ui.registry import RegistryHolder, GTSFMProcess, UiMetadata
+from gtsfm.ui.registry import RegistryHolder
+from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 import abc
 
 

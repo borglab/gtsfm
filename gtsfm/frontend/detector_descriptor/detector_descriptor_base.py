@@ -13,7 +13,7 @@ from dask.delayed import Delayed
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.ui.registry import GTSFMProcess, UiMetadata
+from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 logger = logger_utils.get_logger()
 
@@ -25,7 +25,7 @@ class DetectorDescriptorBase(GTSFMProcess):
     """
 
     def get_ui_metadata() -> UiMetadata:
-        """Returns data needed to display this process in the process graph. See gtsfm/ui/registry.py for more info."""
+        """Returns data needed to display this process in the process graph."""
 
         return UiMetadata("DetectorDescriptor", ("Images"), ("Keypoints", "Correspondences"))
 

@@ -11,7 +11,7 @@ from dask.delayed import Delayed
 from gtsam import Cal3Bundler, Rot3, Unit3
 
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.ui.registry import GTSFMProcess, UiMetadata
+from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 
 NUM_MATCHES_REQ_E_MATRIX = 5
@@ -26,7 +26,7 @@ class VerifierBase(GTSFMProcess):
     """
 
     def get_ui_metadata() -> UiMetadata:
-        """Returns data needed to display this process in the process graph. See gtsfm/ui/registry.py for more info."""
+        """Returns data needed to display this process in the process graph."""
 
         return UiMetadata(
             "Verifier",

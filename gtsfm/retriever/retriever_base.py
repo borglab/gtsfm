@@ -12,7 +12,7 @@ from dask.delayed import Delayed
 
 from gtsfm.loader.loader_base import LoaderBase
 
-from gtsfm.ui.registry import GTSFMProcess, UiMetadata
+from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 
 class ImageMatchingRegime(str, Enum):
@@ -28,7 +28,7 @@ class RetrieverBase(GTSFMProcess):
     """Base class for image retriever implementations."""
 
     def get_ui_metadata() -> UiMetadata:
-        """Returns data needed to display this process in the process graph. See gtsfm/ui/registry.py for more info."""
+        """Returns data needed to display this process in the process graph."""
 
         return UiMetadata("Image Retriever", ("Image Loader"), ("Images"))
 

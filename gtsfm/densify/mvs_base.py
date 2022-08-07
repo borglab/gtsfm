@@ -14,14 +14,14 @@ from gtsfm.common.image import Image
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 
-from gtsfm.ui.registry import GTSFMProcess, UiMetadata
+from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 
 class MVSBase(GTSFMProcess):
     """Base class for all multi-view stereo implementations."""
 
     def get_ui_metadata() -> UiMetadata:
-        """Returns data needed to display this process in the process graph. See gtsfm/ui/registry.py for more info."""
+        """Returns data needed to display this process in the process graph."""
 
         return UiMetadata("Multi-view Stereo", ("Images", "SFM Result"), ("Dense Points"))
 

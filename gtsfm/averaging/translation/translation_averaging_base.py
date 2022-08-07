@@ -12,7 +12,7 @@ from gtsam import Point3, Pose3, Rot3, Unit3
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 
-from gtsfm.ui.registry import GTSFMProcess, UiMetadata
+from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 
 class TranslationAveragingBase(GTSFMProcess):
@@ -22,7 +22,7 @@ class TranslationAveragingBase(GTSFMProcess):
     """
 
     def get_ui_metadata() -> UiMetadata:
-        """Returns data needed to display this process in the process graph. See gtsfm/ui/registry.py for more info."""
+        """Returns data needed to display this process in the process graph."""
 
         return UiMetadata(
             "Translation Averaging",

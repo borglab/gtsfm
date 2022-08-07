@@ -22,7 +22,7 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.two_view_estimator import TwoViewEstimationReport
-from gtsfm.ui.registry import GTSFMProcess, UiMetadata
+from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 
 PLOT_BASE_PATH = Path(__file__).resolve().parent.parent.parent / "plots"
@@ -42,6 +42,8 @@ class ViewGraphEstimatorBase(GTSFMProcess):
     """
 
     def get_ui_metadata() -> UiMetadata:
+        """Returns data needed to display this process in the process graph."""
+
         return UiMetadata(
             "View-Graph Estimator",
             ("Relative Rotations", "Relative Translations", "Calibrations", "Correspondences", "Keypoints"),

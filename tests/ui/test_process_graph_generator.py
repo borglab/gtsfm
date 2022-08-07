@@ -11,7 +11,7 @@ import unittest
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 
 # needed to test registry properly
-from tests.ui.test_registry import FakeImageLoader, FakeOutputGTSFM  # noqa: F401
+from tests.ui.test_gtsfm_process import FakeImageLoader, FakeOutputGTSFM  # noqa: F401
 
 
 class TestProcessGraphGenerator(unittest.TestCase):

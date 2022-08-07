@@ -11,14 +11,14 @@ import numpy as np
 from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.common.keypoints import Keypoints
 
-from gtsfm.ui.registry import GTSFMProcess, UiMetadata
+from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 
 class TracksEstimatorBase(GTSFMProcess):
     """Base class for track estimation."""
 
     def get_ui_metadata() -> UiMetadata:
-        """Returns data needed to display this process in the process graph. See gtsfm/ui/registry.py for more info."""
+        """Returns data needed to display this process in the process graph."""
 
         return UiMetadata("Tracks Estimator", ("Keypoints", "Pairwise Feature Matches"), ("2D Tracks"))
 
