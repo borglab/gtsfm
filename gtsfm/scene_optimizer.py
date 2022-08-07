@@ -41,16 +41,7 @@ from gtsfm.two_view_estimator import (
 
 matplotlib.use("Agg")
 
-# base paths for storage
-PLOT_BASE_PATH = Path(__file__).resolve().parent.parent / "plots"
-METRICS_PATH = Path(__file__).resolve().parent.parent / "result_metrics"
-RESULTS_PATH = Path(__file__).resolve().parent.parent / "results"
-
-# plot paths
-PLOT_CORRESPONDENCE_PATH = PLOT_BASE_PATH / "correspondences"
-PLOT_BA_INPUT_PATH = PLOT_BASE_PATH / "ba_input"
-PLOT_RESULTS_PATH = PLOT_BASE_PATH / "results"
-MVS_PLY_SAVE_FPATH = RESULTS_PATH / "mvs_output" / "dense_pointcloud.ply"
+DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent.parent
 
 # Paths to Save Output in React Folders.
 REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
@@ -82,6 +73,7 @@ class SceneOptimizer:
         save_3d_viz: bool = True,
         save_gtsfm_data: bool = True,
         pose_angular_error_thresh: float = 3,
+        output_root: str = DEFAULT_OUTPUT_ROOT,
     ) -> None:
         """pose_angular_error_thresh is given in degrees"""
         self.feature_extractor = feature_extractor
@@ -95,15 +87,30 @@ class SceneOptimizer:
 
         self._save_gtsfm_data = save_gtsfm_data
         self._pose_angular_error_thresh = pose_angular_error_thresh
+        self.output_root = Path(output_root)
+        self._create_output_directories()
+
+    def _create_output_directories(self) -> None:
+        """Create various output directories for GTSFM results, metrics, and plots."""
+        # base paths for storage
+        self._plot_base_path = self.output_root / "plots"
+        self._metrics_path = self.output_root / "result_metrics"
+        self._results_path = self.output_root / "results"
+
+        # plot paths
+        self._plot_correspondence_path = self._plot_base_path / "correspondences"
+        self._plot_ba_input_path = self._plot_base_path / "ba_input"
+        self._plot_results_path = self._plot_base_path / "results"
+        self._mvs_ply_save_fpath = self._results_path / "mvs_output" / "dense_pointcloud.ply"
 
         # make directories for persisting data
-        os.makedirs(PLOT_BASE_PATH, exist_ok=True)
-        os.makedirs(METRICS_PATH, exist_ok=True)
-        os.makedirs(RESULTS_PATH, exist_ok=True)
+        os.makedirs(self._plot_base_path, exist_ok=True)
+        os.makedirs(self._metrics_path, exist_ok=True)
+        os.makedirs(self._results_path, exist_ok=True)
 
-        os.makedirs(PLOT_CORRESPONDENCE_PATH, exist_ok=True)
-        os.makedirs(PLOT_BA_INPUT_PATH, exist_ok=True)
-        os.makedirs(PLOT_RESULTS_PATH, exist_ok=True)
+        os.makedirs(self._plot_correspondence_path, exist_ok=True)
+        os.makedirs(self._plot_ba_input_path, exist_ok=True)
+        os.makedirs(self._plot_results_path, exist_ok=True)
 
         # Save duplicate directories within React folders.
         os.makedirs(REACT_RESULTS_PATH, exist_ok=True)
@@ -231,7 +238,7 @@ class SceneOptimizer:
                         delayed_keypoints[i2],
                         v_corr_idxs,
                         two_view_report=two_view_reports[PRE_BA_REPORT_TAG],
-                        file_path=os.path.join(PLOT_CORRESPONDENCE_PATH, f"{i1}_{i2}.jpg"),
+                        file_path=os.path.join(self._plot_correspondence_path, f"{i1}_{i2}.jpg"),
                     )
                 )
 
@@ -268,6 +275,8 @@ class SceneOptimizer:
                     image_graph,
                     filename="two_view_report_{}.json".format(tag),
                     matching_regime=matching_regime,
+                    metrics_path=self._metrics_path,
+                    plot_base_path=self._plot_base_path,
                 )
             )
             metrics_graph_list.append(
@@ -288,10 +297,20 @@ class SceneOptimizer:
         )
 
         if self._save_3d_viz:
-            delayed_results.extend(save_visualizations(ba_input_graph, ba_output_graph, gt_wTi_list))
+            delayed_results.extend(
+                save_visualizations(
+                    ba_input_graph,
+                    ba_output_graph,
+                    gt_wTi_list,
+                    plot_ba_input_path=self._plot_ba_input_path,
+                    plot_results_path=self._plot_results_path,
+                )
+            )
 
         if self._save_gtsfm_data:
-            delayed_results.extend(save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph))
+            delayed_results.extend(
+                save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph, results_path=self._results_path)
+            )
 
         if self._run_dense_optimizer:
             img_dict_graph = dask.delayed(get_image_dictionary)(image_graph)
@@ -305,7 +324,7 @@ class SceneOptimizer:
             # Cast to string as Open3d cannot use PosixPath's for I/O -- only string file paths are accepted.
             delayed_results.append(
                 dask.delayed(io_utils.save_point_cloud_as_ply)(
-                    save_fpath=str(MVS_PLY_SAVE_FPATH), points=dense_points_graph, rgb=dense_point_colors_graph
+                    save_fpath=str(self._mvs_ply_save_fpath), points=dense_points_graph, rgb=dense_point_colors_graph
                 )
             )
 
@@ -316,7 +335,7 @@ class SceneOptimizer:
                 metrics_graph_list.append(downsampling_metrics_graph)
 
         # Save metrics to JSON and generate HTML report.
-        delayed_results.extend(save_metrics_reports(metrics_graph_list))
+        delayed_results.extend(save_metrics_reports(metrics_graph_list, metrics_path=self._metrics_path))
 
         # return the entry with just the sfm result
         return ba_output_graph, delayed_results
@@ -353,7 +372,11 @@ def align_estimated_gtsfm_data(
 
 
 def save_visualizations(
-    ba_input_graph: Delayed, ba_output_graph: Delayed, gt_pose_graph: List[Optional[Delayed]]
+    ba_input_graph: Delayed,
+    ba_output_graph: Delayed,
+    gt_pose_graph: List[Optional[Delayed]],
+    plot_ba_input_path: Path,
+    plot_results_path: Path,
 ) -> List[Delayed]:
     """Save SfmData before and after bundle adjustment and camera poses for visualization.
 
@@ -364,6 +387,8 @@ def save_visualizations(
         ba_input_graph: Delayed GtsfmData input to bundle adjustment.
         ba_output_graph: Delayed GtsfmData output from bundle adjustment.
         gt_pose_graph: Delayed ground truth poses.
+        plot_ba_input_path: path to directory where visualizations of bundle adjustment input data will be saved.
+        plot_results_path: path to directory where visualizations of bundle adjustment output data will be saved.
 
     Returns:
         A list of Delayed objects after saving the different visualizations.
@@ -371,30 +396,33 @@ def save_visualizations(
     aligned_ba_input_graph = dask.delayed(lambda x, y: x.align_via_Sim3_to_poses(y))(ba_input_graph, gt_pose_graph)
     aligned_ba_output_graph = dask.delayed(lambda x, y: x.align_via_Sim3_to_poses(y))(ba_output_graph, gt_pose_graph)
     viz_graph_list = []
-    viz_graph_list.append(dask.delayed(viz_utils.save_sfm_data_viz)(aligned_ba_input_graph, PLOT_BA_INPUT_PATH))
-    viz_graph_list.append(dask.delayed(viz_utils.save_sfm_data_viz)(aligned_ba_output_graph, PLOT_RESULTS_PATH))
+    viz_graph_list.append(dask.delayed(viz_utils.save_sfm_data_viz)(aligned_ba_input_graph, plot_ba_input_path))
+    viz_graph_list.append(dask.delayed(viz_utils.save_sfm_data_viz)(aligned_ba_output_graph, plot_results_path))
     viz_graph_list.append(
         dask.delayed(viz_utils.save_camera_poses_viz)(
-            aligned_ba_input_graph, aligned_ba_output_graph, gt_pose_graph, PLOT_RESULTS_PATH
+            aligned_ba_input_graph, aligned_ba_output_graph, gt_pose_graph, plot_results_path
         )
     )
     return viz_graph_list
 
 
-def save_gtsfm_data(image_graph: List[Delayed], ba_input_graph: Delayed, ba_output_graph: Delayed) -> List[Delayed]:
+def save_gtsfm_data(
+    image_graph: List[Delayed], ba_input_graph: Delayed, ba_output_graph: Delayed, results_path: Path
+) -> List[Delayed]:
     """Saves the Gtsfm data before and after bundle adjustment.
 
     Args:
         image_graph: input image wrapped as Delayed objects.
         ba_input_graph: GtsfmData input to bundle adjustment wrapped as Delayed.
         ba_output_graph: GtsfmData output to bundle adjustment wrapped as Delayed.
+        results_path: path to directory where GTSFM results will be saved.
 
     Returns:
         A list of delayed objects after saving the input and outputs to bundle adjustment.
     """
     saving_graph_list = []
     # Save a duplicate in REACT_RESULTS_PATH.
-    for output_dir in [RESULTS_PATH, REACT_RESULTS_PATH]:
+    for output_dir in [results_path, REACT_RESULTS_PATH]:
         # Save the input to Bundle Adjustment (from data association).
         saving_graph_list.append(
             dask.delayed(io_utils.export_model_as_colmap_text)(
@@ -414,11 +442,12 @@ def save_gtsfm_data(image_graph: List[Delayed], ba_input_graph: Delayed, ba_outp
     return saving_graph_list
 
 
-def save_metrics_reports(metrics_graph_list: List[Delayed]) -> List[Delayed]:
+def save_metrics_reports(metrics_graph_list: List[Delayed], metrics_path: Path) -> List[Delayed]:
     """Saves metrics to JSON and HTML report.
 
     Args:
         metrics_graph: List of GtsfmMetricsGroup from different modules wrapped as Delayed.
+        metrics_path: path to directory where computed metrics will be saved.
 
     Returns:
         List of delayed objects after saving metrics.
@@ -429,14 +458,14 @@ def save_metrics_reports(metrics_graph_list: List[Delayed]) -> List[Delayed]:
         return save_metrics_graph_list
 
     # Save metrics to JSON
-    save_metrics_graph_list.append(dask.delayed(metrics_utils.save_metrics_as_json)(metrics_graph_list, METRICS_PATH))
+    save_metrics_graph_list.append(dask.delayed(metrics_utils.save_metrics_as_json)(metrics_graph_list, metrics_path))
     save_metrics_graph_list.append(
         dask.delayed(metrics_utils.save_metrics_as_json)(metrics_graph_list, REACT_METRICS_PATH)
     )
     save_metrics_graph_list.append(
         dask.delayed(metrics_report.generate_metrics_report_html)(
             metrics_graph_list,
-            os.path.join(METRICS_PATH, "gtsfm_metrics_report.html"),
+            os.path.join(metrics_path, "gtsfm_metrics_report.html"),
             None,
         )
     )
@@ -448,6 +477,8 @@ def save_full_frontend_metrics(
     images: List[Image],
     filename: str,
     matching_regime: ImageMatchingRegime,
+    metrics_path: Path,
+    plot_base_path: Path,
 ) -> None:
     """Converts the TwoViewEstimationReports for all image pairs to a Dict and saves it as JSON.
 
@@ -455,6 +486,9 @@ def save_full_frontend_metrics(
         two_view_report_dict: front-end metrics for pairs of images.
         images: list of all images for this scene, in order of image/frame index.
         filename: file name to use when saving report to JSON.
+        matching_regime: regime used for image pair selection in retriever.
+        metrics_path: path to directory where metrics will be saved.
+        plot_base_path: path to directory where plots will be saved.
     """
     metrics_list = []
 
@@ -492,7 +526,7 @@ def save_full_frontend_metrics(
             }
         )
 
-    io_utils.save_json_file(os.path.join(METRICS_PATH, filename), metrics_list)
+    io_utils.save_json_file(os.path.join(metrics_path, filename), metrics_list)
 
     # Save duplicate copy of 'frontend_full.json' within React Folder.
     io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, filename), metrics_list)
@@ -501,15 +535,15 @@ def save_full_frontend_metrics(
         return
     if "VIEWGRAPH_2VIEW_REPORT" in filename:
         # must come after two-view report file is written to disk in the Dask dependency graph.
-        _save_retrieval_two_view_metrics()
+        _save_retrieval_two_view_metrics(metrics_path, plot_base_path)
 
 
-def _save_retrieval_two_view_metrics() -> None:
+def _save_retrieval_two_view_metrics(metrics_path: Path, plot_base_path: Path) -> None:
     """Compare 2-view similarity scores with their 2-view pose errors after viewgraph estimation."""
-    sim_fpath = os.path.join(PLOT_BASE_PATH, "netvlad_similarity_matrix.txt")
+    sim_fpath = os.path.join(plot_base_path, "netvlad_similarity_matrix.txt")
     sim = np.loadtxt(sim_fpath, delimiter=",")
 
-    json_fpath = os.path.join(METRICS_PATH, "two_view_report_VIEWGRAPH_2VIEW_REPORT.json")
+    json_fpath = os.path.join(metrics_path, "two_view_report_VIEWGRAPH_2VIEW_REPORT.json")
     json_data = io_utils.read_json_file(json_fpath)
 
     sim_scores = []
@@ -530,18 +564,18 @@ def _save_retrieval_two_view_metrics() -> None:
     plt.scatter(sim_scores, R_errors, 10, color="r", marker=".")
     plt.xlabel("Similarity score")
     plt.ylabel("Rotation error w.r.t. GT (deg.)")
-    plt.savefig(os.path.join(PLOT_BASE_PATH, "gt_rot_error_vs_similarity_score.jpg"), dpi=500)
+    plt.savefig(os.path.join(plot_base_path, "gt_rot_error_vs_similarity_score.jpg"), dpi=500)
     plt.close("all")
 
     plt.scatter(sim_scores, U_errors, 10, color="r", marker=".")
     plt.xlabel("Similarity score")
     plt.ylabel("Translation direction error w.r.t. GT (deg.)")
-    plt.savefig(os.path.join(PLOT_BASE_PATH, "gt_trans_error_vs_similarity_score.jpg"), dpi=500)
+    plt.savefig(os.path.join(plot_base_path, "gt_trans_error_vs_similarity_score.jpg"), dpi=500)
     plt.close("all")
 
     pose_errors = np.maximum(np.array(R_errors), np.array(U_errors))
     plt.scatter(sim_scores, pose_errors, 10, color="r", marker=".")
     plt.xlabel("Similarity score")
     plt.ylabel("Pose error w.r.t. GT (deg.)")
-    plt.savefig(os.path.join(PLOT_BASE_PATH, "gt_pose_error_vs_similarity_score.jpg"), dpi=500)
+    plt.savefig(os.path.join(plot_base_path, "gt_pose_error_vs_similarity_score.jpg"), dpi=500)
     plt.close("all")
