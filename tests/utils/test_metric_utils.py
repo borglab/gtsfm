@@ -1,6 +1,6 @@
 """Unit tests for metrics utilities.
 
-Author: Travis Driver
+Authors: Travis Driver, John Lambert
 """
 
 import unittest
@@ -70,12 +70,12 @@ class TestMetricUtils(unittest.TestCase):
         np.testing.assert_allclose(expected_intersections, estimated_intersections)
 
     def test_get_stats_for_sfmdata_skydio32(self) -> None:
-        """
-        Real data, from Skydio-32 sequence with the SIFT front-end, if Sim(3) object is corrupted with negative scale.
-
+        """Verifies that track reprojection errors are returned as NaN if given degenerate input.
+        
+        The data used below corresponds to camera poses aligned to GT from Skydio-32 sequence with the SIFT front-end,
+        if the Sim(3) object used for alignment is corrupted with negative scale.
         All tracks should have NaN reprojection error, from cheirality errors from the negative scale.
         """
-
         fx, k1, k2, px, py = 609.94, -8.82687675e-07, -4.25111629e-06, 507, 380
         calib = Cal3Bundler(fx, k1, k2, px, py)
 
