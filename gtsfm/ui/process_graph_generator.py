@@ -1,5 +1,5 @@
 """
-Creates a DOT graph based on the classes that subclass GTSFMProcess.
+Creates a process graph based on the classes that subclass GTSFMProcess.
 
 Specifically, all classes that subclass GTSFMProcess are added to a central
 registry on declaration. GTSFMProcess has the abstract class method
