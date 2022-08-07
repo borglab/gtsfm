@@ -74,7 +74,7 @@ class AbstractableRegistryHolder(abc.ABCMeta, RegistryHolder):
 @dataclass(frozen=True)
 class UiMetadata:
     """
-    Holds all info needed to display a GTSFMProcess in the process graph (see DotGraphGenerator).
+    Holds all info needed to display a GTSFMProcess in the process graph (see ProcessGraphGenerator).
 
     frozen=True makes this dataclass immutable and hashable.
     """
