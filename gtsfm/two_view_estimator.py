@@ -56,6 +56,8 @@ class TwoViewEstimator(GTSFMProcess):
     """Wrapper for running two-view relative pose estimation on image pairs in the dataset."""
 
     def get_ui_metadata() -> UiMetadata:
+        """Returns data needed to display this process in the process graph. See gtsfm/ui/registry.py for more info."""
+
         return UiMetadata(
             "Two-View Estimator",
             ("Keypoints", "Correspondences", "Relative Rotations", "Relative Translations", "Relative Pose Priors"),

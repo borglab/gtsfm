@@ -70,6 +70,8 @@ class BundleAdjustmentOptimizer(GTSFMProcess):
     tracks from triangulation."""
 
     def get_ui_metadata() -> UiMetadata:
+        """Returns data needed to display this process in the process graph. See gtsfm/ui/registry.py for more info."""
+
         return UiMetadata(
             "Bundle Adjustment",
             ("Initialized Cameras", "Absolute Pose Priors", "Relative Pose Priors"),

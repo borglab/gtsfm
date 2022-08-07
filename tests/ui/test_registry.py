@@ -13,10 +13,12 @@ import abc
 class FakeImageLoader(GTSFMProcess):
     """Test class."""
 
-    def __init__(self, fake_image_dir):
+    def __init__(self, fake_image_dir: str) -> None:
         self._fake_image_dir = fake_image_dir
 
     def get_ui_metadata() -> UiMetadata:
+        """Returns data needed to display this process in the process graph. See gtsfm/ui/registry.py for more info."""
+
         return UiMetadata("FakeImageLoader", ("Raw Images"), ("Internal Data"), "")
 
     @property
@@ -27,7 +29,7 @@ class FakeImageLoader(GTSFMProcess):
 class FakeOutputBase(GTSFMProcess):
     """Test class."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._dummy_var = 0
 
     @abc.abstractmethod
@@ -35,17 +37,19 @@ class FakeOutputBase(GTSFMProcess):
         ...
 
     def get_ui_metadata() -> UiMetadata:
+        """Returns data needed to display this process in the process graph. See gtsfm/ui/registry.py for more info."""
+
         return UiMetadata("FakeOutput", ("Internal Data"), ("GTSFM Output"), "Processor")
 
 
 class FakeOutputGTSFM(FakeOutputBase):
     """Test class."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         # should have UI metadata from superclass FakeOutputBase
         super().__init__()
 
-    def base_method(self):
+    def base_method(self) -> bool:
         return True
 
 

@@ -1,5 +1,12 @@
 """
-Creates a DOT graph based on the contents of RegistryHolder.REGISTRY.
+Creates a DOT graph based on the classes that subclass GTSFMProcess.
+
+Specifically, all classes that subclass GTSFMProcess are added to a central
+registry on declaration. GTSFMProcess has the abstract class method
+get_ui_metadata(), which returns a UiMetadata object. 
+
+ProcessGraphGenerator combines all the UiMetadata of all the GTSFMProcesses into
+one graph of blue and gray nodes, then saves to a file.
 
 Author: Kevin Fu
 """
@@ -16,16 +23,17 @@ from typing import Tuple
 from gtsfm.ui.registry import UiMetadata
 
 JS_ROOT = os.path.join(Path(__file__).resolve().parent.parent.parent, "rtf_vis_tool")
+DEFAULT_GRAPH_VIZ_OUTPUT_PATH = os.path.join(JS_ROOT, "src", "ui", "dot_graph_output.svg")
 
 
-class DotGraphGenerator:
+class ProcessGraphGenerator:
     """Generates and saves a graph of all the components in REGISTRY."""
 
-    def __init__(self, test_mode=False):
-        """Create DotGraphGenerator.
+    def __init__(self, test_mode: bool = False) -> None:
+        """Create ProcessGraphGenerator.
 
         Args:
-            test_mode - boolean flag, only set True when unit testing.
+            test_mode: boolean flag, only set True when unit testing.
         """
 
         # create empty directed graph
@@ -47,7 +55,7 @@ class DotGraphGenerator:
 
         self._test_mode = test_mode
 
-    def _build_graph(self):
+    def _build_graph(self) -> None:
         """Build graph based on RegistryHolder's REGISTRY."""
 
         # TODO: remove this
@@ -76,16 +84,24 @@ class DotGraphGenerator:
 
             self._add_metadata_to_graph(metadata)
 
-    def _add_metadata_to_graph(self, metadata: UiMetadata):
-        """Given the UiMetadata from a GTSFMProcess, clean it up, then add to graph."""
+    def _add_metadata_to_graph(self, metadata: UiMetadata) -> None:
+        """Add UiMetadata to the graph as blue/gray nodes and corresponding edges.
+
+        Auto-casts metadata.input_products and metadata.output_products to tuples of strings.
+
+        Why? A common error is to define a one-element tuple like so:
+          > input_products = ("Input Product")
+        but this is actually parsed as a raw string. The correct usage is:
+          > input_products = ("Input Product",)
+        which is unintuitive. Auto-cast here prevents unexpected behavior for developers.
+
+        Args:
+            metadata: UiMetadata object
+        """
 
         display_name = metadata.display_name
 
         # autocast strings to one-element tuples
-        #
-        # a common error is to define a one-element tuple like so:
-        # >>> ("Input Product")
-        # but Python auto-casts this to a raw str
         input_products = metadata.input_products
         if type(input_products) == str:
             input_products = (input_products,)
@@ -101,8 +117,15 @@ class DotGraphGenerator:
 
     def _add_nodes_and_edges(
         self, display_name: str, input_products: Tuple[str], output_products: Tuple[str], parent_plate: str
-    ):
-        """Given clean UI metadata, add blue/gray nodes to the graph."""
+    ) -> None:
+        """Given the sanitized fields of a UiMetadata object, add blue/gray nodes and edges to the graph.
+
+        Args:
+            display_name: string display name (from UiMetadata.display_name)
+            input_products: tuple of string names (from UiMetadata.input_products)
+            output_products: tuple of string names (from UiMetadata.output_products)
+            parent_plate: string name of parent plate (from UiMetadata.parent_plate)
+        """
 
         style = self._style
 
@@ -121,7 +144,7 @@ class DotGraphGenerator:
         for output_product_name in output_products:
             self._graph.add_edge(pydot.Edge(display_name, output_product_name, color=style.arrow_color))
 
-    def save_graph(self, filepath=os.path.join(JS_ROOT, "src", "ui", "dot_graph_output.svg")):
+    def save_graph(self, filepath: str = DEFAULT_GRAPH_VIZ_OUTPUT_PATH) -> None:
         """Save graph to the given filepath."""
 
         # graph must be built first

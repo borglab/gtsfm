@@ -26,6 +26,8 @@ class VerifierBase(GTSFMProcess):
     """
 
     def get_ui_metadata() -> UiMetadata:
+        """Returns data needed to display this process in the process graph. See gtsfm/ui/registry.py for more info."""
+
         return UiMetadata(
             "Verifier",
             ("Keypoints", "Camera Intrinsics", "Matches"),

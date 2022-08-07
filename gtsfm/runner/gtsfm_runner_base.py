@@ -21,7 +21,7 @@ from gtsfm.retriever.rig_retriever import RigRetriever
 from gtsfm.retriever.sequential_hilti_retriever import SequentialHiltiRetriever
 from gtsfm.retriever.sequential_retriever import SequentialRetriever
 
-from gtsfm.ui.dot_graph_generator import DotGraphGenerator
+from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 
 
 logger = logger_utils.get_logger()
@@ -153,8 +153,8 @@ class GtsfmRunnerBase:
         )
 
         # create process graph
-        dot_graph_generator = DotGraphGenerator()
-        dot_graph_generator.save_graph()
+        process_graph_generator = ProcessGraphGenerator()
+        process_graph_generator.save_graph()
 
         pairs_graph = self.retriever.create_computation_graph(self.loader)
         with Client(cluster), performance_report(filename="dask-report.html"):

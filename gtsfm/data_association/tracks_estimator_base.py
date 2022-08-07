@@ -18,6 +18,8 @@ class TracksEstimatorBase(GTSFMProcess):
     """Base class for track estimation."""
 
     def get_ui_metadata() -> UiMetadata:
+        """Returns data needed to display this process in the process graph. See gtsfm/ui/registry.py for more info."""
+
         return UiMetadata("Tracks Estimator", ("Keypoints", "Pairwise Feature Matches"), ("2D Tracks"), "")
 
     @abc.abstractmethod
