@@ -27,7 +27,6 @@ Author: Kevin Fu
 #                   "Display Name"
 #                   ("Input Product 1", "Input Product 2")
 #                   ("Output Product 1", "Output Product 2")
-#                   "Parent Plate"
 #               )
 
 
@@ -77,12 +76,16 @@ class UiMetadata:
     Holds all info needed to display a GTSFMProcess in the process graph (see ProcessGraphGenerator).
 
     frozen=True makes this dataclass immutable and hashable.
+
+    Fields:
+        display_name: string display_name of a GTSFMProcess
+        input_products: tuple of strings representing all products this process consumes
+        output_products: tuple of strings representing all products this process produces
     """
 
     display_name: str
     input_products: Tuple[str]
     output_products: Tuple[str]
-    parent_plate: str
 
 
 class GTSFMProcess(metaclass=AbstractableRegistryHolder):

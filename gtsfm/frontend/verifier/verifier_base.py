@@ -32,7 +32,6 @@ class VerifierBase(GTSFMProcess):
             "Verifier",
             ("Keypoints", "Camera Intrinsics", "Matches"),
             ("Relative Rotations", "Relative Translations", "Correspondences", "Inlier Ratio"),
-            "",
         )
 
     def __init__(

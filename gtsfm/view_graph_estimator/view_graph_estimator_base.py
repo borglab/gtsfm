@@ -46,7 +46,6 @@ class ViewGraphEstimatorBase(GTSFMProcess):
             "View-Graph Estimator",
             ("Relative Rotations", "Relative Translations", "Calibrations", "Correspondences", "Keypoints"),
             ("View-Graph Edges"),
-            "",
         )
 
     @abc.abstractmethod

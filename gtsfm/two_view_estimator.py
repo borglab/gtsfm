@@ -62,7 +62,6 @@ class TwoViewEstimator(GTSFMProcess):
             "Two-View Estimator",
             ("Keypoints", "Correspondences", "Relative Rotations", "Relative Translations", "Relative Pose Priors"),
             ("Optimized Relative Rotations", "Optimized Translations", "Optimized Correspondences"),
-            "",
         )
 
     def __init__(

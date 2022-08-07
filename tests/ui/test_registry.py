@@ -19,7 +19,7 @@ class FakeImageLoader(GTSFMProcess):
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display this process in the process graph. See gtsfm/ui/registry.py for more info."""
 
-        return UiMetadata("FakeImageLoader", ("Raw Images"), ("Internal Data"), "")
+        return UiMetadata("FakeImageLoader", ("Raw Images"), ("Internal Data"))
 
     @property
     def fake_image_dir(self):
@@ -39,7 +39,7 @@ class FakeOutputBase(GTSFMProcess):
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display this process in the process graph. See gtsfm/ui/registry.py for more info."""
 
-        return UiMetadata("FakeOutput", ("Internal Data"), ("GTSFM Output"), "Processor")
+        return UiMetadata("FakeOutput", ("Internal Data"), ("GTSFM Output"))
 
 
 class FakeOutputGTSFM(FakeOutputBase):
@@ -83,7 +83,6 @@ class TestRegistryUtils(unittest.TestCase):
         self.assertEqual(metadata.display_name, "FakeImageLoader")
         self.assertEqual(metadata.input_products, ("Raw Images"))
         self.assertEqual(metadata.output_products, ("Internal Data"))
-        self.assertEqual(metadata.parent_plate, "")
 
     def test_abs_base(self):
         """Test that abstract base classes can have UI metadata."""
@@ -94,7 +93,6 @@ class TestRegistryUtils(unittest.TestCase):
         self.assertEqual(metadata.display_name, "FakeOutput")
         self.assertEqual(metadata.input_products, ("Internal Data"))
         self.assertEqual(metadata.output_products, ("GTSFM Output"))
-        self.assertEqual(metadata.parent_plate, "Processor")
 
         # test that concrete objects work as intended
         concrete_obj = FakeOutputGTSFM()

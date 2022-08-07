@@ -31,7 +31,6 @@ class RotationAveragingBase(GTSFMProcess):
             "Rotation Averaging",
             ("Relative Rotations", "Relative Pose Priors"),
             ("Global Rotations"),
-            "",
         )
 
     # ignored-abstractmethod

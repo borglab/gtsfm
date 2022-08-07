@@ -38,7 +38,6 @@ class ProcessGraphGenerator:
 
         # create empty directed graph
         self._graph = pydot.Dot("my_graph", graph_type="digraph", bgcolor="white")
-        # TODO: fontname seems broken?
 
         # style constants, see http://www.graphviz.org/documentation/
         style_consts = {
@@ -57,10 +56,6 @@ class ProcessGraphGenerator:
 
     def _build_graph(self) -> None:
         """Build graph based on RegistryHolder's REGISTRY."""
-
-        # TODO: remove this
-        print("!\n" * 100)
-        print(RegistryHolder.get_registry())
 
         seen_metadata = set()
         for cls_name, cls_type in RegistryHolder.get_registry().items():
@@ -110,21 +105,16 @@ class ProcessGraphGenerator:
         if type(output_products) == str:
             output_products = (output_products,)
 
-        parent_plate = metadata.parent_plate
-
         # add cleaned-up metadata to graph
-        self._add_nodes_and_edges(display_name, input_products, output_products, parent_plate)
+        self._add_nodes_and_edges(display_name, input_products, output_products)
 
-    def _add_nodes_and_edges(
-        self, display_name: str, input_products: Tuple[str], output_products: Tuple[str], parent_plate: str
-    ) -> None:
+    def _add_nodes_and_edges(self, display_name: str, input_products: Tuple[str], output_products: Tuple[str]) -> None:
         """Given the sanitized fields of a UiMetadata object, add blue/gray nodes and edges to the graph.
 
         Args:
             display_name: string display name (from UiMetadata.display_name)
             input_products: tuple of string names (from UiMetadata.input_products)
             output_products: tuple of string names (from UiMetadata.output_products)
-            parent_plate: string name of parent plate (from UiMetadata.parent_plate)
         """
 
         style = self._style

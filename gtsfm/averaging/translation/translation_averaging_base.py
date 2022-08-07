@@ -34,7 +34,6 @@ class TranslationAveragingBase(GTSFMProcess):
                 "Ground Truth Poses",
             ),
             ("Global Translations"),
-            "",
         )
 
     def __init__(self, robust_measurement_noise: bool = True) -> None:
