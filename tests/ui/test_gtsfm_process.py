@@ -74,7 +74,7 @@ class TestRegistryUtils(unittest.TestCase):
 
         for cls_name, cls_type in expected_result.items():
             self.assertTrue(cls_name in registry)
-            self.assertEqual(registry[cls_name], cls_type)
+            self.assertTrue(type(registry[cls_name]) is type(cls_type))
 
     def test_basic(self):
         """Test basic storing of UI metadata."""
