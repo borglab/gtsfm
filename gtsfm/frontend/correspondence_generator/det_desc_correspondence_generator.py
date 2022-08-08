@@ -41,15 +41,16 @@ class QuadraticDetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
 
         Return:
             delayed_keypoints: list of keypoints, for each image.
-            delayed_putative_corr_idxs_dict dictionary of putative correspondence indices, per image pair.
+            delayed_putative_corr_idxs_dict: mapping from image pair (i1,i2) to putative correspondence indices.
+              Correspondence indices are represented by an array of shape (K,2), for K correspondences.
         """
         # detection and description graph
         delayed_keypoints = []
         delayed_descriptors = []
         for delayed_image in image_graph:
             (delayed_dets, delayed_descs) = self._feature_extractor.create_computation_graph(delayed_image)
-            delayed_keypoints += [delayed_dets]
-            delayed_descriptors += [delayed_descs]
+            delayed_keypoints.append(delayed_dets)
+            delayed_descriptors.append(delayed_descs)
 
         delayed_putative_corr_idxs_dict: Dict[Tuple[int, int], Delayed] = {}
         for (i1, i2) in image_pair_indices:
