@@ -1,4 +1,4 @@
-"""
+"""Base class for keypoint aggregators.
 
 Authors: John Lambert
 """
@@ -13,15 +13,19 @@ from gtsfm.common.keypoints import Keypoints
 
 
 class KeypointAggregatorBase:
+    """Base class for keypoint aggregators."""
+
     @abc.abstractmethod
     def run(self, keypoints_dict: Dict[Tuple[int, int], Tuple[Keypoints, Keypoints]]) -> List[Optional[Keypoints]]:
-        """
+        """Aggregates per-pair image keypoints into a set of keypoints per image, without de-duplication.
+
         Args:
             keypoints_dict: (i1,i2) maps to (keypoints_i1, keypoints_i2) representing matches (correspondences).
 
         Returns:
             keypoints_list: list of N Keypoints objects for N images.
-            putative_corr_idxs_dict: putative correspondence indices (K,2) for each image pair (i1,i2).
+            putative_corr_idxs_dict: mapping from image pair (i1,i2) to putative correspondence indices.
+              Correspondence indices are represented by an array of shape (K,2), for K correspondences.
         """
 
     def create_computation_graph(
