@@ -57,10 +57,11 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
             unique_keypoints_i1_coordinates = []
 
             for k1, uv1 in enumerate(keypoints_i1.coordinates):
-                is_identical1 = np.any(np.linalg.norm(per_image_kpt_coordinates[i1] - uv1, axis=1) == 0)
+                diff_norms = np.linalg.norm(per_image_kpt_coordinates[i1] - uv1, axis=1)
+                is_identical1 = np.any(diff_norms == 0)
                 if len(per_image_kpt_coordinates[i1]) > 0 and is_identical1:
                     duplicates_found += 1
-                    i1_indices[k1] = np.argmin(np.linalg.norm(per_image_kpt_coordinates[i1] - uv1, axis=1))
+                    i1_indices[k1] = np.argmin(diff_norms)
                 else:
                     i1_indices[k1] = i1_count
                     i1_count += 1
@@ -71,11 +72,11 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
             unique_keypoints_i2_coordinates = []
 
             for k2, uv2 in enumerate(keypoints_i2.coordinates):
-                is_identical2 = np.any(np.linalg.norm(per_image_kpt_coordinates[i2] - uv2, axis=1) == 0)
-
+                diff_norms = np.linalg.norm(per_image_kpt_coordinates[i2] - uv2, axis=1)
+                is_identical2 = np.any(diff_norms == 0)
                 if len(per_image_kpt_coordinates[i2]) > 0 and is_identical2:
                     duplicates_found += 1
-                    i2_indices[k2] = np.argmin(np.linalg.norm(per_image_kpt_coordinates[i2] - uv2, axis=1))
+                    i2_indices[k2] = np.argmin(diff_norms)
                 else:
                     i2_indices[k2] = i2_count
                     i2_count += 1
