@@ -24,7 +24,8 @@ class KeypointAggregatorUnique(KeypointAggregatorBase):
 
         Returns:
             keypoints_list: list of N Keypoints objects for N images.
-            putative_corr_idxs_dict: putative correspondence indices (K,2) for each image pair (i1,i2).
+            putative_corr_idxs_dict: mapping from image pair (i1,i2) to putative correspondence indices.
+              Correspondence indices are represented by an array of shape (K,2), for K correspondences.
         """
         image_indices = set()
         for (i1, i2) in keypoints_dict.keys():
