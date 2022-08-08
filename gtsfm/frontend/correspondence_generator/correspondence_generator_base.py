@@ -13,7 +13,7 @@ from gtsfm.common.keypoints import Keypoints
 
 
 class CorrespondenceGeneratorBase:
-    """ """
+    """Base class for correspondence generators."""
 
     @abc.abstractmethod
     def create_computation_graph(
@@ -31,5 +31,6 @@ class CorrespondenceGeneratorBase:
 
         Return:
             delayed_keypoints: list of keypoints, for each image.
-            delayed_putative_corr_idxs_dict dictionary of putative correspondence indices, per image pair.
+            delayed_putative_corr_idxs_dict: mapping from image pair (i1,i2) to putative correspondence indices.
+              Correspondence indices are represented by an array of shape (K,2), for K correspondences.
         """
