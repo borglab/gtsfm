@@ -20,17 +20,17 @@ from gtsfm.frontend.matcher.image_matcher_base import ImageMatcherBase
 
 
 class QuadraticImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
-    """Pair-wise direct matching of images (e.g. LoFTR)."""
+    """Pair-wise direct matching of images (e.g. transformer-based)."""
 
-    def __init__(self, matcher: ImageMatcherBase, use_dedup: bool = True) -> None:
+    def __init__(self, matcher: ImageMatcherBase, deduplicate: bool = True) -> None:
         """
         Args:
             matcher: matcher to use.
-            use_dedup: whether to de-duplicate with a single image the detections received from each image pair.
+            deduplicate: whether to de-duplicate with a single image the detections received from each image pair.
         """
         self._matcher = matcher
 
-        if use_dedup:
+        if deduplicate:
             self._aggregator = KeypointAggregatorDedup()
         else:
             self._aggregator = KeypointAggregatorUnique()
@@ -50,7 +50,8 @@ class QuadraticImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
 
         Return:
             delayed_keypoints: list of keypoints, for each image.
-            delayed_putative_corr_idxs_dict dictionary of putative correspondence indices, per image pair.
+            delayed_putative_corr_idxs_dict: mapping from image pair (i1,i2) to putative correspondence indices.
+              Correspondence indices are represented by an array of shape (K,2), for K correspondences.
         """
         delayed_keypoints_dict = {}
         delayed_putative_corr_idxs_dict = {}
