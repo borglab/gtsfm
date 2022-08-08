@@ -27,7 +27,8 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
 
         Returns:
             keypoints_list: list of N Keypoints objects for N images.
-            putative_corr_idxs_dict: putative correspondence indices (K,2) for each image pair (i1,i2).
+            putative_corr_idxs_dict: mapping from image pair (i1,i2) to putative correspondence indices.
+              Correspondence indices are represented by an array of shape (K,2), for K correspondences.
         """
         image_indices = set()
         for (i1, i2) in keypoints_dict.keys():
@@ -63,7 +64,7 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
                 else:
                     i1_indices[k1] = i1_count
                     i1_count += 1
-                    unique_keypoints_i1_coordinates += [uv1]
+                    unique_keypoints_i1_coordinates.append(uv1)
 
             i2_count = N2
             i2_indices = np.zeros(N_to_add)
@@ -78,7 +79,7 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
                 else:
                     i2_indices[k2] = i2_count
                     i2_count += 1
-                    unique_keypoints_i2_coordinates += [uv2]
+                    unique_keypoints_i2_coordinates.append(uv2)
 
             unique_keypoints_i1_coordinates = np.array(unique_keypoints_i1_coordinates)
             unique_keypoints_i2_coordinates = np.array(unique_keypoints_i2_coordinates)
@@ -97,11 +98,8 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
 
         logger.info(f"Merged {duplicates_found} duplicates during de-duplication.")
 
-        keypoints_list = []
-        for i in range(max_img_idx + 1):
-            if i not in per_image_kpt_coordinates:
-                keypoints_list += [None]
-                continue
-            keypoints_list += [Keypoints(coordinates=per_image_kpt_coordinates[i])]
+        keypoints_list = [None] * (max_img_idx + 1)
+        for i in per_image_kpt_coordinates.keys():
+            keypoints_list[i] = Keypoints(coordinates=per_image_kpt_coordinates[i])
 
         return keypoints_list, putative_corr_idxs_dict
