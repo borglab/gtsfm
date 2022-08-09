@@ -9,7 +9,7 @@ from dask.delayed import Delayed
 import numpy as np
 
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.frontend.correspondence_generator.correspondence_generator.base import CorrespondenceGeneratorBase
+from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_dedup import (
     KeypointAggregatorDedup,
 )
