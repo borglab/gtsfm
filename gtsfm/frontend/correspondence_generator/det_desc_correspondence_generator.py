@@ -10,7 +10,7 @@ import numpy as np
 
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.feature_extractor import FeatureExtractor
-from gtsfm.frontend.correspondence_generator.correspondence_generator.base import CorrespondenceGeneratorBase
+from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
 
 
