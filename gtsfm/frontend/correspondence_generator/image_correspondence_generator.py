@@ -37,14 +37,14 @@ class QuadraticImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
 
     def create_computation_graph(
         self,
-        image_graph: List[Delayed],
+        delayed_images: List[Delayed],
         image_shapes: List[Tuple[int, int]],
         image_pair_indices: List[Tuple[int, int]],
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Create Dask computation graph for correspondence generation.
 
         Args:
-            image_graph: list of N images.
+            delayed_images: list of N images.
             image_shapes: list of N image shapes, as tuples (height,width) in pixels.
             image_pair_indices: list of image pairs, each represented by a tuple (i1,i2).
 
@@ -57,7 +57,9 @@ class QuadraticImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
         delayed_putative_corr_idxs_dict = {}
 
         for (i1, i2) in image_pair_indices:
-            delayed_dets_i1, delayed_dets_i2 = self._matcher.create_computation_graph(image_graph[i1], image_graph[i2])
+            delayed_dets_i1, delayed_dets_i2 = self._matcher.create_computation_graph(
+                delayed_images[i1], delayed_images[i2]
+            )
             delayed_keypoints_dict[i1, i2] = (delayed_dets_i1, delayed_dets_i2)
 
         # combine the keypoints into massive arrays, aggregated from over all pairs.
