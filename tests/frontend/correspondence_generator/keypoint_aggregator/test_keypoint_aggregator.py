@@ -2,9 +2,10 @@
 
 Author: John Lambert
 """
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Union
 
 import numpy as np
+import pytest
 
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_dedup import (
@@ -15,7 +16,10 @@ from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggreg
 )
 
 
-def test_keypoint_aggregator_unique_keypoints() -> None:
+@pytest.mark.parametrize("aggregator", [KeypointAggregatorUnique(), KeypointAggregatorDedup()])
+def test_keypoint_aggregator_unique_keypoints(
+    aggregator: Union[KeypointAggregatorDedup, KeypointAggregatorUnique]
+) -> None:
     """Ensure aggregation works over 3 images, without duplicate keypoints in the same image from separate pairs.
 
     Image 0 <-> Image 1
@@ -33,7 +37,6 @@ def test_keypoint_aggregator_unique_keypoints() -> None:
         (0, 2): (Keypoints(coordinates=np.array([[0, 2]])), Keypoints(coordinates=np.array([[3, 3]]))),
     }
 
-    aggregator = KeypointAggregatorUnique()
     keypoints_list, putative_corr_idxs_dict = aggregator.run(keypoints_dict)
 
     assert len(keypoints_list) == 3
