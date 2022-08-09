@@ -28,12 +28,12 @@ CONFIDENCE_KEY = "confidence"
 class LOFTR(ImageMatcherBase):
     """LOFTR image matcher."""
 
-    def __init__(self, use_outdoor_model: bool = True, use_cuda: bool = False, min_confidence: float = 0.95) -> None:
+    def __init__(self, use_outdoor_model: bool = True, use_cuda: bool = True, min_confidence: float = 0.95) -> None:
         """Initialize the matcher.
 
         Args:
             use_outdoor_model (optional): use the outdoor pretrained model. Defaults to True.
-            use_cuda (optional): use CUDA for inference on GPU. Defaults to False.
+            use_cuda (optional): use CUDA for inference on GPU. Defaults to True.
             min_confidence(optional): Minimum confidence required for matches. Defaults to 0.95.
         """
         super().__init__()
@@ -54,7 +54,7 @@ class LOFTR(ImageMatcherBase):
             Keypoints from image 1 (N keypoints will exist).
             Corresponding keypoints from image 2 (there will also be N keypoints). These represent feature matches.
         """
-        device = torch.device("cuda" if self._use_cuda else "cpu")
+        device = torch.device("cuda" if (self._use_cuda and torch.cuda.is_available()) else "cpu")
 
         matcher = LoFTRKornia(pretrained=self._model_type).to(device).eval()
 
@@ -63,14 +63,14 @@ class LOFTR(ImageMatcherBase):
 
         coordinates_i1 = correspondences_dict[KEYPOINTS_I1_COORDINATES_KEY].cpu().numpy()
         coordinates_i2 = correspondences_dict[KEYPOINTS_I2_COORDINATES_KEY].cpu().numpy()
-        match_confidence = correspondences_dict[CONFIDENCE_KEY]
+        match_confidence = correspondences_dict[CONFIDENCE_KEY].cpu().numpy()
 
-        coordinates_ordered_by_confidence = self.__sort_and_filter_by_confidence(
+        coords_i1_by_confidence, coords_i2_by_confidence = self.__sort_and_filter_by_confidence(
             coordinates_i1, coordinates_i2, match_confidence
         )
 
-        keypoints_i1 = Keypoints(coordinates=coordinates_ordered_by_confidence[0])
-        keypoints_i2 = Keypoints(coordinates=coordinates_ordered_by_confidence[1])
+        keypoints_i1 = Keypoints(coordinates=coords_i1_by_confidence)
+        keypoints_i2 = Keypoints(coordinates=coords_i2_by_confidence)
 
         return keypoints_i1, keypoints_i2
 
@@ -81,7 +81,6 @@ class LOFTR(ImageMatcherBase):
         sorted_confs = match_confidence[idxs]
 
         num_vals_greater_than_threshold = (sorted_confs > self._min_confidence).sum()
-
         idxs = idxs[:num_vals_greater_than_threshold]
 
         return coordinates_i1[idxs], coordinates_i2[idxs]
