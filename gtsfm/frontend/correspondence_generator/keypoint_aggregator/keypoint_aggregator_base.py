@@ -34,11 +34,12 @@ class KeypointAggregatorBase:
         """Create Dask graph for keypoint aggregation from direct image feature matchers.
 
         Args:
-            keypoints_dict: key (i1,i2) maps to (keypoints_i1, keypoints_i2) representing matches (correspondences).
+            delayed_keypoints_dict: key (i1,i2) maps to (keypoints_i1, keypoints_i2) representing matches
+                (correspondences).
 
         Returns:
-            keypoints_list: list of N delayed tasks, each yielding a Keypoints object for one of the N images.
-            putative_corr_idxs_dict: dictionary of delayed tasks. Each task evaluates to putative correspondence
+            List of N delayed tasks, each yielding a Keypoints object for one of the N images.
+            Dictionary of delayed tasks, each of which evaluates to putative correspondence
                 indices (K,2) for each image pair (i1,i2).
         """
         return dask.delayed(self.run, nout=2)(delayed_keypoints_dict)
