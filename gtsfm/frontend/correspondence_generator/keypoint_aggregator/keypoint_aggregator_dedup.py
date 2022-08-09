@@ -23,7 +23,7 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
         Keypoints are computed per image pair, instead of per image, so they are aggregated per image here.
 
         Args:
-            keypoints_dict: (i1,i2) maps to (keypoints_i1, keypoints_i2) representing matches (correspondences).
+            keypoints_dict: key (i1,i2) maps to (keypoints_i1, keypoints_i2) representing matches (correspondences).
 
         Returns:
             keypoints_list: list of N Keypoints objects for N images.
