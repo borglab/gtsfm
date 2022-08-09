@@ -30,7 +30,8 @@ class CorrespondenceGeneratorBase:
             image_pair_indices: list of image pairs, each represented by a tuple (i1,i2).
 
         Return:
-            delayed_keypoints: list of keypoints, for each image.
-            delayed_putative_corr_idxs_dict: mapping from image pair (i1,i2) to putative correspondence indices.
-              Correspondence indices are represented by an array of shape (K,2), for K correspondences.
+            delayed_keypoints: list of delayed tasks, each yielding Keypoints in one image.
+            delayed_putative_corr_idxs_dict: mapping from image pair (i1,i2) to delayed task to compute
+                putative correspondence indices. Correspondence indices are represented by an array of
+                shape (K,2), for K correspondences.
         """
