@@ -28,14 +28,14 @@ class QuadraticDetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
 
     def create_computation_graph(
         self,
-        image_graph: List[Delayed],
+        delayed_images: List[Delayed],
         image_shapes: List[Tuple[int, int]],
         image_pair_indices: List[Tuple[int, int]],
     ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Create Dask computation graph for correspondence generation.
 
         Args:
-            image_graph: list of N images.
+            delayed_images: list of N images.
             image_shapes: list of N image shapes, as tuples (height,width) in pixels.
             image_pair_indices: list of image pairs, each represented by a tuple (i1,i2).
 
@@ -44,17 +44,17 @@ class QuadraticDetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
             delayed_putative_corr_idxs_dict: mapping from image pair (i1,i2) to putative correspondence indices.
               Correspondence indices are represented by an array of shape (K,2), for K correspondences.
         """
-        # detection and description graph
+        # Detection and description graph.
         delayed_keypoints = []
         delayed_descriptors = []
-        for delayed_image in image_graph:
+        for delayed_image in delayed_images:
             (delayed_dets, delayed_descs) = self._feature_extractor.create_computation_graph(delayed_image)
             delayed_keypoints.append(delayed_dets)
             delayed_descriptors.append(delayed_descs)
 
         delayed_putative_corr_idxs_dict: Dict[Tuple[int, int], Delayed] = {}
         for (i1, i2) in image_pair_indices:
-            # graph for matching to obtain putative correspondences
+            # Graph for matching to obtain putative correspondences.
             delayed_putative_corr_idxs_dict[i1, i2] = self._matcher.create_computation_graph(
                 keypoints_i1_graph=delayed_keypoints[i1],
                 keypoints_i2_graph=delayed_keypoints[i2],
