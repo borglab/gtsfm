@@ -17,6 +17,51 @@ logger = logger_utils.get_logger()
 class KeypointAggregatorDedup(KeypointAggregatorBase):
     """Keypoint aggregator with de-duplication."""
 
+    def __init__(self) -> None:
+        """Initialize global variables"""
+        self.duplicates_found = 0
+
+    def append_unique_keypoints(
+        self, i: int, keypoints: Keypoints, per_image_kpt_coordinates: Dict[Tuple[int, int], np.ndarray]
+    ) -> Tuple[Dict[Tuple[int, int], np.ndarray], np.ndarray]:
+        """Identify unique keypoints, and append them to running list of global keypoints per image.
+
+        If duplicate keypoints are found, the index of the previously existing keypoint is recorded.
+
+        Args:
+           i: image frame index.
+           keypoints: keypoints detected in single image, from direct image pair feature matching.
+           per_image_kpt_coordinates: running list of global keypoints, per image.
+
+        Returns:
+            per_image_kpt_coordinates: running list of global keypoints, per image.
+            i_indices: single column of putative correspondence indices, for pair. These represent indices
+                into the global table of keypoints per image.
+        """
+        N_to_add = keypoints.coordinates.shape[0]
+        i_indices = np.zeros(N_to_add)
+        i_count = per_image_kpt_coordinates[i].shape[0]
+        unique_keypoints_i_coordinates = []
+
+        for k, uv in enumerate(keypoints.coordinates):
+            diff_norms = np.linalg.norm(per_image_kpt_coordinates[i] - uv, axis=1)
+            is_identical = np.any(diff_norms == 0)
+            if len(per_image_kpt_coordinates[i]) > 0 and is_identical:
+                self.duplicates_found += 1
+                i_indices[k] = np.argmin(diff_norms)
+            else:
+                i_indices[k] = i_count
+                i_count += 1
+                unique_keypoints_i_coordinates.append(uv)
+
+        unique_keypoints_i_coordinates = np.array(unique_keypoints_i_coordinates)
+
+        if len(unique_keypoints_i_coordinates) == 0:
+            unique_keypoints_i_coordinates = np.zeros((0, 2))
+
+        per_image_kpt_coordinates[i] = np.vstack([per_image_kpt_coordinates[i], unique_keypoints_i_coordinates])
+        return per_image_kpt_coordinates, np.array(i_indices)
+
     def run(self, keypoints_dict: Dict[Tuple[int, int], Tuple[Keypoints, Keypoints]]) -> List[Optional[Keypoints]]:
         """Aggregates per-pair image keypoints into a set of keypoints per image, with de-duplication.
 
@@ -36,7 +81,6 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
             image_indices.add(i2)
 
         max_img_idx = max(image_indices)
-        duplicates_found = 0
 
         putative_corr_idxs_dict = {}
         per_image_kpt_coordinates = {i: np.zeros((0, 2)) for i in image_indices}
@@ -46,58 +90,18 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
         # Have to merge keypoints across different views here (or turn off transitivity check).
 
         for (i1, i2), (keypoints_i1, keypoints_i2) in keypoints_dict.items():
-            # both keypoints_i1 and keypoints_i2 have the same shape
-            N_to_add = keypoints_i1.coordinates.shape[0]
-
-            N1 = per_image_kpt_coordinates[i1].shape[0]
-            N2 = per_image_kpt_coordinates[i2].shape[0]
-
-            i1_count = N1
-            i1_indices = np.zeros(N_to_add)
-            unique_keypoints_i1_coordinates = []
-
-            for k1, uv1 in enumerate(keypoints_i1.coordinates):
-                diff_norms = np.linalg.norm(per_image_kpt_coordinates[i1] - uv1, axis=1)
-                is_identical1 = np.any(diff_norms == 0)
-                if len(per_image_kpt_coordinates[i1]) > 0 and is_identical1:
-                    duplicates_found += 1
-                    i1_indices[k1] = np.argmin(diff_norms)
-                else:
-                    i1_indices[k1] = i1_count
-                    i1_count += 1
-                    unique_keypoints_i1_coordinates.append(uv1)
-
-            i2_count = N2
-            i2_indices = np.zeros(N_to_add)
-            unique_keypoints_i2_coordinates = []
-
-            for k2, uv2 in enumerate(keypoints_i2.coordinates):
-                diff_norms = np.linalg.norm(per_image_kpt_coordinates[i2] - uv2, axis=1)
-                is_identical2 = np.any(diff_norms == 0)
-                if len(per_image_kpt_coordinates[i2]) > 0 and is_identical2:
-                    duplicates_found += 1
-                    i2_indices[k2] = np.argmin(diff_norms)
-                else:
-                    i2_indices[k2] = i2_count
-                    i2_count += 1
-                    unique_keypoints_i2_coordinates.append(uv2)
-
-            unique_keypoints_i1_coordinates = np.array(unique_keypoints_i1_coordinates)
-            unique_keypoints_i2_coordinates = np.array(unique_keypoints_i2_coordinates)
-
-            if len(unique_keypoints_i1_coordinates) == 0:
-                unique_keypoints_i1_coordinates = np.zeros((0, 2))
-
-            if len(unique_keypoints_i2_coordinates) == 0:
-                unique_keypoints_i2_coordinates = np.zeros((0, 2))
-
-            per_image_kpt_coordinates[i1] = np.vstack([per_image_kpt_coordinates[i1], unique_keypoints_i1_coordinates])
-            per_image_kpt_coordinates[i2] = np.vstack([per_image_kpt_coordinates[i2], unique_keypoints_i2_coordinates])
-
-            putative_corr_idxs = np.stack([np.array(i1_indices), np.array(i2_indices)], axis=-1).astype(np.uint16)
+            per_image_kpt_coordinates, i1_indices = self.append_unique_keypoints(
+                i=i1, keypoints=keypoints_i1, per_image_kpt_coordinates=per_image_kpt_coordinates
+            )
+            per_image_kpt_coordinates, i2_indices = self.append_unique_keypoints(
+                i=i2, keypoints=keypoints_i2, per_image_kpt_coordinates=per_image_kpt_coordinates
+            )
+            putative_corr_idxs = np.stack([i1_indices, i2_indices], axis=-1).astype(np.uint16)
             putative_corr_idxs_dict[(i1, i2)] = putative_corr_idxs
 
-        logger.info(f"Merged {duplicates_found} duplicates during de-duplication.")
+        logger.info(f"Merged {self.duplicates_found} duplicates during de-duplication.")
+        # Reset global state.
+        self.duplicates_found = 0
 
         keypoints_list = [None] * (max_img_idx + 1)
         for i in per_image_kpt_coordinates.keys():
