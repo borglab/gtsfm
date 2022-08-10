@@ -45,6 +45,7 @@ class KeypointAggregatorDedup(KeypointAggregatorBase):
 
         for k, uv in enumerate(keypoints.coordinates):
             diff_norms = np.linalg.norm(per_image_kpt_coordinates[i] - uv, axis=1)
+            # TODO(johnwlambert,ayushbaid): test loosening threshold below to some epsilon.
             is_identical = np.any(diff_norms == 0)
             if len(per_image_kpt_coordinates[i]) > 0 and is_identical:
                 self.duplicates_found += 1
