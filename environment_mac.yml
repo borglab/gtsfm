@@ -37,11 +37,14 @@ dependencies:
   # 3rd party algorithms for different modules
   - pytorch
   - torchvision
+  - kornia
   # io
   - h5py
   - plotly=4.14.3
   - tabulate
   - simplejson
+  # testing
+  - parameterized
   - pip:
     - open3d
     - opencv-python>=4.5.4.58 # pypi has a more recent distribution than conda-forge
