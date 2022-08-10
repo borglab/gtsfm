@@ -12,7 +12,7 @@ from gtsfm.frontend.correspondence_generator.correspondence_generator_base impor
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
 
 
-class QuadraticDetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
+class DetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
     """Traditional pair-wise matching of descriptors."""
 
     def __init__(self, matcher: MatcherBase, feature_extractor: FeatureExtractor):
