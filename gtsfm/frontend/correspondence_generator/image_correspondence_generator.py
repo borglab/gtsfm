@@ -17,7 +17,7 @@ from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggreg
 from gtsfm.frontend.matcher.image_matcher_base import ImageMatcherBase
 
 
-class QuadraticImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
+class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
     """Pair-wise direct matching of images (e.g. transformer-based)."""
 
     def __init__(self, matcher: ImageMatcherBase, deduplicate: bool = True) -> None:
