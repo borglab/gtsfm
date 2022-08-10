@@ -17,7 +17,7 @@ class KeypointAggregatorBase:
 
     @abc.abstractmethod
     def run(self, keypoints_dict: Dict[Tuple[int, int], Tuple[Keypoints, Keypoints]]) -> List[Optional[Keypoints]]:
-        """Aggregates per-pair image keypoints into a set of keypoints per image, without de-duplication.
+        """Aggregates per-pair image keypoints into a set of keypoints per image.
 
         Args:
             keypoints_dict: (i1,i2) maps to (keypoints_i1, keypoints_i2) representing matches (correspondences).
