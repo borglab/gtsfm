@@ -6,9 +6,7 @@ Authors: John Lambert
 from typing import Dict, List, Tuple
 
 from dask.delayed import Delayed
-import numpy as np
 
-from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_dedup import (
     KeypointAggregatorDedup,
@@ -40,7 +38,7 @@ class QuadraticImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
         delayed_images: List[Delayed],
         image_shapes: List[Tuple[int, int]],
         image_pair_indices: List[Tuple[int, int]],
-    ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
+    ) -> Tuple[List[Delayed], Dict[Tuple[int, int], Delayed]]:
         """Create Dask computation graph for correspondence generation.
 
         Args:
