@@ -43,7 +43,7 @@ class InlierSupportProcessor:
         v_corr_idxs: np.ndarray,
         two_view_report: TwoViewEstimationReport,
     ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, Optional[TwoViewEstimationReport]]:
-        """Check for sufficient support among correspondences to estimate a trustworthy relative pose for this image pair.
+        """Checks for sufficient support among correspondences to estimate a trustworthy relative pose for image pair.
 
         We don't modify the report (to stay functional), but report InlierSupportProcessor metrics separately.
 
