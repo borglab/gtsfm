@@ -92,7 +92,7 @@ class SceneOptimizer:
         self._create_output_directories()
 
     def _create_output_directories(self) -> None:
-        """ """
+        """Create various output directories for GTSFM results, metrics, and plots."""
         # base paths for storage
         self._plot_base_path = self.output_root / "plots"
         self._metrics_path = self.output_root / "result_metrics"
