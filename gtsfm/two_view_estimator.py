@@ -61,7 +61,7 @@ class TwoViewEstimator:
         bundle_adjust_2view_maxiters: int = 100,
         ba_reproj_error_thresh: float = 0.5,
     ) -> None:
-        """Initializes the two-view estimator from matcher and verifier.
+        """Initializes the two-view estimator from verifier.
 
         Args:
             verifier: verifier to use.
@@ -257,7 +257,7 @@ class TwoViewEstimator:
         gt_wTi2: Optional[Pose3],
         gt_scene_mesh: Optional[Any] = None,
     ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, Dict[str, Optional[TwoViewEstimationReport]]]:
-        """ """
+        """Estimate relative pose between two views, using verification."""
         # verification on putative correspondences to obtain relative pose and verified correspondences\
         (pre_ba_i2Ri1, pre_ba_i2Ui1, verified_corr_idxs, inlier_ratio_wrt_estimate) = self._verifier.verify(
             keypoints_i1,
@@ -363,7 +363,7 @@ class TwoViewEstimator:
         gt_wTi2: Optional[Pose3] = None,
         gt_scene_mesh_graph: Optional[Delayed] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, Delayed]:
-        """Create delayed tasks for matching and verification.
+        """Create delayed tasks for two view geometry estimation, using verification.
 
         Args:
             keypoints_i1_graph: keypoints for image i1.
