@@ -1,6 +1,6 @@
-"""Tests for frontend's DoG detector class.
+"""Tests for frontend's keypoint aggregator that does NOT de-duplicate detections from each pair within each image.
 
-Authors: Ayush Baid
+Authors: John Lambert
 """
 import unittest
 
