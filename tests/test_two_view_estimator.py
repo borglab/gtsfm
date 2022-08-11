@@ -56,7 +56,7 @@ class TestTwoViewEstimator(unittest.TestCase):
     def test_bundle_adjust(self):
         """Tests the bundle adjustment for relative pose on a simulated scene."""
         two_view_estimator = TwoViewEstimator(
-            matcher=None, verifier=None, inlier_support_processor=None, bundle_adjust_2view=True, eval_threshold_px=4
+            verifier=None, inlier_support_processor=None, bundle_adjust_2view=True, eval_threshold_px=4
         )
 
         # Extract example poses.
