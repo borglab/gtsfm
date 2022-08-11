@@ -7,7 +7,7 @@ CorrespondenceGenerator:
     detector_descriptor:
       _target_: gtsfm.frontend.cacher.detector_descriptor_cacher.DetectorDescriptorCacher
       detector_descriptor_obj:
-        _target_: gtsfm.frontend.detector_descriptor.sift.SIFTDetectorDescriptor
+        _target_: gtsfm.frontend.detector_descriptor.brisk.BRISKDetectorDescriptor
         max_keypoints: 5000
 
   matcher:
