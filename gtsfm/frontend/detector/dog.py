@@ -38,6 +38,6 @@ class DoG(DetectorBase):
         keypoints = feature_utils.cast_to_gtsfm_keypoints(cv_keypoints)
 
         # limit number of keypoints
-        keypoints, _ = keypoints.get_top_k(self.max_keypoints)
+        keypoints, _ = keypoints.get_top_k_by_scale(self.max_keypoints)
 
         return keypoints

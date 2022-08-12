@@ -109,6 +109,29 @@ class Keypoints:
 
         return self.extract_indices(selection_idxs), selection_idxs
 
+    def get_top_k_by_scale(self, k: int) -> Tuple["Keypoints", np.ndarray]:
+        """Returns the top keypoints by their scale values (or just the values from the front in case of missing
+        responses.)
+
+        If k keypoints are requested, and only n < k are available, then returning n keypoints is the expected behavior.
+
+        Args:
+            k: max number of keypoints to return.
+
+        Returns:
+            subset of current keypoints.
+        """
+        if k >= len(self):
+            return copy.deepcopy(self), np.arange(self.__len__())
+
+        if self.scales is None:
+            selection_idxs = np.arange(k, dtype=np.uint32)
+        else:
+            # select the values with top response values
+            selection_idxs = np.argpartition(-self.scales, k)[:k]
+
+        return self.extract_indices(selection_idxs), selection_idxs
+
     def filter_by_mask(self, mask: np.ndarray) -> Tuple["Keypoints", np.ndarray]:
         """Filter features with respect to a binary mask of the image.
 
