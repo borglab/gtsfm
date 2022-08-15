@@ -24,7 +24,7 @@ import thirdparty.colmap.scripts.python.read_write_model as colmap_io
 logger = logger_utils.get_logger()
 
 
-class AstronetLoader(LoaderBase):
+class AstrovisionLoader(LoaderBase):
     """Loader class that reads an AstroVision data segment.
 
     Refs:
