@@ -11,16 +11,9 @@ import numpy as np
 from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.common.keypoints import Keypoints
 
-from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
-
-class TracksEstimatorBase(GTSFMProcess):
+class TracksEstimatorBase(metaclass=abc.ABCMeta):
     """Base class for track estimation."""
-
-    def get_ui_metadata() -> UiMetadata:
-        """Returns data needed to display this process in the process graph."""
-
-        return UiMetadata("Tracks Estimator", "", ("Keypoints", "Pairwise Feature Matches"), ("2D Tracks"))
 
     @abc.abstractmethod
     def run(self, matches_dict: Dict[Tuple[int, int], np.ndarray], keypoints_list: List[Keypoints]) -> List[SfmTrack2d]:

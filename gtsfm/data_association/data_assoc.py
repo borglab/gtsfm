@@ -11,7 +11,7 @@ Authors: Sushmita Warrier, Xiaolong Wu, John Lambert
 """
 import os
 from collections import Counter
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import dask
 import numpy as np
@@ -30,11 +30,14 @@ from gtsfm.common.image import Image
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 import gtsfm.utils.io as io_utils
+from dataclasses import dataclass
+from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 logger = logger_utils.get_logger()
 
 
-class DataAssociation(NamedTuple):
+@dataclass(frozen=True)
+class DataAssociation(GTSFMProcess):
     """Class to form feature tracks; for each track, call LandmarkInitializer.
 
     Args:
@@ -47,6 +50,16 @@ class DataAssociation(NamedTuple):
     min_track_len: int
     triangulation_options: TriangulationOptions
     save_track_patches_viz: Optional[bool] = False
+
+    def get_ui_metadata() -> UiMetadata:
+        """Returns data needed to display this process in the process graph."""
+
+        return UiMetadata(
+            "Data Association",
+            "Multi-View Optimizer",
+            ("View-Graph Correspondences", "Global Rotations", "Global Translations", "Camera Intrinsics"),
+            ("3D Tracks"),
+        )
 
     def __validate_track(self, sfm_track: Optional[SfmTrack]) -> bool:
         """Validate the track by checking its length."""

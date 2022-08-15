@@ -16,15 +16,28 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.common.pose_prior import PosePrior
 
+from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
+
 
 logger = logger_utils.get_logger()
 
 
-class LoaderBase(metaclass=abc.ABCMeta):
+class LoaderBase(GTSFMProcess):
     """Base class for Loaders.
 
     The loader provides APIs to get an image, either directly or as a dask delayed task
     """
+
+    def get_ui_metadata() -> UiMetadata:
+        """Returns data needed to display this process in the process graph."""
+
+        # based on gtsfm/runner/gtsfm_runner_base.py
+        return UiMetadata(
+            "Image Loader",
+            "",
+            ("Source Directory"),
+            ("Images", "Camera Intrinsics", "Image Shapes", "Relative Pose Priors", "Absolute Pose Priors"),
+        )
 
     def __init__(self, max_resolution: int = 1080) -> None:
         """

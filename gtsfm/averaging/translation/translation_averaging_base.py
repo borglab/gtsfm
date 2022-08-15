@@ -26,13 +26,12 @@ class TranslationAveragingBase(GTSFMProcess):
 
         return UiMetadata(
             "Translation Averaging",
-            "Temp",
+            "Multi-View Optimizer",
             (
-                "Relative Translations",
+                "View-Graph Relative Translations",
                 "Global Rotations",
                 "Absolute Pose Priors",
                 "Relative Pose Priors",
-                "Ground Truth Poses",
             ),
             ("Global Translations"),
         )

@@ -8,7 +8,7 @@ Author: Kevin Fu
 
 # 1: Import GTSFMProcess, UiMetadata
 # ----------------------------------
-# from gtsfm.ui.registry import GTSFMProcess, UiMetadata
+# from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 # 2: Subclass GTSFMProcess (this can replace ABCMeta, since it inherits from ABCMeta)
 # ------------------------
@@ -17,11 +17,11 @@ Author: Kevin Fu
 # 3: Implement get_ui_metadata()
 # ------------------------------
 #    def get_ui_metadata() -> UiMetadata:
-#        """Returns data needed to display this process in the process graph. See gtsfm/ui/registry.py for more info."""
+#        """Returns data needed to display this process in the process graph."""
 #
 #        return UiMetadata(
 #                   "Display Name"
-#                   "Parent Plate"
+#                   "Parent Plate Name"
 #                   ("Input Product 1", "Input Product 2")
 #                   ("Output Product 1", "Output Product 2")
 #               )

@@ -35,7 +35,6 @@ from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 
 logger = logger_utils.get_logger()
@@ -52,18 +51,8 @@ POST_ISP_REPORT_TAG = "POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT"
 VIEWGRAPH_REPORT_TAG = "VIEWGRAPH_2VIEW_REPORT"
 
 
-class TwoViewEstimator(GTSFMProcess):
+class TwoViewEstimator:
     """Wrapper for running two-view relative pose estimation on image pairs in the dataset."""
-
-    def get_ui_metadata() -> UiMetadata:
-        """Returns data needed to display this process in the process graph."""
-
-        return UiMetadata(
-            "Two-View Estimator",
-            "",
-            ("Keypoints", "Correspondences", "Relative Rotations", "Relative Translations", "Relative Pose Priors"),
-            ("Optimized Relative Rotations", "Optimized Translations", "Pairwise Feature Matches"),
-        )
 
     def __init__(
         self,

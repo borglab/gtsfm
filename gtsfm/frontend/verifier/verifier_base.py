@@ -30,9 +30,9 @@ class VerifierBase(GTSFMProcess):
 
         return UiMetadata(
             "Verifier",
-            "",
-            ("Keypoints", "Camera Intrinsics", "Matches"),
-            ("Relative Rotations", "Relative Translations", "Correspondences", "Inlier Ratio"),
+            "Two-View Estimator",
+            ("Keypoints", "Putative Correspondences", "Camera Intrinsics"),
+            ("Relative Rotations", "Relative Translations", "Verified Correspondences", "Inlier Ratio"),
         )
 
     def __init__(

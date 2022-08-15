@@ -63,6 +63,33 @@ MEASUREMENT_NOISE_SIGMA = 1.0  # in pixels
 logger = logger_utils.get_logger()
 
 
+class TwoViewBundleAdjustmentProcess(GTSFMProcess):
+    """Dummy class to get the UI graph correct.
+
+    BundleAdjustmentOptimizer is used in two separate places (optimizing
+    between two images and then later optimizing globally), so a separate class
+    is needed due to the way GTSFMProcess is designed.
+    """
+
+    def get_ui_metadata() -> UiMetadata:
+        """Returns data needed to display this process in the process graph."""
+
+        return UiMetadata(
+            "Two-View Bundle Adjustment",
+            "Two-View Estimator",
+            (
+                "Relative Rotations",
+                "Relative Translations",
+                "Triangulated Points",
+                "Relative Pose Priors",
+                "Camera Intrinsics",
+                "Keypoints",
+                "Verified Correspondences",
+            ),
+            ("Optimized Relative Rotations", "Optimized Relative Translations", "Inlier Correspondences"),
+        )
+
+
 class BundleAdjustmentOptimizer(GTSFMProcess):
     """Bundle adjustment using factor-graphs in GTSAM.
 
@@ -73,10 +100,17 @@ class BundleAdjustmentOptimizer(GTSFMProcess):
         """Returns data needed to display this process in the process graph."""
 
         return UiMetadata(
-            "Bundle Adjustment",
-            "",
-            ("Initialized Cameras", "Absolute Pose Priors", "Relative Pose Priors"),
-            ("Optimized Camera Poses", "Filtered Optimized Camera Poses"),
+            "Global Bundle Adjustment",
+            "Multi-View Optimizer",
+            (
+                "Absolute Pose Priors",
+                "Relative Pose Priors",
+                "Camera Intrinsics",
+                "Global Translations",
+                "Global Rotations",
+                "3D Tracks",
+            ),
+            ("Filtered Optimized Camera Poses", "Filtered Optimized 3D Tracks"),
         )
 
     def __init__(

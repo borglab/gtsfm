@@ -23,7 +23,12 @@ class MVSBase(GTSFMProcess):
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display this process in the process graph."""
 
-        return UiMetadata("Multi-view Stereo", "", ("Images", "SFM Result"), ("Dense Points"))
+        return UiMetadata(
+            "Multi-view Stereo",
+            "",
+            ("Images", "Filtered Optimized Camera Poses", "Filtered Optimized 3D Tracks"),
+            ("Dense Colored 3D Point Cloud"),
+        )
 
     def __init__(self) -> None:
         """Initialize the MVS module"""

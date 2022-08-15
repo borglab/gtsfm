@@ -46,9 +46,9 @@ class ViewGraphEstimatorBase(GTSFMProcess):
 
         return UiMetadata(
             "View-Graph Estimator",
-            "",
-            ("Relative Rotations", "Relative Translations", "Calibrations", "Correspondences", "Keypoints"),
-            ("View-Graph Edges"),
+            "Multi-View Optimizer",
+            ("Relative Rotations", "Relative Translations", "Camera Intrinsics", "Inlier Correspondences", "Keypoints"),
+            ("View-Graph Relative Rotations", "View-Graph Relative Translations", "View-Graph Correspondences"),
         )
 
     @abc.abstractmethod
