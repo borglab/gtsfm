@@ -19,11 +19,11 @@ import os
 import pydot
 from collections import namedtuple
 
-from typing import Tuple
+from typing import Set
 from gtsfm.ui.gtsfm_process import UiMetadata
 
 JS_ROOT = os.path.join(Path(__file__).resolve().parent.parent.parent, "rtf_vis_tool")
-DEFAULT_GRAPH_VIZ_OUTPUT_PATH = os.path.join(JS_ROOT, "src", "ui", "dot_graph_output.svg")
+DEFAULT_GRAPH_VIZ_OUTPUT_PATH = os.path.join(JS_ROOT, "src", "ui", "process_graph_output.svg")
 
 
 class ProcessGraphGenerator:
@@ -37,7 +37,7 @@ class ProcessGraphGenerator:
         """
 
         # create empty directed graph
-        self._graph = pydot.Dot("my_graph", graph_type="digraph", bgcolor="white")
+        self._main_graph = pydot.Dot(graph_type="digraph", fontname="Veranda", bgcolor="white")
 
         # style constants, see http://www.graphviz.org/documentation/
         style_consts = {
@@ -52,12 +52,30 @@ class ProcessGraphGenerator:
         StyleTuple = namedtuple("StyleTuple", style_consts)
         self._style = StyleTuple(**style_consts)
 
+        # dict of pydot Clusters for plates
+        # http://robertyu.com/wikiperdido/Pydot%20Clusters
+        self._plate_to_cluster = {}
+
         self._test_mode = test_mode
 
     def _build_graph(self) -> None:
         """Build graph based on RegistryHolder's REGISTRY."""
 
-        seen_metadata = set()
+        unique_metadata = self._get_metadata_from_registry()
+
+        for metadata in unique_metadata:
+            self._add_nodes_to_graph(metadata)
+
+        for plate_name, cluster in self._plate_to_cluster.items():
+            self._main_graph.add_subgraph(cluster)
+
+    def _get_metadata_from_registry(self) -> Set[UiMetadata]:
+        """Get a set of unique_metadata from the central registry.
+
+        Also, create empty pydot clusters for later use as plate subgraphs, and store in self._plate_to_cluster.
+        """
+        unique_metadata = set()
+
         for cls_name, cls_type in RegistryHolder.get_registry().items():
             # don't add the base class to the graph
             if cls_name == "GTSFMProcess":
@@ -72,17 +90,26 @@ class ProcessGraphGenerator:
 
             # skip duplicates
             # happens when concrete classes implement an abstract class without overwriting get_ui_metadata()
-            if metadata in seen_metadata:
+            if metadata in unique_metadata:
                 continue
+            unique_metadata.add(metadata)
 
-            seen_metadata.add(metadata)
+            # create an empty plate for each unique parent_plate name
+            plate = metadata.parent_plate
+            if plate not in self._plate_to_cluster:
+                # if no plate, add straight to main graph
+                if plate == "":
+                    continue
 
-            self._add_metadata_to_graph(metadata)
+                new_cluster = pydot.Cluster(plate, label=plate)
+                self._plate_to_cluster[plate] = new_cluster
 
-    def _add_metadata_to_graph(self, metadata: UiMetadata) -> None:
-        """Add UiMetadata to the graph as blue/gray nodes and corresponding edges.
+        return unique_metadata
 
-        Auto-casts metadata.input_products and metadata.output_products to tuples of strings.
+    def _add_nodes_to_graph(self, metadata: UiMetadata) -> None:
+        """Add connected blue/gray nodes to relevant subgraph based on UiMetadata.
+
+        Also, auto-casts metadata.input_products and metadata.output_products to tuples of strings.
 
         Why? A common error is to define a one-element tuple like so:
           > input_products = ("Input Product")
@@ -91,48 +118,37 @@ class ProcessGraphGenerator:
         which is unintuitive. Auto-cast here prevents unexpected behavior for developers.
 
         Args:
-            metadata: UiMetadata object
+            metadata: UiMetadata object to add nodes/edges for
         """
 
         display_name = metadata.display_name
+        style = self._style
 
         # autocast strings to one-element tuples
         input_products = metadata.input_products
         if type(input_products) == str:
             input_products = (input_products,)
-
         output_products = metadata.output_products
         if type(output_products) == str:
             output_products = (output_products,)
 
-        # add cleaned-up metadata to graph
-        self._add_nodes_and_edges(display_name, input_products, output_products)
+        cluster = self._main_graph
+        if metadata.parent_plate != "":
+            cluster = self._plate_to_cluster[metadata.parent_plate]
 
-    def _add_nodes_and_edges(self, display_name: str, input_products: Tuple[str], output_products: Tuple[str]) -> None:
-        """Given the sanitized fields of a UiMetadata object, add blue/gray nodes and edges to the graph.
-
-        Args:
-            display_name: string display name (from UiMetadata.display_name)
-            input_products: tuple of string names (from UiMetadata.input_products)
-            output_products: tuple of string names (from UiMetadata.output_products)
-        """
-
-        style = self._style
-
-        # add process, all products to graph as Nodes
-        self._graph.add_node(
+        cluster.add_node(
             pydot.Node(display_name, shape=style.node_shape, style=style.node_style, fillcolor=style.blue_fillcolor)
         )
         for product_name in input_products + output_products:
-            self._graph.add_node(
+            cluster.add_node(
                 pydot.Node(product_name, shape=style.node_shape, style=style.node_style, fillcolor=style.gray_fillcolor)
             )
 
         # add Edges for all input_products -> blue node -> all output_products
         for input_product_name in input_products:
-            self._graph.add_edge(pydot.Edge(input_product_name, display_name, color=style.arrow_color))
+            self._main_graph.add_edge(pydot.Edge(input_product_name, display_name, color=style.arrow_color))
         for output_product_name in output_products:
-            self._graph.add_edge(pydot.Edge(display_name, output_product_name, color=style.arrow_color))
+            self._main_graph.add_edge(pydot.Edge(display_name, output_product_name, color=style.arrow_color))
 
     def save_graph(self, filepath: str = DEFAULT_GRAPH_VIZ_OUTPUT_PATH) -> None:
         """Save graph to the given filepath."""
@@ -145,6 +161,6 @@ class ProcessGraphGenerator:
         Path(save_dir).mkdir(parents=True, exist_ok=True)
 
         if filepath.endswith(".png"):
-            self._graph.write_png(filepath)
+            self._main_graph.write_png(filepath)
         elif filepath.endswith(".svg"):
-            self._graph.write_svg(filepath)
+            self._main_graph.write_svg(filepath)

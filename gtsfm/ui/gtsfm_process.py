@@ -21,6 +21,7 @@ Author: Kevin Fu
 #
 #        return UiMetadata(
 #                   "Display Name"
+#                   "Parent Plate"
 #                   ("Input Product 1", "Input Product 2")
 #                   ("Output Product 1", "Output Product 2")
 #               )
@@ -42,11 +43,13 @@ class UiMetadata:
 
     Fields:
         display_name: string display_name of a GTSFMProcess
+        parent_plate: string parent_plate of a GTSFMProcess
         input_products: tuple of strings representing all products this process consumes
         output_products: tuple of strings representing all products this process produces
     """
 
     display_name: str
+    parent_plate: str
     input_products: Tuple[str]
     output_products: Tuple[str]
 

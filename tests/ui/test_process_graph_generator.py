@@ -43,7 +43,7 @@ class TestProcessGraphGenerator(unittest.TestCase):
         process_graph_generator = ProcessGraphGenerator()
         process_graph_generator._build_graph()
 
-        output_raw_dot = process_graph_generator._graph.to_string()
+        output_raw_dot = process_graph_generator._main_graph.to_string()
 
         self.assertTrue("GTSFMProcess" not in output_raw_dot)
         self.assertTrue("Fake" not in output_raw_dot)
@@ -57,7 +57,7 @@ class TestProcessGraphGenerator(unittest.TestCase):
         process_graph_generator = ProcessGraphGenerator(test_mode=True)
         process_graph_generator._build_graph()
 
-        output_raw_dot = process_graph_generator._graph.to_string()
+        output_raw_dot = process_graph_generator._main_graph.to_string()
 
         # can't assert the full graph directly because the REGISTRY will have other classes
         self.assertTrue("FakeImageLoader [" in output_raw_dot)
@@ -70,6 +70,8 @@ class TestProcessGraphGenerator(unittest.TestCase):
         self.assertTrue('"GTSFM Output" [' in output_raw_dot)
         self.assertTrue('"Internal Data" -> FakeOutput  [' in output_raw_dot)
         self.assertTrue('FakeOutput -> "GTSFM Output"  [' in output_raw_dot)
+        self.assertTrue("subgraph cluster_ParentPlate {" in output_raw_dot)
+        self.assertTrue("label=ParentPlate;" in output_raw_dot)
 
 
 if __name__ == "__main__":

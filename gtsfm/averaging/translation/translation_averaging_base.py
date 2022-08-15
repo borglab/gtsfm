@@ -26,6 +26,7 @@ class TranslationAveragingBase(GTSFMProcess):
 
         return UiMetadata(
             "Translation Averaging",
+            "Temp",
             (
                 "Relative Translations",
                 "Global Rotations",

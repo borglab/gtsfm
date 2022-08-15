@@ -20,7 +20,7 @@ class FakeImageLoader(GTSFMProcess):
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display this process in the process graph. See gtsfm/ui/registry.py for more info."""
 
-        return UiMetadata("FakeImageLoader", ("Raw Images"), ("Internal Data"))
+        return UiMetadata("FakeImageLoader", "", ("Raw Images"), ("Internal Data"))
 
     @property
     def fake_image_dir(self):
@@ -40,7 +40,7 @@ class FakeOutputBase(GTSFMProcess):
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display this process in the process graph. See gtsfm/ui/registry.py for more info."""
 
-        return UiMetadata("FakeOutput", ("Internal Data"), ("GTSFM Output"))
+        return UiMetadata("FakeOutput", "ParentPlate", ("Internal Data"), ("GTSFM Output"))
 
 
 class FakeOutputGTSFM(FakeOutputBase):
@@ -82,6 +82,7 @@ class TestRegistryUtils(unittest.TestCase):
         metadata = FakeImageLoader.get_ui_metadata()
 
         self.assertEqual(metadata.display_name, "FakeImageLoader")
+        self.assertEqual(metadata.parent_plate, "")
         self.assertEqual(metadata.input_products, ("Raw Images"))
         self.assertEqual(metadata.output_products, ("Internal Data"))
 
@@ -92,6 +93,7 @@ class TestRegistryUtils(unittest.TestCase):
         metadata = FakeOutputBase.get_ui_metadata()
 
         self.assertEqual(metadata.display_name, "FakeOutput")
+        self.assertEqual(metadata.parent_plate, "ParentPlate")
         self.assertEqual(metadata.input_products, ("Internal Data"))
         self.assertEqual(metadata.output_products, ("GTSFM Output"))
 

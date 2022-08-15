@@ -74,6 +74,7 @@ class BundleAdjustmentOptimizer(GTSFMProcess):
 
         return UiMetadata(
             "Bundle Adjustment",
+            "",
             ("Initialized Cameras", "Absolute Pose Priors", "Relative Pose Priors"),
             ("Optimized Camera Poses", "Filtered Optimized Camera Poses"),
         )

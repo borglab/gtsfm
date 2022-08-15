@@ -60,8 +60,9 @@ class TwoViewEstimator(GTSFMProcess):
 
         return UiMetadata(
             "Two-View Estimator",
+            "",
             ("Keypoints", "Correspondences", "Relative Rotations", "Relative Translations", "Relative Pose Priors"),
-            ("Optimized Relative Rotations", "Optimized Translations", "Optimized Correspondences"),
+            ("Optimized Relative Rotations", "Optimized Translations", "Pairwise Feature Matches"),
         )
 
     def __init__(

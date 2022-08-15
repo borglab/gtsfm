@@ -20,7 +20,7 @@ class TracksEstimatorBase(GTSFMProcess):
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display this process in the process graph."""
 
-        return UiMetadata("Tracks Estimator", ("Keypoints", "Pairwise Feature Matches"), ("2D Tracks"))
+        return UiMetadata("Tracks Estimator", "", ("Keypoints", "Pairwise Feature Matches"), ("2D Tracks"))
 
     @abc.abstractmethod
     def run(self, matches_dict: Dict[Tuple[int, int], np.ndarray], keypoints_list: List[Keypoints]) -> List[SfmTrack2d]:

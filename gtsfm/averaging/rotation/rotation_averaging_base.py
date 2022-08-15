@@ -29,6 +29,7 @@ class RotationAveragingBase(GTSFMProcess):
 
         return UiMetadata(
             "Rotation Averaging",
+            "Temp",
             ("Relative Rotations", "Relative Pose Priors"),
             ("Global Rotations"),
         )
