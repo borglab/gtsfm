@@ -67,12 +67,6 @@ class InlierSupportProcessor:
             TwoViewEstimationReport(v_corr_idxs=v_corr_idxs, num_inliers_est_model=0),
         )
 
-        # if (two_view_report.R_error_deg is not None) and (two_view_report.R_error_deg > 5):
-        #     return failure_result
-
-        # if (two_view_report.U_error_deg is not None) and (two_view_report.U_error_deg > 5):
-        #     return failure_result
-
         # make a copy of the report
         two_view_report_post_isp = dataclasses.replace(two_view_report)
 
