@@ -59,7 +59,9 @@ class TestSceneOptimizer(unittest.TestCase):
             )
 
             with Client(cluster):
-                keypoints_list, putative_corr_idxs_dict = dask.compute(delayed_keypoints, delayed_putative_corr_idxs_dict)
+                keypoints_list, putative_corr_idxs_dict = dask.compute(
+                    delayed_keypoints, delayed_putative_corr_idxs_dict
+                )
 
             # generate the dask computation graph
             delayed_sfm_result, delayed_io = scene_optimizer.create_computation_graph(
