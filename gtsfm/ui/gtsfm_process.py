@@ -26,20 +26,19 @@ Author: Kevin Fu
 #                   ("Output Product 1", "Output Product 2")
 #               )
 
-from gtsfm.ui.registry import AbstractableRegistryHolder
-
 import abc
 from dataclasses import dataclass
-
 from typing import Tuple
+
+from gtsfm.ui.registry import AbstractableRegistryHolder
 
 
 @dataclass(frozen=True, order=True)
 class UiMetadata:
-    """
-    Holds all info needed to display a GTSFMProcess in the process graph (see ProcessGraphGenerator).
+    """Holds all info needed to display a GTSFMProcess in the process graph (see ProcessGraphGenerator).
 
-    frozen=True makes this dataclass immutable and hashable.
+    frozen=True makes this dataclass hashable, used when adding it to a set to avoid duplicate nodes in the graph.
+    order=True makes this sortable, used to add the nodes in the same order to avoid non-deterministic DOT graph output.
 
     Fields:
         display_name: string display_name of a GTSFMProcess

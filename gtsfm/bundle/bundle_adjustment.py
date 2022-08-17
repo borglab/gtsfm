@@ -64,11 +64,10 @@ logger = logger_utils.get_logger()
 
 
 class TwoViewBundleAdjustmentProcess(GTSFMProcess):
-    """Dummy class to get the UI graph correct.
+    """Dummy class that exists in order to visualize the 2-view BA process in a process graph visualization.
 
-    BundleAdjustmentOptimizer is used in two separate places (optimizing
-    between two images and then later optimizing globally), so a separate class
-    is needed due to the way GTSFMProcess is designed.
+    BundleAdjustmentOptimizer is used in two separate places (optimizing between two images and then later optimizing
+    globally), so a separate class is needed due to the way GTSFMProcess is designed.
     """
 
     def get_ui_metadata() -> UiMetadata:

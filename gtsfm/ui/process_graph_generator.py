@@ -1,12 +1,11 @@
 """
 Creates a process graph based on the classes that subclass GTSFMProcess.
 
-Specifically, all classes that subclass GTSFMProcess are added to a central
-registry on declaration. GTSFMProcess has the abstract class method
-get_ui_metadata(), which returns a UiMetadata object. 
+Specifically, all classes that subclass GTSFMProcess are added to a central registry on declaration. GTSFMProcess has
+the abstract class method get_ui_metadata(), which returns a UiMetadata object. 
 
-ProcessGraphGenerator combines all the UiMetadata of all the GTSFMProcesses into
-one graph of blue and gray nodes, then saves to a file.
+ProcessGraphGenerator combines all the UiMetadata of all the GTSFMProcesses into one graph of blue and gray nodes, then
+saves to a file.
 
 Author: Kevin Fu
 """
@@ -17,13 +16,20 @@ from pathlib import Path
 import os
 
 import pydot
-from collections import namedtuple
 
 from typing import Set
+
 from gtsfm.ui.gtsfm_process import UiMetadata
 
 JS_ROOT = os.path.join(Path(__file__).resolve().parent.parent.parent, "rtf_vis_tool")
 DEFAULT_GRAPH_VIZ_OUTPUT_PATH = os.path.join(JS_ROOT, "src", "ui", "process_graph_output.svg")
+
+# style constants, see http://www.graphviz.org/documentation/
+PROCESS_FILLCOLOR = "lightskyblue"
+PRODUCT_FILLCOLOR = "gainsboro"
+NODE_STYLE = '"rounded, filled, solid"'
+NODE_SHAPE = "box"
+ARROW_COLOR = "gray75"
 
 
 class ProcessGraphGenerator:
@@ -38,19 +44,6 @@ class ProcessGraphGenerator:
 
         # create empty directed graph
         self._main_graph = pydot.Dot(graph_type="digraph", fontname="Veranda", bgcolor="white")
-
-        # style constants, see http://www.graphviz.org/documentation/
-        style_consts = {
-            "blue_fillcolor": "lightskyblue",
-            "gray_fillcolor": "gainsboro",
-            "node_style": '"rounded, filled, solid"',
-            "node_shape": "box",
-            "arrow_color": "gray75",
-        }
-        # namedtuple here is faster than default Dict and allows use of dot
-        # operator
-        StyleTuple = namedtuple("StyleTuple", style_consts)
-        self._style = StyleTuple(**style_consts)
 
         # dict of pydot Clusters for plates
         # http://robertyu.com/wikiperdido/Pydot%20Clusters
@@ -123,7 +116,6 @@ class ProcessGraphGenerator:
         """
 
         display_name = metadata.display_name
-        style = self._style
 
         # autocast strings to one-element tuples
         input_products = metadata.input_products
@@ -137,19 +129,15 @@ class ProcessGraphGenerator:
         if metadata.parent_plate != "":
             cluster = self._plate_to_cluster[metadata.parent_plate]
 
-        cluster.add_node(
-            pydot.Node(display_name, shape=style.node_shape, style=style.node_style, fillcolor=style.blue_fillcolor)
-        )
+        cluster.add_node(pydot.Node(display_name, shape=NODE_SHAPE, style=NODE_STYLE, fillcolor=PROCESS_FILLCOLOR))
         for product_name in input_products + output_products:
-            cluster.add_node(
-                pydot.Node(product_name, shape=style.node_shape, style=style.node_style, fillcolor=style.gray_fillcolor)
-            )
+            cluster.add_node(pydot.Node(product_name, shape=NODE_SHAPE, style=NODE_STYLE, fillcolor=PRODUCT_FILLCOLOR))
 
         # add Edges for all input_products -> blue node -> all output_products
         for input_product_name in input_products:
-            self._main_graph.add_edge(pydot.Edge(input_product_name, display_name, color=style.arrow_color))
+            self._main_graph.add_edge(pydot.Edge(input_product_name, display_name, color=ARROW_COLOR))
         for output_product_name in output_products:
-            self._main_graph.add_edge(pydot.Edge(display_name, output_product_name, color=style.arrow_color))
+            self._main_graph.add_edge(pydot.Edge(display_name, output_product_name, color=ARROW_COLOR))
 
     def save_graph(self, filepath: str = DEFAULT_GRAPH_VIZ_OUTPUT_PATH) -> None:
         """Save graph to the given filepath."""

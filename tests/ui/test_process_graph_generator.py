@@ -35,8 +35,7 @@ class TestProcessGraphGenerator(unittest.TestCase):
             self.assertTrue(os.path.exists(extra_dir_path))
 
     def test_no_fake_nodes(self):
-        """
-        Ensure that no test nodes from test_registry.py are in the final
+        """Ensure that no test nodes from test_registry.py are in the final
         graph when test mode is off.
         """
 
@@ -49,8 +48,7 @@ class TestProcessGraphGenerator(unittest.TestCase):
         self.assertTrue("Fake" not in output_raw_dot)
 
     def test_build_graph(self):
-        """
-        Check that the test nodes are in the graph and connected correctly.
+        """Check that the test nodes are in the graph and connected correctly.
         Does not check for style elements.
         """
 

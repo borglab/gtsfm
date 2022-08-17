@@ -9,18 +9,17 @@ Author: Kevin Fu
 """
 
 import abc
-from typing import Tuple, Dict
+from typing import Tuple, Dict, Callable, Any
 
 
 class RegistryHolder(type):
-    """
-    Class that defines central registry and automatically registers classes
+    """Class that defines central registry and automatically registers classes
     that extend GTSFMProcess.
     """
 
     REGISTRY = {}
 
-    def __new__(cls: type, name: str, bases: Tuple, attrs: Dict) -> None:
+    def __new__(cls: type, name: str, bases: Tuple[Any], attrs: Dict[str, Callable]) -> None:
         """
         Every time a new class that extends GTSFMProcess is **defined**,
         the REGISTRY here in RegistryHolder will be updated. This is thanks to
