@@ -22,18 +22,18 @@ class TranslationAveragingBase(GTSFMProcess):
     """
 
     def get_ui_metadata() -> UiMetadata:
-        """Returns data needed to display this process in the process graph."""
+        """Returns data needed to display node and edge info for this process in the process graph."""
 
         return UiMetadata(
-            "Translation Averaging",
-            "Multi-View Optimizer",
-            (
+            display_name="Translation Averaging",
+            parent_plate="Multi-View Optimizer",
+            input_products=(
                 "View-Graph Relative Translations",
                 "Global Rotations",
                 "Absolute Pose Priors",
                 "Relative Pose Priors",
             ),
-            ("Global Translations"),
+            output_products=("Global Translations",),
         )
 
     def __init__(self, robust_measurement_noise: bool = True) -> None:

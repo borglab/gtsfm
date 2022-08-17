@@ -25,9 +25,14 @@ class DetectorDescriptorBase(GTSFMProcess):
     """
 
     def get_ui_metadata() -> UiMetadata:
-        """Returns data needed to display this process in the process graph."""
+        """Returns data needed to display node and edge info for this process in the process graph."""
 
-        return UiMetadata("DetectorDescriptor", "Feature Extractor", ("Images"), ("Keypoints", "Descriptors"))
+        return UiMetadata(
+            display_name="DetectorDescriptor",
+            parent_plate="Feature Extractor",
+            input_products="Images",
+            output_products=("Keypoints", "Descriptors"),
+        )
 
     def __init__(self, max_keypoints: int = 5000):
         """Initialize the detector-descriptor.

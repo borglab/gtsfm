@@ -18,9 +18,9 @@ class FakeImageLoader(GTSFMProcess):
         self._fake_image_dir = fake_image_dir
 
     def get_ui_metadata() -> UiMetadata:
-        """Returns data needed to display this process in the process graph. See gtsfm/ui/registry.py for more info."""
+        """Returns data needed to display node and edge info for this process in the process graph."""
 
-        return UiMetadata("FakeImageLoader", "", ("Raw Images"), ("Internal Data"))
+        return UiMetadata("FakeImageLoader", "", "Raw Images", "Internal Data")
 
     @property
     def fake_image_dir(self):
@@ -38,9 +38,14 @@ class FakeOutputBase(GTSFMProcess):
         ...
 
     def get_ui_metadata() -> UiMetadata:
-        """Returns data needed to display this process in the process graph. See gtsfm/ui/registry.py for more info."""
+        """Returns data needed to display node and edge info for this process in the process graph."""
 
-        return UiMetadata("FakeOutput", "ParentPlate", ("Internal Data"), ("GTSFM Output"))
+        return UiMetadata(
+            display_name="FakeOutput",
+            parent_plate="ParentPlate",
+            input_products="Internal Data",
+            output_products="GTSFM Output",
+        )
 
 
 class FakeOutputGTSFM(FakeOutputBase):
@@ -83,8 +88,8 @@ class TestRegistryUtils(unittest.TestCase):
 
         self.assertEqual(metadata.display_name, "FakeImageLoader")
         self.assertEqual(metadata.parent_plate, "")
-        self.assertEqual(metadata.input_products, ("Raw Images"))
-        self.assertEqual(metadata.output_products, ("Internal Data"))
+        self.assertEqual(metadata.input_products, "Raw Images")
+        self.assertEqual(metadata.output_products, "Internal Data")
 
     def test_abs_base(self):
         """Test that abstract base classes can have UI metadata."""
@@ -94,8 +99,8 @@ class TestRegistryUtils(unittest.TestCase):
 
         self.assertEqual(metadata.display_name, "FakeOutput")
         self.assertEqual(metadata.parent_plate, "ParentPlate")
-        self.assertEqual(metadata.input_products, ("Internal Data"))
-        self.assertEqual(metadata.output_products, ("GTSFM Output"))
+        self.assertEqual(metadata.input_products, "Internal Data")
+        self.assertEqual(metadata.output_products, "GTSFM Output")
 
         # test that concrete objects work as intended
         concrete_obj = FakeOutputGTSFM()

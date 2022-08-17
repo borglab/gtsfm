@@ -17,13 +17,13 @@ Author: Kevin Fu
 # 3: Implement get_ui_metadata()
 # ------------------------------
 #    def get_ui_metadata() -> UiMetadata:
-#        """Returns data needed to display this process in the process graph."""
+#        """Returns data needed to display node and edge info for this process in the process graph."""
 #
 #        return UiMetadata(
-#                   "Display Name"
-#                   "Parent Plate Name"
-#                   ("Input Product 1", "Input Product 2")
-#                   ("Output Product 1", "Output Product 2")
+#                   display_name="Display Name"
+#                   parent_plate="Parent Plate Name"
+#                   input_products=("Input Product 1", "Input Product 2")
+#                   output_products=("Output Product 1", "Output Product 2")
 #               )
 
 import abc
@@ -63,5 +63,5 @@ class GTSFMProcess(metaclass=AbstractableRegistryHolder):
     @staticmethod
     @abc.abstractmethod
     def get_ui_metadata() -> UiMetadata:
-        """Returns data needed to display this process in the process graph."""
+        """Returns data needed to display node and edge info for this process in the process graph."""
         ...

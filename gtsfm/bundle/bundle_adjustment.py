@@ -71,7 +71,7 @@ class TwoViewBundleAdjustmentProcess(GTSFMProcess):
     """
 
     def get_ui_metadata() -> UiMetadata:
-        """Returns data needed to display this process in the process graph."""
+        """Returns data needed to display node and edge info for this process in the process graph."""
 
         return UiMetadata(
             "Two-View Bundle Adjustment",
@@ -96,12 +96,12 @@ class BundleAdjustmentOptimizer(GTSFMProcess):
     tracks from triangulation."""
 
     def get_ui_metadata() -> UiMetadata:
-        """Returns data needed to display this process in the process graph."""
+        """Returns data needed to display node and edge info for this process in the process graph."""
 
         return UiMetadata(
-            "Global Bundle Adjustment",
-            "Multi-View Optimizer",
-            (
+            display_name="Global Bundle Adjustment",
+            parent_plate="Multi-View Optimizer",
+            input_products=(
                 "Absolute Pose Priors",
                 "Relative Pose Priors",
                 "Camera Intrinsics",
@@ -109,7 +109,7 @@ class BundleAdjustmentOptimizer(GTSFMProcess):
                 "Global Rotations",
                 "3D Tracks",
             ),
-            ("Filtered Optimized Camera Poses", "Filtered Optimized 3D Tracks"),
+            output_products=("Filtered Optimized Camera Poses", "Filtered Optimized 3D Tracks"),
         )
 
     def __init__(

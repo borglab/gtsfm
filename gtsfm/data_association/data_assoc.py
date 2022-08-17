@@ -52,13 +52,18 @@ class DataAssociation(GTSFMProcess):
     save_track_patches_viz: Optional[bool] = False
 
     def get_ui_metadata() -> UiMetadata:
-        """Returns data needed to display this process in the process graph."""
+        """Returns data needed to display node and edge info for this process in the process graph."""
 
         return UiMetadata(
-            "Data Association",
-            "Multi-View Optimizer",
-            ("View-Graph Correspondences", "Global Rotations", "Global Translations", "Camera Intrinsics"),
-            ("3D Tracks"),
+            display_name="Data Association",
+            parent_plate="Multi-View Optimizer",
+            input_products=(
+                "View-Graph Correspondences",
+                "Global Rotations",
+                "Global Translations",
+                "Camera Intrinsics",
+            ),
+            output_products="3D Tracks",
         )
 
     def __validate_track(self, sfm_track: Optional[SfmTrack]) -> bool:

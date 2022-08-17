@@ -29,14 +29,20 @@ class LoaderBase(GTSFMProcess):
     """
 
     def get_ui_metadata() -> UiMetadata:
-        """Returns data needed to display this process in the process graph."""
+        """Returns data needed to display node and edge info for this process in the process graph."""
 
         # based on gtsfm/runner/gtsfm_runner_base.py
         return UiMetadata(
-            "Image Loader",
-            "",
-            ("Source Directory"),
-            ("Images", "Camera Intrinsics", "Image Shapes", "Relative Pose Priors", "Absolute Pose Priors"),
+            display_name="Image Loader",
+            parent_plate="",
+            input_products="Source Directory",
+            output_products=(
+                "Images",
+                "Camera Intrinsics",
+                "Image Shapes",
+                "Relative Pose Priors",
+                "Absolute Pose Priors",
+            ),
         )
 
     def __init__(self, max_resolution: int = 1080) -> None:

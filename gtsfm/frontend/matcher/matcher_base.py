@@ -20,11 +20,14 @@ class MatcherBase(GTSFMProcess):
     """
 
     def get_ui_metadata() -> UiMetadata:
-        """Returns data needed to display this process in the process graph."""
+        """Returns data needed to display node and edge info for this process in the process graph."""
 
         # based on gtsfm/runner/gtsfm_runner_base.py
         return UiMetadata(
-            "Matcher", "Two-View Estimator", ("Keypoints", "Descriptors", "Image Shapes"), ("Putative Correspondences")
+            display_name="Matcher",
+            parent_plate="Two-View Estimator",
+            input_products=("Keypoints", "Descriptors", "Image Shapes"),
+            output_products="Putative Correspondences",
         )
 
     @abc.abstractmethod

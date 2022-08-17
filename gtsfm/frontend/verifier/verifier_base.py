@@ -26,13 +26,13 @@ class VerifierBase(GTSFMProcess):
     """
 
     def get_ui_metadata() -> UiMetadata:
-        """Returns data needed to display this process in the process graph."""
+        """Returns data needed to display node and edge info for this process in the process graph."""
 
         return UiMetadata(
-            "Verifier",
-            "Two-View Estimator",
-            ("Keypoints", "Putative Correspondences", "Camera Intrinsics"),
-            ("Relative Rotations", "Relative Translations", "Verified Correspondences", "Inlier Ratio"),
+            display_name="Verifier",
+            parent_plate="Two-View Estimator",
+            input_products=("Keypoints", "Putative Correspondences", "Camera Intrinsics"),
+            output_products=("Relative Rotations", "Relative Translations", "Verified Correspondences", "Inlier Ratio"),
         )
 
     def __init__(

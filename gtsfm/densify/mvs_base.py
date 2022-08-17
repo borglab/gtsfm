@@ -21,13 +21,13 @@ class MVSBase(GTSFMProcess):
     """Base class for all multi-view stereo implementations."""
 
     def get_ui_metadata() -> UiMetadata:
-        """Returns data needed to display this process in the process graph."""
+        """Returns data needed to display node and edge info for this process in the process graph."""
 
         return UiMetadata(
-            "Multi-view Stereo",
-            "",
-            ("Images", "Filtered Optimized Camera Poses", "Filtered Optimized 3D Tracks"),
-            ("Dense Colored 3D Point Cloud"),
+            display_name="Multi-view Stereo",
+            parent_plate="",
+            input_products=("Images", "Filtered Optimized Camera Poses", "Filtered Optimized 3D Tracks"),
+            output_products="Dense Colored 3D Point Cloud",
         )
 
     def __init__(self) -> None:

@@ -25,13 +25,13 @@ class RotationAveragingBase(GTSFMProcess):
     """
 
     def get_ui_metadata() -> UiMetadata:
-        """Returns data needed to display this process in the process graph."""
+        """Returns data needed to display node and edge info for this process in the process graph."""
 
         return UiMetadata(
-            "Rotation Averaging",
-            "Multi-View Optimizer",
-            ("View-Graph Relative Rotations", "Relative Pose Priors"),
-            ("Global Rotations"),
+            display_name="Rotation Averaging",
+            parent_plate="Multi-View Optimizer",
+            input_products=("View-Graph Relative Rotations", "Relative Pose Priors"),
+            output_products="Global Rotations",
         )
 
     # ignored-abstractmethod

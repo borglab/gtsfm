@@ -42,19 +42,23 @@ class ViewGraphEstimatorBase(GTSFMProcess):
     """
 
     def get_ui_metadata() -> UiMetadata:
-        """Returns data needed to display this process in the process graph."""
+        """Returns data needed to display node and edge info for this process in the process graph."""
 
         return UiMetadata(
-            "View-Graph Estimator",
-            "Multi-View Optimizer",
-            (
+            display_name="View-Graph Estimator",
+            parent_plate="Multi-View Optimizer",
+            input_products=(
                 "Optimized Relative Rotations",
                 "Optimized Relative Translations",
                 "Camera Intrinsics",
                 "Inlier Correspondences",
                 "Keypoints",
             ),
-            ("View-Graph Relative Rotations", "View-Graph Relative Translations", "View-Graph Correspondences"),
+            output_products=(
+                "View-Graph Relative Rotations",
+                "View-Graph Relative Translations",
+                "View-Graph Correspondences",
+            ),
         )
 
     @abc.abstractmethod

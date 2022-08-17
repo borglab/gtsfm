@@ -28,9 +28,14 @@ class RetrieverBase(GTSFMProcess):
     """Base class for image retriever implementations."""
 
     def get_ui_metadata() -> UiMetadata:
-        """Returns data needed to display this process in the process graph."""
+        """Returns data needed to display node and edge info for this process in the process graph."""
 
-        return UiMetadata("Image Retriever", "", ("Image Loader"), ("Image Pair Indices"))
+        return UiMetadata(
+            display_name="Image Retriever",
+            parent_plate="",
+            input_products="Image Loader",
+            output_products="Image Pair Indices",
+        )
 
     @abc.abstractmethod
     def run(self, loader: LoaderBase) -> List[Tuple[int, int]]:
