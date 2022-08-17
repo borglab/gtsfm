@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from typing import Tuple
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, order=True)
 class UiMetadata:
     """
     Holds all info needed to display a GTSFMProcess in the process graph (see ProcessGraphGenerator).

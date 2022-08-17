@@ -63,7 +63,8 @@ class ProcessGraphGenerator:
 
         unique_metadata = self._get_metadata_from_registry()
 
-        for metadata in unique_metadata:
+        # sort list to prevent non-deterministic DOT graph
+        for metadata in sorted(list(unique_metadata)):
             self._add_nodes_to_graph(metadata)
 
         for plate_name, cluster in self._plate_to_cluster.items():

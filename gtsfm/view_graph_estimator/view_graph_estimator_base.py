@@ -47,7 +47,13 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         return UiMetadata(
             "View-Graph Estimator",
             "Multi-View Optimizer",
-            ("Relative Rotations", "Relative Translations", "Camera Intrinsics", "Inlier Correspondences", "Keypoints"),
+            (
+                "Optimized Relative Rotations",
+                "Optimized Relative Translations",
+                "Camera Intrinsics",
+                "Inlier Correspondences",
+                "Keypoints",
+            ),
             ("View-Graph Relative Rotations", "View-Graph Relative Translations", "View-Graph Correspondences"),
         )
 
