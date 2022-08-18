@@ -127,18 +127,6 @@ class GtsfmRunnerBase:
 
         All configs are relative to the gtsfm module.
         """
-        if self.parsed_args.correspondence_generator_config_name is not None:
-            with hydra.initialize_config_module(config_module="gtsfm.configs.correspondence"):
-                correspondence_cfg = hydra.compose(
-                    config_name=self.parsed_args.correspondence_generator_config_name,
-                )
-
-        if self.parsed_args.verifier_config_name is not None:
-            with hydra.initialize_config_module(config_module="gtsfm.configs.verifier"):
-                verifier_cfg = hydra.compose(
-                    config_name=self.parsed_args.verifier_config_name,
-                )
-
         with hydra.initialize_config_module(config_module="gtsfm.configs"):
             overrides = ["+SceneOptimizer.output_root=" + str(self.parsed_args.output_root)]
             if self.parsed_args.share_intrinsics:
@@ -149,15 +137,26 @@ class GtsfmRunnerBase:
                 overrides=overrides,
             )
             scene_optimizer: SceneOptimizer = instantiate(main_cfg.SceneOptimizer)
-            if verifier_cfg is not None:
-                logger.info("\n\nVerifier override: " + OmegaConf.to_yaml(verifier_cfg))
-                scene_optimizer.two_view_estimator._verifier: VerifierBase = instantiate(verifier_cfg.verifier)
-            if correspondence_cfg is not None:
+
+        if self.parsed_args.correspondence_generator_config_name is not None:
+            with hydra.initialize_config_module(config_module="gtsfm.configs.correspondence"):
+                correspondence_cfg = hydra.compose(
+                    config_name=self.parsed_args.correspondence_generator_config_name,
+                )
                 logger.info("\n\nCorrespondenceGenerator override: " + OmegaConf.to_yaml(correspondence_cfg))
                 scene_optimizer.correspondence_generator: CorrespondenceGeneratorBase = instantiate(
                     correspondence_cfg.CorrespondenceGenerator
                 )
-            logger.info("\n\nSceneOptimizer: " + str(scene_optimizer))
+
+        if self.parsed_args.verifier_config_name is not None:
+            with hydra.initialize_config_module(config_module="gtsfm.configs.verifier"):
+                verifier_cfg = hydra.compose(
+                    config_name=self.parsed_args.verifier_config_name,
+                )
+                logger.info("\n\nVerifier override: " + OmegaConf.to_yaml(verifier_cfg))
+                scene_optimizer.two_view_estimator._verifier: VerifierBase = instantiate(verifier_cfg.verifier)
+
+        logger.info("\n\nSceneOptimizer: " + str(scene_optimizer))
         return scene_optimizer
 
     def construct_retriever(self) -> RetrieverBase:
