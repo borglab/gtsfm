@@ -14,16 +14,14 @@ from omegaconf import OmegaConf
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.loader.loader_base import LoaderBase
-from gtsfm.scene_optimizer import SceneOptimizer
-
 from gtsfm.retriever.exhaustive_retriever import ExhaustiveRetriever
-from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.retriever.joint_netvlad_sequential_retriever import JointNetVLADSequentialRetriever
 from gtsfm.retriever.netvlad_retriever import NetVLADRetriever
+from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.retriever.rig_retriever import RigRetriever
 from gtsfm.retriever.sequential_hilti_retriever import SequentialHiltiRetriever
 from gtsfm.retriever.sequential_retriever import SequentialRetriever
-
+from gtsfm.scene_optimizer import SceneOptimizer
 
 logger = logger_utils.get_logger()
 

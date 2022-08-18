@@ -4,22 +4,14 @@ Authors: Ayush Baid, John Lambert
 """
 import logging
 import timeit
-from typing import Any, Dict, Optional, Tuple, List
+from typing import Any, Dict, List, Optional, Tuple
 
 import dask
 import gtsam
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import (
-    CameraSetCal3Bundler,
-    CameraSetCal3Fisheye,
-    PinholeCameraCal3Bundler,
-    Point2Vector,
-    Pose3,
-    Rot3,
-    SfmTrack,
-    Unit3,
-)
+from gtsam import (CameraSetCal3Bundler, CameraSetCal3Fisheye, PinholeCameraCal3Bundler, Point2Vector, Pose3, Rot3,
+                   SfmTrack, Unit3)
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.geometry_comparisons as comp_utils
@@ -31,11 +23,10 @@ from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.data_association.point3d_initializer import SVD_DLT_RANK_TOL
+from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
-from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-
 
 logger = logger_utils.get_logger()
 

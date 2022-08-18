@@ -7,12 +7,8 @@ from typing import Dict, List
 from gtsam import PinholeCameraCal3Bundler, SfmTrack
 
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
-from gtsfm.data_association.point3d_initializer import (
-    Point3dInitializer,
-    TriangulationSamplingMode,
-    TriangulationOptions,
-    TriangulationExitCode,
-)
+from gtsfm.data_association.point3d_initializer import (Point3dInitializer, TriangulationExitCode, TriangulationOptions,
+                                                        TriangulationSamplingMode)
 
 
 def classify_tracks2d_with_gt_cameras(

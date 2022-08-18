@@ -7,13 +7,13 @@ Authors: John Lambert, Neha Upadhyay
 """
 
 import argparse
-import yaml
 from collections import defaultdict
 from pathlib import Path
 from typing import List
 
 import numpy as np
 import plotly.graph_objects as go
+import yaml
 from matplotlib import colors
 from matplotlib.colors import LinearSegmentedColormap
 from plotly.graph_objs.layout import Annotation, Font, Margin, XAxis, YAxis
@@ -21,7 +21,6 @@ from plotly.graph_objs.layout import Annotation, Font, Margin, XAxis, YAxis
 import gtsfm.evaluation.merge_reports as report_utils
 import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.utils.metrics as metrics_utils
-
 
 HEATMAP_WIDTH = 1500
 HEATMAP_HEIGHT = 900

@@ -7,7 +7,6 @@ from pathlib import Path
 
 import gtsfm.evaluation.visualize_benchmark_comparison as dashboard_utils
 
-
 SAMPLE_BENCHMARK_YAML_FPATH = Path(__file__).parent.parent / "data" / "sample_ci_benchmark" / "benchmark.yml"
 
 

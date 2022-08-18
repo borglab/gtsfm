@@ -10,8 +10,8 @@ import trimesh
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point3, Pose3, Rot3, SfmTrack
 
 import gtsfm.utils.metrics as metric_utils
-from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common.keypoints import Keypoints
 
 
 class TestMetricUtils(unittest.TestCase):

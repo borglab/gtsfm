@@ -8,9 +8,8 @@ from typing import Dict, Tuple
 import numpy as np
 
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_dedup import (
-    KeypointAggregatorDedup,
-)
+from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_dedup import \
+    KeypointAggregatorDedup
 from tests.frontend.correspondence_generator.keypoint_aggregator import test_keypoint_aggregator_base
 
 

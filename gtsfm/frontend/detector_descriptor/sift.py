@@ -18,9 +18,7 @@ import gtsfm.utils.features as feature_utils
 import gtsfm.utils.images as image_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.frontend.detector_descriptor.detector_descriptor_base import (
-    DetectorDescriptorBase,
-)
+from gtsfm.frontend.detector_descriptor.detector_descriptor_base import DetectorDescriptorBase
 
 
 class SIFTDetectorDescriptor(DetectorDescriptorBase):

@@ -10,20 +10,9 @@ import dask
 import gtsam
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import (
-    BetweenFactorPose3,
-    GeneralSFMFactor2Cal3Bundler,
-    GeneralSFMFactor2Cal3Fisheye,
-    NonlinearFactorGraph,
-    PinholeCameraCal3Bundler,
-    PinholeCameraCal3Fisheye,
-    PriorFactorCal3Bundler,
-    PriorFactorCal3Fisheye,
-    PriorFactorPose3,
-    SfmTrack,
-    Values,
-    symbol_shorthand,
-)
+from gtsam import (BetweenFactorPose3, GeneralSFMFactor2Cal3Bundler, GeneralSFMFactor2Cal3Fisheye, NonlinearFactorGraph,
+                   PinholeCameraCal3Bundler, PinholeCameraCal3Fisheye, PriorFactorCal3Bundler, PriorFactorCal3Fisheye,
+                   PriorFactorPose3, SfmTrack, Values, symbol_shorthand)
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.logger as logger_utils

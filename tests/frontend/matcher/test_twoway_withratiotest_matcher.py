@@ -3,6 +3,7 @@
 Authors: Ayush Baid
 """
 import unittest
+
 import numpy as np
 
 import gtsfm.utils.features as feature_utils

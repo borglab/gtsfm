@@ -10,8 +10,8 @@ from gtsam import Cal3Bundler, EssentialMatrix, PinholeCameraCal3Bundler, Pose3,
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.io as io_utils
-from gtsfm.two_view_estimator import TwoViewEstimator
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.two_view_estimator import TwoViewEstimator
 
 GTSAM_EXAMPLE_FILE = "5pointExample1.txt"
 EXAMPLE_DATA = io_utils.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))

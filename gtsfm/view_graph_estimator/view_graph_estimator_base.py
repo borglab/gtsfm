@@ -8,7 +8,7 @@ Authors: Akshay Krishnan, Ayush Baid, John Lambert
 """
 import abc
 from pathlib import Path
-from typing import Dict, List, Set, Tuple, Optional
+from typing import Dict, List, Optional, Set, Tuple
 
 import dask
 import numpy as np
@@ -17,8 +17,8 @@ from gtsam import Cal3Bundler, Rot3, Unit3
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.graph as graph_utils
-import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.metrics as metrics_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.two_view_estimator import TwoViewEstimationReport

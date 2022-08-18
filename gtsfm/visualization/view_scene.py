@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 
 import numpy as np
-from gtsam import Rot3, Pose3
+from gtsam import Pose3, Rot3
 
 import gtsfm.utils.io as io_utils
 from gtsfm.visualization.open3d_vis_utils import draw_scene_open3d

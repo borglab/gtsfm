@@ -11,10 +11,9 @@ import dask
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-from trimesh import Trimesh
-from gtsam import Pose3, Similarity3
 from dask.delayed import Delayed
-from gtsfm.common.pose_prior import PosePrior
+from gtsam import Pose3, Similarity3
+from trimesh import Trimesh
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.evaluation.metrics_report as metrics_report
@@ -26,18 +25,13 @@ import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.viz as viz_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
+from gtsfm.common.pose_prior import PosePrior
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.feature_extractor import FeatureExtractor
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
-from gtsfm.two_view_estimator import (
-    TwoViewEstimator,
-    TwoViewEstimationReport,
-    PRE_BA_REPORT_TAG,
-    POST_BA_REPORT_TAG,
-    POST_ISP_REPORT_TAG,
-    VIEWGRAPH_REPORT_TAG,
-)
+from gtsfm.two_view_estimator import (POST_BA_REPORT_TAG, POST_ISP_REPORT_TAG, PRE_BA_REPORT_TAG, VIEWGRAPH_REPORT_TAG,
+                                      TwoViewEstimationReport, TwoViewEstimator)
 
 matplotlib.use("Agg")
 

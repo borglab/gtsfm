@@ -3,13 +3,11 @@
 Author: John Lambert, Akshay Krishnan
 """
 import numpy as np
-from gtsam import Rot3, Cal3Bundler, Unit3
+from gtsam import Cal3Bundler, Rot3, Unit3
 
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
-from gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator import (
-    CycleConsistentRotationViewGraphEstimator,
-    EdgeErrorAggregationCriterion,
-)
+from gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator import (CycleConsistentRotationViewGraphEstimator,
+                                                                            EdgeErrorAggregationCriterion)
 
 
 def test_filter_to_cycle_consistent_edges() -> None:

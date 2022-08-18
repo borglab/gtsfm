@@ -13,7 +13,6 @@ from gtsam import Rot3, Unit3
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 
-
 logger = logger_utils.get_logger()
 
 

@@ -1,8 +1,8 @@
 import numpy as np
-from gtsam import Cal3Bundler, Rot3, PinholeCameraCal3Bundler, Pose3, SfmTrack
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack
 
-from gtsfm.common.sfm_track import SfmMeasurement
 import gtsfm.utils.reprojection as reproj_utils
+from gtsfm.common.sfm_track import SfmMeasurement
 
 
 def test_compute_track_reprojection_errors():

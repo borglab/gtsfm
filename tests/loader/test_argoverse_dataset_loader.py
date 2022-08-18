@@ -2,9 +2,9 @@ import unittest
 from pathlib import Path
 
 import numpy as np
+from gtsam import Cal3Bundler, Pose3
 
 import gtsfm.utils.io as io_utils
-from gtsam import Cal3Bundler, Pose3
 from gtsfm.loader.argoverse_dataset_loader import ArgoverseDatasetLoader
 
 ARGOVERSE_DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data" / "argoverse"

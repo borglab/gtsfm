@@ -8,12 +8,12 @@ from typing import Tuple
 
 from gtsam import Rot3, Unit3
 
-import gtsfm.utils.io as io_utils
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
+import gtsfm.utils.io as io_utils
 from gtsfm.frontend.detector_descriptor.sift import SIFTDetectorDescriptor
+from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
 from gtsfm.frontend.verifier.ransac import Ransac
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
-from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
 from tests.repro_tests.test_repro_base import ReproducibilityTestBase
 
 # defining the path for test data

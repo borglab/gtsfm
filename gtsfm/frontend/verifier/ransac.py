@@ -19,7 +19,6 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.opencv_verifier_base import OpencvVerifierBase
 
-
 RANSAC_SUCCESS_PROB = 0.999999
 RANSAC_MAX_ITERS = 1000000
 

@@ -8,11 +8,10 @@ import json
 import os
 from typing import Dict, List, Tuple
 
-
 import matplotlib.pyplot as plt
 import numpy as np
-from tqdm import tqdm
 from sklearn.cluster import DBSCAN
+from tqdm import tqdm
 
 # minimum number of voxels in the overlap of frustums
 MIN_VOXELS_OVERLAP_FRUSTUM = 1000
