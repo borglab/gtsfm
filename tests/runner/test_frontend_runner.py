@@ -5,6 +5,7 @@ Authors: John Lambert
 
 import unittest
 from pathlib import Path
+from typing import Union
 
 import numpy as np
 from gtsam import Pose3
@@ -13,6 +14,7 @@ from scipy.spatial.transform import Rotation
 import gtsfm.runner.frontend_runner as frontend_runner
 from gtsfm.feature_extractor import FeatureExtractor
 from gtsfm.frontend.correspondence_generator.det_desc_correspondence_generator import DetDescCorrespondenceGenerator
+from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
 from gtsfm.frontend.detector_descriptor.superpoint import SuperPointDetectorDescriptor
 from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
 from gtsfm.frontend.matcher.superglue_matcher import SuperGlueMatcher
@@ -157,13 +159,15 @@ class TestFrontend(unittest.TestCase):
 
     def __compare_frontend_result_error(
         self,
-        feature_extractor: FeatureExtractor,
+        correspondence_generator: Union[DetDescCorrespondenceGenerator, ImageCorrespondenceGenerator],
         two_view_estimator: TwoViewEstimator,
         euler_angle_err_tol: float,
         translation_err_tol: float,
     ) -> None:
         """Compare recovered relative rotation and translation with ground truth."""
-        _, i2Ri1_dict, i2Ui1_dict, _ = frontend_runner.run_frontend(self.loader, feature_extractor, two_view_estimator)
+        _, i2Ri1_dict, i2Ui1_dict, _ = frontend_runner.run_frontend(
+            loader=self.loader, correspondence_generator=correspondence_generator, two_view_estimator=two_view_estimator
+        )
 
         i1, i2 = 0, 1
         i2Ri1 = i2Ri1_dict[(i1, i2)]
