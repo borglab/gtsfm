@@ -59,19 +59,19 @@ class GtsfmRunnerBase:
             "--config_name",
             type=str,
             default="sift_front_end.yaml",
-            help="Choose sift_front_end.yaml or deep_front_end.yaml",
+            help="Master config, including back-end configuration. Choose sift_front_end.yaml or deep_front_end.yaml",
         )
         parser.add_argument(
             "--correspondence_generator_config_name",
             type=str,
-            default="sift.yaml",
-            help="Choose from among gtsfm/configs/correspondence",
+            default=None,
+            help="Override flag for correspondence generator (choose from among gtsfm/configs/correspondence).",
         )
         parser.add_argument(
             "--verifier_config_name",
             type=str,
-            default="ransac_5pt.yaml",
-            help="Choose from among gtsfm/configs/verifier",
+            default=None,
+            help="Override flag for verifier (choose from among gtsfm/configs/verifier).",
         )
         parser.add_argument(
             "--max_resolution",
@@ -127,15 +127,17 @@ class GtsfmRunnerBase:
 
         All configs are relative to the gtsfm module.
         """
-        with hydra.initialize_config_module(config_module="gtsfm.configs.correspondence"):
-            correspondence_cfg = hydra.compose(
-                config_name=self.parsed_args.correspondence_generator_config_name,
-            )
+        if self.parsed_args.correspondence_generator_config_name is not None:
+            with hydra.initialize_config_module(config_module="gtsfm.configs.correspondence"):
+                correspondence_cfg = hydra.compose(
+                    config_name=self.parsed_args.correspondence_generator_config_name,
+                )
 
-        with hydra.initialize_config_module(config_module="gtsfm.configs.verifier"):
-            verifier_cfg = hydra.compose(
-                config_name=self.parsed_args.verifier_config_name,
-            )
+        if self.parsed_args.verifier_config_name is not None:
+            with hydra.initialize_config_module(config_module="gtsfm.configs.verifier"):
+                verifier_cfg = hydra.compose(
+                    config_name=self.parsed_args.verifier_config_name,
+                )
 
         with hydra.initialize_config_module(config_module="gtsfm.configs"):
             overrides = ["+SceneOptimizer.output_root=" + str(self.parsed_args.output_root)]
@@ -146,15 +148,16 @@ class GtsfmRunnerBase:
                 config_name=self.parsed_args.config_name,
                 overrides=overrides,
             )
-
-            logger.info("Using config: ")
-            logger.info("\n" + OmegaConf.to_yaml(correspondence_cfg))
-            logger.info(OmegaConf.to_yaml(main_cfg))
             scene_optimizer: SceneOptimizer = instantiate(main_cfg.SceneOptimizer)
-            scene_optimizer.two_view_estimator._verifier: VerifierBase = instantiate(verifier_cfg.verifier)
-            scene_optimizer.correspondence_generator: CorrespondenceGeneratorBase = instantiate(
-                correspondence_cfg.CorrespondenceGenerator
-            )
+            if verifier_cfg is not None:
+                logger.info("\n\nVerifier override: " + OmegaConf.to_yaml(verifier_cfg))
+                scene_optimizer.two_view_estimator._verifier: VerifierBase = instantiate(verifier_cfg.verifier)
+            if correspondence_cfg is not None:
+                logger.info("\n\nCorrespondenceGenerator override: " + OmegaConf.to_yaml(correspondence_cfg))
+                scene_optimizer.correspondence_generator: CorrespondenceGeneratorBase = instantiate(
+                    correspondence_cfg.CorrespondenceGenerator
+                )
+            logger.info("\n\nSceneOptimizer: " + str(scene_optimizer))
         return scene_optimizer
 
     def construct_retriever(self) -> RetrieverBase:
