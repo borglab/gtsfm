@@ -4,8 +4,9 @@ Authors: John Lambert
 """
 import unittest
 
-from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_unique import \
-    KeypointAggregatorUnique
+from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_unique import (
+    KeypointAggregatorUnique,
+)
 from tests.frontend.correspondence_generator.keypoint_aggregator import test_keypoint_aggregator_base
 
 

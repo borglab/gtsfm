@@ -18,6 +18,7 @@ logger = logger_utils.get_logger()
 
 class JointNetVLADSequentialRetriever(RetrieverBase):
     """Note: this class contains no .run() method."""
+
     def __init__(self, num_matched: int, max_frame_lookahead: int) -> None:
         """
         Args:

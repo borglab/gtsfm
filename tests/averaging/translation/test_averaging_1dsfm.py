@@ -161,10 +161,10 @@ class Test1dsfmAllOutliers(unittest.TestCase):
 
     def test_outlier_case_missing_value(self) -> None:
         """Ensure that a missing `Value` in the 1dsfm result is represented by `None` in the returned entries.
-        
+
         The scenario below will lead to an outlier configuration -- all edges to the node 4 will be rejected
         as outliers, so that Value cannot be cast to Point3 -- it is returned as None.
-        
+
         This test ensures that 1dsfm checks if each Value exists in 1dsfm result, before casting it to a Point3.
         """
         # fmt: off

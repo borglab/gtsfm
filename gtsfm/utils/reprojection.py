@@ -81,4 +81,3 @@ def compute_point_reprojection_errors(
     errors = np.array(errors)
     avg_track_reproj_error = np.nan if np.isnan(errors).all() else np.nanmean(errors)
     return errors, avg_track_reproj_error
-

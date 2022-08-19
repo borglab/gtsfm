@@ -114,7 +114,7 @@ class GtsfmRunnerBase:
             overrides = ["+SceneOptimizer.output_root=" + str(self.parsed_args.output_root)]
             if self.parsed_args.share_intrinsics:
                 overrides.append("SceneOptimizer.multiview_optimizer.bundle_adjustment_module.shared_calib=True")
-            
+
             # config is relative to the gtsfm module
             cfg = hydra.compose(
                 config_name=self.parsed_args.config_name,

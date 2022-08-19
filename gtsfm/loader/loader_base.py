@@ -280,7 +280,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
         N = len(self)
         return [self.get_camera(i) for i in range(N)]
 
-    def get_image_shapes(self) -> List[Tuple[int,int]]:
+    def get_image_shapes(self) -> List[Tuple[int, int]]:
         """Return all the image shapes.
 
         Returns:

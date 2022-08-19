@@ -112,8 +112,6 @@ def save_json_file(
         json.dump(data, f, indent=4, ignore_nan=True)
 
 
-
-
 def read_json_file(fpath: Union[str, Path]) -> Any:
     """Load dictionary from JSON file.
 

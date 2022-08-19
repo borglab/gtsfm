@@ -10,8 +10,16 @@ import dask
 import gtsam
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import (CameraSetCal3Bundler, CameraSetCal3Fisheye, PinholeCameraCal3Bundler, Point2Vector, Pose3, Rot3,
-                   SfmTrack, Unit3)
+from gtsam import (
+    CameraSetCal3Bundler,
+    CameraSetCal3Fisheye,
+    PinholeCameraCal3Bundler,
+    Point2Vector,
+    Pose3,
+    Rot3,
+    SfmTrack,
+    Unit3,
+)
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.geometry_comparisons as comp_utils

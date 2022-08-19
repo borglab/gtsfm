@@ -60,8 +60,8 @@ class MatcherBase(metaclass=abc.ABCMeta):
         keypoints_i2_graph: Delayed,
         descriptors_i1_graph: Delayed,
         descriptors_i2_graph: Delayed,
-        im_shape_i1: Tuple[int,int],
-        im_shape_i2: Tuple[int,int],
+        im_shape_i1: Tuple[int, int],
+        im_shape_i2: Tuple[int, int],
     ) -> Delayed:
         """
         Generates computation graph for matched features using description graphs.

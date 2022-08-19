@@ -55,7 +55,7 @@ class TestSequentialRetriever(unittest.TestCase):
             (10, 11),
         ]
         self.assertEqual(pairs, expected_pairs)
-        # all images have 3 potential forward match pairs, except last three 
+        # all images have 3 potential forward match pairs, except last three
         # which have only 2, 1, and 0 such forward pairs
         self.assertEqual(len(pairs), (9 * 3) + 2 + 1)
 

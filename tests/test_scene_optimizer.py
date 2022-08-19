@@ -45,9 +45,7 @@ class TestSceneOptimizer(unittest.TestCase):
                 all_intrinsics=self.loader.get_all_intrinsics(),
                 image_shapes=self.loader.get_image_shapes(),
                 absolute_pose_priors=self.loader.get_absolute_pose_priors(),
-                relative_pose_priors=self.loader.get_relative_pose_priors(
-                    self.loader.get_valid_pairs()
-                ),
+                relative_pose_priors=self.loader.get_relative_pose_priors(self.loader.get_valid_pairs()),
                 cameras_gt=self.loader.get_gt_cameras(),
                 gt_wTi_list=self.loader.get_gt_poses(),
             )

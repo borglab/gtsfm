@@ -179,10 +179,13 @@ class TestGtsfmMetricsGroup(unittest.TestCase):
 
             self.assertEqual(len(pre_json_metric_dict), len(post_json_metric_dict))
             self.assertEqual(len(pre_json_metric_dict["test_metrics"]), len(post_json_metric_dict["test_metrics"]))
-            np.testing.assert_allclose(pre_json_metric_dict["test_metrics"]["metric1"], 
-                                       post_json_metric_dict["test_metrics"]["metric1"])
-            np.testing.assert_allclose(pre_json_metric_dict["test_metrics"]["metric2"]["full_data"], 
-                                       post_json_metric_dict["test_metrics"]["metric2"]["full_data"])
+            np.testing.assert_allclose(
+                pre_json_metric_dict["test_metrics"]["metric1"], post_json_metric_dict["test_metrics"]["metric1"]
+            )
+            np.testing.assert_allclose(
+                pre_json_metric_dict["test_metrics"]["metric2"]["full_data"],
+                post_json_metric_dict["test_metrics"]["metric2"]["full_data"],
+            )
 
     def test_parse_metrics_from_dict(self) -> None:
         """Check that metrics group can be parsed from dict."""
@@ -190,7 +193,6 @@ class TestGtsfmMetricsGroup(unittest.TestCase):
         parsed_metrics = GtsfmMetricsGroup.parse_from_dict(metrics_group_dict)
         self.assertEqual(parsed_metrics.name, "test_metrics")
         self.assertEqual(len(parsed_metrics.metrics), 2)
-
 
 
 if __name__ == "__main__":

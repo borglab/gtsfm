@@ -54,7 +54,6 @@ def view_scene(args: argparse.Namespace) -> None:
     if args.show_mvs_result:
         point_cloud, rgb = io_utils.read_point_cloud_from_ply(args.ply_fpath)
 
-
     if len(calibrations) == 1:
         calibrations = calibrations * len(img_fnames)
     mean_pt = compute_point_cloud_center_robust(point_cloud)

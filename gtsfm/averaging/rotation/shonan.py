@@ -14,8 +14,15 @@ from typing import Dict, List, Optional, Tuple
 
 import gtsam
 import numpy as np
-from gtsam import (BetweenFactorPose3, BetweenFactorPose3s, LevenbergMarquardtParams, Pose3, Rot3, ShonanAveraging3,
-                   ShonanAveragingParameters3)
+from gtsam import (
+    BetweenFactorPose3,
+    BetweenFactorPose3s,
+    LevenbergMarquardtParams,
+    Pose3,
+    Rot3,
+    ShonanAveraging3,
+    ShonanAveragingParameters3,
+)
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase

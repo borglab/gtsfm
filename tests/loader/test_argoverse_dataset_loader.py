@@ -22,7 +22,7 @@ class TestArgoverseDatasetLoader(unittest.TestCase):
             max_num_imgs=2,
             max_lookahead_sec=50,
             camera_name="ring_front_center",
-            max_resolution=1200
+            max_resolution=1200,
         )
         assert len(self.loader)
 

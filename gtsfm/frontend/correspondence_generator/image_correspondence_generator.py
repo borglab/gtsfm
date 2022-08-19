@@ -8,10 +8,12 @@ from typing import Dict, List, Tuple
 from dask.delayed import Delayed
 
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
-from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_dedup import \
-    KeypointAggregatorDedup
-from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_unique import \
-    KeypointAggregatorUnique
+from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_dedup import (
+    KeypointAggregatorDedup,
+)
+from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_unique import (
+    KeypointAggregatorUnique,
+)
 from gtsfm.frontend.matcher.image_matcher_base import ImageMatcherBase
 
 

@@ -85,4 +85,3 @@ def test_compute_point_reprojection_errors():
     expected_errors = np.array([np.sqrt(2), 0])
     np.testing.assert_allclose(errors, expected_errors)
     assert avg_track_reproj_error == np.sqrt(2) / 2
-

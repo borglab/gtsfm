@@ -59,7 +59,7 @@ class OpencvVerifierBase(VerifierBase):
             match_indices: matches as indices of features from both images, of shape (N3, 2), where N3 <= min(N1, N2).
             camera_intrinsics_i1: intrinsics for image #i1.
             camera_intrinsics_i2: intrinsics for image #i2.
-        
+
         Returns:
             Estimated rotation i2Ri1, or None if it cannot be estimated.
             Estimated unit translation i2Ui1, or None if it cannot be estimated.

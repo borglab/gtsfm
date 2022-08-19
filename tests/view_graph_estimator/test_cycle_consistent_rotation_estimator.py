@@ -6,8 +6,10 @@ import numpy as np
 from gtsam import Cal3Bundler, Rot3, Unit3
 
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
-from gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator import (CycleConsistentRotationViewGraphEstimator,
-                                                                            EdgeErrorAggregationCriterion)
+from gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator import (
+    CycleConsistentRotationViewGraphEstimator,
+    EdgeErrorAggregationCriterion,
+)
 
 
 def test_filter_to_cycle_consistent_edges() -> None:
@@ -48,7 +50,7 @@ def test_filter_to_cycle_consistent_edges() -> None:
     calibrations = {k: Cal3Bundler() for k in range(0, 5)}
     corr_idxs_i1i2 = {i1i2: np.array([]) for i1i2 in i2Ri1_dict.keys()}
     keypoints = {k: np.array([]) for k in range(0, 5)}
-    
+
     # populate dummy 2-view reports
     two_view_reports = {}
     for (i1, i2) in i2Ri1_dict.keys():
@@ -64,7 +66,7 @@ def test_filter_to_cycle_consistent_edges() -> None:
         calibrations=calibrations,
         corr_idxs_i1i2=corr_idxs_i1i2,
         keypoints=keypoints,
-        two_view_reports=two_view_reports
+        two_view_reports=two_view_reports,
     )
 
     # non-self-consistent triplet should have been removed
