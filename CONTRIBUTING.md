@@ -12,8 +12,8 @@ To open a pull request, here are some steps to get you started:
 - Validate that your changes do not break any existing unit tests. CI (Github Actions) should also pass. We use `pytest`.
   - Run all unit tests: `$ pytest tests`
  
-- Reformat your code using Python [black](https://github.com/psf/black), with `-l 120` for a max line length of 120. 
-- Auto-sort your imports using [isort](https://pycqa.github.io/isort/), with `-l 120` for a max line length of 120. 
+- Reformat your code using Python [black](https://github.com/psf/black), with `-l 120` for a max line length of 120: `$ black -l 120 gtsfm tests` 
+- Auto-sort your imports using [isort](https://pycqa.github.io/isort/), with `--profile black` to avoid conflicts with `black` and `-l 120` for a max line length of 120: `$ isort --profile black -l 120 gtsfm tests`
 - Ensure static analysis with flake8 does not throw any errors: `$ flake8 --max-line-length 120 --ignore E201,E202,E203,E231,W291,W293,E303,W391,E402,W503,E731 gtsfm tests`
 
 - Please provide documentation for any new code your pull request provides.
