@@ -27,9 +27,9 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         self.test_data = EXAMPLE_DATA
 
     # def test_simple_scene(self):
-    #     """Test the simple scene using the `run` API."""
+    #     """Test the simple scene using the `run_ba` API."""
 
-    #     computed_result = self.ba.run(self.test_data)
+    #     computed_result = self.ba.run_ba(self.test_data)
 
     #     expected_error = 0.046137573704557046
 
@@ -42,7 +42,7 @@ class TestBundleAdjustmentOptimizer(unittest.TestCase):
         absolute_pose_priors = [None] * EXAMPLE_DATA.number_images()
         relative_pose_priors = {}
 
-        expected_result, _, _ = self.ba.run(
+        expected_result, _, _ = self.ba.run_ba(
             self.test_data, absolute_pose_priors=absolute_pose_priors, relative_pose_priors=relative_pose_priors
         )
 

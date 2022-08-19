@@ -1,0 +1,17 @@
+
+CorrespondenceGenerator:
+  _target_: gtsfm.frontend.correspondence_generator.det_desc_correspondence_generator.DetDescCorrespondenceGenerator
+
+  feature_extractor:
+    _target_: gtsfm.feature_extractor.FeatureExtractor
+    detector_descriptor:
+      _target_: gtsfm.frontend.cacher.detector_descriptor_cacher.DetectorDescriptorCacher
+      detector_descriptor_obj:
+        _target_: gtsfm.frontend.detector_descriptor.superpoint.SuperPointDetectorDescriptor
+        max_keypoints: 5000
+
+  matcher:
+    _target_: gtsfm.frontend.cacher.matcher_cacher.MatcherCacher
+    matcher_obj:
+      _target_: gtsfm.frontend.matcher.superglue_matcher.SuperGlueMatcher
+      use_outdoor_model: True
