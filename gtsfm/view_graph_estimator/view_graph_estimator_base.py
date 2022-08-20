@@ -48,8 +48,8 @@ class ViewGraphEstimatorBase(GTSFMProcess):
             display_name="View-Graph Estimator",
             parent_plate="Multi-View Optimizer",
             input_products=(
-                "Optimized Relative Rotations",
-                "Optimized Relative Translations",
+                "Optimized Relative Rotation",
+                "Optimized Relative Translation",
                 "Camera Intrinsics",
                 "Inlier Correspondences",
                 "Keypoints",

@@ -63,7 +63,7 @@ MEASUREMENT_NOISE_SIGMA = 1.0  # in pixels
 logger = logger_utils.get_logger()
 
 
-class TwoViewBundleAdjustmentProcess(GTSFMProcess):
+class TwoViewBundleAdjustment(GTSFMProcess):
     """Dummy class that exists in order to visualize the 2-view BA process in a process graph visualization.
 
     BundleAdjustmentOptimizer is used in two separate places (optimizing between two images and then later optimizing
@@ -77,15 +77,15 @@ class TwoViewBundleAdjustmentProcess(GTSFMProcess):
             "Two-View Bundle Adjustment",
             "Two-View Estimator",
             (
-                "Relative Rotations",
-                "Relative Translations",
+                "Relative Rotation",
+                "Relative Translation",
                 "Triangulated Points",
                 "Relative Pose Priors",
                 "Camera Intrinsics",
                 "Keypoints",
                 "Verified Correspondences",
             ),
-            ("Optimized Relative Rotations", "Optimized Relative Translations", "Inlier Correspondences"),
+            ("Optimized Relative Rotation", "Optimized Relative Translation", "Inlier Correspondences"),
         )
 
 
@@ -109,7 +109,7 @@ class BundleAdjustmentOptimizer(GTSFMProcess):
                 "Global Rotations",
                 "3D Tracks",
             ),
-            output_products=("Filtered Optimized Camera Poses", "Filtered Optimized 3D Tracks"),
+            output_products=("Optimized Camera Poses", "Optimized 3D Tracks"),
         )
 
     def __init__(

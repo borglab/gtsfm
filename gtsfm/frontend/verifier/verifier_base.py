@@ -32,7 +32,7 @@ class VerifierBase(GTSFMProcess):
             display_name="Verifier",
             parent_plate="Two-View Estimator",
             input_products=("Keypoints", "Putative Correspondences", "Camera Intrinsics"),
-            output_products=("Relative Rotations", "Relative Translations", "Verified Correspondences", "Inlier Ratio"),
+            output_products=("Relative Rotation", "Relative Translation", "Verified Correspondences", "Inlier Ratio"),
         )
 
     def __init__(

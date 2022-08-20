@@ -20,7 +20,12 @@ class FakeImageLoader(GTSFMProcess):
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display node and edge info for this process in the process graph."""
 
-        return UiMetadata("FakeImageLoader", "", "Raw Images", "Internal Data")
+        return UiMetadata(
+            display_name="FakeImageLoader",
+            parent_plate="",
+            input_products="Raw Images",
+            output_products="Internal Data",
+        )
 
     @property
     def fake_image_dir(self):
@@ -49,7 +54,7 @@ class FakeOutputBase(GTSFMProcess):
 
 
 class FakeOutputGTSFM(FakeOutputBase):
-    """Test class."""
+    """Test class, inherits from FakeOutputBase."""
 
     def __init__(self) -> None:
         # should have UI metadata from superclass FakeOutputBase
