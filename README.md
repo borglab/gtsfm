@@ -1,14 +1,14 @@
 ![Alt text](gtsfm-logo.png?raw=true)
 
-# Georgia Tech Structure from Motion (GTSFM) Library
+# Georgia Tech Structure from Motion (GTSfM) Library
 
 | Platform     | Build Status  |
 |:------------:| :-------------:|
 | Ubuntu 20.04.3 |  ![Linux CI](https://github.com/borglab/gtsfm/workflows/Unit%20tests%20and%20python%20checks/badge.svg) |
 
-### What is GTSFM?
+### What is GTSfM?
 
-GTSFM is an end-to-end SFM pipeline based on [GTSAM](https://github.com/borglab/gtsam). GTSFM was designed from the ground-up to natively support parallel computation using [Dask](https://dask.org/).
+GTSfM is an end-to-end SfM pipeline based on [GTSAM](https://github.com/borglab/gtsam). GTSfM was designed from the ground-up to natively support parallel computation using [Dask](https://dask.org/).
 
 <p align="left">
   <img src="https://dask.org/_images/dask_horizontal_white_no_pad_dark_bg.png" height="50">
@@ -30,9 +30,9 @@ The majority of our code is governed by a MIT license and is suitable for commer
 
 ## Installation
 
-GTSFM requires no compilation, as Python wheels are provided for GTSAM.
+GTSfM requires no compilation, as Python wheels are provided for GTSAM.
 
-To install GTSFM, first, we need to create a conda environment.
+To install GTSfM, first, we need to create a conda environment.
 
 **Linux**
 On Linux, with CUDA support:
@@ -96,7 +96,7 @@ You can view/monitor the distributed computation using the [Dask dashboard](http
 
 Currently we require EXIF data embedded into your images (or you can provide ground truth intrinsics in the expected format for an Olsson dataset, or COLMAP-exported text data, etc)
 
-If you would like to compare GTSFM output with COLMAP output, please run:
+If you would like to compare GTSfM output with COLMAP output, please run:
 
 ```python
 python gtsfm/runner/run_scene_optimizer_colmaploader.py --config_name {CONFIG_NAME} --images_dir {IMAGES_DIR} --colmap_files_dirpath {COLMAP_FILES_DIRPATH} --image_extension jpg --num_workers {NUM_WORKERS} --max_frame_lookahead {MAX_FRAME_LOOKAHEAD}
@@ -111,11 +111,11 @@ python gtsfm/visualization/view_scene.py --rendering_library open3d --rendering_
 ```
 
 For users that are working with the same dataset repeatedly, we provide functionality to cache front-end results for
-GTSFM for very fast inference afterwards. For more information, please refer to [`gtsfm/frontend/cacher/README.md`](https://github.com/borglab/gtsfm/tree/master/gtsfm/frontend/cacher).
+GTSfM for very fast inference afterwards. For more information, please refer to [`gtsfm/frontend/cacher/README.md`](https://github.com/borglab/gtsfm/tree/master/gtsfm/frontend/cacher).
 
 ## Repository Structure
 
-GTSFM is designed in an extremely modular way. Each module can be swapped out with a new one, as long as it implements the API of the module's abstract base class. The code is organized as follows:
+GTSfM is designed in an extremely modular way. Each module can be swapped out with a new one, as long as it implements the API of the module's abstract base class. The code is organized as follows:
 
 - `gtsfm`: source code, organized as:
   - `averaging`
