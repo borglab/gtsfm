@@ -8,7 +8,7 @@ import unittest.mock as mock
 
 import gtsam
 import numpy as np
-from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Rot3, Point3, Pose3, SfmData, SfmTrack
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point3, Pose3, Rot3, SfmData, SfmTrack
 
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.io as io_utils

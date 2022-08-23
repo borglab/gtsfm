@@ -8,7 +8,7 @@ from typing import Dict, List, Tuple
 
 import dask
 import numpy as np
-from gtsam import Rot3, Pose3
+from gtsam import Pose3, Rot3
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
 import tests.data.sample_poses as sample_poses

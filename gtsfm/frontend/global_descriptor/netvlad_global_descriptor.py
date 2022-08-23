@@ -39,9 +39,7 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
         # initializing in the constructor leads to OOM.
         model: nn.Module = NetVLAD()
 
-        img_tensor = torch.from_numpy(image.value_array).permute(2,0,1).unsqueeze(0).type(torch.float32) / 255
+        img_tensor = torch.from_numpy(image.value_array).permute(2, 0, 1).unsqueeze(0).type(torch.float32) / 255
         img_desc = model({"image": img_tensor})
-        
+
         return img_desc["global_descriptor"].detach().squeeze().cpu().numpy()
-
-

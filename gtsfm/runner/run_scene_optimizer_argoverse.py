@@ -6,9 +6,8 @@ from dask.distributed import Client, LocalCluster, performance_report
 from hydra.utils import instantiate
 
 from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.scene_optimizer import SceneOptimizer
-
 from gtsfm.loader.argoverse_dataset_loader import ArgoverseDatasetLoader
+from gtsfm.scene_optimizer import SceneOptimizer
 from gtsfm.utils.logger import get_logger
 
 logger = get_logger()

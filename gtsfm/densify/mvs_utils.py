@@ -120,7 +120,7 @@ def piecewise_gaussian(theta: float, theta_0: float = 5, sigma_1: float = 1, sig
     else:
         sigma = sigma_2
 
-    return math.exp(-((theta - theta_0) ** 2) / (2 * sigma ** 2))
+    return math.exp(-((theta - theta_0) ** 2) / (2 * sigma**2))
 
 
 def cart_to_homogenous(

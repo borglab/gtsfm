@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
+from gtsam import Cal3Bundler, EssentialMatrix, PinholeCameraCal3Bundler, Point3, Pose3, Rot3, Unit3
 from trimesh import Trimesh
-from gtsam import PinholeCameraCal3Bundler, Cal3Bundler, EssentialMatrix, Point3, Pose3, Rot3, Unit3
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils

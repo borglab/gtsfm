@@ -7,7 +7,6 @@ Authors: John Lambert
 
 from gtsfm.retriever.sequential_retriever import SequentialRetriever
 
-
 # For exhaustive matching, we limit the lookahead to 10,000 images.
 MAX_POSSIBLE_FRAME_LOOKAHEAD = 10000
 

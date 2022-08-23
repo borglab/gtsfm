@@ -2,7 +2,6 @@ import argparse
 import os
 from pathlib import Path
 
-
 import gtsfm.utils.logger as logger_utils
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.loader.olsson_loader import OlssonLoader

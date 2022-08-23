@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import dask
 import numpy as np
 import pytest
-from gtsam import Cal3Bundler, Rot3, Pose3
+from gtsam import Cal3Bundler, Pose3, Rot3
 
 import gtsfm.utils.io as io_utils
 from gtsfm.loader.olsson_loader import OlssonLoader
