@@ -32,7 +32,6 @@ import gtsfm.utils.tracks as track_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 METRICS_GROUP = "bundle_adjustment_metrics"
 
@@ -62,54 +61,15 @@ MEASUREMENT_NOISE_SIGMA = 1.0  # in pixels
 logger = logger_utils.get_logger()
 
 
-class TwoViewBundleAdjustment(GTSFMProcess):
-    """Dummy class that exists in order to visualize the 2-view BA process in a process graph visualization.
-
-    BundleAdjustmentOptimizer is used in two separate places (optimizing between two images and then later optimizing
-    globally), so a separate class is needed due to the way GTSFMProcess is designed.
-    """
-
-    def get_ui_metadata() -> UiMetadata:
-        """Returns data needed to display node and edge info for this process in the process graph."""
-
-        return UiMetadata(
-            display_name="Two-View Bundle Adjustment",
-            input_products=(
-                "Relative Rotation",
-                "Relative Translation",
-                "Triangulated Points",
-                "Relative Pose Priors",
-                "Camera Intrinsics",
-                "Keypoints",
-                "Verified Correspondences",
-            ),
-            output_products=("Optimized Relative Rotation", "Optimized Relative Translation", "Inlier Correspondences"),
-            parent_plate="Two-View Estimator",
-        )
-
-
-class BundleAdjustmentOptimizer(GTSFMProcess):
+class BundleAdjustmentOptimizer:
     """Bundle adjustment using factor-graphs in GTSAM.
 
     This class refines global pose estimates and intrinsics of cameras, and also refines 3D point cloud structure given
-    tracks from triangulation."""
+    tracks from triangulation.
 
-    def get_ui_metadata() -> UiMetadata:
-        """Returns data needed to display node and edge info for this process in the process graph."""
-
-        return UiMetadata(
-            display_name="Global Bundle Adjustment",
-            input_products=(
-                "Absolute Pose Priors",
-                "Relative Pose Priors",
-                "Camera Intrinsics",
-                "Global Translations",
-                "Global Rotations",
-                "3D Tracks",
-            ),
-            output_products=("Optimized Camera Poses", "Optimized 3D Tracks"),
-            parent_plate="Multi-View Optimizer",
-        )
+    Due to the process graph requiring separate classes for separate graph objects, this class is a superclass for
+    TwoViewBundleAdjustment and GlobalBundleAdjustment (defined in gtsfm/bundle/).
+    """
 
     def __init__(
         self,
