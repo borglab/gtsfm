@@ -16,10 +16,10 @@ Authors: Ayush Baid
 import glob
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-import yaml
 
-import numpy as np
 import gtsam
+import numpy as np
+import yaml
 from gtsam import Cal3Fisheye, Pose3
 
 import gtsfm.utils.io as io_utils

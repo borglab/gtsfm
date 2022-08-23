@@ -11,7 +11,6 @@ from gtsam import Point3, Pose3, Rot3, Unit3
 
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
-
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 

@@ -12,7 +12,6 @@ from gtsfm.runner.gtsfm_runner_base import GtsfmRunnerBase
 logger = logger_utils.get_logger()
 
 
-
 class GtsfmRunnerHiltiLoader(GtsfmRunnerBase):
     def __init__(self):
         super(GtsfmRunnerHiltiLoader, self).__init__(tag="GTSFM for the hilti loader")

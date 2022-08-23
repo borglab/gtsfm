@@ -13,7 +13,6 @@ import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.metrics as metric_utils
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 

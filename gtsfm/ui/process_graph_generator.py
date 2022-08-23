@@ -10,16 +10,14 @@ saves to a file.
 Author: Kevin Fu
 """
 
-from gtsfm.ui.registry import RegistryHolder
-
-from pathlib import Path
 import os
+from pathlib import Path
+from typing import Set
 
 import pydot
 
-from typing import Set
-
 from gtsfm.ui.gtsfm_process import UiMetadata
+from gtsfm.ui.registry import RegistryHolder
 
 JS_ROOT = os.path.join(Path(__file__).resolve().parent.parent.parent, "rtf_vis_tool")
 DEFAULT_GRAPH_VIZ_OUTPUT_PATH = os.path.join(JS_ROOT, "src", "ui", "process_graph_output.svg")

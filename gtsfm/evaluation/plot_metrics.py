@@ -3,16 +3,15 @@ using the metrics that have been logged as JSON in a previous run of the pipelin
 
 Authors: Akshay Krishnan
 """
-import os
 import argparse
+import os
 from pathlib import Path
 from typing import Optional
 
-
-from gtsfm.evaluation.metrics import GtsfmMetricsGroup
-import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.evaluation.compare_metrics as compare_metrics
+import gtsfm.evaluation.metrics_report as metrics_report
 import gtsfm.utils.logger as logger_utils
+from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 
 logger = logger_utils.get_logger()
 

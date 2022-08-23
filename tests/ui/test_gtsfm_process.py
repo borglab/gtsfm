@@ -4,11 +4,11 @@ Unit tests for RegistryHolder and GTSFMProcess.
 Author: Kevin Fu
 """
 
+import abc
 import unittest
 
-from gtsfm.ui.registry import RegistryHolder
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
-import abc
+from gtsfm.ui.registry import RegistryHolder
 
 
 class FakeImageLoader(GTSFMProcess):

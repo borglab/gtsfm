@@ -22,7 +22,6 @@ from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.utils import logger as logger_utils
 from thirdparty.patchmatchnet.models.net import PatchmatchNet
 
-
 METRICS_GROUP = "multi_view_stereo"
 
 logger = logger_utils.get_logger()

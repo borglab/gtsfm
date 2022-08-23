@@ -7,8 +7,8 @@ import copy
 from typing import Dict, List, Tuple
 
 import numpy as np
-
 from gtsam.utils.test_case import GtsamTestCase
+
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.data_association.dsf_tracks_estimator import DsfTracksEstimator
 

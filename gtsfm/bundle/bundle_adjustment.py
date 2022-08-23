@@ -32,7 +32,6 @@ import gtsfm.utils.tracks as track_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 METRICS_GROUP = "bundle_adjustment_metrics"
@@ -322,7 +321,7 @@ class BundleAdjustmentOptimizer(GTSFMProcess):
 
         return sorted(list(cameras))
 
-    def run(
+    def run_ba(
         self,
         initial_data: GtsfmData,
         absolute_pose_priors: List[Optional[PosePrior]],
@@ -453,7 +452,7 @@ class BundleAdjustmentOptimizer(GTSFMProcess):
             GtsfmData aligned to GT (if provided), wrapped up using dask.delayed
             Metrics group for BA results, wrapped up using dask.delayed
         """
-        optimized_sfm_data, filtered_sfm_data, _ = dask.delayed(self.run, nout=3)(
+        optimized_sfm_data, filtered_sfm_data, _ = dask.delayed(self.run_ba, nout=3)(
             sfm_data_graph, absolute_pose_priors, relative_pose_priors
         )
         metrics_graph = dask.delayed(self.evaluate)(optimized_sfm_data, filtered_sfm_data, cameras_gt)

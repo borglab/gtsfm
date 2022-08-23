@@ -15,9 +15,7 @@ import gtsfm.utils.images as img_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.common.pose_prior import PosePrior
-
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
-
 
 logger = logger_utils.get_logger()
 

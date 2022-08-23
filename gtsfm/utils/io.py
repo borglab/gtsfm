@@ -2,7 +2,6 @@
 
 Authors: Ayush Baid, John Lambert
 """
-import simplejson as json
 import os
 import pickle
 from bz2 import BZ2File
@@ -14,12 +13,10 @@ import gtsam
 import h5py
 import numpy as np
 import open3d
+import simplejson as json
 from gtsam import Cal3Bundler, Point3, Pose3, Rot3, SfmTrack
 from PIL import Image as PILImage
 from PIL.ExifTags import GPSTAGS, TAGS
-from thirdparty.colmap.scripts.python.read_write_model import Camera as ColmapCamera
-from thirdparty.colmap.scripts.python.read_write_model import Image as ColmapImage
-from thirdparty.colmap.scripts.python.read_write_model import Point3D as ColmapPoint3D
 
 import gtsfm.utils.images as image_utils
 import gtsfm.utils.logger as logger_utils
@@ -28,6 +25,9 @@ import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.sfm_track import SfmTrack2d
+from thirdparty.colmap.scripts.python.read_write_model import Camera as ColmapCamera
+from thirdparty.colmap.scripts.python.read_write_model import Image as ColmapImage
+from thirdparty.colmap.scripts.python.read_write_model import Point3D as ColmapPoint3D
 
 logger = logger_utils.get_logger()
 
@@ -110,8 +110,6 @@ def save_json_file(
         # ignore_nan=False replaces any NaN with null so that RTF frontend can
         # parse it
         json.dump(data, f, indent=4, ignore_nan=True)
-
-
 
 
 def read_json_file(fpath: Union[str, Path]) -> Any:

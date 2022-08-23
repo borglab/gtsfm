@@ -13,12 +13,10 @@ from gtsam import Cal3_S2, Point3, Pose3, Rot3, Unit3
 from gtsam.examples import SFMdata
 
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
-
 import tests.data.sample_poses as sample_poses
 from gtsfm.averaging.translation.averaging_1dsfm import TranslationAveraging1DSFM
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.loader.olsson_loader import OlssonLoader
-
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent.parent / "data"
 
@@ -163,10 +161,10 @@ class Test1dsfmAllOutliers(unittest.TestCase):
 
     def test_outlier_case_missing_value(self) -> None:
         """Ensure that a missing `Value` in the 1dsfm result is represented by `None` in the returned entries.
-        
+
         The scenario below will lead to an outlier configuration -- all edges to the node 4 will be rejected
         as outliers, so that Value cannot be cast to Point3 -- it is returned as None.
-        
+
         This test ensures that 1dsfm checks if each Value exists in 1dsfm result, before casting it to a Point3.
         """
         # fmt: off

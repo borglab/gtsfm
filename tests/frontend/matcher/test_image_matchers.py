@@ -2,13 +2,13 @@
 
 Authors: Ayush Baid
 """
-from pathlib import Path
 import unittest
+from pathlib import Path
 
 import parameterized
 
-from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.frontend.matcher.loftr import LOFTR
+from gtsfm.loader.olsson_loader import OlssonLoader
 
 # defining the path for test data
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent.parent / "data"

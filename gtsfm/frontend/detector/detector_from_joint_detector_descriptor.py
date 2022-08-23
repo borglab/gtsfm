@@ -5,9 +5,7 @@ Authors: Ayush Baid
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.detector.detector_base import DetectorBase
-from gtsfm.frontend.detector_descriptor.detector_descriptor_base import (
-    DetectorDescriptorBase,
-)
+from gtsfm.frontend.detector_descriptor.detector_descriptor_base import DetectorDescriptorBase
 
 
 class DetectorFromDetectorDescriptor(DetectorBase):

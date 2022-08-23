@@ -14,7 +14,6 @@ import numpy as np
 import gtsfm.visualization.open3d_vis_utils as open3d_vis_utils
 from gtsfm.loader.olsson_loader import OlssonLoader
 
-
 TEST_DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "tests" / "data"
 
 # The Olsson loader requires we set a value for the frame lookahead, but it will not affect the visualization.

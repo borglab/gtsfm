@@ -11,7 +11,6 @@ import dask
 from dask.delayed import Delayed
 
 from gtsfm.loader.loader_base import LoaderBase
-
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 

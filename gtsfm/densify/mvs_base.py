@@ -10,10 +10,9 @@ import numpy as np
 from dask.delayed import Delayed
 
 import gtsfm.densify.mvs_utils as mvs_utils
-from gtsfm.common.image import Image
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common.image import Image
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
-
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 

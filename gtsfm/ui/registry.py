@@ -9,7 +9,7 @@ Author: Kevin Fu
 """
 
 import abc
-from typing import Tuple, Dict, Callable, Any
+from typing import Any, Callable, Dict, Tuple
 
 
 class RegistryHolder(type):

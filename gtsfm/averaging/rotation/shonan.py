@@ -18,8 +18,8 @@ from gtsam import (
     BetweenFactorPose3,
     BetweenFactorPose3s,
     LevenbergMarquardtParams,
-    Rot3,
     Pose3,
+    Rot3,
     ShonanAveraging3,
     ShonanAveragingParameters3,
 )
@@ -27,7 +27,6 @@ from gtsam import (
 import gtsfm.utils.logger as logger_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.common.pose_prior import PosePrior
-
 
 TWOVIEW_ROTATION_SIGMA = 1
 POSE3_DOF = 6

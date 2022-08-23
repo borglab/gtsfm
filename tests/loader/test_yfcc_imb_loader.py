@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
-from gtsam import Pose3, Cal3Bundler
+from gtsam import Cal3Bundler, Pose3
 
 import gtsfm.utils.io as io_utils
 from gtsfm.loader.yfcc_imb_loader import YfccImbLoader
