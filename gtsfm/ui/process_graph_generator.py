@@ -55,9 +55,10 @@ class ProcessGraphGenerator:
         """Build graph based on RegistryHolder's REGISTRY."""
 
         unique_metadata = self._get_metadata_from_registry()
-
         # sort list to prevent non-deterministic DOT graph
-        for metadata in sorted(list(unique_metadata)):
+        sorted_metadata = sorted(list(unique_metadata))
+
+        for metadata in sorted_metadata:
             self._add_nodes_to_graph(metadata)
 
         for plate_name, cluster in self._plate_to_cluster.items():
@@ -118,26 +119,32 @@ class ProcessGraphGenerator:
         display_name = metadata.display_name
 
         # autocast strings to one-element tuples
-        input_products = metadata.input_products
-        if type(input_products) == str:
-            input_products = (input_products,)
         output_products = metadata.output_products
         if type(output_products) == str:
             output_products = (output_products,)
+
+        # autocast strings to one-element tuples
+        input_products = metadata.input_products
+        if type(input_products) == str:
+            input_products = (input_products,)
 
         cluster = self._main_graph
         if metadata.parent_plate != "":
             cluster = self._plate_to_cluster[metadata.parent_plate]
 
+        # add Nodes for processes and output_products in the same plate
+        # don't add input_products as Nodes to ensure output_products are in the same plate as their processes
         cluster.add_node(pydot.Node(display_name, shape=NODE_SHAPE, style=NODE_STYLE, fillcolor=PROCESS_FILLCOLOR))
-        for product_name in input_products + output_products:
+        for product_name in output_products:
             cluster.add_node(pydot.Node(product_name, shape=NODE_SHAPE, style=NODE_STYLE, fillcolor=PRODUCT_FILLCOLOR))
 
-        # add Edges for all input_products -> blue node -> all output_products
-        for input_product_name in input_products:
-            self._main_graph.add_edge(pydot.Edge(input_product_name, display_name, color=ARROW_COLOR))
+        # add process -> output_product edges
         for output_product_name in output_products:
             self._main_graph.add_edge(pydot.Edge(display_name, output_product_name, color=ARROW_COLOR))
+
+        # add input_product -> process edges
+        for input_product_name in input_products:
+            self._main_graph.add_edge(pydot.Edge(input_product_name, display_name, color=ARROW_COLOR))
 
     def save_graph(self, filepath: str = DEFAULT_GRAPH_VIZ_OUTPUT_PATH) -> None:
         """Save graph to the given filepath."""
