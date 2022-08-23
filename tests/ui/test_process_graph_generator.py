@@ -59,17 +59,15 @@ class TestProcessGraphGenerator(unittest.TestCase):
 
         # can't assert the full graph directly because the REGISTRY will have other classes
         self.assertTrue("FakeImageLoader [" in output_raw_dot)
-        self.assertTrue('"Raw Images" [' in output_raw_dot)
         self.assertTrue('"Internal Data" [' in output_raw_dot)
-        self.assertTrue('"Raw Images" -> FakeImageLoader  [' in output_raw_dot)
         self.assertTrue('FakeImageLoader -> "Internal Data"  [' in output_raw_dot)
-        self.assertTrue("FakeOutput [" in output_raw_dot)
-        self.assertTrue('"Internal Data" [' in output_raw_dot)
-        self.assertTrue('"GTSFM Output" [' in output_raw_dot)
-        self.assertTrue('"Internal Data" -> FakeOutput  [' in output_raw_dot)
+        self.assertTrue('"Raw Images" -> FakeImageLoader  [' in output_raw_dot)
         self.assertTrue('FakeOutput -> "GTSFM Output"  [' in output_raw_dot)
-        self.assertTrue("subgraph cluster_ParentPlate {" in output_raw_dot)
-        self.assertTrue("label=ParentPlate;" in output_raw_dot)
+        self.assertTrue('"Internal Data" -> FakeOutput  [' in output_raw_dot)
+        self.assertTrue("subgraph cluster_ParentPlate" in output_raw_dot)
+        self.assertTrue("label=ParentPlate" in output_raw_dot)
+        self.assertTrue("FakeOutput [" in output_raw_dot)
+        self.assertTrue('"GTSFM Output" [' in output_raw_dot)
 
 
 if __name__ == "__main__":

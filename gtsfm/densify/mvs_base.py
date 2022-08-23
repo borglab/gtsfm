@@ -25,9 +25,9 @@ class MVSBase(GTSFMProcess):
 
         return UiMetadata(
             display_name="Multi-view Stereo",
-            parent_plate="",
             input_products=("Images", "Optimized Camera Poses", "Optimized 3D Tracks"),
             output_products="Dense Colored 3D Point Cloud",
+            # parent_plate=None by default
         )
 
     def __init__(self) -> None:

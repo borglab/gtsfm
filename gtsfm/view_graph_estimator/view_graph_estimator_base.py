@@ -46,7 +46,6 @@ class ViewGraphEstimatorBase(GTSFMProcess):
 
         return UiMetadata(
             display_name="View-Graph Estimator",
-            parent_plate="Multi-View Optimizer",
             input_products=(
                 "Optimized Relative Rotation",
                 "Optimized Relative Translation",
@@ -59,6 +58,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
                 "View-Graph Relative Translations",
                 "View-Graph Correspondences",
             ),
+            parent_plate="Multi-View Optimizer",
         )
 
     @abc.abstractmethod

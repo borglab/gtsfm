@@ -21,9 +21,9 @@ Author: Kevin Fu
 #
 #        return UiMetadata(
 #                   display_name="Display Name"
-#                   parent_plate="Parent Plate Name"
 #                   input_products=("Input Product 1", "Input Product 2")
 #                   output_products=("Output Product 1", "Output Product 2")
+#                   parent_plate="Parent Plate Name"
 #               )
 
 import abc
@@ -42,15 +42,15 @@ class UiMetadata:
 
     Fields:
         display_name: string display_name of a GTSFMProcess
-        parent_plate: string parent_plate of a GTSFMProcess
         input_products: tuple of strings representing all products this process consumes
         output_products: tuple of strings representing all products this process produces
+        parent_plate: string parent_plate of a GTSFMProcess
     """
 
     display_name: str
-    parent_plate: str
     input_products: Tuple[str]
     output_products: Tuple[str]
+    parent_plate: str = None
 
 
 class GTSFMProcess(metaclass=AbstractableRegistryHolder):

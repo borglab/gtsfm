@@ -56,7 +56,6 @@ class DataAssociation(GTSFMProcess):
 
         return UiMetadata(
             display_name="Data Association",
-            parent_plate="Multi-View Optimizer",
             input_products=(
                 "View-Graph Correspondences",
                 "Global Rotations",
@@ -64,6 +63,7 @@ class DataAssociation(GTSFMProcess):
                 "Camera Intrinsics",
             ),
             output_products="3D Tracks",
+            parent_plate="Multi-View Optimizer",
         )
 
     def __validate_track(self, sfm_track: Optional[SfmTrack]) -> bool:

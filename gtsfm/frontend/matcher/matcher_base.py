@@ -25,9 +25,9 @@ class MatcherBase(GTSFMProcess):
         # based on gtsfm/runner/gtsfm_runner_base.py
         return UiMetadata(
             display_name="Matcher",
-            parent_plate="Two-View Estimator",
             input_products=("Keypoints", "Descriptors", "Image Shapes"),
             output_products="Putative Correspondences",
+            parent_plate="Two-View Estimator",
         )
 
     @abc.abstractmethod

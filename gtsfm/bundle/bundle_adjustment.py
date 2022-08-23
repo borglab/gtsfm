@@ -74,9 +74,8 @@ class TwoViewBundleAdjustment(GTSFMProcess):
         """Returns data needed to display node and edge info for this process in the process graph."""
 
         return UiMetadata(
-            "Two-View Bundle Adjustment",
-            "Two-View Estimator",
-            (
+            display_name="Two-View Bundle Adjustment",
+            input_products=(
                 "Relative Rotation",
                 "Relative Translation",
                 "Triangulated Points",
@@ -85,7 +84,8 @@ class TwoViewBundleAdjustment(GTSFMProcess):
                 "Keypoints",
                 "Verified Correspondences",
             ),
-            ("Optimized Relative Rotation", "Optimized Relative Translation", "Inlier Correspondences"),
+            output_products=("Optimized Relative Rotation", "Optimized Relative Translation", "Inlier Correspondences"),
+            parent_plate="Two-View Estimator",
         )
 
 
@@ -100,7 +100,6 @@ class BundleAdjustmentOptimizer(GTSFMProcess):
 
         return UiMetadata(
             display_name="Global Bundle Adjustment",
-            parent_plate="Multi-View Optimizer",
             input_products=(
                 "Absolute Pose Priors",
                 "Relative Pose Priors",
@@ -110,6 +109,7 @@ class BundleAdjustmentOptimizer(GTSFMProcess):
                 "3D Tracks",
             ),
             output_products=("Optimized Camera Poses", "Optimized 3D Tracks"),
+            parent_plate="Multi-View Optimizer",
         )
 
     def __init__(

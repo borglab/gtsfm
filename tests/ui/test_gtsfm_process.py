@@ -22,9 +22,9 @@ class FakeImageLoader(GTSFMProcess):
 
         return UiMetadata(
             display_name="FakeImageLoader",
-            parent_plate="",
             input_products="Raw Images",
             output_products="Internal Data",
+            # parent_plate=None by default
         )
 
     @property
@@ -47,9 +47,9 @@ class FakeOutputBase(GTSFMProcess):
 
         return UiMetadata(
             display_name="FakeOutput",
-            parent_plate="ParentPlate",
             input_products="Internal Data",
             output_products="GTSFM Output",
+            parent_plate="ParentPlate",
         )
 
 
@@ -92,9 +92,9 @@ class TestRegistryUtils(unittest.TestCase):
         metadata = FakeImageLoader.get_ui_metadata()
 
         self.assertEqual(metadata.display_name, "FakeImageLoader")
-        self.assertEqual(metadata.parent_plate, "")
         self.assertEqual(metadata.input_products, "Raw Images")
         self.assertEqual(metadata.output_products, "Internal Data")
+        self.assertEqual(metadata.parent_plate, None)
 
     def test_abs_base(self):
         """Test that abstract base classes can have UI metadata."""
@@ -103,9 +103,9 @@ class TestRegistryUtils(unittest.TestCase):
         metadata = FakeOutputBase.get_ui_metadata()
 
         self.assertEqual(metadata.display_name, "FakeOutput")
-        self.assertEqual(metadata.parent_plate, "ParentPlate")
         self.assertEqual(metadata.input_products, "Internal Data")
         self.assertEqual(metadata.output_products, "GTSFM Output")
+        self.assertEqual(metadata.parent_plate, "ParentPlate")
 
         # test that concrete objects work as intended
         concrete_obj = FakeOutputGTSFM()

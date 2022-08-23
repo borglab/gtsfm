@@ -29,9 +29,9 @@ class RotationAveragingBase(GTSFMProcess):
 
         return UiMetadata(
             display_name="Rotation Averaging",
-            parent_plate="Multi-View Optimizer",
             input_products=("View-Graph Relative Rotations", "Relative Pose Priors"),
             output_products="Global Rotations",
+            parent_plate="Multi-View Optimizer",
         )
 
     # ignored-abstractmethod

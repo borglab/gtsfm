@@ -32,9 +32,9 @@ class RetrieverBase(GTSFMProcess):
 
         return UiMetadata(
             display_name="Image Retriever",
-            parent_plate="",
             input_products="Image Loader",
             output_products="Image Pair Indices",
+            # parent_plate=None by default
         )
 
     @abc.abstractmethod

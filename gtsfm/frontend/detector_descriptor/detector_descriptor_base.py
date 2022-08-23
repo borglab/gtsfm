@@ -29,9 +29,9 @@ class DetectorDescriptorBase(GTSFMProcess):
 
         return UiMetadata(
             display_name="DetectorDescriptor",
-            parent_plate="Feature Extractor",
             input_products="Images",
             output_products=("Keypoints", "Descriptors"),
+            parent_plate="Feature Extractor",
         )
 
     def __init__(self, max_keypoints: int = 5000):

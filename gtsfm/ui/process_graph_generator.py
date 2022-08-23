@@ -93,7 +93,7 @@ class ProcessGraphGenerator:
             plate = metadata.parent_plate
             if plate not in self._plate_to_cluster:
                 # if no plate, add straight to main graph
-                if plate == "":
+                if plate is None:
                     continue
 
                 new_cluster = pydot.Cluster(plate, label=plate)
@@ -129,7 +129,7 @@ class ProcessGraphGenerator:
             input_products = (input_products,)
 
         cluster = self._main_graph
-        if metadata.parent_plate != "":
+        if metadata.parent_plate is not None:
             cluster = self._plate_to_cluster[metadata.parent_plate]
 
         # add Nodes for processes and output_products in the same plate

@@ -34,7 +34,6 @@ class LoaderBase(GTSFMProcess):
         # based on gtsfm/runner/gtsfm_runner_base.py
         return UiMetadata(
             display_name="Image Loader",
-            parent_plate="",
             input_products="Source Directory",
             output_products=(
                 "Images",
@@ -43,6 +42,7 @@ class LoaderBase(GTSFMProcess):
                 "Relative Pose Priors",
                 "Absolute Pose Priors",
             ),
+            # parent_plate=None by default
         )
 
     def __init__(self, max_resolution: int = 1080) -> None:
