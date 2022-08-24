@@ -92,7 +92,7 @@ class TestMVSUtils(unittest.TestCase):
 
         score = mvs_utils.piecewise_gaussian(theta=4, theta_0=5, sigma_1=1, sigma_2=10)
 
-        self.assertAlmostEqual(score, np.exp(-(1.0 ** 2) / (2 * 1.0 ** 2)))
+        self.assertAlmostEqual(score, np.exp(-(1.0**2) / (2 * 1.0**2)))
 
     def test_piecewise_gaussian_above_expect_baseline_angle(self) -> None:
         """Unit test for the case that the angle between two coordinates is above the expect baseline angle,
@@ -100,7 +100,7 @@ class TestMVSUtils(unittest.TestCase):
 
         score = mvs_utils.piecewise_gaussian(theta=10, theta_0=5, sigma_1=1, sigma_2=10)
 
-        self.assertAlmostEqual(score, np.exp(-(5.0 ** 2) / (2 * 10.0 ** 2)))
+        self.assertAlmostEqual(score, np.exp(-(5.0**2) / (2 * 10.0**2)))
 
     def test_cart_to_homogenous(self) -> None:
         """Test the cart_to_homogenous function correctly produces the homogenous coordinates"""

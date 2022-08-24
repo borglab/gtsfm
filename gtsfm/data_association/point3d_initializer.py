@@ -7,25 +7,19 @@ References:
 Authors: Sushmita Warrier, Xiaolong Wu, John Lambert, Travis Driver
 """
 
-import sys
 import itertools
+import sys
 from enum import Enum
 from typing import Dict, List, NamedTuple, Optional, Tuple, Union
 
 import gtsam
 import numpy as np
-from gtsam import (
-    CameraSetCal3Bundler,
-    CameraSetCal3Fisheye,
-    PinholeCameraCal3Bundler,
-    Point2Vector,
-    SfmTrack,
-)
+from gtsam import CameraSetCal3Bundler, CameraSetCal3Fisheye, PinholeCameraCal3Bundler, Point2Vector, SfmTrack
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.logger as logger_utils
-from gtsfm.common.sfm_track import SfmTrack2d
 import gtsfm.utils.reprojection as reproj_utils
+from gtsfm.common.sfm_track import SfmTrack2d
 
 NUM_SAMPLES_PER_RANSAC_HYPOTHESIS = 2
 SVD_DLT_RANK_TOL = 1e-9

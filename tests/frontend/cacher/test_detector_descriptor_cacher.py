@@ -2,15 +2,15 @@
 
 Authors: Ayush Baid
 """
-from pathlib import Path
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 
-from gtsfm.frontend.cacher.detector_descriptor_cacher import DetectorDescriptorCacher
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.frontend.cacher.detector_descriptor_cacher import DetectorDescriptorCacher
 
 DUMMY_IMAGE = Image(value_array=np.random.randint(low=0, high=255, size=(100, 120, 3)))
 

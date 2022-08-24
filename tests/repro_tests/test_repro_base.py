@@ -10,7 +10,7 @@ NUM_REPETITIONS = 10
 
 class ReproducibilityTestBase(metaclass=abc.ABCMeta):
     """A base class to define reproducibility tests.
-    
+
     The class provides two ways to test reproducibility:
         - assert_results(): To compare the result at each iteration to a reference.
         - assert_results_statistics() (Optional): To check statistics on all results together.
@@ -33,11 +33,11 @@ class ReproducibilityTestBase(metaclass=abc.ABCMeta):
             current_result = self.run_once()
             all_results.append(current_result)
             self.assert_results(current_result, reference_result)
-        
+
         self.assert_results_statistics(all_results)
 
     def assert_results_statistics(self, all_results: List[Any]) -> None:
         """Check for any statistics across all_results.
-        
+
         This default implementation does not check anything, but can be overrided by derived classes."""
         return None

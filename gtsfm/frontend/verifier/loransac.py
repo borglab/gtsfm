@@ -23,7 +23,6 @@ import gtsfm.utils.verification as verification_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
-
 logger = logger_utils.get_logger()
 
 

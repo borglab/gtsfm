@@ -19,17 +19,16 @@ from dask.delayed import Delayed
 from gtsam import SfmTrack
 
 import gtsfm.common.types as gtsfm_types
+import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.tracks as track_utils
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
-from gtsfm.data_association.point3d_initializer import Point3dInitializer, TriangulationOptions, TriangulationExitCode
 from gtsfm.data_association.dsf_tracks_estimator import DsfTracksEstimator
-from gtsfm.common.image import Image
+from gtsfm.data_association.point3d_initializer import Point3dInitializer, TriangulationExitCode, TriangulationOptions
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-
-import gtsfm.utils.io as io_utils
 
 logger = logger_utils.get_logger()
 

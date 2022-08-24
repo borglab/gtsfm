@@ -12,26 +12,17 @@ Authors: Jing Wu, Ayush Baid, Akshay Krishnan
 """
 from collections import defaultdict
 from enum import Enum
-from typing import Dict, List, Optional, Set, Tuple, DefaultDict
+from typing import DefaultDict, Dict, List, Optional, Set, Tuple
 
 import gtsam
 import numpy as np
-from gtsam import (
-    MFAS,
-    BinaryMeasurementsUnit3,
-    BinaryMeasurementUnit3,
-    Point3,
-    Pose3,
-    Rot3,
-    TranslationRecovery,
-    Unit3,
-)
+from gtsam import MFAS, BinaryMeasurementsUnit3, BinaryMeasurementUnit3, Point3, Pose3, Rot3, TranslationRecovery, Unit3
 from scipy import stats
 
-import gtsfm.utils.geometry_comparisons as comp_utils
-import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.coordinate_conversions as conversion_utils
+import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.metrics as metrics_utils
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup

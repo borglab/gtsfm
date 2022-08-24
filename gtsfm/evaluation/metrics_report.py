@@ -331,7 +331,7 @@ def get_html_metric_heading(metric_name: str) -> str:
         HTML for heading as a string.
     """
     metric_name = get_readable_metric_name(metric_name)
-    metric_html = f'<h2>{metric_name}</h2>'
+    metric_html = f"<h2>{metric_name}</h2>"
     return metric_html
 
 

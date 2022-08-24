@@ -9,16 +9,16 @@ import dask
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.loader.loader_base import LoaderBase
-from gtsfm.retriever.retriever_base import RetrieverBase
 from gtsfm.retriever.netvlad_retriever import NetVLADRetriever
+from gtsfm.retriever.retriever_base import RetrieverBase
 from gtsfm.retriever.sequential_retriever import SequentialRetriever
-
 
 logger = logger_utils.get_logger()
 
 
 class JointNetVLADSequentialRetriever(RetrieverBase):
     """Note: this class contains no .run() method."""
+
     def __init__(self, num_matched: int, max_frame_lookahead: int) -> None:
         """
         Args:

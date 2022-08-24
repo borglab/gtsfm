@@ -4,12 +4,12 @@ Authors: Travis Driver
 """
 
 import abc
-from typing import List, Dict, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 
-from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.common.sfm_track import SfmTrack2d
 
 
 class TracksEstimatorBase(metaclass=abc.ABCMeta):

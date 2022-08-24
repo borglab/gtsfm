@@ -10,6 +10,7 @@ from pathlib import Path
 import gtsam
 import numpy as np
 from gtsam.utils.test_case import GtsamTestCase
+
 from gtsfm.common.constraint import Constraint
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"

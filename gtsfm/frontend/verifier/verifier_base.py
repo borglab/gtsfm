@@ -12,7 +12,6 @@ from gtsam import Cal3Bundler, Rot3, Unit3
 
 from gtsfm.common.keypoints import Keypoints
 
-
 NUM_MATCHES_REQ_E_MATRIX = 5
 NUM_MATCHES_REQ_F_MATRIX = 8
 

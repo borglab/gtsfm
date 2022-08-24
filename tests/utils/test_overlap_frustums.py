@@ -60,7 +60,7 @@ class TestOverlapFrustums(unittest.TestCase):
         """Test whether the transformation to fit with the unit cube is correct"""
         # 1. generate a sphere grid centered at SPHERE_CENTER with radius SPHERE_RADIUS as dummy overlap grid
         cube_grid = overlap_frustums_utils.gen_cube_voxels(-2, -1, 64)
-        sphere_grid_id = np.square(cube_grid - SPHERE_CENTER).sum(axis=1) <= SPHERE_RADIUS ** 2
+        sphere_grid_id = np.square(cube_grid - SPHERE_CENTER).sum(axis=1) <= SPHERE_RADIUS**2
         sphere_grid = cube_grid[sphere_grid_id]
 
         # 2. perform transformation

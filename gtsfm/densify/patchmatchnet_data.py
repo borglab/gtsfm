@@ -210,13 +210,13 @@ class PatchmatchNetData(Dataset):
             # In the multi-scale feature extraction, there are NUM_PATCHMATCHNET_STAGES stages.
             #   Resize the image to scales in [2^0, 2^(-1), 2^(-2), ..., 2^(1-NUM_PATCHMATCHNET_STAGES)]
             #   Initially the intrinsics is scaled to fit the smallest image size
-            intrinsics[:2, :] /= 2 ** NUM_PATCHMATCHNET_STAGES
+            intrinsics[:2, :] /= 2**NUM_PATCHMATCHNET_STAGES
 
             for s in range(self._num_stages):
                 imgs[s].append(
                     cv2.resize(
                         np_img,
-                        (self._cropped_w // (2 ** s), self._cropped_h // (2 ** s)),
+                        (self._cropped_w // (2**s), self._cropped_h // (2**s)),
                         interpolation=cv2.INTER_LINEAR,
                     )
                 )
