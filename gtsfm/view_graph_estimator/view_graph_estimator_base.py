@@ -57,7 +57,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
                 "View-Graph Relative Translations",
                 "View-Graph Correspondences",
             ),
-            parent_plate="Multi-View Optimizer",
+            parent_plate="Sparse Reconstruction",
         )
 
     @abc.abstractmethod

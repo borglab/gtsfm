@@ -3,6 +3,7 @@
 Authors: John Lambert, Ren Liu
 """
 import abc
+from random import paretovariate
 from typing import Dict, Tuple
 
 import dask
@@ -26,7 +27,7 @@ class MVSBase(GTSFMProcess):
             display_name="Multi-view Stereo",
             input_products=("Images", "Optimized Camera Poses", "Optimized 3D Tracks"),
             output_products="Dense Colored 3D Point Cloud",
-            # parent_plate=None by default
+            parent_plate="Dense Reconstruction",
         )
 
     def __init__(self) -> None:

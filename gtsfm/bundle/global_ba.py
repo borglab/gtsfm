@@ -19,5 +19,5 @@ class GlobalBundleAdjustment(GTSFMProcess, BundleAdjustmentOptimizer):
                 "3D Tracks",
             ),
             output_products=("Optimized Camera Poses", "Optimized 3D Tracks"),
-            parent_plate="Multi-View Optimizer",
+            parent_plate="Sparse Reconstruction",
         )

@@ -40,7 +40,7 @@ class LoaderBase(GTSFMProcess):
                 "Relative Pose Priors",
                 "Absolute Pose Priors",
             ),
-            # parent_plate=None by default
+            parent_plate="Loader and Retriever",
         )
 
     def __init__(self, max_resolution: int = 1080) -> None:

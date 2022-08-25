@@ -32,7 +32,7 @@ class TranslationAveragingBase(GTSFMProcess):
                 "Relative Pose Priors",
             ),
             output_products=("Global Translations",),
-            parent_plate="Multi-View Optimizer",
+            parent_plate="Sparse Reconstruction",
         )
 
     def __init__(self, robust_measurement_noise: bool = True) -> None:

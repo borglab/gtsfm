@@ -62,7 +62,7 @@ class DataAssociation(GTSFMProcess):
                 "Camera Intrinsics",
             ),
             output_products="3D Tracks",
-            parent_plate="Multi-View Optimizer",
+            parent_plate="Sparse Reconstruction",
         )
 
     def __validate_track(self, sfm_track: Optional[SfmTrack]) -> bool:

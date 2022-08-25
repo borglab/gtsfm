@@ -33,7 +33,7 @@ class RetrieverBase(GTSFMProcess):
             display_name="Image Retriever",
             input_products="Image Loader",
             output_products="Image Pair Indices",
-            # parent_plate=None by default
+            parent_plate="Loader and Retriever",
         )
 
     @abc.abstractmethod

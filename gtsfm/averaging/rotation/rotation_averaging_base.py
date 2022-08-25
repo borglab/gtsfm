@@ -30,7 +30,7 @@ class RotationAveragingBase(GTSFMProcess):
             display_name="Rotation Averaging",
             input_products=("View-Graph Relative Rotations", "Relative Pose Priors"),
             output_products="Global Rotations",
-            parent_plate="Multi-View Optimizer",
+            parent_plate="Sparse Reconstruction",
         )
 
     # ignored-abstractmethod
