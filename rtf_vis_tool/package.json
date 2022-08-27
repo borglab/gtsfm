@@ -11,7 +11,7 @@
     "quaternion": "1.1.0",
     "react": "^17.0.1",
     "react-dom": "17.0.1",
-    "react-scripts": "4.0.1",
+    "react-scripts": "5.0.1",
     "react-three-fiber": "5.3.14",
     "react-xarrows": "1.5.2",
     "three": "0.125.0"
