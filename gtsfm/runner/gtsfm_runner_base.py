@@ -24,6 +24,7 @@ from gtsfm.retriever.rig_retriever import RigRetriever
 from gtsfm.retriever.sequential_hilti_retriever import SequentialHiltiRetriever
 from gtsfm.retriever.sequential_retriever import SequentialRetriever
 from gtsfm.scene_optimizer import SceneOptimizer
+from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 
 logger = logger_utils.get_logger()
 
@@ -192,6 +193,10 @@ class GtsfmRunnerBase:
         cluster = LocalCluster(
             n_workers=self.parsed_args.num_workers, threads_per_worker=self.parsed_args.threads_per_worker
         )
+
+        # create process graph
+        process_graph_generator = ProcessGraphGenerator()
+        process_graph_generator.save_graph()
 
         pairs_graph = self.retriever.create_computation_graph(self.loader)
         with Client(cluster), performance_report(filename="retriever-dask-report.html"):

@@ -25,7 +25,7 @@ import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
-from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
+from gtsfm.bundle.two_view_ba import TwoViewBundleAdjustment
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
@@ -77,7 +77,7 @@ class TwoViewEstimator:
         self.processor = inlier_support_processor
         self._bundle_adjust_2view = bundle_adjust_2view
         self._corr_metric_dist_threshold = eval_threshold_px
-        self._ba_optimizer = BundleAdjustmentOptimizer(
+        self._ba_optimizer = TwoViewBundleAdjustment(
             output_reproj_error_thresh=ba_reproj_error_thresh,
             robust_measurement_noise=True,
             max_iterations=bundle_adjust_2view_maxiters,

@@ -52,3 +52,4 @@ dependencies:
     - trimesh[easy]
     - argoverse @ git+https://github.com/argoai/argoverse-api.git@master
     - gtsam==4.2a7
+    - pydot

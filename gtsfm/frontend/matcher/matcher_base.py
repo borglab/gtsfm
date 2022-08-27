@@ -10,13 +10,25 @@ import numpy as np
 from dask.delayed import Delayed
 
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 
-class MatcherBase(metaclass=abc.ABCMeta):
+class MatcherBase(GTSFMProcess):
     """Base class for all matchers.
 
     Matchers work on a pair of descriptors and match them by their distance.
     """
+
+    def get_ui_metadata() -> UiMetadata:
+        """Returns data needed to display node and edge info for this process in the process graph."""
+
+        # based on gtsfm/runner/gtsfm_runner_base.py
+        return UiMetadata(
+            display_name="Matcher",
+            input_products=("Keypoints", "Descriptors", "Image Shapes"),
+            output_products="Putative Correspondences",
+            parent_plate="Two-View Estimator",
+        )
 
     @abc.abstractmethod
     def match(

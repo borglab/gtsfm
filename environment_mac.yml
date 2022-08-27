@@ -37,6 +37,8 @@ dependencies:
   - hydra-core
   # 3rd party algorithms for different modules
   - pytorch
+  # for M1 only:
+  # - mkl < 2022
   - torchvision
   - kornia
   # io
@@ -55,3 +57,4 @@ dependencies:
     - trimesh[easy]
     - pycolmap>=0.1.0
     - gtsam==4.2a7
+    - pydot

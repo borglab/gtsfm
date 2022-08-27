@@ -65,7 +65,11 @@ class BundleAdjustmentOptimizer:
     """Bundle adjustment using factor-graphs in GTSAM.
 
     This class refines global pose estimates and intrinsics of cameras, and also refines 3D point cloud structure given
-    tracks from triangulation."""
+    tracks from triangulation.
+
+    Due to the process graph requiring separate classes for separate graph objects, this class is a superclass for
+    TwoViewBundleAdjustment and GlobalBundleAdjustment (defined in gtsfm/bundle/).
+    """
 
     def __init__(
         self,

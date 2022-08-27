@@ -12,7 +12,7 @@ import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.graph as graph_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
-from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
+from gtsfm.bundle.global_ba import GlobalBundleAdjustment
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.data_association.data_assoc import DataAssociation
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
@@ -26,7 +26,7 @@ class MultiViewOptimizer:
         rot_avg_module: RotationAveragingBase,
         trans_avg_module: TranslationAveragingBase,
         data_association_module: DataAssociation,
-        bundle_adjustment_module: BundleAdjustmentOptimizer,
+        bundle_adjustment_module: GlobalBundleAdjustment,
         view_graph_estimator: Optional[ViewGraphEstimatorBase] = None,
     ) -> None:
         self.view_graph_estimator = view_graph_estimator

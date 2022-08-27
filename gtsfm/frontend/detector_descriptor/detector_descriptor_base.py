@@ -13,15 +13,26 @@ from dask.delayed import Delayed
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 logger = logger_utils.get_logger()
 
 
-class DetectorDescriptorBase(metaclass=abc.ABCMeta):
+class DetectorDescriptorBase(GTSFMProcess):
     """Base class for all methods which provide a joint detector-descriptor to work on an image.
 
     This class serves as a combination of individual detector and descriptor.
     """
+
+    def get_ui_metadata() -> UiMetadata:
+        """Returns data needed to display node and edge info for this process in the process graph."""
+
+        return UiMetadata(
+            display_name="DetectorDescriptor",
+            input_products="Images",
+            output_products=("Keypoints", "Descriptors"),
+            parent_plate="Feature Extractor",
+        )
 
     def __init__(self, max_keypoints: int = 5000):
         """Initialize the detector-descriptor.
