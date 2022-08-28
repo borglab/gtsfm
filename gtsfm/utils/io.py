@@ -240,8 +240,8 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
         cam_params = line.split()
         # Note that u0 is px, and v0 is py
         model = cam_params[1]
-        # Currently only handles SIMPLE RADIAL and RADIAL camera models
-        assert model in ["SIMPLE_RADIAL", "RADIAL"]
+        # Currently only handles SIMPLE RADIAL, RADIAL, and PINHOLE camera models from COLMAP.
+        assert model in ["SIMPLE_RADIAL", "RADIAL", "PINHOLE"]
         if model == "SIMPLE_RADIAL":
             _, _, img_w, img_h, fx, u0, v0, k1 = cam_params[:8]
             img_w, img_h, fx, u0, v0, k1 = int(img_w), int(img_h), float(fx), float(u0), float(v0), float(k1)
