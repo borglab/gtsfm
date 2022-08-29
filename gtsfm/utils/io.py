@@ -266,7 +266,8 @@ def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
             # https://github.com/colmap/colmap/blob/master/src/base/camera_models.h#L198
             _, _, img_w, img_h, fx, fy, u0, v0 = cam_params[:8]
             img_w, img_h, fx, fy, u0, v0 = int(img_w), int(img_h), float(fx), float(fy), float(u0), float(v0)
-            # Convert COLMAP's PINHOLE to GTSAM's Cal3Bundler (add two radial distortion coefficients of value zero).
+            # Convert COLMAP's PINHOLE to GTSAM's Cal3Bundler by adding two radial distortion coefficients of
+            # value zero, and by discarding fy (using only fx).
             # TODO(gchenfc, kfu02): Return `Cal3_S2` instead of `Cal3Bundler`.
             k1, k2 = 0, 0
             calibrations.append(Cal3Bundler(fx, k1, k2, u0, v0))
