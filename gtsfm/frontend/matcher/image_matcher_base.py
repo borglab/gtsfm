@@ -24,7 +24,7 @@ class ImageMatcherBase(GTSFMProcess):
 
         return UiMetadata(
             display_name="Image Matcher",
-            inner_products="Images",
+            input_products="Images",
             output_products=("Detections i", "Detections j"),
             parent_plate="ImageCorrespondenceGenerator",
         )

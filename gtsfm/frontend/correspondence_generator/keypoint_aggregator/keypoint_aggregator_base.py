@@ -21,7 +21,7 @@ class KeypointAggregatorBase(GTSFMProcess):
 
         return UiMetadata(
             display_name="KeypointAggregator",
-            inner_products=("Detections i", "Detections j"),
+            input_products=("Detections i", "Detections j"),
             output_products=("Keypoints", "Putative Correspondences"),
             parent_plate=None,
         )
