@@ -10,13 +10,24 @@ from dask.delayed import Delayed
 
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 
-class ImageMatcherBase(metaclass=abc.ABCMeta):
+class ImageMatcherBase(GTSFMProcess):
     """Base class for matchers that accept an image pair, and directly generate keypoint matches.
 
     Note: these matchers do NOT use descriptors as input.
     """
+
+    def get_ui_metadata() -> UiMetadata:
+        """Returns data needed to display node and edge info for this process in the process graph."""
+
+        return UiMetadata(
+            display_name="Image Matcher",
+            inner_products="Images",
+            output_products=("Detections i", "Detections j"),
+            parent_plate="ImageCorrespondenceGenerator",
+        )
 
     @abc.abstractmethod
     def match(
