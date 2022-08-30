@@ -10,6 +10,7 @@ saves to a file.
 Author: Kevin Fu
 """
 
+from curses import meta
 import os
 from pathlib import Path
 from typing import Set
@@ -33,7 +34,7 @@ ARROW_COLOR = "gray75"
 class ProcessGraphGenerator:
     """Generates and saves a graph of all the components in REGISTRY."""
 
-    def __init__(self, test_mode: bool = False) -> None:
+    def __init__(self, test_mode: bool = False, is_image_correspondence: bool = False) -> None:
         """Create ProcessGraphGenerator.
 
         Args:
@@ -48,6 +49,7 @@ class ProcessGraphGenerator:
         self._plate_to_cluster = {}
 
         self._test_mode = test_mode
+        self.is_image_correspondence = is_image_correspondence
 
     def _build_graph(self) -> None:
         """Build graph based on RegistryHolder's REGISTRY."""
@@ -57,6 +59,10 @@ class ProcessGraphGenerator:
         sorted_metadata = sorted(list(unique_metadata))
 
         for metadata in sorted_metadata:
+            if self.is_image_correspondence and metadata.display_name in ["Matcher", "DetectorDescriptor"]:
+                continue
+            if not self.is_image_correspondence and metadata.display_name in ["Image Matcher", "KeypointAggregator"]:
+                continue
             self._add_nodes_to_graph(metadata)
 
         for plate_name, cluster in self._plate_to_cluster.items():

@@ -1,0 +1,5 @@
+CorrespondenceGenerator:
+  _target_: gtsfm.frontend.correspondence_generator.image_correspondence_generator.ImageCorrespondenceGenerator
+
+  matcher:
+    _target_: gtsfm.frontend.matcher.loftr.LOFTR
