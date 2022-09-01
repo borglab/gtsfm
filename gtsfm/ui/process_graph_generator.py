@@ -2,7 +2,7 @@
 Creates a process graph based on the classes that subclass GTSFMProcess.
 
 Specifically, all classes that subclass GTSFMProcess are added to a central registry on declaration. GTSFMProcess has
-the abstract class method get_ui_metadata(), which returns a UiMetadata object. 
+the abstract class method get_ui_metadata(), which returns a UiMetadata object.
 
 ProcessGraphGenerator combines all the UiMetadata of all the GTSFMProcesses into one graph of blue and gray nodes, then
 saves to a file.
@@ -10,7 +10,6 @@ saves to a file.
 Author: Kevin Fu
 """
 
-from curses import meta
 import os
 from pathlib import Path
 from typing import Set
