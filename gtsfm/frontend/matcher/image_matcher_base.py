@@ -23,7 +23,7 @@ class ImageMatcherBase(GTSFMProcess):
         """Returns data needed to display node and edge info for this process in the process graph."""
 
         return UiMetadata(
-            display_name="Image Matcher",
+            display_name="Direct Image Matcher",
             input_products="Images",
             output_products=("Detections i", "Detections j"),
             parent_plate="ImageCorrespondenceGenerator",
