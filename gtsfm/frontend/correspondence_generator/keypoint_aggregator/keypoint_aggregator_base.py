@@ -23,7 +23,7 @@ class KeypointAggregatorBase(GTSFMProcess):
             display_name="KeypointAggregator",
             input_products=("Detections i", "Detections j"),
             output_products=("Keypoints", "Putative Correspondences"),
-            parent_plate="Two-View Estimator",
+            parent_plate="ImageCorrespondenceGenerator",
         )
 
     @abc.abstractmethod
