@@ -58,10 +58,9 @@ class ProcessGraphGenerator:
         sorted_metadata = sorted(list(unique_metadata))
 
         for metadata in sorted_metadata:
-            if self.is_image_correspondence and metadata.display_name in ["Matcher", "DetectorDescriptor"]:
+            if self.is_image_correspondence and metadata.parent_plate == "DetDescCorrespondenceGenerator":
                 continue
-            if not self.is_image_correspondence and (
-                    metadata.display_name in ["Direct Image Matcher", "KeypointAggregator"]):
+            if not self.is_image_correspondence and metadata.parent_plate == "ImageCorrespondenceGenerator":
                 continue
             self._add_nodes_to_graph(metadata)
 
