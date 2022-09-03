@@ -39,7 +39,7 @@ setup(
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
     ],
     keywords="computer-vision",
-    packages=find_packages() + find_packages(where="./thirdparty"),
+    packages=find_packages(),
     python_requires=">= 3.6",
     install_requires=[],
 )
