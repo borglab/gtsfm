@@ -22,7 +22,7 @@ with open(path.join(here, "README.md"), encoding="utf-8") as f:
 
 setup(
     name="gtsfm",
-    version="0.1.0",
+    version="0.2.0",
     description="",
     long_description=long_description,
     url="",
@@ -39,7 +39,7 @@ setup(
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
     ],
     keywords="computer-vision",
-    packages=find_packages(),
+    packages=["gtsfm", "thirdparty"],
     python_requires=">= 3.6",
     install_requires=[],
 )
