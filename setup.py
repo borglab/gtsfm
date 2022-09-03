@@ -39,7 +39,7 @@ setup(
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
     ],
     keywords="computer-vision",
-    packages=find_packages("gtsfm") + find_packages("thirdparty"),
+    packages=find_packages("gtsfm/gtsfm") + find_packages("gtsfm/thirdparty"),
     python_requires=">= 3.6",
     install_requires=[],
 )
