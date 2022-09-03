@@ -40,7 +40,9 @@ setup(
     ],
     keywords="computer-vision",
     packages=find_packages(),
-    include_package_data=True,
+    data_files=[
+        ("assets/camera_details", ["assets/camera_details/sensor_database.csv"]),
+    ]
     python_requires=">= 3.6",
     install_requires=[],
 )
