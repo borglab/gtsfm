@@ -42,7 +42,7 @@ setup(
     packages=find_packages(),
     data_files=[
         ("assets/camera_details", ["assets/camera_details/sensor_database.csv"]),
-    ]
+    ],
     python_requires=">= 3.6",
     install_requires=[],
 )
