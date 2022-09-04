@@ -1,10 +1,11 @@
 import unittest
 
-import gtsfm.utils.images as image_utils
 import numpy as np
 from gtsam import SfmTrack
+
+import gtsfm.utils.images as image_utils
 from gtsfm.common.image import Image
-from gtsfm.utils.sensor_width_database import SensorWidthDatabase
+from gtsfm.common.sensor_width_database import SensorWidthDatabase
 
 
 class TestImageUtils(unittest.TestCase):
