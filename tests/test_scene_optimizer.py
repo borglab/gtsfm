@@ -8,7 +8,7 @@ from pathlib import Path
 import dask
 import hydra
 import numpy as np
-from dask.distributed import LocalCluster, Client
+from dask.distributed import Client, LocalCluster
 from gtsam import EssentialMatrix, Rot3, Unit3
 from hydra.utils import instantiate
 

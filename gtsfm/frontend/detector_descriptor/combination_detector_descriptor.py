@@ -11,9 +11,7 @@ from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.descriptor.descriptor_base import DescriptorBase
 from gtsfm.frontend.detector.detector_base import DetectorBase
-from gtsfm.frontend.detector_descriptor.detector_descriptor_base import (
-    DetectorDescriptorBase,
-)
+from gtsfm.frontend.detector_descriptor.detector_descriptor_base import DetectorDescriptorBase
 
 
 class CombinationDetectorDescriptor(DetectorDescriptorBase):

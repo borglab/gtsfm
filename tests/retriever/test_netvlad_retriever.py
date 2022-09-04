@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 from dask.distributed import Client, LocalCluster
+
 from gtsfm.loader.colmap_loader import ColmapLoader
 from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.retriever.netvlad_retriever import NetVLADRetriever

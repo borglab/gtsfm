@@ -9,10 +9,10 @@ import os
 from typing import Dict, List
 
 import numpy as np
-import gtsfm.utils.io as io_utils
-from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
+import gtsfm.utils.io as io_utils
 import thirdparty.colmap.scripts.python.read_write_model as colmap_io
+from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 
 def compute_metrics_from_txt(

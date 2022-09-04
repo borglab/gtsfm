@@ -10,8 +10,8 @@ import trimesh
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point3, Pose3, Rot3, SfmTrack
 
 import gtsfm.utils.metrics as metric_utils
-from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common.keypoints import Keypoints
 
 
 class TestMetricUtils(unittest.TestCase):
@@ -71,7 +71,7 @@ class TestMetricUtils(unittest.TestCase):
 
     def test_get_stats_for_sfmdata_skydio32(self) -> None:
         """Verifies that track reprojection errors are returned as NaN if given degenerate input.
-        
+
         The data used below corresponds to camera poses aligned to GT from Skydio-32 sequence with the SIFT front-end,
         if the Sim(3) object used for alignment is corrupted with negative scale.
         All tracks should have NaN reprojection error, from cheirality errors from the negative scale.

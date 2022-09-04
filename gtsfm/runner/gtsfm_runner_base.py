@@ -14,6 +14,7 @@ from omegaconf import OmegaConf
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
+from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.retriever.exhaustive_retriever import ExhaustiveRetriever
@@ -24,6 +25,7 @@ from gtsfm.retriever.rig_retriever import RigRetriever
 from gtsfm.retriever.sequential_hilti_retriever import SequentialHiltiRetriever
 from gtsfm.retriever.sequential_retriever import SequentialRetriever
 from gtsfm.scene_optimizer import SceneOptimizer
+from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 
 logger = logger_utils.get_logger()
 
@@ -192,6 +194,12 @@ class GtsfmRunnerBase:
         cluster = LocalCluster(
             n_workers=self.parsed_args.num_workers, threads_per_worker=self.parsed_args.threads_per_worker
         )
+
+        # create process graph
+        process_graph_generator = ProcessGraphGenerator()
+        if type(self.scene_optimizer.correspondence_generator) == ImageCorrespondenceGenerator:
+            process_graph_generator.is_image_correspondence = True
+        process_graph_generator.save_graph()
 
         pairs_graph = self.retriever.create_computation_graph(self.loader)
         with Client(cluster), performance_report(filename="retriever-dask-report.html"):

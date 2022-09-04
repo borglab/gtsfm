@@ -23,7 +23,6 @@ from gtsfm.frontend.verifier.ransac import Ransac
 from gtsfm.loader.argoverse_dataset_loader import ArgoverseDatasetLoader
 from gtsfm.two_view_estimator import TwoViewEstimator
 
-
 TEST_DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
 
 

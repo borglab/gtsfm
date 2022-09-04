@@ -6,7 +6,7 @@ import unittest
 
 import gtsam
 import numpy as np
-from distributed.protocol.serialize import serialize, deserialize
+from distributed.protocol.serialize import deserialize, serialize
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point3, Pose3, Rot3, Unit3
 
 import gtsfm.utils.io as io_utils

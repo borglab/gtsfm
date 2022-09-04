@@ -35,9 +35,9 @@ jobs:
       PYTHON_VERSION: 3.8
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Cache conda env
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         env:
           # Increase this value to reset cache if environment_linux_cpuonly.yml has not changed
           CACHE_NUMBER: 0
@@ -45,7 +45,7 @@ jobs:
           path: ~/conda_pkgs_dir
           key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('environment_linux_cpuonly.yml') }}
       - name: Cache frontend
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         env:
           # Increase this value to reset cache
           CACHE_NUMBER_FRONTEND: 0
@@ -89,7 +89,7 @@ jobs:
             $SHARE_INTRINSICS
 
       - name: Archive dataset metrics, plots, and output data (camera poses + points)
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: results-${{ matrix.config_dataset_info[0] }}-${{ matrix.config_dataset_info[1] }}-${{ matrix.config_dataset_info[2] }}-${{ matrix.config_dataset_info[3] }}-${{ matrix.config_dataset_info[4] }}-${{ matrix.config_dataset_info[5] }}-${{ matrix.config_dataset_info[6] }}-${{ matrix.config_dataset_info[7] }}.zip
           path: |

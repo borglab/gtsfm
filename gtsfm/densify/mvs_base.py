@@ -10,13 +10,24 @@ import numpy as np
 from dask.delayed import Delayed
 
 import gtsfm.densify.mvs_utils as mvs_utils
-from gtsfm.common.image import Image
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.common.image import Image
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
+from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 
-class MVSBase(metaclass=abc.ABCMeta):
+class MVSBase(GTSFMProcess):
     """Base class for all multi-view stereo implementations."""
+
+    def get_ui_metadata() -> UiMetadata:
+        """Returns data needed to display node and edge info for this process in the process graph."""
+
+        return UiMetadata(
+            display_name="Multi-view Stereo",
+            input_products=("Images", "Optimized Camera Poses", "Optimized 3D Tracks"),
+            output_products="Dense Colored 3D Point Cloud",
+            parent_plate="Dense Reconstruction",
+        )
 
     def __init__(self) -> None:
         """Initialize the MVS module"""

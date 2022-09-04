@@ -6,11 +6,10 @@ Authors: Adi Singh
 import unittest
 from pathlib import Path
 
-from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack, Similarity3
-
 import numpy as np
 import numpy.testing as npt
 import scipy.spatial.distance
+from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack, Similarity3
 
 import gtsfm.utils.ellipsoid as ellipsoid_utils
 from gtsfm.common.gtsfm_data import GtsfmData

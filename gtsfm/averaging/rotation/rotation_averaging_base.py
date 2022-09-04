@@ -13,14 +13,25 @@ import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.metrics as metric_utils
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
+from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 
-class RotationAveragingBase(metaclass=abc.ABCMeta):
+class RotationAveragingBase(GTSFMProcess):
     """Base class for rotation averaging.
 
     This class generates global rotation estimates from the pairwise relative
     rotations.
     """
+
+    def get_ui_metadata() -> UiMetadata:
+        """Returns data needed to display node and edge info for this process in the process graph."""
+
+        return UiMetadata(
+            display_name="Rotation Averaging",
+            input_products=("View-Graph Relative Rotations", "Relative Pose Priors"),
+            output_products="Global Rotations",
+            parent_plate="Sparse Reconstruction",
+        )
 
     # ignored-abstractmethod
     @abc.abstractmethod

@@ -4,11 +4,11 @@ Ref: https://github.com/colmap/colmap/blob/2b7230679957e4dccd590ab467931d6cfffb9
 
 Authors: Ayush Baid
 """
+from enum import Enum
 from typing import Dict, Optional, Tuple
 
 import cv2 as cv
 import numpy as np
-from enum import Enum
 
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.matcher.matcher_base import MatcherBase

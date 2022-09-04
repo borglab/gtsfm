@@ -17,6 +17,7 @@ dependencies:
   - pylint
   - pytest
   - flake8
+  - isort
   # dask and related
   - dask # same as dask[complete] pip distribution
   - python-graphviz
@@ -51,3 +52,4 @@ dependencies:
     - trimesh[easy]
     - argoverse @ git+https://github.com/argoai/argoverse-api.git@master
     - gtsam==4.2a7
+    - pydot

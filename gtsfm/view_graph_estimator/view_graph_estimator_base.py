@@ -8,7 +8,7 @@ Authors: Akshay Krishnan, Ayush Baid, John Lambert
 """
 import abc
 from pathlib import Path
-from typing import Dict, List, Set, Tuple, Optional
+from typing import Dict, List, Optional, Set, Tuple
 
 import dask
 import numpy as np
@@ -17,11 +17,12 @@ from gtsam import Cal3Bundler, Rot3, Unit3
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.graph as graph_utils
-import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.metrics as metrics_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.two_view_estimator import TwoViewEstimationReport
+from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 PLOT_BASE_PATH = Path(__file__).resolve().parent.parent.parent / "plots"
 
@@ -32,12 +33,32 @@ METRIC_GROUP = "view_graph"
 logger = logger_utils.get_logger()
 
 
-class ViewGraphEstimatorBase(metaclass=abc.ABCMeta):
+class ViewGraphEstimatorBase(GTSFMProcess):
     """Base class for ViewGraph estimation.
 
     A ViewGraphEstimator aggregates two-view estimates into a ViewGraph.
     It could also improve the two-view estimates using filtering or optimization techniques.
     """
+
+    def get_ui_metadata() -> UiMetadata:
+        """Returns data needed to display node and edge info for this process in the process graph."""
+
+        return UiMetadata(
+            display_name="View-Graph Estimator",
+            input_products=(
+                "Optimized Relative Rotation",
+                "Optimized Relative Translation",
+                "Camera Intrinsics",
+                "Inlier Correspondences",
+                "Keypoints",
+            ),
+            output_products=(
+                "View-Graph Relative Rotations",
+                "View-Graph Relative Translations",
+                "View-Graph Correspondences",
+            ),
+            parent_plate="Sparse Reconstruction",
+        )
 
     @abc.abstractmethod
     def run(

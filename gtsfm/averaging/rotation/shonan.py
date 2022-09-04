@@ -18,8 +18,8 @@ from gtsam import (
     BetweenFactorPose3,
     BetweenFactorPose3s,
     LevenbergMarquardtParams,
-    Rot3,
     Pose3,
+    Rot3,
     ShonanAveraging3,
     ShonanAveragingParameters3,
 )

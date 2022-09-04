@@ -20,11 +20,10 @@ import torch
 from dask.delayed import Delayed
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.loader.loader_base import LoaderBase
-from gtsfm.retriever.retriever_base import RetrieverBase
 from gtsfm.frontend.cacher.global_descriptor_cacher import GlobalDescriptorCacher
 from gtsfm.frontend.global_descriptor.netvlad_global_descriptor import NetVLADGlobalDescriptor
-
+from gtsfm.loader.loader_base import LoaderBase
+from gtsfm.retriever.retriever_base import RetrieverBase
 
 logger = logger_utils.get_logger()
 

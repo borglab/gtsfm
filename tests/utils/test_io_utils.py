@@ -97,7 +97,7 @@ class TestIoUtils(unittest.TestCase):
 
     def test_round_trip_images_txt(self) -> None:
         """Verifies that round-trip saving and reading a COLMAP-style `images.txt` file yields input poses.
-        
+
         Starts with a pose. Writes the pose to images.txt (in a temporary directory). Then reads images.txt to recover
         that same pose. Checks if the original wTc and recovered wTc match up.
         """

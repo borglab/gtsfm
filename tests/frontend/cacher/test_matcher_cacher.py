@@ -2,14 +2,14 @@
 
 Authors: Ayush Baid
 """
-from pathlib import Path
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 
-from gtsfm.frontend.cacher.matcher_cacher import MatcherCacher
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.frontend.cacher.matcher_cacher import MatcherCacher
 
 DUMMY_KEYPOINTS_I1 = Keypoints(
     coordinates=np.random.rand(10, 2), scales=np.random.rand(10), responses=np.random.rand(10)

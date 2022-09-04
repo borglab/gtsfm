@@ -6,7 +6,7 @@ Authors: John Lambert
 import unittest
 from pathlib import Path
 
-from dask.distributed import LocalCluster, Client
+from dask.distributed import Client, LocalCluster
 
 from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.retriever.exhaustive_retriever import ExhaustiveRetriever

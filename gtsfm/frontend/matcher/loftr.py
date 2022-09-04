@@ -16,9 +16,9 @@ import torch
 from kornia.feature import LoFTR as LoFTRKornia
 
 import gtsfm.utils.images as image_utils
-from gtsfm.frontend.matcher.image_matcher_base import ImageMatcherBase
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.frontend.matcher.image_matcher_base import ImageMatcherBase
 
 KEYPOINTS_I1_COORDINATES_KEY = "keypoints0"
 KEYPOINTS_I2_COORDINATES_KEY = "keypoints1"

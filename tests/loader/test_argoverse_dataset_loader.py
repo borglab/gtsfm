@@ -2,9 +2,9 @@ import unittest
 from pathlib import Path
 
 import numpy as np
+from gtsam import Cal3Bundler, Pose3
 
 import gtsfm.utils.io as io_utils
-from gtsam import Cal3Bundler, Pose3
 from gtsfm.loader.argoverse_dataset_loader import ArgoverseDatasetLoader
 
 ARGOVERSE_DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data" / "argoverse"
@@ -22,7 +22,7 @@ class TestArgoverseDatasetLoader(unittest.TestCase):
             max_num_imgs=2,
             max_lookahead_sec=50,
             camera_name="ring_front_center",
-            max_resolution=1200
+            max_resolution=1200,
         )
         assert len(self.loader)
 
