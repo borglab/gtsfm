@@ -1,1 +1,1 @@
-include assets/camera_details/sensor_database.csv
+include gtsfm/assets/camera_details/sensor_database.csv
