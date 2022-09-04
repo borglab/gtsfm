@@ -25,6 +25,13 @@ jobs:
           miniforge-version: latest
           python-version: ${{ matrix.python_version }}
 
+      - name: Install trimesh[easy].
+        run: >-
+          python -m
+          pip install
+          "trimesh[easy]"
+          --user
+
       - name: Install pypa/build.
         run: >-
           python -m
