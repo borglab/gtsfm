@@ -7,7 +7,7 @@ from typing import Any, Dict, NamedTuple, Optional
 
 import numpy as np
 from gtsam import Cal3Bundler
-from gtsfm.utils.sensor_width_database import SensorWidthDatabase
+from gtsfm.common.sensor_width_database import SensorWidthDatabase
 
 
 class Image(NamedTuple):
