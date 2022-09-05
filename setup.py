@@ -32,7 +32,6 @@ setup(
     classifiers=[
         "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Developers",
-        "License :: OSI Approved :: APACHE License",
         "Operating System :: POSIX",
         "Operating System :: MacOS",
         "Programming Language :: Python :: 3",
