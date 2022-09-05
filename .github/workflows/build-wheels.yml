@@ -44,6 +44,6 @@ jobs:
       - name: Archive wheels
         uses: actions/upload-artifact@v1
         with:
-          name: wheels-macos-${{ matrix.python_version }}-${{ matrix.os }}
+          name: wheels-${{ matrix.python_version }}-${{ matrix.os }}
           path: ./wheelhouse
 
