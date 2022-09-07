@@ -4,6 +4,7 @@ This can be the output of either data association or of bundle adjustment.
 Authors: Ayush Baid, John Lambert, Xiaolong Wu
 """
 import itertools
+import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 import gtsam
@@ -13,10 +14,9 @@ from gtsam import Pose3, SfmTrack, Similarity3
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.geometry_comparisons as geometry_comparisons
 import gtsfm.utils.graph as graph_utils
-import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reproj_utils
 
-logger = logger_utils.get_logger()
+logger = logging.getLogger(__name__)
 
 EQUALITY_TOLERANCE = 1e-5
 PRINT_NUM_SIG_FIGS = 2

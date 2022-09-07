@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid, John Lambert
 """
+import logging
 from typing import List, Optional, Tuple
 
 import gtsam
@@ -9,11 +10,9 @@ import numpy as np
 from gtsam import Point3, Pose3, Pose3Pairs, Rot3, Rot3Vector, Similarity3, Unit3
 from scipy.spatial.transform import Rotation
 
-from gtsfm.utils.logger import get_logger
-
 EPSILON = np.finfo(float).eps
 
-logger = get_logger()
+logger = logging.getLogger(__name__)
 
 
 def align_rotations(aRi_list: List[Optional[Rot3]], bRi_list: List[Optional[Rot3]]) -> List[Rot3]:
