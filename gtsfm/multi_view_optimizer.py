@@ -107,11 +107,12 @@ class MultiViewOptimizer:
             relative_pose_priors,
             gt_wTi_list=gt_wTi_list,
         )
-        init_cameras_graph = dask.delayed(init_cameras)(delayed_wRi, wti_graph, all_intrinsics)
 
         ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
             num_images,
-            init_cameras_graph,
+            delayed_wRi,
+            wti_graph,
+            all_intrinsics,
             viewgraph_v_corr_idxs_graph,
             keypoints_graph,
             cameras_gt,
@@ -135,28 +136,3 @@ class MultiViewOptimizer:
         ba_input_graph = dask.delayed(ba_input_graph.align_via_Sim3_to_poses)(gt_wTi_list)
 
         return ba_input_graph, ba_result_graph, viewgraph_two_view_reports_graph, multiview_optimizer_metrics_graph
-
-
-def init_cameras(
-    wRi_list: List[Optional[Rot3]],
-    wti_list: List[Optional[Point3]],
-    intrinsics_list: List[gtsfm_types.CALIBRATION_TYPE],
-) -> Dict[int, gtsfm_types.CAMERA_TYPE]:
-    """Generate camera from valid rotations and unit-translations.
-
-    Args:
-        wRi_list: rotations for cameras.
-        wti_list: translations for cameras.
-        intrinsics_list: intrinsics for cameras.
-
-    Returns:
-        Valid cameras.
-    """
-    cameras = {}
-
-    camera_class = gtsfm_types.get_camera_class_for_calibration(intrinsics_list[0])
-    for idx, (wRi, wti) in enumerate(zip(wRi_list, wti_list)):
-        if wRi is not None and wti is not None:
-            cameras[idx] = camera_class(Pose3(wRi, wti), intrinsics_list[idx])
-
-    return cameras
