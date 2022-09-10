@@ -332,7 +332,14 @@ class TestDataAssociation(GtsamTestCase):
         )
         da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
         expected_sfm_data, expected_metrics = da.run(
-            len(cameras), wRi_list, wti_list, intrinsics_list, corr_idxs_graph, keypoints_list, cameras_gt=cameras_gt, relative_pose_priors={}
+            len(cameras),
+            wRi_list,
+            wti_list,
+            intrinsics_list,
+            corr_idxs_graph,
+            keypoints_list,
+            cameras_gt=cameras_gt,
+            relative_pose_priors={}
         )
 
         # Run with computation graph

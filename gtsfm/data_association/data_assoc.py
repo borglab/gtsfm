@@ -241,7 +241,15 @@ class DataAssociation(GTSFMProcess):
                 association result
         """
         ba_input_graph, data_assoc_metrics_graph = dask.delayed(self.run, nout=2)(
-            num_images, wRi_list, wti_list, intrinsics_list, corr_idxs_graph, keypoints_graph, cameras_gt, relative_pose_priors, images_graph
+            num_images,
+            wRi_list,
+            wti_list,
+            intrinsics_list,
+            corr_idxs_graph,
+            keypoints_graph,
+            cameras_gt,
+            relative_pose_priors,
+            images_graph
         )
 
         return ba_input_graph, data_assoc_metrics_graph
