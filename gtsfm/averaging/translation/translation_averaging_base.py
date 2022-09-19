@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Tuple
 
 import dask
 from dask.delayed import Delayed
-from gtsam import Point3, Pose3, Rot3, Unit3
+from gtsam import Pose3, Rot3, Unit3
 
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
@@ -45,7 +45,7 @@ class TranslationAveragingBase(GTSFMProcess):
 
     # ignored-abstractmethod
     @abc.abstractmethod
-    def run(
+    def run_translation_averaging(
         self,
         num_images: int,
         i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
@@ -54,20 +54,20 @@ class TranslationAveragingBase(GTSFMProcess):
         relative_pose_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
         gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
-    ) -> Tuple[List[Optional[Point3]], Optional[GtsfmMetricsGroup]]:
-        """Run the translation averaging.
+    ) -> Tuple[List[Optional[Pose3]], Optional[GtsfmMetricsGroup]]:
+        """Run the translation averaging, and combine the estimated global translations with global rotations.
 
         Args:
             num_images: number of camera poses.
             i2Ui1_dict: relative unit-trans as dictionary (i1, i2): i2Ui1.
             wRi_list: global rotations for each camera pose in the world coordinates.
             absolute_pose_priors: priors on the camera poses (not delayed).
-            relative_pose_priors: priors on the pose between camera pairs (not delayed)
+            relative_pose_priors: priors on the pose between camera pairs (not delayed) as (i1, i2): i1Ti2.
             scale_factor: non-negative global scaling factor.
             gt_wTi_list: List of ground truth poses (wTi) for computing metrics.
 
         Returns:
-            Global translation wti for each camera pose. The number of entries in the list is `num_images`. The list
+            Global poses wTi for each camera pose. The number of entries in the list is `num_images`. The list
                 may contain `None` where the global translations could not be computed (either underconstrained system
                 or ill-constrained system).
         """
@@ -81,7 +81,7 @@ class TranslationAveragingBase(GTSFMProcess):
         relative_pose_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
         gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
-    ) -> Delayed:
+    ) -> Tuple[Delayed, Delayed]:
         """Create the computation graph for performing translation averaging.
 
         Args:
@@ -89,14 +89,14 @@ class TranslationAveragingBase(GTSFMProcess):
             i2Ui1_graph: dictionary of relative unit translations as a delayed task.
             wRi_graph: list of global rotations wrapped up in Delayed.
             absolute_pose_priors: priors on the camera poses (not delayed).
-            relative_pose_priors: priors on the pose between camera pairs (not delayed)
+            relative_pose_priors: priors on the pose between camera pairs (not delayed) as (i1, i2): i1Ti2.
             scale_factor: non-negative global scaling factor.
             gt_wTi_list: List of ground truth poses (wTi) for computing metrics.
 
         Returns:
-            Global unit translations wrapped as Delayed.
+            Global poses wrapped as Delayed.
             A GtsfmMetricsGroup with translation averaging metrics wrapped as Delayed.
         """
-        return dask.delayed(self.run, nout=2)(
+        return dask.delayed(self.run_translation_averaging, nout=2)(
             num_images, i2Ui1_graph, wRi_graph, absolute_pose_priors, relative_pose_priors, scale_factor, gt_wTi_list
         )
