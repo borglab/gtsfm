@@ -9,15 +9,12 @@ from dask.delayed import Delayed
 from gtsam import Point3, Pose3, Rot3
 
 import gtsfm.common.types as gtsfm_types
-import gtsfm.utils.graph as graph_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.bundle.global_ba import GlobalBundleAdjustment
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.data_association.data_assoc import DataAssociation
-from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.two_view_estimator import TwoViewEstimationReport
-from gtsfm.view_graph_estimator import view_graph_estimator_base
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
 from gtsfm.view_graph_estimator.view_graph_wo_filtering import ViewGraphWithoutFiltering
 

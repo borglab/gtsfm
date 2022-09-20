@@ -7,7 +7,6 @@ Authors: Hayk Stepanyan
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
 from typing import Dict, List, Set, Tuple
 
-import dask
 import numpy as np
 from gtsam import Cal3Bundler, Rot3, Unit3
 
