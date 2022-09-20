@@ -268,7 +268,8 @@ class ViewGraphEstimatorBase(GTSFMProcess):
                 wrapped as Delayed.
             keypoints: keypoints for each image, wrapped as Delayed.
             two_view_reports: Dict from (i1, i2) to TwoViewEstimationReport that contains metrics, wrapped as Delayed.
-            relative_pose_priors: priors on the pose between camera pairs (not delayed).
+            relative_pose_priors: priors on the pose between camera pairs (not delayed), used only for
+                prune connected component calculation.
 
         Returns:
             Tuple of the following 5 elements, all wrapped as Delayed:

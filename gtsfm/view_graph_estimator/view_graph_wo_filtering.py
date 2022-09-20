@@ -1,5 +1,5 @@
-"""A ViewGraphEstimator implementation which is being run when the view_graph_estimator parameter
-is not provided in MultiViewOptimizer. This class only returns the graph input edges without any filtering.
+"""A ViewGraphEstimator implementation which passes all the input graph edges
+without any filtering.
 
 Authors: Hayk Stepanyan
 """

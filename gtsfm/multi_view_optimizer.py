@@ -26,14 +26,13 @@ class MultiViewOptimizer:
         trans_avg_module: TranslationAveragingBase,
         data_association_module: DataAssociation,
         bundle_adjustment_module: GlobalBundleAdjustment,
-        view_graph_estimator: Optional[ViewGraphEstimatorBase] = None,
+        view_graph_estimator: ViewGraphEstimatorBase,
     ) -> None:
         self.view_graph_estimator = view_graph_estimator
         self.rot_avg_module = rot_avg_module
         self.trans_avg_module = trans_avg_module
         self.data_association_module = data_association_module
         self.ba_optimizer = bundle_adjustment_module
-        self._run_view_graph_estimator: bool = self.view_graph_estimator is not None
 
     def create_computation_graph(
         self,
