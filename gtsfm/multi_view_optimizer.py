@@ -16,7 +16,6 @@ from gtsfm.common.pose_prior import PosePrior
 from gtsfm.data_association.data_assoc import DataAssociation
 from gtsfm.two_view_estimator import TwoViewEstimationReport
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
-from gtsfm.view_graph_estimator.view_graph_wo_filtering import ViewGraphWithoutFiltering
 
 
 class MultiViewOptimizer:
