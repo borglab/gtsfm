@@ -16,7 +16,18 @@ from typing import DefaultDict, Dict, List, Optional, Set, Tuple
 
 import gtsam
 import numpy as np
-from gtsam import MFAS, BinaryMeasurementsPoint3, BinaryMeasurementsUnit3, BinaryMeasurementUnit3, Point3, Pose3, Rot3, TranslationRecovery, Unit3
+from gtsam import (
+    MFAS,
+    BinaryMeasurementPoint3,
+    BinaryMeasurementsPoint3,
+    BinaryMeasurementsUnit3,
+    BinaryMeasurementUnit3,
+    Point3,
+    Pose3,
+    Rot3,
+    TranslationRecovery,
+    Unit3,
+)
 from scipy import stats
 
 import gtsfm.utils.coordinate_conversions as conversion_utils
@@ -75,6 +86,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         self._max_1dsfm_projection_directions = MAX_PROJECTION_DIRECTIONS
         self._outlier_weight_threshold = OUTLIER_WEIGHT_THRESHOLD
         self._projection_sampling_method = projection_sampling_method
+        self._MFAS_outlier_rejection = MFAS_outlier_rejection
 
     def __sample_projection_directions(
         self,
@@ -171,7 +183,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             # noise_model = gtsam.noiseModel.Gaussian.Covariance(i2Ti1_prior.covariance)
             noise_model = gtsam.noiseModel.Isotropic.Sigma(3, 1e-2)
             w_i2ti1_priors.append(
-                gtsam.BinaryMeasurementPoint3(
+                BinaryMeasurementPoint3(
                     i2,
                     i1,
                     get_prior_in_world_frame(i2, i2Ti1_prior),
