@@ -19,6 +19,7 @@ from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.two_view_estimator import TwoViewEstimationReport
 from gtsfm.view_graph_estimator import view_graph_estimator_base
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
+from gtsfm.view_graph_estimator.view_graph_wo_filtering import ViewGraphWithoutFiltering
 
 
 class MultiViewOptimizer:
@@ -73,6 +74,9 @@ class MultiViewOptimizer:
             Dict of TwoViewEstimationReports after view graph estimation.
             List of GtsfmMetricGroups from different modules, wrapped up as Delayed.
         """
+
+        if self._run_view_graph_estimator is None:
+            self.view_graph_estimator = ViewGraphWithoutFiltering()
 
         (
             pruned_i2Ri1_graph,
