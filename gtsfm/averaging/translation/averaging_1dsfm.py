@@ -244,7 +244,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         logger.debug("Created measurements in global frame.")
         # Possibly perform (slow!) outlier rejection with Minimum Feedback Arc Set algorithm.
         if self._MFAS_outlier_rejection:
-            inliers: Set[Tuple[int, int]] = self.compute_inlier_mask(w_i2Ui1_measurements)
+            inliers: Set[Tuple[int, int]] = self.__compute_inlier_mask(w_i2Ui1_measurements)
     
             w_i2Ui1_inlier_measurements = BinaryMeasurementsUnit3()
             for idx in range(len(w_i2Ui1_measurements)):
