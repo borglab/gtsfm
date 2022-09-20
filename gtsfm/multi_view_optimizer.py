@@ -71,9 +71,6 @@ class MultiViewOptimizer:
             List of GtsfmMetricGroups from different modules, wrapped up as Delayed.
         """
 
-        if self._run_view_graph_estimator is None:
-            self.view_graph_estimator = ViewGraphWithoutFiltering()
-
         (
             pruned_i2Ri1_graph,
             pruned_i2Ui1_graph,
