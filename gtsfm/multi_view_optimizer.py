@@ -17,6 +17,7 @@ from gtsfm.common.pose_prior import PosePrior
 from gtsfm.data_association.data_assoc import DataAssociation
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.two_view_estimator import TwoViewEstimationReport
+from gtsfm.view_graph_estimator import view_graph_estimator_base
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
 
 
@@ -73,26 +74,20 @@ class MultiViewOptimizer:
             List of GtsfmMetricGroups from different modules, wrapped up as Delayed.
         """
 
-        if self._run_view_graph_estimator and self.view_graph_estimator is not None:
-            (
-                viewgraph_i2Ri1_graph,
-                viewgraph_i2Ui1_graph,
-                viewgraph_v_corr_idxs_graph,
-                viewgraph_two_view_reports_graph,
-                viewgraph_estimation_metrics,
-            ) = self.view_graph_estimator.create_computation_graph(
-                i2Ri1_graph, i2Ui1_graph, all_intrinsics, v_corr_idxs_graph, keypoints_graph, two_view_reports_dict
-            )
-        else:
-            viewgraph_i2Ri1_graph = dask.delayed(i2Ri1_graph)
-            viewgraph_i2Ui1_graph = dask.delayed(i2Ui1_graph)
-            viewgraph_v_corr_idxs_graph = dask.delayed(v_corr_idxs_graph)
-            viewgraph_two_view_reports_graph = dask.delayed(two_view_reports_dict)
-            viewgraph_estimation_metrics = dask.delayed(GtsfmMetricsGroup("view_graph_estimation_metrics", []))
-
-        # prune the graph to a single connected component.
-        pruned_i2Ri1_graph, pruned_i2Ui1_graph = dask.delayed(graph_utils.prune_to_largest_connected_component, nout=2)(
-            viewgraph_i2Ri1_graph, viewgraph_i2Ui1_graph, relative_pose_priors
+        (
+            pruned_i2Ri1_graph,
+            pruned_i2Ui1_graph,
+            viewgraph_v_corr_idxs_graph,
+            viewgraph_two_view_reports_graph,
+            viewgraph_estimation_metrics
+        ) = self.view_graph_estimator.create_computation_graph(
+            i2Ri1_graph,
+            i2Ui1_graph,
+            all_intrinsics,
+            v_corr_idxs_graph,
+            keypoints_graph,
+            two_view_reports_dict,
+            relative_pose_priors
         )
 
         delayed_wRi, rot_avg_metrics = self.rot_avg_module.create_computation_graph(
