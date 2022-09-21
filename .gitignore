@@ -157,7 +157,6 @@ plots/
 results/
 result_metrics/
 visual_comparison_dashboard.html
-rtf_vis_tool/src/ui/process_graph_output.svg
 
 #React Folders/Files to be Ignored
 #   node_modules and .eslintcache are auto generated when a user runs the 
