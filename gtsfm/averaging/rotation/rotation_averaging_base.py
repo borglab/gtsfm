@@ -39,14 +39,14 @@ class RotationAveragingBase(GTSFMProcess):
         self,
         num_images: int,
         i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
-        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+        i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging.
 
         Args:
             num_images: number of poses.
             i2Ri1_dict: relative rotations as dictionary (i1, i2): i2Ri1.
-            relative_pose_priors: priors on relative poses as dictionary(i1, i2): PosePrior on i1Ti2.
+            i1Ti2_priors: priors on relative poses as dictionary(i1, i2): PosePrior on i1Ti2.
 
         Returns:
             Global rotations for each camera pose, i.e. wRi, as a list. The number of entries in the list is
@@ -82,7 +82,7 @@ class RotationAveragingBase(GTSFMProcess):
         self,
         num_images: int,
         i2Ri1_graph: Delayed,
-        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+        i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
         gt_wTi_list: List[Optional[Pose3]],
     ) -> Tuple[Delayed, Delayed]:
         """Create the computation graph for performing rotation averaging.
@@ -90,14 +90,14 @@ class RotationAveragingBase(GTSFMProcess):
         Args:
             num_images: number of poses.
             i2Ri1_graph: dictionary of relative rotations as a delayed task.
-            relative_pose_priors: priors on relative poses as (i1, i2): PosePrior on i1Ti2.
+            i1Ti2_priors: priors on relative poses as (i1, i2): PosePrior on i1Ti2.
             gt_wTi_list: ground truth poses, to be used for evaluation.
 
         Returns:
             global rotations wrapped using dask.delayed.
         """
 
-        wRis = dask.delayed(self.run_rotation_averaging)(num_images, i2Ri1_graph, relative_pose_priors)
+        wRis = dask.delayed(self.run_rotation_averaging)(num_images, i2Ri1_graph, i1Ti2_priors)
         metrics = dask.delayed(self.evaluate)(wRis, gt_wTi_list)
 
         return wRis, metrics

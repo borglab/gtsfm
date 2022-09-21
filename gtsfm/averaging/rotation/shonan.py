@@ -71,7 +71,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         return between_factors
 
     def _between_factors_from_pose_priors(
-        self, relative_pose_priors: Dict[Tuple[int, int], PosePrior], old_to_new_idxs: Dict[int, int]
+        self, i1Ti2_priors: Dict[Tuple[int, int], PosePrior], old_to_new_idxs: Dict[int, int]
     ) -> BetweenFactorPose3s:
         """Create between factors from the priors on relative poses."""
         between_factors = BetweenFactorPose3s()
@@ -83,7 +83,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
             avg_cov = np.average(np.diag(covariance), axis=None)
             return np.sqrt(avg_cov)
 
-        for (i1, i2), i1Ti2_prior in relative_pose_priors.items():
+        for (i1, i2), i1Ti2_prior in i1Ti2_priors.items():
             i1_ = old_to_new_idxs[i1]
             i2_ = old_to_new_idxs[i2]
             noise_model_sigma = get_isotropic_noise_model_sigma(i1Ti2_prior.covariance)
@@ -150,7 +150,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         self,
         num_images: int,
         i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
-        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+        i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging on a connected graph with arbitrary keys, where each key is a image/pose index.
 
@@ -161,7 +161,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
         Args:
             num_images: number of images. Since we have one pose per image, it is also the number of poses.
             i2Ri1_dict: relative rotations for each image pair-edge as dictionary (i1, i2): i2Ri1.
-            relative_pose_priors: priors on relative poses.
+            i1Ti2_priors: priors on relative poses.
 
         Returns:
             Global rotations for each camera pose, i.e. wRi, as a list. The number of entries in the list is
@@ -174,13 +174,13 @@ class ShonanRotationAveraging(RotationAveragingBase):
             wRi_list = [None] * num_images
             return wRi_list
 
-        nodes_with_edges = sorted(list(self._nodes_with_edges(i2Ri1_dict, relative_pose_priors)))
+        nodes_with_edges = sorted(list(self._nodes_with_edges(i2Ri1_dict, i1Ti2_priors)))
         old_to_new_idxes = {old_idx: i for i, old_idx in enumerate(nodes_with_edges)}
 
         between_factors: BetweenFactorPose3s = self.__between_factors_from_2view_relative_rotations(
             i2Ri1_dict, old_to_new_idxes
         )
-        between_factors.extend(self._between_factors_from_pose_priors(relative_pose_priors, old_to_new_idxes))
+        between_factors.extend(self._between_factors_from_pose_priors(i1Ti2_priors, old_to_new_idxes))
 
         wRi_list_subset = self._run_with_consecutive_ordering(
             num_connected_nodes=len(nodes_with_edges), between_factors=between_factors
