@@ -27,7 +27,7 @@ class MatcherBase(GTSFMProcess):
             display_name="Matcher",
             input_products=("Keypoints", "Descriptors", "Image Shapes"),
             output_products="Putative Correspondences",
-            parent_plate="Two-View Estimator",
+            parent_plate="DetDescCorrespondenceGenerator",
         )
 
     @abc.abstractmethod

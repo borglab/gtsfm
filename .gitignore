@@ -144,6 +144,7 @@ thirdparty/models/
 thirdparty/patchmatchnet/checkpoints/
 thirdparty/SuperGluePretrainedNetwork/models/weights/
 thirdparty/hloc/weights/VGG16-NetVLAD-Pitts30K.mat
+thirdparty/**/*.pth
 
 # Data folder
 data/
@@ -156,6 +157,7 @@ plots/
 results/
 result_metrics/
 visual_comparison_dashboard.html
+rtf_vis_tool/src/ui/process_graph_output.svg
 
 #React Folders/Files to be Ignored
 #   node_modules and .eslintcache are auto generated when a user runs the 

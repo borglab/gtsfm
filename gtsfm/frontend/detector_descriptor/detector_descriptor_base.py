@@ -31,7 +31,7 @@ class DetectorDescriptorBase(GTSFMProcess):
             display_name="DetectorDescriptor",
             input_products="Images",
             output_products=("Keypoints", "Descriptors"),
-            parent_plate="Feature Extractor",
+            parent_plate="DetDescCorrespondenceGenerator",
         )
 
     def __init__(self, max_keypoints: int = 5000):

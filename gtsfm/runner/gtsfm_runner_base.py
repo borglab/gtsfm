@@ -14,6 +14,7 @@ from omegaconf import OmegaConf
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
+from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.retriever.exhaustive_retriever import ExhaustiveRetriever
@@ -196,6 +197,8 @@ class GtsfmRunnerBase:
 
         # create process graph
         process_graph_generator = ProcessGraphGenerator()
+        if type(self.scene_optimizer.correspondence_generator) == ImageCorrespondenceGenerator:
+            process_graph_generator.is_image_correspondence = True
         process_graph_generator.save_graph()
 
         pairs_graph = self.retriever.create_computation_graph(self.loader)

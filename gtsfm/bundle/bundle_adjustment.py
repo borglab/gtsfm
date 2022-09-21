@@ -2,6 +2,7 @@
 
 Authors: Xiaolong Wu, John Lambert, Ayush Baid
 """
+import logging
 from collections import Counter
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
@@ -26,7 +27,6 @@ from gtsam import (
 )
 
 import gtsfm.common.types as gtsfm_types
-import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.tracks as track_utils
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -58,7 +58,7 @@ CAM_CAL3BUNDLER_PRIOR_NOISE_SIGMA = 1e-5  # essentially fixed
 CAM_CAL3FISHEYE_PRIOR_NOISE_SIGMA = 1e-5  # essentially fixed
 MEASUREMENT_NOISE_SIGMA = 1.0  # in pixels
 
-logger = logger_utils.get_logger()
+logger = logging.getLogger(__name__)
 
 
 class BundleAdjustmentOptimizer:
