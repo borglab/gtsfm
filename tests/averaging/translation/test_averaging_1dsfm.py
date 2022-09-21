@@ -134,8 +134,7 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
         computation_graph = self.obj.create_computation_graph(len(wRi_list), i2Ui1_graph, wRi_graph)
         with dask.config.set(scheduler="single-threaded"):
             wTi_computed, _ = dask.compute(computation_graph)[0]
-        wTi_computed = [Pose3(wRi, wti) for wRi, wti in zip(wRi_list, wti_computed)]
-        wTi_expected = [Pose3(wRi, wti) for wRi, wti in zip(wRi_list, wti_expected)]
+
         self.assertTrue(
             geometry_comparisons.compare_global_poses(
                 wTi_computed, wTi_expected, RELATIVE_ERROR_THRESHOLD, ABSOLUTE_ERROR_THRESHOLD
