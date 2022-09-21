@@ -59,7 +59,8 @@ class LOFTR(ImageMatcherBase):
         matcher = LoFTRKornia(pretrained=self._model_type).to(device).eval()
 
         input = {"image0": self.to_tensor(image_i1).to(device), "image1": self.to_tensor(image_i2).to(device)}
-        correspondences_dict = matcher(input)
+        with torch.no_grad():
+            correspondences_dict = matcher(input)
 
         coordinates_i1 = correspondences_dict[KEYPOINTS_I1_COORDINATES_KEY].cpu().numpy()
         coordinates_i2 = correspondences_dict[KEYPOINTS_I2_COORDINATES_KEY].cpu().numpy()
