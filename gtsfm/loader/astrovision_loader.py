@@ -35,7 +35,7 @@ class AstrovisionLoader(LoaderBase):
         gt_scene_mesh_path: str = None,
         use_gt_extrinsics: bool = True,
         use_gt_sfmtracks: bool = False,
-        use_gt_masks: bool = True,
+        use_gt_masks: bool = False,
         max_frame_lookahead: int = 2,
         max_resolution: int = 1024,
     ) -> None:
