@@ -9,9 +9,9 @@ from gtsam import PinholeCameraCal3Bundler, SfmTrack
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
 from gtsfm.data_association.point3d_initializer import (
     Point3dInitializer,
-    TriangulationSamplingMode,
-    TriangulationOptions,
     TriangulationExitCode,
+    TriangulationOptions,
+    TriangulationSamplingMode,
 )
 
 

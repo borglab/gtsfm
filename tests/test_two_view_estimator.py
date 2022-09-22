@@ -10,8 +10,8 @@ from gtsam import Cal3Bundler, EssentialMatrix, PinholeCameraCal3Bundler, Pose3,
 
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.io as io_utils
-from gtsfm.two_view_estimator import TwoViewEstimator
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.two_view_estimator import TwoViewEstimator
 
 GTSAM_EXAMPLE_FILE = "5pointExample1.txt"
 EXAMPLE_DATA = io_utils.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
@@ -56,7 +56,7 @@ class TestTwoViewEstimator(unittest.TestCase):
     def test_bundle_adjust(self):
         """Tests the bundle adjustment for relative pose on a simulated scene."""
         two_view_estimator = TwoViewEstimator(
-            matcher=None, verifier=None, inlier_support_processor=None, bundle_adjust_2view=True, eval_threshold_px=4
+            verifier=None, inlier_support_processor=None, bundle_adjust_2view=True, eval_threshold_px=4
         )
 
         # Extract example poses.

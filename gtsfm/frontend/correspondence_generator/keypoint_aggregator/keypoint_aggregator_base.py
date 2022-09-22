@@ -10,10 +10,21 @@ import dask
 from dask.delayed import Delayed
 
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 
-class KeypointAggregatorBase:
+class KeypointAggregatorBase(GTSFMProcess):
     """Base class for keypoint aggregators."""
+
+    def get_ui_metadata() -> UiMetadata:
+        """Returns data needed to display node and edge info for this process in the process graph."""
+
+        return UiMetadata(
+            display_name="KeypointAggregator",
+            input_products=("Detections i", "Detections j"),
+            output_products=("Keypoints", "Putative Correspondences"),
+            parent_plate="ImageCorrespondenceGenerator",
+        )
 
     @abc.abstractmethod
     def run(self, keypoints_dict: Dict[Tuple[int, int], Tuple[Keypoints, Keypoints]]) -> List[Optional[Keypoints]]:

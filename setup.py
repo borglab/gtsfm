@@ -9,30 +9,27 @@ https://github.com/pypa/sampleproject
 """
 
 from codecs import open  # To use a consistent encoding
-from os import path
+from pathlib import Path
 
 # Always prefer setuptools over distutils
 from setuptools import find_packages, setup
 
-here = path.abspath(path.dirname(__file__))
-
 # Get the long description from the README file
-with open(path.join(here, "README.md"), encoding="utf-8") as f:
-    long_description = f.read()
+long_description = (Path(__file__).parent / "README.md").read_text()
 
 setup(
     name="gtsfm",
-    version="0.1.0",
+    version="0.2.0",
     description="",
     long_description=long_description,
+    long_description_content_type='text/markdown',
     url="",
     author="",
     author_email="",
-    license="APACHE",
+    license="BSD-3-Clause",
     classifiers=[
         "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Developers",
-        "License :: OSI Approved :: APACHE License",
         "Operating System :: POSIX",
         "Operating System :: MacOS",
         "Programming Language :: Python :: 3",
@@ -40,6 +37,7 @@ setup(
     ],
     keywords="computer-vision",
     packages=find_packages(),
+    include_package_data=True,
     python_requires=">= 3.6",
     install_requires=[],
 )

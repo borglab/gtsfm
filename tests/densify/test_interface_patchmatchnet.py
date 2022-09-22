@@ -12,8 +12,8 @@ import numpy as np
 from gtsam import Cal3_S2, PinholeCameraCal3_S2, Point3
 from gtsam.examples import SFMdata
 
-from gtsfm.common.image import Image
 from gtsfm.common.gtsfm_data import GtsfmData, SfmTrack
+from gtsfm.common.image import Image
 from gtsfm.densify.patchmatchnet_data import PatchmatchNetData
 
 # set the default image size as 800x600, with 3 channels

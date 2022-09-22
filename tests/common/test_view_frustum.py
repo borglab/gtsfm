@@ -1,15 +1,12 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from gtsam import Rot3, Point3, Pose3
-from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
+from gtsam import Point3, Pose3, Rot3
 from matplotlib.axes._axes import Axes  # noqa: F401
+from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 from scipy.spatial.transform import Rotation
 
-from gtsfm.common.view_frustum import (
-    ViewFrustum,
-    compute_pixel_ray_directions_vectorized,
-)
 import gtsfm.utils.viz as viz_utils
+from gtsfm.common.view_frustum import ViewFrustum, compute_pixel_ray_directions_vectorized
 
 
 def test_compute_pixel_ray_directions_vectorized():

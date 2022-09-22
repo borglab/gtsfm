@@ -4,6 +4,7 @@ Authors: Frank Dellaert and Ayush Baid
 """
 
 import abc
+import logging
 from typing import Dict, List, Optional, Tuple
 
 import dask
@@ -12,19 +13,35 @@ from gtsam import Cal3Bundler, Pose3
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.images as img_utils
-import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.common.pose_prior import PosePrior
+from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
+
+logger = logging.getLogger(__name__)
 
 
-logger = logger_utils.get_logger()
-
-
-class LoaderBase(metaclass=abc.ABCMeta):
+class LoaderBase(GTSFMProcess):
     """Base class for Loaders.
 
     The loader provides APIs to get an image, either directly or as a dask delayed task
     """
+
+    def get_ui_metadata() -> UiMetadata:
+        """Returns data needed to display node and edge info for this process in the process graph."""
+
+        # based on gtsfm/runner/gtsfm_runner_base.py
+        return UiMetadata(
+            display_name="Image Loader",
+            input_products="Source Directory",
+            output_products=(
+                "Images",
+                "Camera Intrinsics",
+                "Image Shapes",
+                "Relative Pose Priors",
+                "Absolute Pose Priors",
+            ),
+            parent_plate="Loader and Retriever",
+        )
 
     def __init__(self, max_resolution: int = 1080) -> None:
         """
@@ -281,7 +298,7 @@ class LoaderBase(metaclass=abc.ABCMeta):
         N = len(self)
         return [self.get_camera(i) for i in range(N)]
 
-    def get_image_shapes(self) -> List[Tuple[int,int]]:
+    def get_image_shapes(self) -> List[Tuple[int, int]]:
         """Return all the image shapes.
 
         Returns:

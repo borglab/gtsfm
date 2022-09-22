@@ -2,6 +2,7 @@
 
 Authors: Xiaolong Wu, John Lambert, Ayush Baid
 """
+import logging
 from collections import Counter
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
@@ -26,7 +27,6 @@ from gtsam import (
 )
 
 import gtsfm.common.types as gtsfm_types
-import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.tracks as track_utils
 from gtsfm.common.gtsfm_data import GtsfmData
@@ -58,14 +58,18 @@ CAM_CAL3BUNDLER_PRIOR_NOISE_SIGMA = 1e-5  # essentially fixed
 CAM_CAL3FISHEYE_PRIOR_NOISE_SIGMA = 1e-5  # essentially fixed
 MEASUREMENT_NOISE_SIGMA = 1.0  # in pixels
 
-logger = logger_utils.get_logger()
+logger = logging.getLogger(__name__)
 
 
 class BundleAdjustmentOptimizer:
     """Bundle adjustment using factor-graphs in GTSAM.
 
     This class refines global pose estimates and intrinsics of cameras, and also refines 3D point cloud structure given
-    tracks from triangulation."""
+    tracks from triangulation.
+
+    Due to the process graph requiring separate classes for separate graph objects, this class is a superclass for
+    TwoViewBundleAdjustment and GlobalBundleAdjustment (defined in gtsfm/bundle/).
+    """
 
     def __init__(
         self,
@@ -277,7 +281,7 @@ class BundleAdjustmentOptimizer:
 
         return sorted(list(cameras))
 
-    def run(
+    def run_ba(
         self,
         initial_data: GtsfmData,
         absolute_pose_priors: List[Optional[PosePrior]],
@@ -408,7 +412,7 @@ class BundleAdjustmentOptimizer:
             GtsfmData aligned to GT (if provided), wrapped up using dask.delayed
             Metrics group for BA results, wrapped up using dask.delayed
         """
-        optimized_sfm_data, filtered_sfm_data, _ = dask.delayed(self.run, nout=3)(
+        optimized_sfm_data, filtered_sfm_data, _ = dask.delayed(self.run_ba, nout=3)(
             sfm_data_graph, absolute_pose_priors, relative_pose_priors
         )
         metrics_graph = dask.delayed(self.evaluate)(optimized_sfm_data, filtered_sfm_data, cameras_gt)

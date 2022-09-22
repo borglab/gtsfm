@@ -14,7 +14,6 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
 
-
 logger = logger_utils.get_logger()
 
 

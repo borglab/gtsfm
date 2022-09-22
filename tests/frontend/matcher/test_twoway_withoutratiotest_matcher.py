@@ -3,10 +3,11 @@
 Authors: Ayush Baid
 """
 import unittest
+
 import numpy as np
 
-import tests.frontend.matcher.test_matcher_base as test_matcher_base
 import gtsfm.utils.features as feature_utils
+import tests.frontend.matcher.test_matcher_base as test_matcher_base
 from gtsfm.frontend.matcher.twoway_matcher import TwoWayMatcher
 
 

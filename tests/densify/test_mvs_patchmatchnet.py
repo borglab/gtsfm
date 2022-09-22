@@ -15,11 +15,10 @@ import torch
 from gtsam import Cal3_S2, PinholeCameraCal3_S2, Point3
 from gtsam.examples import SFMdata
 
-from gtsfm.common.image import Image
 from gtsfm.common.gtsfm_data import GtsfmData, SfmTrack
+from gtsfm.common.image import Image
 from gtsfm.densify.mvs_patchmatchnet import MVSPatchmatchNet, compute_filtered_reprojection_error
 from gtsfm.densify.patchmatchnet_data import PatchmatchNetData
-
 
 # set dummy random seed
 torch.manual_seed(0)

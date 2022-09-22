@@ -5,7 +5,7 @@ Authors: Travis Driver
 
 import os
 from pathlib import Path
-from typing import Optional, List, Tuple
+from typing import List, Optional, Tuple
 
 import cv2 as cv
 import numpy as np
@@ -15,11 +15,9 @@ from gtsam import Cal3Bundler, Pose3, SfmTrack
 import gtsfm.utils.images as image_utils
 import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
+import thirdparty.colmap.scripts.python.read_write_model as colmap_io
 from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
-
-import thirdparty.colmap.scripts.python.read_write_model as colmap_io
-
 
 logger = logger_utils.get_logger()
 

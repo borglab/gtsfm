@@ -11,6 +11,7 @@ import dask
 from dask.delayed import Delayed
 
 from gtsfm.loader.loader_base import LoaderBase
+from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 
 class ImageMatchingRegime(str, Enum):
@@ -22,8 +23,18 @@ class ImageMatchingRegime(str, Enum):
     SEQUENTIAL_HILTI: str = "sequential_hilti"
 
 
-class RetrieverBase:
+class RetrieverBase(GTSFMProcess):
     """Base class for image retriever implementations."""
+
+    def get_ui_metadata() -> UiMetadata:
+        """Returns data needed to display node and edge info for this process in the process graph."""
+
+        return UiMetadata(
+            display_name="Image Retriever",
+            input_products="Image Loader",
+            output_products="Image Pair Indices",
+            parent_plate="Loader and Retriever",
+        )
 
     @abc.abstractmethod
     def run(self, loader: LoaderBase) -> List[Tuple[int, int]]:

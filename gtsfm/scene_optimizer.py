@@ -11,10 +11,9 @@ import dask
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-from trimesh import Trimesh
-from gtsam import Pose3, Similarity3
 from dask.delayed import Delayed
-from gtsfm.common.pose_prior import PosePrior
+from gtsam import Pose3, Similarity3
+from trimesh import Trimesh
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.evaluation.metrics_report as metrics_report
@@ -26,17 +25,19 @@ import gtsfm.utils.metrics as metrics_utils
 import gtsfm.utils.viz as viz_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
+from gtsfm.common.keypoints import Keypoints
+from gtsfm.common.pose_prior import PosePrior
 from gtsfm.densify.mvs_base import MVSBase
-from gtsfm.feature_extractor import FeatureExtractor
+from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.two_view_estimator import (
-    TwoViewEstimator,
-    TwoViewEstimationReport,
-    PRE_BA_REPORT_TAG,
     POST_BA_REPORT_TAG,
     POST_ISP_REPORT_TAG,
+    PRE_BA_REPORT_TAG,
     VIEWGRAPH_REPORT_TAG,
+    TwoViewEstimationReport,
+    TwoViewEstimator,
 )
 
 matplotlib.use("Agg")
@@ -65,7 +66,7 @@ class SceneOptimizer:
 
     def __init__(
         self,
-        feature_extractor: FeatureExtractor,
+        correspondence_generator: CorrespondenceGeneratorBase,
         two_view_estimator: TwoViewEstimator,
         multiview_optimizer: MultiViewOptimizer,
         dense_multiview_optimizer: Optional[MVSBase] = None,
@@ -76,7 +77,7 @@ class SceneOptimizer:
         output_root: str = DEFAULT_OUTPUT_ROOT,
     ) -> None:
         """pose_angular_error_thresh is given in degrees"""
-        self.feature_extractor = feature_extractor
+        self.correspondence_generator = correspondence_generator
         self.two_view_estimator = two_view_estimator
         self.multiview_optimizer = multiview_optimizer
         self.dense_multiview_optimizer = dense_multiview_optimizer
@@ -118,6 +119,8 @@ class SceneOptimizer:
 
     def create_computation_graph_for_frontend(
         self,
+        keypoints_list: List[Keypoints],
+        putative_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         image_pair_indices: List[Tuple[int, int]],
         image_graph: List[Delayed],
         all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
@@ -128,14 +131,6 @@ class SceneOptimizer:
     ) -> Tuple[Dict[Tuple[int, int], Delayed], Dict[Tuple[int, int], Delayed]]:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
 
-        # detection and description graph
-        delayed_keypoints = []
-        delayed_descriptors = []
-        for delayed_image in image_graph:
-            (delayed_dets, delayed_descs) = self.feature_extractor.create_computation_graph(delayed_image)
-            delayed_keypoints += [delayed_dets]
-            delayed_descriptors += [delayed_descs]
-
         # Estimate two-view geometry and get indices of verified correspondences.
         i2Ri1_graph_dict = {}
         i2Ui1_graph_dict = {}
@@ -145,18 +140,17 @@ class SceneOptimizer:
 
             # TODO(johnwlambert): decompose this so what happens in the loop is a separate method
             i2Ri1, i2Ui1, v_corr_idxs, _ = self.two_view_estimator.create_computation_graph(
-                delayed_keypoints[i1],
-                delayed_keypoints[i2],
-                delayed_descriptors[i1],
-                delayed_descriptors[i2],
-                all_intrinsics[i1],
-                all_intrinsics[i2],
-                image_shapes[i1],
-                image_shapes[i2],
-                relative_pose_priors[(i1, i2)],
-                gt_poses_graph[i1],
-                gt_poses_graph[i2],
-                gt_scene_mesh,
+                keypoints_i1_graph=keypoints_list[i1],
+                keypoints_i2_graph=keypoints_list[i2],
+                putative_corr_idxs_dict_graph=putative_corr_idxs_dict[i1, i2],
+                camera_intrinsics_i1=all_intrinsics[i1],
+                camera_intrinsics_i2=all_intrinsics[i2],
+                im_shape_i1=image_shapes[i1],
+                im_shape_i2=image_shapes[i2],
+                i2Ti1_prior=relative_pose_priors[(i1, i2)],
+                gt_wTi1=gt_poses_graph[i1],
+                gt_wTi2=gt_poses_graph[i2],
+                gt_scene_mesh_graph=gt_scene_mesh,
             )
 
             # Store results.
@@ -167,6 +161,8 @@ class SceneOptimizer:
 
     def create_computation_graph(
         self,
+        keypoints_list: List[Keypoints],
+        putative_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         num_images: int,
         image_pair_indices: List[Tuple[int, int]],
         image_graph: List[Delayed],
@@ -180,17 +176,10 @@ class SceneOptimizer:
         matching_regime: ImageMatchingRegime = ImageMatchingRegime.SEQUENTIAL,
     ) -> Tuple[Delayed, List[Delayed]]:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
+        logger.info(f"Results, plots, and metrics will be saved at {self.output_root}")
 
         # auxiliary graph elements for visualizations and saving intermediate data for analysis.
         delayed_results = []
-
-        # detection and description graph
-        delayed_keypoints = []
-        delayed_descriptors = []
-        for delayed_image in image_graph:
-            (delayed_dets, delayed_descs) = self.feature_extractor.create_computation_graph(delayed_image)
-            delayed_keypoints += [delayed_dets]
-            delayed_descriptors += [delayed_descs]
 
         # Estimate two-view geometry and get indices of verified correspondences.
         i2Ri1_graph_dict = {}
@@ -207,18 +196,17 @@ class SceneOptimizer:
 
             # TODO(johnwlambert): decompose this so what happens in the loop is a separate method
             i2Ri1, i2Ui1, v_corr_idxs, two_view_reports = self.two_view_estimator.create_computation_graph(
-                delayed_keypoints[i1],
-                delayed_keypoints[i2],
-                delayed_descriptors[i1],
-                delayed_descriptors[i2],
-                all_intrinsics[i1],
-                all_intrinsics[i2],
-                image_shapes[i1],
-                image_shapes[i2],
-                relative_pose_priors.get((i1, i2), None),
-                gt_wTi_list[i1],
-                gt_wTi_list[i2],
-                gt_scene_mesh,
+                keypoints_i1_graph=keypoints_list[i1],
+                keypoints_i2_graph=keypoints_list[i2],
+                putative_corr_idxs_graph=putative_corr_idxs_dict[i1, i2],
+                camera_intrinsics_i1=all_intrinsics[i1],
+                camera_intrinsics_i2=all_intrinsics[i2],
+                im_shape_i1=image_shapes[i1],
+                im_shape_i2=image_shapes[i2],
+                i2Ti1_prior=relative_pose_priors.get((i1, i2), None),
+                gt_wTi1=gt_wTi_list[i1],
+                gt_wTi2=gt_wTi_list[i2],
+                gt_scene_mesh_graph=gt_scene_mesh,
             )
 
             # Store results.
@@ -234,8 +222,8 @@ class SceneOptimizer:
                     dask.delayed(viz_utils.save_twoview_correspondences_viz)(
                         image_graph[i1],
                         image_graph[i2],
-                        delayed_keypoints[i1],
-                        delayed_keypoints[i2],
+                        keypoints_list[i1],
+                        keypoints_list[i2],
                         v_corr_idxs,
                         two_view_report=two_view_reports[PRE_BA_REPORT_TAG],
                         file_path=os.path.join(self._plot_correspondence_path, f"{i1}_{i2}.jpg"),
@@ -251,7 +239,7 @@ class SceneOptimizer:
         ) = self.multiview_optimizer.create_computation_graph(
             image_graph,
             num_images,
-            delayed_keypoints,
+            keypoints_list,
             i2Ri1_graph_dict,
             i2Ui1_graph_dict,
             v_corr_idxs_graph_dict,
@@ -276,7 +264,7 @@ class SceneOptimizer:
                     filename="two_view_report_{}.json".format(tag),
                     matching_regime=matching_regime,
                     metrics_path=self._metrics_path,
-                    plot_base_path=self._plot_base_path,
+                    plot_base_path=self._plot_base_path
                 )
             )
             metrics_graph_list.append(
@@ -478,7 +466,7 @@ def save_full_frontend_metrics(
     filename: str,
     matching_regime: ImageMatchingRegime,
     metrics_path: Path,
-    plot_base_path: Path,
+    plot_base_path: Path
 ) -> None:
     """Converts the TwoViewEstimationReports for all image pairs to a Dict and saves it as JSON.
 

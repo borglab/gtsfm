@@ -4,7 +4,7 @@ Authors: Ayush Baid, John Lambert
 """
 import logging
 import timeit
-from typing import Any, Dict, Optional, Tuple, List
+from typing import Any, Dict, List, Optional, Tuple
 
 import dask
 import gtsam
@@ -25,17 +25,15 @@ import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
-from gtsfm.bundle.bundle_adjustment import BundleAdjustmentOptimizer
+from gtsfm.bundle.two_view_ba import TwoViewBundleAdjustment
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.data_association.point3d_initializer import SVD_DLT_RANK_TOL
-from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
-from gtsfm.frontend.matcher.matcher_base import MatcherBase
-from gtsfm.frontend.verifier.verifier_base import VerifierBase
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-
+from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
+from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
 logger = logger_utils.get_logger()
 
@@ -56,7 +54,6 @@ class TwoViewEstimator:
 
     def __init__(
         self,
-        matcher: MatcherBase,
         verifier: VerifierBase,
         inlier_support_processor: InlierSupportProcessor,
         bundle_adjust_2view: bool,
@@ -64,10 +61,9 @@ class TwoViewEstimator:
         bundle_adjust_2view_maxiters: int = 100,
         ba_reproj_error_thresh: float = 0.5,
     ) -> None:
-        """Initializes the two-view estimator from matcher and verifier.
+        """Initializes the two-view estimator from verifier.
 
         Args:
-            matcher: matcher to use.
             verifier: verifier to use.
             inlier_support_processor: post-processor that uses information about RANSAC support to filter out pairs.
             bundle_adjust_2view: boolean flag indicating if bundle adjustment is to be run on the 2-view data.
@@ -77,12 +73,11 @@ class TwoViewEstimator:
             ba_reproj_error_thresh (optional): reprojection threshold used to filter features after 2-view BA.
                                                Defaults to 0.5.
         """
-        self._matcher = matcher
         self._verifier = verifier
         self.processor = inlier_support_processor
         self._bundle_adjust_2view = bundle_adjust_2view
         self._corr_metric_dist_threshold = eval_threshold_px
-        self._ba_optimizer = BundleAdjustmentOptimizer(
+        self._ba_optimizer = TwoViewBundleAdjustment(
             output_reproj_error_thresh=ba_reproj_error_thresh,
             robust_measurement_noise=True,
             max_iterations=bundle_adjust_2view_maxiters,
@@ -207,7 +202,7 @@ class TwoViewEstimator:
         if i2Ti1_prior is not None:
             relative_pose_prior_for_ba = {(0, 1): i2Ti1_prior}
 
-        _, ba_output, valid_mask = self._ba_optimizer.run(
+        _, ba_output, valid_mask = self._ba_optimizer.run_ba(
             ba_input, absolute_pose_priors=[], relative_pose_priors=relative_pose_prior_for_ba, verbose=False
         )
         valid_corr_idxs = verified_corr_idxs[triangulated_indices][valid_mask]
@@ -248,12 +243,11 @@ class TwoViewEstimator:
         """Getter for the distance threshold used in the metric for correct correspondences."""
         return self._corr_metric_dist_threshold
 
-    def run(
+    def run_2view(
         self,
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
-        descriptors_i1: np.ndarray,
-        descriptors_i2: np.ndarray,
+        putative_corr_idxs: np.ndarray,
         camera_intrinsics_i1: Optional[gtsfm_types.CALIBRATION_TYPE],
         camera_intrinsics_i2: Optional[gtsfm_types.CALIBRATION_TYPE],
         im_shape_i1: Tuple[int, int],
@@ -263,18 +257,9 @@ class TwoViewEstimator:
         gt_wTi2: Optional[Pose3],
         gt_scene_mesh: Optional[Any] = None,
     ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, Dict[str, Optional[TwoViewEstimationReport]]]:
-        # graph for matching to obtain putative correspondences
-        putative_corr_idxs = self._matcher.match(
-            keypoints_i1,
-            keypoints_i2,
-            descriptors_i1,
-            descriptors_i2,
-            im_shape_i1,
-            im_shape_i2,
-        )
-
+        """Estimate relative pose between two views, using verification."""
         # verification on putative correspondences to obtain relative pose and verified correspondences\
-        (pre_ba_i2Ri1, pre_ba_i2Ui1, verified_corr_idxs, inlier_ratio_wrt_estimate,) = self._verifier.verify(
+        (pre_ba_i2Ri1, pre_ba_i2Ui1, verified_corr_idxs, inlier_ratio_wrt_estimate) = self._verifier.verify(
             keypoints_i1,
             keypoints_i2,
             putative_corr_idxs,
@@ -354,7 +339,7 @@ class TwoViewEstimator:
             post_isp_i2Ui1,
             post_isp_v_corr_idxs,
             post_isp_report,
-        ) = self.processor.run(post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, post_ba_report)
+        ) = self.processor.run_inlier_support(post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, post_ba_report)
 
         two_view_reports = {
             PRE_BA_REPORT_TAG: pre_ba_report,
@@ -368,8 +353,7 @@ class TwoViewEstimator:
         self,
         keypoints_i1_graph: Delayed,
         keypoints_i2_graph: Delayed,
-        descriptors_i1_graph: Delayed,
-        descriptors_i2_graph: Delayed,
+        putative_corr_idxs_graph: Delayed,
         camera_intrinsics_i1: Optional[gtsfm_types.CALIBRATION_TYPE],
         camera_intrinsics_i2: Optional[gtsfm_types.CALIBRATION_TYPE],
         im_shape_i1: Tuple[int, int],
@@ -379,13 +363,11 @@ class TwoViewEstimator:
         gt_wTi2: Optional[Pose3] = None,
         gt_scene_mesh_graph: Optional[Delayed] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, Delayed]:
-        """Create delayed tasks for matching and verification.
+        """Create delayed tasks for two view geometry estimation, using verification.
 
         Args:
             keypoints_i1_graph: keypoints for image i1.
             keypoints_i2_graph: keypoints for image i2.
-            descriptors_i1_graph: corr. descriptors for image i1.
-            descriptors_i2_graph: corr. descriptors for image i2.
             camera_intrinsics_i1: intrinsics for camera i1.
             camera_intrinsics_i2: intrinsics for camera i2.
             im_shape_i1: image shape for image i1.
@@ -399,11 +381,10 @@ class TwoViewEstimator:
             Indices of verified correspondences wrapped as Delayed.
             Two-view reports at different stages (pre BA, post BA, and post inlier-support-processor), as a dictionary.
         """
-        return dask.delayed(self.run, nout=4)(
+        return dask.delayed(self.run_2view, nout=4)(
             keypoints_i1=keypoints_i1_graph,
             keypoints_i2=keypoints_i2_graph,
-            descriptors_i1=descriptors_i1_graph,
-            descriptors_i2=descriptors_i2_graph,
+            putative_corr_idxs=putative_corr_idxs_graph,
             camera_intrinsics_i1=camera_intrinsics_i1,
             camera_intrinsics_i2=camera_intrinsics_i2,
             im_shape_i1=im_shape_i1,

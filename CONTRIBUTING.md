@@ -12,8 +12,9 @@ To open a pull request, here are some steps to get you started:
 - Validate that your changes do not break any existing unit tests. CI (Github Actions) should also pass. We use `pytest`.
   - Run all unit tests: `$ pytest tests`
  
-- Reformat your code using Python [black](https://github.com/psf/black), with `-l 120` for a max line length of 120. 
-- Ensure static analysis with flake8 does not throw any errors:
+- Reformat your code using Python [black](https://github.com/psf/black), with `-l 120` for a max line length of 120: `$ black -l 120 gtsfm tests` 
+- Auto-sort your imports using [isort](https://pycqa.github.io/isort/), with `--profile black` to avoid conflicts with `black` and `-l 120` for a max line length of 120: `$ isort --profile black -l 120 gtsfm tests`
+- Ensure static analysis with flake8 does not throw any errors: `$ flake8 --max-line-length 120 --ignore E201,E202,E203,E231,W291,W293,E303,W391,E402,W503,E731 gtsfm tests`
 
 - Please provide documentation for any new code your pull request provides.
 
@@ -37,13 +38,13 @@ Code in GTSFM adheres to a strict set of conventions about how rigid body transf
 We ask that contributors prefer [GTSAM types](https://github.com/borglab/gtsam/blob/develop/gtsam/geometry/geometry.i) wherever possible unless it's not already wrapped and is a lot of work to do so, or there are good advantages to using other types (like np arrays).
 
 ## Python Style
-- **Auto-Formatting**:We format code with `black` and a maximum line length of 120 characters.
+- **Auto-Formatting**: We format code with `black` and a maximum line length of 120 characters.
 - **Type hints**: Function signatures should include type hints. Do not put type information in the docstring if it is redundant with the type hint.
 - **Branch Logic**: Return early, don't nest.
 - **f-strings**: Use f-strings as a default for regular strings, except when logging, where there is a specific logging format.
 - Default arguments should never be mutable (these will lead to unexpected and strange behavior), `def foo(mylist = [])` is not ok
 - Do not use a dictionary as an object -- use `NamedTuple` instead.
-- **Imports**: Imports should be grouped from most generic to least generic. Within each grouping, imports should be sorted lexicographically. See the [Google python style guide](https://google.github.io/styleguide/pyguide.html#313-imports-formatting) for more details.
+- **Imports**: We use [isort](https://pycqa.github.io/isort/) to handle formatting imports automatically. See the [Google python style guide](https://google.github.io/styleguide/pyguide.html#313-imports-formatting) for more details.
 - **Docstrings Required**: Each function should be accompanied by a docstring. Docstrings should be added as [described here](https://google.github.io/styleguide/pyguide.html#383-functions-and-methods).
     - Docstrings should start with a one-line summary of the program terminated by a period.
     - Leave one blank line.

@@ -4,9 +4,9 @@ Author: Frank Dellaert
 """
 
 from typing import List, Tuple
-from gtsfm.loader.hilti_loader import HiltiLoader
 
 import gtsfm.utils.logger as logger_utils
+from gtsfm.loader.hilti_loader import HiltiLoader
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.retriever.retriever_base import RetrieverBase
 

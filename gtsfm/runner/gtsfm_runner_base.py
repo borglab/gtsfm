@@ -13,17 +13,19 @@ from omegaconf import OmegaConf
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
+from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
+from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
+from gtsfm.frontend.verifier.verifier_base import VerifierBase
 from gtsfm.loader.loader_base import LoaderBase
-from gtsfm.scene_optimizer import SceneOptimizer
-
 from gtsfm.retriever.exhaustive_retriever import ExhaustiveRetriever
-from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.retriever.joint_netvlad_sequential_retriever import JointNetVLADSequentialRetriever
 from gtsfm.retriever.netvlad_retriever import NetVLADRetriever
+from gtsfm.retriever.retriever_base import ImageMatchingRegime, RetrieverBase
 from gtsfm.retriever.rig_retriever import RigRetriever
 from gtsfm.retriever.sequential_hilti_retriever import SequentialHiltiRetriever
 from gtsfm.retriever.sequential_retriever import SequentialRetriever
-
+from gtsfm.scene_optimizer import SceneOptimizer
+from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 
 logger = logger_utils.get_logger()
 
@@ -31,7 +33,7 @@ DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 class GtsfmRunnerBase:
-    def __init__(self, tag: str):
+    def __init__(self, tag: str) -> None:
         self._tag: str = tag
         argparser: argparse.ArgumentParser = self.construct_argparser()
         self.parsed_args: argparse.Namespace = argparser.parse_args()
@@ -59,7 +61,19 @@ class GtsfmRunnerBase:
             "--config_name",
             type=str,
             default="sift_front_end.yaml",
-            help="Choose sift_front_end.yaml or deep_front_end.yaml",
+            help="Master config, including back-end configuration. Choose sift_front_end.yaml or deep_front_end.yaml",
+        )
+        parser.add_argument(
+            "--correspondence_generator_config_name",
+            type=str,
+            default=None,
+            help="Override flag for correspondence generator (choose from among gtsfm/configs/correspondence).",
+        )
+        parser.add_argument(
+            "--verifier_config_name",
+            type=str,
+            default=None,
+            help="Override flag for verifier (choose from among gtsfm/configs/verifier).",
         )
         parser.add_argument(
             "--max_resolution",
@@ -79,11 +93,11 @@ class GtsfmRunnerBase:
             type=str,
             choices=[
                 "exhaustive",
+                "retrieval",
                 "sequential",
+                "sequential_with_retrieval",
                 "sequential_hilti",
                 "rig_hilti",
-                "retrieval",
-                "sequential_with_retrieval",
             ],
             default="sequential",
             help="Choose mode for matching.",
@@ -102,7 +116,7 @@ class GtsfmRunnerBase:
             type=str,
             default=DEFAULT_OUTPUT_ROOT,
             help="Root directory. Results, plots and metrics will be stored in subdirectories,"
-            "e.g. {output_root}/results",
+            " e.g. {output_root}/results",
         )
         return parser
 
@@ -111,24 +125,43 @@ class GtsfmRunnerBase:
         pass
 
     def construct_scene_optimizer(self) -> SceneOptimizer:
-        """Construct scene optimizer."""
+        """Construct scene optimizer.
+
+        All configs are relative to the gtsfm module.
+        """
         with hydra.initialize_config_module(config_module="gtsfm.configs"):
             overrides = ["+SceneOptimizer.output_root=" + str(self.parsed_args.output_root)]
             if self.parsed_args.share_intrinsics:
                 overrides.append("SceneOptimizer.multiview_optimizer.bundle_adjustment_module.shared_calib=True")
-            
-            # config is relative to the gtsfm module
-            cfg = hydra.compose(
+
+            main_cfg = hydra.compose(
                 config_name=self.parsed_args.config_name,
                 overrides=overrides,
             )
-            logger.info("Using config: ")
-            logger.info(OmegaConf.to_yaml(cfg))
-            scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
+            scene_optimizer: SceneOptimizer = instantiate(main_cfg.SceneOptimizer)
 
+        if self.parsed_args.correspondence_generator_config_name is not None:
+            with hydra.initialize_config_module(config_module="gtsfm.configs.correspondence"):
+                correspondence_cfg = hydra.compose(
+                    config_name=self.parsed_args.correspondence_generator_config_name,
+                )
+                logger.info("\n\nCorrespondenceGenerator override: " + OmegaConf.to_yaml(correspondence_cfg))
+                scene_optimizer.correspondence_generator: CorrespondenceGeneratorBase = instantiate(
+                    correspondence_cfg.CorrespondenceGenerator
+                )
+
+        if self.parsed_args.verifier_config_name is not None:
+            with hydra.initialize_config_module(config_module="gtsfm.configs.verifier"):
+                verifier_cfg = hydra.compose(
+                    config_name=self.parsed_args.verifier_config_name,
+                )
+                logger.info("\n\nVerifier override: " + OmegaConf.to_yaml(verifier_cfg))
+                scene_optimizer.two_view_estimator._verifier: VerifierBase = instantiate(verifier_cfg.verifier)
+
+        logger.info("\n\nSceneOptimizer: " + str(scene_optimizer))
         return scene_optimizer
 
-    def construct_retriever(self):
+    def construct_retriever(self) -> RetrieverBase:
         """Set up retriever module."""
         matching_regime = ImageMatchingRegime(self.parsed_args.matching_regime)
 
@@ -141,17 +174,16 @@ class GtsfmRunnerBase:
         elif matching_regime == ImageMatchingRegime.SEQUENTIAL:
             retriever = SequentialRetriever(max_frame_lookahead=self.parsed_args.max_frame_lookahead)
 
-        elif matching_regime == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL:
-            retriever = JointNetVLADSequentialRetriever(
-                num_matched=self.parsed_args.num_matched, max_frame_lookahead=self.parsed_args.max_frame_lookahead
-            )
-
         elif matching_regime == ImageMatchingRegime.SEQUENTIAL_HILTI:
             retriever = SequentialHiltiRetriever(max_frame_lookahead=self.parsed_args.max_frame_lookahead)
 
         elif matching_regime == ImageMatchingRegime.RIG_HILTI:
             retriever = RigRetriever(threshold=self.parsed_args.proxy_threshold)
 
+        elif matching_regime == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL:
+            retriever = JointNetVLADSequentialRetriever(
+                num_matched=self.parsed_args.num_matched, max_frame_lookahead=self.parsed_args.max_frame_lookahead
+            )
         return retriever
 
     def run(self) -> None:
@@ -163,11 +195,31 @@ class GtsfmRunnerBase:
             n_workers=self.parsed_args.num_workers, threads_per_worker=self.parsed_args.threads_per_worker
         )
 
+        # create process graph
+        process_graph_generator = ProcessGraphGenerator()
+        if type(self.scene_optimizer.correspondence_generator) == ImageCorrespondenceGenerator:
+            process_graph_generator.is_image_correspondence = True
+        process_graph_generator.save_graph()
+
         pairs_graph = self.retriever.create_computation_graph(self.loader)
-        with Client(cluster), performance_report(filename="dask-report.html"):
+        with Client(cluster), performance_report(filename="retriever-dask-report.html"):
             image_pair_indices = pairs_graph.compute()
 
+        (
+            delayed_keypoints,
+            delayed_putative_corr_idxs_dict,
+        ) = self.scene_optimizer.correspondence_generator.create_computation_graph(
+            delayed_images=self.loader.create_computation_graph_for_images(),
+            image_shapes=self.loader.get_image_shapes(),
+            image_pair_indices=image_pair_indices,
+        )
+
+        with Client(cluster), performance_report(filename="correspondence-generator-dask-report.html"):
+            keypoints_list, putative_corr_idxs_dict = dask.compute(delayed_keypoints, delayed_putative_corr_idxs_dict)
+
         delayed_sfm_result, delayed_io = self.scene_optimizer.create_computation_graph(
+            keypoints_list=keypoints_list,
+            putative_corr_idxs_dict=putative_corr_idxs_dict,
             num_images=len(self.loader),
             image_pair_indices=image_pair_indices,
             image_graph=self.loader.create_computation_graph_for_images(),
@@ -180,7 +232,7 @@ class GtsfmRunnerBase:
             matching_regime=ImageMatchingRegime(self.parsed_args.matching_regime),
         )
 
-        with Client(cluster), performance_report(filename="dask-report.html"):
+        with Client(cluster), performance_report(filename="scene-optimizer-dask-report.html"):
             sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io)
 
         assert isinstance(sfm_result, GtsfmData)

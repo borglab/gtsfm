@@ -11,18 +11,28 @@ from dask.delayed import Delayed
 from gtsam import Cal3Bundler, Rot3, Unit3
 
 from gtsfm.common.keypoints import Keypoints
-
+from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 NUM_MATCHES_REQ_E_MATRIX = 5
 NUM_MATCHES_REQ_F_MATRIX = 8
 
 
-class VerifierBase(metaclass=abc.ABCMeta):
+class VerifierBase(GTSFMProcess):
     """Base class for all verifiers.
 
     Verifiers take the coordinates of the matches as inputs and returns the estimated essential matrix as well as
     geometrically verified points.
     """
+
+    def get_ui_metadata() -> UiMetadata:
+        """Returns data needed to display node and edge info for this process in the process graph."""
+
+        return UiMetadata(
+            display_name="Verifier",
+            input_products=("Keypoints", "Putative Correspondences", "Camera Intrinsics"),
+            output_products=("Relative Rotation", "Relative Translation", "Verified Correspondences", "Inlier Ratio"),
+            parent_plate="Two-View Estimator",
+        )
 
     def __init__(
         self,

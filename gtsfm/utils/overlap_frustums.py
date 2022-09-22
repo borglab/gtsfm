@@ -8,11 +8,10 @@ import json
 import os
 from typing import Dict, List, Tuple
 
-
 import matplotlib.pyplot as plt
 import numpy as np
-from tqdm import tqdm
 from sklearn.cluster import DBSCAN
+from tqdm import tqdm
 
 # minimum number of voxels in the overlap of frustums
 MIN_VOXELS_OVERLAP_FRUSTUM = 1000
@@ -151,10 +150,10 @@ def calculate_overlap_frustums(
     """
     cube_grid = gen_cube_voxels(-cube_size / 2, cube_size / 2, cube_resolution)
     # transform to homogeneous coordinates, in shape of (resolution ** 3, 4)
-    cube_grid_homo = np.concatenate([cube_grid, np.ones([cube_resolution ** 3, 1])], axis=-1)
+    cube_grid_homo = np.concatenate([cube_grid, np.ones([cube_resolution**3, 1])], axis=-1)
 
     # record the number of frustums each voxels is in
-    num_frustum_voxel = np.zeros([cube_resolution ** 3], dtype=np.float32)
+    num_frustum_voxel = np.zeros([cube_resolution**3], dtype=np.float32)
 
     # generalize intrinsic camera from 3x3 to 3x4
     K = K @ np.eye(3, 4)
@@ -175,7 +174,7 @@ def calculate_overlap_frustums(
         num_frustum_voxel = num_frustum_voxel + frustum_i.astype(np.float32)
 
     # decide the minimum percentile of the number of frustums for each voxel to be considered as the overlap of frustums
-    min_overlap_percentile = min(99, 100 * (1 - MIN_VOXELS_OVERLAP_FRUSTUM / cube_resolution ** 3))
+    min_overlap_percentile = min(99, 100 * (1 - MIN_VOXELS_OVERLAP_FRUSTUM / cube_resolution**3))
     is_overlap_frustums = num_frustum_voxel >= np.percentile(num_frustum_voxel, min_overlap_percentile)
     overlap_grid = cube_grid[is_overlap_frustums]
 

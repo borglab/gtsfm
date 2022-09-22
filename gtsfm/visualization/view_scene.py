@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 
 import numpy as np
-from gtsam import Rot3, Pose3
+from gtsam import Pose3, Rot3
 
 import gtsfm.utils.io as io_utils
 from gtsfm.visualization.open3d_vis_utils import draw_scene_open3d
@@ -53,7 +53,6 @@ def view_scene(args: argparse.Namespace) -> None:
     )
     if args.show_mvs_result:
         point_cloud, rgb = io_utils.read_point_cloud_from_ply(args.ply_fpath)
-
 
     if len(calibrations) == 1:
         calibrations = calibrations * len(img_fnames)

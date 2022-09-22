@@ -8,11 +8,10 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
-from gtsam import Pose3, PinholeCameraCal3Bundler
+from gtsam import PinholeCameraCal3Bundler, Pose3
 
-
-import thirdparty.colmap.scripts.python.read_write_model as colmap_io
 import gtsfm.utils.io as io_utils
+import thirdparty.colmap.scripts.python.read_write_model as colmap_io
 from gtsfm.common.image import Image
 from gtsfm.loader.astronet_loader import AstrovisionLoader
 

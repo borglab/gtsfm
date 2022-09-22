@@ -8,16 +8,15 @@ References:
 Authors: Ayush Baid, Sushmita Warrier, John Lambert, Travis Driver
 """
 
-from typing import List, Dict, Tuple
+from typing import Dict, List, Tuple
 
 import gtsam
 import numpy as np
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.common.sfm_track import SfmTrack2d, SfmMeasurement
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
 from gtsfm.data_association.tracks_estimator_base import TracksEstimatorBase
-
 
 logger = logger_utils.get_logger()
 

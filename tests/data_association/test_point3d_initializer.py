@@ -13,11 +13,12 @@ from typing import List
 import numpy as np
 from gtsam import Cal3_S2, Cal3Bundler, PinholeCameraCal3Bundler, Point2, Point3, Pose3, Rot3
 from gtsam.examples import SFMdata
+
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
 from gtsfm.data_association.point3d_initializer import (
     Point3dInitializer,
-    TriangulationSamplingMode,
     TriangulationOptions,
+    TriangulationSamplingMode,
 )
 from gtsfm.loader.olsson_loader import OlssonLoader
 

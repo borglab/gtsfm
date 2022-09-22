@@ -25,7 +25,6 @@ import gtsfm.utils.pycolmap_utils as pycolmap_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
-
 logger = logger_utils.get_logger()
 
 

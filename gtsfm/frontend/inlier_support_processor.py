@@ -13,7 +13,6 @@ from gtsam import Rot3, Unit3
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 
-
 logger = logger_utils.get_logger()
 
 
@@ -37,7 +36,7 @@ class InlierSupportProcessor:
         self._min_num_inliers_est_model = min_num_inliers_est_model
         self._min_inlier_ratio_est_model = min_inlier_ratio_est_model
 
-    def run(
+    def run_inlier_support(
         self,
         i2Ri1: Optional[Rot3],
         i2Ui1: Optional[Unit3],
@@ -60,6 +59,14 @@ class InlierSupportProcessor:
             v_corr_idxs: empty (0,2) array if insufficient support
             two_view_report: two-view estimation report, or None if insufficient support
         """
+        # i2Ri1 is None, and i2Ui1 is None upon failure.
+        failure_result = (
+            None,
+            None,
+            np.array([], dtype=np.uint64),
+            TwoViewEstimationReport(v_corr_idxs=v_corr_idxs, num_inliers_est_model=0),
+        )
+
         # make a copy of the report
         two_view_report_post_isp = dataclasses.replace(two_view_report)
 
@@ -75,11 +82,7 @@ class InlierSupportProcessor:
                 two_view_report.inlier_ratio_est_model,
                 self._min_inlier_ratio_est_model,
             )
-            i2Ri1 = None
-            i2Ui1 = None
-            v_corr_idxs = np.array([], dtype=np.uint64)
-
-            return i2Ri1, i2Ui1, v_corr_idxs, TwoViewEstimationReport(v_corr_idxs=v_corr_idxs, num_inliers_est_model=0)
+            return failure_result
 
         if valid_model and insufficient_inliers:
             logger.debug(
@@ -87,11 +90,7 @@ class InlierSupportProcessor:
                 two_view_report.num_inliers_est_model,
                 self._min_num_inliers_est_model,
             )
-
-            i2Ri1 = None
-            i2Ui1 = None
-            v_corr_idxs = np.array([], dtype=np.uint64)
-            return i2Ri1, i2Ui1, v_corr_idxs, TwoViewEstimationReport(v_corr_idxs=v_corr_idxs, num_inliers_est_model=0)
+            return failure_result
 
         return i2Ri1, i2Ui1, v_corr_idxs, two_view_report_post_isp
 
@@ -117,4 +116,6 @@ class InlierSupportProcessor:
                 May now be an empty array, if insufficient support.
             two_view_report_pp_graph: Post-processed two-view report (may now be None, if insufficient support).
         """
-        return dask.delayed(self.run, nout=4)(i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph)
+        return dask.delayed(self.run_inlier_support, nout=4)(
+            i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph
+        )

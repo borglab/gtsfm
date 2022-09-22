@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid, John Lambert
 """
+import logging
 from typing import List, Optional, Tuple
 
 import gtsam
@@ -9,11 +10,9 @@ import numpy as np
 from gtsam import Point3, Pose3, Pose3Pairs, Rot3, Rot3Vector, Similarity3, Unit3
 from scipy.spatial.transform import Rotation
 
-from gtsfm.utils.logger import get_logger
-
 EPSILON = np.finfo(float).eps
 
-logger = get_logger()
+logger = logging.getLogger(__name__)
 
 
 def align_rotations(aRi_list: List[Optional[Rot3]], bRi_list: List[Optional[Rot3]]) -> List[Rot3]:
@@ -35,7 +34,7 @@ def align_rotations(aRi_list: List[Optional[Rot3]], bRi_list: List[Optional[Rot3
     else:
         aRb = Rot3()
 
-    # apply the coordinate shift to all entries in input
+    # Apply the coordinate shift to all entries in input.
     return [aRb.compose(bRi) if bRi is not None else None for bRi in bRi_list]
 
 
@@ -86,7 +85,7 @@ def align_poses_sim3_ignore_missing(
 def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Tuple[List[Pose3], Similarity3]:
     """Align two pose graphs via similarity transformation. Note: poses cannot be missing/invalid.
 
-    We force SIM(3) alignment rather than SE(3) alignment.
+    We force Sim(3) alignment rather than SE(3) alignment.
     We assume the two trajectories are of the exact same length.
 
     Args:
@@ -119,29 +118,26 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Tuple[List
         # We will first align the rotations and then align the translation by using centroids.
         # TODO: handle it in GTSAM
 
-        # align the rotations first, so that we can find the translation between the two panoramas
+        # Align the rotations first, so that we can find the translation between the two panoramas.
         aSb = Similarity3(aSb.rotation(), np.zeros((3,)), 1.0)
         aTi_list_rot_aligned = [aSb.transformFrom(bTi) for _, bTi in valid_pose_tuples]
 
-        # fit a single translation motion to the centroid
+        # Fit a single translation motion to the centroid.
         aTi_centroid = np.array([aTi.translation() for aTi, _ in valid_pose_tuples]).mean(axis=0)
         aTi_rot_aligned_centroid = np.array([aTi.translation() for aTi in aTi_list_rot_aligned]).mean(axis=0)
 
-        # construct the final SIM3 transform
+        # Construct the final Sim(3) transform.
         aSb = Similarity3(aSb.rotation(), aTi_centroid - aTi_rot_aligned_centroid, 1.0)
 
-    # TODO(johnwlambert): fix bug in GTSAM, where scale can flip to a small negative number
-    # a negative scale destroys cheirality when applied.
-    # See GTSAM issue here: https://github.com/borglab/gtsam/issues/995
-    aSb = Similarity3(R=aSb.rotation(), t=aSb.translation(), s=np.absolute(aSb.scale()))
+    aSb = Similarity3(R=aSb.rotation(), t=aSb.translation(), s=aSb.scale())
 
-    # provide a summary of the estimated alignment transform
+    # Provide a summary of the estimated alignment transform.
     aRb = aSb.rotation().matrix()
     atb = aSb.translation()
     rz, ry, rx = Rotation.from_matrix(aRb).as_euler("zyx", degrees=True)
-    logger.info("Sim(3) Rotation `aRb`: rz=%.2f deg., ry=%.2f deg., rx=%.2f deg.", rz, ry, rx)
-    logger.info(f"Sim(3) Translation `atb`: [tx,ty,tz]={str(np.round(atb,2))}")
-    logger.info("Sim(3) Scale `asb`: %.2f", float(aSb.scale()))
+    logger.debug("Sim(3) Rotation `aRb`: rz=%.2f deg., ry=%.2f deg., rx=%.2f deg.", rz, ry, rx)
+    logger.debug(f"Sim(3) Translation `atb`: [tx,ty,tz]={str(np.round(atb,2))}")
+    logger.debug("Sim(3) Scale `asb`: %.2f", float(aSb.scale()))
 
     aTi_list_ = []
     for bTi in bTi_list:
@@ -150,8 +146,7 @@ def align_poses_sim3(aTi_list: List[Pose3], bTi_list: List[Pose3]) -> Tuple[List
         else:
             aTi_list_.append(aSb.transformFrom(bTi))
 
-    logger.info("Pose graph Sim(3) alignment complete.")
-
+    logger.debug("Pose graph Sim(3) alignment complete.")
     return aTi_list_, aSb
 
 

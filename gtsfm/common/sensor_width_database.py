@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pandas as pd
 
-ASSETS_ROOT = Path(__file__).resolve().parent.parent.parent / "assets"
+ASSETS_ROOT = Path(__file__).resolve().parent.parent / "assets"
 DEFAULT_SENSOR_DB_PATH = ASSETS_ROOT / "camera_details" / "sensor_database.csv"
 
 
@@ -16,7 +16,7 @@ class SensorWidthDatabase:
     """Database class for sensor-width, reading data from a csv file."""
 
     def __init__(self, csv_path: str = DEFAULT_SENSOR_DB_PATH):
-        """Initializes the database from a csv file"""
+        """Initializes the database from a csv file."""
 
         self.df = pd.read_csv(csv_path)
 
