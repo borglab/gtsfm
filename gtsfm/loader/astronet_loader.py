@@ -35,7 +35,7 @@ class AstrovisionLoader(LoaderBase):
         gt_scene_mesh_path: str = None,
         use_gt_extrinsics: bool = True,
         use_gt_sfmtracks: bool = False,
-        use_masks: bool = True,
+        use_gt_masks: bool = False,
         max_frame_lookahead: int = 2,
         max_resolution: int = 1024,
     ) -> None:
@@ -109,13 +109,13 @@ class AstrovisionLoader(LoaderBase):
 
         # Prepare image paths.
         self._image_paths: List[str] = []
-        self._mask_paths: Optional[List[str]] = [] if use_masks else None
+        self._mask_paths: Optional[List[str]] = [] if use_gt_masks else None
         for img_fname in img_fnames:
             img_fpath = os.path.join(data_dir, "images", img_fname)
             if not Path(img_fpath).exists():
                 raise FileNotFoundError(f"Could not locate image at {img_fpath}.")
             self._image_paths.append(img_fpath)
-            if use_masks and self._mask_paths is not None:  # None check to appease mypy
+            if use_gt_masks and self._mask_paths is not None:  # None check to appease mypy
                 self._mask_paths.append(os.path.join(data_dir, "masks", img_fname))
 
         self._num_imgs = len(self._image_paths)
