@@ -64,8 +64,8 @@ elif [ "$LOADER_NAME" == "colmap-loader" ]; then
     --max_resolution ${MAX_RESOLUTION} \
     ${SHARE_INTRINSICS_ARG}
 
-elif [ "$LOADER_NAME" == "astronet" ]; then
-  python gtsfm/runner/run_scene_optimizer_astronet.py \
+elif [ "$LOADER_NAME" == "astrovision" ]; then
+  python gtsfm/runner/run_scene_optimizer_astrovision.py \
     --data_dir $DATASET_ROOT \
     --config_name ${CONFIG_NAME}.yaml \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \

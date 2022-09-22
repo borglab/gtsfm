@@ -35,7 +35,7 @@ class AstrovisionLoader(LoaderBase):
         gt_scene_mesh_path: str = None,
         use_gt_extrinsics: bool = True,
         use_gt_sfmtracks: bool = False,
-        use_gt_masks: bool = False,
+        use_gt_masks: bool = True,
         max_frame_lookahead: int = 2,
         max_resolution: int = 1024,
     ) -> None:
@@ -88,7 +88,7 @@ class AstrovisionLoader(LoaderBase):
                 raise FileNotFoundError(f"No mesh found at {gt_scene_mesh_path}")
             self.gt_scene_trimesh = trimesh.load(gt_scene_mesh_path, process=False, maintain_order=True)
             logger.info(
-                "AstroNet loader read in mesh with %d vertices and %d faces.",
+                "AstroVision loader read in mesh with %d vertices and %d faces.",
                 self.gt_scene_trimesh.vertices.shape[0],
                 self.gt_scene_trimesh.faces.shape[0],
             )
@@ -119,7 +119,7 @@ class AstrovisionLoader(LoaderBase):
                 self._mask_paths.append(os.path.join(data_dir, "masks", img_fname))
 
         self._num_imgs = len(self._image_paths)
-        logger.info("AstroNet loader found and loaded %d images and %d tracks.", self._num_imgs, self.num_sfmtracks)
+        logger.info("AstroVision loader found and loaded %d images and %d tracks.", self._num_imgs, self.num_sfmtracks)
 
     def image_filenames(self) -> List[Path]:
         """Return the file names corresponding to each image index."""
