@@ -1,7 +1,7 @@
 SceneOptimizer:
   _target_: gtsfm.scene_optimizer.SceneOptimizer
   save_gtsfm_data: True
-  save_two_view_correspondences_viz: True
+  save_two_view_correspondences_viz: False
   save_3d_viz: True
   pose_angular_error_thresh: 5 # degrees
 
@@ -34,8 +34,8 @@ SceneOptimizer:
 
     inlier_support_processor:
       _target_: gtsfm.two_view_estimator.InlierSupportProcessor
-      min_num_inliers_est_model: 1500
-      min_inlier_ratio_est_model: 0.5
+      min_num_inliers_est_model: 15
+      min_inlier_ratio_est_model: 0.1
 
   multiview_optimizer:
     _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
