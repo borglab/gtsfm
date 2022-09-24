@@ -124,6 +124,7 @@ function download_and_unzip_dataset_files {
   elif [ "$DATASET_NAME" == "2011205_rc3" ]; then
     unzip -qq 2011205_rc3.zip
     tar -xvf cache_rc3_deep.tar.gz
+  fi
 }
 
 # Retry in case of corrupted file ("End-of-central-directory signature not found")
