@@ -61,11 +61,6 @@ function download_and_unzip_dataset_files {
     WGET_URL1=https://www.dropbox.com/s/q02mgq1unbw068t/2011205_rc3.zip
     WGET_URL2=https://github.com/johnwlambert/gtsfm-cache/releases/download/2011205_rc3_deep_front_end_cache/cache_rc3_deep.tar.gz
     ZIP_FNAME=2011205_rc3.zip
-
-  elif [ "$DATASET_NAME" == "lettuce-18" ]; then
-    # Description: images captured from BORG lab hydroponics experiments
-    export GDRIVE_FILEID='12HW6a7moTXP9H66HiGZCsdRKdEWl8gWC'
-    ZIP_FNAME=lettuce-18.zip
   fi
 
   # Download the data.
@@ -129,10 +124,6 @@ function download_and_unzip_dataset_files {
   elif [ "$DATASET_NAME" == "2011205_rc3" ]; then
     unzip -qq 2011205_rc3.zip
     tar -xvf cache_rc3_deep.tar.gz
-
-  elif [ "$DATASET_NAME" == "lettuce-18" ]; then
-    unzip -qq lettuce-18.zip
-  fi
 }
 
 # Retry in case of corrupted file ("End-of-central-directory signature not found")
