@@ -24,8 +24,6 @@ jobs:
             [deep_front_end,             notre-dame-20,         20,  jpg,  gdrive,     colmap-loader,  760, false],
             [sift_front_end_astrovision, 2011205_rc3,           65,  png,  wget,       astrovision,    1024, true],
             [deep_front_end_astrovision, 2011205_rc3,           65,  png,  wget,       astrovision,    1024, true],
-            [sift_front_end,             lettuce-18,            12,  jpg,  gdrive,     colmap-loader,  760, false],
-            [deep_front_end,             lettuce-18,            12,  jpg,  gdrive,     colmap-loader,  760, false],
           ]
     defaults:
       run:
