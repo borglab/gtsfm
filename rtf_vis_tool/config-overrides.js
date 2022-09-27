@@ -1,3 +1,11 @@
+/* While setting up a web3 project, we face multiple issues with webpack 5. The issue is caused due to
+the fact that the web3.js and ethers.js packages have certain dependencies, which are not present within
+the browser environment by webpack 5. This script defines the node polyfills required to override 
+the configurations and enable the usage of web3.js and ethers.js packages.
+
+Author: Hayk Stepanyan
+*/
+
 const webpack = require('webpack');
 module.exports = function override(config) {
     const fallback = config.resolve.fallback || {};
@@ -25,4 +33,3 @@ module.exports = function override(config) {
     })
     return config;
 }
-
