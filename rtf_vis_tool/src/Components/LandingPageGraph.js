@@ -160,8 +160,8 @@ function LandingPageGraph() {
                     funcParam={true}
                     textColor={'black'} 
                     backgroundColor={lightGray} 
-                    topOffset={'36%'} 
-                    leftOffset={'40%'} 
+                    topOffset={'80%'} 
+                    leftOffset={'80%'} 
                     text={'Data Association GtsfmData'}/>
                 
                 <GtsfmNode
@@ -169,33 +169,35 @@ function LandingPageGraph() {
                     funcParam={true}
                     textColor={'black'}
                     backgroundColor={lightGray}
-                    topOffset={'37%'}
-                    leftOffset={'27%'}
+                    topOffset={'80%'}
+                    leftOffset={'90%'}
                     text={'Bundle Adjustment GtsfmData'}/>
 
                 {/* Render Directed Edges. */}
                 {arrowList}
 
                 {/* Render Plates. */}
-                <div className="scene_optimizer_plate">
-                    <p className="plate_title">Scene Optimizer Scenes</p>
+                <div className="loader_and_retriever">
+                    <p className="plate_title">Loader and Retriever</p>
                 </div>
-                <div className="feature_extractor_plate">
-                    <p className="plate_title">Feature Extractor Images</p>
+                <div className="two_view_estimator_plate">
+                    <p className="plate_title">Two-View Estimator</p>
                 </div>
-                <div className="two_view_estimator_plate" 
+                <div className="correspondence_plate">
+                    <p className="plate_title">DetDescCorrespondenceGenerator</p>
+                </div>
+                <div className="sparse_reconstruction_plate">
+                    <p className="plate_title">Sparse Reconstruction</p>
+                </div>
+                {/* <div className="" 
                      onClick={(frontend_summary_json) ? (() => toggleFrontEndSummaryDisplay(true)) : (null)}>
                     <p className="plate_title">TwoViewEstimator</p>
-                </div>
-                <div className="averaging_plate">
-                    <p className="plate_title">Averaging</p>
-                </div>
+                </div> */}
                 <div className="sparse_multiview_optimizer_plate" 
-                     onClick={(rotation_averaging_json, translation_averaging_json) ? (() => toggleAveragingMetrics(true)) : (null)}>
+                     onMouseEnter={(rotation_averaging_json, translation_averaging_json) ? (() => toggleAveragingMetrics(true)) : (null)}
+                     onMouseLeave={(rotation_averaging_json, translation_averaging_json) ? (() => toggleAveragingMetrics(false)) : (null)}
+                >
                     <p className="plate_title">Sparse Multiview Optimizer</p>
-                </div>
-                <div className="dense_multiview_optimizer_plate">
-                    <p className="plate_title">Dense Multiview Optimizer</p>
                 </div>
             </div>
         </div>
