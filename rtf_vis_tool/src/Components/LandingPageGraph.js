@@ -130,10 +130,10 @@ function LandingPageGraph() {
             </div>
 
             {/* Render popups only when the respective node is clicked. */} 
-            {showDA_PC && <PCViewer title={'Data Association Point Cloud'} 
+            {showDA_PC && <PCViewer title={'3D Tracks 1'} 
                                     togglePC={toggleDA_PointCloud} 
                                     pointCloudType={'ba_input'}/>}
-            {showBA_PC && <PCViewer title={'Bundle Adjustment Point Cloud'}
+            {showBA_PC && <PCViewer title={'Optimized 3D Tracks'}
                                     togglePC={toggleBA_PointCloud}
                                     pointCloudType={'ba_output'}/>}
       
@@ -160,18 +160,18 @@ function LandingPageGraph() {
                     funcParam={true}
                     textColor={'black'} 
                     backgroundColor={lightGray} 
-                    topOffset={'80%'} 
-                    leftOffset={'80%'} 
-                    text={'Data Association GtsfmData'}/>
+                    topOffset={'76%'} 
+                    leftOffset={'18%'} 
+                    text={'3D Tracks'}/>
                 
                 <GtsfmNode
                     onClickFunction={toggleBA_PointCloud}
                     funcParam={true}
                     textColor={'black'}
                     backgroundColor={lightGray}
-                    topOffset={'80%'}
-                    leftOffset={'90%'}
-                    text={'Bundle Adjustment GtsfmData'}/>
+                    topOffset={'90%'}
+                    leftOffset={'10%'}
+                    text={'Optimized 3D Tracks'}/>
 
                 {/* Render Directed Edges. */}
                 {arrowList}

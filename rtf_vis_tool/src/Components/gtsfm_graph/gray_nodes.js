@@ -112,19 +112,9 @@ const gray_node_list = [
         leftOffset: 13
     },
     {
-        text: '3D Tracks',
-        topOffset: 76,
-        leftOffset: 18
-    },
-    {
         text: 'Optimized Camera Poses',
         topOffset: 90,
         leftOffset: 17
-    },
-    {
-        text: 'Optimized 3D Tracks',
-        topOffset: 90,
-        leftOffset: 10
     },
     {
         text: 'Dense Colored 3D Point Cloud',

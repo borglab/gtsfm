@@ -66,7 +66,6 @@ const edge_list = [
     ["Images", "Multi-view Stereo"],
     ["Optimized Camera Poses", "Mult-view Stereo"],
     ["Optimized 3D Tracks", "Multi-view Stereo"],
-
 ]
 
 module.exports = edge_list;
