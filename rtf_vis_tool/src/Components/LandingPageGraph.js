@@ -189,13 +189,8 @@ function LandingPageGraph() {
                 <div className="sparse_reconstruction_plate">
                     <p className="plate_title">Sparse Reconstruction</p>
                 </div>
-                {/* <div className="" 
-                     onClick={(frontend_summary_json) ? (() => toggleFrontEndSummaryDisplay(true)) : (null)}>
-                    <p className="plate_title">TwoViewEstimator</p>
-                </div> */}
                 <div className="sparse_multiview_optimizer_plate" 
-                     onMouseEnter={(rotation_averaging_json, translation_averaging_json) ? (() => toggleAveragingMetrics(true)) : (null)}
-                     onMouseLeave={(rotation_averaging_json, translation_averaging_json) ? (() => toggleAveragingMetrics(false)) : (null)}
+                     onClick={(rotation_averaging_json, translation_averaging_json) ? (() => toggleAveragingMetrics(true)) : (null)}
                 >
                     <p className="plate_title">Sparse Multiview Optimizer</p>
                 </div>
