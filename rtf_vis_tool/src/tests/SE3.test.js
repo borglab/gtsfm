@@ -21,13 +21,13 @@ describe('SE3 Class Unit Tests', () => {
                                    [1, 0, 0]]);
 
         const translation = nj.array([2,3,4]);
-        const testSE3 = SE3(rotation, translation);
+        const testSE3 = new SE3(rotation, translation);
         const point = nj.array([1, 2, 3]);
 
         const computedPoint = testSE3.transform_from(point);
         const expectedPoint = nj.array([[5, 5, 5]]);
 
-        expected(expectedPoint).toEqual(computedPoint);
+        expect(expectedPoint).toEqual(computedPoint);
     })
 });
 
