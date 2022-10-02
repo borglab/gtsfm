@@ -24,6 +24,7 @@ from gtsfm.retriever.retriever_base import ImageMatchingRegime, RetrieverBase
 from gtsfm.retriever.rig_retriever import RigRetriever
 from gtsfm.retriever.sequential_hilti_retriever import SequentialHiltiRetriever
 from gtsfm.retriever.sequential_retriever import SequentialRetriever
+from gtsfm.runner.run_vis_tool import run_vis_tool
 from gtsfm.scene_optimizer import SceneOptimizer
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 
@@ -117,6 +118,12 @@ class GtsfmRunnerBase:
             default=DEFAULT_OUTPUT_ROOT,
             help="Root directory. Results, plots and metrics will be stored in subdirectories,"
             " e.g. {output_root}/results",
+        )
+        parser.add_argument(
+            "--run_visualizer",
+            action="store_true",
+            default=False,
+            help="Run the JS visualization tool",
         )
         return parser
 
@@ -240,3 +247,6 @@ class GtsfmRunnerBase:
         end_time = time.time()
         duration_sec = end_time - start_time
         logger.info("GTSFM took %.2f minutes to compute sparse multi-view result.", duration_sec / 60)
+
+        if self.parsed_args.run_visualizer:
+            run_vis_tool()
