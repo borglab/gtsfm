@@ -130,10 +130,10 @@ function LandingPageGraph() {
             </div>
 
             {/* Render popups only when the respective node is clicked. */} 
-            {showDA_PC && <PCViewer title={'Data Association Point Cloud'} 
+            {showDA_PC && <PCViewer title={'3D Tracks 1'} 
                                     togglePC={toggleDA_PointCloud} 
                                     pointCloudType={'ba_input'}/>}
-            {showBA_PC && <PCViewer title={'Bundle Adjustment Point Cloud'}
+            {showBA_PC && <PCViewer title={'Optimized 3D Tracks'}
                                     togglePC={toggleBA_PointCloud}
                                     pointCloudType={'ba_output'}/>}
       
@@ -160,42 +160,39 @@ function LandingPageGraph() {
                     funcParam={true}
                     textColor={'black'} 
                     backgroundColor={lightGray} 
-                    topOffset={'36%'} 
-                    leftOffset={'40%'} 
-                    text={'Data Association GtsfmData'}/>
+                    topOffset={'76%'} 
+                    leftOffset={'18%'} 
+                    text={'3D Tracks'}/>
                 
                 <GtsfmNode
                     onClickFunction={toggleBA_PointCloud}
                     funcParam={true}
                     textColor={'black'}
                     backgroundColor={lightGray}
-                    topOffset={'37%'}
-                    leftOffset={'27%'}
-                    text={'Bundle Adjustment GtsfmData'}/>
+                    topOffset={'90%'}
+                    leftOffset={'10%'}
+                    text={'Optimized 3D Tracks'}/>
 
                 {/* Render Directed Edges. */}
                 {arrowList}
 
                 {/* Render Plates. */}
-                <div className="scene_optimizer_plate">
-                    <p className="plate_title">Scene Optimizer Scenes</p>
+                <div className="loader_and_retriever">
+                    <p className="plate_title">Loader and Retriever</p>
                 </div>
-                <div className="feature_extractor_plate">
-                    <p className="plate_title">Feature Extractor Images</p>
+                <div className="two_view_estimator_plate">
+                    <p className="plate_title">Two-View Estimator</p>
                 </div>
-                <div className="two_view_estimator_plate" 
-                     onClick={(frontend_summary_json) ? (() => toggleFrontEndSummaryDisplay(true)) : (null)}>
-                    <p className="plate_title">TwoViewEstimator</p>
+                <div className="correspondence_plate">
+                    <p className="plate_title">DetDescCorrespondenceGenerator</p>
                 </div>
-                <div className="averaging_plate">
-                    <p className="plate_title">Averaging</p>
+                <div className="sparse_reconstruction_plate">
+                    <p className="plate_title">Sparse Reconstruction</p>
                 </div>
                 <div className="sparse_multiview_optimizer_plate" 
-                     onClick={(rotation_averaging_json, translation_averaging_json) ? (() => toggleAveragingMetrics(true)) : (null)}>
+                     onClick={(rotation_averaging_json, translation_averaging_json) ? (() => toggleAveragingMetrics(true)) : (null)}
+                >
                     <p className="plate_title">Sparse Multiview Optimizer</p>
-                </div>
-                <div className="dense_multiview_optimizer_plate">
-                    <p className="plate_title">Dense Multiview Optimizer</p>
                 </div>
             </div>
         </div>
