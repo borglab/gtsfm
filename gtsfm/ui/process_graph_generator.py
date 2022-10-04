@@ -19,8 +19,8 @@ import pydot
 from gtsfm.ui.gtsfm_process import UiMetadata
 from gtsfm.ui.registry import RegistryHolder
 
-JS_ROOT = os.path.join(Path(__file__).resolve().parent.parent.parent, "rtf_vis_tool")
-DEFAULT_GRAPH_VIZ_OUTPUT_PATH = os.path.join(JS_ROOT, "src", "ui", "process_graph_output.svg")
+PLOTS_ROOT = os.path.join(Path(__file__).resolve().parent.parent.parent, "plots")
+DEFAULT_GRAPH_VIZ_OUTPUT_PATH = os.path.join(PLOTS_ROOT, "process_graph_output.svg")
 
 # style constants, see http://www.graphviz.org/documentation/
 PROCESS_FILLCOLOR = "lightskyblue"

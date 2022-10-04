@@ -264,7 +264,7 @@ class SceneOptimizer:
                     filename="two_view_report_{}.json".format(tag),
                     matching_regime=matching_regime,
                     metrics_path=self._metrics_path,
-                    plot_base_path=self._plot_base_path
+                    plot_base_path=self._plot_base_path,
                 )
             )
             metrics_graph_list.append(
@@ -466,7 +466,7 @@ def save_full_frontend_metrics(
     filename: str,
     matching_regime: ImageMatchingRegime,
     metrics_path: Path,
-    plot_base_path: Path
+    plot_base_path: Path,
 ) -> None:
     """Converts the TwoViewEstimationReports for all image pairs to a Dict and saves it as JSON.
 

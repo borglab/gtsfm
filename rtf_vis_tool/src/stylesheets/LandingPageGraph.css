@@ -65,8 +65,8 @@ Author: Adi Singh
     z-index: 1;
 }
 
-/*  Styles the 'Feature Extractor Images' Plate. Gives a blue, rectangular border around 6 nodes.
-    Located in Second Quadrant of Screen. Z-index of 1 allows for pop ups to overlay it.
+/*  Styles the 'Two View Estimator' Plate. Gives a blue, rectangular border around 9 nodes.
+    Located in First Quadrant of Screen. Z-index of 1 allows for pop ups to overlay it.
 */
 .two_view_estimator_plate {
     position: absolute;
@@ -78,20 +78,6 @@ Author: Adi Singh
     padding-left: 1%;  
     z-index: 1; 
 }
-
-/*  Styles the 'Two View Estimator' Plate. Gives a blue, rectangular border around 9 nodes.
-    Located in First Quadrant of Screen. Z-index of 1 allows for pop ups to overlay it.
-*/
-/* .two_view_estimator_plate {
-    position: absolute;
-    top: 2%;
-    left: 52.5%;
-    width: 40%;
-    height: 25%;
-    border: 2px solid #0b8db5;
-    padding-left: 7%;   
-    z-index: 1;
-} */
 
 /*  Makes the 'Two View Estimator' Plate have a gray background when hovered over. */
 .two_view_estimator_plate:hover {
