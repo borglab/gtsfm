@@ -17,6 +17,7 @@ import GrayNodes from './gtsfm_graph/gray_nodes.js';
 import GtsfmNode from './GtsfmNode';
 import MVOSummary from './MVOSummary';
 import PCViewer from './PCViewer.js';
+import ImageViewer from './ImageViewer.js';
 import '../stylesheets/LandingPageGraph.css'
 
 // JSON result_metrics data
@@ -41,6 +42,7 @@ function LandingPageGraph() {
     const [showAveragingMetrics, setShowAveragingMetrics] = useState(false);
     const [showDA_PC, setShowDA_PC] = useState(false);
     const [showBA_PC, setShowBA_PC] = useState(false);
+    const [showImageViewer, setShowImageViewer] = useState(false);
     
     // Variables storing JSON information from result_metrics directory.
     const [frontend_summary_json, setFSJSON] = useState(null);
@@ -133,6 +135,9 @@ function LandingPageGraph() {
             {showDA_PC && <PCViewer title={'3D Tracks 1'} 
                                     togglePC={toggleDA_PointCloud} 
                                     pointCloudType={'ba_input'}/>}
+            {showImageViewer && <ImageViewer title={'Images'} 
+                                    togglePC={toggleDA_PointCloud} 
+                                    pointCloudType={'ba_input'}/>}
             {showBA_PC && <PCViewer title={'Optimized 3D Tracks'}
                                     togglePC={toggleBA_PointCloud}
                                     pointCloudType={'ba_output'}/>}
@@ -164,6 +169,15 @@ function LandingPageGraph() {
                     leftOffset={'18%'} 
                     text={'3D Tracks'}/>
                 
+                <GtsfmNode 
+                    onClickFunction={setShowImageViewer}
+                    funcParam={true}
+                    textColor={'black'} 
+                    backgroundColor={lightGray} 
+                    topOffset={'7%'} 
+                    leftOffset={'28%'} 
+                    text={'Images'}/>
+
                 <GtsfmNode
                     onClickFunction={toggleBA_PointCloud}
                     funcParam={true}

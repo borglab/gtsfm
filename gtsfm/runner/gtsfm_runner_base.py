@@ -2,6 +2,7 @@
 
 import argparse
 import time
+import os
 from abc import abstractmethod
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from dask.distributed import Client, LocalCluster, performance_report
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
+import gtsfm.utils.io as io_utils
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
@@ -30,6 +32,7 @@ from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 logger = logger_utils.get_logger()
 
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent.parent.parent
+REACT_METRICS_PATH = Path(__file__).resolve().parent.parent.parent / "rtf_vis_tool" / "src" / "images"
 
 
 class GtsfmRunnerBase:
@@ -202,6 +205,14 @@ class GtsfmRunnerBase:
         process_graph_generator.save_graph()
 
         pairs_graph = self.retriever.create_computation_graph(self.loader)
+
+        for i in range(len(self.loader)):
+            io_utils.save_image(
+                self.loader.get_image(i),
+                os.path.join(REACT_METRICS_PATH, f"{i}.jpg")
+            )
+
+        return
         with Client(cluster), performance_report(filename="retriever-dask-report.html"):
             image_pair_indices = pairs_graph.compute()
 
