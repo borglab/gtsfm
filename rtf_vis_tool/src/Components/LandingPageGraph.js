@@ -116,6 +116,15 @@ function LandingPageGraph() {
         setShowDA_PC(showDisplay);
     };
 
+    function toggleImageViewer(showDisplay) {
+        /*Toggles the display of the Image Loader.
+
+        Args:
+            showDisplay (boolean): Sets the display to be shown or not.
+        */
+        setShowImageViewer(showDisplay);
+    };
+
     function toggleBA_PointCloud(showDisplay) {
         /*Toggles the display of the Bundle Adjustment Point Cloud.
 
@@ -136,7 +145,7 @@ function LandingPageGraph() {
                                     togglePC={toggleDA_PointCloud} 
                                     pointCloudType={'ba_input'}/>}
             {showImageViewer && <ImageViewer title={'Images'} 
-                                    togglePC={toggleDA_PointCloud} 
+                                    togglePC={toggleImageViewer} 
                                     pointCloudType={'ba_input'}/>}
             {showBA_PC && <PCViewer title={'Optimized 3D Tracks'}
                                     togglePC={toggleBA_PointCloud}
@@ -204,7 +213,8 @@ function LandingPageGraph() {
                     <p className="plate_title">Sparse Reconstruction</p>
                 </div>
                 <div className="sparse_multiview_optimizer_plate" 
-                     onClick={(rotation_averaging_json, translation_averaging_json) ? (() => toggleAveragingMetrics(true)) : (null)}
+                     onMouseEnter={(rotation_averaging_json, translation_averaging_json) ? (() => toggleAveragingMetrics(true)) : (null)}
+                     onMouseLeave={(rotation_averaging_json, translation_averaging_json) ? (() => toggleAveragingMetrics(false)) : (null)}
                 >
                     <p className="plate_title">Sparse Multiview Optimizer</p>
                 </div>
