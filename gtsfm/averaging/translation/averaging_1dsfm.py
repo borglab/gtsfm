@@ -16,8 +16,10 @@ from typing import DefaultDict, Dict, List, Optional, Set, Tuple
 
 import gtsam
 import numpy as np
-from gtsam import MFAS, BinaryMeasurementsUnit3, BinaryMeasurementUnit3, Point3, Pose3, Rot3, TranslationRecovery, Unit3
+from gtsam import MFAS, BinaryMeasurementsUnit3, BinaryMeasurementUnit3, Point3, Pose3, Rot3, symbol_shorthand, TranslationRecovery, Unit3
 from scipy import stats
+from gtsfm.common.sfm_track import SfmTrack2d
+import gtsfm.common.types as gtsfm_types
 
 import gtsfm.utils.coordinate_conversions as conversion_utils
 import gtsfm.utils.geometry_comparisons as comp_utils
@@ -41,6 +43,8 @@ MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
 
 logger = logger_utils.get_logger()
 
+C = symbol_shorthand.C
+L = symbol_shorthand.L
 
 class TranslationAveraging1DSFM(TranslationAveragingBase):
     """1D-SFM translation averaging with outlier rejection."""
@@ -189,12 +193,37 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 initial.insertPoint3(i, wTi.value.translation())
         return initial
 
+    def get_landmark_direction_measurements(self, tracks_2d: List[SfmTrack2d], valid_cameras: Set[int], all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]], wRi_list: List[Optional[Rot3]], camera_direction_measurements, noise_model):
+        camera_with_landmark_measurements = camera_direction_measurements
+        for i in range(len(tracks_2d)):
+            track = tracks_2d[i]
+            measurements = []
+            for j in range(track.number_measurements()):
+                measurement = track.measurement(j)
+                if measurement.i not in valid_cameras:
+                    continue
+                measurements.append(measurement)
+            if len(measurements) < 3:
+                continue
+            for idx, measurement in enumerate(measurements):
+                cam_idx = measurement.i
+                measurement_xy = all_intrinsics[cam_idx].calibrate(measurement.uv)
+                measurement_img_plane = Point3(measurement_xy[0], measurement_xy[1], 1.)
+                w_iUj = wRi_list[cam_idx] * np.linalg.norm(measurement_img_plane)
+                camera_with_landmark_measurements.append(BinaryMeasurementUnit3(C(cam_idx), L(idx), Unit3(w_iUj)), noise_model)
+        return camera_with_landmark_measurements
+
+
+
+
     # TODO(ayushbaid): Change wTi_initial to Pose3.
     def run(
         self,
         num_images: int,
         i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
         wRi_list: List[Optional[Rot3]],
+        tracks_2d: List[SfmTrack2d],
+        all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         absolute_pose_priors: List[Optional[PosePrior]] = [],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
@@ -223,16 +252,19 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             huber_loss = gtsam.noiseModel.mEstimator.Huber.Create(HUBER_LOSS_K)
             noise_model = gtsam.noiseModel.Robust.Create(huber_loss, noise_model)
 
-        w_i2Ui1_measurements = cast_to_measurements_variable_in_global_coordinate_frame(
+        w_i2Ui1_measurements, valid_cameras = cast_to_measurements_variable_in_global_coordinate_frame(
             i2Ui1_dict, wRi_list, noise_model
         )
+        all_w_i2Ui1_measurements = self.get_landmark_direction_measurements(
+            tracks_2d, valid_cameras, all_intrinsics, wRi_list, w_i2Ui1_measurements, noise_model
+        )
 
-        inlier_idxs: Set[Tuple[int, int]] = self.compute_inlier_mask(w_i2Ui1_measurements)
+        inlier_idxs: Set[Tuple[int, int]] = self.compute_inlier_mask(all_w_i2Ui1_measurements)
 
         w_i2Ui1_inlier_measurements = BinaryMeasurementsUnit3()
-        for idx in range(len(w_i2Ui1_measurements)):
+        for idx in range(len(all_w_i2Ui1_measurements)):
             # key1 is i2 and key2 is i1 above.
-            w_i2Ui1 = w_i2Ui1_measurements[idx]
+            w_i2Ui1 = all_w_i2Ui1_measurements[idx]
             i1 = w_i2Ui1.key2()
             i2 = w_i2Ui1.key1()
             if (i1, i2) in inlier_idxs:
@@ -257,8 +289,8 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         # transforming the result to the list of Point3
         wti_list: List[Optional[Point3]] = [None] * num_images
         for i in range(num_images):
-            if wRi_list[i] is not None and wti_values.exists(i):
-                wti_list[i] = wti_values.atPoint3(i)
+            if wRi_list[i] is not None and wti_values.exists(C(i)):
+                wti_list[i] = wti_values.atPoint3(C(i))
 
         # Compute the metrics.
         if gt_wTi_list is not None:
@@ -412,10 +444,13 @@ def cast_to_measurements_variable_in_global_coordinate_frame(
 ) -> BinaryMeasurementsUnit3:
 
     w_i2Ui1_measurements = BinaryMeasurementsUnit3()
+    valid_cameras = set()
     for (i1, i2), i2Ui1 in i2Ui1_dict.items():
         wRi2 = wRi_list[i2]
         if i2Ui1 is not None and wRi2 is not None:
             # TODO: what if wRi2 is None, but wRi1 is not? Can we still transform.
-            w_i2Ui1_measurements.append(BinaryMeasurementUnit3(i2, i1, Unit3(wRi2.rotate(i2Ui1.point3())), noise_model))
+            w_i2Ui1_measurements.append(BinaryMeasurementUnit3(C(i2), C(i1), Unit3(wRi2.rotate(i2Ui1.point3())), noise_model))
+            valid_cameras.add(i1)
+            valid_cameras.add(i2)
 
-    return w_i2Ui1_measurements
+    return w_i2Ui1_measurements, valid_cameras

@@ -10,6 +10,7 @@ from dask.delayed import Delayed
 from gtsam import Point3, Pose3, Rot3, Unit3
 
 from gtsfm.common.pose_prior import PosePrior
+from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
@@ -50,6 +51,7 @@ class TranslationAveragingBase(GTSFMProcess):
         num_images: int,
         i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
         wRi_list: List[Optional[Rot3]],
+        tracks_2d: List[SfmTrack2d],
         absolute_pose_priors: List[Optional[PosePrior]] = [],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
@@ -77,6 +79,7 @@ class TranslationAveragingBase(GTSFMProcess):
         num_images: int,
         i2Ui1_graph: Delayed,
         wRi_graph: Delayed,
+        tracks_2d: List[SfmTrack2d],
         absolute_pose_priors: List[Optional[PosePrior]] = [],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
