@@ -1,4 +1,4 @@
-"""Runs GTSfM on an AstroNet dataset.
+"""Runs GTSfM on an AstroVision dataset.
 
 Author: Travis Driver
 """
@@ -10,23 +10,23 @@ from dask.distributed import Client, LocalCluster, performance_report
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.loader.astronet_loader import AstronetLoader
 from gtsfm.loader.loader_base import LoaderBase
+from gtsfm.loader.astrovision_loader import AstrovisionLoader
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.runner.gtsfm_runner_base import GtsfmRunnerBase
 
 logger = logger_utils.get_logger()
 
 
-class GtsfmRunnerAstronetLoader(GtsfmRunnerBase):
+class GtsfmRunnerAstrovisionLoader(GtsfmRunnerBase):
     def __init__(self):
-        super(GtsfmRunnerAstronetLoader, self).__init__(tag="Run GTSfM on AstroNet segment")
+        super(GtsfmRunnerAstrovisionLoader, self).__init__(tag="Run GTSfM on AstroVision segment")
 
     def construct_argparser(self) -> argparse.ArgumentParser:
-        parser = super(GtsfmRunnerAstronetLoader, self).construct_argparser()
+        parser = super(GtsfmRunnerAstrovisionLoader, self).construct_argparser()
 
         parser.add_argument(
-            "--data_dir", "-d", type=str, required=True, help="path to directory containing AstroNet segment"
+            "--data_dir", "-d", type=str, required=True, help="path to directory containing AstroVision segment"
         )
         parser.add_argument(
             "--scene_mesh_path",
@@ -40,7 +40,7 @@ class GtsfmRunnerAstronetLoader(GtsfmRunnerBase):
 
     def construct_loader(self) -> LoaderBase:
         """Initialize loader."""
-        loader = AstronetLoader(
+        loader = AstrovisionLoader(
             data_dir=self.parsed_args.data_dir,
             use_gt_extrinsics=True,
             use_gt_sfmtracks=False,
@@ -101,5 +101,5 @@ class GtsfmRunnerAstronetLoader(GtsfmRunnerBase):
 
 
 if __name__ == "__main__":
-    runner = GtsfmRunnerAstronetLoader()
+    runner = GtsfmRunnerAstrovisionLoader()
     runner.run()
