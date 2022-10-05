@@ -52,6 +52,7 @@ class TranslationAveragingBase(GTSFMProcess):
         i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
         wRi_list: List[Optional[Rot3]],
         tracks_2d: List[SfmTrack2d],
+        all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         absolute_pose_priors: List[Optional[PosePrior]] = [],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
@@ -80,6 +81,7 @@ class TranslationAveragingBase(GTSFMProcess):
         i2Ui1_graph: Delayed,
         wRi_graph: Delayed,
         tracks_2d: List[SfmTrack2d],
+        all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         absolute_pose_priors: List[Optional[PosePrior]] = [],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
@@ -101,5 +103,13 @@ class TranslationAveragingBase(GTSFMProcess):
             A GtsfmMetricsGroup with translation averaging metrics wrapped as Delayed.
         """
         return dask.delayed(self.run, nout=2)(
-            num_images, i2Ui1_graph, wRi_graph, absolute_pose_priors, relative_pose_priors, scale_factor, gt_wTi_list
+            num_images,
+            i2Ui1_graph,
+            wRi_graph,
+            tracks_2d,
+            all_intrinsics,
+            absolute_pose_priors,
+            relative_pose_priors,
+            scale_factor,
+            gt_wTi_list,
         )

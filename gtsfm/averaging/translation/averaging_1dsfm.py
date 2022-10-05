@@ -18,15 +18,15 @@ import gtsam
 import numpy as np
 from gtsam import MFAS, BinaryMeasurementsUnit3, BinaryMeasurementUnit3, Point3, Pose3, Rot3, symbol_shorthand, TranslationRecovery, Unit3
 from scipy import stats
-from gtsfm.common.sfm_track import SfmTrack2d
-import gtsfm.common.types as gtsfm_types
 
+import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.coordinate_conversions as conversion_utils
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metrics_utils
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.common.pose_prior import PosePrior
+from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 # Hyperparameters for 1D-SFM
