@@ -30,6 +30,7 @@ dependencies:
   - networkx
   - numpy
   - nodejs
+  - pynpm
   - pandas
   - pillow>=8.0.1
   - scikit-learn

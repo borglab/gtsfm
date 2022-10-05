@@ -17,5 +17,6 @@ def run_vis_tool():
     pkg = NPMPackage(os.path.join(VIS_TOOL_PATH, "package.json"))
     pkg.start()
 
+
 if __name__ == "__main__":
     run_vis_tool()
