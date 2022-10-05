@@ -9,6 +9,7 @@ import dask
 from dask.delayed import Delayed
 from gtsam import Point3, Pose3, Rot3, Unit3
 
+import gtsfm.common.types as gtsfm_types
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
