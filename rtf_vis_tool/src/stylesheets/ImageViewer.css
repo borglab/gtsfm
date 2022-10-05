@@ -1,0 +1,31 @@
+/* Stylings for ImageViewer.js Component. 
+
+Author: Hayk Stepanyan
+*/
+
+.pc_container {
+    position: absolute;
+    top: 5%;
+    left: 5%;
+    z-index: 4;
+    border: 3px solid black;
+    background-color: whitesmoke;
+    width: 90%;
+    height: 90%;
+    border-radius: 5px;
+    padding: 1%;
+}
+
+img {
+    border-radius: 2%;
+    height: 90%;
+    width: 100%;
+}
+
+.image {
+    height: 45%;
+    width: 15%;
+    padding-left: 2%;
+    padding-bottom: 2%;
+    float: left;
+}
