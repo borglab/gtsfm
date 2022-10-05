@@ -106,6 +106,7 @@ class MultiViewOptimizer:
             pruned_i2Ui1_graph,
             delayed_wRi,
             tracks2d_graph,
+            all_intrinsics,
             absolute_pose_priors,
             relative_pose_priors,
             gt_wTi_list=gt_wTi_list,
