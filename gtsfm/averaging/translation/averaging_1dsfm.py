@@ -195,6 +195,10 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 initial.insertPoint3(i, wTi.value.translation())
         return initial
 
+    def __sort_tracks_by_length(self, tracks, max_tracks):
+        return sorted(tracks, key=lambda track: -track.number_measurements() - 1)[:max_tracks]
+
+
     def get_landmark_direction_measurements(self, tracks_2d: List[SfmTrack2d], valid_cameras: Set[int], all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]], wRi_list: List[Optional[Rot3]], camera_direction_measurements, noise_model):
         camera_with_landmark_measurements = camera_direction_measurements
         for i in range(len(tracks_2d)):
@@ -214,8 +218,6 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 w_iUj = wRi_list[cam_idx].rotate(Unit3(measurement_img_plane).point3())
                 camera_with_landmark_measurements.append(BinaryMeasurementUnit3(C(cam_idx), L(idx), Unit3(w_iUj), noise_model))
         return camera_with_landmark_measurements
-
-
 
 
     # TODO(ayushbaid): Change wTi_initial to Pose3.
@@ -259,8 +261,9 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         )
 
         if self._use_tracks_for_averaging:
+            sorted_tracks = self.__sort_tracks_by_length(tracks_2d, len(valid_cameras) * 10)
             all_w_i2Ui1_measurements = self.get_landmark_direction_measurements(
-                tracks_2d, valid_cameras, all_intrinsics, wRi_list, w_i2Ui1_measurements, noise_model
+                sorted_tracks, valid_cameras, all_intrinsics, wRi_list, w_i2Ui1_measurements, noise_model
             )
         else:
             all_w_i2Ui1_measurements = w_i2Ui1_measurements
@@ -282,6 +285,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             algorithm = TranslationRecovery()
             w_i2ti1_priors = self._get_prior_measurements_in_world_frame(relative_pose_priors, wRi_list)
             wti_initial = self.__get_initial_values(absolute_pose_priors)
+            logger.info("Optimizing {} cameras and {} tracks from {} unit translations".format(len(valid_cameras), len(sorted_tracks), len(w_i2Ui1_inlier_measurements)))
             if len(w_i2ti1_priors) > 0:
                 # scale is ignored here.
                 wti_values = algorithm.run(w_i2Ui1_inlier_measurements, 0.0, w_i2ti1_priors, wti_initial)
