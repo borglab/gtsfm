@@ -43,8 +43,8 @@ MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
 
 logger = logger_utils.get_logger()
 
-C = symbol_shorthand.C
-L = symbol_shorthand.L
+C = symbol_shorthand.A
+L = symbol_shorthand.B
 
 class TranslationAveraging1DSFM(TranslationAveragingBase):
     """1D-SFM translation averaging with outlier rejection."""
@@ -209,8 +209,8 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 cam_idx = measurement.i
                 measurement_xy = all_intrinsics[cam_idx].calibrate(measurement.uv)
                 measurement_img_plane = Point3(measurement_xy[0], measurement_xy[1], 1.)
-                w_iUj = wRi_list[cam_idx] * np.linalg.norm(measurement_img_plane)
-                camera_with_landmark_measurements.append(BinaryMeasurementUnit3(C(cam_idx), L(idx), Unit3(w_iUj)), noise_model)
+                w_iUj = wRi_list[cam_idx] * Unit3(measurement_img_plane)
+                camera_with_landmark_measurements.append(BinaryMeasurementUnit3(C(cam_idx), L(idx), Unit3(w_iUj), noise_model))
         return camera_with_landmark_measurements
 
 
