@@ -65,6 +65,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         self,
         robust_measurement_noise: bool = True,
         projection_sampling_method: ProjectionSamplingMethod = ProjectionSamplingMethod.SAMPLE_WITH_UNIFORM_DENSITY,
+        use_tracks_for_averaging: bool = False,
     ) -> None:
         """Initializes the 1DSFM averaging instance.
 
@@ -77,6 +78,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         self._max_1dsfm_projection_directions = MAX_PROJECTION_DIRECTIONS
         self._outlier_weight_threshold = OUTLIER_WEIGHT_THRESHOLD
         self._projection_sampling_method = projection_sampling_method
+        self._use_tracks_for_averaging = use_tracks_for_averaging
 
     def __sample_projection_directions(
         self,
@@ -255,9 +257,13 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         w_i2Ui1_measurements, valid_cameras = cast_to_measurements_variable_in_global_coordinate_frame(
             i2Ui1_dict, wRi_list, noise_model
         )
-        all_w_i2Ui1_measurements = self.get_landmark_direction_measurements(
-            tracks_2d, valid_cameras, all_intrinsics, wRi_list, w_i2Ui1_measurements, noise_model
-        )
+
+        if self._use_tracks_for_averaging:
+            all_w_i2Ui1_measurements = self.get_landmark_direction_measurements(
+                tracks_2d, valid_cameras, all_intrinsics, wRi_list, w_i2Ui1_measurements, noise_model
+            )
+        else:
+            all_w_i2Ui1_measurements = w_i2Ui1_measurements
 
         inlier_idxs: Set[Tuple[int, int]] = self.compute_inlier_mask(all_w_i2Ui1_measurements)
 
