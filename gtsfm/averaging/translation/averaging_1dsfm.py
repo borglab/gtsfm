@@ -294,7 +294,9 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         # Compute the metrics.
         if gt_wTi_list is not None:
-            ta_metrics = _compute_metrics(inlier_idxs, i2Ui1_dict, wRi_list, wti_list, gt_wTi_list)
+            inlier_camera_idxs = [(i1, i2) for (i1, i2) in inlier_idxs if i1 in valid_cameras and i2 in valid_cameras]
+            camera_i2Ui1_dict = {(i1, i2): val for (i1, i2), val in i2Ui1_dict.items() if i1 in valid_cameras and i2 in valid_cameras}
+            ta_metrics = _compute_metrics(inlier_camera_idxs, camera_i2Ui1_dict, wRi_list, wti_list, gt_wTi_list)
         else:
             ta_metrics = None
         num_translations = 0
