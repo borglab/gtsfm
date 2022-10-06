@@ -209,7 +209,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 cam_idx = measurement.i
                 measurement_xy = all_intrinsics[cam_idx].calibrate(measurement.uv)
                 measurement_img_plane = Point3(measurement_xy[0], measurement_xy[1], 1.)
-                w_iUj = wRi_list[cam_idx] * Unit3(measurement_img_plane)
+                w_iUj = wRi_list[cam_idx].rotate(Unit3(measurement_img_plane).point3())
                 camera_with_landmark_measurements.append(BinaryMeasurementUnit3(C(cam_idx), L(idx), Unit3(w_iUj), noise_model))
         return camera_with_landmark_measurements
 
