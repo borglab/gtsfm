@@ -14,6 +14,8 @@ from collections import defaultdict
 from enum import Enum
 from typing import DefaultDict, Dict, List, Optional, Set, Tuple
 
+from cv2 import filter2D
+
 import gtsam
 import numpy as np
 from gtsam import MFAS, BinaryMeasurementsUnit3, BinaryMeasurementUnit3, Point3, Pose3, Rot3, symbol_shorthand, TranslationRecovery, Unit3
@@ -65,7 +67,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         self,
         robust_measurement_noise: bool = True,
         projection_sampling_method: ProjectionSamplingMethod = ProjectionSamplingMethod.SAMPLE_WITH_UNIFORM_DENSITY,
-        use_tracks_for_averaging: bool = False,
+        use_tracks_for_averaging: bool = True,
     ) -> None:
         """Initializes the 1DSFM averaging instance.
 
@@ -195,14 +197,9 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 initial.insertPoint3(i, wTi.value.translation())
         return initial
 
-    def __sort_tracks_by_length(self, tracks, max_tracks):
-        return sorted(tracks, key=lambda track: -track.number_measurements() - 1)[:max_tracks]
-
-
-    def get_landmark_direction_measurements(self, tracks_2d: List[SfmTrack2d], valid_cameras: Set[int], all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]], wRi_list: List[Optional[Rot3]], camera_direction_measurements, noise_model):
-        camera_with_landmark_measurements = camera_direction_measurements
-        for i in range(len(tracks_2d)):
-            track = tracks_2d[i]
+    def __filter_and_sort_tracks(self, tracks, valid_cameras, max_tracks):
+        filtered_tracks = []
+        for track in tracks:
             measurements = []
             for j in range(track.number_measurements()):
                 measurement = track.measurement(j)
@@ -211,12 +208,26 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 measurements.append(measurement)
             if len(measurements) < 3:
                 continue
-            for idx, measurement in enumerate(measurements):
+            filtered_tracks.append(track)
+        maxt = min(max_tracks, len(filtered_tracks))
+        return sorted(filtered_tracks, key=lambda track: -track.number_measurements() - 1)[:maxt]
+
+
+    def get_landmark_direction_measurements(self, tracks_2d: List[SfmTrack2d], valid_cameras: Set[int], all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]], wRi_list: List[Optional[Rot3]], camera_direction_measurements, noise_model):
+        camera_with_landmark_measurements = camera_direction_measurements
+        for i, track in enumerate(tracks_2d):
+            measurements = []
+            for j in range(track.number_measurements()):
+                measurement = track.measurement(j)
+                if measurement.i not in valid_cameras:
+                    continue
+                measurements.append(measurement)
+            for measurement in measurements:
                 cam_idx = measurement.i
                 measurement_xy = all_intrinsics[cam_idx].calibrate(measurement.uv)
                 measurement_img_plane = Point3(measurement_xy[0], measurement_xy[1], 1.)
                 w_iUj = wRi_list[cam_idx].rotate(Unit3(measurement_img_plane).point3())
-                camera_with_landmark_measurements.append(BinaryMeasurementUnit3(C(cam_idx), L(idx), Unit3(w_iUj), noise_model))
+                camera_with_landmark_measurements.append(BinaryMeasurementUnit3(C(cam_idx), L(i), Unit3(w_iUj), noise_model))
         return camera_with_landmark_measurements
 
 
@@ -261,11 +272,12 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         )
 
         if self._use_tracks_for_averaging:
-            sorted_tracks = self.__sort_tracks_by_length(tracks_2d, len(valid_cameras) * 10)
+            sorted_tracks = self.__filter_and_sort_tracks(tracks_2d, len(valid_cameras) * 100)
             all_w_i2Ui1_measurements = self.get_landmark_direction_measurements(
                 sorted_tracks, valid_cameras, all_intrinsics, wRi_list, w_i2Ui1_measurements, noise_model
             )
         else:
+            sorted_tracks = []
             all_w_i2Ui1_measurements = w_i2Ui1_measurements
 
         inlier_idxs: Set[Tuple[int, int]] = self.compute_inlier_mask(all_w_i2Ui1_measurements)
