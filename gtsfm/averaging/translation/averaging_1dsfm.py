@@ -272,7 +272,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         )
 
         if self._use_tracks_for_averaging:
-            sorted_tracks = self.__filter_and_sort_tracks(tracks_2d, len(valid_cameras) * 100)
+            sorted_tracks = self.__filter_and_sort_tracks(tracks_2d, valid_cameras, len(valid_cameras) * 100)
             all_w_i2Ui1_measurements = self.get_landmark_direction_measurements(
                 sorted_tracks, valid_cameras, all_intrinsics, wRi_list, w_i2Ui1_measurements, noise_model
             )
