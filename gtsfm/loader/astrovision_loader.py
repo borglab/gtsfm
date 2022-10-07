@@ -226,7 +226,7 @@ class AstrovisionLoader(LoaderBase):
         return super().is_valid_pair(idx1, idx2) and abs(idx1 - idx2) <= self._max_frame_lookahead
 
 
-def get_nonzero_intensity_mask(img: Image, eps: int = 5, kernel_size: Tuple[int, int] = (15, 15)) -> np.ndarray:
+def get_nonzero_intensity_mask(img: Image, eps: int = 15, kernel_size: Tuple[int, int] = (15, 15)) -> np.ndarray:
     """Generate mask of where image intensity values are non-zero.
 
     After thresholding the image, we use an erosion kernel to add a buffer between the foreground and background.
