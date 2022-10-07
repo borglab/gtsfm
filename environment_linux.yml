@@ -44,12 +44,13 @@ dependencies:
   # testing
   - parameterized
   - pip:
-    - open3d
-    - opencv-python>=4.5.4.58
-    - pydegensac
-    - colour
-    - pycolmap>=0.1.0
-    - trimesh[easy]
-    - argoverse @ git+https://github.com/argoai/argoverse-api.git@master
-    - gtsam==4.2a7
-    - pydot
+      - open3d
+      - opencv-python>=4.5.4.58
+      - pydegensac
+      - colour
+      - pycolmap>=0.1.0
+      - trimesh[easy]
+      - argoverse @ git+https://github.com/argoai/argoverse-api.git@master
+      - gtsam==4.2a7
+      - pydot
+      - tensorflow-gpu
