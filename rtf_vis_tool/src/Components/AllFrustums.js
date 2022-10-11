@@ -64,10 +64,10 @@ function AllFrustums(props) {
         // updated
         ex_cameraList = ex_cameraList.filter(line => line !== "TODO"); 
 
-        if (in_cameraList.length !== ex_cameraList.length) {
-            alert('Camera count mismatch between images.txt and cameras.txt');
-            return;
-        }
+        // if (in_cameraList.length !== ex_cameraList.length) {
+        //     alert('Camera count mismatch between images.txt and cameras.txt');
+        //     return;
+        // }
 
         var finalFrustumsJSX = [];
         // Combine information from intrinsics and extrinsics to render frustums.
