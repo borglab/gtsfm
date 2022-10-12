@@ -111,6 +111,7 @@ class GtsfmRunnerBase:
         parser.add_argument(
             "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras"
         )
+        parser.add_argument("--mvs_off", action="store_true", help="Turn off dense MVS reconstruction")
         parser.add_argument(
             "--output_root",
             type=str,
@@ -157,6 +158,9 @@ class GtsfmRunnerBase:
                 )
                 logger.info("\n\nVerifier override: " + OmegaConf.to_yaml(verifier_cfg))
                 scene_optimizer.two_view_estimator._verifier: VerifierBase = instantiate(verifier_cfg.verifier)
+
+        if self.parsed_args.mvs_off:
+            scene_optimizer.run_dense_optimizer = False
 
         logger.info("\n\nSceneOptimizer: " + str(scene_optimizer))
         return scene_optimizer
