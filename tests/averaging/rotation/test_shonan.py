@@ -14,6 +14,7 @@ import gtsfm.utils.geometry_comparisons as geometry_comparisons
 import tests.data.sample_poses as sample_poses
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.averaging.rotation.shonan import ShonanRotationAveraging
+from gtsfm.common.pose_prior import PosePrior, PosePriorType
 
 ROTATION_ANGLE_ERROR_THRESHOLD_DEG = 2
 
@@ -36,8 +37,8 @@ class TestShonanRotationAveraging(unittest.TestCase):
             i2Ri1_input: relative rotations, which are input to the algorithm.
             wRi_expected: expected global rotations.
         """
-        i2Ri1_priors = {edge: None for edge in i2Ri1_input.keys()}
-        wRi_computed = self.obj.run(len(wRi_expected), i2Ri1_input, i2Ri1_priors)
+        i1Ti2_priors: Dict[Tuple[int, int], PosePrior] = {}
+        wRi_computed = self.obj.run_rotation_averaging(len(wRi_expected), i2Ri1_input, i1Ti2_priors)
         self.assertTrue(
             geometry_comparisons.compare_rotations(wRi_computed, wRi_expected, ROTATION_ANGLE_ERROR_THRESHOLD_DEG)
         )
@@ -86,6 +87,28 @@ class TestShonanRotationAveraging(unittest.TestCase):
 
         self.__execute_test(i2Ri1_dict, expected_wRi_list)
 
+    def test_simple_with_prior(self):
+        """Test a simple case with 1 measurement and a single pose prior."""
+        expected_wRi_list = [Rot3.RzRyRx(0, 0, 0), Rot3.RzRyRx(0, np.deg2rad(30), 0), Rot3.RzRyRx(np.deg2rad(30), 0, 0)]
+
+        i2Ri1_dict = {
+            (1, 0): Rot3.RzRyRx(0, np.deg2rad(30), 0),
+        }
+
+        expected_0R2 = expected_wRi_list[0].between(expected_wRi_list[2])
+        i1Ti2_priors = {
+            (0, 2): PosePrior(
+                value=Pose3(expected_0R2, np.zeros((3,))),
+                covariance=np.eye(6) * 1e-5,
+                type=PosePriorType.SOFT_CONSTRAINT,
+            )
+        }
+
+        wRi_computed = self.obj.run_rotation_averaging(len(expected_wRi_list), i2Ri1_dict, i1Ti2_priors)
+        self.assertTrue(
+            geometry_comparisons.compare_rotations(wRi_computed, expected_wRi_list, ROTATION_ANGLE_ERROR_THRESHOLD_DEG)
+        )
+
     def test_computation_graph(self):
         """Test the dask computation graph execution using a valid collection of relative poses."""
 
@@ -99,14 +122,12 @@ class TestShonanRotationAveraging(unittest.TestCase):
         i2Ri1_graph = dask.delayed(i2Ri1_dict)
 
         # use the GTSAM API directly (without dask) for rotation averaging
-        i2Ri1_priors = {edge: None for edge in i2Ri1_dict.keys()}
-        expected_wRi_list = self.obj.run(num_poses, i2Ri1_dict, i2Ri1_priors)
+        i1Ti2_priors: Dict[Tuple[int, int], PosePrior] = {}
+        expected_wRi_list = self.obj.run_rotation_averaging(num_poses, i2Ri1_dict, i1Ti2_priors)
 
         # use dask's computation graph
         gt_wTi_list = [None] * len(expected_wRi_list)
-        rotations_graph, _ = self.obj.create_computation_graph(
-            num_poses, i2Ri1_graph, dask.delayed(i2Ri1_priors), gt_wTi_list
-        )
+        rotations_graph, _ = self.obj.create_computation_graph(num_poses, i2Ri1_graph, i1Ti2_priors, gt_wTi_list)
 
         with dask.config.set(scheduler="single-threaded"):
             wRi_list = dask.compute(rotations_graph)[0]
@@ -146,8 +167,8 @@ class TestShonanRotationAveraging(unittest.TestCase):
             (1, 3): wTi3.between(wTi1).rotation(),
         }
 
-        i2Ri1_priors = {edge: None for edge in i2Ri1_input.keys()}
-        wRi_computed = self.obj.run(num_images, i2Ri1_input, i2Ri1_priors)
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior] = {}
+        wRi_computed = self.obj.run_rotation_averaging(num_images, i2Ri1_input, relative_pose_priors)
         wRi_expected = [None, wTi1.rotation(), wTi2.rotation(), wTi3.rotation()]
         self.assertTrue(
             geometry_comparisons.compare_rotations(wRi_computed, wRi_expected, angular_error_threshold_degrees=0.1)
