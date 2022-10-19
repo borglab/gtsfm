@@ -14,8 +14,6 @@ from collections import defaultdict
 from enum import Enum
 from typing import DefaultDict, Dict, List, Optional, Set, Tuple
 
-from cv2 import filter2D
-
 import gtsam
 import numpy as np
 from gtsam import MFAS, BinaryMeasurementsUnit3, BinaryMeasurementUnit3, Point3, Pose3, Rot3, symbol_shorthand, TranslationRecovery, Unit3
@@ -203,7 +201,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             measurements = []
             for j in range(track.number_measurements()):
                 measurement = track.measurement(j)
-                if measurement.i not in valid_cameras:
+                if C(measurement.i) not in valid_cameras:
                     continue
                 measurements.append(measurement)
             if len(measurements) < 3:
@@ -219,7 +217,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             measurements = []
             for j in range(track.number_measurements()):
                 measurement = track.measurement(j)
-                if measurement.i not in valid_cameras:
+                if C(measurement.i) not in valid_cameras:
                     continue
                 measurements.append(measurement)
             for measurement in measurements:
@@ -272,7 +270,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         )
 
         if self._use_tracks_for_averaging:
-            sorted_tracks = self.__filter_and_sort_tracks(tracks_2d, len(valid_cameras) * 100)
+            sorted_tracks = self.__filter_and_sort_tracks(tracks_2d, valid_cameras, len(valid_cameras) * 20)
             all_w_i2Ui1_measurements = self.get_landmark_direction_measurements(
                 sorted_tracks, valid_cameras, all_intrinsics, wRi_list, w_i2Ui1_measurements, noise_model
             )
@@ -316,8 +314,8 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         # Compute the metrics.
         if gt_wTi_list is not None:
-            inlier_camera_idxs = set([(i1, i2) for (i1, i2) in inlier_idxs if i1 in valid_cameras and i2 in valid_cameras])
-            camera_i2Ui1_dict = {(i1, i2): val for (i1, i2), val in i2Ui1_dict.items() if i1 in valid_cameras and i2 in valid_cameras}
+            inlier_camera_idxs = set([(i1, i2) for (i1, i2) in i2Ui1_dict.keys() if (C(i1), C(i2)) in inlier_idxs])
+            camera_i2Ui1_dict = {(i1, i2): val for (i1, i2), val in i2Ui1_dict.items() if C(i1) in valid_cameras and C(i2) in valid_cameras}
             ta_metrics = _compute_metrics(inlier_camera_idxs, camera_i2Ui1_dict, wRi_list, wti_list, gt_wTi_list)
         else:
             ta_metrics = None
@@ -474,7 +472,7 @@ def cast_to_measurements_variable_in_global_coordinate_frame(
         if i2Ui1 is not None and wRi2 is not None:
             # TODO: what if wRi2 is None, but wRi1 is not? Can we still transform.
             w_i2Ui1_measurements.append(BinaryMeasurementUnit3(C(i2), C(i1), Unit3(wRi2.rotate(i2Ui1.point3())), noise_model))
-            valid_cameras.add(i1)
-            valid_cameras.add(i2)
+            valid_cameras.add(C(i1))
+            valid_cameras.add(C(i2))
 
     return w_i2Ui1_measurements, valid_cameras
