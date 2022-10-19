@@ -11,12 +11,14 @@ from typing import Dict, List, Tuple
 
 import dask
 import numpy as np
+import gtsfm.common.types as gtsfm_types
 from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point2Vector, Point3, Pose3, Pose3Vector, Rot3
 from gtsam.utils.test_case import GtsamTestCase
 
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.data_association.data_assoc import DataAssociation
 from gtsfm.data_association.point3d_initializer import TriangulationOptions, TriangulationSamplingMode
+from typing import Optional
 
 
 def get_pose3_vector(num_poses: int) -> Pose3Vector:
@@ -80,6 +82,19 @@ def generate_noisy_2d_measurements(
     return keypoints_list, img_idxs, cameras
 
 
+def get_camera_details(
+    cameras: Dict[int, PinholeCameraCal3Bundler]
+) -> Tuple[List[Optional[Rot3]], List[Optional[Point3]], gtsfm_types.CALIBRATION_TYPE]:
+    wRi_list = []
+    wti_list = []
+    intrinsics_list = []
+    for camera in cameras.values():
+        wRi_list.append(camera.pose().rotation())
+        wti_list.append(camera.pose().translation())
+        intrinsics_list.append(camera.calibration())
+    return wRi_list, wti_list, intrinsics_list
+
+
 class TestDataAssociation(GtsamTestCase):
     """Unit tests for data association module, which maps the feature tracks to their 3D landmarks."""
 
@@ -128,6 +143,7 @@ class TestDataAssociation(GtsamTestCase):
             per_image_noise_vecs=np.array([[-0.1, -0.5], [0.2, -0.3]]),
             poses=get_pose3_vector(num_poses=2),
         )
+        wRi_list, wti_list, intrinsics_list = get_camera_details(cameras)
 
         # create matches
         # since there is only one measurement in each image, both assigned feature index 0
@@ -139,7 +155,9 @@ class TestDataAssociation(GtsamTestCase):
         da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
         triangulated_landmark_map, _ = da.run(
             len(cameras),
-            cameras,
+            wRi_list,
+            wti_list,
+            intrinsics_list,
             matches_dict,
             keypoints_list,
             cameras_gt=[None] * len(cameras),
@@ -168,6 +186,7 @@ class TestDataAssociation(GtsamTestCase):
             per_image_noise_vecs=np.zeros((2, 2)),
             poses=get_pose3_vector(num_poses=2),
         )
+        wRi_list, wti_list, intrinsics_list = get_camera_details(cameras)
 
         # create matches
         # since there is only one measurement in each image, both assigned feature index 0
@@ -177,7 +196,14 @@ class TestDataAssociation(GtsamTestCase):
         da = DataAssociation(min_track_len=2, triangulation_options=triangulation_options)
 
         sfm_data, _ = da.run(
-            len(cameras), cameras, matches_dict, keypoints_list, [None] * len(cameras), relative_pose_priors={}
+            len(cameras),
+            wRi_list,
+            wti_list,
+            intrinsics_list,
+            matches_dict,
+            keypoints_list,
+            [None] * len(cameras),
+            relative_pose_priors={}
         )
         estimated_landmark = sfm_data.get_track(0).point3()
         self.gtsamAssertEquals(estimated_landmark, self.expected_landmark, 1e-2)
@@ -217,6 +243,7 @@ class TestDataAssociation(GtsamTestCase):
             per_image_noise_vecs=np.array([[-0.1, -0.5], [-0.2, 0.3], [0.1, -0.1]]),
             poses=get_pose3_vector(num_poses=3),
         )
+        wRi_list, wti_list, intrinsics_list = get_camera_details(cameras)
 
         # create matches
         # since there is only one measurement in each image, both assigned feature index 0
@@ -228,7 +255,9 @@ class TestDataAssociation(GtsamTestCase):
         da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
         sfm_data, _ = da.run(
             len(cameras),
-            cameras,
+            wRi_list,
+            wti_list,
+            intrinsics_list,
             matches_dict,
             keypoints_list,
             cameras_gt=[None] * len(cameras),
@@ -265,9 +294,12 @@ class TestDataAssociation(GtsamTestCase):
 
         # will lead to a cheirality exception because keypoints are identical in two cameras
         # no track will be formed, and thus connected component will be empty
+        wRi_list, wti_list, intrinsics_list = get_camera_details(cameras)
         sfm_data, _ = da.run(
             num_images=3,
-            cameras=cameras,
+            wRi_list=wRi_list,
+            wti_list=wti_list,
+            intrinsics_list=intrinsics_list,
             corr_idxs_dict=corr_idxs_dict,
             keypoints_list=[keypoints_shared] * 3,
             cameras_gt=[None] * 3,
@@ -287,6 +319,7 @@ class TestDataAssociation(GtsamTestCase):
             poses=get_pose3_vector(num_poses=3),
         )
 
+        wRi_list, wti_list, intrinsics_list = get_camera_details(cameras)
         cameras_gt = [None] * len(cameras)
 
         # create matches
@@ -299,13 +332,22 @@ class TestDataAssociation(GtsamTestCase):
         )
         da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
         expected_sfm_data, expected_metrics = da.run(
-            len(cameras), cameras, corr_idxs_graph, keypoints_list, cameras_gt=cameras_gt, relative_pose_priors={}
+            len(cameras),
+            wRi_list,
+            wti_list,
+            intrinsics_list,
+            corr_idxs_graph,
+            keypoints_list,
+            cameras_gt=cameras_gt,
+            relative_pose_priors={}
         )
 
         # Run with computation graph
         delayed_sfm_data, delayed_metrics = da.create_computation_graph(
             len(cameras),
-            cameras,
+            wRi_list,
+            wti_list,
+            intrinsics_list,
             corr_idxs_graph,
             keypoints_list,
             cameras_gt,

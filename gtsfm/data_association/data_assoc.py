@@ -17,7 +17,7 @@ from typing import Dict, List, Optional, Tuple
 import dask
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import SfmTrack
+from gtsam import SfmTrack, Point3, Pose3, Rot3
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.io as io_utils
@@ -72,7 +72,9 @@ class DataAssociation(GTSFMProcess):
     def run(
         self,
         num_images: int,
-        cameras: Dict[int, gtsfm_types.CAMERA_TYPE],
+        wRi_list: List[Optional[Rot3]],
+        wti_list: List[Optional[Point3]],
+        intrinsics_list: List[gtsfm_types.CALIBRATION_TYPE],
         corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         keypoints_list: List[Keypoints],
         cameras_gt: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
@@ -83,7 +85,9 @@ class DataAssociation(GTSFMProcess):
 
         Args:
             num_images: Number of images in the scene.
-            cameras: dictionary, with image index -> camera mapping.
+            wRi_list: rotations for cameras.
+            wti_list: translations for cameras.
+            intrinsics_list: intrinsics for cameras.
             corr_idxs_dict: dictionary, with key as image pair (i1,i2) and value as matching keypoint indices.
             keypoints_list: keypoints for each image.
             cameras_gt: list of GT cameras, to be used for benchmarking the tracks.
@@ -104,6 +108,12 @@ class DataAssociation(GTSFMProcess):
 
         logger.debug("[Data association] input number of tracks: %s", len(tracks_2d))
         logger.debug("[Data association] input avg. track length: %s", np.mean(track_lengths_2d))
+
+        cameras = {}
+        camera_class = gtsfm_types.get_camera_class_for_calibration(intrinsics_list[0])
+        for idx, (wRi, wti) in enumerate(zip(wRi_list, wti_list)):
+            if wRi is not None and wti is not None:
+                cameras[idx] = camera_class(Pose3(wRi, wti), intrinsics_list[idx])
 
         # Initialize 3D landmark for each track
         point3d_initializer = Point3dInitializer(cameras, self.triangulation_options)
@@ -205,7 +215,9 @@ class DataAssociation(GTSFMProcess):
     def create_computation_graph(
         self,
         num_images: int,
-        cameras: Delayed,
+        wRi_list: List[Optional[Rot3]],
+        wti_list: List[Optional[Point3]],
+        intrinsics_list: List[gtsfm_types.CALIBRATION_TYPE],
         corr_idxs_graph: Delayed,
         keypoints_graph: List[Delayed],
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
@@ -229,7 +241,15 @@ class DataAssociation(GTSFMProcess):
                 association result
         """
         ba_input_graph, data_assoc_metrics_graph = dask.delayed(self.run, nout=2)(
-            num_images, cameras, corr_idxs_graph, keypoints_graph, cameras_gt, relative_pose_priors, images_graph
+            num_images,
+            wRi_list,
+            wti_list,
+            intrinsics_list,
+            corr_idxs_graph,
+            keypoints_graph,
+            cameras_gt,
+            relative_pose_priors,
+            images_graph
         )
 
         return ba_input_graph, data_assoc_metrics_graph
