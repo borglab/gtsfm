@@ -60,6 +60,7 @@ SceneOptimizer:
       triangulation_options:
         _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
         reproj_error_threshold: 100
+        min_triangulation_angle: 2
         mode:
           _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
           value: RANSAC_SAMPLE_UNIFORM
