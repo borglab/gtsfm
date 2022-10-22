@@ -128,7 +128,7 @@ class DataAssociation(GTSFMProcess):
             if triangulation_exit_code == TriangulationExitCode.CHEIRALITY_FAILURE:
                 continue
 
-            if sfm_track is not None and self.__validate_track(sfm_track):
+            if triangulation_exit_code == TriangulationExitCode.SUCCESS and self.__validate_track(sfm_track):
                 triangulated_data.add_track(sfm_track)
                 per_accepted_track_avg_errors.append(avg_track_reproj_error)
             else:

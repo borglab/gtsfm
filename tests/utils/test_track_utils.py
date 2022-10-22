@@ -46,7 +46,7 @@ class TestTrackUtils(unittest.TestCase):
         camera_center_i2 = np.array([3, 0, 0], dtype=np.float64)
         camera_center_i3 = np.array([1, 0, 0], dtype=np.float64)
         landmark = np.array([1, 1, 0], dtype=np.float64)
-        expected = 45  # in degrees
+        expected = 108.43494882292202  # in degrees
 
         i1 = 5
         i2 = 7

@@ -89,7 +89,7 @@ def get_triangulation_angle(track3d: SfmTrack, cameras: Dict[int, CAMERA_TYPE]) 
         cameras: cameras which have been used to triangulate the landmark.
 
     Returns:
-        float: the minimum triangulation angle (minimum over all pairs of cameras associated with the track).
+        float: the triangulation angle (max over all pairs of cameras associated with the track).
     """
     landmark: np.ndarray[np.float64[3, 1]] = track3d.point3()
 
@@ -114,4 +114,4 @@ def get_triangulation_angle(track3d: SfmTrack, cameras: Dict[int, CAMERA_TYPE]) 
 
         angles.append(subtended_angle)
 
-    return min(angles)
+    return max(angles)
