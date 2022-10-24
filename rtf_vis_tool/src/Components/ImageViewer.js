@@ -1,7 +1,7 @@
 /*
 Author: Hayk Stepanyan
 */
-import React, {useEffect, useState} from "react";
+import React from "react";
 
 import '../stylesheets/ImageViewer.css';
 import imageShapes from '../images/image_shapes.json';
@@ -9,21 +9,36 @@ import imageShapes from '../images/image_shapes.json';
 
 function ImageViewer(props) {
 
+    // import image files
     function importAll(r) {
         let images = {};
         r.keys().map((item, index) => { images[item.replace('./', '')] = r(item); });
         return images;
       }
-      
     const images = importAll(require.context('../images', false, /\.(png|jpe?g|svg)$/));
     const imageFileNames = Object.keys(images);
+
+    // sort file names
+    imageFileNames.sort((a, b) => {
+        a = parseInt(a.split(".")[0])
+        b = parseInt(b.split(".")[0])
+        console.log(a)
+        console.log(b)
+        if (a < b)
+            return -1;
+        if (a > b)
+            return 1;
+        return 0;
+    });
 
     const imageFiles = []
     for (let i = 0; i < imageFileNames.length; i++) {
         imageFiles.push(
-            <div className="image">
-                <img src={images[imageFileNames[i]]} />
-                <p>Shape: ({imageShapes[i][0]}, {imageShapes[i][1]})</p>
+            <div className="image-container">
+                <img src={images[imageFileNames[i]]} alt=""/><br></br>
+                Image {i}<br></br>
+                Shape: ({imageShapes[i]["shape"][0]}, {imageShapes[i]["shape"][1]})<br></br>
+                Focal length: {imageShapes[i]["focal_length"].toFixed(2)}
             </div>
         )
     }

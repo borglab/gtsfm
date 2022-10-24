@@ -22,10 +22,14 @@ img {
     width: 100%;
 }
 
-.image {
+.image-container {
     height: 45%;
     width: 15%;
     padding-left: 2%;
     padding-bottom: 2%;
     float: left;
+}
+
+p.image-container {
+    padding-top: 0%;
 }

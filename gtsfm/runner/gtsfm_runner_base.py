@@ -206,27 +206,22 @@ class GtsfmRunnerBase:
 
         pairs_graph = self.retriever.create_computation_graph(self.loader)
 
-        image_shapes = {}
-        camera_intrinsics = {}
+        image_vis_data = {}
         for i in range(len(self.loader)):
             io_utils.save_image(
                 self.loader.get_image(i),
                 os.path.join(REACT_METRICS_PATH, f"{i}.png")
             )
-            image_shapes[i] = self.loader.get_image_shape(i)
-            camera_intrinsics[i] = self.loader.get_camera_intrinsics(i).K().tolist()
+            image_vis_data[i] = {
+                "shape": self.loader.get_image_shape(i),
+                "focal_length": self.loader.get_camera_intrinsics(i).fx()
+            }
 
         io_utils.save_json_file(
             os.path.join(REACT_METRICS_PATH, "image_shapes.json"),
-            image_shapes
+            image_vis_data
         )
 
-        io_utils.save_json_file(
-            os.path.join(REACT_METRICS_PATH, "camera_intrinsics.json"),
-            camera_intrinsics
-        )
-
-        return
         with Client(cluster), performance_report(filename="retriever-dask-report.html"):
             image_pair_indices = pairs_graph.compute()
 
