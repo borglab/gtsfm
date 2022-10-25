@@ -21,11 +21,6 @@ const gray_node_list = [
         topOffset: 7,
         leftOffset: 21
     },
-    // {
-    //     text: 'Images',
-    //     topOffset: 7,
-    //     leftOffset: 28
-    // },
     {
         text: 'Image Shapes',
         topOffset: 7,
