@@ -15,17 +15,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3.1.0
-      - name: Cache conda env
-        uses: actions/cache@v3
-        env:
-          # Increase this value to reset cache if environment_linux_cpuonly.yml has not changed
-          CACHE_NUMBER: 0
-        with:
-          path: ~/conda_pkgs_dir
-          key: ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('environment_linux_cpuonly.yml') }}
       - uses: conda-incubator/setup-miniconda@v2
         with:
-          miniconda-version: "latest"
+          mamba-version: "*"
           activate-environment: gtsfm-v1
           environment-file: environment_linux_cpuonly.yml
           python-version: 3.8
@@ -41,7 +33,9 @@ jobs:
       - name: Unit tests
         run: |
           pytest tests --cov gtsfm \
-            --ignore tests/repro_tests
+            --ignore tests/repro_tests \
+            --ignore tests/loader/test_argoverse_dataset_loader.py \
+            --ignore tests/runner/test_frontend_runner.py
           coverage report
       - name: React-Three-Fiber app tests
         run: |
