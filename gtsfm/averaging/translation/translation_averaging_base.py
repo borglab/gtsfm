@@ -51,7 +51,7 @@ class TranslationAveragingBase(GTSFMProcess):
         i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
         wRi_list: List[Optional[Rot3]],
         absolute_pose_priors: List[Optional[PosePrior]] = [],
-        relative_pose_priors: Dict[Tuple[int, int], PosePrior] = {},
+        i1Ti2_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
         gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
     ) -> Tuple[List[Optional[Pose3]], Optional[GtsfmMetricsGroup]]:
@@ -62,7 +62,7 @@ class TranslationAveragingBase(GTSFMProcess):
             i2Ui1_dict: relative unit-trans as dictionary (i1, i2): i2Ui1.
             wRi_list: global rotations for each camera pose in the world coordinates.
             absolute_pose_priors: priors on the camera poses (not delayed).
-            relative_pose_priors: priors on the pose between camera pairs (not delayed) as (i1, i2): i1Ti2.
+            i1Ti2_priors: priors on the pose between camera pairs (not delayed) as (i1, i2): i1Ti2.
             scale_factor: non-negative global scaling factor.
             gt_wTi_list: List of ground truth poses (wTi) for computing metrics.
 
@@ -78,7 +78,7 @@ class TranslationAveragingBase(GTSFMProcess):
         i2Ui1_graph: Delayed,
         wRi_graph: Delayed,
         absolute_pose_priors: List[Optional[PosePrior]] = [],
-        relative_pose_priors: Dict[Tuple[int, int], PosePrior] = {},
+        i1Ti2_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
         gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
     ) -> Tuple[Delayed, Delayed]:
@@ -89,7 +89,7 @@ class TranslationAveragingBase(GTSFMProcess):
             i2Ui1_graph: dictionary of relative unit translations as a delayed task.
             wRi_graph: list of global rotations wrapped up in Delayed.
             absolute_pose_priors: priors on the camera poses (not delayed).
-            relative_pose_priors: priors on the pose between camera pairs (not delayed) as (i1, i2): i1Ti2.
+            i1Ti2_priors: priors on the pose between camera pairs (not delayed) as (i1, i2): i1Ti2.
             scale_factor: non-negative global scaling factor.
             gt_wTi_list: List of ground truth poses (wTi) for computing metrics.
 
@@ -98,5 +98,5 @@ class TranslationAveragingBase(GTSFMProcess):
             A GtsfmMetricsGroup with translation averaging metrics wrapped as Delayed.
         """
         return dask.delayed(self.run_translation_averaging, nout=2)(
-            num_images, i2Ui1_graph, wRi_graph, absolute_pose_priors, relative_pose_priors, scale_factor, gt_wTi_list
+            num_images, i2Ui1_graph, wRi_graph, absolute_pose_priors, i1Ti2_priors, scale_factor, gt_wTi_list
         )
