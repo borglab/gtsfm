@@ -1,4 +1,4 @@
-"""Unit tests for the AstroNetLoader class.
+"""Unit tests for the AstrovisionLoader class.
 
 Authors: Travis Driver
 """
@@ -13,7 +13,7 @@ from gtsam import PinholeCameraCal3Bundler, Pose3
 import gtsfm.utils.io as io_utils
 import thirdparty.colmap.scripts.python.read_write_model as colmap_io
 from gtsfm.common.image import Image
-from gtsfm.loader.astronet_loader import AstronetLoader
+from gtsfm.loader.astrovision_loader import AstrovisionLoader
 
 TEST_DATA_ROOT = Path(__file__).resolve().parent.parent / "data"
 
@@ -24,21 +24,21 @@ TEST_POINT3D_IDS = [7, 2560, 3063, 3252, 3424, 3534, 3653, 3786, 3920, 4062, 442
 TEST_SFMTRACKS_INDICES = [0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400]
 
 
-class TestAstroNetLoader(unittest.TestCase):
-    """Class containing tests for the AstroNetLoader."""
+class TestAstrovisionLoader(unittest.TestCase):
+    """Class containing tests for the AstrovisionLoader."""
 
     def setUp(self):
         """Set up the loader for the test."""
         super().setUp()
 
-        data_dir = TEST_DATA_ROOT / "astronet" / "test_2011212_opnav_022"
+        data_dir = TEST_DATA_ROOT / "astrovision" / "test_2011212_opnav_022"
         gt_scene_mesh_path = data_dir / "vesta_5002.ply"
 
         # Read in COLMAP-formatted data for comparison.
         self.cameras, self.images, self.points3d = colmap_io.read_model(data_dir)
 
         # Initialize Loader.
-        self.loader = AstronetLoader(
+        self.loader = AstrovisionLoader(
             data_dir,
             gt_scene_mesh_path=gt_scene_mesh_path,
             use_gt_extrinsics=True,
@@ -123,7 +123,7 @@ class TestAstroNetLoader(unittest.TestCase):
         This test's primary purpose is to check if the ordering of filename is being respected by the loader
         """
         index_to_test = 1
-        file_path = TEST_DATA_ROOT / "astronet" / "test_2011212_opnav_022" / "images" / "00000001.png"
+        file_path = TEST_DATA_ROOT / "astrovision" / "test_2011212_opnav_022" / "images" / "00000001.png"
         loader_image = self.loader.get_image(index_to_test)
         expected_image = io_utils.load_image(str(file_path))
         np.testing.assert_allclose(expected_image.value_array, loader_image.value_array)
@@ -140,27 +140,27 @@ class TestAstroNetLoader(unittest.TestCase):
             self.assertIsNone(fetched_pose)
 
     def test_sfmtracks_point3(self) -> None:
-        """Tests that the 3D point of the SfmTrack matches the AstroNet data."""
+        """Tests that the 3D point of the SfmTrack matches the AstroVision data."""
         sfmtracks_point3s = [
             self.loader.get_sfmtrack(sfmtrack_idx).point3().flatten() for sfmtrack_idx in TEST_SFMTRACKS_INDICES
         ]
-        astronet_point3s = [self.points3d[point3d_id].xyz.flatten() for point3d_id in TEST_POINT3D_IDS]
+        astrovision_point3s = [self.points3d[point3d_id].xyz.flatten() for point3d_id in TEST_POINT3D_IDS]
         # np.testing.assert_allclose(sfmtracks_point3s, self.loader._gt_scene_trimesh.vertices[TEST_POINT3D_IDS])
-        np.testing.assert_allclose(sfmtracks_point3s, astronet_point3s)
+        np.testing.assert_allclose(sfmtracks_point3s, astrovision_point3s)
 
     def test_sfmtracks_measurements(self) -> None:
-        """Tests that the SfmTrack measurements match the AstroNet data."""
+        """Tests that the SfmTrack measurements match the AstroVision data."""
         for idx in range(len(TEST_SFMTRACKS_INDICES)):
             sfmtrack = self.loader.get_sfmtrack(TEST_SFMTRACKS_INDICES[idx])
             sfmtrack_measurements = [
                 sfmtrack.measurement(image_idx)[1].flatten() for image_idx in range(sfmtrack.numberMeasurements())
             ]
             point3d = self.points3d[TEST_POINT3D_IDS[idx]]
-            astronet_measurements = [
+            astrovision_measurements = [
                 self.images[image_id].xys[point2d_idx]
                 for (image_id, point2d_idx) in zip(point3d.image_ids, point3d.point2D_idxs)
             ]
-            np.testing.assert_allclose(sfmtrack_measurements, astronet_measurements)
+            np.testing.assert_allclose(sfmtrack_measurements, astrovision_measurements)
 
     def test_colmap2gtsfm(self) -> None:
         """Tests the colmap2gtsfm static method by forward projecting tracks.

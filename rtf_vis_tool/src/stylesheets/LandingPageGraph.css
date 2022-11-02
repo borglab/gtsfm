@@ -54,29 +54,15 @@ Author: Adi Singh
     majority of the nodes. Located in Second Quadrant of Screen. Z-index of 1 allows for pop 
     ups with greater z-index to overlay it.
 */
-.scene_optimizer_plate {
+.loader_and_retriever {
     position: absolute;
     top: 0%;
-    left: 7%;
-    width: 90%;
-    height: 85%;
+    left: 0%;
+    width: 40%;
+    height: 30%;
     border: 2px solid #0b8db5;
     padding-left: 1%;
     z-index: 1;
-}
-
-/*  Styles the 'Feature Extractor Images' Plate. Gives a blue, rectangular border around 6 nodes.
-    Located in Second Quadrant of Screen. Z-index of 1 allows for pop ups to overlay it.
-*/
-.feature_extractor_plate {
-    position: absolute;
-    top: 2%;
-    left: 26%;
-    width: 24.5%;
-    height: 25%;
-    border: 2px solid #0b8db5;
-    padding-left: 1%;  
-    z-index: 1; 
 }
 
 /*  Styles the 'Two View Estimator' Plate. Gives a blue, rectangular border around 9 nodes.
@@ -84,13 +70,13 @@ Author: Adi Singh
 */
 .two_view_estimator_plate {
     position: absolute;
-    top: 2%;
-    left: 52.5%;
-    width: 40%;
-    height: 25%;
+    top: 13%;
+    left: 30%;
+    width: 31%;
+    height: 37%;
     border: 2px solid #0b8db5;
-    padding-left: 7%;   
-    z-index: 1;
+    padding-left: 1%;  
+    z-index: 1; 
 }
 
 /*  Makes the 'Two View Estimator' Plate have a gray background when hovered over. */
@@ -104,10 +90,10 @@ Author: Adi Singh
 */
 .sparse_multiview_optimizer_plate {
     position: absolute;
-    top: 29%;
-    left: 26%;
-    width: 35%;
-    height: 31%;
+    top: 68%;
+    left: 40%;
+    width: 20%;
+    height: 22%;
     border: 2px solid #0b8db5;
     padding-left: 1%;   
     z-index: 1;
@@ -122,12 +108,12 @@ Author: Adi Singh
 /*  Styles the 'Averaging' Plate. Gives a blue, rectangular border around 7 nodes. Located in 
     Fourth Quadrant of Screen. Z-index of 1 allows for pop ups to overlay it.
 */
-.averaging_plate {
+.correspondence_plate {
     position: absolute;
-    top: 29%;
-    left: 62%;
-    width: 30.5%;
-    height: 31%;
+    top: 0%;
+    left: 65%;
+    width: 30%;
+    height: 30%;
     border: 2px solid #0b8db5;
     padding-left: 1%;   
     z-index: 1;   
@@ -136,12 +122,12 @@ Author: Adi Singh
 /*  Styles the 'Dense Multiview Optimizer' Plate. Gives a blue, rectangular border around 4 nodes.
     Located in Third Quadrant of Screen. Z-index of 1 allows for pop ups to overlay it.
 */
-.dense_multiview_optimizer_plate {
+.sparse_reconstruction_plate {
     position: absolute;
-    top: 62%;
-    left: 49%;
+    top: 31%;
+    left: 0%;
     width: 29%;
-    height: 20%;
+    height: 66%;
     border: 2px solid #0b8db5;
     padding-left: 1%;   
     z-index: 1;

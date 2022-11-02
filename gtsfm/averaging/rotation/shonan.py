@@ -10,7 +10,7 @@ References:
 
 Authors: Jing Wu, Ayush Baid, John Lambert
 """
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 import gtsam
 import numpy as np
@@ -71,12 +71,24 @@ class ShonanRotationAveraging(RotationAveragingBase):
         return between_factors
 
     def _between_factors_from_pose_priors(
-        self, i2Ti1_priors: Dict[Tuple[int, int], PosePrior], old_to_new_idxs: Dict[int, int]
+        self, i1Ti2_priors: Dict[Tuple[int, int], PosePrior], old_to_new_idxs: Dict[int, int]
     ) -> BetweenFactorPose3s:
         """Create between factors from the priors on relative poses."""
         between_factors = BetweenFactorPose3s()
 
-        # TODO(Ayush): use the priors, atleast between disconnected components.
+        def get_isotropic_noise_model_sigma(covariance: np.ndarray) -> float:
+            """Get the sigma to be used for the isotropic noise model.
+            We compute the average of the diagonal entries of the covariance matrix.
+            """
+            avg_cov = np.average(np.diag(covariance), axis=None)
+            return np.sqrt(avg_cov)
+
+        for (i1, i2), i1Ti2_prior in i1Ti2_priors.items():
+            i1_ = old_to_new_idxs[i1]
+            i2_ = old_to_new_idxs[i2]
+            noise_model_sigma = get_isotropic_noise_model_sigma(i1Ti2_prior.covariance)
+            noise_model = gtsam.noiseModel.Isotropic.Sigma(POSE3_DOF, noise_model_sigma)
+            between_factors.append(BetweenFactorPose3(i1_, i2_, i1Ti2_prior.value, noise_model))
 
         return between_factors
 
@@ -100,58 +112,75 @@ class ShonanRotationAveraging(RotationAveragingBase):
                 not be computed (either underconstrained system or ill-constrained system).
         """
 
-        obj = ShonanAveraging3(between_factors, self.__get_shonan_params())
+        logger.info(
+            "Running Shonan with %d constraints on %d nodes",
+            len(between_factors),
+            num_connected_nodes,
+        )
+        shonan = ShonanAveraging3(between_factors, self.__get_shonan_params())
 
-        initial = obj.initializeRandomly()
-        result_values, _ = obj.run(initial, self._p_min, self._p_max)
+        initial = shonan.initializeRandomly()
+        logger.info("Initial cost: %.5f", shonan.cost(initial))
+        result, _ = shonan.run(initial, self._p_min, self._p_max)
+        logger.info("Final cost: %.5f", shonan.cost(result))
 
         wRi_list_consecutive = [None] * num_connected_nodes
         for i in range(num_connected_nodes):
-            if result_values.exists(i):
-                wRi_list_consecutive[i] = result_values.atRot3(i)
+            if result.exists(i):
+                wRi_list_consecutive[i] = result.atRot3(i)
 
         return wRi_list_consecutive
 
-    def run(
+    def _nodes_with_edges(
+        self, i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]], relative_pose_priors: Dict[Tuple[int, int], PosePrior]
+    ) -> Set[int]:
+        """Gets the nodes with edges which are to be modelled as between factors."""
+
+        unique_nodes_with_edges = set()
+        for (i1, i2) in i2Ri1_dict.keys():
+            unique_nodes_with_edges.add(i1)
+            unique_nodes_with_edges.add(i2)
+        for (i1, i2) in relative_pose_priors.keys():
+            unique_nodes_with_edges.add(i1)
+            unique_nodes_with_edges.add(i2)
+
+        return unique_nodes_with_edges
+
+    def run_rotation_averaging(
         self,
         num_images: int,
         i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
-        i2Ti1_priors: Dict[Tuple[int, int], PosePrior],
+        i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
     ) -> List[Optional[Rot3]]:
         """Run the rotation averaging on a connected graph with arbitrary keys, where each key is a image/pose index.
 
-        Note: run() functions as a wrapper that re-orders keys to prepare a graph w/ N keys ordered [0,...,N-1].
+        Note: functions as a wrapper that re-orders keys to prepare a graph w/ N keys ordered [0,...,N-1].
         All input nodes must belong to a single connected component, in order to obtain an absolute pose for each
         camera in a single, global coordinate frame.
 
         Args:
             num_images: number of images. Since we have one pose per image, it is also the number of poses.
             i2Ri1_dict: relative rotations for each image pair-edge as dictionary (i1, i2): i2Ri1.
-            i2Ti1_priors: priors on relative poses.
+            i1Ti2_priors: priors on relative poses.
 
         Returns:
             Global rotations for each camera pose, i.e. wRi, as a list. The number of entries in the list is
                 `num_images`. The list may contain `None` where the global rotation could not be computed (either
                 underconstrained system or ill-constrained system), or where the camera pose had no valid observation
-                in the input to run().
+                in the input to run_rotation_averaging().
         """
         if len(i2Ri1_dict) == 0:
             logger.warning("Shonan cannot proceed: No cycle-consistent triplets found after filtering.")
             wRi_list = [None] * num_images
             return wRi_list
 
-        unique_nodes_with_edges = set()
-        for (i1, i2) in i2Ri1_dict.keys():
-            unique_nodes_with_edges.add(i1)
-            unique_nodes_with_edges.add(i2)
-
-        nodes_with_edges = sorted(list(unique_nodes_with_edges))
-        old_to_new_idxes = {new_idx: i for i, new_idx in enumerate(nodes_with_edges)}
+        nodes_with_edges = sorted(list(self._nodes_with_edges(i2Ri1_dict, i1Ti2_priors)))
+        old_to_new_idxes = {old_idx: i for i, old_idx in enumerate(nodes_with_edges)}
 
         between_factors: BetweenFactorPose3s = self.__between_factors_from_2view_relative_rotations(
             i2Ri1_dict, old_to_new_idxes
         )
-        between_factors.extend(self._between_factors_from_pose_priors(i2Ti1_priors, old_to_new_idxes))
+        between_factors.extend(self._between_factors_from_pose_priors(i1Ti2_priors, old_to_new_idxes))
 
         wRi_list_subset = self._run_with_consecutive_ordering(
             num_connected_nodes=len(nodes_with_edges), between_factors=between_factors

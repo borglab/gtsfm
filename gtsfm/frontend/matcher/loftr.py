@@ -59,7 +59,8 @@ class LOFTR(ImageMatcherBase):
         matcher = LoFTRKornia(pretrained=self._model_type).to(device).eval()
 
         input = {"image0": self.to_tensor(image_i1).to(device), "image1": self.to_tensor(image_i2).to(device)}
-        correspondences_dict = matcher(input)
+        with torch.no_grad():
+            correspondences_dict = matcher(input)
 
         coordinates_i1 = correspondences_dict[KEYPOINTS_I1_COORDINATES_KEY].cpu().numpy()
         coordinates_i2 = correspondences_dict[KEYPOINTS_I2_COORDINATES_KEY].cpu().numpy()
@@ -71,8 +72,15 @@ class LOFTR(ImageMatcherBase):
 
         keypoints_i1 = Keypoints(coordinates=coords_i1_by_confidence)
         keypoints_i2 = Keypoints(coordinates=coords_i2_by_confidence)
+        valid_ind = np.arange(len(keypoints_i1))
+        if image_i1.mask is not None:
+            _, valid_ind_i1 = keypoints_i1.filter_by_mask(image_i1.mask)
+            valid_ind = np.intersect1d(valid_ind, valid_ind_i1)
+        if image_i2.mask is not None:
+            _, valid_ind_i2 = keypoints_i2.filter_by_mask(image_i2.mask)
+            valid_ind = np.intersect1d(valid_ind, valid_ind_i2)
 
-        return keypoints_i1, keypoints_i2
+        return keypoints_i1.extract_indices(valid_ind), keypoints_i2.extract_indices(valid_ind)
 
     def __sort_and_filter_by_confidence(
         self, coordinates_i1: np.ndarray, coordinates_i2: np.ndarray, match_confidence: np.ndarray

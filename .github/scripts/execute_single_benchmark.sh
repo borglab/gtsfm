@@ -27,9 +27,6 @@ elif [ "$DATASET_NAME" == "skydio-501" ]; then
 elif [ "$DATASET_NAME" == "notre-dame-20" ]; then
   IMAGES_DIR=notre-dame-20/images
   COLMAP_FILES_DIRPATH=notre-dame-20/notre-dame-20-colmap
-elif [ "$DATASET_NAME" == "lettuce-18" ]; then
-  IMAGES_DIR="lettuce-18/images"
-  COLMAP_FILES_DIRPATH="lettuce-18/colmap_files"
 fi
 
 echo "Config: ${CONFIG_NAME}, Loader: ${LOADER_NAME}"
@@ -64,8 +61,8 @@ elif [ "$LOADER_NAME" == "colmap-loader" ]; then
     --max_resolution ${MAX_RESOLUTION} \
     ${SHARE_INTRINSICS_ARG}
 
-elif [ "$LOADER_NAME" == "astronet" ]; then
-  python gtsfm/runner/run_scene_optimizer_astronet.py \
+elif [ "$LOADER_NAME" == "astrovision" ]; then
+  python gtsfm/runner/run_scene_optimizer_astrovision.py \
     --data_dir $DATASET_ROOT \
     --config_name ${CONFIG_NAME}.yaml \
     --max_frame_lookahead $MAX_FRAME_LOOKAHEAD \

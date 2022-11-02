@@ -116,7 +116,7 @@ def resize_image(image: Image, new_height: int, new_width: int) -> Image:
     )
 
     # Resize the mask using nearest-neighbor interpolation.
-    if image.mask:
+    if image.mask is not None:
         resized_mask = cv.resize(
             image.mask,
             (new_width, new_height),
