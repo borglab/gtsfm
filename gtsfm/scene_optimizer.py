@@ -84,7 +84,7 @@ class SceneOptimizer:
 
         self._save_two_view_correspondences_viz = save_two_view_correspondences_viz
         self._save_3d_viz = save_3d_viz
-        self._run_dense_optimizer = self.dense_multiview_optimizer is not None
+        self.run_dense_optimizer = self.dense_multiview_optimizer is not None
 
         self._save_gtsfm_data = save_gtsfm_data
         self._pose_angular_error_thresh = pose_angular_error_thresh
@@ -300,7 +300,7 @@ class SceneOptimizer:
                 save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph, results_path=self._results_path)
             )
 
-        if self._run_dense_optimizer:
+        if self.run_dense_optimizer and self.dense_multiview_optimizer is not None:
             img_dict_graph = dask.delayed(get_image_dictionary)(image_graph)
             (
                 dense_points_graph,

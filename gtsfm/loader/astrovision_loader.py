@@ -22,11 +22,11 @@ from gtsfm.loader.loader_base import LoaderBase
 logger = logger_utils.get_logger()
 
 
-class AstronetLoader(LoaderBase):
-    """Loader class that reads an AstroNet data segment.
+class AstrovisionLoader(LoaderBase):
+    """Loader class that reads an AstroVision data segment.
 
     Refs:
-    - https://github.com/travisdriver/astronet
+    - https://github.com/astrovision
     """
 
     def __init__(
@@ -35,6 +35,7 @@ class AstronetLoader(LoaderBase):
         gt_scene_mesh_path: str = None,
         use_gt_extrinsics: bool = True,
         use_gt_sfmtracks: bool = False,
+        use_gt_masks: bool = False,
         max_frame_lookahead: int = 2,
         max_resolution: int = 1024,
     ) -> None:
@@ -55,6 +56,7 @@ class AstronetLoader(LoaderBase):
                 reconstructed values.
             use_gt_sfmtracks (optional): whether to use ground truth tracks. Used only for comparison with reconstructed
                 values.
+            use_masks (optional): whether to use ground truth masks.
             max_frame_lookahead (optional): maximum number of consecutive frames to consider for
                 matching/co-visibility. Any value of max_frame_lookahead less than the size of
                 the dataset assumes data is sequentially captured.
@@ -86,7 +88,7 @@ class AstronetLoader(LoaderBase):
                 raise FileNotFoundError(f"No mesh found at {gt_scene_mesh_path}")
             self.gt_scene_trimesh = trimesh.load(gt_scene_mesh_path, process=False, maintain_order=True)
             logger.info(
-                "AstroNet loader read in mesh with %d vertices and %d faces.",
+                "AstroVision loader read in mesh with %d vertices and %d faces.",
                 self.gt_scene_trimesh.vertices.shape[0],
                 self.gt_scene_trimesh.faces.shape[0],
             )
@@ -106,17 +108,20 @@ class AstronetLoader(LoaderBase):
         self.num_sfmtracks = len(self._sfmtracks) if self._sfmtracks is not None else 0
 
         # Prepare image paths.
-        self._image_paths = []
+        self._image_paths: List[str] = []
+        self._mask_paths: Optional[List[str]] = [] if use_gt_masks else None
         for img_fname in img_fnames:
             img_fpath = os.path.join(data_dir, "images", img_fname)
             if not Path(img_fpath).exists():
                 raise FileNotFoundError(f"Could not locate image at {img_fpath}.")
             self._image_paths.append(img_fpath)
+            if use_gt_masks and self._mask_paths is not None:  # None check to appease mypy
+                self._mask_paths.append(os.path.join(data_dir, "masks", img_fname))
 
         self._num_imgs = len(self._image_paths)
-        logger.info("AstroNet loader found and loaded %d images and %d tracks.", self._num_imgs, self.num_sfmtracks)
+        logger.info("AstroVision loader found and loaded %d images and %d tracks.", self._num_imgs, self.num_sfmtracks)
 
-    def image_filenames(self) -> List[str]:
+    def image_filenames(self) -> List[Path]:
         """Return the file names corresponding to each image index."""
         return [Path(fpath) for fpath in self._image_paths]
 
@@ -148,7 +153,11 @@ class AstronetLoader(LoaderBase):
 
         # Generate mask to separate background deep space from foreground target body
         # based on image intensity values.
-        mask = get_nonzero_intensity_mask(img)
+        if self._mask_paths is not None:  # feed-forward masks
+            mask = image_utils.rgb_to_gray_cv(io_utils.load_image(self._mask_paths[index])).value_array
+            mask[mask > 0] = 1
+        else:
+            mask = get_nonzero_intensity_mask(img)
 
         return Image(value_array=img.value_array, exif_data=img.exif_data, file_name=img.file_name, mask=mask)
 
