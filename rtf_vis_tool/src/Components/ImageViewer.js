@@ -20,8 +20,6 @@ function ImageViewer(props) {
 
     // sort file names
     imageFileNames.sort((a, b) => {
-        a = parseInt(a.split(".")[0])
-        b = parseInt(b.split(".")[0])
         console.log(a)
         console.log(b)
         if (a < b)
