@@ -1,8 +1,8 @@
 """Base class for runner that executes SfM."""
 
 import argparse
-import time
 import os
+import time
 from abc import abstractmethod
 from pathlib import Path
 
@@ -121,6 +121,12 @@ class GtsfmRunnerBase:
             help="Root directory. Results, plots and metrics will be stored in subdirectories,"
             " e.g. {output_root}/results",
         )
+        parser.add_argument(
+            "--run_visualizer",
+            action="store_true",
+            default=False,
+            help="Run the JS visualization tool",
+        )
         return parser
 
     @abstractmethod
@@ -206,21 +212,22 @@ class GtsfmRunnerBase:
 
         pairs_graph = self.retriever.create_computation_graph(self.loader)
 
-        image_vis_data = {}
-        for i in range(len(self.loader)):
-            io_utils.save_image(
-                self.loader.get_image(i),
-                os.path.join(REACT_METRICS_PATH, f"{i}.png")
-            )
-            image_vis_data[i] = {
-                "shape": self.loader.get_image_shape(i),
-                "focal_length": self.loader.get_camera_intrinsics(i).fx()
-            }
+        if self.parsed_args.run_visualizer:
+            image_vis_data = {}
+            for i in range(len(self.loader)):
+                io_utils.save_image(
+                    self.loader.get_image(i),
+                    os.path.join(REACT_METRICS_PATH, f"{i}.png")
+                )
+                image_vis_data[i] = {
+                    "shape": self.loader.get_image_shape(i),
+                    "focal_length": self.loader.get_camera_intrinsics(i).fx()
+                }
 
-        io_utils.save_json_file(
-            os.path.join(REACT_METRICS_PATH, "image_shapes.json"),
-            image_vis_data
-        )
+            io_utils.save_json_file(
+                os.path.join(REACT_METRICS_PATH, "image_shapes.json"),
+                image_vis_data
+            )
 
         with Client(cluster), performance_report(filename="retriever-dask-report.html"):
             image_pair_indices = pairs_graph.compute()
