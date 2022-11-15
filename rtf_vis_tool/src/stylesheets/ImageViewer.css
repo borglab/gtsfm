@@ -13,25 +13,51 @@ Author: Hayk Stepanyan
     width: 90%;
     height: 90%;
     border-radius: 5px;
-    padding: 1%;
 }
 
 img {
     border-radius: 2%;
-    height: 90%;
-    width: 100%;
+    object-fit: cover;
 }
 
 .image-container {
-    height: 45%;
+    height: 20%;
     width: 20%;
-    padding-left: 2%;
-    padding-bottom: 2%;
+    padding-left: 1%;
+    padding-bottom: 1%;
     float: left;
 }
 
-p.image-container {
-    padding-top: 0%;
+.header {
+    width: 100%;
+    height: 4%;
+    padding-bottom: 4%;
+}
+
+.content {
+    width: 100%;
+    height: 95%;
+}
+
+.title {
+    width: 20%;
+    height: 100%;
+    float: left;
+    text-align: center;
+    font-size: 30px;
+    font-weight: 600;
+    color: black;
+    background-clip: text;
+    -webkit-background-clip: text;  
+}
+
+.paginationContainer {
+    width: 80%;
+    height: 100%;
+    float: left;
+    position: relative;
+    left: 10%;
+
 }
 
 .pagination {
@@ -43,9 +69,9 @@ p.image-container {
 
 .pagination a {
     padding: 10px;
-    border-radius: 5px;
-    border: 1px solid #6c7ac9;
-    color: #6c7ac9;
+    border-radius: 10px;
+    border: 1px solid black;
+    color: black;
 }
 
 .pagination__link {
@@ -53,12 +79,11 @@ p.image-container {
 }
 
 .pagination__link--active a {
-    color: #fff;
-    background: #6c7ac9;
+    color: white;
+    background: black;
 }
 
 .pagination__link--disabled a {
-color: rgb(198, 197, 202);
-border: 1px solid rgb(198, 197, 202);
+    color: rgb(198, 197, 202);
+    border: 1px solid rgb(198, 197, 202);
 }
-  

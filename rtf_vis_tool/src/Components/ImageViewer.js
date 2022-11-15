@@ -4,7 +4,7 @@ Provides a gallary to view all the images, corresponding image shapes, and focal
 Author: Hayk Stepanyan
 */
 
-import React, {useState} from "react";
+import React, {useState, useEffect} from "react";
 import ReactPaginate from 'react-paginate';
 
 import '../stylesheets/ImageViewer.css';
@@ -13,12 +13,14 @@ import imageShapes from '../images/image_shapes.json';
 
 function ImageViewer(props) {
 
-    // import image files
-    function importAll(r) {
-        let images = {};
-        r.keys().map((item, index) => { images[item.replace('./', '')] = r(item); });
-        return images;
-      }
+    // window size info for image ratio calculation
+    const [windowDimensions, setWindowDimensions] = useState(getWindowDimensions());
+    const windowRatio = windowDimensions.width / windowDimensions.height
+
+    // show images in different pages if the dataset is large
+    const [currentPage, setCurrentPage] = useState(0);
+    const PER_PAGE = 25;
+    const offset = currentPage * PER_PAGE;
 
     const images = importAll(require.context('../images', false, /\.(png|jpe?g|svg)$/));
     const imageFileNames = Object.keys(images);
@@ -34,44 +36,72 @@ function ImageViewer(props) {
         return 0;
     });
 
+    function getWindowDimensions() {
+        const {innerWidth: width, innerHeight: height} = window;
+        return {width, height};
+    }
+
+    // import image files
+    function importAll(r) {
+        let images = {};
+        r.keys().map((item, index) => { images[item.replace('./', '')] = r(item); });
+        return images;
+    }
+
+    // move to different pages
+    function handlePageClick({ selected: selectedPage }) {
+        setCurrentPage(selectedPage);
+    }
+    
+    useEffect(() => {
+        function handleResize() {
+            setWindowDimensions(getWindowDimensions());
+        }
+
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+    
     const imageFiles = []
     for (let i = 0; i < imageFileNames.length; i++) {
+        var ratio = imageShapes[i]["shape"][1] / imageShapes[i]["shape"][0] // image width / height ratio
         imageFiles.push(
             <div className="image-container">
-                <img src={images[imageFileNames[i]]} alt=""/><br></br>
-                Image {i}<br></br>
-                Shape: ({imageShapes[i]["shape"][0]}, {imageShapes[i]["shape"][1]})<br></br>
-                Focal length: {imageShapes[i]["focal_length"].toFixed(2)}
+                <img 
+                    src={images[imageFileNames[i]]} alt=""
+                    width={100 / windowRatio * ratio + "%"}
+                    height="100%"
+                />
             </div>
         )
     }
 
-    // show images in different pages if the dataset is large
-    const [currentPage, setCurrentPage] = useState(0);
-    const PER_PAGE = 10;
-    const offset = currentPage * PER_PAGE;
     const currentPageData = imageFiles.slice(offset, offset + PER_PAGE)
     const pageCount = Math.ceil(imageFiles.length / PER_PAGE);
 
-    function handlePageClick({ selected: selectedPage }) {
-        setCurrentPage(selectedPage);
-    }
-
     return (
         <div className="pc_container">
-            <h2>{props.title}</h2>
-            <ReactPaginate
-                previousLabel={"← Previous"}
-                nextLabel={"Next →"}
-                pageCount={pageCount}
-                onPageChange={handlePageClick}
-                containerClassName={"pagination"}
-                previousLinkClassName={"pagination__link"}
-                nextLinkClassName={"pagination__link"}
-                disabledClassName={"pagination__link--disabled"}
-                activeClassName={"pagination__link--active"}
-            />
-            {currentPageData}
+            <div className="header">
+                <div className="title">
+                    {props.title}
+                </div>
+                <div className="paginationContainer">
+                    <ReactPaginate
+                        previousLabel={"← Previous"}
+                        nextLabel={"Next →"}
+                        pageCount={pageCount}
+                        onPageChange={handlePageClick}
+                        containerClassName={"pagination"}
+                        previousLinkClassName={"pagination__link"}
+                        nextLinkClassName={"pagination__link"}
+                        disabledClassName={"pagination__link--disabled"}
+                        activeClassName={"pagination__link--active"}
+                    />
+                </div>
+            </div>
+            <div className="content">
+                {currentPageData}
+            </div>
             <button className="pc_go_back_btn" onClick={() => props.togglePC(false)}>Go Back</button>
         </div>
     )
