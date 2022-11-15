@@ -65,6 +65,7 @@ function ImageViewer(props) {
     }, []);
     
     const imageFiles = []
+    var averageFocalLength = 0
     for (let i = 0; i < imageFileNames.length; i++) {
         var ratio = imageShapes[i]["shape"][1] / imageShapes[i]["shape"][0] // image width / height ratio
         imageFiles.push(
@@ -81,7 +82,9 @@ function ImageViewer(props) {
                 />
             </div>
         )
+        averageFocalLength = averageFocalLength + imageShapes[i]["focal_length"];
     }
+    averageFocalLength = averageFocalLength / imageFiles.length;
 
     const currentPageData = imageFiles.slice(offset, offset + PER_PAGE)
     const pageCount = Math.ceil(imageFiles.length / PER_PAGE);
@@ -90,7 +93,8 @@ function ImageViewer(props) {
         <div className="pc_container">
             <div className="header">
                 <div className="title">
-                    {props.title}
+                    {/* {props.title} */}
+                    {"Average Focal Length: " + averageFocalLength.toFixed(2)}
                 </div>
                 <div className="paginationContainer">
                     <ReactPaginate
