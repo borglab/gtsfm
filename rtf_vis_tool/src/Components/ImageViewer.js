@@ -15,6 +15,8 @@ function ImageViewer(props) {
 
     // window size info for image ratio calculation
     const [windowDimensions, setWindowDimensions] = useState(getWindowDimensions());
+    const [showFullImage, setShowFullImage] = useState(false);
+    const [fullScreenImageIndex, setFullScreenImageIndex] = useState(0);
     const windowRatio = windowDimensions.width / windowDimensions.height
 
     // show images in different pages if the dataset is large
@@ -71,6 +73,11 @@ function ImageViewer(props) {
                     src={images[imageFileNames[i]]} alt=""
                     width={100 / windowRatio * ratio + "%"}
                     height="100%"
+                    onClick={() => {
+                            setShowFullImage(true);
+                            setFullScreenImageIndex(i);
+                        }
+                    }
                 />
             </div>
         )
@@ -103,6 +110,14 @@ function ImageViewer(props) {
                 {currentPageData}
             </div>
             <button className="pc_go_back_btn" onClick={() => props.togglePC(false)}>Go Back</button>
+            {showFullImage && 
+                <div className="fullImage">
+                    <div className="modal-content">
+                        <img src={images[imageFileNames[fullScreenImageIndex]]} alt="" />
+                        <span class="close" onClick={() => {setShowFullImage(false);}}>&times;</span>
+                    </div>
+                </div>
+            }
         </div>
     )
 }

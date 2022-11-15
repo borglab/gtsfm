@@ -20,6 +20,10 @@ img {
     object-fit: cover;
 }
 
+img:hover {
+    cursor: pointer;
+}
+
 .image-container {
     height: 20%;
     width: 20%;
@@ -87,3 +91,40 @@ img {
     color: rgb(198, 197, 202);
     border: 1px solid rgb(198, 197, 202);
 }
+
+.fullImage {
+    display: absolute;
+    position: fixed;
+    z-index: 5; /* Sit on top */
+    top: 0%;
+    width: 80%; /* Full width */
+    height: 100%; /* Full height */
+    overflow: auto; /* Enable scroll if needed */
+    background-color: rgba(0,0,0,0.4);
+}
+
+.modal-content {
+    /* background-color: #fefefe; */
+    text-align: center;
+    padding-top: 5%;
+    align-items: center;
+    border: 1px solid #888;
+}
+  
+.close {
+    position: absolute;
+    top: 15px;
+    right: 35px;
+    color: #f1f1f1;
+    font-size: 40px;
+    font-weight: bold;
+    transition: 0.3s;
+}
+
+.close:hover,
+.close:focus {
+    color: #bbb;
+    text-decoration: none;
+    cursor: pointer;
+}
+  
