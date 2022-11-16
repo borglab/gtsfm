@@ -71,8 +71,9 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
     def __init__(
         self,
         robust_measurement_noise: bool = True,
+        reject_outliers: bool = True,
         projection_sampling_method: ProjectionSamplingMethod = ProjectionSamplingMethod.SAMPLE_WITH_UNIFORM_DENSITY,
-        MFAS_outlier_rejection: bool = True,
+        
     ) -> None:
         """Initializes the 1DSFM averaging instance.
 
@@ -85,8 +86,8 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         self._max_1dsfm_projection_directions = MAX_PROJECTION_DIRECTIONS
         self._outlier_weight_threshold = OUTLIER_WEIGHT_THRESHOLD
+        self._reject_outliers = reject_outliers
         self._projection_sampling_method = projection_sampling_method
-        self._MFAS_outlier_rejection = MFAS_outlier_rejection
 
     def __sample_projection_directions(
         self,
@@ -158,19 +159,19 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
     def _get_prior_measurements_in_world_frame(
         self,
-        i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
+        i2Ti1_priors: Dict[Tuple[int, int], PosePrior],
         wRi_list: List[Optional[Rot3]],
     ) -> BinaryMeasurementsPoint3:
         """Converts the priors from relative Pose3 priors to relative Point3 priors in world frame.
 
         Args:
-            i1Ti2_priors: Relative pose priors between cameras, could be a hard or soft prior.
+            i2Ti1_priors: Relative pose priors between cameras, could be a hard or soft prior.
             wRi_list: Absolute rotation estimates from rotation averaging.
 
         Returns:
             BinaryMeasurementsPoint3 containing Point3 priors in world frame.
         """
-        if len(i1Ti2_priors) == 0:
+        if len(i2Ti1_priors) == 0:
             return gtsam.BinaryMeasurementsPoint3()
 
         def get_prior_in_world_frame(i2, i2Ti1_prior):
@@ -178,7 +179,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         w_i2ti1_priors = gtsam.BinaryMeasurementsPoint3()
 
-        for (i1, i2), i2Ti1_prior in i1Ti2_priors.items():
+        for (i1, i2), i2Ti1_prior in i2Ti1_priors.items():
             # TODO(akshay-krishnan): Use the translation covariance, transform to world frame.
             # noise_model = gtsam.noiseModel.Gaussian.Covariance(i2Ti1_prior.covariance)
             noise_model = gtsam.noiseModel.Isotropic.Sigma(3, 1e-2)
@@ -211,7 +212,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
         wRi_list: List[Optional[Rot3]],
         absolute_pose_priors: List[Optional[PosePrior]] = [],
-        i1Ti2_priors: Dict[Tuple[int, int], PosePrior] = {},
+        i2Ti1_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
         gt_wTi_list: Optional[List[Optional[Pose3]]] = None,
     ) -> Tuple[List[Optional[Pose3]], Optional[GtsfmMetricsGroup]]:
@@ -222,7 +223,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             i2Ui1_dict: relative unit-translation as dictionary (i1, i2): i2Ui1
             wRi_list: global rotations for each camera pose in the world coordinates.
             absolute_pose_priors: priors on the camera poses (not delayed).
-            i1Ti2_priors: priors on the pose between camera pairs (not delayed) as (i1, i2): i1Ti2.
+            i2Ti1_priors: priors on the pose between camera pairs (not delayed) as (i1, i2): i2Ti1.
             scale_factor: non-negative global scaling factor.
             gt_wTi_list: ground truth poses for computing metrics.
 
@@ -243,7 +244,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         )
         logger.debug("Created measurements in global frame.")
         # Possibly perform (slow!) outlier rejection with Minimum Feedback Arc Set algorithm.
-        if self._MFAS_outlier_rejection:
+        if self._reject_outliers:
             inliers: Set[Tuple[int, int]] = self.__compute_inlier_mask(w_i2Ui1_measurements)
     
             w_i2Ui1_inlier_measurements = BinaryMeasurementsUnit3()
@@ -261,7 +262,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         # TODO(akshay-krishnan): remove once latest gtsam pip wheels updated.
         try:
             algorithm = TranslationRecovery()
-            w_i2ti1_priors = self._get_prior_measurements_in_world_frame(i1Ti2_priors, wRi_list)
+            w_i2ti1_priors = self._get_prior_measurements_in_world_frame(i2Ti1_priors, wRi_list)
             wti_initial = self.__get_initial_values(absolute_pose_priors)
             if len(w_i2ti1_priors) > 0:
                 # scale is ignored here.
