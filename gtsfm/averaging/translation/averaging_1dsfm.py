@@ -79,8 +79,8 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         Args:
             robust_measurement_noise: Whether to use a robust noise model for the measurements, defaults to true.
+            reject_outliers: whether to perform outlier rejection with MFAS algorithm (default True).
             projection_sampling_method: ProjectionSamplingMethod to be used for directions to run 1DSfM.
-            MFAS_outlier_rejection: whether to perform outlier rejection with MFAS algorithm (default True).
         """
         super().__init__(robust_measurement_noise)
 
@@ -233,7 +233,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 or ill-constrained system).
             A GtsfmMetricsGroup of 1DSfM metrics.
         """
-        logger.info("Running translation averaging on %s unit translations", len(i2Ui1_dict))
+        logger.info("Running translation averaging on %d unit translations", len(i2Ui1_dict))
         noise_model = gtsam.noiseModel.Isotropic.Sigma(NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
         if self._robust_measurement_noise:
             huber_loss = gtsam.noiseModel.mEstimator.Huber.Create(HUBER_LOSS_K)
@@ -291,7 +291,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             ta_metrics = None
 
         num_translations = sum([1 for wti in wti_list if wti is not None])
-        logger.info("Estimated %s translations out of %s images.", num_translations, num_images)
+        logger.info("Estimated %d translations out of %d images.", num_translations, num_images)
         return wTi_list, ta_metrics
 
 
