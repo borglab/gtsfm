@@ -37,6 +37,8 @@ class GtsfmRunnerBase:
         self._tag: str = tag
         argparser: argparse.ArgumentParser = self.construct_argparser()
         self.parsed_args: argparse.Namespace = argparser.parse_args()
+        if self.parsed_args.dask_tmpdir:
+            dask.config.set({'temporary_directory': DEFAULT_OUTPUT_ROOT / self.parsed_args.dask_tmpdir})
 
         self.loader: LoaderBase = self.construct_loader()
         self.retriever = self.construct_retriever()
@@ -118,6 +120,12 @@ class GtsfmRunnerBase:
             default=DEFAULT_OUTPUT_ROOT,
             help="Root directory. Results, plots and metrics will be stored in subdirectories,"
             " e.g. {output_root}/results",
+        )
+        parser.add_argument(
+            "--dask_tmpdir",
+            type=str,
+            default=None,
+            help="tmp directory for dask workers, uses dask's default (/tmp) if not set",
         )
         return parser
 
