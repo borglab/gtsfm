@@ -37,9 +37,7 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
     ) -> None:
         """Helper function to run the averagaing and assert w/ expected."""
 
-        wti_computed, _ = self.obj.run(len(wRi_input), i2Ui1_input, wRi_input)
-
-        wTi_computed = [Pose3(wRi, wti) for wRi, wti in zip(wRi_input, wti_computed)]
+        wTi_computed, _ = self.obj.run_translation_averaging(len(wRi_input), i2Ui1_input, wRi_input)
         wTi_expected = [Pose3(wRi, wti) for wRi, wti in zip(wRi_input, wti_expected)]
         self.assertTrue(
             geometry_comparisons.compare_global_poses(
@@ -89,7 +87,7 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
         """Unit Test on the door dataset."""
         loader = OlssonLoader(str(DATA_ROOT_PATH / "set1_lund_door"), image_extension="JPG")
 
-        # we will use ground truth poses to generate relative rotations and relative unit translations
+        # We will use ground truth poses to generate relative rotations and relative unit translations
         wTi_expected_list = [loader.get_camera_pose(x) for x in range(len(loader))]
         wRi_list = [x.rotation() for x in wTi_expected_list]
         wti_expected_list = [x.translation() for x in wTi_expected_list]
@@ -119,7 +117,7 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
 
         wRi_list = [x.rotation() for x in expected_wTi_list]
 
-        # create relative translation directions between a pose index and the
+        # Create relative translation directions between a pose index and the
         # next two poses
         i2Ui1_dict = {}
         for i1 in range(len(expected_wTi_list) - 1):
@@ -128,16 +126,15 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
                 i2Ui1_dict[(i1, i2)] = Unit3(expected_wTi_list[i2].between(expected_wTi_list[i1]).translation())
 
         # use the `run` API to get expected results, ignore the metrics
-        wti_expected, _ = self.obj.run(len(wRi_list), i2Ui1_dict, wRi_list)
+        wTi_expected, _ = self.obj.run_translation_averaging(len(wRi_list), i2Ui1_dict, wRi_list)
 
-        # form computation graph and execute
+        # Form computation graph and execute
         i2Ui1_graph = dask.delayed(i2Ui1_dict)
         wRi_graph = dask.delayed(wRi_list)
         computation_graph = self.obj.create_computation_graph(len(wRi_list), i2Ui1_graph, wRi_graph)
         with dask.config.set(scheduler="single-threaded"):
-            wti_computed, _ = dask.compute(computation_graph)[0]
-        wTi_computed = [Pose3(wRi, wti) for wRi, wti in zip(wRi_list, wti_computed)]
-        wTi_expected = [Pose3(wRi, wti) for wRi, wti in zip(wRi_list, wti_expected)]
+            wTi_computed, _ = dask.compute(computation_graph)[0]
+
         self.assertTrue(
             geometry_comparisons.compare_global_poses(
                 wTi_computed, wTi_expected, RELATIVE_ERROR_THRESHOLD, ABSOLUTE_ERROR_THRESHOLD
@@ -216,10 +213,10 @@ class Test1dsfmAllOutliers(unittest.TestCase):
             (3, 4): np.array([0.994791, -0.033332, -0.0963361]),
         }
         i2Ui1_input = {(i, j): Unit3(t) for (i, j), t in i2Ui1_input.items()}
-        wti_computed, _ = self.obj.run(len(wRi_input), i2Ui1_input, wRi_input)
+        wTi_computed, _ = self.obj.run_translation_averaging(len(wRi_input), i2Ui1_input, wRi_input)
 
-        assert len(wti_computed) == 5
-        assert wti_computed[-1] is None
+        assert len(wTi_computed) == 5
+        assert wTi_computed[-1] is None
 
 
 if __name__ == "__main__":
