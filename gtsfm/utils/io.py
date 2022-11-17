@@ -298,8 +298,8 @@ def write_cameras(gtsfm_data: GtsfmData, images: List[Image], save_dir: str) -> 
 
             fx = calibration.fx()
             fy = calibration.fy()
-            u0 = calibration.px() # optical image center
-            v0 = calibration.py() # optical image center 
+            u0 = calibration.px()  # optical image center
+            v0 = calibration.py()  # optical image center
             k1 = calibration.k1()
             k2 = calibration.k2()
             p1 = 0.0
@@ -582,99 +582,3 @@ def read_point_cloud_from_ply(ply_fpath: str) -> Tuple[np.ndarray, np.ndarray]:
     """
     pointcloud = open3d.io.read_point_cloud(ply_fpath)
     return open3d_vis_utils.convert_colored_open3d_point_cloud_to_numpy(pointcloud)
-
-def nerfstudio(dataset_root, ba_output_path):
-    processed_data_path = "./processed-data-dir"
-    transforms = {}
-    cameras_file = os.path.join(ba_output_path, "cameras.txt")
-    camera_params = read_cameras_txt_nerfstudio(cameras_file)
-    wTi_list, img_fnames = read_images_txt("./results/ba_output/images.txt")
-    transforms["fl_x"] = camera_params[0]
-    transforms["fl_y"] = camera_params[1]
-    transforms["cx"] = camera_params[2]
-    transforms["cy"] = camera_params[3]
-    transforms["w"] = camera_params[4]
-    transforms["h"] = camera_params[5]
-    transforms["camera_model"] = camera_params[6]
-    transforms["k1"] = camera_params[7]
-    transforms["k2"] = camera_params[8]
-    transforms["p1"] = camera_params[9]
-    transforms["p2"] = camera_params[10]
-    frames = []
-    for transform, file_path in zip(wTi_list, img_fnames):
-        frame_dict = {}
-        rotation = transform.rotation().matrix()
-        translation = transform.translation()
-        rotation_and_translation = np.insert(rotation, 3, translation, axis=1)
-        rotation_and_translation_homogeneous = np.insert(rotation_and_translation, 3, [0, 0, 0, 1], axis=0)
-        transformation_matrix = []
-        for row in rotation_and_translation_homogeneous:
-            transformation_matrix.append(row.tolist())
-        frame_dict["file_path"] = os.path.join("images", file_path)
-        frame_dict["transform_matrix"] = transformation_matrix
-        frames.append(frame_dict)
-    transforms["frames"] = frames
-    if not os.path.exists(processed_data_path):
-        os.makedirs(processed_data_path)
-
-    transforms_path = os.path.join(processed_data_path, "transforms.json")
-    save_json_file(transforms_path, transforms)
-    
-    processed_images_path = os.path.join(processed_data_path, "images")
-    if not os.path.exists(processed_images_path):
-        os.makedirs(processed_images_path)
-    for img_fname in img_fnames:
-        img_path = os.path.join(dataset_root, "images", img_fname)
-        img = load_image(img_path)
-        processed_image_path = os.path.join(processed_images_path, img_fname)
-        save_image(img, processed_image_path)
-
-
-def read_cameras_txt_nerfstudio(fpath: str):
-    """Read camera calibrations from a COLMAP-formatted cameras.txt file for use with nerfstudio.
-
-    Reference: https://colmap.github.io/format.html#cameras-txt
-
-    Args:
-        fpaths: path to cameras.txt file
-
-    Returns:
-
-    """
-    if not Path(fpath).exists():
-        logger.info("%s does not exist", fpath)
-        return None
-
-    with open(fpath, "r") as f:
-        lines = f.readlines()
-
-    # may not be one line per camera (could be only one line of text if shared calibration)
-    num_cams = int(lines[2].replace("# Number of cameras: ", "").strip())
-
-    camera_params = []
-    for line in lines[3:]:
-        cam_params = line.split()
-        # Note that u0 is px, and v0 is py
-        model = cam_params[1]
-        # Currently only handles RADIAL camera models
-        assert model in ["RADIAL"]
-        if model == "RADIAL":
-            camera_num, camera_model, img_w, img_h, fx, fy, u0, v0, k1, k2, p1, p2 = cam_params[:12]
-            print(type(camera_model))
-            # reformatting to order in transforms.json
-            camera_params = (
-                float(fx),
-                float(fy),
-                float(u0),
-                float(v0),
-                int(img_w),
-                int(img_h),
-                str(camera_model),
-                float(k1),
-                float(k2),
-                float(p1),
-                float(p2),
-            )
-        return camera_params
-    assert len(camera_params) == num_cams
-    return camera_params
