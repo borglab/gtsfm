@@ -9,7 +9,7 @@ References:
 
 Authors: Ayush Baid, Sushmita Warrier, John Lambert
 """
-from typing import List, NamedTuple
+from typing import List, NamedTuple, Set
 
 import numpy as np
 
@@ -68,6 +68,18 @@ class SfmTrack2d(NamedTuple):
         inlier_measurements = [self.measurements[j] for j in idxs]
 
         return SfmTrack2d(inlier_measurements)
+
+    def select_for_cameras(self, camera_idxs: Set[int]) -> "SfmTrack2d":
+        """Generates a new track with only those measurements which are in camera_idxs.
+
+        Unlike `select_subset`, this method does not require all camera_idxs to have a measurement in this track.
+
+        Returns:
+            Track with the subset of measurements.
+        """
+        measurements = [m for m in self.measurements if m.i in camera_idxs]
+
+        return SfmTrack2d(measurements)
 
     def __eq__(self, other: object) -> bool:
         """Checks equality with the other object."""
