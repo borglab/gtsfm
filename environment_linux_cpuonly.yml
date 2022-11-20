@@ -49,7 +49,6 @@ dependencies:
     - pydegensac
     - colour
     - pycolmap>=0.1.0
-    # - argoverse @ git+https://github.com/argoai/argoverse-api.git@master
     - trimesh[easy]
     - gtsam==4.2a7
     - pydot

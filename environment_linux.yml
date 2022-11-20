@@ -32,7 +32,7 @@ dependencies:
   - scipy
   - hydra-core
   # 3rd party algorithms for different modules
-  - cudatoolkit=10.2
+  - cudatoolkit>=10.2
   - pytorch>=1.12.0
   - torchvision>=0.13.0
   - kornia
@@ -50,6 +50,5 @@ dependencies:
     - colour
     - pycolmap>=0.1.0
     - trimesh[easy]
-      #    - argoverse @ git+https://github.com/argoai/argoverse-api.git@master
-    - gtsam>=4.2a7
+    - gtsam==4.2a7
     - pydot

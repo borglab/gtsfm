@@ -33,7 +33,7 @@ jobs:
       PYTHON_VERSION: 3.8
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v3.1.0
       - name: Cache frontend
         uses: actions/cache@v3
         env:
@@ -44,11 +44,10 @@ jobs:
           key: ${{ matrix.config_dataset_info[0] }}-${{ matrix.config_dataset_info[1] }}-${{ matrix.config_dataset_info[2] }}-${{ matrix.config_dataset_info[6] }}-${{ env.CACHE_NUMBER_FRONTEND }}
       - uses: mamba-org/provision-with-micromamba@main
         with:
-          miniconda-version: "latest"
+          mamba-version: "*"
           activate-environment: gtsfm-v1
           environment-file: environment_linux_cpuonly.yml
           python-version: 3.8
-          use-only-tar-bz2: true # IMPORTANT: This needs to be set for caching to work properly!
       - name: Environment setup
         run: |
           bash .github/scripts/setup.sh
