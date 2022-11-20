@@ -95,20 +95,24 @@ img:hover {
 .fullImage {
     display: absolute;
     position: fixed;
-    z-index: 5; /* Sit on top */
+    z-index: 5;
     top: 0%;
-    width: 80%; /* Full width */
-    height: 100%; /* Full height */
-    overflow: auto; /* Enable scroll if needed */
+    width: 80%;
+    height: 100%;
+    overflow: auto;
     background-color: rgba(0,0,0,0.4);
 }
 
 .modal-content {
-    /* background-color: #fefefe; */
     text-align: center;
-    padding-top: 5%;
     align-items: center;
     border: 1px solid #888;
+}
+
+.modal-content p {
+    color: white;
+    font-size: 20px;
+    font-weight: bold;
 }
   
 .close {

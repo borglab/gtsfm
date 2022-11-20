@@ -117,6 +117,11 @@ function ImageViewer(props) {
             {showFullImage && 
                 <div className="fullImage">
                     <div className="modal-content">
+                        <p>
+                            Image: {fullScreenImageIndex}<br />
+                            Focal length: {imageShapes[fullScreenImageIndex]["focal_length"].toFixed(2)}<br />
+                            Image shape: ({imageShapes[fullScreenImageIndex]["shape"][0]}, {imageShapes[fullScreenImageIndex]["shape"][1]})
+                        </p>
                         <img src={images[imageFileNames[fullScreenImageIndex]]} alt="" />
                         <span class="close" onClick={() => {setShowFullImage(false);}}>&times;</span>
                     </div>
