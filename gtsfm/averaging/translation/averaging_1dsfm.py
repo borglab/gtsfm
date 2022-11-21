@@ -240,7 +240,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 inlier_cameras.add(i2)
 
         for (track_id, cam_id) in w_i2Ui1_dict_tracks:
-            if (L(track_id), C(cam_id)) in inliers and cam_id in inlier_cameras:
+            if (C(cam_id), L(track_id)) in inliers and cam_id in inlier_cameras:
                 inlier_w_i2Ui1_dict_tracks[(track_id, cam_id)] = w_i2Ui1_dict_tracks[(track_id, cam_id)]
 
         return inlier_w_i2Ui1_dict, inlier_w_i2Ui1_dict_tracks, inlier_cameras
@@ -450,6 +450,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         wTi_list = [
             Pose3(wRi, wti) if wRi is not None and wti is not None else None for wRi, wti in zip(wRi_list, wti_list)
         ]
+        raise ValueError("dummy error")
         return wTi_list, ta_metrics
 
 
