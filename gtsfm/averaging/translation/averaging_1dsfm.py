@@ -450,7 +450,6 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         wTi_list = [
             Pose3(wRi, wti) if wRi is not None and wti is not None else None for wRi, wti in zip(wRi_list, wti_list)
         ]
-        raise ValueError("dummy error")
         return wTi_list, ta_metrics
 
 
