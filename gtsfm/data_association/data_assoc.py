@@ -27,6 +27,7 @@ from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
+from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.data_association.dsf_tracks_estimator import DsfTracksEstimator
 from gtsfm.data_association.point3d_initializer import Point3dInitializer, TriangulationExitCode, TriangulationOptions
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
@@ -73,8 +74,7 @@ class DataAssociation(GTSFMProcess):
         self,
         num_images: int,
         cameras: Dict[int, gtsfm_types.CAMERA_TYPE],
-        corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
-        keypoints_list: List[Keypoints],
+        tracks_2d: List[SfmTrack2d],
         cameras_gt: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]],
         images: Optional[List[Image]] = None,
@@ -84,17 +84,13 @@ class DataAssociation(GTSFMProcess):
         Args:
             num_images: Number of images in the scene.
             cameras: dictionary, with image index -> camera mapping.
-            corr_idxs_dict: dictionary, with key as image pair (i1,i2) and value as matching keypoint indices.
-            keypoints_list: keypoints for each image.
+            tracks_2d: list of 2D tracks.
             cameras_gt: list of GT cameras, to be used for benchmarking the tracks.
             images: a list of all images in scene (optional and only for track patch visualization)
 
         Returns:
             A tuple of GtsfmData with cameras and tracks, and a GtsfmMetricsGroup with data association metrics
         """
-        # generate tracks for 3D points using pairwise correspondences
-        tracks_estimator = DsfTracksEstimator()
-        tracks_2d = tracks_estimator.run(corr_idxs_dict, keypoints_list)
 
         if self.save_track_patches_viz and images is not None:
             io_utils.save_track_visualizations(tracks_2d, images, save_dir=os.path.join("plots", "tracks_2d"))
@@ -206,8 +202,7 @@ class DataAssociation(GTSFMProcess):
         self,
         num_images: int,
         cameras: Delayed,
-        corr_idxs_graph: Delayed,
-        keypoints_graph: List[Delayed],
+        tracks_2d: Delayed,
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         images_graph: Optional[List[Delayed]] = None,
@@ -217,8 +212,7 @@ class DataAssociation(GTSFMProcess):
         Args:
             num_images: number of images in the scene.
             cameras: list of cameras wrapped up as Delayed.
-            corr_idxs_graph: dictionary of correspondence indices, each value wrapped up as Delayed.
-            keypoints_graph: list of wrapped up keypoints for each image.
+            tracks_2d: list of tracks wrapped up as Delayed.
             cameras_gt: a list of cameras with ground truth params, if they exist.
             relative_pose_priors: pose priors on the relative pose between camera poses.
             images_graph: a list of all images in scene (optional and only for track patch visualization)

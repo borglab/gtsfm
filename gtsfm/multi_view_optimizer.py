@@ -116,8 +116,7 @@ class MultiViewOptimizer:
         ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
             num_images,
             init_cameras_graph,
-            viewgraph_v_corr_idxs_graph,
-            keypoints_graph,
+            tracks2d_graph,
             cameras_gt,
             relative_pose_priors,
             images_graph,
