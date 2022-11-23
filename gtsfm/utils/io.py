@@ -2,13 +2,11 @@
 
 Authors: Ayush Baid, John Lambert
 """
-import fractions
 import os
 import pickle
 from bz2 import BZ2File
 from collections import defaultdict
 from pathlib import Path
-from tkinter import W
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import gtsam
