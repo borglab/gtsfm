@@ -53,10 +53,17 @@ class Image(NamedTuple):
 
         focal_length_mm = self.exif_data.get("FocalLength")
 
-        sensor_width_mm = Image.sensor_width_db.lookup(
-            self.exif_data.get("Make"),
-            self.exif_data.get("Model"),
-        )
+        if focal_length_mm is None:
+            return None
+
+        try:
+            sensor_width_mm = Image.sensor_width_db.lookup(
+                self.exif_data.get("Make"),
+                self.exif_data.get("Model"),
+            )
+        except:
+            # @FIXME set a prior focal length, e.g, 1.5 * max(self.width, self.height)
+            return None
 
         img_w_px = self.width
         img_h_px = self.height
