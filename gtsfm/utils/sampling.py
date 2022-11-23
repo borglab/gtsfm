@@ -10,8 +10,6 @@ from scipy import stats
 
 import gtsfm.utils.coordinate_conversions as conversion_utils
 
-MAX_KDE_SAMPLES = 2000
-
 
 def sample_points_on_plane(
     plane_coefficients: Tuple[float, float, float, float],
@@ -60,7 +58,7 @@ def sample_random_directions(num_samples: int) -> List[Unit3]:
     return [Unit3(sample / np.linalg.norm(sample)) for sample in samples]
 
 
-def sample_kde_directions(measurements: List[Unit3], num_samples: int) -> List[Unit3]:
+def sample_kde_directions(measurements: List[Unit3], num_samples: int, max_kde_samples=2000) -> List[Unit3]:
     """Fits a Gaussian density kernel to the provided measurements, and then samples num_samples from this kernel.
 
     Args:
@@ -70,8 +68,8 @@ def sample_kde_directions(measurements: List[Unit3], num_samples: int) -> List[U
     Returns:
         List of sampled Unit3 directions.
     """
-    if len(measurements) > MAX_KDE_SAMPLES:
-        sampled_idx = np.random.choice(len(measurements), MAX_KDE_SAMPLES, replace=False).tolist()
+    if len(measurements) > max_kde_samples:
+        sampled_idx = np.random.choice(len(measurements), max_kde_samples, replace=False).tolist()
         measurements_subset = [measurements[i] for i in sampled_idx]
     else:
         measurements_subset = measurements
