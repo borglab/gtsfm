@@ -48,8 +48,7 @@ def sample_points_on_plane(
 
 
 def sample_random_directions(num_samples: int) -> List[Unit3]:
-    """Samples num_samples Unit3 3D directions.
-    The sampling is done in 2D spherical coordinates (azimuth, elevation), and then converted to Cartesian coordinates.
+    """Samples `num_samples` Unit3 3D directions, uniformly in Cartesian coordinates.
 
     Args:
         num_samples: Number of samples required.

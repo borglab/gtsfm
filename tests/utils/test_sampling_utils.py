@@ -33,6 +33,7 @@ def test_sample_points_on_plane() -> None:
 
 
 def test_sample_random_directions() -> None:
+    """Check that the sampled directions are uniformly distributed on the sphere, using their mean and std dev."""
     num_samples = 1000
 
     direction_list = sampling_utils.sample_random_directions(num_samples)
@@ -49,6 +50,7 @@ def test_sample_random_directions() -> None:
 
 
 def test_sample_kde_directions() -> None:
+    """Check that the sampled directions are distributed according to input kernel density."""
     num_samples = 1000
 
     # centered at [1, 1, 1] with variance 0.1
@@ -59,7 +61,7 @@ def test_sample_kde_directions() -> None:
 
     actual_samples = sampling_utils.sample_kde_directions(samples_normd, num_samples)
     assert len(actual_samples) == num_samples
-    
+
     actual_samples_array = np.array([sample.point3() for sample in actual_samples])
     samples_mean = np.mean(actual_samples_array, axis=0)
     samples_mean_relative = samples_mean / samples_mean[0]

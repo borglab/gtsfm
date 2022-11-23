@@ -66,7 +66,6 @@ class SfmTrack2d(NamedTuple):
             Track with the subset of measurements.
         """
         inlier_measurements = [self.measurements[j] for j in idxs]
-
         return SfmTrack2d(inlier_measurements)
 
     def select_for_cameras(self, camera_idxs: Set[int]) -> "SfmTrack2d":
@@ -78,7 +77,6 @@ class SfmTrack2d(NamedTuple):
             Track with the subset of measurements.
         """
         measurements = [m for m in self.measurements if m.i in camera_idxs]
-
         return SfmTrack2d(measurements)
 
     def __eq__(self, other: object) -> bool:

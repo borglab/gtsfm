@@ -55,8 +55,8 @@ TRACKS_TO_CAMERAS_RATIO = 20
 
 logger = logger_utils.get_logger()
 
-C = symbol_shorthand.A
-L = symbol_shorthand.B
+C = symbol_shorthand.A  # for camera translation variables
+L = symbol_shorthand.B  # for track (landmark) translation variables
 
 RelativeDirectionsDict = Dict[Tuple[int, int], Unit3]
 
@@ -321,7 +321,8 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 measurement_homog = Point3(measurement_xy[0], measurement_xy[1], 1.0)
                 w_cam_U_track = Unit3(wRi_list[cam_idx].rotate(Unit3(measurement_homog).point3()))
 
-                landmark_directions[(track_id, cam_idx)] = w_cam_U_track  # w_i2Ui1 here
+                # Direction starts at camera, but first index is track_id.
+                landmark_directions[(track_id, cam_idx)] = w_cam_U_track
         return landmark_directions
 
     def __run_averaging(
@@ -329,19 +330,24 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         num_images: int,
         w_i2Ui1_dict: RelativeDirectionsDict,
         w_i2Ui1_dict_tracks: RelativeDirectionsDict,
-        wRi_list,
-        i2Ti1_priors,
-        absolute_pose_priors,
-        scale_factor,
+        wRi_list: List[Optional[Rot3]],
+        i2Ti1_priors: Dict[Tuple[int, int], PosePrior],
+        absolute_pose_priors: List[Optional[PosePrior]],
+        scale_factor: float,
     ):
-        """Runs the averaging algorithm.
+        """Runs the averaging optimization.
 
         Args:
-            w_i2Ui1_dict: Relative translations between cameras in world frame.
-            wTi_initial: Initial translations for each camera in world frame.
+            num_images: number of images.
+            w_i2Ui1_dict: Unit directions from i2 to i1 in world frame indexed by (i1, i2).
+            w_i2Ui1_dict_tracks: Directions from camera to track in world frame indexed by (track_id, camera_id).
+            wRi_list: camera rotations in world frame.
+            i2Ti1_priors: relative pose priors.
+            absolute_pose_priors: absolute pose priors.
+            scale_factor: scale factor for the esimated translations.
 
         Returns:
-            List of camera poses in world frame.
+            List of camera translations in world frame, with as many entries as the number of images.
         """
         logger.info(
             "Using {} track measurements and {} camera measurements".format(len(w_i2Ui1_dict_tracks), len(w_i2Ui1_dict))
@@ -383,8 +389,8 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         num_images: int,
         i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
         wRi_list: List[Optional[Rot3]],
-        tracks_2d: List[SfmTrack2d] = [],
-        intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]] = [],
+        tracks_2d: List[SfmTrack2d] = None,
+        intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]] = None,
         absolute_pose_priors: List[Optional[PosePrior]] = [],
         i2Ti1_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
@@ -412,10 +418,10 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         w_i2Ui1_dict, valid_cameras = get_valid_measurements_in_world_frame(i2Ui1_dict, wRi_list)
 
         if self._use_tracks_for_averaging:
-            if len(tracks_2d) == 0:
+            if tracks_2d is None:
                 logger.info("No tracks provided for translation averaging. Falling back to camera unit translations.")
                 w_i2Ui1_dict_tracks = {}
-            elif len(intrinsics) != len(wRi_list):
+            elif intrinsics is None or len(intrinsics) != len(wRi_list):
                 raise ValueError("Number of intrinsics must match number of rotations")
             else:
                 selected_tracks = self._select_tracks_for_averaging(tracks_2d, valid_cameras, intrinsics)
@@ -476,7 +482,7 @@ def get_measurement_angle_errors(
                 i2Ui1_measurements[(i1, i2)], gt_i2Ui1_measurements[(i1, i2)]
             )
             if error is None:
-                raise ValueError("Unexpected None when computnig relative translation angle metric.")
+                raise ValueError("Unexpected `None` when computing relative translation angle metric.")
             errors.append(error)
     return errors
 
