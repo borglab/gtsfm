@@ -14,7 +14,6 @@ from enum import Enum
 from pathlib import Path
 
 
-from gtsfm.common.image import Image
 from gtsfm.utils import images, io
 import thirdparty.nerfstudio.colmap_utils as colmap_utils
 
@@ -131,7 +130,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--camera_model",
         required=True,
-        help="'perspective' or 'fisheye' corresponding to the OPENCV and OPENCV_FISHEYE camera models at https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/cameras/cameras.py",
+        help="'perspective' or 'fisheye' corresponding to the OPENCV and OPENCV_FISHEYE camera models at" 
+        + " https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/cameras/cameras.py",
     )
     parser.add_argument(
         "--images_dir",
