@@ -82,13 +82,16 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
         """Tests that the tracks are correctly selected to include in averaging."""
         valid_cameras = set([0, 1, 2, 3])
         test_measurement = np.array([20, 20])
+        # dict from track_id to camera_ids
         test_tracks_cameras = {0: [0, 1, 2, 3, 5, 6], 1: [1, 2, 3], 2: [0, 1, 3, 4], 3: [0, 2]}
         test_tracks = []
         for track_idx, cameras in test_tracks_cameras.items():
             measurements = [SfmMeasurement(i, test_measurement) for i in cameras]
             test_tracks.append(SfmTrack2d(measurements=measurements))
 
-        intrinsics = [Cal3_S2(20, 20, 0.0, 0, 0)] * 7
+        intrinsics = [Cal3_S2(fx=20, fy=20, s=0.0, u0=0, v0=0)] * 7
+        # expected selected track to camera dict. invalid cameras are removed from tracks, and tracks with less than 3
+        # cameras are removed.
         expected_selected_tracks = {0: [0, 1, 2, 3], 1: [1, 2, 3], 2: [0, 1, 3]}
         actual_selected_tracks = self.obj._select_tracks_for_averaging(test_tracks, valid_cameras, intrinsics)
         actual_selected_track_cameras = {
@@ -102,9 +105,10 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
 
         intrinsics = [Cal3_S2(20, 20, 0.0, 0, 0)]
         test_wRi_mat = np.eye(3)
-        test_wRi_mat[1, 1] = -1
+        test_wRi_mat[1, 1] = -1  # flip y axis just to check if rotation is being applied.
         wRi_list = [Rot3(test_wRi_mat)]
 
+        # expected rotation should be rotated in Y.
         expected_w_i2Ui1_dict = {(0, 0): Unit3(Point3(1, -1, 1))}  # indices here are (track_idx, camera_idx)
         actual_w_i2Ui1_dict = self.obj._get_landmark_directions(tracks, intrinsics, wRi_list)
 

@@ -55,7 +55,7 @@ def sample_random_directions(num_samples: int) -> List[Unit3]:
         List of sampled Unit3 directions.
     """
     samples = np.random.normal(size=(num_samples, 3))
-    return [Unit3(sample / np.linalg.norm(sample)) for sample in samples]
+    return [Unit3(sample) for sample in samples]
 
 
 def sample_kde_directions(measurements: List[Unit3], num_samples: int, max_kde_samples=2000) -> List[Unit3]:

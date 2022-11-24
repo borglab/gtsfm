@@ -5,6 +5,7 @@ Authors: Ayush Baid, John Lambert
 from typing import Dict, List, Optional, Tuple
 
 import dask
+import numpy as np
 from dask.delayed import Delayed
 from gtsam import Pose3
 
@@ -13,7 +14,9 @@ import gtsfm.utils.graph as graph_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.bundle.global_ba import GlobalBundleAdjustment
+from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
+from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.data_association.data_assoc import DataAssociation
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.two_view_estimator import TwoViewEstimationReport
@@ -163,6 +166,8 @@ def init_cameras(
     return cameras
 
 
-def get_2d_tracks(corr_idxs_dict, keypoints_list):
+def get_2d_tracks(
+    corr_idxs_dict: Dict[Tuple[int, int], np.ndarray], keypoints_list: List[Keypoints]
+) -> List[SfmTrack2d]:
     tracks_estimator = DsfTracksEstimator()
     return tracks_estimator.run(corr_idxs_dict, keypoints_list)

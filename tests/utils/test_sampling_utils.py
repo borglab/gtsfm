@@ -42,6 +42,7 @@ def test_sample_random_directions() -> None:
     directions = np.array([direction.point3() for direction in direction_list])
     mean_direction = np.mean(directions, axis=0)
     std_direction = np.std(directions, axis=0)
+    # the relative standard deviation should be close to 1. (i.e uniform, and magnitude is not relevant)
     std_direction_relative = std_direction / std_direction[0]
 
     # Increase number of samples for a smaller threshold
@@ -64,8 +65,10 @@ def test_sample_kde_directions() -> None:
 
     actual_samples_array = np.array([sample.point3() for sample in actual_samples])
     samples_mean = np.mean(actual_samples_array, axis=0)
-    samples_mean_relative = samples_mean / samples_mean[0]
     samples_cov = np.cov(actual_samples_array.T)
 
-    assert np.allclose(samples_mean_relative, mean, atol=1e-1)
+    # samples mean should be close to the input mean (only in direction)
+    angular_error = 1 - np.dot(samples_mean, mean) / (np.linalg.norm(samples_mean) * np.linalg.norm(mean))
+
+    assert np.abs(angular_error) < 0.01
     assert np.allclose(samples_cov, cov, atol=1e-1)

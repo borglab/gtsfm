@@ -13,7 +13,6 @@ Authors: Jing Wu, Ayush Baid, Akshay Krishnan
 from collections import defaultdict
 from enum import Enum
 from typing import DefaultDict, Dict, List, Optional, Set, Tuple
-
 import gtsam
 import numpy as np
 from gtsam import (
@@ -51,7 +50,8 @@ HUBER_LOSS_K = 1.345  # default value from GTSAM
 
 MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
 
-TRACKS_TO_CAMERAS_RATIO = 20
+# Increasing this increases latency, but improves accuracy slightly. The number was tuned on skydio-32.
+TRACKS_TO_CAMERAS_RATIO = 5
 
 logger = logger_utils.get_logger()
 
@@ -106,7 +106,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
 
         Args:
             w_i2Ui1_list: List of unit translations to be used for biasing sampling.
-            Used only if the sampling method is SAMPLE_INPUT_MEASUREMENTS or SAMPLE_WitH_INPUT_DENSITY.
+            Used only if the sampling method is SAMPLE_INPUT_MEASUREMENTS or SAMPLE_WITH_INPUT_DENSITY.
 
         Returns:
             List of sampled Unit3 projection directions.
@@ -199,14 +199,17 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             w_i2Ui1_dict_tracks: Dictionary of Unit3 relative translations between cameras and landmarks.
 
         Returns:
-            Set of indices (i1, i2) which are inliers.
+            Tuple of:
+            inlier_w_i2Ui1_dict: Dictionary of inlier Unit3 relative translations between cameras.
+            inlier_w_i2Ui1_dict_tracks: Dictionary of inlier Unit3 relative translations between cameras and landmarks.
+            inlier_cameras: Set of inlier cameras.
         """
 
         # Sample directions for projection
         combined_measurements = list(w_i2Ui1_dict.values()) + list(w_i2Ui1_dict_tracks.values())
         projection_directions = self.__sample_projection_directions(combined_measurements)
 
-        # Convert to measurements - indexes to symbols.
+        # Convert to measurements: map indexes to symbols.
         dummy_noise_model = gtsam.noiseModel.Isotropic.Sigma(3, 1e-2)  # MFAS does not use this.
         w_i1Ui2_measurements = self._binary_measurements_from_dict(w_i2Ui1_dict, w_i2Ui1_dict_tracks, dummy_noise_model)
 
@@ -230,6 +233,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 inliers.add((i1, i2))
 
         # Filter outliers, index back from symbol to int.
+        # `inliers` contains both camera-camera and camera-landmark inliers. We separate them here.
         inlier_w_i2Ui1_dict = {}
         inlier_w_i2Ui1_dict_tracks = {}
         inlier_cameras: Set[int] = set()
@@ -240,6 +244,8 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 inlier_cameras.add(i2)
 
         for (track_id, cam_id) in w_i2Ui1_dict_tracks:
+            # Same as above, `inliers` contains symbols that are flipped - C(cam_id), L(track_id).
+            # Only add an inlier camera-track measurements if the camera has other camera-camera inliers.
             if (C(cam_id), L(track_id)) in inliers and cam_id in inlier_cameras:
                 inlier_w_i2Ui1_dict_tracks[(track_id, cam_id)] = w_i2Ui1_dict_tracks[(track_id, cam_id)]
 
@@ -334,7 +340,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         i2Ti1_priors: Dict[Tuple[int, int], PosePrior],
         absolute_pose_priors: List[Optional[PosePrior]],
         scale_factor: float,
-    ):
+    ) -> List[Optional[Point3]]:
         """Runs the averaging optimization.
 
         Args:
@@ -371,7 +377,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             else:
                 wti_values = algorithm.run(w_i1Ui2_measurements, scale_factor)
         except TypeError as e:
-            # TODO(akshay-krishnan): remove once latest gtsam pip wheels updated.
+            # TODO(akshay-krishnan): remove when no longer supporting gtsam versions before 4.2a7.
             logger.error("TypeError: {}".format(str(e)))
             algorithm = TranslationRecovery(w_i1Ui2_measurements)
             wti_values = algorithm.run(scale_factor)
@@ -389,8 +395,8 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         num_images: int,
         i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
         wRi_list: List[Optional[Rot3]],
-        tracks_2d: List[SfmTrack2d] = None,
-        intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]] = None,
+        tracks_2d: Optional[List[SfmTrack2d]] = None,
+        intrinsics: Optional[List[Optional[gtsfm_types.CALIBRATION_TYPE]]] = None,
         absolute_pose_priors: List[Optional[PosePrior]] = [],
         i2Ti1_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
@@ -422,7 +428,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 logger.info("No tracks provided for translation averaging. Falling back to camera unit translations.")
                 w_i2Ui1_dict_tracks = {}
             elif intrinsics is None or len(intrinsics) != len(wRi_list):
-                raise ValueError("Number of intrinsics must match number of rotations")
+                raise ValueError("Number of intrinsics must match number of rotations when tracks are provided.")
             else:
                 selected_tracks = self._select_tracks_for_averaging(tracks_2d, valid_cameras, intrinsics)
                 w_i2Ui1_dict_tracks = self._get_landmark_directions(selected_tracks, intrinsics, wRi_list)
@@ -434,13 +440,13 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         )
 
         wti_list = self.__run_averaging(
-            num_images,
-            w_i2Ui1_dict_inliers,
-            w_i2Ui1_dict_tracks_inliers,
-            wRi_list,
-            i2Ti1_priors,
-            absolute_pose_priors,
-            scale_factor,
+            num_images=num_images,
+            w_i2Ui1_dict=w_i2Ui1_dict_inliers,
+            w_i2Ui1_dict_tracks=w_i2Ui1_dict_tracks_inliers,
+            wRi_list=wRi_list,
+            i2Ti1_priors=i2Ti1_priors,
+            absolute_pose_priors=absolute_pose_priors,
+            scale_factor=scale_factor,
         )
 
         # Compute the metrics.

@@ -15,9 +15,10 @@ from gtsam import Cal3Bundler, PinholeCameraCal3Bundler, Point2Vector, Point3, P
 from gtsam.utils.test_case import GtsamTestCase
 
 from gtsfm.common.keypoints import Keypoints
+from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.data_association.data_assoc import DataAssociation
-from gtsfm.data_association.point3d_initializer import TriangulationOptions, TriangulationSamplingMode
 from gtsfm.data_association.dsf_tracks_estimator import DsfTracksEstimator
+from gtsfm.data_association.point3d_initializer import TriangulationOptions, TriangulationSamplingMode
 
 
 def get_pose3_vector(num_poses: int) -> Pose3Vector:
@@ -81,7 +82,9 @@ def generate_noisy_2d_measurements(
     return keypoints_list, img_idxs, cameras
 
 
-def get_2d_tracks(corr_idxs_dict, keypoints_list):
+def get_2d_tracks(
+    corr_idxs_dict: Dict[Tuple[int, int], np.ndarray], keypoints_list: List[Keypoints]
+) -> List[SfmTrack2d]:
     tracks_estimator = DsfTracksEstimator()
     return tracks_estimator.run(corr_idxs_dict, keypoints_list)
 
@@ -144,9 +147,9 @@ class TestDataAssociation(GtsamTestCase):
         )
         da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
         triangulated_landmark_map, _ = da.run(
-            len(cameras),
-            cameras,
-            get_2d_tracks(matches_dict, keypoints_list),
+            num_images=len(cameras),
+            cameras=cameras,
+            tracks_2d=get_2d_tracks(matches_dict, keypoints_list),
             cameras_gt=[None] * len(cameras),
             relative_pose_priors={},
         )
@@ -182,10 +185,10 @@ class TestDataAssociation(GtsamTestCase):
         da = DataAssociation(min_track_len=2, triangulation_options=triangulation_options)
 
         sfm_data, _ = da.run(
-            len(cameras),
-            cameras,
-            get_2d_tracks(matches_dict, keypoints_list),
-            [None] * len(cameras),
+            num_images=len(cameras),
+            cameras=cameras,
+            tracks_2d=get_2d_tracks(matches_dict, keypoints_list),
+            cameras_gt=[None] * len(cameras),
             relative_pose_priors={},
         )
         estimated_landmark = sfm_data.get_track(0).point3()
@@ -236,9 +239,9 @@ class TestDataAssociation(GtsamTestCase):
         )
         da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
         sfm_data, _ = da.run(
-            len(cameras),
-            cameras,
-            get_2d_tracks(matches_dict, keypoints_list),
+            num_images=len(cameras),
+            cameras=cameras,
+            tracks_2d=get_2d_tracks(matches_dict, keypoints_list),
             cameras_gt=[None] * len(cameras),
             relative_pose_priors={},
         )
@@ -306,9 +309,9 @@ class TestDataAssociation(GtsamTestCase):
         )
         da = DataAssociation(min_track_len=3, triangulation_options=triangulation_options)
         expected_sfm_data, expected_metrics = da.run(
-            len(cameras),
-            cameras,
-            get_2d_tracks(corr_idxs_graph, keypoints_list),
+            num_images=len(cameras),
+            cameras=cameras,
+            tracks_2d=get_2d_tracks(corr_idxs_graph, keypoints_list),
             cameras_gt=cameras_gt,
             relative_pose_priors={},
         )
