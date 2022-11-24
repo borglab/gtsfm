@@ -61,8 +61,8 @@ class Image(NamedTuple):
                 self.exif_data.get("Make"),
                 self.exif_data.get("Model"),
             )
-        except:
-            # @FIXME set a prior focal length, e.g, 1.5 * max(self.width, self.height)
+        except (AttributeError, LookupError):
+            # TODO(yanwei.du): Set a prior focal length, e.g. 1.5 * max(self.width, self.height).
             return None
 
         img_w_px = self.width

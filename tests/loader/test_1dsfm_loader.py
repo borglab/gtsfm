@@ -8,14 +8,16 @@ from pathlib import Path
 
 from gtsfm.loader.one_d_sfm_loader import OneDSFMLoader
 
-"""The unit test data contains four images and three of them have valid exif data """
-
 DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
 
 DEFAULT_FOLDER = DATA_ROOT_PATH / "1dsfm"
 
-class TestFolderLoader(unittest.TestCase):
-    """Unit tests for folder loader, which loads image from a folder on disk."""
+
+class TestOneDSfMFolderLoader(unittest.TestCase):
+    """Unit tests for folder loader, which loads image from a folder on disk.
+
+    The unit test data contains four images and three of them have valid exif data.
+    """
 
     def setUp(self) -> None:
         """Set up the loader for the test."""
@@ -73,6 +75,7 @@ class TestFolderLoader(unittest.TestCase):
         loader = OneDSFMLoader(str(DEFAULT_FOLDER), max_num_imgs=-1)
 
         self.assertEqual(3, len(loader))
+
 
 if __name__ == "__main__":
     unittest.main()
