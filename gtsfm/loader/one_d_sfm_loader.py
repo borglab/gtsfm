@@ -12,8 +12,11 @@ import numpy as np
 from gtsam import Cal3Bundler, Pose3
 
 import gtsfm.utils.io as io_utils
+import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image
 from gtsfm.loader.loader_base import LoaderBase
+
+logger = logger_utils.get_logger()
 
 
 class OneDSFMLoader(LoaderBase):
@@ -25,9 +28,8 @@ class OneDSFMLoader(LoaderBase):
         - images.SEQ_NAME/SEQ_NAME/images/*.jpg
 
     Reference:
-    [1] Wilson, K., Snavely, N. (2014). Robust Global Translations with 1DSfM. In: Fleet, D., Pajdla, T., Schiele, B.,
-    Tuytelaars, T. (eds) Computer Vision – ECCV 2014. ECCV 2014. Lecture Notes in Computer Science, vol 8691. Springer,
-    Cham. https://doi.org/10.1007/978-3-319-10578-9_5
+    [1] Wilson, K., Snavely, N. (2014). Robust Global Translations with 1DSfM. ECCV 2014.
+    https://doi.org/10.1007/978-3-319-10578-9_5.
     [2] J. L. Schönberger and J. -M. Frahm, "Structure-from-Motion Revisited," 2016 IEEE Conference on Computer Vision
     and Pattern Recognition (CVPR), 2016, pp. 4104-4113, doi: 10.1109/CVPR.2016.445.
     """
@@ -64,7 +66,7 @@ class OneDSFMLoader(LoaderBase):
         ) = self.get_images_with_valid_exif(search_path, max_num_imgs)
         self._num_imgs = len(self._image_paths)
 
-        print(f"Selected {self._num_imgs} out of {self._num_exif_imgs} images with valid exif.")
+        logger.info("Selected %d out of %d images with valid exif.", self._num_imgs, self._num_exif_imgs)
 
         if self._num_imgs == 0:
             raise RuntimeError(f"Loader could not find any images with the specified file extension in {search_path}")
@@ -78,7 +80,7 @@ class OneDSFMLoader(LoaderBase):
 
         Returns:
             Tuple[
-                List of selected image path.
+                List of selected image paths.
                 The number of images with valid exif data.
                 The number of all the images.
             ]
@@ -88,7 +90,7 @@ class OneDSFMLoader(LoaderBase):
         exif_image_paths = []
         for single_img_path in all_image_paths:
             # Drop images without valid exif data.
-            if io_utils.load_image(single_img_path).get_intrinsics_from_exif():
+            if io_utils.load_image(single_img_path).get_intrinsics_from_exif() is not None:
                 exif_image_paths.append(single_img_path)
 
         # Randomly select a subset to process.
@@ -151,7 +153,7 @@ class OneDSFMLoader(LoaderBase):
         Returns:
             The camera pose w_T_index.
         """
-        # No prior pose is available for images collected from Internet
+        # The 1DSfM datasets do not provide ground truth or prior camera poses.
         return None
 
     def get_num_all_imgs(self) -> int:
