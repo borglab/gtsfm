@@ -54,7 +54,7 @@ MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
 TRACKS_TO_CAMERAS_RATIO = 5
 # Minimum number of measurements required for a track to be used for averaging.
 MIN_TRACK_MEASUREMENTS_FOR_AVERAGING = 3
-REQUIRED_MEASUREMENTS_PER_CAMERA = 8
+REQUIRED_MEASUREMENTS_PER_CAMERA = 12
 
 logger = logger_utils.get_logger()
 
