@@ -301,15 +301,13 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 continue
             filtered_tracks.append(valid_cameras_track)
 
-        num_cameras = len(valid_cameras)
         tracks_subset = []
 
-        remaining_cover = np.empty(num_cameras)  # k - times_already_covered
-        remaining_cover.fill(measurements_per_camera)
+        remaining_cover = {c: measurements_per_camera for c in valid_cameras_with_intrinsics}
         improvement = [t.number_measurements() for t in filtered_tracks]  # how much cover each track would add
 
         # preparation: make a lookup from camera to tracks in the camera
-        camera_track_lookup = [[] for x in range(num_cameras)]
+        camera_track_lookup = {c: [] for c in valid_cameras_with_intrinsics}
 
         for track_id, track in enumerate(filtered_tracks):
             for j in range(track.number_measurements()):
@@ -317,7 +315,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 camera_track_lookup[measurement.i].append(track_id)
 
         for count in range(len(improvement) * measurements_per_camera * 10):  # artificial limit to avoid infinite loop
-            # choose track i that maximizes the heuristic
+            # choose track that maximizes the heuristic
             best_track_id = np.argmax(improvement)
             if improvement[best_track_id] <= 0:
                 break
