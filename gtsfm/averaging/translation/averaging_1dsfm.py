@@ -279,8 +279,10 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         """Removes bad tracks and selects the longest ones until all cameras see `measurements_per_camera` tracks.
 
         Bad tracks are those that have fewer than 3 measurements from valid_cameras.
-        Sorts the remaining tracks in descending order by number of measurements, and returns as many tracks
-        as tracks_to_cameras_ratio * number of valid cameras.
+        Sorts the remaining tracks in descending order, then selects the longest ones until all cameras see at least
+         `measurements_per_camera` tracks.
+        This is based on 1dsfm's implementation here:
+        https://github.com/wilsonkl/SfM_Init/blob/fd012ef93462b8623e8d65fa0c6fa95b32270a3c/sfminit/transproblem.py#L235
 
         Args:
             tracks: List of all input tracks.
