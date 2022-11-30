@@ -78,26 +78,35 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
 
         self.assertTrue(np.array_equal(actual_w_i1ti2, expected_w_i1ti2))
 
-    def test_select_tracks_for_averaging(self) -> None:
+    def test_select_tracks_for_averaging_by_measurements(self) -> None:
         """Tests that the tracks are correctly selected to include in averaging."""
         valid_cameras = set([0, 1, 2, 3])
         test_measurement = np.array([20, 20])
         # dict from track_id to camera_ids
-        test_tracks_cameras = {0: [0, 1, 2, 3, 5, 6], 1: [1, 2, 3], 2: [0, 1, 3, 4], 3: [0, 2]}
+        test_tracks_cameras = {
+            0: [0, 1, 2, 3, 5, 6],  # included
+            1: [1, 2, 3],  # could be included
+            2: [0, 1, 3, 4],  # could be included
+            3: [0, 2],  # rejected -- too few valid cameras
+            4: [0, 1, 2],  # could be included
+            5: [2, 3, 4],  # rejected -- too few valid cameras
+            6: [0, 3, 1, 5],  # could be included
+        }
         test_tracks = []
         for track_idx, cameras in test_tracks_cameras.items():
             measurements = [SfmMeasurement(i, test_measurement) for i in cameras]
             test_tracks.append(SfmTrack2d(measurements=measurements))
 
         intrinsics = [Cal3_S2(fx=20, fy=20, s=0.0, u0=0, v0=0)] * 7
-        # expected selected track to camera dict. invalid cameras are removed from tracks, and tracks with less than 3
-        # cameras are removed.
-        expected_selected_tracks = {0: [0, 1, 2, 3], 1: [1, 2, 3], 2: [0, 1, 3]}
-        actual_selected_tracks = self.obj._select_tracks_for_averaging(test_tracks, valid_cameras, intrinsics)
-        actual_selected_track_cameras = {
-            track_idx: [m.i for m in track.measurements] for track_idx, track in enumerate(actual_selected_tracks)
-        }
-        self.assertEqual(expected_selected_tracks, actual_selected_track_cameras)
+
+        actual_selected_tracks = self.obj._select_tracks_for_averaging_by_measurements(
+            test_tracks, valid_cameras, intrinsics, measurements_per_camera=3
+        )
+        assert len(actual_selected_tracks) == 4
+        expected_track_cameras = [[0, 1, 2, 3], [1, 2, 3], [0, 1, 3], [0, 1, 2], [0, 3, 1]]
+        actual_track_cameras = [[m.i for m in track.measurements] for track in actual_selected_tracks]
+        for track_cameras in actual_track_cameras:
+            self.assertIn(track_cameras, expected_track_cameras)
 
     def test_get_landmark_directions(self) -> None:
         test_measurement = np.array([20, 20])
@@ -191,7 +200,9 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
         i2Ui1_graph = dask.delayed(i2Ui1_dict)
         wRi_graph = dask.delayed(wRi_list)
         computation_graph = self.obj.create_computation_graph(
-            len(wRi_list), i2Ui1_graph, wRi_graph, tracks_2d=[], intrinsics=[]
+            len(wRi_list),
+            i2Ui1_graph,
+            wRi_graph,
         )
         with dask.config.set(scheduler="single-threaded"):
             wTi_computed, _ = dask.compute(computation_graph)[0]

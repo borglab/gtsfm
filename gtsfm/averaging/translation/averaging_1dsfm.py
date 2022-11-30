@@ -50,11 +50,10 @@ HUBER_LOSS_K = 1.345  # default value from GTSAM
 
 MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
 
-# Increasing this increases latency, but improves accuracy slightly. The number was tuned on skydio-32.
-TRACKS_TO_CAMERAS_RATIO = 5
 # Minimum number of measurements required for a track to be used for averaging.
 MIN_TRACK_MEASUREMENTS_FOR_AVERAGING = 3
-REQUIRED_MEASUREMENTS_PER_CAMERA = 12
+# Number of track measurements to be added for each camera. Can be reduced to 8 for speed at the cost of some accuracy.
+TRACKS_MEASUREMENTS_PER_CAMERA = 12
 
 logger = logger_utils.get_logger()
 
@@ -274,7 +273,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         tracks: List[SfmTrack2d],
         valid_cameras: Set[int],
         intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
-        measurements_per_camera=REQUIRED_MEASUREMENTS_PER_CAMERA,
+        measurements_per_camera=TRACKS_MEASUREMENTS_PER_CAMERA,
     ) -> List[SfmTrack2d]:
         """Removes bad tracks and selects the longest ones until all cameras see `measurements_per_camera` tracks.
 
@@ -314,7 +313,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 measurement = track.measurement(j)
                 camera_track_lookup[measurement.i].append(track_id)
 
-        for count in range(len(improvement) * measurements_per_camera * 10):  # artificial limit to avoid infinite loop
+        for count in range(len(filtered_tracks)):  # artificial limit to avoid infinite loop
             # choose track that maximizes the heuristic
             best_track_id = np.argmax(improvement)
             if improvement[best_track_id] <= 0:
@@ -333,38 +332,6 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                     remaining_cover[measurement.i] - 1 if remaining_cover[measurement.i] > 0 else 0
                 )
         return tracks_subset
-
-    def _select_tracks_for_averaging(
-        self,
-        tracks: List[SfmTrack2d],
-        valid_cameras: Set[int],
-        intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
-        tracks_to_cameras_ratio: float = TRACKS_TO_CAMERAS_RATIO,
-    ) -> List[SfmTrack2d]:
-        """Removes bad tracks and returns the longest ones from the rest based on tracks_to_cameras_ratio.
-
-        Bad tracks are those that have fewer than 3 measurements from valid_cameras.
-        Sorts the remaining tracks in descending order by number of measurements, and returns as many tracks
-        as tracks_to_cameras_ratio * number of valid cameras.
-
-        Args:
-            tracks: List of all input tracks.
-            valid_cameras: Set of valid camera indices (these have direction measurements and valid rotations).
-            intrinsics: List of camera intrinsics.
-            tracks_to_cameras_ratio: Ratio of total number of tracks to use to total number of cameras.
-
-        Returns:
-            List of tracks to use for averaging.
-        """
-        max_tracks = int(len(valid_cameras) * tracks_to_cameras_ratio)
-        filtered_tracks = []
-        valid_cameras_with_intrinsics = set([c for c in valid_cameras if intrinsics[c] is not None])
-        for track in tracks:
-            valid_cameras_track = track.select_for_cameras(camera_idxs=valid_cameras_with_intrinsics)
-            if valid_cameras_track.number_measurements() < MIN_TRACK_MEASUREMENTS_FOR_AVERAGING:
-                continue
-            filtered_tracks.append(valid_cameras_track)
-        return sorted(filtered_tracks, key=lambda track: track.number_measurements(), reverse=True)[:max_tracks]
 
     def _get_landmark_directions(
         self,
