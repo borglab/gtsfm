@@ -52,6 +52,9 @@ MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
 
 # Increasing this increases latency, but improves accuracy slightly. The number was tuned on skydio-32.
 TRACKS_TO_CAMERAS_RATIO = 5
+# Minimum number of measurements required for a track to be used for averaging.
+MIN_TRACK_MEASUREMENTS_FOR_AVERAGING = 3
+REQUIRED_MEASUREMENTS_PER_CAMERA = 8
 
 logger = logger_utils.get_logger()
 
@@ -266,6 +269,71 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 initial.insertPoint3(C(i), wTi.value.translation())
         return initial
 
+    def _select_tracks_for_averaging_by_measurements(
+        self,
+        tracks: List[SfmTrack2d],
+        valid_cameras: Set[int],
+        intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
+        measurements_per_camera=REQUIRED_MEASUREMENTS_PER_CAMERA,
+    ) -> List[SfmTrack2d]:
+        """Removes bad tracks and selects the longest ones until all cameras see `measurements_per_camera` tracks.
+
+        Bad tracks are those that have fewer than 3 measurements from valid_cameras.
+        Sorts the remaining tracks in descending order by number of measurements, and returns as many tracks
+        as tracks_to_cameras_ratio * number of valid cameras.
+
+        Args:
+            tracks: List of all input tracks.
+            valid_cameras: Set of valid camera indices (these have direction measurements and valid rotations).
+            intrinsics: List of camera intrinsics.
+            measurements_per_camera: Number of track direction measurements that need to be observed by each camera.
+
+        Returns:
+            List of tracks to use for averaging.
+        """
+        filtered_tracks = []
+        valid_cameras_with_intrinsics = set([c for c in valid_cameras if intrinsics[c] is not None])
+        for track in tracks:
+            valid_cameras_track = track.select_for_cameras(camera_idxs=valid_cameras_with_intrinsics)
+            if valid_cameras_track.number_measurements() < MIN_TRACK_MEASUREMENTS_FOR_AVERAGING:
+                continue
+            filtered_tracks.append(valid_cameras_track)
+
+        num_cameras = len(valid_cameras)
+        tracks_subset = []
+
+        remaining_cover = np.empty(num_cameras)  # k - times_already_covered
+        remaining_cover.fill(measurements_per_camera)
+        improvement = [t.number_measurements() for t in filtered_tracks]  # how much cover each track would add
+
+        # preparation: make a lookup from camera to tracks in the camera
+        camera_track_lookup = [[] for x in range(num_cameras)]
+
+        for track_id, track in enumerate(filtered_tracks):
+            for j in range(track.number_measurements()):
+                measurement = track.measurement(j)
+                camera_track_lookup[measurement.i].append(track_id)
+
+        for count in range(len(improvement) * measurements_per_camera * 10):  # artificial limit to avoid infinite loop
+            # choose track i that maximizes the heuristic
+            best_track_id = np.argmax(improvement)
+            if improvement[best_track_id] <= 0:
+                break
+            tracks_subset.append(filtered_tracks[best_track_id])
+
+            # update the state variables: remaining_cover and improvement
+            improvement[best_track_id] = 0
+            for measurement in filtered_tracks[best_track_id].measurements:
+                # if this image just got covered the k'th time, it's done.
+                # lower the improvement for all tracks that see it
+                if remaining_cover[measurement.i] == 1:
+                    for t in camera_track_lookup[measurement.i]:
+                        improvement[t] = improvement[t] - 1 if improvement[t] > 0 else 0
+                remaining_cover[measurement.i] = (
+                    remaining_cover[measurement.i] - 1 if remaining_cover[measurement.i] > 0 else 0
+                )
+        return tracks_subset
+
     def _select_tracks_for_averaging(
         self,
         tracks: List[SfmTrack2d],
@@ -283,7 +351,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             tracks: List of all input tracks.
             valid_cameras: Set of valid camera indices (these have direction measurements and valid rotations).
             intrinsics: List of camera intrinsics.
-            tracks_to_cameras_ratio: Ratio of tracks to cameras to use for averaging.
+            tracks_to_cameras_ratio: Ratio of total number of tracks to use to total number of cameras.
 
         Returns:
             List of tracks to use for averaging.
@@ -293,7 +361,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         valid_cameras_with_intrinsics = set([c for c in valid_cameras if intrinsics[c] is not None])
         for track in tracks:
             valid_cameras_track = track.select_for_cameras(camera_idxs=valid_cameras_with_intrinsics)
-            if valid_cameras_track.number_measurements() < 3:
+            if valid_cameras_track.number_measurements() < MIN_TRACK_MEASUREMENTS_FOR_AVERAGING:
                 continue
             filtered_tracks.append(valid_cameras_track)
         return sorted(filtered_tracks, key=lambda track: track.number_measurements(), reverse=True)[:max_tracks]
@@ -430,7 +498,9 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             elif intrinsics is None or len(intrinsics) != len(wRi_list):
                 raise ValueError("Number of intrinsics must match number of rotations when tracks are provided.")
             else:
-                selected_tracks = self._select_tracks_for_averaging(tracks_2d, valid_cameras, intrinsics)
+                selected_tracks = self._select_tracks_for_averaging_by_measurements(
+                    tracks_2d, valid_cameras, intrinsics
+                )
                 w_i2Ui1_dict_tracks = self._get_landmark_directions(selected_tracks, intrinsics, wRi_list)
         else:
             w_i2Ui1_dict_tracks = {}
