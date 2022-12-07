@@ -55,7 +55,6 @@ class LOFTR(ImageMatcherBase):
             Corresponding keypoints from image 2 (there will also be N keypoints). These represent feature matches.
         """
         device = torch.device("cuda" if (self._use_cuda and torch.cuda.is_available()) else "cpu")
-
         matcher = LoFTRKornia(pretrained=self._model_type).to(device).eval()
 
         input = {"image0": self.to_tensor(image_i1).to(device), "image1": self.to_tensor(image_i2).to(device)}
