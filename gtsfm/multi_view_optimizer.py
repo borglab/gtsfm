@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Tuple
 
 import dask
 from dask.delayed import Delayed
-from gtsam import Point3, Pose3, Rot3
+from gtsam import Pose3
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.graph as graph_utils
@@ -99,7 +99,7 @@ class MultiViewOptimizer:
             num_images, pruned_i2Ri1_graph, i1Ti2_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
         )
 
-        wti_graph, ta_metrics = self.trans_avg_module.create_computation_graph(
+        wTi_graph, ta_metrics = self.trans_avg_module.create_computation_graph(
             num_images,
             pruned_i2Ui1_graph,
             delayed_wRi,
@@ -107,7 +107,7 @@ class MultiViewOptimizer:
             relative_pose_priors,
             gt_wTi_list=gt_wTi_list,
         )
-        init_cameras_graph = dask.delayed(init_cameras)(delayed_wRi, wti_graph, all_intrinsics)
+        init_cameras_graph = dask.delayed(init_cameras)(wTi_graph, all_intrinsics)
 
         ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
             num_images,
@@ -138,15 +138,13 @@ class MultiViewOptimizer:
 
 
 def init_cameras(
-    wRi_list: List[Optional[Rot3]],
-    wti_list: List[Optional[Point3]],
+    wTi_list: List[Optional[Pose3]],
     intrinsics_list: List[gtsfm_types.CALIBRATION_TYPE],
 ) -> Dict[int, gtsfm_types.CAMERA_TYPE]:
     """Generate camera from valid rotations and unit-translations.
 
     Args:
-        wRi_list: rotations for cameras.
-        wti_list: translations for cameras.
+        wTi_list: estimated global poses for cameras.
         intrinsics_list: intrinsics for cameras.
 
     Returns:
@@ -155,8 +153,8 @@ def init_cameras(
     cameras = {}
 
     camera_class = gtsfm_types.get_camera_class_for_calibration(intrinsics_list[0])
-    for idx, (wRi, wti) in enumerate(zip(wRi_list, wti_list)):
-        if wRi is not None and wti is not None:
-            cameras[idx] = camera_class(Pose3(wRi, wti), intrinsics_list[idx])
+    for idx, (wTi) in enumerate(wTi_list):
+        if wTi is not None:
+            cameras[idx] = camera_class(wTi, intrinsics_list[idx])
 
     return cameras
