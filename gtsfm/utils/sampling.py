@@ -75,10 +75,8 @@ def sample_kde_directions(measurements: List[Unit3], num_samples: int, max_kde_s
         measurements_subset = measurements
 
     measurements_spherical = conversion_utils.cartesian_to_spherical_directions(measurements_subset)
-    print(np.mean(measurements_spherical, axis=0))
 
     # gaussian_kde expects each sample to be a column, hence transpose.
     kde = stats.gaussian_kde(measurements_spherical.T)
     sampled_directions_spherical = kde.resample(size=num_samples).T
-    print(np.mean(sampled_directions_spherical, axis=0))
     return conversion_utils.spherical_to_cartesian_directions(sampled_directions_spherical)

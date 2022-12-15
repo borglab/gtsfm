@@ -78,7 +78,7 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
 
         self.assertTrue(np.array_equal(actual_w_i1ti2, expected_w_i1ti2))
 
-    def test_select_tracks_for_averaging_by_measurements(self) -> None:
+    def test_select_tracks_for_averaging(self) -> None:
         """Tests that the tracks are correctly selected to include in averaging."""
         valid_cameras = set([0, 1, 2, 3])
         test_measurement = np.array([20, 20])
@@ -99,7 +99,7 @@ class TestTranslationAveraging1DSFM(unittest.TestCase):
 
         intrinsics = [Cal3_S2(fx=20, fy=20, s=0.0, u0=0, v0=0)] * 7
 
-        actual_selected_tracks = self.obj._select_tracks_for_averaging_by_measurements(
+        actual_selected_tracks = self.obj._select_tracks_for_averaging(
             test_tracks, valid_cameras, intrinsics, measurements_per_camera=3
         )
         assert len(actual_selected_tracks) == 4

@@ -133,14 +133,14 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
     def _binary_measurements_from_dict(
         self,
         w_i2Ui1_dict: RelativeDirectionsDict,
-        w_i2Ui1_dict_tracks: RelativeDirectionsDict,
+        w_iUj_dict_tracks: RelativeDirectionsDict,
         noise_model: gtsam.noiseModel,
     ) -> BinaryMeasurementsUnit3:
         """Gets a list of BinaryMeasurementUnit3 by combining measurements in w_i2Ui1_dict and w_i2Ui1_dict_tracks.
 
         Args:
             w_i2Ui1_dict: Dictionary of Unit3 relative translations between cameras.
-            w_i2Ui1_dict_tracks: Dictionary of Unit3 relative translations between cameras and landmarks.
+            w_iUj_dict_tracks: Dictionary of Unit3 relative translations between cameras and landmarks.
             noise_model: Noise model to use for the measurements.
 
         Returns:
@@ -149,8 +149,8 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         w_i1Ui2_measurements = BinaryMeasurementsUnit3()
         for (i1, i2), w_i2Ui1 in w_i2Ui1_dict.items():
             w_i1Ui2_measurements.append(BinaryMeasurementUnit3(C(i2), C(i1), w_i2Ui1, noise_model))
-        for (track_id, cam_id), w_i2Ui1 in w_i2Ui1_dict_tracks.items():
-            w_i1Ui2_measurements.append(BinaryMeasurementUnit3(C(cam_id), L(track_id), w_i2Ui1, noise_model))
+        for (j, i), w_iUj in w_iUj_dict_tracks.items():
+            w_i1Ui2_measurements.append(BinaryMeasurementUnit3(C(i), L(j), w_iUj, noise_model))
 
         return w_i1Ui2_measurements
 
@@ -192,7 +192,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
     def compute_inliers(
         self,
         w_i2Ui1_dict: RelativeDirectionsDict,
-        w_i2Ui1_dict_tracks: RelativeDirectionsDict,
+        w_iUj_dict_tracks: RelativeDirectionsDict,
     ) -> Tuple[RelativeDirectionsDict, RelativeDirectionsDict, Set[int]]:
         """Perform inlier detection for the relative direction measurements.
 
@@ -203,17 +203,17 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         Returns:
             Tuple of:
             inlier_w_i2Ui1_dict: Dictionary of inlier Unit3 relative translations between cameras.
-            inlier_w_i2Ui1_dict_tracks: Dictionary of inlier Unit3 relative translations between cameras and landmarks.
+            w_iUj_dict_tracks: Dictionary of inlier Unit3 relative translations between cameras and landmarks.
             inlier_cameras: Set of inlier cameras.
         """
 
         # Sample directions for projection
-        combined_measurements = list(w_i2Ui1_dict.values()) + list(w_i2Ui1_dict_tracks.values())
+        combined_measurements = list(w_i2Ui1_dict.values()) + list(w_iUj_dict_tracks.values())
         projection_directions = self.__sample_projection_directions(combined_measurements)
 
         # Convert to measurements: map indexes to symbols.
         dummy_noise_model = gtsam.noiseModel.Isotropic.Sigma(3, 1e-2)  # MFAS does not use this.
-        w_i1Ui2_measurements = self._binary_measurements_from_dict(w_i2Ui1_dict, w_i2Ui1_dict_tracks, dummy_noise_model)
+        w_i1Ui2_measurements = self._binary_measurements_from_dict(w_i2Ui1_dict, w_iUj_dict_tracks, dummy_noise_model)
 
         # Compute outlier weights using MFAS.
         # TODO(ayush): parallelize this step.
@@ -237,7 +237,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         # Filter outliers, index back from symbol to int.
         # `inliers` contains both camera-camera and camera-landmark inliers. We separate them here.
         inlier_w_i2Ui1_dict = {}
-        inlier_w_i2Ui1_dict_tracks = {}
+        inlier_w_iUj_dict_tracks = {}
         inlier_cameras: Set[int] = set()
         for (i1, i2) in w_i2Ui1_dict:
             if (C(i2), C(i1)) in inliers:  # there is a flip in indices from w_i2Ui1_dict to inliers.
@@ -245,13 +245,13 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 inlier_cameras.add(i1)
                 inlier_cameras.add(i2)
 
-        for (track_id, cam_id) in w_i2Ui1_dict_tracks:
-            # Same as above, `inliers` contains symbols that are flipped - C(cam_id), L(track_id).
+        for (j, i) in w_iUj_dict_tracks:
+            # Same as above, `inliers` contains symbols that are flipped - C(i), L(j).
             # Only add an inlier camera-track measurements if the camera has other camera-camera inliers.
-            if (C(cam_id), L(track_id)) in inliers and cam_id in inlier_cameras:
-                inlier_w_i2Ui1_dict_tracks[(track_id, cam_id)] = w_i2Ui1_dict_tracks[(track_id, cam_id)]
+            if (C(i), L(j)) in inliers and i in inlier_cameras:
+                inlier_w_iUj_dict_tracks[(j, i)] = w_iUj_dict_tracks[(j, i)]
 
-        return inlier_w_i2Ui1_dict, inlier_w_i2Ui1_dict_tracks, inlier_cameras
+        return inlier_w_i2Ui1_dict, inlier_w_iUj_dict_tracks, inlier_cameras
 
     def __get_initial_values(self, wTi_initial: List[Optional[PosePrior]]) -> gtsam.Values:
         """Converts translations from a list of absolute poses to gtsam.Values for initialization.
@@ -268,7 +268,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 initial.insertPoint3(C(i), wTi.value.translation())
         return initial
 
-    def _select_tracks_for_averaging_by_measurements(
+    def _select_tracks_for_averaging(
         self,
         tracks: List[SfmTrack2d],
         valid_cameras: Set[int],
@@ -278,7 +278,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         """Removes bad tracks and selects the longest ones until all cameras see `measurements_per_camera` tracks.
 
         Bad tracks are those that have fewer than 3 measurements from valid_cameras.
-        Sorts the remaining tracks in descending order, then selects the longest ones until all cameras see at least
+        Selects tracks based on the number of measurements contributed until all cameras see at least
          `measurements_per_camera` tracks.
         This is based on 1dsfm's implementation here:
         https://github.com/wilsonkl/SfM_Init/blob/fd012ef93462b8623e8d65fa0c6fa95b32270a3c/sfminit/transproblem.py#L235
@@ -293,20 +293,21 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             List of tracks to use for averaging.
         """
         filtered_tracks = []
-        valid_cameras_with_intrinsics = set([c for c in valid_cameras if intrinsics[c] is not None])
         for track in tracks:
-            valid_cameras_track = track.select_for_cameras(camera_idxs=valid_cameras_with_intrinsics)
+            valid_cameras_track = track.select_for_cameras(camera_idxs=valid_cameras)
             if valid_cameras_track.number_measurements() < MIN_TRACK_MEASUREMENTS_FOR_AVERAGING:
                 continue
             filtered_tracks.append(valid_cameras_track)
 
         tracks_subset = []
 
-        remaining_cover = {c: measurements_per_camera for c in valid_cameras_with_intrinsics}
+        # Number of measurements per camera that we still need to add.
+        num_remaining_measurements = {c: measurements_per_camera for c in valid_cameras}
+        # Number of measurements added by each track.
         improvement = [t.number_measurements() for t in filtered_tracks]  # how much cover each track would add
 
         # preparation: make a lookup from camera to tracks in the camera
-        camera_track_lookup = {c: [] for c in valid_cameras_with_intrinsics}
+        camera_track_lookup = {c: [] for c in valid_cameras}
 
         for track_id, track in enumerate(filtered_tracks):
             for j in range(track.number_measurements()):
@@ -320,17 +321,19 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 break
             tracks_subset.append(filtered_tracks[best_track_id])
 
-            # update the state variables: remaining_cover and improvement
+            # update the state variables: num_remaining_measurements and improvement
             improvement[best_track_id] = 0
             for measurement in filtered_tracks[best_track_id].measurements:
-                # if this image just got covered the k'th time, it's done.
-                # lower the improvement for all tracks that see it
-                if remaining_cover[measurement.i] == 1:
+                if num_remaining_measurements[measurement.i] == 0:
+                    continue
+                num_remaining_measurements[measurement.i] = num_remaining_measurements[measurement.i] - 1
+
+                # If this image just got covered the k'th time, it's done.
+                # Lower the improvement for all tracks that see it.
+                if num_remaining_measurements[measurement.i] == 0:
                     for t in camera_track_lookup[measurement.i]:
                         improvement[t] = improvement[t] - 1 if improvement[t] > 0 else 0
-                remaining_cover[measurement.i] = (
-                    remaining_cover[measurement.i] - 1 if remaining_cover[measurement.i] > 0 else 0
-                )
+
         return tracks_subset
 
     def _get_landmark_directions(
@@ -391,7 +394,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             List of camera translations in world frame, with as many entries as the number of images.
         """
         logger.info(
-            "Using {} track measurements and {} camera measurements".format(len(w_i2Ui1_dict_tracks), len(w_i2Ui1_dict))
+            "Using %d track measurements and %d camera measurements", len(w_i2Ui1_dict_tracks), len(w_i2Ui1_dict)
         )
 
         noise_model = gtsam.noiseModel.Isotropic.Sigma(NOISE_MODEL_DIMENSION, NOISE_MODEL_SIGMA)
@@ -417,7 +420,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             algorithm = TranslationRecovery(w_i1Ui2_measurements)
             wti_values = algorithm.run(scale_factor)
 
-        # transforming the result to the list of Point3
+        # Transforms the result to a list of Point3 objects.
         wti_list: List[Optional[Point3]] = [None] * num_images
         for i in range(num_images):
             if wRi_list[i] is not None and wti_values.exists(C(i)):
@@ -454,7 +457,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
                 or ill-constrained system).
             A GtsfmMetricsGroup of 1DSfM metrics.
         """
-        logger.info("Running translation averaging on {} unit translations".format(len(i2Ui1_dict)))
+        logger.info("Running translation averaging on %d unit translations", len(i2Ui1_dict))
 
         w_i2Ui1_dict, valid_cameras = get_valid_measurements_in_world_frame(i2Ui1_dict, wRi_list)
 
@@ -465,9 +468,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
             elif intrinsics is None or len(intrinsics) != len(wRi_list):
                 raise ValueError("Number of intrinsics must match number of rotations when tracks are provided.")
             else:
-                selected_tracks = self._select_tracks_for_averaging_by_measurements(
-                    tracks_2d, valid_cameras, intrinsics
-                )
+                selected_tracks = self._select_tracks_for_averaging(tracks_2d, valid_cameras, intrinsics)
                 w_i2Ui1_dict_tracks = self._get_landmark_directions(selected_tracks, intrinsics, wRi_list)
         else:
             w_i2Ui1_dict_tracks = {}
@@ -502,34 +503,6 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         return wTi_list, ta_metrics
 
 
-def get_measurement_angle_errors(
-    i1_i2_pairs: Set[Tuple[int, int]],
-    i2Ui1_measurements: RelativeDirectionsDict,
-    gt_i2Ui1_measurements: RelativeDirectionsDict,
-) -> List[float]:
-    """Returns a list of the angle between i2Ui1_measurements and gt_i2Ui1_measurements for every
-    (i1, i2) in i1_i2_pairs.
-
-    Args:
-        i1_i2_pairs: List of (i1, i2) tuples for which the angles must be computed.
-        i2Ui1_measurements: Measured translation direction of i1 WRT i2.
-        gt_i2Ui1_measurements: Ground truth translation direction of i1 WRT i2.
-
-    Returns:
-        List of angles between the measured and ground truth translation directions.
-    """
-    errors: List[float] = []
-    for (i1, i2) in i1_i2_pairs:
-        if (i1, i2) in i2Ui1_measurements and (i1, i2) in gt_i2Ui1_measurements:
-            error = comp_utils.compute_relative_unit_translation_angle(
-                i2Ui1_measurements[(i1, i2)], gt_i2Ui1_measurements[(i1, i2)]
-            )
-            if error is None:
-                raise ValueError("Unexpected `None` when computing relative translation angle metric.")
-            errors.append(error)
-    return errors
-
-
 def compute_metrics(
     inlier_i1_i2_pairs: Set[Tuple[int, int]],
     i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
@@ -557,8 +530,8 @@ def compute_metrics(
     )
 
     # Angle between i2Ui1 measurement and GT i2Ui1 measurement for inliers and outliers.
-    inlier_angular_errors = get_measurement_angle_errors(inlier_i1_i2_pairs, i2Ui1_dict, gt_i2Ui1_dict)
-    outlier_angular_errors = get_measurement_angle_errors(outlier_i1_i2_pairs, i2Ui1_dict, gt_i2Ui1_dict)
+    inlier_angular_errors = metrics_utils.get_measurement_angle_errors(inlier_i1_i2_pairs, i2Ui1_dict, gt_i2Ui1_dict)
+    outlier_angular_errors = metrics_utils.get_measurement_angle_errors(outlier_i1_i2_pairs, i2Ui1_dict, gt_i2Ui1_dict)
     precision, recall = metrics_utils.get_precision_recall_from_errors(
         inlier_angular_errors, outlier_angular_errors, MAX_INLIER_MEASUREMENT_ERROR_DEG
     )
@@ -619,5 +592,4 @@ def get_valid_measurements_in_world_frame(
             w_i2Ui1_dict[(i1, i2)] = Unit3(wRi2.rotate(i2Ui1.point3()))
             valid_cameras.add(i1)
             valid_cameras.add(i2)
-        # should we retain a None in the dict?
     return w_i2Ui1_dict, valid_cameras
