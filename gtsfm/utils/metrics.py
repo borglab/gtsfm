@@ -6,7 +6,7 @@ import itertools
 import os
 import timeit
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 from gtsam import Cal3Bundler, EssentialMatrix, PinholeCameraCal3Bundler, Point3, Pose3, Rot3, Unit3
@@ -404,3 +404,31 @@ def compute_percentage_change(x: float, y: float) -> float:
         percentage change (may be positive or negative).
     """
     return (y - x) / (x + EPSILON) * 100
+
+
+def get_measurement_angle_errors(
+    i1_i2_pairs: Set[Tuple[int, int]],
+    i2Ui1_measurements: Dict[Tuple[int, int], Unit3],
+    gt_i2Ui1_measurements: Dict[Tuple[int, int], Unit3],
+) -> List[float]:
+    """Returns a list of the angle between i2Ui1_measurements and gt_i2Ui1_measurements for every
+    (i1, i2) in i1_i2_pairs.
+
+    Args:
+        i1_i2_pairs: List of (i1, i2) tuples for which the angles must be computed.
+        i2Ui1_measurements: Measured translation direction of i1 WRT i2.
+        gt_i2Ui1_measurements: Ground truth translation direction of i1 WRT i2.
+
+    Returns:
+        List of angles between the measured and ground truth translation directions.
+    """
+    errors: List[float] = []
+    for (i1, i2) in i1_i2_pairs:
+        if (i1, i2) in i2Ui1_measurements and (i1, i2) in gt_i2Ui1_measurements:
+            error = comp_utils.compute_relative_unit_translation_angle(
+                i2Ui1_measurements[(i1, i2)], gt_i2Ui1_measurements[(i1, i2)]
+            )
+            if error is None:
+                raise ValueError("Unexpected `None` when computing relative translation angle metric.")
+            errors.append(error)
+    return errors

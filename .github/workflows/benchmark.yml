@@ -42,7 +42,7 @@ jobs:
         with:
           path: cache
           key: ${{ matrix.config_dataset_info[0] }}-${{ matrix.config_dataset_info[1] }}-${{ matrix.config_dataset_info[2] }}-${{ matrix.config_dataset_info[6] }}-${{ env.CACHE_NUMBER_FRONTEND }}
-      - uses: conda-incubator/setup-miniconda@v2
+      - uses: mamba-org/provision-with-micromamba@main
         with:
           mamba-version: "*"
           activate-environment: gtsfm-v1

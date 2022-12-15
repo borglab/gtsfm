@@ -9,7 +9,9 @@ import dask
 from dask.delayed import Delayed
 from gtsam import Pose3, Rot3, Unit3
 
+import gtsfm.common.types as gtsfm_types
 from gtsfm.common.pose_prior import PosePrior
+from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
@@ -50,6 +52,8 @@ class TranslationAveragingBase(GTSFMProcess):
         num_images: int,
         i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
         wRi_list: List[Optional[Rot3]],
+        tracks_2d: Optional[List[SfmTrack2d]] = None,
+        intrinsics: Optional[List[Optional[gtsfm_types.CALIBRATION_TYPE]]] = None,
         absolute_pose_priors: List[Optional[PosePrior]] = [],
         i2Ti1_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
@@ -61,6 +65,8 @@ class TranslationAveragingBase(GTSFMProcess):
             num_images: number of camera poses.
             i2Ui1_dict: relative unit-trans as dictionary (i1, i2): i2Ui1.
             wRi_list: global rotations for each camera pose in the world coordinates.
+            tracks_2d: 2d tracks.
+            intrinsics: list of camera intrinsics.
             absolute_pose_priors: priors on the camera poses (not delayed).
             i2Ti1_priors: priors on the pose between camera pairs (not delayed) as (i1, i2): i2Ti1.
             scale_factor: non-negative global scaling factor.
@@ -77,6 +83,8 @@ class TranslationAveragingBase(GTSFMProcess):
         num_images: int,
         i2Ui1_graph: Delayed,
         wRi_graph: Delayed,
+        tracks_2d: Optional[Delayed] = None,
+        intrinsics: Optional[List[Optional[gtsfm_types.CALIBRATION_TYPE]]] = None,
         absolute_pose_priors: List[Optional[PosePrior]] = [],
         i2Ti1_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
@@ -88,6 +96,8 @@ class TranslationAveragingBase(GTSFMProcess):
             num_images: number of camera poses.
             i2Ui1_graph: dictionary of relative unit translations as a delayed task.
             wRi_graph: list of global rotations wrapped up in Delayed.
+            tracks_2d: 2d tracks wrapped up in Delayed.
+            intrinsics: list of camera intrinsics.
             absolute_pose_priors: priors on the camera poses (not delayed).
             i2Ti1_priors: priors on the pose between camera pairs (not delayed) as (i1, i2): i2Ti1.
             scale_factor: non-negative global scaling factor.
@@ -98,5 +108,13 @@ class TranslationAveragingBase(GTSFMProcess):
             A GtsfmMetricsGroup with translation averaging metrics wrapped as Delayed.
         """
         return dask.delayed(self.run_translation_averaging, nout=2)(
-            num_images, i2Ui1_graph, wRi_graph, absolute_pose_priors, i2Ti1_priors, scale_factor, gt_wTi_list
+            num_images=num_images,
+            i2Ui1_dict=i2Ui1_graph,
+            wRi_list=wRi_graph,
+            tracks_2d=tracks_2d,
+            intrinsics=intrinsics,
+            absolute_pose_priors=absolute_pose_priors,
+            i2Ti1_priors=i2Ti1_priors,
+            scale_factor=scale_factor,
+            gt_wTi_list=gt_wTi_list,
         )
