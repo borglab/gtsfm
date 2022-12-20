@@ -1,21 +1,22 @@
 """Functions to create transforms.json file and resized images that are input to Nerfstudio
 
 Here I have modified code taken from Nerfstudio for parsing data in the Nerfstudio format.
-Original file at:
-https://github.com/nerfstudio-project/nerfstudio/blob/main/scripts/process_data.py.
+Original files at:
+https://github.com/nerfstudio-project/nerfstudio/blob/main/scripts/process_data.py
+https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/process_data/colmap_utils.py
 
 Author: Jon Womack
 """
 import argparse
-import os
 import json
-import numpy as np
+import os
 from enum import Enum
 from pathlib import Path
 
+import numpy as np
+import thirdparty.nerfstudio.colmap_utils as colmap_utils
 
 from gtsfm.utils import images, io
-import thirdparty.nerfstudio.colmap_utils as colmap_utils
 
 
 class CameraModel(Enum):
@@ -99,7 +100,6 @@ def colmap_to_json(cameras_path: Path, images_path: Path, output_dir: Path, came
 
     out["frames"] = frames
 
-    print(out)
     with open(os.path.join(output_dir, "transforms.json"), "w", encoding="utf-8") as f:
         json.dump(out, f, indent=4)
 
