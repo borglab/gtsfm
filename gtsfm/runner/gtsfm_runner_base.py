@@ -32,7 +32,7 @@ from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 logger = logger_utils.get_logger()
 
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent.parent.parent
-REACT_METRICS_PATH = Path(__file__).resolve().parent.parent.parent / "rtf_vis_tool" / "src" / "images"
+REACT_IMAGES_PATH = Path(__file__).resolve().parent.parent.parent / "rtf_vis_tool" / "src" / "images"
 
 
 class GtsfmRunnerBase:
@@ -122,7 +122,7 @@ class GtsfmRunnerBase:
             " e.g. {output_root}/results",
         )
         parser.add_argument(
-            "--run_visualizer",
+            "--run_viz",
             action="store_true",
             default=False,
             help="Run the JS visualization tool",
@@ -212,12 +212,12 @@ class GtsfmRunnerBase:
 
         pairs_graph = self.retriever.create_computation_graph(self.loader)
 
-        if self.parsed_args.run_visualizer:
+        if self.parsed_args.run_viz:
             image_vis_data = {}
             for i in range(len(self.loader)):
                 io_utils.save_image(
                     self.loader.get_image(i),
-                    os.path.join(REACT_METRICS_PATH, f"{i}.png")
+                    os.path.join(REACT_IMAGES_PATH, f"{i}.png")
                 )
                 image_vis_data[i] = {
                     "shape": self.loader.get_image_shape(i),
@@ -225,7 +225,7 @@ class GtsfmRunnerBase:
                 }
 
             io_utils.save_json_file(
-                os.path.join(REACT_METRICS_PATH, "image_shapes.json"),
+                os.path.join(REACT_IMAGES_PATH, "image_shapes.json"),
                 image_vis_data
             )
 
