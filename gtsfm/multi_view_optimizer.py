@@ -10,7 +10,6 @@ from dask.delayed import Delayed
 from gtsam import Pose3
 
 import gtsfm.common.types as gtsfm_types
-import gtsfm.utils.graph as graph_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.bundle.global_ba import GlobalBundleAdjustment
@@ -18,7 +17,6 @@ from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.data_association.data_assoc import DataAssociation
-from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.two_view_estimator import TwoViewEstimationReport
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
 from gtsfm.data_association.dsf_tracks_estimator import DsfTracksEstimator
@@ -31,14 +29,13 @@ class MultiViewOptimizer:
         trans_avg_module: TranslationAveragingBase,
         data_association_module: DataAssociation,
         bundle_adjustment_module: GlobalBundleAdjustment,
-        view_graph_estimator: Optional[ViewGraphEstimatorBase] = None,
+        view_graph_estimator: ViewGraphEstimatorBase,
     ) -> None:
         self.view_graph_estimator = view_graph_estimator
         self.rot_avg_module = rot_avg_module
         self.trans_avg_module = trans_avg_module
         self.data_association_module = data_association_module
         self.ba_optimizer = bundle_adjustment_module
-        self._run_view_graph_estimator: bool = self.view_graph_estimator is not None
 
     def create_computation_graph(
         self,
@@ -77,26 +74,20 @@ class MultiViewOptimizer:
             List of GtsfmMetricGroups from different modules, wrapped up as Delayed.
         """
 
-        if self._run_view_graph_estimator and self.view_graph_estimator is not None:
-            (
-                viewgraph_i2Ri1_graph,
-                viewgraph_i2Ui1_graph,
-                viewgraph_v_corr_idxs_graph,
-                viewgraph_two_view_reports_graph,
-                viewgraph_estimation_metrics,
-            ) = self.view_graph_estimator.create_computation_graph(
-                i2Ri1_graph, i2Ui1_graph, all_intrinsics, v_corr_idxs_graph, keypoints_graph, two_view_reports_dict
-            )
-        else:
-            viewgraph_i2Ri1_graph = dask.delayed(i2Ri1_graph)
-            viewgraph_i2Ui1_graph = dask.delayed(i2Ui1_graph)
-            viewgraph_v_corr_idxs_graph = dask.delayed(v_corr_idxs_graph)
-            viewgraph_two_view_reports_graph = dask.delayed(two_view_reports_dict)
-            viewgraph_estimation_metrics = dask.delayed(GtsfmMetricsGroup("view_graph_estimation_metrics", []))
-
-        # prune the graph to a single connected component.
-        pruned_i2Ri1_graph, pruned_i2Ui1_graph = dask.delayed(graph_utils.prune_to_largest_connected_component, nout=2)(
-            viewgraph_i2Ri1_graph, viewgraph_i2Ui1_graph, relative_pose_priors
+        (
+            pruned_i2Ri1_graph,
+            pruned_i2Ui1_graph,
+            viewgraph_v_corr_idxs_graph,
+            viewgraph_two_view_reports_graph,
+            viewgraph_estimation_metrics
+        ) = self.view_graph_estimator.create_computation_graph(
+            i2Ri1_graph,
+            i2Ui1_graph,
+            all_intrinsics,
+            v_corr_idxs_graph,
+            keypoints_graph,
+            two_view_reports_dict,
+            relative_pose_priors
         )
 
         delayed_wRi, rot_avg_metrics = self.rot_avg_module.create_computation_graph(

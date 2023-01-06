@@ -38,10 +38,8 @@ SceneOptimizer:
   multiview_optimizer:
     _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
 
-    # comment out to not run
-    # view_graph_estimator:
-    #   _target_: gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator.CycleConsistentRotationViewGraphEstimator
-    #   edge_error_aggregation_criterion: MEDIAN_EDGE_ERROR
+    view_graph_estimator:
+      _target_: gtsfm.view_graph_estimator.view_graph_wo_filtering.ViewGraphWithoutFiltering
       
     rot_avg_module:
       _target_: gtsfm.averaging.rotation.rig_shonan.RigShonanRotationAveraging

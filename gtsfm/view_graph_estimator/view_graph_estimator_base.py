@@ -15,6 +15,7 @@ import numpy as np
 from dask.delayed import Delayed
 from gtsam import Cal3Bundler, Rot3, Unit3
 
+from gtsfm.common.pose_prior import PosePrior
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.graph as graph_utils
 import gtsfm.utils.logger as logger_utils
@@ -254,6 +255,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         corr_idxs_i1i2: Dict[Tuple[int, int], Delayed],
         keypoints: List[Delayed],
         two_view_reports: Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
     ) -> Tuple[Delayed, Delayed, Delayed, Delayed, Delayed]:
         """Create the computation graph for ViewGraph estimation and metric evaluation.
 
@@ -266,6 +268,8 @@ class ViewGraphEstimatorBase(GTSFMProcess):
                 wrapped as Delayed.
             keypoints: keypoints for each image, wrapped as Delayed.
             two_view_reports: Dict from (i1, i2) to TwoViewEstimationReport that contains metrics, wrapped as Delayed.
+            relative_pose_priors: priors on the pose between camera pairs (not delayed), used only for
+                prune connected component calculation.
 
         Returns:
             Tuple of the following 5 elements, all wrapped as Delayed:
@@ -319,9 +323,13 @@ class ViewGraphEstimatorBase(GTSFMProcess):
             view_graph_edges=view_graph_edges,
         )
 
+        pruned_i2Ri1_graph, pruned_i2Ui1_graph = dask.delayed(graph_utils.prune_to_largest_connected_component, nout=2)(
+            i2Ri1_filtered, i2Ui1_filtered, relative_pose_priors
+        )
+
         return (
-            i2Ri1_filtered,
-            i2Ui1_filtered,
+            pruned_i2Ri1_graph,
+            pruned_i2Ui1_graph,
             corr_idxs_i1i2_filtered,
             two_view_reports_filtered,
             view_graph_estimation_metrics,
