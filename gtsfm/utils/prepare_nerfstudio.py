@@ -16,7 +16,11 @@ from pathlib import Path
 import numpy as np
 import thirdparty.nerfstudio.colmap_utils as colmap_utils
 
+import thirdparty.colmap.scripts.python.read_write_model as colmap_util
+
 from gtsfm.utils import images, io
+from gtsam import Pose3, Rot3
+from thirdparty.colmap.scripts.python.read_write_model import Image as ColmapImage
 
 
 class CameraModel(Enum):
@@ -51,15 +55,49 @@ def colmap_to_json(cameras_path: Path, images_path: Path, output_dir: Path, came
 
     frames = []
     for _, im_data in images.items():
-        rotation = colmap_utils.qvec2rotmat(im_data.qvec)
+
+        
+        # Constructing 3D Pose
+        # print(im_data.qvec)
+        # Convert quaternion to rotation matrix.
+        # 4 -> 3x3
+        # print("colmaputil rotation")
+        # rotation = colmap_utils.qvec2rotmat(im_data.qvec)
+        # translation = im_data.tvec.reshape(3, 1)
+        # w2c = np.concatenate([rotation, translation], 1)
+        # print(w2c)
+    
+
+        # print("gtsam rotation")        
+        rotation = Rot3(im_data.qvec[0], im_data.qvec[1], im_data.qvec[2], im_data.qvec[3]).matrix()
         translation = im_data.tvec.reshape(3, 1)
+        # print(rotation)
+        # print(translation)
         w2c = np.concatenate([rotation, translation], 1)
+        # print(w2c)
+
+
+
         w2c = np.concatenate([w2c, np.array([[0, 0, 0, 1]])], 0)
+        
+        # print("w2c")
+        # print(w2c)
+        # print("gtsam")
+        # print(im_data.qvec)
+        # print(Pose3(Rot3(colmap_util.qvec2rotmat(im_data.qvec)), im_data.tvec))
+        # print(Pose3(Rot3(im_data.qvec[0], im_data.qvec[1], im_data.qvec[2], im_data.qvec[3]), im_data.tvec)) # .inverse()
+
+        # Pose3.inverse?
         c2w = np.linalg.inv(w2c)
-        # Convert from COLMAP's camera coordinate system to ours
+        
+        
+        # Will still need to do this?
+        # Convert from COLMAP's camera coordinate system to nerfstudio's
         c2w[0:3, 1:3] *= -1
         c2w = c2w[np.array([1, 0, 2, 3]), :]
         c2w[2, :] *= -1
+
+        # print(c2w.tolist())
 
         name = Path(f"./images/{im_data.name}")
 
