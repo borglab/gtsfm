@@ -7,7 +7,7 @@ from pathlib import Path
 
 import dask
 import hydra
-from dask.distributed import Client, LocalCluster, performance_report
+from dask.distributed import Client, LocalCluster, SSHCluster, performance_report
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
@@ -203,9 +203,18 @@ class GtsfmRunnerBase:
         start_time = time.time()
 
         # create dask client
-        cluster = LocalCluster(
-            n_workers=self.parsed_args.num_workers, threads_per_worker=self.parsed_args.threads_per_worker
+        # cluster = LocalCluster(
+        #     n_workers=self.parsed_args.num_workers, threads_per_worker=self.parsed_args.threads_per_worker
+        # )
+
+        cluster = SSHCluster(
+            ["wildcat.cc.gatech.edu", "wildcat.cc.gatech.edu", "raptor.cc.gatech.edu"],
+            # remote_python='/home/hstepanyan3/anaconda3/envs/gtsfm-v1/bin/python'
         )
+        print(cluster.scheduler_address)
+        print(cluster.dashboard_link)
+
+        print("CHECKPOINT1")
 
         # create process graph
         process_graph_generator = ProcessGraphGenerator()
@@ -217,6 +226,8 @@ class GtsfmRunnerBase:
         with Client(cluster), performance_report(filename="retriever-dask-report.html"):
             image_pair_indices = pairs_graph.compute()
 
+        print("CHECKPOINT2")
+
         (
             delayed_keypoints,
             delayed_putative_corr_idxs_dict,
@@ -226,8 +237,12 @@ class GtsfmRunnerBase:
             image_pair_indices=image_pair_indices,
         )
 
+        print("CHECKPOINT3")
+
         with Client(cluster), performance_report(filename="correspondence-generator-dask-report.html"):
             keypoints_list, putative_corr_idxs_dict = dask.compute(delayed_keypoints, delayed_putative_corr_idxs_dict)
+
+        print("CHECKPOINT4")
 
         delayed_sfm_result, delayed_io = self.scene_optimizer.create_computation_graph(
             keypoints_list=keypoints_list,
@@ -244,8 +259,12 @@ class GtsfmRunnerBase:
             matching_regime=ImageMatchingRegime(self.parsed_args.matching_regime),
         )
 
+        print("CHECKPOINT5")
+
         with Client(cluster), performance_report(filename="scene-optimizer-dask-report.html"):
             sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io)
+
+        print("CHECKPOINT6")
 
         assert isinstance(sfm_result, GtsfmData)
 

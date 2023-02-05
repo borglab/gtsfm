@@ -16,6 +16,8 @@ from gtsfm.loader.loader_base import LoaderBase
 
 logger = logger_utils.get_logger()
 
+from fsspec.implementations.sftp import SFTPFileSystem
+FILE_SYSTEM = SFTPFileSystem(host="wildcat.cc.gatech.edu")
 
 class ColmapLoader(LoaderBase):
     """Simple loader class that reads a dataset with ground-truth files and dataset meta-information
@@ -135,7 +137,7 @@ class ColmapLoader(LoaderBase):
         if index < 0 or index >= len(self):
             raise IndexError(f"Image index {index} is invalid")
 
-        img = io_utils.load_image(self._image_paths[index])
+        img = io_utils.load_image(self._image_paths[index], FILE_SYSTEM)
         return img
 
     def get_camera_intrinsics_full_res(self, index: int) -> Optional[Cal3Bundler]:
