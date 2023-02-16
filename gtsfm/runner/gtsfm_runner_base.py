@@ -208,9 +208,16 @@ class GtsfmRunnerBase:
         # )
 
         cluster = SSHCluster(
-            ["wildcat.cc.gatech.edu", "wildcat.cc.gatech.edu", "raptor.cc.gatech.edu"],
-            # remote_python='/home/hstepanyan3/anaconda3/envs/gtsfm-v1/bin/python'
+            [
+                "wildcat.cc.gatech.edu", # 33
+                "wildcat.cc.gatech.edu", # 33
+                "hornet.cc.gatech.edu", # 29
+                "raptor.cc.gatech.edu", # 32
+            ],
+            scheduler_options={"port": 0, "dashboard_address": ":8767"},
+            worker_options={"n_workers": 4},
         )
+
         print(cluster.scheduler_address)
         print(cluster.dashboard_link)
 

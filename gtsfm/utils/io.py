@@ -8,7 +8,7 @@ from bz2 import BZ2File
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
-
+import time
 import gtsam
 import h5py
 import numpy as np
@@ -28,12 +28,12 @@ from gtsfm.common.sfm_track import SfmTrack2d
 from thirdparty.colmap.scripts.python.read_write_model import Camera as ColmapCamera
 from thirdparty.colmap.scripts.python.read_write_model import Image as ColmapImage
 from thirdparty.colmap.scripts.python.read_write_model import Point3D as ColmapPoint3D
-from fsspec.implementations.sftp import SFTPFileSystem
+import fsspec
 
 logger = logger_utils.get_logger()
 
 
-def load_image(img_path: str, file_system=None) -> Image:
+def load_image(img_path: str) -> Image:
     """Load the image from disk.
 
     Notes: EXIF is read as a map from (tag_id, value) where tag_id is an integer.
@@ -46,13 +46,20 @@ def load_image(img_path: str, file_system=None) -> Image:
     Returns:
         loaded image in RGB format.
     """
+    print(img_path)
+    print("Wildcat")
+    while True:
+        try:
+            f = fsspec.open(f"sftp://wildcat.cc.gatech.edu{img_path}")
+            img = f.open()
+            original_image = PILImage.open(img)
+            original_image.load()
+            f.close()
+            break
+        except:
+            continue
 
-    with file_system.open(f"sftp://wildcat.cc.gatech.edu{img_path}") as im_file:
-        print("HERE")
-        print(img_path)
-        original_image = PILImage.open(im_file)
-        original_image.load()
-
+    # original_image = PILImage.open(img_path)
     exif_data = original_image._getexif()
     if exif_data is not None:
         parsed_data = {}

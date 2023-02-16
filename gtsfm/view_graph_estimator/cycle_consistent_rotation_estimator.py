@@ -130,7 +130,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
             pair_indices: self.__aggregate_errors_for_edge(errors) for pair_indices, errors in per_edge_errors.items()
         }
         valid_edges = {edge for edge, error in per_edge_aggregate_error.items() if error < self._error_threshold}
-        self.__save_plots(valid_edges, cycle_errors, max_gt_error_in_cycle, per_edge_aggregate_error, two_view_reports)
+        # self.__save_plots(valid_edges, cycle_errors, max_gt_error_in_cycle, per_edge_aggregate_error, two_view_reports)
 
         logger.info("Found %d consistent rel. rotations from %d original edges.", len(valid_edges), len(input_edges))
 
@@ -186,14 +186,14 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         plt.ylabel("Rotation error w.r.t GT")
         plt.axis("equal")
         plt.legend(loc="lower right")
-        plt.savefig(os.path.join("plots", f"gt_err_vs_{self._edge_error_aggregation_criterion}_agg_error.jpg"), dpi=400)
+        # plt.savefig(os.path.join("plots", f"gt_err_vs_{self._edge_error_aggregation_criterion}_agg_error.jpg"), dpi=400)
         plt.close("all")
 
         plt.scatter(cycle_errors, max_gt_error_in_cycle)
         plt.xlabel("Cycle error")
         plt.ylabel("Avg. Rot3 error over cycle triplet")
         plt.axis("equal")
-        plt.savefig(os.path.join("plots", "cycle_error_vs_GT_rot_error.jpg"), dpi=400)
+        # plt.savefig(os.path.join("plots", "cycle_error_vs_GT_rot_error.jpg"), dpi=400)
         plt.close("all")
 
     def __aggregate_errors_for_edge(self, edge_errors: List[float]) -> float:
