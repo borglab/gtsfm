@@ -271,7 +271,7 @@ class GtsfmRunnerBase:
         )
 
         # with Client(cluster), performance_report(filename="scene-optimizer-dask-report.html"):
-        with performance_report(filename="correspondence-generator-dask-report.html"):
+        with performance_report(filename="scene-optimizer-dask-report.html"):
             sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io)
 
         assert isinstance(sfm_result, GtsfmData)
