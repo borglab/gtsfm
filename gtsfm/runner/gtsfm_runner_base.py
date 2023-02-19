@@ -211,10 +211,11 @@ class GtsfmRunnerBase:
             [
                 "wildcat.cc.gatech.edu", # 33
                 "wildcat.cc.gatech.edu", # 33
-                "hornet.cc.gatech.edu",
+                "hornet.cc.gatech.edu", # 29
                 "raptor.cc.gatech.edu", # 32
             ],
             scheduler_options={"port": 0, "dashboard_address": ":8797"},
+            worker_options={"n_workers": self.parsed_args.num_workers}, # num workers per machine
         )
 
         client = Client(cluster)
