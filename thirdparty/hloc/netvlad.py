@@ -19,7 +19,7 @@ from torch import Tensor
 
 logger = logging.getLogger(__name__)
 
-# path to /thirdparty/netvlad/weights/{CHECKPOINT}.mat
+# path to /thirdparty/hloc/weights/{CHECKPOINT}.mat
 netvlad_path = Path(__file__).resolve().parent / "weights"
 
 EPS = 1e-6

@@ -8,15 +8,18 @@ Authors: Travis Driver
 
 from pathlib import Path
 from typing import Tuple, Dict, Any
+import sys
 
 import numpy as np
 import tensorflow.compat.v1 as tf
 
 import gtsfm.utils.images as image_utils
-from thirdparty.ASLFeat.models.feat_model import FeatModel
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.detector_descriptor.detector_descriptor_base import DetectorDescriptorBase
+
+sys.path.append("thirdparty/ASLFeat")
+from thirdparty.ASLFeat.models.feat_model import FeatModel
 
 
 DEFAULT_MODEL_PATH = str(
@@ -53,7 +56,7 @@ class ASLFeatDetectorDescriptor(DetectorDescriptorBase):
     def __init__(
         self,
         max_keypoints: int = 5000,
-        model_path: Path = DEFAULT_MODEL_PATH,
+        model_path: str = DEFAULT_MODEL_PATH,
         model_config: Dict[str, Any] = DEFAULT_CONFIG,
     ) -> None:
         """Instantiate parameters and hardware settings for D2-Net detector-descriptor.
@@ -86,6 +89,7 @@ class ASLFeatDetectorDescriptor(DetectorDescriptorBase):
         image_tensor = image_utils.rgb_to_gray_cv(image).value_array[..., None]
 
         # Compute features.
+        print(image_tensor.shape)
         descriptors, keypoints, scores = model.run_test_data(image_tensor)
 
         return Keypoints(coordinates=keypoints, responses=scores.squeeze()), descriptors

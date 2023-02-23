@@ -1,7 +1,7 @@
 SceneOptimizer:
   _target_: gtsfm.scene_optimizer.SceneOptimizer
   save_gtsfm_data: True
-  save_two_view_correspondences_viz: False
+  save_two_view_correspondences_viz: True
   save_3d_viz: True
   pose_angular_error_thresh: 5 # degrees
 
@@ -13,7 +13,7 @@ SceneOptimizer:
       detector_descriptor:
         _target_: gtsfm.frontend.cacher.detector_descriptor_cacher.DetectorDescriptorCacher
         detector_descriptor_obj:
-          _target_: gtsfm.frontend.detector_descriptor.sift.SIFTDetectorDescriptor
+          _target_: gtsfm.frontend.detector_descriptor.aslfeat.ASLFeatDetectorDescriptor
           max_keypoints: 5000
 
     matcher:

@@ -5,19 +5,23 @@ Authors: Ayush Baid, John Lambert
 from typing import Dict, List, Optional, Tuple
 
 import dask
+import numpy as np
 from dask.delayed import Delayed
-from gtsam import Point3, Pose3, Rot3
+from gtsam import Pose3
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.graph as graph_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.averaging.translation.translation_averaging_base import TranslationAveragingBase
 from gtsfm.bundle.global_ba import GlobalBundleAdjustment
+from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
+from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.data_association.data_assoc import DataAssociation
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.two_view_estimator import TwoViewEstimationReport
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
+from gtsfm.data_association.dsf_tracks_estimator import DsfTracksEstimator
 
 
 class MultiViewOptimizer:
@@ -96,24 +100,26 @@ class MultiViewOptimizer:
         )
 
         delayed_wRi, rot_avg_metrics = self.rot_avg_module.create_computation_graph(
-            num_images, pruned_i2Ri1_graph, i2Ti1_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
+            num_images, pruned_i2Ri1_graph, i1Ti2_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
         )
+        tracks2d_graph = dask.delayed(get_2d_tracks)(viewgraph_v_corr_idxs_graph, keypoints_graph)
 
-        wti_graph, ta_metrics = self.trans_avg_module.create_computation_graph(
+        wTi_graph, ta_metrics = self.trans_avg_module.create_computation_graph(
             num_images,
             pruned_i2Ui1_graph,
             delayed_wRi,
+            tracks2d_graph,
+            all_intrinsics,
             absolute_pose_priors,
             relative_pose_priors,
             gt_wTi_list=gt_wTi_list,
         )
-        init_cameras_graph = dask.delayed(init_cameras)(delayed_wRi, wti_graph, all_intrinsics)
+        init_cameras_graph = dask.delayed(init_cameras)(wTi_graph, all_intrinsics)
 
         ba_input_graph, data_assoc_metrics_graph = self.data_association_module.create_computation_graph(
             num_images,
             init_cameras_graph,
-            viewgraph_v_corr_idxs_graph,
-            keypoints_graph,
+            tracks2d_graph,
             cameras_gt,
             relative_pose_priors,
             images_graph,
@@ -138,15 +144,13 @@ class MultiViewOptimizer:
 
 
 def init_cameras(
-    wRi_list: List[Optional[Rot3]],
-    wti_list: List[Optional[Point3]],
+    wTi_list: List[Optional[Pose3]],
     intrinsics_list: List[gtsfm_types.CALIBRATION_TYPE],
 ) -> Dict[int, gtsfm_types.CAMERA_TYPE]:
     """Generate camera from valid rotations and unit-translations.
 
     Args:
-        wRi_list: rotations for cameras.
-        wti_list: translations for cameras.
+        wTi_list: estimated global poses for cameras.
         intrinsics_list: intrinsics for cameras.
 
     Returns:
@@ -155,8 +159,15 @@ def init_cameras(
     cameras = {}
 
     camera_class = gtsfm_types.get_camera_class_for_calibration(intrinsics_list[0])
-    for idx, (wRi, wti) in enumerate(zip(wRi_list, wti_list)):
-        if wRi is not None and wti is not None:
-            cameras[idx] = camera_class(Pose3(wRi, wti), intrinsics_list[idx])
+    for idx, (wTi) in enumerate(wTi_list):
+        if wTi is not None:
+            cameras[idx] = camera_class(wTi, intrinsics_list[idx])
 
     return cameras
+
+
+def get_2d_tracks(
+    corr_idxs_dict: Dict[Tuple[int, int], np.ndarray], keypoints_list: List[Keypoints]
+) -> List[SfmTrack2d]:
+    tracks_estimator = DsfTracksEstimator()
+    return tracks_estimator.run(corr_idxs_dict, keypoints_list)

@@ -1,6 +1,6 @@
 name: GTSFM Wheel Builder CI
 
-on: [push, pull_request]
+on: [pull_request, workflow_dispatch]
 
 jobs:
   test_and_build:
@@ -18,7 +18,7 @@ jobs:
         shell: bash -l {0}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3.2.0
       - uses: conda-incubator/setup-miniconda@v2
         with:
           mamba-version: "*"

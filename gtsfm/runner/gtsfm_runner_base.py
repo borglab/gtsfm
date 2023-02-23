@@ -37,6 +37,8 @@ class GtsfmRunnerBase:
         self._tag: str = tag
         argparser: argparse.ArgumentParser = self.construct_argparser()
         self.parsed_args: argparse.Namespace = argparser.parse_args()
+        if self.parsed_args.dask_tmpdir:
+            dask.config.set({'temporary_directory': DEFAULT_OUTPUT_ROOT / self.parsed_args.dask_tmpdir})
 
         self.loader: LoaderBase = self.construct_loader()
         self.retriever = self.construct_retriever()
@@ -111,12 +113,19 @@ class GtsfmRunnerBase:
         parser.add_argument(
             "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras"
         )
+        parser.add_argument("--mvs_off", action="store_true", help="Turn off dense MVS reconstruction")
         parser.add_argument(
             "--output_root",
             type=str,
             default=DEFAULT_OUTPUT_ROOT,
             help="Root directory. Results, plots and metrics will be stored in subdirectories,"
             " e.g. {output_root}/results",
+        )
+        parser.add_argument(
+            "--dask_tmpdir",
+            type=str,
+            default=None,
+            help="tmp directory for dask workers, uses dask's default (/tmp) if not set",
         )
         return parser
 
@@ -157,6 +166,9 @@ class GtsfmRunnerBase:
                 )
                 logger.info("\n\nVerifier override: " + OmegaConf.to_yaml(verifier_cfg))
                 scene_optimizer.two_view_estimator._verifier: VerifierBase = instantiate(verifier_cfg.verifier)
+
+        if self.parsed_args.mvs_off:
+            scene_optimizer.run_dense_optimizer = False
 
         logger.info("\n\nSceneOptimizer: " + str(scene_optimizer))
         return scene_optimizer
