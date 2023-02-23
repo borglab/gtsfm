@@ -111,7 +111,6 @@ class NetVLAD(nn.Module):
             self.whiten = nn.Linear(self.netvlad.output_dim, 4096)
 
         # Parse MATLAB weights using https://github.com/uzh-rpg/netvlad_tf_open
-        print("loading ", checkpoint)
         mat = scipy.io.loadmat(checkpoint, struct_as_record=False, squeeze_me=True)
 
         # CNN weights.
