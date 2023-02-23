@@ -1,0 +1,21 @@
+data_name: 'tat'
+data_list: ['Ignatius', 'Barn', 'Caterpillar', 'Church', 'Courthouse', 'Meetingroom', 'Truck']
+data_root: '/local/Tanks_and_Temples'
+dump_root: '/local/Tanks_and_Temples'
+truncate: [0, null]
+model_path: 'pretrained/aslfeat/model.ckpt-380000'
+overwrite: true
+net:
+  max_dim: 2048
+  config:
+    kpt_n: 10000
+    kpt_refinement: true
+    deform_desc: 1
+    score_thld: 0.5
+    edge_thld: 10
+    multi_scale: true
+    multi_level: true
+    nms_size: 3
+    eof_mask: 5
+    need_norm: true
+    use_peakiness: true
