@@ -19,7 +19,7 @@ from torch import Tensor
 
 logger = logging.getLogger(__name__)
 
-# path to /thirdparty/netvlad/weights/{CHECKPOINT}.mat
+# path to /thirdparty/hloc/weights/{CHECKPOINT}.mat
 netvlad_path = Path(__file__).resolve().parent / "weights"
 
 EPS = 1e-6
@@ -111,6 +111,7 @@ class NetVLAD(nn.Module):
             self.whiten = nn.Linear(self.netvlad.output_dim, 4096)
 
         # Parse MATLAB weights using https://github.com/uzh-rpg/netvlad_tf_open
+        print("loading ", checkpoint)
         mat = scipy.io.loadmat(checkpoint, struct_as_record=False, squeeze_me=True)
 
         # CNN weights.

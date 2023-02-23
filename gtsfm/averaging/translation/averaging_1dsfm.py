@@ -438,7 +438,7 @@ class TranslationAveraging1DSFM(TranslationAveragingBase):
         absolute_pose_priors: List[Optional[PosePrior]] = [],
         i2Ti1_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
-        gt_wTi_list: List[Optional[Pose3]] = None,
+        gt_wTi_list: List[Optional[Pose3]] = [],
     ) -> Tuple[List[Optional[Pose3]], Optional[GtsfmMetricsGroup]]:
         """Run the translation averaging.
 
