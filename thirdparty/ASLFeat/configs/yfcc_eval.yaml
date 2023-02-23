@@ -1,0 +1,23 @@
+data_name: 'yfcc'
+data_split: ['train', 'val', 'test']
+data_root: '/local/yfcc100m'
+dump_root: '/local/yfcc100m'
+truncate: [0, null]
+model_path: 'pretrained/aslfeat/model.ckpt-380000'
+overwrite: true
+net:
+  max_dim: 2048
+  config:
+    kpt_n: 4000
+    kpt_refinement: true
+    deform_desc: 1
+    score_thld: 0.5
+    edge_thld: 10
+    multi_scale: true
+    multi_level: true
+    nms_size: 3
+    eof_mask: 5
+    need_norm: true
+    use_peakiness: true
+post_format:
+  suffix: '.numkp4000.aslfeat.h5'

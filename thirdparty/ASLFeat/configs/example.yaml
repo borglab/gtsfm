@@ -1,0 +1,45 @@
+# Dataset name (case-sensitive). To create a new dataset, you will need to 
+data_name: '<dataset-name>'
+# A list of data splits. helpful when dataset has multiple splits or sequences, 
+# e.g., 'train', 'test', 'val' for YFCC.
+data_split: ['<data-split0>', ..., '<data-splitN>']
+data_root: '<data-root-path>'
+# The output folder of extracted features.
+dump_root: '<dump-root-path>'
+# By default, all dataset images will be processed ([0, null]). To perform on only several images,
+# for example, set it to [0, 10] for the first ten images.
+truncate: [0, null]
+# Pretrained model path.
+model_path: 'pretrained/aslfeat/model.ckpt-380000'
+# Configuration of the network.
+net:
+  # The max dimension of input images (images exceeded it will be down-sized).
+  max_dim: 1024
+  # Configuration of the keypoint detection.
+  config:
+    # The maximum number of keypoints.
+    kpt_n: 10000
+    # Whether to enable sub-pixel refinement.
+    kpt_refinement: true
+    # Whether to enable DCN.
+    deform_desc: 1
+    # The threshold of detection score.
+    score_thld: 0.5
+    # The threshold of detection edgeness.
+    edge_thld: 10
+    # Whether to enable multi-scale detection.
+    multi_scale: false
+    # Whether to enable multi-level detection.
+    multi_level: true
+    # The window size for applying non-maximum suppression.
+    nms_size: 3
+    # The size for masking end-of-frame pixels.
+    eof_mask: 5
+    # Whether to apply instance normalization before calculation detection score.
+    need_norm: true
+    # Whether to use peakiness for measuring detection score.
+    use_peakiness: true
+# Configuration of formatted file generation.
+post_format:
+  # The suffix of saved files.
+  suffix: '.aslfeat'

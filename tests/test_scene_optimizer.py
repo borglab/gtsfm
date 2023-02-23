@@ -42,7 +42,6 @@ class TestSceneOptimizer(unittest.TestCase):
             # create dask client
             cluster = LocalCluster(n_workers=1, threads_per_worker=4)
 
-            matching_regime = ImageMatchingRegime.EXHAUSTIVE
             retriever = ExhaustiveRetriever()
 
             pairs_graph = retriever.create_computation_graph(self.loader)

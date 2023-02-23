@@ -1,0 +1,23 @@
+data_name: 'aachen'
+data_split: ['db', 'query/night/nexus5x', 'query/day/nexus4', 'query/day/nexus5x', 'query/day/milestone']
+data_root: '/local/Aachen_Day-Night'
+dump_root:
+truncate: [0, null]
+model_path: 'pretrained/aslfeat/model.ckpt-380000'
+overwrite: true
+net:
+  max_dim: 2048
+  config:
+    kpt_n: 10000
+    kpt_refinement: true
+    deform_desc: 1
+    score_thld: 0.5
+    edge_thld: 10
+    multi_scale: false
+    multi_level: true
+    nms_size: 3
+    eof_mask: 5
+    need_norm: true
+    use_peakiness: true
+post_format:
+  suffix: '.aslfeat'
