@@ -76,7 +76,6 @@ class TestSceneOptimizer(unittest.TestCase):
                 relative_pose_priors=self.loader.get_relative_pose_priors(image_pair_indices),
                 cameras_gt=self.loader.get_gt_cameras(),
                 gt_wTi_list=self.loader.get_gt_poses(),
-                matching_regime=ImageMatchingRegime(matching_regime),
             )
 
             with Client(cluster):

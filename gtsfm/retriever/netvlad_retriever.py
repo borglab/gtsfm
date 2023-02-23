@@ -42,7 +42,7 @@ class SubBlockSimilarityResult:
 
 
 class NetVLADRetriever(RetrieverBase):
-    def __init__(self, num_matched: int, min_score: float = 0.1, blocksize: int = 10) -> None:
+    def __init__(self, num_matched: int, min_score: float = 0.1, blocksize: int = 50) -> None:
         """
         Args:
             num_matched: number of K potential matches to provide per query. These are the top "K" matches per query.
