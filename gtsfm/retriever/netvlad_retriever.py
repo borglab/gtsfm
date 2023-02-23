@@ -23,7 +23,7 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.frontend.cacher.global_descriptor_cacher import GlobalDescriptorCacher
 from gtsfm.frontend.global_descriptor.netvlad_global_descriptor import NetVLADGlobalDescriptor
 from gtsfm.loader.loader_base import LoaderBase
-from gtsfm.retriever.retriever_base import RetrieverBase
+from gtsfm.retriever.retriever_base import RetrieverBase, ImageMatchingRegime
 
 logger = logger_utils.get_logger()
 
@@ -42,16 +42,17 @@ class SubBlockSimilarityResult:
 
 
 class NetVLADRetriever(RetrieverBase):
-    def __init__(self, num_matched: int, blocksize: int = 50) -> None:
+    def __init__(self, num_matched: int, min_score: float = 0.1, blocksize: int = 10) -> None:
         """
         Args:
             num_matched: number of K potential matches to provide per query. These are the top "K" matches per query.
             blocksize: size of matching sub-blocks when creating similarity matrix.
         """
+        super().__init__(matching_regime=ImageMatchingRegime.RETRIEVAL)
         self._num_matched = num_matched
         self._global_descriptor_model = GlobalDescriptorCacher(global_descriptor_obj=NetVLADGlobalDescriptor())
         self._blocksize = blocksize
-        self._min_score = 0.1
+        self._min_score = min_score
 
     def create_computation_graph(self, loader: LoaderBase) -> Delayed:
         """Compute potential image pairs.

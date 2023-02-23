@@ -8,7 +8,7 @@ from typing import List, Tuple
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.loader.loader_base import LoaderBase
-from gtsfm.retriever.retriever_base import RetrieverBase
+from gtsfm.retriever.retriever_base import RetrieverBase, ImageMatchingRegime
 
 logger = logger_utils.get_logger()
 
@@ -19,6 +19,7 @@ class SequentialRetriever(RetrieverBase):
         Args:
             max_frame_lookahead: maximum number of consecutive frames to consider for matching/co-visibility.
         """
+        super().__init__(matching_regime=ImageMatchingRegime.SEQUENTIAL)
         self._max_frame_lookahead = max_frame_lookahead
 
     def run(self, loader: LoaderBase) -> List[Tuple[int, int]]:

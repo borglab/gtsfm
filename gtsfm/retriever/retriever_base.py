@@ -26,6 +26,13 @@ class ImageMatchingRegime(str, Enum):
 class RetrieverBase(GTSFMProcess):
     """Base class for image retriever implementations."""
 
+    def __init__(self, matching_regime: ImageMatchingRegime) -> None:
+        """
+        Args:
+            matching_regime: identifies type of matching used for image retrieval.
+        """
+        self.matching_regime = matching_regime
+
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display node and edge info for this process in the process graph."""
 

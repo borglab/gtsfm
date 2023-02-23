@@ -5,6 +5,11 @@ SceneOptimizer:
   save_3d_viz: True
   pose_angular_error_thresh: 5 # degrees
 
+  retriever:
+    _target_: gtsfm.retriever.netvlad_retriever.NetVLADRetriever
+    num_matched: 5
+    min_score: 0.5
+
   correspondence_generator:
     _target_: gtsfm.frontend.correspondence_generator.det_desc_correspondence_generator.DetDescCorrespondenceGenerator
 

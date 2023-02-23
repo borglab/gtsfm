@@ -10,7 +10,7 @@ import dask
 import gtsfm.utils.logger as logger_utils
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.retriever.netvlad_retriever import NetVLADRetriever
-from gtsfm.retriever.retriever_base import RetrieverBase
+from gtsfm.retriever.retriever_base import RetrieverBase, ImageMatchingRegime
 from gtsfm.retriever.sequential_retriever import SequentialRetriever
 
 logger = logger_utils.get_logger()
@@ -25,6 +25,7 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
             num_matched: number of K potential matches to provide per query. These are the top "K" matches per query.
             max_frame_lookahead: maximum number of consecutive frames to consider for matching/co-visibility.
         """
+        super().__init__(matching_regime=ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL)
         self._num_matched = num_matched
         self._similarity_retriever = NetVLADRetriever(num_matched=num_matched)
         self._seq_retriever = SequentialRetriever(max_frame_lookahead=max_frame_lookahead)

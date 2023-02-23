@@ -60,7 +60,7 @@ class GtsfmRunnerAstrovisionLoader(GtsfmRunnerBase):
         )
 
         with Client(cluster) as client, performance_report(filename="dask-report.html"):
-            pairs_graph = self.retriever.create_computation_graph(self.loader)
+            pairs_graph = self.scene_optimizer.retriever.create_computation_graph(self.loader)
             image_pair_indices = pairs_graph.compute()
 
             (
@@ -89,7 +89,6 @@ class GtsfmRunnerAstrovisionLoader(GtsfmRunnerBase):
                 absolute_pose_priors=self.loader.get_absolute_pose_priors(),
                 cameras_gt=self.loader.get_gt_cameras(),
                 gt_wTi_list=self.loader.get_gt_poses(),
-                matching_regime=ImageMatchingRegime(self.parsed_args.matching_regime),
                 gt_scene_mesh=gt_scene_trimesh_future,
             )
 
