@@ -51,7 +51,7 @@ DEFAULT_CONFIG = {
 
 
 class ASLFeatDetectorDescriptor(DetectorDescriptorBase):
-    """D2-Net detector descriptor."""
+    """ASLFeat detector-descriptor."""
 
     def __init__(
         self,
@@ -59,11 +59,7 @@ class ASLFeatDetectorDescriptor(DetectorDescriptorBase):
         model_path: str = DEFAULT_MODEL_PATH,
         model_config: Dict[str, Any] = DEFAULT_CONFIG,
     ) -> None:
-        """Instantiate parameters and hardware settings for D2-Net detector-descriptor.
-
-        We set the maximum number of keypoints, set the path to pre-trained weights, and determine whether
-        CUDA enabled devices can be utilized for inference.
-        """
+        """Instantiate parameters and hardware settings for ASLFeat detector-descriptor."""
         super().__init__()
         self.max_keypoints = max_keypoints
         self.model_path = model_path
@@ -71,9 +67,6 @@ class ASLFeatDetectorDescriptor(DetectorDescriptorBase):
 
     def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
         """Extract keypoints and their corresponding descriptors.
-
-        Adapted from:
-        https://github.com/mihaidusmanu/d2-net/blob/master/extract_features.py
 
         Args:
             image: the input image.
@@ -89,13 +82,6 @@ class ASLFeatDetectorDescriptor(DetectorDescriptorBase):
         image_tensor = image_utils.rgb_to_gray_cv(image).value_array[..., None]
 
         # Compute features.
-        print(image_tensor.shape)
         descriptors, keypoints, scores = model.run_test_data(image_tensor)
 
         return Keypoints(coordinates=keypoints, responses=scores.squeeze()), descriptors
-
-
-def get_scope_variable(scope, var, shape=None):
-    with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
-        v = tf.get_variable(var, shape)
-    return v

@@ -67,7 +67,6 @@ class FeatModel(BaseModel):
 
     def _construct_network(self):
         ph_imgs = tf.compat.v1.placeholder(dtype=tf.float32, shape=(None, None, None, 1), name="input")
-        print(ph_imgs)
         mean, variance = tf.nn.moments(tf.cast(ph_imgs, tf.float32), axes=[1, 2], keepdims=True)
         norm_input = tf.nn.batch_normalization(ph_imgs, mean, variance, None, None, 1e-5)
         config_dict = {"det_config": self.config["config"]}
