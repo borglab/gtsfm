@@ -271,6 +271,7 @@ class LoaderBase(GTSFMProcess):
         N = len(self)
         return [dask.delayed(self.get_image)(i) for i in range(N)]
 
+    # change name to create_computation_graph_for_intrinsics?
     def get_all_intrinsics(self) -> List[Optional[gtsfm_types.CALIBRATION_TYPE]]:
         """Return all the camera intrinsics.
 
@@ -278,7 +279,7 @@ class LoaderBase(GTSFMProcess):
             list of camera intrinsics.
         """
         N = len(self)
-        return [self.get_camera_intrinsics(i) for i in range(N)]
+        return [dask.delayed(self.get_camera_intrinsics)(i) for i in range(N)]
 
     def get_gt_poses(self) -> List[Optional[Pose3]]:
         """Return all the camera poses.
@@ -289,6 +290,7 @@ class LoaderBase(GTSFMProcess):
         N = len(self)
         return [self.get_camera_pose(i) for i in range(N)]
 
+    # change name to create_computation_graph_for_gt_cameras?
     def get_gt_cameras(self) -> List[Optional[gtsfm_types.CAMERA_TYPE]]:
         """Return all the cameras.
 
@@ -296,8 +298,9 @@ class LoaderBase(GTSFMProcess):
             List of ground truth cameras, if available.
         """
         N = len(self)
-        return [self.get_camera(i) for i in range(N)]
+        return [dask.delayed(self.get_camera)(i) for i in range(N)]
 
+    # change name to create_computation_graph_for_image_shapes?
     def get_image_shapes(self) -> List[Tuple[int, int]]:
         """Return all the image shapes.
 
@@ -305,7 +308,7 @@ class LoaderBase(GTSFMProcess):
             list of delayed tasks for image shapes.
         """
         N = len(self)
-        return [self.get_image_shape(i) for i in range(N)]
+        return [dask.delayed(self.get_image_shape)(i) for i in range(N)]
 
     def get_valid_pairs(self) -> List[Tuple[int, int]]:
         """Get the valid pairs of images for this loader.
