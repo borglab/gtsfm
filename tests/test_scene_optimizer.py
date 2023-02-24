@@ -16,7 +16,6 @@ import gtsfm.utils.geometry_comparisons as comp_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.retriever.exhaustive_retriever import ExhaustiveRetriever
-from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.scene_optimizer import SceneOptimizer
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent / "data"
