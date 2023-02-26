@@ -59,6 +59,8 @@ class LoaderBase(GTSFMProcess):
         """
         The number of images in the dataset.
 
+        Note: length should be found without loading images into memory.
+
         Returns:
             the number of images.
         """
@@ -274,6 +276,8 @@ class LoaderBase(GTSFMProcess):
     def get_all_intrinsics(self) -> List[Optional[gtsfm_types.CALIBRATION_TYPE]]:
         """Return all the camera intrinsics.
 
+        Note: use create_computation_graph_for_intrinsics when calling from runners.
+
         Returns:
             list of camera intrinsics.
         """
@@ -301,6 +305,8 @@ class LoaderBase(GTSFMProcess):
     def get_gt_cameras(self) -> List[Optional[gtsfm_types.CAMERA_TYPE]]:
         """Return all the cameras.
 
+        Note: use create_computation_graph_for_gt_cameras when calling from runners.
+
         Returns:
             List of ground truth cameras, if available.
         """
@@ -318,6 +324,8 @@ class LoaderBase(GTSFMProcess):
 
     def get_image_shapes(self) -> List[Tuple[int, int]]:
         """Return all the image shapes.
+
+        Note: use create_computation_graph_for_image_shapes when calling from runners.
 
         Returns:
             list of delayed tasks for image shapes.
