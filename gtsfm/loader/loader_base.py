@@ -284,7 +284,7 @@ class LoaderBase(GTSFMProcess):
         N = len(self)
         return [self.get_camera_intrinsics(i) for i in range(N)]
 
-    def create_computation_graph_for_intrinsics(self) -> List[Delayed]:
+    def __create_computation_graph_for_intrinsics(self) -> List[Delayed]:
         """Creates the computation graph for camera intrinsics.
 
         Returns:
@@ -313,7 +313,7 @@ class LoaderBase(GTSFMProcess):
         N = len(self)
         return [self.get_camera(i) for i in range(N)]
 
-    def create_computation_graph_for_gt_cameras(self) -> List[Delayed]:
+    def __create_computation_graph_for_gt_cameras(self) -> List[Delayed]:
         """Return the computation graph for all cameras.
 
         Returns:
@@ -333,7 +333,7 @@ class LoaderBase(GTSFMProcess):
         N = len(self)
         return [self.get_image_shape(i) for i in range(N)]
 
-    def create_computation_graph_for_image_shapes(self) -> List[Delayed]:
+    def __create_computation_graph_for_image_shapes(self) -> List[Delayed]:
         N = len(self)
         return [dask.delayed(self.get_image_shape)(i) for i in range(N)]
 
