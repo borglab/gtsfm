@@ -41,13 +41,11 @@ def run_frontend(
     image_pair_indices = loader.get_valid_pairs()
     camera_intrinsics_graph = loader.create_computation_graph_for_intrinsics()
     image_shapes_graph = loader.create_computation_graph_for_image_shapes()
-    
-    [image_shapes] = dask.compute(image_shapes_graph)
-    [camera_intrinsics] = dask.compute(camera_intrinsics_graph)
 
+    # TODO(stepanyanhayk) change function signature to only accept delayed objects
     (delayed_keypoints, delayed_putative_corr_idxs_dict,) = correspondence_generator.create_computation_graph(
         delayed_images=loader.create_computation_graph_for_images(),
-        image_shapes=image_shapes,
+        image_shapes=image_shapes_graph,
         image_pair_indices=image_pair_indices,
     )
 
@@ -64,10 +62,10 @@ def run_frontend(
             keypoints_i1_graph=keypoints_list[i1],
             keypoints_i2_graph=keypoints_list[i2],
             putative_corr_idxs_graph=putative_corr_idxs_dict[i1, i2],
-            camera_intrinsics_i1=camera_intrinsics[i1],
-            camera_intrinsics_i2=camera_intrinsics[i2],
-            im_shape_i1=image_shapes[i1],
-            im_shape_i2=image_shapes[i2],
+            camera_intrinsics_i1=camera_intrinsics_graph[i1],
+            camera_intrinsics_i2=camera_intrinsics_graph[i2],
+            im_shape_i1=image_shapes_graph[i1],
+            im_shape_i2=image_shapes_graph[i2],
         )
 
         # Store results.
