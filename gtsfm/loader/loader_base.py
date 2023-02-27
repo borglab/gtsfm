@@ -273,7 +273,7 @@ class LoaderBase(GTSFMProcess):
         N = len(self)
         return [dask.delayed(self.get_image)(i) for i in range(N)]
 
-    def get_all_intrinsics(self) -> List[Optional[gtsfm_types.CALIBRATION_TYPE]]:
+    def __get_all_intrinsics(self) -> List[Optional[gtsfm_types.CALIBRATION_TYPE]]:
         """Return all the camera intrinsics.
 
         Note: use create_computation_graph_for_intrinsics when calling from runners.
@@ -284,7 +284,7 @@ class LoaderBase(GTSFMProcess):
         N = len(self)
         return [self.get_camera_intrinsics(i) for i in range(N)]
 
-    def __create_computation_graph_for_intrinsics(self) -> List[Delayed]:
+    def create_computation_graph_for_intrinsics(self) -> List[Delayed]:
         """Creates the computation graph for camera intrinsics.
 
         Returns:
@@ -302,7 +302,7 @@ class LoaderBase(GTSFMProcess):
         N = len(self)
         return [self.get_camera_pose(i) for i in range(N)]
 
-    def get_gt_cameras(self) -> List[Optional[gtsfm_types.CAMERA_TYPE]]:
+    def __get_gt_cameras(self) -> List[Optional[gtsfm_types.CAMERA_TYPE]]:
         """Return all the cameras.
 
         Note: use create_computation_graph_for_gt_cameras when calling from runners.
@@ -313,7 +313,7 @@ class LoaderBase(GTSFMProcess):
         N = len(self)
         return [self.get_camera(i) for i in range(N)]
 
-    def __create_computation_graph_for_gt_cameras(self) -> List[Delayed]:
+    def create_computation_graph_for_gt_cameras(self) -> List[Delayed]:
         """Return the computation graph for all cameras.
 
         Returns:
@@ -322,7 +322,7 @@ class LoaderBase(GTSFMProcess):
         N = len(self)
         return [dask.delayed(self.get_camera)(i) for i in range(N)]
 
-    def get_image_shapes(self) -> List[Tuple[int, int]]:
+    def __get_image_shapes(self) -> List[Tuple[int, int]]:
         """Return all the image shapes.
 
         Note: use create_computation_graph_for_image_shapes when calling from runners.
@@ -333,7 +333,7 @@ class LoaderBase(GTSFMProcess):
         N = len(self)
         return [self.get_image_shape(i) for i in range(N)]
 
-    def __create_computation_graph_for_image_shapes(self) -> List[Delayed]:
+    def create_computation_graph_for_image_shapes(self) -> List[Delayed]:
         N = len(self)
         return [dask.delayed(self.get_image_shape)(i) for i in range(N)]
 
