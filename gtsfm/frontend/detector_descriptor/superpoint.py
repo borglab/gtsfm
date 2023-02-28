@@ -10,7 +10,7 @@ References:
 Authors: Ayush Baid
 """
 from pathlib import Path
-from typing import Tuple, Union
+from typing import Tuple, Union, Any, Optional
 
 import numpy as np
 import torch
@@ -44,17 +44,21 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
         self._use_cuda = use_cuda and torch.cuda.is_available()
         self._config = {"weights_path": weights_path}
 
-    def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
-        """Jointly generate keypoint detections and their associated descriptors from a single image."""
-        # TODO(ayushbaid): fix inference issue #110
-        device = torch.device("cuda" if self._use_cuda else "cpu")
-        model = SuperPoint(self._config).to(device)
+    def get_model(self) -> Optional[Any]:
+        model = SuperPoint(self._config).cpu()
         model.eval()
+
+        return model
+
+    def detect_and_describe(self, image: Image, model: Optional[Any] = None) -> Tuple[Keypoints, np.ndarray]:
+        """Jointly generate keypoint detections and their associated descriptors from a single image."""
+        # TODO(ayushbaid): Assert type of the model
+        assert model is not None
 
         # Compute features.
         image_tensor = torch.from_numpy(
             np.expand_dims(image_utils.rgb_to_gray_cv(image).value_array.astype(np.float32) / 255.0, (0, 1))
-        ).to(device)
+        )
         with torch.no_grad():
             model_results = model({"image": image_tensor})
         torch.cuda.empty_cache()

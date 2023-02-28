@@ -4,7 +4,7 @@ Authors: Ayush Baid
 """
 
 import abc
-from typing import Tuple
+from typing import Optional, Any, Tuple
 
 import dask
 import numpy as np
@@ -41,9 +41,18 @@ class DetectorDescriptorBase(GTSFMProcess):
             max_keypoints: Maximum number of keypoints to detect. Defaults to 5000.
         """
         self.max_keypoints = max_keypoints
+        self._delayed_model: Optional[Delayed] = None
+
+    def get_model(self) -> Optional[Any]:
+        """Return any model required by `detect_and_describe`.
+
+        Returns:
+            The model, if required. None otherwise
+        """
+        return None
 
     @abc.abstractmethod
-    def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
+    def detect_and_describe(self, image: Image, model: Optional[Any] = None) -> Tuple[Keypoints, np.ndarray]:
         """Perform feature detection as well as their description.
 
         Refer to detect() in DetectorBase and describe() in DescriptorBase for
@@ -51,6 +60,7 @@ class DetectorDescriptorBase(GTSFMProcess):
 
         Args:
             image: the input image.
+            model: any model/object required for the algorithm.
 
         Returns:
             Detected keypoints, with length N <= max_keypoints.
@@ -67,6 +77,11 @@ class DetectorDescriptorBase(GTSFMProcess):
             Delayed tasks for detections.
             Delayed task for corr. descriptors.
         """
-        keypoints_graph, descriptor_graph = dask.delayed(self.detect_and_describe, nout=2)(image_graph)
+        if self._delayed_model is None:
+            self._delayed_model = dask.delayed(self.get_model)()
+
+        keypoints_graph, descriptor_graph = dask.delayed(self.detect_and_describe, nout=2)(
+            image_graph, self._delayed_model
+        )
 
         return keypoints_graph, descriptor_graph
