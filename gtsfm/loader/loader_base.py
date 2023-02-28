@@ -272,10 +272,8 @@ class LoaderBase(GTSFMProcess):
             list of delayed tasks for images.
         """
         N = len(self)
-        if self.input_worker:
-            with dask.annotate(workers=self.input_worker):
-                delayed_images = [dask.delayed(self.get_image)(i) for i in range(N)]
-        else:
+        annotatation = dask.annotate(workers=self.input_worker) if self.input_worker else dask.annotate()
+        with annotatation:
             delayed_images = [dask.delayed(self.get_image)(i) for i in range(N)]
         return delayed_images
 
@@ -297,10 +295,8 @@ class LoaderBase(GTSFMProcess):
             list of delayed tasks for camera intrinsics.
         """
         N = len(self)
-        if self.input_worker:
-            with dask.annotate(workers=self.input_worker):
-                delayed_intrinsics = [dask.delayed(self.get_camera_intrinsics)(i) for i in range(N)]
-        else:
+        annotatation = dask.annotate(workers=self.input_worker) if self.input_worker else dask.annotate()
+        with annotatation:
             delayed_intrinsics = [dask.delayed(self.get_camera_intrinsics)(i) for i in range(N)]
         return delayed_intrinsics
 
@@ -331,10 +327,8 @@ class LoaderBase(GTSFMProcess):
             list of delayed tasks for ground truth cameras
         """
         N = len(self)
-        if self.input_worker:
-            with dask.annotate(workers=self.input_worker):
-                delayed_cameras = [dask.delayed(self.get_camera)(i) for i in range(N)]
-        else:
+        annotatation = dask.annotate(workers=self.input_worker) if self.input_worker else dask.annotate()
+        with annotatation:
             delayed_cameras = [dask.delayed(self.get_camera)(i) for i in range(N)]
         return delayed_cameras
 
@@ -351,10 +345,8 @@ class LoaderBase(GTSFMProcess):
 
     def create_computation_graph_for_image_shapes(self) -> List[Delayed]:
         N = len(self)
-        if self.input_worker:
-            with dask.annotate(workers=self.input_worker):
-                delayed_shapes = [dask.delayed(self.get_image_shape)(i) for i in range(N)]
-        else:
+        annotatation = dask.annotate(workers=self.input_worker) if self.input_worker else dask.annotate()
+        with annotatation:
             delayed_shapes = [dask.delayed(self.get_image_shape)(i) for i in range(N)]
         return delayed_shapes
 
