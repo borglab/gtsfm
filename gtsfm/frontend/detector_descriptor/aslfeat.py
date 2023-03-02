@@ -34,7 +34,7 @@ DEFAULT_CONFIG = {
     "net": {
         "max_dim": 2048,
         "config": {
-            "kpt_n": 5000,
+            "kpt_n": 8000,
             "kpt_refinement": True,
             "deform_desc": 1,
             "score_thld": 0.5,
@@ -83,5 +83,13 @@ class ASLFeatDetectorDescriptor(DetectorDescriptorBase):
 
         # Compute features.
         descriptors, keypoints, scores = model.run_test_data(image_tensor)
+        keypoints = Keypoints(coordinates=keypoints, responses=scores.squeeze())
 
-        return Keypoints(coordinates=keypoints, responses=scores.squeeze()), descriptors
+        # Filter features.
+        if image.mask is not None:
+            keypoints, valid_idxs = keypoints.filter_by_mask(image.mask)
+            descriptors = descriptors[valid_idxs]
+        keypoints, selection_idxs = keypoints.get_top_k(self.max_keypoints)
+        descriptors = descriptors[selection_idxs]
+
+        return keypoints, descriptors

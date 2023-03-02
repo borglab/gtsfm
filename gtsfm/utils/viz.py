@@ -77,6 +77,7 @@ def draw_line_cv2(
     y2: int,
     line_color: Tuple[int, int, int],
     line_thickness: int = 10,
+    line_alpha: float = 0.3,
 ) -> Image:
     """Draw a line on the image from coordinates (x1, y1) to (x2, y2).
 
@@ -92,7 +93,13 @@ def draw_line_cv2(
     Returns:
         Image: image with the line drawn on it.
     """
-    return Image(cv.line(image.value_array, (x1, y1), (x2, y2), line_color, line_thickness, cv.LINE_AA))
+    if line_alpha is not None:
+        overlay = image.value_array.copy()
+        cv.line(overlay, (x1, y1), (x2, y2), line_color, line_thickness, cv.LINE_AA)
+        res = Image(cv.addWeighted(overlay, line_alpha, image.value_array, 1 - line_alpha, 0))
+    else:
+        res = Image(cv.line(image.value_array, (x1, y1), (x2, y2), line_color, line_thickness, cv.LINE_AA))
+    return res
 
 
 def plot_twoview_correspondences(
@@ -103,7 +110,7 @@ def plot_twoview_correspondences(
     corr_idxs_i1i2: np.ndarray,
     inlier_mask: Optional[np.ndarray] = None,
     dot_color: Optional[Tuple[int, int, int]] = None,
-    max_corrs: Optional[int] = 50,
+    max_corrs: Optional[int] = 5000,
 ) -> Image:
     """Plot correspondences between two images as lines between two circles.
 
