@@ -9,9 +9,6 @@ Authors: Travis Driver
 from pathlib import Path
 from typing import Tuple, Dict, Any
 import sys
-import os
-
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 import numpy as np
 import tensorflow.compat.v1 as tf
@@ -30,8 +27,8 @@ DEFAULT_MODEL_PATH = str(
     / "thirdparty"
     / "ASLFeat"
     / "weights"
-    / "aslfeatv2"
-    / "model.ckpt-60000"
+    / "aslfeat-cvgbedtrpjmou2-cleaned-open5"
+    / "model.ckpt-390000"
 )
 DEFAULT_CONFIG = {
     "net": {

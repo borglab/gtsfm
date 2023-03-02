@@ -26,7 +26,7 @@ SceneOptimizer:
     bundle_adjust_2view: True
     eval_threshold_px: 4 # in px
     ba_reproj_error_thresh: 0.5 # in px
-    bundle_adjust_2view_maxiters: 1000
+    bundle_adjust_2view_maxiters: 100
 
     verifier:
       _target_: gtsfm.frontend.verifier.ransac.Ransac
