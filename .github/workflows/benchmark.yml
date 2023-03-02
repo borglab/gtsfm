@@ -52,10 +52,6 @@ jobs:
         run: |
           bash .github/scripts/setup.sh
           conda info
-      - name: Disable CUDA for Tensorflow
-        run: echo "CUDA_VISIBLE_DEVICES='-1'" >> $GITHUB_ENV
-      - name: Test environment variable
-        run: echo $CUDA_VISIBLE_DEVICES
       - name: Prepare dataset
         run: |
           DATASET_NAME=${{ matrix.config_dataset_info[1] }}
