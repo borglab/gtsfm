@@ -273,8 +273,8 @@ class LoaderBase(GTSFMProcess):
             list of delayed tasks for images.
         """
         N = len(self)
-        annotatation = dask.annotate(workers=self._input_worker) if self._input_worker else dask.annotate()
-        with annotatation:
+        annotation = dask.annotate(workers=self._input_worker) if self._input_worker else dask.annotate()
+        with annotation:
             delayed_images = [dask.delayed(self.get_image)(i) for i in range(N)]
         return delayed_images
 
@@ -296,8 +296,8 @@ class LoaderBase(GTSFMProcess):
             list of delayed tasks for camera intrinsics.
         """
         N = len(self)
-        annotatation = dask.annotate(workers=self._input_worker) if self._input_worker else dask.annotate()
-        with annotatation:
+        annotation = dask.annotate(workers=self._input_worker) if self._input_worker else dask.annotate()
+        with annotation:
             delayed_intrinsics = [dask.delayed(self.get_camera_intrinsics)(i) for i in range(N)]
         return delayed_intrinsics
 
@@ -328,8 +328,8 @@ class LoaderBase(GTSFMProcess):
             list of delayed tasks for ground truth cameras
         """
         N = len(self)
-        annotatation = dask.annotate(workers=self._input_worker) if self._input_worker else dask.annotate()
-        with annotatation:
+        annotation = dask.annotate(workers=self._input_worker) if self._input_worker else dask.annotate()
+        with annotation:
             delayed_cameras = [dask.delayed(self.get_camera)(i) for i in range(N)]
         return delayed_cameras
 
@@ -346,8 +346,8 @@ class LoaderBase(GTSFMProcess):
 
     def create_computation_graph_for_image_shapes(self) -> List[Delayed]:
         N = len(self)
-        annotatation = dask.annotate(workers=self._input_worker) if self._input_worker else dask.annotate()
-        with annotatation:
+        annotation = dask.annotate(workers=self._input_worker) if self._input_worker else dask.annotate()
+        with annotation:
             delayed_shapes = [dask.delayed(self.get_image_shape)(i) for i in range(N)]
         return delayed_shapes
 
