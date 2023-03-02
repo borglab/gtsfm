@@ -48,12 +48,12 @@ class LoaderBase(GTSFMProcess):
         Args:
             max_resolution: integer representing maximum length of image's short side
                e.g. for 1080p (1920 x 1080), max_resolution would be 1080
-            input_worker: string representing ip address of the worker
+            input_worker: string representing ip address and the port of the worker.
         """
         if not isinstance(max_resolution, int):
             raise ValueError("Maximum image resolution must be an integer argument.")
         self._max_resolution = max_resolution
-        self.input_worker = input_worker
+        self._input_worker = input_worker
 
     # ignored-abstractmethod
     @abc.abstractmethod
@@ -273,7 +273,7 @@ class LoaderBase(GTSFMProcess):
             list of delayed tasks for images.
         """
         N = len(self)
-        annotatation = dask.annotate(workers=self.input_worker) if self.input_worker else dask.annotate()
+        annotatation = dask.annotate(workers=self._input_worker) if self._input_worker else dask.annotate()
         with annotatation:
             delayed_images = [dask.delayed(self.get_image)(i) for i in range(N)]
         return delayed_images
@@ -296,7 +296,7 @@ class LoaderBase(GTSFMProcess):
             list of delayed tasks for camera intrinsics.
         """
         N = len(self)
-        annotatation = dask.annotate(workers=self.input_worker) if self.input_worker else dask.annotate()
+        annotatation = dask.annotate(workers=self._input_worker) if self._input_worker else dask.annotate()
         with annotatation:
             delayed_intrinsics = [dask.delayed(self.get_camera_intrinsics)(i) for i in range(N)]
         return delayed_intrinsics
@@ -328,7 +328,7 @@ class LoaderBase(GTSFMProcess):
             list of delayed tasks for ground truth cameras
         """
         N = len(self)
-        annotatation = dask.annotate(workers=self.input_worker) if self.input_worker else dask.annotate()
+        annotatation = dask.annotate(workers=self._input_worker) if self._input_worker else dask.annotate()
         with annotatation:
             delayed_cameras = [dask.delayed(self.get_camera)(i) for i in range(N)]
         return delayed_cameras
@@ -346,7 +346,7 @@ class LoaderBase(GTSFMProcess):
 
     def create_computation_graph_for_image_shapes(self) -> List[Delayed]:
         N = len(self)
-        annotatation = dask.annotate(workers=self.input_worker) if self.input_worker else dask.annotate()
+        annotatation = dask.annotate(workers=self._input_worker) if self._input_worker else dask.annotate()
         with annotatation:
             delayed_shapes = [dask.delayed(self.get_image_shape)(i) for i in range(N)]
         return delayed_shapes
