@@ -212,5 +212,4 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         if self._edge_error_aggregation_criterion == EdgeErrorAggregationCriterion.MIN_EDGE_ERROR:
             return np.amin(edge_errors)
         elif self._edge_error_aggregation_criterion == EdgeErrorAggregationCriterion.MEDIAN_EDGE_ERROR:
-            print(edge_errors)
             return np.median(edge_errors)

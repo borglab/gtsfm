@@ -1,7 +1,7 @@
 SceneOptimizer:
   _target_: gtsfm.scene_optimizer.SceneOptimizer
   save_gtsfm_data: True
-  save_two_view_correspondences_viz: True
+  save_two_view_correspondences_viz: False
   save_3d_viz: True
   pose_angular_error_thresh: 15 # degrees
 
@@ -43,7 +43,7 @@ SceneOptimizer:
     _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
     view_graph_estimator:
       _target_: gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator.CycleConsistentRotationViewGraphEstimator
-      edge_error_aggregation_criterion: MIN_EDGE_ERROR
+      edge_error_aggregation_criterion: MEDIAN_EDGE_ERROR
 
     rot_avg_module:
       _target_: gtsfm.averaging.rotation.shonan.ShonanRotationAveraging
