@@ -7,7 +7,7 @@ from pathlib import Path
 
 import dask
 import hydra
-from dask.distributed import Client, LocalCluster, performance_report
+from dask.distributed import Client, LocalCluster, SSHCluster, performance_report
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
@@ -127,6 +127,19 @@ class GtsfmRunnerBase:
             default=None,
             help="tmp directory for dask workers, uses dask's default (/tmp) if not set",
         )
+        parser.add_argument(
+            "--run_cluster",
+            action="store_true",
+            default=False,
+            help="condition whether to run gtsfm on a cluster"
+        )
+        parser.add_argument(
+            "--cluster_workers",
+            default=None,
+            type=str,
+            nargs="+",
+            help="list of worker ip addresses for the cluster"
+        )
         return parser
 
     @abstractmethod
@@ -202,10 +215,22 @@ class GtsfmRunnerBase:
         """Run the SceneOptimizer."""
         start_time = time.time()
 
-        # create dask client
-        cluster = LocalCluster(
-            n_workers=self.parsed_args.num_workers, threads_per_worker=self.parsed_args.threads_per_worker
-        )
+        # create dask cluster
+        if self.parsed_args.run_cluster:
+            workers = self.parsed_args.cluster_workers
+            scheduler = workers[0]
+            cluster = SSHCluster(
+                [scheduler] + workers,
+                scheduler_options={"port": 0, "dashboard_address": ":8795"},
+                worker_options={"n_workers": self.parsed_args.num_workers}, # num workers per machine
+            )
+            self.loader._input_worker = scheduler
+        else:
+            cluster = LocalCluster(
+                n_workers=self.parsed_args.num_workers, threads_per_worker=self.parsed_args.threads_per_worker
+            )
+
+        client = Client(cluster)
 
         # create process graph
         process_graph_generator = ProcessGraphGenerator()
