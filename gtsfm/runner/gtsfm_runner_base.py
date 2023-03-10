@@ -245,7 +245,7 @@ class GtsfmRunnerBase:
         process_graph_generator.save_graph()
 
         pairs_graph = self.retriever.create_computation_graph(self.loader)
-        with Client(cluster), performance_report(filename="retriever-dask-report.html"):
+        with performance_report(filename="retriever-dask-report.html"):
             image_pair_indices = pairs_graph.compute()
 
         (
@@ -257,7 +257,7 @@ class GtsfmRunnerBase:
             image_pair_indices=image_pair_indices,
         )
 
-        with Client(cluster), performance_report(filename="correspondence-generator-dask-report.html"):
+        with performance_report(filename="correspondence-generator-dask-report.html"):
             keypoints_list, putative_corr_idxs_dict = dask.compute(delayed_keypoints, delayed_putative_corr_idxs_dict)
 
         delayed_sfm_result, delayed_io = self.scene_optimizer.create_computation_graph(
@@ -275,7 +275,7 @@ class GtsfmRunnerBase:
             matching_regime=ImageMatchingRegime(self.parsed_args.matching_regime),
         )
 
-        with Client(cluster), performance_report(filename="scene-optimizer-dask-report.html"):
+        with performance_report(filename="scene-optimizer-dask-report.html"):
             sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io)
 
         assert isinstance(sfm_result, GtsfmData)
