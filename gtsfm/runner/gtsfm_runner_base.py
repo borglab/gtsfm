@@ -224,13 +224,13 @@ class GtsfmRunnerBase:
                 scheduler_options={"port": 0, "dashboard_address": ":8795"},
                 worker_options={"n_workers": self.parsed_args.num_workers}, # num workers per machine
             )
-            self.loader._input_worker = scheduler
+            client = Client(cluster)
+            self.loader._input_worker = list(client.scheduler_info()['workers'].keys())[0]
         else:
             cluster = LocalCluster(
                 n_workers=self.parsed_args.num_workers, threads_per_worker=self.parsed_args.threads_per_worker
             )
-
-        client = Client(cluster)
+            client = Client(cluster)
 
         # create process graph
         process_graph_generator = ProcessGraphGenerator()
