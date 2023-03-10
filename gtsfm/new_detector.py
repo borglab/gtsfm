@@ -87,15 +87,15 @@ if __name__ == "__main__":
     print("Serialized detector size: {}".format(dask.utils.format_bytes(len(pickle.dumps(detector)))))
 
     # create dask client
-    cluster = LocalCluster(n_workers=1, threads_per_worker=1)
+    cluster = LocalCluster(n_workers=2, threads_per_worker=1)
 
     delayed_images = loader.create_computation_graph_for_images()
-    delayed_detector = dask.delayed(detector)
 
-    delayed_keypoints = [detect(delayed_detector, delayed_image) for delayed_image in delayed_images]
+    with Client(cluster) as client, performance_report(filename="retriever-dask-report.html"):
+        detector_future = client.scatter(detector, broadcast=True)
 
-    with Client(cluster), performance_report(filename="retriever-dask-report.html"):
-        keypoints = dask.compute(*delayed_keypoints)
+        delayed_keypoints = [detect(detector_future, delayed_image) for delayed_image in delayed_images]
+        keypoints_future = dask.compute(*delayed_keypoints)
 
-        for i, kp in enumerate(keypoints):
+        for i, kp in enumerate(keypoints_future):
             print("Idx {}: {} keypoints".format(i, len(kp)))
