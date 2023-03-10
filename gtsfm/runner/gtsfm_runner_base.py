@@ -141,7 +141,7 @@ class GtsfmRunnerBase:
             help="list of worker ip addresses for the cluster, first worker is used as scheduler and should contain the dataset",
         )
         parser.add_argument(
-            "--dashboard_address",
+            "--dashboard_port",
             type=str,
             default=":8787",
             help="dask dashboard port number",
@@ -227,7 +227,7 @@ class GtsfmRunnerBase:
             scheduler = workers[0]
             cluster = SSHCluster(
                 [scheduler] + workers,
-                scheduler_options={"dashboard_address": self.parsed_args.dashboard_address},
+                scheduler_options={"dashboard_address": self.parsed_args.dashboard_port},
                 worker_options={
                     "n_workers": self.parsed_args.num_workers,
                     "nthreads": self.parsed_args.threads_per_worker
