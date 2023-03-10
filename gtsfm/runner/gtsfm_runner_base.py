@@ -228,7 +228,10 @@ class GtsfmRunnerBase:
             cluster = SSHCluster(
                 [scheduler] + workers,
                 scheduler_options={"dashboard_address": self.parsed_args.dashboard_address},
-                worker_options={"n_workers": self.parsed_args.num_workers},
+                worker_options={
+                    "n_workers": self.parsed_args.num_workers,
+                    "nthreads": self.parsed_args.threads_per_worker
+                },
             )
             client = Client(cluster)
             self.loader._input_worker = list(client.scheduler_info()["workers"].keys())[0]
