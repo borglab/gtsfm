@@ -138,7 +138,7 @@ class GtsfmRunnerBase:
             type=str,
             default=None,
             nargs="+",
-            help="list of worker ip addresses for the cluster"
+            help="list of worker ip addresses for the cluster, first worker is used as scheduler and should contain the dataset",
         )
         parser.add_argument(
             "--dashboard_address",
