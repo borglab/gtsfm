@@ -51,26 +51,29 @@ class Image(NamedTuple):
         if self.exif_data is None or len(self.exif_data) == 0:
             return None
 
-        focal_length_mm = self.exif_data.get("FocalLength")
+        max_size = max(self.width, self.height)
 
-        if focal_length_mm is None:
-            return None
-
-        try:
-            sensor_width_mm = Image.sensor_width_db.lookup(
-                self.exif_data.get("Make"),
-                self.exif_data.get("Model"),
-            )
-        except (AttributeError, LookupError):
+        if "FocalLengthIn35mmFilm" in self.exif_data:
+            focal_length_in35mm = self.exif_data.get("FocalLengthIn35mmFilm")
+            focal_length_px = focal_length_in35mm / 35.0 * max_size
+        elif "FocalLength" in self.exif_data:
+            focal_length_mm = self.exif_data.get("FocalLength")
+            try:
+                sensor_width_mm = Image.sensor_width_db.lookup(
+                    self.exif_data.get("Make"),
+                    self.exif_data.get("Model"),
+                )
+                focal_length_px = max_size * focal_length_mm / sensor_width_mm
+            except (AttributeError, LookupError):
+                return None
+        else:
             # TODO(yanwei.du): Set a prior focal length, e.g. 1.5 * max(self.width, self.height).
             return None
 
-        img_w_px = self.width
-        img_h_px = self.height
-        focal_length_px = max(img_h_px, img_w_px) * focal_length_mm / sensor_width_mm
+        focal_length_px = max_size * focal_length_mm / sensor_width_mm
 
-        center_x = img_w_px / 2
-        center_y = img_h_px / 2
+        center_x = self.width / 2
+        center_y = self.height / 2
 
         return Cal3Bundler(
             fx=float(focal_length_px),
