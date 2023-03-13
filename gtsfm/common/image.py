@@ -70,8 +70,6 @@ class Image(NamedTuple):
             # TODO(yanwei.du): Set a prior focal length, e.g. 1.5 * max(self.width, self.height).
             return None
 
-        focal_length_px = max_size * focal_length_mm / sensor_width_mm
-
         center_x = self.width / 2
         center_y = self.height / 2
 
