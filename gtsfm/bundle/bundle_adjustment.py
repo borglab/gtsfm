@@ -260,11 +260,11 @@ class BundleAdjustmentOptimizer:
 
     def __optimize_factor_graph(self, graph: NonlinearFactorGraph, initial_values: Values) -> Values:
         """Optimize the factor graph."""
-        params = gtsam.LevenbergMarquardtParams()
-        params.setVerbosityLM("ERROR")
+        params = gtsam.GncLMParams()
+        params.setVerbosityGNC("ERROR")
         if self._max_iterations:
             params.setMaxIterations(self._max_iterations)
-        lm = gtsam.LevenbergMarquardtOptimizer(graph, initial_values, params)
+        lm = gtsam.GncLMOptimizer(graph, initial_values, params)
 
         result_values = lm.optimize()
         return result_values
