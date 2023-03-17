@@ -284,7 +284,7 @@ class GtsfmRunnerBase:
         with performance_report(filename="scene-optimizer-dask-report.html"):
             sfm_result = client.compute(delayed_sfm_result).result()
             future_io = client.compute(delayed_io)
-            io = [io_task.result() for io_task in future_io]
+            (*io, ) = [io_task.result() for io_task in future_io]
 
         assert isinstance(sfm_result, GtsfmData)
 
