@@ -262,7 +262,9 @@ class GtsfmRunnerBase:
         )
 
         with performance_report(filename="correspondence-generator-dask-report.html"):
-            keypoints_list, putative_corr_idxs_dict = dask.compute(delayed_keypoints, delayed_putative_corr_idxs_dict)
+            future_keypoints = client.compute(delayed_keypoints)
+            keypoints_list = [keypoint.result() for keypoint in future_keypoints]
+            putative_corr_idxs_dict = client.compute(delayed_putative_corr_idxs_dict).result()
 
         delayed_sfm_result, delayed_io = self.scene_optimizer.create_computation_graph(
             keypoints_list=keypoints_list,
@@ -280,7 +282,9 @@ class GtsfmRunnerBase:
         )
 
         with performance_report(filename="scene-optimizer-dask-report.html"):
-            sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io)
+            sfm_result = client.compute(delayed_sfm_result).result()
+            io_future = client.compute(delayed_io)
+            io = [io_task.result() for io_task in io_future]
 
         assert isinstance(sfm_result, GtsfmData)
 
