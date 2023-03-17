@@ -5,6 +5,7 @@ Authors: John Lambert, Ayush Baid, Akshay Krishnan
 import os
 from collections import defaultdict
 from enum import Enum
+from pathlib import Path
 from typing import Dict, List, Set, Tuple
 
 import matplotlib.pyplot as plt
@@ -25,6 +26,7 @@ ERROR_THRESHOLD = 7.0
 
 # threshold for evaluation w.r.t. GT
 MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
+DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 class EdgeErrorAggregationCriterion(str, Enum):
@@ -186,14 +188,16 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         plt.ylabel("Rotation error w.r.t GT")
         plt.axis("equal")
         plt.legend(loc="lower right")
-        plt.savefig(os.path.join("plots", f"gt_err_vs_{self._edge_error_aggregation_criterion}_agg_error.jpg"), dpi=400)
+        plt.savefig(os.path.join(
+            DEFAULT_OUTPUT_ROOT, "plots", f"gt_err_vs_{self._edge_error_aggregation_criterion}_agg_error.jpg"), dpi=400)
         plt.close("all")
 
         plt.scatter(cycle_errors, max_gt_error_in_cycle)
         plt.xlabel("Cycle error")
         plt.ylabel("Avg. Rot3 error over cycle triplet")
         plt.axis("equal")
-        plt.savefig(os.path.join("plots", "cycle_error_vs_GT_rot_error.jpg"), dpi=400)
+        plt.savefig(os.path.join(
+            DEFAULT_OUTPUT_ROOT, "plots", "cycle_error_vs_GT_rot_error.jpg"), dpi=400)
         plt.close("all")
 
     def __aggregate_errors_for_edge(self, edge_errors: List[float]) -> float:
