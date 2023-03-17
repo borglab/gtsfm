@@ -54,7 +54,7 @@ class TestSceneOptimizer(unittest.TestCase):
                 delayed_putative_corr_idxs_dict,
             ) = scene_optimizer.correspondence_generator.create_computation_graph(
                 delayed_images=self.loader.create_computation_graph_for_images(),
-                image_shapes=self.loader.get_image_shapes(),
+                image_shapes=self.loader.create_computation_graph_for_image_shapes(),
                 image_pair_indices=image_pair_indices,
             )
 
@@ -70,11 +70,11 @@ class TestSceneOptimizer(unittest.TestCase):
                 num_images=len(self.loader),
                 image_pair_indices=image_pair_indices,
                 image_graph=self.loader.create_computation_graph_for_images(),
-                all_intrinsics=self.loader.get_all_intrinsics(),
-                image_shapes=self.loader.get_image_shapes(),
+                all_intrinsics=self.loader.create_computation_graph_for_intrinsics(),
+                image_shapes=self.loader.create_computation_graph_for_image_shapes(),
                 absolute_pose_priors=self.loader.get_absolute_pose_priors(),
                 relative_pose_priors=self.loader.get_relative_pose_priors(image_pair_indices),
-                cameras_gt=self.loader.get_gt_cameras(),
+                cameras_gt=self.loader.create_computation_graph_for_gt_cameras(),
                 gt_wTi_list=self.loader.get_gt_poses(),
                 matching_regime=ImageMatchingRegime(matching_regime),
             )
