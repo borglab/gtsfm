@@ -26,7 +26,6 @@ ERROR_THRESHOLD = 7.0
 
 # threshold for evaluation w.r.t. GT
 MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
-DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 class EdgeErrorAggregationCriterion(str, Enum):
