@@ -27,6 +27,7 @@ from gtsfm.data_association.dsf_tracks_estimator import DsfTracksEstimator
 
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent.parent
 
+
 class MultiViewOptimizer:
     def __init__(
         self,
@@ -98,7 +99,13 @@ class MultiViewOptimizer:
                 viewgraph_two_view_reports_graph,
                 viewgraph_estimation_metrics,
             ) = self.view_graph_estimator.create_computation_graph(
-                i2Ri1_graph, i2Ui1_graph, all_intrinsics, v_corr_idxs_graph, keypoints_graph, two_view_reports_dict, self._plot_cycle_consist_path
+                i2Ri1_graph,
+                i2Ui1_graph,
+                all_intrinsics,
+                v_corr_idxs_graph,
+                keypoints_graph,
+                two_view_reports_dict,
+                self._plot_cycle_consist_path
             )
         else:
             viewgraph_i2Ri1_graph = dask.delayed(i2Ri1_graph)

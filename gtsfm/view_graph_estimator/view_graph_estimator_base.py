@@ -300,7 +300,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
             corr_idxs_i1i2=corr_idxs_i1i2_valid,
             keypoints=keypoints,
             two_view_reports=two_view_reports_valid,
-            debug_output_dir=debug_output_dir,
+            output_dir=debug_output_dir,
         )
 
         # Remove all edges that are not in the view graph.
