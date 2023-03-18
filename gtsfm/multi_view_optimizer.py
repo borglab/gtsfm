@@ -7,6 +7,8 @@ from typing import Dict, List, Optional, Tuple
 import dask
 import numpy as np
 from dask.delayed import Delayed
+import os
+from pathlib import Path
 from gtsam import Pose3
 
 import gtsfm.common.types as gtsfm_types
@@ -23,6 +25,7 @@ from gtsfm.two_view_estimator import TwoViewEstimationReport
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
 from gtsfm.data_association.dsf_tracks_estimator import DsfTracksEstimator
 
+DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent.parent
 
 class MultiViewOptimizer:
     def __init__(
@@ -39,6 +42,16 @@ class MultiViewOptimizer:
         self.data_association_module = data_association_module
         self.ba_optimizer = bundle_adjustment_module
         self._run_view_graph_estimator: bool = self.view_graph_estimator is not None
+        self._create_debugging_directories()
+
+    def _create_debugging_directories(self) -> None:
+        """Create output directories for GTSFM result debugging."""
+
+        self._debug_output_dir = DEFAULT_OUTPUT_ROOT / "debugging"
+        self._plot_cycle_consist_path = self._debug_output_dir / "cycle_consistency" / "plots"
+        
+        os.makedirs(self._debug_output_dir, exist_ok=True)
+        os.makedirs(self._plot_cycle_consist_path, exist_ok=True)
 
     def create_computation_graph(
         self,
@@ -85,7 +98,7 @@ class MultiViewOptimizer:
                 viewgraph_two_view_reports_graph,
                 viewgraph_estimation_metrics,
             ) = self.view_graph_estimator.create_computation_graph(
-                i2Ri1_graph, i2Ui1_graph, all_intrinsics, v_corr_idxs_graph, keypoints_graph, two_view_reports_dict
+                i2Ri1_graph, i2Ui1_graph, all_intrinsics, v_corr_idxs_graph, keypoints_graph, two_view_reports_dict, self._plot_cycle_consist_path
             )
         else:
             viewgraph_i2Ri1_graph = dask.delayed(i2Ri1_graph)

@@ -153,6 +153,7 @@ data/
 *.DS_Store
 
 # Data dumped by GTSFM directory
+debugging/
 plots/
 results/
 result_metrics/

@@ -254,6 +254,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         corr_idxs_i1i2: Dict[Tuple[int, int], Delayed],
         keypoints: List[Delayed],
         two_view_reports: Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
+        debug_output_dir: Path,
     ) -> Tuple[Delayed, Delayed, Delayed, Delayed, Delayed]:
         """Create the computation graph for ViewGraph estimation and metric evaluation.
 
@@ -266,6 +267,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
                 wrapped as Delayed.
             keypoints: keypoints for each image, wrapped as Delayed.
             two_view_reports: Dict from (i1, i2) to TwoViewEstimationReport that contains metrics, wrapped as Delayed.
+            debug_output_dir: Path to directory where outputs for debugging will be saved.
 
         Returns:
             Tuple of the following 5 elements, all wrapped as Delayed:
@@ -298,6 +300,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
             corr_idxs_i1i2=corr_idxs_i1i2_valid,
             keypoints=keypoints,
             two_view_reports=two_view_reports_valid,
+            debug_output_dir=debug_output_dir,
         )
 
         # Remove all edges that are not in the view graph.
