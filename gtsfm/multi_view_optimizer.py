@@ -43,16 +43,13 @@ class MultiViewOptimizer:
         self.data_association_module = data_association_module
         self.ba_optimizer = bundle_adjustment_module
         self._run_view_graph_estimator: bool = self.view_graph_estimator is not None
-        self._create_debugging_directories()
+        self._create_debug_directories()
 
-    def _create_debugging_directories(self) -> None:
+    def _create_debug_directories(self) -> None:
         """Create output directories for GTSFM result debugging."""
 
-        self._debug_output_dir = DEFAULT_OUTPUT_ROOT / "debugging"
-        self._plot_cycle_consist_path = self._debug_output_dir / "cycle_consistency" / "plots"
-        
+        self._debug_output_dir = DEFAULT_OUTPUT_ROOT / "debug"
         os.makedirs(self._debug_output_dir, exist_ok=True)
-        os.makedirs(self._plot_cycle_consist_path, exist_ok=True)
 
     def create_computation_graph(
         self,
@@ -105,7 +102,7 @@ class MultiViewOptimizer:
                 v_corr_idxs_graph,
                 keypoints_graph,
                 two_view_reports_dict,
-                self._plot_cycle_consist_path
+                self._debug_output_dir,
             )
         else:
             viewgraph_i2Ri1_graph = dask.delayed(i2Ri1_graph)

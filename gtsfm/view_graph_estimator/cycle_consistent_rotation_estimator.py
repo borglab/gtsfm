@@ -82,7 +82,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
         keypoints: List[Keypoints],
         two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
-        output_dir: str,
+        output_dir: Path,
     ) -> Set[Tuple[int, int]]:
         """Estimates the view graph using the rotation consistency constraint in a cycle of 3 edges.
 

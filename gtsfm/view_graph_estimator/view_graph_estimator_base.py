@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
 import dask
+import os
 import numpy as np
 from dask.delayed import Delayed
 from gtsam import Cal3Bundler, Rot3, Unit3
@@ -277,6 +278,11 @@ class ViewGraphEstimatorBase(GTSFMProcess):
             - Dict of two_view_reports in the view graph
             - GtsfmMetricsGroup with the view graph estimation metrics
         """
+
+        # create debug directory for cycle_consistency
+        self._plot_cycle_consist_path = debug_output_dir / "cycle_consistency"
+        os.makedirs(self._plot_cycle_consist_path, exist_ok=True)
+
         # Remove all invalid edges in the input dicts.
         valid_edges = dask.delayed(self._get_valid_input_edges)(
             i2Ri1_dict=i2Ri1_dict,
@@ -300,7 +306,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
             corr_idxs_i1i2=corr_idxs_i1i2_valid,
             keypoints=keypoints,
             two_view_reports=two_view_reports_valid,
-            output_dir=debug_output_dir,
+            output_dir=self._plot_cycle_consist_path,
         )
 
         # Remove all edges that are not in the view graph.
