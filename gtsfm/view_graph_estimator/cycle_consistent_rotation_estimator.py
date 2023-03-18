@@ -135,7 +135,12 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         valid_edges = {edge for edge, error in per_edge_aggregate_error.items() if error < self._error_threshold}
         if output_dir:
             self.__save_plots(
-                valid_edges, cycle_errors, max_gt_error_in_cycle, per_edge_aggregate_error, two_view_reports, output_dir)
+                valid_edges,
+                cycle_errors,
+                max_gt_error_in_cycle,
+                per_edge_aggregate_error,
+                two_view_reports,
+                output_dir)
 
         logger.info("Found %d consistent rel. rotations from %d original edges.", len(valid_edges), len(input_edges))
 
