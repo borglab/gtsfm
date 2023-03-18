@@ -6,8 +6,8 @@ from typing import Dict, List, Optional, Tuple
 
 import dask
 import numpy as np
-from dask.delayed import Delayed
 import os
+from dask.delayed import Delayed
 from pathlib import Path
 from gtsam import Pose3
 
