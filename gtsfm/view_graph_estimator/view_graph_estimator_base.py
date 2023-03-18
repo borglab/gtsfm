@@ -255,7 +255,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         corr_idxs_i1i2: Dict[Tuple[int, int], Delayed],
         keypoints: List[Delayed],
         two_view_reports: Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
-        debug_output_dir: Path,
+        debug_output_dir: Optional[Path] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, Delayed, Delayed]:
         """Create the computation graph for ViewGraph estimation and metric evaluation.
 
@@ -280,8 +280,9 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         """
 
         # create debug directory for cycle_consistency
-        self._plot_cycle_consist_path = debug_output_dir / "cycle_consistency"
-        os.makedirs(self._plot_cycle_consist_path, exist_ok=True)
+        if debug_output_dir:
+            self._plot_cycle_consist_path = debug_output_dir / "cycle_consistency"
+            os.makedirs(self._plot_cycle_consist_path, exist_ok=True)
 
         # Remove all invalid edges in the input dicts.
         valid_edges = dask.delayed(self._get_valid_input_edges)(
