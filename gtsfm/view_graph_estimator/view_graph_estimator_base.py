@@ -280,9 +280,10 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         """
 
         # create debug directory for cycle_consistency
+        plot_cycle_consist_path = None
         if debug_output_dir:
-            self._plot_cycle_consist_path = debug_output_dir / "cycle_consistency"
-            os.makedirs(self._plot_cycle_consist_path, exist_ok=True)
+            plot_cycle_consist_path = debug_output_dir / "cycle_consistency"
+            os.makedirs(plot_cycle_consist_path, exist_ok=True)
 
         # Remove all invalid edges in the input dicts.
         valid_edges = dask.delayed(self._get_valid_input_edges)(
@@ -307,7 +308,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
             corr_idxs_i1i2=corr_idxs_i1i2_valid,
             keypoints=keypoints,
             two_view_reports=two_view_reports_valid,
-            output_dir=self._plot_cycle_consist_path,
+            output_dir=plot_cycle_consist_path,
         )
 
         # Remove all edges that are not in the view graph.
