@@ -93,6 +93,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
             corr_idxs_i1i2: Dict from (i1, i2) to indices of verified correspondences from i1 to i2 (unused).
             keypoints: keypoints for each images (unused).
             two_view_reports: Dict from (i1, i2) to the TwoViewEstimationReport of the edge.
+            output_dir: Path to directory where outputs for debugging will be saved.
 
         Returns:
             Edges of the view-graph, which are the subset of the image pairs in the input args.
