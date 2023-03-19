@@ -249,6 +249,7 @@ class SceneOptimizer:
             two_view_reports_dict[POST_ISP_REPORT_TAG],
             cameras_gt,
             gt_wTi_list,
+            self.output_root,
         )
         if view_graph_two_view_reports is not None:
             two_view_reports_dict[VIEWGRAPH_REPORT_TAG] = view_graph_two_view_reports
