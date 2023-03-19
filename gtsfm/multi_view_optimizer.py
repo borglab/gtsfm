@@ -25,8 +25,6 @@ from gtsfm.two_view_estimator import TwoViewEstimationReport
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
 from gtsfm.data_association.dsf_tracks_estimator import DsfTracksEstimator
 
-DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent.parent
-
 
 class MultiViewOptimizer:
     def __init__(
@@ -43,13 +41,6 @@ class MultiViewOptimizer:
         self.data_association_module = data_association_module
         self.ba_optimizer = bundle_adjustment_module
         self._run_view_graph_estimator: bool = self.view_graph_estimator is not None
-        self._create_debug_directories()
-
-    def _create_debug_directories(self) -> None:
-        """Create output directories for GTSFM result debugging."""
-
-        self._debug_output_dir = DEFAULT_OUTPUT_ROOT / "debug"
-        os.makedirs(self._debug_output_dir, exist_ok=True)
 
     def create_computation_graph(
         self,
@@ -65,6 +56,7 @@ class MultiViewOptimizer:
         two_view_reports_dict: Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         gt_wTi_list: List[Optional[Pose3]],
+        output_root: Optional[Path] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, list]:
         """Creates a computation graph for multi-view optimization.
 
@@ -80,6 +72,7 @@ class MultiViewOptimizer:
             two_view_reports_dict: Dict of TwoViewEstimationReports after inlier support processor.
             cameras_gt: list of GT cameras (if they exist), ordered by camera index.
             gt_wTi_list: list of GT poses of the camera.
+            output_root: path where output should be saved.
 
         Returns:
             The GtsfmData input to bundle adjustment, aligned to GT (if provided), wrapped up as Delayed.
@@ -87,6 +80,12 @@ class MultiViewOptimizer:
             Dict of TwoViewEstimationReports after view graph estimation.
             List of GtsfmMetricGroups from different modules, wrapped up as Delayed.
         """
+
+        # create debug directory
+        debug_output_dir = None
+        if output_root:
+            debug_output_dir = output_root / "debug"
+            os.makedirs(debug_output_dir, exist_ok=True)
 
         if self._run_view_graph_estimator and self.view_graph_estimator is not None:
             (
@@ -102,7 +101,7 @@ class MultiViewOptimizer:
                 v_corr_idxs_graph,
                 keypoints_graph,
                 two_view_reports_dict,
-                self._debug_output_dir,
+                debug_output_dir,
             )
         else:
             viewgraph_i2Ri1_graph = dask.delayed(i2Ri1_graph)
