@@ -154,6 +154,8 @@ class LoaderBase(GTSFMProcess):
         """
         # No downsampling may be required, in which case target_h and target_w will be identical
         # to the full res height & width.
+        # TODO(Ayush): remove hack
+        index = index % len(self)
         img_full_res = self.get_image_full_res(index)
         if min(img_full_res.height, img_full_res.width) <= self._max_resolution:
             return img_full_res
@@ -270,6 +272,10 @@ class LoaderBase(GTSFMProcess):
         """
         N = len(self)
         return [dask.delayed(self.get_image)(i) for i in range(N)]
+
+    def create_computation_graph_for_images_hack(self, num_images: int) -> List[Delayed]:
+        N = len(self)
+        return [dask.delayed(self.get_image)(i % N) for i in range(num_images)]
 
     def get_all_intrinsics(self) -> List[Optional[gtsfm_types.CALIBRATION_TYPE]]:
         """Return all the camera intrinsics.

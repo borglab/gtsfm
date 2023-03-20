@@ -5,6 +5,7 @@ Authors: Ayush Baid
 import abc
 import pickle
 from pathlib import Path
+from timeit import default_timer as timer
 
 import dask
 from dask.distributed import Client, LocalCluster, performance_report
@@ -74,7 +75,6 @@ class NewSuperpointDetector(NewDetector):
         return keypoints
 
 
-@dask.delayed
 def detect(detector: NewDetector, image: Image) -> Keypoints:
     return detector.apply(image)
 
@@ -87,15 +87,18 @@ if __name__ == "__main__":
     print("Serialized detector size: {}".format(dask.utils.format_bytes(len(pickle.dumps(detector)))))
 
     # create dask client
-    cluster = LocalCluster(n_workers=2, threads_per_worker=1)
+    cluster = LocalCluster(n_workers=4, threads_per_worker=1)
 
-    delayed_images = loader.create_computation_graph_for_images()
+    with Client(cluster) as client, performance_report(filename="new-detector-dask-report-4.html"):
 
-    with Client(cluster) as client, performance_report(filename="retriever-dask-report.html"):
+        start_time = timer()
         detector_future = client.scatter(detector, broadcast=True)
 
-        delayed_keypoints = [detect(detector_future, delayed_image) for delayed_image in delayed_images]
-        keypoints_future = dask.compute(*delayed_keypoints)
+        images = [loader.get_image(i) for i in range(100)]
 
-        for i, kp in enumerate(keypoints_future):
-            print("Idx {}: {} keypoints".format(i, len(kp)))
+        keypoints_future = [client.submit(detect, detector_future, image) for image in images]
+        keypoints = client.gather(keypoints_future)
+
+        end_time = timer()
+
+        print("Time elapsed: {}".format(end_time - start_time))
