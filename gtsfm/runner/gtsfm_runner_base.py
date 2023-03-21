@@ -231,11 +231,13 @@ class GtsfmRunnerBase:
                 scheduler_options={"dashboard_address": self.parsed_args.dashboard_port},
                 worker_options={
                     "n_workers": self.parsed_args.num_workers,
-                    "nthreads": self.parsed_args.threads_per_worker
+                    "nthreads": self.parsed_args.threads_per_worker,
                 },
             )
             client = Client(cluster)
-            self.loader._input_worker = list(client.scheduler_info()["workers"].keys())[0]
+            io_worker = list(client.scheduler_info()["workers"].keys())[0]
+            self.loader._input_worker = io_worker
+            self.scene_optimizer._output_worker = io_worker
         else:
             cluster = LocalCluster(
                 n_workers=self.parsed_args.num_workers, threads_per_worker=self.parsed_args.threads_per_worker
@@ -262,9 +264,7 @@ class GtsfmRunnerBase:
         )
 
         with performance_report(filename="correspondence-generator-dask-report.html"):
-            future_keypoints = client.compute(delayed_keypoints)
-            keypoints_list = [keypoint.result() for keypoint in future_keypoints]
-            putative_corr_idxs_dict = client.compute(delayed_putative_corr_idxs_dict).result()
+            keypoints_list, putative_corr_idxs_dict = dask.compute(delayed_keypoints, delayed_putative_corr_idxs_dict)
 
         delayed_sfm_result, delayed_io = self.scene_optimizer.create_computation_graph(
             keypoints_list=keypoints_list,
@@ -282,9 +282,7 @@ class GtsfmRunnerBase:
         )
 
         with performance_report(filename="scene-optimizer-dask-report.html"):
-            sfm_result = client.compute(delayed_sfm_result).result()
-            future_io = client.compute(delayed_io)
-            (*io, ) = [io_task.result() for io_task in future_io]
+            sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io)
 
         assert isinstance(sfm_result, GtsfmData)
 
