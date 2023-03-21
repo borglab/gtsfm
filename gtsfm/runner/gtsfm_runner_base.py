@@ -4,7 +4,7 @@ import argparse
 import time
 from abc import abstractmethod
 from pathlib import Path
-
+import os
 import dask
 import hydra
 from dask.distributed import Client, LocalCluster, SSHCluster, performance_report
@@ -131,14 +131,13 @@ class GtsfmRunnerBase:
             "--run_cluster",
             action="store_true",
             default=False,
-            help="condition whether to run gtsfm on a cluster"
+            help="whether to run gtsfm on a cluster"
         )
         parser.add_argument(
-            "--cluster_workers",
+            "--cluster_config_name",
             type=str,
-            default=None,
-            nargs="+",
-            help="list of worker ip addresses for the cluster," 
+            default="cluster.yaml",
+            help="config listing IP worker addresses for the cluster,"
             " first worker is used as scheduler and should contain the dataset",
         )
         parser.add_argument(
@@ -224,7 +223,8 @@ class GtsfmRunnerBase:
 
         # create dask cluster
         if self.parsed_args.run_cluster:
-            workers = self.parsed_args.cluster_workers
+            workers = OmegaConf.load(
+                os.path.join(self.parsed_args.output_root, "gtsfm", "configs", self.parsed_args.cluster_config_name))["workers"]
             scheduler = workers[0]
             cluster = SSHCluster(
                 [scheduler] + workers,

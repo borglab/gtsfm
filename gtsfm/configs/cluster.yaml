@@ -1,0 +1,4 @@
+workers:
+  - host1.cc.gatech.edu
+  - host2.cc.gatech.edu
+  - host3.cc.gatech.edu
