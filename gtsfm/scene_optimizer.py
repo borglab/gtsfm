@@ -323,7 +323,9 @@ class SceneOptimizer:
             with annotation:
                 delayed_results.append(
                     dask.delayed(io_utils.save_point_cloud_as_ply)(
-                        save_fpath=str(self._mvs_ply_save_fpath), points=dense_points_graph, rgb=dense_point_colors_graph
+                        save_fpath=str(self._mvs_ply_save_fpath),
+                        points=dense_points_graph,
+                        rgb=dense_point_colors_graph
                     )
                 )
 
