@@ -219,7 +219,6 @@ class NetVLADRetriever(RetrieverBase):
 
         named_pairs = [(query_names[i], query_names[j]) for i, j in pairs]
         logger.info("Found %d pairs from the NetVLAD Retriever.", len(pairs))
-        logger.info("Image Name Pairs:" + str(named_pairs))
         return pairs
 
 

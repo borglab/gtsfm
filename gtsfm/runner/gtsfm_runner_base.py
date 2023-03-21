@@ -251,4 +251,4 @@ class GtsfmRunnerBase:
 
         end_time = time.time()
         duration_sec = end_time - start_time
-        logger.info("GTSFM took %.2f minutes to compute sparse multi-view result.", duration_sec / 60)
+        logger.info("GTSFM took %.2f minutes to run scene optimizer.", duration_sec / 60)

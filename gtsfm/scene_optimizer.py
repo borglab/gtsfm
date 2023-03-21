@@ -256,6 +256,7 @@ class SceneOptimizer:
         # Persist all front-end metrics and their summaries.
         # TODO(akshay-krishnan): this delays saving the frontend reports until MVO has completed, not ideal.
         metrics_graph_list: List[Delayed] = []
+        should_compare_to_gt = any([gt_wTi is not None for gt_wTi in gt_wTi_list])
         for tag, report_dict in two_view_reports_dict.items():
             delayed_results.append(
                 dask.delayed(save_full_frontend_metrics)(
@@ -272,6 +273,7 @@ class SceneOptimizer:
                     report_dict,
                     self._pose_angular_error_thresh,
                     metric_group_name="verifier_summary_{}".format(tag),
+                    compare_to_gt=should_compare_to_gt,
                 )
             )
 
@@ -543,6 +545,13 @@ def _save_retrieval_two_view_metrics(metrics_path: Path, plot_base_path: Path) -
         i2 = entry["i2"]
         R_error = entry["rotation_angular_error"]
         U_error = entry["translation_angular_error"]
+
+        # Use a large error value if the cameras failed (or GT was unknown). 
+        if R_error is None:
+            R_error = 100.0
+        if U_error is None:
+            U_error = 100.0
+
         sim_score = sim[i1, i2]
 
         sim_scores.append(sim_score)

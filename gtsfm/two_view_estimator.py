@@ -471,7 +471,8 @@ def aggregate_frontend_metrics(
     two_view_reports_dict: Dict[Tuple[int, int], Optional[TwoViewEstimationReport]],
     angular_err_threshold_deg: float,
     metric_group_name: str,
-) -> None:
+    compare_to_gt: bool = True,
+) -> GtsfmMetricsGroup:
     """Aggregate the front-end metrics to log summary statistics.
 
     We define "pose error" as the maximum of the angular errors in rotation and translation, per:
@@ -504,15 +505,19 @@ def aggregate_frontend_metrics(
         if report.U_error_deg is not None:
             trans_angular_errors_list.append(report.U_error_deg)
 
-        inlier_ratio_gt_model_all_pairs.append(report.inlier_ratio_gt_model)
-        inlier_ratio_est_model_all_pairs.append(report.inlier_ratio_est_model)
-        num_inliers_gt_model_all_pairs.append(report.num_inliers_gt_model)
-        num_inliers_est_model_all_pairs.append(report.num_inliers_est_model)
+        if report.inlier_ratio_est_model is not None:
+            inlier_ratio_est_model_all_pairs.append(report.inlier_ratio_est_model)
+        if report.inlier_ratio_gt_model is not None:
+            inlier_ratio_gt_model_all_pairs.append(report.inlier_ratio_gt_model)
+        if report.num_inliers_gt_model is not None:
+            num_inliers_gt_model_all_pairs.append(report.num_inliers_gt_model)
+        if report.num_inliers_est_model is not None:
+            num_inliers_est_model_all_pairs.append(report.num_inliers_est_model)
 
     rot3_angular_errors = np.array(rot3_angular_errors_list, dtype=float)
     trans_angular_errors = np.array(trans_angular_errors_list, dtype=float)
     # count number of rot3 errors which are not None. Should be same in rot3/unit3
-    num_valid_image_pairs = np.count_nonzero(~np.isnan(rot3_angular_errors))
+    num_image_pairs_with_gt = np.count_nonzero(~np.isnan(rot3_angular_errors))
 
     # compute pose errors by picking the max error from rot3 and unit3 errors
     pose_errors = np.maximum(rot3_angular_errors, trans_angular_errors)
@@ -530,21 +535,21 @@ def aggregate_frontend_metrics(
     logger.debug(
         "[Two view optimizer] [Summary] Rotation success: %d/%d/%d",
         success_count_rot3,
-        num_valid_image_pairs,
+        num_image_pairs_with_gt,
         num_image_pairs,
     )
 
     logger.debug(
         "[Two view optimizer] [Summary] Translation success: %d/%d/%d",
         success_count_unit3,
-        num_valid_image_pairs,
+        num_image_pairs_with_gt,
         num_image_pairs,
     )
 
     logger.debug(
         "[Two view optimizer] [Summary] Pose success: %d/%d/%d",
         success_count_pose,
-        num_valid_image_pairs,
+        num_image_pairs_with_gt,
         num_image_pairs,
     )
 
@@ -553,12 +558,16 @@ def aggregate_frontend_metrics(
     )
 
     # TODO(akshay-krishnan): Move angular_err_threshold_deg and num_total_image_pairs to metadata.
-    frontend_metrics = GtsfmMetricsGroup(
-        metric_group_name,
-        [
-            GtsfmMetric("angular_err_threshold_deg", angular_err_threshold_deg),
-            GtsfmMetric("num_total_image_pairs", int(num_image_pairs)),
-            GtsfmMetric("num_valid_image_pairs", int(num_valid_image_pairs)),
+    no_gt_metrics = [
+        GtsfmMetric("angular_err_threshold_deg", angular_err_threshold_deg),
+        GtsfmMetric("num_total_image_pairs", int(num_image_pairs)),
+        GtsfmMetric("num_image_pairs_with_gt", int(num_image_pairs_with_gt)),
+        GtsfmMetric("inlier_ratio_wrt_est_model", inlier_ratio_est_model_all_pairs),
+        GtsfmMetric("num_inliers_est_model", num_inliers_est_model_all_pairs),
+        GtsfmMetric("num_cameras_with_inliers", (np.array(num_inliers_est_model_all_pairs) > 0).sum()),
+    ]
+    if compare_to_gt:
+        gt_metrics = [
             GtsfmMetric("rotation_success_count", int(success_count_rot3)),
             GtsfmMetric("translation_success_count", int(success_count_unit3)),
             GtsfmMetric("pose_success_count", int(success_count_pose)),
@@ -567,9 +576,10 @@ def aggregate_frontend_metrics(
             GtsfmMetric("trans_angular_errors_deg", trans_angular_errors),
             GtsfmMetric("pose_errors_deg", pose_errors),
             GtsfmMetric("inlier_ratio_wrt_gt_model", inlier_ratio_gt_model_all_pairs),
-            GtsfmMetric("inlier_ratio_wrt_est_model", inlier_ratio_est_model_all_pairs),
-            GtsfmMetric("num_inliers_est_model", num_inliers_est_model_all_pairs),
             GtsfmMetric("num_inliers_gt_model", num_inliers_gt_model_all_pairs),
-        ],
-    )
+        ]
+    else:
+        gt_metrics = []
+
+    frontend_metrics = GtsfmMetricsGroup(metric_group_name, no_gt_metrics + gt_metrics)
     return frontend_metrics

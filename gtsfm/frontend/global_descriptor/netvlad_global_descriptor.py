@@ -23,8 +23,9 @@ from thirdparty.hloc.netvlad import NetVLAD
 
 
 class NetVLADGlobalDescriptor(GlobalDescriptorBase):
-    def __init__(self) -> None:
+    def __init__(self, use_cuda: bool = False) -> None:
         """ """
+        self.use_cuda = use_cuda
         pass
 
     def describe(self, image: Image) -> np.ndarray:
@@ -38,8 +39,13 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
         """
         # initializing in the constructor leads to OOM.
         model: nn.Module = NetVLAD()
+        model.float().eval()
+        if self.use_cuda:
+            model.cuda()
 
-        img_tensor = torch.from_numpy(image.value_array).permute(2, 0, 1).unsqueeze(0).type(torch.float32) / 255
-        img_desc = model({"image": img_tensor})
+        with torch.no_grad():
+            img_tensor = torch.from_numpy(image.value_array).permute(2, 0, 1).unsqueeze(0).type(torch.float32) / 255
+            img_desc = model({"image": img_tensor.cuda()})["global_descriptor"]
+            img_desc = img_desc.cpu().numpy()
 
-        return img_desc["global_descriptor"].detach().squeeze().cpu().numpy()
+        return img_desc
