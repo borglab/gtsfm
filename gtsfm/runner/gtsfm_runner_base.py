@@ -134,7 +134,7 @@ class GtsfmRunnerBase:
             help="whether to run gtsfm on a cluster"
         )
         parser.add_argument(
-            "--cluster_config_name",
+            "--cluster_config",
             type=str,
             default="cluster.yaml",
             help="config listing IP worker addresses for the cluster,"
@@ -225,7 +225,7 @@ class GtsfmRunnerBase:
         if self.parsed_args.run_cluster:
             workers = OmegaConf.load(
                 os.path.join(
-                    self.parsed_args.output_root, "gtsfm", "configs", self.parsed_args.cluster_config_name))["workers"]
+                    self.parsed_args.output_root, "gtsfm", "configs", self.parsed_args.cluster_config))["workers"]
             scheduler = workers[0]
             cluster = SSHCluster(
                 [scheduler] + workers,
