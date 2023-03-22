@@ -128,15 +128,9 @@ class GtsfmRunnerBase:
             help="tmp directory for dask workers, uses dask's default (/tmp) if not set",
         )
         parser.add_argument(
-            "--run_cluster",
-            action="store_true",
-            default=False,
-            help="whether to run gtsfm on a cluster"
-        )
-        parser.add_argument(
             "--cluster_config",
             type=str,
-            default="cluster.yaml",
+            default=None,
             help="config listing IP worker addresses for the cluster,"
             " first worker is used as scheduler and should contain the dataset",
         )
@@ -222,7 +216,7 @@ class GtsfmRunnerBase:
         start_time = time.time()
 
         # create dask cluster
-        if self.parsed_args.run_cluster:
+        if self.parsed_args.cluster_config:
             workers = OmegaConf.load(
                 os.path.join(
                     self.parsed_args.output_root, "gtsfm", "configs", self.parsed_args.cluster_config))["workers"]
