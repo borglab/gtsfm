@@ -1,3 +1,5 @@
+# replace by names of host machines, first worker is used for I/O
+
 workers:
   - host1.cc.gatech.edu
   - host2.cc.gatech.edu
