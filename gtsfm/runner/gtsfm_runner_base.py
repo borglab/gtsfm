@@ -224,7 +224,8 @@ class GtsfmRunnerBase:
         # create dask cluster
         if self.parsed_args.run_cluster:
             workers = OmegaConf.load(
-                os.path.join(self.parsed_args.output_root, "gtsfm", "configs", self.parsed_args.cluster_config_name))["workers"]
+                os.path.join(
+                    self.parsed_args.output_root, "gtsfm", "configs", self.parsed_args.cluster_config_name))["workers"]
             scheduler = workers[0]
             cluster = SSHCluster(
                 [scheduler] + workers,
@@ -235,6 +236,7 @@ class GtsfmRunnerBase:
                 },
             )
             client = Client(cluster)
+            # getting first worker's IP address and port to do IO
             io_worker = list(client.scheduler_info()["workers"].keys())[0]
             self.loader._input_worker = io_worker
             self.scene_optimizer._output_worker = io_worker
