@@ -58,50 +58,19 @@ class OneDSFMLoader(LoaderBase):
         # Fetch all the file names in /images folder.
         search_path = os.path.join(folder, "images", f"*.{image_extension}")
 
-        # NOTE(yanwei.du) Currently we only process images with valid EXIF data.
-        (
-            self._image_paths,
-            self._num_exif_imgs,
-            self._num_all_imgs,
-        ) = self.get_images_with_valid_exif(search_path, max_num_imgs)
-        self._num_imgs = len(self._image_paths)
+        self._image_paths = glob.glob(search_path)
+        num_imgs = len(self._image_paths)
 
-        logger.info("Selected %d out of %d images with valid exif.", self._num_imgs, self._num_exif_imgs)
+        if max_num_imgs > 0 and max_num_imgs < num_imgs:
+            random_indices = np.random.permutation(max_num_imgs)
+            self._image_paths = np.array(self._image_paths)[random_indices[:max_num_imgs]]
+
+            logger.info("Selected %d out of %d images.", max_num_imgs, num_imgs)
+
+        self._num_imgs = len(self._image_paths)
 
         if self._num_imgs == 0:
             raise RuntimeError(f"Loader could not find any images with the specified file extension in {search_path}")
-
-    def get_images_with_valid_exif(self, search_path: str, max_num_imgs: int) -> Tuple[List[str], int, int]:
-        """Return a subset of images with valid exif.
-
-        Args:
-            search_path: image sequence search path.
-            max_num_imgs: the maximum number of images to process.
-
-        Returns:
-            Tuple[
-                List of selected image paths.
-                The number of images with valid exif data.
-                The number of all the images.
-            ]
-        """
-        all_image_paths = glob.glob(search_path)
-        num_all_imgs = len(all_image_paths)
-        exif_image_paths = []
-        for single_img_path in all_image_paths:
-            # Drop images without valid exif data.
-            if io_utils.load_image(single_img_path).get_intrinsics_from_exif() is not None:
-                exif_image_paths.append(single_img_path)
-
-        # Randomly select a subset to process.
-        num_exif_imgs = len(exif_image_paths)
-        max_num_imgs = max_num_imgs if (max_num_imgs > 0 and max_num_imgs < num_exif_imgs) else num_exif_imgs
-        random_indices = np.random.permutation(num_exif_imgs)
-        return (
-            np.array(exif_image_paths)[random_indices[:max_num_imgs]],
-            num_exif_imgs,
-            num_all_imgs,
-        )
 
     def image_filenames(self) -> List[str]:
         """Return the file names corresponding to each image index."""
@@ -155,11 +124,3 @@ class OneDSFMLoader(LoaderBase):
         """
         # The 1DSfM datasets do not provide ground truth or prior camera poses.
         return None
-
-    def get_num_all_imgs(self) -> int:
-        """Return the number of all images in the sequence."""
-        return self._num_all_imgs
-
-    def get_num_exif_imgs(self) -> int:
-        """Return the number of images with valid exif data."""
-        return self._num_exif_imgs

@@ -35,13 +35,34 @@ class SensorWidthDatabase:
             sensor-width in mm
         """
 
-        # preprocess query strings
+        # Preprocess query strings.
         lower_make = make.split()[0].lower()
+        lower_make = lower_make.replace(" ", "").replace("-", "")
         lower_model = model.lower()
+        lower_model = lower_model.replace(" ", "").replace("-", "").replace(lower_make, "")
 
-        selection_condition = (self.df["CameraMaker"] == lower_make) & (self.df["CameraModel"] == lower_model)
-        selected = self.df.loc[selection_condition, "SensorWidth(mm)"]
-        if len(selected) != 1:
+        match_count = 0
+        sensor_width = 0.0
+        for _, row in self.df.iterrows():
+            db_make = row["CameraMaker"]
+            # Check camera make substring.
+            if lower_make in db_make or db_make in lower_make:
+                db_model = row["CameraModel"]
+                db_model = db_model.replace(" ", "").replace("-", "").replace(db_make, "")
+                # Check camera model substring.
+                if lower_model in db_model or db_model in lower_model:
+                    sensor_width = row["SensorWidth(mm)"]
+                    # Return directly if found exact match.
+                    if lower_model == db_model:
+                        return sensor_width
+                    match_count += 1
+                    # Check if found multiple matches.
+                    if match_count > 1:
+                        break
+
+        # Check if found unique match.
+        if match_count == 0 or match_count > 1:
             raise LookupError(f"make='{make}' and model='{model}' not found in sensor database")
 
-        return self.df.loc[selection_condition, "SensorWidth(mm)"].values[0]
+        assert sensor_width > 0.0
+        return sensor_width
