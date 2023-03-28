@@ -6,7 +6,7 @@ Authors: Yanwei Du
 import glob
 import os
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import numpy as np
 from gtsam import Cal3Bundler, Pose3
