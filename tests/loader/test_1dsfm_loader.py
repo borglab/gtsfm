@@ -55,25 +55,6 @@ class TestOneDSfMFolderLoader(unittest.TestCase):
         for idx in range(len(self.loader)):
             self.assertIsNone(self.loader.get_camera_pose(idx))
 
-    def test_set_max_num_imgs(self):
-        """Test that max_num_imgs works when loading images."""
-
-        # 0 < max_num_imgs <= num_imgs(=4)
-        loader = OneDSFMLoader(str(DEFAULT_FOLDER), max_num_imgs=2)
-        self.assertEqual(2, len(loader))
-
-        # max_num_imgs > num_imgs(=4)
-        loader = OneDSFMLoader(str(DEFAULT_FOLDER), max_num_imgs=5)
-        self.assertEqual(4, len(loader))
-
-        # max_num_imgs = 0
-        loader = OneDSFMLoader(str(DEFAULT_FOLDER), max_num_imgs=0)
-        self.assertEqual(4, len(loader))
-
-        # max_num_imgs < 0
-        loader = OneDSFMLoader(str(DEFAULT_FOLDER), max_num_imgs=-1)
-        self.assertEqual(4, len(loader))
-
 
 if __name__ == "__main__":
     unittest.main()

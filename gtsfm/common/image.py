@@ -40,6 +40,10 @@ class Image(NamedTuple):
 
         Equation: focal_px=max(w_px,h_px)∗focal_mm / ccdw_mm
 
+        Note that it returns a default value based on image dimensions if EXIF not found:
+
+        focal_px=max(w_px, h_px)*default_factor
+
         Ref:
         - https://www.awaresystems.be/imaging/tiff/tifftags/privateifd/exif.html
         - https://github.com/colmap/colmap/blob/e3948b2098b73ae080b97901c3a1f9065b976a45/src/util/bitmap.cc#L282
@@ -68,14 +72,16 @@ class Image(NamedTuple):
                 # Read from `FocalLength` mm.
                 focal_length_mm = self.exif_data.get("FocalLength")
 
+                # Compute sensor width, either from database or from EXIF.
                 if focal_length_mm is not None and focal_length_mm > 0:
+
+                    sensor_width_mm = 0.0
 
                     try:
                         sensor_width_mm = Image.sensor_width_db.lookup(
                             self.exif_data.get("Make"),
                             self.exif_data.get("Model"),
                         )
-                        focal_length_px = focal_length_mm / sensor_width_mm * max_size
                     except (AttributeError, LookupError):
                         # Read from `ExifImageWidth` and `FocalPlaneXResolution`.
                         pixel_x_dim = self.exif_data.get("ExifImageWidth")
@@ -93,10 +99,11 @@ class Image(NamedTuple):
                             ccd_width = pixel_x_dim / focal_plane_x_res
                             if focal_plane_res_unit == 3:  # cm
                                 sensor_width_mm = ccd_width * 10
-                                focal_length_px = focal_length_mm / sensor_width_mm * max_size
                             elif focal_plane_res_unit == 2:  # inch
                                 sensor_width_mm = ccd_width * 25.4
-                                focal_length_px = focal_length_mm / sensor_width_mm * max_size
+
+                    if sensor_width_mm > 0.0:
+                        focal_length_px = focal_length_mm / sensor_width_mm * max_size
 
         assert focal_length_px > 0
 
