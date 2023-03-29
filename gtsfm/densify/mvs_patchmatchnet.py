@@ -197,7 +197,7 @@ class MVSPatchmatchNet(MVSBase):
         # merge filtering metrics to densify metrics
         densify_metrics.extend(filtering_metrics)
 
-        downsampling_metrics = self.__compute_downsampling_metrics(dense_point_cloud, dense_point_colors)
+        downsampling_metrics = self.compute_downsampling_metrics(dense_point_cloud, dense_point_colors)
 
         return dense_point_cloud, dense_point_colors, densify_metrics, downsampling_metrics
 

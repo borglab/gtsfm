@@ -60,7 +60,7 @@ class MVSBase(GTSFMProcess):
             downsamping_metrics: Metrics group for downsampling metrics.
         """
 
-    def __compute_downsampling_metrics(self, points: np.ndarray, colors: np.ndarray):
+    def compute_downsampling_metrics(self, points: np.ndarray, colors: np.ndarray):
         # calculate the scale of target occupied volume, then compute the minimum voxel size for downsampling
         voxel_size = mvs_utils.estimate_minimum_voxel_size(points)
 
