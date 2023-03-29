@@ -45,7 +45,7 @@ class D2NetDetDesc(DetectorDescriptorBase):
         self.use_cuda = use_cuda and torch.cuda.is_available()
         self.device = torch.device("cuda" if self.use_cuda else "cpu")
 
-    def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
+    def apply(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
         """Extract keypoints and their corresponding descriptors.
 
         Adapted from:

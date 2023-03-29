@@ -24,9 +24,12 @@ from gtsam import (
     ShonanAveragingParameters3,
 )
 
+import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
+import gtsfm.utils.metrics as metric_utils
 from gtsfm.averaging.rotation.rotation_averaging_base import RotationAveragingBase
 from gtsfm.common.pose_prior import PosePrior
+from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 
 TWOVIEW_ROTATION_SIGMA = 1
 POSE3_DOF = 6
@@ -146,12 +149,13 @@ class ShonanRotationAveraging(RotationAveragingBase):
 
         return unique_nodes_with_edges
 
-    def run_rotation_averaging(
+    def apply(
         self,
         num_images: int,
         i2Ri1_dict: Dict[Tuple[int, int], Optional[Rot3]],
         i1Ti2_priors: Dict[Tuple[int, int], PosePrior],
-    ) -> List[Optional[Rot3]]:
+        wTi_gt: List[Optional[Pose3]],
+    ) -> Tuple[List[Optional[Rot3]], GtsfmMetricsGroup]:
         """Run the rotation averaging on a connected graph with arbitrary keys, where each key is a image/pose index.
 
         Note: functions as a wrapper that re-orders keys to prepare a graph w/ N keys ordered [0,...,N-1].
@@ -162,6 +166,7 @@ class ShonanRotationAveraging(RotationAveragingBase):
             num_images: number of images. Since we have one pose per image, it is also the number of poses.
             i2Ri1_dict: relative rotations for each image pair-edge as dictionary (i1, i2): i2Ri1.
             i1Ti2_priors: priors on relative poses.
+            wTi_gt: ground truth global rotations to compare against.
 
         Returns:
             Global rotations for each camera pose, i.e. wRi, as a list. The number of entries in the list is
@@ -190,4 +195,31 @@ class ShonanRotationAveraging(RotationAveragingBase):
         for remapped_i, original_i in enumerate(nodes_with_edges):
             wRi_list[original_i] = wRi_list_subset[remapped_i]
 
-        return wRi_list
+        metrics = self.__evaluate(wRi_computed=wRi_list, wTi_gt=wTi_gt)
+
+        return wRi_list, metrics
+
+    # TODO(Ayush): Move evaluate functions outside the class.
+    def __evaluate(self, wRi_computed: List[Optional[Rot3]], wTi_gt: List[Optional[Pose3]]) -> GtsfmMetricsGroup:
+        """Evaluate the global rotations computed by the rotation averaging implementation.
+
+        Args:
+            wRi_computed: list of global rotations computed.
+            wTi_gt: ground truth global rotations to compare against.
+        Raises:
+            ValueError: if the length of the computed and GT list differ.
+
+        Returns:
+            Metrics on global rotations.
+        """
+        wRi_gt = [wTi.rotation() if wTi is not None else None for wTi in wTi_gt]
+
+        if len(wRi_computed) != len(wRi_gt):
+            raise ValueError("Lengths of wRi_list and gt_wRi_list should be the same.")
+
+        wRi_aligned = comp_utils.align_rotations(wRi_gt, wRi_computed)
+
+        metrics = []
+        metrics.append(GtsfmMetric(name="num_rotations_computed", data=len([x for x in wRi_computed if x is not None])))
+        metrics.append(metric_utils.compute_rotation_angle_metric(wRi_aligned, wRi_gt))
+        return GtsfmMetricsGroup(name="rotation_averaging_metrics", metrics=metrics)

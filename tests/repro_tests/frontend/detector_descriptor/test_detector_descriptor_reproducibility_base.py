@@ -29,7 +29,7 @@ class DetectorDescriptorReproducibilityTestBase(ReproducibilityTestBase, unittes
         self._detector_descriptor: DetectorDescriptorBase = detector_descriptor
 
     def run_once(self) -> DET_DESC_RESULT_TYPE:
-        return self._detector_descriptor.detect_and_describe(self._input)
+        return self._detector_descriptor.apply(self._input)
 
     def assert_results(self, results_a: DET_DESC_RESULT_TYPE, results_b: DET_DESC_RESULT_TYPE) -> None:
         self.assertEqual(results_a[0], results_b[0])

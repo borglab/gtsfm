@@ -33,6 +33,6 @@ class DetectorFromDetectorDescriptor(DetectorBase):
         Returns:
             detected keypoints, with maximum length of max_keypoints.
         """
-        features, _ = self.detector_descriptor.detect_and_describe(image)
+        features, _ = self.detector_descriptor.apply(image)
 
         return features

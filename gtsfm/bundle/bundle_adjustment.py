@@ -7,10 +7,8 @@ from collections import Counter
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
-import dask
 import gtsam
 import numpy as np
-from dask.delayed import Delayed
 from gtsam import (
     BetweenFactorPose3,
     GeneralSFMFactor2Cal3Bundler,
@@ -281,19 +279,21 @@ class BundleAdjustmentOptimizer:
 
         return sorted(list(cameras))
 
-    def run_ba(
+    def apply(
         self,
         initial_data: GtsfmData,
         absolute_pose_priors: List[Optional[PosePrior]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+        cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         verbose: bool = True,
-    ) -> Tuple[GtsfmData, GtsfmData, List[bool]]:
+    ) -> Tuple[GtsfmData, GtsfmData, List[bool], GtsfmMetricsGroup]:
         """Run the bundle adjustment by forming factor graph and optimizing using Levenberg–Marquardt optimization.
 
         Args:
             initial_data: initialized cameras, tracks w/ their 3d landmark from triangulation.
             absolute_pose_priors: priors to be used on cameras.
             relative_pose_priors: priors on the pose between two cameras.
+            cameras_gt: cameras with GT intrinsics and GT extrinsics.
             verbose: Boolean flag to print out additional info for debugging.
 
         Results:
@@ -301,6 +301,7 @@ class BundleAdjustmentOptimizer:
             Optimized camera poses after filtering landmarks (and cameras with no remaining landmarks).
             Valid mask as a list of booleans, indicating for each input track whether it was below the re-projection
                 threshold.
+            Metrics for BA.
         """
         logger.info(
             f"Input: {initial_data.number_tracks()} tracks on {len(initial_data.get_valid_camera_indices())} cameras\n"
@@ -310,7 +311,7 @@ class BundleAdjustmentOptimizer:
             logger.error(
                 "Bundle adjustment aborting, optimization cannot be performed without any tracks or any cameras."
             )
-            return initial_data, initial_data, [False] * initial_data.number_tracks()
+            return initial_data, initial_data, [False] * initial_data.number_tracks(), GtsfmMetricsGroup()
 
         cameras_to_model = self.__cameras_to_model(initial_data, absolute_pose_priors, relative_pose_priors)
 
@@ -345,9 +346,11 @@ class BundleAdjustmentOptimizer:
 
         logger.info("[Result] Number of tracks after filtering: %d", filtered_result.number_tracks())
 
-        return optimized_data, filtered_result, valid_mask
+        metrics = self.__evaluate(optimized_data, filtered_result, cameras_gt)
 
-    def evaluate(
+        return (optimized_data, filtered_result, valid_mask, metrics)
+
+    def __evaluate(
         self, unfiltered_data: GtsfmData, filtered_data: GtsfmData, cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]]
     ) -> GtsfmMetricsGroup:
         """
@@ -393,30 +396,6 @@ class BundleAdjustmentOptimizer:
         aligned_filtered_data.log_scene_reprojection_error_stats()
 
         return ba_metrics
-
-    def create_computation_graph(
-        self,
-        sfm_data_graph: Delayed,
-        absolute_pose_priors: List[Optional[PosePrior]],
-        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
-    ) -> Tuple[Delayed, Delayed]:
-        """Create the computation graph for performing bundle adjustment.
-
-        Args:
-            sfm_data_graph: an GtsfmData object wrapped up using dask.delayed
-            absolute_pose_priors: priors on the poses of the cameras (not delayed).
-            relative_pose_priors: priors on poses between cameras (not delayed).
-
-        Returns:
-            GtsfmData aligned to GT (if provided), wrapped up using dask.delayed
-            Metrics group for BA results, wrapped up using dask.delayed
-        """
-        optimized_sfm_data, filtered_sfm_data, _ = dask.delayed(self.run_ba, nout=3)(
-            sfm_data_graph, absolute_pose_priors, relative_pose_priors
-        )
-        metrics_graph = dask.delayed(self.evaluate)(optimized_sfm_data, filtered_sfm_data, cameras_gt)
-        return filtered_sfm_data, metrics_graph
 
 
 def values_to_gtsfm_data(values: Values, initial_data: GtsfmData, shared_calib: bool) -> GtsfmData:

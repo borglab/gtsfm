@@ -118,7 +118,7 @@ class MatcherCacher(MatcherBase):
         )
         io_utils.write_to_bz2_file(match_indices, cache_path)
 
-    def match(
+    def apply(
         self,
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
@@ -164,7 +164,7 @@ class MatcherCacher(MatcherBase):
         if cached_data is not None:
             return cached_data
 
-        match_indices = self._matcher.match(
+        match_indices = self._matcher.apply(
             keypoints_i1=keypoints_i1,
             keypoints_i2=keypoints_i2,
             descriptors_i1=descriptors_i1,

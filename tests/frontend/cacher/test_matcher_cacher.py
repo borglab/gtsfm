@@ -44,7 +44,7 @@ class TestMatcherCacher(unittest.TestCase):
         underlying_matcher_mock.__class__.__name__ = "mock_matcher"
         obj_under_test = MatcherCacher(matcher_obj=underlying_matcher_mock)
 
-        computed_match_indices = obj_under_test.match(
+        computed_match_indices = obj_under_test.apply(
             keypoints_i1=DUMMY_KEYPOINTS_I1,
             keypoints_i2=DUMMY_KEYPOINTS_I2,
             descriptors_i1=DUMMY_DESCRIPTORS_I1,
@@ -88,7 +88,7 @@ class TestMatcherCacher(unittest.TestCase):
         underlying_matcher_mock.__class__.__name__ = "mock_matcher"
         obj_under_test = MatcherCacher(matcher_obj=underlying_matcher_mock)
 
-        computed_match_indices = obj_under_test.match(
+        computed_match_indices = obj_under_test.apply(
             keypoints_i1=DUMMY_KEYPOINTS_I1,
             keypoints_i2=DUMMY_KEYPOINTS_I2,
             descriptors_i1=DUMMY_DESCRIPTORS_I1,

@@ -5,8 +5,6 @@ Authors: Ayush Baid, Akshay Krishnan
 import abc
 from typing import Dict, List, Optional, Tuple
 
-import dask
-from dask.delayed import Delayed
 from gtsam import Pose3, Rot3, Unit3
 
 import gtsfm.common.types as gtsfm_types
@@ -22,6 +20,7 @@ class TranslationAveragingBase(GTSFMProcess):
     This class generates global unit translation estimates from pairwise relative unit translation and global rotations.
     """
 
+    @staticmethod
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display node and edge info for this process in the process graph."""
 
@@ -47,7 +46,7 @@ class TranslationAveragingBase(GTSFMProcess):
 
     # ignored-abstractmethod
     @abc.abstractmethod
-    def run_translation_averaging(
+    def apply(
         self,
         num_images: int,
         i2Ui1_dict: Dict[Tuple[int, int], Optional[Unit3]],
@@ -58,7 +57,7 @@ class TranslationAveragingBase(GTSFMProcess):
         i2Ti1_priors: Dict[Tuple[int, int], PosePrior] = {},
         scale_factor: float = 1.0,
         gt_wTi_list: List[Optional[Pose3]] = [],
-    ) -> Tuple[List[Optional[Pose3]], Optional[GtsfmMetricsGroup]]:
+    ) -> Tuple[List[Optional[Pose3]], GtsfmMetricsGroup]:
         """Run the translation averaging, and combine the estimated global translations with global rotations.
 
         Args:
@@ -77,44 +76,3 @@ class TranslationAveragingBase(GTSFMProcess):
                 may contain `None` where the global translations could not be computed (either underconstrained system
                 or ill-constrained system).
         """
-
-    def create_computation_graph(
-        self,
-        num_images: int,
-        i2Ui1_graph: Delayed,
-        wRi_graph: Delayed,
-        tracks_2d: Optional[Delayed] = None,
-        intrinsics: Optional[List[Optional[gtsfm_types.CALIBRATION_TYPE]]] = None,
-        absolute_pose_priors: List[Optional[PosePrior]] = [],
-        i2Ti1_priors: Dict[Tuple[int, int], PosePrior] = {},
-        scale_factor: float = 1.0,
-        gt_wTi_list: List[Optional[Pose3]] = [],
-    ) -> Tuple[Delayed, Delayed]:
-        """Create the computation graph for performing translation averaging.
-
-        Args:
-            num_images: number of camera poses.
-            i2Ui1_graph: dictionary of relative unit translations as a delayed task.
-            wRi_graph: list of global rotations wrapped up in Delayed.
-            tracks_2d: 2d tracks wrapped up in Delayed.
-            intrinsics: list of camera intrinsics.
-            absolute_pose_priors: priors on the camera poses (not delayed).
-            i2Ti1_priors: priors on the pose between camera pairs (not delayed) as (i1, i2): i2Ti1.
-            scale_factor: non-negative global scaling factor.
-            gt_wTi_list: List of ground truth poses (wTi) for computing metrics.
-
-        Returns:
-            Global poses wrapped as Delayed.
-            A GtsfmMetricsGroup with translation averaging metrics wrapped as Delayed.
-        """
-        return dask.delayed(self.run_translation_averaging, nout=2)(
-            num_images=num_images,
-            i2Ui1_dict=i2Ui1_graph,
-            wRi_list=wRi_graph,
-            tracks_2d=tracks_2d,
-            intrinsics=intrinsics,
-            absolute_pose_priors=absolute_pose_priors,
-            i2Ti1_priors=i2Ti1_priors,
-            scale_factor=scale_factor,
-            gt_wTi_list=gt_wTi_list,
-        )

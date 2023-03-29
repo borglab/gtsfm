@@ -60,7 +60,7 @@ def test_filter_to_cycle_consistent_edges() -> None:
         )
 
     rcc_estimator = CycleConsistentRotationViewGraphEstimator(EdgeErrorAggregationCriterion.MEDIAN_EDGE_ERROR)
-    viewgraph_edges = rcc_estimator.run(
+    viewgraph_edges = rcc_estimator.get_viewgraph_edges(
         i2Ri1_dict=i2Ri1_dict,
         i2Ui1_dict=i2Ui1_dict,
         calibrations=calibrations,

@@ -21,7 +21,7 @@ class SequentialRetriever(RetrieverBase):
         """
         self._max_frame_lookahead = max_frame_lookahead
 
-    def run(self, loader: LoaderBase) -> List[Tuple[int, int]]:
+    def apply(self, loader: LoaderBase) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 
         Args:

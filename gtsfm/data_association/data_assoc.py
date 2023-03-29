@@ -14,9 +14,7 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
-import dask
 import numpy as np
-from dask.delayed import Delayed
 from gtsam import SfmTrack
 
 import gtsfm.common.types as gtsfm_types
@@ -68,7 +66,7 @@ class DataAssociation(GTSFMProcess):
         """Validate the track by checking its length."""
         return sfm_track is not None and sfm_track.numberMeasurements() >= self.min_track_len
 
-    def run(
+    def apply(
         self,
         num_images: int,
         cameras: Dict[int, gtsfm_types.CAMERA_TYPE],
@@ -195,38 +193,3 @@ class DataAssociation(GTSFMProcess):
                 data_assoc_metrics.add_metric(GtsfmMetric(name=metric_name, data=count))
 
         return connected_data, data_assoc_metrics
-
-    def create_computation_graph(
-        self,
-        num_images: int,
-        cameras: Delayed,
-        tracks_2d: Delayed,
-        cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
-        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        images_graph: Optional[List[Delayed]] = None,
-    ) -> Tuple[Delayed, Delayed]:
-        """Creates a computation graph for performing data association.
-
-        Args:
-            num_images: number of images in the scene.
-            cameras: list of cameras wrapped up as Delayed.
-            tracks_2d: list of tracks wrapped up as Delayed.
-            cameras_gt: a list of cameras with ground truth params, if they exist.
-            relative_pose_priors: pose priors on the relative pose between camera poses.
-            images_graph: a list of all images in scene (optional and only for track patch visualization)
-
-        Returns:
-            ba_input_graph: GtsfmData object wrapped up using dask.delayed
-            data_assoc_metrics_graph: dictionary with different statistics about the data
-                association result
-        """
-        ba_input_graph, data_assoc_metrics_graph = dask.delayed(self.run, nout=2)(
-            num_images=num_images,
-            cameras=cameras,
-            tracks_2d=tracks_2d,
-            cameras_gt=cameras_gt,
-            relative_pose_priors=relative_pose_priors,
-            images=images_graph,
-        )
-
-        return ba_input_graph, data_assoc_metrics_graph

@@ -21,7 +21,7 @@ from gtsfm.frontend.descriptor.sift import SIFTDescriptor
 class RootSIFTDescriptor(SIFTDescriptor):
     """RootSIFT descriptor using OpenCV's implementation."""
 
-    def describe(self, image: Image, keypoints: Keypoints) -> np.ndarray:
+    def apply(self, image: Image, keypoints: Keypoints) -> np.ndarray:
         """Assign descriptors to detected features in an image.
 
         Note: Each descriptor will have unit L2-norm, as L1-normalization followed by a square root already gives unit

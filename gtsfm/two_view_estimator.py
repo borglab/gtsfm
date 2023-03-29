@@ -48,6 +48,8 @@ POST_BA_REPORT_TAG = "POST_BA_2VIEW_REPORT"
 POST_ISP_REPORT_TAG = "POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT"
 VIEWGRAPH_REPORT_TAG = "VIEWGRAPH_2VIEW_REPORT"
 
+TWO_VIEW_OUTPUT = Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, Dict[str, Optional[TwoViewEstimationReport]]]
+
 
 class TwoViewEstimator:
     """Wrapper for running two-view relative pose estimation on image pairs in the dataset."""
@@ -202,8 +204,12 @@ class TwoViewEstimator:
         if i2Ti1_prior is not None:
             relative_pose_prior_for_ba = {(0, 1): i2Ti1_prior}
 
-        _, ba_output, valid_mask = self._ba_optimizer.run_ba(
-            ba_input, absolute_pose_priors=[], relative_pose_priors=relative_pose_prior_for_ba, verbose=False
+        _, ba_output, valid_mask, _ = self._ba_optimizer.apply(
+            ba_input,
+            absolute_pose_priors=[],
+            relative_pose_priors=relative_pose_prior_for_ba,
+            cameras_gt=[None] * 2,
+            verbose=False,
         )
         valid_corr_idxs = verified_corr_idxs[triangulated_indices][valid_mask]
         wTi1, wTi2 = ba_output.get_camera_poses()  # extract the camera poses
@@ -243,7 +249,7 @@ class TwoViewEstimator:
         """Getter for the distance threshold used in the metric for correct correspondences."""
         return self._corr_metric_dist_threshold
 
-    def run_2view(
+    def apply(
         self,
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
@@ -259,7 +265,7 @@ class TwoViewEstimator:
     ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray, Dict[str, Optional[TwoViewEstimationReport]]]:
         """Estimate relative pose between two views, using verification."""
         # verification on putative correspondences to obtain relative pose and verified correspondences\
-        (pre_ba_i2Ri1, pre_ba_i2Ui1, verified_corr_idxs, inlier_ratio_wrt_estimate) = self._verifier.verify(
+        (pre_ba_i2Ri1, pre_ba_i2Ui1, verified_corr_idxs, inlier_ratio_wrt_estimate) = self._verifier.apply(
             keypoints_i1,
             keypoints_i2,
             putative_corr_idxs,
@@ -339,7 +345,7 @@ class TwoViewEstimator:
             post_isp_i2Ui1,
             post_isp_v_corr_idxs,
             post_isp_report,
-        ) = self.processor.run_inlier_support(post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, post_ba_report)
+        ) = self.processor.apply(post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, post_ba_report)
 
         two_view_reports = {
             PRE_BA_REPORT_TAG: pre_ba_report,
@@ -468,7 +474,7 @@ def compute_relative_pose_metrics(
 
 
 def aggregate_frontend_metrics(
-    two_view_reports_dict: Dict[Tuple[int, int], Optional[TwoViewEstimationReport]],
+    two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
     angular_err_threshold_deg: float,
     metric_group_name: str,
 ) -> None:
@@ -497,8 +503,6 @@ def aggregate_frontend_metrics(
     num_inliers_est_model_all_pairs = []
     # populate the distributions
     for report in two_view_reports_dict.values():
-        if report is None:
-            continue
         if report.R_error_deg is not None:
             rot3_angular_errors_list.append(report.R_error_deg)
         if report.U_error_deg is not None:

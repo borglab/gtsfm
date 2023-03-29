@@ -31,7 +31,7 @@ class MatcherBase(GTSFMProcess):
         )
 
     @abc.abstractmethod
-    def match(
+    def apply(
         self,
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
@@ -89,7 +89,7 @@ class MatcherBase(GTSFMProcess):
         Returns:
             Delayed dask tasks for matching for input camera pairs.
         """
-        return dask.delayed(self.match)(
+        return dask.delayed(self.apply)(
             keypoints_i1_graph,
             keypoints_i2_graph,
             descriptors_i1_graph,

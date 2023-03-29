@@ -30,6 +30,6 @@ class TestImageMatchers(unittest.TestCase):
         image_i0 = self.loader.get_image(0)
         image_i1 = self.loader.get_image(1)
 
-        keypoints_i0, keypoints_i1 = self.matcher.match(image_i0, image_i1)
+        keypoints_i0, keypoints_i1 = self.matcher.apply(image_i0, image_i1)
 
         self.assertEqual(len(keypoints_i0), len(keypoints_i1))

@@ -39,7 +39,7 @@ class SuperGlueMatcher(MatcherBase):
         }
         self._use_cuda = use_cuda and torch.cuda.is_available()
 
-    def match(
+    def apply(
         self,
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,

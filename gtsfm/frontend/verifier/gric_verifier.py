@@ -113,7 +113,7 @@ class GricVerifier(VerifierBase):
         )
         return result_dict
 
-    def verify(
+    def apply(
         self,
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,

@@ -28,7 +28,7 @@ class RigRetriever(RetrieverBase):
         """
         self._threshold = threshold
 
-    def run(self, loader: LoaderBase) -> List[Tuple[int, int]]:
+    def apply(self, loader: LoaderBase) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 
         Args:

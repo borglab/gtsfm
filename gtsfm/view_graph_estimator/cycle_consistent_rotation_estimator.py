@@ -73,7 +73,7 @@ class CycleConsistentRotationViewGraphEstimator(ViewGraphEstimatorBase):
         self._edge_error_aggregation_criterion = edge_error_aggregation_criterion
         self._error_threshold = error_threshold
 
-    def run(
+    def get_viewgraph_edges(
         self,
         i2Ri1_dict: Dict[Tuple[int, int], Rot3],
         i2Ui1_dict: Dict[Tuple[int, int], Unit3],

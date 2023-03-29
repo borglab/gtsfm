@@ -30,7 +30,7 @@ class ImageMatcherBase(GTSFMProcess):
         )
 
     @abc.abstractmethod
-    def match(
+    def apply(
         self,
         image_i1: Image,
         image_i2: Image,
@@ -61,4 +61,4 @@ class ImageMatcherBase(GTSFMProcess):
             Delayed dask task for N keypoints from image 1.
             Delayed dask task for N keypoints from image 2.
         """
-        return dask.delayed(self.match, nout=2)(image_i1=image_i1, image_i2=image_i2)
+        return dask.delayed(self.apply, nout=2)(image_i1=image_i1, image_i2=image_i2)

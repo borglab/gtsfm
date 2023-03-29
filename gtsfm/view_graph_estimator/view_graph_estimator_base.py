@@ -10,9 +10,7 @@ import abc
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
-import dask
 import numpy as np
-from dask.delayed import Delayed
 from gtsam import Cal3Bundler, Rot3, Unit3
 
 import gtsfm.common.types as gtsfm_types
@@ -61,7 +59,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         )
 
     @abc.abstractmethod
-    def run(
+    def get_viewgraph_edges(
         self,
         i2Ri1_dict: Dict[Tuple[int, int], Rot3],
         i2Ui1_dict: Dict[Tuple[int, int], Unit3],
@@ -246,15 +244,21 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         ]
         return GtsfmMetricsGroup("view_graph_estimation_metrics", view_graph_metrics)
 
-    def create_computation_graph(
+    def apply(
         self,
-        i2Ri1_dict: Dict[Tuple[int, int], Delayed],
-        i2Ui1_dict: Dict[Tuple[int, int], Delayed],
+        i2Ri1_dict: Dict[Tuple[int, int], Rot3],
+        i2Ui1_dict: Dict[Tuple[int, int], Unit3],
         calibrations: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
-        corr_idxs_i1i2: Dict[Tuple[int, int], Delayed],
-        keypoints: List[Delayed],
+        corr_idxs_i1i2: Dict[Tuple[int, int], np.ndarray],
+        keypoints: List[Keypoints],
         two_view_reports: Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
-    ) -> Tuple[Delayed, Delayed, Delayed, Delayed, Delayed]:
+    ) -> Tuple[
+        Dict[Tuple[int, int], Rot3],
+        Dict[Tuple[int, int], Unit3],
+        Dict[Tuple[int, int], np.ndarray],
+        Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
+        GtsfmMetricsGroup,
+    ]:
         """Create the computation graph for ViewGraph estimation and metric evaluation.
 
         Args:
@@ -276,13 +280,11 @@ class ViewGraphEstimatorBase(GTSFMProcess):
             - GtsfmMetricsGroup with the view graph estimation metrics
         """
         # Remove all invalid edges in the input dicts.
-        valid_edges = dask.delayed(self._get_valid_input_edges)(
+        valid_edges = self._get_valid_input_edges(
             i2Ri1_dict=i2Ri1_dict,
             i2Ui1_dict=i2Ui1_dict,
         )
-        i2Ri1_valid_dict, i2Ui1_valid_dict, corr_idxs_i1i2_valid, two_view_reports_valid = dask.delayed(
-            self._filter_with_edges, nout=4
-        )(
+        i2Ri1_valid_dict, i2Ui1_valid_dict, corr_idxs_i1i2_valid, two_view_reports_valid = self._filter_with_edges(
             i2Ri1_dict=i2Ri1_dict,
             i2Ui1_dict=i2Ui1_dict,
             corr_idxs_i1i2=corr_idxs_i1i2,
@@ -291,7 +293,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         )
 
         # Run view graph estimation.
-        view_graph_edges = dask.delayed(self.run)(
+        view_graph_edges = self.get_viewgraph_edges(
             i2Ri1_dict=i2Ri1_valid_dict,
             i2Ui1_dict=i2Ui1_valid_dict,
             calibrations=calibrations,
@@ -301,9 +303,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         )
 
         # Remove all edges that are not in the view graph.
-        i2Ri1_filtered, i2Ui1_filtered, corr_idxs_i1i2_filtered, two_view_reports_filtered = dask.delayed(
-            self._filter_with_edges, nout=4
-        )(
+        i2Ri1_filtered, i2Ui1_filtered, corr_idxs_i1i2_filtered, two_view_reports_filtered = self._filter_with_edges(
             i2Ri1_dict=i2Ri1_valid_dict,
             i2Ui1_dict=i2Ui1_valid_dict,
             corr_idxs_i1i2=corr_idxs_i1i2_valid,
@@ -311,7 +311,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
             edges_to_select=view_graph_edges,
         )
 
-        view_graph_estimation_metrics = dask.delayed(self.compute_metrics)(
+        view_graph_estimation_metrics = self.compute_metrics(
             i2Ri1_dict=i2Ri1_valid_dict,
             i2Ui1_dict=i2Ui1_valid_dict,
             calibrations=calibrations,

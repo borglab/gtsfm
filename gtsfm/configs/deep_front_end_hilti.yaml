@@ -5,13 +5,11 @@ SceneOptimizer:
   save_3d_viz: True
   pose_angular_error_thresh: 5 # degrees
 
-  feature_extractor:
-    _target_: gtsfm.feature_extractor.FeatureExtractor
-    detector_descriptor:
-      _target_: gtsfm.frontend.cacher.detector_descriptor_cacher.DetectorDescriptorCacher
-      detector_descriptor_obj:
-        _target_: gtsfm.frontend.detector_descriptor.superpoint.SuperPointDetectorDescriptor
-        max_keypoints: 5000
+  det_desc:
+    _target_: gtsfm.frontend.cacher.detector_descriptor_cacher.DetectorDescriptorCacher
+    detector_descriptor_obj:
+      _target_: gtsfm.frontend.detector_descriptor.superpoint.SuperPointDetectorDescriptor
+      max_keypoints: 5000
 
   two_view_estimator:
     _target_: gtsfm.two_view_estimator.TwoViewEstimator

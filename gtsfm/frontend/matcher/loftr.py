@@ -41,7 +41,7 @@ class LOFTR(ImageMatcherBase):
         self._use_cuda: bool = use_cuda
         self._min_confidence = min_confidence
 
-    def match(self, image_i1: Image, image_i2: Image) -> Tuple[Keypoints, Keypoints]:
+    def apply(self, image_i1: Image, image_i2: Image) -> Tuple[Keypoints, Keypoints]:
         """Identify feature matches across two images.
 
         Note: the matcher will run out of memory for large image sizes

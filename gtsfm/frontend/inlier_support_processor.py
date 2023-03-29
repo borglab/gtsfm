@@ -5,9 +5,7 @@ Authors: John Lambert
 import dataclasses
 from typing import Optional, Tuple
 
-import dask
 import numpy as np
-from dask.delayed import Delayed
 from gtsam import Rot3, Unit3
 
 import gtsfm.utils.logger as logger_utils
@@ -36,7 +34,7 @@ class InlierSupportProcessor:
         self._min_num_inliers_est_model = min_num_inliers_est_model
         self._min_inlier_ratio_est_model = min_inlier_ratio_est_model
 
-    def run_inlier_support(
+    def apply(
         self,
         i2Ri1: Optional[Rot3],
         i2Ui1: Optional[Unit3],
@@ -93,29 +91,3 @@ class InlierSupportProcessor:
             return failure_result
 
         return i2Ri1, i2Ui1, v_corr_idxs, two_view_report_post_isp
-
-    def create_computation_graph(
-        self, i2Ri1_graph: Delayed, i2Ui1_graph: Delayed, v_corr_idxs_graph: Delayed, two_view_report_graph: Delayed
-    ) -> Tuple[Delayed, Delayed, Delayed, Delayed]:
-        """Create the Dask computational graph for the InlierSupportProcessor.
-
-        Args:
-            i2Ri1_graph: Relative rotation i2Ri1 for a single (i1,i2) image pair, wrapped up as Delayed.
-                When computed, will be of type Rot3, or may be None.
-            i2Ui1_graph: Relative translation direction i2Ui1 for a single (i1,i2) image pair, wrapped up as Delayed.
-                When computed, will be of type Unit3, and may be None.
-            v_corr_idxs_graph: Keypoint indices for verified correspondences, wrapped up as Delayed.
-               When computed, will be an array of shape (N,2).
-            two_view_report_graph: Report from verifier indicating the amount of "support" found for the estimated
-                relative pose.
-
-        Returns:
-            i2Ri1_pp_graph: Post-processed relative rotation (may now be None, if insufficient support).
-            i2Ui1_pp_graph: Post-processed relative translation direction (may now be None, if insufficient support).
-            v_corr_idxs_pp_graph: Post-processed keypoint indices for verified correspondences.
-                May now be an empty array, if insufficient support.
-            two_view_report_pp_graph: Post-processed two-view report (may now be None, if insufficient support).
-        """
-        return dask.delayed(self.run_inlier_support, nout=4)(
-            i2Ri1_graph, i2Ui1_graph, v_corr_idxs_graph, two_view_report_graph
-        )

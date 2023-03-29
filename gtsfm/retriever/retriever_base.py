@@ -7,9 +7,6 @@ import abc
 from enum import Enum
 from typing import List, Tuple
 
-import dask
-from dask.delayed import Delayed
-
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
@@ -26,6 +23,7 @@ class ImageMatchingRegime(str, Enum):
 class RetrieverBase(GTSFMProcess):
     """Base class for image retriever implementations."""
 
+    @staticmethod
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display node and edge info for this process in the process graph."""
 
@@ -37,7 +35,7 @@ class RetrieverBase(GTSFMProcess):
         )
 
     @abc.abstractmethod
-    def run(self, loader: LoaderBase) -> List[Tuple[int, int]]:
+    def apply(self, loader: LoaderBase) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 
         Args:
@@ -47,15 +45,3 @@ class RetrieverBase(GTSFMProcess):
         Return:
             pair_indices: (i1,i2) image pairs.
         """
-
-    def create_computation_graph(self, loader: LoaderBase) -> Delayed:
-        """Create Dask graph for image retriever.
-
-        Args:
-            loader: image loader. The length of this loader will provide the total number of images
-                for exhaustive global descriptor matching.
-
-        Return:
-            Delayed task that evaluates to a list of (i1,i2) image pairs.
-        """
-        return dask.delayed(self.run)(loader=loader)

@@ -3,7 +3,7 @@
 Authors: Ayush Baid
 """
 
-from typing import Any, Dict, NamedTuple, Optional
+from typing import Any, Dict, NamedTuple, Optional, Tuple
 
 import numpy as np
 from gtsam import Cal3Bundler
@@ -33,6 +33,10 @@ class Image(NamedTuple):
         The width of the image (i.e. number of pixels in the horizontal direction).
         """
         return self.value_array.shape[1]
+
+    @property
+    def shape(self) -> Tuple[int, int]:
+        return self.height, self.width
 
     def get_intrinsics_from_exif(self) -> Optional[Cal3Bundler]:
         """Constructs the camera intrinsics from exif tag.

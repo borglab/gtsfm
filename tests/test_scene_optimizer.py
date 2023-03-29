@@ -49,10 +49,7 @@ class TestSceneOptimizer(unittest.TestCase):
             with Client(cluster):
                 image_pair_indices = pairs_graph.compute()
 
-            (
-                delayed_keypoints,
-                delayed_putative_corr_idxs_dict,
-            ) = scene_optimizer.correspondence_generator.create_computation_graph(
+            (delayed_keypoints, delayed_putative_corr_idxs_dict,) = scene_optimizer.correspondence_generator.apply(
                 delayed_images=self.loader.create_computation_graph_for_images(),
                 image_shapes=self.loader.get_image_shapes(),
                 image_pair_indices=image_pair_indices,
@@ -64,7 +61,7 @@ class TestSceneOptimizer(unittest.TestCase):
                 )
 
             # generate the dask computation graph
-            delayed_sfm_result, delayed_io = scene_optimizer.create_computation_graph(
+            delayed_sfm_result, delayed_io = scene_optimizer.apply_multiview_estimator(
                 keypoints_list=keypoints_list,
                 putative_corr_idxs_dict=putative_corr_idxs_dict,
                 num_images=len(self.loader),

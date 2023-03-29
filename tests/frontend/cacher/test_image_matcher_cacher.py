@@ -45,7 +45,7 @@ class TestImageMatcherCacher(unittest.TestCase):
         underlying_matcher_mock.__class__.__name__ = "mock_matcher"
         obj_under_test = ImageMatcherCacher(matcher_obj=underlying_matcher_mock)
 
-        computed_keypoints_i1, computed_keypoints_i2 = obj_under_test.match(
+        computed_keypoints_i1, computed_keypoints_i2 = obj_under_test.apply(
             image_i1=DUMMY_IMAGE_I1,
             image_i2=DUMMY_IMAGE_I2,
         )
@@ -85,7 +85,7 @@ class TestImageMatcherCacher(unittest.TestCase):
         underlying_matcher_mock.__class__.__name__ = "mock_matcher"
         obj_under_test = ImageMatcherCacher(matcher_obj=underlying_matcher_mock)
 
-        computed_keypoints_i1, computed_keypoints_i2 = obj_under_test.match(
+        computed_keypoints_i1, computed_keypoints_i2 = obj_under_test.apply(
             image_i1=DUMMY_IMAGE_I1,
             image_i2=DUMMY_IMAGE_I2,
         )

@@ -17,7 +17,6 @@ import gtsfm.utils.io as io_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
-from gtsfm.two_view_estimator import TwoViewEstimationReport
 
 COLOR_RED = (255, 0, 0)
 COLOR_GREEN = (0, 255, 0)
@@ -245,7 +244,7 @@ def save_twoview_correspondences_viz(
     keypoints_i1: Keypoints,
     keypoints_i2: Keypoints,
     corr_idxs_i1i2: np.ndarray,
-    two_view_report: TwoViewEstimationReport,
+    inlier_mask: Optional[np.ndarray],
     file_path: str,
 ) -> None:
     """Visualize correspondences between pairs of images.
@@ -260,12 +259,7 @@ def save_twoview_correspondences_viz(
         file_path: file path to save the visualization.
     """
     plot_img = plot_twoview_correspondences(
-        image_i1,
-        image_i2,
-        keypoints_i1,
-        keypoints_i2,
-        corr_idxs_i1i2,
-        inlier_mask=two_view_report.v_corr_idxs_inlier_mask_gt,
+        image_i1, image_i2, keypoints_i1, keypoints_i2, corr_idxs_i1i2, inlier_mask=inlier_mask
     )
 
     io_utils.save_image(plot_img, file_path)

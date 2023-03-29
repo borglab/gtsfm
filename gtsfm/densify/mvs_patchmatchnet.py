@@ -57,7 +57,7 @@ class MVSPatchmatchNet(MVSBase):
     PyTorch DataLoader is used to load batched data for PatchmatchNet.
     """
 
-    def densify(
+    def apply(
         self,
         images: Dict[int, Image],
         sfm_result: GtsfmData,
@@ -67,7 +67,7 @@ class MVSPatchmatchNet(MVSBase):
         min_conf_thresh: float = MIN_CONFIDENCE_THRESH,
         min_num_consistent_views: float = MIN_NUM_CONSISTENT_VIEWS,
         num_workers: int = 0,
-    ) -> Tuple[np.ndarray, np.ndarray, GtsfmMetricsGroup]:
+    ) -> Tuple[np.ndarray, np.ndarray, GtsfmMetricsGroup, GtsfmMetricsGroup]:
         """Get dense point cloud using PatchmatchNet from GtsfmData. The method implements the densify method in MVSBase
         Ref: Wang et al. https://github.com/FangjinhuaWang/PatchmatchNet/blob/main/eval.py
 
@@ -91,6 +91,7 @@ class MVSPatchmatchNet(MVSBase):
             dense_point_colors: RGB color of each point in the dense point cloud
                 with shape (N, 3) where N is the number of points
             densify_metrics: Metrics group containing metrics for dense reconstruction
+            downsamping_metrics: Metrics group for downsampling metrics.
         """
         dataset = PatchmatchNetData(images=images, sfm_result=sfm_result, max_num_views=max_num_views)
 
@@ -196,7 +197,9 @@ class MVSPatchmatchNet(MVSBase):
         # merge filtering metrics to densify metrics
         densify_metrics.extend(filtering_metrics)
 
-        return dense_point_cloud, dense_point_colors, densify_metrics
+        downsampling_metrics = self.__compute_downsampling_metrics(dense_point_cloud, dense_point_colors)
+
+        return dense_point_cloud, dense_point_colors, densify_metrics, downsampling_metrics
 
     def filter_depth(
         self,

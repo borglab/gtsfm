@@ -42,7 +42,7 @@ def run_frontend(
     camera_intrinsics = loader.get_all_intrinsics()
     image_shapes = loader.get_image_shapes()
 
-    (delayed_keypoints, delayed_putative_corr_idxs_dict,) = correspondence_generator.create_computation_graph(
+    (delayed_keypoints, delayed_putative_corr_idxs_dict,) = correspondence_generator.apply(
         delayed_images=loader.create_computation_graph_for_images(),
         image_shapes=loader.get_image_shapes(),
         image_pair_indices=image_pair_indices,

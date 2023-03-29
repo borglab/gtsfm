@@ -5,8 +5,6 @@ Authors: John Lambert
 
 from typing import List, Tuple
 
-import dask
-
 import gtsfm.utils.logger as logger_utils
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.retriever.netvlad_retriever import NetVLADRetriever
@@ -29,7 +27,7 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
         self._similarity_retriever = NetVLADRetriever(num_matched=num_matched)
         self._seq_retriever = SequentialRetriever(max_frame_lookahead=max_frame_lookahead)
 
-    def create_computation_graph(self, loader: LoaderBase) -> List[Tuple[int, int]]:
+    def apply(self, loader: LoaderBase) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 
         Args:
@@ -39,10 +37,11 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
         Return:
             pair_indices: (i1,i2) image pairs.
         """
-        sim_pairs = self._similarity_retriever.create_computation_graph(loader)
-        seq_pairs = self._seq_retriever.create_computation_graph(loader)
+        # TODO(Ayush): This needs to be distributed
+        sim_pairs = self._similarity_retriever.apply(loader)
+        seq_pairs = self._seq_retriever.apply(loader)
 
-        pairs = dask.delayed(self.aggregate_pairs)(sim_pairs=sim_pairs, seq_pairs=seq_pairs)
+        pairs = self.aggregate_pairs(sim_pairs=sim_pairs, seq_pairs=seq_pairs)
         return pairs
 
     def aggregate_pairs(

@@ -44,7 +44,7 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
         self._use_cuda = use_cuda and torch.cuda.is_available()
         self._config = {"weights_path": weights_path}
 
-    def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
+    def apply(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
         """Jointly generate keypoint detections and their associated descriptors from a single image."""
         # TODO(ayushbaid): fix inference issue #110
         device = torch.device("cuda" if self._use_cuda else "cpu")

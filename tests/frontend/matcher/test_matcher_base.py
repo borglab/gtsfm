@@ -61,19 +61,19 @@ class TestMatcherBase(unittest.TestCase):
         im_shape_i2 = (300, 200)
 
         # no keypoints for just i1
-        result = self.matcher.match(
+        result = self.matcher.apply(
             empty_keypoints, nonempty_keypoints, empty_descriptors, nonempty_descriptors, im_shape_i1, im_shape_i2
         )
         self.assertEqual(result.size, 0)
 
         # no keypoints for just i2
-        result = self.matcher.match(
+        result = self.matcher.apply(
             nonempty_keypoints, empty_keypoints, nonempty_descriptors, empty_descriptors, im_shape_i1, im_shape_i2
         )
         self.assertEqual(result.size, 0)
 
         # no keypoints for both i1 and i2
-        result = self.matcher.match(
+        result = self.matcher.apply(
             deepcopy(empty_keypoints),
             deepcopy(empty_keypoints),
             deepcopy(empty_descriptors),
@@ -94,7 +94,7 @@ class TestMatcherBase(unittest.TestCase):
             im_shape_i2,
         ) = get_features_from_real_images()
 
-        expected_matches = self.matcher.match(
+        expected_matches = self.matcher.apply(
             keypoints_i1, keypoints_i2, descriptors_i1, descriptors_i2, im_shape_i1, im_shape_i2
         )
 

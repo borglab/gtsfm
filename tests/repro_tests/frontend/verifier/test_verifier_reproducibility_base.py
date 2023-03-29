@@ -37,9 +37,9 @@ class VerifierReproducibilityBase(ReproducibilityTestBase, unittest.TestCase):
         matcher = TwoWayMatcher()
         self._image_i1 = io_utils.load_image(str(IMG1_PATH))
         self._image_i2 = io_utils.load_image(str(IMG2_PATH))
-        self._keypoints_i1, descriptors_i1 = detector_descriptor.detect_and_describe(self._image_i1)
-        self._keypoints_i2, descriptors_i2 = detector_descriptor.detect_and_describe(self._image_i2)
-        self._match_indices = matcher.match(
+        self._keypoints_i1, descriptors_i1 = detector_descriptor.apply(self._image_i1)
+        self._keypoints_i2, descriptors_i2 = detector_descriptor.apply(self._image_i2)
+        self._match_indices = matcher.apply(
             self._keypoints_i1,
             self._keypoints_i2,
             descriptors_i1,

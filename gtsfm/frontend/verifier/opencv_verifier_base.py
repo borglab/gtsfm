@@ -42,7 +42,7 @@ class OpencvVerifierBase(VerifierBase):
         # for failure, i2Ri1 = None, and i2Ui1 = None, and no verified correspondences, and inlier_ratio_est_model = 0
         self._failure_result = (None, None, np.array([], dtype=np.uint64), 0.0)
 
-    def verify(
+    def apply(
         self,
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,

@@ -17,7 +17,7 @@ class GlobalDescriptorBase:
     """
 
     @abc.abstractmethod
-    def describe(self, image: Image) -> np.ndarray:
+    def apply(self, image: Image) -> np.ndarray:
         """Compute the global descriptor for a single image query.
 
         Args:

@@ -7,8 +7,6 @@ import abc
 import logging
 from typing import Dict, List, Optional, Tuple
 
-import dask
-from dask.delayed import Delayed
 from gtsam import Cal3Bundler, Pose3
 
 import gtsfm.common.types as gtsfm_types
@@ -26,6 +24,7 @@ class LoaderBase(GTSFMProcess):
     The loader provides APIs to get an image, either directly or as a dask delayed task
     """
 
+    @staticmethod
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display node and edge info for this process in the process graph."""
 
@@ -261,15 +260,6 @@ class LoaderBase(GTSFMProcess):
         """
         N = len(self)
         return [self.get_absolute_pose_prior(i) for i in range(N)]
-
-    def create_computation_graph_for_images(self) -> List[Delayed]:
-        """Creates the computation graph for image fetches.
-
-        Returns:
-            list of delayed tasks for images.
-        """
-        N = len(self)
-        return [dask.delayed(self.get_image)(i) for i in range(N)]
 
     def get_all_intrinsics(self) -> List[Optional[gtsfm_types.CALIBRATION_TYPE]]:
         """Return all the camera intrinsics.
