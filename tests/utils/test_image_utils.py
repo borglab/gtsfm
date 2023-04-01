@@ -141,7 +141,7 @@ class TestImageUtils(unittest.TestCase):
         self.assertEqual(sensor_width, 36)
         # Catch lookup failure
         with self.assertRaises(LookupError):
-            db.lookup(make="Canon", model="Canon EOS REBEL T1i")
+            db.lookup(make="Canon", model="Canon EOS REBEL XT")
 
 
 if __name__ == "__main__":
