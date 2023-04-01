@@ -112,6 +112,7 @@ class TwoViewEstimator:
 
         tracks_3d: List[SfmTrack] = []
         valid_indices: List[int] = []
+        noise_model = gtsam.noiseModel.Isotropic.Sigma(2, 1e-2)
         for j, (idx1, idx2) in enumerate(corr_idxs):
             track_2d = Point2Vector()
             track_2d.append(keypoints_i1.coordinates[idx1])
@@ -119,7 +120,12 @@ class TwoViewEstimator:
 
             try:
                 triangulated_pt = gtsam.triangulatePoint3(
-                    camera_set, track_2d, rank_tol=SVD_DLT_RANK_TOL, optimize=False
+                    camera_set,
+                    track_2d,
+                    rank_tol=SVD_DLT_RANK_TOL,
+                    optimize=False,
+                    model=noise_model,
+                    useLOST=True,
                 )
                 track_3d = SfmTrack(triangulated_pt)
                 track_3d.addMeasurement(0, track_2d[0])
