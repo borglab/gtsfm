@@ -28,7 +28,7 @@ Author: Kevin Fu
 
 import abc
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Tuple, Optional
 
 from gtsfm.ui.registry import AbstractableRegistryHolder
 
@@ -48,9 +48,9 @@ class UiMetadata:
     """
 
     display_name: str
-    input_products: Tuple[str]
-    output_products: Tuple[str]
-    parent_plate: str = None
+    input_products: Tuple[str, ...]
+    output_products: Tuple[str, ...]
+    parent_plate: Optional[str] = None
 
 
 class GTSFMProcess(metaclass=AbstractableRegistryHolder):
