@@ -49,101 +49,26 @@ class DsfTracksEstimator(TracksEstimatorBase):
         if not dims_valid:
             raise Exception("Dimensions for Keypoint coordinates incorrect. Array needs to be 2D")
 
-        new_matches_dict = MatchIndicesMap()
+        matches_dict_cpp = MatchIndicesMap()
         for (i1, i2), k_pairs in matches_dict.items():
-            new_matches_dict[IndexPair(i1, i2)] = k_pairs
+            matches_dict_cpp[IndexPair(i1, i2)] = k_pairs
         
-        new_keypoints_list = KeypointsVector()
+        keypoints_list_cpp = KeypointsVector()
         for keypoint in keypoints_list:
-            new_keypoints_list.append(
-                Keypoints(keypoint.coordinates)
+            keypoints_list_cpp.append(
+                gtsam.gtsfm.Keypoints(keypoint.coordinates)
             )
-        tracks = (gtsam.gtsfm.tracksFromPairwiseMatches(
-            new_matches_dict,
-            new_keypoints_list,
+        
+        tracks = gtsam.gtsfm.tracksFromPairwiseMatches(
+            matches_dict_cpp,
+            keypoints_list_cpp,
             verbose=False,
-        ))
-        # final_tracks = [SfmTrack2d(track.measurementMatrix()) for track in tracks]
-        # print(final_tracks)
-        final_tracks = [
+        )
+
+        track_2d_list = [
             SfmTrack2d(
                 [SfmMeasurement(i, uv) for (i, uv) in zip(track.indexVector(), track.measurementMatrix())])
                 for track in tracks
         ]
-        print(final_tracks)
-        print()
-        # indexVector()
-        return final_tracks
-        print("#######################################################################################")
-
-        # return
-
-        # kps_i0 = Keypoints(np.array([[10.0, 20], [30, 40]]))
-        # kps_i1 = Keypoints(np.array([[50.0, 60], [70, 80], [90, 100]]))
-        # kps_i2 = Keypoints(np.array([[110.0, 120], [130, 140]]))
-
-        # keypoints_list = KeypointsVector()
-        # keypoints_list.append(kps_i0)
-        # keypoints_list.append(kps_i1)
-        # keypoints_list.append(kps_i2)
-
-        # # For each image pair (i1,i2), we provide a (K,2) matrix
-        # # of corresponding image indices (k1,k2).
-        # matches_dict = MatchIndicesMap()
-        # matches_dict[IndexPair(0, 1)] = np.array([[0, 0], [1, 1]])
-        # matches_dict[IndexPair(1, 2)] = np.array([[2, 0], [1, 1]])
-
-        # tracks = gtsam.gtsfm.tracksFromPairwiseMatches(
-        #     matches_dict,
-        #     keypoints_list,
-        #     verbose=False,
-        # )
-        # print(tracks)
-        # print("#######################################################################################")
-        # return
-
-        # Generate the DSF to form tracks
-        dsf = gtsam.DSFMapIndexPair()
-        track_2d_list = []
-        # for DSF finally
-        # measurement_idxs represented by ks
-        for (i1, i2), k_pairs in matches_dict.items():
-            for (k1, k2) in k_pairs:
-                dsf.merge(gtsam.IndexPair(i1, k1), gtsam.IndexPair(i2, k2))
-
-        key_set = dsf.sets()
-
-        erroneous_track_count = 0
-        # create a landmark map: a list of tracks
-        # Each track is represented as a list of (camera_idx, measurements)
-        for set_id in key_set:
-            index_pair_set = key_set[set_id]  # key_set is a wrapped C++ map, so this unusual syntax is required
-
-            # Initialize track from measurements
-            track_measurements = []
-            for index_pair in gtsam.IndexPairSetAsArray(index_pair_set):
-                # camera_idx is represented by i
-                # measurement_idx is represented by k
-                i = index_pair.i()
-                k = index_pair.j()
-                # add measurement in this track
-                track_measurements += [SfmMeasurement(i, keypoints_list[i].coordinates[k])]
-
-            track_2d = SfmTrack2d(track_measurements)
-
-            # Skip erroneous track that had repeated measurements within the same image (i.e., violates transitivity).
-            # This is an expected result from an incorrect correspondence slipping through.
-            if track_2d.validate_unique_cameras():
-                track_2d_list += [track_2d]
-            else:
-                erroneous_track_count += 1
-
-        erroneous_track_pct = erroneous_track_count / len(key_set) * 100 if len(key_set) > 0 else np.NaN
-        logger.info(
-            f"DSF Union-Find: {erroneous_track_pct:.2f}% of tracks discarded from multiple obs. in a single image."
-        )
-        print(track_2d_list)
-        print(len(track_2d_list))
-        print("#######################################################################################")
 
         return track_2d_list
