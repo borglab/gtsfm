@@ -10,6 +10,13 @@ from gtsam import Cal3Bundler
 
 from gtsfm.common.sensor_width_database import SensorWidthDatabase
 
+DEFAULT_FOCAL_LENGTH_FACTOR = 1.2  # A heuristic value that scales image width or height in pixel unit.
+
+# Tag Ref: https://www.awaresystems.be/imaging/tiff/tifftags/privateifd/exif/focalplaneresolutionunit.html
+INCHES_FOCAL_PLANE_RES_UNIT = 2
+CENTIMETERS_FOCAL_PLANE_RES_UNIT = 3
+MILLIMETERS_PER_INCH = 25.4
+
 
 class Image(NamedTuple):
     """Holds the image, associated exif data, and original image file name."""
@@ -19,7 +26,6 @@ class Image(NamedTuple):
     sensor_width_db = SensorWidthDatabase()
     file_name: Optional[str] = None
     mask: Optional[np.ndarray] = None
-    default_focal_length_factor: float = 1.2
 
     @property
     def height(self) -> int:
@@ -34,6 +40,40 @@ class Image(NamedTuple):
         The width of the image (i.e. number of pixels in the horizontal direction).
         """
         return self.value_array.shape[1]
+
+    def __read_from_exif_image_width(self) -> float:
+        """
+        Compute sensor_width_mm from `ExifImageWidth` tag,
+
+        sensor_width = pixel_x_dim / focal_plane_x_res * unit_conversion_factor
+
+        Returns:
+            sensor_width_mm.
+        """
+
+        sensor_width_mm = 0.0
+
+        # Read `ExifImageWidth` and `FocalPlaneXResolution`.
+        pixel_x_dim = self.exif_data.get("ExifImageWidth")
+        focal_plane_x_res = self.exif_data.get("FocalPlaneXResolution")
+        focal_plane_res_unit = self.exif_data.get("FocalPlaneResolutionUnit")
+
+        if (
+            pixel_x_dim is not None
+            and pixel_x_dim > 0
+            and focal_plane_x_res is not None
+            and focal_plane_x_res > 0
+            and focal_plane_res_unit is not None
+            and focal_plane_res_unit > 0
+        ):
+            ccd_width = pixel_x_dim / focal_plane_x_res
+
+            if focal_plane_res_unit == CENTIMETERS_FOCAL_PLANE_RES_UNIT:
+                sensor_width_mm = ccd_width * 10.0  # convert cm to mm
+            elif focal_plane_res_unit == INCHES_FOCAL_PLANE_RES_UNIT:
+                sensor_width_mm = ccd_width * MILLIMETERS_PER_INCH  # convert inch to mm
+
+        return sensor_width_mm
 
     def get_intrinsics_from_exif(self) -> Optional[Cal3Bundler]:
         """Constructs the camera intrinsics from exif tag.
@@ -58,8 +98,8 @@ class Image(NamedTuple):
         img_h_px = self.height
         max_size = max(img_w_px, img_h_px)
 
-        # Initialize focal length by `default_focal_length_factor * max(width, height)`.
-        focal_length_px = self.default_focal_length_factor * max_size
+        # Initialize focal length by `DEFAULT_FOCAL_LENGTH_FACTOR * max(width, height)`.
+        focal_length_px = DEFAULT_FOCAL_LENGTH_FACTOR * max_size
 
         # Read focal length prior from exif.
         if self.exif_data is not None and len(self.exif_data) > 0:
@@ -83,24 +123,7 @@ class Image(NamedTuple):
                             self.exif_data.get("Model"),
                         )
                     except (AttributeError, LookupError):
-                        # Read from `ExifImageWidth` and `FocalPlaneXResolution`.
-                        pixel_x_dim = self.exif_data.get("ExifImageWidth")
-                        focal_plane_x_res = self.exif_data.get("FocalPlaneXResolution")
-                        focal_plane_res_unit = self.exif_data.get("FocalPlaneResolutionUnit")
-
-                        if (
-                            pixel_x_dim is not None
-                            and pixel_x_dim > 0
-                            and focal_plane_x_res is not None
-                            and focal_plane_x_res > 0
-                            and focal_plane_res_unit is not None
-                            and focal_plane_res_unit > 0
-                        ):
-                            ccd_width = pixel_x_dim / focal_plane_x_res
-                            if focal_plane_res_unit == 3:  # cm
-                                sensor_width_mm = ccd_width * 10
-                            elif focal_plane_res_unit == 2:  # inch
-                                sensor_width_mm = ccd_width * 25.4
+                        sensor_width_mm = self.__read_from_exif_image_width()
 
                     if sensor_width_mm > 0.0:
                         focal_length_px = focal_length_mm / sensor_width_mm * max_size

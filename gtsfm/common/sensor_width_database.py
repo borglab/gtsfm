@@ -44,25 +44,36 @@ class SensorWidthDatabase:
         match_count = 0
         sensor_width = 0.0
         for _, row in self.df.iterrows():
+
             db_make = row["CameraMaker"]
+
             # Check camera make substring.
-            if lower_make in db_make or db_make in lower_make:
-                db_model = row["CameraModel"]
-                db_model = db_model.replace(" ", "").replace("-", "").replace(db_make, "")
-                # Check camera model substring.
-                if lower_model in db_model or db_model in lower_model:
-                    sensor_width = row["SensorWidth(mm)"]
-                    # Return directly if found exact match.
-                    if lower_model == db_model:
-                        return sensor_width
-                    match_count += 1
-                    # Check if found multiple matches.
-                    if match_count > 1:
-                        break
+            if not (lower_make in db_make or db_make in lower_make):
+                continue
+
+            db_model = row["CameraModel"]
+            db_model = db_model.replace(" ", "").replace("-", "").replace(db_make, "")
+
+            # Check camera model substring.
+            if not (lower_model in db_model or db_model in lower_model):
+                continue
+
+            sensor_width = row["SensorWidth(mm)"]
+
+            # Return directly if found exact match.
+            if lower_model == db_model:
+                return sensor_width
+
+            match_count += 1
+
+            # Check if found multiple matches.
+            if match_count > 1:
+                break
 
         # Check if found unique match.
         if match_count == 0 or match_count > 1:
             raise LookupError(f"make='{make}' and model='{model}' not found in sensor database")
 
         assert sensor_width > 0.0
+
         return sensor_width
