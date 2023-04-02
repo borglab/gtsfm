@@ -79,7 +79,9 @@ def test_create_computation_graph_with_ground_truth(dataset_path):
 
         assert isinstance(sfm_result, GtsfmData)
 
-        if dataset_path != TEST_DATA_NO_GT:
+        if dataset_path == TEST_DATA_NO_GT:
+            assert len(sfm_result.get_valid_camera_indices()) == len(loader)
+        else:
             # compare the camera poses
             computed_poses = sfm_result.get_camera_poses()
 
@@ -90,8 +92,6 @@ def test_create_computation_graph_with_ground_truth(dataset_path):
             assert comp_utils.compare_global_poses(
                 computed_poses, expected_poses, trans_err_atol=1.0, trans_err_rtol=0.1
             )
-        else:
-            assert len(sfm_result.get_valid_camera_indices()) == len(loader)
 
 
 def generate_random_essential_matrix() -> EssentialMatrix:
