@@ -14,17 +14,20 @@ import gtsam
 import numpy as np
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.common.keypoints import Keypoints
+# from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
 from gtsfm.data_association.tracks_estimator_base import TracksEstimatorBase
 
 logger = logger_utils.get_logger()
 
+from gtsam import (IndexPair, KeypointsVector, MatchIndicesMap, Point2,
+                   SfmMeasurementVector)
+from gtsam.gtsfm import Keypoints
 
 class DsfTracksEstimator(TracksEstimatorBase):
     """Estimates tracks using a disjoint-set forest (DSF)."""
 
-    def run(self, matches_dict: Dict[Tuple[int, int], np.ndarray], keypoints_list: List[Keypoints]) -> List[SfmTrack2d]:
+    def run(self, matches_dict: Dict[Tuple[int, int], np.ndarray], keypoints_list) -> List[SfmTrack2d]:
         """Estimate tracks from feature correspondences.
 
         Creates a disjoint-set forest (DSF) and 2d tracks from pairwise matches. We create a singleton for union-find
@@ -45,6 +48,59 @@ class DsfTracksEstimator(TracksEstimatorBase):
         dims_valid = all([kps.coordinates.ndim == 2 for kps in keypoints_list])
         if not dims_valid:
             raise Exception("Dimensions for Keypoint coordinates incorrect. Array needs to be 2D")
+
+        new_matches_dict = MatchIndicesMap()
+        for (i1, i2), k_pairs in matches_dict.items():
+            new_matches_dict[IndexPair(i1, i2)] = k_pairs
+        
+        new_keypoints_list = KeypointsVector()
+        for keypoint in keypoints_list:
+            new_keypoints_list.append(
+                Keypoints(keypoint.coordinates)
+            )
+        tracks = (gtsam.gtsfm.tracksFromPairwiseMatches(
+            new_matches_dict,
+            new_keypoints_list,
+            verbose=False,
+        ))
+        # final_tracks = [SfmTrack2d(track.measurementMatrix()) for track in tracks]
+        # print(final_tracks)
+        final_tracks = [
+            SfmTrack2d(
+                [SfmMeasurement(i, uv) for (i, uv) in zip(track.indexVector(), track.measurementMatrix())])
+                for track in tracks
+        ]
+        print(final_tracks)
+        print()
+        # indexVector()
+        return final_tracks
+        print("#######################################################################################")
+
+        # return
+
+        # kps_i0 = Keypoints(np.array([[10.0, 20], [30, 40]]))
+        # kps_i1 = Keypoints(np.array([[50.0, 60], [70, 80], [90, 100]]))
+        # kps_i2 = Keypoints(np.array([[110.0, 120], [130, 140]]))
+
+        # keypoints_list = KeypointsVector()
+        # keypoints_list.append(kps_i0)
+        # keypoints_list.append(kps_i1)
+        # keypoints_list.append(kps_i2)
+
+        # # For each image pair (i1,i2), we provide a (K,2) matrix
+        # # of corresponding image indices (k1,k2).
+        # matches_dict = MatchIndicesMap()
+        # matches_dict[IndexPair(0, 1)] = np.array([[0, 0], [1, 1]])
+        # matches_dict[IndexPair(1, 2)] = np.array([[2, 0], [1, 1]])
+
+        # tracks = gtsam.gtsfm.tracksFromPairwiseMatches(
+        #     matches_dict,
+        #     keypoints_list,
+        #     verbose=False,
+        # )
+        # print(tracks)
+        # print("#######################################################################################")
+        # return
 
         # Generate the DSF to form tracks
         dsf = gtsam.DSFMapIndexPair()
@@ -86,4 +142,8 @@ class DsfTracksEstimator(TracksEstimatorBase):
         logger.info(
             f"DSF Union-Find: {erroneous_track_pct:.2f}% of tracks discarded from multiple obs. in a single image."
         )
+        print(track_2d_list)
+        print(len(track_2d_list))
+        print("#######################################################################################")
+
         return track_2d_list
