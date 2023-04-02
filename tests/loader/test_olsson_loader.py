@@ -18,7 +18,7 @@ DATA_ROOT_PATH = Path(__file__).resolve().parent.parent / "data"
 
 DEFAULT_FOLDER = DATA_ROOT_PATH / "set1_lund_door"
 EXIF_FOLDER = DATA_ROOT_PATH / "set2_lund_door_nointrinsics"
-NO_EXTRINSICS_FOLDER = DATA_ROOT_PATH / "set3_lund_doornointrinsics_noextrinsics"
+NO_EXTRINSICS_FOLDER = DATA_ROOT_PATH / "set3_lund_door_nointrinsics_noextrinsics"
 NO_EXIF_FOLDER = DATA_ROOT_PATH / "set4_lund_door_nointrinsics_noextrinsics_noexif"
 
 
