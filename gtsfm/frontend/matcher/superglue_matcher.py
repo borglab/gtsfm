@@ -84,12 +84,12 @@ class SuperGlueMatcher(MatcherBase):
         empty_image_i2 = torch.empty((B, C, H2, W2))
 
         input_data = {
-            "keypoints0": torch.from_numpy(keypoints_i1.coordinates).unsqueeze(0).float().to(device),
-            "keypoints1": torch.from_numpy(keypoints_i2.coordinates).unsqueeze(0).float().to(device),
-            "descriptors0": torch.from_numpy(descriptors_i1).T.unsqueeze(0).float().to(device),
-            "descriptors1": torch.from_numpy(descriptors_i2).T.unsqueeze(0).float().to(device),
-            "scores0": torch.from_numpy(keypoints_i1.responses).unsqueeze(0).float().to(device),
-            "scores1": torch.from_numpy(keypoints_i2.responses).unsqueeze(0).float().to(device),
+            "keypoints0": torch.from_numpy(keypoints_i1.coordinates).unsqueeze(0).float(),
+            "keypoints1": torch.from_numpy(keypoints_i2.coordinates).unsqueeze(0).float(),
+            "descriptors0": torch.from_numpy(descriptors_i1).T.unsqueeze(0).float(),
+            "descriptors1": torch.from_numpy(descriptors_i2).T.unsqueeze(0).float(),
+            "scores0": torch.from_numpy(keypoints_i1.responses).unsqueeze(0).float(),
+            "scores1": torch.from_numpy(keypoints_i2.responses).unsqueeze(0).float(),
             "image0": empty_image_i1,
             "image1": empty_image_i2,
         }
