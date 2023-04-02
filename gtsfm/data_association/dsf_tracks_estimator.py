@@ -14,13 +14,11 @@ import gtsam
 import numpy as np
 
 import gtsfm.utils.logger as logger_utils
-from gtsam import IndexPair, KeypointsVector, MatchIndicesMap
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
 from gtsfm.data_association.tracks_estimator_base import TracksEstimatorBase
 
 logger = logger_utils.get_logger()
-
 
 
 class DsfTracksEstimator(TracksEstimatorBase):
@@ -49,12 +47,12 @@ class DsfTracksEstimator(TracksEstimatorBase):
             raise Exception("Dimensions for Keypoint coordinates incorrect. Array needs to be 2D")
 
         # converting python dict into gtsam.MatchIndicesMap
-        matches_map = MatchIndicesMap()
+        matches_map = gtsam.MatchIndicesMap()
         for (i1, i2), k_pairs in matches_dict.items():
-            matches_map[IndexPair(i1, i2)] = k_pairs
+            matches_map[gtsam.IndexPair(i1, i2)] = k_pairs
         
         # converting gtsfm Keypoints into gtsam Keypoints
-        keypoints_vector = KeypointsVector()
+        keypoints_vector = gtsam.KeypointsVector()
         for keypoint in keypoints_list:
             keypoints_vector.append(
                 gtsam.gtsfm.Keypoints(keypoint.coordinates)
