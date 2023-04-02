@@ -177,7 +177,8 @@ class ShonanRotationAveraging(RotationAveragingBase):
         if len(i2Ri1_dict) == 0:
             logger.warning("Shonan cannot proceed: No cycle-consistent triplets found after filtering.")
             wRi_list = [None] * num_images
-            return wRi_list
+            metrics = self.__evaluate(wRi_computed=wRi_list, wTi_gt=wTi_gt)
+            return wRi_list, metrics
 
         nodes_with_edges = sorted(list(self._nodes_with_edges(i2Ri1_dict, i1Ti2_priors)))
         old_to_new_idxes = {old_idx: i for i, old_idx in enumerate(nodes_with_edges)}
