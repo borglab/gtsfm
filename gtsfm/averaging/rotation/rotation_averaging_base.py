@@ -26,8 +26,11 @@ class RotationAveragingBase(GTSFMProcess):
 
         return UiMetadata(
             display_name="Rotation Averaging",
-            input_products=("View-Graph Relative Rotations", "Relative Pose Priors"),
-            output_products="Global Rotations",
+            input_products=(
+                "View-Graph Relative Rotations",
+                "Relative Pose Priors",
+            ),
+            output_products=("Global Rotations"),
             parent_plate="Sparse Reconstruction",
         )
 
