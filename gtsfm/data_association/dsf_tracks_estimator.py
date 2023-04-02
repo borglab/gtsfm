@@ -14,20 +14,19 @@ import gtsam
 import numpy as np
 
 import gtsfm.utils.logger as logger_utils
-# from gtsfm.common.keypoints import Keypoints
+from gtsam import IndexPair, KeypointsVector, MatchIndicesMap
+from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
 from gtsfm.data_association.tracks_estimator_base import TracksEstimatorBase
 
 logger = logger_utils.get_logger()
 
-from gtsam import (IndexPair, KeypointsVector, MatchIndicesMap, Point2,
-                   SfmMeasurementVector)
-from gtsam.gtsfm import Keypoints
+
 
 class DsfTracksEstimator(TracksEstimatorBase):
     """Estimates tracks using a disjoint-set forest (DSF)."""
 
-    def run(self, matches_dict: Dict[Tuple[int, int], np.ndarray], keypoints_list) -> List[SfmTrack2d]:
+    def run(self, matches_dict: Dict[Tuple[int, int], np.ndarray], keypoints_list: List[Keypoints]) -> List[SfmTrack2d]:
         """Estimate tracks from feature correspondences.
 
         Creates a disjoint-set forest (DSF) and 2d tracks from pairwise matches. We create a singleton for union-find
@@ -49,26 +48,28 @@ class DsfTracksEstimator(TracksEstimatorBase):
         if not dims_valid:
             raise Exception("Dimensions for Keypoint coordinates incorrect. Array needs to be 2D")
 
-        matches_dict_cpp = MatchIndicesMap()
+        # converting python dict into gtsam.MatchIndicesMap
+        matches_map = MatchIndicesMap()
         for (i1, i2), k_pairs in matches_dict.items():
-            matches_dict_cpp[IndexPair(i1, i2)] = k_pairs
+            matches_map[IndexPair(i1, i2)] = k_pairs
         
-        keypoints_list_cpp = KeypointsVector()
+        # converting gtsfm Keypoints into gtsam Keypoints
+        keypoints_vector = KeypointsVector()
         for keypoint in keypoints_list:
-            keypoints_list_cpp.append(
+            keypoints_vector.append(
                 gtsam.gtsfm.Keypoints(keypoint.coordinates)
             )
         
         tracks = gtsam.gtsfm.tracksFromPairwiseMatches(
-            matches_dict_cpp,
-            keypoints_list_cpp,
+            matches_map,
+            keypoints_vector,
             verbose=False,
         )
 
+        # converting gtsam SfmTrack2d into gtsfm SfmTrack2d
         track_2d_list = [
             SfmTrack2d(
-                [SfmMeasurement(i, uv) for (i, uv) in zip(track.indexVector(), track.measurementMatrix())])
-                for track in tracks
-        ]
+                [SfmMeasurement(i, uv) for (i, uv) in zip(track.indexVector(), track.measurementMatrix())]
+            ) for track in tracks]
 
         return track_2d_list
