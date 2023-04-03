@@ -267,6 +267,7 @@ class GtsfmRunnerBase:
 
         det_desc_future = client.scatter(correspondence_generator.det_desc, broadcast=True)
         feature_matcher_future = client.scatter(correspondence_generator.matcher, broadcast=True)
+        two_view_estimator_future = client.scatter(two_view_estimator, broadcast=True)
         features_futures = [client.submit(apply_det_desc, det_desc_future, image) for image in images]
         matches_futures = {
             (i1, i2): client.submit(
@@ -283,7 +284,7 @@ class GtsfmRunnerBase:
         two_view_output_futures = {
             (i1, i2): client.submit(
                 apply_two_view_estimator,
-                two_view_estimator,
+                two_view_estimator_future,
                 features_futures[i1],
                 features_futures[i2],
                 matches_futures[(i1, i2)],
@@ -299,7 +300,8 @@ class GtsfmRunnerBase:
             for (i1, i2) in image_pairs
         }
 
-        features_list, two_view_output_dict = client.gather((features_futures, two_view_output_futures))
+        features_list = client.gather(features_futures)
+        two_view_output_dict = client.gather(two_view_output_futures)
         keypoints_list = [f[0] for f in features_list]
 
         return keypoints_list, two_view_output_dict
@@ -312,7 +314,6 @@ class GtsfmRunnerBase:
         cluster = LocalCluster(
             n_workers=self.parsed_args.num_workers, threads_per_worker=self.parsed_args.threads_per_worker
         )
-        client = Client(cluster)
 
         # create process graph
         process_graph_generator = ProcessGraphGenerator()
@@ -323,17 +324,18 @@ class GtsfmRunnerBase:
         images = [self.loader.get_image_full_res(i) for i in range(len(self.loader))]
         image_pair_indices = self.retriever.apply(self.loader)
 
-        keypoints_list, two_view_results_dict = self.apply_correspondence_generator(
-            client,
-            images,
-            image_pair_indices,
-            self.loader.get_all_intrinsics(),
-            self.loader.get_relative_pose_priors(image_pair_indices),
-            self.loader.get_gt_poses(),
-            gt_scene_mesh=None,
-            correspondence_generator=self.scene_optimizer.correspondence_generator,
-            two_view_estimator=self.scene_optimizer.two_view_estimator,
-        )
+        with Client(cluster) as client:
+            keypoints_list, two_view_results_dict = self.apply_correspondence_generator(
+                client,
+                images,
+                image_pair_indices,
+                self.loader.get_all_intrinsics(),
+                self.loader.get_relative_pose_priors(image_pair_indices),
+                self.loader.get_gt_poses(),
+                gt_scene_mesh=None,
+                correspondence_generator=self.scene_optimizer.correspondence_generator,
+                two_view_estimator=self.scene_optimizer.two_view_estimator,
+            )
 
         sfm_result = self.scene_optimizer.apply_multiview_estimator(
             keypoints_list=keypoints_list,
