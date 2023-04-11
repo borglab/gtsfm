@@ -153,11 +153,6 @@ class Point3dInitializer:
         # Sampling
         samples = self.sample_ransac_hypotheses(track_2d, measurement_pairs, num_hypotheses)
 
-        ## Set camera class.
-        # camera_set_class = (
-        #    CameraSetCal3Bundler if isinstance(camera, PinholeCameraCal3Bundler) else CameraSetCal3Fisheye
-        # )
-
         # Initialize the best output containers
         best_num_votes = 0
         best_error = MAX_TRACK_REPROJ_ERROR
@@ -349,9 +344,6 @@ class Point3dInitializer:
             Vector of individual camera calibrations pertaining to track
             Vector of 2d points pertaining to track measurements
         """
-        # camera_set_class = (
-        #     CameraSetCal3Bundler if isinstance(camera, PinholeCameraCal3Bundler) else CameraSetCal3Fisheye
-        # )
         track_cameras = self._camera_set_class()
         track_measurements = Point2Vector()  # vector of 2d points
 
