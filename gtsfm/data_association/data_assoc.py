@@ -237,7 +237,6 @@ class DataAssociation(GTSFMProcess):
 
         # Loop through tracks and and generate delayed triangulation tasks.
         batch_size = int(np.ceil(len(tracks_2d) / MAX_DELAYED_TRIANGULATION_CALLS))
-        num_batches = int(np.floor(len(tracks_2d) / batch_size))
         triangulation_results = []
         if batch_size == 1:
             for track_2d in tracks_2d:
