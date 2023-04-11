@@ -7,7 +7,7 @@ References:
 1. Richard I. Hartley and Peter Sturm. Triangulation. Computer Vision and Image Understanding, Vol. 68, No. 2,
    November, pp. 146–157, 1997
 
-Authors: Sushmita Warrier, Xiaolong Wu, John Lambert
+Authors: Sushmita Warrier, Xiaolong Wu, John Lambert, Travis Driver
 """
 import os
 from collections import Counter
@@ -73,6 +73,9 @@ class DataAssociation(GTSFMProcess):
         num_images: int,
         cameras: Dict[int, gtsfm_types.CAMERA_TYPE],
         tracks_2d: List[SfmTrack2d],
+        sfm_tracks: List[Optional[SfmTrack]],
+        avg_track_reproj_errors: List[Optional[float]],
+        triangulation_exit_codes: List[TriangulationExitCode],
         cameras_gt: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         relative_pose_priors: Dict[Tuple[int, int], Optional[PosePrior]],
         images: Optional[List[Image]] = None,
@@ -99,9 +102,6 @@ class DataAssociation(GTSFMProcess):
         logger.debug("[Data association] input number of tracks: %s", len(tracks_2d))
         logger.debug("[Data association] input avg. track length: %s", np.mean(track_lengths_2d))
 
-        # Initialize 3D landmark for each track
-        point3d_initializer = Point3dInitializer(cameras, self.triangulation_options)
-
         # form GtsfmData object after triangulation
         triangulated_data = GtsfmData(num_images)
 
@@ -115,9 +115,12 @@ class DataAssociation(GTSFMProcess):
         exit_codes_wrt_computed: List[TriangulationExitCode] = []
         per_accepted_track_avg_errors = []
         per_rejected_track_avg_errors = []
-        for track_2d in tracks_2d:
+        assert len(tracks_2d) == len(sfm_tracks)
+        for j in range(len(tracks_2d)):
             # triangulate and filter based on reprojection error
-            sfm_track, avg_track_reproj_error, triangulation_exit_code = point3d_initializer.triangulate(track_2d)
+            sfm_track = sfm_tracks[j]
+            avg_track_reproj_error = avg_track_reproj_errors[j]
+            triangulation_exit_code = triangulation_exit_codes[j]
             exit_codes_wrt_computed.append(triangulation_exit_code)
             if triangulation_exit_code == TriangulationExitCode.CHEIRALITY_FAILURE:
                 continue
@@ -196,6 +199,27 @@ class DataAssociation(GTSFMProcess):
 
         return connected_data, data_assoc_metrics
 
+    def run_triangulation(
+        self,
+        cameras: Dict[int, gtsfm_types.CAMERA_TYPE],
+        tracks_2d: List[SfmTrack2d],
+    ) -> Tuple[List[Delayed], List[Delayed], List[Delayed]]:
+        # Initialize 3D landmark for each track
+        point3d_initializer = Point3dInitializer(cameras, self.triangulation_options)
+
+        # Loop through tracks and triangulate.
+        delayed_sfm_tracks, delayed_avg_track_reproj_errors, delayed_triangulation_exit_codes = [], [], []
+        for track_2d in tracks_2d:
+            # triangulate and filter based on reprojection error
+            (delayed_sfm_track, delayed_avg_track_reproj_error, delayed_triangulation_exit_code) = dask.delayed(
+                point3d_initializer.triangulate, nout=3
+            )(track_2d)
+            delayed_sfm_tracks.append(delayed_sfm_track)
+            delayed_avg_track_reproj_errors.append(delayed_avg_track_reproj_error)
+            delayed_triangulation_exit_codes.append(delayed_triangulation_exit_code)
+
+        return delayed_sfm_tracks, delayed_avg_track_reproj_errors, delayed_triangulation_exit_codes
+
     def create_computation_graph(
         self,
         num_images: int,
@@ -220,10 +244,20 @@ class DataAssociation(GTSFMProcess):
             data_assoc_metrics_graph: dictionary with different statistics about the data
                 association result
         """
+
+        # Triangulate 2D tracks.
+        sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes = self.run_triangulation(
+            cameras=cameras.compute(), tracks_2d=tracks_2d.compute()
+        )
+
+        # Unpack results, create BA input, and compute metrics.
         ba_input_graph, data_assoc_metrics_graph = dask.delayed(self.run, nout=2)(
             num_images=num_images,
             cameras=cameras,
             tracks_2d=tracks_2d,
+            sfm_tracks=sfm_tracks,
+            avg_track_reproj_errors=avg_track_reproj_errors,
+            triangulation_exit_codes=triangulation_exit_codes,
             cameras_gt=cameras_gt,
             relative_pose_priors=relative_pose_priors,
             images=images_graph,
