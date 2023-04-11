@@ -33,6 +33,8 @@ from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 logger = logger_utils.get_logger()
 
+MAX_DELAYED_TRIANGULATION_CALLS = 1e7
+
 
 @dataclass(frozen=True)
 class DataAssociation(GTSFMProcess):
@@ -209,7 +211,9 @@ class DataAssociation(GTSFMProcess):
     ) -> Tuple[List[Delayed], List[Delayed], List[Delayed]]:
         """Performs triangulation of 2D tracks in parallel.
 
-        Ref: https://docs.dask.org/en/stable/delayed-best-practices.html#compute-on-lots-of-computation-at-once
+        Refs:
+        - https://docs.dask.org/en/stable/delayed-best-practices.html#compute-on-lots-of-computation-at-once
+        - https://docs.dask.org/en/stable/delayed-best-practices.html#avoid-too-many-tasks
 
         Args:
             cameras: list of cameras wrapped up as Delayed.
@@ -220,23 +224,46 @@ class DataAssociation(GTSFMProcess):
             avg_track_repoj_errors: List of average reprojection errors per track.
             triangulation_exit_codes: exit codes for each triangulation call.
         """
+
+        def triangulate_batch(point3d_initializer: Point3dInitializer, tracks_2d: List[SfmTrack2d]):
+            """Triangulates a batch of 2D tracks sequentially."""
+            batch_results = []
+            for track_2d in tracks_2d:
+                batch_results.append(point3d_initializer.triangulate(track_2d))
+            return batch_results
+
         # Initialize 3D landmark for each track
         point3d_initializer = Point3dInitializer(cameras, self.triangulation_options)
 
         # Loop through tracks and and generate delayed triangulation tasks.
+        batch_size = int(np.ceil(len(tracks_2d) / MAX_DELAYED_TRIANGULATION_CALLS))
+        num_batches = int(np.floor(len(tracks_2d) / batch_size))
         triangulation_results = []
-        for track_2d in tracks_2d:
-            triangulation_results.append(dask.delayed(point3d_initializer.triangulate)(track_2d))
+        if batch_size == 1:
+            for track_2d in tracks_2d:
+                triangulation_results.append(dask.delayed(point3d_initializer.triangulate)(track_2d))
+        else:
+            for j in range(0, len(tracks_2d), batch_size):
+                triangulation_results.append(
+                    dask.delayed(triangulate_batch)(point3d_initializer, tracks_2d[j : j + batch_size])
+                )
 
         # Perform triangulation in parallel.
         triangulation_results = dask.compute(*triangulation_results)
 
         # Unpack results.
         sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes = [], [], []
-        for result in triangulation_results:
-            sfm_tracks.append(result[0])
-            avg_track_reproj_errors.append(result[1])
-            triangulation_exit_codes.append(result[2])
+        if batch_size == 1:
+            for result in triangulation_results:
+                sfm_tracks.append(result[0])
+                avg_track_reproj_errors.append(result[1])
+                triangulation_exit_codes.append(result[2])
+        else:
+            for batch_results in triangulation_results:
+                for result in batch_results:
+                    sfm_tracks.append(result[0])
+                    avg_track_reproj_errors.append(result[1])
+                    triangulation_exit_codes.append(result[2])
 
         return sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes
 
