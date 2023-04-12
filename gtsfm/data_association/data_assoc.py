@@ -33,7 +33,9 @@ from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
 
 logger = logger_utils.get_logger()
 
-MAX_DELAYED_TRIANGULATION_CALLS = 1e7
+# Heuristically set to limit the number of delayed tasks, as recommended by Dask:
+# https://docs.dask.org/en/stable/delayed-best-practices.html#avoid-too-many-tasks
+MAX_DELAYED_TRIANGULATION_CALLS = 1e3
 
 
 @dataclass(frozen=True)
@@ -216,8 +218,8 @@ class DataAssociation(GTSFMProcess):
         - https://docs.dask.org/en/stable/delayed-best-practices.html#avoid-too-many-tasks
 
         Args:
-            cameras: list of cameras wrapped up as Delayed.
-            tracks_2d: list of tracks wrapped up as Delayed.
+            cameras: List of cameras wrapped up as Delayed.
+            tracks_2d: List of tracks wrapped up as Delayed.
 
         Returns:
             sfm_tracks: List of triangulated tracks.
@@ -225,7 +227,9 @@ class DataAssociation(GTSFMProcess):
             triangulation_exit_codes: exit codes for each triangulation call.
         """
 
-        def triangulate_batch(point3d_initializer: Point3dInitializer, tracks_2d: List[SfmTrack2d]):
+        def triangulate_batch(
+            point3d_initializer: Point3dInitializer, tracks_2d: List[SfmTrack2d]
+        ) -> List[Tuple[Optional[SfmTrack], Optional[float], TriangulationExitCode]]:
             """Triangulates a batch of 2D tracks sequentially."""
             batch_results = []
             for track_2d in tracks_2d:
