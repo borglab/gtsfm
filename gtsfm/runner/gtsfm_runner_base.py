@@ -172,7 +172,7 @@ class GtsfmRunnerBase:
                 scene_optimizer.retriever: RetrieverBase = instantiate(retriever_cfg.retriever)
 
         if self.parsed_args.max_frame_lookahead is not None:
-            if scene_optimizer.retriever.matching_regime in [
+            if scene_optimizer.retriever._matching_regime in [
                 ImageMatchingRegime.SEQUENTIAL,
                 ImageMatchingRegime.SEQUENTIAL_HILTI,
             ]:
