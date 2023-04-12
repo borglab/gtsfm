@@ -4,10 +4,10 @@ import argparse
 import time
 from abc import abstractmethod
 from pathlib import Path
-
+import os
 import dask
 import hydra
-from dask.distributed import Client, LocalCluster, performance_report
+from dask.distributed import Client, LocalCluster, SSHCluster, performance_report
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
@@ -101,6 +101,19 @@ class GtsfmRunnerBase:
             default=None,
             help="tmp directory for dask workers, uses dask's default (/tmp) if not set",
         )
+        parser.add_argument(
+            "--cluster_config",
+            type=str,
+            default=None,
+            help="config listing IP worker addresses for the cluster,"
+            " first worker is used as scheduler and should contain the dataset",
+        )
+        parser.add_argument(
+            "--dashboard_port",
+            type=str,
+            default=":8787",
+            help="dask dashboard port number",
+        )
         return parser
 
     @abstractmethod
@@ -144,13 +157,14 @@ class GtsfmRunnerBase:
                 scene_optimizer.two_view_estimator._verifier: VerifierBase = instantiate(verifier_cfg.verifier)
 
         # Override retriever.
-        if self.parsed_args.verifier_config_name is not None:
+        if self.parsed_args.retriever_config_name is not None:
             with hydra.initialize_config_module(config_module="gtsfm.configs.retriever"):
                 retriever_cfg = hydra.compose(
                     config_name=self.parsed_args.retriever_config_name,
                 )
                 logger.info("\n\nRetriever override: " + OmegaConf.to_yaml(retriever_cfg))
                 scene_optimizer.retriever: RetrieverBase = instantiate(retriever_cfg.retriever)
+
         if self.parsed_args.max_frame_lookahead is not None:
             if scene_optimizer.retriever.matching_regime in [
                 ImageMatchingRegime.SEQUENTIAL,
@@ -168,10 +182,30 @@ class GtsfmRunnerBase:
         """Run the SceneOptimizer."""
         start_time = time.time()
 
-        # create dask client
-        cluster = LocalCluster(
-            n_workers=self.parsed_args.num_workers, threads_per_worker=self.parsed_args.threads_per_worker
-        )
+        # create dask cluster
+        if self.parsed_args.cluster_config:
+            workers = OmegaConf.load(
+                os.path.join(self.parsed_args.output_root, "gtsfm", "configs", self.parsed_args.cluster_config)
+            )["workers"]
+            scheduler = workers[0]
+            cluster = SSHCluster(
+                [scheduler] + workers,
+                scheduler_options={"dashboard_address": self.parsed_args.dashboard_port},
+                worker_options={
+                    "n_workers": self.parsed_args.num_workers,
+                    "nthreads": self.parsed_args.threads_per_worker,
+                },
+            )
+            client = Client(cluster)
+            # getting first worker's IP address and port to do IO
+            io_worker = list(client.scheduler_info()["workers"].keys())[0]
+            self.loader._input_worker = io_worker
+            self.scene_optimizer._output_worker = io_worker
+        else:
+            cluster = LocalCluster(
+                n_workers=self.parsed_args.num_workers, threads_per_worker=self.parsed_args.threads_per_worker
+            )
+            client = Client(cluster)
 
         # create process graph
         process_graph_generator = ProcessGraphGenerator()
@@ -180,7 +214,7 @@ class GtsfmRunnerBase:
         process_graph_generator.save_graph()
 
         pairs_graph = self.scene_optimizer.retriever.create_computation_graph(self.loader)
-        with Client(cluster), performance_report(filename="retriever-dask-report.html"):
+        with performance_report(filename="retriever-dask-report.html"):
             image_pair_indices = pairs_graph.compute()
 
         (
@@ -188,11 +222,11 @@ class GtsfmRunnerBase:
             delayed_putative_corr_idxs_dict,
         ) = self.scene_optimizer.correspondence_generator.create_computation_graph(
             delayed_images=self.loader.create_computation_graph_for_images(),
-            image_shapes=self.loader.get_image_shapes(),
+            image_shapes=self.loader.create_computation_graph_for_image_shapes(),
             image_pair_indices=image_pair_indices,
         )
 
-        with Client(cluster), performance_report(filename="correspondence-generator-dask-report.html"):
+        with performance_report(filename="correspondence-generator-dask-report.html"):
             keypoints_list, putative_corr_idxs_dict = dask.compute(delayed_keypoints, delayed_putative_corr_idxs_dict)
 
         delayed_sfm_result, delayed_io = self.scene_optimizer.create_computation_graph(
@@ -201,15 +235,15 @@ class GtsfmRunnerBase:
             num_images=len(self.loader),
             image_pair_indices=image_pair_indices,
             image_graph=self.loader.create_computation_graph_for_images(),
-            all_intrinsics=self.loader.get_all_intrinsics(),
-            image_shapes=self.loader.get_image_shapes(),
+            all_intrinsics=self.loader.create_computation_graph_for_intrinsics(),
+            image_shapes=self.loader.create_computation_graph_for_image_shapes(),
             relative_pose_priors=self.loader.get_relative_pose_priors(image_pair_indices),
             absolute_pose_priors=self.loader.get_absolute_pose_priors(),
-            cameras_gt=self.loader.get_gt_cameras(),
+            cameras_gt=self.loader.create_computation_graph_for_gt_cameras(),
             gt_wTi_list=self.loader.get_gt_poses(),
         )
 
-        with Client(cluster), performance_report(filename="scene-optimizer-dask-report.html"):
+        with performance_report(filename="scene-optimizer-dask-report.html"):
             sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io)
 
         assert isinstance(sfm_result, GtsfmData)

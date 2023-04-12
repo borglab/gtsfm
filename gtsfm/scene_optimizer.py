@@ -76,6 +76,7 @@ class SceneOptimizer:
         save_gtsfm_data: bool = True,
         pose_angular_error_thresh: float = 3,
         output_root: str = DEFAULT_OUTPUT_ROOT,
+        output_worker: str = None,
     ) -> None:
         """pose_angular_error_thresh is given in degrees"""
         self.retriever = retriever
@@ -91,6 +92,7 @@ class SceneOptimizer:
         self._save_gtsfm_data = save_gtsfm_data
         self._pose_angular_error_thresh = pose_angular_error_thresh
         self.output_root = Path(output_root)
+        self._output_worker = output_worker
         self._create_output_directories()
 
     def _create_output_directories(self) -> None:
@@ -218,18 +220,20 @@ class SceneOptimizer:
                 two_view_reports_dict[token][(i1, i2)] = two_view_reports[token]
 
             # Visualize verified two-view correspondences.
-            if self._save_two_view_correspondences_viz:
-                delayed_results.append(
-                    dask.delayed(viz_utils.save_twoview_correspondences_viz)(
-                        image_graph[i1],
-                        image_graph[i2],
-                        keypoints_list[i1],
-                        keypoints_list[i2],
-                        v_corr_idxs,
-                        two_view_report=two_view_reports[PRE_BA_REPORT_TAG],
-                        file_path=os.path.join(self._plot_correspondence_path, f"{i1}_{i2}.jpg"),
+            annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
+            with annotation:
+                if self._save_two_view_correspondences_viz:
+                    delayed_results.append(
+                        dask.delayed(viz_utils.save_twoview_correspondences_viz)(
+                            image_graph[i1],
+                            image_graph[i2],
+                            keypoints_list[i1],
+                            keypoints_list[i2],
+                            v_corr_idxs,
+                            two_view_report=two_view_reports[PRE_BA_REPORT_TAG],
+                            file_path=os.path.join(self._plot_correspondence_path, f"{i1}_{i2}.jpg"),
+                        )
                     )
-                )
 
         # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
         (
@@ -250,6 +254,7 @@ class SceneOptimizer:
             two_view_reports_dict[POST_ISP_REPORT_TAG],
             cameras_gt,
             gt_wTi_list,
+            self.output_root,
         )
         if view_graph_two_view_reports is not None:
             two_view_reports_dict[VIEWGRAPH_REPORT_TAG] = view_graph_two_view_reports
@@ -257,24 +262,26 @@ class SceneOptimizer:
         # Persist all front-end metrics and their summaries.
         # TODO(akshay-krishnan): this delays saving the frontend reports until MVO has completed, not ideal.
         metrics_graph_list: List[Delayed] = []
-        for tag, report_dict in two_view_reports_dict.items():
-            delayed_results.append(
-                dask.delayed(save_full_frontend_metrics)(
-                    report_dict,
-                    image_graph,
-                    filename="two_view_report_{}.json".format(tag),
-                    matching_regime=self.retriever.matching_regime,
-                    metrics_path=self._metrics_path,
-                    plot_base_path=self._plot_base_path,
+        annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
+        with annotation:
+            for tag, report_dict in two_view_reports_dict.items():
+                delayed_results.append(
+                    dask.delayed(save_full_frontend_metrics)(
+                        report_dict,
+                        image_graph,
+                        filename="two_view_report_{}.json".format(tag),
+                        matching_regime=self.retriever._matching_regime,
+                        metrics_path=self._metrics_path,
+                        plot_base_path=self._plot_base_path,
+                    )
                 )
-            )
-            metrics_graph_list.append(
-                dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
-                    report_dict,
-                    self._pose_angular_error_thresh,
-                    metric_group_name="verifier_summary_{}".format(tag),
+                metrics_graph_list.append(
+                    dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
+                        report_dict,
+                        self._pose_angular_error_thresh,
+                        metric_group_name="verifier_summary_{}".format(tag),
+                    )
                 )
-            )
 
         # aggregate metrics for multiview optimizer
         if optimizer_metrics_graph is not None:
@@ -285,21 +292,23 @@ class SceneOptimizer:
             ba_input_graph, ba_output_graph, gt_wTi_list
         )
 
-        if self._save_3d_viz:
-            delayed_results.extend(
-                save_visualizations(
-                    ba_input_graph,
-                    ba_output_graph,
-                    gt_wTi_list,
-                    plot_ba_input_path=self._plot_ba_input_path,
-                    plot_results_path=self._plot_results_path,
+        annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
+        with annotation:
+            if self._save_3d_viz:
+                delayed_results.extend(
+                    save_visualizations(
+                        ba_input_graph,
+                        ba_output_graph,
+                        gt_wTi_list,
+                        plot_ba_input_path=self._plot_ba_input_path,
+                        plot_results_path=self._plot_results_path,
+                    )
                 )
-            )
 
-        if self._save_gtsfm_data:
-            delayed_results.extend(
-                save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph, results_path=self._results_path)
-            )
+            if self._save_gtsfm_data:
+                delayed_results.extend(
+                    save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph, results_path=self._results_path)
+                )
 
         if self.run_dense_optimizer and self.dense_multiview_optimizer is not None:
             img_dict_graph = dask.delayed(get_image_dictionary)(image_graph)
@@ -311,11 +320,15 @@ class SceneOptimizer:
             ) = self.dense_multiview_optimizer.create_computation_graph(img_dict_graph, ba_output_graph)
 
             # Cast to string as Open3d cannot use PosixPath's for I/O -- only string file paths are accepted.
-            delayed_results.append(
-                dask.delayed(io_utils.save_point_cloud_as_ply)(
-                    save_fpath=str(self._mvs_ply_save_fpath), points=dense_points_graph, rgb=dense_point_colors_graph
+            annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
+            with annotation:
+                delayed_results.append(
+                    dask.delayed(io_utils.save_point_cloud_as_ply)(
+                        save_fpath=str(self._mvs_ply_save_fpath),
+                        points=dense_points_graph,
+                        rgb=dense_point_colors_graph,
+                    )
                 )
-            )
 
             # Add metrics for dense reconstruction and voxel downsampling
             if densify_metrics_graph is not None:
@@ -324,7 +337,9 @@ class SceneOptimizer:
                 metrics_graph_list.append(downsampling_metrics_graph)
 
         # Save metrics to JSON and generate HTML report.
-        delayed_results.extend(save_metrics_reports(metrics_graph_list, metrics_path=self._metrics_path))
+        annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
+        with annotation:
+            delayed_results.extend(save_metrics_reports(metrics_graph_list, metrics_path=self._metrics_path))
 
         # return the entry with just the sfm result
         return ba_output_graph, delayed_results

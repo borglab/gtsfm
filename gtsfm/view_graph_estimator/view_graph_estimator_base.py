@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
 import dask
+import os
 import numpy as np
 from dask.delayed import Delayed
 from gtsam import Cal3Bundler, Rot3, Unit3
@@ -254,6 +255,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         corr_idxs_i1i2: Dict[Tuple[int, int], Delayed],
         keypoints: List[Delayed],
         two_view_reports: Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
+        debug_output_dir: Optional[Path] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, Delayed, Delayed]:
         """Create the computation graph for ViewGraph estimation and metric evaluation.
 
@@ -266,6 +268,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
                 wrapped as Delayed.
             keypoints: keypoints for each image, wrapped as Delayed.
             two_view_reports: Dict from (i1, i2) to TwoViewEstimationReport that contains metrics, wrapped as Delayed.
+            debug_output_dir: Path to directory where outputs for debugging will be saved.
 
         Returns:
             Tuple of the following 5 elements, all wrapped as Delayed:
@@ -275,6 +278,13 @@ class ViewGraphEstimatorBase(GTSFMProcess):
             - Dict of two_view_reports in the view graph
             - GtsfmMetricsGroup with the view graph estimation metrics
         """
+
+        # create debug directory for cycle_consistency
+        plot_cycle_consist_path = None
+        if debug_output_dir:
+            plot_cycle_consist_path = debug_output_dir / "cycle_consistency"
+            os.makedirs(plot_cycle_consist_path, exist_ok=True)
+
         # Remove all invalid edges in the input dicts.
         valid_edges = dask.delayed(self._get_valid_input_edges)(
             i2Ri1_dict=i2Ri1_dict,
@@ -298,6 +308,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
             corr_idxs_i1i2=corr_idxs_i1i2_valid,
             keypoints=keypoints,
             two_view_reports=two_view_reports_valid,
+            output_dir=plot_cycle_consist_path,
         )
 
         # Remove all edges that are not in the view graph.

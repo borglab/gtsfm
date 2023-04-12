@@ -16,4 +16,4 @@ class ExhaustiveRetriever(SequentialRetriever):
     def __init__(self) -> None:
         """Constructor. All frames are considered for matching/co-visibility."""
         super().__init__(max_frame_lookahead=MAX_POSSIBLE_FRAME_LOOKAHEAD)
-        self.matching_regime = ImageMatchingRegime.EXHAUSTIVE
+        self._matching_regime = ImageMatchingRegime.EXHAUSTIVE

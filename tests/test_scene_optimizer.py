@@ -2,8 +2,8 @@
 
 Authors: Ayush Baid, John Lambert
 """
-import unittest
 from pathlib import Path
+import pytest
 
 import dask
 import hydra
@@ -19,77 +19,75 @@ from gtsfm.retriever.exhaustive_retriever import ExhaustiveRetriever
 from gtsfm.scene_optimizer import SceneOptimizer
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent / "data"
+TEST_DATA_WITH_GT = DATA_ROOT_PATH / "set1_lund_door"
+TEST_DATA_NO_GT = DATA_ROOT_PATH / "set3_lund_door_nointrinsics_noextrinsics"
 
 
-class TestSceneOptimizer(unittest.TestCase):
-    """Unit test for SceneOptimizer, which runs SfM for a scene."""
+@pytest.mark.parametrize("dataset_path", [TEST_DATA_WITH_GT, TEST_DATA_NO_GT])
+def test_create_computation_graph_with_ground_truth(dataset_path):
+    print("running {}", dataset_path)
+    loader = OlssonLoader(str(dataset_path), image_extension="JPG")
+    assert len(loader)
+    """Will test Dask multi-processing capabilities and ability to serialize all objects."""
+    with hydra.initialize_config_module(config_module="gtsfm.configs"):
 
-    def setUp(self) -> None:
-        self.loader = OlssonLoader(str(DATA_ROOT_PATH / "set1_lund_door"), image_extension="JPG")
-        assert len(self.loader)
+        # Config is relative to the gtsfm module
+        cfg = hydra.compose(config_name="scene_optimizer_unit_test_config.yaml")
+        scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
 
-    def test_create_computation_graph(self):
-        """Will test Dask multi-processing capabilities and ability to serialize all objects."""
-        self.loader = OlssonLoader(str(DATA_ROOT_PATH / "set1_lund_door"), image_extension="JPG")
+        # Create dask client
+        cluster = LocalCluster(n_workers=1, threads_per_worker=4)
+        client = Client(cluster)
 
-        with hydra.initialize_config_module(config_module="gtsfm.configs"):
+        retriever = ExhaustiveRetriever()
 
-            # config is relative to the gtsfm module
-            cfg = hydra.compose(config_name="scene_optimizer_unit_test_config.yaml")
-            scene_optimizer: SceneOptimizer = instantiate(cfg.SceneOptimizer)
+        pairs_graph = retriever.create_computation_graph(loader)
 
-            # create dask client
-            cluster = LocalCluster(n_workers=1, threads_per_worker=4)
+        image_pair_indices = pairs_graph.compute()
 
-            retriever = ExhaustiveRetriever()
+        (
+            delayed_keypoints,
+            delayed_putative_corr_idxs_dict,
+        ) = scene_optimizer.correspondence_generator.create_computation_graph(
+            delayed_images=loader.create_computation_graph_for_images(),
+            image_shapes=loader.create_computation_graph_for_image_shapes(),
+            image_pair_indices=image_pair_indices,
+        )
 
-            pairs_graph = retriever.create_computation_graph(self.loader)
-            with Client(cluster):
-                image_pair_indices = pairs_graph.compute()
+        keypoints_list, putative_corr_idxs_dict = dask.compute(delayed_keypoints, delayed_putative_corr_idxs_dict)
 
-            (
-                delayed_keypoints,
-                delayed_putative_corr_idxs_dict,
-            ) = scene_optimizer.correspondence_generator.create_computation_graph(
-                delayed_images=self.loader.create_computation_graph_for_images(),
-                image_shapes=self.loader.get_image_shapes(),
-                image_pair_indices=image_pair_indices,
-            )
+        delayed_sfm_result, delayed_io = scene_optimizer.create_computation_graph(
+            keypoints_list=keypoints_list,
+            putative_corr_idxs_dict=putative_corr_idxs_dict,
+            num_images=len(loader),
+            image_pair_indices=image_pair_indices,
+            image_graph=loader.create_computation_graph_for_images(),
+            all_intrinsics=loader.create_computation_graph_for_intrinsics(),
+            image_shapes=loader.create_computation_graph_for_image_shapes(),
+            absolute_pose_priors=loader.get_absolute_pose_priors(),
+            relative_pose_priors=loader.get_relative_pose_priors(image_pair_indices),
+            cameras_gt=loader.create_computation_graph_for_gt_cameras(),
+            gt_wTi_list=loader.get_gt_poses(),
+        )
 
-            with Client(cluster):
-                keypoints_list, putative_corr_idxs_dict = dask.compute(
-                    delayed_keypoints, delayed_putative_corr_idxs_dict
-                )
+        sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io)
 
-            # generate the dask computation graph
-            delayed_sfm_result, delayed_io = scene_optimizer.create_computation_graph(
-                keypoints_list=keypoints_list,
-                putative_corr_idxs_dict=putative_corr_idxs_dict,
-                num_images=len(self.loader),
-                image_pair_indices=image_pair_indices,
-                image_graph=self.loader.create_computation_graph_for_images(),
-                all_intrinsics=self.loader.get_all_intrinsics(),
-                image_shapes=self.loader.get_image_shapes(),
-                absolute_pose_priors=self.loader.get_absolute_pose_priors(),
-                relative_pose_priors=self.loader.get_relative_pose_priors(image_pair_indices),
-                cameras_gt=self.loader.get_gt_cameras(),
-                gt_wTi_list=self.loader.get_gt_poses(),
-            )
+        client.close()
 
-            with Client(cluster):
-                sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io)
+        assert isinstance(sfm_result, GtsfmData)
 
-            self.assertIsInstance(sfm_result, GtsfmData)
-
+        if dataset_path == TEST_DATA_NO_GT:
+            assert len(sfm_result.get_valid_camera_indices()) == len(loader)
+        else:
             # compare the camera poses
             computed_poses = sfm_result.get_camera_poses()
 
-            # get active cameras from largest connected component, may be <len(self.loader)
+            # get active cameras from largest connected component, may be <len(loader)
             connected_camera_idxs = sfm_result.get_valid_camera_indices()
-            expected_poses = [self.loader.get_camera_pose(i) for i in connected_camera_idxs]
+            expected_poses = [loader.get_camera_pose(i) for i in connected_camera_idxs]
 
-            self.assertTrue(
-                comp_utils.compare_global_poses(computed_poses, expected_poses, trans_err_atol=1.0, trans_err_rtol=0.1)
+            assert comp_utils.compare_global_poses(
+                computed_poses, expected_poses, trans_err_atol=1.0, trans_err_rtol=0.1
             )
 
 
@@ -99,7 +97,3 @@ def generate_random_essential_matrix() -> EssentialMatrix:
     t = np.random.uniform(low=-1.0, high=1.0, size=(3,))
 
     return EssentialMatrix(R, Unit3(t))
-
-
-if __name__ == "__main__":
-    unittest.main()
