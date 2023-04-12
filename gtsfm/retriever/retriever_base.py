@@ -31,7 +31,7 @@ class RetrieverBase(GTSFMProcess):
         Args:
             matching_regime: identifies type of matching used for image retrieval.
         """
-        self.matching_regime = matching_regime
+        self._matching_regime = matching_regime
 
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display node and edge info for this process in the process graph."""
