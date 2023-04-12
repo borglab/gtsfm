@@ -72,6 +72,12 @@ class GtsfmRunnerBase:
             help="Override flag for verifier (choose from among gtsfm/configs/verifier).",
         )
         parser.add_argument(
+            "--retriever_config_name",
+            type=str,
+            default=None,
+            help="Override flag for retriever (choose from among gtsfm/configs/retriever).",
+        )
+        parser.add_argument(
             "--max_resolution",
             type=int,
             default=760,
