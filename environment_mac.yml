@@ -24,6 +24,7 @@ dependencies:
   - isort
   # dask and related
   - dask # same as dask[complete] pip distribution
+  - asyncssh
   - python-graphviz
   # core functionality and APIs
   - matplotlib==3.4.2
