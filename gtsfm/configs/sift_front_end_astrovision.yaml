@@ -1,3 +1,5 @@
+# SIFT front-end configuration tuned for AstroVision datasets: https://github.com/astrovision
+
 SceneOptimizer:
   _target_: gtsfm.scene_optimizer.SceneOptimizer
   save_gtsfm_data: True

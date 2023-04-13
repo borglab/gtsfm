@@ -1,3 +1,4 @@
+# Deep front-end configuration tuned for AstroVision datasets: https://github.com/astrovision
 # Relaxes triangulation RANSAC threshold to 100 (10x threshold of deep_front_end.yaml)
 
 SceneOptimizer:
@@ -9,7 +10,7 @@ SceneOptimizer:
 
   retriever:
     _target_: gtsfm.retriever.netvlad_retriever.NetVLADRetriever
-    num_matched: 20
+    num_matched: 10
     min_score: 0.5
 
   correspondence_generator:
