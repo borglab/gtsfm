@@ -9,7 +9,7 @@ SceneOptimizer:
 
   retriever:
     _target_: gtsfm.retriever.netvlad_retriever.NetVLADRetriever
-    num_matched: 10
+    num_matched: 20
     min_score: 0.5
 
   correspondence_generator:
