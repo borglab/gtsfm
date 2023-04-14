@@ -34,7 +34,7 @@ class DetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
 
         Args:
             delayed_images: list of N images.
-            image_shapes: list of N image shapes, as tuples (height,width) in pixels, wrapped as Delayed.
+            delayed_image_shapes: list of N image shapes, as tuples (H,W) in pixels, wrapped as Delayed.
             image_pair_indices: list of image pairs, each represented by a tuple (i1,i2).
 
         Return:
