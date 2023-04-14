@@ -52,7 +52,7 @@ def test_create_computation_graph_with_ground_truth(dataset_path):
             delayed_putative_corr_idxs_dict,
         ) = scene_optimizer.correspondence_generator.create_computation_graph(
             delayed_images=loader.create_computation_graph_for_images(),
-            image_shapes=loader.create_computation_graph_for_image_shapes(),
+            delayed_image_shapes=loader.create_computation_graph_for_image_shapes(),
             image_pair_indices=image_pair_indices,
         )
 
@@ -65,7 +65,6 @@ def test_create_computation_graph_with_ground_truth(dataset_path):
             image_pair_indices=image_pair_indices,
             image_graph=loader.create_computation_graph_for_images(),
             all_intrinsics=loader.create_computation_graph_for_intrinsics(),
-            image_shapes=loader.create_computation_graph_for_image_shapes(),
             absolute_pose_priors=loader.get_absolute_pose_priors(),
             relative_pose_priors=loader.get_relative_pose_priors(image_pair_indices),
             cameras_gt=loader.create_computation_graph_for_gt_cameras(),
