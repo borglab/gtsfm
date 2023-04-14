@@ -4,7 +4,6 @@ import argparse
 import time
 from abc import abstractmethod
 from pathlib import Path
-import os
 import dask
 import hydra
 from dask.distributed import Client, LocalCluster, SSHCluster, performance_report
