@@ -543,7 +543,7 @@ def write_to_bz2_file(data: Any, file_path: Path) -> None:
     file_path.parent.mkdir(exist_ok=True, parents=True)
     pickle.dump(data, BZ2File(file_path, "wb"))
     if not file_path.exists():
-        logger.info("Cache file was not written successfully.")
+        logger.debug("Cache file could not be written!")
 
 
 def save_point_cloud_as_ply(save_fpath: str, points: np.ndarray, rgb: Optional[np.ndarray] = None) -> None:
