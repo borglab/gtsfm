@@ -102,7 +102,7 @@ class TriangulationOptions(NamedTuple):
         """
         self.__check_ransac_params()
         dyn_num_hypotheses = int(
-            (np.log(1 - self.confidence) / np.log(1 - self.min_inlier_ratio**NUM_SAMPLES_PER_RANSAC_HYPOTHESIS))
+            (np.log(1 - self.confidence) / np.log(1 - self.min_inlier_ratio ** NUM_SAMPLES_PER_RANSAC_HYPOTHESIS))
             * self.dyn_num_hypotheses_multiplier
         )
         num_hypotheses = max(min(self.max_num_hypotheses, dyn_num_hypotheses), self.min_num_hypotheses)
@@ -128,7 +128,6 @@ class Point3dInitializer:
         self.options = options
 
         sample_camera = list(self.track_camera_dict.values())[0]
-
         self._camera_set_class = (
             CameraSetCal3Bundler if isinstance(sample_camera, PinholeCameraCal3Bundler) else CameraSetCal3Fisheye
         )
