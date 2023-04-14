@@ -149,7 +149,6 @@ class SceneOptimizer:
         for (i1, i2) in image_pair_indices:
             # Collect ground truth relative and absolute poses if available.
             # TODO(johnwlambert): decompose this method -- name it as "calling_the_plate()"
-
             # TODO(johnwlambert): decompose this so what happens in the loop is a separate method
             i2Ri1, i2Ui1, v_corr_idxs, two_view_reports = self.two_view_estimator.create_computation_graph(
                 keypoints_i1=keypoints_list[i1],
@@ -522,6 +521,11 @@ def save_full_frontend_metrics(
 
     # Save duplicate copy of 'frontend_full.json' within React Folder.
     io_utils.save_json_file(os.path.join(REACT_METRICS_PATH, filename), metrics_list)
+
+    # All retreival metrics need GT, no need to save them if GT is not available.
+    gt_available = any([report.R_error_deg is not None for report in two_view_report_dict.values()])
+    if not gt_available:
+        return
 
     if matching_regime not in [ImageMatchingRegime.RETRIEVAL, ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL]:
         return
