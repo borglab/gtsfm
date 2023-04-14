@@ -204,21 +204,30 @@ class NetVLADRetriever(RetrieverBase):
         pairs = pairs_from_score_matrix(
             sim, invalid=is_invalid_mat, num_select=self._num_matched, min_score=self._min_score
         )
+        named_pairs = [(query_names[i], query_names[j]) for i, j in pairs]
 
         if visualize:
-            plt.imshow(np.triu(sim.detach().cpu().numpy()))
             os.makedirs(PLOT_SAVE_DIR, exist_ok=True)
+
+            # Save image of similarity matrix.
+            plt.imshow(np.triu(sim.detach().cpu().numpy()))
             plt.title("Image Similarity Matrix")
+            plt.savefig(os.path.join(PLOT_SAVE_DIR, "netvlad_similarity_matrix.jpg"), dpi=500)
+            plt.close("all")
+
+            # Save values in similarity matrix.
             np.savetxt(
                 fname=os.path.join(PLOT_SAVE_DIR, "netvlad_similarity_matrix.txt"),
                 X=sim.detach().cpu().numpy(),
                 fmt="%.2f",
                 delimiter=",",
             )
-            plt.savefig(os.path.join(PLOT_SAVE_DIR, "netvlad_similarity_matrix.jpg"), dpi=500)
-            plt.close("all")
 
-        named_pairs = [(query_names[i], query_names[j]) for i, j in pairs]
+            # Save named pairs and scores.
+            with open(os.path.join(PLOT_SAVE_DIR, "netvlad_named_pairs.txt"), "w") as fid:
+                for (_named_pair, _pair_ind) in zip(named_pairs, pairs):
+                    fid.write("%.4f %s %s\n" % (sim[_pair_ind[0], _pair_ind[1]], _named_pair[0], _named_pair[1]))
+
         logger.info("Found %d pairs from the NetVLAD Retriever.", len(pairs))
         logger.info("Image Name Pairs:" + str(named_pairs))
         return pairs
