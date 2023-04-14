@@ -38,7 +38,7 @@ class GtsfmRunnerBase:
         argparser: argparse.ArgumentParser = self.construct_argparser()
         self.parsed_args: argparse.Namespace = argparser.parse_args()
         if self.parsed_args.dask_tmpdir:
-            dask.config.set({'temporary_directory': DEFAULT_OUTPUT_ROOT / self.parsed_args.dask_tmpdir})
+            dask.config.set({"temporary_directory": DEFAULT_OUTPUT_ROOT / self.parsed_args.dask_tmpdir})
 
         self.loader: LoaderBase = self.construct_loader()
         self.retriever = self.construct_retriever()
@@ -217,9 +217,7 @@ class GtsfmRunnerBase:
 
         # create dask cluster
         if self.parsed_args.cluster_config:
-            workers = OmegaConf.load(
-                os.path.join(
-                    self.parsed_args.output_root, "gtsfm", "configs", self.parsed_args.cluster_config))["workers"]
+            workers = OmegaConf.load(self.parsed_args.cluster_config)["workers"]
             scheduler = workers[0]
             cluster = SSHCluster(
                 [scheduler] + workers,
@@ -255,7 +253,7 @@ class GtsfmRunnerBase:
             delayed_putative_corr_idxs_dict,
         ) = self.scene_optimizer.correspondence_generator.create_computation_graph(
             delayed_images=self.loader.create_computation_graph_for_images(),
-            image_shapes=self.loader.create_computation_graph_for_image_shapes(),
+            delayed_image_shapes=self.loader.create_computation_graph_for_image_shapes(),
             image_pair_indices=image_pair_indices,
         )
 
@@ -269,7 +267,6 @@ class GtsfmRunnerBase:
             image_pair_indices=image_pair_indices,
             image_graph=self.loader.create_computation_graph_for_images(),
             all_intrinsics=self.loader.create_computation_graph_for_intrinsics(),
-            image_shapes=self.loader.create_computation_graph_for_image_shapes(),
             relative_pose_priors=self.loader.get_relative_pose_priors(image_pair_indices),
             absolute_pose_priors=self.loader.get_absolute_pose_priors(),
             cameras_gt=self.loader.create_computation_graph_for_gt_cameras(),

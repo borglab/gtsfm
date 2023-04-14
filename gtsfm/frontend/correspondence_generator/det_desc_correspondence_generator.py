@@ -27,14 +27,14 @@ class DetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
     def create_computation_graph(
         self,
         delayed_images: List[Delayed],
-        image_shapes: List[Tuple[int, int]],
+        delayed_image_shapes: List[Delayed],
         image_pair_indices: List[Tuple[int, int]],
     ) -> Tuple[List[Delayed], Dict[Tuple[int, int], Delayed]]:
         """Create Dask computation graph for correspondence generation.
 
         Args:
             delayed_images: list of N images.
-            image_shapes: list of N image shapes, as tuples (height,width) in pixels.
+            image_shapes: list of N image shapes, as tuples (height,width) in pixels, wrapped as Delayed.
             image_pair_indices: list of image pairs, each represented by a tuple (i1,i2).
 
         Return:
@@ -59,8 +59,8 @@ class DetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
                 keypoints_i2_graph=delayed_keypoints[i2],
                 descriptors_i1_graph=delayed_descriptors[i1],
                 descriptors_i2_graph=delayed_descriptors[i2],
-                im_shape_i1=image_shapes[i1],
-                im_shape_i2=image_shapes[i2],
+                im_shape_i1=delayed_image_shapes[i1],
+                im_shape_i2=delayed_image_shapes[i2],
             )
 
         return delayed_keypoints, delayed_putative_corr_idxs_dict

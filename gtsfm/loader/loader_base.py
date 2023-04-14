@@ -43,7 +43,7 @@ class LoaderBase(GTSFMProcess):
             parent_plate="Loader and Retriever",
         )
 
-    def __init__(self, max_resolution: int = 1080, input_worker: str = None) -> None:
+    def __init__(self, max_resolution: int = 1080, input_worker: Optional[str] = None) -> None:
         """
         Args:
             max_resolution: integer representing maximum length of image's short side

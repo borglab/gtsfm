@@ -126,68 +126,22 @@ class SceneOptimizer:
         image_pair_indices: List[Tuple[int, int]],
         image_graph: List[Delayed],
         all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
-        image_shapes: List[Tuple[int, int]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        gt_poses_graph: List[Optional[Pose3]],
-        gt_scene_mesh: Optional[Trimesh] = None,
-    ) -> Tuple[Dict[Tuple[int, int], Delayed], Dict[Tuple[int, int], Delayed]]:
-        """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
-
-        # Estimate two-view geometry and get indices of verified correspondences.
-        i2Ri1_graph_dict = {}
-        i2Ui1_graph_dict = {}
-        for (i1, i2) in image_pair_indices:
-            # Collect ground truth relative and absolute poses if available.
-            # TODO(johnwlambert): decompose this method -- name it as "calling_the_plate()"
-
-            # TODO(johnwlambert): decompose this so what happens in the loop is a separate method
-            i2Ri1, i2Ui1, v_corr_idxs, _ = self.two_view_estimator.create_computation_graph(
-                keypoints_i1_graph=keypoints_list[i1],
-                keypoints_i2_graph=keypoints_list[i2],
-                putative_corr_idxs_dict_graph=putative_corr_idxs_dict[i1, i2],
-                camera_intrinsics_i1=all_intrinsics[i1],
-                camera_intrinsics_i2=all_intrinsics[i2],
-                im_shape_i1=image_shapes[i1],
-                im_shape_i2=image_shapes[i2],
-                i2Ti1_prior=relative_pose_priors[(i1, i2)],
-                gt_wTi1=gt_poses_graph[i1],
-                gt_wTi2=gt_poses_graph[i2],
-                gt_scene_mesh_graph=gt_scene_mesh,
-            )
-
-            # Store results.
-            i2Ri1_graph_dict[(i1, i2)] = i2Ri1
-            i2Ui1_graph_dict[(i1, i2)] = i2Ui1
-
-        return i2Ri1_graph_dict, i2Ui1_graph_dict
-
-    def create_computation_graph(
-        self,
-        keypoints_list: List[Keypoints],
-        putative_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
-        num_images: int,
-        image_pair_indices: List[Tuple[int, int]],
-        image_graph: List[Delayed],
-        all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
-        image_shapes: List[Tuple[int, int]],
-        absolute_pose_priors: List[Optional[PosePrior]],
-        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         gt_wTi_list: List[Optional[Pose3]],
         gt_scene_mesh: Optional[Trimesh] = None,
-        matching_regime: ImageMatchingRegime = ImageMatchingRegime.SEQUENTIAL,
-    ) -> Tuple[Delayed, List[Delayed]]:
+    ) -> Tuple[
+        Dict[Tuple[int, int], Delayed],
+        Dict[Tuple[int, int], Delayed],
+        Dict[Tuple[int, int], Delayed],
+        Dict[str, Dict[Tuple[int, int], Delayed]],
+        List[Delayed],
+    ]:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
-        logger.info(f"Results, plots, and metrics will be saved at {self.output_root}")
-
-        # auxiliary graph elements for visualizations and saving intermediate data for analysis.
-        delayed_results = []
- 
         # Estimate two-view geometry and get indices of verified correspondences.
         i2Ri1_graph_dict = {}
         i2Ui1_graph_dict = {}
         v_corr_idxs_graph_dict: Dict[Tuple[int, int], Delayed] = {}
-        two_view_reports_dict: Dict[str, Dict[Tuple[int, int], Optional[Delayed]]] = {
+        two_view_reports_dict: Dict[str, Dict[Tuple[int, int], Delayed]] = {
             PRE_BA_REPORT_TAG: {},
             POST_BA_REPORT_TAG: {},
             POST_ISP_REPORT_TAG: {},
@@ -198,13 +152,11 @@ class SceneOptimizer:
 
             # TODO(johnwlambert): decompose this so what happens in the loop is a separate method
             i2Ri1, i2Ui1, v_corr_idxs, two_view_reports = self.two_view_estimator.create_computation_graph(
-                keypoints_i1_graph=keypoints_list[i1],
-                keypoints_i2_graph=keypoints_list[i2],
-                putative_corr_idxs_graph=putative_corr_idxs_dict[i1, i2],
+                keypoints_i1=keypoints_list[i1],
+                keypoints_i2=keypoints_list[i2],
+                putative_corr_idxs=putative_corr_idxs_dict[i1, i2],
                 camera_intrinsics_i1=all_intrinsics[i1],
                 camera_intrinsics_i2=all_intrinsics[i2],
-                im_shape_i1=image_shapes[i1],
-                im_shape_i2=image_shapes[i2],
                 i2Ti1_prior=relative_pose_priors.get((i1, i2), None),
                 gt_wTi1=gt_wTi_list[i1],
                 gt_wTi2=gt_wTi_list[i2],
@@ -218,6 +170,7 @@ class SceneOptimizer:
             for token in (PRE_BA_REPORT_TAG, POST_BA_REPORT_TAG, POST_ISP_REPORT_TAG):
                 two_view_reports_dict[token][(i1, i2)] = two_view_reports[token]
 
+            delayed_results: List[Delayed] = []
             # Visualize verified two-view correspondences.
             annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
             with annotation:
@@ -233,6 +186,42 @@ class SceneOptimizer:
                             file_path=os.path.join(self._plot_correspondence_path, f"{i1}_{i2}.jpg"),
                         )
                     )
+
+        return i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict, two_view_reports_dict, delayed_results
+
+    def create_computation_graph(
+        self,
+        keypoints_list: List[Keypoints],
+        putative_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
+        num_images: int,
+        image_pair_indices: List[Tuple[int, int]],
+        image_graph: List[Delayed],
+        all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
+        absolute_pose_priors: List[Optional[PosePrior]],
+        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+        cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
+        gt_wTi_list: List[Optional[Pose3]],
+        matching_regime: ImageMatchingRegime = ImageMatchingRegime.SEQUENTIAL,
+    ) -> Tuple[Delayed, List[Delayed]]:
+        """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
+        logger.info(f"Results, plots, and metrics will be saved at {self.output_root}")
+
+        # auxiliary graph elements for visualizations and saving intermediate data for analysis.
+        (
+            i2Ri1_graph_dict,
+            i2Ui1_graph_dict,
+            v_corr_idxs_graph_dict,
+            two_view_reports_dict,
+            delayed_results,
+        ) = self.create_computation_graph_for_frontend(
+            keypoints_list,
+            putative_corr_idxs_dict,
+            image_pair_indices,
+            image_graph,
+            all_intrinsics,
+            relative_pose_priors,
+            gt_wTi_list,
+        )
 
         # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
         (
@@ -325,7 +314,7 @@ class SceneOptimizer:
                     dask.delayed(io_utils.save_point_cloud_as_ply)(
                         save_fpath=str(self._mvs_ply_save_fpath),
                         points=dense_points_graph,
-                        rgb=dense_point_colors_graph
+                        rgb=dense_point_colors_graph,
                     )
                 )
 
@@ -558,6 +547,8 @@ def _save_retrieval_two_view_metrics(metrics_path: Path, plot_base_path: Path) -
         i2 = entry["i2"]
         R_error = entry["rotation_angular_error"]
         U_error = entry["translation_angular_error"]
+        if R_error is None or U_error is None:
+            continue
         sim_score = sim[i1, i2]
 
         sim_scores.append(sim_score)
