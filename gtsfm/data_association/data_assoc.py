@@ -91,7 +91,7 @@ class DataAssociation(GTSFMProcess):
             cameras: dictionary, with image index -> camera mapping.
             tracks_2d: list of 2D tracks.
             sfm_tracks: List of triangulated tracks.
-            avg_track_repoj_errors: List of average reprojection errors per track.
+            avg_track_reproj_errors: List of average reprojection errors per track.
             triangulation_exit_codes: exit codes for each triangulation call.
             cameras_gt: list of GT cameras, to be used for benchmarking the tracks.
             images: a list of all images in scene (optional and only for track patch visualization)
@@ -118,13 +118,13 @@ class DataAssociation(GTSFMProcess):
 
         exit_codes_wrt_gt = track_utils.classify_tracks2d_with_gt_cameras(tracks=tracks_2d, cameras_gt=cameras_gt)
 
-        # add valid tracks where triangulation is successful
+        # Add valid tracks where triangulation was successful.
         exit_codes_wrt_computed: List[TriangulationExitCode] = []
         per_accepted_track_avg_errors = []
         per_rejected_track_avg_errors = []
         assert len(tracks_2d) == len(sfm_tracks)
         for j in range(len(tracks_2d)):
-            # triangulate and filter based on reprojection error
+            # Filter triangulated points based on reprojection error and exit code.
             sfm_track = sfm_tracks[j]
             avg_track_reproj_error = avg_track_reproj_errors[j]
             triangulation_exit_code = triangulation_exit_codes[j]
@@ -257,16 +257,16 @@ class DataAssociation(GTSFMProcess):
         # Unpack results.
         sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes = [], [], []
         if batch_size == 1:
-            for result in triangulation_results:
-                sfm_tracks.append(result[0])
-                avg_track_reproj_errors.append(result[1])
-                triangulation_exit_codes.append(result[2])
+            for (sfm_track, avg_track_reproj_error, exit_code) in triangulation_results:
+                sfm_tracks.append(sfm_track)
+                avg_track_reproj_errors.append(avg_track_reproj_error)
+                triangulation_exit_codes.append(exit_code)
         else:
             for batch_results in triangulation_results:
-                for result in batch_results:
-                    sfm_tracks.append(result[0])
-                    avg_track_reproj_errors.append(result[1])
-                    triangulation_exit_codes.append(result[2])
+                for (sfm_track, avg_track_reproj_error, exit_code) in batch_results:
+                    sfm_tracks.append(sfm_track)
+                    avg_track_reproj_errors.append(avg_track_reproj_error)
+                    triangulation_exit_codes.append(exit_code)
 
         return sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes
 
