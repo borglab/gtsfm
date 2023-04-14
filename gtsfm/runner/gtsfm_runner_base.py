@@ -35,7 +35,6 @@ class GtsfmRunnerBase:
             dask.config.set({"temporary_directory": DEFAULT_OUTPUT_ROOT / self.parsed_args.dask_tmpdir})
 
         self.loader: LoaderBase = self.construct_loader()
-        # self.retriever = self.construct_retriever()
         self.scene_optimizer: SceneOptimizer = self.construct_scene_optimizer()
 
     def construct_argparser(self) -> argparse.ArgumentParser:

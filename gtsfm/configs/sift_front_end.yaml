@@ -1,3 +1,5 @@
+# Default SIFT front-end configuration.
+
 SceneOptimizer:
   _target_: gtsfm.scene_optimizer.SceneOptimizer
   save_gtsfm_data: True
@@ -11,8 +13,8 @@ SceneOptimizer:
 
   retriever:
     _target_: gtsfm.retriever.netvlad_retriever.NetVLADRetriever
-    num_matched: 30
-    min_score: 0.25
+    num_matched: 20
+    min_score: 0.3
 
   correspondence_generator:
     _target_: gtsfm.frontend.correspondence_generator.det_desc_correspondence_generator.DetDescCorrespondenceGenerator
