@@ -48,7 +48,7 @@ SceneOptimizer:
     inlier_support_processor:
       _target_: gtsfm.two_view_estimator.InlierSupportProcessor
       min_num_inliers_est_model: 15
-      min_inlier_ratio_est_model: 0.25
+      min_inlier_ratio_est_model: 0.1
 
   multiview_optimizer:
     _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
@@ -56,7 +56,7 @@ SceneOptimizer:
     # comment out to not run
     view_graph_estimator:
       _target_: gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator.CycleConsistentRotationViewGraphEstimator
-      edge_error_aggregation_criterion: MIN_EDGE_ERROR
+      edge_error_aggregation_criterion: MEDIAN_EDGE_ERROR
 
     rot_avg_module:
       _target_: gtsfm.averaging.rotation.shonan.ShonanRotationAveraging
@@ -80,7 +80,7 @@ SceneOptimizer:
 
     bundle_adjustment_module:
       _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptimizer
-      output_reproj_error_thresh: 3 # for post-optimization filtering
+      output_reproj_error_thresh: 2 # for post-optimization filtering
       robust_measurement_noise: True
       shared_calib: False
 

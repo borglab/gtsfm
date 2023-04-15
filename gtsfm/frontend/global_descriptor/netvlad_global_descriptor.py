@@ -47,6 +47,7 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
         img_tensor = (
             torch.from_numpy(image.value_array).to(device).permute(2, 0, 1).unsqueeze(0).type(torch.float32) / 255
         )
-        img_desc = model({"image": img_tensor})
+        with torch.no_grad():
+            img_desc = model({"image": img_tensor})
 
         return img_desc["global_descriptor"].detach().squeeze().cpu().numpy()
