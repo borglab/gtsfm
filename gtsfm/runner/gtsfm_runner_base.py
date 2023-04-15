@@ -175,7 +175,9 @@ class GtsfmRunnerBase:
                 ImageMatchingRegime.SEQUENTIAL,
                 ImageMatchingRegime.SEQUENTIAL_HILTI,
             ]:
-                scene_optimizer.retriever.max_frame_lookahead = self.parsed_args.max_frame_lookahead
+                scene_optimizer.retriever._max_frame_lookahead = self.parsed_args.max_frame_lookahead
+            elif scene_optimizer.retriever._matching_regime == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL:
+                scene_optimizer.retriever._seq_retriever._max_frame_lookahead = self.parsed_args.max_frame_lookahead
 
         if self.parsed_args.mvs_off:
             scene_optimizer.run_dense_optimizer = False

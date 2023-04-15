@@ -6,6 +6,7 @@ Authors: John Lambert
 from typing import List, Tuple
 
 import dask
+from dask.delayed import Delayed
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.loader.loader_base import LoaderBase
@@ -19,7 +20,7 @@ logger = logger_utils.get_logger()
 class JointNetVLADSequentialRetriever(RetrieverBase):
     """Note: this class contains no .run() method."""
 
-    def __init__(self, num_matched: int, max_frame_lookahead: int) -> None:
+    def __init__(self, num_matched: int, min_score: float, max_frame_lookahead: int) -> None:
         """
         Args:
             num_matched: number of K potential matches to provide per query. These are the top "K" matches per query.
@@ -27,10 +28,22 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
         """
         super().__init__(matching_regime=ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL)
         self._num_matched = num_matched
-        self._similarity_retriever = NetVLADRetriever(num_matched=num_matched)
+        self._similarity_retriever = NetVLADRetriever(num_matched=num_matched, min_score=min_score)
         self._seq_retriever = SequentialRetriever(max_frame_lookahead=max_frame_lookahead)
 
-    def create_computation_graph(self, loader: LoaderBase) -> List[Tuple[int, int]]:
+    def create_computation_graph(self, loader: LoaderBase) -> Delayed:
+        """Compute potential image pairs.
+
+        Args:
+            loader: image loader. The length of this loader will provide the total number of images
+                for exhaustive global descriptor matching.
+
+        Return:
+            pair_indices: (i1,i2) image pairs.
+        """
+        return self.run(loader=loader)
+
+    def run(self, loader: LoaderBase) -> Delayed:
         """Compute potential image pairs.
 
         Args:
@@ -43,8 +56,7 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
         sim_pairs = self._similarity_retriever.create_computation_graph(loader)
         seq_pairs = self._seq_retriever.create_computation_graph(loader)
 
-        pairs = dask.delayed(self.aggregate_pairs)(sim_pairs=sim_pairs, seq_pairs=seq_pairs)
-        return pairs
+        return dask.delayed(self.aggregate_pairs)(sim_pairs=sim_pairs, seq_pairs=seq_pairs)
 
     def aggregate_pairs(
         self, sim_pairs: List[Tuple[int, int]], seq_pairs: List[Tuple[int, int]]
