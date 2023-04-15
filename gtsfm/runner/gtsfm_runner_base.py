@@ -321,7 +321,7 @@ class GtsfmRunnerBase:
             process_graph_generator.is_image_correspondence = True
         process_graph_generator.save_graph()
 
-        images = [self.loader.get_image_full_res(i) for i in range(len(self.loader))]
+        images = [self.loader.get_image(i) for i in range(len(self.loader))]
         image_pair_indices = self.retriever.apply(self.loader)
 
         with Client(cluster) as client:
