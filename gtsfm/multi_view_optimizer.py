@@ -6,7 +6,9 @@ from typing import Dict, List, Optional, Tuple
 
 import dask
 import numpy as np
+import os
 from dask.delayed import Delayed
+from pathlib import Path
 from gtsam import Pose3
 
 import gtsfm.common.types as gtsfm_types
@@ -54,6 +56,7 @@ class MultiViewOptimizer:
         two_view_reports_dict: Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         gt_wTi_list: List[Optional[Pose3]],
+        output_root: Optional[Path] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, list]:
         """Creates a computation graph for multi-view optimization.
 
@@ -69,6 +72,7 @@ class MultiViewOptimizer:
             two_view_reports_dict: Dict of TwoViewEstimationReports after inlier support processor.
             cameras_gt: list of GT cameras (if they exist), ordered by camera index.
             gt_wTi_list: list of GT poses of the camera.
+            output_root: path where output should be saved.
 
         Returns:
             The GtsfmData input to bundle adjustment, aligned to GT (if provided), wrapped up as Delayed.
@@ -76,6 +80,12 @@ class MultiViewOptimizer:
             Dict of TwoViewEstimationReports after view graph estimation.
             List of GtsfmMetricGroups from different modules, wrapped up as Delayed.
         """
+
+        # create debug directory
+        debug_output_dir = None
+        if output_root:
+            debug_output_dir = output_root / "debug"
+            os.makedirs(debug_output_dir, exist_ok=True)
 
         if self._run_view_graph_estimator and self.view_graph_estimator is not None:
             (
@@ -85,7 +95,13 @@ class MultiViewOptimizer:
                 viewgraph_two_view_reports_graph,
                 viewgraph_estimation_metrics,
             ) = self.view_graph_estimator.create_computation_graph(
-                i2Ri1_graph, i2Ui1_graph, all_intrinsics, v_corr_idxs_graph, keypoints_graph, two_view_reports_dict
+                i2Ri1_graph,
+                i2Ui1_graph,
+                all_intrinsics,
+                v_corr_idxs_graph,
+                keypoints_graph,
+                two_view_reports_dict,
+                debug_output_dir,
             )
         else:
             viewgraph_i2Ri1_graph = dask.delayed(i2Ri1_graph)
