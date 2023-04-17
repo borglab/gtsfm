@@ -16,49 +16,46 @@ class TestImage(unittest.TestCase):
     """Unit tests for the image class."""
 
     def test_get_intrinsics_from_exif_no_exif(self):
-        """
-        Tests the intrinsics generation from exif.
-        Focal length default value is expected because exif data is None.
-        """
+        """Tests the intrinsics generation from exif."""
 
         im_h = 100
         im_w = 120
-        expected_focal_length = DEFAULT_FOCAL_LENGTH_FACTOR * max(im_h, im_w)
-        expected_instrinsics = Cal3Bundler(fx=expected_focal_length, k1=0.0, k2=0.0, u0=60.0, v0=50.0)
-
         exif_data = None
         image = Image(np.random.randint(low=0, high=255, size=(im_h, im_w, 3)), exif_data)
         computed_intrinsics = image.get_intrinsics_from_exif()
 
-        self.assertTrue(expected_instrinsics.equals(computed_intrinsics, 1e-3))
+        expected_focal_length = DEFAULT_FOCAL_LENGTH_FACTOR * max(im_h, im_w)
+        expected_intrinsics = Cal3Bundler(fx=expected_focal_length, k1=0.0, k2=0.0, u0=60.0, v0=50.0)
+
+        # Focal length default value is expected because exif data is None.
+        self.assertTrue(expected_intrinsics.equals(computed_intrinsics, 1e-3))
 
     def test_get_intrinsics_from_exif_no_tags(self):
-        """
-        Tests the intrinsics generation from exif.
-        Focal length default value is expected because no tags of interested exist.
-        """
+        """Tests the intrinsics generation from exif."""
 
         im_h = 100
         im_w = 120
-        expected_focal_length = DEFAULT_FOCAL_LENGTH_FACTOR * max(im_h, im_w)
-        expected_instrinsics = Cal3Bundler(fx=expected_focal_length, k1=0.0, k2=0.0, u0=60.0, v0=50.0)
-
         exif_data = {
             "DummyName": "DummyValue",
         }
         image = Image(np.random.randint(low=0, high=255, size=(im_h, im_w, 3)), exif_data)
         computed_intrinsics = image.get_intrinsics_from_exif()
 
-        self.assertTrue(expected_instrinsics.equals(computed_intrinsics, 1e-3))
+        expected_focal_length = DEFAULT_FOCAL_LENGTH_FACTOR * max(im_h, im_w)
+        expected_intrinsics = Cal3Bundler(fx=expected_focal_length, k1=0.0, k2=0.0, u0=60.0, v0=50.0)
+
+        # Focal length default value is expected because no tags of interested exist.
+        self.assertTrue(expected_intrinsics.equals(computed_intrinsics, 1e-3))
 
     def test_get_intrinsics_from_exif_focal_length_in_35mm_film(self):
-        """
-        Tests the intrinsics generation from exif, reading from `FocalLengthIn35mmFilm`.
+        """Tests the intrinsics generation from exif.
 
         Created a sample exif data below. The reading order is `FocalLengthIn35mmFilm`, `Make&Model`, `ExifImageWidth`.
         Based on the sample data, the focal length value computed from each case is 480.0, 600.0, 590.551.
         """
 
+        im_h = 100
+        im_w = 120
         exif_data = {
             "FocalLengthIn35mmFilm": 140,
             "FocalLength": 25,
@@ -68,19 +65,21 @@ class TestImage(unittest.TestCase):
             "FocalPlaneXResolution": 1000,
             "FocalPlaneResolutionUnit": 2,
         }
-
-        expected_instrinsics = Cal3Bundler(fx=480, k1=0.0, k2=0.0, u0=60.0, v0=50.0)
-
-        image = Image(np.random.randint(low=0, high=255, size=(100, 120, 3)), exif_data)
+        image = Image(np.random.randint(low=0, high=255, size=(im_h, im_w, 3)), exif_data)
         computed_intrinsics = image.get_intrinsics_from_exif()
 
-        self.assertTrue(expected_instrinsics.equals(computed_intrinsics, 1e-3))
+        expected_intrinsics = Cal3Bundler(fx=480, k1=0.0, k2=0.0, u0=60.0, v0=50.0)
+
+        # Focal length computed from `FocalLengthIn35mmFilm` is expected.
+        self.assertTrue(expected_intrinsics.equals(computed_intrinsics, 1e-3))
 
     @mock.patch.object(SensorWidthDatabase, "__init__", return_value=None)
     @mock.patch.object(SensorWidthDatabase, "lookup", return_value=5)
     def test_get_intrinsics_from_exif_focal_length(self, mock_init, mock_lookup):
-        """Tests the intrinsics generation from exif, reading from `Make&Model`."""
+        """Tests the intrinsics generation from exif."""
 
+        im_h = 100
+        im_w = 120
         exif_data = {
             "FocalLength": 25,
             "Make": "testMake",
@@ -89,30 +88,32 @@ class TestImage(unittest.TestCase):
             "FocalPlaneXResolution": 1000,
             "FocalPlaneResolutionUnit": 2,
         }
-
-        expected_instrinsics = Cal3Bundler(fx=600, k1=0.0, k2=0.0, u0=60.0, v0=50.0)
-
-        image = Image(np.random.randint(low=0, high=255, size=(100, 120, 3)), exif_data)
+        image = Image(np.random.randint(low=0, high=255, size=(im_h, im_w, 3)), exif_data)
         computed_intrinsics = image.get_intrinsics_from_exif()
 
-        self.assertTrue(expected_instrinsics.equals(computed_intrinsics, 1e-3))
+        expected_intrinsics = Cal3Bundler(fx=600, k1=0.0, k2=0.0, u0=60.0, v0=50.0)
+
+        # Focal length computed from `Make&Model` is expected.
+        self.assertTrue(expected_intrinsics.equals(computed_intrinsics, 1e-3))
 
     def test_get_intrinsics_from_exif_exif_image_width(self):
-        """Tests the intrinsics generation from exif, reading from `ExifImageWidth`."""
+        """Tests the intrinsics generation from exif."""
 
+        im_h = 100
+        im_w = 120
         exif_data = {
             "FocalLength": 25,
             "ExifImageWidth": 200,
             "FocalPlaneXResolution": 1000,
             "FocalPlaneResolutionUnit": 2,
         }
-
-        expected_instrinsics = Cal3Bundler(fx=590.551, k1=0.0, k2=0.0, u0=60.0, v0=50.0)
-
-        image = Image(np.random.randint(low=0, high=255, size=(100, 120, 3)), exif_data)
+        image = Image(np.random.randint(low=0, high=255, size=(im_h, im_w, 3)), exif_data)
         computed_intrinsics = image.get_intrinsics_from_exif()
 
-        self.assertTrue(expected_instrinsics.equals(computed_intrinsics, 1e-3))
+        expected_intrinsics = Cal3Bundler(fx=590.551, k1=0.0, k2=0.0, u0=60.0, v0=50.0)
+
+        # Focal length computed from `ExifImageWidth` is expected.
+        self.assertTrue(expected_intrinsics.equals(computed_intrinsics, 1e-3))
 
     def test_extract_patch_fully_inside(self):
         """Test patch extraction which is fully inside the original image."""

@@ -10,7 +10,7 @@ from gtsam import Cal3Bundler
 
 from gtsfm.common.sensor_width_database import SensorWidthDatabase
 
-DEFAULT_FOCAL_LENGTH_FACTOR = 1.2  # A heuristic value that scales image width or height in pixel unit.
+DEFAULT_FOCAL_LENGTH_FACTOR = 1.2  # A heuristic value that scales image width or height in pixel units.
 
 # Tag Ref: https://www.awaresystems.be/imaging/tiff/tifftags/privateifd/exif/focalplaneresolutionunit.html
 INCHES_FOCAL_PLANE_RES_UNIT = 2
@@ -29,23 +29,18 @@ class Image(NamedTuple):
 
     @property
     def height(self) -> int:
-        """
-        The height of the image (i.e. number of pixels in the vertical direction).
-        """
+        """The height of the image (i.e. number of pixels in the vertical direction)."""
         return self.value_array.shape[0]
 
     @property
     def width(self) -> int:
-        """
-        The width of the image (i.e. number of pixels in the horizontal direction).
-        """
+        """The width of the image (i.e. number of pixels in the horizontal direction)."""
         return self.value_array.shape[1]
 
-    def __read_from_exif_image_width(self) -> float:
-        """
-        Compute sensor_width_mm from `ExifImageWidth` tag,
+    def __compute_sensor_width_from_exif(self) -> float:
+        """Compute sensor_width_mm from `ExifImageWidth` tag,
 
-        sensor_width = pixel_x_dim / focal_plane_x_res * unit_conversion_factor
+        Equation: sensor_width = pixel_x_dim / focal_plane_x_res * unit_conversion_factor
 
         Returns:
             sensor_width_mm.
@@ -123,7 +118,7 @@ class Image(NamedTuple):
                             self.exif_data.get("Model"),
                         )
                     except (AttributeError, LookupError):
-                        sensor_width_mm = self.__read_from_exif_image_width()
+                        sensor_width_mm = self.__compute_sensor_width_from_exif()
 
                     if sensor_width_mm > 0.0:
                         focal_length_px = focal_length_mm / sensor_width_mm * max_size
