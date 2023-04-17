@@ -262,8 +262,8 @@ class BundleAdjustmentOptimizer:
         """Optimize the factor graph."""
         params = gtsam.GncLMParams()
         # params.setVerbosityGNC("ERROR")
-        if self._max_iterations:
-            params.setMaxIterations(self._max_iterations)
+        # if self._max_iterations:
+        #     params.setMaxIterations(self._max_iterations)
         lm = gtsam.GncLMOptimizer(graph, initial_values, params)
 
         result_values = lm.optimize()
