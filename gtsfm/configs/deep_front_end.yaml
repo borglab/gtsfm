@@ -7,15 +7,10 @@ SceneOptimizer:
   save_3d_viz: True
   pose_angular_error_thresh: 5 # degrees
 
-  # retriever:
-  #   _target_: gtsfm.retriever.sequential_retriever.SequentialRetriever
-  #   max_frame_lookahead: 20
-
   retriever:
-    _target_: gtsfm.retriever.joint_netvlad_sequential_retriever.JointNetVLADSequentialRetriever
+    _target_: gtsfm.retriever.netvlad_retriever.NetVLADRetriever
     num_matched: 20
     min_score: 0.3
-    max_frame_lookahead: 20
 
   correspondence_generator:
     _target_: gtsfm.frontend.correspondence_generator.det_desc_correspondence_generator.DetDescCorrespondenceGenerator
@@ -68,7 +63,7 @@ SceneOptimizer:
 
     data_association_module:
       _target_: gtsfm.data_association.data_assoc.DataAssociation
-      min_track_len: 3
+      min_track_len: 2
       triangulation_options:
         _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
         reproj_error_threshold: 10
@@ -80,7 +75,7 @@ SceneOptimizer:
 
     bundle_adjustment_module:
       _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptimizer
-      output_reproj_error_thresh: 2 # for post-optimization filtering
+      output_reproj_error_thresh: 3 # for post-optimization filtering
       robust_measurement_noise: True
       shared_calib: False
 
