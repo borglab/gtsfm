@@ -44,7 +44,7 @@ class TestImage(unittest.TestCase):
         expected_focal_length = DEFAULT_FOCAL_LENGTH_FACTOR * max(im_h, im_w)
         expected_intrinsics = Cal3Bundler(fx=expected_focal_length, k1=0.0, k2=0.0, u0=60.0, v0=50.0)
 
-        # Focal length default value is expected because no tags of interested exist.
+        # Focal length default value is expected because no tags of interest exist.
         self.assertTrue(expected_intrinsics.equals(computed_intrinsics, 1e-3))
 
     def test_get_intrinsics_from_exif_focal_length_in_35mm_film(self):

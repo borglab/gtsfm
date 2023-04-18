@@ -10,7 +10,10 @@ from gtsam import Cal3Bundler
 
 from gtsfm.common.sensor_width_database import SensorWidthDatabase
 
-DEFAULT_FOCAL_LENGTH_FACTOR = 1.2  # A heuristic value that scales image width or height in pixel units.
+# A heuristic value that scales image width or height in pixel units. Matches the scaling used in COLMAP, see
+# `ImageReaderOptions.default_focal_length_factor` in
+# https://github.com/colmap/colmap/blob/dev/src/base/image_reader.h.
+DEFAULT_FOCAL_LENGTH_FACTOR = 1.2
 
 # Tag Ref: https://www.awaresystems.be/imaging/tiff/tifftags/privateifd/exif/focalplaneresolutionunit.html
 INCHES_FOCAL_PLANE_RES_UNIT = 2
@@ -91,43 +94,55 @@ class Image(NamedTuple):
 
         img_w_px = self.width
         img_h_px = self.height
-        max_size = max(img_w_px, img_h_px)
-
-        # Initialize focal length by `DEFAULT_FOCAL_LENGTH_FACTOR * max(width, height)`.
-        focal_length_px = DEFAULT_FOCAL_LENGTH_FACTOR * max_size
-
-        # Read focal length prior from exif.
-        if self.exif_data is not None and len(self.exif_data) > 0:
-
-            # Read from `FocalLengthIn35mmFilm`.
-            focal_length_35_mm = self.exif_data.get("FocalLengthIn35mmFilm")
-            if focal_length_35_mm is not None and focal_length_35_mm > 0:
-                focal_length_px = focal_length_35_mm / 35.0 * max_size
-            else:
-                # Read from `FocalLength` mm.
-                focal_length_mm = self.exif_data.get("FocalLength")
-
-                # Compute sensor width, either from database or from EXIF.
-                if focal_length_mm is not None and focal_length_mm > 0:
-
-                    sensor_width_mm = 0.0
-
-                    try:
-                        sensor_width_mm = Image.sensor_width_db.lookup(
-                            self.exif_data.get("Make"),
-                            self.exif_data.get("Model"),
-                        )
-                    except (AttributeError, LookupError):
-                        sensor_width_mm = self.__compute_sensor_width_from_exif()
-
-                    if sensor_width_mm > 0.0:
-                        focal_length_px = focal_length_mm / sensor_width_mm * max_size
-
-        assert focal_length_px > 0
 
         # Initialize principal point.
         center_x = img_w_px / 2
         center_y = img_h_px / 2
+
+        # Initialize focal length by `DEFAULT_FOCAL_LENGTH_FACTOR * max(width, height)`.
+        max_size = max(img_w_px, img_h_px)
+        focal_length_px = DEFAULT_FOCAL_LENGTH_FACTOR * max_size
+
+        # Read focal length prior from exif.
+        if self.exif_data is None or len(self.exif_data) <= 0:
+            return Cal3Bundler(
+                fx=float(focal_length_px),
+                k1=0.0,
+                k2=0.0,
+                u0=float(center_x),
+                v0=float(center_y),
+            )
+
+        # Read from `FocalLengthIn35mmFilm`.
+        focal_length_35_mm = self.exif_data.get("FocalLengthIn35mmFilm")
+        if focal_length_35_mm is not None and focal_length_35_mm > 0:
+            focal_length_px = focal_length_35_mm / 35.0 * max_size
+        else:
+            # Read from `FocalLength` mm.
+            focal_length_mm = self.exif_data.get("FocalLength")
+            if focal_length_mm is None or focal_length_mm <= 0:
+                return Cal3Bundler(
+                    fx=float(focal_length_px),
+                    k1=0.0,
+                    k2=0.0,
+                    u0=float(center_x),
+                    v0=float(center_y),
+                )
+
+            # Compute sensor width, either from database or from EXIF.
+            sensor_width_mm = 0.0
+            try:
+                sensor_width_mm = Image.sensor_width_db.lookup(
+                    self.exif_data.get("Make"),
+                    self.exif_data.get("Model"),
+                )
+            except (AttributeError, LookupError):
+                sensor_width_mm = self.__compute_sensor_width_from_exif()
+            if sensor_width_mm > 0.0:
+                focal_length_px = focal_length_mm / sensor_width_mm * max_size
+
+        if focal_length_px <= 0:
+            raise ValueError("Focal length must be positive value.")
 
         return Cal3Bundler(
             fx=float(focal_length_px),

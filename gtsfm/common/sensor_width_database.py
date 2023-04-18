@@ -66,6 +66,7 @@ class SensorWidthDatabase:
         if match_count == 0 or match_count > 1:
             raise LookupError(f"make='{make}' and model='{model}' not found in sensor database")
 
-        assert sensor_width > 0.0
+        if sensor_width <= 0.0:
+            raise ValueError("Sensor width must be positive value.")
 
         return sensor_width
