@@ -1,6 +1,7 @@
 """Base class for runner that executes SfM."""
 
 import argparse
+import os
 import time
 from abc import abstractmethod
 from pathlib import Path
