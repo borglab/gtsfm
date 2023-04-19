@@ -5,6 +5,9 @@ SceneOptimizer:
   save_3d_viz: True
   pose_angular_error_thresh: 5 # degrees
 
+  retriever:
+    _target_: gtsfm.retriever.sequential_retriever.SequentialRetriever
+    max_frame_lookahead: 20
 
   correspondence_generator:
     _target_: gtsfm.frontend.correspondence_generator.det_desc_correspondence_generator.DetDescCorrespondenceGenerator
@@ -38,7 +41,7 @@ SceneOptimizer:
     view_graph_estimator:
       _target_: gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator.CycleConsistentRotationViewGraphEstimator
       edge_error_aggregation_criterion: MEDIAN_EDGE_ERROR
-      
+
     rot_avg_module:
       _target_: gtsfm.averaging.rotation.shonan.ShonanRotationAveraging
 

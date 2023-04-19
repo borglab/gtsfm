@@ -23,7 +23,7 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.frontend.cacher.global_descriptor_cacher import GlobalDescriptorCacher
 from gtsfm.frontend.global_descriptor.netvlad_global_descriptor import NetVLADGlobalDescriptor
 from gtsfm.loader.loader_base import LoaderBase
-from gtsfm.retriever.retriever_base import RetrieverBase
+from gtsfm.retriever.retriever_base import RetrieverBase, ImageMatchingRegime
 
 logger = logger_utils.get_logger()
 
@@ -42,16 +42,17 @@ class SubBlockSimilarityResult:
 
 
 class NetVLADRetriever(RetrieverBase):
-    def __init__(self, num_matched: int, blocksize: int = 50) -> None:
+    def __init__(self, num_matched: int, min_score: float = 0.1, blocksize: int = 50) -> None:
         """
         Args:
             num_matched: number of K potential matches to provide per query. These are the top "K" matches per query.
             blocksize: size of matching sub-blocks when creating similarity matrix.
         """
+        super().__init__(matching_regime=ImageMatchingRegime.RETRIEVAL)
         self._num_matched = num_matched
         self._global_descriptor_model = GlobalDescriptorCacher(global_descriptor_obj=NetVLADGlobalDescriptor())
         self._blocksize = blocksize
-        self._min_score = 0.1
+        self._min_score = min_score
 
     def create_computation_graph(self, loader: LoaderBase) -> Delayed:
         """Compute potential image pairs.
@@ -203,21 +204,30 @@ class NetVLADRetriever(RetrieverBase):
         pairs = pairs_from_score_matrix(
             sim, invalid=is_invalid_mat, num_select=self._num_matched, min_score=self._min_score
         )
+        named_pairs = [(query_names[i], query_names[j]) for i, j in pairs]
 
         if visualize:
-            plt.imshow(np.triu(sim.detach().cpu().numpy()))
             os.makedirs(PLOT_SAVE_DIR, exist_ok=True)
+
+            # Save image of similarity matrix.
+            plt.imshow(np.triu(sim.detach().cpu().numpy()))
             plt.title("Image Similarity Matrix")
+            plt.savefig(os.path.join(PLOT_SAVE_DIR, "netvlad_similarity_matrix.jpg"), dpi=500)
+            plt.close("all")
+
+            # Save values in similarity matrix.
             np.savetxt(
                 fname=os.path.join(PLOT_SAVE_DIR, "netvlad_similarity_matrix.txt"),
                 X=sim.detach().cpu().numpy(),
                 fmt="%.2f",
                 delimiter=",",
             )
-            plt.savefig(os.path.join(PLOT_SAVE_DIR, "netvlad_similarity_matrix.jpg"), dpi=500)
-            plt.close("all")
 
-        named_pairs = [(query_names[i], query_names[j]) for i, j in pairs]
+            # Save named pairs and scores.
+            with open(os.path.join(PLOT_SAVE_DIR, "netvlad_named_pairs.txt"), "w") as fid:
+                for (_named_pair, _pair_ind) in zip(named_pairs, pairs):
+                    fid.write("%.4f %s %s\n" % (sim[_pair_ind[0], _pair_ind[1]], _named_pair[0], _named_pair[1]))
+
         logger.info("Found %d pairs from the NetVLAD Retriever.", len(pairs))
         logger.info("Image Name Pairs:" + str(named_pairs))
         return pairs
