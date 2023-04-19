@@ -30,7 +30,7 @@ from gtsfm.common.pose_prior import PosePrior
 from gtsfm.densify.mvs_base import MVSBase
 from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
-from gtsfm.retriever.retriever_base import ImageMatchingRegime
+from gtsfm.retriever.retriever_base import RetrieverBase, ImageMatchingRegime
 from gtsfm.two_view_estimator import (
     POST_BA_REPORT_TAG,
     POST_ISP_REPORT_TAG,
@@ -42,7 +42,7 @@ from gtsfm.two_view_estimator import (
 
 matplotlib.use("Agg")
 
-DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_OUTPUT_ROOT = str(Path(__file__).resolve().parent.parent)
 
 # Paths to Save Output in React Folders.
 REACT_METRICS_PATH = Path(__file__).resolve().parent.parent / "rtf_vis_tool" / "src" / "result_metrics"
@@ -66,6 +66,7 @@ class SceneOptimizer:
 
     def __init__(
         self,
+        retriever: RetrieverBase,
         correspondence_generator: CorrespondenceGeneratorBase,
         two_view_estimator: TwoViewEstimator,
         multiview_optimizer: MultiViewOptimizer,
@@ -78,6 +79,7 @@ class SceneOptimizer:
         output_worker: str = None,
     ) -> None:
         """pose_angular_error_thresh is given in degrees"""
+        self.retriever = retriever
         self.correspondence_generator = correspondence_generator
         self.two_view_estimator = two_view_estimator
         self.multiview_optimizer = multiview_optimizer
@@ -175,14 +177,13 @@ class SceneOptimizer:
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         gt_wTi_list: List[Optional[Pose3]],
         gt_scene_mesh: Optional[Trimesh] = None,
-        matching_regime: ImageMatchingRegime = ImageMatchingRegime.SEQUENTIAL,
     ) -> Tuple[Delayed, List[Delayed]]:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
         logger.info(f"Results, plots, and metrics will be saved at {self.output_root}")
 
         # auxiliary graph elements for visualizations and saving intermediate data for analysis.
         delayed_results = []
- 
+
         # Estimate two-view geometry and get indices of verified correspondences.
         i2Ri1_graph_dict = {}
         i2Ui1_graph_dict = {}
@@ -269,7 +270,7 @@ class SceneOptimizer:
                         report_dict,
                         image_graph,
                         filename="two_view_report_{}.json".format(tag),
-                        matching_regime=matching_regime,
+                        matching_regime=self.retriever._matching_regime,
                         metrics_path=self._metrics_path,
                         plot_base_path=self._plot_base_path,
                     )
@@ -325,7 +326,7 @@ class SceneOptimizer:
                     dask.delayed(io_utils.save_point_cloud_as_ply)(
                         save_fpath=str(self._mvs_ply_save_fpath),
                         points=dense_points_graph,
-                        rgb=dense_point_colors_graph
+                        rgb=dense_point_colors_graph,
                     )
                 )
 

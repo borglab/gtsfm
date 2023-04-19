@@ -17,13 +17,7 @@ from gtsfm.frontend.correspondence_generator.correspondence_generator_base impor
 from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 from gtsfm.loader.loader_base import LoaderBase
-from gtsfm.retriever.exhaustive_retriever import ExhaustiveRetriever
-from gtsfm.retriever.joint_netvlad_sequential_retriever import JointNetVLADSequentialRetriever
-from gtsfm.retriever.netvlad_retriever import NetVLADRetriever
-from gtsfm.retriever.retriever_base import ImageMatchingRegime, RetrieverBase
-from gtsfm.retriever.rig_retriever import RigRetriever
-from gtsfm.retriever.sequential_hilti_retriever import SequentialHiltiRetriever
-from gtsfm.retriever.sequential_retriever import SequentialRetriever
+from gtsfm.retriever.retriever_base import RetrieverBase, ImageMatchingRegime
 from gtsfm.scene_optimizer import SceneOptimizer
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 
@@ -38,10 +32,9 @@ class GtsfmRunnerBase:
         argparser: argparse.ArgumentParser = self.construct_argparser()
         self.parsed_args: argparse.Namespace = argparser.parse_args()
         if self.parsed_args.dask_tmpdir:
-            dask.config.set({'temporary_directory': DEFAULT_OUTPUT_ROOT / self.parsed_args.dask_tmpdir})
+            dask.config.set({"temporary_directory": DEFAULT_OUTPUT_ROOT / self.parsed_args.dask_tmpdir})
 
         self.loader: LoaderBase = self.construct_loader()
-        self.retriever = self.construct_retriever()
         self.scene_optimizer: SceneOptimizer = self.construct_scene_optimizer()
 
     def construct_argparser(self) -> argparse.ArgumentParser:
@@ -78,6 +71,12 @@ class GtsfmRunnerBase:
             help="Override flag for verifier (choose from among gtsfm/configs/verifier).",
         )
         parser.add_argument(
+            "--retriever_config_name",
+            type=str,
+            default=None,
+            help="Override flag for retriever (choose from among gtsfm/configs/retriever).",
+        )
+        parser.add_argument(
             "--max_resolution",
             type=int,
             default=760,
@@ -87,28 +86,8 @@ class GtsfmRunnerBase:
         parser.add_argument(
             "--max_frame_lookahead",
             type=int,
-            default=20,
+            default=None,
             help="maximum number of consecutive frames to consider for matching/co-visibility",
-        )
-        parser.add_argument(
-            "--matching_regime",
-            type=str,
-            choices=[
-                "exhaustive",
-                "retrieval",
-                "sequential",
-                "sequential_with_retrieval",
-                "sequential_hilti",
-                "rig_hilti",
-            ],
-            default="sequential",
-            help="Choose mode for matching.",
-        )
-        parser.add_argument(
-            "--num_matched",
-            type=int,
-            default=5,
-            help="Number of matches to provide per retrieval query.",
         )
         parser.add_argument(
             "--share_intrinsics", action="store_true", help="Shares the intrinsics between all the cameras"
@@ -162,6 +141,7 @@ class GtsfmRunnerBase:
             )
             scene_optimizer: SceneOptimizer = instantiate(main_cfg.SceneOptimizer)
 
+        # Override correspondence generator.
         if self.parsed_args.correspondence_generator_config_name is not None:
             with hydra.initialize_config_module(config_module="gtsfm.configs.correspondence"):
                 correspondence_cfg = hydra.compose(
@@ -172,6 +152,7 @@ class GtsfmRunnerBase:
                     correspondence_cfg.CorrespondenceGenerator
                 )
 
+        # Override verifier.
         if self.parsed_args.verifier_config_name is not None:
             with hydra.initialize_config_module(config_module="gtsfm.configs.verifier"):
                 verifier_cfg = hydra.compose(
@@ -180,36 +161,29 @@ class GtsfmRunnerBase:
                 logger.info("\n\nVerifier override: " + OmegaConf.to_yaml(verifier_cfg))
                 scene_optimizer.two_view_estimator._verifier: VerifierBase = instantiate(verifier_cfg.verifier)
 
+        # Override retriever.
+        if self.parsed_args.retriever_config_name is not None:
+            with hydra.initialize_config_module(config_module="gtsfm.configs.retriever"):
+                retriever_cfg = hydra.compose(
+                    config_name=self.parsed_args.retriever_config_name,
+                )
+                logger.info("\n\nRetriever override: " + OmegaConf.to_yaml(retriever_cfg))
+                scene_optimizer.retriever: RetrieverBase = instantiate(retriever_cfg.retriever)
+
+        if self.parsed_args.max_frame_lookahead is not None:
+            if scene_optimizer.retriever._matching_regime in [
+                ImageMatchingRegime.SEQUENTIAL,
+                ImageMatchingRegime.SEQUENTIAL_HILTI,
+            ]:
+                scene_optimizer.retriever._max_frame_lookahead = self.parsed_args.max_frame_lookahead
+            elif scene_optimizer.retriever._matching_regime == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL:
+                scene_optimizer.retriever._seq_retriever._max_frame_lookahead = self.parsed_args.max_frame_lookahead
+
         if self.parsed_args.mvs_off:
             scene_optimizer.run_dense_optimizer = False
 
         logger.info("\n\nSceneOptimizer: " + str(scene_optimizer))
         return scene_optimizer
-
-    def construct_retriever(self) -> RetrieverBase:
-        """Set up retriever module."""
-        matching_regime = ImageMatchingRegime(self.parsed_args.matching_regime)
-
-        if matching_regime == ImageMatchingRegime.EXHAUSTIVE:
-            retriever = ExhaustiveRetriever()
-
-        elif matching_regime == ImageMatchingRegime.RETRIEVAL:
-            retriever = NetVLADRetriever(num_matched=self.parsed_args.num_matched)
-
-        elif matching_regime == ImageMatchingRegime.SEQUENTIAL:
-            retriever = SequentialRetriever(max_frame_lookahead=self.parsed_args.max_frame_lookahead)
-
-        elif matching_regime == ImageMatchingRegime.SEQUENTIAL_HILTI:
-            retriever = SequentialHiltiRetriever(max_frame_lookahead=self.parsed_args.max_frame_lookahead)
-
-        elif matching_regime == ImageMatchingRegime.RIG_HILTI:
-            retriever = RigRetriever(threshold=self.parsed_args.proxy_threshold)
-
-        elif matching_regime == ImageMatchingRegime.SEQUENTIAL_WITH_RETRIEVAL:
-            retriever = JointNetVLADSequentialRetriever(
-                num_matched=self.parsed_args.num_matched, max_frame_lookahead=self.parsed_args.max_frame_lookahead
-            )
-        return retriever
 
     def run(self) -> None:
         """Run the SceneOptimizer."""
@@ -218,8 +192,8 @@ class GtsfmRunnerBase:
         # create dask cluster
         if self.parsed_args.cluster_config:
             workers = OmegaConf.load(
-                os.path.join(
-                    self.parsed_args.output_root, "gtsfm", "configs", self.parsed_args.cluster_config))["workers"]
+                os.path.join(self.parsed_args.output_root, "gtsfm", "configs", self.parsed_args.cluster_config)
+            )["workers"]
             scheduler = workers[0]
             cluster = SSHCluster(
                 [scheduler] + workers,
@@ -246,7 +220,7 @@ class GtsfmRunnerBase:
             process_graph_generator.is_image_correspondence = True
         process_graph_generator.save_graph()
 
-        pairs_graph = self.retriever.create_computation_graph(self.loader)
+        pairs_graph = self.scene_optimizer.retriever.create_computation_graph(self.loader)
         with performance_report(filename="retriever-dask-report.html"):
             image_pair_indices = pairs_graph.compute()
 
@@ -274,7 +248,6 @@ class GtsfmRunnerBase:
             absolute_pose_priors=self.loader.get_absolute_pose_priors(),
             cameras_gt=self.loader.create_computation_graph_for_gt_cameras(),
             gt_wTi_list=self.loader.get_gt_poses(),
-            matching_regime=ImageMatchingRegime(self.parsed_args.matching_regime),
         )
 
         with performance_report(filename="scene-optimizer-dask-report.html"):

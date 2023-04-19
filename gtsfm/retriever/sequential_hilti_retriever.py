@@ -6,7 +6,7 @@ from typing import List, Tuple
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.loader.hilti_loader import HiltiLoader
-from gtsfm.retriever.retriever_base import RetrieverBase
+from gtsfm.retriever.retriever_base import RetrieverBase, ImageMatchingRegime
 
 logger = logger_utils.get_logger()
 
@@ -22,6 +22,7 @@ class SequentialHiltiRetriever(RetrieverBase):
         Args:
             max_frame_lookahead: maximum number of consecutive rig frames to consider for matching/co-visibility.
         """
+        super().__init__(matching_regime=ImageMatchingRegime.SEQUENTIAL_HILTI)
         self._max_frame_lookahead = max_frame_lookahead
 
     def is_valid_pair(self, loader, idx1: int, idx2: int) -> bool:
