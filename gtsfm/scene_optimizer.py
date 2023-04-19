@@ -281,21 +281,26 @@ class SceneOptimizer:
 
         annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
         with annotation:
-            if self._save_3d_viz:
-                delayed_results.extend(
-                    save_visualizations(
-                        ba_input_graph,
-                        ba_output_graph,
-                        gt_wTi_list,
-                        plot_ba_input_path=self._plot_ba_input_path,
-                        plot_results_path=self._plot_results_path,
-                    )
-                )
-
             if self._save_gtsfm_data:
                 delayed_results.extend(
-                    save_gtsfm_data(image_graph, ba_input_graph, ba_output_graph, results_path=self._results_path)
+                    save_gtsfm_data(
+                        image_graph,
+                        ba_input_graph,
+                        ba_output_graph,
+                        results_path=self._results_path,
+                        cameras_gt=cameras_gt,
+                    )
                 )
+                if self._save_3d_viz:
+                    delayed_results.extend(
+                        save_visualizations(
+                            aligned_ba_input_graph=ba_input_graph,
+                            aligned_ba_output_graph=ba_output_graph,
+                            gt_pose_graph=gt_wTi_list,
+                            plot_ba_input_path=self._plot_ba_input_path,
+                            plot_results_path=self._plot_results_path,
+                        )
+                    )
 
         if self.run_dense_optimizer and self.dense_multiview_optimizer is not None:
             img_dict_graph = dask.delayed(get_image_dictionary)(image_graph)
@@ -339,10 +344,10 @@ def get_image_dictionary(image_list: List[Image]) -> Dict[int, Image]:
 
 
 def align_estimated_gtsfm_data(
-    ba_input: GtsfmData, ba_output: GtsfmData, gt_pose_graph: List[Optional[Pose3]]
+    ba_input: GtsfmData, ba_output: GtsfmData, gt_wTi_list: List[Optional[Pose3]]
 ) -> Tuple[GtsfmData, GtsfmData, List[Optional[Pose3]]]:
-    """Creates modified GtsfmData objects that emulate ba_input and ba_output but with point cloud and camera
-    frustums aligned to the x,y,z axes. Also transforms GT camera poses to be aligned to axes.
+    """First aligns ba_input and ba_output to gt_wTi_list using a Sim3 transformation, then aligns them all to the
+    X, Y, Z axes via another Sim3 global transformation.
 
     Args:
         ba_input: GtsfmData input to bundle adjustment.
@@ -354,17 +359,20 @@ def align_estimated_gtsfm_data(
         Updated ba_output GtsfmData object aligned to axes.
         Updated gt_pose_graph with GT poses aligned to axes.
     """
+    ba_input = ba_input.align_via_Sim3_to_poses(gt_wTi_list)
+    ba_output = ba_output.align_via_Sim3_to_poses(gt_wTi_list)
+
     walignedTw = ellipsoid_utils.get_ortho_axis_alignment_transform(ba_output)
     walignedSw = Similarity3(R=walignedTw.rotation(), t=walignedTw.translation(), s=1.0)
     ba_input = ba_input.apply_Sim3(walignedSw)
     ba_output = ba_output.apply_Sim3(walignedSw)
-    gt_pose_graph = [walignedSw.transformFrom(wTi) if wTi is not None else None for wTi in gt_pose_graph]
-    return ba_input, ba_output, gt_pose_graph
+    gt_wTi_list = [walignedSw.transformFrom(wTi) if wTi is not None else None for wTi in gt_wTi_list]
+    return ba_input, ba_output, gt_wTi_list
 
 
 def save_visualizations(
-    ba_input_graph: Delayed,
-    ba_output_graph: Delayed,
+    aligned_ba_input_graph: Delayed,
+    aligned_ba_output_graph: Delayed,
     gt_pose_graph: List[Optional[Delayed]],
     plot_ba_input_path: Path,
     plot_results_path: Path,
@@ -384,8 +392,6 @@ def save_visualizations(
     Returns:
         A list of Delayed objects after saving the different visualizations.
     """
-    aligned_ba_input_graph = dask.delayed(lambda x, y: x.align_via_Sim3_to_poses(y))(ba_input_graph, gt_pose_graph)
-    aligned_ba_output_graph = dask.delayed(lambda x, y: x.align_via_Sim3_to_poses(y))(ba_output_graph, gt_pose_graph)
     viz_graph_list = []
     viz_graph_list.append(dask.delayed(viz_utils.save_sfm_data_viz)(aligned_ba_input_graph, plot_ba_input_path))
     viz_graph_list.append(dask.delayed(viz_utils.save_sfm_data_viz)(aligned_ba_output_graph, plot_results_path))
@@ -397,9 +403,35 @@ def save_visualizations(
     return viz_graph_list
 
 
+def get_gt_gtsfm_data(
+    cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
+    ba_output: GtsfmData,
+) -> GtsfmData:
+    """Creates GtsfmData object with GT camera poses and estimated tracks.
+
+    Args:
+        gtsfm_data: GtsfmData object with estimated camera poses and tracks.
+        cameras_gt: list of GT cameras.
+
+    Returns:
+        GtsfmData object with GT camera poses and estimated tracks.
+    """
+    gt_gtsfm_data = GtsfmData(number_images=len(cameras_gt))
+    for i, camera in enumerate(cameras_gt):
+        if camera is not None:
+            gt_gtsfm_data.add_camera(i, camera)
+    for track in ba_output.get_tracks():
+        gt_gtsfm_data.add_track(track)
+    return gt_gtsfm_data
+
+
 def save_gtsfm_data(
-    image_graph: List[Delayed], ba_input_graph: Delayed, ba_output_graph: Delayed, results_path: Path
-) -> List[Delayed]:
+    image_graph: List[Delayed],
+    ba_input_graph: Delayed,
+    ba_output_graph: Delayed,
+    results_path: Path,
+    cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
+) -> Delayed:
     """Saves the Gtsfm data before and after bundle adjustment.
 
     Args:
@@ -430,6 +462,18 @@ def save_gtsfm_data(
                 save_dir=os.path.join(output_dir, "ba_output"),
             )
         )
+
+        # Save the ground truth in the same format, for visualization.
+        # We use the estimated tracks here, with ground truth camera poses.
+        gt_gtsfm_data = dask.delayed(get_gt_gtsfm_data)(cameras_gt, ba_output_graph)
+        saving_graph_list.append(
+            dask.delayed(io_utils.export_model_as_colmap_text)(
+                gt_gtsfm_data,
+                image_graph,
+                save_dir=os.path.join(output_dir, "ba_output_gt"),
+            )
+        )
+
     return saving_graph_list
 
 
