@@ -3,7 +3,7 @@ SceneOptimizer:
   save_gtsfm_data: True
   save_two_view_correspondences_viz: False
   save_3d_viz: True
-  pose_angular_error_thresh: 5 # degrees
+  pose_angular_error_thresh: 15 # degrees
 
   correspondence_generator:
     _target_: gtsfm.frontend.correspondence_generator.det_desc_correspondence_generator.DetDescCorrespondenceGenerator
@@ -11,58 +11,65 @@ SceneOptimizer:
     feature_extractor:
       _target_: gtsfm.feature_extractor.FeatureExtractor
       detector_descriptor:
-        _target_: gtsfm.frontend.detector_descriptor.sift.SIFTDetectorDescriptor
+        _target_: gtsfm.frontend.cacher.detector_descriptor_cacher.DetectorDescriptorCacher
+        detector_descriptor_obj:
+          _target_: gtsfm.frontend.detector_descriptor.aslfeat.ASLFeatDetectorDescriptor
+          max_keypoints: 5000
 
     matcher:
-      _target_: gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher
+      _target_: gtsfm.frontend.cacher.matcher_cacher.MatcherCacher
+      matcher_obj:
+        _target_: gtsfm.frontend.matcher.twoway_matcher.TwoWayMatcher
 
   two_view_estimator:
     _target_: gtsfm.two_view_estimator.TwoViewEstimator
     bundle_adjust_2view: True
-    eval_threshold_px: 0.5 # in px
-    ba_reproj_error_thresh: 0.5 # in px
-    bundle_adjust_2view_maxiters: 100
+    eval_threshold_px: 3 # in px
+    ba_reproj_error_thresh: 1.0 # in px
+    bundle_adjust_2view_maxiters: 1000
 
     verifier:
       _target_: gtsfm.frontend.verifier.ransac.Ransac
-      use_intrinsics_in_verification: False
-      estimation_threshold_px: 0.5 # for H/E/F estimators
-      robust_estimation_type: "USAC_ACCURATE"
+      use_intrinsics_in_verification: True
+      estimation_threshold_px: 1.0 # for H/E/F estimators
+      robust_estimation_type: "USAC_MAGSAC"
 
     inlier_support_processor:
       _target_: gtsfm.two_view_estimator.InlierSupportProcessor
-      min_num_inliers_est_model: 15
-      min_inlier_ratio_est_model: 0.1
+      min_num_inliers_est_model: 150
+      min_inlier_ratio_est_model: 0.25
 
   multiview_optimizer:
     _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
     view_graph_estimator:
       _target_: gtsfm.view_graph_estimator.cycle_consistent_rotation_estimator.CycleConsistentRotationViewGraphEstimator
-      edge_error_aggregation_criterion: MEDIAN_EDGE_ERROR
+      edge_error_aggregation_criterion: MIN_EDGE_ERROR
 
     rot_avg_module:
       _target_: gtsfm.averaging.rotation.shonan.ShonanRotationAveraging
 
     trans_avg_module:
       _target_: gtsfm.averaging.translation.averaging_1dsfm.TranslationAveraging1DSFM
+      robust_measurement_noise: True
+      projection_sampling_method: SAMPLE_INPUT_MEASUREMENTS
 
     data_association_module:
       _target_: gtsfm.data_association.data_assoc.DataAssociation
-      min_track_len: 2
+      min_track_len: 3
       triangulation_options:
         _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
-        reproj_error_threshold: 10
+        reproj_error_threshold: 100
         mode:
           _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
-          value: NO_RANSAC
-        max_num_hypotheses: 20
+          value: RANSAC_SAMPLE_UNIFORM
+        max_num_hypotheses: 100
       save_track_patches_viz: False
 
     bundle_adjustment_module:
       _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptimizer
       output_reproj_error_thresh: 3 # for post-optimization filtering
       robust_measurement_noise: True
-      shared_calib: True
+      shared_calib: False
 
   dense_multiview_optimizer:
     _target_: gtsfm.densify.mvs_patchmatchnet.MVSPatchmatchNet

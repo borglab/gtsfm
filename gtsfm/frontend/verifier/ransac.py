@@ -49,13 +49,21 @@ class RobustEstimationType(str, Enum):
 
 
 class Ransac(OpencvVerifierBase):
+    def __init__(
+        self,
+        use_intrinsics_in_verification: bool,
+        estimation_threshold_px: float,
+        robust_estimation_type: RobustEstimationType = RobustEstimationType.USAC_ACCURATE,
+    ) -> None:
+        super().__init__(use_intrinsics_in_verification, estimation_threshold_px)
+        self._robust_estimation_type = RobustEstimationType(robust_estimation_type)
+
     def estimate_E(
         self,
         uv_norm_i1: np.ndarray,
         uv_norm_i2: np.ndarray,
         match_indices: np.ndarray,
         fx: float,
-        robust_estimation_type: RobustEstimationType = RobustEstimationType.USAC_ACCURATE,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Estimate the Essential matrix from correspondences.
 
@@ -75,7 +83,7 @@ class Ransac(OpencvVerifierBase):
             uv_norm_i1[match_indices[:, 0]],
             uv_norm_i2[match_indices[:, 1]],
             K,
-            method=getattr(cv2, robust_estimation_type.value),
+            method=getattr(cv2, self._robust_estimation_type.value),
             threshold=self._estimation_threshold_px / fx,
             prob=RANSAC_SUCCESS_PROB,
         )

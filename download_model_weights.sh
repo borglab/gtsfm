@@ -40,3 +40,12 @@ D2NET_WEIGHTS_DIR="./thirdparty/d2net/weights"
 mkdir -p $D2NET_WEIGHTS_DIR
 
 wget $D2NET_CKPT_URL -O $D2NET_WEIGHTS_DIR/d2_tf.pth
+
+##################### ASLFeat #############################
+
+ASLFEAT_CKPT_URL="https://research.altizure.com/data/aslfeat_models/aslfeatv2.tar"
+ASLFEAT_WEIGHTS_DIR="./thirdparty/ASLFeat/weights"
+mkdir -p $ASLFEAT_WEIGHTS_DIR
+
+wget $ASLFEAT_CKPT_URL -O $ASLFEAT_WEIGHTS_DIR/aslfeatv2.tar
+tar -xvf $ASLFEAT_WEIGHTS_DIR/aslfeatv2.tar -C $ASLFEAT_WEIGHTS_DIR

@@ -1,0 +1,7 @@
+numpy
+h5py
+matplotlib
+pyyaml
+Pillow
+opencv-python
+tensorflow-gpu==1.15.2
