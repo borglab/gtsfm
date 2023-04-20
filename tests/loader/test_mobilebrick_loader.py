@@ -45,7 +45,7 @@ class TestMobileBrickLoader(unittest.TestCase):
         """Test the image at a given index."""
         image1 = self.loader.get_image_full_res(0)
         self.assertIsInstance(image1, Image)
-        self.assertEqual(image1.shape, (1920, 1440, 3))
+        self.assertEqual(image1.shape, (1440, 1920, 3))
 
         with self.assertRaises(IndexError):
             self.loader.get_image_full_res(5)
