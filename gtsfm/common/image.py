@@ -34,6 +34,13 @@ class Image(NamedTuple):
         """
         return self.value_array.shape[1]
 
+    @property
+    def shape(self) -> tuple:
+        """
+        The shape of the image (H, W, C).
+        """
+        return self.value_array.shape
+
     def get_intrinsics_from_exif(self) -> Optional[Cal3Bundler]:
         """Constructs the camera intrinsics from exif tag.
 
