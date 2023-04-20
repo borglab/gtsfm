@@ -22,7 +22,7 @@ logger = logger_utils.get_logger()
 
 
 class MobilebrickLoader(LoaderBase):
-    """Simple loader class that reads from the MobileBrick dataset."""
+    """Loader class that reads from the MobileBrick dataset."""
 
     def __init__(
         self,
@@ -69,7 +69,7 @@ class MobilebrickLoader(LoaderBase):
         """The number of images in the dataset.
 
         Returns:
-            the number of images.
+            The number of images.
         """
         return self._num_images
 
@@ -77,13 +77,13 @@ class MobilebrickLoader(LoaderBase):
         """Get the image at the given index, at full resolution.
 
         Args:
-            index: the index to fetch.
+            index: The index to fetch.
 
         Raises:
-            IndexError: if an out-of-bounds image index is requested.
+            IndexError: If an out-of-bounds image index is requested.
 
         Returns:
-            Image: the image at the query index.
+            The image at the query index.
         """
         if index < 0 or index >= len(self):
             raise IndexError(f"Image index {index} is invalid")
@@ -96,10 +96,10 @@ class MobilebrickLoader(LoaderBase):
         """Get the camera intrinsics at the given index, valid for a full-resolution image.
 
         Args:
-            the index to fetch.
+            index: The index to fetch.
 
         Returns:
-            intrinsics for the given camera.
+            Ground truth intrinsics for the given camera.
         """
         if index < 0 or index >= len(self):
             raise IndexError(f"Image index {index} is invalid")
@@ -111,10 +111,10 @@ class MobilebrickLoader(LoaderBase):
         """Get the camera pose (in world coordinates) at the given index.
 
         Args:
-            index: the index to fetch.
+            index: The index to fetch.
 
         Returns:
-            pose for the given camera.
+            Ground truth pose for the given camera.
         """
         if index < 0 or index >= len(self):
             raise IndexError(f"Image index {index} is invalid")
@@ -126,10 +126,10 @@ class MobilebrickLoader(LoaderBase):
         """Checks if (idx1, idx2) is a valid pair. idx1 < idx2 is required.
 
         Args:
-            idx1: first index of the pair.
-            idx2: second index of the pair.
+            idx1: First index of the pair.
+            idx2: Second index of the pair.
 
         Returns:
-            validation result.
+            Validation result.
         """
         return super().is_valid_pair(idx1, idx2) and abs(idx1 - idx2) <= self._max_frame_lookahead
