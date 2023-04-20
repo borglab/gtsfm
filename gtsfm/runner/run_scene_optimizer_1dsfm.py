@@ -22,16 +22,12 @@ class GtsfmRunnerOneDSFMLoader(GtsfmRunnerBase):
         parser = super(GtsfmRunnerOneDSFMLoader, self).construct_argparser()
         parser.add_argument("--dataset_root", type=str, default="", help="")
         parser.add_argument("--image_extension", type=str, default="jpg", help="")
-        parser.add_argument(
-            "--max_num_imgs", type=int, default=0, help="max number of image to process, default: 0(all)"
-        )
         return parser
 
     def construct_loader(self) -> LoaderBase:
         loader = OneDSFMLoader(
             folder=self.parsed_args.dataset_root,
             image_extension=self.parsed_args.image_extension,
-            max_num_imgs=self.parsed_args.max_num_imgs,
         )
         return loader
 

@@ -137,11 +137,13 @@ class TestImageUtils(unittest.TestCase):
         """Make sure EXIF lookup behaves gracefully under pressure."""
         db = SensorWidthDatabase()
         # Check database lookup
-        sensor_width = db.lookup(make="Canon", model="Canon EOS 5D Mark II")
+        sensor_width = db.lookup(make="Canon", model="Canon EOS 5D Mark II")  # Exact match.
         self.assertEqual(sensor_width, 36)
+        sensor_width = db.lookup(make="Canon", model="Canon EOS REBEL T1i")  # Substring match.
+        self.assertEqual(sensor_width, 22.3)
         # Catch lookup failure
         with self.assertRaises(LookupError):
-            db.lookup(make="Canon", model="Canon EOS REBEL T1i")
+            db.lookup(make="Canon", model="Canon EOS REBEL XT")
 
 
 if __name__ == "__main__":
