@@ -38,8 +38,8 @@ class TestMobileBrickLoader(unittest.TestCase):
         """Test the image filenames."""
         image_filenames = self.loader.image_filenames()
         self.assertEqual(len(image_filenames), 5)
-        self.assertEqual(image_filenames[0], "000000.jpg")
-        self.assertEqual(image_filenames[4], "000004.jpg")
+        self.assertEqual(str(image_filenames[0]), "000000.jpg")
+        self.assertEqual(str(image_filenames[4]), "000004.jpg")
 
     def test_get_image_full_res(self):
         """Test the image at a given index."""
