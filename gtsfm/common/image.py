@@ -3,7 +3,7 @@
 Authors: Ayush Baid
 """
 
-from typing import Any, Dict, NamedTuple, Optional
+from typing import Any, Dict, NamedTuple, Optional, Tuple
 
 import numpy as np
 from gtsam import Cal3Bundler
@@ -36,7 +36,7 @@ class Image(NamedTuple):
         return self.value_array.shape[1]
 
     @property
-    def shape(self) -> tuple:
+    def shape(self) -> Tuple[int, int, int]:
         """The shape of the image (H, W, C)."""
         return self.value_array.shape
 
