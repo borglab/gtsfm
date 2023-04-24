@@ -124,7 +124,7 @@ def epipolar_inlier_correspondences(
     distance_squared = verification_utils.compute_epipolar_distances_sq_sampson(
         keypoints_i1.coordinates, keypoints_i2.coordinates, i2Fi1
     )
-    is_inlier = distance_squared < dist_threshold**2 if distance_squared is not None else None
+    is_inlier = distance_squared < dist_threshold ** 2 if distance_squared is not None else None
 
     return is_inlier, distance_squared
 

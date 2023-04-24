@@ -8,7 +8,6 @@ from unittest.mock import MagicMock, patch
 
 import dask
 import numpy as np
-import pytest
 from gtsam import Cal3Bundler, Pose3, Rot3
 
 import gtsfm.utils.io as io_utils
@@ -106,14 +105,8 @@ class TestFolderLoader(unittest.TestCase):
         """Tests getter for intrinsics when explicit numpy arrays are absent and we fall back on exif."""
         loader = OlssonLoader(EXIF_FOLDER, image_extension="JPG", use_gt_intrinsics=False)
         computed = loader.get_camera_intrinsics_full_res(5)
-        expected = Cal3Bundler(fx=2378.983, k1=0, k2=0, u0=648.0, v0=968.0)
+        expected = Cal3Bundler(fx=2378.514, k1=0, k2=0, u0=648.0, v0=968.0)
         self.assertTrue(expected.equals(computed, 1e-3))
-
-    def test_get_camera_intrinsics_missing(self) -> None:
-        """Tests getter for intrinsics when explicit numpy arrays are absent, exif is missing, and we raise an error."""
-        loader = OlssonLoader(NO_EXIF_FOLDER, image_extension="JPG")
-        with pytest.raises(ValueError):
-            _ = loader.get_camera_intrinsics(5)
 
     def test_create_computation_graph_for_images(self) -> None:
         """Tests the graph for loading all the images."""

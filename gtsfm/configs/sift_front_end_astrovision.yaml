@@ -1,9 +1,16 @@
+# SIFT front-end configuration tuned for AstroVision datasets: https://github.com/astrovision
+
 SceneOptimizer:
   _target_: gtsfm.scene_optimizer.SceneOptimizer
   save_gtsfm_data: True
   save_two_view_correspondences_viz: False
   save_3d_viz: True
   pose_angular_error_thresh: 5 # degrees
+
+  retriever:
+    _target_: gtsfm.retriever.netvlad_retriever.NetVLADRetriever
+    num_matched: 20
+    min_score: 0.5
 
   correspondence_generator:
     _target_: gtsfm.frontend.correspondence_generator.det_desc_correspondence_generator.DetDescCorrespondenceGenerator

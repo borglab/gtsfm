@@ -16,7 +16,6 @@ import gtsfm.utils.geometry_comparisons as comp_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.loader.olsson_loader import OlssonLoader
 from gtsfm.retriever.exhaustive_retriever import ExhaustiveRetriever
-from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.scene_optimizer import SceneOptimizer
 
 DATA_ROOT_PATH = Path(__file__).resolve().parent / "data"
@@ -40,7 +39,6 @@ def test_create_computation_graph_with_ground_truth(dataset_path):
         cluster = LocalCluster(n_workers=1, threads_per_worker=4)
         client = Client(cluster)
 
-        matching_regime = ImageMatchingRegime.EXHAUSTIVE
         retriever = ExhaustiveRetriever()
 
         pairs_graph = retriever.create_computation_graph(loader)
@@ -69,7 +67,6 @@ def test_create_computation_graph_with_ground_truth(dataset_path):
             relative_pose_priors=loader.get_relative_pose_priors(image_pair_indices),
             cameras_gt=loader.create_computation_graph_for_gt_cameras(),
             gt_wTi_list=loader.get_gt_poses(),
-            matching_regime=ImageMatchingRegime(matching_regime),
         )
 
         sfm_result, *io = dask.compute(delayed_sfm_result, *delayed_io)

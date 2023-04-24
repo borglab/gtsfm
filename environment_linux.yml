@@ -20,7 +20,7 @@ dependencies:
   - isort
   # dask and related
   - dask # same as dask[complete] pip distribution
-  - asynssh
+  - asyncssh
   - python-graphviz
   # core functionality and APIs
   - matplotlib==3.4.2
@@ -45,11 +45,11 @@ dependencies:
   # testing
   - parameterized
   - pip:
-    - open3d
-    - opencv-python>=4.5.4.58
-    - pydegensac
-    - colour
-    - pycolmap>=0.1.0
-    - trimesh[easy]
-    - gtsam==4.2a8
-    - pydot
+      - open3d
+      - opencv-python>=4.5.4.58
+      - pydegensac
+      - colour
+      - pycolmap>=0.1.0
+      - trimesh[easy]
+      - gtsam==4.2a8
+      - pydot

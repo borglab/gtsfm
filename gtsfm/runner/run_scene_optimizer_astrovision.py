@@ -12,7 +12,6 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.loader.astrovision_loader import AstrovisionLoader
-from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.runner.gtsfm_runner_base import GtsfmRunnerBase
 
 logger = logger_utils.get_logger()
@@ -60,7 +59,7 @@ class GtsfmRunnerAstrovisionLoader(GtsfmRunnerBase):
         )
 
         with Client(cluster) as client, performance_report(filename="dask-report.html"):
-            pairs_graph = self.retriever.create_computation_graph(self.loader)
+            pairs_graph = self.scene_optimizer.retriever.create_computation_graph(self.loader)
             image_pair_indices = pairs_graph.compute()
 
             (
@@ -68,7 +67,7 @@ class GtsfmRunnerAstrovisionLoader(GtsfmRunnerBase):
                 delayed_putative_corr_idxs_dict,
             ) = self.scene_optimizer.correspondence_generator.create_computation_graph(
                 delayed_images=self.loader.create_computation_graph_for_images(),
-                image_shapes=self.loader.create_computation_graph_for_image_shapes(),
+                delayed_image_shapes=self.loader.create_computation_graph_for_image_shapes(),
                 image_pair_indices=image_pair_indices,
             )
             keypoints_list, putative_corr_idxs_dict = dask.compute(delayed_keypoints, delayed_putative_corr_idxs_dict)
@@ -84,12 +83,10 @@ class GtsfmRunnerAstrovisionLoader(GtsfmRunnerBase):
                 image_pair_indices=image_pair_indices,
                 image_graph=self.loader.create_computation_graph_for_images(),
                 all_intrinsics=self.loader.create_computation_graph_for_intrinsics(),
-                image_shapes=self.loader.create_computation_graph_for_image_shapes(),
                 relative_pose_priors=self.loader.get_relative_pose_priors(image_pair_indices),
                 absolute_pose_priors=self.loader.get_absolute_pose_priors(),
                 cameras_gt=self.loader.create_computation_graph_for_gt_cameras(),
                 gt_wTi_list=self.loader.get_gt_poses(),
-                matching_regime=ImageMatchingRegime(self.parsed_args.matching_regime),
                 gt_scene_mesh=gt_scene_trimesh_future,
             )
 

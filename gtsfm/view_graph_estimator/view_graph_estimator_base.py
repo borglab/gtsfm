@@ -330,6 +330,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
             calibrations=calibrations,
             two_view_reports=two_view_reports_valid,
             view_graph_edges=view_graph_edges,
+            plots_output_dir=plot_cycle_consist_path,
         )
 
         return (
