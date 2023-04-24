@@ -145,6 +145,8 @@ thirdparty/patchmatchnet/checkpoints/
 thirdparty/SuperGluePretrainedNetwork/models/weights/
 thirdparty/hloc/weights/VGG16-NetVLAD-Pitts30K.mat
 thirdparty/**/*.pth
+thirdparty/**/*.index
+thirdparty/**/*.data*
 
 # Data folder
 data/
