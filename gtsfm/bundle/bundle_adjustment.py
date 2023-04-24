@@ -312,36 +312,38 @@ class BundleAdjustmentOptimizer:
             )
             return initial_data, initial_data, [False] * initial_data.number_tracks()
 
-        cameras_to_model = self.__cameras_to_model(initial_data, absolute_pose_priors, relative_pose_priors)
+        for output_reproj_error_thresh in self._output_reproj_error_thresh:
+            cameras_to_model = self.__cameras_to_model(initial_data, absolute_pose_priors, relative_pose_priors)
+            graph = self.__construct_factor_graph(
+                cameras_to_model=cameras_to_model,
+                initial_data=initial_data,
+                absolute_pose_priors=absolute_pose_priors,
+                relative_pose_priors=relative_pose_priors,
+            )
+            initial_values = self.__initial_values(initial_data=initial_data)
+            result_values = self.__optimize_factor_graph(graph, initial_values)
 
-        graph = self.__construct_factor_graph(
-            cameras_to_model=cameras_to_model,
-            initial_data=initial_data,
-            absolute_pose_priors=absolute_pose_priors,
-            relative_pose_priors=relative_pose_priors,
-        )
-        initial_values = self.__initial_values(initial_data=initial_data)
-        result_values = self.__optimize_factor_graph(graph, initial_values)
+            final_error = graph.error(result_values)
 
-        final_error = graph.error(result_values)
+            # Error drops from ~2764.22 to ~0.046
+            if verbose:
+                logger.info(f"initial error: {graph.error(initial_values):.2f}")
+                logger.info(f"final error: {final_error:.2f}")
 
-        # Error drops from ~2764.22 to ~0.046
-        if verbose:
-            logger.info(f"initial error: {graph.error(initial_values):.2f}")
-            logger.info(f"final error: {final_error:.2f}")
+            # construct the results
+            optimized_data = values_to_gtsfm_data(result_values, initial_data, self._shared_calib)
 
-        # construct the results
-        optimized_data = values_to_gtsfm_data(result_values, initial_data, self._shared_calib)
+            if verbose:
+                logger.info("[Result] Number of tracks before filtering: %d", optimized_data.number_tracks())
 
-        if verbose:
-            logger.info("[Result] Number of tracks before filtering: %d", optimized_data.number_tracks())
+            # filter the largest errors
+            if self._output_reproj_error_thresh:
+                filtered_result, valid_mask = optimized_data.filter_landmarks(output_reproj_error_thresh)
+            else:
+                valid_mask = [True] * optimized_data.number_tracks()
+                filtered_result = optimized_data
 
-        # filter the largest errors
-        if self._output_reproj_error_thresh:
-            filtered_result, valid_mask = optimized_data.filter_landmarks(self._output_reproj_error_thresh)
-        else:
-            valid_mask = [True] * optimized_data.number_tracks()
-            filtered_result = optimized_data
+            initial_data = filtered_result
 
         logger.info("[Result] Number of tracks after filtering: %d", filtered_result.number_tracks())
 
