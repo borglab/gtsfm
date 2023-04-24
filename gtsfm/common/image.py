@@ -10,11 +10,6 @@ from gtsam import Cal3Bundler
 
 from gtsfm.common.sensor_width_database import SensorWidthDatabase
 
-# A heuristic value that scales image width or height in pixel units. Matches the scaling used in COLMAP, see
-# `ImageReaderOptions.default_focal_length_factor` in
-# https://github.com/colmap/colmap/blob/dev/src/base/image_reader.h.
-DEFAULT_FOCAL_LENGTH_FACTOR = 1.2
-
 # Tag Ref: https://www.awaresystems.be/imaging/tiff/tifftags/privateifd/exif/focalplaneresolutionunit.html
 INCHES_FOCAL_PLANE_RES_UNIT = 2
 CENTIMETERS_FOCAL_PLANE_RES_UNIT = 3
@@ -42,9 +37,7 @@ class Image(NamedTuple):
 
     @property
     def shape(self) -> tuple:
-        """
-        The shape of the image (H, W, C).
-        """
+        """The shape of the image (H, W, C)."""
         return self.value_array.shape
 
     def __compute_sensor_width_from_exif(self) -> float:
@@ -80,7 +73,7 @@ class Image(NamedTuple):
 
         return sensor_width_mm
 
-    def get_intrinsics_from_exif(self) -> Optional[Cal3Bundler]:
+    def get_intrinsics_from_exif(self, default_focal_length_factor: float = 1.2) -> Optional[Cal3Bundler]:
         """Constructs the camera intrinsics from exif tag.
 
         Equation: focal_px=max(w_px,h_px)∗focal_mm / ccdw_mm
@@ -95,6 +88,12 @@ class Image(NamedTuple):
         - https://openmvg.readthedocs.io/en/latest/software/SfM/SfMInit_ImageListing/
         - https://photo.stackexchange.com/questions/40865/how-can-i-get-the-image-sensor-dimensions-in-mm-to-get-circle-of-confusion-from # noqa: E501
 
+        Args:
+            default_focal_length_factor: A heuristic value that scales image width or height in pixel units.
+            The default value of 1.2 matches the value used in COLMAP,
+            see `ImageReaderOptions.default_focal_length_factor` in
+            https://github.com/colmap/colmap/blob/dev/src/base/image_reader.h.
+
         Returns:
             intrinsics matrix (3x3).
         """
@@ -106,9 +105,9 @@ class Image(NamedTuple):
         center_x = img_w_px / 2
         center_y = img_h_px / 2
 
-        # Initialize focal length by `DEFAULT_FOCAL_LENGTH_FACTOR * max(width, height)`.
+        # Initialize focal length by `default_focal_length_factor * max(width, height)`.
         max_size = max(img_w_px, img_h_px)
-        focal_length_px = DEFAULT_FOCAL_LENGTH_FACTOR * max_size
+        focal_length_px = default_focal_length_factor * max_size
 
         # Read focal length prior from exif.
         if self.exif_data is None or len(self.exif_data) <= 0:

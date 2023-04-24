@@ -27,6 +27,7 @@ class MobilebrickLoader(LoaderBase):
     def __init__(
         self,
         data_dir: str,
+        use_gt_intrinsics: bool = False,
         max_frame_lookahead: int = 5,
         max_resolution: int = 1024,
         input_worker: Optional[str] = None,
@@ -34,6 +35,7 @@ class MobilebrickLoader(LoaderBase):
         """ """
         super().__init__(max_resolution=max_resolution, input_worker=input_worker)
 
+        self._use_gt_intrinsics = use_gt_intrinsics
         self._max_frame_lookahead = max_frame_lookahead
         self._image_dir = os.path.join(data_dir, "image")
         self._num_images = len(os.listdir(self._image_dir))
@@ -45,12 +47,16 @@ class MobilebrickLoader(LoaderBase):
             self._image_paths.append(image_path)
 
         # Load GT intrinsics
-        self._intrinsics_dir = os.path.join(data_dir, "intrinsic")
-        self._intrinsics = []
-        for i in range(self._num_images):
-            intrinsics_file = os.path.join(self._intrinsics_dir, f"{i:06d}.txt")
-            K = np.loadtxt(intrinsics_file)
-            self._intrinsics.append(Cal3Bundler((K[0, 0] + K[1, 1]) / 2, 0, 0, K[0, 2], K[1, 2]))
+        if self._use_gt_intrinsics:
+            intrinsics_dir = os.path.join(data_dir, "intrinsic")
+            self._intrinsics = []
+            for i in range(self._num_images):
+                intrinsics_file = os.path.join(intrinsics_dir, f"{i:06d}.txt")
+                K = np.loadtxt(intrinsics_file)
+                self._intrinsics.append(Cal3Bundler((K[0, 0] + K[1, 1]) / 2, 0, 0, K[0, 2], K[1, 2]))
+        else:
+            # TODO(akshay): It should be possible to cache approx intrinsics here.
+            self._intrinsics = None
 
         # Load GT poses
         self._poses_dir = os.path.join(data_dir, "pose")
@@ -79,11 +85,11 @@ class MobilebrickLoader(LoaderBase):
         Args:
             index: The index to fetch.
 
-        Raises:
-            IndexError: If an out-of-bounds image index is requested.
-
         Returns:
             The image at the query index.
+
+        Raises:
+            IndexError: If an out-of-bounds image index is requested.
         """
         if index < 0 or index >= len(self):
             raise IndexError(f"Image index {index} is invalid")
@@ -100,12 +106,20 @@ class MobilebrickLoader(LoaderBase):
 
         Returns:
             Ground truth intrinsics for the given camera.
+
+        Raises:
+            IndexError: If an out-of-bounds image index is requested.
         """
         if index < 0 or index >= len(self):
             raise IndexError(f"Image index {index} is invalid")
-        intrinsics = self._intrinsics[index]
 
-        return intrinsics
+        if self._intrinsics:
+            return self._intrinsics[index]
+        else:
+            # 0.8 is better than the default factor of 1.2 for this dataset, but it has not been fully tuned.
+            return io_utils.load_image(self._image_paths[index]).get_intrinsics_from_exif(
+                default_focal_length_factor=0.8
+            )
 
     def get_camera_pose(self, index: int) -> Optional[Pose3]:
         """Get the camera pose (in world coordinates) at the given index.
@@ -115,6 +129,9 @@ class MobilebrickLoader(LoaderBase):
 
         Returns:
             Ground truth pose for the given camera.
+
+        Raises:
+            IndexError: If an out-of-bounds image index is requested.
         """
         if index < 0 or index >= len(self):
             raise IndexError(f"Image index {index} is invalid")
