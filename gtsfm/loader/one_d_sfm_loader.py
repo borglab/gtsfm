@@ -17,6 +17,9 @@ from gtsfm.loader.loader_base import LoaderBase
 
 logger = logger_utils.get_logger()
 
+# Focal length is initialized to 1.2 * largest dimension of image if EXIF data is not available.
+NO_EXIF_DEFAULT_FOCAL_LENGTH_FACTOR = 1.2
+
 
 class OneDSFMLoader(LoaderBase):
     """Loader for datasets used in 1DSFM and Colmap papers.
@@ -98,7 +101,9 @@ class OneDSFMLoader(LoaderBase):
             Intrinsics for the given camera.
         """
         # Get intrinsics from exif.
-        intrinsics = io_utils.load_image(self._image_paths[index]).get_intrinsics_from_exif()
+        intrinsics = io_utils.load_image(self._image_paths[index]).get_intrinsics_from_exif(
+            default_focal_length_factor=NO_EXIF_DEFAULT_FOCAL_LENGTH_FACTOR
+        )
         return intrinsics
 
     def get_camera_pose(self, index: int) -> Optional[Pose3]:
