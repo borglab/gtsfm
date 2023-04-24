@@ -203,7 +203,6 @@ class SceneOptimizer:
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         gt_wTi_list: List[Optional[Pose3]],
         gt_scene_mesh: Optional[Trimesh] = None,
-        matching_regime: ImageMatchingRegime = ImageMatchingRegime.SEQUENTIAL,
     ) -> Tuple[Delayed, List[Delayed]]:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
         logger.info(f"Results, plots, and metrics will be saved at {self.output_root}")
