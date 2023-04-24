@@ -21,11 +21,13 @@ class GtsfmRunnerMobilebrickLoader(GtsfmRunnerBase):
     def construct_argparser(self) -> argparse.ArgumentParser:
         parser = super(GtsfmRunnerMobilebrickLoader, self).construct_argparser()
         parser.add_argument("--data_dir", type=str, default="", help="")
+        parser.add_argument("--use_gt_intrinsics", type=bool, default=False, help="")
         return parser
 
     def construct_loader(self) -> LoaderBase:
         loader = MobilebrickLoader(
             data_dir=self.parsed_args.data_dir,
+            use_gt_intrinsics=self.parsed_args.use_gt_intrinsics,
             max_frame_lookahead=self.parsed_args.max_frame_lookahead,
             max_resolution=self.parsed_args.max_resolution,
         )
