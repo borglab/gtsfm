@@ -247,7 +247,6 @@ class GtsfmRunnerBase:
             absolute_pose_priors=self.loader.get_absolute_pose_priors(),
             cameras_gt=self.loader.create_computation_graph_for_gt_cameras(),
             gt_wTi_list=self.loader.get_gt_poses(),
-            gt_scene_mesh=self.loader.get_gt_scene_mesh(),
         )
 
         with performance_report(filename="scene-optimizer-dask-report.html"):
