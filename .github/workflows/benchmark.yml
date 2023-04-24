@@ -85,3 +85,7 @@ jobs:
             result_metrics
             plots
             results
+
+concurrency:
+  group: ${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
