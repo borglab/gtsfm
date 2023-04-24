@@ -202,12 +202,13 @@ class SceneOptimizer:
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         gt_wTi_list: List[Optional[Pose3]],
+        gt_scene_mesh: Optional[Trimesh] = None,
         matching_regime: ImageMatchingRegime = ImageMatchingRegime.SEQUENTIAL,
     ) -> Tuple[Delayed, List[Delayed]]:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
         logger.info(f"Results, plots, and metrics will be saved at {self.output_root}")
 
-        # auxiliary graph elements for visualizations and saving intermediate data for analysis.
+        # Auxiliary graph elements for visualizations and saving intermediate data for analysis.
         (
             i2Ri1_graph_dict,
             i2Ui1_graph_dict,
@@ -215,13 +216,14 @@ class SceneOptimizer:
             two_view_reports_dict,
             delayed_results,
         ) = self.create_computation_graph_for_frontend(
-            keypoints_list,
-            putative_corr_idxs_dict,
-            image_pair_indices,
-            image_graph,
-            all_intrinsics,
-            relative_pose_priors,
-            gt_wTi_list,
+            keypoints_list=keypoints_list,
+            putative_corr_idxs_dict=putative_corr_idxs_dict,
+            image_pair_indices=image_pair_indices,
+            image_graph=image_graph,
+            all_intrinsics=all_intrinsics,
+            relative_pose_priors=relative_pose_priors,
+            gt_wTi_list=gt_wTi_list,
+            gt_scene_mesh=gt_scene_mesh,
         )
 
         # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
