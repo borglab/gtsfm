@@ -163,7 +163,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         calibrations: List[Cal3Bundler],
         two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
         view_graph_edges: List[Tuple[int, int]],
-        plots_output_dir: Optional[Path] = None,
+        plots_output_dir: Path = PLOT_BASE_PATH,
     ) -> GtsfmMetricsGroup:
         """Metric computation for the view optimizer by selecting a subset of two-view reports for the pairs which
         are the edges of the view-graph. This can be overrided by implementations to define custom metrics.
@@ -188,7 +188,6 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         inlier_i1_i2 = view_graph_edges
         outlier_i1_i2 = list(set(input_i1_i2) - set(inlier_i1_i2))
 
-        plots_output_dir = plots_output_dir if plots_output_dir else PLOT_BASE_PATH
         try:
             graph_utils.draw_view_graph_topology(
                 edges=list(input_i1_i2),

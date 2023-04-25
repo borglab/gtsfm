@@ -260,7 +260,7 @@ class TwoViewEstimator:
         np.ndarray,
         TwoViewEstimationReport,
         TwoViewEstimationReport,
-        Optional[TwoViewEstimationReport],
+        TwoViewEstimationReport,
     ]:
         """Estimate relative pose between two views, using verification."""
         # verification on putative correspondences to obtain relative pose and verified correspondences\
@@ -477,7 +477,7 @@ def compute_relative_pose_metrics(
 
 
 def aggregate_frontend_metrics(
-    two_view_reports_dict: Dict[Tuple[int, int], Optional[TwoViewEstimationReport]],
+    two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport],
     angular_err_threshold_deg: float,
     metric_group_name: str,
 ) -> None:
@@ -506,8 +506,6 @@ def aggregate_frontend_metrics(
     num_inliers_est_model_all_pairs = []
     # populate the distributions
     for report in two_view_reports_dict.values():
-        if report is None:
-            continue
         if report.R_error_deg is not None:
             rot3_angular_errors_list.append(report.R_error_deg)
         if report.U_error_deg is not None:

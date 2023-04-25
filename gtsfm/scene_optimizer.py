@@ -355,7 +355,7 @@ def align_estimated_gtsfm_data(
     Args:
         ba_input: GtsfmData input to bundle adjustment.
         ba_output: GtsfmData output from bundle adjustment.
-        gt_pose_graph: list of GT camera poses.
+        gt_pose_graph: List of GT camera poses.
 
     Returns:
         Updated ba_input GtsfmData object aligned to axes.
@@ -389,8 +389,8 @@ def save_visualizations(
         ba_input_graph: Delayed GtsfmData input to bundle adjustment.
         ba_output_graph: Delayed GtsfmData output from bundle adjustment.
         gt_pose_graph: Delayed ground truth poses.
-        plot_ba_input_path: path to directory where visualizations of bundle adjustment input data will be saved.
-        plot_results_path: path to directory where visualizations of bundle adjustment output data will be saved.
+        plot_ba_input_path: Path to directory where visualizations of bundle adjustment input data will be saved.
+        plot_results_path: Path to directory where visualizations of bundle adjustment output data will be saved.
 
     Returns:
         A list of Delayed objects after saving the different visualizations.
@@ -406,7 +406,7 @@ def save_visualizations(
     return viz_graph_list
 
 
-def get_gt_gtsfm_data(
+def get_gtsfm_data_with_gt_cameras_and_est_tracks(
     cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
     ba_output: GtsfmData,
 ) -> GtsfmData:
@@ -414,7 +414,7 @@ def get_gt_gtsfm_data(
 
     Args:
         gtsfm_data: GtsfmData object with estimated camera poses and tracks.
-        cameras_gt: list of GT cameras.
+        cameras_gt: List of GT cameras.
 
     Returns:
         GtsfmData object with GT camera poses and estimated tracks.
@@ -438,10 +438,10 @@ def save_gtsfm_data(
     """Saves the Gtsfm data before and after bundle adjustment.
 
     Args:
-        image_graph: input image wrapped as Delayed objects.
+        image_graph: Input image wrapped as Delayed objects.
         ba_input_graph: GtsfmData input to bundle adjustment wrapped as Delayed.
         ba_output_graph: GtsfmData output to bundle adjustment wrapped as Delayed.
-        results_path: path to directory where GTSFM results will be saved.
+        results_path: Path to directory where GTSFM results will be saved.
 
     Returns:
         A list of delayed objects after saving the input and outputs to bundle adjustment.
@@ -452,27 +452,27 @@ def save_gtsfm_data(
         # Save the input to Bundle Adjustment (from data association).
         saving_graph_list.append(
             dask.delayed(io_utils.export_model_as_colmap_text)(
-                ba_input_graph,
-                image_graph,
+                gtsfm_data=ba_input_graph,
+                images=image_graph,
                 save_dir=os.path.join(output_dir, "ba_input"),
             )
         )
         # Save the output of Bundle Adjustment.
         saving_graph_list.append(
             dask.delayed(io_utils.export_model_as_colmap_text)(
-                ba_output_graph,
-                image_graph,
+                gtsfm_data=ba_output_graph,
+                images=image_graph,
                 save_dir=os.path.join(output_dir, "ba_output"),
             )
         )
 
         # Save the ground truth in the same format, for visualization.
         # We use the estimated tracks here, with ground truth camera poses.
-        gt_gtsfm_data = dask.delayed(get_gt_gtsfm_data)(cameras_gt, ba_output_graph)
+        gt_gtsfm_data = dask.delayed(get_gtsfm_data_with_gt_cameras_and_est_tracks)(cameras_gt, ba_output_graph)
         saving_graph_list.append(
             dask.delayed(io_utils.export_model_as_colmap_text)(
-                gt_gtsfm_data,
-                image_graph,
+                gtsfm_data=gt_gtsfm_data,
+                images=image_graph,
                 save_dir=os.path.join(output_dir, "ba_output_gt"),
             )
         )
@@ -485,7 +485,7 @@ def save_metrics_reports(metrics_graph_list: List[Delayed], metrics_path: Path) 
 
     Args:
         metrics_graph: List of GtsfmMetricsGroup from different modules wrapped as Delayed.
-        metrics_path: path to directory where computed metrics will be saved.
+        metrics_path: Path to directory where computed metrics will be saved.
 
     Returns:
         List of delayed objects after saving metrics.
@@ -521,12 +521,12 @@ def save_full_frontend_metrics(
     """Converts the TwoViewEstimationReports for all image pairs to a Dict and saves it as JSON.
 
     Args:
-        two_view_report_dict: front-end metrics for pairs of images.
-        images: list of all images for this scene, in order of image/frame index.
-        filename: file name to use when saving report to JSON.
-        matching_regime: regime used for image pair selection in retriever.
-        metrics_path: path to directory where metrics will be saved.
-        plot_base_path: path to directory where plots will be saved.
+        two_view_report_dict: Front-end metrics for pairs of images.
+        images: List of all images for this scene, in order of image/frame index.
+        filename: File name to use when saving report to JSON.
+        matching_regime: Regime used for image pair selection in retriever.
+        metrics_path: Path to directory where metrics will be saved.
+        plot_base_path: Path to directory where plots will be saved.
     """
     metrics_list = []
 
