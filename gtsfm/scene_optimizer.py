@@ -148,6 +148,8 @@ class SceneOptimizer:
             POST_BA_REPORT_TAG: {},
             POST_ISP_REPORT_TAG: {},
         }
+
+        delayed_results: List[Delayed] = []
         for (i1, i2) in image_pair_indices:
             # Collect ground truth relative and absolute poses if available.
             # TODO(johnwlambert): decompose this method -- name it as "calling_the_plate()"
@@ -171,7 +173,6 @@ class SceneOptimizer:
             for token in (PRE_BA_REPORT_TAG, POST_BA_REPORT_TAG, POST_ISP_REPORT_TAG):
                 two_view_reports_dict[token][(i1, i2)] = two_view_reports[token]
 
-            delayed_results: List[Delayed] = []
             # Visualize verified two-view correspondences.
             annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
             with annotation:
@@ -434,7 +435,7 @@ def save_gtsfm_data(
     ba_output_graph: Delayed,
     results_path: Path,
     cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
-) -> Delayed:
+) -> List[Delayed]:
     """Saves the Gtsfm data before and after bundle adjustment.
 
     Args:
