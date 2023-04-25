@@ -59,7 +59,7 @@ class TwoViewEstimator:
         bundle_adjust_2view: bool,
         eval_threshold_px: float,
         bundle_adjust_2view_maxiters: int = 100,
-        ba_reproj_error_thresh: float = 0.5,
+        ba_reproj_error_thresh: List[float] = [0.5],
     ) -> None:
         """Initializes the two-view estimator from verifier.
 

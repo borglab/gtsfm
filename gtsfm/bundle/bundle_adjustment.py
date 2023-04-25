@@ -73,7 +73,7 @@ class BundleAdjustmentOptimizer:
 
     def __init__(
         self,
-        output_reproj_error_thresh: Optional[float] = None,
+        output_reproj_error_thresh: Optional[List[float]] = None,
         robust_measurement_noise: bool = False,
         shared_calib: bool = False,
         max_iterations: Optional[int] = None,
