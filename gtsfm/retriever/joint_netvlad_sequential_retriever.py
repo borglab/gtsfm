@@ -3,7 +3,8 @@
 Authors: John Lambert
 """
 
-from typing import List, Tuple
+from pathlib import Path
+from typing import List, Optional, Tuple
 
 import dask
 from dask.delayed import Delayed
@@ -43,17 +44,18 @@ class JointNetVLADSequentialRetriever(RetrieverBase):
         """
         return self.run(loader=loader)
 
-    def run(self, loader: LoaderBase) -> Delayed:
+    def run(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> Delayed:
         """Compute potential image pairs.
 
         Args:
             loader: image loader. The length of this loader will provide the total number of images
                 for exhaustive global descriptor matching.
+            plots_output_dir: Directory to save plots to. If None, plots are not saved.
 
         Return:
             pair_indices: (i1,i2) image pairs.
         """
-        sim_pairs = self._similarity_retriever.create_computation_graph(loader)
+        sim_pairs = self._similarity_retriever.create_computation_graph(loader, plots_output_dir=plots_output_dir)
         seq_pairs = self._seq_retriever.create_computation_graph(loader)
 
         return dask.delayed(self.aggregate_pairs)(sim_pairs=sim_pairs, seq_pairs=seq_pairs)

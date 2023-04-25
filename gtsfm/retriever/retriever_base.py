@@ -5,7 +5,8 @@ Authors: John Lambert
 
 import abc
 from enum import Enum
-from typing import List, Tuple
+from pathlib import Path
+from typing import List, Optional, Tuple
 
 import dask
 from dask.delayed import Delayed
@@ -44,25 +45,27 @@ class RetrieverBase(GTSFMProcess):
         )
 
     @abc.abstractmethod
-    def run(self, loader: LoaderBase) -> List[Tuple[int, int]]:
+    def run(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 
         Args:
             loader: image loader. The length of this loader will provide the total number of images
                 for exhaustive global descriptor matching.
+            plots_output_dir: Directory to save plots to.
 
         Return:
             pair_indices: (i1,i2) image pairs.
         """
 
-    def create_computation_graph(self, loader: LoaderBase) -> Delayed:
+    def create_computation_graph(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> Delayed:
         """Create Dask graph for image retriever.
 
         Args:
             loader: image loader. The length of this loader will provide the total number of images
                 for exhaustive global descriptor matching.
+            plots_output_dir: Directory to save plots to.
 
         Return:
             Delayed task that evaluates to a list of (i1,i2) image pairs.
         """
-        return dask.delayed(self.run)(loader=loader)
+        return dask.delayed(self.run)(loader=loader, plots_output_dir=plots_output_dir)

@@ -59,7 +59,9 @@ class GtsfmRunnerAstrovisionLoader(GtsfmRunnerBase):
         )
 
         with Client(cluster) as client, performance_report(filename="dask-report.html"):
-            pairs_graph = self.scene_optimizer.retriever.create_computation_graph(self.loader)
+            pairs_graph = self.scene_optimizer.retriever.create_computation_graph(
+                self.loader, self.scene_optimizer._plot_base_path
+            )
             image_pair_indices = pairs_graph.compute()
 
             (
