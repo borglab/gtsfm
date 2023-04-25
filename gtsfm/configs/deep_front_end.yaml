@@ -76,7 +76,7 @@ SceneOptimizer:
 
     bundle_adjustment_module:
       _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptimizer
-      output_reproj_error_thresh: [10, 5, 3] # for post-optimization filtering
+      reproj_error_thresholds: [10, 5, 3] # for (multistage) post-optimization filtering
       robust_measurement_noise: True
       shared_calib: False
 
