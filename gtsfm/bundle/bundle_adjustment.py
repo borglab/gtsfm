@@ -5,7 +5,7 @@ Authors: Xiaolong Wu, John Lambert, Ayush Baid
 import logging
 from collections import Counter
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple, Union
 
 import dask
 import gtsam
@@ -73,7 +73,7 @@ class BundleAdjustmentOptimizer:
 
     def __init__(
         self,
-        output_reproj_error_thresh: Optional[List[float]] = None,
+        reproj_error_thresholds: List[Optional[float]] = [None],
         robust_measurement_noise: bool = False,
         shared_calib: bool = False,
         max_iterations: Optional[int] = None,
@@ -81,15 +81,17 @@ class BundleAdjustmentOptimizer:
         """Initializes the parameters for bundle adjustment module.
 
         Args:
-            output_reproj_error_thresh (optional): the max reprojection error allowed in output. If the threshold is
-                                                   none, no filtering on output data is performed. Defaults to None.
+            reproj_error_thresholds (optional): List of reprojection error thresholds used to perform filtering after
+                each global bundle adjustment step. Implicitly defines the number of global BA steps, e.g., if
+                len(reproj_error_thresholds) == 1, only one step will be performed. If the threshold is None, no
+                filtering on output data is performed. Defaults to None.
             robust_measurement_noise (optional): Flag to enable use of robust noise model for measurement noise.
-                                                 Defaults to False.
+                Defaults to False.
             shared_calib (optional): Flag to enable shared calibration across all cameras. Defaults to False.
             max_iterations (optional): Max number of iterations when optimizing the factor graph. None means no cap.
-                                       Defaults to None.
+                Defaults to None.
         """
-        self._output_reproj_error_thresh = output_reproj_error_thresh
+        self._reproj_error_thresholds = reproj_error_thresholds
         self._robust_measurement_noise = robust_measurement_noise
         self._shared_calib = shared_calib
         self._max_iterations = max_iterations
@@ -312,7 +314,8 @@ class BundleAdjustmentOptimizer:
             )
             return initial_data, initial_data, [False] * initial_data.number_tracks()
 
-        for output_reproj_error_thresh in self._output_reproj_error_thresh:
+        num_ba_steps = len(self._reproj_error_thresholds)
+        for step, reproj_error_thresh in enumerate(self._reproj_error_thresholds):
             cameras_to_model = self.__cameras_to_model(initial_data, absolute_pose_priors, relative_pose_priors)
             graph = self.__construct_factor_graph(
                 cameras_to_model=cameras_to_model,
@@ -323,29 +326,36 @@ class BundleAdjustmentOptimizer:
             initial_values = self.__initial_values(initial_data=initial_data)
             result_values = self.__optimize_factor_graph(graph, initial_values)
 
+            # Print error.
             final_error = graph.error(result_values)
-
-            # Error drops from ~2764.22 to ~0.046
             if verbose:
                 logger.info(f"initial error: {graph.error(initial_values):.2f}")
                 logger.info(f"final error: {final_error:.2f}")
 
-            # construct the results
+            # Construct the results.
             optimized_data = values_to_gtsfm_data(result_values, initial_data, self._shared_calib)
 
-            if verbose:
-                logger.info("[Result] Number of tracks before filtering: %d", optimized_data.number_tracks())
+            # Filter landmarks by reprojection error.
+            if reproj_error_thresh is not None:
+                if verbose:
+                    logger.info("[Result] Number of tracks before filtering: %d", optimized_data.number_tracks())
+                filtered_result, valid_mask = optimized_data.filter_landmarks(reproj_error_thresh)
+                if verbose:
+                    logger.info("[Result] Number of tracks after filtering: %d", filtered_result.number_tracks())
 
-            # filter the largest errors
-            if self._output_reproj_error_thresh:
-                filtered_result, valid_mask = optimized_data.filter_landmarks(output_reproj_error_thresh)
             else:
                 valid_mask = [True] * optimized_data.number_tracks()
                 filtered_result = optimized_data
 
+            # Set intermediate result as initial condition for next step.
             initial_data = filtered_result
 
-        logger.info("[Result] Number of tracks after filtering: %d", filtered_result.number_tracks())
+            # Print intermediate results.
+            if num_ba_steps > 1:
+                logger.info(
+                    "[BA Step %d/%d] Error: %.2f, Number of tracks: %d"
+                    % (step + 1, num_ba_steps, final_error, filtered_result.number_tracks())
+                )
 
         return optimized_data, filtered_result, valid_mask
 
