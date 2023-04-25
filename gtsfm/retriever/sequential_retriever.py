@@ -4,7 +4,8 @@ Only useful for temporally ordered data.
 
 Authors: John Lambert
 """
-from typing import List, Tuple
+from pathlib import Path
+from typing import List, Optional, Tuple
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.loader.loader_base import LoaderBase
