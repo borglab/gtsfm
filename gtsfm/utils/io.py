@@ -183,8 +183,8 @@ def colmap2gtsfm(
         return_tracks (optional): whether or not to return tracks
     Returns:
         img_fnames: file names of images in images_gtsfm
-        images_gtsfm: list of N camera poses when each image was taken
-        cameras_gtsfm: list of N camera calibrations corresponding to the N images in images_gtsfm
+        wTi_gtsfm: list of N camera poses when each image was taken
+        intrinsics_gtsfm: list of N camera calibrations corresponding to the N images in images_gtsfm
         sfmtracks_gtsfm: tracks of points in points3D
     """
     # Note: Assumes input cameras use `PINHOLE` model
