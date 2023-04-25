@@ -5,7 +5,7 @@ Authors: Xiaolong Wu, John Lambert, Ayush Baid
 import logging
 from collections import Counter
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple, Union
+from typing import Dict, List, Optional, Set, Tuple
 
 import dask
 import gtsam

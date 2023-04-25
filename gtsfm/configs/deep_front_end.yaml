@@ -9,7 +9,7 @@ SceneOptimizer:
 
   retriever:
     _target_: gtsfm.retriever.netvlad_retriever.NetVLADRetriever
-    num_matched: 20
+    num_matched: 10
     min_score: 0.3
 
   correspondence_generator:
@@ -76,7 +76,7 @@ SceneOptimizer:
 
     bundle_adjustment_module:
       _target_: gtsfm.bundle.bundle_adjustment.BundleAdjustmentOptimizer
-      reproj_error_thresholds: [10, 5, 3] # for (multistage) post-optimization filtering
+      reproj_error_thresholds: [10, 5, 3, 1] # for (multistage) post-optimization filtering
       robust_measurement_noise: True
       shared_calib: False
 
