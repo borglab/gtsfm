@@ -584,11 +584,13 @@ def save_full_frontend_metrics(
 
 def _save_retrieval_two_view_metrics(metrics_path: Path, plot_base_path: Path) -> None:
     """Compare 2-view similarity scores with their 2-view pose errors after viewgraph estimation."""
-    sim_fpath = os.path.join(plot_base_path, "netvlad_similarity_matrix.txt")
-    sim = np.loadtxt(sim_fpath, delimiter=",")
+    sim_fpath = plot_base_path / "netvlad_similarity_matrix.txt"
+    if not sim_fpath.exists():
+        logger.warning(msg="NetVLAD similarity matrix not found. Skipping retrieval metrics.")
+        return
 
-    json_fpath = os.path.join(metrics_path, "two_view_report_VIEWGRAPH_2VIEW_REPORT.json")
-    json_data = io_utils.read_json_file(json_fpath)
+    sim = np.loadtxt(str(sim_fpath), delimiter=",")
+    json_data = io_utils.read_json_file(metrics_path / "two_view_report_VIEWGRAPH_2VIEW_REPORT.json")
 
     sim_scores = []
     R_errors = []

@@ -2,8 +2,8 @@
 
 Author: Frank Dellaert
 """
-
-from typing import List, Tuple
+from pathlib import Path
+from typing import List, Optional, Tuple
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.loader.hilti_loader import HiltiLoader
@@ -29,11 +29,12 @@ class RigRetriever(RetrieverBase):
         super().__init__(matching_regime=ImageMatchingRegime.RIG_HILTI)
         self._threshold = threshold
 
-    def run(self, loader: LoaderBase) -> List[Tuple[int, int]]:
+    def run(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 
         Args:
             loader: image loader.
+            plots_output_dir: Directory to save plots to. Unused in this retriever.
 
         Return:
             pair_indices: (i1,i2) image pairs.

@@ -27,8 +27,6 @@ from gtsfm.retriever.retriever_base import RetrieverBase, ImageMatchingRegime
 
 logger = logger_utils.get_logger()
 
-PLOT_SAVE_DIR = Path(__file__).parent.parent.parent / "plots"
-
 MAX_NUM_IMAGES = 10000
 
 
@@ -54,32 +52,35 @@ class NetVLADRetriever(RetrieverBase):
         self._blocksize = blocksize
         self._min_score = min_score
 
-    def create_computation_graph(self, loader: LoaderBase) -> Delayed:
+    def create_computation_graph(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> Delayed:
         """Compute potential image pairs.
 
         Args:
             loader: image loader. The length of this loader will provide the total number of images
                 for exhaustive global descriptor matching.
+            plots_output_dir: Directory to save plots to. If None, plots are not saved.
 
         Return:
             Delayed task that evaluates to a list of (i1,i2) image pairs.
         """
-        return self.run(loader=loader)
+        return self.run(loader=loader, plots_output_dir=plots_output_dir)
 
-    def run(self, loader: LoaderBase, visualize: bool = True) -> Delayed:
+    def run(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> Delayed:
         """Compute potential image pairs.
 
         Args:
             loader: image loader. The length of this loader will provide the total number of images
                 for exhaustive global descriptor matching.
-            visualize:
+            plots_output_dir: Directory to save plots to. If None, plots are not saved.
 
         Return:
             Delayed task which evaluates to a list of (i1,i2) image pairs.
         """
         num_images = len(loader)
         sim = self.compute_similarity_matrix(loader, num_images)
-        return dask.delayed(self.compute_pairs_from_similarity_matrix)(sim=sim, loader=loader, visualize=visualize)
+        return dask.delayed(self.compute_pairs_from_similarity_matrix)(
+            sim=sim, loader=loader, plots_output_dir=plots_output_dir
+        )
 
     def compute_similarity_matrix(self, loader: LoaderBase, num_images: int) -> Delayed:
         """Compute a similarity matrix between all pairs of images.
@@ -184,14 +185,14 @@ class NetVLADRetriever(RetrieverBase):
         return sim
 
     def compute_pairs_from_similarity_matrix(
-        self, sim: torch.Tensor, loader: LoaderBase, visualize: bool = True
+        self, sim: torch.Tensor, loader: LoaderBase, plots_output_dir: Optional[Path] = None
     ) -> List[Tuple[int, int]]:
         """
         Args:
             sim: tensor of shape (num_images, num_images) representing similarity matrix.
             loader: image loader. The length of this loader will provide the total number of images
                 for exhaustive global descriptor matching.
-            visualize: whether to save a visual plot of the computed image similarity matrix.
+            plots_output_dir: Directory to save plots to. If None, plots are not saved.
 
         Returns:
             pair_indices: (i1,i2) image pairs.
@@ -206,30 +207,29 @@ class NetVLADRetriever(RetrieverBase):
         )
         named_pairs = [(query_names[i], query_names[j]) for i, j in pairs]
 
-        if visualize:
-            os.makedirs(PLOT_SAVE_DIR, exist_ok=True)
+        if plots_output_dir:
+            os.makedirs(plots_output_dir, exist_ok=True)
 
             # Save image of similarity matrix.
             plt.imshow(np.triu(sim.detach().cpu().numpy()))
             plt.title("Image Similarity Matrix")
-            plt.savefig(os.path.join(PLOT_SAVE_DIR, "netvlad_similarity_matrix.jpg"), dpi=500)
+            plt.savefig(str(plots_output_dir / "netvlad_similarity_matrix.jpg"), dpi=500)
             plt.close("all")
 
             # Save values in similarity matrix.
             np.savetxt(
-                fname=os.path.join(PLOT_SAVE_DIR, "netvlad_similarity_matrix.txt"),
+                fname=str(plots_output_dir / "netvlad_similarity_matrix.txt"),
                 X=sim.detach().cpu().numpy(),
                 fmt="%.2f",
                 delimiter=",",
             )
 
             # Save named pairs and scores.
-            with open(os.path.join(PLOT_SAVE_DIR, "netvlad_named_pairs.txt"), "w") as fid:
+            with open(plots_output_dir / "netvlad_named_pairs.txt", "w") as fid:
                 for (_named_pair, _pair_ind) in zip(named_pairs, pairs):
                     fid.write("%.4f %s %s\n" % (sim[_pair_ind[0], _pair_ind[1]], _named_pair[0], _named_pair[1]))
 
         logger.info("Found %d pairs from the NetVLAD Retriever.", len(pairs))
-        logger.info("Image Name Pairs:" + str(named_pairs))
         return pairs
 
 

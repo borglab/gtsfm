@@ -2,7 +2,8 @@
 
 Authors: Ayush Baid.
 """
-from typing import List, Tuple
+from pathlib import Path
+from typing import List, Optional, Tuple
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.loader.hilti_loader import HiltiLoader
@@ -48,12 +49,13 @@ class SequentialHiltiRetriever(RetrieverBase):
         elif rig_idx_i1 < rig_idx_i2 and rig_idx_i2 - rig_idx_i1 <= self._max_frame_lookahead:
             return (cam_idx_i1, cam_idx_i2) in INTER_RIG_VALID_PAIRS
 
-    def run(self, loader: HiltiLoader) -> List[Tuple[int, int]]:
+    def run(self, loader: HiltiLoader, plots_output_dir: Optional[Path] = None) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 
         Args:
             loader: image loader. The length of this loader will provide the total number of images
                 for exhaustive global descriptor matching.
+            plots_output_dir: Directory to save plots to. Unused in this retriever.
 
         Return:
             pair_indices: (i1,i2) image pairs.

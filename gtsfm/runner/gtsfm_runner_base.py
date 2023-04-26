@@ -220,7 +220,9 @@ class GtsfmRunnerBase:
             process_graph_generator.is_image_correspondence = True
         process_graph_generator.save_graph()
 
-        pairs_graph = self.scene_optimizer.retriever.create_computation_graph(self.loader)
+        pairs_graph = self.scene_optimizer.retriever.create_computation_graph(
+            self.loader, plots_output_dir=self.scene_optimizer._plot_base_path
+        )
         with performance_report(filename="retriever-dask-report.html"):
             image_pair_indices = pairs_graph.compute()
 

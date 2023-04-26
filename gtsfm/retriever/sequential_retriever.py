@@ -4,7 +4,8 @@ Only useful for temporally ordered data.
 
 Authors: John Lambert
 """
-from typing import List, Tuple
+from pathlib import Path
+from typing import List, Optional, Tuple
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.loader.loader_base import LoaderBase
@@ -22,12 +23,13 @@ class SequentialRetriever(RetrieverBase):
         super().__init__(matching_regime=ImageMatchingRegime.SEQUENTIAL)
         self._max_frame_lookahead = max_frame_lookahead
 
-    def run(self, loader: LoaderBase) -> List[Tuple[int, int]]:
+    def run(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 
         Args:
             loader: image loader. The length of this loader will provide the total number of images
                 for exhaustive global descriptor matching.
+            plots_output_dir: Directory to save plots to. Unused in this retriever.
 
         Return:
             pair_indices: (i1,i2) image pairs.
