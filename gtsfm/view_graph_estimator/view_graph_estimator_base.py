@@ -163,6 +163,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
         calibrations: List[Cal3Bundler],
         two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
         view_graph_edges: List[Tuple[int, int]],
+        plots_output_dir: Path = PLOT_BASE_PATH,
     ) -> GtsfmMetricsGroup:
         """Metric computation for the view optimizer by selecting a subset of two-view reports for the pairs which
         are the edges of the view-graph. This can be overrided by implementations to define custom metrics.
@@ -192,14 +193,14 @@ class ViewGraphEstimatorBase(GTSFMProcess):
                 edges=list(input_i1_i2),
                 two_view_reports=two_view_reports,
                 title="ViewGraphEstimator input",
-                save_fpath=PLOT_BASE_PATH / "view_graph_estimator_input_topology.jpg",
+                save_fpath=plots_output_dir / "view_graph_estimator_input_topology.jpg",
                 cameras_gt=None,
             )
             graph_utils.draw_view_graph_topology(
                 edges=view_graph_edges,
                 two_view_reports=two_view_reports,
                 title="ViewGraphEstimator output",
-                save_fpath=PLOT_BASE_PATH / "view_graph_estimator_output_topology.jpg",
+                save_fpath=plots_output_dir / "view_graph_estimator_output_topology.jpg",
                 cameras_gt=None,
             )
         except Exception as e:
@@ -328,6 +329,7 @@ class ViewGraphEstimatorBase(GTSFMProcess):
             calibrations=calibrations,
             two_view_reports=two_view_reports_valid,
             view_graph_edges=view_graph_edges,
+            plots_output_dir=plot_cycle_consist_path,
         )
 
         return (

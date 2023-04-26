@@ -35,7 +35,6 @@ def run_scene_optimizer(args: argparse.Namespace) -> None:
             image_pair_indices=loader.get_valid_pairs(),
             image_graph=loader.create_computation_graph_for_images(),
             all_intrinsics=loader.get_computation_graph_for_intrinsics(),
-            image_shapes=loader.create_computation_graph_for_image_shapes(),
             cameras_gt=loader.create_computation_graph_for_gt_cameras(),
         )
 

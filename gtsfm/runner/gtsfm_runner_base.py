@@ -1,10 +1,10 @@
 """Base class for runner that executes SfM."""
 
 import argparse
+import os
 import time
 from abc import abstractmethod
 from pathlib import Path
-import os
 import dask
 import hydra
 from dask.distributed import Client, LocalCluster, SSHCluster, performance_report
@@ -229,7 +229,7 @@ class GtsfmRunnerBase:
             delayed_putative_corr_idxs_dict,
         ) = self.scene_optimizer.correspondence_generator.create_computation_graph(
             delayed_images=self.loader.create_computation_graph_for_images(),
-            image_shapes=self.loader.create_computation_graph_for_image_shapes(),
+            delayed_image_shapes=self.loader.create_computation_graph_for_image_shapes(),
             image_pair_indices=image_pair_indices,
         )
 
@@ -243,7 +243,6 @@ class GtsfmRunnerBase:
             image_pair_indices=image_pair_indices,
             image_graph=self.loader.create_computation_graph_for_images(),
             all_intrinsics=self.loader.create_computation_graph_for_intrinsics(),
-            image_shapes=self.loader.create_computation_graph_for_image_shapes(),
             relative_pose_priors=self.loader.get_relative_pose_priors(image_pair_indices),
             absolute_pose_priors=self.loader.get_absolute_pose_priors(),
             cameras_gt=self.loader.create_computation_graph_for_gt_cameras(),

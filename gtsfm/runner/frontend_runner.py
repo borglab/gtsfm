@@ -45,7 +45,7 @@ def run_frontend(
     # TODO(stepanyanhayk) change function signature to only accept delayed objects
     (delayed_keypoints, delayed_putative_corr_idxs_dict,) = correspondence_generator.create_computation_graph(
         delayed_images=loader.create_computation_graph_for_images(),
-        image_shapes=image_shapes_graph,
+        delayed_image_shapes=image_shapes_graph,
         image_pair_indices=image_pair_indices,
     )
 

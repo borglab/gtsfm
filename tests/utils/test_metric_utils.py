@@ -185,6 +185,8 @@ class TestMetricUtils(unittest.TestCase):
             "mean": 2.0,
             "stddev": 0.0,
             "histogram": {"1": 7},
+            "len": 7,
+            "invalid": 0,
         }
 
         assert metrics[3].name == "reprojection_errors_filtered_px"

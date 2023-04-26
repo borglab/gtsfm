@@ -21,7 +21,6 @@ from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.data_association.data_assoc import DataAssociation
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
-from gtsfm.two_view_estimator import TwoViewEstimationReport
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
 from gtsfm.data_association.dsf_tracks_estimator import DsfTracksEstimator
 
@@ -46,14 +45,14 @@ class MultiViewOptimizer:
         self,
         images_graph: List[Delayed],
         num_images: int,
-        keypoints_graph: List[Delayed],
+        keypoints_graph: List[Keypoints],
         i2Ri1_graph: Dict[Tuple[int, int], Delayed],
         i2Ui1_graph: Dict[Tuple[int, int], Delayed],
         v_corr_idxs_graph: Dict[Tuple[int, int], Delayed],
         all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         absolute_pose_priors: List[Optional[PosePrior]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        two_view_reports_dict: Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
+        two_view_reports_dict: Optional[Dict[Tuple[int, int], Delayed]],
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         gt_wTi_list: List[Optional[Pose3]],
         output_root: Optional[Path] = None,

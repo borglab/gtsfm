@@ -174,7 +174,7 @@ def colmap2gtsfm(
     images: Dict[int, ColmapImage],
     points3D: Dict[int, ColmapPoint3D],
     load_sfmtracks: bool = False,
-) -> Tuple[List[Cal3Bundler], List[Pose3], List[str], Optional[List[Point3]]]:
+) -> Tuple[List[str], List[Pose3], List[str], Optional[List[Point3]]]:
     """Converts COLMAP-formatted variables to GTSfM format.
     Args:
         cameras: dictionary of COLMAP-formatted Cameras
@@ -183,20 +183,20 @@ def colmap2gtsfm(
         return_tracks (optional): whether or not to return tracks
     Returns:
         img_fnames: file names of images in images_gtsfm
-        images_gtsfm: list of N camera poses when each image was taken
-        cameras_gtsfm: list of N camera calibrations corresponding to the N images in images_gtsfm
+        wTi_gtsfm: list of N camera poses when each image was taken
+        intrinsics_gtsfm: list of N camera calibrations corresponding to the N images in images_gtsfm
         sfmtracks_gtsfm: tracks of points in points3D
     """
     # Note: Assumes input cameras use `PINHOLE` model
     if len(images) == 0 and len(cameras) == 0:
         raise RuntimeError("No Image or Camera data provided to loader.")
-    cameras_gtsfm, images_gtsfm, img_fnames = [], [], []
+    intrinsics_gtsfm, wTi_gtsfm, img_fnames = [], [], []
     image_id_to_idx = {}  # keeps track of discrepencies between `image_id` and List index.
     for idx, img in enumerate(images.values()):
-        images_gtsfm.append(Pose3(Rot3(img.qvec2rotmat()), img.tvec).inverse())
+        wTi_gtsfm.append(Pose3(Rot3(img.qvec2rotmat()), img.tvec).inverse())
         img_fnames.append(img.name)
         fx, _, cx, cy = cameras[img.camera_id].params[:4]
-        cameras_gtsfm.append(Cal3Bundler(fx, 0.0, 0.0, cx, cy))
+        intrinsics_gtsfm.append(Cal3Bundler(fx, 0.0, 0.0, cx, cy))
         image_id_to_idx[img.id] = idx
 
     if len(points3D) == 0 and load_sfmtracks:
@@ -210,7 +210,7 @@ def colmap2gtsfm(
                 sfmtrack.addMeasurement(image_id_to_idx[image_id], images[image_id].xys[point2d_idx])
             sfmtracks_gtsfm.append(sfmtrack)
 
-    return img_fnames, images_gtsfm, cameras_gtsfm, sfmtracks_gtsfm
+    return img_fnames, wTi_gtsfm, intrinsics_gtsfm, sfmtracks_gtsfm
 
 
 def read_cameras_txt(fpath: str) -> Optional[List[Cal3Bundler]]:
@@ -542,6 +542,8 @@ def write_to_bz2_file(data: Any, file_path: Path) -> None:
     """Writes data using pickle to a compressed file."""
     file_path.parent.mkdir(exist_ok=True, parents=True)
     pickle.dump(data, BZ2File(file_path, "wb"))
+    if not file_path.exists():
+        logger.debug("Cache file could not be written!")
 
 
 def save_point_cloud_as_ply(save_fpath: str, points: np.ndarray, rgb: Optional[np.ndarray] = None) -> None:

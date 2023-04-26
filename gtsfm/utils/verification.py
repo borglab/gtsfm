@@ -86,8 +86,10 @@ def recover_relative_pose_from_essential_matrix(
     # normalizing the two essential matrices
     i2Ei1_normalized = i2Ei1 / np.linalg.norm(i2Ei1, axis=None)
     i2Ei1_reconstructed_normalized = i2Ei1_reconstructed / np.linalg.norm(i2Ei1_reconstructed, axis=None)
+
+    # TODO(ayushbaid): we frequently fail to recover E from the estimated R, t. This needs more investigation.
     if not np.allclose(i2Ei1_normalized, i2Ei1_reconstructed_normalized):
-        logger.warning("Recovered R, t cannot create the input Essential Matrix")
+        logger.debug("Recovered R, t cannot create the input Essential Matrix")
 
     return i2Ri1, i2Ui1
 

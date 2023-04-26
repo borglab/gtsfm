@@ -16,14 +16,14 @@ class CorrespondenceGeneratorBase:
     def create_computation_graph(
         self,
         delayed_images: List[Delayed],
-        image_shapes: List[Tuple[int, int]],
+        delayed_image_shapes: List[Delayed],
         image_pair_indices: List[Tuple[int, int]],
     ) -> Tuple[List[Delayed], Dict[Tuple[int, int], Delayed]]:
         """Create Dask computation graph for correspondence generation.
 
         Args:
             delayed_images: list of N images.
-            image_shapes: list of N image shapes, as tuples (height,width) in pixels.
+            delayed_image_shapes: list of N image shapes tuples (H,W) in pixels (Tuple[int, int] wrapped as Delayed).
             image_pair_indices: list of image pairs, each represented by a tuple (i1,i2).
 
         Return:
