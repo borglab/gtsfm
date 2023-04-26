@@ -8,8 +8,10 @@ import unittest.mock as mock
 import numpy as np
 from gtsam import Cal3Bundler
 
-from gtsfm.common.image import Image, DEFAULT_FOCAL_LENGTH_FACTOR
+from gtsfm.common.image import Image
 from gtsfm.common.sensor_width_database import SensorWidthDatabase
+
+DEFAULT_FOCAL_LENGTH_FACTOR = 1.2
 
 
 class TestImage(unittest.TestCase):
@@ -22,7 +24,7 @@ class TestImage(unittest.TestCase):
         im_w = 120
         exif_data = None
         image = Image(np.random.randint(low=0, high=255, size=(im_h, im_w, 3)), exif_data)
-        computed_intrinsics = image.get_intrinsics_from_exif()
+        computed_intrinsics = image.get_intrinsics_from_exif(default_focal_length_factor=DEFAULT_FOCAL_LENGTH_FACTOR)
 
         expected_focal_length = DEFAULT_FOCAL_LENGTH_FACTOR * max(im_h, im_w)
         expected_intrinsics = Cal3Bundler(fx=expected_focal_length, k1=0.0, k2=0.0, u0=60.0, v0=50.0)
@@ -39,7 +41,7 @@ class TestImage(unittest.TestCase):
             "DummyName": "DummyValue",
         }
         image = Image(np.random.randint(low=0, high=255, size=(im_h, im_w, 3)), exif_data)
-        computed_intrinsics = image.get_intrinsics_from_exif()
+        computed_intrinsics = image.get_intrinsics_from_exif(default_focal_length_factor=DEFAULT_FOCAL_LENGTH_FACTOR)
 
         expected_focal_length = DEFAULT_FOCAL_LENGTH_FACTOR * max(im_h, im_w)
         expected_intrinsics = Cal3Bundler(fx=expected_focal_length, k1=0.0, k2=0.0, u0=60.0, v0=50.0)
@@ -66,7 +68,7 @@ class TestImage(unittest.TestCase):
             "FocalPlaneResolutionUnit": 2,
         }
         image = Image(np.random.randint(low=0, high=255, size=(im_h, im_w, 3)), exif_data)
-        computed_intrinsics = image.get_intrinsics_from_exif()
+        computed_intrinsics = image.get_intrinsics_from_exif(default_focal_length_factor=DEFAULT_FOCAL_LENGTH_FACTOR)
 
         expected_intrinsics = Cal3Bundler(fx=480, k1=0.0, k2=0.0, u0=60.0, v0=50.0)
 
@@ -89,7 +91,7 @@ class TestImage(unittest.TestCase):
             "FocalPlaneResolutionUnit": 2,
         }
         image = Image(np.random.randint(low=0, high=255, size=(im_h, im_w, 3)), exif_data)
-        computed_intrinsics = image.get_intrinsics_from_exif()
+        computed_intrinsics = image.get_intrinsics_from_exif(default_focal_length_factor=DEFAULT_FOCAL_LENGTH_FACTOR)
 
         expected_intrinsics = Cal3Bundler(fx=600, k1=0.0, k2=0.0, u0=60.0, v0=50.0)
 
@@ -108,7 +110,7 @@ class TestImage(unittest.TestCase):
             "FocalPlaneResolutionUnit": 2,
         }
         image = Image(np.random.randint(low=0, high=255, size=(im_h, im_w, 3)), exif_data)
-        computed_intrinsics = image.get_intrinsics_from_exif()
+        computed_intrinsics = image.get_intrinsics_from_exif(default_focal_length_factor=DEFAULT_FOCAL_LENGTH_FACTOR)
 
         expected_intrinsics = Cal3Bundler(fx=590.551, k1=0.0, k2=0.0, u0=60.0, v0=50.0)
 
