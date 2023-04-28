@@ -191,9 +191,7 @@ class GtsfmRunnerBase:
 
         # create dask cluster
         if self.parsed_args.cluster_config:
-            workers = OmegaConf.load(
-                os.path.join(self.parsed_args.output_root, "gtsfm", "configs", self.parsed_args.cluster_config)
-            )["workers"]
+            workers = OmegaConf.load(os.path.join(self.parsed_args.cluster_config))["workers"]
             scheduler = workers[0]
             cluster = SSHCluster(
                 [scheduler] + workers,
