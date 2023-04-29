@@ -113,6 +113,8 @@ python gtsfm/visualization/view_scene.py --rendering_library open3d --rendering_
 For users that are working with the same dataset repeatedly, we provide functionality to cache front-end results for
 GTSfM for very fast inference afterwards. For more information, please refer to [`gtsfm/frontend/cacher/README.md`](https://github.com/borglab/gtsfm/tree/master/gtsfm/frontend/cacher).
 
+For users that want to run GTSfM on a cluster of multiple machines, we provide setup instructions here: [`CLUSTER.md`](https://github.com/borglab/gtsfm/tree/master/CLUSTER.md)
+
 ## Repository Structure
 
 GTSfM is designed in an extremely modular way. Each module can be swapped out with a new one, as long as it implements the API of the module's abstract base class. The code is organized as follows:
