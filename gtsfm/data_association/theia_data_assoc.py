@@ -1,13 +1,6 @@
-""" Create 2D-3D data association as a precursor to Bundle Adjustment.
-1. Forms feature tracks from verified correspondences and global poses.
-2. Estimates 3D landmark for each track (Ransac and simple triangulation modes available)
-3. Filters tracks based on reprojection error.
+""" Theia's data association
 
-References: 
-1. Richard I. Hartley and Peter Sturm. Triangulation. Computer Vision and Image Understanding, Vol. 68, No. 2,
-   November, pp. 146–157, 1997
-
-Authors: Sushmita Warrier, Xiaolong Wu, John Lambert, Travis Driver
+Authors: Ayush Baid
 """
 import os
 from collections import Counter
@@ -18,6 +11,7 @@ import dask
 import numpy as np
 from dask.delayed import Delayed
 from gtsam import SfmTrack
+import pytheia as pt
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.io as io_utils
@@ -30,6 +24,7 @@ from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.data_association.point3d_initializer import Point3dInitializer, TriangulationExitCode, TriangulationOptions
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata
+from gtsfm.data_association.data_assoc import DataAssociation
 
 logger = logger_utils.get_logger()
 
@@ -39,17 +34,9 @@ MAX_DELAYED_TRIANGULATION_CALLS = 1e3
 
 
 @dataclass(frozen=True)
-class DataAssociation(GTSFMProcess):
-    """Class to form feature tracks; for each track, call LandmarkInitializer.
-
-    Args:
-        min_track_len: min length required for valid feature track / min nb of supporting views required for a landmark
-                       to be valid.
-        triangulation_options: options for triangulating points.
-        save_track_patches_viz: whether to save a mosaic of individual patches associated with each track.
-    """
-
-    min_track_len: int
+class TheiaDataAssociation(DataAssociation):
+    min_track_len: int = 3
+    max_track_len: int = 30
     triangulation_options: TriangulationOptions
     save_track_patches_viz: Optional[bool] = False
 
@@ -99,6 +86,7 @@ class DataAssociation(GTSFMProcess):
         Returns:
             A tuple of GtsfmData with cameras and tracks, and a GtsfmMetricsGroup with data association metrics
         """
+        track_builder = pt.sfm.TrackBuilder(self.min_track_length, self.max_track_len)
 
         if self.save_track_patches_viz and images is not None:
             io_utils.save_track_visualizations(tracks_2d, images, save_dir=os.path.join("plots", "tracks_2d"))
@@ -210,7 +198,7 @@ class DataAssociation(GTSFMProcess):
         self,
         cameras: Dict[int, gtsfm_types.CAMERA_TYPE],
         tracks_2d: List[SfmTrack2d],
-    ) -> Tuple[List[Optional[SfmTrack]], List[Optional[float]], List[TriangulationExitCode]]:
+    ) -> Tuple[List[Delayed], List[Delayed], List[Delayed]]:
         """Performs triangulation of 2D tracks in parallel.
 
         Refs:
@@ -244,10 +232,15 @@ class DataAssociation(GTSFMProcess):
         triangulation_results = []
         if batch_size == 1:
             for track_2d in tracks_2d:
-                triangulation_results.append(point3d_initializer.triangulate(track_2d))
+                triangulation_results.append(dask.delayed(point3d_initializer.triangulate)(track_2d))
         else:
             for j in range(0, len(tracks_2d), batch_size):
-                triangulation_results.append(triangulate_batch(point3d_initializer, tracks_2d[j : j + batch_size]))
+                triangulation_results.append(
+                    dask.delayed(triangulate_batch)(point3d_initializer, tracks_2d[j : j + batch_size])
+                )
+
+        # Perform triangulation in parallel.
+        triangulation_results = dask.compute(*triangulation_results)
 
         # Unpack results.
         sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes = [], [], []

@@ -173,6 +173,9 @@ def plot_sfm_data_3d(sfm_data: GtsfmData, ax: Axes, max_plot_radius: float = 50)
 
     nearby_points_3d = comp_utils.get_points_within_radius_of_cameras(camera_poses, points_3d, max_plot_radius)
 
+    if nearby_points_3d is None:
+        return
+
     # plot 3D points
     for landmark in nearby_points_3d:
         ax.plot(landmark[0], landmark[1], landmark[2], "g.", markersize=1)

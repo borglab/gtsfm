@@ -3,40 +3,23 @@
 Authors: Ayush Baid
 """
 import logging
-import timeit
-from typing import Any, Dict, List, Optional, Tuple
 from copy import deepcopy
+from typing import Any, Dict, List, Optional, Tuple
 
 import dask
-import gtsam
 import numpy as np
-from dask.delayed import Delayed
-from gtsam import (
-    CameraSetCal3Bundler,
-    CameraSetCal3Fisheye,
-    PinholeCameraCal3Bundler,
-    Point2Vector,
-    Cal3Bundler,
-    Pose3,
-    Rot3,
-    SfmTrack,
-    Unit3,
-)
 import pytheia as pt
+from dask.delayed import Delayed
+from gtsam import Cal3Bundler, Pose3, Rot3, Unit3
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.metrics as metric_utils
-from gtsfm.bundle.two_view_ba import TwoViewBundleAdjustment
-from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
-from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
-from gtsfm.data_association.point3d_initializer import SVD_DLT_RANK_TOL
+from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport, TheiaTwoViewInfo
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
-from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
-from gtsfm.frontend.verifier.verifier_base import VerifierBase
 
 logger = logger_utils.get_logger()
 
@@ -84,17 +67,17 @@ class TheiaTwoViewEstimator:
         assert isinstance(intrinsics, Cal3Bundler)
 
         prior = pt.sfm.CameraIntrinsicsPrior()
-        prior.focal_length.value = [0.5 * (intrinsics.fx() + intrinsics.fy())]
-        prior.aspect_ratio.value = [1.0]
+        prior.focal_length.value = [intrinsics.fx()]
+        prior.aspect_ratio.value = [intrinsics.fy() / intrinsics.fx()]
         prior.principal_point.value = [intrinsics.px(), intrinsics.py()]
-        prior.radial_distortion.value = [0, 0, 0, 0]
-        prior.tangential_distortion.value = [intrinsics.k1(), intrinsics.k2()]
+        prior.radial_distortion.value = [intrinsics.k1(), intrinsics.k2(), 0, 0]
+        prior.tangential_distortion.value = [0, 0]
         prior.skew.value = [0]
         # TODO: unfix this
-        prior.image_width = int(1135)
-        prior.image_height = int(760)
+        # prior.image_width = int(760)
+        # prior.image_height = int(1135)
         # 'PINHOLE_RADIAL_TANGENTIAL', 'DIVISION_UNDISTORTION', 'DOUBLE_SPHERE', 'FOV', 'EXTENDED_UNIFIED', 'FISHEYE
-        prior.camera_intrinsics_model_type = "PINHOLE"
+        prior.camera_intrinsics_model_type = "PINHOLE_RADIAL_TANGENTIAL"
 
         return prior
 
@@ -141,6 +124,7 @@ class TheiaTwoViewEstimator:
         i1ti2 = two_view_info.position_2
 
         if not success or len(inlier_indices) < self._min_num_inlier_matches:
+            success = False
             (pre_ba_i2Ri1, pre_ba_i2Ui1, verified_corr_idxs, inlier_ratio_wrt_estimate) = (
                 None,
                 None,
@@ -180,6 +164,16 @@ class TheiaTwoViewEstimator:
             v_corr_idxs_inlier_mask_gt=pre_ba_inlier_mask_wrt_gt,
             reproj_error_gt_model=pre_ba_reproj_error_wrt_gt,
         )
+        if success:
+            pre_ba_report.theia_twoview_info = TheiaTwoViewInfo(
+                focal_length_1=two_view_info.focal_length_1,
+                focal_length_2=two_view_info.focal_length_2,
+                position_2=two_view_info.position_2,
+                rotation_2=two_view_info.rotation_2,
+                num_verified_matches=two_view_info.num_verified_matches,
+                num_homography_inliers=two_view_info.num_homography_inliers,
+                visibility_score=two_view_info.visibility_score,
+            )
 
         return (
             pre_ba_i2Ri1,

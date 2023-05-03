@@ -7,7 +7,19 @@ from dataclasses import dataclass
 from typing import Optional
 
 import numpy as np
+import pytheia as pt
 from gtsam import Rot3, Unit3
+
+
+@dataclass(frozen=False)
+class TheiaTwoViewInfo:
+    focal_length_1: float
+    focal_length_2: float
+    position_2: np.ndarray
+    rotation_2: np.ndarray
+    num_verified_matches: int
+    num_homography_inliers: int
+    visibility_score: int
 
 
 @dataclass(frozen=False)
@@ -51,3 +63,4 @@ class TwoViewEstimationReport:
     reproj_error_gt_model: Optional[np.ndarray] = None
     inlier_avg_reproj_error_gt_model: Optional[float] = None
     outlier_avg_reproj_error_gt_model: Optional[float] = None
+    theia_twoview_info: Optional[TheiaTwoViewInfo] = None

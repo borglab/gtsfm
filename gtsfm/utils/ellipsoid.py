@@ -26,6 +26,8 @@ def get_ortho_axis_alignment_transform(gtsfm_data: GtsfmData) -> Pose3:
     """
     # Iterate through each track to gather a list of 3D points forming the point cloud.
     num_pts = gtsfm_data.number_tracks()
+    if num_pts == 0:
+        return Pose3()
     point_cloud = [gtsfm_data.get_track(j).point3() for j in range(num_pts)]
     point_cloud = np.array(point_cloud)  # point_cloud has shape Nx3
 

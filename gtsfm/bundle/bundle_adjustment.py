@@ -2,6 +2,7 @@
 
 Authors: Xiaolong Wu, John Lambert, Ayush Baid
 """
+import os
 import logging
 from collections import Counter
 from pathlib import Path
@@ -347,53 +348,6 @@ class BundleAdjustmentOptimizer:
 
         return optimized_data, filtered_result, valid_mask
 
-    def evaluate(
-        self, unfiltered_data: GtsfmData, filtered_data: GtsfmData, cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]]
-    ) -> GtsfmMetricsGroup:
-        """
-        Args:
-            unfiltered_data: optimized BA result, before filtering landmarks by reprojection error.
-            filtered_data: optimized BA result, after filtering landmarks and cameras.
-            cameras_gt: cameras with GT intrinsics and GT extrinsics.
-
-        Returns:
-            Metrics group containing metrics for both filtered and unfiltered BA results.
-        """
-        ba_metrics = GtsfmMetricsGroup(
-            name=METRICS_GROUP, metrics=metrics_utils.get_stats_for_sfmdata(unfiltered_data, suffix="_unfiltered")
-        )
-
-        poses_gt = [cam.pose() if cam is not None else None for cam in cameras_gt]
-
-        valid_poses_gt_count = len(poses_gt) - poses_gt.count(None)
-        if valid_poses_gt_count == 0:
-            return ba_metrics
-
-        # align the sparse multi-view estimate after BA to the ground truth pose graph.
-        aligned_filtered_data = filtered_data.align_via_Sim3_to_poses(wTi_list_ref=poses_gt)
-        ba_pose_error_metrics = metrics_utils.compute_ba_pose_metrics(
-            gt_wTi_list=poses_gt, ba_output=aligned_filtered_data
-        )
-        ba_metrics.extend(metrics_group=ba_pose_error_metrics)
-
-        output_tracks_exit_codes = track_utils.classify_tracks3d_with_gt_cameras(
-            tracks=aligned_filtered_data.get_tracks(), cameras_gt=cameras_gt
-        )
-        output_tracks_exit_codes_distribution = Counter(output_tracks_exit_codes)
-
-        for exit_code, count in output_tracks_exit_codes_distribution.items():
-            metric_name = "Filtered tracks triangulated with GT cams: {}".format(exit_code.name)
-            ba_metrics.add_metric(GtsfmMetric(name=metric_name, data=count))
-
-        ba_metrics.add_metrics(metrics_utils.get_stats_for_sfmdata(aligned_filtered_data, suffix="_filtered"))
-        # ba_metrics.save_to_json(os.path.join(METRICS_PATH, "bundle_adjustment_metrics.json"))
-
-        logger.info("[Result] Mean track length %.3f", np.mean(aligned_filtered_data.get_track_lengths()))
-        logger.info("[Result] Median track length %.3f", np.median(aligned_filtered_data.get_track_lengths()))
-        aligned_filtered_data.log_scene_reprojection_error_stats()
-
-        return ba_metrics
-
     def create_computation_graph(
         self,
         sfm_data_graph: Delayed,
@@ -415,7 +369,7 @@ class BundleAdjustmentOptimizer:
         optimized_sfm_data, filtered_sfm_data, _ = dask.delayed(self.run_ba, nout=3)(
             sfm_data_graph, absolute_pose_priors, relative_pose_priors
         )
-        metrics_graph = dask.delayed(self.evaluate)(optimized_sfm_data, filtered_sfm_data, cameras_gt)
+        metrics_graph = dask.delayed(evaluate)(optimized_sfm_data, filtered_sfm_data, cameras_gt)
         return filtered_sfm_data, metrics_graph
 
 
@@ -461,3 +415,49 @@ def values_to_gtsfm_data(values: Values, initial_data: GtsfmData, shared_calib: 
         result.add_track(result_track)
 
     return result
+
+
+def evaluate(
+    unfiltered_data: GtsfmData, filtered_data: GtsfmData, cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]]
+) -> GtsfmMetricsGroup:
+    """
+    Args:
+        unfiltered_data: optimized BA result, before filtering landmarks by reprojection error.
+        filtered_data: optimized BA result, after filtering landmarks and cameras.
+        cameras_gt: cameras with GT intrinsics and GT extrinsics.
+
+    Returns:
+        Metrics group containing metrics for both filtered and unfiltered BA results.
+    """
+    ba_metrics = GtsfmMetricsGroup(
+        name=METRICS_GROUP, metrics=metrics_utils.get_stats_for_sfmdata(unfiltered_data, suffix="_unfiltered")
+    )
+
+    poses_gt = [cam.pose() if cam is not None else None for cam in cameras_gt]
+
+    valid_poses_gt_count = len(poses_gt) - poses_gt.count(None)
+    if valid_poses_gt_count == 0:
+        return ba_metrics
+
+    # align the sparse multi-view estimate after BA to the ground truth pose graph.
+    aligned_filtered_data = filtered_data.align_via_Sim3_to_poses(wTi_list_ref=poses_gt)
+    ba_pose_error_metrics = metrics_utils.compute_ba_pose_metrics(gt_wTi_list=poses_gt, ba_output=aligned_filtered_data)
+    ba_metrics.extend(metrics_group=ba_pose_error_metrics)
+
+    output_tracks_exit_codes = track_utils.classify_tracks3d_with_gt_cameras(
+        tracks=aligned_filtered_data.get_tracks(), cameras_gt=cameras_gt
+    )
+    output_tracks_exit_codes_distribution = Counter(output_tracks_exit_codes)
+
+    for exit_code, count in output_tracks_exit_codes_distribution.items():
+        metric_name = "Filtered tracks triangulated with GT cams: {}".format(exit_code.name)
+        ba_metrics.add_metric(GtsfmMetric(name=metric_name, data=count))
+
+    ba_metrics.add_metrics(metrics_utils.get_stats_for_sfmdata(aligned_filtered_data, suffix="_filtered"))
+    ba_metrics.save_to_json(os.path.join(METRICS_PATH, "bundle_adjustment_metrics.json"))
+
+    logger.info("[Result] Mean track length %.3f", np.mean(aligned_filtered_data.get_track_lengths()))
+    logger.info("[Result] Median track length %.3f", np.median(aligned_filtered_data.get_track_lengths()))
+    aligned_filtered_data.log_scene_reprojection_error_stats()
+
+    return ba_metrics
