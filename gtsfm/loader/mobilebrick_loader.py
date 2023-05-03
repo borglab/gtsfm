@@ -47,16 +47,12 @@ class MobilebrickLoader(LoaderBase):
             self._image_paths.append(image_path)
 
         # Load GT intrinsics
-        if self._use_gt_intrinsics:
-            intrinsics_dir = os.path.join(data_dir, "intrinsic")
-            self._intrinsics = []
-            for i in range(self._num_images):
-                intrinsics_file = os.path.join(intrinsics_dir, f"{i:06d}.txt")
-                K = np.loadtxt(intrinsics_file)
-                self._intrinsics.append(Cal3Bundler((K[0, 0] + K[1, 1]) / 2, 0, 0, K[0, 2], K[1, 2]))
-        else:
-            # TODO(akshay): It should be possible to cache approx intrinsics here.
-            self._intrinsics = None
+        intrinsics_dir = os.path.join(data_dir, "intrinsic")
+        self._gt_intrinsics = []
+        for i in range(self._num_images):
+            intrinsics_file = os.path.join(intrinsics_dir, f"{i:06d}.txt")
+            K = np.loadtxt(intrinsics_file)
+            self._gt_intrinsics.append(Cal3Bundler((K[0, 0] + K[1, 1]) / 2, 0, 0, K[0, 2], K[1, 2]))
 
         # Load GT poses
         self._poses_dir = os.path.join(data_dir, "pose")
@@ -98,6 +94,23 @@ class MobilebrickLoader(LoaderBase):
         img = io_utils.load_image(self._image_paths[index])
         return Image(value_array=img.value_array, exif_data=img.exif_data, file_name=img.file_name)
 
+    def get_gt_camera_intrinsics_full_res(self, index: int) -> Cal3Bundler:
+        """Get the GT camera intrinsics at the given index, valid for a full-resolution image.
+
+        Args:
+            index: The index to fetch.
+
+        Returns:
+            Ground truth intrinsics for the given camera.
+
+        Raises:
+            IndexError: If an out-of-bounds image index is requested.
+        """
+        if index < 0 or index >= len(self):
+            raise IndexError(f"Image index {index} is invalid")
+
+        return self._gt_intrinsics[index]
+
     def get_camera_intrinsics_full_res(self, index: int) -> Cal3Bundler:
         """Get the camera intrinsics at the given index, valid for a full-resolution image.
 
@@ -113,12 +126,12 @@ class MobilebrickLoader(LoaderBase):
         if index < 0 or index >= len(self):
             raise IndexError(f"Image index {index} is invalid")
 
-        if self._intrinsics:
-            return self._intrinsics[index]
+        if self._use_gt_intrinsics:
+            return self._gt_intrinsics[index]
         else:
             # 0.8 is better than the default factor of 1.2 for this dataset, but it has not been fully tuned.
             return io_utils.load_image(self._image_paths[index]).get_intrinsics_from_exif(
-                default_focal_length_factor=0.8
+                default_focal_length_factor=1.2
             )
 
     def get_camera_pose(self, index: int) -> Optional[Pose3]:

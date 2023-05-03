@@ -106,8 +106,9 @@ class LoaderBase(GTSFMProcess):
             the camera pose w_P_index.
         """
 
+    # TODO: Rename this to get_gt_camera.
     def get_camera(self, index: int) -> Optional[gtsfm_types.CAMERA_TYPE]:
-        """Gets the camera at the given index.
+        """Gets the GT camera at the given index.
 
         Args:
             index: the index to fetch.
@@ -116,7 +117,7 @@ class LoaderBase(GTSFMProcess):
             Camera object with intrinsics and extrinsics, if they exist.
         """
         pose = self.get_camera_pose(index)
-        intrinsics = self.get_camera_intrinsics(index)
+        intrinsics = self.get_gt_camera_intrinsics(index)
 
         if pose is None or intrinsics is None:
             return None
@@ -180,6 +181,28 @@ class LoaderBase(GTSFMProcess):
         resized_img = img_utils.resize_image(img_full_res, new_height=target_h, new_width=target_w)
         return resized_img
 
+    def __rescale_intrinsics(
+        self, intrinsics_full_res: gtsfm_types.CALIBRATION_TYPE, image_index: int
+    ) -> gtsfm_types.CALIBRATION_TYPE:
+        if intrinsics_full_res.fx() <= 0:
+            raise RuntimeError("Focal length must be positive.")
+
+        if intrinsics_full_res.px() <= 0 or intrinsics_full_res.py() <= 0:
+            raise RuntimeError("Principal point must have positive coordinates.")
+
+        img_full_res = self.get_image_full_res(image_index)
+        # no downsampling may be required, in which case scale_u and scale_v will be 1.0
+        scale_u, scale_v, _, _ = img_utils.get_downsampling_factor_per_axis(
+            img_full_res.height, img_full_res.width, self._max_resolution
+        )
+        return Cal3Bundler(
+            fx=intrinsics_full_res.fx() * scale_u,
+            k1=0.0,
+            k2=0.0,
+            u0=intrinsics_full_res.px() * scale_u,
+            v0=intrinsics_full_res.py() * scale_v,
+        )
+
     def get_camera_intrinsics(self, index: int) -> Optional[gtsfm_types.CALIBRATION_TYPE]:
         """Get the camera intrinsics at the given index, for a possibly resized image.
 
@@ -196,25 +219,42 @@ class LoaderBase(GTSFMProcess):
         if intrinsics_full_res is None:
             raise ValueError(f"No intrinsics found for index {index}.")
 
-        if intrinsics_full_res.fx() <= 0:
-            raise RuntimeError("Focal length must be positive.")
+        return self.__rescale_intrinsics(intrinsics_full_res, index)
 
-        if intrinsics_full_res.px() <= 0 or intrinsics_full_res.py() <= 0:
-            raise RuntimeError("Principal point must have positive coordinates.")
+    def get_gt_camera_intrinsics_full_res(self, index: int) -> Optional[gtsfm_types.CALIBRATION_TYPE]:
+        """Get the GT camera intrinsics at the given index, valid for a full-resolution image.
 
-        img_full_res = self.get_image_full_res(index)
-        # no downsampling may be required, in which case scale_u and scale_v will be 1.0
-        scale_u, scale_v, _, _ = img_utils.get_downsampling_factor_per_axis(
-            img_full_res.height, img_full_res.width, self._max_resolution
-        )
-        rescaled_intrinsics = Cal3Bundler(
-            fx=intrinsics_full_res.fx() * scale_u,
-            k1=0.0,
-            k2=0.0,
-            u0=intrinsics_full_res.px() * scale_u,
-            v0=intrinsics_full_res.py() * scale_v,
-        )
-        return rescaled_intrinsics
+        By default, this is implemented to return the same value as `get_camera_intrinsics_full_res`. However, this can
+        be overridden by subclasses to return a superior ground truth intrinsics.
+
+        Args:
+            the index to fetch.
+
+        Returns:
+            intrinsics for the given camera.
+        """
+        return self.get_camera_intrinsics_full_res(index)
+
+    def get_gt_camera_intrinsics(self, index: int) -> Optional[gtsfm_types.CALIBRATION_TYPE]:
+        """Get the GT camera intrinsics at the given index, for a possibly resized image.
+
+        Determine how the camera intrinsics and images should be jointly rescaled based on desired img. resolution.
+        Each loader implementation should set a `_max_resolution` attribute.
+
+        The GT camera intrinsics are the same as the camera intrinsics by default, but can be overridden by defining
+        get_gt_camera_intrinsics_full_res method in derived classes.
+
+        Args:
+            the index to fetch.
+
+        Returns:
+            GT intrinsics for the given camera.
+        """
+        intrinsics_full_res = self.get_gt_camera_intrinsics_full_res(index)
+        if intrinsics_full_res is None:
+            raise ValueError(f"No intrinsics found for index {index}.")
+
+        return self.__rescale_intrinsics(intrinsics_full_res, index)
 
     def get_image_shape(self, idx: int) -> Tuple[int, int]:
         """Return a (H,W) tuple for each image"""
