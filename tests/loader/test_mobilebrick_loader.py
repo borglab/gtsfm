@@ -52,11 +52,11 @@ class TestMobileBrickLoader(unittest.TestCase):
 
     def test_get_gt_camera_intrinsics_full_res(self):
         """Test the GT camera intrinsics at a given index."""
-        intrinsics1 = self.loader.get_camera_intrinsics_full_res(0)
+        intrinsics1 = self.loader.get_gt_camera_intrinsics_full_res(0)
         self.assertIsInstance(intrinsics1, Cal3Bundler)
 
         with self.assertRaises(IndexError):
-            self.loader.get_camera_intrinsics_full_res(5)
+            self.loader.get_gt_camera_intrinsics_full_res(5)
 
     def test_get_camera_pose(self):
         """Test the camera pose at a given index."""
