@@ -76,7 +76,7 @@ class SceneOptimizer:
         save_gtsfm_data: bool = True,
         pose_angular_error_thresh: float = 3,
         output_root: str = DEFAULT_OUTPUT_ROOT,
-        output_worker: str = None,
+        output_worker: Optional[str] = None,
     ) -> None:
         """pose_angular_error_thresh is given in degrees"""
         self.retriever = retriever
@@ -129,7 +129,7 @@ class SceneOptimizer:
         image_graph: List[Delayed],
         all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        gt_wTi_list: List[Optional[Pose3]],
+        gt_cameras: List[Optional[gtsfm_types.CAMERA_TYPE]],
         gt_scene_mesh: Optional[Trimesh] = None,
     ) -> Tuple[
         Dict[Tuple[int, int], Delayed],
@@ -161,8 +161,8 @@ class SceneOptimizer:
                 camera_intrinsics_i1=all_intrinsics[i1],
                 camera_intrinsics_i2=all_intrinsics[i2],
                 i2Ti1_prior=relative_pose_priors.get((i1, i2), None),
-                gt_wTi1=gt_wTi_list[i1],
-                gt_wTi2=gt_wTi_list[i2],
+                gt_camera_i1=gt_cameras[i1],
+                gt_camera_i2=gt_cameras[i2],
                 gt_scene_mesh_graph=gt_scene_mesh,
             )
 
@@ -222,7 +222,7 @@ class SceneOptimizer:
             image_graph=image_graph,
             all_intrinsics=all_intrinsics,
             relative_pose_priors=relative_pose_priors,
-            gt_wTi_list=gt_wTi_list,
+            gt_cameras=cameras_gt,
             gt_scene_mesh=gt_scene_mesh,
         )
 

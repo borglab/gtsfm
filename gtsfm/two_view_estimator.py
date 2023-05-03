@@ -215,6 +215,68 @@ class TwoViewEstimator:
 
         return i2Ti1_optimized.rotation(), Unit3(i2Ti1_optimized.translation()), valid_corr_idxs
 
+    def __get_2view_report_from_results(
+        self,
+        i2Ri1_computed: Optional[Rot3],
+        i2Ui1_computed: Optional[Unit3],
+        keypoints_i1: Keypoints,
+        keypoints_i2: Keypoints,
+        verified_corr_idxs: np.ndarray,
+        inlier_ratio_wrt_estimate: float,
+        gt_camera_i1: Optional[gtsfm_types.CAMERA_TYPE],
+        gt_camera_i2: Optional[gtsfm_types.CAMERA_TYPE],
+        gt_scene_mesh: Optional[Any],
+    ) -> TwoViewEstimationReport:
+        """Generate a TwoViewEstimationReport from the results of the two-view estimation.
+
+        Currently metrics wrt GT camera only supports cases where gt_camera is PinholeCameraCal3Bundler.
+
+        Args:
+            i2Ri1_computed: computed relative rotation.
+            i2Ui1_computed: computed relative unit translation.
+            keypoints_i1: keypoints from image i1.
+            keypoints_i2: keypoints from image i2.
+            verified_corr_idxs: indices of verified correspondences between i1 and i2.
+            inlier_ratio_wrt_estimate: inlier ratio w.r.t. the estimated relative pose.
+            gt_camera_i1: ground truth camera for i1.
+            gt_camera_i2: ground truth camera for i2.
+            gt_scene_mesh: ground truth scene mesh.
+
+        Returns:
+            TwoViewEstimationReport object, some fields may be None if either gt_camera are None.
+        """
+        if gt_camera_i1 and gt_camera_i2:
+            # if we have the expected GT data, evaluate the computed relative pose
+            R_error_deg, U_error_deg = compute_relative_pose_metrics(
+                i2Ri1_computed, i2Ui1_computed, gt_camera_i1.pose(), gt_camera_i2.pose()
+            )
+            # TODO: add support for other camera models
+            if isinstance(gt_camera_i1, PinholeCameraCal3Bundler) and isinstance(
+                gt_camera_i2, PinholeCameraCal3Bundler
+            ):
+                inlier_mask_wrt_gt, reproj_error_wrt_gt = metric_utils.compute_correspondence_metrics(
+                    keypoints_i1,
+                    keypoints_i2,
+                    verified_corr_idxs,
+                    self._corr_metric_dist_threshold,
+                    gt_camera_i1,
+                    gt_camera_i2,
+                    gt_scene_mesh,
+                )
+            else:
+                inlier_mask_wrt_gt, reproj_error_wrt_gt = None, None
+        else:
+            R_error_deg, U_error_deg, inlier_mask_wrt_gt, reproj_error_wrt_gt = None, None, None, None
+
+        return generate_two_view_report(
+            inlier_ratio_wrt_estimate,
+            verified_corr_idxs,
+            R_error_deg=R_error_deg,
+            U_error_deg=U_error_deg,
+            v_corr_idxs_inlier_mask_gt=inlier_mask_wrt_gt,
+            reproj_error_gt_model=reproj_error_wrt_gt,
+        )
+
     def __generate_initial_pose_for_bundle_adjustment(
         self, i2Ti1_from_verifier: Optional[Pose3], i2Ti1_prior: Optional[PosePrior]
     ) -> Optional[Pose3]:
@@ -251,8 +313,8 @@ class TwoViewEstimator:
         camera_intrinsics_i1: Optional[gtsfm_types.CALIBRATION_TYPE],
         camera_intrinsics_i2: Optional[gtsfm_types.CALIBRATION_TYPE],
         i2Ti1_prior: Optional[PosePrior],
-        gt_wTi1: Optional[Pose3],
-        gt_wTi2: Optional[Pose3],
+        gt_camera_i1: Optional[gtsfm_types.CAMERA_TYPE],
+        gt_camera_i2: Optional[gtsfm_types.CAMERA_TYPE],
         gt_scene_mesh: Optional[Any] = None,
     ) -> Tuple[
         Optional[Rot3],
@@ -263,8 +325,8 @@ class TwoViewEstimator:
         TwoViewEstimationReport,
     ]:
         """Estimate relative pose between two views, using verification."""
-        # verification on putative correspondences to obtain relative pose and verified correspondences\
-        (pre_ba_i2Ri1, pre_ba_i2Ui1, verified_corr_idxs, inlier_ratio_wrt_estimate) = self._verifier.verify(
+        # verification on putative correspondences to obtain relative pose and verified correspondences
+        (pre_ba_i2Ri1, pre_ba_i2Ui1, pre_ba_v_corr_idxs, pre_ba_inlier_ratio_wrt_estimate) = self._verifier.verify(
             keypoints_i1,
             keypoints_i2,
             putative_corr_idxs,
@@ -272,28 +334,16 @@ class TwoViewEstimator:
             camera_intrinsics_i2,
         )
 
-        # if we have the expected GT data, evaluate the computed relative pose
-        pre_ba_R_error_deg, pre_ba_U_error_deg = compute_relative_pose_metrics(
-            pre_ba_i2Ri1, pre_ba_i2Ui1, gt_wTi1, gt_wTi2
-        )
-        pre_ba_inlier_mask_wrt_gt, pre_ba_reproj_error_wrt_gt = metric_utils.compute_correspondence_metrics(
+        pre_ba_report = self.__get_2view_report_from_results(
+            pre_ba_i2Ri1,
+            pre_ba_i2Ui1,
             keypoints_i1,
             keypoints_i2,
-            verified_corr_idxs,
-            camera_intrinsics_i1,
-            camera_intrinsics_i2,
-            self._corr_metric_dist_threshold,
-            gt_wTi1,
-            gt_wTi2,
+            pre_ba_v_corr_idxs,
+            pre_ba_inlier_ratio_wrt_estimate,
+            gt_camera_i1,
+            gt_camera_i2,
             gt_scene_mesh,
-        )
-        pre_ba_report = generate_two_view_report(
-            inlier_ratio_wrt_estimate,
-            verified_corr_idxs,
-            R_error_deg=pre_ba_R_error_deg,
-            U_error_deg=pre_ba_U_error_deg,
-            v_corr_idxs_inlier_mask_gt=pre_ba_inlier_mask_wrt_gt,
-            reproj_error_gt_model=pre_ba_reproj_error_wrt_gt,
         )
 
         # Optionally, do two-view bundle adjustment
@@ -301,43 +351,30 @@ class TwoViewEstimator:
             post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs = self.bundle_adjust(
                 keypoints_i1,
                 keypoints_i2,
-                verified_corr_idxs,
+                pre_ba_v_corr_idxs,
                 camera_intrinsics_i1,
                 camera_intrinsics_i2,
                 pre_ba_i2Ri1,
                 pre_ba_i2Ui1,
                 i2Ti1_prior,
             )
+            post_ba_inlier_ratio_wrt_estimate = float(len(post_ba_v_corr_idxs)) / len(putative_corr_idxs)
+            post_ba_report = self.__get_2view_report_from_results(
+                post_ba_i2Ri1,
+                post_ba_i2Ui1,
+                keypoints_i1,
+                keypoints_i2,
+                post_ba_v_corr_idxs,
+                post_ba_inlier_ratio_wrt_estimate,
+                gt_camera_i1,
+                gt_camera_i2,
+                gt_scene_mesh,
+            )
         else:
             post_ba_i2Ri1 = pre_ba_i2Ri1
             post_ba_i2Ui1 = pre_ba_i2Ui1
-            post_ba_v_corr_idxs = verified_corr_idxs
-
-        # if we have the expected GT data, evaluate the computed relative pose, post BA
-        # TODO(frank): why do all this in the case we do *not* do 2-view BA?
-        post_ba_R_error_deg, post_ba_U_error_deg = compute_relative_pose_metrics(
-            post_ba_i2Ri1, post_ba_i2Ui1, gt_wTi1, gt_wTi2
-        )
-        post_ba_inlier_mask_wrt_gt, post_ba_reproj_error_wrt_gt = metric_utils.compute_correspondence_metrics(
-            keypoints_i1,
-            keypoints_i2,
-            post_ba_v_corr_idxs,
-            camera_intrinsics_i1,
-            camera_intrinsics_i2,
-            self._corr_metric_dist_threshold,
-            gt_wTi1,
-            gt_wTi2,
-            gt_scene_mesh,
-        )
-
-        post_ba_report = generate_two_view_report(
-            inlier_ratio_wrt_estimate,  # TODO: dont store ratios so that we can update them
-            post_ba_v_corr_idxs,
-            R_error_deg=post_ba_R_error_deg,
-            U_error_deg=post_ba_U_error_deg,
-            v_corr_idxs_inlier_mask_gt=post_ba_inlier_mask_wrt_gt,
-            reproj_error_gt_model=post_ba_reproj_error_wrt_gt,
-        )
+            post_ba_v_corr_idxs = pre_ba_v_corr_idxs
+            post_ba_report = pre_ba_report  # TODO: copy this?
 
         (
             post_isp_i2Ri1,
@@ -356,8 +393,8 @@ class TwoViewEstimator:
         camera_intrinsics_i1: Optional[gtsfm_types.CALIBRATION_TYPE],
         camera_intrinsics_i2: Optional[gtsfm_types.CALIBRATION_TYPE],
         i2Ti1_prior: Optional[PosePrior] = None,
-        gt_wTi1: Optional[Pose3] = None,
-        gt_wTi2: Optional[Pose3] = None,
+        gt_camera_i1: Optional[gtsfm_types.CAMERA_TYPE] = None,
+        gt_camera_i2: Optional[gtsfm_types.CAMERA_TYPE] = None,
         gt_scene_mesh_graph: Optional[Delayed] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, Dict[str, Delayed]]:
         """Create delayed tasks for two view geometry estimation, using verification.
@@ -391,8 +428,8 @@ class TwoViewEstimator:
             camera_intrinsics_i1=camera_intrinsics_i1,
             camera_intrinsics_i2=camera_intrinsics_i2,
             i2Ti1_prior=i2Ti1_prior,
-            gt_wTi1=gt_wTi1,
-            gt_wTi2=gt_wTi2,
+            gt_camera_i1=gt_camera_i1,
+            gt_camera_i2=gt_camera_i2,
             gt_scene_mesh=gt_scene_mesh_graph,
         )
         # Return the reports as a dict of Delayed objects, instead of a single Delayed object.
