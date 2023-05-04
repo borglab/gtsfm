@@ -253,8 +253,8 @@ class LoaderBase(GTSFMProcess):
         Determine how the camera intrinsics and images should be jointly rescaled based on desired img. resolution.
         Each loader implementation should set a `_max_resolution` attribute.
 
-        The GT camera intrinsics are the same as the camera intrinsics by default, but can be overridden by defining
-        get_gt_camera_intrinsics_full_res method in derived classes.
+        The returned intrinsics are the same as the camera intrinsics, but this behavior can be changed by overridding
+        `get_gt_camera_intrinsics_full_res` in derived classes.
 
         Args:
             index: The index to fetch.
