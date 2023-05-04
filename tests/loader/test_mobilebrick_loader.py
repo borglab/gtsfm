@@ -74,6 +74,7 @@ class TestMobileBrickLoader(unittest.TestCase):
         with self.assertRaises(IndexError):
             self.loader.get_camera_intrinsics_full_res(5)
 
+        # Check that the intrinsics are not equal to the GT intrinsics.
         gt_intrinsics1 = self.loader.get_gt_camera_intrinsics_full_res(0)
         self.assertIsInstance(gt_intrinsics1, Cal3Bundler)
         self.assertGreater(abs(gt_intrinsics1.fx() - intrinsics1.fx()), 1e-3)
