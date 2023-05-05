@@ -34,6 +34,7 @@ from gtsfm.data_association.point3d_initializer import SVD_DLT_RANK_TOL
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
+import gtsfm.frontend.two_view_refiner.two_view_refiner as two_view_refiner
 
 logger = logger_utils.get_logger()
 
@@ -131,6 +132,44 @@ class TwoViewEstimator:
                 # logger.error(e)
 
         return tracks_3d, valid_indices
+
+    def refine_2view(
+        self,
+        keypoints_i1: Keypoints,
+        keypoints_i2: Keypoints,
+        i2Ri1_initial: Optional[Rot3],
+        i2Ui1_initial: Optional[Unit3],
+        v_corr_idxs: np.ndarray,
+        intrinsics_i1: gtsfm_types.CALIBRATION_TYPE,
+        intrinsics_i2: gtsfm_types.CALIBRATION_TYPE,
+    ) -> Tuple[Optional[Rot3], Optional[Unit3], np.ndarray]:
+        """Refine the relative pose using bundle adjustment on the 2-view scene.
+
+        Args:
+            i2Ri1_initial: Initial rotation from i1 to i2.
+            i2Ui1_initial: Initial translation from i1 to i2.
+            i2Ei1: Initial essential matrix from i1 to i2.
+
+        Returns:
+            Refined rotation and translation.
+        """
+        if i2Ri1_initial is None or i2Ui1_initial is None:
+            return None, None, v_corr_idxs
+        matched_keypoints_i1 = keypoints_i1.extract_indices(v_corr_idxs[:, 0])
+        matched_keypoints_i2 = keypoints_i2.extract_indices(v_corr_idxs[:, 1])
+        i2Ri1, i2Ui1 = two_view_refiner.refine_with_essential_constraint(
+            matched_keypoints_i1, matched_keypoints_i2, intrinsics_i1, intrinsics_i2, i2Ri1_initial, i2Ui1_initial
+        )
+        i2Ti1 = Pose3(i2Ri1, i2Ui1.point3())
+        inlier_mask, _ = metric_utils.epipolar_inlier_correspondences(
+            matched_keypoints_i1,
+            matched_keypoints_i2,
+            intrinsics_i1,
+            intrinsics_i2,
+            i2Ti1,
+            self._corr_metric_dist_threshold,
+        )
+        return i2Ri1, i2Ui1, v_corr_idxs[inlier_mask]
 
     def bundle_adjust(
         self,
@@ -326,7 +365,7 @@ class TwoViewEstimator:
     ]:
         """Estimate relative pose between two views, using verification."""
         # verification on putative correspondences to obtain relative pose and verified correspondences
-        (pre_ba_i2Ri1, pre_ba_i2Ui1, pre_ba_v_corr_idxs, pre_ba_inlier_ratio_wrt_estimate) = self._verifier.verify(
+        (pre_ba_i2Ri1, pre_ba_i2Ui1, pre_ba_v_corr_idxs, pre_ba_inlier_ratio_wrt_estimate,) = self._verifier.verify(
             keypoints_i1,
             keypoints_i2,
             putative_corr_idxs,
@@ -348,15 +387,24 @@ class TwoViewEstimator:
 
         # Optionally, do two-view bundle adjustment
         if self._bundle_adjust_2view:
-            post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs = self.bundle_adjust(
+            # post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs = self.bundle_adjust(
+            #     keypoints_i1,
+            #     keypoints_i2,
+            #     pre_ba_v_corr_idxs,
+            #     camera_intrinsics_i1,
+            #     camera_intrinsics_i2,
+            #     pre_ba_i2Ri1,
+            #     pre_ba_i2Ui1,
+            #     i2Ti1_prior,
+            # )
+            post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs = self.refine_2view(
                 keypoints_i1,
                 keypoints_i2,
+                pre_ba_i2Ri1,
+                pre_ba_i2Ui1,
                 pre_ba_v_corr_idxs,
                 camera_intrinsics_i1,
                 camera_intrinsics_i2,
-                pre_ba_i2Ri1,
-                pre_ba_i2Ui1,
-                i2Ti1_prior,
             )
             post_ba_inlier_ratio_wrt_estimate = float(len(post_ba_v_corr_idxs)) / len(putative_corr_idxs)
             post_ba_report = self.__get_2view_report_from_results(

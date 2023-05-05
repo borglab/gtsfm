@@ -86,6 +86,38 @@ class TestTwoViewEstimator(unittest.TestCase):
         self.assertLessEqual(translation_angular_error, 1)
         np.testing.assert_allclose(corr_idxs, self.corr_idxs)
 
+    def test_two_view_refinement(self):
+        """Tests the bundle adjustment for relative pose on a simulated scene."""
+        two_view_estimator = TwoViewEstimator(
+            verifier=None, inlier_support_processor=None, bundle_adjust_2view=True, eval_threshold_px=4
+        )
+
+        # Extract example poses.
+        i1Ri2 = EXAMPLE_DATA.get_camera(1).pose().rotation()
+        i1ti2 = EXAMPLE_DATA.get_camera(1).pose().translation()
+        i2Ti1 = Pose3(i1Ri2, i1ti2).inverse()
+        i2Ei1 = EssentialMatrix(i2Ti1.rotation(), Unit3(i2Ti1.translation()))
+
+        # Perform bundle adjustment.
+        i2Ri1_optimized, i2Ui1_optimized, corr_idxs = two_view_estimator.refine_2view(
+            self.keypoints_i1,
+            self.keypoints_i2,
+            i2Ei1.rotation(),
+            i2Ei1.direction(),
+            self.corr_idxs,
+            Cal3Bundler(),
+            Cal3Bundler(),
+        )
+
+        # Assert
+        rotation_angular_error = comp_utils.compute_relative_rotation_angle(i2Ri1_optimized, i2Ei1.rotation())
+        translation_angular_error = comp_utils.compute_relative_unit_translation_angle(
+            i2Ui1_optimized, i2Ei1.direction()
+        )
+        self.assertLessEqual(rotation_angular_error, 1)
+        self.assertLessEqual(translation_angular_error, 1)
+        np.testing.assert_allclose(corr_idxs, self.corr_idxs)
+
 
 if __name__ == "__main__":
     unittest.main()
