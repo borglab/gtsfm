@@ -188,3 +188,6 @@ output/
 
 # Cache dir
 cache/
+
+# Dev notebooks
+notebooks/

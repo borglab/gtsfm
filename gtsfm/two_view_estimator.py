@@ -59,7 +59,7 @@ class TwoViewEstimator:
         bundle_adjust_2view: bool,
         eval_threshold_px: float,
         bundle_adjust_2view_maxiters: int = 100,
-        ba_reproj_error_thresh: float = 0.5,
+        ba_reproj_error_thresholds: List[float] = [0.5],
     ) -> None:
         """Initializes the two-view estimator from verifier.
 
@@ -70,15 +70,15 @@ class TwoViewEstimator:
             eval_threshold_px: Distance threshold for marking a correspondence pair as inlier during evaluation
                 (not during estimation).
             bundle_adjust_2view_maxiters (optional): Max number of iterations for 2-view BA. Defaults to 100.
-            ba_reproj_error_thresh (optional): Reprojection threshold used to filter features after 2-view BA.
-                                               Defaults to 0.5.
+            ba_reproj_error_thresholds (optional): Reprojection thresholds used to filter features after each stage of
+                2-view BA. The length of this list decides the number of BA stages. Defaults to [0.5] (single stage).
         """
         self._verifier = verifier
         self.processor = inlier_support_processor
         self._bundle_adjust_2view = bundle_adjust_2view
         self._corr_metric_dist_threshold = eval_threshold_px
         self._ba_optimizer = TwoViewBundleAdjustment(
-            output_reproj_error_thresh=ba_reproj_error_thresh,
+            reproj_error_thresholds=ba_reproj_error_thresholds,
             robust_measurement_noise=True,
             max_iterations=bundle_adjust_2view_maxiters,
         )
