@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid, John Lambert
 """
+import dataclasses
 import logging
 import timeit
 from typing import Any, Dict, List, Optional, Tuple
@@ -359,6 +360,10 @@ class TwoViewEstimator:
                 i2Ti1_prior,
             )
             post_ba_inlier_ratio_wrt_estimate = float(len(post_ba_v_corr_idxs)) / len(putative_corr_idxs)
+
+            # TODO: Remove this hack once we can handle the lower post_ba_inlier_ratio_wrt_estimate downstream.
+            post_ba_inlier_ratio_wrt_estimate = pre_ba_inlier_ratio_wrt_estimate
+
             post_ba_report = self.__get_2view_report_from_results(
                 i2Ri1_computed=post_ba_i2Ri1,
                 i2Ui1_computed=post_ba_i2Ui1,
@@ -374,7 +379,7 @@ class TwoViewEstimator:
             post_ba_i2Ri1 = pre_ba_i2Ri1
             post_ba_i2Ui1 = pre_ba_i2Ui1
             post_ba_v_corr_idxs = pre_ba_v_corr_idxs
-            post_ba_report = pre_ba_report  # TODO: copy this?
+            post_ba_report = dataclasses.replace(pre_ba_report)
 
         (
             post_isp_i2Ri1,
