@@ -42,7 +42,7 @@ from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 # Hyperparameters for 1D-SFM
 # maximum number of times 1dsfm will project the Unit3's to a 1d subspace for outlier rejection
 MAX_PROJECTION_DIRECTIONS = 2000
-OUTLIER_WEIGHT_THRESHOLD = 0.125
+OUTLIER_WEIGHT_THRESHOLD = 0.1
 
 NOISE_MODEL_DIMENSION = 3  # chordal distances on Unit3
 NOISE_MODEL_SIGMA = 0.01
@@ -530,12 +530,12 @@ def compute_metrics(
         GtsfmMetric("num_outlier_1dsfm_measurements", len(outlier_i1_i2_pairs)),
         GtsfmMetric("num_translations_estimated", len([wti for wti in wti_list if wti is not None])),
     ]
-    
+
     # Remaining metrics require ground truth, so return if GT is not available.
     gt_available = np.array([gt_wTi is not None for gt_wTi in gt_wTi_list]).any()
     if not gt_available:
         return GtsfmMetricsGroup("translation_averaging_metrics", ta_metrics)
-    
+
     # Get ground truth translation directions for the measurements.
     gt_i2Ui1_dict = metrics_utils.get_twoview_translation_directions(gt_wTi_list)
 
@@ -562,14 +562,16 @@ def compute_metrics(
     gt_wti_list = [gt_wTi.translation() if gt_wTi is not None else None for gt_wTi in gt_wTi_list]
 
     threshold_suffix = str(int(MAX_INLIER_MEASUREMENT_ERROR_DEG)) + "_deg"
-    ta_metrics.extend([
-        GtsfmMetric("1dsfm_precision_" + threshold_suffix, precision),
-        GtsfmMetric("1dsfm_recall_" + threshold_suffix, recall),
-        GtsfmMetric("1dsfm_inlier_angular_errors_deg", inlier_angular_errors),
-        GtsfmMetric("1dsfm_outlier_angular_errors_deg", outlier_angular_errors),
-        metrics_utils.compute_translation_angle_metric(measured_gt_i2Ui1_dict, wTi_aligned_list),
-        metrics_utils.compute_translation_distance_metric(wti_aligned_list, gt_wti_list),
-    ])
+    ta_metrics.extend(
+        [
+            GtsfmMetric("1dsfm_precision_" + threshold_suffix, precision),
+            GtsfmMetric("1dsfm_recall_" + threshold_suffix, recall),
+            GtsfmMetric("1dsfm_inlier_angular_errors_deg", inlier_angular_errors),
+            GtsfmMetric("1dsfm_outlier_angular_errors_deg", outlier_angular_errors),
+            metrics_utils.compute_translation_angle_metric(measured_gt_i2Ui1_dict, wTi_aligned_list),
+            metrics_utils.compute_translation_distance_metric(wti_aligned_list, gt_wti_list),
+        ]
+    )
 
     return GtsfmMetricsGroup("translation_averaging_metrics", ta_metrics)
 

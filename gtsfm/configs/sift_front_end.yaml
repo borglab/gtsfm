@@ -43,7 +43,7 @@ SceneOptimizer:
 
     inlier_support_processor:
       _target_: gtsfm.two_view_estimator.InlierSupportProcessor
-      min_num_inliers_est_model: 15
+      min_num_inliers_est_model: 20
       min_inlier_ratio_est_model: 0.5
 
   multiview_optimizer:
@@ -67,7 +67,7 @@ SceneOptimizer:
       min_track_len: 2
       triangulation_options:
         _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
-        reproj_error_threshold: 100
+        reproj_error_threshold: 20
         mode:
           _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
           value: RANSAC_SAMPLE_UNIFORM
