@@ -49,6 +49,7 @@ def refine_with_essential_constraint(
 
     graph = NonlinearFactorGraph()
     essential_noise_model = gtsam.noiseModel.Isotropic.Sigma(1, 1e-3)
+    essential_noise_model = gtsam.noiseModel.Robust(gtsam.noiseModel.mEstimator.Huber(1.345), essential_noise_model)
     for i in range(uv_norm_i1.shape[0]):
         graph.add(EssentialMatrixFactor(X(1), uv_norm_i2[i, :], uv_norm_i1[i, :], essential_noise_model))
 
