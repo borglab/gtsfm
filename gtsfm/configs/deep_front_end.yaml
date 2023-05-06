@@ -44,7 +44,7 @@ SceneOptimizer:
     inlier_support_processor:
       _target_: gtsfm.two_view_estimator.InlierSupportProcessor
       min_num_inliers_est_model: 15
-      min_inlier_ratio_est_model: 0.5
+      min_inlier_ratio_est_model: 0.1
 
   multiview_optimizer:
     _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
