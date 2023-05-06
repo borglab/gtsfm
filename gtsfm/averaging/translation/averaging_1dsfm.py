@@ -42,7 +42,7 @@ from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 # Hyperparameters for 1D-SFM
 # maximum number of times 1dsfm will project the Unit3's to a 1d subspace for outlier rejection
 MAX_PROJECTION_DIRECTIONS = 2000
-OUTLIER_WEIGHT_THRESHOLD = 0.1
+OUTLIER_WEIGHT_THRESHOLD = 0.125
 
 NOISE_MODEL_DIMENSION = 3  # chordal distances on Unit3
 NOISE_MODEL_SIGMA = 0.01

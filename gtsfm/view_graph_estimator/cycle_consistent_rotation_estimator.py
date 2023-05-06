@@ -22,7 +22,7 @@ from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstima
 logger = logger_utils.get_logger()
 
 # threshold for cycle consistency inference
-ERROR_THRESHOLD = 6.0
+ERROR_THRESHOLD = 7.0
 
 # threshold for evaluation w.r.t. GT
 MAX_INLIER_MEASUREMENT_ERROR_DEG = 5.0
