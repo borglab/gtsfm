@@ -79,7 +79,7 @@ class TwoViewEstimator:
         self._bundle_adjust_2view = bundle_adjust_2view
         self._corr_metric_dist_threshold = eval_threshold_px
         self._ba_optimizer = TwoViewBundleAdjustment(
-            reproj_error_thresholds=ba_reproj_error_thresholds,
+            reproj_error_thresholds=[4],
             robust_measurement_noise=True,
             max_iterations=bundle_adjust_2view_maxiters,
         )
