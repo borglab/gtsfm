@@ -387,25 +387,25 @@ class TwoViewEstimator:
 
         # Optionally, do two-view bundle adjustment
         if self._bundle_adjust_2view:
-            # post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs = self.bundle_adjust(
-            #     keypoints_i1,
-            #     keypoints_i2,
-            #     pre_ba_v_corr_idxs,
-            #     camera_intrinsics_i1,
-            #     camera_intrinsics_i2,
-            #     pre_ba_i2Ri1,
-            #     pre_ba_i2Ui1,
-            #     i2Ti1_prior,
-            # )
-            post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs = self.refine_2view(
+            post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs = self.bundle_adjust(
                 keypoints_i1,
                 keypoints_i2,
-                pre_ba_i2Ri1,
-                pre_ba_i2Ui1,
                 pre_ba_v_corr_idxs,
                 camera_intrinsics_i1,
                 camera_intrinsics_i2,
+                pre_ba_i2Ri1,
+                pre_ba_i2Ui1,
+                i2Ti1_prior,
             )
+            # post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs = self.refine_2view(
+            #     keypoints_i1,
+            #     keypoints_i2,
+            #     pre_ba_i2Ri1,
+            #     pre_ba_i2Ui1,
+            #     pre_ba_v_corr_idxs,
+            #     camera_intrinsics_i1,
+            #     camera_intrinsics_i2,
+            # )
             post_ba_inlier_ratio_wrt_estimate = float(len(post_ba_v_corr_idxs)) / len(putative_corr_idxs)
             post_ba_report = self.__get_2view_report_from_results(
                 i2Ri1_computed=post_ba_i2Ri1,
