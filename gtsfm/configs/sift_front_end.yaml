@@ -32,19 +32,19 @@ SceneOptimizer:
   two_view_estimator:
     _target_: gtsfm.two_view_estimator.TwoViewEstimator
     bundle_adjust_2view: True
-    eval_threshold_px: 2 # in px
+    eval_threshold_px: 4 # in px
     ba_reproj_error_thresholds: [0.5]
     bundle_adjust_2view_maxiters: 100
 
     verifier:
       _target_: gtsfm.frontend.verifier.ransac.Ransac
       use_intrinsics_in_verification: True
-      estimation_threshold_px: 2 # for H/E/F estimators
+      estimation_threshold_px: 4 # for H/E/F estimators
 
     inlier_support_processor:
       _target_: gtsfm.two_view_estimator.InlierSupportProcessor
       min_num_inliers_est_model: 15
-      min_inlier_ratio_est_model: 0.5
+      min_inlier_ratio_est_model: 0.1
 
   multiview_optimizer:
     _target_: gtsfm.multi_view_optimizer.MultiViewOptimizer
