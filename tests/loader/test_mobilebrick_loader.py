@@ -50,13 +50,13 @@ class TestMobileBrickLoader(unittest.TestCase):
         with self.assertRaises(IndexError):
             self.loader.get_image_full_res(5)
 
-    def test_get_camera_intrinsics_full_res(self):
-        """Test the camera intrinsics at a given index."""
-        intrinsics1 = self.loader.get_camera_intrinsics_full_res(0)
+    def test_get_gt_camera_intrinsics_full_res(self):
+        """Test the GT camera intrinsics at a given index."""
+        intrinsics1 = self.loader.get_gt_camera_intrinsics_full_res(0)
         self.assertIsInstance(intrinsics1, Cal3Bundler)
 
         with self.assertRaises(IndexError):
-            self.loader.get_camera_intrinsics_full_res(5)
+            self.loader.get_gt_camera_intrinsics_full_res(5)
 
     def test_get_camera_pose(self):
         """Test the camera pose at a given index."""
@@ -65,6 +65,20 @@ class TestMobileBrickLoader(unittest.TestCase):
 
         with self.assertRaises(IndexError):
             self.loader.get_camera_pose(5)
+
+    def test_get_camera_intrinsics_full_res(self):
+        """Test the camera intrinsics at a given index are valid and not equal to GT intrinsics."""
+        intrinsics1 = self.loader.get_camera_intrinsics_full_res(0)
+        self.assertIsInstance(intrinsics1, Cal3Bundler)
+
+        with self.assertRaises(IndexError):
+            self.loader.get_camera_intrinsics_full_res(5)
+
+        # Check that the intrinsics are not equal to the GT intrinsics.
+        gt_intrinsics1 = self.loader.get_gt_camera_intrinsics_full_res(0)
+        self.assertIsInstance(gt_intrinsics1, Cal3Bundler)
+        self.assertGreater(abs(gt_intrinsics1.fx() - intrinsics1.fx()), 1e-3)
+        self.assertGreater(abs(gt_intrinsics1.px() - intrinsics1.px()), 1e-3)
 
 
 if __name__ == "__main__":

@@ -64,7 +64,7 @@ class LoaderBase(GTSFMProcess):
         Note: length should be found without loading images into memory.
 
         Returns:
-            the number of images.
+            The number of images.
         """
 
     # ignored-abstractmethod
@@ -73,13 +73,13 @@ class LoaderBase(GTSFMProcess):
         """Get the image at the given index, at full resolution.
 
         Args:
-            index: the index to fetch.
+            index: The index to fetch.
 
         Raises:
-            IndexError: if an out-of-bounds image index is requested.
+            IndexError: If an out-of-bounds image index is requested.
 
         Returns:
-            Image: the image at the query index.
+            Image: The image at the query index.
         """
 
     # ignored-abstractmethod
@@ -88,10 +88,10 @@ class LoaderBase(GTSFMProcess):
         """Get the camera intrinsics at the given index, valid for a full-resolution image.
 
         Args:
-            the index to fetch.
+            index: The index to fetch.
 
         Returns:
-            intrinsics for the given camera.
+            Intrinsics for the given camera.
         """
 
     # ignored-abstractmethod
@@ -100,23 +100,24 @@ class LoaderBase(GTSFMProcess):
         """Get the camera pose (in world coordinates) at the given index.
 
         Args:
-            index: the index to fetch.
+            index: The index to fetch.
 
         Returns:
-            the camera pose w_P_index.
+            The camera pose w_P_index.
         """
 
+    # TODO: Rename this to get_gt_camera.
     def get_camera(self, index: int) -> Optional[gtsfm_types.CAMERA_TYPE]:
-        """Gets the camera at the given index.
+        """Gets the GT camera at the given index.
 
         Args:
-            index: the index to fetch.
+            index: The index to fetch.
 
         Returns:
             Camera object with intrinsics and extrinsics, if they exist.
         """
         pose = self.get_camera_pose(index)
-        intrinsics = self.get_camera_intrinsics(index)
+        intrinsics = self.get_gt_camera_intrinsics(index)
 
         if pose is None or intrinsics is None:
             return None
@@ -131,11 +132,11 @@ class LoaderBase(GTSFMProcess):
         Note: All inherited classes should call this super method to enforce this check.
 
         Args:
-            idx1: first index of the pair.
-            idx2: second index of the pair.
+            idx1: First index of the pair.
+            idx2: Second index of the pair.
 
         Returns:
-            validation result.
+            Validation result.
         """
         return idx1 < idx2
 
@@ -146,13 +147,13 @@ class LoaderBase(GTSFMProcess):
         Each loader implementation should set a `_max_resolution` attribute.
 
         Args:
-            index: the index to fetch.
+            index: The index to fetch.
 
         Raises:
-            IndexError: if an out-of-bounds image index is requested.
+            IndexError: If an out-of-bounds image index is requested.
 
         Returns:
-            Image: the image at the query index. It will be resized to satisfy the maximum
+            Image: The image at the query index. It will be resized to satisfy the maximum
                 allowed loader image resolution if the full-resolution images for a dataset
                 are too large.
         """
@@ -180,21 +181,20 @@ class LoaderBase(GTSFMProcess):
         resized_img = img_utils.resize_image(img_full_res, new_height=target_h, new_width=target_w)
         return resized_img
 
-    def get_camera_intrinsics(self, index: int) -> Optional[gtsfm_types.CALIBRATION_TYPE]:
-        """Get the camera intrinsics at the given index, for a possibly resized image.
+    def __rescale_intrinsics(
+        self, intrinsics_full_res: gtsfm_types.CALIBRATION_TYPE, image_index: int
+    ) -> gtsfm_types.CALIBRATION_TYPE:
+        """Rescale the intrinsics to match the image resolution.
 
-        Determine how the camera intrinsics and images should be jointly rescaled based on desired img. resolution.
-        Each loader implementation should set a `_max_resolution` attribute.
+        Reads the image from disk to determine the scaling factor.
 
         Args:
-            the index to fetch.
+            intrinsics_full_res: Intrinsics for the given camera at full resolution.
+            image_index: The index to fetch.
 
         Returns:
-            intrinsics for the given camera.
+            Rescaled intrinsics for the given camera at the desired resolution.
         """
-        intrinsics_full_res = self.get_camera_intrinsics_full_res(index)
-        if intrinsics_full_res is None:
-            raise ValueError(f"No intrinsics found for index {index}.")
 
         if intrinsics_full_res.fx() <= 0:
             raise RuntimeError("Focal length must be positive.")
@@ -202,19 +202,71 @@ class LoaderBase(GTSFMProcess):
         if intrinsics_full_res.px() <= 0 or intrinsics_full_res.py() <= 0:
             raise RuntimeError("Principal point must have positive coordinates.")
 
-        img_full_res = self.get_image_full_res(index)
+        img_full_res = self.get_image_full_res(image_index)
         # no downsampling may be required, in which case scale_u and scale_v will be 1.0
         scale_u, scale_v, _, _ = img_utils.get_downsampling_factor_per_axis(
             img_full_res.height, img_full_res.width, self._max_resolution
         )
-        rescaled_intrinsics = Cal3Bundler(
+        return Cal3Bundler(
             fx=intrinsics_full_res.fx() * scale_u,
             k1=0.0,
             k2=0.0,
             u0=intrinsics_full_res.px() * scale_u,
             v0=intrinsics_full_res.py() * scale_v,
         )
-        return rescaled_intrinsics
+
+    def get_camera_intrinsics(self, index: int) -> Optional[gtsfm_types.CALIBRATION_TYPE]:
+        """Get the camera intrinsics at the given index, for a possibly resized image.
+
+        Determine how the camera intrinsics and images should be jointly rescaled based on desired img. resolution.
+        Each loader implementation should set a `_max_resolution` attribute.
+
+        Args:
+            index: The index to fetch.
+
+        Returns:
+            Intrinsics for the given camera.
+        """
+        intrinsics_full_res = self.get_camera_intrinsics_full_res(index)
+        if intrinsics_full_res is None:
+            raise ValueError(f"No intrinsics found for index {index}.")
+
+        return self.__rescale_intrinsics(intrinsics_full_res, index)
+
+    def get_gt_camera_intrinsics_full_res(self, index: int) -> Optional[gtsfm_types.CALIBRATION_TYPE]:
+        """Get the GT camera intrinsics at the given index, valid for a full-resolution image.
+
+        By default, this is implemented to return the same value as `get_camera_intrinsics_full_res`. However, this can
+        be overridden by subclasses to return a superior ground truth intrinsics.
+
+        Args:
+            index: The index to fetch.
+
+        Returns:
+            Intrinsics for the given camera.
+        """
+        return self.get_camera_intrinsics_full_res(index)
+
+    def get_gt_camera_intrinsics(self, index: int) -> Optional[gtsfm_types.CALIBRATION_TYPE]:
+        """Get the GT camera intrinsics at the given index, for a possibly resized image.
+
+        Determine how the camera intrinsics and images should be jointly rescaled based on desired img. resolution.
+        Each loader implementation should set a `_max_resolution` attribute.
+
+        The returned intrinsics are the same as the camera intrinsics, but this behavior can be changed by overridding
+        `get_gt_camera_intrinsics_full_res` in derived classes.
+
+        Args:
+            index: The index to fetch.
+
+        Returns:
+            GT intrinsics for the given camera.
+        """
+        intrinsics_full_res = self.get_gt_camera_intrinsics_full_res(index)
+        if intrinsics_full_res is None:
+            raise ValueError(f"No intrinsics found for index {index}.")
+
+        return self.__rescale_intrinsics(intrinsics_full_res, index)
 
     def get_image_shape(self, idx: int) -> Tuple[int, int]:
         """Return a (H,W) tuple for each image"""
@@ -225,8 +277,8 @@ class LoaderBase(GTSFMProcess):
         """Get the prior on the relative pose i2Ti1
 
         Args:
-            i1 (int): index of first image
-            i2 (int): index of second image
+            i1 (int): Index of first image
+            i2 (int): Index of second image
 
         Returns:
             Pose prior, if there is one.
@@ -237,7 +289,7 @@ class LoaderBase(GTSFMProcess):
         """Get *all* relative pose priors for i2Ti1
 
         Args:
-            pairs: all (i1,i2) pairs of image pairs
+            pairs: All (i1,i2) pairs of image pairs
 
         Returns:
             A dictionary of PosePriors (or None) for all pairs.
@@ -250,7 +302,7 @@ class LoaderBase(GTSFMProcess):
         """Get the prior on the pose of camera at idx in the world coordinates.
 
         Args:
-            idx (int): index of the camera
+            idx (int): Index of the camera
 
         Returns:
             pose prior, if there is one.
@@ -270,7 +322,7 @@ class LoaderBase(GTSFMProcess):
         """Creates the computation graph for image fetches.
 
         Returns:
-            list of delayed tasks for images.
+            List of delayed tasks for images.
         """
         N = len(self)
         annotation = dask.annotate(workers=self._input_worker) if self._input_worker else dask.annotate()
@@ -284,7 +336,7 @@ class LoaderBase(GTSFMProcess):
         Note: use create_computation_graph_for_intrinsics when calling from runners.
 
         Returns:
-            list of camera intrinsics.
+            List of camera intrinsics.
         """
         N = len(self)
         return [self.get_camera_intrinsics(i) for i in range(N)]
@@ -293,7 +345,7 @@ class LoaderBase(GTSFMProcess):
         """Creates the computation graph for camera intrinsics.
 
         Returns:
-            list of delayed tasks for camera intrinsics.
+            List of delayed tasks for camera intrinsics.
         """
         N = len(self)
         annotation = dask.annotate(workers=self._input_worker) if self._input_worker else dask.annotate()
@@ -305,7 +357,7 @@ class LoaderBase(GTSFMProcess):
         """Return all the camera poses.
 
         Returns:
-            list of ground truth camera poses, if available.
+            List of ground truth camera poses, if available.
         """
         N = len(self)
         return [self.get_camera_pose(i) for i in range(N)]
@@ -325,7 +377,7 @@ class LoaderBase(GTSFMProcess):
         """Return the computation graph for all cameras.
 
         Returns:
-            list of delayed tasks for ground truth cameras
+            List of delayed tasks for ground truth cameras
         """
         N = len(self)
         annotation = dask.annotate(workers=self._input_worker) if self._input_worker else dask.annotate()
@@ -339,12 +391,13 @@ class LoaderBase(GTSFMProcess):
         Note: use create_computation_graph_for_image_shapes when calling from runners.
 
         Returns:
-            list of delayed tasks for image shapes.
+            List of delayed tasks for image shapes.
         """
         N = len(self)
         return [self.get_image_shape(i) for i in range(N)]
 
     def create_computation_graph_for_image_shapes(self) -> List[Delayed]:
+        """Return the image shapes, as dask.Delayed."""
         N = len(self)
         annotation = dask.annotate(workers=self._input_worker) if self._input_worker else dask.annotate()
         with annotation:
@@ -355,7 +408,7 @@ class LoaderBase(GTSFMProcess):
         """Get the valid pairs of images for this loader.
 
         Returns:
-            list of valid index pairs.
+            List of valid index pairs.
         """
         pairs = []
 

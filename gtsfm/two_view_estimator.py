@@ -2,6 +2,7 @@
 
 Authors: Ayush Baid, John Lambert
 """
+import dataclasses
 import logging
 import timeit
 from typing import Any, Dict, List, Optional, Tuple
@@ -64,14 +65,14 @@ class TwoViewEstimator:
         """Initializes the two-view estimator from verifier.
 
         Args:
-            verifier: verifier to use.
-            inlier_support_processor: post-processor that uses information about RANSAC support to filter out pairs.
-            bundle_adjust_2view: boolean flag indicating if bundle adjustment is to be run on the 2-view data.
-            eval_threshold_px: distance threshold for marking a correspondence pair as inlier during evaluation
+            verifier: Verifier to use.
+            inlier_support_processor: Post-processor that uses information about RANSAC support to filter out pairs.
+            bundle_adjust_2view: Boolean flag indicating if bundle adjustment is to be run on the 2-view data.
+            eval_threshold_px: Distance threshold for marking a correspondence pair as inlier during evaluation
                 (not during estimation).
-            bundle_adjust_2view_maxiters (optional): max number of iterations for 2-view BA. Defaults to 100.
-            ba_reproj_error_thresholds (optional): reprojection threshold used to filter features after 2-view BA.
-                                               Defaults to 0.5.
+            bundle_adjust_2view_maxiters (optional): Max number of iterations for 2-view BA. Defaults to 100.
+            ba_reproj_error_thresholds (optional): Reprojection thresholds used to filter features after each stage of
+                2-view BA. The length of this list decides the number of BA stages. Defaults to [0.5] (single stage).
         """
         self._verifier = verifier
         self.processor = inlier_support_processor
@@ -95,11 +96,11 @@ class TwoViewEstimator:
         """Triangulate 2-view correspondences to form 3d tracks.
 
         Args:
-            camera_i1: camera for 1st view.
-            camera_i2: camera for 2nd view.
-            keypoints_i1: keypoints for 1st view.
-            keypoints_i2: keypoints for 2nd view.
-            corr_idxs: indices of corresponding keypoints.
+            camera_i1: Camera for 1st view.
+            camera_i2: Camera for 2nd view.
+            keypoints_i1: Keypoints for 1st view.
+            keypoints_i2: Keypoints for 2nd view.
+            corr_idxs: Indices of corresponding keypoints.
 
         Returns:
             Triangulated 3D points as tracks.
@@ -146,14 +147,14 @@ class TwoViewEstimator:
         """Refine the relative pose using bundle adjustment on the 2-view scene.
 
         Args:
-            keypoints_i1: keypoints from image i1.
-            keypoints_i2: keypoints from image i2.
-            verified_corr_idxs: indices of verified correspondences between i1 and i2.
-            camera_intrinsics_i1: intrinsics for i1.
-            camera_intrinsics_i2: intrinsics for i2.
-            i2Ri1_initial: the relative rotation to be used as initial rotation between cameras.
-            i2Ui1_initial: the relative unit direction, to be used to initialize initial translation between cameras.
-            i2Ti1_prior: prior on the relative pose for cameras (i1, i2).
+            keypoints_i1: Keypoints from image i1.
+            keypoints_i2: Keypoints from image i2.
+            verified_corr_idxs: Indices of verified correspondences between i1 and i2.
+            camera_intrinsics_i1: Intrinsics for i1.
+            camera_intrinsics_i2: Intrinsics for i2.
+            i2Ri1_initial: The relative rotation to be used as initial rotation between cameras.
+            i2Ui1_initial: The relative unit direction, to be used to initialize initial translation between cameras.
+            i2Ti1_prior: Prior on the relative pose for cameras (i1, i2).
         Returns:
             Optimized relative rotation i2Ri1.
             Optimized unit translation i2Ui1.
@@ -215,6 +216,68 @@ class TwoViewEstimator:
 
         return i2Ti1_optimized.rotation(), Unit3(i2Ti1_optimized.translation()), valid_corr_idxs
 
+    def __get_2view_report_from_results(
+        self,
+        i2Ri1_computed: Optional[Rot3],
+        i2Ui1_computed: Optional[Unit3],
+        keypoints_i1: Keypoints,
+        keypoints_i2: Keypoints,
+        verified_corr_idxs: np.ndarray,
+        inlier_ratio_wrt_estimate: float,
+        gt_camera_i1: Optional[gtsfm_types.CAMERA_TYPE],
+        gt_camera_i2: Optional[gtsfm_types.CAMERA_TYPE],
+        gt_scene_mesh: Optional[Any],
+    ) -> TwoViewEstimationReport:
+        """Generate a TwoViewEstimationReport from the results of the two-view estimation.
+
+        Currently metrics wrt GT camera only supports cases where gt_camera is PinholeCameraCal3Bundler.
+
+        Args:
+            i2Ri1_computed: Computed relative rotation.
+            i2Ui1_computed: Computed relative unit translation.
+            keypoints_i1: Keypoints from image i1.
+            keypoints_i2: Keypoints from image i2.
+            verified_corr_idxs: Indices of verified correspondences between i1 and i2.
+            inlier_ratio_wrt_estimate: Inlier ratio w.r.t. the estimated relative pose.
+            gt_camera_i1: Ground truth camera for i1.
+            gt_camera_i2: Ground truth camera for i2.
+            gt_scene_mesh: Ground truth scene mesh.
+
+        Returns:
+            TwoViewEstimationReport object, some fields may be None if either gt_camera are None.
+        """
+        if gt_camera_i1 and gt_camera_i2:
+            # if we have the expected GT data, evaluate the computed relative pose
+            R_error_deg, U_error_deg = compute_relative_pose_metrics(
+                i2Ri1_computed, i2Ui1_computed, gt_camera_i1.pose(), gt_camera_i2.pose()
+            )
+            # TODO: add support for other camera models
+            if isinstance(gt_camera_i1, PinholeCameraCal3Bundler) and isinstance(
+                gt_camera_i2, PinholeCameraCal3Bundler
+            ):
+                inlier_mask_wrt_gt, reproj_error_wrt_gt = metric_utils.compute_correspondence_metrics(
+                    keypoints_i1=keypoints_i1,
+                    keypoints_i2=keypoints_i2,
+                    corr_idxs_i1i2=verified_corr_idxs,
+                    dist_threshold=self._corr_metric_dist_threshold,
+                    gt_camera_i1=gt_camera_i1,
+                    gt_camera_i2=gt_camera_i2,
+                    gt_scene_mesh=gt_scene_mesh,
+                )
+            else:
+                inlier_mask_wrt_gt, reproj_error_wrt_gt = None, None
+        else:
+            R_error_deg, U_error_deg, inlier_mask_wrt_gt, reproj_error_wrt_gt = None, None, None, None
+
+        return generate_two_view_report(
+            inlier_ratio_wrt_estimate,
+            verified_corr_idxs,
+            R_error_deg=R_error_deg,
+            U_error_deg=U_error_deg,
+            v_corr_idxs_inlier_mask_gt=inlier_mask_wrt_gt,
+            reproj_error_gt_model=reproj_error_wrt_gt,
+        )
+
     def __generate_initial_pose_for_bundle_adjustment(
         self, i2Ti1_from_verifier: Optional[Pose3], i2Ti1_prior: Optional[PosePrior]
     ) -> Optional[Pose3]:
@@ -226,8 +289,8 @@ class TwoViewEstimator:
         2. Otherwise, use the verifier output as initial value.
 
         Args:
-            i2Ti1_from_verifier: relative pose recovered from verifier.
-            i2Ti1_prior: relative pose prior.
+            i2Ti1_from_verifier: Relative pose recovered from verifier.
+            i2Ti1_prior: Relative pose prior.
 
         Returns:
             Pose to be used for initialization.
@@ -251,8 +314,8 @@ class TwoViewEstimator:
         camera_intrinsics_i1: Optional[gtsfm_types.CALIBRATION_TYPE],
         camera_intrinsics_i2: Optional[gtsfm_types.CALIBRATION_TYPE],
         i2Ti1_prior: Optional[PosePrior],
-        gt_wTi1: Optional[Pose3],
-        gt_wTi2: Optional[Pose3],
+        gt_camera_i1: Optional[gtsfm_types.CAMERA_TYPE],
+        gt_camera_i2: Optional[gtsfm_types.CAMERA_TYPE],
         gt_scene_mesh: Optional[Any] = None,
     ) -> Tuple[
         Optional[Rot3],
@@ -263,8 +326,8 @@ class TwoViewEstimator:
         TwoViewEstimationReport,
     ]:
         """Estimate relative pose between two views, using verification."""
-        # verification on putative correspondences to obtain relative pose and verified correspondences\
-        (pre_ba_i2Ri1, pre_ba_i2Ui1, verified_corr_idxs, inlier_ratio_wrt_estimate) = self._verifier.verify(
+        # verification on putative correspondences to obtain relative pose and verified correspondences
+        (pre_ba_i2Ri1, pre_ba_i2Ui1, pre_ba_v_corr_idxs, pre_ba_inlier_ratio_wrt_estimate) = self._verifier.verify(
             keypoints_i1,
             keypoints_i2,
             putative_corr_idxs,
@@ -272,28 +335,16 @@ class TwoViewEstimator:
             camera_intrinsics_i2,
         )
 
-        # if we have the expected GT data, evaluate the computed relative pose
-        pre_ba_R_error_deg, pre_ba_U_error_deg = compute_relative_pose_metrics(
-            pre_ba_i2Ri1, pre_ba_i2Ui1, gt_wTi1, gt_wTi2
-        )
-        pre_ba_inlier_mask_wrt_gt, pre_ba_reproj_error_wrt_gt = metric_utils.compute_correspondence_metrics(
-            keypoints_i1,
-            keypoints_i2,
-            verified_corr_idxs,
-            camera_intrinsics_i1,
-            camera_intrinsics_i2,
-            self._corr_metric_dist_threshold,
-            gt_wTi1,
-            gt_wTi2,
-            gt_scene_mesh,
-        )
-        pre_ba_report = generate_two_view_report(
-            inlier_ratio_wrt_estimate,
-            verified_corr_idxs,
-            R_error_deg=pre_ba_R_error_deg,
-            U_error_deg=pre_ba_U_error_deg,
-            v_corr_idxs_inlier_mask_gt=pre_ba_inlier_mask_wrt_gt,
-            reproj_error_gt_model=pre_ba_reproj_error_wrt_gt,
+        pre_ba_report = self.__get_2view_report_from_results(
+            i2Ri1_computed=pre_ba_i2Ri1,
+            i2Ui1_computed=pre_ba_i2Ui1,
+            keypoints_i1=keypoints_i1,
+            keypoints_i2=keypoints_i2,
+            verified_corr_idxs=pre_ba_v_corr_idxs,
+            inlier_ratio_wrt_estimate=pre_ba_inlier_ratio_wrt_estimate,
+            gt_camera_i1=gt_camera_i1,
+            gt_camera_i2=gt_camera_i2,
+            gt_scene_mesh=gt_scene_mesh,
         )
 
         # Optionally, do two-view bundle adjustment
@@ -301,43 +352,34 @@ class TwoViewEstimator:
             post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs = self.bundle_adjust(
                 keypoints_i1,
                 keypoints_i2,
-                verified_corr_idxs,
+                pre_ba_v_corr_idxs,
                 camera_intrinsics_i1,
                 camera_intrinsics_i2,
                 pre_ba_i2Ri1,
                 pre_ba_i2Ui1,
                 i2Ti1_prior,
             )
+            post_ba_inlier_ratio_wrt_estimate = float(len(post_ba_v_corr_idxs)) / len(putative_corr_idxs)
+
+            # TODO: Remove this hack once we can handle the lower post_ba_inlier_ratio_wrt_estimate downstream.
+            post_ba_inlier_ratio_wrt_estimate = pre_ba_inlier_ratio_wrt_estimate
+
+            post_ba_report = self.__get_2view_report_from_results(
+                i2Ri1_computed=post_ba_i2Ri1,
+                i2Ui1_computed=post_ba_i2Ui1,
+                keypoints_i1=keypoints_i1,
+                keypoints_i2=keypoints_i2,
+                verified_corr_idxs=post_ba_v_corr_idxs,
+                inlier_ratio_wrt_estimate=post_ba_inlier_ratio_wrt_estimate,
+                gt_camera_i1=gt_camera_i1,
+                gt_camera_i2=gt_camera_i2,
+                gt_scene_mesh=gt_scene_mesh,
+            )
         else:
             post_ba_i2Ri1 = pre_ba_i2Ri1
             post_ba_i2Ui1 = pre_ba_i2Ui1
-            post_ba_v_corr_idxs = verified_corr_idxs
-
-        # if we have the expected GT data, evaluate the computed relative pose, post BA
-        # TODO(frank): why do all this in the case we do *not* do 2-view BA?
-        post_ba_R_error_deg, post_ba_U_error_deg = compute_relative_pose_metrics(
-            post_ba_i2Ri1, post_ba_i2Ui1, gt_wTi1, gt_wTi2
-        )
-        post_ba_inlier_mask_wrt_gt, post_ba_reproj_error_wrt_gt = metric_utils.compute_correspondence_metrics(
-            keypoints_i1,
-            keypoints_i2,
-            post_ba_v_corr_idxs,
-            camera_intrinsics_i1,
-            camera_intrinsics_i2,
-            self._corr_metric_dist_threshold,
-            gt_wTi1,
-            gt_wTi2,
-            gt_scene_mesh,
-        )
-
-        post_ba_report = generate_two_view_report(
-            inlier_ratio_wrt_estimate,  # TODO: dont store ratios so that we can update them
-            post_ba_v_corr_idxs,
-            R_error_deg=post_ba_R_error_deg,
-            U_error_deg=post_ba_U_error_deg,
-            v_corr_idxs_inlier_mask_gt=post_ba_inlier_mask_wrt_gt,
-            reproj_error_gt_model=post_ba_reproj_error_wrt_gt,
-        )
+            post_ba_v_corr_idxs = pre_ba_v_corr_idxs
+            post_ba_report = dataclasses.replace(pre_ba_report)
 
         (
             post_isp_i2Ri1,
@@ -356,20 +398,20 @@ class TwoViewEstimator:
         camera_intrinsics_i1: Optional[gtsfm_types.CALIBRATION_TYPE],
         camera_intrinsics_i2: Optional[gtsfm_types.CALIBRATION_TYPE],
         i2Ti1_prior: Optional[PosePrior] = None,
-        gt_wTi1: Optional[Pose3] = None,
-        gt_wTi2: Optional[Pose3] = None,
+        gt_camera_i1: Optional[gtsfm_types.CAMERA_TYPE] = None,
+        gt_camera_i2: Optional[gtsfm_types.CAMERA_TYPE] = None,
         gt_scene_mesh_graph: Optional[Delayed] = None,
     ) -> Tuple[Delayed, Delayed, Delayed, Dict[str, Delayed]]:
         """Create delayed tasks for two view geometry estimation, using verification.
 
         Args:
-            keypoints_i1: keypoints for image i1.
-            keypoints_i2: keypoints for image i2.
-            putative_corr_idxs: putative correspondences between i1 and i2, as a Kx2 array.
-            camera_intrinsics_i1: intrinsics for camera i1.
-            camera_intrinsics_i2: intrinsics for camera i2.
-            i2Ti1_prior: the prior on relative pose i2Ti1.
-            i2Ti1_expected_graph (optional): ground truth relative pose, used for evaluation if available.
+            keypoints_i1: Keypoints for image i1.
+            keypoints_i2: Keypoints for image i2.
+            putative_corr_idxs: Putative correspondences between i1 and i2, as a Kx2 array.
+            camera_intrinsics_i1: Intrinsics for camera i1.
+            camera_intrinsics_i2: Intrinsics for camera i2.
+            i2Ti1_prior: The prior on relative pose i2Ti1.
+            i2Ti1_expected_graph (optional): Ground truth relative pose, used for evaluation if available.
 
         Returns:
             Computed relative rotation wrapped as Delayed.
@@ -391,8 +433,8 @@ class TwoViewEstimator:
             camera_intrinsics_i1=camera_intrinsics_i1,
             camera_intrinsics_i2=camera_intrinsics_i2,
             i2Ti1_prior=i2Ti1_prior,
-            gt_wTi1=gt_wTi1,
-            gt_wTi2=gt_wTi2,
+            gt_camera_i1=gt_camera_i1,
+            gt_camera_i2=gt_camera_i2,
             gt_scene_mesh=gt_scene_mesh_graph,
         )
         # Return the reports as a dict of Delayed objects, instead of a single Delayed object.
@@ -456,9 +498,9 @@ def compute_relative_pose_metrics(
     """Compute the metrics on relative camera pose.
 
     Args:
-        i2Ri1_computed: computed relative rotation.
-        i2Ui1_computed: computed relative translation direction.
-        i2Ti1_expected: expected relative pose.
+        i2Ri1_computed: Computed relative rotation.
+        i2Ui1_computed: Computed relative translation direction.
+        i2Ti1_expected: Expected relative pose.
 
     Returns:
         Rotation error, in degrees
@@ -490,9 +532,9 @@ def aggregate_frontend_metrics(
         NG-RANSAC, ICCV 2019:
 
     Args:
-        two_view_report_dict: report containing front-end metrics for each image pair.
-        angular_err_threshold_deg: threshold for classifying angular error metrics as success.
-        metric_group_name: name we will assign to the GtsfmMetricGroup returned by this fn.
+        two_view_report_dict: Report containing front-end metrics for each image pair.
+        angular_err_threshold_deg: Threshold for classifying angular error metrics as success.
+        metric_group_name: Name we will assign to the GtsfmMetricGroup returned by this fn.
     """
     num_image_pairs = len(two_view_reports_dict.keys())
 

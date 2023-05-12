@@ -36,11 +36,9 @@ def compute_correspondence_metrics(
     keypoints_i1: Keypoints,
     keypoints_i2: Keypoints,
     corr_idxs_i1i2: np.ndarray,
-    intrinsics_i1: Cal3Bundler,
-    intrinsics_i2: Cal3Bundler,
     dist_threshold: float,
-    gt_wTi1: Optional[Pose3] = None,
-    gt_wTi2: Optional[Pose3] = None,
+    gt_camera_i1: Optional[PinholeCameraCal3Bundler] = None,
+    gt_camera_i2: Optional[PinholeCameraCal3Bundler] = None,
     gt_scene_mesh: Optional[Trimesh] = None,
 ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
     """Checks the correspondences for epipolar distances and counts ones which are below the threshold.
@@ -66,7 +64,7 @@ def compute_correspondence_metrics(
     if corr_idxs_i1i2.size == 0:
         return None, None
 
-    if gt_wTi1 is None or gt_wTi2 is None:
+    if gt_camera_i1 is None or gt_camera_i2 is None:
         return None, None
 
     # Compute ground truth correspondences.
@@ -74,8 +72,6 @@ def compute_correspondence_metrics(
     matched_keypoints_i2 = keypoints_i2.extract_indices(corr_idxs_i1i2[:, 1])
     # Check to see if a GT mesh is provided.
     if gt_scene_mesh is not None:
-        gt_camera_i1 = PinholeCameraCal3Bundler(gt_wTi1, intrinsics_i1)
-        gt_camera_i2 = PinholeCameraCal3Bundler(gt_wTi2, intrinsics_i2)
         return mesh_inlier_correspondences(
             matched_keypoints_i1,
             matched_keypoints_i2,
@@ -86,12 +82,12 @@ def compute_correspondence_metrics(
         )
 
     # If no mesh is provided, use squared Sampson error.
-    gt_i2Ti1 = gt_wTi2.between(gt_wTi1)
+    gt_i2Ti1 = gt_camera_i2.pose().between(gt_camera_i1.pose())
     return epipolar_inlier_correspondences(
         matched_keypoints_i1,
         matched_keypoints_i2,
-        intrinsics_i1,
-        intrinsics_i2,
+        gt_camera_i1.calibration(),
+        gt_camera_i2.calibration(),
         gt_i2Ti1,
         dist_threshold,
     )
@@ -124,7 +120,7 @@ def epipolar_inlier_correspondences(
     distance_squared = verification_utils.compute_epipolar_distances_sq_sampson(
         keypoints_i1.coordinates, keypoints_i2.coordinates, i2Fi1
     )
-    is_inlier = distance_squared < dist_threshold ** 2 if distance_squared is not None else None
+    is_inlier = distance_squared < dist_threshold**2 if distance_squared is not None else None
 
     return is_inlier, distance_squared
 
