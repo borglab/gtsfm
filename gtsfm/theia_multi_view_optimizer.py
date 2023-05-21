@@ -2,8 +2,7 @@
 
 Authors: Ayush Baid
 """
-from typing import Any, Dict, List, Optional, Tuple, Set
-import copy
+from typing import Any, Dict, List, Optional, Tuple
 
 import dask
 import numpy as np
@@ -75,6 +74,8 @@ class TheiaMultiViewOptimizer:
             images=images,
         )
 
+        pre_ba_gtsfm_data = to_gtsfm_data(recon, num_images=num_images, use_unestimated=True)
+
         # Run the global reconstruction
         options = pt.sfm.ReconstructionEstimatorOptions()
         options.num_threads = 7
@@ -93,11 +94,10 @@ class TheiaMultiViewOptimizer:
         print(
             f"Num tracks: {post_ba_gtsfm_data_unfiltered.number_tracks()}, Num cameras: {post_ba_gtsfm_data_unfiltered.number_images()}"
         )
-        # post_ba_gtsfm_data_filtered, _ = post_ba_gtsfm_data_unfiltered.filter_landmarks(
-        #     self._output_reproj_error_thresh
-        # )
-        post_ba_gtsfm_data_filtered = copy.copy(post_ba_gtsfm_data_unfiltered)
-        pre_ba_gtsfm_data = copy.copy(post_ba_gtsfm_data_unfiltered)
+        post_ba_gtsfm_data_filtered, _ = post_ba_gtsfm_data_unfiltered.filter_landmarks(
+            self._output_reproj_error_thresh
+        )
+
         ba_metrics = evaluate_ba(post_ba_gtsfm_data_unfiltered, post_ba_gtsfm_data_filtered, cameras_gt)
 
         return (
@@ -191,7 +191,7 @@ def init_viewgraph(
         two_view_info.num_homography_inliers = two_view_report.theia_twoview_info.num_homography_inliers
         two_view_info.visibility_score = two_view_report.theia_twoview_info.visibility_score
 
-        view_graph.AddEdge(view_id1, view_id2, two_view_info)
+        view_graph.AddEdge(view_id2, view_id1, two_view_info)
 
     return view_graph
 
@@ -221,19 +221,18 @@ def init_recon(
     return recon
 
 
-def to_gtsfm_data(recon: pt.sfm.Reconstruction, num_images: int) -> GtsfmData:
+def to_gtsfm_data(recon: pt.sfm.Reconstruction, num_images: int, use_unestimated: bool = False) -> GtsfmData:
     view_ids: List[int] = recon.ViewIds()
     gtsfm_data = GtsfmData(number_images=num_images)
 
-    # Extrac cameras
+    # Extract cameras
     for view_id in view_ids:
         view: pt.sfm.View = recon.View(view_id)
-        if not view.IsEstimated():
+        if not use_unestimated and not view.IsEstimated():
             continue
         i = int(view.Name())
 
         camera: pt.sfm.Camera = view.Camera()
-        # TODO: maybe transpose rotation
         wTi = Pose3(Rot3(camera.GetOrientationAsRotationMatrix()).inverse(), camera.GetPosition())
         intrinsics = Cal3Bundler(
             fx=camera.FocalLength(),
@@ -251,25 +250,19 @@ def to_gtsfm_data(recon: pt.sfm.Reconstruction, num_images: int) -> GtsfmData:
 
     for track_id in track_ids:
         track: pt.sfm.Track = recon.Track(track_id)
-        # if track.IsEstimated() and track.NumViews() >= 2:
-        point_4d: np.ndarray = track.Point()
-        view_ids_for_track: Set[int] = track.ViewIds()
-        gtsam_track = SfmTrack(point_4d[:3].reshape(3, 1) / (point_4d[3] + np.finfo(point_4d.dtype).eps))
+        if True:  # use_unestimated or (track.IsEstimated() and track.NumViews() >= 2):
+            track_2d = to_gtsfm_track(track_id=track_id, recon=recon)
 
-        measurements: List[SfmMeasurement] = []
-        for view_id in view_ids_for_track:
-            curr_view: pt.sfm.View = recon.View(view_id)
-            feature: pt.sfm.Feature = curr_view.GetFeature(track_id)
+            point_4d: np.ndarray = track.Point()
+            gtsam_track = SfmTrack(point_4d[:3].reshape(3, 1) / (point_4d[3]))
 
-            i = int(view.Name())
-            measurements.append(SfmMeasurement(i, feature.point))
-
-        for i, uv in measurements:
-            gtsam_track.addMeasurement(i, uv)
-
-        gtsfm_data.add_track(gtsam_track)
-        # else:
-        # recon.RemoveTrack(track_id)
+            if gtsam_track is not None:
+                for i, uv in track_2d.measurements:
+                    gtsam_track.addMeasurement(i, uv)
+                gtsfm_data.add_track(gtsam_track)
+        else:
+            pass
+            # recon.RemoveTrack(track_id)
 
     return gtsfm_data
 
@@ -293,14 +286,15 @@ def to_theia_intrinsics_prior(intrinsics: Optional[gtsfm_types.CALIBRATION_TYPE]
     return prior
 
 
-def to_gtsfm_track(track_id, track: pt.sfm.Track, recon: pt.sfm.Reconstruction) -> SfmTrack2d:
+def to_gtsfm_track(track_id, recon: pt.sfm.Reconstruction) -> SfmTrack2d:
+    track: pt.sfm.Track = recon.Track(track_id)
     view_ids = track.ViewIds()
     measurements: List[SfmMeasurement] = []
     for view_id in view_ids:
         view = recon.View(view_id)
         feature_coordinates = view.GetFeature(track_id).point
-
-        measurements.append(SfmMeasurement(view_id, feature_coordinates))
+        i = int(view.Name())
+        measurements.append(SfmMeasurement(i, feature_coordinates))
 
     return SfmTrack2d(measurements)
 
@@ -330,8 +324,7 @@ def get_2d_tracks(
 
     gtsfm_tracks: List[SfmTrack2d] = []
     for id in track_ids:
-        theia_track = recon.Track(id)
-        gtsfm_track = to_gtsfm_track(track_id=id, track=theia_track, recon=recon)
+        gtsfm_track = to_gtsfm_track(track_id=id, recon=recon)
 
         gtsfm_tracks.append(gtsfm_track)
 
