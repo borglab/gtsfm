@@ -43,7 +43,7 @@ class DetectorDescriptorBase(GTSFMProcess):
         self.max_keypoints = max_keypoints
 
     @abc.abstractmethod
-    def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
+    def apply(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
         """Perform feature detection as well as their description.
 
         Refer to detect() in DetectorBase and describe() in DescriptorBase for
@@ -56,17 +56,3 @@ class DetectorDescriptorBase(GTSFMProcess):
             Detected keypoints, with length N <= max_keypoints.
             Corr. descriptors, of shape (N, D) where D is the dimension of each descriptor.
         """
-
-    def create_computation_graph(self, image_graph: Delayed) -> Tuple[Delayed, Delayed]:
-        """Generates the computation graph for detections and their descriptors.
-
-        Args:
-            image_graph: computation graph for a single image (from a loader).
-
-        Returns:
-            Delayed tasks for detections.
-            Delayed task for corr. descriptors.
-        """
-        keypoints_graph, descriptor_graph = dask.delayed(self.detect_and_describe, nout=2)(image_graph)
-
-        return keypoints_graph, descriptor_graph

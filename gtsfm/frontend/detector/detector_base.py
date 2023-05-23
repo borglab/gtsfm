@@ -4,9 +4,6 @@ Authors: Ayush Baid
 """
 import abc
 
-import dask
-from dask.delayed import Delayed
-
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 
@@ -24,7 +21,7 @@ class DetectorBase(metaclass=abc.ABCMeta):
         self.max_keypoints = max_keypoints
 
     @abc.abstractmethod
-    def detect(self, image: Image) -> Keypoints:
+    def apply(self, image: Image) -> Keypoints:
         """Detect the features in an image.
 
         Args:
@@ -33,14 +30,3 @@ class DetectorBase(metaclass=abc.ABCMeta):
         Returns:
             detected keypoints, with maximum length of max_keypoints.
         """
-
-    def create_computation_graph(self, image_graph: Delayed) -> Delayed:
-        """Generates the computation graph for performing detection.
-
-        Args:
-            image_graph: computation graph for an image.
-
-        Returns:
-            Delayed task for detection on the input image.
-        """
-        return dask.delayed(self.detect)(image_graph)

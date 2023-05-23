@@ -38,8 +38,9 @@ class SuperGlueMatcher(MatcherBase):
             "sinkhorn_iterations": DEFAULT_NUM_SINKHORN_ITERATIONS,
         }
         self._use_cuda = use_cuda and torch.cuda.is_available()
+        self._model = SuperGlue(self._config).eval()
 
-    def match(
+    def apply(
         self,
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
@@ -73,9 +74,6 @@ class SuperGlueMatcher(MatcherBase):
         if descriptors_i1.shape[1] != SUPERGLUE_DESC_DIM or descriptors_i2.shape[1] != SUPERGLUE_DESC_DIM:
             raise Exception("Superglue pretrained network only works on 256 dimensional descriptors")
 
-        device = torch.device("cuda" if self._use_cuda else "cpu")
-        model = SuperGlue(self._config).to(device).eval()
-
         # batch size and number of channels
         B, C = 1, 1
 
@@ -86,18 +84,18 @@ class SuperGlueMatcher(MatcherBase):
         empty_image_i2 = torch.empty((B, C, H2, W2))
 
         input_data = {
-            "keypoints0": torch.from_numpy(keypoints_i1.coordinates).unsqueeze(0).float().to(device),
-            "keypoints1": torch.from_numpy(keypoints_i2.coordinates).unsqueeze(0).float().to(device),
-            "descriptors0": torch.from_numpy(descriptors_i1).T.unsqueeze(0).float().to(device),
-            "descriptors1": torch.from_numpy(descriptors_i2).T.unsqueeze(0).float().to(device),
-            "scores0": torch.from_numpy(keypoints_i1.responses).unsqueeze(0).float().to(device),
-            "scores1": torch.from_numpy(keypoints_i2.responses).unsqueeze(0).float().to(device),
+            "keypoints0": torch.from_numpy(keypoints_i1.coordinates).unsqueeze(0).float(),
+            "keypoints1": torch.from_numpy(keypoints_i2.coordinates).unsqueeze(0).float(),
+            "descriptors0": torch.from_numpy(descriptors_i1).T.unsqueeze(0).float(),
+            "descriptors1": torch.from_numpy(descriptors_i2).T.unsqueeze(0).float(),
+            "scores0": torch.from_numpy(keypoints_i1.responses).unsqueeze(0).float(),
+            "scores1": torch.from_numpy(keypoints_i2.responses).unsqueeze(0).float(),
             "image0": empty_image_i1,
             "image1": empty_image_i2,
         }
 
         with torch.no_grad():
-            pred = model(input_data)
+            pred = self._model(input_data)
             matches = pred["matches0"][0].detach().cpu().numpy()
 
             num_kps_i1 = len(keypoints_i1)

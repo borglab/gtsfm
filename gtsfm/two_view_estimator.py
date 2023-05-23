@@ -7,10 +7,8 @@ import logging
 import timeit
 from typing import Any, Dict, List, Optional, Tuple
 
-import dask
 import gtsam
 import numpy as np
-from dask.delayed import Delayed
 from gtsam import (
     CameraSetCal3Bundler,
     CameraSetCal3Fisheye,
@@ -48,6 +46,15 @@ PRE_BA_REPORT_TAG = "PRE_BA_2VIEW_REPORT"
 POST_BA_REPORT_TAG = "POST_BA_2VIEW_REPORT"
 POST_ISP_REPORT_TAG = "POST_INLIER_SUPPORT_PROCESSOR_2VIEW_REPORT"
 VIEWGRAPH_REPORT_TAG = "VIEWGRAPH_2VIEW_REPORT"
+
+TWO_VIEW_OUTPUT = Tuple[
+    Optional[Rot3],
+    Optional[Unit3],
+    np.ndarray,
+    TwoViewEstimationReport,
+    TwoViewEstimationReport,
+    TwoViewEstimationReport,
+]
 
 
 class TwoViewEstimator:
@@ -306,7 +313,7 @@ class TwoViewEstimator:
         """Getter for the distance threshold used in the metric for correct correspondences."""
         return self._corr_metric_dist_threshold
 
-    def run_2view(
+    def apply(
         self,
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
@@ -327,7 +334,7 @@ class TwoViewEstimator:
     ]:
         """Estimate relative pose between two views, using verification."""
         # verification on putative correspondences to obtain relative pose and verified correspondences
-        (pre_ba_i2Ri1, pre_ba_i2Ui1, pre_ba_v_corr_idxs, pre_ba_inlier_ratio_wrt_estimate) = self._verifier.verify(
+        (pre_ba_i2Ri1, pre_ba_i2Ui1, pre_ba_v_corr_idxs, pre_ba_inlier_ratio_wrt_estimate) = self._verifier.apply(
             keypoints_i1,
             keypoints_i2,
             putative_corr_idxs,
@@ -389,62 +396,6 @@ class TwoViewEstimator:
         ) = self.processor.run_inlier_support(post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, post_ba_report)
 
         return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report
-
-    def create_computation_graph(
-        self,
-        keypoints_i1: Keypoints,
-        keypoints_i2: Keypoints,
-        putative_corr_idxs: np.ndarray,
-        camera_intrinsics_i1: Optional[gtsfm_types.CALIBRATION_TYPE],
-        camera_intrinsics_i2: Optional[gtsfm_types.CALIBRATION_TYPE],
-        i2Ti1_prior: Optional[PosePrior] = None,
-        gt_camera_i1: Optional[gtsfm_types.CAMERA_TYPE] = None,
-        gt_camera_i2: Optional[gtsfm_types.CAMERA_TYPE] = None,
-        gt_scene_mesh_graph: Optional[Delayed] = None,
-    ) -> Tuple[Delayed, Delayed, Delayed, Dict[str, Delayed]]:
-        """Create delayed tasks for two view geometry estimation, using verification.
-
-        Args:
-            keypoints_i1: Keypoints for image i1.
-            keypoints_i2: Keypoints for image i2.
-            putative_corr_idxs: Putative correspondences between i1 and i2, as a Kx2 array.
-            camera_intrinsics_i1: Intrinsics for camera i1.
-            camera_intrinsics_i2: Intrinsics for camera i2.
-            i2Ti1_prior: The prior on relative pose i2Ti1.
-            i2Ti1_expected_graph (optional): Ground truth relative pose, used for evaluation if available.
-
-        Returns:
-            Computed relative rotation wrapped as Delayed.
-            Computed relative translation direction wrapped as Delayed.
-            Indices of verified correspondences wrapped as Delayed.
-            Two-view reports at different stages (pre BA, post BA, and post inlier-support-processor), as a dictionary.
-        """
-        (
-            post_isp_i2Ri1,
-            post_isp_i2Ui1,
-            post_isp_v_corr_idxs,
-            pre_ba_report,
-            post_ba_report,
-            post_isp_report,
-        ) = dask.delayed(self.run_2view, nout=6)(
-            keypoints_i1=keypoints_i1,
-            keypoints_i2=keypoints_i2,
-            putative_corr_idxs=putative_corr_idxs,
-            camera_intrinsics_i1=camera_intrinsics_i1,
-            camera_intrinsics_i2=camera_intrinsics_i2,
-            i2Ti1_prior=i2Ti1_prior,
-            gt_camera_i1=gt_camera_i1,
-            gt_camera_i2=gt_camera_i2,
-            gt_scene_mesh=gt_scene_mesh_graph,
-        )
-        # Return the reports as a dict of Delayed objects, instead of a single Delayed object.
-        # This makes it countable and indexable.
-        two_view_reports = {
-            PRE_BA_REPORT_TAG: pre_ba_report,
-            POST_BA_REPORT_TAG: post_ba_report,
-            POST_ISP_REPORT_TAG: post_isp_report,
-        }
-        return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs, two_view_reports
 
 
 def generate_two_view_report(

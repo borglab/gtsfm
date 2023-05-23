@@ -23,7 +23,7 @@ from gtsfm.frontend.descriptor.descriptor_base import DescriptorBase
 class SIFTDescriptor(DescriptorBase):
     """SIFT descriptor using OpenCV's implementation."""
 
-    def describe(self, image: Image, keypoints: Keypoints) -> np.ndarray:
+    def apply(self, image: Image, keypoints: Keypoints) -> np.ndarray:
         """Assign descriptors to detected features in an image.
 
         Arguments:

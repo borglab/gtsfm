@@ -21,7 +21,7 @@ from gtsfm.frontend.detector.detector_base import DetectorBase
 class Fast(DetectorBase):
     """Fast detector using OpenCV's implementation."""
 
-    def detect(self, image: Image) -> Keypoints:
+    def apply(self, image: Image) -> Keypoints:
         """Detect the features in an image.
 
         Args:

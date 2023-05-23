@@ -30,7 +30,7 @@ class ImageMatcherBase(GTSFMProcess):
         )
 
     @abc.abstractmethod
-    def match(
+    def apply(
         self,
         image_i1: Image,
         image_i2: Image,
@@ -45,20 +45,3 @@ class ImageMatcherBase(GTSFMProcess):
             Keypoints from image 1 (N keypoints will exist).
             Corresponding keypoints from image 2 (there will also be N keypoints). These represent feature matches.
         """
-
-    def create_computation_graph(
-        self,
-        image_i1,
-        image_i2,
-    ) -> Tuple[Delayed, Delayed]:
-        """Generates computation graph to directly identify feature matches across two images.
-
-        Args:
-            image_i1: first input image of pair.
-            image_i2: second input image of pair.
-
-        Returns:
-            Delayed dask task for N keypoints from image 1.
-            Delayed dask task for N keypoints from image 2.
-        """
-        return dask.delayed(self.match, nout=2)(image_i1=image_i1, image_i2=image_i2)

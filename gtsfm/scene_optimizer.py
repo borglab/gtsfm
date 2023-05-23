@@ -12,7 +12,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import Pose3, Similarity3
+from gtsam import Pose3, Similarity3, Rot3, Unit3
 from trimesh import Trimesh
 
 import gtsfm.common.types as gtsfm_types
@@ -32,9 +32,7 @@ from gtsfm.frontend.correspondence_generator.correspondence_generator_base impor
 from gtsfm.multi_view_optimizer import MultiViewOptimizer
 from gtsfm.retriever.retriever_base import RetrieverBase, ImageMatchingRegime
 from gtsfm.two_view_estimator import (
-    POST_BA_REPORT_TAG,
     POST_ISP_REPORT_TAG,
-    PRE_BA_REPORT_TAG,
     VIEWGRAPH_REPORT_TAG,
     TwoViewEstimationReport,
     TwoViewEstimator,
@@ -121,84 +119,17 @@ class SceneOptimizer:
         os.makedirs(REACT_RESULTS_PATH, exist_ok=True)
         os.makedirs(REACT_METRICS_PATH, exist_ok=True)
 
-    def create_computation_graph_for_frontend(
-        self,
-        keypoints_list: List[Keypoints],
-        putative_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
-        image_pair_indices: List[Tuple[int, int]],
-        image_graph: List[Delayed],
-        all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
-        relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        gt_cameras: List[Optional[gtsfm_types.CAMERA_TYPE]],
-        gt_scene_mesh: Optional[Trimesh] = None,
-    ) -> Tuple[
-        Dict[Tuple[int, int], Delayed],
-        Dict[Tuple[int, int], Delayed],
-        Dict[Tuple[int, int], Delayed],
-        Dict[str, Dict[Tuple[int, int], Delayed]],
-        List[Delayed],
-    ]:
-        """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
-        # Estimate two-view geometry and get indices of verified correspondences.
-        i2Ri1_graph_dict = {}
-        i2Ui1_graph_dict = {}
-        v_corr_idxs_graph_dict: Dict[Tuple[int, int], Delayed] = {}
-        two_view_reports_dict: Dict[str, Dict[Tuple[int, int], Delayed]] = {
-            PRE_BA_REPORT_TAG: {},
-            POST_BA_REPORT_TAG: {},
-            POST_ISP_REPORT_TAG: {},
-        }
-
-        delayed_results: List[Delayed] = []
-        for (i1, i2) in image_pair_indices:
-            # Collect ground truth relative and absolute poses if available.
-            # TODO(johnwlambert): decompose this method -- name it as "calling_the_plate()"
-            # TODO(johnwlambert): decompose this so what happens in the loop is a separate method
-            i2Ri1, i2Ui1, v_corr_idxs, two_view_reports = self.two_view_estimator.create_computation_graph(
-                keypoints_i1=keypoints_list[i1],
-                keypoints_i2=keypoints_list[i2],
-                putative_corr_idxs=putative_corr_idxs_dict[i1, i2],
-                camera_intrinsics_i1=all_intrinsics[i1],
-                camera_intrinsics_i2=all_intrinsics[i2],
-                i2Ti1_prior=relative_pose_priors.get((i1, i2), None),
-                gt_camera_i1=gt_cameras[i1],
-                gt_camera_i2=gt_cameras[i2],
-                gt_scene_mesh_graph=gt_scene_mesh,
-            )
-
-            # Store results.
-            i2Ri1_graph_dict[(i1, i2)] = i2Ri1
-            i2Ui1_graph_dict[(i1, i2)] = i2Ui1
-            v_corr_idxs_graph_dict[(i1, i2)] = v_corr_idxs
-            for token in (PRE_BA_REPORT_TAG, POST_BA_REPORT_TAG, POST_ISP_REPORT_TAG):
-                two_view_reports_dict[token][(i1, i2)] = two_view_reports[token]
-
-            # Visualize verified two-view correspondences.
-            annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
-            with annotation:
-                if self._save_two_view_correspondences_viz:
-                    delayed_results.append(
-                        dask.delayed(viz_utils.save_twoview_correspondences_viz)(
-                            image_graph[i1],
-                            image_graph[i2],
-                            keypoints_list[i1],
-                            keypoints_list[i2],
-                            v_corr_idxs,
-                            two_view_report=two_view_reports[PRE_BA_REPORT_TAG],
-                            file_path=os.path.join(self._plot_correspondence_path, f"{i1}_{i2}.jpg"),
-                        )
-                    )
-
-        return i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict, two_view_reports_dict, delayed_results
-
     def create_computation_graph(
         self,
         keypoints_list: List[Keypoints],
-        putative_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
+        i2Ri1_dict: Dict[Tuple[int, int], Rot3],
+        i2Ui1_dict: Dict[Tuple[int, int], Unit3],
+        v_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
+        two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
         num_images: int,
         image_pair_indices: List[Tuple[int, int]],
         image_graph: List[Delayed],
-        all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
+        camera_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         absolute_pose_priors: List[Optional[PosePrior]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
@@ -208,23 +139,7 @@ class SceneOptimizer:
         """The SceneOptimizer plate calls the FeatureExtractor and TwoViewEstimator plates several times."""
         logger.info(f"Results, plots, and metrics will be saved at {self.output_root}")
 
-        # Auxiliary graph elements for visualizations and saving intermediate data for analysis.
-        (
-            i2Ri1_graph_dict,
-            i2Ui1_graph_dict,
-            v_corr_idxs_graph_dict,
-            two_view_reports_dict,
-            delayed_results,
-        ) = self.create_computation_graph_for_frontend(
-            keypoints_list=keypoints_list,
-            putative_corr_idxs_dict=putative_corr_idxs_dict,
-            image_pair_indices=image_pair_indices,
-            image_graph=image_graph,
-            all_intrinsics=all_intrinsics,
-            relative_pose_priors=relative_pose_priors,
-            gt_cameras=cameras_gt,
-            gt_scene_mesh=gt_scene_mesh,
-        )
+        delayed_results: List[Delayed] = []
 
         # Note: the MultiviewOptimizer returns BA input and BA output that are aligned to GT via Sim(3).
         (
@@ -233,46 +148,63 @@ class SceneOptimizer:
             view_graph_two_view_reports,
             optimizer_metrics_graph,
         ) = self.multiview_optimizer.create_computation_graph(
-            image_graph,
-            num_images,
-            keypoints_list,
-            i2Ri1_graph_dict,
-            i2Ui1_graph_dict,
-            v_corr_idxs_graph_dict,
-            all_intrinsics,
-            absolute_pose_priors,
-            relative_pose_priors,
-            two_view_reports_dict[POST_ISP_REPORT_TAG],
-            cameras_gt,
-            gt_wTi_list,
-            self.output_root,
+            images_graph=image_graph,
+            num_images=num_images,
+            keypoints_graph=keypoints_list,
+            i2Ri1_graph=i2Ri1_dict,
+            i2Ui1_graph=i2Ui1_dict,
+            v_corr_idxs_graph=v_corr_idxs_dict,
+            all_intrinsics=camera_intrinsics,
+            absolute_pose_priors=absolute_pose_priors,
+            relative_pose_priors=relative_pose_priors,
+            two_view_reports_dict=two_view_reports,
+            cameras_gt=cameras_gt,
+            gt_wTi_list=gt_wTi_list,
+            output_root=self.output_root,
         )
         if view_graph_two_view_reports is not None:
-            two_view_reports_dict[VIEWGRAPH_REPORT_TAG] = view_graph_two_view_reports
+            two_view_reports_post_viewgraph_estimator = view_graph_two_view_reports
 
         # Persist all front-end metrics and their summaries.
         # TODO(akshay-krishnan): this delays saving the frontend reports until MVO has completed, not ideal.
         metrics_graph_list: List[Delayed] = []
         annotation = dask.annotate(workers=self._output_worker) if self._output_worker else dask.annotate()
         with annotation:
-            for tag, report_dict in two_view_reports_dict.items():
-                delayed_results.append(
-                    dask.delayed(save_full_frontend_metrics)(
-                        report_dict,
-                        image_graph,
-                        filename="two_view_report_{}.json".format(tag),
-                        matching_regime=self.retriever._matching_regime,
-                        metrics_path=self._metrics_path,
-                        plot_base_path=self._plot_base_path,
-                    )
+            delayed_results.append(
+                dask.delayed(save_full_frontend_metrics)(
+                    two_view_reports,
+                    image_graph,
+                    filename="two_view_report_{}.json".format(POST_ISP_REPORT_TAG),
+                    matching_regime=self.retriever._matching_regime,
+                    metrics_path=self._metrics_path,
+                    plot_base_path=self._plot_base_path,
                 )
-                metrics_graph_list.append(
-                    dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
-                        report_dict,
-                        self._pose_angular_error_thresh,
-                        metric_group_name="verifier_summary_{}".format(tag),
-                    )
+            )
+            metrics_graph_list.append(
+                dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
+                    two_view_reports,
+                    self._pose_angular_error_thresh,
+                    metric_group_name="verifier_summary_{}".format(POST_ISP_REPORT_TAG),
                 )
+            )
+
+            delayed_results.append(
+                dask.delayed(save_full_frontend_metrics)(
+                    two_view_reports_post_viewgraph_estimator,
+                    image_graph,
+                    filename="two_view_report_{}.json".format(VIEWGRAPH_REPORT_TAG),
+                    matching_regime=self.retriever._matching_regime,
+                    metrics_path=self._metrics_path,
+                    plot_base_path=self._plot_base_path,
+                )
+            )
+            metrics_graph_list.append(
+                dask.delayed(two_view_estimator.aggregate_frontend_metrics)(
+                    two_view_reports_post_viewgraph_estimator,
+                    self._pose_angular_error_thresh,
+                    metric_group_name="verifier_summary_{}".format(VIEWGRAPH_REPORT_TAG),
+                )
+            )
 
         # aggregate metrics for multiview optimizer
         if optimizer_metrics_graph is not None:
@@ -534,7 +466,6 @@ def save_full_frontend_metrics(
     round_fn = lambda x: round(x, PRINT_NUM_SIG_FIGS) if x else None
 
     for (i1, i2), report in two_view_report_dict.items():
-
         # Note: if GT is unknown, then R_error_deg, U_error_deg, and inlier_ratio_gt_model will be None
         metrics_list.append(
             {

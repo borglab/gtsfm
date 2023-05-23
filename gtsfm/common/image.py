@@ -36,9 +36,9 @@ class Image(NamedTuple):
         return self.value_array.shape[1]
 
     @property
-    def shape(self) -> Tuple[int, int, int]:
-        """The shape of the image (H, W, C)."""
-        return self.value_array.shape
+    def shape(self) -> Tuple[int, int]:
+        """The shape of the image (H, W)."""
+        return self.value_array.shape[:2]
 
     def __compute_sensor_width_from_exif(self) -> float:
         """Compute sensor_width_mm from `ExifImageWidth` tag,

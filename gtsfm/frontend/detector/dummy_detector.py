@@ -12,7 +12,7 @@ from gtsfm.frontend.detector.detector_base import DetectorBase
 class DummyDetector(DetectorBase):
     """Assigns random features to an input image."""
 
-    def detect(self, image: Image) -> Keypoints:
+    def apply(self, image: Image) -> Keypoints:
         """Detect the features in an image by using random numbers.
 
         Args:

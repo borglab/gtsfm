@@ -362,7 +362,7 @@ class LoaderBase(GTSFMProcess):
         N = len(self)
         return [self.get_camera_pose(i) for i in range(N)]
 
-    def __get_gt_cameras(self) -> List[Optional[gtsfm_types.CAMERA_TYPE]]:
+    def get_gt_cameras(self) -> List[Optional[gtsfm_types.CAMERA_TYPE]]:
         """Return all the cameras.
 
         Note: use create_computation_graph_for_gt_cameras when calling from runners.

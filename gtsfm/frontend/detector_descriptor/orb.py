@@ -25,7 +25,7 @@ from gtsfm.frontend.detector_descriptor.detector_descriptor_base import Detector
 class ORBDetectorDescriptor(DetectorDescriptorBase):
     """ORB detector-descriptor using OpenCV's implementation."""
 
-    def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
+    def apply(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
         """Perform feature detection as well as their description.
 
         Refer to detect() in DetectorBase and describe() in DescriptorBase for details about the output format.

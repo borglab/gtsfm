@@ -31,7 +31,7 @@ class MatcherBase(GTSFMProcess):
         )
 
     @abc.abstractmethod
-    def match(
+    def apply(
         self,
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
@@ -65,35 +65,3 @@ class MatcherBase(GTSFMProcess):
         """
         # TODO(ayush): should I define matcher on descriptors or the distance matrices.
         # TODO(ayush): how to handle deep-matchers which might require the full image as input
-
-    def create_computation_graph(
-        self,
-        keypoints_i1_graph: Delayed,
-        keypoints_i2_graph: Delayed,
-        descriptors_i1_graph: Delayed,
-        descriptors_i2_graph: Delayed,
-        im_shape_i1: Tuple[int, int],
-        im_shape_i2: Tuple[int, int],
-    ) -> Delayed:
-        """
-        Generates computation graph for matched features using description graphs.
-
-        Args:
-            keypoints_i1_graph: keypoints for image #i1, wrapped in Delayed.
-            keypoints_i2_graph: keypoints for image #i2, wrapped in Delayed.
-            descriptors_i1_graph: descriptors corr. to keypoints_i1.
-            descriptors_i2_graph: descriptors corr. to keypoints_i2.
-            im_shape_i1: (H,W) shape of image #i1.
-            im_shape_i2: (H,W) shape of image #i2.
-
-        Returns:
-            Delayed dask tasks for matching for input camera pairs.
-        """
-        return dask.delayed(self.match)(
-            keypoints_i1_graph,
-            keypoints_i2_graph,
-            descriptors_i1_graph,
-            descriptors_i2_graph,
-            im_shape_i1,
-            im_shape_i2,
-        )

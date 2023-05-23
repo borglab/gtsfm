@@ -58,7 +58,7 @@ class ImageMatcherCacher(ImageMatcherBase):
         data = {"keypoints_i1": keypoints_i1, "keypoints_i2": keypoints_i2}
         io_utils.write_to_bz2_file(data, cache_path)
 
-    def match(
+    def apply(
         self,
         image_i1: Image,
         image_i2: Image,
@@ -84,7 +84,7 @@ class ImageMatcherCacher(ImageMatcherBase):
         if cached_data is not None:
             return cached_data
 
-        keypoints_i1, keypoints_i2 = self._matcher.match(
+        keypoints_i1, keypoints_i2 = self._matcher.apply(
             image_i1=image_i1,
             image_i2=image_i2,
         )
