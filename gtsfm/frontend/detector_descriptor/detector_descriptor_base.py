@@ -6,9 +6,7 @@ Authors: Ayush Baid
 import abc
 from typing import Tuple
 
-import dask
 import numpy as np
-from dask.delayed import Delayed
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.image import Image

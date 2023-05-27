@@ -5,9 +5,6 @@ Authors: John Lambert
 import abc
 from typing import Tuple
 
-import dask
-from dask.delayed import Delayed
-
 from gtsfm.common.image import Image
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.ui.gtsfm_process import GTSFMProcess, UiMetadata

@@ -13,7 +13,7 @@ from dask.distributed import Client, LocalCluster, SSHCluster, performance_repor
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 import numpy as np
-from gtsam import Pose3
+from gtsam import Rot3, Unit3
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
