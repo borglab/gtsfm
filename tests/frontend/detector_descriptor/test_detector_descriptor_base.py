@@ -4,10 +4,8 @@ Authors: Ayush Baid
 """
 import unittest
 
-import numpy as np
 
 import tests.frontend.detector.test_detector_base as test_detector_base
-from gtsfm.common.keypoints import Keypoints
 from gtsfm.frontend.descriptor.dummy_descriptor import DummyDescriptor
 from gtsfm.frontend.detector.detector_from_joint_detector_descriptor import DetectorFromDetectorDescriptor
 from gtsfm.frontend.detector.dummy_detector import DummyDetector
