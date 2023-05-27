@@ -127,8 +127,7 @@ class SceneOptimizer:
         v_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         two_view_reports: Dict[Tuple[int, int], TwoViewEstimationReport],
         num_images: int,
-        image_pair_indices: List[Tuple[int, int]],
-        image_graph: List[Delayed],
+        images: List[Image],
         camera_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         absolute_pose_priors: List[Optional[PosePrior]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
@@ -148,7 +147,7 @@ class SceneOptimizer:
             view_graph_two_view_reports,
             optimizer_metrics_graph,
         ) = self.multiview_optimizer.create_computation_graph(
-            images_graph=image_graph,
+            images_graph=images,
             num_images=num_images,
             keypoints_graph=keypoints_list,
             i2Ri1_graph=i2Ri1_dict,
@@ -173,7 +172,7 @@ class SceneOptimizer:
             delayed_results.append(
                 dask.delayed(save_full_frontend_metrics)(
                     two_view_reports,
-                    image_graph,
+                    images,
                     filename="two_view_report_{}.json".format(POST_ISP_REPORT_TAG),
                     matching_regime=self.retriever._matching_regime,
                     metrics_path=self._metrics_path,
@@ -191,7 +190,7 @@ class SceneOptimizer:
             delayed_results.append(
                 dask.delayed(save_full_frontend_metrics)(
                     two_view_reports_post_viewgraph_estimator,
-                    image_graph,
+                    images,
                     filename="two_view_report_{}.json".format(VIEWGRAPH_REPORT_TAG),
                     matching_regime=self.retriever._matching_regime,
                     metrics_path=self._metrics_path,
@@ -220,7 +219,7 @@ class SceneOptimizer:
             if self._save_gtsfm_data:
                 delayed_results.extend(
                     save_gtsfm_data(
-                        image_graph,
+                        images,
                         ba_input_graph,
                         ba_output_graph,
                         results_path=self._results_path,
@@ -239,7 +238,7 @@ class SceneOptimizer:
                     )
 
         if self.run_dense_optimizer and self.dense_multiview_optimizer is not None:
-            img_dict_graph = dask.delayed(get_image_dictionary)(image_graph)
+            img_dict_graph = dask.delayed(get_image_dictionary)(images)
             (
                 dense_points_graph,
                 dense_point_colors_graph,

@@ -318,19 +318,15 @@ class LoaderBase(GTSFMProcess):
         N = len(self)
         return [self.get_absolute_pose_prior(i) for i in range(N)]
 
-    def create_computation_graph_for_images(self) -> List[Delayed]:
+    def get_all_images(self) -> List[Image]:
         """Creates the computation graph for image fetches.
 
         Returns:
             List of delayed tasks for images.
         """
-        N = len(self)
-        annotation = dask.annotate(workers=self._input_worker) if self._input_worker else dask.annotate()
-        with annotation:
-            delayed_images = [dask.delayed(self.get_image)(i) for i in range(N)]
-        return delayed_images
+        return [self.get_image(i) for i in range(len(self))]
 
-    def __get_all_intrinsics(self) -> List[Optional[gtsfm_types.CALIBRATION_TYPE]]:
+    def get_all_intrinsics(self) -> List[Optional[gtsfm_types.CALIBRATION_TYPE]]:
         """Return all the camera intrinsics.
 
         Note: use create_computation_graph_for_intrinsics when calling from runners.
@@ -340,18 +336,6 @@ class LoaderBase(GTSFMProcess):
         """
         N = len(self)
         return [self.get_camera_intrinsics(i) for i in range(N)]
-
-    def create_computation_graph_for_intrinsics(self) -> List[Delayed]:
-        """Creates the computation graph for camera intrinsics.
-
-        Returns:
-            List of delayed tasks for camera intrinsics.
-        """
-        N = len(self)
-        annotation = dask.annotate(workers=self._input_worker) if self._input_worker else dask.annotate()
-        with annotation:
-            delayed_intrinsics = [dask.delayed(self.get_camera_intrinsics)(i) for i in range(N)]
-        return delayed_intrinsics
 
     def get_gt_poses(self) -> List[Optional[Pose3]]:
         """Return all the camera poses.
@@ -373,19 +357,7 @@ class LoaderBase(GTSFMProcess):
         N = len(self)
         return [self.get_camera(i) for i in range(N)]
 
-    def create_computation_graph_for_gt_cameras(self) -> List[Delayed]:
-        """Return the computation graph for all cameras.
-
-        Returns:
-            List of delayed tasks for ground truth cameras
-        """
-        N = len(self)
-        annotation = dask.annotate(workers=self._input_worker) if self._input_worker else dask.annotate()
-        with annotation:
-            delayed_cameras = [dask.delayed(self.get_camera)(i) for i in range(N)]
-        return delayed_cameras
-
-    def __get_image_shapes(self) -> List[Tuple[int, int]]:
+    def get_image_shapes(self) -> List[Tuple[int, int]]:
         """Return all the image shapes.
 
         Note: use create_computation_graph_for_image_shapes when calling from runners.
@@ -395,14 +367,6 @@ class LoaderBase(GTSFMProcess):
         """
         N = len(self)
         return [self.get_image_shape(i) for i in range(N)]
-
-    def create_computation_graph_for_image_shapes(self) -> List[Delayed]:
-        """Return the image shapes, as dask.Delayed."""
-        N = len(self)
-        annotation = dask.annotate(workers=self._input_worker) if self._input_worker else dask.annotate()
-        with annotation:
-            delayed_shapes = [dask.delayed(self.get_image_shape)(i) for i in range(N)]
-        return delayed_shapes
 
     def get_valid_pairs(self) -> List[Tuple[int, int]]:
         """Get the valid pairs of images for this loader.

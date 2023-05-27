@@ -257,13 +257,13 @@ class DataAssociation(GTSFMProcess):
         # Unpack results.
         sfm_tracks, avg_track_reproj_errors, triangulation_exit_codes = [], [], []
         if batch_size == 1:
-            for (sfm_track, avg_track_reproj_error, exit_code) in triangulation_results:
+            for sfm_track, avg_track_reproj_error, exit_code in triangulation_results:
                 sfm_tracks.append(sfm_track)
                 avg_track_reproj_errors.append(avg_track_reproj_error)
                 triangulation_exit_codes.append(exit_code)
         else:
             for batch_results in triangulation_results:
-                for (sfm_track, avg_track_reproj_error, exit_code) in batch_results:
+                for sfm_track, avg_track_reproj_error, exit_code in batch_results:
                     sfm_tracks.append(sfm_track)
                     avg_track_reproj_errors.append(avg_track_reproj_error)
                     triangulation_exit_codes.append(exit_code)
@@ -277,7 +277,7 @@ class DataAssociation(GTSFMProcess):
         tracks_2d: Delayed,
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        images_graph: Optional[List[Delayed]] = None,
+        images_graph: Optional[List[Image]] = None,
     ) -> Tuple[Delayed, Delayed]:
         """Creates a computation graph for performing data association.
 

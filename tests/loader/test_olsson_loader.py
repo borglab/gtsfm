@@ -110,7 +110,7 @@ class TestFolderLoader(unittest.TestCase):
 
     def test_create_computation_graph_for_images(self) -> None:
         """Tests the graph for loading all the images."""
-        image_graph = self.loader.create_computation_graph_for_images()
+        image_graph = self.loader.get_all_images()
 
         # check the length of the graph
         self.assertEqual(12, len(image_graph))

@@ -68,7 +68,7 @@ class GtsfmRunnerAstrovisionLoader(GtsfmRunnerBase):
                 delayed_keypoints,
                 delayed_putative_corr_idxs_dict,
             ) = self.scene_optimizer.correspondence_generator.create_computation_graph(
-                delayed_images=self.loader.create_computation_graph_for_images(),
+                delayed_images=self.loader.get_all_images(),
                 delayed_image_shapes=self.loader.create_computation_graph_for_image_shapes(),
                 image_pair_indices=image_pair_indices,
             )
@@ -83,7 +83,7 @@ class GtsfmRunnerAstrovisionLoader(GtsfmRunnerBase):
                 putative_corr_idxs_dict=putative_corr_idxs_dict,
                 num_images=len(self.loader),
                 image_pair_indices=image_pair_indices,
-                image_graph=self.loader.create_computation_graph_for_images(),
+                images=self.loader.get_all_images(),
                 all_intrinsics=self.loader.create_computation_graph_for_intrinsics(),
                 relative_pose_priors=self.loader.get_relative_pose_priors(image_pair_indices),
                 absolute_pose_priors=self.loader.get_absolute_pose_priors(),

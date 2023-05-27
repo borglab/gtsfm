@@ -43,8 +43,11 @@ def run_frontend(
     image_shapes_graph = loader.create_computation_graph_for_image_shapes()
 
     # TODO(stepanyanhayk) change function signature to only accept delayed objects
-    (delayed_keypoints, delayed_putative_corr_idxs_dict,) = correspondence_generator.create_computation_graph(
-        delayed_images=loader.create_computation_graph_for_images(),
+    (
+        delayed_keypoints,
+        delayed_putative_corr_idxs_dict,
+    ) = correspondence_generator.create_computation_graph(
+        delayed_images=loader.get_all_images(),
         delayed_image_shapes=image_shapes_graph,
         image_pair_indices=image_pair_indices,
     )
@@ -57,7 +60,7 @@ def run_frontend(
     i2Ui1_graph_dict = {}
     v_corr_idxs_graph_dict: Dict[Tuple[int, int], Delayed] = {}
 
-    for (i1, i2) in image_pair_indices:
+    for i1, i2 in image_pair_indices:
         i2Ri1, i2Ui1, v_corr_idxs, _ = two_view_estimator.create_computation_graph(
             keypoints_i1_graph=keypoints_list[i1],
             keypoints_i2_graph=keypoints_list[i2],

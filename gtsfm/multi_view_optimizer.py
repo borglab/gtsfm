@@ -9,7 +9,7 @@ import numpy as np
 import os
 from dask.delayed import Delayed
 from pathlib import Path
-from gtsam import Pose3
+from gtsam import Pose3, Rot3, Unit3
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.graph as graph_utils
@@ -18,11 +18,13 @@ from gtsfm.averaging.translation.translation_averaging_base import TranslationAv
 from gtsfm.bundle.global_ba import GlobalBundleAdjustment
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
+from gtsfm.common.image import Image
 from gtsfm.common.sfm_track import SfmTrack2d
 from gtsfm.data_association.data_assoc import DataAssociation
 from gtsfm.evaluation.metrics import GtsfmMetricsGroup
 from gtsfm.view_graph_estimator.view_graph_estimator_base import ViewGraphEstimatorBase
 from gtsfm.data_association.dsf_tracks_estimator import DsfTracksEstimator
+from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 
 
 class MultiViewOptimizer:
@@ -43,16 +45,16 @@ class MultiViewOptimizer:
 
     def create_computation_graph(
         self,
-        images_graph: List[Delayed],
+        images_graph: List[Image],
         num_images: int,
         keypoints_graph: List[Keypoints],
-        i2Ri1_graph: Dict[Tuple[int, int], Delayed],
-        i2Ui1_graph: Dict[Tuple[int, int], Delayed],
-        v_corr_idxs_graph: Dict[Tuple[int, int], Delayed],
+        i2Ri1_graph: Dict[Tuple[int, int], Rot3],
+        i2Ui1_graph: Dict[Tuple[int, int], Unit3],
+        v_corr_idxs_graph: Dict[Tuple[int, int], np.ndarray],
         all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         absolute_pose_priors: List[Optional[PosePrior]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        two_view_reports_dict: Optional[Dict[Tuple[int, int], Delayed]],
+        two_view_reports_dict: Optional[Dict[Tuple[int, int], TwoViewEstimationReport]],
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         gt_wTi_list: List[Optional[Pose3]],
         output_root: Optional[Path] = None,

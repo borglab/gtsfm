@@ -33,7 +33,7 @@ def run_scene_optimizer(args: argparse.Namespace) -> None:
         delayed_sfm_result, delayed_io = scene_optimizer.create_computation_graph(
             num_images=len(loader),
             image_pair_indices=loader.get_valid_pairs(),
-            image_graph=loader.create_computation_graph_for_images(),
+            images=loader.get_all_images(),
             all_intrinsics=loader.get_computation_graph_for_intrinsics(),
             cameras_gt=loader.create_computation_graph_for_gt_cameras(),
         )
