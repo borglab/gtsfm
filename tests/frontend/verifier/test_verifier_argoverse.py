@@ -78,7 +78,7 @@ def check_verifier_output_error(verifier: VerifierBase, euler_angle_err_tol: flo
     # match keypoints row by row
     match_indices = np.vstack([np.arange(len(keypoints_i1)), np.arange(len(keypoints_i1))]).T
 
-    i2Ri1, i2ti1, _, _ = verifier.verify(
+    i2Ri1, i2ti1, _, _ = verifier.apply(
         keypoints_i1, keypoints_i2, match_indices, Cal3Bundler(fx, k1, k2, px, py), Cal3Bundler(fx, k1, k2, px, py)
     )
 
@@ -131,7 +131,7 @@ class TestRansacVerifierArgoverse(unittest.TestCase):
 
         match_indices = match_indices[:5]
 
-        i2Ri1, i2ti1, _, _ = self.verifier.verify(
+        i2Ri1, i2ti1, _, _ = self.verifier.apply(
             keypoints_i1, keypoints_i2, match_indices, intrinsics_i1, intrinsics_i2
         )
 

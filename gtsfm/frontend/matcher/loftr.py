@@ -56,6 +56,7 @@ class LOFTR(ImageMatcherBase):
             Corresponding keypoints from image 2 (there will also be N keypoints). These represent feature matches.
         """
         with torch.no_grad():
+            input = {"image0": self.to_tensor(image_i1), "image1": self.to_tensor(image_i2)}
             correspondences_dict = self._matcher(input)
 
         coordinates_i1 = correspondences_dict[KEYPOINTS_I1_COORDINATES_KEY].cpu().numpy()

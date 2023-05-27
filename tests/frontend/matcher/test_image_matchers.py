@@ -23,13 +23,12 @@ class TestImageMatchers(unittest.TestCase):
 
     def setUp(self) -> None:
         super().setUp()
-        self.loader = OlssonLoader(TEST_DATA_PATH, image_extension="JPG", max_resolution=128)
+        self.loader = OlssonLoader(str(TEST_DATA_PATH), image_extension="JPG", max_resolution=128)
 
     def test_number_of_keypoints_match(self):
-
         image_i0 = self.loader.get_image(0)
         image_i1 = self.loader.get_image(1)
 
-        keypoints_i0, keypoints_i1 = self.matcher.match(image_i0, image_i1)
+        keypoints_i0, keypoints_i1 = self.matcher.apply(image_i0, image_i1)
 
         self.assertEqual(len(keypoints_i0), len(keypoints_i1))

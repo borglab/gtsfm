@@ -37,6 +37,6 @@ class TestSuperGlueMatcher(unittest.TestCase):
         kps_i2 = Keypoints(coordinates=np.random.randint(0, H, size=(num_kps_i2, 2)), responses=np.random.rand(100))
         descs_i2 = np.random.randn(num_kps_i2, 256)
 
-        match_indices = self.matcher.match(kps_i1, kps_i2, descs_i1, descs_i2, im_shape_i1, im_shape_i2)
+        match_indices = self.matcher.apply(kps_i1, kps_i2, descs_i1, descs_i2, im_shape_i1, im_shape_i2)
         assert isinstance(match_indices, np.ndarray)
         assert match_indices.dtype == np.uint32

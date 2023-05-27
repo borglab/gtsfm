@@ -40,7 +40,7 @@ class CombinationDetectorDescriptor(DetectorDescriptorBase):
             Detected keypoints, with length N <= max_keypoints.
             Corr. descriptors, of shape (N, D) where D is the dimension of each descriptor.
         """
-        keypoints = self.detector.detect(image)
-        descriptors = self.descriptor.describe(image, keypoints)
+        keypoints = self.detector.apply(image)
+        descriptors = self.descriptor.apply(image, keypoints)
 
         return keypoints, descriptors

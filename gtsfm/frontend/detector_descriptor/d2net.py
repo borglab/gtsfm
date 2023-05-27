@@ -67,7 +67,7 @@ class D2NetDetDesc(DetectorDescriptorBase):
 
         with torch.no_grad():
             keypoints, scores, descriptors = d2net_pyramid.process_multiscale(
-                image=torch.tensor(input_image[np.newaxis, :, :, :].astype(np.float32), device=self.device),
+                image=torch.tensor(input_image[np.newaxis, :, :, :].astype(np.float32)),
                 model=self._model,
                 scales=scales,
             )

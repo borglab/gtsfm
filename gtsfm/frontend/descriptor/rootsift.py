@@ -37,7 +37,7 @@ class RootSIFTDescriptor(SIFTDescriptor):
         if len(keypoints) == 0:
             return np.array([])
 
-        sift_desc = super().describe(image, keypoints)
+        sift_desc = super().apply(image, keypoints)
 
         # Step 1: L1 normalization
         l1_norms = np.sum(sift_desc, axis=1, keepdims=True)
