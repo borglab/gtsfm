@@ -16,6 +16,7 @@ class ImageMatcherBase(GTSFMProcess):
     Note: these matchers do NOT use descriptors as input.
     """
 
+    @staticmethod
     def get_ui_metadata() -> UiMetadata:
         """Returns data needed to display node and edge info for this process in the process graph."""
 

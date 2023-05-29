@@ -19,7 +19,7 @@ import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.frontend.detector_descriptor.detector_descriptor_base import DetectorDescriptorBase
 from gtsfm.frontend.matcher.matcher_base import MatcherBase
-from gtsfm.frontend.correspondence_generator.correspondence_generator_base import CorrespondenceGeneratorBase
+from gtsfm.frontend.matcher.image_matcher_base import ImageMatcherBase
 from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
 from gtsfm.frontend.correspondence_generator.det_desc_correspondence_generator import DetDescCorrespondenceGenerator
 from gtsfm.loader.loader_base import LoaderBase
@@ -238,17 +238,30 @@ class GtsfmRunnerBase:
         intrinsics = [self.loader.get_camera_intrinsics(i) for i in range(len(self.loader))]
 
         with Client(cluster) as client, performance_report(filename="submit-perf.html"):
-            keypoints_list, two_view_results_dict = apply_correspondence_generator(
-                client,
-                images,
-                image_pair_indices,
-                intrinsics,
-                self.loader.get_relative_pose_priors(image_pair_indices),
-                self.loader.get_gt_cameras(),
-                gt_scene_mesh=None,
-                correspondence_generator=self.scene_optimizer.correspondence_generator,
-                two_view_estimator=self.scene_optimizer.two_view_estimator,
-            )
+            if isinstance(self.scene_optimizer.correspondence_generator, DetDescCorrespondenceGenerator):
+                keypoints_list, two_view_results_dict = apply_sparse_keypoints_based_frontend(
+                    client,
+                    images,
+                    image_pair_indices,
+                    intrinsics,
+                    self.loader.get_relative_pose_priors(image_pair_indices),
+                    self.loader.get_gt_cameras(),
+                    gt_scene_mesh=None,
+                    correspondence_generator=self.scene_optimizer.correspondence_generator,
+                    two_view_estimator=self.scene_optimizer.two_view_estimator,
+                )
+            else:
+                keypoints_list, two_view_results_dict = apply_image_matcher_based_frontend(
+                    client,
+                    images,
+                    image_pair_indices,
+                    intrinsics,
+                    self.loader.get_relative_pose_priors(image_pair_indices),
+                    self.loader.get_gt_cameras(),
+                    gt_scene_mesh=None,
+                    correspondence_generator=self.scene_optimizer.correspondence_generator,
+                    two_view_estimator=self.scene_optimizer.two_view_estimator,
+                )
 
         i2Ri1_dict: Dict[Tuple[int, int], Rot3] = {}
         i2Ui1_dict: Dict[Tuple[int, int], Unit3] = {}
@@ -292,7 +305,7 @@ class GtsfmRunnerBase:
         logger.info("GTSFM took %.2f minutes to compute sparse multi-view result.", duration_sec / 60)
 
 
-def apply_correspondence_generator(
+def apply_sparse_keypoints_based_frontend(
     client: Client,
     images: List[Image],
     image_pairs: List[Tuple[int, int]],
@@ -300,11 +313,9 @@ def apply_correspondence_generator(
     relative_pose_priors: Dict[Tuple[int, int], PosePrior],
     gt_cameras: List[Optional[CAMERA_TYPE]],
     gt_scene_mesh: Optional[Any],
-    correspondence_generator: CorrespondenceGeneratorBase,
+    correspondence_generator: DetDescCorrespondenceGenerator,
     two_view_estimator: TwoViewEstimator,
 ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], TWO_VIEW_OUTPUT]]:
-    assert isinstance(correspondence_generator, DetDescCorrespondenceGenerator)
-
     def apply_det_desc(det_desc: DetectorDescriptorBase, image: Image) -> Tuple[Keypoints, np.ndarray]:
         return det_desc.apply(image)
 
@@ -365,5 +376,82 @@ def apply_correspondence_generator(
     two_view_output_dict = client.gather(two_view_output_futures)
     keypoints_futures = [client.submit(lambda f: f[0], f) for f in features_futures]
     keypoints_list = client.gather(keypoints_futures)
+
+    return keypoints_list, two_view_output_dict
+
+
+def apply_image_matcher_based_frontend(
+    client: Client,
+    images: List[Image],
+    image_pairs: List[Tuple[int, int]],
+    camera_intrinsics: List[CALIBRATION_TYPE],
+    relative_pose_priors: Dict[Tuple[int, int], PosePrior],
+    gt_cameras: List[Optional[CAMERA_TYPE]],
+    gt_scene_mesh: Optional[Any],
+    correspondence_generator: ImageCorrespondenceGenerator,
+    two_view_estimator: TwoViewEstimator,
+) -> Tuple[List[Keypoints], Dict[Tuple[int, int], TWO_VIEW_OUTPUT]]:
+    def apply_image_matcher(
+        image_matcher: ImageMatcherBase, image_i1: Image, image_i2: Image
+    ) -> Tuple[Keypoints, Keypoints]:
+        image_matcher.apply(image_i1=image_i1, image_i2=image_i2)
+
+    def apply_two_view_estimator(
+        two_view_estimator: TwoViewEstimator,
+        keypoints_i1: Keypoints,
+        keypoints_i2: Keypoints,
+        putative_corr_idxs: np.ndarray,
+        camera_intrinsics_i1: CALIBRATION_TYPE,
+        camera_intrinsics_i2: CALIBRATION_TYPE,
+        i2Ti1_prior: Optional[PosePrior],
+        gt_camera_i1: Optional[CAMERA_TYPE],
+        gt_camera_i2: Optional[CAMERA_TYPE],
+        gt_scene_mesh: Optional[Any] = None,
+    ) -> TWO_VIEW_OUTPUT:
+        return two_view_estimator.apply(
+            keypoints_i1=keypoints_i1,
+            keypoints_i2=keypoints_i2,
+            putative_corr_idxs=putative_corr_idxs,
+            camera_intrinsics_i1=camera_intrinsics_i1,
+            camera_intrinsics_i2=camera_intrinsics_i2,
+            i2Ti1_prior=i2Ti1_prior,
+            gt_camera_i1=gt_camera_i1,
+            gt_camera_i2=gt_camera_i2,
+            gt_scene_mesh=gt_scene_mesh,
+        )
+
+    image_matcher_future = client.scatter(correspondence_generator.matcher, broadcast=False)
+    two_view_estimator_future = client.scatter(two_view_estimator, broadcast=False)
+    pairwise_correspondence_futures = {
+        (i1, i2): client.submit(apply_image_matcher, image_matcher_future, images[i1], images[i2])
+        for i1, i2 in image_pairs
+    }
+
+    pairwise_correspondences: Dict[Tuple[int, int], Tuple[Keypoints, Keypoints]] = client.gather(
+        pairwise_correspondence_futures
+    )
+
+    keypoints_list, putative_corr_idxs_dict = correspondence_generator.aggregator.apply(
+        keypoints_dict=pairwise_correspondences
+    )
+
+    two_view_output_futures = {
+        (i1, i2): client.submit(
+            apply_two_view_estimator,
+            two_view_estimator_future,
+            keypoints_list[i1],
+            keypoints_list[i2],
+            putative_corr_idxs_dict[(i1, i2)],
+            camera_intrinsics[i1],
+            camera_intrinsics[i2],
+            relative_pose_priors.get((i1, i2)),
+            gt_cameras[i1],
+            gt_cameras[i2],
+            gt_scene_mesh,
+        )
+        for (i1, i2) in image_pairs
+    }
+
+    two_view_output_dict = client.gather(two_view_output_futures)
 
     return keypoints_list, two_view_output_dict

@@ -9,6 +9,7 @@ from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggreg
 from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_unique import (
     KeypointAggregatorUnique,
 )
+from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggregator_base import KeypointAggregatorBase
 from gtsfm.frontend.matcher.image_matcher_base import ImageMatcherBase
 
 
@@ -21,9 +22,8 @@ class ImageCorrespondenceGenerator(CorrespondenceGeneratorBase):
             matcher: matcher to use.
             deduplicate: whether to de-duplicate with a single image the detections received from each image pair.
         """
-        self._matcher = matcher
+        self.matcher = matcher
 
-        if deduplicate:
-            self._aggregator = KeypointAggregatorDedup()
-        else:
-            self._aggregator = KeypointAggregatorUnique()
+        self.aggregator: KeypointAggregatorBase = (
+            KeypointAggregatorDedup() if deduplicate else KeypointAggregatorUnique()
+        )
