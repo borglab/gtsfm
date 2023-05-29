@@ -250,7 +250,7 @@ class GtsfmRunnerBase:
                     correspondence_generator=self.scene_optimizer.correspondence_generator,
                     two_view_estimator=self.scene_optimizer.two_view_estimator,
                 )
-            else:
+            elif isinstance(self.scene_optimizer.correspondence_generator, ImageCorrespondenceGenerator):
                 keypoints_list, two_view_results_dict = apply_image_matcher_based_frontend(
                     client,
                     images,
@@ -262,6 +262,8 @@ class GtsfmRunnerBase:
                     correspondence_generator=self.scene_optimizer.correspondence_generator,
                     two_view_estimator=self.scene_optimizer.two_view_estimator,
                 )
+            else:
+                raise NotImplementedError("Correspondence generator not supported")
 
         i2Ri1_dict: Dict[Tuple[int, int], Rot3] = {}
         i2Ui1_dict: Dict[Tuple[int, int], Unit3] = {}
@@ -394,7 +396,7 @@ def apply_image_matcher_based_frontend(
     def apply_image_matcher(
         image_matcher: ImageMatcherBase, image_i1: Image, image_i2: Image
     ) -> Tuple[Keypoints, Keypoints]:
-        image_matcher.apply(image_i1=image_i1, image_i2=image_i2)
+        return image_matcher.apply(image_i1=image_i1, image_i2=image_i2)
 
     def apply_two_view_estimator(
         two_view_estimator: TwoViewEstimator,
