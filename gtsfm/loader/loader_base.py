@@ -7,8 +7,6 @@ import abc
 import logging
 from typing import Dict, List, Optional, Tuple
 
-import dask
-from dask.delayed import Delayed
 from gtsam import Cal3Bundler, Pose3
 
 import gtsfm.common.types as gtsfm_types
