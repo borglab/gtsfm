@@ -13,7 +13,6 @@ from typing import Tuple
 
 import numpy as np
 import torch
-from kornia.feature import LoFTR as LoFTRKornia
 
 import gtsfm.utils.images as image_utils
 from gtsfm.common.image import Image
@@ -40,7 +39,10 @@ class LOFTR(ImageMatcherBase):
         self._model_type = "outdoor" if use_outdoor_model else "indoor"
         self._use_cuda: bool = use_cuda
         self._min_confidence = min_confidence
-        self._matcher = LoFTRKornia(pretrained=self._model_type).eval()
+        # Note(Ayush): Keeping here to get hydra to work
+        # from kornia.feature import LoFTR as LoFTRKornia
+
+        # self._matcher = LoFTRKornia(pretrained=self._model_type).eval()
 
     def apply(self, image_i1: Image, image_i2: Image) -> Tuple[Keypoints, Keypoints]:
         """Identify feature matches across two images.
@@ -55,9 +57,13 @@ class LOFTR(ImageMatcherBase):
             Keypoints from image 1 (N keypoints will exist).
             Corresponding keypoints from image 2 (there will also be N keypoints). These represent feature matches.
         """
+        # TODO(Ayush): Fix hydra <-> LOFTR
+        from kornia.feature import LoFTR as LoFTRKornia
+
+        matcher = LoFTRKornia(pretrained=self._model_type).eval()
         with torch.no_grad():
             input = {"image0": self.to_tensor(image_i1), "image1": self.to_tensor(image_i2)}
-            correspondences_dict = self._matcher(input)
+            correspondences_dict = matcher(input)
 
         coordinates_i1 = correspondences_dict[KEYPOINTS_I1_COORDINATES_KEY].cpu().numpy()
         coordinates_i2 = correspondences_dict[KEYPOINTS_I2_COORDINATES_KEY].cpu().numpy()
