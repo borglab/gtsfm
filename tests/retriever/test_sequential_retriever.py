@@ -20,7 +20,7 @@ class TestSequentialRetriever(unittest.TestCase):
         max_frame_lookahead = 3
         loader = OlssonLoader(str(DEFAULT_FOLDER), image_extension="JPG", max_frame_lookahead=max_frame_lookahead)
         retriever = SequentialRetriever(max_frame_lookahead=max_frame_lookahead)
-        pairs = retriever.run(loader=loader)
+        pairs = retriever.apply(loader=loader)
 
         expected_pairs = [
             (0, 1),

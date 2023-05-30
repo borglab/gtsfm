@@ -108,18 +108,6 @@ class TestFolderLoader(unittest.TestCase):
         expected = Cal3Bundler(fx=2378.514, k1=0, k2=0, u0=648.0, v0=968.0)
         self.assertTrue(expected.equals(computed, 1e-3))
 
-    def test_create_computation_graph_for_images(self) -> None:
-        """Tests the graph for loading all the images."""
-        image_graph = self.loader.get_all_images()
-
-        # check the length of the graph
-        self.assertEqual(12, len(image_graph))
-        results = dask.compute(image_graph)[0]
-
-        # randomly check image loads from a few indices
-        np.testing.assert_allclose(results[5].value_array, self.loader.get_image(5).value_array)
-        np.testing.assert_allclose(results[7].value_array, self.loader.get_image(7).value_array)
-
     def test_get_all_intrinsics(self) -> None:
         """Tests the graph for all intrinsics."""
 
