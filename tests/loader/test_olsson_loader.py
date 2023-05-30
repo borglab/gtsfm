@@ -5,8 +5,6 @@ Authors: John Lambert
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import dask
 import numpy as np
 from gtsam import Cal3Bundler, Pose3, Rot3
 
@@ -111,8 +109,7 @@ class TestFolderLoader(unittest.TestCase):
     def test_get_all_intrinsics(self) -> None:
         """Tests the graph for all intrinsics."""
 
-        all_intrinsics_graph = self.loader.create_computation_graph_for_intrinsics()
-        [all_intrinsics] = dask.compute(all_intrinsics_graph)
+        all_intrinsics = self.loader.get_all_intrinsics()
 
         # check the length of the graph
         self.assertEqual(12, len(all_intrinsics))
