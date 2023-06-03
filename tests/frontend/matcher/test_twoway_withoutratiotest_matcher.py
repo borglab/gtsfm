@@ -42,7 +42,7 @@ class TestTwoWayWithoutRatioTestMatcher(test_matcher_base.TestMatcherBase):
         keypoints_i2 = feature_utils.generate_random_keypoints(descriptors_i2.shape[0], image_shape_i2)
         expected_matches = np.array([[9, 5], [2, 4], [3, 2], [1, 7], [8, 6], [0, 3]])
 
-        result = self.matcher.apply(
+        result = self.matcher.match(
             keypoints_i1, keypoints_i2, descriptors_i1, descriptors_i2, image_shape_i1, image_shape_i2
         )
         np.testing.assert_array_equal(result, expected_matches)

@@ -45,12 +45,12 @@ class MultiViewOptimizer:
 
     def create_computation_graph(
         self,
-        images_graph: List[Image],
+        images: List[Image],
         num_images: int,
-        keypoints_graph: List[Keypoints],
-        i2Ri1_graph: Dict[Tuple[int, int], Rot3],
-        i2Ui1_graph: Dict[Tuple[int, int], Unit3],
-        v_corr_idxs_graph: Dict[Tuple[int, int], np.ndarray],
+        keypoints_list: List[Keypoints],
+        i2Ri1_dict: Dict[Tuple[int, int], Rot3],
+        i2Ui1_dict: Dict[Tuple[int, int], Unit3],
+        v_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray],
         all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
         absolute_pose_priors: List[Optional[PosePrior]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
@@ -96,18 +96,18 @@ class MultiViewOptimizer:
                 viewgraph_two_view_reports_graph,
                 viewgraph_estimation_metrics,
             ) = self.view_graph_estimator.create_computation_graph(
-                i2Ri1_graph,
-                i2Ui1_graph,
+                i2Ri1_dict,
+                i2Ui1_dict,
                 all_intrinsics,
-                v_corr_idxs_graph,
-                keypoints_graph,
+                v_corr_idxs_dict,
+                keypoints_list,
                 two_view_reports_dict,
                 debug_output_dir,
             )
         else:
-            viewgraph_i2Ri1_graph = dask.delayed(i2Ri1_graph)
-            viewgraph_i2Ui1_graph = dask.delayed(i2Ui1_graph)
-            viewgraph_v_corr_idxs_graph = dask.delayed(v_corr_idxs_graph)
+            viewgraph_i2Ri1_graph = dask.delayed(i2Ri1_dict)
+            viewgraph_i2Ui1_graph = dask.delayed(i2Ui1_dict)
+            viewgraph_v_corr_idxs_graph = dask.delayed(v_corr_idxs_dict)
             viewgraph_two_view_reports_graph = dask.delayed(two_view_reports_dict)
             viewgraph_estimation_metrics = dask.delayed(GtsfmMetricsGroup("view_graph_estimation_metrics", []))
 
@@ -119,7 +119,7 @@ class MultiViewOptimizer:
         delayed_wRi, rot_avg_metrics = self.rot_avg_module.create_computation_graph(
             num_images, pruned_i2Ri1_graph, i1Ti2_priors=relative_pose_priors, gt_wTi_list=gt_wTi_list
         )
-        tracks2d_graph = dask.delayed(get_2d_tracks)(viewgraph_v_corr_idxs_graph, keypoints_graph)
+        tracks2d_graph = dask.delayed(get_2d_tracks)(viewgraph_v_corr_idxs_graph, keypoints_list)
 
         wTi_graph, ta_metrics = self.trans_avg_module.create_computation_graph(
             num_images,
@@ -139,7 +139,7 @@ class MultiViewOptimizer:
             tracks2d_graph,
             cameras_gt,
             relative_pose_priors,
-            images_graph,
+            images,
         )
 
         ba_result_graph, ba_metrics_graph = self.ba_optimizer.create_computation_graph(

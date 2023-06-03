@@ -59,19 +59,19 @@ class TestMatcherBase(unittest.TestCase):
         im_shape_i2 = (300, 200)
 
         # no keypoints for just i1
-        result = self.matcher.apply(
+        result = self.matcher.match(
             empty_keypoints, nonempty_keypoints, empty_descriptors, nonempty_descriptors, im_shape_i1, im_shape_i2
         )
         self.assertEqual(result.size, 0)
 
         # no keypoints for just i2
-        result = self.matcher.apply(
+        result = self.matcher.match(
             nonempty_keypoints, empty_keypoints, nonempty_descriptors, empty_descriptors, im_shape_i1, im_shape_i2
         )
         self.assertEqual(result.size, 0)
 
         # no keypoints for both i1 and i2
-        result = self.matcher.apply(
+        result = self.matcher.match(
             deepcopy(empty_keypoints),
             deepcopy(empty_keypoints),
             deepcopy(empty_descriptors),
@@ -92,7 +92,7 @@ class TestMatcherBase(unittest.TestCase):
             im_shape_i2,
         ) = get_features_from_real_images()
 
-        computed_matches = self.matcher.apply(
+        computed_matches = self.matcher.match(
             keypoints_i1, keypoints_i2, descriptors_i1, descriptors_i2, im_shape_i1, im_shape_i2
         )
 
@@ -108,7 +108,7 @@ class TestMatcherBase(unittest.TestCase):
 
 
 def get_features_from_real_images() -> (
-    Tuple[Keypoints, Keypoints, np.ndarray, np.ndarray, Tuple[int, int], Tuple[int, int]]
+    Tuple[Tuple[Keypoints, Keypoints, np.ndarray, np.ndarray, Tuple[int, int], Tuple[int, int]]]
 ):
     """Load keypoints and descriptors from 2 real images, taken from Olsson's Lund Door dataset."""
     with open(REAL_FEATURES_PATH / "keypoints_0.pkl", "rb") as f:

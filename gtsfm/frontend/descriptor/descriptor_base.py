@@ -17,7 +17,7 @@ class DescriptorBase(metaclass=abc.ABCMeta):
     """
 
     @abc.abstractmethod
-    def apply(self, image: Image, keypoints: Keypoints) -> np.ndarray:
+    def describe(self, image: Image, keypoints: Keypoints) -> np.ndarray:
         """Assign descriptors to detected features in an image.
 
         Arguments:

@@ -60,7 +60,7 @@ class GlobalDescriptorCacher(GlobalDescriptorBase):
         data = {"global_descriptor": global_descriptor}
         io_utils.write_to_bz2_file(data, cache_path)
 
-    def apply(self, image: Image) -> np.ndarray:
+    def describe(self, image: Image) -> np.ndarray:
         """Perform feature detection as well as their description, with caching.
 
         If the results are in the cache, they are fetched and returned. Otherwise, the `describe` of the
@@ -80,7 +80,7 @@ class GlobalDescriptorCacher(GlobalDescriptorBase):
         if cached_data is not None:
             return cached_data
 
-        global_descriptor = self._global_descriptor.apply(image)
+        global_descriptor = self._global_descriptor.describe(image)
         self.__save_result_to_cache(image, global_descriptor)
 
         return global_descriptor

@@ -29,7 +29,7 @@ class MatcherBase(GTSFMProcess):
         )
 
     @abc.abstractmethod
-    def apply(
+    def match(
         self,
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,

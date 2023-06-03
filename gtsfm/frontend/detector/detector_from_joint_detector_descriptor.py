@@ -24,7 +24,7 @@ class DetectorFromDetectorDescriptor(DetectorBase):
 
         self.detector_descriptor = detector_descriptor
 
-    def apply(self, image: Image) -> Keypoints:
+    def detect(self, image: Image) -> Keypoints:
         """Detect the features in an image.
 
         Args:
@@ -33,6 +33,6 @@ class DetectorFromDetectorDescriptor(DetectorBase):
         Returns:
             detected keypoints, with maximum length of max_keypoints.
         """
-        features, _ = self.detector_descriptor.apply(image)
+        features, _ = self.detector_descriptor.detect_and_describe(image)
 
         return features

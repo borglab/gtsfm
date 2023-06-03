@@ -62,7 +62,7 @@ class DetectorDescriptorCacher(DetectorDescriptorBase):
         data = {"keypoints": keypoints, "descriptors": descriptors}
         io_utils.write_to_bz2_file(data, cache_path)
 
-    def apply(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
+    def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
         """Perform feature detection as well as their description, with caching.
 
         If the results are in the cache, they are fetched and returned. Otherwise, the `detect_and_describe` of the
@@ -83,7 +83,7 @@ class DetectorDescriptorCacher(DetectorDescriptorBase):
         if cached_data is not None:
             return cached_data
 
-        keypoints, descriptors = self._detector_descriptor.apply(image)
+        keypoints, descriptors = self._detector_descriptor.detect_and_describe(image)
         self.__save_result_to_cache(image, keypoints, descriptors)
 
         return keypoints, descriptors

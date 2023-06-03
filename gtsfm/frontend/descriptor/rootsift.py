@@ -21,7 +21,7 @@ from gtsfm.frontend.descriptor.sift import SIFTDescriptor
 class RootSIFTDescriptor(SIFTDescriptor):
     """RootSIFT descriptor using OpenCV's implementation."""
 
-    def apply(self, image: Image, keypoints: Keypoints) -> np.ndarray:
+    def describe(self, image: Image, keypoints: Keypoints) -> np.ndarray:
         """Assign descriptors to detected features in an image.
 
         Note: Each descriptor will have unit L2-norm, as L1-normalization followed by a square root already gives unit
@@ -37,7 +37,7 @@ class RootSIFTDescriptor(SIFTDescriptor):
         if len(keypoints) == 0:
             return np.array([])
 
-        sift_desc = super().apply(image, keypoints)
+        sift_desc = super().describe(image, keypoints)
 
         # Step 1: L1 normalization
         l1_norms = np.sum(sift_desc, axis=1, keepdims=True)

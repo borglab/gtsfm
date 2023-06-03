@@ -31,7 +31,7 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
     """Superpoint Detector+Descriptor implementation."""
 
     def __init__(
-        self, max_keypoints: int = 5000, use_cuda: bool = True, weights_path: Union[Path, str] = MODEL_WEIGHTS_PATH
+        self, max_keypoints: int = 5000, use_cuda: bool = False, weights_path: Union[Path, str] = MODEL_WEIGHTS_PATH
     ) -> None:
         """Configures the object.
 
@@ -46,7 +46,7 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
         # TODO(Ayush): Can we add GPU support
         self._model = SuperPoint(self._config).eval()
 
-    def apply(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
+    def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
         """Jointly generate keypoint detections and their associated descriptors from a single image."""
         # TODO(ayushbaid): fix inference issue #110
 

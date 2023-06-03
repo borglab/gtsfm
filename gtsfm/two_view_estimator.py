@@ -313,7 +313,7 @@ class TwoViewEstimator:
         """Getter for the distance threshold used in the metric for correct correspondences."""
         return self._corr_metric_dist_threshold
 
-    def apply(
+    def run_2view(
         self,
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
@@ -334,7 +334,7 @@ class TwoViewEstimator:
     ]:
         """Estimate relative pose between two views, using verification."""
         # verification on putative correspondences to obtain relative pose and verified correspondences
-        (pre_ba_i2Ri1, pre_ba_i2Ui1, pre_ba_v_corr_idxs, pre_ba_inlier_ratio_wrt_estimate) = self._verifier.apply(
+        (pre_ba_i2Ri1, pre_ba_i2Ui1, pre_ba_v_corr_idxs, pre_ba_inlier_ratio_wrt_estimate) = self._verifier.verify(
             keypoints_i1,
             keypoints_i2,
             putative_corr_idxs,

@@ -28,7 +28,7 @@ class ImageMatcherBase(GTSFMProcess):
         )
 
     @abc.abstractmethod
-    def apply(
+    def match(
         self,
         image_i1: Image,
         image_i2: Image,

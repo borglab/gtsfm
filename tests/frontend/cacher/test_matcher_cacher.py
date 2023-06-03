@@ -40,11 +40,11 @@ class TestMatcherCacher(unittest.TestCase):
 
         # mock the underlying detector-descriptor which is used on cache miss
         underlying_matcher_mock = MagicMock()
-        underlying_matcher_mock.apply.return_value = DUMMY_MATCH_INDICES
+        underlying_matcher_mock.match.return_value = DUMMY_MATCH_INDICES
         underlying_matcher_mock.__class__.__name__ = "mock_matcher"
         obj_under_test = MatcherCacher(matcher_obj=underlying_matcher_mock)
 
-        computed_match_indices = obj_under_test.apply(
+        computed_match_indices = obj_under_test.match(
             keypoints_i1=DUMMY_KEYPOINTS_I1,
             keypoints_i2=DUMMY_KEYPOINTS_I2,
             descriptors_i1=DUMMY_DESCRIPTORS_I1,
@@ -56,7 +56,7 @@ class TestMatcherCacher(unittest.TestCase):
         np.testing.assert_allclose(computed_match_indices, DUMMY_MATCH_INDICES)
 
         # assert that underlying object was called
-        underlying_matcher_mock.apply.assert_called_once_with(
+        underlying_matcher_mock.match.assert_called_once_with(
             keypoints_i1=DUMMY_KEYPOINTS_I1,
             keypoints_i2=DUMMY_KEYPOINTS_I2,
             descriptors_i1=DUMMY_DESCRIPTORS_I1,
@@ -88,7 +88,7 @@ class TestMatcherCacher(unittest.TestCase):
         underlying_matcher_mock.__class__.__name__ = "mock_matcher"
         obj_under_test = MatcherCacher(matcher_obj=underlying_matcher_mock)
 
-        computed_match_indices = obj_under_test.apply(
+        computed_match_indices = obj_under_test.match(
             keypoints_i1=DUMMY_KEYPOINTS_I1,
             keypoints_i2=DUMMY_KEYPOINTS_I2,
             descriptors_i1=DUMMY_DESCRIPTORS_I1,
@@ -100,7 +100,7 @@ class TestMatcherCacher(unittest.TestCase):
         np.testing.assert_allclose(computed_match_indices, DUMMY_MATCH_INDICES)
 
         # assert that underlying object was not called
-        underlying_matcher_mock.apply.assert_not_called()
+        underlying_matcher_mock.match.assert_not_called()
 
         # assert that hash generation was called twice
         # TODO(ayushbaid): this need proper values

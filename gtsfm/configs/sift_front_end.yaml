@@ -79,5 +79,5 @@ SceneOptimizer:
       shared_calib: False
 
   # comment out to not run
-  # dense_multiview_optimizer:
-    # _target_: gtsfm.densify.mvs_patchmatchnet.MVSPatchmatchNet
+  dense_multiview_optimizer:
+    _target_: gtsfm.densify.mvs_patchmatchnet.MVSPatchmatchNet

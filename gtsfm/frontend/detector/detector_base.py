@@ -21,7 +21,7 @@ class DetectorBase(metaclass=abc.ABCMeta):
         self.max_keypoints = max_keypoints
 
     @abc.abstractmethod
-    def apply(self, image: Image) -> Keypoints:
+    def detect(self, image: Image) -> Keypoints:
         """Detect the features in an image.
 
         Args:

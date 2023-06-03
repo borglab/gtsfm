@@ -33,17 +33,17 @@ class TestDetectorDescriptorCacher(unittest.TestCase):
 
         # mock the underlying detector-descriptor which is used on cache miss
         underlying_detector_descriptor_mock = MagicMock()
-        underlying_detector_descriptor_mock.apply.return_value = (DUMMY_KEYPOINTS, DUMMY_DESCRIPTORS)
+        underlying_detector_descriptor_mock.detect_and_describe.return_value = (DUMMY_KEYPOINTS, DUMMY_DESCRIPTORS)
         underlying_detector_descriptor_mock.__class__.__name__ = "mock_det_desc"
         obj_under_test = DetectorDescriptorCacher(detector_descriptor_obj=underlying_detector_descriptor_mock)
 
-        computed_keypoints, computed_descriptors = obj_under_test.apply(image=DUMMY_IMAGE)
+        computed_keypoints, computed_descriptors = obj_under_test.detect_and_describe(image=DUMMY_IMAGE)
         # assert the returned value
         self.assertEqual(computed_keypoints, DUMMY_KEYPOINTS)
         np.testing.assert_allclose(computed_descriptors, DUMMY_DESCRIPTORS)
 
         # assert that underlying object was called
-        underlying_detector_descriptor_mock.apply.assert_called_once_with(DUMMY_IMAGE)
+        underlying_detector_descriptor_mock.detect_and_describe.assert_called_once_with(DUMMY_IMAGE)
 
         # assert that hash generation was called with the input image
         generate_hash_for_image_mock.assert_called_with(DUMMY_IMAGE)
@@ -67,13 +67,13 @@ class TestDetectorDescriptorCacher(unittest.TestCase):
         underlying_detector_descriptor_mock.__class__.__name__ = "mock_det_desc"
         obj_under_test = DetectorDescriptorCacher(detector_descriptor_obj=underlying_detector_descriptor_mock)
 
-        computed_keypoints, computed_descriptors = obj_under_test.apply(image=DUMMY_IMAGE)
+        computed_keypoints, computed_descriptors = obj_under_test.detect_and_describe(image=DUMMY_IMAGE)
         # assert the returned value
         self.assertEqual(computed_keypoints, DUMMY_KEYPOINTS)
         np.testing.assert_allclose(computed_descriptors, DUMMY_DESCRIPTORS)
 
         # assert that underlying object was not called
-        underlying_detector_descriptor_mock.apply.assert_not_called()
+        underlying_detector_descriptor_mock.detect_and_describe.assert_not_called()
 
         # assert that hash generation was called with the input image
         generate_hash_for_image_mock.assert_called_with(DUMMY_IMAGE)

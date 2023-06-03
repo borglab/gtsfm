@@ -21,7 +21,7 @@ from gtsfm.frontend.detector.detector_base import DetectorBase
 class DoG(DetectorBase):
     """DoG detector using OpenCV's implementation."""
 
-    def apply(self, image: Image) -> Keypoints:
+    def detect(self, image: Image) -> Keypoints:
         """Detect the features in an image.
 
         Args:

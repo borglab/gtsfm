@@ -52,7 +52,7 @@ class TestVerifierBase(unittest.TestCase):
     ) -> None:
         """Execute the verification and compute results."""
 
-        i2Ri1_computed, i2Ui1_computed, verified_indices_computed, _ = self.verifier.apply(
+        i2Ri1_computed, i2Ui1_computed, verified_indices_computed, _ = self.verifier.verify(
             keypoints_i1,
             keypoints_i2,
             match_indices,
@@ -168,8 +168,8 @@ class TestVerifierBase(unittest.TestCase):
             i2Ri1,
             i2Ui1,
             verified_indices,
-            inlier_ratio_est_model,
-        ) = self.verifier.apply(keypoints_i1, keypoints_i2, match_indices, intrinsics_i1, intrinsics_i2)
+            _,
+        ) = self.verifier.verify(keypoints_i1, keypoints_i2, match_indices, intrinsics_i1, intrinsics_i2)
 
         return i2Ri1, i2Ui1, verified_indices, keypoints_i1, keypoints_i2
 

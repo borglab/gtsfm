@@ -86,7 +86,7 @@ class LoRansac(VerifierBase):
         )
         return result_dict
 
-    def apply(
+    def verify(
         self,
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,

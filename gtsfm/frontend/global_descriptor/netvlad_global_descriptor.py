@@ -27,10 +27,9 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
 
     def __init__(self) -> None:
         """ """
-        self._model = nn.Module = NetVLAD()
-        self._model.eval()
+        self._model: nn.Module = NetVLAD().eval()
 
-    def apply(self, image: Image) -> np.ndarray:
+    def describe(self, image: Image) -> np.ndarray:
         """Compute the NetVLAD global descriptor for a single image query.
 
         Args:

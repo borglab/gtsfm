@@ -30,7 +30,7 @@ class TestNetVLADRetriever(unittest.TestCase):
 
         retriever = NetVLADRetriever(num_matched=2)
 
-        pairs = retriever.apply(loader=loader)
+        pairs = retriever.run(loader=loader)
 
         # only 1 pair possible between frame 0 and frame 1
         self.assertEqual(len(pairs), 1)
@@ -41,7 +41,7 @@ class TestNetVLADRetriever(unittest.TestCase):
         loader = OlssonLoader(folder=DOOR_DATA_ROOT, image_extension="JPG")
         retriever = NetVLADRetriever(num_matched=2)
 
-        pairs = retriever.apply(loader=loader)
+        pairs = retriever.run(loader=loader)
 
         self.assertEqual(len(pairs), 21)
 

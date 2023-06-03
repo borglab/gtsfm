@@ -14,7 +14,9 @@ from gtsfm.frontend.correspondence_generator.keypoint_aggregator.keypoint_aggreg
 class KeypointAggregatorUnique(KeypointAggregatorBase):
     """Keypoint aggregator without de-duplication."""
 
-    def apply(self, keypoints_dict: Dict[Tuple[int, int], Tuple[Keypoints, Keypoints]]) -> List[Keypoints]:
+    def run(
+        self, keypoints_dict: Dict[Tuple[int, int], Tuple[Keypoints, Keypoints]]
+    ) -> Tuple[List[Keypoints], Dict[Tuple[int, int], np.ndarray]]:
         """Aggregates per-pair image keypoints into a set of keypoints per image, without de-duplication.
 
         Assumes keypoint detections in each image pair are unique, and no de-duplication is necesary.

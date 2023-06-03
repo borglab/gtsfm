@@ -20,7 +20,7 @@ class TestRigRetriever(unittest.TestCase):
         loader = HiltiLoader(TEST_DATASET_DIR_PATH)
         retriever = RigRetriever(threshold=30)
 
-        pairs = retriever.apply(loader=loader)
+        pairs = retriever.run(loader=loader)
         # We know these to be the right values from setUp() method.
         self.assertEqual(len(pairs), 44)
         expected = [

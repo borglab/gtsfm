@@ -41,7 +41,7 @@ class DetectorDescriptorBase(GTSFMProcess):
         self.max_keypoints = max_keypoints
 
     @abc.abstractmethod
-    def apply(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
+    def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
         """Perform feature detection as well as their description.
 
         Refer to detect() in DetectorBase and describe() in DescriptorBase for

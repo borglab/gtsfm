@@ -32,7 +32,7 @@ class TestDetectorDescriptorBase(test_detector_base.TestDetectorBase):
         # test on random indexes
         test_indices = [0, 5]
         for idx in test_indices:
-            kps, descs = self.detector_descriptor.apply(self.loader.get_image(idx))
+            kps, descs = self.detector_descriptor.detect_and_describe(self.loader.get_image(idx))
 
             if len(kps) == 0:
                 # test-case for empty results

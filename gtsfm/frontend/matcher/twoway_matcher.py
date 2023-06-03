@@ -39,7 +39,7 @@ class TwoWayMatcher(MatcherBase):
         self._distance_type = distance_type
         self._ratio_test_threshold: Optional[float] = ratio_test_threshold
 
-    def apply(
+    def match(
         self,
         keypoints_i1: Keypoints,  # pylint: disable=unused-argument
         keypoints_i2: Keypoints,  # pylint: disable=unused-argument

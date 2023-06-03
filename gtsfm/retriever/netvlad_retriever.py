@@ -50,7 +50,7 @@ class NetVLADRetriever(RetrieverBase):
         self._blocksize = blocksize
         self._min_score = min_score
 
-    def apply(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> List[Tuple[int, int]]:
+    def run(self, loader: LoaderBase, plots_output_dir: Optional[Path] = None) -> List[Tuple[int, int]]:
         """Compute potential image pairs.
 
         Args:
@@ -135,11 +135,11 @@ class NetVLADRetriever(RetrieverBase):
         # TODO(johnwlambert): load images only O(N) times, intead of O(N^2) times, and record cache keys.
         for i in block_i_idxs:
             image = loader.get_image(i)
-            block_i_query_descs.append(self._global_descriptor_model.apply(image))
+            block_i_query_descs.append(self._global_descriptor_model.describe(image))
 
         for j in block_j_idxs:
             image = loader.get_image(j)
-            block_j_query_descs.append(self._global_descriptor_model.apply(image))
+            block_j_query_descs.append(self._global_descriptor_model.describe(image))
 
         # Form (K,D) for K images.
         block_i_query_descs = torch.from_numpy(np.array(block_i_query_descs))

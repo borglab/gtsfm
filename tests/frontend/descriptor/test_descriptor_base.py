@@ -39,7 +39,7 @@ class TestDescriptorBase(unittest.TestCase):
             )
         )
 
-        result = self.descriptor.apply(input_image, input_keypoints)
+        result = self.descriptor.describe(input_image, input_keypoints)
 
         self.assertEqual(len(input_keypoints), result.shape[0])
 
@@ -48,7 +48,7 @@ class TestDescriptorBase(unittest.TestCase):
         input_image = self.loader.get_image(0)
         input_keypoints = Keypoints(coordinates=np.array([]))
 
-        result = self.descriptor.apply(input_image, input_keypoints)
+        result = self.descriptor.describe(input_image, input_keypoints)
 
         self.assertEqual(0, result.size)
 

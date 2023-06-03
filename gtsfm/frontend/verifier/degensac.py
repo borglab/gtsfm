@@ -49,7 +49,7 @@ class Degensac(VerifierBase):
 
         super().__init__(use_intrinsics_in_verification, estimation_threshold_px)
 
-    def apply(
+    def verify(
         self,
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,

@@ -27,7 +27,7 @@ class CombinationDetectorDescriptor(DetectorDescriptorBase):
         self.detector = detector
         self.descriptor = descriptor
 
-    def apply(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
+    def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
         """Perform feature detection as well as their description.
 
         Refer to detect() in DetectorBase and describe() in DescriptorBase for
@@ -40,7 +40,7 @@ class CombinationDetectorDescriptor(DetectorDescriptorBase):
             Detected keypoints, with length N <= max_keypoints.
             Corr. descriptors, of shape (N, D) where D is the dimension of each descriptor.
         """
-        keypoints = self.detector.apply(image)
-        descriptors = self.descriptor.apply(image, keypoints)
+        keypoints = self.detector.detect(image)
+        descriptors = self.descriptor.describe(image, keypoints)
 
         return keypoints, descriptors

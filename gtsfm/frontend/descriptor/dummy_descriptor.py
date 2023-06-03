@@ -17,7 +17,7 @@ class DummyDescriptor(DescriptorBase):
 
         self.descriptor_length = 15  # length of each descriptor
 
-    def apply(self, image: Image, keypoints: Keypoints) -> np.ndarray:
+    def describe(self, image: Image, keypoints: Keypoints) -> np.ndarray:
         """Assign descriptors to detected features in an image, using random
         number generator.
 

@@ -56,7 +56,7 @@ class VerifierBase(GTSFMProcess):
         self._failure_result = (None, None, np.array([], dtype=np.uint64), 0.0)
 
     @abc.abstractmethod
-    def apply(
+    def verify(
         self,
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,

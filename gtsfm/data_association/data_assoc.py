@@ -277,7 +277,7 @@ class DataAssociation(GTSFMProcess):
         tracks_2d: Delayed,
         cameras_gt: List[Optional[gtsfm_types.CAMERA_TYPE]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
-        images_graph: Optional[List[Image]] = None,
+        images: Optional[List[Image]] = None,
     ) -> Tuple[Delayed, Delayed]:
         """Creates a computation graph for performing data association.
 
@@ -310,7 +310,7 @@ class DataAssociation(GTSFMProcess):
             triangulation_exit_codes=triangulation_exit_codes,
             cameras_gt=cameras_gt,
             relative_pose_priors=relative_pose_priors,
-            images=images_graph,
+            images=images,
         )
 
         return ba_input_graph, data_assoc_metrics_graph

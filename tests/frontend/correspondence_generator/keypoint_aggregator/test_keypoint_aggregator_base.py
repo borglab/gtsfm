@@ -47,7 +47,7 @@ class TestKeypointAggregatorBase(unittest.TestCase):
             ),
         }
 
-        keypoints_list, putative_corr_idxs_dict = self.aggregator.apply(keypoints_dict)
+        keypoints_list, putative_corr_idxs_dict = self.aggregator.run(keypoints_dict)
 
         assert len(keypoints_list) == 3
         assert all([isinstance(kps, Keypoints) for kps in keypoints_list])
