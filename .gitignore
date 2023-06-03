@@ -138,7 +138,6 @@ dmypy.json
 dask-worker-space/
 dask-report.html
 *-dask-report.html
-submit-perf.html
 
 # Third party model code
 thirdparty/models/
