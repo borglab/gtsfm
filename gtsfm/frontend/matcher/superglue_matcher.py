@@ -46,8 +46,8 @@ class SuperGlueMatcher(MatcherBase):
         keypoints_i2: Keypoints,
         descriptors_i1: np.ndarray,
         descriptors_i2: np.ndarray,
-        im_shape_i1: Tuple[int, int],
-        im_shape_i2: Tuple[int, int],
+        im_shape_i1: Tuple[int, int, int],
+        im_shape_i2: Tuple[int, int, int],
     ) -> np.ndarray:
         """Match keypoints using their 2d positions and descriptor vectors.
 
@@ -77,8 +77,8 @@ class SuperGlueMatcher(MatcherBase):
         # batch size and number of channels
         B, C = 1, 1
 
-        H1, W1 = im_shape_i1
-        H2, W2 = im_shape_i2
+        H1, W1, _ = im_shape_i1
+        H2, W2, _ = im_shape_i2
         # feed in dummy arguments, as they are only needed to determine image dimensions for normalization
         empty_image_i1 = torch.empty((B, C, H1, W1))
         empty_image_i2 = torch.empty((B, C, H2, W2))
