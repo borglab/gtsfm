@@ -238,7 +238,7 @@ class GtsfmRunnerBase:
                 intrinsics,
                 self.loader.get_relative_pose_priors(image_pair_indices),
                 self.loader.get_gt_cameras(),
-                gt_scene_mesh=None,
+                gt_scene_mesh=self.loader.get_gt_scene_trimesh(),
                 two_view_estimator=self.scene_optimizer.two_view_estimator,
             )
 

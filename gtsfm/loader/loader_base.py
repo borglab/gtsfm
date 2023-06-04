@@ -8,6 +8,7 @@ import logging
 from typing import Dict, List, Optional, Tuple
 
 from gtsam import Cal3Bundler, Pose3
+from trimesh import Trimesh
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.images as img_utils
@@ -380,3 +381,11 @@ class LoaderBase(GTSFMProcess):
                     pairs.append((idx1, idx2))
 
         return pairs
+
+    def get_gt_scene_trimesh(self) -> Optional[Trimesh]:
+        """Getter for the ground truth mesh for the scene.
+
+        Returns:
+            Trimesh object, if available
+        """
+        return None

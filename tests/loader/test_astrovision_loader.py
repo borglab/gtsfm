@@ -48,9 +48,9 @@ class TestAstrovisionLoader(unittest.TestCase):
 
     def test_constructor_set_properties(self) -> None:
         """Ensure that constructor sets class properties correctly."""
-        assert self.loader.gt_scene_trimesh is not None
-        assert self.loader.gt_scene_trimesh.vertices.shape[0] == 5002
-        assert self.loader.gt_scene_trimesh.faces.shape[0] == 10000
+        assert self.loader._gt_scene_trimesh is not None
+        assert self.loader._gt_scene_trimesh.vertices.shape[0] == 5002
+        assert self.loader._gt_scene_trimesh.faces.shape[0] == 10000
         assert self.loader._use_gt_extrinsics
         assert self.loader._use_gt_sfmtracks
         assert self.loader._max_frame_lookahead == 2
