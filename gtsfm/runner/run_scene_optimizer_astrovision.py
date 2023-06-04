@@ -3,15 +3,10 @@
 Author: Travis Driver
 """
 import argparse
-import time
-
-import dask
-from dask.distributed import Client, LocalCluster, performance_report
 
 import gtsfm.utils.logger as logger_utils
-from gtsfm.common.gtsfm_data import GtsfmData
-from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.loader.astrovision_loader import AstrovisionLoader
+from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.runner.gtsfm_runner_base import GtsfmRunnerBase
 
 logger = logger_utils.get_logger()
