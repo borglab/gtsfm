@@ -54,8 +54,6 @@ POINT3_DOF = 3  # 3d points have 3 dof
 
 # noise model params
 CAM_POSE3_PRIOR_NOISE_SIGMA = 0.1
-CAM_CAL3BUNDLER_PRIOR_NOISE_SIGMA = 1e-5  # essentially fixed
-CAM_CAL3FISHEYE_PRIOR_NOISE_SIGMA = 1e-5  # essentially fixed
 MEASUREMENT_NOISE_SIGMA = 1.0  # in pixels
 
 logger = logging.getLogger(__name__)
@@ -77,6 +75,7 @@ class BundleAdjustmentOptimizer:
         robust_measurement_noise: bool = False,
         shared_calib: bool = False,
         max_iterations: Optional[int] = None,
+        calibration_prior_noise_sigma: float = 1e-5,
     ) -> None:
         """Initializes the parameters for bundle adjustment module.
 
@@ -90,11 +89,14 @@ class BundleAdjustmentOptimizer:
             shared_calib (optional): Flag to enable shared calibration across all cameras. Defaults to False.
             max_iterations (optional): Max number of iterations when optimizing the factor graph. None means no cap.
                 Defaults to None.
+            calibration_prior_noise_sigma (optional): Calibration prior noise sigma. Default to 1e-5, which is 
+                essentially fixed.
         """
         self._reproj_error_thresholds = reproj_error_thresholds
         self._robust_measurement_noise = robust_measurement_noise
         self._shared_calib = shared_calib
         self._max_iterations = max_iterations
+        self._calibration_prior_noise_sigma = calibration_prior_noise_sigma
 
     def __map_to_calibration_variable(self, camera_idx: int) -> int:
         return 0 if self._shared_calib else camera_idx
@@ -181,15 +183,12 @@ class BundleAdjustmentOptimizer:
 
         calibration_prior_factor_class = PriorFactorCal3Fisheye if is_fisheye_calibration else PriorFactorCal3Bundler
         calibration_prior_factor_dof = CAM_CAL3FISHEYE_DOF if is_fisheye_calibration else CAM_CAL3BUNDLER_DOF
-        calibration_prior_noise_sigma = (
-            CAM_CAL3FISHEYE_PRIOR_NOISE_SIGMA if is_fisheye_calibration else CAM_CAL3BUNDLER_PRIOR_NOISE_SIGMA
-        )
         if self._shared_calib:
             graph.push_back(
                 calibration_prior_factor_class(
                     K(self.__map_to_calibration_variable(cameras_to_model[0])),
                     initial_data.get_camera(cameras_to_model[0]).calibration(),
-                    gtsam.noiseModel.Isotropic.Sigma(calibration_prior_factor_dof, calibration_prior_noise_sigma),
+                    gtsam.noiseModel.Isotropic.Sigma(calibration_prior_factor_dof, self._calibration_prior_noise_sigma),
                 )
             )
         else:
@@ -198,7 +197,9 @@ class BundleAdjustmentOptimizer:
                     calibration_prior_factor_class(
                         K(self.__map_to_calibration_variable(i)),
                         initial_data.get_camera(i).calibration(),
-                        gtsam.noiseModel.Isotropic.Sigma(calibration_prior_factor_dof, calibration_prior_noise_sigma),
+                        gtsam.noiseModel.Isotropic.Sigma(
+                            calibration_prior_factor_dof, self._calibration_prior_noise_sigma
+                        ),
                     )
                 )
 
