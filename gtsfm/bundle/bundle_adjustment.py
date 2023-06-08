@@ -51,11 +51,6 @@ CAM_CAL3FISHEYE_DOF = 9
 IMG_MEASUREMENT_DIM = 2  # 2d measurements (u,v) have 2 dof
 POINT3_DOF = 3  # 3d points have 3 dof
 
-
-# noise model params
-CAM_POSE3_PRIOR_NOISE_SIGMA = 0.1
-MEASUREMENT_NOISE_SIGMA = 1.0  # in pixels
-
 logger = logging.getLogger(__name__)
 
 
@@ -75,7 +70,9 @@ class BundleAdjustmentOptimizer:
         robust_measurement_noise: bool = False,
         shared_calib: bool = False,
         max_iterations: Optional[int] = None,
+        cam_pose3_prior_noise_sigma: float = 0.1,
         calibration_prior_noise_sigma: float = 1e-5,
+        measurement_noise_sigma: float = 1.0,
     ) -> None:
         """Initializes the parameters for bundle adjustment module.
 
@@ -89,14 +86,18 @@ class BundleAdjustmentOptimizer:
             shared_calib (optional): Flag to enable shared calibration across all cameras. Defaults to False.
             max_iterations (optional): Max number of iterations when optimizing the factor graph. None means no cap.
                 Defaults to None.
-            calibration_prior_noise_sigma (optional): Calibration prior noise sigma. Default to 1e-5, which is 
+            cam_pose3_prior_noise_sigma (optional): Camera pose3 prior noise sigma. Default to 0.1.
+            calibration_prior_noise_sigma (optional): Calibration prior noise sigma. Default to 1e-5, which is
                 essentially fixed.
+            measurement_noise_sigma (optional): Measurement noise sigma in pixel units. Default to 1.0.
         """
         self._reproj_error_thresholds = reproj_error_thresholds
         self._robust_measurement_noise = robust_measurement_noise
         self._shared_calib = shared_calib
         self._max_iterations = max_iterations
+        self._cam_pose3_prior_noise_sigma = cam_pose3_prior_noise_sigma
         self._calibration_prior_noise_sigma = calibration_prior_noise_sigma
+        self._measurement_noise_sigma = measurement_noise_sigma
 
     def __map_to_calibration_variable(self, camera_idx: int) -> int:
         return 0 if self._shared_calib else camera_idx
@@ -106,7 +107,7 @@ class BundleAdjustmentOptimizer:
         graph = NonlinearFactorGraph()
 
         # noise model for measurements -- one pixel in u and v
-        measurement_noise = gtsam.noiseModel.Isotropic.Sigma(IMG_MEASUREMENT_DIM, MEASUREMENT_NOISE_SIGMA)
+        measurement_noise = gtsam.noiseModel.Isotropic.Sigma(IMG_MEASUREMENT_DIM, self._measurement_noise_sigma)
         if self._robust_measurement_noise:
             measurement_noise = gtsam.noiseModel.Robust(gtsam.noiseModel.mEstimator.Huber(1.345), measurement_noise)
 
@@ -169,7 +170,7 @@ class BundleAdjustmentOptimizer:
                 PriorFactorPose3(
                     X(camera_for_origin),
                     initial_data.get_camera(camera_for_origin).pose(),
-                    gtsam.noiseModel.Isotropic.Sigma(CAM_POSE3_DOF, CAM_POSE3_PRIOR_NOISE_SIGMA),
+                    gtsam.noiseModel.Isotropic.Sigma(CAM_POSE3_DOF, self._cam_pose3_prior_noise_sigma),
                 )
             )
 
