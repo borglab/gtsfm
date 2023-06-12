@@ -86,10 +86,10 @@ class BundleAdjustmentOptimizer:
             shared_calib (optional): Flag to enable shared calibration across all cameras. Defaults to False.
             max_iterations (optional): Max number of iterations when optimizing the factor graph. None means no cap.
                 Defaults to None.
-            cam_pose3_prior_noise_sigma (optional): Camera pose3 prior noise sigma. Default to 0.1.
+            cam_pose3_prior_noise_sigma (optional): Camera Pose3 prior noise sigma.
             calibration_prior_noise_sigma (optional): Calibration prior noise sigma. Default to 1e-5, which is
                 essentially fixed.
-            measurement_noise_sigma (optional): Measurement noise sigma in pixel units. Default to 1.0.
+            measurement_noise_sigma (optional): Measurement noise sigma in pixel units.
         """
         self._reproj_error_thresholds = reproj_error_thresholds
         self._robust_measurement_noise = robust_measurement_noise
