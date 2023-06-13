@@ -11,6 +11,7 @@ References:
 
 Authors: Ayush Baid, John Lambert
 """
+import copy
 from typing import Tuple
 
 import numpy as np
@@ -37,7 +38,7 @@ class SuperGlueMatcher(MatcherBase):
             "weights": "outdoor" if use_outdoor_model else "indoor",
             "sinkhorn_iterations": DEFAULT_NUM_SINKHORN_ITERATIONS,
         }
-        self._use_cuda = use_cuda and torch.cuda.is_available()
+        self._use_cuda = use_cuda
         self._model = SuperGlue(self._config).eval()
 
     def match(
@@ -68,6 +69,9 @@ class SuperGlueMatcher(MatcherBase):
         Returns:
             Match indices (sorted by confidence), as matrix of shape (N, 2), where N < min(N1, N2).
         """
+        device = torch.device("cuda" if self._use_cuda and torch.cuda.is_available() else "cpu")
+        model_copy = copy.deepcopy(self._model).to(device)
+
         if keypoints_i1.responses is None or keypoints_i2.responses is None:
             raise ValueError("Responses for keypoints required for SuperGlue")
 
@@ -84,18 +88,18 @@ class SuperGlueMatcher(MatcherBase):
         empty_image_i2 = torch.empty((B, C, H2, W2))
 
         input_data = {
-            "keypoints0": torch.from_numpy(keypoints_i1.coordinates).unsqueeze(0).float(),
-            "keypoints1": torch.from_numpy(keypoints_i2.coordinates).unsqueeze(0).float(),
-            "descriptors0": torch.from_numpy(descriptors_i1).T.unsqueeze(0).float(),
-            "descriptors1": torch.from_numpy(descriptors_i2).T.unsqueeze(0).float(),
-            "scores0": torch.from_numpy(keypoints_i1.responses).unsqueeze(0).float(),
-            "scores1": torch.from_numpy(keypoints_i2.responses).unsqueeze(0).float(),
-            "image0": empty_image_i1,
-            "image1": empty_image_i2,
+            "keypoints0": torch.from_numpy(keypoints_i1.coordinates).unsqueeze(0).float().to(device),
+            "keypoints1": torch.from_numpy(keypoints_i2.coordinates).unsqueeze(0).float().to(device),
+            "descriptors0": torch.from_numpy(descriptors_i1).T.unsqueeze(0).float().to(device),
+            "descriptors1": torch.from_numpy(descriptors_i2).T.unsqueeze(0).float().to(device),
+            "scores0": torch.from_numpy(keypoints_i1.responses).unsqueeze(0).float().to(device),
+            "scores1": torch.from_numpy(keypoints_i2.responses).unsqueeze(0).float().to(device),
+            "image0": empty_image_i1.to(device),
+            "image1": empty_image_i2.to(device),
         }
 
         with torch.no_grad():
-            pred = self._model(input_data)
+            pred = model_copy(input_data)
             matches = pred["matches0"][0].detach().cpu().numpy()
 
             num_kps_i1 = len(keypoints_i1)

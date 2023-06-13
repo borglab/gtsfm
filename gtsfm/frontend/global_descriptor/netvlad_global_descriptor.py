@@ -12,6 +12,7 @@ Whereas bag-of-visual-words aggregation keeps counts of visual words, VLAD store
 
 Authors: John Lambert, Travis Driver
 """
+import copy
 
 import numpy as np
 import torch
@@ -25,8 +26,9 @@ from thirdparty.hloc.netvlad import NetVLAD
 class NetVLADGlobalDescriptor(GlobalDescriptorBase):
     """NetVLAD global descriptor"""
 
-    def __init__(self) -> None:
+    def __init__(self, use_cuda: bool = True) -> None:
         """ """
+        self._use_cuda = use_cuda
         self._model: nn.Module = NetVLAD().eval()
 
     def describe(self, image: Image) -> np.ndarray:
@@ -38,8 +40,12 @@ class NetVLADGlobalDescriptor(GlobalDescriptorBase):
         Returns:
             img_desc: array of shape (D,) representing global image descriptor.
         """
+        device = torch.device("cuda" if self._use_cuda and torch.cuda.is_available() else "cpu")
+        model_copy = copy.deepcopy(self._model).to(device)
 
-        img_tensor = torch.from_numpy(image.value_array).permute(2, 0, 1).unsqueeze(0).type(torch.float32) / 255
-        img_desc = self._model({"image": img_tensor})
+        img_tensor = (
+            torch.from_numpy(image.value_array).permute(2, 0, 1).unsqueeze(0).type(torch.float32).to(device) / 255
+        )
+        img_desc = model_copy({"image": img_tensor})
 
         return img_desc["global_descriptor"].detach().squeeze().cpu().numpy()

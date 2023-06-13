@@ -9,6 +9,7 @@ References:
 
 Authors: Ayush Baid
 """
+import copy
 from pathlib import Path
 from typing import Tuple, Union
 
@@ -31,7 +32,7 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
     """Superpoint Detector+Descriptor implementation."""
 
     def __init__(
-        self, max_keypoints: int = 5000, use_cuda: bool = False, weights_path: Union[Path, str] = MODEL_WEIGHTS_PATH
+        self, max_keypoints: int = 5000, use_cuda: bool = True, weights_path: Union[Path, str] = MODEL_WEIGHTS_PATH
     ) -> None:
         """Configures the object.
 
@@ -41,21 +42,22 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
             weights_path (optional): Path to the model weights. Defaults to MODEL_WEIGHT_PATH.
         """
         super().__init__(max_keypoints=max_keypoints)
-        self._use_cuda = use_cuda and torch.cuda.is_available()
+        self._use_cuda = use_cuda
         self._config = {"weights_path": weights_path}
         # TODO(Ayush): Can we add GPU support
         self._model = SuperPoint(self._config).eval()
 
     def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
         """Jointly generate keypoint detections and their associated descriptors from a single image."""
-        # TODO(ayushbaid): fix inference issue #110
+        device = torch.device("cuda" if self._use_cuda and torch.cuda.is_available() else "cpu")
+        model_copy = copy.deepcopy(self._model).to(device)
 
         # Compute features.
         image_tensor = torch.from_numpy(
             np.expand_dims(image_utils.rgb_to_gray_cv(image).value_array.astype(np.float32) / 255.0, (0, 1))
-        )
+        ).to(device)
         with torch.no_grad():
-            model_results = self._model({"image": image_tensor})
+            model_results = model_copy({"image": image_tensor})
         torch.cuda.empty_cache()
 
         # Unpack results.

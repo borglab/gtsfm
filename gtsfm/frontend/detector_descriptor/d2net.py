@@ -5,7 +5,7 @@ https://github.com/mihaidusmanu/d2-net
 
 Authors: John Lambert
 """
-
+import copy
 from pathlib import Path
 from typing import Tuple
 
@@ -33,7 +33,7 @@ MODEL_PATH = Path(__file__).resolve().parent.parent.parent.parent / "thirdparty"
 class D2NetDetDesc(DetectorDescriptorBase):
     """D2-Net detector descriptor."""
 
-    def __init__(self, max_keypoints: int = 5000, model_path: Path = MODEL_PATH, use_cuda: bool = False) -> None:
+    def __init__(self, max_keypoints: int = 5000, model_path: Path = MODEL_PATH, use_cuda: bool = True) -> None:
         """Instantiate parameters and hardware settings for D2-Net detector-descriptor.
 
         We set the maximum number of keypoints, set the path to pre-trained weights, and determine whether
@@ -42,8 +42,8 @@ class D2NetDetDesc(DetectorDescriptorBase):
         super().__init__()
         self.max_keypoints = max_keypoints
         self.model_path = model_path
-        self.use_cuda = use_cuda and torch.cuda.is_available()
-        self._model = D2Net(model_file=self.model_path, use_relu=USE_RELU, use_cuda=self.use_cuda).eval()
+        self.use_cuda = use_cuda
+        self._model = D2Net(model_file=self.model_path, use_relu=USE_RELU, use_cuda=False).eval()
 
     def detect_and_describe(self, image: Image) -> Tuple[Keypoints, np.ndarray]:
         """Extract keypoints and their corresponding descriptors.
@@ -58,6 +58,8 @@ class D2NetDetDesc(DetectorDescriptorBase):
             Detected keypoints, with length N <= max_keypoints.
             Corr. descriptors, of shape (N, D) where D is the dimension of each descriptor.
         """
+        device = torch.device("cuda" if self.use_cuda and torch.cuda.is_available() else "cpu")
+        model_copy = copy.deepcopy(self._model).to(device)
 
         # Resize image, and obtain re-scaling factors to postprocess keypoint coordinates.
         resized_image, fact_i, fact_j = resize_image(image.value_array)
@@ -67,16 +69,16 @@ class D2NetDetDesc(DetectorDescriptorBase):
 
         with torch.no_grad():
             keypoints, scores, descriptors = d2net_pyramid.process_multiscale(
-                image=torch.tensor(input_image[np.newaxis, :, :, :].astype(np.float32)),
-                model=self._model,
+                image=torch.tensor(input_image[np.newaxis, :, :, :].astype(np.float32)).to(device),
+                model=model_copy,
                 scales=scales,
             )
 
         # Choose the top K keypoints and descriptors.
         ordered_idxs = np.argsort(-scores)[: self.max_keypoints]
-        keypoints = keypoints[ordered_idxs, :]
-        descriptors = descriptors[ordered_idxs, :]
-        scores = scores[ordered_idxs]
+        keypoints = keypoints[ordered_idxs, :].detach().cpu().numpy()
+        descriptors = descriptors[ordered_idxs, :].detach().cpu().numpy()
+        scores = scores[ordered_idxs].detach().cpu().numpy()
 
         # Rescale keypoint coordinates from resized image scale, back to provided input image resolution.
         keypoints[:, 0] *= fact_i

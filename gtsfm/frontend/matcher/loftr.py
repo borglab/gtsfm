@@ -9,6 +9,7 @@ References:
 
 Authors: Ayush Baid
 """
+import copy
 from typing import Tuple
 
 import numpy as np
@@ -55,9 +56,12 @@ class LOFTR(ImageMatcherBase):
             Keypoints from image 1 (N keypoints will exist).
             Corresponding keypoints from image 2 (there will also be N keypoints). These represent feature matches.
         """
+        device = torch.device("cuda" if self._use_cuda and torch.cuda.is_available() else "cpu")
+        model_copy = copy.deepcopy(self._matcher).to(device)
+
         with torch.no_grad():
-            input = {"image0": self.to_tensor(image_i1), "image1": self.to_tensor(image_i2)}
-            correspondences_dict = self._matcher(input)
+            input = {"image0": self.to_tensor(image_i1).to(device), "image1": self.to_tensor(image_i2).to(device)}
+            correspondences_dict = model_copy(input)
 
         coordinates_i1 = correspondences_dict[KEYPOINTS_I1_COORDINATES_KEY].cpu().numpy()
         coordinates_i2 = correspondences_dict[KEYPOINTS_I2_COORDINATES_KEY].cpu().numpy()
