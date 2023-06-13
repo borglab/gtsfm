@@ -49,7 +49,7 @@ class MultiViewOptimizer:
         i2Ri1_graph: Dict[Tuple[int, int], Delayed],
         i2Ui1_graph: Dict[Tuple[int, int], Delayed],
         v_corr_idxs_graph: Dict[Tuple[int, int], Delayed],
-        all_intrinsics: List[Optional[gtsfm_types.CALIBRATION_TYPE]],
+        all_intrinsics: List[Delayed],
         absolute_pose_priors: List[Optional[PosePrior]],
         relative_pose_priors: Dict[Tuple[int, int], PosePrior],
         two_view_reports_dict: Optional[Dict[Tuple[int, int], Delayed]],

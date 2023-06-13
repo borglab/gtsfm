@@ -54,7 +54,7 @@ POINT3_DOF = 3  # 3d points have 3 dof
 
 # noise model params
 CAM_POSE3_PRIOR_NOISE_SIGMA = 0.1
-CAM_CAL3BUNDLER_PRIOR_NOISE_SIGMA = 1e-5  # essentially fixed
+CAM_CAL3BUNDLER_PRIOR_NOISE_SIGMA = 1e-2  # essentially fixed
 CAM_CAL3FISHEYE_PRIOR_NOISE_SIGMA = 1e-5  # essentially fixed
 MEASUREMENT_NOISE_SIGMA = 1.0  # in pixels
 

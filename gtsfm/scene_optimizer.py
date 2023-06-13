@@ -6,13 +6,13 @@ import logging
 import os
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-
+from collections import defaultdict
 import dask
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import Pose3, Similarity3
+from gtsam import Pose3, Similarity3, Cal3Bundler
 from trimesh import Trimesh
 
 import gtsfm.common.types as gtsfm_types
@@ -148,13 +148,21 @@ class SceneOptimizer:
             POST_BA_REPORT_TAG: {},
             POST_ISP_REPORT_TAG: {},
         }
+        new_intrinsics = defaultdict(list)
 
         delayed_results: List[Delayed] = []
         for (i1, i2) in image_pair_indices:
             # Collect ground truth relative and absolute poses if available.
             # TODO(johnwlambert): decompose this method -- name it as "calling_the_plate()"
             # TODO(johnwlambert): decompose this so what happens in the loop is a separate method
-            i2Ri1, i2Ui1, v_corr_idxs, two_view_reports = self.two_view_estimator.create_computation_graph(
+            (
+                i2Ri1,
+                i2Ui1,
+                v_corr_idxs,
+                new_intrinsics_i1,
+                new_intrinsics_i2,
+                two_view_reports,
+            ) = self.two_view_estimator.create_computation_graph(
                 keypoints_i1=keypoints_list[i1],
                 keypoints_i2=keypoints_list[i2],
                 putative_corr_idxs=putative_corr_idxs_dict[i1, i2],
@@ -165,6 +173,8 @@ class SceneOptimizer:
                 gt_camera_i2=gt_cameras[i2],
                 gt_scene_mesh_graph=gt_scene_mesh,
             )
+            new_intrinsics[i1].append(new_intrinsics_i1)
+            new_intrinsics[i2].append(new_intrinsics_i2)
 
             # Store results.
             i2Ri1_graph_dict[(i1, i2)] = i2Ri1
@@ -189,7 +199,18 @@ class SceneOptimizer:
                         )
                     )
 
-        return i2Ri1_graph_dict, i2Ui1_graph_dict, v_corr_idxs_graph_dict, two_view_reports_dict, delayed_results
+        updated_intrinsics = []
+        for i in range(len(all_intrinsics)):
+            updated_intrinsics.append(dask.delayed(average_intrinsics)(new_intrinsics[i]))
+
+        return (
+            i2Ri1_graph_dict,
+            i2Ui1_graph_dict,
+            v_corr_idxs_graph_dict,
+            updated_intrinsics,
+            two_view_reports_dict,
+            delayed_results,
+        )
 
     def create_computation_graph(
         self,
@@ -213,6 +234,7 @@ class SceneOptimizer:
             i2Ri1_graph_dict,
             i2Ui1_graph_dict,
             v_corr_idxs_graph_dict,
+            updated_intrinsics,
             two_view_reports_dict,
             delayed_results,
         ) = self.create_computation_graph_for_frontend(
@@ -239,7 +261,7 @@ class SceneOptimizer:
             i2Ri1_graph_dict,
             i2Ui1_graph_dict,
             v_corr_idxs_graph_dict,
-            all_intrinsics,
+            updated_intrinsics,
             absolute_pose_priors,
             relative_pose_priors,
             two_view_reports_dict[POST_ISP_REPORT_TAG],
@@ -562,6 +584,8 @@ def save_full_frontend_metrics(
                 "num_inliers_est_model": int(report.num_inliers_est_model)
                 if report.num_inliers_est_model is not None
                 else None,
+                "i1_focal": report.K_i1.fx() if report.K_i1 is not None else None,
+                "i2_focal": report.K_i2.fx() if report.K_i2 is not None else None,
             }
         )
 
@@ -627,3 +651,10 @@ def _save_retrieval_two_view_metrics(metrics_path: Path, plot_base_path: Path) -
     plt.ylabel("Pose error w.r.t. GT (deg.)")
     plt.savefig(os.path.join(plot_base_path, "gt_pose_error_vs_similarity_score.jpg"), dpi=500)
     plt.close("all")
+
+
+def average_intrinsics(estimates):
+    focals = [K.fx() for K in estimates]
+    reference = estimates[0]
+    new_intrinsics = Cal3Bundler(np.median(focals), reference.k1(), reference.k2(), reference.px(), reference.py())
+    return new_intrinsics

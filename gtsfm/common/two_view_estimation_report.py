@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 import numpy as np
-from gtsam import Rot3, Unit3
+from gtsam import Rot3, Unit3, Cal3Bundler
 
 
 @dataclass(frozen=False)
@@ -51,3 +51,5 @@ class TwoViewEstimationReport:
     reproj_error_gt_model: Optional[np.ndarray] = None
     inlier_avg_reproj_error_gt_model: Optional[float] = None
     outlier_avg_reproj_error_gt_model: Optional[float] = None
+    K_i1: Optional[Cal3Bundler] = None
+    K_i2: Optional[Cal3Bundler] = None

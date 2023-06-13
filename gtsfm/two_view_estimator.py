@@ -306,6 +306,44 @@ class TwoViewEstimator:
         """Getter for the distance threshold used in the metric for correct correspondences."""
         return self._corr_metric_dist_threshold
 
+    def verify_with_coarse_focal_estimation(
+        self, intrinsics_i1, intrinsics_i2, keypoints_i1, keypoints_i2, putative_corr_idxs
+    ) -> True:
+        f_range = np.linspace(start=0.5, stop=2.0, num=30)
+        best_pre_ba_inlier_ratio_wrt_estimate = 0.0
+        best_pre_ba_i2Ri1 = None
+        best_pre_ba_i2Ui1 = None
+        best_pre_ba_v_corr_idxs = None
+        best_intrin_i1 = None
+        best_intrin_i2 = None
+        for f1 in f_range:
+            new_f_i1 = intrinsics_i1.fx() * f1
+            new_f_i2 = intrinsics_i2.fx() * f1
+            new_intrin_i1 = gtsam.Cal3Bundler(
+                new_f_i1, intrinsics_i1.k1(), intrinsics_i1.k2(), intrinsics_i1.px(), intrinsics_i1.py()
+            )
+            new_intrin_i2 = gtsam.Cal3Bundler(
+                new_f_i2, intrinsics_i2.k1(), intrinsics_i2.k2(), intrinsics_i2.px(), intrinsics_i2.py()
+            )
+            pre_ba_i2Ri1, pre_ba_i2Ui1, pre_ba_v_corr_idxs, pre_ba_inlier_ratio_wrt_estimate = self._verifier.verify(
+                keypoints_i1, keypoints_i2, putative_corr_idxs, new_intrin_i1, new_intrin_i2
+            )
+            if pre_ba_inlier_ratio_wrt_estimate > best_pre_ba_inlier_ratio_wrt_estimate:
+                best_pre_ba_inlier_ratio_wrt_estimate = pre_ba_inlier_ratio_wrt_estimate
+                best_pre_ba_i2Ri1 = pre_ba_i2Ri1
+                best_pre_ba_i2Ui1 = pre_ba_i2Ui1
+                best_pre_ba_v_corr_idxs = pre_ba_v_corr_idxs
+                best_intrin_i1 = new_intrin_i1
+                best_intrin_i2 = new_intrin_i2
+        return (
+            best_pre_ba_i2Ri1,
+            best_pre_ba_i2Ui1,
+            best_pre_ba_v_corr_idxs,
+            best_pre_ba_inlier_ratio_wrt_estimate,
+            best_intrin_i1,
+            best_intrin_i2,
+        )
+
     def run_2view(
         self,
         keypoints_i1: Keypoints,
@@ -327,13 +365,26 @@ class TwoViewEstimator:
     ]:
         """Estimate relative pose between two views, using verification."""
         # verification on putative correspondences to obtain relative pose and verified correspondences
-        (pre_ba_i2Ri1, pre_ba_i2Ui1, pre_ba_v_corr_idxs, pre_ba_inlier_ratio_wrt_estimate) = self._verifier.verify(
-            keypoints_i1,
-            keypoints_i2,
-            putative_corr_idxs,
-            camera_intrinsics_i1,
-            camera_intrinsics_i2,
+        # (pre_ba_i2Ri1, pre_ba_i2Ui1, pre_ba_v_corr_idxs, pre_ba_inlier_ratio_wrt_estimate) = self._verifier.verify(
+        #     keypoints_i1,
+        #     keypoints_i2,
+        #     putative_corr_idxs,
+        #     camera_intrinsics_i1,
+        #     camera_intrinsics_i2,
+        # )
+
+        (
+            pre_ba_i2Ri1,
+            pre_ba_i2Ui1,
+            pre_ba_v_corr_idxs,
+            pre_ba_inlier_ratio_wrt_estimate,
+            new_intrin_i1,
+            new_intrin_i2,
+        ) = self.verify_with_coarse_focal_estimation(
+            camera_intrinsics_i1, camera_intrinsics_i2, keypoints_i1, keypoints_i2, putative_corr_idxs
         )
+        camera_intrinsics_i1 = new_intrin_i1
+        camera_intrinsics_i2 = new_intrin_i2
 
         pre_ba_report = self.__get_2view_report_from_results(
             i2Ri1_computed=pre_ba_i2Ri1,
@@ -346,6 +397,8 @@ class TwoViewEstimator:
             gt_camera_i2=gt_camera_i2,
             gt_scene_mesh=gt_scene_mesh,
         )
+        pre_ba_report.K_i1 = camera_intrinsics_i1
+        pre_ba_report.K_i2 = camera_intrinsics_i2
 
         # Optionally, do two-view bundle adjustment
         if self._bundle_adjust_2view:
@@ -375,6 +428,8 @@ class TwoViewEstimator:
                 gt_camera_i2=gt_camera_i2,
                 gt_scene_mesh=gt_scene_mesh,
             )
+            post_ba_report.K_i1 = camera_intrinsics_i2
+            post_ba_report.K_i2 = camera_intrinsics_i1
         else:
             post_ba_i2Ri1 = pre_ba_i2Ri1
             post_ba_i2Ui1 = pre_ba_i2Ui1
@@ -388,7 +443,16 @@ class TwoViewEstimator:
             post_isp_report,
         ) = self.processor.run_inlier_support(post_ba_i2Ri1, post_ba_i2Ui1, post_ba_v_corr_idxs, post_ba_report)
 
-        return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs, pre_ba_report, post_ba_report, post_isp_report
+        return (
+            post_isp_i2Ri1,
+            post_isp_i2Ui1,
+            post_isp_v_corr_idxs,
+            camera_intrinsics_i1,
+            camera_intrinsics_i2,
+            pre_ba_report,
+            post_ba_report,
+            post_isp_report,
+        )
 
     def create_computation_graph(
         self,
@@ -423,10 +487,12 @@ class TwoViewEstimator:
             post_isp_i2Ri1,
             post_isp_i2Ui1,
             post_isp_v_corr_idxs,
+            new_camera_intrinsics_i1,
+            new_camera_intrinsics_i2,
             pre_ba_report,
             post_ba_report,
             post_isp_report,
-        ) = dask.delayed(self.run_2view, nout=6)(
+        ) = dask.delayed(self.run_2view, nout=8)(
             keypoints_i1=keypoints_i1,
             keypoints_i2=keypoints_i2,
             putative_corr_idxs=putative_corr_idxs,
@@ -444,7 +510,14 @@ class TwoViewEstimator:
             POST_BA_REPORT_TAG: post_ba_report,
             POST_ISP_REPORT_TAG: post_isp_report,
         }
-        return post_isp_i2Ri1, post_isp_i2Ui1, post_isp_v_corr_idxs, two_view_reports
+        return (
+            post_isp_i2Ri1,
+            post_isp_i2Ui1,
+            post_isp_v_corr_idxs,
+            new_camera_intrinsics_i1,
+            new_camera_intrinsics_i2,
+            two_view_reports,
+        )
 
 
 def generate_two_view_report(
