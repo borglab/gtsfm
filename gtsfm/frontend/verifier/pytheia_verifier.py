@@ -6,7 +6,7 @@ from typing import Optional, Tuple, List
 
 import pytheia as pt
 import numpy as np
-from gtsam import Cal3Bundler, Rot3, Unit3
+from gtsam import Cal3Bundler, Rot3, Unit3, Pose3
 
 import gtsfm.common.types as gtsfm_types
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
@@ -17,7 +17,7 @@ class PyTheiaVerifier(VerifierBase):
     def __theia_keypoints(
         self,
         keypoints: Keypoints,
-    ) -> List[pt.matching.IndexedFeatureMatch]:
+    ) -> List[pt.matching.KeypointsAndDescriptors]:
         """Builds KeypointsAndDescriptors object to be used by Theia.
 
         Note: Descriptors are left empty, as they are not used during geometric verification.
@@ -26,6 +26,7 @@ class PyTheiaVerifier(VerifierBase):
         keypoints_theia.keypoints = [
             pt.matching.Keypoint(kp[0], kp[1], pt.matching.Keypoint.KeypointType(0)) for kp in keypoints.coordinates
         ]
+        keypoints_theia.descriptors = np.zeros((keypoints.coordinates.shape[0], 128))
 
         return keypoints_theia
 
@@ -87,11 +88,22 @@ class PyTheiaVerifier(VerifierBase):
         options.guided_matching = True  # epipolar-guided matching
 
         # Verify!
-        match_verifier = pt.sfm.TwoViewMatchGeometricVerification(
+        success, two_view_info, verified_matches = pt.sfm.VerifyMatches(
             options, prior1, prior2, kpts_theia_i1, kpts_theia_i2, indexed_matches
         )
-        two_view_info = pt.sfm.TwoViewInfo()
-        verified_matches = []
-        test = match_verifier.VerifyMatches(verified_matches, two_view_info)
-        print(test)
-        return self._failure_result
+        if not success:
+            return self._failure_result
+
+        # Unpack results.
+        i1Ri2_angleaxis = two_view_info.rotation_2
+        i1Ri2_rot_angle = np.linalg.norm(i1Ri2_angleaxis)
+        i1Ri2 = Rot3.AxisAngle(i1Ri2_angleaxis, i1Ri2_rot_angle)
+        i1ti2 = two_view_info.position_2
+
+        i1Ti2 = Pose3(i1Ri2.inverse(), i1ti2)
+        i2Ti1 = i1Ti2.inverse()
+        i2Ui1 = Unit3(i2Ti1.translation())
+
+        verified_match_indices = np.array([[m.feature1_ind, m.feature2_ind] for m in verified_matches])
+
+        return i1Ri2, i2Ui1, verified_match_indices, 1.0
