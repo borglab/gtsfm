@@ -79,6 +79,9 @@ SceneOptimizer:
       reproj_error_thresholds: [10, 5, 3] # for (multistage) post-optimization filtering
       robust_measurement_noise: True
       shared_calib: False
+      cam_pose3_prior_noise_sigma: 0.1
+      calibration_prior_noise_sigma: 1e-5
+      measurement_noise_sigma: 1.0
 
   # comment out to not run
   dense_multiview_optimizer:
