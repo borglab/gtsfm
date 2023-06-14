@@ -12,6 +12,9 @@ import gtsfm.common.types as gtsfm_types
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
 from gtsfm.common.keypoints import Keypoints
 
+RANSAC_SUCCESS_PROB = 0.999999
+RANSAC_MAX_ITERS = 1000000
+
 
 class PyTheiaVerifier(VerifierBase):
     def __theia_keypoints(
@@ -86,6 +89,13 @@ class PyTheiaVerifier(VerifierBase):
         # Set geometric verification options.
         options = pt.sfm.TwoViewMatchGeometricVerificationOptions()
         options.guided_matching = True  # epipolar-guided matching
+        options.min_num_inlier_matches = 0
+        options.bundle_adjustment = False
+        options.estimate_twoview_info_options.max_sampson_error_pixels = self._estimation_threshold_px
+        options.estimate_twoview_info_options.expected_ransac_confidence = RANSAC_SUCCESS_PROB
+        options.estimate_twoview_info_options.max_ransac_iterations = RANSAC_MAX_ITERS
+        options.estimate_twoview_info_options.use_lo = True
+        options.estimate_twoview_info_options.ransac_type = pt.sfm.RansacType(0)
 
         # Verify!
         success, two_view_info, verified_matches = pt.sfm.VerifyMatches(
