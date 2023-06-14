@@ -115,5 +115,6 @@ class PyTheiaVerifier(VerifierBase):
         i2Ui1 = Unit3(i2Ti1.translation())
 
         verified_match_indices = np.array([[m.feature1_ind, m.feature2_ind] for m in verified_matches])
+        inlier_ratio_est_model = verified_match_indices.shape[0] / match_indices.shape[0]  # can be >1
 
-        return i1Ri2, i2Ui1, verified_match_indices, 1.0
+        return i1Ri2, i2Ui1, verified_match_indices, inlier_ratio_est_model
