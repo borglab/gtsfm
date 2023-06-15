@@ -31,7 +31,13 @@ from gtsfm.common.gtsfm_data import GtsfmData
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
-from gtsfm.data_association.point3d_initializer import SVD_DLT_RANK_TOL
+from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
+from gtsfm.data_association.point3d_initializer import (
+    SVD_DLT_RANK_TOL,
+    Point3dInitializer,
+    TriangulationOptions,
+    TriangulationSamplingMode,
+)
 from gtsfm.evaluation.metrics import GtsfmMetric, GtsfmMetricsGroup
 from gtsfm.frontend.inlier_support_processor import InlierSupportProcessor
 from gtsfm.frontend.verifier.verifier_base import VerifierBase
@@ -84,55 +90,6 @@ class TwoViewEstimator:
             max_iterations=bundle_adjust_2view_maxiters,
         )
 
-    @classmethod
-    def triangulate_two_view_correspondences(
-        cls,
-        camera_i1: gtsfm_types.CAMERA_TYPE,
-        camera_i2: gtsfm_types.CAMERA_TYPE,
-        keypoints_i1: Keypoints,
-        keypoints_i2: Keypoints,
-        corr_idxs: np.ndarray,
-    ) -> Tuple[List[SfmTrack], List[int]]:
-        """Triangulate 2-view correspondences to form 3d tracks.
-
-        Args:
-            camera_i1: Camera for 1st view.
-            camera_i2: Camera for 2nd view.
-            keypoints_i1: Keypoints for 1st view.
-            keypoints_i2: Keypoints for 2nd view.
-            corr_idxs: Indices of corresponding keypoints.
-
-        Returns:
-            Triangulated 3D points as tracks.
-        """
-        camera_set = (
-            CameraSetCal3Bundler() if isinstance(camera_i1, PinholeCameraCal3Bundler) else CameraSetCal3Fisheye()
-        )
-        camera_set.append(camera_i1)
-        camera_set.append(camera_i2)
-
-        tracks_3d: List[SfmTrack] = []
-        valid_indices: List[int] = []
-        for j, (idx1, idx2) in enumerate(corr_idxs):
-            track_2d = Point2Vector()
-            track_2d.append(keypoints_i1.coordinates[idx1])
-            track_2d.append(keypoints_i2.coordinates[idx2])
-
-            try:
-                triangulated_pt = gtsam.triangulatePoint3(
-                    camera_set, track_2d, rank_tol=SVD_DLT_RANK_TOL, optimize=False
-                )
-                track_3d = SfmTrack(triangulated_pt)
-                track_3d.addMeasurement(0, track_2d[0])
-                track_3d.addMeasurement(1, track_2d[1])
-                tracks_3d.append(track_3d)
-                valid_indices.append(j)
-            except RuntimeError:
-                pass
-                # logger.error(e)
-
-        return tracks_3d, valid_indices
-
     def bundle_adjust(
         self,
         keypoints_i1: Keypoints,
@@ -172,19 +129,28 @@ class TwoViewEstimator:
 
         # Set the i1 camera pose as the global coordinate system.
         camera_class = gtsfm_types.get_camera_class_for_calibration(camera_intrinsics_i1)
-        camera_i1 = camera_class(Pose3(), camera_intrinsics_i1)
-        camera_i2 = camera_class(i2Ti1_initial.inverse(), camera_intrinsics_i2)
+        cameras = {
+            0: camera_class(Pose3(), camera_intrinsics_i1),
+            1: camera_class(i2Ti1_initial.inverse(), camera_intrinsics_i2),
+        }
 
         # Perform data association to construct 2-view BA input.
-        start_time = timeit.default_timer()
-        # TODO: add flag to switch between verified and putative correspondences.
-        triangulated_tracks, triangulated_indices = self.triangulate_two_view_correspondences(
-            camera_i1=camera_i1,
-            camera_i2=camera_i2,
-            keypoints_i1=keypoints_i1,
-            keypoints_i2=keypoints_i2,
-            corr_idxs=verified_corr_idxs,
+        # TODO (travisdriver): Don't hardcode triangulation options!
+        twoview_triangulation_options = TriangulationOptions(
+            reproj_error_threshold=10.0, mode=TriangulationSamplingMode.NO_RANSAC
         )
+        point3d_initializer = Point3dInitializer(cameras, twoview_triangulation_options)
+        triangulated_indices: List[int] = []
+        triangulated_tracks: List[SfmTrack] = []
+        start_time = timeit.default_timer()
+        for j, (idx1, idx2) in enumerate(verified_corr_idxs):
+            track2d = SfmTrack2d(
+                [SfmMeasurement(0, keypoints_i1.coordinates[idx1]), SfmMeasurement(1, keypoints_i2.coordinates[idx2])]
+            )
+            track, _, _ = point3d_initializer.triangulate(track2d)
+            if track is not None:
+                triangulated_tracks.append(track)
+                triangulated_indices.append(j)
         logger.debug("Performed DA in %.6f seconds.", timeit.default_timer() - start_time)
         logger.debug("Triangulated %d correspondences out of %d.", len(triangulated_tracks), len(verified_corr_idxs))
 
@@ -194,8 +160,8 @@ class TwoViewEstimator:
         # Perform 2-view BA.
         start_time = timeit.default_timer()
         ba_input = GtsfmData(number_images=2)
-        ba_input.add_camera(0, camera_i1)
-        ba_input.add_camera(1, camera_i2)
+        ba_input.add_camera(0, cameras[0])
+        ba_input.add_camera(1, cameras[1])
         for track in triangulated_tracks:
             ba_input.add_track(track)
 
