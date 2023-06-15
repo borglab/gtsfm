@@ -54,8 +54,9 @@ class TwoViewEstimator:
         inlier_support_processor: InlierSupportProcessor,
         bundle_adjust_2view: bool,
         eval_threshold_px: float,
+        triangulation_options: TriangulationOptions,
         bundle_adjust_2view_maxiters: int = 100,
-        ba_reproj_error_thresholds: List[float] = [0.5],
+        ba_reproj_error_thresholds: List[Optional[float]] = [0.5],
     ) -> None:
         """Initializes the two-view estimator from verifier.
 
@@ -73,6 +74,7 @@ class TwoViewEstimator:
         self.processor = inlier_support_processor
         self._bundle_adjust_2view = bundle_adjust_2view
         self._corr_metric_dist_threshold = eval_threshold_px
+        self._triangulation_options = triangulation_options
         self._ba_optimizer = TwoViewBundleAdjustment(
             reproj_error_thresholds=ba_reproj_error_thresholds,
             robust_measurement_noise=True,
@@ -106,11 +108,10 @@ class TwoViewEstimator:
             Optimized unit translation i2Ui1.
             Optimized verified_corr_idxs.
         """
-        # Choose initial pose estimate for triangulation and BA (prior get priority).
+        # Choose initial pose estimate for triangulation and BA (prior gets priority).
         i2Ti1_initial = i2Ti1_prior.value if i2Ti1_prior is not None else None
         if i2Ti1_initial is None and i2Ri1_initial is not None and i2Ui1_initial is not None:
             i2Ti1_initial = Pose3(i2Ri1_initial, i2Ui1_initial.point3())
-
         if i2Ti1_initial is None:
             return None, None, verified_corr_idxs
 
@@ -121,12 +122,8 @@ class TwoViewEstimator:
             1: camera_class(i2Ti1_initial.inverse(), camera_intrinsics_i2),
         }
 
-        # Perform data association to construct 2-view BA input.
-        # TODO (travisdriver): Don't hardcode triangulation options!
-        twoview_triangulation_options = TriangulationOptions(
-            reproj_error_threshold=10.0, mode=TriangulationSamplingMode.NO_RANSAC
-        )
-        point3d_initializer = Point3dInitializer(cameras, twoview_triangulation_options)
+        # Triangulate!
+        point3d_initializer = Point3dInitializer(cameras, self._triangulation_options)
         triangulated_indices: List[int] = []
         triangulated_tracks: List[SfmTrack] = []
         start_time = timeit.default_timer()
@@ -144,25 +141,25 @@ class TwoViewEstimator:
         if len(triangulated_tracks) == 0:
             return i2Ti1_initial.rotation(), Unit3(i2Ti1_initial.translation()), np.array([], dtype=np.uint32)
 
-        # Perform 2-view BA.
+        # Build BA inputs.
         start_time = timeit.default_timer()
         ba_input = GtsfmData(number_images=2)
         ba_input.add_camera(0, cameras[0])
         ba_input.add_camera(1, cameras[1])
         for track in triangulated_tracks:
             ba_input.add_track(track)
+        relative_pose_prior_for_ba = {(0, 1): i2Ti1_prior} if i2Ti1_prior is not None else {}
 
-        relative_pose_prior_for_ba = {}
-        if i2Ti1_prior is not None:
-            relative_pose_prior_for_ba = {(0, 1): i2Ti1_prior}
-
+        # Optimize!
         _, ba_output, valid_mask = self._ba_optimizer.run_ba(
             ba_input, absolute_pose_priors=[], relative_pose_priors=relative_pose_prior_for_ba, verbose=False
         )
+
+        # Unpack results.
         valid_corr_idxs = verified_corr_idxs[triangulated_indices][valid_mask]
         wTi1, wTi2 = ba_output.get_camera_poses()  # extract the camera poses
         if wTi1 is None or wTi2 is None:
-            logger.warning("2-view BA failed")
+            logger.warning("2-view BA failed...")
             return i2Ri1_initial, i2Ui1_initial, valid_corr_idxs
         i2Ti1_optimized = wTi2.between(wTi1)
         logger.debug("Performed 2-view BA in %.6f seconds.", timeit.default_timer() - start_time)
