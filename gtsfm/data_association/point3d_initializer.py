@@ -19,6 +19,7 @@ from gtsam import CameraSetCal3Bundler, CameraSetCal3Fisheye, PinholeCameraCal3B
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.logger as logger_utils
 import gtsfm.utils.reprojection as reproj_utils
+import gtsfm.utils.tracks as track_utils
 from gtsfm.common.sfm_track import SfmTrack2d
 
 NUM_SAMPLES_PER_RANSAC_HYPOTHESIS = 2
@@ -41,6 +42,7 @@ class TriangulationExitCode(Enum):
     INLIERS_UNDERCONSTRAINED = 2  # insufficent number of inlier measurements
     POSES_UNDERCONSTRAINED = 3  # insufficent number of estimated camera poses
     EXCEEDS_REPROJ_THRESH = 4  # estimated 3d point exceeds reprojection threshold
+    LOW_TRIANGULATION_ANGLE = 5  # estimated 3d point exceeds reprojection threshold
 
 
 class TriangulationSamplingMode(str, Enum):
@@ -68,6 +70,7 @@ class TriangulationOptions(NamedTuple):
 
     Args:
         reproj_error_threshold: the maximum reprojection error allowed.
+        min_triangulation_angle: the minimum angle (in degrees) subtended at the triangulated point from 2 cameras.
         mode: triangulation mode, which dictates whether or not to use robust estimation.
         min_inlier_ratio: a priori assumed minimum probability that a point is an inlier.
         confidence: desired confidence that at least one hypothesis is outlier free.
@@ -78,6 +81,8 @@ class TriangulationOptions(NamedTuple):
 
     reproj_error_threshold: float
     mode: TriangulationSamplingMode
+
+    min_triangulation_angle = 5
 
     # RANSAC parameters
     min_inlier_ratio: float = 0.1
@@ -278,7 +283,10 @@ class Point3dInitializer:
             track_3d.addMeasurement(i, uv)
 
         # Check that there is a sufficient triangulation angle.
-        if track_utils.get_triangulation_angle(track_3d, cameras=track_cameras) < self.options.min_triangulation_angle:
+        if (
+            track_utils.get_triangulation_angle(track_3d, cameras=self.track_camera_dict)
+            < self.options.min_triangulation_angle
+        ):
             return None, avg_track_reproj_error, TriangulationExitCode.LOW_TRIANGULATION_ANGLE
 
         return track_3d, avg_track_reproj_error, TriangulationExitCode.SUCCESS

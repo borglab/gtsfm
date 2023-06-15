@@ -89,6 +89,7 @@ def get_triangulation_angle(track3d: SfmTrack, cameras: Dict[int, gtsfm_types.CA
     Returns:
         float: the triangulation angle (max over all pairs of cameras associated with the track).
     """
+    assert cameras is not None
     camera_ind: List[int] = []
     for k in range(track3d.numberMeasurements()):
         i, _ = track3d.measurement(k)
