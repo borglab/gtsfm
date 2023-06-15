@@ -52,7 +52,7 @@ class DetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
             delayed_descriptors.append(delayed_descs)
 
         delayed_putative_corr_idxs_dict: Dict[Tuple[int, int], Delayed] = {}
-        for (i1, i2) in image_pair_indices:
+        for i1, i2 in image_pair_indices:
             # Graph for matching to obtain putative correspondences.
             delayed_putative_corr_idxs_dict[i1, i2] = self._matcher.create_computation_graph(
                 keypoints_i1_graph=delayed_keypoints[i1],
