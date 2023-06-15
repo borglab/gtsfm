@@ -114,16 +114,16 @@ class PyTheiaVerifier(VerifierBase):
             return self._failure_result
 
         # Unpack results.
-        i1Ri2_angleaxis = two_view_info.rotation_2
-        i1Ri2_rot_angle = np.linalg.norm(i1Ri2_angleaxis)
-        i1Ri2 = Rot3.AxisAngle(i1Ri2_angleaxis, i1Ri2_rot_angle)
+        i2Ri1_angleaxis = two_view_info.rotation_2
+        i2Ri1_rot_angle = np.linalg.norm(i2Ri1_angleaxis)
+        i2Ri1 = Rot3.AxisAngle(i2Ri1_angleaxis, i2Ri1_rot_angle)
         i1ti2 = two_view_info.position_2
 
-        i1Ti2 = Pose3(i1Ri2.inverse(), i1ti2)
+        i1Ti2 = Pose3(i2Ri1.inverse(), i1ti2)
         i2Ti1 = i1Ti2.inverse()
         i2Ui1 = Unit3(i2Ti1.translation())
 
         verified_match_indices = np.array([[m.feature1_ind, m.feature2_ind] for m in verified_matches])
         inlier_ratio_est_model = verified_match_indices.shape[0] / match_indices.shape[0]  # can be >1
 
-        return i1Ri2, i2Ui1, verified_match_indices, inlier_ratio_est_model
+        return i2Ri1, i2Ui1, verified_match_indices, inlier_ratio_est_model
