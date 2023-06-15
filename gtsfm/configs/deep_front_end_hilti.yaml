@@ -31,7 +31,7 @@ SceneOptimizer:
         use_outdoor_model: True
 
     verifier:
-      _target_: gtsfm.frontend.verifier.ransac.Ransac
+      _target_: gtsfm.frontend.verifier.pytheia_verifier.PyTheiaVerifier
       use_intrinsics_in_verification: True
       estimation_threshold_px: 4 # for H/E/F estimators
 

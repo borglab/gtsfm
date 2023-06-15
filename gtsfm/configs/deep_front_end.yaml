@@ -37,7 +37,6 @@ SceneOptimizer:
     bundle_adjust_2view_maxiters: 100
 
     verifier:
-      # _target_: gtsfm.frontend.verifier.ransac.Ransac
       _target_: gtsfm.frontend.verifier.pytheia_verifier.PyTheiaVerifier
       use_intrinsics_in_verification: True
       estimation_threshold_px: 6.0 # for H/E/F estimators
