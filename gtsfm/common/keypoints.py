@@ -30,17 +30,21 @@ class Keypoints:
         coordinates: np.ndarray,
         scales: Optional[np.ndarray] = None,
         responses: Optional[np.ndarray] = None,
+        descriptors: Optional[np.ndarray] = None,
     ):
         """Initializes the attributes.
 
         Args:
-            coordinates: the (x, y) coordinates of the features, of shape Nx2.
-            scales: optional scale of the detections, of shape N.
-            responses: optional confidences/responses for each detection, of shape N.
+            coordinates: the (x, y) coordinates of the keypoint, of shape (N, 2).
+            scales: optional scale of the detections, of shape (N,).
+            responses: optional confidences/responses for each detection, of shape (N,).
+            descriptors: optional descriptor for each detection, of shape (N, D) where D is the dimension of each
+                descriptor.
         """
         self.coordinates = coordinates
         self.scales = scales
         self.responses = responses  # TODO(ayush): enforce the range.
+        self.descriptors = descriptors
 
     def __len__(self) -> int:
         """Number of descriptors."""

@@ -71,5 +71,6 @@ class SuperPointDetectorDescriptor(DetectorDescriptorBase):
             descriptors = descriptors[valid_idxs]
         keypoints, selection_idxs = keypoints.get_top_k(self.max_keypoints)
         descriptors = descriptors[selection_idxs]
+        keypoints.descriptors = descriptors
 
         return keypoints, descriptors

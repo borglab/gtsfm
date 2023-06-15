@@ -53,5 +53,6 @@ class ORBDetectorDescriptor(DetectorDescriptorBase):
         # Filter features.
         keypoints, selection_idxs = keypoints.get_top_k(self.max_keypoints)
         descriptors = descriptors[selection_idxs]
+        keypoints.descriptors = descriptors
 
         return keypoints, descriptors

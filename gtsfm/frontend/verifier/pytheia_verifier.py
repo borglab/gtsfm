@@ -32,11 +32,15 @@ class PyTheiaVerifier(VerifierBase):
 
         Note: Descriptors are left empty, as they are not used during geometric verification.
         """
+        assert keypoints.descriptors is not None
         keypoints_theia = pt.matching.KeypointsAndDescriptors()
         keypoints_theia.keypoints = [
             pt.matching.Keypoint(kp[0], kp[1], pt.matching.Keypoint.KeypointType(0)) for kp in keypoints.coordinates
         ]
-        keypoints_theia.descriptors = np.zeros((keypoints.coordinates.shape[0], 128))
+        if keypoints.descriptors is None:
+            keypoints_theia.descriptors = np.zeros((keypoints.coordinates.shape[0], 128))
+        else:
+            keypoints_theia.descriptors = keypoints.descriptors
 
         return keypoints_theia
 
@@ -98,6 +102,7 @@ class PyTheiaVerifier(VerifierBase):
         # Set geometric verification options.
         options = pt.sfm.TwoViewMatchGeometricVerificationOptions()
         options.guided_matching = True  # epipolar-guided matching
+        options.guided_matching_max_distance_pixels = 0.5
         options.min_num_inlier_matches = 0
         options.bundle_adjustment = False
         options.estimate_twoview_info_options.max_sampson_error_pixels = self._estimation_threshold_px
