@@ -8,19 +8,9 @@ import timeit
 from typing import Any, Dict, List, Optional, Tuple
 
 import dask
-import gtsam
 import numpy as np
 from dask.delayed import Delayed
-from gtsam import (
-    CameraSetCal3Bundler,
-    CameraSetCal3Fisheye,
-    PinholeCameraCal3Bundler,
-    Point2Vector,
-    Pose3,
-    Rot3,
-    SfmTrack,
-    Unit3,
-)
+from gtsam import PinholeCameraCal3Bundler, Pose3, Rot3, SfmTrack, Unit3
 
 import gtsfm.common.types as gtsfm_types
 import gtsfm.utils.geometry_comparisons as comp_utils
@@ -33,7 +23,6 @@ from gtsfm.common.pose_prior import PosePrior
 from gtsfm.common.two_view_estimation_report import TwoViewEstimationReport
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
 from gtsfm.data_association.point3d_initializer import (
-    SVD_DLT_RANK_TOL,
     Point3dInitializer,
     TriangulationOptions,
     TriangulationSamplingMode,
@@ -117,12 +106,10 @@ class TwoViewEstimator:
             Optimized unit translation i2Ui1.
             Optimized verified_corr_idxs.
         """
-        i2Ti1_from_verifier: Optional[Pose3] = (
-            Pose3(i2Ri1_initial, i2Ui1_initial.point3()) if i2Ri1_initial is not None else None
-        )
-        i2Ti1_initial: Optional[Pose3] = self.__generate_initial_pose_for_bundle_adjustment(
-            i2Ti1_from_verifier, i2Ti1_prior
-        )
+        # Choose initial pose estimate for triangulation and BA (prior get priority).
+        i2Ti1_initial = i2Ti1_prior.value if i2Ti1_prior is not None else None
+        if i2Ti1_initial is None and i2Ri1_initial is not None and i2Ui1_initial is not None:
+            i2Ti1_initial = Pose3(i2Ri1_initial, i2Ui1_initial.point3())
 
         if i2Ti1_initial is None:
             return None, None, verified_corr_idxs
@@ -243,30 +230,6 @@ class TwoViewEstimator:
             v_corr_idxs_inlier_mask_gt=inlier_mask_wrt_gt,
             reproj_error_gt_model=reproj_error_wrt_gt,
         )
-
-    def __generate_initial_pose_for_bundle_adjustment(
-        self, i2Ti1_from_verifier: Optional[Pose3], i2Ti1_prior: Optional[PosePrior]
-    ) -> Optional[Pose3]:
-        """Use the combination of pose recovered from the verifier and the prior information to get the pose
-        initialization for 2-view BA.
-
-        Logic:
-        1. If the prior value exists, use the prior as the initial value.
-        2. Otherwise, use the verifier output as initial value.
-
-        Args:
-            i2Ti1_from_verifier: Relative pose recovered from verifier.
-            i2Ti1_prior: Relative pose prior.
-
-        Returns:
-            Pose to be used for initialization.
-        """
-        if i2Ti1_prior is None and i2Ti1_from_verifier is None:
-            return None
-        elif i2Ti1_prior is not None:
-            return i2Ti1_prior.value
-        else:
-            return i2Ti1_from_verifier
 
     def get_corr_metric_dist_threshold(self) -> float:
         """Getter for the distance threshold used in the metric for correct correspondences."""
