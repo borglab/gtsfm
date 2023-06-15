@@ -53,4 +53,4 @@ dependencies:
       - trimesh[easy]
       - gtsam==4.2a8
       - pydot
-      - wheelhouse/pytheia-0.1.22-cp37-cp37m-manylinux_2_17_x86_64.whl
+      - wheelhouse/pytheia-0.1.22-cp38-cp38m-manylinux_2_17_x86_64.whl
