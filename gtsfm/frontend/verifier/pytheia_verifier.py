@@ -9,7 +9,7 @@ import numpy as np
 from gtsam import Cal3Bundler, Rot3, Unit3, Pose3
 
 import gtsfm.common.types as gtsfm_types
-from gtsfm.frontend.verifier.verifier_base import VerifierBase
+from gtsfm.frontend.verifier.verifier_base import VerifierBase, NUM_MATCHES_REQ_E_MATRIX
 from gtsfm.common.keypoints import Keypoints
 
 RANSAC_SUCCESS_PROB = 0.999999
@@ -101,11 +101,11 @@ class PyTheiaVerifier(VerifierBase):
 
         # Set geometric verification options.
         options = pt.sfm.TwoViewMatchGeometricVerificationOptions()
-        options.guided_matching = True  # epipolar-guided matching
+        options.guided_matching = False  # epipolar-guided matching
         options.guided_matching_max_distance_pixels = 0.5
-        options.min_num_inlier_matches = 0
+        options.min_num_inlier_matches = NUM_MATCHES_REQ_E_MATRIX
 
-        options.bundle_adjustment = True
+        options.bundle_adjustment = False
         # options.triangulation_max_reprojection_error = self._estimation_threshold_px
 
         options.estimate_twoview_info_options.max_sampson_error_pixels = self._estimation_threshold_px
