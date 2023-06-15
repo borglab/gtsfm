@@ -272,10 +272,14 @@ class Point3dInitializer:
         if not np.all(reproj_errors.flatten() < self.options.reproj_error_threshold):
             return None, avg_track_reproj_error, TriangulationExitCode.EXCEEDS_REPROJ_THRESH
 
-        # Create a gtsam.SfmTrack with the triangulated 3d point and associated 2d measurements.
+        # Create a gtsam.SfmTrack with the triangulated 3D point and associated 2D measurements.
         track_3d = SfmTrack(triangulated_pt)
         for i, uv in inlier_track.measurements:
             track_3d.addMeasurement(i, uv)
+
+        # Check that there is a sufficient triangulation angle.
+        if track_utils.get_triangulation_angle(track_3d, cameras=track_cameras) < self.options.min_triangulation_angle:
+            return None, avg_track_reproj_error, TriangulationExitCode.LOW_TRIANGULATION_ANGLE
 
         return track_3d, avg_track_reproj_error, TriangulationExitCode.SUCCESS
 

@@ -1,11 +1,14 @@
 """Utilities for 2D and 3D tracks.
 
-Authors: Ayush Baid
+Authors: Ayush Baid, Travis Driver
 """
 from typing import Dict, List
+import itertools
 
+import numpy as np
 from gtsam import PinholeCameraCal3Bundler, SfmTrack
 
+import gtsfm.common.types as gtsfm_types
 from gtsfm.common.sfm_track import SfmMeasurement, SfmTrack2d
 from gtsfm.data_association.point3d_initializer import (
     Point3dInitializer,
@@ -74,3 +77,27 @@ def classify_tracks3d_with_gt_cameras(
         tracks_2d.append(SfmTrack2d(measurements))
 
     return classify_tracks2d_with_gt_cameras(tracks_2d, cameras_gt, reproj_error_thresh_px)
+
+
+def get_triangulation_angle(track3d: SfmTrack, cameras: Dict[int, gtsfm_types.CAMERA_TYPE]) -> float:
+    """Get the angle subtended by the cameras at the 3D landmark of the track.
+
+    Args:
+        track3d: the track with the landmark.
+        cameras: cameras which have been used to triangulate the landmark.
+
+    Returns:
+        float: the triangulation angle (max over all pairs of cameras associated with the track).
+    """
+    camera_ind: List[int] = []
+    for k in range(track3d.numberMeasurements()):
+        i, _ = track3d.measurement(k)
+        camera_ind.append(i)
+
+    angles: List[float] = []
+    for i1, i2 in itertools.combinations(camera_ind, 2):
+        ray1 = track3d.point3() - cameras[i1].pose().translation()
+        ray2 = track3d.point3() - cameras[i2].pose().translation()
+        angles.append(np.rad2deg(np.arccos(np.dot(ray1, ray2) / (np.linalg.norm(ray1) * np.linalg.norm(ray2)))))
+
+    return max(angles)
