@@ -143,11 +143,7 @@ class TwoViewEstimator:
 
         # Build BA inputs.
         start_time = timeit.default_timer()
-        ba_input = GtsfmData(number_images=2)
-        ba_input.add_camera(0, cameras[0])
-        ba_input.add_camera(1, cameras[1])
-        for track in triangulated_tracks:
-            ba_input.add_track(track)
+        ba_input = GtsfmData(number_images=2, cameras=cameras, tracks=triangulated_tracks)
         relative_pose_prior_for_ba = {(0, 1): i2Ti1_prior} if i2Ti1_prior is not None else {}
 
         # Optimize!
