@@ -1,6 +1,6 @@
-"""PyTheia match verification.
+"""Theia match verification.
 
-Author: Travis Driver
+Author: Travis Driver, Ayush Baid
 """
 from typing import Optional, Tuple, List
 
@@ -17,6 +17,13 @@ RANSAC_MAX_ITERS = 1000000
 
 
 class PyTheiaVerifier(VerifierBase):
+    """Implements match verification scheme implemented by Theia.
+
+    Refs:
+    - https://github.com/urbste/pyTheiaSfM/blob/master/src/theia/sfm/two_view_match_geometric_verification.h
+    - https://github.com/urbste/pyTheiaSfM/blob/master/src/theia/sfm/two_view_match_geometric_verification.cc
+    """
+
     def __theia_keypoints(
         self,
         keypoints: Keypoints,
