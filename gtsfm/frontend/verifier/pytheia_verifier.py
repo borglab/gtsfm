@@ -40,13 +40,15 @@ class PyTheiaVerifier(VerifierBase):
         prior.focal_length.value = [intrinsics.fx()]
         prior.aspect_ratio.value = [intrinsics.fy() / intrinsics.fx()]
         prior.principal_point.value = [intrinsics.px(), intrinsics.py()]
-        # prior.radial_distortion.value = [intrinsics.k1(), intrinsics.k2(), 0, 0]
-        # prior.tangential_distortion.value = [0, 0]
-        # prior.skew.value = [0]
-        # TODO: unfix this
+        prior.radial_distortion.value = [intrinsics.k1(), intrinsics.k2(), 0, 0]
+        prior.tangential_distortion.value = [0, 0]
+        prior.skew.value = [0]
+        # TODO (travisdriver): unfix this
         # prior.image_width = int(760)
         # prior.image_height = int(1135)
+
         # 'PINHOLE_RADIAL_TANGENTIAL', 'DIVISION_UNDISTORTION', 'DOUBLE_SPHERE', 'FOV', 'EXTENDED_UNIFIED', 'FISHEYE
+        prior.camera_intrinsics_model_type = "PINHOLE_RADIAL_TANGENTIAL"
 
         return prior
 
