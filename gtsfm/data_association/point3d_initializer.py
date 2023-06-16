@@ -76,8 +76,8 @@ class TriangulationOptions(NamedTuple):
         max_num_hypotheses: maximum number of hypotheses.
     """
 
-    reproj_error_threshold: float
     mode: TriangulationSamplingMode
+    reproj_error_threshold: float = np.inf  # defaults to no filtering unless specified
 
     # RANSAC parameters
     min_inlier_ratio: float = 0.1
@@ -102,7 +102,7 @@ class TriangulationOptions(NamedTuple):
         """
         self.__check_ransac_params()
         dyn_num_hypotheses = int(
-            (np.log(1 - self.confidence) / np.log(1 - self.min_inlier_ratio ** NUM_SAMPLES_PER_RANSAC_HYPOTHESIS))
+            (np.log(1 - self.confidence) / np.log(1 - self.min_inlier_ratio**NUM_SAMPLES_PER_RANSAC_HYPOTHESIS))
             * self.dyn_num_hypotheses_multiplier
         )
         num_hypotheses = max(min(self.max_num_hypotheses, dyn_num_hypotheses), self.min_num_hypotheses)
@@ -268,6 +268,7 @@ class Point3dInitializer:
         )
 
         # Check that all measurements are within reprojection error threshold.
+        # TODO (travisdriver): Should we throw an error here if we're using RANSAC variant?
         if not np.all(reproj_errors.flatten() < self.options.reproj_error_threshold):
             return None, avg_track_reproj_error, TriangulationExitCode.EXCEEDS_REPROJ_THRESH
 
@@ -349,7 +350,6 @@ class Point3dInitializer:
 
         # Compile valid measurements.
         for i, uv in track.measurements:
-
             # check for unestimated cameras
             if i in self.track_camera_dict and self.track_camera_dict.get(i) is not None:
                 track_cameras.append(self.track_camera_dict.get(i))
