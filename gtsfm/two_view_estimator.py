@@ -77,12 +77,12 @@ class TwoViewEstimator:
             max_iterations=bundle_adjust_2view_maxiters,
         )
 
-    def __triangulate_two_view_correspondences(
+    def triangulate_two_view_correspondences(
         self,
+        cameras: Dict[int, gtsfm_types.CAMERA_TYPE],
         keypoints_i1: Keypoints,
         keypoints_i2: Keypoints,
         corr_ind: np.ndarray,
-        cameras: Dict[int, gtsfm_types.CAMERA_TYPE],
     ) -> Tuple[List[int], List[SfmTrack]]:
         """Triangulate 2-view correspondences to form 3D tracks.
 
@@ -155,8 +155,8 @@ class TwoViewEstimator:
 
         # Triangulate!
         start_time = timeit.default_timer()
-        triangulated_indices, triangulated_tracks = self.__triangulate_two_view_correspondences(
-            keypoints_i1, keypoints_i2, verified_corr_idxs, cameras
+        triangulated_indices, triangulated_tracks = self.triangulate_two_view_correspondences(
+            cameras, keypoints_i1, keypoints_i2, verified_corr_idxs
         )
         logger.debug("Performed DA in %.6f seconds.", timeit.default_timer() - start_time)
         logger.debug("Triangulated %d correspondences out of %d.", len(triangulated_tracks), len(verified_corr_idxs))
