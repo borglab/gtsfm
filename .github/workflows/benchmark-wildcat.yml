@@ -60,13 +60,13 @@ jobs:
           micromamba list
           pip install -e .
           ./download_model_weights.sh
-      - name: Prepare dataset
-        run: |
-          DATASET_NAME=${{ matrix.config_dataset_info[1] }}
-          DATASET_SRC=${{ matrix.config_dataset_info[4] }}
-          bash .github/scripts/download_single_benchmark.sh \
-            $DATASET_NAME \
-            $DATASET_SRC \
+      # - name: Prepare dataset
+      #   run: |
+      #     DATASET_NAME=${{ matrix.config_dataset_info[1] }}
+      #     DATASET_SRC=${{ matrix.config_dataset_info[4] }}
+      #     bash .github/scripts/download_single_benchmark.sh \
+      #       $DATASET_NAME \
+      #       $DATASET_SRC \
       - name: Run GTSFM
         run: |
           DATASET_NAME=${{ matrix.config_dataset_info[1] }}
@@ -76,6 +76,9 @@ jobs:
           LOADER_NAME=${{ matrix.config_dataset_info[5] }}
           MAX_RESOLUTION=${{ matrix.config_dataset_info[6] }}
           SHARE_INTRINSICS=${{ matrix.config_dataset_info[7] }}
+          pwd
+          micromamba list
+          pip install -e .
           bash .github/scripts/execute_single_benchmark.sh \
             $DATASET_NAME \
             $CONFIG_NAME \
