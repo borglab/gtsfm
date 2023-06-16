@@ -82,7 +82,7 @@ class TriangulationOptions(NamedTuple):
     reproj_error_threshold: float
     mode: TriangulationSamplingMode
 
-    min_triangulation_angle = 5
+    min_triangulation_angle = 3
 
     # RANSAC parameters
     min_inlier_ratio: float = 0.1
