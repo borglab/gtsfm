@@ -54,19 +54,19 @@ jobs:
       #       bash
       #     cache-environment: true
       #     post-cleanup: "all"
-      - name: Environment setup
-        run: |
-          micromamba activate gtsfm-v1
-          micromamba list
-          pip install -e .
-          ./download_model_weights.sh
-      # - name: Prepare dataset
+      # - name: Environment setup
       #   run: |
-      #     DATASET_NAME=${{ matrix.config_dataset_info[1] }}
-      #     DATASET_SRC=${{ matrix.config_dataset_info[4] }}
-      #     bash .github/scripts/download_single_benchmark.sh \
-      #       $DATASET_NAME \
-      #       $DATASET_SRC \
+      #     micromamba activate gtsfm-v1
+      #     micromamba list
+      #     pip install -e .
+      #     ./download_model_weights.sh
+      - name: Prepare dataset
+        run: |
+          DATASET_NAME=${{ matrix.config_dataset_info[1] }}
+          DATASET_SRC=${{ matrix.config_dataset_info[4] }}
+          bash .github/scripts/download_single_benchmark.sh \
+            $DATASET_NAME \
+            $DATASET_SRC \
       - name: Run GTSFM
         run: |
           DATASET_NAME=${{ matrix.config_dataset_info[1] }}
