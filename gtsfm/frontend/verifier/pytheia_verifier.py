@@ -110,7 +110,7 @@ class PyTheiaVerifier(VerifierBase):
 
         options.estimate_twoview_info_options.max_sampson_error_pixels = self._estimation_threshold_px
         options.estimate_twoview_info_options.expected_ransac_confidence = RANSAC_SUCCESS_PROB
-        options.estimate_twoview_info_options.max_ransac_iterations = RANSAC_MAX_ITERS
+        options.estimate_twoview_info_options.max_ransac_iterations = 1000
         options.estimate_twoview_info_options.use_lo = True
         options.estimate_twoview_info_options.ransac_type = pt.sfm.RansacType(0)
 
