@@ -16,10 +16,9 @@ from pathlib import Path
 import numpy as np
 import thirdparty.nerfstudio.colmap_utils as colmap_utils
 
-import thirdparty.colmap.scripts.python.read_write_model as colmap_util
 
 from gtsfm.utils import images, io
-from gtsam import Pose3, Rot3
+from gtsam import Rot3
 
 
 class CameraModel(Enum):
@@ -134,7 +133,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--camera_model",
         required=True,
-        help="'perspective' or 'fisheye' corresponding to the OPENCV and OPENCV_FISHEYE camera models at" 
+        help="'perspective' or 'fisheye' corresponding to the OPENCV and OPENCV_FISHEYE camera models at"
         + " https://github.com/nerfstudio-project/nerfstudio/blob/main/nerfstudio/cameras/cameras.py",
     )
     parser.add_argument(
