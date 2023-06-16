@@ -77,6 +77,41 @@ class TwoViewEstimator:
             max_iterations=bundle_adjust_2view_maxiters,
         )
 
+    def __triangulate_two_view_correspondences(
+        self,
+        keypoints_i1: Keypoints,
+        keypoints_i2: Keypoints,
+        corr_ind: np.ndarray,
+        cameras: Dict[int, gtsfm_types.CAMERA_TYPE],
+    ) -> Tuple[List[int], List[SfmTrack]]:
+        """Triangulate 2-view correspondences to form 3D tracks.
+
+        Args:
+            camera_i1: Camera for 1st view.
+            camera_i2: Camera for 2nd view.
+            keypoints_i1: Keypoints for 1st view.
+            keypoints_i2: Keypoints for 2nd view.
+            corr_ind: Indices of corresponding keypoints.
+
+        Returns:
+            Indices of successfully triangulated tracks.
+            Triangulated 3D points as tracks.
+        """
+        assert len(cameras) == 2
+        point3d_initializer = Point3dInitializer(cameras, self._triangulation_options)
+        triangulated_indices: List[int] = []
+        triangulated_tracks: List[SfmTrack] = []
+        for j, (idx1, idx2) in enumerate(corr_ind):
+            track2d = SfmTrack2d(
+                [SfmMeasurement(0, keypoints_i1.coordinates[idx1]), SfmMeasurement(1, keypoints_i2.coordinates[idx2])]
+            )
+            track, _, _ = point3d_initializer.triangulate(track2d)
+            if track is not None:
+                triangulated_indices.append(j)
+                triangulated_tracks.append(track)
+
+        return triangulated_indices, triangulated_tracks
+
     def bundle_adjust(
         self,
         keypoints_i1: Keypoints,
@@ -119,18 +154,10 @@ class TwoViewEstimator:
         }
 
         # Triangulate!
-        point3d_initializer = Point3dInitializer(cameras, self._triangulation_options)
-        triangulated_indices: List[int] = []
-        triangulated_tracks: List[SfmTrack] = []
         start_time = timeit.default_timer()
-        for j, (idx1, idx2) in enumerate(verified_corr_idxs):
-            track2d = SfmTrack2d(
-                [SfmMeasurement(0, keypoints_i1.coordinates[idx1]), SfmMeasurement(1, keypoints_i2.coordinates[idx2])]
-            )
-            track, _, _ = point3d_initializer.triangulate(track2d)
-            if track is not None:
-                triangulated_tracks.append(track)
-                triangulated_indices.append(j)
+        triangulated_indices, triangulated_tracks = self.__triangulate_two_view_correspondences(
+            keypoints_i1, keypoints_i2, verified_corr_idxs, cameras
+        )
         logger.debug("Performed DA in %.6f seconds.", timeit.default_timer() - start_time)
         logger.debug("Triangulated %d correspondences out of %d.", len(triangulated_tracks), len(verified_corr_idxs))
 

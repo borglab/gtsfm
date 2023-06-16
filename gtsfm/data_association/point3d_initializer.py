@@ -76,8 +76,8 @@ class TriangulationOptions(NamedTuple):
         max_num_hypotheses: maximum number of hypotheses.
     """
 
-    reproj_error_threshold: float
     mode: TriangulationSamplingMode
+    reproj_error_threshold: float = np.inf  # defaults to no filtering unless specified
 
     # RANSAC parameters
     min_inlier_ratio: float = 0.1
