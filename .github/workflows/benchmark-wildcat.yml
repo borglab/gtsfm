@@ -47,6 +47,23 @@ jobs:
         with:
           path: cache
           key: ${{ matrix.config_dataset_info[0] }}-${{ matrix.config_dataset_info[1] }}-${{ matrix.config_dataset_info[2] }}-${{ matrix.config_dataset_info[6] }}-${{ env.CACHE_NUMBER_FRONTEND }}
+      ##########################################################################
+      # Notes (travisdriver):
+      #
+      # A persistent micromamba `gtsfm-v1` environment is maintained on the
+      # wildcat machine. Therefore, the environment will need to be updated
+      # manually if any changes are made to the depednencies.
+      #
+      # I was not able to get the `setup-miniconda` or `setup-micromamba` to
+      # work. Specifically, `setup-miniconda` always hung on "Solving
+      # environment..." (maybe I was being impatient), and `setup-micromamba`
+      # kept throwing an error because it tried to reinstall micromamba for each
+      # CI run, but there was already an existing installation.
+      #
+      # I think the current solution is fine for now. I wasn't able to find much
+      # on how others have set up self-hosted runners, so this might even be the
+      # only way to do it.
+      ##########################################################################
       # - uses: conda-incubator/setup-miniconda@v2
       #   with:
       #     activate-environment: gtsfm-v1
@@ -66,12 +83,10 @@ jobs:
           ./download_model_weights.sh
       - name: Prepare dataset
         run: |
-          DATASET_NAME=${{ matrix.config_dataset_info[1] }}
-          DATASET_SRC=${{ matrix.config_dataset_info[4] }}
-          bash .github/scripts/download_single_benchmark.sh \
-            $DATASET_NAME \
-            $DATASET_SRC \
-      - name: Run GTSFM
+          echo "Datasets are stored in ~/sfm_datasets in order to reduce runtimes by not" 
+          echo "redownloading each (very large) dataset every CI run. Any new datasets must be"
+          echo "downloaded and stored in ~/sfm_datasets before running this action."
+      - name: Run GTSfM
         run: |
           DATASET_NAME=${{ matrix.config_dataset_info[1] }}
           CONFIG_NAME=${{ matrix.config_dataset_info[0] }}
@@ -83,7 +98,7 @@ jobs:
           pwd
           micromamba activate gtsfm-v1
           micromamba list
-          bash .github/scripts/execute_single_benchmark.sh \
+          bash .github/scripts/execute_single_benchmark_wildcat.sh \
             $DATASET_NAME \
             $CONFIG_NAME \
             $MAX_FRAME_LOOKAHEAD \
