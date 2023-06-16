@@ -1,7 +1,14 @@
 name: Benchmark GTSFM on select datasets on the wildcat machine
 
-on: [pull_request, workflow_dispatch]
+################################################################################
+# Please only run this action after making sure that the shoter benchmarks
+# (defined in benchmark.yml) all run correctly and show no major regressions.
+#
+# Please be conscious of multiple queued actions, as they run sychronously on
+# one machine.
+################################################################################
 
+on: [pull_request, workflow_dispatch]
 jobs:
   benchmark:
     name: Benchmark
@@ -54,12 +61,9 @@ jobs:
       #       bash
       #     cache-environment: true
       #     post-cleanup: "all"
-      # - name: Environment setup
-      #   run: |
-      #     micromamba activate gtsfm-v1
-      #     micromamba list
-      #     pip install -e .
-      #     ./download_model_weights.sh
+      - name: Download third-party weights
+        run: |
+          ./download_model_weights.sh
       - name: Prepare dataset
         run: |
           DATASET_NAME=${{ matrix.config_dataset_info[1] }}
@@ -79,7 +83,6 @@ jobs:
           pwd
           micromamba activate gtsfm-v1
           micromamba list
-          pip install -e .
           bash .github/scripts/execute_single_benchmark.sh \
             $DATASET_NAME \
             $CONFIG_NAME \
@@ -88,7 +91,6 @@ jobs:
             $LOADER_NAME \
             $MAX_RESOLUTION \
             $SHARE_INTRINSICS
-
       - name: Archive dataset metrics, plots, and output data (camera poses + points)
         uses: actions/upload-artifact@v3
         with:
