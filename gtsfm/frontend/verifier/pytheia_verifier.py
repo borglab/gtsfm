@@ -112,6 +112,7 @@ class PyTheiaVerifier(VerifierBase):
         options.estimate_twoview_info_options.expected_ransac_confidence = RANSAC_SUCCESS_PROB
         options.estimate_twoview_info_options.max_ransac_iterations = 10000
         options.estimate_twoview_info_options.use_lo = True
+        options.estimate_twoview_info_options.use_mle = False
         options.estimate_twoview_info_options.ransac_type = pt.sfm.RansacType(0)
 
         # Verify!
