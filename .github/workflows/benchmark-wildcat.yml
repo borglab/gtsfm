@@ -10,10 +10,18 @@ jobs:
       # Prevents other configs from being canceled if one of them fails.
       fail-fast: false
       matrix:
-        config_dataset_info:
-          [
+        config_dataset_info: [
             # config                     dataset    lookahead    img-extension  source  loader      max-res  share-intrinsics
-            [deep_front_end,           skydio-501,            15,  jpg,  wget,       colmap-loader,  760, true],
+            [
+              deep_front_end,
+              skydio-501,
+              15,
+              jpg,
+              wget,
+              colmap-loader,
+              760,
+              true,
+            ],
           ]
     defaults:
       run:
@@ -35,11 +43,12 @@ jobs:
       - uses: mamba-org/setup-micromamba@v1
         with:
           micromamba-version: "1.3.1-0"
+          generate-run-shell: false
           environment-file: environment_linux.yml
           init-shell: >-
             bash
           cache-environment: true
-          post-cleanup: 'all'
+          post-cleanup: "all"
       - name: Environment setup
         run: |
           bash .github/scripts/setup.sh
