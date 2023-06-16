@@ -77,6 +77,7 @@ jobs:
           MAX_RESOLUTION=${{ matrix.config_dataset_info[6] }}
           SHARE_INTRINSICS=${{ matrix.config_dataset_info[7] }}
           pwd
+          micromamba activate gtsfm-v1
           micromamba list
           pip install -e .
           bash .github/scripts/execute_single_benchmark.sh \
