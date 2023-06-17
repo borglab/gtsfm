@@ -31,6 +31,12 @@ SceneOptimizer:
       use_intrinsics_in_verification: False
       estimation_threshold_px: 0.5 # for H/E/F estimators
 
+    triangulation_options:
+      _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
+      mode:
+        _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
+        value: NO_RANSAC
+
     inlier_support_processor:
       _target_: gtsfm.two_view_estimator.InlierSupportProcessor
       min_num_inliers_est_model: 15

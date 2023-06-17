@@ -40,6 +40,12 @@ SceneOptimizer:
       use_intrinsics_in_verification: True
       estimation_threshold_px: 4 # for H/E/F estimators
 
+    triangulation_options:
+      _target_: gtsfm.data_association.point3d_initializer.TriangulationOptions
+      mode:
+        _target_: gtsfm.data_association.point3d_initializer.TriangulationSamplingMode
+        value: NO_RANSAC
+
     inlier_support_processor:
       _target_: gtsfm.two_view_estimator.InlierSupportProcessor
       min_num_inliers_est_model: 15
@@ -78,6 +84,9 @@ SceneOptimizer:
       reproj_error_thresholds: [10, 5, 3] # for (multistage) post-optimization filtering
       robust_measurement_noise: True
       shared_calib: False
+      cam_pose3_prior_noise_sigma: 0.1
+      calibration_prior_noise_sigma: 1e-5
+      measurement_noise_sigma: 1.0
 
   # comment out to not run
   dense_multiview_optimizer:
