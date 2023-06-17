@@ -76,9 +76,9 @@ class D2NetDetDesc(DetectorDescriptorBase):
 
         # Choose the top K keypoints and descriptors.
         ordered_idxs = np.argsort(-scores)[: self.max_keypoints]
-        keypoints = keypoints[ordered_idxs, :].detach().cpu().numpy()
-        descriptors = descriptors[ordered_idxs, :].detach().cpu().numpy()
-        scores = scores[ordered_idxs].detach().cpu().numpy()
+        keypoints = keypoints[ordered_idxs, :]
+        descriptors = descriptors[ordered_idxs, :]
+        scores = scores[ordered_idxs]
 
         # Rescale keypoint coordinates from resized image scale, back to provided input image resolution.
         keypoints[:, 0] *= fact_i
