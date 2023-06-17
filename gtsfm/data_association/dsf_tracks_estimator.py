@@ -43,8 +43,8 @@ class DsfTracksEstimator(TracksEstimatorBase):
         """
         # check to ensure dimensions of coordinates are correct
         # dims_valid = all([kps.coordinates.ndim == 2 for kps in keypoints_list])
-        if not dims_valid:
-            raise Exception("Dimensions for Keypoint coordinates incorrect. Array needs to be 2D")
+        # if not dims_valid:
+        #     raise Exception("Dimensions for Keypoint coordinates incorrect. Array needs to be 2D")
 
         # Generate the DSF to form tracks
         dsf = gtsam.DSFMapIndexPair()
