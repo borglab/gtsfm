@@ -287,7 +287,7 @@ class DataAssociation(GTSFMProcess):
             tracks_2d: list of tracks wrapped up as Delayed.
             cameras_gt: a list of cameras with ground truth params, if they exist.
             relative_pose_priors: pose priors on the relative pose between camera poses.
-            images_graph: a list of all images in scene (optional and only for track patch visualization)
+            images: a list of all images in scene (optional and only for track patch visualization)
 
         Returns:
             ba_input_graph: GtsfmData object wrapped up using dask.delayed
