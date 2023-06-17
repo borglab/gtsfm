@@ -131,7 +131,7 @@ class MobilebrickLoader(LoaderBase):
         else:
             # 0.8 is better than the default factor of 1.2 for this dataset, but it has not been fully tuned.
             return io_utils.load_image(self._image_paths[index]).get_intrinsics_from_exif(
-                default_focal_length_factor=1.2
+                default_focal_length_factor=0.8
             )
 
     def get_camera_pose(self, index: int) -> Optional[Pose3]:
