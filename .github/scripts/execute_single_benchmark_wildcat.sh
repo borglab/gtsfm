@@ -51,7 +51,7 @@ elif [ "$LOADER_NAME" == "colmap-loader" ]; then
     --max_resolution ${MAX_RESOLUTION} \
     ${SHARE_INTRINSICS_ARG} \
     --correspondence_generator_config_name loftr.yaml \
-    --num_workers 2 \
+    --num_workers 1 \
     --mvs_off
 
 elif [ "$LOADER_NAME" == "astrovision" ]; then
