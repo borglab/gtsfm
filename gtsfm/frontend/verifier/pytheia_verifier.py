@@ -13,7 +13,7 @@ from gtsfm.frontend.verifier.verifier_base import VerifierBase, NUM_MATCHES_REQ_
 from gtsfm.common.keypoints import Keypoints
 
 RANSAC_SUCCESS_PROB = 0.999999
-RANSAC_MAX_ITERS = 1000000
+RANSAC_MAX_ITERS = 100000
 
 
 class PyTheiaVerifier(VerifierBase):
@@ -110,7 +110,7 @@ class PyTheiaVerifier(VerifierBase):
 
         options.estimate_twoview_info_options.max_sampson_error_pixels = 3.0
         options.estimate_twoview_info_options.expected_ransac_confidence = RANSAC_SUCCESS_PROB
-        options.estimate_twoview_info_options.max_ransac_iterations = 10000
+        options.estimate_twoview_info_options.max_ransac_iterations = RANSAC_MAX_ITERS
         options.estimate_twoview_info_options.use_lo = True
         options.estimate_twoview_info_options.use_mle = True
         options.estimate_twoview_info_options.ransac_type = pt.sfm.RansacType(0)
