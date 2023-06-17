@@ -159,8 +159,8 @@ debug/
 plots/
 results/
 result_metrics/
-visual_comparison_dashboard.html
-visual_comparison_dashboard.zip
+*.html
+*.zip
 
 #React Folders/Files to be Ignored
 #   node_modules and .eslintcache are auto generated when a user runs the 

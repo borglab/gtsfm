@@ -12,6 +12,7 @@ import gtsfm.utils.geometry_comparisons as comp_utils
 import gtsfm.utils.io as io_utils
 from gtsfm.common.keypoints import Keypoints
 from gtsfm.two_view_estimator import TwoViewEstimator
+from gtsfm.data_association.point3d_initializer import TriangulationOptions, TriangulationSamplingMode
 
 GTSAM_EXAMPLE_FILE = "5pointExample1.txt"
 EXAMPLE_DATA = io_utils.read_bal(gtsam.findExampleDataFile(GTSAM_EXAMPLE_FILE))
@@ -39,26 +40,32 @@ class TestTwoViewEstimator(unittest.TestCase):
         self.keypoints_i2 = Keypoints(normalized_coordinates_i2)
         self.corr_idxs = np.hstack([np.arange(5).reshape(-1, 1)] * 2)
 
+        self.two_view_estimator = TwoViewEstimator(
+            verifier=None,
+            triangulation_options=TriangulationOptions(mode=TriangulationSamplingMode.NO_RANSAC),
+            inlier_support_processor=None,
+            bundle_adjust_2view=True,
+            eval_threshold_px=4,
+        )
+
     def test_two_view_correspondences(self):
         """Tests the bundle adjustment for relative pose on a simulated scene."""
-
         i1Ri2 = EXAMPLE_DATA.get_camera(1).pose().rotation()
         i1ti2 = EXAMPLE_DATA.get_camera(1).pose().translation()
         i2Ti1 = Pose3(i1Ri2, i1ti2)
-        camera_i1 = PinholeCameraCal3Bundler(Pose3(), Cal3Bundler())
-        camera_i2 = PinholeCameraCal3Bundler(i2Ti1, Cal3Bundler())
-        tracks_3d, valid_indices = TwoViewEstimator.triangulate_two_view_correspondences(
-            camera_i1, camera_i2, self.keypoints_i1, self.keypoints_i2, self.corr_idxs
+        cameras = {
+            0: PinholeCameraCal3Bundler(Pose3(), Cal3Bundler()),
+            1: PinholeCameraCal3Bundler(i2Ti1, Cal3Bundler()),
+        }
+
+        tracks_3d, valid_indices = self.two_view_estimator.triangulate_two_view_correspondences(
+            cameras, self.keypoints_i1, self.keypoints_i2, self.corr_idxs
         )
         self.assertEqual(len(tracks_3d), 5)
         self.assertEqual(len(valid_indices), 5)
 
     def test_bundle_adjust(self):
         """Tests the bundle adjustment for relative pose on a simulated scene."""
-        two_view_estimator = TwoViewEstimator(
-            verifier=None, inlier_support_processor=None, bundle_adjust_2view=True, eval_threshold_px=4
-        )
-
         # Extract example poses.
         i1Ri2 = EXAMPLE_DATA.get_camera(1).pose().rotation()
         i1ti2 = EXAMPLE_DATA.get_camera(1).pose().translation()
@@ -66,7 +73,7 @@ class TestTwoViewEstimator(unittest.TestCase):
         i2Ei1 = EssentialMatrix(i2Ti1.rotation(), Unit3(i2Ti1.translation()))
 
         # Perform bundle adjustment.
-        i2Ri1_optimized, i2Ui1_optimized, corr_idxs = two_view_estimator.bundle_adjust(
+        i2Ri1_optimized, i2Ui1_optimized, corr_idxs = self.two_view_estimator.bundle_adjust(
             keypoints_i1=self.keypoints_i1,
             keypoints_i2=self.keypoints_i2,
             verified_corr_idxs=self.corr_idxs,
