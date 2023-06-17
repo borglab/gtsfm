@@ -108,7 +108,7 @@ class PyTheiaVerifier(VerifierBase):
         options.bundle_adjustment = False
         # options.triangulation_max_reprojection_error = self._estimation_threshold_px
 
-        options.estimate_twoview_info_options.max_sampson_error_pixels = 6.0
+        options.estimate_twoview_info_options.max_sampson_error_pixels = 3.0
         options.estimate_twoview_info_options.expected_ransac_confidence = RANSAC_SUCCESS_PROB
         options.estimate_twoview_info_options.max_ransac_iterations = 10000
         options.estimate_twoview_info_options.use_lo = True
