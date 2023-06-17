@@ -22,12 +22,14 @@ class GtsfmRunnerOneDSFMLoader(GtsfmRunnerBase):
         parser = super(GtsfmRunnerOneDSFMLoader, self).construct_argparser()
         parser.add_argument("--dataset_root", type=str, default="", help="")
         parser.add_argument("--image_extension", type=str, default="jpg", help="")
+        parser.add_argument("--enable_no_exif", type=bool, default=False, help="")
         return parser
 
     def construct_loader(self) -> LoaderBase:
         loader = OneDSFMLoader(
             folder=self.parsed_args.dataset_root,
             image_extension=self.parsed_args.image_extension,
+            enable_no_exif=self.parsed_args.enable_no_exif,
         )
         return loader
 
