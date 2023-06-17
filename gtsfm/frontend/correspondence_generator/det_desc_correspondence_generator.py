@@ -24,7 +24,7 @@ class DetDescCorrespondenceGenerator(CorrespondenceGeneratorBase):
         self._detector_descriptor = detector_descriptor
         self._matcher = matcher
 
-    def apply(
+    def generate_correspondences_and_estimate_two_view(
         self,
         client: Client,
         images: List[Image],

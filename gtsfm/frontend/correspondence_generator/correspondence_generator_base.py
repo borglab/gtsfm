@@ -18,7 +18,7 @@ class CorrespondenceGeneratorBase:
     """Base class for correspondence generators."""
 
     @abstractmethod
-    def apply(
+    def generate_correspondences_and_estimate_two_view(
         self,
         client: Client,
         images: List[Image],

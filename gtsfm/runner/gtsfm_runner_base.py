@@ -231,7 +231,10 @@ class GtsfmRunnerBase:
         intrinsics = [self.loader.get_camera_intrinsics(i) for i in range(len(self.loader))]
 
         with performance_report(filename="correspondence-generator-dask-report.html"):
-            keypoints_list, two_view_results_dict = self.scene_optimizer.correspondence_generator.apply(
+            (
+                keypoints_list,
+                two_view_results_dict,
+            ) = self.scene_optimizer.correspondence_generator.generate_correspondences_and_estimate_two_view(
                 client,
                 images,
                 image_pair_indices,
