@@ -156,6 +156,8 @@ class Image(NamedTuple):
 
         # Initialize focal length by `default_focal_length_factor * max(width, height)`.
         focal_length_px = default_focal_length_factor * max(self.width, self.height)
+        if focal_length_px <= 0.0:
+            raise ValueError("Focal length must be positive value.")
 
         return Cal3Bundler(
             fx=float(focal_length_px),
