@@ -309,13 +309,15 @@ class TwoViewEstimator:
     def verify_with_coarse_focal_estimation(
         self, intrinsics_i1, intrinsics_i2, keypoints_i1, keypoints_i2, putative_corr_idxs
     ) -> True:
+        (
+            best_pre_ba_i2Ri1,
+            best_pre_ba_i2Ui1,
+            best_pre_ba_v_corr_idxs,
+            best_pre_ba_inlier_ratio_wrt_estimate,
+        ) = self._verifier.verify(keypoints_i1, keypoints_i2, putative_corr_idxs, intrinsics_i1, intrinsics_i2)
         f_range = np.linspace(start=0.5, stop=2.0, num=30)
-        best_pre_ba_inlier_ratio_wrt_estimate = 0.0
-        best_pre_ba_i2Ri1 = None
-        best_pre_ba_i2Ui1 = None
-        best_pre_ba_v_corr_idxs = None
-        best_intrin_i1 = None
-        best_intrin_i2 = None
+        best_intrin_i1 = intrinsics_i1
+        best_intrin_i2 = intrinsics_i2
         for f1 in f_range:
             new_f_i1 = intrinsics_i1.fx() * f1
             new_f_i2 = intrinsics_i2.fx() * f1
