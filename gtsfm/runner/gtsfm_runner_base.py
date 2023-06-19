@@ -17,12 +17,11 @@ from omegaconf import OmegaConf
 
 import gtsfm.utils.logger as logger_utils
 from gtsfm.common.gtsfm_data import GtsfmData
-
 from gtsfm.frontend.correspondence_generator.image_correspondence_generator import ImageCorrespondenceGenerator
 from gtsfm.loader.loader_base import LoaderBase
 from gtsfm.retriever.retriever_base import ImageMatchingRegime
 from gtsfm.scene_optimizer import SceneOptimizer
-from gtsfm.two_view_estimator import TwoViewEstimationReport
+from gtsfm.two_view_estimator import TwoViewEstimationReport, TWO_VIEW_OUTPUT
 from gtsfm.ui.process_graph_generator import ProcessGraphGenerator
 
 logger = logger_utils.get_logger()
@@ -245,29 +244,14 @@ class GtsfmRunnerBase:
                 two_view_estimator=self.scene_optimizer.two_view_estimator,
             )
 
-        i2Ri1_dict: Dict[Tuple[int, int], Rot3] = {}
-        i2Ui1_dict: Dict[Tuple[int, int], Unit3] = {}
-        v_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray] = {}
-        two_view_reports_post_isp: Dict[Tuple[int, int], TwoViewEstimationReport] = {}
-
-        for (i1, i2), two_view_output in two_view_results_dict.items():
-            i2Ri1 = two_view_output[0]
-            i2Ui1 = two_view_output[1]
-            if i2Ri1 is None:
-                continue
-
-            assert i2Ui1
-            i2Ri1_dict[(i1, i2)] = i2Ri1
-            i2Ui1_dict[(i1, i2)] = i2Ui1
-            v_corr_idxs_dict[(i1, i2)] = two_view_output[2]
-            two_view_reports_post_isp[(i1, i2)] = two_view_output[5]
+        i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports_dict = unzip_two_view_results(two_view_results_dict)
 
         delayed_sfm_result, delayed_io = self.scene_optimizer.create_computation_graph(
             keypoints_list=keypoints_list,
             i2Ri1_dict=i2Ri1_dict,
             i2Ui1_dict=i2Ui1_dict,
             v_corr_idxs_dict=v_corr_idxs_dict,
-            two_view_reports=two_view_reports_post_isp,
+            two_view_reports=two_view_reports_dict,
             num_images=len(self.loader),
             images=images,
             camera_intrinsics=intrinsics,
@@ -285,3 +269,31 @@ class GtsfmRunnerBase:
         end_time = time.time()
         duration_sec = end_time - start_time
         logger.info("GTSFM took %.2f minutes to compute sparse multi-view result.", duration_sec / 60)
+
+
+def unzip_two_view_results(
+    two_view_results: Dict[Tuple[int, int], TWO_VIEW_OUTPUT]
+) -> Tuple[
+    Dict[Tuple[int, int], Rot3],
+    Dict[Tuple[int, int], Unit3],
+    Dict[Tuple[int, int], np.ndarray],
+    Dict[Tuple[int, int], TwoViewEstimationReport],
+]:
+    """Unzip the tuple TWO_VIEW_OUTPUT into 1 dictionary for 1 element in the tuple."""
+    i2Ri1_dict: Dict[Tuple[int, int], Rot3] = {}
+    i2Ui1_dict: Dict[Tuple[int, int], Unit3] = {}
+    v_corr_idxs_dict: Dict[Tuple[int, int], np.ndarray] = {}
+    two_view_reports_dict: Dict[Tuple[int, int], TwoViewEstimationReport] = {}
+
+    for (i1, i2), two_view_output in two_view_results.items():
+        i2Ri1 = two_view_output[0]
+        i2Ui1 = two_view_output[1]
+        if i2Ri1 is None or i2Ui1 is None:
+            continue
+
+        i2Ri1_dict[(i1, i2)] = i2Ri1
+        i2Ui1_dict[(i1, i2)] = i2Ui1
+        v_corr_idxs_dict[(i1, i2)] = two_view_output[2]
+        two_view_reports_dict[(i1, i2)] = two_view_output[5]
+
+    return i2Ri1_dict, i2Ui1_dict, v_corr_idxs_dict, two_view_reports_dict
